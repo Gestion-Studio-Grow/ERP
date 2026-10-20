@@ -96,6 +96,7 @@ const BloqueTurno = memo(function BloqueTurno({
           onMenu(celda.id, teclado ? r.left + 8 : e.clientX, teclado ? r.top + 24 : e.clientY);
         }}
         onPointerDown={(e) => {
+          largo.current.abrio = false;
           if (e.pointerType !== "touch") return;
           const { clientX: x, clientY: y } = e;
           largo.current.timer = setTimeout(() => {
@@ -106,7 +107,6 @@ const BloqueTurno = memo(function BloqueTurno({
         onPointerUp={soltar}
         onPointerLeave={soltar}
         onPointerCancel={soltar}
-        aria-haspopup="menu"
         aria-label={`${celda.etiqueta}. Abrir la cuenta del turno (clic derecho: acciones rápidas)`}
         aria-current={activo ? "true" : undefined}
         className={cn(
@@ -197,7 +197,7 @@ function MenuDelTurno({ id, x, y, opciones, onElegir, onCerrar }: { id: string; 
       aria-label="Acciones rápidas del turno"
       data-ui="menu-del-turno"
       onKeyDown={(e) => {
-        if (e.key === "Escape") {
+        if (e.key === "Escape" || e.key === "Tab") {
           e.preventDefault();
           cerrar();
         } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -347,6 +347,8 @@ export default function AgendaCanchas({
       const id = menu?.id;
       setMenu(null);
       if (!id) return;
+      // El foco vuelve al turno (si la acción lo saca de la grilla, queda en la cuenta que se abre).
+      requestAnimationFrame(() => document.getElementById(`turno-${id}`)?.focus());
       const accion = o.accion;
       if (accion === "ver") return onAbrir(id);
       almacen.ejecutar((e, ahora, auth) => ejecutar(e, id, { tipo: accion }, ahora, auth), { deshacible: DESHACIBLE[accion] });

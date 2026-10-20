@@ -27,6 +27,8 @@ export default function PaletaDelClub({
   onCerrar: () => void;
 }) {
   const dialogo = useRef<HTMLDialogElement>(null);
+  // Al cerrar, el foco vuelve a donde estaba (el <dialog> lo devuelve solo si nada lo movió).
+  const previo = useRef<Element | null>(typeof document === "undefined" ? null : document.activeElement);
   const [texto, setTexto] = useState("");
   const [activo, setActivo] = useState(0);
   const id = useId();
@@ -43,6 +45,7 @@ export default function PaletaDelClub({
     const it = items[n];
     if (!it) return;
     onCerrar();
+    if (previo.current instanceof HTMLElement && previo.current.isConnected) previo.current.focus();
     onElegir(it.accion);
   };
   const alTeclear = (e: React.KeyboardEvent) => {
@@ -84,8 +87,11 @@ export default function PaletaDelClub({
           onKeyDown={alTeclear}
           className="h-12 w-full border-b border-line bg-transparent px-4 text-base text-strong outline-none placeholder:text-faint"
         />
+        <p role="status" aria-live="polite" className={items.length === 0 ? "px-4 py-3 text-sm text-muted" : "sr-only"}>
+          {items.length === 0 ? `No encontré nada con «${texto}».` : `${items.length} resultado${items.length === 1 ? "" : "s"}`}
+        </p>
         <ul id={`${id}-lista`} role="listbox" aria-label="Resultados" className="max-h-[50vh] overflow-y-auto p-1">
-          {items.length === 0 && <li className="px-3 py-3 text-sm text-muted">No encontré nada con «{texto}».</li>}
+
           {items.map((it, n) => (
             <li
               key={it.clave}
@@ -94,7 +100,7 @@ export default function PaletaDelClub({
               aria-selected={n === i}
               onMouseEnter={() => setActivo(n)}
               onClick={() => elegir(n)}
-              className={cn("flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-3 text-sm", n === i && "bg-accent-soft")}
+              className={cn("flex min-h-11 cursor-pointer items-center gap-3 rounded-md border-l-4 px-3 text-sm", n === i ? "border-accent bg-accent-soft" : "border-transparent")}
             >
               <span className="w-16 shrink-0 text-xs uppercase tracking-wide text-muted">{it.grupo}</span>
               <span className="min-w-0 flex-1 truncate font-semibold text-strong">{it.titulo}</span>

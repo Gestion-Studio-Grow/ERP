@@ -61,6 +61,7 @@ import {
   crearFijo,
   diaSemana,
   NOMBRE_DIA,
+  sumarDias,
 } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, Cliente, Cuenta, EstadoClub, EstadoReserva, Medio, Resultado } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
@@ -429,6 +430,8 @@ export function ejecutar(estado: EstadoClub, reservaId: string, accion: AccionCu
       // El turno pasa a ser el primero del fijo (así no se baja dos veces) y los próximos se bajan a la agenda.
       const r = reservaDe(estado, reservaId);
       if (!r || r.tipo !== "turno" || r.fijoId) return { ok: false, mensaje: "Ese turno no se puede hacer fijo." };
+      // Los fijos se bajan desde hoy por una semana: más lejos aparecería uno antes de la fecha elegida (Gate).
+      if (r.fecha > sumarDias(ahora.fecha, 6)) return { ok: false, mensaje: "Hacelo fijo desde la agenda de esa semana." };
       const f = crearFijo(estado, { clienteId: r.clienteId ?? null, canchaId: r.canchaId, dia: diaSemana(r.fecha), inicio: r.inicio, duracion: r.duracion, titular: r.titular });
       r.tipo = "fijo";
       r.fijoId = f.id;

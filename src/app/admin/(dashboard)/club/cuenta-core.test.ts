@@ -608,3 +608,14 @@ test("«Hacer fijo» desde el turno: un toque, el mismo día, hora y cancha; no 
   assert.equal(cuenta(e, r.id).cierres.hacerFijo, null, "ya es fijo: no se ofrece de nuevo");
   assert.equal(DESHACIBLE.hacerFijo, false);
 });
+
+test("«Hacer fijo» de un turno a más de una semana se rechaza: no aparece un fijo antes de la fecha elegida (Gate)", () => {
+  const e = demo();
+  const lejos = M.sumarDias(HOY, 10);
+  const res = M.crearReserva(e, { canchaId: "c1", fecha: lejos, inicio: 10 * 60, titular: "Lejano" }, AHORA);
+  assert.ok(res.ok, res.motivo);
+  const fijosAntes = e.fijos.length;
+  const r = ejecutar(e, res.reserva.id, { tipo: "hacerFijo" }, AHORA);
+  assert.equal(r.ok, false);
+  assert.equal(e.fijos.length, fijosAntes);
+});

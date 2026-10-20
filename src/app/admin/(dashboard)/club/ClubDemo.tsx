@@ -35,7 +35,7 @@
 import { Suspense, createElement, lazy, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
 import { cn } from "@/components/ui/cn";
 import { Button } from "@/components/ui/Button";
-import { pesos, reserva as reservaDe, resumenCaja, sumarDias } from "@/lib/club/motor.mjs";
+import { hhmm, pesos, reserva as reservaDe, resumenCaja, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { candadoDeLaJornada, claveDeLaDemo, claveDeLaJornada, crearAlmacen, type Almacen, type AlmacenamientoLocal, type GuardadoDelClub, type RolDelPanel } from "./almacen";
 import CintaDelClub from "./CintaDelClub";
@@ -305,12 +305,12 @@ function AccesosDeLaAgenda({ almacen, onIr }: { almacen: Almacen; onIr: (s: Sola
  */
 const losDosDeLaCaja = (e: EstadoClub) => {
   const c = resumenCaja(e);
-  return `${c.efectivoEsperado}|${c.ingresos}`;
+  return `${c.efectivoEsperado}|${c.ingresos}|${e.config.corteCaja}`;
 };
 const igualTexto = (_: string | undefined, nuevo: string) => nuevo;
 function CajaDelDia({ almacen, onVer }: { almacen: Almacen; onVer: () => void }) {
   const visibles = useSolapasVisibles(almacen);
-  const [efectivo, ingresos] = useSeleccion(almacen, losDosDeLaCaja, igualTexto).split("|").map(Number);
+  const [efectivo, ingresos, corte] = useSeleccion(almacen, losDosDeLaCaja, igualTexto).split("|").map(Number);
   if (!visibles.some((s) => s.id === "caja")) return null;
   return (
     <section aria-labelledby="club-mini-caja" data-ui="caja-del-dia" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
@@ -328,7 +328,7 @@ function CajaDelDia({ almacen, onVer }: { almacen: Almacen; onVer: () => void })
         <dt className="text-body">Ingresos</dt>
         <dd className="text-right font-semibold text-strong">{pesos(ingresos)}</dd>
       </dl>
-      <p className="text-xs text-muted">La caja corre de 12:00 a 12:00.</p>
+      <p className="text-xs text-muted">La caja corre de {hhmm(corte)} a {hhmm(corte)}.</p>
     </section>
   );
 }
