@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getPosData } from "@/lib/order-actions";
+import { balanzaDeVender } from "../vender/balanza.server";
 import { fmtMoneyARS, EmptyState, ButtonLink, buttonClasses, atributosBoton } from "@/components/ui";
 import { fmtShortDate, todayInBusinessTz, dateStrInBusinessTz } from "@/lib/datetime";
 import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
@@ -102,6 +103,23 @@ export default async function PedidosPage() {
   const avisoDePedidos = comercio && vocab.porPeso
     ? <AvisoDePedidosNuevos pedidosWeb={abiertos.filter((o) => o.channel === "ONLINE").map((o) => ({ id: o.id, code: o.code }))} />
     : null;
+
+  // La etiqueta de la balanza en el POS de esta pantalla (el que usa MAGRA desde el celular): la
+  // misma regla que en Vender (vender/balanza.server.ts), sólo en comercio y con el POS a la vista.
+  // Los códigos viajan al navegador sólo si hay balanza configurada.
+  let productosDelPos: typeof products & { codigo?: string | null }[] = products;
+  let balanza: Awaited<ReturnType<typeof balanzaDeVender>> = null;
+  if (comercio && !modeloNuevo && products.length > 0) {
+    const tenantId = await getCurrentTenantId();
+    const codigos = await prisma.product.findMany({
+      where: { tenantId, id: { in: products.map((p) => p.id) } },
+      select: { id: true, codigo: true },
+    });
+    const codigoDe = new Map(codigos.map((c) => [c.id, c.codigo]));
+    const conCodigo = products.map((p) => ({ ...p, codigo: codigoDe.get(p.id) ?? null }));
+    balanza = await balanzaDeVender(tenantId, conCodigo, user.role);
+    if (balanza) productosDelPos = conCodigo;
+  }
 
   // Los servicios del mostrador crean un TURNO, así que se ofrecen sólo a quien puede
   // gestionar agenda (OWNER y RECEPCIÓN), y sólo en un negocio de servicios: en un comercio la
@@ -234,7 +252,8 @@ export default async function PedidosPage() {
             <MostradorEnCajon servicios={!comercio}>
               <MostradorTabs
                 viewer={{ role: user.role, professionalId: user.professionalId }}
-                products={products}
+                products={productosDelPos}
+                balanza={balanza}
                 stockById={stockSnap?.stockById ?? {}}
                 professionals={professionals}
                 conServicios={!comercio}
@@ -336,7 +355,8 @@ export default async function PedidosPage() {
 
           <MostradorTabs
             viewer={{ role: user.role, professionalId: user.professionalId }}
-            products={products}
+            products={productosDelPos}
+            balanza={balanza}
             stockById={stockSnap?.stockById ?? {}}
             professionals={professionals}
             conServicios={!comercio}

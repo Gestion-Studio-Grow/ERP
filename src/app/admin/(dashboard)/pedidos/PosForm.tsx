@@ -14,6 +14,7 @@ import {
   formatearCantidad,
 } from "@/lib/pos-peso";
 import { lineaSinCantidad, motivoDeLineaSinCantidad } from "../vender/reglas-venta";
+import CampoEtiqueta, { ID_CAMPO_ETIQUETA, type BalanzaDeVender } from "../vender/CampoEtiqueta";
 import { useToast } from "../ToastProvider";
 import { useVocabulario } from "../VocabularioDelNegocio";
 
@@ -25,6 +26,8 @@ type SellableProduct = {
   price: number | null;
   pricePerKg: number | null;
   unit: string;
+  /** Código de barras o PLU de la balanza; sólo viaja con la balanza configurada. */
+  codigo?: string | null;
 };
 
 // Una línea del ticket en construcción.
@@ -100,12 +103,18 @@ const CLIENTE_VACIO = { customerName: "", customerPhone: "", scheduledFor: "", a
 export default function PosForm({
   products,
   stockById,
+  balanza = null,
 }: {
   products: SellableProduct[];
   // Stock y flag de control por producto (getPosStockSnapshot): lo que permite avisar
   // el faltante ANTES de mandar la venta. Puede faltar un id (producto recién borrado):
   // en ese caso no se bloquea acá y decide la guarda del server.
   stockById: Record<string, PosStockInfo>;
+  /**
+   * La etiqueta de la balanza (el mismo campo que Vender): sólo en un comercio con el formato de
+   * su balanza guardado. Sin esto, la pantalla de siempre (CH).
+   */
+  balanza?: BalanzaDeVender | null;
 }) {
   const { showError, showSuccess } = useToast();
   // "Retira en el local" o "Punto de encuentro", y el ejemplo de la nota: del rubro (layout), no de
@@ -184,6 +193,20 @@ export default function PosForm({
     setNextKey((k) => k + 1);
     return key;
   }
+  // La etiqueta leída entra como si se eligiera en el buscador, con el peso (o la cantidad) ya
+  // puesto. Completa, el foco vuelve al campo para la próxima etiqueta; si falta el peso (se tipeó
+  // el PLU de un corte por kilo), va a ese peso.
+  function cargarLectura(productId: string, qtyText: string) {
+    const vacia = lines.find((l) => !l.productId);
+    const key = vacia ? vacia.key : addLine();
+    setLine(key, { productId, qtyText });
+    pedirFoco(qtyText ? ID_CAMPO_ETIQUETA : `qty-${key}`);
+  }
+  const productosConCodigo = useMemo(
+    () => products.map((p) => ({ id: p.id, name: p.name, codigo: p.codigo ?? null, saleUnit: p.saleUnit, price: p.price, pricePerKg: p.pricePerKg })),
+    [products],
+  );
+
   function removeLine(key: number) {
     setLines((ls) => (ls.length > 1 ? ls.filter((l) => l.key !== key) : ls));
   }
@@ -348,6 +371,8 @@ export default function PosForm({
           </span>
         )}
       </div>
+
+      {balanza && <CampoEtiqueta productos={productosConCodigo} balanza={balanza} alLeer={cargarLectura} />}
 
       {/* Ticket: líneas de venta */}
       <div className="space-y-2">

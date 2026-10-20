@@ -21,37 +21,9 @@ import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { cargarKpi } from "@/apps/kpis/index.server";
 import { LineaDeEstado } from "@/components/ui";
 import type { Role } from "@/lib/capabilities";
-import { prisma } from "@/lib/prisma";
-import { leerConfigCaja } from "@/lib/supermercado/config-repo";
-import { logger } from "@/lib/logger";
 import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
-import type { BalanzaDeVender } from "./CampoEtiqueta";
+import { balanzaDeVender } from "./balanza.server";
 
-/**
- * El campo «Etiqueta de la balanza o código», sólo en un negocio de mostrador que vende por kilo o
- * tiene códigos cargados (CH, de servicios, no lo ve). El formato es el mismo que lee la caja con
- * lector (config-repo.ts); cambiarlo se ofrece sólo a quien puede abrir esa configuración.
- */
-async function balanzaDeVender(
-  tenantId: string,
-  products: { saleUnit: string; codigo: string | null }[],
-  role: Role,
-): Promise<BalanzaDeVender | null> {
-  if (!products.some((p) => p.saleUnit === "WEIGHT" || p.codigo)) return null;
-  // Si la configuración no se puede leer, Vender sigue sin el campo: cobrar no depende de esto.
-  const config = await leerConfigCaja(prisma, tenantId).catch((e) => {
-    logger.error("vender.balanza", "no se pudo leer el formato de la balanza: Vender sigue sin el campo", e);
-    return null;
-  });
-  if (!config) return null;
-  // Sin el formato de la balanza del negocio, el campo no se muestra: leer una etiqueta con un
-  // formato supuesto puede cargar un peso equivocado, y en un negocio en marcha no se muestra nada a
-  // medio confirmar. Se prende cuando se guarda el formato real (Caja con lector → Configuración).
-  if (config.porDefecto) return null;
-  const puedeCaja = await puedeAbrirApp("caja-rapida");
-  const configurar = puedeCaja && roleHasCapability(role, "catalog:manage") ? "/admin/caja-rapida/configuracion" : null;
-  return { formato: config.formato, porDefecto: config.porDefecto, configurar };
-}
 
 /**
  * Diseño nuevo: arriba del ticket, cómo está la caja y cuánto se vendió hoy (los mismos números del
