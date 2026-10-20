@@ -35,7 +35,7 @@
 import { Suspense, createElement, lazy, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
 import { cn } from "@/components/ui/cn";
 import { Button } from "@/components/ui/Button";
-import { reserva as reservaDe } from "@/lib/club/motor.mjs";
+import { reserva as reservaDe, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { candadoDeLaJornada, claveDeLaDemo, claveDeLaJornada, crearAlmacen, type Almacen, type AlmacenamientoLocal, type GuardadoDelClub, type RolDelPanel } from "./almacen";
 import CintaDelClub from "./CintaDelClub";
@@ -489,6 +489,44 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
   const irAArchivar = useCallback(() => {
     if (!irASolapaSiEsta("configuracion")) almacen.informar({ ok: false, mensaje: "Archivar los días cerrados lo hace un dueño: avisale para que entre con su PIN." });
   }, [almacen, irASolapaSiEsta]);
+
+  // Los atajos del club de hoy (app.mjs, «atajos de teclado»): N turno nuevo, C abrir cuenta (Buffet), T volver a
+  // hoy, ←/→ día anterior o siguiente en la agenda, 1–9 las solapas en su orden. Nunca mientras se escribe, con una
+  // ventana abierta, con Ctrl/⌘/Alt, ni con la pantalla bloqueada (L, bloquear, ya lo atiende el bloqueo).
+  useEffect(() => {
+    const alTeclear = (ev: KeyboardEvent) => {
+      const t = ev.target as HTMLElement | null;
+      if (ev.defaultPrevented || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      if (t && (t.matches("input, select, textarea") || t.isContentEditable)) return;
+      if (document.querySelector("dialog[open], [role=dialog], [role=alertdialog], [role=menu]")) return;
+      if (almacen.modo() === "real" && !almacen.operador()) return;
+      const k = ev.key;
+      const visibles = solapasVisibles(almacen);
+      const orden = (() => {
+        const tira = armarTira(visibles, "");
+        return [...tira.principales, ...tira.mas];
+      })();
+      let hizo = true;
+      if (k === "n" || k === "N") {
+        const libre = almacen.estado().canchas.find((c) => c.estado !== "mantenimiento") ?? almacen.estado().canchas[0];
+        if (!libre) return;
+        cambiarSolapa("agenda");
+        setPanel({ tipo: "alta", canchaId: libre.id, inicio: null });
+      } else if ((k === "c" || k === "C") && visibles.some((s) => s.id === "buffet")) cambiarSolapa("buffet");
+      else if (k === "t" || k === "T") {
+        cambiarSolapa("agenda");
+        elegirDia(hoy);
+      } else if ((k === "ArrowLeft" || k === "ArrowRight") && solapa === "agenda" && !t?.closest("[data-celda], [data-agenda='dias'], [role=tablist]")) {
+        const d = sumarDias(dia, k === "ArrowLeft" ? -1 : 1);
+        if (d >= sumarDias(hoy, -1) && d <= sumarDias(hoy, 5)) elegirDia(d);
+        else hizo = false;
+      } else if (/^[1-9]$/.test(k) && orden[Number(k) - 1]) cambiarSolapa(orden[Number(k) - 1].id);
+      else hizo = false;
+      if (hizo) ev.preventDefault();
+    };
+    document.addEventListener("keydown", alTeclear);
+    return () => document.removeEventListener("keydown", alTeclear);
+  }, [almacen, cambiarSolapa, elegirDia, hoy, dia, solapa]);
 
   // Al cambiar quien opera, la cuenta (o el alta) que tenía abierta la persona anterior se cierra (como el vanilla).
   // Sin suscribir a ClubDemo al operador: si no había nada abierto, `setPanel(null)` no repinta.

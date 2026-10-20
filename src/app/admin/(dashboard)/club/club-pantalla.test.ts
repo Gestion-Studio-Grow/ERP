@@ -279,6 +279,24 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.close();
   });
 
+  test("atajos del club de hoy: 2 va a la segunda solapa, T vuelve a la agenda de hoy, N da un turno; escribiendo no", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("2");
+    assert.equal(await page.getByRole("tab", { name: "Buffet" }).getAttribute("aria-selected"), "true");
+    await page.keyboard.press("t");
+    assert.equal(await page.getByRole("tab", { name: "Agenda" }).getAttribute("aria-selected"), "true");
+    await page.keyboard.press("n");
+    await page.getByRole("region", { name: "Dar un turno" }).waitFor();
+    // Escribiendo en un campo, la tecla es texto: no cambia de solapa.
+    await page.getByRole("region", { name: "Dar un turno" }).getByRole("textbox").first().fill("");
+    await page.getByRole("region", { name: "Dar un turno" }).getByRole("textbox").first().press("2");
+    assert.equal(await page.getByRole("tab", { name: "Agenda" }).getAttribute("aria-selected"), "true");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("teclado: las flechas recorren la grilla (misma cancha arriba/abajo, la de al lado con ←/→) y Enter abre la cuenta", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
