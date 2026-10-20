@@ -27,6 +27,8 @@ import { leerSubdominio } from "@/lib/provisioning/slug";
 import { cargarCredencialTenant } from "@/lib/fiscal/tenant-cert";
 import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
 import { operatorSetMustChange } from "@/lib/must-change-password";
+import { altaPersonaCore, type AltaPersonaPort, type AltaPersonaResult } from "@/lib/operador/alta-persona";
+import { decidirAltaDeUsuarioEnTx } from "@/lib/usuarios-del-plan";
 import {
   resetOwnerPasswordCore,
   type OwnerResetPort,
@@ -420,6 +422,43 @@ function operatorResetPort(tx: Prisma.TransactionClient): OwnerResetPort {
       });
     },
   };
+}
+
+// Alta de UNA persona en un negocio desde la consola (ver alta-persona.ts). Todo en la transacción del
+// negocio: el tope del plan, el alta, el cambio forzado y la auditoría quedan todos o ninguno.
+function altaPersonaPort(tx: Prisma.TransactionClient): AltaPersonaPort {
+  return {
+    existeEmail: async (tid, email) => (await tx.user.findFirst({ where: { tenantId: tid, email }, select: { id: true } })) !== null,
+    // `decidirAltaDeUsuarioEnTx` espera la transacción del negocio; ésta lo es (enElNegocio).
+    decidirTope: (tid) => decidirAltaDeUsuarioEnTx(tx as unknown as Parameters<typeof decidirAltaDeUsuarioEnTx>[0], tid),
+    crear: (data) => tx.user.create({ data, select: { id: true } }),
+    setMustChange: (userId, value) => operatorSetMustChange(tx, userId, value),
+    audit: async (entry) => {
+      await tx.auditLog.create({ data: { ...entry, changes: entry.changes as Prisma.InputJsonValue } });
+    },
+  };
+}
+
+export async function altaPersonaDeTenant(
+  tenantId: string,
+  entrada: { name: string; email: string; role: string },
+): Promise<AltaPersonaResult> {
+  const g = await operadorParaNegocio({ id: tenantId });
+  if (!g.ok) return { ok: false, error: g.motivo };
+  const op = g.sesion.nombre;
+  try {
+    const result = await enElNegocio(tenantId, (tx) =>
+      altaPersonaCore(altaPersonaPort(tx), { tenantId, operatorSubject: op, entrada }),
+    );
+    if (result.ok) {
+      revalidatePath(`/operador/tenants/${tenantId}`);
+      revalidatePath("/operador");
+    }
+    return result;
+  } catch {
+    // Carrera de unicidad (otro alta con el mismo email entre el chequeo y el create): no se crea.
+    return { ok: false, error: "No se pudo dar de alta: ese email ya existe en el negocio, o la base rechazó el alta. No se creó nada." };
+  }
 }
 
 export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetResult> {

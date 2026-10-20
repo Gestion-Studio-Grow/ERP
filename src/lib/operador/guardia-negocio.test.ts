@@ -390,6 +390,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/lib/operador/red-locales-actions.ts#revisarAltaEnRedAction",
     "src/lib/operador/red-locales-actions.ts#sumarAltaALaRedAction",
     "src/lib/operador/red-locales-actions.ts#vincularLocalAction",
+    "src/lib/operator-actions.ts#altaPersonaDeTenant",
     "src/lib/operator-actions.ts#cambiarFacturacionReal",
     "src/lib/operator-actions.ts#cargarCredencialFiscal",
     "src/lib/operator-actions.ts#fijarAsignacionActual",
