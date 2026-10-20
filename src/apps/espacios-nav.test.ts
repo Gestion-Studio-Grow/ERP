@@ -49,9 +49,9 @@ test("«Facturas e impuestos» tiene exactamente las apps de los módulos argent
   }
 });
 
-// Los circuitos verticales (taller, inmobiliaria, club de pádel) son excluyentes: un negocio tiene uno
+// Los circuitos verticales (taller, inmobiliaria, club de pádel, clases del profe) son excluyentes: un negocio tiene uno
 // solo, con su módulo propio y `moduloDuro`. En un espacio ocupan UN lugar, no uno cada uno.
-const VERTICALES: ReadonlySet<string> = new Set(["taller", "inmobiliaria", "club"]);
+const VERTICALES: ReadonlySet<string> = new Set(["taller", "inmobiliaria", "club", "padel-clases"]);
 
 test("ningún espacio pasa de 8 apps por rubro con el registro de hoy", () => {
   for (const rubro of ["mostrador", "servicios"] as const) {

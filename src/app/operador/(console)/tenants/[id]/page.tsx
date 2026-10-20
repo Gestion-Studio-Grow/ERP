@@ -53,6 +53,7 @@ import { INTERRUPTORES, interruptorPorId } from "@/cambios/interruptores";
 import { todosApagados } from "@/cambios/interruptores-core";
 import { operadorDuenio } from "@/lib/operator-auth";
 import { ResetOwnerPasswordCard } from "./ResetOwnerPasswordCard";
+import { AltaPersonaCard } from "./AltaPersonaCard";
 import { motivoFueraDelPlan } from "./modulos-y-plan";
 import {
   appsPorModulo,
@@ -1044,8 +1045,9 @@ export default async function FichaDelNegocio({
         tempPending={ownerTempPending}
         soloLectura={soloLectura}
       />
+      <AltaPersonaCard tenantId={t.id} soloLectura={soloLectura} />
       <p className="py-2 text-[13px] text-muted">
-        El resto de las personas las da de alta el dueño desde su panel
+        Después, el dueño puede dar de alta a más personas desde su panel
         (Configuración › Usuarios y permisos).
       </p>
     </Bloque>

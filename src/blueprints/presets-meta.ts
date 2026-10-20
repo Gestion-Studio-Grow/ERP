@@ -108,6 +108,9 @@ const EXPLICIT_BLUEPRINT_MODULES: Record<string, string[]> = {
   // Inmobiliaria: su circuito propio (módulo `inmobiliaria`), la agenda para visitas y
   // tasaciones, los clientes (propietarios, inquilinos, interesados) y la factura de la comisión.
   inmobiliaria: ["inmobiliaria", "agenda", "catalog", "clients", "reminders", "reports", "arca"],
+  // Profe de pádel: su circuito propio (módulo `padel-clases`: turnero, agenda, cobro) y sus
+  // alumnos. Sin `agenda` del motor: una sola agenda, la del profe, para no tener dos.
+  "profe-padel": ["padel-clases", "clients"],
 };
 
 /**

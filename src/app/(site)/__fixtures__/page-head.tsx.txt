@@ -78,6 +78,8 @@ export default async function Home() {
   if (identity.blueprintId === "taller") redirect("/taller");
   // Inmobiliaria: su portada es el sitio de propiedades (src/app/inmobiliaria), no la de turnos.
   if (identity.blueprintId === "inmobiliaria") redirect("/inmobiliaria");
+  // Profe de pádel: su portada es el turnero (src/app/clases), lo que va en la bio de Instagram.
+  if (identity.blueprintId === "profe-padel") redirect("/clases");
 
   // FICHA DE MARCA (RFC-004-D, frente A), detrás de `TENANT_BRAND_SHEET_ENABLED`: con el flag
   // ON, los textos de la landing salen del nombre del tenant en vez de decir "CH". Flag OFF →

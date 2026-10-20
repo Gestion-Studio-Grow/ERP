@@ -57,7 +57,10 @@ try {
       base = "";
     }
   }
-  if (!base) base = git(["rev-parse", "HEAD^"]);
+  // Sin una base confiable NO se adivina: un push puede traer varios commits y mirar sólo el último
+  // esconde el código de los anteriores (pasó el 2026-10-20: un commit de docs con [sin-deploy] al final
+  // de un push con 80 archivos de código canceló el deploy). Ante la duda, se construye.
+  if (!base) construir("no se pudo saber contra qué commit comparar (VERCEL_GIT_PREVIOUS_SHA vacío o ausente del clon)");
 
   const archivos = git(["diff", "--name-only", base, "HEAD"]).split("\n").filter(Boolean);
   if (!archivos.length) construir("no se pudo listar qué cambió");

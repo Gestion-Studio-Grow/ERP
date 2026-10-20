@@ -28,4 +28,10 @@
 # (aplicada a mano ese mismo día, camino B: sale de la lista.)
 # 2026-10-13 (tercera): recibos de alquiler. Aditiva: número de recibo en "InmoPago" (con
 # numeración de los cobros existentes) y configuración del recibo en "InmoConfig".
-20261013210000_inmobiliaria_recibos
+# (aplicada: el build de producción del 17/10, dpl_GKPNeQ2HoWWDRQepPNxHEubp9jJT con rol app_rls, verificó
+# "Base al día: 52 migraciones", que incluye recibos. Sale de la lista.)
+#
+# 2026-10-17: módulo PADEL-CLASES (profe Matías Consoli), con OK explícito del dueño para crear las tablas en
+# Neon y publicar. Aditiva: cinco tablas nuevas con RLS adentro (tenant_isolation) y claves foráneas a "Tenant"
+# y "Client". No agrega ni cambia columnas de ninguna tabla existente.
+20261015120000_modulo_padel_clases

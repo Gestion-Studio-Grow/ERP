@@ -33,6 +33,7 @@ import { tallerModule } from "./descriptors/taller";
 import { inmobiliariaModule } from "./descriptors/inmobiliaria";
 import { terminalModule } from "./descriptors/terminal";
 import { clubModule } from "./descriptors/club";
+import { padelClasesModule } from "./descriptors/padel-clases";
 import { arcaModule } from "@/plugins/arca/module";
 import { bancosModule } from "@/plugins/bancos/module";
 
@@ -56,6 +57,8 @@ export const DESCRIPTORES_CATALOGO = [
   terminalModule,
   // Club de pádel (src/modules/descriptors/club.ts). Al final, como los anteriores.
   clubModule,
+  // Clases de pádel (src/modules/descriptors/padel-clases.ts). Al final, como los anteriores.
+  padelClasesModule,
 ];
 
 /**

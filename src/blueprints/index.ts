@@ -110,10 +110,21 @@ const ALL_RUBRO_HINTS: { id: string; keywords: string[] }[] = [
 export function resolveBlueprint(rubro?: string): BlueprintMatch {
   const normalizedHint = rubro ? normalize(rubro) : "";
   if (normalizedHint) {
+    // Una FRASE de varias palabras le gana a una palabra suelta; entre iguales, el orden de arriba.
+    // Antes ganaba la primera coincidencia, y "profe de padel" caía en la tienda de pádel porque
+    // su palabra suelta "padel" figura antes que la frase "profe de padel" (20/10/2026). Se mide en
+    // PALABRAS y no en letras: por letras, "spa y masajes" dejaba de ser Estética.
+    let mejor: { id: string; palabras: number } | null = null;
     for (const entry of ALL_RUBRO_HINTS) {
-      if (entry.keywords.some((k) => normalizedHint.includes(k))) {
-        return { blueprint: REGISTRY[entry.id], blueprintId: entry.id, matched: true, normalizedHint };
+      for (const k of entry.keywords) {
+        const palabras = k.trim().split(/\s+/).length;
+        if (normalizedHint.includes(k) && (!mejor || palabras > mejor.palabras)) {
+          mejor = { id: entry.id, palabras };
+        }
       }
+    }
+    if (mejor) {
+      return { blueprint: REGISTRY[mejor.id], blueprintId: mejor.id, matched: true, normalizedHint };
     }
   }
   return {

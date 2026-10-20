@@ -232,6 +232,11 @@ model Tenant {
   inmoLiquidaciones        InmoLiquidacion[]
   inmoIndices              InmoIndice[]
   inmoConfig               InmoConfig?
+  padelConfig              PadelConfig? // módulo padel-clases (profe de pádel)
+  padelDisponibilidades    PadelDisponibilidad[]
+  padelAlumnos             PadelAlumno[]
+  padelClases              PadelClase[]
+  padelAvisos              PadelAviso[]
   invoices                 Invoice[]
   outboxEvents             OutboxEvent[]
   orders                   Order[]
@@ -672,6 +677,9 @@ model Client {
   inmoContratosInquilino   InmoContrato[]    @relation("InmoInquilino")
   inmoContratosPropietario InmoContrato[]    @relation("InmoLocador")
   inmoLiquidaciones        InmoLiquidacion[]
+  // Módulo padel-clases: el alumno del profe (su link estable) y sus clases.
+  padelAlumno              PadelAlumno?
+  padelClases              PadelClase[]
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
@@ -2782,4 +2790,131 @@ model InmoConfig {
   plantillas              Json? // { clave: texto } — sólo las que la inmobiliaria editó
   recibo                  Json? // cómo se ven los recibos (src/lib/inmobiliaria/core.ts → ReciboConfig)
   updatedAt               DateTime @updatedAt
+}
+
+// ============================================================================
+// MÓDULO PADEL-CLASES — el turnero y la agenda de un profe de pádel (una persona sola).
+// ============================================================================
+// Tablas propias (patrón taller/inmobiliaria), NO el core de agenda: Appointment exige box,
+// profesional y servicio, y su máquina de estados no distingue "pedida por el alumno" de
+// "confirmada por el profe" ni el comprobante en revisión. Reusa sólo `Client` (ADR-055).
+// Plata en numeric(14,2) (ADR-100). RLS dentro de la migración 20261015120000_modulo_padel_clases.
+
+model PadelConfig {
+  id                  String   @id @default(cuid())
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId            String   @unique
+  duracionMin         Int      @default(60)
+  precioIndividual    Decimal  @default(0) @db.Decimal(14, 2)
+  precioGrupal        Decimal  @default(0) @db.Decimal(14, 2) // por persona
+  aliasCbu            String?
+  titularCuenta       String?
+  anticipacionMin     Int      @default(120) // no se pide con menos de 2 h
+  diasAdelante        Int      @default(14) // el turnero muestra 2 semanas
+  maxPendientesPorTel Int      @default(2) // antispam del turnero público
+  whatsappProfe       String? // el celular del profe para el wa.me del alumno
+  plantillas          Json? // { clave: texto } — sólo las que el profe editó
+  updatedAt           DateTime @updatedAt
+}
+
+// Franja semanal (diaSemana 0..6) o excepción de un día (fecha). tipo DA = da clases;
+// NO = bloqueo (lluvia, viaje): pisa a las franjas semanales de ese día.
+model PadelDisponibilidad {
+  id         String    @id @default(cuid())
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  diaSemana  Int?
+  fecha      DateTime? @db.Date
+  desde      String // "08:00"
+  hasta      String // "12:00"
+  tipo       String    @default("DA") // DA · NO
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId, diaSemana])
+  @@index([tenantId, fecha])
+}
+
+// El alumno = un Client del negocio + su link estable (token) para ver sus clases,
+// repetir la de la semana que viene y mandar el comprobante sin login.
+model PadelAlumno {
+  id           String       @id @default(cuid())
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  client       Client       @relation(fields: [clientId], references: [id])
+  clientId     String       @unique
+  token        String       @unique
+  nivel        String       @default("")
+  notas        String?
+  recibeAvisos Boolean      @default(true)
+  clases       PadelClase[]
+  avisos       PadelAviso[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([tenantId])
+}
+
+model PadelClase {
+  id                   String       @id @default(cuid())
+  tenant               Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId             String
+  alumno               PadelAlumno  @relation(fields: [alumnoId], references: [id])
+  alumnoId             String
+  client               Client       @relation(fields: [clientId], references: [id])
+  clientId             String
+  empiezaEn            DateTime
+  terminaEn            DateTime
+  tipo                 String       @default("INDIVIDUAL") // INDIVIDUAL · GRUPAL
+  personas             Int          @default(1)
+  estado               String       @default("PEDIDA") // PEDIDA · CONFIRMADA · DADA · AUSENTE · RECHAZADA · CANCELADA
+  origen               String       @default("TURNERO") // TURNERO · ALUMNO_LINK · PROFE
+  repiteDe             String? // id de la clase de la que salió ("la semana que viene")
+  precio               Decimal      @default(0) @db.Decimal(14, 2)
+  pagoEstado           String       @default("PENDIENTE") // PENDIENTE · EN_REVISION · PAGADO
+  pagoMedio            String? // EFECTIVO · TRANSFERENCIA · MERCADO_PAGO
+  // JPEG achicado en el teléfono del alumno (lado mayor 1024 px) como data URL: no hay
+  // almacenamiento de archivos y así no cuesta nada (mismo criterio que TallerFoto).
+  comprobante          String?
+  comprobanteEnviadoEl DateTime?
+  pagoValidadoEl       DateTime?
+  pagoNota             String?
+  confirmadaEl         DateTime?
+  rechazadaEl          DateTime?
+  dadaEl               DateTime?
+  canceladaEl          DateTime?
+  motivoCancel         String?
+  avisos               PadelAviso[]
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@index([tenantId, empiezaEn])
+  @@index([tenantId, estado])
+  @@index([tenantId, alumnoId])
+  @@index([tenantId, pagoEstado])
+}
+
+// La bandeja del profe (destino PROFE) y lo que se le avisa al alumno (destino ALUMNO).
+// Hoy el envío al alumno es un link wa.me que el profe toca; con la Cloud API de WhatsApp
+// prendida (PADEL_WHATSAPP=cloud) sale solo y queda el wamid en idExterno.
+model PadelAviso {
+  id         String       @id @default(cuid())
+  tenant     Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  destino    String // PROFE · ALUMNO
+  tipo       String // pedido · cancelacion · comprobante · confirmada · rechazada · pago-ok · pago-no · proxima · respuesta
+  clase      PadelClase?  @relation(fields: [claseId], references: [id], onDelete: SetNull)
+  claseId    String?
+  alumno     PadelAlumno? @relation(fields: [alumnoId], references: [id], onDelete: SetNull)
+  alumnoId   String?
+  texto      String
+  canal      String       @default("APP") // APP · WA_LINK · WA_CLOUD
+  leidoEl    DateTime?
+  enviadoEl  DateTime?
+  errorEnvio String?
+  idExterno  String?
+  createdAt  DateTime     @default(now())
+
+  @@unique([tenantId, idExterno])
+  @@index([tenantId, destino, leidoEl])
+  @@index([tenantId, createdAt])
 }
