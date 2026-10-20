@@ -242,7 +242,7 @@ export function armarCuenta(estado: EstadoClub, reservaId: string): VistaCuenta 
 
   const T = t.totales;
   const cerrarYSeguir = abierto && r.estado === "en_cancha" ? T.cancha : null;
-  const cerrarCargos = !abierto && t.mesa.length > 0 ? T.cargos : null;
+  const cerrarCargos = t.mesaAbierta ? T.cargos : null;
   const deOtraMesa = t.deOtraMesa.length
     ? `No se cobra acá: ${t.deOtraMesa.map((x) => `los cargos de ${x.titular} (${pesos(x.saldo)}) los paga ${x.paga} en su mesa`).join(" · ")}.`
     : null;
@@ -400,7 +400,7 @@ export function ejecutar(estado: EstadoClub, reservaId: string, accion: AccionCu
       const res = cerrarCanchaYSeguir(estado, reservaId, { medio: accion.medio, ...conAuth }, ahora);
       if (!res.ok) return falla(res);
       const cobro = res.cobradoCancha ? ` (cobrados ${pesos(res.cobradoCancha)})` : "";
-      const mesa = res.cuentasAbiertas.length ? " La mesa sigue abierta y se cobra cuando se van." : "";
+      const mesa = " La mesa sigue en Buffet → Mesas y se cobra cuando se van.";
       return { ok: true, mensaje: `Cancha cerrada y libre${cobro}.${mesa}` };
     }
     case "cerrarCargos": {
@@ -574,7 +574,7 @@ function resultado(res: Resultado, mensaje: string): Desenlace {
 export function textoCierre(cual: "cobrarTodo" | "cerrarYSeguir" | "cerrarCargos", monto: number): string {
   if (cual === "cobrarTodo") return `Cobrar todo ${pesos(monto)}`;
   if (cual === "cerrarYSeguir") return monto > 0 ? `Cobrar la cancha ${pesos(monto)} y cerrarla · la mesa sigue` : "Cerrar la cancha · la mesa sigue";
-  return monto > 0 ? `Cobrar y cerrar los cargos ${pesos(monto)}` : "Cerrar los cargos";
+  return monto > 0 ? `Cobrar y cerrar los cargos ${pesos(monto)}` : "Cerrar la mesa";
 }
 
 /**

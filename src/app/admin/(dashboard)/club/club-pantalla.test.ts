@@ -263,7 +263,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await turnoDeMartin(page).click();
     const cuenta = page.getByRole("region", { name: "Martín Ríos" });
     await cuenta.getByRole("button", { name: "Cobrar la cancha $ 21.000 y cerrarla · la mesa sigue" }).click();
-    await page.getByRole("status").filter({ hasText: "Cancha cerrada y libre (cobrados $ 21.000). La mesa sigue abierta" }).waitFor();
+    await page.getByRole("status").filter({ hasText: "Cancha cerrada y libre (cobrados $ 21.000). La mesa sigue en Buffet" }).waitFor();
     await cuenta.getByText("Cancha cerrada · la mesa sigue").waitFor();
     await cuenta.getByRole("button", { name: "Cobrar y cerrar los cargos $ 11.000" }).click();
     await page.getByRole("status").filter({ hasText: "Cargos cerrados: cobrados $ 11.000." }).waitFor();

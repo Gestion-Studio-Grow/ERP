@@ -1394,7 +1394,7 @@ function resumenTurno(r, t, cl) {
     <div class="row">
       ${hayAlgo ? `<button type="button" class="btn primary" data-a="cobrarTodo" data-v="${r.id}">Cobrar todo ${M.pesos(T.pendiente)}</button>` : ""}
       ${abierto && r.estado === "en_cancha" ? `<button type="button" class="btn" data-a="cerrarYSeguir" data-v="${r.id}">${T.cancha > 0 ? `Cobrar la cancha ${M.pesos(T.cancha)} y cerrarla` : "Cerrar la cancha"} · la mesa sigue</button>` : ""}
-      ${t.mesaAbierta ? `<button type="button" class="btn" data-a="cerrarCargos" data-v="${r.id}">${T.cargos > 0 ? `Cobrar y cerrar los cargos ${M.pesos(T.cargos)}` : t.mesa.length ? "Cerrar los cargos" : "Cerrar la mesa"}</button>` : ""}
+      ${t.mesaAbierta ? `<button type="button" class="btn" data-a="cerrarCargos" data-v="${r.id}">${T.cargos > 0 ? `Cobrar y cerrar los cargos ${M.pesos(T.cargos)}` : "Cerrar la mesa"}</button>` : ""}
       ${!abierto && T.cargos > 0 ? `<button type="button" class="btn" data-a="cerrarCargosCC" data-v="${r.id}">Cargos a cuenta corriente</button>` : ""}
     </div>
     ${abierto && r.estado === "en_cancha" ? `<p class="small muted" style="margin:0">«La mesa sigue»: se cobra la cancha y queda libre para el turno siguiente; los cargos siguen abiertos (Buffet → Mesas) y se cobran cuando se van.</p>` : ""}
