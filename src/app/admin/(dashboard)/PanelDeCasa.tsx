@@ -40,6 +40,8 @@ export default function PanelDeCasa({
               </>
             )}
           </span>
+          {/* Lo que la app pone en la barra (el club: quién opera, la hora, el candado): club/EnLaCabecera.tsx. */}
+          <div id="casa-herramientas" data-casa="herramientas" className="flex flex-wrap items-center gap-2 empty:hidden" />
           {apps.length > 1 && (
             <nav aria-label="Panel" className="flex items-center gap-1">
               {apps.map((a) => (

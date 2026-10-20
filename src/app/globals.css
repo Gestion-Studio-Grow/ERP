@@ -486,6 +486,13 @@
 }
 [data-casa="monograma"] { background: var(--casa-monograma, var(--accent-soft)); color: var(--casa-monograma-tinta, var(--accent)); }
 [data-casa="enlace"] { color: inherit; }
+/* Lo que la app pone en la barra (club/EnLaCabecera.tsx): la ficha de quien opera, la hora grande y el candado. */
+[data-casa="cabecera"] [data-casa="tenue"] { color: var(--casa-cabecera-tenue, var(--text-muted)); }
+[data-casa="cabecera"] [data-casa="ficha"] { background: var(--casa-enlace-hover, var(--surface-sunken)); color: inherit; }
+[data-casa="cabecera"] [data-casa="inicial"] { background: var(--casa-monograma, var(--accent-soft)); color: var(--casa-monograma-tinta, var(--accent)); }
+[data-casa="cabecera"] [data-casa="reloj"] { font-size: 1.5rem; font-weight: 700; font-stretch: 75%; letter-spacing: 0.02em; }
+[data-casa="cabecera"] [data-ui="button"] { background: transparent; color: inherit; border-color: var(--casa-cabecera-borde, var(--line-strong)); }
+[data-casa="cabecera"] [data-ui="button"]:hover { background: var(--casa-enlace-hover, var(--surface-sunken)); }
 /* El botón de tema del ERP (ThemeToggle, gris de la barra general) toma la tinta de la cabecera. */
 [data-casa="cabecera"] button[aria-label="Cambiar tema"] { color: inherit; }
 [data-casa="cabecera"] button[aria-label="Cambiar tema"]:hover { background: var(--casa-enlace-hover, var(--surface-sunken)); }
@@ -508,11 +515,12 @@
   --warning: #8a5200; --warning-soft: #fff0cc; --warning-fill: #dc6e22;
   --danger: #b3261e; --danger-soft: #fbe2e0; --danger-fill: #b3261e;
   --info: var(--accent-ink); --info-soft: var(--accent-soft); --focus-ring: var(--accent);
-  --club-naranja: #dc6e22; --club-naranja-ui: #bf5a00;
+  --club-naranja: #dc6e22; --club-naranja-ui: #bf5a00; --club-naranja-soft: #ffe9d2; --club-tinta-cinta: #101418;
   --radius-sm: 2px; --radius: 3px; --radius-lg: 3px; --radius-xl: 3px;
   --shadow-xs: none; --shadow-sm: none;
   --font-display: var(--font-archivo); --font-body: var(--font-archivo);
   --casa-cabecera: #035ba8; --casa-cabecera-tinta: #ffffff; --casa-enlace-hover: rgba(255, 255, 255, 0.12);
+  --casa-cabecera-tenue: #c9ddf3; --casa-cabecera-borde: rgba(255, 255, 255, 0.45);
   --casa-monograma: #dc6e22; --casa-monograma-tinta: #1d1003;
   font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
   color-scheme: light;
@@ -525,7 +533,7 @@
   --success: #62cf8e; --success-soft: #10311f; --success-fill: #62cf8e;
   --warning: #f2b35a; --warning-soft: #3a2a0e; --warning-fill: #ff9a3d;
   --danger: #ff8c82; --danger-soft: #44191a; --danger-fill: #ff8c82;
-  --club-naranja: #ff9a3d; --club-naranja-ui: #ff9a3d;
+  --club-naranja: #ff9a3d; --club-naranja-ui: #ff9a3d; --club-naranja-soft: #3b2512;
   color-scheme: dark;
 }
 /* — CH Estética (beauty-spa): su front es el papel cálido de :root con petróleo, Fraunces + Hanken, esquinas casi
@@ -612,6 +620,34 @@
 [data-estetica="magra"] h1::after { content: ""; display: block; width: 48px; height: 3px; margin-top: 10px; background: var(--accent); }
 /* Matías: títulos firmes y compactos como el turnero. */
 [data-estetica="matiasconsoli"] h1 { letter-spacing: -0.02em; font-weight: 700; }
+
+/* ── Break Point «chapa» en el club (club/*.tsx): lo que el club de hoy hacía con sus clases, por ganchos data-* ── */
+/* La demo: la cinta negra de arriba del club de hoy, no un cartel amarillo. */
+[data-estetica="breakpoint"] [data-ui="cinta-demo"] { background: var(--club-tinta-cinta); color: #ffffff; border: 0; border-radius: 0; padding: 0.375rem 1rem; }
+[data-estetica="breakpoint"] [data-ui="cinta-demo"] p { color: inherit; }
+[data-estetica="breakpoint"] [data-ui="cinta-demo"] [data-ui="button"] { min-height: 2rem; background: transparent; color: #ffffff; border-color: rgba(255, 255, 255, 0.7); }
+/* Las solapas: banda de papel; la elegida con fondo, raya y punto naranja. */
+[data-estetica="breakpoint"] [role="tablist"][aria-label="Recepción del club"] [role="tab"] { font-weight: 600; color: var(--text); }
+[data-estetica="breakpoint"] [role="tablist"][aria-label="Recepción del club"] [role="tab"][aria-selected="true"] { background: var(--surface-sunken); color: var(--text-strong); box-shadow: inset 0 -3px 0 var(--club-naranja-ui); border-bottom-color: transparent; }
+/* Cada pantalla en su tarjeta, con el título en la angosta y la doble raya (tinta + naranja). */
+[data-estetica="breakpoint"] [data-pantalla-tarjeta] { background: var(--surface-raised); border: 1px solid var(--line); padding: 1rem; }
+[data-estetica="breakpoint"] h2[data-pantalla] { font-stretch: 75%; font-weight: 800; font-size: 1.5625rem; letter-spacing: 0.03em; text-transform: uppercase; }
+[data-estetica="breakpoint"] :has(> h2[data-pantalla]) { border-bottom: 2px solid var(--text-strong); box-shadow: 0 1px 0 var(--club-naranja); padding-bottom: 0.625rem; margin-bottom: 0.875rem; }
+/* Los días: limpios; el elegido, recuadrado. */
+[data-estetica="breakpoint"] [data-agenda="dias"] button { border-color: transparent; background: transparent; }
+[data-estetica="breakpoint"] [data-agenda="dias"] button[aria-pressed="true"], [data-estetica="breakpoint"] [data-agenda="dias"] button[aria-current] { border-color: var(--line-strong); background: var(--accent-soft); color: var(--accent-ink); }
+/* La grilla: canchas en versalitas, los turnos con la franja de color de su estado, la hora de ahora en naranja. */
+[data-estetica="breakpoint"] [data-agenda="cancha"] { background: var(--surface-sunken); border-bottom: 2px solid var(--text-strong); }
+[data-estetica="breakpoint"] [data-agenda="cancha"] .font-semibold { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; font-size: 0.8125rem; }
+[data-estetica="breakpoint"] [data-agenda="luz"] { border-color: transparent; background: transparent; }
+[data-estetica="breakpoint"] [data-agenda="luz"][aria-pressed="true"] { background: var(--warning-soft); }
+[data-estetica="breakpoint"] [data-agenda="libre"] { color: transparent; }
+[data-estetica="breakpoint"] [data-agenda="libre"]:is(:hover, :focus-visible) { color: var(--text-strong); }
+[data-estetica="breakpoint"] [data-agenda="ahora"] { border-top-color: var(--club-naranja); }
+[data-estetica="breakpoint"] [data-turno] { border-width: 0 0 0 4px; border-radius: 2px; border-left-color: var(--accent); background: var(--accent-soft); }
+[data-estetica="breakpoint"] [data-turno="en_cancha"] { border-left-color: var(--success); background: var(--success-soft); }
+[data-estetica="breakpoint"] [data-turno][data-turno-tipo="fijo"] { border-left-color: var(--club-naranja); background: var(--club-naranja-soft); }
+[data-estetica="breakpoint"] [data-turno]:is([data-turno="finalizada"], [data-turno="cancelada"], [data-turno="no_show"], [data-turno="suspendida"]) { border-left-color: var(--line-strong); background: var(--surface-sunken); }
 
 /* La barra: azul royal con la doble línea naranja de la chapa. */
 [data-estetica="breakpoint"] [data-casa="cabecera"] { border-bottom: 0; }

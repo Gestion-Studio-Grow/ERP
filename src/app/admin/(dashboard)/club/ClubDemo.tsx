@@ -34,6 +34,7 @@
 
 import { Suspense, createElement, lazy, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
 import { cn } from "@/components/ui/cn";
+import { Button } from "@/components/ui/Button";
 import { reserva as reservaDe } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { candadoDeLaJornada, claveDeLaDemo, claveDeLaJornada, crearAlmacen, type Almacen, type AlmacenamientoLocal, type GuardadoDelClub, type RolDelPanel } from "./almacen";
@@ -268,6 +269,29 @@ function MenuMas({ opciones, onElegir }: { opciones: readonly SolapaVisible[]; o
   );
 }
 
+/**
+ * Los accesos de la agenda, como los botones del club de hoy al lado de «+ Turno»: la lista de espera y el
+ * mantenimiento a un toque, sin buscarlos en «Más». Sólo los que quien opera puede abrir.
+ */
+function AccesosDeLaAgenda({ almacen, onIr }: { almacen: Almacen; onIr: (s: Solapa) => void }) {
+  const visibles = useSolapasVisibles(almacen);
+  const accesos = [
+    { id: "buffet", texto: "Abrir cuenta" },
+    { id: "fijos", texto: "Lista de espera y fijos" },
+    { id: "canchas", texto: "Mantenimiento y lluvia" },
+  ].filter((a) => visibles.some((s) => s.id === a.id));
+  if (!accesos.length) return null;
+  return (
+    <div data-agenda="accesos" className="my-2 flex flex-wrap gap-2">
+      {accesos.map((a) => (
+        <Button key={a.id} variant="ghost" size="md" onClick={() => onIr(a.id)}>
+          {a.texto}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 /** Monta el panel de una solapa sólo si quien opera la puede ver. */
 function SiSeVe({ almacen, id, children }: { almacen: Almacen; id: Solapa; children: React.ReactNode }) {
   const visibles = useSolapasVisibles(almacen);
@@ -493,9 +517,16 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       <div role="tabpanel" id={`club-panel-${solapa}`} aria-labelledby={`club-solapa-${solapa}`}>
         {solapa === "agenda" && (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
-            <div className="flex min-w-0 flex-col gap-3">
-              <DiasDeLaAgenda hoy={hoy} dia={dia} onDia={elegirDia} />
-              <AgendaCanchas almacen={almacen} dia={dia} abierto={abiertoId} onAbrir={onAbrir} onReservar={onReservar} />
+            <div data-pantalla-tarjeta className="flex min-w-0 flex-col gap-3">
+              <AgendaCanchas
+                almacen={almacen}
+                dia={dia}
+                abierto={abiertoId}
+                onAbrir={onAbrir}
+                onReservar={onReservar}
+                dias={<DiasDeLaAgenda hoy={hoy} dia={dia} onDia={elegirDia} />}
+                accesos={<AccesosDeLaAgenda almacen={almacen} onIr={irASolapa} />}
+              />
               <FueraDeLaGrilla almacen={almacen} dia={dia} />
             </div>
             <div className="lg:sticky lg:top-4 lg:self-start">

@@ -29,6 +29,7 @@ import type { EstadoClub } from "@/lib/club/motor.mjs";
 import { Button } from "@/components/ui/Button";
 import { Hoja } from "@/components/ui/Hoja";
 import { cn } from "@/components/ui/cn";
+import EnLaCabecera from "./EnLaCabecera";
 import type { Almacen, JornadaDelClub } from "./almacen";
 import {
   REVISAR_INACTIVIDAD_MS,
@@ -626,8 +627,27 @@ function CambioDeUsuario({ almacen, datos, guarda, onCerrar }: { almacen: Almace
 
 // ───────────── la pieza ─────────────
 
-/** Quién opera, con «Cambiar de usuario». Sin operador no se pinta (la pantalla bloqueada tapa todo). */
+/**
+ * Quién opera, con «Cambiar de usuario». Sin operador no se pinta (la pantalla bloqueada tapa todo). Con la barra del
+ * panel de casa, va arriba como en el club de hoy: la ficha de quien opera (inicial, nombre y rol); tocarla cambia.
+ */
 function BarraDelOperador({ nombre, rol, onCambiar }: { nombre: string; rol: string; onCambiar: () => void }) {
+  return (
+    <EnLaCabecera fuera={<BarraDelOperadorEnLinea nombre={nombre} rol={rol} onCambiar={onCambiar} />}>
+      <button type="button" data-casa="ficha" onClick={onCambiar} aria-label={`Opera: ${nombre}, ${rol}. Cambiar de usuario`} className="inline-flex min-h-11 items-center gap-2 rounded-md px-2 py-1 text-left">
+        <span aria-hidden="true" data-casa="inicial" className="grid size-8 shrink-0 place-items-center rounded-sm text-sm font-bold">
+          {nombre.trim().charAt(0).toUpperCase()}
+        </span>
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate text-sm font-bold">{nombre}</span>
+          <span data-casa="tenue" className="text-xs">{rol}</span>
+        </span>
+      </button>
+    </EnLaCabecera>
+  );
+}
+
+function BarraDelOperadorEnLinea({ nombre, rol, onCambiar }: { nombre: string; rol: string; onCambiar: () => void }) {
   return (
     <div data-ui="operador-del-club" className="flex flex-wrap items-center justify-between gap-2 text-sm">
       <p className="text-body">

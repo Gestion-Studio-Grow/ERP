@@ -25,7 +25,7 @@ import { useSeleccion } from "./usar-almacen";
 export function DiasDeLaAgenda({ hoy, dia, onDia }: { hoy: string; dia: string; onDia: (d: string) => void }) {
   const dias = diasDeLaAgenda(hoy);
   return (
-    <div role="group" aria-label="Elegir el día de la agenda" className="flex gap-2 overflow-x-auto pb-1">
+    <div role="group" aria-label="Elegir el día de la agenda" data-agenda="dias" className="flex gap-2 overflow-x-auto pb-1">
       {dias.map((d) => (
         <button
           key={d.fecha}

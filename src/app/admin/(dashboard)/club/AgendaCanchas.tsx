@@ -21,7 +21,7 @@
 // (`LuzDeCancha`): prender o apagar repinta sólo ese botón. La grilla no lee las luces, así que su firma no
 // cambia y ni la agenda ni los turnos se vuelven a pintar.
 
-import { memo, useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { Marca } from "@/components/ui/Marca";
 import { cn } from "@/components/ui/cn";
 import { armarAgenda, compartirAgenda, ponerLuz, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type VistaAgenda } from "./agenda-core";
@@ -59,6 +59,8 @@ const BloqueTurno = memo(function BloqueTurno({ celda, activo, onAbrir }: { celd
         type="button"
         id={`turno-${celda.id}`}
         data-celda={celda.id}
+        data-turno={celda.estado}
+        data-turno-tipo={celda.tipo === "Turno fijo" ? "fijo" : undefined}
         onClick={() => onAbrir(celda.id)}
         aria-label={`${celda.etiqueta}. Abrir la cuenta del turno`}
         aria-current={activo ? "true" : undefined}
@@ -112,6 +114,7 @@ const Franja = memo(function Franja({
         type="button"
         id={idDeCelda(franja.id)}
         data-celda={franja.id}
+        data-agenda="libre"
         tabIndex={enTab ? 0 : -1}
         onClick={() => onReservar(franja.canchaId, franja.min)}
         aria-label={franja.etiqueta}
@@ -142,6 +145,7 @@ const LuzDeCancha = memo(function LuzDeCancha({ almacen, canchaId, nombre }: { a
     <button
       type="button"
       aria-pressed={prendida}
+      data-agenda="luz"
       aria-label={`Luz de ${nombre}`}
       title={prendida ? "Luz prendida: tocá para apagarla" : "Luz apagada: tocá para prenderla"}
       onClick={() => almacen.ejecutar((e) => ponerLuz(e, canchaId, !prendida), { deshacible: true })}
@@ -163,6 +167,7 @@ const FondoDeLaGrilla = memo(function FondoDeLaGrilla({ almacen, canchas, horas,
       {canchas.map((c, i) => (
         <div
           key={c.id}
+          data-agenda="cancha"
           className="sticky top-0 z-20 flex items-center gap-1 border-b border-l border-line bg-surface pl-2 pr-0.5"
           style={{ gridColumn: i + 2, gridRow: 1 }}
         >
@@ -207,8 +212,13 @@ export default function AgendaCanchas({
   abierto,
   onAbrir,
   onReservar,
+  dias = null,
+  accesos = null,
 }: {
   almacen: Almacen;
+  /** Los días (debajo del título, como el club de hoy) y los accesos de la agenda (lista de espera, mantenimiento). */
+  dias?: ReactNode;
+  accesos?: ReactNode;
   /** El día que se muestra ("AAAA-MM-DD"). */
   dia: string;
   abierto: string | null;
@@ -259,7 +269,7 @@ export default function AgendaCanchas({
   return (
     <section aria-labelledby="club-agenda-titulo" className="min-w-0">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="club-agenda-titulo" className="text-lg font-semibold text-strong">
+        <h2 id="club-agenda-titulo" data-pantalla className="text-lg font-semibold text-strong">
           Agenda de canchas
         </h2>
         <div className="flex items-center gap-3">
@@ -269,6 +279,8 @@ export default function AgendaCanchas({
           </Button>
         </div>
       </div>
+      {dias}
+      {accesos}
       <p id="club-agenda-ayuda" className="sr-only">
         Cada cancha es una lista de turnos y huecos libres. Con las flechas pasás al de arriba, al de abajo o a la cancha de al lado. Enter abre la cuenta del turno o da un turno en el hueco.
       </p>
@@ -292,7 +304,7 @@ export default function AgendaCanchas({
               className="pointer-events-none relative z-0"
               style={{ gridColumn: `2 / span ${vista.canchas.length}`, gridRow: `2 / span ${vista.filas}` }}
             >
-              <div className="absolute inset-x-0 border-t-2 border-danger" style={{ top: `calc(${filaAhora} * ${FILA})` }} />
+              <div data-agenda="ahora" className="absolute inset-x-0 border-t-2 border-danger" style={{ top: `calc(${filaAhora} * ${FILA})` }} />
             </div>
           )}
           {vista.bloqueos.map((b) => (

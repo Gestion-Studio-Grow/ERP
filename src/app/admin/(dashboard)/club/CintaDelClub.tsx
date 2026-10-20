@@ -18,6 +18,7 @@ import { cn } from "@/components/ui/cn";
 import { hhmm } from "@/lib/club/motor.mjs";
 import type { Almacen, EstadoDelGuardado } from "./almacen";
 import { useEstadoDelGuardado, useSeleccion } from "./usar-almacen";
+import EnLaCabecera from "./EnLaCabecera";
 
 const elMinuto = (_: unknown, a: { min: number }) => a.min;
 const elNuevo = <T,>(_: T | undefined, nuevo: T) => nuevo;
@@ -43,6 +44,20 @@ const BloquearDesdeLaCinta = memo(function BloquearDesdeLaCinta({ almacen }: { a
   );
 });
 
+/** La hora grande de la barra, como el reloj del club de hoy; abajo, chiquito, cómo va el guardado. */
+function RelojDeLaBarra({ min, estado }: { min: number; estado?: string }) {
+  return (
+    <span className="flex flex-col items-center leading-none">
+      <span data-casa="reloj" className="tabular-nums">{hhmm(min)}</span>
+      {estado && (
+        <span data-casa="tenue" className="mt-0.5 text-[11px]">
+          {estado}
+        </span>
+      )}
+    </span>
+  );
+}
+
 export default function CintaDelClub({
   almacen,
   onVolverALaDemo,
@@ -62,7 +77,11 @@ export default function CintaDelClub({
 
   if (almacen.modo() === "demo") {
     return (
-      <div className="flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <>
+      <EnLaCabecera fuera={null}>
+        <RelojDeLaBarra min={min} estado="demo" />
+      </EnLaCabecera>
+      <div data-ui="cinta-demo" className="flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 text-sm">
           <p className="font-semibold text-strong">Datos de ejemplo — no se guarda nada en el sistema</p>
           <p className="text-body">
@@ -74,6 +93,7 @@ export default function CintaDelClub({
           Volver a la demo
         </Button>
       </div>
+      </>
     );
   }
 
@@ -92,6 +112,24 @@ export default function CintaDelClub({
   }
 
   const mal = g.jornada === "ilegible" || g.jornada === "sin-base" || g.guardado !== "guardado" || g.lleno;
+  // Todo en orden: la hora, el guardado y el candado van en la barra de arriba (si la hay), como el club de hoy. Si
+  // algo anda mal, además el aviso queda a la vista abajo.
+  const barra = (
+    <>
+      <RelojDeLaBarra min={min} estado={g.jornada === "abriendo" ? "abriendo…" : mal ? "sin guardar" : textoDelGuardado(g).toLowerCase()} />
+      <BloquearDesdeLaCinta almacen={almacen} />
+    </>
+  );
+  const sinAvisos = !mal && g.jornada !== "sin-bloqueo" && g.jornada !== "abriendo";
+  if (sinAvisos) return <EnLaCabecera fuera={cintaEnLinea()}>{barra}</EnLaCabecera>;
+  return (
+    <>
+      <EnLaCabecera fuera={null}>{barra}</EnLaCabecera>
+      {cintaEnLinea()}
+    </>
+  );
+
+  function cintaEnLinea() {
   return (
     <div className={cn("flex flex-col gap-1 rounded-lg border px-4 py-3 text-sm", mal ? "border-danger/40 bg-danger-soft" : "border-line bg-surface-raised")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -118,4 +156,5 @@ export default function CintaDelClub({
       )}
     </div>
   );
+  }
 }
