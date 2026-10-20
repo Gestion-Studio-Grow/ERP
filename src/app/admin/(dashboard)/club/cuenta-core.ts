@@ -163,6 +163,8 @@ export interface VistaCuenta {
     cobrarSena: number | null;
     /** «Abrir la cancha»: el turno está reservado y llega la gente. */
     abrirCancha: boolean;
+    /** «Cerrar la cancha», como el club de hoy: en juego y sin nada pendiente (sin dejar una mesa en Buffet). */
+    cerrarCancha: boolean;
     /** «Cobrar la cancha $X y cerrarla · la mesa sigue» (monto 0 = «Cerrar la cancha · la mesa sigue»). */
     cerrarYSeguir: number | null;
     /** «Cobrar y cerrar los cargos $X» con la cancha ya cerrada (monto 0 = «Cerrar los cargos»). */
@@ -273,6 +275,7 @@ export function armarCuenta(estado: EstadoClub, reservaId: string): VistaCuenta 
       cobrarTodo: T.pendiente > 0 ? T.pendiente : null,
       cobrarSena: senaPendiente(r),
       abrirCancha: r.estado === "reservada",
+      cerrarCancha: abierto && r.estado === "en_cancha" && T.pendiente === 0,
       cerrarYSeguir,
       cerrarCargos,
       cargosACuenta: cerrarCargos !== null && T.cargos > 0,
@@ -310,6 +313,7 @@ export type AccionCuenta =
   | { tipo: "cobrarJugador"; idx: number; medio: MedioCobro }
   | { tipo: "cobrarSena"; medio: MedioCobro }
   | { tipo: "cerrarYSeguir"; medio: MedioCaja }
+  | { tipo: "cerrarCancha" }
   | { tipo: "cerrarCargos"; medio: MedioCaja }
   | { tipo: "cargosACuenta" }
   | { tipo: "abrirCancha" }
@@ -331,6 +335,7 @@ export const EN_EL_VANILLA: Readonly<Record<AccionCuenta["tipo"], string>> = {
   cobrarJugador: "cobrarJugador",
   cobrarSena: "pagar",
   cerrarYSeguir: "cerrarYSeguir",
+  cerrarCancha: "finalizar",
   cerrarCargos: "cerrarCargos",
   cargosACuenta: "cerrarCargosCC",
   abrirCancha: "checkin",
@@ -354,6 +359,7 @@ export const DESHACIBLE: Readonly<Record<AccionCuenta["tipo"], boolean>> = {
   cobrarJugador: true,
   cobrarSena: true,
   cerrarYSeguir: true,
+  cerrarCancha: true,
   cerrarCargos: true,
   cargosACuenta: true,
   abrirCancha: true,
@@ -402,6 +408,12 @@ export function ejecutar(estado: EstadoClub, reservaId: string, accion: AccionCu
       const cobro = res.cobradoCancha ? ` (cobrados ${pesos(res.cobradoCancha)})` : "";
       const mesa = " La mesa sigue en Buffet → Mesas y se cobra cuando se van.";
       return { ok: true, mensaje: `Cancha cerrada y libre${cobro}.${mesa}` };
+    }
+    case "cerrarCancha": {
+      const res = finalizar(estado, reservaId, {}, ahora);
+      if (!res.ok) return falla(res);
+      const n = res.cuentasAbiertas.length;
+      return { ok: true, mensaje: `Cancha cerrada.${n ? ` Quedan ${n} cuenta${n > 1 ? "s" : ""} de buffet abierta${n > 1 ? "s" : ""}.` : ""}` };
     }
     case "cerrarCargos": {
       const res = cerrarCargosDelTurno(estado, reservaId, { medio: accion.medio, ...conAuth }, ahora);

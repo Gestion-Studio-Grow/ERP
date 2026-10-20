@@ -471,13 +471,7 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
           }} />
       )}
 
-      <ul aria-label="Jugadores del turno">
-        {vista.jugadores.map((f) => (
-          <FilaDeJugador key={f.idx} almacen={almacen} fila={f} reservaId={vista.reservaId} onCobrar={onCobrar} onCobrarParte={onCobrarParte} onAccion={onAccion} />
-        ))}
-      </ul>
-      {vista.deOtraMesa && <p className="text-sm text-muted">{vista.deOtraMesa}</p>}
-
+      {/* Cobrar y cerrar ARRIBA, debajo de cómo paga (como el diálogo del club de hoy): sin scroll en cada cobro. */}
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {cierres.cobrarSena !== null && (
           <Button
@@ -491,6 +485,11 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
         {cierres.cobrarTodo !== null && !conCreditos && (
           <Button variant={cierres.cobrarSena !== null ? "outline" : "solid"} size="md" onClick={() => onAccion({ tipo: "cobrarTodo", medio: medioCaja })}>
             {textoCierre("cobrarTodo", cierres.cobrarTodo)}
+          </Button>
+        )}
+        {cierres.cerrarCancha && (
+          <Button variant="solid" size="md" onClick={() => onAccion({ tipo: "cerrarCancha" })}>
+            Cerrar la cancha
           </Button>
         )}
         {cierres.abrirCancha && (
@@ -520,6 +519,13 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
           «La mesa sigue»: se cobra la cancha y queda libre para el turno siguiente. Los cargos siguen abiertos y se cobran cuando se van.
         </p>
       )}
+      <ul aria-label="Jugadores del turno">
+        {vista.jugadores.map((f) => (
+          <FilaDeJugador key={f.idx} almacen={almacen} fila={f} reservaId={vista.reservaId} onCobrar={onCobrar} onCobrarParte={onCobrarParte} onAccion={onAccion} />
+        ))}
+      </ul>
+      {vista.deOtraMesa && <p className="text-sm text-muted">{vista.deOtraMesa}</p>}
+
       {vista.cancha && (
         <CobroDeLaCancha
           key={`${vista.cancha.saldo}-${vista.cancha.sugerido}`}

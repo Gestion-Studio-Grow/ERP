@@ -577,3 +577,17 @@ test("a crédito va lo que paga cada uno: los cargos a cargo de otro no se fían
   assert.equal(despues.jugadores[invitado.idx].credito, null);
   assert.equal(despues.jugadores[paga.idx].credito?.monto, total);
 });
+
+test("«Cobrar todo» y «Cerrar la cancha»: 3 toques como el club de hoy, sin dejar una mesa en cero en Buffet", () => {
+  const e = demo();
+  const r = turnoEnJuego(e);
+  assert.equal(cuenta(e, r.id).cierres.cerrarCancha, false, "debe plata: primero se cobra");
+  assert.ok(ejecutar(e, r.id, { tipo: "cobrarTodo", medio: "efectivo" }, AHORA).ok);
+  const v = cuenta(e, r.id);
+  assert.equal(v.cierres.cerrarCancha, true);
+  const res = ejecutar(e, r.id, { tipo: "cerrarCancha" }, AHORA);
+  assert.ok(res.ok, res.mensaje);
+  assert.equal(M.mesasAbiertas(e).some((m) => m.reserva.id === r.id), false, "cerrar la cancha no deja la mesa abierta");
+  assert.equal(DESHACIBLE.cerrarCancha, true);
+  assert.equal(EN_EL_VANILLA.cerrarCancha, "finalizar");
+});
