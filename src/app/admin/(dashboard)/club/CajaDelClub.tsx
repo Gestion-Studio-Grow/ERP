@@ -336,8 +336,8 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
       <OperaComo almacen={almacen} />
       {v.atrasadas.length > 0 && <CajasAtrasadas almacen={almacen} atrasadas={v.atrasadas} hacer={hacer} />}
 
-      <section aria-labelledby="club-caja-hoy" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
-        <h2 id="club-caja-hoy" className="text-lg font-semibold text-strong">
+      <section aria-labelledby="club-caja-hoy" data-pantalla-tarjeta className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
+        <h2 id="club-caja-hoy" data-pantalla className="text-lg font-semibold text-strong">
           {v.titulo}
         </h2>
         <dl className="grid grid-cols-2 gap-3 tabular-nums sm:grid-cols-4">

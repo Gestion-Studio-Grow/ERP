@@ -649,6 +649,12 @@
 [data-estetica="breakpoint"] [data-turno][data-turno-tipo="fijo"] { border-left-color: var(--club-naranja); background: var(--club-naranja-soft); }
 [data-estetica="breakpoint"] [data-turno]:is([data-turno="finalizada"], [data-turno="cancelada"], [data-turno="no_show"], [data-turno="suspendida"]) { border-left-color: var(--line-strong); background: var(--surface-sunken); }
 
+/* Los avisos como en el club de hoy: tarjeta blanca con el filo del color y no un recuadro pintado. */
+[data-estetica="breakpoint"] [role="tabpanel"] section.bg-danger-soft { background: var(--surface-raised); border-color: var(--line); border-left: 4px solid var(--danger); }
+[data-estetica="breakpoint"] [role="tabpanel"] section.bg-danger-soft > h2:first-child { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.75rem; }
+/* El panel «Para resolver ahora»: cada aviso con su filo y su rótulo en versalitas. */
+[data-estetica="breakpoint"] [data-ui="bandeja"] li { border-left: 3px solid var(--line-strong); padding-left: 0.75rem; }
+
 /* La barra: azul royal con la doble línea naranja de la chapa. */
 [data-estetica="breakpoint"] [data-casa="cabecera"] { border-bottom: 0; }
 [data-estetica="breakpoint"] [data-casa="cabecera"]::after {

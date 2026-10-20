@@ -302,6 +302,25 @@ export default function BuffetDelClub({ almacen, onVerTurno, negocio }: { almace
   const creditos = Math.max(0, ...vista.cuentas.map((c) => c.creditos));
   return (
     <div className="flex flex-col gap-4">
+      {/* Como el club de hoy: las cuentas abiertas arriba, como tarjetas; después las mesas, la venta de mostrador y
+          abrir una cuenta a mano. */}
+      <section aria-labelledby="club-cuentas" data-pantalla-tarjeta className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="club-cuentas" data-pantalla className="text-lg font-semibold text-strong">
+            Cuentas abiertas
+          </h2>
+          <p className="text-sm tabular-nums text-muted">
+            {vista.cuentas.length} {vista.cuentas.length === 1 ? "cuenta" : "cuentas"} · {pesos(vista.totalAbierto)} sin cobrar
+          </p>
+        </div>
+        <ComoPaga medio={medio} onElegir={setMedio} conCreditos={creditos} leyenda="Cómo pagan (para «Cobrar»)" />
+        <ul className={cn("grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3")}>
+          {vista.cuentas.map((c) => (
+            <TarjetaCuenta key={c.id} cuenta={c} almacen={almacen} medio={medio} onAccion={onAccion} negocio={negocio} />
+          ))}
+        </ul>
+      </section>
+
       <section aria-labelledby="club-mesas" className="flex flex-col gap-2">
         <h2 id="club-mesas" className="text-lg font-semibold text-strong">
           Mesas que siguen cargando
@@ -329,23 +348,6 @@ export default function BuffetDelClub({ almacen, onVerTurno, negocio }: { almace
       <VentaDeMostrador almacen={almacen} />
 
       <Cargar almacen={almacen} cuentas={vista.cuentas} onAccion={onAccion} />
-
-      <section aria-labelledby="club-cuentas" className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="club-cuentas" className="text-lg font-semibold text-strong">
-            Cuentas abiertas
-          </h2>
-          <p className="text-sm tabular-nums text-muted">
-            {vista.cuentas.length} {vista.cuentas.length === 1 ? "cuenta" : "cuentas"} · {pesos(vista.totalAbierto)} sin cobrar
-          </p>
-        </div>
-        <ComoPaga medio={medio} onElegir={setMedio} conCreditos={creditos} leyenda="Cómo pagan (para «Cobrar»)" />
-        <ul className={cn("grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3")}>
-          {vista.cuentas.map((c) => (
-            <TarjetaCuenta key={c.id} cuenta={c} almacen={almacen} medio={medio} onAccion={onAccion} negocio={negocio} />
-          ))}
-        </ul>
-      </section>
 
       <AbrirCuenta almacen={almacen} onAccion={onAccion} />
     </div>
