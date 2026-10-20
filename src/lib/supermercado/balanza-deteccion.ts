@@ -26,6 +26,8 @@ export interface LoQueMarco {
   peso?: number | null;
   /** Pesos. */
   importe?: number | null;
+  /** El número del producto en la balanza, si se sabe (desempata del todo). */
+  plu?: string | null;
 }
 
 export interface FormatoDetectado {
@@ -65,8 +67,14 @@ function formasPosibles(codigo: string): FormatoBalanza[] {
   return formas;
 }
 
+function mismoPlu(a: string, b: string): boolean {
+  return a.replace(/^0+(?=\d)/, "") === b.replace(/^0+(?=\d)/, "");
+}
+
 function coincide(f: FormatoBalanza, lectura: ReturnType<typeof leerEtiquetaDeBalanza>, marco: LoQueMarco): boolean {
   if (!lectura.ok) return false;
+  const plu = marco.plu?.trim();
+  if (plu && /^\d+$/.test(plu) && !mismoPlu(lectura.plu, plu)) return false;
   if (lectura.contenido === "peso") {
     if (marco.peso == null) return false;
     // Medio paso de la última cifra: con decenas de gramos, 1,25 y 1,250 son lo mismo.
@@ -128,8 +136,13 @@ export function detectarFormato(texto: string, marco: LoQueMarco): ResultadoDete
   return { ok: true, candidatos };
 }
 
-function peso(c: FormatoDetectado): number {
+// El control del precio y el producto se pisan: una etiqueta CON control también se lee SIN él,
+// con el control pegado al final del producto (21 0123 6 15500 → producto 01236). Con una sola
+// etiqueta no se puede saber (el control cierra por azar 1 de cada 10 veces), así que va después.
+// Con varias, que cierre en todas por azar es 1 en 100 o menos: ahí el control va primero.
+function peso(c: FormatoDetectado, varias = false): number {
   return (
+    (varias && c.formato.verificadorDePrecio ? -1000 : 0) +
     (c.marca ? 0 : 100) +
     (largoDelPrefijo(c.formato) === 2 ? 0 : 10) +
     (c.formato.verificadorDePrecio ? 5 : 0) +
@@ -164,7 +177,8 @@ export function detectarConVariasEtiquetas(etiquetas: { texto: string; marco: Lo
   if (!comunes || comunes.length === 0) {
     return { ok: false, mensaje: "Las etiquetas no se leen con el mismo formato. ¿Son todas de la misma balanza?" };
   }
-  return { ok: true, candidatos: comunes };
+  const varias = etiquetas.length > 1;
+  return { ok: true, candidatos: [...comunes].sort((a, b) => peso(a, varias) - peso(b, varias)) };
 }
 
 function mismaLectura(a: FormatoBalanza, b: FormatoBalanza): boolean {

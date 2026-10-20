@@ -15,6 +15,7 @@ import {
 } from "@/lib/pos-peso";
 import { lineaSinCantidad, motivoDeLineaSinCantidad } from "../vender/reglas-venta";
 import CampoEtiqueta, { ID_CAMPO_ETIQUETA, type BalanzaDeVender } from "../vender/CampoEtiqueta";
+import TomarPesoParaElTicket from "@/components/balanza/TomarPesoParaElTicket";
 import { useToast } from "../ToastProvider";
 import { useVocabulario } from "../VocabularioDelNegocio";
 
@@ -104,6 +105,7 @@ export default function PosForm({
   products,
   stockById,
   balanza = null,
+  negocioId = "",
 }: {
   products: SellableProduct[];
   // Stock y flag de control por producto (getPosStockSnapshot): lo que permite avisar
@@ -115,6 +117,8 @@ export default function PosForm({
    * su balanza guardado. Sin esto, la pantalla de siempre (CH).
    */
   balanza?: BalanzaDeVender | null;
+  /** El negocio, para recordar la balanza por cable en esta PC. Sin él, no se ofrece. */
+  negocioId?: string;
 }) {
   const { showError, showSuccess } = useToast();
   // "Retira en el local" o "Punto de encuentro", y el ejemplo de la nota: del rubro (layout), no de
@@ -373,6 +377,15 @@ export default function PosForm({
       </div>
 
       {balanza && <CampoEtiqueta productos={productosConCodigo} balanza={balanza} alLeer={cargarLectura} />}
+      {negocioId && products.some((p) => p.saleUnit === "WEIGHT") && (
+        <TomarPesoParaElTicket
+          negocio={negocioId}
+          renglones={lines}
+          porKilo={(id) => byId.get(id)?.saleUnit === "WEIGHT"}
+          nombreDe={(id) => byId.get(id)?.name ?? ""}
+          alPoner={(key, qtyText) => setLine(key, { qtyText })}
+        />
+      )}
 
       {/* Ticket: líneas de venta */}
       <div className="space-y-2">

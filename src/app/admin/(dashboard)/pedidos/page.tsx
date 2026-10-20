@@ -109,8 +109,9 @@ export default async function PedidosPage() {
   // Los códigos viajan al navegador sólo si hay balanza configurada.
   let productosDelPos: typeof products & { codigo?: string | null }[] = products;
   let balanza: Awaited<ReturnType<typeof balanzaDeVender>> = null;
+  const negocioId = comercio && !modeloNuevo ? await getCurrentTenantId() : "";
   if (comercio && !modeloNuevo && products.length > 0) {
-    const tenantId = await getCurrentTenantId();
+    const tenantId = negocioId;
     const codigos = await prisma.product.findMany({
       where: { tenantId, id: { in: products.map((p) => p.id) } },
       select: { id: true, codigo: true },
@@ -254,6 +255,7 @@ export default async function PedidosPage() {
                 viewer={{ role: user.role, professionalId: user.professionalId }}
                 products={productosDelPos}
                 balanza={balanza}
+                negocioId={comercio ? negocioId : undefined}
                 stockById={stockSnap?.stockById ?? {}}
                 professionals={professionals}
                 conServicios={!comercio}
@@ -357,6 +359,7 @@ export default async function PedidosPage() {
             viewer={{ role: user.role, professionalId: user.professionalId }}
             products={productosDelPos}
             balanza={balanza}
+            negocioId={comercio ? negocioId : undefined}
             stockById={stockSnap?.stockById ?? {}}
             professionals={professionals}
             conServicios={!comercio}

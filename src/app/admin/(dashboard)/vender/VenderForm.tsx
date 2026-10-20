@@ -66,6 +66,7 @@ import { textoDelFaltante, type Faltante } from "@/lib/reintento-de-venta";
 import { round2 } from "@/lib/round";
 import TicketVenta from "./TicketVenta";
 import CampoEtiqueta, { ID_CAMPO_ETIQUETA, type BalanzaDeVender } from "./CampoEtiqueta";
+import TomarPesoParaElTicket from "@/components/balanza/TomarPesoParaElTicket";
 import { usePerfilSiHayTerminal, type TerminalDelEquipo } from "@/lib/terminal/usar-perfil";
 import { enCampoDeTexto, enCampoEditable, esCampoDeCantidad, motivoParaNoSumar } from "@/lib/terminal/lector-core";
 import { useLectorDeRafaga, type OrigenDeLaLectura } from "@/lib/terminal/usar-lector";
@@ -517,6 +518,17 @@ function FormularioVender({
     [products],
   );
   const campoEtiqueta = balanza ? <CampoEtiqueta productos={productosConCodigo} balanza={balanza} alLeer={cargarLectura} /> : null;
+  // El peso en vivo por cable (Chrome de computadora): sólo si algo se vende por kilo.
+  const tomarPeso =
+    negocioId && products.some((p) => p.saleUnit === "WEIGHT") ? (
+      <TomarPesoParaElTicket
+        negocio={negocioId}
+        renglones={lines}
+        porKilo={(id) => byId.get(id)?.saleUnit === "WEIGHT"}
+        nombreDe={(id) => byId.get(id)?.name ?? ""}
+        alPoner={(key, qtyText) => setLine(key, { qtyText })}
+      />
+    ) : null;
   // EL LECTOR (módulo `terminal`): el catálogo de la pantalla indexado por código, y lo que dijo
   // la última lectura. Sin el perfil no hay índice ni aviso.
   const conLector = perfil !== null;
@@ -1734,6 +1746,7 @@ function FormularioVender({
               abrirAlEnfocar={false}
             />
             {campoEtiqueta}
+            {tomarPeso}
             {bloqueLector}
             {botonesRapidos.length > 0 && (
               <section data-vender="rapidos" aria-labelledby="vender-rapidos">
@@ -2105,6 +2118,7 @@ function FormularioVender({
         )}
 
         {campoEtiqueta}
+        {tomarPeso}
         {bloqueLector}
 
         {/* Líneas con producto */}

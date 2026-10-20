@@ -30,6 +30,7 @@ export default function MostradorTabs({
   conServicios = true,
   formProductos,
   balanza = null,
+  negocioId,
 }: {
   // Se pasan tal cual al formulario de productos: este componente no sabe de stock.
   products: React.ComponentProps<typeof PosForm>["products"];
@@ -50,6 +51,8 @@ export default function MostradorTabs({
   formProductos?: React.ReactNode;
   /** La etiqueta de la balanza en el POS (sólo un comercio con el formato guardado). */
   balanza?: React.ComponentProps<typeof PosForm>["balanza"];
+  /** El negocio (la balanza por cable se recuerda por negocio en cada PC). */
+  negocioId?: string;
 }) {
   const hayServicios = professionals.some((p) => p.services.length > 0);
   // Si no se puede vender producto pero sí servicios, se abre directo en Servicios: no
@@ -57,7 +60,7 @@ export default function MostradorTabs({
   const [tab, setTab] = useState<"productos" | "servicios">(
     conServicios && productosBloqueados && hayServicios ? "servicios" : "productos",
   );
-  const productos = productosBloqueados ?? formProductos ?? <PosForm products={products} stockById={stockById} balanza={balanza} />;
+  const productos = productosBloqueados ?? formProductos ?? <PosForm products={products} stockById={stockById} balanza={balanza} negocioId={negocioId} />;
 
   if (!conServicios) return <div>{productos}</div>;
 

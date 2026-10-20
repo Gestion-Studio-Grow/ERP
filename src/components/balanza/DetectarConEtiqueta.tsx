@@ -17,9 +17,10 @@ interface Etiqueta {
   texto: string;
   que: Que;
   valor: string;
+  plu: string;
 }
 
-const VACIA: Etiqueta = { texto: "", que: "peso", valor: "" };
+const VACIA: Etiqueta = { texto: "", que: "peso", valor: "", plu: "" };
 
 function numero(e: Etiqueta): number | null {
   const l = e.que === "peso" ? leerCantidad(e.valor) : leerImporte(e.valor);
@@ -32,7 +33,9 @@ export default function DetectarConEtiqueta({ alElegir }: { alElegir: (f: Format
   const tituloId = useId();
   const completas = etiquetas.filter((e) => e.texto.trim() && numero(e) != null);
   const resultado = probado && completas.length
-    ? detectarConVariasEtiquetas(completas.map((e) => ({ texto: e.texto, marco: e.que === "peso" ? { peso: numero(e) } : { importe: numero(e) } })))
+    ? detectarConVariasEtiquetas(
+        completas.map((e) => ({ texto: e.texto, marco: { ...(e.que === "peso" ? { peso: numero(e) } : { importe: numero(e) }), plu: e.plu || null } })),
+      )
     : null;
   const cambiar = (i: number, cambio: Partial<Etiqueta>) => {
     setEtiquetas(etiquetas.map((e, j) => (j === i ? { ...e, ...cambio } : e)));
@@ -87,6 +90,20 @@ export default function DetectarConEtiqueta({ alElegir }: { alElegir: (f: Format
               placeholder={e.que === "peso" ? "1,250" : "4520"}
             />
           </Field>
+          <Field
+            label="Número del producto en la balanza (si lo sabés)"
+            htmlFor={`detectar-plu-${i}`}
+            hint="Es el que tecleás en la balanza para pesar ese producto. Con él no hay dudas."
+          >
+            <Input
+              id={`detectar-plu-${i}`}
+              value={e.plu}
+              onChange={(ev) => cambiar(i, { plu: ev.target.value.replace(/\D/g, "") })}
+              inputMode="numeric"
+              autoComplete="off"
+              className="w-36 font-mono"
+            />
+          </Field>
         </div>
       ))}
       <div className="flex flex-wrap gap-2">
@@ -118,10 +135,10 @@ function Candidatos({ candidatos, hayVarias, alElegir }: { candidatos: FormatoDe
   return (
     <div className="space-y-2 text-sm">
       <p className="font-medium text-success">
-        {candidatos.length === 1 ? "Encontramos el formato de tu balanza." : `Hay ${candidatos.length} formas de leerla. La primera es la más común.`}
+        {candidatos.length === 1 ? "Encontramos el formato de tu balanza." : `Hay ${candidatos.length} formas de leerla. La primera es la más probable.`}
       </p>
       {candidatos.length > 1 && !hayVarias && (
-        <p className="text-body">Para quedarte con una sola, sumá otra etiqueta de un producto distinto.</p>
+        <p className="text-body">Para quedarte con una sola, sumá otra etiqueta de un producto distinto o escribí el número del producto en la balanza.</p>
       )}
       <ul className="space-y-2">
         {candidatos.slice(0, 5).map((c, i) => (

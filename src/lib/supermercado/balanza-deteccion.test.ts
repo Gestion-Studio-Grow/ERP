@@ -55,3 +55,20 @@ test("dos etiquetas de productos distintos desempatan y juntan los prefijos", ()
   // Con 6 dígitos de producto, el PLU de la segunda sería 987650... y el peso no cerraría: queda una sola forma de leerlas.
   assert.equal(r.candidatos.filter((c) => c.formato.contenido === "peso").length >= 1, true);
 });
+
+test("control del precio: una etiqueta sola también se lee sin control; con dos, gana el control; con el número del producto, queda uno", () => {
+  const f: FormatoBalanza = { prefijos: ["21"], digitosProducto: 4, contenido: "importe", decimales: 0, verificadorDePrecio: true };
+  const una = { texto: armarEtiquetaDeBalanza(f, "123", 15500), marco: { importe: 15500 } };
+  const otra = { texto: armarEtiquetaDeBalanza(f, "456", 9030), marco: { importe: 9030 } };
+  const sola = detectarFormato(una.texto, una.marco);
+  assert.ok(sola.ok && sola.candidatos.length > 1, "una sola etiqueta es ambigua");
+  const dos = detectarConVariasEtiquetas([una, otra]);
+  assert.ok(dos.ok);
+  if (!dos.ok) return;
+  assert.deepEqual(dos.candidatos[0].formato, { ...f, prefijos: ["21"] });
+  assert.equal(dos.candidatos[0].plu, "0123");
+  const conPlu = detectarFormato(una.texto, { importe: 15500, plu: "123" });
+  assert.ok(conPlu.ok);
+  assert.ok(conPlu.ok && conPlu.candidatos.every((c) => c.plu.replace(/^0+/, "") === "123"));
+  assert.ok(conPlu.ok && conPlu.candidatos[0].formato.verificadorDePrecio);
+});
