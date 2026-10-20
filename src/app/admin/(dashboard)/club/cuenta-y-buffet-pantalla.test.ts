@@ -17,6 +17,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "playwright";
+import { irASolapa } from "./solapas-e2e";
 
 const RAIZ = fileURLToPath(new URL("../../../../../", import.meta.url));
 const ORIGEN = "http://localhost:3998/admin/club";
@@ -206,7 +207,7 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
   test("buffet: venta rápida de mostrador (tipear no repinta las cuentas), pasar un cargo y descuento con el PIN del dueño", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
-    await page.getByRole("tab", { name: "Buffet" }).click();
+    await irASolapa(page, "Buffet");
     const venta = page.getByRole("region", { name: "Venta rápida de mostrador" });
     await venta.waitFor();
 
@@ -277,7 +278,7 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     assert.deepEqual(await chicos(), [], "la cuenta con sumar jugador y cobro de la cancha");
     assert.ok((await corre()) <= 0);
 
-    await page.getByRole("tab", { name: "Buffet" }).click();
+    await irASolapa(page, "Buffet");
     const venta = page.getByRole("region", { name: "Venta rápida de mostrador" });
     await venta.getByLabel(/^Código o producto/).fill("agua");
     await venta.getByRole("button", { name: /^\+ Agua 500 ml/ }).click();

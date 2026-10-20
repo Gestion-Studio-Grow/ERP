@@ -32,7 +32,7 @@
 // `next/dynamic` y `ssr: false` (el motor guarda su contador de ids a nivel de módulo; en el
 // servidor sería compartido entre pedidos).
 
-import { Suspense, createElement, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
+import { Suspense, createElement, lazy, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
 import { cn } from "@/components/ui/cn";
 import { reserva as reservaDe } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
@@ -44,6 +44,7 @@ import { useOperador, useSeleccion } from "./usar-almacen";
 import AgendaCanchas from "./AgendaCanchas";
 import AltaDeTurno from "./AltaDeTurno";
 import { DiasDeLaAgenda, FueraDeLaGrilla } from "./AgendaExtras";
+import { armarTira } from "./tira-de-solapas-core";
 import BandejaDelClub from "./BandejaDelClub";
 import CuentaDelTurno from "./CuentaDelTurno";
 import { Esqueleto } from "@/components/ui/Esqueleto";
@@ -156,40 +157,113 @@ function TiraDeSolapas({
   useEffect(() => {
     if (!esta) onCambiar("agenda");
   }, [esta, onCambiar]);
-  // Solapas con flechas (patrón de tablist): ←/→ cambian y llevan el foco.
+  // Hasta 5 a la vista y el resto en «Más», como el club de hoy (tira-de-solapas-core.ts).
+  const tira = armarTira(visibles, solapa);
+  const enFila = tira.elegidaDeMas ? [...tira.principales, tira.elegidaDeMas] : tira.principales;
+  // Solapas con flechas (patrón de tablist): ←/→ cambian y llevan el foco (entre las que están a la vista).
   const alTeclear = (e: React.KeyboardEvent) => {
-    const i = visibles.findIndex((s) => s.id === solapa);
+    const i = enFila.findIndex((s) => s.id === solapa);
     const paso = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-    if (!paso) return;
+    if (!paso || i < 0) return;
     e.preventDefault();
-    const sig = visibles[(i + paso + visibles.length) % visibles.length].id;
+    const sig = enFila[(i + paso + enFila.length) % enFila.length].id;
     onCambiar(sig);
     botones.current[sig]?.focus();
   };
   return (
-    <div role="tablist" aria-label="Recepción del club" onKeyDown={alTeclear} className="flex overflow-x-auto border-b border-line">
-      {visibles.map((s) => (
-        <button
-          key={s.id}
-          ref={(b) => {
-            botones.current[s.id] = b;
-          }}
-          type="button"
-          role="tab"
-          id={`club-solapa-${s.id}`}
-          aria-selected={solapa === s.id}
-          // Sólo el panel de la solapa elegida está montado: las otras no apuntan a un id que no existe.
-          aria-controls={solapa === s.id ? `club-panel-${s.id}` : undefined}
-          tabIndex={solapa === s.id ? 0 : -1}
-          onClick={() => onCambiar(s.id)}
-          className={cn(
-            "-mb-px inline-flex min-h-11 items-center border-b-2 px-4 text-sm focus-visible:outline-2 focus-visible:outline-focus",
-            solapa === s.id ? "border-accent font-semibold text-strong" : "border-transparent text-muted hover:text-strong",
-          )}
-        >
-          {s.etiqueta}
-        </button>
-      ))}
+    <div className="flex items-end border-b border-line">
+      <div role="tablist" aria-label="Recepción del club" onKeyDown={alTeclear} className="flex min-w-0 flex-wrap">
+        {enFila.map((s) => (
+          <button
+            key={s.id}
+            ref={(b) => {
+              botones.current[s.id] = b;
+            }}
+            type="button"
+            role="tab"
+            id={`club-solapa-${s.id}`}
+            aria-selected={solapa === s.id}
+            // Sólo el panel de la solapa elegida está montado: las otras no apuntan a un id que no existe.
+            aria-controls={solapa === s.id ? `club-panel-${s.id}` : undefined}
+            tabIndex={solapa === s.id ? 0 : -1}
+            onClick={() => onCambiar(s.id)}
+            className={cn(
+              "-mb-px inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-4 text-sm focus-visible:outline-2 focus-visible:outline-focus",
+              solapa === s.id ? "border-accent font-semibold text-strong" : "border-transparent text-muted hover:text-strong",
+            )}
+          >
+            {s.etiqueta}
+          </button>
+        ))}
+      </div>
+      {tira.mas.length > 0 && <MenuMas opciones={tira.mas} onElegir={onCambiar} />}
+    </div>
+  );
+}
+
+/** «Más»: el resto de las solapas en un menú (Escape o un clic afuera lo cierran y el foco vuelve al botón). */
+function MenuMas({ opciones, onElegir }: { opciones: readonly SolapaVisible[]; onElegir: (s: Solapa) => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const caja = useRef<HTMLDivElement>(null);
+  const boton = useRef<HTMLButtonElement>(null);
+  const id = useId();
+  useEffect(() => {
+    if (!abierto) return;
+    caja.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
+    const afuera = (e: PointerEvent) => {
+      if (!caja.current?.contains(e.target as Node)) setAbierto(false);
+    };
+    document.addEventListener("pointerdown", afuera);
+    return () => document.removeEventListener("pointerdown", afuera);
+  }, [abierto]);
+  const cerrar = () => {
+    setAbierto(false);
+    boton.current?.focus();
+  };
+  const alTeclear = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      cerrar();
+      return;
+    }
+    const paso = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
+    if (!paso) return;
+    e.preventDefault();
+    const items = [...(caja.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? [])];
+    const i = items.indexOf(document.activeElement as HTMLButtonElement);
+    items[(i + paso + items.length) % items.length]?.focus();
+  };
+  return (
+    <div ref={caja} className="relative -mb-px" onKeyDown={alTeclear}>
+      <button
+        ref={boton}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={abierto}
+        aria-controls={abierto ? id : undefined}
+        onClick={() => setAbierto((a) => !a)}
+        className="inline-flex min-h-11 items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-4 text-sm text-muted hover:text-strong focus-visible:outline-2 focus-visible:outline-focus"
+      >
+        Más <span aria-hidden="true">▾</span>
+      </button>
+      {abierto && (
+        <div id={id} role="menu" aria-label="Más solapas" className="absolute right-0 z-40 mt-1 flex min-w-52 flex-col rounded-lg border border-line bg-surface-raised p-1 shadow-overlay">
+          {opciones.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAbierto(false);
+                onElegir(o.id);
+              }}
+              className="min-h-11 rounded-md px-3 text-left text-sm text-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus"
+            >
+              {o.etiqueta}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

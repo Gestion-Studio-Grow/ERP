@@ -38,6 +38,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync, gzipSync } from "node:zlib";
 import type { Browser, BrowserContext, Page } from "playwright";
+import { irASolapa, nombresDeSolapas } from "./solapas-e2e";
 import * as M from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import { guardadoDelTexto, resumenDelRespaldo } from "@/lib/club/foto";
@@ -286,10 +287,10 @@ async function bloquearAMano(p: Page) {
   await bloqueo(p).waitFor({ timeout: 3000 });
 }
 async function solapas(p: Page): Promise<string[]> {
-  return (await p.getByRole("tab").allInnerTexts()).map((t) => t.trim());
+  return nombresDeSolapas(p);
 }
 async function irA(p: Page, etiqueta: string) {
-  await p.getByRole("tab", { name: etiqueta, exact: true }).click();
+  await irASolapa(p, etiqueta);
   await p.waitForTimeout(200);
 }
 const seccionJornada = (p: Page) => p.getByRole("region", { name: "Jornada", exact: true });

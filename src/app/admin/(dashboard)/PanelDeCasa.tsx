@@ -7,6 +7,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { AppDescriptor } from "@/apps/contract";
 import FormCerrarSesion from "../FormCerrarSesion";
+import ThemeToggle from "./ThemeToggle";
 
 export default function PanelDeCasa({
   apps,
@@ -48,6 +49,8 @@ export default function PanelDeCasa({
               ))}
             </nav>
           )}
+          {/* Claro u oscuro: lo elige quien usa el panel y se recuerda en el equipo (igual que en el resto del ERP). */}
+          <ThemeToggle />
           <FormCerrarSesion>
             <button type="submit" data-casa="enlace" className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold" aria-label={`Salir (${userName})`}>
               Salir

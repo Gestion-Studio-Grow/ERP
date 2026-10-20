@@ -486,6 +486,9 @@
 }
 [data-casa="monograma"] { background: var(--casa-monograma, var(--accent-soft)); color: var(--casa-monograma-tinta, var(--accent)); }
 [data-casa="enlace"] { color: inherit; }
+/* El botón de tema del ERP (ThemeToggle, gris de la barra general) toma la tinta de la cabecera. */
+[data-casa="cabecera"] button[aria-label="Cambiar tema"] { color: inherit; }
+[data-casa="cabecera"] button[aria-label="Cambiar tema"]:hover { background: var(--casa-enlace-hover, var(--surface-sunken)); }
 [data-casa="enlace"]:hover { background: var(--casa-enlace-hover, var(--surface-sunken)); }
 
 /* ═════════ ESTÉTICA DEL BACKOFFICE POR CLIENTE (src/lib/estetica-backoffice.ts) ═════════

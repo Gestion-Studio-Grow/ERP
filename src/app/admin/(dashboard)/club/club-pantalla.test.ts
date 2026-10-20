@@ -19,6 +19,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "playwright";
+import { irASolapa } from "./solapas-e2e";
 import * as M from "@/lib/club/motor.mjs";
 import { claveDeLaJornada, textoDeLaDemo, textoDelEstado } from "./almacen";
 
@@ -319,7 +320,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       );
       assert.deepEqual(chicos, [], `a ${viewport.width} px hay objetivos de menos de 44 px`);
       for (const solapa of ["Fijos y espera", "Mantenimiento y lluvia", "Buffet", "Caja"]) {
-        await page.getByRole("tab", { name: solapa }).click();
+        await irASolapa(page, solapa);
         const chicosSolapa = await page.evaluate(() =>
           [...document.querySelectorAll("[role=tabpanel] button, [role=tabpanel] select, [role=tabpanel] input:not([type=radio]):not([type=checkbox]), [role=tabpanel] label:has(input[type=radio]), [role=tabpanel] label:has(input[type=checkbox])")]
             .map((el) => ({ el, r: el.getBoundingClientRect() }))
@@ -434,7 +435,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
   test("buffet: fiar con el OK del dueño (código de 6 letras) y pasar a cuenta corriente; caja: egreso y cierre con diferencia", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
-    await page.getByRole("tab", { name: "Buffet" }).click();
+    await irASolapa(page, "Buffet");
     // Julieta ya tiene un pedido de cuenta corriente esperando (viene en la demo); Federico no tiene ninguno.
     await page.getByRole("article", { name: "Julieta Acosta" }).getByText("habilitarle la cuenta corriente hasta $ 60.000", { exact: false }).first().waitFor();
     const tarjeta = page.getByRole("article", { name: "Federico Luna" });
@@ -454,7 +455,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.getByRole("status").filter({ hasText: "$ 22.100 a la cuenta corriente de Federico Luna. Cuenta cerrada." }).waitFor();
     assert.equal(await page.getByRole("article", { name: "Federico Luna" }).count(), 0);
 
-    await page.getByRole("tab", { name: "Caja" }).click();
+    await irASolapa(page, "Caja");
     const efectivo = async () => (await page.getByText("Efectivo en el cajón").locator("xpath=following-sibling::dd").textContent())!;
     const antes = await efectivo();
     // El egreso pide el PIN de quien opera (Lu, recepción, en la demo): sin PIN o con uno equivocado no pasa.
@@ -528,13 +529,13 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
 
     // Break Point tiene las 4 techadas: no hay plan lluvia (el flujo de lluvia se prueba en canchas-core y ciclo-core
     // con una descubierta). Marcar el techo es del dueño: recepción no lo ve.
-    await page.getByRole("tab", { name: "Mantenimiento y lluvia" }).click();
+    await irASolapa(page, "Mantenimiento y lluvia");
     await page.getByText("Todas las canchas son techadas: la lluvia no mueve turnos.").waitFor();
     assert.equal(await page.getByLabel("Llueve desde").count(), 0);
     assert.equal(await page.getByRole("button", { name: /^Marcar Cancha/ }).count(), 0, "recepción no cambia el techo");
 
     // Turno fijo nuevo y lista de espera.
-    await page.getByRole("tab", { name: "Fijos y espera" }).click();
+    await irASolapa(page, "Fijos y espera");
     const fijo = page.getByRole("region", { name: "Nuevo turno fijo" });
     await fijo.getByLabel("A nombre de").fill("Fijo de prueba");
     await fijo.getByLabel("Día").selectOption({ label: "Martes" });

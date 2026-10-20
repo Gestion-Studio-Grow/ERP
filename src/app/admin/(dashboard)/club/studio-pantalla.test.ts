@@ -19,6 +19,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "playwright";
+import { irASolapa } from "./solapas-e2e";
 import CamarasDeLaDemo from "./camaras-de-la-demo";
 import type { Almacen } from "./almacen";
 
@@ -213,7 +214,7 @@ describe("Studio de redes y cámaras de la demo en el navegador", { timeout: 240
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://localhost:3999" });
-    await page.getByRole("tab", { name: "Novedades y redes" }).click();
+    await irASolapa(page, "Novedades y redes");
     const abrir = page.getByRole("button", { name: "Abrir el Studio de redes (imágenes y textos)" });
     await abrir.click();
     const studio = page.getByRole("dialog", { name: "Studio de redes" });
@@ -284,7 +285,7 @@ describe("Studio de redes y cámaras de la demo en el navegador", { timeout: 240
   test("el Studio desde la novedad que se arma: el tipo, el título y el texto pasan a la placa; Escape cierra", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
-    await page.getByRole("tab", { name: "Novedades y redes" }).click();
+    await irASolapa(page, "Novedades y redes");
     await page.getByRole("heading", { name: "Novedades del club · difusión por WhatsApp" }).waitFor();
     await page.getByLabel("Tipo").selectOption("promo");
     await page.getByLabel("Título", { exact: true }).fill("2x1 en turnos de valle");
@@ -313,7 +314,7 @@ describe("Studio de redes y cámaras de la demo en el navegador", { timeout: 240
     if (sinNavegador) return t.skip(sinNavegador);
     for (const movimiento of ["no-preference", "reduce"] as const) {
       const { page, errores } = await montar(undefined, movimiento);
-      await page.getByRole("tab", { name: "Tablero" }).click();
+      await irASolapa(page, "Tablero");
       const camaras = page.getByRole("list", { name: "Cámaras del club" });
       await camaras.waitFor();
       const teclas = camaras.getByRole("button");
@@ -347,12 +348,12 @@ describe("Studio de redes y cámaras de la demo en el navegador", { timeout: 240
     if (!css) return t.skip("no se pudo compilar el CSS de la app");
     for (const w of [1024, 390]) {
       const { page, errores } = await montar({ width: w, height: w === 390 ? 844 : 768 });
-      await page.getByRole("tab", { name: "Tablero" }).click();
+      await irASolapa(page, "Tablero");
       await page.getByRole("list", { name: "Cámaras del club" }).waitFor();
       await revisar(page, `Tablero con las cámaras a ${w} px`, "[role=tabpanel]");
       await capturar(page, `camaras-tablero-${w}`);
 
-      await page.getByRole("tab", { name: "Novedades y redes" }).click();
+      await irASolapa(page, "Novedades y redes");
       await page.getByRole("button", { name: "Hacer la imagen en el Studio" }).click();
       const studio = page.getByRole("dialog", { name: "Studio de redes" });
       await studio.waitFor();
