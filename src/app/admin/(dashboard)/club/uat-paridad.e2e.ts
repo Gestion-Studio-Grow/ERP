@@ -1603,7 +1603,7 @@ async function medio(donde: Locator, etiqueta: string) {
 
 /** «Sumar un cargo del buffet» en la cuenta del turno: a qué jugador, cuántos y qué producto (a su cuenta). */
 async function cargar(c: Locator, jugador: number, buscar: string, producto: string, cant: number) {
-  await c.getByLabel("Para quién").selectOption(String(jugador));
+  await c.getByRole("group", { name: "Para quién" }).getByRole("radio").nth(jugador).check();
   await c.getByLabel("Cantidad").fill(String(cant));
   await c.getByLabel("Código o producto (pasá el lector o escribí)").fill(buscar);
   await c.getByRole("list", { name: "Productos para cargar" }).getByRole("button", { name: new RegExp(`^${cant} × ${producto.replace(/[()]/g, "\\$&")}`) }).click();

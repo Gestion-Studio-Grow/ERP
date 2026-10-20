@@ -177,7 +177,7 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     await page.getByRole("status").filter({ hasText: "Martín Ríos sumado al turno con su ficha." }).waitFor();
 
     // Un cargo a un jugador NO repinta la grilla (nada de lo que muestra cambió).
-    await cuenta.getByLabel("Para quién").selectOption({ label: "Pedro" });
+    await cuenta.getByRole("group", { name: "Para quién" }).getByRole("radio", { name: "Pedro" }).check();
     const producto = cuenta.getByLabel(/^Código o producto/);
     await producto.fill("bp-002");
     const porCargo = await medir(page, () => producto.press("Enter"), "1 × Agua 500 ml a la cuenta de Pedro.");

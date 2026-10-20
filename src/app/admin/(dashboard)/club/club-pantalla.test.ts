@@ -468,7 +468,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     const { page, errores } = await montar();
     await turnoDeMartin(page).click();
     const cuenta = page.getByRole("region", { name: "Martín Ríos" });
-    await cuenta.getByLabel("Para quién").selectOption({ label: "Tomás Medina" });
+    await cuenta.getByRole("group", { name: "Para quién" }).getByRole("radio", { name: "Tomás Medina" }).check();
     const antes = await renders(page);
     await cuenta.getByLabel(/^Código o producto/).fill("bp-002");
     await cuenta.getByLabel(/^Código o producto/).press("Enter");

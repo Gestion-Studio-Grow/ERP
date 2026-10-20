@@ -255,22 +255,24 @@ function SumarCargo({ almacen, vista, medio, onAccion }: { almacen: Almacen; vis
         Sumar un cargo del buffet
       </h3>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_6rem]">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={idJug} className="text-xs font-medium text-muted">
-            Para quién
-          </label>
-          <Select
-            id={idJug}
-            value={jugador}
-            onChange={(e) => setJugador(Number(e.target.value))}
-          >
+        {/* Fichas en vez de un desplegable (como el club de hoy): un toque en vez de dos para elegir a quién. */}
+        <fieldset className="flex flex-col gap-1">
+          <legend className="mb-1 text-xs font-medium text-muted">Para quién</legend>
+          <div className="flex flex-wrap gap-1.5">
             {vista.jugadores.map((j) => (
-              <option key={j.idx} value={j.idx}>
+              <label
+                key={j.idx}
+                className={cn(
+                  "inline-flex min-h-11 cursor-pointer items-center rounded-md border px-3 text-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus",
+                  jugador === j.idx ? "border-accent bg-accent-soft font-semibold text-strong" : "border-line-strong text-body",
+                )}
+              >
+                <input type="radio" name={idJug} value={j.idx} checked={jugador === j.idx} onChange={() => setJugador(j.idx)} className="mr-2 size-4 accent-[var(--accent)]" />
                 {j.nombre}
-              </option>
+              </label>
             ))}
-          </Select>
-        </div>
+          </div>
+        </fieldset>
         <div className="flex flex-col gap-1">
           <label htmlFor={idCant} className="text-xs font-medium text-muted">
             Cantidad
