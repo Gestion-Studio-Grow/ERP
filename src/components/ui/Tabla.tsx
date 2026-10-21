@@ -281,6 +281,10 @@ export function Tabla<T>({
         </div>
       )}
 
+      {/* La tabla se desliza ADENTRO de su marco: con todas sus columnas (desde 40rem de ancho)
+          puede pasar el ancho disponible, y sin esto empujaba la página entera de costado
+          (19 px a 1024 con el menú, 219 px en una tablet de 820). */}
+      <div data-parte="desliza" className="overflow-x-auto">
       <table aria-describedby={cuenta ? `${idTabla}-cuenta` : undefined}>
         <caption className="sr-only">{titulo}</caption>
         <thead>
@@ -365,6 +369,7 @@ export function Tabla<T>({
           })}
         </tbody>
       </table>
+      </div>
 
       {(cuenta || pie || (teclado && filas.length > 0)) && (
         <div data-parte="pie">

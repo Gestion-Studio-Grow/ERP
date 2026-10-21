@@ -113,7 +113,8 @@ const CERRADOS_EN_BANDEJA = 20;
 /**
  * `productos`: «lista» trae los vendibles (el formulario de siempre los necesita); «si-hay» sólo
  * dice si hay alguno (el mostrador único carga los suyos y la página sólo decide el estado vacío);
- * «no» ni pregunta. Menos lecturas contra la base (Neon, plan gratuito).
+ * «no» ni pregunta (y `hayVendibles` es null: no se sabe). Menos lecturas contra la base (Neon,
+ * plan gratuito).
  */
 export async function getPosData({ productos = "lista" }: { productos?: "lista" | "si-hay" | "no" } = {}) {
   await requireCapability("orders:read");
@@ -153,7 +154,7 @@ export async function getPosData({ productos = "lista" }: { productos?: "lista" 
       : Promise.resolve([]),
     productos === "si-hay" ? prisma.product.findFirst({ where: whereVendibles, select: { id: true } }) : Promise.resolve(null),
   ]);
-  return { abiertos, cerrados, products, hayVendibles: productos === "lista" ? products.length > 0 : hayUno !== null };
+  return { abiertos, cerrados, products, hayVendibles: productos === "lista" ? products.length > 0 : productos === "si-hay" ? hayUno !== null : null };
 }
 
 // --- Creación de orden: el Core compartido vive en `order-core.ts` ---
