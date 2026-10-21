@@ -5,6 +5,7 @@
 //
 // Filtro `tenantId` explícito además de RLS (cinturón y tiradores, igual que getPosData).
 
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -19,7 +20,9 @@ export type PosStockSnapshot = {
   stockById: Record<string, PosStockInfo>;
 };
 
-export async function getPosStockSnapshot(): Promise<PosStockSnapshot> {
+// Cacheado por pedido (react.cache): Caja y pedidos y el mostrador único que lleva adentro lo
+// piden en el mismo render; una sola lectura contra la base (Neon, plan gratuito).
+export const getPosStockSnapshot = cache(async function getPosStockSnapshot(): Promise<PosStockSnapshot> {
   const user = await requireCapability("orders:read");
   const tenantId = await getCurrentTenantId();
   const rows = await prisma.product.findMany({
@@ -33,4 +36,4 @@ export async function getPosStockSnapshot(): Promise<PosStockSnapshot> {
     canManageCatalog: roleHasCapability(user.role, "catalog:manage"),
     stockById,
   };
-}
+});
