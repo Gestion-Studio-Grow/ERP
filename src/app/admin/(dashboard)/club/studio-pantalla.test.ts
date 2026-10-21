@@ -160,6 +160,7 @@ describe("Studio de redes y cámaras de la demo en el navegador", { timeout: 240
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
       logLevel: "silent",
+      loader: { ".css": "empty" }, // la piel de cada pantalla (piel/*.css) la carga Next; en el banco de prueba no hace falta
     });
     bundle = r.outputFiles[0].text;
     css = await cssDeLaApp();

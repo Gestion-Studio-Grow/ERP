@@ -154,6 +154,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
       logLevel: "silent",
+      loader: { ".css": "empty" }, // la piel de cada pantalla (piel/*.css) la carga Next; en el banco de prueba no hace falta
     });
     bundle = r.outputFiles[0].text;
     css = await cssDeLaApp();
