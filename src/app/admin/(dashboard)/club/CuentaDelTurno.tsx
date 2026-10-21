@@ -445,6 +445,8 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
       </header>
 
       {vista.mesaAbierta && <Marca tipo="medias">Cancha cerrada · la mesa sigue</Marca>}
+      {/* Como el club de hoy, el bloque de la plata con su título. */}
+      <h3 className="font-semibold text-strong">Cuenta del turno</h3>
       <Totales vista={vista} />
       {vista.sena && (
         <p className="text-sm text-muted">
