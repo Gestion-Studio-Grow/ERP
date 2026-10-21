@@ -2469,7 +2469,7 @@ const acciones = {
     ui.restaurarAntesDeArchivar = false;
     if (!h.ok) return toast(`Ese archivo no sirve: ${h.motivo}.`, { error: true });
     E = h.estado;
-    M.pasarPinesAHash(E); // un respaldo viejo trae los PIN en claro
+    if (MODO_REAL) M.pasarPinesAHash(E); // un respaldo viejo trae los PIN en claro
     cerrarDialogo();
     render();
     guardarJornada(true);
