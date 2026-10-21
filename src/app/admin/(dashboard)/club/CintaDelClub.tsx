@@ -57,7 +57,7 @@ const BloquearDesdeLaCinta = memo(function BloquearDesdeLaCinta({ almacen, enMen
  */
 function RelojDeLaBarra({ min, estado, onCorrer }: { min: number; estado?: string; onCorrer?: (minutos: number) => void }) {
   const hora = (
-    <span className="flex flex-col items-center leading-none">
+    <span data-casa="hora" className="flex flex-col items-center leading-none">
       <span data-casa="reloj" className="tabular-nums">{hhmm(min)}</span>
       {estado && (
         <span data-casa="tenue" className="mt-0.5 text-[11px]">
@@ -100,7 +100,7 @@ export default function CintaDelClub({
   if (almacen.modo() === "demo") {
     return (
       <>
-      <EnLaCabecera fuera={null}>
+      <EnLaCabecera en="casa-reloj" fuera={null}>
         <RelojDeLaBarra min={min} onCorrer={(m) => almacen.correrRelojDemo(m)} />
       </EnLaCabecera>
       {/* Con el panel de casa, la cinta negra fina de arriba de todo, como el club de hoy; sin él, el cartel de siempre. */}
@@ -122,8 +122,12 @@ export default function CintaDelClub({
         }
       >
         <div data-ui="cinta-demo" data-cinta="fina" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-1 text-[0.8125rem]">
+          {/* En el celular, corta: «Demo · no se guarda nada» (cintas y barra entran en ~120 px). */}
           <p>
-            <b>Demo de la gestión del club</b> · datos de ejemplo · no se guarda nada en el sistema
+            <b>
+              Demo<span className="max-sm:hidden"> de la gestión del club</span>
+            </b>
+            <span className="max-sm:hidden"> · datos de ejemplo</span> · no se guarda nada<span className="max-sm:hidden"> en el sistema</span>
           </p>
           <button type="button" onClick={onVolverALaDemo} data-cinta="boton" className="relative rounded-sm border px-2.5 py-0.5 text-xs font-semibold">
             Reiniciar demo
@@ -162,7 +166,7 @@ export default function CintaDelClub({
   const sinAvisos = !mal && g.jornada !== "sin-bloqueo" && g.jornada !== "abriendo";
   // Con avisos y con barra, el aviso queda abajo SIN su candado (el de la barra alcanza: una sola tecla L).
   return (
-    <EnLaCabecera fuera={cintaEnLinea(true)} ademas={sinAvisos ? null : cintaEnLinea(false)}>
+    <EnLaCabecera en="casa-reloj" fuera={cintaEnLinea(true)} ademas={sinAvisos ? null : cintaEnLinea(false)}>
       {barra}
     </EnLaCabecera>
   );

@@ -5,9 +5,11 @@
 // bloquea la pantalla (BloqueoDelClub), y mientras está abierta las teclas sueltas no disparan atajos.
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { Hoja } from "@/components/ui/Hoja";
 import { cn } from "@/components/ui/cn";
 import type { Almacen } from "./almacen";
-import { armarPaleta, type AccionPaleta } from "./paleta-core";
+import { armarPaleta, atajosDelClub, type AccionPaleta } from "./paleta-core";
 
 export default function PaletaDelClub({
   almacen,
@@ -115,5 +117,62 @@ export default function PaletaDelClub({
         </ul>
       </div>
     </dialog>
+  );
+}
+
+/** ¿Es una Mac (o un iPad con teclado)? Ahí los atajos van con ⌘. */
+function esMac(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent);
+}
+
+/**
+ * La ayuda de atajos (tecla «?» o «Atajos de teclado» en la paleta), como `ayudaAtajos` del club de hoy: la lista de
+ * teclas y qué hace cada una. Es una hoja (diálogo nativo): Escape o «Entendido» la cierran y el foco vuelve.
+ */
+export function AyudaDeAtajos({ atajos, onCerrar }: { atajos: boolean; onCerrar: () => void }) {
+  const [mac] = useState(esMac);
+  const lista = atajosDelClub({ mac, unaTecla: atajos });
+  return (
+    <Hoja
+      abierta
+      onCerrar={onCerrar}
+      titulo="Atajos de teclado"
+      descripcion={
+        atajos
+          ? "Andan cuando no estás escribiendo en un campo. Todo se puede hacer también con el mouse o el dedo."
+          : "Los de una tecla están apagados (se prenden desde la paleta). Quedan estos, que andan siempre que no estés escribiendo."
+      }
+      pie={
+        <Button variant="solid" size="md" onClick={onCerrar}>
+          Entendido
+        </Button>
+      }
+    >
+      <table data-ui="atajos" className="w-full text-sm">
+        <caption className="sr-only">Atajos de teclado del club</caption>
+        <thead className="sr-only">
+          <tr>
+            <th scope="col">Teclas</th>
+            <th scope="col">Qué hace</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lista.map((a) => (
+            <tr key={a.teclas.join("+")} className="border-b border-line last:border-b-0">
+              <th scope="row" className="py-2 pr-3 text-left font-normal whitespace-nowrap">
+                {a.teclas.map((t, i) => (
+                  <span key={i}>
+                    {i > 0 && " "}
+                    <kbd className="rounded border border-line-strong bg-surface-sunken px-1.5 py-0.5 text-xs font-semibold text-strong">{t}</kbd>
+                  </span>
+                ))}
+              </th>
+              <td className="py-2 text-body">{a.que}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Hoja>
   );
 }

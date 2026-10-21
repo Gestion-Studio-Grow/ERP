@@ -15,11 +15,12 @@ export type AccionPaleta =
   | { tipo: "abrirCuenta" }
   | { tipo: "turno"; id: string }
   | { tipo: "cliente"; id: string }
-  | { tipo: "atajos"; prender: boolean };
+  | { tipo: "atajos"; prender: boolean }
+  | { tipo: "ayudaAtajos" };
 
 export interface ItemPaleta {
   clave: string;
-  grupo: "Hacer" | "Ir a" | "Turno" | "Cliente" | "Buffet" | "Ajustes";
+  grupo: "Hacer" | "Ir a" | "Turno" | "Cliente" | "Buffet" | "Ajustes" | "Ayuda";
   titulo: string;
   detalle: string;
   /** Debe plata: el detalle va en rojo. */
@@ -49,7 +50,9 @@ export function armarPaleta(
     ...solapas.map((s, i) => item(`t-${s.id}`, "Ir a", s.etiqueta, { tipo: "solapa", id: s.id }, { atajo: atajos && i < 9 ? String(i + 1) : "" })),
     // WCAG 2.1.4: los atajos de una tecla se pueden apagar (quedan Ctrl/⌘+K y la L de bloquear, que es de seguridad).
     item("a-atajos", "Ajustes", atajos ? "Apagar los atajos de una tecla" : "Prender los atajos de una tecla", { tipo: "atajos", prender: !atajos }),
-  ].filter((a) => coincide(a.titulo, a.grupo));
+    // La lista de todos los atajos (la «?» del club de hoy), también desde acá: con los de una tecla apagados, es la entrada.
+    item("a-ayuda", "Ayuda", "Atajos de teclado", { tipo: "ayudaAtajos" }, { atajo: atajos ? "?" : "" }),
+  ].filter((a) => coincide(a.titulo, a.grupo, ...(a.accion.tipo === "ayudaAtajos" ? ["teclas", "teclado", "ayuda"] : [])));
   if (!q) return hacer;
 
   const turnos = estado.reservas
@@ -79,4 +82,34 @@ export function armarPaleta(
         .map((c) => item(`b-${c.id}`, "Buffet", `Cuenta de ${c.titular}`, c.reservaId && !c.reservaId.startsWith("mostrador") ? { tipo: "turno", id: c.reservaId } : { tipo: "solapa", id: "buffet" }, { detalle: pesos(saldoCuenta(c)) }))
     : [];
   return [...turnos, ...clientes, ...cuentas, ...hacer].slice(0, MAXIMO);
+}
+
+/** Una fila de la ayuda de atajos: las teclas (cada una en su <kbd>) y qué hacen. */
+export interface AtajoDelClub {
+  teclas: readonly string[];
+  que: string;
+  /** Es de una sola tecla (se apaga con «Apagar los atajos de una tecla», WCAG 2.1.4). */
+  unaTecla: boolean;
+}
+
+/**
+ * La lista de atajos del club, como `ayudaAtajos` del club de hoy. `mac`: ⌘ en vez de Ctrl. `unaTecla`: si están
+ * prendidos los de una tecla (si no, no se listan: no andan). PURA.
+ */
+export function atajosDelClub({ mac = false, unaTecla = true }: { mac?: boolean; unaTecla?: boolean } = {}): AtajoDelClub[] {
+  const ctrl = mac ? "⌘" : "Ctrl";
+  const todos: AtajoDelClub[] = [
+    { teclas: [ctrl, "K"], que: "Buscar y hacer (turnos, clientes, cuentas, acciones)", unaTecla: false },
+    { teclas: ["/"], que: "Lo mismo, con una sola tecla", unaTecla: true },
+    { teclas: ["N"], que: "Nuevo turno", unaTecla: true },
+    { teclas: ["C"], que: "Abrir cuenta del buffet", unaTecla: true },
+    { teclas: ["←", "→"], que: "Día anterior / siguiente en la agenda", unaTecla: true },
+    { teclas: ["T"], que: "Volver a hoy", unaTecla: true },
+    { teclas: ["1", "…", "9"], que: "Ir a cada solapa", unaTecla: true },
+    { teclas: [ctrl, "Z"], que: "Deshacer lo último (mientras se ve el aviso con «Deshacer»)", unaTecla: false },
+    { teclas: ["L"], que: "Bloquear la pantalla (en la jornada real)", unaTecla: false },
+    { teclas: ["?"], que: "Esta lista de atajos", unaTecla: true },
+    { teclas: ["Esc"], que: "Cerrar la ventana", unaTecla: false },
+  ];
+  return unaTecla ? todos : todos.filter((a) => !a.unaTecla);
 }

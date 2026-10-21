@@ -146,6 +146,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
       return;
     }
     const r = await esbuild.build({
+      loader: { ".css": "empty" }, // la piel (piel/*.css) entra por el CSS de la página, no por el paquete
       stdin: { contents: ENTRADA, loader: "tsx", resolveDir: RAIZ },
       bundle: true,
       write: false,

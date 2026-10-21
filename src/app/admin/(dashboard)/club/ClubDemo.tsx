@@ -48,7 +48,7 @@ import AgendaCanchas from "./AgendaCanchas";
 import AltaDeTurno from "./AltaDeTurno";
 import { DiasDeLaAgenda, FueraDeLaGrilla } from "./AgendaExtras";
 import { armarTira } from "./tira-de-solapas-core";
-import PaletaDelClub from "./PaletaDelClub";
+import PaletaDelClub, { AyudaDeAtajos } from "./PaletaDelClub";
 import type { AccionPaleta } from "./paleta-core";
 import { pedirFichaDeCliente } from "./ficha-pedida";
 import BandejaDelClub, { OfrecerHueco } from "./BandejaDelClub";
@@ -58,6 +58,8 @@ import { AvisosDelClub } from "./piezas";
 import { NegocioDelClub } from "./negocio-del-club";
 import { esDuenoQuienMira } from "./operador-del-club";
 import { PIEZAS_GLOBALES_DEL_CLUB, SOLAPAS_DEL_CLUB, type PropsDePieza, type PropsDeSolapa } from "./solapas-club";
+// La piel de Break Point del armazón (barra, cintas, bandeja, tablero): sólo bajo [data-estetica="breakpoint"].
+import "./piel/armazon.css";
 
 // PERFORMANCE (docs/producto/PERFORMANCE-TERMINALES.md, ronda 3): la Agenda (con la cuenta del turno y «Dar un
 // turno») baja con la pantalla; las otras cinco solapas (Tienda incluida), en chunks aparte que se piden en cuanto el navegador
@@ -104,6 +106,9 @@ function SolapaCargando() {
     </div>
   );
 }
+
+/** Ctrl/⌘+Z sin Shift ni Alt (Ctrl+Shift+Z es rehacer en los campos: no se toca). */
+const esDeshacer = (ev: KeyboardEvent) => (ev.metaKey || ev.ctrlKey) && !ev.altKey && !ev.shiftKey && ev.key.toLowerCase() === "z";
 
 /** localStorage si el navegador lo deja (en incógnito o sin lugar puede tirar): si no, la demo vive en memoria. */
 function guardadoDelEquipo(): AlmacenamientoLocal | null {
@@ -651,6 +656,8 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
   }, [almacen, irASolapaSiEsta]);
 
   const [paleta, setPaleta] = useState(false);
+  // La ayuda de atajos (tecla «?» o «Atajos de teclado» en la paleta).
+  const [ayuda, setAyuda] = useState(false);
   // Los atajos de una tecla se pueden apagar desde la paleta (WCAG 2.1.4); se recuerda en el equipo.
   const [atajos, setAtajos] = useState(() => {
     try {
@@ -667,7 +674,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       } catch {
         // sin almacenamiento: vale para esta visita
       }
-      almacen.informar({ ok: true, mensaje: prender ? "Atajos de una tecla prendidos." : "Atajos de una tecla apagados: quedan Ctrl+K y la L para bloquear." });
+      almacen.informar({ ok: true, mensaje: prender ? "Atajos de una tecla prendidos." : "Atajos de una tecla apagados: quedan Ctrl+K, Ctrl+Z para deshacer y la L para bloquear." });
     },
     [almacen],
   );
@@ -696,8 +703,9 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
   }, [cambiarSolapa]);
 
   // Los atajos del club de hoy (app.mjs, «atajos de teclado»): N turno nuevo, C abrir cuenta (Buffet), T volver a
-  // hoy, ←/→ día anterior o siguiente en la agenda, 1–9 las solapas en su orden. Nunca mientras se escribe, con una
-  // ventana abierta, con Ctrl/⌘/Alt, ni con la pantalla bloqueada (L, bloquear, ya lo atiende el bloqueo).
+  // hoy, ←/→ día anterior o siguiente en la agenda, 1–9 las solapas en su orden, «?» la lista de atajos. Nunca
+  // mientras se escribe, con una ventana abierta, con Ctrl/⌘/Alt, ni con la pantalla bloqueada (L, bloquear, ya lo
+  // atiende el bloqueo). Ctrl/⌘+Z deshace la última acción mientras se ve su «Deshacer» (como el vanilla).
   useEffect(() => {
     const alTeclear = (ev: KeyboardEvent) => {
       const t = ev.target as HTMLElement | null;
@@ -709,8 +717,20 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         setPaleta((p) => !p);
         return;
       }
+      const escribiendo = !!t && (t.matches("input, select, textarea") || t.isContentEditable);
+      // Ctrl/⌘+Z: deshacer lo último del club. Dentro de un campo es el deshacer del campo (no se toca); con una
+      // ventana modal abierta (la paleta, una hoja, el bloqueo) tampoco. La hoja del turno no es modal: ahí sí anda,
+      // igual que su botón «Deshacer» de abajo. Sin nada para deshacer, la tecla sigue de largo.
+      if (esDeshacer(ev)) {
+        if (escribiendo || document.querySelector("dialog[open]")) return;
+        if (almacen.modo() === "real" && !almacen.operador()) return;
+        if (!almacen.puedeDeshacer()) return;
+        ev.preventDefault();
+        almacen.deshacer();
+        return;
+      }
       if (ev.metaKey || ev.ctrlKey || ev.altKey || !atajos) return;
-      if (t && (t.matches("input, select, textarea") || t.isContentEditable)) return;
+      if (escribiendo) return;
       if (document.querySelector("dialog[open], [role=dialog]:not([popover]), [popover]:popover-open, [role=alertdialog], [role=menu]")) return;
       if (almacen.modo() === "real" && !almacen.operador()) return;
       const k = ev.key;
@@ -721,6 +741,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       })();
       let hizo = true;
       if (k === "/") setPaleta(true);
+      else if (k === "?") setAyuda(true);
       else if (k === "n" || k === "N") nuevoTurno(); else if ((k === "c" || k === "C") && visibles.some((s) => s.id === "buffet")) abrirCuenta();
       else if (k === "t" || k === "T") {
         cambiarSolapa("agenda");
@@ -748,6 +769,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       else if (a.tipo === "abrirCuenta") abrirCuenta();
       else if (a.tipo === "turno") verTurno(a.id);
       else if (a.tipo === "atajos") cambiarAtajos(a.prender);
+      else if (a.tipo === "ayudaAtajos") setAyuda(true);
       else if (a.tipo === "cliente") {
         pedirFichaDeCliente(a.id);
         irASolapa("clientes");
@@ -779,7 +801,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       <SoloConOperador almacen={almacen} negocio={negocio}>
 
       {/* En la barra, el buscador del club de hoy: abre la paleta (lo mismo que Ctrl+K o «/»). */}
-      <EnLaCabecera fuera={null}>
+      <EnLaCabecera en="casa-buscar" fuera={null}>
         <button type="button" data-casa="buscar" onClick={() => setPaleta(true)} aria-keyshortcuts="Control+K" className="inline-flex min-h-11 items-center gap-2.5 rounded-sm border px-3 text-sm">
           <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
             <circle cx="11" cy="11" r="6.5" />
@@ -874,6 +896,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
           onCerrar={() => setPaleta(false)}
         />
       )}
+      {ayuda && <AyudaDeAtajos atajos={atajos} onCerrar={() => setAyuda(false)} />}
       </SoloConOperador>
     </div>
     </NegocioDelClub>

@@ -31,6 +31,10 @@ const CamarasDeLaDemo = lazy(() => import("./camaras-de-la-demo"));
 const seleccionarTablero = (e: EstadoClub, a: Ahora) => armarTablero(e, a);
 const tarjeta = "flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4";
 const etiqueta = "text-sm font-medium text-strong";
+// Lo que espera el OK del dueño, como el club de hoy (`.al.media`): tarjeta con el filo ámbar a la izquierda y el rótulo
+// en ese color, sin el bloque ámbar relleno.
+const aviso = "flex flex-col gap-2 rounded-md border border-line border-l-4 border-l-warning bg-surface-raised p-3";
+const rotuloDelAviso = "text-xs font-semibold tracking-wide text-warning uppercase";
 const ROL_DETALLE: Record<Rol, string> = {
   recepcion: `${ROLES.recepcion} (agenda, cobros, buffet, remitos y egresos en efectivo)`,
   duenio: `${ROLES.duenio} (todo)`,
@@ -41,8 +45,8 @@ function PedidoDeCredito({ p, hacer }: { p: PedidoParaAutorizar; hacer: (a: Acci
   const id = useId();
   return (
     <li>
-      <article aria-labelledby={`${id}-t`} className="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning-soft p-3">
-        <h3 id={`${id}-t`} className="text-xs font-semibold tracking-wide text-strong uppercase">
+      <article aria-labelledby={`${id}-t`} data-ui="aviso-tablero" className={aviso}>
+        <h3 id={`${id}-t`} className={rotuloDelAviso}>
           {p.rotulo} · {p.cliente}
         </h3>
         <p className="text-sm text-strong">
@@ -79,8 +83,8 @@ function PedidoDeAcceso({ s, hacer }: { s: AccesoPedido; hacer: (a: AccionTabler
   const id = useId();
   return (
     <li>
-      <article aria-labelledby={`${id}-t`} className="flex flex-col gap-2 rounded-md border border-line-strong bg-surface p-3">
-        <h3 id={`${id}-t`} className="text-xs font-semibold tracking-wide text-strong uppercase">
+      <article aria-labelledby={`${id}-t`} data-ui="aviso-tablero" className={aviso}>
+        <h3 id={`${id}-t`} className={rotuloDelAviso}>
           Acceso al sistema · {s.nombre}
         </h3>
         <p className="text-sm text-strong">
