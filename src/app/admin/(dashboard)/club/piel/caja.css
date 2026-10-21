@@ -1,0 +1,84 @@
+/* ============================================================================
+   LA CAJA DEL CLUB con la piel «chapa» de Break Point (el club de hoy: src/tenants/breakpoint/sitio/club.html,
+   vistaCaja + :root[data-estilo="chapa"]). Sólo bajo [data-estetica="breakpoint"]: el club sin estética usa la del ERP.
+   Ganchos data-caja de CajaDelClub.tsx; colores, letra y radios con los tokens de Break Point de globals.css.
+   Contraste AA en claro y oscuro: rótulos en --text-muted sobre --surface-raised (5,9:1 / 7,3:1), egresos en
+   --danger (6,3:1 / 7,0:1), estados en su color sobre su «-soft» (≥ 4,9:1).
+   ============================================================================ */
+
+/* La tarjeta de hoy: chapa cuadrada, filete gris; el título lleva la doble raya (tinta + naranja) de globals.css. */
+[data-estetica="breakpoint"] [data-caja="hoy"] { border-radius: 0; gap: 1rem; }
+[data-estetica="breakpoint"] [data-caja="cabecera"] { margin-bottom: 0; }
+
+/* Las cuatro cifras como los .kpi de la chapa: filete, raya de color arriba, rótulo en versalitas, cifra angosta. */
+[data-estetica="breakpoint"] [data-caja="numeros"] { gap: 0.75rem; }
+[data-estetica="breakpoint"] [data-caja="numeros"] > div {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
+  border-radius: 0;
+  padding: 0.75rem;
+}
+[data-estetica="breakpoint"] [data-caja="numeros"] dt {
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+[data-estetica="breakpoint"] [data-caja="numeros"] dd {
+  margin-top: 0.375rem;
+  color: var(--text-strong);
+  font-size: 1.75rem;
+  font-stretch: 75%;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
+  white-space: nowrap;
+}
+/* El efectivo del cajón manda: raya naranja del club y la cifra más grande. */
+[data-estetica="breakpoint"] [data-caja="numeros"] > [data-caja="cajon"] { border-top-color: var(--club-naranja); }
+[data-estetica="breakpoint"] [data-caja="numeros"] > [data-caja="cajon"] dd { font-size: 2.125rem; }
+/* Los egresos, en rojo: es plata que salió del cajón. */
+[data-estetica="breakpoint"] [data-caja="numeros"] > [data-signo="egreso"] { border-top-color: var(--danger); }
+[data-estetica="breakpoint"] [data-caja="numeros"] > [data-signo="egreso"] dd { color: var(--danger); }
+
+/* Los subtítulos de la tarjeta (medios y corte), como los encabezados de tabla de la chapa: versalitas y raya de tinta. */
+[data-estetica="breakpoint"] [data-caja="hoy"] h3 {
+  border-bottom: 2px solid var(--text-strong);
+  padding-bottom: 0.375rem;
+  color: var(--text-strong);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Lo cobrado por medio: la lista clave–valor (.kv) de la chapa. */
+[data-estetica="breakpoint"] [data-caja="medios"] dl > div { border-bottom-color: var(--line); padding-block: 0.375rem; }
+[data-estetica="breakpoint"] [data-caja="medios"] dt { color: var(--text-muted); }
+[data-estetica="breakpoint"] [data-caja="medios"] dd { color: var(--text-strong); font-weight: 650; font-variant-numeric: lining-nums tabular-nums; }
+
+/* El corte: el estado en una plaqueta cuadrada, como los .chip de la chapa. */
+[data-estetica="breakpoint"] [data-caja="estado"] {
+  border-radius: var(--radius-sm);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Los movimientos: encabezados en versalitas con la raya de tinta, como las tablas de la chapa. */
+[data-estetica="breakpoint"] [data-caja="movimientos"] { border-radius: 0; }
+[data-estetica="breakpoint"] [data-caja="movimientos"] thead tr { border-bottom: 2px solid var(--text-strong); }
+[data-estetica="breakpoint"] [data-caja="movimientos"] th {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Egreso y cierre: tarjetas cuadradas con la raya de su tono (el egreso saca plata; el cierre es el corte del día). */
+[data-estetica="breakpoint"] [data-caja="egreso"],
+[data-estetica="breakpoint"] [data-caja="cierre"] { border-radius: 0; border-top: 3px solid var(--line-strong); }
+[data-estetica="breakpoint"] [data-caja="cierre"] { border-top-color: var(--accent); }

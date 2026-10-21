@@ -27,6 +27,7 @@ import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 import { operadorActual } from "./operador-del-club";
 import { permisosProveedores } from "./proveedores-core";
 import { RegistrarRemito } from "./remito-del-club";
+import "./piel/caja.css";
 
 const ddmm = (d: string) => `${Number(d.slice(8))}/${Number(d.slice(5, 7))}`;
 
@@ -169,7 +170,7 @@ function FondoDeCaja({ almacen, fondo, hacer }: { almacen: Almacen; fondo: numbe
 function Movimientos({ v, onMas }: { v: VistaCaja; onMas: () => void }) {
   const faltan = v.totalMovimientos - v.movimientos.length;
   return (
-    <section aria-labelledby="club-caja-movs" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
+    <section aria-labelledby="club-caja-movs" data-caja="movimientos" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
       <h2 id="club-caja-movs" className="font-semibold text-strong">
         Movimientos ({v.totalMovimientos})
       </h2>
@@ -227,7 +228,7 @@ function Egreso({ almacen, hacer }: { almacen: Almacen; hacer: (a: AccionCaja) =
   const quien = useQuienOpera(almacen);
   const ids = { monto: useId(), concepto: useId(), pin: useId() };
   return (
-    <section aria-labelledby="club-egreso" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
+    <section aria-labelledby="club-egreso" data-caja="egreso" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
       <h2 id="club-egreso" className="font-semibold text-strong">
         Anotar un egreso en efectivo
       </h2>
@@ -265,9 +266,40 @@ function Egreso({ almacen, hacer }: { almacen: Almacen; hacer: (a: AccionCaja) =
   );
 }
 
+/** Cómo dio un cierre: «cuadra», «sobran $ X» o «faltan $ X». */
+const resultadoDelCierre = (diferencia: number) => (diferencia === 0 ? "cuadra" : `${diferencia > 0 ? "sobran" : "faltan"} ${pesos(Math.abs(diferencia))}`);
+
+/** El estado del corte en una plaqueta: color y palabra (nunca sólo el color). */
+const ESTADO_DEL_CORTE: Record<CierreDeHoy["tipo"], { texto: string; clase: string }> = {
+  abierta: { texto: "Abierta", clase: "border-accent bg-accent-soft text-accent-ink" },
+  siguiente: { texto: "Hoy ya cerró", clase: "border-warning bg-warning-soft text-warning" },
+  cerrada: { texto: "Cerrada", clase: "border-success bg-success-soft text-success" },
+};
+
+/** El corte de la caja de hoy, en la tarjeta: si está abierta o cerrada y cómo dio el último cierre. */
+function CorteDeHoy({ cierre, ultimo }: { cierre: CierreDeHoy; ultimo: VistaCaja["cierres"][number] | undefined }) {
+  const estado = ESTADO_DEL_CORTE[cierre.tipo];
+  return (
+    <div data-caja="corte" className="flex min-w-0 flex-col gap-2">
+      <h3 className="text-sm font-semibold text-strong">Corte de la caja</h3>
+      <p className="flex flex-wrap items-center gap-2 text-sm text-body">
+        <span data-caja="estado" data-estado={cierre.tipo} className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold", estado.clase)}>
+          {estado.texto}
+        </span>
+        {cierre.tipo === "abierta" ? "Se cierra una sola vez, con el efectivo contado." : cierre.tipo === "siguiente" ? `Lo cobrado después va a la caja del ${ddmm(cierre.dia)}.` : "Lo que se cobre ahora entra en la caja siguiente."}
+      </p>
+      {ultimo && (
+        <p className="text-sm text-body tabular-nums">
+          Último cierre, caja del {ddmm(ultimo.dia)}: <span className={cn("font-semibold", ultimo.diferencia === 0 ? "text-success" : "text-danger")}>{resultadoDelCierre(ultimo.diferencia)}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 function CierreDeLaCaja({ almacen, cierre, esperado, hacer }: { almacen: Almacen; cierre: CierreDeHoy; esperado: number; hacer: (a: AccionCaja) => boolean }) {
   return (
-    <section aria-labelledby="club-cierre" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
+    <section aria-labelledby="club-cierre" data-caja="cierre" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
       <h2 id="club-cierre" className="font-semibold text-strong">
         Cerrar la caja
       </h2>
@@ -336,12 +368,16 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
       <OperaComo almacen={almacen} />
       {v.atrasadas.length > 0 && <CajasAtrasadas almacen={almacen} atrasadas={v.atrasadas} hacer={hacer} />}
 
-      <section aria-labelledby="club-caja-hoy" data-pantalla-tarjeta className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
-        <h2 id="club-caja-hoy" data-pantalla className="text-lg font-semibold text-strong">
-          {v.titulo}
-        </h2>
-        <dl className="grid grid-cols-2 gap-3 tabular-nums sm:grid-cols-4">
-          <div className="col-span-2 rounded-md bg-surface-sunken p-3 sm:col-span-1">
+      {/* La caja de hoy, la tarjeta «chapa» del club: el efectivo del cajón, lo cobrado por medio, los egresos y el
+          corte. La piel de Break Point está en piel/caja.css (ganchos data-caja); sin estética, la del ERP. */}
+      <section aria-labelledby="club-caja-hoy" data-pantalla-tarjeta data-caja="hoy" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
+        <div data-caja="cabecera">
+          <h2 id="club-caja-hoy" data-pantalla className="text-lg font-semibold text-strong">
+            {v.titulo}
+          </h2>
+        </div>
+        <dl data-caja="numeros" className="grid grid-cols-2 gap-3 tabular-nums sm:grid-cols-4">
+          <div data-caja="cajon" className="col-span-2 rounded-md bg-surface-sunken p-3 sm:col-span-1">
             {/* text-body: sobre el fondo hundido, text-muted no llega a 4,5:1. */}
             <dt className="text-xs text-body">Efectivo en el cajón</dt>
             <dd className="text-xl font-bold text-strong">{pesos(v.efectivoEsperado)}</dd>
@@ -350,23 +386,31 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
             <dt className="text-xs text-muted">Fondo</dt>
             <dd className="font-semibold text-strong">{pesos(v.fondo)}</dd>
           </div>
-          <div className="p-3">
+          <div data-signo="ingreso" className="p-3">
             <dt className="text-xs text-muted">Ingresos</dt>
             <dd className="font-semibold text-strong">{pesos(v.ingresos)}</dd>
           </div>
-          <div className="p-3">
+          <div data-signo="egreso" className="p-3">
             <dt className="text-xs text-muted">Egresos</dt>
             <dd className="font-semibold text-strong">{pesos(v.egresos)}</dd>
           </div>
         </dl>
-        <dl aria-label="Lo cobrado por medio" className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm tabular-nums sm:grid-cols-4">
-          {v.porMedio.map((m) => (
-            <div key={m.medio} className="flex justify-between gap-2 border-b border-line py-1">
-              <dt className="text-muted">{m.medio}</dt>
-              <dd className="text-strong">{pesos(m.monto)}</dd>
-            </div>
-          ))}
-        </dl>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          <div data-caja="medios" className="flex min-w-0 flex-col gap-1">
+            <h3 id="club-caja-medios" className="text-sm font-semibold text-strong">
+              Ingresos por medio de pago
+            </h3>
+            <dl aria-labelledby="club-caja-medios" className="grid grid-cols-1 gap-x-4 text-sm tabular-nums sm:grid-cols-2">
+              {v.porMedio.map((m) => (
+                <div key={m.medio} className="flex justify-between gap-2 border-b border-line py-1">
+                  <dt className="text-muted">{m.medio}</dt>
+                  <dd className="text-strong">{pesos(m.monto)}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+          <CorteDeHoy cierre={v.cierreDeHoy} ultimo={v.cierres[0]} />
+        </div>
         <FondoDeCaja key={v.fondo} almacen={almacen} fondo={v.fondo} hacer={hacer} />
       </section>
 
@@ -389,7 +433,7 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
               <li key={c.dia} className="flex justify-between gap-2 border-b border-line py-1.5">
                 <span className={cn("min-w-0 truncate text-muted")}>{c.texto}</span>
                 <span className={cn("shrink-0 font-semibold", c.diferencia === 0 ? "text-success" : "text-danger")}>
-                  {c.diferencia === 0 ? "cuadra" : `${c.diferencia > 0 ? "sobran" : "faltan"} ${pesos(Math.abs(c.diferencia))}`}
+                  {resultadoDelCierre(c.diferencia)}
                 </span>
               </li>
             ))}
