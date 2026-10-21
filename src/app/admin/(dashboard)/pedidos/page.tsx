@@ -6,6 +6,7 @@ import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
 import { posEmptyState } from "@/lib/stock/pos-stock-rules";
 import MostradorTabs from "./MostradorTabs";
 import MostradorDeVenta from "../vender/MostradorDeVenta";
+import { puedeAbrirApp } from "../vender/puede-abrir";
 import MostradorEnCajon from "./MostradorEnCajon";
 import CobrarPedidoForm from "./CobrarPedidoForm";
 import EntregarPedidoForm from "./EntregarPedidoForm";
@@ -240,7 +241,7 @@ export default async function PedidosPage() {
               un cajón que se abre con su tecla, para que la pantalla sea la bandeja. */}
           {/* En un comercio, el mostrador es Vender a pantalla completa: dentro del cajón (30rem) sus
               dos columnas, que miden la pantalla, se pisaban desde 1024 px. */}
-          {!modeloNuevo && comercio && (
+          {!modeloNuevo && comercio && (await puedeAbrirApp("vender")) && (
             <Link href="/admin/vender" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")}>
               Cobrar en el mostrador
             </Link>
