@@ -613,7 +613,7 @@ test("«Hacer fijo» de un turno a más de una semana se rechaza: no aparece un 
   const e = demo();
   const lejos = M.sumarDias(HOY, 10);
   const res = M.crearReserva(e, { canchaId: "c1", fecha: lejos, inicio: 10 * 60, titular: "Lejano" }, AHORA);
-  assert.ok(res.ok, res.motivo);
+  assert.ok(res.ok, res.ok ? "" : res.motivo);
   const fijosAntes = e.fijos.length;
   const r = ejecutar(e, res.reserva.id, { tipo: "hacerFijo" }, AHORA);
   assert.equal(r.ok, false);
