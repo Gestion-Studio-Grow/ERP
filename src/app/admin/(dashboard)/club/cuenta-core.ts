@@ -67,6 +67,9 @@ import type { Ahora, Auth, Cliente, Cuenta, EstadoClub, EstadoReserva, Medio, Re
 import type { Desenlace } from "./almacen";
 import { bajarFijos } from "./canchas-core";
 
+/** «Sábado» → «sábados» (lunes a viernes ya terminan en s): «todos los sábados 17:30». */
+const enPlural = (dia: string) => (dia.toLowerCase().endsWith("s") ? dia.toLowerCase() : `${dia.toLowerCase()}s`);
+
 export type { Desenlace };
 
 /** Los medios que entran a la caja (los créditos del cliente llegan con la rebanada del crédito). */
@@ -283,7 +286,7 @@ export function armarCuenta(estado: EstadoClub, reservaId: string): VistaCuenta 
       cobrarSena: senaPendiente(r),
       abrirCancha: r.estado === "reservada",
       cerrarCancha: abierto && r.estado === "en_cancha" && T.pendiente === 0,
-      hacerFijo: r.tipo === "turno" && !r.fijoId && abierto ? `${NOMBRE_DIA[diaSemana(r.fecha)].toLowerCase()} ${hhmm(r.inicio)}` : null,
+      hacerFijo: r.tipo === "turno" && !r.fijoId && abierto ? `${enPlural(NOMBRE_DIA[diaSemana(r.fecha)])} ${hhmm(r.inicio)}` : null,
       cerrarYSeguir,
       cerrarCargos,
       cargosACuenta: cerrarCargos !== null && T.cargos > 0,
@@ -436,7 +439,7 @@ export function ejecutar(estado: EstadoClub, reservaId: string, accion: AccionCu
       r.tipo = "fijo";
       r.fijoId = f.id;
       const bajada = bajarFijos(estado, ahora.fecha);
-      return { ok: true, mensaje: `Turno fijo de ${r.titular} los ${NOMBRE_DIA[f.dia].toLowerCase()} a las ${hhmm(r.inicio)}. ${bajada.mensaje}` };
+      return { ok: true, mensaje: `Turno fijo de ${r.titular} los ${enPlural(NOMBRE_DIA[f.dia])} a las ${hhmm(r.inicio)}. ${bajada.mensaje}` };
     }
     case "cerrarCargos": {
       const res = cerrarCargosDelTurno(estado, reservaId, { medio: accion.medio, ...conAuth }, ahora);

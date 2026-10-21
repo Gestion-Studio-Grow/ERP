@@ -95,7 +95,7 @@ function CreditoDelJugador({ almacen, fila, onAccion }: { almacen: Almacen; fila
   if (!c) return null;
   if (c.aCuenta) {
     return (
-      <Button variant="outline" size="md" className="self-start" onClick={() => onAccion({ tipo: "cargosACuentaDe", cuentaId: c.cuentaId })}>
+      <Button variant="ghost" size="md" className="self-start" onClick={() => onAccion({ tipo: "cargosACuentaDe", cuentaId: c.cuentaId })}>
         Sus cargos a su cuenta corriente {pesos(c.monto)}
         <span className="sr-only"> ({fila.nombre})</span>
       </Button>
@@ -140,20 +140,67 @@ const FilaDeJugador = memo(function FilaDeJugador({
 }) {
   const base = `${reservaId}-${fila.idx}`;
   return (
-    <li className="flex flex-col gap-2 border-t border-line py-3 first:border-t-0">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
+    <li className="flex flex-col gap-2 border-t border-line py-2 first:border-t-0">
+      <div className="flex flex-wrap items-start justify-between gap-2 sm:flex-nowrap">
+        <div className="min-w-0 flex-1">
           <p className="font-semibold text-strong">
             {fila.nombre}
             {fila.deudor && <span className="ml-2 text-xs font-semibold text-danger">⚠ cuenta con deuda</span>}
           </p>
+          <div className="flex flex-wrap items-baseline gap-x-3">
           <p className="text-sm tabular-nums text-muted">
             {fila.detalle}
             {fila.creditos > 0 ? ` · créditos ${pesos(fila.creditos)}` : ""}
           </p>
+          {/* Quién paga y el detalle de los cargos, plegados (como el club de hoy): el cobro queda a la vista; esto se abre
+              cuando hace falta (pasar la parte a otro jugador, mirar qué consumió). */}
+          {(fila.cancha || fila.cargos || fila.items.length > 0) && (
+            <details data-cuenta="detalle" className="text-sm open:basis-full">
+              <summary className="inline-flex min-h-6 cursor-pointer items-center text-xs text-muted underline-offset-2 hover:text-strong hover:underline">
+                {fila.items.length > 0 ? `Ver los cargos (${fila.items.length}) y quién paga` : "Quién paga"}
+              </summary>
+              {(fila.cancha || fila.cargos) && (
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {fila.cancha && (
+                    <SelectorACargo
+                      id={`cancha-${base}`}
+                      etiqueta={`Parte de la cancha de ${fila.nombre}`}
+                      elegido={fila.cancha.elegido}
+                      opciones={fila.cancha.opciones}
+                      onCambiar={(de) => onAccion({ tipo: "aCargoCancha", idx: fila.idx, de })}
+                    />
+                  )}
+                  {fila.cargos && (
+                    <SelectorACargo
+                      id={`cargos-${base}`}
+                      etiqueta={`Cargos de ${fila.nombre}`}
+                      elegido={fila.cargos.elegido}
+                      opciones={fila.cargos.opciones}
+                      onCambiar={(de) => onAccion({ tipo: "aCargoCargos", cuentaId: fila.cargos!.cuentaId, de })}
+                    />
+                  )}
+                </div>
+              )}
+              {fila.items.length > 0 && (
+                <ul aria-label={`Cargos de ${fila.nombre}`} className="mt-2 tabular-nums">
+                  {fila.items.map((i, k) => (
+                    <li key={k} className="flex justify-between gap-2 text-muted">
+                      <span className="min-w-0 truncate">
+                        {i.cant} × {i.nombre}
+                      </span>
+                      <span>{pesos(i.importe)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </details>
+          )}
+          </div>
         </div>
         {fila.aPagar > 0 ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
+            {/* Pasar sus cargos a su cuenta corriente (o pedir el OK para fiar), al lado del cobro: un renglón menos. */}
+            <CreditoDelJugador almacen={almacen} fila={fila} onAccion={onAccion} />
             {fila.soloCancha !== null && (
               <Button variant="ghost" size="md" onClick={() => onCobrarParte(fila.idx)}>
                 Sólo la cancha {pesos(fila.soloCancha)}
@@ -166,53 +213,12 @@ const FilaDeJugador = memo(function FilaDeJugador({
             </Button>
           </div>
         ) : (
-          <span className="pt-2 text-sm text-muted">{fila.situacion === "al día" ? "✔ al día" : fila.situacion}</span>
+          <div className="flex flex-wrap items-start justify-end gap-2">
+            <CreditoDelJugador almacen={almacen} fila={fila} onAccion={onAccion} />
+            <span className="pt-2 text-sm text-muted">{fila.situacion === "al día" ? "✔ al día" : fila.situacion}</span>
+          </div>
         )}
       </div>
-      {/* Quién paga y el detalle de los cargos, plegados (como el club de hoy): el cobro queda a la vista; esto se abre
-          cuando hace falta (pasar la parte a otro jugador, mirar qué consumió). */}
-      {(fila.cancha || fila.cargos || fila.items.length > 0) && (
-        <details data-cuenta="detalle" className="text-sm">
-          <summary className="inline-flex min-h-8 cursor-pointer items-center text-muted hover:text-strong">
-            {fila.items.length > 0 ? `Ver los cargos (${fila.items.length}) y quién paga` : "Quién paga"}
-          </summary>
-          {(fila.cancha || fila.cargos) && (
-            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {fila.cancha && (
-                <SelectorACargo
-                  id={`cancha-${base}`}
-                  etiqueta={`Parte de la cancha de ${fila.nombre}`}
-                  elegido={fila.cancha.elegido}
-                  opciones={fila.cancha.opciones}
-                  onCambiar={(de) => onAccion({ tipo: "aCargoCancha", idx: fila.idx, de })}
-                />
-              )}
-              {fila.cargos && (
-                <SelectorACargo
-                  id={`cargos-${base}`}
-                  etiqueta={`Cargos de ${fila.nombre}`}
-                  elegido={fila.cargos.elegido}
-                  opciones={fila.cargos.opciones}
-                  onCambiar={(de) => onAccion({ tipo: "aCargoCargos", cuentaId: fila.cargos!.cuentaId, de })}
-                />
-              )}
-            </div>
-          )}
-          {fila.items.length > 0 && (
-            <ul aria-label={`Cargos de ${fila.nombre}`} className="mt-2 tabular-nums">
-              {fila.items.map((i, k) => (
-                <li key={k} className="flex justify-between gap-2 text-muted">
-                  <span className="min-w-0 truncate">
-                    {i.cant} × {i.nombre}
-                  </span>
-                  <span>{pesos(i.importe)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </details>
-      )}
-      <CreditoDelJugador almacen={almacen} fila={fila} onAccion={onAccion} />
     </li>
   );
 });
@@ -437,7 +443,7 @@ export default function CuentaDelTurno({
       onKeyDown={(e) => {
         if (e.key === "Escape") onVolver();
       }}
-      className="flex flex-col gap-4 rounded-lg border border-line bg-surface-raised p-4"
+      className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4"
     >
       {/* Como el diálogo del club de hoy: el nombre grande, el turno abajo y la × arriba a la derecha. */}
       <header data-cuenta="cabecera" className="sticky top-0 z-10 -mx-4 -mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 bg-surface-raised px-4 pb-3 pt-4">

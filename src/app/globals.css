@@ -725,6 +725,8 @@
 /* La hoja del turno (ClubDemo, HojaDelTurno): la cuenta o el alta ocupan la hoja de borde a borde, sin recuadro propio;
    la cabecera con la × y el pie fijo (CicloDelTurno) llegan a los bordes. Suspender, en rojo como el club de hoy. */
 [data-ui="hoja-del-turno"] [role="dialog"] > section { border: 0; }
+/* En la PC la hoja usa casi todo el alto (como el diálogo del club de hoy): «Cobrar todo» entra sin scroll a 1366×768. */
+@media (min-width: 1024px) { [data-ui="hoja-del-turno"] { padding-block: 3vh; } }
 [data-cuenta="peligro"] { color: var(--danger); }
 [data-estetica="breakpoint"] [data-cuenta="cabecera"] { margin-bottom: 0.25rem; }
 

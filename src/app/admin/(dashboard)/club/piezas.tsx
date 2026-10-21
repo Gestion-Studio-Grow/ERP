@@ -102,7 +102,7 @@ export function AvisosDelClub({ almacen }: { almacen: Almacen }) {
   const leer = useCallback(() => almacen.aviso(), [almacen]);
   const aviso = useSeleccion(almacen, leer, sinCompartir);
   return (
-    <div data-ui="avisos-del-club" className="sticky bottom-0 z-50 -mx-1 px-1 pb-2">
+    <div data-ui="avisos-del-club" className="sticky bottom-0 z-50 pb-2">
       <div className={cn("flex flex-col gap-2 rounded-lg border px-4 py-2 sm:flex-row sm:items-center sm:justify-between", aviso ? "border-line-strong bg-surface-raised shadow-raised" : "border-transparent")}>
         <div className="min-w-0 text-sm font-medium">
           <p role="status" className="text-success">

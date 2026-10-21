@@ -3,6 +3,8 @@ import { isDemoSandbox } from "@/lib/demo-flag";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { PageContainer, PageHeader } from "@/components/ui";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { appCasa } from "@/apps/visibles";
 import ClubCargador from "./ClubCargador";
 import { relojDelClub } from "./jornada-del-club-core";
 
@@ -31,6 +33,16 @@ export default async function ClubPage({ searchParams }: { searchParams: Promise
   const user = await requireApp("club");
   const slug = await getCurrentTenantSlug();
   const reloj = relojDelClub({ slug: slug ?? null, sandbox: isDemoSandbox(), demo: (await searchParams).demo });
+  // Si el club es la casa del negocio (Break Point), la pantalla es la del club de hoy: sin el título del ERP ni el
+  // tope de 1240 px, al ancho de su barra (PanelDeCasa). `getNegocioApps` ya lo resolvió el layout en este pedido.
+  const casa = appCasa(await getNegocioApps(user.role));
+  if (casa?.id === "club") {
+    return (
+      <div className="mx-auto w-full max-w-[1500px] px-4 py-4">
+        <ClubCargador negocio={slug ?? user.tenantId} usuario={user.id} rol={user.role} reloj={reloj} />
+      </div>
+    );
+  }
   return (
     <PageContainer>
       <PageHeader title="Canchas del club" description="Las canchas de hoy, la cuenta de cada turno, el buffet y la caja de 12 a 12." />
