@@ -271,3 +271,18 @@ test("M2: un solo tope de intentos de PIN para toda la compu, escalonado y guard
   // Lo guardado roto o tocado a mano no rompe nada.
   assert.deepEqual(M.intentosPin({ fallos: "x", esperaHasta: -5 }), M.intentosPin());
 });
+
+test("PIN con hash: hashPin = PBKDF2-SHA256 estándar (node:crypto) con sales de todos los largos, incluidos los bordes del relleno de SHA-256 (55, 119…)", async () => {
+  const { pbkdf2Sync } = await import("node:crypto");
+  for (const n of [1, 8, 32, 51, 55, 56, 63, 64, 115, 119, 120, 128]) {
+    const sal = "a".repeat(n);
+    assert.equal(M.hashPin("4821", sal), "h1:" + pbkdf2Sync("4821", sal, M.VUELTAS_PIN, 32, "sha256").toString("hex"), `sal de ${n}`);
+  }
+  // Un club con sal: el PIN no queda en claro y se verifica igual; el viejo en claro sigue sirviendo hasta que se pasa.
+  const e = club();
+  const u = e.usuarios.find((x: any) => x.rol === "duenio");
+  const enClaro = u.pin;
+  assert.ok(M.pinCoincide(e, u, enClaro));
+  M.pasarPinesAHash(e);
+  assert.ok(M.esPinConHash(u.pin) && u.pinLargo === enClaro.length && M.pinCoincide(e, u, enClaro) && !M.pinCoincide(e, u, "0000"));
+});

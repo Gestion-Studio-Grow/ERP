@@ -196,3 +196,21 @@ Propuesta para cuando terminales toque el almacén (no se cambia el formato del 
 - El servidor lo compara con el slug de la sesión (`getCurrentTenantSlug`), nunca con lo que diga el navegador.
 
 — Elaborado por GSG
+
+
+## PIN con hash (desde el 21/10/2026)
+
+- `usuarios[].pin` ya no va en claro: `h1:<hex>` = PBKDF2-SHA256(PIN, `estado.salPin`, `VUELTAS_PIN` = 2000), y
+  `usuarios[].pinLargo` (2 o 4) para saber si un dueño tiene todavía el viejo de 2. `estado.salPin` es UNA por club.
+- Un PIN en claro (respaldo o foto de antes) sigue sirviendo (`pinCoincide`) y pasa a hash cuando la jornada real del
+  ERP abre la foto (`pasarPinesAHash`, en el almacén) o cuando se cambia. El club de hoy (vanilla) lo pasa al cambiarlo.
+- El link del pedido de crédito lleva `s` (la sal): el código de aprobación es `codigoAprobacion` con `hash(PIN, sal)`.
+  Un link viejo sin `s` da el código con el PIN en claro: si el club ya tiene sal, ese código no sirve y hay que
+  reenviar el pedido.
+- Lo que NO cuida: con 4 números hay 10.000 PIN; quien tenga la foto y tiempo los prueba todos (cada intento cuesta
+  ~50 ms en una PC). Y el hash hace de PIN para el código de aprobación: quien tiene la foto puede firmar
+  aprobaciones. Las fotos viejas con PIN en claro siguen en el historial de la base hasta que la poda las borra
+  (14 días, estado-repo.ts) y en las copias locales («antes de restaurar», «lo que quedó aparte»). Lo que cuida al PIN es
+  que la foto no salga del club, el tope de intentos y G8 (src/lib/club/delicado.ts).
+
+— Elaborado por GSG
