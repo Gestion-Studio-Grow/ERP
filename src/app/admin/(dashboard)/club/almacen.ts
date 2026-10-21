@@ -197,7 +197,8 @@ export interface Operador {
 export function operadorDeLaDemo(estado: EstadoClub, rol: RolDelPanel): Operador | null {
   const buscado = rol === "OWNER" ? "duenio" : "recepcion";
   const u = estado.usuarios.find((x) => x.activo !== false && x.rol === buscado && x.pin) ?? null;
-  // El PIN de ejemplo en claro (el guardado puede tener hash).
+  // El PIN de ejemplo en claro (el guardado puede tener hash). Si en la demo alguien cambia su PIN, la pantalla
+  // fija el operador con el PIN tipeado (`cambiarOperador`: config-usuarios.tsx, BloqueoDelClub.tsx) y este no se usa.
   return u ? { usuario: u, auth: { usuarioId: u.id, pin: USUARIOS_DEMO.find((d) => d.id === u.id)?.pin ?? u.pin } } : null;
 }
 
@@ -580,12 +581,15 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   // Lo que quedó en el espejo sin confirmar por el otro guardado (sólo con un guardado que no es el de este equipo).
   let marcaEspejo: (MarcaDelEspejo & { cambios: number }) | null = null;
   let sucioAlAbrir = false;
+  let pinesLuego = false;
   if (real) {
     if (abierto?.ok) {
       estado = abierto.estado;
       retomo = true;
-      // Una foto con PIN en claro (de antes del 21/10) pasa a hash al abrir, y se guarda así.
-      if (pasarPinesAHash(estado)) sucioAlAbrir = true;
+      // Una foto con PIN en claro (de antes del 21/10) pasa a hash al abrir, y se guarda así. En el navegador se hace
+      // cuando está libre (son ~50 ms por PIN, una sola vez en la vida del club): que no trabe la apertura.
+      if (enReposo) pinesLuego = true;
+      else if (pasarPinesAHash(estado)) sucioAlAbrir = true;
     } else {
       if (inicial) {
         // Como el vanilla: lo que no se pudo leer se aparta (no se borra) y se arranca en blanco. Si ni eso se puede,
@@ -876,6 +880,8 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     programarGuardado();
     adelantarTexto();
   };
+  // Los PIN en claro de la foto abierta, con el navegador libre (lo que llegue antes por `reemplazar` ya los pasa).
+  if (pinesLuego) enReposo?.(() => pasarPinesAHash(estado) > 0 && cambio());
 
   let aviso: AvisoDelClub | null = avisoInicial ? { id: 1, ok: false, mensaje: avisoInicial, deshacer: false } : null;
   /** La foto de antes de la última acción deshacible: el texto del estado (ver `textoActual`). */

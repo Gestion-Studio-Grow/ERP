@@ -193,6 +193,11 @@ test("M1: el PIN viejo de 2 de un dueño no firma un descuento ni una aprobació
   const d = M.datosAprobacion(e, M.solicitarCredito(e, { clienteId: e.clientes[0].id, tipo: "fiado", monto: 3000 }, RECEP, ahora(21, 8)).novedad.id);
   const cod = M.codigoAprobacion({ pin: "11", sal: d.s, novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f });
   assert.ok(M.aprobarPorCodigo(e, d.id, { codigo: cod, monto: d.m }, RECEP, ahora(21, 9)).ok);
+  // Un link de antes del 21/10 (sin la sal): el código no sirve y el aviso dice que se reenvía (Gate m5).
+  const d2 = M.datosAprobacion(e, M.solicitarCredito(e, { clienteId: e.clientes[0].id, tipo: "fiado", monto: 2000 }, RECEP, ahora(21, 10)).novedad.id);
+  const viejo = M.codigoAprobacion({ pin: "11", novedadId: d2.id, clienteId: d2.c, monto: d2.m, fecha: d2.f });
+  const r = M.aprobarPorCodigo(e, d2.id, { codigo: viejo, monto: d2.m }, RECEP, ahora(21, 11));
+  assert.ok(!r.ok && /link de antes del 21\/10, reenviáselo con «Avisar por WhatsApp»/.test(r.motivo), r.motivo);
 });
 
 test("M4: el PIN que se elige no puede ser de ejemplo, todo igual ni una escalera (en 2 números, sólo los dobles)", () => {

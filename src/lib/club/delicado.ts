@@ -49,12 +49,14 @@ export function conservarLoDelicado(textoVigente: string, textoNuevo: string): {
   // Con PIN con hash, la sal del club también es delicada: cambiarla invalidaría todos los PIN.
   const salAntes = (vigente as { estado?: { salPin?: unknown } }).estado?.salPin;
   const salAhora = (nuevo as { estado?: { salPin?: unknown } }).estado?.salPin;
-  const misma = salAntes === undefined || salAntes === salAhora;
+  // Una sal es texto en hex (la arma el motor, `salDelClub`): otra cosa no se acepta ni para estrenarla.
+  const salValida = (x: unknown) => typeof x === "string" && /^[0-9a-f]{16,128}$/.test(x);
+  const misma = salAntes === undefined ? salAhora === undefined || salValida(salAhora) : salAntes === salAhora;
   const pinNuevoValido = (rol: string, n: UsuarioCrudo) =>
     typeof n.pin === "string" && (esPinConHash(n.pin) ? misma && Number(n.pinLargo) === largoPin(rol) : pinValidoPara(rol, n.pin));
   const mismoPinConHash = (u: UsuarioCrudo, n: UsuarioCrudo) =>
-    typeof u.pin === "string" && u.pin !== "" && !esPinConHash(u.pin) && typeof n.pin === "string" && esPinConHash(n.pin) &&
-    typeof salAhora === "string" && salAhora !== "" && misma && Number(n.pinLargo) === u.pin.length && hashPin(u.pin, salAhora) === n.pin;
+    typeof u.pin === "string" && u.pin.trim() !== "" && !esPinConHash(u.pin) && typeof n.pin === "string" && esPinConHash(n.pin) &&
+    salValida(salAhora) && misma && Number(n.pinLargo) === u.pin.trim().length && hashPin(u.pin, salAhora as string) === n.pin;
   const quedan = antes.map((u) => {
     const n = porId.get(u.id);
     if (n && n.rol === u.rol && mismoPinConHash(u, n)) return { ...u, pin: n.pin, pinLargo: n.pinLargo };
@@ -70,5 +72,6 @@ export function conservarLoDelicado(textoVigente: string, textoNuevo: string): {
   const e = (nuevo as { estado: { usuarios: unknown; salPin?: unknown } }).estado;
   e.usuarios = quedan;
   if (salAntes !== undefined) e.salPin = salAntes;
+  else if (!salValida(salAhora)) delete e.salPin; // una sal que no es válida no se estrena (ningún PIN quedó con ella)
   return { texto: JSON.stringify(nuevo), corregido: true };
 }
