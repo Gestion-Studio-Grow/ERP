@@ -13,6 +13,11 @@
 //     campo) y se ve el margen, lo vendido, lo facturado y la ganancia de los últimos 7 días.
 // Es del dueño (solapa `soloDuenos` + permiso `stock` del motor): si quien opera con su PIN es recepción, lo ve pero
 // no lo cambia. Todo cambia con `almacen.ejecutar` (aviso abajo y «Deshacer»). Reglas: stock-core.ts.
+//
+// La piel es la del club de hoy (sitio/club.html, «Stock»): una TABLA DENSA con producto, rubro, códigos, precio,
+// costo, stock, mínimo y estado, y el stock en rojo cuando llegó al mínimo. La estructura va acá (Tailwind, con
+// consultas al ancho del contenedor: en angosto cada producto ocupa dos renglones); el vestido de Break Point, en
+// piel/stock-proveedores.css. Lo abierto (ficha, alta, remito) va arriba de la tabla, que usa todo el ancho.
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button, buttonClasses } from "@/components/ui/Button";
@@ -43,24 +48,28 @@ import {
   type VistaProducto,
 } from "./stock-core";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
+import "./piel/stock-proveedores.css";
 
 const tarjeta = "flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4";
 // Los tonos de la estampa: palabra + color, con contraste AA medido (el «warning» y el «neutral» del Badge quedan bajo
-// 4,5:1 en el tema del club, por eso el texto va en `text-strong` sobre el fondo suave).
-const VERDE = "bg-success-soft text-success";
-const AMARILLO = "bg-warning-soft text-strong";
-const ROJO = "bg-danger-soft text-danger";
-const TONO: Readonly<Record<EstadoDelProducto, string>> = {
-  ok: VERDE,
-  reponer: AMARILLO,
-  "sin-stock": ROJO,
-  "sin-controlar": "bg-surface-sunken text-strong",
-  plato: "bg-info-soft text-info",
-  alquiler: "bg-info-soft text-info",
+// 4,5:1 en el tema del club, por eso el texto va en `text-strong` sobre el fondo suave). `data-club-estampa` lleva el
+// tono para que la piel le ponga el filete de las fichitas del club de hoy (.chip.ok / .warn / .bad).
+type Tono = "ok" | "aviso" | "alerta" | "neutro" | "info";
+const CLASE_TONO: Readonly<Record<Tono, string>> = {
+  ok: "bg-success-soft text-success",
+  aviso: "bg-warning-soft text-strong",
+  alerta: "bg-danger-soft text-danger",
+  neutro: "bg-surface-sunken text-strong",
+  info: "bg-info-soft text-info",
 };
+const TONO: Readonly<Record<EstadoDelProducto, Tono>> = { ok: "ok", reponer: "aviso", "sin-stock": "alerta", "sin-controlar": "neutro", plato: "info", alquiler: "info" };
 
-function Estampa({ tono, children }: { tono: string; children: React.ReactNode }) {
-  return <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs leading-5 font-medium whitespace-nowrap tabular-nums", tono)}>{children}</span>;
+function Estampa({ tono, children }: { tono: Tono; children: React.ReactNode }) {
+  return (
+    <span data-club-estampa={tono} className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs leading-5 font-medium whitespace-nowrap tabular-nums", CLASE_TONO[tono])}>
+      {children}
+    </span>
+  );
 }
 
 function useHacer(almacen: Almacen) {
@@ -77,32 +86,86 @@ function EstadoDelProductoBadge({ estado }: { estado: EstadoDelProducto }) {
   );
 }
 
-function DatosDeLaFila({ p }: { p: FilaStock }) {
+// ───────────── la tabla densa ─────────────
+// Angosta (menos de 48rem de contenedor): cada producto en dos renglones, con el estado y el stock a la derecha.
+// Desde 48rem, columnas; desde 64rem, los códigos también en la suya. Cabecera y filas comparten las columnas.
+const COLUMNAS_STOCK =
+  "@3xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_5.5rem_5.5rem_5.5rem_4.5rem_6.5rem_4.5rem] @5xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_9rem_5.5rem_5.5rem_5.5rem_4.5rem_6.5rem_4.5rem]";
+const ancha = "hidden @3xl:block";
+
+/** Lo que llegó al mínimo (o se terminó): el stock va en rojo, como en el club de hoy. */
+const enAlerta = (p: FilaStock) => p.estado === "reponer" || p.estado === "sin-stock";
+const conMinimo = (p: FilaStock) => p.stock != null && p.enUso == null && p.estado !== "plato";
+const resumenDeStock = (p: FilaStock) => (p.estado === "plato" ? "Se mide por venta" : `Stock ${textoStock(p)}${conMinimo(p) ? ` · mín. ${p.minimo}` : ""}`);
+/** La fila entera dicha en una frase: es el nombre de su botón (la cabecera de columnas es sólo visual). */
+const fraseDelProducto = (p: FilaStock) =>
+  [p.nombre, [p.categoria, p.codigos].filter(Boolean).join(" · "), TEXTO_ESTADO[p.estado], resumenDeStock(p), `precio ${pesos(p.precio)}`, `costo ${pesos(p.costo)}`].filter(Boolean).join(" — ");
+
+function CabeceraDeStock() {
+  return (
+    <div aria-hidden data-club-cabeza className={cn("hidden items-end gap-x-3 border-b border-line-strong px-3 pb-1.5 text-xs font-medium text-body @3xl:grid", COLUMNAS_STOCK)}>
+      <span>Producto</span>
+      <span>Rubro</span>
+      <span className="hidden @5xl:block">Códigos</span>
+      <span className="text-right">Precio</span>
+      <span className="text-right">Costo</span>
+      <span className="text-right">Stock</span>
+      <span className="text-right">Mínimo</span>
+      <span>Estado</span>
+      <span />
+    </div>
+  );
+}
+
+function CeldasDelProducto({ p, conEditar }: { p: FilaStock; conEditar: boolean }) {
+  const alerta = enAlerta(p);
   return (
     <>
       <span className="min-w-0">
-        <span className="block font-semibold text-strong">{p.nombre}</span>
-        <span className="block text-xs text-body">
-          {p.categoria}
-          {p.codigos ? ` · ${p.codigos}` : ""}
+        <span data-club-nombre className="block font-semibold text-strong">
+          {p.nombre}
         </span>
+        {/* Angosta: el rubro, los códigos y el precio debajo del nombre. Ancha sin la columna de códigos: sólo ellos. */}
+        <span className="block text-xs text-body @3xl:hidden">{[p.categoria, p.codigos, pesos(p.precio)].filter(Boolean).join(" · ")}</span>
+        {p.codigos && <span className="hidden text-xs text-body @3xl:block @5xl:hidden">{p.codigos}</span>}
       </span>
-      <span className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 tabular-nums sm:justify-end">
+      <span className={cn(ancha, "min-w-0 break-words text-body")}>{p.categoria}</span>
+      <span className="hidden min-w-0 text-xs break-words text-body @5xl:block">{p.codigos || "—"}</span>
+      <span className={cn(ancha, "text-right whitespace-nowrap text-strong")}>{pesos(p.precio)}</span>
+      <span className={cn(ancha, "text-right whitespace-nowrap text-body")}>{pesos(p.costo)}</span>
+      <span data-club-stock={alerta ? "alerta" : undefined} className={cn(ancha, "text-right", alerta ? "font-semibold text-danger" : "text-strong")}>
+        {textoStock(p)}
+      </span>
+      <span className={cn(ancha, "text-right text-body")}>{conMinimo(p) ? p.minimo : "—"}</span>
+      <span className={ancha}>
         <EstadoDelProductoBadge estado={p.estado} />
-        <span className="text-body">{p.estado === "plato" ? "Se mide por venta" : `Stock ${textoStock(p)}${p.stock != null && p.enUso == null ? ` · mín. ${p.minimo}` : ""}`}</span>
-        <span className="text-strong">{pesos(p.precio)}</span>
+      </span>
+      <span className={cn(ancha, "text-right")}>
+        {conEditar && (
+          <span data-club-editar className="inline-flex min-h-8 items-center rounded-md border border-line-strong px-2.5 text-xs font-semibold text-strong">
+            Editar
+          </span>
+        )}
+      </span>
+      {/* Angosta: el estado y el stock a la derecha del nombre. */}
+      <span className="flex flex-col items-end gap-0.5 text-right @3xl:hidden">
+        <EstadoDelProductoBadge estado={p.estado} />
+        <span data-club-stock={alerta ? "alerta" : undefined} className={cn("text-xs", alerta ? "font-semibold text-danger" : "text-body")}>
+          {resumenDeStock(p)}
+        </span>
       </span>
     </>
   );
 }
 
-const fila = "flex min-h-11 w-full flex-col gap-1 rounded-md border px-3 py-2 text-left text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3";
+const fila = cn("grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 border-b border-line px-3 py-1.5 text-left text-sm tabular-nums", COLUMNAS_STOCK);
 
 function FilaDelProducto({ p, elegido, onAbrir }: { p: FilaStock; elegido: boolean; onAbrir: ((id: string) => void) | null }) {
   if (!onAbrir)
     return (
-      <li className={cn(fila, "border-line bg-surface-raised")}>
-        <DatosDeLaFila p={p} />
+      <li data-club-fila className={fila}>
+        <span className="sr-only">{fraseDelProducto(p)}</span>
+        <CeldasDelProducto p={p} conEditar={false} />
       </li>
     );
   return (
@@ -110,15 +173,13 @@ function FilaDelProducto({ p, elegido, onAbrir }: { p: FilaStock; elegido: boole
       <button
         type="button"
         id={`producto-${p.id}`}
+        data-club-fila
+        aria-label={fraseDelProducto(p)}
         aria-current={elegido || undefined}
         onClick={() => onAbrir(p.id)}
-        className={cn(
-          fila,
-          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
-          elegido ? "border-accent bg-accent-soft" : "border-line bg-surface-raised hover:border-line-strong",
-        )}
+        className={cn(fila, "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus", elegido ? "bg-accent-soft" : "hover:bg-surface-sunken")}
       >
-        <DatosDeLaFila p={p} />
+        <CeldasDelProducto p={p} conEditar />
       </button>
     </li>
   );
@@ -151,7 +212,7 @@ function FormularioDelProducto({ f, hacer }: { f: VistaProducto; hacer: (a: Acci
         <Campo label="Costo" inputMode="numeric" importe value={d.costo} onChange={set("costo")} />
       </div>
       {!f.plato && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Campo
             label="Stock actual (conteo)"
             ayuda="Lo que hay hoy. Vacío = sin controlar: se vende sin tope y no avisa reposición."
@@ -163,7 +224,7 @@ function FormularioDelProducto({ f, hacer }: { f: VistaProducto; hacer: (a: Acci
           <Campo label="Mínimo de stock" ayuda="Con esto o menos, avisa que hay que reponer." inputMode="numeric" value={d.minimo} onChange={set("minimo")} />
         </div>
       )}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Campo label="Código interno" placeholder="Ej.: BP-020" value={d.codigo} onChange={set("codigo")} />
         <Campo label="Código de fábrica (lector)" inputMode="numeric" value={d.codigoExterno} onChange={set("codigoExterno")} />
       </div>
@@ -185,8 +246,8 @@ function FichaDelProducto({ almacen, productoId, onCerrar, onSeFue }: { almacen:
   if (!f) return null;
   const detalle = [f.categoria, f.plato ? "plato de cocina (no lleva stock)" : f.alquiler ? `alquiler · ${f.enUso} en uso` : "", f.tienda ? "se ve en la tienda" : "no está en la tienda"].filter(Boolean).join(" · ");
   return (
-    <section aria-labelledby={`ficha-producto-${f.id}`} className={tarjeta} onKeyDown={(e) => e.key === "Escape" && onCerrar()}>
-      <header className="flex items-start justify-between gap-2">
+    <section aria-labelledby={`ficha-producto-${f.id}`} data-club-ficha className={tarjeta} onKeyDown={(e) => e.key === "Escape" && onCerrar()}>
+      <header data-club-ficha-cabeza className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 id={`ficha-producto-${f.id}`} ref={titulo} tabIndex={-1} className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
             {f.nombre}
@@ -223,8 +284,8 @@ function AltaDeProducto({ almacen, onListo, onCerrar }: { almacen: Almacen; onLi
   const set = (k: Exclude<keyof typeof d, "plato">) => (e: React.ChangeEvent<HTMLInputElement>) => setD({ ...d, [k]: e.target.value });
   const titulo = useTituloConFoco();
   return (
-    <section aria-labelledby="club-alta-producto" className={tarjeta} onKeyDown={(e) => e.key === "Escape" && onCerrar()}>
-      <h2 id="club-alta-producto" ref={titulo} tabIndex={-1} className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
+    <section aria-labelledby="club-alta-producto" data-club-ficha className={tarjeta} onKeyDown={(e) => e.key === "Escape" && onCerrar()}>
+      <h2 data-club-ficha-cabeza id="club-alta-producto" ref={titulo} tabIndex={-1} className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
         Nuevo producto o plato
       </h2>
       <form
@@ -251,7 +312,7 @@ function AltaDeProducto({ almacen, onListo, onCerrar }: { almacen: Almacen; onLi
             <Campo label="Mínimo de stock" inputMode="numeric" value={d.minimo} onChange={set("minimo")} />
           </div>
         )}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Campo label="Código interno" placeholder="Ej.: BP-020" value={d.codigo} onChange={set("codigo")} />
           <Campo label="Código de fábrica (lector)" inputMode="numeric" value={d.codigoExterno} onChange={set("codigoExterno")} />
         </div>
@@ -311,7 +372,7 @@ function CeldaDePrecio({ p, campo, valor, etiqueta, hacer }: { p: FilaPrecio; ca
   );
 }
 
-const TONO_MARGEN: Readonly<Record<FilaPrecio["tono"], string>> = { bien: VERDE, justo: AMARILLO, bajo: ROJO };
+const TONO_MARGEN: Readonly<Record<FilaPrecio["tono"], Tono>> = { bien: "ok", justo: "aviso", bajo: "alerta" };
 
 function TablaDePrecios({ almacen, busca, puedeTocar }: { almacen: Almacen; busca: string; puedeTocar: boolean }) {
   const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarPrecios(e, busca, a), [busca]);
@@ -327,7 +388,7 @@ function TablaDePrecios({ almacen, busca, puedeTocar }: { almacen: Almacen; busc
       {/* La tabla es ancha: se corre de costado adentro de su caja (con el teclado también), no la página. `relative`:
           las etiquetas `sr-only` de las celdas son absolutas y, sin esto, corrían la página 27 px a 390 px. */}
       <div role="region" aria-label="Precios y rentabilidad (se desplaza de costado)" tabIndex={0} className="relative overflow-x-auto rounded-md border border-line focus-visible:outline-2 focus-visible:outline-focus">
-        <table className="w-full min-w-[56rem] text-sm tabular-nums">
+        <table data-club-tabla="precios" className="w-full min-w-[56rem] text-sm tabular-nums">
           <caption className="sr-only">Precios y rentabilidad por producto, últimos 7 días</caption>
           <thead>
             <tr className="border-b border-line text-xs text-body">
@@ -462,7 +523,7 @@ export default function StockDelClub({ almacen }: PropsDeSolapa) {
       )}
 
       {(v.faltantes.length > 0 || v.sinControlar > 0) && (
-        <section aria-labelledby="club-reponer" className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft p-4">
+        <section aria-labelledby="club-reponer" data-club-reponer={v.faltantes.length > 0 ? "falta" : "contar"} className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft p-4">
           <h2 id="club-reponer" className="font-semibold text-strong">
             {v.faltantes.length > 0 ? `⚠ Para reponer (${v.faltantes.length})` : "Falta contar el stock"}
           </h2>
@@ -489,72 +550,37 @@ export default function StockDelClub({ almacen }: PropsDeSolapa) {
         </section>
       )}
 
-      <div className={cn("grid grid-cols-1 gap-4", modo === "inventario" && "lg:grid-cols-[minmax(0,1fr)_28rem]")}>
-        <section aria-labelledby="club-stock" className="flex min-w-0 flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 data-pantalla id="club-stock" className="text-lg font-semibold text-strong">
-              Stock y productos ({v.filas.length === v.total ? v.total : `${v.filas.length} de ${v.total}`})
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              {puedeRemito && (
-                <Button id="club-stock-remito" variant="outline" size="md" onClick={() => setPanel({ tipo: "remito" })}>
-                  Ingresar por remito
-                </Button>
-              )}
-              {puedeTocar && (
-                <Button id="club-alta-producto-boton" variant="solid" size="md" onClick={() => setPanel({ tipo: "alta" })}>
-                  + Producto o plato
-                </Button>
-              )}
-            </div>
+      <section aria-labelledby="club-stock" className="flex min-w-0 flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 data-pantalla id="club-stock" className="text-lg font-semibold text-strong">
+            Stock y productos ({v.filas.length === v.total ? v.total : `${v.filas.length} de ${v.total}`})
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {puedeRemito && (
+              <Button id="club-stock-remito" variant="outline" size="md" onClick={() => setPanel({ tipo: "remito" })}>
+                Ingresar por remito
+              </Button>
+            )}
+            {puedeTocar && (
+              <Button id="club-alta-producto-boton" variant="solid" size="md" onClick={() => setPanel({ tipo: "alta" })}>
+                + Producto o plato
+              </Button>
+            )}
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="flex max-w-sm min-w-0 flex-1 flex-col gap-1">
-              <label htmlFor={buscaId} className={etiquetaDelClub}>
-                Buscar por nombre, rubro o código
-              </label>
-              <Input id={buscaId} type="search" autoComplete="off" value={busca} onChange={(e) => setBusca(e.target.value)} />
-            </div>
-            <Opciones leyenda="Qué ver" leyendaVisible={false} opciones={MODOS} valor={modo} onElegir={setModo} />
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex max-w-sm min-w-0 flex-1 flex-col gap-1">
+            <label htmlFor={buscaId} className={etiquetaDelClub}>
+              Buscar por nombre, rubro o código
+            </label>
+            <Input id={buscaId} type="search" autoComplete="off" value={busca} onChange={(e) => setBusca(e.target.value)} />
           </div>
+          <Opciones leyenda="Qué ver" leyendaVisible={false} opciones={MODOS} valor={modo} onElegir={setModo} />
+        </div>
 
-          {modo === "precios" ? (
-            <TablaDePrecios almacen={almacen} busca={busca} puedeTocar={puedeTocar} />
-          ) : v.filas.length === 0 ? (
-            <p className="text-sm text-body">No hay productos con eso.{puedeTocar ? " Si es nuevo, dalo de alta." : ""}</p>
-          ) : (
-            <ul aria-label="Productos del club" className="flex flex-col gap-2">
-              {v.filas.map((p) => (
-                <FilaDelProducto key={p.id} p={p} elegido={p.id === abierto} onAbrir={puedeTocar ? abrir : null} />
-              ))}
-            </ul>
-          )}
-
-          {v.dadosDeBaja.length > 0 && (
-            <details className="rounded-lg border border-line p-3 text-sm">
-              <summary className="inline-flex min-h-11 cursor-pointer items-center font-medium text-strong focus-visible:outline-2 focus-visible:outline-focus">
-                Dados de baja ({v.dadosDeBaja.length})
-              </summary>
-              <ul className="mt-2 flex flex-col gap-2">
-                {v.dadosDeBaja.map((p) => (
-                  <li key={p.id} className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-strong">{p.nombre}</span>
-                    {puedeTocar && (
-                      <Button variant="outline" size="md" onClick={() => almacen.ejecutar((e, a, auth) => ejecutarStock(e, { tipo: "baja", productoId: p.id, activo: true }, a, auth), { deshacible: true })}>
-                        Volver a activar
-                      </Button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </section>
-
-        {/* En el celular lo abierto va ARRIBA de la lista; en la PC, al lado. En «Precios» la tabla usa todo el ancho y
-            lo abierto va arriba. */}
-        {panel ? (
-          <div className={cn("order-first", modo === "inventario" && "lg:order-none lg:sticky lg:top-4 lg:self-start")}>
+        {/* Lo abierto va arriba de la tabla (que usa todo el ancho, como en el club de hoy), con el ancho de un formulario. */}
+        {panel && (
+          <div className="max-w-3xl">
             {panel.tipo === "ficha" ? (
               <FichaDelProducto key={panel.id} almacen={almacen} productoId={panel.id} onCerrar={cerrar} onSeFue={soltar} />
             ) : panel.tipo === "alta" ? (
@@ -563,14 +589,46 @@ export default function StockDelClub({ almacen }: PropsDeSolapa) {
               <RegistrarRemito almacen={almacen} onListo={soltar} onCerrar={cerrar} />
             )}
           </div>
+        )}
+
+        {modo === "precios" ? (
+          <TablaDePrecios almacen={almacen} busca={busca} puedeTocar={puedeTocar} />
+        ) : v.filas.length === 0 ? (
+          <p className="text-sm text-body">No hay productos con eso.{puedeTocar ? " Si es nuevo, dalo de alta." : ""}</p>
         ) : (
-          modo === "inventario" && (
-            <p className="hidden rounded-lg border border-dashed border-line-strong p-4 text-sm text-body lg:block lg:self-start">
+          <div data-club-tabla="stock" className="@container min-w-0">
+            <CabeceraDeStock />
+            <ul aria-label="Productos del club" className="flex flex-col">
+              {v.filas.map((p) => (
+                <FilaDelProducto key={p.id} p={p} elegido={p.id === abierto} onAbrir={puedeTocar ? abrir : null} />
+              ))}
+            </ul>
+            <p className="pt-2 text-sm text-body">
               {puedeTocar ? "Tocá un producto para editarlo: precio, costo, el conteo del stock y el mínimo." : "Para editar un producto tiene que entrar un dueño con su PIN."}
             </p>
-          )
+          </div>
         )}
-      </div>
+
+        {v.dadosDeBaja.length > 0 && (
+          <details className="rounded-lg border border-line p-3 text-sm">
+            <summary className="inline-flex min-h-11 cursor-pointer items-center font-medium text-strong focus-visible:outline-2 focus-visible:outline-focus">
+              Dados de baja ({v.dadosDeBaja.length})
+            </summary>
+            <ul className="mt-2 flex flex-col gap-2">
+              {v.dadosDeBaja.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-strong">{p.nombre}</span>
+                  {puedeTocar && (
+                    <Button variant="outline" size="md" onClick={() => almacen.ejecutar((e, a, auth) => ejecutarStock(e, { tipo: "baja", productoId: p.id, activo: true }, a, auth), { deshacible: true })}>
+                      Volver a activar
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </section>
     </div>
   );
 }

@@ -1,0 +1,122 @@
+/* ═════════ Break Point «chapa» — Stock, Proveedores y el remito ═════════
+   El vestido del club de hoy (src/tenants/breakpoint/sitio/club.html: «Stock y productos», «Proveedores» y el
+   diálogo del remito) sobre la estructura que arman StockDelClub.tsx, ProveedoresDelClub.tsx y remito-del-club.tsx
+   con sus ganchos `data-club-*`. Sólo tokens de Break Point (globals.css, `[data-estetica="breakpoint"]`), que
+   cambian solos en oscuro; sin la estética, nada de esto pinta. No toca tamaños: los objetivos siguen en 44 px.
+   Contraste AA con los tokens del claro (peor caso: verde sobre verde suave, 4,6:1; gris sobre --surface, 5,3:1). */
+
+/* ── Las tablas densas: rótulos en versalitas espaciadas sobre la raya de tinta, renglones planos con filete ── */
+[data-estetica="breakpoint"] [data-club-tabla] [data-club-cabeza],
+[data-estetica="breakpoint"] table[data-club-tabla] thead th {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+[data-estetica="breakpoint"] [data-club-tabla] [data-club-cabeza],
+[data-estetica="breakpoint"] table[data-club-tabla] thead tr {
+  border-bottom: 2px solid var(--text-strong);
+}
+[data-estetica="breakpoint"] [data-club-tabla] [data-club-fila] {
+  border-radius: 0;
+  border-bottom-color: var(--line);
+}
+[data-estetica="breakpoint"] table[data-club-tabla] tbody tr {
+  border-bottom-color: var(--line);
+}
+[data-estetica="breakpoint"] table[data-club-tabla] tfoot tr {
+  border-top: 2px solid var(--line-strong);
+}
+/* Lo abierto se marca con la raya de la marca a la izquierda, como el renglón elegido del menú. */
+[data-estetica="breakpoint"] [data-club-tabla] [data-club-fila][aria-current] {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+/* El nombre en el peso del club de hoy (la tabla no grita: lo que grita es la alerta). */
+[data-estetica="breakpoint"] [data-club-tabla] [data-club-nombre] {
+  font-weight: 500;
+}
+
+/* ── Las fichitas de estado (.chip del club de hoy): angostas, en negrita, con su filete ── */
+[data-estetica="breakpoint"] [data-club-estampa] {
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  padding: 0 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.125rem;
+}
+[data-estetica="breakpoint"] [data-club-estampa="aviso"] {
+  border-color: var(--warning-fill);
+}
+[data-estetica="breakpoint"] :is([data-club-estampa="neutro"], [data-club-estampa="info"]) {
+  background: var(--surface-sunken);
+  color: var(--text);
+  border-color: transparent;
+}
+
+/* ── Stock: lo que llegó al mínimo, en rojo; «Editar» y «Cuenta y pagos» como la tecla chica del club ── */
+[data-estetica="breakpoint"] [data-club-stock="alerta"] {
+  color: var(--danger);
+  font-weight: 700;
+}
+[data-estetica="breakpoint"] [data-club-editar] {
+  border-radius: var(--radius-sm);
+  border-color: var(--line-strong);
+  background: var(--surface-raised);
+  color: var(--text-strong);
+}
+[data-estetica="breakpoint"] [data-club-fila]:hover [data-club-editar] {
+  border-color: var(--text-strong);
+}
+
+/* «Para reponer»: tarjeta blanca con el filo rojo (y naranja si sólo falta contar), rótulo en versalitas. */
+[data-estetica="breakpoint"] [data-club-reponer] {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--danger);
+  border-radius: 0;
+}
+[data-estetica="breakpoint"] [data-club-reponer="contar"] {
+  border-left-color: var(--warning-fill);
+}
+[data-estetica="breakpoint"] [data-club-reponer] > h2 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+[data-estetica="breakpoint"] [data-club-reponer="contar"] > h2 {
+  color: var(--text-strong);
+}
+
+/* ── La ficha, el alta y el remito: el encabezado del diálogo del club de hoy (.dlg-h) y sus recuadros ── */
+[data-estetica="breakpoint"] [data-club-ficha] {
+  border-color: var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+[data-estetica="breakpoint"] [data-club-ficha] h2 {
+  font-family: var(--font-display), sans-serif;
+  font-stretch: 75%;
+  font-size: 1.3125rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+[data-estetica="breakpoint"] [data-club-ficha-cabeza] {
+  border-bottom: 2px solid var(--text-strong);
+  padding-bottom: 0.625rem;
+}
+/* Pagar, la cuenta, los remitos, el lector y el buscador: cada uno en su recuadro gris claro. */
+[data-estetica="breakpoint"] [data-club-caja] {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.875rem;
+}
+[data-estetica="breakpoint"] [data-club-caja] [data-club-remitos] details {
+  border-bottom-color: var(--line);
+}

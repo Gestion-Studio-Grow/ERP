@@ -147,6 +147,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     const r = await esbuild.build({
       stdin: { contents: ENTRADA, loader: "tsx", resolveDir: RAIZ },
       bundle: true,
+      loader: { ".css": "empty" },
       write: false,
       format: "iife",
       jsx: "automatic",
@@ -158,6 +159,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     const rr = await esbuild.build({
       stdin: { contents: ENTRADA_REAL, loader: "tsx", resolveDir: RAIZ },
       bundle: true,
+      loader: { ".css": "empty" },
       write: false,
       format: "iife",
       jsx: "automatic",

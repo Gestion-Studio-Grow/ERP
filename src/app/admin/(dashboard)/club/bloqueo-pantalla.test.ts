@@ -96,6 +96,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     const r = await esbuild.build({
       stdin: { contents: ENTRADA, loader: "tsx", resolveDir: RAIZ },
       bundle: true,
+      loader: { ".css": "empty" },
       write: false,
       format: "iife",
       jsx: "automatic",

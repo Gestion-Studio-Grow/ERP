@@ -13,10 +13,16 @@
 //   · el total y «Registrar remito».
 // El borrador vive en la pantalla hasta que se registra (con «Deshacer» los 6 s del aviso). Reglas en
 // proveedores-core.ts.
+//
+// La piel es la del club de hoy (`remitoDialogo`): el lector y el buscador en su recuadro, y lo que trajo como una
+// tabla densa (producto, cantidad, costo por unidad, subtotal); en angosto, cada renglón se apila con sus etiquetas.
+// Se adapta al ancho de donde lo pongan (Stock, Proveedores, la Caja) con consultas al contenedor; el vestido de
+// Break Point va en piel/stock-proveedores.css.
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Field";
+import { cn } from "@/components/ui/cn";
 import { pesos } from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
@@ -34,6 +40,10 @@ import {
   type SumaAlRemito,
 } from "./proveedores-core";
 import { porFirma, useSeleccion } from "./usar-almacen";
+import "./piel/stock-proveedores.css";
+
+// Lo que trajo, en columnas desde 32rem de contenedor: producto, cantidad, costo por unidad, subtotal y «Quitar».
+const COLUMNAS_REMITO = "@lg:grid-cols-[minmax(0,1fr)_6.5rem_8rem_7.5rem_auto]";
 
 export function RegistrarRemito({ almacen, onListo, onCerrar, enfocar = true }: { almacen: Almacen; onListo?: () => void; onCerrar?: () => void; enfocar?: boolean }) {
   const [b, setB] = useState<BorradorRemito>(() => remitoVacio(almacen.estado()));
@@ -45,7 +55,7 @@ export function RegistrarRemito({ almacen, onListo, onCerrar, enfocar = true }: 
     return { remito, candidatos, firma: `${remito.firma}|${JSON.stringify(candidatos)}` };
   }, [b, busca]);
   const v = useSeleccion(almacen, seleccionar, porFirma);
-  const ids = { titulo: useId(), proveedor: useId(), lineas: useId() };
+  const ids = { titulo: useId(), proveedor: useId(), lineas: useId(), renglon: useId() };
   const titulo = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (enfocar) titulo.current?.focus();
@@ -59,8 +69,8 @@ export function RegistrarRemito({ almacen, onListo, onCerrar, enfocar = true }: 
   };
 
   return (
-    <section aria-labelledby={ids.titulo} className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4" onKeyDown={(e) => e.key === "Escape" && onCerrar?.()}>
-      <header className="flex items-start justify-between gap-2">
+    <section aria-labelledby={ids.titulo} data-club-ficha className="@container flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4" onKeyDown={(e) => e.key === "Escape" && onCerrar?.()}>
+      <header data-club-ficha-cabeza className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 id={ids.titulo} ref={titulo} tabIndex={-1} className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
             Registrar remito
@@ -74,7 +84,7 @@ export function RegistrarRemito({ almacen, onListo, onCerrar, enfocar = true }: 
         )}
       </header>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 @lg:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor={ids.proveedor} className={etiquetaDelClub}>
             Proveedor
@@ -93,6 +103,8 @@ export function RegistrarRemito({ almacen, onListo, onCerrar, enfocar = true }: 
 
       {/* El lector escribe el código y un Enter, como un teclado: cada lectura suma 1 y el foco se queda acá. */}
       <form
+        data-club-caja
+        className="rounded-md border border-line p-3"
         onSubmit={(e) => {
           e.preventDefault();
           sumar(leerParaElRemito(almacen.estado(), b, lectura));
@@ -108,7 +120,7 @@ export function RegistrarRemito({ almacen, onListo, onCerrar, enfocar = true }: 
         />
       </form>
 
-      <div className="flex flex-col gap-2">
+      <div data-club-caja className="flex flex-col gap-2 rounded-md border border-line p-3">
         <Campo label="O buscalo por nombre o código" type="search" value={busca} onChange={(e) => setBusca(e.target.value)} />
         {busca.trim() !== "" &&
           (v.candidatos.length === 0 ? (
@@ -141,25 +153,45 @@ export function RegistrarRemito({ almacen, onListo, onCerrar, enfocar = true }: 
         {v.remito.lineas.length === 0 ? (
           <p className="text-sm text-body">Todavía no hay productos: pasá el lector o buscalos.</p>
         ) : (
-          <ul className="flex flex-col gap-2">
-            {v.remito.lineas.map((l) => (
-              <li key={l.productoId}>
-                <fieldset className="flex min-w-0 flex-col gap-2 rounded-md border border-line p-3">
-                  <legend className="px-1 text-sm font-semibold text-strong">{l.nombre}</legend>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Campo label="Cantidad" inputMode="numeric" value={l.cant} onChange={(e) => setB(cambiarLinea(b, l.productoId, "cant", e.target.value))} />
-                    <Campo label="Costo por unidad" inputMode="numeric" importe value={l.costo} onChange={(e) => setB(cambiarLinea(b, l.productoId, "costo", e.target.value))} />
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-sm text-body tabular-nums">{l.subtotal == null ? "Revisá cantidad y costo" : `Subtotal ${pesos(l.subtotal)}`}</span>
-                    <Button variant="ghost" size="md" aria-label={`Quitar ${l.nombre} del remito`} onClick={() => setB(quitarDelRemito(b, l.productoId))}>
-                      Quitar
-                    </Button>
-                  </div>
-                </fieldset>
-              </li>
-            ))}
-          </ul>
+          <div data-club-tabla="remito" className="min-w-0">
+            {/* La cabecera es sólo visual: en cada renglón, los campos llevan su etiqueta (a la vista en angosto). */}
+            <div aria-hidden data-club-cabeza className={cn("hidden items-end gap-x-3 border-b border-line-strong px-2 pb-1.5 text-xs font-medium text-body @lg:grid", COLUMNAS_REMITO)}>
+              <span>Producto</span>
+              <span>Cantidad</span>
+              <span>Costo por unidad</span>
+              <span className="text-right">Subtotal</span>
+              <span className="w-11" />
+            </div>
+            <ul className="flex flex-col">
+              {v.remito.lineas.map((l) => {
+                const nombreId = `${ids.renglon}-${l.productoId}`;
+                return (
+                  <li key={l.productoId}>
+                    <div role="group" aria-labelledby={nombreId} data-club-fila className={cn("relative grid grid-cols-2 items-end @lg:[&_label]:sr-only gap-x-3 gap-y-2 border-b border-line px-2 py-2 tabular-nums @lg:items-center @lg:gap-y-0 @lg:py-1.5", COLUMNAS_REMITO)}>
+                      <span id={nombreId} className="col-span-2 min-w-0 text-sm font-semibold text-strong @lg:col-span-1">
+                        {l.nombre}
+                      </span>
+                      <Campo label="Cantidad" inputMode="numeric" value={l.cant} onChange={(e) => setB(cambiarLinea(b, l.productoId, "cant", e.target.value))} />
+                      <Campo label="Costo por unidad" inputMode="numeric" importe value={l.costo} onChange={(e) => setB(cambiarLinea(b, l.productoId, "costo", e.target.value))} />
+                      <span className="self-center text-sm text-body @lg:text-right @lg:text-strong">
+                        {l.subtotal == null ? (
+                          "Revisá cantidad y costo"
+                        ) : (
+                          <>
+                            <span className="@lg:sr-only">Subtotal </span>
+                            {pesos(l.subtotal)}
+                          </>
+                        )}
+                      </span>
+                      <Button variant="ghost" size="md" className="justify-self-end" aria-label={`Quitar ${l.nombre} del remito`} onClick={() => setB(quitarDelRemito(b, l.productoId))}>
+                        Quitar
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
       </section>
 

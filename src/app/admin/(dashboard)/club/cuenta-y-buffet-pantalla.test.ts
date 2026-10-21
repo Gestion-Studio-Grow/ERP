@@ -110,6 +110,7 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     const r = await esbuild.build({
       stdin: { contents: ENTRADA, loader: "tsx", resolveDir: RAIZ },
       bundle: true,
+      loader: { ".css": "empty" },
       write: false,
       format: "iife",
       jsx: "automatic",
