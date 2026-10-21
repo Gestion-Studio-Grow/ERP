@@ -213,3 +213,15 @@ negocio es: propuesta en `FORMATO-RESPALDO.md`.
 - **`configurarTecho`** se protege sólo en la UI (dueño); queda registrado en el log del club.
 
 — Elaborado por GSG
+
+## Deuda anotada por el Gate del 20/10/2026 (practicidad del club)
+
+- **«Hacer fijo»** cambia `r.tipo`/`r.fijoId` en `cuenta-core.ts`, fuera del motor (como `bajaFijo`): va al motor al
+  portarlo a TS. Sólo se ofrece para turnos dentro de la semana (más lejos, el fijo aparecería antes de la fecha).
+- **Paleta propia del club** (`PaletaDelClub.tsx`) además de la de la casa (`components/ui/PaletaDeComandos.tsx`): la
+  del club ejecuta acciones del estado local, no navega. Converger cuando la de la casa acepte acciones.
+- **Ctrl+K de `AdminShell`** no mira `defaultPrevented`: si el club se montara dentro del armazón habría dos paletas.
+  Hoy el club va en `PanelDeCasa` (sin ese oyente).
+- El menú rápido del turno no trae «Mover» ni «Marcar falta» (se hacen en la cuenta del turno).
+
+— Elaborado por GSG

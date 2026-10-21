@@ -23,7 +23,7 @@ import { pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { clientesQueCoinciden } from "./alta-core";
-import { DESHACIBLE_BUFFET, armarBuffet, compartirBuffet, confirmarCreditosCuenta, ejecutarBuffet, productosParaCargar, type AccionBuffet, type VistaCuentaBuffet } from "./buffet-core";
+import { DESHACIBLE_BUFFET, armarBuffet, compartirBuffet, confirmarCreditosCuenta, ejecutarBuffet, productosParaCargar, type AccionBuffet, type VistaBuffet, type VistaCuentaBuffet } from "./buffet-core";
 import MesaCompleja from "./buffet-mesa-compleja";
 import { pedirFiado } from "./credito-core";
 import PedidoDelDuenio from "./pedido-del-duenio";
@@ -40,7 +40,10 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
   medio,
   onAccion,
   negocio,
+  platos,
 }: {
+  /** Los «+ Plato» de un toque (la misma lista para todas las cuentas: no cambia la memo). */
+  platos: VistaBuffet["platos"];
   cuenta: VistaCuentaBuffet;
   almacen: Almacen;
   medio: MedioCobro;
@@ -98,6 +101,15 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
           </ul>
         ) : (
           <p className="text-sm text-muted">Sin cargos todavía.</p>
+        )}
+        {platos.length > 0 && (
+          <div role="group" aria-label={`Cargar un plato a ${cuenta.titular}`} className="flex flex-wrap gap-1.5">
+            {platos.map((p) => (
+              <Button key={p.id} variant="outline" size="md" onClick={() => onAccion({ tipo: "cargar", cuentaId: cuenta.id, productoId: p.id, cant: 1 })}>
+                + {p.nombre}
+              </Button>
+            ))}
+          </div>
         )}
         {cuenta.pagaDe.length > 0 && <p className="text-xs text-muted">Paga también lo de {cuenta.pagaDe.join(", ")}.</p>}
         {cuenta.pagaOtro ? (
@@ -235,7 +247,7 @@ function AbrirCuenta({ almacen, onAccion }: { almacen: Almacen; onAccion: (a: Ac
   const id = useId();
   const fichas = clienteId ? [] : clientesQueCoinciden(almacen.estado(), titular);
   return (
-    <section aria-labelledby={`${id}-t`} className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3">
+    <section aria-labelledby={`${id}-t`} data-ui="abrir-cuenta" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3">
       <h2 id={`${id}-t`} className="font-semibold text-strong">
         Abrir una cuenta
       </h2>
@@ -302,6 +314,25 @@ export default function BuffetDelClub({ almacen, onVerTurno, negocio }: { almace
   const creditos = Math.max(0, ...vista.cuentas.map((c) => c.creditos));
   return (
     <div className="flex flex-col gap-4">
+      {/* Como el club de hoy: las cuentas abiertas arriba, como tarjetas; después las mesas, la venta de mostrador y
+          abrir una cuenta a mano. */}
+      <section aria-labelledby="club-cuentas" data-pantalla-tarjeta className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="club-cuentas" data-pantalla className="text-lg font-semibold text-strong">
+            Cuentas abiertas
+          </h2>
+          <p className="text-sm tabular-nums text-muted">
+            {vista.cuentas.length} {vista.cuentas.length === 1 ? "cuenta" : "cuentas"} · {pesos(vista.totalAbierto)} sin cobrar
+          </p>
+        </div>
+        <ComoPaga medio={medio} onElegir={setMedio} conCreditos={creditos} leyenda="Cómo pagan (para «Cobrar»)" />
+        <ul className={cn("grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3")}>
+          {vista.cuentas.map((c) => (
+            <TarjetaCuenta key={c.id} cuenta={c} almacen={almacen} medio={medio} onAccion={onAccion} negocio={negocio} platos={vista.platos} />
+          ))}
+        </ul>
+      </section>
+
       <section aria-labelledby="club-mesas" className="flex flex-col gap-2">
         <h2 id="club-mesas" className="text-lg font-semibold text-strong">
           Mesas que siguen cargando
@@ -314,7 +345,7 @@ export default function BuffetDelClub({ almacen, onVerTurno, negocio }: { almace
               <li key={m.reservaId} className="flex items-center justify-between gap-2 rounded-lg border border-line bg-surface-raised p-3">
                 <span className="min-w-0">
                   <span className="block truncate font-semibold text-strong">{m.titulo}</span>
-                  <span className="text-sm tabular-nums text-muted">Deben {pesos(m.saldo)}</span>
+                  <span className="text-sm tabular-nums text-muted">{m.saldo > 0 ? `Deben ${pesos(m.saldo)}` : "Sin cargos todavía"}</span>
                 </span>
                 <Button variant="outline" size="md" onClick={() => onVerTurno(m.reservaId)}>
                   Ver la cuenta
@@ -329,23 +360,6 @@ export default function BuffetDelClub({ almacen, onVerTurno, negocio }: { almace
       <VentaDeMostrador almacen={almacen} />
 
       <Cargar almacen={almacen} cuentas={vista.cuentas} onAccion={onAccion} />
-
-      <section aria-labelledby="club-cuentas" className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="club-cuentas" className="text-lg font-semibold text-strong">
-            Cuentas abiertas
-          </h2>
-          <p className="text-sm tabular-nums text-muted">
-            {vista.cuentas.length} {vista.cuentas.length === 1 ? "cuenta" : "cuentas"} · {pesos(vista.totalAbierto)} sin cobrar
-          </p>
-        </div>
-        <ComoPaga medio={medio} onElegir={setMedio} conCreditos={creditos} leyenda="Cómo pagan (para «Cobrar»)" />
-        <ul className={cn("grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3")}>
-          {vista.cuentas.map((c) => (
-            <TarjetaCuenta key={c.id} cuenta={c} almacen={almacen} medio={medio} onAccion={onAccion} negocio={negocio} />
-          ))}
-        </ul>
-      </section>
 
       <AbrirCuenta almacen={almacen} onAccion={onAccion} />
     </div>

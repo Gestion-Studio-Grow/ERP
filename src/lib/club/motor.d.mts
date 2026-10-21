@@ -184,6 +184,8 @@ export interface PagoCancha extends Sello {
 
 export interface Reserva {
   id: string;
+  /** Cerrada con «la mesa sigue»: la mesa queda en Buffet (aunque esté en cero) hasta que se cierra. */
+  mesaSigue?: boolean;
   canchaId: string;
   fecha: Fecha;
   inicio: number;

@@ -7,6 +7,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { AppDescriptor } from "@/apps/contract";
 import FormCerrarSesion from "../FormCerrarSesion";
+import ThemeToggle from "./ThemeToggle";
 
 export default function PanelDeCasa({
   apps,
@@ -39,6 +40,8 @@ export default function PanelDeCasa({
               </>
             )}
           </span>
+          {/* Lo que la app pone en la barra (el club: quién opera, la hora, el candado): club/EnLaCabecera.tsx. */}
+          <div id="casa-herramientas" data-casa="herramientas" className="flex flex-wrap items-center gap-2 empty:hidden" />
           {apps.length > 1 && (
             <nav aria-label="Panel" className="flex items-center gap-1">
               {apps.map((a) => (
@@ -48,6 +51,8 @@ export default function PanelDeCasa({
               ))}
             </nav>
           )}
+          {/* Claro u oscuro: lo elige quien usa el panel y se recuerda en el equipo (igual que en el resto del ERP). */}
+          <ThemeToggle />
           <FormCerrarSesion>
             <button type="submit" data-casa="enlace" className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold" aria-label={`Salir (${userName})`}>
               Salir

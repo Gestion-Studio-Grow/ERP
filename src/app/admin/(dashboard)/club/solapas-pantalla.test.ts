@@ -18,6 +18,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "playwright";
+import { irASolapa, tieneSolapa } from "./solapas-e2e";
 
 const RAIZ = fileURLToPath(new URL("../../../../../", import.meta.url));
 const ORIGEN = "http://localhost:3999/admin/club";
@@ -201,8 +202,8 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
   test("recepción: buscar, la ficha con su estado de cuenta, cobrar una parte con «Deshacer» y volver con Escape", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("RECEPTION");
-    assert.equal(await page.getByRole("tab", { name: "Tablero" }).count(), 0, "recepción no ve el Tablero");
-    await page.getByRole("tab", { name: "Clientes" }).click();
+    assert.equal(await tieneSolapa(page, "Tablero"), false, "recepción no ve el Tablero");
+    await irASolapa(page, "Clientes");
     await page.getByRole("heading", { name: /^Clientes \(\d+\)$/ }).waitFor();
     // La que debe va primero y en rojo con la palabra.
     const primera = page.getByRole("list", { name: "Clientes del club" }).getByRole("button").first();
@@ -243,7 +244,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
   test("recepción: alta sin repetir teléfono, pedir la cuenta corriente, «Esperando al dueño» y aprobar con el código", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("RECEPTION");
-    await page.getByRole("tab", { name: "Clientes" }).click();
+    await irASolapa(page, "Clientes");
     await page.getByRole("button", { name: "+ Alta de cliente" }).click();
     const alta = page.getByRole("region", { name: "Alta de cliente" });
     await alta.getByLabel("Nombre y apellido").fill("Paula Nieto");
@@ -291,7 +292,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
   test("el dueño: Tablero con el monto cambiado, dar acceso con el PIN una sola vez, y la cuenta corriente desde la ficha", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("OWNER");
-    await page.getByRole("tab", { name: "Tablero" }).click();
+    await irASolapa(page, "Tablero");
     await page.getByRole("heading", { name: "Novedades para autorizar" }).waitFor();
     await capturar(page, "tablero-1024");
     const pedido = page.getByRole("article", { name: /^Cuenta corriente · / });
@@ -324,7 +325,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     assert.ok((await page.getByRole("table", { name: /Platos más vendidos/ }).getByRole("row").count()) > 1);
 
     // En la ficha, el dueño configura la cuenta corriente.
-    await page.getByRole("tab", { name: "Clientes" }).click();
+    await irASolapa(page, "Clientes");
     await page.getByLabel("Buscar por nombre o teléfono").fill("lucas");
     await page.getByRole("button", { name: /^Lucas Fernández/ }).click();
     const ficha = page.getByRole("region", { name: "Lucas Fernández" });
@@ -365,7 +366,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
       const w = viewport.width;
       // El dueño: Clientes con la ficha de quien debe (cobrar, configurar) y el Tablero entero.
       let { page, errores } = await montar("OWNER", viewport);
-      await page.getByRole("tab", { name: "Clientes" }).click();
+      await irASolapa(page, "Clientes");
       await page.getByRole("heading", { name: /^Clientes/ }).waitFor();
       await revisar(page, `Clientes a ${w} px`);
       await page.getByRole("button", { name: /^Agustina Romero/ }).click();
@@ -376,7 +377,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
       await page.getByRole("button", { name: "+ Alta de cliente" }).click();
       await page.getByRole("region", { name: "Alta de cliente" }).waitFor();
       await revisar(page, `Alta a ${w} px`);
-      await page.getByRole("tab", { name: "Tablero" }).click();
+      await irASolapa(page, "Tablero");
       await page.getByRole("heading", { name: "Novedades para autorizar" }).waitFor();
       await page.getByText("Ver como tabla").click();
       await revisar(page, `Tablero a ${w} px`);
@@ -397,7 +398,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
 
       // Recepción: la ficha con el pedido esperando al dueño.
       ({ page, errores } = await montar("RECEPTION", viewport));
-      await page.getByRole("tab", { name: "Clientes" }).click();
+      await irASolapa(page, "Clientes");
       await page.getByRole("button", { name: /Pedida al dueño/ }).first().click();
       await page.getByRole("heading", { name: "Esperando al dueño" }).waitFor();
       await page.getByRole("button", { name: /^Ver el código que le llega al dueño/ }).click();
@@ -421,7 +422,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
   test("el dueño, Stock: lo que falta con su WhatsApp, editar con el conteo y «Deshacer», el alta y el precio por % sobre costo", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("OWNER");
-    await page.getByRole("tab", { name: "Stock" }).click();
+    await irASolapa(page, "Stock");
     await page.getByRole("heading", { name: /^Stock y productos \(\d+\)$/ }).waitFor();
     const reponer = page.getByRole("region", { name: /^⚠ Para reponer \(\d+\)$/ });
     await reponer.getByText(/^Remera técnica del club: hay 0, el mínimo es 5 → pedir 10$/).waitFor();
@@ -492,10 +493,10 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
   test("el dueño, Proveedores: el total igual al Tablero, pagar en efectivo con PIN (sin «Deshacer») y un remito con el lector", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("OWNER");
-    await page.getByRole("tab", { name: "Tablero" }).click();
+    await irASolapa(page, "Tablero");
     const total = (await page.locator("[data-ui=kpi]").filter({ hasText: "Le debemos a proveedores" }).locator("[data-parte=valor]").textContent())!;
     assert.match(total, /^\$ [\d.]+$/);
-    await page.getByRole("tab", { name: "Proveedores" }).click();
+    await irASolapa(page, "Proveedores");
     await page.getByText(`Le debemos en total ${total}`).waitFor();
     await capturar(page, "proveedores-1024");
 
@@ -548,9 +549,9 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
   test("recepción: no ve Stock ni Proveedores; carga el remito desde la Caja", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("RECEPTION");
-    assert.equal(await page.getByRole("tab", { name: "Stock" }).count(), 0, "recepción no ve Stock");
-    assert.equal(await page.getByRole("tab", { name: "Proveedores" }).count(), 0, "recepción no ve Proveedores");
-    await page.getByRole("tab", { name: "Caja" }).click();
+    assert.equal(await tieneSolapa(page, "Stock"), false, "recepción no ve Stock");
+    assert.equal(await tieneSolapa(page, "Proveedores"), false, "recepción no ve Proveedores");
+    await irASolapa(page, "Caja");
     await page.getByText("Registrar un remito", { exact: true }).click();
     const remito = page.getByRole("region", { name: "Registrar remito" });
     await remito.waitFor();
@@ -573,7 +574,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     for (const viewport of [{ width: 1024, height: 768 }, { width: 768, height: 1024 }, { width: 390, height: 844 }]) {
       const w = viewport.width;
       let { page, errores } = await montar("OWNER", viewport);
-      await page.getByRole("tab", { name: "Stock" }).click();
+      await irASolapa(page, "Stock");
       await page.getByRole("heading", { name: /^Stock y productos/ }).waitFor();
       await revisarSolapa(page, `Stock a ${w} px`);
       if (w !== 1024) await capturar(page, `stock-${w}`);
@@ -590,7 +591,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
       await revisarSolapa(page, `Precios a ${w} px`);
       if (w !== 1024) await capturar(page, `stock-precios-${w}`);
 
-      await page.getByRole("tab", { name: "Proveedores" }).click();
+      await irASolapa(page, "Proveedores");
       await page.getByRole("heading", { name: /^Proveedores \(\d+\)$/ }).waitFor();
       await revisarSolapa(page, `Proveedores a ${w} px`);
       if (w !== 1024) await capturar(page, `proveedores-${w}`);
@@ -614,7 +615,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
 
       // Recepción: el remito desde la Caja.
       ({ page, errores } = await montar("RECEPTION", viewport));
-      await page.getByRole("tab", { name: "Caja" }).click();
+      await irASolapa(page, "Caja");
       await page.getByText("Registrar un remito", { exact: true }).click();
       await page.getByRole("region", { name: "Registrar remito" }).waitFor();
       await revisarSolapa(page, `Remito desde la Caja (recepción) a ${w} px`);
@@ -637,8 +638,8 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
   test("el dueño, Configuración: respaldo, archivar en DOS pasos (descarga + elegir el archivo) y restaurar con su fecha", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("OWNER", undefined, await clubConDiasParaArchivar());
-    assert.equal(await page.getByRole("tab", { name: "Configuración" }).count(), 1);
-    await page.getByRole("tab", { name: "Configuración" }).click();
+    assert.equal(await tieneSolapa(page, "Configuración"), true);
+    await irASolapa(page, "Configuración");
     await page.getByRole("heading", { name: "Jornada", exact: true }).waitFor();
     await capturar(page, "config-1024");
 
@@ -714,7 +715,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
   test("el dueño, Configuración: alta con el PIN una sola vez, reglas validadas, avisos y la limpieza que pide el respaldo", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("OWNER");
-    await page.getByRole("tab", { name: "Configuración" }).click();
+    await irASolapa(page, "Configuración");
     await page.getByRole("heading", { name: "Usuarios y accesos" }).waitFor();
     // Alta de recepción: el PIN se ve UNA vez, a la vista, y no va al aviso.
     const alta = page.getByRole("form", { name: "Dar de alta a alguien" });
@@ -772,7 +773,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     if (!css) return t.skip("no se pudo compilar el CSS de la app");
     for (const w of [1024, 768, 390]) {
       const { page, errores } = await montar("OWNER", { width: w, height: w === 390 ? 844 : 1024 });
-      await page.getByRole("tab", { name: "Configuración" }).click();
+      await irASolapa(page, "Configuración");
       await page.getByRole("heading", { name: "Jornada", exact: true }).waitFor();
       await revisarSolapa(page, `Configuración a ${w} px`);
       await capturar(page, `config-${w}`);
@@ -793,7 +794,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     const { page, errores } = await montar("OWNER");
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://localhost:3999" });
     await page.context().route("https://wa.me/**", (r) => r.fulfill({ contentType: "text/html", body: "<title>WhatsApp</title>" }));
-    await page.getByRole("tab", { name: "Novedades y redes" }).click();
+    await irASolapa(page, "Novedades y redes");
     await page.getByRole("heading", { name: "Novedades del club · difusión por WhatsApp" }).waitFor();
     await page.getByLabel("Tipo").selectOption("torneo");
     await page.getByLabel("Título", { exact: true }).fill("Torneo de categorías el sábado 25");
@@ -878,7 +879,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
   test("recepción no ve Novedades y redes", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("RECEPTION");
-    assert.equal(await page.getByRole("tab", { name: "Novedades y redes" }).count(), 0);
+    assert.equal(await tieneSolapa(page, "Novedades y redes"), false);
     assert.deepEqual(errores, []);
     await page.close();
   });
@@ -903,7 +904,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
   test("el aprobador: recepción avisa a Rober, Rober abre el link en el celular, PIN mal (1 de 5), PIN bien → código → recepción aprueba", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("RECEPTION");
-    await page.getByRole("tab", { name: "Clientes" }).click();
+    await irASolapa(page, "Clientes");
     await page.getByRole("button", { name: "+ Alta de cliente" }).click();
     const alta = page.getByRole("region", { name: "Alta de cliente" });
     await alta.getByLabel("Nombre y apellido").fill("Paula Nieto");
@@ -969,7 +970,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     if (!css) return t.skip("no se pudo compilar el CSS de la app");
     for (const w of [1024, 768, 390]) {
       const { page, errores } = await montar("OWNER", { width: w, height: w === 390 ? 844 : 1024 });
-      await page.getByRole("tab", { name: "Novedades y redes" }).click();
+      await irASolapa(page, "Novedades y redes");
       await page.getByRole("heading", { name: "Novedades del club · difusión por WhatsApp" }).waitFor();
       await page.getByLabel("Título", { exact: true }).fill("Turnos libres el martes");
       await revisarSolapa(page, `Novedades a ${w} px`);

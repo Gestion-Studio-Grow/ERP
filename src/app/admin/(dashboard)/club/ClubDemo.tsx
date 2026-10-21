@@ -32,9 +32,10 @@
 // `next/dynamic` y `ssr: false` (el motor guarda su contador de ids a nivel de módulo; en el
 // servidor sería compartido entre pedidos).
 
-import { Suspense, createElement, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
+import { Suspense, createElement, lazy, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
 import { cn } from "@/components/ui/cn";
-import { reserva as reservaDe } from "@/lib/club/motor.mjs";
+import { Button } from "@/components/ui/Button";
+import { hhmm, pesos, reserva as reservaDe, resumenCaja, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { candadoDeLaJornada, claveDeLaDemo, claveDeLaJornada, crearAlmacen, type Almacen, type AlmacenamientoLocal, type GuardadoDelClub, type RolDelPanel } from "./almacen";
 import CintaDelClub from "./CintaDelClub";
@@ -44,6 +45,10 @@ import { useOperador, useSeleccion } from "./usar-almacen";
 import AgendaCanchas from "./AgendaCanchas";
 import AltaDeTurno from "./AltaDeTurno";
 import { DiasDeLaAgenda, FueraDeLaGrilla } from "./AgendaExtras";
+import { armarTira } from "./tira-de-solapas-core";
+import PaletaDelClub from "./PaletaDelClub";
+import type { AccionPaleta } from "./paleta-core";
+import { pedirFichaDeCliente } from "./ficha-pedida";
 import BandejaDelClub from "./BandejaDelClub";
 import CuentaDelTurno from "./CuentaDelTurno";
 import { Esqueleto } from "@/components/ui/Esqueleto";
@@ -144,7 +149,9 @@ function TiraDeSolapas({
   solapa,
   onCambiar,
   botones,
+  atajos,
 }: {
+  atajos: boolean;
   almacen: Almacen;
   solapa: Solapa;
   onCambiar: (s: Solapa) => void;
@@ -156,41 +163,173 @@ function TiraDeSolapas({
   useEffect(() => {
     if (!esta) onCambiar("agenda");
   }, [esta, onCambiar]);
-  // Solapas con flechas (patrón de tablist): ←/→ cambian y llevan el foco.
+  // Hasta 5 a la vista y el resto en «Más», como el club de hoy (tira-de-solapas-core.ts).
+  const tira = armarTira(visibles, solapa);
+  const enFila = tira.elegidaDeMas ? [...tira.principales, tira.elegidaDeMas] : tira.principales;
+  const orden = [...tira.principales, ...(tira.elegidaDeMas ? [tira.elegidaDeMas] : []), ...tira.mas];
+  // Solapas con flechas (patrón de tablist): ←/→ cambian y llevan el foco (entre las que están a la vista).
   const alTeclear = (e: React.KeyboardEvent) => {
-    const i = visibles.findIndex((s) => s.id === solapa);
+    const i = enFila.findIndex((s) => s.id === solapa);
     const paso = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-    if (!paso) return;
+    if (!paso || i < 0) return;
     e.preventDefault();
-    const sig = visibles[(i + paso + visibles.length) % visibles.length].id;
+    const sig = enFila[(i + paso + enFila.length) % enFila.length].id;
     onCambiar(sig);
     botones.current[sig]?.focus();
   };
   return (
-    <div role="tablist" aria-label="Recepción del club" onKeyDown={alTeclear} className="flex overflow-x-auto border-b border-line">
-      {visibles.map((s) => (
-        <button
-          key={s.id}
-          ref={(b) => {
-            botones.current[s.id] = b;
-          }}
-          type="button"
-          role="tab"
-          id={`club-solapa-${s.id}`}
-          aria-selected={solapa === s.id}
-          // Sólo el panel de la solapa elegida está montado: las otras no apuntan a un id que no existe.
-          aria-controls={solapa === s.id ? `club-panel-${s.id}` : undefined}
-          tabIndex={solapa === s.id ? 0 : -1}
-          onClick={() => onCambiar(s.id)}
-          className={cn(
-            "-mb-px inline-flex min-h-11 items-center border-b-2 px-4 text-sm focus-visible:outline-2 focus-visible:outline-focus",
-            solapa === s.id ? "border-accent font-semibold text-strong" : "border-transparent text-muted hover:text-strong",
-          )}
-        >
-          {s.etiqueta}
-        </button>
+    <div className="flex items-end border-b border-line">
+      <div role="tablist" aria-label="Recepción del club" onKeyDown={alTeclear} className="flex min-w-0 flex-wrap">
+        {enFila.map((s) => (
+          <button
+            key={s.id}
+            ref={(b) => {
+              botones.current[s.id] = b;
+            }}
+            type="button"
+            role="tab"
+            id={`club-solapa-${s.id}`}
+            aria-selected={solapa === s.id}
+            // Sólo el panel de la solapa elegida está montado: las otras no apuntan a un id que no existe.
+            aria-controls={solapa === s.id ? `club-panel-${s.id}` : undefined}
+            tabIndex={solapa === s.id ? 0 : -1}
+            aria-keyshortcuts={atajos && orden.indexOf(s) < 9 ? String(orden.indexOf(s) + 1) : undefined}
+            onClick={() => onCambiar(s.id)}
+            className={cn(
+              "-mb-px inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-4 text-sm focus-visible:outline-2 focus-visible:outline-focus",
+              solapa === s.id ? "border-accent font-semibold text-strong" : "border-transparent text-muted hover:text-strong",
+            )}
+          >
+            {s.etiqueta}
+          </button>
+        ))}
+      </div>
+      {tira.mas.length > 0 && <MenuMas opciones={tira.mas} onElegir={onCambiar} />}
+    </div>
+  );
+}
+
+/** «Más»: el resto de las solapas en un menú (Escape o un clic afuera lo cierran y el foco vuelve al botón). */
+function MenuMas({ opciones, onElegir }: { opciones: readonly SolapaVisible[]; onElegir: (s: Solapa) => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const caja = useRef<HTMLDivElement>(null);
+  const boton = useRef<HTMLButtonElement>(null);
+  const id = useId();
+  useEffect(() => {
+    if (!abierto) return;
+    caja.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
+    const afuera = (e: PointerEvent) => {
+      if (!caja.current?.contains(e.target as Node)) setAbierto(false);
+    };
+    document.addEventListener("pointerdown", afuera);
+    return () => document.removeEventListener("pointerdown", afuera);
+  }, [abierto]);
+  const cerrar = () => {
+    setAbierto(false);
+    boton.current?.focus();
+  };
+  const alTeclear = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      cerrar();
+      return;
+    }
+    const paso = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
+    if (!paso) return;
+    e.preventDefault();
+    const items = [...(caja.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? [])];
+    const i = items.indexOf(document.activeElement as HTMLButtonElement);
+    items[(i + paso + items.length) % items.length]?.focus();
+  };
+  return (
+    <div ref={caja} className="relative -mb-px" onKeyDown={alTeclear}>
+      <button
+        ref={boton}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={abierto}
+        aria-controls={abierto ? id : undefined}
+        onClick={() => setAbierto((a) => !a)}
+        className="inline-flex min-h-11 items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-4 text-sm text-muted hover:text-strong focus-visible:outline-2 focus-visible:outline-focus"
+      >
+        Más <span aria-hidden="true">▾</span>
+      </button>
+      {abierto && (
+        <div id={id} role="menu" aria-label="Más solapas" className="absolute right-0 z-40 mt-1 flex min-w-52 flex-col rounded-lg border border-line bg-surface-raised p-1 shadow-overlay">
+          {opciones.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAbierto(false);
+                onElegir(o.id);
+              }}
+              className="min-h-11 rounded-md px-3 text-left text-sm text-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus"
+            >
+              {o.etiqueta}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Los accesos de la agenda, como los botones del club de hoy al lado de «+ Turno»: la lista de espera y el
+ * mantenimiento a un toque, sin buscarlos en «Más». Sólo los que quien opera puede abrir.
+ */
+function AccesosDeLaAgenda({ almacen, onIr }: { almacen: Almacen; onIr: (s: Solapa) => void }) {
+  const visibles = useSolapasVisibles(almacen);
+  const accesos = [
+    { id: "buffet", texto: "Abrir cuenta" },
+    { id: "fijos", texto: "Lista de espera y fijos" },
+    { id: "canchas", texto: "Mantenimiento y lluvia" },
+  ].filter((a) => visibles.some((s) => s.id === a.id));
+  if (!accesos.length) return null;
+  return (
+    <div data-agenda="accesos" className="my-2 flex flex-wrap gap-2">
+      {accesos.map((a) => (
+        <Button key={a.id} variant="ghost" size="md" onClick={() => onIr(a.id)}>
+          {a.texto}
+        </Button>
       ))}
     </div>
+  );
+}
+
+/**
+ * «Caja del día» al lado de la agenda, como el club de hoy: el efectivo en el cajón y lo que entró, sin ir a Caja.
+ * Sólo para quien ve la Caja. Se suscribe a dos números: no repinta la agenda.
+ */
+const losDosDeLaCaja = (e: EstadoClub) => {
+  const c = resumenCaja(e);
+  return `${c.efectivoEsperado}|${c.ingresos}|${e.config.corteCaja}`;
+};
+const igualTexto = (_: string | undefined, nuevo: string) => nuevo;
+function CajaDelDia({ almacen, onVer }: { almacen: Almacen; onVer: () => void }) {
+  const visibles = useSolapasVisibles(almacen);
+  const [efectivo, ingresos, corte] = useSeleccion(almacen, losDosDeLaCaja, igualTexto).split("|").map(Number);
+  if (!visibles.some((s) => s.id === "caja")) return null;
+  return (
+    <section aria-labelledby="club-mini-caja" data-ui="caja-del-dia" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 id="club-mini-caja" className="font-semibold text-strong">
+          Caja del día
+        </h2>
+        <Button variant="outline" size="md" onClick={onVer}>
+          Ver caja
+        </Button>
+      </div>
+      <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm tabular-nums">
+        <dt className="text-body">Efectivo en el cajón</dt>
+        <dd className="text-right font-semibold text-strong">{pesos(efectivo)}</dd>
+        <dt className="text-body">Ingresos</dt>
+        <dd className="text-right font-semibold text-strong">{pesos(ingresos)}</dd>
+      </dl>
+      <p className="text-xs text-muted">La caja corre de {hhmm(corte)} a {hhmm(corte)}.</p>
+    </section>
   );
 }
 
@@ -392,6 +531,112 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     if (!irASolapaSiEsta("configuracion")) almacen.informar({ ok: false, mensaje: "Archivar los días cerrados lo hace un dueño: avisale para que entre con su PIN." });
   }, [almacen, irASolapaSiEsta]);
 
+  const [paleta, setPaleta] = useState(false);
+  // Los atajos de una tecla se pueden apagar desde la paleta (WCAG 2.1.4); se recuerda en el equipo.
+  const [atajos, setAtajos] = useState(() => {
+    try {
+      return window.localStorage.getItem("club-atajos") !== "no";
+    } catch {
+      return true;
+    }
+  });
+  const cambiarAtajos = useCallback(
+    (prender: boolean) => {
+      setAtajos(prender);
+      try {
+        window.localStorage.setItem("club-atajos", prender ? "si" : "no");
+      } catch {
+        // sin almacenamiento: vale para esta visita
+      }
+      almacen.informar({ ok: true, mensaje: prender ? "Atajos de una tecla prendidos." : "Atajos de una tecla apagados: quedan Ctrl+K y la L para bloquear." });
+    },
+    [almacen],
+  );
+  // Nuevo turno (tecla N o la paleta): el alta en la primera cancha habilitada, desde la primera hora libre.
+  const nuevoTurno = useCallback(() => {
+    const canchas = almacen.estado().canchas;
+    const libre = canchas.find((c) => c.estado !== "mantenimiento") ?? canchas[0];
+    if (!libre) return;
+    cambiarSolapa("agenda");
+    setPanel({ tipo: "alta", canchaId: libre.id, inicio: null });
+  }, [almacen, cambiarSolapa]);
+
+  // «Abrir cuenta» (acceso de la agenda o tecla C): a Buffet y directo al formulario, que está al final (la solapa se
+  // carga diferida: se espera a que aparezca, unos cuadros).
+  const abrirCuenta = useCallback(() => {
+    cambiarSolapa("buffet");
+    let vueltas = 0;
+    const buscar = () => {
+      const f = document.querySelector<HTMLElement>('[data-ui="abrir-cuenta"]');
+      if (f) {
+        f.scrollIntoView({ block: "center" });
+        f.querySelector<HTMLElement>("input, select, button")?.focus();
+      } else if (vueltas++ < 30) requestAnimationFrame(buscar);
+    };
+    requestAnimationFrame(buscar);
+  }, [cambiarSolapa]);
+
+  // Los atajos del club de hoy (app.mjs, «atajos de teclado»): N turno nuevo, C abrir cuenta (Buffet), T volver a
+  // hoy, ←/→ día anterior o siguiente en la agenda, 1–9 las solapas en su orden. Nunca mientras se escribe, con una
+  // ventana abierta, con Ctrl/⌘/Alt, ni con la pantalla bloqueada (L, bloquear, ya lo atiende el bloqueo).
+  useEffect(() => {
+    const alTeclear = (ev: KeyboardEvent) => {
+      const t = ev.target as HTMLElement | null;
+      if (ev.defaultPrevented) return;
+      // Ctrl/⌘+K abre o cierra la paleta desde cualquier lado (también escribiendo), salvo con el club bloqueado.
+      if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && ev.key.toLowerCase() === "k") {
+        if (almacen.modo() === "real" && !almacen.operador()) return;
+        ev.preventDefault();
+        setPaleta((p) => !p);
+        return;
+      }
+      if (ev.metaKey || ev.ctrlKey || ev.altKey || !atajos) return;
+      if (t && (t.matches("input, select, textarea") || t.isContentEditable)) return;
+      if (document.querySelector("dialog[open], [role=dialog]:not([popover]), [popover]:popover-open, [role=alertdialog], [role=menu]")) return;
+      if (almacen.modo() === "real" && !almacen.operador()) return;
+      const k = ev.key;
+      const visibles = solapasVisibles(almacen);
+      const orden = (() => {
+        const tira = armarTira(visibles, "");
+        return [...tira.principales, ...tira.mas];
+      })();
+      let hizo = true;
+      if (k === "/") setPaleta(true);
+      else if (k === "n" || k === "N") nuevoTurno(); else if ((k === "c" || k === "C") && visibles.some((s) => s.id === "buffet")) abrirCuenta();
+      else if (k === "t" || k === "T") {
+        cambiarSolapa("agenda");
+        elegirDia(hoy);
+      } else if ((k === "ArrowLeft" || k === "ArrowRight") && solapa === "agenda" && !t?.closest("[data-celda], [data-agenda='dias'], [role=tablist]")) {
+        const d = sumarDias(dia, k === "ArrowLeft" ? -1 : 1);
+        if (d >= sumarDias(hoy, -1) && d <= sumarDias(hoy, 5)) elegirDia(d);
+        else hizo = false;
+      } else if (/^[1-9]$/.test(k) && orden[Number(k) - 1]) cambiarSolapa(orden[Number(k) - 1].id);
+      else hizo = false;
+      if (hizo) ev.preventDefault();
+    };
+    document.addEventListener("keydown", alTeclear);
+    return () => document.removeEventListener("keydown", alTeclear);
+  }, [almacen, abrirCuenta, atajos, nuevoTurno, cambiarSolapa, elegirDia, hoy, dia, solapa]);
+
+  // Lo elegido en la paleta.
+  const hacerDeLaPaleta = useCallback(
+    (a: AccionPaleta) => {
+      if (a.tipo === "solapa") irASolapa(a.id);
+      else if (a.tipo === "hoy") {
+        cambiarSolapa("agenda");
+        elegirDia(hoy);
+      } else if (a.tipo === "nuevoTurno") nuevoTurno();
+      else if (a.tipo === "abrirCuenta") abrirCuenta();
+      else if (a.tipo === "turno") verTurno(a.id);
+      else if (a.tipo === "atajos") cambiarAtajos(a.prender);
+      else if (a.tipo === "cliente") {
+        pedirFichaDeCliente(a.id);
+        irASolapa("clientes");
+      }
+    },
+    [abrirCuenta, cambiarAtajos, cambiarSolapa, elegirDia, hoy, irASolapa, nuevoTurno, verTurno],
+  );
+
   // Al cambiar quien opera, la cuenta (o el alta) que tenía abierta la persona anterior se cierra (como el vanilla).
   // Sin suscribir a ClubDemo al operador: si no había nada abierto, `setPanel(null)` no repinta.
   useEffect(() => almacen.suscribirOperador(() => setPanel(null)), [almacen]);
@@ -414,14 +659,22 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
 
       <SoloConOperador almacen={almacen} negocio={negocio}>
 
-      <TiraDeSolapas almacen={almacen} solapa={solapa} onCambiar={cambiarSolapa} botones={botones} />
+      <TiraDeSolapas almacen={almacen} solapa={solapa} onCambiar={cambiarSolapa} botones={botones} atajos={atajos} />
 
       <div role="tabpanel" id={`club-panel-${solapa}`} aria-labelledby={`club-solapa-${solapa}`}>
         {solapa === "agenda" && (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
-            <div className="flex min-w-0 flex-col gap-3">
-              <DiasDeLaAgenda hoy={hoy} dia={dia} onDia={elegirDia} />
-              <AgendaCanchas almacen={almacen} dia={dia} abierto={abiertoId} onAbrir={onAbrir} onReservar={onReservar} />
+            <div data-pantalla-tarjeta className="flex min-w-0 flex-col gap-3">
+              <AgendaCanchas
+                almacen={almacen}
+                dia={dia}
+                abierto={abiertoId}
+                onAbrir={onAbrir}
+                onReservar={onReservar}
+                atajoTurno={atajos}
+                dias={<DiasDeLaAgenda hoy={hoy} dia={dia} onDia={elegirDia} />}
+                accesos={<AccesosDeLaAgenda almacen={almacen} onIr={(s) => (s === "buffet" ? abrirCuenta() : irASolapa(s))} />}
+              />
               <FueraDeLaGrilla almacen={almacen} dia={dia} />
             </div>
             <div className="lg:sticky lg:top-4 lg:self-start">
@@ -440,6 +693,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
               ) : (
                 <div className="flex flex-col gap-3">
                   <BandejaDelClub almacen={almacen} onVerTurno={verTurno} irASolapa={irASolapaSiEsta} />
+                  <CajaDelDia almacen={almacen} onVer={() => irASolapa("caja")} />
                   <p className="rounded-lg border border-dashed border-line-strong p-4 text-sm text-muted">
                     Tocá un turno de la agenda para ver su cuenta: la cancha y los cargos de cada jugador, y cobrar. Tocá un hueco libre o «+ Turno» para dar un turno.
                   </p>
@@ -467,6 +721,20 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       </div>
 
       <AvisosDelClub almacen={almacen} />
+      {paleta && (
+        <PaletaDelClub
+          almacen={almacen}
+          hoy={hoy}
+          dia={dia}
+          atajos={atajos}
+          solapas={(() => {
+            const tira = armarTira(solapasVisibles(almacen), "");
+            return [...tira.principales, ...tira.mas];
+          })()}
+          onElegir={hacerDeLaPaleta}
+          onCerrar={() => setPaleta(false)}
+        />
+      )}
       </SoloConOperador>
     </div>
     </NegocioDelClub>

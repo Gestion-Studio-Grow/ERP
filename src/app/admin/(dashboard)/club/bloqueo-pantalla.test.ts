@@ -21,6 +21,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, BrowserContext, Page } from "playwright";
+import { irASolapa, tieneSolapa, nombresDeSolapas } from "./solapas-e2e";
 import * as M from "@/lib/club/motor.mjs";
 import { claveDeLaJornada, textoDeLaDemo, textoDelEstado } from "./almacen";
 import { claveDeIntentosDelBloqueo } from "./bloqueo-core";
@@ -467,7 +468,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     if (await quien.count()) await quien.getByRole("button", { name: /^Roberto/ }).click();
     await pinDe(page).fill("4747");
     await bloqueo(page).waitFor({ state: "detached" });
-    await page.getByRole("tab", { name: "Configuración" }).click();
+    await irASolapa(page, "Configuración");
     await page.getByRole("heading", { name: "Jornada", exact: true }).waitFor();
     assert.equal(await page.getByRole("heading", { name: "Primera vez: armá el club" }).count(), 0, "ya configurado: sin la consola");
     await page.getByRole("heading", { name: "Limpieza para el go-live", exact: true }).waitFor();
@@ -486,7 +487,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await quien.getByRole("button", { name: /^Rober/ }).click();
     await pinDe(page).fill(PINES[0]);
     await bloqueo(page).waitFor({ state: "detached" });
-    await page.getByRole("tab", { name: "Configuración" }).click();
+    await irASolapa(page, "Configuración");
     await page.getByRole("heading", { name: "Jornada", exact: true }).waitFor();
     const [bajado] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Descargar respaldo", exact: true }).click()]);
     const ruta = await bajado.path();
@@ -582,7 +583,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
         await bloqueo(page).waitFor({ state: "detached" });
         await page.getByRole("tablist", { name: "Recepción del club" }).waitFor();
       };
-      const solapas = async () => (await page.getByRole("tab").allInnerTexts()).map((x) => x.trim());
+      const solapas = async () => nombresDeSolapas(page);
       const bloquearAMano = async () => {
         await page.locator("body").click({ position: { x: 5, y: 5 } });
         await page.keyboard.press("l");
@@ -605,14 +606,14 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
       const deMajo = await solapas();
       t.diagnostic(`puesto ${rolDelPuesto} · Majo ve: ${deMajo.join(", ")}`);
       for (const d of deDuenos) assert.ok(deMajo.includes(d), `puesto ${rolDelPuesto}: Majo ve «${d}»`);
-      await page.getByRole("tab", { name: "Configuración" }).click();
+      await irASolapa(page, "Configuración");
       await page.getByRole("tab", { name: "Configuración", selected: true }).waitFor();
 
       // Vuelve Lu: la solapa de dueño que estaba elegida ya no está → pasa a la agenda.
       await bloquearAMano();
       await entrar(/^Lu \(recepción tarde\)/, "33");
       await page.getByRole("tab", { name: "Agenda", selected: true }).waitFor();
-      assert.equal(await page.getByRole("tab", { name: "Configuración" }).count(), 0);
+      assert.equal(await tieneSolapa(page, "Configuración"), false);
       assert.equal(await page.getByRole("heading", { name: "Configuración", exact: true }).count(), 0, "ni su panel");
       assert.deepEqual(errores, []);
       await contexto.close();

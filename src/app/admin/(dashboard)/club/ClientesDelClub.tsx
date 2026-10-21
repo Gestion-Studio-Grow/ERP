@@ -14,6 +14,7 @@
 // en clientes-core.ts; quién opera, en operador-del-club.ts.
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { tomarFichaPedida } from "./ficha-pedida";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
@@ -397,7 +398,18 @@ export default function ClientesDelClub({ almacen }: PropsDeSolapa) {
   const [busca, setBusca] = useState("");
   const seleccionar = useCallback((e: EstadoClub) => armarClientes(e, busca), [busca]);
   const v = useSeleccion(almacen, seleccionar, porFirma);
-  const [panel, setPanel] = useState<Panel>(null);
+  const [panel, setPanel] = useState<Panel>(() => {
+    const id = tomarFichaPedida();
+    return id ? { tipo: "ficha", id } : null;
+  });
+  useEffect(() => {
+    const abrir = (e: Event) => {
+      tomarFichaPedida();
+      setPanel({ tipo: "ficha", id: (e as CustomEvent<string>).detail });
+    };
+    window.addEventListener("club:ficha", abrir);
+    return () => window.removeEventListener("club:ficha", abrir);
+  }, []);
   const buscaId = useId();
   const abierto = panel?.tipo === "ficha" ? panel.id : null;
 

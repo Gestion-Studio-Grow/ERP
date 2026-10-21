@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { DIAS_ANTES, DIAS_DESPUES, armarAgenda, compartirAgenda, diasDeLaAgenda, marcaDelTurno, ponerLuz, senalDelTurno, vecino } from "./agenda-core";
+import { DIAS_ANTES, DIAS_DESPUES, armarAgenda, compartirAgenda, diasDeLaAgenda, marcaDelTurno, opcionesDelMenu, ponerLuz, senalDelTurno, vecino } from "./agenda-core";
 import { ejecutar } from "./cuenta-core";
 
 const HOY = "2026-10-17";
@@ -181,4 +181,17 @@ test("la luz: se prende y se apaga a mano; el motor la prende al abrir la cancha
   const cerrar = M.finalizar(e, r.id, {}, AHORA);
   assert.equal(cerrar.ok, true, cerrar.ok ? "" : cerrar.motivo);
   assert.equal(e.luces[r.canchaId], false, "al cerrar la cancha se apaga la luz");
+});
+
+test("menú rápido del turno (clic derecho): abrir la cancha si llegan hoy, cerrar si no debe, cobrar con el monto", () => {
+  const e = demo();
+  const reservado = e.reservas.find((r) => r.fecha === HOY && r.estado === "reservada")!;
+  assert.deepEqual(opcionesDelMenu(e, reservado.id, HOY).map((o) => o.accion).slice(0, 1), ["abrirCancha"]);
+  const debe = e.reservas.find((r) => r.fecha === HOY && r.estado === "en_cancha" && M.saldo(r) > 0)!;
+  const op = opcionesDelMenu(e, debe.id, HOY);
+  assert.ok(!op.some((o) => o.accion === "cerrarCancha"), "debe plata: no se cierra desde el menú");
+  assert.match(op.find((o) => o.accion === "ver")!.texto, /^Cobrar · \$/);
+  M.registrarPago(e, debe.id, { medio: "efectivo", monto: M.saldo(debe) }, AHORA);
+  assert.ok(opcionesDelMenu(e, debe.id, HOY).some((o) => o.accion === "cerrarCancha"));
+  assert.deepEqual(opcionesDelMenu(e, "no-existe", HOY), []);
 });

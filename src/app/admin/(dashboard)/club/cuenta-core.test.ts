@@ -577,3 +577,45 @@ test("a crédito va lo que paga cada uno: los cargos a cargo de otro no se fían
   assert.equal(despues.jugadores[invitado.idx].credito, null);
   assert.equal(despues.jugadores[paga.idx].credito?.monto, total);
 });
+
+test("«Cobrar todo» y «Cerrar la cancha»: 3 toques como el club de hoy, sin dejar una mesa en cero en Buffet", () => {
+  const e = demo();
+  const r = turnoEnJuego(e);
+  assert.equal(cuenta(e, r.id).cierres.cerrarCancha, false, "debe plata: primero se cobra");
+  assert.ok(ejecutar(e, r.id, { tipo: "cobrarTodo", medio: "efectivo" }, AHORA).ok);
+  const v = cuenta(e, r.id);
+  assert.equal(v.cierres.cerrarCancha, true);
+  const res = ejecutar(e, r.id, { tipo: "cerrarCancha" }, AHORA);
+  assert.ok(res.ok, res.mensaje);
+  assert.equal(M.mesasAbiertas(e).some((m) => m.reserva.id === r.id), false, "cerrar la cancha no deja la mesa abierta");
+  assert.equal(DESHACIBLE.cerrarCancha, true);
+  assert.equal(EN_EL_VANILLA.cerrarCancha, "finalizar");
+});
+
+test("«Hacer fijo» desde el turno: un toque, el mismo día, hora y cancha; no se duplica el de hoy", () => {
+  const e = demo();
+  const r = e.reservas.find((x) => x.fecha === HOY && x.tipo === "turno" && x.estado === "reservada" && !x.fijoId)!;
+  assert.ok(r, "la demo trae un turno común reservado hoy");
+  const v = cuenta(e, r.id);
+  assert.ok(v.cierres.hacerFijo, "se ofrece");
+  const fijosAntes = e.fijos.length;
+  const res = ejecutar(e, r.id, { tipo: "hacerFijo" }, AHORA);
+  assert.ok(res.ok, res.mensaje);
+  assert.equal(e.fijos.length, fijosAntes + 1);
+  const f = e.fijos.at(-1)!;
+  assert.equal(r.fijoId, f.id);
+  assert.equal(e.reservas.filter((x) => x.fijoId === f.id && x.fecha === HOY).length, 1, "hoy queda uno solo");
+  assert.equal(cuenta(e, r.id).cierres.hacerFijo, null, "ya es fijo: no se ofrece de nuevo");
+  assert.equal(DESHACIBLE.hacerFijo, false);
+});
+
+test("«Hacer fijo» de un turno a más de una semana se rechaza: no aparece un fijo antes de la fecha elegida (Gate)", () => {
+  const e = demo();
+  const lejos = M.sumarDias(HOY, 10);
+  const res = M.crearReserva(e, { canchaId: "c1", fecha: lejos, inicio: 10 * 60, titular: "Lejano" }, AHORA);
+  assert.ok(res.ok, res.motivo);
+  const fijosAntes = e.fijos.length;
+  const r = ejecutar(e, res.reserva.id, { tipo: "hacerFijo" }, AHORA);
+  assert.equal(r.ok, false);
+  assert.equal(e.fijos.length, fijosAntes);
+});

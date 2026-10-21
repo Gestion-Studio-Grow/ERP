@@ -178,7 +178,7 @@ export default memo(function BandejaDelClub({ almacen, onVerTurno, irASolapa }: 
   const abiertaVigente = abierta !== null && vista.items.some((i) => i.clave === abierta) ? abierta : null;
   const n = vista.items.length;
   return (
-    <section aria-labelledby="club-bandeja-titulo" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
+    <section aria-labelledby="club-bandeja-titulo" data-ui="bandeja" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
       <div className="flex items-center justify-between gap-2">
         <h2 id="club-bandeja-titulo" className="text-lg font-semibold text-strong">
           Para resolver ahora

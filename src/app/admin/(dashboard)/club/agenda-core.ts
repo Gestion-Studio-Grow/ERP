@@ -336,3 +336,23 @@ export function ponerLuz(estado: EstadoClub, canchaId: string, prendida: boolean
   estado.luces[canchaId] = prendida;
   return { ok: true, mensaje: `Luz de ${c.nombre} ${prendida ? "prendida" : "apagada"}.` };
 }
+
+// ───────────── el menú rápido del turno (clic derecho o mantener apretado) ─────────────
+
+export type OpcionDelMenu = { accion: "abrirCancha" | "cerrarCancha" | "ver"; texto: string };
+
+/**
+ * Lo que ofrece el menú rápido sobre un turno, como el club de hoy (app.mjs `menuTurno`): abrir la cancha si llegan
+ * hoy, cerrarla si no debe nada, y cobrar (o ver) en su cuenta. Lo demás (mover, falta) se hace en la cuenta. PURO.
+ */
+export function opcionesDelMenu(estado: EstadoClub, reservaId: string, hoy: Fecha): OpcionDelMenu[] {
+  const r = estado.reservas.find((x) => x.id === reservaId);
+  if (!r) return [];
+  const s = saldo(r);
+  const abierto = r.estado === "reservada" || r.estado === "en_cancha";
+  const out: OpcionDelMenu[] = [];
+  if (r.estado === "reservada" && r.fecha === hoy) out.push({ accion: "abrirCancha", texto: "Abrir cancha" });
+  if (r.estado === "en_cancha" && s <= 0) out.push({ accion: "cerrarCancha", texto: "Cerrar cancha" });
+  out.push({ accion: "ver", texto: abierto && s > 0 ? `Cobrar · ${pesos(s)}` : "Ver turno y cargos" });
+  return out;
+}

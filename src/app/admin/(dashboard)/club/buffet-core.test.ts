@@ -177,3 +177,16 @@ test("la traba del fiado se compara con el reloj: a los 30 minutos se vuelve a p
   assert.equal(armarCuentaBuffet(e, cta, despues).pedidoPendiente!.trabado, null);
   assert.equal(pedidosPendientes(e, despues).find((x) => x.id === p.id)!.trabado, null);
 });
+
+test("«+ Plato» de un toque, como el club de hoy: hasta 6 platos con el nombre corto; cargar suma uno", () => {
+  const e = M.generarDemo("2026-10-17", 19 * 60 + 10);
+  const ahora: Ahora = { fecha: "2026-10-17", min: 19 * 60 + 10 };
+  const v = armarBuffet(e, ahora);
+  assert.ok(v.platos.length > 0 && v.platos.length <= 6);
+  assert.ok(v.platos.every((p) => !p.nombre.includes(" con ")));
+  const c = v.cuentas[0];
+  const antes = c.aCobrar;
+  assert.ok(ejecutarBuffet(e, { tipo: "cargar", cuentaId: c.id, productoId: v.platos[0].id, cant: 1 }, ahora).ok);
+  assert.ok(armarBuffet(e, ahora).cuentas.find((x) => x.id === c.id)!.aCobrar > antes);
+  assert.equal(compartirBuffet(v, armarBuffet(e, ahora)).platos, v.platos, "la misma lista: no repinta las tarjetas");
+});

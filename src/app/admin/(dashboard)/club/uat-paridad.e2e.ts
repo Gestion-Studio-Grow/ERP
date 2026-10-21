@@ -25,6 +25,7 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, BrowserContext, Locator, Page } from "playwright";
+import { irASolapa, tieneSolapa, nombresDeSolapas } from "./solapas-e2e";
 import * as M from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import { claveDeLaJornada } from "./almacen";
@@ -199,10 +200,10 @@ async function desbloquear(p: Page, quien: RegExp | null, pin: string) {
 }
 
 async function solapas(p: Page): Promise<string[]> {
-  return (await p.getByRole("tab").allInnerTexts()).map((t) => t.trim());
+  return nombresDeSolapas(p);
 }
 async function irA(p: Page, etiqueta: string) {
-  await p.getByRole("tab", { name: etiqueta, exact: true }).click();
+  await irASolapa(p, etiqueta);
   await p.waitForTimeout(150);
 }
 const sinScrollDeCostado = (p: Page) => p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -397,7 +398,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     const p = g.p;
     const rec = g.solapasLu as string[];
     const RECEPCION = ["Agenda", "Fijos y espera", "Mantenimiento y lluvia", "Buffet", "Tienda", "Caja", "Clientes"];
-    if (JSON.stringify(rec) === JSON.stringify(RECEPCION)) ok("1.recepcion", true, `Lu (recepción) ve sólo lo de recepción: ${rec.join(", ")}`);
+    if (JSON.stringify([...rec].sort()) === JSON.stringify([...RECEPCION].sort())) ok("1.recepcion", true, `Lu (recepción) ve sólo lo de recepción: ${rec.join(", ")}`);
     else
       brecha(
         "permisos-por-persona",
@@ -408,7 +409,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     // Lo sensible lo frena el motor aunque la solapa se vea: Lu no puede dar de alta a nadie. Con las solapas por el
     // operador del PIN (terminales), Lu ya no ve Configuración; esconderla no es seguridad, así que igual se prueba el
     // motor: con el estado real y el PIN real de Lu, `altaUsuario` dice que no (sobre una copia: no toca la jornada).
-    const verConfiguracion = (await p.getByRole("tab", { name: "Configuración" }).count()) > 0;
+    const verConfiguracion = await tieneSolapa(p, "Configuración");
     if (!verConfiguracion) {
       const e = await estado(p);
       const lu = e.usuarios.find((u) => u.nombre === "Lu");
@@ -1602,7 +1603,7 @@ async function medio(donde: Locator, etiqueta: string) {
 
 /** «Sumar un cargo del buffet» en la cuenta del turno: a qué jugador, cuántos y qué producto (a su cuenta). */
 async function cargar(c: Locator, jugador: number, buscar: string, producto: string, cant: number) {
-  await c.getByLabel("Para quién").selectOption(String(jugador));
+  await c.getByRole("group", { name: "Para quién" }).getByRole("radio").nth(jugador).check();
   await c.getByLabel("Cantidad").fill(String(cant));
   await c.getByLabel("Código o producto (pasá el lector o escribí)").fill(buscar);
   await c.getByRole("list", { name: "Productos para cargar" }).getByRole("button", { name: new RegExp(`^${cant} × ${producto.replace(/[()]/g, "\\$&")}`) }).click();
