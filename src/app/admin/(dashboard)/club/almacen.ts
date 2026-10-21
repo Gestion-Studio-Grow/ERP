@@ -881,7 +881,13 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     adelantarTexto();
   };
   // Los PIN en claro de la foto abierta, con el navegador libre (lo que llegue antes por `reemplazar` ya los pasa).
-  if (pinesLuego) enReposo?.(() => pasarPinesAHash(estado) > 0 && cambio());
+  // Si pasó alguno, «Deshacer» ya no vuelve a la foto de antes (la traería con los PIN en claro).
+  if (pinesLuego)
+    enReposo?.(() => {
+      if (pasarPinesAHash(estado) === 0) return;
+      soltarFoto();
+      cambio();
+    });
 
   let aviso: AvisoDelClub | null = avisoInicial ? { id: 1, ok: false, mensaje: avisoInicial, deshacer: false } : null;
   /** La foto de antes de la última acción deshacible: el texto del estado (ver `textoActual`). */

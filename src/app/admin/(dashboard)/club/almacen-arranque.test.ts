@@ -268,3 +268,19 @@ test("empezar en blanco: si no entra la copia de la de ahora, no hace nada", asy
   assert.equal(a.estado(), antes);
   assert.equal(m.datos.get(CLAVE), MES);
 });
+
+test("una jornada con PIN en claro (de antes del 21/10): en el navegador se pasan a hash cuando está libre, y se guarda sin PIN en claro", async () => {
+  const m = memoria();
+  m.datos.set(CLAVE, MES);
+  const enCola: Array<() => void> = [];
+  const a = crearAlmacen({ reloj: "real", clave: CLAVE, almacenamiento: m, cerrojos: null, canal: null, temporizador, relojMs: () => new Date(2026, 9, 17, 19, 0).getTime(), demoraGuardadoMs: 0, enReposo: (fn) => void enCola.push(fn), rol: "OWNER" });
+  a.arrancar();
+  await vaciar();
+  const duenio = () => a.estado().usuarios.find((u) => u.id === DUENIO.usuarioId)!;
+  assert.equal(duenio().pin, DUENIO.pin, "al abrir todavía no se pasó (no traba la apertura)");
+  while (enCola.length) enCola.shift()!();
+  await vaciar();
+  assert.ok(M.esPinConHash(duenio().pin) && M.pinCoincide(a.estado(), duenio(), DUENIO.pin));
+  assert.equal(a.puedeDeshacer(), false);
+  assert.doesNotMatch(m.datos.get(CLAVE)!, new RegExp(`"pin":"(${DUENIO.pin}|${PIN_DUENIO_2})"`), "lo guardado ya no tiene esos PIN en claro");
+});
