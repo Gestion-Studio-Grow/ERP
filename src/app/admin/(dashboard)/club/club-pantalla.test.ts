@@ -646,6 +646,14 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     assert.equal(await agus.getByLabel(/^Cancela el club/).count(), 0, "recepción no puede cancelar «por el club»");
     await agus.getByRole("button", { name: "Cancelar el turno" }).last().click();
     await page.getByRole("status").filter({ hasText: /^Turno de Agustina Romero cancelado\./ }).waitFor();
+    // El turno salió de la grilla: el foco no cae al principio de la página (Gate 21/10, B3).
+    await page.waitForTimeout(100);
+    assert.equal(await page.evaluate(() => document.activeElement === document.body), false, "el foco no se pierde al cancelar");
+    if (await page.getByRole("button", { name: "Ahora no" }).count()) {
+      await page.getByRole("button", { name: "Ahora no" }).click();
+      await page.waitForTimeout(100);
+      assert.equal(await page.evaluate(() => document.activeElement === document.body), false, "ni al cerrar el ofrecimiento del hueco");
+    }
     await page.getByText(/Cancelados, suspendidos y faltas de este día \(1\)/).waitFor();
 
     // Break Point tiene las 4 techadas: no hay plan lluvia (el flujo de lluvia se prueba en canchas-core y ciclo-core

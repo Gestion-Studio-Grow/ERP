@@ -965,7 +965,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
         id: ++idAviso,
         ok: false,
         mensaje: aparte
-          ? "Otra pantalla guardó cambios más nuevos: se cargó lo último guardado. Lo tuyo que no llegó quedó aparte en este equipo (Configuración → «Lo que quedó aparte»). Revisá lo último que hiciste."
+          ? rol === "OWNER"
+            ? "Otra pantalla guardó cambios más nuevos: se cargó lo último guardado. Lo tuyo que no llegó quedó aparte en este equipo (Configuración → «Lo que quedó aparte»). Revisá lo último que hiciste."
+            : "Otra pantalla guardó cambios más nuevos: se cargó lo último guardado. Lo tuyo que no llegó quedó aparte en esta compu: lo baja un dueño entrando con su usuario del ERP acá (Configuración → «Lo que quedó aparte»). Revisá lo último que hiciste."
           : "Otra pantalla guardó cambios más nuevos: se cargó lo último guardado. Revisá lo último que hiciste.",
         deshacer: false,
       };

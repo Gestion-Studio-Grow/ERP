@@ -531,7 +531,7 @@ export function JornadaDelClub({ almacen, negocio }: { almacen: Almacen; negocio
           {enBlanco && <EmpezarEnBlanco almacen={almacen} quien={quien} negocio={negocio} />}
         </>
       ) : (
-        <SoloEnElPuestoDelDuenio que="Restaurar un respaldo, archivar los días cerrados y empezar en blanco" />
+        <SoloEnElPuestoDelDuenio que="Restaurar un respaldo, bajar «lo que quedó aparte» de esta compu (si otra pantalla guardó primero), archivar los días cerrados y empezar en blanco" />
       )}
     </Seccion>
   );

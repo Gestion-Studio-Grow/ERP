@@ -392,6 +392,11 @@ function OfrecerElHueco({ almacen, panel, onListo }: { almacen: Almacen; panel: 
   );
 }
 
+/** Lleva el foco a `el` o, si no está, a «+ Turno» de la agenda (nunca al principio de la página). */
+function enfocarEnLaAgenda(el: HTMLElement | null) {
+  (el ?? document.querySelector<HTMLElement>('[data-agenda="acciones"] button'))?.focus();
+}
+
 const AFUERA_QUE_NO_CIERRA = "[aria-live], dialog, [role=menu], [data-ui=menu-del-turno], [data-ui=avisos-del-club]";
 
 function HojaDelTurno({ children, etiqueta, onCerrar }: { children: React.ReactNode; etiqueta: string; onCerrar: (devolverFoco?: boolean) => void }) {
@@ -592,11 +597,20 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       almacen.olvidarDeshacer();
       setPanel(null);
       // El foco vuelve al turno desde el que se abrió la cuenta (salvo que la persona ya lo llevó a otro lado con Tab).
-      if (abiertoId && devolverFoco) requestAnimationFrame(() => document.getElementById(`turno-${abiertoId}`)?.focus());
+      // Si el turno ya no está en la grilla (se canceló, no vino), a «+ Turno»: el foco nunca cae al principio de la página.
+      if (abiertoId && devolverFoco) requestAnimationFrame(() => enfocarEnLaAgenda(document.getElementById(`turno-${abiertoId}`)));
     },
     [abiertoId, almacen],
   );
   const cerrarAlta = useCallback(() => setPanel(null), []);
+  // Al cerrar el ofrecimiento, el foco va al turno que se dio en ese hueco o, si nadie lo tomó, a la franja libre.
+  const cerrarOferta = useCallback((canchaId: string, inicio: number) => {
+    setPanel(null);
+    requestAnimationFrame(() => {
+      const turno = almacen.estado().reservas.find((r) => r.canchaId === canchaId && r.inicio === inicio && r.fecha === almacen.ahora().fecha && (r.estado === "reservada" || r.estado === "en_cancha"));
+      enfocarEnLaAgenda(turno ? document.getElementById(`turno-${turno.id}`) : document.getElementById(`libre-${canchaId}-${inicio}`));
+    });
+  }, [almacen]);
   // Se liberó un hueco que alguien de la lista de espera quiere: se le ofrece ahí mismo (como el club de hoy).
   const ofrecerHueco = useCallback((ofertas: OfertaDeHueco[], hueco: { canchaId: string; inicio: number }) => setPanel({ tipo: "ofrecer", ofertas, ...hueco }), []);
   // Abrir la cuenta de un turno desde otra solapa (una mesa, la lista de espera): en el día de ese turno.
@@ -823,11 +837,14 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         {/* La cuenta del turno y el alta, en una hoja ancha al centro (como el diálogo del club de hoy): sin scroll para
             cobrar y con la bandeja siempre a la vista al costado. Escape o tocar afuera vuelve a la agenda. */}
         {solapa === "agenda" && panel && (
-          <HojaDelTurno etiqueta={panel.tipo === "cuenta" ? "Cuenta del turno" : panel.tipo === "ofrecer" ? "Ofrecer el hueco" : "Dar un turno"} onCerrar={panel.tipo === "cuenta" ? onVolver : cerrarAlta}>
+          <HojaDelTurno
+            etiqueta={panel.tipo === "cuenta" ? "Cuenta del turno" : panel.tipo === "ofrecer" ? "Ofrecer el hueco" : "Dar un turno"}
+            onCerrar={panel.tipo === "cuenta" ? onVolver : panel.tipo === "ofrecer" ? (devolverFoco) => (devolverFoco === false ? cerrarAlta() : cerrarOferta(panel.canchaId, panel.inicio)) : cerrarAlta}
+          >
             {panel.tipo === "cuenta" ? (
               <CuentaDelTurno key={panel.id} almacen={almacen} reservaId={panel.id} onVolver={onVolver} onOfrecer={ofrecerHueco} />
             ) : panel.tipo === "ofrecer" ? (
-              <OfrecerElHueco almacen={almacen} panel={panel} onListo={cerrarAlta} />
+              <OfrecerElHueco almacen={almacen} panel={panel} onListo={() => cerrarOferta(panel.canchaId, panel.inicio)} />
             ) : (
               <AltaDeTurno
                 key={`${dia}:${panel.canchaId}@${panel.inicio}`}
