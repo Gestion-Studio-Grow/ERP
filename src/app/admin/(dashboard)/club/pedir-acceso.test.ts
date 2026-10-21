@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
-import { candadoDeLaJornada, claveDeLaJornada, crearAlmacen, LARGO_NOMBRE_ACCESO, MINUTO_DEMO, TOPE_PEDIDOS_DE_ACCESO, textoDeLaDemo, textoDelEstado, type AlmacenamientoLocal } from "./almacen";
+import { candadoDeLaJornada, claveDeLaJornada, crearAlmacen, LARGO_NOMBRE_ACCESO, MINUTO_DEMO, operadorDeLaDemo, TOPE_PEDIDOS_DE_ACCESO, textoDeLaDemo, textoDelEstado, type AlmacenamientoLocal } from "./almacen";
 import { armarTablero, ejecutarTablero } from "./tablero-core";
 
 const HOY = "2026-10-17";
@@ -54,8 +54,9 @@ test("sin PIN no se opera, pero se puede pedir acceso: queda pendiente para el d
   // Le llega al dueño en el Tablero, que lo otorga con el rol.
   const pedido = armarTablero(s.estado(), s.ahora()).accesos.find((x) => x.nombre === "Nico (finde)");
   assert.ok(pedido, "está en «Novedades para autorizar»");
-  const duenio = s.estado().usuarios.find((u) => u.rol === "duenio")!;
-  const r = ejecutarTablero(s.estado(), { tipo: "otorgar", solicitudId: pedido.id, rol: "recepcion" }, s.ahora(), { usuarioId: duenio.id, pin: duenio.pin });
+  // Con el PIN guardado con hash, el dueño de la demo firma con su PIN en claro (operadorDeLaDemo), no con u.pin.
+  const duenio = operadorDeLaDemo(s.estado(), "OWNER")!.auth;
+  const r = ejecutarTablero(s.estado(), { tipo: "otorgar", solicitudId: pedido.id, rol: "recepcion" }, s.ahora(), duenio);
   assert.equal(r.ok, true, r.mensaje);
 });
 
