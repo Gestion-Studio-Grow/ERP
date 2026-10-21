@@ -28,6 +28,7 @@
 import { ESTADOS, NOMBRE_DIA, TIPOS, alertas, validarHueco, cancha as canchaDe, cliente as clienteDe, cuentaDelTurno, diaSemana, hhmm, horarioDe, minutosHasta, ocupantes, pesos, saldo, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, EstadoReserva, Fecha, Reserva } from "@/lib/club/motor.mjs";
 import type { TipoMarca } from "@/components/ui/Marca";
+import { opcionesCiclo } from "./ciclo-core";
 
 /** Los estados que ocupan la cancha en la grilla (lo cancelado, suspendido o la falta van aparte). */
 const EN_GRILLA: ReadonlySet<EstadoReserva> = new Set(["reservada", "en_cancha", "finalizada"]);
@@ -350,22 +351,54 @@ export function ponerLuz(estado: EstadoClub, canchaId: string, prendida: boolean
 
 // ───────────── el menú rápido del turno (clic derecho o mantener apretado) ─────────────
 
-export type OpcionDelMenu = { accion: "abrirCancha" | "cerrarCancha" | "ver"; texto: string };
+export type OpcionDelMenu = {
+  accion: "abrirCancha" | "cerrarCancha" | "ver" | "mover" | "falta";
+  texto: string;
+  /** «Marcar falta…»: va separada y en rojo, como el club de hoy (`class="peligro"`). */
+  peligro?: boolean;
+};
 
 /**
  * Lo que ofrece el menú rápido sobre un turno, como el club de hoy (app.mjs `menuTurno`): abrir la cancha si llegan
- * hoy, cerrarla si no debe nada, y cobrar (o ver) en su cuenta. Lo demás (mover, falta) se hace en la cuenta. PURO.
+ * hoy, cerrarla si no debe nada, cobrar (o ver) en su cuenta, y «Mover…» y «Marcar falta…», que abren los MISMOS
+ * formularios de la cuenta del turno (CicloDelTurno). Cuándo se ofrecen lo dice `opcionesCiclo` (ciclo-core.ts), la
+ * misma regla que muestra esos botones en la cuenta: mover mientras está reservado o en juego, la falta sólo
+ * reservado (la tolerancia y a quién se cobra los decide el formulario con `previaFalta`). PURO.
  */
 export function opcionesDelMenu(estado: EstadoClub, reservaId: string, hoy: Fecha): OpcionDelMenu[] {
   const r = estado.reservas.find((x) => x.id === reservaId);
   if (!r) return [];
   const s = saldo(r);
   const abierto = r.estado === "reservada" || r.estado === "en_cancha";
+  const ciclo = opcionesCiclo(r);
   const out: OpcionDelMenu[] = [];
   if (r.estado === "reservada" && r.fecha === hoy) out.push({ accion: "abrirCancha", texto: "Abrir cancha" });
   if (r.estado === "en_cancha" && s <= 0) out.push({ accion: "cerrarCancha", texto: "Cerrar cancha" });
   out.push({ accion: "ver", texto: abierto && s > 0 ? `Cobrar · ${pesos(s)}` : "Ver turno y cargos" });
+  if (ciclo.mover) out.push({ accion: "mover", texto: "Mover…" });
+  if (ciclo.falta) out.push({ accion: "falta", texto: "Marcar falta…", peligro: true });
   return out;
+}
+
+// ───────────── correr la grilla cuando el arrastre llega al borde ─────────────
+
+/** Ancho de la franja del borde (px) donde el arrastre empieza a correr la grilla, y lo más rápido que la corre (px por cuadro). */
+export const BORDE_ARRASTRE = { zona: 40, maxima: 18 } as const;
+
+/**
+ * Cuánto correr la grilla en un eje (px por cuadro, con signo) con el puntero en `pos` y la parte VISIBLE de la grilla
+ * entre `desde` y `hasta` (arriba, debajo de la cabecera fija; a la izquierda, después de la columna de horas). Cero en
+ * el medio; crece a medida que el puntero se mete en la franja del borde y es la máxima fuera de la grilla. Una grilla
+ * más chica que dos franjas usa un tercio de su largo, para que siempre quede un medio quieto. PURO.
+ */
+export function velocidadAlBorde(pos: number, desde: number, hasta: number, borde: { zona: number; maxima: number } = BORDE_ARRASTRE): number {
+  const largo = hasta - desde;
+  if (!(largo > 0)) return 0;
+  const zona = Math.min(borde.zona, largo / 3);
+  const cuanto = (adentro: number) => Math.ceil(borde.maxima * Math.min(1, adentro / zona));
+  if (pos < desde + zona) return -cuanto(desde + zona - pos);
+  if (pos > hasta - zona) return cuanto(pos - (hasta - zona));
+  return 0;
 }
 
 // ───────────── arrastrar y estirar un turno en la grilla ─────────────

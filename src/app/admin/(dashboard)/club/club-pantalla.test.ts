@@ -153,6 +153,8 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
       logLevel: "silent",
+      // La piel de la agenda (AgendaCanchas importa piel/agenda.css): el CSS lo pone la página, no el paquete.
+      loader: { ".css": "empty" },
     });
     bundle = r.outputFiles[0].text;
     const rr = await esbuild.build({
@@ -164,6 +166,8 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
       logLevel: "silent",
+      // La piel de la agenda (AgendaCanchas importa piel/agenda.css): el CSS lo pone la página, no el paquete.
+      loader: { ".css": "empty" },
       plugins: [
         {
           name: "sonda",
@@ -183,7 +187,10 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await browser?.close();
   });
 
-  async function montar(viewport = { width: 1024, height: 768 }, page?: Page): Promise<{ page: Page; errores: string[] }> {
+  /** La piel de la agenda de Break Point (AgendaCanchas la importa; en el paquete del test el CSS va vacío). */
+  const PIEL_AGENDA = readFileSync(join(RAIZ, "src", "app", "admin", "(dashboard)", "club", "piel", "agenda.css"), "utf8");
+
+  async function montar(viewport = { width: 1024, height: 768 }, page?: Page, piel = false): Promise<{ page: Page; errores: string[] }> {
     let p = page;
     if (!p) {
       p = await browser!.newPage({ viewport, locale: "es-AR" });
@@ -195,7 +202,9 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     p.on("console", (m) => {
       if (m.type() === "error") errores.push(m.text());
     });
-    const html = `<!doctype html><html lang="es"><head><style>${css}</style><script>${CONTADOR}</script></head><body class="bg-surface text-body"><main id="root" class="p-4"></main></body></html>`;
+    // Con `piel`, como en /admin/club de Break Point: la estética en la raíz y la piel de la agenda después del CSS de la app.
+    const raiz = piel ? ` data-estetica="breakpoint"` : "";
+    const html = `<!doctype html><html lang="es"${raiz}><head><style>${css}</style>${piel ? `<style>${PIEL_AGENDA}</style>` : ""}<script>${CONTADOR}</script></head><body class="bg-surface text-body"><main id="root" class="p-4"></main></body></html>`;
     await p.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
     await p.goto(ORIGEN);
     await p.addScriptTag({ content: bundle });
@@ -337,6 +346,95 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await turnoDeMartin(page).click({ button: "right" });
     await menu.getByRole("menuitem", { name: /^Cobrar · \$/ }).click();
     await page.getByRole("region", { name: "Martín Ríos" }).first().waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("menú rápido: «Mover…» y «Marcar falta…» abren la cuenta con ESE formulario desplegado (el mismo del pie de la cuenta)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar({ width: 1366, height: 900 });
+    const menu = page.getByRole("menu", { name: "Acciones rápidas del turno" });
+    // Martín está jugando: se mueve (a otra cancha), la falta no se ofrece.
+    await turnoDeMartin(page).click({ button: "right" });
+    await menu.waitFor();
+    assert.equal(await menu.getByRole("menuitem", { name: "Marcar falta…" }).count(), 0, "jugando no hay falta");
+    await menu.getByRole("menuitem", { name: "Mover…" }).click();
+    const cuenta = page.locator('[data-ui="hoja-del-turno"]');
+    await cuenta.getByRole("button", { name: "Mover", expanded: true }).waitFor();
+    await page.waitForFunction(() => (document.activeElement as HTMLElement | null)?.closest("label, div")?.textContent?.includes("A la cancha"));
+    assert.ok((await page.evaluate(() => document.activeElement?.tagName)) === "SELECT", "el foco queda en «A la cancha»");
+    await page.keyboard.press("Escape");
+    await cuenta.waitFor({ state: "detached" });
+    // Lucas está reservado: «Marcar falta…» abre «No vino» con a quién se le cobra (y la previa con las reglas del motor).
+    const lucas = page.getByRole("button", { name: /^Lucas Fernández, Cancha 1, de 20:30/ });
+    await lucas.scrollIntoViewIfNeeded();
+    await lucas.click({ button: "right" });
+    await menu.getByRole("menuitem", { name: "Marcar falta…" }).click();
+    await cuenta.getByRole("button", { name: "No vino", expanded: true }).waitFor();
+    await cuenta.getByRole("group", { name: "A quién se le cobra el turno" }).waitFor();
+    assert.equal(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type), "radio", "el foco queda en a quién se le cobra");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("piel de Break Point: franjas de 30 px con turnos y raya de ahora alineados, lamparita y botones de 32 px con toque de 44, y el arrastre corre la grilla", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS de la app");
+    const { page, errores } = await montar({ width: 1366, height: 768 }, undefined, true);
+    const medidas = await page.evaluate(() => {
+      const g = document.querySelector<HTMLElement>('[aria-describedby="club-agenda-ayuda"] > div')!;
+      const pistas = getComputedStyle(g).gridTemplateRows.split(" ").map(parseFloat);
+      const top = g.getBoundingClientRect().top + pistas[0];
+      // (Sin funciones con nombre adentro: tsx les agrega un `__name` que el navegador no tiene.)
+      const [luz, chapa, turno, dia] = ['[data-agenda="luz"]', '[data-agenda="luz-chapa"]', '[data-agenda="acciones"] [data-ui="button"]', '[data-agenda="dias"] button']
+        .map((sel) => document.querySelector(sel)!.getBoundingClientRect())
+        .map((r) => ({ w: Math.round(r.width), h: Math.round(r.height) }));
+      // La raya de ahora y los turnos en la misma regla: desde el turno de Lucas (20:30; su <li> tiene 2 px de margen),
+      // la raya cae (20:30 − ahora) / 30 franjas más arriba.
+      const [hh, mm] = document.querySelector('[data-agenda="ahora-hora"]')!.textContent!.split(":").map(Number);
+      const lucas = [...document.querySelectorAll("[data-turno]")].find((b) => b.getAttribute("aria-label")!.startsWith("Lucas Fernández, Cancha 1, de 20:30"))!;
+      const esperada = lucas.closest("li")!.getBoundingClientRect().top - 2 - ((20 * 60 + 30 - (hh * 60 + mm)) / 30) * pistas[1];
+      const ahora = document.querySelector('[data-agenda="ahora"]')!.getBoundingClientRect().top;
+      return { fila: pistas[1], top, esperada, ahora, luz, chapa, turno, dia };
+    });
+    assert.equal(medidas.fila, 30, "30 px por media hora, como el club de hoy");
+    assert.ok(Math.abs(medidas.ahora - medidas.esperada) <= 1, `la raya de ahora (${medidas.ahora}) alineada con los turnos (${medidas.esperada})`);
+    assert.deepEqual([medidas.luz.w, medidas.luz.h, medidas.chapa.w, medidas.chapa.h], [44, 44, 32, 32], "la lamparita se ve de 32 y se toca en 44");
+    assert.equal(medidas.turno.h, 32, "«+ Turno» se ve de 32 px");
+    assert.equal(medidas.dia.h, 32, "los días se ven de 32 px");
+    // El turno mide lo que dura: Lucas (90 min) son 3 franjas, menos el margen.
+    const lucas = page.getByRole("button", { name: /^Lucas Fernández, Cancha 1, de 20:30/ });
+    const [, h1, m1, h2, m2] = (await lucas.getAttribute("aria-label"))!.match(/de (\d+):(\d+) a (\d+):(\d+)/)!.map(Number);
+    const duracion = h2 * 60 + m2 - (h1 * 60 + m1);
+    assert.equal(Math.round((await lucas.boundingBox())!.height), (duracion / 30) * 30 - 4);
+    // El área de toque de 44: 5 px arriba de «+ Turno» y de un día sigue siendo el botón.
+    const tocaArriba = (sel: string) =>
+      page.evaluate((s) => {
+        const b = document.querySelector<HTMLElement>(s)!;
+        const r = b.getBoundingClientRect();
+        return document.elementFromPoint(r.left + r.width / 2, r.top - 5)?.closest("button") === b;
+      }, sel);
+    assert.ok(await tocaArriba('[data-agenda="acciones"] [data-ui="button"]'), "«+ Turno» se toca 6 px por fuera");
+    assert.ok(await tocaArriba('[data-agenda="dias"] button'), "el día se toca 6 px por fuera");
+    const corre = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(corre <= 0, `la página se corre de costado ${corre} px`);
+    // Arrastrar hasta el borde de arriba (justo debajo de la cabecera fija) corre la grilla sola; Escape cancela y el turno
+    // queda donde estaba. Lucas juega tarde: la grilla está corrida hasta abajo y tiene para subir.
+    const marco = page.locator('[aria-describedby="club-agenda-ayuda"]');
+    await lucas.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    const b = (await lucas.boundingBox())!;
+    const m = (await marco.boundingBox())!;
+    const antes = await marco.evaluate((el) => el.scrollTop);
+    await page.mouse.move(b.x + b.width / 2, b.y + 6);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2, b.y + 30, { steps: 3 });
+    await page.mouse.move(b.x + b.width / 2, m.y + 52, { steps: 4 });
+    await page.waitForFunction((a) => document.querySelector('[aria-describedby="club-agenda-ayuda"]')!.scrollTop < a - 30, antes);
+    await page.locator('[data-agenda="previa"]').waitFor();
+    await page.keyboard.press("Escape");
+    await page.locator('[data-agenda="previa"]').waitFor({ state: "detached" });
+    await page.mouse.up();
+    assert.equal(await page.getByRole("status").filter({ hasText: /pasó a/ }).count(), 0, "cancelado con Escape: no se movió");
     assert.deepEqual(errores, []);
     await page.close();
   });

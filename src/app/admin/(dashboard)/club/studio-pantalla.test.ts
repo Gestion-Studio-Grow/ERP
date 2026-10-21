@@ -160,6 +160,8 @@ describe("Studio de redes y cámaras de la demo en el navegador", { timeout: 240
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
       logLevel: "silent",
+      // La piel de la agenda (AgendaCanchas importa piel/agenda.css): el CSS lo pone la página, no el paquete.
+      loader: { ".css": "empty" },
     });
     bundle = r.outputFiles[0].text;
     css = await cssDeLaApp();

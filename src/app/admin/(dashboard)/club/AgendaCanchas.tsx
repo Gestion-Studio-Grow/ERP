@@ -20,11 +20,17 @@
 // La luz de cada cancha (arriba, en su encabezado) es un botón con su PROPIA suscripción al almacén
 // (`LuzDeCancha`): prender o apagar repinta sólo ese botón. La grilla no lee las luces, así que su firma no
 // cambia y ni la agenda ni los turnos se vuelven a pintar.
+//
+// La piel de Break Point (piel/agenda.css, bajo `[data-estetica="breakpoint"]`) la deja densa como el club de hoy:
+// franjas de 30 px por media hora, la lamparita y los botones de 32 px a la vista (el área de toque sigue en 44). Por
+// eso la geometría (la raya de ahora, el arrastre, dónde arranca la grilla) NO supone un alto: lo lee de la grilla
+// pintada (`medidasDeLaGrilla`).
 
 import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import "./piel/agenda.css";
 import { Marca } from "@/components/ui/Marca";
 import { cn } from "@/components/ui/cn";
-import { armarAgenda, compartirAgenda, opcionesDelMenu, ponerLuz, previaArrastre, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type OpcionDelMenu, type PreviaArrastre, type VistaAgenda } from "./agenda-core";
+import { armarAgenda, compartirAgenda, opcionesDelMenu, ponerLuz, previaArrastre, velocidadAlBorde, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type OpcionDelMenu, type PreviaArrastre, type VistaAgenda } from "./agenda-core";
 import { ejecutarCiclo } from "./ciclo-core";
 import { DESHACIBLE, ejecutar } from "./cuenta-core";
 import { Button } from "@/components/ui/Button";
@@ -32,9 +38,47 @@ import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { useSeleccion } from "./usar-almacen";
 
-/** Alto de una franja de la grilla: 44 px, el piso táctil de la tablet de recepción (también el de un hueco libre). */
+/**
+ * Alto de una franja de la grilla: por defecto 44 px, el piso táctil de la tablet de recepción (también el de un hueco
+ * libre). Una piel lo cambia con `--agenda-fila` (Break Point: 30 px, como el club de hoy).
+ */
 const FILA_REM = 2.75;
-const FILA = `${FILA_REM}rem`;
+const FILA = `var(--agenda-fila, ${FILA_REM}rem)`;
+
+/**
+ * Las medidas de la grilla TAL COMO SE PINTÓ (px): la cabecera de las canchas, una franja y la columna de las horas.
+ * Salen de las pistas resueltas de la grilla CSS, así la raya de ahora, el arrastre y el arranque usan el mismo alto que
+ * ve la persona, sea cual sea la piel.
+ */
+function medidasDeLaGrilla(g: HTMLElement): { cabecera: number; fila: number; horas: number } {
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const cs = getComputedStyle(g);
+  const filas = cs.gridTemplateRows.split(" ").map(parseFloat);
+  const columnas = cs.gridTemplateColumns.split(" ").map(parseFloat);
+  return { cabecera: filas[0] || 3 * rem, fila: filas[1] || FILA_REM * rem, horas: columnas[0] || 3.5 * rem };
+}
+
+/**
+ * «Mover…» y «Marcar falta…» del menú rápido abren la cuenta del turno con ESE formulario ya desplegado: el mismo de su
+ * pie (CicloDelTurno), con sus reglas y su previa. Se reconoce por el texto de su botón (ETIQUETAS de CicloDelTurno).
+ */
+const EN_LA_CUENTA = { mover: "Mover", falta: "No vino" } as const;
+
+function desplegarEnLaCuenta(cual: keyof typeof EN_LA_CUENTA, intentos = 30) {
+  const boton = [...document.querySelectorAll<HTMLButtonElement>('[data-ui="hoja-del-turno"] [data-cuenta="pie"] button[aria-expanded]')].find((b) => b.textContent?.trim() === EN_LA_CUENTA[cual]);
+  // La hoja se monta en el cuadro que sigue a elegir: se la espera un poco (medio segundo como mucho).
+  if (!boton) {
+    if (intentos > 0) requestAnimationFrame(() => desplegarEnLaCuenta(cual, intentos - 1));
+    return;
+  }
+  if (boton.getAttribute("aria-expanded") !== "true") boton.click();
+  requestAnimationFrame(() => {
+    // El foco va al primer campo del formulario (la cancha a donde mover, a quién se le cobra la falta).
+    const campo = boton.closest('[data-cuenta="pie"]')?.querySelector<HTMLElement>(":scope > div:last-child :is(select, input)");
+    campo?.focus();
+    campo?.scrollIntoView({ block: "nearest" });
+  });
+}
 
 const FLECHAS: Record<string, Direccion> = { ArrowUp: "arriba", ArrowDown: "abajo", ArrowLeft: "izquierda", ArrowRight: "derecha" };
 
@@ -250,7 +294,18 @@ function MenuDelTurno({ id, x, y, opciones, onElegir, onCerrar }: { id: string; 
       className="fixed z-50 flex min-w-52 flex-col rounded-lg border border-line bg-surface-raised p-1 shadow-overlay"
     >
       {opciones.map((o) => (
-        <button key={o.accion} type="button" role="menuitem" onClick={() => onElegir(o)} className="min-h-11 rounded-md px-3 text-left text-sm text-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus">
+        <button
+          key={o.accion}
+          type="button"
+          role="menuitem"
+          data-menu={o.peligro ? "peligro" : undefined}
+          onClick={() => onElegir(o)}
+          className={cn(
+            "min-h-11 rounded-md px-3 text-left text-sm hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus",
+            // La falta, separada y en rojo como el club de hoy: es de una sola vez (igual se deshace desde el aviso).
+            o.peligro ? "relative mt-1 text-danger before:absolute before:inset-x-1 before:-top-0.5 before:border-t before:border-line" : "text-strong",
+          )}
+        >
           {o.texto}
         </button>
       ))}
@@ -283,15 +338,22 @@ const LuzDeCancha = memo(function LuzDeCancha({ almacen, canchaId, nombre }: { a
       aria-label={`Luz de ${nombre}`}
       title={prendida ? "Luz prendida: tocá para apagarla" : "Luz apagada: tocá para prenderla"}
       onClick={() => almacen.ejecutar((e) => ponerLuz(e, canchaId, !prendida), { deshacible: true })}
-      className={cn(
-        "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border px-1.5 focus-visible:outline-2 focus-visible:outline-focus",
-        prendida ? "border-warning bg-warning-soft text-strong" : "border-line-strong bg-surface-raised text-body",
-      )}
+      // 44 × 44 para el dedo, pero a la vista una chapa de 32 px con aire: el margen negativo hace que ocupe 32 de alto
+      // y 38 de ancho en la cabecera (el área de toque sobrante no le saca lugar al nombre de la cancha).
+      className="group -my-1.5 -ml-1.5 inline-grid size-11 shrink-0 place-items-center rounded-md focus-visible:outline-none"
     >
-      {/* La lamparita del club de hoy: llena y dorada prendida, sólo el contorno apagada (forma, no sólo color). */}
-      <svg viewBox="0 0 24 24" aria-hidden="true" data-agenda="lamparita" className="size-5" fill={prendida ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V17h5.2v-1.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z" />
-      </svg>
+      <span
+        data-agenda="luz-chapa"
+        className={cn(
+          "grid size-8 place-items-center rounded-md border group-focus-visible:outline-2 group-focus-visible:outline-offset-1 group-focus-visible:outline-focus",
+          prendida ? "border-warning bg-warning-soft text-strong" : "border-line-strong bg-surface-raised text-body",
+        )}
+      >
+        {/* La lamparita del club de hoy: llena y dorada prendida, sólo el contorno apagada (forma, no sólo color). */}
+        <svg viewBox="0 0 24 24" aria-hidden="true" data-agenda="lamparita" className="size-5" fill={prendida ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V17h5.2v-1.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z" />
+        </svg>
+      </span>
     </button>
   );
 });
@@ -305,7 +367,7 @@ const FondoDeLaGrilla = memo(function FondoDeLaGrilla({ almacen, canchas, horas,
         <div
           key={c.id}
           data-agenda="cancha"
-          className="sticky top-0 z-20 flex items-center gap-1 border-b border-l border-line bg-surface pl-2 pr-0.5"
+          className="sticky top-0 z-20 flex items-center gap-1 border-b border-l border-line bg-surface pl-2"
           style={{ gridColumn: i + 2, gridRow: 1 }}
         >
           {/* El nombre ya lo dice la lista de la cancha (aria-label): acá sólo se ve. */}
@@ -372,6 +434,7 @@ export default function AgendaCanchas({
   const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarAgenda(e, dia, a), [dia]);
   const vista = useSeleccion(almacen, seleccionar, compartir);
   const marco = useRef<HTMLDivElement>(null);
+  const grilla = useRef<HTMLDivElement>(null);
   const yaUbicada = useRef(false);
 
   // Al entrar, la grilla arranca mostrando la hora de ahora (no las 9 de la mañana). Una sola vez:
@@ -379,13 +442,13 @@ export default function AgendaCanchas({
   const filaAhora = vista.ahora;
   useEffect(() => {
     const m = marco.current;
-    if (!m || filaAhora === null || yaUbicada.current) return;
+    const g = grilla.current;
+    if (!m || !g || filaAhora === null || yaUbicada.current) return;
     yaUbicada.current = true;
-    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     // Como el club de hoy: desde la hora en punto de dos horas antes (19:10 → 17:00), con media hora libre arriba.
     const min = vista.desde + filaAhora * vista.paso;
     const fila = Math.max(0, (Math.floor(min / 60) * 60 - 120 - vista.desde) / vista.paso - 30 / vista.paso);
-    m.scrollTop = fila * FILA_REM * rem;
+    m.scrollTop = fila * medidasDeLaGrilla(g).fila;
   }, [filaAhora, vista.desde, vista.paso]);
 
   const turnos = vista.turnos;
@@ -393,7 +456,6 @@ export default function AgendaCanchas({
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
   // ── Arrastrar y estirar (pointer events: mouse, dedo y lápiz) ──
-  const grilla = useRef<HTMLDivElement>(null);
   const [previa, setPrevia] = useState<PreviaArrastre | null>(null);
   // La vista del momento para los oyentes del arrastre (viven fuera del render).
   const vistaActual = useRef(vista);
@@ -415,37 +477,64 @@ export default function AgendaCanchas({
   const onArrastrar = useCallback(
     (id: string, modo: "mover" | "estirar", ev: React.PointerEvent) => {
       const g = grilla.current;
+      const m = marco.current;
       const bloque = document.getElementById(`turno-${id}`);
-      if (!g || !bloque) return;
+      if (!g || !m || !bloque) return;
       if (modo === "estirar" || ev.pointerType !== "mouse") ev.preventDefault();
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      const filaPx = FILA_REM * rem;
+      const medidas = medidasDeLaGrilla(g);
       const x0 = ev.clientX;
       const y0 = ev.clientY;
-      const agarre = Math.floor((ev.clientY - bloque.getBoundingClientRect().top) / filaPx);
+      const scroll0 = m.scrollTop;
+      const agarre = Math.floor((ev.clientY - bloque.getBoundingClientRect().top) / medidas.fila);
       let activo = false;
       let ultima: PreviaArrastre | null = null;
+      const puntero = { x: x0, y: y0 };
+      let cuadro = 0;
       const calcular = (x: number, y: number) => {
         const v = vistaActual.current;
         const r = g.getBoundingClientRect();
-        const colW = (r.width - 3.5 * rem) / v.canchas.length;
+        const colW = (r.width - medidas.horas) / v.canchas.length;
         return modo === "mover"
-          ? previaArrastre(almacen.estado(), v, id, { modo: "mover", columna: Math.floor((x - r.left - 3.5 * rem) / colW), fila: Math.floor((y - r.top - 3 * rem) / filaPx) - agarre }, almacen.ahora())
-          : previaArrastre(almacen.estado(), v, id, { modo: "estirar", filas: (y - y0) / filaPx }, almacen.ahora());
+          ? previaArrastre(almacen.estado(), v, id, { modo: "mover", columna: Math.floor((x - r.left - medidas.horas) / colW), fila: Math.floor((y - r.top - medidas.cabecera) / medidas.fila) - agarre }, almacen.ahora())
+          : // Estirar cuenta desde donde se agarró; si la grilla se corrió mientras tanto, eso también suma.
+            previaArrastre(almacen.estado(), v, id, { modo: "estirar", filas: (y - y0 + m.scrollTop - scroll0) / medidas.fila }, almacen.ahora());
+      };
+      // Llegando al borde de la grilla, se corre sola (arriba, abajo y, moviendo, a los costados) mientras el puntero
+      // siga ahí; la previa acompaña. Se frena en el tope o al soltar.
+      const correr = () => {
+        cuadro = 0;
+        if (!activo) return;
+        const r = m.getBoundingClientRect();
+        const dy = velocidadAlBorde(puntero.y, r.top + medidas.cabecera, r.bottom);
+        const dx = modo === "mover" ? velocidadAlBorde(puntero.x, r.left + medidas.horas, r.right) : 0;
+        if (!dx && !dy) return;
+        const antes = m.scrollTop + m.scrollLeft;
+        m.scrollTop += dy;
+        m.scrollLeft += dx;
+        if (m.scrollTop + m.scrollLeft === antes) return;
+        ultima = calcular(puntero.x, puntero.y);
+        setPrevia(ultima);
+        cuadro = requestAnimationFrame(correr);
       };
       const mover = (e: PointerEvent) => {
         if (!activo && Math.hypot(e.clientX - x0, e.clientY - y0) < 6) return;
         activo = true;
+        puntero.x = e.clientX;
+        puntero.y = e.clientY;
         ultima = calcular(e.clientX, e.clientY);
         setPrevia(ultima);
+        if (!cuadro) cuadro = requestAnimationFrame(correr);
       };
       const terminar = (e: PointerEvent | KeyboardEvent) => {
         window.removeEventListener("pointermove", mover);
         window.removeEventListener("pointerup", terminar);
         window.removeEventListener("pointercancel", terminar);
         window.removeEventListener("keydown", cancelarConEscape);
+        cancelAnimationFrame(cuadro);
+        cuadro = 0;
         setPrevia(null);
         if (!activo) return;
+        activo = false;
         recienArrastrado.current = true;
         setTimeout(() => (recienArrastrado.current = false), 0);
         if (e.type === "pointerup" && ultima) hacerCiclo(id, ultima);
@@ -509,6 +598,10 @@ export default function AgendaCanchas({
       });
       const accion = o.accion;
       if (accion === "ver") return onAbrir(id);
+      if (accion === "mover" || accion === "falta") {
+        onAbrir(id);
+        return desplegarEnLaCuenta(accion);
+      }
       almacen.ejecutar((e, ahora, auth) => ejecutar(e, id, { tipo: accion }, ahora, auth), { deshacible: DESHACIBLE[accion] });
     },
     [almacen, menu, onAbrir],
@@ -537,7 +630,7 @@ export default function AgendaCanchas({
   const primerLibreEnTab = turnos.length === 0 ? (libres[0]?.id ?? null) : null;
 
   return (
-    <section aria-labelledby="club-agenda-titulo" className="min-w-0">
+    <section aria-labelledby="club-agenda-titulo" data-agenda-piel className="min-w-0">
       {/* Como el club de hoy: «AGENDA · SÁB 17/10 (HOY)» y, a la derecha, el horario del día con «Cambiar horario». */}
       <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <h2 id="club-agenda-titulo" data-pantalla className="text-lg font-semibold text-strong">

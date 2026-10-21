@@ -1,0 +1,42 @@
+/* ============================================================================
+   LA AGENDA DE BREAK POINT — la densidad y los detalles del club de hoy
+   (src/tenants/breakpoint/sitio/club.html: `--row:30px`, `.luz` de 34 px, `.btn.sm` de 32 px).
+   ============================================================================
+   La importa AgendaCanchas.tsx. Todo va bajo `[data-estetica="breakpoint"]` y la sección de la agenda
+   (`[data-agenda-piel]`): un atributo más que las reglas de agenda de globals.css, así éstas ganan carguen antes o
+   después. Lo que se achica es lo que SE VE: el área de toque sigue en 44 px (WCAG 2.5.8 y el piso de la tablet de
+   recepción) con un `::after` invisible o con el botón entero transparente alrededor de la chapa.
+   La geometría (la raya de ahora, el arrastre, dónde arranca la grilla) lee el alto de la grilla pintada: con cambiar
+   `--agenda-fila` alcanza. */
+
+/* ── La grilla: 30 px por media hora (~4,5 h a la vista en 1366 × 768, como el club de hoy). ── */
+[data-estetica="breakpoint"] [data-agenda-piel] { --agenda-fila: 1.875rem; }
+
+/* Los turnos, compactos como los `.blk` del club de hoy: entra el nombre en el de media hora y nombre, horario y la
+   plata en el de una hora. Sin el piso de 44 px (el turno mide lo que dura). */
+[data-estetica="breakpoint"] [data-agenda-piel] [data-turno] { min-height: 0; padding: 0.125rem 0.5rem; gap: 1px; font-size: 0.8125rem; line-height: 1.25; }
+[data-estetica="breakpoint"] [data-agenda-piel] [data-turno] .text-xs { line-height: 1.25; }
+/* Los huecos libres miden una franja. */
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="libre"] { min-height: 0; }
+
+/* ── La lamparita: una chapa de 32 px con aire en la cabecera; el botón de 44 px alrededor no se ve. ── */
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="luz"],
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="luz"][aria-pressed="true"] { background: transparent; border-color: transparent; }
+/* La chapa toma el color del botón (gris apagada, dorado prendida: globals.css, 3,9:1 sobre el ámbar, 1.4.11). */
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="luz-chapa"] { color: inherit; border-color: transparent; background: transparent; }
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="luz"]:hover [data-agenda="luz-chapa"] { border-color: var(--line-strong); background: var(--surface-raised); }
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="luz"][aria-pressed="true"] [data-agenda="luz-chapa"] { border-color: color-mix(in srgb, var(--warning) 45%, transparent); background: var(--warning-soft); }
+
+/* ── Los botones de la agenda («+ Turno», «Abrir cuenta», los accesos y «Cambiar horario»): 32 px a la vista, como
+   `.btn.sm`; el `::after` de globals.css lleva el toque a 44 px. ── */
+[data-estetica="breakpoint"] [data-agenda-piel] :is([data-agenda="acciones"], [data-tactil="compacto"]) [data-ui="button"] { height: 2rem; padding-inline: 0.75rem; font-size: 0.8125rem; letter-spacing: 0; }
+[data-estetica="breakpoint"] [data-agenda-piel] :is([data-agenda="acciones"], [data-tactil="compacto"]) [data-ui="button"]::after { inset: -0.375rem 0; }
+/* Si la fila se parte en dos (pantalla angosta), las áreas de toque de una fila y la otra no se pisan. */
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="acciones"] { row-gap: 0.75rem; }
+
+/* ── Los días: «Vie 16/10» en una línea de 32 px; el `::after` lleva el toque a 44. La tira tiene 6 px de relleno
+   arriba y abajo para que el área de toque no se recorte ni haga aparecer una barra de scroll (y el margen negativo
+   devuelve ese lugar: a la vista ocupa 32 px). ── */
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="dias"] { gap: 0.25rem; padding-block: 0.375rem; margin-block: -0.375rem; }
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="dias"] button { position: relative; flex-direction: row; align-items: center; gap: 0.375rem; height: 2rem; min-height: 0; min-width: 0; padding-inline: 0.625rem; }
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="dias"] button::after { content: ""; position: absolute; inset: -0.375rem 0; }

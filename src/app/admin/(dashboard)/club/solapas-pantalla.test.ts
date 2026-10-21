@@ -154,6 +154,8 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
       logLevel: "silent",
+      // La piel de la agenda (AgendaCanchas importa piel/agenda.css): el CSS lo pone la página, no el paquete.
+      loader: { ".css": "empty" },
     });
     bundle = r.outputFiles[0].text;
     css = await cssDeLaApp();

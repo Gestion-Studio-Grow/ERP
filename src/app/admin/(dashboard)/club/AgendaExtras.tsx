@@ -5,8 +5,9 @@
 // ============================================================================
 //
 //   · `DiasDeLaAgenda`: ayer, hoy y los cinco que siguen (`diasDeLaAgenda`, agenda-core.ts: los mismos que el club
-//     vanilla). Botones de 44 px con `aria-pressed`. Cambiar de día no arma otra pantalla: es la MISMA grilla con
-//     otro `dia` (el encabezado y las horas se reusan si el horario es igual).
+//     vanilla). Botones de 44 px con `aria-pressed`; la piel de Break Point (piel/agenda.css) los muestra de 32 px en
+//     una línea («Vie 16/10») y deja el área de toque en 44. Cambiar de día no arma otra pantalla: es la MISMA grilla
+//     con otro `dia` (el encabezado y las horas se reusan si el horario es igual).
 //   · `FueraDeLaGrilla`: lo cancelado, suspendido o la falta de ese día, con la plata que queda pendiente: devolver
 //     en mano a alguien sin ficha (sale de la caja) o cobrar la falta de alguien sin ficha (entra a la caja).
 
