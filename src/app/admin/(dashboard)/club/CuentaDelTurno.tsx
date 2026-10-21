@@ -428,7 +428,7 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">Cuenta del turno</p>
-          <h2 id={idTitulo} ref={titulo} tabIndex={-1} className="truncate text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
+          <h2 data-pantalla id={idTitulo} ref={titulo} tabIndex={-1} className="truncate text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
             {vista.titular}
           </h2>
           <p className="text-sm text-muted">{vista.descripcion}</p>

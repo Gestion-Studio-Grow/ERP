@@ -148,7 +148,7 @@ export default function AltaDeTurno({
       className="flex flex-col gap-4 rounded-lg border border-line bg-surface-raised p-4"
     >
       <header className="flex items-start justify-between gap-3">
-        <h2 id={ids.titulo} ref={titulo} tabIndex={-1} className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
+        <h2 data-pantalla id={ids.titulo} ref={titulo} tabIndex={-1} className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
           Dar un turno
         </h2>
         <Button variant="ghost" size="md" onClick={onVolver}>
