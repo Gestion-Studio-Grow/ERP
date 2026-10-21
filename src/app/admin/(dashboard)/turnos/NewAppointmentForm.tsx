@@ -82,6 +82,8 @@ export default function NewAppointmentForm({
   const [open, setOpen] = useState(origen === "mostrador" || abierto);
   const [professionalId, setProfessionalId] = useState(profesionalInicial);
   const [serviceId, setServiceId] = useState("");
+  // En el mostrador, con las tarjetas, las listas de profesional y servicio quedan plegadas.
+  const [verLista, setVerLista] = useState(false);
   const [date, setDate] = useState(fechaInicial);
   const [slots, setSlots] = useState<string[]>([]);
   const [selectedSlot, setSelectedSlot] = useState("");
@@ -154,6 +156,12 @@ export default function NewAppointmentForm({
       })
     : ({ ok: true } as const);
   const leCobraElMostrador = veredictoCobro.ok;
+  const conTarjetas = origen === "mostrador" && professionals.some((p) => p.services.length > 0);
+  const avisoCobro = !veredictoCobro.ok && (
+    <div className="rounded-md border border-warning bg-warning-soft p-3 text-sm text-warning">
+      <strong>{veredictoCobro.motivo}</strong> Podés darle el turno igual.
+    </div>
+  );
 
   // Al elegir servicio se propone lo razonable para el contexto, sin trabar nada: el
   // usuario puede cambiarlo. En el mostrador la clienta está ahí, así que el default es
@@ -249,12 +257,19 @@ export default function NewAppointmentForm({
           }
         }}
         className="space-y-3"
+        // Si falta elegir y las listas están plegadas, se abren para que el navegador muestre cuál
+        // falta (con el <details> cerrado no puede enfocarla y el envío se frenaba sin aviso).
+        onInvalidCapture={(e) => {
+          const plegado = (e.target as HTMLElement).closest("details");
+          if (plegado && !plegado.open) plegado.open = true;
+        }}
       >
-        {origen === "mostrador" && (
+        {conTarjetas && (
           <ServiciosEnTarjetas
             profesionales={professionals}
             profesionalElegido={professionalId}
             servicioElegido={serviceId}
+            vecina={datos.vecina}
             onElegir={(pId, sId) => {
               setProfessionalId(pId);
               setServiceId(sId);
@@ -263,6 +278,9 @@ export default function NewAppointmentForm({
             }}
           />
         )}
+        {conTarjetas && avisoCobro}
+        {/* Con tarjetas, las listas quedan plegadas («Ver como lista»): son la misma elección. */}
+        <Plegado conTarjetas={conTarjetas} abierto={verLista} alCambiar={setVerLista}>
         {/* Una columna en el celular: con dos, el nombre del servicio y su precio no entraban. */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Profesional" htmlFor="na-professional">
@@ -290,11 +308,7 @@ export default function NewAppointmentForm({
               cobro. Lo encontró la UAT: con el aviso allá abajo, la recepcionista elegía a
               Vero, elegía servicio, elegía fecha, elegía horario — y recién ahí se enteraba
               de que ese turno no lo cobra ella. Cuatro pasos con la clienta enfrente. */}
-          {!veredictoCobro.ok && (
-            <div className="rounded-md border border-warning bg-warning-soft p-3 text-sm text-warning">
-              <strong>{veredictoCobro.motivo}</strong> Podés darle el turno igual.
-            </div>
-          )}
+          {!conTarjetas && avisoCobro}
 
           <Field label="Servicio" htmlFor="na-service">
             <Select
@@ -319,6 +333,7 @@ export default function NewAppointmentForm({
             </Select>
           </Field>
         </div>
+        </Plegado>
 
         <Field label="Fecha" htmlFor="na-date">
           <Input
@@ -560,5 +575,26 @@ function FichaReconocida({ ficha, nombreTipeado, faltazos }: { ficha: FichaParaA
         </p>
       )}
     </div>
+  );
+}
+
+/** Las listas de profesional y servicio: plegadas bajo «Ver como lista» cuando hay tarjetas. */
+function Plegado({
+  conTarjetas,
+  abierto,
+  alCambiar,
+  children,
+}: {
+  conTarjetas: boolean;
+  abierto: boolean;
+  alCambiar: (abierto: boolean) => void;
+  children: React.ReactNode;
+}) {
+  if (!conTarjetas) return <>{children}</>;
+  return (
+    <details open={abierto} onToggle={(e) => alCambiar(e.currentTarget.open)} className="space-y-3">
+      <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm text-muted">Ver como lista</summary>
+      {children}
+    </details>
   );
 }

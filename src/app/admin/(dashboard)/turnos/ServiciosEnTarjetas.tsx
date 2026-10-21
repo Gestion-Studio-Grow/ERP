@@ -5,8 +5,9 @@
 // Las listas de abajo siguen siendo la fuente del formulario; esto sólo las completa.
 
 import { fmtMoneyARS, cn } from "@/components/ui";
+import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 
-type Servicio = { id: string; name: string; durationMin: number; price: number };
+type Servicio = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null };
 type Profesional = { id: string; name: string; services: Servicio[] };
 
 export function serviciosConQuienLosHace(profesionales: Profesional[]) {
@@ -25,11 +26,14 @@ export default function ServiciosEnTarjetas({
   profesionales,
   profesionalElegido,
   servicioElegido,
+  vecina = false,
   onElegir,
 }: {
   profesionales: Profesional[];
   profesionalElegido: string;
   servicioElegido: string;
+  /** La clienta está tildada «de la zona»: el precio es el local, si el servicio lo tiene. */
+  vecina?: boolean;
   onElegir: (profesionalId: string, servicioId: string) => void;
 }) {
   const filas = serviciosConQuienLosHace(profesionales);
@@ -42,6 +46,8 @@ export default function ServiciosEnTarjetas({
       <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {filas.map(({ servicio, quienes }) => {
           const elegido = servicio.id === servicioElegido;
+          // El mismo precio que se congela al reservar (y que se cobra): con «de la zona», el local.
+          const { priceAtBooking, isResidentBooking } = precioCongeladoDeReserva(servicio, vecina);
           return (
             <li
               key={servicio.id}
@@ -55,9 +61,11 @@ export default function ServiciosEnTarjetas({
             >
               <div className="flex items-baseline justify-between gap-3">
                 <p className="min-w-0 font-medium text-strong">{servicio.name}</p>
-                <p className="shrink-0 tabular-nums text-strong">{fmtMoneyARS(servicio.price, 0)}</p>
+                <p className="shrink-0 tabular-nums text-strong">{fmtMoneyARS(priceAtBooking, 0)}</p>
               </div>
-              <p className="text-xs text-muted">{servicio.durationMin} min</p>
+              <p className="text-xs text-muted">
+                {servicio.durationMin} min{isResidentBooking ? " · precio local" : ""}
+              </p>
               <div className="flex flex-wrap gap-2" role="group" aria-label={`Quién hace ${servicio.name}`}>
                 {quienes.map((q) => {
                   const esta = elegido && q.id === profesionalElegido;
