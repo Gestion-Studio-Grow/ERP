@@ -1238,3 +1238,120 @@ summary:focus-visible {
     [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-movil="oculta"] { display: none; }
   }
 }
+
+/* ═════════ BACKOFFICE MODERNO — capa común a todos los negocios (rediseño 2026-10-20) ═════════
+   Un motor, dos marcas (y las demás): esto vive en el skin del /admin y lo heredan CH, Magra y el resto; cada
+   negocio conserva SU paleta, tipografía y logo (bloques `data-estetica` de arriba). Es piel, jerarquía e
+   interacción: ninguna lógica cambia.
+
+   Criterio de movimiento (`.claude/rules/movimiento.md`): lo que se ve 100+ veces al día NO entra con
+   escena; sólo respuesta al gesto (hover, apretar, elegir) en 120–200 ms, con la curva de la casa, sólo
+   `transform`/`opacity`/color, y todo apagado con «reducir movimiento». */
+[data-skin="fable"] {
+  --bo-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --bo-dur-1: 120ms;
+  --bo-dur-2: 180ms;
+  /* Elevación en reposo de tarjetas y tablas: un hilo de luz arriba + una sombra larga y baja. */
+  --bo-elev-1: 0 1px 2px rgba(20, 16, 8, 0.05), 0 10px 24px -18px rgba(20, 16, 8, 0.22);
+}
+[data-skin="fable"][data-theme="dark"] {
+  --bo-elev-1: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 28px -18px rgba(0, 0, 0, 0.7);
+}
+
+/* — Capas del panel por negocio. Regla: lo que está más cerca de la mano es más claro (tarjeta > fondo). — */
+/* Magra: antes las tarjetas eran negro puro SOBRE un gris carbón (elevación invertida: parecían huecos). Ahora el
+   fondo es el más profundo y la tarjeta sube un escalón; el oro y el hueso no cambian. */
+[data-skin="fable"][data-estetica="magra"],
+[data-skin="fable"][data-theme="dark"][data-estetica="magra"] {
+  --surface-sunken: #0f0f0d; --surface: #151513; --surface-raised: #1e1d1a;
+  --bo-elev-1: inset 0 1px 0 rgba(242, 230, 215, 0.05), 0 12px 28px -18px rgba(0, 0, 0, 0.8);
+}
+/* CH en oscuro: la base Fable es gris frío; el spa es cálido (tonos de DESIGN.md para el modo oscuro). */
+[data-skin="fable"][data-theme="dark"][data-estetica="beauty-spa"] {
+  --surface: #14130f; --surface-raised: #1d1b16; --surface-sunken: #0f0e0b; --surface-inverted: #f0ebde;
+  --text-strong: #f0ebde; --text: #cfc8b8; --text-muted: #a39b89; --text-faint: #968e7c;
+  --line: rgba(240, 235, 222, 0.1); --line-strong: rgba(240, 235, 222, 0.18);
+  --bar-track: #2b281f;
+}
+
+/* — Tipografía: cifras que no bailan, títulos que no dejan una palabra sola en la línea. — */
+[data-skin="fable"] :is(td, th, [data-parte="valor"], .tabular-nums) { font-variant-numeric: tabular-nums; }
+[data-skin="fable"] :is(h1, h2, h3) { text-wrap: balance; }
+[data-skin="fable"] :is(main p, [data-parte="bajada"]) { text-wrap: pretty; }
+
+/* — Badge: una palabra, una línea (en una celda angosta «Por kg» se partía y se redondeaba como un círculo). — */
+[data-skin="fable"] [data-ui="badge"] { white-space: nowrap; }
+
+/* — Barra lateral: el ítem elegido se lee por forma, no sólo por color (fondo del acento + raya a la izquierda). — */
+[data-skin="fable"] nav { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+[data-skin="fable"] nav [data-nav-item] {
+  position: relative;
+  transition: background-color var(--bo-dur-1) var(--bo-ease), color var(--bo-dur-1) var(--bo-ease);
+}
+[data-skin="fable"] nav [data-nav-item] [data-nav-icon] { transition: color var(--bo-dur-1) var(--bo-ease); }
+@media (hover: hover) {
+  [data-skin="fable"] nav [data-nav-item]:not([data-active]):hover { background: var(--surface-sunken); color: var(--text-strong); }
+  [data-skin="fable"] nav [data-nav-item]:not([data-active]):hover [data-nav-icon] { color: var(--text-muted); }
+}
+[data-skin="fable"] nav [data-nav-item][data-active] { background: var(--accent-soft); }
+[data-skin="fable"] nav [data-nav-item][data-active]::before {
+  content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--marca-elegido, var(--accent));
+}
+[data-skin="fable"] nav [data-ui="atajo"] { background: var(--surface-raised); }
+
+/* — Botones: responden al dedo. Apretar hunde 3 % (120 ms); el sólido lleva un hilo de luz arriba. — */
+[data-skin="fable"] [data-ui="button"] {
+  transition: background-color var(--bo-dur-1) var(--bo-ease), border-color var(--bo-dur-1) var(--bo-ease),
+    color var(--bo-dur-1) var(--bo-ease), box-shadow var(--bo-dur-1) var(--bo-ease), transform var(--bo-dur-1) var(--bo-ease);
+}
+[data-skin="fable"] [data-ui="button"]:active:not(:disabled) { translate: none; transform: scale(0.97); }
+[data-skin="fable"] [data-ui="button"][data-variant="solid"]:not(:disabled) {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), var(--shadow-xs);
+}
+
+/* — Tarjetas, KPI y tablas: elevación propia + el KPI que es un enlace se levanta al apuntarlo. — */
+[data-skin="fable"] :is([data-ui="card"], [data-ui="kpi"], [data-ui="tabla"] > [data-parte="marco"]) { box-shadow: var(--bo-elev-1); }
+[data-skin="fable"] [data-ui="kpi"] [data-parte="icono"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  [data-skin="fable"] a [data-ui="kpi"],
+  [data-skin="fable"] [data-ui="card"][data-interactive] {
+    transition: transform var(--bo-dur-2) var(--bo-ease), box-shadow var(--bo-dur-2) var(--bo-ease), border-color var(--bo-dur-2) var(--bo-ease);
+  }
+  [data-skin="fable"] a:hover [data-ui="kpi"],
+  [data-skin="fable"] [data-ui="card"][data-interactive]:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  [data-skin="fable"] a:active [data-ui="kpi"] { transform: translateY(0) scale(0.99); }
+}
+[data-skin="fable"] [data-ui="tabla"] tbody tr { transition: background-color var(--bo-dur-1) var(--bo-ease); }
+@media (hover: hover) {
+  [data-skin="fable"] [data-ui="tabla"] tbody tr:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+}
+
+/* — Campos: el borde se pone del acento al enfocar, sin saltos de tamaño. — */
+[data-skin="fable"] :is(input, select, textarea) {
+  transition: border-color var(--bo-dur-1) var(--bo-ease), box-shadow var(--bo-dur-1) var(--bo-ease);
+}
+
+/* — Cajón del celular: entra desde el borde (sale al toque, sin escena). — */
+@media (prefers-reduced-motion: no-preference) {
+  [data-skin="fable"] [data-cajon="panel"] { animation: bo-cajon-entra var(--bo-dur-2) var(--bo-ease) both; }
+  [data-skin="fable"] [data-cajon="fondo"] { animation: bo-fondo-entra var(--bo-dur-2) var(--bo-ease) both; }
+  [data-skin="fable"] nav [data-nav-item][data-active]::before { animation: bo-raya-entra var(--bo-dur-2) var(--bo-ease) both; }
+}
+@keyframes bo-cajon-entra { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes bo-fondo-entra { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bo-raya-entra { from { transform: scaleY(0.3); } to { transform: none; } }
+
+/* — Estéticas PLANAS (filetes en vez de sombras): Break Point y Matías declaran `--shadow-*: none`. La elevación,
+   el destello del botón y el levantado del KPI de arriba no les corresponden: se anulan acá. (CH y Magra sí
+   suben un escalón: es parte del rediseño del backoffice.) — */
+[data-skin="fable"]:is([data-estetica="breakpoint"], [data-estetica="matiasconsoli"]) { --bo-elev-1: none; }
+[data-skin="fable"]:is([data-estetica="breakpoint"], [data-estetica="matiasconsoli"]) [data-ui="button"][data-variant="solid"]:not(:disabled) { box-shadow: none; }
+[data-skin="fable"]:is([data-estetica="breakpoint"], [data-estetica="matiasconsoli"]) :is(a:hover [data-ui="kpi"], [data-ui="card"][data-interactive]:hover) { transform: none; box-shadow: none; }
+
+/* — «Reducir movimiento»: sin hundido al apretar ni transiciones de sombra; el estado final se lee igual. — */
+@media (prefers-reduced-motion: reduce) {
+  [data-skin="fable"] [data-ui="button"] { transition: none; }
+  [data-skin="fable"] [data-ui="button"]:active:not(:disabled) { transform: none; }
+  [data-skin="fable"] :is(input, select, textarea) { transition: none; }
+}

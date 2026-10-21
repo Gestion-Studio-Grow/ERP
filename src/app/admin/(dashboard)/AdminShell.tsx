@@ -80,14 +80,15 @@ export function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?:
             key={item.href}
             href={item.href}
             onClick={onNavigate}
-            className={`flex items-center gap-3 rounded-lg px-3 py-[7.5px] text-sm transition-colors ${
-              active
-                ? "bg-surface-sunken text-strong font-semibold"
-                : "text-body font-medium hover:bg-surface-sunken"
+            data-nav-item
+            data-active={active || undefined}
+            aria-current={active ? "page" : undefined}
+            className={`flex items-center gap-3 rounded-lg px-3 py-[7.5px] text-sm whitespace-nowrap ${
+              active ? "text-strong font-semibold" : "text-body font-medium"
             }`}
           >
-            <span className={active ? "text-accent" : "text-faint"}><Icon name={item.icon} /></span>
-            {item.label}
+            <span data-nav-icon className={active ? "text-accent" : "text-faint"}><Icon name={item.icon} /></span>
+            <span className="min-w-0 truncate">{item.label}</span>
           </Link>
         );
       })}
@@ -187,7 +188,11 @@ export function NavBuscable({
   useEffect(() => {
     if (!atajoGlobal) return;
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      const enCampo = e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable]");
+      const ctrlK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k";
+      // «/» enfoca el buscador, pero nunca le roba la tecla a quien está escribiendo en un campo.
+      const barra = e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !enCampo;
+      if (ctrlK || barra) {
         e.preventDefault();
         inputRef.current?.focus();
         inputRef.current?.select();
@@ -196,6 +201,7 @@ export function NavBuscable({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [atajoGlobal]);
+  const esMac = useSyncExternalStore(sinSuscripcion, esMacCliente, () => false);
 
   function limpiar() {
     setQuery("");
@@ -282,6 +288,11 @@ export function NavBuscable({
             placeholder="Buscar…"
             className="w-full rounded-lg border border-line bg-surface-sunken pl-8 pr-7 py-[7px] text-sm text-strong placeholder:text-faint focus:border-accent focus:outline-none"
           />
+          {!buscando && atajoGlobal && (
+            <kbd data-ui="atajo" className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 whitespace-nowrap rounded border border-line px-1 font-sans text-[11px] text-muted lg:inline">
+              {esMac ? "⌘K" : "Ctrl K"}
+            </kbd>
+          )}
           {buscando && (
             <button
               type="button"
@@ -325,16 +336,16 @@ export function NavBuscable({
                     onNavigate?.();
                   }}
                   onMouseEnter={() => setCursor(i)}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-[7.5px] text-sm transition-colors ${
-                    i === seleccionado
-                      ? "bg-surface-sunken text-strong font-semibold"
-                      : "text-body font-medium hover:bg-surface-sunken"
+                  data-nav-item
+                  data-active={i === seleccionado || undefined}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-[7.5px] text-sm whitespace-nowrap ${
+                    i === seleccionado ? "text-strong font-semibold" : "text-body font-medium"
                   }`}
                 >
-                  <span className={i === seleccionado ? "text-accent" : "text-faint"}>
+                  <span data-nav-icon className={i === seleccionado ? "text-accent" : "text-faint"}>
                     <Icon name={item.icon} />
                   </span>
-                  {item.label}
+                  <span className="min-w-0 truncate">{item.label}</span>
                 </Link>
               </li>
             ))}
@@ -402,6 +413,20 @@ export function NavFooter({
 const sinSuscripcion = () => () => {};
 function esMacCliente(): boolean {
   return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+}
+
+// «martes 20 de octubre», en hora de Argentina. El servidor y el primer render del cliente no dicen
+// nada (cadena vacía) y la fecha aparece al hidratar: así no hay desajuste ni cambia el HTML del servidor.
+const fechaDeHoy = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "America/Argentina/Buenos_Aires" });
+const leerFecha = () => fechaDeHoy.format(new Date());
+
+function FechaDeHoy() {
+  const fecha = useSyncExternalStore(sinSuscripcion, leerFecha, () => "");
+  return (
+    <span data-ui="fecha" className="text-sm text-muted whitespace-nowrap first-letter:uppercase">
+      {fecha}
+    </span>
+  );
 }
 
 function BotonBuscarApps({ onClick }: { onClick: () => void }) {
@@ -566,11 +591,12 @@ function ArmazonDeSiempre({
       {drawerOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div
+            data-cajon="fondo"
             className="absolute inset-0 bg-strong/40"
             onClick={() => setDrawerOpen(false)}
             aria-hidden
           />
-          <nav aria-label="Menú" className="relative w-64 max-w-[80%] bg-surface-raised h-full max-h-[100dvh] px-3 py-5 flex flex-col shadow-overlay">
+          <nav aria-label="Menú" data-cajon="panel" className="relative w-64 max-w-[80%] bg-surface-raised h-full max-h-[100dvh] px-3 py-5 flex flex-col shadow-overlay">
             <div className="shrink-0 px-2 mb-6 flex items-center justify-between">
               <Brand monogram={monogram} name={brandName} logo={logo} />
               <button
@@ -624,13 +650,15 @@ function ArmazonDeSiempre({
         {/* Header desktop — sticky con blur (fix 29), como ya hacía el móvil. */}
         <header className="hidden lg:flex sticky top-0 z-30 bg-surface-raised/90 backdrop-blur border-b border-line px-8 h-[58px] items-center justify-between gap-4">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="font-semibold text-strong whitespace-nowrap">{brandName}</span>
+            <span className="text-sm text-muted whitespace-nowrap">{brandName}</span>
+            <span aria-hidden className="text-faint">/</span>
+            <span data-ui="miga" className="font-semibold text-strong truncate">{currentLabel(pathname, items)}</span>
             {/* Edición (Comercio/Empresa), canal neutro (ADR-059 D5). Default OFF: sin
                 perfil activo no se renderiza → header idéntico al legado. */}
             {activeProfile && <ProfileBadge profile={activeProfile} />}
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-muted whitespace-nowrap">Panel de administración</span>
+            <FechaDeHoy />
             {/* Toggle claro/oscuro del backoffice (skin Fable) — discreto, en la topbar. */}
             <ThemeToggle />
           </div>
