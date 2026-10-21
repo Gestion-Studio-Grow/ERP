@@ -219,9 +219,6 @@ export function hidratarEstado(foto) {
       if (!esObjeto(estado.archivo)) delete estado.archivo;
       else estado.archivo = normalizarArchivo(estado.archivo);
     }
-    // Los PIN que vengan en claro (fotos de antes del 21/10) se pasan a hash al abrir: lo próximo que se guarde ya no
-    // los lleva en claro.
-    pasarPinesAHash(estado);
     retomarSecuencia(foto.secuencia);
     return { ok: true, estado };
   } catch {
@@ -278,7 +275,7 @@ export const usuario = (estado, id) => estado.usuarios.find((u) => u.id === id);
 // En la foto del club el PIN no va en claro: va `h1:<hex>` = PBKDF2-SHA256(PIN, sal del club, VUELTAS_PIN) y
 // `pinLargo` (para saber si un dueño tiene todavía el viejo de 2). La sal es UNA por club (`estado.salPin`): así
 // buscar de quién es un PIN sigue siendo un solo cálculo. Un PIN viejo en claro se acepta igual (`pinCoincide`) y se
-// pasa a hash al abrir la foto (`hidratarEstado`) o al cambiarlo. Ojo: con 4 números hay 10.000 PIN posibles; el hash
+// pasa a hash al cambiarlo o cuando la jornada real abre la foto (`pasarPinesAHash`, lo llama el almacén del ERP). Ojo: con 4 números hay 10.000 PIN posibles; el hash
 // lento (~30 ms) frena mirar la foto y leerlo, no a quien tenga la foto y tiempo. Lo que de verdad cuida al PIN es que
 // la foto no salga del club y el tope de intentos.
 // SHA-256 y PBKDF2 propios, sincrónicos y sin dependencias (el motor corre igual en el navegador y en Node).
