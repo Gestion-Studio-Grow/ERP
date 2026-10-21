@@ -120,8 +120,9 @@ export default async function MostradorDeVenta({
         balanza={balanza}
         terminal={terminal}
         {...(conVendedor ? { vendedor: user.name, sustantivo: rubro.rubro?.wording.itemNoun ?? "producto" } : {})}
-        // Un negocio de servicios no pesa: sin balanza ni «Tomar peso».
-        conPeso={identidad.isRetail}
+        // CH no pesa: sin «Tomar peso» aunque algún producto quedara cargado por kilo. Otro negocio
+        // que no es comercio (una heladería) sigue como estaba.
+        conPeso={quienCompra !== "clienta"}
         quienCompra={quienCompra}
       />
     </div>

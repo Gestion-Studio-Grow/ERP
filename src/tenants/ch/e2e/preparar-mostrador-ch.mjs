@@ -9,10 +9,12 @@ export const PRODUCTOS_DE_REVENTA = [
   { name: "Crema hidratante facial", price: 12500 },
 ];
 
-export async function prepararMostradorCH(e, { nuevo = false } = {}) {
+export async function prepararMostradorCH(e, { nuevo = false, conProductos = true } = {}) {
   const db = await prismaComoDuenio(e.base);
   const tenantId = e.base.a.id;
-  await db.product.createMany({ data: PRODUCTOS_DE_REVENTA.map((p) => ({ tenantId, ...p, stock: 20, trackStock: false })) });
+  if (conProductos) {
+    await db.product.createMany({ data: PRODUCTOS_DE_REVENTA.map((p) => ({ tenantId, ...p, stock: 20, trackStock: false })) });
+  }
   if (nuevo) {
     await db.auditLog.create({
       data: { tenantId, entity: ENTIDAD_INTERRUPTOR, entityId: "diseno-nuevo", action: ACCION_ENCENDER, channel: CANAL_INTERRUPTOR, actor: PREFIJO_ACTOR_OPERADOR + "e2e" },

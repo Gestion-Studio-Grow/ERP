@@ -48,8 +48,9 @@ export default function ServiciosEnTarjetas({
               data-ui="card"
               data-servicio={servicio.id}
               className={cn(
-                "space-y-2 rounded-md border bg-surface-raised p-3",
-                elegido ? "border-accent bg-accent-soft" : "border-line",
+                "space-y-2 rounded-md border p-3",
+                // `!`: la piel (renglon.css, sin capa) pinta borde y fondo de toda tarjeta.
+                elegido ? "!border-accent !bg-accent-soft" : "border-line bg-surface-raised",
               )}
             >
               <div className="flex items-baseline justify-between gap-3">

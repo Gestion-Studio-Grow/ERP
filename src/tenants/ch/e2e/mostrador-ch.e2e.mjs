@@ -179,6 +179,31 @@ try {
 }
 await e.cerrar();
 
+// ── Sin productos con precio (la semilla de CH no trae ninguno): se abre en «Servicios», como antes ──
+e = await levantarEntornoCH({ log: () => {} });
+try {
+  await prepararMostradorCH(e, { conProductos: false });
+  {
+    const { ctx, p } = await pagina(e, [1366, 768]);
+    const enServicios = await p.getByRole("tab", { name: /Servicios/ }).getAttribute("aria-selected");
+    ok("8.1", enServicios === "true", "sin productos con precio, la pantalla abre en «Servicios»");
+    await ctx.close();
+  }
+  await prepararMostradorCH(e, { nuevo: true, conProductos: false });
+  {
+    const { ctx, p } = await pagina(e, [1024, 768]);
+    await p.getByRole("button", { name: "Cobrar en el mostrador" }).click();
+    const enServicios = await p.locator("dialog[open]").getByRole("tab", { name: /Servicios/ }).getAttribute("aria-selected");
+    ok("8.2", enServicios === "true", "con «Diseño nuevo», el cajón abre en «Servicios» con sus tarjetas");
+    await foto(p, "cajon-sin-productos-1024");
+    await ctx.close();
+  }
+} catch (err) {
+  console.log(String(err).split("\n").slice(0, 4).join("\n"));
+  ok("recorrido-sin-productos", false, `se cortó: ${String(err?.message ?? err).split("\n")[0]}`);
+}
+await e.cerrar();
+
 // ── Facturación PRENDIDA en homologación: la factura queda en trámite (nada sale a ARCA) ──
 e = await levantarEntornoCH({ log: () => {}, env: { ARCA_INVOICING_ENABLED: "true" } });
 try {

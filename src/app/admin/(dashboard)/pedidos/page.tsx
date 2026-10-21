@@ -33,6 +33,7 @@ import { alcanceDeAnulacion } from "@/lib/capabilities";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
+import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { entregaDelRubro } from "@/blueprints/retail/rubros";
 import { vocabularioDelNegocio } from "@/lib/vocabulario-negocio";
 import { prisma } from "@/lib/prisma";
@@ -113,11 +114,12 @@ export default async function PedidosPage() {
   const professionals = puedeAgenda && !comercio ? await getProfessionalsWithServices() : [];
   // UN SOLO MOSTRADOR: la venta de mostrador de esta pantalla es la MISMA que Vender
   // (MostradorDeVenta: vuelto, factura, cobro fijo a la vista; etiqueta y balanza sólo en un
-  // comercio). En un comercio con «Diseño nuevo» se va a Vender entero. En un negocio de servicios
-  // (CH, aprobado por el dueño el 21/10) es la solapa «Productos»; «Servicios» sigue siendo el alta
-  // del turno con su profesional, su seña y su cupón (NewAppointmentForm).
+  // comercio). En un comercio con «Diseño nuevo» se va a Vender entero. En CH (aprobado por el
+  // dueño el 21/10; otro negocio de servicios, cuando su dueño lo apruebe) es la solapa «Productos»;
+  // «Servicios» sigue siendo el alta del turno con su profesional, su seña y su cupón
+  // (NewAppointmentForm). Sin productos con precio, el cajón abre en «Servicios», como antes.
   const mostradorUnico =
-    !modeloNuevo && (comercio ? !nuevo : true)
+    !modeloNuevo && (comercio ? !nuevo : esteticaBackoffice(identidad.slug) === "beauty-spa")
       ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} conVendedor={!comercio} />
       : undefined;
   const empty =
@@ -259,6 +261,7 @@ export default async function PedidosPage() {
                 professionals={professionals}
                 conServicios
                 formProductos={mostradorUnico}
+                abrirEnServicios={!!mostradorUnico && !!empty}
                 productosBloqueados={
                   !mostradorUnico && empty ? (
                     <EmptyState
@@ -362,6 +365,7 @@ export default async function PedidosPage() {
             professionals={professionals}
             conServicios={!comercio}
             formProductos={mostradorUnico}
+            abrirEnServicios={!!mostradorUnico && !!empty}
             productosBloqueados={
               !mostradorUnico && empty ? (
                 <EmptyState
