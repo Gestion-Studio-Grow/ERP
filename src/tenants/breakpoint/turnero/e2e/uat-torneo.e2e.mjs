@@ -311,6 +311,9 @@ await p.evaluate(() => {
 });
 await p.goto(`${BASE}/club?modo=real`); await W(1000);
 const e5b = await estado();
+// Al abrir, el club pasa los PIN en claro a hash (21/10): el viejo de 2 sigue sirviendo, pero ya no queda en claro.
+const sigueElViejo = async (id, pin) => { const e = await estado(); const u = e.usuarios.find((x) => x.id === id); return M.esPinConHash(u.pin) && M.pinCoincide(e, u, pin); };
+ok("5b.hash", await sigueElViejo("u-majo", "84") && await sigueElViejo("u-rober", "57"), "Al abrir la jornada, los PIN viejos en claro quedan guardados con hash (y siguen sirviendo)");
 ok("5b.hidrata", await bloqueada() && e5b.reservas.length === e5.reservas.length && ingresos(e5b) === cajaAntes, "La jornada con los PIN viejos de 2 de los dueños se abre igual: bloqueada y con todo lo cargado");
 await p.click('#bloqueo [data-a="bloqueoOtro"]'); await W(150); await p.click('#bloqueo [data-a="bloqueoUsuario"][data-v="u-majo"]'); await W(150);
 ok("5b.campo", (await p.getAttribute("#bl-pin", "maxlength")) === "4" && /PIN viejo de 2/.test(await p.textContent("#bloqueo")), "Para un dueño el campo espera 4 números y avisa cómo entrar con el viejo de 2");
@@ -318,7 +321,7 @@ await p.fill("#bl-pin", "84"); await W(300);
 ok("5b.espera", await p.isVisible("#bl-pin"), "Con 2 números no se prueba solo: espera los 4 del dueño (o «Desbloquear»)");
 await p.click('#bloqueo [data-a="desbloquear"]'); await W(300);
 const textoCambio = await p.textContent("#bloqueo");
-ok("5b.pide", await bloqueada() && await p.isVisible("#bl-nuevo") && /Tu PIN de dueño ahora es de 4 números/.test(textoCambio) && !/\b84\b/.test(textoCambio) && (await estado()).usuarios.find((u) => u.id === "u-majo").pin === "84", "Majo entra con su PIN viejo de 2 → «Tu PIN de dueño ahora es de 4 números. Elegí uno nuevo» (sigue bloqueada, sin mostrar el viejo)");
+ok("5b.pide", await bloqueada() && await p.isVisible("#bl-nuevo") && /Tu PIN de dueño ahora es de 4 números/.test(textoCambio) && !/\b84\b/.test(textoCambio) && await sigueElViejo("u-majo", "84"), "Majo entra con su PIN viejo de 2 → «Tu PIN de dueño ahora es de 4 números. Elegí uno nuevo» (sigue bloqueada, sin mostrar el viejo)");
 await foto("pin-viejo-pide-4");
 await p.fill("#bl-nuevo", "12"); await p.fill("#bl-nuevo2", "12"); await p.click('#bloqueo [data-a="guardarPinNuevo"]'); await W(300);
 ok("5b.largo", await bloqueada() && /4 números/.test(await p.textContent("#bl-aviso")), "Un PIN nuevo de 2 para una dueña no se acepta");
@@ -336,7 +339,7 @@ await cerrar();
 await entrarComo("u-rober", "57");
 ok("5b.cambiar-usuario", await bloqueada() && await p.isVisible("#bl-nuevo") && /Roberto Ronco/.test(await p.textContent("#bloqueo")), "Roberto con el PIN viejo por «¿Quién usa el sistema?» → pantalla de PIN nuevo");
 await p.click('#bloqueo [data-a="pinNuevoDespues"]'); await W(200);
-ok("5b.ahora-no", await bloqueada() && /Majo Gimenez/.test(await p.textContent("#bloqueo")) && (await estado()).usuarios.find((u) => u.id === "u-rober").pin === "57", "«Ahora no»: queda bloqueada, no entra Roberto y su PIN sigue igual hasta que lo cambie");
+ok("5b.ahora-no", await bloqueada() && /Majo Gimenez/.test(await p.textContent("#bloqueo")) && await sigueElViejo("u-rober", "57"), "«Ahora no»: queda bloqueada, no entra Roberto y su PIN sigue igual hasta que lo cambie");
 await desbloquear("8484");
 ok("5b.majo", !(await bloqueada()) && (await p.textContent("#u-nombre")) === "Majo Gimenez", "Majo vuelve a entrar con su PIN nuevo de 4 (se prueba solo al cuarto número)");
 
