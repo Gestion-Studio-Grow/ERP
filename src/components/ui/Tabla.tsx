@@ -144,6 +144,21 @@ export function Tabla<T>({
   const params = useSearchParams();
   const idTabla = useId();
   const cuerpo = useRef<HTMLTableSectionElement>(null);
+  // El marco que se desliza: si la tabla no entra, se puede enfocar y recorrer con las flechas,
+  // con nombre («se desliza de costado»), como TableroDelDuenio. Si entra, no suma un Tab de más.
+  const marco = useRef<HTMLDivElement>(null);
+  const [desliza, setDesliza] = useState(false);
+  useEffect(() => {
+    const el = marco.current;
+    if (!el) return;
+    const medir = () => setDesliza(el.scrollWidth > el.clientWidth + 1);
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    // La tabla también: con filas o columnas nuevas cambia lo que hay que deslizar, no el marco.
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+  }, []);
   const claves = useMemo(() => filas.map(clave), [filas, clave]);
   const [sel, setSel] = useState<Set<string>>(() => new Set());
   const [foco, setFoco] = useState(-1);
@@ -284,7 +299,12 @@ export function Tabla<T>({
       {/* La tabla se desliza ADENTRO de su marco: con todas sus columnas (desde 40rem de ancho)
           puede pasar el ancho disponible, y sin esto empujaba la página entera de costado
           (19 px a 1024 con el menú, 219 px en una tablet de 820). */}
-      <div data-parte="desliza" className="overflow-x-auto">
+      <div
+        ref={marco}
+        data-parte="desliza"
+        {...(desliza ? { role: "region", "aria-label": `${titulo} (se desliza de costado)`, tabIndex: 0 } : {})}
+        className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-focus"
+      >
       <table aria-describedby={cuenta ? `${idTabla}-cuenta` : undefined}>
         <caption className="sr-only">{titulo}</caption>
         <thead>
