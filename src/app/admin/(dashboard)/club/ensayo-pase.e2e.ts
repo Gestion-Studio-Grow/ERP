@@ -925,7 +925,6 @@ async function principal() {
     define: { "process.env.NODE_ENV": '"production"' },
     logLevel: "silent",
     // Las pieles de cada pantalla (piel/*.css) las sirve Next; acá alcanza con el CSS de la app.
-    loader: { ".css": "empty" },
   });
   bundle = r.outputFiles[0].text;
   css = await cssDeLaApp();

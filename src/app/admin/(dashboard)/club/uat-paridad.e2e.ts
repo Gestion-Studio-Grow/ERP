@@ -230,7 +230,6 @@ async function principal() {
     process.exit(2);
   }
   const r = await esbuild.build({
-    loader: { ".css": "empty" }, // la piel (piel/*.css) entra por el CSS de la página, no por el paquete
     stdin: { contents: ENTRADA, loader: "tsx", resolveDir: RAIZ },
     bundle: true,
     write: false,
