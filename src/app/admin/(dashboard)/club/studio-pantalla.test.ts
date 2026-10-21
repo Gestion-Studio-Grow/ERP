@@ -160,6 +160,8 @@ describe("Studio de redes y cámaras de la demo en el navegador", { timeout: 240
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
       logLevel: "silent",
+      // Las pieles de cada pantalla (piel/*.css) las sirve Next; acá alcanza con el CSS de la app.
+      loader: { ".css": "empty" },
     });
     bundle = r.outputFiles[0].text;
     css = await cssDeLaApp();

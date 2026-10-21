@@ -153,6 +153,8 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
       logLevel: "silent",
+      // Las pieles de cada pantalla (piel/*.css) las sirve Next; acá alcanza con el CSS de la app.
+      loader: { ".css": "empty" },
     });
     bundle = r.outputFiles[0].text;
     const rr = await esbuild.build({
@@ -164,6 +166,8 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
       logLevel: "silent",
+      // Las pieles de cada pantalla (piel/*.css) las sirve Next; acá alcanza con el CSS de la app.
+      loader: { ".css": "empty" },
       plugins: [
         {
           name: "sonda",
@@ -492,7 +496,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await alta.getByLabel("A nombre de").fill("Turno de prueba");
     await alta.getByRole("status").filter({ hasText: /\$ [\d.]+ · horario (pico|valle) · pide seña \(\d+ %\)/ }).waitFor();
     assert.equal(await page.getByRole("button", { name: /^Turno de prueba, / }).count(), 0);
-    await alta.getByRole("button", { name: "Reservar el turno" }).click();
+    await alta.getByRole("button", { name: "Reservar", exact: true }).click();
     await page.getByRole("status").filter({ hasText: /^Turno de Turno de prueba en Cancha 4, .* Pide seña de/ }).waitFor();
     // «Turno reservado ✔» del vanilla: el mensaje de confirmación con la seña y el código, y el link que abre WhatsApp
     // (en la demo, sin número: se elige el chat). Nada se manda solo.

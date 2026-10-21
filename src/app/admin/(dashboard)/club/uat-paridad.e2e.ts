@@ -238,6 +238,8 @@ async function principal() {
     tsconfig: join(RAIZ, "tsconfig.json"),
     define: { "process.env.NODE_ENV": '"production"' },
     logLevel: "silent",
+    // Las pieles de cada pantalla (piel/*.css) las sirve Next; acá alcanza con el CSS de la app.
+    loader: { ".css": "empty" },
   });
   bundle = r.outputFiles[0].text;
   css = await cssDeLaApp();
@@ -1580,7 +1582,7 @@ async function darTurno(p: Page, d: { cancha: string; hora: number; titular: str
   if (d.ficha) await alta.getByRole("list", { name: "Fichas que coinciden" }).getByRole("button", { name: new RegExp(`^${d.titular}`) }).click();
   else if (d.tel) await alta.getByLabel(/^Teléfono \(para darlo de alta/).fill(d.tel);
   await alta.getByLabel(/^Los otros jugadores/).fill(d.otros.join(", "));
-  await alta.getByRole("button", { name: "Reservar el turno" }).click();
+  await alta.getByRole("button", { name: "Reservar", exact: true }).click();
   await p.getByRole("heading", { name: "Turno reservado" }).waitFor();
   await p.getByRole("button", { name: "Listo", exact: true }).click();
   const e = await estado(p);

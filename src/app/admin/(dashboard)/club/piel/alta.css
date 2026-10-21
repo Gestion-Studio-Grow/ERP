@@ -1,0 +1,45 @@
+/* ═════════ «DAR UN TURNO» CON LA PIEL DE BREAK POINT («chapa») ═════════
+   Como el diálogo «Nuevo turno» del club de hoy (src/tenants/breakpoint/sitio/club.html: `.dlg-h`, `.dlg-b`, `.dlg-f`,
+   `label.f` y `.grid2`, líneas 265 y 279-283; la chapa en 539-540): el título en mayúsculas sobre un filete de tinta, los
+   campos compactos y el pie con su línea. Sólo colores de los tokens de la estética (globals.css, `data-estetica`), así el
+   contraste AA y el modo oscuro vienen de ahí. Sin la estética de Break Point no pinta nada: queda el ERP de siempre.
+   Las alturas de los controles no se tocan (44 px, objetivo táctil). */
+
+[data-estetica="breakpoint"] [data-alta="cabecera"] {
+  padding: 1rem 1.125rem 0.625rem;
+  border-bottom: 2px solid var(--text-strong);
+}
+
+[data-estetica="breakpoint"] [data-alta="cabecera"] h2 {
+  font-family: var(--font-display);
+  font-stretch: 75%;
+  font-size: 1.3125rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+[data-estetica="breakpoint"] [data-alta="cuerpo"] {
+  gap: 0.875rem;
+  padding: 0.875rem 1.125rem;
+}
+
+[data-estetica="breakpoint"] [data-alta="campos"] {
+  gap: 0.625rem;
+}
+
+[data-estetica="breakpoint"] [data-alta="etiqueta"] {
+  font-weight: 650;
+  color: var(--text);
+}
+
+[data-estetica="breakpoint"] [data-alta="previa"] {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+[data-estetica="breakpoint"] [data-alta="pie"] {
+  gap: 0.5rem;
+  padding: 0.75rem 1.125rem 1rem;
+  border-top-color: var(--line);
+}

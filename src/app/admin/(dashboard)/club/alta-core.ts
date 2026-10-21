@@ -25,6 +25,20 @@ export const TIPOS_ALTA: readonly { valor: Extract<TipoReserva, "turno" | "clase
   { valor: "abierto", etiqueta: "Partido abierto" },
 ];
 
+/**
+ * «Llegó por»: por dónde pidió el turno, con las opciones exactas del «Nuevo turno» del club de hoy (club.html, `#f-origen`).
+ * El valor es el que guarda el vanilla (`reserva.origen`); «mostrador» es el de fábrica, como en el motor (`crearReserva`).
+ * «web», «fijo» y «lista de espera» no se ofrecen: esos turnos los da el sistema, no recepción.
+ */
+export const ORIGENES_ALTA = [
+  { valor: "mostrador", etiqueta: "Mostrador" },
+  { valor: "whatsapp", etiqueta: "WhatsApp" },
+  { valor: "teléfono", etiqueta: "Teléfono" },
+  { valor: "instagram", etiqueta: "Instagram" },
+] as const;
+export type OrigenAlta = (typeof ORIGENES_ALTA)[number]["valor"];
+export const ORIGEN_DE_FABRICA: OrigenAlta = "mostrador";
+
 export interface DatosAlta {
   canchaId: string;
   fecha: Fecha;
@@ -37,6 +51,8 @@ export interface DatosAlta {
   otros: string;
   /** Sin ficha: el teléfono para darlo de alta al reservar (vacío = el turno queda sin ficha). */
   tel?: string;
+  /** «Llegó por» (vacío = «mostrador», el de fábrica del motor). */
+  origen?: OrigenAlta;
 }
 
 /** Lo mínimo para que un teléfono sirva (área + número argentino: 10; se aceptan 8 para fijos del interior viejos). */
@@ -120,6 +136,7 @@ export function reservar(estado: EstadoClub, d: DatosAlta, ahora: Ahora): Desenl
       clienteId,
       titular,
       jugadores: titular ? [clienteId ? { nombre: titular, clienteId } : titular, ...otros] : undefined,
+      origen: d.origen ?? ORIGEN_DE_FABRICA,
     },
     ahora,
   );
