@@ -127,7 +127,7 @@ export default async function PedidosPage() {
     ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} conVendedor={!comercio} />
     : undefined;
   const empty =
-    stockSnap && !hayVendibles
+    stockSnap && hayVendibles === false
       ? posEmptyState({ activeProducts: stockSnap.activeProducts, canManageCatalog: stockSnap.canManageCatalog })
       : null;
 

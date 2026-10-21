@@ -180,7 +180,9 @@ try {
     await sumar(p, "sérum", "1");
     const buscador = await form(p).locator('#vender-buscar, input[role="combobox"]').last().boundingBox();
     const dentro = await p.locator("dialog[open]").evaluate((d) => d.scrollWidth <= d.clientWidth + 1);
-    ok(`6.${w}`, dentro && !!buscador && buscador.width > 200, `diseño nuevo ${w}×${h}: el cajón en una columna, con buscador y sin desbordar`);
+    // Y la lista de Pedidos de atrás tampoco empuja la página de costado (la tabla se desliza en su marco).
+    const pagina_ = await sinDesborde(p);
+    ok(`6.${w}`, dentro && pagina_ && !!buscador && buscador.width > 200, `diseño nuevo ${w}×${h}: el cajón en una columna, con buscador, y ni el cajón ni la página desbordan`);
     if (w === 1024) await foto(p, "cajon-1024");
     await ctx.close();
   }
