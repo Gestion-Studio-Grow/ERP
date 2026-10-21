@@ -1290,7 +1290,7 @@ function buscadorProductos(clave, { soloVendibles = true } = {}) {
 
 // Los PIN de ejemplo no quedan a la vista de cualquiera que pase por el mostrador: se muestran sólo si se piden.
 // (Es una ayuda de la DEMO; con usuarios reales no existe.)
-const pinesDemo = (usuarios) => MODO_REAL ? "" : `<details class="demo-pins"><summary>¿Probando la demo? Ver los PIN de ejemplo</summary><p style="margin:6px 0 0">${usuarios.map((u) => `${esc(u.nombre.split(" ")[0])} ${esc(u.pin)}`).join(" · ")}</p></details>`;
+const pinesDemo = (usuarios) => MODO_REAL ? "" : `<details class="demo-pins"><summary>¿Probando la demo? Ver los PIN de ejemplo</summary><p style="margin:6px 0 0">${usuarios.map((u) => `${esc(u.nombre.split(" ")[0])} ${esc(M.USUARIOS_DEMO.find((d) => d.id === u.id)?.pin ?? "")}`).join(" · ")}</p></details>`;
 // Tope de intentos de PIN: UNO solo para toda la compu (M.anotarIntentoPin). Lo comparten la pantalla bloqueada,
 // «¿Quién usa el sistema?», el descuento, la aprobación en la misma compu y las confirmaciones «con tu PIN»: 5 mal →
 // 30 s, después 2 min, después 10 min. En la jornada real se guarda en `bp-intentos` (sobrevive a recargar).
@@ -1600,7 +1600,7 @@ function dialogoAprobar(d) {
       if (!v.ok) { const c = $("#ap-pin"); if (c) c.value = ""; return toast(v.motivo, { error: true }); }
       return cerrarSiSale(M.resolverCredito(E, d.id, { aprobar: true, monto }, { usuarioId: elegido, pin }, AHORA), `Aprobado: ${d.n} ${M.pesos(monto)}.`);
     }
-    codigo = { codigo: M.codigoAprobacion({ pin, novedadId: d.id, clienteId: d.c, monto, fecha: d.f }), monto, pinViejo: !M.pinValidoPara("duenio", pin) };
+    codigo = { codigo: M.codigoAprobacion({ pin, sal: d.s, novedadId: d.id, clienteId: d.c, monto, fecha: d.f }), monto, pinViejo: !M.pinValidoPara("duenio", pin) };
     pintar();
   };
   pintar();
