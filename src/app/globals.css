@@ -1296,3 +1296,17 @@ summary:focus-visible {
 @keyframes bo-cajon-entra { from { transform: translateX(-100%); } to { transform: none; } }
 @keyframes bo-fondo-entra { from { opacity: 0; } to { opacity: 1; } }
 @keyframes bo-raya-entra { from { transform: scaleY(0.3); } to { transform: none; } }
+
+/* — Estéticas PLANAS (filetes en vez de sombras): Break Point y Matías declaran `--shadow-*: none`. La elevación,
+   el destello del botón y el levantado del KPI de arriba no les corresponden: se anulan acá. (CH y Magra sí
+   suben un escalón: es parte del rediseño del backoffice.) — */
+[data-skin="fable"]:is([data-estetica="breakpoint"], [data-estetica="matiasconsoli"]) { --bo-elev-1: none; }
+[data-skin="fable"]:is([data-estetica="breakpoint"], [data-estetica="matiasconsoli"]) [data-ui="button"][data-variant="solid"]:not(:disabled) { box-shadow: none; }
+[data-skin="fable"]:is([data-estetica="breakpoint"], [data-estetica="matiasconsoli"]) :is(a:hover [data-ui="kpi"], [data-ui="card"][data-interactive]:hover) { transform: none; box-shadow: none; }
+
+/* — «Reducir movimiento»: sin hundido al apretar ni transiciones de sombra; el estado final se lee igual. — */
+@media (prefers-reduced-motion: reduce) {
+  [data-skin="fable"] [data-ui="button"] { transition: none; }
+  [data-skin="fable"] [data-ui="button"]:active:not(:disabled) { transform: none; }
+  [data-skin="fable"] :is(input, select, textarea) { transition: none; }
+}
