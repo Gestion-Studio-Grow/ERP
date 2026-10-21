@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/Field";
 import { Hoja } from "@/components/ui/Hoja";
 import { cn } from "@/components/ui/cn";
 import EnLaCabecera from "./EnLaCabecera";
+import { puestoDeDuenio } from "./config-jornada";
 import { LARGO_NOMBRE_ACCESO, type Almacen, type JornadaDelClub } from "./almacen";
 import {
   REVISAR_INACTIVIDAD_MS,
@@ -312,10 +313,26 @@ function PasoPinNuevo({
   const [aviso, setAviso] = useState("");
   const u = almacen.estado().usuarios.find((x) => x.id === cambio.usuarioId) ?? null;
   const largo = largoPin(u?.rol);
+  // G8: el PIN de un dueño se cambia desde el puesto del dueño. En otra compu el servidor no lo dejaría pasar (volvería
+  // el viejo sin aviso): acá no se ofrece; se dice dónde hacerlo y la pantalla queda bloqueada.
+  const enSuPuesto = puestoDeDuenio(almacen) || u?.rol !== "duenio";
   useEffect(() => {
-    primero.current?.focus();
-  }, []);
+    (enSuPuesto ? primero.current : document.getElementById(`${ids}-entendido`))?.focus();
+  }, [enSuPuesto, ids]);
   if (!u) return null;
+  if (!enSuPuesto) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p role="status" className="text-sm text-strong">
+          <strong>{primerNombre(u.nombre)}, tu PIN todavía es el viejo de 2 números.</strong> Cambialo desde el puesto del dueño (la compu donde entrás
+          al ERP con tu usuario de dueño): ahí elegís uno de {largo} y después entrás acá con ése.
+        </p>
+        <Button id={`${ids}-entendido`} variant="solid" size="md" className="self-start" onClick={onAhoraNo}>
+          Entendido (queda bloqueada)
+        </Button>
+      </div>
+    );
+  }
   const guardar = () => {
     const d = entrarConPinNuevo(almacen, cambio, nuevo, repetido);
     if (d.ok) {

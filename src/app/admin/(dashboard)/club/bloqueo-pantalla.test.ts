@@ -725,12 +725,14 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     assert.equal(await bloqueo(p2).evaluate((d) => d.scrollWidth - d.clientWidth), 0, "sin scroll de costado a 390 px");
     if (css) assert.deepEqual(await chicos(p2), [], "objetivos de 44 px a 390 px");
     await capturar(p2, "390-pin-viejo-desde-cambiar-de-usuario");
-    await bloqueo(p2).getByLabel("PIN nuevo (4 números)").fill("5858");
-    await bloqueo(p2).getByLabel("Repetilo").fill("5858");
-    await bloqueo(p2).getByRole("button", { name: "Guardar y entrar" }).click();
-    await bloqueo(p2).waitFor({ state: "detached" });
-    await p2.getByText("Tu PIN nuevo quedó guardado. Hola, Rober.").waitFor();
-    await p2.locator('[data-ui="operador-del-club"]').getByText("Rober", { exact: true }).waitFor();
+    // G8 (21/10): en el puesto de recepción el PIN de un dueño no se cambia (el servidor lo volvería atrás sin aviso):
+    // se dice dónde hacerlo, no hay campos para el PIN nuevo y la pantalla queda bloqueada, sin «quedó guardado».
+    await bloqueo(p2).getByText(/Cambialo desde el puesto del dueño/).waitFor();
+    assert.equal(await bloqueo(p2).getByLabel("PIN nuevo (4 números)").count(), 0, "en recepción no se ofrece cambiar el PIN del dueño");
+    await bloqueo(p2).getByRole("button", { name: "Entendido (queda bloqueada)" }).click();
+    await bloqueo(p2).getByRole("heading", { name: "Pantalla bloqueada" }).waitFor();
+    assert.equal(await p2.getByText(/Tu PIN nuevo quedó guardado/).count(), 0);
+    assert.equal(await p2.evaluate((k) => (JSON.parse(localStorage.getItem(k) ?? "{}") as { estado?: { usuarios?: { id: string; pin: string }[] } }).estado?.usuarios?.find((u) => u.id === "u-rober")?.pin ?? "11", claveDeLaJornada("demo-club")), "11", "el PIN de Rober no cambió");
     assert.deepEqual(errores2, []);
     await otro.close();
   });
