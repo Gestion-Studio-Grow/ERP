@@ -29,7 +29,13 @@ export default function LogoDelNegocio({ estetica, nombre }: { estetica: Estetic
               </g>
             </svg>
           </span>
-          <span data-logo-parte="nombre" className="truncate">{nombre}</span>
+          {/* Como el club de hoy: al lado del logo, «Gestión del club» en dos renglones espaciados (el nombre ya
+              está en el logo; para el lector va entero). */}
+          <span data-logo-parte="nombre" className="sr-only">{nombre}</span>
+          <span data-logo-parte="bajada" aria-hidden="true" className="flex flex-col leading-tight">
+            <span>Gestión</span>
+            <span>del club</span>
+          </span>
         </span>
       );
     case "beauty-spa":

@@ -32,11 +32,18 @@ function textoDelGuardado(g: EstadoDelGuardado): string {
 /**
  * «Bloquear» (tecla L) a la derecha de la hora: el hook de la sesión del club (bloquear-ahora.tsx); el botón en `md`
  * para que en la tablet de recepción mida 44 px (el `sm` baja a 36 px desde 640 px). En la demo o sin operador, nada.
+ * Con el panel de casa va adentro del candado de la barra (MenuDeLaCasa), como el club de hoy.
  * Componente aparte: se suscribe al operador sin repintar la cinta.
  */
-const BloquearDesdeLaCinta = memo(function BloquearDesdeLaCinta({ almacen }: { almacen: Almacen }) {
+const BloquearDesdeLaCinta = memo(function BloquearDesdeLaCinta({ almacen, enMenu = false }: { almacen: Almacen; enMenu?: boolean }) {
   const { bloquear, puedeBloquear } = useBloqueo(almacen);
   if (!puedeBloquear) return null;
+  if (enMenu)
+    return (
+      <button type="button" aria-keyshortcuts="L" onClick={bloquear} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-sm px-3 text-left text-sm font-semibold hover:bg-surface-sunken">
+        Bloquear la pantalla <kbd className="rounded-sm border border-line px-1.5 text-xs font-normal text-muted">L</kbd>
+      </button>
+    );
   return (
     <Button variant="outline" size="md" atajo="L" aria-keyshortcuts="L" onClick={bloquear}>
       Bloquear
@@ -44,9 +51,12 @@ const BloquearDesdeLaCinta = memo(function BloquearDesdeLaCinta({ almacen }: { a
   );
 });
 
-/** La hora grande de la barra, como el reloj del club de hoy; abajo, chiquito, cómo va el guardado. */
-function RelojDeLaBarra({ min, estado }: { min: number; estado?: string }) {
-  return (
+/**
+ * La hora grande de la barra, como el reloj del club de hoy; abajo, chiquito, cómo va el guardado. En la demo, a los
+ * costados, −30′ y +30′ corren el reloj para probar lo que pasa a otra hora (la falta, el fin del turno).
+ */
+function RelojDeLaBarra({ min, estado, onCorrer }: { min: number; estado?: string; onCorrer?: (minutos: number) => void }) {
+  const hora = (
     <span className="flex flex-col items-center leading-none">
       <span data-casa="reloj" className="tabular-nums">{hhmm(min)}</span>
       {estado && (
@@ -54,6 +64,18 @@ function RelojDeLaBarra({ min, estado }: { min: number; estado?: string }) {
           {estado}
         </span>
       )}
+    </span>
+  );
+  if (!onCorrer) return hora;
+  return (
+    <span data-casa="reloj-demo" className="flex items-center gap-0.5">
+      <button type="button" data-casa="enlace" onClick={() => onCorrer(-30)} aria-label="Atrasar el reloj de la demo 30 minutos" className="min-h-11 rounded-md px-2 text-sm font-semibold">
+        −30′
+      </button>
+      {hora}
+      <button type="button" data-casa="enlace" onClick={() => onCorrer(30)} aria-label="Adelantar el reloj de la demo 30 minutos" className="min-h-11 rounded-md px-2 text-sm font-semibold">
+        +30′
+      </button>
     </span>
   );
 }
@@ -79,8 +101,12 @@ export default function CintaDelClub({
     return (
       <>
       <EnLaCabecera fuera={null}>
-        <RelojDeLaBarra min={min} estado="demo" />
+        <RelojDeLaBarra min={min} onCorrer={(m) => almacen.correrRelojDemo(m)} />
       </EnLaCabecera>
+      {/* Con el panel de casa, la cinta negra fina de arriba de todo, como el club de hoy; sin él, el cartel de siempre. */}
+      <EnLaCabecera
+        en="casa-cintas"
+        fuera={
       <div data-ui="cinta-demo" className="flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 text-sm">
           <p className="font-semibold text-strong">Datos de ejemplo — no se guarda nada en el sistema</p>
@@ -93,6 +119,17 @@ export default function CintaDelClub({
           Volver a la demo
         </Button>
       </div>
+        }
+      >
+        <div data-ui="cinta-demo" data-cinta="fina" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-1 text-[0.8125rem]">
+          <p>
+            <b>Demo de la gestión del club</b> · datos de ejemplo · no se guarda nada en el sistema
+          </p>
+          <button type="button" onClick={onVolverALaDemo} data-cinta="boton" className="relative rounded-sm border px-2.5 py-0.5 text-xs font-semibold">
+            Reiniciar demo
+          </button>
+        </div>
+      </EnLaCabecera>
       </>
     );
   }
@@ -117,7 +154,9 @@ export default function CintaDelClub({
   const barra = (
     <>
       <RelojDeLaBarra min={min} estado={g.jornada === "abriendo" ? "abriendo…" : mal ? "sin guardar" : textoDelGuardado(g).toLowerCase()} />
-      <BloquearDesdeLaCinta almacen={almacen} />
+      <EnLaCabecera en="casa-menu" fuera={<BloquearDesdeLaCinta almacen={almacen} />}>
+        <BloquearDesdeLaCinta almacen={almacen} enMenu />
+      </EnLaCabecera>
     </>
   );
   const sinAvisos = !mal && g.jornada !== "sin-bloqueo" && g.jornada !== "abriendo";

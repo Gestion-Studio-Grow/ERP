@@ -122,7 +122,9 @@ test("los días de arriba: ayer, hoy y los cinco que siguen (los del vanilla)", 
   assert.equal(DIAS_ANTES, 1);
   assert.equal(DIAS_DESPUES, 5);
   assert.deepEqual(dias.map((d) => d.fecha), [-1, 0, 1, 2, 3, 4, 5].map((i) => M.sumarDias(HOY, i)));
-  assert.deepEqual(dias.slice(0, 3).map((d) => d.nombre), ["Ayer", "Hoy", "Mañana"]);
+  assert.deepEqual(dias.slice(0, 3).map((d) => d.cerca), ["Ayer", "Hoy", "Mañana"]);
+  assert.equal(dias[1].nombre, "Hoy");
+  assert.match(dias[0].nombre, /^[A-ZÁÉÍÓÚ][a-záéíóú]{2}$/, "ayer se lee con el nombre del día, como el club de hoy");
   assert.equal(dias[3].nombre, M.NOMBRE_DIA[M.diaSemana(dias[3].fecha)].slice(0, 3));
   assert.equal(dias[1].ddmm, "17/10");
   assert.match(dias[0].etiqueta, /^Ayer, \S+ 16\/10$/);

@@ -168,39 +168,48 @@ const FilaDeJugador = memo(function FilaDeJugador({
           <span className="pt-2 text-sm text-muted">{fila.situacion === "al día" ? "✔ al día" : fila.situacion}</span>
         )}
       </div>
-      {(fila.cancha || fila.cargos) && (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {fila.cancha && (
-            <SelectorACargo
-              id={`cancha-${base}`}
-              etiqueta={`Parte de la cancha de ${fila.nombre}`}
-              elegido={fila.cancha.elegido}
-              opciones={fila.cancha.opciones}
-              onCambiar={(de) => onAccion({ tipo: "aCargoCancha", idx: fila.idx, de })}
-            />
+      {/* Quién paga y el detalle de los cargos, plegados (como el club de hoy): el cobro queda a la vista; esto se abre
+          cuando hace falta (pasar la parte a otro jugador, mirar qué consumió). */}
+      {(fila.cancha || fila.cargos || fila.items.length > 0) && (
+        <details data-cuenta="detalle" className="text-sm">
+          <summary className="inline-flex min-h-8 cursor-pointer items-center text-muted hover:text-strong">
+            {fila.items.length > 0 ? `Ver los cargos (${fila.items.length}) y quién paga` : "Quién paga"}
+          </summary>
+          {(fila.cancha || fila.cargos) && (
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {fila.cancha && (
+                <SelectorACargo
+                  id={`cancha-${base}`}
+                  etiqueta={`Parte de la cancha de ${fila.nombre}`}
+                  elegido={fila.cancha.elegido}
+                  opciones={fila.cancha.opciones}
+                  onCambiar={(de) => onAccion({ tipo: "aCargoCancha", idx: fila.idx, de })}
+                />
+              )}
+              {fila.cargos && (
+                <SelectorACargo
+                  id={`cargos-${base}`}
+                  etiqueta={`Cargos de ${fila.nombre}`}
+                  elegido={fila.cargos.elegido}
+                  opciones={fila.cargos.opciones}
+                  onCambiar={(de) => onAccion({ tipo: "aCargoCargos", cuentaId: fila.cargos!.cuentaId, de })}
+                />
+              )}
+            </div>
           )}
-          {fila.cargos && (
-            <SelectorACargo
-              id={`cargos-${base}`}
-              etiqueta={`Cargos de ${fila.nombre}`}
-              elegido={fila.cargos.elegido}
-              opciones={fila.cargos.opciones}
-              onCambiar={(de) => onAccion({ tipo: "aCargoCargos", cuentaId: fila.cargos!.cuentaId, de })}
-            />
+          {fila.items.length > 0 && (
+            <ul aria-label={`Cargos de ${fila.nombre}`} className="mt-2 tabular-nums">
+              {fila.items.map((i, k) => (
+                <li key={k} className="flex justify-between gap-2 text-muted">
+                  <span className="min-w-0 truncate">
+                    {i.cant} × {i.nombre}
+                  </span>
+                  <span>{pesos(i.importe)}</span>
+                </li>
+              ))}
+            </ul>
           )}
-        </div>
-      )}
-      {fila.items.length > 0 && (
-        <ul aria-label={`Cargos de ${fila.nombre}`} className="text-sm tabular-nums">
-          {fila.items.map((i, k) => (
-            <li key={k} className="flex justify-between gap-2 text-muted">
-              <span className="min-w-0 truncate">
-                {i.cant} × {i.nombre}
-              </span>
-              <span>{pesos(i.importe)}</span>
-            </li>
-          ))}
-        </ul>
+        </details>
       )}
       <CreditoDelJugador almacen={almacen} fila={fila} onAccion={onAccion} />
     </li>
@@ -210,20 +219,14 @@ const FilaDeJugador = memo(function FilaDeJugador({
 function Totales({ vista }: { vista: VistaCuenta }) {
   const T = vista.totales;
   return (
-    // Sobre el fondo hundido los rótulos van en text-body: text-muted ahí no llega a 4,5:1 (PERFORMANCE-TERMINALES.md, ronda 3).
-    <dl aria-label="Totales del turno" className="grid grid-cols-3 gap-2 rounded-md bg-surface-sunken p-3 tabular-nums">
-      <div>
-        <dt className="text-xs text-body">Cancha</dt>
-        <dd className="font-semibold text-strong">{pesos(T.cancha)}</dd>
-      </div>
-      <div>
-        <dt className="text-xs text-body">Cargos</dt>
-        <dd className="font-semibold text-strong">{pesos(T.cargos)}</dd>
-      </div>
-      <div>
-        <dt className="text-xs text-body">Falta cobrar</dt>
-        <dd className={cn("text-lg font-bold", T.pendiente > 0 ? "text-strong" : "text-success")}>{pesos(T.pendiente)}</dd>
-      </div>
+    // Como el club de hoy: una lista angosta, el rótulo a la izquierda y la plata a la derecha; «Falta cobrar» abajo, con raya.
+    <dl aria-label="Totales del turno" className="grid max-w-[32rem] grid-cols-[1fr_auto] gap-x-8 gap-y-1 text-sm tabular-nums">
+      <dt className="text-body">Cancha</dt>
+      <dd className="text-right font-semibold text-strong">{pesos(T.cancha)}</dd>
+      <dt className="text-body">Cargos</dt>
+      <dd className="text-right font-semibold text-strong">{pesos(T.cargos)}</dd>
+      <dt className="mt-1 border-t border-line-strong pt-1.5 font-semibold text-strong">Falta cobrar</dt>
+      <dd className={cn("mt-1 border-t border-line-strong pt-1.5 text-right text-base font-bold", T.pendiente > 0 ? "text-strong" : "text-success")}>{pesos(T.pendiente)}</dd>
     </dl>
   );
 }
@@ -425,22 +428,20 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
       }}
       className="flex flex-col gap-4 rounded-lg border border-line bg-surface-raised p-4"
     >
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">Cuenta del turno</p>
-          <h2 data-pantalla id={idTitulo} ref={titulo} tabIndex={-1} className="truncate text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
-            {vista.titular}
-          </h2>
-          <p className="text-sm text-muted">{vista.descripcion}</p>
-          {vista.notas && (
-            <p className="mt-1 text-sm text-body">
-              <span className="font-semibold text-strong">Nota del turno:</span> {vista.notas}
-            </p>
-          )}
-        </div>
-        <Button variant="ghost" size="md" onClick={onVolver}>
-          Volver a la agenda
-        </Button>
+      {/* Como el diálogo del club de hoy: el nombre grande, el turno abajo y la × arriba a la derecha. */}
+      <header data-cuenta="cabecera" className="sticky top-0 z-10 -mx-4 -mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 bg-surface-raised px-4 pb-3 pt-4">
+        <h2 data-pantalla id={idTitulo} ref={titulo} tabIndex={-1} className="truncate text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
+          {vista.titular}
+        </h2>
+        <button type="button" onClick={onVolver} aria-label="Volver a la agenda" title="Cerrar (Escape)" className="row-span-2 grid size-11 place-items-center rounded-md text-xl leading-none text-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus">
+          <span aria-hidden="true">×</span>
+        </button>
+        <p className="text-sm text-muted">{vista.descripcion}</p>
+        {vista.notas && (
+          <p className="col-span-2 mt-1 text-sm text-body">
+            <span className="font-semibold text-strong">Nota del turno:</span> {vista.notas}
+          </p>
+        )}
       </header>
 
       {vista.mesaAbierta && <Marca tipo="medias">Cancha cerrada · la mesa sigue</Marca>}
@@ -454,7 +455,7 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
       {hayQueCobrar && <ComoPaga medio={medio} onElegir={(m) => {
             setMedio(m);
             setConfirmando(null);
-          }} conCreditos={creditos} angosto />}
+          }} conCreditos={creditos} enFila />}
       {confirmando && (
         <ConfirmarCreditos datos={confirmando.datos} onSi={() => {
             const a = confirmando.accion;
@@ -473,8 +474,14 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
           }} />
       )}
 
-      {/* Cobrar y cerrar ARRIBA, debajo de cómo paga (como el diálogo del club de hoy): sin scroll en cada cobro. */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      <ul aria-label="Jugadores del turno" data-tactil="compacto">
+        {vista.jugadores.map((f) => (
+          <FilaDeJugador key={f.idx} almacen={almacen} fila={f} reservaId={vista.reservaId} onCobrar={onCobrar} onCobrarParte={onCobrarParte} onAccion={onAccion} />
+        ))}
+      </ul>
+      {vista.deOtraMesa && <p className="text-sm text-muted">{vista.deOtraMesa}</p>}
+      {/* Después de los jugadores, como el club de hoy: «Cobrar todo» y «Cobrar la cancha… la mesa sigue». */}
+      <div data-tactil="compacto" className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         {cierres.cobrarSena !== null && (
           <Button
             variant="solid"
@@ -509,29 +516,23 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
             {textoCierre("cerrarCargos", cierres.cerrarCargos)}
           </Button>
         )}
-        {cierres.hacerFijo && (
-          <Button variant="ghost" size="md" onClick={() => onAccion({ tipo: "hacerFijo" })}>
-            Hacer fijo (todos los {cierres.hacerFijo})
-          </Button>
-        )}
         {cierres.cargosACuenta && (
           <Button variant="outline" size="md" onClick={() => onAccion({ tipo: "cargosACuenta" })}>
             Cargos a cuenta corriente
           </Button>
         )}
       </div>
+      {cierres.hacerFijo && (
+        <button type="button" data-cuenta="enlace" onClick={() => onAccion({ tipo: "hacerFijo" })} className="-my-1 inline-flex min-h-11 items-center self-start text-sm text-accent-ink underline underline-offset-4 hover:text-strong">
+          Hacer fijo (todos los {cierres.hacerFijo})
+        </button>
+      )}
       {conCreditos && <p className="text-sm text-muted">Con créditos se cobra jugador por jugador (o la seña): elegí a quién.</p>}
       {cierres.cerrarYSeguir !== null && !conCreditos && (
         <p className="text-sm text-muted">
           «La mesa sigue»: se cobra la cancha y queda libre para el turno siguiente. Los cargos siguen abiertos y se cobran cuando se van.
         </p>
       )}
-      <ul aria-label="Jugadores del turno">
-        {vista.jugadores.map((f) => (
-          <FilaDeJugador key={f.idx} almacen={almacen} fila={f} reservaId={vista.reservaId} onCobrar={onCobrar} onCobrarParte={onCobrarParte} onAccion={onAccion} />
-        ))}
-      </ul>
-      {vista.deOtraMesa && <p className="text-sm text-muted">{vista.deOtraMesa}</p>}
 
       {vista.cancha && (
         <CobroDeLaCancha

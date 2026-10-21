@@ -4,7 +4,10 @@ import type { Page } from "playwright";
 
 /** Las solapas que ve quien opera: las de la tira y las del menú «Más» (lo abre y lo cierra). */
 export async function nombresDeSolapas(p: Page): Promise<string[]> {
-  const enFila = (await p.getByRole("tab").allInnerTexts()).map((t) => t.trim());
+  // El nombre de cada solapa, sin el número rojo de pendientes del Tablero (va aparte, aria-hidden).
+  const enFila = await p.getByRole("tab").evaluateAll((ts) =>
+    ts.map((t) => [...t.childNodes].filter((n) => !(n instanceof HTMLElement && n.dataset.ui === "insignia")).map((n) => n.textContent).join("").trim()),
+  );
   const mas = p.getByRole("button", { name: /^Más/ });
   if (!(await mas.count())) return enFila;
   await mas.click();

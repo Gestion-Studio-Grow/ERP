@@ -225,6 +225,8 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
 
     // «A cargo de»: la parte de Tomás la paga Sofía. La agenda no se repinta (la grilla no cambió).
     let antes = await renders(page);
+    // «Quién paga» va plegado en cada jugador (como el club de hoy): se abre.
+    await cuenta.locator('[data-cuenta="detalle"]').evaluateAll((ds) => ds.forEach((d) => ((d as HTMLDetailsElement).open = true)));
     await cuenta.getByLabel("Parte de la cancha de Tomás Medina").selectOption({ label: "A cargo de Sofía Gómez" });
     await page.getByRole("status").filter({ hasText: "esa parte de la cancha la paga otro jugador" }).waitFor();
     const porACargo = resta(await renders(page), antes);

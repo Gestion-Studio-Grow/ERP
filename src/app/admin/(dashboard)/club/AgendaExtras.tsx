@@ -37,6 +37,7 @@ export function DiasDeLaAgenda({ hoy, dia, onDia }: { hoy: string; dia: string; 
             d.fecha === dia ? "border-accent bg-accent-soft font-semibold text-strong" : "border-line-strong bg-surface-raised text-body",
           )}
         >
+          {d.cerca && d.cerca !== "Hoy" && <span className="sr-only">{d.cerca}, </span>}
           <span className="text-xs">{d.nombre}</span>
           <span className="tabular-nums">{d.ddmm}</span>
         </button>

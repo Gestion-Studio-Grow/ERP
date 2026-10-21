@@ -60,6 +60,7 @@ import {
   diaParaArchivar,
   generarDemo,
   hidratarEstado,
+  horarioDe,
   huellaAnexo,
   paqueteParaArchivar,
   verificarPaqueteArchivo,
@@ -339,6 +340,8 @@ export interface Almacen {
   arrancar(): () => void;
   /** Un latido ya (al volver a la pestaña). En la demo no hace nada. */
   latir(): void;
+  /** Sólo la demo: corre el reloj ±minutos dentro del horario del día (los −30′/+30′ de la barra, como el club de hoy). */
+  correrRelojDemo(minutos: number): void;
   /** Corre una operación del motor sobre el estado y avisa a los suscriptos. En sólo lectura, tira. */
   aplicar<R>(accion: (estado: EstadoClub, ahora: Ahora) => R): R;
   /** Tira lo tocado y arma la demo de cero (en la jornada real no: dice que no). */
@@ -1422,6 +1425,14 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       return detener;
     },
     latir,
+    correrRelojDemo(minutos) {
+      if (real) return;
+      const { abre, cierra } = horarioDe(estado, ahora.fecha);
+      const min = Math.min(cierra, Math.max(abre, ahora.min + minutos));
+      if (min === ahora.min) return;
+      ahora = { ...ahora, min };
+      avisar();
+    },
     aplicar(accion) {
       if (!puedeOperar()) {
         negarSoloLectura();

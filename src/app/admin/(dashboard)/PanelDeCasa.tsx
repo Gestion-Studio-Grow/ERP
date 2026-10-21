@@ -7,6 +7,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { AppDescriptor } from "@/apps/contract";
 import FormCerrarSesion from "../FormCerrarSesion";
+import MenuDeLaCasa from "./MenuDeLaCasa";
 import ThemeToggle from "./ThemeToggle";
 
 export default function PanelDeCasa({
@@ -28,6 +29,8 @@ export default function PanelDeCasa({
 }) {
   return (
     <div className="min-h-screen bg-surface text-body">
+      {/* Las cintas finas de arriba de todo (la demo, el aviso al dueño): la app las pone por portal (club/EnLaCabecera). */}
+      <div id="casa-cintas" data-casa="cintas" className="flex flex-col empty:hidden" />
       <header data-casa="cabecera" className="sticky top-0 z-30">
         <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-3 px-4 py-2.5">
           <span className="mr-auto flex min-w-0 items-center gap-2.5">
@@ -51,13 +54,16 @@ export default function PanelDeCasa({
               ))}
             </nav>
           )}
-          {/* Claro u oscuro: lo elige quien usa el panel y se recuerda en el equipo (igual que en el resto del ERP). */}
+          {/* El candado: bloquear la pantalla (lo pone la app) y «Salir», como el club de hoy. Después, claro u oscuro
+              (lo elige quien usa el panel y se recuerda en el equipo, igual que en el resto del ERP). */}
+          <MenuDeLaCasa>
+            <FormCerrarSesion>
+              <button type="submit" className="flex min-h-11 w-full items-center rounded-sm px-3 text-left text-sm font-semibold hover:bg-surface-sunken">
+                Salir del sistema ({userName})
+              </button>
+            </FormCerrarSesion>
+          </MenuDeLaCasa>
           <ThemeToggle />
-          <FormCerrarSesion>
-            <button type="submit" data-casa="enlace" className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold" aria-label={`Salir (${userName})`}>
-              Salir
-            </button>
-          </FormCerrarSesion>
         </div>
       </header>
       {children}

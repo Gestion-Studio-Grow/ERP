@@ -104,6 +104,10 @@ export interface VistaAgenda {
   ahora: number | null;
   /** «12 turnos · 3 en cancha · 2 deben» — la línea de estado. */
   resumen: string;
+  /** El día del título, como el club de hoy: «Sáb 17/10 (hoy)». */
+  diaTitulo: string;
+  /** «Horario de los sábados: 09:00 a 01:00». */
+  horarioTexto: string;
   firma: string;
 }
 
@@ -227,10 +231,14 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
     .filter(Boolean)
     .join(" · ");
 
-  const vista: Omit<VistaAgenda, "firma"> = { fecha, canchas, paso, desde: abre, filas, horas, turnos, libres, bloqueos, ahora: filaAhora, resumen };
+  const nombreDia = NOMBRE_DIA[diaSemana(fecha)];
+  const diaTitulo = `${nombreDia.slice(0, 3)} ${Number(fecha.slice(8))}/${Number(fecha.slice(5, 7))}${fecha === ahora.fecha ? " (hoy)" : ""}`;
+  const plural = nombreDia.toLowerCase().endsWith("s") ? nombreDia.toLowerCase() : `${nombreDia.toLowerCase()}s`;
+  const horarioTexto = `Horario de los ${plural}: ${hhmm(abre)} a ${hhmm(cierra)}`;
+  const vista: Omit<VistaAgenda, "firma"> = { fecha, canchas, paso, desde: abre, filas, horas, turnos, libres, bloqueos, ahora: filaAhora, resumen, diaTitulo, horarioTexto };
   return {
     ...vista,
-    firma: [fecha, abre, cierra, paso, filaAhora, resumen, canchas.map((c) => `${c.id}:${c.nombre}:${c.detalle}`).join(","), turnos.map((t) => t.firma).join("|"), libres.map((l) => l.id).join(","), bloqueos.map((b) => `${b.id}:${b.fila}:${b.alto}`).join(",")].join("#"),
+    firma: [fecha, abre, cierra, paso, filaAhora, resumen, diaTitulo, canchas.map((c) => `${c.id}:${c.nombre}:${c.detalle}`).join(","), turnos.map((t) => t.firma).join("|"), libres.map((l) => l.id).join(","), bloqueos.map((b) => `${b.id}:${b.fila}:${b.alto}`).join(",")].join("#"),
   };
 }
 
@@ -295,8 +303,10 @@ export function vecino(turnos: readonly Pick<CeldaTurno, "id" | "columna" | "fil
 /** Un botón de los días de arriba: la fecha y cómo se lee («Ayer», «Hoy», «Lun»…). */
 export interface DiaDeLaAgenda {
   fecha: Fecha;
-  /** «Ayer» · «Hoy» · «Mañana» · «Lun»… */
+  /** «Vie» · «Hoy» · «Dom» · «Lun»… */
   nombre: string;
+  /** «Ayer» · «Hoy» · «Mañana» o null: lo que el lector oye antes del día. */
+  cerca: string | null;
   /** «17/10». */
   ddmm: string;
   /** Para el lector de pantalla: «hoy, viernes 17/10». */
@@ -319,7 +329,8 @@ export function diasDeLaAgenda(hoy: Fecha): DiaDeLaAgenda[] {
     const semana = NOMBRE_DIA[diaSemana(fecha)];
     const ddmm = `${Number(fecha.slice(8))}/${Number(fecha.slice(5, 7))}`;
     const cerca = i === -1 ? "Ayer" : i === 0 ? "Hoy" : i === 1 ? "Mañana" : null;
-    dias.push({ fecha, nombre: cerca ?? semana.slice(0, 3), ddmm, etiqueta: `${cerca ? `${cerca}, ` : ""}${semana.toLowerCase()} ${ddmm}` });
+    // Como el club de hoy: «Vie · Hoy · Dom» (el nombre del día, salvo hoy). «Ayer» y «Mañana» quedan para el lector.
+    dias.push({ fecha, nombre: i === 0 ? "Hoy" : semana.slice(0, 3), cerca, ddmm, etiqueta: `${cerca ? `${cerca}, ` : ""}${semana.toLowerCase()} ${ddmm}` });
   }
   return dias;
 }

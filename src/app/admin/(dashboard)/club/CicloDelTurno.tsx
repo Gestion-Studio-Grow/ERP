@@ -197,6 +197,7 @@ export default function CicloDelTurno({
 }) {
   const [abierta, setAbierta] = useState<Cual | null>(null);
   const titulo = useId();
+  const idNota = useId();
   const estado = almacen.estado();
   const r = reservaDe(estado, reservaId);
   if (!r) return null;
@@ -210,32 +211,43 @@ export default function CicloDelTurno({
     }
   };
   const cuales = (Object.keys(ETIQUETAS) as Cual[]).filter((c) => op[c]);
+  const wa = recordatorioDisponible(r) ? enlaceWhatsApp(celularDelTurno(estado, r), textoRecordatorio(estado, r), almacen.modo()) : null;
   if (!cuales.length && !op.liberarFijo) return null;
+  const botonDe = (c: Cual) => (
+    <Button key={c} variant={abierta === c ? "subtle" : "outline"} size="md" data-cuenta={c === "interrumpir" ? "peligro" : undefined} aria-expanded={abierta === c} onClick={() => {
+      onAntes();
+      setAbierta(abierta === c ? null : c);
+    }}>
+      {ETIQUETAS[c]}
+    </Button>
+  );
   const Formulario = abierta === "mover" ? Mover : abierta === "extender" ? Extender : abierta === "falta" ? Falta : abierta === "cancelar" ? Cancelar : abierta === "interrumpir" ? Interrumpir : null;
   return (
-    <section aria-labelledby={titulo} className="flex flex-col gap-2 border-t border-line pt-3">
-      <h3 id={titulo} className="text-sm font-semibold text-strong">
+    // El pie fijo de la hoja, como el club de hoy: lo del turno (WhatsApp, corte de luz, mover…) siempre a mano abajo.
+    <section aria-labelledby={titulo} data-cuenta="pie" className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col gap-2 border-t border-line bg-surface-raised px-4 py-3">
+      <h3 id={titulo} className="sr-only">
         El turno
       </h3>
-      <div className="flex flex-wrap gap-2">
-        {cuales.map((c) => (
-          <Button key={c} variant={abierta === c ? "subtle" : "outline"} size="md" aria-expanded={abierta === c} onClick={() => {
-            onAntes();
-            setAbierta(abierta === c ? null : c);
-          }}>
-            {ETIQUETAS[c]}
-          </Button>
-        ))}
+      <div data-tactil="compacto" className="flex flex-wrap items-center justify-end gap-2">
+        {/* La nota de la demo de WhatsApp, una vez y a la izquierda (no estira el botón). */}
+        {wa?.nota && (
+          <p id={idNota} className="mr-auto max-w-[22rem] text-xs text-muted">
+            {wa.nota}
+          </p>
+        )}
+        {cuales.filter((c) => c !== "interrumpir").map((c) => botonDe(c))}
         {op.liberarFijo && (
           <Button variant="outline" size="md" onClick={() => hacer({ tipo: "liberarFijo" })}>
             Esta semana no vienen
           </Button>
         )}
-        {recordatorioDisponible(r) && (
-          <BotonWhatsApp enlace={enlaceWhatsApp(celularDelTurno(estado, r), textoRecordatorio(estado, r), almacen.modo())} nombreAccesible={`Recordatorio por WhatsApp a ${r.titular}`}>
-            Recordatorio por WhatsApp
+        {wa && (
+          <BotonWhatsApp enlace={wa} nombreAccesible={`Recordatorio por WhatsApp a ${r.titular}`} notaEn={wa.nota ? idNota : undefined}>
+            WhatsApp
           </BotonWhatsApp>
         )}
+        {/* Al final y en rojo, como el club de hoy: suspender el turno (corte de luz, lluvia, lesión). */}
+        {op.interrumpir && botonDe("interrumpir")}
       </div>
       {Formulario && abierta && (
         // Fondo levantado y no hundido: los rótulos `text-muted` de los formularios sobre `surface-sunken` daban

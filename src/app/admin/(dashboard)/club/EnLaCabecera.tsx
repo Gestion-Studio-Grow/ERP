@@ -9,10 +9,24 @@ import { createPortal } from "react-dom";
 
 export const ID_HERRAMIENTAS = "casa-herramientas";
 
-/** `fuera`: lo que se ve sin barra (en vez de `children`); `ademas`: lo que se ve abajo cuando sí va en la barra. */
-export default function EnLaCabecera({ children, fuera = null, ademas = null }: { children: ReactNode; fuera?: ReactNode; ademas?: ReactNode }) {
+/**
+ * `fuera`: lo que se ve sin barra (en vez de `children`); `ademas`: lo que se ve abajo cuando sí va en la barra.
+ * `en`: dónde de la cabecera — las herramientas de la barra (default), las cintas finas de arriba (`casa-cintas`) o el
+ * menú del candado (`casa-menu`, MenuDeLaCasa.tsx).
+ */
+export default function EnLaCabecera({
+  children,
+  fuera = null,
+  ademas = null,
+  en = ID_HERRAMIENTAS,
+}: {
+  children: ReactNode;
+  fuera?: ReactNode;
+  ademas?: ReactNode;
+  en?: typeof ID_HERRAMIENTAS | "casa-cintas" | "casa-menu";
+}) {
   // El club corre sólo en el navegador (ClubCargador, ssr: false): el lugar ya está en el DOM al montar.
-  const [lugar] = useState<HTMLElement | null>(() => (typeof document === "undefined" ? null : document.getElementById(ID_HERRAMIENTAS)));
+  const [lugar] = useState<HTMLElement | null>(() => (typeof document === "undefined" ? null : document.getElementById(en)));
   if (lugar) return (
     <>
       {createPortal(children, lugar)}

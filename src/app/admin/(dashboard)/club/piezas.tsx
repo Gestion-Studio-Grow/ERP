@@ -27,6 +27,7 @@ export function ComoPaga({
   conCreditos = 0,
   leyenda = "Cómo paga",
   angosto = false,
+  enFila = false,
 }: {
   medio: MedioCobro;
   onElegir: (m: MedioCobro) => void;
@@ -35,18 +36,22 @@ export function ComoPaga({
   leyenda?: string;
   /** En el panel angosto van de a dos aunque la pantalla sea ancha. */
   angosto?: boolean;
+  /** Una sola fila de chips chicos (la cuenta del turno, como el club de hoy): en la PC se ven de 36 px y se tocan de 44. */
+  enFila?: boolean;
 }) {
   const nombre = useId();
   const medios: MedioCobro[] = conCreditos > 0 ? [...MEDIOS_CAJA, "monedero"] : [...MEDIOS_CAJA];
   return (
     <fieldset className="min-w-0">
-      <legend className="mb-1 text-sm font-medium text-strong">{leyenda}</legend>
-      <div className={cn("grid grid-cols-2 gap-2", !angosto && "sm:grid-cols-4", angosto && "sm:grid-cols-4 lg:grid-cols-2")}>
+      <legend className={cn("mb-1 text-sm font-medium text-strong", enFila && "sr-only")}>{leyenda}</legend>
+      <div className={cn(enFila ? "flex flex-wrap gap-2" : "grid grid-cols-2 gap-2", !enFila && !angosto && "sm:grid-cols-4", !enFila && angosto && "sm:grid-cols-4 lg:grid-cols-2")}>
         {medios.map((m) => (
           <label
             key={m}
             className={cn(
-              "flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-2 text-center text-sm",
+              "flex cursor-pointer items-center justify-center rounded-md border px-2 text-center text-sm",
+              // En la tablet y el celular, 44 px de verdad; en la PC se ven de 36 y el toque sigue en 44 (el ::after).
+              enFila ? "relative min-h-11 px-3 lg:min-h-9 lg:after:absolute lg:after:inset-x-0 lg:after:-inset-y-1 lg:after:content-['']" : "min-h-11",
               "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus",
               medio === m ? "border-accent bg-accent-soft font-semibold text-strong" : "border-line-strong bg-surface-raised text-body",
             )}

@@ -133,7 +133,11 @@ const BloqueTurno = memo(function BloqueTurno({
             En uno de media hora (una franja) la marca va al lado del nombre. */}
         <span className="flex w-full min-w-0 items-baseline gap-1.5">
           <span className="truncate font-semibold text-strong">{celda.titular}</span>
-          {celda.alto < 2 && <Marca tipo={celda.marca.tipo} className="shrink-0">{celda.marca.texto}</Marca>}
+          {celda.alto < 2 && (
+            <span data-turno-parte="estado" className="contents">
+              <Marca tipo={celda.marca.tipo} className="shrink-0">{celda.marca.texto}</Marca>
+            </span>
+          )}
         </span>
         {celda.alto >= 2 && (
           <span className={cn("w-full truncate text-xs tabular-nums", celda.estado === "reservada" || celda.estado === "en_cancha" ? "text-muted" : "text-body")}>
@@ -141,9 +145,13 @@ const BloqueTurno = memo(function BloqueTurno({
             {celda.tipo && celda.tipo !== "Turno" ? ` · ${celda.tipo}` : ""}
           </span>
         )}
-        {celda.alto >= 2 && <Marca tipo={celda.marca.tipo}>{celda.marca.texto}</Marca>}
+        {celda.alto >= 2 && (
+          <span data-turno-parte="estado" className="contents">
+            <Marca tipo={celda.marca.tipo}>{celda.marca.texto}</Marca>
+          </span>
+        )}
         {celda.senal && <span className="w-full truncate text-xs font-semibold tabular-nums text-danger">{celda.senal}</span>}
-        {celda.deudor && celda.alto > 2 && <span className="w-full truncate text-xs text-danger">⚠ cuenta con deuda</span>}
+        {celda.deudor && celda.alto > 2 && <span data-turno-parte="deuda" className="w-full truncate text-xs text-danger">⚠ cuenta con deuda</span>}
       </button>
       {movible && (
         <>
@@ -280,7 +288,10 @@ const LuzDeCancha = memo(function LuzDeCancha({ almacen, canchaId, nombre }: { a
         prendida ? "border-warning bg-warning-soft text-strong" : "border-line-strong bg-surface-raised text-body",
       )}
     >
-      <Marca tipo={prendida ? "hecho" : "pendiente"}>Luz</Marca>
+      {/* La lamparita del club de hoy: llena y dorada prendida, sólo el contorno apagada (forma, no sólo color). */}
+      <svg viewBox="0 0 24 24" aria-hidden="true" data-agenda="lamparita" className="size-5" fill={prendida ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V17h5.2v-1.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z" />
+      </svg>
     </button>
   );
 });
@@ -341,7 +352,10 @@ export default function AgendaCanchas({
   dias = null,
   accesos = null,
   atajoTurno = false,
+  cambiarHorario = null,
 }: {
+  /** «Cambiar horario» al lado del horario del día (lo arma ClubDemo, sólo para quien configura). */
+  cambiarHorario?: ReactNode;
   /** «+ Turno» anuncia su tecla (N) si los atajos de una tecla están prendidos. */
   atajoTurno?: boolean;
   almacen: Almacen;
@@ -368,8 +382,11 @@ export default function AgendaCanchas({
     if (!m || filaAhora === null || yaUbicada.current) return;
     yaUbicada.current = true;
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    m.scrollTop = Math.max(0, 3 * rem + filaAhora * FILA_REM * rem - m.clientHeight / 3);
-  }, [filaAhora]);
+    // Como el club de hoy: desde la hora en punto de dos horas antes (19:10 → 17:00), con media hora libre arriba.
+    const min = vista.desde + filaAhora * vista.paso;
+    const fila = Math.max(0, (Math.floor(min / 60) * 60 - 120 - vista.desde) / vista.paso - 30 / vista.paso);
+    m.scrollTop = fila * FILA_REM * rem;
+  }, [filaAhora, vista.desde, vista.paso]);
 
   const turnos = vista.turnos;
   const libres = vista.libres;
@@ -401,7 +418,6 @@ export default function AgendaCanchas({
       const bloque = document.getElementById(`turno-${id}`);
       if (!g || !bloque) return;
       if (modo === "estirar" || ev.pointerType !== "mouse") ev.preventDefault();
-      ev.stopPropagation();
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
       const filaPx = FILA_REM * rem;
       const x0 = ev.clientX;
@@ -487,8 +503,10 @@ export default function AgendaCanchas({
       const id = menu?.id;
       setMenu(null);
       if (!id) return;
-      // El foco vuelve al turno (si la acción lo saca de la grilla, queda en la cuenta que se abre).
-      requestAnimationFrame(() => document.getElementById(`turno-${id}`)?.focus());
+      // El foco vuelve al turno; si la acción abrió la cuenta (la hoja), queda en ella.
+      requestAnimationFrame(() => {
+        if (!document.querySelector('[data-ui="hoja-del-turno"]')) document.getElementById(`turno-${id}`)?.focus();
+      });
       const accion = o.accion;
       if (accion === "ver") return onAbrir(id);
       almacen.ejecutar((e, ahora, auth) => ejecutar(e, id, { tipo: accion }, ahora, auth), { deshacible: DESHACIBLE[accion] });
@@ -520,19 +538,27 @@ export default function AgendaCanchas({
 
   return (
     <section aria-labelledby="club-agenda-titulo" className="min-w-0">
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+      {/* Como el club de hoy: «AGENDA · SÁB 17/10 (HOY)» y, a la derecha, el horario del día con «Cambiar horario». */}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <h2 id="club-agenda-titulo" data-pantalla className="text-lg font-semibold text-strong">
-          Agenda de canchas
+          Agenda<span className="sr-only"> de canchas</span> · {vista.diaTitulo}
         </h2>
-        <div className="flex items-center gap-3">
-          <p className="text-sm text-muted">{vista.resumen}</p>
-          <Button variant="solid" size="md" aria-keyshortcuts={atajoTurno ? "N" : undefined} onClick={() => onReservar(vista.canchas.find((c) => !c.detalle.includes("mantenimiento"))?.id ?? vista.canchas[0]?.id ?? "", null)}>
-            + Turno
-          </Button>
+        <div data-tactil="compacto" className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-sm text-muted">
+            {vista.horarioTexto.split(": ")[0]}: <b className="font-semibold text-strong tabular-nums">{vista.horarioTexto.split(": ")[1]}</b>
+          </p>
+          {cambiarHorario}
         </div>
       </div>
       {dias}
-      {accesos}
+      {/* Debajo de los días, a la izquierda: «+ Turno» primero y después los accesos (abrir cuenta, espera, lluvia). */}
+      <div data-agenda="acciones" className="my-2 flex flex-wrap items-center gap-2">
+        <Button variant="solid" size="md" aria-keyshortcuts={atajoTurno ? "N" : undefined} onClick={() => onReservar(vista.canchas.find((c) => !c.detalle.includes("mantenimiento"))?.id ?? vista.canchas[0]?.id ?? "", null)}>
+          + Turno
+        </Button>
+        {accesos}
+        <p className="ml-auto text-xs text-muted">{vista.resumen}</p>
+      </div>
       <p id="club-agenda-ayuda" className="sr-only">
         Cada cancha es una lista de turnos y huecos libres. Con las flechas pasás al de arriba, al de abajo o a la cancha de al lado. Enter abre la cuenta del turno o da un turno en el hueco.
       </p>
@@ -558,6 +584,14 @@ export default function AgendaCanchas({
               style={{ gridColumn: `2 / span ${vista.canchas.length}`, gridRow: `2 / span ${vista.filas}` }}
             >
               <div data-agenda="ahora" className="absolute inset-x-0 border-t-2 border-danger" style={{ top: `calc(${filaAhora} * ${FILA})` }} />
+            </div>
+          )}
+          {filaAhora !== null && (
+            // La hora de ahora en una pastilla sobre la columna de las horas, como el club de hoy.
+            <div aria-hidden className="pointer-events-none sticky left-0 z-[31]" style={{ gridColumn: 1, gridRow: `2 / span ${vista.filas}` }}>
+              <span data-agenda="ahora-hora" className="absolute right-0 -translate-y-1/2 rounded-sm px-1.5 py-px text-xs font-bold tabular-nums" style={{ top: `calc(${filaAhora} * ${FILA})` }}>
+                {hhmmDe(vista.desde + filaAhora * vista.paso)}
+              </span>
             </div>
           )}
           {previa && (

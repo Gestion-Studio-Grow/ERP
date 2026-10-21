@@ -477,6 +477,8 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     ok("1.stock", e1.productos.find((x) => x.id === "p2")?.stock === 42 - 8 && e1.productos.find((x) => x.id === "p9")?.stock === 48 - 8, "Stock: agua 42 → 34, cerveza 48 → 40");
     // «A cargo de» en la cancha 1: Tomás paga la cancha y los cargos de Sofía.
     const c1 = await abrirCuenta(p, R.c1);
+    // «Quién paga» va plegado en cada jugador (como el club de hoy): se abre.
+    await c1.locator('[data-cuenta="detalle"]').evaluateAll((ds) => ds.forEach((d) => ((d as HTMLDetailsElement).open = true)));
     await c1.getByRole("combobox", { name: "Parte de la cancha de Sofía Gómez" }).selectOption({ label: "A cargo de Tomás Medina" });
     await p.waitForTimeout(150);
     await c1.getByRole("combobox", { name: "Cargos de Sofía Gómez", exact: true }).selectOption({ label: "Sus cargos los paga Tomás Medina" });

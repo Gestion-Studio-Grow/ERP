@@ -35,10 +35,11 @@
 import { Suspense, createElement, lazy, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
 import { cn } from "@/components/ui/cn";
 import { Button } from "@/components/ui/Button";
-import { hhmm, pesos, reserva as reservaDe, resumenCaja, sumarDias } from "@/lib/club/motor.mjs";
+import { alertas, hhmm, pesos, reserva as reservaDe, resumenCaja, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { candadoDeLaJornada, claveDeLaDemo, claveDeLaJornada, crearAlmacen, type Almacen, type AlmacenamientoLocal, type GuardadoDelClub, type RolDelPanel } from "./almacen";
 import CintaDelClub from "./CintaDelClub";
+import EnLaCabecera from "./EnLaCabecera";
 import { crearGuardadoEnLaBase, type PuertaDeLaBase } from "./guardado-en-la-base";
 import { fechaLocal } from "./reloj-del-club";
 import { useOperador, useSeleccion } from "./usar-almacen";
@@ -144,6 +145,10 @@ function useSolapasVisibles(almacen: Almacen): readonly SolapaVisible[] {
 }
 
 /** La tira de solapas: chica y suscripta al operador, así cambiar de operador no repinta la recepción. */
+const igualNumero = (_: number | undefined, nuevo: number) => nuevo;
+/** Lo que espera al dueño (las alertas «para el dueño» del motor): el número rojo de la solapa Tablero, como el club de hoy. */
+const pendientesDelDuenio = (e: EstadoClub, a: Ahora) => alertas(e, a).filter((x) => x.paraDuenio).length;
+
 function TiraDeSolapas({
   almacen,
   solapa,
@@ -158,6 +163,7 @@ function TiraDeSolapas({
   botones: React.RefObject<Partial<Record<Solapa, HTMLButtonElement | null>>>;
 }) {
   const visibles = useSolapasVisibles(almacen);
+  const pendientes = useSeleccion(almacen, pendientesDelDuenio, igualNumero);
   const esta = visibles.some((s) => s.id === solapa);
   // La solapa elegida dejó de estar (entró alguien que no es dueño): se pasa a la agenda.
   useEffect(() => {
@@ -199,8 +205,15 @@ function TiraDeSolapas({
               "-mb-px inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-4 text-sm focus-visible:outline-2 focus-visible:outline-focus",
               solapa === s.id ? "border-accent font-semibold text-strong" : "border-transparent text-muted hover:text-strong",
             )}
+            aria-description={s.id === "tablero" && pendientes ? `${pendientes} pendiente${pendientes > 1 ? "s" : ""}` : undefined}
           >
             {s.etiqueta}
+            {/* El número va adentro de la solapa pero fuera de su nombre (el nombre sigue siendo «Tablero»). */}
+            {s.id === "tablero" && pendientes > 0 && (
+              <span aria-hidden="true" data-ui="insignia" className="ml-2 grid min-w-5 place-items-center rounded-full bg-danger px-1.5 text-xs font-bold text-on-accent">
+                {pendientes}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -280,22 +293,35 @@ function MenuMas({ opciones, onElegir }: { opciones: readonly SolapaVisible[]; o
  * Los accesos de la agenda, como los botones del club de hoy al lado de «+ Turno»: la lista de espera y el
  * mantenimiento a un toque, sin buscarlos en «Más». Sólo los que quien opera puede abrir.
  */
-function AccesosDeLaAgenda({ almacen, onIr }: { almacen: Almacen; onIr: (s: Solapa) => void }) {
+/** «Cambiar horario» al lado del horario de la agenda: lleva a Configuración, sólo si quien opera la ve (un dueño). */
+function CambiarHorario({ almacen, onIr }: { almacen: Almacen; onIr: () => void }) {
   const visibles = useSolapasVisibles(almacen);
+  if (!visibles.some((s) => s.id === "configuracion")) return null;
+  return (
+    <Button variant="outline" size="md" onClick={onIr}>
+      Cambiar horario
+    </Button>
+  );
+}
+
+function AccesosDeLaAgenda({ almacen, hoy, onIr }: { almacen: Almacen; hoy: string; onIr: (s: Solapa) => void }) {
+  const visibles = useSolapasVisibles(almacen);
+  const contarEspera = useCallback((e: EstadoClub) => e.espera.filter((x) => x.fecha >= hoy).length, [hoy]);
+  const enEspera = useSeleccion(almacen, contarEspera, igualNumero);
   const accesos = [
-    { id: "buffet", texto: "Abrir cuenta" },
-    { id: "fijos", texto: "Lista de espera y fijos" },
-    { id: "canchas", texto: "Mantenimiento y lluvia" },
+    { id: "buffet", texto: "Abrir cuenta", tipo: "cuenta" },
+    { id: "fijos", texto: `Lista de espera (${enEspera})`, tipo: "texto" },
+    { id: "canchas", texto: "Mantenimiento y lluvia", tipo: "texto" },
   ].filter((a) => visibles.some((s) => s.id === a.id));
   if (!accesos.length) return null;
   return (
-    <div data-agenda="accesos" className="my-2 flex flex-wrap gap-2">
+    <span data-agenda="accesos" className="contents">
       {accesos.map((a) => (
-        <Button key={a.id} variant="ghost" size="md" onClick={() => onIr(a.id)}>
+        <Button key={a.id} variant={a.tipo === "cuenta" ? "outline" : "ghost"} data-acceso={a.tipo} size="md" onClick={() => onIr(a.id)}>
           {a.texto}
         </Button>
       ))}
-    </div>
+    </span>
   );
 }
 
@@ -337,7 +363,9 @@ function CajaDelDia({ almacen, onVer }: { almacen: Almacen; onVer: () => void })
  * La hoja de la cuenta del turno (o del alta): una ventana ancha al centro con el fondo velado, como el diálogo del club
  * de hoy. Se cierra con Escape (si nadie lo atajó adentro) o tocando afuera. No es modal: el velo deja pasar el toque.
  */
-function HojaDelTurno({ children, onCerrar }: { children: React.ReactNode; onCerrar: () => void }) {
+const AFUERA_QUE_NO_CIERRA = "[aria-live], dialog, [role=menu], [data-ui=menu-del-turno], [data-ui=avisos-del-club]";
+
+function HojaDelTurno({ children, etiqueta, onCerrar }: { children: React.ReactNode; etiqueta: string; onCerrar: (devolverFoco?: boolean) => void }) {
   const hoja = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const alTeclear = (e: KeyboardEvent) => {
@@ -347,19 +375,38 @@ function HojaDelTurno({ children, onCerrar }: { children: React.ReactNode; onCer
     // menos que el club de hoy, donde primero había que cerrar el diálogo). Los avisos (Deshacer) no la cierran.
     const alTocar = (e: PointerEvent) => {
       const t = e.target as Element | null;
-      if (!t || hoja.current?.contains(t) || t.closest("[aria-live], dialog, [role=menu], [data-ui=menu-del-turno], [data-ui=avisos-del-club]")) return;
+      if (!t || hoja.current?.contains(t) || t.closest(AFUERA_QUE_NO_CIERRA)) return;
       onCerrar();
+    };
+    // Con el teclado, igual que con el dedo: si el foco sale de la hoja (Tab o Shift+Tab hacia la agenda), la hoja se
+    // cierra y el foco queda donde la persona fue — nunca escondido detrás del velo.
+    const alEnfocar = (e: FocusEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t || t === document.body || hoja.current?.contains(t) || t.closest(AFUERA_QUE_NO_CIERRA)) return;
+      onCerrar(false);
     };
     document.addEventListener("keydown", alTeclear);
     document.addEventListener("pointerdown", alTocar, true);
+    document.addEventListener("focusin", alEnfocar);
     return () => {
       document.removeEventListener("keydown", alTeclear);
       document.removeEventListener("pointerdown", alTocar, true);
+      document.removeEventListener("focusin", alEnfocar);
     };
   }, [onCerrar]);
+  // Al cerrarse, si el foco se quedó sin lugar (cayó al body), vuelve a lo que estaba enfocado al abrir (el hueco, «+ Turno»).
+  useEffect(() => {
+    const previo = document.activeElement as HTMLElement | null;
+    return () => {
+      requestAnimationFrame(() => {
+        if ((!document.activeElement || document.activeElement === document.body) && previo?.isConnected) previo.focus();
+      });
+    };
+  }, []);
   return (
-    <div data-ui="hoja-del-turno" className="pointer-events-none fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/30 px-4 py-[5vh]">
-      <div ref={hoja} role="dialog" aria-label="Turno" className="pointer-events-auto w-full max-w-[58rem] rounded-lg border border-line bg-surface-raised p-4 shadow-overlay">
+    // La hoja scrollea por dentro (como el diálogo del club de hoy): la cabecera con la × y el pie quedan fijos.
+    <div data-ui="hoja-del-turno" className="pointer-events-none fixed inset-0 z-40 flex items-start justify-center bg-black/30 px-4 py-[5vh]">
+      <div ref={hoja} role="dialog" aria-label={etiqueta} className="pointer-events-auto max-h-full w-full max-w-[58rem] overflow-y-auto overscroll-contain rounded-lg border border-line bg-surface-raised shadow-overlay">
         {children}
       </div>
     </div>
@@ -506,13 +553,17 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
   const onAbrir = useCallback((id: string) => setPanel({ tipo: "cuenta", id }), []);
   const onReservar = useCallback((canchaId: string, inicio: number | null) => setPanel({ tipo: "alta", canchaId, inicio }), []);
   const abiertoId = panel?.tipo === "cuenta" ? panel.id : null;
-  const onVolver = useCallback(() => {
-    // Cerrar la cuenta deja lo hecho: ya no se deshace (como el aviso del club vanilla).
-    almacen.olvidarDeshacer();
-    setPanel(null);
-    // El foco vuelve al turno desde el que se abrió la cuenta.
-    if (abiertoId) requestAnimationFrame(() => document.getElementById(`turno-${abiertoId}`)?.focus());
-  }, [abiertoId, almacen]);
+  const onVolver = useCallback(
+    (devolverFoco = true) => {
+      // Cerrar la cuenta deja lo hecho: ya no se deshace (como el aviso del club vanilla).
+      almacen.olvidarDeshacer();
+      setPanel(null);
+      // El foco vuelve al turno desde el que se abrió la cuenta (salvo que la persona ya lo llevó a otro lado con Tab).
+      if (abiertoId && devolverFoco) requestAnimationFrame(() => document.getElementById(`turno-${abiertoId}`)?.focus());
+    },
+    [abiertoId, almacen],
+  );
+  const cerrarAlta = useCallback(() => setPanel(null), []);
   // Abrir la cuenta de un turno desde otra solapa (una mesa, la lista de espera): en el día de ese turno.
   const verTurno = useCallback(
     (id: string) => {
@@ -692,6 +743,18 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
 
       <SoloConOperador almacen={almacen} negocio={negocio}>
 
+      {/* En la barra, el buscador del club de hoy: abre la paleta (lo mismo que Ctrl+K o «/»). */}
+      <EnLaCabecera fuera={null}>
+        <button type="button" data-casa="buscar" onClick={() => setPaleta(true)} aria-keyshortcuts="Control+K" className="inline-flex min-h-11 items-center gap-2.5 rounded-sm border px-3 text-sm">
+          <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="m16 16 4.5 4.5" />
+          </svg>
+          <span>Buscar o hacer…</span>
+          <kbd className="rounded-sm border px-1.5 py-px text-xs font-semibold">Ctrl K</kbd>
+        </button>
+      </EnLaCabecera>
+
       <TiraDeSolapas almacen={almacen} solapa={solapa} onCambiar={cambiarSolapa} botones={botones} atajos={atajos} />
 
       <div role="tabpanel" id={`club-panel-${solapa}`} aria-labelledby={`club-solapa-${solapa}`}>
@@ -706,7 +769,8 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
                 onReservar={onReservar}
                 atajoTurno={atajos}
                 dias={<DiasDeLaAgenda hoy={hoy} dia={dia} onDia={elegirDia} />}
-                accesos={<AccesosDeLaAgenda almacen={almacen} onIr={(s) => (s === "buffet" ? abrirCuenta() : irASolapa(s))} />}
+                accesos={<AccesosDeLaAgenda almacen={almacen} hoy={hoy} onIr={(s) => (s === "buffet" ? abrirCuenta() : irASolapa(s))} />}
+                cambiarHorario={<CambiarHorario almacen={almacen} onIr={() => irASolapa("configuracion")} />}
               />
               <FueraDeLaGrilla almacen={almacen} dia={dia} />
             </div>
@@ -724,7 +788,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         {/* La cuenta del turno y el alta, en una hoja ancha al centro (como el diálogo del club de hoy): sin scroll para
             cobrar y con la bandeja siempre a la vista al costado. Escape o tocar afuera vuelve a la agenda. */}
         {solapa === "agenda" && panel && (
-          <HojaDelTurno onCerrar={panel.tipo === "cuenta" ? onVolver : () => setPanel(null)}>
+          <HojaDelTurno etiqueta={panel.tipo === "cuenta" ? "Cuenta del turno" : "Dar un turno"} onCerrar={panel.tipo === "cuenta" ? onVolver : cerrarAlta}>
             {panel.tipo === "cuenta" ? (
               <CuentaDelTurno key={panel.id} almacen={almacen} reservaId={panel.id} onVolver={onVolver} />
             ) : (
@@ -735,7 +799,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
                 canchaInicial={panel.canchaId}
                 inicioInicial={panel.inicio}
                 onListo={onAbrir}
-                onVolver={() => setPanel(null)}
+                onVolver={cerrarAlta}
               />
             )}
           </HojaDelTurno>

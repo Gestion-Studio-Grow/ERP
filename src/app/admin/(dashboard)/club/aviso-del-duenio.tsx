@@ -18,6 +18,7 @@ import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen, RolDelPanel } from "./almacen";
 import { operadorActual } from "./operador-del-club";
 import { pedidosDeCreditoPendientes } from "./tablero-core";
+import EnLaCabecera from "./EnLaCabecera";
 import { useOperador, useSeleccion } from "./usar-almacen";
 
 /** «Un pedido de crédito espera tu OK.» · «3 pedidos de crédito esperan tu OK.» · null si no hay ninguno. */
@@ -44,19 +45,39 @@ export function AvisoDelDuenio({ almacen, irASolapa }: PropsDelAviso) {
   );
   const n = useSeleccion(almacen, contar, mismo);
   const texto = textoAvisoDelDuenio(n);
+  // Con el panel de casa, la cinta ámbar fina de arriba de todo (como el club de hoy); sin él, el cartel de siempre.
   return (
-    <div aria-live="polite" data-ui="aviso-del-duenio">
-      {texto && (
-        <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-semibold text-strong">
-            <span aria-hidden>🔔 </span>
-            {texto}
-          </p>
-          <Button variant="outline" size="md" onClick={() => irASolapa("tablero")}>
-            Ver y resolver en el Tablero
-          </Button>
+    <EnLaCabecera
+      en="casa-cintas"
+      fuera={
+        <div aria-live="polite" data-ui="aviso-del-duenio">
+          {texto && (
+            <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-semibold text-strong">
+                <span aria-hidden>🔔 </span>
+                {texto}
+              </p>
+              <Button variant="outline" size="md" onClick={() => irASolapa("tablero")}>
+                Ver y resolver en el Tablero
+              </Button>
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      }
+    >
+      <div aria-live="polite" data-ui="aviso-del-duenio" data-cinta="fina">
+        {texto && (
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-1.5 text-sm">
+            <p className="text-strong">
+              <span aria-hidden>🔔 </span>
+              {texto}
+            </p>
+            <button type="button" data-cinta="boton" onClick={() => irASolapa("tablero")} aria-label="Ver y resolver en el Tablero" className="relative rounded-sm border px-3 py-1 text-sm font-semibold">
+              Ver y resolver
+            </button>
+          </div>
+        )}
+      </div>
+    </EnLaCabecera>
   );
 }
