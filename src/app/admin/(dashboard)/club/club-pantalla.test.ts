@@ -152,6 +152,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       jsx: "automatic",
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
+      loader: { ".css": "empty" }, // la piel (piel/*.css) la pone la página, no el bundle
       logLevel: "silent",
     });
     bundle = r.outputFiles[0].text;
@@ -163,6 +164,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       jsx: "automatic",
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
+      loader: { ".css": "empty" }, // la piel (piel/*.css) la pone la página, no el bundle
       logLevel: "silent",
       plugins: [
         {

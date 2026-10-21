@@ -159,6 +159,7 @@ describe("Studio de redes y cámaras de la demo en el navegador", { timeout: 240
       jsx: "automatic",
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
+      loader: { ".css": "empty" }, // la piel (piel/*.css) la pone la página, no el bundle
       logLevel: "silent",
     });
     bundle = r.outputFiles[0].text;
