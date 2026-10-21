@@ -1,0 +1,56 @@
+[
+ {
+  "esquema": "light",
+  "nombre": "cel",
+  "w": 390,
+  "h": 844,
+  "agregado": true,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "light",
+  "nombre": "tablet-h",
+  "w": 1024,
+  "h": 768,
+  "agregado": true,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "light",
+  "nombre": "term-1366",
+  "w": 1366,
+  "h": 768,
+  "agregado": true,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "dark",
+  "nombre": "cel",
+  "w": 390,
+  "h": 844,
+  "agregado": true,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "dark",
+  "nombre": "tablet-h",
+  "w": 1024,
+  "h": 768,
+  "agregado": true,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "dark",
+  "nombre": "term-1366",
+  "w": 1366,
+  "h": 768,
+  "agregado": true,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ }
+]

@@ -111,11 +111,15 @@ export default async function PedidosPage() {
   // gestionar agenda (OWNER y RECEPCIÓN), y sólo en un negocio de servicios: en un comercio la
   // solapa «Servicios» era un callejón.
   const professionals = puedeAgenda && !comercio ? await getProfessionalsWithServices() : [];
-  // UN SOLO MOSTRADOR: en un comercio la venta de mostrador de esta pantalla es la MISMA que Vender
-  // (MostradorDeVenta: vuelto, factura, etiqueta y balanza, cobro fijo a la vista). CH (servicios)
-  // sigue con su formulario de siempre hasta que el dueño apruebe pasarla.
-  const mostradorDeComercio =
-    comercio && !modeloNuevo && !nuevo ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} /> : undefined;
+  // UN SOLO MOSTRADOR: la venta de mostrador de esta pantalla es la MISMA que Vender
+  // (MostradorDeVenta: vuelto, factura, cobro fijo a la vista; etiqueta y balanza sólo en un
+  // comercio). En un comercio con «Diseño nuevo» se va a Vender entero. En un negocio de servicios
+  // (CH, aprobado por el dueño el 21/10) es la solapa «Productos»; «Servicios» sigue siendo el alta
+  // del turno con su profesional, su seña y su cupón (NewAppointmentForm).
+  const mostradorUnico =
+    !modeloNuevo && (comercio ? !nuevo : true)
+      ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} conVendedor={!comercio} />
+      : undefined;
   const empty =
     stockSnap && products.length === 0
       ? posEmptyState({ activeProducts: stockSnap.activeProducts, canManageCatalog: stockSnap.canManageCatalog })
@@ -250,12 +254,13 @@ export default async function PedidosPage() {
             <MostradorEnCajon servicios>
               <MostradorTabs
                 viewer={{ role: user.role, professionalId: user.professionalId }}
-                products={products}
+                products={mostradorUnico ? [] : products}
                 stockById={stockSnap?.stockById ?? {}}
                 professionals={professionals}
                 conServicios
+                formProductos={mostradorUnico}
                 productosBloqueados={
-                  empty ? (
+                  !mostradorUnico && empty ? (
                     <EmptyState
                       title={empty.title}
                       description={empty.description}
@@ -342,9 +347,9 @@ export default async function PedidosPage() {
               </>
             ) : (
               <>
-                Atendé en el mostrador. En <strong>Productos</strong>: elegí, cargá la cantidad —o el
-                peso, si se vende por kilo—, cobrá y listo. En <strong>Servicios</strong>: elegí el
-                servicio, la profesional y el horario de la agenda, y cobralo en el acto. Los pedidos
+                Atendé en el mostrador. En <strong>Productos</strong>: elegí, cargá la cantidad, cobrá y
+                listo. En <strong>Servicios</strong>: elegí el servicio y la profesional, el horario de
+                la agenda, y cobralo en el acto. Los pedidos
                 para retiro o envío caen a la bandeja de abajo para seguir su preparación y cobro.
               </>
             )}
@@ -352,13 +357,13 @@ export default async function PedidosPage() {
 
           <MostradorTabs
             viewer={{ role: user.role, professionalId: user.professionalId }}
-            products={mostradorDeComercio ? [] : products}
+            products={mostradorUnico ? [] : products}
             stockById={stockSnap?.stockById ?? {}}
             professionals={professionals}
             conServicios={!comercio}
-            formProductos={mostradorDeComercio}
+            formProductos={mostradorUnico}
             productosBloqueados={
-              !mostradorDeComercio && empty ? (
+              !mostradorUnico && empty ? (
                 <EmptyState
                   title={empty.title}
                   description={empty.description}
