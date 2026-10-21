@@ -153,6 +153,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
       jsx: "automatic",
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
+      loader: { ".css": "empty" }, // la piel (piel/*.css) la pone la página, no el bundle
       logLevel: "silent",
       // Las pieles de cada pantalla (piel/*.css) las sirve Next; acá alcanza con el CSS de la app.
       loader: { ".css": "empty" },

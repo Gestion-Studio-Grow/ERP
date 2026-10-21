@@ -154,7 +154,7 @@ function CargoManual({ almacen, cuenta, negocio }: { almacen: Almacen; cuenta: V
 /** `negocio`: los PIN mal de un descuento suman al tope del bloqueo de este equipo (sin él, a la clave del equipo). */
 export default function MesaCompleja({ almacen, cuenta, negocio }: { almacen: Almacen; cuenta: VistaCuentaBuffet; negocio?: string }) {
   return (
-    <details className="rounded-md border border-line">
+    <details data-buffet="mesa-compleja" className="rounded-md border border-line">
       <summary className="flex min-h-11 cursor-pointer items-center px-3 text-sm font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
         Mesa compleja: repartir o cargar a mano
       </summary>
