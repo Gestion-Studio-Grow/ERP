@@ -98,7 +98,12 @@ export async function guardarFotoDelClub(datos: FormData): Promise<RespuestaGuar
   let texto = subido.texto;
   if (q.user.role !== "OWNER") {
     const vigente = await leerVigente(q.tenantId);
-    if (vigente) texto = conservarLoDelicado(vigente.texto, texto).texto;
+    if (vigente) {
+      const c = conservarLoDelicado(vigente.texto, texto);
+      texto = c.texto;
+      // Es un evento de seguridad: alguien que no es dueño mandó usuarios o PIN distintos (queda en los logs).
+      if (c.corregido) console.warn("[club] G8: guardado sin dueño con usuarios/PIN distintos; se conservaron los de la base", { tenantId: q.tenantId, userId: q.user.id });
+    }
   }
   const r = await guardar(q.tenantId, texto, version, `user:${q.user.id}`);
   if (r.ok) return { ok: true, version: r.version };
