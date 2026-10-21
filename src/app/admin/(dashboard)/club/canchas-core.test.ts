@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
+import { operadorDeLaDemo } from "./almacen";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { DIAS_A_LA_VISTA, SE_DESHACE, bajaFijo, armarCanchas, armarEspera, armarFijos, bajarFijos, ejecutarCanchas, ejecutarEspera, horasDelDia, nuevoFijo } from "./canchas-core";
 import { armarAgenda } from "./agenda-core";
@@ -156,4 +157,29 @@ test("lista de espera: cada hueco trae la oferta por WhatsApp (texto del vanilla
   assert.equal(pocho.celular, "11 4000-7919");
   assert.match(pocho.huecos[0].oferta, /\(\w+ \d+\/\d+\)\. ¿Lo querés\?/, "otro día: con la fecha corta");
   assert.equal(despues.find((x) => x.titular === "Sin cel")!.celular, "");
+});
+
+test("baja de un fijo: «cancela el club» (devolver todo) sólo con un dueño; con recepción, la regla de siempre (21/10)", () => {
+  const conPago = (auth?: M.Auth) => {
+    const e = demo();
+    const f = e.fijos[0];
+    for (let d = 0; d < 7; d++) M.materializarFijos(e, M.sumarDias(HOY, d));
+    // El turno fijo de hoy, pagado entero y a menos de 12 h: tarde para la regla del cliente.
+    const r = e.reservas.find((x) => x.fijoId === f.id && x.estado === "reservada" && x.fecha >= HOY)!;
+    M.registrarPago(e, r.id, { medio: "efectivo", monto: r.precio }, AHORA);
+    const d = bajaFijo(e, f.id, AHORA, auth);
+    assert.equal(d.ok, true, d.mensaje);
+    return M.reserva(e, r.id)!;
+  };
+  const e0 = demo();
+  const recep = operadorDeLaDemo(e0, "RECEPTION")!.auth;
+  const duenio = operadorDeLaDemo(e0, "OWNER")!.auth;
+  const conRecepcion = conPago(recep);
+  const conDuenio = conPago(duenio);
+  assert.equal(conRecepcion.estado, "cancelada");
+  assert.equal(conDuenio.estado, "cancelada");
+  assert.equal(conDuenio.motivoCancelacion, "Baja del turno fijo");
+  // Con el dueño vuelve todo; con recepción, lo que diga la regla del cliente (nunca más que con el dueño).
+  const devuelto = (r: M.Reserva) => (r as M.Reserva & { senaEnSuspenso?: boolean }).senaEnSuspenso ? 0 : 1;
+  assert.ok(devuelto(conRecepcion) <= devuelto(conDuenio));
 });

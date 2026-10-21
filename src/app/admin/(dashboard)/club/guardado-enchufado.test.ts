@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { gzipSync } from "node:zlib";
 import { descomprimir, guardadoDelTexto } from "@/lib/club/foto";
-import { claveDeLaJornada, crearAlmacen, LATIDO_MS, type AlmacenamientoLocal, type Temporizador } from "./almacen";
+import { claveDeLaJornada, crearAlmacen, LATIDO_MS, TOPE_APARTES, type AlmacenamientoLocal, type Temporizador } from "./almacen";
 import type { RespuestaGuardarFoto, RespuestaLeerFoto } from "./estado-actions";
 import { ESPERA_GUARDADO_MS, ESPERA_MAXIMA_GUARDADO_MS, crearGuardadoEnLaBase, type PuertaDeLaBase } from "./guardado-en-la-base";
 
@@ -264,4 +264,29 @@ test("dos puestos sobre la misma base: después de chocar, el puesto sigue guard
   await quieto(B.enLaBase, B.r);
   assert.equal(fondo(), 444);
   assert.equal(B.a.estado().caja.fondo, 444);
+});
+
+test("lo apartado por choques tiene tope: quedan las últimas copias, no se acumula el club entero sin fin (21/10)", async () => {
+  const A = await abrir();
+  const B = await abrir(A.base);
+  await A.r.avanzar(ESPERA_GUARDADO_MS + 1000);
+  await B.r.avanzar(ESPERA_GUARDADO_MS + 1000);
+  operarComoDuenio(A.a);
+  operarComoDuenio(B.a);
+  for (let i = 1; i <= TOPE_APARTES + 2; i++) {
+    tocar(A.a, 1000 + i);
+    await A.r.avanzar(ESPERA_GUARDADO_MS + 1000);
+    await quieto(A.enLaBase, A.r);
+    tocar(B.a, 2000 + i);
+    await B.r.avanzar(ESPERA_GUARDADO_MS + 1000);
+    await quieto(B.enLaBase, B.r);
+    await B.r.avanzar(1000);
+    // A recarga lo de B si B llegó a guardar después: para el próximo choque, A vuelve a tocar sobre lo suyo.
+    await A.r.avanzar(1000);
+  }
+  const apartes = B.a.apartes();
+  assert.ok(apartes.length >= 1, "hubo choques");
+  assert.ok(apartes.length <= TOPE_APARTES, `como mucho ${TOPE_APARTES} copias (hay ${apartes.length})`);
+  const claves = [...B.m.datos.keys()].filter((k) => k.includes(":aparte:"));
+  assert.ok(claves.length <= TOPE_APARTES, "las copias viejas se borraron del equipo");
 });

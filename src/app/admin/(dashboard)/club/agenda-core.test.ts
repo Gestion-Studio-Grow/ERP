@@ -257,3 +257,23 @@ test("arrastrar respeta las reglas de «Mover»: nada a una hora que ya pasó; j
   assert.equal(noEstira.ok, false);
   assert.match(noEstira.motivo, /ya terminó/);
 });
+
+test("el motor también valida «Mover» y «Extender» (no sólo la pantalla): jugando, misma hora; nada a una hora pasada; se alarga uno en cancha aunque se haya pasado de hora (21/10)", () => {
+  const e = demo();
+  const jugando = e.reservas.find((x) => x.fecha === HOY && x.estado === "en_cancha")!;
+  const otra = e.canchas.find((c) => c.id !== jugando.canchaId)!;
+  const r1 = M.mover(e, jugando.id, { canchaId: otra.id, inicio: jugando.inicio - 60 }, AHORA);
+  assert.equal(r1.ok, false);
+  assert.match((r1 as { motivo: string }).motivo, /misma hora/);
+  const tarde = e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada" && x.inicio > AHORA.min)!;
+  const r2 = M.mover(e, tarde.id, { canchaId: tarde.canchaId, inicio: 9 * 60 }, AHORA);
+  assert.equal(r2.ok, false);
+  assert.match((r2 as { motivo: string }).motivo, /ya pasó/);
+  // Reservado que ya terminó sin jugarse: no se alarga.
+  const r3 = M.extender(e, tarde.id, 30, { fecha: HOY, min: tarde.inicio + tarde.duracion + 10 });
+  assert.equal(r3.ok, false);
+  // En cancha y pasado de hora (se quedan): se alarga si hay lugar.
+  const pasado = { fecha: HOY, min: jugando.inicio + jugando.duracion + 5 };
+  const libre = M.validarHueco(e, { canchaId: jugando.canchaId, fecha: HOY, inicio: jugando.inicio + jugando.duracion, duracion: 30 }).ok;
+  assert.equal(M.extender(e, jugando.id, 30, pasado).ok, libre);
+});

@@ -2873,6 +2873,10 @@ function mover(estado, id, { canchaId, inicio }, ahora) {
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   if (!["reservada", "en_cancha"].includes(r.estado)) return { ok: false, motivo: "Esa cancha ya está cerrada." };
   const destino = { canchaId: canchaId ?? r.canchaId, fecha: r.fecha, inicio: inicio ?? r.inicio, duracion: r.duracion };
+  // Las reglas del diálogo «Mover», también acá (no sólo en la pantalla): jugando, sólo otra cancha a la misma hora;
+  // reservado, nunca a una hora en la que ya habría terminado.
+  if (r.estado === "en_cancha" && destino.inicio !== r.inicio) return { ok: false, motivo: "Están jugando: sólo se puede pasar a otra cancha, a la misma hora." };
+  if (r.estado === "reservada" && ahora && minutosHasta(ahora, r.fecha, destino.inicio) + r.duracion <= 0) return { ok: false, motivo: "Esa hora ya pasó." };
   const v = validarHueco(estado, destino, r.id);
   if (!v.ok) return v;
   const antes = cancha(estado, r.canchaId).nombre;
@@ -2887,6 +2891,8 @@ function extender(estado, id, minutos, ahora) {
   const r = reserva(estado, id);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   if (!["reservada", "en_cancha"].includes(r.estado)) return { ok: false, motivo: "Esa cancha ya está cerrada." };
+  // Un turno reservado que ya terminó sin jugarse no se alarga (en cancha sí: se quedan más tiempo).
+  if (r.estado === "reservada" && ahora && minutosHasta(ahora, r.fecha, r.inicio + r.duracion) <= 0) return { ok: false, motivo: "Ese turno ya terminó: no se puede alargar." };
   const v = validarHueco(estado, { canchaId: r.canchaId, fecha: r.fecha, inicio: r.inicio + r.duracion, duracion: minutos });
   if (!v.ok) return { ok: false, motivo: `No se puede extender: ${v.motivo}` };
   const extra = precioTurno(estado, { fecha: r.fecha, inicio: r.inicio + r.duracion, duracion: minutos, canchaId: r.canchaId });

@@ -333,7 +333,7 @@ export default function FijosYEspera({ almacen, onVerTurno }: { almacen: Almacen
                     <span className="block font-medium text-strong">{f.texto}</span>
                     <span className="text-muted">{f.proximas}</span>
                   </span>
-                  <Button variant="ghost" size="md" onClick={() => almacen.ejecutar((e, a) => bajaFijo(e, f.id, a), { deshacible: SE_DESHACE.bajaFijo })}>
+                  <Button variant="ghost" size="md" onClick={() => almacen.ejecutar((e, a, auth) => bajaFijo(e, f.id, a, auth), { deshacible: SE_DESHACE.bajaFijo })}>
                     Dar de baja<span className="sr-only"> el fijo de {f.texto.split(" · ")[0]}</span>
                   </Button>
                 </li>

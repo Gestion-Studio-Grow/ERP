@@ -90,6 +90,8 @@ function demoDelDia(hoy: Fecha): EstadoClub {
 
 /** El reloj de la demo: la jornada del club a las 19:10, con turnos en juego y mesas abiertas. */
 export const MINUTO_DEMO = 19 * 60 + 10;
+/** Cuántas copias de «lo que quedó aparte» (choques con otra pantalla) se guardan en el equipo: cada una es el club entero. */
+export const TOPE_APARTES = 3;
 
 /** Cada cuánto late el reloj real (como el vanilla: 15 s). */
 export const LATIDO_MS = 15_000;
@@ -662,7 +664,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     version++;
     for (const o of oyentes) o();
   };
-  /** La lista de lo apartado por un choque con otra pantalla (las últimas 5, por cuándo). */
+  /** La lista de lo apartado por un choque con otra pantalla (las últimas `TOPE_APARTES`, por cuándo). */
   const CLAVE_APARTES = `${clave}:aparte`;
   const leerApartes = (): number[] => {
     try {
@@ -672,19 +674,47 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       return [];
     }
   };
-  /** Copia lo de acá (antes de reemplazarlo por lo de la base) en `<clave>:aparte:<ms>`. false si no hubo lugar. */
+  /**
+   * Copia lo de acá (antes de reemplazarlo por lo de la base) en `<clave>:aparte:<ms>`. Tope: las últimas
+   * `TOPE_APARTES` copias, y los viejos se borran ANTES de escribir (para no comerle lugar al guardado del equipo); si
+   * igual no entra, se borran todos los viejos y se prueba una vez más. false si no hubo lugar.
+   */
   const apartarLoDeAca = (): boolean => {
     if (!almacenamiento) return false;
     const cuando = relojMs();
+    let texto: string;
     try {
-      almacenamiento.setItem(`${CLAVE_APARTES}:${cuando}`, textoParaGuardar());
-      const lista = [...leerApartes(), cuando];
-      for (const viejo of lista.slice(0, -5)) almacenamiento.removeItem(`${CLAVE_APARTES}:${viejo}`);
-      almacenamiento.setItem(CLAVE_APARTES, JSON.stringify(lista.slice(-5)));
-      return true;
+      texto = textoParaGuardar();
     } catch {
       return false;
     }
+    const borrar = (ms: number[]) => ms.forEach((m) => {
+      try {
+        almacenamiento.removeItem(`${CLAVE_APARTES}:${m}`);
+      } catch {
+        // nada que borrar
+      }
+    });
+    let lista = leerApartes();
+    borrar(lista.slice(0, Math.max(0, lista.length - (TOPE_APARTES - 1))));
+    lista = lista.slice(-(TOPE_APARTES - 1));
+    for (const intento of [0, 1]) {
+      try {
+        almacenamiento.setItem(`${CLAVE_APARTES}:${cuando}`, texto);
+        almacenamiento.setItem(CLAVE_APARTES, JSON.stringify([...lista, cuando]));
+        return true;
+      } catch {
+        if (intento === 1) break;
+        borrar(lista);
+        lista = [];
+      }
+    }
+    try {
+      almacenamiento.setItem(CLAVE_APARTES, JSON.stringify(lista));
+    } catch {
+      // sin lugar ni para la lista
+    }
+    return false;
   };
   const ponerMeta = (cambio: Partial<EstadoDelGuardado>, forzar = false) => {
     const nuevo = { ...meta, ...cambio };
@@ -967,7 +997,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
         mensaje: aparte
           ? rol === "OWNER"
             ? "Otra pantalla guardó cambios más nuevos: se cargó lo último guardado. Lo tuyo que no llegó quedó aparte en este equipo (Configuración → «Lo que quedó aparte»). Revisá lo último que hiciste."
-            : "Otra pantalla guardó cambios más nuevos: se cargó lo último guardado. Lo tuyo que no llegó quedó aparte en esta compu: lo baja un dueño entrando con su usuario del ERP acá (Configuración → «Lo que quedó aparte»). Revisá lo último que hiciste."
+            : "Otra pantalla guardó cambios más nuevos: se cargó lo último guardado. Lo tuyo que no llegó quedó aparte en este equipo: lo baja un dueño entrando con su usuario del ERP acá (Configuración → «Lo que quedó aparte»). Revisá lo último que hiciste."
           : "Otra pantalla guardó cambios más nuevos: se cargó lo último guardado. Revisá lo último que hiciste.",
         deshacer: false,
       };

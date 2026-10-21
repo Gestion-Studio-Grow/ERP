@@ -389,8 +389,9 @@ export function previaArrastre(
   const r = estado.reservas.find((x) => x.id === reservaId);
   if (!r || (r.estado !== "reservada" && r.estado !== "en_cancha")) return null;
   // Las mismas reglas del diálogo «Mover» (destinosParaMover, ciclo-core.ts): jugando, sólo otra cancha a la misma hora;
-  // reservado, nunca a una hora en la que ya habría terminado. Y no se estira un turno que ya terminó.
-  const yaTermino = minutosHasta(ahora, r.fecha, r.inicio + r.duracion) <= 0;
+  // reservado, nunca a una hora en la que ya habría terminado. Y no se estira un turno reservado que ya terminó sin
+  // jugarse (uno en cancha, sí: se quedan más tiempo). Las mismas reglas valida el motor en `mover` y `extender`.
+  const yaTermino = r.estado === "reservada" && minutosHasta(ahora, r.fecha, r.inicio + r.duracion) <= 0;
   const alto = Math.max(1, Math.round(r.duracion / vista.paso));
   const columnaDe = vista.canchas.findIndex((c) => c.id === r.canchaId);
   const filaDe = Math.round((r.inicio - vista.desde) / vista.paso);

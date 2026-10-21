@@ -33,7 +33,8 @@ import {
   sumarDias,
   validarHueco,
 } from "@/lib/club/motor.mjs";
-import type { Ahora, EstadoClub, Fecha, ResultadoLluvia } from "@/lib/club/motor.mjs";
+import type { Ahora, Auth, EstadoClub, Fecha, ResultadoLluvia } from "@/lib/club/motor.mjs";
+import { operadorDesdeAuth } from "./operador-del-club";
 import type { Desenlace } from "./almacen";
 import { celularDeLaEspera, textoOfertaEspera } from "./whatsapp-core";
 
@@ -212,18 +213,22 @@ export function nuevoFijo(
 
 /**
  * Dar de baja un fijo (la inversa explícita de crearlo, que no se deshace): sus turnos que todavía no se jugaron se
- * cancelan como «cancela el club» (lo pagado vuelve siempre, con la regla de `cancelar` del motor) y el fijo sale de
- * la lista.
+ * cancelan (con un dueño, como «cancela el club»: lo pagado vuelve siempre; si no, con la regla de siempre) y el fijo
+ * sale de la lista.
  * DEUDA (BP-3/BP-4): el motor no tiene una función para dar de baja un fijo; se filtra `estado.fijos` acá. Cuando el
  * dominio se porte a TS, va al motor con su test.
  */
-export function bajaFijo(estado: EstadoClub, fijoId: string, ahora: Ahora): Desenlace {
+export function bajaFijo(estado: EstadoClub, fijoId: string, ahora: Ahora, auth?: Auth): Desenlace {
   const f = estado.fijos.find((x) => x.id === fijoId);
   if (!f) return { ok: false, mensaje: "Ese turno fijo ya no está." };
+  // Devolver todo lo pagado aunque sea tarde («cancela el club») es plata: sólo con un dueño (21/10, como «Cancela el
+  // club» en la cuenta). Si da de baja recepción, sus turnos se cancelan con la regla de siempre (a tiempo, crédito;
+  // tarde, la seña en suspenso).
+  const porClub = operadorDesdeAuth(estado, auth ?? {}).esDuenio;
   let canceladas = 0;
   for (const r of estado.reservas) {
     if (r.fijoId !== fijoId || r.estado !== "reservada" || r.fecha < ahora.fecha) continue;
-    if (cancelar(estado, r.id, { porClub: true, motivo: "Baja del turno fijo" }, ahora).ok) canceladas++;
+    if (cancelar(estado, r.id, { porClub, motivo: "Baja del turno fijo" }, ahora).ok) canceladas++;
   }
   estado.fijos = estado.fijos.filter((x) => x.id !== fijoId);
   return { ok: true, mensaje: `Turno fijo de ${f.titular} dado de baja${canceladas ? ` (${canceladas} turno${canceladas > 1 ? "s" : ""} de la semana liberado${canceladas > 1 ? "s" : ""})` : ""}.` };

@@ -39,6 +39,8 @@ export default async function ClubPage({ searchParams }: { searchParams: Promise
   if (casa?.id === "club") {
     return (
       <div className="mx-auto w-full max-w-[1500px] px-4 py-4">
+        {/* Sin título a la vista (como el club de hoy), pero con nombre para quien navega por títulos. */}
+        <h1 className="sr-only">Canchas del club</h1>
         <ClubCargador negocio={slug ?? user.tenantId} usuario={user.id} rol={user.role} reloj={reloj} />
       </div>
     );
