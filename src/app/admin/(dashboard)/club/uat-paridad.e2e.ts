@@ -232,6 +232,7 @@ async function principal() {
   const r = await esbuild.build({
     stdin: { contents: ENTRADA, loader: "tsx", resolveDir: RAIZ },
     bundle: true,
+    loader: { ".css": "empty" },
     write: false,
     format: "iife",
     jsx: "automatic",

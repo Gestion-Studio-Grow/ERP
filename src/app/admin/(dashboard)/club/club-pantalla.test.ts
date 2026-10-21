@@ -148,6 +148,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       loader: { ".css": "empty" }, // la piel (piel/*.css) entra por el CSS de la página, no por el paquete
       stdin: { contents: ENTRADA, loader: "tsx", resolveDir: RAIZ },
       bundle: true,
+      loader: { ".css": "empty" },
       write: false,
       format: "iife",
       jsx: "automatic",
@@ -161,6 +162,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       loader: { ".css": "empty" }, // la piel (piel/*.css) entra por el CSS de la página, no por el paquete
       stdin: { contents: ENTRADA_REAL, loader: "tsx", resolveDir: RAIZ },
       bundle: true,
+      loader: { ".css": "empty" },
       write: false,
       format: "iife",
       jsx: "automatic",

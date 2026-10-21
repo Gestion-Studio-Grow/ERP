@@ -13,6 +13,11 @@
 // son del dueño: esconderlo no es seguridad, el motor lo vuelve a controlar (`verProveedores`, `pagarProveedor` +
 // PIN). El pago no se deshace (lleva PIN, como el vanilla); lo demás, sí, los 6 s del aviso. Reglas:
 // proveedores-core.ts.
+//
+// La piel es la del club de hoy (sitio/club.html, «Proveedores»): una TABLA DENSA (proveedor, rubro, CUIT, lo que le
+// debemos y «Cuenta y pagos»), y en la ficha la cuenta corriente y los remitos también en tabla. La estructura va acá
+// (Tailwind, con consultas al ancho del contenedor); el vestido de Break Point, en piel/stock-proveedores.css. Lo
+// abierto (ficha, alta, remito) va arriba de la tabla, que usa todo el ancho.
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -39,6 +44,7 @@ import {
 import { RegistrarRemito } from "./remito-del-club";
 import type { PropsDeSolapa } from "./solapas-club";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
+import "./piel/stock-proveedores.css";
 
 const tarjeta = "flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4";
 const OPCIONES_MEDIO = MEDIOS_PROVEEDOR.map((m) => ({ valor: m, etiqueta: ETIQUETA_MEDIO_PROVEEDOR[m] }));
@@ -57,25 +63,58 @@ function useTituloConFoco() {
   return titulo;
 }
 
+// ───────────── la tabla densa ─────────────
+// Angosta (menos de 48rem de contenedor): cada proveedor en dos renglones, con lo que le debemos a la derecha. Desde
+// 48rem, columnas. Cabecera y filas comparten las columnas; la cabecera es sólo visual (cada fila se dice en su botón).
+const COLUMNAS_PROVEEDORES = "@3xl:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_8.5rem_8rem_8.5rem]";
+const ancha = "hidden @3xl:block";
+const datosDe = (p: FilaProveedor) => [p.rubro, p.cuit ? `CUIT ${p.cuit}` : ""].filter(Boolean).join(" · ");
+const fraseDelProveedor = (p: FilaProveedor) => [p.nombre, datosDe(p), p.deuda > 0 ? `Le debemos ${pesos(p.deuda)}` : "Al día"].filter(Boolean).join(" — ");
+
+function CabeceraDeProveedores() {
+  return (
+    <div aria-hidden data-club-cabeza className={cn("hidden items-end gap-x-3 border-b border-line-strong px-3 pb-1.5 text-xs font-medium text-body @3xl:grid", COLUMNAS_PROVEEDORES)}>
+      <span>Proveedor</span>
+      <span>Rubro</span>
+      <span>CUIT</span>
+      <span className="text-right">Le debemos</span>
+      <span />
+    </div>
+  );
+}
+
 function FilaDelProveedor({ p, elegido, onAbrir }: { p: FilaProveedor; elegido: boolean; onAbrir: (id: string) => void }) {
+  const debe = p.deuda > 0 ? <span className="font-semibold text-strong">{pesos(p.deuda)}</span> : <span className="text-body">Al día</span>;
   return (
     <li>
       <button
         type="button"
         id={`proveedor-${p.id}`}
+        data-club-fila
+        aria-label={fraseDelProveedor(p)}
         aria-current={elegido || undefined}
         onClick={() => onAbrir(p.id)}
         className={cn(
-          "flex min-h-11 w-full flex-col gap-1 rounded-md border px-3 py-2 text-left text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3",
-          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
-          elegido ? "border-accent bg-accent-soft" : "border-line bg-surface-raised hover:border-line-strong",
+          "grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 border-b border-line px-3 py-1.5 text-left text-sm tabular-nums",
+          COLUMNAS_PROVEEDORES,
+          "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
+          elegido ? "bg-accent-soft" : "hover:bg-surface-sunken",
         )}
       >
         <span className="min-w-0">
-          <span className="block font-semibold text-strong">{p.nombre}</span>
-          <span className="block text-xs text-body">{[p.rubro, p.cuit ? `CUIT ${p.cuit}` : ""].filter(Boolean).join(" · ") || "Sin datos cargados"}</span>
+          <span className="block font-semibold text-strong @3xl:font-medium">{p.nombre}</span>
+          <span className="block text-xs text-body @3xl:hidden">{datosDe(p) || "Sin datos cargados"}</span>
         </span>
-        <span className="shrink-0 tabular-nums">{p.deuda > 0 ? <span className="font-semibold text-strong">Le debemos {pesos(p.deuda)}</span> : <span className="text-body">Al día</span>}</span>
+        <span className={cn(ancha, "min-w-0 break-words text-body")}>{p.rubro || "—"}</span>
+        <span className={cn(ancha, "whitespace-nowrap text-body")}>{p.cuit || "—"}</span>
+        <span className={cn(ancha, "text-right whitespace-nowrap")}>{debe}</span>
+        <span className={cn(ancha, "text-right")}>
+          <span data-club-editar className="inline-flex min-h-8 items-center rounded-md border border-line-strong px-2.5 text-xs font-semibold whitespace-nowrap text-strong">
+            Cuenta y pagos
+          </span>
+        </span>
+        {/* Angosta: lo que le debemos, a la derecha del nombre. */}
+        <span className="text-right whitespace-nowrap @3xl:hidden">{p.deuda > 0 ? <span className="font-semibold text-strong">Le debemos {pesos(p.deuda)}</span> : debe}</span>
       </button>
     </li>
   );
@@ -94,7 +133,7 @@ function DatosDelProveedor({ titulo, valores, boton, onGuardar, children }: { ti
       }}
     >
       <Campo label="Nombre" value={d.nombre} onChange={set("nombre")} />
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Campo label="Rubro (ej.: bebidas, cocina, insumos)" value={d.rubro} onChange={set("rubro")} />
         <Campo label="CUIT" inputMode="numeric" value={d.cuit} onChange={set("cuit")} />
         <Campo label="Teléfono" inputMode="tel" value={d.tel} onChange={set("tel")} />
@@ -117,7 +156,7 @@ function PagarAlProveedor({ almacen, f, puedePagar, hacer }: { almacen: Almacen;
   const [pin, setPin] = useState("");
   const id = `pagar-${f.id}`;
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-2 rounded-md border border-line p-3">
+    <section aria-labelledby={id} data-club-caja className="flex flex-col gap-2 rounded-md border border-line p-3">
       <h3 id={id} className="font-semibold text-strong">
         Pagar
       </h3>
@@ -156,19 +195,23 @@ function PagarAlProveedor({ almacen, f, puedePagar, hacer }: { almacen: Almacen;
 function CuentaConElProveedor({ f }: { f: VistaFichaProveedor }) {
   const id = `cuenta-${f.id}`;
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-2">
+    <section aria-labelledby={id} data-club-caja className="flex flex-col gap-2">
       <h3 id={id} className="flex flex-wrap items-baseline justify-between gap-2 font-semibold text-strong">
         Cuenta corriente <span className="tabular-nums">{f.saldo > 0 ? `Le debemos ${pesos(f.saldo)}` : "Al día"}</span>
       </h3>
       {f.movimientos.length === 0 ? (
         <p className="text-sm text-body">Sin movimientos todavía.</p>
       ) : (
-        <table className="w-full text-sm tabular-nums">
+        <table data-club-tabla="cuenta" className="w-full text-sm tabular-nums">
           <caption className="sr-only">Cuenta con {f.nombre}: remitos (suman) y pagos (restan), del más viejo al más nuevo</caption>
           <thead>
-            <tr className="border-b border-line text-left text-xs text-body">
+            <tr className="border-b border-line-strong text-left text-xs text-body">
+              <th scope="col" className="hidden py-1 pr-2 font-medium @xl:table-cell">
+                Fecha
+              </th>
               <th scope="col" className="py-1 pr-2 font-medium">
-                Concepto y cuándo
+                <span className="@xl:hidden">Concepto y cuándo</span>
+                <span className="hidden @xl:inline">Concepto</span>
               </th>
               <th scope="col" className="py-1 pr-2 text-right font-medium">
                 Importe
@@ -181,10 +224,11 @@ function CuentaConElProveedor({ f }: { f: VistaFichaProveedor }) {
           <tbody>
             {f.movimientos.map((m, i) => (
               <tr key={i} className="border-b border-line align-top last:border-b-0">
-                {/* La fecha va debajo del concepto: en el celular, el número de remito entra sin cortarse. */}
+                <td className="hidden py-1.5 pr-2 whitespace-nowrap text-body @xl:table-cell">{m.cuando}</td>
+                {/* Angosta: la fecha va debajo del concepto (en el celular, el número de remito entra sin cortarse). */}
                 <td className="py-1.5 pr-2 break-words">
                   <span className="block text-strong">{m.concepto}</span>
-                  <span className="block text-xs text-body">{m.cuando}</span>
+                  <span className="block text-xs text-body @xl:hidden">{m.cuando}</span>
                 </td>
                 <td className={cn("py-1.5 pr-2 text-right whitespace-nowrap", m.haber > 0 ? "text-success" : "text-strong")}>
                   {m.haber > 0 ? `− ${pesos(m.haber)}` : `+ ${pesos(m.debe)}`}
@@ -202,21 +246,22 @@ function CuentaConElProveedor({ f }: { f: VistaFichaProveedor }) {
 function RemitosDelProveedor({ f }: { f: VistaFichaProveedor }) {
   const id = `remitos-${f.id}`;
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-2">
+    <section aria-labelledby={id} data-club-caja className="flex flex-col gap-2">
       <h3 id={id} className="font-semibold text-strong">
         Remitos ({f.remitos.length})
       </h3>
       {f.remitos.length === 0 ? (
         <p className="text-sm text-body">Todavía no trajo nada.</p>
       ) : (
-        <ul className="flex flex-col gap-1">
+        // Los remitos como renglones de tabla: número, cuándo y total; se abren para ver lo que trajo cada uno.
+        <ul data-club-remitos className="flex flex-col border-t border-line-strong">
           {f.remitos.map((r) => (
             <li key={r.id}>
-              <details className="rounded-md border border-line px-3 text-sm">
+              <details className="border-b border-line px-2 text-sm">
                 <summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-x-3 font-medium text-strong focus-visible:outline-2 focus-visible:outline-focus">
                   <span>Remito {r.numero}</span>
                   <span className="font-normal text-body tabular-nums">
-                    {r.cuando} · {pesos(r.total)}
+                    {r.cuando} · {r.lineas.length === 1 ? "1 producto" : `${r.lineas.length} productos`} · <span className="font-semibold text-strong">{pesos(r.total)}</span>
                   </span>
                 </summary>
                 <ul className="flex flex-col gap-0.5 pb-2 tabular-nums text-strong">
@@ -248,8 +293,8 @@ function FichaDelProveedor({ almacen, proveedorId, puedePagar, onCerrar }: { alm
   if (!f) return null;
   const detalle = [f.rubro, f.cuit ? `CUIT ${f.cuit}` : "", f.tel].filter(Boolean).join(" · ");
   return (
-    <section aria-labelledby={`ficha-proveedor-${f.id}`} className={tarjeta} onKeyDown={(e) => e.key === "Escape" && onCerrar()}>
-      <header className="flex items-start justify-between gap-2">
+    <section aria-labelledby={`ficha-proveedor-${f.id}`} data-club-ficha className={cn(tarjeta, "@container")} onKeyDown={(e) => e.key === "Escape" && onCerrar()}>
+      <header data-club-ficha-cabeza className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 id={`ficha-proveedor-${f.id}`} ref={titulo} tabIndex={-1} className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
             {f.nombre}
@@ -285,8 +330,8 @@ function AltaDeProveedor({ almacen, onListo, onCerrar }: { almacen: Almacen; onL
   const hacer = useHacer(almacen);
   const titulo = useTituloConFoco();
   return (
-    <section aria-labelledby="club-alta-proveedor" className={tarjeta} onKeyDown={(e) => e.key === "Escape" && onCerrar()}>
-      <h2 id="club-alta-proveedor" ref={titulo} tabIndex={-1} className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
+    <section aria-labelledby="club-alta-proveedor" data-club-ficha className={tarjeta} onKeyDown={(e) => e.key === "Escape" && onCerrar()}>
+      <h2 data-club-ficha-cabeza id="club-alta-proveedor" ref={titulo} tabIndex={-1} className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
         Alta de proveedor
       </h2>
       <DatosDelProveedor
@@ -342,52 +387,52 @@ export default function ProveedoresDelClub({ almacen }: PropsDeSolapa) {
   if (!permisos.ver) return <RemitoDeRecepcion almacen={almacen} puedeRemito={permisos.remito} />;
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_28rem]">
-      <section aria-labelledby="club-proveedores" className="flex min-w-0 flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 data-pantalla id="club-proveedores" className="text-lg font-semibold text-strong">
-              Proveedores ({v.filas.length})
-            </h2>
-            <p className="text-sm text-strong tabular-nums">Le debemos en total {pesos(v.deudaTotal)}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button id="club-prov-remito" variant="outline" size="md" onClick={() => setPanel({ tipo: "remito" })}>
-              Registrar remito
-            </Button>
-            <Button id="club-alta-proveedor-boton" variant="solid" size="md" onClick={() => setPanel({ tipo: "alta" })}>
-              + Alta de proveedor
-            </Button>
-          </div>
+    <section aria-labelledby="club-proveedores" className="flex min-w-0 flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 data-pantalla id="club-proveedores" className="text-lg font-semibold text-strong">
+            Proveedores ({v.filas.length})
+          </h2>
+          <p className="text-sm text-strong tabular-nums">Le debemos en total {pesos(v.deudaTotal)}</p>
         </div>
-        {v.filas.length === 0 ? (
-          <p id={listaId} tabIndex={-1} className="text-sm text-body">
-            Todavía no hay proveedores. Dalos de alta para cargarles remitos.
-          </p>
-        ) : (
-          <ul id={listaId} tabIndex={-1} aria-label="Proveedores del club" className="flex flex-col gap-2 focus-visible:outline-2 focus-visible:outline-focus">
+        <div className="flex flex-wrap gap-2">
+          <Button id="club-prov-remito" variant="outline" size="md" onClick={() => setPanel({ tipo: "remito" })}>
+            Registrar remito
+          </Button>
+          <Button id="club-alta-proveedor-boton" variant="solid" size="md" onClick={() => setPanel({ tipo: "alta" })}>
+            + Alta de proveedor
+          </Button>
+        </div>
+      </div>
+
+      {/* Lo abierto va arriba de la tabla (que usa todo el ancho, como en el club de hoy), con el ancho de un formulario. */}
+      {panel && (
+        <div className="max-w-3xl">
+          {panel.tipo === "ficha" ? (
+            <FichaDelProveedor key={panel.id} almacen={almacen} proveedorId={panel.id} puedePagar={permisos.pagar} onCerrar={cerrar} />
+          ) : panel.tipo === "alta" ? (
+            <AltaDeProveedor almacen={almacen} onListo={(id) => setPanel({ tipo: "ficha", id })} onCerrar={cerrar} />
+          ) : (
+            <RegistrarRemito almacen={almacen} onListo={soltar} onCerrar={cerrar} />
+          )}
+        </div>
+      )}
+
+      {v.filas.length === 0 ? (
+        <p id={listaId} tabIndex={-1} className="text-sm text-body">
+          Todavía no hay proveedores. Dalos de alta para cargarles remitos.
+        </p>
+      ) : (
+        <div data-club-tabla="proveedores" className="@container min-w-0">
+          <CabeceraDeProveedores />
+          <ul id={listaId} tabIndex={-1} aria-label="Proveedores del club" className="flex flex-col focus-visible:outline-2 focus-visible:outline-focus">
             {v.filas.map((p) => (
               <FilaDelProveedor key={p.id} p={p} elegido={p.id === abierto} onAbrir={(id) => setPanel({ tipo: "ficha", id })} />
             ))}
           </ul>
-        )}
-        <p className="text-sm text-body">Recepción carga los remitos desde la Caja. Pagarles y ver su cuenta es de los dueños, con PIN.</p>
-      </section>
-
-      {/* En el celular lo abierto va ARRIBA de la lista; en la PC, al lado. */}
-      <div className="order-first lg:order-none lg:sticky lg:top-4 lg:self-start">
-        {panel?.tipo === "ficha" ? (
-          <FichaDelProveedor key={panel.id} almacen={almacen} proveedorId={panel.id} puedePagar={permisos.pagar} onCerrar={cerrar} />
-        ) : panel?.tipo === "alta" ? (
-          <AltaDeProveedor almacen={almacen} onListo={(id) => setPanel({ tipo: "ficha", id })} onCerrar={cerrar} />
-        ) : panel?.tipo === "remito" ? (
-          <RegistrarRemito almacen={almacen} onListo={soltar} onCerrar={cerrar} />
-        ) : (
-          <p className="hidden rounded-lg border border-dashed border-line-strong p-4 text-sm text-body lg:block">
-            Tocá un proveedor para ver su cuenta, pagarle o ver sus remitos.
-          </p>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+      <p className="text-sm text-body">Tocá un proveedor para ver su cuenta, pagarle o ver sus remitos. Recepción carga los remitos desde la Caja; pagarles y ver su cuenta es de los dueños, con PIN.</p>
+    </section>
   );
 }
