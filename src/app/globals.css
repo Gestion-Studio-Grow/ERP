@@ -667,6 +667,14 @@
 [data-estetica="breakpoint"] [data-ui="kpi"] [data-parte="etiqueta"] { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.6875rem; font-weight: 600; }
 [data-estetica="breakpoint"] [data-ui="kpi"] [data-parte="valor"] { font-stretch: 75%; font-weight: 800; font-size: 2.125rem; line-height: 1; letter-spacing: 0; }
 
+/* Arrastrar y estirar en la agenda: la manija y el borde de abajo se ven al pasar (con el dedo, siempre). */
+[data-skin="fable"] [data-agenda="manija"] { opacity: 0.55; }
+[data-skin="fable"] [data-agenda="estirar"]:hover, [data-skin="fable"] li:hover > [data-agenda="estirar"] { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+@media (hover: hover) {
+  [data-skin="fable"] [data-agenda="manija"] { opacity: 0; }
+  [data-skin="fable"] li:hover > [data-agenda="manija"], [data-skin="fable"] li:focus-within > [data-agenda="manija"] { opacity: 0.8; }
+}
+
 /* La barra: azul royal con la doble línea naranja de la chapa. */
 [data-estetica="breakpoint"] [data-casa="cabecera"] { border-bottom: 0; }
 [data-estetica="breakpoint"] [data-casa="cabecera"]::after {

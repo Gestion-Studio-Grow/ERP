@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { DIAS_ANTES, DIAS_DESPUES, armarAgenda, compartirAgenda, diasDeLaAgenda, marcaDelTurno, opcionesDelMenu, ponerLuz, senalDelTurno, vecino } from "./agenda-core";
+import { DIAS_ANTES, DIAS_DESPUES, armarAgenda, compartirAgenda, diasDeLaAgenda, marcaDelTurno, opcionesDelMenu, ponerLuz, previaArrastre, senalDelTurno, vecino } from "./agenda-core";
 import { ejecutar } from "./cuenta-core";
 
 const HOY = "2026-10-17";
@@ -194,4 +194,26 @@ test("menú rápido del turno (clic derecho): abrir la cancha si llegan hoy, cer
   M.registrarPago(e, debe.id, { medio: "efectivo", monto: M.saldo(debe) }, AHORA);
   assert.ok(opcionesDelMenu(e, debe.id, HOY).some((o) => o.accion === "cerrarCancha"));
   assert.deepEqual(opcionesDelMenu(e, "no-existe", HOY), []);
+});
+
+test("arrastrar un turno: cae en la cancha y hora de la grilla y respeta los solapes (como «Mover»); estirar de a media hora", () => {
+  const e = demo();
+  const v = armarAgenda(e, HOY, AHORA);
+  const r = e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada")!;
+  const col = v.canchas.findIndex((c) => c.id === r.canchaId);
+  const fila = Math.round((r.inicio - v.desde) / v.paso);
+  const mismo = previaArrastre(e, v, r.id, { modo: "mover", columna: col, fila })!;
+  assert.equal(mismo.ok, false, "soltarlo donde estaba no hace nada");
+  // Encima de otro turno de su misma cancha: no entra.
+  const otro = e.reservas.find((x) => x.fecha === HOY && x.canchaId === r.canchaId && x.id !== r.id && ["reservada", "en_cancha"].includes(x.estado))!;
+  const choca = previaArrastre(e, v, r.id, { modo: "mover", columna: col, fila: Math.round((otro.inicio - v.desde) / v.paso) })!;
+  assert.equal(choca.ok, false);
+  assert.ok(choca.motivo.length > 0);
+  // Fuera de la grilla, se acomoda adentro (no se cae del borde).
+  const borde = previaArrastre(e, v, r.id, { modo: "mover", columna: 99, fila: -5 })!;
+  assert.equal(borde.columna, v.canchas.length - 1);
+  assert.equal(borde.fila, 0);
+  const estira = previaArrastre(e, v, r.id, { modo: "estirar", filas: 1.4 })!;
+  assert.equal(estira.modo === "estirar" && estira.minutos, v.paso);
+  assert.equal(previaArrastre(e, v, "no-existe", { modo: "estirar", filas: 1 }), null);
 });

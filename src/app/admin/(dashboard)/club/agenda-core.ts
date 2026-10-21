@@ -25,7 +25,7 @@
 // La plata la lee del motor (`saldo`, `cuentaDelTurno`): no decide nada. El motor tiene un contador
 // de ids de módulo, así que esto corre sólo en el navegador (y en los tests), nunca en el servidor.
 
-import { ESTADOS, NOMBRE_DIA, TIPOS, alertas, cancha as canchaDe, cliente as clienteDe, cuentaDelTurno, diaSemana, hhmm, horarioDe, minutosHasta, ocupantes, pesos, saldo, sumarDias } from "@/lib/club/motor.mjs";
+import { ESTADOS, NOMBRE_DIA, TIPOS, alertas, validarHueco, cancha as canchaDe, cliente as clienteDe, cuentaDelTurno, diaSemana, hhmm, horarioDe, minutosHasta, ocupantes, pesos, saldo, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, EstadoReserva, Fecha, Reserva } from "@/lib/club/motor.mjs";
 import type { TipoMarca } from "@/components/ui/Marca";
 
@@ -355,4 +355,41 @@ export function opcionesDelMenu(estado: EstadoClub, reservaId: string, hoy: Fech
   if (r.estado === "en_cancha" && s <= 0) out.push({ accion: "cerrarCancha", texto: "Cerrar cancha" });
   out.push({ accion: "ver", texto: abierto && s > 0 ? `Cobrar · ${pesos(s)}` : "Ver turno y cargos" });
   return out;
+}
+
+// ───────────── arrastrar y estirar un turno en la grilla ─────────────
+
+export type PreviaArrastre =
+  | { modo: "mover"; canchaId: string; columna: number; fila: number; alto: number; inicio: number; ok: boolean; motivo: string }
+  | { modo: "estirar"; columna: number; fila: number; alto: number; minutos: number; ok: boolean; motivo: string };
+
+/**
+ * Dónde caería un turno arrastrado a (columna, fila) de la grilla, y si entra (el mismo control de solapes que «Mover»:
+ * `validarHueco`). Para estirar, cuántos minutos se suman (en pasos de la grilla) y si el hueco de abajo está libre
+ * (el de «Extender»). PURO.
+ */
+export function previaArrastre(
+  estado: EstadoClub,
+  vista: Pick<VistaAgenda, "canchas" | "paso" | "desde" | "filas" | "fecha">,
+  reservaId: string,
+  a: { modo: "mover"; columna: number; fila: number } | { modo: "estirar"; filas: number },
+): PreviaArrastre | null {
+  const r = estado.reservas.find((x) => x.id === reservaId);
+  if (!r || (r.estado !== "reservada" && r.estado !== "en_cancha")) return null;
+  const alto = Math.max(1, Math.round(r.duracion / vista.paso));
+  const columnaDe = vista.canchas.findIndex((c) => c.id === r.canchaId);
+  const filaDe = Math.round((r.inicio - vista.desde) / vista.paso);
+  if (a.modo === "estirar") {
+    const minutos = Math.max(0, Math.round(a.filas)) * vista.paso;
+    if (minutos === 0) return { modo: "estirar", columna: columnaDe, fila: filaDe, alto, minutos, ok: false, motivo: "" };
+    const v = validarHueco(estado, { canchaId: r.canchaId, fecha: r.fecha, inicio: r.inicio + r.duracion, duracion: minutos });
+    return { modo: "estirar", columna: columnaDe, fila: filaDe, alto: alto + minutos / vista.paso, minutos, ok: v.ok, motivo: v.ok ? "" : v.motivo };
+  }
+  const columna = Math.min(Math.max(0, a.columna), vista.canchas.length - 1);
+  const fila = Math.min(Math.max(0, a.fila), Math.max(0, vista.filas - alto));
+  const canchaId = vista.canchas[columna].id;
+  const inicio = vista.desde + fila * vista.paso;
+  const igual = canchaId === r.canchaId && inicio === r.inicio;
+  const v = igual ? { ok: false as const, motivo: "" } : validarHueco(estado, { canchaId, fecha: r.fecha, inicio, duracion: r.duracion }, r.id);
+  return { modo: "mover", canchaId, columna, fila, alto, inicio, ok: v.ok, motivo: v.ok ? "" : v.motivo };
 }

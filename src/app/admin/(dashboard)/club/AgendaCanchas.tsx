@@ -24,7 +24,8 @@
 import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Marca } from "@/components/ui/Marca";
 import { cn } from "@/components/ui/cn";
-import { armarAgenda, compartirAgenda, opcionesDelMenu, ponerLuz, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type OpcionDelMenu, type VistaAgenda } from "./agenda-core";
+import { armarAgenda, compartirAgenda, opcionesDelMenu, ponerLuz, previaArrastre, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type OpcionDelMenu, type PreviaArrastre, type VistaAgenda } from "./agenda-core";
+import { ejecutarCiclo } from "./ciclo-core";
 import { DESHACIBLE, ejecutar } from "./cuenta-core";
 import { Button } from "@/components/ui/Button";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
@@ -61,12 +62,19 @@ const BloqueTurno = memo(function BloqueTurno({
   activo,
   onAbrir,
   onMenu,
+  onArrastrar,
+  onTecla,
 }: {
   celda: CeldaTurno;
   activo: boolean;
   onAbrir: (id: string) => void;
   onMenu: (id: string, x: number, y: number) => void;
+  /** Mover (arrastrando el turno, o su manija en la tablet) o estirar (la manija de abajo). */
+  onArrastrar: (id: string, modo: "mover" | "estirar", e: React.PointerEvent) => void;
+  /** Alt + flechas mueven; Alt + Shift + ↓ estira media hora. */
+  onTecla: (id: string, e: React.KeyboardEvent) => void;
 }) {
+  const movible = celda.estado === "reservada" || celda.estado === "en_cancha";
   const largo = useRef<{ timer: ReturnType<typeof setTimeout> | null; abrio: boolean }>({ timer: null, abrio: false });
   const soltar = () => {
     if (largo.current.timer) clearTimeout(largo.current.timer);
@@ -95,8 +103,10 @@ const BloqueTurno = memo(function BloqueTurno({
           const teclado = e.clientX === 0 && e.clientY === 0;
           onMenu(celda.id, teclado ? r.left + 8 : e.clientX, teclado ? r.top + 24 : e.clientY);
         }}
+        onKeyDown={(e) => onTecla(celda.id, e)}
         onPointerDown={(e) => {
           largo.current.abrio = false;
+          if (movible && e.pointerType === "mouse" && e.button === 0) onArrastrar(celda.id, "mover", e);
           if (e.pointerType !== "touch") return;
           const { clientX: x, clientY: y } = e;
           largo.current.timer = setTimeout(() => {
@@ -107,7 +117,7 @@ const BloqueTurno = memo(function BloqueTurno({
         onPointerUp={soltar}
         onPointerLeave={soltar}
         onPointerCancel={soltar}
-        aria-label={`${celda.etiqueta}. Abrir la cuenta del turno (clic derecho: acciones rápidas)`}
+        aria-label={`${celda.etiqueta}. Abrir la cuenta del turno (clic derecho: acciones rápidas${movible ? "; Alt y flechas: moverlo; Alt, Mayúscula y flecha abajo: alargarlo" : ""})`}
         aria-current={activo ? "true" : undefined}
         className={cn(
           "flex min-h-11 w-full min-w-0 flex-col items-start gap-0.5 overflow-hidden rounded-md border px-2 py-1 text-left",
@@ -135,6 +145,28 @@ const BloqueTurno = memo(function BloqueTurno({
         {celda.senal && <span className="w-full truncate text-xs font-semibold tabular-nums text-danger">{celda.senal}</span>}
         {celda.deudor && celda.alto > 2 && <span className="w-full truncate text-xs text-danger">⚠ cuenta con deuda</span>}
       </button>
+      {movible && (
+        <>
+          {/* La manija para mover con el dedo (con el mouse se arrastra el turno entero). */}
+          <span
+            aria-hidden="true"
+            data-agenda="manija"
+            title="Arrastrá para moverlo"
+            onPointerDown={(e) => onArrastrar(celda.id, "mover", e)}
+            className="absolute right-0.5 top-0.5 z-[2] grid size-6 cursor-grab touch-none place-items-center rounded text-xs text-muted"
+          >
+            ⠿
+          </span>
+          {/* Estirar: la duración crece de a media hora, hasta donde haya lugar. */}
+          <span
+            aria-hidden="true"
+            data-agenda="estirar"
+            title="Estirá para alargar el turno"
+            onPointerDown={(e) => onArrastrar(celda.id, "estirar", e)}
+            className="absolute inset-x-2 bottom-0 z-[2] h-2 cursor-ns-resize touch-none rounded-b"
+          />
+        </>
+      )}
     </li>
   );
 });
@@ -217,6 +249,8 @@ function MenuDelTurno({ id, x, y, opciones, onElegir, onCerrar }: { id: string; 
     </div>
   );
 }
+
+const hhmmDe = (m: number) => `${String(Math.floor((((m % 1440) + 1440) % 1440) / 60)).padStart(2, "0")}:${String(((m % 60) + 60) % 60).padStart(2, "0")}`;
 
 /** El id del DOM de una celda (turno o hueco libre), para mover el foco con las flechas. */
 function idDeCelda(id: string): string {
@@ -340,6 +374,112 @@ export default function AgendaCanchas({
   const turnos = vista.turnos;
   const libres = vista.libres;
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+
+  // ── Arrastrar y estirar (pointer events: mouse, dedo y lápiz) ──
+  const grilla = useRef<HTMLDivElement>(null);
+  const [previa, setPrevia] = useState<PreviaArrastre | null>(null);
+  // La vista del momento para los oyentes del arrastre (viven fuera del render).
+  const vistaActual = useRef(vista);
+  useEffect(() => {
+    vistaActual.current = vista;
+  }, [vista]);
+  const recienArrastrado = useRef(false);
+  const hacerCiclo = useCallback(
+    (id: string, p: PreviaArrastre) => {
+      if (!p.ok) {
+        if (p.motivo) almacen.informar({ ok: false, mensaje: p.motivo });
+        return;
+      }
+      const accion = p.modo === "mover" ? { tipo: "mover" as const, canchaId: p.canchaId, inicio: p.inicio } : { tipo: "extender" as const, minutos: p.minutos };
+      almacen.ejecutar((e, ahora, auth) => ejecutarCiclo(e, id, accion, ahora, auth), { deshacible: true });
+    },
+    [almacen],
+  );
+  const onArrastrar = useCallback(
+    (id: string, modo: "mover" | "estirar", ev: React.PointerEvent) => {
+      const g = grilla.current;
+      const bloque = document.getElementById(`turno-${id}`);
+      if (!g || !bloque) return;
+      if (modo === "estirar" || ev.pointerType !== "mouse") ev.preventDefault();
+      ev.stopPropagation();
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const filaPx = FILA_REM * rem;
+      const x0 = ev.clientX;
+      const y0 = ev.clientY;
+      const agarre = Math.floor((ev.clientY - bloque.getBoundingClientRect().top) / filaPx);
+      let activo = false;
+      let ultima: PreviaArrastre | null = null;
+      const calcular = (x: number, y: number) => {
+        const v = vistaActual.current;
+        const r = g.getBoundingClientRect();
+        const colW = (r.width - 3.5 * rem) / v.canchas.length;
+        return modo === "mover"
+          ? previaArrastre(almacen.estado(), v, id, { modo: "mover", columna: Math.floor((x - r.left - 3.5 * rem) / colW), fila: Math.floor((y - r.top - 3 * rem) / filaPx) - agarre })
+          : previaArrastre(almacen.estado(), v, id, { modo: "estirar", filas: (y - y0) / filaPx });
+      };
+      const mover = (e: PointerEvent) => {
+        if (!activo && Math.hypot(e.clientX - x0, e.clientY - y0) < 6) return;
+        activo = true;
+        ultima = calcular(e.clientX, e.clientY);
+        setPrevia(ultima);
+      };
+      const terminar = (e: PointerEvent | KeyboardEvent) => {
+        window.removeEventListener("pointermove", mover);
+        window.removeEventListener("pointerup", terminar);
+        window.removeEventListener("pointercancel", terminar);
+        window.removeEventListener("keydown", cancelarConEscape);
+        setPrevia(null);
+        if (!activo) return;
+        recienArrastrado.current = true;
+        setTimeout(() => (recienArrastrado.current = false), 0);
+        if (e.type === "pointerup" && ultima) hacerCiclo(id, ultima);
+      };
+      const cancelarConEscape = (e: KeyboardEvent) => {
+        if (e.key !== "Escape") return;
+        e.preventDefault();
+        ultima = null;
+        terminar(e);
+      };
+      window.addEventListener("pointermove", mover);
+      window.addEventListener("pointerup", terminar);
+      window.addEventListener("pointercancel", terminar);
+      window.addEventListener("keydown", cancelarConEscape);
+    },
+    [almacen, hacerCiclo],
+  );
+  // La alternativa de teclado: Alt + ↑/↓ media hora antes o después, Alt + ←/→ la cancha de al lado, Alt + Mayúscula + ↓
+  // alarga media hora. El foco queda en el turno.
+  const moverConTeclado = useCallback(
+    (id: string, e: React.KeyboardEvent) => {
+      if (!e.altKey || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
+      e.preventDefault();
+      const v = vistaActual.current;
+      const r = almacen.estado().reservas.find((x) => x.id === id);
+      if (!r) return;
+      const columna = v.canchas.findIndex((c) => c.id === r.canchaId);
+      const fila = Math.round((r.inicio - v.desde) / v.paso);
+      const p =
+        e.shiftKey && e.key === "ArrowDown"
+          ? previaArrastre(almacen.estado(), v, id, { modo: "estirar", filas: 1 })
+          : previaArrastre(almacen.estado(), v, id, {
+              modo: "mover",
+              columna: columna + (e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0),
+              fila: fila + (e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0),
+            });
+      if (!p) return;
+      if (p.modo === "mover" && !p.ok && !p.motivo) return; // contra el borde: no se mueve
+      hacerCiclo(id, p);
+      requestAnimationFrame(() => document.getElementById(`turno-${id}`)?.focus());
+    },
+    [almacen, hacerCiclo],
+  );
+  const abrirSiNoSeArrastro = useCallback(
+    (id: string) => {
+      if (recienArrastrado.current) return;
+      onAbrir(id);
+    },
+    [onAbrir],
+  );
   const abrirMenu = useCallback((id: string, x: number, y: number) => setMenu({ id, x, y }), []);
   const cerrarMenu = useCallback(() => setMenu(null), []);
   const elegirDelMenu = useCallback(
@@ -357,6 +497,7 @@ export default function AgendaCanchas({
   );
   const alTeclear = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.altKey) return; // Alt + flechas mueven el turno (`moverConTeclado`)
       const dir = FLECHAS[e.key];
       const id = (e.target as HTMLElement).dataset?.celda;
       if (!dir || !id) return;
@@ -402,6 +543,7 @@ export default function AgendaCanchas({
         className="max-h-[70vh] overflow-auto overscroll-contain rounded-lg border border-line bg-surface"
       >
         <div
+          ref={grilla}
           className="relative grid text-sm"
           style={{
             gridTemplateColumns: `3.5rem repeat(${vista.canchas.length}, minmax(8.75rem, 1fr))`,
@@ -416,6 +558,22 @@ export default function AgendaCanchas({
               style={{ gridColumn: `2 / span ${vista.canchas.length}`, gridRow: `2 / span ${vista.filas}` }}
             >
               <div data-agenda="ahora" className="absolute inset-x-0 border-t-2 border-danger" style={{ top: `calc(${filaAhora} * ${FILA})` }} />
+            </div>
+          )}
+          {previa && (
+            // Dónde caería: verde si entra, rojo si choca (el motivo, para el lector, sale en el aviso al soltar).
+            <div
+              aria-hidden="true"
+              data-agenda="previa"
+              data-ok={previa.ok ? "si" : "no"}
+              className={cn(
+                "pointer-events-none z-30 m-0.5 flex items-start rounded-md border-2 border-dashed px-2 py-1 text-xs font-semibold",
+                previa.ok ? "border-success bg-success-soft text-success" : "border-danger bg-danger-soft text-danger",
+              )}
+              style={{ gridColumn: previa.columna + 2, gridRow: `${previa.fila + 2} / span ${previa.alto}` }}
+            >
+              {previa.modo === "mover" ? `${vista.canchas[previa.columna]?.nombre ?? ""} · ${hhmmDe(previa.inicio)}` : `+${previa.minutos} min`}
+              {!previa.ok && previa.motivo ? ` · ${previa.motivo}` : ""}
             </div>
           )}
           {vista.bloqueos.map((b) => (
@@ -436,7 +594,7 @@ export default function AgendaCanchas({
               className="contents"
             >
               {deLaCancha.map((t) => (
-                <BloqueTurno key={t.id} celda={t} activo={t.id === abierto} onAbrir={onAbrir} onMenu={abrirMenu} />
+                <BloqueTurno key={t.id} celda={t} activo={t.id === abierto} onAbrir={abrirSiNoSeArrastro} onMenu={abrirMenu} onArrastrar={onArrastrar} onTecla={moverConTeclado} />
               ))}
               {libresDeLaCancha.map((f) => (
                 <Franja key={f.id} franja={f} enTab={f.id === primerLibreEnTab} onReservar={onReservar} />

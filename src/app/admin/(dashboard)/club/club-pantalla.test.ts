@@ -357,6 +357,43 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.close();
   });
 
+  test("agenda interactiva: arrastrar un turno a otra cancha (con su previa), Alt+↑ lo corre media hora y la manija de abajo lo alarga", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar({ width: 1366, height: 900 });
+    // Lucas Fernández (Cancha 1, 20:30): la Cancha 2 está libre de 20:00 a 22:30.
+    const id = await page.getByRole("button", { name: /^Lucas Fernández, Cancha 1, de 20:30/ }).getAttribute("id");
+    const lucas = () => page.locator(`[id="${id}"]`);
+    await lucas().scrollIntoViewIfNeeded();
+    const b = (await lucas().boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width, b.y + 10, { steps: 4 });
+    await page.mouse.move(b.x + b.width * 1.5, b.y + 10, { steps: 4 });
+    const previa = page.locator('[data-agenda="previa"]');
+    await previa.waitFor();
+    assert.equal(await previa.getAttribute("data-ok"), "si", await previa.innerText());
+    await page.mouse.up();
+    await page.getByRole("status").filter({ hasText: /^Lucas Fernández pasó a Cancha 2, 20:30/ }).waitFor();
+    assert.equal(await previa.count(), 0);
+    // Teclado: Alt + ↑ media hora antes (20:00, libre en la Cancha 2); el foco queda en el turno.
+    await lucas().focus();
+    await page.keyboard.press("Alt+ArrowUp");
+    await page.getByRole("status").filter({ hasText: /^Lucas Fernández pasó a Cancha 2, 20:00/ }).waitFor();
+    // Estirar: la manija de abajo, una franja hacia abajo (hasta las 22:00, libre).
+    await lucas().scrollIntoViewIfNeeded();
+    const h = page.locator("li").filter({ has: lucas() }).locator('[data-agenda="estirar"]');
+    // Al centro: abajo de todo queda el aviso de lo último que se hizo (con «Deshacer»), encima de la grilla.
+    await h.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    const hb = (await h.boundingBox())!;
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + 50, { steps: 5 });
+    await page.mouse.up();
+    await page.getByRole("status").filter({ hasText: /^Extendido 30 min/ }).waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("teclado: las flechas recorren la grilla (misma cancha arriba/abajo, la de al lado con ←/→) y Enter abre la cuenta", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
