@@ -450,6 +450,35 @@ export function SoloEnElPuestoDelDuenio({ que }: { que: string }) {
 }
 
 /** `negocio`: lo que pide el PIN de quien opera cuenta en el tope del equipo (el del bloqueo). */
+/**
+ * Lo que quedó aparte en este equipo cuando otra pantalla guardó primero (almacen.apartes): se baja como respaldo y
+ * se revisa o se restaura con «Restaurar desde un archivo». Sólo en el puesto del dueño (trae los PIN).
+ */
+function LoQueQuedoAparte({ almacen }: { almacen: Almacen }) {
+  const [apartes] = useState(() => almacen.apartes());
+  if (!apartes.length) return null;
+  return (
+    <div className={cn(subtarjeta, "flex flex-col gap-2")}>
+      <h3 className="font-semibold text-strong">Lo que quedó aparte</h3>
+      <p className="text-sm text-body">
+        Otra pantalla guardó primero y estos cambios de este equipo no llegaron. Bajalos para revisarlos o restaurarlos con «Restaurar desde un archivo».
+      </p>
+      <ul className="flex flex-col gap-2">
+        {apartes.map((a) => {
+          const cuando = new Date(a.cuando).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
+          return (
+            <li key={a.cuando}>
+              <Button variant="outline" size="md" onClick={() => descargarTexto(a.texto, `club-aparte-${a.cuando}.json`)}>
+                Bajar lo del {cuando}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export function JornadaDelClub({ almacen, negocio }: { almacen: Almacen; negocio?: string }) {
   const g = useEstadoDelGuardado(almacen);
   const operador = useOperador(almacen);
@@ -496,6 +525,7 @@ export function JornadaDelClub({ almacen, negocio }: { almacen: Almacen; negocio
       </div>
       {puestoDeDuenio(almacen) ? (
         <>
+          <LoQueQuedoAparte almacen={almacen} />
           <Restaurar almacen={almacen} quien={quien} negocio={negocio} />
           <Archivar almacen={almacen} quien={quien} bytes={g.bytes} negocio={negocio} />
           {enBlanco && <EmpezarEnBlanco almacen={almacen} quien={quien} negocio={negocio} />}

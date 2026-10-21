@@ -102,8 +102,7 @@ function relojManual() {
   };
 }
 
-async function abrir() {
-  const base = baseFalsa();
+async function abrir(base = baseFalsa()) {
   const m = memoria();
   const r = relojManual();
   const enLaBase = crearGuardadoEnLaBase({ negocio: NEGOCIO, base: base.puerta, espejo: null, reloj: r.reloj, programar: r.programar, cancelar: r.cancelar });
@@ -231,4 +230,38 @@ test("al ocultar la pestaña lo pendiente sube en el acto, sin esperar los 30 s"
   await new Promise((s) => setTimeout(s, 30));
   await r.reposo();
   assert.equal(base.llamadas.guardar, tras + 1);
+});
+
+test("dos puestos sobre la misma base: después de chocar, el puesto sigue guardando (no pierde cambios en silencio) y lo que no llegó queda aparte (regresión 21/10)", async () => {
+  const A = await abrir();
+  const B = await abrir(A.base);
+  await A.r.avanzar(ESPERA_GUARDADO_MS + 1000);
+  await B.r.avanzar(ESPERA_GUARDADO_MS + 1000);
+  operarComoDuenio(A.a);
+  operarComoDuenio(B.a);
+  const fondo = () => (JSON.parse(A.base.foto()!.texto) as { estado: { caja: { fondo: number } } }).estado.caja.fondo;
+  // A guarda primero.
+  tocar(A.a, 111);
+  await A.r.avanzar(ESPERA_GUARDADO_MS + 1000);
+  await quieto(A.enLaBase, A.r);
+  assert.equal(fondo(), 111);
+  // B, armado sobre la versión vieja, choca: se recarga lo de A y lo suyo queda aparte.
+  tocar(B.a, 222);
+  await B.r.avanzar(ESPERA_GUARDADO_MS + 1000);
+  await quieto(B.enLaBase, B.r);
+  await B.r.avanzar(1000);
+  assert.equal(fondo(), 111, "lo de A no se pisa");
+  assert.equal(B.a.estado().caja.fondo, 111, "B ve lo último guardado");
+  assert.equal(B.enLaBase.estado().conflicto, false, "el choque se cierra al recargar");
+  assert.ok(B.a.apartes().some((x) => /"fondo":222/.test(x.texto)), "lo de B que no llegó quedó aparte");
+  // Y B sigue trabajando: 333 y 444 LLEGAN a la base (antes quedaban clavados hasta F5).
+  tocar(B.a, 333);
+  await B.r.avanzar(ESPERA_GUARDADO_MS + 1000);
+  await quieto(B.enLaBase, B.r);
+  assert.equal(fondo(), 333);
+  tocar(B.a, 444);
+  await B.r.avanzar(ESPERA_GUARDADO_MS + 1000);
+  await quieto(B.enLaBase, B.r);
+  assert.equal(fondo(), 444);
+  assert.equal(B.a.estado().caja.fondo, 444);
 });

@@ -342,6 +342,8 @@ export interface Almacen {
   latir(): void;
   /** Sólo la demo: corre el reloj ±minutos dentro del horario del día (los −30′/+30′ de la barra, como el club de hoy). */
   correrRelojDemo(minutos: number): void;
+  /** Lo que quedó aparte en este equipo por un choque con otra pantalla (para bajarlo como respaldo), lo más nuevo primero. */
+  apartes(): { cuando: number; texto: string }[];
   /** Corre una operación del motor sobre el estado y avisa a los suscriptos. En sólo lectura, tira. */
   aplicar<R>(accion: (estado: EstadoClub, ahora: Ahora) => R): R;
   /** Tira lo tocado y arma la demo de cero (en la jornada real no: dice que no). */
@@ -660,6 +662,30 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     version++;
     for (const o of oyentes) o();
   };
+  /** La lista de lo apartado por un choque con otra pantalla (las últimas 5, por cuándo). */
+  const CLAVE_APARTES = `${clave}:aparte`;
+  const leerApartes = (): number[] => {
+    try {
+      const l = JSON.parse(almacenamiento?.getItem(CLAVE_APARTES) ?? "[]") as unknown;
+      return Array.isArray(l) ? l.filter((x): x is number => Number.isFinite(x)) : [];
+    } catch {
+      return [];
+    }
+  };
+  /** Copia lo de acá (antes de reemplazarlo por lo de la base) en `<clave>:aparte:<ms>`. false si no hubo lugar. */
+  const apartarLoDeAca = (): boolean => {
+    if (!almacenamiento) return false;
+    const cuando = relojMs();
+    try {
+      almacenamiento.setItem(`${CLAVE_APARTES}:${cuando}`, textoParaGuardar());
+      const lista = [...leerApartes(), cuando];
+      for (const viejo of lista.slice(0, -5)) almacenamiento.removeItem(`${CLAVE_APARTES}:${viejo}`);
+      almacenamiento.setItem(CLAVE_APARTES, JSON.stringify(lista.slice(-5)));
+      return true;
+    } catch {
+      return false;
+    }
+  };
   const ponerMeta = (cambio: Partial<EstadoDelGuardado>, forzar = false) => {
     const nuevo = { ...meta, ...cambio };
     if (!forzar && nuevo.jornada === meta.jornada && nuevo.guardado === meta.guardado && nuevo.lleno === meta.lleno) {
@@ -927,6 +953,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       programarGuardado();
       return;
     }
+    // Lo de acá que no llegó a guardarse no se tira: queda aparte en este equipo (Configuración → «Lo que quedó aparte»
+    // lo baja como respaldo para restaurarlo o revisarlo).
+    const aparte = perdido && real ? apartarLoDeAca() : false;
     reemplazar(abiertoAlla.estado);
     retomo = true;
     cambios++;
@@ -935,7 +964,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       aviso = {
         id: ++idAviso,
         ok: false,
-        mensaje: "Otra pantalla guardó cambios más nuevos: se cargó lo último guardado. Revisá lo último que hiciste.",
+        mensaje: aparte
+          ? "Otra pantalla guardó cambios más nuevos: se cargó lo último guardado. Lo tuyo que no llegó quedó aparte en este equipo (Configuración → «Lo que quedó aparte»). Revisá lo último que hiciste."
+          : "Otra pantalla guardó cambios más nuevos: se cargó lo último guardado. Revisá lo último que hiciste.",
         deshacer: false,
       };
     }
@@ -1425,6 +1456,14 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       return detener;
     },
     latir,
+    apartes() {
+      return leerApartes()
+        .reverse()
+        .flatMap((cuando) => {
+          const texto = almacenamiento?.getItem(`${CLAVE_APARTES}:${cuando}`);
+          return texto ? [{ cuando, texto }] : [];
+        });
+    },
     correrRelojDemo(minutos) {
       if (real) return;
       const { abre, cierra } = horarioDe(estado, ahora.fecha);

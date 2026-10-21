@@ -642,7 +642,8 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     const agus = page.getByRole("region", { name: "Agustina Romero" });
     await agus.getByRole("button", { name: "Cancelar el turno" }).first().click();
     await agus.getByRole("status").filter({ hasText: /No pagó nada|en suspenso|crédito/ }).waitFor();
-    await agus.getByLabel(/^Cancela el club/).check();
+    // «Cancela el club» (devolver todo aunque sea tarde) es de un dueño: recepción no lo ve (21/10).
+    assert.equal(await agus.getByLabel(/^Cancela el club/).count(), 0, "recepción no puede cancelar «por el club»");
     await agus.getByRole("button", { name: "Cancelar el turno" }).last().click();
     await page.getByRole("status").filter({ hasText: /^Turno de Agustina Romero cancelado\./ }).waitFor();
     await page.getByText(/Cancelados, suspendidos y faltas de este día \(1\)/).waitFor();

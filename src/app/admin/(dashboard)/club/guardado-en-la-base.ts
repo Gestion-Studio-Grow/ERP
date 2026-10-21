@@ -77,7 +77,7 @@ export interface EstadoDelGuardado {
   subiendo: boolean;
   /** Cuándo llegó a la base lo último (ms), en esta sesión. */
   ultimaSubida: number | null;
-  /** Otra terminal guardó: hay que volver a abrir. Mientras tanto no se sube nada. */
+  /** Otra terminal guardó: hasta volver a leer de la base (`leer`, lo hace el almacén solo) no se sube nada. */
   conflicto: boolean;
   /** El último error al subir (se reintenta solo). */
   error: string | null;
@@ -279,6 +279,18 @@ export function crearGuardadoEnLaBase({
       }
       const enBase = r.foto ? { texto: await descomprimir(r.foto.gzip), version: r.foto.version, guardado: r.foto.guardado ?? -Infinity } : null;
       const versionBase = enBase?.version ?? 0;
+      // Volver a leer de la base CIERRA el choque (otra terminal guardó): lo de acá que no llegó ya lo tiene el almacén
+      // (lo aparta y avisa) y desde acá se sigue guardando sobre la versión nueva. Sin esto el marcador quedaba pegado y
+      // cada guardado nuevo volvía a chocar: el puesto perdía cambios en silencio hasta apretar F5 (21/10).
+      if (conflicto) {
+        conflicto = false;
+        error = null;
+        if (pendiente) {
+          pendiente.esperan.forEach((fn) => fn({ ok: false, motivo: "conflicto", version: versionBase }));
+          pendiente = null;
+        }
+        desprogramar();
+      }
       const guardadoBase = enBase?.guardado ?? -Infinity;
       version = versionBase;
       const localSinSubir = local && !local.meta.subido && local.meta.guardado > guardadoBase;
