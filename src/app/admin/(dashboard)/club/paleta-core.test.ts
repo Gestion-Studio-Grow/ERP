@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
-import { armarPaleta } from "./paleta-core";
+import { armarPaleta, atajosDelClub } from "./paleta-core";
 
 const HOY = "2026-10-17";
 const TODAS = [
@@ -43,4 +43,26 @@ test("los atajos de una tecla se apagan desde la paleta (WCAG 2.1.4): sin teclas
   const apagados = armarPaleta(e, { texto: "", hoy: HOY, dia: HOY, solapas: TODAS, atajos: false });
   assert.ok(apagados.every((i) => i.atajo === ""));
   assert.ok(apagados.some((i) => i.accion.tipo === "atajos" && i.accion.prender === true));
+});
+
+test("la ayuda de atajos está en la paleta (con «?» si andan los de una tecla) y se encuentra escribiendo «atajos» o «teclado»", () => {
+  const e = M.generarDemo(HOY, 19 * 60);
+  const ayuda = armarPaleta(e, { texto: "", hoy: HOY, dia: HOY, solapas: TODAS }).find((i) => i.accion.tipo === "ayudaAtajos");
+  assert.ok(ayuda, "la entrada está");
+  assert.equal(ayuda.grupo, "Ayuda");
+  assert.equal(ayuda.atajo, "?");
+  assert.equal(armarPaleta(e, { texto: "", hoy: HOY, dia: HOY, solapas: TODAS, atajos: false }).find((i) => i.accion.tipo === "ayudaAtajos")?.atajo, "");
+  for (const q of ["atajos", "teclado"]) assert.ok(armarPaleta(e, { texto: q, hoy: HOY, dia: HOY, solapas: TODAS }).some((i) => i.accion.tipo === "ayudaAtajos"), q);
+});
+
+test("la lista de atajos: la del club de hoy, con Ctrl/⌘+Z para deshacer; sin los de una tecla si están apagados", () => {
+  const todos = atajosDelClub();
+  const que = (teclas: string) => todos.find((a) => a.teclas.join("+") === teclas)?.que ?? "";
+  assert.match(que("Ctrl+Z"), /^Deshacer/);
+  assert.match(que("Ctrl+K"), /^Buscar/);
+  for (const t of ["N", "C", "T", "L", "?", "/", "Esc"]) assert.ok(que(t), t);
+  assert.match(atajosDelClub({ mac: true }).map((a) => a.teclas.join("+")).join(" "), /⌘\+Z/);
+  const apagados = atajosDelClub({ unaTecla: false });
+  assert.ok(apagados.every((a) => !a.unaTecla));
+  assert.deepEqual(apagados.map((a) => a.teclas.at(-1)), ["K", "Z", "L", "Esc"]);
 });

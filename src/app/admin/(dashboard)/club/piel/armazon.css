@@ -1,0 +1,55 @@
+/* ============================================================================
+   EL ARMAZÓN DEL CLUB EN BREAK POINT — la barra, las cintas, la bandeja y el tablero, como el club de hoy
+   (src/tenants/breakpoint/sitio/club.html, estilo «chapa»).
+   ============================================================================
+   Sólo bajo [data-estetica="breakpoint"]: otro negocio con el club no cambia. Lo importa ClubDemo.tsx (baja con el
+   club, no con todo /admin). Colores sólo por tokens (los de la «chapa», en globals.css). */
+
+/* · Montserrat 500 en el logo y en «GESTIÓN / DEL CLUB», como el vanilla (club.html:16, `.brand .w2`). La carga
+     PanelDeCasa.tsx con next/font (`--font-montserrat`, sin precarga); sin la variable, la de antes. */
+[data-estetica="breakpoint"] [data-logo="breakpoint"] [data-logo-parte="bajada"],
+[data-estetica="breakpoint"] [data-logo="breakpoint"] svg g[font-family] {
+  font-family: var(--font-montserrat, Montserrat), "Century Gothic", "Avenir Next", sans-serif;
+}
+
+/* · La barra: cada herramienta en su lugar fijo (buscador, quién opera, reloj; después el candado y el tema). Los
+     lugares no hacen caja: lo de adentro se acomoda como hijo directo de la barra. */
+[data-estetica="breakpoint"] [data-casa="lugar"] { display: contents; }
+
+/* · «N urgentes»: chip rectangular con su filo, como el `.chip` de la chapa (no una píldora). */
+[data-estetica="breakpoint"] [data-ui="bandeja"] > div > [data-ui="badge"] {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.25rem;
+}
+[data-estetica="breakpoint"] [data-ui="bandeja"] > div > [data-ui="badge"][data-tone="danger"] { border-color: currentColor; }
+
+/* · El Tablero: lo que espera el OK del dueño es una tarjeta blanca con el filo ámbar (el `.al.media` de la chapa),
+     no un bloque ámbar relleno. El rótulo, en versalitas. */
+[data-estetica="breakpoint"] [data-ui="aviso-tablero"] { border-radius: 0; border-left-width: 4px; }
+[data-estetica="breakpoint"] [data-ui="aviso-tablero"] > h3 { font-size: 0.6875rem; letter-spacing: 0.08em; }
+
+/* · La ayuda de atajos: las teclas como en la paleta. */
+[data-estetica="breakpoint"] [data-ui="atajos"] kbd { border-radius: var(--radius-sm); }
+
+/* · El celular (390 px): la barra en UN renglón (la luna no baja) y cintas + barra en ~120 px. La ficha de quien
+     opera queda en su inicial (el nombre sigue en su etiqueta), el reloj un poco más chico y menos aire entre piezas.
+     Las cintas: una línea fina cada una; sus botones se ven chicos y se tocan de 24 px o más (el ::after, WCAG 2.5.8). */
+@media (max-width: 639.98px) {
+  [data-estetica="breakpoint"] [data-casa="cabecera"] > div { flex-wrap: nowrap; column-gap: 0.25rem; padding-block: 0.375rem; }
+  [data-estetica="breakpoint"] [data-casa="cabecera"] > div > :first-child { margin-right: auto; flex-shrink: 1; }
+  [data-estetica="breakpoint"] [data-casa="herramientas"] { flex-wrap: nowrap; column-gap: 0.25rem; }
+  [data-estetica="breakpoint"] [data-logo="breakpoint"] [data-logo-parte="loseta"] { width: 40px; height: 40px; }
+  [data-estetica="breakpoint"] [data-casa="buscar"] { padding-inline: 0.625rem; }
+  [data-estetica="breakpoint"] [data-casa="ficha"] { padding-inline: 0.375rem; }
+  [data-estetica="breakpoint"] [data-casa="ficha"] [data-casa="ficha-texto"] { display: none; }
+  [data-estetica="breakpoint"] [data-casa="cabecera"] [data-casa="reloj"] { font-size: 1.25rem; }
+  [data-estetica="breakpoint"] [data-casa="cabecera"] [data-casa="hora"] [data-casa="tenue"] { display: none; }
+
+  [data-estetica="breakpoint"] [data-cinta="fina"][data-ui="cinta-demo"] { flex-wrap: nowrap; column-gap: 0.5rem; padding-block: 0.125rem; }
+  [data-estetica="breakpoint"] [data-cinta="fina"][data-ui="aviso-del-duenio"] > div { min-height: 0; flex-wrap: nowrap; column-gap: 0.5rem; padding-block: 0.25rem; font-size: 0.8125rem; }
+  [data-estetica="breakpoint"] [data-cinta="fina"][data-ui="aviso-del-duenio"] [data-cinta="boton"] { padding-block: 0; font-size: 0.75rem; white-space: nowrap; }
+}

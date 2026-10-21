@@ -66,6 +66,7 @@ import {
   verificarPaqueteArchivo,
   materializarFijos,
   secuenciaIds,
+  solicitarAcceso,
   sumarDias,
   verificarFirma,
 } from "@/lib/club/motor.mjs";
@@ -196,6 +197,11 @@ export function operadorDeLaDemo(estado: EstadoClub, rol: RolDelPanel): Operador
   const u = estado.usuarios.find((x) => x.activo !== false && x.rol === buscado && x.pin) ?? null;
   return u ? { usuario: u, auth: { usuarioId: u.id, pin: u.pin } } : null;
 }
+
+/** El nombre de quien pide acceso desde la pantalla bloqueada: hasta 60 letras. */
+export const LARGO_NOMBRE_ACCESO = 60;
+/** Cuántos pedidos de acceso pueden esperar al dueño a la vez (sin PIN no se llena el estado de pedidos). */
+export const TOPE_PEDIDOS_DE_ACCESO = 10;
 
 /** Cuánto dura «Deshacer» (como el aviso del club vanilla: 6 s). */
 export const DESHACER_MS = 6000;
@@ -422,6 +428,12 @@ export interface Almacen {
   ejecutar(accion: (estado: EstadoClub, ahora: Ahora, auth: Auth) => Desenlace, opciones?: { deshacible?: boolean }): Desenlace;
   /** Deja un aviso sin tocar el estado (un control previo de la pantalla que dijo que no). No anula «Deshacer». */
   informar(d: Desenlace): void;
+  /**
+   * «¿Sos nuevo/a? Pedí acceso» desde la pantalla bloqueada (el `pedirAcceso` del club de hoy): lo ÚNICO que se escribe
+   * sin nadie que haya entrado con su PIN. Corre sólo `solicitarAcceso` del motor (un pedido pendiente con el nombre,
+   * que un dueño otorga o rechaza en el Tablero); no da acceso a nada. Con tope de pedidos esperando y sin «Deshacer».
+   */
+  pedirAcceso(nombre: string): Desenlace;
   /** Vuelve el estado a como estaba antes de la última acción deshacible (si no venció: `deshacerVigente`). */
   deshacer(): void;
   /** ¿Hay algo para deshacer todavía? */
@@ -1615,6 +1627,34 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     informar(d) {
       aviso = { id: ++idAviso, ok: d.ok, mensaje: d.mensaje, deshacer: fotoPrevia !== null && deshacerVigente(fotoDesde, relojMs()) };
       avisar();
+    },
+    pedirAcceso(nombre) {
+      if (!puedeOperar()) return negarSoloLectura();
+      const limpio = String(nombre ?? "")
+        .replace(/[\u0000-\u001f\u007f]/g, " ")
+        .trim()
+        .slice(0, LARGO_NOMBRE_ACCESO);
+      let d: Desenlace;
+      if (estado.solicitudesAcceso.filter((s) => s.estado === "pendiente").length >= TOPE_PEDIDOS_DE_ACCESO) {
+        d = { ok: false, mensaje: "Ya hay varios pedidos de acceso esperando al dueño: avisale para que los resuelva." };
+      } else {
+        try {
+          const r = solicitarAcceso(estado, limpio, ahora);
+          d = r.ok ? { ok: true, mensaje: "Listo: el pedido le llegó al dueño. Cuando lo apruebe te da el PIN." } : { ok: false, mensaje: r.motivo };
+        } catch {
+          d = { ok: false, mensaje: "No se pudo pedir el acceso. Probá de nuevo." };
+        }
+      }
+      aviso = { id: ++idAviso, ok: d.ok, mensaje: d.mensaje, deshacer: false };
+      if (!d.ok) {
+        avisar();
+        return d;
+      }
+      // Lo de antes ya no se deshace (el estado cambió debajo de la foto).
+      fotoPrevia = null;
+      fotoDesde = null;
+      cambio();
+      return d;
     },
     puedeDeshacer: () => fotoPrevia !== null && deshacerVigente(fotoDesde, relojMs()),
     olvidarDeshacer: () => soltarFoto(),

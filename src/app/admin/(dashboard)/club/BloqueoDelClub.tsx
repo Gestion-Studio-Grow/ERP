@@ -27,10 +27,11 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { LARGO_PIN, LARGO_PIN_VIEJO, ROLES, largoPin, pinDesactualizado } from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Field";
 import { Hoja } from "@/components/ui/Hoja";
 import { cn } from "@/components/ui/cn";
 import EnLaCabecera from "./EnLaCabecera";
-import type { Almacen, JornadaDelClub } from "./almacen";
+import { LARGO_NOMBRE_ACCESO, type Almacen, type JornadaDelClub } from "./almacen";
 import {
   REVISAR_INACTIVIDAD_MS,
   anotarCambioDePin,
@@ -362,6 +363,70 @@ function PasoPinNuevo({
   );
 }
 
+// ───────────── «¿Sos nuevo/a? Pedí acceso» ─────────────
+
+/**
+ * Desde la pantalla bloqueada, quien todavía no tiene PIN pide acceso con su nombre (el `pedirAcceso` del club de hoy,
+ * club.html). Le llega al dueño en el Tablero («Novedades para autorizar»: dar acceso con el rol, o rechazar), que le
+ * arma el PIN. Pedirlo no da acceso a nada: es lo único que se escribe sin PIN (`almacen.pedirAcceso`).
+ * El resultado se anuncia adentro del bloqueo (los avisos del club quedan detrás del modal).
+ */
+function PedirAcceso({ almacen }: { almacen: Almacen }) {
+  const ids = useId();
+  const [nombre, setNombre] = useState("");
+  const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null);
+  const enfocar = () => document.getElementById(`${ids}-n`)?.focus();
+  const pedir = () => {
+    if (!nombre.trim()) {
+      setResultado({ ok: false, mensaje: "Escribí tu nombre." });
+      enfocar();
+      return;
+    }
+    const d = almacen.pedirAcceso(nombre);
+    setResultado(d);
+    if (d.ok) setNombre("");
+    else enfocar();
+  };
+  return (
+    <details data-ui="pedir-acceso" className="rounded-md border border-line bg-surface-raised text-sm">
+      <summary className="flex min-h-11 cursor-pointer items-center rounded-md px-3 font-semibold text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+        ¿Sos nuevo/a? Pedí acceso
+      </summary>
+      <form
+        className="flex flex-col gap-2 px-3 pb-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          pedir();
+        }}
+      >
+        <label htmlFor={`${ids}-n`} className="font-semibold text-strong">
+          Tu nombre
+        </label>
+        <div className="flex gap-2">
+          <Input
+            id={`${ids}-n`}
+            autoComplete="off"
+            maxLength={LARGO_NOMBRE_ACCESO}
+            value={nombre}
+            aria-describedby={`${ids}-q ${ids}-r`}
+            aria-invalid={resultado && !resultado.ok ? true : undefined}
+            onChange={(e) => setNombre(e.target.value)}
+          />
+          <Button type="submit" variant="outline" size="md" className="shrink-0">
+            Pedir acceso
+          </Button>
+        </div>
+        <p id={`${ids}-q`} className="text-muted">
+          Le llega al dueño; cuando lo aprueba te da un PIN.
+        </p>
+        <p id={`${ids}-r`} role={resultado && !resultado.ok ? "alert" : "status"} className={cn("min-h-5", resultado?.ok ? "font-semibold text-success" : "font-semibold text-danger")}>
+          {resultado?.mensaje ?? ""}
+        </p>
+      </form>
+    </details>
+  );
+}
+
 // ───────────── la pantalla bloqueada ─────────────
 
 function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almacen; datos: DatosDelBloqueo; guarda: GuardaDelBloqueo; jornada: JornadaDelClub }) {
@@ -553,6 +618,7 @@ function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almac
           </Button>
         )}
         {!cambio && conLista && !sinNadie && <AvisoDelPin id={aviso} anuncio={anuncio} segundos={segundos} error={error} />}
+        {!cambio && jornada !== "abriendo" && <PedirAcceso almacen={almacen} />}
       </div>
     </dialog>
   );
@@ -633,12 +699,12 @@ function CambioDeUsuario({ almacen, datos, guarda, onCerrar }: { almacen: Almace
  */
 function BarraDelOperador({ nombre, rol, onCambiar }: { nombre: string; rol: string; onCambiar: () => void }) {
   return (
-    <EnLaCabecera fuera={<BarraDelOperadorEnLinea nombre={nombre} rol={rol} onCambiar={onCambiar} />}>
+    <EnLaCabecera en="casa-ficha" fuera={<BarraDelOperadorEnLinea nombre={nombre} rol={rol} onCambiar={onCambiar} />}>
       <button type="button" data-casa="ficha" onClick={onCambiar} aria-label={`Opera: ${nombre}, ${rol}. Cambiar de usuario`} className="inline-flex min-h-11 items-center gap-2 rounded-md px-2 py-1 text-left">
         <span aria-hidden="true" data-casa="inicial" className="grid size-8 shrink-0 place-items-center rounded-sm text-sm font-bold">
           {nombre.trim().charAt(0).toUpperCase()}
         </span>
-        <span className="flex min-w-0 flex-col leading-tight">
+        <span data-casa="ficha-texto" className="flex min-w-0 flex-col leading-tight">
           <span className="truncate text-sm font-bold">{nombre}</span>
           <span data-casa="tenue" className="text-xs">{rol}</span>
         </span>

@@ -152,6 +152,7 @@ describe("Studio de redes y cámaras de la demo en el navegador", { timeout: 240
       return;
     }
     const r = await esbuild.build({
+      loader: { ".css": "empty" }, // la piel (piel/*.css) entra por el CSS de la página, no por el paquete
       stdin: { contents: ENTRADA, loader: "tsx", resolveDir: RAIZ },
       bundle: true,
       write: false,
