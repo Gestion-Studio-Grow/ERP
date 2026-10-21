@@ -35,6 +35,8 @@ const ESCRITORES_PERMITIDOS: Record<string, string> = {
     "el QA de Facturación a escala, SÓLO contra su base efímera local (crearBaseEfimera se niega a un servidor que no sea local): prende el diseño nuevo para recorrerlo",
   "src/tenants/ch/e2e/uat-ch.e2e.mjs":
     "el UAT de CH (npm run test:ch-uat), SÓLO contra su base efímera local (crearBaseEfimera): prende la agenda práctica para recorrerla",
+  "src/tenants/magra/e2e/mostrador.e2e.mjs":
+    "el recorrido del mostrador de MAGRA (npm run test:mostrador-e2e), SÓLO contra su base efímera local (crearBaseEfimera): prende el diseño nuevo para recorrer «Cobrar en el mostrador»",
 };
 
 /** Quién puede importar la escritura real. */

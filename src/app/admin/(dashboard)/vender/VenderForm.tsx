@@ -265,6 +265,11 @@ type PropsDeVender = {
   aCuentaDisponible?: boolean;
   /** ¿Se ofrece «Facturar» en la venta recién cobrada? (billing:manage y la app Facturación). */
   puedeFacturar?: boolean;
+  /**
+   * Lo que se dice de la factura debajo de la venta cobrada: a quién sale por defecto, o por qué no
+   * se ofrece «Facturar» (factura-del-mostrador.ts). Sin esto, como siempre.
+   */
+  factura?: { receptor: string; sinFactura: string | null };
   /** Tope del precio a mano de quien vende (null = sin tope). La misma regla que el servidor. */
   topePrecioAMano?: TopePrecioAMano | null;
   /** El negocio (su id): separa en el almacén de la pestaña el cobro sin confirmar de cada uno. */
@@ -315,6 +320,7 @@ function FormularioVender({
   pedidoInicial = false,
   aCuentaDisponible = false,
   puedeFacturar = false,
+  factura,
   topePrecioAMano = null,
   negocioId = "",
   usuarioId = "",
@@ -1075,6 +1081,11 @@ function FormularioVender({
             </button>
           </div>
           {puedeFacturar && <FacturarVenta key={ultima.venta.id} orderId={ultima.venta.id} inicial={SIN_FACTURA} />}
+          {factura && !ultima.venta.anulada && (
+            <p data-vender="factura" className="text-xs text-muted">
+              {puedeFacturar ? factura.receptor : factura.sinFactura}
+            </p>
+          )}
           <TicketVenta venta={ultima.venta} negocio={negocio} pagoCon={ultima.pagoCon} terminal={terminal} imprimirAlCobrar />
         </section>
       )}
@@ -1169,8 +1180,8 @@ function FormularioVender({
           {manualesLeidas.map((m) => (
             <fieldset key={m.key} className="rounded-md border border-dashed border-line-strong p-2 space-y-2">
               <legend className="px-1 text-xs text-muted">Precio a mano · no descuenta stock</legend>
-              <div className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[1fr_128px_auto]">
-                <label className="col-span-2 sm:col-span-1">
+              <div className="grid grid-cols-[1fr_auto] gap-2 @md:grid-cols-[1fr_128px_auto]">
+                <label className="col-span-2 @md:col-span-1">
                   <span className="sr-only">Qué se vende</span>
                   <Input
                     id={`manual-nombre-${m.key}`}
@@ -1200,7 +1211,7 @@ function FormularioVender({
                 >
                   ×
                 </button>
-                <label className="col-span-2 sm:col-span-3">
+                <label className="col-span-2 @md:col-span-3">
                   <span className="sr-only">Motivo</span>
                   <Input
                     value={m.motivo}
@@ -1733,7 +1744,7 @@ function FormularioVender({
         {bloqueConfirmacion}
         <form ref={formulario} action={submit} data-vender="formulario" className="grid gap-6">
           <input type="hidden" name="channel" value={isOrder ? "ONLINE" : "COUNTER"} />
-          <div data-vender="elegir" className="min-w-0 space-y-4">
+          <div data-vender="elegir" className="@container min-w-0 space-y-4">
             <BuscadorCombo
               id="vender-buscar"
               ariaLabel={buscarQue}
@@ -2041,7 +2052,7 @@ function FormularioVender({
                 «Precio a mano · Descuento · Cliente». La clase queda literal: la mide
                 pie-pegado-zona-segura.test.ts. */}
             <div
-              data-vender="cobrar" className="sticky bottom-[var(--alto-barra-inferior,0px)] z-10 space-y-3"
+              data-vender="cobrar" className="sticky bottom-[var(--alto-barra-inferior,0px)] z-20 space-y-3"
               data-fijo={conProducto.length > 0 || manuales.length > 0 ? "" : undefined}
             >
               {bloqueAviso}
@@ -2066,9 +2077,19 @@ function FormularioVender({
 
       {bloqueDudas}
 
-      <form ref={formulario} action={submit} className="rounded-lg border border-line p-3 sm:p-4 space-y-4">
+      {/* Dos columnas desde 1024 px (tablet horizontal, terminal, PC): a la izquierda qué se vende
+          (tipo, más vendidos, etiqueta, balanza y renglones); a la derecha, fija al desplazar, el
+          cobro (cliente, descuento, medio, vuelto, total y «Cobrar»). Abajo de 1024, una columna con
+          el cobro fijo abajo: el total y «Cobrar» siempre a la vista, sin desplazar. */}
+      <form
+        ref={formulario}
+        action={submit}
+        data-vender="mostrador"
+        className="space-y-4 rounded-lg border border-line p-3 sm:p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)] lg:items-start lg:gap-x-6 lg:space-y-0"
+      >
         <input type="hidden" name="channel" value={isOrder ? "ONLINE" : "COUNTER"} />
 
+        <div data-vender="elegir" className="@container min-w-0 space-y-4">
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Qué se registra">
           <button
             type="button"
@@ -2101,7 +2122,7 @@ function FormularioVender({
         {botonesRapidos.length > 0 && (
           <div>
             <p className="mb-2 text-xs text-muted">{rotuloRapidos}</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 @md:grid-cols-4">
               {botonesRapidos.map((p) => (
                 <button
                   key={p.id}
@@ -2129,8 +2150,8 @@ function FormularioVender({
             // reintento y se puede quitar (y entonces ya no es la misma venta).
             if (!p && huerfana(l.productId)) {
               return (
-                <div key={l.key} className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_128px_auto]">
-                  <p className="col-span-2 sm:col-span-1 text-sm text-strong">
+                <div key={l.key} className="grid grid-cols-[1fr_auto] items-center gap-2 @md:grid-cols-[1fr_128px_auto]">
+                  <p className="col-span-2 @md:col-span-1 text-sm text-strong">
                     {nombresDeLaDuda[l.productId] ?? "Un producto"}{" "}
                     <span className="text-xs text-warning">· ya no está en el catálogo (va igual en el reintento)</span>
                   </p>
@@ -2162,9 +2183,9 @@ function FormularioVender({
             const avisoStock = faltante && !faltante.bloquea ? faltante.aviso : null;
             const confirmar = confirmacionDe(l);
             return (
-              <div key={l.key} className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_128px_auto]">
+              <div key={l.key} className="grid grid-cols-[1fr_auto] items-center gap-2 @md:grid-cols-[1fr_128px_auto]">
                 <BuscadorCombo
-                  className="col-span-2 sm:col-span-1"
+                  className="col-span-2 @md:col-span-1"
                   id={`prod-${l.key}`}
                   ariaLabel="Producto"
                   placeholder="Buscá el producto…"
@@ -2220,7 +2241,7 @@ function FormularioVender({
                 </div>
                 {confirmar && (
                   <ConfirmarPeso
-                    className="col-span-2 sm:col-span-3"
+                    className="col-span-2 @md:col-span-3"
                     confirmacion={confirmar}
                     pendiente={sinConfirmar(l)}
                     alConfirmar={() => setPesosConfirmados((c) => ({ ...c, [l.key]: l.qty }))}
@@ -2228,29 +2249,29 @@ function FormularioVender({
                   />
                 )}
                 {l.invalida && (
-                  <p role="alert" className="col-span-2 sm:col-span-3 text-xs text-danger">
+                  <p role="alert" className="col-span-2 @md:col-span-3 text-xs text-danger">
                     Eso no es una cantidad. Escribí el {esPeso ? "peso" : "número"}, con coma si
                     {esPeso ? " tiene gramos (1,240)" : " hace falta"}.
                   </p>
                 )}
                 {faltaEnDuda && (
-                  <p role="status" className="col-span-2 sm:col-span-3 text-xs text-warning">
+                  <p role="status" className="col-span-2 @md:col-span-3 text-xs text-warning">
                     Quedan {formatearCantidad(faltaEnDuda.available)} {esPeso ? "kg" : "u"} de {p?.name}, pero puede ser porque
                     esta misma venta ya se grabó: el reintento lo controla el sistema.
                   </p>
                 )}
                 {falta && (
-                  <p role="alert" className="col-span-2 sm:col-span-3 text-xs text-danger">
+                  <p role="alert" className="col-span-2 @md:col-span-3 text-xs text-danger">
                     No alcanza el stock: quedan {formatearCantidad(falta.available)} {esPeso ? "kg" : "u"} de {p?.name}.
                   </p>
                 )}
                 {avisoStock && (
-                  <p role="status" className="col-span-2 sm:col-span-3 text-xs text-warning">
+                  <p role="status" className="col-span-2 @md:col-span-3 text-xs text-warning">
                     {avisoStock}
                   </p>
                 )}
                 {esPeso && p && (
-                  <div data-vender="teclado-de-peso" className="col-span-2 sm:col-span-3 grid gap-2">
+                  <div data-vender="teclado-de-peso" className="col-span-2 @md:col-span-3 grid gap-2">
                     <button
                       type="button"
                       className="chip-btn h-11 justify-self-start text-sm"
@@ -2294,12 +2315,17 @@ function FormularioVender({
           </div>
         </div>
 
+        </div>
+
+        {/* Hasta lg la columna no existe (`contents`): sus hijos quedan sueltos en el formulario y la
+            barra de cobro se pega abajo a lo largo de todo el formulario, no sólo al final. */}
+        <div data-vender="cobro" className="contents lg:block lg:min-w-0 lg:space-y-4 lg:sticky lg:top-20 lg:rounded-lg lg:border lg:border-line lg:p-4">
         {bloqueCliente}
 
         {bloqueDescuento}
 
         {/* Cobro */}
-        <div className="space-y-3 border-t border-line pt-4">
+        <div className="space-y-3 border-t border-line pt-4 lg:border-t-0 lg:pt-0">
           <label className="flex min-h-11 w-fit items-center gap-2 text-sm">
             <input
               key={isOrder ? "cobrado-pedido" : "cobrado-venta"}
@@ -2311,8 +2337,6 @@ function FormularioVender({
             />
             <span className="text-body">Cobrado</span>
           </label>
-          {bloqueMedios}
-          {bloqueVuelto}
         </div>
 
         {/* Opcionales cerrados: se abren sólo si hacen falta. */}
@@ -2346,7 +2370,14 @@ function FormularioVender({
             bottom-0 quedaba debajo y tocar «Cobrar» abría la hoja de «Mostrador». La zona segura
             del iPhone (la rayita de abajo) se deja UNA vez: si hay barra, ya viene en su alto y el
             pie no la vuelve a sumar; si no hay, la deja el pie (pie-pegado-zona-segura.test.ts). */}
-        <div className="sticky bottom-[var(--alto-barra-inferior,0px)] z-10 -mx-3 -mb-3 space-y-3 rounded-b-lg border-t border-line bg-surface px-3 pt-3 pb-[max(0.75rem,calc(env(safe-area-inset-bottom)_-_var(--alto-barra-inferior,0px)))] shadow-[0_-6px_16px_-10px_rgba(0,0,0,0.25)] sm:static sm:z-auto sm:mx-0 sm:mb-0 sm:rounded-none sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-4 sm:shadow-none">
+        <div
+          data-fijo={leidas.some((l) => l.productId) || manualesLeidas.length > 0 ? "" : undefined}
+          className="sticky bottom-[var(--alto-barra-inferior,0px)] z-20 -mx-3 -mb-3 space-y-3 rounded-b-lg border-t border-line bg-surface px-3 pt-3 pb-[max(0.75rem,calc(env(safe-area-inset-bottom)_-_var(--alto-barra-inferior,0px)))] shadow-[0_-6px_16px_-10px_rgba(0,0,0,0.25)] sm:-mx-4 sm:-mb-4 sm:px-4 lg:static lg:z-auto lg:mx-0 lg:mb-0 lg:rounded-none lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-4 lg:shadow-none not-data-fijo:static not-data-fijo:shadow-none">
+          {/* El medio y el vuelto van en la barra: elegir cómo pagó y cobrar, sin desplazar. Con la
+              venta vacía no se fija (`data-fijo`): no hay nada que cobrar y en un celular de 5"
+              tapaba el buscador, que es el primer paso. */}
+          {bloqueMedios}
+          {bloqueVuelto}
           {bloqueAviso}
           {/* El mismo pie de siempre (total arriba y botón a lo ancho en el celular; en fila desde
               sm): lo único nuevo es que en el celular queda fijo. */}
@@ -2368,6 +2399,7 @@ function FormularioVender({
               pendiente={isOrder ? "Registrando…" : "Cobrando…"}
             />
           </div>
+        </div>
         </div>
       </form>
     </div>

@@ -30,7 +30,7 @@ const correr = (args, env) =>
     ),
   );
 
-export async function levantarEntorno({ log = console.log } = {}) {
+export async function levantarEntorno({ log = console.log, env: envExtra = {} } = {}) {
   if (!existsSync(path.join(RAIZ, ".next/BUILD_ID"))) {
     throw new Error("Falta el build de producción: corré `npm run build` antes del recorrido.");
   }
@@ -47,6 +47,9 @@ export async function levantarEntorno({ log = console.log } = {}) {
     const env = { ...process.env };
     for (const v of ["FORCE_TENANT_SLUG", "TENANT_HOST_MAP", "DEMO_MODE_ENABLED"]) delete env[v];
     Object.assign(env, {
+      // Lo que pida el recorrido (p. ej. ARCA_INVOICING_ENABLED para facturar en homologación). Va
+      // primero: la base, el rol y el RLS de abajo no se pueden pisar.
+      ...envExtra,
       NODE_ENV: "production",
       DATABASE_URL: base.urlApp,
       OPERATOR_DATABASE_URL: base.urlApp,

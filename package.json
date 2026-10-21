@@ -30,6 +30,7 @@
     "test:club-uat": "node --import tsx src/tenants/breakpoint/turnero/e2e/uat-b.e2e.mjs",
     "test:magra-uat": "node --import tsx src/tenants/magra/e2e/uat-magra.e2e.mjs",
     "test:balanza-e2e": "node --import tsx src/tenants/magra/e2e/balanza.e2e.mjs",
+    "test:mostrador-e2e": "node --import tsx src/tenants/magra/e2e/mostrador.e2e.mjs",
     "test:ch-uat": "node --import tsx src/tenants/ch/e2e/uat-ch.e2e.mjs",
     "test:club-torneo": "node --import tsx src/tenants/breakpoint/turnero/e2e/uat-torneo.e2e.mjs",
     "test:club-paridad": "node --import tsx \"src/app/admin/(dashboard)/club/uat-paridad.e2e.ts\"",

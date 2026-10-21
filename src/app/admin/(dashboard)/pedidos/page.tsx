@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { getPosData } from "@/lib/order-actions";
-import { balanzaDeVender } from "../vender/balanza.server";
 import { fmtMoneyARS, EmptyState, ButtonLink, buttonClasses, atributosBoton } from "@/components/ui";
 import { fmtShortDate, todayInBusinessTz, dateStrInBusinessTz } from "@/lib/datetime";
 import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
 import { posEmptyState } from "@/lib/stock/pos-stock-rules";
 import MostradorTabs from "./MostradorTabs";
+import MostradorDeVenta from "../vender/MostradorDeVenta";
 import MostradorEnCajon from "./MostradorEnCajon";
 import CobrarPedidoForm from "./CobrarPedidoForm";
 import EntregarPedidoForm from "./EntregarPedidoForm";
@@ -70,6 +70,8 @@ const ENTREGADO_A_COBRAR: Estado = { label: "Entregado · a cobrar", badge: "bg-
 
 const EN_CURSO: ReadonlySet<string> = new Set(ESTADOS_EN_CURSO);
 
+export const metadata = { title: "Pedidos", generator: "Gestión Studio Grow" };
+
 export default async function PedidosPage() {
   // La guardia de la app (rol, módulo pos): esconderla del menú no la protegería. getPosData
   // vuelve a pedir orders:read, como siempre.
@@ -104,28 +106,15 @@ export default async function PedidosPage() {
     ? <AvisoDePedidosNuevos pedidosWeb={abiertos.filter((o) => o.channel === "ONLINE").map((o) => ({ id: o.id, code: o.code }))} />
     : null;
 
-  // La etiqueta de la balanza en el POS de esta pantalla (el que usa MAGRA desde el celular): la
-  // misma regla que en Vender (vender/balanza.server.ts), sólo en comercio y con el POS a la vista.
-  // Los códigos viajan al navegador sólo si hay balanza configurada.
-  let productosDelPos: typeof products & { codigo?: string | null }[] = products;
-  let balanza: Awaited<ReturnType<typeof balanzaDeVender>> = null;
-  const negocioId = comercio && !modeloNuevo ? await getCurrentTenantId() : "";
-  if (comercio && !modeloNuevo && products.length > 0) {
-    const tenantId = negocioId;
-    const codigos = await prisma.product.findMany({
-      where: { tenantId, id: { in: products.map((p) => p.id) } },
-      select: { id: true, codigo: true },
-    });
-    const codigoDe = new Map(codigos.map((c) => [c.id, c.codigo]));
-    const conCodigo = products.map((p) => ({ ...p, codigo: codigoDe.get(p.id) ?? null }));
-    balanza = await balanzaDeVender(tenantId, conCodigo, user.role);
-    if (balanza) productosDelPos = conCodigo;
-  }
-
   // Los servicios del mostrador crean un TURNO, así que se ofrecen sólo a quien puede
   // gestionar agenda (OWNER y RECEPCIÓN), y sólo en un negocio de servicios: en un comercio la
   // solapa «Servicios» era un callejón.
   const professionals = puedeAgenda && !comercio ? await getProfessionalsWithServices() : [];
+  // UN SOLO MOSTRADOR: en un comercio la venta de mostrador de esta pantalla es la MISMA que Vender
+  // (MostradorDeVenta: vuelto, factura, etiqueta y balanza, cobro fijo a la vista). CH (servicios)
+  // sigue con su formulario de siempre hasta que el dueño apruebe pasarla.
+  const mostradorDeComercio =
+    comercio && !modeloNuevo && !nuevo ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} /> : undefined;
   const empty =
     stockSnap && products.length === 0
       ? posEmptyState({ activeProducts: stockSnap.activeProducts, canManageCatalog: stockSnap.canManageCatalog })
@@ -249,16 +238,21 @@ export default async function PedidosPage() {
           )}
           {/* Sin «Trabaja por apps» (CH) el mostrador vive acá: el MISMO formulario de siempre, en
               un cajón que se abre con su tecla, para que la pantalla sea la bandeja. */}
-          {!modeloNuevo && (
-            <MostradorEnCajon servicios={!comercio}>
+          {/* En un comercio, el mostrador es Vender a pantalla completa: dentro del cajón (30rem) sus
+              dos columnas, que miden la pantalla, se pisaban desde 1024 px. */}
+          {!modeloNuevo && comercio && (
+            <Link href="/admin/vender" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")}>
+              Cobrar en el mostrador
+            </Link>
+          )}
+          {!modeloNuevo && !comercio && (
+            <MostradorEnCajon servicios>
               <MostradorTabs
                 viewer={{ role: user.role, professionalId: user.professionalId }}
-                products={productosDelPos}
-                balanza={balanza}
-                negocioId={comercio ? negocioId : undefined}
+                products={products}
                 stockById={stockSnap?.stockById ?? {}}
                 professionals={professionals}
-                conServicios={!comercio}
+                conServicios
                 productosBloqueados={
                   empty ? (
                     <EmptyState
@@ -357,14 +351,13 @@ export default async function PedidosPage() {
 
           <MostradorTabs
             viewer={{ role: user.role, professionalId: user.professionalId }}
-            products={productosDelPos}
-            balanza={balanza}
-            negocioId={comercio ? negocioId : undefined}
+            products={mostradorDeComercio ? [] : products}
             stockById={stockSnap?.stockById ?? {}}
             professionals={professionals}
             conServicios={!comercio}
+            formProductos={mostradorDeComercio}
             productosBloqueados={
-              empty ? (
+              !mostradorDeComercio && empty ? (
                 <EmptyState
                   title={empty.title}
                   description={empty.description}

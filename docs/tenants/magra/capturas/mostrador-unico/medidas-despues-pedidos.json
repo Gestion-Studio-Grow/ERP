@@ -1,0 +1,146 @@
+[
+ {
+  "esquema": "light",
+  "nombre": "pos-5in",
+  "w": 360,
+  "h": 640,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "light",
+  "nombre": "cel",
+  "w": 390,
+  "h": 844,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "light",
+  "nombre": "pos-8in",
+  "w": 600,
+  "h": 960,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "light",
+  "nombre": "tablet-v",
+  "w": 768,
+  "h": 1024,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "light",
+  "nombre": "tablet-820",
+  "w": 820,
+  "h": 1180,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "light",
+  "nombre": "tablet-h",
+  "w": 1024,
+  "h": 768,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "light",
+  "nombre": "term-1280",
+  "w": 1280,
+  "h": 800,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "light",
+  "nombre": "term-1366",
+  "w": 1366,
+  "h": 768,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "light",
+  "nombre": "pc-1920",
+  "w": 1920,
+  "h": 1080,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "dark",
+  "nombre": "pos-5in",
+  "w": 360,
+  "h": 640,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "dark",
+  "nombre": "cel",
+  "w": 390,
+  "h": 844,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "dark",
+  "nombre": "pos-8in",
+  "w": 600,
+  "h": 960,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "dark",
+  "nombre": "tablet-v",
+  "w": 768,
+  "h": 1024,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "dark",
+  "nombre": "tablet-820",
+  "w": 820,
+  "h": 1180,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "dark",
+  "nombre": "tablet-h",
+  "w": 1024,
+  "h": 768,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "dark",
+  "nombre": "term-1280",
+  "w": 1280,
+  "h": 800,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "dark",
+  "nombre": "term-1366",
+  "w": 1366,
+  "h": 768,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ },
+ {
+  "esquema": "dark",
+  "nombre": "pc-1920",
+  "w": 1920,
+  "h": 1080,
+  "cobrarVisibleSinScroll": true,
+  "desbordeHorizontal": 0
+ }
+]

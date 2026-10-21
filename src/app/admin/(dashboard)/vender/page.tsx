@@ -1,28 +1,18 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
-import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
-import { puedeAbrirApp } from "./puede-abrir";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { todayInBusinessTz } from "@/lib/datetime";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
-import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
-import { posEmptyState } from "@/lib/stock/pos-stock-rules";
 import { getProfessionalsWithServices } from "@/lib/actions";
-import { ButtonLink, PageContainer, PageHeader, buttonClasses } from "@/components/ui";
+import { PageContainer, PageHeader, buttonClasses } from "@/components/ui";
 import MostradorTabs from "../pedidos/MostradorTabs";
-import VenderForm from "./VenderForm";
-import { cargarVender } from "./datos";
-import { terminalDelEquipo } from "@/lib/terminal/terminal.server";
-import { teclasDelMostrador, topeDeDescuento, topeDePrecioAMano } from "./reglas-venta";
+import MostradorDeVenta from "./MostradorDeVenta";
 import { Suspense } from "react";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
-import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { cargarKpi } from "@/apps/kpis/index.server";
 import { LineaDeEstado } from "@/components/ui";
 import type { Role } from "@/lib/capabilities";
 import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
-import { balanzaDeVender } from "./balanza.server";
 
 
 /**
@@ -61,93 +51,21 @@ export const dynamic = "force-dynamic";
 // En CH la solapa de /admin/pedidos queda igual hasta que el dueño apruebe el modelo nuevo:
 // esta pantalla existe para todos, pero sólo se ofrece desde el Inicio por apps. La guardia es
 // `requireApp("vender")` (rol, módulo pos, rubro): esconder la app no la protegería.
+export const metadata = { title: "Vender", generator: "Gestión Studio Grow" };
+
 export default async function VenderPage({ searchParams }: { searchParams: Promise<{ modo?: string | string[] }> }) {
   const user = await requireApp("vender");
   const { modo } = await searchParams;
   const tenantId = await getCurrentTenantId();
-  const [datos, stockSnap, identidad, puedeCuentas, puedeFacturar, nuevo, rubro, terminal] = await Promise.all([
-    cargarVender(tenantId, todayInBusinessTz()),
-    getPosStockSnapshot(),
-    getTenantIdentity(),
-    // «A cuenta» y «Facturar» se ofrecen con la MISMA regla que exige su action: la app de
-    // Cuentas a cobrar / Facturación para este negocio y este rol (módulo, capability, rubro).
-    puedeAbrirApp("cuentas-a-cobrar"),
-    puedeAbrirApp("facturacion"),
-    // Diseño nuevo: la misma lectura de interruptores del layout (cacheada), y el rubro (cacheado,
-    // largado en la tanda del layout) para las palabras del buscador («corte» en una carnicería).
-    disenoNuevo(),
-    getCurrentTenantRubro(),
-    // El perfil de este equipo (ticket 58/80, imprimir solo, avisos, lector) vale sólo si el negocio
-    // tiene el módulo `terminal`: lo decide el servidor con la regla de «Este equipo».
-    terminalDelEquipo(user),
-  ]);
+  const [identidad, nuevo] = await Promise.all([getTenantIdentity(), disenoNuevo()]);
   // Los servicios se cobran creando un turno (ver MostradorTabs): sólo en un negocio de
   // servicios y sólo para quien puede dar turnos. En un comercio no hay solapa de Servicios.
   const conServicios = !identidad.isRetail;
-  const balanza = identidad.isRetail ? await balanzaDeVender(tenantId, datos.products, user.role) : null;
-  // Sin el módulo ni la balanza configurada, los códigos no viajan al navegador: la lista es la de
-  // siempre. Con la balanza, el campo de la etiqueta necesita el PLU de cada producto.
-  const productos = terminal || balanza
-    ? datos.products
-    : datos.products.map(({ codigo: _codigo, ...p }) => {
-        void _codigo;
-        return p;
-      });
   const professionals =
     conServicios && roleHasCapability(user.role, "agenda:manage") ? await getProfessionalsWithServices() : [];
-  // Sin ningún producto con precio, el aviso dice por qué y qué hacer, pero el formulario
-  // SIGUE: «Precio a mano» es justamente para cobrar lo que no tiene precio cargado. Antes el
-  // aviso reemplazaba al formulario y la venta se perdía igual.
-  const sinPrecios =
-    datos.products.length === 0
-      ? posEmptyState({ activeProducts: stockSnap.activeProducts, canManageCatalog: stockSnap.canManageCatalog })
-      : null;
-
-  const teclas = teclasDelMostrador(
-    datos.rapidos,
-    datos.products.map((p) => p.id),
-  );
-
+  // El formulario es el MISMO que el mostrador de Pedidos de un comercio (MostradorDeVenta).
   const formProductos = (conVendedor: boolean) => (
-    <div className="space-y-4">
-      {sinPrecios && (
-        <div role="status" className="rounded-lg border border-warning/40 bg-warning-soft/40 p-3 text-sm">
-          <p className="font-medium text-strong">{sinPrecios.title}</p>
-          <p className="mt-1 text-body">
-            {sinPrecios.description} Mientras tanto, lo que haya que cobrar se carga con «Precio a
-            mano», con su motivo.
-          </p>
-          {sinPrecios.linkToCatalog && (
-            <ButtonLink href="/admin/catalogo#productos" variant="outline" className="mt-2">
-              Ir al catálogo a cargar precios
-            </ButtonLink>
-          )}
-        </div>
-      )}
-      <VenderForm
-        products={productos}
-        stockById={stockSnap.stockById}
-        // Diseño nuevo: el primer día (sin ventas) las teclas se completan con el catálogo.
-        // Apagado, igual que hoy: sólo los más vendidos.
-        rapidos={nuevo ? teclas.ids : datos.rapidos}
-        rotuloRapidos={nuevo ? teclas.rotulo : undefined}
-        negocio={datos.negocio}
-        topeDescuentoPct={topeDeDescuento(user.role)}
-        pedidoInicial={modo === "pedido"}
-        // Detrás del flag de cuentas corrientes: sin el asiento del cobro del fiado en el
-        // libro, una deuda nacida en el mostrador no se podría cobrar bien.
-        aCuentaDisponible={puedeCuentas && cuentasCorrientesEnabled()}
-        puedeFacturar={puedeFacturar}
-        topePrecioAMano={topeDePrecioAMano(user.role)}
-        // Separa, en el almacén de la pestaña, el cobro sin confirmar de cada negocio.
-        negocioId={tenantId}
-        // La duda guardada de otra persona no se restaura en esta pestaña.
-        usuarioId={user.id}
-        balanza={balanza}
-        terminal={terminal}
-        {...(conVendedor ? { vendedor: user.name, sustantivo: rubro.rubro?.wording.itemNoun ?? "producto" } : {})}
-      />
-    </div>
+    <MostradorDeVenta user={user} tenantId={tenantId} pedidoInicial={modo === "pedido"} conVendedor={conVendedor} />
   );
 
   // DISEÑO NUEVO («Renglón»): el ticket que crece. Sin encabezado ni párrafo (el nombre de la app ya
