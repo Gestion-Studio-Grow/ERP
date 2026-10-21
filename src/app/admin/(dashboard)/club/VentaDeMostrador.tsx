@@ -34,7 +34,7 @@ function VentaDeMostrador({ almacen }: { almacen: Almacen }) {
     setTexto("");
   };
   return (
-    <section aria-labelledby={`${id}-t`} className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-3">
+    <section aria-labelledby={`${id}-t`} data-buffet="mostrador" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-3">
       <div>
         <h2 id={`${id}-t`} className="font-semibold text-strong">
           Venta rápida de mostrador
@@ -99,7 +99,9 @@ function VentaDeMostrador({ almacen }: { almacen: Almacen }) {
         <>
           <ComoPaga medio={medio} onElegir={(m) => m !== "monedero" && setMedio(m)} leyenda="Cómo paga la venta" />
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-lg font-bold tabular-nums text-strong">Total {pesos(total)}</p>
+            <p data-buffet="total" className="text-lg font-bold tabular-nums text-strong">
+              Total {pesos(total)}
+            </p>
             <div className="flex flex-wrap gap-2">
               <Button variant="ghost" size="md" onClick={() => setCarrito(VACIO)}>
                 Vaciar

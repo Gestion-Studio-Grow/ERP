@@ -1,0 +1,115 @@
+/* ============================================================================
+   PIEL DEL BUFFET — Break Point «chapa», como el Buffet del club de hoy
+   (src/tenants/breakpoint/sitio/club.html: vistaBuffet, tarjetaCuenta, tarjetaMesa y los estilos .cta / .card).
+   ============================================================================
+   Sólo viste: la estructura y las acciones son las de BuffetDelClub.tsx, VentaDeMostrador.tsx y
+   buffet-mesa-compleja.tsx, que se enganchan por `data-buffet`. Todo va bajo [data-estetica="breakpoint"] y con los
+   tokens que globals.css define para Break Point: otro negocio no ve nada de esto.
+   Contraste (claro / oscuro): tenue sobre la tarjeta 5,6 / 7,4:1; «Cargar / cobrar» 7,6 / 7,7:1. */
+
+/* Las cuentas abiertas: tarjetas de papel como .cta, que se acomodan de a las que entren (minmax 260 px). */
+[data-estetica="breakpoint"] [data-buffet="cuentas"] {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16.25rem), 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+/* La que se está cargando toma dos columnas (los nombres de los cargos no se cortan) cuando entran dos: se mide la
+   sección, no la pantalla, porque el menú lateral del backoffice le come ancho. */
+[data-estetica="breakpoint"] section:has(> [data-buffet="cuentas"]) {
+  container-type: inline-size;
+}
+@container (min-width: 34rem) {
+  [data-estetica="breakpoint"] [data-buffet="cuentas"] > li:has(> [data-abierta]) {
+    grid-column: span 2;
+  }
+}
+[data-estetica="breakpoint"] :is([data-buffet="cuenta"], [data-buffet="mesa"]) {
+  background: color-mix(in srgb, var(--surface) 50%, var(--surface-raised));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+}
+/* La que se está cargando, con la raya azul del club a la izquierda. */
+[data-estetica="breakpoint"] [data-buffet="cuenta"][data-abierta] {
+  border-left: 3px solid var(--accent);
+}
+[data-estetica="breakpoint"] [data-buffet="cuenta"] h3 {
+  font-weight: 700;
+}
+/* Lo que debe, en la angosta del club. */
+[data-estetica="breakpoint"] [data-buffet="total"] {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-stretch: 75%;
+  font-weight: 800;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+/* El resumen de cargos: renglones chicos separados por la línea punteada de la cuenta del turno. */
+[data-estetica="breakpoint"] [data-buffet="resumen"] {
+  gap: 0;
+  font-size: 0.8125rem;
+}
+[data-estetica="breakpoint"] [data-buffet="resumen"] > li {
+  border-top: 1px dashed var(--line);
+  padding-block: 0.25rem;
+}
+[data-estetica="breakpoint"] [data-buffet="cargos"] > li + li {
+  border-top: 1px dashed var(--line);
+  padding-top: 0.25rem;
+}
+
+/* «Cargar / cobrar»: el botón azul tenue del club (.btn.accent). */
+[data-estetica="breakpoint"] [data-buffet="cargar-cobrar"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border-color: transparent;
+  font-weight: 600;
+}
+[data-estetica="breakpoint"] [data-buffet="cargar-cobrar"]:hover {
+  border-color: var(--accent);
+}
+[data-estetica="breakpoint"] [data-buffet="cargar-cobrar"][aria-expanded="true"] {
+  border-color: var(--accent);
+}
+/* Las acciones principales con el filo de abajo de la chapa (.btn.primary). */
+[data-estetica="breakpoint"] [data-buffet] [data-ui="button"][data-variant="solid"]:not(:disabled) {
+  box-shadow: inset 0 -2px 0 var(--accent-hover);
+}
+
+/* Mesas, venta de mostrador, cargar y abrir: cada una en su .card (blanca, filete fino, esquinas rectas). */
+[data-estetica="breakpoint"] :is([data-buffet="mesas"], [data-buffet="mostrador"], [data-buffet="cargar"], [data-buffet="abrir"]) {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  padding: 1rem;
+}
+[data-estetica="breakpoint"] :is([data-buffet="mesas"], [data-buffet="mostrador"], [data-buffet="cargar"], [data-buffet="abrir"]) h2 {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+/* La mesa que sigue cargando: como la tarjeta de cuenta, con la raya naranja de «la cancha ya se cerró». */
+[data-estetica="breakpoint"] [data-buffet="mesa"] {
+  border-left: 3px solid var(--club-naranja);
+}
+[data-estetica="breakpoint"] [data-buffet="mostrador"] [data-buffet="total"] {
+  font-size: 1.5rem;
+}
+
+/* La mesa compleja: plegada, con borde punteado como el pedido de aprobación del club (.aprobacion). */
+[data-estetica="breakpoint"] [data-buffet="mesa-compleja"] {
+  border-style: dashed;
+  border-color: var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+}
+[data-estetica="breakpoint"] [data-buffet="mesa-compleja"] > summary {
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+[data-estetica="breakpoint"] [data-buffet="mesa-compleja"] h4 {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+}

@@ -8,7 +8,10 @@
 //     cancha a cuenta corriente; sumar un jugador o un cargo NO repinta la grilla (salvo el «x/4» de ESE turno);
 //   · el buffet: la venta rápida de mostrador (tipear no repinta las cuentas), pasar un cargo a otra cuenta y un
 //     descuento con el PIN del dueño (con los PIN de ejemplo rotulados en la demo);
-//   · 44 px y sin scroll de costado a 390 px con la mesa compleja abierta, y el teclado en la mesa compleja.
+//   · 44 px y sin scroll de costado a 390 px con la mesa compleja abierta, y el teclado en la mesa compleja;
+//   · la piel de Break Point (piel/buffet.css): tarjetas resumidas por cuenta con «Cargar / cobrar», que despliega el
+//     − / + y los «+ Plato» (con el teclado), contraste AA y 44 px a 390 px.
+// El CSS que importan las pantallas (la piel) no entra al bundle: lo pone la página, como en la app.
 // Sin Chromium o sin esbuild, se saltea con el motivo.
 
 import { after, before, describe, test } from "node:test";
@@ -90,6 +93,7 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
   let browser: Browser | null = null;
   let bundle = "";
   let css = "";
+  let piel = "";
   let sinNavegador = "";
 
   before(async () => {
@@ -115,10 +119,12 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
       jsx: "automatic",
       tsconfig: join(RAIZ, "tsconfig.json"),
       define: { "process.env.NODE_ENV": '"production"' },
+      loader: { ".css": "empty" },
       logLevel: "silent",
     });
     bundle = r.outputFiles[0].text;
     css = await cssDeLaApp();
+    piel = readFileSync(join(RAIZ, "src", "app", "admin", "(dashboard)", "club", "piel", "buffet.css"), "utf8");
     browser = await playwright.chromium.launch({ executablePath: chrome });
   });
 
@@ -126,14 +132,16 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     await browser?.close();
   });
 
-  async function montar(viewport = { width: 1024, height: 768 }): Promise<{ page: Page; errores: string[] }> {
+  /** `conPiel`: la raíz con la estética de Break Point (como la pone el layout del backoffice) y la piel del buffet. */
+  async function montar(viewport = { width: 1024, height: 768 }, conPiel = false): Promise<{ page: Page; errores: string[] }> {
     const page = await browser!.newPage({ viewport, locale: "es-AR" });
     const errores: string[] = [];
     page.on("pageerror", (e) => errores.push(e.message));
     page.on("console", (m) => {
       if (m.type() === "error") errores.push(m.text());
     });
-    const html = `<!doctype html><html lang="es"><head><style>${css}</style><script>${CONTADOR}</script></head><body class="bg-surface text-body"><main id="root" class="p-4"></main></body></html>`;
+    const raiz = conPiel ? ' data-skin="fable" data-estetica="breakpoint"' : "";
+    const html = `<!doctype html><html lang="es"${raiz}><head><style>${css}${conPiel ? piel : ""}</style><script>${CONTADOR}</script></head><body class="bg-surface text-body"><main id="root" class="p-4"></main></body></html>`;
     await page.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
     await page.goto(ORIGEN);
     await page.addScriptTag({ content: bundle });
@@ -290,6 +298,86 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     await page.getByRole("article", { name: "Martín Ríos" }).getByLabel("Tipo").selectOption("descuento");
     assert.deepEqual(await chicos(), [], "el buffet con la venta y la mesa compleja abiertas");
     assert.ok((await corre()) <= 0, `se corre ${await corre()} px`);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("piel de Break Point: tarjetas resumidas con «Cargar / cobrar» (− / + y «+ Plato» con el teclado), AA y 44 px a 390 px", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS de la app");
+    const { page, errores } = await montar({ width: 390, height: 844 }, true);
+    await irASolapa(page, "Buffet");
+    const martin = page.getByRole("article", { name: "Martín Ríos" });
+    await martin.waitFor();
+    assert.equal(await martin.getAttribute("data-buffet"), "cuenta");
+
+    // Resumida: quién, cuánto y qué lleva; sin el − / + ni los platos. Cobrar y la mesa compleja, a la vista.
+    assert.equal(await martin.getByRole("button", { name: /^Uno (más|menos) de/ }).count(), 0, "resumida no muestra el − / +");
+    assert.equal(await martin.getByRole("group", { name: /^Cargar un plato/ }).count(), 0, "resumida no muestra los platos");
+    assert.ok((await martin.getByRole("list", { name: "Cargos de Martín Ríos" }).getByRole("listitem").count()) > 0);
+    await martin.getByRole("button", { name: /^Cobrar \$/ }).waitFor();
+    await martin.getByText("Mesa compleja: repartir o cargar a mano").waitFor();
+
+    // «Cargar / cobrar» con el teclado: despliega el − / + y los «+ Plato»; un plato se carga a ESA cuenta.
+    const boton = martin.getByRole("button", { name: "Cargar / cobrar a Martín Ríos" });
+    assert.equal(await boton.getAttribute("aria-expanded"), "false");
+    await boton.focus();
+    await page.keyboard.press("Enter");
+    assert.equal(await boton.getAttribute("aria-expanded"), "true");
+    const controla = await boton.getAttribute("aria-controls");
+    assert.ok(controla && (await page.locator(`[id="${controla}"]`).count()) === 1, "aria-controls apunta al detalle");
+    await martin.getByRole("button", { name: /^Uno más de/ }).first().waitFor();
+    const platos = martin.getByRole("group", { name: "Cargar un plato a Martín Ríos" }).getByRole("button");
+    assert.ok((await platos.count()) > 0, "están los «+ Plato»");
+    const total = martin.locator('[data-buffet="total"]');
+    const antes = await total.textContent();
+    await platos.first().click();
+    await page.getByRole("status").filter({ hasText: "a la cuenta de Martín Ríos." }).waitFor();
+    assert.notEqual(await total.textContent(), antes, "el plato suma a lo que debe");
+
+    // La piel está puesta (la tarjeta de papel con la raya azul de la que se carga) y el contraste es AA.
+    // En texto: tsx le agrega `__name` a las funciones con nombre y en el navegador no existe.
+    const medidas: { raya: string; tenue: number; boton: number } = await page.evaluate(`(() => {
+      const rgb = (c) => {
+        const m = c.match(/color\\(srgb ([\\d.]+) ([\\d.]+) ([\\d.]+)/);
+        if (m) return [m[1], m[2], m[3]].map((x) => Number(x) * 255);
+        return (c.match(/[\\d.]+/g) || []).slice(0, 3).map(Number);
+      };
+      const lum = (c) => c.map((v) => v / 255).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+      const ratio = (a, b) => {
+        const [x, y] = [lum(rgb(a)), lum(rgb(b))].sort((p, q) => q - p);
+        return (x + 0.05) / (y + 0.05);
+      };
+      const tarjeta = [...document.querySelectorAll('[data-buffet="cuenta"]')].find((el) => el.textContent.includes("Martín Ríos"));
+      const fondo = getComputedStyle(tarjeta).backgroundColor;
+      const tenue = tarjeta.querySelector("header p.text-xs");
+      const boton = tarjeta.querySelector('[data-buffet="cargar-cobrar"]');
+      return {
+        raya: getComputedStyle(tarjeta).borderLeftWidth,
+        tenue: ratio(getComputedStyle(tenue).color, fondo),
+        boton: ratio(getComputedStyle(boton).color, getComputedStyle(boton).backgroundColor),
+      };
+    })()`);
+    t.diagnostic(`piel: ${JSON.stringify(medidas)}`);
+    assert.equal(medidas.raya, "3px", "la tarjeta que se carga lleva la raya de la piel");
+    assert.ok(medidas.tenue >= 4.5, `texto tenue sobre la tarjeta: ${medidas.tenue.toFixed(2)}:1`);
+    assert.ok(medidas.boton >= 4.5, `«Cargar / cobrar»: ${medidas.boton.toFixed(2)}:1`);
+
+    // 44 px en todo lo tocable del buffet (la tarjeta desplegada y la venta) y sin scroll de costado.
+    const chicos = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-buffet="cuenta"], [data-buffet="mostrador"]')]
+        .flatMap((raiz) => [...raiz.querySelectorAll("button, select, summary, input:not([type=radio]):not([type=checkbox]), label:has(input[type=radio])")])
+        .map((el) => ({ el, r: el.getBoundingClientRect() }))
+        .filter(({ r }) => r.width > 0 && (r.height < 44 || r.width < 44))
+        .map(({ el, r }) => `${(el.getAttribute("aria-label") ?? el.textContent ?? "").slice(0, 40)} (${Math.round(r.width)}×${Math.round(r.height)})`),
+    );
+    assert.deepEqual(chicos, []);
+    assert.ok((await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) <= 0);
+
+    // Se vuelve a plegar: queda el resumen.
+    await boton.click();
+    assert.equal(await boton.getAttribute("aria-expanded"), "false");
+    assert.equal(await martin.getByRole("button", { name: /^Uno más de/ }).count(), 0);
     assert.deepEqual(errores, []);
     await page.close();
   });

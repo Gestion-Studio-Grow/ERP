@@ -14,6 +14,9 @@
 // Ola 1 de paridad: la «Venta rápida de mostrador» (VentaDeMostrador.tsx) y, en cada cuenta, la «Mesa compleja»
 // (buffet-mesa-compleja.tsx): pasar un cargo a otra cuenta y cargo manual, con descuento firmado por el dueño.
 // Cada tarjeta es un `memo`: cargar en una cuenta repinta sólo esa tarjeta (compartirBuffet).
+// Piel del club de hoy: cada cuenta es una tarjeta RESUMIDA (quién, cuánto debe, qué lleva) y «Cargar / cobrar» la
+// despliega con el − / + de cada cargo y los «+ Plato»; cobrar, cuenta corriente, fiar y la mesa compleja siguen a la
+// vista. Los colores de Break Point van en piel/buffet.css (bajo [data-estetica="breakpoint"], por `data-buffet`).
 
 import { memo, useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -31,8 +34,22 @@ import { revisarConfirmacion, type MedioCobro } from "./cuenta-core";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
 import { useSeleccion } from "./usar-almacen";
 import VentaDeMostrador from "./VentaDeMostrador";
+import "./piel/buffet.css";
 
 const seleccionarBuffet = (e: EstadoClub, a: Ahora) => armarBuffet(e, a);
+
+/** «Cargar / cobrar», como el botón de la tarjeta del club de hoy: despliega los platos y el − / + de cada cargo. */
+function CargarCobrar({ abierta, detalle, titular, onCambiar }: { abierta: boolean; detalle: string; titular: string; onCambiar: () => void }) {
+  return (
+    <Button variant="outline" size="md" className="group" data-buffet="cargar-cobrar" aria-expanded={abierta} aria-controls={detalle} onClick={onCambiar}>
+      Cargar / cobrar
+      <span className="sr-only"> a {titular}</span>
+      <span aria-hidden="true" className="transition-transform duration-150 group-aria-expanded:rotate-180 motion-reduce:transition-none">
+        ▾
+      </span>
+    </Button>
+  );
+}
 
 const TarjetaCuenta = memo(function TarjetaCuenta({
   cuenta,
@@ -52,7 +69,11 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
   negocio?: string;
 }) {
   const [confirmando, setConfirmando] = useState<DatosConfirmacion | null>(null);
+  // Como el club de hoy: la tarjeta es un resumen (quién, cuánto, qué lleva) y «Cargar / cobrar» la despliega para
+  // sumar platos y ajustar cantidades. Cobrar, pasar a cuenta corriente y fiar quedan siempre a la vista.
+  const [abierta, setAbierta] = useState(false);
   const titulo = useId();
+  const detalle = useId();
   const cobrar = () => {
     if (medio !== "monedero") return onAccion({ tipo: "cobrar", cuentaId: cuenta.id, medio });
     const c = confirmarCreditosCuenta(almacen.estado(), cuenta.id);
@@ -61,7 +82,7 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
   };
   return (
     <li>
-      <article aria-labelledby={titulo} className="flex h-full flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3">
+      <article aria-labelledby={titulo} data-buffet="cuenta" data-abierta={abierta || undefined} className="flex h-full flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3">
         <header className="flex items-baseline justify-between gap-2">
           <div className="min-w-0">
             <h3 id={titulo} className="truncate font-semibold text-strong">
@@ -72,48 +93,67 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
               {cuenta.creditos > 0 ? ` · créditos ${pesos(cuenta.creditos)}` : ""}
             </p>
           </div>
-          <p className="shrink-0 text-lg font-bold tabular-nums text-strong">{pesos(cuenta.aCobrar)}</p>
+          <p data-buffet="total" className="shrink-0 text-lg font-bold tabular-nums text-strong">
+            {pesos(cuenta.aCobrar)}
+          </p>
         </header>
-        {cuenta.items.length > 0 ? (
-          <ul aria-label={`Cargos de ${cuenta.titular}`} className="flex flex-col gap-1 text-sm tabular-nums">
-            {cuenta.items.map((i) => (
-              <li key={i.idx} className="flex items-center justify-between gap-2">
-                <span className="min-w-0 flex-1 truncate">
-                  {i.nombre}
-                  {i.nota && <span className="text-xs text-muted"> · {i.nota}</span>}
-                </span>
-                {i.ajustable ? (
-                  <span className="flex items-center gap-1">
-                    <Button variant="outline" size="md" className="w-11 px-0!" aria-label={`Uno menos de ${i.nombre}`} onClick={() => onAccion({ tipo: "ajustar", cuentaId: cuenta.id, itemIdx: i.idx, delta: -1 })}>
-                      −
-                    </Button>
-                    <span className="w-6 text-center font-semibold">{i.cant}</span>
-                    <Button variant="outline" size="md" className="w-11 px-0!" aria-label={`Uno más de ${i.nombre}`} onClick={() => onAccion({ tipo: "ajustar", cuentaId: cuenta.id, itemIdx: i.idx, delta: 1 })}>
-                      +
-                    </Button>
+        <div id={detalle} data-buffet="detalle" className="flex flex-col gap-2">
+          {cuenta.items.length === 0 ? (
+            <p className="text-sm text-muted">Sin cargos todavía.</p>
+          ) : abierta ? (
+            <ul aria-label={`Cargos de ${cuenta.titular}`} data-buffet="cargos" className="flex flex-col gap-1 text-sm tabular-nums">
+              {cuenta.items.map((i) => (
+                <li key={i.idx} className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 flex-1 truncate">
+                    {i.nombre}
+                    {i.nota && <span className="text-xs text-muted"> · {i.nota}</span>}
                   </span>
-                ) : (
-                  <span>{i.cant} ×</span>
-                )}
-                <span className="w-20 text-right">{pesos(i.importe)}</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-muted">Sin cargos todavía.</p>
-        )}
-        {platos.length > 0 && (
-          <div role="group" aria-label={`Cargar un plato a ${cuenta.titular}`} className="flex flex-wrap gap-1.5">
-            {platos.map((p) => (
-              <Button key={p.id} variant="outline" size="md" onClick={() => onAccion({ tipo: "cargar", cuentaId: cuenta.id, productoId: p.id, cant: 1 })}>
-                + {p.nombre}
-              </Button>
-            ))}
-          </div>
-        )}
+                  {i.ajustable ? (
+                    <span className="flex items-center gap-1">
+                      <Button variant="outline" size="md" className="w-11 px-0!" aria-label={`Uno menos de ${i.nombre}`} onClick={() => onAccion({ tipo: "ajustar", cuentaId: cuenta.id, itemIdx: i.idx, delta: -1 })}>
+                        −
+                      </Button>
+                      <span className="w-6 text-center font-semibold">{i.cant}</span>
+                      <Button variant="outline" size="md" className="w-11 px-0!" aria-label={`Uno más de ${i.nombre}`} onClick={() => onAccion({ tipo: "ajustar", cuentaId: cuenta.id, itemIdx: i.idx, delta: 1 })}>
+                        +
+                      </Button>
+                    </span>
+                  ) : (
+                    <span>{i.cant} ×</span>
+                  )}
+                  <span className="w-20 text-right">{pesos(i.importe)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <ul aria-label={`Cargos de ${cuenta.titular}`} data-buffet="resumen" className="flex flex-col gap-0.5 text-sm tabular-nums">
+              {cuenta.items.map((i) => (
+                <li key={i.idx} className="flex items-baseline justify-between gap-2">
+                  <span className="min-w-0 flex-1 truncate">
+                    {i.cant} × {i.nombre}
+                    {i.nota && <span className="text-xs text-muted"> · {i.nota}</span>}
+                  </span>
+                  <span className="shrink-0 text-right">{pesos(i.importe)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {abierta && platos.length > 0 && (
+            <div role="group" aria-label={`Cargar un plato a ${cuenta.titular}`} data-buffet="platos" className="flex flex-wrap gap-1.5">
+              {platos.map((p) => (
+                <Button key={p.id} variant="outline" size="md" onClick={() => onAccion({ tipo: "cargar", cuentaId: cuenta.id, productoId: p.id, cant: 1 })}>
+                  + {p.nombre}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
         {cuenta.pagaDe.length > 0 && <p className="text-xs text-muted">Paga también lo de {cuenta.pagaDe.join(", ")}.</p>}
+        {cuenta.pagaOtro && <p className="text-sm text-muted">Estos cargos los paga {cuenta.pagaOtro}: se cobran con su cuenta.</p>}
         {cuenta.pagaOtro ? (
-          <p className="text-sm text-muted">Estos cargos los paga {cuenta.pagaOtro}: se cobran con su cuenta.</p>
+          <div className="mt-auto flex flex-wrap gap-2">
+            <CargarCobrar abierta={abierta} detalle={detalle} titular={cuenta.titular} onCambiar={() => setAbierta((a) => !a)} />
+          </div>
         ) : (
           <div className="mt-auto flex flex-col gap-2">
             {confirmando && (
@@ -133,6 +173,7 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
               />
             )}
             <div className="flex flex-wrap gap-2">
+              <CargarCobrar abierta={abierta} detalle={detalle} titular={cuenta.titular} onCambiar={() => setAbierta((a) => !a)} />
               {cuenta.aCobrar > 0 ? (
                 <Button variant="solid" size="md" onClick={cobrar}>
                   Cobrar {pesos(cuenta.aCobrar)}
@@ -179,7 +220,7 @@ function Cargar({ almacen, cuentas, onAccion }: { almacen: Almacen; cuentas: Vis
   };
   if (!cuentas.length) return null;
   return (
-    <section aria-labelledby={`${ids.busca}-t`} className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3">
+    <section aria-labelledby={`${ids.busca}-t`} data-buffet="cargar" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3">
       <h2 id={`${ids.busca}-t`} className="font-semibold text-strong">
         Cargar productos
       </h2>
@@ -247,7 +288,7 @@ function AbrirCuenta({ almacen, onAccion }: { almacen: Almacen; onAccion: (a: Ac
   const id = useId();
   const fichas = clienteId ? [] : clientesQueCoinciden(almacen.estado(), titular);
   return (
-    <section aria-labelledby={`${id}-t`} data-ui="abrir-cuenta" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3">
+    <section aria-labelledby={`${id}-t`} data-ui="abrir-cuenta" data-buffet="abrir" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3">
       <h2 id={`${id}-t`} className="font-semibold text-strong">
         Abrir una cuenta
       </h2>
@@ -326,14 +367,14 @@ export default function BuffetDelClub({ almacen, onVerTurno, negocio }: { almace
           </p>
         </div>
         <ComoPaga medio={medio} onElegir={setMedio} conCreditos={creditos} leyenda="Cómo pagan (para «Cobrar»)" />
-        <ul className={cn("grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3")}>
+        <ul data-buffet="cuentas" className={cn("grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3")}>
           {vista.cuentas.map((c) => (
             <TarjetaCuenta key={c.id} cuenta={c} almacen={almacen} medio={medio} onAccion={onAccion} negocio={negocio} platos={vista.platos} />
           ))}
         </ul>
       </section>
 
-      <section aria-labelledby="club-mesas" className="flex flex-col gap-2">
+      <section aria-labelledby="club-mesas" data-buffet="mesas" className="flex flex-col gap-2">
         <h2 id="club-mesas" className="text-lg font-semibold text-strong">
           Mesas que siguen cargando
         </h2>
@@ -342,7 +383,7 @@ export default function BuffetDelClub({ almacen, onVerTurno, negocio }: { almace
         ) : (
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {vista.mesas.map((m) => (
-              <li key={m.reservaId} className="flex items-center justify-between gap-2 rounded-lg border border-line bg-surface-raised p-3">
+              <li key={m.reservaId} data-buffet="mesa" className="flex items-center justify-between gap-2 rounded-lg border border-line bg-surface-raised p-3">
                 <span className="min-w-0">
                   <span className="block truncate font-semibold text-strong">{m.titulo}</span>
                   <span className="text-sm tabular-nums text-muted">{m.saldo > 0 ? `Deben ${pesos(m.saldo)}` : "Sin cargos todavía"}</span>
