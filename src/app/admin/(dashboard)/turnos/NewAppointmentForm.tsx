@@ -17,6 +17,7 @@ import {
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { seniaDelServicio, METODOS_DE_PAGO, METODO_LABEL } from "@/lib/turnos/cobros";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
+import ServiciosEnTarjetas from "./ServiciosEnTarjetas";
 import {
   cobroPropuestoAlAlta,
   montoDelCobro,
@@ -157,8 +158,8 @@ export default function NewAppointmentForm({
   // Al elegir servicio se propone lo razonable para el contexto, sin trabar nada: el
   // usuario puede cambiarlo. En el mostrador la clienta está ahí, así que el default es
   // cobrar el total; en la agenda se está reservando, así que es la seña (si la hay).
-  function propuestaPara(nextServiceId: string): ModoCobro {
-    const svc = professional?.services.find((x) => x.id === nextServiceId);
+  function propuestaPara(nextServiceId: string, nextProfessionalId = professionalId): ModoCobro {
+    const svc = professionals.find((p) => p.id === nextProfessionalId)?.services.find((x) => x.id === nextServiceId);
     const s = svc
       ? seniaDelServicio({ depositAmount: svc.depositAmount, precio: precioCongeladoDeReserva(svc, datos.vecina).priceAtBooking })
       : 0;
@@ -249,6 +250,19 @@ export default function NewAppointmentForm({
         }}
         className="space-y-3"
       >
+        {origen === "mostrador" && (
+          <ServiciosEnTarjetas
+            profesionales={professionals}
+            profesionalElegido={professionalId}
+            servicioElegido={serviceId}
+            onElegir={(pId, sId) => {
+              setProfessionalId(pId);
+              setServiceId(sId);
+              setQueCobrar(propuestaPara(sId, pId));
+              loadSlots(pId, sId, date);
+            }}
+          />
+        )}
         {/* Una columna en el celular: con dos, el nombre del servicio y su precio no entraban. */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Profesional" htmlFor="na-professional">

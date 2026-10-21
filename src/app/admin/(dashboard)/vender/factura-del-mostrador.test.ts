@@ -14,6 +14,8 @@ test("la factura sale a consumidor final y el umbral de identificación es el de
   // Ni «A» ni «B»: la letra depende de la condición del emisor (un monotributista hace C).
   assert.doesNotMatch(t, /factura [AB]\b/);
   assert.match(t, /CUIT o DNI en «Cliente» antes de cobrar/);
+  // En CH, con la palabra de la casa.
+  assert.match(textoDelReceptor(umbral, "clienta"), /Si la clienta pide .* en «Clienta» antes de cobrar/);
   // Sin umbral conocido no se inventa uno.
   assert.doesNotMatch(textoDelReceptor(null), /llega a/);
 });

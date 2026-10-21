@@ -11,9 +11,10 @@
 import { fmtMoneyARS } from "@/components/ui/format";
 
 /** Lo que se dice debajo de la venta cobrada, sobre la factura. */
-export function textoDelReceptor(umbralIdentificacion: number | null): string {
+export function textoDelReceptor(umbralIdentificacion: number | null, quien: "cliente" | "clienta" = "cliente"): string {
   const desde = umbralIdentificacion != null ? `, o la venta llega a ${fmtMoneyARS(umbralIdentificacion, 0)}` : "";
-  return `Sale a consumidor final. Si el cliente pide la factura a su nombre${desde}, cargá su CUIT o DNI en «Cliente» antes de cobrar.`;
+  const [el, Rotulo] = quien === "clienta" ? ["la clienta", "Clienta"] : ["el cliente", "Cliente"];
+  return `Sale a consumidor final. Si ${el} pide la factura a su nombre${desde}, cargá su CUIT o DNI en «${Rotulo}» antes de cobrar.`;
 }
 
 /**

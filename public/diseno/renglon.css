@@ -2032,6 +2032,13 @@
   [data-diseno="renglon"] [data-vender="formulario"] { grid-template-columns: minmax(0, 1fr) minmax(24rem, 28rem); }
   [data-diseno="renglon"] [data-vender="ticket"] { position: sticky; top: 7rem; }
 }
+/* En el cajón del mostrador (30rem, CH) no hay lugar para dos columnas: las medidas de arriba miran
+   la pantalla, no el cajón, y a 1024 px dejaban el buscador en 0 px. Ahí va siempre en una. */
+[data-diseno="renglon"] dialog[data-ui="cajon"] [data-vender="formulario"] { grid-template-columns: minmax(0, 1fr); }
+[data-diseno="renglon"] dialog[data-ui="cajon"] [data-vender="ticket"] { position: static; }
+/* Y el pie de cobro, fijo abajo del cajón a cualquier ancho (con algo para cobrar): en la PC el
+   ticket ya no queda pegado arriba, y «Cobrar» quedaba debajo del borde a 1366×768. */
+[data-diseno="renglon"] dialog[data-ui="cajon"] [data-vender="cobrar"][data-fijo] { position: sticky; bottom: 0; }
 [data-diseno="renglon"] [data-vender="rapidos"] h2 {
   font-size: 0.9375rem;
   font-weight: 650;

@@ -17,7 +17,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **PD** — PD-1 build lento ≠ colgado · PD-2 gates humanos · PD-3 cron Hobby · PD-4 GitHub App en la org
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU · DB-5 un camino de plata sin la frontera del cierre (cobro de turno en el día congelado)
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance · MT-6 hosts en código (variable sensible)
-- **DX** — DX-8 demo pública en host serverless: back con estado no corre → dominio isomórfico + adaptador local · DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify) · DX-10 lector que suma durante el cobro en vuelo · DX-11 suite verde ≠ pantalla bien: recorrido E2E contra next start + la cifra de plata sale de la regla compartida · DX-12 una etiqueta de balanza se lee de dos maneras: detectar con dos etiquetas o el PLU · DX-13 barra sticky que no se pega (padre corto) y lista del buscador que la tapa
+- **DX** — DX-8 demo pública en host serverless: back con estado no corre → dominio isomórfico + adaptador local · DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify) · DX-10 lector que suma durante el cobro en vuelo · DX-11 suite verde ≠ pantalla bien: recorrido E2E contra next start + la cifra de plata sale de la regla compartida · DX-12 una etiqueta de balanza se lee de dos maneras: detectar con dos etiquetas o el PLU · DX-13 barra sticky que no se pega (padre corto) y lista del buscador que la tapa · DX-14 paridad por formulario, no por pantalla (CH: profesional/seña/cupón eran de «Servicios»)
 - **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit · SEC-4 superficie pública: límite por IP sólo con fallos + motivos del dominio que nombran a terceros
 
@@ -393,6 +393,24 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
   - Con la venta vacía la barra no se fija (`data-fijo`): en un celular de 5" tapaba el buscador, que es el
     primer paso (WCAG 2.4.11, foco tapado).
 - **Refs:** `src/app/admin/(dashboard)/vender/VenderForm.tsx`; `src/tenants/magra/e2e/mostrador.e2e.mjs`.
+
+**[DX-14] El mostrador de CH «no tenía» profesional, seña ni cupón: vivían en la otra solapa**
+- **Síntoma:** al pasar CH al mostrador único, la lista de lo que hacía su PosForm decía profesional, seña, cupón y
+  vínculo con el turno. Mirado en el código, PosForm sólo vendía productos: todo eso es del alta del turno
+  (NewAppointmentForm), en la solapa «Servicios».
+- **Causa raíz:** se describía la pantalla («el mostrador de CH») y no el formulario que hace cada cosa.
+- **Fix:** «Productos» pasa al mostrador único; «Servicios» queda con su alta del turno y suma tarjetas por servicio
+  (duración, precio y quién lo hace) que completan las mismas listas. Nada se reescribe dos veces.
+- **Lección:** antes de unificar, una matriz de paridad con `archivo:línea` por función (qué campo, qué action, qué
+  exige). Sin ella se migra de más (romper el alta del turno) o de menos (perder la seña).
+- **Guardarraíl:**
+  - `npm run test:ch-mostrador-e2e` recorre el servicio por tarjeta hasta el turno cobrado y el producto hasta la
+    factura.
+  - La piel de un negocio vive en `globals.css` y `renglon.css` SIN capa: una utilidad de Tailwind no les gana. Para
+    el acento del elegido o el total hace falta `!`, o la variante `in-data-[estetica=…]` para que sea sólo suyo.
+  - Un formulario dentro del cajón mide la PANTALLA: en el cajón va en una columna y el pie de cobro fijo.
+- **Refs:** `src/app/admin/(dashboard)/turnos/ServiciosEnTarjetas.tsx`; `src/tenants/ch/e2e/mostrador-ch.e2e.mjs`;
+  `docs/tenants/ch/capturas/mostrador-unico/`.
 
 ## MP — Metodología / Proceso
 

@@ -8,6 +8,7 @@ import { ButtonLink } from "@/components/ui";
 import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
+import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
 import { posEmptyState } from "@/lib/stock/pos-stock-rules";
 import { terminalDelEquipo } from "@/lib/terminal/terminal.server";
@@ -69,8 +70,10 @@ export default async function MostradorDeVenta({
       ? posEmptyState({ activeProducts: stockSnap.activeProducts, canManageCatalog: stockSnap.canManageCatalog })
       : null;
   // La factura, en palabras: a quién sale (el umbral, de la tabla de vigencias) o por qué no se ofrece.
+  // En CH la que compra es «la clienta», como en el resto de su panel.
+  const quienCompra = esteticaBackoffice(rubro.slug) === "beauty-spa" ? "clienta" : "cliente";
   const factura = {
-    receptor: textoDelReceptor(vigenteEn(UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, fechaFiscalDelDia())?.valor ?? null),
+    receptor: textoDelReceptor(vigenteEn(UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, fechaFiscalDelDia())?.valor ?? null, quienCompra),
     sinFactura: motivoSinFactura({ puedeFacturar, rolFactura: roleHasCapability(user.role, "billing:manage") }),
   };
   const teclas = teclasDelMostrador(
@@ -117,6 +120,10 @@ export default async function MostradorDeVenta({
         balanza={balanza}
         terminal={terminal}
         {...(conVendedor ? { vendedor: user.name, sustantivo: rubro.rubro?.wording.itemNoun ?? "producto" } : {})}
+        // CH no pesa: sin «Tomar peso» aunque algún producto quedara cargado por kilo. Otro negocio
+        // que no es comercio (una heladería) sigue como estaba.
+        conPeso={quienCompra !== "clienta"}
+        quienCompra={quienCompra}
       />
     </div>
   );

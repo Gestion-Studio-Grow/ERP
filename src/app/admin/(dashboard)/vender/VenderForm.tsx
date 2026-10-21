@@ -280,6 +280,10 @@ type PropsDeVender = {
   vendedor?: string;
   /** Diseño nuevo: cómo llama el rubro a lo que vende («corte» en una carnicería), para el buscador. */
   sustantivo?: string;
+  /** Cómo se nombra a quien compra: «cliente» o, en una estética, «clienta». */
+  quienCompra?: "cliente" | "clienta";
+  /** Un negocio que no vende por peso (servicios y reventa) no ofrece «Tomar peso». */
+  conPeso?: boolean;
   /**
    * El campo «Etiqueta de la balanza o código» y el formato de la balanza del negocio. Sólo lo
    * manda la página en un negocio de mostrador; sin esto (CH), la pantalla de siempre.
@@ -326,6 +330,8 @@ function FormularioVender({
   usuarioId = "",
   vendedor,
   sustantivo = "producto",
+  quienCompra = "cliente",
+  conPeso = true,
   balanza = null,
   terminal = null,
   enNavegador,
@@ -386,6 +392,8 @@ function FormularioVender({
   const cobrandoAhora = useRef(false);
 
   // Opcionales, cerrados hasta que alguien los abre (ninguno suma un paso al camino feliz).
+  const Quien = quienCompra === "clienta" ? "Clienta" : "Cliente";
+  const alQuien = quienCompra === "clienta" ? "a la clienta" : "al cliente";
   const [conCliente, setConCliente] = useState(k?.conCliente ?? false);
   const [telefono, setTelefono] = useState(k?.telefono ?? "");
   const [nombreCliente, setNombreCliente] = useState(k?.nombre ?? "");
@@ -526,7 +534,7 @@ function FormularioVender({
   const campoEtiqueta = balanza ? <CampoEtiqueta productos={productosConCodigo} balanza={balanza} alLeer={cargarLectura} /> : null;
   // El peso en vivo por cable (Chrome de computadora): sólo si algo se vende por kilo.
   const tomarPeso =
-    negocioId && products.some((p) => p.saleUnit === "WEIGHT") ? (
+    conPeso && negocioId && products.some((p) => p.saleUnit === "WEIGHT") ? (
       <TomarPesoParaElTicket
         negocio={negocioId}
         renglones={lines}
@@ -795,7 +803,7 @@ function FormularioVender({
         : faltaMedio
           ? "Elegí cómo pagó"
           : faltaFichaACuenta
-            ? "Buscá al cliente"
+            ? `Buscá ${alQuien}`
             : null;
 
   function limpiar() {
@@ -1271,7 +1279,7 @@ function FormularioVender({
               </div>
               {busqueda === "encontrado" && (
                 <span role="status" className="mt-1 block text-xs text-success">
-                  Cliente: {nombreCliente}. La venta queda en su ficha.
+                  {Quien}: {nombreCliente}. La venta queda en su ficha.
                 </span>
               )}
               {busqueda === "sin-ficha" && (
@@ -1495,7 +1503,9 @@ function FormularioVender({
                     setMedio(m.valor);
                     setACuenta(false);
                   }}
-                  className={cn("chip-btn h-11 px-4 text-sm", !aCuentaActivo && medio === m.valor && "bg-accent text-on-accent")}
+                  // `!`: `.chip-btn` (globals.css, sin capa) le gana a las utilidades en el color y el hover,
+                  // y el elegido quedaba con texto apagado sobre el acento.
+                  className={cn("chip-btn h-11 px-4 text-sm", !aCuentaActivo && medio === m.valor && "!border-accent !bg-accent !text-on-accent")}
                 >
                   {nuevo && <Icono nombre={!aCuentaActivo && medio === m.valor ? "listo" : iconoDelMedio(m.valor)} />}
                   {m.etiqueta}
@@ -1527,7 +1537,7 @@ function FormularioVender({
           {aCuentaActivo && (
             <p role={faltaFichaACuenta ? "alert" : "status"} className={cn("text-xs", faltaFichaACuenta ? "text-warning" : "text-muted")}>
               {faltaFichaACuenta
-                ? "Para dejar a cuenta, buscá al cliente por su teléfono: la deuda queda en su ficha."
+                ? `Para dejar a cuenta, buscá ${alQuien} por su teléfono: la deuda queda en su ficha.`
                 : `Queda en la cuenta corriente de ${nombreCliente}. No entra al libro de caja hasta que la pague.`}
             </p>
           )}
@@ -2011,7 +2021,7 @@ function FormularioVender({
               {!isOrder && !conCliente && (
                 <button type="button" onClick={() => setConCliente(true)} className="chip-btn h-11 text-sm">
                   <Icono nombre="mas" />
-                  Cliente
+                  {Quien}
                 </button>
               )}
             </div>
@@ -2032,7 +2042,9 @@ function FormularioVender({
                     </p>
                   )}
                 </div>
-                <Plata valor={total} tamano="grande" sinCentavos={Number.isInteger(total)} />
+                {/* En CH, el total en su petróleo (como en la pantalla clásica). `!`: renglon.css le pone
+                    la tinta a toda la plata, sin capa, y le gana a las utilidades. */}
+                <Plata valor={total} tamano="grande" sinCentavos={Number.isInteger(total)} className="in-data-[estetica=beauty-spa]:!text-accent-ink" />
               </div>
               {isOrder && casillaCobrado}
               {bloqueMedios}
@@ -2356,7 +2368,7 @@ function FormularioVender({
             )}
             {!isOrder && !conCliente && (
               <button type="button" onClick={() => setConCliente(true)} className="chip-btn h-11 text-sm">
-                Cliente
+                {Quien}
               </button>
             )}
           </div>
@@ -2390,7 +2402,11 @@ function FormularioVender({
               )}
               <p>
                 Total{" "}
-                <span className="ml-1 text-2xl font-semibold tabular-nums text-strong">{fmtMoneyARS(total)}</span>
+                {/* En CH (piel `data-estetica="beauty-spa"` del layout) el total va en su serif y su
+                    petróleo, como los títulos de su marca; en el resto, como siempre. */}
+                <span className="ml-1 text-2xl font-semibold tabular-nums text-strong in-data-[estetica=beauty-spa]:font-display in-data-[estetica=beauty-spa]:font-medium in-data-[estetica=beauty-spa]:text-accent-ink">
+                  {fmtMoneyARS(total)}
+                </span>
               </p>
             </div>
             <CobrarSubmit
