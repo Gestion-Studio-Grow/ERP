@@ -4,9 +4,11 @@
 // DAR UN TURNO — el alta desde la agenda (tocar una franja libre o «+ Turno»).
 // ============================================================================
 //
-// Un formulario corto, en el orden en que lo dicta quien llama por teléfono: la cancha, la hora, cuánto juegan y a
-// nombre de quién (si tiene ficha, se elige y el turno queda atado a su cuenta). Sólo se ofrecen horarios que el
-// motor acepta y, antes de reservar, se ve el precio (valle o pico) y si pide seña.
+// Un formulario corto, en el orden en que lo dicta quien llama por teléfono: la cancha, la hora, cuánto juegan, por
+// dónde llegó («Llegó por», como el club de hoy) y a nombre de quién (si tiene ficha, se elige y el turno queda atado a
+// su cuenta). Sólo se ofrecen horarios que el motor acepta y, antes de reservar, se ve el precio (valle o pico) y si
+// pide seña. Armado como el diálogo «Nuevo turno» del club de hoy: título y × arriba, campos compactos y el pie fijo
+// con «Cancelar» y «Reservar». La × y Escape vuelven a la agenda.
 //
 // Al reservar, como el club vanilla («Turno reservado ✔»): el mensaje de confirmación listo para mandar por WhatsApp
 // (con la seña, el alias y el código si pide seña), «Abrir el turno» (para cobrar la seña ahí mismo) y «Listo».
@@ -19,9 +21,11 @@ import { cancha as canchaDe, hhmm, reserva as reservaDe } from "@/lib/club/motor
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import type { Almacen } from "./almacen";
-import { DURACIONES, TIPOS_ALTA, clientesQueCoinciden, horariosLibres, previaDelTurno, reservar, type DatosAlta } from "./alta-core";
+import { DURACIONES, ORIGENES_ALTA, ORIGEN_DE_FABRICA, TIPOS_ALTA, clientesQueCoinciden, horariosLibres, previaDelTurno, reservar, type DatosAlta, type OrigenAlta } from "./alta-core";
 import { BotonWhatsApp, TextoWhatsApp } from "./WhatsAppDelClub";
-import { celularDelTurno, enlaceWhatsApp, textoConfirmacion } from "./whatsapp-core";
+import { celularDelTurno, enlaceWhatsApp, fechaCorta, textoConfirmacion } from "./whatsapp-core";
+// La piel de Break Point («chapa», como el «Nuevo turno» del club de hoy); sin esa estética no pinta nada.
+import "./piel/alta.css";
 
 /** Lo que queda a la vista después de reservar (una foto: si se deshace el turno, el texto ya no se manda). */
 interface Reservado {
@@ -107,9 +111,10 @@ export default function AltaDeTurno({
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [otros, setOtros] = useState("");
   const [tel, setTel] = useState("");
+  const [origen, setOrigen] = useState<OrigenAlta>(ORIGEN_DE_FABRICA);
   const [hecho, setHecho] = useState<Reservado | null>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
-  const ids = { titulo: useId(), cancha: useId(), hora: useId(), dur: useId(), tipo: useId(), titular: useId(), otros: useId(), previa: useId(), tel: useId() };
+  const ids = { titulo: useId(), cancha: useId(), hora: useId(), dur: useId(), tipo: useId(), titular: useId(), otros: useId(), previa: useId(), tel: useId(), origen: useId() };
 
   useEffect(() => {
     titulo.current?.focus();
@@ -126,7 +131,7 @@ export default function AltaDeTurno({
     const salida: { listo: Reservado | null } = { listo: null };
     const d = almacen.ejecutar(
       (est, ahora) => {
-        const r = reservar(est, { canchaId, fecha, inicio: horaValida, duracion, tipo, titular, clienteId, otros, tel: clienteId ? "" : tel }, ahora);
+        const r = reservar(est, { canchaId, fecha, inicio: horaValida, duracion, tipo, titular, clienteId, otros, tel: clienteId ? "" : tel, origen }, ahora);
         const nueva = r.reservaId ? reservaDe(est, r.reservaId) : undefined;
         // El texto se arma en el momento, con el estado recién reservado (la seña y su código ya están).
         if (nueva) salida.listo = { reservaId: nueva.id, sub: `${nueva.titular} · ${canchaDe(est, nueva.canchaId)?.nombre ?? ""} ${hhmm(nueva.inicio)}`, texto: textoConfirmacion(est, nueva), celular: celularDelTurno(est, nueva) };
@@ -142,132 +147,170 @@ export default function AltaDeTurno({
   return (
     <section
       aria-labelledby={ids.titulo}
+      data-alta="hoja"
       onKeyDown={(e) => {
-        if (e.key === "Escape") onVolver();
+        // Escape cierra una sola vez: la hoja de ClubDemo no vuelve a cerrar lo que ya se cerró acá.
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onVolver();
+        }
       }}
-      className="flex flex-col gap-4 rounded-lg border border-line bg-surface-raised p-4"
+      className="flex flex-col rounded-lg border border-line bg-surface-raised"
     >
-      <header className="flex items-start justify-between gap-3">
+      {/* Como el «Nuevo turno» del club de hoy: el título con el día abajo y la × arriba a la derecha, fijos al scrollear. */}
+      <header data-alta="cabecera" className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 rounded-t-lg bg-surface-raised px-4 pb-2 pt-4">
         <h2 data-pantalla id={ids.titulo} ref={titulo} tabIndex={-1} className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
           Dar un turno
         </h2>
-        <Button variant="ghost" size="md" onClick={onVolver}>
-          Volver a la agenda
-        </Button>
+        <button
+          type="button"
+          data-alta="cerrar"
+          onClick={onVolver}
+          aria-label="Volver a la agenda"
+          title="Cerrar (Escape)"
+          className="row-span-2 grid size-11 place-items-center rounded-md text-xl leading-none text-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus"
+        >
+          <span aria-hidden="true">×</span>
+        </button>
+        <p className="text-sm text-muted">{fechaCorta(fecha)}</p>
       </header>
-      <form onSubmit={enviar} className="flex flex-col gap-3" aria-describedby={ids.previa}>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1">
-            <label htmlFor={ids.cancha} className="text-sm font-medium text-strong">
-              Cancha
-            </label>
-            <Select id={ids.cancha} value={canchaId} onChange={(e) => setCanchaId(e.target.value)}>
-              {estado.canchas.map((c) => (
-                <option key={c.id} value={c.id} disabled={c.estado === "mantenimiento"}>
-                  {c.nombre}
-                  {c.cubierta ? "" : " (descubierta)"}
-                  {c.estado === "mantenimiento" ? " — en mantenimiento" : ""}
-                </option>
-              ))}
-            </Select>
+      <form onSubmit={enviar} className="flex flex-col" aria-describedby={ids.previa}>
+        <div data-alta="cuerpo" className="flex flex-col gap-3 px-4 py-3">
+          <div data-alta="campos" className="grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-2.5">
+            <div className="flex flex-col gap-1">
+              <label htmlFor={ids.cancha} data-alta="etiqueta" className="text-xs font-semibold text-body">
+                Cancha
+              </label>
+              <Select id={ids.cancha} value={canchaId} onChange={(e) => setCanchaId(e.target.value)}>
+                {estado.canchas.map((c) => (
+                  <option key={c.id} value={c.id} disabled={c.estado === "mantenimiento"}>
+                    {c.nombre}
+                    {c.cubierta ? "" : " (descubierta)"}
+                    {c.estado === "mantenimiento" ? " — en mantenimiento" : ""}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor={ids.dur} data-alta="etiqueta" className="text-xs font-semibold text-body">
+                Cuánto juegan
+              </label>
+              <Select id={ids.dur} value={duracion} onChange={(e) => setDuracion(Number(e.target.value))}>
+                {DURACIONES.map((d) => (
+                  <option key={d} value={d}>
+                    {d === 60 ? "1 hora" : d === 90 ? "1 hora y media" : "2 horas"}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor={ids.hora} data-alta="etiqueta" className="text-xs font-semibold text-body">
+                Hora
+              </label>
+              <Select id={ids.hora} value={horaValida ?? ""} onChange={(e) => setInicio(Number(e.target.value))} disabled={libres.length === 0}>
+                {libres.length === 0 && <option value="">No queda lugar ese día</option>}
+                {libres.map((h) => (
+                  <option key={h.min} value={h.min}>
+                    {h.texto}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor={ids.tipo} data-alta="etiqueta" className="text-xs font-semibold text-body">
+                Tipo
+              </label>
+              <Select id={ids.tipo} value={tipo} onChange={(e) => setTipo(e.target.value as DatosAlta["tipo"])}>
+                {TIPOS_ALTA.map((t) => (
+                  <option key={t.valor} value={t.valor}>
+                    {t.etiqueta}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor={ids.origen} data-alta="etiqueta" className="text-xs font-semibold text-body">
+                Llegó por
+              </label>
+              <Select id={ids.origen} value={origen} onChange={(e) => setOrigen(e.target.value as OrigenAlta)}>
+                {ORIGENES_ALTA.map((o) => (
+                  <option key={o.valor} value={o.valor}>
+                    {o.etiqueta}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor={ids.dur} className="text-sm font-medium text-strong">
-              Cuánto juegan
-            </label>
-            <Select id={ids.dur} value={duracion} onChange={(e) => setDuracion(Number(e.target.value))}>
-              {DURACIONES.map((d) => (
-                <option key={d} value={d}>
-                  {d === 60 ? "1 hora" : d === 90 ? "1 hora y media" : "2 horas"}
-                </option>
-              ))}
-            </Select>
+          <div data-alta="campos" className="grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-2.5">
+            <div className="flex flex-col gap-1">
+              <label htmlFor={ids.titular} data-alta="etiqueta" className="text-xs font-semibold text-body">
+                A nombre de
+              </label>
+              <Input
+                id={ids.titular}
+                value={titular}
+                autoComplete="off"
+                onChange={(e) => {
+                  setTitular(e.target.value);
+                  setClienteId(null);
+                }}
+              />
+              {clienteId && <p className="text-xs text-muted">Con su ficha de cliente.</p>}
+            </div>
+            {!clienteId && (
+              <div className="flex flex-col gap-1">
+                <label htmlFor={ids.tel} data-alta="etiqueta" className="text-xs font-semibold text-body">
+                  Teléfono (para darlo de alta, opcional)
+                </label>
+                <Input id={ids.tel} type="tel" inputMode="tel" autoComplete="off" value={tel} onChange={(e) => setTel(e.target.value)} aria-describedby={`${ids.tel}-a`} />
+              </div>
+            )}
           </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor={ids.hora} className="text-sm font-medium text-strong">
-              Hora
-            </label>
-            <Select id={ids.hora} value={horaValida ?? ""} onChange={(e) => setInicio(Number(e.target.value))} disabled={libres.length === 0}>
-              {libres.length === 0 && <option value="">No queda lugar ese día</option>}
-              {libres.map((h) => (
-                <option key={h.min} value={h.min}>
-                  {h.texto}
-                </option>
+          {fichas.length > 0 && (
+            <ul aria-label="Fichas que coinciden" className="grid grid-cols-1 gap-1">
+              {fichas.map((f) => (
+                <li key={f.id}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="md"
+                    className="w-full justify-between!"
+                    onClick={() => {
+                      setTitular(f.nombre);
+                      setClienteId(f.id);
+                    }}
+                  >
+                    <span className="truncate">{f.nombre}</span>
+                    <span className="text-xs text-muted">{f.detalle || "ficha"}</span>
+                  </Button>
+                </li>
               ))}
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor={ids.tipo} className="text-sm font-medium text-strong">
-              Tipo
-            </label>
-            <Select id={ids.tipo} value={tipo} onChange={(e) => setTipo(e.target.value as DatosAlta["tipo"])}>
-              {TIPOS_ALTA.map((t) => (
-                <option key={t.valor} value={t.valor}>
-                  {t.etiqueta}
-                </option>
-              ))}
-            </Select>
-          </div>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={ids.titular} className="text-sm font-medium text-strong">
-            A nombre de
-          </label>
-          <Input
-            id={ids.titular}
-            value={titular}
-            autoComplete="off"
-            onChange={(e) => {
-              setTitular(e.target.value);
-              setClienteId(null);
-            }}
-          />
-          {clienteId && <p className="text-xs text-muted">Con su ficha de cliente.</p>}
-        </div>
-        {fichas.length > 0 && (
-          <ul aria-label="Fichas que coinciden" className="grid grid-cols-1 gap-1">
-            {fichas.map((f) => (
-              <li key={f.id}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="md"
-                  className="w-full justify-between!"
-                  onClick={() => {
-                    setTitular(f.nombre);
-                    setClienteId(f.id);
-                  }}
-                >
-                  <span className="truncate">{f.nombre}</span>
-                  <span className="text-xs text-muted">{f.detalle || "ficha"}</span>
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {!clienteId && (
-          <div className="flex flex-col gap-1">
-            <label htmlFor={ids.tel} className="text-sm font-medium text-strong">
-              Teléfono (para darlo de alta, opcional)
-            </label>
-            <Input id={ids.tel} type="tel" inputMode="tel" autoComplete="off" value={tel} onChange={(e) => setTel(e.target.value)} aria-describedby={`${ids.tel}-a`} />
+            </ul>
+          )}
+          {!clienteId && (
             <p id={`${ids.tel}-a`} className="text-xs text-muted">
               Si no tiene ficha: con el teléfono queda dado de alta como cliente al reservar (para fiarle, avisarle y saber si vuelve).
             </p>
+          )}
+          <div className="flex flex-col gap-1">
+            <label htmlFor={ids.otros} data-alta="etiqueta" className="text-xs font-semibold text-body">
+              Los otros jugadores (opcional, separados por coma)
+            </label>
+            <Input id={ids.otros} value={otros} autoComplete="off" onChange={(e) => setOtros(e.target.value)} />
           </div>
-        )}
-        <div className="flex flex-col gap-1">
-          <label htmlFor={ids.otros} className="text-sm font-medium text-strong">
-            Los otros jugadores (opcional, separados por coma)
-          </label>
-          <Input id={ids.otros} value={otros} autoComplete="off" onChange={(e) => setOtros(e.target.value)} />
+          <p id={ids.previa} role="status" data-alta="previa" className="text-sm font-medium text-strong">
+            {previa === null ? "Elegí otra cancha o duración: no queda lugar." : previa.ok ? previa.texto : previa.motivo}
+          </p>
         </div>
-        <p id={ids.previa} role="status" className="text-sm font-medium text-strong">
-          {previa === null ? "Elegí otra cancha o duración: no queda lugar." : previa.ok ? previa.texto : previa.motivo}
-        </p>
-        <Button type="submit" variant="solid" size="md" disabled={horaValida === null || !titular.trim()}>
-          Reservar el turno
-        </Button>
+        {/* El pie fijo del diálogo del club de hoy: «Cancelar» y «Reservar» siempre a la vista, aunque el formulario scrollee. */}
+        <footer data-alta="pie" className="sticky bottom-0 z-10 flex flex-wrap justify-end gap-2 rounded-b-lg border-t border-line bg-surface-raised px-4 pb-4 pt-3">
+          <Button type="button" variant="outline" size="md" onClick={onVolver}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="solid" size="md" disabled={horaValida === null || !titular.trim()}>
+            Reservar
+          </Button>
+        </footer>
       </form>
     </section>
   );

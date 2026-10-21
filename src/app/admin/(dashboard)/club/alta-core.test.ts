@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { clientesQueCoinciden, fichaPorTelefono, horariosLibres, previaDelTurno, reservar } from "./alta-core";
+import { ORIGENES_ALTA, ORIGEN_DE_FABRICA, clientesQueCoinciden, fichaPorTelefono, horariosLibres, previaDelTurno, reservar } from "./alta-core";
 import { armarAgenda } from "./agenda-core";
 import { textoConfirmacion } from "./whatsapp-core";
 
@@ -159,4 +159,47 @@ test("si el turno no se reserva, la ficha nueva no queda; un teléfono corto no 
   assert.equal(corto.ok, false);
   assert.match(corto.mensaje, /teléfono/);
   assert.equal(e.clientes.length, antes);
+});
+
+// ───────────── «Llegó por»: el origen del turno, como el «Nuevo turno» del club de hoy (club.html `#f-origen`) ─────────────
+
+test("«Llegó por» ofrece las opciones exactas del vanilla y llega a la reserva; sin elegir, queda «mostrador»", () => {
+  assert.deepEqual(
+    ORIGENES_ALTA.map((o) => o.valor),
+    ["mostrador", "whatsapp", "teléfono", "instagram"],
+    "las mismas opciones, en el mismo orden, que el club de hoy",
+  );
+  assert.equal(ORIGEN_DE_FABRICA, "mostrador");
+  const e = demo();
+  const canchas = ["c1", "c2", "c3", "c4"];
+  ORIGENES_ALTA.forEach((o, i) => {
+    const c = canchas[i];
+    const r = reservar(e, { canchaId: c, fecha: manana, inicio: hueco(e, c), duracion: 60, tipo: "turno", titular: `Por ${o.etiqueta}`, clienteId: null, otros: "", origen: o.valor }, AHORA);
+    assert.equal(r.ok, true, r.mensaje);
+    assert.equal(M.reserva(e, r.reservaId!)!.origen, o.valor, `«${o.etiqueta}» queda en la reserva`);
+  });
+  // Sin «Llegó por» (otros llamadores de `reservar`): el de fábrica, como el motor y el vanilla.
+  const sin = reservar(e, { canchaId: "c1", fecha: M.sumarDias(HOY, 2), inicio: horariosLibres(e, M.sumarDias(HOY, 2), "c1", 60, AHORA)[0].min, duracion: 60, tipo: "turno", titular: "Sin origen", clienteId: null, otros: "" }, AHORA);
+  assert.equal(sin.ok, true, sin.mensaje);
+  assert.equal(M.reserva(e, sin.reservaId!)!.origen, "mostrador");
+});
+
+test("«Llegó por» no cambia los flujos de alta: clase sin seña, cliente nuevo con teléfono y turno con seña", () => {
+  const e = demo();
+  const clase = reservar(e, { canchaId: "c2", fecha: manana, inicio: hueco(e), duracion: 60, tipo: "clase", titular: "Clase de Lucía", clienteId: null, otros: "", origen: "whatsapp" }, AHORA);
+  assert.equal(clase.ok, true, clase.mensaje);
+  const rc = M.reserva(e, clase.reservaId!)!;
+  assert.deepEqual([rc.tipo, rc.origen, rc.sena.monto], ["clase", "whatsapp", 0], "la clase no pide seña y guarda el origen");
+  const antes = e.clientes.length;
+  const nuevo = reservar(e, { canchaId: "c3", fecha: manana, inicio: hueco(e, "c3"), duracion: 60, tipo: "turno", titular: "Mara Nueva", clienteId: null, otros: "", tel: "11 5555-0099", origen: "instagram" }, AHORA);
+  assert.equal(nuevo.ok, true, nuevo.mensaje);
+  const rn = M.reserva(e, nuevo.reservaId!)!;
+  assert.equal(e.clientes.length, antes + 1, "el cliente nuevo queda dado de alta");
+  assert.equal(rn.clienteId, e.clientes.at(-1)!.id);
+  assert.equal(rn.origen, "instagram");
+  const conSena = reservar(e, { canchaId: "c4", fecha: manana, inicio: hueco(e, "c4"), duracion: 60, tipo: "turno", titular: "Grupo sin ficha", clienteId: null, otros: "", origen: "teléfono" }, AHORA);
+  assert.equal(conSena.ok, true, conSena.mensaje);
+  const rs = M.reserva(e, conSena.reservaId!)!;
+  assert.ok(M.requiereSena(e, null, "turno") && rs.sena.monto > 0 && rs.ref, "sin ficha sigue pidiendo seña con código");
+  assert.equal(rs.origen, "teléfono");
 });
