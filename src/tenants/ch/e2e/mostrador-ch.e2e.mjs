@@ -181,6 +181,20 @@ try {
       const marco = p.locator('[data-ui="tabla-densa"] [data-parte="desliza"]').first();
       const r = await marco.evaluate((el) => ({ desliza: el.scrollWidth > el.clientWidth, rol: el.getAttribute("role"), tab: el.getAttribute("tabindex"), nombre: el.getAttribute("aria-label") }));
       ok("6.marco", r.desliza && r.rol === "region" && r.tab === "0" && /se desliza de costado/.test(r.nombre ?? ""), `la lista de Pedidos se desliza en su marco, enfocable y con nombre («${r.nombre}»)`);
+      // Sombra del borde con más tabla: a la derecha al empezar, a la izquierda al llegar al final.
+      const sombras = () =>
+        marco.evaluate((el) => {
+          const caja = el.parentElement;
+          const op = (lado) => Number(getComputedStyle(caja.querySelector(`[data-parte="borde-${lado}"]`)).opacity);
+          return { izq: op("izq"), der: op("der") };
+        });
+      await p.waitForTimeout(200);
+      const alEmpezar = await sombras();
+      await marco.evaluate((el) => (el.scrollLeft = el.scrollWidth));
+      await p.waitForTimeout(300);
+      const alFinal = await sombras();
+      ok("6.sombra", alEmpezar.der === 1 && alEmpezar.izq === 0 && alFinal.der === 0 && alFinal.izq === 1, `la sombra marca de qué lado hay más tabla (al empezar ${JSON.stringify(alEmpezar)}, al final ${JSON.stringify(alFinal)})`);
+      await marco.evaluate((el) => (el.scrollLeft = 0));
     }
     await p.getByRole("button", { name: "Cobrar en el mostrador" }).click();
     await p.getByRole("tab", { name: /Productos/ }).click();
@@ -191,6 +205,19 @@ try {
     const pagina_ = await sinDesborde(p);
     ok(`6.${w}`, dentro && pagina_ && !!buscador && buscador.width > 200, `diseño nuevo ${w}×${h}: el cajón en una columna, con buscador, y ni el cajón ni la página desbordan`);
     if (w === 1024) await foto(p, "cajon-1024");
+    await ctx.close();
+  }
+  // Tablet de 820: lo accionable (cobro y paso que sigue) se ve sin deslizar.
+  {
+    const { ctx, p } = await pagina(e, [820, 1180]);
+    const marco = p.locator('[data-ui="tabla-densa"] [data-parte="desliza"]').first();
+    const caja = await marco.boundingBox();
+    const dentro = async (nombre) => {
+      const th = await p.locator('[data-ui="tabla-densa"] thead th', { hasText: nombre }).first().boundingBox();
+      return !!th && !!caja && th.x >= caja.x - 1 && th.x + th.width <= caja.x + caja.width + 1;
+    };
+    ok("6.820", (await dentro("Cobro")) && (await dentro("Paso que sigue")) && (await sinDesborde(p)), "tablet 820: «Cobro» y «Paso que sigue» a la vista sin deslizar, y la página quieta");
+    await foto(p, "pedidos-tablet-820");
     await ctx.close();
   }
 } catch (err) {
