@@ -847,7 +847,7 @@ async function paseConPinesViejos(): Promise<void> {
     await bloqueo(p).getByRole("button", { name: "Guardar y entrar" }).click();
     await bloqueo(p).waitFor({ state: "detached", timeout: 3000 }).catch(() => undefined);
     const e = await estadoErp(p);
-    ok("C2.entra", !(await bloqueada(p)) && e.usuarios.find((u) => u.id === "u-duenio-1")?.pin === "7604", "Elige 7604 y entra: el PIN nuevo queda guardado");
+    ok("C2.entra", !(await bloqueada(p)) && M.pinCoincide(e, e.usuarios.find((u) => u.id === "u-duenio-1"), "7604") && !JSON.stringify(e.usuarios).includes('"pin":"7604"'), "Elige 7604 y entra: el PIN nuevo queda guardado (con hash, no en claro)");
     await bloquearAMano(p);
     await desbloquear(p, /^Recepción Tarde/, "33");
     ok("C2.recepcion", !(await bloqueada(p)), "Recepción entra con su PIN de 2 de siempre (33)");
@@ -859,11 +859,12 @@ async function paseConPinesViejos(): Promise<void> {
     const conMonedero = r.caja.monedero > 0;
     ok("C3.caja", cajaCuadra(e, original) && Object.keys(caja).length >= 3, `Caja = cobrado al peso (Σ pagos sin monedero = ${M.pesos(total(cobradoPorDia(e)))}) y la caja de cada día igual al respaldo (la seña del jueves, el sábado y lo cobrado después del cierre, en la caja del domingo): ${plata(caja)}`);
     ok("C3.monedero", conMonedero && ingresos(e) === ingresos(original), `El monedero (${M.pesos(r.caja.monedero)}) no entra a la caja: ingresos ${M.pesos(ingresos(e))}, igual que el respaldo`);
-    const sinPin = distintas({ ...original, usuarios: [] } as EstadoClub, { ...e, usuarios: [] } as EstadoClub);
+    // Los usuarios y la sal de los PIN (con hash desde el 21/10) son lo único que cambia.
+    const sinPin = distintas({ ...original, usuarios: [], salPin: undefined } as EstadoClub, { ...e, usuarios: [], salPin: undefined } as EstadoClub);
     ok("C3.iguales", sinPin.length === 0 && e.usuarios.length === original.usuarios.length, `Mismos clientes, turnos, cuentas y caja (sólo cambió el PIN del dueño que eligió uno nuevo)${sinPin.length ? ` — distinto: ${sinPin.join(", ")}` : ""}`);
     await dejarCorrer(ctx, p, 31_000);
     const f = fotoDeLaBase(base);
-    ok("C3.base", !!f && f.estado.usuarios.find((u) => u.id === "u-duenio-1")?.pin === "7604" && f.estado.reservas.length === original.reservas.length, "La base tiene la jornada del piloto con el PIN nuevo del dueño");
+    ok("C3.base", !!f && M.pinCoincide(f.estado, f.estado.usuarios.find((u) => u.id === "u-duenio-1"), "7604") && f.estado.reservas.length === original.reservas.length, "La base tiene la jornada del piloto con el PIN nuevo del dueño");
   });
   await ctx.close();
 

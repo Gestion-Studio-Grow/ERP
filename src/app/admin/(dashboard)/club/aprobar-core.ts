@@ -6,7 +6,7 @@
 // `dialogoAprobar`, `SOLO_APROBAR`), que es lo que el club usa hoy:
 //   1. Recepción pide el OK para fiar (o la cuenta corriente) y toca «Avisar a Rober por WhatsApp»: al celular del
 //      dueño (Configuración → Avisos, `celularDelDuenio`) le llega el texto del motor (`mensajeWhatsApp("aprobacion")`)
-//      con el LINK al aprobador del ERP: `<origen>/admin/club/aprobar#aprobar&id=…&c=…&n=…&m=…&t=…&p=…&f=…` (o, si el
+//      con el LINK al aprobador del ERP: `<origen>/admin/club/aprobar#aprobar&id=…&c=…&n=…&m=…&t=…&p=…&f=…&s=…` (`s`, la sal del club; o, si el
 //      negocio aprueba en otro sitio —aprobador-externo.ts: Break Point en el trial, decisión G4—, a esa página con el
 //      mismo fragmento: `https://breakpointpadel.gsgapp.com.ar/club#aprobar&…`).
 //   2. El dueño lo abre (con su sesión del ERP: la pantalla es de un OWNER), elige quién es, pone su PIN y el monto
@@ -45,7 +45,7 @@ export const PREFIJO_DEL_PEDIDO = "#aprobar&";
  * el link va a esa página con el MISMO fragmento (las mismas 7 claves, en el mismo orden que arma el vanilla).
  */
 export function linkDelAprobador(origen: string, d: DatosAprobacion, negocio?: string | null): string {
-  const q = new URLSearchParams({ id: d.id, c: d.c, n: d.n, m: String(d.m), t: d.t, p: d.p, f: d.f ?? "" });
+  const q = new URLSearchParams({ id: d.id, c: d.c, n: d.n, m: String(d.m), t: d.t, p: d.p, f: d.f ?? "", ...(d.s ? { s: d.s } : {}) });
   const pagina = aprobadorExternoDe(negocio) ?? `${origen.replace(/\/+$/, "")}${RUTA_DEL_APROBADOR}`;
   return `${pagina}${PREFIJO_DEL_PEDIDO}${q.toString()}`;
 }

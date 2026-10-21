@@ -685,8 +685,10 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await page.locator('[data-ui="operador-del-club"]').getByText("Rober", { exact: true }).waitFor();
     await page.getByRole("button", { name: /^Martín Ríos, Cancha 1,/ }).waitFor();
     // Se guarda solo (con su demora): el PIN nuevo queda en la jornada y el viejo no.
-    await page.waitForFunction((k) => /pin\\*":\\*"4747/.test(localStorage.getItem(k) ?? ""), claveDeLaJornada("demo-club"));
+    // Con hash (21/10): queda el de 4 números de Rober (`pinLargo` 4) y ningún PIN en claro.
+    await page.waitForFunction((k) => /u-rober[^}]*pinLargo\\*":4/.test(localStorage.getItem(k) ?? ""), claveDeLaJornada("demo-club"));
     const guardada = await jornada();
+    assert.equal(/pin\\*":\\*"4747/.test(guardada), false, "el PIN nuevo no queda en claro");
     assert.equal(/pin\\*":\\*"11\\*"/.test(guardada), false, "el PIN viejo ya no está guardado");
     assert.ok(guardada.includes("Martín Ríos"), "lo cargado sigue en la jornada guardada");
     await page.locator("body").click({ position: { x: 5, y: 5 } });
