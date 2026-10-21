@@ -287,3 +287,16 @@ test("en reposo se adelanta el texto: la foto de «Deshacer» de la acción sigu
   a.deshacer();
   assert.ok(armarCuenta(a.estado(), r.id)!.totales.pendiente > 0, "«Deshacer» vuelve a como estaba");
 });
+
+test("el reloj de la demo: −30′/+30′ lo corre dentro del horario y «Volver a la demo» lo deja en las 19:10 (Gate 21/10)", () => {
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), almacenamiento: memoria(), demoraGuardadoMs: 0 });
+  let avisos = 0;
+  a.suscribir(() => avisos++);
+  a.correrRelojDemo(30);
+  assert.equal(a.ahora().min, MINUTO_DEMO + 30);
+  assert.equal(avisos, 1);
+  a.correrRelojDemo(-10_000);
+  assert.equal(a.ahora().min, M.horarioDe(a.estado(), HOY).abre, "no sale del horario del día");
+  a.volverALaDemo();
+  assert.equal(a.ahora().min, MINUTO_DEMO);
+});

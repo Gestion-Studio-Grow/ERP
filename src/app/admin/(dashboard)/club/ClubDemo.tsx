@@ -40,6 +40,7 @@ import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { candadoDeLaJornada, claveDeLaDemo, claveDeLaJornada, crearAlmacen, type Almacen, type AlmacenamientoLocal, type GuardadoDelClub, type RolDelPanel } from "./almacen";
 import CintaDelClub from "./CintaDelClub";
 import EnLaCabecera from "./EnLaCabecera";
+import type { OfertaDeHueco } from "./bandeja-core";
 import { crearGuardadoEnLaBase, type PuertaDeLaBase } from "./guardado-en-la-base";
 import { fechaLocal } from "./reloj-del-club";
 import { useOperador, useSeleccion } from "./usar-almacen";
@@ -50,7 +51,7 @@ import { armarTira } from "./tira-de-solapas-core";
 import PaletaDelClub from "./PaletaDelClub";
 import type { AccionPaleta } from "./paleta-core";
 import { pedirFichaDeCliente } from "./ficha-pedida";
-import BandejaDelClub from "./BandejaDelClub";
+import BandejaDelClub, { OfrecerHueco } from "./BandejaDelClub";
 import CuentaDelTurno from "./CuentaDelTurno";
 import { Esqueleto } from "@/components/ui/Esqueleto";
 import { AvisosDelClub } from "./piezas";
@@ -363,6 +364,34 @@ function CajaDelDia({ almacen, onVer }: { almacen: Almacen; onVer: () => void })
  * La hoja de la cuenta del turno (o del alta): una ventana ancha al centro con el fondo velado, como el diálogo del club
  * de hoy. Se cierra con Escape (si nadie lo atajó adentro) o tocando afuera. No es modal: el velo deja pasar el toque.
  */
+/** El hueco recién liberado, ofrecido a quienes lo esperan: el mensaje, WhatsApp y «Dijo que sí: reservar». */
+function OfrecerElHueco({ almacen, panel, onListo }: { almacen: Almacen; panel: Extract<Panel, { tipo: "ofrecer" }>; onListo: () => void }) {
+  const titulo = useRef<HTMLHeadingElement>(null);
+  const id = useId();
+  useEffect(() => titulo.current?.focus(), []);
+  const cancha = almacen.estado().canchas.find((c) => c.id === panel.canchaId)?.nombre ?? "la cancha";
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
+      <h2 id={id} ref={titulo} tabIndex={-1} data-pantalla className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
+        Se liberó {cancha} a las {hhmm(panel.inicio)}
+      </h2>
+      <p className="text-sm text-body">{panel.ofertas.length === 1 ? "Hay alguien en la lista de espera para ese horario:" : `Hay ${panel.ofertas.length} en la lista de espera para ese horario:`}</p>
+      <ul className="flex flex-col gap-3">
+        {panel.ofertas.map((o) => (
+          <li key={o.esperaId} data-tactil="compacto">
+            <OfrecerHueco almacen={almacen} que={o} onListo={onListo} />
+          </li>
+        ))}
+      </ul>
+      <div>
+        <Button variant="ghost" size="md" onClick={onListo}>
+          Ahora no
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 const AFUERA_QUE_NO_CIERRA = "[aria-live], dialog, [role=menu], [data-ui=menu-del-turno], [data-ui=avisos-del-club]";
 
 function HojaDelTurno({ children, etiqueta, onCerrar }: { children: React.ReactNode; etiqueta: string; onCerrar: (devolverFoco?: boolean) => void }) {
@@ -406,7 +435,7 @@ function HojaDelTurno({ children, etiqueta, onCerrar }: { children: React.ReactN
   return (
     // La hoja scrollea por dentro (como el diálogo del club de hoy): la cabecera con la × y el pie quedan fijos.
     <div data-ui="hoja-del-turno" className="pointer-events-none fixed inset-0 z-40 flex items-start justify-center bg-black/30 px-4 py-[5vh]">
-      <div ref={hoja} role="dialog" aria-label={etiqueta} className="pointer-events-auto max-h-full w-full max-w-[58rem] overflow-y-auto overscroll-contain rounded-lg border border-line bg-surface-raised shadow-overlay">
+      <div ref={hoja} role="dialog" aria-label={etiqueta} className="pointer-events-auto max-h-full w-full max-w-[58rem] scroll-pb-24 scroll-pt-28 overflow-y-auto overscroll-contain rounded-lg border border-line bg-surface-raised shadow-overlay">
         {children}
       </div>
     </div>
@@ -457,7 +486,11 @@ function SoloConOperador({ almacen, negocio, children }: { almacen: Almacen; neg
   return children;
 }
 
-type Panel = { tipo: "cuenta"; id: string } | { tipo: "alta"; canchaId: string; inicio: number | null } | null;
+type Panel =
+  | { tipo: "cuenta"; id: string }
+  | { tipo: "alta"; canchaId: string; inicio: number | null }
+  | { tipo: "ofrecer"; ofertas: OfertaDeHueco[]; canchaId: string; inicio: number }
+  | null;
 
 const elDia = (_: EstadoClub, a: Ahora) => a.fecha;
 const elNuevo = (_: string | undefined, nuevo: string) => nuevo;
@@ -564,6 +597,8 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     [abiertoId, almacen],
   );
   const cerrarAlta = useCallback(() => setPanel(null), []);
+  // Se liberó un hueco que alguien de la lista de espera quiere: se le ofrece ahí mismo (como el club de hoy).
+  const ofrecerHueco = useCallback((ofertas: OfertaDeHueco[], hueco: { canchaId: string; inicio: number }) => setPanel({ tipo: "ofrecer", ofertas, ...hueco }), []);
   // Abrir la cuenta de un turno desde otra solapa (una mesa, la lista de espera): en el día de ese turno.
   const verTurno = useCallback(
     (id: string) => {
@@ -751,7 +786,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
             <path d="m16 16 4.5 4.5" />
           </svg>
           <span>Buscar o hacer…</span>
-          <kbd className="rounded-sm border px-1.5 py-px text-xs font-semibold">Ctrl K</kbd>
+          <kbd aria-hidden="true" className="rounded-sm border px-1.5 py-px text-xs font-semibold">Ctrl K</kbd>
         </button>
       </EnLaCabecera>
 
@@ -788,9 +823,11 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         {/* La cuenta del turno y el alta, en una hoja ancha al centro (como el diálogo del club de hoy): sin scroll para
             cobrar y con la bandeja siempre a la vista al costado. Escape o tocar afuera vuelve a la agenda. */}
         {solapa === "agenda" && panel && (
-          <HojaDelTurno etiqueta={panel.tipo === "cuenta" ? "Cuenta del turno" : "Dar un turno"} onCerrar={panel.tipo === "cuenta" ? onVolver : cerrarAlta}>
+          <HojaDelTurno etiqueta={panel.tipo === "cuenta" ? "Cuenta del turno" : panel.tipo === "ofrecer" ? "Ofrecer el hueco" : "Dar un turno"} onCerrar={panel.tipo === "cuenta" ? onVolver : cerrarAlta}>
             {panel.tipo === "cuenta" ? (
-              <CuentaDelTurno key={panel.id} almacen={almacen} reservaId={panel.id} onVolver={onVolver} />
+              <CuentaDelTurno key={panel.id} almacen={almacen} reservaId={panel.id} onVolver={onVolver} onOfrecer={ofrecerHueco} />
+            ) : panel.tipo === "ofrecer" ? (
+              <OfrecerElHueco almacen={almacen} panel={panel} onListo={cerrarAlta} />
             ) : (
               <AltaDeTurno
                 key={`${dia}:${panel.canchaId}@${panel.inicio}`}

@@ -430,8 +430,8 @@ export default function AgendaCanchas({
         const r = g.getBoundingClientRect();
         const colW = (r.width - 3.5 * rem) / v.canchas.length;
         return modo === "mover"
-          ? previaArrastre(almacen.estado(), v, id, { modo: "mover", columna: Math.floor((x - r.left - 3.5 * rem) / colW), fila: Math.floor((y - r.top - 3 * rem) / filaPx) - agarre })
-          : previaArrastre(almacen.estado(), v, id, { modo: "estirar", filas: (y - y0) / filaPx });
+          ? previaArrastre(almacen.estado(), v, id, { modo: "mover", columna: Math.floor((x - r.left - 3.5 * rem) / colW), fila: Math.floor((y - r.top - 3 * rem) / filaPx) - agarre }, almacen.ahora())
+          : previaArrastre(almacen.estado(), v, id, { modo: "estirar", filas: (y - y0) / filaPx }, almacen.ahora());
       };
       const mover = (e: PointerEvent) => {
         if (!activo && Math.hypot(e.clientX - x0, e.clientY - y0) < 6) return;
@@ -476,12 +476,12 @@ export default function AgendaCanchas({
       const fila = Math.round((r.inicio - v.desde) / v.paso);
       const p =
         e.shiftKey && e.key === "ArrowDown"
-          ? previaArrastre(almacen.estado(), v, id, { modo: "estirar", filas: 1 })
+          ? previaArrastre(almacen.estado(), v, id, { modo: "estirar", filas: 1 }, almacen.ahora())
           : previaArrastre(almacen.estado(), v, id, {
               modo: "mover",
               columna: columna + (e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0),
               fila: fila + (e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0),
-            });
+            }, almacen.ahora());
       if (!p) return;
       if (p.modo === "mover" && !p.ok && !p.motivo) return; // contra el borde: no se mueve
       hacerCiclo(id, p);

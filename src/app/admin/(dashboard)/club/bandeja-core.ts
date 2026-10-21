@@ -13,8 +13,8 @@
 //
 // Corre sólo en el navegador (y en los tests): el motor tiene un contador de ids de módulo.
 
-import { alertas, cancha as canchaDe, hhmm, mensajeWhatsApp } from "@/lib/club/motor.mjs";
-import type { Ahora, Alerta, EstadoClub, NivelAlerta } from "@/lib/club/motor.mjs";
+import { alertas, cancha as canchaDe, hhmm, mensajeWhatsApp, ofertasEspera } from "@/lib/club/motor.mjs";
+import type { Ahora, Alerta, EstadoClub, Fecha, NivelAlerta } from "@/lib/club/motor.mjs";
 import type { TipoMarca } from "@/components/ui/Marca";
 import { celularDeLaEspera, enlaceWhatsApp, type EnlaceWhatsApp, type ModoDelClub } from "./whatsapp-core";
 
@@ -144,4 +144,20 @@ export function queHace(estado: EstadoClub, a: Alerta, modo: ModoDelClub): QueHa
     default:
       return null;
   }
+}
+
+export type OfertaDeHueco = Extract<QueHace, { tipo: "ofrecerEspera" }>;
+
+/**
+ * El hueco que se acaba de liberar (cancelar, la falta, «esta semana no vienen»), ofrecido a quienes esperan ese día y
+ * a esa hora: el `ofrecer` del club de hoy, con el mismo mensaje y el mismo «Dijo que sí: reservar» de la bandeja.
+ */
+export function ofertasDelHueco(estado: EstadoClub, hueco: { fecha: Fecha; canchaId: string; inicio: number; duracion: number }, hoy: Fecha, modo: ModoDelClub): OfertaDeHueco[] {
+  const c = canchaDe(estado, hueco.canchaId);
+  if (!c) return [];
+  const fecha = hueco.fecha === hoy ? "hoy" : `${Number(hueco.fecha.slice(8))}/${Number(hueco.fecha.slice(5, 7))}`;
+  return ofertasEspera(estado, hueco.fecha, hueco.canchaId, hueco.inicio, hueco.duracion).map((e) => {
+    const mensaje = mensajeWhatsApp("espera", { nombre: e.titular.split(" ")[0], cancha: c.nombre, hora: hhmm(hueco.inicio), fecha });
+    return { tipo: "ofrecerEspera", esperaId: e.id, canchaId: c.id, inicio: hueco.inicio, mensaje, whatsapp: enlaceWhatsApp(celularDeLaEspera(estado, e), mensaje, modo) };
+  });
 }

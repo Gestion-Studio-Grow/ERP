@@ -207,3 +207,14 @@ test("las previas sobre la copia del texto del estado dicen lo mismo que sobre s
   assert.equal(JSON.stringify(e), antes, "ninguna previa tocó el estado");
   assert.ok(comparadas > 100, `comparadas ${comparadas}`);
 });
+
+test("«Cancela el club» (devolver todo) lo decide un dueño: recepción no puede, aunque mande la acción (regresión 21/10)", () => {
+  const { e, auth } = demo();
+  const t = e.reservas.find((r) => r.fecha === HOY && r.estado === "reservada" && r.inicio > AHORA.min)!;
+  const d = ejecutarCiclo(e, t.id, { tipo: "cancelar", porClub: true, motivo: "" }, AHORA, auth);
+  assert.equal(d.ok, false);
+  assert.match(d.mensaje, /dueño/);
+  assert.equal(M.reserva(e, t.id)?.estado, "reservada", "no se tocó el turno");
+  const duenio = operadorDeLaDemo(e, "OWNER")!.auth;
+  assert.equal(ejecutarCiclo(e, t.id, { tipo: "cancelar", porClub: true, motivo: "lluvia" }, AHORA, duenio).ok, true);
+});

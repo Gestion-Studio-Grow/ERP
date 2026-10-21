@@ -96,7 +96,7 @@ function PlataSinFicha({ almacen, que, onListo }: { almacen: Almacen; que: Extra
 }
 
 /** El hueco para el de la lista de espera: el mensaje, mandarlo por WhatsApp y, si dice que sí, darle el turno. */
-function OfrecerHueco({ almacen, que, onListo }: { almacen: Almacen; que: Extract<QueHace, { tipo: "ofrecerEspera" }>; onListo: () => void }) {
+export function OfrecerHueco({ almacen, que, onListo }: { almacen: Almacen; que: Extract<QueHace, { tipo: "ofrecerEspera" }>; onListo: () => void }) {
   return (
     <div className="flex flex-col gap-2 border-t border-line pt-2">
       <blockquote className="rounded-md bg-surface-sunken px-3 py-2 text-sm text-body">{que.mensaje}</blockquote>

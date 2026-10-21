@@ -39,6 +39,7 @@ import {
 import type { Ahora, Auth, EstadoClub, Fecha, Reserva } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
 import { ETIQUETA_MEDIO, type MedioCaja } from "./cuenta-core";
+import { operadorDesdeAuth } from "./operador-del-club";
 
 /** Los destinos posibles para mover el turno: cada cancha con sus horas libres (misma duración, sin pisarse). */
 export function destinosParaMover(estado: EstadoClub, reservaId: string, ahora: Ahora): { canchaId: string; nombre: string; horas: { min: number; texto: string }[] }[] {
@@ -148,6 +149,9 @@ export function ejecutarCiclo(estado: EstadoClub, reservaId: string, accion: Acc
       return { ok: true, mensaje: `Falta de ${nombre}: ${cargos}.${ofertas(res.ofertas as { titular: string }[])}` };
     }
     case "cancelar": {
+      // «Cancela el club» devuelve todo aunque la cancelación sea tardía: es plata, la decide un dueño con su PIN (el
+      // club de hoy no tenía esta opción; recepción cancela con la regla de siempre).
+      if (accion.porClub && !operadorDesdeAuth(estado, auth ?? {}).esDuenio) return { ok: false, mensaje: "«Cancela el club» (devolver todo) lo decide un dueño: que entre con su PIN." };
       const res = cancelar(estado, reservaId, { porClub: accion.porClub, motivo: accion.motivo.trim() }, ahora);
       if (!res.ok) return { ok: false, mensaje: res.motivo };
       const plata = res.devuelto ? ` ${pesos(res.devuelto)} vuelven como crédito.` : res.devolverEnMano ? ` Hay que devolverle ${pesos(res.devolverEnMano)} en mano.` : res.enSuspenso ? " La seña queda en suspenso." : "";

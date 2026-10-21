@@ -539,6 +539,7 @@
   --danger: #b3261e; --danger-soft: #fbe2e0; --danger-fill: #b3261e;
   --info: var(--accent-ink); --info-soft: var(--accent-soft); --focus-ring: var(--accent);
   --club-naranja: #dc6e22; --club-naranja-ui: #bf5a00; --club-naranja-soft: #ffe9d2; --club-tinta-cinta: #101418;
+  --club-naranja-texto: #b85600; /* texto chico sobre blanco: 4,8:1 (Gate 21/10) */
   --radius-sm: 2px; --radius: 3px; --radius-lg: 3px; --radius-xl: 3px;
   --shadow-xs: none; --shadow-sm: none;
   --font-display: var(--font-archivo); --font-body: var(--font-archivo);
@@ -556,7 +557,7 @@
   --success: #62cf8e; --success-soft: #10311f; --success-fill: #62cf8e;
   --warning: #f2b35a; --warning-soft: #3a2a0e; --warning-fill: #ff9a3d;
   --danger: #ff8c82; --danger-soft: #44191a; --danger-fill: #ff8c82;
-  --club-naranja: #ff9a3d; --club-naranja-ui: #ff9a3d; --club-naranja-soft: #3b2512;
+  --club-naranja: #ff9a3d; --club-naranja-ui: #ff9a3d; --club-naranja-soft: #3b2512; --club-naranja-texto: #ff9a3d;
   color-scheme: dark;
 }
 /* — CH Estética (beauty-spa): su front es el papel cálido de :root con petróleo, Fraunces + Hanken, esquinas casi
@@ -712,7 +713,7 @@
 [data-estetica="breakpoint"] [data-ui="bandeja"] > ul > li { border: 1px solid var(--line); border-left: 3px solid var(--line-strong); padding: 0.75rem; }
 [data-estetica="breakpoint"] [data-ui="bandeja"] > ul > li > [data-ui="marca"] { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.75rem; }
 [data-estetica="breakpoint"] [data-ui="bandeja"] > ul > li > [data-ui="marca"] > [data-parte="forma"] { display: none; }
-[data-estetica="breakpoint"] [data-ui="bandeja"] > ul > li > [data-ui="marca"].text-danger { color: var(--club-naranja-ui); }
+[data-estetica="breakpoint"] [data-ui="bandeja"] > ul > li > [data-ui="marca"].text-danger { color: var(--club-naranja-texto); }
 /* · La solapa Tablero con su número rojo. */
 [data-estetica="breakpoint"] [data-ui="insignia"] { background: var(--danger-fill); }
 

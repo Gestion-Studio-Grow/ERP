@@ -642,7 +642,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     const agus = page.getByRole("region", { name: "Agustina Romero" });
     await agus.getByRole("button", { name: "Cancelar el turno" }).first().click();
     await agus.getByRole("status").filter({ hasText: /No pagó nada|en suspenso|crédito/ }).waitFor();
-    await agus.getByLabel("Cancela el club (lo pagado vuelve siempre)").check();
+    await agus.getByLabel(/^Cancela el club/).check();
     await agus.getByRole("button", { name: "Cancelar el turno" }).last().click();
     await page.getByRole("status").filter({ hasText: /^Turno de Agustina Romero cancelado\./ }).waitFor();
     await page.getByText(/Cancelados, suspendidos y faltas de este día \(1\)/).waitFor();

@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { armarBandeja, compartirBandeja, queHace } from "./bandeja-core";
+import { armarBandeja, compartirBandeja, ofertasDelHueco, queHace } from "./bandeja-core";
 import { ponerLuz } from "./agenda-core";
 
 const HOY = "2026-10-17";
@@ -130,4 +130,19 @@ test("la oferta a la espera: en la demo, sin número; con datos reales, al celul
   assert.ok(sinCel && sinCel.tipo === "ofrecerEspera");
   assert.match(sinCel.whatsapp.href, /^https:\/\/wa\.me\/\?text=/);
   assert.match(sinCel.whatsapp.nota ?? "", /No tiene celular cargado/);
+});
+
+test("el hueco que se libera se ofrece a quien lo espera ese día y a esa hora, con WhatsApp (el `ofrecer` del club de hoy)", () => {
+  const e = M.generarDemo(HOY, 19 * 60 + 10);
+  const esp = e.espera.find((x) => x.fecha === HOY)!;
+  assert.ok(esp, "la demo trae lista de espera hoy");
+  const c = e.canchas.find((x) => !esp.soloCubierta || x.cubierta)!;
+  const ofertas = ofertasDelHueco(e, { fecha: HOY, canchaId: c.id, inicio: esp.desde, duracion: esp.duracion }, HOY, "demo");
+  assert.ok(ofertas.some((o) => o.esperaId === esp.id));
+  const o = ofertas.find((x) => x.esperaId === esp.id)!;
+  assert.equal(o.tipo, "ofrecerEspera");
+  assert.match(o.mensaje, /Se liberó un turno/);
+  assert.match(o.mensaje, /\(hoy\)/);
+  // Un horario que no le sirve a nadie: no se ofrece.
+  assert.deepEqual(ofertasDelHueco(e, { fecha: M.sumarDias(HOY, 3), canchaId: c.id, inicio: esp.desde, duracion: esp.duracion }, HOY, "demo"), []);
 });

@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
+import { destinosParaMover } from "./ciclo-core";
 import { DIAS_ANTES, DIAS_DESPUES, armarAgenda, compartirAgenda, diasDeLaAgenda, marcaDelTurno, opcionesDelMenu, ponerLuz, previaArrastre, senalDelTurno, vecino } from "./agenda-core";
 import { ejecutar } from "./cuenta-core";
 
@@ -204,18 +205,55 @@ test("arrastrar un turno: cae en la cancha y hora de la grilla y respeta los sol
   const r = e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada")!;
   const col = v.canchas.findIndex((c) => c.id === r.canchaId);
   const fila = Math.round((r.inicio - v.desde) / v.paso);
-  const mismo = previaArrastre(e, v, r.id, { modo: "mover", columna: col, fila })!;
+  const mismo = previaArrastre(e, v, r.id, { modo: "mover", columna: col, fila }, AHORA)!;
   assert.equal(mismo.ok, false, "soltarlo donde estaba no hace nada");
   // Encima de otro turno de su misma cancha: no entra.
   const otro = e.reservas.find((x) => x.fecha === HOY && x.canchaId === r.canchaId && x.id !== r.id && ["reservada", "en_cancha"].includes(x.estado))!;
-  const choca = previaArrastre(e, v, r.id, { modo: "mover", columna: col, fila: Math.round((otro.inicio - v.desde) / v.paso) })!;
+  const choca = previaArrastre(e, v, r.id, { modo: "mover", columna: col, fila: Math.round((otro.inicio - v.desde) / v.paso) }, AHORA)!;
   assert.equal(choca.ok, false);
   assert.ok(choca.motivo.length > 0);
   // Fuera de la grilla, se acomoda adentro (no se cae del borde).
-  const borde = previaArrastre(e, v, r.id, { modo: "mover", columna: 99, fila: -5 })!;
+  const borde = previaArrastre(e, v, r.id, { modo: "mover", columna: 99, fila: -5 }, AHORA)!;
   assert.equal(borde.columna, v.canchas.length - 1);
   assert.equal(borde.fila, 0);
-  const estira = previaArrastre(e, v, r.id, { modo: "estirar", filas: 1.4 })!;
+  const estira = previaArrastre(e, v, r.id, { modo: "estirar", filas: 1.4 }, AHORA)!;
   assert.equal(estira.modo === "estirar" && estira.minutos, v.paso);
-  assert.equal(previaArrastre(e, v, "no-existe", { modo: "estirar", filas: 1 }), null);
+  assert.equal(previaArrastre(e, v, "no-existe", { modo: "estirar", filas: 1 }, AHORA), null);
+});
+
+test("arrastrar respeta las reglas de «Mover»: nada a una hora que ya pasó; jugando, sólo otra cancha a la misma hora (regresión 21/10)", () => {
+  const e = demo();
+  const v = armarAgenda(e, HOY, AHORA);
+  // Un turno reservado de más tarde, soltado a primera hora (ya pasó): no.
+  const tarde = e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada" && x.inicio > AHORA.min)!;
+  const colT = v.canchas.findIndex((c) => c.id === tarde.canchaId);
+  const temprano = previaArrastre(e, v, tarde.id, { modo: "mover", columna: colT, fila: 0 }, AHORA)!;
+  assert.equal(temprano.ok, false);
+  assert.match(temprano.motivo, /ya pasó/);
+  // Jugando: a otra hora, no (aunque el hueco esté libre).
+  const jugando = e.reservas.find((x) => x.fecha === HOY && x.estado === "en_cancha")!;
+  const colJ = v.canchas.findIndex((c) => c.id === jugando.canchaId);
+  const filaJ = Math.round((jugando.inicio - v.desde) / v.paso);
+  const antes = previaArrastre(e, v, jugando.id, { modo: "mover", columna: colJ, fila: filaJ - 2 }, AHORA)!;
+  assert.equal(antes.ok, false);
+  assert.match(antes.motivo, /misma hora/);
+  // Jugando, a otra cancha a la misma hora, si está libre: sí (lo mismo que ofrece «Mover»).
+  const destinos = destinosParaMover(e, jugando.id, AHORA);
+  if (destinos.length) {
+    const d = destinos[0];
+    const ok = previaArrastre(e, v, jugando.id, { modo: "mover", columna: v.canchas.findIndex((c) => c.id === d.canchaId), fila: filaJ }, AHORA)!;
+    assert.equal(ok.ok, true, "a otra cancha libre a la misma hora, entra");
+  }
+  // Un reservado a una hora libre que todavía no pasó: entra (y coincide con «Mover»).
+  const libre = destinosParaMover(e, tarde.id, AHORA)[0];
+  const h = libre.horas[0].min;
+  const entra = previaArrastre(e, v, tarde.id, { modo: "mover", columna: v.canchas.findIndex((c) => c.id === libre.canchaId), fila: Math.round((h - v.desde) / v.paso) }, AHORA)!;
+  assert.equal(entra.ok, true);
+  // Un turno cerrado no se arrastra; uno que ya terminó no se estira.
+  const cerrado = e.reservas.find((x) => x.fecha === HOY && x.estado === "finalizada");
+  if (cerrado) assert.equal(previaArrastre(e, v, cerrado.id, { modo: "estirar", filas: 1 }, AHORA), null);
+  const tardeDeMas = { fecha: HOY, min: tarde.inicio + tarde.duracion + 30 };
+  const noEstira = previaArrastre(e, v, tarde.id, { modo: "estirar", filas: 1 }, tardeDeMas)!;
+  assert.equal(noEstira.ok, false);
+  assert.match(noEstira.motivo, /ya terminó/);
 });

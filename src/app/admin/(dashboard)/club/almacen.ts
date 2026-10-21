@@ -1575,6 +1575,8 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       if (pendiente !== null) clearTimeout(pendiente);
       pendiente = null;
       estado = demoDelDia(hoyDemo);
+      // El reloj de la demo vuelve a las 19:10 (si se lo había corrido con −30′/+30′).
+      ahora = { fecha: hoyDemo, min: MINUTO_DEMO };
       retomo = false;
       fotoPrevia = null;
       fotoDesde = null;

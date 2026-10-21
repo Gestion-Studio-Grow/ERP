@@ -16,6 +16,8 @@ import { Input, Select } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
 import { pesos, reserva as reservaDe } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
+import { operadorActual } from "./operador-del-club";
+import { ofertasDelHueco, type OfertaDeHueco } from "./bandeja-core";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
 import { celularDelTurno, enlaceWhatsApp, recordatorioDisponible, textoRecordatorio } from "./whatsapp-core";
 import { destinosParaMover, ejecutarCiclo, opcionesCiclo, previaCancelar, previaExtender, previaFalta, previaInterrumpir, type AccionCiclo } from "./ciclo-core";
@@ -134,17 +136,22 @@ function Falta({ almacen, reservaId, hacer }: { almacen: Almacen; reservaId: str
 }
 
 function Cancelar({ almacen, reservaId, hacer }: { almacen: Almacen; reservaId: string; hacer: (a: AccionCiclo) => void }) {
-  const [porClub, setPorClub] = useState(false);
+  const duenio = operadorActual(almacen).esDuenio;
+  const [porClubElegido, setPorClub] = useState(false);
+  const porClub = duenio && porClubElegido;
   const [motivo, setMotivo] = useState("");
   const ids = { club: useId(), motivo: useId() };
   // La previa se calcula una vez por estado y por opción (no en cada letra del motivo): ver `almacen.simular`.
   const previa = almacen.simular(`cancelar:${reservaId}:${porClub}`, (copia) => previaCancelar(almacen.estado(), reservaId, porClub, almacen.ahora(), copia));
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={ids.club} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-strong">
-        <input id={ids.club} type="checkbox" checked={porClub} onChange={(e) => setPorClub(e.target.checked)} className="size-5 accent-[var(--accent)]" />
-        Cancela el club (lo pagado vuelve siempre)
-      </label>
+      {/* Devolver todo aunque sea tarde es decisión de un dueño (con su PIN): recepción no lo ve. */}
+      {duenio && (
+        <label htmlFor={ids.club} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-strong">
+          <input id={ids.club} type="checkbox" checked={porClub} onChange={(e) => setPorClub(e.target.checked)} className="size-5 accent-[var(--accent)]" />
+          Cancela el club (lo pagado vuelve siempre · decisión del dueño)
+        </label>
+      )}
       <div className="flex flex-col gap-1">
         <label htmlFor={ids.motivo} className="text-xs font-medium text-muted">
           Motivo (opcional)
@@ -188,9 +195,12 @@ export default function CicloDelTurno({
   reservaId,
   onAntes,
   onListo,
+  onOfrecer,
 }: {
   almacen: Almacen;
   reservaId: string;
+  /** Se liberó el hueco y hay quien lo espera: ClubDemo abre el ofrecimiento (WhatsApp y «Dijo que sí: reservar»). */
+  onOfrecer: (ofertas: OfertaDeHueco[], hueco: { canchaId: string; inicio: number }) => void;
   /** Antes de mover, extender o cancelar: la confirmación de créditos que estaba abierta ya no vale. */
   onAntes: () => void;
   onListo: () => void;
@@ -204,10 +214,16 @@ export default function CicloDelTurno({
   const op = opcionesCiclo(r);
   const hacer = (a: AccionCiclo) => {
     onAntes();
+    // El hueco que deja el turno, por si se libera (para ofrecérselo a la lista de espera, como el club de hoy).
+    const hueco = { fecha: r.fecha, canchaId: r.canchaId, inicio: r.inicio, duracion: r.duracion };
     const d = almacen.ejecutar((e, ahora, auth) => ejecutarCiclo(e, reservaId, a, ahora, auth), { deshacible: true });
     if (d.ok) {
       setAbierta(null);
       onListo();
+      if (a.tipo === "cancelar" || a.tipo === "falta" || a.tipo === "liberarFijo") {
+        const ofertas = ofertasDelHueco(almacen.estado(), hueco, almacen.ahora().fecha, almacen.modo());
+        if (ofertas.length) onOfrecer(ofertas, hueco);
+      }
     }
   };
   const cuales = (Object.keys(ETIQUETAS) as Cual[]).filter((c) => op[c]);

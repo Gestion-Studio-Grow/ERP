@@ -53,6 +53,7 @@ import { CobroDeLaCancha, SumarJugador } from "./cuenta-piezas";
 import PedidoDelDuenio from "./pedido-del-duenio";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
 import CicloDelTurno from "./CicloDelTurno";
+import type { OfertaDeHueco } from "./bandeja-core";
 import { useSeleccion } from "./usar-almacen";
 
 function SelectorACargo({
@@ -345,7 +346,17 @@ function SumarCargo({ almacen, vista, medio, onAccion }: { almacen: Almacen; vis
   );
 }
 
-export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almacen: Almacen; reservaId: string; onVolver: () => void }) {
+export default function CuentaDelTurno({
+  almacen,
+  reservaId,
+  onVolver,
+  onOfrecer,
+}: {
+  almacen: Almacen;
+  reservaId: string;
+  onVolver: () => void;
+  onOfrecer: (ofertas: OfertaDeHueco[], hueco: { canchaId: string; inicio: number }) => void;
+}) {
   const seleccionar = useCallback((e: EstadoClub) => armarCuenta(e, reservaId), [reservaId]);
   const vista = useSeleccion(almacen, seleccionar, compartirCuenta);
   const [medio, setMedio] = useState<MedioCobro>("efectivo");
@@ -551,6 +562,7 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
         almacen={almacen}
         reservaId={vista.reservaId}
         onAntes={() => setConfirmando(null)}
+        onOfrecer={onOfrecer}
         onListo={() => {
           // Si el turno salió de la grilla (cancelado, no vino), la cuenta ya no tiene nada que mostrar.
           if (!armarCuenta(almacen.estado(), reservaId)) onVolver();

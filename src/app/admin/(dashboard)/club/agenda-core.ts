@@ -384,16 +384,20 @@ export function previaArrastre(
   vista: Pick<VistaAgenda, "canchas" | "paso" | "desde" | "filas" | "fecha">,
   reservaId: string,
   a: { modo: "mover"; columna: number; fila: number } | { modo: "estirar"; filas: number },
+  ahora: Ahora,
 ): PreviaArrastre | null {
   const r = estado.reservas.find((x) => x.id === reservaId);
   if (!r || (r.estado !== "reservada" && r.estado !== "en_cancha")) return null;
+  // Las mismas reglas del diálogo «Mover» (destinosParaMover, ciclo-core.ts): jugando, sólo otra cancha a la misma hora;
+  // reservado, nunca a una hora en la que ya habría terminado. Y no se estira un turno que ya terminó.
+  const yaTermino = minutosHasta(ahora, r.fecha, r.inicio + r.duracion) <= 0;
   const alto = Math.max(1, Math.round(r.duracion / vista.paso));
   const columnaDe = vista.canchas.findIndex((c) => c.id === r.canchaId);
   const filaDe = Math.round((r.inicio - vista.desde) / vista.paso);
   if (a.modo === "estirar") {
     const minutos = Math.max(0, Math.round(a.filas)) * vista.paso;
     if (minutos === 0) return { modo: "estirar", columna: columnaDe, fila: filaDe, alto, minutos, ok: false, motivo: "" };
-    const v = validarHueco(estado, { canchaId: r.canchaId, fecha: r.fecha, inicio: r.inicio + r.duracion, duracion: minutos });
+    const v = yaTermino ? { ok: false as const, motivo: "Ese turno ya terminó: no se puede alargar." } : validarHueco(estado, { canchaId: r.canchaId, fecha: r.fecha, inicio: r.inicio + r.duracion, duracion: minutos });
     return { modo: "estirar", columna: columnaDe, fila: filaDe, alto: alto + minutos / vista.paso, minutos, ok: v.ok, motivo: v.ok ? "" : v.motivo };
   }
   const columna = Math.min(Math.max(0, a.columna), vista.canchas.length - 1);
@@ -401,6 +405,12 @@ export function previaArrastre(
   const canchaId = vista.canchas[columna].id;
   const inicio = vista.desde + fila * vista.paso;
   const igual = canchaId === r.canchaId && inicio === r.inicio;
-  const v = igual ? { ok: false as const, motivo: "" } : validarHueco(estado, { canchaId, fecha: r.fecha, inicio, duracion: r.duracion }, r.id);
+  const v = igual
+    ? { ok: false as const, motivo: "" }
+    : r.estado === "en_cancha" && inicio !== r.inicio
+      ? { ok: false as const, motivo: "Están jugando: sólo se puede pasar a otra cancha, a la misma hora." }
+      : r.estado !== "en_cancha" && minutosHasta(ahora, r.fecha, inicio) + r.duracion <= 0
+        ? { ok: false as const, motivo: "Esa hora ya pasó." }
+        : validarHueco(estado, { canchaId, fecha: r.fecha, inicio, duracion: r.duracion }, r.id);
   return { modo: "mover", canchaId, columna, fila, alto, inicio, ok: v.ok, motivo: v.ok ? "" : v.motivo };
 }

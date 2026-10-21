@@ -41,7 +41,7 @@ const BloquearDesdeLaCinta = memo(function BloquearDesdeLaCinta({ almacen, enMen
   if (enMenu)
     return (
       <button type="button" aria-keyshortcuts="L" onClick={bloquear} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-sm px-3 text-left text-sm font-semibold hover:bg-surface-sunken">
-        Bloquear la pantalla <kbd className="rounded-sm border border-line px-1.5 text-xs font-normal text-muted">L</kbd>
+        Bloquear la pantalla <kbd aria-hidden="true" className="rounded-sm border border-line px-1.5 text-xs font-normal text-muted">L</kbd>
       </button>
     );
   return (
