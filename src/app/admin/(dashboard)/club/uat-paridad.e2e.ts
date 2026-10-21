@@ -1080,7 +1080,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     g.pinCaro = (await nuevo.locator("p.text-4xl").innerText()).trim();
     await nuevo.getByRole("button", { name: "Listo, ya se lo di" }).click();
     const caro = (await estado(p)).usuarios.find((u) => u.nombre === "Caro");
-    ok("7.pin-nuevo", /^\d{2}$/.test(g.pinCaro) && g.pinCaro !== pinViejo && caro?.pin === g.pinCaro, "PIN nuevo de Caro: el viejo deja de andar y el nuevo se ve una vez");
+    ok("7.pin-nuevo", /^\d{2}$/.test(g.pinCaro) && g.pinCaro !== pinViejo && M.pinCoincide(await estado(p), caro, g.pinCaro) && !M.pinCoincide(await estado(p), caro, pinViejo), "PIN nuevo de Caro: el viejo deja de andar y el nuevo se ve una vez");
     // Sacar acceso a Agus.
     await usuarios.getByRole("button", { name: "Sacar acceso a Agus (finde)" }).click();
     const formSacar = p.getByRole("form", { name: "Sacarle el acceso a Agus (finde)" });
@@ -1104,7 +1104,8 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await ctx2.clock.install({ time: new Date("2026-10-17T19:00:00-03:00") });
     await ctx2.route(ORIGEN, (rt) => rt.fulfill({ contentType: "text/html; charset=utf-8", body: html() }));
     const mes = armarMesCargado("2026-10-10", 30);
-    Object.assign(mes.estado, { usuarios: actual.usuarios, config: { ...actual.config, configurado: true } });
+    // Los usuarios van con la sal de sus PIN (con hash desde el 21/10).
+    Object.assign(mes.estado, { usuarios: actual.usuarios, salPin: actual.salPin, config: { ...actual.config, configurado: true } });
     const texto = JSON.stringify({ v: mes.v, estado: mes.estado, secuencia: mes.secuencia });
     await ctx2.addInitScript(([k, t]) => {
       try {

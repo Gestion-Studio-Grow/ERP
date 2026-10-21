@@ -326,7 +326,7 @@ await p.fill("#bl-nuevo", "8484"); await p.fill("#bl-nuevo2", "4848"); await p.c
 ok("5b.distintos", await bloqueada() && /no coinciden/.test(await p.textContent("#bl-aviso")), "Si los dos PIN nuevos no coinciden, avisa y no guarda");
 await p.fill("#bl-nuevo", "8484"); await p.fill("#bl-nuevo2", "8484"); await p.press("#bl-nuevo2", "Enter"); await W(400);
 const e5c = await estado();
-ok("5b.cambiado", !(await bloqueada()) && (await p.textContent("#u-nombre")) === "Majo Gimenez" && e5c.usuarios.find((u) => u.id === "u-majo").pin === "8484" && e5c.reservas.length === e5.reservas.length && ingresos(e5c) === cajaAntes, "Elige 8484 y entra: el PIN nuevo queda guardado y no se perdió nada");
+ok("5b.cambiado", !(await bloqueada()) && (await p.textContent("#u-nombre")) === "Majo Gimenez" && M.pinCoincide(e5c, e5c.usuarios.find((u) => u.id === "u-majo"), "8484") && e5c.reservas.length === e5.reservas.length && ingresos(e5c) === cajaAntes, "Elige 8484 y entra: el PIN nuevo queda guardado y no se perdió nada");
 // Roberto todavía tiene el de 2 y entra por «Cambiar usuario»: también se le pide el de 4 antes de operar.
 await cerrar(); await p.click('[data-a="usuario"]'); await W();
 const puntosMajo = await p.getAttribute("#pin-usuario", "placeholder");
@@ -526,8 +526,9 @@ ok("11.copia-borrada", /Descargar y borrar: Copia de antes/.test(etiqueta ?? "")
 const { armarMesCargado } = await import("../../mes-cargado.fixture.ts");
 const actual = await estado();
 const mes = armarMesCargado("2026-10-10", 30);
-const majo = actual.usuarios.find((u) => u.rol === "duenio" && u.pin === "8484");
-Object.assign(mes.estado, { usuarios: actual.usuarios, config: actual.config });
+const majo = actual.usuarios.find((u) => u.rol === "duenio" && M.pinCoincide(actual, u, "8484"));
+// Los usuarios van con la sal de sus PIN (con hash desde el 21/10).
+Object.assign(mes.estado, { usuarios: actual.usuarios, salPin: actual.salPin, config: actual.config });
 // Al recargar, la pestaña guarda lo suyo (pagehide y después visibilitychange): el mes se vuelve a poner al final, como
 // si lo hubiera cargado el club.
 await p.evaluate((txt) => {
@@ -590,7 +591,7 @@ ok("11.vuelve", (await estado()).archivo?.hasta === anexo.hasta && !(await bloqu
   q.on("pageerror", (e) => errores.push(e.message));
   const bajadas2 = []; q.on("download", (d) => bajadas2.push(d));
   const mes2 = armarMesCargado("2026-10-10", 30);
-  Object.assign(mes2.estado, { usuarios: actual.usuarios, config: actual.config });
+  Object.assign(mes2.estado, { usuarios: actual.usuarios, salPin: actual.salPin, config: actual.config });
   const txt = JSON.stringify({ ...mes2, usuario: majo.id });
   await q.goto(`${BASE}/club`); await q.waitForTimeout(800);
   await q.evaluate((t) => { localStorage.setItem("bp-modo", "real"); const poner = () => localStorage.setItem("bp-jornada-v1", t); poner(); addEventListener("pagehide", poner); document.addEventListener("visibilitychange", poner); }, txt);
