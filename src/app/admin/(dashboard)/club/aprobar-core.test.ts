@@ -254,8 +254,8 @@ test("Break Point: el código que da el celular con el vanilla (el PIN y esos da
   const pinMajo = e.usuarios.find((u) => u.id === majo.id)!.pin;
   const d = comoLoLeeElVanilla(linkDelAprobador(ORIGEN, datos, "breakpoint"))!;
   // `dialogoAprobar` del vanilla (app.mjs ~:1601), en el celular sin jornada: el código sale del PIN y del monto.
-  const codigo = V.codigoAprobacion({ pin: pinMajo, novedadId: d.id, clienteId: d.c, monto: Math.round(Number(d.m)), fecha: d.f });
-  assert.equal(codigo, M.codigoAprobacion({ pin: pinMajo, novedadId: datos.id, clienteId: datos.c, monto: datos.m, fecha: datos.f }), "misma función en los dos motores");
+  const codigo = V.codigoAprobacion({ pin: pinMajo, sal: d.s, novedadId: d.id, clienteId: d.c, monto: Math.round(Number(d.m)), fecha: d.f });
+  assert.equal(codigo, M.codigoAprobacion({ pin: pinMajo, sal: datos.s, novedadId: datos.id, clienteId: datos.c, monto: datos.m, fecha: datos.f }), "misma función en los dos motores");
   const r = ejecutarClientes(e, { tipo: "aprobarCodigo", novedadId: novedad.id, codigo, monto: d.m }, AHORA, recep);
   assert.equal(r.ok, true, r.mensaje);
   assert.match(r.mensaje, new RegExp(`^Aprobado por ${majo.nombre}`));
@@ -270,9 +270,9 @@ test("Break Point: el código que da el celular con el vanilla (el PIN y esos da
   assert.equal(df.t, "fiado");
   const rober = duenosQueAprueban(f.e)[0];
   const pinRober = f.e.usuarios.find((u) => u.id === rober.id)!.pin;
-  const malo = V.codigoAprobacion({ pin: pinRober === "9999" ? "9998" : "9999", novedadId: df.id, clienteId: df.c, monto: Number(df.m), fecha: df.f });
+  const malo = V.codigoAprobacion({ pin: pinRober === "9999" ? "9998" : "9999", sal: df.s, novedadId: df.id, clienteId: df.c, monto: Number(df.m), fecha: df.f });
   assert.equal(aprobarConCodigo(f.e, n.id, malo, f.recep, AHORA).ok, false, "con un PIN que no es de un dueño, no sirve");
-  const bueno = V.codigoAprobacion({ pin: pinRober, novedadId: df.id, clienteId: df.c, monto: Number(df.m), fecha: df.f });
+  const bueno = V.codigoAprobacion({ pin: pinRober, sal: df.s, novedadId: df.id, clienteId: df.c, monto: Number(df.m), fecha: df.f });
   const ok = aprobarConCodigo(f.e, n.id, bueno.toLowerCase().replace("-", ""), f.recep, AHORA);
   assert.equal(ok.ok, true, ok.mensaje);
   assert.match(ok.mensaje, new RegExp(`^Aprobado por ${rober.nombre}: ya podés pasar \\$ 4\\.000`));

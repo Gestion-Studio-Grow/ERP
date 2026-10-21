@@ -248,7 +248,7 @@ ok("3.celular-largo", /Tu PIN \(4 números; si todavía tenés el de 2, también
 await pc.fill("#ap-pin", "8484"); await pc.click('#dlg [data-a="aprobarLink"]'); await pc.waitForTimeout(300);
 const codigo = (await pc.textContent(".codigo-aprob"))?.trim();
 const d = Object.fromEntries(new URLSearchParams(linkAprob.split("#aprobar&")[1]));
-ok("3.codigo", codigo === M.codigoAprobacion({ pin: "8484", novedadId: d.id, clienteId: d.c, monto: 4000, fecha: d.f }), `Con el PIN de Majo sale el código ${codigo}`);
+ok("3.codigo", codigo === M.codigoAprobacion({ pin: "8484", sal: d.s, novedadId: d.id, clienteId: d.c, monto: 4000, fecha: d.f }), `Con el PIN de Majo sale el código ${codigo}`);
 await foto("celular-codigo", pc);
 const scrollCel = await pc.evaluate(() => document.documentElement.scrollWidth);
 ok("3.celular-390", scrollCel <= 390, `Celular 390 px sin scroll horizontal (${scrollCel})`);

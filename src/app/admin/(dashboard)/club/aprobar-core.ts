@@ -26,7 +26,7 @@
 // dueños del estado que este equipo tiene a mano. Sin estado a mano (jornada real sin la base encendida, BP-3), el
 // celular no puede verificar el PIN: calcula el código igual (como el vanilla) y lo verifica la compu del club.
 
-import { codigoAprobacion, datosAprobacion, mensajeWhatsApp, pesos, pinValidoPara } from "@/lib/club/motor.mjs";
+import { pinDeEjemplo, codigoAprobacion, datosAprobacion, mensajeWhatsApp, pesos, pinValidoPara } from "@/lib/club/motor.mjs";
 import type { DatosAprobacion, EstadoClub } from "@/lib/club/motor.mjs";
 import { aprobadorExternoDe } from "./aprobador-externo";
 import { probarPin, segundosDeEspera, textoDeEspera, textoPinIncompleto, intentosVigentes, pinCompleto, type IntentosDelBloqueo } from "./bloqueo-core";
@@ -79,12 +79,15 @@ export function leerPedidoDelLink(hash: string): DatosAprobacion | null {
   const f = q.get("f") ?? "";
   const n = textoLimpio(q.get("n"), 80);
   const p = textoLimpio(q.get("p"), 60);
+  // La sal del club (hex): el celular calcula el código con el PIN con hash, como lo tiene guardado el club.
+  const s = q.get("s") ?? "";
   if (!ID.test(id) || !ID.test(c)) return null;
   if (!Number.isInteger(m) || m <= 0 || m > MONTO_MAXIMO) return null;
   if (t !== "cc" && t !== "fiado") return null;
   if (f !== "" && !FECHA.test(f)) return null;
   if (!n || !p) return null;
-  return { id, c, n, m, t, p, f };
+  if (s && !/^[0-9a-f]{8,64}$/.test(s)) return null;
+  return { id, c, n, m, t, p, f, ...(s ? { s } : {}) };
 }
 
 const ddmm = (f: string) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
@@ -189,7 +192,8 @@ export function probarAprobacion(args: {
   const monto = leerMonto(args.monto);
   if (!(monto > 0) || monto > MONTO_MAXIMO) return { tipo: "incompleto", mensaje: "Poné el monto que aprobás." };
   const pin = String(args.pin ?? "").trim();
-  const codigo = (p: string) => codigoAprobacion({ pin: p, novedadId: pedido.id, clienteId: pedido.c, monto, fecha: pedido.f });
+  // Con la sal del club (`s` del link): la clave es el PIN con hash, la misma que el club tiene guardada.
+  const codigo = (p: string) => codigoAprobacion({ pin: p, sal: pedido.s ?? estado?.salPin, novedadId: pedido.id, clienteId: pedido.c, monto, fecha: pedido.f });
   const pinViejo = !pinValidoPara("duenio", pin);
   if (!estado) {
     if (!pinCompleto(pin, "duenio")) return { tipo: "incompleto", mensaje: textoPinIncompleto("duenio") };
@@ -211,6 +215,6 @@ export function enlaceDelCodigo(estado: EstadoClub | null, pedido: DatosAprobaci
 /** SÓLO DEMO: los PIN de ejemplo de los dueños («Rober 1111 · Majo 2222»), para recorrer el flujo. En el real, nunca. */
 export function pinesDeEjemplo(estado: EstadoClub | null, modo: ModoDelClub): string | null {
   if (modo !== "demo" || !estado) return null;
-  const lista = estado.usuarios.filter((u) => u.rol === "duenio" && u.activo !== false && u.pin).map((u) => `${u.nombre} ${u.pin}`);
+  const lista = estado.usuarios.filter((u) => u.rol === "duenio" && u.activo !== false && u.pin).map((u) => `${u.nombre} ${pinDeEjemplo(u)}`);
   return lista.length ? lista.join(" · ") : null;
 }

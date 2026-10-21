@@ -699,7 +699,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await pv.click('#dlg [data-a="aprobarLink"]');
     const codigo = ((await pv.locator(".codigo-aprob").textContent()) ?? "").trim();
     const d = Object.fromEntries(new URLSearchParams(linkAprob.split("#aprobar&")[1]));
-    ok("3.codigo", codigo === M.codigoAprobacion({ pin: "8484", novedadId: d.id, clienteId: d.c, monto: 4000, fecha: d.f }), `Con el PIN de Majo, el club de hoy da el código ${codigo} (el mismo del motor)`);
+    ok("3.codigo", codigo === M.codigoAprobacion({ pin: "8484", sal: d.s, novedadId: d.id, clienteId: d.c, monto: 4000, fecha: d.f }), `Con el PIN de Majo, el club de hoy da el código ${codigo} (el mismo del motor)`);
     await foto(pv, "celular-codigo");
     const scrollCel = await pv.evaluate(() => document.documentElement.scrollWidth);
     ok("3.celular-390", scrollCel <= 390, `Celular 390 px sin scroll horizontal (${scrollCel})`);

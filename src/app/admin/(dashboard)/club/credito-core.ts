@@ -65,7 +65,7 @@ export function codigoDeLaDemo(estado: EstadoClub, novedadId: string): { duenio:
   const d = datosAprobacion(estado, novedadId);
   const duenio = estado.usuarios.find((u) => u.rol === "duenio" && u.activo !== false && u.pin);
   if (!d || !duenio) return null;
-  return { duenio: duenio.nombre, codigo: codigoAprobacion({ pin: duenio.pin, novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f }) };
+  return { duenio: duenio.nombre, codigo: codigoAprobacion({ pin: duenio.pin, sal: estado.salPin, novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f }) };
 }
 
 /** El mensaje de WhatsApp para el dueño (el texto; el link al celular del dueño es del modo real). */

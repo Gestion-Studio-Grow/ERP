@@ -22,7 +22,7 @@
 //     paso de la pantalla bloqueada (`entrarConPinNuevo`), como `pedirPinNuevo` del vanilla. No toca nada de lo cargado.
 // El reloj se inyecta (`ahoraMs`) en todo: los tests no esperan.
 
-import { ESPERAS_PIN_S, TOPE_INTENTOS_PIN, anotarIntentoPin, cambiarMiPin, esperaPin, intentosPin, largoPin, pinAceptadoPara, pinDesactualizado, pinFacil, pinValidoPara, textoLargoPin, usuario as usuarioDe, verificarPin } from "@/lib/club/motor.mjs";
+import { pinCoincide, ESPERAS_PIN_S, TOPE_INTENTOS_PIN, anotarIntentoPin, cambiarMiPin, esperaPin, intentosPin, largoPin, pinAceptadoPara, pinDesactualizado, pinFacil, pinValidoPara, textoLargoPin, usuario as usuarioDe, verificarPin } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, Rol, Usuario } from "@/lib/club/motor.mjs";
 import type { Almacen, AlmacenamientoLocal, Desenlace } from "./almacen";
 
@@ -393,7 +393,7 @@ export function entrarConPinNuevo(almacen: AlmacenQueCambiaElPin, cambio: Cambio
     return c.ok ? { ok: true, mensaje: "Tu PIN nuevo quedó guardado." } : { ok: false, mensaje: c.motivo };
   });
   const yo = usuarioDe(almacen.estado(), r.usuario.id);
-  if (!d.ok || !yo || yo.pin !== r.nuevo) {
+  if (!d.ok || !yo || !pinCoincide(almacen.estado(), yo, r.nuevo)) {
     almacen.cambiarOperador(null);
     return d.ok ? { ok: false, mensaje: "No se pudo guardar el PIN nuevo. Probá de nuevo." } : d;
   }

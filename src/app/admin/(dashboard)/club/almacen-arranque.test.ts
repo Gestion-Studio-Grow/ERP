@@ -80,11 +80,14 @@ test("arranque: sin configurar y sin operador, corre con `auth: {}` (definir el 
   });
   assert.deepEqual(d, { ok: true, mensaje: "PIN guardado" });
   assert.equal(recibio, true);
-  assert.equal(a.estado().usuarios.find((u) => u.id === duenio.id)!.pin, "4747");
+  assert.ok(M.pinCoincide(a.estado(), a.estado().usuarios.find((u) => u.id === duenio.id)!, "4747"));
   assert.deepEqual(a.aviso(), { id: a.aviso()!.id, ok: true, mensaje: "PIN guardado", deshacer: false });
   assert.equal(a.puedeDeshacer(), false);
   assert.equal(a.pendienteDeGuardar(), false, "se guardó (demora 0)");
-  assert.match(m.datos.get(CLAVE)!, /"pin":"4747"/);
+  // Guardado con hash (21/10): el PIN no queda en claro y sigue siendo el de él.
+  assert.doesNotMatch(m.datos.get(CLAVE)!, /"pin":"4747"/);
+  const guardada = M.hidratarEstado(JSON.parse(m.datos.get(CLAVE)!));
+  assert.ok(guardada.ok && M.pinCoincide(guardada.estado, guardada.estado.usuarios.find((u) => u.id === duenio.id)!, "4747"));
   // Un error del motor: lo dice y no rompe.
   assert.equal(a.arranque((e, ahora) => { const r = M.definirPinInicial(e, duenio.id, "4848", ahora); return { ok: r.ok, mensaje: r.ok ? "" : r.motivo }; }).ok, false);
   assert.equal(a.arranque(() => { throw new Error("x"); }).mensaje, "No se pudo hacer. Probá de nuevo.");

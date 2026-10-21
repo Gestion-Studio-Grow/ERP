@@ -719,7 +719,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await hoja.getByRole("button", { name: /^Rober/ }).click();
     await hoja.getByLabel("PIN de Rober").fill("11");
     await hoja.getByRole("button", { name: "Entrar" }).click();
-    await bloqueo(p2).getByRole("heading", { name: "Elegí tu PIN nuevo" }).waitFor();
+    await bloqueo(p2).getByRole("heading", { name: "Tu PIN es el viejo" }).waitFor();
     assert.equal(await bloqueo(p2).evaluate((d) => d.scrollWidth - d.clientWidth), 0, "sin scroll de costado a 390 px");
     if (css) assert.deepEqual(await chicos(p2), [], "objetivos de 44 px a 390 px");
     await capturar(p2, "390-pin-viejo-desde-cambiar-de-usuario");
