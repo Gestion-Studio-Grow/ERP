@@ -17,7 +17,7 @@
 // La plata la decide el motor; acá se traduce cada toque y se arma el aviso. Este archivo lo importa SÓLO el buffet
 // (su chunk aparte): la agenda no lo carga.
 
-import { cargoManual, cuenta as cuentaDe, pesos, pinDesactualizado, producto as productoDe, transferirCargo, usuarioPorPin, ventaMostrador } from "@/lib/club/motor.mjs";
+import { pinDeEjemplo, cargoManual, cuenta as cuentaDe, pesos, pinDesactualizado, producto as productoDe, transferirCargo, usuarioPorPin, ventaMostrador } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
 import { productosParaCargar, type ProductoParaCargar } from "./buffet-core";
@@ -89,7 +89,7 @@ export function ejecutarMesa(estado: EstadoClub, accion: AccionMesa, ahora: Ahor
 
 /** SÓLO DEMO: los PIN de ejemplo de los dueños, para poder probar un descuento (en la jornada real no se muestran). */
 export function pinesDeEjemplo(estado: EstadoClub): { nombre: string; pin: string }[] {
-  return estado.usuarios.filter((u) => u.rol === "duenio" && u.activo !== false && u.pin).map((u) => ({ nombre: u.nombre, pin: u.pin }));
+  return estado.usuarios.filter((u) => u.rol === "duenio" && u.activo !== false && u.pin).map((u) => ({ nombre: u.nombre, pin: pinDeEjemplo(u) }));
 }
 
 // ───────────── venta rápida de mostrador ─────────────

@@ -39,7 +39,7 @@
 // (`config.configurado === false`) los dueños arman su PIN por `almacen.arranque` (sin auth), uno entra con el suyo y
 // carga lo opcional por `ejecutar` (avisos, recepción, precios y fondo), y «Abrir el club» (`abrirElClub`) la cierra.
 
-import {
+import { pinCoincide,
   LIMITES_BLOQUEO,
   LIMITES_POLITICA,
   NOMBRE_DIA,
@@ -185,9 +185,10 @@ export interface RespaldoParaRestaurar {
 }
 
 /** PIN de ejemplo de los dueños de la demo (están a la vista en la demo pública). */
-const PINES_DE_DUENIO_DE_LA_DEMO = new Set(USUARIOS_DEMO.filter((u) => u.rol === "duenio").map((u) => u.pin));
-/** ¿Algún dueño activo tiene un PIN de ejemplo de la demo? (= es la demo, o algo armado con ella). */
-const conPinesDeLaDemo = (e: Pick<EstadoClub, "usuarios">) => e.usuarios.some((u) => u.rol === "duenio" && u.activo !== false && PINES_DE_DUENIO_DE_LA_DEMO.has(u.pin));
+const PINES_DE_DUENIO_DE_LA_DEMO = USUARIOS_DEMO.filter((u) => u.rol === "duenio").map((u) => u.pin);
+/** ¿Algún dueño activo tiene un PIN de ejemplo de la demo? (= es la demo, o algo armado con ella). Con hash o en claro. */
+const conPinesDeLaDemo = (e: Pick<EstadoClub, "usuarios" | "salPin">) =>
+  e.usuarios.some((u) => u.rol === "duenio" && u.activo !== false && PINES_DE_DUENIO_DE_LA_DEMO.some((p) => pinCoincide(e as EstadoClub, u, p)));
 
 /**
  * Lee el archivo elegido para restaurar (sin tocar nada): acepta el respaldo de siempre o el archivo para archivar;

@@ -17,7 +17,7 @@
 //
 // Las reglas son del motor; acá se arma lo que se ve y se traduce cada toque (caja-core.test.ts).
 
-import { MEDIOS, ajustarFondo, cajaAbierta, cajaCerrada, cajasConMovimientosSinCerrar, cerrarCaja, diaDeCaja, egresoCaja, hhmm, pesos, pinDesactualizado, puede, resumenCaja, verificarFirma } from "@/lib/club/motor.mjs";
+import { pinDeEjemplo, MEDIOS, ajustarFondo, cajaAbierta, cajaCerrada, cajasConMovimientosSinCerrar, cerrarCaja, diaDeCaja, egresoCaja, hhmm, pesos, pinDesactualizado, puede, resumenCaja, verificarFirma } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub, Fecha } from "@/lib/club/motor.mjs";
 import type { DesenlaceConPin } from "./tope-de-pin";
 import { MEDIOS_CAJA } from "./cuenta-core";
@@ -135,7 +135,7 @@ export function puedeAjustarFondo(estado: EstadoClub, usuarioId: string | undefi
 export function pinesDeEjemplo(estado: EstadoClub): string {
   return estado.usuarios
     .filter((u) => u.activo !== false && u.pin)
-    .map((u) => `${u.nombre.split(" ")[0]} ${u.pin}`)
+    .map((u) => `${u.nombre.split(" ")[0]} ${pinDeEjemplo(u)}`)
     .join(" · ");
 }
 

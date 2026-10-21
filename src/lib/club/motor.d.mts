@@ -111,6 +111,8 @@ export interface Usuario {
   rol: Rol;
   /** PIN del piloto: 4 dígitos los dueños, 2 recepción (`LARGO_PIN`); un dueño del piloto puede tener todavía el viejo de 2 ("" = todavía no lo armó). No es credencial del ERP. */
   pin: string;
+  /** Con el PIN guardado con hash (`h1:…`): cuántos números tiene (2 o 4). */
+  pinLargo?: number;
   activo: boolean;
 }
 
@@ -350,6 +352,8 @@ export interface Espera {
 }
 
 export interface EstadoClub {
+  /** La sal de los PIN con hash (una por club). Sin ella, los PIN están en claro (fotos de antes del 21/10). */
+  salPin?: string;
   config: ConfigClub;
   canchas: Cancha[];
   clientes: Cliente[];
@@ -902,6 +906,8 @@ export declare function egresoCaja(estado: EstadoClub, datos: { monto: number; c
 // ───────────── crédito: cuenta corriente y fiado con código del dueño ─────────────
 
 export interface DatosAprobacion {
+  /** La sal del club (si guarda los PIN con hash): con ella el celular calcula el código como el club. */
+  s?: string;
   id: string;
   /** clienteId */
   c: string;
@@ -932,7 +938,7 @@ export declare function resolverCredito(
   ahora?: Ahora,
 ): Resultado;
 /** Código de 6 letras (ABC-DEF) que calcula el celular del dueño con su PIN y los datos del pedido. */
-export declare function codigoAprobacion(datos: { pin: string; novedadId: string; clienteId: string; monto: number; fecha?: string | null }): string;
+export declare function codigoAprobacion(datos: { pin: string; sal?: string | null; novedadId: string; clienteId: string; monto: number; fecha?: string | null }): string;
 /** Recepción tipea el código del dueño; 5 mal traban el pedido 30 minutos. */
 export declare function aprobarPorCodigo(
   estado: EstadoClub,
@@ -1346,3 +1352,12 @@ export declare function editarContenido(estado: EstadoClub, contenidoId: string,
 export declare function borrarContenido(estado: EstadoClub, contenidoId: string, auth: Auth): Resultado;
 /** Las publicaciones de un mes (1–12), por fecha y hora. */
 export declare function contenidoDelMes(estado: EstadoClub, anio: number, mes: number): Contenido[];
+
+// ── el PIN guardado con hash (21/10/2026) ──
+export declare const VUELTAS_PIN: number;
+export declare function esPinConHash(p: unknown): boolean;
+export declare function hashPin(pin: string, sal: string): string;
+export declare function pinCoincide(estado: Pick<EstadoClub, "salPin">, u: Pick<Usuario, "pin"> | null | undefined, pin: string | null | undefined): boolean;
+export declare function largoDelPinGuardado(u: Pick<Usuario, "pin" | "pinLargo"> | null | undefined): number;
+export declare function pasarPinesAHash(estado: EstadoClub): number;
+export declare function pinDeEjemplo(u: Pick<Usuario, "id" | "pin"> | null | undefined): string;

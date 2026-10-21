@@ -59,6 +59,9 @@ import {
   crearClubReal,
   diaParaArchivar,
   generarDemo,
+  pasarPinesAHash,
+  pinCoincide,
+  USUARIOS_DEMO,
   hidratarEstado,
   horarioDe,
   huellaAnexo,
@@ -195,7 +198,8 @@ export interface Operador {
 export function operadorDeLaDemo(estado: EstadoClub, rol: RolDelPanel): Operador | null {
   const buscado = rol === "OWNER" ? "duenio" : "recepcion";
   const u = estado.usuarios.find((x) => x.activo !== false && x.rol === buscado && x.pin) ?? null;
-  return u ? { usuario: u, auth: { usuarioId: u.id, pin: u.pin } } : null;
+  // El PIN de ejemplo en claro (el guardado puede tener hash).
+  return u ? { usuario: u, auth: { usuarioId: u.id, pin: USUARIOS_DEMO.find((d) => d.id === u.id)?.pin ?? u.pin } } : null;
 }
 
 /** El nombre de quien pide acceso desde la pantalla bloqueada: hasta 60 letras. */
@@ -592,6 +596,8 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     if (abierto?.ok) {
       estado = abierto.estado;
       retomo = true;
+      // Una foto con PIN en claro (de antes del 21/10) pasa a hash al abrir, y se guarda así.
+      if (pasarPinesAHash(estado)) sucioAlAbrir = true;
     } else {
       if (inicial) {
         // Como el vanilla: lo que no se pudo leer se aparta (no se borra) y se arranca en blanco. Si ni eso se puede,
@@ -901,14 +907,15 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   };
 
   /** Lo que se ve pasa a ser `nuevo` (lo guardado allá): sin «Deshacer», con el reloj y los fijos al día. */
-  const reemplazar = (nuevo: EstadoClub) => {
+  /** Pone lo de allá como lo de acá. Devuelve si hubo que pasar PIN en claro a hash (entonces hay que guardarlo). */
+  const reemplazar = (nuevo: EstadoClub): boolean => {
     estado = nuevo;
     fotoPrevia = null;
     fotoDesde = null;
-    if (real) {
-      ahora = relojReal(estado, new Date(relojMs()));
-      bajarFijos(estado, ahora.fecha);
-    }
+    if (!real) return false;
+    ahora = relojReal(estado, new Date(relojMs()));
+    bajarFijos(estado, ahora.fecha);
+    return pasarPinesAHash(estado) > 0;
   };
 
   /**
@@ -998,10 +1005,11 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     // Lo de acá que no llegó a guardarse no se tira: queda aparte en este equipo (Configuración → «Lo que quedó aparte»
     // lo baja como respaldo para restaurarlo o revisarlo).
     const aparte = perdido && real ? apartarLoDeAca() : false;
-    reemplazar(abiertoAlla.estado);
+    const pinesAHash = reemplazar(abiertoAlla.estado);
     retomo = true;
     cambios++;
-    cambiosGuardados = cambios;
+    cambiosGuardados = pinesAHash ? -1 : cambios;
+    if (pinesAHash) programarGuardado();
     if (perdido) {
       aviso = {
         id: ++idAviso,
@@ -1376,7 +1384,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     if (operadorElegido) {
       const previo = operadorElegido;
       const u = estado.usuarios.find((x) => x.id === previo.usuario.id && x.activo !== false);
-      const sigue = !!u && (previo.auth.pin === undefined ? true : !!u.pin && u.pin === previo.auth.pin);
+      const sigue = !!u && (previo.auth.pin === undefined ? true : pinCoincide(estado, u, previo.auth.pin));
       operadorElegido = sigue ? { usuario: u!, auth: previo.auth } : null;
     }
     for (const o of oyentesOperador) o();

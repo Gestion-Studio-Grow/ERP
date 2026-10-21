@@ -1148,7 +1148,7 @@ test("limpieza para el go-live: se borra lo transaccional, se conserva lo maestr
   assert.equal(e.reservas.length + e.cuentas.length + e.caja.movimientos.length + e.caja.cierres.length, 0);
   assert.equal(e.caja.fondo, 20000, "el fondo queda");
   assert.equal(M.producto(e, "p2").stock, 38, "el stock contado queda");
-  assert.equal(e.usuarios.find((u: any) => u.id === "u-rober").pin, "5757", "usuarios y PIN quedan");
+  assert.ok(M.pinCoincide(e, e.usuarios.find((u: any) => u.id === "u-rober"), "5757"), "usuarios y PIN quedan");
   assert.equal(e.clientes.length, 1, "los clientes quedan");
   assert.equal(juan.deuda, 5000);
   assert.equal(juan.monedero, 3000);

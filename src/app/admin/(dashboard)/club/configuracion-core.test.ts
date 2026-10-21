@@ -71,7 +71,7 @@ test("dueños sin PIN (jornada real recién abierta): arman el suyo, repetido y 
   assert.equal(M.usuario(e, "u-rober")!.pin, "", "no se guardó nada");
   assert.match(hacer(e, { tipo: "pinInicial", usuarioId: "u-rober", pin: "4711", repetido: "4811" }, {}).mensaje, /no coinciden/);
   assert.equal(hacer(e, { tipo: "pinInicial", usuarioId: "u-rober", pin: "4711", repetido: "4711" }, {}).ok, true);
-  assert.equal(M.usuario(e, "u-rober")!.pin, "4711");
+  assert.ok(M.pinCoincide(e, M.usuario(e, "u-rober")!, "4711"));
   assert.match(hacer(e, { tipo: "pinInicial", usuarioId: "u-majo", pin: "4711", repetido: "4711" }, {}).mensaje, /ya lo usa otra persona/);
   assert.match(hacer(e, { tipo: "pinInicial", usuarioId: "u-rober", pin: "1234", repetido: "1234" }, {}).mensaje, /ya tiene PIN/);
   assert.deepEqual(armarUsuarios(e, null).duenosSinPin.map((d) => d.nombre), ["Majo Gimenez"]);
@@ -111,7 +111,7 @@ test("alta de un dueño: el sistema le genera un PIN de 4 (recepción sigue con 
   // «PIN nuevo» a un dueño: también de 4.
   const n = hacer(e, { tipo: "pinNuevo", usuarioId: "u-majo", pin: "1111" });
   assert.match(n.pinNuevo!.pin, /^\d{4}$/);
-  assert.equal(M.usuario(e, "u-majo")!.pin, n.pinNuevo!.pin);
+  assert.ok(M.pinCoincide(e, M.usuario(e, "u-majo")!, n.pinNuevo!.pin));
 });
 
 test("PIN nuevo y sacar acceso: con PIN; a uno mismo y al último dueño no se le saca", () => {
@@ -119,7 +119,7 @@ test("PIN nuevo y sacar acceso: con PIN; a uno mismo y al último dueño no se l
   const r = hacer(e, { tipo: "pinNuevo", usuarioId: "u-lu", pin: "1111" });
   assert.equal(r.ok, true);
   assert.match(r.pinNuevo!.pin, /^\d{2}$/, "recepción sigue con 2");
-  assert.equal(M.usuario(e, "u-lu")!.pin, r.pinNuevo!.pin);
+  assert.ok(M.pinCoincide(e, M.usuario(e, "u-lu")!, r.pinNuevo!.pin));
   assert.ok(!r.mensaje.includes(r.pinNuevo!.pin));
   const yo = armarUsuarios(e, "u-rober").filas.find((f) => f.id === "u-rober")!;
   assert.equal(yo.esVos, true);
@@ -145,26 +145,26 @@ test("cambiar mi PIN: sabiendo el actual, el nuevo repetido, distinto y libre", 
   assert.match(cambiar("1111", "2222").mensaje, /PIN de ejemplo de la demo/);
   M.usuario(e, "u-majo")!.pin = "8484";
   assert.match(cambiar("1111", "8484").mensaje, /ya lo usa otra persona/);
-  assert.equal(M.usuario(e, "u-rober")!.pin, "1111", "no cambió nada");
+  assert.ok(M.pinCoincide(e, M.usuario(e, "u-rober")!, "1111"), "no cambió nada");
   assert.equal(cambiar("1111", "4545").ok, true);
-  assert.equal(M.usuario(e, "u-rober")!.pin, "4545");
+  assert.ok(M.pinCoincide(e, M.usuario(e, "u-rober")!, "4545"));
   assert.equal(hacer(e, { tipo: "cambiarMiPin", actual: "4545", nuevo: "4646", repetido: "4646" }, {}).mensaje, "Entrá con tu PIN para operar.");
   // Recepción: 2 números.
   const lu = (actual: string, nuevo: string) => hacer(e, { tipo: "cambiarMiPin", actual, nuevo, repetido: nuevo }, LU);
   assert.equal(lu("33", "3456").mensaje, "El PIN nuevo son 2 números.");
   assert.equal(lu("33", "56").ok, true);
-  assert.equal(M.usuario(e, "u-lu")!.pin, "56");
+  assert.ok(M.pinCoincide(e, M.usuario(e, "u-lu")!, "56"));
 });
 
 test("dueño con el PIN viejo de 2: «cambiar mi PIN» lo acepta como actual y lo pasa a 4 sin tocar lo cargado", () => {
   const e = demo();
   M.usuario(e, "u-rober")!.pin = "11"; // el del piloto
-  const antes = JSON.stringify({ ...e, usuarios: [], log: [] });
+  const antes = JSON.stringify({ ...e, usuarios: [], log: [], salPin: undefined });
   const r = hacer(e, { tipo: "cambiarMiPin", actual: "11", nuevo: "4711", repetido: "4711" }, { usuarioId: "u-rober", pin: "11" });
   assert.equal(r.ok, true, r.mensaje);
-  assert.equal(M.usuario(e, "u-rober")!.pin, "4711");
+  assert.ok(M.pinCoincide(e, M.usuario(e, "u-rober")!, "4711"));
   assert.equal(M.pinDesactualizado(e, "u-rober"), false);
-  assert.equal(JSON.stringify({ ...e, usuarios: [], log: [] }), antes, "lo cargado queda igual");
+  assert.equal(JSON.stringify({ ...e, usuarios: [], log: [], salPin: undefined }), antes, "lo cargado queda igual");
 });
 
 test("cambiar mi PIN y armar el primero: uno fácil no pasa, con el motivo en criollo (pinFacil)", () => {
@@ -173,11 +173,11 @@ test("cambiar mi PIN y armar el primero: uno fácil no pasa, con el motivo en cr
   assert.equal(cambiar("1234").mensaje, "Una escalera (como 1234 o 4321) se adivina fácil: elegí otro.");
   assert.equal(cambiar("9876").mensaje, "Una escalera (como 1234 o 4321) se adivina fácil: elegí otro.");
   assert.equal(cambiar("0000").mensaje, "Con todos los números iguales se adivina fácil: elegí otro.");
-  assert.equal(M.usuario(e, "u-rober")!.pin, "1111", "no cambió nada");
+  assert.ok(M.pinCoincide(e, M.usuario(e, "u-rober")!, "1111"), "no cambió nada");
   const lu = (nuevo: string) => hacer(e, { tipo: "cambiarMiPin", actual: "33", nuevo, repetido: nuevo }, LU);
   assert.equal(lu("44").mensaje, "Ese es un PIN de ejemplo de la demo: elegí otro.");
   assert.equal(lu("77").mensaje, "Con todos los números iguales se adivina fácil: elegí otro.");
-  assert.equal(M.usuario(e, "u-lu")!.pin, "33");
+  assert.ok(M.pinCoincide(e, M.usuario(e, "u-lu")!, "33"));
   const real = M.crearClubReal(HOY);
   const inicial = (pin: string) => hacer(real, { tipo: "pinInicial", usuarioId: "u-rober", pin, repetido: pin }, {});
   assert.equal(inicial("0123").mensaje, "Una escalera (como 1234 o 4321) se adivina fácil: elegí otro.");

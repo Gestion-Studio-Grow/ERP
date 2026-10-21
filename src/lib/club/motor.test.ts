@@ -101,6 +101,8 @@ const FUNCIONES_OLA4_NOVEDADES = [
 const FUNCIONES_PIN_POR_ROL = ["largoPin", "pinValidoPara", "pinAceptadoPara", "textoLargoPin", "pinDesactualizado", "verificarFirma", "pinFacil"] as const satisfies readonly Funciones[];
 // Tope de intentos de PIN, uno por compu (SEC-5): lo usan el bloqueo, Configuración, la caja y el descuento.
 const FUNCIONES_TOPE_PIN = ["intentosPin", "esperaPin", "anotarIntentoPin"] as const satisfies readonly Funciones[];
+/** El PIN guardado con hash (21/10/2026). */
+const FUNCIONES_PIN_CON_HASH = ["esPinConHash", "hashPin", "pinCoincide", "largoDelPinGuardado", "pasarPinesAHash", "pinDeEjemplo"] as const satisfies readonly Funciones[];
 type FuncionesListadas =
   | (typeof FUNCIONES)[number]
   | (typeof FUNCIONES_OLA1_CUENTA_Y_BUFFET)[number]
@@ -110,12 +112,13 @@ type FuncionesListadas =
   | (typeof FUNCIONES_OLA4_CONFIGURACION)[number]
   | (typeof FUNCIONES_OLA4_NOVEDADES)[number]
   | (typeof FUNCIONES_PIN_POR_ROL)[number]
-  | (typeof FUNCIONES_TOPE_PIN)[number];
+  | (typeof FUNCIONES_TOPE_PIN)[number]
+  | (typeof FUNCIONES_PIN_CON_HASH)[number];
 const CONSTANTES = [
   "VERSION_ESTADO", "MEDIOS", "ESTADOS", "TIPOS", "ROLES", "PERMISOS", "NOMBRE_DIA",
   "CONFIG_DEMO", "CANCHAS_DEMO", "USUARIOS_DEMO", "USUARIOS_REALES", "PRODUCTOS_DEMO", "PROVEEDORES_DEMO", "DIAS_SIN_ARCHIVAR", "LIMITES_POLITICA", "LIMITES_BLOQUEO",
   "TIPOS_NOVEDAD", "AUDIENCIAS", "CANALES", "ESTADOS_CONTENIDO", "LARGO_PIN", "LARGO_PIN_VIEJO", "MOTIVO_PIN_VIEJO",
-  "TOPE_INTENTOS_PIN", "ESPERAS_PIN_S",
+  "TOPE_INTENTOS_PIN", "ESPERAS_PIN_S", "VUELTAS_PIN",
 ] as const satisfies readonly Exclude<keyof Motor, Funciones>[];
 
 // Comprobación de tipos en los dos sentidos: ninguna función ni constante tipada queda afuera de las listas.
@@ -129,8 +132,9 @@ type Requeridas<T> = { [K in keyof T]-?: object extends Pick<T, K> ? never : K }
 function claves<T>() {
   return <const L extends readonly (keyof T)[]>(lista: L & ([Exclude<keyof T, L[number]>] extends [never] ? unknown : never)) => lista;
 }
-// `archivo` es opcional: aparece recién cuando se archivan días cerrados (archivarDiasCerrados).
-const CLAVES_ESTADO = claves<Omit<EstadoClub, "archivo">>()([
+// `archivo` es opcional: aparece recién cuando se archivan días cerrados (archivarDiasCerrados). `salPin` también:
+// aparece cuando un PIN se guarda con hash (21/10/2026).
+const CLAVES_ESTADO = claves<Omit<EstadoClub, "archivo" | "salPin">>()([
   "config", "canchas", "clientes", "productos", "usuarios", "reservas", "cuentas", "caja", "novedades", "bloqueos", "luces", "clima",
   "proveedores", "solicitudesAcceso", "difusiones", "pedidos", "fijos", "espera", "remitos", "pagosProveedor", "contenido", "log",
 ]);
@@ -143,7 +147,7 @@ const REQ_CLIENTE: readonly Requeridas<Cliente>[] = ["id", "nombre", "tel", "niv
 
 test("contrato de motor.d.mts: cada export tipado existe en la copia con su clase (función o constante)", () => {
   const motor = M as unknown as Record<string, unknown>;
-  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES, ...FUNCIONES_PIN_POR_ROL, ...FUNCIONES_TOPE_PIN]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
+  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES, ...FUNCIONES_PIN_POR_ROL, ...FUNCIONES_TOPE_PIN, ...FUNCIONES_PIN_CON_HASH]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
   for (const n of CONSTANTES) {
     assert.ok(n in motor, `${n} no está exportada`);
     assert.notEqual(typeof motor[n], "function", `${n} es una función: va en FUNCIONES`);
@@ -403,7 +407,7 @@ test("PIN fáciles: los de ejemplo de la demo, todos iguales y escaleras de 4, e
   const e = club();
   assert.match(ok0(M.cambiarMiPin(e, { usuarioId: "u-rober", pin: "1111" }, "0000", ahora(9))), /todos los números iguales/);
   assert.match(ok0(M.cambiarMiPin(e, { usuarioId: "u-rober", pin: "1111" }, "9876", ahora(9))), /escalera/);
-  assert.equal(M.usuario(e, "u-rober")!.pin, "1111");
+  assert.ok(M.pinCoincide(e, M.usuario(e, "u-rober")!, "1111"));
   for (let i = 0; i < 40; i++) {
     const r = M.regenerarPin(e, "u-lu", { usuarioId: "u-rober", pin: "1111" }, ahora(9));
     assert.ok(r.ok);

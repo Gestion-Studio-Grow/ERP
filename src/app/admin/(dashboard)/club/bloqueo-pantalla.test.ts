@@ -687,8 +687,10 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await page.locator('[data-ui="operador-del-club"]').getByText("Rober", { exact: true }).waitFor();
     await page.getByRole("button", { name: /^Martín Ríos, Cancha 1,/ }).waitFor();
     // Se guarda solo (con su demora): el PIN nuevo queda en la jornada y el viejo no.
-    await page.waitForFunction((k) => /pin\\*":\\*"4747/.test(localStorage.getItem(k) ?? ""), claveDeLaJornada("demo-club"));
+    // Con hash (21/10): queda el de 4 números de Rober (`pinLargo` 4) y ningún PIN en claro.
+    await page.waitForFunction((k) => /u-rober[^}]*pinLargo\\*":4/.test(localStorage.getItem(k) ?? ""), claveDeLaJornada("demo-club"));
     const guardada = await jornada();
+    assert.equal(/pin\\*":\\*"4747/.test(guardada), false, "el PIN nuevo no queda en claro");
     assert.equal(/pin\\*":\\*"11\\*"/.test(guardada), false, "el PIN viejo ya no está guardado");
     assert.ok(guardada.includes("Martín Ríos"), "lo cargado sigue en la jornada guardada");
     await page.locator("body").click({ position: { x: 5, y: 5 } });
@@ -721,7 +723,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await hoja.getByRole("button", { name: /^Rober/ }).click();
     await hoja.getByLabel("PIN de Rober").fill("11");
     await hoja.getByRole("button", { name: "Entrar" }).click();
-    await bloqueo(p2).getByRole("heading", { name: "Elegí tu PIN nuevo" }).waitFor();
+    await bloqueo(p2).getByRole("heading", { name: "Tu PIN es el viejo" }).waitFor();
     assert.equal(await bloqueo(p2).evaluate((d) => d.scrollWidth - d.clientWidth), 0, "sin scroll de costado a 390 px");
     if (css) assert.deepEqual(await chicos(p2), [], "objetivos de 44 px a 390 px");
     await capturar(p2, "390-pin-viejo-desde-cambiar-de-usuario");

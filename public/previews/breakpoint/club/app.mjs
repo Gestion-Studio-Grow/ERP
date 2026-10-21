@@ -812,6 +812,11 @@ function listaEnvio(d) {
 const enConsola = () => MODO_REAL && E?.config?.configurado === false;
 // En la consola firma el dueño que ya armó su PIN; si sólo hay uno con el PIN viejo de 2 (una consola del piloto que
 // quedó sin abrir), el motor no lo deja firmar y avisa: se abre el club, se entra con el viejo y se elige el de 4.
+// El PIN que cada dueño armó en la consola, en memoria mientras dura la pantalla: con el PIN guardado con hash
+// (21/10) la consola ya no puede firmar con lo guardado. Si se recarga a mitad de la consola, vale lo guardado en claro
+// (fotos de antes) o hay que volver a escribirlo.
+const PIN_DE_CONSOLA = new Map();
+const authDeConsola = (dueno) => ({ usuarioId: dueno.id, pin: PIN_DE_CONSOLA.get(dueno.id) ?? (M.esPinConHash(dueno.pin) ? "" : dueno.pin) });
 const duenoDeConsola = () => E.usuarios.find((u) => u.rol === "duenio" && u.pin && !M.pinDesactualizado(E, u.id)) ?? E.usuarios.find((u) => u.rol === "duenio" && u.pin);
 
 // Los dueños arman su PIN, se cargan los avisos y se da de alta a recepción. Recién ahí se abre el club.
@@ -1290,7 +1295,7 @@ function buscadorProductos(clave, { soloVendibles = true } = {}) {
 
 // Los PIN de ejemplo no quedan a la vista de cualquiera que pase por el mostrador: se muestran sólo si se piden.
 // (Es una ayuda de la DEMO; con usuarios reales no existe.)
-const pinesDemo = (usuarios) => MODO_REAL ? "" : `<details class="demo-pins"><summary>¿Probando la demo? Ver los PIN de ejemplo</summary><p style="margin:6px 0 0">${usuarios.map((u) => `${esc(u.nombre.split(" ")[0])} ${esc(u.pin)}`).join(" · ")}</p></details>`;
+const pinesDemo = (usuarios) => MODO_REAL ? "" : `<details class="demo-pins"><summary>¿Probando la demo? Ver los PIN de ejemplo</summary><p style="margin:6px 0 0">${usuarios.map((u) => `${esc(u.nombre.split(" ")[0])} ${esc(M.USUARIOS_DEMO.find((d) => d.id === u.id)?.pin ?? "")}`).join(" · ")}</p></details>`;
 // Tope de intentos de PIN: UNO solo para toda la compu (M.anotarIntentoPin). Lo comparten la pantalla bloqueada,
 // «¿Quién usa el sistema?», el descuento, la aprobación en la misma compu y las confirmaciones «con tu PIN»: 5 mal →
 // 30 s, después 2 min, después 10 min. En la jornada real se guarda en `bp-intentos` (sobrevive a recargar).
@@ -1600,7 +1605,7 @@ function dialogoAprobar(d) {
       if (!v.ok) { const c = $("#ap-pin"); if (c) c.value = ""; return toast(v.motivo, { error: true }); }
       return cerrarSiSale(M.resolverCredito(E, d.id, { aprobar: true, monto }, { usuarioId: elegido, pin }, AHORA), `Aprobado: ${d.n} ${M.pesos(monto)}.`);
     }
-    codigo = { codigo: M.codigoAprobacion({ pin, novedadId: d.id, clienteId: d.c, monto, fecha: d.f }), monto, pinViejo: !M.pinValidoPara("duenio", pin) };
+    codigo = { codigo: M.codigoAprobacion({ pin, sal: d.s, novedadId: d.id, clienteId: d.c, monto, fecha: d.f }), monto, pinViejo: !M.pinValidoPara("duenio", pin) };
     pintar();
   };
   pintar();
@@ -2255,12 +2260,14 @@ const acciones = {
     const u = b.dataset.v;
     const a = val(`#pi-${u}`), c = val(`#pi2-${u}`);
     if (a !== c) return toast("Los dos PIN no coinciden.", { error: true });
-    hecho(M.definirPinInicial(E, u, a, AHORA), "PIN guardado. No se lo digas a nadie.");
+    const res = M.definirPinInicial(E, u, a, AHORA);
+    if (res.ok) PIN_DE_CONSOLA.set(u, String(a).trim());
+    hecho(res, "PIN guardado. No se lo digas a nadie.");
   },
   altaUsuarioConsola: () => {
     const dueno = duenoDeConsola();
     if (!dueno) return toast("Primero un dueño arma su PIN.", { error: true });
-    const res = M.altaUsuario(E, { nombre: val("#nu-nombre"), rol: "recepcion" }, { usuarioId: dueno.id, pin: dueno.pin }, AHORA);
+    const res = M.altaUsuario(E, { nombre: val("#nu-nombre"), rol: "recepcion" }, authDeConsola(dueno), AHORA);
     if (res.ok) ui.pinesNuevos = { ...(ui.pinesNuevos ?? {}), [res.usuario.id]: res.pin };
     hecho(res, (r) => `${r.usuario.nombre} tiene PIN ${r.pin}. Anotalo y dáselo.`);
   },
@@ -2727,7 +2734,7 @@ document.addEventListener("change", (ev) => {
   }
   if (t.dataset.a === "fondo") {
     const dueno = enConsola() ? duenoDeConsola() : null;
-    const res = M.ajustarFondo(E, t.value, dueno ? { usuarioId: dueno.id, pin: dueno.pin } : auth(), AHORA);
+    const res = M.ajustarFondo(E, t.value, dueno ? authDeConsola(dueno) : auth(), AHORA);
     if (!res.ok) { render(); return toast(enConsola() && !dueno ? "Primero un dueño arma su PIN." : res.motivo, { error: true }); }
     render();
     return toast(`Fondo de caja: ${M.pesos(E.caja.fondo)}.`);

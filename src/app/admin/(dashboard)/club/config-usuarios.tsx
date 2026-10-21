@@ -11,7 +11,7 @@
 import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { SoloEnElPuestoDelDuenio, puestoDeDuenio } from "./config-jornada";
-import { LARGO_PIN, largoPin, usuario as usuarioDe } from "@/lib/club/motor.mjs";
+import { pinCoincide, LARGO_PIN, largoPin, usuario as usuarioDe } from "@/lib/club/motor.mjs";
 import type { EstadoClub, Rol } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { Campo, CampoPin, CampoPinNuevo, Opciones } from "./formulario-del-club";
@@ -195,7 +195,9 @@ export function UsuariosDelClub({ almacen, irASolapa, negocio }: { almacen: Alma
     // Si se armó un PIN nuevo para quien opera, sigue operando con ése.
     const op = almacen.operador();
     const yo = op && usuarioDe(almacen.estado(), op.usuario.id);
-    if (op && yo?.pin && yo.pin !== op.auth.pin) almacen.cambiarOperador(yo, { usuarioId: yo.id, pin: yo.pin });
+    // El PIN se guarda con hash: se sigue operando con el nuevo EN CLARO (el que se acaba de mostrar), si es el suyo.
+    const nuevo = d.pinNuevo.pin;
+    if (op && yo && !pinCoincide(almacen.estado(), yo, op.auth.pin) && pinCoincide(almacen.estado(), yo, nuevo)) almacen.cambiarOperador(yo, { usuarioId: yo.id, pin: nuevo });
   };
 
   return (

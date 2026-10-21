@@ -270,6 +270,90 @@ export const cuenta = (estado, id) => estado.cuentas.find((c) => c.id === id);
 export const proveedor = (estado, id) => estado.proveedores.find((p) => p.id === id);
 export const usuario = (estado, id) => estado.usuarios.find((u) => u.id === id);
 
+// ───────────────────────── el PIN guardado con hash (21/10/2026) ─────────────────────────
+//
+// En la foto del club el PIN no va en claro: va `h1:<hex>` = PBKDF2-SHA256(PIN, sal del club, VUELTAS_PIN) y
+// `pinLargo` (para saber si un dueño tiene todavía el viejo de 2). La sal es UNA por club (`estado.salPin`): así
+// buscar de quién es un PIN sigue siendo un solo cálculo. Un PIN viejo en claro se acepta igual (`pinCoincide`) y se
+// pasa a hash al cambiarlo o cuando la jornada real abre la foto (`pasarPinesAHash`, lo llama el almacén del ERP). Ojo: con 4 números hay 10.000 PIN posibles; el hash
+// lento (~50 ms en una PC, unos 200 ms en una tablet) frena mirar la foto y leerlo, no a quien tenga la foto y tiempo.
+// Además el hash hace de PIN para el código de aprobación: quien tenga la foto puede firmar aprobaciones sin saber el
+// PIN. Lo que de verdad cuida al PIN es que la foto no salga del club y el tope de intentos.
+// SHA-256 y PBKDF2 propios, sincrónicos y sin dependencias (el motor corre igual en el navegador y en Node).
+const K = new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+function sha256(bytes) {
+  // Relleno: 0x80 + el largo en 8 bytes, hasta un múltiplo de 64 (n = el múltiplo de 64 que entra en l + 9).
+  const l = bytes.length, n = (((l + 8) >> 6) + 1) << 6, m = new Uint8Array(n); m.set(bytes); m[l] = 0x80;
+  const dv = new DataView(m.buffer); dv.setUint32(n - 4, l * 8); dv.setUint32(n - 8, Math.floor(l / 0x20000000));
+  const h = new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]), w = new Uint32Array(64);
+  for (let o = 0; o < n; o += 64) {
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(o + i * 4);
+    for (let i = 16; i < 64; i++) { const a = w[i-15], b = w[i-2]; w[i] = (((a>>>7)|(a<<25))^((a>>>18)|(a<<14))^(a>>>3)) + w[i-7] + (((b>>>17)|(b<<15))^((b>>>19)|(b<<13))^(b>>>10)) + w[i-16]; }
+    let [A,B,C,D,E,F,G,H] = h;
+    for (let i = 0; i < 64; i++) { const t1 = (H + (((E>>>6)|(E<<26))^((E>>>11)|(E<<21))^((E>>>25)|(E<<7))) + ((E&F)^(~E&G)) + K[i] + w[i]) | 0; const t2 = ((((A>>>2)|(A<<30))^((A>>>13)|(A<<19))^((A>>>22)|(A<<10))) + ((A&B)^(A&C)^(B&C))) | 0; H=G;G=F;F=E;E=(D+t1)|0;D=C;C=B;B=A;A=(t1+t2)|0; }
+    h[0]+=A;h[1]+=B;h[2]+=C;h[3]+=D;h[4]+=E;h[5]+=F;h[6]+=G;h[7]+=H;
+  }
+  const out = new Uint8Array(32); const ov = new DataView(out.buffer); for (let i = 0; i < 8; i++) ov.setUint32(i * 4, h[i]); return out;
+}
+
+function hmacSha256(clave, msg) {
+  const k = new Uint8Array(64);
+  k.set(clave.length > 64 ? sha256(clave) : clave);
+  const i = new Uint8Array(64 + msg.length), o = new Uint8Array(96);
+  for (let j = 0; j < 64; j++) { i[j] = k[j] ^ 0x36; o[j] = k[j] ^ 0x5c; }
+  i.set(msg, 64);
+  o.set(sha256(i), 64);
+  return sha256(o);
+}
+function pbkdf2Sha256(clave, sal, vueltas) {
+  const s = new Uint8Array(sal.length + 4);
+  s.set(sal);
+  s[sal.length + 3] = 1;
+  let u = hmacSha256(clave, s);
+  const t = u.slice();
+  for (let n = 1; n < vueltas; n++) { u = hmacSha256(clave, u); for (let j = 0; j < 32; j++) t[j] ^= u[j]; }
+  return t;
+}
+const PREFIJO_PIN = "h1:";
+export const VUELTAS_PIN = 2000;
+/** ¿Lo guardado es un PIN con hash (y no el PIN en claro de antes)? */
+export const esPinConHash = (p) => typeof p === "string" && p.startsWith(PREFIJO_PIN);
+/** El hash de un PIN con la sal del club: lo que queda guardado (y la clave del código de aprobación). */
+export function hashPin(pin, sal) {
+  const te = new TextEncoder();
+  return PREFIJO_PIN + [...pbkdf2Sha256(te.encode(String(pin ?? "").trim()), te.encode(String(sal)), VUELTAS_PIN)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function salDelClub(estado) {
+  if (!estado.salPin) {
+    const b = globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint8Array(16)) : Uint8Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
+    estado.salPin = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  }
+  return estado.salPin;
+}
+/** Guarda el PIN de un usuario con hash (nunca en claro). */
+function guardarPin(estado, u, pin) {
+  const limpio = String(pin ?? "").trim();
+  u.pin = hashPin(limpio, salDelClub(estado));
+  u.pinLargo = limpio.length;
+}
+/** ¿Este PIN es el de este usuario? Con hash o, si todavía lo tiene en claro (lo de antes), comparando el texto. */
+export function pinCoincide(estado, u, pin) {
+  const p = String(pin ?? "").trim();
+  if (!u?.pin || !p) return false;
+  if (!esPinConHash(u.pin)) return u.pin === p;
+  return !!estado.salPin && hashPin(p, estado.salPin) === u.pin;
+}
+/** Cuántos números tiene el PIN guardado de un usuario (0 = no tiene). */
+export const largoDelPinGuardado = (u) => (!u?.pin ? 0 : esPinConHash(u.pin) ? Number(u.pinLargo) || 0 : u.pin.length);
+/** SÓLO DEMO: el PIN de ejemplo de un usuario de la demo (el guardado puede tener hash). "" si no es de la demo. */
+export const pinDeEjemplo = (u) => USUARIOS_DEMO.find((d) => d.id === u?.id)?.pin ?? (u?.pin && !esPinConHash(u.pin) ? u.pin : "");
+/** Pasa a hash los PIN que todavía estén en claro (lo llama el almacén de la jornada real al abrirla). Devuelve cuántos. */
+export function pasarPinesAHash(estado) {
+  let n = 0;
+  for (const u of estado.usuarios ?? []) if (u.pin && !esPinConHash(u.pin)) { guardarPin(estado, u, u.pin); n++; }
+  return n;
+}
+
 // ───────────────────────── usuarios, PIN y permisos ─────────────────────────
 
 export function puede(estado, usuarioId, accion) {
@@ -282,7 +366,7 @@ export function verificarPin(estado, usuarioId, pin) {
   const u = usuario(estado, usuarioId);
   if (!u || u.activo === false) return { ok: false, motivo: "Ese usuario no tiene acceso." };
   if (!u.pin) return { ok: false, motivo: "Ese usuario todavía no tiene PIN: que un dueño le dé un «PIN nuevo» en Configuración → Usuarios." };
-  if (String(pin ?? "").trim() !== u.pin) return { ok: false, motivo: "PIN incorrecto." };
+  if (!pinCoincide(estado, u, pin)) return { ok: false, motivo: "PIN incorrecto." };
   return { ok: true, usuario: u };
 }
 
@@ -312,7 +396,9 @@ function autorizar(estado, { usuarioId, pin } = {}, accion, conPin) {
 /** Busca a quién pertenece un PIN (cambio rápido de usuario en el mostrador). */
 export function usuarioPorPin(estado, pin) {
   if (!String(pin ?? "").trim()) return null;
-  const u = estado.usuarios.find((x) => x.activo !== false && x.pin === String(pin ?? "").trim());
+  const p = String(pin ?? "").trim();
+  const conHash = estado.salPin ? hashPin(p, estado.salPin) : null;
+  const u = estado.usuarios.find((x) => x.activo !== false && x.pin && (esPinConHash(x.pin) ? x.pin === conHash : x.pin === p));
   return u ? { ok: true, usuario: u } : { ok: false, motivo: "PIN incorrecto." };
 }
 
@@ -382,13 +468,19 @@ export function pinFacil(rol, pin) {
 
 /** Un PIN al azar del largo del rol que no repite ningún otro activo ni es fácil (sin cero adelante: 10–99 o 1000–9999). */
 function pinLibre(estado, rol) {
-  const usados = new Set(estado.usuarios.filter((u) => u.activo !== false).map((u) => u.pin));
+  // Los PIN en claro se descartan de una; los que tienen hash, probando cada candidato (`pinEnUso`, un cálculo).
+  const usados = new Set(estado.usuarios.filter((u) => u.activo !== false && u.pin && !esPinConHash(u.pin)).map((u) => u.pin));
   const largo = largoPin(rol);
   const libres = [];
   for (let n = 10 ** (largo - 1); n < 10 ** largo; n++) if (!usados.has(String(n)) && !pinFacil(rol, String(n))) libres.push(String(n));
-  if (!libres.length) return null;
-  const azarSeguro = globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 2 ** 32);
-  return libres[azarSeguro % libres.length];
+  const azar = () => (globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 2 ** 32));
+  for (let intento = 0; intento < 40 && libres.length; intento++) {
+    const i = azar() % libres.length;
+    const pin = libres[i];
+    if (!pinEnUso(estado, pin, null)) return pin;
+    libres.splice(i, 1);
+  }
+  return null;
 }
 
 /** Alguien nuevo pide acceso desde el mostrador; queda pendiente hasta que un dueño lo otorgue. */
@@ -416,7 +508,8 @@ export function otorgarAcceso(estado, solicitudId, { rol }, auth, ahora) {
   if (!ROLES[rol]) return { ok: false, motivo: "Elegí el rol." };
   const pin = pinLibre(estado, rol);
   if (!pin) return { ok: false, motivo: "No quedan PIN libres: revocá accesos que no se usen." };
-  const u = { id: nuevoId("u"), nombre: s.nombre, rol, pin, activo: true };
+  const u = { id: nuevoId("u"), nombre: s.nombre, rol, pin: "", activo: true };
+  guardarPin(estado, u, pin);
   estado.usuarios.push(u);
   s.estado = "otorgada";
   s.usuarioId = u.id;
@@ -452,11 +545,11 @@ export function regenerarPin(estado, usuarioObjetivoId, auth, ahora) {
   if (!a.ok) return a;
   const u = usuario(estado, usuarioObjetivoId);
   if (!u || u.activo === false) return { ok: false, motivo: "Ese usuario no tiene acceso." };
-  const viejo = u.pin;
+  const viejo = { pin: u.pin, pinLargo: u.pinLargo };
   u.pin = "";
   const pin = pinLibre(estado, u.rol);
-  if (!pin) { u.pin = viejo; return { ok: false, motivo: "No quedan PIN libres." }; }
-  u.pin = pin;
+  if (!pin) { Object.assign(u, viejo); return { ok: false, motivo: "No quedan PIN libres." }; }
+  guardarPin(estado, u, pin);
   registrar(estado, `${a.usuario.nombre} generó un PIN nuevo para ${u.nombre}.`, ahora);
   return { ok: true, pin };
 }
@@ -476,9 +569,13 @@ export const textoLargoPin = (rol, nuevo = false) => (rol === "duenio" ? `El PIN
  */
 export function pinDesactualizado(estado, usuarioId) {
   const u = usuario(estado, usuarioId);
-  return !!u && u.activo !== false && !!u.pin && u.pin.length !== largoPin(u.rol);
+  return !!u && u.activo !== false && !!u.pin && largoDelPinGuardado(u) !== largoPin(u.rol);
 }
-const pinEnUso = (estado, pin, salvo) => estado.usuarios.some((u) => u.activo !== false && u.id !== salvo && u.pin === String(pin).trim());
+function pinEnUso(estado, pin, salvo) {
+  const p = String(pin).trim();
+  const conHash = estado.salPin ? hashPin(p, estado.salPin) : null;
+  return estado.usuarios.some((u) => u.activo !== false && u.id !== salvo && u.pin && (esPinConHash(u.pin) ? u.pin === conHash : u.pin === p));
+}
 
 /** Un dueño da de alta a alguien directamente (sin pedido previo). El PIN lo genera el sistema y se ve una vez. */
 export function altaUsuario(estado, { nombre, rol = "recepcion" }, auth, ahora) {
@@ -490,7 +587,8 @@ export function altaUsuario(estado, { nombre, rol = "recepcion" }, auth, ahora) 
   if (estado.usuarios.some((u) => u.activo !== false && u.nombre.toLowerCase() === limpio.toLowerCase())) return { ok: false, motivo: `Ya hay un usuario ${limpio}.` };
   const pin = pinLibre(estado, rol);
   if (!pin) return { ok: false, motivo: "No quedan PIN libres: sacá accesos que no se usen." };
-  const u = { id: nuevoId("u"), nombre: limpio, rol, pin, activo: true };
+  const u = { id: nuevoId("u"), nombre: limpio, rol, pin: "", activo: true };
+  guardarPin(estado, u, pin);
   estado.usuarios.push(u);
   registrar(estado, `${a.usuario.nombre} dio de alta a ${u.nombre} (${ROLES[rol]}).`, ahora);
   return { ok: true, usuario: u, pin };
@@ -507,7 +605,7 @@ export function definirPinInicial(estado, usuarioId, pin, ahora) {
   if (!pinValidoPara(u.rol, pin)) return { ok: false, motivo: textoLargoPin(u.rol) };
   if (pinFacil(u.rol, pin)) return { ok: false, motivo: pinFacil(u.rol, pin) };
   if (pinEnUso(estado, pin, u.id)) return { ok: false, motivo: "Ese PIN ya lo usa otra persona: elegí otro." };
-  u.pin = String(pin).trim();
+  guardarPin(estado, u, pin);
   registrar(estado, `${u.nombre} armó su PIN.`, ahora);
   return { ok: true };
 }
@@ -522,7 +620,7 @@ export function cambiarMiPin(estado, { usuarioId, pin }, nuevo, ahora) {
   if (!pinValidoPara(v.usuario.rol, nuevo)) return { ok: false, motivo: textoLargoPin(v.usuario.rol, true) };
   if (pinFacil(v.usuario.rol, nuevo)) return { ok: false, motivo: pinFacil(v.usuario.rol, nuevo) };
   if (pinEnUso(estado, nuevo, usuarioId)) return { ok: false, motivo: "Ese PIN ya lo usa otra persona: elegí otro." };
-  v.usuario.pin = String(nuevo).trim();
+  guardarPin(estado, v.usuario, nuevo);
   registrar(estado, `${v.usuario.nombre} cambió su PIN.`, ahora);
   return { ok: true };
 }
@@ -840,8 +938,12 @@ function fnv1a(texto) {
  * ESTE pedido por ESTE monto. Es tan fuerte como el PIN del dueño (4 dígitos; 2 si todavía tiene el del piloto):
  * por eso hay tope de intentos por pedido. Funciona igual con cualquier largo: el PIN entra como texto al hash.
  */
-export function codigoAprobacion({ pin, novedadId, clienteId, monto, fecha }) {
-  const base = `${String(pin ?? "").trim()}|${novedadId}|${clienteId}|${Math.round(Number(monto))}|${fecha ?? ""}`;
+export function codigoAprobacion({ pin, sal, novedadId, clienteId, monto, fecha }) {
+  // La clave es el PIN con hash si el club tiene sal (`s` en el link del pedido): el celular lo calcula con el PIN
+  // tipeado y el club con el que tiene guardado. Sin sal (un club que nunca pasó sus PIN a hash), el PIN como antes.
+  const p = String(pin ?? "").trim();
+  const clave = esPinConHash(p) ? p : sal ? hashPin(p, sal) : p;
+  const base = `${clave}|${novedadId}|${clienteId}|${Math.round(Number(monto))}|${fecha ?? ""}`;
   let out = "";
   for (const sal of ["bp-a", "bp-b"]) {
     let h = fnv1a(`${sal}|${base}`);
@@ -864,7 +966,7 @@ export function aprobarPorCodigo(estado, novedadId, { codigo, monto }, auth, aho
   const m = Math.round(Number(monto ?? n.monto));
   const tipeado = normalizarCodigo(codigo);
   if (tipeado.length !== 6) return { ok: false, motivo: "El código tiene 6 letras y números (ej. ABC-DEF)." };
-  const duenio = estado.usuarios.find((u) => u.rol === "duenio" && u.activo !== false && u.pin && normalizarCodigo(codigoAprobacion({ pin: u.pin, novedadId: n.id, clienteId: n.clienteId, monto: m, fecha: n.fecha })) === tipeado);
+  const duenio = estado.usuarios.find((u) => u.rol === "duenio" && u.activo !== false && u.pin && normalizarCodigo(codigoAprobacion({ pin: u.pin, sal: estado.salPin, novedadId: n.id, clienteId: n.clienteId, monto: m, fecha: n.fecha })) === tipeado);
   if (!duenio) {
     n.intentos = (n.intentos ?? 0) + 1;
     if (n.intentos >= 5) {
@@ -882,7 +984,7 @@ export function aprobarPorCodigo(estado, novedadId, { codigo, monto }, auth, aho
 export function datosAprobacion(estado, novedadId) {
   const n = estado.novedades.find((x) => x.id === novedadId);
   if (!n) return null;
-  return { id: n.id, c: n.clienteId, n: cliente(estado, n.clienteId)?.nombre ?? "", m: n.monto ?? n.limite, t: n.tipo ?? "cc", p: n.pidio, f: n.fecha ?? "" };
+  return { id: n.id, c: n.clienteId, n: cliente(estado, n.clienteId)?.nombre ?? "", m: n.monto ?? n.limite, t: n.tipo ?? "cc", p: n.pidio, f: n.fecha ?? "", ...(estado.salPin ? { s: estado.salPin } : {}) };
 }
 
 /** El dueño ajusta o corta la cuenta corriente directamente. */

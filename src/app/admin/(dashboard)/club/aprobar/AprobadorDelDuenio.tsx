@@ -72,7 +72,7 @@ function ElCodigo({ pedido, r, estado, modo, onOtroMonto }: { pedido: DatosAprob
         {r.aprobo ? `Lo aprobás como ${r.aprobo}.` : "Si el PIN que pusiste no es el tuyo, el código no va a servir: lo controla la compu del club."}
       </p>
       {r.pinViejo && (
-        <p className="text-sm text-strong">Tu PIN de dueño ahora es de {LARGO_PIN.duenio} números: la próxima vez que entres en la compu del club te va a pedir que elijas uno nuevo.</p>
+        <p className="text-sm text-strong">Tu PIN de dueño ahora es de {LARGO_PIN.duenio} números: la próxima vez que entres desde el puesto del dueño (tu compu, con tu usuario del ERP) te va a pedir que elijas uno nuevo.</p>
       )}
       <BotonWhatsApp enlace={enlaceDelCodigo(estado, pedido, r.codigo, r.monto, modo)} variante="solid">
         Mandar el código por WhatsApp

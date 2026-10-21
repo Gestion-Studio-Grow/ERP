@@ -47,3 +47,26 @@ test("sin cambios en los usuarios, el texto pasa tal cual; si algo no se puede l
   assert.deepEqual(conservarLoDelicado(t, t), { texto: t, corregido: false });
   assert.deepEqual(conservarLoDelicado("{roto", t), { texto: t, corregido: false });
 });
+
+test("con PIN con hash (21/10): la sal del club no la cambia otro puesto; el PIN propio de recepción con hash pasa, el de un dueño no", () => {
+  const vigente = M.generarDemo(HOY, 19 * 60);
+  M.pasarPinesAHash(vigente);
+  const tocado = structuredClone(vigente);
+  // Recepción cambia su PIN (con la misma sal) e intenta cambiar la sal y el PIN de un dueño.
+  const lu = tocado.usuarios.find((u) => u.rol === "recepcion")!;
+  lu.pin = M.hashPin("58", vigente.salPin!);
+  lu.pinLargo = 2;
+  tocado.usuarios.find((u) => u.rol === "duenio")!.pin = M.hashPin("9090", vigente.salPin!);
+  const r = conservarLoDelicado(sobre(vigente), sobre(tocado));
+  const quedo = JSON.parse(r.texto) as { estado: M.EstadoClub };
+  assert.equal(r.corregido, true);
+  assert.ok(M.pinCoincide(quedo.estado, quedo.estado.usuarios.find((u) => u.id === lu.id)!, "58"), "el PIN propio de recepción pasa");
+  const duenio = vigente.usuarios.find((u) => u.rol === "duenio")!;
+  assert.equal(quedo.estado.usuarios.find((u) => u.id === duenio.id)!.pin, duenio.pin, "el del dueño queda como estaba");
+  // Cambiar la sal: no pasa (invalidaría todos los PIN).
+  const otraSal = structuredClone(vigente);
+  otraSal.salPin = "00112233445566778899aabbccddeeff";
+  const r2 = conservarLoDelicado(sobre(vigente), sobre(otraSal));
+  assert.equal((JSON.parse(r2.texto) as { estado: M.EstadoClub }).estado.salPin, vigente.salPin);
+  assert.equal(r2.corregido, true);
+});

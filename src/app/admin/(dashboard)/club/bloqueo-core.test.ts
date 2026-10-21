@@ -3,6 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MOTIVO_PIN_VIEJO, egresoCaja, generarDemo, pinDesactualizado, verificarPin } from "@/lib/club/motor.mjs";
+import * as M from "@/lib/club/motor.mjs";
 import type { EstadoClub, Usuario } from "@/lib/club/motor.mjs";
 import { armarMesCargado, HOY_TORNEO } from "@/lib/club/fixtures/armar-respaldo";
 import { claveDeLaJornada, crearAlmacen, type Temporizador } from "./almacen";
@@ -388,7 +389,7 @@ test("revisar el PIN nuevo (puro): del largo del rol, repetido, y con el viejo q
   assert.deepEqual(revisarPinNuevo(e, c, "4711", "4712"), { ok: false, mensaje: "Los dos PIN no coinciden: escribilo igual las dos veces." });
   assert.equal(revisarPinNuevo(e, { usuarioId: "u-rober", viejo: "99" }, "4711", "4711").ok, false, "con un viejo que no es, nada");
   assert.equal(revisarPinNuevo(e, c, "4711", "4711").ok, true);
-  assert.equal(u(e, "u-rober").pin, "11", "revisar no toca nada");
+  assert.ok(M.pinCoincide(e, u(e, "u-rober"), "11"), "revisar no toca nada");
 });
 
 test("revisar el PIN nuevo (puro): uno fácil no pasa y se dice por qué, en criollo (pinFacil del motor)", () => {
@@ -400,7 +401,7 @@ test("revisar el PIN nuevo (puro): uno fácil no pasa y se dice por qué, en cri
   for (const p of ["1234", "6789", "4321"])
     assert.deepEqual(revisarPinNuevo(e, c, p, p), { ok: false, mensaje: "Una escalera (como 1234 o 4321) se adivina fácil: elegí otro." }, p);
   assert.equal(revisarPinNuevo(e, c, "3851", "3851").ok, true);
-  assert.equal(u(e, "u-rober").pin, "11", "revisar no toca nada");
+  assert.ok(M.pinCoincide(e, u(e, "u-rober"), "11"), "revisar no toca nada");
 });
 
 const temporizador: Temporizador = { despues: () => () => undefined, cada: () => () => undefined };
@@ -448,7 +449,7 @@ test("jornada de main, dueño con PIN de 2: elige uno de 4 por el almacén y ent
   assert.equal(usado.ok, false);
   assert.match(usado.mensaje, /ya lo usa otra persona/);
   assert.equal(a.operador(), null, "nunca queda operando con el PIN viejo");
-  assert.equal(a.estado().usuarios.find((x) => x.id === "u-duenio-1")!.pin, "11");
+  assert.ok(M.pinCoincide(a.estado(), a.estado().usuarios.find((x) => x.id === "u-duenio-1")!, "11"));
   a.estado().usuarios.find((x) => x.id === "u-duenio-2")!.pin = "22";
   // Uno fácil (escalera, todos iguales, el de ejemplo de la demo): no entra nadie y se dice por qué.
   for (const [p, motivo] of [["1234", /escalera/], ["7777", /todos los números iguales/], ["1111", /PIN de ejemplo de la demo/]] as const) {
@@ -457,7 +458,7 @@ test("jornada de main, dueño con PIN de 2: elige uno de 4 por el almacén y ent
     assert.match(facil.mensaje, motivo, p);
   }
   assert.equal(a.operador(), null);
-  assert.equal(a.estado().usuarios.find((x) => x.id === "u-duenio-1")!.pin, "11");
+  assert.ok(M.pinCoincide(a.estado(), a.estado().usuarios.find((x) => x.id === "u-duenio-1")!, "11"));
   // Con el PIN viejo, mientras no lo cambie, no firma nada (el motor: `autorizar` → `verificarFirma`).
   const egreso = egresoCaja(a.estado(), { monto: 500, concepto: "Hielo", usuarioId: "u-duenio-1", pin: "11" }, a.ahora());
   assert.ok(!egreso.ok && egreso.motivo === MOTIVO_PIN_VIEJO, JSON.stringify(egreso));
@@ -472,7 +473,9 @@ test("jornada de main, dueño con PIN de 2: elige uno de 4 por el almacén y ent
   assert.equal(a.estado().reservas.length, turnos);
   assert.equal(loCargado(a.estado()), antes, "lo cargado queda todo igual");
   assert.equal(a.puedeDeshacer(), false, "el cambio de PIN no se deshace");
-  assert.match(datos.get(CLAVE_PIN)!, /"pin":"4711"/, "quedó guardado");
+  const guardada = M.hidratarEstado(JSON.parse(datos.get(CLAVE_PIN)!));
+  assert.ok(guardada.ok && M.pinCoincide(guardada.estado, guardada.estado.usuarios.find((u) => u.id === "u-duenio-1")!, "4711"), "quedó guardado (con hash)");
+  assert.doesNotMatch(datos.get(CLAVE_PIN)!, /"pin":"4711"/, "y no en claro");
   // La dueña 2 sigue con el suyo de 2 (se le va a pedir cuando entre) y recepción con 33.
   assert.equal(pinDesactualizado(a.estado(), "u-duenio-2"), true);
   assert.equal(verificarPin(a.estado(), "u-recep-1", "33").ok, true);

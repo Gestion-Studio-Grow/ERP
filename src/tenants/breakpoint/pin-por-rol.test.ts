@@ -39,17 +39,30 @@ test("largo por rol: dueño 4, recepción (y cualquier otro rol) 2", () => {
 
 test("alta, acceso otorgado y «PIN nuevo»: el sistema genera el PIN del largo del rol, sin repetir", () => {
   const e = club();
+  // Los PIN que se generan se ven UNA vez (en claro, en la respuesta); guardados quedan con hash (21/10).
+  const enClaro = new Map<string, string>(e.usuarios.map((u: any) => [u.id, u.pin]));
   const rec = M.altaUsuario(e, { nombre: "Agus", rol: "recepcion" }, DUENO, ahora(9));
   assert.match(rec.pin, /^[1-9]\d$/);
+  enClaro.set(rec.usuario.id, rec.pin);
   const due = M.altaUsuario(e, { nombre: "Socio", rol: "duenio" }, DUENO, ahora(9));
   assert.match(due.pin, /^[1-9]\d{3}$/);
+  enClaro.set(due.usuario.id, due.pin);
   const { solicitud } = M.solicitarAcceso(e, "Juli", ahora(9));
-  assert.match(M.otorgarAcceso(e, solicitud.id, { rol: "duenio" }, DUENO, ahora(9)).pin, /^\d{4}$/);
-  assert.match(M.regenerarPin(e, "u-majo", DUENO, ahora(10)).pin, /^\d{4}$/);
-  assert.match(M.regenerarPin(e, "u-caro", DUENO, ahora(10)).pin, /^\d{2}$/);
-  const activos = e.usuarios.filter((u: any) => u.activo !== false).map((u: any) => u.pin);
+  const juli = M.otorgarAcceso(e, solicitud.id, { rol: "duenio" }, DUENO, ahora(9));
+  assert.match(juli.pin, /^\d{4}$/);
+  enClaro.set(juli.usuario.id, juli.pin);
+  const majo = M.regenerarPin(e, "u-majo", DUENO, ahora(10));
+  assert.match(majo.pin, /^\d{4}$/);
+  enClaro.set("u-majo", majo.pin);
+  const caro = M.regenerarPin(e, "u-caro", DUENO, ahora(10));
+  assert.match(caro.pin, /^\d{2}$/);
+  enClaro.set("u-caro", caro.pin);
+  const activos = e.usuarios.filter((u: any) => u.activo !== false).map((u: any) => enClaro.get(u.id));
   assert.equal(new Set(activos).size, activos.length, "ningún PIN se repite");
-  for (const u of e.usuarios) assert.ok(M.verificarPin(e, u.id, u.pin).ok);
+  for (const u of e.usuarios) {
+    assert.ok(M.verificarPin(e, u.id, enClaro.get(u.id)).ok, u.nombre);
+    if (enClaro.get(u.id) !== u.pin) assert.ok(M.esPinConHash(u.pin), `${u.nombre}: el PIN generado se guarda con hash`);
+  }
 });
 
 test("PIN inicial (consola) y cambio de PIN validan el largo del rol", () => {
@@ -103,8 +116,8 @@ test("dueño del piloto con PIN viejo de 2: la jornada de main hidrata, entra ig
   // Y vuelve a guardar y a leer igual (sigue siendo versión 1).
   const otra = M.hidratarEstado(JSON.parse(JSON.stringify(M.serializarEstado(e))));
   assert.ok(otra.ok);
-  assert.equal(otra.estado.usuarios.find((u: any) => u.id === "u-duenio-1").pin, "3851");
-  assert.equal(otra.estado.usuarios.find((u: any) => u.id === "u-duenio-2").pin, "22", "Dueña Dos todavía no lo cambió");
+  assert.ok(M.pinCoincide(otra.estado, otra.estado.usuarios.find((u: any) => u.id === "u-duenio-1"), "3851"));
+  assert.ok(M.pinCoincide(otra.estado, otra.estado.usuarios.find((u: any) => u.id === "u-duenio-2"), "22"), "Dueña Dos todavía no lo cambió");
 });
 
 test("código de aprobación por WhatsApp: anda con el PIN de 4 y con el viejo de 2", () => {
@@ -118,14 +131,14 @@ test("código de aprobación por WhatsApp: anda con el PIN de 4 y con el viejo d
   };
   // Dueño Uno ya tiene el de 4.
   const d1 = pedir();
-  assert.notEqual(M.codigoAprobacion({ pin: "4821", novedadId: d1.id, clienteId: d1.c, monto: d1.m, fecha: d1.f }), M.codigoAprobacion({ pin: "11", novedadId: d1.id, clienteId: d1.c, monto: d1.m, fecha: d1.f }));
-  assert.equal(M.aprobarPorCodigo(e, d1.id, { codigo: M.codigoAprobacion({ pin: "11", novedadId: d1.id, clienteId: d1.c, monto: d1.m, fecha: d1.f }), monto: d1.m }, RECEP, ahora(20, 1)).ok, false, "con el PIN viejo ya cambiado no sirve");
-  const ok1 = M.aprobarPorCodigo(e, d1.id, { codigo: M.codigoAprobacion({ pin: "4821", novedadId: d1.id, clienteId: d1.c, monto: d1.m, fecha: d1.f }), monto: d1.m }, RECEP, ahora(20, 2));
+  assert.notEqual(M.codigoAprobacion({ pin: "4821", sal: d1.s, novedadId: d1.id, clienteId: d1.c, monto: d1.m, fecha: d1.f }), M.codigoAprobacion({ pin: "11", sal: d1.s, novedadId: d1.id, clienteId: d1.c, monto: d1.m, fecha: d1.f }));
+  assert.equal(M.aprobarPorCodigo(e, d1.id, { codigo: M.codigoAprobacion({ pin: "11", sal: d1.s, novedadId: d1.id, clienteId: d1.c, monto: d1.m, fecha: d1.f }), monto: d1.m }, RECEP, ahora(20, 1)).ok, false, "con el PIN viejo ya cambiado no sirve");
+  const ok1 = M.aprobarPorCodigo(e, d1.id, { codigo: M.codigoAprobacion({ pin: "4821", sal: d1.s, novedadId: d1.id, clienteId: d1.c, monto: d1.m, fecha: d1.f }), monto: d1.m }, RECEP, ahora(20, 2));
   assert.ok(ok1.ok, ok1.motivo);
   assert.equal(ok1.aprobo, "Dueño Uno");
   // Dueña Dos todavía tiene el de 2 y aprueba igual desde el celular.
   const d2 = pedir();
-  const ok2 = M.aprobarPorCodigo(e, d2.id, { codigo: M.codigoAprobacion({ pin: "22", novedadId: d2.id, clienteId: d2.c, monto: d2.m, fecha: d2.f }), monto: d2.m }, RECEP, ahora(20, 3));
+  const ok2 = M.aprobarPorCodigo(e, d2.id, { codigo: M.codigoAprobacion({ pin: "22", sal: d2.s, novedadId: d2.id, clienteId: d2.c, monto: d2.m, fecha: d2.f }), monto: d2.m }, RECEP, ahora(20, 3));
   assert.ok(ok2.ok, ok2.motivo);
   assert.equal(ok2.aprobo, "Dueña Dos");
   // El celular (sin la jornada) acepta el de 4 o el viejo de 2 de un dueño; nada más.
@@ -178,7 +191,7 @@ test("M1: el PIN viejo de 2 de un dueño no firma un descuento ni una aprobació
   assert.ok(M.resolverCredito(e, novedad.id, { aprobar: true, monto: 5000 }, { usuarioId: "u-duenio-2", pin: "7316" }, ahora(21, 7)).ok);
   // El celular remoto no cambia (decisión del dueño): el código con el viejo de 2 de Dueño Uno sigue sirviendo.
   const d = M.datosAprobacion(e, M.solicitarCredito(e, { clienteId: e.clientes[0].id, tipo: "fiado", monto: 3000 }, RECEP, ahora(21, 8)).novedad.id);
-  const cod = M.codigoAprobacion({ pin: "11", novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f });
+  const cod = M.codigoAprobacion({ pin: "11", sal: d.s, novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f });
   assert.ok(M.aprobarPorCodigo(e, d.id, { codigo: cod, monto: d.m }, RECEP, ahora(21, 9)).ok);
 });
 
@@ -257,4 +270,19 @@ test("M2: un solo tope de intentos de PIN para toda la compu, escalonado y guard
   assert.equal(v.fallos, 1, "pasadas 8 horas, el fallo viejo ya no cuenta");
   // Lo guardado roto o tocado a mano no rompe nada.
   assert.deepEqual(M.intentosPin({ fallos: "x", esperaHasta: -5 }), M.intentosPin());
+});
+
+test("PIN con hash: hashPin = PBKDF2-SHA256 estándar (node:crypto) con sales de todos los largos, incluidos los bordes del relleno de SHA-256 (55, 119…)", async () => {
+  const { pbkdf2Sync } = await import("node:crypto");
+  for (const n of [1, 8, 32, 51, 55, 56, 63, 64, 115, 119, 120, 128]) {
+    const sal = "a".repeat(n);
+    assert.equal(M.hashPin("4821", sal), "h1:" + pbkdf2Sync("4821", sal, M.VUELTAS_PIN, 32, "sha256").toString("hex"), `sal de ${n}`);
+  }
+  // Un club con sal: el PIN no queda en claro y se verifica igual; el viejo en claro sigue sirviendo hasta que se pasa.
+  const e = club();
+  const u = e.usuarios.find((x: any) => x.rol === "duenio");
+  const enClaro = u.pin;
+  assert.ok(M.pinCoincide(e, u, enClaro));
+  M.pasarPinesAHash(e);
+  assert.ok(M.esPinConHash(u.pin) && u.pinLargo === enClaro.length && M.pinCoincide(e, u, enClaro) && !M.pinCoincide(e, u, "0000"));
 });

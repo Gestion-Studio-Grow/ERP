@@ -323,11 +323,11 @@ function PasoPinNuevo({
   if (!enSuPuesto) {
     return (
       <div className="flex flex-col gap-3">
-        <p role="status" className="text-sm text-strong">
+        <p id={`${ids}-donde`} role="status" className="text-sm text-strong">
           <strong>{primerNombre(u.nombre)}, tu PIN todavía es el viejo de 2 números.</strong> Cambialo desde el puesto del dueño (la compu donde entrás
           al ERP con tu usuario de dueño): ahí elegís uno de {largo} y después entrás acá con ése.
         </p>
-        <Button id={`${ids}-entendido`} variant="solid" size="md" className="self-start" onClick={onAhoraNo}>
+        <Button id={`${ids}-entendido`} aria-describedby={`${ids}-donde`} variant="solid" size="md" className="self-start" onClick={onAhoraNo}>
           Entendido (queda bloqueada)
         </Button>
       </div>
@@ -458,6 +458,8 @@ function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almac
   const [pin, setPin] = useState("");
   // Dueño con el PIN viejo: el paso del PIN nuevo (desde acá o desde «Cambiar de usuario», que lo deja anotado).
   const [cambio, setCambio] = useState<CambioDePinPendiente | null>(() => cambioDePinPendiente(almacen));
+  // Un dueño fuera de su puesto no cambia el PIN acá (G8): el título lo dice (PasoPinNuevo muestra dónde hacerlo).
+  const cambioFueraDeSuPuesto = !!cambio && !puestoDeDuenio(almacen) && datos.quienes.find((u) => u.id === cambio.usuarioId)?.rol === "duenio";
   useEffect(() => olvidarCambioDePin(almacen), [almacen]);
   const { probar, segundos, anuncio, error } = usePruebaDePin(almacen, guarda);
   const quien = datos.quienes.find((u) => u.id === elegido) ?? null;
@@ -527,7 +529,7 @@ function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almac
         <p className="text-xs font-semibold uppercase tracking-wider text-muted">{datos.nombreDelClub ? `${datos.nombreDelClub} · ` : ""}Gestión del club</p>
         <div className="flex flex-col gap-1">
           <h2 id={titulo} className="text-2xl font-semibold text-strong">
-            {cambio ? "Elegí tu PIN nuevo" : "Pantalla bloqueada"}
+            {cambio ? (cambioFueraDeSuPuesto ? "Tu PIN es el viejo" : "Elegí tu PIN nuevo") : "Pantalla bloqueada"}
           </h2>
           {!cambio && (
             <p id={`${ids}-m`} className="text-sm text-muted">
