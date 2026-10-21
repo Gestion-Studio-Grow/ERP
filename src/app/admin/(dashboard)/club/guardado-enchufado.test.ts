@@ -191,6 +191,11 @@ test("con cambios sin pausa sube igual a los 2 minutos (tope)", async () => {
 });
 
 /** Hasta que no quede nada subiendo ni pendiente (el gzip corre en otro hilo: con la máquina cargada tarda). */
+/** Con la máquina cargada, el almacén y el gzip pueden tardar más que un `avanzar`: se sigue avanzando (hasta 20 s reales). */
+async function hastaQue(listo: () => boolean, r: Awaited<ReturnType<typeof abrir>>["r"]) {
+  for (const fin = Date.now() + 20_000; !listo() && Date.now() < fin; ) await r.avanzar(1000);
+}
+
 async function quieto(enLaBase: Awaited<ReturnType<typeof abrir>>["enLaBase"], r: Awaited<ReturnType<typeof abrir>>["r"]) {
   const fin = Date.now() + 10_000;
   while (Date.now() < fin) {
@@ -244,6 +249,7 @@ test("dos puestos sobre la misma base: después de chocar, el puesto sigue guard
   tocar(A.a, 111);
   await A.r.avanzar(ESPERA_GUARDADO_MS + 1000);
   await quieto(A.enLaBase, A.r);
+  await hastaQue(() => fondo() === 111, A.r);
   assert.equal(fondo(), 111);
   // B, armado sobre la versión vieja, choca: se recarga lo de A y lo suyo queda aparte.
   tocar(B.a, 222);
@@ -258,10 +264,12 @@ test("dos puestos sobre la misma base: después de chocar, el puesto sigue guard
   tocar(B.a, 333);
   await B.r.avanzar(ESPERA_GUARDADO_MS + 1000);
   await quieto(B.enLaBase, B.r);
+  await hastaQue(() => fondo() === 333, B.r);
   assert.equal(fondo(), 333);
   tocar(B.a, 444);
   await B.r.avanzar(ESPERA_GUARDADO_MS + 1000);
   await quieto(B.enLaBase, B.r);
+  await hastaQue(() => fondo() === 444, B.r);
   assert.equal(fondo(), 444);
   assert.equal(B.a.estado().caja.fondo, 444);
 });

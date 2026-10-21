@@ -180,6 +180,7 @@ test("baja de un fijo: «cancela el club» (devolver todo) sólo con un dueño; 
   assert.equal(conDuenio.estado, "cancelada");
   assert.equal(conDuenio.motivoCancelacion, "Baja del turno fijo");
   // Con el dueño vuelve todo; con recepción, lo que diga la regla del cliente (nunca más que con el dueño).
-  const devuelto = (r: M.Reserva) => (r as M.Reserva & { senaEnSuspenso?: boolean }).senaEnSuspenso ? 0 : 1;
-  assert.ok(devuelto(conRecepcion) <= devuelto(conDuenio));
+  const enSuspenso = (r: M.Reserva) => Boolean((r as M.Reserva & { senaEnSuspenso?: boolean }).senaEnSuspenso);
+  assert.equal(enSuspenso(conRecepcion), true, "con recepción, tarde: la seña queda en suspenso");
+  assert.equal(enSuspenso(conDuenio), false, "con el dueño vuelve todo");
 });

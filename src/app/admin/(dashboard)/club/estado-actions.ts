@@ -18,7 +18,9 @@
 // LO QUE ESTE SERVIDOR NO SABE (deuda, PARIDAD-REACT.md §«Lo que el servidor no controla»). En el «modo foto»
 // `guardarFotoDelClub` recibe el estado ENTERO de cualquier usuario con `agenda:manage`: no distingue un guardado
 // de un restaurar ni sabe qué cambió. La regla G8 (lo delicado —usuarios y PIN, precios, restaurar, limpiar— es
-// del dueño) la hace cumplir la PANTALLA (el motor y el almacén piden el PIN de un dueño), no esta acción. La
+// del dueño) la hace cumplir la PANTALLA (el motor y el almacén piden el PIN de un dueño); desde el 21/10, para
+// usuarios y PIN, también esta acción: si no guarda un OWNER del ERP se conservan los de la foto vigente
+// (`conservarLoDelicado`, src/lib/club/delicado.ts). Precios y lo demás siguen en la pantalla. La
 // pantalla restaura con `almacen.restaurar` → `guardarYa()`, o sea por `guardarFotoDelClub`: `revisar…` y
 // `restaurarRespaldoDelClub` no las usa hoy ninguna pantalla (sí los tests). Se cierra con los comandos / el back
 // separado (G10).
@@ -31,6 +33,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import type { SessionUser } from "@/lib/session";
 import { guardar, leerVigente, restaurar, MENSAJE_CAMBIO_MIENTRAS_MIRABAS } from "@/lib/club/estado-repo";
 import { leerSobre, resumenDelRespaldo, type ResumenDelRespaldo } from "@/lib/club/foto";
+import { conservarLoDelicado } from "@/lib/club/delicado";
 import { leerRespaldo } from "./configuracion-core";
 import { textoSubido } from "./estado-subida";
 
@@ -90,7 +93,14 @@ export async function guardarFotoDelClub(datos: FormData): Promise<RespuestaGuar
   if (!Number.isInteger(version) || version < 0) return { ok: false, motivo: "error", error: "Falta la versión de lo que se leyó." };
   const subido = await textoSubido(datos, "foto");
   if ("error" in subido) return { ok: false, motivo: "error", error: subido.error };
-  const r = await guardar(q.tenantId, subido.texto, version, `user:${q.user.id}`);
+  // G8: si no guarda un dueño del ERP, los usuarios y los PIN quedan como en la foto vigente (salvo el PIN propio de
+  // recepción). Un guardado de la tablet de recepción no puede pisar ni borrar PIN (src/lib/club/delicado.ts).
+  let texto = subido.texto;
+  if (q.user.role !== "OWNER") {
+    const vigente = await leerVigente(q.tenantId);
+    if (vigente) texto = conservarLoDelicado(vigente.texto, texto).texto;
+  }
+  const r = await guardar(q.tenantId, texto, version, `user:${q.user.id}`);
   if (r.ok) return { ok: true, version: r.version };
   if (r.motivo === "CAMBIO_MIENTRAS_MIRABAS") return { ok: false, motivo: "conflicto", version: r.version, error: MENSAJE_CAMBIO_MIENTRAS_MIRABAS };
   return { ok: false, motivo: "error", error: r.detalle };

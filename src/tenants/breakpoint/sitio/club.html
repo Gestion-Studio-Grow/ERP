@@ -2961,12 +2961,14 @@ function planLluvia(estado, fecha, desde, hasta, ahora) {
   const cubiertas = estado.canchas.filter((c) => c.cubierta && c.estado !== "mantenimiento").map((c) => c.id);
   const afectadas = estado.reservas
     .filter((r) => r.fecha === fecha && descubiertas.includes(r.canchaId) && ["reservada", "en_cancha"].includes(r.estado) && solapa(r.inicio, r.inicio + r.duracion, desde, hasta))
+    // Un turno reservado que ya terminó sin jugarse no es de la lluvia (es una falta o algo para cerrar a mano).
+    .filter((r) => !(r.estado === "reservada" && ahora && minutosHasta(ahora, r.fecha, r.inicio + r.duracion) <= 0))
     .sort((a, b) => a.inicio - b.inicio);
   const resultado = [];
   for (const r of afectadas) {
     const destino = cubiertas.find((id) => validarHueco(estado, { canchaId: id, fecha, inicio: r.inicio, duracion: r.duracion }, r.id).ok);
-    if (destino) {
-      mover(estado, r.id, { canchaId: destino }, ahora);
+    // Sólo cuenta como movido si `mover` lo movió de verdad; si no, sigue por el corte o la suspensión.
+    if (destino && mover(estado, r.id, { canchaId: destino }, ahora).ok) {
       resultado.push({ reservaId: r.id, titular: r.titular, accion: "movido", cancha: cancha(estado, destino).nombre });
       continue;
     }

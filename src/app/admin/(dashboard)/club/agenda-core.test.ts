@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { destinosParaMover } from "./ciclo-core";
+import { reservar } from "./alta-core";
 import { DIAS_ANTES, DIAS_DESPUES, armarAgenda, compartirAgenda, diasDeLaAgenda, marcaDelTurno, opcionesDelMenu, ponerLuz, previaArrastre, senalDelTurno, vecino } from "./agenda-core";
 import { ejecutar } from "./cuenta-core";
 
@@ -276,4 +277,21 @@ test("el motor también valida «Mover» y «Extender» (no sólo la pantalla): 
   const pasado = { fecha: HOY, min: jugando.inicio + jugando.duracion + 5 };
   const libre = M.validarHueco(e, { canchaId: jugando.canchaId, fecha: HOY, inicio: jugando.inicio + jugando.duracion, duracion: 30 }).ok;
   assert.equal(M.extender(e, jugando.id, 30, pasado).ok, libre);
+});
+
+test("plan lluvia con la regla nueva de «Mover»: un reservado que ya terminó sin jugarse no se toca, y nada figura «movido» si no se movió (Gate 21/10)", () => {
+  const e = demo();
+  const c1 = e.canchas[0];
+  M.configurarTecho(e, c1.id, false, AHORA);
+  // Un turno de la mañana, reservado y nunca jugado, en la cancha que ahora es descubierta.
+  const { abre } = M.horarioDe(e, HOY);
+  const libre = Array.from({ length: 16 }, (_, i) => abre + i * e.config.paso).find((m) => M.validarHueco(e, { canchaId: c1.id, fecha: HOY, inicio: m, duracion: 60 }).ok)!;
+  assert.ok(libre < AHORA.min - 60, "hay un hueco a la mañana");
+  const r = reservar(e, { canchaId: c1.id, fecha: HOY, inicio: libre, duracion: 60, tipo: "turno", titular: "Mañanero", clienteId: null, otros: "" }, { fecha: HOY, min: 8 * 60 });
+  assert.ok(r.ok, r.mensaje);
+  const p = M.planLluvia(e, HOY, 8 * 60, 22 * 60, AHORA);
+  assert.equal(p.ok, true);
+  assert.ok(!p.resultado.some((x) => x.reservaId === r.reservaId), "el de la mañana que no vino no es de la lluvia");
+  assert.equal(M.reserva(e, r.reservaId!)!.canchaId, c1.id);
+  for (const x of p.resultado.filter((y) => y.accion === "movido")) assert.notEqual(M.reserva(e, x.reservaId)!.canchaId, c1.id, `${x.titular} figura movido y se movió`);
 });
