@@ -5,9 +5,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { destinosParaMover } from "./ciclo-core";
+import { destinosParaMover, opcionesCiclo } from "./ciclo-core";
 import { reservar } from "./alta-core";
-import { DIAS_ANTES, DIAS_DESPUES, armarAgenda, compartirAgenda, diasDeLaAgenda, marcaDelTurno, opcionesDelMenu, ponerLuz, previaArrastre, senalDelTurno, vecino } from "./agenda-core";
+import { DIAS_ANTES, DIAS_DESPUES, armarAgenda, compartirAgenda, diasDeLaAgenda, marcaDelTurno, opcionesDelMenu, ponerLuz, previaArrastre, senalDelTurno, velocidadAlBorde, vecino } from "./agenda-core";
 import { ejecutar } from "./cuenta-core";
 
 const HOY = "2026-10-17";
@@ -294,4 +294,41 @@ test("plan lluvia con la regla nueva de «Mover»: un reservado que ya terminó 
   assert.ok(!p.resultado.some((x) => x.reservaId === r.reservaId), "el de la mañana que no vino no es de la lluvia");
   assert.equal(M.reserva(e, r.reservaId!)!.canchaId, c1.id);
   for (const x of p.resultado.filter((y) => y.accion === "movido")) assert.notEqual(M.reserva(e, x.reservaId)!.canchaId, c1.id, `${x.titular} figura movido y se movió`);
+});
+
+test("menú rápido: «Mover…» y «Marcar falta…» con las MISMAS reglas que la cuenta del turno (opcionesCiclo)", () => {
+  const e = demo();
+  const acciones = (id: string) => opcionesDelMenu(e, id, HOY).map((o) => o.accion);
+  for (const r of e.reservas.filter((x) => x.fecha === HOY)) {
+    const ciclo = opcionesCiclo(r);
+    assert.equal(acciones(r.id).includes("mover"), ciclo.mover, `${r.titular} (${r.estado}): «Mover…» como en la cuenta`);
+    assert.equal(acciones(r.id).includes("falta"), ciclo.falta, `${r.titular} (${r.estado}): «Marcar falta…» como en la cuenta`);
+  }
+  // Reservado: Mover… y, al final, separada y en rojo, la falta. Jugando: se mueve (a otra cancha), la falta no.
+  const reservado = e.reservas.find((r) => r.fecha === HOY && r.estado === "reservada")!;
+  const op = opcionesDelMenu(e, reservado.id, HOY);
+  assert.deepEqual(op.slice(-2).map((o) => [o.texto, !!o.peligro]), [["Mover…", false], ["Marcar falta…", true]]);
+  const jugando = e.reservas.find((r) => r.fecha === HOY && r.estado === "en_cancha")!;
+  assert.ok(acciones(jugando.id).includes("mover"));
+  assert.ok(!acciones(jugando.id).includes("falta"));
+  // Cerrado: sólo verlo.
+  const cerrado = e.reservas.find((r) => r.fecha === HOY && r.estado === "finalizada");
+  if (cerrado) assert.deepEqual(acciones(cerrado.id), ["ver"]);
+});
+
+test("arrastrar hasta el borde corre la grilla: quieto en el medio, más rápido cuanto más adentro de la franja del borde", () => {
+  const borde = { zona: 40, maxima: 18 };
+  // La parte visible va de 100 a 500 (debajo de la cabecera fija).
+  assert.equal(velocidadAlBorde(300, 100, 500, borde), 0, "en el medio no se corre");
+  assert.equal(velocidadAlBorde(140, 100, 500, borde), 0);
+  assert.equal(velocidadAlBorde(460, 100, 500, borde), 0);
+  assert.ok(velocidadAlBorde(130, 100, 500, borde) < 0, "cerca de arriba, sube");
+  assert.ok(velocidadAlBorde(470, 100, 500, borde) > 0, "cerca de abajo, baja");
+  assert.ok(Math.abs(velocidadAlBorde(105, 100, 500, borde)) > Math.abs(velocidadAlBorde(135, 100, 500, borde)), "más cerca del borde, más rápido");
+  // Afuera de la grilla (sobre la cabecera, o el puntero se fue de la tablet), la máxima.
+  assert.equal(velocidadAlBorde(20, 100, 500, borde), -18);
+  assert.equal(velocidadAlBorde(900, 100, 500, borde), 18);
+  // Una grilla chica: la franja se achica a un tercio, siempre queda un medio quieto.
+  assert.equal(velocidadAlBorde(130, 100, 160, borde), 0);
+  assert.equal(velocidadAlBorde(100, 100, 100, borde), 0, "sin lugar visible no se corre");
 });

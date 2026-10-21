@@ -156,7 +156,6 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
       loader: { ".css": "empty" }, // la piel (piel/*.css) la pone la página, no el bundle
       logLevel: "silent",
       // Las pieles de cada pantalla (piel/*.css) las sirve Next; acá alcanza con el CSS de la app.
-      loader: { ".css": "empty" },
     });
     bundle = r.outputFiles[0].text;
     css = await cssDeLaApp();

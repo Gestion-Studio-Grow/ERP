@@ -122,7 +122,6 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
       loader: { ".css": "empty" },
       logLevel: "silent",
       // Las pieles de cada pantalla (piel/*.css) las sirve Next; acá alcanza con el CSS de la app.
-      loader: { ".css": "empty" },
     });
     bundle = r.outputFiles[0].text;
     css = await cssDeLaApp();
