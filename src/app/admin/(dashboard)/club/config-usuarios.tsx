@@ -10,6 +10,7 @@
 
 import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { SoloEnElPuestoDelDuenio, puestoDeDuenio } from "./config-jornada";
 import { LARGO_PIN, largoPin, usuario as usuarioDe } from "@/lib/club/motor.mjs";
 import type { EstadoClub, Rol } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
@@ -49,7 +50,7 @@ function PinInicial({ id, nombre, hacer }: { id: string; nombre: string; hacer: 
   );
 }
 
-function FilaDeUsuario({ f, abierta, onAbrir, onCerrar, quien, rol, hacer, onPin }: { f: FilaUsuario; abierta: Abierta; onAbrir: (a: Abierta) => void; onCerrar: () => void; quien: string | null; rol: Rol | null; hacer: ReturnType<typeof useHacerConfig>; onPin: (d: DesenlaceConfig) => void }) {
+function FilaDeUsuario({ f, abierta, onAbrir, onCerrar, quien, rol, hacer, onPin, puesto }: { f: FilaUsuario; abierta: Abierta; onAbrir: (a: Abierta) => void; onCerrar: () => void; quien: string | null; rol: Rol | null; hacer: ReturnType<typeof useHacerConfig>; onPin: (d: DesenlaceConfig) => void; puesto: boolean }) {
   const [pin, setPin] = useState("");
   const accion = abierta?.usuarioId === f.id ? abierta.tipo : null;
   return (
@@ -63,6 +64,7 @@ function FilaDeUsuario({ f, abierta, onAbrir, onCerrar, quien, rol, hacer, onPin
           <p className="text-sm text-body">{f.puede}</p>
           {!f.tienePin && <p className="text-sm font-semibold text-strong">Todavía no tiene PIN.</p>}
         </div>
+        {puesto && (
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button variant="outline" size="md" aria-expanded={accion === "pinNuevo"} onClick={() => onAbrir(accion === "pinNuevo" ? null : { tipo: "pinNuevo", usuarioId: f.id })}>
             PIN nuevo<span className="sr-only"> para {f.nombre}</span>
@@ -73,8 +75,9 @@ function FilaDeUsuario({ f, abierta, onAbrir, onCerrar, quien, rol, hacer, onPin
             </Button>
           )}
         </div>
+        )}
       </div>
-      {accion && (
+      {puesto && accion && (
         <form
           aria-label={accion === "pinNuevo" ? `PIN nuevo para ${f.nombre}` : `Sacarle el acceso a ${f.nombre}`}
           className="flex flex-col gap-2 rounded-md border border-line-strong p-3 sm:flex-row sm:items-end"
@@ -184,6 +187,7 @@ export function UsuariosDelClub({ almacen, irASolapa, negocio }: { almacen: Alma
   const [abierta, setAbierta] = useState<Abierta>(null);
   const [pinNuevo, setPinNuevo] = useState<DesenlaceConfig["pinNuevo"] | null>(null);
   const listaId = useId();
+  const puesto = puestoDeDuenio(almacen);
 
   const alPin = (d: DesenlaceConfig) => {
     if (!d.pinNuevo) return;
@@ -205,7 +209,12 @@ export function UsuariosDelClub({ almacen, irASolapa, negocio }: { almacen: Alma
           }}
         />
       )}
-      {v.duenosSinPin.length > 0 && (
+      {/* G8: dar de alta, armar o cambiar PIN de otros y sacar accesos, sólo desde el puesto del dueño (el servidor
+          tampoco deja que un guardado de otro puesto toque usuarios ni PIN: src/lib/club/delicado.ts). */}
+      {!puesto && (
+        <SoloEnElPuestoDelDuenio que="Dar de alta, armar el PIN de un dueño, darle un PIN nuevo a alguien y sacar accesos" />
+      )}
+      {puesto && v.duenosSinPin.length > 0 && (
         <div className="flex flex-col gap-3 rounded-md border border-warning/40 bg-warning-soft p-3">
           <h3 className="font-semibold text-strong">Los dueños arman su PIN</h3>
           <p className="text-sm text-strong">{LARGO_PIN.duenio} números que sólo sepa cada uno (no pueden ser iguales). Con ese PIN se entra, se desbloquea la pantalla y se autorizan créditos y accesos.</p>
@@ -227,11 +236,12 @@ export function UsuariosDelClub({ almacen, irASolapa, negocio }: { almacen: Alma
       {!operador && <p className="text-sm font-semibold text-strong">Para dar de alta, armar PIN o sacar accesos, entrá con tu PIN.</p>}
       <ul id={listaId} tabIndex={-1} aria-label="Usuarios con acceso" className="flex flex-col focus-visible:outline-2 focus-visible:outline-focus">
         {v.filas.map((f) => (
-          <FilaDeUsuario key={f.id} f={f} abierta={abierta} onAbrir={setAbierta} onCerrar={() => setAbierta(null)} quien={quien} rol={rolDeQuien} hacer={hacer} onPin={alPin} />
+          <FilaDeUsuario key={f.id} f={f} abierta={abierta} onAbrir={setAbierta} onCerrar={() => setAbierta(null)} quien={quien} rol={rolDeQuien} hacer={hacer} onPin={alPin} puesto={puesto} />
         ))}
       </ul>
-      <AltaDeUsuario quien={quien} rol={rolDeQuien} hacer={hacer} onPin={alPin} />
-      {operador && <CambiarMiPin almacen={almacen} rol={operador.usuario.rol} hacer={hacer} />}
+      {puesto && <AltaDeUsuario quien={quien} rol={rolDeQuien} hacer={hacer} onPin={alPin} />}
+      {/* Cada uno cambia su PIN; el de un dueño, desde su puesto (fuera de él, el servidor no lo deja pasar). */}
+      {operador && (puesto || operador.usuario.rol !== "duenio") && <CambiarMiPin almacen={almacen} rol={operador.usuario.rol} hacer={hacer} />}
     </Seccion>
   );
 }

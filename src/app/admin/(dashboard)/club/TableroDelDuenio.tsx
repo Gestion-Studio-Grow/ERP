@@ -24,6 +24,7 @@ import { operadorActual } from "./operador-del-club";
 import type { PropsDeSolapa } from "./solapas-club";
 import { armarTablero, ejecutarTablero, type AccesoPedido, type AccionTablero, type DesenlaceTablero, type PedidoParaAutorizar, type VistaTablero } from "./tablero-core";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
+import { SoloEnElPuestoDelDuenio, puestoDeDuenio } from "./config-jornada";
 
 // Sólo en la demo: baja en su propio chunk (la jornada real ni lo pide).
 const CamarasDeLaDemo = lazy(() => import("./camaras-de-la-demo"));
@@ -74,7 +75,7 @@ function PedidoDeCredito({ p, hacer }: { p: PedidoParaAutorizar; hacer: (a: Acci
   );
 }
 
-function PedidoDeAcceso({ s, hacer }: { s: AccesoPedido; hacer: (a: AccionTablero) => DesenlaceTablero }) {
+function PedidoDeAcceso({ s, hacer, puesto }: { s: AccesoPedido; hacer: (a: AccionTablero) => DesenlaceTablero; puesto: boolean }) {
   const [rol, setRol] = useState<Rol>("recepcion");
   const id = useId();
   return (
@@ -87,6 +88,10 @@ function PedidoDeAcceso({ s, hacer }: { s: AccesoPedido; hacer: (a: AccionTabler
           <strong>{s.nombre}</strong> pidió entrar al sistema{s.cuando ? ` (${s.cuando})` : ""}. Si le das acceso, el sistema le arma un PIN que se muestra
           una sola vez.
         </p>
+        {/* Dar acceso crea un usuario con PIN: sólo desde el puesto del dueño (G8; el servidor tampoco lo deja pasar). */}
+        {!puesto ? (
+          <SoloEnElPuestoDelDuenio que="Dar acceso a alguien nuevo" />
+        ) : (
         <form
           className="flex flex-col gap-2 sm:flex-row sm:items-end"
           onSubmit={(e) => {
@@ -113,6 +118,7 @@ function PedidoDeAcceso({ s, hacer }: { s: AccesoPedido; hacer: (a: AccionTabler
             Rechazar
           </Button>
         </form>
+        )}
       </article>
     </li>
   );
@@ -248,7 +254,7 @@ export default function TableroDelDuenio({ almacen }: PropsDeSolapa) {
               <PedidoDeCredito key={p.id} p={p} hacer={hacer} />
             ))}
             {v.accesos.map((s) => (
-              <PedidoDeAcceso key={s.id} s={s} hacer={hacer} />
+              <PedidoDeAcceso key={s.id} s={s} hacer={hacer} puesto={puestoDeDuenio(almacen)} />
             ))}
           </ul>
         ) : (
