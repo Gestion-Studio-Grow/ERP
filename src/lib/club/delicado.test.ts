@@ -70,3 +70,22 @@ test("con PIN con hash (21/10): la sal del club no la cambia otro puesto; el PIN
   assert.equal((JSON.parse(r2.texto) as { estado: M.EstadoClub }).estado.salPin, vigente.salPin);
   assert.equal(r2.corregido, true);
 });
+
+test("recepción abre una foto de antes del hash y la guarda con los PIN pasados a hash: pasa sin corregir (es el mismo PIN); otro PIN con hash, no", () => {
+  const vigente = M.generarDemo(HOY, 19 * 60);
+  delete (vigente as { salPin?: string }).salPin;
+  const pasado = structuredClone(vigente);
+  M.pasarPinesAHash(pasado);
+  const r = conservarLoDelicado(sobre(vigente), sobre(pasado));
+  assert.equal(r.corregido, false, "la primera pasada a hash no es un intento de pisar PIN");
+  // Con la misma sal, el PIN de un dueño cambiado por otro (con hash) sí se corrige.
+  const tocado = structuredClone(pasado);
+  const duenio = tocado.usuarios.find((u) => u.rol === "duenio")!;
+  duenio.pin = M.hashPin("9090", tocado.salPin!);
+  const r2 = conservarLoDelicado(sobre(vigente), sobre(tocado));
+  const quedo = JSON.parse(r2.texto) as { estado: M.EstadoClub };
+  assert.equal(r2.corregido, true);
+  const original = vigente.usuarios.find((u) => u.id === duenio.id)!;
+  assert.ok(M.pinCoincide(quedo.estado, quedo.estado.usuarios.find((u) => u.id === duenio.id)!, original.pin!), "el dueño sigue entrando con su PIN");
+  assert.ok(!M.pinCoincide(quedo.estado, quedo.estado.usuarios.find((u) => u.id === duenio.id)!, "9090"));
+});

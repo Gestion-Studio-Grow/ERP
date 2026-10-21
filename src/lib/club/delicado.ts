@@ -7,6 +7,8 @@
 // estaban. Lo único que pasa es el PIN propio de un usuario de recepción que lo cambió (sabiendo el actual, en
 // «Cambiar mi PIN»): mismo usuario, mismo rol, PIN válido para su rol (con hash, del largo del rol y con la MISMA sal).
 // El PIN de un dueño, nunca desde recepción. La sal del club (`salPin`) tampoco cambia desde otro puesto.
+// Sí pasa el MISMO PIN guardado con hash (la jornada de recepción que abre una foto de antes del 21/10 los pasa a
+// hash): se comprueba que el hash nuevo sea el del PIN en claro de la base con la sal de la foto.
 //
 // La pantalla ya no ofrece lo delicado fuera del puesto del dueño (config-usuarios.tsx, TableroDelDuenio.tsx): esto
 // es la red de abajo, para que un guardado de recepción no pueda pisar ni borrar PIN aunque la pantalla falle.
@@ -16,7 +18,7 @@
 //
 // — Elaborado por GSG
 
-import { esPinConHash, largoPin, pinValidoPara } from "./motor.mjs";
+import { esPinConHash, hashPin, largoPin, pinValidoPara } from "./motor.mjs";
 
 interface UsuarioCrudo {
   id?: unknown;
@@ -50,8 +52,12 @@ export function conservarLoDelicado(textoVigente: string, textoNuevo: string): {
   const misma = salAntes === undefined || salAntes === salAhora;
   const pinNuevoValido = (rol: string, n: UsuarioCrudo) =>
     typeof n.pin === "string" && (esPinConHash(n.pin) ? misma && Number(n.pinLargo) === largoPin(rol) : pinValidoPara(rol, n.pin));
+  const mismoPinConHash = (u: UsuarioCrudo, n: UsuarioCrudo) =>
+    typeof u.pin === "string" && u.pin !== "" && !esPinConHash(u.pin) && typeof n.pin === "string" && esPinConHash(n.pin) &&
+    typeof salAhora === "string" && salAhora !== "" && misma && Number(n.pinLargo) === u.pin.length && hashPin(u.pin, salAhora) === n.pin;
   const quedan = antes.map((u) => {
     const n = porId.get(u.id);
+    if (n && n.rol === u.rol && mismoPinConHash(u, n)) return { ...u, pin: n.pin, pinLargo: n.pinLargo };
     const pinPropio = n && u.rol !== "duenio" && n.rol === u.rol && n.pin !== u.pin && pinNuevoValido(String(u.rol), n);
     if (!pinPropio) return u;
     const c: UsuarioCrudo = { ...u, pin: n.pin };
