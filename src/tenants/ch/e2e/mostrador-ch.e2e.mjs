@@ -175,6 +175,13 @@ try {
   await prepararMostradorCH(e, { nuevo: true });
   for (const [w, h] of [[390, 844], [1024, 768], [1366, 768]]) {
     const { ctx, p } = await pagina(e, [w, h]);
+    if (w === 1024) {
+      // La lista de Pedidos no entra a 1024 con el menú: se desliza en su marco, que se puede
+      // enfocar con el teclado y tiene nombre (y la página no se corre).
+      const marco = p.locator('[data-ui="tabla-densa"] [data-parte="desliza"]').first();
+      const r = await marco.evaluate((el) => ({ desliza: el.scrollWidth > el.clientWidth, rol: el.getAttribute("role"), tab: el.getAttribute("tabindex"), nombre: el.getAttribute("aria-label") }));
+      ok("6.marco", r.desliza && r.rol === "region" && r.tab === "0" && /se desliza de costado/.test(r.nombre ?? ""), `la lista de Pedidos se desliza en su marco, enfocable y con nombre («${r.nombre}»)`);
+    }
     await p.getByRole("button", { name: "Cobrar en el mostrador" }).click();
     await p.getByRole("tab", { name: /Productos/ }).click();
     await sumar(p, "sérum", "1");
