@@ -85,19 +85,30 @@ export default async function PedidosPage() {
   // Está cacheado por request (el layout ya lo leyó): no suma un viaje a la base.
   // «Diseño nuevo» es la misma lectura de interruptores que la de "Trabaja por apps" (cacheada
   // por pedido): no suma un viaje a la base.
-  const [modeloNuevo, nuevo] = await Promise.all([enInicioPorApps(), disenoNuevo()]);
-  // El POS de arriba sólo en el modelo de hoy, y en la MISMA tanda que la bandeja. El snapshot
-  // de stock (mismo gate) es lo que permite avisar el faltante antes de cobrar y explicar la
-  // caja vacía: "no hay productos" no es lo mismo que "hay, pero sin precio".
-  const [{ abiertos, cerrados, products }, identidad, stockSnap, puedeAgenda] = await Promise.all([
-    getPosData(),
-    getTenantIdentity(),
-    modeloNuevo ? Promise.resolve(null) : getPosStockSnapshot(),
-    modeloNuevo ? Promise.resolve(false) : canCurrentUser("agenda:manage"),
-  ]);
+  // La identidad también va en esta tanda (cacheada: el layout ya la leyó) porque decide qué
+  // mostrador se arma y, con eso, qué hace falta leer de la base.
+  const [modeloNuevo, nuevo, identidad] = await Promise.all([enInicioPorApps(), disenoNuevo(), getTenantIdentity()]);
   // Lo nuevo de la bandeja (pesar y ajustar, horario, aviso por WhatsApp, Nuevo → Preparando)
   // es de COMERCIO: en una estética no hay nada que pesar, y su bandeja queda como estaba.
   const comercio = identidad.isRetail;
+  // UN SOLO MOSTRADOR: la venta de mostrador de esta pantalla es la MISMA que Vender
+  // (MostradorDeVenta: vuelto, factura, cobro fijo a la vista; etiqueta y balanza sólo en un
+  // comercio). En un comercio con «Diseño nuevo» se va a Vender entero. En CH (aprobado por el
+  // dueño el 21/10; otro negocio de servicios, cuando su dueño lo apruebe) es la solapa «Productos»;
+  // «Servicios» sigue siendo el alta del turno con su profesional, su seña y su cupón
+  // (NewAppointmentForm). Sin productos con precio, el cajón abre en «Servicios», como antes.
+  const conMostradorUnico = !modeloNuevo && (comercio ? !nuevo : esteticaBackoffice(identidad.slug) === "beauty-spa");
+  // Lo que se lee, sólo si se usa (Neon, plan gratuito): la lista de productos, para el formulario
+  // de siempre (otro negocio de servicios); si hay alguno con precio, para que CH abra en «Servicios»
+  // sin productos. El stock (mismo gate) va donde hay solapas: la estética. Un comercio no lee
+  // ninguna de las dos acá: su mostrador (o Vender) lee lo suyo.
+  const servicios = !modeloNuevo && !comercio;
+  const [{ abiertos, cerrados, products, hayVendibles }, stockSnap, puedeAgenda] = await Promise.all([
+    getPosData({ productos: servicios ? (conMostradorUnico ? "si-hay" : "lista") : "no" }),
+    // Cacheado por pedido: el mostrador único lo vuelve a pedir y no hay segunda lectura.
+    servicios ? getPosStockSnapshot() : Promise.resolve(null),
+    servicios ? canCurrentUser("agenda:manage") : Promise.resolve(false),
+  ]);
   // Cómo se llama el retiro en este rubro: "Retira" en un local, "Encuentro" en una perfumería que
   // entrega en un punto de encuentro (rubros.ts `entrega`). Lo mismo que ve el tablero nuevo.
   const entrega = entregaDelRubro(identidad.rubro);
@@ -112,18 +123,11 @@ export default async function PedidosPage() {
   // gestionar agenda (OWNER y RECEPCIÓN), y sólo en un negocio de servicios: en un comercio la
   // solapa «Servicios» era un callejón.
   const professionals = puedeAgenda && !comercio ? await getProfessionalsWithServices() : [];
-  // UN SOLO MOSTRADOR: la venta de mostrador de esta pantalla es la MISMA que Vender
-  // (MostradorDeVenta: vuelto, factura, cobro fijo a la vista; etiqueta y balanza sólo en un
-  // comercio). En un comercio con «Diseño nuevo» se va a Vender entero. En CH (aprobado por el
-  // dueño el 21/10; otro negocio de servicios, cuando su dueño lo apruebe) es la solapa «Productos»;
-  // «Servicios» sigue siendo el alta del turno con su profesional, su seña y su cupón
-  // (NewAppointmentForm). Sin productos con precio, el cajón abre en «Servicios», como antes.
-  const mostradorUnico =
-    !modeloNuevo && (comercio ? !nuevo : esteticaBackoffice(identidad.slug) === "beauty-spa")
-      ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} conVendedor={!comercio} />
-      : undefined;
+  const mostradorUnico = conMostradorUnico
+    ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} conVendedor={!comercio} />
+    : undefined;
   const empty =
-    stockSnap && products.length === 0
+    stockSnap && !hayVendibles
       ? posEmptyState({ activeProducts: stockSnap.activeProducts, canManageCatalog: stockSnap.canManageCatalog })
       : null;
 

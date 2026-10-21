@@ -66,6 +66,8 @@ const sinDesborde = (p) => p.evaluate(() => document.documentElement.scrollWidth
 let e = await levantarEntornoCH();
 try {
   const db = await prepararMostradorCH(e);
+  // El masaje con precio local, para la tarjeta con «de la zona».
+  await db.service.update({ where: { id: e.semilla.servicios.masaje }, data: { residentPrice: 12000 } });
   {
     const { ctx, p } = await pagina(e, [1366, 768]);
     // 1 · Productos: la misma venta que Vender, sin nada de peso
@@ -83,6 +85,8 @@ try {
     const prof = await p.locator("#na-professional").inputValue();
     const serv = await p.locator("#na-service").inputValue();
     ok("2.2", prof === e.semilla.profesionales.laura && serv === e.semilla.servicios.masaje, "un toque en la profesional completa profesional y servicio");
+    const listasPlegadas = (await p.locator("details", { has: p.locator("#na-service") }).getAttribute("open")) === null;
+    ok("2.2b", listasPlegadas && !(await p.locator("#na-service").isVisible()), "con las tarjetas, las listas quedan plegadas en «Ver como lista»");
     await foto(p, "servicio-tarjetas-1366");
     await p.fill("#na-date", manana);
     const horario = p.locator('[aria-labelledby="na-horario"] button').nth(1);
@@ -90,6 +94,13 @@ try {
     await horario.click();
     await p.fill("#na-client-name", "Sofía Mostrador");
     await p.fill("#na-client-phone", "11 3000 0090");
+    const precioTarjeta = () => tarjeta.locator("p").nth(1).innerText();
+    const general = await precioTarjeta();
+    await p.locator('input[name="isResident"]').check();
+    const local = await precioTarjeta();
+    const rotuloLocal = await tarjeta.getByText(/precio local/).count();
+    ok("2.2c", /15\.000/.test(general) && /12\.000/.test(local) && rotuloLocal === 1, `con «de la zona» la tarjeta muestra el precio local (${general.trim()} → ${local.trim()})`);
+    await p.locator('input[name="isResident"]').uncheck();
     const queCobra = (await p.locator("#na-que-cobrar option:checked").textContent()) ?? "";
     await p.click('button:has-text("Crear turno")');
     let turno = null;

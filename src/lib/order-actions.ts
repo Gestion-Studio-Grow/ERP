@@ -110,7 +110,12 @@ function revalidarMostrador() {
 // Cuántos cerrados muestra la bandeja: es historial, no trabajo pendiente.
 const CERRADOS_EN_BANDEJA = 20;
 
-export async function getPosData() {
+/**
+ * `productos`: «lista» trae los vendibles (el formulario de siempre los necesita); «si-hay» sólo
+ * dice si hay alguno (el mostrador único carga los suyos y la página sólo decide el estado vacío);
+ * «no» ni pregunta. Menos lecturas contra la base (Neon, plan gratuito).
+ */
+export async function getPosData({ productos = "lista" }: { productos?: "lista" | "si-hay" | "no" } = {}) {
   await requireCapability("orders:read");
   // Endurecimiento defensivo (cinturón-y-tiradores sobre RLS): filtro `tenantId` EXPLÍCITO en
   // cada read del backoffice. RLS ya aísla en prod, pero el predicado explícito no depende de que
@@ -120,7 +125,13 @@ export async function getPosData() {
   // se hacía después: con 100 tickets de mostrador en el día, el pedido online de ayer quedaba
   // fuera del corte y desaparecía de la bandeja. Los abiertos van SIN tope porque son trabajo
   // pendiente; los `where` salen de order-anulacion.ts (ver ahí el porqué de cada uno).
-  const [abiertos, cerrados, products] = await Promise.all([
+  const whereVendibles = {
+    tenantId,
+    deletedAt: null,
+    active: true,
+    OR: [{ price: { not: null } }, { pricePerKg: { not: null } }],
+  };
+  const [abiertos, cerrados, products, hayUno] = await Promise.all([
     prisma.order.findMany({
       where: wherePedidosAbiertos(tenantId),
       orderBy: { createdAt: "desc" },
@@ -133,18 +144,16 @@ export async function getPosData() {
       select: { id: true, code: true, status: true, customerName: true, total: true, createdAt: true, paid: true, paymentMethod: true },
     }),
     // Solo productos vendibles: activos, no borrados, con algún precio cargado.
-    prisma.product.findMany({
-      where: {
-        tenantId,
-        deletedAt: null,
-        active: true,
-        OR: [{ price: { not: null } }, { pricePerKg: { not: null } }],
-      },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, unit: true },
-    }),
+    productos === "lista"
+      ? prisma.product.findMany({
+          where: whereVendibles,
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, unit: true },
+        })
+      : Promise.resolve([]),
+    productos === "si-hay" ? prisma.product.findFirst({ where: whereVendibles, select: { id: true } }) : Promise.resolve(null),
   ]);
-  return { abiertos, cerrados, products };
+  return { abiertos, cerrados, products, hayVendibles: productos === "lista" ? products.length > 0 : hayUno !== null };
 }
 
 // --- Creación de orden: el Core compartido vive en `order-core.ts` ---
