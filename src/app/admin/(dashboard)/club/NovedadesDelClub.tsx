@@ -107,7 +107,7 @@ function ArmarNovedad({ almacen, hacer, onPreparada, onStudio, abriendo }: { alm
   const previa = mensajeDifusion({ titulo: b.titulo.trim() || "Título de la novedad", texto: b.texto.trim() }, "Juan");
   return (
     <section aria-labelledby={`${id}-t`} className={tarjeta}>
-      <h2 id={`${id}-t`} className={titulo2}>
+      <h2 data-pantalla id={`${id}-t`} className={titulo2}>
         Novedades del club · difusión por WhatsApp
       </h2>
       <form

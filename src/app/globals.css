@@ -655,6 +655,18 @@
 /* El panel «Para resolver ahora»: cada aviso con su filo y su rótulo en versalitas. */
 [data-estetica="breakpoint"] [data-ui="bandeja"] li { border-left: 3px solid var(--line-strong); padding-left: 0.75rem; }
 
+/* Las cintas de arriba, finas como en el club de hoy: una línea, texto chico, sin recuadro. */
+[data-estetica="breakpoint"] [data-ui="cinta-demo"] { padding: 0.25rem 1rem; font-size: 0.8125rem; flex-direction: row; align-items: center; justify-content: center; gap: 0.75rem; }
+[data-estetica="breakpoint"] [data-ui="cinta-demo"] p + p { display: none; }
+[data-estetica="breakpoint"] [data-ui="aviso-del-duenio"] > div { justify-content: center; border-radius: 0; border-width: 0 0 1px; padding-block: 0.25rem; flex-direction: row; align-items: center; gap: 0.75rem; }
+[data-estetica="breakpoint"] [data-ui="aviso-del-duenio"] [data-ui="button"] { min-height: 2rem; }
+/* Cada solapa en su tarjeta, como las pantallas del club de hoy (la agenda y Buffet arman la suya). */
+[data-estetica="breakpoint"] [role="tabpanel"]:not(:has([data-pantalla-tarjeta])) { background: var(--surface-raised); border: 1px solid var(--line); padding: 1rem; }
+/* Los números del Tablero: rótulo en versalitas, cifra grande y angosta, raya de color arriba. */
+[data-estetica="breakpoint"] [data-ui="kpi"] { border-top: 3px solid var(--accent); box-shadow: none; }
+[data-estetica="breakpoint"] [data-ui="kpi"] [data-parte="etiqueta"] { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.6875rem; font-weight: 600; }
+[data-estetica="breakpoint"] [data-ui="kpi"] [data-parte="valor"] { font-stretch: 75%; font-weight: 800; font-size: 2.125rem; line-height: 1; letter-spacing: 0; }
+
 /* La barra: azul royal con la doble línea naranja de la chapa. */
 [data-estetica="breakpoint"] [data-casa="cabecera"] { border-bottom: 0; }
 [data-estetica="breakpoint"] [data-casa="cabecera"]::after {

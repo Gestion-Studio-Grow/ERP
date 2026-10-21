@@ -44,7 +44,7 @@ export default function ConfiguracionDelClub({ almacen, irASolapa, negocio }: Pr
     return (
       <div className="flex max-w-4xl min-w-0 flex-col gap-4">
         <div className="flex flex-col gap-1">
-          <h2 className="text-lg font-semibold text-strong">Configuración</h2>
+          <h2 data-pantalla className="text-lg font-semibold text-strong">Configuración</h2>
           <p className="text-sm text-body">El club todavía no está configurado en este equipo: falta la configuración inicial.</p>
         </div>
         <PrimeraVez almacen={almacen} negocio={negocio} />
@@ -56,7 +56,7 @@ export default function ConfiguracionDelClub({ almacen, irASolapa, negocio }: Pr
   return (
     <div className="flex max-w-4xl min-w-0 flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold text-strong">Configuración</h2>
+        <h2 data-pantalla className="text-lg font-semibold text-strong">Configuración</h2>
         <p className="text-sm text-body">
           {primeraVez
             ? "Lo del dueño: quién entra, avisos, reglas, precios y horarios. Si venís del sistema de hoy, restaurá su respaldo en «Jornada»."

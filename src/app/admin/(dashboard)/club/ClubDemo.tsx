@@ -333,6 +333,39 @@ function CajaDelDia({ almacen, onVer }: { almacen: Almacen; onVer: () => void })
   );
 }
 
+/**
+ * La hoja de la cuenta del turno (o del alta): una ventana ancha al centro con el fondo velado, como el diálogo del club
+ * de hoy. Se cierra con Escape (si nadie lo atajó adentro) o tocando afuera. No es modal: el velo deja pasar el toque.
+ */
+function HojaDelTurno({ children, onCerrar }: { children: React.ReactNode; onCerrar: () => void }) {
+  const hoja = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector("dialog[open]")) onCerrar();
+    };
+    // Tocar afuera cierra la hoja y el toque sigue de largo: otro turno, otra solapa o un día se abren de una (un toque
+    // menos que el club de hoy, donde primero había que cerrar el diálogo). Los avisos (Deshacer) no la cierran.
+    const alTocar = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (!t || hoja.current?.contains(t) || t.closest("[aria-live], dialog, [role=menu], [data-ui=menu-del-turno], [data-ui=avisos-del-club]")) return;
+      onCerrar();
+    };
+    document.addEventListener("keydown", alTeclear);
+    document.addEventListener("pointerdown", alTocar, true);
+    return () => {
+      document.removeEventListener("keydown", alTeclear);
+      document.removeEventListener("pointerdown", alTocar, true);
+    };
+  }, [onCerrar]);
+  return (
+    <div data-ui="hoja-del-turno" className="pointer-events-none fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/30 px-4 py-[5vh]">
+      <div ref={hoja} role="dialog" aria-label="Turno" className="pointer-events-auto w-full max-w-[58rem] rounded-lg border border-line bg-surface-raised p-4 shadow-overlay">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /** Monta el panel de una solapa sólo si quien opera la puede ver. */
 function SiSeVe({ almacen, id, children }: { almacen: Almacen; id: Solapa; children: React.ReactNode }) {
   const visibles = useSolapasVisibles(almacen);
@@ -678,29 +711,34 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
               <FueraDeLaGrilla almacen={almacen} dia={dia} />
             </div>
             <div className="lg:sticky lg:top-4 lg:self-start">
-              {panel?.tipo === "cuenta" ? (
-                <CuentaDelTurno key={panel.id} almacen={almacen} reservaId={panel.id} onVolver={onVolver} />
-              ) : panel?.tipo === "alta" ? (
-                <AltaDeTurno
-                  key={`${dia}:${panel.canchaId}@${panel.inicio}`}
-                  almacen={almacen}
-                  fecha={dia}
-                  canchaInicial={panel.canchaId}
-                  inicioInicial={panel.inicio}
-                  onListo={onAbrir}
-                  onVolver={() => setPanel(null)}
-                />
-              ) : (
-                <div className="flex flex-col gap-3">
-                  <BandejaDelClub almacen={almacen} onVerTurno={verTurno} irASolapa={irASolapaSiEsta} />
-                  <CajaDelDia almacen={almacen} onVer={() => irASolapa("caja")} />
-                  <p className="rounded-lg border border-dashed border-line-strong p-4 text-sm text-muted">
-                    Tocá un turno de la agenda para ver su cuenta: la cancha y los cargos de cada jugador, y cobrar. Tocá un hueco libre o «+ Turno» para dar un turno.
-                  </p>
-                </div>
-              )}
+              <div className="flex flex-col gap-3">
+                <BandejaDelClub almacen={almacen} onVerTurno={verTurno} irASolapa={irASolapaSiEsta} />
+                <CajaDelDia almacen={almacen} onVer={() => irASolapa("caja")} />
+                <p className="rounded-lg border border-dashed border-line-strong p-4 text-sm text-muted">
+                  Tocá un turno de la agenda para ver su cuenta: la cancha y los cargos de cada jugador, y cobrar. Tocá un hueco libre o «+ Turno» para dar un turno.
+                </p>
+              </div>
             </div>
           </div>
+        )}
+        {/* La cuenta del turno y el alta, en una hoja ancha al centro (como el diálogo del club de hoy): sin scroll para
+            cobrar y con la bandeja siempre a la vista al costado. Escape o tocar afuera vuelve a la agenda. */}
+        {solapa === "agenda" && panel && (
+          <HojaDelTurno onCerrar={panel.tipo === "cuenta" ? onVolver : () => setPanel(null)}>
+            {panel.tipo === "cuenta" ? (
+              <CuentaDelTurno key={panel.id} almacen={almacen} reservaId={panel.id} onVolver={onVolver} />
+            ) : (
+              <AltaDeTurno
+                key={`${dia}:${panel.canchaId}@${panel.inicio}`}
+                almacen={almacen}
+                fecha={dia}
+                canchaInicial={panel.canchaId}
+                inicioInicial={panel.inicio}
+                onListo={onAbrir}
+                onVolver={() => setPanel(null)}
+              />
+            )}
+          </HojaDelTurno>
         )}
         {solapa !== "agenda" && (
           <Suspense fallback={<SolapaCargando />}>

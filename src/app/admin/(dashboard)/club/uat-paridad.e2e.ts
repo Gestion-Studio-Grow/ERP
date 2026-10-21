@@ -1387,6 +1387,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await volverALaAgenda(p);
     // Un turno para mañana que deja un adelanto (la mitad, por transferencia): tiene que quedar después de limpiar.
     // (En la jornada real, a quien llega sin ficha no se le pide seña: crearClubReal pone `senaSinCliente: false`.)
+    await cerrarHoja(p);
     await p.getByRole("group", { name: "Elegir el día de la agenda" }).getByRole("button", { name: /Mañana/ }).click();
     const bruno = await darTurno(p, { cancha: "c2", hora: 19 * 60, titular: "Grupo de Bruno", otros: [], ficha: false });
     g.bruno = bruno;
@@ -1472,6 +1473,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
       peor = Math.max(peor, await medir(s));
     }
     await irA(p, "Agenda");
+    await cerrarHoja(p);
     await p.getByRole("group", { name: "Elegir el día de la agenda" }).getByRole("button", { name: /Mañana/ }).click();
     await abrirCuenta(p, String(g.bruno));
     peor = Math.max(peor, await medir("cuenta del turno"));
@@ -1587,9 +1589,18 @@ async function darTurno(p: Page, d: { cancha: string; hora: number; titular: str
 async function abrirCuenta(p: Page, reservaId: string): Promise<Locator> {
   const sobre = p.locator("section").filter({ has: p.getByText("Cuenta del turno", { exact: true }) });
   if (!(await p.getByRole("tab", { name: "Agenda", selected: true }).count())) await irA(p, "Agenda");
+  // La cuenta es una hoja encima de la agenda (como el club de hoy): la que estaba abierta se cierra primero.
+  await cerrarHoja(p);
   await p.locator(`[id="turno-${reservaId}"]`).click();
   await sobre.first().waitFor();
   return sobre.first();
+}
+
+async function cerrarHoja(p: Page) {
+  const hoja = p.locator('[data-ui="hoja-del-turno"]');
+  if (!(await hoja.count())) return;
+  await p.keyboard.press("Escape");
+  await hoja.waitFor({ state: "detached", timeout: 3000 }).catch(() => undefined);
 }
 
 async function volverALaAgenda(p: Page) {

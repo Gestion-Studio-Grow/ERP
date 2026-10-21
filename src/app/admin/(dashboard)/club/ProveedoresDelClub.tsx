@@ -346,7 +346,7 @@ export default function ProveedoresDelClub({ almacen }: PropsDeSolapa) {
       <section aria-labelledby="club-proveedores" className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 id="club-proveedores" className="text-lg font-semibold text-strong">
+            <h2 data-pantalla id="club-proveedores" className="text-lg font-semibold text-strong">
               Proveedores ({v.filas.length})
             </h2>
             <p className="text-sm text-strong tabular-nums">Le debemos en total {pesos(v.deudaTotal)}</p>

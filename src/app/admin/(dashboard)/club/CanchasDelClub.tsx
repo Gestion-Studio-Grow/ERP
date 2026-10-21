@@ -296,7 +296,7 @@ export default function CanchasDelClub({ almacen, dia }: { almacen: Almacen; dia
       <p className="text-sm text-muted">Día elegido en la agenda: {fecha}.</p>
       {v.descubiertas > 0 ? <PlanLluvia key={dia} almacen={almacen} dia={dia} /> : <p className="text-sm text-muted">Todas las canchas son techadas: la lluvia no mueve turnos.</p>}
       <section aria-labelledby="club-mant" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
-        <h2 id="club-mant" className="font-semibold text-strong">
+        <h2 data-pantalla id="club-mant" className="font-semibold text-strong">
           Mantenimiento de las canchas
         </h2>
         <ul>

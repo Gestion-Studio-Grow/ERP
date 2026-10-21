@@ -316,7 +316,7 @@ export default function FijosYEspera({ almacen, onVerTurno }: { almacen: Almacen
       <div className="flex flex-col gap-4">
         <section aria-labelledby="club-fijos" className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="club-fijos" className="text-lg font-semibold text-strong">
+            <h2 data-pantalla id="club-fijos" className="text-lg font-semibold text-strong">
               Turnos fijos
             </h2>
             <Button variant="outline" size="md" onClick={() => almacen.ejecutar((e, a) => bajarFijos(e, a.fecha), { deshacible: SE_DESHACE.bajarFijos })}>
@@ -345,7 +345,7 @@ export default function FijosYEspera({ almacen, onVerTurno }: { almacen: Almacen
       </div>
       <div className="flex flex-col gap-4">
         <section aria-labelledby="club-espera" className="flex flex-col gap-2">
-          <h2 id="club-espera" className="text-lg font-semibold text-strong">
+          <h2 data-pantalla id="club-espera" className="text-lg font-semibold text-strong">
             Lista de espera
           </h2>
           {espera.length === 0 ? (

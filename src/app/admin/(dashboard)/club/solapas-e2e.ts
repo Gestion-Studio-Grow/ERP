@@ -19,6 +19,11 @@ export async function tieneSolapa(p: Page, nombre: string): Promise<boolean> {
 
 /** Va a la solapa: la toca si está a la vista; si no, la elige en «Más». */
 export async function irASolapa(p: Page, nombre: string): Promise<void> {
+  // La cuenta del turno es una hoja encima de la agenda (como el club de hoy): se cierra antes de cambiar de solapa.
+  if (await p.locator('[data-ui="hoja-del-turno"]').count()) {
+    await p.keyboard.press("Escape");
+    await p.locator('[data-ui="hoja-del-turno"]').waitFor({ state: "detached" });
+  }
   const solapa = p.getByRole("tab", { name: nombre, exact: true });
   if (await solapa.count()) return solapa.click();
   await p.getByRole("button", { name: /^Más/ }).click();

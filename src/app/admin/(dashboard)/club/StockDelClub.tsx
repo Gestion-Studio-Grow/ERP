@@ -492,7 +492,7 @@ export default function StockDelClub({ almacen }: PropsDeSolapa) {
       <div className={cn("grid grid-cols-1 gap-4", modo === "inventario" && "lg:grid-cols-[minmax(0,1fr)_28rem]")}>
         <section aria-labelledby="club-stock" className="flex min-w-0 flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="club-stock" className="text-lg font-semibold text-strong">
+            <h2 data-pantalla id="club-stock" className="text-lg font-semibold text-strong">
               Stock y productos ({v.filas.length === v.total ? v.total : `${v.filas.length} de ${v.total}`})
             </h2>
             <div className="flex flex-wrap gap-2">

@@ -429,7 +429,7 @@ export default function ClientesDelClub({ almacen }: PropsDeSolapa) {
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_28rem]">
       <section aria-labelledby="club-clientes" className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="club-clientes" className="text-lg font-semibold text-strong">
+          <h2 data-pantalla id="club-clientes" className="text-lg font-semibold text-strong">
             Clientes ({v.filas.length === v.total ? v.total : `${v.filas.length} de ${v.total}`})
           </h2>
           <Button id="club-alta-boton" variant="solid" size="md" onClick={() => setPanel({ tipo: "alta" })}>

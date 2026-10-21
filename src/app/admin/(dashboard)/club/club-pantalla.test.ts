@@ -397,6 +397,8 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
           .map(({ el, r }) => `${(el.getAttribute("aria-label") ?? el.textContent ?? "").slice(0, 40)} (${Math.round(r.width)}×${Math.round(r.height)})`),
       );
       assert.deepEqual(chicos, [], `a ${viewport.width} px hay objetivos de menos de 44 px`);
+      // La cuenta es una hoja encima de la agenda (como el club de hoy): se cierra para ir a otra solapa.
+      await page.keyboard.press("Escape");
       for (const solapa of ["Fijos y espera", "Mantenimiento y lluvia", "Buffet", "Caja"]) {
         await irASolapa(page, solapa);
         const chicosSolapa = await page.evaluate(() =>
@@ -596,6 +598,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     assert.ok((porMover.Franja ?? 0) <= 12, `huecos repintados: ${porMover.Franja}`);
 
     // Cancelar a Agustina Romero (con ficha, faltan menos de 12 h): la previa dice qué pasa con lo pagado.
+    await page.keyboard.press("Escape");
     await page.getByRole("button", { name: /^Agustina Romero, Cancha 4/ }).click();
     const agus = page.getByRole("region", { name: "Agustina Romero" });
     await agus.getByRole("button", { name: "Cancelar el turno" }).first().click();

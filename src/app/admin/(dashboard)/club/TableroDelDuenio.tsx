@@ -239,7 +239,7 @@ export default function TableroDelDuenio({ almacen }: PropsDeSolapa) {
       {pinNuevo && <PinDeUnaVez acceso={pinNuevo} onListo={() => setPinNuevo(null)} />}
 
       <section aria-labelledby="club-novedades" className={tarjeta}>
-        <h2 id="club-novedades" className="text-lg font-semibold text-strong">
+        <h2 data-pantalla id="club-novedades" className="text-lg font-semibold text-strong">
           Novedades para autorizar
         </h2>
         {hayNovedades ? (

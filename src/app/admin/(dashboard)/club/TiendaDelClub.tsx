@@ -208,7 +208,7 @@ export default function TiendaDelClub({ almacen }: { almacen: Almacen }) {
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <section aria-labelledby="club-tienda-pendientes" className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="club-tienda-pendientes" ref={titulo} tabIndex={-1} className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
+          <h2 data-pantalla id="club-tienda-pendientes" ref={titulo} tabIndex={-1} className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
             Pedidos para retirar ({pendientes.length})
           </h2>
           <p className="text-sm text-muted">Se retiran y se pagan en el club. El stock se descuenta al entregar.</p>
