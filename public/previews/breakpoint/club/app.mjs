@@ -244,6 +244,8 @@ function iniciar() {
   ui.remito = null;
   for (let d = 1; d <= 6; d++) M.materializarFijos(E, M.sumarDias(HOY, d));
   render();
+  // Los PIN que estaban en claro (jornada de antes del 21/10) pasan a hash y se guardan ya, una sola vez.
+  if (MODO_REAL && M.pasarPinesAHash(E)) guardarJornada(true);
 }
 
 // Un solo aviso a la vez. Los errores van al lado de lo que falló (dentro de la ventana abierta);
@@ -2467,6 +2469,7 @@ const acciones = {
     ui.restaurarAntesDeArchivar = false;
     if (!h.ok) return toast(`Ese archivo no sirve: ${h.motivo}.`, { error: true });
     E = h.estado;
+    M.pasarPinesAHash(E); // un respaldo viejo trae los PIN en claro
     cerrarDialogo();
     render();
     guardarJornada(true);
