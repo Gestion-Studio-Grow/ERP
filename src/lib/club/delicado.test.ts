@@ -89,3 +89,19 @@ test("recepción abre una foto de antes del hash y la guarda con los PIN pasados
   assert.ok(M.pinCoincide(quedo.estado, quedo.estado.usuarios.find((u) => u.id === duenio.id)!, original.pin!), "el dueño sigue entrando con su PIN");
   assert.ok(!M.pinCoincide(quedo.estado, quedo.estado.usuarios.find((u) => u.id === duenio.id)!, "9090"));
 });
+
+test("una sal que no es texto en hex no se estrena desde recepción, y un PIN viejo con espacios igual pasa a hash (Gate 21/10, O1/O2)", () => {
+  const vigente = M.generarDemo(HOY, 19 * 60);
+  delete (vigente as { salPin?: string }).salPin;
+  const raro = { ...structuredClone(vigente), salPin: { no: "texto" } };
+  const r = conservarLoDelicado(sobre(vigente), sobre(raro as unknown as M.EstadoClub));
+  assert.equal(r.corregido, true);
+  assert.equal("salPin" in (JSON.parse(r.texto) as { estado: object }).estado, false, "la sal rara no queda");
+  // PIN guardado con un espacio de más: el hash que manda recepción (que recorta) se acepta igual.
+  const conEspacio = structuredClone(vigente);
+  const duenio = conEspacio.usuarios.find((u) => u.rol === "duenio")!;
+  duenio.pin = ` ${duenio.pin} `;
+  const pasado = structuredClone(conEspacio);
+  M.pasarPinesAHash(pasado);
+  assert.equal(conservarLoDelicado(sobre(conEspacio), sobre(pasado)).corregido, false);
+});

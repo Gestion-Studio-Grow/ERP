@@ -974,7 +974,9 @@ export function aprobarPorCodigo(estado, novedadId, { codigo, monto }, auth, aho
       n.bloqueadoHasta = { fecha: ahora?.fecha ?? null, min: (ahora?.min ?? 0) + 30 };
       return { ok: false, motivo: "Cinco códigos mal: este pedido queda trabado 30 minutos. Que el dueño lo apruebe en el sistema." };
     }
-    return { ok: false, motivo: `Ese código no sirve para este pedido y este monto (${n.intentos} de 5). Fijate el monto que aprobó el dueño.` };
+    // Un link de antes del PIN con hash (21/10) no lleva la sal: el código que da no sirve acá. Se reenvía y listo.
+    const linkViejo = estado.salPin ? " Si el dueño abrió un link de antes del 21/10, reenviáselo con «Avisar por WhatsApp» y que lo abra de nuevo." : "";
+    return { ok: false, motivo: `Ese código no sirve para este pedido y este monto (${n.intentos} de 5). Fijate el monto que aprobó el dueño.${linkViejo}` };
   }
   aplicarCredito(estado, n, c, m, duenio.nombre, ahora, true);
   return { ok: true, aprobo: duenio.nombre, monto: m };
