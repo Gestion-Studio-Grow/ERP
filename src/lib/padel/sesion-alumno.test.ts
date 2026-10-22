@@ -44,7 +44,7 @@ test("M-005/M-006: «Pedí tu link» responde lo mismo exista o no el celular, y
   assert.equal(existe.avisar, true, "al alumno de verdad le llega");
   assert.equal(noExiste.avisar, false, "y para un celular que no existe no se crea nada");
   assert.doesNotMatch(JSON.stringify(existe), /alumno\/|token/i);
-  assert.equal(respuestaLinkPedido(""), "Si ese celular es de un alumno de el profe, le llega su link por WhatsApp.");
+  assert.equal(respuestaLinkPedido(""), "Si ese celular es de un alumno del profe, le llega su link por WhatsApp.");
 });
 
 test("M-007: frenado → «Probá de nuevo», sin aviso; dentro de los 10 min no se repite el WhatsApp", () => {

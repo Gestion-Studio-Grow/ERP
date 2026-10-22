@@ -121,7 +121,7 @@ export function respuestaAlAlumno(
     case "cancelada":
       return `Listo, cancelada. Elegí otro horario: ${r.turnero}`;
     case "fueraDeTermino":
-      return `Ya está fuera del plazo para cancelar. Le aviso a ${r.profe || "el profe"}.`;
+      return `Ya está fuera del plazo para cancelar. Le aviso ${r.profe ? `a ${r.profe}` : "al profe"}.`;
   }
 }
 

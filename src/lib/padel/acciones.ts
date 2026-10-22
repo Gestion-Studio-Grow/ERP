@@ -698,7 +698,8 @@ export async function devolverSaldo(claseId: string): Promise<Resultado<{ aFavor
     const { tenantId, clase } = await claseDelProfe(claseId);
     const nuevo = transicionPago(clase.pagoEstado, clase.estado, "devolver", "profe");
     if (!nuevo) return { ok: false, error: "Esa clase no tiene plata a favor para devolver." };
-    const r = await tenantTransaction(async (tx) => {
+    // Serializable, como las altas que usan el saldo: devolver y usar a la vez no lo deja negativo.
+    const r = await bookingTransaction(async (tx) => {
       const saldo = await saldoEnTx(tx, tenantId, clase.alumnoId);
       if (saldo < Number(clase.precio)) throw new ErrorNegocio("Parte de ese saldo ya se usó en otra clase: no se puede devolver entero.");
       const n = await tx.padelClase.updateMany({ where: { tenantId, id: claseId, pagoEstado: "ACREDITADO" }, data: { pagoEstado: nuevo } });

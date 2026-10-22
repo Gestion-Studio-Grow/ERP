@@ -66,7 +66,7 @@ function iguales(a: string, b: string): boolean {
  * El nombre del profe es lo único que cambia (es público: está en la cabecera del turnero).
  */
 export const respuestaLinkPedido = (profe: string): string =>
-  `Si ese celular es de un alumno de ${profe || "el profe"}, le llega su link por WhatsApp.`;
+  `Si ese celular es de un alumno ${profe ? `de ${profe}` : "del profe"}, le llega su link por WhatsApp.`;
 
 export const RESPUESTA_FRENADO = "Probá de nuevo en unos minutos.";
 
