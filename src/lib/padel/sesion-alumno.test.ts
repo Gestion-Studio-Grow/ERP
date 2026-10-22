@@ -240,17 +240,21 @@ test("O-6: guardia — recordarToken frena por IP antes de leer la base; el link
   assert.match(pub, /estadoEnPantalla\(/, "lo que se muestra sale bien aunque el freno salte");
 });
 
-// ── M-003: «Mis clases» mínimo (la pantalla propia es T3C) ──────────────────
+// ── M-003: «Mis clases» (T3C: la pantalla propia, src/app/mis-clases/page.tsx) ──────────────
 
-test("M-003: «Mis clases» lleva a la vista del alumno con la cookie; sin cookie (o link renovado), a «Pedí tu link»", async () => {
+test("M-003: «Mis clases» lleva a la vista del alumno con la cookie; sin cookie (o link renovado), a «Entrá con tu celular»", async () => {
   assert.equal(destinoMisClases(JUAN), `/alumno/${JUAN}`);
   assert.equal(destinoMisClases(null), "/clases?link=1");
   assert.equal(destinoMisClases(undefined), "/clases?link=1");
   assert.equal(destinoMisClases("../etc/passwd"), "/clases?link=1");
   const { readFileSync } = await import("node:fs");
-  const ruta = readFileSync(new URL("../../app/mis-clases/route.ts", import.meta.url), "utf8");
-  assert.match(ruta, /leerTokenCookie\(\)/);
-  assert.match(ruta, /where: \{ tenantId, token \}/, "el token tiene que existir EN ESTE negocio");
-  assert.match(ruta, /destinoMisClases\(vigente \? token : null\)/);
-  assert.match(ruta, /freno\.blocked\(/);
+  // T3C reemplazó la ruta mínima (route.ts) por la pantalla: misma regla, ahora con la vista.
+  const pagina = readFileSync(new URL("../../app/mis-clases/page.tsx", import.meta.url), "utf8");
+  assert.match(pagina, /leerTokenCookie\(\)/);
+  assert.match(pagina, /alumnoPublico\(token\)/, "busca el token EN ESTE negocio (alumnoPublico: where tenantId + token)");
+  assert.match(pagina, /<VistaAlumno datos=\{datos\} token=\{null\} \/>/, "el token no se escribe en la página: las acciones usan la cookie");
+  assert.match(pagina, /freno\.blocked\(/);
+  assert.match(pagina, /<EntrarConCelular \/>/, "sin cookie: el link llega por WhatsApp, nunca a la pantalla");
+  const datos = readFileSync(new URL("./datos.server.ts", import.meta.url), "utf8");
+  assert.match(datos.slice(datos.indexOf("export async function alumnoPublico(")), /where: \{ tenantId, token \}/);
 });
