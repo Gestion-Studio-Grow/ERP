@@ -13,9 +13,13 @@ import { getNegocioApps } from "@/apps/contexto.server";
 import { cargarHuecosLiberados } from "@/lib/crm/cargas.server";
 import { anotadosConHueco } from "@/lib/crm/huecos";
 import { enInicioPorApps } from "../inicio/piloto";
-import { vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
+import { esFechaDeCalendario, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import AgendaRenglon from "./AgendaRenglon";
+import { proyectarAgenda } from "./agenda.server";
+import { bloqueosDelDia } from "./grilla";
+import { esteticaBackoffice } from "@/lib/estetica-backoffice";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
 
 // Muestra en un vistazo qué profesionales tienen novedad (franco/vacaciones)
 // ese día, para no tener que ir a buscarlo a Catálogo (ADR-011 G9).
@@ -99,13 +103,33 @@ export default async function TurnosCalendarPage({
   // de la recepción al final del día, y mañana es mañana de verdad (no "el día siguiente al
   // que se está mirando"). Al profesional no se le muestra: confirmar no es su tarea.
   const verManana = canManage && date === today;
-  const [{ professionals, appointments, blocksToday }, manana, piloto, negocio, practica] = await Promise.all([
+  const [cruda, manana, piloto, negocio, practica, slug] = await Promise.all([
     getAgendaDay(date),
     verManana ? getMananaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(user.role),
     agendaPractica(),
+    getCurrentTenantSlug(),
   ]);
+  const { professionals, appointments, blocksToday } = cruda;
+  // La planilla de la PC (Tanda 2 · 2-C): el día proyectado campo por campo (agenda.server.ts), con
+  // el veredicto de cobro de quien mira, y lo que puede hacer (las mismas capacidades del servidor).
+  const proyectada = proyectarAgenda(cruda, { role: user.role, professionalId: user.professionalId });
+  const planilla = {
+    turnos: proyectada.turnos,
+    profesionales: proyectada.profesionales,
+    permisos: {
+      gestionar: canManage,
+      cobrar: canCollect,
+      terminar: roleHasCapability(user.role, "agenda:complete"),
+      perdonar: roleHasCapability(user.role, "agenda:forgive"),
+    },
+    ahora: new Date().toISOString(),
+    dia: esFechaDeCalendario(date) ? date : today,
+    bloqueos: bloqueosDelDia(blocksToday),
+    hrefFicha: appPermitida(appPorId("clientes"), negocio) ? "/admin/clientes/" : null,
+    letraDelNegocio: esteticaBackoffice(slug) !== null,
+  };
 
   const label = fmtCalendarDateLabel(date);
   // Qué se ofrece si la agenda está vacía (pasos.ts): el botón sólo lleva a una pantalla que esta
@@ -178,6 +202,7 @@ export default async function TurnosCalendarPage({
       <CalendarGrid
         professionals={professionals}
         appointments={appointments}
+        planilla={planilla}
         canManage={canManage}
         canCollect={canCollect}
         viewer={{ role: user.role, professionalId: user.professionalId }}

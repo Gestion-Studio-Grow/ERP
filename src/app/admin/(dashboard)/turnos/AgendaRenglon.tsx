@@ -36,6 +36,7 @@ import { EmptyState, Franja, PageContainer, PageHeader, Pestanas, atributosBoton
 import { enInicioPorApps } from "../inicio/piloto";
 import { diaMas, fechaCorta, fechaLarga, lineaDeLaAgenda, nombreRelativo, type Permisos } from "./agenda-core";
 import { proyectarAgenda } from "./agenda.server";
+import { bloqueosDelDia } from "./grilla";
 import { esFechaDeCalendario, hrefNuevoTurno, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
 import LibroDelDia from "./_agenda/LibroDelDia";
 import { RenglonDeManana } from "./_agenda/ParaManana";
@@ -199,11 +200,13 @@ export default async function AgendaRenglon({
         turnos={agenda.turnos}
         permisos={permisos}
         ahora={ahora.toISOString()}
+        dia={dia}
         esHoy={dia === hoy}
         hrefFicha={abreClientes ? "/admin/clientes/" : null}
         vacio={vacio}
         vista={vista}
         profesionales={agenda.profesionales}
+        bloqueos={bloqueosDelDia(cruda.blocksToday)}
       />
 
       {manana && <RenglonDeManana dia={manana.dia} turnos={manana.turnos} />}
