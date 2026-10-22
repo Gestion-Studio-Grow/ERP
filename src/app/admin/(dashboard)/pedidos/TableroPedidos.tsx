@@ -431,7 +431,16 @@ export default function TableroPedidos({
       ordenable: true,
       movil: "asunto",
       celda: (p) => (
-        <button type="button" onClick={() => abrir(p.id)} className="max-w-full truncate text-left font-semibold text-strong hover:underline">
+        // En la tabla (más de 40rem: el apilado de la piel es hasta 40rem inclusive) el nombre tiene un ancho fijo, un cuarto de la tabla (`cqi`: la
+        // tabla densa es contenedor), y se corta con «…» (el completo, en el título): así cede lugar
+        // a lo accionable y en una tablet de 820 el cobro y el paso que sigue entran sin deslizar.
+        // Un tope (max-width) no alcanza: la tabla automática lo ignora al repartir las columnas.
+        <button
+          type="button"
+          onClick={() => abrir(p.id)}
+          title={p.canal === "COUNTER" ? `${p.cliente} · mostrador` : p.cliente}
+          className="max-w-full truncate text-left font-semibold text-strong hover:underline @min-[40.0625rem]:block @min-[40.0625rem]:w-[24cqi]"
+        >
           {p.cliente}
           {p.canal === "COUNTER" && <span className="font-normal text-muted"> · mostrador</span>}
         </button>
@@ -443,8 +452,6 @@ export default function TableroPedidos({
       movil: "detalle",
       celda: (p) => <EstadoDeFila p={p} comercio={comercio} otros={otrosDeLaClienta.get(p.id) ?? []} />,
     },
-    { clave: "entrega", titulo: tituloDeEntrega(vocab), ordenable: true, movil: "oculta", celda: (p) => <Entrega p={p} /> },
-    { clave: "lineas", titulo: "Líneas", alinear: "derecha", movil: "oculta", celda: (p) => p.lineas.length },
     { clave: "total", titulo: "Total", alinear: "derecha", ordenable: true, movil: "plata", celda: (p) => <Plata valor={p.total} /> },
     {
       clave: "cobro",
@@ -464,6 +471,11 @@ export default function TableroPedidos({
       movil: "tecla",
       celda: (p) => <TeclaDeFila p={p} extra={extras[p.id]} puedeOperar={puedeOperar} anulacion={anulacion} onAbrir={abrir} />,
     },
+    // Lo accionable (total, cobro y el paso que sigue) va antes: en una tablet de 820 se ve sin
+    // deslizar. Retiro / envío y las líneas quedan después, deslizando (decisión de producto 21/10:
+    // no se esconde ninguna columna).
+    { clave: "entrega", titulo: tituloDeEntrega(vocab), ordenable: true, movil: "oculta", celda: (p) => <Entrega p={p} /> },
+    { clave: "lineas", titulo: "Líneas", alinear: "derecha", movil: "oculta", celda: (p) => p.lineas.length },
   ];
 
   const hayFiltro = filtros.estado !== "abiertos" || filtros.canal !== null || q !== "";

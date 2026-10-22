@@ -47,6 +47,11 @@ import {
 } from "./tabla-core";
 import { MenuMas } from "./MenuMas";
 
+/** La sombra de un borde del marco que se desliza: el texto fuerte de la piel, apenas, hacia
+ *  transparente. Arriba de la tabla (z-10), sin tomar toques, y sin movimiento si se pidió menos. */
+const BORDE =
+  "pointer-events-none absolute inset-y-0 z-10 w-4 opacity-0 from-[color-mix(in_srgb,var(--text-strong)_16%,transparent)] to-transparent transition-opacity [transition-duration:var(--dur-1,120ms)] [transition-timing-function:var(--ease-out,ease-out)] motion-reduce:transition-none";
+
 /** ⇅: dos flechas, una sube y otra baja. */
 function IconoOrden() {
   return (
@@ -151,13 +156,28 @@ export function Tabla<T>({
   useEffect(() => {
     const el = marco.current;
     if (!el) return;
-    const medir = () => setDesliza(el.scrollWidth > el.clientWidth + 1);
+    // Las sombras de los bordes («hay más de este lado») se prenden con atributos en el envoltorio,
+    // sin estado de React: deslizar no vuelve a dibujar la tabla.
+    const bordes = () => {
+      const caja = el.parentElement;
+      if (!caja) return;
+      caja.toggleAttribute("data-mas-izq", el.scrollLeft > 1);
+      caja.toggleAttribute("data-mas-der", el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    };
+    const medir = () => {
+      setDesliza(el.scrollWidth > el.clientWidth + 1);
+      bordes();
+    };
     medir();
     const ro = new ResizeObserver(medir);
     ro.observe(el);
     // La tabla también: con filas o columnas nuevas cambia lo que hay que deslizar, no el marco.
     if (el.firstElementChild) ro.observe(el.firstElementChild);
-    return () => ro.disconnect();
+    el.addEventListener("scroll", bordes, { passive: true });
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("scroll", bordes);
+    };
   }, []);
   const claves = useMemo(() => filas.map(clave), [filas, clave]);
   const [sel, setSel] = useState<Set<string>>(() => new Set());
@@ -299,6 +319,10 @@ export function Tabla<T>({
       {/* La tabla se desliza ADENTRO de su marco: con todas sus columnas (desde 40rem de ancho)
           puede pasar el ancho disponible, y sin esto empujaba la página entera de costado
           (19 px a 1024 con el menú, 219 px en una tablet de 820). */}
+      <div data-parte="marco-desliza" className="group/desliza relative">
+      {/* Sombra en el borde con más tabla de ese lado; se apaga al llegar al final. */}
+      <span aria-hidden data-parte="borde-izq" className={cn(BORDE, "left-0 bg-linear-to-r group-data-mas-izq/desliza:opacity-100")} />
+      <span aria-hidden data-parte="borde-der" className={cn(BORDE, "right-0 bg-linear-to-l group-data-mas-der/desliza:opacity-100")} />
       <div
         ref={marco}
         data-parte="desliza"
@@ -389,6 +413,7 @@ export function Tabla<T>({
           })}
         </tbody>
       </table>
+      </div>
       </div>
 
       {(cuenta || pie || (teclado && filas.length > 0)) && (
