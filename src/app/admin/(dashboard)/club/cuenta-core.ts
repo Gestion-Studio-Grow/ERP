@@ -42,6 +42,7 @@ import {
   asignarCargoCargos,
   cancha as canchaDe,
   checkIn,
+  cobrarSenaYAbrir,
   cerrarCanchaYSeguir,
   cobrado,
   consumoJugador,
@@ -198,8 +199,13 @@ export interface VistaCuenta {
     cobrarTodo: number | null;
     /** «Cobrar la seña $X»: reservado, con seña sin pagar. */
     cobrarSena: number | null;
-    /** «Abrir la cancha»: el turno está reservado y llega la gente. */
+    /** «Abrir la cancha»: el turno está reservado, llega la gente y la seña está paga (o no se pidió). */
     abrirCancha: boolean;
+    /**
+     * «Cobrar la seña y abrir $X» (BP-005): reservado con la seña sin pagar; en vez de «Abrir la cancha», que diría «Falta
+     * la seña». Cobra lo que falta y abre en un solo paso (o nada). null si no corresponde.
+     */
+    cobrarSenaYAbrir: number | null;
     /** «Hacer fijo»: el mismo día de la semana, hora y cancha, desde la semana que viene (o null si no corresponde). */
     hacerFijo: string | null;
     /** «Cerrar la cancha», como el club de hoy: en juego y sin nada pendiente (sin dejar una mesa en Buffet). */
@@ -317,7 +323,8 @@ export function armarCuenta(estado: EstadoClub, reservaId: string): VistaCuenta 
     cierres: {
       cobrarTodo: T.pendiente > 0 ? T.pendiente : null,
       cobrarSena: senaPendiente(r),
-      abrirCancha: r.estado === "reservada",
+      abrirCancha: r.estado === "reservada" && senaSinPagar(r) === null,
+      cobrarSenaYAbrir: senaSinPagar(r),
       cerrarCancha: abierto && r.estado === "en_cancha" && T.pendiente === 0,
       hacerFijo: r.tipo === "turno" && !r.fijoId && abierto ? `${enPlural(NOMBRE_DIA[diaSemana(r.fecha)])} ${hhmm(r.inicio)}` : null,
       cerrarYSeguir,
@@ -362,6 +369,15 @@ function senaPendiente(r: { estado: EstadoReserva; sena: { monto: number; pagada
   return falta > 0 ? falta : null;
 }
 
+/**
+ * La seña que todavía no se marcó paga de un turno reservado: lo que falta cobrar (puede ser 0 si los pagos ya la cubren),
+ * o null si no pide seña, ya está paga o el turno no está reservado. Es la misma regla con la que el motor no deja abrir.
+ */
+export function senaSinPagar(r: { estado: EstadoReserva; sena: { monto: number; pagada: boolean }; pagos: { monto: number }[] }): number | null {
+  if (r.estado !== "reservada" || !(r.sena.monto > 0) || r.sena.pagada) return null;
+  return Math.max(0, r.sena.monto - r.pagos.reduce((s, p) => s + p.monto, 0));
+}
+
 /** Lo que se puede tocar en la cuenta del turno. */
 export type AccionCuenta =
   | { tipo: "cobrarTodo"; medio: MedioCaja }
@@ -379,6 +395,8 @@ export type AccionCuenta =
   | { tipo: "cerrarCargos"; medio: MedioCaja }
   | { tipo: "cargosACuenta" }
   | { tipo: "abrirCancha" }
+  /** «Cobrar la seña y abrir»: lo que falta de la seña con un medio y la cancha abierta, o nada (BP-005/006). */
+  | { tipo: "cobrarSenaYAbrir"; medio: MedioCaja }
   | { tipo: "aCargoCancha"; idx: number; de: string }
   | { tipo: "aCargoCargos"; cuentaId: string; de: string }
   | { tipo: "cargo"; idx: number; productoId: string; cant: number; modo: "cuenta" | "cobrar"; medio: MedioCaja }
@@ -403,6 +421,7 @@ export const EN_EL_VANILLA: Readonly<Record<AccionCuenta["tipo"], string>> = {
   cerrarCargos: "cerrarCargos",
   cargosACuenta: "cerrarCargosCC",
   abrirCancha: "checkin",
+  cobrarSenaYAbrir: "checkin",
   aCargoCancha: "aCargo",
   aCargoCargos: "aCargoCargos",
   cargo: "consumo",
@@ -429,6 +448,7 @@ export const DESHACIBLE: Readonly<Record<AccionCuenta["tipo"], boolean>> = {
   cerrarCargos: true,
   cargosACuenta: true,
   abrirCancha: true,
+  cobrarSenaYAbrir: true,
   aCargoCancha: false,
   aCargoCargos: false,
   cargo: true,
@@ -511,6 +531,16 @@ export function ejecutar(estado: EstadoClub, reservaId: string, accion: AccionCu
     }
     case "abrirCancha":
       return resultado(checkIn(estado, reservaId, ahora), "Cancha abierta y luz prendida.");
+    case "cobrarSenaYAbrir": {
+      // Doble toque, o el otro puesto ya la abrió: no hay seña sin pagar y no se cobra nada (el motor tampoco cobraría:
+      // ya no está reservada).
+      const r = reservaDe(estado, reservaId);
+      if (!r || senaSinPagar(r) === null) return { ok: false, mensaje: r?.estado === "en_cancha" ? "La cancha ya está abierta: no se cobró nada." : "Ese turno no tiene seña para cobrar." };
+      if (!(MEDIOS_CAJA as readonly string[]).includes(accion.medio)) return { ok: false, mensaje: "Elegí cómo paga la seña (efectivo, Mercado Pago, transferencia o débito)." };
+      const res = cobrarSenaYAbrir(estado, reservaId, { medio: accion.medio, ...conAuth }, ahora);
+      if (!res.ok) return falla(res);
+      return { ok: true, mensaje: res.cobrado > 0 ? `Seña cobrada: ${pesos(res.cobrado)} (${ETIQUETA_MEDIO[accion.medio]}). Cancha abierta y luz prendida.` : "La seña ya estaba cubierta: cancha abierta y luz prendida." };
+    }
     case "aCargoCancha":
       return resultado(
         asignarCargoCancha(estado, reservaId, accion.idx, accion.de === "" ? null : Number(accion.de), ahora),

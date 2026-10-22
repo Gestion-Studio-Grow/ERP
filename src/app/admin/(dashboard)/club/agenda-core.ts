@@ -29,6 +29,7 @@ import { ESTADOS, NOMBRE_DIA, TIPOS, alertas, validarHueco, cancha as canchaDe, 
 import type { Ahora, EstadoClub, EstadoReserva, Fecha, Reserva } from "@/lib/club/motor.mjs";
 import type { TipoMarca } from "@/components/ui/Marca";
 import { opcionesCiclo } from "./ciclo-core";
+import { senaSinPagar, type MedioCaja } from "./cuenta-core";
 
 /** Los estados que ocupan la cancha en la grilla (lo cancelado, suspendido o la falta van aparte). */
 const EN_GRILLA: ReadonlySet<EstadoReserva> = new Set(["reservada", "en_cancha", "finalizada"]);
@@ -357,8 +358,10 @@ export function ponerLuz(estado: EstadoClub, canchaId: string, prendida: boolean
 // ───────────── el menú rápido del turno (clic derecho o mantener apretado) ─────────────
 
 export type OpcionDelMenu = {
-  accion: "abrirCancha" | "cerrarCancha" | "ver" | "mover" | "falta";
+  accion: "abrirCancha" | "cobrarSenaYAbrir" | "cerrarCancha" | "ver" | "mover" | "falta";
   texto: string;
+  /** «Cobrar la seña y abrir»: el medio elegido en el segundo paso del menú (sin medio, el menú muestra los 4). */
+  medio?: MedioCaja;
   /** «Marcar falta…»: va separada y en rojo, como el club de hoy (`class="peligro"`). */
   peligro?: boolean;
 };
@@ -377,7 +380,10 @@ export function opcionesDelMenu(estado: EstadoClub, reservaId: string, hoy: Fech
   const abierto = r.estado === "reservada" || r.estado === "en_cancha";
   const ciclo = opcionesCiclo(r);
   const out: OpcionDelMenu[] = [];
-  if (r.estado === "reservada" && r.fecha === hoy) out.push({ accion: "abrirCancha", texto: "Abrir cancha" });
+  // BP-005: con la seña sin pagar, «Cobrar la seña y abrir» (despliega los medios) en vez de «Abrir cancha».
+  const sena = senaSinPagar(r);
+  if (r.estado === "reservada" && r.fecha === hoy)
+    out.push(sena === null ? { accion: "abrirCancha", texto: "Abrir cancha" } : { accion: "cobrarSenaYAbrir", texto: sena > 0 ? `Cobrar la seña y abrir · ${pesos(sena)}` : "Abrir cancha (seña cubierta)" });
   if (r.estado === "en_cancha" && s <= 0) out.push({ accion: "cerrarCancha", texto: "Cerrar cancha" });
   out.push({ accion: "ver", texto: abierto && s > 0 ? `Cobrar · ${pesos(s)}` : "Ver turno y cargos" });
   if (ciclo.mover) out.push({ accion: "mover", texto: "Mover…" });

@@ -354,3 +354,14 @@ test("cada hueco libre dice cuánto entra: «+ 20:30 · 30 min» si no aguanta l
   assert.equal(h.cuantoEntra, 30);
   assert.notEqual(despues.firma, antes.firma);
 });
+
+test("BP-005 · el menú del bloque: con la seña sin pagar, «Cobrar la seña y abrir · $X» en vez de «Abrir cancha»", () => {
+  const e = M.generarDemo(HOY, AHORA.min);
+  const r = e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada" && !(x.sena.monto > 0))!;
+  assert.deepEqual(opcionesDelMenu(e, r.id, HOY).map((o) => o.accion).slice(0, 1), ["abrirCancha"]);
+  r.sena = { ...r.sena, monto: 14000, pagada: false };
+  const op = opcionesDelMenu(e, r.id, HOY);
+  assert.equal(op[0].accion, "cobrarSenaYAbrir");
+  assert.equal(op[0].texto, `Cobrar la seña y abrir · ${M.pesos(14000 - r.pagos.reduce((s, p) => s + p.monto, 0))}`);
+  assert.ok(!op.some((o) => o.accion === "abrirCancha"), "no «Abrir cancha»");
+});

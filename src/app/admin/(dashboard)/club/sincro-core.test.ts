@@ -508,6 +508,35 @@ test("BP-028 · recargar con una acción que no es comando (función de pantalla
   assert.equal(otraVez.a.apartes().length, 1, "sin nombre no se puede re-aplicar: queda aparte entero, no se pierde");
 });
 
+test("BP-005/006 · «Cobrar la seña y abrir» en dos puestos a la vez (o doble toque): la seña entra UNA vez y la cancha abre una vez", async () => {
+  const b = baseCompartida();
+  // Un turno de las 21:00 con la seña pendiente, en una cancha que ya se liberó (los de las 19:00 se fueron).
+  const e = enLaBase(b);
+  const c = e.canchas.find((x) => M.validarHueco(e, { canchaId: x.id, fecha: HOY, inicio: A_LAS_21, duracion: 60 }).ok)!;
+  e.reservas = e.reservas.filter((x) => !(x.fecha === HOY && x.canchaId === c.id && x.estado === "en_cancha"));
+  const res = M.crearReserva(e, { canchaId: c.id, fecha: HOY, inicio: A_LAS_21, duracion: 60, titular: "Pedro Paz", clienteId: null, conSena: true }, { fecha: HOY, min: 19 * 60 });
+  assert.ok(res.ok);
+  const turno = (res as { reserva: M.Reserva }).reserva;
+  b.foto = { texto: textoDeLaDemo(JSON.stringify({ v: M.VERSION_ESTADO, estado: e, secuencia: M.secuenciaIds() }), HOY, 1), version: 1 };
+  const pc = await puesto(b, "pc01", "PC", CARO).abrir();
+  const tablet = await puesto(b, "tab1", "tablet", LU).abrir();
+  const ing0 = M.resumenCaja(enLaBase(b)).ingresos;
+  tablet.g.retener();
+  assert.equal(tablet.a.comando("cuenta", [turno.id, { tipo: "cobrarSenaYAbrir", medio: "transferencia" }]).ok, true);
+  assert.equal(tablet.a.comando("cuenta", [turno.id, { tipo: "cobrarSenaYAbrir", medio: "transferencia" }]).ok, false, "doble toque: la segunda no cobra");
+  assert.equal(pc.a.comando("cuenta", [turno.id, { tipo: "cobrarSenaYAbrir", medio: "efectivo" }]).ok, true);
+  await vaciar();
+  tablet.g.soltar();
+  await vaciar();
+  const base = enLaBase(b);
+  assert.equal(M.resumenCaja(base).ingresos - ing0, turno.sena.monto, "la seña una sola vez (la del primero en llegar)");
+  assert.equal(M.reserva(base, turno.id)!.estado, "en_cancha");
+  assert.equal(base.luces[c.id], true);
+  const [item] = leerSincro(base).paraResolver;
+  assert.ok(item, "lo de la tablet quedó «para resolver», sin cobrar");
+  assert.match(item.texto, /seña .* y abrir la cancha de Pedro Paz/);
+});
+
 test("«Deshacer» saca la acción de la cola: no se re-aplica ni se espera su confirmación", async () => {
   const { tablet } = await dosPuestos();
   tablet.g.retener();

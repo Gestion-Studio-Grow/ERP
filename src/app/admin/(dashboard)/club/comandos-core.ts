@@ -374,6 +374,8 @@ export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub 
           }
           case "abrirCancha":
             return `Abrir la cancha de ${titular}${turno}`;
+          case "cobrarSenaYAbrir":
+            return `Cobro de la seña${r?.sena.monto ? ` ${pesos(r.sena.monto)}` : ""} ${medioDe(x.medio)} y abrir la cancha de ${titular}${turno}`;
           case "cerrarCancha":
           case "cerrarYSeguir":
             return `Cerrar la cancha de ${titular}${turno}`;

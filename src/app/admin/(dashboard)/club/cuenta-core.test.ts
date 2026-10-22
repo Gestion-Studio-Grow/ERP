@@ -811,3 +811,60 @@ test("BP-034 (parte de 1C) · dividido y pago, «la mesa sigue»: la cancha qued
   assert.equal(despues.mesaAbierta, true, "la mesa sigue");
   assert.equal(despues.jugadores.length, 4, "con los 4");
 });
+
+// ── BP-005/006 · «Cobrar la seña y abrir» (cert de la Tanda 1, F2) ────────────────────────────────────────────────
+/** Un turno de hoy a las 21:00, con seña pendiente, en una cancha que no tiene a nadie jugando (se puede abrir a las 20:55). */
+function conSenaPendiente(e: EstadoClub): Reserva {
+  const libre = e.canchas.find((c) => M.validarHueco(e, { canchaId: c.id, fecha: HOY, inicio: 21 * 60, duracion: 60 }).ok);
+  assert.ok(libre, "la demo tiene una cancha libre a las 21:00");
+  // Los de las 19:00 ya se fueron (en la demo siguen «en cancha» a las 19:10): la cancha queda para abrir.
+  e.reservas = e.reservas.filter((x) => !(x.fecha === HOY && x.canchaId === libre.id && x.estado === "en_cancha"));
+  const res = M.crearReserva(e, { canchaId: libre.id, fecha: HOY, inicio: 21 * 60, duracion: 60, titular: "Pedro Paz", clienteId: null, conSena: true }, AHORA);
+  assert.ok(res.ok, "se creó el turno");
+  const r = (res as { reserva: Reserva }).reserva;
+  assert.ok(r.sena.monto > 0 && !r.sena.pagada, "con la seña pendiente");
+  return r;
+}
+const A_LAS_2055: Ahora = { fecha: HOY, min: 20 * 60 + 55 };
+const recepcion = (e: EstadoClub) => operadorDeLaDemo(e, "RECEPTION")!.auth;
+
+test("BP-005: con la seña pendiente la cuenta ofrece «Cobrar la seña y abrir» y NO «Abrir la cancha»; paga, vuelve «Abrir la cancha»", () => {
+  const e = demo();
+  const r = conSenaPendiente(e);
+  const c = armarCuenta(e, r.id)!;
+  assert.equal(c.cierres.abrirCancha, false, "no «Abrir la cancha» (diría «Falta la seña»)");
+  assert.equal(c.cierres.cobrarSenaYAbrir, r.sena.monto);
+  const sinSena = e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada" && !(x.sena.monto > 0))!;
+  assert.equal(armarCuenta(e, sinSena.id)!.cierres.abrirCancha, true);
+  assert.equal(armarCuenta(e, sinSena.id)!.cierres.cobrarSenaYAbrir, null);
+  // Cobrar sólo la seña (por teléfono, antes de llegar): ya no hay seña pendiente y vuelve «Abrir la cancha».
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarSena", medio: "efectivo" }, AHORA, recepcion(e)).ok, true);
+  assert.equal(armarCuenta(e, r.id)!.cierres.abrirCancha, true);
+  assert.equal(armarCuenta(e, r.id)!.cierres.cobrarSenaYAbrir, null);
+});
+
+test("BP-006: «Cobrar la seña y abrir» con transferencia — en cancha, luz prendida, la caja suma la seña por transferencia; el doble toque no cobra dos veces", () => {
+  const e = demo();
+  const r = conSenaPendiente(e);
+  const tr0 = M.resumenCaja(e).porMedio.transferencia ?? 0;
+  const ing0 = M.resumenCaja(e).ingresos;
+  // Temprano (el club deja entrar 15 min antes): no abre y NO cobra. O pasan las dos cosas o ninguna.
+  e.config.politica.minutosAntesParaEntrar = 15;
+  const temprano = ejecutar(e, r.id, { tipo: "cobrarSenaYAbrir", medio: "transferencia" }, AHORA, recepcion(e));
+  assert.equal(temprano.ok, false);
+  assert.match(temprano.mensaje, /temprano/);
+  assert.equal(M.resumenCaja(e).ingresos, ing0, "no se cobró nada");
+  const d = ejecutar(e, r.id, { tipo: "cobrarSenaYAbrir", medio: "transferencia" }, A_LAS_2055, recepcion(e));
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(d.mensaje, `Seña cobrada: ${M.pesos(r.sena.monto)} (Transferencia). Cancha abierta y luz prendida.`);
+  const vivo = M.reserva(e, r.id)!;
+  assert.equal(vivo.estado, "en_cancha");
+  assert.equal(e.luces[vivo.canchaId], true);
+  assert.equal((M.resumenCaja(e).porMedio.transferencia ?? 0) - tr0, r.sena.monto, "la caja tiene la seña por transferencia");
+  // Doble toque: no se cobra otra vez.
+  const otra = ejecutar(e, r.id, { tipo: "cobrarSenaYAbrir", medio: "transferencia" }, A_LAS_2055, recepcion(e));
+  assert.equal(otra.ok, false);
+  assert.equal(M.resumenCaja(e).ingresos - ing0, r.sena.monto, "una sola vez");
+  // Con créditos no va por acá (se cobra la seña sola, con su paso previo).
+  assert.equal(ejecutar(demo(), r.id, { tipo: "cobrarSenaYAbrir", medio: "monedero" as never }, A_LAS_2055).ok, false);
+});

@@ -607,7 +607,10 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await cuenta.waitFor();
     await page.getByRole("button", { name: /^Turno de prueba, Cancha 4/ }).waitFor();
 
-    await cuenta.getByRole("button", { name: /^Cobrar la seña \$/ }).click();
+    // BP-005: con la seña pendiente, el botón del momento es «Cobrar la seña y abrir» y no hay «Abrir la cancha».
+    await cuenta.getByRole("button", { name: /^Cobrar la seña y abrir · \$/ }).waitFor();
+    assert.equal(await cuenta.getByRole("button", { name: "Abrir la cancha", exact: true }).count(), 0);
+    await cuenta.getByRole("button", { name: /^Cobrar sólo la seña \$/ }).click();
     await page.getByRole("status").filter({ hasText: /^Seña cobrada: \$ [\d.]+\. Ya se puede abrir la cancha\./ }).waitFor();
     await cuenta.getByText("✔ pagada").waitFor();
 

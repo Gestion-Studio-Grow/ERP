@@ -553,7 +553,7 @@ export default function CuentaDelTurno({
   }
 
   const { cierres } = vista;
-  const hayQueCobrar = vista.totales.pendiente > 0 || cierres.cobrarSena !== null;
+  const hayQueCobrar = vista.totales.pendiente > 0 || cierres.cobrarSena !== null || cierres.cobrarSenaYAbrir !== null;
   const creditos = Math.max(vista.creditosTitular, ...vista.jugadores.map((j) => j.creditos));
   const conCreditos = medio === "monedero";
   const medioCaja = medio as MedioCaja;
@@ -641,13 +641,20 @@ export default function CuentaDelTurno({
       {vista.deOtraMesa && <p className="text-sm text-muted">{vista.deOtraMesa}</p>}
       {/* Después de los jugadores, como el club de hoy: «Cobrar todo» y «Cobrar la cancha… la mesa sigue». */}
       <div data-tactil="compacto" className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        {/* BP-005/006: con la seña sin pagar, el botón del momento cobra lo que falta y abre la cancha en un paso (o nada);
+            no se ofrece «Abrir la cancha», que diría «Falta la seña». Con créditos se cobra la seña sola (con su paso previo). */}
+        {cierres.cobrarSenaYAbrir !== null && !conCreditos && (
+          <Button variant="solid" size="md" data-cuenta="sena-y-abrir" onClick={() => conMedio({ tipo: "cobrarSenaYAbrir", medio: medioCaja })}>
+            {cierres.cobrarSenaYAbrir > 0 ? `Cobrar la seña y abrir · ${pesos(cierres.cobrarSenaYAbrir)}` : "Abrir la cancha (la seña ya está cubierta)"}
+          </Button>
+        )}
         {cierres.cobrarSena !== null && (
           <Button
-            variant="solid"
+            variant={conCreditos ? "solid" : "outline"}
             size="md"
             onClick={() => (conCreditos ? pedirCreditos({ tipo: "cobrarSena", medio }) : conMedio({ tipo: "cobrarSena", medio }))}
           >
-            Cobrar la seña {pesos(cierres.cobrarSena)}
+            {conCreditos ? `Cobrar la seña ${pesos(cierres.cobrarSena)}` : `Cobrar sólo la seña ${pesos(cierres.cobrarSena)}`}
           </Button>
         )}
         {cierres.cobrarTodo !== null && !conCreditos && (

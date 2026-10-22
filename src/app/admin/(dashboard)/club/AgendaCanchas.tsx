@@ -31,7 +31,7 @@ import "./piel/agenda.css";
 import { Marca } from "@/components/ui/Marca";
 import { cn } from "@/components/ui/cn";
 import { armarAgenda, compartirAgenda, opcionesDelMenu, previaArrastre, velocidadAlBorde, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type OpcionDelMenu, type PreviaArrastre, type VistaAgenda } from "./agenda-core";
-import { DESHACIBLE } from "./cuenta-core";
+import { DESHACIBLE, ETIQUETA_MEDIO, MEDIOS_CAJA } from "./cuenta-core";
 import { Button } from "@/components/ui/Button";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
@@ -254,9 +254,17 @@ const Franja = memo(function Franja({
   );
 });
 
-/** El menú rápido del turno: lo de todos los días a un toque. Escape o tocar afuera lo cierran (el foco vuelve al turno). */
+/**
+ * El menú rápido del turno: lo de todos los días a un toque. Escape o tocar afuera lo cierran (el foco vuelve al turno).
+ * «Cobrar la seña y abrir» despliega los 4 medios en el mismo menú (un toque más, sin abrir la hoja: bp-DISENO §2.2).
+ */
 function MenuDelTurno({ id, x, y, opciones, onElegir, onCerrar }: { id: string; x: number; y: number; opciones: OpcionDelMenu[]; onElegir: (o: OpcionDelMenu) => void; onCerrar: () => void }) {
   const caja = useRef<HTMLDivElement>(null);
+  const [conMedios, setConMedios] = useState<OpcionDelMenu | null>(null);
+  // Al pasar a los medios (o volver), el foco va al primero.
+  useEffect(() => {
+    caja.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
+  }, [conMedios]);
   useEffect(() => {
     const m = caja.current;
     if (!m) return;
@@ -277,7 +285,7 @@ function MenuDelTurno({ id, x, y, opciones, onElegir, onCerrar }: { id: string; 
     <div
       ref={caja}
       role="menu"
-      aria-label="Acciones rápidas del turno"
+      aria-label={conMedios ? `${conMedios.texto}: ¿cómo paga?` : "Acciones rápidas del turno"}
       data-ui="menu-del-turno"
       onKeyDown={(e) => {
         if (e.key === "Escape" || e.key === "Tab") {
@@ -292,13 +300,25 @@ function MenuDelTurno({ id, x, y, opciones, onElegir, onCerrar }: { id: string; 
       }}
       className="fixed z-50 flex min-w-52 flex-col rounded-lg border border-line bg-surface-raised p-1 shadow-overlay"
     >
-      {opciones.map((o) => (
+      {conMedios ? (
+        <>
+          <p aria-hidden="true" className="px-3 pb-1 pt-2 text-sm font-semibold text-strong">{conMedios.texto}: ¿cómo paga?</p>
+          {MEDIOS_CAJA.map((m) => (
+            <button key={m} type="button" role="menuitem" onClick={() => onElegir({ ...conMedios, medio: m })} className="min-h-11 rounded-md px-3 text-left text-sm text-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus">
+              {ETIQUETA_MEDIO[m]}
+            </button>
+          ))}
+          <button type="button" role="menuitem" onClick={() => setConMedios(null)} className="min-h-11 rounded-md px-3 text-left text-sm text-muted hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus">
+            Volver
+          </button>
+        </>
+      ) : opciones.map((o) => (
         <button
           key={o.accion}
           type="button"
           role="menuitem"
           data-menu={o.peligro ? "peligro" : undefined}
-          onClick={() => onElegir(o)}
+          onClick={() => (o.accion === "cobrarSenaYAbrir" && !o.medio ? setConMedios(o) : onElegir(o))}
           className={cn(
             "min-h-11 rounded-md px-3 text-left text-sm hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus",
             // La falta, separada y en rojo como el club de hoy: es de una sola vez (igual se deshace desde el aviso).
@@ -600,6 +620,11 @@ export default function AgendaCanchas({
       if (accion === "mover" || accion === "falta") {
         onAbrir(id);
         return desplegarEnLaCuenta(accion);
+      }
+      // BP-005/006: la seña con el medio elegido y la cancha abierta, en un comando (un doble toque no cobra dos veces).
+      if (accion === "cobrarSenaYAbrir") {
+        if (o.medio) almacen.comando("cuenta", [id, { tipo: "cobrarSenaYAbrir", medio: o.medio }], { deshacible: DESHACIBLE.cobrarSenaYAbrir });
+        return;
       }
       almacen.comando("cuenta", [id, { tipo: accion }], { deshacible: DESHACIBLE[accion] });
     },
