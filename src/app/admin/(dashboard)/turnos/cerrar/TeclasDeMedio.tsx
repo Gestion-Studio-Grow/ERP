@@ -1,11 +1,16 @@
 "use client";
 
-// STUB 1-C: lo reemplaza 1-A/1-B — la pieza real la construye 1-B (turnos/cerrar/TeclasDeMedio.tsx)
-// con esta misma firma (`TeclasDeMedioProps`). Al integrar gana la de 1-B.
+// ============================================================================
+// TECLAS DE MEDIO — los medios de pago como botones; UN TOQUE EJECUTA.
+// ============================================================================
 //
-// LOS MEDIOS COMO TECLAS — un toque en el medio YA ejecuta (cobra). Ninguno viene elegido: el
-// error típico de la fila vieja era cobrar por el medio que venía puesto («Efectivo») y la caja
-// cerraba con faltante en una columna y sobrante en otra (B7).
+// Principio 4 de la reingeniería de CH: botones, no selects, y nada preelegido en la plata. Ningún
+// medio viene marcado: hasta que la recepción toca uno no se cobra nada (CH-003), y tocarlo YA
+// cobra (sin un segundo «Cobrar»). La usan la bandeja «Cerrar lo pendiente» (en la línea del
+// renglón, en la hoja del celular y en la barra del lote) y el cobro del turno (agente 1-C).
+//
+// Presentacional con estado mínimo: quien la usa decide qué pasa al tocar (`onElegir`) y avisa
+// qué medio está corriendo (`enCurso`) para que esa tecla muestre la línea de progreso.
 
 import { Button } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
@@ -16,7 +21,7 @@ export type TeclasDeMedioProps = {
   onElegir: (medio: MetodoDePago) => void;
   /** Para el lector de pantalla: «Cobrar $14.000 a Laura Gómez con». */
   etiqueta: string;
-  /** `linea`: chicas, en la misma línea del renglón (PC). `grande`: teclas a lo ancho (hoja del celular). */
+  /** `linea`: chicas, en la misma línea del renglón (PC). `grande`: teclas de 52 px, a lo ancho (hoja del celular). */
   tamano?: "linea" | "grande";
   /** El medio que se está cobrando (su tecla muestra el progreso; las demás quedan quietas). */
   enCurso?: MetodoDePago | null;
@@ -52,7 +57,7 @@ export default function TeclasDeMedio({
           type="button"
           variant="outline"
           size={grande ? "lg" : "sm"}
-          className={cn(grande && "w-full")}
+          className={cn(grande && "min-h-13 w-full text-base")}
           disabled={disabled || (enCurso !== null && enCurso !== m)}
           estado={enCurso === m ? "cargando" : undefined}
           onClick={() => onElegir(m)}
