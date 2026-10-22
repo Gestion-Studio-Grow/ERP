@@ -10,7 +10,7 @@ clic; los datos y lo que ya salió a ARCA, no.
 |---|---|---|
 | El deploy nuevo rompe pantallas o da 500 | **A. Rollback de app** (Vercel, instantáneo) | Sí |
 | La facturación emite mal / duplica / rechaza todo | **B. Kill-switch** de facturación (+ A si es código) | Sí |
-| Un solo negocio con problema por una funcionalidad nueva | **C. Apagar el flag** de ese negocio | Sí |
+| Un solo negocio con problema por una funcionalidad nueva | **C. Frenar ese negocio** (hoy: pasarlo a homologación; ver C) | Sí |
 | Una migración dejó la base mal | **D. Restaurar Neon** (branch de backup / PITR) | Con pérdida de lo posterior |
 | Facturas mal emitidas en ARCA | **E. Notas de crédito** (fiscal, no técnico) | No: se compensan |
 
@@ -36,9 +36,15 @@ quedan pendientes y salen cuando se vuelve a prender.
 Para volver de **ARCA real a homologación** en toda la plataforma: `ARCA_MODO=homologacion` + Redeploy.
 Desde ese momento ninguna factura sale con validez fiscal (runbook `arca-homologacion.md §5`).
 
-## C. Apagar una funcionalidad para un negocio
+## C. Frenar la facturación de un negocio
 
-Ver [flags.md](flags.md): sacar el slug del negocio de `FACTURACION_FLAGS` + Redeploy. No toca datos.
+> ⚠️ **Hoy los flags NO apagan la emisión** (MP-13): sólo `/api/health` los lee; ningún camino de emisión
+> consulta `flagActivo` todavía. Hasta que se cableen, para frenar **un** negocio la palanca real es pasarlo a
+> homologación (`Tenant.arcaHomologacion = true`: con `ARCA_MODO=real` el motor lo corre como homologación,
+> `modoEfectivoDelTenant`, y no sale ninguna factura con validez fiscal). Es un cambio de dato de producción:
+> script con dry-run y `--apply` (DX-7), lo decide el dueño. Para frenar **todos**: la llave global (kill-switch B).
+
+Cuando los flags estén cableados: [flags.md](flags.md), sacar el slug del negocio de `FACTURACION_FLAGS` + Redeploy.
 
 ## D. Restaurar la base (Neon) — Gate 2, sólo el dueño
 

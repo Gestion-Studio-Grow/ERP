@@ -4,7 +4,14 @@
 
 ## Los flags
 
-| Flag | Qué cambia | Requiere además |
+> ⚠️ **Hoy los flags NO apagan la emisión** (MP-13): sólo `/api/health` los lee; ningún camino de emisión
+> consulta `flagActivo` todavía. Hasta que se cableen, para frenar **un** negocio la palanca real es pasarlo a
+> homologación (`Tenant.arcaHomologacion = true`: con `ARCA_MODO=real` el motor lo corre como homologación,
+> `modoEfectivoDelTenant`, y no sale ninguna factura con validez fiscal). Es un cambio de dato de producción:
+> script con dry-run y `--apply` (DX-7), lo decide el dueño. Para frenar **todos**: la llave global (kill-switch B).
+
+
+| Flag | Qué cambia (cuando se cablee) | Requiere además |
 |---|---|---|
 | `facturacion.automatica` | Las ventas cobradas se facturan solas en ARCA | `ARCA_INVOICING_ENABLED=true` |
 | `facturacion.lote-mensual` | A fin de mes se arma y emite el lote pendiente | `facturacion.automatica` del mismo negocio + llave global |

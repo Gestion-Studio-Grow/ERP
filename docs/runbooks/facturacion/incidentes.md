@@ -37,8 +37,8 @@ Si la facturación está haciendo daño (emitiendo mal, duplicando, rechazando t
 3. Verificar: `/api/health` → `arca.facturacion: false`; `/api/ready` → `arca.estado: "apagado"`.
 
 Con la llave abajo: el cron responde `skipped`, no se pide ningún CAE nuevo, y las ventas se siguen
-cobrando (la facturación es best-effort: quedan pendientes y salen cuando se vuelve a prender). Apagar
-un solo negocio sin tocar a los demás: [flags.md](flags.md).
+cobrando (la facturación es best-effort: quedan pendientes y salen cuando se vuelve a prender). Frenar
+un solo negocio sin tocar a los demás: [rollback.md §C](rollback.md) (hoy los flags todavía no apagan la emisión).
 
 ---
 
@@ -94,7 +94,7 @@ y dijo que no: es casi siempre configuración nuestra o del negocio, no un probl
 | Monto / alícuota | Cálculo de IVA o redondeo | Célula de facturación (bug) |
 
 3. Si es un **bug nuestro** (mismo motivo en varios negocios distintos después de un deploy):
-   [rollback.md](rollback.md) y apagar la facturación automática de los negocios afectados ([flags.md](flags.md)).
+   [rollback.md](rollback.md) y frenar los negocios afectados ([rollback.md §C](rollback.md); los flags todavía no apagan la emisión).
 4. Las rechazadas **no** se reintentan solas (ARCA ya contestó). Una vez corregida la causa, se reemiten
    desde el panel.
 
