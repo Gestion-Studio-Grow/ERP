@@ -6,6 +6,8 @@
  */
 
 import { claseDelPrefijo, cuitValido, normalizarCuit } from "@/lib/cuit";
+import { redondearAlCentavo, sumarAlCentavo } from "@/lib/dinero/redondeo";
+import { UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, vigenteEn } from "@/lib/fiscal/vigencias";
 
 /** Tope del plan gratis: 5 facturas por mes (el gancho de upgrade a Comerciante). */
 export const LIMITE_FACTURAS_FACTURITA = 5;
@@ -168,7 +170,11 @@ export function fechaFiscalLegible(aaaammdd: string): string {
  * servidor. Receptor vacío → consumidor final (DocTipo 99). CUIT/CUIL con dígito verificador real;
  * DNI de 7 u 8 dígitos. Con CUIT, la condición frente al IVA es obligatoria.
  */
-export function validarEmision(datos: EmisionFacturita, hoy?: string): ValidacionEmision {
+export function validarEmision(
+  datos: EmisionFacturita,
+  hoy?: string,
+  opciones: { condicionEmisor?: string | null } = {},
+): ValidacionEmision {
   const descripcion = datos.descripcion?.trim() ?? "";
   if (!descripcion) {
     return { ok: false, error: "Contá qué vendiste: la descripción va en la factura." };
@@ -206,6 +212,15 @@ export function validarEmision(datos: EmisionFacturita, hoy?: string): Validacio
   // Sin documento → consumidor final.
   const docNroCrudo = datos.docNro?.trim() ?? "";
   if (!datos.docTipo || docNroCrudo === "") {
+    // RG 5700: desde el umbral, ARCA exige identificar al consumidor final. Se frena ACÁ, antes de
+    // crear una factura que después la decisión del comprobante rechazaría.
+    const umbral = hoy ? vigenteEn(UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, hoy) : null;
+    if (umbral && datos.total >= umbral.valor) {
+      return {
+        ok: false,
+        error: `Desde $${umbral.valor.toLocaleString("es-AR")} ARCA exige identificar al comprador (${umbral.norma}): cargá su DNI, CUIL o CUIT.`,
+      };
+    }
     const sinFicha = { concepto: CONCEPTO_ARCA[conceptoId], servicio, alicuotaId: ALICUOTA_ARCA[alicuota], descripcion, ficha: null };
     return { ok: true, ...sinFicha, receptor: { docTipo: DOC_CONSUMIDOR_FINAL, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" } };
   }
@@ -247,14 +262,28 @@ export function validarEmision(datos: EmisionFacturita, hoy?: string): Validacio
       error: "Elegí cómo está inscripto el comprador frente al IVA (figura en su constancia de ARCA): de eso depende la factura.",
     };
   }
-  // Una persona jurídica (CUIT 30, 33 o 34) no puede ser monotributista.
-  if (datos.condicionReceptor === "MONOTRIBUTO" && claseDelPrefijo(cuit) === "juridica") {
-    return {
-      ok: false,
-      error: "Ese CUIT es de una empresa (empieza con 30, 33 o 34) y una empresa no puede ser monotributista. Revisá su constancia de ARCA: seguramente es responsable inscripta o exenta.",
-    };
+  // CUIT 30/33/34 como monotributista: AVISO, no bloqueo (puede haber sociedades de la Sección IV
+  // en el Monotributo; lo confirma el contador). Lo muestra la pantalla (`avisoCuitJuridicoMonotributo`).
+  // Factura A (inscripto → inscripto o monotributista): el PDF lleva el domicilio del comprador.
+  if (
+    opciones.condicionEmisor === "RESPONSABLE_INSCRIPTO" &&
+    (datos.condicionReceptor === "RESPONSABLE_INSCRIPTO" || datos.condicionReceptor === "MONOTRIBUTO") &&
+    !domicilio
+  ) {
+    return { ok: false, error: "Escribí el domicilio del comprador: a un inscripto o monotributista le corresponde Factura A, y la A lo lleva impreso." };
   }
   return { ok: true, ...base, receptor: { docTipo: 80, docNro: Number(cuit), condicionIva: datos.condicionReceptor } };
+}
+
+/**
+ * Aviso (no bloqueo) para un CUIT de persona jurídica (30, 33, 34) marcado como monotributista: casi
+ * nunca lo es, pero puede haber sociedades de la Sección IV en el Monotributo. `null` si no aplica.
+ */
+export function avisoCuitJuridicoMonotributo(docNro: string, condicion: string): string | null {
+  if (condicion !== "MONOTRIBUTO") return null;
+  const cuit = normalizarCuit(docNro ?? "");
+  if (!cuitValido(cuit) || claseDelPrefijo(cuit) !== "juridica") return null;
+  return "Ojo: un CUIT que empieza con 30, 33 o 34 casi nunca es monotributista. Revisalo en su constancia de ARCA antes de emitir.";
 }
 
 // ---------------------------------------------------------------------------
@@ -311,8 +340,49 @@ export function mensajeDeEmision(e: EstadoEmision): string {
     : `No la mandamos a ARCA porque le falta algo: ${motivoLegible(e.motivo)}`;
 }
 
-/** "0002-00000015" (punto de venta y número, como en el papel). */
+/** "00002-00000015": punto de venta de 5 cifras y número de 8, el mismo formato que el PDF de ARCA. */
 export function numeroDeComprobante(puntoVenta: number, numero: number | null): string | null {
   if (numero == null) return null;
-  return `${String(puntoVenta).padStart(4, "0")}-${String(numero).padStart(8, "0")}`;
+  return `${String(puntoVenta).padStart(5, "0")}-${String(numero).padStart(8, "0")}`;
+}
+
+// ---------------------------------------------------------------------------
+// Anulación con nota de crédito
+// ---------------------------------------------------------------------------
+
+/**
+ * Cómo está la anulación de una factura AUTORIZADA según sus notas de crédito. Las rechazadas no
+ * cuentan. «anulada» sólo cuando ARCA autorizó las notas y no queda saldo; con alguna pendiente,
+ * «en_curso» (la factura sigue vigente hasta que ARCA la autorice).
+ */
+export function estadoDeAnulacion(
+  total: number,
+  notas: readonly { status: string; total: number }[],
+): { saldo: number; estado: "ninguna" | "en_curso" | "anulada" } {
+  const vivas = notas.filter((n) => n.status !== "REJECTED");
+  const saldo = redondearAlCentavo(total - sumarAlCentavo(vivas.map((n) => n.total)));
+  if (vivas.length === 0) return { saldo, estado: "ninguna" };
+  if (vivas.some((n) => n.status !== "AUTHORIZED")) return { saldo, estado: "en_curso" };
+  return { saldo, estado: saldo <= 0 ? "anulada" : "ninguna" };
+}
+
+/**
+ * ¿Se puede anular con el cupo de hoy? La nota de crédito es un comprobante más y ocupa un lugar
+ * del cupo del mes (hasta que el dueño decida otra cosa). Sin lugar, se dice qué hacer.
+ */
+export function anulacionSegunCupo(limite: EstadoLimite): { ok: true } | { ok: false; error: string } {
+  if (limite.puedeEmitir) return { ok: true };
+  return {
+    ok: false,
+    error:
+      `No te quedan comprobantes este mes (la nota de crédito cuenta como uno de los ${limite.limite}). ` +
+      "Podés anularla desde el sitio de ARCA, con una nota de crédito en «Comprobantes en línea», o pasarte a Comerciante.",
+  };
+}
+
+/** Mensaje de una nota de crédito rechazada: es un error, y la factura sigue vigente. */
+export function errorDeNotaRechazada(origen: "arca" | "sistema", motivo: string | null | undefined): string {
+  return origen === "arca"
+    ? `ARCA rechazó la nota de crédito: ${motivoLegible(motivo)}. La factura sigue vigente.`
+    : `No mandamos la nota de crédito a ARCA porque le falta algo: ${motivoLegible(motivo)}. La factura sigue vigente.`;
 }

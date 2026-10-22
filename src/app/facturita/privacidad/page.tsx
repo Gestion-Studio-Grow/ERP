@@ -13,6 +13,8 @@ export const metadata: Metadata = {
   title: "Privacidad — Facturita",
   description: "Qué datos usa Facturita, para qué, y cómo ejercés tus derechos sobre ellos.",
   generator: "Gestión Studio Grow",
+  // Borrador «todavía no vigente»: fuera de los buscadores hasta que el dueño lo apruebe.
+  robots: { index: false, follow: false },
 };
 
 export default function PrivacidadPage() {

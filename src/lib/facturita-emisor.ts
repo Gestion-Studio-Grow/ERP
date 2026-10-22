@@ -90,7 +90,7 @@ export function listaEnCriollo(items: readonly string[]): string {
 // ---------------------------------------------------------------------------
 
 export const TEXTO_DATOS_PARA_FACTURAS =
-  "Faltan tus datos para facturas (razón social, domicilio comercial, inicio de actividades e Ingresos Brutos). Completalos en «Mi cuenta» y volvé a descargarla: sirve también para las que ya emitiste.";
+  "Faltan tus datos para facturas (razón social, domicilio comercial, inicio de actividades e Ingresos Brutos). Completalos en «Mi cuenta» y volvé a descargarla: sirve también para las que ya emitiste, si tienen el comprador guardado.";
 
 /**
  * Reescribe un faltante del generador de PDF para Facturita: los mensajes del backoffice mandan a
@@ -110,7 +110,7 @@ export function faltantePdfEnFacturita(f: { campo: string; mensaje: string }): s
       return "ARCA rechazó esta factura: no es válida y no se imprime. El motivo está en «Mis facturas».";
     case "receptor.nombre":
     case "receptor.condicionIva":
-      return "Esta factura no tiene guardado el nombre o la condición del comprador (se emitió antes de que Facturita los pidiera). Descargá la copia desde «Mis Comprobantes» en el sitio de ARCA.";
+      return "Este comprobante no tiene guardado el nombre o la condición del comprador. Descargá la copia desde «Mis Comprobantes» en el sitio de ARCA.";
     case "receptor.domicilio":
       return "Una Factura A lleva el domicilio del comprador y esta no lo tiene guardado. Descargá la copia desde «Mis Comprobantes» en el sitio de ARCA.";
     default:

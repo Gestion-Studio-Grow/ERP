@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   generator: "Gestión Studio Grow",
   openGraph: {
     title: "Facturita — tu factura de ARCA en tres toques",
-    description: `${LIMITE_FACTURAS_FACTURITA} facturas gratis por mes, sin tarjeta y sin saber de letras ni alícuotas.`,
+    description: `${LIMITE_FACTURAS_FACTURITA} facturas gratis por mes, sin tarjeta. Si sos monotributista, sin saber de letras ni alícuotas.`,
     locale: "es_AR",
     type: "website",
   },
@@ -38,7 +38,7 @@ const PREGUNTAS = [
   },
   {
     p: "¿Qué necesito para empezar?",
-    r: "Tu CUIT, tu clave fiscal de ARCA y un punto de venta para facturación electrónica. Si no tenés el punto de venta, en el alta te explicamos cómo crearlo en dos minutos.",
+    r: "Tu CUIT, tu clave fiscal de ARCA y un punto de venta para facturación electrónica. Si no tenés el punto de venta, en el alta te explicamos cómo crearlo en ARCA, paso a paso.",
   },
   {
     p: "¿Les tengo que dar mi clave fiscal?",
@@ -65,8 +65,9 @@ export default function FacturitaLanding() {
             Tu factura de ARCA en tres toques. Gratis.
           </h1>
           <p className="mt-4 max-w-xl text-lg text-muted">
-            Facturita es un emisor de facturas electrónicas que se usa desde el celu. Sin instalar programas, sin
-            saber de letras ni alícuotas, y con {LIMITE_FACTURAS_FACTURITA} facturas por mes sin pagar un peso.
+            Facturita es un emisor de facturas electrónicas que se usa desde el celu, sin instalar programas y con{" "}
+            {LIMITE_FACTURAS_FACTURITA} facturas por mes sin pagar un peso. Si sos monotributista, no tenés que saber de
+            letras ni alícuotas; si sos inscripto, elegís la alícuota y cómo está inscripto tu comprador.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link href="/facturita/alta" className={BOTON_PRINCIPAL}>

@@ -74,8 +74,11 @@ export default async function FacturitaFacturasPage() {
                     ) : (
                       <Badge tone="neutral" dot>Pendiente</Badge>
                     )}
-                    {!f.esNotaDeCredito && f.status === "AUTHORIZED" && f.saldoAnulable === 0 && (
+                    {f.anulacion === "anulada" && (
                       <span className="mt-1 block text-xs text-muted">Anulada con nota de crédito</span>
+                    )}
+                    {f.anulacion === "en_curso" && (
+                      <span className="mt-1 block text-xs text-muted">Anulación en curso: la nota de crédito espera a ARCA</span>
                     )}
                   </td>
                   <td className={`whitespace-nowrap ${CELDA} text-right font-semibold tabular-nums text-strong`}>
@@ -93,7 +96,11 @@ export default async function FacturitaFacturasPage() {
                           PDF
                         </a>
                       )}
-                      {f.saldoAnulable > 0 && <AnularFactura facturaId={f.id} numero={f.numero ?? ""} />}
+                      {/* Montado en toda autorizada (no sólo con saldo): así el aviso de «anulada» sigue en su
+                          región viva después de que la lista se actualiza. */}
+                      {f.status === "AUTHORIZED" && !f.esNotaDeCredito && (
+                        <AnularFactura facturaId={f.id} numero={f.numero ?? ""} anulable={f.saldoAnulable > 0} />
+                      )}
                     </div>
                   </td>
                 </tr>

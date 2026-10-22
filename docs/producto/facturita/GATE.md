@@ -132,6 +132,36 @@ solo, 7/7 verdes: carga). `npm run build` verde.
 - Las facturas emitidas antes de esta vuelta no guardaron el nombre del comprador: su PDF manda a
   «Mis Comprobantes» de ARCA.
 
+---
+
+## Vuelta 4 — observaciones de la Auditoría GSG (8b67f3b6) y restos del contador de lanzamiento
+
+Base: 8b67f3b6 (la copia del comprador ya va con la entidad `ComprobanteReceptor`, SEC-5).
+
+| # | Hallazgo | Qué se hizo |
+|---|---|---|
+| m-1 | «Anular»: foco perdido y `role="status"` recién montado | Patrón de la consola: al abrir, foco al motivo; al cancelar, vuelve a «Anular». `Avisos` (dos regiones vivas fijas) en un único árbol que no se remonta, montado en toda autorizada (`anulable` decide si se ofrece el botón), así el resultado se anuncia también cuando la lista se actualiza y la factura queda sin saldo. |
+| m-2 | NC rechazada salía como `ok` en verde | `ok: false` con «ARCA rechazó la nota de crédito: … La factura sigue vigente.» (o «No mandamos la nota de crédito a ARCA…» si la frenó el sistema). |
+| m-3 | A sin domicilio del comprador | Emisor inscripto + comprador inscripto o monotributista → domicilio obligatorio (núcleo y formulario). |
+| m-4 | Bloqueo «jurídica monotributista» | Ahora es aviso («Ojo: un CUIT que empieza con 30, 33 o 34 casi nunca es monotributista…»), no bloqueo, hasta que lo confirme el contador. Umbral RG 5700 controlado en `validarEmision` (tabla de vigencias del Core): consumidor final sin identificar desde el umbral no crea factura. |
+| m-7 | PDF sin control de blueprint | La ruta exige negocio `facturita` (404 si no). |
+| m-8 | Legales indexables | `robots: { index: false, follow: false }` en términos y privacidad mientras digan «todavía no vigente». |
+| m-9 | «Sin saber de letras ni alícuotas» para todos | Acotado a monotributistas; el inscripto elige alícuota y la condición del comprador. |
+| 1 | «Mis facturas» se caía sin la migración 20261022140000 | La lista lee `descripcion` aparte y tolera P2021/P2022; la emisión reintenta sin `descripcion` si la columna no existe. |
+| 2 | «dos minutos» | Fuera (vidriera y alta): «paso a paso» / «cinco pasos en ARCA». |
+| 3 | PDF de la NC a comprador con documento | Al anular, en la MISMA transacción se copia a la nota la fila `ComprobanteReceptor` de la factura; además el lector del PDF cae a la copia del comprobante asociado (NCs viejas). El aviso de «falta el nombre» ya no inventa el motivo. |
+| 4 | Modo simulado: «Avisá a soporte» | `comprobante-pdf.ts`: con CAE «STUB…», «En modo de prueba el PDF no sale porque la factura no tiene un CAE real…». Un CAE roto de verdad sigue pidiendo soporte. |
+| 5 | «Anulada» con la NC pendiente | `estadoDeAnulacion`: «anulada» sólo con la nota autorizada; pendiente → «Anulación en curso». |
+| 6 | Anular ocupa cupo sin avisar ni controlar | El formulario avisa que la nota cuenta como un comprobante del mes; sin cupo no se anula y se explica qué hacer (anularla desde ARCA o pasar a Comerciante). |
+| 7 | «Ya podés descargar tus facturas» | Acotado a las autorizadas con el comprador guardado (las de consumidor final, siempre). |
+| 8 | Punto de venta 4 cifras en la app, 5 en el PDF | 5 cifras en todo (formato del PDF de ARCA): `00002-00000015`. |
+
+**Verificación vuelta 4:** `tsc` verde; eslint 0; 89 tests puros verdes (Facturita + `comprobante-pdf.test.ts`,
+con los nuevos de domicilio de la A, umbral RG 5700, aviso de CUIT jurídico, estado de anulación, cupo,
+NC rechazada, formato del número y CAE simulado). `facturita-emision-postgres.test.ts` 5/5: el circuito
+del PDF ahora sigue con la NC (ficha copiada a la nota, PDF 200 de la nota, «en curso» → «anulada», número
+`00002-…`) y el cupo agotado que no deja anular. Suite completa y build: ver la entrega.
+
 **Nota de entorno (no afecta la rama):** el `npm install` del worktree no pudo bajar `xlsx` de
 `cdn.sheetjs.com` (bloqueado por el proxy de la sesión). Para verificar se instaló localmente con
 `xlsx@0.18.5` del registro y se restauraron `package.json`/`package-lock.json` sin cambios.

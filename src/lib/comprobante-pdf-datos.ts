@@ -81,6 +81,7 @@ export async function leerComprobanteImpreso(invoiceId: string, tenantId: string
       cae: true, caeVencimiento: true, neto: true, iva: true, total: true, ivaDesglose: true,
       docTipo: true, docNro: true, authorizedAt: true, createdAt: true, rechazoMotivo: true, orderId: true, appointmentId: true,
       comprobanteAsociado: { select: { tipoComprobante: true, puntoVenta: true, numero: true } },
+      comprobanteAsociadoId: true,
       order: {
         select: {
           customerName: true,
@@ -137,14 +138,18 @@ export async function leerComprobanteImpreso(invoiceId: string, tenantId: string
       throw e;
     });
   // Sin venta, turno ni movimiento: la copia del comprador que dejó la emisión manual (Facturita).
-  const copiaReceptor =
-    !inv.order && !inv.appointment && !movimiento
-      ? await prisma.auditLog.findFirst({
-          where: { tenantId, entity: ENTIDAD_RECEPTOR_DEL_COMPROBANTE, entityId: invoiceId, action: ACCION_RECEPTOR_DEL_COMPROBANTE },
-          orderBy: { createdAt: "desc" },
-          select: { changes: true },
-        })
-      : null;
+  // Una nota de crédito sin copia propia (las creadas antes de que se copiara) usa la de la factura
+  // que anula: el receptor de una nota es, por regla del motor, el mismo que el de su factura.
+  const copiaDe = (id: string) =>
+    prisma.auditLog.findFirst({
+      where: { tenantId, entity: ENTIDAD_RECEPTOR_DEL_COMPROBANTE, entityId: id, action: ACCION_RECEPTOR_DEL_COMPROBANTE },
+      orderBy: { createdAt: "desc" },
+      select: { changes: true },
+    });
+  let copiaReceptor = !inv.order && !inv.appointment && !movimiento ? await copiaDe(invoiceId) : null;
+  if (!copiaReceptor && !inv.order && !inv.appointment && !movimiento && inv.comprobanteAsociadoId) {
+    copiaReceptor = await copiaDe(inv.comprobanteAsociadoId);
+  }
   const copia = (copiaReceptor?.changes ?? null) as Record<string, unknown> | null;
 
   const total = aNumero(inv.total);

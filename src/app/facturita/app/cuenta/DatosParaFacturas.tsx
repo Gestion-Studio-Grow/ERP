@@ -98,7 +98,7 @@ export default function DatosParaFacturas({ inicial, completos }: { inicial: Dat
             {guardando ? "Guardando…" : "Guardar"}
           </Button>
           <p aria-live="polite" className="text-sm">
-            {resultado?.ok && <span className="font-medium text-success">Listo, guardado. Ya podés descargar tus facturas en PDF.</span>}
+            {resultado?.ok && <span className="font-medium text-success">Listo, guardado. Ya podés descargar en PDF las facturas autorizadas que tengan el comprador guardado (las de consumidor final, siempre).</span>}
             {resultado && !resultado.ok && (
               <span role="alert" className="font-medium text-danger">
                 {resultado.error}

@@ -15,6 +15,8 @@ export const metadata: Metadata = {
   title: "Términos y condiciones — Facturita",
   description: "Las reglas de uso de Facturita, el emisor de facturas electrónicas de Gestión Studio Grow.",
   generator: "Gestión Studio Grow",
+  // Borrador «todavía no vigente»: fuera de los buscadores hasta que el dueño lo apruebe.
+  robots: { index: false, follow: false },
 };
 
 export default function TerminosPage() {

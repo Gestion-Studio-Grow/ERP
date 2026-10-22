@@ -149,6 +149,7 @@ test("lo que frena el sistema se dice como del sistema; con la facturación apag
     servicioHasta: p.hoyInput,
     vencimientoPago: p.hoyInput,
     nombreReceptor: "Distribuidora Norte SA",
+    domicilioReceptor: "Calle 9 N° 100, La Plata",
     docTipo: 80,
     docNro: CUIT_EMPRESA,
     condicionReceptor: "RESPONSABLE_INSCRIPTO",
@@ -265,4 +266,40 @@ test("PDF de Facturita: sin datos del emisor, aviso que lleva a Mi cuenta; con d
   assert.equal(original?.ambiente, "prueba", "en stub, la autorizada es de prueba (deducido como el PDF)");
   const segunda = await enNegocio(() => anularFacturitaAction(r.invoiceId, "otra vez"));
   assert.equal(segunda.ok, false, "no se anula más de lo facturado");
+  assert.equal(original?.anulacion, "en_curso", "con la nota pendiente, «Anulación en curso», no «Anulada»");
+
+  // 5) El PDF de la NOTA sale con el mismo comprador: la ficha se copió a la nota al crearla.
+  assert.ok(nota);
+  const copiaDeLaNota = await p.duenio.auditLog.findFirst({
+    where: { tenantId: p.negocio.id, entity: "ComprobanteReceptor", entityId: nota.id },
+    select: { changes: true },
+  });
+  assert.equal((copiaDeLaNota?.changes as { nombre?: string } | null)?.nombre, "Juana Gómez");
+  await p.duenio.invoice.update({
+    where: { id: nota.id },
+    data: { status: "AUTHORIZED", tipoComprobante: 13, numero: 9001, cae: "76543210987655", caeVencimiento: p.hoy, authorizedAt: new Date() },
+  });
+  const leidaNota = await enNegocio(() => leerComprobanteImpreso(nota.id, p.negocio.id));
+  assert.equal(leidaNota?.receptor.nombre, "Juana Gómez");
+  const pdfNota = await enNegocio(() => respuestaPdfDeComprobante(nota.id, p.negocio.id, volverA));
+  assert.equal(pdfNota.status, 200, await pdfNota.clone().text());
+  const listaFinal = await enNegocio(() => facturasFacturitaAction());
+  assert.equal(listaFinal.find((x) => x.id === r.invoiceId)?.anulacion, "anulada", "con la nota autorizada, «Anulada»");
+  assert.equal(listaFinal.find((x) => x.id === nota.id)?.numero, "00002-00009001", "punto de venta de 5 cifras, como el PDF");
+
+  // 6) Cupo: con los comprobantes del mes agotados, no se anula y se dice qué hacer.
+  const usadas = await enNegocio(async () => (await import("@/lib/facturita-actions")).estadoFacturitaAction());
+  for (let i = usadas.usadas; i < usadas.limite; i++) {
+    const otra = await p.emitir({ descripcion: `Relleno ${i}`, total: 100 });
+    assert.ok(otra.ok, JSON.stringify(otra));
+    await p.duenio.invoice.update({
+      where: { id: otra.invoiceId },
+      data: { status: "AUTHORIZED", tipoComprobante: 11, numero: 9100 + i, cae: `7654321098${String(7000 + i)}`, caeVencimiento: p.hoy, authorizedAt: new Date() },
+    });
+  }
+  const ultima = (await enNegocio(() => facturasFacturitaAction())).find((x) => x.saldoAnulable > 0);
+  assert.ok(ultima, "hay una autorizada con saldo");
+  const sinCupo = await enNegocio(() => anularFacturitaAction(ultima.id, "me equivoqué"));
+  assert.equal(sinCupo.ok, false);
+  assert.ok(!sinCupo.ok && /Comerciante/.test(sinCupo.error) && /ARCA/.test(sinCupo.error));
 });

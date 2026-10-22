@@ -503,3 +503,12 @@ test("Facturita: un comprador con documento sin nombre guardado (facturas viejas
   assert.deepEqual(f.map((x) => x.campo), ["receptor.nombre"]);
   assert.match(faltantePdfEnFacturita(f[0]), /Mis Comprobantes/);
 });
+
+test("modo simulado: un CAE «STUB…» dice la verdad (prueba, sin CAE real), no «avisá a soporte»", () => {
+  const f = faltantesDelComprobante(factura({ cae: "STUB00000001" }));
+  assert.deepEqual(f.map((x) => x.campo), ["cae"]);
+  assert.match(f[0].mensaje, /En modo de prueba el PDF no sale porque la factura no tiene un CAE real/);
+  assert.doesNotMatch(f[0].mensaje, /soporte/);
+  // Un CAE roto de verdad sigue pidiendo soporte.
+  assert.match(faltantesDelComprobante(factura({ cae: "123" }))[0].mensaje, /soporte/);
+});

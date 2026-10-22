@@ -268,7 +268,15 @@ export function faltantesDelComprobante(d: DatosComprobanteImpreso): Faltante[] 
   if (!tipo) falta("tipoComprobante", "Este tipo de comprobante todavía no se puede imprimir desde el sistema. Descargalo desde el sitio de ARCA.");
   if (d.numero === null || d.numero <= 0) falta("numero", "El comprobante no tiene número asignado por ARCA. Esperá a que termine la autorización.");
   if (!Number.isInteger(d.puntoVenta) || d.puntoVenta <= 0) falta("puntoVenta", "El comprobante no tiene punto de venta.");
-  if (d.cae !== null && !/^\d{14}$/.test(d.cae)) falta("cae", "El CAE guardado no tiene los 14 números que da ARCA. Avisá a soporte antes de entregar este comprobante.");
+  if (d.cae !== null && !/^\d{14}$/.test(d.cae)) {
+    // El modo simulado (ARCA_MODO=stub) autoriza con un CAE «STUB…»: no es un error, es una prueba.
+    falta(
+      "cae",
+      /^STUB/i.test(d.cae)
+        ? "En modo de prueba el PDF no sale porque la factura no tiene un CAE real: la autorizó el simulador, no ARCA."
+        : "El CAE guardado no tiene los 14 números que da ARCA. Avisá a soporte antes de entregar este comprobante.",
+    );
+  }
   if (!esFecha(d.caeVencimiento)) falta("caeVencimiento", "Falta la fecha de vencimiento del CAE. Avisá a soporte antes de entregar este comprobante.");
   if (!esFecha(d.fecha)) falta("fecha", "La fecha del comprobante no es válida. Avisá a soporte antes de entregar este comprobante.");
   if (![d.neto, d.iva, d.total, d.otrosImpuestosNacionales].every(Number.isFinite)) falta("importes", "Los importes del comprobante no se pueden leer. Avisá a soporte.");

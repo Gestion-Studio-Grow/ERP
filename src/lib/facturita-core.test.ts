@@ -12,6 +12,11 @@ import {
   origenDelRechazo,
   validarEmision,
   ventanaDeFechaArca,
+  avisoCuitJuridicoMonotributo,
+  anulacionSegunCupo,
+  errorDeNotaRechazada,
+  estadoDeAnulacion,
+  numeroDeComprobante,
   LIMITE_FACTURAS_FACTURITA,
 } from "@/lib/facturita-core";
 import { PLAN_SALTO } from "@/lib/facturita-planes";
@@ -224,12 +229,12 @@ test("con documento, el nombre del comprador es obligatorio y viaja en la ficha 
   if (cf.ok) assert.equal(cf.ficha, null, "consumidor final sin documento: sin ficha");
 });
 
-test("una persona jurídica (CUIT 30/33/34) no puede ser monotributista", () => {
+test("CUIT 30/33/34 como monotributista: aviso, no bloqueo (puede haber sociedades de la Sección IV)", () => {
   const r = validarEmision({ descripcion: "v", total: 1, nombreReceptor: "X SA", docTipo: 80, docNro: EMPRESA, condicionReceptor: "MONOTRIBUTO" });
-  assert.equal(r.ok, false);
-  if (!r.ok) assert.match(r.error, /empresa no puede ser monotributista/);
-  // Una persona humana (20) sí.
-  assert.ok(validarEmision({ descripcion: "v", total: 1, nombreReceptor: "Ana", docTipo: 80, docNro: "20111111112", condicionReceptor: "MONOTRIBUTO" }).ok);
+  assert.ok(r.ok, "no se bloquea hasta que lo confirme el contador");
+  assert.match(avisoCuitJuridicoMonotributo(EMPRESA, "MONOTRIBUTO") ?? "", /^Ojo: un CUIT que empieza con 30, 33 o 34 casi nunca es monotributista/);
+  assert.equal(avisoCuitJuridicoMonotributo("20111111112", "MONOTRIBUTO"), null, "persona humana: sin aviso");
+  assert.equal(avisoCuitJuridicoMonotributo(EMPRESA, "RESPONSABLE_INSCRIPTO"), null);
 });
 
 test("pendiente: avisa la ventana de fecha de ARCA (5 días productos, 10 servicios)", () => {
@@ -239,4 +244,58 @@ test("pendiente: avisa la ventana de fecha de ARCA (5 días productos, 10 servic
   const m = mensajeDeEmision({ estado: "pendiente", motivo: "apagada", ventanaDias: 5 });
   assert.match(m, /hasta 5 días/);
   assert.match(m, /volver a emitir/);
+});
+
+// ---------------------------------------------------------------------------
+// Vuelta 4: domicilio de la A, umbral RG 5700, anulación (estado, cupo, rechazo), formato del número
+// ---------------------------------------------------------------------------
+
+test("inscripto → inscripto o monotributista (Factura A): el domicilio del comprador es obligatorio", () => {
+  const ri = { condicionEmisor: "RESPONSABLE_INSCRIPTO" };
+  const sinDom = validarEmision({ descripcion: "v", total: 1, nombreReceptor: "X SA", docTipo: 80, docNro: EMPRESA, condicionReceptor: "RESPONSABLE_INSCRIPTO" }, HOY, ri);
+  assert.equal(sinDom.ok, false);
+  if (!sinDom.ok) assert.match(sinDom.error, /domicilio del comprador/);
+  const mono = validarEmision({ descripcion: "v", total: 1, nombreReceptor: "Ana", docTipo: 80, docNro: "20111111112", condicionReceptor: "MONOTRIBUTO" }, HOY, ri);
+  assert.equal(mono.ok, false);
+  assert.ok(validarEmision({ descripcion: "v", total: 1, nombreReceptor: "X SA", docTipo: 80, docNro: EMPRESA, condicionReceptor: "RESPONSABLE_INSCRIPTO", domicilioReceptor: "Calle 9 N° 100, La Plata" }, HOY, ri).ok);
+  // A un exento le corresponde B: no hace falta.
+  assert.ok(validarEmision({ descripcion: "v", total: 1, nombreReceptor: "X SA", docTipo: 80, docNro: EMPRESA, condicionReceptor: "EXENTO" }, HOY, ri).ok);
+  // Un monotributista emisor (C) tampoco lo necesita.
+  assert.ok(validarEmision({ descripcion: "v", total: 1, nombreReceptor: "X SA", docTipo: 80, docNro: EMPRESA, condicionReceptor: "RESPONSABLE_INSCRIPTO" }, HOY, { condicionEmisor: "MONOTRIBUTO" }).ok);
+});
+
+test("RG 5700: consumidor final sin identificar desde el umbral no se crea; identificado, sí", () => {
+  const r = validarEmision({ descripcion: "v", total: 10_000_000 }, HOY);
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.match(r.error, /exige identificar al comprador/);
+  assert.ok(validarEmision({ descripcion: "v", total: 9_999_999 }, HOY).ok);
+  assert.ok(validarEmision({ descripcion: "v", total: 10_000_000, nombreReceptor: "Juana", docTipo: 96, docNro: "12345678" }, HOY).ok);
+});
+
+test("anulación: «anulada» sólo con la nota autorizada; pendiente = en curso; rechazada no cuenta", () => {
+  assert.deepEqual(estadoDeAnulacion(1000, []), { saldo: 1000, estado: "ninguna" });
+  assert.deepEqual(estadoDeAnulacion(1000, [{ status: "PENDING", total: 1000 }]), { saldo: 0, estado: "en_curso" });
+  assert.deepEqual(estadoDeAnulacion(1000, [{ status: "AUTHORIZED", total: 1000 }]), { saldo: 0, estado: "anulada" });
+  assert.deepEqual(estadoDeAnulacion(1000, [{ status: "REJECTED", total: 1000 }]), { saldo: 1000, estado: "ninguna" });
+});
+
+test("anulación: la nota ocupa cupo; sin lugar no se anula y se dice qué hacer", () => {
+  assert.deepEqual(anulacionSegunCupo(estadoLimite(4)), { ok: true });
+  const lleno = anulacionSegunCupo(estadoLimite(LIMITE_FACTURAS_FACTURITA));
+  assert.equal(lleno.ok, false);
+  if (!lleno.ok) {
+    assert.match(lleno.error, /cuenta como uno de los 5/);
+    assert.match(lleno.error, /ARCA/);
+    assert.match(lleno.error, /Comerciante/);
+  }
+});
+
+test("nota de crédito rechazada: error que dice que la factura sigue vigente", () => {
+  assert.match(errorDeNotaRechazada("arca", "10015: x"), /^ARCA rechazó la nota de crédito: 10015: x\. La factura sigue vigente\.$/);
+  assert.match(errorDeNotaRechazada("sistema", "fecha: y"), /^No mandamos la nota de crédito a ARCA.*La factura sigue vigente\.$/);
+});
+
+test("número del comprobante: punto de venta de 5 cifras, como el PDF de ARCA", () => {
+  assert.equal(numeroDeComprobante(2, 15), "00002-00000015");
+  assert.equal(numeroDeComprobante(2, null), null);
 });

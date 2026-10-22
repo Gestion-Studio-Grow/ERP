@@ -15,6 +15,7 @@ import {
   OPCIONES_ALICUOTA,
   OPCIONES_CONCEPTO,
   OPCIONES_CONDICION_RECEPTOR,
+  avisoCuitJuridicoMonotributo,
   conceptoConFechasDeServicio,
   fechaFiscalAInput,
   type AlicuotaFacturita,
@@ -64,11 +65,15 @@ export default function EmitirForm({
       : !cuitValido(normalizarCuit(docNro)));
   const faltaCondicion = docTipo === "80" && condicion === "";
   const faltaNombre = docTipo !== "" && nombre.trim().length < 2;
+  // Inscripto → inscripto o monotributista = Factura A: el PDF lleva el domicilio del comprador.
+  const pideDomicilio = inscripto && docTipo === "80" && (condicion === "RESPONSABLE_INSCRIPTO" || condicion === "MONOTRIBUTO");
+  const faltaDomicilio = pideDomicilio && domicilio.trim().length < 5;
+  const avisoJuridica = docTipo === "80" ? avisoCuitJuridicoMonotributo(docNro, condicion) : null;
   const faltanFechas = conServicio && (!desde || !hasta || !vencimiento);
 
   const totalNum = Number(total.replace(/\./g, "").replace(",", "."));
   const listo =
-    descripcion.trim() !== "" && totalNum > 0 && !docInvalido && !faltaCondicion && !faltaNombre && !faltanFechas && !bloqueado;
+    descripcion.trim() !== "" && totalNum > 0 && !docInvalido && !faltaCondicion && !faltaNombre && !faltaDomicilio && !faltanFechas && !bloqueado;
 
   function emitir() {
     setResultado(null);
@@ -252,8 +257,18 @@ export default function EmitirForm({
             </Select>
           </Field>
         )}
+        {avisoJuridica && (
+          <p role="note" className="rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm text-strong sm:col-span-2">
+            {avisoJuridica}
+          </p>
+        )}
         {docTipo === "80" && (
-          <Field label="Domicilio del comprador (opcional)" htmlFor="ft-domicilio" hint="Una Factura A lo lleva impreso.">
+          <Field
+            label={pideDomicilio ? "Domicilio del comprador" : "Domicilio del comprador (opcional)"}
+            htmlFor="ft-domicilio"
+            hint={pideDomicilio ? "Le corresponde Factura A, y la A lo lleva impreso." : "Una Factura A lo lleva impreso."}
+            required={pideDomicilio}
+          >
             <Input id="ft-domicilio" value={domicilio} onChange={(e) => setDomicilio(e.target.value)} maxLength={200} autoComplete="off" />
           </Field>
         )}

@@ -11,7 +11,7 @@ import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
-import { createInvoiceInTx, crearNotaDeCredito } from "@/lib/invoice-core";
+import { createInvoiceInTx, crearNotaDeCreditoInTx } from "@/lib/invoice-core";
 import {
   getFiscalProfile,
   isInvoicingEnabled,
@@ -23,9 +23,11 @@ import { logger } from "@/lib/logger";
 import { modoDesdeEnv } from "@/plugins/arca";
 import { ambienteDelComprobante } from "@/lib/comprobante-pdf";
 import { ACCION_RECEPTOR_DEL_COMPROBANTE, ENTIDAD_RECEPTOR_DEL_COMPROBANTE } from "@/lib/comprobante-pdf-datos";
-import { sumarAlCentavo, redondearAlCentavo } from "@/lib/dinero/redondeo";
 import {
+  anulacionSegunCupo,
+  errorDeNotaRechazada,
   esDePrueba,
+  estadoDeAnulacion,
   estadoLimite,
   mensajeDeEmision,
   numeroDeComprobante,
@@ -178,7 +180,15 @@ export async function emitirFacturitaAction(
   const { tenantId, userId, homologacion } = await requireTenantFacturita();
   const hoy = fechaHoy();
 
-  const validacion = validarEmision(datos, hoy);
+  // La condición del emisor decide qué exige el comprador (la A lleva su domicilio). Sin perfil
+  // cargado, `null`: la emisión lo frena más abajo con su mensaje.
+  const condicionEmisor = await getFiscalProfile(tenantId)
+    .then((p) => p.condicionIva)
+    .catch((e: unknown) => {
+      if (e instanceof PerfilFiscalIncompletoError) return null;
+      throw e;
+    });
+  const validacion = validarEmision(datos, hoy, { condicionEmisor });
   if (!validacion.ok) return { ok: false, error: validacion.error };
 
   const limite = estadoLimite(await contarFacturasDelMes(tenantId));
@@ -192,7 +202,9 @@ export async function emitirFacturitaAction(
     const montos = montosFacturita(perfil.condicionIva, datos.total, validacion.alicuotaId);
     if (!montos.ok) return { ok: false, error: montos.error };
 
-    const invoiceId = await tenantTransaction(
+    // `descripcion` necesita la migración 20261022140000 (Gate 2). En una base sin ella (P2022) la
+    // factura se crea igual, sin la descripción (el PDF cae al concepto), en vez de no emitir.
+    const crear = (conDescripcion: boolean) => tenantTransaction(
       async (tx) => {
         const id = await createInvoiceInTx(tx, {
           tenantId,
@@ -214,7 +226,7 @@ export async function emitirFacturitaAction(
             : {}),
           // Lo que se vendió, para el PDF y la lista (no viaja a ARCA). Necesita la migración
           // 20261022140000_invoice_abono_descripcion (Gate 2), igual que la consola.
-          descripcion: validacion.descripcion,
+          ...(conDescripcion ? { descripcion: validacion.descripcion } : {}),
         });
         if (validacion.ficha) {
           await tx.auditLog.create({
@@ -237,6 +249,10 @@ export async function emitirFacturitaAction(
       },
       { tenantId },
     );
+    const invoiceId = await crear(true).catch((e: unknown) => {
+      if (esMigracionPendiente(e)) return crear(false);
+      throw e;
+    });
 
     // Despacho a ARCA (CAE) si la facturación está encendida (stub/homologación/real).
     const encendida = isInvoicingEnabled();
@@ -320,6 +336,8 @@ export interface FacturaFacturita {
   ambiente: "real" | "prueba" | null;
   /** Lo que queda por anular (autorizada, menos sus notas vivas). 0 = no se puede anular. */
   saldoAnulable: number;
+  /** «anulada» sólo con la nota AUTORIZADA por ARCA; con la nota pendiente, «en_curso». */
+  anulacion: "ninguna" | "en_curso" | "anulada";
 }
 
 export async function facturasFacturitaAction(): Promise<FacturaFacturita[]> {
@@ -331,7 +349,7 @@ export async function facturasFacturitaAction(): Promise<FacturaFacturita[]> {
         orderBy: { createdAt: "desc" },
         take: 200,
         select: {
-          id: true, fecha: true, numero: true, puntoVenta: true, status: true, total: true, descripcion: true,
+          id: true, fecha: true, numero: true, puntoVenta: true, status: true, total: true,
           rechazoMotivo: true, authorizedAt: true, createdAt: true, comprobanteAsociadoId: true,
         },
       });
@@ -352,18 +370,24 @@ export async function facturasFacturitaAction(): Promise<FacturaFacturita[]> {
     },
     { tenantId },
   );
+  // La descripción se lee aparte y tolerante: sin la migración 20261022140000 (P2021/P2022) la
+  // lista sale igual, sin descripciones (mismo criterio que comprobante-pdf-datos.ts).
+  const descripciones = await tenantTransaction(
+    (tx) => tx.invoice.findMany({ where: { tenantId, id: { in: filas.map((f) => f.id) } }, select: { id: true, descripcion: true } }),
+    { tenantId },
+  )
+    .then((xs) => new Map(xs.map((x) => [x.id, x.descripcion ?? null])))
+    .catch((e: unknown) => {
+      if (esMigracionPendiente(e)) return new Map<string, string | null>();
+      throw e;
+    });
   const modo = modoDesdeEnv();
-  const anulado = new Map<string, number[]>();
-  for (const f of filas) {
-    if (f.comprobanteAsociadoId && f.status !== "REJECTED") {
-      anulado.set(f.comprobanteAsociadoId, [...(anulado.get(f.comprobanteAsociadoId) ?? []), Number(f.total)]);
-    }
-  }
+  const notas = filas.map((f) => ({ asociado: f.comprobanteAsociadoId, status: f.status, total: Number(f.total) }));
   return filas.map((f) => {
     const total = Number(f.total);
     const esNota = f.comprobanteAsociadoId != null;
-    const saldo =
-      f.status === "AUTHORIZED" && !esNota ? redondearAlCentavo(total - sumarAlCentavo(anulado.get(f.id) ?? [])) : 0;
+    const anul = !esNota && f.status === "AUTHORIZED" ? estadoDeAnulacion(total, notas.filter((n) => n.asociado === f.id)) : null;
+    const saldo = anul?.saldo ?? 0;
     return {
       id: f.id,
       fecha: f.fecha,
@@ -371,7 +395,7 @@ export async function facturasFacturitaAction(): Promise<FacturaFacturita[]> {
       esNotaDeCredito: esNota,
       status: f.status as FacturaFacturita["status"],
       total,
-      descripcion: f.descripcion ?? null,
+      descripcion: descripciones.get(f.id) ?? null,
       rechazoMotivo: f.rechazoMotivo,
       ambiente:
         f.status === "AUTHORIZED"
@@ -383,6 +407,7 @@ export async function facturasFacturitaAction(): Promise<FacturaFacturita[]> {
             })
           : null,
       saldoAnulable: saldo > 0 ? saldo : 0,
+      anulacion: anul?.estado ?? "ninguna",
     };
   });
 }
@@ -391,9 +416,12 @@ export type ResultadoAnularFacturita = { ok: true; mensaje: string } | { ok: fal
 
 /**
  * «Anular» una factura autorizada: nota de crédito asociada por TODO lo que queda (el motor toma la
- * factura con bloqueo y nunca anula más de lo facturado). Con la facturación encendida, la nota se
- * manda a ARCA enseguida. La nota usa uno de los lugares del cupo del mes, como cualquier
- * comprobante emitido.
+ * factura con bloqueo y nunca anula más de lo facturado). La nota ocupa un lugar del cupo del mes,
+ * como cualquier comprobante (hasta que el dueño decida otra cosa): sin lugar, no se anula y se
+ * dice qué hacer. En la MISMA transacción se le copia a la nota la ficha del comprador de la
+ * factura (`ComprobanteReceptor`), así el PDF de la nota sale con el mismo comprador. Con la
+ * facturación encendida, la nota va a ARCA enseguida; si ARCA (o el sistema) la rechaza, es un
+ * error: la factura sigue vigente.
  */
 export async function anularFacturitaAction(facturaId: string, motivo: string): Promise<ResultadoAnularFacturita> {
   const { tenantId, userId } = await requireTenantFacturita();
@@ -401,9 +429,48 @@ export async function anularFacturitaAction(facturaId: string, motivo: string): 
   const porque = (motivo ?? "").trim().slice(0, 200);
   if (porque.length < 3) return { ok: false, error: "Contá en pocas palabras por qué la anulás: queda escrito en la nota de crédito." };
 
-  let r: Awaited<ReturnType<typeof crearNotaDeCredito>>;
+  const cupo = anulacionSegunCupo(estadoLimite(await contarFacturasDelMes(tenantId)));
+  if (!cupo.ok) return cupo;
+
+  let r: Awaited<ReturnType<typeof crearNotaDeCreditoInTx>>;
   try {
-    r = await crearNotaDeCredito({ tenantId, facturaId, motivo: porque, fecha: fechaHoy() });
+    r = await tenantTransaction(
+      async (tx) => {
+        const nota = await crearNotaDeCreditoInTx(tx, { tenantId, facturaId, motivo: porque, fecha: fechaHoy() });
+        if (!nota.ok) return nota;
+        const ficha = await tx.auditLog.findFirst({
+          where: { tenantId, entity: ENTIDAD_RECEPTOR_DEL_COMPROBANTE, entityId: facturaId, action: ACCION_RECEPTOR_DEL_COMPROBANTE },
+          orderBy: { createdAt: "desc" },
+          select: { changes: true },
+        });
+        if (ficha?.changes) {
+          await tx.auditLog.create({
+            data: {
+              tenantId,
+              actor: `user:${userId}`,
+              action: ACCION_RECEPTOR_DEL_COMPROBANTE,
+              entity: ENTIDAD_RECEPTOR_DEL_COMPROBANTE,
+              entityId: nota.invoiceId,
+              changes: ficha.changes,
+              channel: "admin",
+            },
+          });
+        }
+        await tx.auditLog.create({
+          data: {
+            tenantId,
+            actor: `user:${userId}`,
+            action: "facturita.nota_de_credito",
+            entity: "Invoice",
+            entityId: nota.invoiceId,
+            changes: { facturaId, motivo: porque },
+            channel: "admin",
+          },
+        });
+        return nota;
+      },
+      { tenantId },
+    );
   } catch (e) {
     if (esMigracionPendiente(e)) {
       return { ok: false, error: "La nota de crédito necesita un último paso de base de datos que todavía no se aplicó." };
@@ -412,34 +479,24 @@ export async function anularFacturitaAction(facturaId: string, motivo: string): 
     return { ok: false, error: "No se pudo anular la factura. Probá de nuevo en unos minutos." };
   }
   if (!r.ok) return r;
-  await tenantTransaction(
-    (tx) =>
-      tx.auditLog.create({
-        data: {
-          tenantId,
-          actor: `user:${userId}`,
-          action: "facturita.nota_de_credito",
-          entity: "Invoice",
-          entityId: r.invoiceId,
-          changes: { facturaId, motivo: porque },
-          channel: "admin",
-        },
-      }),
-    { tenantId },
-  );
+  const notaId = r.invoiceId;
 
-  let mensaje = "La nota de crédito quedó cargada y espera que ARCA la autorice. La ves en «Mis facturas».";
+  let mensaje =
+    "La nota de crédito quedó cargada y espera que ARCA la autorice: hasta entonces, la anulación está en curso. Usó uno de los comprobantes del mes.";
   if (isInvoicingEnabled()) {
     try {
       const d = await procesarEnviosDelNegocio(tenantId, 5, undefined, { ignorarEspera: true });
       const nota = await tenantTransaction(
-        (tx) => tx.invoice.findFirst({ where: { id: r.invoiceId, tenantId }, select: { status: true, rechazoMotivo: true } }),
+        (tx) => tx.invoice.findFirst({ where: { id: notaId, tenantId }, select: { status: true, rechazoMotivo: true } }),
         { tenantId },
       );
       if (nota?.status === "AUTHORIZED") mensaje = "Listo: ARCA autorizó la nota de crédito y la factura quedó anulada.";
       else if (nota?.status === "REJECTED") {
-        mensaje = mensajeDeEmision({ estado: "rechazada", origen: origenDelRechazo(nota.rechazoMotivo), motivo: nota.rechazoMotivo ?? "" });
-      } else if (d.arcaNoDisponible) mensaje = "ARCA no responde ahora: la nota de crédito quedó pendiente y sale apenas conteste.";
+        revalidatePath(`${PATH_APP}/facturas`);
+        return { ok: false, error: errorDeNotaRechazada(origenDelRechazo(nota.rechazoMotivo), nota.rechazoMotivo) };
+      } else if (d.arcaNoDisponible) {
+        mensaje = "ARCA no responde ahora: la nota de crédito quedó pendiente y la anulación está en curso. Sale apenas conteste.";
+      }
     } catch (e) {
       logger.error("facturita", "no se pudo mandar la nota de crédito a ARCA", e, { tenantId });
     }

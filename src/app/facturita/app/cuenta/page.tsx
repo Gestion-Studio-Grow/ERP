@@ -32,7 +32,7 @@ export default async function FacturitaCuentaPage() {
         <div className="flex items-center justify-between gap-4 px-[22px] py-[13px] text-sm">
           <dt className="text-muted">Punto de venta</dt>
           <dd className="font-medium tabular-nums text-strong">
-            {estado.puntoVenta != null ? String(estado.puntoVenta).padStart(4, "0") : "—"}
+            {estado.puntoVenta != null ? String(estado.puntoVenta).padStart(5, "0") : "—"}
           </dd>
         </div>
         <div className="flex items-center justify-between gap-4 px-[22px] py-[13px] text-sm">

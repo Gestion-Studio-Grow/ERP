@@ -218,7 +218,7 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
             </label>
             <details className="rounded-lg bg-surface-sunken p-4">
               <summary className={`cursor-pointer rounded text-sm font-semibold text-strong ${FOCO}`}>
-                ¿Cómo creo un punto de venta? (dos minutos)
+                ¿Cómo creo un punto de venta? (cinco pasos en ARCA)
               </summary>
               <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-muted">
                 {PASOS_PUNTO_VENTA.map((p) => (
