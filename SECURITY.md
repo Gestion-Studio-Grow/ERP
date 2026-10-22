@@ -20,3 +20,12 @@ Para que quien reporte algo sepa qué ya está identificado y qué no:
 - Hay audit trail de mutaciones de negocio (`AuditLog`), pero sin roles el campo `actor` no distingue entre personas.
 
 Si tu reporte es sobre alguno de estos puntos ya conocidos, igual reportalo — ayuda a priorizar, pero no es una sorpresa para el equipo.
+
+## Frontera cliente / servidor (copia por ingeniería reversa)
+
+Lo que corre en el servidor (Server Actions, Prisma, ARCA, cobros) no se puede extraer; lo que baja al navegador sí,
+aunque esté minificado. `src/lib/frontera-cliente.test.ts` (corre con `npm test` y por lo tanto en `npm run gates`)
+recorre los imports de cada archivo `"use client"` y falla si alcanzan código de servidor (`*.server.*`,
+`server-only`, Prisma) o un motor de negocio fuera de su carpeta. Excepción conocida y acotada: el motor del club
+(`src/lib/club/motor.mjs`) corre en el navegador a propósito, por el modo sin internet del mostrador (G9), y sólo
+desde `/admin/club`; pasarlo al servidor es el back separado (G10, `docs/tenants/breakpoint/PARIDAD-REACT.md`).
