@@ -21,7 +21,7 @@ import { anotarEnEsperaDesdeAlta, reservar, type DatosAlta } from "./alta-core";
 import { ejecutarBuffet, type AccionBuffet } from "./buffet-core";
 import { ejecutarMesa, venderEnMostrador, type AccionMesa, type Carrito, type DesenlaceMesa } from "./buffet-mesa-core";
 import { ejecutarCaja, type AccionCaja } from "./caja-core";
-import { ejecutarCanchas, ejecutarEspera, ejecutarFijo, type AccionCanchas, type AccionEspera, type AccionFijo, type DesenlaceCanchas } from "./canchas-core";
+import { ejecutarBajaFijo, ejecutarCanchas, ejecutarEspera, ejecutarFijo, type AccionBajaFijo, type AccionCanchas, type AccionEspera, type AccionFijo, type DesenlaceCanchas } from "./canchas-core";
 import { ejecutarCiclo, ejecutarCierre, mediosDelCierre, type AccionCiclo, type AccionCierre } from "./ciclo-core";
 import { ejecutarClientes, type AccionClientes, type DesenlaceClientes } from "./clientes-core";
 import { abrirElClub, ejecutarConfiguracion, limpiarPorHuella, type AccionConfig, type DesenlaceConfig, type DesenlaceLimpieza, type PedidoDeLimpiezaPorHuella } from "./configuracion-core";
@@ -277,6 +277,21 @@ export const REGISTRO = {
     sinInternet: ([a]) => mediosDelCierre(a).every((m) => sinRed(m as MedioCobro)),
     conEfectivo: () => true,
     // Sin secretos en los argumentos (los turnos y los medios; ningún PIN): lo verifica el test que recorre el REGISTRO entero.
+    secretos: [],
+  }),
+  // ── Tanda 3C: los fijos (bp-DISENO §3.10) ──
+  /**
+   * «Dar de baja» un fijo desde una fecha, pausarlo hasta una fecha (vuelve solo) o liberar UNA fecha (BP-100…BP-104),
+   * después de la previa. Con un dueño, sus turnos se cancelan como «cancela el club» (lo pagado vuelve); si no, con la
+   * regla de siempre. Re-aplicado sobre un fijo que otro puesto ya dio de baja, el motor dice que no: va a «Para
+   * resolver» sin tocar plata (nunca devuelve dos veces).
+   */
+  bajaDeFijo: entrada<[accion: AccionBajaFijo], ReturnType<typeof ejecutarBajaFijo>>({
+    correr: (e, [a], ahora, auth) => ejecutarBajaFijo(e, a, ahora, auth),
+    // Cancela turnos y puede devolver plata (crédito o en mano), y libera huecos que otro puesto puede estar dando: con
+    // internet, como «Dar de baja» del comando «fijo».
+    sinInternet: () => false,
+    // Sin secretos en los argumentos (el fijo y las fechas): lo verifica el test que recorre el REGISTRO entero.
     secretos: [],
   }),
 } as const;
@@ -689,6 +704,15 @@ export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub 
         const { titular, turno, r } = elTurno(estado, reservaId);
         const deuda = estado && r?.clienteId ? (estado.clientes.find((c) => c.id === r.clienteId)?.deuda ?? 0) : 0;
         return `Cobro de la deuda${deuda > 0 ? ` ${pesos(deuda)}` : ""} ${medioDe(medio)} y abrir la cancha de ${titular}${turno}`;
+      }
+      case "bajaDeFijo": {
+        const x = a[0] as AccionBajaFijo;
+        const f = estado?.fijos.find((y) => y.id === x.fijoId);
+        const de = `el fijo de ${f?.titular ?? "alguien"}${f ? ` (${hhmm(f.inicio)})` : ""}`;
+        const dd = (fecha: string) => `${Number(fecha.slice(8))}/${Number(fecha.slice(5, 7))}`;
+        if (x.tipo === "pausa") return `Pausar ${de} del ${dd(x.desde)} al ${dd(x.hasta)}`;
+        if (x.tipo === "liberar") return `Liberar ${de} el ${dd(x.fecha)}`;
+        return `Dar de baja ${de} desde el ${dd(x.desde)}`;
       }
       case "cierre": {
         const x = a[0] as AccionCierre;

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo } from "./almacen";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { DIAS_A_LA_VISTA, SE_DESHACE, bajaFijo, armarCanchas, armarEspera, armarFijos, bajarFijos, ejecutarCanchas, ejecutarEspera, horasDelDia, nuevoFijo } from "./canchas-core";
+import { DIAS_A_LA_VISTA, SE_DESHACE, bajaFijo, armarCanchas, armarEspera, armarFijos, bajarFijos, ejecutarBajaFijo, ejecutarCanchas, ejecutarEspera, fijosPorBajar, horasDelDia, nuevoFijo, previaBajaFijo, textoAvisoBaja } from "./canchas-core";
 import { armarAgenda } from "./agenda-core";
 import { avisosLluvia } from "./whatsapp-core";
 
@@ -95,9 +95,9 @@ test("lista de espera: los huecos que le sirven (ventana, duración, techada) y 
   assert.equal(ejecutarEspera(e, { tipo: "anotar", titular: "", clienteId: null, fecha: manana, desde: 1, hasta: 2, duracion: 60, soloCubierta: false }, AHORA).ok, false);
 });
 
-test("qué se deshace, como en el club vanilla: ni lluvia, ni mantenimiento, ni bloqueos, ni fijos, ni sacar de la espera", () => {
-  for (const k of ["lluvia", "mantenimiento", "bloquear", "quitarBloqueo", "nuevoFijo", "bajarFijos", "bajaFijo", "quitar"] as const) assert.equal(SE_DESHACE[k], false, k);
-  for (const k of ["anotar", "asignar"] as const) assert.equal(SE_DESHACE[k], true, k);
+test("qué se deshace, como en el club vanilla: ni lluvia, ni mantenimiento, ni bloqueos, ni crear fijos, ni sacar de la espera; dar de baja un fijo SÍ (3C)", () => {
+  for (const k of ["lluvia", "mantenimiento", "bloquear", "quitarBloqueo", "nuevoFijo", "bajarFijos", "quitar"] as const) assert.equal(SE_DESHACE[k], false, k);
+  for (const k of ["anotar", "asignar", "bajaFijo", "pausaFijo", "liberarFijo"] as const) assert.equal(SE_DESHACE[k], true, k);
 });
 
 test("dar de baja un fijo (la inversa de crearlo): libera sus turnos sin jugar con la regla de «cancela el club» y sale de la lista", () => {
@@ -183,4 +183,104 @@ test("baja de un fijo: «cancela el club» (devolver todo) sólo con un dueño; 
   const enSuspenso = (r: M.Reserva) => Boolean((r as M.Reserva & { senaEnSuspenso?: boolean }).senaEnSuspenso);
   assert.equal(enSuspenso(conRecepcion), true, "con recepción, tarde: la seña queda en suspenso");
   assert.equal(enSuspenso(conDuenio), false, "con el dueño vuelve todo");
+});
+
+// ───────────── Tanda 3C · dar de baja un fijo con previa, pausa, liberar un día (bp-DISENO §3.10) ─────────────
+
+const fijoConTurnos = () => {
+  const e = demo();
+  const f = e.fijos[0];
+  M.materializarFijosHasta(e, HOY, 14);
+  const turnos = e.reservas.filter((r) => r.fijoId === f.id && r.estado === "reservada" && r.fecha >= HOY && M.minutosHasta(AHORA, r.fecha, r.inicio) > 0).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  return { e, f, turnos };
+};
+
+test("BP-100: la previa NO cambia nada (corre sobre una copia) y cuenta turnos y plata; lo que anuncia es lo que pasa al confirmar", () => {
+  const { e, f, turnos } = fijoConTurnos();
+  assert.ok(turnos.length >= 2, "la demo tiene el fijo en la grilla");
+  M.registrarPago(e, turnos[1].id, { medio: "efectivo", monto: 21000 }, AHORA);
+  const duenio = operadorDeLaDemo(e, "OWNER")!.auth;
+  const antes = JSON.stringify(e);
+  const previa = previaBajaFijo(e, { tipo: "baja", fijoId: f.id, desde: HOY }, AHORA, duenio);
+  assert.equal(JSON.stringify(e), antes, "la previa no tocó el club");
+  assert.ok(previa.ok);
+  if (!previa.ok) return;
+  assert.equal(previa.turnos, turnos.length);
+  assert.equal(previa.plata.credito, 21000);
+  assert.match(previa.resumen, new RegExp(`^Se liberan ${turnos.length} turnos · \\$ 21\\.000 vuelven como crédito$`));
+  assert.equal(previa.lineas.length, turnos.length);
+  // Confirmado (el comando): lo mismo que dijo la previa.
+  const d = ejecutarBajaFijo(e, { tipo: "baja", fijoId: f.id, desde: HOY }, AHORA, duenio);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(d.turnos!.length, previa.turnos);
+  assert.ok(turnos.every((r) => M.reserva(e, r.id)!.estado === "cancelada"));
+  assert.ok(!e.fijos.some((x) => x.id === f.id), "desde esta semana: sale de la lista");
+  assert.match(d.mensaje, /Dado de baja el fijo de .*\$ 21\.000 vuelven como crédito/);
+});
+
+test("BP-102: «Deshacer» (la foto de antes, como hace el almacén) deja el fijo y sus turnos como estaban, con su plata", () => {
+  const { e, f, turnos } = fijoConTurnos();
+  M.registrarPago(e, turnos[0].id, { medio: "efectivo", monto: 10000 }, AHORA);
+  const foto = JSON.stringify(M.serializarEstado(e));
+  const titular = M.reserva(e, turnos[0].id)!.clienteId;
+  const monedero = titular ? M.cliente(e, titular)!.monedero : 0;
+  assert.equal(ejecutarBajaFijo(e, { tipo: "baja", fijoId: f.id, desde: HOY }, AHORA, operadorDeLaDemo(e, "OWNER")!.auth).ok, true);
+  const h = M.hidratarEstado(JSON.parse(foto));
+  assert.ok(h.ok);
+  if (!h.ok) return;
+  assert.ok(h.estado.fijos.some((x) => x.id === f.id), "el fijo volvió");
+  for (const r of turnos) assert.equal(M.reserva(h.estado, r.id)!.estado, "reservada");
+  if (titular) assert.equal(M.cliente(h.estado, titular)!.monedero, monedero, "la plata, como estaba");
+  assert.equal(SE_DESHACE.bajaFijo, true);
+});
+
+test("pausa: los turnos del rango se liberan, la lista dice «Pausado hasta … · vuelve el …», y fuera de la pausa vuelven solos", () => {
+  const { e, f } = fijoConTurnos();
+  const hasta = M.sumarDias(HOY, 10);
+  const d = ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.match(d.mensaje, /^Pausado el fijo de .* hasta el \d+\/\d+; vuelve solo el \S+ \d+\/\d+\./);
+  const vista = armarFijos(e, AHORA).fijos.find((x) => x.id === f.id)!;
+  assert.match(vista.estado!, /^Pausado hasta el \d+\/\d+ · vuelve el \d+\/\d+$/);
+  assert.ok(vista.fechas.every((x) => x.fecha > hasta), "las fechas para elegir son las que juega");
+  const g = e.fijos.find((x) => x.id === f.id)!;
+  assert.equal(M.fijoJuegaEl(g, d.vuelve!), true, "el día que vuelve se baja solo");
+  assert.equal(M.fijoJuegaEl(g, M.sumarDias(d.vuelve!, -7)), false, "en la pausa, no");
+});
+
+test("BP-104: liberar UN día de dentro de 3 semanas: esa fecha no se baja y las demás sí", () => {
+  const { e, f } = fijoConTurnos();
+  const en3 = armarFijos(e, AHORA).fijos.find((x) => x.id === f.id)!.fechas[3].fecha;
+  const d = ejecutarBajaFijo(e, { tipo: "liberar", fijoId: f.id, fecha: en3 }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  const g = e.fijos.find((x) => x.id === f.id)!;
+  assert.equal(M.fijoJuegaEl(g, en3), false);
+  assert.equal(M.fijoJuegaEl(g, M.sumarDias(en3, 7)), true);
+  assert.equal(fijosPorBajar(e, en3), fijosPorBajar(e, M.sumarDias(en3, 7)) - 1, "sólo ése no se baja ese día");
+  M.materializarFijosHasta(e, M.sumarDias(en3, -7), 14);
+  assert.ok(!e.reservas.some((r) => r.fijoId === f.id && r.fecha === en3));
+  assert.ok(e.reservas.some((r) => r.fijoId === f.id && r.fecha === M.sumarDias(en3, 7) && r.estado === "reservada"));
+  assert.equal(ejecutarBajaFijo(e, { tipo: "liberar", fijoId: f.id, fecha: M.sumarDias(en3, 1) }, AHORA).ok, false, "un día que no juega, no");
+});
+
+test("dar de baja desde una fecha: hasta ese día sigue, la lista dice «Juega hasta el …»; el WhatsApp cuenta la plata", () => {
+  const { e, f, turnos } = fijoConTurnos();
+  const desde = turnos[1].fecha;
+  const previa = previaBajaFijo(e, { tipo: "baja", fijoId: f.id, desde }, AHORA);
+  assert.ok(previa.ok);
+  if (!previa.ok) return;
+  const d = ejecutarBajaFijo(e, { tipo: "baja", fijoId: f.id, desde }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(M.reserva(e, turnos[0].id)!.estado, "reservada");
+  assert.match(armarFijos(e, AHORA).fijos.find((x) => x.id === f.id)!.estado!, /^Juega hasta el /);
+  const texto = textoAvisoBaja(e, f, { tipo: "baja", fijoId: f.id, desde }, previa);
+  assert.match(texto, /^¡Hola \S+! Dimos de baja tu turno fijo de los \S+ a las \d\d:\d\d desde el \S+ \d+\/\d+\./);
+});
+
+test("la baja vieja («fijo» → «baja», en alguna cola) es la de desde hoy; sobre un fijo que ya no está, no toca nada", () => {
+  const { e, f } = fijoConTurnos();
+  assert.equal(bajaFijo(e, f.id, AHORA).ok, true);
+  const antes = JSON.stringify(e);
+  assert.equal(ejecutarBajaFijo(e, { tipo: "baja", fijoId: f.id, desde: HOY }, AHORA).ok, false);
+  assert.equal(JSON.stringify(e), antes);
 });
