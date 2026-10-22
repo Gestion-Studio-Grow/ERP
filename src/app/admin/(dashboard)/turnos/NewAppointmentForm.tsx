@@ -60,9 +60,10 @@ export default function NewAppointmentForm({
   /**
    * Quién está dando el turno. Decide si se dibuja el bloque de cobro, con la MISMA función
    * que aplica el servidor (`puedeCobrarEsteTurno`), para que pantalla y acción no puedan
-   * desincronizarse. Sin `viewer` se asume que puede: el servidor sigue siendo la autoridad.
+   * desincronizarse. OBLIGATORIO (B1): sin él se suponía OWNER y la Lista le ofrecía «Cobrar
+   * ahora» a la recepción para la profesional que cobra aparte; el servidor lo rechazaba al final.
    */
-  viewer?: { role: string; professionalId?: string | null };
+  viewer: { role: string; professionalId?: string | null };
   /**
    * Llegar con el alta ya abierta y el día puesto: lo usan los estados vacíos de la agenda
    * ("Dar un turno", `hrefNuevoTurno` en pasos.ts). La fecha ya viene validada por
@@ -148,8 +149,8 @@ export default function NewAppointmentForm({
   // D1): la pantalla le sacaba una atribución que el servidor le daba.
   const veredictoCobro = professional
     ? puedeCobrarEsteTurno({
-        rol: viewer?.role ?? "OWNER",
-        professionalIdDelUsuario: viewer?.professionalId,
+        rol: viewer.role,
+        professionalIdDelUsuario: viewer.professionalId,
         professionalIdDelTurno: professional.id,
         nombreProfesional: professional.name,
         cobraEnMostrador: professional.cobraEnMostrador,

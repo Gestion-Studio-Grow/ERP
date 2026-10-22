@@ -5,6 +5,8 @@ import AppointmentRow from "./AppointmentRow";
 import { wallHourMinuteInBusinessTz, fmtTime } from "@/lib/datetime";
 import PasoVacio from "./PasoVacio";
 import { horasDeLaGrilla } from "./grilla";
+import { LEYENDA_DE_ESTADOS } from "./fila-core";
+import { Marca } from "@/components/ui";
 import type { PasoVacio as Paso } from "./pasos";
 
 type Professional = { id: string; name: string; box: { name: string } | null };
@@ -18,7 +20,7 @@ type Appointment = {
   priceAtBooking: number | null;
   notes: string | null;
   client: { name: string; phone: string };
-  professional: { name: string };
+  professional: { name: string; cobraEnMostrador?: boolean };
   service: { name: string; price: number; depositAmount?: number | null };
   box: { name: string };
   payment: { method: string; comprobanteNro: string | null; amount?: number; status?: string } | null;
@@ -195,17 +197,17 @@ export default function CalendarGrid({
         </div>
       </div>
 
-      <div className="hidden lg:flex mt-4 flex-wrap items-center gap-3 text-xs text-muted">
-        <span className="inline-flex items-center gap-1">
-          <span className="h-3 w-3 rounded bg-warning-soft border border-warning/40" /> Pendiente
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-3 w-3 rounded bg-success-soft border border-success/40" /> Confirmado
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-3 w-3 rounded bg-info-soft border border-info/40" /> Completado
-        </span>
-      </div>
+      {/* B4: la leyenda nombra los 5 estados con forma + palabra (`Marca`), no sólo con color. Antes
+          faltaba «No se presentó» y los bloques rojos de la grilla no tenían explicación; y decía
+          «Pendiente» donde la tarjeta dice «Reservado». */}
+      <ul aria-label="Qué quiere decir cada estado" className="hidden lg:flex mt-4 flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted">
+        {LEYENDA_DE_ESTADOS.map((e) => (
+          <li key={e.status} className="inline-flex items-center gap-1.5">
+            <span aria-hidden className={`h-3 w-3 rounded border ${statusStyles[e.status] ?? "bg-surface-sunken border-line-strong"}`} />
+            <Marca tipo={e.tipo}>{e.palabra}</Marca>
+          </li>
+        ))}
+      </ul>
 
       {selected && (
         <div className="hidden lg:block mt-6">

@@ -16,6 +16,13 @@ import { agendaPractica } from "@/lib/turnos/practica.server";
 import { fechaPropuestaDelAlta, profesionalPropuesta } from "@/lib/turnos/practica";
 import AgendaRenglon from "../AgendaRenglon";
 import DarTurnoCajon from "../_agenda/DarTurnoCajon";
+import { buttonClasses } from "@/components/ui";
+import { roleHasCapability } from "@/lib/capabilities";
+import { prisma } from "@/lib/prisma";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { contarTurnosSinCerrar } from "@/apps/kpis/turnos-sin-cerrar.server";
+import { RUTA_CERRAR_PENDIENTE } from "../../inicio/bandeja-core";
+import { diaCorto, textoSinCerrar, ventanaDeLista } from "./lista-core";
 
 export const dynamic = "force-dynamic";
 
@@ -51,8 +58,8 @@ export const statusLabel: Record<string, string> = {
 // `proyeccion-payload.test.ts`, al lado de este archivo, monta guardia sobre las dos cosas.
 //
 // Paginar el historial es OTRA cosa y quedó afuera a propósito: el buscador de
-// `AppointmentsHistoryList` filtra en el cliente y necesita el set completo. Con proyectar
-// alcanza hasta ~2.000 turnos/año; pasado eso hay que mover el buscador al servidor.
+// `AppointmentsHistoryList` filtra en el cliente sobre lo cargado. B8 (reingeniería CH, Tanda 1):
+// lo cargado son los últimos 90 días (`ventanaDeLista`) con «Ver más atrás» (?desde=), no 365.
 type TurnoDelLoader = Awaited<ReturnType<typeof getAppointments>>[number];
 
 function proyectarTurno(a: TurnoDelLoader) {
@@ -91,7 +98,12 @@ function instanteDeCarga() {
 export default async function TurnosListaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ nuevo?: string | string[]; fecha?: string | string[]; cliente?: string | string[] }>;
+  searchParams: Promise<{
+    nuevo?: string | string[];
+    fecha?: string | string[];
+    cliente?: string | string[];
+    desde?: string | string[];
+  }>;
 }) {
   // La lista (historial completo + alta manual) es gestión de agenda: solo
   // OWNER/RECEPTION. El PROFESSIONAL cae acá a su calendario propio.
@@ -102,6 +114,9 @@ export default async function TurnosListaPage({
   // Quién mira. Alimenta la misma regla que aplica el servidor al cobrar, para que la fila no
   // ofrezca un cobro que después se rechaza.
   const viewer = { role: user.role, professionalId: user.professionalId };
+  // B2: lo que la fila puede ofrecer, con los MISMOS permisos que pide el servidor. La lista exige
+  // `agenda:manage`; cobrar es `agenda:collect` (y por turno, `puedeCobrarEsteTurno` con `viewer`).
+  const permisos = { gestionar: true, cobrar: roleHasCapability(user.role, "agenda:collect") };
   // "Dar un turno" desde un estado vacío de la agenda llega con ?nuevo=1&fecha=… (pasos.ts): el
   // alta se abre sola y con el día puesto. Sin eso, la lista es la de siempre.
   const sp = await searchParams;
@@ -140,25 +155,28 @@ export default async function TurnosListaPage({
       />
     );
   }
-  const [appointments, professionals, fichas, faltazos, practica] = await Promise.all([
-    getAppointments(),
+  // B8: 90 días (o lo que pida «Ver más atrás»), no 365. Los pasados sin cerrar se CUENTAN aparte,
+  // sin tope de días: uno de hace 4 meses también tiene que aparecer (src/apps/kpis).
+  const ventana = ventanaDeLista(sp.desde, todayInBusinessTz());
+  const ahora = instanteDeCarga();
+  const [appointments, professionals, fichas, faltazos, practica, sinCerrar] = await Promise.all([
+    getAppointments(ventana.dias),
     getProfessionalsWithServices(),
     getFichasParaAlta(),
     // Inicio por apps: el aviso de faltazos al dar el turno. CH, fuera del piloto, sin cambios.
     enInicioPorApps().then((piloto) => (piloto ? cargarFaltazosPorFicha() : undefined)),
     agendaPractica(),
+    getCurrentTenantId().then((tenantId) => contarTurnosSinCerrar(prisma, tenantId, ahora)),
   ]);
   // Único punto donde se lee el resultado crudo del loader: de acá para abajo se trabaja
   // siempre con `turnos`, que es lo que el navegador va a recibir.
   const turnos = appointments.map(proyectarTurno);
   // La sección "Reservados" se PARTE en dos (regla pura `seccionDeLista`, con test):
-  //   · pasados sin cerrar: Reservados Y Confirmados con la hora ya pasada. Antes el Confirmado
-  //     de ayer se iba al Historial como si estuviera resuelto, y era un saldo sin cobrar o
-  //     una ausencia sin marcar;
+  //   · pasados sin cerrar: Reservados Y Confirmados con la hora ya pasada. Ya no se dibujan acá
+  //     como tarjetas: son un renglón «N pasados sin cerrar → [Cerrar lo pendiente]» que lleva a
+  //     la bandeja que los cierra en lote (/admin/turnos/cerrar);
   //   · a confirmar: los Reservados que todavía no llegaron.
   // Un turno cae en una sola: nada se repite en el Historial.
-  const ahora = instanteDeCarga();
-  const sinCerrar = turnos.filter((a) => seccionDeLista(a, ahora) === "sin-cerrar");
   const pending = turnos.filter((a) => seccionDeLista(a, ahora) === "a-confirmar");
   // Cuentas a cobrar DERIVADAS: turnos prestados (COMPLETED) con saldo > 0. No es un estado
   // nuevo del enum (decisión de producto): es precio − Σ cobros, en la fila y acá.
@@ -191,6 +209,9 @@ export default async function TurnosListaPage({
       </p>
 
       <NewAppointmentForm
+        // B1: quién da el turno. Sin esto el alta suponía OWNER y le ofrecía «Cobrar ahora» a la
+        // recepción para la profesional que cobra aparte; el servidor lo rechazaba al final.
+        viewer={viewer}
         professionals={professionals}
         fichas={fichas}
         faltazos={faltazos}
@@ -201,18 +222,18 @@ export default async function TurnosListaPage({
         profesionalInicial={practica ? profesionalPropuesta(professionals) : ""}
       />
 
-      {sinCerrar.length > 0 && (
-        <section className="mb-10">
-          <h2 className="text-lg font-medium text-strong mb-1">Pasados sin cerrar ({sinCerrar.length})</h2>
-          <p className="text-sm text-muted mb-3">
-            Ya pasó la hora y siguen reservados o confirmados: completalos (y cobrá el saldo) o
-            marcá que no se presentó.
+      {sinCerrar > 0 && (
+        <section
+          aria-label="Pasados sin cerrar"
+          className="mb-10 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/40 bg-warning-soft px-4 py-3"
+        >
+          <p className="text-sm text-body">
+            <span className="font-medium text-strong">{textoSinCerrar(sinCerrar)}</span>
+            <span className="text-muted"> · ya pasó la hora y siguen reservados o confirmados</span>
           </p>
-          <div className="space-y-3">
-            {sinCerrar.map((a) => (
-              <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} practica={practica} ancla />
-            ))}
-          </div>
+          <Link href={RUTA_CERRAR_PENDIENTE} className={buttonClasses("solid", "sm", "whitespace-nowrap max-sm:min-h-11")}>
+            Cerrar lo pendiente
+          </Link>
         </section>
       )}
 
@@ -225,7 +246,16 @@ export default async function TurnosListaPage({
         )}
         <div className="space-y-3">
           {pending.map((a) => (
-            <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} practica={practica} ancla />
+            <AppointmentRow
+              key={a.id}
+              appointment={a}
+              statusLabel={statusLabel}
+              viewer={viewer}
+              canManage={permisos.gestionar}
+              canCollect={permisos.cobrar}
+              practica={practica}
+              ancla
+            />
           ))}
         </div>
       </section>
@@ -233,18 +263,43 @@ export default async function TurnosListaPage({
       {aCobrar.length > 0 && (
         <section className="mb-10">
           <h2 className="text-lg font-medium text-strong mb-3">Saldos a cobrar ({aCobrar.length})</h2>
-          <p className="text-sm text-muted mb-3">Turnos ya realizados con plata pendiente.</p>
+          <p className="text-sm text-muted mb-3">
+            Turnos ya realizados con plata pendiente, desde el {diaCorto(ventana.desde)}.
+          </p>
           <div className="space-y-3">
             {aCobrar.map((a) => (
-              <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} practica={practica} />
+              <AppointmentRow
+                key={a.id}
+                appointment={a}
+                statusLabel={statusLabel}
+                viewer={viewer}
+                canManage={permisos.gestionar}
+                canCollect={permisos.cobrar}
+                practica={practica}
+              />
             ))}
           </div>
         </section>
       )}
 
       <section>
-        <h2 className="text-lg font-medium text-strong mb-3">Historial</h2>
-        <AppointmentsHistoryList appointments={rest} statusLabel={statusLabel} practica={practica} />
+        <h2 className="text-lg font-medium text-strong mb-1">Historial</h2>
+        <p className="text-sm text-muted mb-3">Desde el {diaCorto(ventana.desde)} y lo que viene.</p>
+        <AppointmentsHistoryList
+          appointments={rest}
+          statusLabel={statusLabel}
+          practica={practica}
+          viewer={viewer}
+          permisos={permisos}
+        />
+        {ventana.masAtras && (
+          <Link
+            href={`/admin/turnos/lista?desde=${ventana.masAtras}`}
+            className={buttonClasses("outline", "sm", "mt-4 max-sm:min-h-11")}
+          >
+            Ver más atrás (desde el {diaCorto(ventana.masAtras)})
+          </Link>
+        )}
       </section>
     </main>
   );
