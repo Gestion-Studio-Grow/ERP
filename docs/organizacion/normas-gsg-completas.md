@@ -1,3 +1,4 @@
+<!-- Texto completo de las normas de GSG. El CLAUDE.md de la raíz es la versión corta que se carga siempre. -->
 @AGENTS.md
 
 ## Arranque de sesión — OBLIGATORIO SIEMPRE (regla de alto nivel)
@@ -96,6 +97,10 @@ Preset por IA** exige **autorización registrada del cliente** antes de replicar
 Norma dura de operación de GSG para no saturar el servicio y **concentrar los recursos escasos en lo que
 vende**. Complementa el modelo de células por capa (arriba) y la escala del sprint.
 
+> **OBSOLETO desde el 22/10/2026** (economía de tokens, `Factory-GSG/10-GOBIERNO/economia-de-tokens.md`): re-asignar
+> una sesión o un agente a otra tarea arrastra todo su contexto y fue el desperdicio nº 2 medido. Rige «un agente =
+> una tarea, fresco», con un máximo de 3 agentes pesados en simultáneo. Lo que sigue queda como histórico.
+
 **Pool fijo de 5 sesiones REUTILIZABLES — se re-asignan, no se multiplican (norma dura):** trabajamos con un
 **pool fijo de hasta 5 sesiones** (5 slots = 5 worktrees vivos). La regla es **REUTILIZAR SIEMPRE**: cuando un
 frente cierra, su sesión **NO se descarta ni se abre una nueva** — se **re-asigna** al próximo frente de la
@@ -162,6 +167,10 @@ seed/migraciones, secretos, permisos, marca de cliente, gasto/órdenes de impo) 
 eleva al dueño**. **Regla de oro: ante la duda, se trata como irreversible.** Corre en **Opus 5.5**. Detalle: **`docs/adr/ADR-048-arquitecto-de-solucion.md`** · charter operativo **`docs/organizacion/arquitecto-de-solucion.md`**.
 
 ## 🎓 Protocolo de calibración universal — TODO agente calibra antes de actuar (ADR-052)
+
+> **Enmienda del 22/10/2026 (economía de tokens):** la calibración se hace con el BRIEF del agente (rol, principios
+> de su zona, la lección del área de riesgo que toca) y el `CLAUDE.md` corto. No se lee el corpus entero antes de
+> actuar: los documentos se consultan por `archivo:línea` cuando la tarea los necesita.
 
 **Antes de actuar, todo agente corre 3 pasos:** (1) **leer el corpus** de su rol —`CLAUDE.md` + los **ADRs
 de su rol** + **bases/roadmap** (`ESTADO-ACTUAL.md`) + la **memoria de lecciones** (`docs/lecciones-aprendidas/registro.md`)—;
