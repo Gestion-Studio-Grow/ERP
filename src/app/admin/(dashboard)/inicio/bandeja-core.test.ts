@@ -11,6 +11,8 @@ import {
   lineaDelDia,
   misAppsDeFabrica,
   montoANumero,
+  nombresCortos,
+  pendienteDeSenias,
   pendientesDeLaBandeja,
   porObjetivo,
   RUTA_CERRAR_PENDIENTE,
@@ -315,4 +317,55 @@ test("turnos sin cerrar: «Quedaron N sin cerrar» en Cerrar, con la tecla a «C
     new Map(),
   ).pendientes;
   assert.deepEqual(conCaja.map((x) => x.tecla.href), ["/admin/turnos/cerrar", "/admin/caja/cierre"]);
+});
+
+// ── Tanda 3 (CH-037): el Inicio de la dueña ──────────────────────────────────
+
+test("CH-037 · la línea de estado lleva la caja de hoy (sólo si llega el número)", () => {
+  assert.deepEqual(lineaDelDia(new Map([["agenda", ok("14", { detalle: "turnos hoy" })]]), 86500), ["Caja de hoy: $86.500", "14 turnos hoy"]);
+  assert.deepEqual(lineaDelDia(new Map(), null), [], "quien no ve la plata no la lee");
+  assert.deepEqual(lineaDelDia(new Map(), Number.NaN), []);
+  assert.deepEqual(lineaDelDia(new Map(), -2000), ["Caja de hoy: −$2.000"]);
+});
+
+test("CH-037 · mañana sin avisar → [Avisar a las N]", () => {
+  const { pendientes } = pendientesDeLaBandeja([{ app: app("confirmar-manana", "/admin/turnos/manana"), resultado: ok("9", { detalle: "9 sin avisar" }) }], new Map());
+  assert.equal(pendientes[0].folio, "Mañana");
+  assert.deepEqual(pendientes[0].tecla, { texto: "Avisar a las 9", href: "/admin/turnos/manana" });
+  const uno = pendientesDeLaBandeja([{ app: app("confirmar-manana", "/admin/turnos/manana"), resultado: ok("1", { detalle: "1 sin avisar" }) }], new Map());
+  assert.equal(uno.pendientes[0].tecla.texto, "Avisarle");
+});
+
+test("CH-037 · señas sin cobrar: «Hoy · 2 señas sin cobrar (Laura, Martina) $10.000 [Cobrar]»", () => {
+  const dia = (iso: string) => iso.slice(0, 10);
+  const senias = [
+    { turnoId: "t1", clienta: "Laura Gómez", monto: 5000, inicio: "2026-10-24T19:00:00.000Z" },
+    { turnoId: "t2", clienta: "Martina Ruiz", monto: 5000, inicio: "2026-10-25T13:00:00.000Z" },
+  ];
+  const p = pendienteDeSenias(senias, { hoy: "2026-10-24", dia, verPlata: true });
+  assert.ok(p);
+  assert.equal(p.objetivo, "cobrar");
+  assert.equal(p.folio, "Hoy");
+  assert.equal(p.titulo, "2 señas sin cobrar (Laura y Martina)");
+  assert.equal(p.monto, "$10.000");
+  assert.equal(montoANumero(p.monto), 10000);
+  assert.deepEqual(p.tecla, { texto: "Cobrar", href: "/admin/turnos/lista" });
+  // Una sola: la tecla abre ESE turno en la agenda de su día.
+  const una = pendienteDeSenias([senias[1]], { hoy: "2026-10-24", dia, verPlata: false });
+  assert.equal(una?.folio, "Mañana");
+  assert.equal(una?.titulo, "1 seña sin cobrar (Martina)");
+  assert.equal(una?.monto, undefined, "sin permiso de plata, sin monto");
+  assert.equal(una?.tecla.href, "/admin/turnos?date=2026-10-25&turno=t2");
+  assert.equal(pendienteDeSenias([senias[0]], { hoy: "2026-10-24", dia, verPlata: true })?.tecla.href, "/admin/turnos?turno=t1");
+  assert.equal(pendienteDeSenias([], { hoy: "2026-10-24", dia, verPlata: true }), null);
+  // Sube a la bandeja como un pendiente más, en el objetivo Cobrar.
+  const { pendientes } = pendientesDeLaBandeja(ITEMS, new Map(), [p]);
+  assert.equal(porObjetivo(pendientes)[0].items.some((x) => x.titulo.startsWith("2 señas")), true);
+});
+
+test("nombres cortos para el renglón", () => {
+  assert.equal(nombresCortos(["Laura Gómez"]), "Laura");
+  assert.equal(nombresCortos(["Laura", "Martina", "Sofía"]), "Laura, Martina y Sofía");
+  assert.equal(nombresCortos(["A", "B", "C", "D", "E"]), "A, B, C y 2 más");
+  assert.equal(nombresCortos([]), "");
 });

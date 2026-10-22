@@ -168,6 +168,8 @@ export default async function AgendaRenglon({
     ...(agenda.profesionales.length > 1 || quien.role !== "PROFESSIONAL"
       ? [{ href: hrefDia(dia, hoy, "profesionales"), etiqueta: "Por profesional", actual: vista === "profesionales" }]
       : []),
+    // La semana de ESE día (reingeniería CH, Tanda 3 · CH-036): ocupación y huecos por profesional.
+    { href: `/admin/turnos/semana?desde=${dia}`, etiqueta: "Semana" },
     ...(permisos.gestionar ? [{ href: "/admin/turnos/lista", etiqueta: "Todos los turnos" }] : []),
   ];
 
