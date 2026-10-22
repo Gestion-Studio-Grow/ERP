@@ -595,6 +595,7 @@ export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub 
         const x = a[0] as AccionBandeja;
         const que: Record<string, string> = { cierreConDiferencia: "el cierre de caja que no cuadró", vencePago: "el pago a un proveedor", aparte: "lo que quedó aparte", stock: "el aviso de stock" };
         return `Dejar para mañana ${que[String(x.clave).split(":")[0]] ?? "un aviso"}`;
+      }
       case "ventaACuenta": {
         const [cuentaId, carrito] = a as [string, Carrito];
         const n = Object.values(carrito ?? {}).reduce((s, x) => s + (x > 0 ? x : 0), 0);
