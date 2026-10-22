@@ -18,6 +18,7 @@ import PaletaApps from "./inicio/PaletaApps";
 import BarraInferior from "./inicio/BarraInferior";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import type { NavDelArmazon } from "./armazon/navegacion";
+import { ChipDePedidosNuevos, PedidosNuevos } from "./ChipDePedidosNuevos";
 
 // DISEÑO NUEVO («Renglón», interruptor "Diseño nuevo" del negocio): el armazón nuevo vive en su
 // propio archivo y se carga APARTE (`next/dynamic`): un negocio con el interruptor apagado (CH) nunca
@@ -459,12 +460,19 @@ export type PropsDelArmazon = Parameters<typeof ArmazonDeSiempre>[0] & {
    * el diseño nuevo prendido: apagado no viaja (ni en el HTML ni en el payload de CH).
    */
   nav?: NavDelArmazon;
+  /**
+   * El chip de pedidos nuevos de la tienda en la cabecera (ChipDePedidosNuevos.tsx, Magra 1I). Lo
+   * decide el layout: mostrador boutique prendido y la persona puede ver pedidos. Apagado (CH y todo
+   * negocio sin el interruptor) no se monta nada: ni consulta ni un nodo de más.
+   */
+  pedidosNuevos?: boolean;
 };
 
 /** El armazón del panel: el nuevo con el diseño nuevo prendido; si no, el de siempre. */
-export default function AdminShell({ nav, ...props }: PropsDelArmazon) {
+export default function AdminShell({ nav, pedidosNuevos = false, ...props }: PropsDelArmazon) {
   const nuevo = useDiseno();
-  return nuevo && nav ? <ArmazonNuevo {...props} nav={nav} /> : <ArmazonDeSiempre {...props} />;
+  const armazon = nuevo && nav ? <ArmazonNuevo {...props} nav={nav} /> : <ArmazonDeSiempre {...props} />;
+  return pedidosNuevos ? <PedidosNuevos>{armazon}</PedidosNuevos> : armazon;
 }
 
 function ArmazonDeSiempre({
@@ -646,6 +654,8 @@ function ArmazonDeSiempre({
             <ThemeToggle />
           </span>
         </header>
+        {/* Pedidos nuevos de la tienda (sólo con el chip montado; si no, no dibuja nada). */}
+        <ChipDePedidosNuevos lugar="movil" arriba="top-14" />
 
         {/* Header desktop — sticky con blur (fix 29), como ya hacía el móvil. */}
         <header className="hidden lg:flex sticky top-0 z-30 bg-surface-raised/90 backdrop-blur border-b border-line px-8 h-[58px] items-center justify-between gap-4">
@@ -658,6 +668,7 @@ function ArmazonDeSiempre({
             {activeProfile && <ProfileBadge profile={activeProfile} />}
           </div>
           <div className="flex items-center gap-3">
+            <ChipDePedidosNuevos lugar="pc" />
             <FechaDeHoy />
             {/* Toggle claro/oscuro del backoffice (skin Fable) — discreto, en la topbar. */}
             <ThemeToggle />

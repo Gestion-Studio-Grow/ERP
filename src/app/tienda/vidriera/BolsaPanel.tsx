@@ -22,6 +22,19 @@ import type { Palabras } from "./marcas";
 import type { EstadoVidriera } from "./useVidriera";
 import { Paso } from "./Paso";
 import { IconoCerrar, IconoWhatsApp } from "./Iconos";
+import { CamposDeEntrega, FrenoDeEntrega, type AparienciaDeEntrega } from "../EntregaDeLaTienda";
+
+// La piel de la vidriera para la zona, el día, la franja y el freno (EntregaDeLaTienda.tsx).
+const APARIENCIA_ENTREGA: AparienciaDeEntrega = {
+  bloque: { className: s.entrega },
+  campo: { className: s.campo },
+  grupo: { className: s.franjas },
+  opcion: { className: s.franja },
+  nota: { className: s.notaEntrega },
+  empujon: { className: s.empujon },
+  freno: { className: s.freno },
+  boton: { className: `${s.btn} ${s.btnSec}` },
+};
 
 export function BolsaPanel({
   v,
@@ -31,6 +44,7 @@ export function BolsaPanel({
   textoPago,
   envio,
   envioSinTarifa,
+  direccionDelLocal = null,
   abierta,
   onCerrar,
   onAbrirFicha,
@@ -42,6 +56,8 @@ export function BolsaPanel({
   textoPago: string;
   envio: ShippingConfig | null;
   envioSinTarifa: "sin-cargo" | "a-coordinar";
+  /** La dirección del local, para «Retirás en …» si el negocio cargó el horario de retiro. */
+  direccionDelLocal?: string | null;
   abierta: boolean;
   onCerrar: () => void;
   onAbrirFicha: (id: string) => void;
@@ -49,7 +65,7 @@ export function BolsaPanel({
   const titulo = useRef<HTMLHeadingElement>(null);
   const [conCupon, setConCupon] = useState(false);
   const hay = v.lineas.length > 0;
-  const { pedido, cupon } = v;
+  const { pedido, cupon, entrega } = v;
   const errorDeCupon = pedido.error?.campo === "cupon" ? pedido.error.texto : cupon.error;
 
   // Hoja abierta (celular): el foco entra, Esc cierra, la página de atrás no se mueve.
@@ -68,10 +84,12 @@ export function BolsaPanel({
     };
   }, [abierta, onCerrar]);
 
+  // Con zonas propias (Envíos del negocio) el costo es el de la zona elegida: hasta elegirla, se pide.
+  const faltaLaZona = entrega.modo === "envio" && entrega.conZonas && !entrega.zona;
   const envioTexto = textoDelEnvio({
     fulfillment: v.fulfillment,
     costo: v.costoEnvio,
-    hayTarifa: Boolean(envio),
+    hayTarifa: Boolean(envio) || entrega.conZonas,
     sinTarifa: envioSinTarifa,
     hayProductos: hay,
   });
@@ -170,8 +188,16 @@ export function BolsaPanel({
             </div>
           )}
           <div className={s.fila}>
-            <span>{v.fulfillment === "PICKUP" ? "Retiro en el local" : zona ? `Envío · ${zona}` : "Envío"}</span>
-            <span className={s.num}>{envioTexto}</span>
+            <span>
+              {v.fulfillment === "PICKUP"
+                ? "Retiro en el local"
+                : entrega.zona
+                  ? `Envío · ${entrega.zona.nombre}`
+                  : zona && !entrega.conZonas
+                    ? `Envío · ${zona}`
+                    : "Envío"}
+            </span>
+            <span className={s.num}>{faltaLaZona ? "Elegí la zona" : envioTexto}</span>
           </div>
           <div className={`${s.fila} ${s.total}`}>
             <span>{v.hayPeso ? "Total estimado" : "Total"}</span>
@@ -194,7 +220,7 @@ export function BolsaPanel({
           </label>
           <div className={s.campo} role="radiogroup" aria-label="Entrega">
             <span aria-hidden>Entrega</span>
-            <div className={s.segm}>
+            <div className={s.segm} style={entrega.hayRetiro ? undefined : { gridTemplateColumns: "1fr" }}>
               <label>
                 <input
                   type="radio"
@@ -205,16 +231,18 @@ export function BolsaPanel({
                 />
                 <span>Envío a domicilio</span>
               </label>
-              <label>
-                <input
-                  type="radio"
-                  name="fulfillment"
-                  value="PICKUP"
-                  checked={v.fulfillment === "PICKUP"}
-                  onChange={() => v.setFulfillment("PICKUP")}
-                />
-                <span>Retiro en el local</span>
-              </label>
+              {entrega.hayRetiro && (
+                <label>
+                  <input
+                    type="radio"
+                    name="fulfillment"
+                    value="PICKUP"
+                    checked={v.fulfillment === "PICKUP"}
+                    onChange={() => v.setFulfillment("PICKUP")}
+                  />
+                  <span>Retiro en el local</span>
+                </label>
+              )}
             </div>
           </div>
           {v.fulfillment === "DELIVERY" && (
@@ -223,6 +251,8 @@ export function BolsaPanel({
               <input name="address" required autoComplete="street-address" placeholder="Calle, número, barrio" />
             </label>
           )}
+          {/* Zona, día y franja (Envíos del negocio). Sin configuración no dibuja nada. */}
+          <CamposDeEntrega e={entrega} idBase="v-entrega" apariencia={APARIENCIA_ENTREGA} direccionDelLocal={direccionDelLocal} />
           <label className={s.campo}>
             <span>
               Nota <small>(opcional)</small>
@@ -268,6 +298,7 @@ export function BolsaPanel({
         </fieldset>
       )}
 
+      {hay && <FrenoDeEntrega e={entrega} apariencia={APARIENCIA_ENTREGA} />}
       {pedido.error && pedido.error.campo !== "cupon" && (
         <p role="alert" className={s.avisoErr}>
           {pedido.error.texto}
@@ -281,13 +312,13 @@ export function BolsaPanel({
             name="via"
             value="tienda"
             className={`${s.btn} ${s.btnPri}`}
-            disabled={pedido.enviando}
+            disabled={pedido.enviando || Boolean(entrega.freno)}
             aria-busy={pedido.enviando || undefined}
           >
             {pedido.enviando ? "Enviando…" : `Enviar pedido · ${plata(v.total)}`}
           </button>
           {hayWhatsApp && hay && (
-            <button type="submit" name="via" value="whatsapp" className={`${s.btn} ${s.btnWa}`} disabled={pedido.enviando}>
+            <button type="submit" name="via" value="whatsapp" className={`${s.btn} ${s.btnWa}`} disabled={pedido.enviando || Boolean(entrega.freno)}>
               <IconoWhatsApp /> Pedir por WhatsApp
             </button>
           )}

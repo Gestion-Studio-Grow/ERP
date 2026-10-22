@@ -10,7 +10,9 @@ import type { StorefrontCopy } from "@/tenants/storefront";
 import type { TenantLayout, SectionKey, StorefrontPalette } from "@/lib/tenant-layout";
 import { FONT_VAR, resolveSectionOrder } from "@/lib/tenant-layout";
 import { productGradient, productGlyph, groupBySection, linesWithStock } from "@/lib/storefront-visual";
-import { shippingCost, amountToFreeShipping } from "@/lib/storefront-shipping";
+import { amountToFreeShipping } from "@/lib/storefront-shipping";
+import type { ConfigEnvios } from "@/lib/envios/modelo";
+import { CamposDeEntrega, FrenoDeEntrega, useEntregaDeLaTienda, type AparienciaDeEntrega } from "./EntregaDeLaTienda";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 
 // Paleta cálida-minimalista (premium/boutique) — ahora sobre los DESIGN TOKENS del
@@ -83,6 +85,9 @@ type StorefrontProps = {
   layout?: TenantLayout;
   logoAsset?: string | null;
   fidelity?: boolean;
+  /** Envíos del negocio (src/lib/envios) y hoy en su zona horaria; null = lo de siempre (Magra 1I). */
+  entrega?: ConfigEnvios | null;
+  hoy?: string | null;
 };
 
 // El CTA de WhatsApp nunca abre a un número hardcodeado: si el tenant no tiene
@@ -106,6 +111,8 @@ function StorefrontContent({
   layout,
   logoAsset,
   fidelity,
+  entrega: configEnvios = null,
+  hoy = null,
 }: StorefrontProps) {
   const { requestWhatsApp } = useWhatsAppCta();
   // Fidelidad de layout: solo si el flag está ON y el tenant declaró estructura. Sin esto
@@ -180,8 +187,19 @@ function StorefrontContent({
   // muestra el desglose + el nudge de envío gratis. Sin config → 0 y sin línea.
   // Es la MISMA tarifa y la misma regla con las que el servidor suma el envío como línea del
   // pedido: lo que se ve acá es lo que llega a la bandeja.
-  const shipCfg = copy?.shipping ?? null;
-  const shipping = shippingCost(total, fulfillment, shipCfg);
+  // Con Envíos del negocio cargados (zonas, franjas, mínimo, pausa) la entrega se elige y se cotiza con
+  // las mismas reglas que el servidor (EntregaDeLaTienda.tsx). Sin config, la tarifa del copy de siempre.
+  const entrega = useEntregaDeLaTienda({
+    entrega: configEnvios,
+    hoy,
+    subtotal: total,
+    hayProductos: hasItems,
+    envio: copy?.shipping ?? null,
+    fulfillment,
+    setFulfillment,
+  });
+  const shipCfg = entrega.conZonas ? null : (copy?.shipping ?? null);
+  const shipping = entrega.costoEnvio;
   const cupon = useCuponDePedido(total);
   const grandTotal = total - cupon.descuento + shipping;
   const missingForFree = amountToFreeShipping(total, shipCfg);
@@ -496,26 +514,30 @@ function StorefrontContent({
                     <span style={{ fontVariantNumeric: "tabular-nums" }}>−{money2.format(cupon.descuento)}</span>
                   </div>
                 )}
-                {shipCfg && (
+                {(shipCfg || entrega.conZonas) && (
                   <>
                     <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${T.line}`, paddingTop: 10, fontSize: 14, color: T.muted }}>
                       <span>Subtotal</span>
                       <span style={{ fontVariantNumeric: "tabular-nums" }}>{money2.format(total)}</span>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: T.muted }}>
-                      <span>Envío · {fulfillment === "PICKUP" ? "retiro en el local" : "a domicilio"}</span>
-                      <span style={{ fontVariantNumeric: "tabular-nums", color: shipping === 0 ? "var(--accent)" : T.ink, fontWeight: shipping === 0 ? 700 : 400 }}>
-                        {shipping === 0 ? "Gratis" : money2.format(shipping)}
-                      </span>
+                      <span>Envío · {entrega.fulfillment === "PICKUP" ? "retiro en el local" : entrega.zona ? entrega.zona.nombre : "a domicilio"}</span>
+                      {entrega.modo === "envio" && entrega.conZonas && !entrega.zona ? (
+                        <span>Elegí la zona</span>
+                      ) : (
+                        <span style={{ fontVariantNumeric: "tabular-nums", color: shipping === 0 ? "var(--accent)" : T.ink, fontWeight: shipping === 0 ? 700 : 400 }}>
+                          {shipping === 0 ? "Gratis" : money2.format(shipping)}
+                        </span>
+                      )}
                     </div>
                   </>
                 )}
                 <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${T.line}`, paddingTop: 10, fontWeight: 800 }}>
-                  <span>{shipCfg ? "Total" : "Total estimado"}</span>
+                  <span>{shipCfg || entrega.conZonas ? "Total" : "Total estimado"}</span>
                   <span aria-live="polite" style={{ color: "var(--accent)", fontVariantNumeric: "tabular-nums" }}>{money2.format(grandTotal)}</span>
                 </div>
                 {/* Nudge de envío gratis (sólo en envío a domicilio, con carrito no vacío). */}
-                {shipCfg && fulfillment === "DELIVERY" && hasItems && (
+                {shipCfg && entrega.fulfillment === "DELIVERY" && hasItems && (
                   missingForFree > 0 ? (
                     <div style={{ display: "grid", gap: 6 }}>
                       <p style={{ margin: 0, fontSize: 12.5, color: T.muted }}>
@@ -536,12 +558,13 @@ function StorefrontContent({
                 <label style={lbl}><span style={lblT}>WhatsApp *</span><input name="customerPhone" required style={inp} placeholder="11…" /></label>
                 <label style={lbl}>
                   <span style={lblT}>Entrega</span>
-                  <select name="fulfillment" value={fulfillment} onChange={(e) => setFulfillment(e.target.value as "PICKUP" | "DELIVERY")} style={inp}>
-                    <option value="PICKUP">Retiro en el local</option>
+                  <select name="fulfillment" value={entrega.fulfillment} onChange={(e) => setFulfillment(e.target.value as "PICKUP" | "DELIVERY")} style={inp}>
+                    {entrega.hayRetiro && <option value="PICKUP">Retiro en el local</option>}
                     <option value="DELIVERY">Envío a domicilio</option>
                   </select>
                 </label>
-                {fulfillment === "DELIVERY" && (<label style={lbl}><span style={lblT}>Dirección *</span><input name="address" required style={inp} placeholder="Calle, número, barrio" /></label>)}
+                {entrega.fulfillment === "DELIVERY" && (<label style={lbl}><span style={lblT}>Dirección *</span><input name="address" required style={inp} placeholder="Calle, número, barrio" /></label>)}
+                <CamposDeEntrega e={entrega} idBase="sf-entrega" apariencia={APARIENCIA_ENTREGA} direccionDelLocal={branding?.addressLine ?? null} />
                 <label style={{ ...lbl, gridColumn: "1 / -1" }}><span style={lblT}>Nota</span><input name="notes" style={inp} placeholder={wording.notesPlaceholder} /></label>
                 <div style={{ ...lbl, gridColumn: "1 / -1" }}>
                   <label htmlFor="sf-cupon" style={lblT}>Cupón (opcional)</label>
@@ -568,6 +591,7 @@ function StorefrontContent({
                   )}
                 </div>
               </div>
+              <FrenoDeEntrega e={entrega} apariencia={APARIENCIA_ENTREGA} />
               {pedido.error && pedido.error.campo !== "cupon" && (
                 <p role="alert" style={{ margin: 0, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--danger, #b42318)", color: "var(--text-strong)", fontSize: 13.5, lineHeight: 1.45 }}>
                   {pedido.error.texto}
@@ -577,7 +601,7 @@ function StorefrontContent({
                 type="submit"
                 name="via"
                 value="tienda"
-                disabled={pedido.enviando}
+                disabled={pedido.enviando || Boolean(entrega.freno)}
                 aria-busy={pedido.enviando || undefined}
                 style={{ ...cta("var(--accent)", "var(--text-on-accent)"), height: 48, ...(pedido.enviando ? { opacity: 0.7, cursor: "progress" } : null) }}
               >
@@ -585,7 +609,7 @@ function StorefrontContent({
               </button>
               {hayWhatsApp ? (
                 // Registra el pedido y DESPUÉS abre el chat con su número.
-                <button type="submit" name="via" value="whatsapp" disabled={pedido.enviando} style={{ ...cta("#fff", "#118648", "1px solid #25D366"), height: 46 }}>Pedir por WhatsApp</button>
+                <button type="submit" name="via" value="whatsapp" disabled={pedido.enviando || Boolean(entrega.freno)} style={{ ...cta("#fff", "#118648", "1px solid #25D366"), height: 46 }}>Pedir por WhatsApp</button>
               ) : (
                 <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={{ ...cta("#fff", "#118648", "1px solid #25D366"), height: 46 }}>Pedir por WhatsApp</button>
               )}
@@ -800,6 +824,22 @@ function qtyBtn(bg: string, color: string): CSSProperties {
 }
 const lbl: CSSProperties = { display: "grid", gap: 4, fontSize: 13 };
 const lblT: CSSProperties = { color: "var(--text-muted)" };
+// La zona, el día, la franja y el freno (EntregaDeLaTienda.tsx) con los mismos estilos del formulario.
+// Sin Envíos cargados no se dibuja nada.
+const APARIENCIA_ENTREGA: AparienciaDeEntrega = {
+  bloque: { style: { display: "grid", gap: 10, gridColumn: "1 / -1" } },
+  campo: { style: { display: "grid", gap: 4, fontSize: 13 } },
+  rotulo: { style: { color: "var(--text-muted)" } },
+  control: { style: { minHeight: 44, border: "1px solid var(--line-strong)", borderRadius: 10, padding: "10px 12px", fontSize: 14, background: "var(--surface-raised)", color: "var(--text-strong)" } },
+  grupo: { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
+  opcion: { style: { display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, padding: "0 12px", border: "1px solid var(--line-strong)", borderRadius: 999, fontSize: 13, cursor: "pointer" } },
+  opcionElegida: { style: { borderColor: "var(--accent)", fontWeight: 700 } },
+  nota: { style: { margin: 0, fontSize: 12.5, color: "var(--text-muted)" } },
+  empujon: { style: { margin: 0, fontSize: 12.5, color: "var(--text-muted)" } },
+  freno: { style: { display: "grid", gap: 8, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--line-strong)", color: "var(--text-strong)", fontSize: 13.5, lineHeight: 1.45 } },
+  boton: { style: { minHeight: 44, border: "1px solid var(--line-strong)", borderRadius: 10, background: "var(--surface-raised)", color: "var(--text-strong)", fontWeight: 700, cursor: "pointer" } },
+};
+
 const inp: CSSProperties = { minHeight: 44, border: "1px solid var(--line-strong)", borderRadius: 10, padding: "10px 12px", fontSize: 14, background: "var(--surface-raised)", color: "var(--text-strong)" };
 const foothead: CSSProperties = { fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.55, marginBottom: 8, fontWeight: 600 };
 const footlink: CSSProperties = { color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 };

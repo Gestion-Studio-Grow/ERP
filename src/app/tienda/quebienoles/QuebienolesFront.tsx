@@ -38,6 +38,7 @@ import Estela from "./Estela";
 import Ficha from "./Ficha";
 import Bolsa from "./Bolsa";
 import Guia from "./Guia";
+import type { ConfigEnvios } from "@/lib/envios/modelo";
 import { CARPETA_FUENTES, FONDO, LETRA_DIDONA, ORO } from "./tokens";
 
 // three.js sólo se pide en el navegador y después de pintar: el titular nunca espera al 3D.
@@ -67,6 +68,9 @@ export type PropsFront = {
   branding: Branding;
   copy: StorefrontCopy;
   tenantKey: string;
+  /** Envíos del negocio (src/lib/envios) y hoy en su zona horaria; null = lo de siempre (Magra 1I). */
+  entrega?: ConfigEnvios | null;
+  hoy?: string | null;
 };
 
 // Las cuatro letras del portal, incluida la itálica (la bajada «oler muy bien.» está arriba de todo):
@@ -74,7 +78,7 @@ export type PropsFront = {
 const FUENTES = [`${CARPETA_FUENTES}/bodoni-moda.woff2`, `${CARPETA_FUENTES}/bodoni-moda-italic.woff2`, `${CARPETA_FUENTES}/jost.woff2`, `${CARPETA_FUENTES}/pinyon-script.woff2`];
 
 // La piel (estilos.ts) NO se importa acá: la escribe QuebienolesVidriera.tsx (servidor) en el HTML.
-export default function QuebienolesFront({ products, branding, copy, tenantKey }: PropsFront) {
+export default function QuebienolesFront({ products, branding, copy, tenantKey, entrega = null, hoy = null }: PropsFront) {
   for (const f of FUENTES) preload(f, { as: "font", type: "font/woff2", crossOrigin: "anonymous" });
 
   const reduce = usePrefersReducedMotion();
@@ -86,6 +90,8 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey }
     envio: copy.shipping ?? null,
     entregaPorDefecto: "DELIVERY",
     hayWhatsApp: Boolean(branding?.whatsapp),
+    entrega,
+    hoy,
   });
   const instagram = usuarioDeInstagram(branding?.instagram);
 

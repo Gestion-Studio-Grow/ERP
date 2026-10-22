@@ -515,3 +515,74 @@ export function textoDePedidosWebNuevos(nuevos: readonly PedidoWeb[]): string | 
 export function puedeRefrescarLaBandeja(estado: { visible: boolean; escribiendo: boolean; dialogoAbierto: boolean }): boolean {
   return estado.visible && !estado.escribiendo && !estado.dialogoAbierto;
 }
+
+// ── EL CHIP DE PEDIDOS NUEVOS EN LA CABECERA (reingeniería Magra 1I, E30 · MG-054) ──────────────
+// El aviso de arriba vive en la bandeja: con la pestaña de Vender abierta, el pedido de la tienda
+// entraba y nadie se enteraba. El chip de la cabecera (ChipDePedidosNuevos.tsx) está en TODO el panel
+// y lee sólo esto: cuántos pedidos de la tienda esperan sin que nadie los toque, desde cuándo espera
+// el más viejo (para abrirlo con un toque) y el número más alto (para saber si entró uno nuevo).
+// «Nuevo» es lo MISMO que cuenta la línea de estado del tablero (`pedidosDeLaTiendaEsperando`):
+// ONLINE y en PENDING. La lectura es del servidor (pedidos-nuevos.ts); acá, sólo la regla y el texto.
+
+/** Qué es un pedido nuevo de la tienda: el mismo criterio que `pedidosDeLaTiendaEsperando`. */
+export const CRITERIO_PEDIDO_NUEVO = { channel: "ONLINE", status: "PENDING" } as const;
+
+/** Cada cuánto pregunta el chip (sólo con la pestaña a la vista). El mismo ritmo que la bandeja. */
+export const REFRESCO_DEL_CHIP_MS = REFRESCO_DE_LA_BANDEJA_MS;
+
+/** Volver a la pestaña pregunta enseguida, salvo que la última vez haya sido hace menos de esto. */
+export const PAUSA_MINIMA_DEL_CHIP_MS = 15_000;
+
+/** Lo que contesta el servidor. Serializable. */
+export type ConteoDePedidosNuevos = {
+  cantidad: number;
+  /** El que espera hace más (para el «hace X min» y para abrirlo). null si no hay ninguno. */
+  masViejo: { id: string; code: number; creado: string } | null;
+  /** El número más alto entre los que esperan: si sube, entró uno nuevo. null si no hay ninguno. */
+  ultimoCode: number | null;
+};
+
+/** Minutos enteros desde `creado` (ISO) hasta `ahora` (ms). Nunca negativo. PURA. */
+function minutosDesde(creado: string, ahora: number): number {
+  const t = Date.parse(creado);
+  return Number.isFinite(t) ? Math.max(0, Math.floor((ahora - t) / 60_000)) : 0;
+}
+
+/**
+ * Lo que dice el chip: «2 pedidos nuevos · el más viejo hace 12 min»; uno solo: «1 pedido nuevo ·
+ * hace 3 min». null si no hay ninguno (el chip no se muestra). PURA (recibe la hora).
+ */
+export function textoDelChipDePedidosNuevos(c: ConteoDePedidosNuevos, ahora: number): string | null {
+  if (c.cantidad <= 0) return null;
+  const m = c.masViejo ? minutosDesde(c.masViejo.creado, ahora) : 0;
+  const hace = m < 1 ? "hace menos de 1 min" : `hace ${duracionCorta(m)}`;
+  return c.cantidad === 1 ? `1 pedido nuevo · ${hace}` : `${c.cantidad} pedidos nuevos · el más viejo ${hace}`;
+}
+
+/**
+ * El nombre del chip para el lector de pantalla: arranca con lo MISMO que se ve (quien maneja la
+ * pantalla con la voz dice lo que lee) y suma de dónde son y a dónde lleva el toque. PURA.
+ */
+export function etiquetaDelChipDePedidosNuevos(c: ConteoDePedidosNuevos, ahora: number): string | null {
+  const texto = textoDelChipDePedidosNuevos(c, ahora);
+  if (!texto || !c.masViejo) return texto;
+  return `${texto}. Pedidos de la tienda: abrir el #${c.masViejo.code}`;
+}
+
+/**
+ * ¿Entró un pedido nuevo desde la vuelta anterior? PURA. `anterior` null es la primera lectura de
+ * la pantalla: lo que ya estaba no suena (como el aviso de la bandeja). Se mira el número más alto
+ * y no la cantidad: si en la misma vuelta se tomó uno y entró otro, la cantidad no cambia y el
+ * pedido nuevo igual tiene que sonar.
+ */
+export function entroUnPedidoNuevo(anterior: ConteoDePedidosNuevos | null, actual: ConteoDePedidosNuevos): boolean {
+  if (anterior === null || actual.ultimoCode === null) return false;
+  return anterior.ultimoCode === null || actual.ultimoCode > anterior.ultimoCode;
+}
+
+/** Lo que se anuncia (aria-live) cuando entra uno: «Entró un pedido nuevo de la tienda (#130).». PURA. */
+export function anuncioDelChip(actual: ConteoDePedidosNuevos): string {
+  const numero = actual.ultimoCode !== null ? ` (#${actual.ultimoCode})` : "";
+  const resto = actual.cantidad > 1 ? ` Hay ${actual.cantidad} esperando.` : "";
+  return `Entró un pedido nuevo de la tienda${numero}.${resto}`;
+}

@@ -42,6 +42,7 @@ import FormCerrarSesion from "../../FormCerrarSesion";
 import { ROLE_LABEL, type PropsDelArmazon } from "../AdminShell";
 import { dondeEstoy, espacioPedido, hrefDelEspacio, iniciales, tituloDePantalla, type EspacioDeNav } from "./armazon-core";
 import type { NavDelArmazon } from "./navegacion";
+import { ChipDePedidosNuevos } from "../ChipDePedidosNuevos";
 
 /** Cuántos lugares tiene la cápsula antes de la tecla del rubro (5 botones entran en 360 px). */
 const LUGARES_EN_LA_CAPSULA = 4;
@@ -281,6 +282,8 @@ export default function ArmazonNuevo({
             ))}
           </nav>
           <div data-parte="accion">
+            {/* Pedidos nuevos de la tienda (Magra 1I): sólo con el chip montado; si no, nada. */}
+            <ChipDePedidosNuevos lugar="pc" />
             {rubro && (
               <Link href={rubro.ruta} data-ui="button" data-variant="solid" data-size="md" className="inline-flex items-center" aria-keyshortcuts="F1">
                 <IconoApp nombre={rubro.icono} />
@@ -304,6 +307,7 @@ export default function ArmazonNuevo({
           <Icono nombre="buscar" />
         </button>
       </header>
+      <ChipDePedidosNuevos lugar="movil" arriba="top-12" />
 
       <div id="contenido" tabIndex={-1} data-parte="contenido">
         <SinSenal />

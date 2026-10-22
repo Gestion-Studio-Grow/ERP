@@ -65,13 +65,15 @@ function tenantInitials(name: string): string {
 // costos, mínimo, retiro, franjas y tienda pausada. Se lee en el servidor en cada request (la
 // página es dinámica): lo que el dueño guarda se ve al instante, sin deploy (MG-030). Si la
 // lectura falla, la vidriera sigue con lo de siempre (null) y `placeOnlineOrder`, que vuelve a
-// leerla para decidir, es el que manda.
+// leerla para decidir, es el que manda. Un negocio que nunca guardó Envíos también da null: su
+// vidriera queda exactamente como siempre (Shine con la tarifa de su copy). La leen TODAS las
+// vidrieras que mandan a `placeOnlineOrder` (Magra 1I): si el negocio carga zonas, todas ofrecen
+// elegirlas, y ninguna queda con un envío a domicilio que el servidor rechaza.
 async function enviosDelNegocio(): Promise<ConfigEnvios | null> {
   try {
     const tenantId = await getCurrentTenantId();
-    const { version: _version, ...config } = await leerConfigEnvios(prisma, tenantId);
-    void _version;
-    return config;
+    const { version, ...config } = await leerConfigEnvios(prisma, tenantId);
+    return version === null ? null : config;
   } catch (e) {
     logger.warn("tienda", "no se pudo leer la configuración de envíos", { error: e instanceof Error ? e.message : String(e) });
     return null;
@@ -144,7 +146,14 @@ export default async function TiendaPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [data, accent, identity, nuevo] = await Promise.all([loadStorefront(), loadAccent(), getTenantIdentity(), disenoNuevo()]);
+  const [data, accent, identity, nuevo, entrega] = await Promise.all([
+    loadStorefront(),
+    loadAccent(),
+    getTenantIdentity(),
+    disenoNuevo(),
+    enviosDelNegocio(),
+  ]);
+  const hoy = dateStrInBusinessTz(new Date());
   const slug = identity.slug;
   const front = editorialFrontFor(identity);
 
@@ -177,6 +186,8 @@ export default async function TiendaPage({
         imagery={resolveTenantLayout(brandForSlug(slug)).imagery ?? null}
         acento={accent}
         searchParams={await searchParams}
+        entrega={entrega}
+        hoy={hoy}
       />
     );
   }
@@ -197,11 +208,10 @@ export default async function TiendaPage({
   if (front === "magra") {
     // Envíos del negocio: zona, costo, «te faltan $X», mínimo, franjas y pausa. Con zonas cargadas,
     // la tarifa del copy (`envio`) deja de regir; sin config, MAGRA sigue como siempre.
-    const entrega = await enviosDelNegocio();
     return (
       <MagraFront
         entrega={entrega}
-        hoy={dateStrInBusinessTz(new Date())}
+        hoy={hoy}
         products={data.products}
         branding={data.branding}
         tenantKey={slug ?? "magra"}
@@ -225,6 +235,8 @@ export default async function TiendaPage({
         copy={data.copy}
         imagery={resolveTenantLayout(brandForSlug(slug)).imagery ?? null}
         tenantKey={slug ?? "shinevelas"}
+        entrega={entrega}
+        hoy={hoy}
       />
     );
   }
@@ -240,6 +252,8 @@ export default async function TiendaPage({
         branding={data.branding}
         copy={data.copy}
         tenantKey={slug ?? "quebienoles"}
+        entrega={entrega}
+        hoy={hoy}
       />
     );
   }
@@ -266,7 +280,7 @@ export default async function TiendaPage({
   const skinAccent = sheet ? brandSheetAccent(sheet, sheet.frontTheme).accent : accent;
 
   const inner = replica ? (
-    <SiteReplica site={replica} name={data.name} branding={data.branding} products={data.products} accent={skinAccent} tenantKey={tenantKey} />
+    <SiteReplica site={replica} name={data.name} branding={data.branding} products={data.products} accent={skinAccent} tenantKey={tenantKey} entrega={entrega} hoy={hoy} />
   ) : (
     // FIDELIDAD DE LAYOUT (RFC-004-A §3), detrás de `TENANT_FIDELITY_ENABLED`: estructura real
     // del tenant (logo/banner/hero/orden) + logo asset. Con el flag OFF → molde de hoy.
@@ -281,6 +295,8 @@ export default async function TiendaPage({
       layout={resolveTenantLayout(brandForSlug(slug))}
       logoAsset={brandForSlug(slug).logoAsset ?? null}
       fidelity={tenantFidelityEnabled()}
+      entrega={entrega}
+      hoy={hoy}
     />
   );
 
