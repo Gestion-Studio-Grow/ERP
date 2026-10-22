@@ -7,6 +7,11 @@ import { fmtTime } from "@/lib/datetime";
 import { Field, Input, Select, buttonClasses, cn } from "@/components/ui";
 import { esRedireccionDeNext, mensajeAccionable } from "./errores";
 
+// DEPRECADO (CH Tanda 2 · 2-C): el cajón del turno usa `_agenda/MoverTurno.tsx` (chips de días y
+// huecos + «Mover y avisar por WhatsApp») y la grilla mueve arrastrando. Queda sólo para la fila
+// vieja (`AppointmentRow`, agenda sin el diseño nuevo en el celular) hasta que se retire. No sumar
+// llamadores nuevos.
+
 type Professional = { id: string; name: string; box: { name: string } | null; services: { id: string }[] };
 
 // Reprograma un turno existente: elige profesional (por defecto el actual, entre

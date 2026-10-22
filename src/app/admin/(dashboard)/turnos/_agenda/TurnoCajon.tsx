@@ -7,7 +7,7 @@
 // El renglón de la agenda ofrece UNA tecla. Todo lo demás del turno vive acá, en el orden en que
 // se lo necesita: quién es (y su WhatsApp), qué se hace ahora (cobrar, terminar, confirmar), la
 // plata (precio, lo que entró, lo dado de baja, lo que falta), los cobros con su anulación, y al
-// pie lo que casi nunca se toca (reprogramar, no vino, cancelar, dar de baja el saldo).
+// pie lo que casi nunca se toca (mover, no vino, cancelar, dar de baja el saldo).
 //
 // PC: cajón de 480 px a la derecha, con la agenda a la vista. Celular: sube como hoja.
 // Cada acción es la de siempre, con los mismos campos y las mismas guardias (campos.ts). Lo que
@@ -34,7 +34,6 @@ import {
   MOTIVO_MIN,
 } from "@/lib/turnos/anulacion";
 import { useToast } from "../../ToastProvider";
-import RescheduleForm from "../RescheduleForm";
 import {
   cierraElTurno,
   marcaDelTurno,
@@ -54,6 +53,7 @@ import {
 } from "./campos";
 import CobrarTurno from "./CobrarTurno";
 import TerminarTurno from "./TerminarTurno";
+import MoverTurno from "./MoverTurno";
 
 function ConMotivo({
   etiqueta,
@@ -475,13 +475,9 @@ export default function TurnoCajon({
         {hayOtras && (
           <Seccion titulo="Otras acciones">
             <div className="flex flex-col items-start gap-3 pt-3">
-              {cancela && (
-                <RescheduleForm
-                  appointmentId={t.id}
-                  serviceId={t.servicioId}
-                  currentProfessionalId={t.profesionalId}
-                />
-              )}
+              {/* Mover y avisar (Tanda 2 · 2-C): chips de días y huecos, en vez del formulario de
+                  reprogramar. La misma acción del servidor, que re-valida el choque. */}
+              {cancela && <MoverTurno key={t.id} turno={t} ahora={ahora} />}
               {noVino && (
                 <Button
                   type="button"

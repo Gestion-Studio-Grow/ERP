@@ -982,11 +982,19 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
       excludeAppointmentId: appointmentId,
     });
 
+    // Dentro de la misma transacción (Serializable, del negocio): el turno sigue siendo de ESTE
+    // negocio y sigue vivo. Si otra recepcionista lo canceló o lo cerró entre que se leyó arriba y
+    // ahora, no se mueve un turno muerto (CH Tanda 2 · mover desde la grilla).
+    const sigueVivo = await tx.appointment.count({
+      where: { id: appointmentId, tenantId, status: { in: ["PENDING", "CONFIRMED"] } },
+    });
+    if (sigueVivo === 0) throw new RechazoDeDominio("Ese turno cambió recién. Recargá la agenda.");
+
     // `reminderSentAt` vuelve a null: el aviso que se dio (a mano desde "Mañana: confirmar"
     // o por el barrido) era para la fecha VIEJA. Sin esto, el turno movido aparecía como
     // "avisada HH:MM" en la fecha nueva sin que nadie le hubiera avisado de esa fecha.
     await tx.appointment.update({
-      where: { id: appointmentId },
+      where: { id: appointmentId, tenantId },
       data: { startsAt, endsAt, professionalId: targetProfessionalId, boxId, reminderSentAt: null },
     });
   });

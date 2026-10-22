@@ -1,13 +1,34 @@
 "use client";
 
-import { useState } from "react";
+// ============================================================================
+// LA AGENDA DE SIEMPRE (sin «Diseño nuevo») — el día en el celular y la planilla en la PC.
+// ============================================================================
+//
+// CELULAR: la lista vertical del día con la tarjeta de siempre (AppointmentRow), sin cambios.
+// PC (desde lg): la planilla nueva (Tanda 2 · 2-C), la MISMA que la agenda nueva
+// (`_agenda/PorProfesional.tsx`) adentro de la mesa (`MesaDeTurnos`):
+//   · tocar un turno abre el cajón a la derecha, sin mover la grilla (antes: «Turno seleccionado»
+//     abajo, lejos de donde se tocó);
+//   · tocar un hueco abre «Dar turno» con la profesional, el día y la hora puestos;
+//   · arrastrar un turno lo mueve (re-valida el choque en el servidor) y ofrece avisar por WhatsApp;
+//   · ver por profesional o por box, chips que filtran sin ir al servidor, raya de «ahora», y la
+//     leyenda con forma + palabra.
+//
+// REGLA DE INDEPENDENCIA DEL INTERRUPTOR (§0.2 del diseño de CH): la planilla se viste con la piel
+// «Renglón» por su cuenta —`data-diseno` propio en su contenedor y la hoja enlazada acá— sin prender
+// el diseño nuevo del negocio. Si estuviera prendido, la hoja ya está y React no la repite. La lista
+// del celular queda fuera de ese contenedor: se ve como siempre.
+
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import AppointmentRow from "./AppointmentRow";
-import { wallHourMinuteInBusinessTz, fmtTime } from "@/lib/datetime";
+import { fmtTime } from "@/lib/datetime";
 import PasoVacio from "./PasoVacio";
-import { horasDeLaGrilla } from "./grilla";
-import { LEYENDA_DE_ESTADOS } from "./fila-core";
-import { Marca } from "@/components/ui";
+import { HOJAS_DEL_DISENO, PIEL_RENGLON, PRECEDENCIA_DEL_DISENO } from "@/lib/diseno/diseno";
 import type { PasoVacio as Paso } from "./pasos";
+import type { Permisos, TurnoDelDia } from "./agenda-core";
+import type { BloqueoDelDia } from "./grilla";
+import MesaDeTurnos from "./_agenda/MesaDeTurnos";
+import PorProfesional from "./_agenda/PorProfesional";
 
 type Professional = { id: string; name: string; box: { name: string } | null };
 type Appointment = {
@@ -38,26 +59,59 @@ const statusLabel: Record<string, string> = {
   NO_SHOW: "No se presentó",
 };
 
-// Estados de turno mapeados a la capa semántica (warning/success/info/danger),
-// no a los colores crudos de Tailwind. Un cambio de paleta se hace en tokens.
-const statusStyles: Record<string, string> = {
-  PENDING: "bg-warning-soft text-warning border-warning/40",
-  CONFIRMED: "bg-success-soft text-success border-success/40",
-  COMPLETED: "bg-info-soft text-info border-info/40",
-  NO_SHOW: "bg-danger-soft text-danger border-danger/40",
+/** Lo que la planilla de la PC necesita: la agenda del día ya proyectada en el servidor. */
+export type PlanillaDelDia = {
+  turnos: TurnoDelDia[];
+  profesionales: { id: string; nombre: string; box: string | null }[];
+  permisos: Permisos;
+  /** ISO del «ahora» de la carga. */
+  ahora: string;
+  /** "YYYY-MM-DD" del día que se mira. */
+  dia: string;
+  bloqueos: BloqueoDelDia[];
+  /** Base de la ficha de la clienta («/admin/clientes/»), si quien mira puede abrir Clientes. */
+  hrefFicha: string | null;
+  /** La letra de cuerpo del negocio en vez de la de la piel (CH: Hanken). */
+  letraDelNegocio: boolean;
 };
 
-const SLOT_MIN = 30;
+// La piel «Renglón» se viste bajo `data-diseno` y lee el modo oscuro del MISMO elemento: se copia el
+// `data-theme` de la raíz del panel (lo pone AdminThemeScript, lo cambia el selector de tema).
+function useTemaDeLaRaiz(ref: React.RefObject<HTMLElement | null>): "light" | "dark" {
+  const [tema, setTema] = useState<"light" | "dark">("light");
+  useEffect(() => {
+    const raiz = ref.current?.parentElement?.closest("[data-theme]");
+    if (!raiz) return;
+    const leer = () => setTema(raiz.getAttribute("data-theme") === "dark" ? "dark" : "light");
+    leer();
+    const obs = new MutationObserver(leer);
+    obs.observe(raiz, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
+  }, [ref]);
+  return tema;
+}
 
-// Hora de pared en la zona del negocio, no la del navegador de quien mira.
-function minutosDelDia(date: Date) {
-  const { hour, minute } = wallHourMinuteInBusinessTz(date);
-  return hour * 60 + minute;
+/**
+ * ¿Se ve la planilla (PC)? El cajón y las hojas son <dialog> modales: abiertos adentro de un bloque
+ * escondido en el celular dejarían la página inerte sin mostrarse. En el celular la mesa no recibe
+ * turnos, así un `?turno=` en la URL no abre nada ahí.
+ */
+function useEsEscritorio(): boolean {
+  const [si, setSi] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const leer = () => setSi(mq.matches);
+    leer();
+    mq.addEventListener("change", leer);
+    return () => mq.removeEventListener("change", leer);
+  }, []);
+  return si;
 }
 
 export default function CalendarGrid({
   professionals,
   appointments,
+  planilla,
   canManage = true,
   canCollect = true,
   viewer,
@@ -67,6 +121,8 @@ export default function CalendarGrid({
 }: {
   professionals: Professional[];
   appointments: Appointment[];
+  /** La planilla de la PC (huecos, cajón, mover, por box). */
+  planilla: PlanillaDelDia;
   canManage?: boolean;
   canCollect?: boolean;
   /** Quién mira: decide si se dibuja el cobro. La regla la resuelve `puedeCobrarEsteTurno`. */
@@ -81,20 +137,9 @@ export default function CalendarGrid({
   /** Agenda práctica (interruptor «agenda-practica»): se pasa tal cual a cada fila. */
   practica?: boolean;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = appointments.find((a) => a.id === selectedId) ?? null;
-
-  // La grilla cubre todos los turnos del día (grilla.ts): de 9 a 19, o más si hace falta.
-  const horas = horasDeLaGrilla(
-    appointments.map((a) => ({ desde: minutosDelDia(new Date(a.startsAt)), hasta: minutosDelDia(new Date(a.endsAt)) })),
-  );
-  const slotIndex = (date: Date) => Math.round((minutosDelDia(date) - horas.desde * 60) / SLOT_MIN);
-  const timeLabels = Array.from({ length: ((horas.hasta - horas.desde) * 60) / SLOT_MIN }, (_, i) => {
-    const totalMin = horas.desde * 60 + i * SLOT_MIN;
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-  });
+  const piel = useRef<HTMLDivElement>(null);
+  const tema = useTemaDeLaRaiz(piel);
+  const escritorio = useEsEscritorio();
 
   if (professionals.length === 0) {
     return sinProfesionales ? (
@@ -110,6 +155,9 @@ export default function CalendarGrid({
   const sortedAppointments = [...appointments].sort(
     (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
   );
+  const estilo = planilla.letraDelNegocio
+    ? ({ "--font-ui": "var(--font-body), ui-sans-serif, system-ui, sans-serif" } as CSSProperties)
+    : undefined;
 
   return (
     <div>
@@ -126,95 +174,30 @@ export default function CalendarGrid({
         ))}
       </div>
 
-      <div className="hidden lg:block overflow-x-auto rounded-lg border border-line">
-        <div
-          className="grid text-sm"
-          style={{
-            gridTemplateColumns: `56px repeat(${professionals.length}, minmax(140px, 1fr))`,
-          }}
+      {HOJAS_DEL_DISENO.map((href) => (
+        <link key={href} rel="stylesheet" href={href} precedence={PRECEDENCIA_DEL_DISENO} />
+      ))}
+      <div ref={piel} data-diseno={PIEL_RENGLON} data-theme={tema} data-pantalla="agenda-planilla" style={estilo} className="hidden bg-surface text-body lg:block">
+        <MesaDeTurnos
+          turnos={escritorio ? planilla.turnos : []}
+          permisos={planilla.permisos}
+          ahora={planilla.ahora}
+          hrefFicha={planilla.hrefFicha}
         >
-          <div className="border-b border-r border-line bg-surface-sunken" />
-          {professionals.map((p) => (
-            <div
-              key={p.id}
-              className="border-b border-r last:border-r-0 border-line bg-surface-sunken px-2 py-2 text-center font-medium text-strong"
-            >
-              {p.name}
-              <div className="text-xs font-normal text-muted">{p.box?.name}</div>
+          <PorProfesional
+            turnos={planilla.turnos}
+            profesionales={planilla.profesionales}
+            ahora={planilla.ahora}
+            dia={planilla.dia}
+            bloqueos={planilla.bloqueos}
+          />
+          {planilla.turnos.length === 0 && diaVacio && (
+            <div className="mt-4">
+              <PasoVacio paso={diaVacio} />
             </div>
-          ))}
-
-          {timeLabels.map((label, rowIdx) => (
-            <div
-              key={`row-${label}`}
-              className="contents"
-            >
-              <div className="border-r border-b border-line px-2 py-1 text-xs text-faint text-right">
-                {label}
-              </div>
-              {professionals.map((p) => {
-                const appt = appointments.find(
-                  (a) => a.professionalId === p.id && slotIndex(new Date(a.startsAt)) === rowIdx
-                );
-                if (appt) {
-                  const durationMin =
-                    (new Date(appt.endsAt).getTime() - new Date(appt.startsAt).getTime()) / 60000;
-                  const span = Math.max(1, Math.round(durationMin / SLOT_MIN));
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => setSelectedId(appt.id)}
-                      style={{ gridRow: `span ${span}` }}
-                      className={`border-r last:border-r-0 border-b m-0.5 rounded-md border px-2 py-1 text-left text-xs leading-tight ${
-                        statusStyles[appt.status] ?? "bg-surface-sunken border-line-strong text-body"
-                      } ${selectedId === appt.id ? "ring-2 ring-accent" : ""}`}
-                    >
-                      <div className="font-medium truncate">{appt.client.name}</div>
-                      <div className="truncate opacity-80">{appt.service.name}</div>
-                    </button>
-                  );
-                }
-
-                const covered = appointments.some((a) => {
-                  if (a.professionalId !== p.id) return false;
-                  const start = slotIndex(new Date(a.startsAt));
-                  const durationMin =
-                    (new Date(a.endsAt).getTime() - new Date(a.startsAt).getTime()) / 60000;
-                  const span = Math.max(1, Math.round(durationMin / SLOT_MIN));
-                  return rowIdx > start && rowIdx < start + span;
-                });
-                if (covered) return null;
-
-                return (
-                  <div
-                    key={p.id}
-                    className="border-r last:border-r-0 border-b border-line h-8"
-                  />
-                );
-              })}
-            </div>
-          ))}
-        </div>
+          )}
+        </MesaDeTurnos>
       </div>
-
-      {/* B4: la leyenda nombra los 5 estados con forma + palabra (`Marca`), no sólo con color. Antes
-          faltaba «No se presentó» y los bloques rojos de la grilla no tenían explicación; y decía
-          «Pendiente» donde la tarjeta dice «Reservado». */}
-      <ul aria-label="Qué quiere decir cada estado" className="hidden lg:flex mt-4 flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted">
-        {LEYENDA_DE_ESTADOS.map((e) => (
-          <li key={e.status} className="inline-flex items-center gap-1.5">
-            <span aria-hidden className={`h-3 w-3 rounded border ${statusStyles[e.status] ?? "bg-surface-sunken border-line-strong"}`} />
-            <Marca tipo={e.tipo}>{e.palabra}</Marca>
-          </li>
-        ))}
-      </ul>
-
-      {selected && (
-        <div className="hidden lg:block mt-6">
-          <h2 className="text-sm font-medium text-strong mb-2">Turno seleccionado</h2>
-          <AppointmentRow appointment={selected} statusLabel={statusLabel} canManage={canManage} canCollect={canCollect} viewer={viewer} practica={practica} />
-        </div>
-      )}
     </div>
   );
 }
