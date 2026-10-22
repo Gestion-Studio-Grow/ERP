@@ -18,7 +18,8 @@ import type { EstadoClub } from "@/lib/club/motor.mjs";
 import { claveDeLaJornada, crearAlmacen, MINUTO_DEMO, textoDeLaDemo, textoDelEstado, type AlmacenamientoLocal, type Confirmacion, type ResultadoDelGuardado, type Temporizador } from "./almacen";
 import { reservar, type DatosAlta } from "./alta-core";
 import { ejecutar as ejecutarCuenta } from "./cuenta-core";
-import { anotarAplicado, leerSincro, prometeAlgo, TOPE_APLICADOS, type Pendiente } from "./sincro-core";
+import { codigoDeLaDemo } from "./credito-core";
+import { anotarAplicado, leerSincro, prometeAlgo, sacarParaResolver, TOPE_APLICADOS, volverAAnotar, type ItemParaResolver, type Pendiente } from "./sincro-core";
 
 const HOY = "2026-10-17";
 const NEGOCIO = "club-dos-puestos";
@@ -474,7 +475,7 @@ test("BP-028 · la cola sobrevive a recargar la pestaña: lo cargado sin interne
   const alta = darTurno(tablet, { canchaId: "c2", inicio: A_LAS_21, titular: "Pedro Paz" });
   await vaciar();
   assert.equal(tablet.a.sincro().enCola, 2);
-  const guardada = disco.getItem(`${claveDeLaJornada(NEGOCIO)}:cola`) ?? "";
+  const guardada = disco.getItem(`${claveDeLaJornada(NEGOCIO)}:cola:tab1`) ?? "";
   assert.ok(guardada.includes(alta.id), "la cola quedó en el equipo");
   assert.ok(!guardada.includes('"pin"'), "sin PIN");
   // Mientras tanto la PC da el mismo hueco y la base avanza.
@@ -490,7 +491,7 @@ test("BP-028 · la cola sobrevive a recargar la pestaña: lo cargado sin interne
   assert.ok(leerSincro(base).paraResolver[0].comando);
   assert.equal(otraVez.a.apartes().length, 0, "nada aparte entero");
   assert.equal(otraVez.a.sincro().enCola, 0);
-  assert.equal(disco.getItem(`${claveDeLaJornada(NEGOCIO)}:cola`), null, "la cola del equipo quedó vacía");
+  assert.equal(disco.getItem(`${claveDeLaJornada(NEGOCIO)}:cola:tab1`), null, "la cola del equipo quedó vacía");
 });
 
 test("BP-028 · recargar con una acción que no es comando (función de pantalla): la red de siempre, lo de acá aparte entero", async () => {
@@ -584,4 +585,185 @@ test("fuera de la jornada real con base (la demo) no hay cola ni latido de versi
   assert.equal(a.comando("cuenta", [turno, { tipo: "cobrarTodo", medio: "efectivo" }]).ok, true);
   assert.equal(a.sincro().enCola, 0);
   assert.equal((a.estado() as EstadoClub & { sincro?: unknown }).sincro, undefined, "la foto de la demo no lleva `sincro`");
+});
+
+// ── cierre de la cert de la Tanda 1 (vuelta 2): N1 · N2 · N3 ─────────────────────────────────────────────────────────
+
+/** Un equipo (localStorage) que deja listar sus claves, para mirar qué quedó guardado. */
+function disco(): AlmacenamientoLocal & { claves: () => string[]; todo: () => string } {
+  const datos = new Map<string, string>();
+  return {
+    getItem: (k) => datos.get(k) ?? null,
+    setItem: (k, v) => void datos.set(k, String(v)),
+    removeItem: (k) => void datos.delete(k),
+    claves: () => [...datos.keys()],
+    todo: () => [...datos.values()].join("\n"),
+  };
+}
+const colaDe = (equipo: string) => `${claveDeLaJornada(NEGOCIO)}:cola:${equipo}`;
+
+test("N1 · otro id de equipo en el mismo navegador NO pisa la cola del anterior: si la base avanzó, lo suyo queda «para resolver» con su autor (una vez) y se re-aplica de un toque", async () => {
+  const b = baseCompartida();
+  const d = disco();
+  const tablet = await puesto(b, "tab1", "tablet", LU, d).abrir();
+  tablet.g.caer(true);
+  const turno = turnoQueDebe(tablet.a.estado());
+  assert.ok(tablet.a.comando("cuenta", [turno, { tipo: "cobrarTodo", medio: "efectivo" }]).ok);
+  const alta = darTurno(tablet, { canchaId: "c2", inicio: A_LAS_21, titular: "Pedro Paz" });
+  await vaciar();
+  const deTab1 = JSON.parse(d.getItem(colaDe("tab1"))!) as { equipo: string; pendientes: { id: string }[] };
+  assert.equal(deTab1.pendientes.length, 2, "la cola de tab1 está en SU clave");
+  // La base avanza desde la PC; en la tablet se borró `<clave>:equipo` (y nada más): el navegador es otro equipo.
+  const pc = await puesto(b, "pc01", "PC", CARO).abrir();
+  darTurno(pc, { ...hueco(pc.a.estado(), { canchaId: "c2", inicio: A_LAS_21 }), titular: "Juan Pérez" });
+  await vaciar();
+  const nuevo = await puesto(b, "zz99", "tablet", LU, d).abrir();
+  await vaciar();
+  for (let i = 0; i < 3; i++) {
+    nuevo.t.correr();
+    await vaciar();
+  }
+  const base = enLaBase(b);
+  const items = leerSincro(base).paraResolver;
+  assert.deepEqual(items.map((x) => x.id).sort(), deTab1.pendientes.map((x) => x.id).sort(), "lo de tab1, «para resolver» (no se perdió ni se corrió solo)");
+  for (const x of items) {
+    assert.match(x.texto, /Lu \(tablet\)$/, "con su autor y su puesto");
+    assert.equal(x.equipo, "tab1");
+    assert.ok(x.comando && !JSON.stringify(x).includes('"pin"'));
+  }
+  assert.ok(M.saldo(M.reserva(base, turno)!) > 0, "el cobro no se hizo solo");
+  assert.equal(d.getItem(colaDe("tab1")), null, "la cola de tab1 se soltó con lo suyo ya a salvo en la base");
+  assert.equal(d.getItem(colaDe("zz99")), null);
+  assert.equal(nuevo.a.apartes().length, 1, "lo de la foto vieja del equipo, además, quedó aparte (la red de siempre)");
+  // «Volver a aplicar» el cobro desde el equipo nuevo: una vez.
+  const cobro = items.find((x) => x.comando?.nombre === "cuenta")!;
+  assert.ok(nuevo.a.volverAAplicar(cobro.id).ok);
+  await vaciar();
+  assert.equal(M.saldo(M.reserva(enLaBase(b), turno)!), 0);
+  assert.equal(nuevo.a.volverAAplicar(cobro.id).ok, false, "otra vez no");
+  assert.ok(leerSincro(enLaBase(b)).paraResolver.some((x) => x.id === alta.id), "el turno de Pedro sigue para resolver");
+});
+
+test("N1 · otro id de equipo y la base NO avanzó: lo de la cola anterior sube con la foto del equipo (una vez, sin «para resolver»)", async () => {
+  const b = baseCompartida();
+  const d = disco();
+  const tablet = await puesto(b, "tab1", "tablet", LU, d).abrir();
+  tablet.g.caer(true);
+  const turno = turnoQueDebe(tablet.a.estado());
+  assert.ok(tablet.a.comando("cuenta", [turno, { tipo: "cobrarTodo", medio: "efectivo" }]).ok);
+  await vaciar();
+  const caja0 = M.resumenCaja(enLaBase(b));
+  const nuevo = await puesto(b, "zz99", "tablet", LU, d).abrir();
+  await vaciar();
+  for (let i = 0; i < 3; i++) {
+    nuevo.t.correr();
+    await vaciar();
+  }
+  const base = enLaBase(b);
+  assert.equal(M.saldo(M.reserva(base, turno)!), 0, "el cobro llegó con la foto del equipo");
+  const cobrado = M.resumenCaja(tablet.a.estado()).ingresos - caja0.ingresos;
+  assert.ok(cobrado > 0);
+  assert.equal(M.resumenCaja(base).ingresos - caja0.ingresos, cobrado, "una sola vez");
+  assert.equal(M.resumenCaja(base).movimientos, M.resumenCaja(tablet.a.estado()).movimientos);
+  assert.deepEqual(leerSincro(base).paraResolver, []);
+  assert.equal(d.getItem(colaDe("tab1")), null);
+  assert.ok(!d.claves().some((k) => k.includes(":cola")), "no quedó ninguna cola ni índice");
+});
+
+test("N1 · la cola de la Tanda 1 (`<clave>:cola`, sin el equipo): la del mismo equipo se retoma y pasa a la clave nueva; la de otro equipo va a «para resolver»", async () => {
+  const vieja = `${claveDeLaJornada(NEGOCIO)}:cola`;
+  for (const mismo of [true, false]) {
+    const b = baseCompartida();
+    const d = disco();
+    const tablet = await puesto(b, "tab1", "tablet", LU, d).abrir();
+    tablet.g.caer(true);
+    const turno = turnoQueDebe(tablet.a.estado());
+    assert.ok(tablet.a.comando("cuenta", [turno, { tipo: "cobrarTodo", medio: "efectivo" }]).ok);
+    await vaciar();
+    // Como la dejaba la Tanda 1.
+    d.setItem(vieja, d.getItem(colaDe("tab1"))!);
+    d.removeItem(colaDe("tab1"));
+    d.removeItem(`${claveDeLaJornada(NEGOCIO)}:colas`);
+    const pc = await puesto(b, "pc01", "PC", CARO).abrir();
+    darTurno(pc, { ...hueco(pc.a.estado()), titular: "Juan Pérez" });
+    await vaciar();
+    const otraVez = await puesto(b, mismo ? "tab1" : "zz99", "tablet", LU, d).abrir();
+    await vaciar();
+    for (let i = 0; i < 3; i++) {
+      otraVez.t.correr();
+      await vaciar();
+    }
+    const base = enLaBase(b);
+    if (mismo) {
+      assert.equal(M.saldo(M.reserva(base, turno)!), 0, "la del mismo equipo se re-aplica sola, como siempre");
+      assert.deepEqual(leerSincro(base).paraResolver, []);
+    } else {
+      assert.ok(M.saldo(M.reserva(base, turno)!) > 0);
+      assert.equal(leerSincro(base).paraResolver.length, 1, "la de otro equipo, «para resolver»");
+    }
+    assert.equal(d.getItem(vieja), null, "la clave vieja se soltó");
+  }
+});
+
+/** Un fiado pedido con internet desde una cuenta del buffet: el pedido y el código que le daría el dueño. */
+function fiadoPedido(p: Puesto) {
+  const e0 = p.a.estado();
+  const cli = e0.clientes.find((c) => !c.cc.habilitada && !e0.novedades.some((n) => n.clienteId === c.id))!;
+  assert.ok(p.a.comando("buffet", [{ tipo: "abrir", titular: cli.nombre, clienteId: cli.id }]).ok);
+  const cuentaId = p.a.estado().cuentas.at(-1)!.id;
+  const productoId = p.a.estado().productos.find((x) => x.activo !== false && !x.alquiler && (typeof x.stock !== "number" || x.stock > 5))!.id;
+  assert.ok(p.a.comando("buffet", [{ tipo: "cargar", cuentaId, productoId, cant: 2 }]).ok);
+  const pedido = p.a.comando("fiado", [{ tipo: "pedir", cuentaId }]);
+  assert.ok(pedido.ok, pedido.mensaje);
+  const novedadId = p.a.estado().novedades.find((n) => n.clienteId === cli.id && n.estado === "pendiente")!.id;
+  return { novedadId, codigo: codigoDeLaDemo(p.a.estado(), novedadId)!.codigo };
+}
+
+test("N2 · el código del dueño: la tablet lo tipea sin internet, la PC aprobó antes; el rechazo va a «para resolver» SIN el código (ni en la foto ni en el equipo) y se aprueba una sola vez", async () => {
+  const b = baseCompartida();
+  const d = disco();
+  const tablet = await puesto(b, "tab1", "tablet", LU, d).abrir();
+  const pc = await puesto(b, "pc01", "PC", CARO).abrir();
+  const { novedadId, codigo } = fiadoPedido(tablet);
+  await vaciar();
+  await pc.latir();
+  tablet.g.caer(true);
+  const enLaTablet = tablet.a.comando("fiado", [{ tipo: "aprobarCodigo", novedadId, codigo }]);
+  assert.ok(enLaTablet.ok, enLaTablet.mensaje);
+  await vaciar();
+  assert.ok(d.todo().includes("aprobarCodigo") && !d.todo().includes(codigo), "en la cola del equipo, sin el código");
+  // La PC tipea el mismo código con internet: se aprueba en la base.
+  assert.ok(pc.a.comando("fiado", [{ tipo: "aprobarCodigo", novedadId, codigo }]).ok);
+  await vaciar();
+  const credito0 = JSON.stringify(enLaBase(b).novedades.find((n) => n.id === novedadId));
+  tablet.g.caer(false);
+  for (let i = 0; i < 3; i++) {
+    tablet.t.correr();
+    await vaciar();
+  }
+  const base = enLaBase(b);
+  const item = leerSincro(base).paraResolver.find((x) => x.comando?.nombre === "fiado");
+  assert.ok(item, "lo de la tablet quedó «para resolver»");
+  assert.match(item.motivo, /ya se resolvió/);
+  assert.equal(JSON.stringify(base.novedades.find((n) => n.id === novedadId)), credito0, "aprobado una sola vez");
+  assert.ok(!b.foto!.texto.includes(codigo), "el código no está en la foto");
+  assert.ok(!d.todo().includes(codigo), "ni en el equipo");
+});
+
+test("N3 · «aplicados» rota con cada comando: un ítem que otro puesto ya resolvió a mano NO resucita aunque pasen más de 500 comandos", () => {
+  const e = M.generarDemo(HOY, MINUTO_DEMO);
+  const item = (id: string): ItemParaResolver => ({ id, texto: "19:42 · Turno a Pedro en C2 · Lu (tablet)", motivo: "Ese hueco ya está", cuando: 0, equipo: "tab1", puesto: "tablet", persona: "Lu", comando: null });
+  const p = (i: number): Pendiente => ({ id: `pc01.${i}`, ahora: { fecha: HOY, min: 0 }, auth: {}, azar: 0, idsDesde: 0, equipo: "pc01", puesto: "PC", persona: "", texto: "", promete: false, cambios: 0, cuando: 0 });
+  // Llegan a la base; la PC descarta uno y vuelve a aplicar el otro.
+  assert.equal(volverAAnotar(e, [item("tab1.a"), item("tab1.b")]).anotados, 2);
+  assert.ok(sacarParaResolver(e, "tab1.a"));
+  assert.ok(sacarParaResolver(e, "tab1.b"));
+  for (let i = 0; i < TOPE_APLICADOS + 100; i++) anotarAplicado(e, p(i), [], i, { reciente: false });
+  assert.ok(!leerSincro(e).aplicados.includes("tab1.a"), "ya se cayeron de «aplicados»");
+  // La tablet, que todavía los tenía sin confirmar, los vuelve a anotar sobre esta foto: no resucitan.
+  const r = volverAAnotar(e, [item("tab1.a"), item("tab1.b"), item("tab1.c")]);
+  assert.deepEqual(r.yaEnLaBase, ["tab1.a", "tab1.b"]);
+  assert.equal(r.anotados, 1, "sólo el que nadie resolvió");
+  assert.deepEqual(leerSincro(e).paraResolver.map((x) => x.id), ["tab1.c"]);
+  assert.deepEqual(leerSincro(e).resueltos, ["tab1.a", "tab1.b"]);
 });

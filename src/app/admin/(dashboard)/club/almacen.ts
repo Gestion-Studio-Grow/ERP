@@ -128,6 +128,9 @@ function demoDelDia(hoy: Fecha): EstadoClub {
 
 /** El reloj de la demo: la jornada del club a las 19:10, con turnos en juego y mesas abiertas. */
 export const MINUTO_DEMO = 19 * 60 + 10;
+/** Por qué un ítem de la cola de otro id de equipo (en este mismo navegador) quedó «para resolver» acá (N1). */
+const MOTIVO_COLA_HUERFANA = "Quedó sin subir en este equipo, de una sesión anterior del navegador: fijate si hace falta y volvelo a aplicar o descartalo.";
+
 /** Cuántas copias de «lo que quedó aparte» (choques con otra pantalla) se guardan en el equipo: cada una es el club entero. */
 export const TOPE_APARTES = 3;
 
@@ -163,7 +166,10 @@ export interface OpcionesDeEjecutar {
   alEncolar?: (p: { id: string; reservas: string[] }) => void;
 }
 
-/** La cola del puesto como queda en este equipo (`<clave>:cola`): sólo comandos con nombre y sin PIN. */
+/**
+ * La cola del puesto como queda en este equipo (`<clave>:cola:<equipo>`; la Tanda 1 la dejaba en `<clave>:cola`): sólo
+ * comandos con nombre y sin PIN ni otros secretos (`comandoSinPin`).
+ */
 interface ColaGuardada {
   v: 1;
   equipo: string;
@@ -844,15 +850,53 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
 
   // ── la cola sobrevive a recargar la pestaña (BP-028, bp-DISENO.md §3.3: «la cola pendiente del puesto, espejada en el
   // equipo») ──
-  // Va a `<clave>:cola` en este equipo: los comandos con nombre (SIN PIN: quien opera queda por su id; lo que pedía un PIN
-  // tipeado, al re-aplicarse lo vuelve a pedir y va a «Para resolver»), lo rechazado que la base todavía no confirmó y si
+  // Va a `<clave>:cola:<equipo>` en este equipo: los comandos con nombre (SIN PIN ni código del dueño: quien opera queda
+  // por su id; lo que pedía un PIN o el código, al re-aplicarse lo vuelve a pedir y va a «Para resolver»), lo rechazado que la base todavía no confirmó y si
   // hubo algo que NO pasó por la cola (una función de pantalla sin nombre, una restauración): eso, si la base avanzó, sigue
   // yendo aparte entero (la red de siempre, sólo para lo que no es comando).
-  const CLAVE_COLA = `${clave}:cola`;
+  //
+  // Cada equipo tiene SU cola (`<clave>:cola:<equipo>`, N1 de la cert): si en el mismo navegador cambia el id del equipo
+  // (se borró `<clave>:equipo` y no lo demás, otra sesión del navegador), el equipo nuevo no pisa la cola del anterior.
+  // Esa cola huérfana no se pierde ni se corre sola: al abrir, lo suyo pasa a «Para resolver» de este equipo, con quién
+  // lo hizo y dónde (`Volver a aplicar` firma con quien lo vuelve a aplicar y pide de nuevo lo que llevaba PIN o código);
+  // lo que la base ya tiene (subió antes) no reaparece. Recién cuando eso quedó guardado en la cola de este equipo, la
+  // huérfana se borra. El índice `<clave>:colas` dice qué equipos tienen cola (el almacenamiento no deja listar claves).
+  const CLAVE_COLA = `${clave}:cola:${equipo}`;
+  const CLAVE_COLA_VIEJA = `${clave}:cola`;
+  const CLAVE_COLAS = `${clave}:colas`;
+  /** Las colas de otros equipos (o la vieja de la Tanda 1) que ya pasaron a esta: se borran al guardar la de este equipo. */
+  let colasAdoptadas: string[] = [];
+  const leerIndice = (): string[] => {
+    try {
+      const x = JSON.parse(almacenamiento?.getItem(CLAVE_COLAS) ?? "[]") as unknown;
+      return Array.isArray(x) ? x.filter((e): e is string => typeof e === "string" && /^[a-z0-9-]{1,16}$/i.test(e)) : [];
+    } catch {
+      return [];
+    }
+  };
+  const escribirIndice = (equipos: string[]) => {
+    const unicos = [...new Set(equipos)];
+    if (unicos.length) almacenamiento?.setItem(CLAVE_COLAS, JSON.stringify(unicos));
+    else almacenamiento?.removeItem(CLAVE_COLAS);
+  };
+  /** Ya quedó todo en la cola de este equipo (o subió): las adoptadas se borran (y salen del índice). */
+  const soltarAdoptadas = () => {
+    if (!colasAdoptadas.length || !almacenamiento) return;
+    for (const k of colasAdoptadas) almacenamiento.removeItem(k);
+    const borrados = new Set(colasAdoptadas);
+    escribirIndice(leerIndice().filter((e) => !borrados.has(`${clave}:cola:${e}`)));
+    colasAdoptadas = [];
+  };
   const guardarCola = () => {
     if (!dosPuestos || !almacenamiento || !tieneLaJornada()) return;
     try {
-      if (!cola.length && !rechazadosSinSubir.length && cambiosSinCola === null) return almacenamiento.removeItem(CLAVE_COLA);
+      if (!cola.length && !rechazadosSinSubir.length && cambiosSinCola === null) {
+        almacenamiento.removeItem(CLAVE_COLA);
+        soltarAdoptadas();
+        const indice = leerIndice();
+        if (indice.includes(equipo)) escribirIndice(indice.filter((e) => e !== equipo));
+        return;
+      }
       const conNombre = cola.filter((p) => p.comando);
       const guardada: ColaGuardada = {
         v: 1,
@@ -862,6 +906,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
         sinCola: cambiosSinCola !== null || conNombre.length !== cola.length,
       };
       almacenamiento.setItem(CLAVE_COLA, JSON.stringify(guardada));
+      const indice = leerIndice();
+      if (!indice.includes(equipo)) escribirIndice([...indice, equipo]);
+      soltarAdoptadas();
     } catch {
       // Sin lugar: mejor sin cola guardada que una vieja (al recargar, lo de acá sin confirmar va aparte entero).
       try {
@@ -871,14 +918,15 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       }
     }
   };
-  const leerCola = (): ColaGuardada | null => {
+  /** La cola guardada en `k`, del equipo `de` (null: la de cualquier equipo). null si no hay o no se puede leer. */
+  const leerColaDe = (k: string, de: string | null): ColaGuardada | null => {
     if (!dosPuestos || !almacenamiento) return null;
     try {
-      const x = JSON.parse(almacenamiento.getItem(CLAVE_COLA) ?? "null") as Partial<ColaGuardada> | null;
-      if (!x || x.v !== 1 || x.equipo !== equipo || !Array.isArray(x.pendientes) || !Array.isArray(x.rechazados)) return null;
+      const x = JSON.parse(almacenamiento.getItem(k) ?? "null") as Partial<ColaGuardada> | null;
+      if (!x || x.v !== 1 || typeof x.equipo !== "string" || (de !== null && x.equipo !== de) || !Array.isArray(x.pendientes) || !Array.isArray(x.rechazados)) return null;
       return {
         v: 1,
-        equipo,
+        equipo: x.equipo,
         pendientes: x.pendientes.filter((p) => p && typeof p.id === "string" && p.comando && typeof p.comando.nombre === "string"),
         rechazados: x.rechazados.filter((i) => i && typeof i.id === "string"),
         sinCola: x.sinCola === true,
@@ -886,6 +934,36 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     } catch {
       return null;
     }
+  };
+  /** La cola de este equipo (o, si todavía no hay, la de la Tanda 1 si era de este equipo: pasa a la clave nueva). */
+  const leerCola = (): ColaGuardada | null => {
+    const g = leerColaDe(CLAVE_COLA, equipo);
+    if (g) return g;
+    const vieja = leerColaDe(CLAVE_COLA_VIEJA, equipo);
+    if (vieja && !colasAdoptadas.includes(CLAVE_COLA_VIEJA)) colasAdoptadas.push(CLAVE_COLA_VIEJA);
+    return vieja;
+  };
+  /**
+   * Las colas huérfanas de este negocio en este almacenamiento (de otro id de equipo): lo suyo, como ítems «para
+   * resolver» con su autor. Lo que ya había fallado la primera vez, y los «Volver a aplicar» / «Descartar» (no eran algo
+   * nuevo), no se ofrecen. Anota qué colas se adoptaron (se borran recién con la cola de este equipo guardada).
+   */
+  const colasHuerfanas = (): ItemParaResolver[] => {
+    if (!dosPuestos || !almacenamiento) return [];
+    const claves = [...leerIndice().filter((e) => e !== equipo).map((e) => `${clave}:cola:${e}`), CLAVE_COLA_VIEJA];
+    const items: ItemParaResolver[] = [];
+    for (const k of claves) {
+      const g = leerColaDe(k, null);
+      if (!g || g.equipo === equipo) continue;
+      for (const item of g.rechazados) items.push(item);
+      for (const guardado of g.pendientes) {
+        if (guardado.fallo || guardado.siFalla === "callar") continue;
+        items.push(itemParaResolver(estado, { ...guardado, cambios: 0 }, MOTIVO_COLA_HUERFANA, relojMs()));
+      }
+      if (!colasAdoptadas.includes(k)) colasAdoptadas.push(k);
+    }
+    const yaEstan = new Set<string>();
+    return items.filter((x) => !yaEstan.has(x.id) && yaEstan.add(x.id));
   };
   /** Pide re-aplicar la cola sobre la base aunque la versión no haya cambiado (la cola vino de otra pestaña). */
   let forzarRebase = false;
@@ -922,6 +1000,16 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       // Lo de este equipo sin confirmar y sin la cola guardada (otra versión de la app, o sin lugar): si la base avanzó,
       // va aparte entero, como siempre.
       cambiosSinCola = 0;
+    }
+  }
+  if (dosPuestos && real) {
+    // N1: lo que dejó otro id de equipo en este navegador, a «Para resolver» de éste (sobre cada foto nueva de la base
+    // se vuelve a anotar si la base no lo tiene, como lo rechazado de acá: `rechazadosSinSubir`).
+    const huerfanos = colasHuerfanas().filter((x) => !rechazadosSinSubir.some((y) => y.item.id === x.id));
+    if (huerfanos.length) {
+      volverAAnotar(estado, huerfanos);
+      for (const item of huerfanos) rechazadosSinSubir.push({ item, cambios: 0 });
+      cambiosGuardados = -1;
     }
   }
   /** «Usar acá»: la cola que vale es la que dejó la otra pestaña del equipo (la de esta memoria es vieja). */

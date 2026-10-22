@@ -24,6 +24,7 @@ import { ejecutarCaja, type AccionCaja } from "./caja-core";
 import { ejecutarCanchas, ejecutarEspera, ejecutarFijo, type AccionCanchas, type AccionEspera, type AccionFijo, type DesenlaceCanchas } from "./canchas-core";
 import { ejecutarCiclo, type AccionCiclo } from "./ciclo-core";
 import { ejecutarClientes, type AccionClientes, type DesenlaceClientes } from "./clientes-core";
+import { abrirElClub, ejecutarConfiguracion, limpiarPorHuella, type AccionConfig, type DesenlaceConfig, type DesenlaceLimpieza, type PedidoDeLimpiezaPorHuella } from "./configuracion-core";
 import { aprobarConCodigo, pedirFiado } from "./credito-core";
 import { ejecutar as ejecutarCuenta, type AccionCuenta, type MedioCaja, type MedioCobro } from "./cuenta-core";
 import { ejecutarNovedades, type AccionNovedades, type DesenlaceNovedades } from "./novedades-core";
@@ -40,12 +41,29 @@ interface Entrada<A extends unknown[], D extends Desenlace = Desenlace> {
   correr: (estado: EstadoClub, args: A, ahora: Ahora, auth: Auth) => D;
   /** Si va sin internet (D4 del diseño; la confirma el dueño). Ante la duda, no. */
   sinInternet: (args: A) => boolean;
+  /**
+   * Los campos SECRETOS de los argumentos, además de `pin` (que se saca siempre): no van a la cola del equipo ni a la
+   * foto (`comandoSinPin`). Al re-aplicar después de recargar faltan, y la acción los vuelve a pedir.
+   */
+  secretos?: readonly string[];
+  /**
+   * Lo que no se puede re-aplicar solo porque el motor dio algo de UNA vez (un PIN nuevo que se mostró una sola vez:
+   * re-aplicado daría otro distinto). Devuelve por qué, en criollo; null si se puede.
+   */
+  unaVez?: (args: A) => string | null;
 }
 
 const entrada = <A extends unknown[], D extends Desenlace = Desenlace>(e: Entrada<A, D>) => e;
 
 /** Lo que el dueño resuelve desde el mostrador con el código que mandó por WhatsApp, y el pedido de fiado. */
 export type AccionFiado = { tipo: "pedir"; cuentaId: string } | { tipo: "aprobarCodigo"; novedadId: string; codigo: string };
+
+/**
+ * El código del dueño es un secreto de un solo uso (viaja por WhatsApp): no se guarda en la cola ni en la foto. Sin él
+ * (re-aplicado después de recargar, o «Volver a aplicar» desde otro puesto) la acción lo vuelve a pedir.
+ */
+export const FALTA_CODIGO = "Falta el código del dueño (por seguridad no se guarda): volvé a tipearlo en el pedido.";
+const PIN_DE_UNA_VEZ = "El PIN nuevo ya se mostró una vez y no se puede volver a generar solo: hacelo de nuevo desde Configuración → Usuarios.";
 
 /**
  * La lista blanca. Cada núcleo de pantalla que ya despacha acciones `{ tipo, … }` entra como UN comando: migrar una
@@ -112,13 +130,17 @@ export const REGISTRO = {
     sinInternet: ([, medio]) => sinRed(medio),
   }),
   fiado: entrada<[accion: AccionFiado]>({
-    correr: (e, [a], ahora, auth) => (a.tipo === "pedir" ? pedirFiado(e, a.cuentaId, auth, ahora) : aprobarConCodigo(e, a.novedadId, a.codigo, auth, ahora)),
+    correr: (e, [a], ahora, auth) =>
+      a.tipo === "pedir" ? pedirFiado(e, a.cuentaId, auth, ahora) : !a.codigo ? { ok: false, mensaje: FALTA_CODIGO } : aprobarConCodigo(e, a.novedadId, a.codigo, auth, ahora),
     // El código del dueño se verifica en el puesto (no hace falta red); el pedido viaja al dueño: con internet.
     sinInternet: ([a]) => a.tipo === "aprobarCodigo",
+    secretos: ["codigo"],
   }),
   clientes: entrada<[accion: AccionClientes], DesenlaceClientes>({
-    correr: (e, [a], ahora, auth) => ejecutarClientes(e, a, ahora, auth),
+    correr: (e, [a], ahora, auth) => (a.tipo === "aprobarCodigo" && !a.codigo ? { ok: false, mensaje: FALTA_CODIGO } : ejecutarClientes(e, a, ahora, auth)),
     sinInternet: ([a]) => a.tipo === "cobrarDeuda" && sinRed(a.medio),
+    // El código del dueño de la cuenta corriente. (El `codigo` de stock es el del producto: no es secreto, no va acá.)
+    secretos: ["codigo"],
   }),
   tienda: entrada<[accion: AccionTienda], ReturnType<typeof ejecutarTienda>>({
     correr: (e, [a], ahora, auth) => ejecutarTienda(e, a, ahora, auth),
@@ -139,6 +161,31 @@ export const REGISTRO = {
   }),
   tablero: entrada<[accion: AccionTablero], DesenlaceTablero>({
     correr: (e, [a], ahora, auth) => ejecutarTablero(e, a, ahora, auth),
+    sinInternet: () => false,
+    unaVez: ([a]) => (a.tipo === "otorgar" ? PIN_DE_UNA_VEZ : null),
+  }),
+  // ── Configuración (N4 de la cert de la Tanda 1: deja de despachar funciones sueltas) ──
+  /** La solapa de Configuración (usuarios y PIN, avisos, reglas, horarios): `ejecutarConfiguracion`. */
+  config: entrada<[accion: AccionConfig], DesenlaceConfig>({
+    correr: (e, [a], ahora, auth) => ejecutarConfiguracion(e, a, ahora, auth),
+    // Cambia lo de todos los puestos (y lleva PIN): con internet.
+    sinInternet: () => false,
+    // Los PIN tipeados: el de quien opera (`pin`), el que se arma o se repite, y el actual y el nuevo de «Cambiar mi PIN».
+    secretos: ["repetido", "actual", "nuevo"],
+    unaVez: ([a]) => (a.tipo === "alta" || a.tipo === "pinNuevo" ? PIN_DE_UNA_VEZ : null),
+  }),
+  /** «Abrir el club» con quien entró (sin nadie adentro va por `almacen.arranque`, que no es de la cola). */
+  abrirClub: entrada<[]>({
+    correr: (e, _a, ahora, auth) => abrirElClub(e, ahora, auth),
+    sinInternet: () => false,
+  }),
+  /**
+   * La limpieza para el go-live. Lleva la HUELLA del respaldo elegido (no el archivo: es el club entero y no viaja en la
+   * cola ni en la foto). Re-aplicada sobre una base que avanzó, la huella ya no es la de la jornada y no limpia: va a
+   * «Para resolver» («cambió algo desde que descargaste el respaldo»).
+   */
+  golive: entrada<[pedido: PedidoDeLimpiezaPorHuella], DesenlaceLimpieza>({
+    correr: (e, [p], ahora, auth) => limpiarPorHuella(e, p, ahora, auth),
     sinInternet: () => false,
   }),
 } as const;
@@ -256,6 +303,9 @@ export function correrComando(estado: EstadoClub, c: Comando): Corrida {
   if (!Object.hasOwn(REGISTRO, c.nombre)) return NO_ESTA;
   const e = REGISTRO[c.nombre] as unknown as Entrada<unknown[]>;
   try {
+    // Re-aplicar (sobre la base, al recargar o «Volver a aplicar»): lo que dio algo de una vez no se repite solo.
+    const unaVez = Array.isArray(c.args) ? e.unaVez?.(c.args) : null;
+    if (unaVez) return { ok: false, mensaje: unaVez };
     return correrDeterminista(c.azar, c.idsDesde, () => e.correr(estado, c.args as unknown[], c.ahora, c.auth), c.prefijo);
   } catch {
     return { ok: false, mensaje: "No se pudo hacer. Probá de nuevo." };
@@ -311,15 +361,18 @@ export function rebasar(estado: EstadoClub, pendientes: readonly Comando[], yaAp
 // ── lo que se guarda de un comando y cómo se lo cuenta ───────────────────────────────────────────────────────────
 
 /**
- * El comando listo para quedar en la foto («Para resolver», que viaja a la base y lo ve otro puesto): SIN PIN. El de
+ * El comando listo para quedar en la foto («Para resolver», que viaja a la base y lo ve otro puesto) y en la cola del
+ * equipo: SIN PIN ni los otros secretos de ese comando (`Entrada.secretos`: el código del dueño, los PIN que se arman). El de
  * quien operaba (`auth.pin`) y el que se tipeó en la acción (egreso, cierre, descuento: `args[…].pin`) se sacan; «Volver a
  * aplicar» firma con quien lo vuelve a aplicar y, si la acción pedía un PIN tipeado, el motor lo vuelve a pedir.
  */
 export function comandoSinPin<N extends NombreDeComando>(c: Comando<N>): Comando<N> {
+  // Además del PIN, los secretos de ese comando (el código del dueño, los PIN que se arman): `Entrada.secretos`.
+  const secretos = ["pin", ...((Object.hasOwn(REGISTRO, c.nombre) ? (REGISTRO[c.nombre] as unknown as Entrada<unknown[]>).secretos : undefined) ?? [])];
   const sinPin = (x: unknown): unknown => {
     if (!x || typeof x !== "object" || Array.isArray(x)) return x;
     const o = { ...(x as Record<string, unknown>) };
-    delete o.pin;
+    for (const k of secretos) delete o[k];
     return o;
   };
   const auth: Auth = c.auth?.usuarioId ? { usuarioId: c.auth.usuarioId } : {};
@@ -501,6 +554,22 @@ export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub 
         if (x.tipo === "otorgar") return "Dar acceso a alguien nuevo";
         return "Rechazar un pedido";
       }
+      case "config": {
+        const x = a[0] as AccionConfig;
+        const quien = (id: string) => (estado ? usuarioDe(estado, id)?.nombre : undefined) ?? "alguien";
+        if (x.tipo === "pinInicial") return `Armar el PIN de ${quien(x.usuarioId)}`;
+        if (x.tipo === "alta") return `Dar acceso a ${String(x.nombre ?? "").trim() || "alguien"}`;
+        if (x.tipo === "pinNuevo") return `PIN nuevo para ${quien(x.usuarioId)}`;
+        if (x.tipo === "sacarAcceso") return `Sacarle el acceso a ${quien(x.usuarioId)}`;
+        if (x.tipo === "cambiarMiPin") return "Cambiar mi PIN";
+        if (x.tipo === "avisos") return "Cambiar los avisos por WhatsApp";
+        if (x.tipo === "reglas") return "Cambiar las reglas del club";
+        return "Cambiar los horarios del club";
+      }
+      case "abrirClub":
+        return "Abrir el club";
+      case "golive":
+        return "Limpieza para el go-live";
     }
   } catch {
     // un comando raro se cuenta con su nombre

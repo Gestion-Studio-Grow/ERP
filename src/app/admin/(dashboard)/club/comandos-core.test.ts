@@ -7,7 +7,9 @@ import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo, textoDelEstado } from "./almacen";
 import { horariosLibres } from "./alta-core";
-import { comandoSinPin, correrComando, describirComando, rebasar, vaSinInternet, type ArgsDe, type Comando, type NombreDeComando } from "./comandos-core";
+import { comandoSinPin, correrComando, describirComando, FALTA_CODIGO, rebasar, vaSinInternet, type ArgsDe, type Comando, type NombreDeComando } from "./comandos-core";
+import { codigoDeLaDemo } from "./credito-core";
+import { ejecutarConfiguracion, huellaDelElegido, respaldoAntesDeLimpiar, valoresDeReglas } from "./configuracion-core";
 
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -301,4 +303,151 @@ test("comando «espera» asignar: si el hueco ya lo dio otro puesto, el motor di
 test("caja con PIN tipeado: el comando que va a la foto no lleva el PIN (al re-aplicarse en otro puesto, lo vuelve a pedir)", () => {
   const c = { id: "x", equipo: "e", persona: "u", versionBase: 1, version: M.VERSION_ESTADO, nombre: "caja", args: [{ tipo: "egreso", monto: "500", concepto: "Hielo", pin: "1111" }], ahora: AHORA, auth: { usuarioId: "u", pin: "1111" }, azar: 1, idsDesde: 0 } as Comando<"caja">;
   assert.ok(!JSON.stringify(comandoSinPin(c)).includes("1111"));
+});
+
+// ── N2 de la cert de la Tanda 1: ningún secreto de la lista blanca queda en la cola ni en la foto ─────────────────────
+// Revisada la lista entera: `pin` (caja, mesa, proveedores, config), el código del dueño (`codigo` de «aprobarCodigo» en
+// fiado y clientes) y los PIN que se arman en Configuración (`repetido`, `actual`, `nuevo`). El `codigo` de stock es el
+// del producto (no es secreto): se queda.
+
+test("N2 · comandoSinPin saca el código del dueño (fiado y clientes) y los PIN de Configuración; el código de un producto queda", () => {
+  const c = (nombre: string, args: unknown[]) => ({ id: "x", equipo: "e", persona: "u", versionBase: 1, version: M.VERSION_ESTADO, nombre, args, ahora: AHORA, auth: { usuarioId: "u", pin: "1111" }, azar: 1, idsDesde: 0 }) as unknown as Comando;
+  const casos: [Comando, string[]][] = [
+    [c("fiado", [{ tipo: "aprobarCodigo", novedadId: "n1", codigo: "ABC-DEF" }]), ["ABC-DEF", '"codigo"']],
+    [c("clientes", [{ tipo: "aprobarCodigo", novedadId: "n1", codigo: "QWE-RTY", monto: "4000" }]), ["QWE-RTY", '"codigo"']],
+    [c("config", [{ tipo: "pinInicial", usuarioId: "u1", pin: "3851", repetido: "3851" }]), ["3851"]],
+    [c("config", [{ tipo: "cambiarMiPin", actual: "1111", nuevo: "4826", repetido: "4826" }]), ["1111", "4826"]],
+    [c("config", [{ tipo: "alta", nombre: "Nico", rol: "recepcion", pin: "1111" }]), ["1111"]],
+    [c("golive", [{ conservarSaldos: true, conservarStock: true, pin: "1111", descargado: null, huellaElegida: "h", rol: "OWNER" }]), ["1111"]],
+    [c("comandoQueNoExiste", [{ pin: "1111" }]), ["1111"]],
+  ];
+  for (const [comando, prohibidos] of casos) {
+    const texto = JSON.stringify(comandoSinPin(comando));
+    for (const x of prohibidos) assert.ok(!texto.includes(x), `${comando.nombre}: ${texto}`);
+  }
+  const stock = JSON.stringify(comandoSinPin(c("stock", [{ tipo: "alta", nombre: "Agua", categoria: "Bebidas", precio: "1", costo: "1", minimo: "1", stock: "1", codigo: "779123", codigoExterno: "", plato: false }])));
+  assert.match(stock, /"codigo":"779123"/, "el código de barras del producto no es un secreto");
+  // Lo que queda sigue diciendo qué se hizo (sin el secreto).
+  assert.equal(describirComando(comandoSinPin(casos[0][0])), "19:10 · Aprobar un fiado con el código del dueño");
+});
+
+test("N2 · un fiado aprobado sin internet y re-aplicado SIN el código (después de recargar) no se aprueba: lo vuelve a pedir", () => {
+  const b = base((e) => {
+    const cli = e.clientes.find((x) => !x.cc.habilitada && !e.novedades.some((n) => n.clienteId === x.id))!;
+    assert.equal(M.solicitarCredito(e, { clienteId: cli.id, tipo: "fiado", monto: 4000 }, recepcion(e), AHORA).ok, true);
+  });
+  const local = b.abrir();
+  const n0 = local.novedades.find((x) => x.estado === "pendiente" && x.tipo === "fiado")!;
+  const { codigo } = codigoDeLaDemo(local, n0.id)!;
+  const c = enElMostrador(local, "fiado", [{ tipo: "aprobarCodigo", novedadId: n0.id, codigo }]);
+  base();
+  const deNuevo = b.abrir();
+  const r = rebasar(deNuevo, [comandoSinPin(c)], new Set());
+  assert.equal(r.rechazados.length, 1);
+  assert.equal(r.rechazados[0].motivo, FALTA_CODIGO);
+  assert.equal(deNuevo.novedades.find((x) => x.id === n0.id)!.estado, "pendiente");
+  assert.equal(deNuevo.novedades.find((x) => x.id === n0.id)!.intentos ?? 0, 0, "no cuenta como un código mal");
+  // Con el código (la misma pestaña, en memoria) sí: igual que la primera vez.
+  base();
+  const conCodigo = b.abrir();
+  assert.equal(rebasar(conCodigo, [c], new Set()).aplicados.length, 1);
+  assert.equal(JSON.stringify(conCodigo), JSON.stringify(local));
+});
+
+// ── N4 de la cert de la Tanda 1: Configuración despacha comandos con nombre («config», «abrirClub», «golive») ─────────
+
+const conPinesConHash = (e: EstadoClub) => void M.pasarPinesAHash(e);
+const DUENIO_DEMO: Auth = { usuarioId: "u-rober", pin: "1111" };
+const CASOS_CONFIG: { que: string; args: (e: EstadoClub) => ArgsDe<"config"> }[] = [
+  { que: "reglas", args: (e) => { const v = valoresDeReglas(e); return [{ tipo: "reglas", ...v, politica: { ...v.politica, toleranciaMin: "12" }, tarifas: v.tarifas.map((t) => String(Number(t) + 500)) }]; } },
+  { que: "horarios", args: (e) => [{ tipo: "horarios", dias: [{ dia: 2, abre: e.config.horarios[2].abre, cierra: e.config.horarios[2].cierra - e.config.paso }] }] },
+  { que: "avisos", args: () => [{ tipo: "avisos", celulares: {}, club: "", alias: "breakpoint.padel" }] },
+  { que: "sacarAcceso", args: () => [{ tipo: "sacarAcceso", usuarioId: "u-lu", pin: "1111" }] },
+  { que: "cambiarMiPin", args: () => [{ tipo: "cambiarMiPin", actual: "1111", nuevo: "4826", repetido: "4826" }] },
+];
+
+for (const caso of CASOS_CONFIG) {
+  test(`N4 · comando «config» ${caso.que}: re-aplicado sobre la misma base da lo mismo byte a byte, y se cuenta en criollo`, () => {
+    const b = base(conPinesConHash);
+    const local2 = b.abrir();
+    // Configuración la firma un dueño.
+    const conDuenio = { id: `cfg-${++n}`, equipo: "pc01", persona: "u-rober", versionBase: 1, version: M.VERSION_ESTADO, nombre: "config", args: caso.args(local2), ahora: AHORA, auth: DUENIO_DEMO, azar: 3000 + n, idsDesde: M.secuenciaIds() } as Comando<"config">;
+    const d = correrComando(local2, conDuenio);
+    assert.equal(d.ok, true, d.mensaje);
+    base(conPinesConHash);
+    const deNuevo = b.abrir();
+    const r = rebasar(deNuevo, [conDuenio], new Set());
+    assert.deepEqual(r.rechazados, [], JSON.stringify(r.rechazados));
+    assert.equal(JSON.stringify(deNuevo), JSON.stringify(local2), "el mismo estado, byte a byte");
+    assert.doesNotMatch(describirComando(conDuenio, deNuevo), /Operación «/);
+  });
+}
+
+test("N4 · «config» alta y PIN nuevo: el PIN se muestra UNA vez, así que re-aplicados no se repiten solos (van a «Para resolver»)", () => {
+  const b = base(conPinesConHash);
+  const local = b.abrir();
+  for (const a of [{ tipo: "alta", nombre: "Nico", rol: "recepcion", pin: "1111" }, { tipo: "pinNuevo", usuarioId: "u-lu", pin: "1111" }] as const) {
+    const primera = ejecutarConfiguracion(local, a, AHORA, DUENIO_DEMO);
+    assert.equal(primera.ok, true, primera.mensaje);
+    assert.ok(primera.pinNuevo?.pin, "la primera vez se ve el PIN");
+    const c = { id: `cfg-${a.tipo}`, equipo: "pc01", persona: "u-rober", versionBase: 1, version: M.VERSION_ESTADO, nombre: "config", args: [a], ahora: AHORA, auth: DUENIO_DEMO, azar: 3, idsDesde: 0 } as Comando<"config">;
+    const otra = b.abrir();
+    const antes = JSON.stringify(otra);
+    const r = rebasar(otra, [c], new Set());
+    assert.equal(r.rechazados.length, 1, a.tipo);
+    assert.match(r.rechazados[0].motivo, /PIN nuevo ya se mostró/);
+    assert.equal(JSON.stringify(otra), antes, `${a.tipo}: no generó un PIN distinto del que se vio`);
+  }
+});
+
+test("N4 · «abrirClub»: re-aplicado sobre la misma base abre el club igual; sobre uno ya abierto dice que no", () => {
+  const sinAbrir = (e: EstadoClub) => {
+    e.config.configurado = false;
+  };
+  const b = base(sinAbrir);
+  const local = b.abrir();
+  const c = { id: "ab1", equipo: "pc01", persona: "u-rober", versionBase: 1, version: M.VERSION_ESTADO, nombre: "abrirClub", args: [], ahora: AHORA, auth: DUENIO_DEMO, azar: 4, idsDesde: M.secuenciaIds() } as Comando<"abrirClub">;
+  assert.equal(correrComando(local, c).ok, true);
+  base(sinAbrir);
+  const deNuevo = b.abrir();
+  assert.equal(rebasar(deNuevo, [c], new Set()).aplicados.length, 1);
+  assert.equal(JSON.stringify(deNuevo), JSON.stringify(local));
+  assert.equal(rebasar(deNuevo, [c], new Set()).rechazados[0]?.motivo, "El club ya está abierto.");
+  assert.equal(describirComando(c), "19:10 · Abrir el club");
+});
+
+test("N4 · «golive» lleva la huella del respaldo (no el archivo): sobre la misma base limpia igual; si la base avanzó, no limpia", () => {
+  // Un club real recién configurado (sin nada pendiente para el go-live), con un dueño con PIN.
+  M.prefijoIds("");
+  const club = M.crearClubReal(HOY);
+  const duenioId = club.usuarios.find((u) => u.rol === "duenio")!.id;
+  assert.equal(M.definirPinInicial(club, duenioId, "3851", AHORA).ok, true);
+  const quien: Auth = { usuarioId: duenioId, pin: "3851" };
+  assert.equal(M.altaCliente(club, { nombre: "Ana Ruiz", tel: "11 5555 0000" }, AHORA).ok, true);
+  const texto = textoDelEstado(club);
+  const abrir = () => (JSON.parse(texto) as { estado: EstadoClub }).estado;
+  const local = abrir();
+  const bajado = respaldoAntesDeLimpiar(local, duenioId, 1);
+  const elegido = huellaDelElegido(bajado.texto);
+  assert.ok(elegido.ok);
+  assert.equal(huellaDelElegido("{roto").ok, false);
+  const pedido = { conservarSaldos: true, conservarStock: true, pin: "3851", descargado: { huella: bajado.huella, nombre: bajado.nombre }, huellaElegida: elegido.huella, rol: "OWNER" };
+  const c = { id: "gl1", equipo: "pc01", persona: duenioId, versionBase: 1, version: M.VERSION_ESTADO, nombre: "golive", args: [pedido], ahora: AHORA, auth: quien, azar: 5, idsDesde: M.secuenciaIds() } as Comando<"golive">;
+  const d = correrComando(local, c);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.ok(!JSON.stringify(c).includes(bajado.texto.slice(0, 200)), "el comando no lleva el archivo");
+  const igual = abrir();
+  assert.equal(rebasar(igual, [c], new Set()).aplicados.length, 1);
+  assert.equal(JSON.stringify(igual), JSON.stringify(local), "sobre la misma base: lo mismo");
+  // La base avanzó (otro puesto dio de alta un cliente): el respaldo ya no es esa jornada, no se limpia.
+  const avanzo = abrir();
+  assert.equal(M.altaCliente(avanzo, { nombre: "Beto Sosa", tel: "11 5555 1111" }, AHORA).ok, true);
+  const antes = JSON.stringify(avanzo);
+  const r = rebasar(avanzo, [c], new Set());
+  assert.equal(r.rechazados.length, 1);
+  assert.match(r.rechazados[0].motivo, /Cambió algo desde que descargaste el respaldo/);
+  assert.equal(JSON.stringify(avanzo), antes, "no se tocó nada");
+  // Sin el PIN (después de recargar) tampoco.
+  const sinPin = rebasar(abrir(), [comandoSinPin(c)], new Set());
+  assert.equal(sinPin.rechazados.length, 1);
 });

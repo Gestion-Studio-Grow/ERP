@@ -10,8 +10,8 @@
 //   2. Con un dueño con PIN: «Entrar como <dueño>» con ese PIN (`probarPin` del bloqueo, con EL tope del equipo:
 //      `guardaDelPin`, el mismo contador del bloqueo, la caja y Configuración; 5 mal → espera) →
 //      `cambiarOperador`. Desde ahí la consola es la solapa Configuración de siempre (ClubDemo muestra las solapas).
-//   3. Ya adentro, lo opcional con las secciones de siempre (`ejecutar`): avisos, recepción, precios y fondo.
-//   4. «Abrir el club» (`abrirElClub` → `terminarConfiguracion`): por `ejecutar` con quien entró, o por `arranque` si
+//   3. Ya adentro, lo opcional con las secciones de siempre (el comando «config»): avisos, recepción, precios y fondo.
+//   4. «Abrir el club» (`abrirElClub` → `terminarConfiguracion`): por el comando «abrirClub» con quien entró, o por `arranque` si
 //      nadie entró. Después nadie opera: el club queda bloqueado y se entra con el PIN, como el vanilla.
 // Nunca se muestra un PIN. La lógica está en configuracion-core.ts (`armarArranque`, `abrirElClub`).
 
@@ -96,7 +96,7 @@ function Entrar({ almacen, d, guarda }: { almacen: Almacen; d: DuenioDelArranque
 
 function AbrirElClub({ almacen, conOperador }: { almacen: Almacen; conOperador: boolean }) {
   const abrir = () => {
-    const d = conOperador ? almacen.ejecutar((e, ahora, auth) => abrirElClub(e, ahora, auth)) : almacen.arranque((e, ahora) => abrirElClub(e, ahora));
+    const d = conOperador ? almacen.comando("abrirClub", []) : almacen.arranque((e, ahora) => abrirElClub(e, ahora));
     // Abierto: nadie opera. El club queda bloqueado («Elegí quién entra y poné su PIN») y se entra con el PIN. Sin
     // nadie adentro (abierto por `arranque`) ya está así.
     if (d.ok) bloquearElClub(almacen, "cambio");

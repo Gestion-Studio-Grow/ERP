@@ -6,8 +6,9 @@
 // lo del otro y LO SUYO QUEDABA APARTE entero (almacen.ts, «Lo que quedó aparte»). Ahora (bp-DISENO.md §3.3):
 //
 //   1. Toda acción de pantalla entra a la COLA del puesto (`Pendiente`): el comando con nombre (comandos-core.ts; desde
-//      el cierre de la cert de la Tanda 1 lo despachan todas las pantallas de operación) o, si una pantalla todavía
-//      despacha una función (Configuración), la función misma (sirve mientras la pestaña esté abierta). Corre al
+//      el cierre de la cert de la Tanda 1 lo despachan todas las pantallas de operación, y Configuración desde la
+//      vuelta 2: «config», «abrirClub», «golive») o, si algo todavía despacha una función, la función misma (sirve
+//      mientras la pestaña esté abierta). Corre al
 //      instante, como siempre, con la semilla del azar y el contador de ids anotados (`correrDeterminista`).
 //   2. Cuando la base avanzó (el latido de versión cada 15 s, o un «conflicto» al subir), el almacén baja la foto de la
 //      base, la pone en lugar de la suya y RE-APLICA la cola encima, en orden (`rebasar`). Lo que el motor acepta queda,
@@ -19,9 +20,10 @@
 //      puesto dice «Caro (PC) dio un turno a las 21:00» al enterarse.
 //
 // MODELO (la foto, sin migración): `estado.sincro = { aplicados: string[] ≤500, recientes: Reciente[] ≤40,
-// paraResolver: ItemParaResolver[] ≤50 }`. La cola (`pendientes`) NO va en la foto: es del puesto (memoria, espejada en
-// el equipo en `<clave>:cola` para sobrevivir a recargar la pestaña: almacen.ts). Nada de lo que va a la foto ni al
-// equipo lleva un PIN (`comandoSinPin`).
+// paraResolver: ItemParaResolver[] ≤50, resueltos: string[] ≤500 }` (`resueltos`: los ítems «para resolver» que alguien
+// sacó a mano —descartó o volvió a aplicar—; aparte de `aplicados`, que rota con cada comando: N3 de la cert).
+// La cola (`pendientes`) NO va en la foto: es del puesto (memoria, espejada en el equipo en `<clave>:cola:<equipo>` para sobrevivir a recargar la pestaña: almacen.ts). Nada de lo que va a la foto ni al
+// equipo lleva un PIN ni el código del dueño (`comandoSinPin`).
 //
 // Puro salvo `correrPendiente` / `rebasar`, que MUTAN el estado que reciben (como todo el motor). No lee reloj ni red.
 //
@@ -39,6 +41,12 @@ export const TOPE_APLICADOS = 500;
 export const TOPE_RECIENTES = 40;
 /** Cuántos ítems «para resolver» guarda la foto (los más viejos se caen: ya nadie los va a resolver). */
 export const TOPE_PARA_RESOLVER = 50;
+/**
+ * Cuántos ítems «para resolver» resueltos a mano (descartados o vueltos a aplicar) recuerda la foto. Va aparte de
+ * `aplicados` (que se llena con CADA comando): para que se caiga uno de acá hacen falta 500 resoluciones a mano, no 500
+ * comandos, entre que un puesto manda un ítem a «para resolver» y la base se lo confirma.
+ */
+export const TOPE_RESUELTOS = 500;
 /** Si la base vuelve a avanzar mientras se re-aplica, se repite hasta esta cantidad de vueltas; después, a la cola. */
 export const TOPE_VUELTAS = 5;
 
@@ -82,11 +90,13 @@ export interface SincroDelClub {
   aplicados: string[];
   recientes: Reciente[];
   paraResolver: ItemParaResolver[];
+  /** Los ids de los ítems «para resolver» que alguien sacó a mano (no resucitan aunque se caigan de `aplicados`). */
+  resueltos: string[];
 }
 
 type ConSincro = EstadoClub & { sincro?: Partial<SincroDelClub> };
 
-const VACIO: Readonly<SincroDelClub> = Object.freeze({ aplicados: [], recientes: [], paraResolver: [] }) as SincroDelClub;
+const VACIO: Readonly<SincroDelClub> = Object.freeze({ aplicados: [], recientes: [], paraResolver: [], resueltos: [] }) as SincroDelClub;
 
 const esLista = <T>(x: unknown): x is T[] => Array.isArray(x);
 
@@ -98,6 +108,7 @@ export function leerSincro(estado: EstadoClub): Readonly<SincroDelClub> {
     aplicados: esLista<string>(s.aplicados) ? s.aplicados : VACIO.aplicados,
     recientes: esLista<Reciente>(s.recientes) ? s.recientes : VACIO.recientes,
     paraResolver: esLista<ItemParaResolver>(s.paraResolver) ? s.paraResolver : VACIO.paraResolver,
+    resueltos: esLista<string>(s.resueltos) ? s.resueltos : VACIO.resueltos,
   };
 }
 
@@ -109,6 +120,7 @@ export function sincroDe(estado: EstadoClub): SincroDelClub {
     aplicados: esLista<string>(s.aplicados) ? s.aplicados.filter((x) => typeof x === "string") : [],
     recientes: esLista<Reciente>(s.recientes) ? s.recientes.filter((x) => x && typeof x.id === "string") : [],
     paraResolver: esLista<ItemParaResolver>(s.paraResolver) ? s.paraResolver.filter((x) => x && typeof x.id === "string") : [],
+    resueltos: esLista<string>(s.resueltos) ? s.resueltos.filter((x) => typeof x === "string") : [],
   };
   e.sincro = limpio;
   return limpio;
@@ -250,12 +262,20 @@ export function anotarParaResolver(estado: EstadoClub, item: ItemParaResolver): 
   s.paraResolver = [...s.paraResolver.filter((x) => x.id !== item.id), item].slice(-TOPE_PARA_RESOLVER);
 }
 
-/** Saca un ítem «para resolver» (se volvió a aplicar o se descartó). true si estaba. */
+/**
+ * Saca un ítem «para resolver» (se volvió a aplicar o se descartó). true si estaba. Queda anotado en `resueltos`: así
+ * `volverAAnotar` no lo resucita aunque su id ya se haya caído de `aplicados` (N3).
+ */
 export function sacarParaResolver(estado: EstadoClub, id: string): boolean {
   const s = sincroDe(estado);
   const antes = s.paraResolver.length;
   s.paraResolver = s.paraResolver.filter((x) => x.id !== id);
-  return s.paraResolver.length !== antes;
+  const estaba = s.paraResolver.length !== antes;
+  if (estaba && !s.resueltos.includes(id)) {
+    s.resueltos.push(id);
+    if (s.resueltos.length > TOPE_RESUELTOS) s.resueltos.splice(0, s.resueltos.length - TOPE_RESUELTOS);
+  }
+  return estaba;
 }
 
 export interface Rebase {
@@ -310,7 +330,8 @@ export function rebasar(estado: EstadoClub, cola: readonly Pendiente[], ahoraMs:
  * toca. MUTA el estado. Devuelve cuántos anotó y cuáles ya estaban en la base (ésos dejan de esperar).
  */
 export function volverAAnotar(estado: EstadoClub, items: readonly ItemParaResolver[]): { anotados: number; yaEnLaBase: string[] } {
-  const ya = aplicadosDe(estado);
+  // La base ya lo tiene: llegó (`aplicados`) o alguien ya lo resolvió a mano (`resueltos`, que no rota con cada comando).
+  const ya = new Set([...leerSincro(estado).aplicados, ...leerSincro(estado).resueltos]);
   const out = { anotados: 0, yaEnLaBase: [] as string[] };
   for (const item of items) {
     if (ya.has(item.id)) {
@@ -456,6 +477,13 @@ export function prometeAlgo(nombre: string, args: unknown): boolean {
       return tipo(a[0]) === "pagar";
     case "caja":
       return tipo(a[0]) !== "fondo";
+    // Configuración: lo de usuarios y PIN (alta y PIN nuevo muestran un PIN una sola vez: cuanto antes llega, menos chance
+    // de tener que re-aplicarlo), abrir el club y la limpieza.
+    case "config":
+      return ["pinInicial", "alta", "pinNuevo", "sacarAcceso", "cambiarMiPin"].includes(tipo(a[0]));
+    case "abrirClub":
+    case "golive":
+      return true;
     default:
       return false;
   }

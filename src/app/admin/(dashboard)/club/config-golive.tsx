@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/Button";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { CampoPin } from "./formulario-del-club";
-import { armarGoLive, duenioConPin, limpiarConRespaldo, respaldoAntesDeLimpiar, type DuenioConPin, type RespaldoAntesDeLimpiar } from "./configuracion-core";
+import { armarGoLive, duenioConPin, huellaDelElegido, respaldoAntesDeLimpiar, type DesenlaceLimpieza, type DuenioConPin, type RespaldoAntesDeLimpiar } from "./configuracion-core";
 import { Casilla, ErrorDeSeccion, Seccion, campoArchivo, conElTopeDelEquipo, descargarTexto, despuesDePintar, sinDesborde, textoElegido } from "./config-piezas";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 
@@ -64,11 +64,18 @@ export function LimpiezaGoLive({ almacen, negocio }: { almacen: Almacen; negocio
     if (texto == null) return setError("Elegí el respaldo que descargaste (paso 2): sin eso no se limpia nada.");
     setOcupado(true);
     await despuesDePintar();
-    let r: ReturnType<typeof limpiarConRespaldo>;
+    let r: DesenlaceLimpieza;
     try {
-      r = almacen.ejecutar((e, ahora, auth) =>
-        conElTopeDelEquipo(almacen, negocio, () => limpiarConRespaldo(e, { conservarSaldos: saldos, conservarStock: stock, pin, descargado: bajado, textoElegido: texto }, ahora, auth, almacen.rol())),
-      ) as ReturnType<typeof limpiarConRespaldo>;
+      // El archivo se mira acá (que sea un respaldo que se puede restaurar); el comando lleva sólo su huella, y al correr
+      // (o al re-aplicarse sobre la base) mira que sea la de la jornada de ahora.
+      const elegido = huellaDelElegido(texto);
+      if (!elegido.ok) {
+        almacen.informar({ ok: false, mensaje: elegido.motivo });
+        return;
+      }
+      r = almacen.comando("golive", [{ conservarSaldos: saldos, conservarStock: stock, pin, descargado: bajado, huellaElegida: elegido.huella, rol: almacen.rol() }], {
+        envolver: (correr) => conElTopeDelEquipo(almacen, negocio, correr) as DesenlaceLimpieza,
+      });
     } finally {
       setOcupado(false);
     }
