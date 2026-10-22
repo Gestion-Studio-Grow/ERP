@@ -215,12 +215,30 @@ export function nuevoFijo(
 export type AccionFijo =
   | { tipo: "nuevo"; datos: Parameters<typeof nuevoFijo>[1] }
   | { tipo: "baja"; fijoId: string }
-  | { tipo: "bajar" };
+  | { tipo: "bajar" }
+  /** Los fijos de UN día más allá de la semana a la vista (el calendario de la agenda, BP-013). */
+  | { tipo: "bajarDia"; fecha: Fecha };
 
 export function ejecutarFijo(estado: EstadoClub, a: AccionFijo, ahora: Ahora, auth?: Auth): Desenlace {
   if (a.tipo === "nuevo") return nuevoFijo(estado, a.datos, ahora);
   if (a.tipo === "baja") return bajaFijo(estado, a.fijoId, ahora, auth);
+  if (a.tipo === "bajarDia") return bajarFijosDelDia(estado, a.fecha);
   return bajarFijos(estado, ahora.fecha);
+}
+
+/** Cuántos fijos de ese día todavía no están en la grilla (para bajarlos al abrir un día lejano del calendario). PURO. */
+export function fijosPorBajar(estado: EstadoClub, fecha: Fecha): number {
+  const dia = diaSemana(fecha);
+  return estado.fijos.filter((f) => f.dia === dia && !f.excepciones.includes(fecha) && !estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha)).length;
+}
+
+/** Baja a la grilla los fijos de un día (idempotente; lo que choca, avisa y no pisa). */
+export function bajarFijosDelDia(estado: EstadoClub, fecha: Fecha): Desenlace {
+  const antes = estado.reservas.length;
+  const choques = materializarFijos(estado, fecha).map((c) => `${c.fijo.titular}: ${c.motivo}`);
+  const nuevos = estado.reservas.length - antes;
+  const base = nuevos ? `${nuevos} turno${nuevos > 1 ? "s" : ""} fijo${nuevos > 1 ? "s" : ""} del ${ddmm(fecha)} a la grilla.` : `Los fijos del ${ddmm(fecha)} ya estaban en la grilla.`;
+  return { ok: choques.length === 0, mensaje: choques.length ? `${base} No entraron: ${choques.join(" · ")}.` : base };
 }
 
 /**

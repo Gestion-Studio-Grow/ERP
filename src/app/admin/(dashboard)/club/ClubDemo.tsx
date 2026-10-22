@@ -47,6 +47,8 @@ import { useOperador, useSeleccion } from "./usar-almacen";
 import AgendaCanchas from "./AgendaCanchas";
 import AltaDeTurno from "./AltaDeTurno";
 import { DiasDeLaAgenda, FueraDeLaGrilla } from "./AgendaExtras";
+import { calendarioDeLaAgenda } from "./agenda-core";
+import { DIAS_A_LA_VISTA, fijosPorBajar } from "./canchas-core";
 import { armarTira } from "./tira-de-solapas-core";
 import PaletaDelClub, { AyudaDeAtajos } from "./PaletaDelClub";
 import type { AccionPaleta } from "./paleta-core";
@@ -661,6 +663,10 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       almacen.olvidarDeshacer();
       setDia(d);
       setPanel(null);
+      // Un día del calendario más allá de la semana a la vista (BP-013): sus turnos fijos se bajan a la grilla al abrirlo
+      // (como el club vanilla al cambiar de día), así nadie da un turno encima de un fijo. Sólo si falta alguno.
+      if (d > sumarDias(almacen.ahora().fecha, DIAS_A_LA_VISTA - 1) && fijosPorBajar(almacen.estado(), d) > 0 && !almacen.soloLectura() && almacen.operador())
+        almacen.comando("fijo", [{ tipo: "bajarDia", fecha: d }]);
     },
     [almacen],
   );
@@ -867,7 +873,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
                 onAbrir={onAbrir}
                 onReservar={onReservar}
                 atajoTurno={atajos}
-                dias={<DiasDeLaAgenda hoy={hoy} dia={dia} onDia={elegirDia} />}
+                dias={<DiasDeLaAgenda hoy={hoy} dia={dia} onDia={elegirDia} calendario={calendarioDeLaAgenda(almacen.estado(), hoy)} />}
                 accesos={<AccesosDeLaAgenda almacen={almacen} hoy={hoy} onIr={(s) => (s === "buffet" ? abrirCuenta() : irASolapa(s))} />}
                 cambiarHorario={<CambiarHorario almacen={almacen} onIr={() => irASolapa("configuracion")} />}
               />

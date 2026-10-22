@@ -40,3 +40,7 @@
 [data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="dias"] { gap: 0.25rem; padding-block: 0.375rem; margin-block: -0.375rem; }
 [data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="dias"] button { position: relative; flex-direction: row; align-items: center; gap: 0.375rem; height: 2rem; min-height: 0; min-width: 0; padding-inline: 0.625rem; }
 [data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="dias"] button::after { content: ""; position: absolute; inset: -0.375rem 0; }
+
+/* BP-013 · el calendario de la agenda («Otro día», hasta hoy + 14): a la altura de los días, con la piel del club. */
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="calendario"] input { border-color: var(--line-strong); background: var(--surface-raised); }
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="calendario"] input[aria-invalid="true"] { border-color: var(--danger); }

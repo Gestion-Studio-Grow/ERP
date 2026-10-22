@@ -269,6 +269,27 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.close();
   });
 
+  test("BP-013 · el calendario de la agenda: «Otro día» de hoy a hoy + 14; +13 se elige y queda como un día más; +15 no", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    const cal = page.getByLabel("Otro día");
+    const [min, max] = await Promise.all([cal.getAttribute("min"), cal.getAttribute("max")]);
+    assert.ok(min && max, "con mínimo y máximo");
+    const dias = Math.round((Date.parse(max!) - Date.parse(min!)) / 86_400_000);
+    assert.equal(dias, 14, "hasta hoy + 14, el mismo número que el turnero");
+    const mas = (n: number) => new Date(Date.parse(min!) + n * 86_400_000).toISOString().slice(0, 10);
+    await cal.fill(mas(13));
+    const grupo = page.getByRole("group", { name: "Elegir el día de la agenda" });
+    const ultimo = grupo.getByRole("button").last();
+    assert.equal(await ultimo.getAttribute("aria-pressed"), "true", "el +13 es un día más, elegido");
+    assert.equal(await grupo.getByRole("button").count(), 8);
+    await cal.fill(mas(15));
+    await page.getByRole("alert").filter({ hasText: /^Todavía no se reserva para ese día\./ }).waitFor();
+    assert.equal(await ultimo.getAttribute("aria-pressed"), "true", "sigue en el +13");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("«Cobrar la cancha y cerrarla · la mesa sigue» y después los cargos; Escape vuelve al turno", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();

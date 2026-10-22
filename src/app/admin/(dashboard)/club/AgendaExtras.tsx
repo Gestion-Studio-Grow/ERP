@@ -7,7 +7,9 @@
 //   · `DiasDeLaAgenda`: ayer, hoy y los cinco que siguen (`diasDeLaAgenda`, agenda-core.ts: los mismos que el club
 //     vanilla). Botones de 44 px con `aria-pressed`; la piel de Break Point (piel/agenda.css) los muestra de 32 px en
 //     una línea («Vie 16/10») y deja el área de toque en 44. Cambiar de día no arma otra pantalla: es la MISMA grilla
-//     con otro `dia` (el encabezado y las horas se reusan si el horario es igual).
+//     con otro `dia` (el encabezado y las horas se reusan si el horario es igual). Más allá, el CALENDARIO (BP-013):
+//     un `<input type="date">` de hoy a hoy + `config.diasAdelante` (14, el mismo número que el turnero); el día
+//     elegido fuera de los 7 se suma como un botón más.
 //   · `FueraDeLaGrilla`: lo cancelado, suspendido o la falta de ese día, con la plata que queda pendiente: devolver
 //     en mano a alguien sin ficha (sale de la caja) o cobrar la falta de alguien sin ficha (entra a la caja).
 
@@ -20,12 +22,15 @@ import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { fueraDeGrilla, type FueraDeGrilla as Fila } from "./ciclo-core";
 import { ETIQUETA_MEDIO, MEDIOS_CAJA, type MedioCaja } from "./cuenta-core";
-import { diasDeLaAgenda } from "./agenda-core";
+import { diasDeLaAgenda, fueraDelCalendario, type calendarioDeLaAgenda } from "./agenda-core";
 import { useSeleccion } from "./usar-almacen";
 
-export function DiasDeLaAgenda({ hoy, dia, onDia }: { hoy: string; dia: string; onDia: (d: string) => void }) {
-  const dias = diasDeLaAgenda(hoy);
+export function DiasDeLaAgenda({ hoy, dia, onDia, calendario }: { hoy: string; dia: string; onDia: (d: string) => void; calendario?: ReturnType<typeof calendarioDeLaAgenda> }) {
+  const dias = diasDeLaAgenda(hoy, dia, calendario?.dias);
+  const [error, setError] = useState<string | null>(null);
+  const ids = { cal: useId(), ayuda: useId(), error: useId() };
   return (
+    <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
     <div role="group" aria-label="Elegir el día de la agenda" data-agenda="dias" className="flex gap-2 overflow-x-auto pb-1">
       {dias.map((d) => (
         <button
@@ -43,6 +48,39 @@ export function DiasDeLaAgenda({ hoy, dia, onDia }: { hoy: string; dia: string; 
           <span className="tabular-nums">{d.ddmm}</span>
         </button>
       ))}
+    </div>
+      {calendario && (
+        <div data-agenda="calendario" className="flex flex-col gap-1 pb-1">
+          <label htmlFor={ids.cal} className="text-xs text-muted">
+            Otro día
+          </label>
+          <input
+            id={ids.cal}
+            type="date"
+            min={calendario.min}
+            max={calendario.max}
+            value={dia >= calendario.min && dia <= calendario.max ? dia : ""}
+            aria-describedby={error ? `${ids.ayuda} ${ids.error}` : ids.ayuda}
+            aria-invalid={error ? true : undefined}
+            onChange={(e) => {
+              const v = e.currentTarget.value;
+              if (!v) return;
+              const no = fueraDelCalendario(calendario, v);
+              setError(no);
+              if (!no) onDia(v);
+            }}
+            className="min-h-11 rounded-md border border-line-strong bg-surface-raised px-3 text-sm text-strong tabular-nums focus-visible:outline-2 focus-visible:outline-focus"
+          />
+          <span id={ids.ayuda} className="sr-only">
+            {calendario.texto}
+          </span>
+          {error && (
+            <p id={ids.error} role="alert" className="text-xs text-danger">
+              {error}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

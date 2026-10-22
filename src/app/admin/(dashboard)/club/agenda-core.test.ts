@@ -7,7 +7,8 @@ import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { destinosParaMover, opcionesCiclo } from "./ciclo-core";
 import { reservar } from "./alta-core";
-import { DIAS_ANTES, DIAS_DESPUES, armarAgenda, compartirAgenda, diasDeLaAgenda, marcaDelTurno, opcionesDelMenu, ponerLuz, previaArrastre, senalDelTurno, velocidadAlBorde, vecino } from "./agenda-core";
+import { DIAS_ANTES, DIAS_DESPUES, armarAgenda, calendarioDeLaAgenda, compartirAgenda, diasDeLaAgenda, fueraDelCalendario, marcaDelTurno, opcionesDelMenu, ponerLuz, previaArrastre, senalDelTurno, velocidadAlBorde, vecino } from "./agenda-core";
+import { bajarFijosDelDia, fijosPorBajar } from "./canchas-core";
 import { ejecutar } from "./cuenta-core";
 
 const HOY = "2026-10-17";
@@ -364,4 +365,46 @@ test("BP-005 · el menú del bloque: con la seña sin pagar, «Cobrar la seña y
   assert.equal(op[0].accion, "cobrarSenaYAbrir");
   assert.equal(op[0].texto, `Cobrar la seña y abrir · ${M.pesos(14000 - r.pagos.reduce((s, p) => s + p.monto, 0))}`);
   assert.ok(!op.some((o) => o.accion === "abrirCancha"), "no «Abrir cancha»");
+});
+
+test("BP-013 · el calendario de la agenda: hoy es domingo → +13 (el sábado de la semana próxima) se elige y se ve; +15 no", () => {
+  const e = M.generarDemo(HOY, AHORA.min);
+  const domingo = M.sumarDias(HOY, (7 - M.diaSemana(HOY)) % 7);
+  assert.equal(M.diaSemana(domingo), 0);
+  const cal = calendarioDeLaAgenda(e, domingo);
+  assert.equal(cal.dias, 14, "el mismo número que el turnero");
+  assert.equal(cal.min, domingo);
+  assert.equal(cal.max, M.sumarDias(domingo, 14));
+  const mas13 = M.sumarDias(domingo, 13);
+  assert.equal(M.diaSemana(mas13), 6, "+13 es el sábado de la semana próxima");
+  assert.equal(fueraDelCalendario(cal, mas13), null);
+  assert.equal(fueraDelCalendario(cal, M.sumarDias(domingo, 14)), null);
+  assert.match(fueraDelCalendario(cal, M.sumarDias(domingo, 15))!, /^Todavía no se reserva para ese día\. Se reserva hasta el domingo \d+\/\d+ \(14 días\)\.$/);
+  assert.match(fueraDelCalendario(cal, M.sumarDias(domingo, -3))!, /ya pasó/);
+  // El día elegido fuera de los 7 se suma como un botón más (y uno fuera de la ventana, no).
+  const dias = diasDeLaAgenda(domingo, mas13, cal.dias);
+  assert.equal(dias.length, 8);
+  assert.equal(dias.at(-1)!.fecha, mas13);
+  assert.equal(dias.at(-1)!.nombre, "Sáb");
+  assert.equal(diasDeLaAgenda(domingo, M.sumarDias(domingo, 15), cal.dias).length, 7);
+  assert.equal(diasDeLaAgenda(domingo, M.sumarDias(domingo, 2), cal.dias).length, 7, "uno de los 7 no se repite");
+  // Lo edita el dueño en Reglas: con 10, +11 ya no.
+  e.config.diasAdelante = 10;
+  assert.ok(fueraDelCalendario(calendarioDeLaAgenda(e, domingo), M.sumarDias(domingo, 11)));
+});
+
+test("BP-013 · un día lejano del calendario baja sus turnos fijos a la grilla (una vez: abrirlo de nuevo no los repite)", () => {
+  const e = M.generarDemo(HOY, AHORA.min);
+  const f = e.fijos[0];
+  assert.ok(f, "la demo trae turnos fijos");
+  let lejos = M.sumarDias(HOY, 8);
+  while (M.diaSemana(lejos) !== f.dia) lejos = M.sumarDias(lejos, 1);
+  assert.ok(fijosPorBajar(e, lejos) > 0, "a +8 o más, los fijos todavía no están en la grilla");
+  const d = bajarFijosDelDia(e, lejos);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.ok(e.reservas.some((r) => r.fijoId === f.id && r.fecha === lejos));
+  assert.equal(fijosPorBajar(e, lejos), 0);
+  const n = e.reservas.length;
+  bajarFijosDelDia(e, lejos);
+  assert.equal(e.reservas.length, n, "idempotente");
 });

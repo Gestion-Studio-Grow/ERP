@@ -325,21 +325,54 @@ export const DIAS_ANTES = 1;
 /** Cuántos días después de hoy (el vanilla: hasta hoy + 5). */
 export const DIAS_DESPUES = 5;
 
+/** Un día de la agenda como se lee arriba (`i`: cuántos días desde hoy). */
+function diaDeLaAgenda(hoy: Fecha, i: number): DiaDeLaAgenda {
+  const fecha = sumarDias(hoy, i);
+  const semana = NOMBRE_DIA[diaSemana(fecha)];
+  const ddmm = `${Number(fecha.slice(8))}/${Number(fecha.slice(5, 7))}`;
+  const cerca = i === -1 ? "Ayer" : i === 0 ? "Hoy" : i === 1 ? "Mañana" : null;
+  // Como el club de hoy: «Vie · Hoy · Dom» (el nombre del día, salvo hoy). «Ayer» y «Mañana» quedan para el lector.
+  return { fecha, nombre: i === 0 ? "Hoy" : semana.slice(0, 3), cerca, ddmm, etiqueta: `${cerca ? `${cerca}, ` : ""}${semana.toLowerCase()} ${ddmm}` };
+}
+
+/** Días entre dos fechas (`b - a`), sin depender de la zona horaria. */
+const diasEntre = (a: Fecha, b: Fecha) => Math.round((Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, +b.slice(8, 10)) - Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, +a.slice(8, 10))) / 86_400_000);
+
 /**
  * Los días que se eligen arriba de la agenda: ayer, hoy y los cinco que siguen (los de `vistaAgenda` del vanilla,
  * `[-1, 0, 1, 2, 3, 4, 5]`). Ayer sirve para cobrar lo que quedó de anoche o revisar una falta; la grilla es la misma.
+ * Con `elegido` (BP-013, el calendario): si cae fuera de esos 7 y dentro de la ventana (hasta `diasAdelante`, el mismo
+ * número que el turnero), se suma al final como un botón más.
  */
-export function diasDeLaAgenda(hoy: Fecha): DiaDeLaAgenda[] {
+export function diasDeLaAgenda(hoy: Fecha, elegido?: Fecha | null, diasAdelante = DIAS_ADELANTE_DE_FABRICA): DiaDeLaAgenda[] {
   const dias: DiaDeLaAgenda[] = [];
-  for (let i = -DIAS_ANTES; i <= DIAS_DESPUES; i++) {
-    const fecha = sumarDias(hoy, i);
-    const semana = NOMBRE_DIA[diaSemana(fecha)];
-    const ddmm = `${Number(fecha.slice(8))}/${Number(fecha.slice(5, 7))}`;
-    const cerca = i === -1 ? "Ayer" : i === 0 ? "Hoy" : i === 1 ? "Mañana" : null;
-    // Como el club de hoy: «Vie · Hoy · Dom» (el nombre del día, salvo hoy). «Ayer» y «Mañana» quedan para el lector.
-    dias.push({ fecha, nombre: i === 0 ? "Hoy" : semana.slice(0, 3), cerca, ddmm, etiqueta: `${cerca ? `${cerca}, ` : ""}${semana.toLowerCase()} ${ddmm}` });
+  for (let i = -DIAS_ANTES; i <= DIAS_DESPUES; i++) dias.push(diaDeLaAgenda(hoy, i));
+  if (elegido && !dias.some((d) => d.fecha === elegido)) {
+    const i = diasEntre(hoy, elegido);
+    if (i > DIAS_DESPUES && i <= diasAdelante) dias.push(diaDeLaAgenda(hoy, i));
   }
   return dias;
+}
+
+/** Hasta cuántos días adelante se reserva si la configuración no dice otra cosa (el motor: `config.diasAdelante`). */
+export const DIAS_ADELANTE_DE_FABRICA = 14;
+
+/**
+ * El calendario de la agenda (BP-013): desde hoy hasta hoy + `config.diasAdelante` (14: +13 sí, +15 no). `elegir`
+ * dice si una fecha tipeada o elegida entra (null) o por qué no.
+ */
+export function calendarioDeLaAgenda(estado: EstadoClub, hoy: Fecha): { min: Fecha; max: Fecha; dias: number; texto: string } {
+  const dias = Number.isInteger(estado.config.diasAdelante) && estado.config.diasAdelante > 0 ? estado.config.diasAdelante : DIAS_ADELANTE_DE_FABRICA;
+  const max = sumarDias(hoy, dias);
+  return { min: hoy, max, dias, texto: `Se reserva hasta el ${NOMBRE_DIA[diaSemana(max)].toLowerCase()} ${Number(max.slice(8))}/${Number(max.slice(5, 7))} (${dias} días).` };
+}
+
+/** ¿Esa fecha se puede elegir en el calendario? null si sí; si no, por qué (en criollo). */
+export function fueraDelCalendario(cal: { min: Fecha; max: Fecha; texto: string }, fecha: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return "Elegí un día del calendario.";
+  if (fecha < cal.min) return "Ese día ya pasó: para mirar ayer, tocá «Ayer».";
+  if (fecha > cal.max) return `Todavía no se reserva para ese día. ${cal.texto}`;
+  return null;
 }
 
 /**
