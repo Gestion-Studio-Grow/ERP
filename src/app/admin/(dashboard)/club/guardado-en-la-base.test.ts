@@ -350,3 +350,18 @@ test("dos puestos: `subirYa` sube en el acto lo que promete (sin esperar los 30 
   assert.deepEqual(await p, { ok: true, version: 1 });
   assert.deepEqual(base.subidas, [{ version: 1, fondo: 21 }]);
 });
+
+test("dos puestos: si el latido vuelve a leer y la base avanzó, lo que esperaba subir (armado sobre la versión vieja) NO sube: pisaría lo del otro", async () => {
+  const { base, g } = armar();
+  await g.leer();
+  const p = g.guardar(textoDelClub(31), 0);
+  base.otraTerminal(textoDelClub(5), T0);
+  await g.leer();
+  assert.deepEqual(await p, { ok: false, motivo: "conflicto", version: 1 }, "quien lo esperaba se entera como de un choque (el almacén re-aplica lo suyo)");
+  await g.subirYa();
+  assert.deepEqual(base.subidas, [], "nada viejo subió encima");
+  // Lo que el almacén manda después (re-aplicado sobre la versión 1) sube normal.
+  const q = g.guardar(textoDelClub(32), 1);
+  await g.subirYa();
+  assert.deepEqual(await q, { ok: true, version: 2 });
+});

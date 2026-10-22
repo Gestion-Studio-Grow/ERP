@@ -13,7 +13,7 @@
 import dynamic from "next/dynamic";
 import { Esqueleto } from "@/components/ui/Esqueleto";
 import type { Role } from "@/lib/capabilities";
-import { guardarFotoDelClub, leerFotoDelClub } from "./estado-actions";
+import { guardarFotoDelClub, leerFotoDelClub, leerVersionDelClub } from "./estado-actions";
 
 function Cargando() {
   return (
@@ -32,7 +32,8 @@ const ClubDemo = dynamic(() => import("./ClubDemo"), { ssr: false, loading: Carg
 /** `reloj="real"` lo pasa page.tsx para los negocios con jornada real (`relojDelClub`, jornada-del-club-core.ts). */
 // La base del ERP para la jornada real: las acciones del servidor (en el navegador son sólo la llamada; la foto viaja en
 // gzip). El adaptador que las usa (guardado-en-la-base.ts) importa el motor, así que lo arma ClubDemo, dentro de su chunk.
-const BASE = { leer: leerFotoDelClub, guardar: guardarFotoDelClub };
+// `leerVersion`: el latido de dos puestos (cada 15 s con la pestaña visible, sólo la versión, sin la foto).
+const BASE = { leer: leerFotoDelClub, guardar: guardarFotoDelClub, leerVersion: leerVersionDelClub };
 
 export default function ClubCargador({ negocio, usuario, rol, reloj = "demo" }: { negocio: string; usuario: string; rol: Role; reloj?: "demo" | "real" }) {
   return <ClubDemo negocio={negocio} usuario={usuario} rol={rol} reloj={reloj} base={reloj === "real" ? BASE : undefined} />;

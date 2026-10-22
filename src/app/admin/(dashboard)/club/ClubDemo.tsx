@@ -32,7 +32,7 @@
 // `next/dynamic` y `ssr: false` (el motor guarda su contador de ids a nivel de módulo; en el
 // servidor sería compartido entre pedidos).
 
-import { Suspense, createElement, lazy, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
+import { Suspense, createElement, lazy, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
 import { cn } from "@/components/ui/cn";
 import { Button } from "@/components/ui/Button";
 import { alertas, hhmm, pesos, reserva as reservaDe, resumenCaja, sumarDias } from "@/lib/club/motor.mjs";
@@ -51,7 +51,7 @@ import { armarTira } from "./tira-de-solapas-core";
 import PaletaDelClub, { AyudaDeAtajos } from "./PaletaDelClub";
 import type { AccionPaleta } from "./paleta-core";
 import { pedirFichaDeCliente } from "./ficha-pedida";
-import BandejaDelClub, { OfrecerHueco } from "./BandejaDelClub";
+import BandejaDelClub, { OfrecerHueco, ReservandoElTurno } from "./BandejaDelClub";
 import CuentaDelTurno from "./CuentaDelTurno";
 import { Esqueleto } from "@/components/ui/Esqueleto";
 import { AvisosDelClub } from "./piezas";
@@ -500,6 +500,8 @@ type Panel =
   | { tipo: "cuenta"; id: string }
   | { tipo: "alta"; canchaId: string; inicio: number | null }
   | { tipo: "ofrecer"; ofertas: OfertaDeHueco[]; canchaId: string; inicio: number }
+  /** Dos puestos: el alta espera el ok de la base antes de ofrecer el WhatsApp (`id`: el de la cola). */
+  | { tipo: "reservando"; id: string; reservaId: string }
   | null;
 
 const elDia = (_: EstadoClub, a: Ahora) => a.fecha;
@@ -608,6 +610,32 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     [abiertoId, almacen],
   );
   const cerrarAlta = useCallback(() => setPanel(null), []);
+  /**
+   * Dos puestos (Tanda 1B): el alta pasa por el almacén como el COMANDO «alta» (re-aplicable sobre lo del otro puesto,
+   * con los mismos ids y el mismo código de seña) y sube ya. AltaDeTurno no cambia: recibe el almacén con su `ejecutar`
+   * envuelto; si hay base, en vez de su «Turno reservado» se abre «Reservando…» y el WhatsApp aparece recién con el
+   * ok de la base (`ReservandoElTurno`). Sin base (la demo), todo sigue igual.
+   */
+  const almacenDelAlta = useMemo<Almacen>(
+    () => ({
+      ...almacen,
+      ejecutar(accion, opciones = {}) {
+        let encolado: { id: string; reservas: string[] } | null = null;
+        const d = almacen.ejecutar(accion, {
+          ...opciones,
+          comoAlta: true,
+          alEncolar: (x) => {
+            encolado = x;
+            opciones.alEncolar?.(x);
+          },
+        });
+        const e = encolado as { id: string; reservas: string[] } | null;
+        if (d.ok && e && e.reservas[0] && almacen.confirmaLaBase()) setPanel({ tipo: "reservando", id: e.id, reservaId: e.reservas[0] });
+        return d;
+      },
+    }),
+    [almacen],
+  );
   // Al cerrar el ofrecimiento, el foco va al turno que se dio en ese hueco o, si nadie lo tomó, a la franja libre.
   const cerrarOferta = useCallback((canchaId: string, inicio: number) => {
     setPanel(null);
@@ -860,17 +888,19 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
             cobrar y con la bandeja siempre a la vista al costado. Escape o tocar afuera vuelve a la agenda. */}
         {solapa === "agenda" && panel && (
           <HojaDelTurno
-            etiqueta={panel.tipo === "cuenta" ? "Cuenta del turno" : panel.tipo === "ofrecer" ? "Ofrecer el hueco" : "Dar un turno"}
+            etiqueta={panel.tipo === "cuenta" ? "Cuenta del turno" : panel.tipo === "ofrecer" ? "Ofrecer el hueco" : panel.tipo === "reservando" ? "Turno dado" : "Dar un turno"}
             onCerrar={panel.tipo === "cuenta" ? onVolver : panel.tipo === "ofrecer" ? (devolverFoco) => (devolverFoco === false ? cerrarAlta() : cerrarOferta(panel.canchaId, panel.inicio)) : cerrarAlta}
           >
             {panel.tipo === "cuenta" ? (
               <CuentaDelTurno key={panel.id} almacen={almacen} reservaId={panel.id} onVolver={onVolver} onOfrecer={ofrecerHueco} />
             ) : panel.tipo === "ofrecer" ? (
               <OfrecerElHueco almacen={almacen} panel={panel} onListo={() => cerrarOferta(panel.canchaId, panel.inicio)} />
+            ) : panel.tipo === "reservando" ? (
+              <ReservandoElTurno key={panel.id} almacen={almacen} id={panel.id} reservaId={panel.reservaId} onAbrir={onAbrir} onVolver={cerrarAlta} />
             ) : (
               <AltaDeTurno
                 key={`${dia}:${panel.canchaId}@${panel.inicio}`}
-                almacen={almacen}
+                almacen={almacenDelAlta}
                 fecha={dia}
                 canchaInicial={panel.canchaId}
                 inicioInicial={panel.inicio}

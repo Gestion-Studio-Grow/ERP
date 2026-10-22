@@ -303,6 +303,14 @@ export function crearGuardadoEnLaBase({
           pendiente = null;
         }
         desprogramar();
+      } else if (pendiente && versionBase !== version) {
+        // Dos puestos: el latido vio que la base avanzó y el almacén vuelve a leer SIN choque. Lo que esperaba subir está
+        // armado sobre la versión vieja: no sube (pisaría lo del otro puesto). El almacén re-aplica lo suyo y manda el
+        // texto nuevo; quien lo esperaba se entera como de un choque.
+        const choque: ResultadoDelGuardado = { ok: false, motivo: "conflicto", version: versionBase };
+        pendiente.esperan.forEach((fn) => fn(choque));
+        pendiente = null;
+        desprogramar();
       }
       const guardadoBase = enBase?.guardado ?? -Infinity;
       version = versionBase;

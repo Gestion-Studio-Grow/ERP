@@ -9,9 +9,12 @@
 //     lo guardado pasa de `AVISO_LLENO` (o no entró), «Lo guardado se está llenando: un dueño tiene que archivar…».
 //     Si otra pestaña de este equipo tiene la jornada, lo dice y ofrece «Usar acá» (como el vanilla, que avisaba y
 //     no dejaba trabajar en la segunda). Sin Web Locks (navegador viejo), avisa que se use una sola pestaña.
+//   · Dos puestos (Tanda 1B): lo que acaba de hacer el otro puesto («Caro (PC) dio un turno a las 21:00 en C2», un
+//     rato) y, si se cortó internet, «Sin internet desde las 20:10 · lo tuyo está guardado en esta compu». Por su propio
+//     canal (`suscribirSincro`): la cinta no se repinta por cada guardado.
 // Se suscribe sola (al guardado por su canal y al minuto del reloj): ClubDemo no se repinta por esto.
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { useBloqueo } from "./bloquear-ahora";
 import { cn } from "@/components/ui/cn";
@@ -19,6 +22,44 @@ import { hhmm } from "@/lib/club/motor.mjs";
 import type { Almacen, EstadoDelGuardado } from "./almacen";
 import { useEstadoDelGuardado, useSeleccion } from "./usar-almacen";
 import EnLaCabecera from "./EnLaCabecera";
+import { useSincro } from "./BandejaDelClub";
+
+/** Cuánto queda a la vista lo que hizo el otro puesto. */
+const NOVEDAD_MS = 30_000;
+
+const horaDeEsteEquipo = (ms: number) => new Date(ms).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+
+/**
+ * Dos puestos: lo que hizo el otro puesto (30 s a la vista, para el lector de pantalla un `status`) y, sin internet,
+ * desde cuándo y que lo de acá no se pierde. Nada si no hay base o no hay nada que decir.
+ */
+const LoDelOtroPuesto = memo(function LoDelOtroPuesto({ almacen }: { almacen: Almacen }) {
+  const s = useSincro(almacen);
+  const [vencida, setVencida] = useState<number | null>(null);
+  const novedad = s.novedad && s.novedad.id !== vencida ? s.novedad : null;
+  useEffect(() => {
+    if (!s.novedad) return;
+    const id = s.novedad.id;
+    const t = setTimeout(() => setVencida(id), NOVEDAD_MS);
+    return () => clearTimeout(t);
+  }, [s.novedad]);
+  if (!s.dosPuestos || (!novedad && s.sinInternetDesde === null)) return null;
+  return (
+    <div data-ui="cinta-puestos" className="flex flex-col gap-1 rounded-lg border border-line bg-surface-raised px-4 py-2 text-sm">
+      {s.sinInternetDesde !== null && (
+        <p role="status" className="font-semibold text-strong">
+          Sin internet desde las {horaDeEsteEquipo(s.sinInternetDesde)} · lo tuyo está guardado en esta compu
+          {s.enCola > 0 ? ` (${s.enCola} ${s.enCola === 1 ? "cosa espera" : "cosas esperan"} para subir)` : ""}.
+        </p>
+      )}
+      {novedad && (
+        <p role="status" className="text-body">
+          {novedad.texto} <span className="text-muted">· {horaDeEsteEquipo(novedad.cuando)}</span>
+        </p>
+      )}
+    </div>
+  );
+});
 
 const elMinuto = (_: unknown, a: { min: number }) => a.min;
 const elNuevo = <T,>(_: T | undefined, nuevo: T) => nuevo;
@@ -166,9 +207,12 @@ export default function CintaDelClub({
   const sinAvisos = !mal && g.jornada !== "sin-bloqueo" && g.jornada !== "abriendo";
   // Con avisos y con barra, el aviso queda abajo SIN su candado (el de la barra alcanza: una sola tecla L).
   return (
-    <EnLaCabecera en="casa-reloj" fuera={cintaEnLinea(true)} ademas={sinAvisos ? null : cintaEnLinea(false)}>
-      {barra}
-    </EnLaCabecera>
+    <>
+      <EnLaCabecera en="casa-reloj" fuera={cintaEnLinea(true)} ademas={sinAvisos ? null : cintaEnLinea(false)}>
+        {barra}
+      </EnLaCabecera>
+      <LoDelOtroPuesto almacen={almacen} />
+    </>
   );
 
   function cintaEnLinea(conCandado: boolean) {

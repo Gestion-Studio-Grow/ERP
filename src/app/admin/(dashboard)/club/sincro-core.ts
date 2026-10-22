@@ -140,6 +140,12 @@ export interface Pendiente {
   /** El `cambios` del almacén con el que quedó en el estado (lo confirma un guardado de ese texto o uno posterior). */
   cambios: number;
   cuando: number;
+  /** El prefijo de ids del puesto (`Comando.prefijo`): re-aplicado da los mismos ids. */
+  prefijo?: string;
+  /** La primera vez el motor ya dijo que no (pudo haber cambiado algo antes): si al re-aplicar vuelve a decir que no, no es un choque. */
+  fallo?: boolean;
+  /** «Volver a aplicar» y «Descartar»: si al re-aplicar ya no corresponde (lo resolvió otro puesto), se calla. */
+  siFalla?: "callar";
 }
 
 /** Corre un pendiente sobre el estado (lo MUTA): el comando, o la función con el mismo azar y los mismos ids. */
@@ -147,12 +153,12 @@ export function correrPendiente(estado: EstadoClub, p: Pendiente): Desenlace {
   if (p.correr) {
     const correr = p.correr;
     try {
-      return correrDeterminista(p.azar, p.idsDesde, () => correr(estado, p.ahora, p.auth));
+      return correrDeterminista(p.azar, p.idsDesde, () => correr(estado, p.ahora, p.auth), p.prefijo);
     } catch {
       return { ok: false, mensaje: "No se pudo hacer. Probá de nuevo." };
     }
   }
-  if (p.comando) return correrComando(estado, { ...p.comando, ahora: p.ahora, auth: p.auth, azar: p.azar, idsDesde: p.idsDesde });
+  if (p.comando) return correrComando(estado, { ...p.comando, ahora: p.ahora, auth: p.auth, azar: p.azar, idsDesde: p.idsDesde, prefijo: p.prefijo });
   return { ok: false, mensaje: "Esta operación no se reconoce. Recargá la página." };
 }
 
@@ -162,10 +168,11 @@ export function turnosNuevos(estado: EstadoClub, antes: number): Reserva[] {
 }
 
 /** Anota en la foto que el pendiente se aplicó (idempotencia) y lo deja en «recientes» (la cinta del otro puesto). */
-export function anotarAplicado(estado: EstadoClub, p: Pendiente, nuevos: readonly Reserva[], ahoraMs: number): void {
+export function anotarAplicado(estado: EstadoClub, p: Pendiente, nuevos: readonly Reserva[], ahoraMs: number, { reciente = true }: { reciente?: boolean } = {}): void {
   const s = sincroDe(estado);
   if (!s.aplicados.includes(p.id)) s.aplicados.push(p.id);
   if (s.aplicados.length > TOPE_APLICADOS) s.aplicados.splice(0, s.aplicados.length - TOPE_APLICADOS);
+  if (!reciente) return;
   const t = nuevos[0];
   const r: Reciente = {
     id: p.id,
@@ -183,7 +190,7 @@ export function anotarAplicado(estado: EstadoClub, p: Pendiente, nuevos: readonl
 /** El comando de un pendiente para la foto (sin PIN), con quién y dónde. */
 function comandoParaLaFoto(p: Pendiente): Comando | null {
   if (!p.comando) return null;
-  return comandoSinPin({ ...p.comando, id: p.id, equipo: p.equipo, puesto: p.puesto, persona: p.persona, ahora: p.ahora, auth: p.auth, azar: p.azar, idsDesde: p.idsDesde });
+  return comandoSinPin({ ...p.comando, id: p.id, equipo: p.equipo, puesto: p.puesto, persona: p.persona, ahora: p.ahora, auth: p.auth, azar: p.azar, idsDesde: p.idsDesde, ...(p.prefijo !== undefined ? { prefijo: p.prefijo } : {}) });
 }
 
 /** El hueco que pedía un pendiente que da un turno (el comando «alta»), o null. */
@@ -256,6 +263,8 @@ export interface Rebase {
   rechazados: { pendiente: Pendiente; item: ItemParaResolver }[];
   /** Ya estaban en la base (subieron antes): confirmados, no se aplican dos veces. */
   salteados: Pendiente[];
+  /** Ya habían fallado la primera vez, o ya no correspondían (lo resolvió otro puesto): se sacan sin «para resolver». */
+  callados: Pendiente[];
 }
 
 /**
@@ -263,7 +272,7 @@ export interface Rebase {
  * anotado (`aplicados`, `recientes`); lo que no, va a «para resolver» con el motivo. Nada se fuerza ni se pisa.
  */
 export function rebasar(estado: EstadoClub, cola: readonly Pendiente[], ahoraMs: number): Rebase {
-  const r: Rebase = { aplicados: [], rechazados: [], salteados: [] };
+  const r: Rebase = { aplicados: [], rechazados: [], salteados: [], callados: [] };
   const ya = aplicadosDe(estado);
   for (const p of cola) {
     if (ya.has(p.id)) {
@@ -273,8 +282,13 @@ export function rebasar(estado: EstadoClub, cola: readonly Pendiente[], ahoraMs:
     const antes = estado.reservas.length;
     const d = correrPendiente(estado, p);
     if (d.ok) {
-      anotarAplicado(estado, p, turnosNuevos(estado, antes), ahoraMs);
+      anotarAplicado(estado, p, turnosNuevos(estado, antes), ahoraMs, { reciente: p.siFalla !== "callar" });
       r.aplicados.push(p);
+    } else if (p.fallo || p.siFalla === "callar") {
+      // Lo que ya había fallado la primera vez vuelve a dar lo mismo (y lo que cambió antes de fallar, también): se anota
+      // para no repetirlo. «Volver a aplicar» o «Descartar» que ya no corresponden se callan: el ítem sigue donde estaba.
+      if (p.fallo) anotarAplicado(estado, p, [], ahoraMs, { reciente: false });
+      r.callados.push(p);
     } else {
       const item = itemParaResolver(estado, p, d.mensaje, ahoraMs);
       anotarParaResolver(estado, item);
@@ -379,3 +393,24 @@ export function textoDe(nombre: NombreDeComando, args: unknown, estado: EstadoCl
 
 /** ¿El turno de un pendiente sigue en el estado? (después de un rebase, para el WhatsApp del alta). */
 export const sigueElTurno = (estado: EstadoClub, reservaId: string) => !!reservaDe(estado, reservaId);
+
+/**
+ * Lo que PROMETE algo a alguien sube ya (≤ 2 s, sin los 30 s): es el bloqueo optimista del hueco (la primera foto que la
+ * base acepta se queda con él). Dar, mover o extender un turno, hacerlo fijo y cobrar. Lo demás (cargos, buffet) se agrupa.
+ */
+export function prometeAlgo(nombre: string, args: unknown): boolean {
+  const a = Array.isArray(args) ? args : [];
+  const tipo = (x: unknown) => String((x as { tipo?: unknown } | undefined)?.tipo ?? "");
+  switch (nombre) {
+    case "alta":
+      return true;
+    case "ciclo":
+      return ["mover", "extender", "cobrarFalta", "devolver"].includes(tipo(a[1]));
+    case "cuenta":
+      return tipo(a[1]) === "hacerFijo" || tipo(a[1]).startsWith("cobrar");
+    case "buffet":
+      return tipo(a[0]) === "cobrar";
+    default:
+      return false;
+  }
+}

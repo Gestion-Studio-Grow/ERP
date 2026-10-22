@@ -13,7 +13,7 @@
 //
 // Puro: no lee el reloj ni la red ni el almacenamiento. Muta el estado que recibe, como todo el motor.
 
-import { cancha as canchaDe, crearClubReal, cuenta as cuentaDe, hhmm, pesos, producto as productoDe, reserva as reservaDe, retomarSecuencia, saldo, secuenciaIds, usuario as usuarioDe, VERSION_ESTADO } from "@/lib/club/motor.mjs";
+import { cancha as canchaDe, crearClubReal, cuenta as cuentaDe, hhmm, pesos, prefijoIds, producto as productoDe, reserva as reservaDe, retomarSecuencia, saldo, secuenciaIds, usuario as usuarioDe, VERSION_ESTADO } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
 import { reservar, type DatosAlta } from "./alta-core";
@@ -96,6 +96,11 @@ export interface Comando<N extends NombreDeComando = NombreDeComando> {
   azar: number;
   /** Por dónde iba el contador de ids del motor antes de correrlo. */
   idsDesde: number;
+  /**
+   * El prefijo de ids del puesto donde se hizo (`prefijoIds` del motor, «k3f9-»): re-aplicado en otro puesto o una hora
+   * después, crea los MISMOS ids. Opcional: un comando sin prefijo corre con el que tenga el proceso.
+   */
+  prefijo?: string;
 }
 
 /** Generador chico y conocido (mulberry32): de la misma semilla, la misma serie. */
@@ -141,14 +146,27 @@ function fijarSecuencia(n: number) {
  * después, o «Volver a aplicar» una hora más tarde). Al terminar, el contador queda en lo más alto que llegó: nunca
  * se repite un id. Los ids no chocan con los de otro puesto porque cada puesto tiene su prefijo (`prefijoIds`).
  */
-export function correrDeterminista<T>(azar: number, idsDesde: number, fn: () => T): T {
+export function correrDeterminista<T>(azar: number, idsDesde: number, fn: () => T, prefijo?: string): T {
   const antes = secuenciaIds();
+  const prefijoAntes = prefijoActual;
+  if (prefijo !== undefined) usarPrefijo(prefijo);
   fijarSecuencia(idsDesde);
   try {
     return conAzar(azar, fn);
   } finally {
     retomarSecuencia(antes);
+    if (prefijo !== undefined) usarPrefijo(prefijoAntes);
   }
+}
+
+/**
+ * El prefijo de ids que se sabe puesto (el motor no lo deja leer). Sólo lo cambia `correrDeterminista` con un prefijo,
+ * y lo vuelve a dejar como estaba: dos almacenes en el mismo proceso (los tests de dos puestos) no se pisan.
+ */
+let prefijoActual = "";
+function usarPrefijo(p: string) {
+  prefijoActual = p;
+  prefijoIds(p);
 }
 
 export type Corrida = Desenlace & {
@@ -165,7 +183,7 @@ export function correrComando(estado: EstadoClub, c: Comando): Corrida {
   if (!Object.hasOwn(REGISTRO, c.nombre)) return NO_ESTA;
   const e = REGISTRO[c.nombre] as unknown as Entrada<unknown[]>;
   try {
-    return correrDeterminista(c.azar, c.idsDesde, () => e.correr(estado, c.args as unknown[], c.ahora, c.auth));
+    return correrDeterminista(c.azar, c.idsDesde, () => e.correr(estado, c.args as unknown[], c.ahora, c.auth), c.prefijo);
   } catch {
     return { ok: false, mensaje: "No se pudo hacer. Probá de nuevo." };
   }
@@ -243,7 +261,7 @@ export const canchaCorta = (nombre: string | undefined) => (nombre ?? "").replac
 /** El turno de un comando, como lo dice la recepción: «turno 19:00 C2». */
 function elTurno(estado: EstadoClub | null, reservaId: string) {
   const r = estado ? reservaDe(estado, reservaId) : undefined;
-  if (!r || !estado) return { titular: "el turno", turno: "", r };
+  if (!r || !estado) return { titular: "quien jugaba", turno: "", r };
   return { titular: r.titular, turno: ` (turno ${hhmm(r.inicio)} ${canchaCorta(canchaDe(estado, r.canchaId)?.nombre)})`, r };
 }
 
