@@ -133,10 +133,16 @@ idioma **Español (ARG)** (`es_AR`).
 | `proxima_clase` | Hola {{1}}! Te agendé la próxima clase: {{2}} a las {{3}}. Si no podés, cancelala desde tu link: {{4}} | nombre, día, hora, link |
 | `pago_recibido` | Gracias {{1}}! Recibí el pago de la clase del {{2}}. | nombre, día |
 | `comprobante_no_valido` | Hola {{1}}! No pude validar el comprobante de la clase del {{2}}. ¿Me lo mandás de nuevo desde tu link? {{3}} | nombre, día, link |
-| `recordatorio_clase` | Hola {{1}}! Te recuerdo la clase del {{2}} a las {{3}}. Respondé SÍ si venís o NO PUEDO si no llegás. | nombre, día, hora |
+| `recordatorio_clase` | Hola {{1}}! Te recuerdo la clase del {{2}} a las {{3}}. Si no llegás, respondé CANCELAR. | nombre, día, hora |
+| `link_alumno` | Hola {{1}}! Este es tu link para ver tus clases, repetir la de la semana que viene y mandar el comprobante: {{2}} | nombre, link |
 
-- En `proxima_clase` y `recordatorio_clase` podés sumar **botones de respuesta rápida** "Sí" y
-  "No puedo": el ERP entiende esas respuestas.
+- En `proxima_clase` y `recordatorio_clase` podés sumar **botones de respuesta rápida** "Voy" y
+  "Cancelar". El botón "Cancelar" tiene que llevar el **payload `CANCELAR`**: es lo único (junto
+  con la palabra CANCELAR escrita sola) que cancela la clase. Un "no", "no puedo" o "no voy"
+  escrito a mano **no cancela**: el ERP le pregunta "¿Cancelás…? Respondé CANCELAR" y deja el
+  mensaje en la bandeja (Tanda 1 de la reingeniería, `interpretarRespuesta`).
+- `link_alumno` lo usa «¿Ya sos alumno? Pedí tu link» del turnero: el link le llega al número
+  registrado y nunca se muestra en pantalla.
 - Meta pide un **ejemplo** de cada variable: `Juan`, `jueves 23/10`, `18:00`,
   `https://matiasconsoli-erp.vercel.app/alumno/ejemplo`.
 - Fuente en el código: `PLANTILLAS_META` en `src/lib/padel/whatsapp-cloud.ts`. Si cambiás un

@@ -73,24 +73,82 @@ function iguales(a: string, b: string): boolean {
 
 // ── Lo que contesta el alumno ───────────────────────────────────────────────
 
-export type Intencion = "confirmar" | "cancelar" | null;
+export type Intencion = "confirmar" | "cancelar" | "quiereCancelar" | null;
 
-/**
- * Lee la respuesta corta del alumno al aviso de la próxima clase (texto o botón de respuesta
- * rápida). Sólo dos intenciones; cualquier otra cosa queda en la bandeja del profe como
- * mensaje para leer, no se adivina.
- */
-export function interpretarRespuesta(texto: string): Intencion {
-  const t = texto
+/** Minúsculas, sin tildes ni signos, espacios simples: «¡Sí!» → «si», «No puedo, perdón» → «no puedo perdon». */
+const normalizar = (texto: string): string =>
+  texto
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z ]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (/^(si|sii+|dale|confirmo|confirmado|ok|okey|listo|voy)( .*)?$/.test(t)) return "confirmar";
-  if (/^(no|cancelo|cancelar|no puedo|no voy)( .*)?$/.test(t)) return "cancelar";
+
+/** El payload del botón de respuesta rápida «Cancelar» de la plantilla aprobada en Meta. */
+export const PAYLOAD_CANCELAR = "CANCELAR";
+
+/**
+ * Lee la respuesta corta del alumno al aviso de su clase (texto o botón de respuesta rápida).
+ * Nada se cancela sin una confirmación explícita:
+ *  · `cancelar`: el mensaje ENTERO es «cancelar» (con o sin signos, cualquier mayúscula) o el botón
+ *    rápido con payload CANCELAR. Es lo único que cancela.
+ *  · `quiereCancelar`: «no», «no puedo…», «no voy…», «cancelo…», «cancelar la de…»: parece que no
+ *    viene, pero no se adivina → se le pregunta «Respondé CANCELAR» y la clase sigue igual.
+ *  · `confirmar`: el mensaje ENTERO es un sí («sí», «dale», «ok», «listo», «voy», «confirmo»…).
+ *    «no hay drama, voy» o «dale, nos vemos» no: van a la bandeja para que el profe los lea.
+ *  · null: todo lo demás («no sé si llego», «¿a qué hora era?») → bandeja del profe.
+ */
+export function interpretarRespuesta(texto: string, payload?: string | null): Intencion {
+  if (payload != null && payload.trim().toUpperCase() === PAYLOAD_CANCELAR) return "cancelar";
+  const t = normalizar(texto);
+  if (t === "cancelar") return "cancelar";
+  if (t === "no" || /^(no puedo|no voy|cancelo|cancelar)( |$)/.test(t)) return "quiereCancelar";
+  if (/^(si+|dale|ok|okey|listo|voy|confirmo|confirmado)$/.test(t)) return "confirmar";
   return null;
+}
+
+/**
+ * La respuesta que se le manda al alumno por la ventana de 24 h (texto libre), o null si no hay
+ * nada que decirle. Siempre se le contesta lo que pasó: nunca queda adivinando.
+ */
+export function respuestaAlAlumno(
+  r: { tipo: "preguntar"; cuando: string } | { tipo: "cancelada"; turnero: string } | { tipo: "fueraDeTermino"; profe: string },
+): string {
+  switch (r.tipo) {
+    case "preguntar":
+      return `¿Cancelás la clase del ${r.cuando}? Respondé CANCELAR y queda libre. Si venís, no hace falta que contestes.`;
+    case "cancelada":
+      return `Listo, cancelada. Elegí otro horario: ${r.turnero}`;
+    case "fueraDeTermino":
+      return `Ya está fuera del plazo para cancelar. Le aviso a ${r.profe || "el profe"}.`;
+  }
+}
+
+/**
+ * El toque de un botón de respuesta rápida. Meta lo manda como `type: "button"` (plantilla) o
+ * `type: "interactive"` con `button_reply` (mensaje interactivo); parseInboundMeta (wa-provider)
+ * sólo lee texto, así que este lo completa. Devuelve null si no es un botón.
+ */
+export function botonRespuestaMeta(payload: unknown): { from: string; text: string; payload: string; messageId: string; contactName?: string } | null {
+  type Msg = {
+    from?: string;
+    id?: string;
+    type?: string;
+    button?: { payload?: string; text?: string };
+    interactive?: { button_reply?: { id?: string; title?: string } };
+  };
+  const value = (payload as { entry?: { changes?: { value?: { messages?: Msg[]; contacts?: { wa_id?: string; profile?: { name?: string } }[] } }[] }[] } | null)?.entry?.[0]
+    ?.changes?.[0]?.value;
+  const m = value?.messages?.[0];
+  if (!m?.from || !m.id) return null;
+  const boton =
+    m.type === "button" && m.button ? { payload: m.button.payload ?? m.button.text ?? "", text: m.button.text ?? m.button.payload ?? "" } :
+    m.type === "interactive" && m.interactive?.button_reply ? { payload: m.interactive.button_reply.id ?? "", text: m.interactive.button_reply.title ?? "" } :
+    null;
+  if (!boton || !(boton.payload || boton.text)) return null;
+  const contactName = value?.contacts?.find((c) => c.wa_id === m.from)?.profile?.name;
+  return { from: m.from.replace(/\D/g, ""), text: boton.text, payload: boton.payload, messageId: m.id, ...(contactName ? { contactName } : {}) };
 }
 
 // ── Lo que se manda ─────────────────────────────────────────────────────────
@@ -103,6 +161,7 @@ export const PLANTILLAS_META = {
   pagoOk: { nombre: "pago_recibido", variables: ["nombre", "dia"] },
   pagoNo: { nombre: "comprobante_no_valido", variables: ["nombre", "dia", "link"] },
   recordatorio: { nombre: "recordatorio_clase", variables: ["nombre", "dia", "hora"] },
+  linkAlumno: { nombre: "link_alumno", variables: ["nombre", "link"] },
 } as const;
 export type ClaveMeta = keyof typeof PLANTILLAS_META;
 

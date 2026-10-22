@@ -3,9 +3,23 @@
 // Los botones del link del alumno: repetir la clase, mandar el comprobante y cancelar.
 // Cada uno llama a su acción del servidor, que vuelve a chequear todo con el token.
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { cancelarDesdeLink, reservarDesdeLink, subirComprobante } from "@/lib/padel/acciones";
+import { cancelarDesdeLink, recordarToken, reservarDesdeLink, subirComprobante } from "@/lib/padel/acciones";
+
+/**
+ * Al abrir el link, este teléfono queda recordado (cookie httpOnly que escribe el servidor): la
+ * próxima vez el turnero sabe quién es. Una sola vez por visita; no pinta nada.
+ */
+export function RecordarSesion({ token }: { token: string }) {
+  const hecho = useRef(false);
+  useEffect(() => {
+    if (hecho.current) return;
+    hecho.current = true;
+    recordarToken(token).catch(() => {});
+  }, [token]);
+  return null;
+}
 
 const ZONA = "America/Argentina/Buenos_Aires";
 const cuando = (iso: string) =>

@@ -15,8 +15,11 @@ import {
   ESTADOS_QUE_OCUPAN,
   PLANTILLAS_DEFAULT,
   diaCorto,
+  esDeuda,
   franjasLibres,
+  saldoAFavor,
   tokenValido,
+  totalDeuda,
   type ClavePlantilla,
   type EstadoClase,
   type EstadoPago,
@@ -138,6 +141,27 @@ export async function libresDelDia(tenantId: string, fecha: string, ahora = new 
   return { config, libres: franjasLibres({ fecha, franjas: fr, ocupadas, duracionMin: config.duracionMin, anticipacionMin: config.anticipacionMin, ahora }) };
 }
 
+// ── Pedidos que nadie contestó ──────────────────────────────────────────────
+
+/**
+ * PEDIDA cuya hora ya pasó → SIN_RESPUESTA (`transicionClase(…, "vencer", "sistema")`). Perezoso y
+ * barato: un updateMany por índice [tenantId, estado] al abrir Hoy, la bandeja o el link del
+ * alumno. Así un pedido vencido no queda en «Pagar» ni ocupa la franja. El cron llega en T6.
+ */
+export async function vencerPedidos(tenantId: string, ahora = new Date()): Promise<number> {
+  const r = await prisma.padelClase.updateMany({ where: { tenantId, estado: "PEDIDA", empiezaEn: { lt: ahora } }, data: { estado: "SIN_RESPUESTA" } });
+  return r.count;
+}
+
+/** Los pagos que entran en el saldo a favor (acreditados y usados), para derivarlo. */
+const FILTRO_SALDO = { OR: [{ pagoEstado: "ACREDITADO" }, { pagoEstado: "PAGADO", pagoMedio: "SALDO_A_FAVOR" }] };
+
+/** El saldo a favor de un alumno, derivado de sus clases (no es una columna: no se desincroniza). */
+export async function saldoDelAlumno(tenantId: string, alumnoId: string): Promise<number> {
+  const filas = await prisma.padelClase.findMany({ where: { tenantId, alumnoId, ...FILTRO_SALDO }, select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true } });
+  return saldoAFavor(filas.map((f) => ({ ...f, precio: Number(f.precio) })));
+}
+
 // ── Panel del profe ─────────────────────────────────────────────────────────
 
 const conAlumno = {
@@ -208,10 +232,21 @@ export async function hoy(ahora = new Date()) {
   const manana = sumarDiasCalendario(fecha, 1);
   const inicio = businessWallTimeToUtc(fecha, "00:00");
   const finManana = businessWallTimeToUtc(sumarDiasCalendario(fecha, 2), "00:00");
+  await vencerPedidos(tenantId, ahora);
   const [filas, pendientes, cobradoHoy, config, negocio] = await Promise.all([
     clasesDe(tenantId, { empiezaEn: { gte: inicio, lt: finManana }, estado: { in: ["PEDIDA", "CONFIRMADA", "DADA", "AUSENTE"] } }),
     contarPendientes(tenantId),
-    prisma.padelClase.findMany({ where: { tenantId, pagoEstado: "PAGADO", pagoValidadoEl: { gte: inicio } }, select: { precio: true, pagoMedio: true } }),
+    // Lo que entró hoy: lo pagado (y lo que después quedó a favor: la plata igual entró). Lo pagado
+    // con saldo a favor NO suma: esa plata ya se contó el día que entró.
+    prisma.padelClase.findMany({
+      where: {
+        tenantId,
+        pagoEstado: { in: ["PAGADO", "ACREDITADO"] },
+        pagoValidadoEl: { gte: inicio },
+        OR: [{ pagoMedio: null }, { pagoMedio: { not: "SALDO_A_FAVOR" } }],
+      },
+      select: { precio: true, pagoMedio: true },
+    }),
     configPadel(tenantId),
     datosDelNegocio(tenantId),
   ]);
@@ -221,7 +256,7 @@ export async function hoy(ahora = new Date()) {
   // La "próxima": la que está en curso o la primera que viene, sin terminar de gestionar.
   const proxima =
     deHoy.find((c) => ["CONFIRMADA", "PEDIDA"].includes(c.estado) && c.terminaEn.getTime() > ahora.getTime()) ??
-    deHoy.find((c) => c.estado === "DADA" && c.pagoEstado !== "PAGADO") ??
+    deHoy.find((c) => esDeuda(c)) ??
     null;
   const porMedio: Record<string, number> = {};
   for (const c of cobradoHoy) porMedio[c.pagoMedio ?? "TRANSFERENCIA"] = (porMedio[c.pagoMedio ?? "TRANSFERENCIA"] ?? 0) + Number(c.precio);
@@ -229,13 +264,16 @@ export async function hoy(ahora = new Date()) {
   return { fecha, proxima, deHoy, deManana, pendientes, caja: { total, porMedio }, config, negocio };
 }
 
+/** Los avisos que esperan que el profe los lea (suman al número de la campana). */
+export const AVISOS_QUE_ESPERAN = ["cancelacion", "respuesta", "link-pedido"] as const;
+
 /** Lo que espera al profe: pedidos sin confirmar, comprobantes por revisar y avisos sin leer. */
 export async function contarPendientes(tenantId: string): Promise<number> {
   const ahora = new Date();
   const [pedidos, comprobantes, avisos] = await Promise.all([
     prisma.padelClase.count({ where: { tenantId, estado: "PEDIDA", empiezaEn: { gt: ahora } } }),
     prisma.padelClase.count({ where: { tenantId, pagoEstado: "EN_REVISION" } }),
-    prisma.padelAviso.count({ where: { tenantId, destino: "PROFE", leidoEl: null, tipo: { in: ["cancelacion", "respuesta"] } } }),
+    prisma.padelAviso.count({ where: { tenantId, destino: "PROFE", leidoEl: null, tipo: { in: [...AVISOS_QUE_ESPERAN] } } }),
   ]);
   return pedidos + comprobantes + avisos;
 }
@@ -248,6 +286,7 @@ export async function badgePendientes(): Promise<number> {
 export async function pendientes() {
   const tenantId = await getCurrentTenantId();
   const ahora = new Date();
+  await vencerPedidos(tenantId, ahora);
   const [pedidos, comprobantes, avisos, config] = await Promise.all([
     clasesDe(tenantId, { estado: "PEDIDA", empiezaEn: { gt: ahora } }),
     prisma.padelClase.findMany({
@@ -315,12 +354,29 @@ export async function alumnos(q = "") {
       _count: { select: { clases: { where: { estado: "DADA" } } } },
     },
   });
-  const deudas = await prisma.padelClase.groupBy({
-    by: ["alumnoId"],
-    where: { tenantId, estado: "DADA", pagoEstado: { not: "PAGADO" } },
-    _sum: { precio: true },
-  });
+  // La deuda con la MISMA regla que el link del alumno (esDeuda): DADA, con precio, sin pagar.
+  const [deudas, conSaldo] = await Promise.all([
+    prisma.padelClase.groupBy({
+      by: ["alumnoId"],
+      where: { tenantId, estado: "DADA", precio: { gt: 0 }, pagoEstado: { notIn: ["PAGADO", "ACREDITADO", "DEVUELTO"] } },
+      _sum: { precio: true },
+    }),
+    prisma.padelClase.findMany({
+      where: { tenantId, ...FILTRO_SALDO },
+      orderBy: { empiezaEn: "desc" },
+      select: { id: true, alumnoId: true, estado: true, pagoEstado: true, pagoMedio: true, precio: true },
+    }),
+  ]);
   const debe = new Map(deudas.map((d) => [d.alumnoId, Number(d._sum.precio ?? 0)]));
+  const saldoPor = new Map<string, { estado: string; pagoEstado: string; pagoMedio: string | null; precio: number; id: string }[]>();
+  for (const c of conSaldo) saldoPor.set(c.alumnoId, [...(saldoPor.get(c.alumnoId) ?? []), { ...c, precio: Number(c.precio) }]);
+  const aFavorDe = (id: string) => {
+    const clases = saldoPor.get(id) ?? [];
+    const saldo = saldoAFavor(clases);
+    // «Le devolví» marca una clase acreditada que entre en el saldo (nunca deja el saldo negativo).
+    const devolver = clases.find((c) => c.pagoEstado === "ACREDITADO" && c.precio <= saldo) ?? null;
+    return { aFavor: saldo, devolverId: devolver?.id ?? null, devolverMonto: devolver?.precio ?? 0 };
+  };
   return filas.map((a) => ({
     id: a.id,
     token: a.token,
@@ -330,6 +386,7 @@ export async function alumnos(q = "") {
     dadas: a._count.clases,
     ultima: a.clases[0]?.empiezaEn ?? null,
     debe: debe.get(a.id) ?? 0,
+    ...aFavorDe(a.id),
   }));
 }
 
@@ -345,28 +402,48 @@ export async function configCompleta() {
 
 // ── Link del alumno (sin login): la llave es el token ──────────────────────
 
+const SELECT_CLASE_ALUMNO = {
+  id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, precio: true,
+  pagoEstado: true, pagoMedio: true, comprobanteEnviadoEl: true, pagoNota: true,
+} as const;
+
+/**
+ * Lo que ve el alumno en su link. Antes eran las últimas 12 clases: una deuda vieja (la 14ª) no
+ * aparecía. Ahora son tres lecturas chicas: lo que viene, TODO lo pagable y las últimas 10
+ * pasadas; más las filas del saldo a favor.
+ */
 export async function alumnoPublico(token: string) {
   if (!tokenValido(token)) return null;
   const tenantId = await getCurrentTenantId();
   const alumno = await prisma.padelAlumno.findFirst({
     where: { tenantId, token },
-    select: {
-      id: true,
-      token: true,
-      client: { select: { name: true, phone: true } },
-      clases: {
-        orderBy: { empiezaEn: "desc" },
-        take: 12,
-        select: {
-          id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, precio: true,
-          pagoEstado: true, pagoMedio: true, comprobanteEnviadoEl: true, pagoNota: true,
-        },
-      },
-      _count: { select: { clases: { where: { estado: "DADA" } } } },
-    },
+    select: { id: true, token: true, client: { select: { name: true, phone: true } }, _count: { select: { clases: { where: { estado: "DADA" } } } } },
   });
   if (!alumno) return null;
-  const [config, negocio] = await Promise.all([configPadel(tenantId), datosDelNegocio(tenantId)]);
-  const clases = alumno.clases.map((c) => ({ ...c, precio: Number(c.precio), estado: c.estado as EstadoClase, pagoEstado: c.pagoEstado as EstadoPago }));
-  return { alumno: { ...alumno, clases, dadas: alumno._count.clases }, config, negocio };
+  const ahora = new Date();
+  await vencerPedidos(tenantId, ahora);
+  const delAlumno = { tenantId, alumnoId: alumno.id };
+  const [futuras, pagables, pasadas, saldo, config, negocio] = await Promise.all([
+    prisma.padelClase.findMany({ where: { ...delAlumno, terminaEn: { gt: ahora } }, orderBy: { empiezaEn: "asc" }, take: 20, select: SELECT_CLASE_ALUMNO }),
+    prisma.padelClase.findMany({
+      where: {
+        ...delAlumno,
+        precio: { gt: 0 },
+        OR: [{ estado: "DADA", pagoEstado: { notIn: ["PAGADO", "ACREDITADO", "DEVUELTO"] } }, { estado: "CONFIRMADA", pagoEstado: { in: ["PENDIENTE", "EN_REVISION"] } }],
+      },
+      orderBy: { empiezaEn: "asc" },
+      select: SELECT_CLASE_ALUMNO,
+    }),
+    prisma.padelClase.findMany({ where: { ...delAlumno, terminaEn: { lte: ahora } }, orderBy: { empiezaEn: "desc" }, take: 10, select: SELECT_CLASE_ALUMNO }),
+    prisma.padelClase.findMany({ where: { ...delAlumno, ...FILTRO_SALDO }, select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true } }),
+    configPadel(tenantId),
+    datosDelNegocio(tenantId),
+  ]);
+  const porId = new Map<string, (typeof futuras)[number]>();
+  for (const c of [...futuras, ...pagables, ...pasadas]) porId.set(c.id, c);
+  const clases = [...porId.values()]
+    .map((c) => ({ ...c, precio: Number(c.precio), estado: c.estado as EstadoClase, pagoEstado: c.pagoEstado as EstadoPago }))
+    .sort((a, b) => +b.empiezaEn - +a.empiezaEn);
+  const saldoAFavorAlumno = saldoAFavor(saldo.map((f) => ({ ...f, precio: Number(f.precio) })));
+  return { alumno: { ...alumno, clases, dadas: alumno._count.clases, debe: totalDeuda(clases), saldoAFavor: saldoAFavorAlumno }, config, negocio };
 }

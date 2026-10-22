@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { credencialesCloud, cuerpoMensaje, firmaValida, interpretarRespuesta, modoWhatsApp, responderDesafio } from "./whatsapp-cloud";
+import { botonRespuestaMeta, credencialesCloud, cuerpoMensaje, firmaValida, interpretarRespuesta, modoWhatsApp, respuestaAlAlumno, responderDesafio } from "./whatsapp-cloud";
 
 const q = (o: Record<string, string>) => new URLSearchParams(o);
 
@@ -38,14 +38,54 @@ test("firma: HMAC-SHA256 del cuerpo crudo con el App Secret", () => {
   assert.equal(firmaValida(cuerpo, "sha256=abc", "app-secret"), false);
 });
 
-test("respuesta del alumno: sí o cancelar; lo demás no se adivina", () => {
+test("respuesta del alumno: sólo la palabra CANCELAR cancela; lo demás pregunta o va a la bandeja", () => {
+  // Un sí entero confirma; un sí con más texto va a la bandeja (no se adivina).
   assert.equal(interpretarRespuesta("Sí!"), "confirmar");
-  assert.equal(interpretarRespuesta("dale, nos vemos"), "confirmar");
   assert.equal(interpretarRespuesta("CONFIRMO"), "confirmar");
-  assert.equal(interpretarRespuesta("no puedo, perdón"), "cancelar");
-  assert.equal(interpretarRespuesta("Cancelar"), "cancelar");
+  assert.equal(interpretarRespuesta("dale"), "confirmar");
+  assert.equal(interpretarRespuesta("dale, nos vemos"), null, "antes confirmaba: ahora es texto para leer");
+  // B3/H10: un «no…» suelto NUNCA cancela.
+  assert.equal(interpretarRespuesta("no hay drama, voy"), null);
+  assert.equal(interpretarRespuesta("no sé si llego"), null);
+  assert.equal(interpretarRespuesta("No gracias"), null, "un «no gracias» no cancela");
+  assert.equal(interpretarRespuesta("no"), "quiereCancelar");
+  assert.equal(interpretarRespuesta("No puedo, perdón"), "quiereCancelar", "pregunta, no cancela");
+  assert.equal(interpretarRespuesta("no voy a poder"), "quiereCancelar");
+  assert.equal(interpretarRespuesta("cancelo"), "quiereCancelar");
+  assert.equal(interpretarRespuesta("cancelar la de mañana"), "quiereCancelar", "sólo la palabra sola cancela");
+  // Lo único que cancela: CANCELAR entero o el botón rápido.
+  assert.equal(interpretarRespuesta("CANCELAR"), "cancelar");
+  assert.equal(interpretarRespuesta("cancelar!"), "cancelar");
+  assert.equal(interpretarRespuesta(" Cancelar. "), "cancelar");
+  assert.equal(interpretarRespuesta("No puedo", "CANCELAR"), "cancelar", "payload del botón rápido");
+  assert.equal(interpretarRespuesta("Voy", "VOY"), "confirmar");
   assert.equal(interpretarRespuesta("¿a qué hora era?"), null);
   assert.equal(interpretarRespuesta("nos vemos"), null);
+});
+
+test("ninguna respuesta que no sea CANCELAR exacto da «cancelar»", () => {
+  const frases = ["no gracias", "no, gracias", "no hay drama", "no sé", "no puedo", "no voy", "cancelo", "cancelar mañana", "noo", "nop", "ahora no", "cancelá", "NO PUEDO CANCELAR"];
+  for (const f of frases) assert.notEqual(interpretarRespuesta(f), "cancelar", f);
+});
+
+test("respuestas al alumno: pregunta, cancelada y fuera de término", () => {
+  assert.equal(
+    respuestaAlAlumno({ tipo: "preguntar", cuando: "jueves 23/10 19:00" }),
+    "¿Cancelás la clase del jueves 23/10 19:00? Respondé CANCELAR y queda libre. Si venís, no hace falta que contestes.",
+  );
+  assert.equal(respuestaAlAlumno({ tipo: "cancelada", turnero: "https://x/clases" }), "Listo, cancelada. Elegí otro horario: https://x/clases");
+  assert.match(respuestaAlAlumno({ tipo: "fueraDeTermino", profe: "Matías" }), /fuera del plazo.*Le aviso a Matías/);
+});
+
+test("botón de respuesta rápida de Meta: plantilla (button) e interactivo (button_reply)", () => {
+  const envolver = (m: Record<string, unknown>) => ({ entry: [{ changes: [{ value: { contacts: [{ wa_id: "5491151839732", profile: { name: "Juan" } }], messages: [m] } }] }] });
+  const b = botonRespuestaMeta(envolver({ from: "5491151839732", id: "wamid.1", type: "button", button: { payload: "CANCELAR", text: "No puedo" } }));
+  assert.deepEqual(b, { from: "5491151839732", text: "No puedo", payload: "CANCELAR", messageId: "wamid.1", contactName: "Juan" });
+  assert.equal(interpretarRespuesta(b!.text, b!.payload), "cancelar");
+  const i = botonRespuestaMeta(envolver({ from: "5491151839732", id: "wamid.2", type: "interactive", interactive: { button_reply: { id: "VOY", title: "Voy" } } }));
+  assert.equal(i?.payload, "VOY");
+  assert.equal(botonRespuestaMeta(envolver({ from: "5491151839732", id: "wamid.3", type: "text", text: { body: "hola" } })), null);
+  assert.equal(botonRespuestaMeta(null), null);
 });
 
 test("mensaje: plantilla con sus variables en orden, o texto libre", () => {

@@ -52,6 +52,7 @@ const TONO: Record<EstadoClase, string> = {
   AUSENTE: "var(--danger)",
   RECHAZADA: "var(--text-faint)",
   CANCELADA: "var(--text-faint)",
+  SIN_RESPUESTA: "var(--text-faint)",
 };
 
 export const tonoEstado = (e: EstadoClase): string => TONO[e];

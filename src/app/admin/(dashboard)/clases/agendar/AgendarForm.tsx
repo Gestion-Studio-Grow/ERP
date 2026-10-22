@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { buttonClasses, cn } from "@/components/ui";
 import { agendarClase } from "@/lib/padel/acciones";
+import { botonAgendar } from "./boton";
 
 const campo = "h-12 w-full rounded-xl border border-line bg-surface-raised px-3 text-base text-strong";
 const rotulo = "mb-1 block text-sm font-semibold text-strong";
@@ -10,6 +11,8 @@ const rotulo = "mb-1 block text-sm font-semibold text-strong";
 export default function AgendarForm({ alumnos, hoy }: { alumnos: { id: string; nombre: string }[]; hoy: string }) {
   const [nuevo, setNuevo] = useState(alumnos.length === 0);
   const [tipo, setTipo] = useState("INDIVIDUAL");
+  // Arranca sin alumno elegido (B1): el botón dice «Elegí el alumno» hasta que haya uno.
+  const [alumnoId, setAlumnoId] = useState("");
   const [pendiente, start] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; texto: string; wa?: string | null; enviado?: boolean } | null>(null);
 
@@ -19,12 +22,15 @@ export default function AgendarForm({ alumnos, hoy }: { alumnos: { id: string; n
       setMsg(r.ok ? { ok: true, texto: `Agendada: ${r.cuando}`, wa: r.wa, enviado: r.enviado } : { ok: false, texto: r.error });
     });
 
+  const boton = botonAgendar({ nuevo, alumnoId, pendiente });
+
   return (
     <form action={enviar} className="grid gap-4">
       {!nuevo ? (
         <div>
           <label htmlFor="ag-alumno" className={rotulo}>Alumno</label>
-          <select id="ag-alumno" name="alumnoId" className={campo} required>
+          <select id="ag-alumno" name="alumnoId" className={campo} required value={alumnoId} onChange={(e) => setAlumnoId(e.target.value)}>
+            <option value="" disabled>Elegí el alumno</option>
             {alumnos.map((a) => (
               <option key={a.id} value={a.id}>{a.nombre}</option>
             ))}
@@ -71,8 +77,8 @@ export default function AgendarForm({ alumnos, hoy }: { alumnos: { id: string; n
           </div>
         )}
       </div>
-      <button type="submit" disabled={pendiente} className={cn(buttonClasses("solid", "lg"), "h-14 w-full text-lg")} data-qa="guardar-clase">
-        {pendiente ? "Agendando…" : "Agendar"}
+      <button type="submit" disabled={boton.disabled} className={cn(buttonClasses("solid", "lg"), "h-14 w-full text-lg")} data-qa="guardar-clase">
+        {boton.texto}
       </button>
       {msg && (
         <div role={msg.ok ? "status" : "alert"} className="grid gap-2">

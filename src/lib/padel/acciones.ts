@@ -15,6 +15,13 @@
 //
 // Cada acción del profe que le cambia algo al alumno devuelve `wa` (el link con el mensaje
 // listo) o `enviado: true` si salió solo por la Cloud API (notificador.ts).
+//
+// El token del alumno (la llave de su link) se entrega SÓLO al dispositivo que lo creó o que ya lo
+// tenía en su cookie `padel_alumno` (sesion-alumno.ts). A quien tipea un celular ajeno nunca se le
+// muestra: el link le viaja por WhatsApp al número registrado (pedirMiLink).
+//
+// La plata pagada nunca se pierde: una clase pagada que se cancela queda ACREDITADO (saldo a favor)
+// y el saldo paga sola la próxima clase entera que se agenda o se confirma (core.ts → saldoAFavor).
 
 import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
@@ -35,6 +42,9 @@ import {
   diaHumano,
   fechaValida,
   horaHumana,
+  pagoAlCancelar,
+  saldoAFavor,
+  saldoCubre,
   horaValida,
   esTipoClase,
   linkWhatsApp,
@@ -55,8 +65,10 @@ import {
   type EventoPago,
   type TipoClase,
 } from "./core";
-import { configPadel, datosDelNegocio, libresDelDia, type ConfigPadel } from "./datos.server";
+import { AVISOS_QUE_ESPERAN, configPadel, datosDelNegocio, libresDelDia, type ConfigPadel } from "./datos.server";
 import { notificadorActual } from "./notificador";
+import { decidirPedidoDeLink, tokenAEntregar } from "./sesion-alumno";
+import { escribirTokenCookie, leerTokenCookie } from "./sesion-alumno.server";
 import type { ClaveMeta } from "./whatsapp-cloud";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -64,6 +76,11 @@ export type ConAviso = { wa: string | null; enviado: boolean };
 
 const RAIZ = "/admin/clases";
 const frenoDePedidos = createRateLimiter({ max: 8, windowMs: 10 * 60 * 1000 });
+// «Pedí tu link»: por IP y, sobre todo, por celular (3 en 10 min; el 4º se frena). Un mismo celular
+// recibe a lo sumo un WhatsApp con su link cada 10 minutos (lo mira la base, no la memoria).
+const DIEZ_MIN = 10 * 60 * 1000;
+const frenoDeLinkPorIp = createRateLimiter({ max: 10, windowMs: DIEZ_MIN });
+const frenoDeLinkPorTel = createRateLimiter({ max: 3, windowMs: DIEZ_MIN });
 
 class ErrorNegocio extends Error {}
 
@@ -105,15 +122,44 @@ async function choqueEn(tx: Tx, tenantId: string, empiezaEn: Date, terminaEn: Da
   });
 }
 
-/** El alumno de ese celular (lo crea con su ficha de cliente si no existe). */
+/**
+ * El alumno de ese celular (lo crea con su ficha de cliente si no existe). `esNuevo` = no había
+ * NADA con ese celular en el negocio (ni alumno ni ficha de cliente): sólo entonces quien lo tipeó
+ * es, sin duda, el dueño del link que nace. Si la ficha de cliente ya existía (la cargó el negocio),
+ * se trata como conocido: el link le llega por WhatsApp, no se muestra en pantalla.
+ */
 async function alumnoPorTelefono(tx: Tx, tenantId: string, telefono: string, nombre: string) {
-  const existente = await tx.padelAlumno.findFirst({ where: { tenantId, client: { phone: telefono } }, select: { id: true, token: true, clientId: true } });
-  if (existente) return existente;
-  const cliente =
-    (await tx.client.findFirst({ where: { tenantId, phone: telefono }, select: { id: true } })) ??
-    (await tx.client.create({ data: { tenantId, name: nombre, phone: telefono }, select: { id: true } }));
-  return tx.padelAlumno.create({ data: { tenantId, clientId: cliente.id, token: nuevoToken() }, select: { id: true, token: true, clientId: true } });
+  const existente = await tx.padelAlumno.findFirst({
+    where: { tenantId, client: { phone: telefono } },
+    select: { id: true, token: true, clientId: true, client: { select: { name: true } } },
+  });
+  if (existente) return { id: existente.id, token: existente.token, clientId: existente.clientId, nombre: existente.client.name, esNuevo: false };
+  const ficha = await tx.client.findFirst({ where: { tenantId, phone: telefono }, select: { id: true, name: true } });
+  const cliente = ficha ?? (await tx.client.create({ data: { tenantId, name: nombre, phone: telefono }, select: { id: true, name: true } }));
+  const a = await tx.padelAlumno.create({ data: { tenantId, clientId: cliente.id, token: nuevoToken() }, select: { id: true, token: true, clientId: true } });
+  return { ...a, nombre: cliente.name, esNuevo: !ficha };
 }
+
+/** El saldo a favor del alumno, leído adentro de la transacción (para que dos altas no lo usen dos veces). */
+async function saldoEnTx(tx: Tx, tenantId: string, alumnoId: string, excluir?: string): Promise<number> {
+  const filas = await tx.padelClase.findMany({
+    where: {
+      tenantId,
+      alumnoId,
+      OR: [{ pagoEstado: "ACREDITADO" }, { pagoEstado: "PAGADO", pagoMedio: "SALDO_A_FAVOR" }],
+      ...(excluir ? { id: { not: excluir } } : {}),
+    },
+    select: { estado: true, pagoEstado: true, pagoMedio: true, precio: true },
+  });
+  return saldoAFavor(filas.map((f) => ({ ...f, precio: Number(f.precio) })));
+}
+
+/** Si el saldo cubre la clase entera, nace (o queda) pagada con «Saldo a favor». Un saldo parcial no se aplica. */
+function pagoConSaldo(saldo: number, precio: number) {
+  return saldoCubre(saldo, precio) ? { pagoEstado: "PAGADO", pagoMedio: "SALDO_A_FAVOR", pagoValidadoEl: new Date() } : null;
+}
+
+const YA_PAGADA_CON_SALDO = "Ya está pagada con tu saldo a favor.";
 
 // ── Mensajes al alumno ──────────────────────────────────────────────────────
 
@@ -124,6 +170,7 @@ const META_DE: Partial<Record<ClavePlantilla, ClaveMeta>> = {
   pagoOk: "pagoOk",
   pagoNo: "pagoNo",
   recordatorio: "recordatorio",
+  linkAlumno: "linkAlumno",
 };
 
 async function avisarAlAlumno(p: {
@@ -133,6 +180,8 @@ async function avisarAlAlumno(p: {
   tipo: string;
   clase: { id: string; empiezaEn: Date; precio: number | { toString(): string } };
   alumno: { id: string; token: string; nombre: string; telefono: string };
+  /** Una línea más al final (por ejemplo «Ya está pagada con tu saldo a favor.»). */
+  extra?: string;
 }): Promise<ConAviso> {
   const base = await origen();
   const vars = {
@@ -150,7 +199,7 @@ async function avisarAlAlumno(p: {
     p.clave === "confirmada"
       ? plantillaConfirmada(p.config.plantillas.confirmada, { hayPrecio: precioCargado, hayAlias: Boolean(p.config.aliasCbu) })
       : p.config.plantillas[p.clave];
-  const texto = armarMensaje(plantilla, vars);
+  const texto = [armarMensaje(plantilla, vars), p.extra].filter(Boolean).join(" ");
   const meta = META_DE[p.clave];
   const r = await notificadorActual().enviar({
     telefono: p.alumno.telefono,
@@ -190,8 +239,15 @@ export interface PedidoTurnero {
   personas: number;
 }
 
-/** El alumno pide una clase desde el turnero público. Nace PEDIDA: la confirma el profe. */
-export async function pedirClase(p: PedidoTurnero): Promise<Resultado<{ token: string; waProfe: string | null; cuando: string }>> {
+/**
+ * El alumno pide una clase desde el turnero público. Nace PEDIDA: la confirma el profe.
+ *
+ * `token` viene SÓLO si este navegador es el dueño del link: el alumno es nuevo (y se le guarda
+ * la cookie) o ya tenía la cookie de ese mismo alumno. Si el celular es de un alumno conocido y
+ * el navegador no lo es, `token: null` y `conocido: true`: la clase se pide igual y el profe la
+ * confirma por el número de siempre. Nunca se le da a un tercero el link de otro.
+ */
+export async function pedirClase(p: PedidoTurnero): Promise<Resultado<{ token: string | null; conocido: boolean; waProfe: string | null; cuando: string }>> {
   if (await frenado()) return { ok: false, error: "Hiciste muchos pedidos seguidos. Probá de nuevo en unos minutos." };
   const nombre = nombreValido(p.nombre);
   if (!nombre) return { ok: false, error: "Poné tu nombre (y apellido si querés)." };
@@ -223,19 +279,92 @@ export async function pedirClase(p: PedidoTurnero): Promise<Resultado<{ token: s
       return { alumno, claseId: clase.id };
     });
     const cuando = `${diaHumano(empiezaEn)} a las ${horaHumana(empiezaEn)}`;
-    await avisarAlProfe(tenantId, "pedido", `${nombre} pidió clase ${tipo === "GRUPAL" ? `grupal (${personas})` : "individual"} el ${cuando}.`, r.claseId, r.alumno.id);
-    await auditPublic({ action: "padel.pedir", entity: "PadelClase", entityId: r.claseId, clientPhone: telefono });
+    const token = tokenAEntregar({ esNuevo: r.alumno.esNuevo, tokenAlumno: r.alumno.token, tokenCookie: await leerTokenCookie() });
+    if (r.alumno.esNuevo) await escribirTokenCookie(r.alumno.token);
+    const queClase = tipo === "GRUPAL" ? `grupal (${personas})` : "individual";
+    await avisarAlProfe(
+      tenantId,
+      "pedido",
+      token
+        ? `${r.alumno.esNuevo ? nombre : r.alumno.nombre} pidió clase ${queClase} el ${cuando}.`
+        : `${r.alumno.nombre} (alumno conocido) pidió clase ${queClase} el ${cuando} desde un teléfono nuevo. Confirmalo por el número de siempre.`,
+      r.claseId,
+      r.alumno.id,
+    );
+    await auditPublic({ action: "padel.pedir", entity: "PadelClase", entityId: r.claseId, clientPhone: telefono, changes: { mismoDispositivo: Boolean(token), nuevo: r.alumno.esNuevo } });
     const negocio = await datosDelNegocio(tenantId);
     const waProfe = linkWhatsApp(
       negocio.whatsapp,
       armarMensaje(config.plantillas.pedidoAlProfe, { profe: negocio.profe, nombre, dia: diaHumano(empiezaEn), hora: horaHumana(empiezaEn) }),
     );
     refrescar(r.alumno.token);
-    return { ok: true, token: r.alumno.token, waProfe, cuando };
+    return { ok: true, token, conocido: !r.alumno.esNuevo && !token, waProfe, cuando };
   } catch (e) {
     if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
     throw e;
   }
+}
+
+/**
+ * «¿Ya sos alumno? Pedí tu link»: el link NUNCA se muestra en pantalla. Si el celular es de un
+ * alumno, le llega por WhatsApp a ese número (con la Cloud API sale solo; en modo manual queda en
+ * la bandeja del profe como «Juan pidió su link», para mandarlo con un toque). La respuesta es
+ * siempre la misma, exista o no el celular: no se revela quién es alumno.
+ */
+export async function pedirMiLink(telefonoRaw: string): Promise<Resultado<{ mensaje: string }>> {
+  const telefono = telefonoAlumno(telefonoRaw);
+  if (!telefono) return { ok: false, error: "Poné tu celular con código de área, por ejemplo 11 5555-1234." };
+  const tenantId = await getCurrentTenantId();
+  const claveIp = `padel-link:${tenantId}:${(await requestIp()) ?? "sin-ip"}`;
+  const claveTel = `padel-link:${tenantId}:${telefono}`;
+  const frenado = frenoDeLinkPorIp.blocked(claveIp) || frenoDeLinkPorTel.blocked(claveTel);
+  if (!frenado) {
+    frenoDeLinkPorIp.fail(claveIp);
+    frenoDeLinkPorTel.fail(claveTel);
+  }
+  const [alumno, negocio] = await Promise.all([
+    frenado
+      ? Promise.resolve(null)
+      : prisma.padelAlumno.findFirst({ where: { tenantId, client: { phone: telefono } }, select: { id: true, token: true, client: { select: { name: true, phone: true } } } }),
+    datosDelNegocio(tenantId),
+  ]);
+  const yaPedido = alumno
+    ? Boolean(await prisma.padelAviso.findFirst({ where: { tenantId, alumnoId: alumno.id, tipo: "link-pedido", createdAt: { gte: new Date(Date.now() - DIEZ_MIN) } }, select: { id: true } }))
+    : false;
+  const d = decidirPedidoDeLink({ frenado, esAlumno: Boolean(alumno), yaPedidoHaceRato: yaPedido, profe: negocio.profe });
+  if (!d.ok) return d;
+  if (d.avisar && alumno) {
+    await avisarAlProfe(tenantId, "link-pedido", `${alumno.client.name} pidió su link desde el turnero. Mandáselo desde Alumnos → «Mandarle su link».`, null, alumno.id);
+    const notificador = notificadorActual();
+    if (notificador.modo === "cloud") {
+      const config = await configPadel(tenantId);
+      const vars = { nombre: alumno.client.name.split(" ")[0], link: `${await origen()}/alumno/${alumno.token}` };
+      const texto = armarMensaje(config.plantillas.linkAlumno, vars);
+      const r = await notificador.enviar({ telefono: alumno.client.phone, texto, plantilla: { clave: "linkAlumno", vars } });
+      await prisma.padelAviso.create({
+        data: {
+          tenantId, destino: "ALUMNO", tipo: "link", alumnoId: alumno.id, texto, canal: r.canal,
+          enviadoEl: r.enviado ? new Date() : null, errorEnvio: r.error ?? null, idExterno: r.idExterno ?? null,
+        },
+      });
+    }
+  }
+  await auditPublic({ action: "padel.pedirLink", entity: "PadelAlumno", entityId: alumno?.id ?? null, clientPhone: telefono });
+  return { ok: true, mensaje: d.mensaje };
+}
+
+/**
+ * El alumno abrió su link (`/alumno/<token>`): este navegador queda recordado con la cookie
+ * httpOnly, así la próxima vez el turnero sabe quién es sin pedirle nada. Sólo si el token existe
+ * EN ESTE negocio: un token de otro negocio no escribe nada.
+ */
+export async function recordarToken(token: string): Promise<Resultado> {
+  if (!tokenValido(token)) return { ok: false, error: "Este link no es válido." };
+  const tenantId = await getCurrentTenantId();
+  const a = await prisma.padelAlumno.findFirst({ where: { tenantId, token }, select: { id: true } });
+  if (!a) return { ok: false, error: "Este link no es válido." };
+  if ((await leerTokenCookie()) !== token) await escribirTokenCookie(token);
+  return { ok: true };
 }
 
 async function alumnoDelToken(token: string) {
@@ -253,7 +382,7 @@ async function alumnoDelToken(token: string) {
  * otro horario libre que le ofrecimos. Si ya tomó clases, nace CONFIRMADA (no le hace falta
  * esperar al profe); si es nuevo, PEDIDA. Si el horario no está, devuelve alternativas.
  */
-export async function reservarDesdeLink(token: string, horaIso: string, repiteDe?: string): Promise<Resultado<{ estado: string; cuando: string }> & { alternativas?: string[] }> {
+export async function reservarDesdeLink(token: string, horaIso: string, repiteDe?: string): Promise<Resultado<{ estado: string; cuando: string; pagadaConSaldo?: boolean }> & { alternativas?: string[] }> {
   if (await frenado()) return { ok: false, error: "Hiciste muchos pedidos seguidos. Probá de nuevo en unos minutos." };
   const d = await alumnoDelToken(token);
   if (!d) return { ok: false, error: "Este link no es válido. Pedile uno nuevo al profe." };
@@ -287,20 +416,23 @@ export async function reservarDesdeLink(token: string, horaIso: string, repiteDe
         const pendientes = await tx.padelClase.count({ where: { tenantId, alumnoId: alumno.id, estado: "PEDIDA", empiezaEn: { gt: new Date() } } });
         if (!puedePedir(pendientes, config.maxPendientesPorTel)) throw new ErrorNegocio("Ya tenés clases esperando que el profe confirme.");
       }
+      const precio = precioDe(config, tipo, base.personas);
+      // Confirmada de entrada: si tiene saldo a favor que la cubre entera, nace pagada.
+      const conSaldo = confirmada ? pagoConSaldo(await saldoEnTx(tx, tenantId, alumno.id), precio) : null;
       return tx.padelClase.create({
         data: {
           tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas: base.personas,
           estado: confirmada ? "CONFIRMADA" : "PEDIDA", confirmadaEl: confirmada ? new Date() : null,
-          origen: "ALUMNO_LINK", repiteDe: repiteDe ?? null, precio: precioDe(config, tipo, base.personas),
+          origen: "ALUMNO_LINK", repiteDe: repiteDe ?? null, precio, ...(conSaldo ?? {}),
         },
-        select: { id: true },
+        select: { id: true, pagoMedio: true },
       });
     });
     const cuando = `${diaHumano(empiezaEn)} a las ${horaHumana(empiezaEn)}`;
     await avisarAlProfe(tenantId, confirmada ? "proxima" : "pedido", `${alumno.client.name} ${confirmada ? "confirmó" : "pidió"} clase el ${cuando} desde su link.`, clase.id, alumno.id);
     await auditPublic({ action: "padel.reservarDesdeLink", entity: "PadelClase", entityId: clase.id, clientPhone: alumno.client.phone });
     refrescar(token);
-    return { ok: true, estado: confirmada ? "CONFIRMADA" : "PEDIDA", cuando };
+    return { ok: true, estado: confirmada ? "CONFIRMADA" : "PEDIDA", cuando, pagadaConSaldo: clase.pagoMedio === "SALDO_A_FAVOR" };
   } catch (e) {
     if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
     throw e;
@@ -333,14 +465,19 @@ export async function cancelarDesdeLink(token: string, claseId: string): Promise
   if (!d) return { ok: false, error: "Este link no es válido. Pedile uno nuevo al profe." };
   const { tenantId, alumno } = d;
   const [clase, config] = await Promise.all([
-    prisma.padelClase.findFirst({ where: { tenantId, id: claseId, alumnoId: alumno.id }, select: { id: true, estado: true, empiezaEn: true } }),
+    prisma.padelClase.findFirst({ where: { tenantId, id: claseId, alumnoId: alumno.id }, select: { id: true, estado: true, empiezaEn: true, pagoEstado: true, pagoMedio: true } }),
     configPadel(tenantId),
   ]);
   if (!clase) return { ok: false, error: "No encontramos esa clase." };
   if (!puedeCancelarAlumno(clase.estado, clase.empiezaEn, new Date(), config.anticipacionMin)) {
     return { ok: false, error: "Ya no se puede cancelar desde acá. Escribile al profe." };
   }
-  await prisma.padelClase.updateMany({ where: { tenantId, id: clase.id }, data: { estado: "CANCELADA", canceladaEl: new Date(), motivoCancel: "La canceló el alumno" } });
+  // Si estaba pagada, la plata queda a favor (no se pierde).
+  const n = await prisma.padelClase.updateMany({
+    where: { tenantId, id: clase.id, estado: clase.estado, pagoEstado: clase.pagoEstado },
+    data: { estado: "CANCELADA", canceladaEl: new Date(), motivoCancel: "La canceló el alumno", ...(pagoAlCancelar(clase) ?? {}) },
+  });
+  if (n.count === 0) return { ok: false, error: "Esa clase ya cambió. Actualizá la pantalla." };
   await avisarAlProfe(tenantId, "cancelacion", `${alumno.client.name} canceló la clase del ${diaHumano(clase.empiezaEn)} a las ${horaHumana(clase.empiezaEn)}. Ese horario quedó libre.`, clase.id, alumno.id);
   await auditPublic({ action: "padel.cancelarAlumno", entity: "PadelClase", entityId: clase.id, clientPhone: alumno.client.phone });
   refrescar(token);
@@ -357,7 +494,7 @@ async function claseDelProfe(id: string) {
   const clase = await prisma.padelClase.findFirst({
     where: { tenantId, id },
     select: {
-      id: true, estado: true, pagoEstado: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, precio: true, alumnoId: true, clientId: true,
+      id: true, estado: true, pagoEstado: true, pagoMedio: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, precio: true, alumnoId: true, clientId: true,
       alumno: { select: { id: true, token: true } },
       client: { select: { name: true, phone: true } },
     },
@@ -374,8 +511,12 @@ const MENSAJE_POR_EVENTO: Partial<Record<EventoClase, { clave: ClavePlantilla; t
   cancelar: { clave: "rechazada", tipo: "cancelada" },
 };
 
-/** Confirmar, rechazar, dar, ausente o cancelar: un toque. Devuelve el WhatsApp listo si corresponde. */
-export async function moverClase(id: string, evento: EventoClase): Promise<Resultado<ConAviso>> {
+/**
+ * Confirmar, rechazar, dar, ausente o cancelar: un toque. Devuelve el WhatsApp listo si corresponde.
+ * Cancelar o rechazar una clase PAGADA la deja ACREDITADO: `aFavor` es lo que queda a favor del
+ * alumno. Confirmar con saldo a favor que la cubre la deja pagada con «Saldo a favor».
+ */
+export async function moverClase(id: string, evento: EventoClase): Promise<Resultado<ConAviso & { aFavor?: number }>> {
   try {
     const { tenantId, clase, config, alumno } = await claseDelProfe(id);
     const nuevo = transicionClase(clase.estado, evento, "profe");
@@ -388,16 +529,34 @@ export async function moverClase(id: string, evento: EventoClase): Promise<Resul
       nuevo === "CANCELADA" ? { canceladaEl: ahora, motivoCancel: "La canceló el profe" } : {};
     // Al confirmar se congela el precio vigente: si después cambia la lista, esta clase no se discute.
     const precio = nuevo === "CONFIRMADA" ? { precio: precioDe(config, esTipoClase(clase.tipo) ? clase.tipo : "INDIVIDUAL", clase.personas) } : {};
-    const n = await prisma.padelClase.updateMany({ where: { tenantId, id, estado: clase.estado }, data: { estado: nuevo, ...sello, ...precio } });
-    if (n.count === 0) return { ok: false, error: "Esa clase ya cambió. Actualizá la pantalla." };
+    // Cancelada o rechazada: si estaba pagada, la plata queda a favor (pagoAlCancelar).
+    const pago = nuevo === "CANCELADA" || nuevo === "RECHAZADA" ? pagoAlCancelar(clase) : null;
+    const r = await bookingTransaction(async (tx) => {
+      const conSaldo =
+        nuevo === "CONFIRMADA" && clase.pagoEstado === "PENDIENTE"
+          ? pagoConSaldo(await saldoEnTx(tx, tenantId, clase.alumnoId, id), Number("precio" in precio ? precio.precio : clase.precio))
+          : null;
+      const n = await tx.padelClase.updateMany({
+        where: { tenantId, id, estado: clase.estado, pagoEstado: clase.pagoEstado },
+        data: { estado: nuevo, ...sello, ...precio, ...(pago ?? {}), ...(conSaldo ?? {}) },
+      });
+      return { cambio: n.count > 0, conSaldo: Boolean(conSaldo) };
+    });
+    if (!r.cambio) return { ok: false, error: "Esa clase ya cambió. Actualizá la pantalla." };
     await prisma.padelAviso.updateMany({ where: { tenantId, claseId: id, destino: "PROFE", leidoEl: null }, data: { leidoEl: ahora } });
-    await auditAdmin({ action: `padel.${evento}`, entity: "PadelClase", entityId: id, changes: { de: clase.estado, a: nuevo } });
+    const cambioPago = r.conSaldo ? "SALDO_A_FAVOR" : pago?.pagoEstado;
+    await auditAdmin({ action: `padel.${evento}`, entity: "PadelClase", entityId: id, changes: { de: clase.estado, a: nuevo, ...(cambioPago ? { pago: cambioPago } : {}) } });
+    const acreditada = pago?.pagoEstado === "ACREDITADO";
     const m = MENSAJE_POR_EVENTO[evento];
     const aviso = m
-      ? await avisarAlAlumno({ tenantId, config, clave: m.clave, tipo: m.tipo, clase: { ...clase, ...("precio" in precio ? precio : {}) }, alumno })
+      ? await avisarAlAlumno({
+          tenantId, config, clave: m.clave, tipo: m.tipo, alumno,
+          clase: { ...clase, ...("precio" in precio ? precio : {}) },
+          extra: r.conSaldo ? YA_PAGADA_CON_SALDO : acreditada ? `Lo que pagaste (${pesos(Number(clase.precio))}) te queda a favor para la próxima.` : undefined,
+        })
       : { wa: null, enviado: false };
     refrescar(alumno.token);
-    return { ok: true, ...aviso };
+    return { ok: true, ...aviso, ...(acreditada ? { aFavor: Number(clase.precio) } : {}) };
   } catch (e) {
     if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
     throw e;
@@ -442,17 +601,18 @@ export async function agendarProxima(id: string): Promise<Resultado<ConAviso & {
     const terminaEn = proximaSemana(clase.terminaEn);
     const nueva = await bookingTransaction(async (tx) => {
       if (await choqueEn(tx, tenantId, empiezaEn, terminaEn)) throw new ErrorNegocio(`El ${diaHumano(empiezaEn)} a las ${horaHumana(empiezaEn)} ya está ocupado.`);
+      const precio = precioDe(config, esTipoClase(clase.tipo) ? clase.tipo : "INDIVIDUAL", clase.personas);
+      const conSaldo = pagoConSaldo(await saldoEnTx(tx, tenantId, clase.alumnoId), precio);
       return tx.padelClase.create({
         data: {
           tenantId, alumnoId: clase.alumnoId, clientId: clase.clientId, empiezaEn, terminaEn, tipo: clase.tipo, personas: clase.personas,
-          estado: "CONFIRMADA", confirmadaEl: new Date(), origen: "PROFE", repiteDe: clase.id,
-          precio: precioDe(config, esTipoClase(clase.tipo) ? clase.tipo : "INDIVIDUAL", clase.personas),
+          estado: "CONFIRMADA", confirmadaEl: new Date(), origen: "PROFE", repiteDe: clase.id, precio, ...(conSaldo ?? {}),
         },
-        select: { id: true, empiezaEn: true, precio: true },
+        select: { id: true, empiezaEn: true, precio: true, pagoMedio: true },
       });
     });
     await auditAdmin({ action: "padel.agendarProxima", entity: "PadelClase", entityId: nueva.id, changes: { repiteDe: clase.id } });
-    const aviso = await avisarAlAlumno({ tenantId, config, clave: "proxima", tipo: "proxima", clase: nueva, alumno });
+    const aviso = await avisarAlAlumno({ tenantId, config, clave: "proxima", tipo: "proxima", clase: nueva, alumno, extra: nueva.pagoMedio === "SALDO_A_FAVOR" ? YA_PAGADA_CON_SALDO : undefined });
     refrescar(alumno.token);
     return { ok: true, ...aviso, cuando: `${diaHumano(empiezaEn)} ${horaHumana(empiezaEn)}` };
   } catch (e) {
@@ -485,18 +645,20 @@ export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & {
         ? await tx.padelAlumno.findFirst({ where: { tenantId, id: alumnoId }, select: { id: true, token: true, clientId: true } })
         : await alumnoPorTelefono(tx, tenantId, telefono, nombre!);
       if (!alumno) throw new ErrorNegocio("No encontramos ese alumno.");
+      const precio = precioDe(config, tipo, personas);
+      const conSaldo = pagoConSaldo(await saldoEnTx(tx, tenantId, alumno.id), precio);
       const clase = await tx.padelClase.create({
         data: {
           tenantId, alumnoId: alumno.id, clientId: alumno.clientId, empiezaEn, terminaEn, tipo, personas,
-          estado: "CONFIRMADA", confirmadaEl: new Date(), origen: "PROFE", precio: precioDe(config, tipo, personas),
+          estado: "CONFIRMADA", confirmadaEl: new Date(), origen: "PROFE", precio, ...(conSaldo ?? {}),
         },
-        select: { id: true, empiezaEn: true, precio: true },
+        select: { id: true, empiezaEn: true, precio: true, pagoMedio: true },
       });
       const cliente = await tx.client.findFirst({ where: { tenantId, id: alumno.clientId }, select: { name: true, phone: true } });
       return { clase, alumno: { id: alumno.id, token: alumno.token, nombre: cliente?.name ?? "", telefono: cliente?.phone ?? "" } };
     });
     await auditAdmin({ action: "padel.agendar", entity: "PadelClase", entityId: r.clase.id });
-    const aviso = await avisarAlAlumno({ tenantId, config, clave: "proxima", tipo: "proxima", clase: r.clase, alumno: r.alumno });
+    const aviso = await avisarAlAlumno({ tenantId, config, clave: "proxima", tipo: "proxima", clase: r.clase, alumno: r.alumno, extra: r.clase.pagoMedio === "SALDO_A_FAVOR" ? YA_PAGADA_CON_SALDO : undefined });
     refrescar(r.alumno.token);
     return { ok: true, ...aviso, cuando: `${diaHumano(empiezaEn)} ${horaHumana(empiezaEn)}` };
   } catch (e) {
@@ -527,10 +689,35 @@ export async function recordatorio(id: string): Promise<Resultado<ConAviso>> {
   }
 }
 
+/**
+ * «Le devolví»: el profe le devolvió en mano lo que había quedado a favor de esa clase.
+ * ACREDITADO → DEVUELTO, y sale del saldo. No deja el saldo en negativo (si parte ya se usó, no corre).
+ */
+export async function devolverSaldo(claseId: string): Promise<Resultado<{ aFavor: number }>> {
+  try {
+    const { tenantId, clase } = await claseDelProfe(claseId);
+    const nuevo = transicionPago(clase.pagoEstado, clase.estado, "devolver", "profe");
+    if (!nuevo) return { ok: false, error: "Esa clase no tiene plata a favor para devolver." };
+    const r = await tenantTransaction(async (tx) => {
+      const saldo = await saldoEnTx(tx, tenantId, clase.alumnoId);
+      if (saldo < Number(clase.precio)) throw new ErrorNegocio("Parte de ese saldo ya se usó en otra clase: no se puede devolver entero.");
+      const n = await tx.padelClase.updateMany({ where: { tenantId, id: claseId, pagoEstado: "ACREDITADO" }, data: { pagoEstado: nuevo } });
+      if (n.count === 0) throw new ErrorNegocio("Ese saldo ya cambió. Actualizá la pantalla.");
+      return { aFavor: saldo - Number(clase.precio) };
+    });
+    await auditAdmin({ action: "padel.pago.devolver", entity: "PadelClase", entityId: claseId, changes: { de: clase.pagoEstado, a: nuevo } });
+    refrescar(clase.alumno.token);
+    return { ok: true, aFavor: r.aFavor };
+  } catch (e) {
+    if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
+    throw e;
+  }
+}
+
 export async function marcarAvisosLeidos(): Promise<void> {
   await requireCapability("agenda:manage");
   const tenantId = await getCurrentTenantId();
-  await prisma.padelAviso.updateMany({ where: { tenantId, destino: "PROFE", leidoEl: null, tipo: { in: ["cancelacion", "respuesta", "proxima"] } }, data: { leidoEl: new Date() } });
+  await prisma.padelAviso.updateMany({ where: { tenantId, destino: "PROFE", leidoEl: null, tipo: { in: [...AVISOS_QUE_ESPERAN, "proxima"] } }, data: { leidoEl: new Date() } });
   revalidatePath(RAIZ, "layout");
 }
 

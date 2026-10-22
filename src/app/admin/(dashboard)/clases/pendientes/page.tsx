@@ -9,7 +9,7 @@ import { MarcarLeidos } from "./MarcarLeidos";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Clases · Pendientes", manifest: "/clases/app.webmanifest" };
 
-const ICONO: Record<string, string> = { pedido: "📅", comprobante: "🧾", cancelacion: "❌", proxima: "🔁", respuesta: "💬" };
+const ICONO: Record<string, string> = { pedido: "📅", comprobante: "🧾", cancelacion: "❌", proxima: "🔁", respuesta: "💬", "link-pedido": "🔗" };
 
 // La bandeja: lo que el profe tiene que contestar. Los pedidos del turnero, los comprobantes por
 // revisar y lo que pasó en los últimos días (cancelaciones, clases que se repitieron solas).

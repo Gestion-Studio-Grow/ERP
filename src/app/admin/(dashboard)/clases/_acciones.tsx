@@ -8,11 +8,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
-import { agendarProxima, mandarLinkAlAlumno, moverClase, moverPago, recordatorio } from "@/lib/padel/acciones";
-import type { EventoClase } from "@/lib/padel/core";
+import { agendarProxima, devolverSaldo, mandarLinkAlAlumno, moverClase, moverPago, recordatorio } from "@/lib/padel/acciones";
+import { esPagable, pesos, type EventoClase } from "@/lib/padel/core";
 import { useAvisoAccion } from "./_aviso";
 
-type Resultado = { ok: true; wa?: string | null; enviado?: boolean; cuando?: string } | { ok: false; error: string };
+type Resultado = { ok: true; wa?: string | null; enviado?: boolean; cuando?: string; aFavor?: number } | { ok: false; error: string };
 
 export interface ClaseAcciones {
   id: string;
@@ -37,7 +37,10 @@ function useAccion(nombre: string) {
       setError(null);
       const r = await fn();
       if (!r.ok) return setError(r.error);
-      mostrar({ texto: r.cuando ? `${listo}: ${r.cuando}` : listo, wa: r.wa, enviado: r.enviado, nombre });
+      const texto = r.cuando ? `${listo}: ${r.cuando}` : listo;
+      // Clase pagada que se cancela: la plata no se pierde, queda a favor del alumno.
+      const conSaldo = r.aFavor ? `${texto} · ${pesos(r.aFavor)} quedan a favor de ${nombre.split(" ")[0]}` : texto;
+      mostrar({ texto: conSaldo, wa: r.wa, enviado: r.enviado, nombre });
       router.refresh();
     });
   return { pendiente, error, correr };
@@ -55,7 +58,8 @@ export function AccionesClase({ c, conProxima = true }: { c: ClaseAcciones; conP
   const [verComprobante, setVerComprobante] = useState(false);
   const [seguro, setSeguro] = useState(false);
   const mover = (e: EventoClase, listo: string) => correr(() => moverClase(c.id, e), listo);
-  const debe = c.pagoEstado !== "PAGADO" && ["CONFIRMADA", "DADA"].includes(c.estado);
+  // La misma regla que el link del alumno (core.ts): se cobra lo dado sin pagar o lo confirmado.
+  const debe = esPagable(c);
 
   return (
     <div className="grid gap-2" aria-busy={pendiente}>
@@ -126,6 +130,19 @@ export function BotonRecordatorio({ id, nombre }: { id: string; nombre: string }
     <div>
       <button type="button" disabled={pendiente} className={cn(buttonClasses("outline", "sm"), "w-full")} onClick={() => correr(() => recordatorio(id), "Recordatorio listo")}>
         Recordarle
+      </button>
+      <ErrorAccion texto={error} />
+    </div>
+  );
+}
+
+/** «Le devolví»: el saldo a favor de esa clase se le devolvió en mano (ACREDITADO → DEVUELTO). */
+export function BotonDevolver({ claseId, nombre, monto }: { claseId: string; nombre: string; monto: number }) {
+  const { pendiente, error, correr } = useAccion(nombre);
+  return (
+    <div>
+      <button type="button" disabled={pendiente} className={cn(buttonClasses("outline", "sm"), "w-full")} onClick={() => correr(() => devolverSaldo(claseId), `Le devolviste ${pesos(monto)}`)} data-qa="devolver-saldo">
+        Le devolví
       </button>
       <ErrorAccion texto={error} />
     </div>

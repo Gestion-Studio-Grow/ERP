@@ -3,9 +3,12 @@
 // Los tres pasos del turnero: día → hora → nombre y celular. Todo en una pantalla, sin ir y
 // volver al servidor hasta el "Pedir clase": los horarios libres ya vienen calculados.
 // El nombre y el celular se recuerdan en este teléfono (para la próxima vez), nunca en otro lado.
+// El link del alumno NO: lo recuerda una cookie httpOnly que escribe el servidor, y sólo se
+// muestra si este dispositivo es el dueño (alumno nuevo, o el mismo teléfono de siempre). Si el
+// celular es de un alumno conocido y el teléfono es otro, «Te confirmamos por WhatsApp».
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { pedirClase } from "@/lib/padel/acciones";
+import { pedirClase, pedirMiLink } from "@/lib/padel/acciones";
 import type { DiaConLugar } from "@/lib/padel/datos.server";
 
 type Marca = { cancha: string; vivo: string; texto: string; suave: string; linea: string };
@@ -31,7 +34,7 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
   const nombreRef = useRef<HTMLInputElement>(null);
   const telRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [listo, setListo] = useState<{ token: string; waProfe: string | null; cuando: string } | null>(null);
+  const [listo, setListo] = useState<{ token: string | null; waProfe: string | null; cuando: string } | null>(null);
   const [pendiente, start] = useTransition();
 
   useEffect(() => {
@@ -79,16 +82,24 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
             Avisarle por WhatsApp
           </a>
         )}
-        <a
-          href={`/alumno/${listo.token}`}
-          data-qa="mi-link"
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 52, borderRadius: 14, border: `2px solid ${marca.cancha}`, color: marca.cancha, fontWeight: 700, fontSize: 16, textDecoration: "none" }}
-        >
-          Ver mis clases y pagar
-        </a>
-        <p style={{ margin: "12px 0 0", fontSize: 14, color: marca.suave }}>
-          Guardá ese link: desde ahí repetís la clase la semana que viene, mandás el comprobante o cancelás.
-        </p>
+        {listo.token ? (
+          <>
+            <a
+              href={`/alumno/${listo.token}`}
+              data-qa="mi-link"
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 52, borderRadius: 14, border: `2px solid ${marca.cancha}`, color: marca.cancha, fontWeight: 700, fontSize: 16, textDecoration: "none" }}
+            >
+              Ver mis clases y pagar
+            </a>
+            <p style={{ margin: "12px 0 0", fontSize: 14, color: marca.suave }}>
+              Guardá ese link: desde ahí repetís la clase la semana que viene, mandás el comprobante o cancelás.
+            </p>
+          </>
+        ) : (
+          <p style={{ margin: 0, fontSize: 16 }} data-qa="confirmamos-por-wa">
+            Te confirmamos por WhatsApp al número que pusiste.
+          </p>
+        )}
       </section>
     );
   }
@@ -98,6 +109,7 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
       <section style={caja}>
         <h2 style={titulo}>El profe todavía no publicó sus horarios</h2>
         <p style={{ margin: 0, color: marca.suave }}>Volvé a mirar en unos días o escribile al profe.</p>
+        <YaSoyAlumno marca={marca} caja={caja} campo={campo} />
       </section>
     );
   }
@@ -107,6 +119,7 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
       <section style={caja}>
         <h2 style={titulo}>No quedan horarios libres por ahora</h2>
         <p style={{ margin: 0, color: marca.suave }}>Volvé a mirar en unos días o escribile al profe.</p>
+        <YaSoyAlumno marca={marca} caja={caja} campo={campo} />
       </section>
     );
   }
@@ -131,6 +144,7 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
   };
 
   return (
+    <>
     <form onSubmit={enviar} noValidate>
       <section style={caja} aria-labelledby="paso-dia">
         <h2 id="paso-dia" style={titulo}>1 · ¿Qué día?</h2>
@@ -215,5 +229,63 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
         {pendiente ? "Pidiendo…" : elegida ? `Pedir clase · ${dias.find((d) => d.fecha === fecha)?.etiqueta} ${hora(elegida)}` : "Pedir clase"}
       </button>
     </form>
+    <YaSoyAlumno marca={marca} caja={caja} campo={campo} />
+    </>
+  );
+}
+
+/**
+ * «¿Ya sos alumno? Pedí tu link»: el link viaja por WhatsApp al número registrado y nunca se
+ * muestra acá. La respuesta es la misma exista o no el celular (no revela quién es alumno).
+ */
+function YaSoyAlumno({ marca, caja, campo }: { marca: Marca; caja: React.CSSProperties; campo: React.CSSProperties }) {
+  const [abierto, setAbierto] = useState(false);
+  const [pendiente, start] = useTransition();
+  const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
+  const tel = useRef<HTMLInputElement>(null);
+
+  if (!abierto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        data-qa="ya-soy-alumno"
+        style={{ display: "block", width: "100%", minHeight: 48, marginTop: 16, background: "none", border: 0, color: marca.suave, fontSize: 16, textDecoration: "underline", cursor: "pointer" }}
+      >
+        ¿Ya sos alumno? Pedí tu link
+      </button>
+    );
+  }
+  const pedir = () =>
+    start(async () => {
+      setMsg(null);
+      const r = await pedirMiLink(tel.current?.value ?? "");
+      setMsg(r.ok ? { ok: true, texto: r.mensaje } : { ok: false, texto: r.error });
+    });
+  return (
+    <section style={{ ...caja, marginTop: 16 }} aria-labelledby="ya-alumno">
+      <h2 id="ya-alumno" style={{ margin: "0 0 8px", fontSize: 18 }}>Pedí tu link</h2>
+      <p style={{ margin: "0 0 12px", fontSize: 16, color: marca.suave }}>Poné el celular con el que pediste clase. Te lo mandamos por WhatsApp a ese número.</p>
+      <label htmlFor="t-tel-link" style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 6 }}>Celular (WhatsApp)</label>
+      <input ref={tel} id="t-tel-link" type="tel" inputMode="tel" autoComplete="tel" placeholder="11 5555-1234" style={campo} />
+      <button
+        type="button"
+        disabled={pendiente}
+        onClick={pedir}
+        data-qa="pedir-link"
+        style={{ width: "100%", minHeight: 52, marginTop: 12, borderRadius: 14, border: `2px solid ${marca.cancha}`, background: "none", color: marca.cancha, fontSize: 16, fontWeight: 700, cursor: pendiente ? "wait" : "pointer" }}
+      >
+        {pendiente ? "Mandando…" : "Mandarme mi link"}
+      </button>
+      {msg && (
+        <p
+          role={msg.ok ? "status" : "alert"}
+          data-qa="respuesta-link"
+          style={{ margin: "12px 0 0", fontSize: 16, fontWeight: 600, color: msg.ok ? marca.texto : "var(--danger)" }}
+        >
+          {msg.texto}
+        </p>
+      )}
+    </section>
   );
 }

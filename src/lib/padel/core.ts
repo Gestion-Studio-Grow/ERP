@@ -10,12 +10,17 @@
 // menos de diez minutos y el celular en la mano.
 //
 //   PEDIDA ──confirmar──▶ CONFIRMADA ──dar──▶ DADA
-//     │                      ├─ausente─▶ AUSENTE
-//     └──rechazar──▶ RECHAZADA └─cancelar─▶ CANCELADA   (PEDIDA también se cancela)
+//     │  │                   ├─ausente─▶ AUSENTE
+//     │  └─rechazar─▶ RECHAZADA └─cancelar─▶ CANCELADA   (PEDIDA también se cancela)
+//     └──vencer (sistema: pasó la hora y nadie la confirmó)──▶ SIN_RESPUESTA
 //
 //   Pago:  PENDIENTE ──alumno sube comprobante──▶ EN_REVISION ──profe valida──▶ PAGADO
 //             │                                     └──no es válido──▶ PENDIENTE
 //             └──"cobré en efectivo" (un toque)──▶ PAGADO
+//          PAGADO ──la clase se cancela o se rechaza──▶ ACREDITADO (saldo a favor) ──«Le devolví»──▶ DEVUELTO
+//
+// Los estados viven como texto en la base (`estado`, `pagoEstado`, `pagoMedio` son String): sumar
+// uno no pide migración. El saldo a favor no es una columna: se deriva de las clases (saldoAFavor).
 
 import { generateSlots, hasOverlap, type Interval } from "@/lib/booking-slots";
 import { businessWallTimeToUtc, dayOfWeekForDate } from "@/lib/datetime";
@@ -24,19 +29,19 @@ import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 
 // ── Estados ─────────────────────────────────────────────────────────────────
 
-export const ESTADOS_CLASE = ["PEDIDA", "CONFIRMADA", "DADA", "AUSENTE", "RECHAZADA", "CANCELADA"] as const;
+export const ESTADOS_CLASE = ["PEDIDA", "CONFIRMADA", "DADA", "AUSENTE", "RECHAZADA", "CANCELADA", "SIN_RESPUESTA"] as const;
 export type EstadoClase = (typeof ESTADOS_CLASE)[number];
 
-export const ESTADOS_PAGO = ["PENDIENTE", "EN_REVISION", "PAGADO"] as const;
+export const ESTADOS_PAGO = ["PENDIENTE", "EN_REVISION", "PAGADO", "ACREDITADO", "DEVUELTO"] as const;
 export type EstadoPago = (typeof ESTADOS_PAGO)[number];
 
-export const MEDIOS_PAGO = ["EFECTIVO", "TRANSFERENCIA", "MERCADO_PAGO"] as const;
+export const MEDIOS_PAGO = ["EFECTIVO", "TRANSFERENCIA", "MERCADO_PAGO", "SALDO_A_FAVOR"] as const;
 export type MedioPago = (typeof MEDIOS_PAGO)[number];
 
 export const TIPOS_CLASE = ["INDIVIDUAL", "GRUPAL"] as const;
 export type TipoClase = (typeof TIPOS_CLASE)[number];
 
-/** Las clases que ocupan la franja: una RECHAZADA o CANCELADA la libera. */
+/** Las clases que ocupan la franja: una RECHAZADA, CANCELADA o SIN_RESPUESTA la libera. */
 export const ESTADOS_QUE_OCUPAN: readonly EstadoClase[] = ["PEDIDA", "CONFIRMADA", "DADA"];
 
 export const esEstadoClase = (v: unknown): v is EstadoClase => ESTADOS_CLASE.includes(v as EstadoClase);
@@ -51,6 +56,7 @@ export const ESTADO_LABEL: Record<EstadoClase, string> = {
   AUSENTE: "No vino",
   RECHAZADA: "Rechazada",
   CANCELADA: "Cancelada",
+  SIN_RESPUESTA: "Sin respuesta",
 };
 
 /** Cómo se lo dice el link al alumno: en criollo y diciendo qué falta. */
@@ -61,22 +67,27 @@ export const ESTADO_PARA_ALUMNO: Record<EstadoClase, string> = {
   AUSENTE: "Quedó como ausente",
   RECHAZADA: "El profe no puede en ese horario",
   CANCELADA: "Cancelada",
+  SIN_RESPUESTA: "El profe no llegó a confirmarte",
 };
 
 export const PAGO_LABEL: Record<EstadoPago, string> = {
   PENDIENTE: "Sin pagar",
   EN_REVISION: "Comprobante por revisar",
   PAGADO: "Pagada",
+  ACREDITADO: "Quedó a favor",
+  DEVUELTO: "Devuelta",
 };
 
 export const MEDIO_LABEL: Record<MedioPago, string> = {
   EFECTIVO: "Efectivo",
   TRANSFERENCIA: "Transferencia",
   MERCADO_PAGO: "Mercado Pago",
+  SALDO_A_FAVOR: "Saldo a favor",
 };
 
-export type EventoClase = "confirmar" | "rechazar" | "dar" | "ausente" | "cancelar";
-export type Quien = "profe" | "alumno";
+export type EventoClase = "confirmar" | "rechazar" | "dar" | "ausente" | "cancelar" | "vencer";
+/** «sistema» = lo hace la app sola (vencer un pedido que nadie contestó). */
+export type Quien = "profe" | "alumno" | "sistema";
 
 const TRANSICIONES_CLASE: Record<EventoClase, { desde: readonly EstadoClase[]; hacia: EstadoClase; quien: readonly Quien[] }> = {
   confirmar: { desde: ["PEDIDA"], hacia: "CONFIRMADA", quien: ["profe"] },
@@ -84,6 +95,7 @@ const TRANSICIONES_CLASE: Record<EventoClase, { desde: readonly EstadoClase[]; h
   dar: { desde: ["CONFIRMADA", "PEDIDA"], hacia: "DADA", quien: ["profe"] },
   ausente: { desde: ["CONFIRMADA"], hacia: "AUSENTE", quien: ["profe"] },
   cancelar: { desde: ["PEDIDA", "CONFIRMADA"], hacia: "CANCELADA", quien: ["profe", "alumno"] },
+  vencer: { desde: ["PEDIDA"], hacia: "SIN_RESPUESTA", quien: ["sistema"] },
 };
 
 /** El estado al que pasa la clase, o null si ese evento no corre desde ahí o para esa persona. */
@@ -93,25 +105,89 @@ export function transicionClase(estado: string, evento: EventoClase, quien: Quie
   return t.desde.includes(estado) && t.quien.includes(quien) ? t.hacia : null;
 }
 
-export type EventoPago = "subir" | "validar" | "noValido" | "efectivo";
+export type EventoPago = "subir" | "validar" | "noValido" | "efectivo" | "acreditar" | "devolver";
+
+/** Estados de pago en los que la plata ya entró (o ya se resolvió): nunca son deuda. */
+const PAGO_RESUELTO: readonly EstadoPago[] = ["PAGADO", "ACREDITADO", "DEVUELTO"];
 
 /**
- * El estado de pago al que pasa la clase, o null si no corre. Se paga una clase viva (pedida,
- * confirmada o dada): una rechazada o cancelada no se cobra.
+ * El estado de pago al que pasa la clase, o null si no corre. Se cobra una clase viva (pedida,
+ * confirmada o dada): una rechazada o cancelada no se cobra. El comprobante lo sube el alumno
+ * de una clase confirmada o dada: una PEDIDA nunca es pagable (el profe todavía no dijo que sí).
+ *
+ * `acreditar`: la clase pagada se canceló o se rechazó → la plata queda a favor del alumno.
+ * `devolver`: el profe le devolvió esa plata («Le devolví») → sale del saldo.
  */
 export function transicionPago(pago: string, estadoClase: string, evento: EventoPago, quien: Quien): EstadoPago | null {
   if (!esEstadoPago(pago) || !esEstadoClase(estadoClase)) return null;
+  if (evento === "acreditar") return pago === "PAGADO" && (estadoClase === "CANCELADA" || estadoClase === "RECHAZADA") ? "ACREDITADO" : null;
+  if (evento === "devolver") return quien === "profe" && pago === "ACREDITADO" ? "DEVUELTO" : null;
   if (!ESTADOS_QUE_OCUPAN.includes(estadoClase)) return null;
   switch (evento) {
     case "subir":
-      return quien === "alumno" && pago !== "PAGADO" ? "EN_REVISION" : null;
+      return quien === "alumno" && estadoClase !== "PEDIDA" && !PAGO_RESUELTO.includes(pago) ? "EN_REVISION" : null;
     case "validar":
       return quien === "profe" && pago === "EN_REVISION" ? "PAGADO" : null;
     case "noValido":
       return quien === "profe" && pago === "EN_REVISION" ? "PENDIENTE" : null;
     case "efectivo":
-      return quien === "profe" && pago !== "PAGADO" ? "PAGADO" : null;
+      return quien === "profe" && !PAGO_RESUELTO.includes(pago) ? "PAGADO" : null;
   }
+}
+
+// ── Plata: una sola regla de deuda y el saldo a favor ──────────────────────
+//
+// La usan el panel del profe y el link del alumno: los dos ven el MISMO número.
+
+export interface ClaseConPago {
+  estado: string;
+  pagoEstado: string;
+  pagoMedio?: string | null;
+  precio: number;
+}
+
+/** Deuda = clase DADA, con precio, que nadie pagó todavía. Una PEDIDA o CONFIRMADA no es deuda. */
+export const esDeuda = (c: ClaseConPago): boolean =>
+  c.estado === "DADA" && Number(c.precio) > 0 && !PAGO_RESUELTO.includes(c.pagoEstado as EstadoPago);
+
+/**
+ * Lo que el alumno puede pagar ya: la deuda, más una CONFIRMADA sin pagar (adelanta el pago).
+ * PEDIDA nunca: el profe todavía no confirmó, y si vence no existió.
+ */
+export const esPagable = (c: ClaseConPago): boolean =>
+  esDeuda(c) || (c.estado === "CONFIRMADA" && c.pagoEstado === "PENDIENTE" && Number(c.precio) > 0);
+
+/** Lo que debe el alumno: la suma de sus deudas. */
+export const totalDeuda = (clases: readonly ClaseConPago[]): number =>
+  redondear(clases.filter(esDeuda).reduce((s, c) => s + Number(c.precio), 0));
+
+/**
+ * Saldo a favor = lo acreditado (clases pagadas que se cancelaron) − lo ya usado (clases pagadas
+ * con «Saldo a favor»). Lo devuelto en mano (DEVUELTO) ya no cuenta. Nunca negativo.
+ */
+export function saldoAFavor(clases: readonly ClaseConPago[]): number {
+  let s = 0;
+  for (const c of clases) {
+    if (c.pagoEstado === "ACREDITADO") s += Number(c.precio);
+    else if (c.pagoEstado === "PAGADO" && c.pagoMedio === "SALDO_A_FAVOR") s -= Number(c.precio);
+  }
+  return Math.max(0, redondear(s));
+}
+
+/** ¿El saldo alcanza para pagar entera esta clase? Un saldo parcial no se aplica (queda para después). */
+export const saldoCubre = (saldo: number, precio: number): boolean => Number(precio) > 0 && saldo >= Number(precio);
+
+/**
+ * Qué le pasa al pago cuando la clase se cancela o se rechaza, o null si no cambia nada:
+ *  · pagada en efectivo/transferencia → ACREDITADO (la plata queda a favor, no se pierde);
+ *  · pagada CON saldo a favor → vuelve a PENDIENTE sin medio (el saldo que usó le vuelve solo, sin
+ *    contarlo dos veces);
+ *  · sin pagar o con el comprobante por revisar → igual (no entró plata validada).
+ */
+export function pagoAlCancelar(c: { pagoEstado: string; pagoMedio?: string | null }): { pagoEstado: EstadoPago; pagoMedio?: null } | null {
+  if (c.pagoEstado !== "PAGADO") return null;
+  if (c.pagoMedio === "SALDO_A_FAVOR") return { pagoEstado: "PENDIENTE", pagoMedio: null };
+  return { pagoEstado: "ACREDITADO" };
 }
 
 // ── Franjas libres ──────────────────────────────────────────────────────────

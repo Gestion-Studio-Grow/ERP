@@ -5,8 +5,13 @@
 // POST = mensajes entrantes. APAGADO salvo PADEL_WHATSAPP=cloud: hasta entonces acusa recibo
 //        sin tocar nada (como el webhook de Mercado Pago con la facturación apagada). Prendido:
 //        firma X-Hub-Signature-256 con WHATSAPP_APP_SECRET (sin secreto 503, firma mala 401),
-//        deduplicación por wamid, y la respuesta corta del alumno ("sí" / "cancelar") se aplica a
-//        su próxima clase. Todo lo demás queda en la bandeja del profe para leer.
+//        deduplicación por wamid, y la respuesta del alumno según interpretarRespuesta:
+//          · «CANCELAR» exacto (o el botón rápido CANCELAR) → cancela su próxima clase si está a
+//            tiempo y le contesta «Listo, cancelada…»; fuera de término le contesta y avisa al profe.
+//          · «no», «no puedo…», «no voy…» → NO toca la clase: le pregunta «¿Cancelás…? Respondé
+//            CANCELAR» y deja el mensaje en la bandeja.
+//          · un sí exacto → queda anotado en la bandeja. Todo lo demás, también: no se adivina.
+//        Cada respuesta que sale al alumno queda registrada como PadelAviso destino ALUMNO.
 //
 // El negocio sale del dominio de la URL que se carga en Meta (https://<negocio>/api/webhooks/
 // whatsapp), igual que el resto de la app. Meta reintenta si no recibe 200: por eso los errores
@@ -18,15 +23,23 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { logger } from "@/lib/logger";
 import { parseInboundMeta } from "@/lib/wa-provider";
-import { diaHumano, horaHumana, puedeCancelarAlumno, telefonoAlumno } from "@/lib/padel/core";
-import { configPadel } from "@/lib/padel/datos.server";
-import { firmaValida, interpretarRespuesta, modoWhatsApp, responderDesafio } from "@/lib/padel/whatsapp-cloud";
+import { diaHumano, horaHumana, pagoAlCancelar, puedeCancelarAlumno, telefonoAlumno } from "@/lib/padel/core";
+import { configPadel, datosDelNegocio } from "@/lib/padel/datos.server";
+import { notificadorActual } from "@/lib/padel/notificador";
+import { botonRespuestaMeta, firmaValida, interpretarRespuesta, modoWhatsApp, respuestaAlAlumno, responderDesafio } from "@/lib/padel/whatsapp-cloud";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const r = responderDesafio(new URL(request.url).searchParams, process.env.WHATSAPP_VERIFY_TOKEN);
   return new Response(r.body, { status: r.status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
+}
+
+/** https://<negocio> del pedido (el mismo dominio que se cargó en Meta), para el link al turnero. */
+function origenDe(request: Request): string {
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? new URL(request.url).host;
+  const proto = request.headers.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
 }
 
 export async function POST(request: Request) {
@@ -45,8 +58,10 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ ok: true, ignorado: "cuerpo ilegible" });
   }
-  const msg = parseInboundMeta(payload, { receivedAt: Date.now() });
-  if (!msg) return Response.json({ ok: true, ignorado: "no es un mensaje de texto" });
+  const texto = parseInboundMeta(payload, { receivedAt: Date.now() });
+  const boton = texto ? null : botonRespuestaMeta(payload);
+  const msg = texto ? { from: texto.from, text: texto.text, messageId: texto.messageId, contactName: texto.contactName, payload: null } : boton;
+  if (!msg) return Response.json({ ok: true, ignorado: "no es un mensaje de texto ni un botón" });
 
   try {
     const tenantId = await getCurrentTenantId();
@@ -55,40 +70,67 @@ export async function POST(request: Request) {
 
     const telefono = telefonoAlumno(msg.from);
     const alumno = telefono
-      ? await prisma.padelAlumno.findFirst({ where: { tenantId, client: { phone: telefono } }, select: { id: true, client: { select: { name: true } } } })
+      ? await prisma.padelAlumno.findFirst({ where: { tenantId, client: { phone: telefono } }, select: { id: true, client: { select: { name: true, phone: true } } } })
       : null;
     const quien = alumno?.client.name ?? msg.contactName ?? `+${msg.from}`;
-    const intencion = alumno ? interpretarRespuesta(msg.text) : null;
-    let texto = `${quien} escribió: "${msg.text.slice(0, 300)}"`;
+    const intencion = alumno ? interpretarRespuesta(msg.text, msg.payload) : null;
+    let aviso = `${quien} escribió: "${msg.text.slice(0, 300)}"`;
+    let tipo = "respuesta";
     let claseId: string | null = null;
+    let contestar: string | null = null;
 
     if (alumno && intencion) {
       const ahora = new Date();
       const proxima = await prisma.padelClase.findFirst({
         where: { tenantId, alumnoId: alumno.id, estado: { in: ["PEDIDA", "CONFIRMADA"] }, empiezaEn: { gt: ahora } },
         orderBy: { empiezaEn: "asc" },
-        select: { id: true, estado: true, empiezaEn: true },
+        select: { id: true, estado: true, empiezaEn: true, pagoEstado: true, pagoMedio: true },
       });
       if (proxima) {
         claseId = proxima.id;
         const cuando = `${diaHumano(proxima.empiezaEn)} ${horaHumana(proxima.empiezaEn)}`;
         if (intencion === "confirmar") {
-          texto = `${quien} confirmó por WhatsApp que va a la clase del ${cuando}.`;
+          aviso = `${quien} confirmó por WhatsApp que va a la clase del ${cuando}.`;
+        } else if (intencion === "quiereCancelar") {
+          // Un «no» suelto NO cancela: se le pregunta y la clase sigue igual.
+          aviso = `${quien} escribió: "${msg.text.slice(0, 300)}". Le preguntamos si cancela la clase del ${cuando} (tiene que responder CANCELAR).`;
+          contestar = respuestaAlAlumno({ tipo: "preguntar", cuando });
         } else {
-          const { anticipacionMin } = await configPadel(tenantId);
+          tipo = "cancelacion";
+          const [{ anticipacionMin }, negocio] = await Promise.all([configPadel(tenantId), datosDelNegocio(tenantId)]);
           if (puedeCancelarAlumno(proxima.estado, proxima.empiezaEn, ahora, anticipacionMin)) {
-            await prisma.padelClase.updateMany({ where: { tenantId, id: proxima.id }, data: { estado: "CANCELADA", canceladaEl: ahora, motivoCancel: "La canceló el alumno por WhatsApp" } });
-            texto = `${quien} canceló por WhatsApp la clase del ${cuando}. Ese horario quedó libre.`;
+            const n = await prisma.padelClase.updateMany({
+              where: { tenantId, id: proxima.id, estado: proxima.estado, pagoEstado: proxima.pagoEstado },
+              data: { estado: "CANCELADA", canceladaEl: ahora, motivoCancel: "La canceló el alumno por WhatsApp", ...(pagoAlCancelar(proxima) ?? {}) },
+            });
+            if (n.count > 0) {
+              aviso = `${quien} canceló por WhatsApp la clase del ${cuando}. Ese horario quedó libre.`;
+              contestar = respuestaAlAlumno({ tipo: "cancelada", turnero: `${origenDe(request)}/clases` });
+            } else {
+              aviso = `${quien} pidió cancelar por WhatsApp la clase del ${cuando}, pero la clase cambió mientras tanto. Fijate y escribile.`;
+            }
           } else {
-            texto = `${quien} quiere cancelar la clase del ${cuando}, pero ya está fuera de término. Escribile.`;
+            aviso = `${quien} quiere cancelar la clase del ${cuando}, pero ya está fuera de término. Escribile.`;
+            contestar = respuestaAlAlumno({ tipo: "fueraDeTermino", profe: negocio.profe });
           }
         }
       }
     }
 
     await prisma.padelAviso.create({
-      data: { tenantId, destino: "PROFE", tipo: intencion === "cancelar" ? "cancelacion" : "respuesta", texto, claseId, alumnoId: alumno?.id ?? null, canal: "WA_CLOUD", idExterno: msg.messageId },
+      data: { tenantId, destino: "PROFE", tipo, texto: aviso, claseId, alumnoId: alumno?.id ?? null, canal: "WA_CLOUD", idExterno: msg.messageId },
     });
+
+    // La respuesta al alumno va por la ventana de 24 h (acaba de escribir): texto libre, sin plantilla.
+    if (alumno && contestar) {
+      const r = await notificadorActual().enviar({ telefono: alumno.client.phone, texto: contestar });
+      await prisma.padelAviso.create({
+        data: {
+          tenantId, destino: "ALUMNO", tipo: "respuesta-wa", claseId, alumnoId: alumno.id, texto: contestar, canal: r.canal,
+          enviadoEl: r.enviado ? new Date() : null, errorEnvio: r.error ?? null, idExterno: r.idExterno ?? null,
+        },
+      });
+    }
     return Response.json({ ok: true });
   } catch (e) {
     logger.error("padel.whatsapp", "no se pudo procesar el mensaje entrante", e, { messageId: msg.messageId });

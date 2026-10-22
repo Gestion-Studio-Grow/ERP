@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { alumnoPublico } from "@/lib/padel/datos.server";
 import { marcaProfe } from "@/lib/padel/marca";
-import { ESTADO_PARA_ALUMNO, PAGO_LABEL, diaHumano, horaHumana, linkWhatsApp, pesos, proximaSemana, puedeCancelarAlumno } from "@/lib/padel/core";
-import { BotonCancelar, BotonRepetir, SubirComprobante } from "./AccionesAlumno";
+import { ESTADO_PARA_ALUMNO, PAGO_LABEL, diaHumano, esDeuda, esPagable, horaHumana, linkWhatsApp, pesos, proximaSemana, puedeCancelarAlumno } from "@/lib/padel/core";
+import { BotonCancelar, BotonRepetir, RecordarSesion, SubirComprobante } from "./AccionesAlumno";
 
 // Link del alumno: sin login, la llave es el token. No se indexa ni se cachea.
 export const dynamic = "force-dynamic";
@@ -20,7 +20,15 @@ export default async function AlumnoPage({ params }: { params: Promise<{ token: 
 
   const vivas = alumno.clases.filter((c) => ["PEDIDA", "CONFIRMADA"].includes(c.estado) && c.terminaEn > ahora).sort((a, b) => +a.empiezaEn - +b.empiezaEn);
   const proxima = vivas[0] ?? null;
-  const porPagar = alumno.clases.filter((c) => ["PEDIDA", "CONFIRMADA", "DADA"].includes(c.estado) && c.pagoEstado !== "PAGADO" && c.precio > 0);
+  // Una sola regla (core.ts): se paga lo DADO sin pagar y lo CONFIRMADO por adelantado. Un pedido
+  // que el profe todavía no confirmó (o que venció sin respuesta) nunca aparece acá.
+  // (Una confirmada con el comprobante ya enviado sigue a la vista: puede mandar otro.)
+  const porPagar = alumno.clases
+    .filter((c) => esPagable(c) || (c.estado === "CONFIRMADA" && c.pagoEstado === "EN_REVISION" && c.precio > 0))
+    .sort((a, b) => +a.empiezaEn - +b.empiezaEn);
+  const deudas = alumno.clases.filter(esDeuda);
+  // Pedidos que vencieron sin respuesta en las últimas 48 h: se le dice, con salida.
+  const sinRespuesta = alumno.clases.filter((c) => c.estado === "SIN_RESPUESTA" && ahora.getTime() - c.empiezaEn.getTime() < 48 * 3_600_000);
   // "La semana que viene a la misma hora" sale de la última clase dada o confirmada.
   const base = alumno.clases.find((c) => ["DADA", "CONFIRMADA"].includes(c.estado));
   const repetir = base ? proximaSemana(base.empiezaEn) : null;
@@ -40,6 +48,24 @@ export default async function AlumnoPage({ params }: { params: Promise<{ token: 
       </header>
 
       <main style={{ maxWidth: 560, margin: "0 auto", padding: "16px 16px 48px", display: "grid", gap: 14 }}>
+        <RecordarSesion token={token} />
+        {alumno.saldoAFavor > 0 && (
+          <section style={{ ...caja, borderTop: `5px solid ${m.vivo}` }} aria-label="Saldo a favor" data-qa="saldo-a-favor">
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>
+              Tenés <strong className="tabular-nums">{pesos(alumno.saldoAFavor)}</strong> a favor: tu próxima clase se paga con eso.
+            </p>
+          </section>
+        )}
+        {sinRespuesta.map((c) => (
+          <section key={c.id} style={caja} aria-label="Pedido sin respuesta" data-qa="sin-respuesta">
+            <p style={{ margin: "0 0 10px", fontSize: 16 }}>
+              <span style={{ textTransform: "capitalize" }}>{diaHumano(c.empiezaEn)}</span> {horaHumana(c.empiezaEn)} · {negocio.profe} no llegó a confirmarte.
+            </p>
+            <a href="/clases" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 48, borderRadius: 14, border: `2px solid ${m.cancha}`, color: m.cancha, fontWeight: 700, textDecoration: "none" }}>
+              Elegí otro horario
+            </a>
+          </section>
+        ))}
         <section style={{ ...caja, borderTop: `5px solid ${proxima?.estado === "CONFIRMADA" ? m.vivo : m.linea}` }} aria-label="Tu próxima clase">
           <p style={{ margin: 0, fontSize: 13, color: m.suave }}>Tu próxima clase</p>
           {proxima ? (
@@ -48,6 +74,12 @@ export default async function AlumnoPage({ params }: { params: Promise<{ token: 
                 {diaHumano(proxima.empiezaEn)} · {horaHumana(proxima.empiezaEn)}
               </h2>
               <p style={{ margin: 0, fontSize: 16, fontWeight: 600 }} data-qa="estado">{ESTADO_PARA_ALUMNO[proxima.estado]}</p>
+              {proxima.estado === "PEDIDA" && proxima.precio > 0 && (
+                <p style={{ margin: "4px 0 0", fontSize: 16, color: m.suave }} data-qa="a-pagar-al-confirmar">{pesos(proxima.precio)} · a pagar cuando {negocio.profe} confirme</p>
+              )}
+              {proxima.pagoMedio === "SALDO_A_FAVOR" && proxima.pagoEstado === "PAGADO" && (
+                <p style={{ margin: "4px 0 0", fontSize: 16, color: m.suave }}>Ya está pagada con tu saldo a favor.</p>
+              )}
               {puedeCancelarAlumno(proxima.estado, proxima.empiezaEn, ahora, config.anticipacionMin) && (
                 <div style={{ marginTop: 12 }}>
                   <BotonCancelar token={token} claseId={proxima.id} color={m.suave} />
@@ -78,6 +110,11 @@ export default async function AlumnoPage({ params }: { params: Promise<{ token: 
         {porPagar.length > 0 && (
           <section style={caja} aria-label="Pagar">
             <h2 style={h2}>Pagar</h2>
+            {deudas.length > 0 && (
+              <p style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 700 }} data-qa="debes">
+                Debés <span className="tabular-nums">{pesos(alumno.debe)}</span> · {deudas.length} clase{deudas.length === 1 ? "" : "s"}
+              </p>
+            )}
             {config.aliasCbu ? (
               <p style={{ margin: "0 0 12px", fontSize: 15 }}>
                 Transferí al alias <strong style={{ userSelect: "all", fontSize: 17 }} data-qa="alias">{config.aliasCbu}</strong>
@@ -91,6 +128,7 @@ export default async function AlumnoPage({ params }: { params: Promise<{ token: 
                 <li key={c.id} style={{ borderTop: `1px solid ${m.linea}`, paddingTop: 12 }} data-qa="por-pagar">
                   <p style={{ margin: "0 0 8px", fontSize: 15 }}>
                     <span style={{ textTransform: "capitalize" }}>{diaHumano(c.empiezaEn)}</span> {horaHumana(c.empiezaEn)} · <strong>{pesos(c.precio)}</strong> · <span data-qa="pago-estado">{PAGO_LABEL[c.pagoEstado]}</span>
+                    {c.estado === "CONFIRMADA" && <> · podés pagarla ya</>}
                   </p>
                   {c.pagoNota && c.pagoEstado === "PENDIENTE" && <p role="alert" style={{ margin: "0 0 8px", fontSize: 14, color: "#b23b2b" }}>{c.pagoNota}</p>}
                   {c.pagoEstado === "EN_REVISION" ? (
