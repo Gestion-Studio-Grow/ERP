@@ -30,6 +30,8 @@ import {
   type OrderPaymentMethod,
 } from "@/lib/order-core";
 import { medioDeCobroRequerido, mensajeYaCobrado } from "@/lib/caja/medio-cobro";
+import { leerPagos, vueltoDelCobro } from "@/lib/cobro/leer-pagos";
+import type { AsientoDePago } from "@/lib/supermercado/pago-mixto";
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
 import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
 import { facturarOrden } from "@/lib/invoice-from-order";
@@ -201,7 +203,9 @@ function parseItems(formData: FormData): { productId: string; qty: number }[] {
 //     transacción al confirmarse). No se sabe si se grabó: se reintenta con la MISMA clave.
 export type OrderActionState =
   // `yaEstaba`: la venta ya estaba grabada con esta clave y se devolvió ésa (no se grabó nada).
-  | { ok: true; mensaje?: string; venta?: VentaTicket; yaEstaba?: true }
+  // `vuelto`: lo que entregó el cliente en efectivo (`recibido`) menos lo que va en efectivo al
+  // libro, para la pantalla y el ticket. No se guarda. Sólo viene si llegó `recibido`.
+  | { ok: true; mensaje?: string; venta?: VentaTicket; yaEstaba?: true; vuelto?: number }
   // `claveLibre`: un rechazo del alta, y con esta clave NO hay nada grabado (se buscó al rechazar).
   | { ok: false; error: string; tipo?: undefined; claveLibre?: true }
   | { ok: false; error: string; tipo: "ya-grabada-distinta"; grabada: VentaYaGrabada }
@@ -280,7 +284,14 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
       return { ok: false, error: "«A cuenta» es para la venta de mostrador. Un pedido se deja sin cobrar y se cobra al entregarlo." };
     }
   }
-  const paid = !aCuenta && (String(formData.get("paid")) === "on" || String(formData.get("paid")) === "true");
+  // LOS PAGOS (Magra, tanda 1 · 1A): lo que escribió `PieDeCobro` —o el `paid` + `paymentMethod`
+  // de los formularios de siempre— leído por `leerPagos` (cobro/leer-pagos.ts). Con dos o más
+  // `pago.*` es un pago MIXTO: los asientos se validan contra el total de la base adentro de la
+  // transacción del alta. Sin cobrar (o a cuenta) no hay medio ni asientos: se descartan.
+  const pagos = leerPagos((campo) => formData.getAll(campo).map(String));
+  if (!pagos.ok) return { ok: false, error: pagos.error };
+  const paid = !aCuenta && pagos.pagado;
+  const asientos = paid ? pagos.asientos : null;
   // Cupón: el código tal cual lo escribió el cajero. Se valida y se consume en la transacción del
   // alta (order-core.ts). No se suma a un descuento a mano: es uno o el otro.
   const cupon = normalizarCodigoDeCupon(formData.get("cupon")) || null;
@@ -290,7 +301,7 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // La decisión entera vive en `medioDeCobroRequerido` (caja/medio-cobro.ts, probada con
   // datos); acá sólo se usa el medio que ella devuelve. No va en `insertOrder`: la vidriera y
   // la ingesta externa no la heredan.
-  const medio = medioDeCobroRequerido({ channel, paid, paymentMethod: formData.get("paymentMethod") });
+  const medio = medioDeCobroRequerido({ channel, paid, paymentMethod: pagos.medio });
   if (!medio.ok) return { ok: false, error: medio.error };
   const paymentMethod: PaymentMethod | null = medio.paymentMethod;
 
@@ -384,6 +395,7 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
         aCuenta: aCuenta ? { createdBy: `user:${user.id}` } : null,
         // El tope del precio a mano sale del ROL de la sesión, igual que el del descuento.
         topePrecioAMano: topeDePrecioAMano(user.role),
+        pagosMixtos: asientos ? { asientos } : null,
       },
     );
   } catch (err) {
@@ -487,15 +499,20 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
       // El cupón queda con su monto y quién lo cargó: es lo que suma Promociones.
       ...(result.cupon ? { cupon: { codigo: result.cupon, monto: descuento, por: user.name } } : {}),
       ...(aCuenta ? { aCuenta: true, por: user.name } : {}),
+      ...(asientos ? { pagos: asientos } : {}),
     },
   });
 
   revalidarMostrador();
   const mensaje = aCuenta ? `Venta #${result.code} a cuenta: queda en la cuenta corriente del cliente.` : undefined;
-  if (String(formData.get("conTicket") || "") !== "1") return { ok: true, ...(mensaje ? { mensaje } : {}) };
+  const vuelto = paid
+    ? vueltoDelCobro({ total: result.total ?? result.subtotal, medio: paymentMethod, asientos, recibido: pagos.recibido })
+    : null;
+  const extra = { ...(mensaje ? { mensaje } : {}), ...(vuelto !== null ? { vuelto } : {}) };
+  if (String(formData.get("conTicket") || "") !== "1") return { ok: true, ...extra };
   return {
     ok: true,
-    ...(mensaje ? { mensaje } : {}),
+    ...extra,
     venta: (await ventaParaTicket(tenantId, result.id)) ?? undefined,
   };
 }
@@ -523,6 +540,8 @@ async function ventaParaTicket(tenantId: string, id: string): Promise<VentaTicke
         select: { productId: true, name: true, saleUnit: true, quantity: true, unitPrice: true, lineTotal: true },
         orderBy: { id: "asc" },
       },
+      // Los cobros de la venta: sólo existen con pago mixto, y el ticket los muestra medio por medio.
+      collections: { where: { tenantId, originType: "ORDER" }, select: { method: true, amount: true }, orderBy: { id: "asc" } },
     },
   });
   return o ? ventaDeOrden(o) : null;
@@ -776,9 +795,20 @@ export async function advanceOrderStatus(formData: FormData): Promise<OrderActio
 // (order-core.ts) se lanza ADENTRO de la transacción para que el `paid` que ya se escribió
 // vuelva atrás con todo lo demás.
 
+// PAGO MIXTO (Magra, tanda 1 · 1A): `opts.asientos` (dos o más, leídos por `leerPagos`) cobran el
+// pedido con varios medios. `methodRaw` es entonces el medio principal, y pasa por la MISMA regla y
+// la MISMA frontera; `cobrarPedidoEnTx` valida los asientos contra el total de la base y escribe un
+// cobro con su asiento por medio. `opts.conTicket` devuelve la venta para el ticket (`VentaTicket`).
+type OpcionesDelCobro = {
+  asientos?: readonly AsientoDePago[] | null;
+  recibido?: number | null;
+  conTicket?: boolean;
+};
+
 async function setOrderPaidCore(
   id: string,
   methodRaw: string,
+  opts: OpcionesDelCobro = {},
 ): Promise<OrderActionState> {
   const user = await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
@@ -819,7 +849,7 @@ async function setOrderPaidCore(
   let cobro: CobroDePedido;
   try {
     cobro = await tenantTransaction(
-      (tx) => cobrarPedidoEnTx(tx, tenantId, { orderId: id, method, actor: `user:${user.id}` }),
+      (tx) => cobrarPedidoEnTx(tx, tenantId, { orderId: id, method, actor: `user:${user.id}`, asientos: opts.asientos ?? null }),
       { tenantId },
     );
   } catch (e) {
@@ -831,7 +861,8 @@ async function setOrderPaidCore(
     // espera el lock de la fila y sale por "ya-cobrado" sin llegar a asentar, así que este
     // choque del @@unique del asiento VENTA no debería darse. Si igual se diera, la tx aborta
     // entera —el `paid` también— y no hay nada que reparar: ni re-auditoría ni un 500.
-    if (isUniqueViolation(e, "orderId")) {
+    // Con pago mixto, el árbitro es la clave del cobro (`pago-mixto:<orderId>:<medio>`, único).
+    if (isUniqueViolation(e, "orderId") || isUniqueViolation(e, "idempotencyKey")) {
       revalidarMostrador();
       return { ok: true, mensaje: "Ese pedido ya estaba cobrado." };
     }
@@ -841,14 +872,27 @@ async function setOrderPaidCore(
   if (cobro.tipo === "no-existe") return { ok: false, error: "No se encontró el pedido a cobrar." };
   if (cobro.tipo === "ya-cobrado") {
     revalidarMostrador();
-    return mensajeYaCobrado({ code: cobro.code, medioRegistrado: cobro.medioRegistrado, medioElegido: method });
+    const ya = mensajeYaCobrado({ code: cobro.code, medioRegistrado: cobro.medioRegistrado, medioElegido: method });
+    if (!ya.ok || !opts.conTicket) return ya;
+    return { ...ya, venta: (await ventaParaTicket(tenantId, id)) ?? undefined };
   }
 
   const { order } = cobro;
-  await auditAdmin({ action: "update", entity: "Order", entityId: order.id, changes: { paid: true, method } });
+  await auditAdmin({
+    action: "update",
+    entity: "Order",
+    entityId: order.id,
+    changes: { paid: true, method, ...(opts.asientos ? { pagos: opts.asientos } : {}) },
+  });
 
   revalidarMostrador();
-  return { ok: true, mensaje: `Pedido #${order.code} cobrado: ${fmtMoneyARS(order.total)}.` };
+  const vuelto = vueltoDelCobro({ total: order.total, medio: method, asientos: opts.asientos ?? null, recibido: opts.recibido ?? null });
+  return {
+    ok: true,
+    mensaje: `Pedido #${order.code} cobrado: ${fmtMoneyARS(order.total)}.`,
+    ...(vuelto !== null ? { vuelto } : {}),
+    ...(opts.conTicket ? { venta: (await ventaParaTicket(tenantId, order.id)) ?? undefined } : {}),
+  };
 }
 
 /**
@@ -864,10 +908,16 @@ export async function cobrarPedido(
   _prev: OrderActionState,
   formData: FormData,
 ): Promise<OrderActionState> {
-  return setOrderPaidCore(
-    String(formData.get("id") || "").trim(),
-    String(formData.get("paymentMethod") || "").trim(),
-  );
+  // Los pagos como los escribe `PieDeCobro` (o el `paymentMethod` de siempre): con dos o más
+  // `pago.*`, el medio es el principal y los asientos viajan al cobro. Devuelve la venta para el
+  // ticket: es lo que se imprime o se manda por WhatsApp después de cobrar.
+  const pagos = leerPagos((campo) => formData.getAll(campo).map(String));
+  if (!pagos.ok) return { ok: false, error: pagos.error };
+  return setOrderPaidCore(String(formData.get("id") || "").trim(), pagos.medio, {
+    asientos: pagos.asientos,
+    recibido: pagos.recibido,
+    conTicket: true,
+  });
 }
 
 // --- Entregar ---
@@ -886,16 +936,24 @@ export async function entregarPedido(
   const id = String(formData.get("id") || "").trim();
   if (!id) return { ok: false, error: "Falta identificar el pedido a entregar." };
   const quedaACobrar = String(formData.get("quedaACobrar") || "") === "on";
+  // Los pagos del pie (o el medio de siempre). Con pago mixto, el «medio» que mira la guarda es el
+  // principal: con eso sabe que se eligió cómo pagó; el cobro lleva los asientos.
+  const pagos = leerPagos((campo) => formData.getAll(campo).map(String));
+  if (!pagos.ok) return { ok: false, error: pagos.error };
+  let vuelto: number | undefined;
 
   const r = await entregarPedidoGuarded({
-    medio: String(formData.get("paymentMethod") || ""),
+    medio: pagos.medio,
     quedaACobrar,
     leer: () =>
       prisma.order.findFirst({ where: { id, tenantId }, select: { code: true, status: true, paid: true } }),
     // El MISMO cobro que el botón «Cobrar»: medio obligatorio, frontera del día cerrado,
     // "sólo lo que no estaba cobrado" y el asiento en la caja en la misma transacción.
-    cobrar: async (medio) =>
-      (await setOrderPaidCore(id, medio)) ?? { ok: false, error: "No se pudo cobrar el pedido." },
+    cobrar: async (medio) => {
+      const c = await setOrderPaidCore(id, medio, { asientos: pagos.asientos, recibido: pagos.recibido });
+      if (c?.ok && c.vuelto !== undefined) vuelto = c.vuelto;
+      return c ?? { ok: false, error: "No se pudo cobrar el pedido." };
+    },
     marcarEntregado: async () =>
       (
         await prisma.order.updateMany({
@@ -915,7 +973,10 @@ export async function entregarPedido(
       changes: { status: { from: "READY", to: "DELIVERED" }, ...(r.quedaACobrar ? { quedaACobrar: true } : {}) },
     });
   }
-  return { ok: true, mensaje: r.mensaje };
+  // La venta para el ticket (lo que quedó grabado): con vuelto si se cobró en efectivo y llegó
+  // lo que entregó el cliente.
+  const venta = (await ventaParaTicket(tenantId, id)) ?? undefined;
+  return { ok: true, mensaje: r.mensaje, ...(vuelto !== undefined ? { vuelto } : {}), ...(venta ? { venta } : {}) };
 }
 
 // --- Anular una venta (lo que antes era "Cancelar") ---

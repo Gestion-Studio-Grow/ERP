@@ -409,7 +409,9 @@ export function decidirAlta(p: {
     }
   }
   if (p.opts?.pagosMixtos) {
-    if (p.input.channel !== "COUNTER" || !p.opts.imputarCajaActor) {
+    // Lo cobra el mostrador (con caja), en el acto: la venta COUNTER o el pedido con retiro o envío
+    // que se toma ya pagado. La vidriera y la ingesta externa no cobran (no traen el actor).
+    if (!p.opts.imputarCajaActor) {
       throw new RechazoDeDominio("El pago con varios medios es para la venta de mostrador.");
     }
     if (p.opts.aCuenta) throw new RechazoDeDominio("Una venta a cuenta no se cobra con varios medios.");
@@ -1172,8 +1174,24 @@ export type CobroDePedido =
 export async function cobrarPedidoEnTx(
   tx: Prisma.TransactionClient,
   tenantId: string,
-  args: { orderId: string; method: OrderPaymentMethod; actor: string },
+  args: {
+    orderId: string;
+    method: OrderPaymentMethod;
+    actor: string;
+    /**
+     * PAGO MIXTO (Magra, tanda 1 · 1A): dos o más asientos que suman EXACTO el total del pedido
+     * que está en la base. El pedido queda con el medio PRINCIPAL (`method`, que tiene que ser
+     * `medioPrincipal(asientos)`) y cada medio entra como un cobro con su asiento
+     * (`imputarPagosMixtosEnTx`, clave `pago-mixto:<orderId>:<medio>`), igual que la venta de
+     * mostrador con varios medios. Sin asientos, el cobro de siempre.
+     */
+    asientos?: readonly AsientoDePago[] | null;
+  },
 ): Promise<CobroDePedido> {
+  const mixto = args.asientos && args.asientos.length > 0 ? args.asientos : null;
+  if (mixto && medioPrincipal(mixto) !== args.method) {
+    throw new RechazoDeDominio("El medio de la venta tiene que ser el principal del pago mixto.");
+  }
   const res = await tx.order.updateMany({
     where: { id: args.orderId, tenantId, paid: false },
     data: { paid: true, paymentMethod: args.method },
@@ -1185,6 +1203,14 @@ export async function cobrarPedidoEnTx(
   if (!order) return { tipo: "no-existe" };
   if (order.status === "CANCELLED") throw new CobroDePedidoAnulado(order.code);
   if (res.count === 0) return { tipo: "ya-cobrado", code: order.code, medioRegistrado: order.paymentMethod };
+  if (mixto) {
+    // Contra el total de la BASE, con la fila ya bloqueada por el update: si el pedido se pesó y
+    // cambió mientras se cobraba, no cierra y la transacción vuelve atrás entera (el `paid` también).
+    const problema = validarPagosContraElTotal(mixto, order.total);
+    if (problema) throw new RechazoDeDominio(problema);
+    await imputarPagosMixtosEnTx(tx, tenantId, { orderId: order.id, orderCode: order.code, asientos: mixto, actor: args.actor });
+    return { tipo: "cobrado", order: { id: order.id, code: order.code, total: order.total } };
+  }
   await recordCashSaleMovementInTx(tx, tenantId, {
     orderId: order.id,
     orderCode: order.code,
