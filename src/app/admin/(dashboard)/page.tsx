@@ -3,7 +3,7 @@ import { getNegocioApps } from "@/apps/contexto.server";
 import { appCasa } from "@/apps/visibles";
 import { getDashboardData, getRetailDashboardData } from "@/lib/actions";
 import Link from "next/link";
-import { fmtTime, fmtDateTimeAr } from "@/lib/datetime";
+import { fmtTime, fmtDateTimeAr, todayInBusinessTz } from "@/lib/datetime";
 import { requireCapability, requireUser } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
@@ -17,6 +17,7 @@ import { getFacturacion, type EstadoFiscal } from "@/lib/facturacion-actions";
 import ArcaPill from "./facturacion/bancos/ArcaPill";
 import InicioApps from "./inicio/InicioApps";
 import InicioRenglon from "./inicio/InicioRenglon";
+import AtajosDelAlta from "./turnos/_agenda/AtajosDelAlta";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { enInicioPorApps } from "./inicio/piloto";
 import {
@@ -324,19 +325,15 @@ async function InicioVertical() {
             {analytical ? "Vista analítica del negocio." : "Resumen del día."}
           </p>
         </div>
-        {/* Home de una acción (Comercio): el atajo a la tarea más frecuente es el
-            héroe (botón sólido). Home analítico (Empresa): la acción cede el
-            protagonismo a los indicadores → botón secundario (ADR-059 D8). */}
-        {/* A /turnos/LISTA, no a /turnos: el calendario no tiene formulario de alta
-            (el alta vive en la pestaña Lista), así que el atajo a la acción más
-            frecuente del negocio caía en una pantalla desde la que NO se puede hacer
-            justamente eso. */}
-        <Link
-          href="/admin/turnos/lista"
-          className={buttonClasses(analytical ? "outline" : "solid", "sm", "whitespace-nowrap")}
-        >
-          + Nuevo turno
-        </Link>
+        {/* El atajo a la tarea más frecuente. Cert CH T2 (F-2/F-4): las dos entradas al alta NUEVA
+            (`?nuevo=1`), no a la lista con el formulario viejo: «+ Dar turno» y «Atender ahora»
+            (CH-019, la clienta en el mostrador). Home analítico (Empresa): la acción cede el
+            protagonismo a los indicadores → con borde (ADR-059 D8). Sólo quien da turnos. */}
+        {roleHasCapability(user.role, "agenda:manage") && (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <AtajosDelAlta hoy={todayInBusinessTz()} principal={analytical ? "ninguna" : "dar-turno"} />
+          </div>
+        )}
       </div>
 
       {analytical ? (

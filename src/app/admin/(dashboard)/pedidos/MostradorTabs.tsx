@@ -17,6 +17,7 @@ import { useState } from "react";
 import PosForm from "./PosForm";
 import NewAppointmentForm from "../turnos/NewAppointmentForm";
 import { cn } from "@/components/ui";
+import { todayInBusinessTz } from "@/lib/datetime";
 
 type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null };
 type Professional = { id: string; name: string; services: Service[]; box: { name: string } | null };
@@ -38,7 +39,7 @@ export default function MostradorTabs({
   /** Motivo por el que no se puede vender producto (catálogo vacío / sin precios). */
   productosBloqueados?: React.ReactNode;
   /** Quién atiende: decide si el alta ofrece cobrar. Ver `puedeCobrarEsteTurno`. */
-  viewer?: { role: string; professionalId?: string | null };
+  viewer: { role: string; professionalId?: string | null };
   /**
    * ¿El rubro trabaja con servicios? En un comercio (carnicería, velas, pádel) la solapa
    * «Servicios» era un callejón: se tocaba y decía que faltaban profesionales. Sin servicios
@@ -59,6 +60,10 @@ export default function MostradorTabs({
     conServicios && (productosBloqueados || abrirEnServicios) && hayServicios ? "servicios" : "productos",
   );
   const productos = productosBloqueados ?? formProductos ?? <PosForm products={products} stockById={stockById} />;
+  // B5: quien entra sin turno se atiende HOY. El alta llega con el día puesto y, al elegir
+  // profesional y servicio, el primer horario que ofrece es la próxima franja libre (el servidor
+  // no ofrece los de hoy que ya empezaron, `getAvailableSlotsRange`). Se lee una vez al montar.
+  const [hoy] = useState(todayInBusinessTz);
 
   if (!conServicios) return <div>{productos}</div>;
 
@@ -88,7 +93,7 @@ export default function MostradorTabs({
       {tab === "productos" ? (
         productos
       ) : hayServicios ? (
-        <NewAppointmentForm professionals={professionals} origen="mostrador" viewer={viewer} />
+        <NewAppointmentForm professionals={professionals} origen="mostrador" viewer={viewer} fechaInicial={hoy} />
       ) : (
         <p className="rounded-lg border border-line bg-surface-raised p-6 text-sm text-muted">
           No hay servicios para cobrar: falta cargar profesionales con sus servicios en el

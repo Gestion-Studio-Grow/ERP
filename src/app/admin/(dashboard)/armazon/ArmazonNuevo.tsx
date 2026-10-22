@@ -37,11 +37,17 @@ import { Kbd } from "@/components/ui/Kbd";
 import { ProfileBadge } from "@/components/ui";
 import { PaletaDeComandos } from "@/components/ui/PaletaDeComandos";
 import { buscarEnElNegocio } from "@/lib/buscador/buscar-en-el-negocio";
+import { buscarClientasYTurnos } from "@/lib/clientes/buscar-actions";
 import ThemeToggle from "../ThemeToggle";
 import FormCerrarSesion from "../../FormCerrarSesion";
 import { ROLE_LABEL, type PropsDelArmazon } from "../AdminShell";
 import { dondeEstoy, espacioPedido, hrefDelEspacio, iniciales, tituloDePantalla, type EspacioDeNav } from "./armazon-core";
 import type { NavDelArmazon } from "./navegacion";
+import { EVENTO_BUSCAR, esAtajoDeBuscar, veLaAgenda } from "./buscar-global";
+import dynamic from "next/dynamic";
+
+// «Llegó la seña» y «Cobrar lo que debe» del buscador (TeclaDePlata.tsx): se piden recién cuando una ficha los trae.
+const TeclaDePlata = dynamic(() => import("./TeclaDePlata"));
 
 /** Cuántos lugares tiene la cápsula antes de la tecla del rubro (5 botones entran en 360 px). */
 const LUGARES_EN_LA_CAPSULA = 4;
@@ -186,9 +192,15 @@ export default function ArmazonNuevo({
   const cerrarPaleta = useCallback(() => setPaleta(false), []);
 
   const { espacios, rubro, conInicio } = nav;
+  // Quien ve la agenda busca además clientas y turnos (reingeniería CH, Tanda 2, §3.5).
+  const conFichas = veLaAgenda(espacios.flatMap((e) => e.apps.map((a) => a.ruta)));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        abrirPaleta();
+      } else if (esAtajoDeBuscar(e)) {
+        // «/» suelta, fuera de un campo: la misma paleta (nunca le roba la barra a quien escribe).
         e.preventDefault();
         abrirPaleta();
       } else if (e.key === "F1" && rubro && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -198,7 +210,11 @@ export default function ArmazonNuevo({
       }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener(EVENTO_BUSCAR, abrirPaleta);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener(EVENTO_BUSCAR, abrirPaleta);
+    };
   }, [abrirPaleta, rubro, router]);
 
   const espacioParam = params.get("espacio");
@@ -366,7 +382,14 @@ export default function ArmazonNuevo({
 
       <MenuDePersona id={idPersona} userName={userName} roleLabel={roleLabel} showPublicSite={showPublicSite} />
 
-      <PaletaDeComandos abierta={paleta} onCerrar={cerrarPaleta} comandos={nav.comandos} buscarRegistros={buscarEnElNegocio} />
+      <PaletaDeComandos
+        abierta={paleta}
+        onCerrar={cerrarPaleta}
+        comandos={nav.comandos}
+        buscarRegistros={buscarEnElNegocio}
+        buscarFichas={conFichas ? buscarClientasYTurnos : undefined}
+        dibujarHueco={(hueco, cerrar) => <TeclaDePlata hueco={hueco} cerrar={cerrar} />}
+      />
     </div>
   );
 }

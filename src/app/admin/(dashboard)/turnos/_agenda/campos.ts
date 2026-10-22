@@ -50,17 +50,93 @@ export function camposDeCobro(p: { turnoId: string; clave: string; monto: number
  * «Terminar»: los campos de `completeAppointment`. Sin saldo, sólo el turno. Con saldo, o el medio
  * con el que se cobra (un cobro por el saldo) o `saldo=a-cobrar` (queda como cuenta a cobrar). Nunca
  * los dos: la fila de siempre no manda el medio cuando se deja el saldo.
+ *
+ * Un Reservado (PENDING) viaja con `vino=on`: la recepción dice que la clienta VINO aunque nadie
+ * haya tocado «Confirmar». El servidor lo acepta sólo si la hora del turno ya pasó
+ * (`puedeCompletarse` con `vino`); un Reservado de mañana se sigue rechazando («no ocurrió»). A un
+ * Confirmado no se le manda: su cierre es el de siempre.
  */
-export function camposDeTerminar(p: { turnoId: string; saldo: number; cobro: { metodo: MetodoDePago } | "dejar-a-cobrar" | null }): Campos {
+export function camposDeTerminar(p: {
+  turnoId: string;
+  saldo: number;
+  cobro: { metodo: MetodoDePago } | "dejar-a-cobrar" | null;
+  /** El estado del turno al dibujar la pantalla (sólo importa si es PENDING). */
+  estado?: string;
+}): Campos {
   const base: [string, string][] = [["appointmentId", p.turnoId]];
+  if (p.estado === "PENDING") base.push(["vino", "on"]);
   if (p.saldo <= 0 || p.cobro === null) return base;
   if (p.cobro === "dejar-a-cobrar") return [...base, ["saldo", "a-cobrar"]];
   return [...base, ["method", p.cobro.metodo]];
 }
 
+/**
+ * «Dividir el pago» (Tanda 2): los campos de `terminarYCobrarDividido` (src/lib/turnos/cobro-actions.ts).
+ * Las líneas viajan como JSON en `pagos`, con el monto en número (el servidor revalida el reparto
+ * contra el saldo, al centavo). Un Reservado viaja con `vino=on`, igual que en `camposDeTerminar`.
+ */
+export function camposDeDividir(p: {
+  turnoId: string;
+  lineas: readonly { metodo: MetodoDePago; monto: number }[];
+  estado?: string;
+}): Campos {
+  const c: [string, string][] = [
+    ["appointmentId", p.turnoId],
+    ["pagos", JSON.stringify(p.lineas.map((l) => ({ metodo: l.metodo, monto: l.monto })))],
+  ];
+  if (p.estado === "PENDING") c.push(["vino", "on"]);
+  return c;
+}
+
+/**
+ * «Llegó la seña» (Tanda 2): los campos de `cobrarSeniaYConfirmar`. El medio por defecto (transferencia)
+ * lo pone la pantalla, no el servidor; `amount` es lo que decía el botón, para que una pantalla vieja
+ * no cobre un monto que la recepción no vio.
+ */
+export function camposDeSenia(p: { turnoId: string; monto: number; metodo: MetodoDePago }): Campos {
+  return [
+    ["appointmentId", p.turnoId],
+    ["method", p.metodo],
+    ["amount", importeParaFormulario(p.monto)],
+  ];
+}
+
 /** Confirmar, cancelar, no vino: sólo el turno. */
 export function camposDelTurno(turnoId: string): Campos {
   return [["appointmentId", turnoId]];
+}
+
+/** Cancelar sin plata de por medio: el turno y quién canceló (lo lee `cancelAppointment` para la auditoría). */
+export function camposDeCancelar(turnoId: string, quien: "clienta" | "negocio" | null): Campos {
+  return quien ? [["appointmentId", turnoId], ["quien", quien]] : [["appointmentId", turnoId]];
+}
+
+/**
+ * Cancelar o «no vino» CON plata cobrada: los campos de `cerrarTurnoSinPrestar` (qué se hace y qué
+ * pasa con la seña, en la misma transacción). Sin plata cobrada se usan `cancelAppointment` y
+ * `markNoShow` con `camposDelTurno`: no hay nada que decidir sobre la seña.
+ */
+export function camposDeCerrarSinPrestar(p: { turnoId: string; accion: "cancelar" | "no-vino"; senia: "retener" | "devolver" | null }): Campos {
+  const c: [string, string][] = [
+    ["appointmentId", p.turnoId],
+    ["accion", p.accion],
+  ];
+  if (p.senia) c.push(["senia", p.senia]);
+  return c;
+}
+
+/**
+ * Lo que devolvió una acción, leído siempre igual. `cancelAppointment` y `confirmarTurno`
+ * devolvían nada (un rechazo pasaba en silencio: B3); ahora devuelven `ResultadoAccion`. Esto lee
+ * las dos formas: sin respuesta = salió bien; `{ ok: false, error }` = el motivo, para mostrarlo.
+ */
+export function leerResultado(r: unknown): { ok: true; aviso?: string } | { ok: false; error: string } {
+  if (r && typeof r === "object" && "ok" in r) {
+    const o = r as { ok?: unknown; error?: unknown; aviso?: unknown };
+    if (o.ok === false) return { ok: false, error: typeof o.error === "string" && o.error ? o.error : "No se pudo. Recargá la agenda y probá de nuevo." };
+    return typeof o.aviso === "string" && o.aviso ? { ok: true, aviso: o.aviso } : { ok: true };
+  }
+  return { ok: true };
 }
 
 /** Anular un cobro: el cobro, el turno y el motivo. */

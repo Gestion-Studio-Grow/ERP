@@ -47,9 +47,13 @@ export interface Pendiente {
   mas?: { texto: string; href: string };
 }
 
+/** «Cerrar lo pendiente»: la bandeja de los turnos sin cerrar (reingeniería CH, Tanda 1). */
+export const RUTA_CERRAR_PENDIENTE = "/admin/turnos/cerrar";
+
 /** Las apps cuyo número puede subir a la bandeja (y en qué orden se piden). */
 export const APPS_DE_LA_BANDEJA = [
   "pedidos",
+  "agenda",
   "cierre-del-dia",
   "cajas-de-los-locales",
   "cierre-del-mes",
@@ -123,6 +127,25 @@ const REGLAS: Record<string, (r: Ok, app: AppMin, destinos: ReadonlyMap<string, 
         titulo: n === 1 ? "Un turno de mañana sin avisar" : `${n} turnos de mañana sin avisar`,
         detalle: "Avisales por WhatsApp para que confirmen",
         tecla: { texto: "Confirmar", href: app.ruta },
+      },
+    ];
+  },
+  // Los turnos de días anteriores que quedaron Reservados o Confirmados (el aviso del número de la
+  // Agenda, src/apps/kpis/turnos-sin-cerrar.server.ts). La tecla abre «Cerrar lo pendiente», la
+  // bandeja que los cierra en lote, no la agenda que los mide.
+  agenda: (r, app) => {
+    if (!r.alerta) return [];
+    const n = entero(r.alerta.valor) ?? 0;
+    if (n <= 0) return [];
+    return [
+      {
+        objetivo: "cerrar",
+        app: app.id,
+        folio: /de ayer/.test(r.alerta.texto) ? "Ayer" : "Antes",
+        titulo: n === 1 ? "Quedó 1 sin cerrar" : `Quedaron ${r.alerta.valor} sin cerrar`,
+        detalle: "Turnos que pasaron sin completar ni marcar: cobralos o marcá que no vino",
+        tecla: { texto: n === 1 ? "Cerrarlo" : `Cerrar los ${r.alerta.valor}`, href: RUTA_CERRAR_PENDIENTE },
+        mas: { texto: "Ver la agenda", href: app.ruta },
       },
     ];
   },

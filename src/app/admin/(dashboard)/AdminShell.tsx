@@ -18,6 +18,8 @@ import PaletaApps from "./inicio/PaletaApps";
 import BarraInferior from "./inicio/BarraInferior";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import type { NavDelArmazon } from "./armazon/navegacion";
+import BuscadorGlobal from "./armazon/BuscadorGlobal";
+import { veLaAgenda } from "./armazon/buscar-global";
 
 // DISEÑO NUEVO («Renglón», interruptor "Diseño nuevo" del negocio): el armazón nuevo vive en su
 // propio archivo y se carga APARTE (`next/dynamic`): un negocio con el interruptor apagado (CH) nunca
@@ -675,6 +677,9 @@ function ArmazonDeSiempre({
         </div>
       </div>
 
+      {/* «/» = buscar una clienta o un turno (reingeniería CH, Tanda 2). Sólo quien ve la agenda; cerrado
+          no dibuja nada, así el HTML de siempre no cambia (armazon/armazon-ch.test.ts). */}
+      {veLaAgenda(items.map((i) => i.href)) && <BuscadorGlobal menu={items} letraDelNegocio={logo !== undefined && logo !== null} />}
       {modoApps && <BarraInferior apps={apps} esMostrador={esMostrador} onBuscar={abrirPaleta} />}
       {modoApps && <PaletaApps apps={apps} abierta={paletaAbierta} onCerrar={cerrarPaleta} />}
     </div>

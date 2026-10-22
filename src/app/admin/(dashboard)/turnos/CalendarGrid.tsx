@@ -1,74 +1,107 @@
 "use client";
 
-import { useState } from "react";
-import AppointmentRow from "./AppointmentRow";
-import { wallHourMinuteInBusinessTz, fmtTime } from "@/lib/datetime";
+// ============================================================================
+// LA AGENDA DE SIEMPRE (sin «Diseño nuevo») — el día en el celular y la planilla en la PC.
+// ============================================================================
+//
+// CELULAR: el libro del día en renglones (`RenglonDelTurno`), el MISMO de la agenda nueva, adentro de
+// la misma mesa que la planilla de la PC: tocar un turno abre el MISMO cajón (como hoja desde abajo),
+// con «Llegó la seña», cobrar, dividir, mover y avisar, cancelar con [Deshacer]. Antes el celular
+// veía la tarjeta vieja (AppointmentRow, con su «Reprogramar» propio) y la PC la mesa nueva: dos
+// agendas para lo mismo (cert CH Tanda 2, O-6). La tarjeta vieja sigue viva en «Todos los turnos».
+// PC (desde lg): la planilla nueva (Tanda 2 · 2-C), la MISMA que la agenda nueva
+// (`_agenda/PorProfesional.tsx`) adentro de la mesa (`MesaDeTurnos`):
+//   · tocar un turno abre el cajón a la derecha, sin mover la grilla (antes: «Turno seleccionado»
+//     abajo, lejos de donde se tocó);
+//   · tocar un hueco abre «Dar turno» con la profesional, el día y la hora puestos;
+//   · arrastrar un turno lo mueve (re-valida el choque en el servidor) y ofrece avisar por WhatsApp;
+//   · ver por profesional o por box, chips que filtran sin ir al servidor, raya de «ahora», y la
+//     leyenda con forma + palabra.
+//
+// REGLA DE INDEPENDENCIA DEL INTERRUPTOR (§0.2 del diseño de CH): la planilla se viste con la piel
+// «Renglón» por su cuenta —`data-diseno` propio en su contenedor y la hoja enlazada acá— sin prender
+// el diseño nuevo del negocio. Si estuviera prendido, la hoja ya está y React no la repite. La lista
+// del celular va adentro del mismo contenedor: se viste igual que el cajón.
+
+import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
+import { dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
 import PasoVacio from "./PasoVacio";
-import { horasDeLaGrilla } from "./grilla";
+import { HOJAS_DEL_DISENO, PIEL_RENGLON, PRECEDENCIA_DEL_DISENO } from "@/lib/diseno/diseno";
 import type { PasoVacio as Paso } from "./pasos";
+import type { Permisos, TurnoDelDia } from "./agenda-core";
+import type { BloqueoDelDia } from "./grilla";
+import MesaDeTurnos, { RenglonDelTurno } from "./_agenda/MesaDeTurnos";
+import { lugarDeLaRaya } from "./agenda-core";
+import PorProfesional from "./_agenda/PorProfesional";
 
 type Professional = { id: string; name: string; box: { name: string } | null };
-type Appointment = {
-  id: string;
-  startsAt: Date;
-  endsAt: Date;
-  status: string;
-  professionalId: string;
-  serviceId: string;
-  priceAtBooking: number | null;
-  notes: string | null;
-  client: { name: string; phone: string };
-  professional: { name: string };
-  service: { name: string; price: number; depositAmount?: number | null };
-  box: { name: string };
-  payment: { method: string; comprobanteNro: string | null; amount?: number; status?: string } | null;
-  // Cobros parciales del turno (seña/saldo) — src/lib/turnos. Ausente en demo.
-  collections?: { amount: number; method: string }[];
+/** Lo que la planilla de la PC necesita: la agenda del día ya proyectada en el servidor. */
+export type PlanillaDelDia = {
+  turnos: TurnoDelDia[];
+  profesionales: { id: string; nombre: string; box: string | null }[];
+  permisos: Permisos;
+  /** ISO del «ahora» de la carga. */
+  ahora: string;
+  /** "YYYY-MM-DD" del día que se mira. */
+  dia: string;
+  bloqueos: BloqueoDelDia[];
+  /** Base de la ficha de la clienta («/admin/clientes/»), si quien mira puede abrir Clientes. */
+  hrefFicha: string | null;
+  /** La letra de cuerpo del negocio en vez de la de la piel (CH: Hanken). */
+  letraDelNegocio: boolean;
 };
 
-// "Reservado" y no "Pendiente de pago": desde los cobros parciales la seña se cobra al
-// reservar y el estado del turno ya no dice nada de la plata (eso lo dice cobrado/saldo).
-const statusLabel: Record<string, string> = {
-  PENDING: "Reservado",
-  CONFIRMED: "Confirmado",
-  CANCELLED: "Cancelado",
-  COMPLETED: "Completado",
-  NO_SHOW: "No se presentó",
-};
+// La piel «Renglón» se viste bajo `data-diseno` y lee el modo oscuro del MISMO elemento: se copia el
+// `data-theme` de la raíz del panel (lo pone AdminThemeScript, lo cambia el selector de tema).
+function useTemaDeLaRaiz(ref: React.RefObject<HTMLElement | null>): "light" | "dark" {
+  const [tema, setTema] = useState<"light" | "dark">("light");
+  useEffect(() => {
+    const raiz = ref.current?.parentElement?.closest("[data-theme]");
+    if (!raiz) return;
+    const leer = () => setTema(raiz.getAttribute("data-theme") === "dark" ? "dark" : "light");
+    leer();
+    const obs = new MutationObserver(leer);
+    obs.observe(raiz, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
+  }, [ref]);
+  return tema;
+}
 
-// Estados de turno mapeados a la capa semántica (warning/success/info/danger),
-// no a los colores crudos de Tailwind. Un cambio de paleta se hace en tokens.
-const statusStyles: Record<string, string> = {
-  PENDING: "bg-warning-soft text-warning border-warning/40",
-  CONFIRMED: "bg-success-soft text-success border-success/40",
-  COMPLETED: "bg-info-soft text-info border-info/40",
-  NO_SHOW: "bg-danger-soft text-danger border-danger/40",
-};
-
-const SLOT_MIN = 30;
-
-// Hora de pared en la zona del negocio, no la del navegador de quien mira.
-function minutosDelDia(date: Date) {
-  const { hour, minute } = wallHourMinuteInBusinessTz(date);
-  return hour * 60 + minute;
+/** El día en el celular: un renglón por turno, en orden, con la raya de «ahora» si es hoy. */
+function ListaDelCelular({ planilla, vacio }: { planilla: PlanillaDelDia; vacio: React.ReactNode }) {
+  const reloj = new Date(planilla.ahora);
+  const turnos = [...planilla.turnos].sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime());
+  if (turnos.length === 0) return <>{vacio}</>;
+  const raya = lugarDeLaRaya(turnos, dateStrInBusinessTz(reloj) === planilla.dia, reloj);
+  return (
+    <ol aria-label="Turnos del día" className="border-t border-line-strong">
+      {turnos.map((t, i) => (
+        <Fragment key={t.id}>
+          {raya === i && (
+            <li
+              role="separator"
+              aria-label={`Ahora, ${fmtTime(reloj)}`}
+              className="flex items-center gap-2 py-1 text-xs font-semibold tabular-nums text-accent-ink before:h-0 before:w-3 before:border-t-2 before:border-accent after:h-0 after:flex-1 after:border-t-2 after:border-accent"
+            >
+              Ahora {fmtTime(reloj)}
+            </li>
+          )}
+          <RenglonDelTurno t={t} />
+        </Fragment>
+      ))}
+    </ol>
+  );
 }
 
 export default function CalendarGrid({
   professionals,
-  appointments,
-  canManage = true,
-  canCollect = true,
-  viewer,
+  planilla,
   sinProfesionales,
   diaVacio,
-  practica = false,
 }: {
   professionals: Professional[];
-  appointments: Appointment[];
-  canManage?: boolean;
-  canCollect?: boolean;
-  /** Quién mira: decide si se dibuja el cobro. La regla la resuelve `puedeCobrarEsteTurno`. */
-  viewer?: { role: string; professionalId?: string | null };
+  /** La planilla de la PC (huecos, cajón, mover, por box) y la lista del celular. */
+  planilla: PlanillaDelDia;
   /**
    * Qué decir (y a dónde llevar) si no hay profesionales o el día está vacío. Lo decide la página
    * con `pasos.ts`, porque depende de quién mira y de qué apps puede abrir. Sin esto queda la
@@ -76,23 +109,9 @@ export default function CalendarGrid({
    */
   sinProfesionales?: Paso;
   diaVacio?: Paso;
-  /** Agenda práctica (interruptor «agenda-practica»): se pasa tal cual a cada fila. */
-  practica?: boolean;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = appointments.find((a) => a.id === selectedId) ?? null;
-
-  // La grilla cubre todos los turnos del día (grilla.ts): de 9 a 19, o más si hace falta.
-  const horas = horasDeLaGrilla(
-    appointments.map((a) => ({ desde: minutosDelDia(new Date(a.startsAt)), hasta: minutosDelDia(new Date(a.endsAt)) })),
-  );
-  const slotIndex = (date: Date) => Math.round((minutosDelDia(date) - horas.desde * 60) / SLOT_MIN);
-  const timeLabels = Array.from({ length: ((horas.hasta - horas.desde) * 60) / SLOT_MIN }, (_, i) => {
-    const totalMin = horas.desde * 60 + i * SLOT_MIN;
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-  });
+  const piel = useRef<HTMLDivElement>(null);
+  const tema = useTemaDeLaRaiz(piel);
 
   if (professionals.length === 0) {
     return sinProfesionales ? (
@@ -102,117 +121,44 @@ export default function CalendarGrid({
     );
   }
 
-  // En pantallas angostas la grilla horizontal no entra (columna por
-  // profesional). Mostramos una agenda vertical del día en su lugar y la
-  // grilla completa recién desde lg — mismo dato, presentación distinta.
-  const sortedAppointments = [...appointments].sort(
-    (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
-  );
+  const estilo = planilla.letraDelNegocio
+    ? ({ "--font-ui": "var(--font-body), ui-sans-serif, system-ui, sans-serif" } as CSSProperties)
+    : undefined;
 
   return (
     <div>
-      <div className="lg:hidden space-y-3">
-        {sortedAppointments.length === 0 &&
-          (diaVacio ? <PasoVacio paso={diaVacio} /> : <p className="text-sm text-muted">No hay turnos ese día.</p>)}
-        {sortedAppointments.map((appt) => (
-          <div key={appt.id}>
-            <p className="text-xs font-medium text-faint mb-1">
-              {fmtTime(appt.startsAt)} · {appt.professional.name}
-            </p>
-            <AppointmentRow appointment={appt} statusLabel={statusLabel} canManage={canManage} canCollect={canCollect} viewer={viewer} practica={practica} />
+      {HOJAS_DEL_DISENO.map((href) => (
+        <link key={href} rel="stylesheet" href={href} precedence={PRECEDENCIA_DEL_DISENO} />
+      ))}
+      {/* La mesa (cajón del turno, hojas de cobro y de cancelar) queda VISIBLE en todos los anchos:
+          sus <dialog> modales no pueden vivir adentro de un bloque escondido (dejarían la página
+          inerte sin mostrarse). Lo que se esconde en el celular es sólo la planilla. Así un
+          `?turno=<id>` (el buscador, «Mañana», «Atender ahora» con `&hoja=terminar`) abre el turno
+          también en el celular, como hoja desde abajo. */}
+      <div ref={piel} data-diseno={PIEL_RENGLON} data-theme={tema} data-pantalla="agenda-planilla" style={estilo} className="text-body lg:bg-surface">
+        <MesaDeTurnos turnos={planilla.turnos} permisos={planilla.permisos} ahora={planilla.ahora} hrefFicha={planilla.hrefFicha}>
+          <div className="lg:hidden">
+            <ListaDelCelular
+              planilla={planilla}
+              vacio={diaVacio ? <PasoVacio paso={diaVacio} /> : <p className="text-sm text-muted">No hay turnos ese día.</p>}
+            />
           </div>
-        ))}
-      </div>
-
-      <div className="hidden lg:block overflow-x-auto rounded-lg border border-line">
-        <div
-          className="grid text-sm"
-          style={{
-            gridTemplateColumns: `56px repeat(${professionals.length}, minmax(140px, 1fr))`,
-          }}
-        >
-          <div className="border-b border-r border-line bg-surface-sunken" />
-          {professionals.map((p) => (
-            <div
-              key={p.id}
-              className="border-b border-r last:border-r-0 border-line bg-surface-sunken px-2 py-2 text-center font-medium text-strong"
-            >
-              {p.name}
-              <div className="text-xs font-normal text-muted">{p.box?.name}</div>
-            </div>
-          ))}
-
-          {timeLabels.map((label, rowIdx) => (
-            <div
-              key={`row-${label}`}
-              className="contents"
-            >
-              <div className="border-r border-b border-line px-2 py-1 text-xs text-faint text-right">
-                {label}
+          <div className="hidden lg:block">
+            <PorProfesional
+              turnos={planilla.turnos}
+              profesionales={planilla.profesionales}
+              ahora={planilla.ahora}
+              dia={planilla.dia}
+              bloqueos={planilla.bloqueos}
+            />
+            {planilla.turnos.length === 0 && diaVacio && (
+              <div className="mt-4">
+                <PasoVacio paso={diaVacio} />
               </div>
-              {professionals.map((p) => {
-                const appt = appointments.find(
-                  (a) => a.professionalId === p.id && slotIndex(new Date(a.startsAt)) === rowIdx
-                );
-                if (appt) {
-                  const durationMin =
-                    (new Date(appt.endsAt).getTime() - new Date(appt.startsAt).getTime()) / 60000;
-                  const span = Math.max(1, Math.round(durationMin / SLOT_MIN));
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => setSelectedId(appt.id)}
-                      style={{ gridRow: `span ${span}` }}
-                      className={`border-r last:border-r-0 border-b m-0.5 rounded-md border px-2 py-1 text-left text-xs leading-tight ${
-                        statusStyles[appt.status] ?? "bg-surface-sunken border-line-strong text-body"
-                      } ${selectedId === appt.id ? "ring-2 ring-accent" : ""}`}
-                    >
-                      <div className="font-medium truncate">{appt.client.name}</div>
-                      <div className="truncate opacity-80">{appt.service.name}</div>
-                    </button>
-                  );
-                }
-
-                const covered = appointments.some((a) => {
-                  if (a.professionalId !== p.id) return false;
-                  const start = slotIndex(new Date(a.startsAt));
-                  const durationMin =
-                    (new Date(a.endsAt).getTime() - new Date(a.startsAt).getTime()) / 60000;
-                  const span = Math.max(1, Math.round(durationMin / SLOT_MIN));
-                  return rowIdx > start && rowIdx < start + span;
-                });
-                if (covered) return null;
-
-                return (
-                  <div
-                    key={p.id}
-                    className="border-r last:border-r-0 border-b border-line h-8"
-                  />
-                );
-              })}
-            </div>
-          ))}
-        </div>
+            )}
+          </div>
+        </MesaDeTurnos>
       </div>
-
-      <div className="hidden lg:flex mt-4 flex-wrap items-center gap-3 text-xs text-muted">
-        <span className="inline-flex items-center gap-1">
-          <span className="h-3 w-3 rounded bg-warning-soft border border-warning/40" /> Pendiente
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-3 w-3 rounded bg-success-soft border border-success/40" /> Confirmado
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-3 w-3 rounded bg-info-soft border border-info/40" /> Completado
-        </span>
-      </div>
-
-      {selected && (
-        <div className="hidden lg:block mt-6">
-          <h2 className="text-sm font-medium text-strong mb-2">Turno seleccionado</h2>
-          <AppointmentRow appointment={selected} statusLabel={statusLabel} canManage={canManage} canCollect={canCollect} viewer={viewer} practica={practica} />
-        </div>
-      )}
     </div>
   );
 }

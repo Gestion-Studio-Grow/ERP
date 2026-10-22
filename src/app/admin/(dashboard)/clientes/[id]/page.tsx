@@ -1,5 +1,5 @@
 import { getClient } from "@/lib/actions";
-import { fmtMoneyARS } from "@/components/ui";
+import { ButtonLink, fmtMoneyARS } from "@/components/ui";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/datetime";
@@ -12,6 +12,11 @@ import FichaUnica from "./FichaUnica";
 import { enInicioPorApps } from "../../inicio/piloto";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import FichaRenglon from "./FichaRenglon";
+import { hrefNuevoTurno } from "../../turnos/pasos";
+import { roleHasCapability } from "@/lib/capabilities";
+import { appPermitida } from "@/apps/visibles";
+import { appPorId } from "@/apps/registro";
+import { getNegocioApps } from "@/apps/contexto.server";
 
 // "Reservado", igual que la agenda (CalendarGrid, lista): la ficha decía "Pendiente de pago"
 // para el mismo estado, y el estado del turno no habla de plata (la seña se cobra al reservar).
@@ -43,6 +48,11 @@ export default async function ClienteDetailPage({
   // sólo para no mostrar un botón que no va a funcionar; la guarda de verdad está en
   // `updateClient` (ADR-017 §2.e: ocultar un botón no es seguridad).
   const puedeEditar = await canCurrentUser("clients:manage");
+  // B6: «Darle un turno» desde la ficha de siempre (antes sólo existía en la ficha nueva). Abre el
+  // alta de la Lista con ella elegida (?cliente=, `leerClienteDelAlta`). Sólo si el negocio tiene
+  // Agenda y quien mira gestiona turnos: no se ofrece una tecla que lleva a una pantalla vedada.
+  const puedeDarTurno =
+    roleHasCapability(user.role, "agenda:manage") && appPermitida(appPorId("agenda"), await getNegocioApps(user.role));
 
   // Link directo al chat (549 + teléfono normalizado). Si lo cargado no es un celular, no se abre
   // WhatsApp a un número que no es el de ella: la ficha lo DICE y dice dónde corregirlo, en vez
@@ -86,6 +96,12 @@ export default async function ClienteDetailPage({
         )}
       </p>
       {contacto.tipo === "sin-celular" && <p className="mb-6 text-sm text-warning">{contacto.texto}</p>}
+
+      {puedeDarTurno && (
+        <div className="mb-8">
+          <ButtonLink href={hrefNuevoTurno(null, client.id)}>Darle un turno</ButtonLink>
+        </div>
+      )}
 
       {puedeEditar && (
         <div className="mb-8">
