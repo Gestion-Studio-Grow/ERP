@@ -4,8 +4,10 @@
 --     hace que la BASE impida facturar dos veces el mismo cobro por dos disparadores distintos
 --     (aviso de Mercado Pago, completar el turno, extracto bancario) aunque corran a la vez (DB-4).
 --   · Claves: 'mp:<paymentId>', 'turno:<appointmentId>', 'banco:<hash del movimiento>'.
---   · La llave foránea de dos columnas (tenantId, invoiceId) → "Invoice" impide apuntar a una
---     factura de otro negocio. Plata en numeric(14,2) (ADR-100).
+--   · Llave foránea por "Invoice"("id") y no la de dos columnas: esa depende del único
+--     Invoice(tenantId, id) de 20260925120000_lanzamiento_base, que tiene reversa (rollback.sql), y
+--     esta migración tiene que aplicarse igual sin ella. El negocio lo cuidan la RLS de las dos
+--     tablas y el predicado tenantId del código. Plata en numeric(14,2) (ADR-100).
 -- SIN APLICAR en Neon y fuera de prisma/lote-deploy.txt: se aplica con OK del dueño (Gate 2), DESPUÉS
 -- de 20261022140000_invoice_abono_descripcion y 20261022140100_regla_facturacion.
 -- RLS viaja con la migración (misma política que prisma/rls/0001_enable_rls.sql).
@@ -39,7 +41,7 @@ CREATE UNIQUE INDEX "CobroFacturado_tenantId_clave_key" ON "CobroFacturado"("ten
 ALTER TABLE "CobroFacturado" ADD CONSTRAINT "CobroFacturado_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CobroFacturado" ADD CONSTRAINT "CobroFacturado_tenantId_invoiceId_fkey" FOREIGN KEY ("tenantId", "invoiceId") REFERENCES "Invoice"("tenantId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CobroFacturado" ADD CONSTRAINT "CobroFacturado_invoiceId_fkey" FOREIGN KEY ("invoiceId") REFERENCES "Invoice"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- ── RLS de la tabla nueva (misma política que prisma/rls/0001_enable_rls.sql) ──
 ALTER TABLE "CobroFacturado" ENABLE ROW LEVEL SECURITY;

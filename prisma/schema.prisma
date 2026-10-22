@@ -2368,7 +2368,10 @@ model CobroFacturado {
   tenantId      String
   clave         String
   invoiceId     String
-  invoice       Invoice  @relation(fields: [tenantId, invoiceId], references: [tenantId, id], onDelete: Restrict)
+  // FK por `id` (no la de dos columnas): las migraciones posteriores tienen que poder aplicarse sin
+  // 20260925120000_lanzamiento_base, que es la que crea Invoice(tenantId, id) y tiene reversa.
+  // El negocio lo cuidan la RLS de las dos tablas y el predicado tenantId del código.
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   importe       Decimal  @db.Decimal(14, 2)
   appointmentId String? // el turno al que pertenece el cobro (para restar lo ya facturado al completarlo)
   createdAt     DateTime @default(now())

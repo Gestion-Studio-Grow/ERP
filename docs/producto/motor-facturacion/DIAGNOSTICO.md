@@ -71,6 +71,57 @@
 | **M1** | `createInvoiceInTx` aceptaba `clase: "nota_credito"` (o `asociado`) sin controlar el saldo. | Lanza: la única puerta de una NC es `crearNotaDeCreditoInTx`. Nada legítimo usaba esa vía (la NC escribe con `datosDelComprobante`/`encolarInvoiceCreated` directo). | `invoice-core.test.ts` «M1». |
 | **M3** | `resolverFirmaParaTenant` firmaba por delegación aunque el cliente estuviera de **baja** en la cartera del estudio. | Exige la fila `CarteraCliente(estudio, cliente)` y que no esté de baja (leída parada en el estudio); si no, error de configuración (el envío se detiene). Pausada sigue firmando. | `arca-dispatch.test.ts` (baja, ausente, pausada). |
 
+## R1 · «Una factura por cobro» (riesgo fiscal marcado por el Challenger) — cerrado
+
+**El riesgo.** Cuatro disparadores de factura no se hablaban: (1) completar el turno facturaba la
+suma de los cobros con la seña adentro; (2) el aviso de Mercado Pago de un turno facturaba **el
+turno entero** (el precio, o lo cobrado hasta ahí) con el origen del turno, y el link de pago no
+siempre queda atado al turno; (3) el extracto sólo evitaba el duplicado si coincidía el total;
+(4) `money_transfer` y `account_fund` de MP eran siempre «cuenta propia», y el camino automático
+armaba el clasificador sin `config`. Resultado: una seña de $5.000 terminaba con 0, 1 o 2 facturas.
+
+**La regla del motor** (`src/lib/facturacion/cobros-facturados.ts`). Cada cobro tiene una **clave** y
+queda anotado en `CobroFacturado` con la factura que lo cubre; `@@unique([tenantId, clave])` es el
+árbitro entre disparadores, también a la vez (DB-4). Claves: `mp:<pago>`, `turno:<turno>`,
+`banco:<hash>`. Una factura RECHAZADA no cuenta como facturado.
+
+**Decisión (1 línea de rationale):** tabla nueva y no reusar/generalizar `abonoClave`, porque la
+unicidad es del **cobro** y no de la factura: un comprobante puede cubrir varios cobros (el resto
+de un turno) y `abonoClave` (una columna por factura) no lo puede expresar; además la consola ya
+lee `abonoClave` y renombrarla rompía su código.
+
+| Disparador | Antes | Ahora |
+|---|---|---|
+| Aviso de MP de un turno | facturaba el turno entero | factura **ese pago** (`mp:<pago>`, atado al turno). Si el turno ya estaba facturado, el pago queda anotado contra esa factura, sin emitir otra. |
+| Completar el turno | lo cobrado entero | lo cobrado **menos** lo que MP ya facturó de ese turno (`pendienteDelTurno`: resta hasta lo que el libro tiene cobrado por MP; sin libro, del precio). Clave `turno:<turno>`. ENG-023 compara contra lo cobrado (`cobroDelTurno`), no contra el resto. |
+| Pago suelto de MP / sincronización | `mpPaymentId` único | además `mp:<pago>`; si el extracto ya facturó ese pago por su referencia, lo reusa. Los pagos atados a un turno siguen sin facturarse desde la sincronización (ya lo hacía). |
+| Extracto bancario | sólo por total (a revisión) | al emitir, reconoce el cobro por `banco:<hash>` o por la **referencia del pago de MP** (`mp:<referencia>`): queda atado a la factura existente (`yaFacturadas`). El aviso por total (revisión) sigue como red. |
+| `money_transfer` | siempre «cuenta propia» | propia sólo si es fondeo (`account_fund`) o el pagador es el cobrador; de un **tercero** → REVISAR (no se pierde ni se factura a ciegas); sin datos, como antes. El camino automático arma el clasificador con `config` (`cuentasPropias`). |
+
+**Migración nueva (Gate 2, SIN APLICAR):** `prisma/migrations/20261022150000_cobro_facturado` (tabla
+`CobroFacturado`, FK a `Invoice(id)`, CHECK de clave e importe, RLS adentro). La FK es por `id` y
+no la de dos columnas `(tenantId, invoiceId)` a propósito: esa depende del único `Invoice(tenantId,
+id)` de `20260925120000_lanzamiento_base`, que tiene reversa, y el test de esa reversa arma una base
+con todas las migraciones menos ésa; el negocio lo cuidan la RLS de las dos tablas y el predicado
+`tenantId` del código. Va
+**después** de `20261022140000` y `20261022140100`. Ensayada en Postgres local (el arnés aplica toda la
+cadena) y sin drift propio contra el schema. ⚠️ `docs/runbooks/facturacion/publicacion.md` y
+`prisma/lote-deploy.txt` tienen que sumar esta carpeta.
+
+**Pruebas:** `src/lib/facturacion/una-factura-por-cobro-postgres.test.ts` (los 4 caminos contra
+Postgres con RLS y ARCA en modo prueba: seña por MP → completar → sincronizar → extracto = una
+factura por cobro y la seña sumada una vez; completar antes del aviso; seña no anotada en el libro;
+dos disparadores a la vez; `money_transfer` de un tercero vs. propio vs. fondeo),
+`cobros-facturados.test.ts` (la cuenta del turno), `plugins/mercadopago/transferencias.test.ts`.
+
+**Límites conocidos (documentados, no resueltos acá):**
+- Si la recepción anota en el libro como TRANSFERENCIA o EFECTIVO una seña que en realidad entró
+  por MP, el motor no puede saber que es la misma plata: sólo resta lo anotado con medio Mercado Pago.
+- Una transferencia bancaria anotada en el libro del turno no lleva la referencia del banco: el
+  extracto la sigue mandando a revisión por total (no la emite sola).
+- La lista editable de cuentas propias de MP por negocio necesita una columna (hoy la fuente es el
+  `collectorId` de la config del gateway, si lo trae). Decisión del dueño.
+
 ## Lo que no se hizo (y por qué)
 
 - **Interruptor compartido entre instancias.** Hoy vive en la memoria de cada instancia; entre

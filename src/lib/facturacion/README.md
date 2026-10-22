@@ -61,6 +61,27 @@ crearNotaDeCreditoInTx(tx, {
 - Encola el envío como cualquier factura (CbtesAsoc). El tipo (3/8/13) lo decide el plugin con la
   letra de la factura y queda guardado al autorizar.
 
+## R1 · Una factura por cobro (`src/lib/facturacion/cobros-facturados.ts`)
+
+Todo disparador que factura un cobro lo hace con su **clave** y queda anotado en `CobroFacturado`
+(`@@unique([tenantId, clave])`: el mismo cobro no se factura dos veces, ni con dos disparadores a la vez).
+
+| Clave | Quién | Qué factura |
+|---|---|---|
+| `mp:<pago>` | aviso de MP (`facturarCobroMPDelTurno`), `facturarPagoMP` | ese pago (la seña de un turno, o una venta suelta) |
+| `turno:<turno>` | completar el turno (`facturarAppointment`) | lo cobrado menos lo que MP ya facturó de ese turno (`pendienteDelTurno`) |
+| `banco:<hash>` | extracto (`emitirPropuestas`) | el crédito, salvo que su clave o `mp:<referencia>` ya estén facturados |
+
+| Función | Qué hace |
+|---|---|
+| `facturarCobros(input, cobros)` / `facturarCobrosInTx` | Si alguno de esos cobros ya tiene factura viva, la devuelve; si no, la crea y anota los cobros. Ante la carrera (P2002) reintenta una vez y devuelve la del ganador. |
+| `vincularCobro(tenantId, cobro, invoiceId)` | Anota que un cobro ya está cubierto por una factura existente. |
+| `cobrosYaFacturados(tenantId, claves)` | Las facturas vivas que ya cubren esas claves. |
+| `pendienteDelTurno({...})` | La cuenta pura de lo que le queda por facturar a un turno. |
+
+Una factura RECHAZADA no cuenta: el cobro se vuelve a facturar y la fila pasa a la nueva.
+Necesita la migración `20261022150000_cobro_facturado` (Gate 2, sin aplicar).
+
 ## Mandar a ARCA y mirar
 
 | Función | Módulo | Qué hace |
