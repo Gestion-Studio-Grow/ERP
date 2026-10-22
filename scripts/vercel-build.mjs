@@ -300,6 +300,11 @@ if (rls !== 0) {
 // ── 5. Recién ahora, compilar ───────────────────────────────────────────────
 titulo(5, "Compilar");
 if (corre("npx", ["prisma", "generate"]) !== 0) fatal("`prisma generate` falló.");
-if (corre("npx", ["next", "build"]) !== 0) fatal("`next build` falló. No se publica.");
+// El chequeo de tipos de `next build` ya pide ~2,5 GB (medido el 22/10 con tsc --extendedDiagnostics) y el
+// tope por defecto de Node ronda los 2 GB: con más memoria no se cae por OOM. Si alguien ya fijó el tope, manda el suyo.
+const heap = /--max-old-space-size/.test(process.env.NODE_OPTIONS ?? "")
+  ? {}
+  : { NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --max-old-space-size=6144`.trim() };
+if (corre("npx", ["next", "build"], heap) !== 0) fatal("`next build` falló. No se publica.");
 
 log(`\n${VERDE}✔ Base migrada, árbitros verificados y build completo.${FIN}\n`);
