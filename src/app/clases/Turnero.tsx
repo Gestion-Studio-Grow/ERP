@@ -1,308 +1,340 @@
 "use client";
 
-// Los tres pasos del turnero: día → hora → nombre y celular. Todo en una pantalla, sin ir y
-// volver al servidor hasta el "Pedir clase": los horarios libres ya vienen calculados.
-// El nombre y el celular se recuerdan en este teléfono (para la próxima vez), nunca en otro lado.
-// El link del alumno NO: lo recuerda una cookie httpOnly que escribe el servidor, y sólo se
-// muestra si este dispositivo es el dueño (alumno nuevo, o el mismo teléfono de siempre). Si el
-// celular es de un alumno conocido y el teléfono es otro, «Te confirmamos por WhatsApp».
+// El turnero (F7, §2.4): tipo de clase arriba (cambia el precio), cinta de días, chips de horas
+// libres y el botón fijo abajo «Pedir jue 24 · 18:00 · $ 25.000». Todo en una pantalla, sin ir y
+// volver al servidor hasta el «Pedir»: los horarios libres ya vienen calculados.
+//
+// Quién pide:
+//  · con la cookie del alumno (el teléfono es suyo): no se tipea nada; pide por su link
+//    (reservarDesdeLink con la cookie) y, si ya tomó clases, nace CONFIRMADA (M-095);
+//  · con nombre y celular recordados en este teléfono: no se tipea nada; pide con esos datos;
+//  · la primera vez: sube la hoja «¿Quién sos?» y adentro el «Pedir».
+// El link del alumno NO se recuerda acá: lo guarda la cookie httpOnly que escribe el servidor, y
+// sólo se muestra si este dispositivo es el dueño. Si el celular es de un alumno conocido y el
+// teléfono es otro: «Te confirmamos por WhatsApp» (sin link).
+// Si la hora se ocupó en el medio: el chip se apaga y se sugieren las 2 más cercanas (M-097).
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { pedirClase, pedirMiLink } from "@/lib/padel/acciones-alumno";
+import { useState, useSyncExternalStore, useTransition } from "react";
+import { pedirClase, reservarDesdeLink } from "@/lib/padel/acciones-alumno";
 import type { DiaConLugar } from "@/lib/padel/datos.server";
+import { Contacto } from "@/app/alumno/_vista/Contacto";
+import { ElegirHora } from "./_elegir-hora";
+import { HojaQuien } from "./_hoja-quien";
+import { Listo, type ResultadoPedido } from "./Listo";
+import { YaSoyAlumno } from "./YaSoyAlumno";
+import { alerta, botonPrincipal, caja, campo, chip, etiqueta } from "./_estilos";
+import {
+  RECUERDO,
+  alternativasEnCinta,
+  cercanas,
+  diaYHora,
+  inicioDeLaCinta,
+  leerRecuerdo,
+  plata,
+  precioElegido,
+  sinLaHora,
+  textoCta,
+  textoPrecio,
+  type TipoTurnero,
+} from "./cinta";
 
-type Marca = { cancha: string; vivo: string; texto: string; suave: string; linea: string };
+type Quien = { nombre: string; telefono: string };
 
-const ZONA = "America/Argentina/Buenos_Aires";
-const hora = (iso: string) => new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: ZONA });
-const pesos = (n: number) => `$ ${n.toLocaleString("es-AR")}`;
-const RECUERDO = "gsg-padel-alumno";
+const sinSuscripcion = () => () => {};
+const leerGuardado = (): string | null => {
+  try {
+    return localStorage.getItem(RECUERDO);
+  } catch {
+    return null;
+  }
+};
 
-export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIndividual, precioGrupal, marca, conSesion = false, abrirLink = false }: {
+export default function Turnero({
+  dias: diasIniciales,
+  sinHorarios = false,
+  precioIndividual,
+  precioGrupal,
+  profe,
+  wa,
+  conSesion = false,
+  nombreAlumno = null,
+  abrirLink = false,
+  inicio = {},
+  nombreApp,
+}: {
   dias: DiaConLugar[];
   /** El profe todavía no cargó ninguna franja en la que da clases. */
   sinHorarios?: boolean;
-  hayGrupal: boolean;
   precioIndividual: number;
   precioGrupal: number;
-  marca: Marca;
-  /** Este navegador ya tiene la cookie del alumno: se le ofrece «Mis clases» (M-003, mínimo hasta T3C). */
+  profe: string;
+  /** wa.me del profe para «Escribirle» (null: no cargó su celular → «Dejarle un mensaje»). */
+  wa: string | null;
+  /** Este navegador tiene la cookie del alumno de ESTE negocio. */
   conSesion?: boolean;
-  /** Vino de /mis-clases sin cookie (o con un link que se renovó): «Pedí tu link» abierto. */
+  nombreAlumno?: string | null;
+  /** Vino de «Pedir mi link» (link roto o /mis-clases sin cookie): la hoja abierta. */
   abrirLink?: boolean;
+  /** `?fecha=` / `?hora=` del link («Elegir otro horario», «¿Te sirve…?»). */
+  inicio?: { fecha?: string | null; hora?: string | null };
+  nombreApp: string;
 }) {
-  const [fecha, setFecha] = useState(dias[0]?.fecha ?? "");
-  const [elegida, setElegida] = useState<string | null>(null);
-  const [tipo, setTipo] = useState<"INDIVIDUAL" | "GRUPAL">("INDIVIDUAL");
+  const [dias, setDias] = useState(diasIniciales);
+  const [arranque] = useState(() => inicioDeLaCinta(diasIniciales, inicio));
+  const [fecha, setFecha] = useState(arranque.fecha);
+  const [hora, setHora] = useState<string | null>(arranque.hora);
+  const [tipo, setTipo] = useState<TipoTurnero>("INDIVIDUAL");
   const [personas, setPersonas] = useState(2);
-  const nombreRef = useRef<HTMLInputElement>(null);
-  const telRef = useRef<HTMLInputElement>(null);
+  const [nota, setNota] = useState("");
+  // Lo que recuerda este teléfono (nombre y celular) se lee del navegador; el servidor no lo sabe.
+  const guardado = useSyncExternalStore(sinSuscripcion, leerGuardado, () => null);
+  const [propio, setPropio] = useState<Quien | null | "olvidado">(null);
+  const recuerdo: Quien | null = propio === "olvidado" ? null : (propio ?? leerRecuerdo(guardado));
+  const setRecuerdo = (q: Quien | null) => setPropio(q ?? "olvidado");
+  const [porCookie, setPorCookie] = useState(conSesion);
+  const [hojaQuien, setHojaQuien] = useState(false);
+  const [errorHoja, setErrorHoja] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [listo, setListo] = useState<{ token: string | null; waProfe: string | null; cuando: string } | null>(null);
+  const [sugeridas, setSugeridas] = useState<string[]>([]);
+  const [listo, setListo] = useState<ResultadoPedido | null>(null);
   const [pendiente, start] = useTransition();
 
-  useEffect(() => {
-    try {
-      const r = JSON.parse(localStorage.getItem(RECUERDO) ?? "{}") as { nombre?: string; telefono?: string };
-      // Se completa en el DOM (no en el estado): el servidor no sabe qué guardó este teléfono.
-      if (r.nombre && nombreRef.current && !nombreRef.current.value) nombreRef.current.value = r.nombre;
-      if (r.telefono && telRef.current && !telRef.current.value) telRef.current.value = r.telefono;
-    } catch {}
-  }, []);
 
-  const horas = useMemo(() => dias.find((d) => d.fecha === fecha)?.horas ?? [], [dias, fecha]);
-  const precio = tipo === "GRUPAL" ? precioGrupal * personas : precioIndividual;
-
-  const chip = (activo: boolean): React.CSSProperties => ({
-    minHeight: 48,
-    borderRadius: 12,
-    border: `2px solid ${activo ? marca.cancha : marca.linea}`,
-    background: activo ? marca.cancha : "var(--padel-superficie)",
-    color: activo ? "var(--padel-sobre-cancha)" : marca.texto,
-    fontSize: 16,
-    fontWeight: 600,
-    cursor: "pointer",
-    padding: "0 12px",
-  });
-  const caja: React.CSSProperties = { background: "var(--padel-superficie)", border: `1px solid ${marca.linea}`, borderRadius: 16, padding: 16, marginBottom: 14 };
-  const titulo: React.CSSProperties = { margin: "0 0 12px", fontSize: 18 };
-  const campo: React.CSSProperties = { width: "100%", minHeight: 48, borderRadius: 12, border: `1px solid ${marca.linea}`, padding: "0 14px", fontSize: 16, boxSizing: "border-box", color: marca.texto, background: "var(--padel-superficie)" };
-  // M-003 (mínimo hasta T3C): con la cookie del alumno, «Mis clases» lleva a su vista sin tipear nada.
-  const misClases = conSesion ? (
-    <a
-      href="/mis-clases"
-      data-qa="mis-clases"
-      style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 48, borderRadius: 14, border: `2px solid ${marca.cancha}`, color: marca.cancha, fontWeight: 700, fontSize: 16, textDecoration: "none", marginBottom: 14, background: "var(--padel-superficie)" }}
-    >
-      Mis clases
-    </a>
-  ) : null;
+  const hayGrupal = precioGrupal > 0;
+  const precio = precioElegido(tipo, personas, precioIndividual, precioGrupal);
+  const etiquetaDia = dias.find((d) => d.fecha === fecha)?.etiqueta ?? null;
+  const cta = textoCta({ etiquetaDia, hora, precio });
 
   if (listo) {
     return (
-      <section style={{ ...caja, borderTop: `5px solid ${marca.vivo}` }} aria-live="polite">
-        <h2 style={{ margin: "0 0 6px", fontSize: 24 }}>¡Listo! Pediste tu clase</h2>
-        <p style={{ margin: "0 0 16px", fontSize: 16 }}>
-          <strong>{listo.cuando}</strong>. El profe te la confirma por WhatsApp.
-        </p>
-        {listo.waProfe && (
-          <a
-            href={listo.waProfe}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-qa="avisar-profe"
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 56, borderRadius: 14, background: marca.cancha, color: "var(--padel-sobre-cancha)", fontWeight: 700, fontSize: 18, textDecoration: "none", marginBottom: 12 }}
-          >
-            Avisarle por WhatsApp
-          </a>
-        )}
-        {listo.token ? (
-          <>
-            <a
-              href={`/alumno/${listo.token}`}
-              data-qa="mi-link"
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 52, borderRadius: 14, border: `2px solid ${marca.cancha}`, color: marca.cancha, fontWeight: 700, fontSize: 16, textDecoration: "none" }}
-            >
-              Ver mis clases y pagar
-            </a>
-            <p style={{ margin: "12px 0 0", fontSize: 14, color: marca.suave }}>
-              Guardá ese link: desde ahí repetís la clase la semana que viene, mandás el comprobante o cancelás.
-            </p>
-          </>
-        ) : (
-          <p style={{ margin: 0, fontSize: 16 }} data-qa="confirmamos-por-wa">
-            Te confirmamos por WhatsApp al número que pusiste.
-          </p>
-        )}
-      </section>
+      <Listo
+        r={listo}
+        profe={profe}
+        nombreApp={nombreApp}
+        onOtra={() => {
+          setListo(null);
+          setHora(null);
+          setNota("");
+        }}
+      />
     );
   }
 
-  if (dias.length === 0 && sinHorarios) {
-    return (
-      <section style={caja}>
-        {misClases}
-        <h2 style={titulo}>El profe todavía no publicó sus horarios</h2>
-        <p style={{ margin: 0, color: marca.suave }}>Volvé a mirar en unos días o escribile al profe.</p>
-        <YaSoyAlumno marca={marca} caja={caja} campo={campo} abierto={abrirLink} />
-      </section>
-    );
-  }
+  const contacto = <Contacto wa={wa} profe={profe} conocido={conSesion} />;
 
   if (dias.length === 0) {
     return (
-      <section style={caja}>
-        {misClases}
-        <h2 style={titulo}>No quedan horarios libres por ahora</h2>
-        <p style={{ margin: 0, color: marca.suave }}>Volvé a mirar en unos días o escribile al profe.</p>
-        <YaSoyAlumno marca={marca} caja={caja} campo={campo} abierto={abrirLink} />
+      <section className={`${caja} grid gap-3`} data-qa="sin-horarios">
+        <h2 className="text-lg font-bold">{sinHorarios ? `${profe} todavía no publicó sus horarios` : "No quedan horarios libres por ahora"}</h2>
+        <p className="text-base text-[var(--padel-suave)]">Volvé a mirar en unos días o escribile: capaz te hace un lugar.</p>
+        {contacto}
+        {!conSesion && <YaSoyAlumno abierto={abrirLink} />}
       </section>
     );
   }
 
-  const enviar = (e: React.FormEvent) => {
-    e.preventDefault();
+  /** «Se ocupó recién»: el chip se apaga y se ofrecen las 2 más cercanas que siguen libres. */
+  const seOcupo = (iso: string, mensaje: string, delServidor?: string[]) => {
+    const sin = sinLaHora(dias, iso);
+    setDias(sin);
+    setHora(null);
+    if (!sin.some((d) => d.fecha === fecha)) setFecha(sin[0]?.fecha ?? "");
+    const alt = alternativasEnCinta(sin, delServidor);
+    setSugeridas(alt.length ? alt : cercanas(sin, iso, 2));
+    setError(/ocup|libre/i.test(mensaje) ? "Se ocupó recién. Te quedan estas cerca:" : mensaje);
+  };
+
+  const pedir = (quien?: Quien) => {
+    if (!hora) return;
+    const iso = hora;
     setError(null);
-    if (!elegida) return setError("Elegí un horario.");
-    const nombre = nombreRef.current?.value ?? "";
-    const telefono = telRef.current?.value ?? "";
-    start(async () => {
-      const r = await pedirClase({ hora: elegida, nombre, telefono, tipo, personas });
-      if (!r.ok) {
+    setSugeridas([]);
+    if (porCookie && !quien) {
+      start(async () => {
+        const r = await reservarDesdeLink(null, iso, undefined, { tipo, personas, nota });
+        if (r.ok) {
+          setListo({ estado: r.estado, cuando: r.cuando, token: null, claseId: r.claseId, conocido: false, waProfe: null, porCookie: true });
+          return;
+        }
+        if (r.alternativas || /ocup/i.test(r.error)) return seOcupo(iso, r.error, r.alternativas);
+        if (/link/i.test(r.error)) {
+          // La cookie ya no sirve (el profe renovó el link): se pide como la primera vez.
+          setPorCookie(false);
+          setHojaQuien(true);
+          return;
+        }
         setError(r.error);
+      });
+      return;
+    }
+    const q = quien ?? recuerdo;
+    if (!q) {
+      setErrorHoja(null);
+      setHojaQuien(true);
+      return;
+    }
+    start(async () => {
+      const r = await pedirClase({ hora: iso, nombre: q.nombre, telefono: q.telefono, tipo, personas, nota });
+      if (r.ok) {
+        try {
+          localStorage.setItem(RECUERDO, JSON.stringify(q));
+        } catch {}
+        setRecuerdo(q);
+        setHojaQuien(false);
+        setListo({ estado: "PEDIDA", cuando: r.cuando, token: r.token, claseId: r.claseId, conocido: r.conocido, waProfe: r.waProfe, porCookie: false });
         return;
       }
-      try {
-        localStorage.setItem(RECUERDO, JSON.stringify({ nombre, telefono }));
-      } catch {}
-      setListo({ token: r.token, waProfe: r.waProfe, cuando: r.cuando });
+      if (r.alternativas || /ocup/i.test(r.error)) {
+        setHojaQuien(false);
+        return seOcupo(iso, r.error, r.alternativas);
+      }
+      // Nombre o celular mal: se corrige en la hoja (si los datos venían recordados, se abre).
+      if (/nombre|celular/i.test(r.error)) {
+        setErrorHoja(r.error);
+        setHojaQuien(true);
+        return;
+      }
+      setHojaQuien(false);
+      setError(r.error);
     });
   };
 
+  const quienEs = porCookie ? nombreAlumno : recuerdo?.nombre ?? null;
+
   return (
     <>
-    {misClases}
-    <form onSubmit={enviar} noValidate>
-      <section style={caja} aria-labelledby="paso-dia">
-        <h2 id="paso-dia" style={titulo}>1 · ¿Qué día?</h2>
-        <div role="group" aria-label="Días con lugar" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))", gap: 8 }}>
-          {dias.map((d) => (
-            <button
-              key={d.fecha}
-              type="button"
-              aria-pressed={d.fecha === fecha}
-              data-qa="dia"
-              data-fecha={d.fecha}
-              onClick={() => {
-                setFecha(d.fecha);
-                setElegida(null);
-              }}
-              style={chip(d.fecha === fecha)}
-            >
-              {d.etiqueta}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section style={caja} aria-labelledby="paso-hora">
-        <h2 id="paso-hora" style={titulo}>2 · ¿A qué hora?</h2>
-        <div role="group" aria-label="Horarios libres" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 8 }}>
-          {horas.map((h) => (
-            <button key={h} type="button" aria-pressed={h === elegida} data-qa="hora" data-hora={h} onClick={() => setElegida(h)} style={chip(h === elegida)}>
-              {hora(h)}
-            </button>
-          ))}
-        </div>
+      <div className="grid grid-cols-1 gap-4">
         {hayGrupal && (
-          <div style={{ marginTop: 14 }}>
-            <div role="group" aria-label="Tipo de clase" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <button type="button" aria-pressed={tipo === "INDIVIDUAL"} onClick={() => setTipo("INDIVIDUAL")} style={chip(tipo === "INDIVIDUAL")}>
+          <section className={caja} aria-labelledby="t-tipo">
+            <h2 id="t-tipo" className="mb-2 text-base font-bold">
+              ¿Cómo querés la clase?
+            </h2>
+            <div role="group" aria-labelledby="t-tipo" className="grid grid-cols-2 gap-2">
+              <button type="button" aria-pressed={tipo === "INDIVIDUAL"} className={`${chip(tipo === "INDIVIDUAL")} flex-col leading-tight`} onClick={() => setTipo("INDIVIDUAL")} data-qa="tipo-individual">
                 Individual
+                {precioIndividual > 0 && <span className="text-sm font-normal">{plata(precioIndividual)}</span>}
               </button>
-              <button type="button" aria-pressed={tipo === "GRUPAL"} onClick={() => setTipo("GRUPAL")} style={chip(tipo === "GRUPAL")}>
-                Grupal
+              <button type="button" aria-pressed={tipo === "GRUPAL"} className={`${chip(tipo === "GRUPAL")} flex-col leading-tight`} onClick={() => setTipo("GRUPAL")} data-qa="tipo-grupal">
+                Con amigos
+                <span className="text-sm font-normal">{plata(precioGrupal)} c/u</span>
               </button>
             </div>
             {tipo === "GRUPAL" && (
-              <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, fontSize: 16 }}>
-                Somos
-                <select value={personas} onChange={(e) => setPersonas(Number(e.target.value))} style={{ ...campo, width: 90 }}>
-                  {[2, 3, 4].map((n) => (
-                    <option key={n} value={n}>{n}</option>
+              <div className="mt-3 flex items-center gap-2" role="group" aria-label="¿Cuántos son?">
+                <span className="text-base">Somos</span>
+                {[2, 3, 4].map((n) => (
+                  <button key={n} type="button" aria-pressed={personas === n} className={chip(personas === n)} onClick={() => setPersonas(n)} data-qa="personas" data-n={n}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
+            {textoPrecio(tipo, personas, precioIndividual, precioGrupal) && (
+              <p className="mt-3 text-base font-semibold tabular-nums" data-qa="precio">
+                {textoPrecio(tipo, personas, precioIndividual, precioGrupal)}
+              </p>
+            )}
+          </section>
+        )}
+
+        <section className={caja} aria-label="Día y hora">
+          <ElegirHora
+            prefijo="t"
+            dias={dias}
+            fecha={fecha}
+            hora={hora}
+            onFecha={(f) => {
+              setFecha(f);
+              setHora(null);
+            }}
+            onHora={(h) => {
+              setHora(h);
+              setError(null);
+            }}
+          />
+          {error && (
+            <div className="mt-4 grid gap-2">
+              <p role="alert" className={alerta} data-qa="error">
+                {error}
+              </p>
+              {sugeridas.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {sugeridas.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={chip(false)}
+                      data-qa="sugerida"
+                      data-hora={s}
+                      onClick={() => {
+                        const d = dias.find((x) => x.horas.includes(s));
+                        if (d) setFecha(d.fecha);
+                        setHora(s);
+                        setError(null);
+                        setSugeridas([]);
+                      }}
+                    >
+                      {diaYHora(s)}
+                    </button>
                   ))}
-                </select>
-              </label>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section className={caja}>
+          <label htmlFor="t-nota" className={etiqueta}>
+            ¿Algo que {profe} tenga que saber? <span className="font-normal text-[var(--padel-suave)]">(opcional)</span>
+          </label>
+          <textarea id="t-nota" rows={2} maxLength={300} value={nota} onChange={(e) => setNota(e.target.value)} className={`${campo} py-3`} placeholder="Ej.: es mi primera clase" />
+        </section>
+
+        {contacto}
+      </div>
+
+      {/* El botón fijo abajo, a mano del pulgar (M-089). Debajo, una sola línea de la misma altura
+          siempre: «Pedís como Juan · No soy yo» o «¿Ya sos alumno? Pedí tu link» (no corre nada: CLS 0). */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--padel-linea)] bg-[var(--padel-papel)] px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-3">
+        <div className="mx-auto grid max-w-[35rem] gap-1">
+          <button type="button" className={botonPrincipal} disabled={!hora || pendiente} onClick={() => pedir()} data-qa="pedir">
+            {pendiente ? "Pidiendo…" : cta}
+          </button>
+          <div className="flex min-h-12 items-center justify-center">
+            {quienEs && !abrirLink ? (
+              <p className="text-sm text-[var(--padel-suave)]" data-qa="pedis-como">
+                Pedís como <strong className="text-[var(--padel-texto)]">{quienEs}</strong>
+                {" · "}
+                <button
+                  type="button"
+                  className="min-h-12 cursor-pointer px-1 font-semibold underline underline-offset-2"
+                  onClick={() => {
+                    setPorCookie(false);
+                    setRecuerdo(null);
+                    setErrorHoja(null);
+                  }}
+                >
+                  No soy yo
+                </button>
+              </p>
+            ) : (
+              <YaSoyAlumno abierto={abrirLink} />
             )}
           </div>
-        )}
-        {precio > 0 && (
-          <p style={{ margin: "12px 0 0", fontSize: 16, color: marca.suave }}>
-            Valor: <strong style={{ color: marca.texto }}>{pesos(precio)}</strong>
-          </p>
-        )}
-      </section>
+        </div>
+      </div>
 
-      <section style={caja} aria-labelledby="paso-quien">
-        <h2 id="paso-quien" style={titulo}>3 · ¿Quién sos?</h2>
-        <label htmlFor="t-nombre" style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 6 }}>Nombre</label>
-        <input ref={nombreRef} id="t-nombre" name="nombre" autoComplete="name" style={{ ...campo, marginBottom: 12 }} />
-        <label htmlFor="t-tel" style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 6 }}>Celular (WhatsApp)</label>
-        <input id="t-tel" name="telefono" type="tel" inputMode="tel" autoComplete="tel" placeholder="11 5555-1234" ref={telRef} style={campo} />
-      </section>
-
-      {error && (
-        <p role="alert" style={{ margin: "0 0 12px", padding: 12, borderRadius: 12, background: "var(--padel-peligro-suave)", color: "var(--padel-peligro)", fontWeight: 600 }}>
-          {error}
-        </p>
-      )}
-
-      <button
-        type="submit"
-        disabled={pendiente}
-        data-qa="pedir"
-        style={{ width: "100%", minHeight: 58, borderRadius: 14, border: 0, background: marca.cancha, color: "var(--padel-sobre-cancha)", fontSize: 18, fontWeight: 700, cursor: pendiente ? "wait" : "pointer", opacity: pendiente ? 0.7 : 1 }}
-      >
-        {pendiente ? "Pidiendo…" : elegida ? `Pedir clase · ${dias.find((d) => d.fecha === fecha)?.etiqueta} ${hora(elegida)}` : "Pedir clase"}
-      </button>
-    </form>
-    <YaSoyAlumno marca={marca} caja={caja} campo={campo} abierto={abrirLink} />
+      <HojaQuien
+        abierta={hojaQuien}
+        onCerrar={() => setHojaQuien(false)}
+        onPedir={(q) => pedir(q)}
+        pendiente={pendiente}
+        error={errorHoja}
+        inicial={recuerdo}
+        textoBoton={cta === "Elegí día y hora" ? "Pedir" : cta}
+        profe={profe}
+      />
     </>
   );
 }
 
-/**
- * «¿Ya sos alumno? Pedí tu link»: el link viaja por WhatsApp al número registrado y nunca se
- * muestra acá. La respuesta es la misma exista o no el celular (no revela quién es alumno).
- */
-function YaSoyAlumno({ marca, caja, campo, abierto: abiertoAlInicio = false }: { marca: Marca; caja: React.CSSProperties; campo: React.CSSProperties; abierto?: boolean }) {
-  const [abierto, setAbierto] = useState(abiertoAlInicio);
-  const [pendiente, start] = useTransition();
-  const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
-  const tel = useRef<HTMLInputElement>(null);
-
-  if (!abierto) {
-    return (
-      <button
-        type="button"
-        onClick={() => setAbierto(true)}
-        data-qa="ya-soy-alumno"
-        style={{ display: "block", width: "100%", minHeight: 48, marginTop: 16, background: "none", border: 0, color: marca.suave, fontSize: 16, textDecoration: "underline", cursor: "pointer" }}
-      >
-        ¿Ya sos alumno? Pedí tu link
-      </button>
-    );
-  }
-  const pedir = () =>
-    start(async () => {
-      setMsg(null);
-      const r = await pedirMiLink(tel.current?.value ?? "");
-      setMsg(r.ok ? { ok: true, texto: r.mensaje } : { ok: false, texto: r.error });
-    });
-  return (
-    <section style={{ ...caja, marginTop: 16 }} aria-labelledby="ya-alumno">
-      <h2 id="ya-alumno" style={{ margin: "0 0 8px", fontSize: 18 }}>Pedí tu link</h2>
-      <p style={{ margin: "0 0 12px", fontSize: 16, color: marca.suave }}>Poné el celular con el que pediste clase. Te lo mandamos por WhatsApp a ese número.</p>
-      <label htmlFor="t-tel-link" style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 6 }}>Celular (WhatsApp)</label>
-      <input ref={tel} id="t-tel-link" type="tel" inputMode="tel" autoComplete="tel" placeholder="11 5555-1234" style={campo} />
-      <button
-        type="button"
-        disabled={pendiente}
-        onClick={pedir}
-        data-qa="pedir-link"
-        style={{ width: "100%", minHeight: 52, marginTop: 12, borderRadius: 14, border: `2px solid ${marca.cancha}`, background: "none", color: marca.cancha, fontSize: 16, fontWeight: 700, cursor: pendiente ? "wait" : "pointer" }}
-      >
-        {pendiente ? "Mandando…" : "Mandarme mi link"}
-      </button>
-      {msg && (
-        <p
-          role={msg.ok ? "status" : "alert"}
-          data-qa="respuesta-link"
-          style={{ margin: "12px 0 0", fontSize: 16, fontWeight: 600, color: msg.ok ? marca.texto : "var(--danger)" }}
-        >
-          {msg.texto}
-        </p>
-      )}
-    </section>
-  );
-}

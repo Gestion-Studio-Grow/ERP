@@ -784,6 +784,8 @@ export async function configCompleta() {
 const SELECT_CLASE_ALUMNO = {
   id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, precio: true,
   pagoEstado: true, pagoMedio: true, comprobanteEnviadoEl: true, pagoNota: true, motivoCancel: true,
+  // T3C: cuándo se rechazó o se canceló, para mostrarla tachada 48 h con su salida (M-100).
+  rechazadaEl: true, canceladaEl: true,
 } as const;
 
 /**

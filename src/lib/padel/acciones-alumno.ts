@@ -92,7 +92,15 @@ export interface PedidoTurnero {
   telefono: string;
   tipo: string;
   personas: number;
+  /** T3C: «¿Algo que el profe tenga que saber?» (opcional). Va en el aviso al profe, no en la clase. */
+  nota?: string;
 }
+
+/** T3C: la nota opcional del turnero, ya validada, como cola del aviso al profe (vacío si no hay). */
+const colaDeNota = (raw: unknown): string => {
+  const t = raw ? textoMensajeValido(raw) : null;
+  return t ? ` Nota: «${t.slice(0, 300)}»` : "";
+};
 
 /**
  * El alumno pide una clase desde el turnero público. Nace PEDIDA: la confirma el profe.
@@ -110,7 +118,7 @@ export interface PedidoTurnero {
  */
 export async function pedirClase(
   p: PedidoTurnero,
-): Promise<Resultado<{ token: string | null; conocido: boolean; waProfe: string | null; cuando: string }> & { alternativas?: string[] }> {
+): Promise<Resultado<{ token: string | null; conocido: boolean; waProfe: string | null; cuando: string; claseId: string | null }> & { alternativas?: string[] }> {
   const tenantId = await getCurrentTenantId();
   if (await frenadoPorIp("pedir", tenantId)) return { ok: false, error: FRENADO };
   const nombre = nombreValido(p.nombre);
@@ -157,11 +165,11 @@ export async function pedirClase(
     await avisarAlProfe(
       tenantId,
       "pedido",
-      token
+      (token
         ? `${r.alumno.esNuevo ? nombre : r.alumno.nombre} pidió clase ${queClase} el ${cuando}.`
         : r.rotado
           ? `${r.alumno.nombre} pidió clase ${queClase} el ${cuando} desde otro teléfono, y todavía no lo confirmaste nunca. Por seguridad su link se renovó: le llega el nuevo cuando lo confirmes. Confirmalo por el número de siempre.`
-          : `${r.alumno.nombre} (alumno conocido) pidió clase ${queClase} el ${cuando} desde un teléfono nuevo. Confirmalo por el número de siempre.`,
+          : `${r.alumno.nombre} (alumno conocido) pidió clase ${queClase} el ${cuando} desde un teléfono nuevo. Confirmalo por el número de siempre.`) + colaDeNota(p.nota),
       r.claseId,
       r.alumno.id,
     );
@@ -172,7 +180,8 @@ export async function pedirClase(
       armarMensaje(config.plantillas.pedidoAlProfe, { profe: negocio.profe, nombre, dia: diaHumano(empiezaEn), hora: horaHumana(empiezaEn) }),
     );
     refrescar(r.alumno.token, r.tokenViejo);
-    return { ok: true, token, conocido: !r.alumno.esNuevo && !token, waProfe, cuando };
+    // T3C: el id de la clase sólo viaja con el token (lo usa «Agregar al calendario»); sin token no sirve.
+    return { ok: true, token, conocido: !r.alumno.esNuevo && !token, waProfe, cuando, claseId: token ? r.claseId : null };
   } catch (e) {
     if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
     throw e;
@@ -308,7 +317,13 @@ export async function recordarToken(token: string): Promise<Resultado> {
  * otro horario libre que le ofrecimos. Si ya tomó clases, nace CONFIRMADA (no le hace falta
  * esperar al profe); si es nuevo, PEDIDA. Si el horario no está, devuelve alternativas.
  */
-export async function reservarDesdeLink(token: string | null, horaIso: string, repiteDe?: string): Promise<Resultado<{ estado: string; cuando: string; pagadaConSaldo?: boolean }> & { alternativas?: string[] }> {
+export async function reservarDesdeLink(
+  token: string | null,
+  horaIso: string,
+  repiteDe?: string,
+  /** T3C: el turnero con la cookie del alumno pide por acá (sin tipear): tipo, personas y nota. */
+  opciones?: { tipo?: string; personas?: number; nota?: string },
+): Promise<Resultado<{ estado: string; cuando: string; pagadaConSaldo?: boolean; claseId: string }> & { alternativas?: string[] }> {
   const tenantIdFreno = await getCurrentTenantId();
   if (await frenadoPorIp("link", tenantIdFreno)) return { ok: false, error: FRENADO };
   const d = await alumnoDelLink(token);
@@ -322,6 +337,8 @@ export async function reservarDesdeLink(token: string | null, horaIso: string, r
     const anterior = await prisma.padelClase.findFirst({ where: { tenantId, id: repiteDe, alumnoId: alumno.id }, select: { tipo: true, personas: true } });
     if (!anterior) return { ok: false, error: "No encontramos esa clase." };
     base = anterior;
+  } else if (opciones && esTipoClase(opciones.tipo)) {
+    base = { tipo: opciones.tipo, personas: opciones.tipo === "GRUPAL" ? Math.min(4, Math.max(2, Math.trunc(Number(opciones.personas)) || 2)) : 1 };
   }
 
   const fecha = dateStrInBusinessTz(empiezaEn);
@@ -353,10 +370,10 @@ export async function reservarDesdeLink(token: string | null, horaIso: string, r
       });
     });
     const cuando = `${diaHumano(empiezaEn)} a las ${horaHumana(empiezaEn)}`;
-    await avisarAlProfe(tenantId, confirmada ? "proxima" : "pedido", `${alumno.client.name} ${confirmada ? "confirmó" : "pidió"} clase el ${cuando} desde su link.`, clase.id, alumno.id);
+    await avisarAlProfe(tenantId, confirmada ? "proxima" : "pedido", `${alumno.client.name} ${confirmada ? "confirmó" : "pidió"} clase el ${cuando} desde su link.${colaDeNota(opciones?.nota)}`, clase.id, alumno.id);
     await auditPublic({ action: "padel.reservarDesdeLink", entity: "PadelClase", entityId: clase.id, clientPhone: alumno.client.phone });
     refrescar(alumno.token);
-    return { ok: true, estado: confirmada ? "CONFIRMADA" : "PEDIDA", cuando, pagadaConSaldo: clase.pagoMedio === "SALDO_A_FAVOR" };
+    return { ok: true, estado: confirmada ? "CONFIRMADA" : "PEDIDA", cuando, pagadaConSaldo: clase.pagoMedio === "SALDO_A_FAVOR", claseId: clase.id };
   } catch (e) {
     if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
     throw e;
