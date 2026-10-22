@@ -18,9 +18,7 @@ import AgendaRenglon from "../AgendaRenglon";
 import DarTurnoCajon from "../_agenda/DarTurnoCajon";
 import { buttonClasses } from "@/components/ui";
 import { roleHasCapability } from "@/lib/capabilities";
-import { prisma } from "@/lib/prisma";
-import { getCurrentTenantId } from "@/lib/tenant";
-import { contarTurnosSinCerrar } from "@/apps/kpis/turnos-sin-cerrar.server";
+import { contarSinCerrarDeQuienMira } from "@/lib/turnos/sin-cerrar.server";
 import { RUTA_CERRAR_PENDIENTE } from "../../inicio/bandeja-core";
 import { diaCorto, textoSinCerrar, ventanaDeLista } from "./lista-core";
 
@@ -166,7 +164,8 @@ export default async function TurnosListaPage({
     // Inicio por apps: el aviso de faltazos al dar el turno. CH, fuera del piloto, sin cambios.
     enInicioPorApps().then((piloto) => (piloto ? cargarFaltazosPorFicha() : undefined)),
     agendaPractica(),
-    getCurrentTenantId().then((tenantId) => contarTurnosSinCerrar(prisma, tenantId, ahora)),
+    // Mismo recorte que la bandeja: la profesional cuenta sólo los suyos (cert CH Tanda 1).
+    contarSinCerrarDeQuienMira(),
   ]);
   // Único punto donde se lee el resultado crudo del loader: de acá para abajo se trabaja
   // siempre con `turnos`, que es lo que el navegador va a recibir.
