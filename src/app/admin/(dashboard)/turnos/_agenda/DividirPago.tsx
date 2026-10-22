@@ -86,9 +86,10 @@ export default function DividirPago({ turnoId, clienta, estado, saldo, onListo, 
 
   return (
     <div data-ui="dividir-pago" className="space-y-3">
+      {/* Con borde, como «Queda debiendo»: con `ghost` se leía como texto suelto (cert CH T2, O-9). */}
       <Button
         type="button"
-        variant="ghost"
+        variant="outline"
         size="lg"
         className="w-full"
         aria-expanded={abierto}
@@ -148,7 +149,7 @@ export default function DividirPago({ turnoId, clienta, estado, saldo, onListo, 
             />
             <p className="flex items-baseline justify-between gap-3 text-sm text-muted" aria-live="polite">
               <span>{segundo ? `Con ${METODO_LABEL[segundo].toLowerCase()} (se completa solo)` : "El resto (se completa solo)"}</span>
-              <Plata valor={resto} />
+              <Plata valor={resto} sinCentavos={Number.isInteger(resto)} />
             </p>
           </div>
           {error && (
@@ -245,13 +246,13 @@ export function SumarLoQueDebe({ turnoId, clienta, estado, saldo, onListo, disab
                 <span className="text-body">
                   <span className="tabular-nums">{fmtShortDate(d.inicio)}</span> · {d.servicio}
                 </span>
-                <Plata valor={d.saldo} />
+                <Plata valor={d.saldo} sinCentavos={Number.isInteger(d.saldo)} />
               </li>
             ))}
           </ul>
           <p className="flex items-baseline justify-between gap-3 text-sm font-semibold text-strong">
             <span>{saldo > 0 ? `Hoy ${pesosDelCobro(saldo)} + lo de antes` : "Lo de antes"}</span>
-            <Plata valor={total} />
+            <Plata valor={total} sinCentavos={Number.isInteger(total)} />
           </p>
           <TeclasDeMedio
             tamano="grande"

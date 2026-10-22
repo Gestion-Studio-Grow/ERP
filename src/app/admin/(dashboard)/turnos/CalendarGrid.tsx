@@ -4,7 +4,11 @@
 // LA AGENDA DE SIEMPRE (sin «Diseño nuevo») — el día en el celular y la planilla en la PC.
 // ============================================================================
 //
-// CELULAR: la lista vertical del día con la tarjeta de siempre (AppointmentRow), sin cambios.
+// CELULAR: el libro del día en renglones (`RenglonDelTurno`), el MISMO de la agenda nueva, adentro de
+// la misma mesa que la planilla de la PC: tocar un turno abre el MISMO cajón (como hoja desde abajo),
+// con «Llegó la seña», cobrar, dividir, mover y avisar, cancelar con [Deshacer]. Antes el celular
+// veía la tarjeta vieja (AppointmentRow, con su «Reprogramar» propio) y la PC la mesa nueva: dos
+// agendas para lo mismo (cert CH Tanda 2, O-6). La tarjeta vieja sigue viva en «Todos los turnos».
 // PC (desde lg): la planilla nueva (Tanda 2 · 2-C), la MISMA que la agenda nueva
 // (`_agenda/PorProfesional.tsx`) adentro de la mesa (`MesaDeTurnos`):
 //   · tocar un turno abre el cajón a la derecha, sin mover la grilla (antes: «Turno seleccionado»
@@ -17,48 +21,20 @@
 // REGLA DE INDEPENDENCIA DEL INTERRUPTOR (§0.2 del diseño de CH): la planilla se viste con la piel
 // «Renglón» por su cuenta —`data-diseno` propio en su contenedor y la hoja enlazada acá— sin prender
 // el diseño nuevo del negocio. Si estuviera prendido, la hoja ya está y React no la repite. La lista
-// del celular queda fuera de ese contenedor: se ve como siempre.
+// del celular va adentro del mismo contenedor: se viste igual que el cajón.
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import AppointmentRow from "./AppointmentRow";
-import { fmtTime } from "@/lib/datetime";
+import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
+import { dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
 import PasoVacio from "./PasoVacio";
 import { HOJAS_DEL_DISENO, PIEL_RENGLON, PRECEDENCIA_DEL_DISENO } from "@/lib/diseno/diseno";
 import type { PasoVacio as Paso } from "./pasos";
 import type { Permisos, TurnoDelDia } from "./agenda-core";
 import type { BloqueoDelDia } from "./grilla";
-import MesaDeTurnos from "./_agenda/MesaDeTurnos";
+import MesaDeTurnos, { RenglonDelTurno } from "./_agenda/MesaDeTurnos";
+import { lugarDeLaRaya } from "./agenda-core";
 import PorProfesional from "./_agenda/PorProfesional";
 
 type Professional = { id: string; name: string; box: { name: string } | null };
-type Appointment = {
-  id: string;
-  startsAt: Date;
-  endsAt: Date;
-  status: string;
-  professionalId: string;
-  serviceId: string;
-  priceAtBooking: number | null;
-  notes: string | null;
-  client: { name: string; phone: string };
-  professional: { name: string; cobraEnMostrador?: boolean };
-  service: { name: string; price: number; depositAmount?: number | null };
-  box: { name: string };
-  payment: { method: string; comprobanteNro: string | null; amount?: number; status?: string } | null;
-  // Cobros parciales del turno (seña/saldo) — src/lib/turnos. Ausente en demo.
-  collections?: { amount: number; method: string }[];
-};
-
-// "Reservado" y no "Pendiente de pago": desde los cobros parciales la seña se cobra al
-// reservar y el estado del turno ya no dice nada de la plata (eso lo dice cobrado/saldo).
-const statusLabel: Record<string, string> = {
-  PENDING: "Reservado",
-  CONFIRMED: "Confirmado",
-  CANCELLED: "Cancelado",
-  COMPLETED: "Completado",
-  NO_SHOW: "No se presentó",
-};
-
 /** Lo que la planilla de la PC necesita: la agenda del día ya proyectada en el servidor. */
 export type PlanillaDelDia = {
   turnos: TurnoDelDia[];
@@ -91,25 +67,41 @@ function useTemaDeLaRaiz(ref: React.RefObject<HTMLElement | null>): "light" | "d
   return tema;
 }
 
+/** El día en el celular: un renglón por turno, en orden, con la raya de «ahora» si es hoy. */
+function ListaDelCelular({ planilla, vacio }: { planilla: PlanillaDelDia; vacio: React.ReactNode }) {
+  const reloj = new Date(planilla.ahora);
+  const turnos = [...planilla.turnos].sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime());
+  if (turnos.length === 0) return <>{vacio}</>;
+  const raya = lugarDeLaRaya(turnos, dateStrInBusinessTz(reloj) === planilla.dia, reloj);
+  return (
+    <ol aria-label="Turnos del día" className="border-t border-line-strong">
+      {turnos.map((t, i) => (
+        <Fragment key={t.id}>
+          {raya === i && (
+            <li
+              role="separator"
+              aria-label={`Ahora, ${fmtTime(reloj)}`}
+              className="flex items-center gap-2 py-1 text-xs font-semibold tabular-nums text-accent-ink before:h-0 before:w-3 before:border-t-2 before:border-accent after:h-0 after:flex-1 after:border-t-2 after:border-accent"
+            >
+              Ahora {fmtTime(reloj)}
+            </li>
+          )}
+          <RenglonDelTurno t={t} />
+        </Fragment>
+      ))}
+    </ol>
+  );
+}
+
 export default function CalendarGrid({
   professionals,
-  appointments,
   planilla,
-  canManage = true,
-  canCollect = true,
-  viewer,
   sinProfesionales,
   diaVacio,
-  practica = false,
 }: {
   professionals: Professional[];
-  appointments: Appointment[];
-  /** La planilla de la PC (huecos, cajón, mover, por box). */
+  /** La planilla de la PC (huecos, cajón, mover, por box) y la lista del celular. */
   planilla: PlanillaDelDia;
-  canManage?: boolean;
-  canCollect?: boolean;
-  /** Quién mira: decide si se dibuja el cobro. La regla la resuelve `puedeCobrarEsteTurno`. */
-  viewer?: { role: string; professionalId?: string | null };
   /**
    * Qué decir (y a dónde llevar) si no hay profesionales o el día está vacío. Lo decide la página
    * con `pasos.ts`, porque depende de quién mira y de qué apps puede abrir. Sin esto queda la
@@ -117,8 +109,6 @@ export default function CalendarGrid({
    */
   sinProfesionales?: Paso;
   diaVacio?: Paso;
-  /** Agenda práctica (interruptor «agenda-practica»): se pasa tal cual a cada fila. */
-  practica?: boolean;
 }) {
   const piel = useRef<HTMLDivElement>(null);
   const tema = useTemaDeLaRaiz(piel);
@@ -131,31 +121,12 @@ export default function CalendarGrid({
     );
   }
 
-  // En pantallas angostas la grilla horizontal no entra (columna por
-  // profesional). Mostramos una agenda vertical del día en su lugar y la
-  // grilla completa recién desde lg — mismo dato, presentación distinta.
-  const sortedAppointments = [...appointments].sort(
-    (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
-  );
   const estilo = planilla.letraDelNegocio
     ? ({ "--font-ui": "var(--font-body), ui-sans-serif, system-ui, sans-serif" } as CSSProperties)
     : undefined;
 
   return (
     <div>
-      <div className="lg:hidden space-y-3">
-        {sortedAppointments.length === 0 &&
-          (diaVacio ? <PasoVacio paso={diaVacio} /> : <p className="text-sm text-muted">No hay turnos ese día.</p>)}
-        {sortedAppointments.map((appt) => (
-          <div key={appt.id}>
-            <p className="text-xs font-medium text-faint mb-1">
-              {fmtTime(appt.startsAt)} · {appt.professional.name}
-            </p>
-            <AppointmentRow appointment={appt} statusLabel={statusLabel} canManage={canManage} canCollect={canCollect} viewer={viewer} practica={practica} />
-          </div>
-        ))}
-      </div>
-
       {HOJAS_DEL_DISENO.map((href) => (
         <link key={href} rel="stylesheet" href={href} precedence={PRECEDENCIA_DEL_DISENO} />
       ))}
@@ -166,6 +137,12 @@ export default function CalendarGrid({
           también en el celular, como hoja desde abajo. */}
       <div ref={piel} data-diseno={PIEL_RENGLON} data-theme={tema} data-pantalla="agenda-planilla" style={estilo} className="text-body lg:bg-surface">
         <MesaDeTurnos turnos={planilla.turnos} permisos={planilla.permisos} ahora={planilla.ahora} hrefFicha={planilla.hrefFicha}>
+          <div className="lg:hidden">
+            <ListaDelCelular
+              planilla={planilla}
+              vacio={diaVacio ? <PasoVacio paso={diaVacio} /> : <p className="text-sm text-muted">No hay turnos ese día.</p>}
+            />
+          </div>
           <div className="hidden lg:block">
             <PorProfesional
               turnos={planilla.turnos}

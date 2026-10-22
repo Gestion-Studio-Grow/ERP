@@ -323,6 +323,7 @@ export default function AltaDeTurno({
       nombre,
       telefono,
       deLaZona: datos.vecina,
+      deLaZonaDeLaFicha: datos.precarga?.vecina ?? null,
       cupon,
       cobro: decision.cobro,
       estado: decision.estado,

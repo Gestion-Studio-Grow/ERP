@@ -28,7 +28,16 @@ export default function TeclaDePlata({ hueco, cerrar }: { hueco: HuecoDeFicha; c
     router.refresh();
   };
   if (hueco.tipo === "llego-la-senia") {
-    return <LlegoLaSenia turnoId={hueco.turnoId} clienta={hueco.clienta} monto={hueco.monto} onListo={listo} className="w-full" />;
+    return (
+      <LlegoLaSenia
+        turnoId={hueco.turnoId}
+        clienta={hueco.clienta}
+        monto={hueco.monto}
+        confirma={hueco.confirma !== false}
+        onListo={listo}
+        className="w-full"
+      />
+    );
   }
   return <CobrarLoQueDebe clienta={hueco.clienta} cobros={hueco.cobros} onListo={listo} />;
 }

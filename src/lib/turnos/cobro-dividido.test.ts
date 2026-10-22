@@ -137,6 +137,13 @@ describe("«Llegó la seña»: cobra lo que falta de la seña y confirma", () =>
     assert.deepEqual(planDeSenia({ ...base, status: "CONFIRMED", cobradoReal: 5000 }), { tipo: "ya-estaba" });
   });
 
+  test("cert F-1 · quien cobra pero no confirma (la profesional): cobra la seña y el turno sigue Reservado", () => {
+    assert.deepEqual(planDeSenia({ ...base, puedeConfirmar: false }), { tipo: "cobrar", monto: 5000, confirmar: false });
+    // La seña ya entró: no hay nada que hacer (no «solo-confirmar»: no confirma).
+    assert.deepEqual(planDeSenia({ ...base, cobradoReal: 5000, puedeConfirmar: false }), { tipo: "ya-estaba" });
+    assert.deepEqual(planDeSenia({ ...base, puedeConfirmar: true }), { tipo: "cobrar", monto: 5000, confirmar: true });
+  });
+
   test("un Confirmado al que le llega la seña se cobra sin tocar el estado", () => {
     assert.deepEqual(planDeSenia({ ...base, status: "CONFIRMED" }), { tipo: "cobrar", monto: 5000, confirmar: false });
   });

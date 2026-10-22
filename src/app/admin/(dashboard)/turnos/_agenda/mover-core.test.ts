@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { destinoDelArrastre, diasParaMover, preguntaDeMover, sePuedeMover, veredictoDelDestino } from "./mover-core";
+import { destinoDelArrastre, diasParaMover, huecosParaOfrecer, preguntaDeMover, sePuedeMover, veredictoDelDestino } from "./mover-core";
 
 const iso = (dia: string, hhmm: string) => new Date(`${dia}T${hhmm}:00-03:00`).toISOString();
 const DIA = "2030-10-24"; // jueves
@@ -49,4 +49,13 @@ test("diasParaMover: hoy + 6, y el día del turno si cae más adelante", () => {
   assert.deepEqual(diasParaMover("2030-10-24", "2030-10-24"), ["2030-10-24", "2030-10-25", "2030-10-26", "2030-10-27", "2030-10-28", "2030-10-29", "2030-10-30"]);
   assert.equal(diasParaMover("2030-10-24", "2030-11-15").at(-1), "2030-11-15");
   assert.equal(diasParaMover("2030-10-24", "2030-10-01").length, 7);
+});
+
+test("cert F-3 · el cajón no ofrece la hora que el turno ya tiene (con la misma profesional) ni las pasadas", () => {
+  const huecos = [iso(DIA, "11:00"), iso(DIA, "13:00"), iso(DIA, "16:00"), iso(DIA, "17:30")];
+  // Con Caro (la del turno): ni las 11:00 (ya pasó) ni las 16:00 (es donde está).
+  assert.deepEqual(huecosParaOfrecer(huecos, laura, "caro", ahora), [iso(DIA, "13:00"), iso(DIA, "17:30")]);
+  // Con Lu, las 16:00 sí es un cambio: se ofrece.
+  assert.deepEqual(huecosParaOfrecer(huecos, laura, "lu", ahora), [iso(DIA, "13:00"), iso(DIA, "16:00"), iso(DIA, "17:30")]);
+  assert.deepEqual(huecosParaOfrecer([], laura, "caro", ahora), []);
 });

@@ -154,6 +154,13 @@ test("permisos: sin agenda:collect no hay huecos de plata ni «Cobrar lo que deb
   assert.equal(sinDarTurno[0].items[0].teclas?.[0].id, "whatsapp");
 });
 
+test("cert F-1 · la profesional ve «Llegó la seña» de SU turno como «registrar» (confirma: false); la recepción, sin el campo", () => {
+  const grupos = armarFichas(lecturaDeLaura(), PROFESIONAL, AHORA);
+  assert.deepEqual(grupos[0].items[0].huecos, [{ tipo: "llego-la-senia", turnoId: "t-jue", clienta: "Laura Gómez", monto: 5000, confirma: false }]);
+  const recepcion = armarFichas(lecturaDeLaura(), RECEPCION, AHORA);
+  assert.ok(recepcion[1].items[0].huecos?.every((h) => !("confirma" in h)));
+});
+
 test("una profesional (sin clients:read): sólo turnos, sin ficha ni WhatsApp", () => {
   const l = lecturaDeLaura();
   const grupos = armarFichas(l, PROFESIONAL, AHORA);

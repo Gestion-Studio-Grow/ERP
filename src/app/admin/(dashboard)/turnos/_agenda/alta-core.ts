@@ -107,6 +107,11 @@ export type AltaParaMandar = {
   nombre: string;
   telefono: string;
   deLaZona: boolean;
+  /**
+   * Lo que dice la ficha precargada de «De la zona» (`null` = no hay ficha precargada o nunca se le
+   * preguntó). Si estaba tildada y la recepción la destildó, viaja «off» (cert CH T2, O-5).
+   */
+  deLaZonaDeLaFicha?: boolean | null;
   cupon: string;
   /** Cobrar algo en el acto: el monto y el medio. `null` = no se cobra nada ahora. */
   cobro: { monto: number; metodo: string } | null;
@@ -116,8 +121,8 @@ export type AltaParaMandar = {
 
 /**
  * Los campos de `createManualAppointment`, con los nombres de siempre (`senaCobrar`/`senaMonto`/
- * `senaMetodo` aunque se cobre el total: así los lee el servidor). «De la zona» viaja sólo tildado,
- * como un checkbox; el monto, en la forma canónica.
+ * `senaMetodo` aunque se cobre el total: así los lee el servidor). «De la zona» viaja tildado («on») o
+ * destildado a propósito («off»); el monto, en la forma canónica.
  */
 export function camposDelAlta(a: AltaParaMandar): Campos {
   const c: [string, string][] = [
@@ -127,7 +132,10 @@ export function camposDelAlta(a: AltaParaMandar): Campos {
     ["clientName", a.nombre.trim()],
     ["clientPhone", a.telefono.trim()],
   ];
+  // «De la zona»: tildado viaja «on»; destildado SÓLO viaja («off») si la ficha decía que sí, porque
+  // ahí hubo una decisión. Sin tocarlo no viaja y el servidor no le toca la ficha (O-5: null ≠ false).
   if (a.deLaZona) c.push(["isResident", "on"]);
+  else if (a.deLaZonaDeLaFicha === true) c.push(["isResident", "off"]);
   c.push(["couponCode", a.cupon.trim()]);
   if (a.cobro && a.cobro.monto > 0) {
     c.push(["senaCobrar", "on"], ["senaMonto", importeParaFormulario(a.cobro.monto)], ["senaMetodo", a.cobro.metodo]);

@@ -7,6 +7,7 @@
  *   · CH-025 con `rescheduleAppointment` (lo que llaman el arrastre y «Mover»): el MISMO turno pasa a
  *     otra profesional y hora, no se crea otro, se borra el «avisada»; si choca, no se mueve y el
  *     motivo vuelve en castellano.
+ *   · Cert T2: al mismo horario (F-3) no toca nada; al pasado (O-7) se rechaza.
  *   · Aislamiento (CH-060/061 análogo): la recepción de otro negocio no lo ve ni lo mueve.
  *   · Maestros intactos (CH-069/070): servicios, profesionales y boxes no cambian.
  */
@@ -161,6 +162,34 @@ test("CH-025 · si choca, no se mueve y vuelve el motivo", async (t) => {
   const igual = await duenio.appointment.findUniqueOrThrow({ where: { id: laura } });
   assert.equal(igual.professionalId, s.caro);
   assert.equal(igual.startsAt.toISOString(), s.a("09:00"));
+});
+
+test("cert F-3 · al MISMO horario con la MISMA profesional: «Ya está en ese horario», sin tocar «avisada» ni auditar", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const laura = await s.turno("14:00", { avisada: true });
+  const antes = await duenio.appointment.findUniqueOrThrow({ where: { id: laura } });
+  assert.ok(antes.reminderSentAt, "arranca avisada");
+  const r = await mover(s, laura, s.caro, s.a("14:00"));
+  assert.deepEqual(r, { ok: false, error: "Ya está en ese horario: no se movió nada." });
+  // Sin profesional en el formulario (= la misma), igual.
+  assert.deepEqual(await mover(s, laura, "", s.a("14:00")), { ok: false, error: "Ya está en ese horario: no se movió nada." });
+  const despues = await duenio.appointment.findUniqueOrThrow({ where: { id: laura } });
+  assert.equal(despues.reminderSentAt?.toISOString(), antes.reminderSentAt?.toISOString(), "«avisada» intacta");
+  assert.equal(despues.updatedAt.toISOString(), antes.updatedAt.toISOString(), "la fila no se tocó");
+  assert.equal(await duenio.auditLog.count({ where: { tenantId: s.base.a.id, action: "reschedule", entityId: laura } }), 0);
+});
+
+test("cert O-7 · mover a un horario que ya pasó se rechaza en el servidor (un POST a mano tampoco)", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const laura = await s.turno("15:00");
+  const hace1h = new Date(Date.now() - 60 * MIN).toISOString();
+  assert.deepEqual(await mover(s, laura, s.caro, hace1h), { ok: false, error: "Ese horario ya pasó. Elegí uno que venga." });
+  const igual = await duenio.appointment.findUniqueOrThrow({ where: { id: laura } });
+  assert.equal(igual.startsAt.toISOString(), s.a("15:00"));
 });
 
 test("un turno cancelado no se consulta ni se mueve", async (t) => {

@@ -21,11 +21,20 @@
 //   · Entrada: `leerBusqueda` (2 a 60 letras). En el log va el largo, no lo buscado (puede ser un
 //     teléfono). Los errores dicen qué hacer.
 //
-// LÍMITES CONOCIDOS (los mismos que el buscador de Ctrl/⌘K, src/lib/buscador/): `ILIKE '%q%'` sin
-// índice de trigramas y sensible a tildes («gomez» no trae «Gómez»); el teléfono se compara tal
-// como se guardó o por sus dígitos seguidos (sin columna normalizada: sería una migración).
+// TILDES Y MAYÚSCULAS (cert CH T2, O-8): el nombre se compara sin tildes ni mayúsculas EN LA CONSULTA
+// (`lower(replace(…replace(name, 'á', 'a')…))`, funciones de Postgres de siempre: sin extensión, sin
+// índice nuevo, sin migración), así «gomez» trae a «Gómez» y «GÓMEZ». Lo tipeado se normaliza igual
+// (`normalizarBusqueda`) y se escapan `%`, `_` y `\` (se buscan tal cual, nunca abren comodines). Va en
+// una transacción del negocio (RLS con su GUC) y con `tenantId` escrito en el `where`.
+//
+// LÍMITES CONOCIDOS: sin índice de trigramas (`LIKE '%q%'` recorre las fichas del negocio: cientos,
+// no millones); el teléfono se compara tal como se guardó o por sus dígitos seguidos (sin columna
+// normalizada: sería una migración).
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
+import { tenantTransaction } from "@/lib/rls";
+import { normalizarBusqueda } from "@/modules/nav-search";
 import { requireCapability } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -59,6 +68,56 @@ function inicioDeHoy(ahora: Date): Date {
   return new Date(ahora.getTime() - 12 * 3_600_000);
 }
 
+// Las letras con tilde (minúsculas y mayúsculas) y su letra sin tilde, en el mismo orden.
+const CON_TILDE = "áàâäéèêëíìîïóòôöúùûüñçÁÀÂÄÉÈÊËÍÌÎÏÓÒÔÖÚÙÛÜÑÇ";
+const SIN_TILDE = "aaaaeeeeiiiioooouuuuncAAAAEEEEIIIIOOOOUUUUNC";
+
+/**
+ * `lower(<nombre sin tildes>)` en SQL: un `replace` por letra (y no `translate`, que en una base
+ * SQL_ASCII —la del arnés de tests— trabaja por byte y rompe las letras de dos bytes). En UTF8 (Neon)
+ * da lo mismo; cada letra viaja como parámetro.
+ */
+const NOMBRE_SIN_TILDES: Prisma.Sql = [...CON_TILDE].reduce(
+  (expr, letra, i) => Prisma.sql`replace(${expr}, ${letra}, ${SIN_TILDE[i]})`,
+  Prisma.sql`"name"`,
+);
+
+/** `%`, `_` y `\` se buscan tal cual: LIKE usa `\` como escape por defecto. */
+function escaparLike(texto: string): string {
+  return texto.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+/**
+ * Los ids (y nombre y teléfono) de las fichas del negocio cuyo nombre contiene lo tipeado SIN tildes
+ * ni mayúsculas, o cuyo teléfono lo contiene (tal cual o por los dígitos). En orden de nombre.
+ */
+async function fichasQueCoinciden(
+  tenantId: string,
+  b: { texto: string; digitos?: string | null },
+  limite: number,
+): Promise<{ id: string; name: string; phone: string | null }[]> {
+  const nombre = `%${escaparLike(normalizarBusqueda(b.texto))}%`;
+  const telefono = `%${escaparLike(b.texto)}%`;
+  const digitos = b.digitos && b.digitos.length >= 3 && b.digitos !== b.texto ? `%${escaparLike(b.digitos)}%` : null;
+  return tenantTransaction(
+    (tx) =>
+      tx.$queryRaw<{ id: string; name: string; phone: string | null }[]>(Prisma.sql`
+        SELECT "id", "name", "phone" FROM "Client"
+        WHERE "tenantId" = ${tenantId}
+          AND (
+            lower(${NOMBRE_SIN_TILDES}) LIKE ${nombre}
+            OR "phone" LIKE ${telefono}
+            ${digitos ? Prisma.sql`OR "phone" LIKE ${digitos}` : Prisma.empty}
+          )
+        ORDER BY "name" ASC
+        LIMIT ${limite}`),
+    { tenantId },
+  );
+}
+
+/** Para la profesional (sin clients:read): sólo los ids, para filtrar SUS turnos (no se devuelven fichas). */
+const IDS_PARA_LA_PROFESIONAL = 200;
+
 export async function buscarClientasYTurnos(q: unknown): Promise<ResultadoDelBuscador> {
   const busqueda = leerBusqueda(q);
   if (!busqueda.ok) return busqueda;
@@ -84,18 +143,16 @@ export async function buscarClientasYTurnos(q: unknown): Promise<ResultadoDelBus
   try {
     let clientas: ClientaLeida[] = [];
     if (permisos.verClientas) {
-      const filas = await prisma.client.findMany({
-        where: { tenantId, OR: porNombreOTelefono },
-        orderBy: { name: "asc" },
-        take: FILAS_A_LEER,
-        select: { id: true, name: true, phone: true },
-      });
+      const filas = await fichasQueCoinciden(tenantId, { texto, digitos }, FILAS_A_LEER);
       clientas = ordenarClientas(
-        filas.map((c) => ({ id: c.id, nombre: c.name, telefono: c.phone })),
+        filas.map((c) => ({ id: c.id, nombre: c.name, telefono: c.phone ?? "" })),
         busqueda,
       );
     }
     const ids = clientas.map((c) => c.id);
+    // La profesional: SUS turnos cuya clienta coincide, también sin tildes (la consulta de siempre,
+    // más los ids que trae la comparación sin tildes).
+    const idsSinTilde = permisos.verClientas ? [] : (await fichasQueCoinciden(tenantId, { texto, digitos }, IDS_PARA_LA_PROFESIONAL)).map((c) => c.id);
 
     // Los turnos que vienen: de las clientas encontradas; la profesional (sin clientas), los SUYOS
     // cuya clienta coincide.
@@ -104,7 +161,9 @@ export async function buscarClientasYTurnos(q: unknown): Promise<ResultadoDelBus
       status: { in: ["PENDING" as const, "CONFIRMED" as const] },
       startsAt: { gte: inicioDeHoy(ahora) },
       ...(soloDe ? { professionalId: soloDe } : {}),
-      ...(permisos.verClientas ? { clientId: { in: ids } } : { client: { OR: porNombreOTelefono } }),
+      ...(permisos.verClientas
+        ? { clientId: { in: ids } }
+        : { OR: [{ client: { OR: porNombreOTelefono } }, ...(idsSinTilde.length > 0 ? [{ clientId: { in: idsSinTilde } }] : [])] }),
     };
     const hayDondeBuscar = permisos.verClientas ? ids.length > 0 : true;
     const seleccion = (conFlag: boolean) =>

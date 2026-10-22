@@ -30,7 +30,7 @@ import { useToast } from "../../ToastProvider";
 import { esRedireccionDeNext } from "../errores";
 import { fechaCorta, type TurnoDelDia } from "../agenda-core";
 import { mensajeMover } from "@/lib/turnos/mensajes-whatsapp";
-import { diasParaMover, preguntaDeMover, type Destino } from "./mover-core";
+import { diasParaMover, huecosParaOfrecer, preguntaDeMover, type Destino } from "./mover-core";
 
 type ResultadoDeMover = { ok: true; avisoPendiente: string | null } | { ok: false; error: string };
 
@@ -208,6 +208,13 @@ export default function MoverTurno({
   onListo?: (movido: boolean) => void;
 }) {
   const [abierto, setAbierto] = useState(abiertoAlEmpezar);
+  // Al abrirse al pie del cajón, el panel se trae a la vista (las teclas quedaban bajo el borde: O-10).
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!abierto) return;
+    const quieto = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    panel.current?.scrollIntoView({ block: "start", behavior: quieto ? "auto" : "smooth" });
+  }, [abierto]);
   const [profesionalId, setProfesionalId] = useState(turno.profesionalId);
   const hoy = dateStrInBusinessTz(new Date(ahora));
   const dias = diasParaMover(hoy, dateStrInBusinessTz(new Date(turno.inicio)));
@@ -261,15 +268,16 @@ export default function MoverTurno({
     );
   }
 
-  const ahoraMs = new Date(ahora).getTime();
-  const libres = (d: string) => (carga.fase === "lista" ? (carga.huecos[d] ?? []).filter((h) => new Date(h).getTime() > ahoraMs) : []);
+  const reloj = new Date(ahora);
+  // Sin los pasados ni la hora que ya tiene (con la misma profesional): F-3.
+  const libres = (d: string) => (carga.fase === "lista" ? huecosParaOfrecer(carga.huecos[d] ?? [], turno, profesionalId, reloj) : []);
   const profesionales = carga.fase === "lista" ? carga.profesionales : [];
   const nombre = profesionales.find((p) => p.id === profesionalId)?.nombre ?? turno.profesional;
   const huecosDelDia = libres(dia);
   const destino: Destino | null = elegido ? { profesionalId, profesional: nombre, inicio: elegido } : null;
 
   return (
-    <div role="group" aria-label="Mover el turno" className="w-full space-y-4 border-l-2 border-line-strong pl-3">
+    <div ref={panel} role="group" aria-label="Mover el turno" className="w-full scroll-mt-4 space-y-4 border-l-2 border-line-strong pl-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-semibold text-strong">Mover el turno</p>
         <Button

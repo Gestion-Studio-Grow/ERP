@@ -39,6 +39,7 @@ import { extrasDeLaAgenda, proyectarAgenda } from "./agenda.server";
 import { esFechaDeCalendario, hrefDiaDeLaAgenda, hrefNuevoTurno, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
 import LinkAlDia from "./_agenda/LinkAlDia";
 import BotonBuscar from "../armazon/BotonBuscar";
+import AtajosDelAlta from "./_agenda/AtajosDelAlta";
 import LibroDelDia from "./_agenda/LibroDelDia";
 import { RenglonDeManana } from "./_agenda/ParaManana";
 import OtroDia from "./_agenda/OtroDia";
@@ -187,6 +188,8 @@ export default async function AgendaRenglon({
         ]}
         actions={
           <>
+            {/* Las entradas fijas al alta nueva (cert CH T2, F-2/F-4). Con el alta ya abierta, no. */}
+            {permisos.gestionar && !alta && <AtajosDelAlta fecha={dia} hoy={hoy} />}
             {/* En el celular no hay «/»: el buscador de clientas y turnos, a un toque (CH-028). */}
             <BotonBuscar />
             <ElDia dia={dia} hoy={hoy} vista={vista} />

@@ -170,6 +170,30 @@ test("CH-020 · clienta nueva: la ficha se crea con el teléfono normalizado y e
   assert.deepEqual(turno.client, { name: "Martina Ruiz", phone: "1123456789", tenantId: s.base.a.id });
 });
 
+test("cert O-5 · CH-071 · dar un turno sin tocar «De la zona» no pasa la ficha de null a false; destildarla a propósito sí", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const { darTurno } = await import("./alta-actions");
+  const ficha = await duenio.client.create({ data: { tenantId: s.base.a.id, name: "Noelia Paz", phone: "1140007001" } });
+  const antes = await duenio.client.findUniqueOrThrow({ where: { id: ficha.id }, select: { isResident: true, updatedAt: true } });
+  assert.equal(antes.isResident, null, "nunca se le preguntó");
+  const alta = (hhmm: string, extra: { deLaZona: boolean; deLaZonaDeLaFicha?: boolean | null }) =>
+    aFormData(
+      camposDelAlta({ profesionalId: s.a.lu, servicioId: s.a.axilas, inicio: inicioDeLaHora(s.manana, hhmm), nombre: "Noelia Paz", telefono: "11 4000-7001", cupon: "", cobro: null, estado: "PENDING", notas: "", ...extra }),
+    );
+  const r = await comoRecepcion(s, () => darTurno(alta("08:00", { deLaZona: false, deLaZonaDeLaFicha: null })));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const sinTocar = await duenio.client.findUniqueOrThrow({ where: { id: ficha.id }, select: { isResident: true, updatedAt: true } });
+  assert.deepEqual(sinTocar, antes, "ni isResident ni updatedAt: el maestro no se tocó");
+
+  // Tildarla es una decisión: queda true. Destildarla después (la ficha decía que sí): false.
+  assert.equal((await comoRecepcion(s, () => darTurno(alta("08:30", { deLaZona: true, deLaZonaDeLaFicha: null })))).ok, true);
+  assert.equal((await duenio.client.findUniqueOrThrow({ where: { id: ficha.id } })).isResident, true);
+  assert.equal((await comoRecepcion(s, () => darTurno(alta("09:00", { deLaZona: false, deLaZonaDeLaFicha: true })))).ok, true);
+  assert.equal((await duenio.client.findUniqueOrThrow({ where: { id: ficha.id } })).isResident, false);
+});
+
 test("CH-019 · «Atender ahora»: sólo la profesional libre en la franja de ahora", async (t) => {
   const s = await preparar(t);
   if (!s) return;

@@ -1,7 +1,6 @@
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
 import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
-import { agendaPractica } from "@/lib/turnos/practica.server";
 import MananaConfirmar from "./MananaConfirmar";
 import { todayInBusinessTz, fmtCalendarDateLabel } from "@/lib/datetime";
 import { requireApp } from "@/lib/require-app";
@@ -19,6 +18,7 @@ import AgendaRenglon from "./AgendaRenglon";
 import { extrasDeLaAgenda, proyectarAgenda } from "./agenda.server";
 import LinkAlDia from "./_agenda/LinkAlDia";
 import BotonBuscar from "../armazon/BotonBuscar";
+import AtajosDelAlta from "./_agenda/AtajosDelAlta";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 
@@ -104,15 +104,14 @@ export default async function TurnosCalendarPage({
   // de la recepción al final del día, y mañana es mañana de verdad (no "el día siguiente al
   // que se está mirando"). Al profesional no se le muestra: confirmar no es su tarea.
   const verManana = canManage && date === today;
-  const [cruda, manana, piloto, negocio, practica, slug] = await Promise.all([
+  const [cruda, manana, piloto, negocio, slug] = await Promise.all([
     getAgendaDay(date),
     verManana ? getMananaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(user.role),
-    agendaPractica(),
     getCurrentTenantSlug(),
   ]);
-  const { professionals, appointments, blocksToday } = cruda;
+  const { professionals, blocksToday } = cruda;
   // La planilla de la PC (Tanda 2 · 2-C): el día proyectado campo por campo (agenda.server.ts), con
   // el veredicto de cobro de quien mira, y lo que puede hacer (las mismas capacidades del servidor).
   // Tanda 2: la marca «seña pedida» y el horario de trabajo (una lectura más por día, con tenantId).
@@ -148,8 +147,13 @@ export default async function TurnosCalendarPage({
     <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold text-strong">Agenda</h1>
-        {/* En el celular no hay «/»: el buscador de clientas y turnos, a un toque (CH-028). */}
-        <BotonBuscar />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Las entradas fijas al alta nueva (cert CH T2, F-2/F-4): «Dar turno» y «Atender ahora»
+              (CH-019), en la PC y en el celular. Sólo quien da turnos. */}
+          {canManage && <AtajosDelAlta fecha={date} hoy={today} />}
+          {/* En el celular no hay «/»: el buscador de clientas y turnos, a un toque (CH-028). */}
+          <BotonBuscar />
+        </div>
       </div>
       {/* Pestañas: en el celular llevan el alto táctil (44 px) sin cambiar cómo se ven en la PC. */}
       <div className="flex gap-4 text-sm mb-6 border-b border-line">
@@ -199,17 +203,7 @@ export default async function TurnosCalendarPage({
 
       {manana && <MananaConfirmar dia={manana.dia} turnos={manana.turnos} />}
 
-      <CalendarGrid
-        professionals={professionals}
-        appointments={appointments}
-        planilla={planilla}
-        canManage={canManage}
-        canCollect={canCollect}
-        viewer={{ role: user.role, professionalId: user.professionalId }}
-        sinProfesionales={sinProfesionales}
-        diaVacio={diaVacio}
-        practica={practica}
-      />
+      <CalendarGrid professionals={professionals} planilla={planilla} sinProfesionales={sinProfesionales} diaVacio={diaVacio} />
     </main>
   );
 }

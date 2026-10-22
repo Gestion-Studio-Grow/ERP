@@ -49,6 +49,9 @@ describe("piezas", () => {
   test("los servicios en una frase", () => {
     assert.equal(listaDeServicios(["Bozo", "Axilas", "Piernas completas", "Cavado c/tira"]), "Bozo, axilas, piernas completas y cavado c/tira");
     assert.equal(listaDeServicios("Axilas"), "Axilas");
+    // O-13: un servicio roto no se imprime.
+    assert.equal(listaDeServicios(["null", "Axilas", "undefined"]), "Axilas");
+    assert.equal(listaDeServicios("null"), "");
     assert.equal(listaDeServicios(["Peeling", "LED facial"]), "Peeling y LED facial");
     assert.equal(listaDeServicios([" ", ""]), "");
   });

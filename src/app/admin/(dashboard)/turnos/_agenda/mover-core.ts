@@ -8,6 +8,7 @@
 //   · `veredictoDelDestino`: ¿se puede soltar el turno en esa celda? Y si no, por qué, en criollo.
 //   · `destinoDelArrastre`: a qué profesional va el turno según la columna donde se soltó.
 //   · `diasParaMover`: los chips de días del cajón (hoy + 6).
+//   · `huecosParaOfrecer`: los horarios del cajón (sin los pasados ni el que ya tiene el turno).
 //   · el WhatsApp «Te pasamos el turno al …» es `mensajeMover` (src/lib/turnos/mensajes-whatsapp.ts).
 //
 // Client-safe: sin Prisma ni servidor.
@@ -84,6 +85,25 @@ export function diasParaMover(hoy: string, diaDelTurno: string, cuantos = 7): st
   const dias = Array.from({ length: cuantos }, (_, i) => diaMas(hoy, i));
   if (diaDelTurno > dias[dias.length - 1]) dias.push(diaDelTurno);
   return dias;
+}
+
+/**
+ * Los horarios que ofrece el cajón para mover `turno` a `profesionalId`: los que vienen (no los que ya
+ * pasaron) y, con la misma profesional, NO el horario que ya tiene. Los huecos llegan pedidos sin
+ * contar el propio turno (`excludeAppointmentId`), así que su hora vuelve como libre; ofrecerla era
+ * «mover» al mismo lugar, borrar «avisada» y mandar un WhatsApp absurdo (cert CH T2, F-3).
+ */
+export function huecosParaOfrecer(
+  huecos: readonly string[],
+  turno: Pick<TurnoParaMover, "inicio" | "profesionalId">,
+  profesionalId: string,
+  ahora: Date,
+): string[] {
+  const propio = profesionalId === turno.profesionalId ? new Date(turno.inicio).getTime() : null;
+  return huecos.filter((h) => {
+    const ms = new Date(h).getTime();
+    return ms > ahora.getTime() && ms !== propio;
+  });
 }
 
 /** «¿Mover a jue 24 16:30 con Caro?» */

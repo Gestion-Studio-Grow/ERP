@@ -449,6 +449,9 @@ export default function NewAppointmentForm({
               Cliente de la zona (precio local)
               {vecinaDeLaFicha && <span className="text-xs text-muted">· según su ficha</span>}
             </label>
+            {/* Destildar a una vecina de la ficha es una decisión: viaja como «off». Sin tocarlo no viaja
+                nada y el servidor no le cambia la ficha (cert CH T2, O-5: nada de null → false). */}
+            {!datos.vecina && datos.precarga?.vecina && <input type="hidden" name="isResident" value="off" />}
             <Field label="Cupón (opcional)" htmlFor="na-coupon">
               <Input
                 id="na-coupon"

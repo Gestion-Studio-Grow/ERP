@@ -192,12 +192,22 @@ export const hrefSaldos = (desde: string | null) => (desde ? `/admin/turnos/list
 
 // ── Lo que se pinta ──────────────────────────────────────────────────────────
 
+/**
+ * «Llegó la seña» de quien cobra pero no confirma turnos (la profesional, sin `agenda:manage`): la
+ * tecla registra la seña y dice que el turno lo confirma la recepción (cert CH T2, F-1). Sin el
+ * campo, cobra y confirma como siempre.
+ */
+function sinConfirmar(p: PermisosDelBuscador): { confirma?: false } {
+  return p.darTurno ? {} : { confirma: false };
+}
+
 function renglonDeTurno(t: TurnoLeido, l: LecturaDelBuscador, p: PermisosDelBuscador, ahora: Date): Comando {
   const dia = dateStrInBusinessTz(t.inicio);
   const senia = seniaPendiente(t, cobrosDe(l, t.id));
   const teclas: TeclaDeFicha[] = [{ id: "abrir-turno", etiqueta: "Abrir el turno", href: hrefTurno(t.id, dia) }];
   if (p.verClientas) teclas.push({ id: "ver-ficha", etiqueta: "Ver ficha", href: hrefFicha(t.clienteId) });
-  const huecos: HuecoDeFicha[] = senia > 0 && p.cobrar && t.cobrable ? [{ tipo: "llego-la-senia", turnoId: t.id, clienta: t.clienta, monto: senia }] : [];
+  const huecos: HuecoDeFicha[] =
+    senia > 0 && p.cobrar && t.cobrable ? [{ tipo: "llego-la-senia", turnoId: t.id, clienta: t.clienta, monto: senia, ...sinConfirmar(p) }] : [];
   const resumen = [`${cuandoEs(t.inicio, ahora)} · ${t.servicio} con ${t.profesional}`, estadoEnPalabras(t.estado)];
   if (senia > 0) resumen.push(`Seña de ${pesos(senia)} sin cobrar`);
   return {
@@ -238,7 +248,7 @@ function renglonDeClienta(c: ClientaLeida, l: LecturaDelBuscador, p: PermisosDel
 
   const huecos: HuecoDeFicha[] = [];
   if (deuda.monto > 0 && p.cobrar) huecos.push({ tipo: "cobrar-deuda", clienteId: c.id, clienta: c.nombre, monto: deuda.monto, turnoIds: deuda.turnoIds, cobros: deuda.cobros });
-  if (proximo && senia > 0 && p.cobrar && proximo.cobrable) huecos.push({ tipo: "llego-la-senia", turnoId: proximo.id, clienta: c.nombre, monto: senia });
+  if (proximo && senia > 0 && p.cobrar && proximo.cobrable) huecos.push({ tipo: "llego-la-senia", turnoId: proximo.id, clienta: c.nombre, monto: senia, ...sinConfirmar(p) });
 
   const segunda = [
     c.telefono.trim() || "Sin teléfono",

@@ -164,6 +164,13 @@ export const MEDIO_DE_LA_SENIA: MetodoDePago = "TRANSFERENCIA";
  * no por la captura que manda la clienta (comprobante informado ≠ cobrado; decisión del orquestador).
  */
 export const NOTA_LLEGO_LA_SENIA = "Llegó la seña (verificada por recepción)";
+/** La misma nota cuando la registra la profesional que cobra sus turnos (cert CH T2, F-1). */
+export const NOTA_LLEGO_LA_SENIA_PROFESIONAL = "Llegó la seña (verificada por la profesional)";
+
+/** La nota del cobro de «Llegó la seña» según quién la tocó. */
+export function notaLlegoLaSenia(rol: string): string {
+  return rol === "PROFESSIONAL" ? NOTA_LLEGO_LA_SENIA_PROFESIONAL : NOTA_LLEGO_LA_SENIA;
+}
 
 /** La ayuda debajo de «Llegó la seña» (buscador y cajón): cuándo se toca. */
 export const AYUDA_LLEGO_LA_SENIA = "Tocalo cuando la veas en el banco o en Mercado Pago, no por la captura.";
@@ -198,6 +205,11 @@ export function planDeSenia(p: {
   precio: number;
   cobradoReal: number;
   montoEsperado?: number | null;
+  /**
+   * ¿Quien toca puede confirmar el turno (`agenda:manage`)? La profesional cobra su seña pero no
+   * confirma (cert CH T2, F-1): la seña se registra y el turno sigue Reservado. Por defecto, sí.
+   */
+  puedeConfirmar?: boolean;
 }): PlanDeSenia {
   if (p.status !== "PENDING" && p.status !== "CONFIRMED") {
     return { tipo: "rechazado", motivo: "Ese turno ya no está reservado ni confirmado: no se le cobra la seña." };
@@ -205,7 +217,7 @@ export function planDeSenia(p: {
   const senia = seniaDelServicio({ depositAmount: p.depositAmount, precio: p.precio });
   if (!(senia > 0)) return { tipo: "rechazado", motivo: "Este servicio no tiene seña: confirmalo sin seña." };
   const falta = seniaQueFalta(p);
-  const confirmar = p.status === "PENDING";
+  const confirmar = p.status === "PENDING" && p.puedeConfirmar !== false;
   if (falta <= 0) return confirmar ? { tipo: "solo-confirmar" } : { tipo: "ya-estaba" };
   if (p.montoEsperado != null && Number.isFinite(p.montoEsperado) && centavosDe(p.montoEsperado) !== centavosDe(falta)) {
     return { tipo: "rechazado", motivo: MENSAJE_SENIA_CAMBIO };
@@ -305,7 +317,7 @@ export function puedeDeshacerCierre(p: {
 
 /** ¿Se puede deshacer la seña recién cobrada? El cobro tiene que ser de «Llegó la seña» y reciente. */
 export function puedeDeshacerSenia(p: { note: string | null; cobradoEl: Date; ahora: Date }): { ok: true } | { ok: false; motivo: string } {
-  if (p.note !== NOTA_LLEGO_LA_SENIA) return { ok: false, motivo: "Ese cobro no es una seña recién llegada: anulalo desde «La plata» con su motivo." };
+  if (p.note !== NOTA_LLEGO_LA_SENIA && p.note !== NOTA_LLEGO_LA_SENIA_PROFESIONAL) return { ok: false, motivo: "Ese cobro no es una seña recién llegada: anulalo desde «La plata» con su motivo." };
   if (p.ahora.getTime() - p.cobradoEl.getTime() > VENTANA_DESHACER_MS) return { ok: false, motivo: MENSAJE_VENTANA_VENCIDA };
   return { ok: true };
 }

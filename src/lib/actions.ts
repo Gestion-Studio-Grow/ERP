@@ -774,7 +774,12 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
   const statusInput = String(formData.get("status"));
   const status: BookingStatus = statusInput === "CONFIRMED" ? "CONFIRMED" : "PENDING";
   const notes = String(formData.get("notes") || "");
-  const isResident = formData.get("isResident") === "on";
+  // «De la zona»: «on» = tildado, «off» = destildado A PROPÓSITO (la ficha decía que sí), ausente =
+  // nadie lo tocó. El precio de ESTE turno usa sólo el tilde; la FICHA se cambia sólo con «on»/«off»
+  // (cert CH T2, O-5: un alta sin tocar el control no pasa un `null` a `false`).
+  const residenteRaw = formData.get("isResident");
+  const isResident = residenteRaw === "on";
+  const residenteDecidido = residenteRaw === "on" || residenteRaw === "off";
   const couponCode = String(formData.get("couponCode") || "").trim() || undefined;
 
   if (!clientName.trim() || !clientPhone.trim()) {
@@ -820,8 +825,8 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
     client = await prisma.client.create({
       data: { tenantId, name: clientName, phone: clientPhone, isResident },
     });
-  } else if (client.isResident !== isResident) {
-    client = await prisma.client.update({ where: { id: client.id }, data: { isResident } });
+  } else if (residenteDecidido && client.isResident !== isResident) {
+    client = await prisma.client.update({ where: { id: client.id, tenantId }, data: { isResident } });
   }
 
   let booked: Awaited<ReturnType<typeof bookAppointment>>;
@@ -961,6 +966,16 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
   // es un dato del formulario, así que se dice qué corregir.
   if (Number.isNaN(startsAt.getTime())) {
     throw new RechazoDeDominio("Ese horario no se pudo leer. Elegí de nuevo el día y la hora.");
+  }
+  // Al MISMO horario con la MISMA profesional no se mueve nada: no se borra «avisada» ni se audita un
+  // cambio que no hubo, y la pantalla no manda un «Te pasamos el turno…» absurdo (cert CH T2, F-3).
+  if (startsAt.getTime() === appointment.startsAt.getTime() && targetProfessionalId === appointment.professionalId) {
+    throw new RechazoDeDominio("Ya está en ese horario: no se movió nada.");
+  }
+  // Defensa en profundidad (cert CH T2, O-7): la pantalla no ofrece horarios pasados, y un POST a mano
+  // tampoco mueve un turno al pasado.
+  if (startsAt.getTime() <= Date.now()) {
+    throw new RechazoDeDominio("Ese horario ya pasó. Elegí uno que venga.");
   }
   const endsAt = new Date(startsAt.getTime() + appointment.service.durationMin * 60000);
   const boxId = professional.boxId;

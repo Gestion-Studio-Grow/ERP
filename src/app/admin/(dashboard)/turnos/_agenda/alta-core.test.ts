@@ -114,6 +114,13 @@ describe("lo que viaja es lo que lee createManualAppointment", () => {
     assert.equal(fd.get("senaMonto"), null);
     assert.equal(fd.get("status"), "PENDING");
   });
+
+  test("cert O-5 · «De la zona» destildado viaja «off» SÓLO si la ficha decía que sí (una decisión); sin tocarlo, nada", () => {
+    assert.equal(aFormData(camposDelAlta({ ...base, deLaZona: false, deLaZonaDeLaFicha: true, cobro: null })).get("isResident"), "off");
+    assert.equal(aFormData(camposDelAlta({ ...base, deLaZona: false, deLaZonaDeLaFicha: false, cobro: null })).get("isResident"), null);
+    assert.equal(aFormData(camposDelAlta({ ...base, deLaZona: false, deLaZonaDeLaFicha: null, cobro: null })).get("isResident"), null);
+    assert.equal(aFormData(camposDelAlta({ ...base, deLaZona: true, deLaZonaDeLaFicha: true, cobro: null })).get("isResident"), "on");
+  });
 });
 
 describe("los horarios libres del alta, en renglones por franja", () => {

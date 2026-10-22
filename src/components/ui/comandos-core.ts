@@ -49,7 +49,14 @@ export interface TeclaDeFicha {
  * y «Llegó la seña» no se ofrece.
  */
 export type HuecoDeFicha =
-  | { tipo: "llego-la-senia"; turnoId: string; clienta: string; monto: number }
+  | {
+      tipo: "llego-la-senia";
+      turnoId: string;
+      clienta: string;
+      monto: number;
+      /** `false` = quien mira cobra la seña pero no confirma el turno (la profesional: cert CH T2, F-1). */
+      confirma?: boolean;
+    }
   | {
       tipo: "cobrar-deuda";
       clienteId: string;

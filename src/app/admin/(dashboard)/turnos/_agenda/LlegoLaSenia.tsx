@@ -15,6 +15,11 @@
 // Listo para montar donde haya un Reservado con seña pendiente: el renglón/cajón de la agenda, el
 // buscador global («/» → «laura» → [Llegó la seña]) y la bandeja del Inicio. `onListo` se llama
 // cuando termina el aviso (o al deshacer), para que quien la monta cierre o recargue.
+//
+// `confirma={false}` (la profesional, que cobra sus turnos pero no confirma: `agenda:manage` es de la
+// recepción): la misma tecla registra la seña y el turno sigue Reservado; el texto de abajo y el
+// aviso lo dicen (cert CH T2, F-1). Nunca termina en una redirección: el servidor acepta
+// `agenda:collect` con el veredicto de ESE turno.
 
 import { useId, useState, useTransition } from "react";
 import { Aviso, Button, Segmented } from "@/components/ui";
@@ -32,6 +37,7 @@ export default function LlegoLaSenia({
   clienta,
   monto,
   medioInicial = MEDIO_DE_LA_SENIA,
+  confirma = true,
   onListo,
   className,
 }: {
@@ -40,6 +46,8 @@ export default function LlegoLaSenia({
   /** La seña que falta (`seniaQueFalta`; en la agenda, `turno.senia - turno.cobrado`). */
   monto: number;
   medioInicial?: MetodoDePago;
+  /** ¿Quien toca confirma el turno? (`agenda:manage`). Sin eso, sólo registra la seña. */
+  confirma?: boolean;
   onListo?: () => void;
   className?: string;
 }) {
@@ -48,7 +56,7 @@ export default function LlegoLaSenia({
   const [medio, setMedio] = useState<MetodoDePago>(medioInicial);
   const [cambiando, setCambiando] = useState(false);
   const [error, setError] = useState("");
-  const [hecho, setHecho] = useState<{ cobroId: string; monto: number; medio: MetodoDePago } | null>(null);
+  const [hecho, setHecho] = useState<{ cobroId: string; monto: number; medio: MetodoDePago; confirmo: boolean } | null>(null);
   const [pendiente, empezar] = useTransition();
 
   if (!(monto > 0) && !hecho) return null;
@@ -65,7 +73,7 @@ export default function LlegoLaSenia({
         }
         setCambiando(false);
         if (r.cobroId) {
-          setHecho({ cobroId: r.cobroId, monto: r.monto, medio });
+          setHecho({ cobroId: r.cobroId, monto: r.monto, medio, confirmo: r.confirmo });
           return;
         }
         showSuccess(r.aviso ?? `Confirmado: ${clienta}.`);
@@ -76,12 +84,12 @@ export default function LlegoLaSenia({
     });
   };
 
-  const deshacer = (cobroId: string) => {
+  const deshacer = (cobroId: string, confirmo: boolean) => {
     empezar(async () => {
       try {
         const r = await deshacerCierre(aFormData(camposDeDeshacer({ turnoId, que: "senia", cobroId })));
         if (!r.ok) showError(r.error);
-        else showSuccess(`Listo: la seña de ${clienta} quedó anulada y el turno volvió a Reservado.`);
+        else showSuccess(confirmo ? `Listo: la seña de ${clienta} quedó anulada y el turno volvió a Reservado.` : `Listo: la seña de ${clienta} quedó anulada.`);
       } catch {
         showError("No se pudo deshacer. Fijate cómo quedó el turno en la agenda.");
       } finally {
@@ -95,9 +103,13 @@ export default function LlegoLaSenia({
     return (
       <Aviso
         className={className}
-        mensaje={`Seña de ${pesosDelCobro(hecho.monto)} por ${METODO_LABEL[hecho.medio].toLowerCase()}: ${clienta} quedó confirmada.`}
+        mensaje={
+          hecho.confirmo
+            ? `Seña de ${pesosDelCobro(hecho.monto)} por ${METODO_LABEL[hecho.medio].toLowerCase()}: ${clienta} quedó confirmada.`
+            : `Seña de ${pesosDelCobro(hecho.monto)} por ${METODO_LABEL[hecho.medio].toLowerCase()} registrada. El turno de ${clienta} lo confirma la recepción.`
+        }
         duracion={DURACION_DESHACER_MS}
-        onDeshacer={pendiente ? undefined : () => deshacer(hecho.cobroId)}
+        onDeshacer={pendiente ? undefined : () => deshacer(hecho.cobroId, hecho.confirmo)}
         onTermina={() => {
           setHecho(null);
           onListo?.();
@@ -127,7 +139,7 @@ export default function LlegoLaSenia({
         </Button>
       </div>
       <p className="mt-1 text-xs text-muted">
-        Por {METODO_LABEL[medio].toLowerCase()} · cobra y confirma el turno.
+        Por {METODO_LABEL[medio].toLowerCase()} · {confirma ? "cobra y confirma el turno." : "la registra; el turno lo confirma la recepción."}
       </p>
       {/* Comprobante informado ≠ cobrado: el cobro es firme, se toca con la plata a la vista. */}
       <p id={`${id}-ayuda`} className="mt-0.5 text-xs text-muted">

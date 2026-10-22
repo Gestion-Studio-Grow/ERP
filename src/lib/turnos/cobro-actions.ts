@@ -65,7 +65,7 @@ import { plataDeLaFila, type FilaDeTurno } from "./cierre-lote";
 import { leerFilasDeTurnos } from "./sin-cerrar.server";
 import {
   MOTIVO_DESHACER_SENIA,
-  NOTA_LLEGO_LA_SENIA,
+  notaLlegoLaSenia,
   claveDeSaldo,
   claveDeSenia,
   leerCobrosVarios,
@@ -310,8 +310,11 @@ export async function terminarYCobrarDividido(formData: FormData): Promise<Resul
  * rechaza en vez de cobrar otro monto).
  */
 export async function cobrarSeniaYConfirmar(formData: FormData): Promise<ResultadoDeSenia> {
-  const user = await requireCapability("agenda:manage");
-  if (!roleHasCapability(user.role, "agenda:collect")) return { ok: false, error: NO_COBRA };
+  // La seña es un COBRO: la cobra quien cobra ESE turno (`agenda:collect` + `puedeCobrarEsteTurno`),
+  // también la profesional que cobra sus turnos (cert CH T2, F-1). Confirmar es `agenda:manage`
+  // (`confirmarTurno`): sin eso se registra la seña y el turno sigue Reservado, y el aviso lo dice.
+  const user = await requireCapability("agenda:collect");
+  const confirma = roleHasCapability(user.role, "agenda:manage");
   if (isDemoSandbox()) return { ok: true, cobroId: null, monto: 0, confirmo: true }; // modo demo: no persiste
   const appointmentId = texto(formData.get("appointmentId"));
   if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
@@ -351,6 +354,7 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
           precio,
           cobradoReal: cobradoReal(precio, cobros, a.payment),
           montoEsperado,
+          puedeConfirmar: confirma,
         });
         if (plan.tipo === "rechazado") throw new RechazoDeDominio(plan.motivo);
 
@@ -362,7 +366,7 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
             precio,
             monto: plan.monto,
             method,
-            note: NOTA_LLEGO_LA_SENIA,
+            note: notaLlegoLaSenia(user.role),
             actor,
             detail: cobroTurnoDetail({ serviceName: a.service.name, clientName: a.client.name }),
             idempotencyKey: claveDeSenia(appointmentId),
@@ -410,7 +414,7 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
         tipo: "senia",
         llegoLaSenia: true,
         // Se toca con la plata a la vista en el banco / Mercado Pago, no por la captura de la clienta.
-        verificacion: "verificada por recepción",
+        verificacion: user.role === "PROFESSIONAL" ? "verificada por la profesional" : "verificada por recepción",
         cobroId: cobrado.collectionId,
         method,
         amount: cobrado.monto,
@@ -428,7 +432,11 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
   revalidatePath("/admin/turnos/manana");
 
   if (!cobrado) {
-    const aviso = plan.tipo === "ya-estaba" ? "La seña ya estaba cobrada y el turno confirmado." : "La seña ya estaba cobrada: quedó confirmado.";
+    const aviso = !confirma
+      ? "La seña ya estaba registrada. El turno lo confirma la recepción."
+      : plan.tipo === "ya-estaba"
+        ? "La seña ya estaba cobrada y el turno confirmado."
+        : "La seña ya estaba cobrada: quedó confirmado.";
     return { ok: true, cobroId: null, monto: 0, confirmo, aviso };
   }
   return { ok: true, cobroId: cobrado.collectionId, monto: cobrado.monto, confirmo };
@@ -619,7 +627,9 @@ export async function deudaViejaDelTurno(appointmentId: string): Promise<DeudaVi
 export async function deshacerCierre(formData: FormData): Promise<ResultadoCobro> {
   const que = leerQueSeDeshace(formData.get("que"));
   if (!que) return { ok: false, error: "No sé qué hay que deshacer. Recargá la agenda." };
-  const user = await requireCapability(que === "no-vino" ? "agenda:complete" : "agenda:manage");
+  // Deshacer la seña es anular un cobro recién hecho: la misma capacidad que lo cobró (`agenda:collect`,
+  // y adentro el veredicto de ESE turno), para que la profesional deshaga la suya (cert CH T2, F-1).
+  const user = await requireCapability(que === "no-vino" ? "agenda:complete" : que === "senia" ? "agenda:collect" : "agenda:manage");
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const appointmentId = texto(formData.get("appointmentId"));
   if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };

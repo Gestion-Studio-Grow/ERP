@@ -371,7 +371,7 @@ export default function TurnoCajon({
           <Seccion titulo="La seña">
             <div className="space-y-3 pt-3">
               <p className="text-sm text-muted">
-                Pide una seña de <Plata valor={senia} /> que todavía no entró.
+                Pide una seña de <Plata valor={senia} sinCentavos={Number.isInteger(senia)} /> que todavía no entró.
                 {pedida ? ` Ya se la pedimos (${pedida.replace(/^seña pedida /, "")}).` : ""}
               </p>
               {llegoLaSenia && (
@@ -380,6 +380,7 @@ export default function TurnoCajon({
                   turnoId={t.id}
                   clienta={t.clienta}
                   monto={senia}
+                  confirma={permisos.gestionar}
                   onListo={() => router.refresh()}
                 />
               )}
@@ -450,24 +451,27 @@ export default function TurnoCajon({
 
         {!t.veredicto.ok && t.saldo > 0 && !cierra && (
           <p className="text-sm text-muted">
-            {t.veredicto.motivo} Quedan <Plata valor={t.saldo} /> a cobrar.
+            {t.veredicto.motivo} Quedan <Plata valor={t.saldo} sinCentavos={Number.isInteger(t.saldo)} /> a cobrar.
           </p>
         )}
 
         <Seccion titulo="La plata">
+          {/* O-3: el folio dice qué es; el título, en criollo, de dónde sale. O-4: CH cobra en
+              pesos sin centavos: «$14.000», como el botón y el WhatsApp (con centavos sólo si los hay). */}
           <Renglon
             folio="Precio"
-            titulo="Del servicio, al reservar"
-            plata={<Plata valor={t.precio} />}
+            titulo="Fijo desde la reserva"
+            plata={<Plata valor={t.precio} sinCentavos={Number.isInteger(t.precio)} />}
           />
           <Renglon
             folio="Entró"
             titulo={
-              t.cobrado > 0 ? "Lo cobrado hasta ahora" : "Todavía no entró nada"
+              t.cobrado > 0 ? "Cobrado hasta ahora" : "Todavía no entró nada"
             }
             plata={
               <Plata
                 valor={t.cobrado}
+                sinCentavos={Number.isInteger(t.cobrado)}
                 tono={t.cobrado > 0 ? "cobrado" : undefined}
               />
             }
@@ -475,8 +479,9 @@ export default function TurnoCajon({
           {t.condonado > 0 && (
             <Renglon
               folio="De baja"
-              titulo="Saldo que no se va a cobrar (no es plata que entró)"
-              plata={<Plata valor={t.condonado} />}
+              titulo="Saldo dado de baja"
+              detalle="No se va a cobrar; no es plata que entró."
+              plata={<Plata valor={t.condonado} sinCentavos={Number.isInteger(t.condonado)} />}
             />
           )}
           <Renglon
@@ -484,13 +489,14 @@ export default function TurnoCajon({
             titulo={
               t.saldo > 0
                 ? t.cuentaACobrar
-                  ? "Se prestó y todavía se debe"
-                  : "Lo que falta para saldar el servicio"
+                  ? "Se prestó y se debe"
+                  : "Falta para saldarlo"
                 : "Saldado"
             }
             plata={
               <Plata
                 valor={t.saldo}
+                sinCentavos={Number.isInteger(t.saldo)}
                 tono={t.cuentaACobrar ? "peligro" : undefined}
               />
             }
@@ -527,6 +533,7 @@ export default function TurnoCajon({
                               ? -Math.abs(c.amount)
                               : c.amount
                           }
+                          sinCentavos={Number.isInteger(c.amount)}
                         />
                       }
                       tecla={

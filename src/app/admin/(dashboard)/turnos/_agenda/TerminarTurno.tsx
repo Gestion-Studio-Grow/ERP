@@ -106,7 +106,7 @@ export default function TerminarTurno({
         <p className="text-sm text-body">{motivoSinCobro ?? "No podés cobrar este turno."}</p>
         <p className="flex items-baseline justify-between gap-3 text-sm text-muted">
           <span>Queda a cobrar</span>
-          <Plata valor={saldo} />
+          <Plata valor={saldo} sinCentavos={Number.isInteger(saldo)} />
         </p>
         {elError}
         <Button type="button" size="lg" className="w-full" disabled={pendiente} estado={pendiente ? "cargando" : undefined} onClick={() => terminar("dejar-a-cobrar")}>
@@ -120,7 +120,7 @@ export default function TerminarTurno({
     <div data-ui="terminar-turno" className="space-y-4">
       <div className="text-center">
         <p className="text-sm text-muted">Falta cobrar</p>
-        <Plata valor={saldo} tamano="grande" />
+        <Plata valor={saldo} tamano="grande" sinCentavos={Number.isInteger(saldo)} />
       </div>
       <TeclasDeMedio
         tamano="grande"

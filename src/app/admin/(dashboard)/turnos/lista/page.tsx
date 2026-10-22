@@ -1,7 +1,6 @@
 import { getAppointments, getFichasParaAlta, getProfessionalsWithServices } from "@/lib/actions";
 import AppointmentRow from "../AppointmentRow";
 import AppointmentsHistoryList from "./AppointmentsHistoryList";
-import NewAppointmentForm from "../NewAppointmentForm";
 import Link from "next/link";
 import { requireCapability } from "@/lib/authz";
 import { requireApp } from "@/lib/require-app";
@@ -10,10 +9,10 @@ import { enInicioPorApps } from "../../inicio/piloto";
 import { esCuentaACobrar, estadoCobroTurno } from "@/lib/turnos/cobros";
 import { seccionDeLista } from "@/lib/turnos/turno-abierto";
 import { todayInBusinessTz } from "@/lib/datetime";
-import { leerClienteDelAlta, leerNuevoTurno } from "../pasos";
+import { hrefAtenderAhora, hrefNuevoTurno, leerClienteDelAlta, leerNuevoTurno } from "../pasos";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { agendaPractica } from "@/lib/turnos/practica.server";
-import { fechaPropuestaDelAlta, profesionalPropuesta } from "@/lib/turnos/practica";
+import { fechaPropuestaDelAlta } from "@/lib/turnos/practica";
 import AgendaRenglon from "../AgendaRenglon";
 import DarTurnoCajon from "../_agenda/DarTurnoCajon";
 import { buttonClasses } from "@/components/ui";
@@ -133,7 +132,7 @@ export default async function TurnosListaPage({
   // también con «Diseño nuevo» apagado (CH hoy) — el cajón se viste solo (DarTurnoCajon) y el libro
   // de atrás va con la piel propia (`PielPropia` + `ConDiseno nuevo`). Es un `return` aparte: el
   // formulario viejo (NewAppointmentForm) no se dibuja en esta respuesta, así no hay dos altas. Sin
-  // `?nuevo=1`, la lista de siempre con su «+ Nuevo turno» tal cual.
+  // `?nuevo=1`, la lista de siempre; su «+ Nuevo turno» también abre ESTE alta (cert CH T2, F-4).
   if (nuevo.abrir) {
     const hoy = todayInBusinessTz();
     const [profesionales, fichasAlta, faltazosAlta, practicaAlta, pielDelPanel, slug] = await Promise.all([
@@ -175,12 +174,10 @@ export default async function TurnosListaPage({
   // sin tope de días: uno de hace 4 meses también tiene que aparecer (src/apps/kpis).
   const ventana = ventanaDeLista(sp.desde, todayInBusinessTz());
   const ahora = instanteDeCarga();
-  const [appointments, professionals, fichas, faltazos, practica, sinCerrar] = await Promise.all([
+  // Sin las lecturas del alta (profesionales con servicios, fichas, faltazos): el alta vive en el
+  // cajón de `?nuevo=1` y las hace ella (cert CH T2, F-4).
+  const [appointments, practica, sinCerrar] = await Promise.all([
     getAppointments(ventana.dias),
-    getProfessionalsWithServices(),
-    getFichasParaAlta(),
-    // Inicio por apps: el aviso de faltazos al dar el turno. CH, fuera del piloto, sin cambios.
-    enInicioPorApps().then((piloto) => (piloto ? cargarFaltazosPorFicha() : undefined)),
     agendaPractica(),
     // Mismo recorte que la bandeja: la profesional cuenta sólo los suyos (cert CH Tanda 1).
     contarSinCerrarDeQuienMira(),
@@ -225,19 +222,17 @@ export default async function TurnosListaPage({
         confirmá el turno cuando la clienta confirme, y al completarlo se cobra el resto.
       </p>
 
-      <NewAppointmentForm
-        // B1: quién da el turno. Sin esto el alta suponía OWNER y le ofrecía «Cobrar ahora» a la
-        // recepción para la profesional que cobra aparte; el servidor lo rechazaba al final.
-        viewer={viewer}
-        professionals={professionals}
-        fichas={fichas}
-        faltazos={faltazos}
-        abierto={nuevo.abrir}
-        // Agenda práctica (T4): sin fecha en la URL propone mañana; con una sola profesional, la elige.
-        fechaInicial={nuevo.fecha || (practica ? fechaPropuestaDelAlta(todayInBusinessTz()) : "")}
-        clienteInicial={clienteInicial}
-        profesionalInicial={practica ? profesionalPropuesta(professionals) : ""}
-      />
+      {/* UNA sola alta (cert CH T2, F-4): «+ Nuevo turno» abre el cajón «Dar turno» (`?nuevo=1`), el
+          mismo de la agenda, el buscador y la ficha. El formulario viejo (NewAppointmentForm) ya no se
+          alcanza desde acá; sigue vivo sólo en la pestaña «Servicios» del mostrador (pedidos). */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        <Link href={hrefNuevoTurno()} className={buttonClasses("solid", "md")} data-atajo="dar-turno">
+          + Nuevo turno
+        </Link>
+        <Link href={hrefAtenderAhora()} className={buttonClasses("outline", "md")} data-atajo="atender-ahora">
+          Atender ahora
+        </Link>
+      </div>
 
       {sinCerrar > 0 && (
         <section

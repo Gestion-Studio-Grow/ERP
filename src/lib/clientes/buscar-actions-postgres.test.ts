@@ -109,6 +109,17 @@ test("contra Postgres (app_rls + RLS): el buscador «/» sólo encuentra lo del 
   assert.doesNotMatch(JSON.stringify(deVero), /wa\.me|\/admin\/clientes\/|Debe/);
   assert.deepEqual(await buscar(base.a, profesional, "laura"), { ok: true, grupos: [] });
 
+  // ── cert O-8 · sin tildes ni mayúsculas: «gomez», «GOMEZ», «gómez» traen a Laura Gómez ──
+  for (const q of ["gomez", "GOMEZ", "gómez", "Gomez Laura".split(" ")[0]]) {
+    assert.deepEqual(ids(await buscar(base.a, base.a.recepcion, q), "clientas"), [`clienta-${laura.id}`], q);
+  }
+  assert.deepEqual(ids(await buscar(base.a, base.a.recepcion, "rios"), "clientas"), [`clienta-${marta.id}`]);
+  // La profesional también, con SUS turnos (el de Marta es de Vero).
+  assert.deepEqual(ids(await buscar(base.a, profesional, "rios"), "turnos"), [`turno-${proximoMarta}`]);
+  // Sin tildes no abre otro negocio ni comodines.
+  assert.deepEqual(await buscar(base.a, base.a.recepcion, "secreta"), { ok: true, grupos: [] });
+  assert.deepEqual(await buscar(base.a, base.a.recepcion, "g_mez"), { ok: true, grupos: [] }, "«_» se busca como letra");
+
   // ── Sesión y entrada ──
   const sinSesion = await ejecutarAccion({ negocio: base.a }, () => buscarClientasYTurnos("laura"));
   assert.equal(sinSesion.tipo, "redireccion");

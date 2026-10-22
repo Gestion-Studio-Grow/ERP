@@ -83,7 +83,7 @@ export default function CobrarTurno({
     <div data-ui="cobrar-turno" className="space-y-4">
       <p className="flex items-baseline justify-between gap-3 text-sm text-muted">
         <span>{sugerido.tipo === "senia" ? "Seña del servicio" : "Falta cobrar"}</span>
-        <Plata valor={sugerido.tipo === "senia" ? sugerido.monto : saldo} />
+        <Plata valor={sugerido.tipo === "senia" ? sugerido.monto : saldo} sinCentavos={Number.isInteger(sugerido.tipo === "senia" ? sugerido.monto : saldo)} />
       </p>
       <div>
         <label htmlFor={`${id}-monto`} data-ui="rotulo" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted">

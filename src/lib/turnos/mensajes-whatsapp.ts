@@ -99,7 +99,8 @@ export function diaCortoEnTexto(dia: string): string {
  * mayúscula y los demás van en minúscula (salvo que sean siglas: «LED» queda «LED»).
  */
 export function listaDeServicios(servicios: string | readonly string[]): string {
-  const lista = (typeof servicios === "string" ? [servicios] : [...servicios]).map((s) => s.trim()).filter(Boolean);
+  // Por `limpio`, como el resto de los datos: un servicio roto («null», «undefined») no se imprime (O-13).
+  const lista = (typeof servicios === "string" ? [servicios] : [...servicios]).map((s) => limpio(s)).filter(Boolean);
   if (lista.length === 0) return "";
   const bajar = (s: string) => (/^[A-ZÁÉÍÓÚÑ0-9]{2,}\b/.test(s) ? s : s.charAt(0).toLowerCase() + s.slice(1));
   const [primero, ...resto] = lista;

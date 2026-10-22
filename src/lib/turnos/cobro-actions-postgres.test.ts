@@ -11,6 +11,7 @@
  *   · CH-026 · deshacer una cancelación: vuelve a Reservado; con el hueco ocupado o pasados 10 min, no;
  *   · CH-061 · con el id de OTRO negocio: «ya no existe» (no un error crudo), 0 cobros y 0 asientos;
  *   · CH-007 · el turno de la profesional que cobra aparte no se cobra dividido desde la recepción;
+ *   · cert F-1 · la profesional registra la seña de SU turno sin redirección (cobra, no confirma) y la deshace;
  *   · caja cerrada · el cobro dividido se rechaza con el motivo y no cobra nada.
  *
  * Sin Postgres local se saltea diciendo por qué (en CI falla), como los demás `*-postgres.test.ts`.
@@ -352,6 +353,54 @@ test("CH-007 · el turno de la profesional que cobra aparte no se cobra dividido
 });
 
 // Va ÚLTIMO: cierra la caja de hoy del negocio A.
+test("cert F-1 · la profesional (sin agenda:manage) registra la seña de SU turno sin redirección: cobra, no confirma; deshace la suya; la de otra, no", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const { cobrarSeniaYConfirmar, deshacerCierre } = await import("./cobro-actions");
+  const suyo = await s.turnoA("Paula", { horas: 30, vero: true });
+  const veroUser = await duenio.user.create({
+    data: { tenantId: s.base.a.id, name: "Vero", email: `vero-f1-${Date.now()}@erp.test`, passwordHash: "x", role: "PROFESSIONAL", professionalId: suyo.professionalId },
+    select: { id: true },
+  });
+  const comoVero = async <R,>(fn: () => Promise<R>): Promise<R> => {
+    const r = await ejecutarAccion({ negocio: s.base.a, usuario: veroUser as never }, fn);
+    assert.equal(r.tipo, "respuesta", `la acción no respondió (¿redirigió?): ${JSON.stringify(r)}`);
+    if (r.tipo !== "respuesta") throw new Error("sin respuesta");
+    return r.valor;
+  };
+
+  const r = await comoVero(() => cobrarSeniaYConfirmar(fd({ appointmentId: suyo.id, method: "TRANSFERENCIA", amount: "5000" })));
+  assert.ok(r.ok && r.cobroId && r.monto === 5000 && r.confirmo === false, JSON.stringify(r));
+  assert.deepEqual(await foto(s, suyo.id), {
+    status: "PENDING",
+    cobros: [{ amount: 5000, method: "TRANSFERENCIA" }],
+    libro: [{ type: "VENTA", method: "MP", amount: 5000 }],
+  });
+  const [cobro] = await duenio.collection.findMany({ where: { appointmentId: suyo.id }, select: { note: true } });
+  assert.match(cobro.note ?? "", /verificada por la profesional/);
+  // Un segundo toque no cobra ni confirma.
+  assert.deepEqual(await comoVero(() => cobrarSeniaYConfirmar(fd({ appointmentId: suyo.id, method: "TRANSFERENCIA" }))), {
+    ok: true,
+    cobroId: null,
+    monto: 0,
+    confirmo: false,
+    aviso: "La seña ya estaba registrada. El turno lo confirma la recepción.",
+  });
+
+  // Deshacer la suya: se anula y el turno sigue Reservado (no lo había confirmado).
+  assert.deepEqual(await comoVero(() => deshacerCierre(fd({ appointmentId: suyo.id, que: "senia", cobroId: r.ok ? (r.cobroId ?? "") : "" }))), { ok: true });
+  const despues = await foto(s, suyo.id);
+  assert.equal(despues.status, "PENDING");
+  assert.equal(despues.libro.length, 2, "VENTA + EGRESO de la anulación");
+
+  // El de Caro: se rechaza con el motivo (nunca una redirección), sin cobro.
+  const deCaro = await s.turnoA("Romina", { horas: 30 });
+  const ajeno = await comoVero(() => cobrarSeniaYConfirmar(fd({ appointmentId: deCaro.id, method: "TRANSFERENCIA", amount: "5000" })));
+  assert.equal(ajeno.ok, false);
+  assert.deepEqual(await foto(s, deCaro.id), { status: "PENDING", cobros: [], libro: [] });
+});
+
 test("caja cerrada · el cobro dividido se rechaza con el motivo y no cobra nada", async (t) => {
   const s = await preparar(t);
   if (!s) return;
