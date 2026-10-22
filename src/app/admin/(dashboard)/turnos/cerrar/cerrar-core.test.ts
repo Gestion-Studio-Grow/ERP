@@ -18,8 +18,11 @@ import {
   partirEnTandas,
   profesionalesDeLaBandeja,
   resumenDelLote,
+  teclasDeLaFalla,
   teclasDelRenglon,
   textoDeConfirmacion,
+  MOTIVO_CAJA_CERRADA,
+  TOPE_DEL_LOTE,
   textosDeLaLinea,
   tituloDelDia,
   type TurnoPendiente,
@@ -41,6 +44,7 @@ function turno(p: Partial<TurnoPendiente> & { dia: string; hora: string }): Turn
     id: p.id ?? `t${n}`,
     clienteId: "c1",
     inicio: new Date(`${p.dia}T${p.hora}:00.000-03:00`).toISOString(),
+    dia: p.dia,
     clienta: p.clienta ?? `Clienta ${n}`,
     telefono: p.telefono ?? "11 5566-7788",
     servicio: p.servicio ?? "Piernas completas",
@@ -161,7 +165,7 @@ describe("las teclas de cada renglón", () => {
     assert.equal(itemDeVino(t, RECEPCION, null), null);
     assert.deepEqual(itemDeVino(t, RECEPCION, "MERCADOPAGO"), { id: t.id, accion: "vino", method: "MERCADOPAGO" });
     const v = vero({ dia: "2026-10-19", hora: "10:00" });
-    assert.deepEqual(itemDeVino(v, RECEPCION, "EFECTIVO"), { id: v.id, accion: "dejar-saldo" });
+    assert.deepEqual(itemDeVino(v, RECEPCION, "EFECTIVO"), { id: v.id, accion: "debe" });
   });
 
   test("el detalle de plata del renglón", () => {
@@ -237,7 +241,7 @@ describe("el lote: selección, total y confirmación", () => {
       { id: "l0", accion: "vino", method: "EFECTIVO" },
       { id: "l1", accion: "vino", method: "EFECTIVO" },
       { id: "pago", accion: "vino" },
-      { id: "v", accion: "dejar-saldo" },
+      { id: "v", accion: "debe" },
     ]);
   });
 
@@ -252,7 +256,33 @@ describe("el lote: selección, total y confirmación", () => {
     assert.deepEqual([...sel], []);
   });
 
-  test("lo que viaja: `items` en JSON, de a tandas", () => {
+  test("con la caja de hoy cerrada nada se cobra: el lote deja los saldos y no pide medio", () => {
+    const caja = { ...RECEPCION, cajaDeHoyCerrada: true };
+    const ts = [...ocho.slice(0, 2), turno({ id: "pago", dia: "2026-10-19", hora: "09:00", cobrado: 14000 })];
+    const sel = new Set(ts.map((t) => t.id));
+    const r = resumenDelLote(ts, sel, caja);
+    assert.deepEqual(r, { cantidad: 3, aCobrar: 0, conCobro: 0, yaPagos: 1, dejanSaldo: 2 });
+    assert.equal(loteNecesitaMedio(r), false);
+    assert.deepEqual(itemsDelLote(ts, sel, caja, "EFECTIVO"), [
+      { id: "l0", accion: "debe" },
+      { id: "l1", accion: "debe" },
+      { id: "pago", accion: "vino" },
+    ]);
+    assert.deepEqual(teclasDelRenglon(ocho[0], caja), { tipo: "cobra-aparte", motivo: MOTIVO_CAJA_CERRADA });
+    // La línea de estado no la confunde con una profesional que cobra aparte.
+    assert.deepEqual(lineaDeLaBandeja(ts, caja).cobranAparte, []);
+  });
+
+  test("la línea que falló: [Cobrarlo hoy] sólo si se puede cobrar hoy; [Queda debiendo] si hay saldo", () => {
+    const t = ocho[0];
+    assert.deepEqual(teclasDeLaFalla(t, RECEPCION), { cobrarHoy: true, debe: true });
+    assert.deepEqual(teclasDeLaFalla(t, { ...RECEPCION, cajaDeHoyCerrada: true }), { cobrarHoy: false, debe: true });
+    assert.deepEqual(teclasDeLaFalla(vero({ dia: "2026-10-19", hora: "10:00" }), RECEPCION), { cobrarHoy: false, debe: true });
+    assert.deepEqual(teclasDeLaFalla(turno({ dia: "2026-10-19", hora: "10:00", cobrado: 14000 }), RECEPCION), { cobrarHoy: false, debe: false });
+  });
+
+  test("lo que viaja: `items` en JSON (el formato de 1-A), de a tandas que entran en el tope", () => {
+    assert.ok(TOPE_DEL_LOTE >= 5);
     const fd = formularioDeLote([{ id: "x", accion: "vino", method: "EFECTIVO" }]);
     assert.deepEqual(JSON.parse(String(fd.get("items"))), [{ id: "x", accion: "vino", method: "EFECTIVO" }]);
     assert.deepEqual(partirEnTandas([1, 2, 3, 4, 5, 6, 7], 5), [[1, 2, 3, 4, 5], [6, 7]]);

@@ -12,21 +12,28 @@
 //   · «las que ya pagaron todo» (saldo ≤ 0: se cierran sin cobrar nada);
 //   · la selección del lote, su total y el texto de la confirmación («¿Cerrar 8 turnos y cobrar
 //     $94.000 en efectivo?»);
-//   · los ítems que viajan a `cerrarTurnosEnLote` (src/lib/turnos/cierre-lote-actions.ts).
+//   · las líneas (`PedidoDeCierre`) que viajan a `cerrarTurnosEnLote` (src/lib/turnos/cierre-lote-actions.ts).
+//
+// Contrato con 1-A: los tipos (`TurnoSinCerrar`, `Permisos`, `PedidoDeCierre`) y el formato del
+// lote (`formDataDelLote`) salen de src/lib/turnos/cierre-lote.ts: una sola fuente.
 //
 // No decide nada de plata: la LEE del renglón (`saldo`, `cobrado`, calculados con las reglas de
 // src/lib/turnos/cobros.ts) y el servidor vuelve a validar todo al cerrar.
 
-import { dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
+import { fmtTime } from "@/lib/datetime";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
-import { diaMas, fechaLarga, pesos, type Permisos, type TurnoDelDia } from "../agenda-core";
+import { TOPE_DEL_LOTE, formDataDelLote, type PedidoDeCierre, type Permisos, type TurnoSinCerrar } from "@/lib/turnos/cierre-lote";
+import { diaMas, fechaLarga, pesos } from "../agenda-core";
 
-/** Lo que la bandeja lee de un turno (un `TurnoDelDia` del loader sirve tal cual). */
+export { TOPE_DEL_LOTE };
+
+/** Lo que la bandeja lee de un turno (un `TurnoSinCerrar` del loader sirve tal cual). */
 export type TurnoPendiente = Pick<
-  TurnoDelDia,
+  TurnoSinCerrar,
   | "id"
   | "clienteId"
   | "inicio"
+  | "dia"
   | "clienta"
   | "telefono"
   | "servicio"
@@ -39,14 +46,19 @@ export type TurnoPendiente = Pick<
   | "veredicto"
 >;
 
-/** Lo que la bandeja mira de los permisos (el loader puede traer más campos). */
-export type PermisosDeLaBandeja = Pick<Permisos, "cobrar" | "terminar">;
+/**
+ * Lo que la bandeja mira de los permisos (el loader trae más campos) y de la caja: con la caja de
+ * HOY cerrada no se puede asentar un cobro, así que las líneas con saldo sólo ofrecen dejarlo.
+ */
+export type PermisosDeLaBandeja = Pick<Permisos, "cobrar" | "terminar"> & { cajaDeHoyCerrada?: boolean };
+
+export const MOTIVO_CAJA_CERRADA = "La caja de hoy ya está cerrada: cerralo dejando el saldo y cobralo mañana.";
 
 // ── Quién cobra qué ──────────────────────────────────────────────────────────
 
-/** ¿Quien mira puede cobrar ESTE turno? (capacidad + veredicto del servidor, como la agenda). */
+/** ¿Quien mira puede cobrar ESTE turno, hoy? (capacidad + veredicto del servidor + caja abierta). */
 export function cobraEste(t: Pick<TurnoPendiente, "veredicto">, p: PermisosDeLaBandeja): boolean {
-  return p.cobrar && t.veredicto.ok;
+  return p.cobrar && t.veredicto.ok && !p.cajaDeHoyCerrada;
 }
 
 /** ¿Ya no falta nada? (saldo ≤ 0: lo cubrió la seña o un pago anterior). */
@@ -58,8 +70,8 @@ export function yaPago(t: Pick<TurnoPendiente, "saldo">): boolean {
  * Las teclas del renglón (principio 1: una intención = una tecla; lo demás a «⋯»).
  *   · pagado → [✓ Vino] (cierra sin cobro);
  *   · con saldo y quien mira cobra → [✓ Vino] (despliega los medios) · [Debe] · [✗ No vino];
- *   · con saldo y no lo puede cobrar (la profesional que cobra aparte) → [Terminar y dejar el
- *     saldo], el motivo a la vista y «No vino» en «⋯».
+ *   · con saldo y no lo puede cobrar (la profesional que cobra aparte, o la caja de hoy ya
+ *     cerrada) → [Terminar y dejar el saldo], el motivo a la vista y «No vino» en «⋯».
  */
 export type TeclasDelRenglon =
   | { tipo: "ninguna" }
@@ -71,15 +83,15 @@ export function teclasDelRenglon(t: TurnoPendiente, p: PermisosDeLaBandeja): Tec
   if (!p.terminar) return { tipo: "ninguna" };
   if (yaPago(t)) return { tipo: "pagado" };
   if (cobraEste(t, p)) return { tipo: "cobrar" };
-  const motivo = t.veredicto.ok ? "No podés cobrar este turno." : t.veredicto.motivo;
+  const motivo = !t.veredicto.ok ? t.veredicto.motivo : p.cajaDeHoyCerrada && p.cobrar ? MOTIVO_CAJA_CERRADA : "No podés cobrar este turno.";
   return { tipo: "cobra-aparte", motivo };
 }
 
 // ── Días ─────────────────────────────────────────────────────────────────────
 
-/** El día del turno en la zona del negocio («2026-10-19»). */
-export function diaDelTurno(t: Pick<TurnoPendiente, "inicio">): string {
-  return dateStrInBusinessTz(new Date(t.inicio));
+/** El día del turno en la zona del negocio («2026-10-19»; lo calcula el servidor). */
+export function diaDelTurno(t: Pick<TurnoPendiente, "dia">): string {
+  return t.dia;
 }
 
 /** «10:00» en la zona del negocio. */
@@ -320,37 +332,24 @@ export function loteNecesitaMedio(r: ResumenDelLote): boolean {
 
 // ── Lo que viaja al servidor ─────────────────────────────────────────────────
 
-export type AccionDeCierre = "vino" | "dejar-saldo" | "no-vino";
 export type DestinoSenia = "retener" | "devolver";
 
-/** Un ítem de `cerrarTurnosEnLote`. El servidor vuelve a decidir todo; esto es el pedido. */
-export type ItemDeCierre = {
-  id: string;
-  accion: AccionDeCierre;
-  /** Con `vino` y saldo: el medio (nunca preelegido: lo toca la recepción). */
-  method?: MetodoDePago;
-  /** Con `no-vino` y plata adentro: qué pasa con la seña. */
-  senia?: DestinoSenia;
-  /** Reintento de un turno de un día con la caja cerrada: el cobro entra en la caja de hoy. */
-  cobrarHoy?: boolean;
-};
-
-/** El ítem de «vino» de un turno: sin saldo, sin medio; con saldo, el medio o dejar el saldo. */
-export function itemDeVino(t: TurnoPendiente, p: PermisosDeLaBandeja, medio: MetodoDePago | null): ItemDeCierre | null {
+/** El pedido de «vino» de un turno: sin saldo, sin medio; con saldo, el medio o dejar el saldo. */
+export function itemDeVino(t: TurnoPendiente, p: PermisosDeLaBandeja, medio: MetodoDePago | null): PedidoDeCierre | null {
   if (yaPago(t)) return { id: t.id, accion: "vino" };
-  if (!cobraEste(t, p)) return { id: t.id, accion: "dejar-saldo" };
+  if (!cobraEste(t, p)) return { id: t.id, accion: "debe" };
   if (!medio) return null;
   return { id: t.id, accion: "vino", method: medio };
 }
 
-/** Los ítems del lote marcado (los que necesitan medio y no lo tienen quedan afuera). */
+/** Los pedidos del lote marcado (los que necesitan medio y no lo tienen quedan afuera). */
 export function itemsDelLote(
   turnos: readonly TurnoPendiente[],
   sel: ReadonlySet<string>,
   p: PermisosDeLaBandeja,
   medio: MetodoDePago | null,
-): ItemDeCierre[] {
-  const items: ItemDeCierre[] = [];
+): PedidoDeCierre[] {
+  const items: PedidoDeCierre[] = [];
   for (const t of turnos) {
     if (!sel.has(t.id) || !seleccionable(t, p)) continue;
     const i = itemDeVino(t, p, medio);
@@ -359,15 +358,10 @@ export function itemsDelLote(
   return items;
 }
 
-/** El formulario de `cerrarTurnosEnLote`: `items` en JSON. */
-export function formularioDeLote(items: readonly ItemDeCierre[]): FormData {
-  const fd = new FormData();
-  fd.set("items", JSON.stringify(items));
-  return fd;
-}
+/** El formulario de `cerrarTurnosEnLote` (el formato vive en cierre-lote.ts). */
+export const formularioDeLote = formDataDelLote;
 
-/** Tope del servidor por llamada; la bandeja manda de a tandas para mostrar el progreso. */
-export const TOPE_DEL_LOTE = 50;
+/** La bandeja manda de a tandas (≤ `TOPE_DEL_LOTE`) para mostrar el progreso línea por línea. */
 export const TANDA = 5;
 
 export function partirEnTandas<T>(items: readonly T[], tamano = TANDA): T[][] {
@@ -388,9 +382,19 @@ export function avisoDelLote(resultados: readonly { ok: boolean; error?: string 
   return { texto: ok > 0 ? `${cerradas} · ${noSe}` : noSe.charAt(0).toUpperCase() + noSe.slice(1), tono: "error" };
 }
 
-/** ¿El error es de caja cerrada? Ahí se ofrecen [Cobrarlo hoy] [Queda debiendo]. */
+/** ¿El error es de caja cerrada? Ahí el aviso lo nombra (las teclas [Cobrarlo hoy] [Queda debiendo] van igual). */
 export function esDeCajaCerrada(error: string | undefined): boolean {
   return !!error && /caja/i.test(error) && /cerrad/i.test(error);
+}
+
+/**
+ * Las teclas de una línea que falló (CH-006): con saldo, [Cobrarlo hoy] (vuelve a abrir los medios:
+ * el cobro entra en la caja de hoy) si quien mira lo puede cobrar hoy, y [Queda debiendo]. Sin
+ * saldo no hay nada que elegir: el motivo dice qué hacer.
+ */
+export function teclasDeLaFalla(t: Pick<TurnoPendiente, "saldo" | "veredicto">, p: PermisosDeLaBandeja): { cobrarHoy: boolean; debe: boolean } {
+  const conSaldo = t.saldo > 0 && p.terminar;
+  return { cobrarHoy: conSaldo && cobraEste(t, p), debe: conSaldo };
 }
 
 // ── Vacío ────────────────────────────────────────────────────────────────────

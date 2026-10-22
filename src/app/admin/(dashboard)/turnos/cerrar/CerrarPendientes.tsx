@@ -25,6 +25,7 @@ import { Bloque, Button, Hoja, Input, LineaDeEstado, MenuMas, PageContainer, Pla
 import { cn } from "@/components/ui/cn";
 import { PIEL_RENGLON } from "@/lib/diseno/diseno";
 import { cerrarTurnosEnLote } from "@/lib/turnos/cierre-lote-actions";
+import type { PedidoDeCierre, ResultadoDeLinea } from "@/lib/turnos/cierre-lote";
 import { preguntaDeCierre } from "@/lib/turnos/practica";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import type { MetodoDePago } from "@/lib/turnos/cobros";
@@ -41,7 +42,6 @@ import {
   detalleDeConfirmacion,
   detalleDePlata,
   diaDelTurno,
-  esDeCajaCerrada,
   filtrarTurnos,
   formularioDeLote,
   horaDelTurno,
@@ -53,17 +53,17 @@ import {
   profesionalesDeLaBandeja,
   resumenDelLote,
   seleccionable,
+  teclasDeLaFalla,
   teclasDelRenglon,
   textoDeConfirmacion,
   textosDeLaLinea,
   tituloDelDia,
   type DestinoSenia,
-  type ItemDeCierre,
   type PermisosDeLaBandeja,
   type TurnoPendiente,
 } from "./cerrar-core";
 
-type EstadoDeLinea = { fase: "corriendo" } | { fase: "ok" } | { fase: "error"; error: string; item: ItemDeCierre };
+type EstadoDeLinea = { fase: "corriendo" } | { fase: "ok" } | { fase: "error"; error: string };
 
 // ── La piel propia (regla de independencia del interruptor, §0.2) ────────────────
 //
@@ -103,10 +103,14 @@ export default function CerrarPendientes({
   turnos,
   permisos,
   hoy,
+  hayMas = false,
   letraDelNegocio,
 }: {
   turnos: TurnoPendiente[];
+  /** Permisos de quien mira + si la caja de hoy ya está cerrada (del servidor). */
   permisos: PermisosDeLaBandeja;
+  /** El servidor trajo el tope: quedan más atrás (se ven al cerrar estos). */
+  hayMas?: boolean;
   /** «2026-10-22» en la zona del negocio (para titular «Ayer»). */
   hoy: string;
   /** La letra de cuerpo del negocio en vez de la de la piel (CH: Hanken; los títulos, Fraunces). */
@@ -142,18 +146,12 @@ export default function CerrarPendientes({
   const porId = useMemo(() => new Map(turnos.map((t) => [t.id, t])), [turnos]);
   const ocupado = enCurso !== null;
 
-  // Lo que el servidor ya no manda (se cerró, o lo cerró otra persona) deja de estar marcado.
-  useEffect(() => {
-    setSel((s) => {
-      const vivosIds = new Set(vivos.map((t) => t.id));
-      const n = new Set([...s].filter((id) => vivosIds.has(id)));
-      return n.size === s.size ? s : n;
-    });
-  }, [vivos]);
+  // Un id marcado que el servidor ya no manda (se cerró, o lo cerró otra persona) no molesta: el
+  // resumen y los pedidos del lote salen sólo de los turnos visibles (`resumenDelLote`, `itemsDelLote`).
 
   /** Corre ítems contra el servidor de a tandas, marcando el progreso línea por línea. */
   const correr = useCallback(
-    async (items: ItemDeCierre[], quien: { id: string | "lote"; medio: MetodoDePago | null }) => {
+    async (items: PedidoDeCierre[], quien: { id: string | "lote"; medio: MetodoDePago | null }) => {
       if (items.length === 0) return;
       setEnCurso(quien);
       setAbierto(null);
@@ -162,12 +160,14 @@ export default function CerrarPendientes({
         for (const i of items) n[i.id] = { fase: "corriendo" };
         return n;
       });
-      const todos: { id: string; ok: boolean; error?: string }[] = [];
+      const todos: ResultadoDeLinea[] = [];
       try {
         for (const tanda of partirEnTandas(items)) {
-          let resultados: { id: string; ok: boolean; error?: string }[];
+          let resultados: ResultadoDeLinea[];
           try {
-            resultados = (await cerrarTurnosEnLote(formularioDeLote(tanda))).resultados;
+            const r = await cerrarTurnosEnLote(formularioDeLote(tanda));
+            // Un lote que el servidor no pudo ni leer: cada línea de la tanda queda con ese motivo.
+            resultados = r.error && r.resultados.length === 0 ? tanda.map((i) => ({ id: i.id, ok: false, error: r.error })) : r.resultados;
           } catch {
             resultados = tanda.map((i) => ({ id: i.id, ok: false, error: "No se pudo cerrar. Probá de nuevo; si sigue, avisá." }));
           }
@@ -175,10 +175,7 @@ export default function CerrarPendientes({
           const okIds = resultados.filter((r) => r.ok).map((r) => r.id);
           setEstados((e) => {
             const n = { ...e };
-            for (const r of resultados) {
-              const item = tanda.find((i) => i.id === r.id);
-              n[r.id] = r.ok || !item ? { fase: "ok" } : { fase: "error", error: r.error ?? "No se pudo cerrar.", item };
-            }
+            for (const r of resultados) n[r.id] = r.ok ? { fase: "ok" } : { fase: "error", error: r.error ?? "No se pudo cerrar." };
             return n;
           });
           setSel((s) => {
@@ -213,7 +210,17 @@ export default function CerrarPendientes({
   };
   const debe = (t: TurnoPendiente) => {
     setHojaVino(null);
-    void correr([{ id: t.id, accion: "dejar-saldo" }], { id: t.id, medio: null });
+    void correr([{ id: t.id, accion: "debe" }], { id: t.id, medio: null });
+  };
+  /** [Cobrarlo hoy] de una línea que falló: se borra el rojo y se vuelven a abrir los medios. */
+  const cobrarHoy = (t: TurnoPendiente) => {
+    setEstados((e) => {
+      const n = { ...e };
+      delete n[t.id];
+      return n;
+    });
+    if (celular) setHojaVino(t.id);
+    else setAbierto(t.id);
   };
   const noVino = (t: TurnoPendiente, senia?: DestinoSenia) => {
     setHojaNoVino(null);
@@ -252,6 +259,11 @@ export default function CerrarPendientes({
                 ),
               )}
             />
+          )}
+          {vivos.length > 0 && permisos.cajaDeHoyCerrada && permisos.cobrar && (
+            <p role="note" className="mt-3 border-l-2 border-warning pl-3 text-sm text-body">
+              La caja de hoy ya está cerrada: los turnos con saldo se cierran dejando lo que falta como deuda, y se cobra mañana.
+            </p>
           )}
           {vivos.length > 0 && (
             <div className="mt-4 flex flex-wrap items-end gap-3">
@@ -375,13 +387,18 @@ export default function CerrarPendientes({
                         onCobrar={(m) => cobrar(t, m)}
                         onDebe={() => debe(t)}
                         onNoVino={() => setHojaNoVino(t.id)}
-                        onReintentar={(item) => void correr([item], { id: t.id, medio: item.method ?? null })}
+                        onCobrarHoy={() => cobrarHoy(t)}
                       />
                     ))}
                   </ul>
                 </Bloque>
               );
             })}
+            {hayMas && (
+              <p className="border-t border-line pt-3 text-sm text-muted">
+                Hay más turnos sin cerrar, más viejos. Cerrá estos y van a aparecer.
+              </p>
+            )}
           </div>
         )}
 
@@ -534,7 +551,7 @@ function RenglonPendiente({
   onCobrar,
   onDebe,
   onNoVino,
-  onReintentar,
+  onCobrarHoy,
 }: {
   t: TurnoPendiente;
   dia: string;
@@ -550,9 +567,10 @@ function RenglonPendiente({
   onCobrar: (m: MetodoDePago) => void;
   onDebe: () => void;
   onNoVino: () => void;
-  onReintentar: (item: ItemDeCierre) => void;
+  onCobrarHoy: () => void;
 }) {
   const teclas = teclasDelRenglon(t, permisos);
+  const falla = teclasDeLaFalla(t, permisos);
   const hora = horaDelTurno(t);
   const corriendo = estado?.fase === "corriendo";
   const resuelto = estado?.fase === "ok";
@@ -644,12 +662,14 @@ function RenglonPendiente({
       </span>
 
       <span data-parte="tecla" className="flex flex-wrap items-center justify-end gap-1.5">
-        {fallo && esDeCajaCerrada(fallo.error) && fallo.item.accion === "vino" && fallo.item.method ? (
+        {fallo && (falla.cobrarHoy || falla.debe) ? (
           <>
-            <Button type="button" size="sm" disabled={ocupado} onClick={() => onReintentar({ ...fallo.item, cobrarHoy: true })}>
-              Cobrarlo hoy
-            </Button>
-            <Button type="button" size="sm" variant="outline" disabled={ocupado} onClick={() => onReintentar({ id: t.id, accion: "dejar-saldo" })}>
+            {falla.cobrarHoy && (
+              <Button type="button" size="sm" disabled={ocupado} onClick={onCobrarHoy} aria-label={`Cobrarle hoy ${pesos(t.saldo)} a ${t.clienta}`}>
+                Cobrarlo hoy
+              </Button>
+            )}
+            <Button type="button" size="sm" variant="outline" disabled={ocupado} onClick={onDebe} aria-label={`${t.clienta} queda debiendo ${pesos(t.saldo)}`}>
               Queda debiendo
             </Button>
           </>
