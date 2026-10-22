@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookieName, readSessionToken } from "@/lib/auth";
 import { getOperatorCookieName, readOperatorToken } from "@/lib/operator-auth";
 import { isDemoSandbox } from "@/lib/demo-flag";
+import { vidrieraDelHost } from "@/lib/producto-host";
 import {
   GATE_PATH,
   extraPublicPaths,
@@ -39,6 +40,14 @@ export async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", pathname);
   const pass = () => NextResponse.next({ request: { headers: requestHeaders } });
+
+  // --- Host de PRODUCTO (ADR-076 §2): la raíz del link de venta abre la vidriera del producto.
+  // Rewrite, no redirect; sólo la raíz. Va antes del portón del sitio: la vidriera de un producto
+  // es pública como `/facturita` (ver `gateAplicaA`).
+  if (pathname === "/") {
+    const vidriera = vidrieraDelHost(request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? request.nextUrl.host);
+    if (vidriera) return NextResponse.rewrite(new URL(vidriera, request.url), { request: { headers: requestHeaders } });
+  }
 
   // --- PORTÓN DEL SITIO PÚBLICO (`SITE_GATE_PASSWORD`).
   // Mientras la vidriera no esté lista para que la vea cualquiera, pide una clave

@@ -15,6 +15,7 @@ Todo lo que se ve acá se puede mirar **sin tocar Neon a mano** y **sin secretos
 | Un deploy rompió algo y hay que volver atrás | [rollback.md](rollback.md) |
 | Cómo ver errores, qué alertas configurar | [monitoreo.md](monitoreo.md) |
 | Prender o apagar facturación automática por negocio | [flags.md](flags.md) |
+| Publicar este release (Facturita + consola + motor) | [publicacion.md](publicacion.md) |
 
 **Reglas que no se negocian** (CLAUDE.md «Autorización y gates»):
 
