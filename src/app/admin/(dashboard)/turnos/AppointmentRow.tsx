@@ -13,6 +13,7 @@ import {
 import SubmitButton from "@/components/SubmitButton";
 import RescheduleForm from "./RescheduleForm";
 import CerrarSinPrestar from "./CerrarSinPrestar";
+import FormDelTurno from "./FormDelTurno";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
@@ -229,33 +230,6 @@ function CompletarForm({ appointmentId, saldo, yaOcurrio }: { appointmentId: str
         </p>
       )}
       {!yaOcurrio && <p className="text-xs text-muted">Se puede completar recién a partir de su horario.</p>}
-      {error && (
-        <p className="text-sm text-danger" role="alert">
-          {error}
-        </p>
-      )}
-    </form>
-  );
-}
-
-// «Confirmar turno» que DICE si falla (B3). `confirmarTurno` pasa a devolver `ResultadoAccion`
-// (agente 1-A, en paralelo): si otra persona lo tocó un segundo antes, se lee «Ese turno cambió
-// recién. Recargá la agenda.» en vez de nada. Mientras devuelva `void`, no hay nada que mostrar.
-function ConfirmarForm({ appointmentId }: { appointmentId: string }) {
-  const [error, setError] = useState("");
-  return (
-    <form
-      action={async (fd) => {
-        setError("");
-        const r = (await confirmarTurno(fd)) as ResultadoAccion | void;
-        if (r && !r.ok) setError(r.error);
-      }}
-      className="flex flex-col gap-1"
-    >
-      <input type="hidden" name="appointmentId" value={appointmentId} />
-      <SubmitButton pendingText="Confirmando…" className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
-        Confirmar turno
-      </SubmitButton>
       {error && (
         <p className="text-sm text-danger" role="alert">
           {error}
@@ -596,7 +570,9 @@ export default function AppointmentRow({
 
         {isPending && canManage && (
           <div className="flex flex-col gap-2 min-w-[260px]">
-            <ConfirmarForm appointmentId={appointment.id} />
+            <FormDelTurno accion={confirmarTurno} appointmentId={appointment.id} pendingText="Confirmando…" className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
+              Confirmar turno
+            </FormDelTurno>
             {cerrarSinPrestar("cancelar")}
             <RescheduleForm
               appointmentId={appointment.id}

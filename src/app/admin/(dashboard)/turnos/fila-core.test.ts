@@ -10,16 +10,17 @@ test("«Dar de baja el saldo»: la recepción y la profesional nunca; la dueña 
   assert.equal(puedeDarDeBajaSaldo({ role: "PROFESSIONAL" }), false);
   assert.equal(puedeDarDeBajaSaldo(undefined), false);
   assert.equal(puedeDarDeBajaSaldo({ role: "INVENTADO" }), false);
-  // La dueña: lo que diga el mapa de capacidades (1-A suma `agenda:forgive` sólo a OWNER). Sin
-  // la capacidad todavía en el mapa, nadie ve la tecla: lo seguro.
-  const laTieneLaDuena = (ROLE_CAPABILITIES.OWNER as readonly string[]).includes("agenda:forgive");
-  assert.equal(puedeDarDeBajaSaldo({ role: "OWNER" }), laTieneLaDuena);
+  // La dueña sí: `agenda:forgive` es sólo de OWNER (contrato con 1-A, capabilities.ts).
+  assert.equal(puedeDarDeBajaSaldo({ role: "OWNER" }), true);
+  assert.ok((ROLE_CAPABILITIES.OWNER as readonly string[]).includes("agenda:forgive"));
 });
 
 test("rolTieneCapacidad lee el mapa por texto", () => {
   assert.equal(rolTieneCapacidad("RECEPTION", "agenda:collect"), true);
   assert.equal(rolTieneCapacidad("PROFESSIONAL", "agenda:manage"), false);
   assert.equal(rolTieneCapacidad(null, "agenda:read"), false);
+  // Un rol inventado (o una clave del prototipo) no tiene nada.
+  assert.equal(rolTieneCapacidad("toString", "agenda:read"), false);
 });
 
 test("B7: con saldo no se completa sin elegir el medio; sin saldo o dejando el saldo, sí", () => {

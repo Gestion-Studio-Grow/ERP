@@ -6,20 +6,18 @@
 // base ni el render. Lo prueba fila-core.test.ts. Reingeniería CH, Tanda 1, agente 1-D (B4, B7,
 // «Dar de baja» sólo con `agenda:forgive`).
 
-import { ROLE_CAPABILITIES } from "@/lib/capabilities";
+import { ROLE_CAPABILITIES, type Capability } from "@/lib/capabilities";
 import { esMetodoDePago } from "@/lib/turnos/cobros";
 import type { TipoMarca } from "@/components/ui";
 
 /**
- * ¿El rol tiene esta capacidad? Por TEXTO a propósito: `agenda:forgive` la suma el agente del
- * servidor (1-A) en `capabilities.ts`, en paralelo. Mientras no esté, nadie la tiene y la tecla
- * no se dibuja (lo seguro); cuando entra, la ve la dueña sin cambiar una línea acá. El servidor
- * (`condonarSaldoTurno`) es la autoridad: esto es sólo para no ofrecer lo que va a rechazar.
+ * ¿El rol tiene esta capacidad? Acepta el rol como texto (el `viewer` que cruza el borde RSC):
+ * un rol desconocido o vacío no tiene ninguna. El servidor sigue siendo la autoridad: esto es
+ * sólo para no ofrecer lo que va a rechazar.
  */
-export function rolTieneCapacidad(rol: string | null | undefined, capacidad: string): boolean {
-  if (!rol) return false;
-  const caps = (ROLE_CAPABILITIES as Readonly<Record<string, readonly string[]>>)[rol];
-  return Array.isArray(caps) && caps.includes(capacidad);
+export function rolTieneCapacidad(rol: string | null | undefined, capacidad: Capability): boolean {
+  if (!rol || !Object.prototype.hasOwnProperty.call(ROLE_CAPABILITIES, rol)) return false;
+  return ROLE_CAPABILITIES[rol as keyof typeof ROLE_CAPABILITIES].includes(capacidad);
 }
 
 /** Dar de baja un saldo es perdonar plata: lo decide la dueña (`agenda:forgive`), no el mostrador. */

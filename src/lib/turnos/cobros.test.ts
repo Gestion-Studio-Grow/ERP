@@ -218,6 +218,47 @@ test("sólo un turno CONFIRMED se completa (reservado, cancelado, completado, no
   }
 });
 
+// ── «Vino» desde un Reservado (reingeniería CH, Tanda 1 · CH-002, CH-046) ────
+
+test("con «vino», un Reservado cuya hora ya pasó se completa sin pasar por Confirmar (CH-002)", () => {
+  const r = puedeCompletarse({
+    status: "PENDING",
+    startsAt: new Date("2026-10-21T13:00:00Z"), // ayer
+    ahora: new Date("2026-10-22T10:00:00Z"),
+    vino: true,
+  });
+  assert.deepEqual(r, { ok: true });
+});
+
+test("con «vino», un Reservado de mañana sigue rechazado: no ocurrió (CH-046)", () => {
+  const r = puedeCompletarse({
+    status: "PENDING",
+    startsAt: new Date("2026-10-23T13:00:00Z"),
+    ahora: new Date("2026-10-22T10:00:00Z"),
+    vino: true,
+  });
+  assert.deepEqual(r, { ok: false, motivo: "no-ocurrio" });
+});
+
+test("sin «vino» (o con vino=false), un Reservado pasado sigue rechazado: la regla de siempre", () => {
+  for (const vino of [undefined, false]) {
+    const r = puedeCompletarse({ status: "PENDING", startsAt: new Date(0), ahora: new Date(), vino });
+    assert.deepEqual(r, { ok: false, motivo: "no-confirmado" }, `vino=${vino}`);
+  }
+});
+
+test("«vino» no resucita lo cerrado: cancelado, completado o no-show siguen rechazados", () => {
+  for (const status of ["CANCELLED", "COMPLETED", "NO_SHOW"]) {
+    const r = puedeCompletarse({ status, startsAt: new Date(0), ahora: new Date(), vino: true });
+    assert.deepEqual(r, { ok: false, motivo: "no-confirmado" }, status);
+  }
+});
+
+test("«vino» sobre un Confirmado pasado no cambia nada: se completa igual", () => {
+  const r = puedeCompletarse({ status: "CONFIRMED", startsAt: new Date(0), ahora: new Date(), vino: true });
+  assert.deepEqual(r, { ok: true });
+});
+
 test("completar con seña cobrada y medio elegido → UN cobro por el saldo", () => {
   const p = planCompletar({
     precio: 20000,

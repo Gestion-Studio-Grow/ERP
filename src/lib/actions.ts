@@ -51,7 +51,6 @@ import {
 } from "@/lib/turnos/cobros";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
 import { avisoDeEspera, motivoDeDevolucion, planSeniaAlCerrar } from "@/lib/turnos/practica";
-import { agendaPractica } from "@/lib/turnos/practica.server";
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { agruparIngresos, bordesDelPeriodo } from "@/lib/report-ingresos";
 import {
@@ -1362,14 +1361,19 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
  * toca, no se inventa un cobro. El turno deja de figurar en "Saldos a cobrar" y se destraba
  * su comisión (`sePuedeLiquidar` exige el turno saldado).
  *
- * `agenda:manage`, no `agenda:collect`: perdonar plata es una decisión del negocio (dueña o
- * mostrador), no parte de cobrar. La profesional que cobra lo suyo no decide qué se regala.
+ * `agenda:forgive`, no `agenda:manage` ni `agenda:collect`: perdonar plata es una decisión de
+ * la DUEÑA (reingeniería CH, D5: «tope $0, sólo la dueña da de baja saldos»). Antes bastaba
+ * `agenda:manage`, que la recepción tiene para la agenda entera. La pantalla no dibuja la tecla
+ * para la recepción; esto la rechaza si el formulario llega igual (CH-040).
  *
  * NO tiene guarda de día cerrado a propósito: no escribe una sola fila en el libro, así que
  * no puede mover el saldo de un día ya contado.
  */
 export async function condonarSaldoTurno(formData: FormData): Promise<ResultadoAccion> {
   const user = await requireCapability("agenda:manage");
+  if (!roleHasCapability(user.role, "agenda:forgive")) {
+    return { ok: false, error: "Dar de baja un saldo lo decide la dueña. Pasale el turno a ella." };
+  }
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId") || "").trim();
   if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
@@ -1449,21 +1453,28 @@ export async function condonarSaldoTurno(formData: FormData): Promise<ResultadoA
 // Reservado → Confirmado (la clienta confirmó que viene). Sin plata: la seña se cobró al
 // reservar (o se registra aparte). No exige seña — la recepción decide; la fila muestra
 // "sin seña" para que se vea.
-export async function confirmarTurno(formData: FormData) {
+//
+// Devuelve `ResultadoAccion` (reingeniería CH, B3): antes, si el turno ya no estaba reservado,
+// volvía en silencio y la pantalla decía que había confirmado algo que no.
+export async function confirmarTurno(formData: FormData): Promise<ResultadoAccion> {
   await requireCapability("agenda:manage");
-  if (isDemoSandbox()) return; // modo demo: no persiste
+  if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId") || "");
+  if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
+  const tenantId = await getCurrentTenantId();
   const res = await prisma.appointment.updateMany({
-    where: { id: appointmentId, status: "PENDING" },
+    where: { id: appointmentId, tenantId, status: "PENDING" },
     data: { status: "CONFIRMED" },
   });
-  if (res.count === 0) return; // ya no estaba reservado (doble clic / cambió): no hay nada que hacer
+  // Ya no estaba reservado (otra persona lo confirmó, canceló o completó; o no es de este negocio).
+  if (res.count === 0) return { ok: false, error: "Ese turno cambió recién. Recargá la agenda." };
   await auditAdmin({ action: "confirm", entity: "Appointment", entityId: appointmentId, changes: { status: "CONFIRMED" } });
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
   revalidatePath("/admin/turnos/lista");
   // "Confirmar turnos de mañana" también ofrece este botón (MananaConfirmar.tsx).
   revalidatePath("/admin/turnos/manana");
+  return { ok: true };
 }
 
 export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
@@ -1665,24 +1676,36 @@ export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE
 // condición va en el `where` del update (como `confirmarTurno`), así también gana la carrera
 // de dos recepcionistas: si otra lo completó un segundo antes, esto no toca nada.
 //
-// Sin cambios en la firma (la usa un `<form action>`): un rechazo no escribe ni audita, deja
-// constancia en el log y la agenda se vuelve a pintar con el estado real del turno.
-export async function cancelAppointment(formData: FormData) {
+// Devuelve `ResultadoAccion` (reingeniería CH, B3): antes un rechazo volvía en silencio y la
+// recepción creía haber cancelado. Un rechazo no escribe ni audita, deja constancia en el log y
+// dice qué hacer («Recargá la agenda»).
+//
+// `quien` (opcional, «clienta» | «negocio»): quién canceló, para la auditoría (sin migración).
+export async function cancelAppointment(formData: FormData): Promise<ResultadoAccion> {
   await requireCapability("agenda:manage");
-  if (isDemoSandbox()) return; // modo demo: no persiste
+  if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId") ?? "");
+  if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
   const tenantId = await getCurrentTenantId();
   const cambiados = await cancelarTurnoVivo(prisma, tenantId, appointmentId);
   if (cambiados === 0) {
     logger.warn("agenda", "cancelación rechazada: el turno no está reservado ni confirmado", { appointmentId });
     revalidatePath("/admin/turnos");
-    return;
+    return { ok: false, error: "Ese turno cambió recién. Recargá la agenda." };
   }
-  await auditAdmin({ action: "cancel", entity: "Appointment", entityId: appointmentId });
+  const quien = quienCancelo(formData);
+  await auditAdmin({ action: "cancel", entity: "Appointment", entityId: appointmentId, ...(quien ? { changes: { quien } } : {}) });
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
   // El hueco que se libera aparece en la lista de espera (huecos liberados).
   revalidatePath("/admin/espera");
+  return { ok: true };
+}
+
+/** Quién canceló («la clienta avisó» / «lo cancela el negocio»), si la pantalla lo mandó. */
+function quienCancelo(formData: FormData): "clienta" | "negocio" | null {
+  const q = formData.get("quien");
+  return q === "clienta" || q === "negocio" ? q : null;
 }
 
 export async function markNoShow(formData: FormData): Promise<ResultadoAccion> {
@@ -1721,15 +1744,18 @@ export async function markNoShow(formData: FormData): Promise<ResultadoAccion> {
 //     operación que «Anular» de la fila), en la MISMA transacción que el cambio de estado: o pasan
 //     las dos cosas o ninguna. Si un cobro no se puede anular (facturado, de un día ya cerrado), no
 //     se cambia nada y se dice por qué.
-// Con el interruptor apagado la pantalla usa `cancelAppointment` y `markNoShow`, como siempre.
+//
+// Reingeniería CH (Tanda 1): la acción ya NO depende del interruptor «agenda-practica». Antes,
+// apagado el interruptor, contestaba «no está activa» y la seña quedaba en silencio al cancelar o
+// faltar. Ahora es el camino de la bandeja «Cerrar lo pendiente», del cajón y de la tarjeta vieja
+// para todos los negocios; el interruptor sólo decide qué PANTALLA se dibuja (la UI vieja).
 export async function cerrarTurnoSinPrestar(formData: FormData): Promise<ResultadoAccion> {
   const accion = formData.get("accion") === "no-vino" ? "no-vino" : "cancelar";
   const user = await requireCapability(accion === "cancelar" ? "agenda:manage" : "agenda:complete");
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
-  // Apagado el interruptor, esta acción no existe para el negocio (aunque alguien la llame a mano).
-  if (!(await agendaPractica())) return { ok: false, error: "Esta opción no está activa en tu negocio." };
   const appointmentId = String(formData.get("appointmentId") ?? "");
   const destinoPedido = String(formData.get("senia") ?? "");
+  const quien = accion === "cancelar" ? quienCancelo(formData) : null;
   const tenantId = await getCurrentTenantId();
   const actor = `user:${user.id}`;
 
@@ -1835,7 +1861,7 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
     action: accion === "cancelar" ? "cancel" : "no_show",
     entity: "Appointment",
     entityId: appointmentId,
-    changes: { senia: plan.destino ?? "sin-seña", cobrado, devuelto },
+    changes: { senia: plan.destino ?? "sin-seña", cobrado, devuelto, ...(quien ? { quien } : {}) },
   });
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
@@ -1874,34 +1900,60 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   const methodRaw = String(formData.get("method") || "");
   const method: MetodoDePago | null = esMetodoDePago(methodRaw) ? methodRaw : null;
   const dejarSaldoACobrar = formData.get("saldo") === "a-cobrar";
+  // «Vino» (reingeniería CH, Tanda 1): la recepción dice que la clienta vino sobre un RESERVADO
+  // cuya hora ya pasó → se completa sin pasar por «Confirmar». Opcional: sin el campo rige la
+  // regla de siempre (sólo CONFIRMED). La hora manda igual (`puedeCompletarse`).
+  const vino = formData.get("vino") === "on";
   const tenantId = await getCurrentTenantId();
   const actor = `user:${user.id}`;
+
+  // El turno tiene que ser de ESTE negocio (predicado `tenantId` además de RLS): un id ajeno
+  // contesta «ya no existe», nunca un error crudo de Prisma.
+  const existe = await prisma.appointment.findFirst({ where: { id: appointmentId, tenantId }, select: { id: true } });
+  if (!existe) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
+
+  // ¿Quien manda el medio puede cobrar ESTE turno? La misma regla que «Registrar cobro»
+  // (`puedeCobrarEsteTurno`): la recepción no cobra el turno de la profesional que cobra aparte,
+  // aunque fuerce un `method` en el formulario (CH-007). Se mira sólo si se pidió cobrar.
+  let veredictoDeCobro: { ok: true } | { ok: false; motivo: string } = { ok: true };
+  if (method && !dejarSaldoACobrar) {
+    const delTurno = await leerProfesionalDelTurno(appointmentId);
+    veredictoDeCobro = puedeCobrarEsteTurno({
+      rol: user.role,
+      professionalIdDelUsuario: user.professionalId,
+      professionalIdDelTurno: delTurno.professionalId,
+      nombreProfesional: delTurno.nombre,
+      cobraEnMostrador: delTurno.cobraEnMostrador,
+    });
+  }
   const cerradoHasta = dejarSaldoACobrar ? null : await lastClosedDay(tenantId);
 
   const run = (withSchema: boolean) =>
     tenantTransaction(
       async (tx) => {
-        const appointment = await tx.appointment.findUniqueOrThrow({
-          where: { id: appointmentId },
+        const appointment = await tx.appointment.findFirst({
+          where: { id: appointmentId, tenantId },
           include: {
             service: { include: { products: { include: { product: true } } } },
             client: { select: { name: true } },
             payment: { select: { status: true, amount: true } },
           },
         });
+        if (!appointment) throw new RechazoDeDominio("Ese turno ya no existe. Recargá la agenda.");
 
         // Un PROFESSIONAL solo puede cerrar turnos de su propia agenda (ADR-017 §2.b).
         if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
-          throw new Error("No autorizado: solo podés operar sobre tu propia agenda.");
+          throw new RechazoDeDominio("Ese turno es de otra profesional: sólo podés cerrar los tuyos.");
         }
 
-        const puede = puedeCompletarse({ status: appointment.status, startsAt: appointment.startsAt, ahora: new Date() });
+        const puede = puedeCompletarse({ status: appointment.status, startsAt: appointment.startsAt, ahora: new Date(), vino });
         if (!puede.ok) throw new CompletarTurnoRechazado(puede.motivo);
 
         const precio = appointment.priceAtBooking ?? appointment.service.price;
         const cobros = await cobrosDelTurnoInTx(tx, tenantId, appointmentId);
         const plan = planCompletar({ precio, cobros, pagoLegado: appointment.payment, dejarSaldoACobrar, method });
         if (!plan.ok) throw new CompletarTurnoRechazado(plan.motivo);
+        if (plan.cobro && !veredictoDeCobro.ok) throw new RechazoDeDominio(veredictoDeCobro.motivo);
 
         // Consumo de insumos al cerrar el turno, vía ledger (`recordMovement`): descuenta
         // el stock y asienta un StockMovement (CONSUMO) por insumo en la misma transacción.
@@ -1941,24 +1993,29 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
           });
         }
 
-        await tx.appointment.update({
-          where: { id: appointmentId },
+        // La condición va en la escritura: si otra recepcionista lo completó, canceló o marcó
+        // un segundo antes, no se pisa (CH-045).
+        const { count } = await tx.appointment.updateMany({
+          where: { id: appointmentId, tenantId, status: appointment.status },
           data: { status: "COMPLETED" },
         });
+        if (count === 0) throw new RechazoDeDominio("Ese turno cambió recién. Recargá la agenda.");
 
-        return { cobro, saldoACobrar: plan.saldoACobrar };
+        return { cobro, saldoACobrar: plan.saldoACobrar, desdeReservado: appointment.status === "PENDING" };
       },
       { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
-  let settled: SettleOutcome<{ cobro: AplicarCobroResult | null; saldoACobrar: number }>;
+  let settled: SettleOutcome<{ cobro: AplicarCobroResult | null; saldoACobrar: number; desdeReservado: boolean }>;
   try {
     settled = await settleAppointmentPaymentGuarded({
       runWithBridge: () => run(true),
       runWithoutBridge: () => run(false),
     });
   } catch (e) {
-    if (e instanceof CompletarTurnoRechazado || e instanceof CobroTurnoRechazado) return { ok: false, error: e.message };
+    if (e instanceof CompletarTurnoRechazado || e instanceof CobroTurnoRechazado || e instanceof RechazoDeDominio) {
+      return { ok: false, error: e.message };
+    }
     throw e;
   }
   if (settled.outcome === "race") {
@@ -1981,6 +2038,8 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
     changes: {
       saldoCobrado: cobro?.applied ? { amount: cobro.monto, method } : null,
       saldoACobrar: settled.value.saldoACobrar,
+      // «Vino» sobre un Reservado: se completó sin pasar por Confirmado (queda escrito).
+      ...(settled.value.desdeReservado ? { vino: true } : {}),
       libroCaja: cobro ? rastroLibroCaja({ outcome: settled.outcome, value: cobro }) : null,
     },
   });
