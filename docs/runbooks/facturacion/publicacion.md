@@ -24,7 +24,8 @@ Este runbook lo baja a **este** release, con sus migraciones, sus variables y su
 ## El orden (no se saltea ni se invierte)
 
 **Migraciones → lote-deploy → variables → merge → verificación.** El código nuevo crea facturas usando
-columnas que todavía no existen en Neon (`Invoice.descripcion`, `Invoice.abonoClave`). Si el código
+columnas y tablas que todavía no existen en Neon (`Invoice.descripcion`, `Invoice.abonoClave`, `ReglaFacturacion`
+y `CobroFacturado`, que usan todos los caminos de Mercado Pago, turnos y extracto). Si el código
 llega antes que la migración, `scripts/vercel-build.mjs` frena el build y no publica (prod no se
 rompe), pero `main` queda trabado para todos hasta que se migre.
 
@@ -109,7 +110,7 @@ la vidriera por código (`src/lib/producto-host.ts`); el mapa resuelve el negoci
 
 ### 6. Después
 - [ ] Tag de versión (`npm run release:notas -- --tag`; el tag lo pushea el dueño).
-- [ ] Actualizar `docs/ESTADO-ACTUAL.md` (main, prod, migraciones aplicadas) y sacar las dos migraciones
+- [ ] Actualizar `docs/ESTADO-ACTUAL.md` (main, prod, migraciones aplicadas) y sacar las tres migraciones
   del lote en el próximo release.
 - [ ] Retro (ADR-047): una entrada en `docs/lecciones-aprendidas/registro.md` si algo costó.
 
