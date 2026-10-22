@@ -10,6 +10,10 @@
 // REINGENIERÍA CH, TANDA 3 (3-D): en Servicios, un buscador (`?q=`, por nombre o categoría, sin
 // acentos; se resuelve acá con la lista que ya llegó) y la tecla «Subir precios», que abre el aumento
 // en bloque de la dueña (/admin/catalogo/precios-servicios, CH-039).
+//
+// INTEGRACIÓN TANDA 3: la pestaña «Combos» (`?ver=combos`) monta `CombosSection` (3-B, camino A, D8):
+// el alta de un combo es un servicio NUEVO de la categoría «Combos»; los servicios que lo componen no
+// se tocan (CH-034). Los combos también siguen en Servicios (son servicios), con su buscador.
 
 import Link from "next/link";
 import type { getCatalog } from "@/lib/catalog-actions";
@@ -19,7 +23,8 @@ import { buscarServicios } from "@/lib/catalogo/aumento-servicios";
 import ProfessionalsSection from "./ProfessionalsSection";
 import ProductsSection from "./ProductsSection";
 import AsignacionSection from "./AsignacionSection";
-import { contarCatalogo, leerParte, type ParteDelCatalogo } from "./catalogo-servicios-core";
+import CombosSection from "./CombosSection";
+import { contarCatalogo, esCombo, leerParte, type ParteDelCatalogo } from "./catalogo-servicios-core";
 import { BoxesRenglon, CuponesRenglon, EquiposRenglon, ServiciosRenglon } from "./CatalogoServiciosRenglon";
 
 type Sp = Record<string, string | string[] | undefined>;
@@ -58,6 +63,7 @@ export default function CatalogoServiciosPagina({ sp, datos }: { sp: Sp; datos: 
 
   const pestanas = [
     { parte: "servicios", etiqueta: "Servicios", conteo: services.length },
+    { parte: "combos", etiqueta: "Combos", conteo: services.filter(esCombo).length },
     { parte: "profesionales", etiqueta: "Profesionales", conteo: professionals.length },
     { parte: "boxes", etiqueta: "Boxes", conteo: boxes.length },
     { parte: "equipos", etiqueta: "Equipos", conteo: resources.length },
@@ -122,6 +128,21 @@ export default function CatalogoServiciosPagina({ sp, datos }: { sp: Sp; datos: 
       {parte === "cupones" && <CuponesRenglon cupones={coupons} agregar={agregar} />}
       {parte === "profesionales" && <ProfessionalsSection professionals={professionals} boxes={boxes} services={services} />}
       {parte === "productos" && <ProductsSection products={products} />}
+      {parte === "combos" && (
+        <CombosSection
+          servicios={services.map((s) => ({
+            id: s.id,
+            name: s.name,
+            durationMin: s.durationMin,
+            price: s.price,
+            depositAmount: s.depositAmount,
+            active: s.active,
+            categoryName: s.category?.name ?? null,
+            description: s.description,
+          }))}
+          profesionales={professionals.map((p) => ({ id: p.id, name: p.name, active: p.active, serviceIds: p.services.map((s) => s.id) }))}
+        />
+      )}
       {parte === "quien" && (
         <AsignacionSection
           services={services.map((s) => ({ id: s.id, name: s.name, active: s.active, categoryName: s.category?.name ?? null }))}

@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contarCatalogo, leerParte } from "./catalogo-servicios-core";
+import { contarCatalogo, esCombo, leerParte } from "./catalogo-servicios-core";
 
 test("sin ?ver= o con una pestaña que no existe, abre Servicios", () => {
   assert.equal(leerParte({}), "servicios");
@@ -11,7 +11,7 @@ test("sin ?ver= o con una pestaña que no existe, abre Servicios", () => {
 });
 
 test("cada pestaña del catálogo se abre por su nombre", () => {
-  for (const v of ["profesionales", "boxes", "equipos", "productos", "quien", "cupones"]) assert.equal(leerParte({ ver: v }), v);
+  for (const v of ["combos", "profesionales", "boxes", "equipos", "productos", "quien", "cupones"]) assert.equal(leerParte({ ver: v }), v);
 });
 
 const servicios = [
@@ -46,4 +46,13 @@ test("cada box lista sus profesionales activos; el que no tiene box no aparece",
     { name: "Mica Luna", active: true, boxId: null, services: [] },
   ]);
   assert.deepEqual(c.profesionalesPorBox, { box1: ["Valentina Ríos", "Rocío Paz"] });
+});
+
+test("Integración T3: «Combos» es una pestaña y un combo es un servicio de la categoría Combos", () => {
+  assert.equal(leerParte({ ver: "combos" }), "combos");
+  assert.equal(esCombo({ categoryName: "Combos" }), true);
+  assert.equal(esCombo({ categoryName: " combos " }), true);
+  assert.equal(esCombo({ category: { name: "COMBOS" } }), true);
+  assert.equal(esCombo({ categoryName: "Depilación" }), false);
+  assert.equal(esCombo({ categoryName: null, category: null }), false);
 });

@@ -18,10 +18,11 @@
 import { useMemo, useState, useTransition } from "react";
 import { crearCombo, darDeBajaCombo } from "@/lib/catalogo/combos-actions";
 import { Button, Chip, Input } from "@/components/ui";
-import { CATEGORIA_COMBOS, duracionDelCombo, quienesHacenTodo } from "@/lib/turnos/combos";
+import { duracionDelCombo, quienesHacenTodo } from "@/lib/turnos/combos";
 import { importeParaFormulario } from "@/lib/pos-peso";
 import { leerImporte } from "@/lib/dinero/leer";
 import { useToast } from "../ToastProvider";
+import { esCombo } from "./catalogo-servicios-core";
 
 export type ServicioDelCatalogo = {
   id: string;
@@ -37,7 +38,6 @@ export type ServicioDelCatalogo = {
 export type ProfesionalDelCatalogo = { id: string; name: string; active: boolean; serviceIds: string[] };
 
 const pesos = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
-const esCombo = (s: Pick<ServicioDelCatalogo, "categoryName">) => (s.categoryName ?? "").trim().toLowerCase() === CATEGORIA_COMBOS.toLowerCase();
 
 export default function CombosSection({ servicios, profesionales }: { servicios: ServicioDelCatalogo[]; profesionales: ProfesionalDelCatalogo[] }) {
   const combos = servicios.filter(esCombo);

@@ -41,6 +41,13 @@ export type PropuestaDeSenia = {
   editable: true;
 };
 
+/**
+ * La regla de la seña cuando no se sabe la del negocio (la pantalla no la recibió): el placeholder D2
+ * del diseño, PROVISIONAL A CONFIRMAR, igual a `REGLAS_POR_DEFECTO` de settings.ts (que no se importa
+ * acá porque arrastra Prisma al navegador; mi-negocio.test.ts ata los dos valores).
+ */
+export const REGLA_DE_SENIA_PROVISIONAL: ReglaDeSenia = { cancelacionHoras: 24, seniaCancelaTarde: "retener", seniaNoVino: "retener" };
+
 /** Cómo se dice cada destino en el botón. */
 export const TITULO_DESTINO: Record<DestinoSenia, string> = {
   retener: "Se la queda el negocio",

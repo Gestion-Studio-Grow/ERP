@@ -24,6 +24,7 @@ import { estadoCobroTurno, cobroSugerido, esCuentaACobrar, seniaDelServicio, typ
 import { desglosarCobros } from "@/lib/turnos/anulacion";
 import { etiquetaDelCombo, nombresDelCombo } from "@/lib/turnos/combos";
 import type { CierreSinPrestar, DestinoDeLaSenia } from "@/lib/turnos/practica";
+import { REGLA_DE_SENIA_PROVISIONAL, TITULO_DESTINO, propuestaDeSenia as propuestaDeMiNegocio, type ReglaDeSenia } from "@/lib/mi-negocio/mi-negocio";
 import type { TipoMarca } from "@/components/ui/Marca";
 import { dateStrInBusinessTz, fmtShortDate, fmtTime } from "@/lib/datetime";
 
@@ -286,14 +287,51 @@ export function cierraElTurno(p: Paso): boolean {
 export type { CierreSinPrestar, DestinoDeLaSenia };
 export type QuienCancela = "clienta" | "negocio";
 
-/** Con cuánta anticipación tiene que avisar la clienta para que se le devuelva la seña (D2). */
-export const HORAS_PARA_DEVOLVER = 24;
+/** Con cuánta anticipación tiene que avisar la clienta para que se le devuelva la seña (D2, placeholder). */
+export const HORAS_PARA_DEVOLVER = REGLA_DE_SENIA_PROVISIONAL.cancelacionHoras;
+
+export type PropuestaDeLaHoja = {
+  /** Lo que se marca de entrada (retener / devolver), o `null` si no hay nada que proponer. */
+  destino: DestinoDeLaSenia | null;
+  /** Por qué, en una línea («Avisó con 6 h; la regla pide 24 h.»), o `null` sin propuesta. */
+  porque: string | null;
+  /**
+   * La regla de Mi negocio dice «queda a favor», que todavía no se puede registrar (saldo a favor es
+   * Tanda 5, migración M7): no se marca nada y la recepción elige retener o devolver.
+   */
+  aFavor: boolean;
+};
 
 /**
- * Lo que se le PROPONE a la recepción hacer con la seña (D2 del diseño, *provisional a confirmar*
- * por la dueña): cancela el negocio → se devuelve; la clienta avisa con 24 h o más → se devuelve;
- * con menos de 24 h, o no vino → se la queda el negocio. Es una propuesta: la recepción la ve
- * marcada y la puede cambiar. Sin plata cobrada no hay nada que proponer.
+ * Lo que la hoja de cancelar / «no vino» le PROPONE a la recepción con la seña (CH-035): la regla de
+ * Mi negocio (`propuestaDeSenia` de src/lib/mi-negocio/mi-negocio.ts, con las reglas que fijó la
+ * dueña o el placeholder D2 si la migración M2 no está). Es una propuesta: la recepción la ve marcada
+ * y la puede cambiar; la acción recibe lo ELEGIDO. Sin plata cobrada no hay nada que proponer; para
+ * cancelar hace falta saber quién cancela.
+ */
+export function propuestaParaLaHoja(input: {
+  accion: CierreSinPrestar;
+  quien: QuienCancela | null;
+  inicio: string;
+  ahora: Date;
+  cobrado: number;
+  regla?: ReglaDeSenia | null;
+}): PropuestaDeLaHoja {
+  const nada: PropuestaDeLaHoja = { destino: null, porque: null, aFavor: false };
+  if (input.cobrado <= 0) return nada;
+  if (input.accion === "cancelar" && input.quien === null) return nada;
+  const horasAntes = (new Date(input.inicio).getTime() - input.ahora.getTime()) / 3_600_000;
+  const p = propuestaDeMiNegocio(input.regla ?? REGLA_DE_SENIA_PROVISIONAL, input.accion === "no-vino" ? "no-vino" : (input.quien ?? "clienta"), horasAntes);
+  if (p.destino === "a-favor") {
+    return { destino: null, porque: `${p.porque} Mi negocio dice «${TITULO_DESTINO["a-favor"]}», que todavía no se puede registrar: elegí qué hacer.`, aFavor: true };
+  }
+  return { destino: p.destino, porque: p.porque, aFavor: false };
+}
+
+/**
+ * Sólo el destino propuesto (compatibilidad con la Tanda 2: sin `regla`, el placeholder D2 — cancela
+ * el negocio → se devuelve; la clienta avisa con 24 h o más → se devuelve; con menos, o no vino → se
+ * la queda el negocio).
  */
 export function propuestaDeSenia(input: {
   accion: CierreSinPrestar;
@@ -301,13 +339,9 @@ export function propuestaDeSenia(input: {
   inicio: string;
   ahora: Date;
   cobrado: number;
+  regla?: ReglaDeSenia | null;
 }): DestinoDeLaSenia | null {
-  if (input.cobrado <= 0) return null;
-  if (input.accion === "no-vino") return "retener";
-  if (input.quien === null) return null;
-  if (input.quien === "negocio") return "devolver";
-  const horas = (new Date(input.inicio).getTime() - input.ahora.getTime()) / 3_600_000;
-  return horas >= HORAS_PARA_DEVOLVER ? "devolver" : "retener";
+  return propuestaParaLaHoja(input).destino;
 }
 
 /**
