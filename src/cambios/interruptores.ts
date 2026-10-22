@@ -87,6 +87,20 @@ export const INTERRUPTORES = [
     enAuditoria: "la agenda práctica",
     cambiaLasApps: false,
   },
+  {
+    // El mostrador boutique de Magra (reingeniería, Tanda 1 en adelante): el pie de cobro único con
+    // pago dividido y billetes, el campo único para la etiqueta de la balanza, el cliente con CUIT
+    // en la venta, el envío con costo por zona y la pantalla Armar de los pedidos. Lo leen las
+    // pantallas del mostrador con `mostradorBoutiquePrendido`. Se prende sólo en Magra y en los
+    // negocios de QA; CH (beauty-spa) no ve nada hasta que el dueño lo decida. Apagado, el
+    // mostrador de siempre, byte a byte. No cambia qué apps ve nadie: cambia cómo se vende.
+    id: "mostrador-boutique",
+    nombre: "Mostrador boutique",
+    queCambia:
+      "El mostrador nuevo: un solo pie para cobrar (con pago dividido, billetes y vuelto grande), la etiqueta de la balanza entra sola, el cliente con CUIT en la venta y el envío con su costo. Apagado, el mostrador de siempre.",
+    enAuditoria: "el mostrador boutique",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -98,6 +112,21 @@ export const DISENO_NUEVO: InterruptorId = "diseno-nuevo";
 
 /** La agenda práctica (src/lib/turnos/practica.server.ts la lee en cada pedido). */
 export const AGENDA_PRACTICA: InterruptorId = "agenda-practica";
+
+/** El mostrador boutique (reingeniería de Magra): Vender, Pedidos, Armar y el cobro nuevos. */
+export const MOSTRADOR_BOUTIQUE: InterruptorId = "mostrador-boutique";
+
+/**
+ * ¿Este negocio trabaja con el mostrador boutique? Recibe el estado que arma
+ * `interruptoresDelNegocio()` (src/cambios/interruptores.server.ts) y lo decide sin base. Un estado
+ * sin la entrada (un catálogo viejo en memoria, un objeto parcial) cuenta como apagado: lo nuevo
+ * nunca se prende por un hueco. PURA y client-safe.
+ */
+export function mostradorBoutiquePrendido(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return estado[MOSTRADOR_BOUTIQUE]?.encendido === true;
+}
 
 export function esInterruptorId(id: unknown): id is InterruptorId {
   return typeof id === "string" && INTERRUPTORES.some((i) => i.id === id);

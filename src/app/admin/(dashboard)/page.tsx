@@ -19,6 +19,7 @@ import InicioApps from "./inicio/InicioApps";
 import InicioRenglon from "./inicio/InicioRenglon";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { enInicioPorApps } from "./inicio/piloto";
+import { puedeAbrirApp } from "./vender/puede-abrir";
 import {
   buttonClasses,
   KpiTile,
@@ -149,7 +150,18 @@ async function RetailHome({
   canSeeStock: boolean;
   itemNoun: string;
 }) {
-  const d = await getRetailDashboardData();
+  // «+ Nueva venta» y «Ventas hoy» van a SU pantalla (reingeniería de Magra, 1G · MG-040): vender
+  // es /admin/vender y las ventas cobradas del día son /admin/ventas, no la bandeja de Pedidos. Con
+  // la MISMA regla que la guardia de cada una (`requireApp`: módulo `pos`, capability, rubro): un
+  // comercio sin `pos` asignado, o un rol que no puede, sigue yendo a Pedidos como siempre, en vez
+  // de a una pantalla que lo rebota (callejón sin salida).
+  const [d, abreVender, abreVentas] = await Promise.all([
+    getRetailDashboardData(),
+    puedeAbrirApp("vender"),
+    puedeAbrirApp("ventas-del-dia"),
+  ]);
+  const nuevaVentaHref = abreVender ? "/admin/vender" : "/admin/pedidos";
+  const ventasHoyHref = abreVentas ? "/admin/ventas" : "/admin/pedidos";
   const plural = pluralTitulo(itemNoun);
   // Ticket promedio del día: el número con el que un mostrador se da cuenta de si hoy
   // vendió picada o vendió lomo. Sale de datos que el loader YA trae (no hay consulta
@@ -163,7 +175,7 @@ async function RetailHome({
           <h1 className="text-2xl font-bold text-strong tracking-tight mb-1">Inicio</h1>
           <p className="text-muted text-sm">Resumen del mostrador.</p>
         </div>
-        <Link href="/admin/pedidos" className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
+        <Link href={nuevaVentaHref} className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
           + Nueva venta
         </Link>
       </div>
@@ -185,7 +197,7 @@ async function RetailHome({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {/* Con la caja cerrada no se repite acá: lo dice la banda de arriba, que además
             explica qué se rompe y lleva a abrirla. */}
-        <Kpi label="Ventas hoy" value={String(d.todaySalesCount)} href="/admin/pedidos" icon="caja"
+        <Kpi label="Ventas hoy" value={String(d.todaySalesCount)} href={ventasHoyHref} icon="caja"
           sub={d.cashOpen ? "Caja abierta." : undefined} />
         {canSeeRevenue && (
           // A /admin/caja, no a /admin/reportes: lo que entró HOY, medio por medio, está

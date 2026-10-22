@@ -1439,3 +1439,46 @@ summary:focus-visible {
   [data-skin="fable"] [data-ui="button"]:active:not(:disabled) { transform: none; }
   [data-skin="fable"] :is(input, select, textarea) { transition: none; }
 }
+
+/* ═════════ MAGRA BOUTIQUE — grafito profundo y oro (reingeniería de Magra, diseño §1.2 · Tanda 1 · 1G) ═════════
+   El backoffice del mostrador boutique: la vidriera de Magra es clara → el panel es OSCURO, con el acento oro
+   (preset `oro` de src/lib/branding.ts, mismos valores). Un solo bloque, sólo bajo `[data-brand="magra"]`: no lo
+   pone nadie hasta que el layout lo escriba con el interruptor «mostrador-boutique» prendido
+   (src/cambios/interruptores.ts), así que CH, Break Point y Matías no ven ni un byte distinto, y Magra con el
+   interruptor apagado tampoco (sigue con su estética `data-estetica="magra"` de arriba).
+   Oscuro en los dos temas, como la estética de Magra: el toggle claro/oscuro no lo aclara. El segundo selector
+   (3 atributos, y va al final) le gana al skin Fable y a la estética de Magra en claro y en oscuro.
+   Contraste AA medido, no a ojo: src/app/magra-oro-contraste.test.ts lee ESTE bloque y falla si un par no llega.
+   Valores PROVISIONALES A CONFIRMAR con el dueño: si alguno no pasa, se ajusta el token, nunca el componente.
+   oxblood queda como color de MARCA (el rótulo «MAGRA» de la cabecera), nunca para acciones. — Elaborado por GSG */
+[data-brand="magra"],
+[data-skin="fable"][data-brand="magra"][data-theme] {
+  --background: #141311; /* design-lint-ignore: grafito §1.2 */
+  --foreground: #f3eee2; /* design-lint-ignore: hueso §1.2 */
+  --surface: #141311; /* design-lint-ignore: fondo del panel */
+  --surface-raised: #1e1c18; /* design-lint-ignore: tarjetas, el ticket */
+  --surface-sunken: #0f0e0b; /* design-lint-ignore: pie de cobro, cabecera fija */
+  --surface-inverted: #f3eee2; /* design-lint-ignore: hueso */
+  --text-strong: #f3eee2; /* design-lint-ignore: cifras */
+  --text: #cfc8b8; /* design-lint-ignore: cuerpo */
+  --text-muted: #978f7e; /* design-lint-ignore: rótulos */
+  --text-faint: #978f7e; /* design-lint-ignore: = rótulos (AA, no hay un gris más tenue que pase) */
+  --accent: #c9a24a; /* design-lint-ignore: oro — «Cobrar», chips activos, total */
+  --accent-hover: #d8b25e; /* design-lint-ignore: oro al pasar */
+  --accent-ink: #d8b25e; /* design-lint-ignore: oro como texto chico */
+  --accent-soft: rgba(201, 162, 74, 0.14);
+  --text-on-accent: #1a1708; /* design-lint-ignore: tinta sobre el oro */
+  --line: #2a2721; /* design-lint-ignore: separadores finos */
+  --line-strong: #3a362d; /* design-lint-ignore: separadores marcados */
+  --success: #86a97f; --success-soft: rgba(134, 169, 127, 0.15); --success-fill: #86a97f; /* «Cobrada» */
+  --warning: #d9a24a; /* design-lint-ignore: «Pesó más» */
+  --warning-soft: rgba(217, 162, 74, 0.15);
+  --warning-fill: #d9a24a; /* design-lint-ignore: «Pesó más» */
+  --danger: #e08472; --danger-soft: rgba(224, 132, 114, 0.15); --danger-fill: #e08472; /* «Faltan» */
+  --info: var(--accent-ink); --info-soft: var(--accent-soft); --focus-ring: var(--accent);
+  --bar-track: #2a2721; /* design-lint-ignore: = --line */
+  --magra-marca: #6b1f2a; /* design-lint-ignore: oxblood, sólo el rótulo de la marca */
+  --font-display: var(--font-bebas); --font-body: var(--font-open-sans);
+  --radius: 0.625rem;
+  color-scheme: dark;
+}
