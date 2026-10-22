@@ -244,7 +244,7 @@ export function alternativas(estado: EstadoClub, d: Pick<DatosAlta, "canchaId" |
   if (v.ok && !pasada) return { entra: true, cuantoEntra: cuanto, aviso: null, opciones: [], espera };
   const entra = false;
   // Ya pasó: se dice eso (y se ofrece lo que todavía está a tiempo: el siguiente hueco acá u otra cancha).
-  const aviso = pasada ? YA_PASO : (motivoDelHueco(estado, d) ?? v.motivo);
+  const aviso = pasada || v.ok ? YA_PASO : (motivoDelHueco(estado, d) ?? v.motivo);
   const vigente = (inicio: number, duracion: number) => minutosHasta(ahora, d.fecha, inicio) + duracion > 0;
   const nombre = (id: string) => canchaDe(estado, id)?.nombre ?? id;
   const armar = (canchaId: string, inicio: number, duracion: number, tipo: Alternativa["tipo"]): Alternativa => {
