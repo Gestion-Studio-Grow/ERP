@@ -31,6 +31,12 @@
 // se arrastra de un cobro al siguiente); y «créditos + el resto» usa todos los créditos de la ficha y cobra lo que falta
 // con un medio, en una sola acción (se ensaya sobre una copia antes de tocar la plata: o sale entero o no sale).
 //
+// Cuenta (reingeniería de Break Point, Tanda 2 · 2D): si la cancha del turno sigue ocupada por el anterior, la cuenta
+// no ofrece «Abrir la cancha» (diría «sigue ocupada») sino «Cerrar la de X y abrir» (`canchaOcupada`; lo corre el comando
+// «cierre» de ciclo-core en un solo paso, con `cerrarYAbrirLaSiguiente` del motor); y «La mesa sigue · dividido» trae la
+// parte de la cancha de cada jugador (`mesaSigueDividido`) para que cada uno pague la suya con SU medio
+// (`cerrarCanchaYSeguir` con `porJugador`).
+//
 // La plata la calcula el motor (`cuentaDelTurno`, `partesCancha`, `cobrarJugador`…): la pantalla
 // nunca suma por su cuenta.
 
@@ -216,8 +222,42 @@ export interface VistaCuenta {
     cerrarCargos: number | null;
     /** «Cargos a cuenta corriente»: con la cancha cerrada y cargos por cobrar. */
     cargosACuenta: boolean;
+    /**
+     * La cancha sigue ocupada por el turno anterior (Tanda 2D): «Cerrar la de X y abrir», en un paso. Mientras está,
+     * no se ofrece «Abrir la cancha» ni «Cobrar la seña y abrir» (el motor diría «sigue ocupada»). null si está libre.
+     */
+    cerrarYAbrir: CanchaOcupada | null;
+    /**
+     * «La mesa sigue · dividido» (Tanda 2D): la parte de la cancha que debe cada jugador, para cobrarle a cada uno con SU
+     * medio y soltar la cancha; `resto` es lo que no es de nadie (se extendió después de que todos pagaron). null si la
+     * cancha no está en juego o ya está paga.
+     */
+    mesaSigueDividido: { partes: { idx: number; nombre: string; monto: number }[]; resto: number } | null;
   };
   firma: string;
+}
+
+/** Quién ocupa la cancha de un turno reservado y qué hace falta para cerrarla y abrir la del turno (Tanda 2D). */
+export interface CanchaOcupada {
+  /** El turno que está en la cancha (el que se cierra). */
+  cerrarId: string;
+  /** Su titular: «Cerrar la de Martín Ríos y abrir». */
+  titular: string;
+  /** «Cancha 1». */
+  cancha: string;
+  /** A qué hora empezó el que la ocupa («17:30»). */
+  desde: string;
+  /** Lo que debe de la cancha el que se va (0: está pago). */
+  debe: number;
+  /** Lo que debe puede ir a su cuenta corriente (con ficha y margen). */
+  aCuenta: boolean;
+  /** La seña sin marcar paga del turno que se abre: lo que falta cobrar (0 si los pagos ya la cubren), o null. */
+  sena: number | null;
+  /**
+   * El turno es el que sigue en esa cancha: si hay otro reservado antes, no se ofrece cerrar y abrir desde éste (se
+   * abriría salteando al otro).
+   */
+  esElQueSigue: boolean;
 }
 
 const ABIERTO: ReadonlySet<EstadoReserva> = new Set(["reservada", "en_cancha"]);
@@ -297,6 +337,7 @@ export function armarCuenta(estado: EstadoClub, reservaId: string): VistaCuenta 
     ? `No se cobra acá: ${t.deOtraMesa.map((x) => `los cargos de ${x.titular} (${pesos(x.saldo)}) los paga ${x.paga} en su mesa`).join(" · ")}.`
     : null;
   const nombreCancha = canchaDe(estado, r.canchaId)?.nombre ?? "";
+  const ocupada = canchaOcupada(estado, r);
   const vista: Omit<VistaCuenta, "firma"> = {
     reservaId: r.id,
     titular: r.titular,
@@ -323,16 +364,50 @@ export function armarCuenta(estado: EstadoClub, reservaId: string): VistaCuenta 
     cierres: {
       cobrarTodo: T.pendiente > 0 ? T.pendiente : null,
       cobrarSena: senaPendiente(r),
-      abrirCancha: r.estado === "reservada" && senaSinPagar(r) === null,
-      cobrarSenaYAbrir: senaSinPagar(r),
+      abrirCancha: r.estado === "reservada" && senaSinPagar(r) === null && !ocupada,
+      cobrarSenaYAbrir: ocupada ? null : senaSinPagar(r),
       cerrarCancha: abierto && r.estado === "en_cancha" && T.pendiente === 0,
       hacerFijo: r.tipo === "turno" && !r.fijoId && abierto ? `${enPlural(NOMBRE_DIA[diaSemana(r.fecha)])} ${hhmm(r.inicio)}` : null,
       cerrarYSeguir,
       cerrarCargos,
       cargosACuenta: cerrarCargos !== null && T.cargos > 0,
+      cerrarYAbrir: ocupada,
+      mesaSigueDividido:
+        cerrarYSeguir !== null && saldoCancha > 0
+          ? (() => {
+              const lista = partes.flatMap((p, idx) => (p.aPagar > 0 ? [{ idx, nombre: nombre(idx), monto: p.aPagar }] : []));
+              return { partes: lista, resto: Math.max(0, saldoCancha - lista.reduce((s, p) => s + p.monto, 0)) };
+            })()
+          : null,
     },
   };
   return { ...vista, firma: JSON.stringify(vista) };
+}
+
+/**
+ * ¿La cancha de este turno reservado sigue ocupada? Por otro turno EN JUEGO del mismo día y cancha (lo que el motor
+ * mira para no dejar abrir). Dice quién, cuánto debe, si va a su cuenta corriente, la seña del que entra y si este turno
+ * es el que sigue en esa cancha. null si el turno no está reservado o la cancha está libre. Pura.
+ */
+export function canchaOcupada(estado: EstadoClub, r: Reserva): CanchaOcupada | null {
+  if (r.estado !== "reservada") return null;
+  const x = estado.reservas.find((o) => o.id !== r.id && o.fecha === r.fecha && o.canchaId === r.canchaId && o.estado === "en_cancha");
+  if (!x) return null;
+  const queSigue = estado.reservas
+    .filter((o) => o.fecha === r.fecha && o.canchaId === r.canchaId && o.estado === "reservada" && o.inicio >= x.inicio)
+    .sort((a, b) => a.inicio - b.inicio)[0];
+  const debe = Math.max(0, saldo(x));
+  const ficha = x.clienteId ? clienteDe(estado, x.clienteId) : undefined;
+  return {
+    cerrarId: x.id,
+    titular: x.titular,
+    cancha: canchaDe(estado, x.canchaId)?.nombre ?? "La cancha",
+    desde: hhmm(x.inicio),
+    debe,
+    aCuenta: debe > 0 && puedeACuenta(ficha, debe).ok,
+    sena: senaSinPagar(r),
+    esElQueSigue: queSigue?.id === r.id,
+  };
 }
 
 /**

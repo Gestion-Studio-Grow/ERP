@@ -22,7 +22,7 @@ import { ejecutarBuffet, type AccionBuffet } from "./buffet-core";
 import { ejecutarMesa, venderEnMostrador, type AccionMesa, type Carrito, type DesenlaceMesa } from "./buffet-mesa-core";
 import { ejecutarCaja, type AccionCaja } from "./caja-core";
 import { ejecutarCanchas, ejecutarEspera, ejecutarFijo, type AccionCanchas, type AccionEspera, type AccionFijo, type DesenlaceCanchas } from "./canchas-core";
-import { ejecutarCiclo, type AccionCiclo } from "./ciclo-core";
+import { ejecutarCiclo, ejecutarCierre, mediosDelCierre, type AccionCiclo, type AccionCierre } from "./ciclo-core";
 import { ejecutarClientes, type AccionClientes, type DesenlaceClientes } from "./clientes-core";
 import { aprobarConCodigo, pedirFiado } from "./credito-core";
 import { ejecutar as ejecutarCuenta, type AccionCuenta, type MedioCaja, type MedioCobro } from "./cuenta-core";
@@ -153,6 +153,16 @@ export const REGISTRO = {
   bandeja: entrada<[accion: AccionBandeja]>({
     correr: (e, [a], ahora, auth) => ejecutarBandeja(e, a, ahora, auth),
     sinInternet: () => true,
+  }),
+  // ── Tanda 2D: la cancha ocupada y «la mesa sigue · dividido» ──
+  /**
+   * «Cerrar la de X y abrir» (cerrar el turno que ocupa la cancha y abrir el siguiente, con su seña) y «la mesa sigue ·
+   * dividido» (cada jugador paga su parte con su medio): dos cosas en UN comando, o ninguna (ciclo-core.ts).
+   */
+  cierre: entrada<[accion: AccionCierre]>({
+    correr: (e, [a], ahora, auth) => ejecutarCierre(e, a, ahora, auth),
+    // Hace entrar plata: sin internet sólo si todo lo que cobra va en efectivo (lo que no se verifica afuera).
+    sinInternet: ([a]) => mediosDelCierre(a).every((m) => sinRed(m as MedioCobro)),
   }),
 } as const;
 
@@ -507,6 +517,19 @@ export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub 
         const x = a[0] as AccionBandeja;
         const que: Record<string, string> = { cierreConDiferencia: "el cierre de caja que no cuadró", vencePago: "el pago a un proveedor", aparte: "lo que quedó aparte", stock: "el aviso de stock" };
         return `Dejar para mañana ${que[String(x.clave).split(":")[0]] ?? "un aviso"}`;
+      }
+      case "cierre": {
+        const x = a[0] as AccionCierre;
+        if (x.tipo === "cerrarYAbrir") {
+          const cierra = elTurno(estado, x.cerrarId);
+          const abre = elTurno(estado, x.abrirId);
+          const debe = cierra.r ? saldo(cierra.r) : 0;
+          const cobro = x.aCuenta ? " (a su cuenta corriente)" : debe > 0 && x.medio ? ` (cobro ${pesos(debe)} ${medioDe(x.medio)})` : "";
+          return `Cerrar la de ${cierra.titular}${cobro}${x.seguir ? ", la mesa sigue," : ""} y abrir la de ${abre.titular}${abre.turno}`;
+        }
+        const { titular, turno } = elTurno(estado, x.reservaId);
+        const medios = [...new Set(Object.values(x.porJugador ?? {}).map(medioDe))].join(", ");
+        return `Cerrar la cancha de ${titular}, la mesa sigue: cada uno paga su parte${medios ? ` (${medios})` : ""}${turno}`;
       }
     }
   } catch {

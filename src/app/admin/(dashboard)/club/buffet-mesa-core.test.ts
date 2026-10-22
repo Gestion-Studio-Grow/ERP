@@ -232,3 +232,58 @@ test("descuento con el PIN VIEJO de un dueño (el de 2 del piloto): no firma, cu
   assert.equal(ok.ok, true, ok.mensaje);
   assert.equal(ok.pin, "bueno");
 });
+
+// ── Tanda 2D: la mesa que sigue vive en Buffet con sus comensales (BP-074/075) ──
+import { ejecutar as ejecutarCuenta } from "./cuenta-core";
+import { ejecutarCierre } from "./ciclo-core";
+import { mesaDelBuffet, mesasDelBuffet, compartirMesas, textoCerrarMesa } from "./buffet-mesa-core";
+
+test("BP-074/075 · la mesa de los 4 en Buffet: 2 platos a un comensal y se le cobra lo suyo sin salir de Buffet; «Cobrar todo» cierra la mesa (caja = cobrado)", () => {
+  const { e, auth } = demo();
+  const r = e.reservas.find((x) => x.fecha === HOY && x.estado === "en_cancha" && x.jugadores.length === 4 && M.saldo(x) > 0)!;
+  const partes = M.partesCancha(r).flatMap((p, i) => (p.aPagar > 0 ? [i] : []));
+  assert.equal(ejecutarCierre(e, { tipo: "mesaSigue", reservaId: r.id, porJugador: Object.fromEntries(partes.map((i) => [i, "efectivo"])) }, AHORA, auth).ok, true);
+  const mesa = mesaDelBuffet(e, r.id)!;
+  assert.ok(mesa, "la mesa está en Buffet");
+  assert.equal(mesa.titulo, `Mesa de ${r.titular}`);
+  assert.deepEqual(mesa.comensales.map((c) => c.nombre), r.jugadores.map((j) => j.nombre), "con los 4, también los que no cargaron nada");
+  assert.match(mesa.detalle, /4 comensales/);
+  assert.deepEqual(mesasDelBuffet(e).map((m) => m.reservaId), M.mesasAbiertas(e).map((m) => m.reserva.id));
+  // Las cuentas de la mesa son las de «mesas» del buffet: no se repiten en «Cuentas abiertas».
+  assert.deepEqual([...mesa.cuentas].sort(), [...(armarBuffet(e, AHORA).mesas.find((m) => m.reservaId === r.id)?.cuentas ?? [])].sort());
+
+  const plato = e.productos.find((p) => p.plato && p.activo !== false && (p.stock == null || p.stock >= 2))!;
+  const idx = 2;
+  const totalAntes = mesa.total;
+  assert.equal(ejecutarCuenta(e, r.id, { tipo: "cargo", idx, productoId: plato.id, cant: 2, modo: "cuenta", medio: "efectivo" }, AHORA, auth).ok, true);
+  const conPlatos = mesaDelBuffet(e, r.id)!;
+  assert.equal(conPlatos.total, totalAntes + 2 * plato.precio);
+  const suyo = conPlatos.comensales.find((c) => c.idx === idx)!;
+  assert.ok(suyo.lleva.some((x) => x.startsWith("2 × ")), JSON.stringify(suyo.lleva));
+  const caja = M.resumenCaja(e).ingresos;
+  assert.equal(ejecutarCuenta(e, r.id, { tipo: "cobrarJugador", idx, medio: "debito" }, AHORA, auth).ok, true);
+  assert.equal(M.resumenCaja(e).ingresos - caja, suyo.aPagar, "la caja suma exactamente lo suyo");
+  const despues = mesaDelBuffet(e, r.id)!;
+  assert.ok(despues, "la mesa sigue (los demás todavía comen)");
+  assert.equal(despues.comensales.find((c) => c.idx === idx)!.aPagar, 0);
+  assert.equal(despues.total, conPlatos.total - suyo.aPagar);
+  // «Cobrar todo y cerrar la mesa»: entra lo que faltaba y la mesa sale de Buffet.
+  const caja2 = M.resumenCaja(e).ingresos;
+  assert.equal(textoCerrarMesa(despues.total), despues.total > 0 ? `Cobrar todo ${M.pesos(despues.total)} y cerrar la mesa` : "Cerrar la mesa");
+  assert.equal(ejecutarCuenta(e, r.id, { tipo: "cerrarCargos", medio: "efectivo" }, AHORA, auth).ok, true);
+  assert.equal(M.resumenCaja(e).ingresos - caja2, despues.total);
+  assert.equal(mesaDelBuffet(e, r.id), null);
+  assert.ok(!mesasDelBuffet(e).some((m) => m.reservaId === r.id));
+});
+
+test("mesas del Buffet: lo que no cambió se reusa (cada mesa es un memo)", () => {
+  const { e, auth } = demo();
+  const r = e.reservas.find((x) => x.fecha === HOY && x.estado === "en_cancha" && M.saldo(x) === 0)!;
+  assert.equal(ejecutarCierre(e, { tipo: "mesaSigue", reservaId: r.id, porJugador: {} }, AHORA, auth).ok, true);
+  const a = mesasDelBuffet(e);
+  assert.equal(a.length, 1);
+  assert.equal(compartirMesas(a, mesasDelBuffet(e)), a, "sin cambios, la misma lista");
+  const t = M.cuentaDelTurno(e, r.id);
+  assert.ok(t.ok);
+  assert.equal(mesaDelBuffet(e, r.id)!.total, t.totales.pendiente, "lo que falta cobrar de la mesa es lo del motor (sus cargos)");
+});

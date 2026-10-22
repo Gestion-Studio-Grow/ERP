@@ -9,6 +9,9 @@
 // Cancelar y la falta son de «una sola vez»; igual se pueden deshacer desde la barra de avisos.
 // Mientras el turno está reservado o en juego, el recordatorio por WhatsApp (como el botón «WhatsApp» del turno en el
 // club vanilla): abre WhatsApp con el texto listo y la persona aprieta enviar.
+// Tanda 2D: «Sin cargo» en la falta lo ve sólo un dueño según QUIÉN opera (`operadorActual`: en la jornada real, el que
+// entró con su PIN; no el login del ERP), y después de marcar la falta queda el WhatsApp con lo que le quedó en su cuenta
+// (`AvisoDeLaFalta`, BP-056: lo muestra la cuenta del turno en lugar de cerrarse).
 
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -20,7 +23,7 @@ import { operadorActual } from "./operador-del-club";
 import { ofertasDelHueco, type OfertaDeHueco } from "./bandeja-core";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
 import { celularDelTurno, enlaceWhatsApp, recordatorioDisponible, textoRecordatorio } from "./whatsapp-core";
-import { destinosParaMover, opcionesCiclo, previaCancelar, previaExtender, previaFalta, previaInterrumpir, type AccionCiclo } from "./ciclo-core";
+import { avisoDeLaFalta, destinosParaMover, opcionesCiclo, previaCancelar, previaExtender, previaFalta, previaInterrumpir, type AccionCiclo } from "./ciclo-core";
 
 type Cual = "mover" | "extender" | "falta" | "cancelar" | "interrumpir";
 const ETIQUETAS: Record<Cual, string> = {
@@ -109,7 +112,8 @@ function Extender({ almacen, reservaId, hacer }: { almacen: Almacen; reservaId: 
 function Falta({ almacen, reservaId, hacer }: { almacen: Almacen; reservaId: string; hacer: (a: AccionCiclo) => void }) {
   const [cobrarA, setCobrarA] = useState<"titular" | "grupo" | "nadie">("titular");
   const nombre = useId();
-  const duenio = almacen.rol() === "OWNER";
+  // Perdonar la falta es de un dueño: lo decide quien opera (el PIN), no el rol del ERP. El motor igual lo valida.
+  const duenio = operadorActual(almacen).esDuenio;
   const opciones: { v: "titular" | "grupo" | "nadie"; t: string }[] = [
     { v: "titular", t: "Al titular" },
     { v: "grupo", t: "Repartido en el grupo" },
@@ -186,6 +190,28 @@ function Interrumpir({ almacen, reservaId, hacer }: { almacen: Almacen; reservaI
       <Button variant="danger" size="md" disabled={!previa.ok} onClick={() => hacer({ tipo: "interrumpir", motivo: motivo.toLowerCase() })}>
         Cortar el turno
       </Button>
+    </div>
+  );
+}
+
+/**
+ * BP-056 · Después de marcar la falta: «Avisar por WhatsApp» con el texto de la falta del motor, que lleva lo que le quedó
+ * al titular en su cuenta. null si fue sin cargo (no hay nada que avisar) o el turno no es una falta.
+ */
+export function AvisoDeLaFalta({ almacen, reservaId }: { almacen: Almacen; reservaId: string }) {
+  const titulo = useId();
+  const aviso = avisoDeLaFalta(almacen.estado(), reservaId);
+  if (!aviso) return null;
+  const enlace = enlaceWhatsApp(aviso.tel, aviso.texto, almacen.modo());
+  return (
+    <div role="group" aria-labelledby={titulo} data-cuenta="falta" className="flex flex-col gap-2 rounded-md border border-l-4 border-warning bg-surface-raised p-3">
+      <p id={titulo} className="font-semibold text-strong">
+        Falta marcada: avisale a {aviso.titular}
+      </p>
+      <p className="whitespace-pre-line text-sm text-body">{aviso.texto}</p>
+      <BotonWhatsApp enlace={enlace} variante="solid" nombreAccesible={`Avisar por WhatsApp a ${aviso.titular} lo que le quedó por la falta`}>
+        Avisar por WhatsApp
+      </BotonWhatsApp>
     </div>
   );
 }
