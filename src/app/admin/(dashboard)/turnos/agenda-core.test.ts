@@ -13,6 +13,7 @@ import {
   lugarDeLaRaya,
   marcaDelTurno,
   minutosEntre,
+  serviciosEnTexto,
   nombreRelativo,
   pasoDelTurno,
   propuestaDeSenia,
@@ -52,6 +53,7 @@ function crudo(p: Partial<TurnoCrudo> & { hora: string; minutos?: number }): Tur
     box: { name: "Box 3" },
     payment: p.payment ?? null,
     collections: p.collections ?? [],
+    ...(p.items ? { items: p.items } : {}),
   };
 }
 
@@ -310,5 +312,34 @@ describe("la seña que falta y la marca «seña pedida» (CH-021, CH-022)", () =
     assert.equal(textoSeniaPedida({ ...t, seniaPedidaEl: "basura" }, AHORA), null);
     const pago = turno({ hora: "16:00", status: "PENDING", service: conSenia, collections: [{ amount: 5000, method: "TRANSFERENCIA" }] });
     assert.equal(textoSeniaPedida({ ...pago, seniaPedidaEl: "2026-09-24T13:03:00.000Z" }, AHORA), null);
+  });
+});
+
+describe("combos (Tanda 3 · 3-B)", () => {
+  test("CH-033 · un turno con 4 zonas se lee «4 zonas» (y el renglón le suma «· 70′»)", () => {
+    const t = turno({
+      hora: "10:00",
+      minutos: 70,
+      priceAtBooking: 32000,
+      service: { name: "Bozo", price: 4000, depositAmount: null },
+      items: [
+        { nombre: "Bozo", durationMin: 10 },
+        { nombre: "Axilas", durationMin: 15 },
+        { nombre: "Piernas completas", durationMin: 30 },
+        { nombre: "Cavado c/tira", durationMin: 15 },
+      ],
+    });
+    assert.equal(t.servicio, "4 zonas");
+    assert.deepEqual(t.zonas, ["Bozo", "Axilas", "Piernas completas", "Cavado c/tira"]);
+    assert.equal(serviciosEnTexto(t), "Bozo, axilas, piernas completas y cavado c/tira");
+    assert.equal(minutosEntre(t.inicio, t.fin), 70);
+    assert.equal(t.precio, 32000);
+  });
+
+  test("sin ítems (o sin la migración) es el turno de siempre", () => {
+    const t = turno({ hora: "10:00" });
+    assert.equal(t.servicio, "Peeling químico");
+    assert.equal(t.zonas, undefined);
+    assert.equal(serviciosEnTexto(t), "Peeling químico");
   });
 });

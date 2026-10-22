@@ -47,9 +47,24 @@ import {
   puedeCompletarse,
   puedeMarcarseNoVino,
   mensajeNoVino,
+  medioRechazado,
   type MetodoDePago,
 } from "@/lib/turnos/cobros";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
+import { mediosDePagoHabilitados } from "@/lib/turnos/medios-habilitados.server";
+import {
+  MENSAJE_COMBOS_SIN_ACTIVAR,
+  cobroPorServicio,
+  duracionDelCombo,
+  duracionPropiaDelTurno,
+  esReservaDeVecina,
+  itemsDelTurno,
+  leerServiciosDelCombo,
+  nombresDelCombo,
+  precioDeListaDelCombo,
+  type ServicioDelCombo,
+} from "@/lib/turnos/combos";
+import { combosHabilitados, faltaLaTablaDeItems, itemsDeTurnos } from "@/lib/turnos/combos.server";
 import { avisoDeEspera, motivoDeDevolucion, planSeniaAlCerrar } from "@/lib/turnos/practica";
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { agruparIngresos, bordesDelPeriodo } from "@/lib/report-ingresos";
@@ -141,21 +156,54 @@ export async function getAvailableSlotsRange(
   professionalId: string,
   serviceId: string,
   dates: string[],
-  excludeAppointmentId?: string
+  excludeAppointmentId?: string,
+  // Reingeniería CH, Tanda 3 · 3-B. `serviceIds`: las zonas de un combo (camino B), el principal
+  // incluido; la franja dura la SUMA (sin márgenes internos) y pide los recursos de todas.
+  // `pegados`: ofrecer también el horario en que termina cada turno (CH-054: 11:20 después de un
+  // combo de 10:00 a 11:10). Lo pide el alta del mostrador; la vidriera pública sigue igual.
+  opciones?: { serviceIds?: unknown; pegados?: unknown },
 ): Promise<Record<string, string[]>> {
   const result: Record<string, string[]> = {};
   const uniqueDates = [...new Set(dates)];
   if (uniqueDates.length === 0) return result;
+  const zonas = Array.isArray(opciones?.serviceIds) ? leerServiciosDelCombo(opciones.serviceIds) : null;
+  if (zonas && !zonas.ok) return Object.fromEntries(uniqueDates.map((d) => [d, []]));
+  const servicioIds = zonas?.ok && zonas.ids.length > 1 ? [...new Set([serviceId, ...zonas.ids])] : [serviceId];
+  const tenantId = servicioIds.length > 1 || excludeAppointmentId ? await getCurrentTenantId() : null;
 
   // Datos compartidos por TODOS los días: no cambian de una fecha a otra, así que
   // se leen una sola vez (antes se re-leían por día). Los horarios del profesional
   // son ≤7 filas (una por día de semana) → una query cubre las 14 fechas.
-  const [service, professional, workingHours, serviceResources] = await Promise.all([
+  const [service, professional, workingHours, serviceResourcesCrudos, zonasDelCombo, turnoQueSeMueve] = await Promise.all([
     prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
     prisma.professional.findUniqueOrThrow({ where: { id: professionalId } }),
     prisma.workingHours.findMany({ where: { professionalId } }),
-    prisma.serviceResource.findMany({ where: { serviceId }, include: { resource: true } }),
+    prisma.serviceResource.findMany({
+      where: servicioIds.length > 1 ? { serviceId: { in: servicioIds } } : { serviceId },
+      include: { resource: true },
+    }),
+    servicioIds.length > 1
+      ? prisma.service.findMany({ where: { id: { in: servicioIds }, tenantId: tenantId ?? undefined, active: true, deletedAt: null }, select: { id: true, durationMin: true } })
+      : Promise.resolve(null),
+    // Al mover un turno, la franja dura lo que dura ESE turno (un combo de 70′ no se achica).
+    excludeAppointmentId
+      ? prisma.appointment.findFirst({ where: { id: excludeAppointmentId, tenantId: tenantId ?? undefined }, select: { startsAt: true, endsAt: true } })
+      : Promise.resolve(null),
   ]);
+  // Una zona dada de baja o de otro negocio: no hay horario que ofrecer para ese combo.
+  if (zonasDelCombo && zonasDelCombo.length !== servicioIds.length) return Object.fromEntries(uniqueDates.map((d) => [d, []]));
+  const durationMin = turnoQueSeMueve
+    ? duracionPropiaDelTurno(turnoQueSeMueve, service.durationMin)
+    : zonasDelCombo
+      ? duracionDelCombo(zonasDelCombo)
+      : service.durationMin;
+  // Un recurso que piden dos zonas cuenta una vez, con las unidades de la que más pide.
+  const porRecurso = new Map<string, (typeof serviceResourcesCrudos)[number]>();
+  for (const sr of serviceResourcesCrudos) {
+    const ya = porRecurso.get(sr.resourceId);
+    if (!ya || sr.units > ya.units) porRecurso.set(sr.resourceId, sr);
+  }
+  const serviceResources = [...porRecurso.values()];
   const hoursByDow = new Map(workingHours.map((h) => [h.dayOfWeek, h]));
   const resourceIds = serviceResources.map((sr) => sr.resourceId);
 
@@ -234,9 +282,10 @@ export async function getAvailableSlotsRange(
   // predicados que la versión por-día). El buffer de limpieza se aplica dentro.
   const computed = generateSlotsForDays({
     windows: [...windows].map(([date, w]) => ({ date, dayStart: w.dayStart, dayEnd: w.dayEnd })),
-    durationMin: service.durationMin,
+    durationMin,
     stepMin: 30,
     bufferMin: BUFFER_MIN,
+    pegarAlAnterior: opciones?.pegados === true,
     busyAppointments: existing,
     boxBlocks,
     professionalBlocks,
@@ -281,9 +330,17 @@ async function bookAppointment({
   couponCode,
   cobroInicial,
   soloFuturo = false,
+  serviceIds,
 }: {
   professionalId: string;
   serviceId: string;
+  /**
+   * Combo camino B (reingeniería CH, Tanda 3 · 3-B): las zonas EN ORDEN, la primera es `serviceId`
+   * (el principal). Con dos o más, el turno dura la suma, cuesta la suma y guarda sus ítems en
+   * `AppointmentItem` en la MISMA transacción. Sin la migración M3, se rechaza con
+   * `MENSAJE_COMBOS_SIN_ACTIVAR` y no queda nada escrito.
+   */
+  serviceIds?: string[];
   startsAtIso: string;
   clientId: string;
   clientName?: string;
@@ -329,6 +386,25 @@ async function bookAppointment({
     throw new RechazoDeDominio("Este profesional no tiene un box activo asignado. Contactanos para coordinar tu turno.");
   }
 
+  // ── Combo (camino B): las zonas, cada una del negocio, activa y asignada a esta profesional ──
+  let zonas: ServicioDelCombo[] | null = null;
+  if (serviceIds && serviceIds.length > 1) {
+    if (serviceIds[0] !== serviceId) throw new RechazoDeDominio("El combo no se pudo leer. Elegí de nuevo las zonas.");
+    if (!(await combosHabilitados())) throw new RechazoDeDominio(MENSAJE_COMBOS_SIN_ACTIVAR);
+    const [filas, asignadas] = await Promise.all([
+      prisma.service.findMany({
+        where: { id: { in: serviceIds }, tenantId, active: true, deletedAt: null },
+        select: { id: true, name: true, durationMin: true, price: true, residentPrice: true, depositAmount: true },
+      }),
+      prisma.service.count({ where: { id: { in: serviceIds }, tenantId, professionals: { some: { id: professionalId } } } }),
+    ]);
+    if (filas.length !== serviceIds.length) throw new RechazoDeDominio("Una de las zonas ya no está disponible. Elegí de nuevo.");
+    if (asignadas !== serviceIds.length) {
+      throw new RechazoDeDominio(`${professional.name} no hace todas esas zonas. Elegí otra profesional o sacá la que no hace.`);
+    }
+    zonas = serviceIds.map((id) => filas.find((f) => f.id === id) as ServicioDelCombo);
+  }
+
   const startsAt = new Date(startsAtIso);
   if (Number.isNaN(startsAt.getTime())) {
     throw new RechazoDeDominio("Ese horario no se pudo leer. Elegí de nuevo el día y la hora.");
@@ -338,7 +414,10 @@ async function bookAppointment({
   if (soloFuturo && startsAt.getTime() < Date.now()) {
     throw new RechazoDeDominio("Ese horario ya pasó. Elegí otro horario.");
   }
-  const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);
+  // Un combo dura la SUMA de sus zonas, sin márgenes entre una y otra (CH-033); el margen de
+  // limpieza lo pone `assertSlotAvailable` alrededor del bloque entero, como en cualquier turno.
+  const durationMin = zonas ? duracionDelCombo(zonas) : service.durationMin;
+  const endsAt = new Date(startsAt.getTime() + durationMin * 60000);
   const boxId = professional.boxId;
 
   // El día del turno se deriva del instante en la zona del negocio, no del
@@ -357,12 +436,14 @@ async function bookAppointment({
     // dos requests sobre la misma franja no pueden triunfar las dos. En
     // Serializable (bookingTransaction, ADR-023 F2) el re-chequeo es a prueba de
     // TOCTOU: si dos entran a la vez, una aborta y reintenta viendo la otra ya escrita.
-    await assertSlotAvailable(tx, { professionalId, boxId, serviceId, startsAt, endsAt });
+    await assertSlotAvailable(tx, { professionalId, boxId, serviceId, startsAt, endsAt, serviceIds: zonas?.map((z) => z.id) });
 
     // ADR-013: UNA sola enunciación de la regla, compartida con la lista de espera. No se
-    // reescribe acá — cuando estuvo escrita dos veces, la otra copia se quedó atrás.
-    const { priceAtBooking: basePrice, isResidentBooking: appliesResidentPrice } =
-      precioCongeladoDeReserva(service, isResident);
+    // reescribe acá — cuando estuvo escrita dos veces, la otra copia se quedó atrás. Un combo
+    // suma la regla zona por zona (combos.ts).
+    const { priceAtBooking: basePrice, isResidentBooking: appliesResidentPrice } = zonas
+      ? { priceAtBooking: precioDeListaDelCombo(zonas, isResident), isResidentBooking: esReservaDeVecina(zonas, isResident) }
+      : precioCongeladoDeReserva(service, isResident);
 
     // Cupón (ADR-014): se busca y consume DENTRO de esta misma transacción —
     // si dos reservas llegan a la vez con el último uso del mismo cupón, la
@@ -393,6 +474,21 @@ async function bookAppointment({
       },
     });
 
+    // Las zonas del combo, en la MISMA transacción: si la tabla no existe (M3 sin aplicar), esto
+    // tira y no queda ni el turno ni la seña. La suma de los ítems es el precio del turno.
+    if (zonas) {
+      await tx.appointmentItem.createMany({
+        data: itemsDelTurno(zonas, isResident, appointment.priceAtBooking ?? basePrice).map((it) => ({
+          tenantId,
+          appointmentId: appointment.id,
+          serviceId: it.serviceId,
+          order: it.order,
+          durationMin: it.durationMin,
+          priceAtBooking: it.priceAtBooking,
+        })),
+      });
+    }
+
     // Seña al reservar: mismo acto, misma tx. Clave natural `senia:<turno>` (una sola seña
     // por turno); si la migración de cobros parciales no está aplicada, se cobra sin clave
     // persistente ni asiento (`withSchema=false`, ver settleAppointmentPaymentGuarded).
@@ -410,7 +506,7 @@ async function bookAppointment({
           ? "Cobro al reservar"
           : "Seña al reservar",
         actor: cobroInicial.actor,
-        detail: cobroTurnoDetail({ serviceName: service.name, clientName: clientName ?? "" }),
+        detail: cobroTurnoDetail({ serviceName: zonas ? nombresDelCombo(zonas.map((z) => z.name)) : service.name, clientName: clientName ?? "" }),
         idempotencyKey: claveCobroTurno("senia", appointment.id),
         withSchema,
         cerradoHasta,
@@ -781,6 +877,12 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
   const isResident = residenteRaw === "on";
   const residenteDecidido = residenteRaw === "on" || residenteRaw === "off";
   const couponCode = String(formData.get("couponCode") || "").trim() || undefined;
+  // Combo camino B (reingeniería CH, Tanda 3 · 3-B): `serviceIds` repetido, en orden, el primero es
+  // `serviceId`. Con una sola zona (o sin el campo) es el alta de siempre.
+  const zonas = leerServiciosDelCombo(formData.getAll("serviceIds"));
+  if (!zonas.ok) return { ok: false, error: zonas.error };
+  const serviceIds = zonas.ids.length > 1 ? zonas.ids : undefined;
+  if (serviceIds && serviceIds[0] !== serviceId) return { ok: false, error: "El combo no se pudo leer. Elegí de nuevo las zonas." };
 
   if (!clientName.trim() || !clientPhone.trim()) {
     return { ok: false, error: "Nombre y teléfono del cliente son obligatorios." };
@@ -794,7 +896,11 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
     const monto = importeONaN(formData.get("senaMonto"));
     const metodo = String(formData.get("senaMetodo") || "");
     if (!Number.isFinite(monto) || monto <= 0) return { ok: false, error: "El monto de la seña tiene que ser mayor a cero." };
-    if (!esMetodoDePago(metodo)) return { ok: false, error: "Elegí el medio con que se cobra la seña: efectivo, Mercado Pago o transferencia." };
+    // Débito/Crédito sólo si la base los tiene (M1, CH-031/032): un DEBITO forjado sin la
+    // migración se rechaza con la frase que dice qué hacer, antes de escribir nada.
+    const enBase = await mediosDePagoHabilitados();
+    const rechazoDelMedio = medioRechazado(metodo, enBase, "Elegí el medio con que se cobra la seña");
+    if (rechazoDelMedio || !esMetodoDePago(metodo, enBase)) return { ok: false, error: rechazoDelMedio ?? "Elegí el medio con que se cobra la seña." };
     // MISMA REGLA QUE EL COBRO SUELTO, y hace falta acá aparte: el mostrador da de alta el
     // turno Y lo cobra en un solo submit. Sin esta guarda, apagar el bloque de cobro en la
     // pantalla sería toda la protección que hay — o sea, ninguna del lado del servidor.
@@ -842,11 +948,15 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
       isResident,
       couponCode,
       cobroInicial,
+      serviceIds,
     });
   } catch (e) {
     // La seña excede el precio, el horario se ocupó entre que se eligió y se envió, el cupón
     // no existe: son respuestas de DOMINIO y van al formulario con su texto.
     if (e instanceof CobroTurnoRechazado) return { ok: false, error: `No se pudo cobrar la seña: ${e.message}` };
+    // Varias zonas contra una base sin la tabla de ítems (M3 sin aplicar): la transacción no dejó
+    // nada; se dice que caiga al camino A (una zona, o el combo del catálogo).
+    if (serviceIds && faltaLaTablaDeItems(e)) return { ok: false, error: MENSAJE_COMBOS_SIN_ACTIVAR };
     const motivo = motivoMostrable(e);
     if (motivo !== null) return { ok: false, error: motivo };
     if (e instanceof Error && esErrorDeDominioAlReservar(e)) return { ok: false, error: e.message };
@@ -865,6 +975,7 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
     changes: {
       professionalId,
       serviceId,
+      ...(serviceIds ? { serviceIds, durationMin: Math.round((appointment.endsAt.getTime() - appointment.startsAt.getTime()) / 60000) } : {}),
       startsAt: appointment.startsAt,
       status,
       senia: cobro?.applied ? { monto: cobro.monto, method: cobroInicial?.method, saldo: cobro.estado.saldo } : null,
@@ -977,7 +1088,11 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
   if (startsAt.getTime() <= Date.now()) {
     throw new RechazoDeDominio("Ese horario ya pasó. Elegí uno que venga.");
   }
-  const endsAt = new Date(startsAt.getTime() + appointment.service.durationMin * 60000);
+  // Lo que dura ESE turno (fin − inicio), no el servicio: un combo de 4 zonas (70′) movido no se
+  // achica a los 10′ de su zona principal (reingeniería CH, Tanda 3 · 3-B). Para un turno de un
+  // servicio es lo mismo que antes; las franjas que ofrece «Mover» se calculan igual
+  // (`getAvailableSlotsRange` con el turno a excluir).
+  const endsAt = new Date(startsAt.getTime() + duracionPropiaDelTurno(appointment, appointment.service.durationMin) * 60000);
   const boxId = professional.boxId;
 
   // El profesional debe trabajar en ese horario (misma regla que el alta).
@@ -1157,9 +1272,10 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
   const idempotencyKey = String(formData.get("idempotencyKey") || "").trim() || null;
   if (!appointmentId) return { ok: false, error: "Falta el turno a cobrar." };
   if (!Number.isFinite(monto) || monto <= 0) return { ok: false, error: "El monto a cobrar tiene que ser mayor a cero." };
-  if (!esMetodoDePago(methodRaw)) {
-    return { ok: false, error: "Elegí el medio de pago: Mercado Pago, efectivo o transferencia." };
-  }
+  // Débito/Crédito sólo con la migración M1 aplicada (CH-031/032): la lista sale de la base.
+  const enBase = await mediosDePagoHabilitados();
+  const rechazoDelMedio = medioRechazado(methodRaw, enBase);
+  if (rechazoDelMedio || !esMetodoDePago(methodRaw, enBase)) return { ok: false, error: rechazoDelMedio ?? "Elegí el medio de pago." };
   const method = methodRaw;
   const tenantId = await getCurrentTenantId();
   const actor = `user:${user.id}`;
@@ -1551,6 +1667,7 @@ export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAY
       createdAt: true,
       appointment: {
         select: {
+          id: true,
           professional: { select: { name: true } },
           service: { select: { name: true } },
         },
@@ -1558,6 +1675,10 @@ export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAY
     },
     orderBy: { createdAt: "desc" },
   });
+  // Un turno con varias zonas (combo, camino B) reparte su cobro entre sus servicios en «Por
+  // servicio», en proporción al precio congelado de cada zona: la suma da el cobro exacto. Sin la
+  // migración M3 no hay ítems y todo va al servicio del turno, como siempre.
+  const items = await itemsDeTurnos(tenantId, payments.map((p) => p.appointment.id));
 
   // La agrupación vive en `report-ingresos.ts`, pura y con el reloj inyectado. Está afuera
   // porque era lo ÚNICO de esta función que ningún test cubría (el del CSV le pasaba `[]`),
@@ -1568,6 +1689,7 @@ export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAY
       cobradoEn: p.createdAt,
       profesional: p.appointment.professional.name,
       servicio: p.appointment.service.name,
+      porServicio: cobroPorServicio(p.amount, p.appointment.service.name, items.get(p.appointment.id)),
     })),
     dateStrInBusinessTz,
   );
@@ -1958,8 +2080,15 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   // la UI manda explícitamente `facturar="false"` (checkbox "No facturar").
   const facturar = formData.get("facturar") !== "false";
   const methodRaw = String(formData.get("method") || "");
-  const method: MetodoDePago | null = esMetodoDePago(methodRaw) ? methodRaw : null;
   const dejarSaldoACobrar = formData.get("saldo") === "a-cobrar";
+  // Un medio que vino pero esta base no tiene (Débito/Crédito sin la migración M1) se rechaza con
+  // su frase, en vez de terminar el turno como si no se hubiera elegido medio (CH-032).
+  const enBase = methodRaw && !dejarSaldoACobrar ? await mediosDePagoHabilitados() : undefined;
+  if (methodRaw && !dejarSaldoACobrar && enBase) {
+    const rechazo = medioRechazado(methodRaw, enBase);
+    if (rechazo) return { ok: false, error: rechazo };
+  }
+  const method: MetodoDePago | null = esMetodoDePago(methodRaw, enBase) ? methodRaw : null;
   // «Vino» (reingeniería CH, Tanda 1): la recepción dice que la clienta vino sobre un RESERVADO
   // cuya hora ya pasó → se completa sin pasar por «Confirmar». Opcional: sin el campo rige la
   // regla de siempre (sólo CONFIRMED). La hora manda igual (`puedeCompletarse`).
@@ -2382,7 +2511,14 @@ export async function getAgendaDay(date: string) {
     }),
   ]);
 
-  return { professionals, appointments: await conCobros(tenantId, appointments), blocksToday };
+  // Las zonas de cada turno (combo, camino B): el renglón dice «4 zonas · 70′». Sin la migración M3,
+  // vacío y todo sigue como siempre.
+  const items = await itemsDeTurnos(tenantId, appointments.map((a) => a.id));
+  const conItems = (await conCobros(tenantId, appointments)).map((a): typeof a & { items?: { nombre: string; durationMin: number }[] } => {
+    const zonas = items.get(a.id);
+    return zonas && zonas.length > 1 ? { ...a, items: zonas.map((z) => ({ nombre: z.servicio, durationMin: z.durationMin })) } : a;
+  });
+  return { professionals, appointments: conItems, blocksToday };
 }
 
 export async function getDashboardData() {

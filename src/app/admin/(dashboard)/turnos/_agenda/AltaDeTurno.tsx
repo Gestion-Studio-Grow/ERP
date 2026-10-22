@@ -30,8 +30,7 @@ import { darTurno, libresAhora } from "@/lib/turnos/alta-actions";
 import { Button, Chip, Input, Marca, Plata, Seccion, Textarea } from "@/components/ui";
 import { fmtTime } from "@/lib/datetime";
 import { alCambiarTelefono, alElegirFicha, DATOS_CLIENTA_VACIOS, fichaParaTelefono, type FichaParaAlta } from "@/lib/clientes/ficha-por-telefono";
-import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
-import { seniaDelServicio, type MetodoDePago } from "@/lib/turnos/cobros";
+import { type MetodoDePago } from "@/lib/turnos/cobros";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
 import { ALIAS_SENIA_PROVISIONAL } from "@/lib/turnos/mensajes-whatsapp";
 import { fechaCorta, fechaLarga, nombreRelativo, pesos } from "../agenda-core";
@@ -57,7 +56,9 @@ import {
   primerHuecoLibre,
   queFaltaParaDar,
   serviciosDelNegocio,
+  sumarZonas,
   telefonoParaGuardar,
+  tocarZona,
   telefonoRecortado,
   type EleccionSenia,
   type Franja,
@@ -82,6 +83,7 @@ export default function AltaDeTurno({
   horaInicial,
   ahoraInicial = false,
   alias = ALIAS_SENIA_PROVISIONAL,
+  combos = false,
   viewer,
   onListo,
 }: {
@@ -100,6 +102,12 @@ export default function AltaDeTurno({
   ahoraInicial?: boolean;
   /** El alias del negocio para el pedido de seña (provisional a confirmar: hoy `null`). */
   alias?: string | null;
+  /**
+   * ¿La base guarda varias zonas en un turno? (`combosHabilitados()`, migración M3 — Tanda 3 · 3-B).
+   * Sí: las teclas de servicio se SUMAN («4 zonas · 70′», una seña, un cobro). No: una por turno
+   * (camino A: el combo armado en Catálogo → Combos es una tecla más) y se dice.
+   */
+  combos?: boolean;
   viewer: { role: string; professionalId?: string | null };
   /** Al terminar: el día del turno, su id y si fue «ahora» (quien contiene decide a dónde ir). */
   onListo: (fin: AltaTerminada) => void;
@@ -113,7 +121,7 @@ export default function AltaDeTurno({
   const soloDeValido = profesionalInicial && profesionales.some((p) => p.id === profesionalInicial) ? profesionalInicial : "";
   const [soloDe, setSoloDe] = useState(soloDeValido);
   const [filtroServicio, setFiltroServicio] = useState("");
-  const [servicioId, setServicioId] = useState("");
+  const [servicioIds, setServicioIds] = useState<string[]>([]);
   const [dia, setDia] = useState(ahoraInicial ? hoy : fechaInicial || hoy);
   const [huecos, setHuecos] = useState<Huecos | null>(null);
   const [franja, setFranja] = useState<Franja | null>(null);
@@ -142,7 +150,9 @@ export default function AltaDeTurno({
     const q = nombreComparable(filtroServicio);
     return q ? servicios.filter((s) => q.split(" ").every((p) => nombreComparable(s.name).includes(p))) : servicios;
   }, [servicios, filtroServicio]);
-  const servicio = servicios.find((s) => s.id === servicioId);
+  // Lo elegido en «Qué», sumado (una zona o varias): duración, precio, UNA seña, quiénes hacen todo.
+  const servicio = useMemo(() => sumarZonas(servicios, servicioIds, datos.vecina), [servicios, servicioIds, datos.vecina]);
+  const servicioId = servicio?.ids[0] ?? "";
   const profesional = profesionales.find((p) => p.id === profesionalId);
   const nombreDe = (id: string) => profesionales.find((p) => p.id === id)?.name ?? "";
   const boxDe = (id: string) => profesionales.find((p) => p.id === id)?.box?.name ?? "";
@@ -155,8 +165,8 @@ export default function AltaDeTurno({
   const parecida = nueva && !reconocida ? fichaParecida(fichas, datos.nombre, datos.telefono) : null;
 
   // ── Plata ──
-  const precio = servicio ? precioCongeladoDeReserva(servicio, datos.vecina).priceAtBooking : 0;
-  const senia = servicio ? seniaDelServicio({ depositAmount: servicio.depositAmount, precio }) : 0;
+  const precio = servicio?.precio ?? 0;
+  const senia = servicio?.senia ?? 0;
   const veredicto = profesional
     ? puedeCobrarEsteTurno({
         rol: viewer.role,
@@ -184,14 +194,18 @@ export default function AltaDeTurno({
     setProfesionalId("");
   }
 
-  function buscarHuecos(s: { id: string; profesionales: string[] }, diasPedidos: string[], sumar: boolean) {
+  function buscarHuecos(s: { ids: string[]; profesionales: string[] }, diasPedidos: string[], sumar: boolean) {
     if (!sumar) setHuecos(null);
     empezarBusqueda(async () => {
       const nuevos: Huecos = {};
       // Una profesional por vez: las Server Actions del mismo navegador van en fila igual.
       for (const id of s.profesionales) {
         try {
-          nuevos[id] = await getAvailableSlotsRange(id, s.id, diasPedidos);
+          // `pegados`: también el horario en que termina el turno anterior (CH-054, sin huecos muertos).
+          nuevos[id] = await getAvailableSlotsRange(id, s.ids[0], diasPedidos, undefined, {
+            serviceIds: s.ids.length > 1 ? s.ids : undefined,
+            pegados: true,
+          });
         } catch {
           nuevos[id] = Object.fromEntries(diasPedidos.map((d) => [d, []]));
         }
@@ -221,12 +235,12 @@ export default function AltaDeTurno({
     });
   }
 
-  function buscarAhora(s: { id: string }) {
+  function buscarAhora(s: { ids: string[] }) {
     setAhora({ estado: "buscando" });
     limpiarHorario();
     empezarBusqueda(async () => {
       try {
-        const r = await libresAhora(s.id);
+        const r = await libresAhora(s.ids[0], s.ids.length > 1 ? s.ids : undefined);
         setAhora({ estado: "listo", inicio: r.inicio, profesionales: r.profesionales });
         if (r.profesionales.length > 0) {
           setInicio(r.inicio);
@@ -239,13 +253,17 @@ export default function AltaDeTurno({
   }
 
   function elegirServicio(id: string) {
-    const s = servicios.find((x) => x.id === id);
-    setServicioId(id);
+    const ids = tocarZona(servicioIds, id, combos);
+    const s = sumarZonas(servicios, ids, datos.vecina);
+    setServicioIds(ids);
     setEleccion(null);
     setMedio(null);
     setError("");
     limpiarHorario();
-    if (!s) return;
+    if (!s) {
+      setHuecos(null);
+      return;
+    }
     if (modoAhora) buscarAhora(s);
     else buscarHuecos(s, dias.includes(dia) ? dias : [...dias, dia], false);
   }
@@ -298,7 +316,7 @@ export default function AltaDeTurno({
     setListo(null);
     cambiarClienta();
     setTexto("");
-    setServicioId("");
+    setServicioIds([]);
     setFiltroServicio("");
     setHuecos(null);
     limpiarHorario();
@@ -319,6 +337,7 @@ export default function AltaDeTurno({
     const campos = camposDelAlta({
       profesionalId,
       servicioId,
+      servicioIds: servicio.ids,
       inicio,
       nombre,
       telefono,
@@ -350,7 +369,7 @@ export default function AltaDeTurno({
         const l = listoDelTurno({
           clienta: nombre,
           telefono,
-          servicio: servicio.name,
+          servicio: servicio.nombres,
           durationMin: servicio.durationMin,
           inicio,
           profesional: profesional.name,
@@ -364,7 +383,7 @@ export default function AltaDeTurno({
         });
         setListo({
           ...l,
-          resumen: `${nombre} · ${nombreRelativo(diaDelTurno, hoy) ?? fechaCorta(diaDelTurno)} · ${fmtTime(inicio)} · ${profesional.name} · ${servicio.name} ${servicio.durationMin}′`,
+          resumen: `${nombre} · ${nombreRelativo(diaDelTurno, hoy) ?? fechaCorta(diaDelTurno)} · ${fmtTime(inicio)} · ${profesional.name} · ${servicio.etiqueta} ${servicio.durationMin}′`,
           dia: diaDelTurno,
           id: r.id,
         });
@@ -411,7 +430,7 @@ export default function AltaDeTurno({
               <button
                 key={s.id}
                 type="button"
-                aria-pressed={s.id === servicioId}
+                aria-pressed={servicioIds.includes(s.id)}
                 onClick={() => elegirServicio(s.id)}
                 className="min-h-11 rounded border border-line-strong bg-surface-raised px-3 text-left text-sm text-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent sm:min-h-9"
               >
@@ -432,7 +451,7 @@ export default function AltaDeTurno({
                 setSoloDe("");
                 pedidoDelHueco.current = null;
                 setAviso("");
-                if (servicioId) setServicioId("");
+                if (servicioId) setServicioIds([]);
                 setHuecos(null);
                 limpiarHorario();
               }}
@@ -440,10 +459,14 @@ export default function AltaDeTurno({
               Con cualquier profesional
             </button>
           )}
+          {!combos && servicios.length > 1 && (
+            <p className="text-xs text-muted">Una zona por turno. Para varias juntas, elegí el combo armado en Catálogo → Combos.</p>
+          )}
+          {combos && servicios.length > 1 && !servicio && <p className="text-xs text-muted">Tocá todas las zonas que quiere: se suman en un solo turno.</p>}
           {servicio && (
-            <p className="flex items-baseline justify-between gap-3 text-sm text-muted">
+            <p className="flex items-baseline justify-between gap-3 text-sm text-muted" aria-live="polite">
               <span>
-                {servicio.name} · {servicio.durationMin}′{senia > 0 ? ` · seña ${pesos(senia)}` : ""}
+                {servicio.ids.length > 1 ? `${servicio.etiqueta} (${servicio.nombres})` : servicio.nombres} · {servicio.durationMin}′{senia > 0 ? ` · seña ${pesos(senia)}` : ""}
               </span>
               <Plata valor={precio} sinCentavos={Number.isInteger(precio)} />
             </p>
@@ -479,6 +502,10 @@ export default function AltaDeTurno({
 
           {!servicio ? (
             <p className="text-sm text-muted">Elegí el servicio para ver los horarios libres de todas las que lo hacen.</p>
+          ) : servicio.profesionales.length === 0 ? (
+            <p className="text-sm text-body" role="status">
+              Nadie hace todas esas zonas juntas: sacá alguna o dalas en turnos separados.
+            </p>
           ) : modoAhora ? (
             ahora === null || ahora.estado === "buscando" || buscando ? (
               <p className="text-sm text-muted" aria-live="polite">
@@ -486,7 +513,7 @@ export default function AltaDeTurno({
               </p>
             ) : ahora.profesionales.length === 0 ? (
               <p className="text-sm text-body" role="status">
-                Nadie que haga {servicio.name.toLowerCase()} está libre ahora.{" "}
+                Nadie que haga {servicio.nombres.toLowerCase()} está libre ahora.{" "}
                 <button type="button" className="min-h-11 font-medium text-accent-ink underline-offset-2 hover:underline" onClick={() => elegirDia(hoy)}>
                   Ver los horarios de hoy
                 </button>

@@ -23,6 +23,7 @@ import { useToast } from "../../ToastProvider";
 import { pesos } from "../agenda-core";
 import TeclasDeMedio from "../cerrar/TeclasDeMedio";
 import { aFormData, camposDeCobro, claveNueva, leerMontoDelCobro } from "./campos";
+import { useMediosDePago } from "./medios";
 
 export function montoParaEditar(n: number): string {
   // «22000» y no «22.000»: lo que se muestra es lo que se relee igual (leerImporte).
@@ -53,6 +54,7 @@ export default function CobrarTurno({
   const [error, setError] = useState("");
   const [enCurso, setEnCurso] = useState<MetodoDePago | null>(null);
   const [pendiente, empezar] = useTransition();
+  const { medios, aviso } = useMediosDePago();
 
   const lectura = leerMontoDelCobro(texto, saldo);
 
@@ -112,8 +114,12 @@ export default function CobrarTurno({
         onElegir={cobrar}
         disabled={!lectura.ok || pendiente}
         enCurso={enCurso}
+        medios={medios}
       />
-      <p className="text-center text-xs text-muted">{lectura.ok ? "Un toque en el medio cobra." : "Escribí cuánto cobrás para elegir el medio."}</p>
+      <p className="text-center text-xs text-muted">
+        {lectura.ok ? "Un toque en el medio cobra." : "Escribí cuánto cobrás para elegir el medio."}
+        {aviso ? ` ${aviso}` : ""}
+      </p>
       {error && (
         <p role="alert" className="text-sm text-danger">
           {error}

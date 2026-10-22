@@ -58,7 +58,8 @@ import {
   type AplicarCobroResult,
   type CobroTurnoTx,
 } from "./cobro-turno-repo";
-import { esMetodoDePago, estadoCobroTurno, puedeCompletarse, type MetodoDePago } from "./cobros";
+import { esMetodoDePago, estadoCobroTurno, medioRechazado, puedeCompletarse, type MetodoDePago } from "./cobros";
+import { mediosDePagoHabilitados } from "./medios-habilitados.server";
 import { puedeCobrarEsteTurno } from "./cobro-mostrador";
 import { AnulacionRechazada, anularCobroTurnoInTx, cobrosDetalladosPorTurno, desglosarCobros, type AnularCobroResult } from "./anulacion";
 import { plataDeLaFila, type FilaDeTurno } from "./cierre-lote";
@@ -201,6 +202,11 @@ export async function terminarYCobrarDividido(formData: FormData): Promise<Resul
   if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
   const pagos = leerPagos(formData.get("pagos"));
   if (!pagos.ok) return { ok: false, error: pagos.error };
+  // Débito/Crédito sólo con la migración M1 (Tanda 3 · CH-031/032): la lista sale de la base, y un
+  // medio que esta base no tiene se rechaza ANTES de abrir la transacción, con la frase de qué hacer.
+  const enBase = await mediosDePagoHabilitados();
+  const medioMalo = pagos.lineas.map((l) => medioRechazado(l.metodo, enBase)).find((x) => x !== null);
+  if (medioMalo) return { ok: false, error: medioMalo };
   const vino = formData.get("vino") === "on";
   const facturar = formData.get("facturar") !== "false";
   const tenantId = await getCurrentTenantId();
@@ -227,7 +233,7 @@ export async function terminarYCobrarDividido(formData: FormData): Promise<Resul
         const estado = estadoCobroTurno({ precio, cobros: await cobrosDelTurnoInTx(tx, tenantId, appointmentId), pagoLegado: a.payment });
         // La foto que vale es ésta: si entró un cobro desde que se dibujó la hoja, el reparto ya no
         // suma lo que falta y se rechaza entero, sin cobrar una parte.
-        const v = validarCobroDividido(pagos.lineas, estado.saldo);
+        const v = validarCobroDividido(pagos.lineas, estado.saldo, enBase);
         if (!v.ok) throw new RechazoDeDominio(v.error);
 
         await consumirInsumos(tx, a, actor);
@@ -319,7 +325,9 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
   const appointmentId = texto(formData.get("appointmentId"));
   if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
   const methodRaw = texto(formData.get("method"));
-  if (!esMetodoDePago(methodRaw)) return { ok: false, error: "Elegí por dónde llegó la seña: transferencia, Mercado Pago o efectivo." };
+  const enBase = await mediosDePagoHabilitados();
+  const rechazoDelMedio = medioRechazado(methodRaw, enBase, "Elegí por dónde llegó la seña");
+  if (rechazoDelMedio || !esMetodoDePago(methodRaw, enBase)) return { ok: false, error: rechazoDelMedio ?? "Elegí por dónde llegó la seña." };
   const method: MetodoDePago = methodRaw;
   const esperado = importeONaN(formData.get("amount"));
   const montoEsperado = Number.isFinite(esperado) ? esperado : null;
@@ -458,7 +466,9 @@ export async function cobrarVariosTurnos(formData: FormData): Promise<ResultadoC
   if (terminarId && !roleHasCapability(user.role, "agenda:complete")) return { ok: false, error: "Terminar un turno lo hace quien atiende o la recepción." };
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const methodRaw = texto(formData.get("method"));
-  if (!esMetodoDePago(methodRaw)) return { ok: false, error: "Elegí el medio de pago: Mercado Pago, efectivo o transferencia." };
+  const enBase = await mediosDePagoHabilitados();
+  const rechazoDelMedio = medioRechazado(methodRaw, enBase);
+  if (rechazoDelMedio || !esMetodoDePago(methodRaw, enBase)) return { ok: false, error: rechazoDelMedio ?? "Elegí el medio de pago." };
   const method: MetodoDePago = methodRaw;
   const lectura = leerCobrosVarios(formData.get("cobros"));
   if (!lectura.ok) return { ok: false, error: lectura.error };

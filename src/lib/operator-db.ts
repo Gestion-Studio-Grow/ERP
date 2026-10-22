@@ -16,6 +16,7 @@
 
 import { PrismaClient, type Prisma } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { OMITIR_HASTA_MIGRAR } from "@/lib/prisma-omit";
 
 const globalForOperator = globalThis as unknown as {
   operatorPrisma: PrismaClient | undefined;
@@ -25,7 +26,8 @@ const connectionString = process.env.OPERATOR_DATABASE_URL ?? process.env.DATABA
 const adapter = new PrismaPg({ connectionString });
 
 export const operatorPrisma =
-  globalForOperator.operatorPrisma ?? new PrismaClient({ adapter });
+  // `omit`: columnas escritas y todavía sin migrar en producción (src/lib/prisma-omit.ts).
+  globalForOperator.operatorPrisma ?? new PrismaClient({ adapter, omit: OMITIR_HASTA_MIGRAR });
 
 if (process.env.NODE_ENV !== "production") globalForOperator.operatorPrisma = operatorPrisma;
 

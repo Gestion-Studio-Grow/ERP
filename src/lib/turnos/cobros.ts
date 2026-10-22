@@ -263,15 +263,92 @@ export function claveCobroTurno(tipo: "senia" | "saldo", appointmentId: string):
   return `${tipo}:${appointmentId}`;
 }
 
-export const METODOS_DE_PAGO = ["EFECTIVO", "MERCADOPAGO", "TRANSFERENCIA"] as const;
-export type MetodoDePago = (typeof METODOS_DE_PAGO)[number];
+// ── Medios de pago ──────────────────────────────────────────────────────────
+//
+// Reingeniería CH, Tanda 3 (CH-031/CH-032). Débito y Crédito existen en el vocabulario del
+// código, pero en la BASE sólo existen cuando la migración M1 (20261024120000_ch_medios_tarjeta)
+// está aplicada — y hoy producción NO la tiene (Gate 2). Escribir un `Collection.method = DEBITO`
+// en una base sin ese valor del enum revienta el cobro. Por eso:
+//
+//   · `METODOS_DE_PAGO` sigue siendo los TRES de siempre: es lo que existe en cualquier base, y lo
+//     que ofrece toda pantalla que no pregunte. Ninguna pantalla vieja empieza a ofrecer tarjeta.
+//   · Qué medios tiene ESTA base lo dice el servidor (`mediosDePagoHabilitados()`,
+//     src/lib/turnos/medios-habilitados.server.ts, lee pg_enum). Con esa lista:
+//       - `metodosDePago(enBase)` → las teclas que se dibujan (orden fijo; tarjeta al final);
+//       - `medioHabilitado(medio, enBase)` → la guarda del servidor ANTES de escribir.
+//   · `esMetodoDePago(raw)` sin segundo argumento valida contra los tres de siempre (como antes):
+//     un DEBITO forjado sigue rechazado con el mensaje de siempre hasta que el llamador pase la
+//     lista de la base. Es opt-in: nada cambia de comportamiento sin que alguien lo decida.
+//
+// En el libro de caja, DEBITO y CREDITO caen en la columna TARJETA, separados de MP
+// (`cashMethodFromPaymentMethod`, src/lib/caja/cierre-diario.ts).
 
-export function esMetodoDePago(raw: string | null | undefined): raw is MetodoDePago {
-  return (METODOS_DE_PAGO as readonly string[]).includes(String(raw ?? ""));
+/** Los tres medios que existen en cualquier base (el enum de siempre). */
+export const METODOS_DE_PAGO = ["EFECTIVO", "MERCADOPAGO", "TRANSFERENCIA"] as const;
+/** Los medios de tarjeta: sólo con la migración M1 aplicada. */
+export const METODOS_DE_TARJETA = ["DEBITO", "CREDITO"] as const;
+/** Todo el vocabulario del código, en el orden en que se dibujan las teclas. */
+export const TODOS_LOS_METODOS = [...METODOS_DE_PAGO, ...METODOS_DE_TARJETA] as const;
+export type MetodoDePago = (typeof TODOS_LOS_METODOS)[number];
+
+/**
+ * ¿`medio` es un medio de pago que ESTA base acepta? `enBase` es la lista de valores del enum
+ * `PaymentMethod` que tiene la base (`mediosDePagoHabilitados()`); sin lista, los tres de siempre.
+ * Un valor que el código no conoce nunca está habilitado, aunque la base lo tenga.
+ */
+export function medioHabilitado(
+  medio: string | null | undefined,
+  enBase: readonly string[] = METODOS_DE_PAGO,
+): medio is MetodoDePago {
+  const m = String(medio ?? "");
+  return (TODOS_LOS_METODOS as readonly string[]).includes(m) && enBase.includes(m);
+}
+
+/** Valida lo que llegó del formulario. Sin `enBase`, sólo los tres de siempre (comportamiento previo). */
+export function esMetodoDePago(raw: string | null | undefined, enBase: readonly string[] = METODOS_DE_PAGO): raw is MetodoDePago {
+  return medioHabilitado(raw, enBase);
+}
+
+/** Las teclas de medio que se ofrecen con la base que hay: sin M1, no aparecen Débito ni Crédito (CH-032). */
+export function metodosDePago(enBase: readonly string[] = METODOS_DE_PAGO): MetodoDePago[] {
+  return TODOS_LOS_METODOS.filter((m) => enBase.includes(m));
+}
+
+/** ¿Esta base ya registra la tarjeta aparte? (las dos, Débito y Crédito). */
+export function tarjetaHabilitada(enBase: readonly string[]): boolean {
+  return METODOS_DE_TARJETA.every((m) => enBase.includes(m));
+}
+
+/**
+ * La línea que explica, mientras no está M1, dónde va la tarjeta (CH-032, placeholder D6): el
+ * Point de Mercado Pago se cobra con la tecla «Mercado Pago» y la caja lo suma a MP/Transf.
+ * Con la tarjeta habilitada, `null` (no hay nada que aclarar).
+ */
+export function avisoDeTarjeta(enBase: readonly string[]): string | null {
+  return tarjetaHabilitada(enBase) ? null : "Hoy la tarjeta se registra como Mercado Pago.";
 }
 
 export const METODO_LABEL: Record<MetodoDePago, string> = {
   EFECTIVO: "Efectivo",
   MERCADOPAGO: "Mercado Pago",
   TRANSFERENCIA: "Transferencia",
+  DEBITO: "Débito",
+  CREDITO: "Crédito",
 };
+
+/**
+ * Por qué NO se puede cobrar con `raw` en esta base, en una frase que dice qué hacer; `null` si se
+ * puede (reingeniería CH, Tanda 3 · 3-B). Un Débito/Crédito forjado sin la migración M1 no llega a
+ * la base (escribirlo reventaría el cobro): se rechaza diciendo que hoy la tarjeta va como Mercado
+ * Pago (D6). Cualquier otra cosa: «Elegí …» con los medios que sí hay. `pedido` es el comienzo de
+ * la frase de quien llama («Elegí el medio de pago», «Elegí por dónde llegó la seña»).
+ */
+export function medioRechazado(raw: string | null | undefined, enBase: readonly string[], pedido = "Elegí el medio de pago"): string | null {
+  if (medioHabilitado(raw, enBase)) return null;
+  if ((METODOS_DE_TARJETA as readonly string[]).includes(String(raw ?? ""))) {
+    return "Débito y Crédito todavía no están activados: cobralo con «Mercado Pago» (hoy la tarjeta se registra así).";
+  }
+  const medios = metodosDePago(enBase).map((m) => (m === "MERCADOPAGO" ? METODO_LABEL[m] : METODO_LABEL[m].toLowerCase()));
+  const lista = medios.length > 1 ? `${medios.slice(0, -1).join(", ")} o ${medios[medios.length - 1]}` : (medios[0] ?? "");
+  return `${pedido}: ${lista}.`;
+}

@@ -16,6 +16,7 @@ import type { AppDescriptor } from "@/apps/contract";
 // Mayúscula inicial en código, no en CSS: «Jueves 24 De Septiembre» fue un defecto.
 import { mayuscula } from "@/lib/texto";
 import type { ResultadoKpi } from "@/apps/kpis/nucleo.server";
+import { pesosEnTexto } from "@/lib/turnos/mensajes-whatsapp";
 
 export type Objetivo = "cobrar" | "preparar" | "cerrar" | "reponer" | "facturar" | "revisar";
 
@@ -126,7 +127,8 @@ const REGLAS: Record<string, (r: Ok, app: AppMin, destinos: ReadonlyMap<string, 
         folio: "Mañana",
         titulo: n === 1 ? "Un turno de mañana sin avisar" : `${n} turnos de mañana sin avisar`,
         detalle: "Avisales por WhatsApp para que confirmen",
-        tecla: { texto: "Confirmar", href: app.ruta },
+        // «Avisar a las 9» (§2.8): el verbo de lo que se hace en la pantalla, de a una por WhatsApp.
+        tecla: { texto: n === 1 ? "Avisarle" : `Avisar a las ${n}`, href: app.ruta },
       },
     ];
   },
@@ -270,8 +272,10 @@ const REGLAS: Record<string, (r: Ok, app: AppMin, destinos: ReadonlyMap<string, 
 export function pendientesDeLaBandeja(
   items: readonly { app: AppMin; resultado: ResultadoKpi | null }[],
   destinos: ReadonlyMap<string, string>,
+  /** Lo que el Inicio lee aparte de los números de las apps (las señas sin cobrar, Tanda 3). */
+  extras: readonly Pendiente[] = [],
 ): { pendientes: Pendiente[]; sinRevisar: AppMin[] } {
-  const pendientes: Pendiente[] = [];
+  const pendientes: Pendiente[] = [...extras];
   const sinRevisar: AppMin[] = [];
   for (const { app, resultado } of items) {
     if (resultado?.estado === "error") {
@@ -307,7 +311,14 @@ export function porObjetivo(pendientes: readonly Pendiente[]): { id: Objetivo; n
  * La frase del estado del negocio bajo el título: «Caja abierta desde las 9:10 · 7 pedidos
  * abiertos · 12 turnos hoy · agosto sin cerrar». Sólo lo que se pudo leer; nada inventado.
  */
-export function lineaDelDia(porApp: ReadonlyMap<string, ResultadoKpi | null>): string[] {
+export function lineaDelDia(
+  porApp: ReadonlyMap<string, ResultadoKpi | null>,
+  /**
+   * Lo que entró neto hoy al libro (`cajaDeHoy`, duena-bandeja.server.ts): «Caja de hoy: $86.500».
+   * `null`/ausente = quien mira no ve la plata, o no se pudo leer: no se dice nada (Tanda 3, CH-037).
+   */
+  cajaDeHoy?: number | null,
+): string[] {
   const ok = (id: string) => {
     const r = porApp.get(id);
     return r?.estado === "ok" ? r : null;
@@ -315,6 +326,7 @@ export function lineaDelDia(porApp: ReadonlyMap<string, ResultadoKpi | null>): s
   const datos: string[] = [];
   const caja = ok("caja-del-dia");
   if (caja) datos.push(`Caja ${caja.valor.toLowerCase()}${caja.detalle && caja.valor === "Abierta" ? ` ${caja.detalle}` : ""}`);
+  if (typeof cajaDeHoy === "number" && Number.isFinite(cajaDeHoy)) datos.push(`Caja de hoy: ${pesosEnTexto(cajaDeHoy)}`);
   const agenda = ok("agenda");
   if (agenda) datos.push(`${agenda.valor} ${agenda.detalle ?? ""}`.trim());
   const pedidos = ok("pedidos");
@@ -327,6 +339,50 @@ export function lineaDelDia(porApp: ReadonlyMap<string, ResultadoKpi | null>): s
   const mes = ok("cierre-del-mes");
   if (mes?.alerta) datos.push(`${mes.valor.toLowerCase()} sin cerrar`);
   return datos;
+}
+
+// ── Las señas sin cobrar (Inicio de la dueña, Tanda 3) ───────────────────────
+
+/** Un Reservado de hoy o mañana cuyo servicio pide seña y no la tiene (duena-bandeja.server.ts). */
+export type SeniaSinCobrar = { turnoId: string; clienta: string; monto: number; inicio: string };
+
+/** Hasta cuántos nombres se escriben en el renglón («Laura, Martina y 3 más»). */
+const NOMBRES_EN_EL_RENGLON = 3;
+
+/** «Laura», «Laura y Martina», «Laura, Martina, Sofía y 2 más» (el primer nombre de cada una). */
+export function nombresCortos(nombres: readonly string[]): string {
+  const primeros = nombres.map((n) => n.trim().split(/\s+/)[0]).filter(Boolean);
+  if (primeros.length <= 1) return primeros[0] ?? "";
+  if (primeros.length <= NOMBRES_EN_EL_RENGLON) return `${primeros.slice(0, -1).join(", ")} y ${primeros.at(-1)}`;
+  const resto = primeros.length - NOMBRES_EN_EL_RENGLON;
+  return `${primeros.slice(0, NOMBRES_EN_EL_RENGLON).join(", ")} y ${resto} más`;
+}
+
+/**
+ * «Hoy · 2 señas sin cobrar (Laura, Martina) · $10.000 [Cobrar]» (§2.8). Objetivo Cobrar. La tecla abre
+ * el turno en la agenda si es uno (su cajón tiene «Llegó la seña»); si son varios, la lista de turnos.
+ * La plata sólo si quien mira la ve. PURA.
+ */
+export function pendienteDeSenias(
+  senias: readonly SeniaSinCobrar[],
+  o: { hoy: string; dia: (iso: string) => string; verPlata: boolean },
+): Pendiente | null {
+  if (senias.length === 0) return null;
+  const n = senias.length;
+  const hayHoy = senias.some((s) => o.dia(s.inicio) === o.hoy);
+  const total = senias.reduce((x, s) => x + s.monto, 0);
+  const uno = senias[0];
+  const diaDeUno = o.dia(uno.inicio);
+  const hrefUno = `/admin/turnos?${diaDeUno === o.hoy ? "" : `date=${diaDeUno}&`}turno=${encodeURIComponent(uno.turnoId)}`;
+  return {
+    objetivo: "cobrar",
+    app: "agenda",
+    folio: hayHoy ? "Hoy" : "Mañana",
+    titulo: `${n === 1 ? "1 seña sin cobrar" : `${n} señas sin cobrar`} (${nombresCortos(senias.map((s) => s.clienta))})`,
+    detalle: hayHoy ? "Reservados de hoy y mañana: pedila o marcá que llegó" : "Reservados de mañana: pedila o marcá que llegó",
+    ...(o.verPlata && total > 0 ? { monto: pesosEnTexto(total) } : {}),
+    tecla: { texto: "Cobrar", href: n === 1 ? hrefUno : "/admin/turnos/lista" },
+  };
 }
 
 // ── Fecha del título ─────────────────────────────────────────────────────────

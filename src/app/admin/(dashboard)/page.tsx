@@ -17,6 +17,7 @@ import { getFacturacion, type EstadoFiscal } from "@/lib/facturacion-actions";
 import ArcaPill from "./facturacion/bancos/ArcaPill";
 import InicioApps from "./inicio/InicioApps";
 import InicioRenglon from "./inicio/InicioRenglon";
+import NovedadesDeCaja from "./inicio/NovedadesDeCaja";
 import AtajosDelAlta from "./turnos/_agenda/AtajosDelAlta";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { enInicioPorApps } from "./inicio/piloto";
@@ -394,6 +395,10 @@ async function InicioVertical() {
           </span>
         </div>
       )}
+
+      {/* Novedades de la caja (reingeniería CH, Tanda 3 · CH-037): lo que hizo la recepción con la
+          plata, también con «Diseño nuevo» apagado. Sólo quien ve la plata (CH-056). */}
+      {canSeeRevenue && <NovedadesDeCaja piel="clasica" />}
 
       <section className="rounded-xl border border-line bg-surface-raised shadow-xs overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">

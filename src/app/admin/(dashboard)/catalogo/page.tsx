@@ -20,6 +20,7 @@ import ProductsSection from "./ProductsSection";
 import ResourcesSection from "./ResourcesSection";
 import CouponsSection from "./CouponsSection";
 import AsignacionSection from "./AsignacionSection";
+import CombosSection from "./CombosSection";
 import CortesSection, { type Corte } from "./CortesSection";
 import PlanillaCortes from "./PlanillaCortes";
 import { vocabularioDelRubro } from "./vocabulario";
@@ -227,6 +228,14 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
       <p className="text-muted mb-8">
         Profesionales, servicios, boxes y stock disponibles para la operación.
       </p>
+      {/* Reingeniería CH, Tanda 3 (3-D): el aumento en bloque de la dueña también con «Diseño nuevo» apagado. */}
+      {user.role === "OWNER" && services.length > 0 && (
+        <p className="-mt-6 mb-8">
+          <Link href="/admin/catalogo/precios-servicios" className={buttonClasses("outline", "md")}>
+            Subir precios de los servicios
+          </Link>
+        </p>
+      )}
 
       <div className="space-y-10">
         <BoxesSection boxes={boxes} />
@@ -252,6 +261,20 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
             active: p.active,
             serviceIds: p.services.map((s) => s.id),
           }))}
+        />
+        {/* Tanda 3 · 3-B: los combos frecuentes como servicios (camino A, ADR-055). Sólo LEE servicios. */}
+        <CombosSection
+          servicios={services.map((s) => ({
+            id: s.id,
+            name: s.name,
+            durationMin: s.durationMin,
+            price: s.price,
+            depositAmount: s.depositAmount,
+            active: s.active,
+            categoryName: s.category?.name ?? null,
+            description: s.description,
+          }))}
+          profesionales={professionals.map((p) => ({ id: p.id, name: p.name, active: p.active, serviceIds: p.services.map((s) => s.id) }))}
         />
         <CouponsSection coupons={coupons} />
       </div>

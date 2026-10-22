@@ -53,6 +53,7 @@ import {
   type CierreSinPrestar,
   type Permisos,
   type TurnoDelDia,
+  serviciosEnTexto,
 } from "../agenda-core";
 import {
   aFormData,
@@ -283,7 +284,7 @@ export default function TurnoCajon({
     senia > 0 && permisos.gestionar
       ? waLinkClienta(
           t.telefono,
-          mensajePedidoDeSenia({ clienta: t.clienta, servicios: t.servicio, inicio: t.inicio, profesional: t.profesional, monto: senia, alias: ALIAS_SENIA_PROVISIONAL }),
+          mensajePedidoDeSenia({ clienta: t.clienta, servicios: serviciosEnTexto(t), inicio: t.inicio, profesional: t.profesional, monto: senia, alias: ALIAS_SENIA_PROVISIONAL }),
         )
       : null;
   const ofreceCobro =

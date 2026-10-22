@@ -15,6 +15,10 @@ import { OpenCajaForm, CloseCajaForm } from "./CajaForms";
 import { AddLibroEntryForm } from "./libro/LibroForms";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import CajaRenglon from "./CajaRenglon";
+import PestanasDeCaja from "./PestanasDeCaja";
+import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
+import { modoTarjeta, TEXTO_TARJETA_COMO_MP } from "./cierre/cerrar-el-dia-core";
+import { tarjetaEnLaBase } from "./cierre/cerrar-el-dia.server";
 
 export const dynamic = "force-dynamic";
 
@@ -77,20 +81,48 @@ export default async function CajaPage() {
   // base). El turno de cajero sigue consultándose sólo donde hay cajón: sin cajón, es una
   // consulta al pedo, así que espera a saber el rubro (que el layout del panel ya pidió en el
   // mismo pedido) y el día no lo espera a él.
-  const [dia, caja, nuevo] = await Promise.all([
+  const [dia, caja, nuevo, enumConTarjeta] = await Promise.all([
     getCierreDiarioData(),
     tieneCajonFisico().then((conCajon) => (conCajon ? getCajaData() : null)),
     // «Diseño nuevo»: la lectura de interruptores del layout, cacheada (no suma viajes).
     disenoNuevo(),
+    tarjetaEnLaBase(),
   ]);
+
+  // REINGENIERÍA CH, TANDA 3 (§2.7): en un negocio de turnos (sin cajón) la caja es UNA, con pestañas
+  // «Hoy · Cerrar el día · Libro», y dice dónde va la tarjeta mientras no se migra (D6, CH-032).
+  const servicios = caja === null;
+  const notaTarjeta =
+    servicios && modoTarjeta({ mapea: cashMethodFromPaymentMethod, enumTieneTarjeta: enumConTarjeta }) === "como-mp" ? TEXTO_TARJETA_COMO_MP : null;
+  const arriba = servicios ? (
+    <>
+      <PestanasDeCaja actual="hoy" />
+      {notaTarjeta && (
+        <p role="note" data-caja="tarjeta-como-mp" className="mb-5 border-l-2 border-warning pl-3 text-sm text-body">
+          {notaTarjeta}
+        </p>
+      )}
+    </>
+  ) : null;
 
   // DISEÑO NUEVO («Renglón»): los mismos datos, ordenados para quien pasa el día acá.
   // La regla del arqueo, sólo donde hay cajón (el mostrador; CH no la ve): reglas-a-la-vista.ts.
-  if (nuevo) return <CajaRenglon dia={dia} caja={caja} regla={reglaALaVista("caja", caja !== null)} />;
+  if (nuevo) {
+    const renglon = <CajaRenglon dia={dia} caja={caja} regla={reglaALaVista("caja", caja !== null)} />;
+    return arriba ? (
+      <>
+        <div className="mx-auto w-full px-4 pt-6">{arriba}</div>
+        {renglon}
+      </>
+    ) : (
+      renglon
+    );
+  }
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
       <h1 className="text-2xl font-semibold mb-1 text-strong">Caja</h1>
+      {arriba}
       <p className="text-muted mb-6 max-w-2xl">
         Lo que hay ahora por cada medio de pago y todo lo que se movió hoy. Los cobros de
         turnos y las ventas del mostrador entran solos, por cualquier medio: acá se cargan

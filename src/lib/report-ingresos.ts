@@ -32,6 +32,12 @@ export type PagoParaReporte = {
   cobradoEn: Date;
   profesional: string;
   servicio: string;
+  /**
+   * Un turno con varias zonas (combo, reingeniería CH Tanda 3): lo que este pago aporta a cada
+   * servicio, que suma `amount` exacto (`cobroPorServicio`, src/lib/turnos/combos.ts). Sin esto,
+   * todo el pago va a `servicio`, como siempre.
+   */
+  porServicio?: readonly { servicio: string; monto: number }[];
 };
 
 export type FilaDeReporte = { label: string; total: number };
@@ -72,7 +78,9 @@ export function agruparIngresos(
     const dia = diaDe(p.cobradoEn);
     porDia.set(dia, (porDia.get(dia) ?? 0) + p.amount);
     porProfesional.set(p.profesional, (porProfesional.get(p.profesional) ?? 0) + p.amount);
-    porServicio.set(p.servicio, (porServicio.get(p.servicio) ?? 0) + p.amount);
+    for (const parte of p.porServicio && p.porServicio.length > 0 ? p.porServicio : [{ servicio: p.servicio, monto: p.amount }]) {
+      porServicio.set(parte.servicio, (porServicio.get(parte.servicio) ?? 0) + parte.monto);
+    }
   }
 
   return {

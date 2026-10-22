@@ -16,4 +16,7 @@ export const METODO_LABEL: Record<string, string> = {
   EFECTIVO: "Efectivo",
   MERCADOPAGO: "Mercado Pago",
   TRANSFERENCIA: "Transferencia",
+  // Reingeniería CH, Tanda 3 (M1): con la migración aplicada, la tarjeta se registra aparte.
+  DEBITO: "Débito",
+  CREDITO: "Crédito",
 };

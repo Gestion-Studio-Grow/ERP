@@ -48,6 +48,13 @@ enum PaymentMethod {
   MERCADOPAGO
   EFECTIVO
   TRANSFERENCIA
+  // Reingeniería CH, Tanda 3 (M1, migración 20261024120000_ch_medios_tarjeta, SIN APLICAR en
+  // Neon hasta que el dueño la autorice — Gate 2). Mientras la base no los tenga, el código NO los
+  // ofrece ni los escribe: `mediosDePagoHabilitados()` mira pg_enum y `medioHabilitado()`
+  // (src/lib/turnos/cobros.ts) filtra. En el libro de caja caen en la columna TARJETA, separados
+  // de MP (`cashMethodFromPaymentMethod`, src/lib/caja/cierre-diario.ts).
+  DEBITO
+  CREDITO
 }
 
 enum PaymentStatus {
@@ -200,6 +207,7 @@ model Tenant {
   serviceProducts          ServiceProduct[]
   clients                  Client[]
   appointments             Appointment[]
+  appointmentItems         AppointmentItem[]
   reviews                  Review[]
   payments                 Payment[]
   auditLogs                AuditLog[]
@@ -408,6 +416,24 @@ model BusinessSettings {
   contactNote String? // leyenda de contacto del footer
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // ── Reglas del mostrador (reingeniería CH, Tanda 3 · M2) ─────────────────────────────────
+  // Migración 20261024120100_ch_reglas_negocio, SIN APLICAR en Neon (Gate 2). Las columnas
+  // están OMITIDAS del cliente por defecto (src/lib/prisma-omit.ts): una consulta común a
+  // BusinessSettings no las pide, así el sitio y la Localización siguen andando contra la base
+  // de hoy. Se leen con `leerReglasDelNegocio` (src/lib/settings.ts), que tolera su ausencia y
+  // cae al placeholder D2 (provisional a confirmar con el dueño).
+  // Los defaults van como `dbgenerated(...)` A PROPÓSITO: con `@default(24)` el cliente de Prisma 7
+  // manda el valor en cada INSERT ("cancelacionHoras" = 24) y un `businessSettings.create`/`upsert`
+  // —el alta de un negocio, la Localización— revienta contra una base sin la migración (medido en
+  // src/lib/turnos/ch-t3-migraciones-postgres.test.ts). Con `dbgenerated` el default lo pone la base
+  // y el INSERT no nombra la columna. El SQL de la migración es el mismo (`DEFAULT 24`).
+  aliasSenia             String? // alias para que la clienta transfiera la seña
+  cbuSenia               String? // CBU/CVU de la seña, si el alias no alcanza
+  cancelacionHoras       Int?    @default(dbgenerated("24")) // aviso mínimo (horas) para que la seña se devuelva
+  seniaCancelaTarde      String? @default(dbgenerated("'retener'::text")) // retener | devolver | a-favor
+  seniaNoVino            String? @default(dbgenerated("'retener'::text")) // retener | devolver | a-favor
+  topeBajaSaldoRecepcion Decimal @default(dbgenerated("0")) @db.Decimal(14, 2) // D5: $0 = sólo la dueña da de baja
 }
 
 // Usuario del panel admin (ADR-017). Identidad propia, NO se reusa Professional:
@@ -565,6 +591,7 @@ model Service {
   deletedAt          DateTime?
   professionals      Professional[]                  @relation("ProfessionalServices")
   appointments       Appointment[]
+  appointmentItems   AppointmentItem[]
   products           ServiceProduct[]
   resources          ServiceResource[]
   serviceCommissions ProfessionalServiceCommission[]
@@ -736,6 +763,13 @@ model Appointment {
   // commissionPayoutId null, y volver a liquidar no puede doble-pagar (structural).
   commissionPayout   CommissionPayout? @relation(fields: [commissionPayoutId], references: [id])
   commissionPayoutId String?
+  // Combos (reingeniería CH, Tanda 3 · M3, migración 20261024120200_ch_appointment_items, SIN
+  // APLICAR en Neon). `items` = las zonas/servicios del turno en orden; `serviceId` de arriba queda
+  // como el servicio «principal» (compatibilidad: todo lo que ya lee `serviceId` sigue igual).
+  // `groupId` agrupa turnos que se dieron juntos (combo repartido). OMITIDA del cliente por
+  // defecto (src/lib/prisma-omit.ts) hasta que la migración esté aplicada.
+  groupId            String?
+  items              AppointmentItem[]
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
@@ -743,6 +777,29 @@ model Appointment {
   @@index([boxId, startsAt])
   @@index([tenantId, startsAt])
   @@index([commissionPayoutId])
+}
+
+// Un ítem (zona/servicio) de un turno compuesto — combo «camino B» (reingeniería CH, Tanda 3 · M3).
+// El turno sigue siendo UNO (un bloque en la agenda, una seña, un cobro); los ítems dicen qué se
+// hizo adentro, en qué orden, cuánto duró cada uno y a qué precio se reservó (congelado, como
+// `Appointment.priceAtBooking`: un aumento de precios no toca lo ya dado). La suma de los
+// `priceAtBooking` de los ítems es el precio del turno; el reporte por servicio suma por ítem.
+// RLS `tenant_isolation` dentro de la misma migración. Tabla nueva: no cambia ningún dato existente.
+model AppointmentItem {
+  id             String      @id @default(cuid())
+  tenant         Tenant      @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  appointment    Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  appointmentId  String
+  service        Service     @relation(fields: [serviceId], references: [id])
+  serviceId      String
+  order          Int // 0, 1, 2… el orden en que se hacen
+  durationMin    Int // duración de ESTE ítem al reservar (sin márgenes internos)
+  priceAtBooking Decimal     @db.Decimal(14, 2)
+
+  @@unique([appointmentId, order]) // árbitro: un reintento no duplica una zona
+  @@index([tenantId, appointmentId])
+  @@index([serviceId])
 }
 
 // Liquidación de comisiones a un profesional por un período (BACKLOG "Alta

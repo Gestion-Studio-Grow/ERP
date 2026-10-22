@@ -28,7 +28,7 @@ import { dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { useToast } from "../../ToastProvider";
 import { esRedireccionDeNext } from "../errores";
-import { fechaCorta, type TurnoDelDia } from "../agenda-core";
+import { fechaCorta, serviciosEnTexto, type TurnoDelDia } from "../agenda-core";
 import { mensajeMover } from "@/lib/turnos/mensajes-whatsapp";
 import { diasParaMover, huecosParaOfrecer, preguntaDeMover, type Destino } from "./mover-core";
 
@@ -43,7 +43,7 @@ export function useMoverTurno() {
     new Promise<ResultadoDeMover>((listo) =>
       empezar(async () => {
         const wa = avisar
-          ? waLinkClienta(t.telefono, mensajeMover({ clienta: t.clienta, servicios: t.servicio, inicio: d.inicio, profesional: d.profesional, inicioAnterior: t.inicio }))
+          ? waLinkClienta(t.telefono, mensajeMover({ clienta: t.clienta, servicios: serviciosEnTexto(t), inicio: d.inicio, profesional: d.profesional, inicioAnterior: t.inicio }))
           : null;
         // En el mismo toque, antes de esperar: si no, el navegador la toma por una ventana emergente.
         const ventana = wa ? window.open("", "_blank") : null;

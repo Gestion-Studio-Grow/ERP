@@ -49,6 +49,7 @@ import {
   lineaDelDia,
   misAppsDeFabrica,
   montoANumero,
+  pendienteDeSenias,
   pendientesDeLaBandeja,
   porObjetivo,
   tituloDeHoy,
@@ -56,6 +57,8 @@ import {
 } from "./bandeja-core";
 import { pedidosDeLaBandeja, type PedidoDeBandeja } from "./pedidos-bandeja.server";
 import { facturacionConfigurada, primerDiaDelMostrador, whatsappDeLaVidriera } from "./facturacion-lista.server";
+import { cajaDeHoy, seniasSinCobrar } from "./duena-bandeja.server";
+import NovedadesDeCaja from "./NovedadesDeCaja";
 
 type Contexto = {
   role: Role;
@@ -129,6 +132,13 @@ export default async function InicioRenglon({ espacio }: { espacio: string | nul
           <Suspense fallback={<BandejaCargando />}>
             <Bandeja ctx={ctx} />
           </Suspense>
+          {/* Lo que hizo la recepción con la plata (Tanda 3, CH-037): sólo quien ve la plata; la
+              lectura devuelve null para el resto y el bloque no se dibuja (CH-056). */}
+          {roleHasCapability(ctx.role, "reports:read") && (
+            <Suspense fallback={<RenglonesCargando titulo="Novedades de la caja" n={2} />}>
+              <NovedadesDeCaja />
+            </Suspense>
+          )}
           {verAgenda && (
             <Suspense fallback={<RenglonesCargando titulo="Agenda de hoy" n={4} />}>
               <AgendaDeHoy />
@@ -149,8 +159,12 @@ export default async function InicioRenglon({ espacio }: { espacio: string | nul
 // ── La línea de estado del negocio ───────────────────────────────────────────
 
 async function LineaDelDia({ ctx }: { ctx: Contexto }) {
-  const items = await numeros(APPS_DE_LA_LINEA, ctx);
-  const datos = lineaDelDia(new Map(items.map((i) => [i.app.id, i.resultado])));
+  // La caja de hoy en pesos (Tanda 3, CH-037): sólo quien ve la plata; si no se pudo leer, no se dice.
+  const [items, caja] = await Promise.all([
+    numeros(APPS_DE_LA_LINEA, ctx),
+    roleHasCapability(ctx.role, "reports:read") ? cajaDeHoy().catch(() => null) : Promise.resolve(null),
+  ]);
+  const datos = lineaDelDia(new Map(items.map((i) => [i.app.id, i.resultado])), caja);
   return <LineaDeEstado datos={datos.map((d, i) => (i === 0 ? <strong key={i}>{d}</strong> : d))} />;
 }
 
@@ -242,18 +256,23 @@ function RenglonDePendiente({ p, principal }: { p: Pendiente; principal?: boolea
 async function Bandeja({ ctx }: { ctx: Contexto }) {
   const hoy = todayInBusinessTz();
   const verPedidos = ctx.apps.some((a) => a.id === "pedidos");
+  // Las señas sin cobrar de hoy y mañana (Tanda 3, CH-037): sólo en un negocio de turnos y para quien
+  // da turnos. Si la lectura falla, la bandeja se dibuja igual sin ese renglón.
+  const verSenias = !ctx.esMostrador && ctx.apps.some((a) => a.id === "agenda") && roleHasCapability(ctx.role, "agenda:manage");
   // La caja del día ya la pidió la línea de estado: `cargarKpi` está cacheado por pedido.
-  const [items, pedidos, [caja]] = await Promise.all([
+  const [items, pedidos, [caja], senias] = await Promise.all([
     numeros(APPS_DE_LA_BANDEJA, ctx),
     verPedidos ? pedidosDeLaBandeja() : Promise.resolve(null),
     numeros(["caja-del-dia"], ctx),
+    verSenias ? seniasSinCobrar().catch(() => []) : Promise.resolve([]),
   ]);
   const destinos = new Map(ctx.apps.map((a) => [a.id, a.ruta as string]));
   // El primer día, la caja ya es un paso de «Para arrancar»: no se repite la tecla acá.
   const cierre = items.find((i) => i.app.id === "cierre-del-dia")?.resultado;
   const arrancando = cierre?.estado === "ok" && cierre.valor === "Sin cierres";
   const aviso = arrancando ? null : avisoDeCaja(caja?.resultado, caja?.app.ruta);
-  const { pendientes, sinRevisar } = pendientesDeLaBandeja(items, destinos);
+  const deSenias = pendienteDeSenias(senias, { hoy, dia: (iso) => dateStrInBusinessTz(new Date(iso)), verPlata: roleHasCapability(ctx.role, "reports:read") });
+  const { pendientes, sinRevisar } = pendientesDeLaBandeja(items, destinos, deSenias ? [deSenias] : []);
   const grupos = porObjetivo(pendientes);
   const total = pendientes.length;
   const facturacion = items.find((i) => i.app.id === "facturacion");

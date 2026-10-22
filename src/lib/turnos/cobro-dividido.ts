@@ -28,6 +28,8 @@ import {
   METODO_LABEL,
   claveCobroTurno,
   esMetodoDePago,
+  medioRechazado,
+  METODOS_DE_TARJETA,
   seniaDelServicio,
   type MetodoDePago,
 } from "./cobros";
@@ -51,7 +53,12 @@ export type ValidacionDividido = { ok: true; lineas: LineaDePago[]; total: numbe
  * centavos como mucho, y la suma igual al saldo al centavo: ni un peso de menos (eso es «Queda
  * debiendo», otra tecla) ni uno de más (un turno no da vuelto por Mercado Pago).
  */
-export function validarCobroDividido(lineas: readonly { metodo: string; monto: number }[], saldo: number): ValidacionDividido {
+export function validarCobroDividido(
+  lineas: readonly { metodo: string; monto: number }[],
+  saldo: number,
+  /** Los medios que tiene la base (`mediosDePagoHabilitados()`); sin lista, los tres de siempre. */
+  enBase?: readonly string[],
+): ValidacionDividido {
   const saldoC = centavosDe(saldo);
   if (!(saldoC > 0)) return { ok: false, error: "Este turno no tiene nada para cobrar." };
   if (lineas.length < 2) return { ok: false, error: "Para dividir el pago hacen falta dos medios." };
@@ -60,7 +67,11 @@ export function validarCobroDividido(lineas: readonly { metodo: string; monto: n
   const limpias: LineaDePago[] = [];
   let sumaC = 0;
   for (const l of lineas) {
-    if (!esMetodoDePago(l.metodo)) return { ok: false, error: "Hay un medio de pago que no se reconoce: elegilo de nuevo." };
+    if (!esMetodoDePago(l.metodo, enBase)) {
+      // Débito/Crédito sin la migración M1: la frase que dice qué hacer (Tanda 3 · CH-032).
+      const tarjeta = (METODOS_DE_TARJETA as readonly string[]).includes(l.metodo);
+      return { ok: false, error: tarjeta ? (medioRechazado(l.metodo, enBase ?? METODOS_DE_PAGO) as string) : "Hay un medio de pago que no se reconoce: elegilo de nuevo." };
+    }
     if (vistos.has(l.metodo)) return { ok: false, error: `${METODO_LABEL[l.metodo]} aparece dos veces: juntalo en una sola línea.` };
     vistos.add(l.metodo);
     const c = centavosDe(l.monto);

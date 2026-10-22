@@ -23,7 +23,8 @@
 
 import { useId, useState, useTransition } from "react";
 import { Aviso, Button, Segmented } from "@/components/ui";
-import { METODOS_DE_PAGO, METODO_LABEL, esMetodoDePago, type MetodoDePago } from "@/lib/turnos/cobros";
+import { METODO_LABEL, esMetodoDePago, type MetodoDePago } from "@/lib/turnos/cobros";
+import { useMediosDePago } from "./medios";
 import { AYUDA_LLEGO_LA_SENIA, MEDIO_DE_LA_SENIA, camposDeDeshacer, pesosDelCobro } from "@/lib/turnos/cobro-dividido";
 import { cobrarSeniaYConfirmar, deshacerCierre } from "@/lib/turnos/cobro-actions";
 import { useToast } from "../../ToastProvider";
@@ -58,6 +59,7 @@ export default function LlegoLaSenia({
   const [error, setError] = useState("");
   const [hecho, setHecho] = useState<{ cobroId: string; monto: number; medio: MetodoDePago; confirmo: boolean } | null>(null);
   const [pendiente, empezar] = useTransition();
+  const { medios } = useMediosDePago();
 
   if (!(monto > 0) && !hecho) return null;
 
@@ -155,9 +157,10 @@ export default function LlegoLaSenia({
             value={medio}
             onChange={(e) => {
               const v = (e.nativeEvent.target as HTMLInputElement | null)?.value;
-              if (esMetodoDePago(v)) setMedio(v);
+              if (esMetodoDePago(v, medios)) setMedio(v);
             }}
-            opciones={METODOS_DE_PAGO.map((m) => ({ valor: m, etiqueta: METODO_LABEL[m] }))}
+            opciones={medios.map((m) => ({ valor: m, etiqueta: METODO_LABEL[m] }))}
+            className={medios.length > 3 ? "flex-wrap" : undefined}
           />
         </div>
       )}

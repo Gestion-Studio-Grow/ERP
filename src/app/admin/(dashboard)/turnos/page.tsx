@@ -1,4 +1,6 @@
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
+import { metodosDePago } from "@/lib/turnos/cobros";
+import { mediosDePagoHabilitados } from "@/lib/turnos/medios-habilitados.server";
 import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
 import MananaConfirmar from "./MananaConfirmar";
@@ -126,6 +128,8 @@ export default async function TurnosCalendarPage({
       cobrar: canCollect,
       terminar: roleHasCapability(user.role, "agenda:complete"),
       perdonar: roleHasCapability(user.role, "agenda:forgive"),
+      // Débito/Crédito sólo con la migración M1 aplicada (Tanda 3 · CH-031/032).
+      medios: metodosDePago(await mediosDePagoHabilitados()),
     },
     ahora: new Date().toISOString(),
     dia: diaDeLaPlanilla,
@@ -159,6 +163,10 @@ export default async function TurnosCalendarPage({
       <div className="flex gap-4 text-sm mb-6 border-b border-line">
         <Link href="/admin/turnos" className="px-1 pb-2 border-b-2 border-accent text-strong font-medium max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
           Calendario
+        </Link>
+        {/* La semana por profesional, con la ocupación y los huecos (reingeniería CH, Tanda 3 · CH-036). */}
+        <Link href="/admin/turnos/semana" className="px-1 pb-2 text-muted hover:text-strong max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
+          Semana
         </Link>
         <Link href="/admin/turnos/lista" className="px-1 pb-2 text-muted hover:text-strong max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
           Lista

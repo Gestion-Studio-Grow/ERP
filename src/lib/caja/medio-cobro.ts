@@ -58,6 +58,20 @@ export function etiquetaDeMedio(medio: string | null | undefined): string {
   return MEDIOS_DE_COBRO.find((m) => m.valor === medio)?.etiqueta ?? "un medio sin identificar";
 }
 
+/**
+ * ¿Es Débito o Crédito? (reingeniería CH, Tanda 3 · 3-B). El enum `PaymentMethod` del código ya los
+ * tiene (migración M1, ESCRITA y SIN APLICAR en producción), pero el mostrador no los ofrece todavía:
+ * un pedido armado a mano con DEBITO se rechaza con esta frase, nunca se graba (escribirlo contra
+ * una base sin M1 revienta la venta; con M1, igual falta la columna Tarjeta del arqueo del mostrador).
+ */
+export function esMedioDeTarjeta(raw: unknown): boolean {
+  const s = typeof raw === "string" ? raw.trim() : "";
+  return s === "DEBITO" || s === "CREDITO";
+}
+
+export const MENSAJE_TARJETA_SIN_ACTIVAR =
+  "Débito y Crédito todavía no se registran en el mostrador: cobralo con «Mercado Pago» (hoy la tarjeta se registra así).";
+
 /** Desde dónde se cobra: cambia la SALIDA que ofrece el mensaje, no la regla. */
 export type ContextoDeMedio = "alta" | "cobro";
 
@@ -86,6 +100,7 @@ export function medioDeCobroRequerido(input: {
   if (!input.paid) return { ok: true, paymentMethod: null };
   const medio = leerMedioDeCobro(input.paymentMethod);
   if (medio) return { ok: true, paymentMethod: medio };
+  if (esMedioDeTarjeta(input.paymentMethod)) return { ok: false, error: MENSAJE_TARJETA_SIN_ACTIVAR };
   if (input.contexto === "cobro") return { ok: false, error: MENSAJE_FALTA_MEDIO_BANDEJA };
   return {
     ok: false,

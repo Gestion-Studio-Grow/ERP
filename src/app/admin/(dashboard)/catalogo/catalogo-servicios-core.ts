@@ -1,13 +1,24 @@
 // El catálogo de servicios con «Diseño nuevo»: qué pestaña se pide y lo que la línea de estado
 // cuenta. Puro (sin React ni base) para poder probarlo con datos de CH.
+//
+// Integración Tanda 3: la pestaña «Combos» (3-B, `CombosSection`, camino A del diseño D8) va al lado
+// de Servicios. Un combo ES un servicio de la categoría «Combos»: `esCombo` decide eso en un solo lugar.
 
-export const PARTES_DEL_CATALOGO = ["servicios", "profesionales", "boxes", "equipos", "productos", "quien", "cupones"] as const;
+import { CATEGORIA_COMBOS } from "@/lib/turnos/combos";
+
+export const PARTES_DEL_CATALOGO = ["servicios", "combos", "profesionales", "boxes", "equipos", "productos", "quien", "cupones"] as const;
 export type ParteDelCatalogo = (typeof PARTES_DEL_CATALOGO)[number];
 
 /** La pestaña pedida en `?ver=`; cualquier otra cosa (o nada), Servicios. */
 export function leerParte(sp: Record<string, string | string[] | undefined>): ParteDelCatalogo {
   const v = typeof sp.ver === "string" ? sp.ver : "";
   return (PARTES_DEL_CATALOGO as readonly string[]).includes(v) ? (v as ParteDelCatalogo) : "servicios";
+}
+
+/** ¿Es un combo del catálogo? (un servicio de la categoría «Combos», sin importar mayúsculas). */
+export function esCombo(s: { categoryName?: string | null; category?: { name: string } | null }): boolean {
+  const nombre = s.categoryName ?? s.category?.name ?? "";
+  return nombre.trim().toLowerCase() === CATEGORIA_COMBOS.toLowerCase();
 }
 
 type Profesional = { name: string; active: boolean; boxId: string | null; services: { id: string }[] };

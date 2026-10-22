@@ -22,6 +22,8 @@
 // lleva a «Cerrar lo pendiente» (/admin/turnos/cerrar), donde se cierran de a muchos. Un pasado sin
 // cerrar de hace meses también cuenta (CH-044).
 
+import { metodosDePago } from "@/lib/turnos/cobros";
+import { mediosDePagoHabilitados } from "@/lib/turnos/medios-habilitados.server";
 import Link from "next/link";
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
 import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
@@ -119,6 +121,8 @@ export default async function AgendaRenglon({
     cobrar: roleHasCapability(quien.role, "agenda:collect"),
     terminar: roleHasCapability(quien.role, "agenda:complete"),
     perdonar: roleHasCapability(quien.role, PERDONAR),
+    // Débito/Crédito sólo con la migración M1 aplicada (Tanda 3 · CH-031/032).
+    medios: metodosDePago(await mediosDePagoHabilitados()),
   };
   // Mañana, sólo mirando HOY y para quien gestiona la agenda (como siempre).
   const verManana = permisos.gestionar && dia === hoy;
@@ -168,6 +172,8 @@ export default async function AgendaRenglon({
     ...(agenda.profesionales.length > 1 || quien.role !== "PROFESSIONAL"
       ? [{ href: hrefDia(dia, hoy, "profesionales"), etiqueta: "Por profesional", actual: vista === "profesionales" }]
       : []),
+    // La semana de ESE día (reingeniería CH, Tanda 3 · CH-036): ocupación y huecos por profesional.
+    { href: `/admin/turnos/semana?desde=${dia}`, etiqueta: "Semana" },
     ...(permisos.gestionar ? [{ href: "/admin/turnos/lista", etiqueta: "Todos los turnos" }] : []),
   ];
 

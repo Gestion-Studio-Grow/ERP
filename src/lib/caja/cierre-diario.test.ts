@@ -409,8 +409,31 @@ test("la traducción PaymentMethod → CashMethod es una sola y frena ante lo de
   assert.equal(cashMethodFromPaymentMethod("EFECTIVO"), "EFECTIVO");
   assert.equal(cashMethodFromPaymentMethod("MERCADOPAGO"), "MP");
   assert.equal(cashMethodFromPaymentMethod("TRANSFERENCIA"), "MP");
-  assert.equal(cashMethodFromPaymentMethod("TARJETA"), null); // no existe en PaymentMethod hoy
+  assert.equal(cashMethodFromPaymentMethod("TARJETA"), null); // TARJETA es columna del libro, no medio de cobro
   assert.equal(cashMethodFromPaymentMethod(""), null);
+});
+
+// Reingeniería CH, Tanda 3 · CH-031: Débito y Crédito (migración M1) caen en TARJETA, nunca en MP.
+test("CH-031 · DEBITO y CREDITO van a la columna TARJETA del libro, separados de MP", () => {
+  assert.equal(cashMethodFromPaymentMethod("DEBITO"), "TARJETA");
+  assert.equal(cashMethodFromPaymentMethod("CREDITO"), "TARJETA");
+  assert.notEqual(cashMethodFromPaymentMethod("DEBITO"), cashMethodFromPaymentMethod("MERCADOPAGO"));
+  assert.equal(cashMethodFromPaymentMethod("debito"), null); // sin adivinar mayúsculas
+
+  // Un día con un saldo de $14.000 cobrado con débito, otro con crédito y uno por MP: el cierre
+  // espera la tarjeta en TARJETA y MP sólo con lo de Mercado Pago (lo que concilia el extracto).
+  const cobros = [
+    { id: "d", medio: "DEBITO", monto: 14000 },
+    { id: "c", medio: "CREDITO", monto: 9000 },
+    { id: "m", medio: "MERCADOPAGO", monto: 8000 },
+    { id: "e", medio: "EFECTIVO", monto: 10000 },
+  ];
+  const movements = cobros.map((c) => mov({ id: c.id, amount: c.monto, method: cashMethodFromPaymentMethod(c.medio)! }));
+  const cierre = buildCierreDiario({ day: "2026-09-06", previous: [], movements, declared: declared(10000, 8000, 23000) });
+  assert.equal(cierre.porMedio.TARJETA.expected, 23000);
+  assert.equal(cierre.porMedio.MP.expected, 8000);
+  assert.equal(cierre.porMedio.EFECTIVO.expected, 10000);
+  assert.equal(cierre.estado, "CUADRA");
 });
 
 // ── Arrastre entre días ─────────────────────────────────────────────────────
