@@ -22,6 +22,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { createInvoiceInTx, type CreateInvoiceInput, type InvoiceTx } from "@/lib/invoice-core";
+import { claseDeCobro } from "@/lib/turnos/anulacion";
 
 // ─── Claves ─────────────────────────────────────────────────────────────────────
 
@@ -124,12 +125,72 @@ export async function facturarCobrosInTx(
   input: CreateInvoiceInput,
   cobros: readonly CobroAFacturar[],
 ): Promise<string> {
+  return (await facturarCobrosDetalleInTx(tx, input, cobros)).invoiceId;
+}
+
+/**
+ * Igual que `facturarCobrosInTx`, y dice si la factura es NUEVA. Cuando alguno de los cobros ya
+ * tenía factura viva, los demás cobros (las otras claves del mismo dinero, p. ej. `banco:<hash>`
+ * y `mp:<referencia>` de un crédito del extracto) quedan anotados contra ESA factura.
+ */
+export async function facturarCobrosDetalleInTx(
+  tx: InvoiceTx,
+  input: CreateInvoiceInput,
+  cobros: readonly CobroAFacturar[],
+): Promise<{ invoiceId: string; nueva: boolean }> {
   if (cobros.length === 0) throw new Error("facturarCobros: sin cobros no hay factura.");
   const [vivo] = await cobrosYaFacturadosInTx(tx, input.tenantId, cobros.map((c) => c.clave));
-  if (vivo) return vivo.invoiceId;
+  if (vivo) {
+    for (const c of cobros) await vincularCobroInTx(tx, input.tenantId, c, vivo.invoiceId);
+    return { invoiceId: vivo.invoiceId, nueva: false };
+  }
   const invoiceId = await createInvoiceInTx(tx, input);
   for (const c of cobros) await vincularCobroInTx(tx, input.tenantId, c, invoiceId);
-  return invoiceId;
+  return { invoiceId, nueva: true };
+}
+
+/**
+ * Corre `fn` en UNA transacción parada en el negocio. Si otro disparador ganó la carrera por la
+ * misma clave u origen (P2002), la transacción entera vuelve atrás y se corre UNA vez más: ahí se
+ * ve lo que el ganador dejó.
+ */
+export async function enLaTransaccionDelCobro<T>(tenantId: string, fn: (tx: InvoiceTx) => Promise<T>): Promise<T> {
+  const correr = () => tenantTransaction((tx) => fn(tx), { tenantId });
+  try {
+    return await correr();
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return correr();
+    throw e;
+  }
+}
+
+/**
+ * Auditoría GSG I-1 · TOMA EL TURNO (`FOR UPDATE`) antes de leer lo facturado y facturar. El aviso
+ * de MP de un turno y «Completar» usan claves distintas (`mp:<pago>` y `turno:<turno>`): el
+ * índice único no los arbitra. Tomando la fila del turno primero, los dos caminos sobre el mismo
+ * turno van de a uno y el segundo ve lo que facturó el primero (DB-4). `false` = el turno no
+ * existe en este negocio. SQL crudo: Prisma no expresa FOR UPDATE; el negocio va en el WHERE
+ * además de la RLS.
+ */
+export async function tomarTurnoInTx(tx: InvoiceTx, tenantId: string, appointmentId: string): Promise<boolean> {
+  const filas = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "Appointment" WHERE id = ${appointmentId} AND "tenantId" = ${tenantId} FOR UPDATE`;
+  return filas.length > 0;
+}
+
+/**
+ * Lo cobrado por Mercado Pago en el LIBRO del turno (cobros con medio MP, netos de anulaciones;
+ * la condonación no es plata que entró).
+ */
+export async function cobradoPorMPDelLibroInTx(tx: InvoiceTx, tenantId: string, appointmentId: string): Promise<number> {
+  const filas = await tx.collection.findMany({
+    where: { tenantId, originType: "APPOINTMENT", originId: appointmentId, method: "MERCADOPAGO" },
+    select: { amount: true, note: true },
+  });
+  const centavos = filas
+    .filter((f) => claseDeCobro(f.note) !== "condonacion")
+    .reduce((a, f) => a + centavosDe(f.amount.toNumber()), 0);
+  return centavos / 100;
 }
 
 /**

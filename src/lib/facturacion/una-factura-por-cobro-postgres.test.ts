@@ -264,18 +264,63 @@ test("R1 · seña por MP que la recepción NO anotó en el libro: completar fact
   assert.deepEqual(nuevas.map((f) => Number(f.total)).sort((x, y) => x - y), [5000, 10000]);
 });
 
-test("R1 · dos disparadores a la vez sobre el mismo pago (aviso y extracto): una sola factura", async (t) => {
+test("I-1 · el aviso de MP y «Completar» A LA VEZ sobre el mismo turno: la seña se factura una sola vez (turno tomado)", async (t) => {
+  const p = await preparar(t, "a");
+  if (!p) return;
+  // Varias vueltas: la carrera tiene que perderse siempre del mismo lado, no a veces.
+  for (let vuelta = 0; vuelta < 4; vuelta++) {
+    const turno = await p.crearTurno();
+    const senia = p.pagoMP(`mp-carrera-${vuelta}-${randomUUID().slice(0, 6)}`, 5000, turno.id);
+    await p.cobrarEnElLibro(turno.id, 5000, "MERCADOPAGO");
+    await p.cobrarEnElLibro(turno.id, 10000, "EFECTIVO");
+    await Promise.all([p.avisoDeMP(senia), p.completar(turno.id)]);
+    const delTurno: { total: unknown }[] = await p.duenio.invoice.findMany({
+      where: {
+        tenantId: p.n.id,
+        status: { not: "REJECTED" },
+        OR: [{ appointmentId: turno.id }, { mpPaymentId: senia.id }],
+      },
+      select: { total: true },
+    });
+    assert.equal(total(delTurno), 15000, `vuelta ${vuelta}: lo facturado del turno es lo cobrado, no $20.000`);
+    assert.ok(await p.cobro(`mp:${senia.id}`), "el pago quedó anotado");
+  }
+});
+
+test("I-1 · el mismo pago por el aviso y por el extracto A LA VEZ: una sola factura (arbitra el índice de mp:<pago>)", async (t) => {
   const p = await preparar(t, "b");
   if (!p) return;
-  const pago = p.pagoMP(`mp-carrera-${randomUUID().slice(0, 6)}`, 3210, "");
+  const pago = p.pagoMP(`mp-extracto-${randomUUID().slice(0, 6)}`, 3210, "");
   const antes = (await p.facturas()).length;
   const { facturarPagoMP } = await import("@/lib/invoice-from-mp");
-  const [x, y] = await Promise.all([
+  const [desdeMP, delBanco] = await Promise.all([
     runInTenantContext(p.n.id, () => facturarPagoMP(pago, p.n.id)),
-    runInTenantContext(p.n.id, () => facturarPagoMP(pago, p.n.id)),
+    p.extracto([{ monto: 3210, referencia: pago.id }]),
   ]);
-  assert.equal(x, y);
-  assert.equal((await p.facturas()).length, antes + 1);
+  assert.equal((await p.facturas()).length, antes + 1, "una sola factura entre los dos caminos");
+  assert.equal(delBanco.resultado.emitidas + (delBanco.resultado.yaFacturadas ?? 0), 1);
+  assert.equal((await p.cobro(`mp:${pago.id}`))?.invoiceId, desdeMP);
+  assert.equal((await p.cobro(`banco:${delBanco.hashes[0]}`))?.invoiceId, desdeMP);
+});
+
+test("I-2 · seña por MP que NO está en el libro y aviso DESPUÉS de completar: se factura por su lado (no queda «facturada» sin factura)", async (t) => {
+  const p = await preparar(t, "b");
+  if (!p) return;
+  const turno = await p.crearTurno();
+  const senia = p.pagoMP(`mp-i2-${randomUUID().slice(0, 6)}`, 5000, turno.id);
+  await p.cobrarEnElLibro(turno.id, 10000, "EFECTIVO");
+  const facturaTurno = await p.completar(turno.id);
+  const r = await p.avisoDeMP(senia);
+  assert.notEqual(r.invoiceId, facturaTurno, "la seña no está en la factura de $10.000");
+  const delTurno = await p.duenio.invoice.findMany({
+    where: { tenantId: p.n.id, status: { not: "REJECTED" }, OR: [{ appointmentId: turno.id }, { mpPaymentId: senia.id }] },
+    select: { total: true },
+  });
+  assert.deepEqual(delTurno.map((f) => Number(f.total)).sort((x, y) => x - y), [5000, 10000]);
+  // El extracto la reconoce contra SU factura, no contra la del turno.
+  const { resultado } = await p.extracto([{ monto: 5000, referencia: senia.id }]);
+  assert.equal(resultado.yaFacturadas, 1);
+  assert.equal((await p.cobro(`mp:${senia.id}`))?.invoiceId, r.invoiceId);
 });
 
 test("R1 · money_transfer: la de un tercero (una seña) va a revisión y no se pierde; la de la cuenta propia no se factura", async (t) => {

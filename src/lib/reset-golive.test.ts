@@ -17,7 +17,7 @@ const AHORA = new Date("2026-10-18T15:00:00Z");
 function fotoVacia(over: Partial<FotoNegocio> = {}): FotoNegocio {
   return {
     frontera: null, ahora: AHORA, appointments: [], payments: [], reviews: [], collections: [], orders: [], orderItems: [],
-    cashMovements: [], cashSessions: [], invoices: [], envios: [], commissionPayouts: [], stockMovements: [], stockPurchases: [],
+    cashMovements: [], cashSessions: [], invoices: [], envios: [], cobrosFacturados: [], commissionPayouts: [], stockMovements: [], stockPurchases: [],
     stockPurchaseItems: [], payables: [], cheques: [], receivables: [], outbox: [], eventosIntegracion: [], conversaciones: [],
     mensajes: [], mensajesConExtracto: [], importaciones: [], movimientosImportados: [], leads: [], waitlist: [],
     professionalBlocks: [], boxBlocks: [], clients: [], clientesConOtrosModulos: [], coupons: [], cuponesDePedidos: [], products: [],
@@ -31,7 +31,7 @@ const pos = (paso: PasoTabla) => ORDEN_DE_BORRADO.indexOf(paso);
 
 test("orden de borrado: cada hijo antes que su padre (las FK RESTRICT no pueden fallar)", () => {
   const antes: [PasoTabla, PasoTabla][] = [
-    ["EnvioComprobante", "Invoice"], ["InvoiceNota", "Invoice"], ["Invoice", "Order"], ["Invoice", "Appointment"],
+    ["EnvioComprobante", "Invoice"], ["CobroFacturado", "Invoice"], ["CobroFacturado", "InvoiceNota"], ["InvoiceNota", "Invoice"], ["Invoice", "Order"], ["Invoice", "Appointment"],
     ["EventoIntegracion", "OutboxEvent"], ["MensajeWhatsapp", "ConversacionWhatsapp"], ["MovimientoImportado", "ImportacionBancaria"],
     ["Review", "Appointment"], ["CashMovement", "CashSession"], ["CashMovement", "Order"], ["CashMovement", "Payment"],
     ["CashMovement", "Collection"], ["Collection", "Order"], ["Collection", "Appointment"], ["Payment", "Appointment"],
@@ -40,6 +40,23 @@ test("orden de borrado: cada hijo antes que su padre (las FK RESTRICT no pueden 
   ];
   for (const [hijo, padre] of antes) assert.ok(pos(hijo) < pos(padre), `${hijo} tiene que ir antes que ${padre}`);
   assert.equal(new Set(ORDEN_DE_BORRADO).size, ORDEN_DE_BORRADO.length, "sin pasos repetidos");
+});
+
+test("R1 · CobroFacturado: se borra con su comprobante (antes, por la FK RESTRICT) y se conserva con el que tiene CAE", () => {
+  const plan = planificarReseteo(
+    fotoVacia({
+      invoices: [
+        { id: "inv-cae", orderId: null, appointmentId: null, conCae: true, status: "AUTHORIZED", comprobanteAsociadoId: null, docNro: "0" },
+        { id: "inv-pend", orderId: null, appointmentId: null, conCae: false, status: "PENDING", comprobanteAsociadoId: null, docNro: "0" },
+      ],
+      cobrosFacturados: [{ id: "cf-cae", invoiceId: "inv-cae" }, { id: "cf-pend", invoiceId: "inv-pend" }],
+    }),
+    SIN_OPCIONES,
+  );
+  assert.deepEqual(ids(plan, "CobroFacturado"), ["cf-pend"]);
+  assert.deepEqual(ids(plan, "Invoice"), ["inv-pend"]);
+  assert.ok(pos("CobroFacturado") < pos("InvoiceNota") && pos("CobroFacturado") < pos("Invoice"));
+  assert.ok(plan.conserva.some((c) => c.tabla === "CobroFacturado" && c.cantidad === 1));
 });
 
 test("nunca hay un paso sobre una tabla maestra ni sobre AuditLog", () => {

@@ -8,13 +8,18 @@
  * está aplicada). El Core es dueño del impuesto; el plugin MP solo detecta.
  */
 
-import { createInvoice } from "@/lib/invoice-core";
+import { createInvoice, type CreateInvoiceInput, type InvoiceTx } from "@/lib/invoice-core";
 import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
 import type { PagoMP } from "@/plugins/mercadopago";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
-import { tenantTransaction } from "@/lib/rls";
-import { claveCobroMP, facturarCobros, vincularCobro } from "@/lib/facturacion/cobros-facturados";
+import {
+  claveCobroMP,
+  cobrosYaFacturadosInTx,
+  enLaTransaccionDelCobro,
+  facturarCobrosInTx,
+  vincularCobroInTx,
+} from "@/lib/facturacion/cobros-facturados";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
 const CONCEPTO_PRODUCTOS = 1; // venta de productos/servicios sueltos, sin fechas de servicio
@@ -29,66 +34,25 @@ export interface DepsFacturarPagoMP {
   getFiscalProfile: typeof getFiscalProfile;
   createInvoice: typeof createInvoice;
   procesarEnviosDelNegocio: typeof procesarEnviosDelNegocio;
-  /** R1 · Factura anotando el cobro `mp:<pago>`. Opcional: sin él (tests viejos), `createInvoice`. */
-  facturarCobros?: typeof facturarCobros;
   /**
-   * R1 · La factura que el EXTRACTO del banco ya emitió para este pago (movimiento con la
-   * referencia del pago y factura viva), o `null`. Opcional.
+   * R1 · `true` = el motor de cobros (una transacción, clave `mp:<pago>` con índice único, y la
+   * factura que el extracto ya emitió por la referencia del pago). Sin él (tests viejos sin
+   * base): `createInvoice` a secas.
    */
-  facturaDelExtracto?: (tenantId: string, paymentId: string) => Promise<string | null>;
-  vincularCobro?: typeof vincularCobro;
+  porCobros?: boolean;
 }
 
-/** El extracto ya facturó un crédito con la referencia de este pago (y la factura sigue viva). */
-async function facturaDelExtractoPrisma(tenantId: string, paymentId: string): Promise<string | null> {
-  return tenantTransaction(
-    async (tx) => {
-      const mov = await tx.movimientoImportado.findFirst({
-        where: { tenantId, referencia: paymentId, invoiceId: { not: null } },
-        select: { invoiceId: true },
-      });
-      if (!mov?.invoiceId) return null;
-      const f = await tx.invoice.findFirst({ where: { tenantId, id: mov.invoiceId, status: { not: "REJECTED" } }, select: { id: true } });
-      return f?.id ?? null;
-    },
-    { tenantId },
-  );
-}
+const DEPS: DepsFacturarPagoMP = { getFiscalProfile, createInvoice, procesarEnviosDelNegocio, porCobros: true };
 
-const DEPS: DepsFacturarPagoMP = {
-  getFiscalProfile,
-  createInvoice,
-  procesarEnviosDelNegocio,
-  facturarCobros,
-  facturaDelExtracto: facturaDelExtractoPrisma,
-  vincularCobro,
-};
+type Perfil = Awaited<ReturnType<typeof getFiscalProfile>>;
 
-/**
- * Crea la Factura C de un pago MP y la despacha al plugin ARCA (tick del
- * simulador). Devuelve el `invoiceId`, o `null` si el pago no es facturable.
- */
-export async function facturarPagoMP(
-  pago: PagoMP,
-  tenantId: string,
-  deps: DepsFacturarPagoMP = DEPS,
-  opciones: { appointmentId?: string } = {},
-): Promise<string | null> {
-  if (pago.estado !== "approved" || !(pago.monto > 0)) return null;
-  const cobro = { clave: claveCobroMP(pago.id), importe: pago.monto, appointmentId: opciones.appointmentId ?? null };
-
-  // R1 · Si el extracto del banco ya facturó este mismo pago (por su referencia), no se emite otra:
-  // el cobro queda anotado contra esa factura.
-  const delExtracto = deps.facturaDelExtracto ? await deps.facturaDelExtracto(tenantId, pago.id) : null;
-  if (delExtracto && deps.vincularCobro) return deps.vincularCobro(tenantId, cobro, delExtracto);
-
-  const perfil = await deps.getFiscalProfile(tenantId);
+/** El comprobante de un pago de MP (Factura del emisor a consumidor final, por el monto del pago). */
+function comprobanteDelPago(pago: PagoMP, tenantId: string, perfil: Perfil): CreateInvoiceInput {
   const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, pago.monto);
   // Sin fecha de acreditación de MP, el día del NEGOCIO (no el del servidor, que a las 21
   // argentinas ya está en el día siguiente): ver libros/fecha-fiscal.ts.
   const fecha = pago.fechaAcreditacion ?? fechaFiscalDelDia();
-
-  const comprobante = {
+  return {
     tenantId,
     concepto: CONCEPTO_PRODUCTOS,
     fecha,
@@ -101,13 +65,57 @@ export async function facturarPagoMP(
     // A-6 — IDEMPOTENCIA por pago: la clave es el `payment_id` del gateway. Un webhook MP
     // duplicado (MP reintenta las notificaciones) vuelve a llamar acá con el mismo `pago.id` →
     // `createInvoice` encuentra la factura ya creada (o el @@unique la frena) y devuelve la
-    // MISMA, en vez de emitir una segunda factura por el mismo cobro. Antes iba SIN origin →
-    // el dedupe estaba deshabilitado y cada reintento facturaba de nuevo.
-    origin: { type: "MP_PAYMENT" as const, id: pago.id },
+    // MISMA, en vez de emitir una segunda factura por el mismo cobro.
+    origin: { type: "MP_PAYMENT", id: pago.id },
   };
+}
+
+/**
+ * R1 · Factura el pago DENTRO de la transacción del llamador (que puede tener el turno tomado):
+ * clave `mp:<pago>`. Si el extracto del banco ya facturó ese mismo pago (un crédito con su
+ * referencia y factura viva), no emite otra: el cobro queda anotado contra esa factura.
+ */
+export async function facturarPagoMPInTx(
+  tx: InvoiceTx,
+  pago: PagoMP,
+  tenantId: string,
+  perfil: Perfil,
+  opciones: { appointmentId?: string | null } = {},
+): Promise<string> {
+  const cobro = { clave: claveCobroMP(pago.id), importe: pago.monto, appointmentId: opciones.appointmentId ?? null };
+  const [vivo] = await cobrosYaFacturadosInTx(tx, tenantId, [cobro.clave]);
+  if (vivo) return vivo.invoiceId;
+  const mov = await tx.movimientoImportado.findFirst({
+    where: { tenantId, referencia: pago.id, invoiceId: { not: null } },
+    select: { invoiceId: true },
+  });
+  if (mov?.invoiceId) {
+    const delExtracto = await tx.invoice.findFirst({
+      where: { tenantId, id: mov.invoiceId, status: { not: "REJECTED" } },
+      select: { id: true },
+    });
+    if (delExtracto) return vincularCobroInTx(tx, tenantId, cobro, delExtracto.id);
+  }
+  return facturarCobrosInTx(tx, comprobanteDelPago(pago, tenantId, perfil), [cobro]);
+}
+
+/**
+ * Crea la Factura C de un pago MP y la despacha al plugin ARCA (tick del
+ * simulador). Devuelve el `invoiceId`, o `null` si el pago no es facturable.
+ */
+export async function facturarPagoMP(
+  pago: PagoMP,
+  tenantId: string,
+  deps: DepsFacturarPagoMP = DEPS,
+  opciones: { appointmentId?: string } = {},
+): Promise<string | null> {
+  if (pago.estado !== "approved" || !(pago.monto > 0)) return null;
+  const perfil = await deps.getFiscalProfile(tenantId);
   // R1 · UNA FACTURA POR COBRO: la clave `mp:<pago>` con índice único. Si otro disparador ya lo
   // facturó (el extracto, un aviso duplicado), devuelve esa factura.
-  const invoiceId = deps.facturarCobros ? await deps.facturarCobros(comprobante, [cobro]) : await deps.createInvoice(comprobante);
+  const invoiceId = deps.porCobros
+    ? await enLaTransaccionDelCobro(tenantId, (tx) => facturarPagoMPInTx(tx, pago, tenantId, perfil, opciones))
+    : await deps.createInvoice(comprobanteDelPago(pago, tenantId, perfil));
 
   await deps.procesarEnviosDelNegocio(tenantId);
   return invoiceId;

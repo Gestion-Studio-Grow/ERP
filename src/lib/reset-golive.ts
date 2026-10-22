@@ -50,6 +50,7 @@ export const TIPOS_DE_STOCK_TRANSACCIONALES = ["VENTA", "CONSUMO", "COMPRA", "RE
  */
 export const ORDEN_DE_BORRADO = [
   "EnvioComprobante", // → Invoice RESTRICT
+  "CobroFacturado", // → Invoice RESTRICT (R1, 20261022150000_cobro_facturado): el cobro de un comprobante que se borra
   "InvoiceNota", // Invoice que apunta a otro comprobante (comprobanteAsociado RESTRICT): primero las notas
   "Invoice", // sin CAE
   "EventoIntegracion", // → OutboxEvent RESTRICT
@@ -107,6 +108,8 @@ export interface FotoNegocio {
   cashSessions: { id: Id; diaApertura: DayKey; status: string }[];
   invoices: { id: Id; orderId: N; appointmentId: N; conCae: boolean; status: string; comprobanteAsociadoId: N; docNro: string }[];
   envios: { id: Id; invoiceId: Id }[];
+  /** R1 · cobros facturados (`CobroFacturado`): se borran con su comprobante. Vacío sin la migración. */
+  cobrosFacturados: { id: Id; invoiceId: Id }[];
   commissionPayouts: { id: Id }[];
   stockMovements: { id: Id; productId: N; type: string; qty: number; orderId: N; appointmentId: N; purchaseId: N }[];
   stockPurchases: { id: Id }[];
@@ -344,6 +347,7 @@ export function planificarReseteo(foto: FotoNegocio, op: OpcionesReseteo): PlanR
   const invoicesABorrar = foto.invoices.filter((i) => !keep.invoice.has(i.id));
   const ids: Record<PasoTabla, Id[]> = {
     EnvioComprobante: fuera(foto.envios, keepEnvio),
+    CobroFacturado: foto.cobrosFacturados.filter((c) => !keep.invoice.has(c.invoiceId)).map((c) => c.id),
     InvoiceNota: invoicesABorrar.filter((i) => i.comprobanteAsociadoId).map((i) => i.id),
     Invoice: invoicesABorrar.filter((i) => !i.comprobanteAsociadoId).map((i) => i.id),
     EventoIntegracion: fuera(foto.eventosIntegracion, ninguno),
@@ -412,6 +416,11 @@ export function planificarReseteo(foto: FotoNegocio, op: OpcionesReseteo): PlanR
   nota("Invoice", comprobantesConCae.length, "comprobante con CAE (inmutable: se anula con nota de crédito, nunca se borra)");
   nota("Invoice", keep.invoice.size - comprobantesConCae.length, "sin CAE pero de una venta conservada, o asociado por un comprobante conservado");
   nota("EnvioComprobante", keepEnvio.size, "envío de un comprobante que se conserva");
+  nota(
+    "CobroFacturado",
+    foto.cobrosFacturados.filter((c) => keep.invoice.has(c.invoiceId)).length,
+    "cobro facturado en un comprobante que se conserva (no se puede volver a facturar)",
+  );
   nota("Appointment", keepAppt.size, `turno con comprobante con CAE${op.conservarFuturo ? ", futuro (--conservar-futuro)" : ""} o enlazado a caja conservada`);
   nota("Order", keep.order.size, "pedido con comprobante con CAE o enlazado a caja conservada");
   nota("Payment", keep.pay.size, "pago de un turno conservado");

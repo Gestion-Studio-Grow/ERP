@@ -71,7 +71,15 @@
 | **M1** | `createInvoiceInTx` aceptaba `clase: "nota_credito"` (o `asociado`) sin controlar el saldo. | Lanza: la única puerta de una NC es `crearNotaDeCreditoInTx`. Nada legítimo usaba esa vía (la NC escribe con `datosDelComprobante`/`encolarInvoiceCreated` directo). | `invoice-core.test.ts` «M1». |
 | **M3** | `resolverFirmaParaTenant` firmaba por delegación aunque el cliente estuviera de **baja** en la cartera del estudio. | Exige la fila `CarteraCliente(estudio, cliente)` y que no esté de baja (leída parada en el estudio); si no, error de configuración (el envío se detiene). Pausada sigue firmando. | `arca-dispatch.test.ts` (baja, ausente, pausada). |
 
-## R1 · «Una factura por cobro» (riesgo fiscal marcado por el Challenger) — cerrado
+## R1 · «Una factura por cobro» (riesgo fiscal marcado por el Challenger)
+
+**Estado:** la primera versión (commits `9862d89a`/`5c8c43e5`) dejó **dos huecos** que reprodujo la
+Auditoría GSG contra Postgres (I-1, I-2) y una regresión del reseteo (I-3): estuvo **abierto** hasta
+este arreglo. **Cerrado** con el arreglo de abajo («Segunda vuelta»), probado por
+`src/lib/facturacion/una-factura-por-cobro-postgres.test.ts` (7 casos, entre ellos «I-1 aviso y
+Completar a la vez» ×4 vueltas, «I-1 aviso y extracto a la vez», «I-2 seña no anotada con aviso
+tardío»), `cobros-facturados.test.ts`, `reset-golive*.test.ts` y las reproducciones del auditor
+(carrera 8/8 → $15.000; extracto 8/8 → una factura; seña → $10.000 + $5.000).
 
 **El riesgo.** Cuatro disparadores de factura no se hablaban: (1) completar el turno facturaba la
 suma de los cobros con la seña adentro; (2) el aviso de Mercado Pago de un turno facturaba **el
@@ -114,7 +122,29 @@ factura por cobro y la seña sumada una vez; completar antes del aviso; seña no
 dos disparadores a la vez; `money_transfer` de un tercero vs. propio vs. fondeo),
 `cobros-facturados.test.ts` (la cuenta del turno), `plugins/mercadopago/transferencias.test.ts`.
 
+**Segunda vuelta (Auditoría GSG, I-1 / I-2 / I-3):**
+
+| Id | Hueco | Arreglo |
+|---|---|---|
+| **I-1** | El aviso de MP (`mp:<pago>`) y «Completar» (`turno:<turno>`) usan claves distintas: el índice no los arbitra y nadie tomaba el turno. A la vez, la seña se facturaba dos veces ($20.000 por un turno de $15.000, 8 de 8). Mismo patrón en el extracto: controlaba `mp:<referencia>` fuera de la transacción y facturaba sólo con `banco:<hash>`. | Los dos caminos del turno corren en UNA `tenantTransaction` que primero toma el turno (`SELECT … FROM "Appointment" … FOR UPDATE`, `tomarTurnoInTx`) y recién ahí lee lo facturado y factura. El extracto factura en una transacción con las DOS claves como cobros (`banco:<hash>` y `mp:<referencia>`): arbitra el índice. `facturarPagoMPInTx` corre dentro de la transacción del llamador. |
+| **I-2** | Con la factura del turno ya emitida, el aviso tardío vinculaba `mp:<pago>` a ella sin mirar si la seña estaba adentro: una seña NO anotada en el libro quedaba sin facturar y figuraba como facturada (y el extracto la daba por facturada). | Vincula sólo si el libro del turno tiene cobrado por MP lo suficiente: `cobrado por MP en el libro ≥ lo ya anotado por MP del turno + este pago` (`pagoCubiertoPorLaFacturaDelTurno`). Si no, factura el pago por su lado (`facturarPagoMPInTx`, con el turno). Dentro del mismo bloqueo. |
+| **I-3** | `reset-golive` borraba `Invoice` sin CAE sin conocer `CobroFacturado` (FK RESTRICT): P2003 en cuanto se aplique la migración 3. | Paso `CobroFacturado` (los de comprobantes que se borran) antes de `InvoiceNota` e `Invoice`, en la foto (`leerFoto`), el plan (`planificarReseteo`) y `borrarPorIds`. Tests en `reset-golive.test.ts` y `reset-golive-postgres.test.ts`. |
+
+Efecto colateral (para mejor) en ENG-023: con el turno tomado, la facturación lee lo cobrado
+DESPUÉS de una anulación que corría a la vez y factura eso (o nada, si quedó en $0), en vez de
+lanzar `CobroDelTurnoCambioError` y pedir reintento. Se ajustó
+`facturar-turno-con-cobro-anulado-postgres.test.ts`: sigue probando que espera el bloqueo y que
+nunca sale la factura por el monto viejo.
+
+**Deuda (m-5):** la FK `CobroFacturado.invoiceId → Invoice(id)` no lleva `tenantId` (ver arriba por
+qué); el aislamiento lo dan la RLS y el predicado del código. Si un día se saca la reversa de
+`lanzamiento_base`, pasarla a `(tenantId, invoiceId)`.
+
 **Límites conocidos (documentados, no resueltos acá):**
+- Si el aviso de MP de una seña atada a un turno **se pierde** y la seña **no** está anotada en el
+  libro, nadie la factura: «Sincronizar Mercado Pago» no factura pagos atados a un turno (los deja
+  para el turno, para no duplicar), y el turno factura sólo lo anotado. Se ve como un pago de MP sin
+  factura; la salida es anotar la seña en el libro antes de completar.
 - Si la recepción anota en el libro como TRANSFERENCIA o EFECTIVO una seña que en realidad entró
   por MP, el motor no puede saber que es la misma plata: sólo resta lo anotado con medio Mercado Pago.
 - Una transferencia bancaria anotada en el libro del turno no lleva la referencia del banco: el
@@ -135,16 +165,17 @@ dos disparadores a la vez; `money_transfer` de un tercero vs. propio vs. fondeo)
 ## Ensayos
 
 - Postgres 16 local (cluster aparte en `:5433`, `trust` sólo por socket local, el que documenta
-  `src/test/base-efimera.ts`). El arnés aplica **todas** las migraciones, incluidas las dos nuevas,
-  y la RLS (`0002_app_role`, `0001_enable_rls`) en cada base efímera: las dos nuevas aplican limpio.
+  `src/test/base-efimera.ts`). El arnés aplica **todas** las migraciones, incluidas las tres nuevas,
+  y la RLS (`0002_app_role`, `0001_enable_rls`) en cada base efímera: las tres nuevas aplican limpio.
 - Drift schema ↔ migraciones (`prisma migrate diff --from-migrations`, base sombra local): sólo
   aparece `Client.phone SET NOT NULL`, **preexistente y ajeno** a este frente.
 - Nada contra Neon.
 
 ## Decisiones del dueño
 
-1. **Gate 2:** aplicar `20261022140000_invoice_abono_descripcion` y `20261022140100_regla_facturacion`
-   (aditivas). Orden: migración → deploy (el código nuevo lee/escribe esas columnas).
+1. **Gate 2:** aplicar las **3** migraciones, en este orden: `20261022140000_invoice_abono_descripcion`,
+   `20261022140100_regla_facturacion` y `20261022150000_cobro_facturado` (aditivas). Orden:
+   migración → deploy (el código nuevo lee/escribe esas columnas y la tabla).
 2. **Umbral del consumidor final:** confirmar con el contador el monto vigente ($10.000.000, RG 5700/2025).
 3. **Interruptor compartido** entre instancias (tabla nueva) — hoy no hace falta con el cron diario.
 4. **Política de reintentos** (8 intentos, 1→60 min ≈ 3 h): con el cron diario de Vercel Hobby, en la

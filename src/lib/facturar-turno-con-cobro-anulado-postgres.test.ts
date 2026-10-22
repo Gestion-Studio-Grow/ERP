@@ -157,7 +157,11 @@ test("anulación del cobro primero: la facturación del turno espera el bloqueo 
   const anulada = await anulacion;
   assert.equal(anulada.applied, true, "la anulación terminó");
 
-  await assert.rejects(facturacion, (e: unknown) => e instanceof CobroDelTurnoCambioError && /anulado/.test(e.message));
+  // R1 (Auditoría GSG I-1): la facturación toma el turno y lee lo cobrado ADENTRO del bloqueo, así
+  // que después de la anulación ve el cobro en $0 y no factura (antes lo descubría la guarda
+  // ENG-023 y lanzaba). Lo que importa no cambia: esperó y no salió factura por el monto viejo.
+  void CobroDelTurnoCambioError;
+  assert.equal(await facturacion, null, "con el cobro devuelto no hay nada que facturar");
   const tras = await p.cuentas(turno);
   assert.deepEqual(tras.facturas, [], "el turno con el cobro devuelto quedó sin factura");
   assert.equal(tras.envios, enviosAntes, "ningún envío a ARCA");
@@ -176,12 +180,15 @@ test("se anula una parte del cobro mientras se factura: no sale la factura por e
   assert.equal(await sigueEsperando(facturacion), true, "la facturación tiene que esperar a la anulación");
   soltar();
   await anulacion;
-  await assert.rejects(facturacion, (e: unknown) => e instanceof CobroDelTurnoCambioError && /cambió/.test(e.message));
-  assert.deepEqual((await p.cuentas(turno)).facturas, [], "ninguna factura por $18.000");
+  // R1 (Auditoría GSG I-1): con el turno tomado, la facturación lee el cobro de DESPUÉS de la
+  // anulación y factura eso ($13.000), nunca el monto viejo (antes lanzaba y había que reintentar).
+  void CobroDelTurnoCambioError;
+  const enCarrera = await facturacion;
+  assert.ok(enCarrera, "se facturó lo que quedó cobrado");
 
-  // Sin carrera, la facturación lee el cobro de ahora: $13.000.
+  // Volver a facturar devuelve la misma: una factura, por lo que quedó cobrado.
   const id = await runInTenantContext(base.a.id, () => facturarAppointment(turno, base.a.id));
-  assert.ok(id, "se facturó");
+  assert.equal(id, enCarrera);
   const facturas = (await p.cuentas(turno)).facturas.map((f) => Number(f.total));
   assert.deepEqual(facturas, [13000], "una factura, por lo que quedó cobrado");
 });

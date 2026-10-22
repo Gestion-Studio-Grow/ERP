@@ -51,7 +51,7 @@ export async function leerFoto(tx: Tx, tenantId: string, tablas: Set<string>, ah
     frontera, appointments, payments, reviews, collections, orders, orderItems, cashMovements, cashSessions, invoices,
     envios, commissionPayouts, stockMovements, stockPurchases, stockPurchaseItems, payables, cheques, receivables, outbox,
     eventosIntegracion, conversaciones, mensajes, extractos, importaciones, movimientosImportados, leads, waitlist,
-    professionalBlocks, boxBlocks, clients, coupons, cuponesAudit,
+    professionalBlocks, boxBlocks, clients, coupons, cuponesAudit, cobrosFacturados,
   ] = await Promise.all([
     lastClosedDayTx(tx, tenantId),
     si("Appointment", () => tx.appointment.findMany({ where: w, select: { id: true, clientId: true, startsAt: true, commissionPayoutId: true, couponCode: true } })),
@@ -85,6 +85,8 @@ export async function leerFoto(tx: Tx, tenantId: string, tablas: Set<string>, ah
     si("Client", () => tx.client.findMany({ where: w, select: { id: true, createdAt: true, docNro: true } })),
     si("Coupon", () => tx.coupon.findMany({ where: w, select: { id: true, code: true, usedCount: true } })),
     si("AuditLog", () => tx.auditLog.findMany({ where: { tenantId, action: ACCION_CUPON_DEL_PEDIDO, entity: "Order" }, select: { entityId: true, changes: true } })),
+    // R1 · sin esto, borrar un comprobante con cobros anotados chocaba con la FK RESTRICT (P2003).
+    si("CobroFacturado", () => tx.cobroFacturado.findMany({ where: w, select: { id: true, invoiceId: true } })),
   ]);
 
   // Clientes con datos de otros módulos (taller, inmobiliaria): nunca se borran.
@@ -131,6 +133,7 @@ export async function leerFoto(tx: Tx, tenantId: string, tablas: Set<string>, ah
       docNro: i.docNro,
     })),
     envios,
+    cobrosFacturados,
     commissionPayouts,
     stockMovements: stockMovements.map((s) => ({ ...s, type: String(s.type) })),
     stockPurchases,
@@ -162,6 +165,7 @@ function borrarPorIds(tx: Tx, tabla: string, tenantId: string, ids: string[]): P
   const where = { tenantId, id: { in: ids } };
   switch (tabla) {
     case "EnvioComprobante": return tx.envioComprobante.deleteMany({ where });
+    case "CobroFacturado": return tx.cobroFacturado.deleteMany({ where });
     case "Invoice": return tx.invoice.deleteMany({ where });
     case "EventoIntegracion": return tx.eventoIntegracion.deleteMany({ where });
     case "OutboxEvent": return tx.outboxEvent.deleteMany({ where });

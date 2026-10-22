@@ -27,7 +27,7 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { runInTenantContext } from "@/lib/tenant-context";
-import { claveCobroBanco, claveCobroMP, cobrosYaFacturados, facturarCobros, vincularCobro } from "@/lib/facturacion/cobros-facturados";
+import { claveCobroBanco, claveCobroMP, enLaTransaccionDelCobro, facturarCobrosDetalleInTx } from "@/lib/facturacion/cobros-facturados";
 import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
 import { logger } from "@/lib/logger";
@@ -727,54 +727,45 @@ export async function emitirPropuestas(
         // El monto del banco es TOTAL IVA-incluido; el Core calcula neto/IVA (ADR-006).
         const montoTotal = Math.abs(toNum(mov.monto));
 
-        // R1 · UNA FACTURA POR COBRO: antes de emitir, ¿este crédito ya está facturado por otro
-        // camino? Se reconoce por SU clave (`banco:<hash>`) o por la referencia del pago de
-        // Mercado Pago (`mp:<referencia>`), no sólo por el total. Si sí, el movimiento queda
-        // atado a esa factura y no se emite otra.
-        const claveBanco = claveCobroBanco(mov.hash);
-        const [yaFacturado] = await cobrosYaFacturados(tenantId, [
-          claveBanco,
-          ...(mov.referencia ? [claveCobroMP(mov.referencia)] : []),
-        ]);
-        if (yaFacturado) {
-          await vincularCobro(tenantId, { clave: claveBanco, importe: montoTotal }, yaFacturado.invoiceId);
-          await tenantTransaction(
-            (tx) =>
-              tx.movimientoImportado.updateMany({
-                where: { id: mov.id, tenantId },
-                data: { invoiceId: yaFacturado.invoiceId },
-              }),
-            { tenantId },
+        // R1 · UNA FACTURA POR COBRO: ¿este crédito ya está facturado por otro camino? Se reconoce
+        // por SU clave (`banco:<hash>`) o por la referencia del pago de Mercado Pago
+        // (`mp:<referencia>`), no sólo por el total. Las DOS claves van como cobros de la factura,
+        // en UNA transacción (Auditoría GSG, I-1): si el aviso de MP del mismo pago corre a la
+        // vez, el índice único (tenantId, clave) deja una sola factura y el que pierde ve la del
+        // otro. Si ya estaba facturado, el movimiento queda atado a esa factura.
+        const cobros = [
+          { clave: claveCobroBanco(mov.hash), importe: montoTotal },
+          ...(mov.referencia ? [{ clave: claveCobroMP(mov.referencia), importe: montoTotal }] : []),
+        ];
+        const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, montoTotal);
+        const { nueva } = await enLaTransaccionDelCobro(tenantId, async (tx) => {
+          const r = await facturarCobrosDetalleInTx(
+            tx,
+            {
+              tenantId,
+              // Concepto 1 (productos/venta directa), mismo criterio que invoice-from-mp:
+              // concepto 2 (servicios) exigiría fechas de servicio que el extracto no trae.
+              concepto: 1,
+              fecha: mov.fecha,
+              emisor: { cuit: perfil.cuit, condicionIva: perfil.condicionIva, puntoVenta },
+              receptor: {
+                docTipo: mov.docTipo ?? DOC_TIPO_CONSUMIDOR_FINAL,
+                docNro: Number(mov.docNro ?? 0) || 0,
+                condicionIva: "CONSUMIDOR_FINAL",
+              },
+              neto,
+              iva,
+              total,
+            },
+            cobros,
           );
+          await tx.movimientoImportado.updateMany({ where: { id: mov.id, tenantId }, data: { invoiceId: r.invoiceId } });
+          return r;
+        });
+        if (!nueva) {
           yaFacturadas++;
           continue;
         }
-
-        const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, montoTotal);
-        const invoiceId = await facturarCobros({
-          tenantId,
-          // Concepto 1 (productos/venta directa), mismo criterio que invoice-from-mp:
-          // concepto 2 (servicios) exigiría fechas de servicio que el extracto no trae.
-          concepto: 1,
-          fecha: mov.fecha,
-          emisor: { cuit: perfil.cuit, condicionIva: perfil.condicionIva, puntoVenta },
-          receptor: {
-            docTipo: mov.docTipo ?? DOC_TIPO_CONSUMIDOR_FINAL,
-            docNro: Number(mov.docNro ?? 0) || 0,
-            condicionIva: "CONSUMIDOR_FINAL",
-          },
-          neto,
-          iva,
-          total,
-        }, [{ clave: claveBanco, importe: total }]);
-        await tenantTransaction(
-          (tx) =>
-            tx.movimientoImportado.updateMany({
-              where: { id: mov.id, tenantId },
-              data: { invoiceId },
-            }),
-          { tenantId },
-        );
         emitidas++;
       } catch (err) {
         // Falló la creación: soltar el claim para que se pueda reintentar.

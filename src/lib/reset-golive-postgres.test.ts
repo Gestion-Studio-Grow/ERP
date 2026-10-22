@@ -60,6 +60,9 @@ test("contra Postgres: el reseteo borra lo de prueba de A y nada más", async (t
   const conCae = await duenio.invoice.create({ data: { tenantId: a.id, ...fiscal, tipoComprobante: 11, status: "AUTHORIZED", cae: "12345678901234", numero: 1, orderId: o3 } });
   const pendiente = await duenio.invoice.create({ data: { tenantId: a.id, ...fiscal, status: "PENDING", orderId: o2 } });
   await duenio.envioComprobante.create({ data: { tenantId: a.id, invoiceId: pendiente.id, canal: "email", destino: "x@y.z" } });
+  // R1 · cobros anotados (CobroFacturado, FK RESTRICT a Invoice): sin su paso, borrar la pendiente daba P2003.
+  await duenio.cobroFacturado.create({ data: { tenantId: a.id, clave: "mp:pend-1", invoiceId: pendiente.id, importe: 200 } });
+  await duenio.cobroFacturado.create({ data: { tenantId: a.id, clave: "mp:cae-1", invoiceId: conCae.id, importe: 200 } });
   await duenio.outboxEvent.create({ data: { tenantId: a.id, type: "InvoiceCreated", payload: {} } });
   await duenio.waitlistEntry.create({ data: { tenantId: a.id, clientName: "Y", clientPhone: "1", serviceId: serv.id } });
 
@@ -111,6 +114,8 @@ test("contra Postgres: el reseteo borra lo de prueba de A y nada más", async (t
   assert.equal(await duenio.outboxEvent.count({ where: { tenantId: a.id } }), 0);
   assert.equal(await duenio.envioComprobante.count({ where: { tenantId: a.id } }), 0);
   assert.equal(await duenio.invoice.findUnique({ where: { id: pendiente.id } }), null);
+  // El cobro de la que se borró se fue con ella; el del comprobante con CAE queda (no se refactura).
+  assert.deepEqual((await duenio.cobroFacturado.findMany({ where: { tenantId: a.id }, select: { clave: true } })).map((c) => c.clave), ["mp:cae-1"]);
 
   // Caja: quedan el histórico y el corte (día cerrado), nada más.
   const caja = await duenio.cashMovement.findMany({ where: { tenantId: a.id }, select: { createdBy: true } });

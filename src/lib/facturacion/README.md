@@ -66,6 +66,15 @@ crearNotaDeCreditoInTx(tx, {
 Todo disparador que factura un cobro lo hace con su **clave** y queda anotado en `CobroFacturado`
 (`@@unique([tenantId, clave])`: el mismo cobro no se factura dos veces, ni con dos disparadores a la vez).
 
+**Los caminos de un turno toman el turno.** El aviso de MP (`facturarCobroMPDelTurno`) y «Completar»
+(`facturarAppointment`) usan claves distintas, así que corren en UNA transacción que primero toma la
+fila del turno (`tomarTurnoInTx`, `FOR UPDATE`) y recién ahí leen lo facturado y facturan: van de a uno.
+Un aviso que llega con el turno ya facturado sólo se anota contra esa factura si el libro del turno
+tiene ese pago cobrado por MP (`pagoCubiertoPorLaFacturaDelTurno`); si no, se factura por su lado.
+El extracto pasa sus dos claves (`banco:<hash>` y `mp:<referencia>`) como cobros de la misma factura.
+Quien escriba un camino nuevo que factura cobros de un turno: dentro de `enLaTransaccionDelCobro`,
+`tomarTurnoInTx` primero.
+
 | Clave | Quién | Qué factura |
 |---|---|---|
 | `mp:<pago>` | aviso de MP (`facturarCobroMPDelTurno`), `facturarPagoMP` | ese pago (la seña de un turno, o una venta suelta) |
