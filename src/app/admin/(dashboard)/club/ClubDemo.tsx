@@ -55,6 +55,7 @@ import type { AccionPaleta } from "./paleta-core";
 import { pedirFichaDeCliente } from "./ficha-pedida";
 import BandejaDelClub, { OfrecerHueco, ReservandoElTurno } from "./BandejaDelClub";
 import CuentaDelTurno from "./CuentaDelTurno";
+import { HojaDeVender } from "./VentaDeMostrador";
 import { Esqueleto } from "@/components/ui/Esqueleto";
 import { AvisosDelClub } from "./piezas";
 import { NegocioDelClub } from "./negocio-del-club";
@@ -399,6 +400,25 @@ function OfrecerElHueco({ almacen, panel, onListo }: { almacen: Almacen; panel: 
   );
 }
 
+/** «Vender» de la barra: abre la hoja global del mostrador (lo mismo que la tecla V). */
+function BotonVender({ atajos, onAbrir }: { atajos: boolean; onAbrir: () => void }) {
+  return (
+    <button type="button" data-casa="vender" onClick={onAbrir} aria-keyshortcuts={atajos ? "V" : undefined} className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-sm border px-3 text-sm font-semibold">
+      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 5h2l2 10h10l2-7H7" />
+        <circle cx="9.5" cy="19" r="1.25" />
+        <circle cx="16.5" cy="19" r="1.25" />
+      </svg>
+      <span data-casa="vender-texto">Vender</span>
+      {atajos && (
+        <kbd aria-hidden="true" data-casa="vender-tecla" className="rounded-sm border px-1.5 py-px text-xs font-semibold">
+          V
+        </kbd>
+      )}
+    </button>
+  );
+}
+
 /** Lleva el foco a `el` o, si no está, a «+ Turno» de la agenda (nunca al principio de la página). */
 function enfocarEnLaAgenda(el: HTMLElement | null) {
   (el ?? document.querySelector<HTMLElement>('[data-agenda="acciones"] button'))?.focus();
@@ -704,6 +724,10 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
   }, [almacen, irASolapaSiEsta]);
 
   const [paleta, setPaleta] = useState(false);
+  // La hoja global «Vender» (Tanda 2A): botón de la barra o tecla V, desde cualquier solapa.
+  const [vender, setVender] = useState(false);
+  const abrirVender = useCallback(() => setVender(true), []);
+  const cerrarVender = useCallback(() => setVender(false), []);
   // La ayuda de atajos (tecla «?» o «Atajos de teclado» en la paleta).
   const [ayuda, setAyuda] = useState(false);
   // Los atajos de una tecla se pueden apagar desde la paleta (WCAG 2.1.4); se recuerda en el equipo.
@@ -790,7 +814,9 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       let hizo = true;
       if (k === "/") setPaleta(true);
       else if (k === "?") setAyuda(true);
-      else if (k === "n" || k === "N") nuevoTurno(); else if ((k === "c" || k === "C") && visibles.some((s) => s.id === "buffet")) abrirCuenta();
+      else if (k === "n" || k === "N") nuevoTurno();
+      else if (k === "v" || k === "V") abrirVender();
+      else if ((k === "c" || k === "C") && visibles.some((s) => s.id === "buffet")) abrirCuenta();
       else if (k === "t" || k === "T") {
         cambiarSolapa("agenda");
         elegirDia(hoy);
@@ -804,7 +830,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     };
     document.addEventListener("keydown", alTeclear);
     return () => document.removeEventListener("keydown", alTeclear);
-  }, [almacen, abrirCuenta, atajos, nuevoTurno, cambiarSolapa, elegirDia, hoy, dia, solapa]);
+  }, [almacen, abrirCuenta, abrirVender, atajos, nuevoTurno, cambiarSolapa, elegirDia, hoy, dia, solapa]);
 
   // Lo elegido en la paleta.
   const hacerDeLaPaleta = useCallback(
@@ -828,7 +854,14 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
 
   // Al cambiar quien opera, la cuenta (o el alta) que tenía abierta la persona anterior se cierra (como el vanilla).
   // Sin suscribir a ClubDemo al operador: si no había nada abierto, `setPanel(null)` no repinta.
-  useEffect(() => almacen.suscribirOperador(() => setPanel(null)), [almacen]);
+  useEffect(
+    () =>
+      almacen.suscribirOperador(() => {
+        setPanel(null);
+        setVender(false);
+      }),
+    [almacen],
+  );
 
   return (
     // El negocio a mano para el aviso al dueño (pedido-del-duenio.tsx, la ficha del cliente): aprobador-externo.ts.
@@ -858,6 +891,10 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
           <span>Buscar o hacer…</span>
           <kbd aria-hidden="true" className="rounded-sm border px-1.5 py-px text-xs font-semibold">Ctrl K</kbd>
         </button>
+      </EnLaCabecera>
+      {/* «Vender» al lado del buscador (diseño §2.1: Buscar · Vender · quién opera · reloj). Sin la barra, arriba de las solapas. */}
+      <EnLaCabecera en="casa-buscar" fuera={<div className="flex justify-end"><BotonVender atajos={atajos} onAbrir={abrirVender} /></div>}>
+        <BotonVender atajos={atajos} onAbrir={abrirVender} />
       </EnLaCabecera>
 
       <TiraDeSolapas almacen={almacen} solapa={solapa} onCambiar={cambiarSolapa} botones={botones} atajos={atajos} />
@@ -935,6 +972,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       </div>
 
       <AvisosDelClub almacen={almacen} />
+      <HojaDeVender almacen={almacen} abierta={vender} onCerrar={cerrarVender} />
       {paleta && (
         <PaletaDelClub
           almacen={almacen}

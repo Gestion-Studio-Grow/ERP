@@ -34,6 +34,7 @@ import { ejecutarTablero, type AccionTablero, type DesenlaceTablero } from "./ta
 import { ejecutarTienda, type AccionTienda } from "./tienda-core";
 import { ejecutarBandeja, type AccionBandeja } from "./bandeja-core";
 import { ejecutarPlata, type AccionPlata } from "./plata-pendiente-core";
+import { pasarVentaACuenta } from "./vender-core";
 
 /** Lo que se puede cobrar sin internet: lo que no hay que verificar afuera (MP, transferencia, posnet). */
 const MEDIOS_SIN_INTERNET: ReadonlySet<MedioCobro> = new Set(["efectivo", "monedero"]);
@@ -199,6 +200,14 @@ export const REGISTRO = {
   /** «Posponer hasta mañana» una alerta. No mueve plata. */
   bandeja: entrada<[accion: AccionBandeja]>({
     correr: (e, [a], ahora, auth) => ejecutarBandeja(e, a, ahora, auth),
+    sinInternet: () => true,
+  }),
+  // ── Tanda 2A · Vender (hoja global) ──
+  /** «Pasar a la cuenta de…» desde la hoja Vender: el carrito como cargos de una cuenta abierta; la caja no se toca. */
+  ventaACuenta: entrada<[cuentaId: string, carrito: Carrito]>({
+    correr: (e, [cuentaId, carrito], ahora) => pasarVentaACuenta(e, cuentaId, carrito, ahora),
+    // No mueve plata (como cargar en una cuenta del buffet): va sin internet; si la cuenta la cerró otro puesto, el
+    // motor dice que no y va a «Para resolver».
     sinInternet: () => true,
   }),
 } as const;
@@ -576,6 +585,11 @@ export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub 
         const x = a[0] as AccionBandeja;
         const que: Record<string, string> = { cierreConDiferencia: "el cierre de caja que no cuadró", vencePago: "el pago a un proveedor", aparte: "lo que quedó aparte", stock: "el aviso de stock" };
         return `Dejar para mañana ${que[String(x.clave).split(":")[0]] ?? "un aviso"}`;
+      case "ventaACuenta": {
+        const [cuentaId, carrito] = a as [string, Carrito];
+        const n = Object.values(carrito ?? {}).reduce((s, x) => s + (x > 0 ? x : 0), 0);
+        const de = estado ? cuentaDe(estado, cuentaId)?.titular : undefined;
+        return `Venta de mostrador (${n} producto${n === 1 ? "" : "s"}) a la cuenta${de ? ` de ${de}` : ""}`;
       }
     }
   } catch {
