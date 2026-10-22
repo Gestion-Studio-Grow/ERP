@@ -31,6 +31,7 @@ import { ejecutarProveedores, type AccionProveedores, type DesenlaceProveedores 
 import { ejecutarStock, type AccionStock, type DesenlaceStock } from "./stock-core";
 import { ejecutarTablero, type AccionTablero, type DesenlaceTablero } from "./tablero-core";
 import { ejecutarTienda, type AccionTienda } from "./tienda-core";
+import { pasarVentaACuenta } from "./vender-core";
 
 /** Lo que se puede cobrar sin internet: lo que no hay que verificar afuera (MP, transferencia, posnet). */
 const MEDIOS_SIN_INTERNET: ReadonlySet<MedioCobro> = new Set(["efectivo", "monedero"]);
@@ -140,6 +141,14 @@ export const REGISTRO = {
   tablero: entrada<[accion: AccionTablero], DesenlaceTablero>({
     correr: (e, [a], ahora, auth) => ejecutarTablero(e, a, ahora, auth),
     sinInternet: () => false,
+  }),
+  // ── Tanda 2A · Vender (hoja global) ──
+  /** «Pasar a la cuenta de…» desde la hoja Vender: el carrito como cargos de una cuenta abierta; la caja no se toca. */
+  ventaACuenta: entrada<[cuentaId: string, carrito: Carrito]>({
+    correr: (e, [cuentaId, carrito], ahora) => pasarVentaACuenta(e, cuentaId, carrito, ahora),
+    // No mueve plata (como cargar en una cuenta del buffet): va sin internet; si la cuenta la cerró otro puesto, el
+    // motor dice que no y va a «Para resolver».
+    sinInternet: () => true,
   }),
 } as const;
 
@@ -500,6 +509,12 @@ export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub 
         if (x.tipo === "autorizar") return "Autorizar un fiado";
         if (x.tipo === "otorgar") return "Dar acceso a alguien nuevo";
         return "Rechazar un pedido";
+      }
+      case "ventaACuenta": {
+        const [cuentaId, carrito] = a as [string, Carrito];
+        const n = Object.values(carrito ?? {}).reduce((s, x) => s + (x > 0 ? x : 0), 0);
+        const de = estado ? cuentaDe(estado, cuentaId)?.titular : undefined;
+        return `Venta de mostrador (${n} producto${n === 1 ? "" : "s"}) a la cuenta${de ? ` de ${de}` : ""}`;
       }
     }
   } catch {

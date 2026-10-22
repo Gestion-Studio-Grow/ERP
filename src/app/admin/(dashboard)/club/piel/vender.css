@@ -1,0 +1,145 @@
+/* ============================================================================
+   PIEL DE «VENDER» — la hoja global del mostrador (tecla V) con la «chapa» de Break Point.
+   ============================================================================
+   Sólo viste: la estructura y las acciones son las de VentaDeMostrador.tsx (`HojaDeVender`), que se engancha por
+   `data-vender`. La hoja es la `Hoja` del design system (un <dialog> nativo); acá se la encuentra por lo que lleva
+   adentro (`:has([data-vender="hoja"])`), así ninguna otra hoja cambia. Todo bajo [data-estetica="breakpoint"] y con
+   los tokens que globals.css define para Break Point: otro negocio no ve nada.
+   · Celular / tablet parada: hoja de abajo con manija, radio de chapa (3 px) arriba.
+   · Desde 1024 px: panel lateral a la derecha, alto completo, la agenda a la vista del otro lado del velo.
+   Movimiento: la hoja entra en --dur-2 con --ease-out (sólo transform y opacity) y sale en el acto (se desmonta); con
+   prefers-reduced-motion queda quieta. Los chips y los medios no se animan: se tocan cien veces por día. */
+
+[data-estetica="breakpoint"] dialog:has([data-vender="hoja"]) {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+
+@media (min-width: 1024px) {
+  [data-estetica="breakpoint"] dialog:has([data-vender="hoja"]) {
+    margin: 0 0 0 auto;
+    height: 100dvh;
+    max-height: 100dvh;
+    width: 100%;
+    max-width: 34rem;
+    border-radius: 0;
+    border-width: 0 0 0 1px;
+  }
+  [data-estetica="breakpoint"] dialog:has([data-vender="hoja"]) > div {
+    height: 100%;
+    max-height: 100dvh;
+  }
+  /* En la PC no hay manija: se cierra con la ✕, Escape o tocando afuera. */
+  [data-estetica="breakpoint"] dialog:has([data-vender="hoja"]) [data-parte="manija"] {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-estetica="breakpoint"] dialog[open]:has([data-vender="hoja"]) {
+    transition:
+      transform var(--dur-2, 200ms) var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1)),
+      opacity var(--dur-2, 200ms) var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1));
+  }
+  @starting-style {
+    [data-estetica="breakpoint"] dialog[open]:has([data-vender="hoja"]) {
+      transform: translateY(1.5rem);
+      opacity: 0;
+    }
+  }
+  @media (min-width: 1024px) {
+    @starting-style {
+      [data-estetica="breakpoint"] dialog[open]:has([data-vender="hoja"]) {
+        transform: translateX(1.5rem);
+      }
+    }
+  }
+}
+
+/* El título, como las pantallas de la chapa: Archivo condensada, mayúsculas. */
+[data-estetica="breakpoint"] dialog:has([data-vender="hoja"]) h2 {
+  font-stretch: 75%;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* «Lector escuchando ●»: el punto verde fijo (no titila: no distrae). */
+[data-estetica="breakpoint"] [data-vender="lector"] {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+/* Los favoritos: tecla de chapa con filete gris; el precio, tabular. */
+[data-estetica="breakpoint"] [data-vender="favorito"] {
+  border-radius: var(--radius-sm);
+  border-color: var(--line-strong);
+  color: var(--text-strong);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+[data-estetica="breakpoint"] [data-vender="favorito"]:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* El total grande: Archivo condensada como el KPI del club. */
+[data-estetica="breakpoint"] [data-vender="total"] {
+  font-stretch: 75%;
+  font-weight: 800;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: 0.01em;
+}
+[data-estetica="breakpoint"] [data-vender="etiqueta"] {
+  letter-spacing: 0.08em;
+  font-size: 0.71875rem;
+}
+
+/* Los cuatro medios: teclas cuadradas; «Efectivo» va lleno (es el más usado en el mostrador), los otros con filete. */
+[data-estetica="breakpoint"] [data-vender="medio"] {
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+[data-estetica="breakpoint"] [data-vender="medio"][data-variant="outline"] {
+  border-color: var(--line-strong);
+  color: var(--text-strong);
+}
+
+/* El vuelto, en verde de «pago». */
+[data-estetica="breakpoint"] [data-vender="vuelto"] {
+  color: var(--success);
+}
+
+[data-estetica="breakpoint"] [data-vender="cuenta"] {
+  border-radius: var(--radius-sm);
+}
+
+/* «Vender» en la barra, al lado del buscador: tecla con el filete y la tinta de la cabecera. En el celular queda el
+   carrito solo (la palabra sigue siendo su nombre para el lector de pantalla) y no se ve la «V». */
+[data-estetica="breakpoint"] [data-casa="vender"] {
+  border-color: var(--casa-cabecera-borde, var(--line-strong));
+  color: var(--casa-cabecera-tinta, var(--text-strong));
+  background: var(--casa-enlace-hover, var(--surface-sunken));
+}
+[data-estetica="breakpoint"] [data-casa="vender"] kbd {
+  font-family: inherit;
+  border-color: var(--casa-cabecera-borde, var(--line-strong));
+}
+@media (max-width: 639.98px) {
+  [data-estetica="breakpoint"] [data-casa="vender"] {
+    padding-inline: 0.625rem;
+  }
+  [data-estetica="breakpoint"] [data-casa="vender"] [data-casa="vender-tecla"] {
+    display: none;
+  }
+  [data-estetica="breakpoint"] [data-casa="vender"] [data-casa="vender-texto"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
