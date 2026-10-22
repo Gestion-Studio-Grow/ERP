@@ -75,6 +75,11 @@ export function camposDelTurno(turnoId: string): Campos {
   return [["appointmentId", turnoId]];
 }
 
+/** Cancelar sin plata de por medio: el turno y quién canceló (lo lee `cancelAppointment` para la auditoría). */
+export function camposDeCancelar(turnoId: string, quien: "clienta" | "negocio" | null): Campos {
+  return quien ? [["appointmentId", turnoId], ["quien", quien]] : [["appointmentId", turnoId]];
+}
+
 /**
  * Cancelar o «no vino» CON plata cobrada: los campos de `cerrarTurnoSinPrestar` (qué se hace y qué
  * pasa con la seña, en la misma transacción). Sin plata cobrada se usan `cancelAppointment` y

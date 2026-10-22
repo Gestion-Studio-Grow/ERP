@@ -13,7 +13,7 @@ import {
   camposDeCobro,
   camposDeCerrarSinPrestar,
   camposDeCondonar,
-  camposDelTurno,
+  camposDeCancelar, camposDelTurno,
   camposDeTerminar,
   leerMontoDelCobro,
   leerResultado,
@@ -59,10 +59,12 @@ describe("los campos que viajan son los que lee cada acción", () => {
     assert.deepEqual(camposDeCerrarSinPrestar({ turnoId: "t1", accion: "no-vino", senia: null }), [["appointmentId", "t1"], ["accion", "no-vino"]]);
   });
 
-  test("confirmarTurno, cancelAppointment y markNoShow leen sólo el turno", () => {
-    for (const a of ["confirmarTurno", "cancelAppointment", "markNoShow"]) {
+  test("confirmarTurno y markNoShow leen sólo el turno; cancelAppointment, además, quién canceló", () => {
+    for (const a of ["confirmarTurno", "markNoShow"]) {
       assert.deepEqual(claves(camposDelTurno("t1")), camposQueLee(a), a);
     }
+    assert.deepEqual(claves(camposDeCancelar("t1", "clienta")), camposQueLee("cancelAppointment"));
+    assert.deepEqual(camposDeCancelar("t1", null), [["appointmentId", "t1"]]);
   });
 
   test("anularCobroTurno y condonarSaldoTurno", () => {

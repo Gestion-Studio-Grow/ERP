@@ -30,7 +30,7 @@ import {
   type QuienCancela,
   type TurnoDelDia,
 } from "../agenda-core";
-import { aFormData, camposDeCerrarSinPrestar, camposDelTurno, leerResultado } from "./campos";
+import { aFormData, camposDeCancelar, camposDeCerrarSinPrestar, camposDelTurno, leerResultado } from "./campos";
 
 export type CierreAbierto = { turnoId: string; accion: CierreSinPrestar };
 
@@ -77,7 +77,7 @@ function Pregunta({
           conPlata
             ? await cerrarTurnoSinPrestar(aFormData(camposDeCerrarSinPrestar({ turnoId: turno.id, accion, senia: destino })))
             : accion === "cancelar"
-              ? await cancelAppointment(aFormData(camposDelTurno(turno.id)))
+              ? await cancelAppointment(aFormData(camposDeCancelar(turno.id, quien)))
               : await markNoShow(aFormData(camposDelTurno(turno.id))),
         );
         if (!r.ok) {
