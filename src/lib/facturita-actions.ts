@@ -22,7 +22,7 @@ import { contarFacturasDelMes, fechaFiscalDelDia } from "@/lib/bancos-glue";
 import { logger } from "@/lib/logger";
 import { modoDesdeEnv } from "@/plugins/arca";
 import { ambienteDelComprobante } from "@/lib/comprobante-pdf";
-import { ACCION_RECEPTOR_DEL_COMPROBANTE } from "@/lib/comprobante-pdf-datos";
+import { ACCION_RECEPTOR_DEL_COMPROBANTE, ENTIDAD_RECEPTOR_DEL_COMPROBANTE } from "@/lib/comprobante-pdf-datos";
 import { sumarAlCentavo, redondearAlCentavo } from "@/lib/dinero/redondeo";
 import {
   esDePrueba,
@@ -222,7 +222,7 @@ export async function emitirFacturitaAction(
               tenantId,
               actor: `user:${userId}`,
               action: ACCION_RECEPTOR_DEL_COMPROBANTE,
-              entity: "Invoice",
+              entity: ENTIDAD_RECEPTOR_DEL_COMPROBANTE,
               entityId: id,
               changes: {
                 nombre: validacion.ficha.nombre,

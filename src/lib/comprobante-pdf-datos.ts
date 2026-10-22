@@ -16,6 +16,7 @@
 // eso el impreso no sale si la condición de hoy no cuadra con la letra (`faltantesDelComprobante`).
 // Invoice tampoco guarda en qué ambiente de ARCA se autorizó: se deduce del de hoy y del último
 // cambio del negocio entre prueba y real (`ambienteDelComprobante`).
+import { ENTIDAD_RECEPTOR_DEL_COMPROBANTE } from "@/lib/comprobante-receptor-marca";
 import { prisma } from "@/lib/prisma";
 import { redondearAlCentavo, sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { modoDesdeEnv } from "@/plugins/arca/afip/factory";
@@ -55,10 +56,11 @@ const CLIENTE = { select: { name: true, razonSocial: true, condicionIva: true, d
  * Quién fue el comprador de un comprobante SIN venta, turno ni movimiento del banco (Facturita, la
  * emisión manual): Invoice no tiene columnas para el nombre, la condición ni el domicilio del
  * receptor, así que quien emite deja una fila en AuditLog con esta acción, en la MISMA transacción
- * que la factura (`entity: "Invoice"`, `entityId`, `changes: { nombre, condicionIva, domicilio }`).
+ * que la factura (`entity: ENTIDAD_RECEPTOR_DEL_COMPROBANTE`, `entityId`, `changes: { nombre, condicionIva, domicilio }`).
  * Es una copia congelada al emitir. Pendiente: columnas en Invoice (con migración).
  */
 export const ACCION_RECEPTOR_DEL_COMPROBANTE = "comprobante.receptor";
+export { ENTIDAD_RECEPTOR_DEL_COMPROBANTE };
 
 function textoONulo(v: unknown): string | null {
   return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
@@ -138,7 +140,7 @@ export async function leerComprobanteImpreso(invoiceId: string, tenantId: string
   const copiaReceptor =
     !inv.order && !inv.appointment && !movimiento
       ? await prisma.auditLog.findFirst({
-          where: { tenantId, entity: "Invoice", entityId: invoiceId, action: ACCION_RECEPTOR_DEL_COMPROBANTE },
+          where: { tenantId, entity: ENTIDAD_RECEPTOR_DEL_COMPROBANTE, entityId: invoiceId, action: ACCION_RECEPTOR_DEL_COMPROBANTE },
           orderBy: { createdAt: "desc" },
           select: { changes: true },
         })

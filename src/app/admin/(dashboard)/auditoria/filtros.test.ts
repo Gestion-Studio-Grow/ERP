@@ -1,3 +1,4 @@
+import { ENTIDAD_RECEPTOR_DEL_COMPROBANTE } from "@/lib/comprobante-receptor-marca";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -97,15 +98,19 @@ test("sobre qué: la entidad, y sin agenda no se ofrece 'Turnos'", () => {
 });
 
 test("el panel nunca lee las fotos del club (Gate B1: PIN en claro y MB por fila), con o sin 'sobre qué'", () => {
-  assert.deepEqual([...ENTIDADES_FUERA_DE_LA_AUDITORIA], [ENTIDAD_CLUB_ESTADO]);
-  const fuera = { entity: { notIn: [ENTIDAD_CLUB_ESTADO] } };
+  // Y la copia del comprador de Facturita (datos personales, también un almacén: SEC-5).
+  assert.deepEqual([...ENTIDADES_FUERA_DE_LA_AUDITORIA], [ENTIDAD_CLUB_ESTADO, ENTIDAD_RECEPTOR_DEL_COMPROBANTE]);
+  const fuera = { entity: { notIn: [ENTIDAD_CLUB_ESTADO, ENTIDAD_RECEPTOR_DEL_COMPROBANTE] } };
   const soporte = { action: { notIn: [...ACCIONES_SOLO_SOPORTE] } };
   assert.deepEqual(whereAuditoriaDelPanel(SIN_FILTROS), { AND: [{}, soporte, fuera] });
   // El filtro por entidad sigue valiendo: va como otra parte del AND, no se pisa con el de las fotos.
   const ventas = leerFiltros({ sobre: "ventas" }, USUARIOS);
   assert.deepEqual(whereAuditoriaDelPanel(ventas), { AND: [{ entity: { in: ["Order", "PaymentLink", "Coupon"] } }, soporte, fuera] });
   // Ningún grupo de "sobre qué" ofrece la entidad de las fotos.
-  for (const o of opcionesSobre(true)) assert.ok(!(o.entidades as readonly string[]).includes(ENTIDAD_CLUB_ESTADO), o.id);
+  for (const o of opcionesSobre(true)) {
+    assert.ok(!(o.entidades as readonly string[]).includes(ENTIDAD_CLUB_ESTADO), o.id);
+    assert.ok(!(o.entidades as readonly string[]).includes(ENTIDAD_RECEPTOR_DEL_COMPROBANTE), o.id);
+  }
 });
 
 test("páginas: una de más muestra la última; los links conservan los filtros", () => {
