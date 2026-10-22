@@ -3,6 +3,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { agendaPublica, configPadel, datosDelNegocio, franjas } from "@/lib/padel/datos.server";
 import { marcaProfe } from "@/lib/padel/marca";
 import { pesos } from "@/lib/padel/core";
+import { leerTokenCookie } from "@/lib/padel/sesion-alumno.server";
 import Turnero from "./Turnero";
 
 // El turnero del profe: lo que va en la bio de Instagram. Sin login, tres pasos: día, hora y
@@ -23,9 +24,16 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default async function ClasesPage() {
+export default async function ClasesPage({ searchParams }: { searchParams: Promise<{ link?: string }> }) {
   const tenantId = await getCurrentTenantId();
-  const [negocio, config, dias, grilla] = await Promise.all([datosDelNegocio(tenantId), configPadel(tenantId), agendaPublica(tenantId), franjas(tenantId)]);
+  const [negocio, config, dias, grilla, cookieAlumno, { link }] = await Promise.all([
+    datosDelNegocio(tenantId),
+    configPadel(tenantId),
+    agendaPublica(tenantId),
+    franjas(tenantId),
+    leerTokenCookie(),
+    searchParams,
+  ]);
   // Sin ninguna franja en la que da clases, el profe todavía no publicó sus horarios: se dice eso,
   // no "no quedan horarios" (que sugiere una agenda llena que no existe).
   const sinHorarios = !grilla.some((f) => f.tipo === "DA");
@@ -61,6 +69,8 @@ export default async function ClasesPage() {
           precioIndividual={config.precioIndividual}
           precioGrupal={config.precioGrupal}
           marca={{ cancha: m.cancha, vivo: m.vivo, texto: m.texto, suave: m.suave, linea: m.linea }}
+          conSesion={Boolean(cookieAlumno)}
+          abrirLink={link === "1"}
         />
         {negocio.instagramUrl && (
           <p style={{ marginTop: 28, textAlign: "center", fontSize: 14, color: m.suave }}>

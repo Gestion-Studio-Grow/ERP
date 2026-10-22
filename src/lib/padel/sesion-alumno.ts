@@ -84,3 +84,77 @@ export function decidirPedidoDeLink(p: { frenado: boolean; esAlumno: boolean; ya
   if (p.frenado) return { ok: false, error: RESPUESTA_FRENADO };
   return { ok: true, mensaje: respuestaLinkPedido(p.profe), avisar: p.esAlumno && !p.yaPedidoHaceRato };
 }
+
+/**
+ * O-2: `pedirMiLink` tarda lo mismo exista o no el celular. Corre `fn` y, si terminó antes de
+ * `pisoMs`, espera lo que falta: la demora no dice si el número es de un alumno. (Los efectos que
+ * sólo pasan cuando existe —aviso, WhatsApp— van además después de la respuesta, con `after`.)
+ */
+export async function conPisoDeTiempo<T>(
+  pisoMs: number,
+  fn: () => Promise<T>,
+  reloj: { ahora: () => number; dormir: (ms: number) => Promise<void> } = {
+    ahora: () => performance.now(),
+    dormir: (ms) => new Promise((r) => setTimeout(r, ms)),
+  },
+): Promise<T> {
+  const inicio = reloj.ahora();
+  try {
+    return await fn();
+  } finally {
+    const resta = pisoMs - (reloj.ahora() - inicio);
+    if (resta > 0) await reloj.dormir(resta);
+  }
+}
+
+// ── Link verificado: contra el «squatting» (O-1) ────────────────────────────
+//
+// Quien pide clase con un celular que no existe en el negocio recibe el token y la cookie (M-003),
+// pero nadie verificó que ese celular sea suyo. Si después el dueño real del número se vuelve
+// alumno, el que pidió primero vería sus clases. Por eso el link de un alumno que el profe todavía
+// no RECONOCIÓ es provisorio:
+//  · cuando el profe lo reconoce por primera vez (le confirma, le agenda o le da una clase), el link
+//    se regenera y el nuevo le viaja por WhatsApp al número registrado;
+//  · si otro dispositivo pide clase con ese mismo celular antes de que el profe lo reconozca, el link
+//    también se regenera y no se le entrega a nadie (cada uno queda esperando la confirmación);
+//  · el profe puede «Regenerar link» a mano: el viejo deja de andar en el acto.
+// No hace falta columna nueva: «reconocido» se deriva de las clases (claseReconoce) y el token es uno
+// solo por alumno, así que cambiarlo invalida el viejo en la misma escritura.
+
+/**
+ * ¿Esta clase dice que el profe ya reconoció al alumno? La confirmó (confirmadaEl), la agendó él
+ * (origen PROFE) o la marcó dada o ausente. Es la regla pura del filtro de acciones.ts
+ * (alumnoReconocido); un test verifica que los dos digan lo mismo.
+ */
+export const claseReconoce = (c: { estado: string; origen: string; confirmadaEl: Date | null }): boolean =>
+  c.confirmadaEl != null || c.origen === "PROFE" || c.estado === "DADA" || c.estado === "AUSENTE";
+
+/**
+ * Qué hace `pedirClase` con el link del alumno de ese celular:
+ *  · `entregar`: el token, sólo si este dispositivo es el dueño (tokenAEntregar);
+ *  · `rotar`: el link se regenera sin entregárselo a nadie — otro dispositivo pidió con el celular
+ *    de un alumno que el profe todavía no reconoció. Así un pedido de un desconocido nunca hereda la
+ *    identidad de un alumno ya existente, y el primero que tipeó el número tampoco se la queda.
+ *    Un alumno recién creado (de una ficha que ya existía) no rota: su token no lo vio nadie.
+ */
+export function politicaDeToken(p: {
+  esNuevo: boolean;
+  recienCreado: boolean;
+  reconocido: boolean;
+  tokenAlumno: string;
+  tokenCookie: string | null | undefined;
+}): { entregar: string | null; rotar: boolean } {
+  const entregar = tokenAEntregar(p);
+  return { entregar, rotar: entregar === null && !p.recienCreado && !p.reconocido };
+}
+
+/** Cuando el profe reconoce por primera vez a un alumno que ya existía, su link se regenera. */
+export const regenerarAlReconocer = (p: { reconocidoAntes: boolean; recienCreado: boolean }): boolean =>
+  !p.reconocidoAntes && !p.recienCreado;
+
+/**
+ * M-003 (mínimo hasta T3C): adónde lleva «Mis clases». Con un token vigente en la cookie, a la vista
+ * del alumno; sin cookie (o con un link que se regeneró), al turnero con «Pedí tu link» abierto.
+ */
+export const destinoMisClases = (tokenVigente: string | null | undefined): string =>
+  tokenValido(tokenVigente) ? `/alumno/${tokenVigente}` : "/clases?link=1";

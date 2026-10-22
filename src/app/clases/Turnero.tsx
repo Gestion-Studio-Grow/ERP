@@ -18,7 +18,7 @@ const hora = (iso: string) => new Date(iso).toLocaleTimeString("es-AR", { hour: 
 const pesos = (n: number) => `$ ${n.toLocaleString("es-AR")}`;
 const RECUERDO = "gsg-padel-alumno";
 
-export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIndividual, precioGrupal, marca }: {
+export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIndividual, precioGrupal, marca, conSesion = false, abrirLink = false }: {
   dias: DiaConLugar[];
   /** El profe todavía no cargó ninguna franja en la que da clases. */
   sinHorarios?: boolean;
@@ -26,6 +26,10 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
   precioIndividual: number;
   precioGrupal: number;
   marca: Marca;
+  /** Este navegador ya tiene la cookie del alumno: se le ofrece «Mis clases» (M-003, mínimo hasta T3C). */
+  conSesion?: boolean;
+  /** Vino de /mis-clases sin cookie (o con un link que se renovó): «Pedí tu link» abierto. */
+  abrirLink?: boolean;
 }) {
   const [fecha, setFecha] = useState(dias[0]?.fecha ?? "");
   const [elegida, setElegida] = useState<string | null>(null);
@@ -63,6 +67,16 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
   const caja: React.CSSProperties = { background: "#fff", border: `1px solid ${marca.linea}`, borderRadius: 16, padding: 16, marginBottom: 14 };
   const titulo: React.CSSProperties = { margin: "0 0 12px", fontSize: 18 };
   const campo: React.CSSProperties = { width: "100%", minHeight: 48, borderRadius: 12, border: `1px solid ${marca.linea}`, padding: "0 14px", fontSize: 16, boxSizing: "border-box", color: marca.texto, background: "#fff" };
+  // M-003 (mínimo hasta T3C): con la cookie del alumno, «Mis clases» lleva a su vista sin tipear nada.
+  const misClases = conSesion ? (
+    <a
+      href="/mis-clases"
+      data-qa="mis-clases"
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 48, borderRadius: 14, border: `2px solid ${marca.cancha}`, color: marca.cancha, fontWeight: 700, fontSize: 16, textDecoration: "none", marginBottom: 14, background: "#fff" }}
+    >
+      Mis clases
+    </a>
+  ) : null;
 
   if (listo) {
     return (
@@ -107,9 +121,10 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
   if (dias.length === 0 && sinHorarios) {
     return (
       <section style={caja}>
+        {misClases}
         <h2 style={titulo}>El profe todavía no publicó sus horarios</h2>
         <p style={{ margin: 0, color: marca.suave }}>Volvé a mirar en unos días o escribile al profe.</p>
-        <YaSoyAlumno marca={marca} caja={caja} campo={campo} />
+        <YaSoyAlumno marca={marca} caja={caja} campo={campo} abierto={abrirLink} />
       </section>
     );
   }
@@ -117,9 +132,10 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
   if (dias.length === 0) {
     return (
       <section style={caja}>
+        {misClases}
         <h2 style={titulo}>No quedan horarios libres por ahora</h2>
         <p style={{ margin: 0, color: marca.suave }}>Volvé a mirar en unos días o escribile al profe.</p>
-        <YaSoyAlumno marca={marca} caja={caja} campo={campo} />
+        <YaSoyAlumno marca={marca} caja={caja} campo={campo} abierto={abrirLink} />
       </section>
     );
   }
@@ -145,6 +161,7 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
 
   return (
     <>
+    {misClases}
     <form onSubmit={enviar} noValidate>
       <section style={caja} aria-labelledby="paso-dia">
         <h2 id="paso-dia" style={titulo}>1 · ¿Qué día?</h2>
@@ -229,7 +246,7 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
         {pendiente ? "Pidiendo…" : elegida ? `Pedir clase · ${dias.find((d) => d.fecha === fecha)?.etiqueta} ${hora(elegida)}` : "Pedir clase"}
       </button>
     </form>
-    <YaSoyAlumno marca={marca} caja={caja} campo={campo} />
+    <YaSoyAlumno marca={marca} caja={caja} campo={campo} abierto={abrirLink} />
     </>
   );
 }
@@ -238,8 +255,8 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
  * «¿Ya sos alumno? Pedí tu link»: el link viaja por WhatsApp al número registrado y nunca se
  * muestra acá. La respuesta es la misma exista o no el celular (no revela quién es alumno).
  */
-function YaSoyAlumno({ marca, caja, campo }: { marca: Marca; caja: React.CSSProperties; campo: React.CSSProperties }) {
-  const [abierto, setAbierto] = useState(false);
+function YaSoyAlumno({ marca, caja, campo, abierto: abiertoAlInicio = false }: { marca: Marca; caja: React.CSSProperties; campo: React.CSSProperties; abierto?: boolean }) {
+  const [abierto, setAbierto] = useState(abiertoAlInicio);
   const [pendiente, start] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
   const tel = useRef<HTMLInputElement>(null);

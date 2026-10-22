@@ -12,7 +12,7 @@
 //   PEDIDA ──confirmar──▶ CONFIRMADA ──dar──▶ DADA
 //     │  │                   ├─ausente─▶ AUSENTE
 //     │  └─rechazar─▶ RECHAZADA └─cancelar─▶ CANCELADA   (PEDIDA también se cancela)
-//     └──vencer (sistema: pasó la hora y nadie la confirmó)──▶ SIN_RESPUESTA
+//     └──vencer (sistema: pasó la hora y nadie la confirmó)──▶ SIN_RESPUESTA ──dar (el alumno vino igual)──▶ DADA
 //
 //   Pago:  PENDIENTE ──alumno sube comprobante──▶ EN_REVISION ──profe valida──▶ PAGADO
 //             │                                     └──no es válido──▶ PENDIENTE
@@ -92,7 +92,9 @@ export type Quien = "profe" | "alumno" | "sistema";
 const TRANSICIONES_CLASE: Record<EventoClase, { desde: readonly EstadoClase[]; hacia: EstadoClase; quien: readonly Quien[] }> = {
   confirmar: { desde: ["PEDIDA"], hacia: "CONFIRMADA", quien: ["profe"] },
   rechazar: { desde: ["PEDIDA"], hacia: "RECHAZADA", quien: ["profe"] },
-  dar: { desde: ["CONFIRMADA", "PEDIDA"], hacia: "DADA", quien: ["profe"] },
+  // O-3: un pedido que venció sin respuesta (SIN_RESPUESTA) se puede igual dar: el alumno vino y
+  // el profe lo cobra. Confirmar o cancelar un pedido vencido, no (la hora ya pasó).
+  dar: { desde: ["CONFIRMADA", "PEDIDA", "SIN_RESPUESTA"], hacia: "DADA", quien: ["profe"] },
   ausente: { desde: ["CONFIRMADA"], hacia: "AUSENTE", quien: ["profe"] },
   cancelar: { desde: ["PEDIDA", "CONFIRMADA"], hacia: "CANCELADA", quien: ["profe", "alumno"] },
   vencer: { desde: ["PEDIDA"], hacia: "SIN_RESPUESTA", quien: ["sistema"] },
@@ -146,9 +148,17 @@ export interface ClaseConPago {
   precio: number;
 }
 
-/** Deuda = clase DADA, con precio, que nadie pagó todavía. Una PEDIDA o CONFIRMADA no es deuda. */
+/**
+ * Deuda = clase DADA, con precio, que nadie pagó todavía. Una PEDIDA o CONFIRMADA no es deuda.
+ * O-5: lo que tiene el comprobante EN_REVISION tampoco: el alumno ya pagó y espera que el profe lo
+ * valide. Se muestra aparte, «en revisión» (esEnRevision).
+ */
 export const esDeuda = (c: ClaseConPago): boolean =>
-  c.estado === "DADA" && Number(c.precio) > 0 && !PAGO_RESUELTO.includes(c.pagoEstado as EstadoPago);
+  c.estado === "DADA" && Number(c.precio) > 0 && c.pagoEstado !== "EN_REVISION" && !PAGO_RESUELTO.includes(c.pagoEstado as EstadoPago);
+
+/** Comprobante mandado que el profe todavía no validó, de una clase viva con precio. No es deuda. */
+export const esEnRevision = (c: ClaseConPago): boolean =>
+  c.pagoEstado === "EN_REVISION" && (c.estado === "DADA" || c.estado === "CONFIRMADA") && Number(c.precio) > 0;
 
 /**
  * Lo que el alumno puede pagar ya: la deuda, más una CONFIRMADA sin pagar (adelanta el pago).
@@ -160,6 +170,17 @@ export const esPagable = (c: ClaseConPago): boolean =>
 /** Lo que debe el alumno: la suma de sus deudas. */
 export const totalDeuda = (clases: readonly ClaseConPago[]): number =>
   redondear(clases.filter(esDeuda).reduce((s, c) => s + Number(c.precio), 0));
+
+/** Lo que mandó y espera validación: se muestra aparte de «Debés». */
+export const totalEnRevision = (clases: readonly ClaseConPago[]): number =>
+  redondear(clases.filter(esEnRevision).reduce((s, c) => s + Number(c.precio), 0));
+
+/**
+ * El estado con el que se MUESTRA una clase: un pedido cuya hora ya pasó se ve como SIN_RESPUESTA
+ * aunque la base todavía no lo haya vencido (el vencimiento en la base va frenado: O-6).
+ */
+export const estadoEnPantalla = (estado: EstadoClase, empiezaEn: Date, ahora: Date): EstadoClase =>
+  estado === "PEDIDA" && empiezaEn.getTime() < ahora.getTime() ? "SIN_RESPUESTA" : estado;
 
 /**
  * Saldo a favor = lo acreditado (clases pagadas que se cancelaron) − lo ya usado (clases pagadas

@@ -4,7 +4,10 @@ import {
   ESTADOS_QUE_OCUPAN,
   armarMensaje,
   esDeuda,
+  esEnRevision,
   esPagable,
+  estadoEnPantalla,
+  totalEnRevision,
   pagoAlCancelar,
   saldoAFavor,
   saldoCubre,
@@ -233,7 +236,7 @@ test("B2: una sola regla de deuda — PEDIDA nunca; CONFIRMADA pagable pero no d
   assert.equal(esDeuda(c("CONFIRMADA")), false);
   assert.equal(esPagable(c("CONFIRMADA", "EN_REVISION")), false, "ya mandó el comprobante");
   assert.equal(esDeuda(c("DADA")), true);
-  assert.equal(esDeuda(c("DADA", "EN_REVISION")), true, "hasta que el profe valide, sigue debiendo");
+  assert.equal(esDeuda(c("DADA", "EN_REVISION")), false, "O-5: ya mandó el comprobante → «en revisión», no «Debés»");
   assert.equal(esDeuda(c("DADA", "PAGADO")), false);
   assert.equal(esDeuda(c("DADA", "ACREDITADO")), false);
   assert.equal(esDeuda(c("DADA", "PENDIENTE", 0)), false, "sin precio no hay deuda");
@@ -258,4 +261,40 @@ test("comprobante: el alumno no paga un pedido sin confirmar", () => {
   assert.equal(transicionPago("PENDIENTE", "PEDIDA", "subir", "alumno"), null);
   assert.equal(transicionPago("ACREDITADO", "DADA", "subir", "alumno"), null);
   assert.equal(transicionPago("ACREDITADO", "DADA", "efectivo", "profe"), null);
+});
+
+test("O-3: un pedido vencido (SIN_RESPUESTA) se puede dar si el alumno vino, y después se cobra", () => {
+  assert.equal(transicionClase("SIN_RESPUESTA", "dar", "profe"), "DADA");
+  // Lo demás sigue cerrado: la hora ya pasó.
+  for (const ev of ["confirmar", "rechazar", "ausente", "cancelar", "vencer"] as const) {
+    assert.equal(transicionClase("SIN_RESPUESTA", ev, "profe"), null, ev);
+  }
+  assert.equal(transicionClase("SIN_RESPUESTA", "dar", "alumno"), null, "el alumno no se la da solo");
+  // Una vez DADA, se cobra en efectivo o entra como deuda.
+  assert.equal(transicionPago("PENDIENTE", "DADA", "efectivo", "profe"), "PAGADO");
+  assert.equal(esDeuda({ estado: "DADA", pagoEstado: "PENDIENTE", pagoMedio: null, precio: 25_000 }), true);
+  // Mientras siga SIN_RESPUESTA, no se cobra (no pasó de largo un cobro sin clase).
+  assert.equal(transicionPago("PENDIENTE", "SIN_RESPUESTA", "efectivo", "profe"), null);
+});
+
+test("O-5: «Debés» no cuenta lo que está en revisión; se suma aparte", () => {
+  const c = (estado: string, pagoEstado: string, precio = 25_000) => ({ estado, pagoEstado, pagoMedio: null, precio });
+  const clases = [c("DADA", "PENDIENTE"), c("DADA", "EN_REVISION"), c("CONFIRMADA", "EN_REVISION"), c("CONFIRMADA", "PENDIENTE"), c("DADA", "PAGADO")];
+  assert.equal(totalDeuda(clases), 25_000, "sólo la DADA sin pagar ni comprobante");
+  assert.equal(totalEnRevision(clases), 50_000, "la DADA y la CONFIRMADA con comprobante");
+  assert.equal(esEnRevision(c("DADA", "EN_REVISION")), true);
+  assert.equal(esEnRevision(c("DADA", "EN_REVISION", 0)), false, "sin precio no hay nada que revisar");
+  assert.equal(esEnRevision(c("CANCELADA", "EN_REVISION")), false);
+  assert.equal(esEnRevision(c("PEDIDA", "EN_REVISION")), false);
+  // Ninguna clase está a la vez en «Debés» y «en revisión».
+  for (const x of clases) assert.equal(esDeuda(x) && esEnRevision(x), false, JSON.stringify(x));
+  assert.equal(esPagable(c("DADA", "EN_REVISION")), false, "no se le vuelve a pedir: ya pagó");
+});
+
+test("O-6: un pedido cuya hora pasó se MUESTRA vencido aunque la base todavía no lo haya vencido", () => {
+  const ahora = new Date("2026-10-22T19:05:00-03:00");
+  assert.equal(estadoEnPantalla("PEDIDA", new Date("2026-10-22T19:00:00-03:00"), ahora), "SIN_RESPUESTA");
+  assert.equal(estadoEnPantalla("PEDIDA", new Date("2026-10-22T20:00:00-03:00"), ahora), "PEDIDA");
+  assert.equal(estadoEnPantalla("PEDIDA", ahora, ahora), "PEDIDA", "en el borde exacto, igual que el `lt` de la base");
+  assert.equal(estadoEnPantalla("CONFIRMADA", new Date("2026-10-22T19:00:00-03:00"), ahora), "CONFIRMADA");
 });

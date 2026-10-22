@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { alumnoPublico } from "@/lib/padel/datos.server";
 import { marcaProfe } from "@/lib/padel/marca";
-import { ESTADO_PARA_ALUMNO, PAGO_LABEL, diaHumano, esDeuda, esPagable, horaHumana, linkWhatsApp, pesos, proximaSemana, puedeCancelarAlumno } from "@/lib/padel/core";
+import { ESTADO_PARA_ALUMNO, PAGO_LABEL, diaHumano, esDeuda, esEnRevision, esPagable, horaHumana, linkWhatsApp, pesos, proximaSemana, puedeCancelarAlumno } from "@/lib/padel/core";
 import { BotonCancelar, BotonRepetir, RecordarSesion, SubirComprobante } from "./AccionesAlumno";
 
 // Link del alumno: sin login, la llave es el token. No se indexa ni se cachea.
@@ -22,11 +22,13 @@ export default async function AlumnoPage({ params }: { params: Promise<{ token: 
   const proxima = vivas[0] ?? null;
   // Una sola regla (core.ts): se paga lo DADO sin pagar y lo CONFIRMADO por adelantado. Un pedido
   // que el profe todavía no confirmó (o que venció sin respuesta) nunca aparece acá.
-  // (Una confirmada con el comprobante ya enviado sigue a la vista: puede mandar otro.)
+  // (Una clase con el comprobante ya enviado sigue a la vista: puede mandar otro.)
   const porPagar = alumno.clases
-    .filter((c) => esPagable(c) || (c.estado === "CONFIRMADA" && c.pagoEstado === "EN_REVISION" && c.precio > 0))
+    .filter((c) => esPagable(c) || esEnRevision(c))
     .sort((a, b) => +a.empiezaEn - +b.empiezaEn);
+  // «Debés» no cuenta lo que ya mandó y espera que el profe valide: va aparte, «en revisión» (O-5).
   const deudas = alumno.clases.filter(esDeuda);
+  const enRevision = alumno.clases.filter(esEnRevision);
   // Pedidos que vencieron sin respuesta en las últimas 48 h: se le dice, con salida.
   const sinRespuesta = alumno.clases.filter((c) => c.estado === "SIN_RESPUESTA" && ahora.getTime() - c.empiezaEn.getTime() < 48 * 3_600_000);
   // "La semana que viene a la misma hora" sale de la última clase dada o confirmada.
@@ -113,6 +115,11 @@ export default async function AlumnoPage({ params }: { params: Promise<{ token: 
             {deudas.length > 0 && (
               <p style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 700 }} data-qa="debes">
                 Debés <span className="tabular-nums">{pesos(alumno.debe)}</span> · {deudas.length} clase{deudas.length === 1 ? "" : "s"}
+              </p>
+            )}
+            {enRevision.length > 0 && (
+              <p style={{ margin: "0 0 12px", fontSize: 16, color: m.suave }} data-qa="en-revision">
+                <span className="tabular-nums">{pesos(alumno.enRevision)}</span> en revisión · {enRevision.length} comprobante{enRevision.length === 1 ? "" : "s"} esperando que {negocio.profe} lo{enRevision.length === 1 ? "" : "s"} valide
               </p>
             )}
             {config.aliasCbu ? (

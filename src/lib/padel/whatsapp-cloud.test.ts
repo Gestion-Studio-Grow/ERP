@@ -55,8 +55,9 @@ test("respuesta del alumno: sólo la palabra CANCELAR cancela; lo demás pregunt
   assert.equal(interpretarRespuesta("cancelar la de mañana"), "quiereCancelar", "sólo la palabra sola cancela");
   // Lo único que cancela: CANCELAR entero o el botón rápido.
   assert.equal(interpretarRespuesta("CANCELAR"), "cancelar");
-  assert.equal(interpretarRespuesta("cancelar!"), "cancelar");
-  assert.equal(interpretarRespuesta(" Cancelar. "), "cancelar");
+  assert.equal(interpretarRespuesta(" cancelar "), "cancelar", "espacios a los costados y minúsculas se perdonan");
+  assert.equal(interpretarRespuesta("cancelar!"), "quiereCancelar", "O-4: con signos pregunta");
+  assert.equal(interpretarRespuesta(" Cancelar. "), "quiereCancelar", "O-4: con punto pregunta");
   assert.equal(interpretarRespuesta("No puedo", "CANCELAR"), "cancelar", "payload del botón rápido");
   assert.equal(interpretarRespuesta("Voy", "VOY"), "confirmar");
   assert.equal(interpretarRespuesta("¿a qué hora era?"), null);
@@ -97,4 +98,16 @@ test("mensaje: plantilla con sus variables en orden, o texto libre", () => {
   assert.deepEqual(t.components[0].parameters.map((x) => x.text), ["Juan", "jueves 23/10", "18:00", "https://x"]);
   const txt = cuerpoMensaje("5491151839732", { tipo: "texto", texto: "hola" });
   assert.equal(txt.type, "text");
+});
+
+test("O-4: sólo CANCELAR exacto cancela; «¿cancelar?» y cualquier variante preguntan", () => {
+  for (const t of ["CANCELAR", "cancelar", "Cancelar", "  CANCELAR  ", "\tcancelar\n"]) assert.equal(interpretarRespuesta(t), "cancelar", JSON.stringify(t));
+  for (const t of ["¿cancelar?", "cancelar?", "cancelar??", "cancelar...", "CANCELAR.", "Cancelar!", "¡CANCELAR!", "CANCELAR ❌", "❌ cancelar", "cancelar la de mañana", "CANCELAR CANCELAR", "cancelo"]) {
+    assert.equal(interpretarRespuesta(t), "quiereCancelar", JSON.stringify(t));
+  }
+  // Ni un acento ni letras de más: «cancelár», «cancelarr» no cancelan.
+  assert.notEqual(interpretarRespuesta("cancelár"), "cancelar");
+  assert.notEqual(interpretarRespuesta("cancelarr"), "cancelar");
+  // El botón rápido de la plantilla sigue cancelando (payload exacto).
+  assert.equal(interpretarRespuesta("No puedo", "CANCELAR"), "cancelar");
 });

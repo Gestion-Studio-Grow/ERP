@@ -91,18 +91,20 @@ export const PAYLOAD_CANCELAR = "CANCELAR";
 /**
  * Lee la respuesta corta del alumno al aviso de su clase (texto o botón de respuesta rápida).
  * Nada se cancela sin una confirmación explícita:
- *  · `cancelar`: el mensaje ENTERO es «cancelar» (con o sin signos, cualquier mayúscula) o el botón
- *    rápido con payload CANCELAR. Es lo único que cancela.
- *  · `quiereCancelar`: «no», «no puedo…», «no voy…», «cancelo…», «cancelar la de…»: parece que no
- *    viene, pero no se adivina → se le pregunta «Respondé CANCELAR» y la clase sigue igual.
+ *  · `cancelar`: el mensaje es EXACTAMENTE la palabra CANCELAR (sin signos, sin emojis, sin nada más;
+ *    sólo se perdonan los espacios de los costados y las mayúsculas) o el botón rápido con payload
+ *    CANCELAR. Es lo único que cancela.
+ *  · `quiereCancelar`: cualquier otro texto que hable de cancelar («¿cancelar?», «cancelar.»,
+ *    «cancelar la de…», «cancelo…») o un «no», «no puedo…», «no voy…»: parece que no viene, pero no
+ *    se adivina → se le pregunta «Respondé CANCELAR» y la clase sigue igual (O-4).
  *  · `confirmar`: el mensaje ENTERO es un sí («sí», «dale», «ok», «listo», «voy», «confirmo»…).
  *    «no hay drama, voy» o «dale, nos vemos» no: van a la bandeja para que el profe los lea.
  *  · null: todo lo demás («no sé si llego», «¿a qué hora era?») → bandeja del profe.
  */
 export function interpretarRespuesta(texto: string, payload?: string | null): Intencion {
   if (payload != null && payload.trim().toUpperCase() === PAYLOAD_CANCELAR) return "cancelar";
+  if (texto.trim().toUpperCase() === PAYLOAD_CANCELAR) return "cancelar";
   const t = normalizar(texto);
-  if (t === "cancelar") return "cancelar";
   if (t === "no" || /^(no puedo|no voy|cancelo|cancelar)( |$)/.test(t)) return "quiereCancelar";
   if (/^(si+|dale|ok|okey|listo|voy|confirmo|confirmado)$/.test(t)) return "confirmar";
   return null;

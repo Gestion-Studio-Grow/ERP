@@ -4,7 +4,7 @@ import { EmptyState, cn } from "@/components/ui";
 import { alumnos, badgePendientes } from "@/lib/padel/datos.server";
 import { diaHumano, linkWhatsApp, pesos } from "@/lib/padel/core";
 import { BarraClases, tarjeta } from "../_vista";
-import { BotonDevolver, BotonLink } from "../_acciones";
+import { BotonDevolver, BotonLink, BotonRegenerarLink } from "../_acciones";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Clases · Alumnos", manifest: "/clases/app.webmanifest" };
@@ -44,6 +44,7 @@ export default async function ClasesAlumnos({ searchParams }: { searchParams: Pr
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="text-base font-semibold text-strong">{a.nombre}</span>
                   {a.debe > 0 && <span className="text-sm font-semibold" style={{ color: "var(--danger)" }}>debe {pesos(a.debe)}</span>}
+                  {a.enRevision > 0 && <span className="text-sm font-semibold tabular-nums text-muted" data-qa="en-revision">en revisión {pesos(a.enRevision)}</span>}
                   {a.aFavor > 0 && <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--success)" }} data-qa="a-favor">a favor {pesos(a.aFavor)}</span>}
                 </div>
                 <p className="text-sm text-muted">
@@ -61,6 +62,7 @@ export default async function ClasesAlumnos({ searchParams }: { searchParams: Pr
                     <Link href={`/alumno/${a.token}`} className="flex h-11 items-center justify-center rounded-md border border-line text-sm font-medium text-strong sm:h-9">Ver su link</Link>
                   )}
                 </div>
+                <BotonRegenerarLink alumnoId={a.id} nombre={a.nombre} />
               </li>
             );
           })}

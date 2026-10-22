@@ -8,11 +8,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
-import { agendarProxima, devolverSaldo, mandarLinkAlAlumno, moverClase, moverPago, recordatorio } from "@/lib/padel/acciones";
+import { agendarProxima, devolverSaldo, mandarLinkAlAlumno, moverClase, moverPago, recordatorio, regenerarLink } from "@/lib/padel/acciones";
 import { esPagable, pesos, type EventoClase } from "@/lib/padel/core";
 import { useAvisoAccion } from "./_aviso";
 
-type Resultado = { ok: true; wa?: string | null; enviado?: boolean; cuando?: string; aFavor?: number } | { ok: false; error: string };
+type Resultado = { ok: true; wa?: string | null; enviado?: boolean; cuando?: string; aFavor?: number; linkNuevo?: boolean } | { ok: false; error: string };
 
 export interface ClaseAcciones {
   id: string;
@@ -40,7 +40,9 @@ function useAccion(nombre: string) {
       const texto = r.cuando ? `${listo}: ${r.cuando}` : listo;
       // Clase pagada que se cancela: la plata no se pierde, queda a favor del alumno.
       const conSaldo = r.aFavor ? `${texto} · ${pesos(r.aFavor)} quedan a favor de ${nombre.split(" ")[0]}` : texto;
-      mostrar({ texto: conSaldo, wa: r.wa, enviado: r.enviado, nombre });
+      // Primera vez que lo reconocés: su link se renovó y el mensaje ya lleva el nuevo.
+      const conLink = r.linkNuevo ? `${conSaldo} · va con su link nuevo` : conSaldo;
+      mostrar({ texto: conLink, wa: r.wa, enviado: r.enviado, nombre });
       router.refresh();
     });
   return { pendiente, error, correr };
@@ -74,6 +76,14 @@ export function AccionesClase({ c, conProxima = true }: { c: ClaseAcciones; conP
         <div className="grid grid-cols-2 gap-2">
           <button type="button" disabled={pendiente} className={grande()} onClick={() => mover("dar", "Clase dada")} data-qa="dada">Dada</button>
           <button type="button" disabled={pendiente} className={grande("outline")} onClick={() => mover("ausente", "Quedó como ausente")} data-qa="ausente">No vino</button>
+        </div>
+      )}
+
+      {c.estado === "SIN_RESPUESTA" && (
+        // O-3: el pedido venció sin que lo confirmaras, pero el alumno vino igual: se da y se cobra.
+        <div className="grid gap-2">
+          <p className="text-sm text-muted">No llegaste a confirmarla. Si vino igual, marcala dada y cobrala.</p>
+          <button type="button" disabled={pendiente} className={grande()} onClick={() => mover("dar", "Clase dada")} data-qa="dada-sin-respuesta">Vino igual · Dada</button>
         </div>
       )}
 
@@ -157,6 +167,41 @@ export function BotonLink({ alumnoId, nombre }: { alumnoId: string; nombre: stri
       <button type="button" disabled={pendiente} className={cn(buttonClasses("outline", "sm"), "w-full")} onClick={() => correr(() => mandarLinkAlAlumno(alumnoId), "Link listo")} data-qa="mandar-link">
         Mandarle su link
       </button>
+      <ErrorAccion texto={error} />
+    </div>
+  );
+}
+
+/**
+ * «Regenerar link» (O-1): el link viejo deja de andar en el acto. Pide confirmación (dos toques) y
+ * deja listo el WhatsApp con el link nuevo para mandárselo al número registrado.
+ */
+export function BotonRegenerarLink({ alumnoId, nombre }: { alumnoId: string; nombre: string }) {
+  const { pendiente, error, correr } = useAccion(nombre);
+  const [seguro, setSeguro] = useState(false);
+  return (
+    <div>
+      {seguro ? (
+        <div className="grid gap-2">
+          <p className="text-sm text-muted">El link que tiene hoy deja de andar. Le mandás el nuevo por WhatsApp.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" className={cn(buttonClasses("outline", "sm"), "w-full")} onClick={() => setSeguro(false)}>No</button>
+            <button
+              type="button"
+              disabled={pendiente}
+              className={cn(buttonClasses("danger", "sm"), "w-full")}
+              onClick={() => correr(() => regenerarLink(alumnoId), "Link nuevo listo")}
+              data-qa="regenerar-link-si"
+            >
+              Sí, link nuevo
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="h-11 w-full text-sm text-muted underline" onClick={() => setSeguro(true)} data-qa="regenerar-link">
+          Regenerar link
+        </button>
+      )}
       <ErrorAccion texto={error} />
     </div>
   );
