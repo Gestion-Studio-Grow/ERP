@@ -7,6 +7,7 @@ import {
   configComoShipping,
   costoDeEnvio,
   cotizarEnvio,
+  cotizarEnvioDelMostrador,
   faltaParaElMinimo,
   faltaParaGratis,
   motivoTiendaPausada,
@@ -125,4 +126,20 @@ test("configComoShipping: la zona elegida da el mismo costo con la tarifa de sie
 
 test("renglonDeEnvio: «Envío · <zona>»", () => {
   assert.equal(renglonDeEnvio({ nombre: "Ezeiza" }), "Envío · Ezeiza");
+});
+
+test("mostrador (MG-031): misma zona y costo que la tienda; no frenan el mínimo ni la pausa; la zona sí se exige; sin zonas, lo de siempre", () => {
+  const pausada: ConfigEnvios = { ...magra, tiendaPausada: { mensaje: "Hoy no tomamos pedidos por la web" } };
+  const r = cotizarEnvioDelMostrador(pausada, { subtotal: 12000, zonaId: "barrios" });
+  assert.ok(r.ok);
+  assert.deepEqual([r.costo, r.zona?.id, r.renglon], [4000, "barrios", "Envío · Canning – barrios cerrados"]);
+  const gratis = cotizarEnvioDelMostrador(magra, { subtotal: 60000, zonaId: "barrios" });
+  assert.ok(gratis.ok && gratis.costo === 0);
+  // La tienda, con la misma bolsa, sí frena: el mostrador sólo saca las reglas de la tienda.
+  assert.equal(cotizarEnvio(magra, { subtotal: 12000, modo: "envio", zonaId: "barrios" }).ok, false);
+  const sinZona = cotizarEnvioDelMostrador(magra, { subtotal: 45000, zonaId: null });
+  assert.ok(!sinZona.ok && /zona/.test(sinZona.motivo));
+  assert.equal(cotizarEnvioDelMostrador(magra, { subtotal: 45000, zonaId: "inventada" }).ok, false);
+  const sinZonas = cotizarEnvioDelMostrador({ ...magra, zonas: [] }, { subtotal: 45000, zonaId: "barrios" });
+  assert.deepEqual(sinZonas.ok && [sinZonas.costo, sinZonas.zona, sinZonas.renglon], [0, null, null]);
 });

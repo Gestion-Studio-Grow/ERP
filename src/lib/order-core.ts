@@ -212,6 +212,13 @@ export type InsertOrderOpts = {
   cupon?: string | null;
   aCuenta?: { createdBy: string } | null;
   topePrecioAMano?: TopePrecioAMano | null;
+  /**
+   * La FICHA que eligió quien vende (Vender, bloque Cliente: `clientId`). Gana sobre la búsqueda
+   * por teléfono (`clienteDelTelefono`), que sigue siendo lo de siempre cuando no llega. Se
+   * verifica acá, con el `tenantId` (`fichaDelNegocio`): una ficha que no es de este negocio es un
+   * rechazo con su motivo y no se graba nada. Sólo la pasa el mostrador.
+   */
+  clientId?: string | null;
 };
 
 // A-2: cuántas veces se reintenta el alta ante una colisión del correlativo por tenant
@@ -608,7 +615,9 @@ export async function insertOrder(
   const negativoPermitido = new Set(opts?.permitirNegativoPorProducto ?? []);
   // A cuenta la ficha es obligatoria: si la búsqueda FALLA (la base, la red) no se sabe si hay
   // ficha, y eso no es un rechazo de negocio ("no tiene ficha"): el error sigue de largo.
-  const clientId = await clienteDelTelefono(tenantId, input.customerPhone, { estricto: Boolean(alta.aCuenta) });
+  const clientId = opts?.clientId?.trim()
+    ? await fichaDelNegocio(tenantId, opts.clientId.trim())
+    : await clienteDelTelefono(tenantId, input.customerPhone, { estricto: Boolean(alta.aCuenta) });
   // "A cuenta" es la deuda de ALGUIEN: sin ficha no hay a quién cobrarle después.
   if (alta.aCuenta && !clientId) {
     throw new RechazoDeDominio(
@@ -748,6 +757,21 @@ export async function clienteDelTelefono(
     });
     return null;
   }
+}
+
+/** La ficha elegida no está en este negocio (no existe, o es de otro). */
+export const FICHA_DE_OTRO_NEGOCIO =
+  "No encontramos esa ficha de cliente en este negocio. Buscalo de nuevo en el bloque Cliente (o dejá la venta sin ficha) y volvé a intentar.";
+
+/**
+ * La ficha que eligió quien vende, verificada contra el negocio: `findFirst` con `tenantId` (no
+ * sólo RLS). Si no está, la venta NO se graba: atarla a la ficha de otro negocio, o a una que no
+ * existe, es peor que no atarla, y lo que eligió la cajera no se cambia en silencio por otra cosa.
+ */
+export async function fichaDelNegocio(tenantId: string, clientId: string): Promise<string> {
+  const ficha = await prisma.client.findFirst({ where: { id: clientId, tenantId }, select: { id: true } });
+  if (!ficha) throw new RechazoDeDominio(FICHA_DE_OTRO_NEGOCIO);
+  return ficha.id;
 }
 
 /** Todo lo que el alta ya decidió antes de abrir la transacción. */

@@ -70,7 +70,7 @@ import ClienteDeLaVenta, { type ValorDelCliente } from "./ClienteDeLaVenta";
 import { CampoUnico, ID_CAMPO_UNICO, type LecturaUnica } from "@/components/lector/CampoUnico";
 import { PieDeCobro, type ResultadoDelPie } from "@/components/cobro/PieDeCobro";
 import { camposDelPie } from "@/lib/cobro/pie-de-cobro-core";
-import { cotizarEnvio, tieneZonas } from "@/lib/envios/tarifa";
+import { cotizarEnvioDelMostrador, tieneZonas } from "@/lib/envios/tarifa";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
 import { describirFormato } from "@/lib/supermercado/balanza";
 import { indiceDelLector, lineaDesdeLectura, REGLA_DEL_PRECIO_DE_BALANZA, type ProductoDelLector } from "@/lib/lector/linea-desde-lectura";
@@ -506,7 +506,7 @@ function FormularioVender({
   // al cobrar». `clienteKey` lo vuelve a armar vacío al limpiar el ticket.
   const [clienteVenta, setClienteVenta] = useState<ValorDelCliente | null>(null);
   const [clienteKey, setClienteKey] = useState(0);
-  const [zonaId, setZonaId] = useState("");
+  const [zonaId, setZonaId] = useState(k?.entrega.zona ?? "");
   // Lo escrito en el campo único que no es un código: los productos que coinciden, como teclas.
   const [coincidencias, setCoincidencias] = useState<{ texto: string; ids: string[] } | null>(null);
   const [avisoBoutique, setAvisoBoutique] = useState<string | null>(null);
@@ -844,6 +844,18 @@ function FormularioVender({
       : { ok: false, error: pedidoDescuento.error };
   const total = descuento.ok ? descuento.total : subtotal;
 
+  // EL ENVÍO DEL PEDIDO (mostrador boutique, negocio con zonas de Envíos). La vista previa con la
+  // MISMA regla que decide el servidor (`cotizarEnvioDelMostrador`, sobre lo que suman los
+  // productos ANTES del descuento: el descuento no toca el envío). Entra al total que se muestra
+  // y al que cobra el pie: un pago dividido tiene que sumar el total CON el envío, que es el que
+  // graba el alta. El servidor lo vuelve a calcular: lo de acá sólo se muestra.
+  const zonasDelEnvio = boutique?.envios && tieneZonas(boutique.envios) ? boutique.envios.zonas : [];
+  const conZona = enBoutique && isOrder && fulfillment === "DELIVERY" && zonasDelEnvio.length > 0;
+  const cotizacionEnvio =
+    conZona && boutique?.envios ? cotizarEnvioDelMostrador(boutique.envios, { subtotal, zonaId: zonaId || null }) : null;
+  const envioPrevisto = cotizacionEnvio?.ok ? cotizacionEnvio.costo : 0;
+  const totalACobrar = round2(total + envioPrevisto);
+
   const contextoStock = isOrder ? "ONLINE" : "COUNTER";
   const faltanteDe = (l: { productId: string; qty: number }) => {
     const p = byId.get(l.productId);
@@ -899,7 +911,7 @@ function FormularioVender({
     cupon: usaCupon ? (cupon.aplicado?.codigo ?? cupon.codigo) : null,
     descuento: conDescuento && !usaCupon && pedidoDescuento.ok ? pedidoDescuento.pedido : null,
     entrega: isOrder
-      ? { tipo: fulfillment, direccion: fulfillment === "DELIVERY" ? direccion : "", horario, nota }
+      ? { tipo: fulfillment, direccion: fulfillment === "DELIVERY" ? direccion : "", horario, nota, zona: conZona ? zonaId : "" }
       : null,
   });
   const cambioTrasCorte = sinRespuesta !== null && cambioDespuesDelCorte(sinRespuesta.firma, firma);
@@ -931,7 +943,7 @@ function FormularioVender({
         cupon: cupon.aplicado,
         cuponTexto: cupon.codigo,
       },
-      entrega: { tipo: fulfillment, horario, direccion, nota },
+      entrega: { tipo: fulfillment, horario, direccion, nota, ...(conZona && zonaId ? { zona: zonaId } : {}) },
     };
   }
 
@@ -2295,7 +2307,7 @@ function FormularioVender({
 
   /** El pie eligió cómo pagó: el estado de la venta queda con ese medio y sale el cobro. */
   async function cobrarConElPie(r: ResultadoDelPie) {
-    const campos = camposDelPie(total, r);
+    const campos = camposDelPie(totalACobrar, r);
     const principal = leerMedioDeCobro(campos.find(([n]) => n === "paymentMethod")?.[1] ?? "") ?? "";
     camposDelUltimoPie.current = campos;
     pagoConDelPie.current = r.modo === "simple" && r.medio === "EFECTIVO" ? (r.recibido ?? null) : null;
@@ -2407,9 +2419,10 @@ function FormularioVender({
   function vistaBoutique(b: BoutiqueDeVender) {
     const conProducto = leidas.filter((l) => l.productId);
     const teclas = botonesRapidos.map((p) => teclaDeProducto(p, stockById[p.id]));
-    const zonas = b.envios && tieneZonas(b.envios) ? b.envios.zonas : [];
-    const conZona = isOrder && fulfillment === "DELIVERY" && zonas.length > 0 && b.envios !== null;
-    const cotizacion = conZona ? cotizarEnvio(b.envios!, { subtotal: total, modo: "envio", zonaId }) : null;
+    // Las zonas y la cotización del envío salen de arriba (`zonasDelEnvio`, `cotizacionEnvio`):
+    // las mismas que suman al total que cobra el pie.
+    const zonas = zonasDelEnvio;
+    const cotizacion = cotizacionEnvio;
     const diaCerrado = b.diaCerrado !== null;
     const enDuda = sinRespuesta !== null || yaGrabada !== null;
     // Lo que frena el pie, en palabras (el pie se deshabilita con este motivo). Sin renglones lo
@@ -2444,7 +2457,7 @@ function FormularioVender({
     // Sin cobrar o a cuenta, el reintento no lleva campos del pie; cobrada, los del intento cortado
     // (o, si la pantalla se recargó, el medio que quedó guardado con la duda).
     const camposDelReintento: [string, string][] =
-      !paid || aCuentaActivo ? [] : (camposDelUltimoPie.current ?? (medio ? camposDelPie(total, { modo: "simple", medio }) : []));
+      !paid || aCuentaActivo ? [] : (camposDelUltimoPie.current ?? (medio ? camposDelPie(totalACobrar, { modo: "simple", medio }) : []));
     const puedeReintentar = sinRespuesta !== null && !cambioTrasCorte && aviso?.reintentar === true;
 
     const renglon = (l: (typeof leidas)[number]) => {
@@ -2750,9 +2763,14 @@ function FormularioVender({
                     Subtotal {fmtMoneyARS(subtotal)} · descuento −{fmtMoneyARS(descuento.descuento)}
                   </p>
                 )}
+                {envioPrevisto > 0 && cotizacionEnvio?.ok && (
+                  <p data-vender="total-envio" className="text-xs tabular-nums text-muted">
+                    Productos {fmtMoneyARS(total)} · {cotizacionEnvio.renglon ?? "Envío"} {fmtMoneyARS(envioPrevisto)}
+                  </p>
+                )}
               </div>
               <p aria-live="polite" className="font-display text-5xl leading-none tabular-nums text-accent-ink">
-                {fmtMoneyARS(total, Number.isInteger(total) ? 0 : 2)}
+                {fmtMoneyARS(totalACobrar, Number.isInteger(totalACobrar) ? 0 : 2)}
               </p>
             </div>
 
@@ -2891,7 +2909,7 @@ function FormularioVender({
             ) : (
               <>
                 <PieDeCobro
-                  total={total}
+                  total={totalACobrar}
                   deshabilitado={motivoDelPie ? { motivo: motivoDelPie } : undefined}
                   textoBoton={cobrarEnPedido ? "Registrar y cobrar" : "Cobrar"}
                   onCobrar={cobrarConElPie}

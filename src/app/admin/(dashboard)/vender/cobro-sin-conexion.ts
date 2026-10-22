@@ -211,8 +211,11 @@ export function firmaDelCobro(v: {
   cupon: string | null;
   /** El descuento a mano como se pidió (tipo y valor), o `null`. */
   descuento: PedidoDeDescuento | null;
-  /** Sólo en un pedido; en la venta, `null`. `horario` tal cual lo da el campo. */
-  entrega: { tipo: "PICKUP" | "DELIVERY"; direccion: string; horario: string; nota: string } | null;
+  /**
+   * Sólo en un pedido; en la venta, `null`. `horario` tal cual lo da el campo. `zona`: el id de la
+   * zona de envío que viaja (`envioZona`, mostrador boutique); vacío o ausente si no viaja.
+   */
+  entrega: { tipo: "PICKUP" | "DELIVERY"; direccion: string; horario: string; nota: string; zona?: string } | null;
 }): string {
   const aCuenta = v.medio === "A_CUENTA";
   // El medio como lo lee el servidor (`leerMedioDeCobro`): uno que no existe no es "cobrada".
@@ -232,7 +235,12 @@ export function firmaDelCobro(v: {
         items: v.lineas.map((l) => ({ productId: l.productId, qty: l.cantidad })),
         lineasAMano: v.manuales,
       },
-      { cupon: v.cupon, descuento: v.descuento ? { pedido: v.descuento } : null, aCuenta },
+      {
+        cupon: v.cupon,
+        descuento: v.descuento ? { pedido: v.descuento } : null,
+        aCuenta,
+        envioZona: v.entrega?.zona?.trim() ? { id: v.entrega.zona.trim() } : null,
+      },
     ),
   );
 }
@@ -266,7 +274,13 @@ export function firmaDeLoCargado(k: CargadoDelCobro): string {
     cupon: usaCupon ? (k.descuento.cupon?.codigo ?? k.descuento.cuponTexto) : null,
     descuento: desc && desc.ok ? desc.pedido : null,
     entrega: k.esPedido
-      ? { tipo: k.entrega.tipo, direccion: k.entrega.tipo === "DELIVERY" ? k.entrega.direccion : "", horario: k.entrega.horario, nota: k.entrega.nota }
+      ? {
+          tipo: k.entrega.tipo,
+          direccion: k.entrega.tipo === "DELIVERY" ? k.entrega.direccion : "",
+          horario: k.entrega.horario,
+          nota: k.entrega.nota,
+          zona: k.entrega.zona ?? "",
+        }
       : null,
   });
 }
@@ -469,7 +483,8 @@ export type CargadoDelCobro = {
     cupon: { codigo: string; tipo: string; valor: number } | null;
     cuponTexto: string;
   };
-  entrega: { tipo: "PICKUP" | "DELIVERY"; horario: string; direccion: string; nota: string };
+  /** `zona`: la zona de envío elegida (mostrador boutique); ausente en las dudas de antes. */
+  entrega: { tipo: "PICKUP" | "DELIVERY"; horario: string; direccion: string; nota: string; zona?: string };
 };
 
 export type CobroSinConfirmar = {

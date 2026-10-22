@@ -155,3 +155,25 @@ export function cotizarEnvio(
     renglon: renglonDeEnvio(zona),
   };
 }
+
+/**
+ * La cotización del envío en el MOSTRADOR (Vender, pedido con envío; `createOrder` en el servidor
+ * y la vista previa de la pantalla, con el mismo resultado). Las MISMAS zonas, el mismo costo y el
+ * mismo «gratis desde» que la tienda, sin las reglas que son sólo de la tienda:
+ *   · la tienda PAUSADA no frena el mostrador: pausar es dejar de tomar pedidos por la web, no
+ *     cerrar el local (el que atiende sigue anotando el pedido del cliente que llama);
+ *   · el PEDIDO MÍNIMO con envío tampoco: es el freno de la tienda, donde nadie mira; en el
+ *     mostrador decide quien atiende (si no conviene, lo anota como retiro);
+ *   · la FRANJA tampoco: el mostrador acuerda el horario con el cliente («Horario deseado»).
+ * La zona SÍ se exige: con zonas cargadas, un envío sin zona (o con una que ya no existe) no se
+ * sabe cuánto cobra. Sin zonas propias: costo 0 y sin renglón (lo de siempre).
+ */
+export function cotizarEnvioDelMostrador(
+  config: ConfigEnvios,
+  pedido: { subtotal: number; zonaId: string | null | undefined },
+): Cotizacion {
+  return cotizarEnvio(
+    { ...config, tiendaPausada: null, pedidoMinimoEnvio: null },
+    { subtotal: pedido.subtotal, modo: "envio", zonaId: pedido.zonaId },
+  );
+}

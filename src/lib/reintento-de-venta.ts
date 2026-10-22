@@ -12,7 +12,7 @@
 //   · el cupón (su código) y el descuento a mano;
 //   · cómo se cobró (el medio, a cuenta o sin cobrar);
 //   · el teléfono del cliente, por sus dígitos;
-//   · en un pedido: entrega, dirección, horario y nota.
+//   · en un pedido: entrega, dirección, horario y nota, y la ZONA del envío (si se puede saber).
 // NUNCA lo que la base decide sola: el precio de catálogo (el reintento no re-cotiza: si la
 // dueña cambió el precio entre el corte y el reintento, es la misma venta), la ficha que se
 // encontró por el teléfono ni el nombre que trae la ficha. Comparar eso daba "Lo que cambiaste"
@@ -51,7 +51,11 @@ export type PedidoDelReintento = {
   descuento: PedidoDeDescuento | null;
   cobro: CobroDeVenta;
   telefono: string;
-  entrega: { tipo: "PICKUP" | "DELIVERY"; direccion: string | null; horario: number | null; notas: string | null };
+  /**
+   * `zona`: el id de la zona de Envíos que eligió (Vender, pedido con envío; reingeniería Magra);
+   * ausente o `null` sin zona. El COSTO del envío no está: lo decide la base, como el precio.
+   */
+  entrega: { tipo: "PICKUP" | "DELIVERY"; direccion: string | null; horario: number | null; notas: string | null; zona?: string | null };
 };
 
 /**
@@ -71,8 +75,15 @@ export function pedidoDelReintento(
     items: readonly { productId: string; qty: number }[];
     lineasAMano?: readonly { nombre: string; importe: number }[];
   },
-  opts?: { cupon?: string | null; descuento?: { pedido: PedidoDeDescuento } | null; aCuenta?: unknown } | null,
+  opts?: {
+    cupon?: string | null;
+    descuento?: { pedido: PedidoDeDescuento } | null;
+    aCuenta?: unknown;
+    /** La zona de envío pedida (sólo su id cuenta). */
+    envioZona?: { id: string } | null;
+  } | null,
 ): PedidoDelReintento {
+  const zona = input.fulfillment === "DELIVERY" ? opts?.envioZona?.id?.trim() || null : null;
   return {
     canal: input.channel,
     productos: input.items.filter((l) => l.productId && Number.isFinite(l.qty) && l.qty > 0).map((l) => ({ productId: l.productId, cantidad: l.qty })),
@@ -90,8 +101,24 @@ export function pedidoDelReintento(
       direccion: input.address,
       horario: input.scheduledFor ? input.scheduledFor.getTime() : null,
       notas: input.notes,
+      // Sólo cuando hay: lo pedido sin zona queda idéntico a lo de siempre (y su firma también).
+      ...(zona ? { zona } : {}),
     },
   };
+}
+
+/**
+ * La zona que dice el renglón del envío grabado («Envío · Canning – barrios cerrados» → «Canning –
+ * barrios cerrados»), o `null` si no hay renglón con zona (retiro, envío gratis —no se graba
+ * renglón de $0—, o la tarifa de siempre, «Envío a domicilio»). PURA.
+ */
+export function zonaDelRenglonDeEnvio(items: readonly { productId: string | null; name: string }[]): string | null {
+  for (const it of items) {
+    if (!esLineaDeEnvio(it)) continue;
+    const m = /^\s*env[ií]o\s*·\s*(.+?)\s*$/i.exec(it.name);
+    if (m) return m[1];
+  }
+  return null;
 }
 
 /** El pedido tal como está en la base (Order + sus líneas + el cupón de su fila de auditoría). */
@@ -184,6 +211,8 @@ export function compararConLoGrabado(
   grabada: VentaGrabadaLeida,
   pedido: PedidoDelReintento,
   catalogo: ReadonlyMap<string, { nombre: string; porPeso: boolean }> = new Map(),
+  /** id → nombre de las zonas de Envíos vigentes del negocio, para decir la zona pedida en palabras. */
+  zonas: ReadonlyMap<string, string> = new Map(),
 ): ComparacionConLoGrabado {
   const d: Diferencia[] = [];
   const no = (texto: string) => d.push({ texto, aditiva: false });
@@ -297,6 +326,19 @@ export function compararConLoGrabado(
       const t = (x: string | null) => (textoComparable(x) ? `«${textoComparable(x)}»` : "sin nota");
       no(`Nota: se grabó ${t(grabada.notes)}; ahora ${t(ep.notas)}.`);
     }
+    // La ZONA del envío, sólo cuando se sabe de los dos lados (nunca una diferencia inventada): la
+    // grabada la dice en su renglón «Envío · <zona>» (sin renglón —envío gratis, o la tarifa de
+    // siempre— no se sabe, y no se compara); lo pedido trae el id, y su nombre sale de las zonas
+    // vigentes. Un id que ya no está en la configuración tampoco se compara. El COSTO no se compara
+    // nunca: lo decide la base, como el precio de catálogo.
+    const zonaGrabada = tipo === "DELIVERY" && ep.tipo === "DELIVERY" ? zonaDelRenglonDeEnvio(grabada.items) : null;
+    if (zonaGrabada !== null) {
+      const pedida = ep.zona ? zonas.get(ep.zona) : null;
+      if (!ep.zona) no(`Zona de envío: se grabó «${zonaGrabada}»; ahora sin zona.`);
+      else if (pedida != null && nombreComparable(pedida) !== nombreComparable(zonaGrabada)) {
+        no(`Zona de envío: se grabó «${zonaGrabada}»; ahora «${pedida.trim()}».`);
+      }
+    }
   }
 
   const todoDeMas = d.length > 0 && d.every((x) => x.aditiva);
@@ -345,7 +387,16 @@ export function firmaDelPedido(p: PedidoDelReintento): string {
     p.cobro.tipo === "medio" ? ["medio", p.cobro.medio] : [p.cobro.tipo],
     normalizarTelefono(p.telefono),
     p.canal === "ONLINE"
-      ? [p.entrega.tipo, textoComparable(p.entrega.direccion), p.entrega.horario ?? null, textoComparable(p.entrega.notas)]
+      ? [
+          p.entrega.tipo,
+          textoComparable(p.entrega.direccion),
+          p.entrega.horario ?? null,
+          textoComparable(p.entrega.notas),
+          // La zona sólo cuando hay: la firma de lo que no tiene zona queda la de siempre (las dudas
+          // guardadas antes de las zonas siguen coincidiendo). La pantalla firma el id: más estricta
+          // que el servidor (que compara el nombre), nunca más laxa.
+          ...(p.entrega.zona ? [p.entrega.zona] : []),
+        ]
       : null,
   ]);
 }

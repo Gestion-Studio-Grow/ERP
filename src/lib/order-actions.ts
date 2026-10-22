@@ -81,7 +81,15 @@ import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { round2 } from "@/lib/round";
 import { buscarFichaPorTelefono } from "@/lib/clientes/ficha-por-telefono";
 import { leerConfigEnvios } from "@/lib/envios/config";
-import { cotizarEnvio, motivoTiendaPausada, tieneZonas, zonaPorId, type ModoDeEntrega } from "@/lib/envios/tarifa";
+import {
+  cotizarEnvio,
+  cotizarEnvioDelMostrador,
+  motivoTiendaPausada,
+  tieneZonas,
+  zonaPorId,
+  type ModoDeEntrega,
+} from "@/lib/envios/tarifa";
+import type { ZonaDeEnvio } from "@/lib/envios/modelo";
 import { shippingVigente } from "@/lib/storefront-shipping";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import {
@@ -370,6 +378,40 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
     channel,
   );
 
+  // EL ENVÍO DEL MOSTRADOR (Magra, MG-031; cierra el cable de 1B). Con entrega a domicilio y un
+  // negocio con zonas de Envíos, la zona que eligió quien vende (`envioZona`) se valida acá contra
+  // la configuración LEÍDA DE LA BASE, y el renglón «Envío · <zona>» lo arma el alta con el costo
+  // de la zona sobre lo que suman los productos a precio de la base (`decidirAlta` →
+  // `costoDeEnvio`, lo mismo que la tienda). Del navegador sólo se toma QUÉ zona: un costo que
+  // mande no se lee. En el mostrador no frenan la tienda pausada, el pedido mínimo ni la franja
+  // (`cotizarEnvioDelMostrador`, con el porqué).
+  //
+  // Sólo si el formulario TRAE el campo (el mostrador boutique, que conoce las zonas). Los
+  // formularios que no lo conocen (el POS de la bandeja, el Vender de siempre) siguen como hoy, y
+  // un negocio sin zonas (CH, Shine) también: sin zona no hay renglón ni cambia nada.
+  let envioZona: ZonaDeEnvio | null = null;
+  if (fulfillment === "DELIVERY" && formData.has("envioZona")) {
+    const configEnvios = await leerConfigEnvios(prisma, tenantId);
+    if (tieneZonas(configEnvios)) {
+      const conProducto = items.filter((l) => l.productId && l.qty > 0);
+      const cotizacion = cotizarEnvioDelMostrador(configEnvios, {
+        // Lo mismo sobre lo que cobra el alta: productos a precio de la base más las líneas a mano.
+        subtotal: round2(
+          (conProducto.length ? await subtotalDeLaBolsaEnBase(tenantId, conProducto) : 0) +
+            aMano.lineas.reduce((s, l) => s + l.importe, 0),
+        ),
+        zonaId: String(formData.get("envioZona") || "").trim().slice(0, 60) || null,
+      });
+      if (!cotizacion.ok) return { ok: false, error: cotizacion.motivo };
+      envioZona = cotizacion.zona;
+    }
+  }
+
+  // LA FICHA ELEGIDA (bloque Cliente de Vender, `clientId`). La verifica el alta contra el negocio
+  // (`fichaDelNegocio`, order-core.ts): si no es de acá, rechazo con su motivo y nada grabado. Sin
+  // ficha elegida, la venta se ata por el teléfono, como siempre.
+  const clientIdElegido = String(formData.get("clientId") || "").trim().slice(0, 64) || null;
+
   // I7 (ADR-064): la imputación a caja de la venta cobrada va ATÓMICA con la orden+stock
   // dentro de `insertOrder` (una sola tx, todo-o-nada). `imputarCajaActor` la activa: solo el
   // mostrador imputa caja física. Un fallo de DB al asentar la caja aborta toda la venta (no
@@ -405,6 +447,8 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
         // El tope del precio a mano sale del ROL de la sesión, igual que el del descuento.
         topePrecioAMano: topeDePrecioAMano(user.role),
         pagosMixtos: asientos ? { asientos } : null,
+        envioZona,
+        clientId: clientIdElegido,
       },
     );
   } catch (err) {
@@ -509,6 +553,7 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
       ...(result.cupon ? { cupon: { codigo: result.cupon, monto: descuento, por: user.name } } : {}),
       ...(aCuenta ? { aCuenta: true, por: user.name } : {}),
       ...(asientos ? { pagos: asientos } : {}),
+      ...(envioZona ? { zona: envioZona.nombre, envio: result.envio ?? 0 } : {}),
     },
   });
 

@@ -14,6 +14,7 @@ import { cantidadOCero } from "@/lib/pos-peso";
 import { horarioDelFormulario } from "@/lib/order-anulacion";
 import { descuentoDelFormulario, lineasAManoDelFormulario } from "@/lib/venta-reglas";
 import { prisma } from "@/lib/prisma";
+import { leerConfigEnvios } from "@/lib/envios/config";
 import { ventaDeOrden, type VentaTicket } from "@/app/admin/(dashboard)/vender/reglas-venta";
 import {
   comoQuedo,
@@ -38,8 +39,9 @@ export type RespuestaAlReintento =
  *     diferencias en palabras y, si todo lo distinto es "de más", lo que falta cobrar aparte.
  *     No se graba nada.
  *
- * La única lectura además de la grabada es el NOMBRE (y la unidad) de un producto que no está en
- * ella, para decir "Entraña 0,95 kg" en vez de un id. Nunca un precio.
+ * Las lecturas además de la grabada: el NOMBRE (y la unidad) de un producto que no está en
+ * ella, para decir "Entraña 0,95 kg" en vez de un id, y las zonas de Envíos si el reintento trae
+ * una. Nunca un precio.
  */
 export async function respuestaAlReintento(
   tenantId: string,
@@ -75,7 +77,12 @@ export async function respuestaAlReintento(
       : []
     ).map((p) => [p.id, { nombre: p.name, porPeso: p.saleUnit === "WEIGHT" }]),
   );
-  const { diferencias, faltante } = compararConLoGrabado(grabada, s, catalogo);
+  // La zona pedida en palabras (sólo si el reintento trae una): las zonas VIGENTES del negocio. Es
+  // la única otra lectura, y sólo en un pedido con envío por zona.
+  const zonas = new Map(
+    s.entrega.zona ? (await leerConfigEnvios(prisma, tenantId)).zonas.map((z) => [z.id, z.nombre] as const) : [],
+  );
+  const { diferencias, faltante } = compararConLoGrabado(grabada, s, catalogo, zonas);
   if (diferencias.length === 0 && !ticket.anulada) {
     const mensaje = mensajeDeYaGrabadaIgual({ code: grabada.code, esPedido, cobrada: Boolean(grabada.paid && grabada.paymentMethod) });
     return o.conTicket ? { ok: true, mensaje, venta: ticket, yaEstaba: true } : { ok: true, mensaje, yaEstaba: true };
@@ -124,10 +131,12 @@ export function pedidoDelFormulario(
     items: formData.getAll("productId").map((id, i) => ({ productId: String(id), qty: cantidades[i] ?? 0 })),
     lineasAMano: aMano.ok ? aMano.lineas : [],
   };
+  const zona = String(formData.get("envioZona") || "").trim().slice(0, 60);
   return pedidoDelReintento(pedido, {
     cupon: formData.get("cupon") as string | null,
     descuento: desc.ok && desc.pedido ? { pedido: desc.pedido } : null,
     aCuenta: d.aCuenta,
+    envioZona: zona ? { id: zona } : null,
   });
 }
 
