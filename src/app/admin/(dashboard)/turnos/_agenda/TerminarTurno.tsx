@@ -22,6 +22,7 @@ import { useToast } from "../../ToastProvider";
 import { pesos, type EstadoDelTurno } from "../agenda-core";
 import TeclasDeMedio from "../cerrar/TeclasDeMedio";
 import { aFormData, camposDeTerminar } from "./campos";
+import DividirPago, { SumarLoQueDebe } from "./DividirPago";
 
 type Cobro = { metodo: MetodoDePago } | "dejar-a-cobrar" | null;
 
@@ -129,6 +130,9 @@ export default function TerminarTurno({
         enCurso={enCurso && typeof enCurso === "object" ? enCurso.metodo : null}
       />
       <p className="text-center text-xs text-muted">Un toque en el medio cobra y {vino ? "la marca como que vino" : "termina el turno"}.</p>
+      {/* CH Tanda 2 (2-B): pagar en dos medios, o sumar lo que debía de antes (cada cobro a su turno). */}
+      <DividirPago turnoId={turnoId} clienta={clienta} estado={estado} saldo={saldo} onListo={onListo} disabled={pendiente} />
+      <SumarLoQueDebe turnoId={turnoId} clienta={clienta} estado={estado} saldo={saldo} onListo={onListo} disabled={pendiente} />
       {elError}
       <Button
         type="button"
