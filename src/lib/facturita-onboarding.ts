@@ -73,7 +73,7 @@ export const CONDICIONES_IVA: readonly OpcionCondicion[] = [
     id: "responsable_inscripto",
     nombre: "Responsable inscripto",
     ayuda: "Cobrás y pagás IVA aparte. Tu contador seguro te lo dijo.",
-    letras: "A o B, según a quién le vendas",
+    letras: "B a consumidores finales y exentos (la A, por ahora, desde ARCA)",
   },
   {
     id: "exento",

@@ -4,7 +4,9 @@
 
 import { PageHeader, Badge } from "@/components/ui";
 import { getFacturacion } from "@/lib/facturacion-actions";
-import { estadoFacturitaAction } from "@/lib/facturita-actions";
+import { datosParaFacturasAction, estadoFacturitaAction } from "@/lib/facturita-actions";
+import { faltantesEmisor, formDesdeGuardado } from "@/lib/facturita-emisor";
+import DatosParaFacturas from "./DatosParaFacturas";
 import Link from "next/link";
 import { ESTADO_PRECIOS, PLAN_SALTO, precioConPeriodo } from "@/lib/facturita-planes";
 
@@ -16,7 +18,7 @@ function cuitConGuiones(cuit: string | null): string {
 }
 
 export default async function FacturitaCuentaPage() {
-  const [{ estado }, limite] = await Promise.all([getFacturacion(), estadoFacturitaAction()]);
+  const [{ estado }, limite, guardados] = await Promise.all([getFacturacion(), estadoFacturitaAction(), datosParaFacturasAction()]);
 
   return (
     <>
@@ -53,6 +55,8 @@ export default async function FacturitaCuentaPage() {
         </div>
       </dl>
 
+      <DatosParaFacturas inicial={formDesdeGuardado(guardados)} completos={faltantesEmisor(guardados).length === 0} />
+
       <section className="rounded-xl border border-line bg-surface-sunken px-[22px] py-5">
         <h2 className="text-sm font-semibold text-strong">¿Te quedaste corto?</h2>
         <p className="mt-1 text-sm text-muted">
@@ -63,7 +67,7 @@ export default async function FacturitaCuentaPage() {
         <p className="mt-2 text-sm text-muted">
           {PLAN_SALTO.nombre} arranca en{" "}
           <strong className="font-semibold tabular-nums text-strong">{precioConPeriodo(PLAN_SALTO.precioMensual)}</strong>{" "}
-          ({ESTADO_PRECIOS.toLowerCase()}). Escribinos y lo activamos en el día.{" "}
+          ({ESTADO_PRECIOS.toLowerCase()}). Escribinos y lo activamos.{" "}
           <Link href="/facturita/planes" className="font-semibold text-strong underline underline-offset-4">
             Ver los planes
           </Link>

@@ -95,6 +95,43 @@ la RG 5700). Con C1b el texto correcto es «No la mandamos a ARCA…»: se actua
 - `descripcion` necesita la migración `20261022140000_invoice_abono_descripcion` (**Gate 2, sin
   aplicar**), igual que la consola: **no desplegar esta rama a una base sin esa migración**.
 
+---
+
+## Vuelta 3 — segunda revisión del contador (contra 5465d3dd, 2026-10-22)
+
+| Nivel | Hallazgo | Qué se hizo | Dónde |
+|---|---|---|---|
+| CRÍTICO | El PDF no salía: faltaban razón social, domicilio, inicio de actividades e IIBB del emisor | «Datos para tus facturas» en Mi cuenta: graba en los MISMOS campos que lee el PDF (`arcaRazonSocial`, `arcaDomicilioFiscal`, `arcaInicioActividades` AAAAMMDD, `arcaIibb` con «Exento»/«Convenio Multilateral»), en `tenantTransaction` del propio negocio, con auditoría. Escritura propia y mínima: `multilocal-core.ts` no se tocó. | `facturita-emisor.ts`, `cuenta/DatosParaFacturas.tsx`, `guardarDatosParaFacturasAction` |
+| CRÍTICO | El PDF pedía el nombre del comprador con documento | Emitir pide nombre (obligatorio con documento) y domicilio (opcional, con CUIT). Invoice no tiene columnas: se guarda una copia en `AuditLog` (`comprobante.receptor`, `entityId` = factura, misma transacción que la factura) y el lector del PDF la usa cuando no hay venta, turno ni movimiento. Mismo patrón que la clase de Factura A. | `facturita-actions.ts`, `comprobante-pdf-datos.ts` |
+| CRÍTICO | El 409 mandaba a pantallas que Facturita no tiene | `respuestaPdfDeComprobante` acepta `volverA` como objeto (`texto`, `href`, `completarEmisor`, `reescribir`): página HTML con lo que falta, dicho para Facturita, y enlaces a «Mi cuenta» y «Mis facturas». El backoffice sigue con el texto de siempre (mismo `string`). | `comprobante-pdf-respuesta.ts`, ruta del PDF |
+| CRÍTICO | El PDF no leía `descripcion` | El renglón usa `Invoice.descripcion` si existe; se lee en una consulta aparte que tolera P2021/P2022, así el PDF del backoffice sigue saliendo en una base sin la migración del motor. | `comprobante-pdf-datos.ts` |
+| CRÍTICO | Facturas sin PDF sin aviso | En Emitir, aviso amable con lo que falta y enlace a Mi cuenta; no bloquea (ARCA no lo exige). | `app/page.tsx` |
+| ALTO | Textos que prometían de más | Vidriera: la letra se explica (C, o B del inscripto a consumidor final/exento; la A desde ARCA); «Va a ARCA» con autorización si responde, pendiente si no; «Se autoriza en ARCA, con CAE»; ejemplo «Autorizada · CAE» y «PDF para tu cliente»; cierre «cinco pasos cortos… la activamos nosotros» (sin «en el día» ni «cinco minutos»). Planes, manifiesto, alta, Mis facturas y Mi cuenta alineados. | `page.tsx`, `facturita-planes.ts`, `facturita-pwa.ts`, `alta/*`, `facturas/page.tsx`, `cuenta/page.tsx`, `facturita-onboarding.ts` |
+| MEDIO | Fechas de servicio precargadas con hoy | Vacías y obligatorias (las tres) con servicios; sin default en el núcleo ni en el formulario. | `facturita-core.ts`, `EmitirForm.tsx` |
+| MEDIO | «Sale apenas se active» sin la ventana de ARCA | El pendiente avisa: ARCA acepta la factura hasta 5 días (productos) o 10 (servicios) después de su fecha; si no salió, se rechaza y hay que volver a emitirla. | `ventanaDeFechaArca`, `mensajeDeEmision` |
+| MEDIO | «De prueba» con el estado de hoy | Mis facturas usa `ambienteDelComprobante` por factura (el mismo que el PDF): hora de autorización vs. último cambio de ambiente del negocio; si cambió después, «Autorizada (ambiente sin confirmar)». **Invoice no guarda el modo ni el ambiente: queda anotado** (columna con migración, junto con las del receptor). | `facturasFacturitaAction`, `facturas/page.tsx` |
+| MEDIO | Sin notas de crédito | «Anular» en las autorizadas con saldo: pide el motivo y confirma; `crearNotaDeCredito` del motor (toma la factura con bloqueo, nunca anula más de lo facturado) y despacho. La lista muestra la nota y «Anulada con nota de crédito». | `anularFacturitaAction`, `facturas/AnularFactura.tsx` |
+| MEDIO | CUIT 30/33/34 como monotributista | Se rechaza: una persona jurídica no puede ser monotributista (`claseDelPrefijo` del Core). | `validarEmision` |
+
+**Verificación vuelta 3:** `tsc` verde; eslint 0; tests puros de Facturita + `comprobante-pdf.test.ts`
+verdes (3 casos nuevos de Facturita en el del PDF: faltantes del emisor dichos sin pantallas del
+backoffice, C con comprador y descripción impresos, comprador sin nombre guardado → ARCA).
+`facturita-emision-postgres.test.ts`: 5 casos verdes, el nuevo hace el circuito entero (409 HTML con
+enlace a Mi cuenta → guardar datos en los campos del PDF → 200 `application/pdf` con el comprador
+de la copia y la descripción → anular con nota de crédito, sin saldo, y una segunda anulación
+rechazada). Suite completa (una corrida, Postgres en :5434): 5946 tests, 5942 pasan, 4 fallan — los 3
+de la base (pie pegado, cron de recordatorios con RLS, redondeos) y `club/guardado-enchufado` (corrido
+solo, 7/7 verdes: carga). `npm run build` verde.
+
+**Decisiones / pendientes para el dueño:**
+- La nota de crédito ocupa un lugar del cupo de 5 del mes (el cupo cuenta todo lo no rechazado,
+  `filtrosFacturacionMes` en bancos-glue). ¿Las notas tienen que quedar fuera del cupo? Es un cambio
+  fuera de Facturita.
+- Columnas en Invoice para la copia del receptor (nombre, condición, domicilio) y el ambiente de ARCA
+  (migración, Gate 2): hoy viven en `AuditLog` y en la deducción del PDF.
+- Las facturas emitidas antes de esta vuelta no guardaron el nombre del comprador: su PDF manda a
+  «Mis Comprobantes» de ARCA.
+
 **Nota de entorno (no afecta la rama):** el `npm install` del worktree no pudo bajar `xlsx` de
 `cdn.sheetjs.com` (bloqueado por el proxy de la sesión). Para verificar se instaló localmente con
 `xlsx@0.18.5` del registro y se restauraron `package.json`/`package-lock.json` sin cambios.

@@ -40,13 +40,16 @@ export default function EmitirForm({
   const [concepto, setConcepto] = useState<ConceptoFacturita>("productos");
   const [descripcion, setDescripcion] = useState("");
   const [total, setTotal] = useState("");
-  const [desde, setDesde] = useState(hoyInput);
-  const [hasta, setHasta] = useState(hoyInput);
-  const [vencimiento, setVencimiento] = useState(hoyInput);
+  // Vacías a propósito: un período precargado que nadie miró sería un dato falso en la factura.
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
+  const [vencimiento, setVencimiento] = useState("");
   const [alicuota, setAlicuota] = useState<AlicuotaFacturita>(ALICUOTA_POR_DEFECTO);
   const [docTipo, setDocTipo] = useState<"" | "80" | "86" | "96">("");
   const [docNro, setDocNro] = useState("");
   const [condicion, setCondicion] = useState<"" | CondicionReceptorConCuit>("");
+  const [nombre, setNombre] = useState("");
+  const [domicilio, setDomicilio] = useState("");
   const [resultado, setResultado] = useState<ResultadoEmisionFacturita | null>(null);
   const [pendiente, startTransition] = useTransition();
 
@@ -60,9 +63,12 @@ export default function EmitirForm({
       ? !/^\d{7,8}$/.test(docNro.replace(/\D/g, ""))
       : !cuitValido(normalizarCuit(docNro)));
   const faltaCondicion = docTipo === "80" && condicion === "";
+  const faltaNombre = docTipo !== "" && nombre.trim().length < 2;
+  const faltanFechas = conServicio && (!desde || !hasta || !vencimiento);
 
   const totalNum = Number(total.replace(/\./g, "").replace(",", "."));
-  const listo = descripcion.trim() !== "" && totalNum > 0 && !docInvalido && !faltaCondicion && !bloqueado;
+  const listo =
+    descripcion.trim() !== "" && totalNum > 0 && !docInvalido && !faltaCondicion && !faltaNombre && !faltanFechas && !bloqueado;
 
   function emitir() {
     setResultado(null);
@@ -78,6 +84,8 @@ export default function EmitirForm({
               docTipo: Number(docTipo) as 80 | 86 | 96,
               docNro,
               ...(docTipo === "80" && condicion ? { condicionReceptor: condicion } : {}),
+              nombreReceptor: nombre,
+              ...(docTipo === "80" && domicilio.trim() ? { domicilioReceptor: domicilio } : {}),
             }
           : {}),
       });
@@ -88,6 +96,11 @@ export default function EmitirForm({
         setDocTipo("");
         setDocNro("");
         setCondicion("");
+        setNombre("");
+        setDomicilio("");
+        setDesde("");
+        setHasta("");
+        setVencimiento("");
       }
     });
   }
@@ -117,20 +130,21 @@ export default function EmitirForm({
 
       {conServicio && (
         <fieldset className="grid gap-4 rounded-xl border border-line p-4 sm:grid-cols-3">
-          <legend className="px-1 text-sm font-medium text-strong">Fechas que pide ARCA para un servicio</legend>
-          <Field label="El servicio fue desde" htmlFor="ft-desde">
-            <Input id="ft-desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+          <legend className="px-1 text-sm font-medium text-strong">Fechas que pide ARCA para un servicio (las tres)</legend>
+          <Field label="El servicio fue desde" htmlFor="ft-desde" required>
+            <Input id="ft-desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} required />
           </Field>
-          <Field label="Hasta" htmlFor="ft-hasta">
-            <Input id="ft-hasta" type="date" value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)} />
+          <Field label="Hasta" htmlFor="ft-hasta" required>
+            <Input id="ft-hasta" type="date" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} required />
           </Field>
-          <Field label="Te lo pagan hasta el" htmlFor="ft-vto" hint="Si ya te pagaron, dejá hoy.">
+          <Field label="Te lo pagan hasta el" htmlFor="ft-vto" hint="Si ya te pagaron, poné hoy." required>
             <Input
               id="ft-vto"
               type="date"
               value={vencimiento}
               min={hoyInput}
               onChange={(e) => setVencimiento(e.target.value)}
+              required
             />
           </Field>
         </fieldset>
@@ -206,6 +220,16 @@ export default function EmitirForm({
             />
           </Field>
         )}
+        {docTipo !== "" && (
+          <Field
+            label="Nombre o razón social del comprador"
+            htmlFor="ft-nombre"
+            hint="Va impreso en la factura."
+            required
+          >
+            <Input id="ft-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={120} autoComplete="off" />
+          </Field>
+        )}
         {docTipo === "80" && (
           <Field
             label="¿Cómo está inscripto el comprador?"
@@ -226,6 +250,11 @@ export default function EmitirForm({
                 </option>
               ))}
             </Select>
+          </Field>
+        )}
+        {docTipo === "80" && (
+          <Field label="Domicilio del comprador (opcional)" htmlFor="ft-domicilio" hint="Una Factura A lo lleva impreso.">
+            <Input id="ft-domicilio" value={domicilio} onChange={(e) => setDomicilio(e.target.value)} maxLength={200} autoComplete="off" />
           </Field>
         )}
       </div>
