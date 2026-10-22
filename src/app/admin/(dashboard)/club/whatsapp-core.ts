@@ -7,7 +7,9 @@
 //   · la confirmación al dar el turno (con la seña, el alias y el código si pide seña);
 //   · el recordatorio desde el turno;
 //   · el aviso de lluvia (movido a techada, suspendido con crédito o sin cargo, o con plata para devolver);
-//   · la oferta del hueco a la lista de espera.
+//   · la oferta del hueco a la lista de espera;
+//   · «Compartir lo libre» (`textoLoLibre`, bp-DISENO §3.16 · Rec. 48): la respuesta a la pregunta más común («¿tenés
+//     cancha hoy a la noche?») con los huecos de la duración de siempre, el precio y el link del turnero.
 //
 // Nada se manda solo: el link abre WhatsApp con el texto escrito y la persona aprieta enviar.
 //   · En la DEMO el link abre sin número (se elige el chat), como en el vanilla: los teléfonos de ejemplo podrían
@@ -17,8 +19,8 @@
 //   · Sin celular (o con uno que no es un número argentino), el link abre para elegir el chat y la pantalla lo
 //     dice: nunca un link a un número roto.
 
-import { cancha as canchaDe, cliente as clienteDe, diaSemana, hhmm, mensajeWhatsApp, pesos, reserva as reservaDe } from "@/lib/club/motor.mjs";
-import type { EstadoClub, Espera, Fecha, Reserva, ResultadoLluvia } from "@/lib/club/motor.mjs";
+import { cancha as canchaDe, cliente as clienteDe, diaSemana, hhmm, horarioDe, mensajeWhatsApp, minutosHasta, pesos, precioTurno, reserva as reservaDe, sumarDias, validarHueco } from "@/lib/club/motor.mjs";
+import type { Ahora, EstadoClub, Espera, Fecha, Reserva, ResultadoLluvia } from "@/lib/club/motor.mjs";
 import { normalizarTelefono } from "@/lib/clientes/telefono";
 import { buildWhatsAppHref, waLinkClienta } from "@/lib/whatsapp-cta";
 
@@ -130,4 +132,89 @@ export function avisosLluvia(estado: EstadoClub, resultado: readonly ResultadoLl
         : `suspendido${x.credito ? `, ${pesos(x.credito)} como crédito` : x.devolverEnMano ? `, hay que devolverle ${pesos(x.devolverEnMano)}` : ""}`;
     return { reservaId: x.reservaId, titular: x.titular, que, texto, celular };
   });
+}
+
+// ───────────── «Compartir lo libre» ─────────────
+
+/** El día que se comparte: hoy o mañana (la pregunta de todos los días). */
+export type DiaLibre = "hoy" | "manana";
+/** La franja: la tarde (14 a 18), la noche (desde las 18 hasta el cierre) o todo el día. */
+export type FranjaLibreWa = "tarde" | "noche" | "todo";
+
+export const FRANJAS_LIBRE: Readonly<Record<FranjaLibreWa, { texto: string; desde: number | null; hasta: number | null }>> = {
+  tarde: { texto: "a la tarde", desde: 14 * 60, hasta: 18 * 60 },
+  noche: { texto: "a la noche", desde: 18 * 60, hasta: null },
+  todo: { texto: "", desde: null, hasta: null },
+};
+
+/** Cuántos renglones de horarios entran en el mensaje (más, es ruido en el chat). */
+export const MAX_RENGLONES_LIBRE = 8;
+
+export interface RenglonLibre {
+  inicio: number;
+  canchas: string[];
+  /** El precio del turno a esa hora (si cambia entre canchas, el más barato: «desde»). */
+  precio: number;
+  desde: boolean;
+}
+
+/**
+ * Los huecos libres de `duracion` (la de siempre: `config.duracionTurno`) que ARRANCAN en la franja, sin pisarse dentro de
+ * cada cancha (18:00 y 19:30, no 18:00, 18:30, 19:00…: lo que de verdad se puede dar), agrupados por hora. Hoy, sólo lo
+ * que todavía no empezó. PURO.
+ */
+export function loLibre(estado: EstadoClub, fecha: Fecha, franja: FranjaLibreWa, ahora: Ahora, duracion = estado.config.duracionTurno): RenglonLibre[] {
+  const { abre, cierra } = horarioDe(estado, fecha);
+  const f = FRANJAS_LIBRE[franja];
+  const desde = Math.max(abre, f.desde ?? abre);
+  const hasta = Math.min(cierra, f.hasta ?? cierra);
+  const { paso } = estado.config;
+  const porHora = new Map<number, { canchas: string[]; precios: number[] }>();
+  for (const c of estado.canchas) {
+    let m = Math.ceil(desde / paso) * paso;
+    while (m < hasta) {
+      const hueco = { canchaId: c.id, fecha, inicio: m, duracion };
+      if (minutosHasta(ahora, fecha, m) >= 0 && validarHueco(estado, hueco).ok) {
+        const h = porHora.get(m) ?? { canchas: [], precios: [] };
+        h.canchas.push(c.nombre);
+        h.precios.push(precioTurno(estado, hueco));
+        porHora.set(m, h);
+        m += duracion;
+      } else m += paso;
+    }
+  }
+  return [...porHora.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([inicio, h]) => ({ inicio, canchas: h.canchas, precio: Math.min(...h.precios), desde: new Set(h.precios).size > 1 }));
+}
+
+const unirCanchas = (n: string[]) => (n.length <= 1 ? (n[0] ?? "") : `${n.slice(0, -1).join(", ")} y ${n.at(-1)}`);
+
+/**
+ * El texto para mandar por WhatsApp: «¡Hola! Esto es lo que nos queda libre hoy (mié 14/10) a la noche, turnos de 90
+ * min: • 18:00 · Cancha 1 y Cancha 3 · $ 42.000 …» con el link del turnero (si hay) para reservar. Sin nada libre, lo
+ * dice y ofrece otro horario. En criollo, voz del club.
+ */
+export function textoLoLibre(estado: EstadoClub, dia: DiaLibre, franja: FranjaLibreWa, ahora: Ahora, link?: string | null): string {
+  const fecha = dia === "hoy" ? ahora.fecha : sumarDias(ahora.fecha, 1);
+  const duracion = estado.config.duracionTurno;
+  const renglones = loLibre(estado, fecha, franja, ahora, duracion);
+  const cuando = `${dia === "hoy" ? "hoy" : "mañana"} (${fechaCorta(fecha)})${FRANJAS_LIBRE[franja].texto ? ` ${FRANJAS_LIBRE[franja].texto}` : ""}`;
+  const club = estado.config.nombre?.trim();
+  if (!renglones.length) return `¡Hola! ${cuando.charAt(0).toUpperCase()}${cuando.slice(1)} no nos queda cancha libre para ${duracion} min${club ? ` en ${club}` : ""}. ¿Te sirve otro horario? Decime y te busco lugar.`;
+  const lineas = renglones.slice(0, MAX_RENGLONES_LIBRE).map((r) => `• ${hhmm(r.inicio)} · ${unirCanchas(r.canchas)} · ${r.desde ? "desde " : ""}${pesos(r.precio)}`);
+  if (renglones.length > MAX_RENGLONES_LIBRE) lineas.push("• …y algunos horarios más.");
+  return [
+    `¡Hola! Esto es lo que nos queda libre${club ? ` en ${club}` : ""} ${cuando}, turnos de ${duracion} min:`,
+    ...lineas,
+    link ? `Reservalo desde acá: ${link}` : "",
+    link ? "O contestame por acá y te lo guardo." : "Contestame por acá y te lo guardo.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** El link para compartir lo libre: WhatsApp abre para elegir el chat (es para quien preguntó, no para una ficha). */
+export function enlaceLoLibre(texto: string): string {
+  return buildWhatsAppHref("", texto);
 }

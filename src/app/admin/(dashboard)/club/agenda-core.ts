@@ -16,6 +16,12 @@
 //   · a qué turno se va con las flechas (la grilla se recorre con el teclado);
 //   · qué turnos «necesitan atención» (los de una alerta urgente de la bandeja, sólo en la grilla de hoy, como el
 //     vanilla con `conAlerta`);
+//   · el BOTÓN DEL MOMENTO de cada turno (`botonesDelMomento`, bp-DISENO §2.2): lo que pasa cien veces al día (abrir,
+//     cobrar la seña y abrir, +30 min, cobrar, cerrar, la mesa sigue, no vino) se hace desde la grilla, sin abrir la hoja;
+//   · las MARCAS del turno: «nuevo» (primer turno de la ficha), «web» (vino del turnero), «fijo» y el punto rojo de
+//     «debe» en TODOS los bloques (también en los de 60 min);
+//   · «Buscar lugar» (`buscarLugar`, §3.2): una hora y una duración → una opción por cancha, primero las que entran a
+//     esa hora y después lo más cerca;
 //   · los días que se eligen arriba (ayer, hoy y los cinco que siguen: `diasDeLaAgenda`, como el vanilla);
 //   · prender y apagar la luz de una cancha (`ponerLuz`; el motor la prende al abrir la cancha y la apaga al
 //     cerrarla, al moverla o con el plan lluvia);
@@ -25,11 +31,12 @@
 // La plata la lee del motor (`saldo`, `cuentaDelTurno`): no decide nada. El motor tiene un contador
 // de ids de módulo, así que esto corre sólo en el navegador (y en los tests), nunca en el servidor.
 
-import { ESTADOS, NOMBRE_DIA, TIPOS, alertas, validarHueco, cancha as canchaDe, cuantoEntra, cliente as clienteDe, cuentaDelTurno, diaSemana, hhmm, horarioDe, minutosHasta, ocupantes, pesos, saldo, sumarDias } from "@/lib/club/motor.mjs";
+import { ESTADOS, NOMBRE_DIA, TIPOS, alertas, validarHueco, cancha as canchaDe, checkIn, cobrarDeuda, cuantoEntra, cliente as clienteDe, cuentaDelTurno, diaSemana, hhmm, horarioDe, huecosLibres, minutosHasta, ocupantes, pesos, precioTurno, saldo, sumarDias, turnosJugados } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, EstadoReserva, Fecha, Reserva } from "@/lib/club/motor.mjs";
+import type { Desenlace } from "./almacen";
 import type { TipoMarca } from "@/components/ui/Marca";
 import { opcionesCiclo } from "./ciclo-core";
-import { senaSinPagar, type MedioCaja } from "./cuenta-core";
+import { ETIQUETA_MEDIO, MEDIOS_CAJA, senaSinPagar, type MedioCaja } from "./cuenta-core";
 
 /** Los estados que ocupan la cancha en la grilla (lo cancelado, suspendido o la falta van aparte). */
 const EN_GRILLA: ReadonlySet<EstadoReserva> = new Set(["reservada", "en_cancha", "finalizada"]);
@@ -71,6 +78,12 @@ export interface CeldaTurno {
   deudor: boolean;
   /** Tiene una alerta urgente en la bandeja (sólo en la grilla de hoy). */
   atencion: boolean;
+  /** Marca «nuevo»: es el primer turno de la ficha del titular (todavía no jugó ninguno: `turnosJugados === 0`). */
+  nuevo: boolean;
+  /** Marca «web»: el turno vino del turnero (`origen: "web"`). */
+  web: boolean;
+  /** El botón del momento (0, 1 o 2: «Cerrar» · «La mesa sigue»), según el estado y la hora (`botonesDelMomento`). */
+  momento: BotonDelMomento[];
   /** Todo lo de arriba en una frase, para el lector de pantalla. */
   etiqueta: string;
   /** Lo que la hace distinta de su versión anterior (para reusar la celda si no cambió). */
@@ -182,6 +195,9 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
     const titular = r.clienteId ? clienteDe(estado, r.clienteId) : undefined;
     const deudor = (titular?.deuda ?? 0) > 0;
     const atencion = urgentes?.has(r.id) ?? false;
+    const nuevo = !!titular && (r.estado === "reservada" || r.estado === "en_cancha") && turnosJugados(estado, titular) === 0;
+    const web = r.origen === "web";
+    const momento = botonesDelMomento(estado, r, ahora);
     const horario = `${hhmm(r.inicio)}–${hhmm(r.inicio + r.duracion)}`;
     const jugadores = `${r.jugadores.length}/4`;
     const tipo = r.tipo === "turno" ? null : TIPOS[r.tipo];
@@ -189,6 +205,8 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
     const etiqueta = [
       `${r.titular}, ${nombreCancha}, de ${hhmm(r.inicio)} a ${hhmm(r.inicio + r.duracion)}`,
       tipo,
+      nuevo ? "cliente nuevo" : null,
+      web ? "reservó por la web" : null,
       `${r.jugadores.length} de 4 jugadores`,
       marca.texto,
       senal,
@@ -199,7 +217,7 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
       .join(", ");
     if (r.estado === "en_cancha") enCancha++;
     if (senal) conSenal++;
-    const celda = { id: r.id, columna, fila, alto, titular: r.titular, horario, jugadores, tipo, estado: r.estado, marca, senal, deudor, atencion, etiqueta };
+    const celda = { id: r.id, columna, fila, alto, titular: r.titular, horario, jugadores, tipo, estado: r.estado, marca, senal, deudor, atencion, nuevo, web, momento, etiqueta };
     turnos.push({ ...celda, firma: firmaDe(celda) });
   }
   // Orden de lectura: cancha por cancha, de arriba hacia abajo (el mismo del Tab).
@@ -250,7 +268,7 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
 }
 
 function firmaDe(c: Omit<CeldaTurno, "firma">): string {
-  return [c.id, c.columna, c.fila, c.alto, c.titular, c.horario, c.jugadores, c.tipo, c.estado, c.marca.tipo, c.marca.texto, c.senal, c.deudor, c.atencion].join("¦");
+  return [c.id, c.columna, c.fila, c.alto, c.titular, c.horario, c.jugadores, c.tipo, c.estado, c.marca.tipo, c.marca.texto, c.senal, c.deudor, c.atencion, c.nuevo, c.web, c.momento.map((b) => `${b.accion}:${b.texto}:${b.monto}`).join(",")].join("¦");
 }
 
 /**
@@ -491,4 +509,153 @@ export function previaArrastre(
         ? { ok: false as const, motivo: "Esa hora ya pasó." }
         : validarHueco(estado, { canchaId, fecha: r.fecha, inicio, duracion: r.duracion }, r.id);
   return { modo: "mover", canchaId, columna, fila, alto, inicio, ok: v.ok, motivo: v.ok ? "" : v.motivo };
+}
+
+// ───────────── el botón del momento (bp-DISENO §1.1 principio 1, §2.2) ─────────────
+
+/**
+ * Lo que el turno pide AHORA, a un toque desde la grilla (sin abrir la hoja). La hoja queda para lo demás.
+ *   · `abrir`: reservado, seña paga o no pedida, falta ≤ 15 min (o ya empezó, dentro de la tolerancia). Con `deuda`
+ *     (el titular debe de antes) el bloque lleva el punto rojo y el toque pregunta «Cobrar ahora / Después».
+ *   · `cobrarSenaYAbrir`: igual, con la seña sin pagar (`monto`: lo que falta de la seña; 0 = cubierta con pagos).
+ *   · `extender`: en cancha y le quedan ≤ 10 min, si el hueco de después está libre: «+30 min · $7.000».
+ *   · `cobrar`: en cancha, terminó (o termina y no se puede extender) y la cancha debe `monto`.
+ *   · `cerrar` + `mesaSigue`: en cancha, terminó y está paga.
+ *   · `noVino`: reservado y pasó la tolerancia (abre «Marcar falta» de la cuenta: titular o grupo, y el WhatsApp).
+ */
+export type AccionDelMomento = "abrir" | "cobrarSenaYAbrir" | "extender" | "cobrar" | "cerrar" | "mesaSigue" | "noVino";
+
+export interface BotonDelMomento {
+  accion: AccionDelMomento;
+  /** Lo que se lee en el botón (corto: el bloque mide 140 px). */
+  texto: string;
+  /** La frase completa para el lector de pantalla («Cobrar la seña de $ 21.000 y abrir la cancha de Juan»). */
+  etiqueta: string;
+  /** La plata en juego: la seña, la extensión, lo que debe la cancha o la deuda de antes (0 si no hay). */
+  monto: number;
+  /** `extender`: cuántos minutos suma. */
+  minutos?: number;
+}
+
+/** Desde cuántos minutos antes del turno aparece «Abrir» (o lo que diga `minutosAntesParaEntrar`, si es menos). */
+export const MINUTOS_PARA_ABRIR = 15;
+/** Desde cuántos minutos antes del final aparece «+30 min». */
+export const MINUTOS_PARA_EXTENDER = 10;
+/** Lo que suma «+30 min». */
+export const MINUTOS_DE_EXTENSION = 30;
+
+/** El botón (o los dos) del momento para ese turno con ese reloj. PURO: sólo lee. */
+export function botonesDelMomento(estado: EstadoClub, r: Reserva, ahora: Ahora): BotonDelMomento[] {
+  const { politica } = estado.config;
+  const quien = r.titular;
+  if (r.estado === "reservada") {
+    const falta = minutosHasta(ahora, r.fecha, r.inicio);
+    const tolerancia = politica.toleranciaMin ?? 15;
+    // Pasó la tolerancia (o el turno terminó sin jugarse): «No vino».
+    if (falta < -tolerancia || falta + r.duracion <= 0) return [{ accion: "noVino", texto: "No vino", etiqueta: `${quien} no vino: marcar la falta`, monto: 0 }];
+    const limite = politica.minutosAntesParaEntrar;
+    const ventana = limite == null ? MINUTOS_PARA_ABRIR : Math.min(MINUTOS_PARA_ABRIR, limite);
+    if (falta > ventana) return [];
+    const sena = senaSinPagar(r);
+    if (sena !== null)
+      return [{ accion: "cobrarSenaYAbrir", texto: sena > 0 ? "Seña y abrir" : "Abrir", etiqueta: sena > 0 ? `Cobrar la seña de ${pesos(sena)} y abrir la cancha de ${quien}` : `Abrir la cancha de ${quien} (la seña ya está cubierta)`, monto: sena }];
+    const cl = r.clienteId ? clienteDe(estado, r.clienteId) : undefined;
+    const deuda = cl && cl.deuda > 0 ? cl.deuda : 0;
+    return [{ accion: "abrir", texto: "Abrir", etiqueta: `Abrir la cancha de ${quien}${deuda ? ` (debe ${pesos(deuda)} de antes)` : ""}`, monto: deuda }];
+  }
+  if (r.estado !== "en_cancha") return [];
+  const fin = minutosHasta(ahora, r.fecha, r.inicio + r.duracion);
+  if (fin > MINUTOS_PARA_EXTENDER) return [];
+  const debe = saldo(r);
+  if (fin > 0) {
+    const hueco = { canchaId: r.canchaId, fecha: r.fecha, inicio: r.inicio + r.duracion, duracion: MINUTOS_DE_EXTENSION };
+    if (validarHueco(estado, hueco).ok) {
+      const precio = precioTurno(estado, hueco);
+      return [{ accion: "extender", texto: `+${MINUTOS_DE_EXTENSION} min · ${pesos(precio)}`, etiqueta: `Extender ${MINUTOS_DE_EXTENSION} minutos el turno de ${quien} por ${pesos(precio)}`, monto: precio, minutos: MINUTOS_DE_EXTENSION }];
+    }
+    // No se puede extender (viene otro turno): que se vayan pagos.
+    return debe > 0 ? [{ accion: "cobrar", texto: `Cobrar ${pesos(debe)}`, etiqueta: `Cobrar ${pesos(debe)} de la cancha de ${quien}`, monto: debe }] : [];
+  }
+  if (debe > 0) return [{ accion: "cobrar", texto: `Cobrar ${pesos(debe)}`, etiqueta: `Cobrar ${pesos(debe)} de la cancha de ${quien}`, monto: debe }];
+  return [
+    { accion: "cerrar", texto: "Cerrar", etiqueta: `Cerrar la cancha de ${quien}`, monto: 0 },
+    { accion: "mesaSigue", texto: "La mesa sigue", etiqueta: `Cerrar la cancha de ${quien}: la mesa sigue en el buffet`, monto: 0 },
+  ];
+}
+
+/**
+ * «Abrir» de un turno cuyo titular debe de antes → «Cobrar ahora»: la deuda entera con un medio y la cancha abierta, en
+ * UN comando (`abrirConDeuda`). O pasan las dos o ninguna: si la cancha no se puede abrir (temprano, ocupada, falta la
+ * seña, ya abierta) no se cobra nada. Re-aplicado en otro puesto donde la deuda ya se cobró, abre sin cobrar dos veces.
+ */
+export function abrirCobrandoLaDeuda(estado: EstadoClub, reservaId: string, medio: MedioCaja, ahora: Ahora): Desenlace {
+  const r = estado.reservas.find((x) => x.id === reservaId);
+  if (!r) return { ok: false, mensaje: "No encuentro el turno." };
+  if (r.estado === "en_cancha") return { ok: false, mensaje: "La cancha ya está abierta: no se cobró nada." };
+  if (r.estado !== "reservada") return { ok: false, mensaje: `El turno está ${ESTADOS[r.estado].toLowerCase()}: no se cobró nada.` };
+  if (senaSinPagar(r) !== null) return { ok: false, mensaje: "Falta la seña: usá «Cobrar la seña y abrir»." };
+  if (!(MEDIOS_CAJA as readonly string[]).includes(medio)) return { ok: false, mensaje: "Elegí cómo paga (efectivo, Mercado Pago, transferencia o débito)." };
+  const cl = r.clienteId ? clienteDe(estado, r.clienteId) : undefined;
+  const deuda = cl && cl.deuda > 0 ? cl.deuda : 0;
+  // Primero la cancha: si no se puede abrir, no se tocó nada. Después la deuda (ya validada: no puede fallar).
+  const abierto = checkIn(estado, r.id, ahora);
+  if (!abierto.ok) return { ok: false, mensaje: `${abierto.motivo} No se cobró nada.` };
+  if (!cl || !deuda) return { ok: true, mensaje: "Cancha abierta y luz prendida (ya no debía nada)." };
+  const cobro = cobrarDeuda(estado, cl.id, { medio }, ahora);
+  if (!cobro.ok) return { ok: true, mensaje: `Cancha abierta. La deuda no se cobró: ${cobro.motivo}` };
+  return { ok: true, mensaje: `Cobrados ${pesos(cobro.monto)} de la deuda de ${cl.nombre} (${ETIQUETA_MEDIO[medio]}). Cancha abierta y luz prendida.` };
+}
+
+// ───────────── «Buscar lugar» (bp-DISENO §3.2, Rec. 7) ─────────────
+
+export interface LugarEncontrado {
+  canchaId: string;
+  cancha: string;
+  inicio: number;
+  duracion: number;
+  precio: number;
+  /** Entra justo a la hora pedida. */
+  exacto: boolean;
+  /** «Cancha 4 · 20:00 · $ 42.000» (con la hora siempre: si no es la pedida, se ve). */
+  etiqueta: string;
+}
+
+/**
+ * «Buscar lugar 20:00 · 90»: una opción por cancha — la que ENTRA a esa hora primero y, después, el hueco más cerca de
+ * esa hora en cada una (a igual distancia, el de antes). Tocar una abre el alta armada. Nada que ya pasó (salvo la hora
+ * pedida si todavía está en juego, como el alta) ni fuera de la ventana de reserva; las canchas en mantenimiento no.
+ */
+export function buscarLugar(estado: EstadoClub, pedido: { fecha: Fecha; inicio: number; duracion: number }, ahora: Ahora): { opciones: LugarEncontrado[]; aviso: string | null } {
+  const { fecha, inicio, duracion } = pedido;
+  const cal = calendarioDeLaAgenda(estado, ahora.fecha);
+  if (fecha > cal.max) return { opciones: [], aviso: `Todavía no se reserva para ese día. ${cal.texto}` };
+  if (fecha < ahora.fecha) return { opciones: [], aviso: "Ese día ya pasó." };
+  const vale = (m: number) => minutosHasta(ahora, fecha, m) >= 0 || (m === inicio && minutosHasta(ahora, fecha, m) + duracion > 0);
+  const opciones: (LugarEncontrado & { distancia: number; orden: number })[] = [];
+  estado.canchas.forEach((c, orden) => {
+    const libres = huecosLibres(estado, fecha, c.id, duracion).filter(vale);
+    let mejor: number | undefined;
+    for (const m of libres) if (mejor === undefined || Math.abs(m - inicio) < Math.abs(mejor - inicio)) mejor = m;
+    if (mejor === undefined) return;
+    const precio = precioTurno(estado, { canchaId: c.id, fecha, inicio: mejor, duracion });
+    opciones.push({ canchaId: c.id, cancha: c.nombre, inicio: mejor, duracion, precio, exacto: mejor === inicio, etiqueta: `${c.nombre} · ${hhmm(mejor)} · ${pesos(precio)}`, distancia: Math.abs(mejor - inicio), orden });
+  });
+  opciones.sort((a, b) => Number(b.exacto) - Number(a.exacto) || a.distancia - b.distancia || a.inicio - b.inicio || a.orden - b.orden);
+  const aviso = opciones.length === 0 ? `No queda lugar de ${duracion} min ese día.` : opciones[0].exacto ? null : `A las ${hhmm(inicio)} no entran ${duracion} min en ninguna cancha: esto es lo más cerca.`;
+  return { opciones: opciones.map((o) => ({ canchaId: o.canchaId, cancha: o.cancha, inicio: o.inicio, duracion: o.duracion, precio: o.precio, exacto: o.exacto, etiqueta: o.etiqueta })), aviso };
+}
+
+/** Las horas para «Buscar lugar»: las de la grilla de ese día (cada `paso`), desde la apertura hasta el cierre. */
+export function horasParaBuscar(estado: EstadoClub, fecha: Fecha): { min: number; texto: string }[] {
+  const { abre, cierra } = horarioDe(estado, fecha);
+  const out: { min: number; texto: string }[] = [];
+  for (let m = abre; m < cierra; m += estado.config.paso) out.push({ min: m, texto: hhmm(m) });
+  return out;
+}
+
+/** La hora que propone «Buscar lugar»: 20:00 (la que más se pide) si ese día está y no pasó; si no, el próximo paso. */
+export function horaPorDefecto(estado: EstadoClub, fecha: Fecha, ahora: Ahora): number {
+  const horas = horasParaBuscar(estado, fecha);
+  const vigente = (m: number) => minutosHasta(ahora, fecha, m) >= 0;
+  return (horas.find((h) => h.min === 20 * 60 && vigente(h.min)) ?? horas.find((h) => vigente(h.min)) ?? horas[0])?.min ?? 20 * 60;
 }
