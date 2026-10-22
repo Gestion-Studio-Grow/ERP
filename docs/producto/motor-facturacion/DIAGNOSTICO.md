@@ -63,6 +63,14 @@
    29/05/2025 (RG ARCA 5700/2025), de fuentes secundarias. No se pudo leer el Boletín Oficial desde
    este entorno: el valor queda **«a confirmar con el contador»** (anotado en la fila).
 
+## Hallazgos de la Auditoría GSG sobre la rama integrada (22/10/2026) — corregidos
+
+| Id | Hallazgo | Arreglo | Prueba |
+|---|---|---|---|
+| **I3** (importante) | La firma por delegación no reusaba el ticket de acceso (TA): el store lo buscaba por la huella del certificado **del negocio**, y un cliente delegado no tiene certificado. Cada cliente se volvía a loguear en WSAA con el certificado del estudio; WSAA rechaza el 2.º login con un TA vigente (`coe.alreadyAuthenticated`), así que en un lote del 2.º delegado en adelante caían como «pasajero» y terminaban detenidos. | `FirmaResuelta.titularTenantId` (el negocio que TIENE el certificado que firma: el propio, o el estudio). `crearClientePara` lee y guarda el TA **parado en el titular** y por la **huella del certificado que firma** (`huellaDeCertificado(firma.credencial.certPem)`); el store acepta esa huella (`leerTicketAcceso`/`guardarTicketAcceso`, 3.er/4.º parámetro). El estudio y sus delegados comparten UNA fila sin tocar la RLS de hoy (ENG-137 queda sólo para negocios con el mismo certificado propio). | `motor-postgres.test.ts` «I3»: dos clientes delegados seguidos contra el simulador → **un solo `loginCms`**, y una sola fila de `ArcaAuthTicket`, del estudio. |
+| **M1** | `createInvoiceInTx` aceptaba `clase: "nota_credito"` (o `asociado`) sin controlar el saldo. | Lanza: la única puerta de una NC es `crearNotaDeCreditoInTx`. Nada legítimo usaba esa vía (la NC escribe con `datosDelComprobante`/`encolarInvoiceCreated` directo). | `invoice-core.test.ts` «M1». |
+| **M3** | `resolverFirmaParaTenant` firmaba por delegación aunque el cliente estuviera de **baja** en la cartera del estudio. | Exige la fila `CarteraCliente(estudio, cliente)` y que no esté de baja (leída parada en el estudio); si no, error de configuración (el envío se detiene). Pausada sigue firmando. | `arca-dispatch.test.ts` (baja, ausente, pausada). |
+
 ## Lo que no se hizo (y por qué)
 
 - **Interruptor compartido entre instancias.** Hoy vive en la memoria de cada instancia; entre

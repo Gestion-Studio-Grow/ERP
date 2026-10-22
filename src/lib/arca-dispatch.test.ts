@@ -197,10 +197,23 @@ test("ADR-077 §6 · delegación: sin cert propio firma el del estudio con SU CU
     },
     leerDelegacion: async () => verificada,
     leerCuit: async (id: string) => (id === "estudio" ? "30-71234567-1" : "20111111112"),
+    leerEstadoEnCartera: async () => "activa" as string | null,
   };
   const firma = await resolverFirmaParaTenant("cliente", deps);
   assert.equal(firma.credencial, certEstudio);
   assert.equal(firma.cuitFirmante, "30712345671");
+  assert.equal(firma.titularTenantId, "estudio", "el TA se guarda parado en quien tiene el certificado");
+
+  // Auditoría GSG M3: un cliente de BAJA en la cartera (o que no está) no firma con el certificado
+  // del estudio aunque la delegación siga cargada. Pausado sí (sigue siendo del estudio).
+  for (const estado of ["baja", null]) {
+    await assert.rejects(
+      resolverFirmaParaTenant("cliente", { ...deps, leerEstadoEnCartera: async () => estado }),
+      (e: unknown) => e instanceof ConfiguracionFiscalError && /cartera/.test(e.message),
+      String(estado),
+    );
+  }
+  assert.equal((await resolverFirmaParaTenant("cliente", { ...deps, leerEstadoEnCartera: async () => "pausada" })).titularTenantId, "estudio");
 
   // Con ARCA_MODO=real el guard compara el cert contra el CUIT del FIRMANTE, no el del emisor.
   const clientePara = crearClientePara(

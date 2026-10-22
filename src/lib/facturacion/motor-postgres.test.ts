@@ -315,6 +315,47 @@ test("nota de crédito: parcial, después el resto, nunca más que la factura (n
   if (!otroNegocio.ok) assert.match(otroNegocio.error, /No encontramos esa factura/);
 });
 
+test("I3 · delegación: dos clientes del estudio seguidos comparten el ticket de WSAA (un solo login), parados en el estudio", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const estudio = p.base.a.id;
+  const env = process.env as Record<string, string | undefined>;
+  const antes = { fiscal: env.FISCAL_MASTER_KEY, fetch: globalThis.fetch };
+  env.FISCAL_MASTER_KEY = (await import("node:crypto")).randomBytes(32).toString("base64");
+  // El cliente SOAP real (crearAfipClient) usa el fetch global: lo atiende el simulador.
+  const sim = new SimuladorArca();
+  globalThis.fetch = sim.fetch;
+  t.after(() => {
+    globalThis.fetch = antes.fetch;
+    if (antes.fiscal === undefined) delete env.FISCAL_MASTER_KEY;
+    else env.FISCAL_MASTER_KEY = antes.fiscal;
+  });
+  const forge = (await import("node-forge")).default;
+  const keys = forge.pki.rsa.generateKeyPair(1024);
+  const cert = forge.pki.createCertificate();
+  cert.publicKey = keys.publicKey;
+  cert.serialNumber = "01";
+  cert.validity.notBefore = new Date(Date.now() - 86_400_000);
+  cert.validity.notAfter = new Date(Date.now() + 365 * 86_400_000);
+  cert.setSubject([{ name: "commonName", value: "estudio" }, { name: "serialNumber", value: "CUIT 30712345671" }]);
+  cert.setIssuer([{ name: "commonName", value: "estudio" }]);
+  cert.sign(keys.privateKey, forge.md.sha256.create());
+  const certEstudio = { certPem: forge.pki.certificateToPem(cert), keyPem: forge.pki.privateKeyToPem(keys.privateKey) };
+
+  // Los dos clientes NO tienen certificado propio: firma el del estudio (delegación verificada).
+  const clientePara = p.dispatch.crearClientePara(
+    async () => ({ cuit: 20111111112, homologacion: true }),
+    { ARCA_MODO: "homologacion" },
+    async () => ({ credencial: certEstudio, cuitFirmante: "30712345671", titularTenantId: estudio }),
+  );
+  await (await clientePara("cliente-1")).ultimoAutorizado(1, 11);
+  await (await clientePara("cliente-2")).ultimoAutorizado(1, 11);
+  assert.equal(sim.llamados.filter((m) => m === "loginCms").length, 1, "el segundo delegado reusa el TA del certificado del estudio");
+  // La fila es UNA, del estudio, por la huella del certificado que firma.
+  const filas = await p.duenio.$queryRaw<{ tenantId: string }[]>`SELECT "tenantId" FROM "ArcaAuthTicket"`;
+  assert.deepEqual(filas.map((f) => f.tenantId), [estudio]);
+});
+
 test("ReglaFacturacion (migración nueva): RLS por estudio, llave a la cartera y CHECK de los datos", async (t) => {
   const p = await preparar(t);
   if (!p) return;

@@ -127,6 +127,20 @@ function baseInput(overrides: Partial<CreateInvoiceInput> = {}): CreateInvoiceIn
   };
 }
 
+// --- Auditoría GSG M1: la nota de crédito no entra por createInvoice (sin control de saldo). ---
+
+test("M1 · createInvoiceInTx rechaza una nota de crédito: la única puerta es crearNotaDeCreditoInTx", async () => {
+  const { tx, invoices, outbox } = makeMockTx();
+  const asociado = { invoiceId: "inv_x", cbteTipo: 11, puntoVenta: 1, numero: 7, fecha: "20260710" };
+  await assert.rejects(createInvoiceInTx(tx, baseInput({ clase: "nota_credito", asociado })), /crearNotaDeCreditoInTx/);
+  await assert.rejects(createInvoiceInTx(tx, baseInput({ asociado })), /crearNotaDeCreditoInTx/);
+  assert.equal(invoices.length, 0);
+  assert.equal(outbox.length, 0);
+  // Una factura común sigue entrando.
+  await createInvoiceInTx(tx, baseInput({ clase: "factura" }));
+  assert.equal(invoices.length, 1);
+});
+
 // --- El IVA del comprobante es la suma de los renglones tal como viajan a ARCA (ENG-109). ---
 
 test("el IVA guardado suma cada renglón al centavo, como el ImpIVA que viaja: 1,005 + 1,005 = 2,02", async () => {

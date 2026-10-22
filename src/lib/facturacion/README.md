@@ -98,7 +98,11 @@ Detenido = `OutboxEvent.muertoEn`; la factura sigue PENDING (no se sabe si ARCA 
   ambiente de prueba; `real` deja decidir a cada negocio: `Tenant.arcaHomologacion = true` (default)
   sigue en prueba (`modoEfectivoDelTenant`).
 - Firma el certificado **propio** del negocio (cifrado, ADR-066); si no tiene, el del **estudio** con
-  una delegación `wsfe` **verificada** (ADR-077 §6). Sin ninguno: error de configuración. Las
-  credenciales nunca están en el repo.
+  una delegación `wsfe` **verificada** (ADR-077 §6) de un cliente que **no está de baja** en la
+  cartera. Sin ninguno: error de configuración. Las credenciales nunca están en el repo.
+- El ticket de acceso de WSAA es del **certificado que firma**: se guarda parado en el negocio que
+  lo tiene cargado (el estudio, en una delegación), así el estudio y sus delegados hacen un solo
+  login.
+- Una nota de crédito sólo entra por `crearNotaDeCreditoInTx`: `createInvoiceInTx` la rechaza.
 
 — Elaborado por GSG
