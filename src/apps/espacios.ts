@@ -277,7 +277,7 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     id: "administracion",
     nombre: "Configuración",
     objetivo: "Dejar el negocio andando",
-    apps: ["datos-del-negocio", "usuarios", "auditoria", "apariencia", "terminal", "tu-plan", "integraciones", "traer-datos"],
+    apps: ["datos-del-negocio", "mi-negocio", "usuarios", "auditoria", "apariencia", "terminal", "tu-plan", "integraciones", "traer-datos"],
   },
 ];
 

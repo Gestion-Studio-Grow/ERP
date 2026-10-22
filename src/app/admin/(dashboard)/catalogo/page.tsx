@@ -227,6 +227,14 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
       <p className="text-muted mb-8">
         Profesionales, servicios, boxes y stock disponibles para la operación.
       </p>
+      {/* Reingeniería CH, Tanda 3 (3-D): el aumento en bloque de la dueña también con «Diseño nuevo» apagado. */}
+      {user.role === "OWNER" && services.length > 0 && (
+        <p className="-mt-6 mb-8">
+          <Link href="/admin/catalogo/precios-servicios" className={buttonClasses("outline", "md")}>
+            Subir precios de los servicios
+          </Link>
+        </p>
+      )}
 
       <div className="space-y-10">
         <BoxesSection boxes={boxes} />
