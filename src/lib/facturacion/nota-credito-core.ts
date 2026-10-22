@@ -11,12 +11,14 @@
  *     alícuota suma el neto (lo que ARCA controla en ImpNeto / BaseImp). La nota total copia los
  *     montos de la factura tal cual.
  *
- * Todo en centavos enteros (ADR-100): nunca se suman decimales flotantes.
+ * Toda la cuenta en centavos enteros con el módulo de plata (ADR-100: `centavosDe`,
+ * `proporcionAlCentavo`): nunca se redondea a mano ni se suman decimales flotantes.
  */
 
+import { centavosDe, proporcionAlCentavo } from "@/lib/dinero/redondeo";
 import type { SubtotalIva } from "@/lib/invoice-core";
 
-const aCentavos = (n: number) => Math.round(Number(Number(n).toFixed(2)) * 100);
+/** Centavos enteros → pesos (exacto: un entero dividido 100 no se redondea). */
 const aPesos = (c: number) => c / 100;
 
 export interface MontosDelComprobante {
@@ -27,7 +29,7 @@ export interface MontosDelComprobante {
 
 /** Lo que queda por anular de una factura: su total menos las notas de crédito vivas. */
 export function saldoPorAnular(totalFactura: number, yaAcreditado: number): number {
-  return aPesos(Math.max(0, aCentavos(totalFactura) - aCentavos(yaAcreditado)));
+  return aPesos(Math.max(0, centavosDe(totalFactura) - centavosDe(yaAcreditado)));
 }
 
 /**
@@ -36,8 +38,8 @@ export function saldoPorAnular(totalFactura: number, yaAcreditado: number): numb
  * decisión fiscal).
  */
 export function montosDeLaNota(original: MontosDelComprobante, importe: number): MontosDelComprobante {
-  const T = aCentavos(original.total);
-  const I = aCentavos(importe);
+  const T = centavosDe(original.total);
+  const I = centavosDe(importe);
   if (!Number.isFinite(I) || I <= 0) throw new Error("El importe de la nota de crédito tiene que ser mayor a cero.");
   if (I > T) throw new Error("La nota de crédito no puede ser mayor que la factura.");
   if (I === T) {
@@ -45,14 +47,14 @@ export function montosDeLaNota(original: MontosDelComprobante, importe: number):
   }
   if (original.iva.length === 0) return { neto: aPesos(I), iva: [], total: aPesos(I) };
 
-  const f = I / T;
-  const importes = original.iva.map((r) => Math.round(aCentavos(r.importe) * f));
+  // Cada importe de IVA, en proporción I/T, redondeado UNA vez al centavo (R5).
+  const importes = original.iva.map((r) => centavosDe(proporcionAlCentavo(r.importe, I, T)));
   const netoC = I - importes.reduce((a, b) => a + b, 0);
   let bases: number[];
   if (original.iva.length === 1) {
     bases = [netoC];
   } else {
-    bases = original.iva.map((r) => Math.round(aCentavos(r.base) * f));
+    bases = original.iva.map((r) => centavosDe(proporcionAlCentavo(r.base, I, T)));
     // El residuo del redondeo va a la base más grande: las bases suman EXACTO el neto.
     const residuo = netoC - bases.reduce((a, b) => a + b, 0);
     let mayor = 0;
