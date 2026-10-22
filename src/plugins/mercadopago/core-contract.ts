@@ -3,6 +3,8 @@
  * plugin no importa el Core. El comando lo inyecta el borde (route/worker).
  */
 
+import type { PagoMP } from "./port";
+
 /** Notificación que MP manda al webhook (trae solo tipo + id de recurso). */
 export interface NotificacionPagoMP {
   /** Tipo de notificación de MP (nos interesa "payment"). */
@@ -21,6 +23,11 @@ export interface NotificacionPagoMP {
 export type FacturarPorPago = (
   appointmentId: string,
   tenantId: string,
+  /**
+   * R1 · El pago que llegó: el Core factura ESE cobro (la seña), no el turno entero. Opcional para
+   * no romper a quien todavía no lo pasa.
+   */
+  pago?: PagoMP,
 ) => Promise<string | null>;
 
 // ── El link de pago de un PEDIDO ─────────────────────────────────────────────

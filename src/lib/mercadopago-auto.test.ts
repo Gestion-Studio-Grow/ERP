@@ -86,6 +86,16 @@ test("mapeo operación→clasificación de DB", () => {
   assert.equal(clasificacionDesdeOperacion(pago(1)), "venta"); // default "pago"
 });
 
+test("R1 · el camino automático arma la config del clasificador con la cuenta propia del negocio", async () => {
+  const { configClasificacionDelNegocio } = await import("./mercadopago-auto");
+  assert.deepEqual(await configClasificacionDelNegocio("t", async () => ({ credenciales: { collectorId: 987 } })), { cuentasPropias: ["987"] });
+  assert.deepEqual(await configClasificacionDelNegocio("t", async () => ({ collectorId: "555" })), { cuentasPropias: ["555"] });
+  assert.deepEqual(await configClasificacionDelNegocio("t", async () => undefined), { cuentasPropias: [] });
+  // R1 · la transferencia de un tercero no se asienta como «transferencia propia».
+  assert.equal(clasificacionDesdeOperacion(pago(1, { operacion: "transferencia", cuentaPropia: false })), "otro");
+  assert.equal(clasificacionDesdeOperacion(pago(1, { operacion: "transferencia", cuentaPropia: true })), "transferencia_propia");
+});
+
 test("hash idempotente estable por payment_id", () => {
   assert.equal(hashPagoMP("123"), "mp:123");
   assert.equal(hashPagoMP("123"), hashPagoMP("123"));
