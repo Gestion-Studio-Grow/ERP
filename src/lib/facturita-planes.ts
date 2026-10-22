@@ -50,8 +50,8 @@ export const PLAN_FACTURITA: Plan = {
   para: "Monotributistas y comercios chicos que hacen pocas facturas por mes.",
   facturasPorMes: LIMITE_FACTURAS_FACTURITA,
   incluye: [
-    `${LIMITE_FACTURAS_FACTURITA} facturas por mes con validez de ARCA`,
-    "La letra (A, B o C) la elige el sistema",
+    `${LIMITE_FACTURAS_FACTURITA} facturas por mes, autorizadas por ARCA`,
+    "Factura C (monotributo y exentos) o B (inscriptos a consumidor final o exento)",
     "A consumidor final, o con CUIT, CUIL o DNI",
     "Se instala en el celu como una app",
   ],

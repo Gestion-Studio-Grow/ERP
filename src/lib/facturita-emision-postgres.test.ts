@@ -67,7 +67,10 @@ async function preparar(t: import("node:test").TestContext, condicion: "MONOTRIB
     });
     return ev?.payload as Record<string, unknown> | undefined;
   };
-  return { base, negocio, duenio, emitir, fila, payloadDe };
+  const { fechaFiscalDelDia } = await import("@/lib/libros/fecha-fiscal");
+  const hoy = fechaFiscalDelDia();
+  const hoyInput = `${hoy.slice(0, 4)}-${hoy.slice(4, 6)}-${hoy.slice(6, 8)}`;
+  return { base, negocio, duenio, emitir, fila, payloadDe, hoy, hoyInput };
 }
 
 test("monotributista → servicio a una empresa inscripta: C, concepto 2, fechas, condición real y descripción", async (t) => {
@@ -79,6 +82,8 @@ test("monotributista → servicio a una empresa inscripta: C, concepto 2, fechas
     concepto: "servicios",
     servicioDesde: "2026-10-01",
     servicioHasta: "2026-10-15",
+    vencimientoPago: p.hoyInput,
+    nombreReceptor: "Distribuidora Norte SA",
     docTipo: 80,
     docNro: CUIT_EMPRESA,
     condicionReceptor: "RESPONSABLE_INSCRIPTO",
@@ -106,7 +111,7 @@ test("monotributista → servicio a una empresa inscripta: C, concepto 2, fechas
 test("monotributista → empresa con CUIT sin condición: no se emite (antes iba como consumidor final)", async (t) => {
   const p = await preparar(t, "MONOTRIBUTO");
   if (!p) return;
-  const r = await p.emitir({ descripcion: "Macetas", total: 1_000, docTipo: 80, docNro: CUIT_EMPRESA });
+  const r = await p.emitir({ descripcion: "Macetas", total: 1_000, nombreReceptor: "Distribuidora Norte SA", docTipo: 80, docNro: CUIT_EMPRESA });
   assert.equal(r.ok, false);
   assert.ok(!r.ok && /inscripto el comprador/.test(r.error));
   assert.equal(r.ok === false && r.invoiceId, undefined, "no se creó ninguna factura");
@@ -140,6 +145,10 @@ test("lo que frena el sistema se dice como del sistema; con la facturación apag
     descripcion: "Consultoría",
     total: 121_000,
     concepto: "servicios",
+    servicioDesde: p.hoyInput,
+    servicioHasta: p.hoyInput,
+    vencimientoPago: p.hoyInput,
+    nombreReceptor: "Distribuidora Norte SA",
     docTipo: 80,
     docNro: CUIT_EMPRESA,
     condicionReceptor: "RESPONSABLE_INSCRIPTO",
@@ -159,7 +168,101 @@ test("lo que frena el sistema se dice como del sistema; con la facturación apag
   });
   const r = await p.emitir({ descripcion: "Libros", total: 1_210 });
   assert.ok(r.ok, JSON.stringify(r));
-  assert.deepEqual(r.estado, { estado: "pendiente", motivo: "apagada" });
+  assert.deepEqual(r.estado, { estado: "pendiente", motivo: "apagada", ventanaDias: 5 });
+  assert.match(r.mensaje, /hasta 5 días/);
   assert.doesNotMatch(r.mensaje, /emitida/i);
   assert.equal((await p.fila(r.invoiceId)).status, "PENDING");
+});
+
+test("PDF de Facturita: sin datos del emisor, aviso que lleva a Mi cuenta; con datos, sale con comprador y descripción; y se anula", async (t) => {
+  const p = await preparar(t, "MONOTRIBUTO");
+  if (!p) return;
+  const { respuestaPdfDeComprobante } = await import("@/lib/comprobante-pdf-respuesta");
+  const { faltantePdfEnFacturita } = await import("@/lib/facturita-emisor");
+  const { guardarDatosParaFacturasAction, facturasFacturitaAction, anularFacturitaAction } = await import("@/lib/facturita-actions");
+  const enNegocio = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    const s = await ejecutarAccion({ negocio: p.negocio, usuario: p.negocio.duenia }, fn);
+    assert.equal(s.tipo, "respuesta", JSON.stringify(s));
+    return (s as { valor: T }).valor;
+  };
+  const volverA = {
+    texto: "Mis facturas",
+    href: "/facturita/app/facturas",
+    completarEmisor: { texto: "Completar en Mi cuenta", href: "/facturita/app/cuenta#datos-para-facturas" },
+    reescribir: faltantePdfEnFacturita,
+  };
+
+  // Con la facturación apagada queda PENDIENTE; después se la autoriza «a mano» con un CAE de 14
+  // números como los de ARCA (el del stub, STUB…, no se imprime) y un CAE no se puede editar.
+  const env = process.env as Record<string, string | undefined>;
+  env.ARCA_INVOICING_ENABLED = "false";
+  t.after(() => {
+    env.ARCA_INVOICING_ENABLED = "true";
+  });
+  const r = await p.emitir({
+    descripcion: "Macetas de cerámica",
+    total: 12_000,
+    nombreReceptor: "Juana Gómez",
+    docTipo: 96,
+    docNro: "12345678",
+  });
+  assert.ok(r.ok, JSON.stringify(r));
+  await p.duenio.invoice.update({
+    where: { id: r.invoiceId },
+    data: { status: "AUTHORIZED", tipoComprobante: 11, numero: 9001, cae: "76543210987654", caeVencimiento: p.hoy, authorizedAt: new Date() },
+  });
+
+  // 1) Sin «Datos para tus facturas»: 409 HTML que dice qué falta y lleva a Mi cuenta.
+  const sinDatos = await enNegocio(() => respuestaPdfDeComprobante(r.invoiceId, p.negocio.id, volverA));
+  assert.equal(sinDatos.status, 409);
+  assert.match(sinDatos.headers.get("Content-Type") ?? "", /text\/html/);
+  const html = await sinDatos.text();
+  assert.match(html, /\/facturita\/app\/cuenta#datos-para-facturas/);
+  assert.match(html, /Mi cuenta/);
+  assert.doesNotMatch(html, /ficha del cliente|en Facturación/);
+
+  // 2) Se completan en los MISMOS campos que lee el PDF.
+  const g = await enNegocio(() =>
+    guardarDatosParaFacturasAction({
+      razonSocial: "Ana Pérez",
+      domicilio: "Mitre 100, Quilmes",
+      inicioActividades: "2024-01-15",
+      iibbTipo: "exento",
+      iibbNumero: "",
+    }),
+  );
+  assert.deepEqual(g, { ok: true });
+  const t2 = await p.duenio.tenant.findUniqueOrThrow({
+    where: { id: p.negocio.id },
+    select: { arcaRazonSocial: true, arcaDomicilioFiscal: true, arcaInicioActividades: true, arcaIibb: true },
+  });
+  assert.deepEqual(t2, { arcaRazonSocial: "Ana Pérez", arcaDomicilioFiscal: "Mitre 100, Quilmes", arcaInicioActividades: "20240115", arcaIibb: "Exento" });
+
+  // 3) Ahora sale: PDF, con el comprador (copia guardada al emitir) y la descripción.
+  const { leerComprobanteImpreso } = await import("@/lib/comprobante-pdf-datos");
+  const leido = await enNegocio(() => leerComprobanteImpreso(r.invoiceId, p.negocio.id));
+  assert.ok(leido);
+  assert.equal(leido.receptor.nombre, "Juana Gómez");
+  assert.equal(leido.receptor.condicionIva, "CONSUMIDOR_FINAL");
+  assert.equal(leido.renglones[0].descripcion, "Macetas de cerámica");
+  const pdf = await enNegocio(() => respuestaPdfDeComprobante(r.invoiceId, p.negocio.id, volverA));
+  assert.equal(pdf.status, 200);
+  assert.equal(pdf.headers.get("Content-Type"), "application/pdf");
+
+  // 4) Anular: nota de crédito por el total (queda pendiente: la facturación sigue apagada); la
+  //    factura queda sin saldo y no se puede anular dos veces.
+  const sinMotivo = await enNegocio(() => anularFacturitaAction(r.invoiceId, ""));
+  assert.equal(sinMotivo.ok, false);
+  const anular = await enNegocio(() => anularFacturitaAction(r.invoiceId, "Me equivoqué en el total"));
+  assert.ok(anular.ok, JSON.stringify(anular));
+  const lista = await enNegocio(() => facturasFacturitaAction());
+  const original = lista.find((x) => x.id === r.invoiceId);
+  const nota = lista.find((x) => x.esNotaDeCredito);
+  assert.equal(original?.saldoAnulable, 0);
+  assert.ok(nota, "la nota de crédito está en la lista");
+  assert.equal(nota.total, 12_000);
+  assert.equal(nota.status, "PENDING");
+  assert.equal(original?.ambiente, "prueba", "en stub, la autorizada es de prueba (deducido como el PDF)");
+  const segunda = await enNegocio(() => anularFacturitaAction(r.invoiceId, "otra vez"));
+  assert.equal(segunda.ok, false, "no se anula más de lo facturado");
 });

@@ -15,7 +15,7 @@ export const dynamic = "force-static";
 
 export const metadata: Metadata = {
   title: "Facturita — tu factura de ARCA en tres toques, gratis",
-  description: `Emití facturas con validez de ARCA desde el celu. ${LIMITE_FACTURAS_FACTURITA} gratis por mes, sin tarjeta, para monotributistas y comercios chicos.`,
+  description: `Emití facturas electrónicas desde el celu y mandalas a ARCA para su autorización. ${LIMITE_FACTURAS_FACTURITA} gratis por mes, sin tarjeta, para monotributistas y comercios chicos.`,
   generator: "Gestión Studio Grow",
   openGraph: {
     title: "Facturita — tu factura de ARCA en tres toques",
@@ -27,8 +27,8 @@ export const metadata: Metadata = {
 
 const PASOS = [
   { t: "Contá qué vendiste", d: "Una línea y el total. Sin catálogo, sin configurar nada." },
-  { t: "Decí a quién", d: "Consumidor final, o con CUIT o DNI (con CUIT, cómo está inscripto). La letra (A, B o C) la elige el sistema." },
-  { t: "Listo, sale aprobada", d: "ARCA la aprueba en el momento. La descargás en PDF y se la mandás a tu cliente." },
+  { t: "Decí a quién", d: "Consumidor final, o con CUIT o DNI (con CUIT, cómo está inscripto). La letra sale sola: C si sos monotributista o exento, B si sos inscripto y le vendés a un consumidor final o a un exento." },
+  { t: "Va a ARCA", d: "La mandamos a ARCA para que la autorice. Si ARCA responde, en el momento ves el número y el CAE; si tarda, queda pendiente y sale apenas conteste." },
 ];
 
 const PREGUNTAS = [
@@ -46,7 +46,7 @@ const PREGUNTAS = [
   },
   {
     p: "¿Sirve si soy responsable inscripto?",
-    r: "Sí: emitís A o B según a quién le vendas y elegís la alícuota de IVA de la factura (21, 10,5 o 27 %). Cada factura lleva una sola alícuota; si mezclás varias en una misma venta, Comerciante te queda más cómodo.",
+    r: "Sí, para la Factura B: a consumidores finales y a exentos, con la alícuota que elijas (21, 10,5 o 27 %), una por factura. La Factura A (a otro inscripto o a un monotributista) todavía no sale desde Facturita: esa hacela desde ARCA por ahora.",
   },
   {
     p: "¿Puedo cobrar con Mercado Pago o subir el extracto del banco?",
@@ -77,7 +77,7 @@ export default function FacturitaLanding() {
             </Link>
           </div>
           <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted" aria-label="Lo que tenés que saber">
-            <li>✓ Validez oficial de ARCA</li>
+            <li>✓ Se autoriza en ARCA, con CAE</li>
             <li>✓ Sin tarjeta</li>
             <li>✓ Tu clave fiscal queda con vos</li>
           </ul>
@@ -92,7 +92,7 @@ export default function FacturitaLanding() {
                 <p className="mt-1 whitespace-nowrap font-mono text-sm tabular-nums text-strong">N.º 00002-00000015</p>
               </div>
               <span className="whitespace-nowrap rounded-full bg-success-soft px-2.5 py-1 text-xs font-semibold text-success">
-                Aprobada por ARCA
+                Autorizada · CAE
               </span>
             </div>
             <dl className="mt-5 space-y-2 text-sm">
@@ -110,7 +110,7 @@ export default function FacturitaLanding() {
               <span className="text-2xl font-semibold tabular-nums text-strong">$18.500</span>
             </div>
             <div className="mt-5 text-center text-sm font-semibold">
-              <span className="block rounded-lg bg-surface-sunken py-2 text-strong">Descargar en PDF</span>
+              <span className="block rounded-lg bg-surface-sunken py-2 text-strong">PDF para tu cliente</span>
             </div>
           </div>
           <figcaption className="mt-3 text-center text-xs text-faint">Ejemplo ilustrativo, con datos inventados.</figcaption>
@@ -236,7 +236,7 @@ export default function FacturitaLanding() {
             <h2 id="cierre" className="font-display text-2xl tracking-[-0.01em] text-strong">
               Tu primera factura, hoy.
             </h2>
-            <p className="mt-1 text-muted">El alta lleva cinco minutos y no te pide tarjeta.</p>
+            <p className="mt-1 text-muted">El alta son cinco pasos cortos y no te pide tarjeta. Después la activamos nosotros y te avisamos.</p>
           </div>
           <Link href="/facturita/alta" className={BOTON_PRINCIPAL}>
             Empezar gratis

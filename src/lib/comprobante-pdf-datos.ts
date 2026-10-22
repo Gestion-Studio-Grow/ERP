@@ -52,6 +52,19 @@ const CONCEPTO: Readonly<Record<number, string>> = { 1: "Productos", 2: "Servici
 const CLIENTE = { select: { name: true, razonSocial: true, condicionIva: true, domicilio: true } } as const;
 
 /**
+ * Quién fue el comprador de un comprobante SIN venta, turno ni movimiento del banco (Facturita, la
+ * emisión manual): Invoice no tiene columnas para el nombre, la condición ni el domicilio del
+ * receptor, así que quien emite deja una fila en AuditLog con esta acción, en la MISMA transacción
+ * que la factura (`entity: "Invoice"`, `entityId`, `changes: { nombre, condicionIva, domicilio }`).
+ * Es una copia congelada al emitir. Pendiente: columnas en Invoice (con migración).
+ */
+export const ACCION_RECEPTOR_DEL_COMPROBANTE = "comprobante.receptor";
+
+function textoONulo(v: unknown): string | null {
+  return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
+}
+
+/**
  * Lo impreso más lo que el detalle muestra de un comprobante que no se imprime: el motivo del
  * rechazo de ARCA y de dónde salió (para volver a facturarlo).
  */
@@ -111,6 +124,26 @@ export async function leerComprobanteImpreso(invoiceId: string, tenantId: string
           select: { nombreReceptor: true, descripcionServicio: true, receptorCondicionIva: true },
         })
       : null;
+  // `Invoice.descripcion` nace con 20261022140000 (Gate 2): se lee aparte para que, en una base sin
+  // esa migración (P2022, columna inexistente), el PDF siga saliendo con el concepto como antes.
+  const descripcionGuardada = await prisma.invoice
+    .findFirst({ where: { id: invoiceId, tenantId }, select: { descripcion: true } })
+    .then((x) => x?.descripcion ?? null)
+    .catch((e: unknown) => {
+      const code = (e as { code?: string } | null)?.code;
+      if (code === "P2021" || code === "P2022") return null;
+      throw e;
+    });
+  // Sin venta, turno ni movimiento: la copia del comprador que dejó la emisión manual (Facturita).
+  const copiaReceptor =
+    !inv.order && !inv.appointment && !movimiento
+      ? await prisma.auditLog.findFirst({
+          where: { tenantId, entity: "Invoice", entityId: invoiceId, action: ACCION_RECEPTOR_DEL_COMPROBANTE },
+          orderBy: { createdAt: "desc" },
+          select: { changes: true },
+        })
+      : null;
+  const copia = (copiaReceptor?.changes ?? null) as Record<string, unknown> | null;
 
   const total = aNumero(inv.total);
   let renglones: RenglonImpreso[];
@@ -125,7 +158,8 @@ export async function leerComprobanteImpreso(invoiceId: string, tenantId: string
     const precio = inv.appointment.priceAtBooking ?? total;
     renglones = [{ descripcion: inv.appointment.service.name, cantidad: 1, precioUnitario: precio, importe: redondearAlCentavo(precio) }];
   } else {
-    const descripcion = movimiento?.descripcionServicio?.trim() || CONCEPTO[inv.concepto] || "Venta";
+    // Lo que se facturó, si quien emitió lo escribió (`Invoice.descripcion`); si no, el concepto.
+    const descripcion = descripcionGuardada?.trim() || movimiento?.descripcionServicio?.trim() || CONCEPTO[inv.concepto] || "Venta";
     renglones = [{ descripcion, cantidad: 1, precioUnitario: total, importe: total }];
   }
   // El detalle tiene que sumar el total autorizado: si la venta tuvo descuento o recargo, va
@@ -176,9 +210,9 @@ export async function leerComprobanteImpreso(invoiceId: string, tenantId: string
     receptor: {
       docTipo: inv.docTipo,
       docNro: inv.docNro,
-      nombre: cliente?.razonSocial ?? cliente?.name ?? inv.order?.customerName ?? movimiento?.nombreReceptor ?? null,
-      condicionIva: cliente?.condicionIva ?? movimiento?.receptorCondicionIva ?? null,
-      domicilio: cliente?.domicilio ?? null,
+      nombre: cliente?.razonSocial ?? cliente?.name ?? inv.order?.customerName ?? movimiento?.nombreReceptor ?? textoONulo(copia?.nombre),
+      condicionIva: cliente?.condicionIva ?? movimiento?.receptorCondicionIva ?? textoONulo(copia?.condicionIva),
+      domicilio: cliente?.domicilio ?? textoONulo(copia?.domicilio),
     },
     comprobanteAsociado: inv.comprobanteAsociado,
     // Sin la hora del CAE (comprobantes viejos) vale la de creación: el CAE llegó después, así

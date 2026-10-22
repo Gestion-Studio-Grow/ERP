@@ -293,7 +293,7 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
             </dl>
 
             <p className="mt-5 text-sm text-muted">
-              Mandanos este resumen y te activamos la cuenta en el día. Todavía no guardamos nada: estos datos quedan
+              Mandanos este resumen y te escribimos para activar la cuenta. Todavía no guardamos nada: estos datos quedan
               sólo en tu pantalla hasta que los mandes.
             </p>
             <p className="mt-2 text-xs text-muted">

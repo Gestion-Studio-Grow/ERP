@@ -11,6 +11,7 @@ import {
   motivoLegible,
   origenDelRechazo,
   validarEmision,
+  ventanaDeFechaArca,
   LIMITE_FACTURAS_FACTURITA,
 } from "@/lib/facturita-core";
 import { PLAN_SALTO } from "@/lib/facturita-planes";
@@ -52,21 +53,21 @@ test("emisión: sin documento es consumidor final (99/0)", () => {
 });
 
 test("emisión: CUIT válido pasa con guiones o sin (con la condición del comprador)", () => {
-  const r = validarEmision({ descripcion: "venta", total: 1000, docTipo: 80, docNro: "20-11111111-2", condicionReceptor: "MONOTRIBUTO" });
+  const r = validarEmision({ descripcion: "venta", total: 1000, nombreReceptor: "Comprador SA", docTipo: 80, docNro: "20-11111111-2", condicionReceptor: "MONOTRIBUTO" });
   assert.ok(r.ok);
   if (r.ok) assert.equal(r.receptor.docNro, 20111111112);
 });
 
 test("emisión: CUIT con dígito verificador roto no pasa", () => {
-  const r = validarEmision({ descripcion: "venta", total: 1000, docTipo: 80, docNro: "20-11111111-3", condicionReceptor: "MONOTRIBUTO" });
+  const r = validarEmision({ descripcion: "venta", total: 1000, nombreReceptor: "Comprador SA", docTipo: 80, docNro: "20-11111111-3", condicionReceptor: "MONOTRIBUTO" });
   assert.equal(r.ok, false);
   if (!r.ok) assert.match(r.error, /CUIT/);
 });
 
 test("emisión: DNI de 7 u 8 dígitos pasa; otro largo no", () => {
-  assert.ok(validarEmision({ descripcion: "v", total: 1, docTipo: 96, docNro: "12345678" }).ok);
-  assert.ok(validarEmision({ descripcion: "v", total: 1, docTipo: 96, docNro: "1234567" }).ok);
-  assert.equal(validarEmision({ descripcion: "v", total: 1, docTipo: 96, docNro: "123456" }).ok, false);
+  assert.ok(validarEmision({ descripcion: "v", total: 1, nombreReceptor: "Comprador SA", docTipo: 96, docNro: "12345678" }).ok);
+  assert.ok(validarEmision({ descripcion: "v", total: 1, nombreReceptor: "Comprador SA", docTipo: 96, docNro: "1234567" }).ok);
+  assert.equal(validarEmision({ descripcion: "v", total: 1, nombreReceptor: "Comprador SA", docTipo: 96, docNro: "123456" }).ok, false);
 });
 
 // ---------------------------------------------------------------------------
@@ -77,24 +78,29 @@ const EMPRESA = "30-11111111-8"; // verificador válido, inventado
 const HOY = "20261022";
 
 test("receptor con CUIT: sin condición frente al IVA no se emite (RG 5616: nada de un 5 de relleno)", () => {
-  const r = validarEmision({ descripcion: "v", total: 1000, docTipo: 80, docNro: EMPRESA });
+  const r = validarEmision({ descripcion: "v", total: 1000, nombreReceptor: "Comprador SA", docTipo: 80, docNro: EMPRESA });
   assert.equal(r.ok, false);
   if (!r.ok) assert.match(r.error, /inscripto el comprador/);
 });
 
 test("receptor con CUIT: viaja la condición elegida (empresa inscripta, monotributista, exenta)", () => {
-  for (const c of ["RESPONSABLE_INSCRIPTO", "MONOTRIBUTO", "EXENTO"] as const) {
-    const r = validarEmision({ descripcion: "v", total: 1000, docTipo: 80, docNro: EMPRESA, condicionReceptor: c });
+  // Una empresa (30) inscripta o exenta; una persona (20) monotributista.
+  for (const [c, cuit, nro] of [
+    ["RESPONSABLE_INSCRIPTO", EMPRESA, 30111111118],
+    ["EXENTO", EMPRESA, 30111111118],
+    ["MONOTRIBUTO", "20-11111111-2", 20111111112],
+  ] as const) {
+    const r = validarEmision({ descripcion: "v", total: 1000, nombreReceptor: "Comprador", docTipo: 80, docNro: cuit, condicionReceptor: c });
     assert.ok(r.ok, c);
-    if (r.ok) assert.deepEqual(r.receptor, { docTipo: 80, docNro: 30111111118, condicionIva: c });
+    if (r.ok) assert.deepEqual(r.receptor, { docTipo: 80, docNro: nro, condicionIva: c });
   }
 });
 
 test("receptor con CUIL o DNI: consumidor final", () => {
-  const cuil = validarEmision({ descripcion: "v", total: 1, docTipo: 86, docNro: "20111111112" });
+  const cuil = validarEmision({ descripcion: "v", total: 1, nombreReceptor: "Comprador SA", docTipo: 86, docNro: "20111111112" });
   assert.ok(cuil.ok);
   if (cuil.ok) assert.equal(cuil.receptor.condicionIva, "CONSUMIDOR_FINAL");
-  const dni = validarEmision({ descripcion: "v", total: 1, docTipo: 96, docNro: "12345678" });
+  const dni = validarEmision({ descripcion: "v", total: 1, nombreReceptor: "Comprador SA", docTipo: 96, docNro: "12345678" });
   assert.ok(dni.ok);
   if (dni.ok) assert.equal(dni.receptor.condicionIva, "CONSUMIDOR_FINAL");
 });
@@ -109,12 +115,18 @@ test("concepto: productos por defecto (1), sin fechas de servicio", () => {
   }
 });
 
-test("concepto servicios/ambos: las fechas que pide ARCA, con hoy por defecto", () => {
-  const r = validarEmision({ descripcion: "clase", total: 1000, concepto: "servicios" }, HOY);
+test("concepto servicios/ambos: las tres fechas que pide ARCA son obligatorias, sin precarga", () => {
+  const sinFechas = validarEmision({ descripcion: "clase", total: 1000, concepto: "servicios" }, HOY);
+  assert.equal(sinFechas.ok, false, "un período que nadie cargó no se inventa");
+  if (!sinFechas.ok) assert.match(sinFechas.error, /tres fechas/);
+  const r = validarEmision(
+    { descripcion: "clase", total: 1000, concepto: "servicios", servicioDesde: "2026-10-01", servicioHasta: "2026-10-01", vencimientoPago: "2026-10-22" },
+    HOY,
+  );
   assert.ok(r.ok);
   if (r.ok) {
     assert.equal(r.concepto, 2);
-    assert.deepEqual(r.servicio, { desde: HOY, hasta: HOY, vencimientoPago: HOY });
+    assert.deepEqual(r.servicio, { desde: "20261001", hasta: "20261001", vencimientoPago: HOY });
   }
   const ambos = validarEmision(
     { descripcion: "x", total: 1, concepto: "ambos", servicioDesde: "2026-10-01", servicioHasta: "2026-10-31", vencimientoPago: "2026-11-10" },
@@ -133,7 +145,10 @@ test("servicios: período al revés o vencimiento anterior a hoy no pasan", () =
     HOY,
   );
   assert.equal(alReves.ok, false);
-  const vencido = validarEmision({ descripcion: "x", total: 1, concepto: "servicios", vencimientoPago: "2026-10-01" }, HOY);
+  const vencido = validarEmision(
+    { descripcion: "x", total: 1, concepto: "servicios", servicioDesde: "2026-10-01", servicioHasta: "2026-10-02", vencimientoPago: "2026-10-01" },
+    HOY,
+  );
   assert.equal(vencido.ok, false);
 });
 
@@ -180,12 +195,48 @@ test("mensaje: dice el estado real (de prueba, autorizada con CAE, pendiente o a
     mensajeDeEmision({ estado: "autorizada", dePrueba: false, numero: "0002-00000001", cae: "75123" }),
     /autorizada por ARCA \(CAE 75123\)/,
   );
-  assert.match(mensajeDeEmision({ estado: "pendiente", motivo: "esperando" }), /sale apenas ARCA responda/);
-  assert.match(mensajeDeEmision({ estado: "pendiente", motivo: "apagada" }), /todavía no está activa/);
+  assert.match(mensajeDeEmision({ estado: "pendiente", motivo: "esperando", ventanaDias: 5 }), /sale apenas ARCA responda/);
+  assert.match(mensajeDeEmision({ estado: "pendiente", motivo: "apagada", ventanaDias: 10 }), /todavía no está activa/);
 });
 
 test("el aviso del tope no promete «sin límite»: nombra el tope del plan Solo", () => {
   const m = estadoLimite(LIMITE_FACTURAS_FACTURITA).mensaje ?? "";
   assert.doesNotMatch(m, /sin límite/i);
   assert.match(m, new RegExp(String(PLAN_SALTO.facturasPorMes)));
+});
+
+// ---------------------------------------------------------------------------
+// Vuelta 3: comprador con nombre, persona jurídica no monotributista, ventana de ARCA
+// ---------------------------------------------------------------------------
+
+test("con documento, el nombre del comprador es obligatorio y viaja en la ficha (para el PDF)", () => {
+  const sin = validarEmision({ descripcion: "v", total: 1, docTipo: 96, docNro: "12345678" });
+  assert.equal(sin.ok, false);
+  if (!sin.ok) assert.match(sin.error, /nombre o la razón social del comprador/);
+  const con = validarEmision({
+    descripcion: "v", total: 1, docTipo: 80, docNro: EMPRESA, condicionReceptor: "EXENTO",
+    nombreReceptor: " Cooperativa La Unión ", domicilioReceptor: "Belgrano 1, Rosario",
+  });
+  assert.ok(con.ok);
+  if (con.ok) assert.deepEqual(con.ficha, { nombre: "Cooperativa La Unión", domicilio: "Belgrano 1, Rosario" });
+  const cf = validarEmision({ descripcion: "v", total: 1 });
+  assert.ok(cf.ok);
+  if (cf.ok) assert.equal(cf.ficha, null, "consumidor final sin documento: sin ficha");
+});
+
+test("una persona jurídica (CUIT 30/33/34) no puede ser monotributista", () => {
+  const r = validarEmision({ descripcion: "v", total: 1, nombreReceptor: "X SA", docTipo: 80, docNro: EMPRESA, condicionReceptor: "MONOTRIBUTO" });
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.match(r.error, /empresa no puede ser monotributista/);
+  // Una persona humana (20) sí.
+  assert.ok(validarEmision({ descripcion: "v", total: 1, nombreReceptor: "Ana", docTipo: 80, docNro: "20111111112", condicionReceptor: "MONOTRIBUTO" }).ok);
+});
+
+test("pendiente: avisa la ventana de fecha de ARCA (5 días productos, 10 servicios)", () => {
+  assert.equal(ventanaDeFechaArca(1), 5);
+  assert.equal(ventanaDeFechaArca(2), 10);
+  assert.equal(ventanaDeFechaArca(3), 10);
+  const m = mensajeDeEmision({ estado: "pendiente", motivo: "apagada", ventanaDias: 5 });
+  assert.match(m, /hasta 5 días/);
+  assert.match(m, /volver a emitir/);
 });

@@ -5,7 +5,7 @@
  * `facturita-actions`.
  */
 
-import { cuitValido, normalizarCuit } from "@/lib/cuit";
+import { claseDelPrefijo, cuitValido, normalizarCuit } from "@/lib/cuit";
 
 /** Tope del plan gratis: 5 facturas por mes (el gancho de upgrade a Comerciante). */
 export const LIMITE_FACTURAS_FACTURITA = 5;
@@ -60,6 +60,14 @@ export function conceptoConFechasDeServicio(c: ConceptoFacturita): boolean {
 }
 
 /**
+ * Cuántos días después de la fecha del comprobante lo acepta ARCA (WSFEv1, CbteFch): 5 con
+ * productos, 10 con servicios. Por el concepto de ARCA (1, 2 o 3).
+ */
+export function ventanaDeFechaArca(concepto: number): 5 | 10 {
+  return concepto === 1 ? 5 : 10;
+}
+
+/**
  * Alícuota de IVA que puede elegir un Responsable Inscripto (el monotributo y el exento emiten C, sin
  * IVA discriminado). El valor es el código de ARCA (`AlicIva.Id`): 5 = 21 %, 4 = 10,5 %, 6 = 27 %.
  */
@@ -111,6 +119,10 @@ export interface EmisionFacturita {
   docNro?: string;
   /** Obligatoria con CUIT. */
   condicionReceptor?: CondicionReceptorConCuit;
+  /** Nombre o razón social del comprador: obligatorio con documento (lo imprime el PDF). */
+  nombreReceptor?: string;
+  /** Domicilio del comprador (opcional; lo pide el PDF de una Factura A). */
+  domicilioReceptor?: string;
 }
 
 export interface EmisionValidada {
@@ -120,6 +132,8 @@ export interface EmisionValidada {
   servicio: { desde: string; hasta: string; vencimientoPago: string } | null;
   alicuotaId: 4 | 5 | 6;
   descripcion: string;
+  /** Nombre (y domicilio) del comprador identificado, para el PDF. `null` = consumidor final sin documento. */
+  ficha: { nombre: string; domicilio: string | null } | null;
 }
 
 export type ValidacionEmision = ({ ok: true } & EmisionValidada) | { ok: false; error: string };
@@ -171,11 +185,16 @@ export function validarEmision(datos: EmisionFacturita, hoy?: string): Validacio
   // Servicios: ARCA exige período del servicio y vencimiento del pago.
   let servicio: EmisionValidada["servicio"] = null;
   if (conceptoConFechasDeServicio(conceptoId)) {
-    const desde = fechaInputAFiscal(datos.servicioDesde) ?? hoy ?? null;
-    const hasta = fechaInputAFiscal(datos.servicioHasta) ?? desde;
-    const vto = fechaInputAFiscal(datos.vencimientoPago) ?? hoy ?? null;
+    // Sin valores por defecto a propósito: un período precargado que nadie miró es un dato falso
+    // en la factura. Las tres las carga la persona.
+    const desde = fechaInputAFiscal(datos.servicioDesde);
+    const hasta = fechaInputAFiscal(datos.servicioHasta);
+    const vto = fechaInputAFiscal(datos.vencimientoPago);
     if (!desde || !hasta || !vto) {
-      return { ok: false, error: "Con servicios, ARCA pide las fechas del servicio y la del vencimiento del pago." };
+      return {
+        ok: false,
+        error: "Con servicios, ARCA pide tres fechas: desde cuándo y hasta cuándo fue el servicio, y hasta cuándo te lo pagan. Completalas.",
+      };
     }
     if (hasta < desde) return { ok: false, error: "El servicio no puede terminar antes de empezar: revisá las fechas." };
     if (hoy && vto < hoy) {
@@ -184,13 +203,27 @@ export function validarEmision(datos: EmisionFacturita, hoy?: string): Validacio
     servicio = { desde, hasta, vencimientoPago: vto };
   }
 
-  const base = { concepto: CONCEPTO_ARCA[conceptoId], servicio, alicuotaId: ALICUOTA_ARCA[alicuota], descripcion };
-
   // Sin documento → consumidor final.
   const docNroCrudo = datos.docNro?.trim() ?? "";
   if (!datos.docTipo || docNroCrudo === "") {
-    return { ok: true, ...base, receptor: { docTipo: DOC_CONSUMIDOR_FINAL, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" } };
+    const sinFicha = { concepto: CONCEPTO_ARCA[conceptoId], servicio, alicuotaId: ALICUOTA_ARCA[alicuota], descripcion, ficha: null };
+    return { ok: true, ...sinFicha, receptor: { docTipo: DOC_CONSUMIDOR_FINAL, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" } };
   }
+
+  // Con documento, la factura impresa lleva el nombre del comprador.
+  const nombre = (datos.nombreReceptor ?? "").trim();
+  if (nombre.length < 2) {
+    return { ok: false, error: "Escribí el nombre o la razón social del comprador: va impreso en la factura." };
+  }
+  if (nombre.length > 120) return { ok: false, error: "El nombre del comprador es muy largo: con 120 letras alcanza." };
+  const domicilio = (datos.domicilioReceptor ?? "").trim().slice(0, 200) || null;
+  const base = {
+    concepto: CONCEPTO_ARCA[conceptoId],
+    servicio,
+    alicuotaId: ALICUOTA_ARCA[alicuota],
+    descripcion,
+    ficha: { nombre, domicilio },
+  };
 
   if (datos.docTipo === 96) {
     const soloDigitos = docNroCrudo.replace(/\D/g, "");
@@ -212,6 +245,13 @@ export function validarEmision(datos: EmisionFacturita, hoy?: string): Validacio
     return {
       ok: false,
       error: "Elegí cómo está inscripto el comprador frente al IVA (figura en su constancia de ARCA): de eso depende la factura.",
+    };
+  }
+  // Una persona jurídica (CUIT 30, 33 o 34) no puede ser monotributista.
+  if (datos.condicionReceptor === "MONOTRIBUTO" && claseDelPrefijo(cuit) === "juridica") {
+    return {
+      ok: false,
+      error: "Ese CUIT es de una empresa (empieza con 30, 33 o 34) y una empresa no puede ser monotributista. Revisá su constancia de ARCA: seguramente es responsable inscripta o exenta.",
     };
   }
   return { ok: true, ...base, receptor: { docTipo: 80, docNro: Number(cuit), condicionIva: datos.condicionReceptor } };
@@ -247,7 +287,7 @@ export function esDePrueba(modo: string, homologacion: boolean): boolean {
 
 export type EstadoEmision =
   | { estado: "autorizada"; dePrueba: boolean; numero: string | null; cae: string | null }
-  | { estado: "pendiente"; motivo: "apagada" | "esperando" }
+  | { estado: "pendiente"; motivo: "apagada" | "esperando"; /** Días que ARCA acepta la fecha de la factura: 5 productos, 10 servicios. */ ventanaDias: 5 | 10 }
   | { estado: "rechazada"; origen: "arca" | "sistema"; motivo: string };
 
 /** Lo que se le dice a la persona después de emitir, según cómo quedó la factura. */
@@ -259,9 +299,12 @@ export function mensajeDeEmision(e: EstadoEmision): string {
       : `Factura${nro} autorizada por ARCA${e.cae ? ` (CAE ${e.cae})` : ""}.`;
   }
   if (e.estado === "pendiente") {
+    const ojo =
+      ` Ojo: ARCA acepta la factura hasta ${e.ventanaDias} días después de su fecha. ` +
+      "Si para entonces no salió, ARCA la rechaza por la fecha y la tenés que volver a emitir.";
     return e.motivo === "apagada"
-      ? "La factura quedó guardada como pendiente: la conexión con ARCA todavía no está activa en tu cuenta. Sale apenas se active."
-      : "La factura quedó pendiente: sale apenas ARCA responda. La ves en «Mis facturas».";
+      ? `La factura quedó guardada como pendiente: la conexión con ARCA todavía no está activa en tu cuenta. Sale cuando se active.${ojo}`
+      : `La factura quedó pendiente: sale apenas ARCA responda. La ves en «Mis facturas».${ojo}`;
   }
   return e.origen === "arca"
     ? `ARCA rechazó la factura: ${motivoLegible(e.motivo)}`

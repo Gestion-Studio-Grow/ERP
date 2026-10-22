@@ -15,7 +15,7 @@ export const dynamic = "force-static";
 
 export const metadata: Metadata = {
   title: "Empezá gratis — Facturita",
-  description: "Activá tu Facturita en cinco minutos: tu CUIT, cómo estás inscripto y tu punto de venta.",
+  description: "Pedí tu Facturita en cinco pasos cortos: tu CUIT, cómo estás inscripto y tu punto de venta.",
   generator: "Gestión Studio Grow",
 };
 
