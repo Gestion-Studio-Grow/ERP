@@ -52,6 +52,7 @@ import { escribirTokenCookie, leerTokenCookie } from "./sesion-alumno.server";
 import {
   DIEZ_MIN,
   ErrorNegocio,
+  OTRA_PERSONA_CAMBIO,
   FRENADO,
   LINK_INVALIDO,
   alumnoDelLink,
@@ -436,7 +437,7 @@ export async function subirComprobanteVarias(token: string | null, claseIds: str
     await auditPublic({ action: "padel.comprobante", entity: "PadelClase", entityId: primera.id, clientPhone: alumno.client.phone, changes: { clases: r.clases.length } });
     refrescar(alumno.token);
     return { ok: true as const, clases: r.clases.length, total: r.total };
-  });
+  }, OTRA_PERSONA_CAMBIO);
 }
 
 /** El alumno cancela desde su link (sólo con la anticipación que fijó el profe). */

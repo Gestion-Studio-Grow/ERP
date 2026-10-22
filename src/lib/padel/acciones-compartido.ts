@@ -59,23 +59,33 @@ export class ErrorNegocio extends Error {}
 export const SE_OCUPO_A_LA_VEZ = "Se ocupó recién: alguien lo tomó al mismo tiempo. Elegí otro horario.";
 
 /**
+ * O-16b (CERT T2+T3, vuelta 3): lo mismo para las acciones que NO son de horario (cobrar, devolver el
+ * saldo, editar un alumno, validar un comprobante): ahí «Elegí otro horario» no tiene sentido.
+ */
+export const OTRA_PERSONA_CAMBIO = "Otra persona cambió esto recién. Probá de nuevo.";
+
+/**
  * El error como respuesta para la pantalla, o null si tiene que subir. Un ErrorNegocio, tal cual.
  * Un conflicto de escritura que siguió chocando después de los reintentos de `bookingTransaction`
  * (O-16 de la CERT T2+T3) también es «se ocupó», no un 500: así la pantalla del alumno sabe que fue
  * un choque y no un corte, y puede decir la verdad en cada caso.
  */
-export function respuestaDeError(e: unknown): { ok: false; error: string } | null {
+export function respuestaDeError(e: unknown, textoChoque: string = SE_OCUPO_A_LA_VEZ): { ok: false; error: string } | null {
   if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
-  if (esConflictoDeEscritura(e)) return { ok: false, error: SE_OCUPO_A_LA_VEZ };
+  if (esConflictoDeEscritura(e)) return { ok: false, error: textoChoque };
   return null;
 }
 
-/** Corre la acción y convierte un ErrorNegocio (o un choque que no se pudo reintentar) en `{ ok: false, error }`. */
-export async function conErrorNegocio<T>(fn: () => Promise<T>): Promise<T | { ok: false; error: string }> {
+/**
+ * Corre la acción y convierte un ErrorNegocio (o un choque que no se pudo reintentar) en `{ ok: false, error }`.
+ * `textoChoque`: lo que se dice si chocó con otra escritura (por defecto, el de horario; las acciones
+ * de plata o de datos pasan OTRA_PERSONA_CAMBIO).
+ */
+export async function conErrorNegocio<T>(fn: () => Promise<T>, textoChoque?: string): Promise<T | { ok: false; error: string }> {
   try {
     return await fn();
   } catch (e) {
-    const r = respuestaDeError(e);
+    const r = respuestaDeError(e, textoChoque);
     if (r) return r;
     throw e;
   }

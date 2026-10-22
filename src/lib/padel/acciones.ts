@@ -80,6 +80,7 @@ import {
 import { AVISOS_QUE_ESPERAN, configPadel, libresCercanos, libresDelDia, libresEnRango } from "./datos.server";
 import {
   ErrorNegocio,
+  OTRA_PERSONA_CAMBIO,
   RAIZ,
   SIN_AVISO,
   YA_PAGADA_CON_SALDO,
@@ -420,7 +421,7 @@ export async function cobrar(claseId: string, medio: MedioCobro, opciones?: { re
     const aviso = opciones?.recibo ? await avisarAlAlumno({ tenantId, config, clave: "pagoOk", tipo: "pago-ok", clase, alumno }) : SIN_AVISO;
     refrescar(alumno.token);
     return { ok: true as const, ...aviso };
-  });
+  }, OTRA_PERSONA_CAMBIO);
 }
 
 /**
@@ -455,7 +456,7 @@ export async function cobrarTodo(alumnoId: string, medio: MedioCobro): Promise<R
     await auditAdmin({ action: "padel.pago.cobrarTodo", entity: "PadelAlumno", entityId: String(alumnoId), changes: { medio, clases: r.cantidad, total: r.total } });
     refrescar(r.token);
     return { ok: true as const, cantidad: r.cantidad, total: r.total };
-  });
+  }, OTRA_PERSONA_CAMBIO);
 }
 
 /**
@@ -754,7 +755,7 @@ export async function editarAlumno(
     await auditAdmin({ action: "padel.alumno.editar", entity: "PadelAlumno", entityId: String(alumnoId), changes: { campos: Object.keys(c), linkNuevo: r.linkNuevo } });
     refrescar(r.token, r.tokenViejo);
     return { ok: true as const, linkNuevo: r.linkNuevo };
-  });
+  }, OTRA_PERSONA_CAMBIO);
 }
 
 /**
@@ -864,7 +865,7 @@ async function cambiarPago(id: string, evento: Exclude<EventoPago, "subir">, not
       SIN_AVISO;
     refrescar(alumno.token);
     return { ok: true as const, ...aviso };
-  });
+  }, OTRA_PERSONA_CAMBIO);
 }
 
 /** Cobro: "cobré en efectivo", validar el comprobante o devolverlo. */
@@ -1040,7 +1041,7 @@ export async function devolverSaldo(claseId: string): Promise<Resultado<{ aFavor
     refrescar(clase.alumno.token);
     return { ok: true, aFavor: r.aFavor };
   } catch (e) {
-    const r = respuestaDeError(e);
+    const r = respuestaDeError(e, OTRA_PERSONA_CAMBIO);
     if (r) return r;
     throw e;
   }
@@ -1059,35 +1060,8 @@ export async function marcarAvisosLeidos(): Promise<void> {
 // pantalla lo usaba (Ajustes guarda de a un campo con `guardarCampoConfig`, acciones-config.ts), pero
 // seguía exportado como Server Action y reconstruía el JSON de plantillas desde el formulario: pisaba
 // los textos editados y la marca de la Bienvenida.
-
-/**
- * Los horarios de la semana: por cada día, "desde-hasta" separados por coma
- * ("08:00-12:00, 16:00-21:00"). Vacío = ese día no da clases. Reemplaza las franjas semanales.
- */
-export async function guardarHorarios(fd: FormData): Promise<Resultado> {
-  await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
-  const filas: { diaSemana: number; desde: string; hasta: string }[] = [];
-  for (let dia = 0; dia < 7; dia++) {
-    const raw = String(fd.get(`dia_${dia}`) ?? "").trim();
-    if (!raw) continue;
-    for (const tramo of raw.split(/[,;]/)) {
-      const m = /^\s*(\d{1,2}):?(\d{2})?\s*(?:-|a)\s*(\d{1,2}):?(\d{2})?\s*$/.exec(tramo);
-      if (!m) return { ok: false, error: `No entendí "${tramo.trim()}". Escribilo como 08:00-12:00.` };
-      const desde = `${m[1].padStart(2, "0")}:${m[2] ?? "00"}`;
-      const hasta = `${m[3].padStart(2, "0")}:${m[4] ?? "00"}`;
-      if (!horaValida(desde) || !horaValida(hasta) || hasta <= desde) return { ok: false, error: `El tramo "${tramo.trim()}" no es válido.` };
-      filas.push({ diaSemana: dia, desde, hasta });
-    }
-  }
-  await tenantTransaction(async (tx) => {
-    await tx.padelDisponibilidad.deleteMany({ where: { tenantId, fecha: null } });
-    if (filas.length) await tx.padelDisponibilidad.createMany({ data: filas.map((f) => ({ tenantId, ...f, tipo: "DA" })) });
-  });
-  await auditAdmin({ action: "padel.horarios", entity: "PadelDisponibilidad", changes: { tramos: filas.length } });
-  refrescar();
-  return { ok: true };
-}
+// O-9c (vuelta 3): `guardarHorarios(FormData)` también se retiró por lo mismo: ninguna pantalla lo
+// importaba. La grilla semanal se guarda con `guardarCampoConfig("horarios", …)`.
 
 /** Bloquear un día (o una parte): lluvia, viaje, torneo. El turnero deja de ofrecerlo. */
 export async function agregarBloqueo(fd: FormData): Promise<Resultado> {

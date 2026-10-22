@@ -16,7 +16,7 @@ import { diaHumano, esDeuda, esEnRevision, esPagable, horaHumana, linkWhatsApp, 
 import { Piel } from "@/app/clases/_piel";
 import { CabeceraPublica } from "@/app/clases/_cabecera";
 import { antetitulo, botonBorde, caja, tituloCaja } from "@/app/clases/_estilos";
-import { chipEstado, enCuanto, etiquetaPago, explicacionTerminal, lineaDeCuenta, plazoCancelar, terminalVisible, urlMaps, type ClaseVista, type Tono } from "./estado";
+import { chipEstado, enCuanto, etiquetaPago, explicacionTerminal, lineaDeCuenta, notaDeLaClase, plazoCancelar, terminalVisible, urlMaps, type ClaseVista, type Tono } from "./estado";
 import { Pagar, type ItemPago } from "./Pagar";
 import { Cancelar, FueraDeTermino } from "./Cancelar";
 import { CambiarHorario, Repetir } from "./CambiarHorario";
@@ -216,7 +216,8 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
         )}
 
         {historial.length > 0 && (
-          <details className={caja} data-qa="historial">
+          // O-3d: si alguna clase tiene una nota para el alumno, el historial se abre solo.
+          <details className={caja} data-qa="historial" open={historial.some((c) => notaDeLaClase(c)) || undefined}>
             <summary className="flex min-h-12 cursor-pointer items-center text-base font-bold">
               Historial · {alumno.dadas} clase{alumno.dadas === 1 ? "" : "s"} con {profe}
             </summary>
@@ -227,6 +228,11 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
                   <span className="text-[var(--padel-suave)]">
                     {chipEstado(c.estado, profe, c.motivoCancel).texto} · {etiquetaPago(c)}
                   </span>
+                  {notaDeLaClase(c) && (
+                    <p className="basis-full text-sm" data-qa="nota-clase">
+                      {notaDeLaClase(c)}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

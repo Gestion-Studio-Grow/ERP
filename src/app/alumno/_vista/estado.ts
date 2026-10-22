@@ -3,7 +3,7 @@
 // (48 h, tachada, con su salida) y la línea de la cuenta («Debés…» / «Estás al día ✓» / «a favor»).
 // Corre en el servidor (VistaAlumno): la fecha de «ahora» se inyecta, así las pruebas fijan el día.
 
-import { MOTIVO_OTRO_CAMBIO_CONFIRMADO, PAGO_LABEL, MEDIO_LABEL, esMedioCobro, horaHumana, pesos, puedeCancelarAlumno, type EstadoClase, type EstadoPago } from "@/lib/padel/core";
+import { COMPROBANTE_NO_APLICA, MOTIVO_AUSENTE_NO_SE_COBRA, MOTIVO_OTRO_CAMBIO_CONFIRMADO, PAGO_LABEL, MEDIO_LABEL, esMedioCobro, horaHumana, pesos, puedeCancelarAlumno, type EstadoClase, type EstadoPago } from "@/lib/padel/core";
 
 const HORA = 3_600_000;
 const ZONA = "America/Argentina/Buenos_Aires";
@@ -124,14 +124,30 @@ export function explicacionTerminal(c: ClaseVista, profe: string): string {
   return `${base}.`;
 }
 
-/** «Pagada · Transferencia», «Sin pagar», «Comprobante por revisar». */
-export function etiquetaPago(c: Pick<ClaseVista, "pagoEstado" | "pagoMedio" | "precio">): string {
+/**
+ * «Pagada · Transferencia», «Sin pagar», «Comprobante por revisar». O-3d: una clase a la que no fue y
+ * que el profe no cobra dice «No se cobra» (no «Sin pagar», que parece una deuda).
+ */
+export function etiquetaPago(c: Pick<ClaseVista, "pagoEstado" | "pagoMedio" | "precio"> & Partial<Pick<ClaseVista, "estado" | "motivoCancel">>): string {
   if (!(c.precio > 0)) return "Sin cargo";
+  if (c.estado === "AUSENTE" && c.motivoCancel === MOTIVO_AUSENTE_NO_SE_COBRA && c.pagoEstado === "PENDIENTE") return "No se cobra";
   const base = PAGO_LABEL[c.pagoEstado] ?? "Sin pagar";
   if (c.pagoEstado === "PAGADO" && c.pagoMedio && (esMedioCobro(c.pagoMedio) || c.pagoMedio === "SALDO_A_FAVOR")) {
     return `${base} · ${MEDIO_LABEL[c.pagoMedio as keyof typeof MEDIO_LABEL].toLowerCase()}`;
   }
   return base;
+}
+
+/** Lo que el alumno ve de su comprobante cuando no hizo falta (O-3d). */
+export const COMPROBANTE_NO_HIZO_FALTA = "Tu comprobante no hizo falta: esa clase no se cobra. Si ya transferiste, hablalo con tu profe.";
+
+/**
+ * O-3d (CERT T2+T3, vuelta 3): la nota de la clase que el alumno tiene que leer en su historial, o
+ * null. Hoy, la de «No vino → no se cobra» con un comprobante que ya había mandado: antes quedaba en
+ * `pagoNota` y sólo se mostraba en «Pagar», donde esa clase nunca aparece (no es pagable).
+ */
+export function notaDeLaClase(c: Pick<ClaseVista, "pagoNota">): string | null {
+  return c.pagoNota === COMPROBANTE_NO_APLICA ? COMPROBANTE_NO_HIZO_FALTA : null;
 }
 
 /** La línea grande de la cuenta: lo que debe manda; si no, el saldo; si no, al día. */
