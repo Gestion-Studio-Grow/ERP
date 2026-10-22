@@ -39,8 +39,9 @@
 // Sin imports de valor de Prisma: esto es un client component.
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useFormStatus } from "react-dom";
-import { createOrder, buscarClienteParaVenta } from "@/lib/order-actions";
+import { flushSync, useFormStatus } from "react-dom";
+import Link from "next/link";
+import { createOrder, buscarClienteParaVenta, facturarVenta } from "@/lib/order-actions";
 import { AvisoError, BuscadorCombo, Input, Select, buttonClasses, cn, fmtMoneyARS, type OpcionBuscador } from "@/components/ui";
 import { Atajos } from "@/components/ui/Renglon";
 import { Kbd } from "@/components/ui/Kbd";
@@ -65,7 +66,14 @@ import {
 import { textoDelFaltante, type Faltante } from "@/lib/reintento-de-venta";
 import { round2 } from "@/lib/round";
 import TicketVenta from "./TicketVenta";
-import CampoEtiqueta, { ID_CAMPO_ETIQUETA, type BalanzaDeVender } from "./CampoEtiqueta";
+import ClienteDeLaVenta, { type ValorDelCliente } from "./ClienteDeLaVenta";
+import { CampoUnico, ID_CAMPO_UNICO, type LecturaUnica } from "@/components/lector/CampoUnico";
+import { PieDeCobro, type ResultadoDelPie } from "@/components/cobro/PieDeCobro";
+import { camposDelPie } from "@/lib/cobro/pie-de-cobro-core";
+import { cotizarEnvio, tieneZonas } from "@/lib/envios/tarifa";
+import type { ConfigEnvios } from "@/lib/envios/modelo";
+import { describirFormato } from "@/lib/supermercado/balanza";
+import { indiceDelLector, lineaDesdeLectura, REGLA_DEL_PRECIO_DE_BALANZA, type ProductoDelLector } from "@/lib/lector/linea-desde-lectura";
 import TomarPesoParaElTicket from "@/components/balanza/TomarPesoParaElTicket";
 import { usePerfilSiHayTerminal, type TerminalDelEquipo } from "@/lib/terminal/usar-perfil";
 import { enCampoDeTexto, enCampoEditable, esCampoDeCantidad, motivoParaNoSumar } from "@/lib/terminal/lector-core";
@@ -73,7 +81,7 @@ import { useLectorDeRafaga, type OrigenDeLaLectura } from "@/lib/terminal/usar-l
 import { avisar } from "@/lib/terminal/senal";
 import { indexarPorCodigo, resolverCodigo } from "@/lib/supermercado/lectura";
 import FacturarVenta from "../ventas/FacturarVenta";
-import { SIN_FACTURA } from "../ventas/factura";
+import { SIN_FACTURA, type FacturaDeVenta } from "../ventas/factura";
 import { useCuponDePedido } from "@/app/tienda/pedido-online";
 import {
   aplicarDescuento,
@@ -87,6 +95,12 @@ import {
   type TipoDescuento,
   type TopePrecioAMano,
   type VentaTicket,
+  BANDA_DIA_CERRADO,
+  REGISTRAR_PARA_MANANA,
+  buscarEnElCatalogo,
+  sumarUnaUnidad,
+  teclaDeProducto,
+  type BalanzaDeVender,
 } from "./reglas-venta";
 import {
   almacenDeSesion,
@@ -187,6 +201,94 @@ function ConfirmarPeso({
     </div>
   );
 }
+
+const ID_CAMPO_ETIQUETA = "vender-etiqueta";
+
+/**
+ * «Etiqueta de la balanza o código» — el campo de la vista DE SIEMPRE (sin el mostrador boutique),
+ * al lado del buscador. Antes era su propio archivo (CampoEtiqueta.tsx); con el boutique lo
+ * reemplaza el campo único (`CampoUnico`) y éste quedó acá, igual, sólo para la vista de siempre.
+ *
+ * El lector "tipea" los dígitos y manda un Enter: ese Enter carga el renglón (lib/lector) en vez de
+ * mandar el formulario. Lo que no se puede leer se avisa con role="status" y no frena nada. El
+ * campo no tiene `name`: no viaja al servidor, que vuelve a decidir todo al cobrar.
+ */
+function CampoEtiqueta({
+  productos,
+  balanza,
+  alLeer,
+}: {
+  productos: readonly ProductoDelLector[];
+  balanza: BalanzaDeVender;
+  /** Carga el renglón. `qtyText` vacío = falta el peso (el foco va a ese campo). */
+  alLeer: (productId: string, qtyText: string) => void;
+}) {
+  const indice = useMemo(() => indiceDelLector(productos), [productos]);
+  const [texto, setTexto] = useState("");
+  const [aviso, setAviso] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+
+  function leer() {
+    const r = lineaDesdeLectura(texto, indice, balanza.formato);
+    if (!r.ok) {
+      setAviso({ tipo: "error", texto: r.mensaje });
+      return;
+    }
+    setTexto("");
+    setAviso(r.aviso ? { tipo: "ok", texto: r.aviso } : null);
+    alLeer(r.productId, r.qtyText);
+  }
+
+  return (
+    <div data-vender="etiqueta" className="space-y-1">
+      <label htmlFor={ID_CAMPO_ETIQUETA} className="block text-sm font-medium text-strong">
+        Etiqueta de la balanza o código
+      </label>
+      <Input
+        id={ID_CAMPO_ETIQUETA}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="Pasá la etiqueta por el lector"
+        value={texto}
+        aria-describedby={`${ID_CAMPO_ETIQUETA}-regla`}
+        onChange={(e) => setTexto(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          // Sin esto, el Enter del lector mandaría el formulario de la venta.
+          e.preventDefault();
+          leer();
+        }}
+      />
+      <p role="status" className={aviso?.tipo === "error" ? "text-xs text-warning" : "text-xs text-body"}>
+        {aviso?.texto ?? ""}
+      </p>
+      <p id={`${ID_CAMPO_ETIQUETA}-regla`} className="text-xs text-muted">
+        {REGLA_DEL_PRECIO_DE_BALANZA} Formato: {describirFormato(balanza.formato)}
+        {balanza.configurar && (
+          <>
+            {" "}
+            <Link href={balanza.configurar} className="font-semibold text-accent-ink underline">
+              Cambiar el formato
+            </Link>
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
+/** Lo que suma el mostrador boutique (interruptor `mostrador-boutique`); lo arma MostradorDeVenta. */
+export type BoutiqueDeVender = {
+  /** Zonas de envío del negocio (src/lib/envios); null = no se pudo leer: el pedido sigue sin zonas. */
+  envios: ConfigEnvios | null;
+  /** Hasta qué día está cerrada la caja, si hoy está cerrado; null = hoy se cobra. */
+  diaCerrado: string | null;
+  /** ¿El rol tiene `billing:manage`? Sin él, la factura la hace el dueño (MG-018). */
+  rolFactura: boolean;
+  /** ¿Puede dar de alta o corregir fichas (`clients:manage`)? */
+  puedeEditarFicha: boolean;
+};
+
 /** Una línea con precio a mano: nombre, importe tipeado y motivo. */
 type LineaManual = { key: number; nombre: string; importeText: string; motivo: string };
 
@@ -291,6 +393,12 @@ type PropsDeVender = {
   balanza?: BalanzaDeVender | null;
   /** El equipo y la persona, si el negocio tiene el módulo `terminal` (lo decide el servidor). */
   terminal?: TerminalDelEquipo | null;
+  /**
+   * El MOSTRADOR BOUTIQUE (interruptor `mostrador-boutique`, Magra): pie de cobro único, campo
+   * único, teclas con precio y stock, cliente con CUIT, zona de envío y banda del día cerrado. Sin
+   * esto (CH y todo negocio con el interruptor apagado), la pantalla de siempre.
+   */
+  boutique?: BoutiqueDeVender | null;
 };
 
 const sinSuscripcion = () => () => {};
@@ -334,6 +442,7 @@ function FormularioVender({
   conPeso = true,
   balanza = null,
   terminal = null,
+  boutique = null,
   enNavegador,
 }: PropsDeVender & { enNavegador: boolean }) {
   // El perfil de este equipo, o `null` sin el módulo `terminal`: entonces todo es como siempre.
@@ -391,6 +500,27 @@ function FormularioVender({
   // El cobro está en vuelo (se mandó y no volvió): el lector no suma nada hasta que termine.
   const cobrandoAhora = useRef(false);
 
+  // MOSTRADOR BOUTIQUE (interruptor). Todo esto existe sólo con `boutique`; apagado, nada cambia.
+  const enBoutique = boutique !== null;
+  // Lo que dice el bloque Cliente (ClienteDeLaVenta): la ficha elegida, el CUIT y el tilde «Facturar
+  // al cobrar». `clienteKey` lo vuelve a armar vacío al limpiar el ticket.
+  const [clienteVenta, setClienteVenta] = useState<ValorDelCliente | null>(null);
+  const [clienteKey, setClienteKey] = useState(0);
+  const [zonaId, setZonaId] = useState("");
+  // Lo escrito en el campo único que no es un código: los productos que coinciden, como teclas.
+  const [coincidencias, setCoincidencias] = useState<{ texto: string; ids: string[] } | null>(null);
+  const [avisoBoutique, setAvisoBoutique] = useState<string | null>(null);
+  // Registrar sin cobrar / a cuenta / reintentar: el envío en curso (frena el doble toque).
+  const [enviandoBoutique, setEnviandoBoutique] = useState(false);
+  // «Reintentar cobro»: los campos del pie del intento que quedó en duda, para mandar LO MISMO.
+  const [reintentando, setReintentando] = useState(false);
+  const camposDelUltimoPie = useRef<[string, string][] | null>(null);
+  // Lo que entregó en efectivo (el pie), para el vuelto del ticket. No se guarda.
+  const pagoConDelPie = useRef<number | null>(null);
+  // El cobro del pie termina cuando termina `submit` (no cuando se manda): así el pie queda
+  // «enviando» todo el cobro y un doble toque no arma otra venta (MG-005).
+  const finDelCobro = useRef<(() => void) | null>(null);
+
   // Opcionales, cerrados hasta que alguien los abre (ninguno suma un paso al camino feliz).
   const Quien = quienCompra === "clienta" ? "Clienta" : "Cliente";
   const alQuien = quienCompra === "clienta" ? "a la clienta" : "al cliente";
@@ -443,7 +573,29 @@ function FormularioVender({
   }, []);
 
   // La última venta cobrada, con su ticket. No frena la próxima: el formulario ya está limpio.
-  const [ultima, setUltima] = useState<{ venta: VentaTicket; pagoCon: number | null } | null>(null);
+  // `factura`/`facturando`: sólo con «Facturar al cobrar» del boutique.
+  const [ultima, setUltima] = useState<{
+    venta: VentaTicket;
+    pagoCon: number | null;
+    factura?: FacturaDeVenta;
+    facturando?: boolean;
+  } | null>(null);
+
+  function facturarAlCobrar(orderId: string) {
+    const fd = new FormData();
+    fd.set("id", orderId);
+    const poner = (cambio: { factura?: FacturaDeVenta; facturando: boolean }) =>
+      setUltima((u) => (u && u.venta.id === orderId ? { ...u, ...cambio } : u));
+    poner({ facturando: true });
+    facturarVenta(null, fd).then(
+      (e) => poner({ factura: e?.factura, facturando: false }),
+      (e) => {
+        if (isNextRedirect(e)) throw e;
+        const motivo = "No se pudo facturar ahora. Reintentá con «Facturar»: si ya se había emitido, no se emite dos veces.";
+        poner({ factura: { estado: "sin-factura", texto: `Sin factura: ${motivo}` }, facturando: false });
+      },
+    );
+  }
   // Lo que salió sin ticket (un pedido, una venta sin cobrar, el reintento que ya estaba
   // registrado), escrito arriba del formulario. No en el aviso flotante: en el celular tapaba el
   // botón de cobrar de la venta siguiente.
@@ -624,7 +776,8 @@ function FormularioVender({
   }
 
   useLectorDeRafaga({
-    lector: perfil?.lector ?? null,
+    // En el boutique la ráfaga la lee el campo único (con el lector de este equipo): una sola vez.
+    lector: enBoutique ? null : (perfil?.lector ?? null),
     // Fuera de un campo de texto (una casilla o un medio de pago tocado no cuentan) o en el peso o
     // la cantidad de una línea, y sin un diálogo abierto. En el buscador, el teclado es de la persona.
     acepta: (e) => {
@@ -725,8 +878,9 @@ function FormularioVender({
   const hayManualInvalida = manualesLeidas.some((m) => m.error !== null);
   // A cuenta: la deuda es de ALGUIEN. Sin la ficha encontrada por teléfono no hay a quién.
   const aCuentaActivo = aCuentaDisponible && !isOrder && paid && aCuenta;
-  const faltaFichaACuenta = aCuentaActivo && busqueda !== "encontrado";
-  const faltaMedio = paid && !medio && !aCuentaActivo;
+  const faltaFichaACuenta = aCuentaActivo && (enBoutique ? !clienteVenta?.cliente : busqueda !== "encontrado");
+  // En el boutique el medio se elige en el pie, al cobrar: no falta antes.
+  const faltaMedio = paid && !medio && !aCuentaActivo && !enBoutique;
   const vuelto = paid && !aCuentaActivo && medio === "EFECTIVO" ? calcularVuelto(total, pagoConText) : null;
 
   // Lo que define este cobro —TODO lo que el servidor compara con lo grabado—, para saber si un
@@ -809,8 +963,19 @@ function FormularioVender({
   function limpiar() {
     // El foco vuelve al buscador: el próximo cliente se atiende sin tocar el mouse. Con el lector,
     // el próximo cliente se atiende con el lector: el foco queda en la página (ver `soltarFoco…`).
-    if (conLector) soltarFocoParaElLector();
+    // En el boutique vuelve al campo único, que lee la etiqueta, el código y el nombre.
+    if (enBoutique) pedirFoco(ID_CAMPO_UNICO);
+    else if (conLector) soltarFocoParaElLector();
     else pedirFoco(`prod-${nextKey}`);
+    if (enBoutique) {
+      setClienteKey((n) => n + 1);
+      setClienteVenta(null);
+      setZonaId("");
+      setCoincidencias(null);
+      setAvisoBoutique(null);
+      camposDelUltimoPie.current = null;
+      pagoConDelPie.current = null;
+    }
     setLines([{ key: nextKey, productId: "", qtyText: "" }]);
     setManuales([]);
     setNextKey((k) => k + 1);
@@ -910,6 +1075,9 @@ function FormularioVender({
       await enviarCobro(fd);
     } finally {
       cobrandoAhora.current = false;
+      const fin = finDelCobro.current;
+      finDelCobro.current = null;
+      fin?.();
     }
   }
 
@@ -997,7 +1165,16 @@ function FormularioVender({
       // Con ticket, la confirmación es el bloque «Última venta», que queda a la vista. El aviso
       // flotante de 4 s, en el celular, tapaba el botón de cobrar de la venta siguiente (medido
       // a 412 px: 138 × 44 px encima del botón).
-      setUltima({ venta: r.venta, pagoCon: pagoCon?.estado === "ok" ? pagoCon.valor : null });
+      setUltima({
+        venta: r.venta,
+        pagoCon: enBoutique ? pagoConDelPie.current : pagoCon?.estado === "ok" ? pagoCon.valor : null,
+      });
+      // «Facturar al cobrar» (boutique): la factura sale DESPUÉS de grabar la venta, con la misma
+      // acción que «Facturar» (que no emite dos veces). No frena el ticket siguiente: se espera
+      // aparte y el resultado aparece en la venta cobrada.
+      if (enBoutique && clienteVenta?.facturarAlCobrar && r.venta.medio && !r.venta.anulada) {
+        facturarAlCobrar(r.venta.id);
+      }
       // El reintento de una venta que ya estaba grabada vuelve con su ticket Y con el aviso de
       // que no se cobró dos veces (order-actions.ts, rama `dedup`): se dicen las dos cosas.
       if (r.mensaje) setConfirmacion(r.mensaje);
@@ -1088,7 +1265,18 @@ function FormularioVender({
               Cerrar
             </button>
           </div>
-          {puedeFacturar && <FacturarVenta key={ultima.venta.id} orderId={ultima.venta.id} inicial={SIN_FACTURA} />}
+          {puedeFacturar && ultima.facturando && (
+            <p role="status" className="text-sm text-muted">
+              Facturando…
+            </p>
+          )}
+          {puedeFacturar && !ultima.facturando && (
+            <FacturarVenta
+              key={ultima.factura ? `${ultima.venta.id}-${ultima.factura.estado}` : ultima.venta.id}
+              orderId={ultima.venta.id}
+              inicial={ultima.factura ?? SIN_FACTURA}
+            />
+          )}
           {factura && !ultima.venta.anulada && (
             <p data-vender="factura" className="text-xs text-muted">
               {puedeFacturar ? factura.receptor : factura.sinFactura}
@@ -1687,7 +1875,8 @@ function FormularioVender({
   // limpia (sólo sin un cobro en duda: con una duda, «Empezar de nuevo» pregunta antes). Nunca con
   // el foco en un campo (Esc ahí es del campo) ni con un diálogo abierto.
   useEffect(() => {
-    if (!nuevo) return;
+    // En el boutique cobra el pie (sus medios son botones): los atajos del ticket no aplican.
+    if (!nuevo || enBoutique) return;
     const alPresionar = (e: KeyboardEvent) => {
       const enCampo = enCampoEditable(e.target as HTMLElement | null);
       if (document.querySelector("dialog[open]")) return;
@@ -2075,6 +2264,683 @@ function FormularioVender({
       </div>
     );
   }
+
+  // ══ MOSTRADOR BOUTIQUE (interruptor `mostrador-boutique`, Magra tanda 1 · 1B) ══════════════
+  //
+  // La MISMA venta (estado, reglas, firma, idempotencia, duda sin señal) con otras piezas:
+  //   · el campo único «Escaneá o buscá» (etiqueta de la balanza, código o nombre) en lugar del
+  //     buscador y del campo de la etiqueta; con foco al montar y otra vez al limpiar;
+  //   · teclas con precio y stock del catálogo (sin exigir ventas previas); la unidad entra con 1
+  //     y suma si se repite; por kilo, al peso (teclado grande en táctil);
+  //   · el pie de cobro único (`PieDeCobro`): medios que cobran, billetes, vuelto, Dividir. Escribe
+  //     sus campos en el formulario y el cobro sale por el MISMO `submit` de siempre;
+  //   · el bloque Cliente con CUIT (`ClienteDeLaVenta`) y «Facturar al cobrar»;
+  //   · en un pedido con envío, la zona del negocio (src/lib/envios) → `envioZona`;
+  //   · arriba, la banda del día cerrado (y el botón que registra para cobrar mañana).
+
+  /** Manda el formulario y espera a que `submit` termine (o nada, si el navegador lo frena). */
+  function enviarYEsperar(): Promise<void> {
+    const f = formulario.current;
+    if (!f) return Promise.resolve();
+    // Un campo obligatorio vacío (el nombre del pedido, la dirección): el navegador no lo manda.
+    if (!f.checkValidity()) {
+      f.reportValidity();
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolver) => {
+      finDelCobro.current = resolver;
+      f.requestSubmit();
+    });
+  }
+
+  /** El pie eligió cómo pagó: el estado de la venta queda con ese medio y sale el cobro. */
+  async function cobrarConElPie(r: ResultadoDelPie) {
+    const campos = camposDelPie(total, r);
+    const principal = leerMedioDeCobro(campos.find(([n]) => n === "paymentMethod")?.[1] ?? "") ?? "";
+    camposDelUltimoPie.current = campos;
+    pagoConDelPie.current = r.modo === "simple" && r.medio === "EFECTIVO" ? (r.recibido ?? null) : null;
+    // La firma del cobro (lo que el servidor compara en un reintento) lleva el medio: se fija ANTES
+    // de mandar, para que `submit` salga con él.
+    flushSync(() => {
+      setPaid(true);
+      setMedio(principal);
+      setACuenta(false);
+    });
+    await enviarYEsperar();
+  }
+
+  /** Registrar sin cobrar (día cerrado, pedido, «Más») o dejar a cuenta, por el mismo `submit`. */
+  async function registrarBoutique(como: "sin-cobrar" | "a-cuenta") {
+    if (enviandoBoutique) return;
+    setEnviandoBoutique(true);
+    pagoConDelPie.current = null;
+    flushSync(() => {
+      setPaid(como === "a-cuenta");
+      setMedio("");
+      setACuenta(como === "a-cuenta");
+    });
+    try {
+      await enviarYEsperar();
+    } finally {
+      setEnviandoBoutique(false);
+    }
+  }
+
+  /** «Reintentar cobro»: lo mismo que se mandó (los campos del pie de ese intento), misma clave. */
+  async function reintentarBoutique() {
+    if (enviandoBoutique) return;
+    setEnviandoBoutique(true);
+    flushSync(() => setReintentando(true));
+    try {
+      await enviarYEsperar();
+    } finally {
+      setReintentando(false);
+      setEnviandoBoutique(false);
+    }
+  }
+
+  /** Un renglón con su cantidad ya puesta (etiqueta) o esperando el peso (código de un corte). */
+  function cargarRenglon(productId: string, qtyText: string) {
+    const vacia = lines.find((l) => !l.productId);
+    const key = vacia ? vacia.key : addLine(productId);
+    setLine(key, { productId, qtyText });
+    pedirFoco(qtyText ? ID_CAMPO_UNICO : `qty-${key}`);
+  }
+
+  function sumarUnidades(productId: string, n = 1) {
+    const r = sumarUnaUnidad(lines, productId, nextKey, n);
+    setLines(r.lineas);
+    if (r.usoNuevaKey) setNextKey((k) => k + 1);
+  }
+
+  /** Por kilo: el renglón espera el peso, con el teclado grande abierto en una pantalla táctil. */
+  function alPeso(productId: string) {
+    const vacia = lines.find((l) => !l.productId);
+    const key = vacia ? vacia.key : addLine(productId);
+    if (vacia) setLine(key, { productId, qtyText: "" });
+    let tactil = false;
+    try {
+      tactil = window.matchMedia("(pointer: coarse)").matches;
+    } catch {
+      // sin matchMedia: como en la PC
+    }
+    if (tactil || prefiereTeclado()) setTecladoDe(key);
+    pedirFoco(`qty-${key}`);
+  }
+
+  /** ¿Se puede tocar el ticket ahora? (no con un cobro en vuelo o en duda: se borraría al limpiar). */
+  function sePuedeSumar(): boolean {
+    const motivo = motivoParaNoSumar({ cobrando: cobrandoAhora.current, cobroEnDuda: sinRespuesta !== null || yaGrabada !== null });
+    setAvisoBoutique(motivo);
+    return motivo === null;
+  }
+
+  function tocarTecla(productId: string) {
+    const p = byId.get(productId);
+    if (!p || !sePuedeSumar()) return;
+    setCoincidencias(null);
+    if (teclaDeProducto(p, stockById[p.id]).bloquea) {
+      setAvisoBoutique(`${p.name} está agotado.`);
+      return;
+    }
+    if (p.saleUnit === "UNIT") sumarUnidades(p.id);
+    else alPeso(p.id);
+  }
+
+  function alLeerBoutique(l: LecturaUnica) {
+    if (l.tipo === "desconocida") return; // el campo ya dijo por qué
+    if (l.tipo === "texto") {
+      setAvisoBoutique(null);
+      setCoincidencias({ texto: l.texto, ids: buscarEnElCatalogo(products, l.texto) });
+      return;
+    }
+    if (!sePuedeSumar()) return;
+    setCoincidencias(null);
+    if (l.tipo === "etiqueta") {
+      cargarRenglon(l.productId, formatearCantidad(l.kg));
+      return;
+    }
+    if (l.cantidad == null) alPeso(l.productId);
+    else sumarUnidades(l.productId, l.cantidad);
+  }
+
+  function vistaBoutique(b: BoutiqueDeVender) {
+    const conProducto = leidas.filter((l) => l.productId);
+    const teclas = botonesRapidos.map((p) => teclaDeProducto(p, stockById[p.id]));
+    const zonas = b.envios && tieneZonas(b.envios) ? b.envios.zonas : [];
+    const conZona = isOrder && fulfillment === "DELIVERY" && zonas.length > 0 && b.envios !== null;
+    const cotizacion = conZona ? cotizarEnvio(b.envios!, { subtotal: total, modo: "envio", zonaId }) : null;
+    const diaCerrado = b.diaCerrado !== null;
+    const enDuda = sinRespuesta !== null || yaGrabada !== null;
+    // Lo que frena el pie, en palabras (el pie se deshabilita con este motivo). Sin renglones lo
+    // dice el pie solo («Cargá algo para cobrar»).
+    const motivoDelPie = !hayLineaValida
+      ? undefined
+      : diaCerrado
+        ? "El día está cerrado: registrala para cobrar mañana."
+        : enDuda
+          ? "Hay un cobro sin confirmar: resolvelo arriba antes de cobrar otra vez."
+          : (motivoBloqueo ??
+            (hayFaltante
+              ? "No alcanza el stock de un producto: revisá el ticket."
+              : hayCantidadInvalida
+                ? "Revisá la cantidad: hay una que no se entiende."
+                : hayManualInvalida
+                  ? "Revisá el precio a mano: le falta algo."
+                  : null)) ?? undefined;
+    const registrarBloqueado =
+      enviandoBoutique ||
+      !hayLineaValida ||
+      (hayFaltante && !reintentoDeLaMisma) ||
+      hayCantidadInvalida ||
+      lineaSinCantidad !== undefined ||
+      lineaConPesoSinConfirmar !== undefined ||
+      hayManualInvalida ||
+      !descuento.ok ||
+      cuponSinAplicar ||
+      enDuda;
+    const cobrarEnPedido = isOrder && paid && !diaCerrado;
+    const ficha = clienteVenta?.cliente ?? null;
+    // Sin cobrar o a cuenta, el reintento no lleva campos del pie; cobrada, los del intento cortado
+    // (o, si la pantalla se recargó, el medio que quedó guardado con la duda).
+    const camposDelReintento: [string, string][] =
+      !paid || aCuentaActivo ? [] : (camposDelUltimoPie.current ?? (medio ? camposDelPie(total, { modo: "simple", medio }) : []));
+    const puedeReintentar = sinRespuesta !== null && !cambioTrasCorte && aviso?.reintentar === true;
+
+    const renglon = (l: (typeof leidas)[number]) => {
+      const p = byId.get(l.productId);
+      if (!p) {
+        if (!huerfana(l.productId)) return null;
+        const nombre = nombresDeLaDuda[l.productId] ?? "Un producto";
+        return (
+          <li key={l.key} data-vender="renglon" className="flex flex-wrap items-center gap-2 py-2">
+            <p className="min-w-0 flex-1 text-sm text-strong">
+              {nombre} <span className="text-xs text-warning">· ya no está en el catálogo (va igual en el reintento)</span>
+            </p>
+            <span id={`qty-${l.key}`} className="text-sm tabular-nums text-body">
+              {l.qtyText}
+            </span>
+            <button type="button" onClick={() => removeLine(l.key)} aria-label={`Quitar línea de ${nombre}`} className="chip-btn h-11 text-sm">
+              Quitar
+            </button>
+            {l.qty > 0 && (
+              <>
+                <input type="hidden" name="productId" value={l.productId} />
+                <input type="hidden" name="quantity" value={cantidadParaFormulario(l.qty)} />
+              </>
+            )}
+          </li>
+        );
+      }
+      const esPeso = p.saleUnit === "WEIGHT";
+      const lineTotal = totalDeLinea(l);
+      const faltante = faltanteDe(l);
+      const falta = faltante?.bloquea && !reintentoDeLaMisma ? faltante : null;
+      const faltaEnDuda = faltante?.bloquea && reintentoDeLaMisma ? faltante : null;
+      const avisoStock = faltante && !faltante.bloquea ? faltante.aviso : null;
+      const confirmar = confirmacionDe(l);
+      const entera = !esPeso && !l.invalida && Number.isInteger(l.qty);
+      return (
+        <li key={l.key} data-vender="renglon" className="space-y-2 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-strong">{p.name}</p>
+              <p className="text-xs tabular-nums text-muted">
+                {l.qty > 0 ? `${formatearCantidad(l.qty)} ${esPeso ? "kg" : "u"} × ` : ""}
+                {fmtMoneyARS(precioDe(p), 0)}/{esPeso ? "kg" : "u"}
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
+              {entera && (
+                <button
+                  type="button"
+                  className="chip-btn h-11 w-11 justify-center text-base"
+                  aria-label={`Una ${p.name} menos`}
+                  disabled={l.qty <= 1}
+                  onClick={() => setLine(l.key, { qtyText: String(Math.max(1, l.qty - 1)) })}
+                >
+                  −
+                </button>
+              )}
+              <label className="relative">
+                <span className="sr-only">{esPeso ? `Peso de ${p.name} en kg` : `Cantidad de ${p.name}`}</span>
+                <Input
+                  id={`qty-${l.key}`}
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={l.qtyText}
+                  placeholder={esPeso ? "0,000" : "Cant."}
+                  onChange={(e) => setLine(l.key, { qtyText: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (l.qty > 0) pedirFoco(ID_CAMPO_UNICO);
+                    }
+                  }}
+                  aria-invalid={falta || l.invalida ? true : undefined}
+                  // Una ráfaga del lector que cae acá vuelve el campo a su valor (CampoUnico).
+                  data-tipo={esPeso ? "peso" : "cantidad"}
+                  className="w-28 pr-7 text-right tabular-nums"
+                />
+                <span aria-hidden className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">
+                  {esPeso ? "kg" : "u"}
+                </span>
+              </label>
+              {entera && (
+                <button
+                  type="button"
+                  className="chip-btn h-11 w-11 justify-center text-base"
+                  aria-label={`Una ${p.name} más`}
+                  onClick={() => setLine(l.key, { qtyText: String(l.qty + 1) })}
+                >
+                  +
+                </button>
+              )}
+            </div>
+            <span className="w-24 text-right text-sm font-semibold tabular-nums text-strong">
+              {lineTotal > 0 ? fmtMoneyARS(lineTotal) : "—"}
+            </span>
+            <button
+              type="button"
+              onClick={() => removeLine(l.key)}
+              aria-label={`Quitar línea de ${p.name}`}
+              className="inline-flex h-11 w-11 items-center justify-center text-lg leading-none text-muted hover:text-danger"
+            >
+              ×
+            </button>
+          </div>
+          {confirmar && (
+            <ConfirmarPeso
+              confirmacion={confirmar}
+              pendiente={sinConfirmar(l)}
+              alConfirmar={() => setPesosConfirmados((c) => ({ ...c, [l.key]: l.qty }))}
+              alCorregir={() => setLine(l.key, { qtyText: formatearCantidad(confirmar.corregido) })}
+            />
+          )}
+          {l.invalida && (
+            <p role="alert" className="text-xs text-danger">
+              Eso no es una cantidad. Escribí el {esPeso ? "peso, con coma si tiene gramos (1,240)" : "número"}.
+            </p>
+          )}
+          {faltaEnDuda && (
+            <p role="status" className="text-xs text-warning">
+              Quedan {formatearCantidad(faltaEnDuda.available)} {esPeso ? "kg" : "u"} de {p.name}, pero puede ser porque esta misma venta
+              ya se grabó: el reintento lo controla el sistema.
+            </p>
+          )}
+          {falta && (
+            <p role="alert" className="text-xs text-danger">
+              No alcanza el stock: quedan {formatearCantidad(falta.available)} {esPeso ? "kg" : "u"} de {p.name}.
+            </p>
+          )}
+          {avisoStock && (
+            <p role="status" className="text-xs text-warning">
+              {avisoStock}
+            </p>
+          )}
+          {esPeso && (
+            <div data-vender="teclado-de-peso" className="grid gap-2">
+              <button
+                type="button"
+                className="chip-btn h-11 justify-self-start text-sm"
+                aria-expanded={tecladoDe === l.key}
+                onClick={() => usarTeclado(tecladoDe === l.key ? null : l.key)}
+              >
+                {tecladoDe === l.key ? "Cerrar el teclado grande" : "Teclado grande"}
+              </button>
+              {tecladoDe === l.key && (
+                <TecladoNumerico
+                  key={l.key}
+                  modo="peso"
+                  etiqueta={`Peso de ${p.name}`}
+                  ayuda="Los números de la etiqueta de la balanza: la coma la ponemos nosotros."
+                  inicial={l.qty > 0 ? String(Math.round(l.qty * 1000)) : ""}
+                  onCambio={(valor) => setLine(l.key, { qtyText: valor > 0 ? formatearCantidad(valor) : "" })}
+                  className="max-w-sm"
+                />
+              )}
+            </div>
+          )}
+          {l.qty > 0 && (
+            <>
+              <input type="hidden" name="productId" value={l.productId} />
+              <input type="hidden" name="quantity" value={cantidadParaFormulario(l.qty)} />
+            </>
+          )}
+        </li>
+      );
+    };
+
+    return (
+      <div data-vender="boutique" className="space-y-4">
+        {diaCerrado && (
+          <p role="status" data-vender="dia-cerrado" className="rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm font-semibold text-strong">
+            {BANDA_DIA_CERRADO}
+          </p>
+        )}
+        {bloqueDudas}
+        {bloqueUltima}
+        {bloqueGrabada}
+        {bloqueConfirmacion}
+
+        <form
+          ref={formulario}
+          action={submit}
+          data-vender="mostrador-boutique"
+          className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] lg:items-start"
+        >
+          <input type="hidden" name="channel" value={isOrder ? "ONLINE" : "COUNTER"} />
+          {/* «Reintentar cobro»: lo mismo que se mandó en el intento que quedó en duda. */}
+          {reintentando &&
+            camposDelReintento.map(([nombre, valor], i) => <input key={`${nombre}-${i}`} type="hidden" name={nombre} value={valor} />)}
+          {aCuentaActivo && <input type="hidden" name="aCuenta" value="1" />}
+
+          <div data-vender="elegir" className="min-w-0 space-y-4">
+            <CampoUnico
+              productos={productosConCodigo}
+              balanza={balanza ? { formato: balanza.formato } : null}
+              rafaga={balanza !== null || perfil !== null}
+              lector={perfil?.lector}
+              onLectura={alLeerBoutique}
+            />
+            {avisoBoutique && (
+              <p role="alert" className="text-sm font-medium text-danger">
+                {avisoBoutique}
+              </p>
+            )}
+            {coincidencias && (
+              <section aria-label={`Lo que coincide con «${coincidencias.texto}»`} data-vender="coincidencias" className="space-y-2">
+                {coincidencias.ids.length === 0 ? (
+                  <p role="status" className="text-sm text-muted">
+                    No hay nada que se llame «{coincidencias.texto}». Probá con otra palabra o cargalo con «Precio a mano».
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {coincidencias.ids.map((id) => {
+                      const p = byId.get(id);
+                      return p ? (
+                        <button key={id} type="button" className="chip-btn h-11 text-sm" onClick={() => tocarTecla(id)}>
+                          {p.name} · {teclaDeProducto(p, stockById[id]).precio}
+                        </button>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+            {balanza?.configurar && (
+              <p className="text-xs text-muted">
+                {REGLA_DEL_PRECIO_DE_BALANZA}{" "}
+                <Link href={balanza.configurar} className="font-semibold text-accent-ink underline">
+                  Cambiar el formato de la balanza
+                </Link>
+              </p>
+            )}
+            {tomarPeso}
+            {teclas.length > 0 && (
+              <section aria-labelledby="vender-teclas" data-vender="teclas-boutique">
+                <h2 id="vender-teclas" className="mb-2 text-sm font-semibold text-strong">
+                  {rotuloRapidos}
+                </h2>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                  {teclas.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      data-vender="tecla"
+                      data-agotado={t.agotado ? "" : undefined}
+                      disabled={t.bloquea}
+                      onClick={() => tocarTecla(t.id)}
+                      className={cn(
+                        "flex min-h-16 min-w-0 flex-col items-start justify-center gap-0.5 rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-left",
+                        "hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+                        "disabled:cursor-not-allowed disabled:bg-surface-sunken",
+                      )}
+                    >
+                      <span className="w-full truncate text-sm font-semibold uppercase text-strong">{t.nombre}</span>
+                      <span className="text-sm tabular-nums text-body">{t.precio}</span>
+                      <span className={cn("text-xs tabular-nums", t.agotado ? "font-semibold text-danger" : "text-muted")}>
+                        {t.agotado ? "agotado" : (t.quedan ?? " ")}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          <section data-vender="ticket-boutique" aria-label={isOrder ? "Pedido" : "Ticket"} className="min-w-0 space-y-3 rounded-lg border border-line bg-surface-raised p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div role="group" aria-label="Qué se registra" className="flex gap-1">
+                <button
+                  type="button"
+                  aria-pressed={!isOrder}
+                  onClick={() => {
+                    if (!isOrder) return;
+                    setIsOrder(false);
+                    setPaid(true);
+                  }}
+                  className={cn("chip-btn h-11 text-sm", !isOrder && "!border-accent !bg-accent !text-on-accent")}
+                >
+                  Venta
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={isOrder}
+                  onClick={() => {
+                    if (isOrder) return;
+                    setIsOrder(true);
+                    setPaid(false);
+                    setACuenta(false);
+                    setConCliente(true);
+                  }}
+                  className={cn("chip-btn h-11 text-sm", isOrder && "!border-accent !bg-accent !text-on-accent")}
+                >
+                  Pedido (retiro / envío)
+                </button>
+              </div>
+            </div>
+
+            <div data-vender="total" className="flex items-end justify-between gap-2 border-b border-line pb-3">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted">{isOrder ? "Total del pedido" : "Total"}</p>
+                {descuento.ok && descuento.descuento > 0 && (
+                  <p className="text-xs tabular-nums text-muted">
+                    Subtotal {fmtMoneyARS(subtotal)} · descuento −{fmtMoneyARS(descuento.descuento)}
+                  </p>
+                )}
+              </div>
+              <p aria-live="polite" className="font-display text-5xl leading-none tabular-nums text-accent-ink">
+                {fmtMoneyARS(total, Number.isInteger(total) ? 0 : 2)}
+              </p>
+            </div>
+
+            {conProducto.length === 0 && manuales.length === 0 ? (
+              <p className="text-sm text-muted">Pasá la etiqueta, tocá una tecla o escribí el nombre: la línea entra acá.</p>
+            ) : (
+              <ol aria-label="Lo que lleva" className="divide-y divide-line">
+                {conProducto.map(renglon)}
+              </ol>
+            )}
+
+            {bloqueManuales}
+
+            <div className="flex flex-wrap gap-2">
+              {!isOrder && !conCliente && (
+                <button type="button" onClick={() => setConCliente(true)} className="chip-btn h-11 text-sm">
+                  + {Quien}
+                </button>
+              )}
+              {!conDescuento && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConDescuento(true);
+                    pedirFoco("descuento-valor");
+                  }}
+                  className="chip-btn h-11 text-sm"
+                >
+                  + Descuento
+                </button>
+              )}
+              <button type="button" onClick={addManual} className="chip-btn h-11 text-sm">
+                + Precio a mano
+              </button>
+            </div>
+
+            {(isOrder || conCliente) && (
+              <ClienteDeLaVenta
+                key={clienteKey}
+                quien={quienCompra}
+                puedeFacturar={puedeFacturar}
+                rolFactura={b.rolFactura}
+                puedeEditarFicha={b.puedeEditarFicha}
+                nombreObligatorio={isOrder}
+                onCambio={(v) => {
+                  setClienteVenta(v);
+                  // El teléfono y el nombre van en la firma del cobro, como viajan en el formulario.
+                  setTelefono(v.telefono);
+                  setNombreCliente(v.nombre);
+                  // La última dirección de la ficha, propuesta y editable (MG-035).
+                  if (v.cliente?.ultimaDireccion) setDireccion((d) => d || v.cliente!.ultimaDireccion!);
+                }}
+              />
+            )}
+
+            {isOrder && (
+              <fieldset data-vender="entrega" className="grid gap-3 border-t border-line pt-3 sm:grid-cols-2">
+                <legend className="sr-only">Entrega</legend>
+                <label className="text-sm">
+                  <span className="mb-1 block text-muted">Entrega</span>
+                  <Select name="fulfillment" value={fulfillment} onChange={(e) => setFulfillment(e.target.value as "PICKUP" | "DELIVERY")}>
+                    <option value="PICKUP">Retira en el local</option>
+                    <option value="DELIVERY">Envío a domicilio</option>
+                  </Select>
+                </label>
+                <label className="text-sm">
+                  <span className="mb-1 block text-muted">Horario deseado</span>
+                  <Input name="scheduledFor" type="datetime-local" value={horario} onChange={(e) => setHorario(e.target.value)} />
+                </label>
+                {conZona && (
+                  <label className="text-sm sm:col-span-2">
+                    <span className="mb-1 block text-muted">Zona de envío *</span>
+                    <Select name="envioZona" required value={zonaId} onChange={(e) => setZonaId(e.target.value)}>
+                      <option value="">Elegí la zona</option>
+                      {zonas.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {z.nombre} · {z.costo > 0 ? fmtMoneyARS(z.costo, 0) : "sin cargo"}
+                          {z.gratisDesde !== null ? ` · gratis desde ${fmtMoneyARS(z.gratisDesde, 0)}` : ""}
+                        </option>
+                      ))}
+                    </Select>
+                    {cotizacion && (
+                      <span role="status" data-vender="envio" className="mt-1 block text-xs text-body">
+                        {cotizacion.ok
+                          ? `${cotizacion.renglon ?? "Envío"}: ${cotizacion.costo > 0 ? fmtMoneyARS(cotizacion.costo) : "sin cargo"}` +
+                            (cotizacion.faltaParaGratis > 0 ? ` · te faltan ${fmtMoneyARS(cotizacion.faltaParaGratis)} para el envío gratis` : "")
+                          : cotizacion.motivo}
+                      </span>
+                    )}
+                  </label>
+                )}
+                {fulfillment === "DELIVERY" && (
+                  <label className="text-sm sm:col-span-2">
+                    <span className="mb-1 block text-muted">Dirección *</span>
+                    <Input name="address" required value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Calle, número, barrio" />
+                  </label>
+                )}
+                <label className="text-sm sm:col-span-2">
+                  <span className="mb-1 block text-muted">Nota</span>
+                  <Input name="notes" value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Ej.: cortar en milanesas, sin grasa" />
+                </label>
+                <label className="flex min-h-11 w-fit items-center gap-2 text-sm sm:col-span-2">
+                  <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} className="h-5 w-5" />
+                  <span className="text-body">Ya está cobrado</span>
+                </label>
+              </fieldset>
+            )}
+
+            {bloqueDescuento}
+          </section>
+
+          {/* El cobro, fijo abajo en el celular (encima de la barra de espacios) y a lo ancho en la PC. */}
+          <div
+            data-vender="cobro-boutique"
+            className="sticky bottom-[var(--alto-barra-inferior,0px)] z-20 space-y-2 rounded-lg border border-line bg-surface-sunken lg:col-span-2"
+          >
+            <div className="space-y-2 px-3 pt-3 empty:hidden">{bloqueAviso}</div>
+            {puedeReintentar && (
+              <div className="px-3">
+                <button type="button" className={buttonClasses("solid", "lg", "w-full")} disabled={enviandoBoutique} onClick={() => void reintentarBoutique()}>
+                  {enviandoBoutique ? "Cobrando…" : `${etiquetaDeReintento(isOrder)} ${isOrder ? "" : fmtMoneyARS(sinRespuesta!.total)}`.trim()}
+                </button>
+              </div>
+            )}
+            {isOrder && !paid ? (
+              <div className="p-3">
+                <button
+                  type="button"
+                  className={buttonClasses("solid", "lg", "w-full")}
+                  disabled={registrarBloqueado}
+                  onClick={() => void registrarBoutique("sin-cobrar")}
+                >
+                  {enviandoBoutique ? "Registrando…" : registrarBloqueado && motivoBloqueo ? motivoBloqueo : "Registrar pedido"}
+                </button>
+              </div>
+            ) : (
+              <>
+                <PieDeCobro
+                  total={total}
+                  deshabilitado={motivoDelPie ? { motivo: motivoDelPie } : undefined}
+                  textoBoton={cobrarEnPedido ? "Registrar y cobrar" : "Cobrar"}
+                  onCobrar={cobrarConElPie}
+                />
+                {!isOrder && (
+                  <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
+                    {diaCerrado ? (
+                      <button
+                        type="button"
+                        className={buttonClasses("solid", "lg", "w-full")}
+                        disabled={registrarBloqueado}
+                        onClick={() => void registrarBoutique("sin-cobrar")}
+                      >
+                        {enviandoBoutique ? "Registrando…" : REGISTRAR_PARA_MANANA}
+                      </button>
+                    ) : (
+                      <>
+                        {aCuentaDisponible && (
+                          <button
+                            type="button"
+                            className="chip-btn h-11 text-sm"
+                            disabled={registrarBloqueado || !ficha}
+                            title={ficha ? undefined : `Elegí ${alQuien} para dejarlo a cuenta`}
+                            onClick={() => void registrarBoutique("a-cuenta")}
+                          >
+                            Dejar a cuenta {fmtMoneyARS(total)}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="h-11 px-2 text-sm text-muted underline"
+                          disabled={registrarBloqueado}
+                          onClick={() => void registrarBoutique("sin-cobrar")}
+                        >
+                          Registrar sin cobrar
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  if (boutique) return vistaBoutique(boutique);
 
   if (nuevo) return vistaTicket();
 

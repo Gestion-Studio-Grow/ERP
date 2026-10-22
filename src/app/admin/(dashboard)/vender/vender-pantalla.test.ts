@@ -156,6 +156,17 @@ export async function probarCuponEnPedido(codigo, base) {
   return { ok: false, error: "Ese cupón no existe o no está activo. Revisá cómo está escrito." };
 }
 `;
+// El bloque Cliente del mostrador boutique (ClienteDeLaVenta) busca y trae fichas con estas
+// acciones (src/lib/clientes/buscar-para-venta.ts, "use server"): acá, una ficha fija.
+const CLIENTES_FALSOS = `
+const FICHA = { id: "cli_1", nombre: "Parrilla UAT", telefono: "1155551234", docTipo: 80, docNro: "27123456789", razonSocial: "Parrilla UAT SRL", condicionIva: "RESPONSABLE_INSCRIPTO", domicilio: null, ultimaDireccion: "Los Álamos 123", ultimosPedidos: [], saldo: null };
+export async function buscarClientesParaVenta(texto) {
+  return /parr/i.test(texto) ? [{ id: FICHA.id, nombre: FICHA.nombre, telefono: FICHA.telefono, docTipo: FICHA.docTipo, docNro: FICHA.docNro, razonSocial: FICHA.razonSocial, condicionIva: FICHA.condicionIva, coincide: "nombre" }] : [];
+}
+export async function traerClienteDeLaVenta(id) { return id === FICHA.id ? FICHA : null; }
+export async function guardarClienteDeLaVenta() { return { ok: false, error: "no en la prueba" }; }
+export async function consultarPadronParaVenta() { return null; }
+`;
 const NAVEGACION_FALSA = `
 export function useRouter() { return { refresh() { window.__refrescos = (window.__refrescos || 0) + 1; } }; }
 export function usePathname() { return "/admin/vender"; }
@@ -306,6 +317,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
           setup(b) {
             b.onResolve({ filter: /^@\/lib\/order-actions$/ }, () => ({ path: "acciones", namespace: "falso" }));
             b.onResolve({ filter: /^@\/lib\/coupon-actions$/ }, () => ({ path: "cupones", namespace: "falso" }));
+            b.onResolve({ filter: /^@\/lib\/clientes\/buscar-para-venta$/ }, () => ({ path: "clientes", namespace: "falso" }));
             b.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navegacion", namespace: "falso" }));
             b.onResolve({ filter: /^next\/link$/ }, () => ({ path: "link", namespace: "falso" }));
             b.onLoad({ filter: /.*/, namespace: "falso" }, (a) => ({
@@ -314,6 +326,8 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
                   ? ACCIONES_FALSAS
                   : a.path === "cupones"
                     ? CUPONES_FALSOS
+                    : a.path === "clientes"
+                    ? CLIENTES_FALSOS
                     : a.path === "link"
                       ? LINK_FALSO
                       : NAVEGACION_FALSA,
@@ -2216,6 +2230,180 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     // El cajero pasa el próximo producto SIN tocar la pantalla: entra.
     await pasarElLector();
     assert.equal(await page.locator("iframe").count(), 1, "un solo iframe de impresión");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+  // ── MOSTRADOR BOUTIQUE (interruptor `mostrador-boutique`, Magra tanda 1 · 1B) ─────────────
+  // Lo que la página manda con el interruptor prendido (MostradorDeVenta): teclas del catálogo,
+  // el pie de cobro único, el campo único, el cliente con CUIT, la zona de envío, el día cerrado.
+  const PRODUCTOS_BOUTIQUE = [
+    { id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 12500, unit: "kg", codigo: "00201" },
+    { id: "p_entrana", name: "Entraña", saleUnit: "WEIGHT", price: null, pricePerKg: 17500, unit: "kg", codigo: null },
+    { id: "p_crema", name: "Crema", saleUnit: "UNIT", price: 9000, pricePerKg: null, unit: "u", codigo: "7790001000014" },
+  ];
+  const ENVIOS = {
+    retiroEnLocal: true,
+    horarioRetiro: null,
+    pedidoMinimoEnvio: null,
+    zonas: [{ id: "z1", nombre: "Canning – barrios cerrados", costo: 4000, gratisDesde: 60000, franjas: [] }],
+    franjasRetiro: [],
+    tiendaPausada: null,
+  };
+  const boutique = (b: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
+    products: PRODUCTOS_BOUTIQUE,
+    stockById: { p_vacio: { stock: 30, trackStock: true }, p_entrana: { stock: 0, trackStock: true }, p_crema: { stock: 24, trackStock: true } },
+    // Sin ventas previas: las teclas salen del catálogo (teclasDelMostrador con TECLAS_BOUTIQUE).
+    rapidos: ["p_crema", "p_entrana", "p_vacio"],
+    rotuloRapidos: "Tus productos",
+    boutique: { envios: ENVIOS, diaCerrado: null, rolFactura: true, puedeEditarFicha: false, ...b },
+    ...extra,
+  });
+  const envios = (page: Page) => page.evaluate(() => (window as unknown as Ventana).__envios);
+  const focoEnElCampoUnico = (page: Page) => page.waitForFunction(() => document.activeElement?.id === "campo-unico");
+
+  test("boutique: teclas del catálogo con precio y stock, la unidad entra con 1 y suma, el pie cobra; foco en el campo único al montar y al limpiar", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await focoEnElCampoUnico(page);
+    const tecla = (n: string) => page.locator('[data-vender="tecla"]').filter({ hasText: n });
+    await tecla("Vacío").getByText("$12.500/kg").waitFor();
+    await tecla("Vacío").getByText(/quedan 30/).waitFor();
+    await tecla("Entraña").getByText("agotado").waitFor();
+    // Lo de siempre no está: ni el radiogroup de medios, ni «Pagó con», ni el campo de la etiqueta.
+    assert.equal(await page.getByRole("radiogroup", { name: "Cómo pagó" }).count(), 0);
+    assert.equal(await page.getByLabel("Pagó con").count(), 0);
+    assert.equal(await page.getByLabel("Etiqueta de la balanza o código").count(), 0);
+    await tecla("Crema").click();
+    await tecla("Crema").click();
+    assert.equal(await page.locator('[data-vender="ticket-boutique"] [data-vender="renglon"]').count(), 1, "un renglón, no dos");
+    assert.equal(await page.locator('[data-vender="ticket-boutique"] input[data-tipo="cantidad"]').inputValue(), "2");
+    await page.getByRole("button", { name: "Cobrar $18.000 con Mercado Pago" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.deepEqual(e.productId, ["p_crema"]);
+    assert.deepEqual(e.quantity, ["2"]);
+    assert.deepEqual(e.paymentMethod, ["MERCADOPAGO"]);
+    assert.deepEqual(e.pagado, ["1"]);
+    await page.getByLabel("Ticket de la venta #42").waitFor();
+    await focoEnElCampoUnico(page);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("boutique: la etiqueta entra por el campo único y Efectivo $20.000 cobra con el vuelto a la vista", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar(
+      "vender",
+      10,
+      boutique({}, { balanza: { formato: FORMATO_BALANZA_POR_DEFECTO, porDefecto: false, configurar: null } }),
+    );
+    await focoEnElCampoUnico(page);
+    const campo = page.getByLabel("Escaneá o buscá");
+    await campo.fill(armarEtiquetaDeBalanza(FORMATO_BALANZA_POR_DEFECTO, "00201", 1.25));
+    await campo.press("Enter");
+    await page.getByRole("button", { name: "Cobrar $15.625 en efectivo" }).click();
+    // Ningún billete menor al total, ninguno elegido de antemano.
+    await page.getByRole("button", { name: "$20.000" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.deepEqual(e.productId, ["p_vacio"]);
+    assert.deepEqual(e.quantity, ["1.25"]);
+    assert.deepEqual(e.paymentMethod, ["EFECTIVO"]);
+    assert.deepEqual(e.recibido, ["20000.00"]);
+    await page.getByText(/vuelto \$4\.375/i).first().waitFor();
+    await focoEnElCampoUnico(page);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("boutique: Dividir Efectivo $10.000 + Mercado Pago el resto, con doble toque, es UNA venta con dos pagos", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await page.locator('[data-vender="tecla"]').filter({ hasText: "Vacío" }).click();
+    await page.keyboard.type("1,25");
+    await page.getByRole("button", { name: "Dividir" }).click();
+    await page.getByLabel("Con Efectivo").fill("10000");
+    await page.getByRole("group", { name: "Medio del pago 2" }).getByRole("button", { name: "Mercado Pago" }).click();
+    await page.getByText("Se completa solo").waitFor();
+    await page.getByRole("button", { name: "Cobrar $15.625" }).dblclick();
+    await page.getByLabel("Ticket de la venta #42").waitFor();
+    await page.waitForTimeout(100);
+    const todos = await envios(page);
+    assert.equal(todos.length, 1, "el doble toque no arma otra venta");
+    assert.deepEqual(todos[0]["pago.medio"], ["EFECTIVO", "MERCADOPAGO"]);
+    assert.deepEqual(todos[0]["pago.monto"], ["10000.00", "5625.00"]);
+    assert.deepEqual(todos[0].paymentMethod, ["EFECTIVO"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("boutique: cliente con CUIT y «Facturar al cobrar» → facturarVenta corre DESPUÉS de createOrder, con la venta grabada", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique({}, { puedeFacturar: true }));
+    await page.locator('[data-vender="tecla"]').filter({ hasText: "Crema" }).click();
+    await page.getByRole("button", { name: "+ Cliente" }).click();
+    await page.locator('input[name="customerName"]').fill("Parr");
+    await page.getByRole("option", { name: /Parrilla UAT/ }).click();
+    await page.getByText(/CUIT 27-12345678-9/).waitFor();
+    await page.getByLabel("Facturar al cobrar").check();
+    await page.getByRole("button", { name: "Cobrar $9.000 con Transferencia" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 2);
+    const [venta, factura] = await envios(page);
+    assert.deepEqual(venta.customerName, ["Parrilla UAT"]);
+    assert.deepEqual(venta.clientId, ["cli_1"]);
+    assert.deepEqual(venta.paymentMethod, ["TRANSFERENCIA"]);
+    assert.deepEqual(factura.id, ["ord_42"], "la factura es de la venta que se acaba de grabar");
+    await page.getByText(/Sin factura: La facturación electrónica no está encendida/).first().waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("boutique: día cerrado → banda arriba, el pie no cobra y «Registrar para cobrar mañana» manda la venta sin cobrar", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique({ diaCerrado: "2026-10-21" }));
+    await page.getByText("El día está cerrado: lo que vendas queda para cobrar mañana.").waitFor();
+    await page.locator('[data-vender="tecla"]').filter({ hasText: "Crema" }).click();
+    assert.equal(await page.getByRole("button", { name: "Cobrar $9.000 en efectivo" }).isDisabled(), true);
+    await page.getByRole("button", { name: "Registrar para cobrar mañana" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.equal(e.pagado, undefined);
+    assert.equal(e.paid, undefined);
+    assert.equal(e.paymentMethod, undefined);
+    assert.deepEqual(e.productId, ["p_crema"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("boutique: pedido con envío → la zona sale de la configuración de Envíos y viaja como `envioZona`", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await page.locator('[data-vender="tecla"]').filter({ hasText: "Crema" }).click();
+    await page.getByRole("button", { name: "Pedido (retiro / envío)" }).click();
+    await page.locator('select[name="fulfillment"]').selectOption("DELIVERY");
+    await page.locator('select[name="envioZona"]').selectOption("z1");
+    await page.getByText(/Envío · Canning – barrios cerrados: \$4\.000.*te faltan \$51\.000/).waitFor();
+    await page.locator('input[name="customerName"]').fill("Ana Pérez");
+    await page.locator('input[name="address"]').fill("Los Álamos 123");
+    await page.getByRole("button", { name: "Registrar pedido" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.deepEqual(e.envioZona, ["z1"]);
+    assert.deepEqual(e.fulfillment, ["DELIVERY"]);
+    assert.deepEqual(e.channel, ["ONLINE"]);
+    assert.equal(e.pagado, undefined);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("boutique: un nombre escrito en el campo único ofrece lo que coincide, y el toque lo carga", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    const campo = page.getByLabel("Escaneá o buscá");
+    await campo.fill("crem");
+    await campo.press("Enter");
+    await page.getByRole("button", { name: "Crema · $9.000/u" }).click();
+    assert.equal(await page.locator('[data-vender="ticket-boutique"] input[data-tipo="cantidad"]').inputValue(), "1");
     assert.deepEqual(errores, []);
     await page.close();
   });

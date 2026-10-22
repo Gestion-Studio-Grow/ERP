@@ -20,6 +20,7 @@ import { etiquetaDeMedio } from "@/lib/caja/medio-cobro";
 import { fmtDateTimeAr } from "@/lib/datetime";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { anchoSeguro, documentoImprimible, MEDIDAS, type AnchoDeTicket } from "@/lib/impresion/ticket-css-core";
+import type { FormatoBalanza } from "@/lib/supermercado/balanza";
 
 // ── DESCUENTO y PRECIO A MANO: viven en src/lib/venta-reglas.ts ──────────────
 //
@@ -144,6 +145,123 @@ export function teclasDelMostrador(
   }
   return { ids, rotulo: ids.length > vendidos.length ? "Tus productos" : "Más vendidos" };
 }
+
+// ── EL MOSTRADOR BOUTIQUE (interruptor `mostrador-boutique`, Magra tanda 1 · 1B) ───
+//
+// Las teclas muestran precio y stock del CATÁLOGO, no de las ventas: el primer día también hay
+// teclas (las vendidas primero, después el resto). La unidad entra con 1 y suma si se repite.
+// Todo PURO: lo prueba vender.test.ts.
+
+/** Cuántas teclas de producto ofrece el mostrador boutique (más que las 8 de siempre). */
+export const TECLAS_BOUTIQUE = 24;
+
+/** La balanza del negocio tal como la recibe Vender (el formato guardado y si se puede cambiar). */
+export type BalanzaDeVender = {
+  formato: FormatoBalanza;
+  /** true = nadie lo configuró: es el formato de fábrica, provisional. */
+  porDefecto: boolean;
+  /** Adónde se cambia el formato (sólo si quien vende puede); null = no se ofrece. */
+  configurar: string | null;
+};
+
+export type TeclaDeProducto = {
+  id: string;
+  nombre: string;
+  /** «$28.600/kg» o «$1.900/u». */
+  precio: string;
+  /** «quedan 4,2 kg»; null si el producto no lleva stock. */
+  quedan: string | null;
+  /** Sin stock (lleva stock y no queda nada). */
+  agotado: boolean;
+  /**
+   * La tecla no carga el renglón: por unidad y agotado. Por kilo se avisa y no se frena (el
+   * paquete al vacío está en la mano aunque el stock del sistema vaya atrasado; MAG-4).
+   */
+  bloquea: boolean;
+};
+
+/** Lo que dice una tecla de producto, del catálogo y del stock de hoy. PURA. */
+export function teclaDeProducto(
+  p: { id: string; name: string; saleUnit: "UNIT" | "WEIGHT"; price: number | null; pricePerKg: number | null },
+  info?: { stock: number; trackStock: boolean } | null,
+): TeclaDeProducto {
+  const porKilo = p.saleUnit === "WEIGHT";
+  const precio = `${fmtMoneyARS((porKilo ? p.pricePerKg : p.price) ?? 0, 0)}/${porKilo ? "kg" : "u"}`;
+  const lleva = info?.trackStock === true;
+  const agotado = lleva && !(info!.stock > 0);
+  const quedan = lleva && !agotado ? `quedan ${formatearCantidad(info!.stock)} ${porKilo ? "kg" : "u"}` : null;
+  return { id: p.id, nombre: p.name, precio, quedan, agotado, bloquea: agotado && !porKilo };
+}
+
+/** Un renglón del ticket: el producto y lo tipeado (texto, como en la pantalla). */
+export type RenglonDeVenta = { key: number; productId: string; qtyText: string };
+
+/**
+ * Una unidad más (o `n`, del «3*código») de un producto por unidad: tecla o código leído. PURA.
+ *   · si ya hay un renglón de ese producto con cantidad entera (o vacía), le suma;
+ *   · si no, usa el renglón vacío si hay uno, o agrega uno nuevo con `nuevaKey`.
+ * Devuelve los renglones nuevos, cuál se tocó y si se usó `nuevaKey`.
+ */
+export function sumarUnaUnidad<L extends RenglonDeVenta>(
+  lineas: readonly L[],
+  productId: string,
+  nuevaKey: number,
+  n = 1,
+): { lineas: RenglonDeVenta[]; key: number; usoNuevaKey: boolean } {
+  const cuantas = Number.isInteger(n) && n > 0 ? n : 1;
+  const misma = lineas.find((l) => l.productId === productId);
+  if (misma) {
+    const t = misma.qtyText.trim();
+    const actual = t === "" ? 0 : Number(t.replace(",", "."));
+    if (Number.isInteger(actual) && actual >= 0) {
+      return {
+        lineas: lineas.map((l) => (l.key === misma.key ? { ...l, qtyText: String(actual + cuantas) } : l)),
+        key: misma.key,
+        usoNuevaKey: false,
+      };
+    }
+  }
+  const vacia = lineas.find((l) => !l.productId);
+  if (vacia) {
+    return {
+      lineas: lineas.map((l) => (l.key === vacia.key ? { ...l, productId, qtyText: String(cuantas) } : l)),
+      key: vacia.key,
+      usoNuevaKey: false,
+    };
+  }
+  return { lineas: [...lineas, { key: nuevaKey, productId, qtyText: String(cuantas) }], key: nuevaKey, usoNuevaKey: true };
+}
+
+/** Sin tildes y en minúsculas, para buscar «vacio» y encontrar «Vacío». */
+function normalizarParaBuscar(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+}
+
+/**
+ * Lo que escribió en el campo único («vac», «bondi»), contra el catálogo: los ids que coinciden,
+ * primero los que EMPIEZAN así, hasta `max`. Todas las palabras tienen que estar. PURA.
+ */
+export function buscarEnElCatalogo(
+  productos: readonly { id: string; name: string }[],
+  texto: string,
+  max = BOTONES_RAPIDOS,
+): string[] {
+  const palabras = normalizarParaBuscar(texto).split(/\s+/).filter(Boolean);
+  if (palabras.length === 0) return [];
+  const empiezan: string[] = [];
+  const contienen: string[] = [];
+  for (const p of productos) {
+    const n = normalizarParaBuscar(p.name);
+    if (!palabras.every((w) => n.includes(w))) continue;
+    (n.startsWith(palabras[0]) ? empiezan : contienen).push(p.id);
+  }
+  return [...empiezan, ...contienen].slice(0, max);
+}
+
+/** La banda del día cerrado, arriba de Vender (el mismo hecho que frena en `fronteraDeVenta`). */
+export const BANDA_DIA_CERRADO = "El día está cerrado: lo que vendas queda para cobrar mañana.";
+/** El botón que registra sin cobrar cuando el día está cerrado. */
+export const REGISTRAR_PARA_MANANA = "Registrar para cobrar mañana";
 
 // ── EL TICKET ────────────────────────────────────────────────────────────────
 //
