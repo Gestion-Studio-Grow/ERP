@@ -22,7 +22,7 @@
 import { tenantTransaction } from "@/lib/rls";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { logger } from "@/lib/logger";
-import { gatewayCobrosPara } from "@/lib/pagos-dispatch";
+import { configCobrosPorDefecto, gatewayCobrosPara } from "@/lib/pagos-dispatch";
 import { facturarPagoMP } from "@/lib/invoice-from-mp";
 import {
   ClasificadorPorReglas,
@@ -30,6 +30,7 @@ import {
   facturarPagoSiCorresponde,
   sincronizarPagos,
   type ClasificadorPort,
+  type ConfigClasificacion,
   type IngestaDeps,
   type ResumenIngesta,
   type CriterioBusqueda,
@@ -60,7 +61,9 @@ export function clasificacionDesdeOperacion(pago: PagoMP): ClasificacionMovimien
     case "pago":
       return "venta";
     case "transferencia":
-      return "transferencia_propia";
+      // R1 · la de un tercero (una seña) NO es una transferencia propia: queda como «otro» y
+      // la decide una persona; la propia (o sin datos) sigue como hasta ahora.
+      return pago.cuentaPropia === false ? "otro" : "transferencia_propia";
     case "devolucion":
       return "reverso";
     case "prestamo":
@@ -282,8 +285,10 @@ export async function crearEntornoReal(tenantId: string): Promise<EntornoIngesta
   let facturasMes: number | null = null;
   const facturasDelMes = async () => (facturasMes ??= await contarFacturasDelMes(tenantId));
 
+  // R1 · el camino automático arma el clasificador CON la config del negocio (cuentas propias):
+  // antes iba sin `config` y `cuentasPropias` nunca se aplicaba acá.
   const clasificador = clasificadorConReglasDelDueno(
-    new ClasificadorPorReglas({ aprendizaje: new AprendizajeEnMemoria() }),
+    new ClasificadorPorReglas({ aprendizaje: new AprendizajeEnMemoria(), config: await configClasificacionDelNegocio(tenantId) }),
     {
       umbralIdentificacion: configTenant.config.umbralIdentificacion ?? UMBRAL_IDENTIFICACION_DEFAULT,
       capFacturasMes: configTenant.capFacturasMes,
@@ -303,6 +308,23 @@ export async function crearEntornoReal(tenantId: string): Promise<EntornoIngesta
     },
   };
   return { deps, reconciliacion };
+}
+
+/**
+ * R1 · La config de clasificación de un negocio para el camino automático: sus cuentas propias de
+ * Mercado Pago. Hoy la única fuente guardada es el id de la cuenta que cobra (`collectorId`) de
+ * la config del gateway, si la trae; una lista editable de cuentas propias por negocio es una
+ * columna nueva (decisión del dueño, DIAGNOSTICO §R1). La transferencia de la MISMA cuenta ya la
+ * detecta `normalizarPago` (pagador = cobrador). Seam: `configDe`.
+ */
+export async function configClasificacionDelNegocio(
+  tenantId: string,
+  configDe: (tenantId: string) => unknown | Promise<unknown> = async (t) => (await configCobrosPorDefecto.configDe(t)).config,
+): Promise<ConfigClasificacion> {
+  const config = (await configDe(tenantId)) as { collectorId?: unknown; credenciales?: { collectorId?: unknown } } | undefined;
+  const id = config?.collectorId ?? config?.credenciales?.collectorId;
+  const cuentasPropias = typeof id === "string" || typeof id === "number" ? [String(id)] : [];
+  return { cuentasPropias };
 }
 
 function resumenVacio(): ResumenIngesta {

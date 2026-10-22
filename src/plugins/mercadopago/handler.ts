@@ -93,6 +93,7 @@ export async function procesarNotificacionPago(
     };
   }
 
-  const invoiceId = await deps.facturar(dueno.id, notif.tenantId);
+  // R1 · se pasa el pago: el Core factura ESTE cobro (una factura por cobro), no el turno entero.
+  const invoiceId = await deps.facturar(dueno.id, notif.tenantId, pago);
   return { procesado: true, facturado: invoiceId != null, invoiceId };
 }

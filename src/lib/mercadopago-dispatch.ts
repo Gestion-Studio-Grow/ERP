@@ -10,7 +10,7 @@ import {
   type NotificacionPagoMP,
   type ResultadoNotificacion,
 } from "@/plugins/mercadopago";
-import { facturarAppointment } from "@/lib/invoice-from-appointment";
+import { facturarAppointment, facturarCobroMPDelTurno } from "@/lib/invoice-from-appointment";
 import { gatewayCobrosPara } from "@/lib/pagos-dispatch";
 import { procesarPagoStandalone } from "@/lib/mercadopago-auto";
 
@@ -32,7 +32,9 @@ export async function manejarNotificacionMP(
 ): Promise<ResultadoNotificacion> {
   const resultado = await procesarNotificacionPago(notif, {
     clientePara: (tenantId) => gatewayCobrosPara(tenantId),
-    facturar: facturarAppointment,
+    // R1 · con el pago, se factura ESE cobro del turno (la seña), no el turno entero.
+    facturar: (appointmentId, tenantId, pago) =>
+      pago ? facturarCobroMPDelTurno(appointmentId, tenantId, pago) : facturarAppointment(appointmentId, tenantId),
   });
 
   // Venta directa (sin turno): entra al pipeline unificado banco + Mercado Pago.

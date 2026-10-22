@@ -118,6 +118,13 @@ export interface CreateInvoiceInput {
    * Sólo se escribe si viene (la columna nace con 20261022140000, Gate 2).
    */
   descripcion?: string;
+  /**
+   * R1 · Sólo con origen APPOINTMENT: lo COBRADO del turno (`Payment.amount`) con lo que se armó
+   * la factura. Default: `total`. Desde «una factura por cobro», la factura al completar el turno
+   * puede ser el RESTO (lo cobrado menos la seña que ya facturó Mercado Pago): la guarda ENG-023
+   * compara el cobro del turno contra este número, no contra el total facturado.
+   */
+  cobroDelTurno?: number;
 }
 
 /** El comprobante que corrige una nota de crédito: la fila del Core y cómo lo conoce ARCA. */
@@ -132,7 +139,7 @@ export interface ComprobanteAsociadoInput {
 
 /** Forma del payload del evento `InvoiceCreated` que viaja por el outbox. */
 export interface InvoiceCreatedPayload
-  extends Omit<CreateInvoiceInput, "tenantId" | "origin" | "reabrirSiRechazada" | "asociado" | "descripcion"> {
+  extends Omit<CreateInvoiceInput, "tenantId" | "origin" | "reabrirSiRechazada" | "asociado" | "descripcion" | "cobroDelTurno"> {
   /** Nota de crédito: la factura que corrige, como la conoce ARCA (CbtesAsoc). */
   asociado?: { cbteTipo: number; puntoVenta: number; numero: number; fecha: string };
   invoiceId: string;
@@ -280,7 +287,7 @@ export async function createInvoiceInTx(
     await tomarPedidoNoAnulado(tx, input.tenantId, originLink.orderId);
   }
   if ("appointmentId" in originLink && originLink.appointmentId) {
-    await tomarTurnoConElMismoCobro(tx, input.tenantId, originLink.appointmentId, input.total);
+    await tomarTurnoConElMismoCobro(tx, input.tenantId, originLink.appointmentId, input.cobroDelTurno ?? input.total);
   }
 
   if (hasOrigin) {
