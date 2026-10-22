@@ -1,4 +1,9 @@
-# Código frontend (siempre cargado)
+---
+paths:
+  - "src/**/*.{ts,tsx,css}"
+  - "public/**/*.{js,css,html}"
+---
+# Código frontend (se carga al tocar código de la app)
 - Componentes pequeños con una responsabilidad. Sin props booleanas en cadena: preferí composición. Sin abstracciones prematuras ni código defensivo de más.
 - Datos: nunca cascadas de fetch en cliente; en Next, server components por defecto.
 - Sin dependencias nuevas sin preguntar. Sin código copiado de ejemplos sin adaptar.
