@@ -39,21 +39,23 @@ rompe), pero `main` queda trabado para todos hasta que se migre.
   Es lo único que deshace un error de datos ([rollback.md §D](rollback.md)).
 
 ### 2. Migraciones: Gate 2 (dueño)
-Dos migraciones **aditivas**. Están ensayadas sobre la cadena completa en un Postgres 16 local (célula del
+Tres migraciones **aditivas**. Están ensayadas sobre la cadena completa en un Postgres 16 local (célula del
 motor, 2026-10-22). No tocan datos existentes.
 
 | Carpeta | Qué hace |
 |---|---|
 | `prisma/migrations/20261022140000_invoice_abono_descripcion` | Suma a `Invoice` dos columnas nulables: `abonoClave` y `descripcion`. También un índice único `(tenantId, abonoClave)`: un abono, un mes, una sola factura. |
 | `prisma/migrations/20261022140100_regla_facturacion` | Crea la tabla `ReglaFacturacion` (los abonos del contador), con llave a `CarteraCliente`, CHECKs y **RLS adentro de la migración**. |
+| `prisma/migrations/20261022150000_cobro_facturado` | Crea la tabla `CobroFacturado` (regla R1, «una factura por cobro»): cada cobro —pago de MP, resto de un turno, crédito del extracto— queda atado a la factura que lo cubre, con índice único `(tenantId, clave)`, CHECKs y **RLS adentro**. |
 
 - [ ] Sumarlas al final de `prisma/lote-deploy.txt`, con una línea de comentario fechada, como las anteriores:
   ```
   # AAAA-MM-DD: suite de facturación automática (Facturita + consola del contador + motor), publicación
   # pedida por el dueño. Aditivas: dos columnas nulables + índice único en "Invoice"; una tabla nueva
-  # con RLS adentro ("ReglaFacturacion").
+  # con RLS adentro ("ReglaFacturacion"); otra tabla nueva con RLS adentro ("CobroFacturado", una factura por cobro).
   20261022140000_invoice_abono_descripcion
   20261022140100_regla_facturacion
+  20261022150000_cobro_facturado
   ```
   Sacá del lote las que ya estén aplicadas (si el build frena diciendo que no coinciden, la lista manda).
   Este cambio va **en el PR**, por pathspec.
