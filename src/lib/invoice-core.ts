@@ -231,10 +231,13 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<string> 
     // el ganador → idempotente igual. Sin el @@unique del schema (Gate 2) esto NO dispara: la
     // guarda a nivel DB es la que cierra la ventana de carrera (el check solo cubre el caso secuencial).
     if (hasOrigin && e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      const existing = await prisma.invoice.findFirst({
-        where: { tenantId: input.tenantId, ...originLink },
-        select: { id: true },
-      });
+      // Parado en el negocio (RLS): con RLS_ENFORCEMENT on, una lectura suelta con `prisma` sin
+      // contexto de tenant falla (getCurrentTenantId) y el perdedor de la carrera reventaba en
+      // vez de devolver la factura ganadora (lo encontró motor-postgres.test.ts, «duplicado»).
+      const existing = await tenantTransaction(
+        (tx) => tx.invoice.findFirst({ where: { tenantId: input.tenantId, ...originLink }, select: { id: true } }),
+        { tenantId: input.tenantId },
+      );
       if (existing) return existing.id;
     }
     throw e;

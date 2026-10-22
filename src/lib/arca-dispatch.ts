@@ -604,7 +604,12 @@ async function despacharUno(
       await anotarFallaYSoltar(enSuNegocio, envio, token, motivoDelError(err), despues);
       resumen.fallidos++;
       if (despues.detener) resumen.detenidos = (resumen.detenidos ?? 0) + 1;
-      if (esErrorDelSistema(err)) {
+      if (clase === "configuracion") {
+        // Falta un dato fiscal del negocio (CUIT, certificado, delegación): no es una falla
+        // nuestra ni de ARCA. Queda detenido con el motivo; en el mismo toque no se vuelve a mandar.
+        logger.warn("arca", "envío detenido: falta un dato fiscal del negocio", { tenantId: envio.tenantId, motivo: motivoDelError(err) });
+        opciones.alFallarPorElSistema?.(envio.id);
+      } else if (esErrorDelSistema(err)) {
         logger.error("arca", "un envío falló por un error del sistema, no de ARCA", err, { tenantId: envio.tenantId });
         opciones.alFallarPorElSistema?.(envio.id);
       }
