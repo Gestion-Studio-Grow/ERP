@@ -28,7 +28,7 @@ import { decidirAcceso } from "@/lib/multilocal/multilocal-core";
 import { monitorCarteraAction } from "@/lib/cartera-actions";
 import { titularMonitor } from "@/lib/monitor-core";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
-import { Badge, KpiTile, PageContainer, PageHeader, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
+import { Badge, ButtonLink, KpiTile, PageContainer, PageHeader, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
 import { nombreDelMes } from "@/lib/libros/fecha-fiscal";
 import ThemeToggle from "@/app/admin/(dashboard)/ThemeToggle";
 import CarteraPanel from "./CarteraPanel";
@@ -189,6 +189,15 @@ export default async function ContadorPage({ searchParams }: { searchParams: Pro
         // Diseño nuevo: el tema se cambia desde la cabecera del estudio (layout.tsx).
         actions={nuevo ? undefined : <ThemeToggle />}
       />
+
+      {/* El trabajo de todos los meses: abonos, el lote y la exportación de toda la cartera. */}
+      <nav aria-label="El mes de la cartera" className="mb-6 flex flex-wrap gap-2">
+        <ButtonLink href="/contador/lote" className="min-h-11">Lote del mes</ButtonLink>
+        <ButtonLink href="/contador/abonos" variant="outline" className="min-h-11">Abonos</ButtonLink>
+        <ButtonLink href={`/contador/exportar?mes=${mesActual}`} variant="outline" className="min-h-11">
+          Bajar {nombreDelMes(mesActual)} de toda la cartera (CSV)
+        </ButtonLink>
+      </nav>
 
       {/* "De quién me ocupo hoy": sale de la misma pasada que el volumen de abajo. */}
       <MonitorBandeja

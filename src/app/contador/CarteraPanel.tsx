@@ -118,6 +118,15 @@ function LoQueFalta({
           />
         )}
         <Renglon
+          titulo="Comprobantes emitidos"
+          detalle="Qué autorizó ARCA, qué espera y qué rechazó, con qué hacer en cada caso."
+          tecla={
+            <a href={`/contador/cliente/${encodeURIComponent(fila.clienteTenantId)}/comprobantes`} className={buttonClasses("outline", "sm")} data-ui="button" data-variant="outline" data-size="sm">
+              Ver
+            </a>
+          }
+        />
+        <Renglon
           titulo="Comprobantes recibidos"
           detalle="Las compras del mes con el archivo de «Mis Comprobantes» de ARCA."
           tecla={
