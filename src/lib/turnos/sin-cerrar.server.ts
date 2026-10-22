@@ -14,6 +14,7 @@
 // `server-only`: detrás está el valor `prisma`.
 
 import "server-only";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -56,7 +57,7 @@ const seleccion = (conFlag: boolean) =>
  * no vuelve. Tolera la columna `cobraEnMostrador` sin migrar (rige el default), como el resto.
  */
 export async function leerFilasDeTurnos(tenantId: string, filtro: Filtro): Promise<FilaDeTurno[]> {
-  const where =
+  const where: Prisma.AppointmentWhereInput =
     "ids" in filtro
       ? { tenantId, id: { in: [...filtro.ids] } }
       : {
@@ -66,7 +67,8 @@ export async function leerFilasDeTurnos(tenantId: string, filtro: Filtro): Promi
           ...(filtro.professionalId ? { professionalId: filtro.professionalId } : {}),
         };
   if ("ids" in filtro && filtro.ids.length === 0) return [];
-  const pagina = "ids" in filtro ? {} : { orderBy: { startsAt: "desc" as const }, take: filtro.tope };
+  const pagina: Pick<Prisma.AppointmentFindManyArgs, "orderBy" | "take"> =
+    "ids" in filtro ? {} : { orderBy: { startsAt: "desc" }, take: filtro.tope };
 
   type Cruda = {
     id: string;

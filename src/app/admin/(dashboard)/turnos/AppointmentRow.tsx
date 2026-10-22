@@ -15,6 +15,7 @@ import {
 import SubmitButton from "@/components/SubmitButton";
 import RescheduleForm from "./RescheduleForm";
 import CerrarSinPrestar from "./CerrarSinPrestar";
+import FormDelTurno from "./FormDelTurno";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
@@ -466,12 +467,9 @@ export default function AppointmentRow({
         botonClassName={linkButtonClasses}
       />
     ) : accion === "cancelar" ? (
-      <form action={cancelAppointment}>
-        <input type="hidden" name="appointmentId" value={appointment.id} />
-        <SubmitButton pendingText="Cancelando…" className={linkButtonClasses}>
-          Cancelar turno
-        </SubmitButton>
-      </form>
+      <FormDelTurno accion={cancelAppointment} appointmentId={appointment.id} pendingText="Cancelando…" className={linkButtonClasses}>
+        Cancelar turno
+      </FormDelTurno>
     ) : (
       <NoVinoForm appointmentId={appointment.id} />
     );
@@ -563,12 +561,9 @@ export default function AppointmentRow({
 
         {isPending && canManage && (
           <div className="flex flex-col gap-2 min-w-[260px]">
-            <form action={confirmarTurno}>
-              <input type="hidden" name="appointmentId" value={appointment.id} />
-              <SubmitButton pendingText="Confirmando…" className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
-                Confirmar turno
-              </SubmitButton>
-            </form>
+            <FormDelTurno accion={confirmarTurno} appointmentId={appointment.id} pendingText="Confirmando…" className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
+              Confirmar turno
+            </FormDelTurno>
             {cerrarSinPrestar("cancelar")}
             <RescheduleForm
               appointmentId={appointment.id}

@@ -58,7 +58,11 @@ function ConfirmarUno({ t }: { t: TurnoAConfirmar }) {
       onClick={() =>
         empezar(async () => {
           try {
-            await confirmarTurno(aFormData(camposDelTurno(t.id)));
+            const r = await confirmarTurno(aFormData(camposDelTurno(t.id)));
+            if (!r.ok) {
+              showError(r.error);
+              return;
+            }
             setHecho(true);
             showSuccess(`Confirmado: ${t.clienta}, mañana ${fmtTime(t.startsAt)}.`);
           } catch {
