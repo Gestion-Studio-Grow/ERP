@@ -268,6 +268,11 @@ export async function createInvoiceInTx(
   tx: InvoiceTx,
   input: CreateInvoiceInput,
 ): Promise<string> {
+  // La ÚNICA puerta de una nota de crédito es `crearNotaDeCreditoInTx`: toma la factura FOR
+  // UPDATE y controla el saldo. Por acá saldría una nota sin ese control (Auditoría GSG, M1).
+  if (input.clase === "nota_credito" || input.asociado) {
+    throw new Error("Una nota de crédito se emite con crearNotaDeCreditoInTx (controla el saldo), no con createInvoice.");
+  }
   const originLink = enlaceDeOrigen(input.origin);
   const hasOrigin = tieneOrigen(originLink);
 

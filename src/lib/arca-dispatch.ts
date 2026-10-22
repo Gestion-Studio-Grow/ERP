@@ -52,7 +52,7 @@ import {
   POLITICA_DE_REINTENTOS,
   type PoliticaDeReintentos,
 } from "@/lib/arca-reintentos";
-import { leerTicketAcceso, guardarTicketAcceso } from "@/lib/fiscal/arca-ta-store";
+import { leerTicketAcceso, guardarTicketAcceso, huellaDeCertificado } from "@/lib/fiscal/arca-ta-store";
 import { logger } from "@/lib/logger";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import {
@@ -115,6 +115,13 @@ const leerConfigFiscalPrisma: LeerConfigFiscal = async (tenantId) => {
 export interface FirmaResuelta {
   credencial: CredencialEmisor;
   cuitFirmante?: string;
+  /**
+   * El negocio que TIENE CARGADO el certificado que firma: el propio, o el ESTUDIO en una
+   * delegación. El ticket de acceso de ARCA (TA) se guarda y se lee parado en él y por la huella
+   * de ESE certificado: el estudio y sus delegados comparten un solo login en WSAA (ENG-137).
+   * Sin dato: el propio negocio.
+   */
+  titularTenantId?: string;
 }
 
 /** Lee la delegación de facturación (wsfe) del negocio, parado en él (RLS). */
@@ -138,17 +145,35 @@ async function leerCuitPrisma(tenantId: string): Promise<string | null> {
   return t?.arcaCuit ?? null;
 }
 
+/**
+ * Cómo está el cliente en la cartera del estudio (`activa` | `pausada` | `baja`), o `null` si no
+ * está. Parado en el ESTUDIO: la fila es suya (RLS por `tenantId` = estudio).
+ */
+async function leerEstadoEnCarteraPrisma(estudioTenantId: string, clienteTenantId: string): Promise<string | null> {
+  const fila = await tenantTransaction(
+    (tx) =>
+      tx.carteraCliente.findUnique({
+        where: { tenantId_clienteTenantId: { tenantId: estudioTenantId, clienteTenantId } },
+        select: { estado: true },
+      }),
+    { tenantId: estudioTenantId },
+  );
+  return fila?.estado ?? null;
+}
+
 /** Seams de `resolverFirmaParaTenant` (default: la base). */
 export interface DepsFirma {
   credencialDe: (tenantId: string) => Promise<CredencialEmisor>;
   leerDelegacion: (tenantId: string) => Promise<DelegacionLeida | null>;
   leerCuit: (tenantId: string) => Promise<string | null>;
+  leerEstadoEnCartera: (estudioTenantId: string, clienteTenantId: string) => Promise<string | null>;
 }
 
 const DEPS_FIRMA: DepsFirma = {
   credencialDe: (tenantId) => credencialParaTenant(tenantId),
   leerDelegacion: leerDelegacionPrisma,
   leerCuit: leerCuitPrisma,
+  leerEstadoEnCartera: leerEstadoEnCarteraPrisma,
 };
 
 /**
@@ -160,7 +185,7 @@ const DEPS_FIRMA: DepsFirma = {
  */
 export async function resolverFirmaParaTenant(tenantId: string, deps: DepsFirma = DEPS_FIRMA): Promise<FirmaResuelta> {
   try {
-    return { credencial: await deps.credencialDe(tenantId) };
+    return { credencial: await deps.credencialDe(tenantId), titularTenantId: tenantId };
   } catch (e) {
     if (!(e instanceof CredencialFiscalAusenteError)) throw e;
   }
@@ -172,6 +197,14 @@ export async function resolverFirmaParaTenant(tenantId: string, deps: DepsFirma 
   if (!decision.ok) throw new ConfiguracionFiscalError(decision.motivo);
   if (decision.firmante.tipo === "propio") throw new ConfiguracionFiscalError("Sin certificado propio cargado.");
   const { estudioTenantId, cuitRepresentante } = decision.firmante;
+  // Un cliente dado de BAJA en la cartera del estudio ya no es suyo: no se firma con su
+  // certificado aunque la delegación siga cargada (la relación comercial terminó).
+  const enCartera = await deps.leerEstadoEnCartera(estudioTenantId, tenantId);
+  if (enCartera === null || enCartera === "baja") {
+    throw new ConfiguracionFiscalError(
+      "El negocio ya no está en la cartera del estudio de la delegación (está de baja): no se firma con su certificado.",
+    );
+  }
   const cuitEstudio = await deps.leerCuit(estudioTenantId);
   if (!cuitEstudio || normalizarCuit(cuitEstudio) !== cuitRepresentante) {
     throw new ConfiguracionFiscalError(
@@ -188,7 +221,7 @@ export async function resolverFirmaParaTenant(tenantId: string, deps: DepsFirma 
     throw e;
   }
   logger.info("arca", "firma por delegación (ADR-077 §6)", { tenantId, estudioTenantId });
-  return { credencial, cuitFirmante: cuitRepresentante };
+  return { credencial, cuitFirmante: cuitRepresentante, titularTenantId: estudioTenantId };
 }
 
 /**
@@ -224,8 +257,10 @@ export function crearClientePara(
   leer: LeerConfigFiscal = leerConfigFiscalPrisma,
   env: Record<string, string | undefined> = process.env,
   resolverCredencial: (tenantId: string) => Promise<CredencialEmisor | FirmaResuelta> = (id) => resolverFirmaParaTenant(id),
-  leerTicket: (tenantId: string) => Promise<TicketAcceso | undefined> = leerTicketAcceso,
-  guardarTicket: (tenantId: string, ta: TicketAcceso) => Promise<void> = guardarTicketAcceso,
+  leerTicket: (titularTenantId: string, huella?: string) => Promise<TicketAcceso | undefined> = (t, h) =>
+    leerTicketAcceso(t, undefined, h),
+  guardarTicket: (titularTenantId: string, ta: TicketAcceso, huella?: string) => Promise<void> = (t, ta, h) =>
+    guardarTicketAcceso(t, ta, undefined, h),
   leerUltimoEmitido: (tenantId: string, puntoVenta: number, tipo: number) => Promise<number> = ultimoNumeroAutorizado,
 ): (tenantId: string) => Promise<AfipClient> {
   return async (tenantId) => {
@@ -258,17 +293,21 @@ export function crearClientePara(
     // fail-closed (el envío se detiene como error de configuración).
     const resuelta = await resolverCredencial(tenantId);
     const firma: FirmaResuelta = "certPem" in resuelta ? { credencial: resuelta } : resuelta;
+    // El TA es del CERTIFICADO que firma (WSAA bloquea el 2.º login por certificado): se lee y se
+    // guarda parado en quien lo tiene cargado (el estudio, si es una delegación) y por su huella.
+    const titular = firma.titularTenantId ?? tenantId;
+    const huella = huellaDeCertificado(firma.credencial.certPem);
     // Reutilización del TA (ADR-022 §6): si hay un TA vigente persistido, se lo damos al
     // cliente para que NO re-loguee (WSAA bloquea `alreadyAuthenticated` ~10-15 min). Cuando
     // el cliente acuña uno nuevo, `alRenovarTicket` lo persiste (cifrado) para la próxima
     // invocación — el seam que cierra el ciclo en serverless.
-    const ticketInicial = await leerTicket(tenantId);
+    const ticketInicial = await leerTicket(titular, huella);
     return crearAfipClient(config, {
       env: envDelNegocio,
       credencial: firma.credencial,
       cuitFirmante: firma.cuitFirmante,
       ticketInicial,
-      alRenovarTicket: (ta) => guardarTicket(tenantId, ta),
+      alRenovarTicket: (ta) => guardarTicket(titular, ta, huella),
     });
   };
 }
