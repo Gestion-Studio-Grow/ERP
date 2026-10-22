@@ -4,7 +4,11 @@
 // tarjetas. Una tabla densa en la PC y renglones de dos líneas en el celular; la fila entera abre
 // la ficha. Arriba, buscar (nombre o teléfono) y la situación como vistas de la lista, con su
 // número. Todo vive en la URL y lo resuelve el servidor (lista-core.ts): al navegador llega la
-// página que se mira. Sólo con «Diseño nuevo» prendido; apagado, la lista de siempre.
+// página que se mira. Con «Diseño nuevo» prendido, en el piloto y —con piel propia— en un negocio
+// que da turnos (CH, reingeniería Tanda 2).
+//
+// VISTAS PARA ESCRIBIRLES (Tanda 2, §3.6): Frecuentes · Hace mucho · Cumplen · Deben, con su número;
+// en una vista, cada fila trae su WhatsApp con el mensaje de esa vista armado (lista-core.ts).
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -13,9 +17,11 @@ import { MenuMas } from "@/components/ui/MenuMas";
 import { Tabla, type ColumnaTabla } from "@/components/ui/Tabla";
 import { hrefConParametros } from "@/components/ui/tabla-core";
 import { fmtShortDate, fmtTime } from "@/lib/datetime";
+import { fmtMoneyARS } from "@/components/ui/format";
+import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { SEGMENTOS, SEGMENTO_ETIQUETA, type Segmento } from "@/lib/crm/segmentos";
-import type { FilaCliente } from "./lista-core";
-import { TAMANIO_PAGINA, ultimaVez } from "./lista-core";
+import type { FilaCliente, VistaClientes } from "./lista-core";
+import { DIAS_PARA_EL_CUMPLE, TAMANIO_PAGINA, VISTAS, VISTA_ETIQUETA, diasHastaElCumple, textoDeWhatsApp, ultimaVez } from "./lista-core";
 import { EVENTO_FICHA, type PedidoFicha } from "./NuevaFicha";
 
 // La forma dice en qué punto del ciclo está: vacía (todavía no vino), llena (viene), a medias (se
@@ -45,7 +51,21 @@ export type ListaClientesProps = {
   puedeCrear?: boolean;
   /** Cuántos compraron dejando el teléfono y no tienen ficha. */
   sinFicha?: number;
+  /** La vista para escribirles que se mira, y cuántas hay en cada una (sin ellas, no hay vistas). */
+  vista?: VistaClientes | null;
+  porVista?: Record<VistaClientes, number>;
+  /** AAAA-MM-DD del negocio: «cumple hoy», «en 3 días». */
+  hoy?: string;
 };
+
+const pesos = (n: number) => fmtMoneyARS(n, 0);
+
+function cuandoCumple(cumple: string | null | undefined, hoy: string | undefined): string | null {
+  if (!hoy) return null;
+  const d = diasHastaElCumple(cumple, hoy);
+  if (d === null) return null;
+  return d === 0 ? "Cumple hoy" : d === 1 ? "Cumple mañana" : `Cumple en ${d} días`;
+}
 
 const pedirFicha = (que: PedidoFicha) => window.dispatchEvent(new CustomEvent<PedidoFicha>(EVENTO_FICHA, { detail: que }));
 
@@ -63,12 +83,15 @@ export default function ClientesRenglon({
   atajos = [],
   puedeCrear = false,
   sinFicha = 0,
+  vista = null,
+  porVista,
+  hoy,
 }: ListaClientesProps) {
   const ruta = usePathname();
   const sp = useSearchParams();
   const con = (cambios: Record<string, string | null>) => hrefConParametros(ruta, sp, cambios);
   const orden = sp.get("orden");
-  const buscando = q !== "" || situacion !== null;
+  const buscando = q !== "" || situacion !== null || vista !== null;
 
   const todas: ColumnaTabla<FilaCliente>[] = [
     {
@@ -142,6 +165,40 @@ export default function ClientesRenglon({
       ),
     },
   ];
+  // En una vista para escribirles: lo que la explica (cuándo cumple, cuánto debe) y su WhatsApp.
+  if (vista) {
+    todas.push({
+      clave: "escribirle",
+      titulo: vista === "cumplen" ? "Cumple" : vista === "deben" ? "Debe" : "Escribirle",
+      alinear: vista === "deben" ? "derecha" : undefined,
+      movil: "tecla",
+      celda: (f) => {
+        const wa = waLinkClienta(f.telefono, textoDeWhatsApp(vista, f, hoy ?? null, pesos));
+        const dato = vista === "cumplen" ? cuandoCumple(f.cumple, hoy) : vista === "deben" ? `Debe ${pesos(f.debe ?? 0)}` : null;
+        return (
+          <span className="inline-flex flex-wrap items-center justify-end gap-2">
+            {dato && <span className="whitespace-nowrap tabular-nums">{dato}</span>}
+            {wa ? (
+              <a
+                href={wa}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonClasses("outline", "sm", "inline-flex items-center")}
+                data-ui="button"
+                data-variant="outline"
+                data-size="sm"
+                aria-label={`WhatsApp a ${f.nombre}${dato ? ` (${dato.toLowerCase()})` : ""}, se abre en otra pestaña`}
+              >
+                WhatsApp
+              </a>
+            ) : (
+              <span className="text-sm text-muted">{f.telefono ? "No es un celular" : "Sin teléfono"}</span>
+            )}
+          </span>
+        );
+      },
+    });
+  }
   // En una carnicería no hay turnos: la columna quedaba llena de «—» y delataba otro rubro.
   const columnas = conTurnos ? todas : todas.filter((c) => c.clave !== "proximo");
 
@@ -157,7 +214,8 @@ export default function ClientesRenglon({
   const vacio = buscando ? (
     <p>
       Nadie coincide{q ? ` con «${q}»` : ""}
-      {situacion ? ` en «${SEGMENTO_ETIQUETA[situacion]}»` : ""}.{" "}
+      {situacion ? ` en «${SEGMENTO_ETIQUETA[situacion]}»` : ""}
+      {vista ? ` en «${VISTA_ETIQUETA[vista]}»` : ""}.{" "}
       <Link href={ruta} className="font-medium text-accent-ink underline-offset-2 hover:underline">
         Ver todos
       </Link>
@@ -216,7 +274,26 @@ export default function ClientesRenglon({
     </>
   );
 
+  const vistas = porVista ? (
+    <nav aria-label="Para escribirles" className="-mx-1 mb-2 flex items-center gap-2 overflow-x-auto px-1 pb-1">
+      <span className="shrink-0 text-sm text-muted max-sm:sr-only">Para escribirles</span>
+      {VISTAS.map((v) => (
+        <Link
+          key={v}
+          href={con({ vista: vista === v ? null : v, cursor: null })}
+          {...chipLinkAtributos(vista === v, "shrink-0")}
+          title={v === "cumplen" ? `Hoy o en los próximos ${DIAS_PARA_EL_CUMPLE} días` : v === "hace-mucho" ? "En riesgo o no volvió" : undefined}
+        >
+          {VISTA_ETIQUETA[v]}
+          <span data-parte="conteo">{porVista[v]}</span>
+        </Link>
+      ))}
+    </nav>
+  ) : null;
+
   const filtros = (
+    <>
+    {vistas}
     <nav aria-label="Situación de los clientes" className="-mx-1 mb-2 flex items-center gap-2 overflow-x-auto px-1 pb-1">
       <span className="shrink-0 text-sm text-muted max-sm:sr-only">Situación</span>
       <Link href={con({ situacion: null })} {...chipLinkAtributos(situacion === null, "shrink-0")}>
@@ -232,6 +309,7 @@ export default function ClientesRenglon({
         ),
       )}
     </nav>
+    </>
   );
 
   return (

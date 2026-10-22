@@ -14,17 +14,29 @@
 // `buscarRegistros` (el armazón de «Diseño nuevo»), además pide al servidor clientes, productos y
 // pedidos (R6-F2, src/lib/buscador/): espera a que se deje de tipear (DEMORA_MS) y descarta la
 // respuesta de una búsqueda vieja. Sin esa prop, la paleta es la de siempre.
+//
+// Con `buscarFichas` (el buscador global «/», reingeniería CH Tanda 2, §3.5): además pide clientas
+// y turnos por nombre o teléfono (src/lib/clientes/buscar-actions.ts), que van PRIMERO. Una ficha
+// no navega al tocarla: se SELECCIONA y abajo aparece su panel con lo que hay que saber (próximo
+// turno, si debe, faltazos, última vez) y sus teclas [Dar turno] [WhatsApp] [Cobrar lo que debe]
+// [Ver ficha]. Teclado: ↑/↓ eligen, Enter hace la primera tecla, Tab llega a las teclas del panel.
+// Las teclas de plata que todavía no existen en esta rama («Llegó la seña», «Cobrar lo que debe»
+// con su acción) son HUECOS que dibuja quien monta la paleta (`dibujarHueco`).
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconoApp } from "@/components/iconos-apps";
 import { Icono } from "./Icono";
 import { Kbd } from "./Kbd";
-import { buscarComandos, resaltar, type Comando } from "./comandos-core";
+import { atributosBoton, buttonClasses } from "./Button";
+import { buscarComandos, resaltar, type Comando, type GrupoDeFichas, type HuecoDeFicha } from "./comandos-core";
 import { LARGO_MINIMO, type GrupoDeRegistros } from "@/lib/buscador/registros-core";
 import type { ResultadoDeBusqueda } from "@/lib/buscador/buscar-en-el-negocio";
 
 export type BuscarRegistros = (q: string) => Promise<ResultadoDeBusqueda>;
+export type BuscarFichas = (q: string) => Promise<{ ok: true; grupos: GrupoDeFichas[] } | { ok: false; mensaje: string }>;
+/** Dibuja una tecla de plata de una ficha (o `null` si no la sabe dibujar). `cerrar` cierra la paleta. */
+export type DibujarHueco = (hueco: HuecoDeFicha, cerrar: () => void) => React.ReactNode;
 
 /** Cuánto se espera después de la última tecla para ir al servidor. */
 const DEMORA_MS = 250;
@@ -33,6 +45,85 @@ type EstadoRegistros =
   | { fase: "quieto"; grupos: GrupoDeRegistros[] }
   | { fase: "buscando"; grupos: GrupoDeRegistros[] }
   | { fase: "error"; grupos: GrupoDeRegistros[]; mensaje: string };
+
+type EstadoFichas =
+  | { fase: "quieto"; grupos: GrupoDeFichas[] }
+  | { fase: "buscando"; grupos: GrupoDeFichas[] }
+  | { fase: "error"; grupos: GrupoDeFichas[]; mensaje: string };
+
+const esFicha = (c: Comando | undefined): c is Comando & { teclas: NonNullable<Comando["teclas"]> } => !!c?.teclas && c.teclas.length > 0;
+
+/** El panel de la ficha seleccionada: lo que hay que saber y sus teclas. */
+function PanelDeFicha({
+  id,
+  ficha,
+  dibujarHueco,
+  onIr,
+  onCerrar,
+}: {
+  id: string;
+  ficha: Comando & { teclas: NonNullable<Comando["teclas"]> };
+  dibujarHueco?: DibujarHueco;
+  onIr: (href: string) => void;
+  onCerrar: () => void;
+}) {
+  const huecos = (ficha.huecos ?? [])
+    .map((h) => ({ h, nodo: dibujarHueco ? dibujarHueco(h, onCerrar) : null }))
+    .filter((x) => x.nodo !== null && x.nodo !== undefined && x.nodo !== false);
+  // Si quien monta la paleta dibuja «Cobrar lo que debe» con la acción de verdad, el enlace de
+  // respaldo (a «Saldos a cobrar») sobra.
+  const sinRespaldo = huecos.some((x) => x.h.tipo === "cobrar-deuda");
+  const teclas = ficha.teclas.filter((t) => !(sinRespaldo && t.id === "cobrar-deuda"));
+  return (
+    <section id={id} data-parte="detalle" aria-label={`${ficha.nombre}: lo que hay que saber`} className="border-t border-line px-4 py-3">
+      <ul aria-live="polite" className="m-0 mb-3 flex list-none flex-wrap gap-x-3 gap-y-1 p-0 text-sm text-body">
+        {(ficha.resumen ?? []).map((linea) => (
+          <li key={linea} className="tabular-nums">
+            {linea}
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap gap-2">
+        {huecos.map((x) => (
+          <span key={`${x.h.tipo}-${"turnoId" in x.h ? x.h.turnoId : x.h.clienteId}`} className="contents">
+            {x.nodo}
+          </span>
+        ))}
+        {teclas.map((t, i) =>
+          t.externo ? (
+            <a
+              key={t.id}
+              href={t.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonClasses(i === 0 && huecos.length === 0 ? "solid" : "outline", "sm", "inline-flex items-center")}
+              {...atributosBoton(i === 0 && huecos.length === 0 ? "solid" : "outline", "sm")}
+              onClick={onCerrar}
+            >
+              {t.etiqueta}
+              <span className="sr-only"> (se abre en otra pestaña)</span>
+            </a>
+          ) : (
+            <a
+              key={t.id}
+              href={t.href}
+              className={buttonClasses(i === 0 && huecos.length === 0 ? "solid" : "outline", "sm", "inline-flex items-center")}
+              {...atributosBoton(i === 0 && huecos.length === 0 ? "solid" : "outline", "sm")}
+              onClick={(e) => {
+                // Navegación del lado del cliente (y la paleta se cierra); con Ctrl/⌘ o la rueda, el navegador.
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                e.preventDefault();
+                onIr(t.href);
+              }}
+            >
+              {t.etiqueta}
+            </a>
+          ),
+        )}
+      </div>
+    </section>
+  );
+}
 
 function Nombre({ nombre, texto }: { nombre: string; texto: string }) {
   const r = resaltar(nombre, texto);
@@ -50,20 +141,28 @@ function Contenido({
   comandos,
   onCerrar,
   buscarRegistros,
+  buscarFichas,
+  dibujarHueco,
 }: {
   comandos: readonly Comando[];
   onCerrar: () => void;
   buscarRegistros?: BuscarRegistros;
+  buscarFichas?: BuscarFichas;
+  dibujarHueco?: DibujarHueco;
 }) {
   const router = useRouter();
   const [texto, setTexto] = useState("");
   const [cursor, setCursor] = useState(0);
   const [registros, setRegistros] = useState<EstadoRegistros>({ fase: "quieto", grupos: [] });
+  const [fichas, setFichas] = useState<EstadoFichas>({ fase: "quieto", grupos: [] });
   const demora = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vuelta = useRef(0);
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const lista = useRef<HTMLUListElement>(null);
-  const { grupos, plano } = useMemo(() => buscarComandos(comandos, texto, registros.grupos), [comandos, texto, registros.grupos]);
+  const { grupos, plano } = useMemo(
+    () => buscarComandos(comandos, texto, registros.grupos, fichas.grupos),
+    [comandos, texto, registros.grupos, fichas.grupos],
+  );
 
   // Al cerrar la paleta, la búsqueda pendiente no sale y la que está en vuelo se ignora.
   useEffect(
@@ -75,17 +174,19 @@ function Contenido({
   );
 
   const pedirRegistros = (valor: string) => {
-    if (!buscarRegistros) return;
+    if (!buscarRegistros && !buscarFichas) return;
     if (demora.current) clearTimeout(demora.current);
     const esta = ++vuelta.current;
     const q = valor.trim();
     if (q.length < LARGO_MINIMO) {
       setRegistros({ fase: "quieto", grupos: [] });
+      setFichas({ fase: "quieto", grupos: [] });
       return;
     }
-    setRegistros((r) => ({ fase: "buscando", grupos: r.grupos }));
+    if (buscarRegistros) setRegistros((r) => ({ fase: "buscando", grupos: r.grupos }));
+    if (buscarFichas) setFichas((r) => ({ fase: "buscando", grupos: r.grupos }));
     demora.current = setTimeout(() => {
-      buscarRegistros(q)
+      buscarRegistros?.(q)
         .then((res) => {
           if (esta !== vuelta.current) return;
           setRegistros(res.ok ? { fase: "quieto", grupos: res.grupos } : { fase: "error", grupos: [], mensaje: res.mensaje });
@@ -94,8 +195,19 @@ function Contenido({
           if (esta !== vuelta.current) return;
           setRegistros({ fase: "error", grupos: [], mensaje: "No pudimos buscar clientes, productos ni pedidos. Revisá la conexión y probá de nuevo." });
         });
+      buscarFichas?.(q)
+        .then((res) => {
+          if (esta !== vuelta.current) return;
+          setFichas(res.ok ? { fase: "quieto", grupos: res.grupos } : { fase: "error", grupos: [], mensaje: res.mensaje });
+        })
+        .catch(() => {
+          if (esta !== vuelta.current) return;
+          setFichas({ fase: "error", grupos: [], mensaje: "No pudimos buscar clientas ni turnos. Revisá la conexión y probá de nuevo." });
+        });
     }, DEMORA_MS);
   };
+  const buscando = registros.fase === "buscando" || fichas.fase === "buscando";
+  const errores = [registros, fichas].flatMap((r) => (r.fase === "error" ? [r.mensaje] : []));
   const activo = plano.length > 0 ? Math.min(cursor, plano.length - 1) : -1;
   const idOpcion = (c: Comando) => `${id}-${c.grupo}-${c.id}`;
 
@@ -105,10 +217,23 @@ function Contenido({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sólo cuando cambia la opción activa
   }, [activo]);
 
-  const ir = (c: Comando) => {
+  const irA = (href: string) => {
     onCerrar();
-    router.push(c.href);
+    router.push(href);
   };
+  const ir = (c: Comando) => {
+    const primera = c.teclas?.[0];
+    if (primera?.externo) {
+      // WhatsApp como primera tecla (quien no da turnos): se abre afuera, como el enlace.
+      window.open(primera.href, "_blank", "noopener,noreferrer");
+      onCerrar();
+      return;
+    }
+    irA(c.href);
+  };
+  const activa = activo >= 0 ? plano[activo] : undefined;
+  const fichaActiva = esFicha(activa) ? activa : null;
+  const idDetalle = `${id}-detalle`;
 
   const alTeclear = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const n = plano.length;
@@ -138,8 +263,15 @@ function Contenido({
           aria-controls={`${id}-lista`}
           aria-activedescendant={activo >= 0 ? idOpcion(plano[activo]) : undefined}
           aria-autocomplete="list"
-          aria-label="¿Qué querés hacer?"
-          placeholder={buscarRegistros ? "Buscá una acción, una app, un cliente o un pedido…" : "¿Qué querés hacer? Vender, cerrar el día, una app…"}
+          aria-label={buscarFichas ? "Buscar una clienta, un turno o qué querés hacer" : "¿Qué querés hacer?"}
+          aria-describedby={fichaActiva ? idDetalle : undefined}
+          placeholder={
+            buscarFichas
+              ? "Nombre o teléfono de la clienta, o qué querés hacer…"
+              : buscarRegistros
+                ? "Buscá una acción, una app, un cliente o un pedido…"
+                : "¿Qué querés hacer? Vender, cerrar el día, una app…"
+          }
           autoComplete="off"
           spellCheck={false}
           value={texto}
@@ -162,11 +294,13 @@ function Contenido({
         </button>
       </div>
       <ul ref={lista} id={`${id}-lista`} role="listbox" aria-label="Resultados" data-parte="lista">
-        {grupos.length === 0 && registros.fase === "quieto" && (
+        {grupos.length === 0 && !buscando && errores.length === 0 && (
           <li role="presentation" data-parte="nada">
-            {buscarRegistros
-              ? `No encontramos nada con «${texto.trim()}». Probá con otra palabra, un teléfono o el número del pedido.`
-              : `No hay acciones ni apps con «${texto.trim()}». Probá con otra palabra: «cobrar», «arqueo», «stock».`}
+            {buscarFichas
+              ? `No encontramos a nadie con «${texto.trim()}». Probá con el apellido o con los últimos números del teléfono.`
+              : buscarRegistros
+                ? `No encontramos nada con «${texto.trim()}». Probá con otra palabra, un teléfono o el número del pedido.`
+                : `No hay acciones ni apps con «${texto.trim()}». Probá con otra palabra: «cobrar», «arqueo», «stock».`}
           </li>
         )}
         {grupos.map((g, gi) => (
@@ -183,8 +317,10 @@ function Contenido({
                     id={idOpcion(c)}
                     role="option"
                     aria-selected={indice === activo}
-                    onMouseMove={() => indice !== activo && setCursor(indice)}
-                    onClick={() => ir(c)}
+                    // Una ficha no se activa al pasar el mouse: el panel de abajo no tiene que cambiar
+                    // mientras el mouse cruza la lista para llegar a sus teclas. Se elige tocándola.
+                    onMouseMove={() => !esFicha(c) && indice !== activo && setCursor(indice)}
+                    onClick={() => (esFicha(c) ? setCursor(indice) : ir(c))}
                   >
                     {c.icono ? <IconoApp nombre={c.icono} /> : <Icono nombre="flecha" />}
                     <span className="min-w-0">
@@ -200,20 +336,28 @@ function Contenido({
             </ul>
           </li>
         ))}
-        {registros.fase === "buscando" && (
+        {buscando && (
           <li role="presentation" data-parte="nada" aria-live="polite">
-            Buscando clientes, productos y pedidos…
+            {buscarFichas ? "Buscando clientas y turnos…" : "Buscando clientes, productos y pedidos…"}
           </li>
         )}
-        {registros.fase === "error" && (
-          <li role="presentation" data-parte="nada" aria-live="polite">
-            {registros.mensaje}
+        {errores.map((m) => (
+          <li key={m} role="alert" data-parte="nada">
+            {m}
           </li>
-        )}
+        ))}
       </ul>
+      {fichaActiva && <PanelDeFicha id={idDetalle} ficha={fichaActiva} dibujarHueco={dibujarHueco} onIr={irA} onCerrar={onCerrar} />}
       <p data-parte="ayuda" aria-hidden>
         <span>
-          <Kbd>↑</Kbd> <Kbd>↓</Kbd> moverte · <Kbd>Enter</Kbd> abrir · <Kbd>Esc</Kbd> cerrar
+          <Kbd>↑</Kbd> <Kbd>↓</Kbd> moverte · <Kbd>Enter</Kbd> {fichaActiva ? fichaActiva.teclas[0].etiqueta.toLowerCase() : "abrir"}
+          {fichaActiva && (
+            <>
+              {" "}
+              · <Kbd>Tab</Kbd> sus teclas
+            </>
+          )}{" "}
+          · <Kbd>Esc</Kbd> cerrar
         </span>
         <span>Sólo lo que vos podés abrir</span>
       </p>
@@ -226,12 +370,21 @@ export function PaletaDeComandos({
   onCerrar,
   comandos,
   buscarRegistros,
+  buscarFichas,
+  dibujarHueco,
+  etiqueta = "Buscar: ¿qué querés hacer?",
 }: {
   abierta: boolean;
   onCerrar: () => void;
   comandos: readonly Comando[];
   /** Clientes, productos y pedidos del servidor (sólo el armazón de «Diseño nuevo»). */
   buscarRegistros?: BuscarRegistros;
+  /** Clientas y turnos con sus teclas (el buscador global «/», quien ve la agenda). */
+  buscarFichas?: BuscarFichas;
+  /** Las teclas de plata de una ficha («Llegó la seña», «Cobrar lo que debe»). */
+  dibujarHueco?: DibujarHueco;
+  /** El nombre accesible del diálogo. */
+  etiqueta?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -244,14 +397,16 @@ export function PaletaDeComandos({
     <dialog
       ref={ref}
       data-ui="paleta"
-      aria-label="Buscar: ¿qué querés hacer?"
+      aria-label={etiqueta}
       onClose={onCerrar}
       onClick={(e) => {
         if (e.target === e.currentTarget) onCerrar();
       }}
     >
       {/* Se monta sólo abierta: cada vez arranca vacía y con el foco en el campo. */}
-      {abierta && <Contenido comandos={comandos} onCerrar={onCerrar} buscarRegistros={buscarRegistros} />}
+      {abierta && (
+        <Contenido comandos={comandos} onCerrar={onCerrar} buscarRegistros={buscarRegistros} buscarFichas={buscarFichas} dibujarHueco={dibujarHueco} />
+      )}
     </dialog>
   );
 }

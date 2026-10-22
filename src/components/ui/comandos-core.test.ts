@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ACCIONES_SIN_TEXTO, buscarComandos, resaltar, type Comando } from "./comandos-core";
+import { ACCIONES_SIN_TEXTO, buscarComandos, resaltar, type Comando, type GrupoDeFichas } from "./comandos-core";
 import type { GrupoDeRegistros } from "@/lib/buscador/registros-core";
 
 const C = (id: string, grupo: Comando["grupo"], nombre: string, extra: Partial<Comando> = {}): Comando => ({ id, grupo, nombre, href: `/admin/${id}`, ...extra });
@@ -82,4 +82,44 @@ test("registros: van después de acciones y apps, tal como llegan (no se vuelven
 
 test("registros: sin texto no se muestran (la paleta vacía es la de siempre)", () => {
   assert.deepEqual(buscarComandos(COMANDOS, "  ", REGISTROS).grupos.map((g) => g.grupo), ["acciones", "apps"]);
+});
+
+// ── Fichas: el buscador «/» de clientas y turnos (reingeniería CH, Tanda 2) ───
+
+
+const FICHAS_DE_LAURA: GrupoDeFichas[] = [
+  {
+    grupo: "clientas",
+    nombre: "Clientes",
+    items: [
+      {
+        id: "clienta-laura",
+        grupo: "clientas",
+        nombre: "Laura Gómez",
+        href: "/admin/turnos/lista?nuevo=1&cliente=laura",
+        teclas: [{ id: "dar-turno", etiqueta: "Dar turno", href: "/admin/turnos/lista?nuevo=1&cliente=laura" }],
+      },
+    ],
+  },
+  { grupo: "turnos", nombre: "Turnos", items: [{ id: "turno-t1", grupo: "turnos", nombre: "Laura Gómez · sáb 24 13:00", href: "/admin/turnos?date=2026-10-24&turno=t1" }] },
+];
+const REGISTROS_CON_CLIENTA: GrupoDeRegistros[] = [
+  { grupo: "clientes", nombre: "Clientes", items: [{ id: "cliente-laura", grupo: "clientes", nombre: "Laura Gómez", href: "/admin/clientes/laura" }] },
+  { grupo: "pedidos", nombre: "Pedidos", items: [{ id: "pedido-1", grupo: "pedidos", nombre: "Pedido #1", href: "/admin/pedidos" }] },
+];
+
+test("con fichas: clientas y turnos van primero y reemplazan al grupo «Clientes» de los registros", () => {
+  const r = buscarComandos(COMANDOS, "laura", REGISTROS_CON_CLIENTA, FICHAS_DE_LAURA);
+  assert.deepEqual(r.grupos.map((g) => g.grupo), ["clientas", "turnos", "pedidos"]);
+  assert.equal(r.plano[0].id, "clienta-laura", "Enter apunta a la clienta");
+  assert.equal(r.grupos[0].items[0].icono, "clientes");
+  assert.equal(r.grupos[1].items[0].icono, "agenda");
+});
+
+test("sin texto, las fichas no se muestran; sin fichas, la paleta de siempre (con su grupo Clientes)", () => {
+  assert.deepEqual(buscarComandos(COMANDOS, "", REGISTROS_CON_CLIENTA, FICHAS_DE_LAURA).grupos.map((g) => g.grupo), ["acciones", "apps"]);
+  assert.deepEqual(buscarComandos(COMANDOS, "laura", REGISTROS_CON_CLIENTA, []).grupos.map((g) => g.grupo), ["clientes", "pedidos"]);
+  // Fichas vacías (no se encontró a nadie): los registros quedan como estaban.
+  const vacias: GrupoDeFichas[] = [{ grupo: "clientas", nombre: "Clientes", items: [] }];
+  assert.deepEqual(buscarComandos(COMANDOS, "laura", REGISTROS_CON_CLIENTA, vacias).grupos.map((g) => g.grupo), ["clientes", "pedidos"]);
 });
