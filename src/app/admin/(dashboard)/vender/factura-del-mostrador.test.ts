@@ -54,7 +54,7 @@ test("MG-018: el Mostrador con el CUIT cargado lee que la factura la hace el due
   // Sin CUIT todavía, y con el campo a la vista: se lo manda a ESTE bloque, que lo tiene.
   assert.match(
     motivoSinFactura({ puedeFacturar: false, rolFactura: false, conDocumento: true, documento: { estado: "vacio" } }) ?? "",
-    /cargá el CUIT acá para que salga a su nombre/,
+    /si la pide a su nombre, cargá el CUIT o DNI acá y queda en la venta\./,
   );
   // Con el bloque de siempre, no se lo manda a ningún campo.
   assert.doesNotMatch(motivoSinFactura({ puedeFacturar: false, rolFactura: false }) ?? "", /cargá/);

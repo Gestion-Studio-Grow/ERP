@@ -16,7 +16,7 @@
 // Y `onCambio` avisa cada cambio, para la zona de envío (última dirección) o «Repetir».
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Field, Input, Select, buttonClasses, cn, fmtCuit, fmtMoneyARS } from "@/components/ui";
+import { Field, Input, Select, atributosBoton, buttonClasses, cn, fmtCuit, fmtMoneyARS } from "@/components/ui";
 import {
   buscarClientesParaVenta,
   consultarPadronParaVenta,
@@ -449,28 +449,32 @@ function DatosParaFacturar({
   const [razonSocial, setRazonSocial] = useState(elegido?.razonSocial ?? "");
   const [condicionIva, setCondicionIva] = useState(elegido?.condicionIva ?? "");
   const [domicilio, setDomicilio] = useState(elegido?.domicilio ?? "");
-  const [padron, setPadron] = useState<"sin-consultar" | "consultando" | "sin-datos" | "completado">("sin-consultar");
+  // Lo que respondió el padrón, por CUIT: «consultando» se deduce (no se guarda en un efecto).
+  const [padron, setPadron] = useState<{ cuit: string; estado: "sin-datos" | "completado" } | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<{ campo?: CampoDelCliente; texto: string; existenteId?: string } | null>(null);
 
   // Con un CUIT válido se consulta el padrón (gancho: hoy no trae nada y se completa a mano).
   const cuitParaPadron = (docTipo === "80" || docTipo === "86") && leerDocumento(docNro, Number(docTipo)).estado === "valido" ? docNro : null;
+  const hayQueConsultar = abierto && cuitParaPadron != null && razonSocial === "";
+  const estadoPadron =
+    cuitParaPadron == null ? "sin-consultar" : padron?.cuit === cuitParaPadron ? padron.estado : hayQueConsultar ? "consultando" : "sin-consultar";
   useEffect(() => {
-    if (!abierto || !cuitParaPadron || razonSocial) return;
+    if (!hayQueConsultar || !cuitParaPadron || padron?.cuit === cuitParaPadron) return;
     let vigente = true;
-    setPadron("consultando");
-    consultarPadronParaVenta(cuitParaPadron)
+    const cuit = cuitParaPadron;
+    consultarPadronParaVenta(cuit)
       .then((d) => {
         if (!vigente) return;
-        if (!d) return setPadron("sin-datos");
+        if (!d) return setPadron({ cuit, estado: "sin-datos" });
         setRazonSocial(d.razonSocial);
         if (d.condicionIva) setCondicionIva(d.condicionIva);
         if (d.domicilio) setDomicilio(d.domicilio);
-        setPadron("completado");
+        setPadron({ cuit, estado: "completado" });
       })
-      .catch((e) => {
-        if (isNextRedirect(e)) throw e;
-        if (vigente) setPadron("sin-datos");
+      .catch(() => {
+        // Sin padrón (o sin sesión: la próxima acción redirige): se completa a mano.
+        if (vigente) setPadron({ cuit, estado: "sin-datos" });
       });
     return () => {
       vigente = false;
@@ -481,7 +485,7 @@ function DatosParaFacturar({
 
   if (!abierto) {
     return (
-      <button type="button" className={buttonClasses("outline", "sm")} onClick={onAbrir}>
+      <button type="button" className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")} onClick={onAbrir}>
         {docInicial?.estado === "valido" ? "Guardar ficha con este documento" : "Guardar ficha"}
       </button>
     );
@@ -537,9 +541,9 @@ function DatosParaFacturar({
           htmlFor={`${id}-razon`}
           error={err("razonSocial")}
           hint={
-            padron === "consultando"
+            estadoPadron === "consultando"
               ? "Consultando el padrón de ARCA…"
-              : padron === "sin-datos" && tipoEsCuit
+              : estadoPadron === "sin-datos" && tipoEsCuit
                 ? "Sin consulta al padrón de ARCA todavía: copiala de la constancia de CUIT."
                 : "Tal como figura en la constancia de CUIT."
           }
@@ -565,11 +569,11 @@ function DatosParaFacturar({
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        <button type="button" className={buttonClasses("solid", "md")} disabled={guardando} onClick={() => void guardar()}>
+        <button type="button" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")} disabled={guardando} onClick={() => void guardar()}>
           {guardando ? "Guardando…" : "Guardar datos para facturar"}
         </button>
         {error?.existenteId && (
-          <button type="button" className={buttonClasses("outline", "md")} onClick={() => onElegirExistente(error.existenteId!)}>
+          <button type="button" className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")} onClick={() => onElegirExistente(error.existenteId!)}>
             Elegir esa ficha
           </button>
         )}

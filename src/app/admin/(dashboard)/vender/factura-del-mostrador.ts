@@ -63,7 +63,7 @@ export function motivoSinFactura(o: {
       return `La factura la hace el dueño desde Ventas del día; el ${d.nombre ?? "CUIT"} ya quedó en la venta.`;
     }
     if (o.conDocumento) {
-      return "La factura la hace el dueño desde Ventas del día; si la pide a su nombre, cargá el CUIT acá para que salga a su nombre.";
+      return "La factura la hace el dueño desde Ventas del día; si la pide a su nombre, cargá el CUIT o DNI acá y queda en la venta.";
     }
     return "La factura de esta venta la hace el dueño, desde Ventas del día.";
   }
