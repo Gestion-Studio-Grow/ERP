@@ -185,15 +185,18 @@ try {
       const sombras = () =>
         marco.evaluate((el) => {
           const caja = el.parentElement;
-          const op = (lado) => Number(getComputedStyle(caja.querySelector(`[data-parte="borde-${lado}"]`)).opacity);
-          return { izq: op("izq"), der: op("der") };
+          const borde = (lado) => getComputedStyle(caja.querySelector(`[data-parte="borde-${lado}"]`));
+          const op = (lado) => Number(borde(lado).opacity);
+          // Y que la sombra exista (el gradiente con el token de la piel), no sólo su opacidad.
+          const pinta = ["izq", "der"].every((l) => /gradient/.test(borde(l).backgroundImage));
+          return { izq: op("izq"), der: op("der"), pinta };
         });
       await p.waitForTimeout(200);
       const alEmpezar = await sombras();
       await marco.evaluate((el) => (el.scrollLeft = el.scrollWidth));
       await p.waitForTimeout(300);
       const alFinal = await sombras();
-      ok("6.sombra", alEmpezar.der === 1 && alEmpezar.izq === 0 && alFinal.der === 0 && alFinal.izq === 1, `la sombra marca de qué lado hay más tabla (al empezar ${JSON.stringify(alEmpezar)}, al final ${JSON.stringify(alFinal)})`);
+      ok("6.sombra", alEmpezar.pinta && alEmpezar.der === 1 && alEmpezar.izq === 0 && alFinal.der === 0 && alFinal.izq === 1, `la sombra marca de qué lado hay más tabla (al empezar ${JSON.stringify(alEmpezar)}, al final ${JSON.stringify(alFinal)})`);
       await marco.evaluate((el) => (el.scrollLeft = 0));
     }
     await p.getByRole("button", { name: "Cobrar en el mostrador" }).click();

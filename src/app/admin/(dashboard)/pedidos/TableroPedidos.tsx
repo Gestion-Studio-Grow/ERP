@@ -431,7 +431,7 @@ export default function TableroPedidos({
       ordenable: true,
       movil: "asunto",
       celda: (p) => (
-        // En la tabla (desde 40rem) el nombre tiene un ancho fijo, un cuarto de la tabla (`cqi`: la
+        // En la tabla (más de 40rem: el apilado de la piel es hasta 40rem inclusive) el nombre tiene un ancho fijo, un cuarto de la tabla (`cqi`: la
         // tabla densa es contenedor), y se corta con «…» (el completo, en el título): así cede lugar
         // a lo accionable y en una tablet de 820 el cobro y el paso que sigue entran sin deslizar.
         // Un tope (max-width) no alcanza: la tabla automática lo ignora al repartir las columnas.
@@ -439,7 +439,7 @@ export default function TableroPedidos({
           type="button"
           onClick={() => abrir(p.id)}
           title={p.canal === "COUNTER" ? `${p.cliente} · mostrador` : p.cliente}
-          className="max-w-full truncate text-left font-semibold text-strong hover:underline @[40rem]:block @[40rem]:w-[24cqi]"
+          className="max-w-full truncate text-left font-semibold text-strong hover:underline @min-[40.0625rem]:block @min-[40.0625rem]:w-[24cqi]"
         >
           {p.cliente}
           {p.canal === "COUNTER" && <span className="font-normal text-muted"> · mostrador</span>}
