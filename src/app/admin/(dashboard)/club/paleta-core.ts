@@ -4,9 +4,12 @@
 // Sin texto: lo de todos los días (nuevo turno, abrir cuenta, ir a hoy y a cada solapa, con su tecla). Con texto:
 // turnos de hoy y del día que se mira, clientes (en rojo «debe $X» si deben), cuentas abiertas del buffet y las
 // acciones que coinciden. Sólo lo que quien opera puede abrir (las solapas que ve).
+// Tanda 2B: con texto, también la PLATA PENDIENTE de cualquier día que coincide por nombre o celular («Pablo · debe la
+// falta del 15/10 · $ 42.000 · Cobrar»); elegirla lleva a la Caja, donde se resuelve con el medio.
 
 import { buscarClientes, cancha as canchaDe, cuentasAbiertas, hhmm, pesos, saldoCuenta } from "@/lib/club/motor.mjs";
-import type { EstadoClub } from "@/lib/club/motor.mjs";
+import type { EstadoClub, PlataPendiente } from "@/lib/club/motor.mjs";
+import { plataQueCoincide } from "./plata-pendiente-core";
 
 export type AccionPaleta =
   | { tipo: "solapa"; id: string }
@@ -20,7 +23,7 @@ export type AccionPaleta =
 
 export interface ItemPaleta {
   clave: string;
-  grupo: "Hacer" | "Ir a" | "Turno" | "Cliente" | "Buffet" | "Ajustes" | "Ayuda";
+  grupo: "Hacer" | "Ir a" | "Plata" | "Turno" | "Cliente" | "Buffet" | "Ajustes" | "Ayuda";
   titulo: string;
   detalle: string;
   /** Debe plata: el detalle va en rojo. */
@@ -32,6 +35,21 @@ export interface ItemPaleta {
 const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 const ddmm = (f: string) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
 const MAXIMO = 14;
+
+/** «debe la falta del 15/10 · $ 42.000 · Cobrar» (lo que se lee en la paleta, al lado del nombre). */
+export function detalleDePlata(x: PlataPendiente): string {
+  const del = x.fecha ? ` del ${ddmm(x.fecha)}` : "";
+  switch (x.tipo) {
+    case "falta_sin_ficha":
+      return `debe la falta${del} · ${pesos(x.monto)} · Cobrar`;
+    case "devolucion":
+      return `hay que devolverle ${pesos(x.monto)} (turno${del}) · Devolver`;
+    case "sena_vencida":
+      return `venció la seña${del} · ${pesos(x.monto)} · Cobrar`;
+    case "fiado":
+      return x.estadoFiado === "aprobado" ? `fiado aprobado ${pesos(x.monto)} · Pasar a su cuenta corriente` : x.estadoFiado === "rechazado" ? `fiado no aprobado · ${pesos(x.monto)} · Cobrar` : `fiado ${pesos(x.monto)} · esperando el OK`;
+  }
+}
 
 export function armarPaleta(
   estado: EstadoClub,
@@ -81,7 +99,12 @@ export function armarPaleta(
         .slice(0, 3)
         .map((c) => item(`b-${c.id}`, "Buffet", `Cuenta de ${c.titular}`, c.reservaId && !c.reservaId.startsWith("mostrador") ? { tipo: "turno", id: c.reservaId } : { tipo: "solapa", id: "buffet" }, { detalle: pesos(saldoCuenta(c)) }))
     : [];
-  return [...turnos, ...clientes, ...cuentas, ...hacer].slice(0, MAXIMO);
+  const plata = ve("caja")
+    ? plataQueCoincide(estado, texto)
+        .slice(0, 4)
+        .map((x) => item(`p-${x.clave}`, "Plata", x.nombre, { tipo: "solapa", id: "caja" }, { detalle: detalleDePlata(x), rojo: x.sentido === "entra" }))
+    : [];
+  return [...plata, ...turnos, ...clientes, ...cuentas, ...hacer].slice(0, MAXIMO);
 }
 
 /** Una fila de la ayuda de atajos: las teclas (cada una en su <kbd>) y qué hacen. */

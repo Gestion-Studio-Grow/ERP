@@ -222,6 +222,8 @@ export interface Reserva {
   devolucionPendiente?: number;
   deudaSinFicha?: number;
   faltaCobrada?: number;
+  /** De la falta, lo que le quedó al titular (en su cuenta corriente, o `deudaSinFicha` si no tiene ficha). */
+  faltaTitular?: number;
   motivoCancelacion?: string;
   interrumpido?: unknown;
 }
@@ -309,6 +311,12 @@ export interface Novedad extends Sello {
   resolvio?: string;
   limiteAprobado?: number;
   porCodigo?: boolean;
+  /** Fiado: el cliente se fue esperando el OK; al aprobarse, la cuenta pasa sola a la cuenta corriente. */
+  cerrarAlAprobar?: boolean;
+  /** Se aprobó y la cuenta se cerró sola. */
+  cuentaCerrada?: boolean;
+  /** Se aprobó pero la cuenta no se pudo cerrar sola (y por qué): sigue en «Plata pendiente». */
+  noSeCerro?: string;
 }
 
 /** Alguien nuevo pidió entrar al sistema desde el mostrador; lo otorga (o rechaza) un dueño. */
@@ -386,6 +394,8 @@ export interface EstadoClub {
   log: { fecha: Fecha | null; min: number | null; texto: string }[];
   /** Resumen de lo archivado (archivarDiasCerrados). Opcional: un estado que nunca archivó no lo tiene. */
   archivo?: ArchivoJornada;
+  /** Alertas dejadas para mañana (`posponerAlerta`). Opcional: aparece la primera vez que se pospone una. */
+  alertasPospuestas?: AlertaPospuesta[];
 }
 
 // ───────────── archivo de días cerrados ─────────────
@@ -542,6 +552,13 @@ export declare function hidratarEstado(foto: unknown): Resultado<{ estado: Estad
 export declare function secuenciaIds(): number;
 export declare function retomarSecuencia(n: number): void;
 export declare function prefijoIds(prefijo?: string): void;
+/** El prefijo de ids que tiene puesto este proceso (el último `prefijoIds`, saneado). H2 del CERT BP T1. */
+export declare function prefijoActualIds(): string;
+/**
+ * Pone el contador de ids exactamente en `n` (también para abajo); un `n` que no es entero ≥ 0 no cambia nada. Quien
+ * lo baja lo vuelve a subir con `retomarSecuencia` al terminar (comandos re-aplicados). H4 del CERT BP T1.
+ */
+export declare function fijarSecuencia(n: number): void;
 
 // ───────────── constantes ─────────────
 
@@ -872,9 +889,17 @@ export declare function cobrarTodoElTurno(
 export declare function cerrarCanchaYSeguir(
   estado: EstadoClub,
   reservaId: string,
-  opciones?: { medio?: Medio; auth?: Auth | null },
+  opciones?: {
+    medio?: Medio;
+    /**
+     * Índice del jugador → su medio (Tanda 2B, para 2D): cada uno paga SU parte con el suyo; el que no está, con
+     * `medio`. Sin créditos. Se valida todo antes de cobrar: o se cobra todo y se cierra, o no pasa nada.
+     */
+    porJugador?: MediosPorJugador | null;
+    auth?: Auth | null;
+  },
   ahora?: Ahora,
-): Resultado<{ cobradoCancha: number; cuentasAbiertas: Cuenta[] }>;
+): Resultado<{ cobradoCancha: number; porMedio: Partial<Record<Medio, number>>; cuentasAbiertas: Cuenta[] }>;
 export declare function cerrarCargosDelTurno(
   estado: EstadoClub,
   reservaId: string,
@@ -1060,7 +1085,12 @@ export type TipoAlerta =
   | "stock"
   | "autorizacion"
   | "pedido"
-  | "acceso";
+  | "acceso"
+  // Tanda 2B: la caja sin cerrar (para todos), el cierre que no cuadró, el pago que vence y lo que chocó entre puestos (dueño).
+  | "caja"
+  | "cierreConDiferencia"
+  | "vencePago"
+  | "aparte";
 /** Lo que hay que resolver: el texto, el botón (`accion`) y a qué se refiere (según el tipo, uno o dos de los ids). */
 export interface Alerta {
   nivel: NivelAlerta;
@@ -1076,7 +1106,14 @@ export interface Alerta {
   novedadId?: string;
   pedidoId?: string;
   solicitudId?: string;
-  /** Sólo lo resuelve un dueño (autorizaciones, accesos). */
+  /** `caja`: la caja más vieja sin cerrar · `cierreConDiferencia`: el día de esa caja. */
+  dia?: Fecha;
+  /** `caja`: todas las cajas sin cerrar, de la más vieja a la más nueva. */
+  dias?: Fecha[];
+  /** `vencePago`: el remito y su proveedor. */
+  remitoId?: string;
+  proveedorId?: string;
+  /** Sólo lo resuelve un dueño (autorizaciones, accesos, cierre con diferencia, pagos que vencen, lo aparte). */
   paraDuenio?: true;
 }
 /** Lo que hay que resolver AHORA, de lo más urgente a lo menos (alta → media → info; dentro del nivel, en el orden en que se arma). */
@@ -1155,6 +1192,8 @@ export interface Remito extends Sello {
   total: number;
   /** Quién lo cargó (nombre). */
   cargo: string;
+  /** Fecha de pago (si se cargó). */
+  vence?: Fecha;
 }
 export interface PagoProveedor extends Sello {
   id: string;
@@ -1214,7 +1253,8 @@ export declare function editarProveedor(estado: EstadoClub, proveedorId: string,
  */
 export declare function registrarRemito(
   estado: EstadoClub,
-  datos: { proveedorId: string; numero: string; items: { productoId: string; cant: number | string; costo?: number | string }[] },
+  /** `vence`: fecha de pago del remito (opcional, AAAA-MM-DD): da la alerta `vencePago` al dueño. */
+  datos: { proveedorId: string; numero: string; items: { productoId: string; cant: number | string; costo?: number | string }[]; vence?: Fecha | null },
   auth: Auth,
   ahora?: Ahora,
 ): Resultado<{ remito: Remito }>;
@@ -1385,3 +1425,106 @@ export type CorteDelHueco = { tipo: "turno"; reserva: Reserva } | { tipo: "bloqu
 export declare function cuantoEntra(estado: EstadoClub, fecha: Fecha, canchaId: string, inicio: number): { minutos: number; hasta: CorteDelHueco | null };
 /** «Cobrar la seña y abrir»: cobra lo que falta de la seña y abre la cancha, o no hace nada. */
 export declare function cobrarSenaYAbrir(estado: EstadoClub, id: string, opciones: { medio: Medio; auth?: Auth | null }, ahora?: Ahora): Resultado<{ cobrado: number }>;
+
+// ───────────── Reingeniería Break Point · tanda 2B (plata pendiente, bandeja en dos niveles, alertas de caja) ─────────────
+
+/** Índice del jugador del turno → el medio con que paga su parte. */
+export type MediosPorJugador = Partial<Record<number, Exclude<Medio, "monedero">>>;
+
+export type TipoPlataPendiente = "devolucion" | "falta_sin_ficha" | "sena_vencida" | "fiado";
+/** Un renglón de «Plata pendiente»: no vence; sale de la lista cuando alguien lo resuelve. */
+export interface PlataPendiente {
+  tipo: TipoPlataPendiente;
+  /** Estable entre armados: `tipo:id`. */
+  clave: string;
+  /** Turno (devolución, falta sin ficha, seña vencida). */
+  reservaId?: string;
+  /** Fiado: el pedido y la cuenta del buffet. */
+  novedadId?: string;
+  cuentaId?: string;
+  clienteId: string | null;
+  nombre: string;
+  /** Celular de su ficha ("" si no tiene). */
+  tel: string;
+  /** De qué día y hora es (el turno, o cuándo se pidió el fiado). */
+  fecha: Fecha | null;
+  inicio: number | null;
+  canchaId: string | null;
+  /** Exacto, en pesos. */
+  monto: number;
+  /** La plata sale del cajón (devolución) o entra. */
+  sentido: "sale" | "entra";
+  texto: string;
+  accion: string;
+  /** Fiado: cómo está el pedido. */
+  estadoFiado?: "esperando" | "aprobado" | "rechazado";
+  aprobo?: string | null;
+  cerrarAlAprobar?: boolean;
+  pidio?: string;
+}
+/** Toda la plata pendiente de CUALQUIER fecha, de la más vieja a la más nueva. */
+export declare function plataPendiente(estado: EstadoClub): PlataPendiente[];
+
+export interface PagoPorVencer {
+  remitoId: string;
+  proveedorId: string;
+  proveedor: string;
+  numero: string;
+  vence: Fecha;
+  /** Lo que queda por pagar de ese remito (lo pagado cubre del más viejo al más nuevo). */
+  monto: number;
+  /** 0 hoy, 1 mañana, negativo si ya venció. */
+  enDias: number;
+}
+/** Remitos con fecha de pago que se deben y vencen dentro de `dias` (7) o ya vencieron, del más urgente al menos. */
+export declare function pagosPorVencer(estado: EstadoClub, ahora: Ahora, dias?: number): PagoPorVencer[];
+
+/** Las que se pueden dejar para mañana. */
+export declare const ALERTAS_POSPONIBLES: readonly TipoAlerta[];
+export interface AlertaPospuesta {
+  tipo: string;
+  clave: string;
+  /** No aparece mientras `ahora.fecha < hasta`. */
+  hasta: Fecha;
+  por?: string;
+}
+/** `tipo:referencia` (la misma entre armados; la que guarda una pospuesta). */
+export declare function claveDeAlerta(a: Alerta): string;
+/** «Posponer hasta mañana» (sólo `ALERTAS_POSPONIBLES`; las del dueño, un dueño). Idempotente. */
+export declare function posponerAlerta(estado: EstadoClub, clave: string, auth: Auth | null | undefined, ahora: Ahora): Resultado<{ hasta: Fecha; yaEstaba: boolean }>;
+
+/** Turnos online cuya seña no llegó a tiempo: los marca `senaVencida` (o los libera, con `liberarSinSena: "auto"`). */
+export declare function vencerSenas(estado: EstadoClub, ahora: Ahora): { reserva: Reserva; liberada: boolean; ofertas: unknown[] }[];
+
+/** El cliente se va esperando el OK: al aprobarse el fiado, la cuenta pasa sola a la cuenta corriente. Idempotente. */
+export declare function cerrarAlAprobar(estado: EstadoClub, novedadId: string, auth: Auth, ahora?: Ahora): Resultado<{ yaEstaba: boolean }>;
+
+/** El WhatsApp de la falta con lo que le quedó al titular, o `null` (no es falta, o fue sin cargo). */
+export declare function mensajeDeLaFalta(estado: EstadoClub, reservaId: string): string | null;
+
+/** Baja los fijos de `desde` a `desde + dias` (por defecto `config.diasAdelante`); idempotente. Los que chocan, con su fecha. */
+export declare function materializarFijosHasta(estado: EstadoClub, desde: Fecha, dias?: number): { fijo: Fijo; motivo: string; fecha: Fecha }[];
+
+/**
+ * «Cerrar la de X y abrir» en un paso (para 2D): cierra la cancha de `cerrarId` (cobrando con `medio` / `porJugador`, o
+ * a su cuenta corriente con `aCuenta`; con `seguir`, la mesa sigue en Buffet) y abre `abrirId` (con `medioSena`,
+ * cobrando antes lo que falte de su seña). Valida todo antes: si la siguiente no se puede abrir por otra cosa que la
+ * cancha ocupada, no se cierra ni se cobra nada.
+ */
+export declare function cerrarYAbrirLaSiguiente(
+  estado: EstadoClub,
+  datos: {
+    cerrarId: string;
+    abrirId: string;
+    medio?: Exclude<Medio, "monedero">;
+    porJugador?: MediosPorJugador | null;
+    aCuenta?: boolean;
+    seguir?: boolean;
+    medioSena?: Medio | null;
+    auth?: Auth | null;
+  },
+  ahora?: Ahora,
+): Resultado<{
+  cerrada: { cobradoCancha: number; porMedio: Partial<Record<Medio, number>>; cuentasAbiertas: Cuenta[] };
+  abierta: { cobrado: number };
+}>;

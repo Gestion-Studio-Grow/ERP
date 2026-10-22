@@ -13,6 +13,9 @@
 // Egreso y cierre piden el PIN de quien opera, como el club vanilla: la sesión del ERP es el puesto, el PIN es la
 // persona. Lo valida el motor (permiso + PIN); la pantalla sólo lo pide, no lo muestra y lo borra después de cada
 // intento. En la demo, los PIN de ejemplo están a la vista, rotulados.
+//
+// Tanda 2B: debajo del aviso rojo, «Plata pendiente (n)» (plata-pendiente.tsx): lo que hay que devolver o cobrar de
+// cualquier día, con sus medios, sin salir de la Caja.
 
 import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -27,6 +30,7 @@ import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 import { operadorActual } from "./operador-del-club";
 import { permisosProveedores } from "./proveedores-core";
 import { RegistrarRemito } from "./remito-del-club";
+import PlataPendienteDelClub from "./plata-pendiente";
 import "./piel/caja.css";
 
 const ddmm = (d: string) => `${Number(d.slice(8))}/${Number(d.slice(5, 7))}`;
@@ -366,6 +370,8 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
     <div className="flex flex-col gap-4">
       <OperaComo almacen={almacen} />
       {v.atrasadas.length > 0 && <CajasAtrasadas almacen={almacen} atrasadas={v.atrasadas} hacer={hacer} />}
+      {/* La plata que quedó pendiente de cualquier día (devolver, faltas sin ficha, señas vencidas, fiados): no vence. */}
+      <PlataPendienteDelClub almacen={almacen} titulo="h2" siVacia />
 
       {/* La caja de hoy, la tarjeta «chapa» del club: el efectivo del cajón, lo cobrado por medio, los egresos y el
           corte. La piel de Break Point está en piel/caja.css (ganchos data-caja); sin estética, la del ERP. */}

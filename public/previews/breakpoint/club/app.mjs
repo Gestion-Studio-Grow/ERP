@@ -2161,6 +2161,11 @@ const acciones = {
     if (a.tipo === "lluvia" || a.tipo === "mantenimiento") return mantenimientoDialogo();
     if (a.tipo === "autorizacion" || a.tipo === "acceso") { TAB = "tablero"; return render(); }
     if (a.tipo === "stock") { if (puedo("stock")) { TAB = "stock"; return render(); } return toast("Avisale al dueño: hay que reponer."); }
+    // Lo nuevo de la bandeja (reingeniería 2B): la caja sin cerrar y el cierre que no cuadró van a la Caja; el pago que
+    // vence, a Proveedores; lo que chocó entre puestos se ve en el backoffice nuevo.
+    if (a.tipo === "caja" || a.tipo === "cierreConDiferencia") { TAB = "caja"; return render(); }
+    if (a.tipo === "vencePago") { if (puedo("verProveedores")) { TAB = "proveedores"; return render(); } return toast("El pago a proveedores lo ve un dueño."); }
+    if (a.tipo === "aparte") return toast("Lo que chocó entre puestos se resuelve en Configuración del backoffice.");
     if (a.tipo === "espera") {
       const e = E.espera.find((x) => x.id === a.esperaId);
       const msj = M.mensajeWhatsApp("espera", { nombre: e.titular.split(" ")[0], cancha: M.cancha(E, a.canchaId).nombre, hora: M.hhmm(a.inicio), fecha: "hoy" });

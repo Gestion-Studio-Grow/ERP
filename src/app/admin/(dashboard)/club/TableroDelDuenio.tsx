@@ -25,6 +25,7 @@ import type { PropsDeSolapa } from "./solapas-club";
 import { armarTablero, type AccesoPedido, type AccionTablero, type DesenlaceTablero, type PedidoParaAutorizar, type VistaTablero } from "./tablero-core";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 import { SoloEnElPuestoDelDuenio, puestoDeDuenio } from "./config-jornada";
+import { BandejaDelDuenio } from "./BandejaDelClub";
 
 // Sólo en la demo: baja en su propio chunk (la jornada real ni lo pide).
 const CamarasDeLaDemo = lazy(() => import("./camaras-de-la-demo"));
@@ -224,7 +225,7 @@ function Barra({ proporcion }: { proporcion: number }) {
   );
 }
 
-export default function TableroDelDuenio({ almacen }: PropsDeSolapa) {
+export default function TableroDelDuenio({ almacen, irASolapa }: PropsDeSolapa) {
   const v = useSeleccion(almacen, seleccionarTablero, porFirma);
   useOperador(almacen); // repinta si cambia quién opera (PIN)
   const operador = operadorActual(almacen);
@@ -247,6 +248,8 @@ export default function TableroDelDuenio({ almacen }: PropsDeSolapa) {
         </p>
       )}
       {pinNuevo && <PinDeUnaVez acceso={pinNuevo} onListo={() => setPinNuevo(null)} />}
+      {/* Tanda 2B · la bandeja «Para el dueño» (la de la recepción queda en la Agenda): caja, cierres, pagos, lo aparte. */}
+      {operador.esDuenio && <BandejaDelDuenio almacen={almacen} irASolapa={irASolapa} />}
 
       <section aria-labelledby="club-novedades" className={tarjeta}>
         <h2 data-pantalla id="club-novedades" className="text-lg font-semibold text-strong">

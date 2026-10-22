@@ -225,8 +225,5 @@ export function fueraDeGrilla(estado: EstadoClub, fecha: Fecha): FueraDeGrilla[]
     });
 }
 
-/** Lo que se le debe devolver en mano a alguien, en cualquier turno (para no perderlo de vista). */
-export function devolucionesPendientes(estado: EstadoClub): { id: string; titular: string; monto: number }[] {
-  return estado.reservas.filter((r) => (r.devolucionPendiente ?? 0) > 0).map((r) => ({ id: r.id, titular: r.titular, monto: r.devolucionPendiente ?? 0 }));
-}
-
+// Lo que hay que devolver o cobrar de CUALQUIER día (antes `devolucionesPendientes`, sin uso) es `plataPendiente` del
+// motor, que también suma faltas sin ficha, señas vencidas y fiados: plata-pendiente-core.ts (Tanda 2B).

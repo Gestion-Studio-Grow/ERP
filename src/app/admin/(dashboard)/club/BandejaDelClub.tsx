@@ -14,56 +14,30 @@
 // «Volver a aplicar» y «Descartar». Lo de todos los puestos lo ve el dueño en Configuración (`ParaResolverDeLosPuestos`).
 // Acá vive también «Reservando…» del alta (`ReservandoElTurno`): el WhatsApp recién después del ok de la base.
 //
-// Performance: la bandeja tiene su propia suscripción al almacén y su firma (`compartirBandeja`): sólo se repinta
-// si cambió alguna alerta, y repintarla no toca la agenda (que no lee las alertas de la bandeja). Quién opera llega
-// por su propio canal (`suscribirOperador`) y entra en la MISMA selección (`useBandeja`): cambiar de operador sólo
-// repinta si cambia lo que se ve (lo que es de un dueño), y entonces sólo las alertas nuevas. Nada se anima.
+// DOS BANDEJAS (Tanda 2B). Acá, la del MOSTRADOR (lo del día de la recepción y la caja sin cerrar); lo que sólo resuelve
+// un dueño va a la del DUEÑO (`BandejaDelDuenio`, en el Tablero), por niveles: urgente · hoy · esta semana. La plata
+// pendiente de cualquier día tiene su sección propia abajo (plata-pendiente.tsx). Lo que se puede dejar para mañana
+// trae «Mañana» (comando `bandeja`); vuelve a aparecer al día siguiente si sigue pendiente.
+//
+// Performance: cada bandeja tiene su propia selección del almacén con su firma (`bandejaDelMostrador`,
+// `bandejaDelDuenio` + `compartirBandeja`): sólo se repinta si cambió alguna alerta, y sólo esas. Repintarla no toca la
+// agenda. Quién opera no la cambia (lo del dueño está en el Tablero), así que cambiar de operador no la repinta. Nada se
+// anima.
 
-import { memo, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { memo, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Marca } from "@/components/ui/Marca";
-import { cancha as canchaDe, hhmm, pesos, reserva as reservaDe } from "@/lib/club/motor.mjs";
+import { cancha as canchaDe, claveDeAlerta, hhmm, reserva as reservaDe } from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
-import type { Almacen, EstadoDeLaSincro, Operador } from "./almacen";
+import type { Almacen, EstadoDeLaSincro } from "./almacen";
 import { alternativasDelHueco, leerSincro, type ItemParaResolver } from "./sincro-core";
 import { useSeleccion } from "./usar-almacen";
 import { celularDelTurno, enlaceWhatsApp, textoConfirmacion } from "./whatsapp-core";
-import { armarBandeja, compartirBandeja, queHace, type ItemBandeja, type QueHace, type VistaBandeja } from "./bandeja-core";
+import { TITULO_DEL_PLAZO, bandejaDelDuenio, bandejaDelMostrador, compartirBandeja, queHace, type ItemDeBandeja, type Plazo, type QueHace } from "./bandeja-core";
 import { SE_DESHACE } from "./canchas-core";
-import type { MedioCaja } from "./cuenta-core";
-import { ComoPaga } from "./piezas";
+import PlataPendienteDelClub from "./plata-pendiente";
 import { BotonWhatsApp, TextoWhatsApp } from "./WhatsAppDelClub";
-
-/**
- * La bandeja del almacén: el estado y quién opera en UNA selección (el filtro «sólo para el dueño» depende de los dos),
- * calculada a lo sumo una vez por versión y por operador, y la MISMA vista si nada de lo que se ve cambió (React no
- * la repinta). Es `useSeleccion` (usar-almacen.ts) con el canal del operador sumado.
- */
-function useBandeja(almacen: Almacen): VistaBandeja {
-  const cache = useRef<{ version: number; operador: Operador | null; valor: VistaBandeja } | null>(null);
-  const suscribir = useCallback(
-    (alCambiar: () => void) => {
-      const a = almacen.suscribir(alCambiar);
-      const b = almacen.suscribirOperador(alCambiar);
-      return () => {
-        a();
-        b();
-      };
-    },
-    [almacen],
-  );
-  const leer = (): VistaBandeja => {
-    const version = almacen.version();
-    const operador = almacen.operador();
-    const c = cache.current;
-    if (c && c.version === version && c.operador === operador) return c.valor;
-    const valor = compartirBandeja(c?.valor, armarBandeja(almacen.estado(), almacen.ahora(), operador?.usuario.rol === "duenio"));
-    cache.current = { version, operador, valor };
-    return valor;
-  };
-  return useSyncExternalStore(suscribir, leer, leer);
-}
 
 export interface PropsDeBandeja {
   almacen: Almacen;
@@ -71,35 +45,6 @@ export interface PropsDeBandeja {
   onVerTurno: (reservaId: string) => void;
   /** Lleva a una solapa; false si quien opera no la tiene (no existe o no es para su rol). */
   irASolapa: (id: string) => boolean;
-}
-
-/** Devolver en mano o cobrar la falta de alguien sin ficha, acá mismo (como la ventanita del vanilla). */
-function PlataSinFicha({ almacen, que, onListo }: { almacen: Almacen; que: Extract<QueHace, { tipo: "devolver" | "cobrarFalta" }>; onListo: () => void }) {
-  const [medio, setMedio] = useState<MedioCaja>("efectivo");
-  const r = reservaDe(almacen.estado(), que.reservaId);
-  const monto = que.tipo === "devolver" ? (r?.devolucionPendiente ?? 0) : (r?.deudaSinFicha ?? 0);
-  return (
-    <div className="flex flex-col gap-2 border-t border-line pt-2">
-      {que.tipo === "devolver" && <p className="text-sm text-body">No tiene ficha de cliente, así que no se le pueden dejar créditos: se le devuelve. ¿Cómo?</p>}
-      <ComoPaga medio={medio} onElegir={(m) => setMedio(m as MedioCaja)} leyenda={que.tipo === "devolver" ? "Cómo se le devuelve" : "Cómo paga"} angosto />
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="solid"
-          size="md"
-          onClick={() => {
-            // Devolver y cobrar la falta se deshacen (`devuelto`, `cobrarFalta` en DESHACIBLES del vanilla).
-            const d = almacen.comando("ciclo", [que.reservaId, { tipo: que.tipo, medio }], { deshacible: true });
-            if (d.ok) onListo();
-          }}
-        >
-          {que.tipo === "devolver" ? `Ya se devolvió ${pesos(monto)}` : `Cobrar ${pesos(monto)}`}
-        </Button>
-        <Button variant="ghost" size="md" onClick={onListo}>
-          Después
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 /** El hueco para el de la lista de espera: el mensaje, mandarlo por WhatsApp y, si dice que sí, darle el turno. */
@@ -132,14 +77,14 @@ const ItemDeLaBandeja = memo(function ItemDeLaBandeja({
   onVerTurno,
   irASolapa,
 }: {
-  item: ItemBandeja;
+  item: ItemDeBandeja;
   abierta: boolean;
   onAbrir: (clave: string | null) => void;
 } & PropsDeBandeja) {
   const idPanel = useId();
   // Lo que hace el botón se decide en el toque, con el estado de ese momento.
   const que = abierta ? queHace(almacen.estado(), item.alerta, almacen.modo()) : null;
-  const desplegable = item.alerta.tipo === "devolucion" || item.alerta.tipo === "falta_sin_ficha" || item.alerta.tipo === "espera";
+  const desplegable = item.alerta.tipo === "espera";
   const cerrar = () => onAbrir(null);
   const tocar = () => {
     if (desplegable) return onAbrir(abierta ? null : item.clave);
@@ -156,7 +101,7 @@ const ItemDeLaBandeja = memo(function ItemDeLaBandeja({
         {item.rotulo}
       </Marca>
       <p className="text-sm text-strong">{item.texto}</p>
-      <div>
+      <div className="flex flex-wrap gap-2">
         <Button
           variant={item.nivel === "alta" ? "solid" : "outline"}
           size="md"
@@ -166,16 +111,23 @@ const ItemDeLaBandeja = memo(function ItemDeLaBandeja({
         >
           {item.accion}
         </Button>
+        {item.posponible && <BotonManiana almacen={almacen} item={item} />}
       </div>
       {abierta && que && (
-        <div id={idPanel}>
-          {(que.tipo === "devolver" || que.tipo === "cobrarFalta") && <PlataSinFicha almacen={almacen} que={que} onListo={cerrar} />}
-          {que.tipo === "ofrecerEspera" && <OfrecerHueco almacen={almacen} que={que} onListo={cerrar} />}
-        </div>
+        <div id={idPanel}>{que.tipo === "ofrecerEspera" && <OfrecerHueco almacen={almacen} que={que} onListo={cerrar} />}</div>
       )}
     </li>
   );
 });
+
+/** «Mañana»: la deja para mañana (vuelve si sigue pendiente). Comando `bandeja` de la lista blanca. */
+function BotonManiana({ almacen, item }: { almacen: Almacen; item: ItemDeBandeja }) {
+  return (
+    <Button variant="ghost" size="md" aria-label={`Dejar para mañana: ${item.texto}`} onClick={() => void almacen.comando("bandeja", [{ tipo: "posponer", clave: claveDeAlerta(item.alerta) }])}>
+      Mañana
+    </Button>
+  );
+}
 
 // ── dos puestos ─────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -387,11 +339,13 @@ export function ReservandoElTurno({
 
 // `memo`: cambiar de día o de panel repinta la recepción, no la bandeja (sus props son estables).
 export default memo(function BandejaDelClub({ almacen, onVerTurno, irASolapa }: PropsDeBandeja) {
-  const vista = useBandeja(almacen);
+  // Sin el canal del operador: lo del dueño va al Tablero, así que quién opera no cambia esta bandeja.
+  const vista = useSeleccion(almacen, bandejaDelMostrador, compartirBandeja);
+  const items = vista.items;
   const [abierta, setAbierta] = useState<string | null>(null);
   // Si la que estaba abierta ya se resolvió (o se fue), no queda nada abierto.
-  const abiertaVigente = abierta !== null && vista.items.some((i) => i.clave === abierta) ? abierta : null;
-  const n = vista.items.length;
+  const abiertaVigente = abierta !== null && items.some((i) => i.clave === abierta) ? abierta : null;
+  const n = items.length;
   return (
     <section aria-labelledby="club-bandeja-titulo" data-ui="bandeja" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
       <div className="flex items-center justify-between gap-2">
@@ -405,11 +359,54 @@ export default memo(function BandejaDelClub({ almacen, onVerTurno, irASolapa }: 
         <p className="text-sm text-muted">Todo en orden.</p>
       ) : (
         <ul role="list" className="flex flex-col">
-          {vista.items.map((i) => (
+          {items.map((i) => (
             <ItemDeLaBandeja key={i.clave} item={i} abierta={i.clave === abiertaVigente} onAbrir={setAbierta} almacen={almacen} onVerTurno={onVerTurno} irASolapa={irASolapa} />
           ))}
         </ul>
       )}
+      <PlataPendienteDelClub almacen={almacen} />
+    </section>
+  );
+});
+
+const PLAZOS: readonly Plazo[] = ["urgente", "hoy", "semana"];
+/** En el Tablero, los pedidos de crédito y de acceso ya tienen su tarjeta («Novedades para autorizar»): no se repiten. */
+const EN_SU_TARJETA = new Set(["autorizacion", "acceso"]);
+
+/**
+ * La bandeja del DUEÑO (va en el Tablero): lo que sólo resuelve un dueño y la caja sin cerrar, por niveles (urgente · hoy
+ * · esta semana), con «Mañana» en lo que se puede dejar para mañana. A quien no es dueño no le llega nada. Lo de la
+ * recepción («Para resolver ahora») no está acá.
+ */
+export const BandejaDelDuenio = memo(function BandejaDelDuenio({ almacen, irASolapa }: { almacen: Almacen; irASolapa: (id: string) => void }) {
+  // Quién la ve lo decide el Tablero (que sólo la monta para un dueño, también en la demo sin PIN).
+  const vista = useSeleccion(almacen, bandejaDelDuenio, compartirBandeja);
+  const items = vista.items.filter((i) => !EN_SU_TARJETA.has(i.alerta.tipo));
+  if (!items.length) return null;
+  const sinTurno = () => undefined;
+  const ir = (id: string) => {
+    irASolapa(id);
+    return true;
+  };
+  return (
+    <section aria-labelledby="club-bandeja-duenio" data-ui="bandeja-duenio" className="flex flex-col gap-3 rounded-lg border border-line border-l-4 border-l-warning bg-surface-raised p-4">
+      <h2 data-pantalla id="club-bandeja-duenio" className="text-lg font-semibold text-strong">
+        Para el dueño ({items.length})
+      </h2>
+      {PLAZOS.map((plazo) => {
+        const deEste = items.filter((i) => i.plazo === plazo);
+        if (!deEste.length) return null;
+        return (
+          <div key={plazo} className="flex flex-col gap-1">
+            <h3 className="text-xs font-semibold tracking-wide text-body uppercase">{TITULO_DEL_PLAZO[plazo]}</h3>
+            <ul role="list" className="flex flex-col">
+              {deEste.map((i) => (
+                <ItemDeLaBandeja key={i.clave} item={i} abierta={false} onAbrir={sinTurno} almacen={almacen} onVerTurno={sinTurno} irASolapa={ir} />
+              ))}
+            </ul>
+          </div>
+        );
+      })}
     </section>
   );
 });
