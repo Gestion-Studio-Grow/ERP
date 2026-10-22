@@ -35,6 +35,9 @@ import type { Almacen, Desenlace } from "./almacen";
 import { productosParaCargar } from "./buffet-core";
 import {
   DESHACIBLE,
+  ETIQUETA_MEDIO,
+  MEDIOS_CAJA,
+  MEDIO_CORTO,
   armarCuenta,
   compartirCuenta,
   confirmarCreditos,
@@ -55,6 +58,7 @@ import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
 import CicloDelTurno from "./CicloDelTurno";
 import type { OfertaDeHueco } from "./bandeja-core";
 import { useSeleccion } from "./usar-almacen";
+import "./piel/cuenta.css";
 
 function SelectorACargo({
   id,
@@ -123,12 +127,90 @@ function CreditoDelJugador({ almacen, fila, onAccion }: { almacen: Almacen; fila
   return null;
 }
 
+/**
+ * Los medios de UNA fila (cobro entre 4): cada botón cobra todo lo de ese jugador con ESE medio, de un toque. El medio
+ * va en la acción y no queda guardado en ningún lado: el cobro siguiente arranca sin medio elegido. «Créditos» aparece
+ * sólo si su ficha tiene: si le alcanzan, el paso previo de siempre; si no, «usar $X de créditos y cobrar $Y en…».
+ */
+function MediosDeLaFila({
+  fila,
+  onCobrarCon,
+  onPartir,
+  onCreditos,
+}: {
+  fila: FilaJugador;
+  onCobrarCon: (idx: number, medio: MedioCaja) => void;
+  /** Créditos + el resto en `medio`. */
+  onPartir: (idx: number, medio: MedioCaja) => void;
+  onCreditos: (idx: number) => void;
+}) {
+  const [partir, setPartir] = useState(false);
+  const idPartir = useId();
+  const partido = fila.creditosYResto;
+  return (
+    <>
+      <div role="group" aria-label={`Cobrarle ${pesos(fila.aPagar)} a ${fila.nombre}`} data-cuenta="medios" className="flex flex-wrap gap-1.5">
+        {MEDIOS_CAJA.map((m) => (
+          <Button key={m} variant="outline" size="md" data-cuenta="medio" className="min-w-11 px-3" aria-label={`${fila.nombre} paga ${pesos(fila.aPagar)} en ${ETIQUETA_MEDIO[m]}`} onClick={() => onCobrarCon(fila.idx, m)}>
+            {MEDIO_CORTO[m]}
+          </Button>
+        ))}
+        {fila.creditos > 0 && (
+          <Button
+            variant="outline"
+            size="md"
+            data-cuenta="medio"
+            className="min-w-11 px-3"
+            aria-expanded={partido ? partir : undefined}
+            aria-controls={partido ? idPartir : undefined}
+            aria-label={partido ? `${fila.nombre}: usar sus ${pesos(partido.usa)} de créditos y cobrar el resto` : `${fila.nombre} paga ${pesos(fila.aPagar)} con sus créditos`}
+            onClick={() => (partido ? setPartir((x) => !x) : onCreditos(fila.idx))}
+          >
+            {MEDIO_CORTO.monedero} {pesos(fila.creditos)}
+          </Button>
+        )}
+      </div>
+      {partido && partir && (
+        <div id={idPartir} role="group" aria-labelledby={`${idPartir}-t`} data-cuenta="partir" className="flex flex-col gap-2 rounded-md border border-accent bg-accent-soft p-3">
+          <p id={`${idPartir}-t`} className="text-sm font-semibold text-strong">
+            Usar {pesos(partido.usa)} de créditos de {fila.nombre} y cobrar {pesos(partido.resto)} en:
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {MEDIOS_CAJA.map((m) => (
+              <Button
+                key={m}
+                variant="outline"
+                size="md"
+                className="min-w-11 px-3"
+                aria-label={`${pesos(partido.usa)} de créditos y ${pesos(partido.resto)} en ${ETIQUETA_MEDIO[m]}`}
+                onClick={() => {
+                  setPartir(false);
+                  onPartir(fila.idx, m);
+                }}
+              >
+                {MEDIO_CORTO[m]}
+              </Button>
+            ))}
+            <Button variant="ghost" size="md" onClick={() => setPartir(false)}>
+              No, sin créditos
+            </Button>
+          </div>
+          <p className="text-xs text-body">Le quedan {pesos(0)} de créditos.</p>
+        </div>
+      )}
+    </>
+  );
+}
+
 const FilaDeJugador = memo(function FilaDeJugador({
   almacen,
   fila,
   reservaId,
   onCobrar,
   onCobrarParte,
+  onCobrarCon,
+  onCreditosYResto,
+  onCreditos,
   onAccion,
 }: {
   almacen: Almacen;
@@ -136,11 +218,18 @@ const FilaDeJugador = memo(function FilaDeJugador({
   reservaId: string;
   onCobrar: (idx: number) => void;
   onCobrarParte: (idx: number) => void;
+  /** Cobro de un toque con el medio de la fila. */
+  onCobrarCon: (idx: number, medio: MedioCaja) => void;
+  /** Créditos + el resto con `medio`, por lo que se le mostró (`usa`). */
+  onCreditosYResto: (idx: number, medio: MedioCaja, usa: number) => void;
+  onCreditos: (idx: number) => void;
   onAccion: (a: AccionCuenta) => void;
 }) {
   const base = `${reservaId}-${fila.idx}`;
+  const partido = fila.creditosYResto;
+  const pagoOk = fila.aPagar === 0 && fila.pagoCon !== null && fila.situacion === "al día";
   return (
-    <li className="flex flex-col gap-2 border-t border-line py-2 first:border-t-0">
+    <li data-cuenta="fila" data-pago={pagoOk ? "ok" : undefined} className="flex flex-col gap-2 border-t border-line py-2 first:border-t-0">
       <div className="flex flex-wrap items-start justify-between gap-2 sm:flex-nowrap">
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-strong">
@@ -207,7 +296,8 @@ const FilaDeJugador = memo(function FilaDeJugador({
                 <span className="sr-only"> de {fila.nombre}</span>
               </Button>
             )}
-            <Button variant="outline" size="md" onClick={() => onCobrar(fila.idx)}>
+            {/* El cobro de siempre, con el medio de «Cómo paga» (más opciones); el de un toque es la fila de medios. */}
+            <Button variant="ghost" size="md" onClick={() => onCobrar(fila.idx)}>
               Cobrar {pesos(fila.aPagar)}
               <span className="sr-only"> a {fila.nombre}</span>
             </Button>
@@ -215,10 +305,24 @@ const FilaDeJugador = memo(function FilaDeJugador({
         ) : (
           <div className="flex flex-wrap items-start justify-end gap-2">
             <CreditoDelJugador almacen={almacen} fila={fila} onAccion={onAccion} />
-            <span className="pt-2 text-sm text-muted">{fila.situacion === "al día" ? "✔ al día" : fila.situacion}</span>
+            {pagoOk ? (
+              <span data-cuenta="pago-ok" className="pt-2 text-sm font-semibold text-success">
+                ✔ pagó {fila.pagoCon}
+              </span>
+            ) : (
+              <span className="pt-2 text-sm text-muted">{fila.situacion === "al día" ? "✔ al día" : fila.situacion}</span>
+            )}
           </div>
         )}
       </div>
+      {fila.aPagar > 0 && (
+        <MediosDeLaFila
+          fila={fila}
+          onCobrarCon={onCobrarCon}
+          onPartir={(idx, m) => partido && onCreditosYResto(idx, m, partido.usa)}
+          onCreditos={onCreditos}
+        />
+      )}
     </li>
   );
 });
@@ -403,22 +507,39 @@ export default function CuentaDelTurno({
     },
     [almacen, reservaId],
   );
+  // Los cobros con el medio de «Cómo paga»: si salió, el medio vuelve a efectivo. El medio NO se arrastra al cobro
+  // siguiente (antes, cobrarle a uno con MP dejaba MP elegido para el que seguía).
+  const conMedio = useCallback(
+    (a: AccionCuenta): Desenlace => {
+      const d = onAccion(a);
+      if (d.ok) setMedio("efectivo");
+      return d;
+    },
+    [onAccion],
+  );
   const onCobrar = useCallback(
-    (idx: number) => (medio === "monedero" ? pedirCreditos({ tipo: "cobrarJugador", idx, medio }) : onAccion({ tipo: "cobrarJugador", idx, medio })),
-    [medio, onAccion, pedirCreditos],
+    (idx: number) => (medio === "monedero" ? pedirCreditos({ tipo: "cobrarJugador", idx, medio }) : conMedio({ tipo: "cobrarJugador", idx, medio })),
+    [medio, conMedio, pedirCreditos],
   );
   const onCobrarParte = useCallback(
-    (idx: number) => (medio === "monedero" ? pedirCreditos({ tipo: "cobrarParte", idx, medio }) : onAccion({ tipo: "cobrarParte", idx, medio })),
-    [medio, onAccion, pedirCreditos],
+    (idx: number) => (medio === "monedero" ? pedirCreditos({ tipo: "cobrarParte", idx, medio }) : conMedio({ tipo: "cobrarParte", idx, medio })),
+    [medio, conMedio, pedirCreditos],
   );
   const onCobrarCancha = useCallback(
     (monto: number): Desenlace | null => {
-      if (medio !== "monedero") return onAccion({ tipo: "cobrarCancha", monto, medio });
+      if (medio !== "monedero") return conMedio({ tipo: "cobrarCancha", monto, medio });
       pedirCreditos({ tipo: "cobrarCancha", monto, medio });
       return null;
     },
-    [medio, onAccion, pedirCreditos],
+    [medio, conMedio, pedirCreditos],
   );
+  // Cobro entre 4: cada fila con su medio, de un toque (la acción lleva el medio; la hoja no guarda ninguno).
+  const onCobrarCon = useCallback((idx: number, m: MedioCaja) => onAccion({ tipo: "cobrarJugador", idx, medio: m }), [onAccion]);
+  const onCreditosYResto = useCallback(
+    (idx: number, m: MedioCaja, usa: number) => onAccion({ tipo: "cobrarJugador", idx, medio: "monedero", resto: m, usa }),
+    [onAccion],
+  );
+  const onCreditos = useCallback((idx: number) => pedirCreditos({ tipo: "cobrarJugador", idx, medio: "monedero" }), [pedirCreditos]);
 
   if (!vista) {
     return (
@@ -464,7 +585,15 @@ export default function CuentaDelTurno({
       {vista.mesaAbierta && <Marca tipo="medias">Cancha cerrada · la mesa sigue</Marca>}
       {/* Como el club de hoy, el bloque de la plata con su título. */}
       <h3 className="font-semibold text-strong">Cuenta del turno</h3>
-      <Totales vista={vista} />
+      <div data-cuenta="totales" className="flex flex-wrap items-start justify-between gap-3">
+        <Totales vista={vista} />
+        {/* Cobro entre 4: arma las filas que faltan sin pedir nombres («Jugador 2», «Jugador 3»…) y cada una cobra la suya. */}
+        {vista.dividir !== null && (
+          <Button variant="outline" size="md" data-cuenta="dividir" onClick={() => onAccion({ tipo: "dividir", n: vista.dividir! })}>
+            Dividir entre {vista.dividir}
+          </Button>
+        )}
+      </div>
       {vista.sena && (
         <p className="text-sm text-muted">
           Seña {pesos(vista.sena.monto)}: {vista.sena.pagada ? "✔ pagada" : <strong className="text-strong">pendiente</strong>}
@@ -480,7 +609,7 @@ export default function CuentaDelTurno({
             const a = confirmando.accion;
             const ahora = confirmarCreditos(almacen.estado(), reservaId, a);
             const r = revisarConfirmacion(confirmando.datos, ahora);
-            if (r.tipo === "seguir") return onAccion(a);
+            if (r.tipo === "seguir") return conMedio(a);
             if (r.tipo === "no") {
               setConfirmando(null);
               return almacen.informar({ ok: false, mensaje: r.motivo });
@@ -493,9 +622,20 @@ export default function CuentaDelTurno({
           }} />
       )}
 
-      <ul aria-label="Jugadores del turno" data-tactil="compacto">
+      <ul aria-label="Jugadores del turno" data-tactil="compacto" data-cuenta="jugadores">
         {vista.jugadores.map((f) => (
-          <FilaDeJugador key={f.idx} almacen={almacen} fila={f} reservaId={vista.reservaId} onCobrar={onCobrar} onCobrarParte={onCobrarParte} onAccion={onAccion} />
+          <FilaDeJugador
+            key={f.idx}
+            almacen={almacen}
+            fila={f}
+            reservaId={vista.reservaId}
+            onCobrar={onCobrar}
+            onCobrarParte={onCobrarParte}
+            onCobrarCon={onCobrarCon}
+            onCreditosYResto={onCreditosYResto}
+            onCreditos={onCreditos}
+            onAccion={onAccion}
+          />
         ))}
       </ul>
       {vista.deOtraMesa && <p className="text-sm text-muted">{vista.deOtraMesa}</p>}
@@ -505,13 +645,13 @@ export default function CuentaDelTurno({
           <Button
             variant="solid"
             size="md"
-            onClick={() => (conCreditos ? pedirCreditos({ tipo: "cobrarSena", medio }) : onAccion({ tipo: "cobrarSena", medio }))}
+            onClick={() => (conCreditos ? pedirCreditos({ tipo: "cobrarSena", medio }) : conMedio({ tipo: "cobrarSena", medio }))}
           >
             Cobrar la seña {pesos(cierres.cobrarSena)}
           </Button>
         )}
         {cierres.cobrarTodo !== null && !conCreditos && (
-          <Button variant={cierres.cobrarSena !== null ? "outline" : "solid"} size="md" onClick={() => onAccion({ tipo: "cobrarTodo", medio: medioCaja })}>
+          <Button variant={cierres.cobrarSena !== null ? "outline" : "solid"} size="md" onClick={() => conMedio({ tipo: "cobrarTodo", medio: medioCaja })}>
             {textoCierre("cobrarTodo", cierres.cobrarTodo)}
           </Button>
         )}
@@ -526,12 +666,12 @@ export default function CuentaDelTurno({
           </Button>
         )}
         {cierres.cerrarYSeguir !== null && !conCreditos && (
-          <Button variant="outline" size="md" className="h-auto! min-h-11 whitespace-normal! py-2" onClick={() => onAccion({ tipo: "cerrarYSeguir", medio: medioCaja })}>
+          <Button variant="outline" size="md" className="h-auto! min-h-11 whitespace-normal! py-2" onClick={() => conMedio({ tipo: "cerrarYSeguir", medio: medioCaja })}>
             {textoCierre("cerrarYSeguir", cierres.cerrarYSeguir)}
           </Button>
         )}
         {cierres.cerrarCargos !== null && !conCreditos && (
-          <Button variant="outline" size="md" onClick={() => onAccion({ tipo: "cerrarCargos", medio: medioCaja })}>
+          <Button variant="outline" size="md" onClick={() => conMedio({ tipo: "cerrarCargos", medio: medioCaja })}>
             {textoCierre("cerrarCargos", cierres.cerrarCargos)}
           </Button>
         )}
