@@ -1,4 +1,11 @@
-# Skills externas (siempre cargado)
+---
+paths:
+  - ".claude/skills/**"
+  - ".agents/**"
+  - "skills-lock.json"
+  - ".mcp.json"
+---
+# Skills externas (se carga al tocar skills, el lock o .mcp.json)
 
 Cinco skills vienen de afuera; origen y hash fijados en `skills-lock.json` (raíz):
 - `emil-design-eng` — emilkowalski/skills · `77853cec…c63ad98`

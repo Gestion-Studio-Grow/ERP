@@ -1,283 +1,76 @@
 @AGENTS.md
 
-## Arranque de sesión — OBLIGATORIO SIEMPRE (regla de alto nivel)
+# GSG · ERP — normas de trabajo (versión corta)
 
-**Toda sesión de trabajo sobre este proyecto debe EMPEZAR por revisar el estado del repo para una
-gestión correcta del proyecto.** Es obligatorio siempre, en Claude Code (desktop) y en Dispatch
-(móvil), se use o no el comando `sprint`. Antes de tocar nada, revisá como mínimo:
+Este archivo se carga en CADA llamada de CADA agente: por eso es corto. El texto completo, con el porqué de
+cada norma, está en `docs/organizacion/normas-gsg-completas.md` (se lee cuando hace falta, no siempre).
+Nada se derogó salvo lo marcado como OBSOLETO en el texto completo (el pool de sesiones reutilizables, que choca
+con «un agente = una tarea»).
 
-- **🧠 `npm run brain` y después `brain/000-MAPA.md`** — el mapa DERIVADO del repo (estado, guardarraíles,
-  decisiones, Gate, calibración). Es el camino **barato** para la foto: ~12 KB en vez de ~82 KB, y cuesta
-  cero tokens porque lo genera Node, no el modelo. Lo que el mapa **no** deriva (tenants, gates abiertos,
-  bugs conocidos) sigue en `ESTADO-ACTUAL.md`, y el mapa te dice a qué sección ir. **Ante conflicto entre
-  el mapa y esta norma, gana esta norma.** No deroga ningún ítem de abajo: los abarata. (RFC-005)
-- **`docs/ESTADO-ACTUAL.md`** — la foto viva del sistema (main/prod, tenants, gates, migraciones,
-  bugs conocidos, core→sesión). Si no existe o está desactualizada, **actualizala primero**.
-- **`git status`** + tip de `main` y ramas/worktrees — WIP sin commitear y en qué estado está el árbol.
-- **Migraciones pendientes** — `prisma/migrations/` vs lo aplicado (según docs; no golpear Neon),
-  incluidas **colisiones de timestamp**.
-- **📓 `docs/lecciones-aprendidas/registro.md` — LECTURA OBLIGATORIA DE CALIBRACIÓN** para el **PMO**
-  (autor) y el **Arquitecto de Solución** (ejecutor), y para **cualquier célula ANTES de tocar un área de
-  riesgo** (Prod/Deploy · Datos/DB · Multi-tenant · Seguridad). Son los **guardarraíles de lo que ya nos
-  pasó**; se **alimenta de la retro** (ADR-047: cada cierre de sprint suma/actualiza una entrada).
+## Arranque (obligatorio)
+- `npm run brain` → `brain/000-MAPA.md` (mapa derivado, barato). Lo que el mapa no trae: `docs/ESTADO-ACTUAL.md`.
+- `git status` + tip de `main` y worktrees; migraciones de `prisma/migrations/` contra lo aplicado (según docs,
+  sin golpear Neon), con colisiones de timestamp.
+- Antes de tocar Prod/Deploy · Datos/DB · Multi-tenant · Seguridad: `docs/lecciones-aprendidas/registro.md`.
+- Sectores: Agencia Digital → `docs/sectores/agencia-digital/FUNDAMENTO.md`; Agencia Grow → `docs/sectores/agencia-grow.md`.
 
-Sin esa foto no se despacha ni se ejecuta nada. Cuando la sesión se abre con `sprint`, esto es su
-**FASE 0 Exploración** (Paso 0 no salteable en `.claude/commands/sprint.md`); cuando no, igual aplica.
+## Autonomía
+- Modo autónomo: **nada de `AskUserQuestion`** ni menús. Ante la duda, el criterio más simple y correcto,
+  anotado, y seguir. Un dato faltante → placeholder «provisional a confirmar».
+- Lo REVERSIBLE (código, docs, cableado, refactor tras flag) se decide y ejecuta; lo IRREVERSIBLE (deploy,
+  Neon/DB, migraciones, secretos, permisos, marca de cliente, gasto) se arma y se eleva al dueño (ADR-048).
 
-**Playbooks reutilizables (`docs/metodologia/`):** métodos probados con el *por qué* de cada paso; antes
-de reinventar un flujo, fijate si ya hay receta. Índice en `docs/METODOLOGIA-SPRINT.md → Playbooks
-operativos`. Obligatorios/transversales: **🤖 Generador de PRESET por IA**
-(`docs/metodologia/generador-preset-ia.md`) — todo alta de cliente nuevo: **🔒 autorización primero**
-(pedir y REGISTRAR el OK explícito del cliente para replicar su marca, como con Magra; sin ella no se
-genera ni se muestra), luego **el cliente da su red social y/o web → los agentes extraen todo (rubro,
-identidad, catálogo, ofertas, historia, contacto) y generan la preventa experta = el preset** (tenant+blueprint+branding+datos demo+probador). **Gate
-bloqueante no negociable: generar → auditar por TODA la metodología (SAP + GSG + Arquitectura +
-Confiabilidad) → recién ahí mostrar; sin Gate NO se muestra al cliente.** PoC: Break Point desde
-Instagram, Magra desde su web; coordina con Célula 3 ·
-**Demo pública a costo cero** (`docs/metodologia/demo-publica-costo-cero.md`).
+## Gates (no negociables)
+- **Push a `main` = deploy a producción** (Vercel `erp-ch` construye cada push): sólo con orden del dueño.
+- **Gate 2:** `prisma migrate deploy` a Neon se pausa y se reporta. Migraciones se escriben SIN aplicar, aditivas,
+  y el código tolera su ausencia. En `main` sin aplicar: si Vercel NO tiene `MIGRATE_DATABASE_URL`, frena el deploy;
+  si la TIENE, el build de producción la aplica solo (`scripts/vercel-build.mjs`). Push a `main` con esa variable =
+  migración aplicada: también es Gate 2.
+- **Neon free:** mínimas consultas a prod; analizar sobre schema/migraciones del repo.
+- **Destructivo bloqueado:** force push, `reset --hard`, `migrate reset`, DROP, `rm -rf`.
+- Commits por **pathspec explícito**, nunca `git add -A`. Secretos: los pega el dueño; nunca se imprimen.
+- **DEMO → VENTA → INVERSIÓN:** no se gasta un peso (dominio, persistencia, APIs pagas) antes de la venta.
+- **Preset de cliente:** sin autorización REGISTRADA del cliente para usar su marca no se genera ni se muestra, y
+  la salida pasa el Gate antes de mostrarse (`docs/metodologia/generador-preset-ia.md`).
 
-**Estructura de la compañía — TRES unidades bajo Gestión Studio Grow (estudio paraguas):** (1) **ERP
-multi-tenant** (producto SaaS core); (2) **Agencia Digital** (satélite del ERP: lo vende y le suma
-features; `docs/sectores/agencia-digital.md`); (3) **Agencia Grow** (los **negocios propios del grupo**,
-NO satélite del ERP; `docs/sectores/agencia-grow.md`). Regla: gira alrededor del ERP → Digital; negocio
-propio del grupo → Grow. Ver `docs/ESTADO-ACTUAL.md §7`.
+## Gate de Excelencia (antes de integrar)
+1. Auditoría SAP Fiori 7 ángulos + ángulo argentino (criollo claro, ARCA, MP/transferencia, WhatsApp-first, a11y).
+2. Sello GSG: `metadata.generator="Gestión Studio Grow"` + crédito en el footer del backoffice; trailer en commits.
+3. Arquitectura: `tenantId`/`tenantTransaction`, RLS, capas, testabilidad, deuda anotada.
+4. Confiabilidad: `tsc` + tests (+ build cuando se integra) verdes; aislamiento por tenant; no rompe prod.
+Ítem que no aplica → N/A + por qué. Detalle: `docs/METODOLOGIA-SPRINT.md` → «GATE DE EXCELENCIA».
 
-**Sesiones del sector AGENCIA DIGITAL — Fase 0 adicional (obligatoria):** si la sesión trabaja en el
-sector Agencia Digital, **antes de nada leé `docs/sectores/agencia-digital/FUNDAMENTO.md`** — define
-quién sos (Consultor Experto / Desarrollador / PMO del sector), qué tenés que hacer, con qué método y
-con qué objetivo. Después seguí con el charter (`docs/sectores/agencia-digital.md`) y el último análisis
-de mercado (`docs/sectores/agencia-digital/analisis-mercado/`).
+## Economía de tokens (obligatoria — método: `Factory-GSG/10-GOBIERNO/economia-de-tokens.md`)
+- El costo es **releer contexto** (97 % medido el 22/10/2026), no generar. Todo se diseña para contexto chico.
+- **Un agente = una tarea**, fresco, con brief ≤ 2 KB que apunta a `archivo:línea` o a un extracto; nunca
+  «leé el diseño entero». No se retoma un agente terminado para otra tarea. La calibración (ADR-052) es el brief:
+  rol + este archivo + la lección del área de riesgo que toque; no se lee el corpus entero.
+- **Contexto fijo chico:** el agente trabaja con el cwd dentro del repo (no en la carpeta madre, que suma otros
+  CLAUDE.md) y con los agentes `gsg-ingeniero` / `gsg-certificador` (`.claude/agents/`), sin conectores que no usa.
+- **Mapa antes de explorar:** `npm run mapa -- <carpeta> --a <archivo>` da exportaciones con línea, modelos de
+  Prisma, dependencias y tests de una zona (600 KB de código → ~11 KB). El brief lo adjunta; el agente abre sólo
+  los `archivo:línea` que necesita.
+- **Techo de contexto:** al acercarse a ~150k tokens, el agente escribe un relevo de 1 página y termina.
+- **Máximo 3 agentes pesados en simultáneo**; un frente a la vez hasta cerrarlo.
+- Tests y `tsc` devuelven **sólo el resumen** (`n/n` y fallas), nunca logs completos al contexto.
+- Integración mecánica (merge, tsc, suites) la hace el orquestador con scripts, no un agente.
+- Certificación adversarial **sólo** en plata, seguridad, concurrencia y datos, sobre el diff; lo visual va
+  con una revisión liviana. Todo archivo tocado fuera de esas superficies lleva un test o una línea de QA clic por clic.
+- Una tanda = 1 o 2 constructores, aunque un diseño viejo diga «4 agentes en paralelo».
+- Informes de agentes: **≤ 300 palabras**, formato fijo (qué, verificación n/n, archivo:línea, pendientes).
+- **Nada binario en Git** (mp4, png, pdf, ttf): Drive o almacenamiento de archivos.
 
-**Sesiones de AGENCIA GROW — Fase 0 adicional (obligatoria):** si la sesión trabaja en negocios propios
-del grupo (Panel del Dueño, cartera propia), **antes de nada leé `docs/sectores/agencia-grow.md`**.
+## Modelo
+Decisión del dueño (2026-09-23): Opus 5.5 en sesiones, células, subagentes y workflows. Excepción ordenada por el
+dueño el 22/10/2026 para la reingeniería: **diseño, planificación y certificación en Fable**; construcción en Opus.
 
-## 🏛️ MODELO DE TRABAJO DE GSG — OBLIGATORIO Y ESTRICTO (fundamento vigente, NO opcional)
+## Verificación y QA
+`npm run gates` · `npx tsc --noEmit` · `node --import tsx --test <archivos>` · `npm run build` al integrar.
+QA = recorrido clic por clic, no «que cargue». Kit visual: `DESIGN.md`, `.claude/rules/`; sin dependencias
+nuevas sin preguntar; nunca correr de nuevo el instalador del kit.
 
-**Esto NO es solo el comando `sprint`: es el MODELO DE TRABAJO OBLIGATORIO Y ESTRICTO de Gestión Studio
-Grow, vigente SIEMPRE — a nivel usuario, App y GSG, desktop y móvil, se use o no `sprint`.** No es una
-recomendación ni un default cómodo: es norma dura, no salteable. Fundamento y detalle:
-`docs/organizacion/factory-reforzada.md` (las dos capas + el loop de revisión) y
-`docs/organizacion/asignacion-modelos-sprint.md` (el mapa sesión→modelo y el criterio de asignación).
-
-**Modelos: sólo Opus 5.5** (decisión del dueño, 2026-09-23). Reemplaza la economía de modelos
-anterior (Sonnet 5 por defecto, Opus 4.8 para alto juicio, subagentes en Sonnet o Haiku): **todo corre en
-Opus 5.5** (`claude-opus-5-5`) — sesiones, células, subagentes y workflows. `.claude/settings.json` fija
-`claude-opus-5-5` como modelo de la sesión; en un workflow se usa `model: 'opus'` o se omite (hereda);
-**nunca** `sonnet`, `haiku` ni `fable`. Mismo criterio en la factoría: `Factory-GSG/10-GOBIERNO/
-reglas-que-costaron-caro.md` §Modelos.
-
-### 1. Estructura de células (se auto-abren al decir `sprint`)
-Al invocar `sprint` se **abren automáticamente** las células (1 frente = 1 worktree = 1 sesión), todas
-en Opus 5.5: **PMO / Arquitecto jefe · Auditoría GSG (el Gate) · Seguridad · Preset IA · Probador
-interactivo · Adaptador para cliente · Plataforma/Deploy/Infra · Productos por rubro · Growth/Agencia
-Digital.**
-
-### 2. El flujo de cambios (orquestador + dos ingenieros)
-El trabajo de producto lo lleva el orquestador del flujo de cambios con dos ingenieros (plataforma y
-producto), todos en Opus 5.5 (`Factory-GSG/.claude/agents/gsg-orquestador-cambios.md`,
-`gsg-ingeniero-plataforma.md`, `gsg-ingeniero-producto.md`).
-
-### 3. 🛡️ La Auditoría GSG (el Gate) corre en Opus 5.5
-El **Gate de Excelencia completo** corre en Opus 5.5 como todo lo demás. El control de calidad no se
-degrada de modelo ni se saltea.
-
-### 4. Cada célula declara su modelo
-Toda célula y todo subagente corre en Opus 5.5. Una sesión o un subagente en otro modelo está **fuera de
-norma** y se corrige antes de trabajar. El **PMO verifica** el modelo al despachar cada frente.
-
-### 5. Nada se integra sin el Gate (y el preset exige autorización del cliente)
-**Ningún entregable pasa a `main` sin cruzar el Gate de Excelencia** (Auditoría SAP en todos los ángulos
-+ sello GSG + Arquitectura + Confiabilidad — ver sección "Gate de Excelencia" abajo). El **Generador de
-Preset por IA** exige **autorización registrada del cliente** antes de replicar su marca (sin OK explícito
-**no se genera ni se muestra**) y su salida pasa el **Gate bloqueante** antes de mostrarse al cliente.
-
-## 🌊 CONCURRENCIA Y PRIORIDADES — regla de operación (OBLIGATORIA, foco en demos)
-
-Norma dura de operación de GSG para no saturar el servicio y **concentrar los recursos escasos en lo que
-vende**. Complementa el modelo de células por capa (arriba) y la escala del sprint.
-
-**Pool fijo de 5 sesiones REUTILIZABLES — se re-asignan, no se multiplican (norma dura):** trabajamos con un
-**pool fijo de hasta 5 sesiones** (5 slots = 5 worktrees vivos). La regla es **REUTILIZAR SIEMPRE**: cuando un
-frente cierra, su sesión **NO se descarta ni se abre una nueva** — se **re-asigna** al próximo frente de la
-cola (mismo slot, se limpia el árbol y se retoma). Es la aplicación operativa de *definir ≠ instanciar*
-(ADR-053): 5 sesiones que rotan de tarea, no N sesiones efímeras. **Overflow = esperar que se libere:** si los
-5 slots están ocupados y entra un frente nuevo, **espera en la cola por prioridad** hasta que un slot se
-libere; **no se abre un sexto**. Abrir *worktrees* de más para dejarlos ociosos sigue OK; lo que se limita es
-cuántas sesiones **corren en simultáneo** (**≤ 5**). **Guardarraíl de saturación:** si el servicio muestra
-"ocupado", se **baja a olas más chicas** (correr 3–4 de los 5) hasta que afloje — el tope de 5 es el techo, no
-la obligación.
-
-**Prioridades (foco: lo que concreta ventas), sobre todo en congestión:**
-- **P1 — SIEMPRE corre (demos y venta):** demo público (**front+back en URL de cliente**) · probador
-  (backoffice sin contraseña) · adaptador self-serve · **publicar los tenants que falten** (Magra, satélites).
-- **P2 — corre si hay lugar (habilitadores):** verificar/encender la base · generador de preset por IA ·
-  seguridad pre-cobros.
-- **P3 — se pausa en congestión (bajo impacto):** investigación de nuevas líneas de negocio (3D / bajo
-  capital) · retoques cosméticos de productos ya publicados · deuda de lint/tests heredada · métrica de
-  costo / robustecimiento de la factory.
-
-**En congestión: solo P1, máximo 5 a la vez (bajando a 3–4 si el servicio se satura); P2 espera; P3 pausado.**
-
-**El porqué:** abrir demasiadas sesiones **efímeras** a la vez **satura el servicio** ("servicio ocupado") y
-frena todo. El **pool fijo de 5 reutilizables** + las olas chicas mantienen la fluidez **y** la consistencia
-(siempre las mismas sesiones, re-asignadas, no un enjambre nuevo cada vez); las prioridades garantizan que,
-cuando la capacidad escasea, el trabajo que **genera ventas (demos)** siempre corre y lo de bajo impacto cede
-el lugar. **Reutilizar > crear** (menos setup, menos contexto que re-acarrear, menos riesgo de saturar). Es
-coherente con el ciclo **DEMO → VENTA → INVERSIÓN**: primero lo que vende.
-
-## 🧭 Advisory Board + Challenger — gobernanza de decisiones estratégicas (ADR-045)
-
-Toda **decisión estratégica** (bases/fundamentos, roadmap, **segmentación low/mid/big**, estrategia de
-escala) pasa por un par **tesis/antítesis** antes de adoptarse: el **Advisory Board** propone con rigor; el
-**Challenger (contrarian / red-team)** —mismos skills de alto nivel, **postura opuesta**— presenta el caso
-contrario, los riesgos, los supuestos débiles y las alternativas, con el mismo rigor. **Flujo:** Advisory
-**propone** → Challenger **desafía** → **síntesis/decisión del dueño**. **Regla dura: nada se adopta como
-fundamento sin pasar por el Challenger.** Corre en **Opus 5.5**. Detalle y porqué: **`docs/adr/ADR-045-advisory-board-challenger-contrarian.md`**.
-
-## 🗣️ De-sesgo / comportamiento humano POR SECTOR (ADR-046)
-
-La IA de GSG **se quita el sesgo del modelo para sonar humana DONDE conviene** y **actúa estándar DONDE no
-conviene**. **Zona HUMANA** (de-sesgar → humano/cálido/**criollo/argentino**): copy · ventas · WhatsApp ·
-demos · atención · advisory — voz de persona real, no jerga de modelo. **Zona ESTÁNDAR** (preciso,
-convencional): código · tests · infra · **fiscal ARCA** · cálculos — precisión y convención por encima de
-"personalidad". Se ata a **Argentinizar SAP** (ADR-044) y **lo chequea el Gate** (ADR-040, ángulo argentino).
-Detalle: **`docs/adr/ADR-046-de-sesgo-comportamiento-humano-por-sector.md`**.
-
-## 🔄 Rutina de retroalimentación — mejora continua (ADR-047)
-
-Rutina **obligatoria** con **3 palancas** —**memoria** (facts al día) · **casos** (registro de qué
-funcionó/falló) · **skills/briefs** (prompts de las células)— y **2 cadencias**: **(a)** al **cierre de cada
-sprint, por célula** (parte de la Definición de terminado): actualizar memoria + registrar 1 caso + proponer
-1 mejora breve de brief/skill; **(b)** **consolidación periódica** (semanal o cada N sprints): destilar casos
-en mejoras de skills/briefs, limpiar memoria, y **revisión Advisory + Challenger de las bases** (ADR-045).
-Corre en **Opus 5.5**. Detalle: **`docs/adr/ADR-047-rutina-de-retroalimentacion.md`**.
-
-## 🏗️ Arquitecto de Solución — autoridad sobre lo REVERSIBLE (ADR-048)
-
-Rol ejecutivo (perfil VP/Chief Architect ERP) que **separa reversible de irreversible** en los planes que
-baja el dueño: **REVERSIBLE** (doc-only, ADR/metodología, cableado interno, orden de backlog, refactors
-NO-prod tras flag, blueprints, estructura de células) lo **decide y ejecuta solo**, con **1 línea de
-rationale** por decisión (log ligero, insumo de la retro ADR-047); **IRREVERSIBLE** (deploy, Neon/DB,
-seed/migraciones, secretos, permisos, marca de cliente, gasto/órdenes de impo) **arma la propuesta y la
-eleva al dueño**. **Regla de oro: ante la duda, se trata como irreversible.** Corre en **Opus 5.5**. Detalle: **`docs/adr/ADR-048-arquitecto-de-solucion.md`** · charter operativo **`docs/organizacion/arquitecto-de-solucion.md`**.
-
-## 🎓 Protocolo de calibración universal — TODO agente calibra antes de actuar (ADR-052)
-
-**Antes de actuar, todo agente corre 3 pasos:** (1) **leer el corpus** de su rol —`CLAUDE.md` + los **ADRs
-de su rol** + **bases/roadmap** (`ESTADO-ACTUAL.md`) + la **memoria de lecciones** (`docs/lecciones-aprendidas/registro.md`)—;
-(2) **escribir 3–5 bullets** con los **principios que guían sus decisiones**, declarando su **zona de
-de-sesgo** (ADR-046: humano/criollo vs estándar/preciso); (3) **recién entonces actuar**. Sin (1)+(2) está
-**fuera de norma**. **Lista mínima de lectura por tipo de rol** en **ADR-052**. La estructura total de quién
-compone cada división está en **`docs/organizacion/roster-completo-gsg.md`** (ADR-051).
-
-> **🔒 Obligatorio para TODA CREACIÓN FUTURA de agente:** **ningún agente empieza a operar sin calibrarse
-> primero** (leer corpus + ADRs de su rol + memoria de lecciones + escribir su resumen de principios). Todo
-> agente nuevo se instancia sobre el **charter genérico** (`docs/organizacion/charter-generico-agente.md`),
-> cuyo **Paso 0 es la calibración**, y entra al **roster** (`roster-completo-gsg.md`). Vale para los
-> existentes y para cualquiera que se cree de acá en adelante.
-
-## 🔁 Pool compartido de agentes + entrenamiento cross-estructura (ADR-053)
-
-Los agentes **NO son silos por división: forman un POOL reutilizable.** Para un caso puntual en otra
-estructura (ej.: alinear el **front de Magra** = Diseño + Adaptador/Delivery + QA) se **PRESTAN agentes
-existentes** del pool, **no se crean dedicados**. **Regla dura: antes de instanciar un agente nuevo,
-verificar si un agente del pool cubre el caso prestado** — crear nuevo **solo si no hay rol adecuado**
-(evita duplicados y respeta el tope ≤ 5). **Préstamo y retorno:** al cerrar el caso, cada agente **vuelve a
-su célula/división de origen** (no se re-parenta ni se duplica). **Cross-training:** el agente prestado
-**extiende su calibración** (ADR-052) leyendo el contexto de la estructura destino, y al cerrar **vuelca lo
-aprendido al registro de lecciones** (ADR-047) → el conocimiento **fluye entre estructuras**. Los préstamos
-los **coordina el Arquitecto de Solución** (es ejecución reversible). Refuerza el default **"crear generoso /
-activar en olas"**: muchas necesidades se cubren **prestando**, no creando. **La EXPOSICIÓN es DELIBERADA:**
-rotar/prestar a distintos nodos se **busca a propósito** porque **amplía el entrenamiento** del agente (más
-contextos = más completo, menos sesgo genérico) — no es solo ahorro, es **mejora continua**; se lleva un
-**registro ligero de exposición acumulada** por agente (en qué nodos ejecutó) para rotar con criterio, y cada
-cruce **vuelca lo aprendido a la memoria** (ADR-047). **Es BASE de GSG** (`docs/fundamentos/bases-gsg.md §7`),
-no solo ADR. Detalle/mecánica: **`docs/adr/ADR-053-pool-compartido-de-agentes-cross-training.md`**.
-
-**💸 Regla de economía — DEFINIR ≠ INSTANCIAR:** **no se gastan tokens instanciando/corriendo agentes que
-no se usan.** TODOS los agentes propuestos (v3 + los 3 + los 5/9 nuevos + los del catálogo/plugins) se
-**DOCUMENTAN** (charter + lugar en el roster) pero **NO se instancian hasta que haya una tarea real que los
-requiera** — *documentado no significa corriendo*. El **roster fijo + el charter genérico** son el registro
-que garantiza que **siempre convocamos a los MISMOS agentes** (consistencia), y el **pool/factory** permite
-**prestar los existentes antes de crear nuevos** (ADR-053). Un agente se instancia **solo con tarea asignada**.
-
-## 🧩 Principio de producto — VARIANTE: el objeto se crea una vez y se ASIGNA (ADR-055)
-
-Fundamento de producto/arquitectura (SAP argentinizado): **el OBJETO (dato maestro) se crea UNA vez con su
-ABM propio, y se ASIGNA con una relación explícita que también tiene su ABM — NUNCA "a todos con todo"**
-(fue la causa raíz de A-1 / DX-6 / DX-7). Ej.: **servicio** (ABM de servicio) → **asignación al profesional**
-(ABM de asignación, distinta por profesional). **Generalizable:** producto↔categoría, **módulo/plugin↔tenant**
-(ADR-054), rubro↔blueprint. **Base:** `docs/fundamentos/bases-gsg.md §8`. **La construcción del ABM es
-reingeniería (Balde B, Opus mañana); hoy solo se documenta** (definir ≠ construir).
-
-## Modo de trabajo autónomo
-
-Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.
-
-## Gate de Excelencia — OBLIGATORIO, NO SALTEABLE (regla de alto nivel)
-
-**Ningún cambio se integra ni se pushea a `main` sin pasar el GATE DE EXCELENCIA.** Aplica a **toda
-sesión/frente de ambos sectores**, desktop y móvil. Es adicional a "verde antes de commitear"
-(tsc+build+test), no lo reemplaza. Son **4 bloques; los bloques 1 y 2 son OBLIGATORIOS SIN EXCEPCIÓN en
-TODO desarrollo.** Checklist corto que cada frente tilda **antes de pushear**:
-
-1. **🔎 AUDITORÍA SAP FIORI (7 ángulos) + ÁNGULO ARGENTINO — completa y obligatoria:** rol-based ·
-   coherente · simple · adaptable (responsive + branding por tenant) · delightful/enterprise ·
-   **accesibilidad** (labels reales/ARIA/`role="alert"`/teclado/contraste) · **consistencia** (no duplica
-   patrones existentes) · **🇦🇷 ángulo argentino — "Argentinizar SAP"** (criollo claro, no jerga · fiscal
-   ARCA/AFIP · Mercado Pago/transferencia · WhatsApp-first · simple para la pyme argentina). *Lo mejor de
-   SAP, argentinizado.* Ningún cambio se integra sin pasarla. Fundamento:
-   `docs/metodologia/auditoria-sap-fiori.md` (§8) · **ADR-044**.
-2. **🏷️ SELLO DE MARCA GSG — obligatorio en todo entregable:** todo lo que sale lleva el ADN/nivel de
-   Gestión Studio Grow. Sello verificable: app → `metadata.generator="Gestión Studio Grow"` + crédito
-   discreto en el footer del **backoffice** (no en la vidriera del tenant); doc → firma "— Elaborado por
-   GSG"; commit → trailer del equipo GSG. El tenant conserva SU marca visible; GSG es el sello de calidad
-   detrás. Fundamento: `docs/metodologia/estandar-marca-gsg.md`.
-3. **Excelencia Arquitectura:** capas/límites de dominio · testabilidad · escalabilidad multi-tenant
-   (predicado `tenantId` / `tenantTransaction`) · seguridad/RLS (no evade aislamiento) · deuda anotada.
-4. **Confiabilidad de Producción:** `tsc`+`build`+`test` verdes · aislamiento por tenant · manejo de
-   errores · no rompe prod (schema = migración SIN aplicar, Gate 2).
-
-Ítem que no aplica → **N/A + por qué**. Si no tilda los **4 bloques**, **no se integra**. Detalle completo
-en `docs/METODOLOGIA-SPRINT.md` → "GATE DE EXCELENCIA" (checklist para el handoff de PR/commit). La
-**Auditoría GSG que corre este Gate va en Opus 5.5** (ver §3 del Modelo de trabajo, arriba).
-
-## 💸 CICLO DEMO → VENTA → INVERSIÓN — regla de gasto (OBLIGATORIA)
-
-**Regla dura de negocio de GSG, no salteable, aplicable a TODOS los negocios/preventas** (Magra, CH,
-Shine, A Dos Manos, Break Point y futuros). **No se invierte un peso hasta que la venta está concretada.**
-Encaja con **demo pública a costo cero** (`docs/metodologia/demo-publica-costo-cero.md`) y con las **dos
-fases de credenciales**:
-
-1. **DEMO — antes de la venta: cero gasto, cero datos reales.** Mientras la venta **NO** está concretada,
-   **todo queda en DEMO**: gratis, en la **URL gratuita con nombre de cliente** (`<cliente>-erp.vercel.app`
-   sirviendo el **front+back del flujo en modo demo**, o el probador sandbox), **sin gastar un peso, sin
-   datos reales, sin passwords, sin persistencia**. **No** se compra dominio ni se activa login/base antes
-   de vender. (El concepto de `/previews` estáticos quedó **deprecado** — ver
-   `docs/PLAN-RECONVERSION-CLIENTES.md`.)
-2. **VENTA — el disparador.** La inversión se habilita **RECIÉN cuando la venta se concreta** (OK
-   comercial del cliente). Antes de eso: nada de comprar link ni activar persistencia.
-3. **INVERSIÓN — después de la venta.** Recién ahí se **compra el dominio propio** y/o se **activa el
-   tenant con datos reales** (persistencia + login, RLS enforced). Los secretos/credenciales de la fase
-   real **los pega SIEMPRE el dueño, nunca el agente** (FASE 2 de credenciales).
-
-**En una línea:** *hasta que la venta esté concretada, todo es demo gratis en la URL gratuita; el dominio
-propio y la persistencia con datos reales son inversión POST-venta, nunca antes.*
-
-## Autorización y gates (política push-libre)
-
-- **Autónomo hasta GitHub:** código → build → `tsc`/verificación → **gate de excelencia** → commit → **push a `main` (GitHub)** sin re-preguntar. GitHub es el destino por defecto de todo el trabajo.
-- **Gate 1 — deploy a producción/Netlify:** el auto-publish de Netlify está apagado (`stop_builds`), así que el push a `main` **no publica ni gasta créditos**. Publicar en producción requiere OK explícito de Maxi (*"deployá"*). Ver `docs/METODO-ROLES.md` §4.
-  - ⚠️ **Dato verificado el 2026-10-07 — el texto de arriba es de la época de Netlify y ya no describe lo que pasa.** El proyecto de Vercel `erp-ch` está conectado a este repo y **construye en cada push**: una rama genera una vista previa (dos pushes a `gsg-kit` crearon `dpl_AE5EuiDW…` y `dpl_GjUZitY6…`) y los despliegues de producción salen de `main`. **Hasta que el dueño redefina este gate, un push a `main` se trata como un deploy a producción.**
-- **Gate 2 — `prisma migrate deploy`:** cambiar la estructura de la DB de producción (Neon) se **pausa y se reporta**; no se corre solo. Es lo único irreversible.
-- **Neon en PLAN GRATUITO — cuidá el consumo:** minimizá conexiones y queries contra la DB de prod, evitá operaciones pesadas / escaneos completos / benchmarks contra prod, cuidá el compute time y el límite de horas del plan free. Para análisis o pruebas, leé schema/migraciones del **repo** (`prisma/schema.prisma`, `prisma/migrations/`) en vez de golpear la base real salvo que sea imprescindible.
-- **Destructivo bloqueado** por config (force push, `reset --hard`, `migrate reset`, DROP, `rm -rf`).
-
-<!-- factory-kit:start -->
-## Kit GSG (piezas visuales) — complementa lo de arriba; ante conflicto gana este archivo
-- Flujo: `/gsg-brief` → `/gsg-build` → `/gsg-review` → `/gsg-ship`. Correcciones → `/gsg-regla`. Plan corto en castellano simple y **avanzar**; se frena sólo por producción, migraciones de DB, gasto o cliente.
-- Identidad visual en `DESIGN.md`; reglas por ruta en `.claude/rules/` (marca, movimiento, código frontend, 3D); guardia PostToolUse en `.claude/hooks/design-lint.js`, que sólo juzga las líneas que tocás. Sin formateador automático: el formato lo da `npm run lint`. Sin dependencias nuevas sin preguntar.
-- El kit se mantiene desde este repo. **Nunca se vuelve a correr el instalador**: pisa todo lo adaptado. Los permisos de `.claude/settings.json` son los de siempre; el kit sólo sumó prohibiciones.
-- Verificación = la de siempre: `npm run gates` · `npx tsc --noEmit` · `npm test` · `npm run build`. QA = recorrido clic por clic con el agente `qa` (o `gsg-qa`), no "que cargue"; capturas con `visual-verifier`.
-- Agentes del kit (`brand-guardian`, `visual-verifier`, `code-simplifier`) complementan a `qa`, `constructor`, `challenger`; no los reemplazan. Cierre: 3 líneas (qué, cómo se verificó, qué falta).
-<!-- factory-kit:end -->
+## Normas completas (leer cuando el tema aparece)
+`docs/organizacion/normas-gsg-completas.md`: modelo de células y `sprint` · concurrencia y prioridades P1/P2/P3 ·
+Advisory + Challenger (ADR-045) · de-sesgo por sector (ADR-046) · retroalimentación (ADR-047) · Arquitecto de
+Solución (ADR-048) · calibración de agentes (ADR-052) · pool de agentes (ADR-053) · variante objeto→asignación
+(ADR-055) · preset IA con autorización del cliente · kit GSG.
