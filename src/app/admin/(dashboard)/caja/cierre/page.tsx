@@ -41,6 +41,23 @@ import { requireApp } from "@/lib/require-app";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { agendaPractica } from "@/lib/turnos/practica.server";
 import CierreRenglon from "./CierreRenglon";
+import { isDemoSandbox } from "@/lib/demo-flag";
+import { canCurrentUser } from "@/lib/authz";
+import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
+import { turnosSinCerrar } from "@/lib/turnos/sin-cerrar.server";
+import { ConDiseno } from "@/lib/diseno/ConDiseno";
+import { esteticaBackoffice } from "@/lib/estetica-backoffice";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
+import { LineaDeEstado } from "@/components/ui";
+import PielPropia from "../../armazon/PielPropia";
+import PestanasDeCaja from "../PestanasDeCaja";
+import { diaAnterior, diaLargo, diaMes } from "../_renglon/fechas";
+import type { TurnoPendiente } from "../../turnos/cerrar/cerrar-core";
+import CerrarElDia, { type ComprobanteDelDia } from "./CerrarElDia";
+import { estadoDelDia, leerPaso, mediosAContar, mensajeDelCierre, modoTarjeta, pasoDelCierre, TEXTO_TARJETA_COMO_MP, waDelCierre } from "./cerrar-el-dia-core";
+import { tarjetaEnLaBase, turnosAtendidosDelDia } from "./cerrar-el-dia.server";
+import { leerMediosDelComprobante } from "./comprobante.server";
 
 export const dynamic = "force-dynamic";
 
@@ -73,11 +90,15 @@ function prevDayKey(day: DayKey): DayKey {
 export default async function CierreCajaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ dia?: string }>;
+  searchParams: Promise<{ dia?: string; paso?: string }>;
 }) {
   // Guardia de la app (ADR-098): una app oculta no es una app protegida.
   await requireApp("cierre-del-dia");
-  const { dia } = await searchParams;
+  const { dia, paso } = await searchParams;
+  // REINGENIERÍA CH, TANDA 3 (§2.7, CH-038): en un negocio de TURNOS (sin cajón de mostrador) el cierre
+  // es «Cerrar el día» en tres pasos, con o sin «Diseño nuevo». El mostrador (y la demo, que se muestra
+  // como mostrador, igual que caja/page.tsx) sigue con su pantalla de siempre, sin cambios.
+  if (!isDemoSandbox() && !(await getCurrentTenantRubro()).isRetail) return <CierreEnTresPasos dia={dia} pasoPedido={paso} />;
   // «Diseño nuevo»: la lectura de interruptores del layout (cacheada), a la par de los datos.
   const [data, nuevo, practica] = await Promise.all([
     getCierreDiarioData(dia, { conTurnosSinCerrar: true }),
@@ -418,5 +439,111 @@ function TurnosSinCerrar({ day, turnos }: { day: DayKey; turnos: NonNullable<Awa
         ))}
       </ul>
     </Card>
+  );
+}
+
+// ── «Cerrar el día» en tres pasos (negocios de turnos) ───────────────────────────────────────────
+//
+// Las MISMAS lecturas del cierre de siempre (`getCierreDiarioData`, el comprobante de la auditoría) más
+// la bandeja de pendientes (`turnosSinCerrar`, la de «Cerrar lo pendiente», acotada a ESE día) y dos
+// lecturas chicas (cerrar-el-dia.server.ts). La pantalla es CerrarElDia; las acciones, las de siempre.
+async function CierreEnTresPasos({ dia, pasoPedido }: { dia?: string; pasoPedido?: string }) {
+  const [data, veAgenda, enumConTarjeta, slug] = await Promise.all([
+    getCierreDiarioData(dia),
+    canCurrentUser("agenda:read"),
+    tarjetaEnLaBase(),
+    getCurrentTenantSlug(),
+  ]);
+  const { day, today, preview, registro, lastClosedDay } = data;
+  const estado = estadoDelDia({ yaCerrado: data.yaCerrado, enElFuturo: data.enElFuturo, tieneRegistro: registro !== null });
+
+  // Paso 1: los pasados sin cerrar de ESE día, con el veredicto de cobro de quien mira (mismo loader y
+  // misma proyección que /admin/turnos/cerrar). Sólo con el día abierto y para quien ve la agenda.
+  const bandeja = estado === "abierto" && veAgenda ? await turnosSinCerrar() : null;
+  const pendientes: TurnoPendiente[] | null = bandeja
+    ? bandeja.turnos
+        .filter((t) => t.dia === day)
+        .map((t) => ({
+          id: t.id,
+          clienteId: t.clienteId,
+          inicio: t.inicio,
+          dia: t.dia,
+          clienta: t.clienta,
+          telefono: t.telefono,
+          servicio: t.servicio,
+          profesional: t.profesional,
+          profesionalId: t.profesionalId,
+          estado: t.estado,
+          precio: t.precio,
+          cobrado: t.cobrado,
+          saldo: t.saldo,
+          veredicto: t.veredicto,
+        }))
+    : null;
+
+  // La tarjeta: en su columna con M1 aplicada y el código de 3-A; si no, como Mercado Pago (D6).
+  const modo = modoTarjeta({ mapea: cashMethodFromPaymentMethod, enumTieneTarjeta: enumConTarjeta });
+
+  let comprobante: ComprobanteDelDia | null = null;
+  if (estado === "cerrado" && registro) {
+    const [medios, turnos] = await Promise.all([leerMediosDelComprobante(day), turnosAtendidosDelDia(day).catch(() => null)]);
+    const nota = registro.resumen?.nota ?? null;
+    const mensaje = mensajeDelCierre({ day, medios, turnos, nota, quien: registro.quien });
+    comprobante = {
+      medios,
+      frases: registro.resumen?.medios ?? [],
+      nota,
+      quien: registro.quien,
+      cerradoEl: fmtDateTime(registro.cerradoEl),
+      turnos,
+      mensaje,
+      whatsapp: waDelCierre(mensaje),
+    };
+  }
+
+  const nombre = diaLargo(day).toLowerCase().split(" de ")[0]; // «jueves 24»
+  return (
+    <ConDiseno nuevo precargarLetra={false}>
+      <PielPropia pantalla="caja-cierre" letraDelNegocio={esteticaBackoffice(slug) !== null} className="min-h-full bg-surface text-body">
+        <main data-ui="pagina" className="mx-auto w-full max-w-5xl px-4 py-6">
+          <header data-ui="page-header" className="mb-4 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-strong">Caja</h1>
+              <LineaDeEstado
+                datos={[
+                  <strong key="d">{diaLargo(day)}</strong>,
+                  estado === "cerrado" ? "cerrado" : estado === "abierto" ? `${preview.movementCount} ${preview.movementCount === 1 ? "movimiento" : "movimientos"}` : null,
+                ]}
+              />
+            </div>
+            <PasoDePeriodo
+              etiqueta="Día"
+              actual={day === today ? "Hoy" : diaMes(day)}
+              anterior={{ href: `${CIERRE_PATH}?dia=${diaAnterior(day)}`, texto: diaMes(diaAnterior(day)) }}
+              siguiente={day < today ? { href: `${CIERRE_PATH}?dia=${nextDayKey(day)}`, texto: diaMes(nextDayKey(day)) } : null}
+              volver={day !== today ? { href: CIERRE_PATH, texto: "Hoy" } : null}
+            />
+          </header>
+          <PestanasDeCaja actual="cierre" />
+          <CerrarElDia
+            key={`${day}-${estado}`}
+            day={day}
+            hoy={today}
+            diaLabel={formatDayLabel(day)}
+            diaNombre={nombre}
+            diaLargo={diaLargo(day)}
+            estado={estado}
+            paso={pasoDelCierre({ pedido: leerPaso(pasoPedido), estado, pendientes: pendientes?.length ?? 0 })}
+            cerradoCon={estado === "absorbido" && lastClosedDay ? diaMes(lastClosedDay) : null}
+            pendientes={pendientes}
+            permisosBandeja={{ cobrar: bandeja?.permisos.cobrar ?? false, terminar: bandeja?.permisos.terminar ?? false, cajaDeHoyCerrada: bandeja?.cajaDeHoyCerrada ?? false }}
+            medios={mediosAContar(preview.porMedio, modo)}
+            notaTarjeta={modo === "como-mp" ? TEXTO_TARJETA_COMO_MP : null}
+            comprobante={comprobante}
+            letraDelNegocio={esteticaBackoffice(slug) !== null}
+          />
+        </main>
+      </PielPropia>
+    </ConDiseno>
   );
 }

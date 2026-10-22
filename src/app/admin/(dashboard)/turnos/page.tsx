@@ -164,6 +164,10 @@ export default async function TurnosCalendarPage({
         <Link href="/admin/turnos" className="px-1 pb-2 border-b-2 border-accent text-strong font-medium max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
           Calendario
         </Link>
+        {/* La semana por profesional, con la ocupación y los huecos (reingeniería CH, Tanda 3 · CH-036). */}
+        <Link href="/admin/turnos/semana" className="px-1 pb-2 text-muted hover:text-strong max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
+          Semana
+        </Link>
         <Link href="/admin/turnos/lista" className="px-1 pb-2 text-muted hover:text-strong max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
           Lista
         </Link>
