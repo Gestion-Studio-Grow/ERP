@@ -49,7 +49,8 @@ export {
   type TopePrecioAMano,
   type CuponDelPedido,
 } from "@/lib/venta-reglas";
-import { esLineaDeEnvio } from "@/lib/venta-reglas";
+import { esLineaDeEnvio, validarLineaAMano as validarLineaAManoPura } from "@/lib/venta-reglas";
+import { CORTE_CATEGORIAS, effectiveCategoria, type CorteCategoria } from "@/lib/carniceria/cortes";
 
 // ── VUELTO ───────────────────────────────────────────────────────────────────
 //
@@ -256,6 +257,251 @@ export function buscarEnElCatalogo(
     (n.startsWith(palabras[0]) ? empiezan : contienen).push(p.id);
   }
   return [...empiezan, ...contienen].slice(0, max);
+}
+
+// ── EL MOSTRADOR NUEVO (Magra tanda 2 · 2A: ticket que crece y teclas por góndola) ───────────
+//
+// Todo PURO: lo prueba mostrador-nuevo.test.ts. La pantalla avisa; la plata la decide el servidor
+// (el descuento con `aplicarDescuento` y el tope del rol, el precio con el catálogo de la base).
+
+/** Una góndola del mostrador (pestaña de teclas): la de la carnicería, por animal. */
+export type GondolaDeTeclas = { id: string; rotulo: string; ids: string[] };
+
+/**
+ * Las teclas de TODO el catálogo vendible, agrupadas por góndola (Vaca, Cerdo, Pollo…), sólo las
+ * góndolas con algo y en el orden en que se recorre la cámara. Adentro de cada una, primero las
+ * que más se venden (`primero`, en su orden) y después el resto como llegan (alfabético). La
+ * góndola es la explícita (`Product.category`, cuando exista con Gate 2) o la del nombre. PURA.
+ */
+export function gondolasDelMostrador(
+  productos: readonly { id: string; name: string }[],
+  opts: { explicitas?: Readonly<Record<string, string>>; primero?: readonly string[] } = {},
+): GondolaDeTeclas[] {
+  const rango = new Map((opts.primero ?? []).map((id, i) => [id, i]));
+  const porGondola = new Map<CorteCategoria, { id: string; i: number }[]>();
+  productos.forEach((p, i) => {
+    const g = effectiveCategoria(p.name, opts.explicitas?.[p.id] ?? null);
+    const lista = porGondola.get(g) ?? [];
+    lista.push({ id: p.id, i });
+    porGondola.set(g, lista);
+  });
+  const orden = (x: { id: string; i: number }) => rango.get(x.id) ?? Number.MAX_SAFE_INTEGER;
+  return CORTE_CATEGORIAS.flatMap((g) => {
+    const lista = porGondola.get(g.id);
+    if (!lista || lista.length === 0) return [];
+    const ids = [...lista].sort((a, b) => orden(a) - orden(b) || a.i - b.i).map((x) => x.id);
+    return [{ id: g.id, rotulo: g.label, ids }];
+  });
+}
+
+/** La góndola de un producto (misma regla que `gondolasDelMostrador`). PURA. */
+export function gondolaDe(p: { id: string; name: string }, explicitas?: Readonly<Record<string, string>>): CorteCategoria {
+  return effectiveCategoria(p.name, explicitas?.[p.id] ?? null);
+}
+
+/**
+ * «Quedan 2 · dejar 2 · reemplazo»: hasta `max` productos de la MISMA góndola y la misma forma de
+ * venta que se pueden vender ahora (con stock o sin control de stock), sin el que falta. PURA.
+ */
+export function reemplazosDe(
+  productId: string,
+  productos: readonly { id: string; name: string; saleUnit: "UNIT" | "WEIGHT" }[],
+  stockById: Readonly<Record<string, { stock: number; trackStock: boolean } | undefined>>,
+  explicitas?: Readonly<Record<string, string>>,
+  max = 3,
+): string[] {
+  const p = productos.find((x) => x.id === productId);
+  if (!p) return [];
+  const g = gondolaDe(p, explicitas);
+  return productos
+    .filter((x) => x.id !== p.id && x.saleUnit === p.saleUnit && gondolaDe(x, explicitas) === g)
+    .filter((x) => {
+      const s = stockById[x.id];
+      return !s?.trackStock || s.stock > 0;
+    })
+    .slice(0, max)
+    .map((x) => x.id);
+}
+
+// ── Teclas fijadas por el dueño (config `TeclasFijadas` en AuditLog, src/lib/vender) ──
+
+/** Un id de producto como los que guarda la base (cuid): sin espacios, corto. */
+const ID_DE_PRODUCTO = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * Las teclas fijadas, leídas de lo que venga (la fila de la base o lo que mandó la pantalla):
+ * sólo ids con forma de id, sin repetir, en su orden, hasta `TECLAS_BOUTIQUE`. PURA.
+ */
+export function leerTeclasFijadas(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  for (const x of v) {
+    if (typeof x !== "string" || !ID_DE_PRODUCTO.test(x) || out.includes(x)) continue;
+    out.push(x);
+    if (out.length >= TECLAS_BOUTIQUE) break;
+  }
+  return out;
+}
+
+/** Fija o suelta una tecla (al final de la lista); con la lista llena, no suma más. PURA. */
+export function alternarTeclaFijada(ids: readonly string[], id: string): string[] {
+  if (ids.includes(id)) return ids.filter((x) => x !== id);
+  return ids.length >= TECLAS_BOUTIQUE ? [...ids] : [...ids, id];
+}
+
+/**
+ * La pestaña principal de las teclas: las que fijó el dueño (si fijó alguna que todavía se vende)
+ * o, si no, las de siempre (más vendidas, completadas con el catálogo). PURA.
+ */
+export function teclasPrincipales(
+  fijadas: readonly string[],
+  vendibles: ReadonlySet<string>,
+  deSiempre: { ids: readonly string[]; rotulo: string },
+): { ids: string[]; rotulo: string; fijadas: boolean } {
+  const vigentes = fijadas.filter((id) => vendibles.has(id));
+  return vigentes.length > 0
+    ? { ids: vigentes, rotulo: "Fijadas", fijadas: true }
+    : { ids: [...deSiempre.ids], rotulo: deSiempre.rotulo, fijadas: false };
+}
+
+// ── El renglón: «−/+», «Quitar» con «Deshacer» 5 s ──────────────────────────────
+
+/** Cuánto suma o resta el «−/+» de un renglón por kilo (**provisional a confirmar** con Magra). */
+export const PASO_KG = 0.1;
+
+/**
+ * La cantidad después de tocar «−» o «+». Por unidad, de a 1 y nunca menos de 1; por kilo, de a
+ * `PASO_KG` (al gramo, sin arrastrar el error del float) y nunca menos de un paso. PURA.
+ */
+export function pasoDelRenglon(qty: number, porKilo: boolean, sentido: 1 | -1): number {
+  const actual = Number.isFinite(qty) && qty > 0 ? qty : 0;
+  if (!porKilo) return Math.max(1, Math.round(actual) + sentido);
+  const gramos = Math.round(actual * 1000) + sentido * Math.round(PASO_KG * 1000);
+  return Math.max(Math.round(PASO_KG * 1000), gramos) / 1000;
+}
+
+/** Cuánto queda a la vista «Deshacer» después de quitar un renglón. */
+export const DESHACER_MS = 5000;
+
+/** Lo que se quitó, para volverlo a poner igual y en su lugar. */
+export type RenglonQuitado<L> = { linea: L; indice: number };
+
+/**
+ * Quita el renglón `key`. Si era el único, queda un renglón vacío con `keyVacia` (la pantalla
+ * siempre tiene dónde cargar el próximo). Devuelve también lo quitado, para «Deshacer». PURA.
+ */
+export function quitarRenglon<L extends { key: number; productId: string; qtyText: string }>(
+  lineas: readonly L[],
+  key: number,
+  keyVacia: number,
+): { lineas: L[]; quitado: RenglonQuitado<L> | null; usoKeyVacia: boolean } {
+  const indice = lineas.findIndex((l) => l.key === key);
+  if (indice < 0) return { lineas: [...lineas], quitado: null, usoKeyVacia: false };
+  const resto = lineas.filter((l) => l.key !== key);
+  if (resto.length > 0) return { lineas: resto, quitado: { linea: lineas[indice], indice }, usoKeyVacia: false };
+  const vacia = { ...lineas[indice], key: keyVacia, productId: "", qtyText: "", etiqueta: undefined } as L;
+  return { lineas: [vacia], quitado: { linea: lineas[indice], indice }, usoKeyVacia: true };
+}
+
+/**
+ * «Deshacer»: el renglón vuelve igual (producto, cantidad, etiqueta) y a su lugar. Los renglones
+ * vacíos que estaban esperando un producto se sacan (el que vuelve ocupa ese lugar). Si ya está,
+ * no se duplica. PURA.
+ */
+export function deshacerRenglon<L extends { key: number; productId: string }>(lineas: readonly L[], q: RenglonQuitado<L>): L[] {
+  if (lineas.some((l) => l.key === q.linea.key)) return [...lineas];
+  const conProducto = lineas.filter((l) => l.productId !== "");
+  const i = Math.min(Math.max(0, q.indice), conProducto.length);
+  return [...conProducto.slice(0, i), q.linea, ...conProducto.slice(i)];
+}
+
+// ── Descuento en chips: 5 % · 10 % · Redondear ─────────────────────────────────
+
+/** Los porcentajes de los chips de descuento (el tope del rol lo sigue controlando `aplicarDescuento`). */
+export const CHIPS_DE_DESCUENTO = [5, 10] as const;
+/** «Redondear» baja el total a la centena de abajo (**provisional a confirmar** con Magra). */
+export const REDONDEO_DEL_TOTAL = 100;
+
+/**
+ * El descuento en pesos que deja el total en la centena de abajo ($36.608 → $8). 0 si ya está
+ * redondo o si es menos que una centena (no se regala la venta entera). Al centavo. PURA.
+ */
+export function descuentoParaRedondear(total: number, paso = REDONDEO_DEL_TOTAL): number {
+  const centavos = Math.round(round2(total) * 100);
+  const pasoC = Math.round(paso * 100);
+  if (!(centavos >= pasoC) || pasoC <= 0) return 0;
+  return (centavos % pasoC) / 100;
+}
+
+// ── Precio a mano: motivos en chips y qué falta ────────────────────────────────
+
+/** Los motivos frecuentes del precio a mano, en chips (más «Otro…», que escribe). */
+export const MOTIVOS_PRECIO_A_MANO = ["No tiene precio cargado", "Pieza especial"] as const;
+
+/**
+ * Qué le falta a una línea con precio a mano, corto, para el botón de cobrar («Falta el motivo de
+ * «Bondiola»»). null si está completa o si está vacía del todo (se ignora). Usa la MISMA regla
+ * que el alta (`validarLineaAMano`). PURA.
+ */
+export function faltaEnLineaAMano(m: { nombre: string; importeText: string; motivo: string }): string | null {
+  const tocada = m.nombre.trim() !== "" || m.importeText.trim() !== "" || m.motivo.trim() !== "";
+  if (!tocada) return null;
+  const v = validarLineaAManoPura({ nombre: m.nombre, importe: m.importeText, motivo: m.motivo });
+  if (v.ok) return null;
+  const nombre = m.nombre.trim().replace(/\s+/g, " ");
+  if (!nombre) return "Falta qué se vende en el precio a mano";
+  const importe = leerImporte(m.importeText);
+  if (importe.estado === "vacio") return `Falta el importe de «${nombre}»`;
+  if (importe.estado === "invalida" || !(importe.valor > 0)) return `Revisá el importe de «${nombre}»`;
+  if (m.motivo.trim() === "") return `Falta el motivo de «${nombre}»`;
+  return `Revisá el precio a mano de «${nombre}»`;
+}
+
+// ── «Subió a $X recién»: el precio cambió con el ticket abierto ────────────────
+
+export type CambioDePrecio = { id: string; nombre: string; porKilo: boolean; antes: number; ahora: number };
+
+/**
+ * Los productos del ticket cuyo precio del catálogo (`vigentes`, leído de la base al cobrar) ya
+ * no es el que muestra la pantalla. Lo que no vino en `vigentes` (no se pudo leer, o salió del
+ * catálogo) no cuenta: lo decide el servidor al grabar. PURA.
+ */
+export function cambiosDePrecio(
+  enPantalla: readonly { id: string; name: string; saleUnit: "UNIT" | "WEIGHT"; price: number | null; pricePerKg: number | null }[],
+  vigentes: Readonly<Record<string, { price: number | null; pricePerKg: number | null } | undefined>>,
+): CambioDePrecio[] {
+  const out: CambioDePrecio[] = [];
+  for (const p of enPantalla) {
+    const v = vigentes[p.id];
+    if (!v) continue;
+    const porKilo = p.saleUnit === "WEIGHT";
+    const antes = (porKilo ? p.pricePerKg : p.price) ?? 0;
+    const ahora = (porKilo ? v.pricePerKg : v.price) ?? 0;
+    if (Math.round(antes * 100) !== Math.round(ahora * 100)) out.push({ id: p.id, nombre: p.name, porKilo, antes, ahora });
+  }
+  return out;
+}
+
+/** «Subió a $29.900 recién» / «Bajó a $27.000 recién». PURA. */
+export function textoDelCambioDePrecio(c: Pick<CambioDePrecio, "antes" | "ahora">): string {
+  const plata = fmtMoneyARS(c.ahora, Number.isInteger(c.ahora) ? 0 : 2);
+  return `${c.ahora > c.antes ? "Subió" : "Bajó"} a ${plata} recién`;
+}
+
+/** Lo que se dice arriba cuando el cobro se frenó porque cambió un precio. PURA. */
+export function avisoDeCambioDePrecio(cambios: readonly CambioDePrecio[]): string {
+  const lista = cambios.map((c) => `${c.nombre} ${textoDelCambioDePrecio(c).toLowerCase()}`).join(" · ");
+  return `Cambió un precio mientras cargabas: ${lista}. El total ya está con el precio de ahora; revisalo y cobrá de nuevo.`;
+}
+
+// ── Peso en vivo de la balanza por cable, dentro del renglón activo (E03) ──────
+
+/** Cuánto tiene que quedarse quieto el peso para tomarlo solo. */
+export const PESO_QUIETO_MS = 1000;
+
+/** ¿Se toma el peso solo? Quieto, positivo y todavía no tomado en esta activación del renglón. PURA. */
+export function tomaElPesoSolo(b: { estable: boolean; pesoActual: number | null; yaTomado: boolean }): boolean {
+  return b.estable && b.pesoActual !== null && b.pesoActual > 0 && !b.yaTomado;
 }
 
 /** La banda del día cerrado, arriba de Vender (el mismo hecho que frena en `fronteraDeVenta`). */

@@ -18,6 +18,7 @@ import { ENTIDAD_REGIMEN_FACTURA_A } from "./fiscal/regimen-factura-a";
 import { ENTIDAD_CONFIG_CAJA, ENTIDAD_LISTA_PROVEEDOR, ENTIDAD_PROMOCION } from "./supermercado/marcas";
 import { ENTIDAD_CLUB_ESTADO } from "./club/marcas";
 import { ENTIDAD_CONFIG_ENVIOS } from "./envios/marcas";
+import { ENTIDAD_TECLAS_FIJADAS } from "./vender/marcas";
 
 // Entidades de `AuditLog` que la purga nunca borra (ver el comentario en `purgeAuditLogs`).
 // Se definen acá y no se importan de `frontera-cierre.ts` a propósito: ese módulo trae el
@@ -39,6 +40,7 @@ export const PURGE_EXEMPT_ENTITIES = [
   ENTIDAD_CONFIG_CAJA,
   ENTIDAD_LISTA_PROVEEDOR,
   ENTIDAD_CONFIG_ENVIOS, // zonas y tarifas de envío (envios/config.ts): purgada, la tienda volvería a cobrar como si no hubiera configuración
+  ENTIDAD_TECLAS_FIJADAS, // las teclas que el dueño fijó en Vender (vender/teclas-fijadas.ts): purgada, volverían solas a las de siempre
   ENTIDAD_CLUB_ESTADO, // la foto del club (club/estado-repo.ts): purgada, el club perdería turnos, cuentas y caja; la poda es suya
 ] as const;
 

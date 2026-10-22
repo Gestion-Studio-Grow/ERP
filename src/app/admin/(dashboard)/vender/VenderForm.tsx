@@ -84,6 +84,7 @@ import { describirFormato } from "@/lib/supermercado/balanza";
 import { indiceDelLector, lineaDesdeLectura, REGLA_DEL_PRECIO_DE_BALANZA, type ProductoDelLector } from "@/lib/lector/linea-desde-lectura";
 import { etiquetaDistintaDelSistema } from "@/lib/lector/decidir-lectura";
 import TomarPesoParaElTicket from "@/components/balanza/TomarPesoParaElTicket";
+import type { BalanzaSerie } from "@/lib/balanza-serie/usar-balanza-serie";
 import { usePerfilSiHayTerminal, type TerminalDelEquipo } from "@/lib/terminal/usar-perfil";
 import { enCampoDeTexto, enCampoEditable, esCampoDeCantidad, motivoParaNoSumar } from "@/lib/terminal/lector-core";
 import { useLectorDeRafaga, type OrigenDeLaLectura } from "@/lib/terminal/usar-lector";
@@ -111,7 +112,27 @@ import {
   teclaDeProducto,
   vueltoDelTicket,
   type BalanzaDeVender,
+  CHIPS_DE_DESCUENTO,
+  DESHACER_MS,
+  MOTIVOS_PRECIO_A_MANO,
+  avisoDeCambioDePrecio,
+  cambiosDePrecio,
+  descuentoParaRedondear,
+  deshacerRenglon,
+  faltaEnLineaAMano,
+  gondolasDelMostrador,
+  pasoDelRenglon,
+  quitarRenglon,
+  reemplazosDe,
+  teclasPrincipales,
+  textoDelCambioDePrecio,
+  type CambioDePrecio,
+  type RenglonQuitado,
 } from "./reglas-venta";
+import TeclasPorGondola from "./TeclasPorGondola";
+import TicketQueCrece, { ConBalanzaEnVivo, PesoEnVivoDelRenglon, RenglonDelTicket } from "./TicketQueCrece";
+import { fijarTeclasDelMostrador, preciosVigentesDelTicket, type PrecioVigente } from "./acciones-del-mostrador";
+import type { TeclasDelMostrador } from "./teclas.server";
 import {
   almacenDeSesion,
   antesDeCobrar,
@@ -307,6 +328,12 @@ export type BoutiqueDeVender = {
   rolFactura: boolean;
   /** ¿Puede dar de alta o corregir fichas (`clients:manage`)? */
   puedeEditarFicha: boolean;
+  /**
+   * Tanda 2 · 2A: las teclas que fijó el dueño, si puede fijarlas y la góndola explícita de cada
+   * producto (`cargarTeclasDelMostrador`, teclas.server.ts). Sin esto, las teclas de siempre en la
+   * pestaña principal y las góndolas sacadas del nombre.
+   */
+  teclas?: TeclasDelMostrador | null;
 };
 
 /** Una línea con precio a mano: nombre, importe tipeado y motivo. */
@@ -448,7 +475,7 @@ function lineasIniciales(k: CargadoDelCobro | undefined): { lines: Line[]; manua
 }
 
 function FormularioVender({
-  products,
+  products: productosDeLaPagina,
   stockById,
   rapidos,
   rotuloRapidos = "Más vendidos",
@@ -471,6 +498,17 @@ function FormularioVender({
   envios = null,
   enNavegador,
 }: PropsDeVender & { enNavegador: boolean }) {
+  // «Subió a $X recién» (MG-048, sólo el boutique): el precio de HOY de los productos cuyo precio
+  // cambió con el ticket abierto (lo leyó `preciosAlDia` antes de cobrar). Pisa al de la página en
+  // TODA la pantalla (renglones, teclas, total): lo que se ve es lo que se cobra.
+  const [preciosNuevos, setPreciosNuevos] = useState<Record<string, PrecioVigente>>({});
+  const products = useMemo(
+    () =>
+      Object.keys(preciosNuevos).length === 0
+        ? productosDeLaPagina
+        : productosDeLaPagina.map((p) => (preciosNuevos[p.id] ? { ...p, ...preciosNuevos[p.id] } : p)),
+    [productosDeLaPagina, preciosNuevos],
+  );
   // El perfil de este equipo, o `null` sin el módulo `terminal`: entonces todo es como siempre.
   const perfil = usePerfilSiHayTerminal(terminal);
   // Diseño nuevo («Renglón»): la MISMA venta (estado, reglas, envío) dibujada como el ticket que
@@ -546,6 +584,29 @@ function FormularioVender({
   // El cobro del pie termina cuando termina `submit` (no cuando se manda): así el pie queda
   // «enviando» todo el cobro y un doble toque no arma otra venta (MG-005).
   const finDelCobro = useRef<(() => void) | null>(null);
+  // ── Tanda 2 · 2A: el ticket que crece y las teclas por góndola (sólo el boutique) ──
+  // Lo último que se quitó, con «Deshacer» 5 s (sin modal, sin animación).
+  const [quitado, setQuitado] = useState<{ tipo: "producto"; q: RenglonQuitado<Line>; nombre: string } | { tipo: "manual"; q: RenglonQuitado<LineaManual>; nombre: string } | null>(null);
+  useEffect(() => {
+    if (!quitado) return;
+    const t = setTimeout(() => setQuitado(null), DESHACER_MS);
+    return () => clearTimeout(t);
+  }, [quitado]);
+  // El renglón que recibe el peso (teclado grande, balanza por cable): el último que entró o el tocado.
+  const [activoKey, setActivoKey] = useState<number | null>(null);
+  // Cuántas veces cambió el peso de cada renglón DESDE AFUERA del teclado (−/+, balanza): rearma el teclado.
+  const [versionDelPeso, setVersionDelPeso] = useState<Record<number, number>>({});
+  // Los precios que cambiaron con el ticket abierto (MG-048), por producto: el chip del renglón.
+  const [cambios, setCambios] = useState<Record<string, CambioDePrecio>>({});
+  // Rearma el pie de cobro cuando un cobro se frenó por un precio que cambió (su vuelto era del total viejo).
+  const [pieKey, setPieKey] = useState(0);
+  // Las teclas fijadas por el dueño (la página las trae; al guardar se actualizan acá sin recargar).
+  const [fijadas, setFijadas] = useState<{ ids: string[]; version: string | null }>(() => ({
+    ids: boutique?.teclas?.fijadas ?? [],
+    version: boutique?.teclas?.version ?? null,
+  }));
+  // Una tecla por kilo «agotada» que se tocó: ¿lo tiene en la mano? (MAG-4: se vende igual si sí).
+  const [agotadoEnLaMano, setAgotadoEnLaMano] = useState<string | null>(null);
 
   // Opcionales, cerrados hasta que alguien los abre (ninguno suma un paso al camino feliz).
   const Quien = quienCompra === "clienta" ? "Clienta" : "Cliente";
@@ -1017,6 +1078,10 @@ function FormularioVender({
       setAvisoBoutique(null);
       camposDelUltimoPie.current = null;
       pagoConDelPie.current = null;
+      setQuitado(null);
+      setActivoKey(null);
+      setCambios({});
+      setAgotadoEnLaMano(null);
     }
     setLines([{ key: nextKey, productId: "", qtyText: "" }]);
     setManuales([]);
@@ -1443,7 +1508,7 @@ function FormularioVender({
                 </label>
                 <button
                   type="button"
-                  onClick={() => setManuales((ms) => ms.filter((x) => x.key !== m.key))}
+                  onClick={() => (enBoutique ? quitarManual(m.key) : setManuales((ms) => ms.filter((x) => x.key !== m.key)))}
                   aria-label="Quitar la línea con precio a mano"
                   className="inline-flex h-11 w-11 items-center justify-center text-lg leading-none text-muted hover:text-danger"
                 >
@@ -1452,6 +1517,7 @@ function FormularioVender({
                 <label className="col-span-2 @md:col-span-3">
                   <span className="sr-only">Motivo</span>
                   <Input
+                    id={enBoutique ? `manual-motivo-${m.key}` : undefined}
                     value={m.motivo}
                     onChange={(e) => setManual(m.key, { motivo: e.target.value })}
                     placeholder="Motivo (obligatorio): ej. no tiene precio cargado"
@@ -1459,6 +1525,32 @@ function FormularioVender({
                     aria-invalid={m.error ? true : undefined}
                   />
                 </label>
+                {/* Mostrador boutique (2A): los motivos frecuentes en chips; «Otro…» va a escribirlo. */}
+                {enBoutique && (
+                  <div role="group" aria-label="Motivos frecuentes" data-vender="motivos-a-mano" className="col-span-2 flex flex-wrap gap-2 @md:col-span-3">
+                    {MOTIVOS_PRECIO_A_MANO.map((motivo) => (
+                      <button
+                        key={motivo}
+                        type="button"
+                        aria-pressed={m.motivo === motivo}
+                        onClick={() => setManual(m.key, { motivo })}
+                        className={cn("chip-btn h-11 text-sm", m.motivo === motivo && "!border-accent !bg-accent !text-on-accent")}
+                      >
+                        {motivo}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if ((MOTIVOS_PRECIO_A_MANO as readonly string[]).includes(m.motivo)) setManual(m.key, { motivo: "" });
+                        pedirFoco(`manual-motivo-${m.key}`);
+                      }}
+                      className="chip-btn h-11 text-sm"
+                    >
+                      Otro…
+                    </button>
+                  </div>
+                )}
               </div>
               {m.error && (
                 <p role="alert" className="text-xs text-danger">
@@ -2338,6 +2430,8 @@ function FormularioVender({
 
   /** El pie eligió cómo pagó: el estado de la venta queda con ese medio y sale el cobro. */
   async function cobrarConElPie(r: ResultadoDelPie) {
+    // MG-048: si un precio cambió con el ticket abierto, no se cobra uno que no se ve.
+    if (!(await preciosAlDia())) return;
     const campos = camposDelPie(totalACobrar, r);
     const principal = leerMedioDeCobro(campos.find(([n]) => n === "paymentMethod")?.[1] ?? "") ?? "";
     camposDelUltimoPie.current = campos;
@@ -2390,6 +2484,7 @@ function FormularioVender({
     const vacia = lines.find((l) => !l.productId);
     const key = vacia ? vacia.key : addLine(productId);
     setLine(key, { productId, qtyText, etiqueta });
+    setActivoKey(key);
     pedirFoco(qtyText ? ID_CAMPO_UNICO : `qty-${key}`);
   }
 
@@ -2404,14 +2499,103 @@ function FormularioVender({
     const vacia = lines.find((l) => !l.productId);
     const key = vacia ? vacia.key : addLine(productId);
     if (vacia) setLine(key, { productId, qtyText: "" });
-    let tactil = false;
-    try {
-      tactil = window.matchMedia("(pointer: coarse)").matches;
-    } catch {
-      // sin matchMedia: como en la PC
-    }
-    if (tactil || prefiereTeclado()) setTecladoDe(key);
+    setActivoKey(key);
+    if (esTactil() || prefiereTeclado()) setTecladoDe(key);
     pedirFoco(`qty-${key}`);
+  }
+
+  /** ¿Pantalla táctil? (tablet, celular): ahí el teclado grande está siempre abierto en lo que se pesa. */
+  function esTactil(): boolean {
+    try {
+      return window.matchMedia("(pointer: coarse)").matches;
+    } catch {
+      return false; // sin matchMedia: como en la PC
+    }
+  }
+
+  /** El renglón tocado pasa a ser el activo (el que recibe el peso); en táctil, con el teclado grande. */
+  function activar(key: number, porKilo: boolean) {
+    if (activoKey !== key) setActivoKey(key);
+    if (porKilo && esTactil() && tecladoDe !== key) setTecladoDe(key);
+  }
+
+  /** El peso o la cantidad cambió DESDE AFUERA del teclado (−/+, balanza): se escribe y se rearma el teclado. */
+  function ponerCantidad(key: number, qty: number) {
+    setLine(key, { qtyText: formatearCantidad(qty), etiqueta: undefined });
+    setVersionDelPeso((v) => ({ ...v, [key]: (v[key] ?? 0) + 1 }));
+  }
+
+  /** «Quitar»: sin preguntar, con «Deshacer» 5 s. */
+  function quitarProducto(key: number) {
+    const r = quitarRenglon(lines, key, nextKey);
+    if (!r.quitado) return;
+    setLines(r.lineas);
+    if (r.usoKeyVacia) setNextKey((k) => k + 1);
+    setActivoKey((a) => (a === key ? null : a));
+    setQuitado({ tipo: "producto", q: r.quitado, nombre: byId.get(r.quitado.linea.productId)?.name ?? nombresDeLaDuda[r.quitado.linea.productId] ?? "el renglón" });
+  }
+
+  function quitarManual(key: number) {
+    const indice = manuales.findIndex((m) => m.key === key);
+    if (indice < 0) return;
+    const linea = manuales[indice];
+    setManuales((ms) => ms.filter((m) => m.key !== key));
+    setQuitado({ tipo: "manual", q: { linea, indice }, nombre: linea.nombre.trim() || "la línea con precio a mano" });
+  }
+
+  function deshacerQuitado() {
+    const q = quitado;
+    if (!q) return;
+    if (q.tipo === "producto") setLines((ls) => deshacerRenglon(ls, q.q));
+    else
+      setManuales((ms) => {
+        if (ms.some((m) => m.key === q.q.linea.key)) return ms;
+        const i = Math.min(q.q.indice, ms.length);
+        return [...ms.slice(0, i), q.q.linea, ...ms.slice(i)];
+      });
+    setQuitado(null);
+  }
+
+  /**
+   * MG-048: antes de cobrar, el precio de HOY de lo que lleva el ticket. Si alguno cambió (el dueño
+   * lo subió con el ticket abierto), la pantalla pasa a ese precio, el renglón dice «Subió a $X
+   * recién» y NO se cobra todavía: se cobra con el próximo toque, ya con el total a la vista. Sin
+   * señal o sin respuesta a tiempo, sigue el cobro de siempre (el servidor cobra con su catálogo).
+   */
+  async function preciosAlDia(): Promise<boolean> {
+    if (reintentando || !enLinea) return true;
+    const enTicket = [...new Set(leidas.filter((l) => l.qty > 0 && byId.has(l.productId)).map((l) => l.productId))];
+    if (enTicket.length === 0) return true;
+    let vigentes: Record<string, PrecioVigente>;
+    try {
+      const r = await conTiempoMaximo(preciosVigentesDelTicket(enTicket), 2500);
+      if (r.tipo !== "respuesta") return true;
+      vigentes = r.valor;
+    } catch (e) {
+      if (isNextRedirect(e)) throw e;
+      return true;
+    }
+    const nuevos = cambiosDePrecio(enTicket.map((id) => byId.get(id)!), vigentes);
+    if (nuevos.length === 0) return true;
+    setPreciosNuevos((p) => ({ ...p, ...Object.fromEntries(nuevos.map((c) => [c.id, vigentes[c.id]])) }));
+    // El chip dice el cambio desde lo que se veía la PRIMERA vez (si cambió dos veces, desde el original).
+    setCambios((c) => ({ ...c, ...Object.fromEntries(nuevos.map((x) => [x.id, { ...x, antes: c[x.id]?.antes ?? x.antes }])) }));
+    setAvisoBoutique(avisoDeCambioDePrecio(nuevos));
+    setPieKey((k) => k + 1);
+    return false;
+  }
+
+  /** El dueño guarda las teclas fijas (con la versión que leyó: no pisa a otro). */
+  async function guardarFijadas(ids: string[]): Promise<string | null> {
+    try {
+      const r = await fijarTeclasDelMostrador({ ids, version: fijadas.version });
+      if (!r.ok) return r.error;
+      setFijadas({ ids: r.ids, version: r.version });
+      return null;
+    } catch (e) {
+      if (isNextRedirect(e)) throw e;
+      return "No pudimos guardar las teclas: revisá la señal y probá de nuevo.";
+    }
   }
 
   /** ¿Se puede tocar el ticket ahora? (no con un cobro en vuelo o en duda: se borraría al limpiar). */
@@ -2421,12 +2605,20 @@ function FormularioVender({
     return motivo === null;
   }
 
-  function tocarTecla(productId: string) {
+  function tocarTecla(productId: string, enLaMano = false) {
     const p = byId.get(productId);
     if (!p || !sePuedeSumar()) return;
     setCoincidencias(null);
-    if (teclaDeProducto(p, stockById[p.id]).bloquea) {
+    setAgotadoEnLaMano(null);
+    const t = teclaDeProducto(p, stockById[p.id]);
+    if (t.bloquea) {
       setAvisoBoutique(`${p.name} está agotado.`);
+      return;
+    }
+    // MG-047: la tecla agotada no carga el renglón. Por kilo, si el paquete está en la mano (el
+    // stock del sistema puede ir atrasado, MAG-4), se vende igual con un toque más.
+    if (t.agotado && !enLaMano) {
+      setAgotadoEnLaMano(p.id);
       return;
     }
     if (p.saleUnit === "UNIT") sumarUnidades(p.id);
@@ -2472,7 +2664,13 @@ function FormularioVender({
 
   function vistaBoutique(b: BoutiqueDeVender) {
     const conProducto = leidas.filter((l) => l.productId);
-    const teclas = botonesRapidos.map((p) => teclaDeProducto(p, stockById[p.id]));
+    // Las teclas (2A): la pestaña principal (las fijadas por el dueño, o las de siempre) y una
+    // pestaña por góndola con TODO el catálogo vendible, las más vendidas primero.
+    const explicitas = b.teclas?.gondolas;
+    const vendibles = new Set(products.map((p) => p.id));
+    const principal = teclasPrincipales(fijadas.ids, vendibles, { ids: botonesRapidos.map((p) => p.id), rotulo: rotuloRapidos });
+    const gondolas = gondolasDelMostrador(products, { explicitas, primero: rapidos });
+    const faltaEnManual = manualesLeidas.map((m) => (m.error ? faltaEnLineaAMano(m) : null)).find((x) => x !== null) ?? null;
     // Las zonas y la cotización del envío salen de arriba (`zonasDelEnvio`, `cotizacionEnvio`):
     // las mismas que suman al total que cobra el pie.
     const zonas = zonasDelEnvio;
@@ -2482,7 +2680,8 @@ function FormularioVender({
     // Lo que frena el pie, en palabras (el pie se deshabilita con este motivo). Sin renglones lo
     // dice el pie solo («Cargá algo para cobrar»).
     const motivoDelPie = !hayLineaValida
-      ? undefined
+      ? // Sólo una línea a mano a medio llenar: se dice qué le falta (MG-050), no «Cargá algo».
+        (faltaEnManual ?? undefined)
       : diaCerrado
         ? "El día está cerrado: registrala para cobrar mañana."
         : enDuda
@@ -2493,7 +2692,8 @@ function FormularioVender({
               : hayCantidadInvalida
                 ? "Revisá la cantidad: hay una que no se entiende."
                 : hayManualInvalida
-                  ? "Revisá el precio a mano: le falta algo."
+                  ? // MG-050: el botón dice QUÉ falta («Falta el motivo de «Bondiola»»).
+                    (faltaEnManual ?? "Revisá el precio a mano: pasa el tope de tu usuario.")
                   : null)) ?? undefined;
     const registrarBloqueado =
       enviandoBoutique ||
@@ -2513,8 +2713,16 @@ function FormularioVender({
     const camposDelReintento: [string, string][] =
       !paid || aCuentaActivo ? [] : (camposDelUltimoPie.current ?? (medio ? camposDelPie(totalACobrar, { modo: "simple", medio }) : []));
     const puedeReintentar = sinRespuesta !== null && !cambioTrasCorte && aviso?.reintentar === true;
+    // «Redondear»: lo que baja el total a la centena de abajo (sobre lo que se compra, sin el envío).
+    const redondeo = descuentoParaRedondear(subtotal);
+    const ponerDescuento = (tipo: TipoDescuento, valor: string) => {
+      cupon.limpiar();
+      setConDescuento(true);
+      setTipoDescuento(tipo);
+      setDescuentoText(valor);
+    };
 
-    const renglon = (l: (typeof leidas)[number]) => {
+    const renglon = (l: (typeof leidas)[number], balanzaEnVivo: BalanzaSerie | null) => {
       const p = byId.get(l.productId);
       if (!p) {
         if (!huerfana(l.productId)) return null;
@@ -2527,7 +2735,7 @@ function FormularioVender({
             <span id={`qty-${l.key}`} className="text-sm tabular-nums text-body">
               {l.qtyText}
             </span>
-            <button type="button" onClick={() => removeLine(l.key)} aria-label={`Quitar línea de ${nombre}`} className="chip-btn h-11 text-sm">
+            <button type="button" onClick={() => quitarProducto(l.key)} aria-label={`Quitar línea de ${nombre}`} className="chip-btn h-11 text-sm">
               Quitar
             </button>
             {l.qty > 0 && (
@@ -2546,83 +2754,51 @@ function FormularioVender({
       const faltaEnDuda = faltante?.bloquea && reintentoDeLaMisma ? faltante : null;
       const avisoStock = faltante && !faltante.bloquea ? faltante.aviso : null;
       const confirmar = confirmacionDe(l);
-      const entera = !esPeso && !l.invalida && Number.isInteger(l.qty);
+      // El activo es el elegido, o el último por kilo que entró si no se eligió ninguno.
+      const activo = activoKey !== null ? activoKey === l.key : esPeso && conProducto.filter((x) => byId.get(x.productId)?.saleUnit === "WEIGHT").at(-1)?.key === l.key;
+      const cambio = cambios[l.productId];
+      // «Quedan 2 · dejar 2 · reemplazo» (MG-047): por unidad, lo que hay y los de la misma góndola.
+      const alcanza = falta && !esPeso ? Math.max(0, Math.floor(falta.available)) : 0;
+      const reemplazos = falta && !esPeso ? reemplazosDe(p.id, products, stockById, explicitas) : [];
       return (
-        <li key={l.key} data-vender="renglon" className="space-y-2 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-strong">{p.name}</p>
-              <p className="text-xs tabular-nums text-muted">
-                {l.qty > 0 ? `${formatearCantidad(l.qty)} ${esPeso ? "kg" : "u"} × ` : ""}
-                {fmtMoneyARS(precioDe(p), 0)}/{esPeso ? "kg" : "u"}
-              </p>
-            </div>
-            <div className="flex items-center gap-1">
-              {entera && (
-                <button
-                  type="button"
-                  className="chip-btn h-11 w-11 justify-center text-base"
-                  aria-label={`Una ${p.name} menos`}
-                  disabled={l.qty <= 1}
-                  onClick={() => setLine(l.key, { qtyText: String(Math.max(1, l.qty - 1)) })}
-                >
-                  −
-                </button>
-              )}
-              <label className="relative">
-                <span className="sr-only">{esPeso ? `Peso de ${p.name} en kg` : `Cantidad de ${p.name}`}</span>
-                <Input
-                  id={`qty-${l.key}`}
-                  type="text"
-                  inputMode="decimal"
-                  autoComplete="off"
-                  value={l.qtyText}
-                  placeholder={esPeso ? "0,000" : "Cant."}
-                  onChange={(e) => setLine(l.key, { qtyText: e.target.value, etiqueta: undefined })}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      if (l.qty > 0) pedirFoco(ID_CAMPO_UNICO);
-                    }
-                  }}
-                  aria-invalid={falta || l.invalida ? true : undefined}
-                  // Una ráfaga del lector que cae acá vuelve el campo a su valor (CampoUnico).
-                  data-tipo={esPeso ? "peso" : "cantidad"}
-                  className="w-28 pr-7 text-right tabular-nums"
-                />
-                <span aria-hidden className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">
-                  {esPeso ? "kg" : "u"}
-                </span>
-              </label>
-              {entera && (
-                <button
-                  type="button"
-                  className="chip-btn h-11 w-11 justify-center text-base"
-                  aria-label={`Una ${p.name} más`}
-                  onClick={() => setLine(l.key, { qtyText: String(l.qty + 1) })}
-                >
-                  +
-                </button>
-              )}
-            </div>
-            <span className="w-24 text-right text-sm font-semibold tabular-nums text-strong">
-              {lineTotal > 0 ? fmtMoneyARS(lineTotal) : "—"}
-            </span>
-            <button
-              type="button"
-              onClick={() => removeLine(l.key)}
-              aria-label={`Quitar línea de ${p.name}`}
-              className="inline-flex h-11 w-11 items-center justify-center text-lg leading-none text-muted hover:text-danger"
-            >
-              ×
-            </button>
-          </div>
+        <RenglonDelTicket
+          key={l.key}
+          linea={l}
+          nombre={p.name}
+          porKilo={esPeso}
+          precio={precioDe(p)}
+          total={lineTotal}
+          activo={activo}
+          invalida={l.invalida}
+          marcarInvalida={!!falta || l.invalida}
+          cambioDePrecio={cambio ? textoDelCambioDePrecio(cambio) : null}
+          onActivar={() => activar(l.key, esPeso)}
+          onTipear={(qtyText) => setLine(l.key, { qtyText, etiqueta: undefined })}
+          onEnter={() => pedirFoco(ID_CAMPO_UNICO)}
+          onPaso={(sentido) => ponerCantidad(l.key, pasoDelRenglon(l.qty, esPeso, sentido))}
+          onQuitar={() => quitarProducto(l.key)}
+          teclado={
+            esPeso
+              ? {
+                  abierto: tecladoDe === l.key,
+                  version: versionDelPeso[l.key] ?? 0,
+                  onAlternar: () => usarTeclado(tecladoDe === l.key ? null : l.key),
+                  onPeso: (valor) => setLine(l.key, { qtyText: valor > 0 ? formatearCantidad(valor) : "", etiqueta: undefined }),
+                }
+              : null
+          }
+          pesoEnVivo={
+            esPeso && activo && balanzaEnVivo ? (
+              <PesoEnVivoDelRenglon key={l.key} balanza={balanzaEnVivo} nombre={p.name} onTomar={(kg) => ponerCantidad(l.key, kg)} />
+            ) : undefined
+          }
+        >
           {confirmar && (
             <ConfirmarPeso
               confirmacion={confirmar}
               pendiente={sinConfirmar(l)}
               alConfirmar={() => setPesosConfirmados((c) => ({ ...c, [l.key]: l.qty }))}
-              alCorregir={() => setLine(l.key, { qtyText: formatearCantidad(confirmar.corregido) })}
+              alCorregir={() => ponerCantidad(l.key, confirmar.corregido)}
             />
           )}
           {l.etiqueta != null && lineTotal > 0 && etiquetaDistinta(l.etiqueta, lineTotal) && (
@@ -2654,38 +2830,34 @@ function FormularioVender({
               ya se grabó: el reintento lo controla el sistema.
             </p>
           )}
-          {falta && (
+          {falta && esPeso && (
             <p role="alert" className="text-xs text-danger">
-              No alcanza el stock: quedan {formatearCantidad(falta.available)} {esPeso ? "kg" : "u"} de {p.name}.
+              No alcanza el stock: quedan {formatearCantidad(falta.available)} kg de {p.name}.
             </p>
+          )}
+          {falta && !esPeso && (
+            <div role="alert" data-vender="faltan-unidades" className="flex flex-wrap items-center gap-2 text-xs text-danger">
+              <span className="font-semibold">Quedan {formatearCantidad(alcanza)}</span>
+              {alcanza > 0 && (
+                <button type="button" className="chip-btn h-11 text-sm" onClick={() => ponerCantidad(l.key, alcanza)}>
+                  Dejar {formatearCantidad(alcanza)}
+                </button>
+              )}
+              {reemplazos.length > 0 && (
+                <button
+                  type="button"
+                  className="chip-btn h-11 text-sm"
+                  onClick={() => setCoincidencias({ texto: `reemplazo de ${p.name}`, ids: reemplazos })}
+                >
+                  Reemplazo
+                </button>
+              )}
+            </div>
           )}
           {avisoStock && (
             <p role="status" className="text-xs text-warning">
               {avisoStock}
             </p>
-          )}
-          {esPeso && (
-            <div data-vender="teclado-de-peso" className="grid gap-2">
-              <button
-                type="button"
-                className="chip-btn h-11 justify-self-start text-sm"
-                aria-expanded={tecladoDe === l.key}
-                onClick={() => usarTeclado(tecladoDe === l.key ? null : l.key)}
-              >
-                {tecladoDe === l.key ? "Cerrar el teclado grande" : "Teclado grande"}
-              </button>
-              {tecladoDe === l.key && (
-                <TecladoNumerico
-                  key={l.key}
-                  modo="peso"
-                  etiqueta={`Peso de ${p.name}`}
-                  ayuda="Los números de la etiqueta de la balanza: la coma la ponemos nosotros."
-                  inicial={l.qty > 0 ? String(Math.round(l.qty * 1000)) : ""}
-                  onCambio={(valor) => setLine(l.key, { qtyText: valor > 0 ? formatearCantidad(valor) : "", etiqueta: undefined })}
-                  className="max-w-sm"
-                />
-              )}
-            </div>
           )}
           {l.qty > 0 && (
             <>
@@ -2693,10 +2865,9 @@ function FormularioVender({
               <input type="hidden" name="quantity" value={cantidadParaFormulario(l.qty)} />
             </>
           )}
-        </li>
+        </RenglonDelTicket>
       );
     };
-
     return (
       <div data-vender="boutique" className="space-y-4">
         {diaCerrado && (
@@ -2762,39 +2933,34 @@ function FormularioVender({
                 </Link>
               </p>
             )}
-            {tomarPeso}
-            {teclas.length > 0 && (
-              <section aria-labelledby="vender-teclas" data-vender="teclas-boutique">
-                <h2 id="vender-teclas" className="mb-2 text-sm font-semibold text-strong">
-                  {rotuloRapidos}
-                </h2>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
-                  {teclas.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      data-vender="tecla"
-                      data-agotado={t.agotado ? "" : undefined}
-                      disabled={t.bloquea}
-                      onClick={() => tocarTecla(t.id)}
-                      className={cn(
-                        "flex min-h-16 min-w-0 flex-col items-start justify-center gap-0.5 rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-left",
-                        "hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
-                        "disabled:cursor-not-allowed disabled:bg-surface-sunken",
-                      )}
-                    >
-                      <span className="w-full truncate text-sm font-semibold uppercase text-strong">{t.nombre}</span>
-                      <span className="text-sm tabular-nums text-body">{t.precio}</span>
-                      <span className={cn("text-xs tabular-nums", t.agotado ? "font-semibold text-danger" : "text-muted")}>
-                        {t.agotado ? "agotado" : (t.quedan ?? " ")}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
+            {agotadoEnLaMano && byId.get(agotadoEnLaMano) && (
+              <div role="status" data-vender="agotado-en-la-mano" className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-sunken p-2 text-sm text-body">
+                <p className="min-w-0 flex-1">
+                  {byId.get(agotadoEnLaMano)!.name} figura agotado en el sistema. Si tenés el paquete en la mano, vendelo igual: el stock queda
+                  para recontar.
+                </p>
+                <button type="button" className="chip-btn h-11 text-sm" onClick={() => tocarTecla(agotadoEnLaMano, true)}>
+                  Lo tengo: venderlo igual
+                </button>
+                <button type="button" className="h-11 px-2 text-sm text-muted underline" onClick={() => setAgotadoEnLaMano(null)}>
+                  No
+                </button>
+              </div>
+            )}
+            {(principal.ids.length > 0 || gondolas.length > 0) && (
+              <TeclasPorGondola
+                productos={products}
+                stockById={stockById}
+                principal={principal}
+                gondolas={gondolas}
+                onTocar={(id) => tocarTecla(id)}
+                fijar={b.teclas?.puedeFijar ? { fijadas: fijadas.ids, onGuardar: guardarFijadas } : null}
+              />
             )}
           </div>
 
+          <ConBalanzaEnVivo negocio={conPeso && negocioId && products.some((p) => p.saleUnit === "WEIGHT") ? negocioId : null}>
+          {(balanzaEnVivo) => (
           <section data-vender="ticket-boutique" aria-label={isOrder ? "Pedido" : "Ticket"} className="min-w-0 space-y-3 rounded-lg border border-line bg-surface-raised p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div role="group" aria-label="Qué se registra" className="flex gap-1">
@@ -2827,32 +2993,28 @@ function FormularioVender({
               </div>
             </div>
 
-            <div data-vender="total" className="flex items-end justify-between gap-2 border-b border-line pb-3">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted">{isOrder ? "Total del pedido" : "Total"}</p>
-                {descuento.ok && descuento.descuento > 0 && (
-                  <p className="text-xs tabular-nums text-muted">
-                    Subtotal {fmtMoneyARS(subtotal)} · descuento −{fmtMoneyARS(descuento.descuento)}
-                  </p>
-                )}
-                {envioPrevisto > 0 && cotizacionEnvio?.ok && (
-                  <p data-vender="total-envio" className="text-xs tabular-nums text-muted">
-                    Productos {fmtMoneyARS(total)} · {cotizacionEnvio.renglon ?? "Envío"} {fmtMoneyARS(envioPrevisto)}
-                  </p>
-                )}
-              </div>
-              <p aria-live="polite" className="font-display text-5xl leading-none tabular-nums text-accent-ink">
-                {fmtMoneyARS(totalACobrar, Number.isInteger(totalACobrar) ? 0 : 2)}
-              </p>
-            </div>
-
-            {conProducto.length === 0 && manuales.length === 0 ? (
-              <p className="text-sm text-muted">Pasá la etiqueta, tocá una tecla o escribí el nombre: la línea entra acá.</p>
-            ) : (
-              <ol aria-label="Lo que lleva" className="divide-y divide-line">
-                {conProducto.map(renglon)}
-              </ol>
-            )}
+            <TicketQueCrece
+              rotuloTotal={isOrder ? "Total del pedido" : "Total"}
+              total={totalACobrar}
+              vacio={conProducto.length === 0 && manuales.length === 0}
+              deshacer={quitado ? { texto: `Quitaste ${quitado.nombre}.`, onDeshacer: deshacerQuitado } : null}
+              detalles={
+                <>
+                  {descuento.ok && descuento.descuento > 0 && (
+                    <p className="text-xs tabular-nums text-muted">
+                      Subtotal {fmtMoneyARS(subtotal)} · descuento −{fmtMoneyARS(descuento.descuento)}
+                    </p>
+                  )}
+                  {envioPrevisto > 0 && cotizacionEnvio?.ok && (
+                    <p data-vender="total-envio" className="text-xs tabular-nums text-muted">
+                      Productos {fmtMoneyARS(total)} · {cotizacionEnvio.renglon ?? "Envío"} {fmtMoneyARS(envioPrevisto)}
+                    </p>
+                  )}
+                </>
+              }
+            >
+              {conProducto.map((l) => renglon(l, balanzaEnVivo))}
+            </TicketQueCrece>
 
             {bloqueManuales}
 
@@ -2862,6 +3024,38 @@ function FormularioVender({
                   + {Quien}
                 </button>
               )}
+              <button type="button" onClick={addManual} className="chip-btn h-11 text-sm">
+                + Precio a mano
+              </button>
+            </div>
+
+            {/* Descuento en chips (2A): 5 % · 10 % · Redondear · Otro. El tope del rol lo controla
+                `aplicarDescuento` igual que el servidor: un % de más se ve y frena el cobro. */}
+            <div role="group" aria-label="Descuento" data-vender="chips-descuento" className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-muted">Descuento</span>
+              {CHIPS_DE_DESCUENTO.map((pct) => {
+                const puesto = conDescuento && tipoDescuento === "porcentaje" && leerImporte(descuentoText).estado === "ok" && importeOCero(descuentoText) === pct;
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    aria-pressed={puesto}
+                    onClick={() => ponerDescuento("porcentaje", String(pct))}
+                    className={cn("chip-btn h-11 text-sm", puesto && "!border-accent !bg-accent !text-on-accent")}
+                  >
+                    {pct} %
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                disabled={redondeo === 0}
+                title={redondeo === 0 ? "El total ya está redondo" : undefined}
+                onClick={() => ponerDescuento("monto", String(redondeo).replace(".", ","))}
+                className="chip-btn h-11 text-sm"
+              >
+                Redondear{redondeo > 0 ? ` −${fmtMoneyARS(redondeo, Number.isInteger(redondeo) ? 0 : 2)}` : ""}
+              </button>
               {!conDescuento && (
                 <button
                   type="button"
@@ -2871,12 +3065,9 @@ function FormularioVender({
                   }}
                   className="chip-btn h-11 text-sm"
                 >
-                  + Descuento
+                  Otro…
                 </button>
               )}
-              <button type="button" onClick={addManual} className="chip-btn h-11 text-sm">
-                + Precio a mano
-              </button>
             </div>
 
             {(isOrder || conCliente) && (
@@ -2953,12 +3144,21 @@ function FormularioVender({
 
             {bloqueDescuento}
           </section>
+          )}
+          </ConBalanzaEnVivo>
 
           {/* El cobro, fijo abajo en el celular (encima de la barra de espacios) y a lo ancho en la PC. */}
           <div
             data-vender="cobro-boutique"
             className="sticky bottom-[var(--alto-barra-inferior,0px)] z-20 space-y-2 rounded-lg border border-line bg-surface-sunken lg:col-span-2"
           >
+            {/* En el celular el ticket queda arriba de las teclas: el total, también acá abajo (MG-045). */}
+            <p data-vender="total-fijo" aria-hidden className="flex items-baseline justify-between gap-2 px-3 pt-2 lg:hidden">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted">{isOrder ? "Total del pedido" : "Total"}</span>
+              <span className="font-display text-3xl leading-none tabular-nums text-accent-ink">
+                {fmtMoneyARS(totalACobrar, Number.isInteger(totalACobrar) ? 0 : 2)}
+              </span>
+            </p>
             <div className="space-y-2 px-3 pt-3 empty:hidden">{bloqueAviso}</div>
             {puedeReintentar && (
               <div className="px-3">
@@ -2981,6 +3181,7 @@ function FormularioVender({
             ) : (
               <>
                 <PieDeCobro
+                  key={pieKey}
                   total={totalACobrar}
                   deshabilitado={motivoDelPie ? { motivo: motivoDelPie } : undefined}
                   textoBoton={cobrarEnPedido ? "Registrar y cobrar" : "Cobrar"}
