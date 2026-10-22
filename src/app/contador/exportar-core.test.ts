@@ -25,16 +25,22 @@ function renglon(p: Partial<RenglonComprobante> = {}): RenglonComprobante {
 test("lineasCsvCartera: cabecera con cliente y CUIT, una fila por comprobante, nota de crédito en negativo", () => {
   const lineas = lineasCsvCartera(
     [
-      { alias: "Kiosco de Marta", cuit: "27222222228", renglones: [renglon(), renglon({ id: "i2", tipoComprobante: 13, total: -500 })], recortado: false },
+      {
+        alias: "Kiosco de Marta",
+        cuit: "27222222228",
+        renglones: [renglon(), renglon({ id: "i2", tipoComprobante: 13, total: -500 })],
+        recortado: false,
+        descripciones: new Map([["i1", "Honorarios · octubre 2026"]]),
+      },
       { alias: "Almacén", cuit: null, renglones: [], recortado: false },
     ],
     20000,
   );
   assert.equal(lineas.length, 3);
   assert.equal(lineas[0].split(";").length, CABECERA_CARTERA.length);
-  assert.match(lineas[1], /^Kiosco de Marta;27222222228;05\/10\/2026;Factura C;3;12;Consumidor final;;Autorizado;75000000000001;15000,50;$/);
+  assert.match(lineas[1], /^Kiosco de Marta;27222222228;05\/10\/2026;Factura C;3;12;Consumidor final;;Autorizado;75000000000001;15000,50;;Honorarios · octubre 2026$/);
   assert.match(lineas[2], /Nota de crédito C/);
-  assert.match(lineas[2], /;-500,00;/);
+  assert.match(lineas[2], /;-500,00;;$/);
 });
 
 test("lineasCsvCartera: lo que no se pudo leer o quedó recortado se avisa arriba, con el nombre del cliente", () => {

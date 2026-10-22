@@ -9,12 +9,17 @@ import { tenantTransaction } from "@/lib/rls";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { accesoAClienteDeCartera } from "@/lib/contador/recibidos-db";
 import { paginaDeComprobantesEn } from "@/lib/facturacion/lista.server";
-import { ESTADOS, TIPOS, leerFiltros, nombreDeTipo, nombreDelReceptor, urlDeLista } from "@/lib/facturacion/lista-core";
+import { ESTADOS, TIPOS, esNotaDeCreditoTipo, leerFiltros, nombreDeTipo, nombreDelReceptor, urlDeLista } from "@/lib/facturacion/lista-core";
 import { ButtonLink, Franja, PageContainer, PageHeader, Plata, Renglon, Seccion, fmtCuit, fmtNumberAR } from "@/components/ui";
 import { explicarRechazo, QUIEN_TEXTO } from "../../../rechazo-core";
 import ReintentarEnvios from "./ReintentarEnvios";
+import AnularFactura from "./AnularFactura";
 
 export const dynamic = "force-dynamic";
+// Next 16 (route segment config): el tope de la página vale para sus Server Actions. «Mandar los pendientes a ARCA» y la nota de crédito hablan con ARCA de a tandas:
+// 60 s es el máximo del plan de Vercel de hoy. Si una cartera grande lo pasa, el lote se corta
+// sin duplicar nada (origen ABONO) y se vuelve a tocar: retoma lo que falta.
+export const maxDuration = 60;
 
 const fechaAr = (f: string) => (f.length === 8 ? `${f.slice(6, 8)}/${f.slice(4, 6)}/${f.slice(0, 4)}` : f);
 const ESTADO_TEXTO = { AUTHORIZED: "Autorizado", PENDING: "Pendiente", REJECTED: "Rechazado" } as const;
@@ -84,7 +89,7 @@ export default async function ComprobantesDelCliente({
       </Seccion>
 
       <Franja className="mb-4">
-        ¿Hay que anular una factura autorizada? Va con nota de crédito. Desde el panel del estudio todavía no se emite: hacela desde el panel del cliente o desde ARCA (Comprobantes en línea). Ya aparece acá cuando se autoriza.
+        ¿Hay que anular una factura autorizada? Tocá «Anular» en su renglón: sale una nota de crédito asociada, por todo o por una parte. El sistema nunca deja anular más de lo facturado.
       </Franja>
 
       <Seccion titulo="Comprobantes" nota={`Página ${pagina.pagina} de ${pagina.paginas}`} nivel="h2">
@@ -94,6 +99,8 @@ export default async function ComprobantesDelCliente({
           <ul>
             {pagina.renglones.map((r) => {
               const rechazo = r.status === "REJECTED" ? explicarRechazo(r.rechazoMotivo) : null;
+              const numero = r.numero !== null ? `${String(r.puntoVenta).padStart(4, "0")}-${String(r.numero).padStart(8, "0")}` : "";
+              const anulable = r.status === "AUTHORIZED" && r.numero !== null && !esNotaDeCreditoTipo(r.tipoComprobante);
               return (
                 <Renglon
                   key={r.id}
@@ -102,7 +109,7 @@ export default async function ComprobantesDelCliente({
                   titulo={
                     <span className="break-words">
                       {nombreDeTipo(r.tipoComprobante)}
-                      {r.numero !== null ? ` ${String(r.puntoVenta).padStart(4, "0")}-${String(r.numero).padStart(8, "0")}` : ""} · {nombreDelReceptor(r)}
+                      {numero ? ` ${numero}` : ""} · {nombreDelReceptor(r)}
                     </span>
                   }
                   detalle={
@@ -118,6 +125,7 @@ export default async function ComprobantesDelCliente({
                     )
                   }
                   plata={<Plata valor={r.total} tono={r.status === "REJECTED" ? "peligro" : undefined} />}
+                  tecla={anulable ? <AnularFactura clienteId={cliente.id} facturaId={r.id} numero={numero} /> : undefined}
                 />
               );
             })}

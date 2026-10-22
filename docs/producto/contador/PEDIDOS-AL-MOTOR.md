@@ -1,112 +1,79 @@
 # Pedidos al motor de facturación — desde la consola del contador
 
 **Quién pide:** frente «Consola del contador» (rama `claude/facturacion-automatica-contador`).
-**A quién:** el frente que reescribe el motor (`src/lib/facturacion/**`, `src/lib/invoice-core.ts`,
+**A quién:** el frente del motor (`src/lib/facturacion/**`, `src/lib/invoice-core.ts`,
 `src/lib/arca-*.ts`, `src/plugins/arca/**`, `src/lib/fiscal/**`, `prisma/**`).
-**Regla:** la consola NO tocó nada de eso. Consume las APIs de hoy y, donde falta algo, usa un
-adaptador local en `src/lib/cartera-abonos.ts` / `src/app/contador/`. Cada pedido dice la firma
-que necesitamos y qué adaptador se cae cuando exista.
+**Regla:** la consola NO edita nada de eso. Consume el contrato del motor
+(`src/lib/facturacion/README.md`) y, donde falta algo, usa un adaptador en `src/app/contador/` o
+`src/lib/cartera-*.ts` y lo anota acá.
 
-Estado de cada pedido: **abierto** hasta que el motor lo cierre y el adaptador se borre.
+**Estado al 2026-10-22 (2ª vuelta):** los pedidos 1 a 6 los resolvió el motor (`ba965cc3`) y la
+consola ya los consume; los adaptadores de la 1ª vuelta se borraron. Quedan abiertos el 7 y el 8.
+
+> ⚠️ Gate 2: los pedidos 2, 3 y 5 viven en las migraciones `20261022140000_invoice_abono_descripcion`
+> y `20261022140100_regla_facturacion`, generadas y SIN aplicar en Neon. Hasta que el dueño las
+> aplique, la consola lo dice en «Abonos» y «Lote del mes» (sin 500) y el CSV sale sin descripción.
 
 ---
 
-## 1. Emitir una nota de crédito asociada (abierto · prioridad ALTA)
+## 1. Emitir una nota de crédito asociada — ✅ RESUELTO
 
-**Para qué:** Débora anula facturas autorizadas (abono mal cargado, cliente que no pagó un
-servicio no prestado). Hoy la decisión fiscal (`decidir-comprobante.ts`) sabe de NC, la lista las
-resta y el schema tiene `Invoice.comprobanteAsociadoId`, pero **ningún camino las crea**:
-`CreateInvoiceInput` no lleva el comprobante asociado.
+`crearNotaDeCredito(input)` / `crearNotaDeCreditoInTx(tx, input)`. La consola la llama desde
+«Anular» en la lista de comprobantes del cliente (`anularFacturaAction`), con el `tenantId` del
+cliente después de verificar la cartera: total o parcial, con motivo. Probado contra Postgres
+(parcial y «más de lo que queda» rechazado).
 
-**Firma pedida:**
+## 2. Origen «abono» con idempotencia en la base — ✅ RESUELTO
 
-```ts
-// src/lib/invoice-core.ts (o el módulo que lo reemplace)
-export async function crearNotaDeCreditoInTx(
-  tx: InvoiceTx,
-  input: {
-    tenantId: string;
-    facturaId: string;        // la AUTORIZADA que se anula (mismo tenant, por la FK compuesta)
-    importe?: number;         // total a anular; sin él, el saldo que queda por anular
-    motivo: string;           // queda en la auditoría
-    fecha: string;            // AAAAMMDD del día
-  },
-): Promise<{ ok: true; invoiceId: string } | { ok: false; error: string }>; // error en criollo
-```
+`origin: { type: "ABONO", id: claveDeAbono(regla, mes) }` + `@@unique([tenantId, abonoClave])`, y
+`reabrirSiRechazada` para volver a emitir. **Se cayó en la consola:** el candado
+`pg_advisory_xact_lock` y las filas `cartera.abono.emitido`. Dos lotes a la vez: el segundo choca
+con el índice (P2002) y se cuenta como «ya emitida». Probado contra Postgres.
 
-Que valide con `decidirComprobante` (saldo por anular, misma letra, mismo receptor) y encole el
-envío por el outbox como cualquier factura. **Adaptador hoy:** ninguno — la consola explica cómo
-anular desde el panel del cliente o desde ARCA (`comprobantes/page.tsx`).
+## 3. Tabla `ReglaFacturacion` — ✅ RESUELTO (migración = Gate 2)
 
-## 2. Origen «abono» con idempotencia en la base (abierto · prioridad MEDIA)
+La consola lee y escribe la tabla (`leerReglasDelEstudio`, `guardarReglaDelEstudio`,
+`darDeBajaReglaDelEstudio`). **Se cayeron** las versiones en `AuditLog` del estudio: nunca
+llegaron a producción, así que no hay reglas viejas que migrar ni leer. Lo que se guarda o se da
+de baja queda además en la auditoría (`cartera.abono.guardado` / `cartera.abono.baja`).
 
-**Para qué:** que (regla, mes) no pueda dar dos facturas aunque alguien llame al motor por otro
-camino. Hoy la idempotencia la pone la consola: candado `pg_advisory_xact_lock` + fila de
-auditoría `cartera.abono.emitido` en la MISMA transacción del cliente que crea la factura
-(`src/lib/cartera-abonos.ts → emitirUna`). Es correcta, pero vive fuera del motor.
+## 4. Abonos de responsable inscripto — ✅ RESUELTO (con una limitación, ver §7)
 
-**Firma pedida:** un tipo de origen nuevo en `InvoiceOrigin`:
+`montosDeRenglones("RESPONSABLE_INSCRIPTO", [{ total, alicuotaIva }])`. La consola lo usa con la
+alícuota general (21 %, código 5): el importe de la regla es IVA incluido.
 
-```ts
-type InvoiceOrigin = … | { type: "ABONO"; id: `${reglaId}:${mes}` };
-// + columna Invoice.abonoClave String? con @@unique([tenantId, abonoClave])  → migración (Gate 2)
-```
+## 5. Descripción del comprobante — ✅ RESUELTO (migración = Gate 2)
 
-Con eso `createInvoiceInTx` devuelve la existente y `reabrirSiRechazada` resuelve «volver a
-emitir». **Se cae:** `emisionesPreviasEnTx` y las filas `cartera.abono.emitido`.
+`CreateInvoiceInput.descripcion`. El abono la manda con el mes («Honorarios mensuales · octubre
+2026») y el CSV de la cartera la muestra en «Qué se facturó».
 
-## 3. Tabla `ReglaFacturacion` (abierto · prioridad MEDIA · migración = Gate 2)
+## 6. Contar pendientes de un negocio — ✅ RESUELTO
 
-**Para qué:** las reglas de abono hoy se guardan como versiones en `AuditLog` del estudio
-(`cartera.abono.guardado` / `cartera.abono.baja`). Funciona y es auditable, pero no se puede
-consultar con índices ni la puede leer el cliente desde su panel.
+`contarPendientesDelNegocio(tenantId)`: la consola dejó su propia cuenta.
+
+---
+
+## 7. Alícuota de IVA en la regla de abono (ABIERTO · prioridad MEDIA · migración = Gate 2)
+
+`ReglaFacturacion` no guarda la alícuota, así que un abono de inscripto sale SIEMPRE al 21 %. Hay
+servicios al 10,5 % (y 27 % en algunos servicios públicos). Pedido:
 
 ```prisma
 model ReglaFacturacion {
-  id               String   @id @default(cuid())
-  tenantId         String   // el ESTUDIO (RLS por tenantId, como CarteraCliente)
-  clienteTenantId  String
-  receptorNombre   String
-  receptorDocTipo  Int      // 80 / 96 / 99
-  receptorDocNro   String?
-  receptorCondicionIva String
-  descripcion      String
-  importe          Decimal  @db.Decimal(14, 2)
-  concepto         Int      // 1 productos, 2 servicios
-  desde            String   // AAAA-MM
-  hasta            String?
-  diasVencimiento  Int      @default(10)
-  estado           String   @default("activa") // activa | baja
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  @@index([tenantId, clienteTenantId])
+  …
+  alicuotaIva Int? // código de ARCA (4 = 10,5 %, 5 = 21 %, 6 = 27 %); nula = 21 % (lo de hoy)
 }
 ```
 
-**Se cae:** `leerReglasDelEstudio` / `guardarReglaDelEstudio` / `darDeBajaReglaDelEstudio` pasan
-a la tabla (la forma `ReglaAbono` de `abonos-core.ts` no cambia).
+Con eso la consola suma el campo al formulario y pasa el código a `montosDeRenglones`.
+**Adaptador hoy:** `ALICUOTA_GENERAL = 5` en `src/app/contador/abonos/abonos-core.ts`.
 
-## 4. Abonos de responsable inscripto (abierto · prioridad MEDIA)
+## 8. La descripción en la lista de comprobantes (ABIERTO · prioridad BAJA)
 
-**Para qué:** hoy un RI no puede tener abono: `calcularImpuestos` aplica tasa pareja y el plugin
-no deja emitir A/B sin `ivaPorProducto` (ENG-024). La regla podría declarar su alícuota.
-
-**Firma pedida:** que `CreateInvoiceInput` acepte el IVA declarado por renglón para un comprobante
-sin productos (por ejemplo, `renglones: { total: number; alicuotaIva: number }[]`) y lo pase por
-`calcularImpuestosPorAlicuota`, con `ivaPorProducto: true`. **Adaptador hoy:** el lote muestra
-la regla de un RI como «Frenado» con el motivo; nunca la emite.
-
-## 5. Descripción del comprobante (abierto · prioridad BAJA)
-
-El abono tiene «qué se factura» («Honorarios de octubre») pero el comprobante no guarda una
-descripción, así que el PDF no la muestra. Pedido: `CreateInvoiceInput.descripcion?: string`
-persistida (para el PDF y el CSV). Hoy queda sólo en la auditoría de la emisión.
-
-## 6. Contar pendientes de un negocio (abierto · prioridad BAJA)
-
-`mandarPendientesDelCliente` cuenta los `PENDING` con su propia consulta, igual que
-`contarPendientes` (privada de `facturacion-actions.ts`, que es "use server" y usa el tenant de la
-sesión). Pedido: exportar `contarPendientesDelNegocio(tenantId)` desde `arca-dispatch.ts` o
-`lista.server.ts` para que haya una sola cuenta.
+`leerParaExportar` / `paginaDeComprobantesEn` (`src/lib/facturacion/lista.server.ts`) no traen
+`Invoice.descripcion`, y `camposCsv` no tiene la columna. La consola la lee con una consulta más
+por cliente (`descripcionesDelMes` en `src/app/contador/exportar/route.ts`). Pedido: sumar
+`descripcion: string | null` a `RenglonComprobante` y a `CABECERA_CSV`/`camposCsv`. **Se cae:**
+esa consulta extra (y Facturación de cada negocio también la muestra).
 
 — Elaborado por GSG

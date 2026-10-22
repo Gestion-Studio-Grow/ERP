@@ -5,10 +5,10 @@ import assert from "node:assert/strict";
 import {
   armarComprobante,
   bloqueoDelCliente,
-  claveDeEmision,
   decidirEmision,
-  plegarReglas,
+  filaDesdeRegla,
   prepararLote,
+  reglaDesdeFila,
   resumirLote,
   sumarDias,
   textoVigencia,
@@ -94,25 +94,35 @@ test("validarReglaAbono: consumidor final sin identificar no lleva documento", (
   assert.equal(v.regla.receptorCondicionIva, "CONSUMIDOR_FINAL");
 });
 
-test("plegarReglas: gana la última versión; la baja la saca; volver a guardarla la reactiva; lo roto se ignora", () => {
-  const v1 = { ...regla(), importe: 100000 };
-  const v2 = { ...regla(), importe: 120000 };
-  const r2 = regla({ id: "r2", descripcion: "Alquiler" });
-  const vivas = plegarReglas([
-    { tipo: "guardada", reglaId: "r1", en: "2026-10-01T10:00:00Z", datos: v1 },
-    { tipo: "guardada", reglaId: "r1", en: "2026-10-02T10:00:00Z", datos: v2 },
-    { tipo: "guardada", reglaId: "r2", en: "2026-10-01T10:00:00Z", datos: r2 },
-    { tipo: "baja", reglaId: "r2", en: "2026-10-03T10:00:00Z" },
-    { tipo: "guardada", reglaId: "r3", en: "2026-10-01T10:00:00Z", datos: { basura: true } },
-  ]);
-  assert.deepEqual(vivas.map((r) => [r.id, r.importe]), [["r1", 120000]]);
+test("validarReglaAbono: consumidor final sin identificar, desde el umbral vigente de ARCA, pide CUIT o DNI", () => {
+  const cf = { ...base, receptorDocTipo: "CF", receptorDocNro: "", receptorCondicionIva: "" };
+  const v = validarReglaAbono({ ...cf, importe: "10.000.000" });
+  assert.equal(v.ok, false);
+  if (!v.ok) {
+    assert.equal(v.campo, "receptorDocTipo");
+    assert.equal(v.error, "Desde $10.000.000, ARCA pide identificar al comprador: cargale CUIT o DNI.");
+  }
+  assert.equal(validarReglaAbono({ ...cf, importe: "9.999.999,99" }).ok, true);
+  assert.equal(
+    validarReglaAbono({ ...base, receptorDocTipo: "DNI", receptorDocNro: "30123456", receptorCondicionIva: "CONSUMIDOR_FINAL", importe: "10.000.000" }).ok,
+    true,
+  );
+});
 
-  const reactivada = plegarReglas([
-    { tipo: "guardada", reglaId: "r2", en: "2026-10-01T10:00:00Z", datos: r2 },
-    { tipo: "baja", reglaId: "r2", en: "2026-10-03T10:00:00Z" },
-    { tipo: "guardada", reglaId: "r2", en: "2026-10-04T10:00:00Z", datos: r2 },
-  ]);
-  assert.equal(reactivada.length, 1);
+test("filaDesdeRegla / reglaDesdeFila: ida y vuelta con los códigos de ARCA; una fila rara no entra", () => {
+  const r = regla({ importe: 150000.5 });
+  const fila = { id: r.id, ...filaDesdeRegla(r) };
+  assert.equal(fila.receptorDocTipo, 80);
+  assert.equal(fila.concepto, 2);
+  assert.deepEqual(reglaDesdeFila(fila), r);
+  const cf = regla({ receptorDocTipo: "CF", receptorDocNro: null, receptorCondicionIva: "CONSUMIDOR_FINAL", concepto: "productos" });
+  const filaCf = { id: cf.id, ...filaDesdeRegla(cf) };
+  assert.equal(filaCf.receptorDocTipo, 99);
+  assert.equal(filaCf.concepto, 1);
+  assert.deepEqual(reglaDesdeFila(filaCf), cf);
+  assert.equal(reglaDesdeFila({ ...fila, receptorDocTipo: 86 }), null);
+  assert.equal(reglaDesdeFila({ ...fila, concepto: 3 }), null);
+  assert.equal(reglaDesdeFila({ ...fila, importe: 0 }), null);
 });
 
 test("vigencia: desde/hasta inclusive y el texto para la pantalla", () => {
@@ -134,7 +144,7 @@ test("decidirEmision: pendiente o autorizada no se repite; sólo rechazadas se v
   assert.equal(decidirEmision([{ status: "DESCONOCIDO" }]), "ya_emitida");
 });
 
-test("bloqueoDelCliente: pausa, faltas de datos e inscripto frenan con el motivo; monotributo y exento pasan", () => {
+test("bloqueoDelCliente: pausa y faltas de datos frenan con el motivo; monotributo, exento e inscripto pasan", () => {
   assert.equal(bloqueoDelCliente(cliente()), null);
   assert.equal(bloqueoDelCliente(cliente({ condicionIva: "EXENTO" })), null);
   assert.match(bloqueoDelCliente(undefined)!, /no está en tu cartera/);
@@ -142,7 +152,7 @@ test("bloqueoDelCliente: pausa, faltas de datos e inscripto frenan con el motivo
   assert.match(bloqueoDelCliente(cliente({ sinLeer: true }))!, /No se pudo leer/);
   assert.match(bloqueoDelCliente(cliente({ cuit: null }))!, /CUIT/);
   assert.match(bloqueoDelCliente(cliente({ puntoVenta: null }))!, /punto de venta/);
-  assert.match(bloqueoDelCliente(cliente({ condicionIva: "RESPONSABLE_INSCRIPTO" }))!, /inscripto/);
+  assert.equal(bloqueoDelCliente(cliente({ condicionIva: "RESPONSABLE_INSCRIPTO" })), null, "el inscripto ya emite (IVA por renglón)");
 });
 
 test("prepararLote: sólo lo vigente del mes, con su estado; primero lo que se emite, al final lo ya emitido", () => {
@@ -161,9 +171,8 @@ test("prepararLote: sólo lo vigente del mes, con su estado; primero lo que se e
     reglas,
     clientes,
     [
-      { clave: claveDeEmision("b", "2026-10"), status: "AUTHORIZED" },
-      { clave: claveDeEmision("e", "2026-10"), status: "REJECTED" },
-      { clave: claveDeEmision("a", "2026-09"), status: "AUTHORIZED" }, // otro mes: no cuenta
+      { reglaId: "b", status: "AUTHORIZED" },
+      { reglaId: "e", status: "REJECTED" },
     ],
     "2026-10",
   );
@@ -184,14 +193,18 @@ test("prepararLote: lo ya emitido se muestra aunque hoy el cliente esté bloquea
   const lote = prepararLote(
     [regla()],
     new Map([["cli-1", cliente({ estado: "pausada" })]]),
-    [{ clave: claveDeEmision("r1", "2026-10"), status: "PENDING" }],
+    [{ reglaId: "r1", status: "PENDING" }],
     "2026-10",
   );
   assert.equal(lote[0].estado, "ya_emitida");
 });
 
 test("armarComprobante: servicio de un monotributista = Factura C con el período del mes y el vencimiento a N días", () => {
-  const c = armarComprobante(regla({ importe: 150000.5, diasVencimiento: 10 }), { cuit: 27222222228, condicionIva: "MONOTRIBUTO", puntoVenta: 3 }, "2026-10", "20261028");
+  const a = armarComprobante(regla({ importe: 150000.5, diasVencimiento: 10 }), { cuit: 27222222228, condicionIva: "MONOTRIBUTO", puntoVenta: 3 }, "2026-10", "20261028");
+  assert.ok(a.ok);
+  const c = a.comprobante;
+  assert.equal(c.descripcion, "Honorarios · octubre 2026");
+  assert.equal("ivaPorProducto" in c, false);
   assert.equal(c.concepto, 2);
   assert.equal(c.fecha, "20261028");
   assert.equal(c.servicioDesde, "20261001");
@@ -204,17 +217,30 @@ test("armarComprobante: servicio de un monotributista = Factura C con el períod
 });
 
 test("armarComprobante: productos a consumidor final sin identificar, sin período de servicio; febrero cierra el 28", () => {
-  const c = armarComprobante(
+  const a = armarComprobante(
     regla({ concepto: "productos", receptorDocTipo: "CF", receptorDocNro: null, receptorCondicionIva: "CONSUMIDOR_FINAL" }),
     { cuit: 27222222228, condicionIva: "EXENTO", puntoVenta: 1 },
     "2027-02",
     "20270301",
   );
+  assert.ok(a.ok);
+  const c = a.comprobante;
   assert.equal(c.concepto, 1);
   assert.equal("servicioDesde" in c, false);
   assert.deepEqual(c.receptor, { docTipo: 99, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" });
   const s = armarComprobante(regla(), { cuit: 27222222228, condicionIva: "MONOTRIBUTO", puntoVenta: 1 }, "2027-02", "20270301");
-  assert.equal(s.servicioHasta, "20270228");
+  assert.ok(s.ok);
+  assert.equal(s.comprobante.servicioHasta, "20270228");
+});
+
+test("armarComprobante: responsable inscripto = IVA 21 % declarado por renglón (neto + IVA = importe)", () => {
+  const a = armarComprobante(regla({ importe: 121000 }), { cuit: 27222222228, condicionIva: "RESPONSABLE_INSCRIPTO", puntoVenta: 2 }, "2026-10", "20261028");
+  assert.ok(a.ok);
+  const c = a.comprobante;
+  assert.equal(c.total, 121000);
+  assert.equal(c.neto, 100000);
+  assert.deepEqual(c.iva, [{ alicuotaId: 5, base: 100000, importe: 21000 }]);
+  assert.equal(c.ivaPorProducto, true);
 });
 
 test("sumarDias: cruza meses y años sin corrimientos", () => {

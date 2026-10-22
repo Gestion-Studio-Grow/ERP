@@ -3,7 +3,7 @@
 // tenantTransaction) y deja un solo botón que emite y manda a ARCA (`EmitirLote`).
 
 import { exigirEstudio } from "@/lib/cartera-gate";
-import { prepararLoteDelEstudio } from "@/lib/cartera-abonos";
+import { MigracionPendienteError, prepararLoteDelEstudio, type LoteDelEstudio } from "@/lib/cartera-abonos";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import Link from "next/link";
 import { bordesDelMes, esMesKey, etiquetaDelMes, mesDelNegocio, mesVecino } from "@/lib/libros/fecha-fiscal";
@@ -12,6 +12,10 @@ import { resumirLote, type EstadoRenglonLote } from "../abonos/abonos-core";
 import EmitirLote from "./EmitirLote";
 
 export const dynamic = "force-dynamic";
+// Next 16 (route segment config): el tope de la página vale para sus Server Actions. «Emitir el lote» crea los comprobantes y los manda a ARCA cliente por cliente:
+// 60 s es el máximo del plan de Vercel de hoy. Si una cartera grande lo pasa, el lote se corta
+// sin duplicar nada (origen ABONO) y se vuelve a tocar: retoma lo que falta.
+export const maxDuration = 60;
 
 const ESTADO: Readonly<Record<EstadoRenglonLote, string>> = {
   para_emitir: "Para emitir",
@@ -34,7 +38,20 @@ export default async function LotePage({ searchParams }: { searchParams: Promise
   const anterior = mesVecino(actual, -1);
   const { mes: mesRaw } = await searchParams;
   const mes = esMesKey(mesRaw) && (mesRaw === actual || mesRaw === anterior) ? mesRaw : actual;
-  const lote = await prepararLoteDelEstudio(gate.estudioTenantId, mes);
+  let lote: LoteDelEstudio;
+  try {
+    lote = await prepararLoteDelEstudio(gate.estudioTenantId, mes);
+  } catch (e) {
+    // Gate 2: el código llegó antes que su migración. Estado honesto, no un 500.
+    if (!(e instanceof MigracionPendienteError)) throw e;
+    return (
+      <PageContainer>
+        <PageHeader title="Lote del mes" />
+        <Franja tono="atencion">{e.message}</Franja>
+        <ButtonLink href="/contador" variant="outline" className="mt-4 min-h-11">Volver a la cartera</ButtonLink>
+      </PageContainer>
+    );
+  }
   const resumen = resumirLote(lote.renglones);
   const arcaEncendido = isInvoicingEnabled();
   const bordes = bordesDelMes(mes);
