@@ -41,6 +41,13 @@ export default function TerminosPage() {
           ],
         },
         {
+          titulo: "Alcance fiscal",
+          parrafos: [
+            "Facturita es una herramienta para emitir: no es un servicio de asesoramiento contable ni impositivo. La responsabilidad fiscal es tuya como contribuyente: elegir el tipo de comprobante, la categoría de monotributo, los topes, las retenciones y las presentaciones ante ARCA. Para eso, consultá a tu contador.",
+            "Facturita usa el certificado digital de Gestión Studio Grow para conectarse con ARCA, sólo para el servicio que nos delegás y sólo para emitir a tu nombre. Si cargás un certificado propio, lo guardamos cifrado y únicamente lo usamos para firmar tus comprobantes.",
+          ],
+        },
+        {
           titulo: "Disponibilidad",
           parrafos: [
             "Facturita depende de los servicios de ARCA. Si ARCA no responde, tu factura queda pendiente y la mandamos apenas vuelva, sin duplicarla. No respondemos por demoras o caídas de ARCA.",
