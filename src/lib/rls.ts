@@ -223,8 +223,8 @@ export async function tenantTransaction<T>(
       );
     } catch (e) {
       // Serialization_failure/deadlock (Postgres 40001/40P01 → Prisma P2034 en una
-      // operación de modelo, P2010 en una consulta cruda): la transacción abortó por
-      // una concurrente. Reintentar re-corre `fn` entero.
+      // operación de modelo, P2010 en una consulta cruda, DriverAdapterError crudo del
+      // adaptador pg): la transacción abortó por una concurrente. Reintentar re-corre `fn` entero.
       if (attempt < maxRetries && isWriteConflict(e)) continue;
       throw e;
     }
@@ -238,14 +238,15 @@ const DEFAULT_SERIALIZABLE_RETRIES = 3;
 
 /**
  * Postgres `serialization_failure` (SQLSTATE 40001) o deadlock (40P01). Prisma lo
- * expone como P2034 cuando salta en una operación de modelo y como P2010 con el
- * SQLSTATE cuando salta en una consulta cruda (medido; ver conflicto-de-escritura.ts).
- * Es la señal de que una transacción Serializable abortó por una concurrente y
- * conviene reintentarla, no un error de negocio.
+ * expone como P2034 cuando salta en una operación de modelo, como P2010 con el
+ * SQLSTATE cuando salta en una consulta cruda, y el adaptador pg a veces lo tira como
+ * `DriverAdapterError` crudo (`cause.kind: "TransactionWriteConflict"`), que NO es un
+ * `PrismaClientKnownRequestError` (medido; ver conflicto-de-escritura.ts). Por eso no
+ * hay `instanceof` acá: la forma la decide `esConflictoDeEscritura`. Es la señal de que
+ * una transacción Serializable abortó por una concurrente y conviene reintentarla, no
+ * un error de negocio.
  */
-function isWriteConflict(e: unknown): boolean {
-  return e instanceof Prisma.PrismaClientKnownRequestError && esConflictoDeEscritura(e);
-}
+const isWriteConflict = esConflictoDeEscritura;
 
 /**
  * Transacción de RESERVA: `tenantTransaction` en nivel Serializable con reintentos.
