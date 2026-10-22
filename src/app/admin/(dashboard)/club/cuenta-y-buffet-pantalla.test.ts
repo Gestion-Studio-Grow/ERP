@@ -456,9 +456,15 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     assert.equal(medidas.raya, "3px", "la fila paga lleva la raya verde de la piel");
     assert.ok(medidas.pago >= 4.5, `«✔ pagó» sobre la fila verde: ${medidas.pago.toFixed(2)}:1`);
     assert.ok(medidas.medio >= 4.5, `los medios: ${medidas.medio.toFixed(2)}:1`);
+    // La lista va `data-tactil="compacto"` (globals.css): el botón se dibuja de 36 px y su ::after estira el toque a 44 px.
     const chicos = await page.evaluate(() =>
       [...document.querySelectorAll('[aria-label="Jugadores del turno"] button, [data-cuenta="dividir"]')]
-        .map((el) => ({ el, r: el.getBoundingClientRect() }))
+        .map((el) => {
+          const b = el.getBoundingClientRect();
+          const a = getComputedStyle(el, "::after");
+          const estira = a.content !== "none" && a.position === "absolute" ? -(parseFloat(a.top) || 0) - (parseFloat(a.bottom) || 0) : 0;
+          return { el, r: { width: b.width, height: b.height + Math.max(0, estira) } };
+        })
         .filter(({ r }) => r.width > 0 && (r.height < 44 || r.width < 44))
         .map(({ el, r }) => `${(el.getAttribute("aria-label") ?? el.textContent ?? "").slice(0, 40)} (${Math.round(r.width)}×${Math.round(r.height)})`),
     );
