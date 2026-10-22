@@ -1,0 +1,127 @@
+# Tren de releases — Plataforma, publicación y mantenimiento (frente facturación automática).
+# ============================================================================
+# COMPLEMENTA a gates.yml (no lo reemplaza): gates.yml sigue siendo la valla de código
+# (tsc, tests, rls, build, visual, visual-aa; lint no bloqueante). Este workflow suma lo del
+# TREN DE RELEASES, todo sin dependencias y sin `npm ci` (sólo Node + git), así que es rápido:
+#
+#   · tren        → tests del núcleo de scripts/release + sello GSG en el backoffice (trinquete).
+#   · gate-pr     → (sólo PR) la descripción declara el Gate de Excelencia: 4 bloques, todo tildado
+#                   o N/A. Es la parte automatizable del Gate; la auditoría la hace la célula.
+#   · notas       → borrador de notas de versión + versión semver propuesta, al resumen del run y
+#                   como artefacto. NO escribe el CHANGELOG ni crea tags (permisos de sólo lectura).
+#   · smoke       → cuando Vercel avisa que terminó un deploy (deployment_status = success), pega
+#                   contra la URL publicada: health, ready (+ motor ARCA), /facturita, /contador sin
+#                   sesión → login, /admin/login. En previews la protección de Vercel es un aviso.
+#                   También a mano: Actions → release → Run workflow → accion=smoke + url.
+#
+# NO publica, NO pushea, NO toca Neon, NO lee secretos: no hay ningún `secrets.` en este archivo.
+# Las URLs que llegan en el evento se pasan por `env:` (nunca interpoladas en el script: inyección).
+# ============================================================================
+name: release
+
+on:
+  push:
+  pull_request:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      accion:
+        description: "Qué correr"
+        type: choice
+        options: [notas, smoke]
+        default: notas
+      url:
+        description: "Para smoke: URL del deploy (https://…)"
+        required: false
+      commit:
+        description: "Para smoke: commit que tiene que estar sirviendo (opcional)"
+        required: false
+      modo:
+        description: "Para smoke: produccion o preview"
+        type: choice
+        options: [produccion, preview]
+        default: produccion
+
+permissions:
+  contents: read
+
+jobs:
+  tren:
+    name: tren de releases (núcleo + sello GSG)
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: tests del núcleo (scripts/release)
+        run: node --test scripts/release/lib.test.mjs
+      - name: sello GSG en el backoffice (metadata.generator)
+        run: node scripts/release/sello-gsg.mjs
+
+  gate-pr:
+    name: Gate de Excelencia declarado en el PR
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: checklist del Gate (4 bloques, todo tildado o N/A)
+        run: node scripts/release/pr-checklist.mjs
+
+  notas:
+    name: notas de versión (borrador)
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.accion == 'notas')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags e historia: la versión sale del último tag vX.Y.Z
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: calcular versión y notas
+        shell: bash
+        run: |
+          node scripts/release/notas.mjs > notas-de-version.md
+          { echo "### Notas de versión (borrador)"; echo; cat notas-de-version.md; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notas-de-version
+          path: notas-de-version.md
+          retention-days: 14
+
+  smoke:
+    name: smoke post-deploy
+    if: >-
+      (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success') ||
+      (github.event_name == 'workflow_dispatch' && inputs.accion == 'smoke')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: smoke contra el deploy
+        shell: bash
+        env:
+          URL_EVENTO: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+          ENTORNO_EVENTO: ${{ github.event.deployment.environment }}
+          COMMIT_EVENTO: ${{ github.event.deployment.sha }}
+          URL_MANUAL: ${{ inputs.url }}
+          COMMIT_MANUAL: ${{ inputs.commit }}
+          MODO_MANUAL: ${{ inputs.modo }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "deployment_status" ]; then
+            URL="$URL_EVENTO"; COMMIT="$COMMIT_EVENTO"
+            if [ "$ENTORNO_EVENTO" = "Production" ]; then MODO=produccion; else MODO=preview; fi
+          else
+            URL="$URL_MANUAL"; COMMIT="$COMMIT_MANUAL"; MODO="$MODO_MANUAL"
+          fi
+          case "$URL" in https://*) ;; *) echo "::error::URL inválida para el smoke"; exit 2;; esac
+          ARGS=("$URL" --modo "$MODO")
+          if [ -n "$COMMIT" ]; then ARGS+=(--commit "$COMMIT"); fi
+          node scripts/release/smoke.mjs "${ARGS[@]}"

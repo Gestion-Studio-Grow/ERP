@@ -61,7 +61,11 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # El chequeo de tipos ya pide ~2,5 GB (medido el 22/10) y el tope por defecto de Node ronda 2 GB:
+      # mismo heap que el build de Vercel (scripts/vercel-build.mjs) para que no se caiga por OOM.
       - run: npx tsc --noEmit
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
 
   # Los tests de integración corren contra bases EFÍMERAS que crea cada test en este Postgres
   # (src/test/base-efimera.ts: migraciones + RLS + app_rls; se borran al terminar). Nada de Neon.
@@ -145,6 +149,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
       # Publicamos `.next` (sin la cache, que es pesada e innecesaria para `next
       # start`) para que visual/visual-aa no rebuildeen. include-hidden-files: el
       # dir arranca con "." y upload-artifact v4 lo excluiría por defecto.
