@@ -12,7 +12,7 @@ import type { DiaConLugar } from "@/lib/padel/datos.server";
 import { agendaPublica, type alumnoPublico } from "@/lib/padel/datos.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { marcaProfe } from "@/lib/padel/marca";
-import { diaHumano, esDeuda, esEnRevision, esPagable, horaHumana, linkWhatsApp, pesos, proximaSemana } from "@/lib/padel/core";
+import { diaHumano, esDeuda, esEnRevision, esPagable, horaHumana, linkWhatsApp, pesos, proximaSemana, restoDeLaClase } from "@/lib/padel/core";
 import { Piel } from "@/app/clases/_piel";
 import { CabeceraPublica } from "@/app/clases/_cabecera";
 import { antetitulo, botonBorde, caja, tituloCaja } from "@/app/clases/_estilos";
@@ -65,7 +65,7 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
   const itemsPago: ItemPago[] = clases
     .filter((c) => esPagable(c) || esEnRevision(c))
     .sort((a, b) => +a.empiezaEn - +b.empiezaEn)
-    .map((c) => ({ id: c.id, cuando: cuando(c.empiezaEn), precio: c.precio, deuda: esDeuda(c), enRevision: esEnRevision(c), nota: c.pagoEstado === "PENDIENTE" ? (c.pagoNota ?? null) : null }));
+    .map((c) => ({ id: c.id, cuando: cuando(c.empiezaEn), precio: restoDeLaClase(c), deuda: esDeuda(c), enRevision: esEnRevision(c), nota: c.pagoEstado === "PENDIENTE" ? (c.pagoNota ?? null) : null }));
   const cuenta = lineaDeCuenta({ debe: alumno.debe, clasesQueDebe: deudas.length, saldoAFavor: alumno.saldoAFavor });
 
   // Las horas libres sólo se leen si hay alguna clase que todavía se puede cambiar.

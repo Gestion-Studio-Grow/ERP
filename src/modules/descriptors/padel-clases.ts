@@ -37,5 +37,13 @@ export const padelClasesModule: ModuleDescriptor = {
       descripcion: "Tablas del profe (configuración, franjas, alumnos, clases y avisos) con RLS.",
       aditiva: true,
     },
+    {
+      // T4 de la reingeniería. SIN aplicar en Neon y fuera de prisma/lote-deploy.txt (Gate 2): el
+      // código anda con y sin ella (src/lib/padel/modelo.server.ts → modeloT4()).
+      carpeta: "prisma/migrations/20261023120000_padel_reingenieria",
+      descripcion:
+        "Clubes (y lo que se le paga a cada club), turnos fijos, paquetes, grupales con participantes, pago parcial, reglas de cobro, push y lista de espera, con RLS.",
+      aditiva: true,
+    },
   ],
 };

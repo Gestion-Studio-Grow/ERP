@@ -81,10 +81,10 @@
 import { after, type TestContext } from "node:test";
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import pg from "pg";
-import type { PrismaClient } from "@/generated/prisma/client";
+import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { baseLocalParaSeed } from "@/lib/seed/guarda-base";
 import { hashPassword } from "@/lib/auth-password";
 
@@ -266,7 +266,13 @@ export async function crearBaseEfimera(env: Record<string, string | undefined> =
     await admin.query(`CREATE DATABASE ${ident(nombre)} OWNER ${ROL_DUENIO}`);
     creada = true;
 
-    const migracion = await correr(process.execPath, [PRISMA_CLI, "migrate", "deploy"], {
+    // `ERP_TEST_SIN_MIGRACIONES` (carpetas separadas por coma): la base nace SIN esas migraciones, como
+    // producción antes del Gate 2. Sirve para probar que el código anda con y sin una migración nueva
+    // (p. ej. ERP_TEST_SIN_MIGRACIONES=20261023120000_padel_reingenieria para la suite de padel T1-T3).
+    const sinMigraciones = migracionesExcluidas(env);
+    const configSin = sinMigraciones.length ? prepararMigracionesSin(nombre, sinMigraciones) : null;
+    if (configSin) alBorrarse.push(() => rmSync(path.dirname(configSin), { recursive: true, force: true }));
+    const migracion = await correr(process.execPath, [PRISMA_CLI, "migrate", "deploy", ...(configSin ? ["--config", configSin] : [])], {
       ...process.env,
       ...env,
       DATABASE_URL: urlDuenio,
@@ -295,6 +301,37 @@ export async function crearBaseEfimera(env: Record<string, string | undefined> =
     await borrar().catch(() => {});
     throw err;
   }
+}
+
+/** Las carpetas de migración que `ERP_TEST_SIN_MIGRACIONES` pide dejar afuera (PURA). */
+export function migracionesExcluidas(env: Record<string, string | undefined> = process.env): string[] {
+  const raw = env.ERP_TEST_SIN_MIGRACIONES ?? process.env.ERP_TEST_SIN_MIGRACIONES ?? "";
+  return raw.split(",").map((x) => x.trim()).filter(Boolean);
+}
+
+/**
+ * Copia prisma/migrations sin las carpetas excluidas a un directorio propio de esta base (dentro de
+ * node_modules/.cache, para que el config resuelva `prisma/config`) y escribe un prisma.config.ts que
+ * apunta ahí. Devuelve la ruta del config. Una carpeta pedida que no existe es un error (si no, el test
+ * creería probar «sin la migración» y la tendría).
+ */
+function prepararMigracionesSin(nombre: string, excluidas: readonly string[]): string {
+  const origen = path.join(RAIZ, "prisma", "migrations");
+  const existentes = new Set(readdirSync(origen));
+  for (const e of excluidas) if (!existentes.has(e)) throw new Error(`ERP_TEST_SIN_MIGRACIONES: no existe la migración ${e}`);
+  const dir = path.join(RAIZ, "node_modules", ".cache", "erp-test-migraciones", nombre);
+  mkdirSync(dir, { recursive: true });
+  const destino = path.join(dir, "migrations");
+  cpSync(origen, destino, { recursive: true, filter: (src) => !excluidas.includes(path.basename(src)) || path.dirname(src) !== origen });
+  if (!existsSync(path.join(destino, "migration_lock.toml"))) throw new Error("ERP_TEST_SIN_MIGRACIONES: falta migration_lock.toml");
+  const config = path.join(dir, "prisma.config.ts");
+  writeFileSync(
+    config,
+    `import { defineConfig } from "prisma/config";\n` +
+      `export default defineConfig({ schema: ${JSON.stringify(path.join(RAIZ, "prisma", "schema.prisma"))}, ` +
+      `migrations: { path: ${JSON.stringify(destino)} }, datasource: { url: process.env["DATABASE_URL"] } });\n`,
+  );
+  return config;
 }
 
 /** Borra las bases del arnés cuyo proceso creador ya no existe. */
@@ -480,7 +517,15 @@ const clientesComoDuenio = new WeakMap<BaseEfimera, Promise<PrismaClient>>();
  * afuera lo que la app escribió. NO es la consola: la consola (`OPERATOR_DATABASE_URL`) está sujeta
  * a RLS, como en producción. Uno por base; se cierra solo antes de borrarla.
  */
-export function prismaComoDuenio(base: BaseEfimera): Promise<PrismaClient> {
+export function prismaComoDuenio(
+  base: BaseEfimera,
+  /**
+   * `omit`: columnas que el cliente NO pide por defecto (el `omit` global de Prisma). Para sembrar y
+   * mirar una base creada SIN una migración nueva (ERP_TEST_SIN_MIGRACIONES) con un esquema que ya
+   * tiene esas columnas. Uno por base: decide la PRIMERA llamada.
+   */
+  opciones: { omit?: Prisma.GlobalOmitConfig } = {},
+): Promise<PrismaClient> {
   let cliente = clientesComoDuenio.get(base);
   if (!cliente) {
     cliente = (async () => {
@@ -488,7 +533,9 @@ export function prismaComoDuenio(base: BaseEfimera): Promise<PrismaClient> {
         import("@/generated/prisma/client"),
         import("@prisma/adapter-pg"),
       ]);
-      const c = new Cliente({ adapter: new PrismaPg({ connectionString: base.urlDuenio }) });
+      const adapter = new PrismaPg({ connectionString: base.urlDuenio });
+      // El `omit` global cambia el tipo genérico del cliente; para los tests se ve como el de siempre.
+      const c = (opciones.omit ? new Cliente({ adapter, omit: opciones.omit }) : new Cliente({ adapter })) as unknown as PrismaClient;
       base.alBorrar(() => c.$disconnect());
       return c;
     })();

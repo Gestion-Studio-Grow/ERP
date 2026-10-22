@@ -73,6 +73,8 @@ async function main() {
     where: { tenantId },
     create: { tenantId, duracionMin: 60, precioIndividual: 25000, precioGrupal: 12000, aliasCbu: "ALIAS-DE-EJEMPLO", titularCuenta: "A confirmar", anticipacionMin: 120, diasAdelante: 14, maxPendientesPorTel: 2 },
     update: { duracionMin: 60, precioIndividual: 25000, precioGrupal: 12000, aliasCbu: "ALIAS-DE-EJEMPLO", titularCuenta: "A confirmar", whatsappProfe: null },
+    // `select` explícito: anda en una base con o sin la migración T4 (src/lib/padel/modelo.ts).
+    select: { id: true },
   });
 
   // Horarios PROVISIONALES: lun a vie 08–12 y 16–21, sábado 09–13.
@@ -90,6 +92,7 @@ async function main() {
   async function clase(a: { id: string; clientId: string }, empiezaEn: Date, data: Record<string, unknown>) {
     return prisma.padelClase.create({
       data: { tenantId, alumnoId: a.id, clientId: a.clientId, empiezaEn, terminaEn: new Date(empiezaEn.getTime() + 60 * 60_000), precio: 25000, ...data },
+      select: { id: true },
     });
   }
 

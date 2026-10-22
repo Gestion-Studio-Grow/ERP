@@ -11,6 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
+import { OMITIR_COLUMNAS_T4 } from "@/lib/padel/modelo";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const laBase = baseEfimeraDelArchivo();
@@ -25,7 +26,9 @@ test("F-1 — 12 pares de movidas al mismo hueco a la vez: 0 errores crudos, una
   apuntarLaAppA(base);
   prepararAccionesDeServidor();
   Object.assign(process.env, { DB_CONNECTION_LIMIT: "8", DB_CONNECT_TIMEOUT_MS: "5000" });
-  const db = await prismaComoDuenio(base);
+  // T4: sin pedir las columnas nuevas por defecto, así la suite corre igual con y sin la migración
+  // 20261023120000 (ERP_TEST_SIN_MIGRACIONES=20261023120000_padel_reingenieria).
+  const db = await prismaComoDuenio(base, { omit: OMITIR_COLUMNAS_T4 });
   const tenantId = base.a.id;
   await db.padelConfig.create({ data: { tenantId, duracionMin: 60, precioIndividual: 25_000, precioGrupal: 12_000, anticipacionMin: 120, diasAdelante: 14, maxPendientesPorTel: 2 } });
   await db.padelDisponibilidad.createMany({ data: [0, 1, 2, 3, 4, 5, 6].map((d) => ({ tenantId, diaSemana: d, desde: "06:00", hasta: "23:00", tipo: "DA" })) });

@@ -63,7 +63,8 @@ async function guardarCampo(clave: string, valor: unknown): Promise<Resultado<{ 
 
   if (v.tipo === "campo") {
     const data = { [v.campo]: v.valor };
-    await prisma.padelConfig.upsert({ where: { tenantId }, create: { tenantId, ...data }, update: data });
+    // `select` explícito (schema-ahead, src/lib/padel/modelo.ts): la respuesta no pide las columnas de la T4.
+    await prisma.padelConfig.upsert({ where: { tenantId }, create: { tenantId, ...data }, update: data, select: { id: true } });
     // El alias y el celular no van a la auditoría con su valor: alcanza con saber que cambiaron.
     const sensible = v.campo === "aliasCbu" || v.campo === "titularCuenta" || v.campo === "whatsappProfe";
     await auditAdmin({ action: "padel.config.campo", entity: "PadelConfig", entityId: tenantId, changes: { campo: v.campo, ...(sensible ? {} : { valor: v.valor }) } });
@@ -76,7 +77,7 @@ async function guardarCampo(clave: string, valor: unknown): Promise<Resultado<{ 
     await tenantTransaction(async (tx) => {
       const actual = await tx.padelConfig.findUnique({ where: { tenantId }, select: { plantillas: true } });
       const plantillas = plantillasConBienvenida(actual?.plantillas);
-      await tx.padelConfig.upsert({ where: { tenantId }, create: { tenantId, plantillas }, update: { plantillas } });
+      await tx.padelConfig.upsert({ where: { tenantId }, create: { tenantId, plantillas }, update: { plantillas }, select: { id: true } });
     }, { tenantId, ...ESCRITURA_DEL_JSON });
     await auditAdmin({ action: "padel.config.bienvenida", entity: "PadelConfig", entityId: tenantId, changes: { vista: true } });
     refrescar();
@@ -87,7 +88,7 @@ async function guardarCampo(clave: string, valor: unknown): Promise<Resultado<{ 
     await tenantTransaction(async (tx) => {
       const actual = await tx.padelConfig.findUnique({ where: { tenantId }, select: { plantillas: true } });
       const plantillas = plantillasConCambio(actual?.plantillas, v.clave, v.texto);
-      await tx.padelConfig.upsert({ where: { tenantId }, create: { tenantId, plantillas }, update: { plantillas } });
+      await tx.padelConfig.upsert({ where: { tenantId }, create: { tenantId, plantillas }, update: { plantillas }, select: { id: true } });
     }, { tenantId, ...ESCRITURA_DEL_JSON });
     await auditAdmin({ action: "padel.config.plantilla", entity: "PadelConfig", entityId: tenantId, changes: { clave: v.clave, restaurada: v.texto === null } });
     refrescar();

@@ -244,5 +244,11 @@ test("ADV-8 M-029/M-030: misma regla; el groupBy del profe (DADA, precio>0, notI
 test("ADV-8b guardia: el groupBy de la deuda en el panel (datos.server.ts) excluye lo que está en revisión, igual que esDeuda", async () => {
   const { readFileSync } = await import("node:fs");
   const datos = readFileSync(new URL("./datos.server.ts", import.meta.url), "utf8");
-  assert.match(datos, /estado: "DADA", precio: \{ gt: 0 \}, pagoEstado: \{ notIn: \["PAGADO", "ACREDITADO", "DEVUELTO", "EN_REVISION"\] \}/);
+  // T4: el filtro quedó en `sinPagar` (lo usan las dadas, las ausentes y las tardías que se cobran) y
+  // suma POR_PARTICIPANTE (la deuda de una grupal es de cada persona). La guardia sigue siendo la misma:
+  // lo que está en revisión y lo ya resuelto no es deuda.
+  assert.match(datos, /const sinPagar = \{ precio: \{ gt: 0 \}, pagoEstado: \{ notIn: \[\.\.\.PAGOS_SIN_DEUDA, "EN_REVISION"\] \} \};/);
+  assert.match(datos, /estado: "DADA", \.\.\.sinPagar \}/);
+  const { PAGOS_SIN_DEUDA } = await import("./core");
+  for (const p of ["PAGADO", "ACREDITADO", "DEVUELTO"]) assert.ok(PAGOS_SIN_DEUDA.includes(p), p);
 });

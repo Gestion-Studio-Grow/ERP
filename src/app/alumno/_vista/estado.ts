@@ -3,7 +3,7 @@
 // (48 h, tachada, con su salida) y la línea de la cuenta («Debés…» / «Estás al día ✓» / «a favor»).
 // Corre en el servidor (VistaAlumno): la fecha de «ahora» se inyecta, así las pruebas fijan el día.
 
-import { COMPROBANTE_NO_APLICA, MOTIVO_AUSENTE_NO_SE_COBRA, MOTIVO_OTRO_CAMBIO_CONFIRMADO, PAGO_LABEL, MEDIO_LABEL, esMedioCobro, horaHumana, pesos, puedeCancelarAlumno, type EstadoClase, type EstadoPago } from "@/lib/padel/core";
+import { COMPROBANTE_NO_APLICA, MOTIVO_AUSENTE_NO_SE_COBRA, MOTIVO_OTRO_CAMBIO_CONFIRMADO, MOTIVO_TARDIA_SE_COBRA, PAGO_LABEL, MEDIO_LABEL, esMedioCobro, horaHumana, pesos, puedeCancelarAlumno, type EstadoClase, type EstadoPago } from "@/lib/padel/core";
 
 const HORA = 3_600_000;
 const ZONA = "America/Argentina/Buenos_Aires";
@@ -18,6 +18,8 @@ export interface ClaseVista {
   precio: number;
   motivoCancel: string | null;
   pagoNota?: string | null;
+  /** T4 · pago parcial: lo que ya pagó de esta clase (0 o ausente sin la migración). */
+  pagado?: number;
   rechazadaEl?: Date | null;
   canceladaEl?: Date | null;
 }
@@ -118,6 +120,8 @@ export function explicacionTerminal(c: ClaseVista, profe: string): string {
   else if (c.estado === "SIN_RESPUESTA") base = `${profe} no llegó a confirmarte`;
   else if (motivo === "La canceló el alumno") base = `La cancelaste vos. ${profe} ya lo sabe`;
   else if (motivo === "La pasó a otro horario") base = "La pasaste a otro horario";
+  // T4 · M-125: avisó tarde y el profe cobra la tardía.
+  else if (motivo === MOTIVO_TARDIA_SE_COBRA) base = `Avisaste tarde que no venías: la clase se cobra igual (${pesos(Math.max(0, c.precio - (c.pagado ?? 0)))})`;
   else if (!motivo || motivo === "La canceló el profe") base = `${profe} la canceló`;
   else base = `${profe} la canceló · ${motivo}`;
   if (c.pagoEstado === "ACREDITADO") return `${base}. Lo que pagaste (${pesos(c.precio)}) quedó a favor: tu próxima clase se paga con eso.`;

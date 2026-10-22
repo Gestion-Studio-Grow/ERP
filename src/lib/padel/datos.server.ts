@@ -12,11 +12,16 @@ import { resolveLocation } from "@/lib/settings";
 import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { bienvenidaVista } from "./config-campos";
+import { modeloT4 } from "./modelo.server";
+import { reservasEntre } from "./datos-modelo.server";
 import {
   CLAVES_PLANTILLA,
   ESTADOS_QUE_OCUPAN,
   MOTIVO_AUSENTE_SE_COBRA,
+  MOTIVO_TARDIA_SE_COBRA,
+  PAGOS_SIN_DEUDA,
   PLANTILLAS_DEFAULT,
+  REGLAS_DE_FABRICA,
   diaCorto,
   esDeuda,
   esEnRevision,
@@ -35,6 +40,7 @@ import {
   type EstadoClase,
   type EstadoPago,
   type Franja,
+  type ReglasPadel,
   linkWhatsApp,
 } from "./core";
 
@@ -53,10 +59,31 @@ export interface ConfigPadel {
   plantillas: Record<ClavePlantilla, string>;
   /** El profe ya pasó por la Bienvenida y tocó «Ir a Hoy» (O-9): Hoy no lo rebota. */
   bienvenidaVista?: boolean;
+  /**
+   * T4: las reglas nuevas (tardía/no vino se cobra, confirmar conocidos, cierre automático, traslado
+   * de fábrica). Sin la migración, las de fábrica (REGLAS_DE_FABRICA): todo sigue como antes.
+   */
+  reglas: ReglasPadel;
+  /** T4: ¿la base tiene la migración nueva? Las pantallas de la T5 esconden lo que todavía no anda. */
+  modeloT4: boolean;
 }
 
+/**
+ * Las columnas de PadelConfig que existen desde la T1-T3. NUNCA se lee el registro entero: en una
+ * base sin la migración T4 Prisma pediría columnas que no existen (src/lib/padel/modelo.ts).
+ */
+const SELECT_CONFIG = {
+  duracionMin: true, precioIndividual: true, precioGrupal: true, aliasCbu: true, titularCuenta: true, anticipacionMin: true,
+  diasAdelante: true, maxPendientesPorTel: true, whatsappProfe: true, plantillas: true,
+} as const;
+
+/** Las reglas de la T4: se piden (en la MISMA consulta) sólo si la base las tiene. */
+const selectReglas = (t4: boolean) =>
+  ({ ausenteSeCobra: t4, tardiaSeCobra: t4, confirmarConocidos: t4, cierreAutoHoras: t4, recordatorioHora: t4, trasladoMinDefault: t4 }) as const;
+
 export async function configPadel(tenantId: string): Promise<ConfigPadel> {
-  const c = await prisma.padelConfig.findUnique({ where: { tenantId } });
+  const t4 = await modeloT4();
+  const c = await prisma.padelConfig.findUnique({ where: { tenantId }, select: { ...SELECT_CONFIG, ...selectReglas(t4) } });
   const p = (c?.plantillas ?? {}) as Record<string, unknown>;
   const plantillas = { ...PLANTILLAS_DEFAULT };
   for (const k of CLAVES_PLANTILLA) {
@@ -74,6 +101,18 @@ export async function configPadel(tenantId: string): Promise<ConfigPadel> {
     whatsappProfe: c?.whatsappProfe ?? "",
     plantillas,
     bienvenidaVista: bienvenidaVista(c?.plantillas),
+    reglas:
+      t4 && c
+        ? {
+            ausenteSeCobra: c.ausenteSeCobra,
+            tardiaSeCobra: c.tardiaSeCobra,
+            confirmarConocidos: c.confirmarConocidos,
+            cierreAutoHoras: c.cierreAutoHoras,
+            recordatorioHora: c.recordatorioHora ?? null,
+            trasladoMinDefault: c.trasladoMinDefault,
+          }
+        : { ...REGLAS_DE_FABRICA },
+    modeloT4: t4,
   };
 }
 
@@ -101,25 +140,40 @@ export async function datosDelNegocio(tenantId: string) {
 }
 
 export async function franjas(tenantId: string): Promise<Franja[]> {
-  const filas = await prisma.padelDisponibilidad.findMany({ where: { tenantId }, orderBy: [{ diaSemana: "asc" }, { desde: "asc" }] });
+  // `select` explícito (schema-ahead): `clubId` (T4) sólo si la base lo tiene.
+  const t4 = await modeloT4();
+  const filas = await prisma.padelDisponibilidad.findMany({
+    where: { tenantId },
+    orderBy: [{ diaSemana: "asc" }, { desde: "asc" }],
+    select: { diaSemana: true, fecha: true, desde: true, hasta: true, tipo: true, clubId: t4 },
+  });
   return filas.map((f) => ({
     diaSemana: f.diaSemana,
     fecha: f.fecha ? f.fecha.toISOString().slice(0, 10) : null,
     desde: f.desde,
     hasta: f.hasta,
     tipo: f.tipo === "NO" ? "NO" : "DA",
+    // T4: el club del tramo (undefined sin la migración).
+    ...(t4 ? { clubId: f.clubId ?? null } : {}),
   }));
 }
 
 const sumarDiasCalendario = (fecha: string, n: number): string =>
   new Date(new Date(`${fecha}T12:00:00.000Z`).getTime() + n * DIA).toISOString().slice(0, 10);
 
-/** Clases vivas (ocupan la franja) entre dos instantes. */
+/**
+ * Clases vivas (ocupan la franja) entre dos instantes, más lo que reservan los turnos fijos que
+ * todavía no son clase (M-116, T4: sin la migración no hay series y no suma nada).
+ */
 async function ocupadasEntre(tenantId: string, desde: Date, hasta: Date) {
-  return prisma.padelClase.findMany({
-    where: { tenantId, estado: { in: [...ESTADOS_QUE_OCUPAN] }, empiezaEn: { lt: hasta }, terminaEn: { gt: desde } },
-    select: { id: true, empiezaEn: true, terminaEn: true },
-  });
+  const [clases, reservadas] = await Promise.all([
+    prisma.padelClase.findMany({
+      where: { tenantId, estado: { in: [...ESTADOS_QUE_OCUPAN] }, empiezaEn: { lt: hasta }, terminaEn: { gt: desde } },
+      select: { id: true, empiezaEn: true, terminaEn: true },
+    }),
+    reservasEntre(tenantId, desde, hasta),
+  ]);
+  return [...clases, ...reservadas];
 }
 
 export interface DiaConLugar {
@@ -283,6 +337,18 @@ export type ClasePanel = {
   nombre: string;
   telefono: string;
   dadas: number;
+  /**
+   * T4 (null / 0 sin la migración): lo ya pagado (pago parcial, M-124), el club, el turno fijo del
+   * que salió, el paquete con que se pagó, el cupo de la grupal abierta, la nota del profe y lo que
+   * cuesta la cancha de esa clase.
+   */
+  pagado: number;
+  clubId: string | null;
+  serieId: string | null;
+  paqueteAlumnoId: string | null;
+  cupo: number | null;
+  nota: string | null;
+  costoCancha: number | null;
 };
 
 type FilaClase = Awaited<ReturnType<typeof clasesDe>>[number];
@@ -307,16 +373,29 @@ function aPanel(c: FilaClase): ClasePanel {
     nombre: c.client.name,
     telefono: c.client.phone,
     dadas: c.alumno._count.clases,
+    pagado: Number(c.pagado ?? 0),
+    clubId: c.clubId ?? null,
+    serieId: c.serieId ?? null,
+    paqueteAlumnoId: c.paqueteAlumnoId ?? null,
+    cupo: c.cupo ?? null,
+    nota: c.nota ?? null,
+    costoCancha: c.costoCancha == null ? null : Number(c.costoCancha),
   };
 }
 
-function clasesDe(tenantId: string, where: Record<string, unknown>) {
+/** Las columnas de la T4 de PadelClase, pedidas sólo si la base las tiene (src/lib/padel/modelo.ts). */
+export const selectClaseT4 = (t4: boolean) =>
+  ({ pagado: t4, clubId: t4, serieId: t4, paqueteAlumnoId: t4, cupo: t4, nota: t4, costoCancha: t4 }) as const;
+
+async function clasesDe(tenantId: string, where: Record<string, unknown>) {
+  const t4 = await modeloT4();
   return prisma.padelClase.findMany({
     where: { tenantId, ...where },
     orderBy: { empiezaEn: "asc" },
     select: {
       id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, origen: true, precio: true,
       pagoEstado: true, pagoMedio: true, motivoCancel: true, comprobanteEnviadoEl: true, comprobante: true, ...conAlumno,
+      ...selectClaseT4(t4),
     },
   });
 }
@@ -359,7 +438,9 @@ export async function hoy(ahora = new Date()) {
   ]);
   const clases = filas.map(aPanel);
   // Los huecos de lo que queda de hoy, sin anticipación (son para que el profe agende).
-  const ocupadasHoy = clases.filter((c) => ESTADOS_QUE_OCUPAN.includes(c.estado)).map((c) => ({ startsAt: c.empiezaEn, endsAt: c.terminaEn }));
+  // T4: un turno fijo de hoy que todavía no es clase tampoco es hueco (M-116, del lado del profe).
+  const reservadasHoy = (await reservasEntre(tenantId, inicio, finManana)).map((r) => ({ startsAt: r.empiezaEn, endsAt: r.terminaEn }));
+  const ocupadasHoy = [...clases.filter((c) => ESTADOS_QUE_OCUPAN.includes(c.estado)).map((c) => ({ startsAt: c.empiezaEn, endsAt: c.terminaEn })), ...reservadasHoy];
   const huecos = huecosDelDia({ fecha, franjas: fr, ocupadas: ocupadasHoy, duracionMin: config.duracionMin, ahora });
   const recordadas = [...new Set(recordados.map((r) => r.claseId).filter((x): x is string => Boolean(x)))];
   const deHoy = clases.filter((c) => dateStrInBusinessTz(c.empiezaEn) === fecha);
@@ -510,7 +591,9 @@ export async function semanaDelProfe(desde: string, ahora = new Date()) {
     }),
   ]);
   const clases = filas.map(aPanel);
-  const ocupadas = clases.filter((c) => ESTADOS_QUE_OCUPAN.includes(c.estado)).map((c) => ({ startsAt: c.empiezaEn, endsAt: c.terminaEn }));
+  // T4: los turnos fijos de la semana que todavía no son clase no son huecos.
+  const reservadas = (await reservasEntre(tenantId, ini, finUtc)).map((r) => ({ startsAt: r.empiezaEn, endsAt: r.terminaEn }));
+  const ocupadas = [...clases.filter((c) => ESTADOS_QUE_OCUPAN.includes(c.estado)).map((c) => ({ startsAt: c.empiezaEn, endsAt: c.terminaEn })), ...reservadas];
   const dias: DiaDeSemana[] = Array.from({ length: 7 }, (_, i) => {
     const fecha = sumarDias(lunes, i);
     return {
@@ -545,19 +628,39 @@ export async function semana(desde: string) {
  */
 async function deudaPorAlumno(tenantId: string, alumnoIds?: string[]) {
   const ids = alumnoIds ? { alumnoId: { in: alumnoIds } } : {};
-  const [dadas, ausentes, revision] = await Promise.all([
+  const t4 = await modeloT4();
+  const sinPagar = { precio: { gt: 0 }, pagoEstado: { notIn: [...PAGOS_SIN_DEUDA, "EN_REVISION"] } };
+  const [dadas, ausentes, tardias, pagadoParcial, revision] = await Promise.all([
     prisma.padelClase.groupBy({
       by: ["alumnoId"],
-      where: { tenantId, ...ids, estado: "DADA", precio: { gt: 0 }, pagoEstado: { notIn: ["PAGADO", "ACREDITADO", "DEVUELTO", "EN_REVISION"] } },
+      where: { tenantId, ...ids, estado: "DADA", ...sinPagar },
       _sum: { precio: true },
       _count: { _all: true },
     }),
     prisma.padelClase.groupBy({
       by: ["alumnoId"],
-      where: { tenantId, ...ids, estado: "AUSENTE", motivoCancel: MOTIVO_AUSENTE_SE_COBRA, precio: { gt: 0 }, pagoEstado: { notIn: ["PAGADO", "ACREDITADO", "DEVUELTO", "EN_REVISION"] } },
+      where: { tenantId, ...ids, estado: "AUSENTE", motivoCancel: MOTIVO_AUSENTE_SE_COBRA, ...sinPagar },
       _sum: { precio: true },
       _count: { _all: true },
     }),
+    // M-125 (T4): «Cancelada tarde · se cobra» también es deuda (la regla vive en motivoCancel).
+    prisma.padelClase.groupBy({
+      by: ["alumnoId"],
+      where: { tenantId, ...ids, estado: "CANCELADA", motivoCancel: MOTIVO_TARDIA_SE_COBRA, ...sinPagar },
+      _sum: { precio: true },
+      _count: { _all: true },
+    }),
+    // M-124 (T4): lo que ya entró como pago parcial de esas mismas clases se descuenta.
+    t4
+      ? prisma.padelClase.groupBy({
+          by: ["alumnoId"],
+          where: {
+            tenantId, ...ids, ...sinPagar, pagado: { gt: 0 },
+            OR: [{ estado: "DADA" }, { estado: "AUSENTE", motivoCancel: MOTIVO_AUSENTE_SE_COBRA }, { estado: "CANCELADA", motivoCancel: MOTIVO_TARDIA_SE_COBRA }],
+          },
+          _sum: { pagado: true },
+        })
+      : Promise.resolve([] as { alumnoId: string; _sum: { pagado: unknown } }[]),
     prisma.padelClase.groupBy({
       by: ["alumnoId"],
       where: {
@@ -568,9 +671,13 @@ async function deudaPorAlumno(tenantId: string, alumnoIds?: string[]) {
     }),
   ]);
   const debe = new Map<string, { total: number; cantidad: number }>();
-  for (const d of [...dadas, ...ausentes]) {
+  for (const d of [...dadas, ...ausentes, ...tardias]) {
     const prev = debe.get(d.alumnoId) ?? { total: 0, cantidad: 0 };
     debe.set(d.alumnoId, { total: prev.total + Number(d._sum.precio ?? 0), cantidad: prev.cantidad + d._count._all });
+  }
+  for (const p of pagadoParcial) {
+    const prev = debe.get(p.alumnoId);
+    if (prev) debe.set(p.alumnoId, { ...prev, total: Math.max(0, prev.total - Number(p._sum.pagado ?? 0)) });
   }
   const enRevision = new Map(revision.map((d) => [d.alumnoId, Number(d._sum.precio ?? 0)]));
   return { debe, enRevision };
@@ -692,18 +799,27 @@ export async function ficha(alumnoId: string, ahora = new Date()) {
   });
   if (!a) return null;
   const delAlumno = { tenantId, alumnoId: a.id };
-  const sel = { id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, precio: true, pagoEstado: true, pagoMedio: true, motivoCancel: true, pagoNota: true } as const;
+  const t4 = await modeloT4();
+  const sel = { id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, precio: true, pagoEstado: true, pagoMedio: true, motivoCancel: true, pagoNota: true, ...selectClaseT4(t4) } as const;
   const [proximas, ultimas, pendientesDePago, aFavorDe] = await Promise.all([
     prisma.padelClase.findMany({ where: { ...delAlumno, estado: { in: ["PEDIDA", "CONFIRMADA"] }, terminaEn: { gt: ahora } }, orderBy: { empiezaEn: "asc" }, take: 20, select: sel }),
     prisma.padelClase.findMany({ where: { ...delAlumno, empiezaEn: { lte: ahora } }, orderBy: { empiezaEn: "desc" }, take: 10, select: sel }),
     prisma.padelClase.findMany({
-      where: { ...delAlumno, precio: { gt: 0 }, pagoEstado: { in: ["PENDIENTE", "EN_REVISION"] }, OR: [{ estado: "DADA" }, { estado: "AUSENTE", motivoCancel: MOTIVO_AUSENTE_SE_COBRA }, { estado: "CONFIRMADA", pagoEstado: "EN_REVISION" }] },
+      where: {
+        ...delAlumno, precio: { gt: 0 }, pagoEstado: { in: ["PENDIENTE", "EN_REVISION"] },
+        OR: [{ estado: "DADA" }, { estado: "AUSENTE", motivoCancel: MOTIVO_AUSENTE_SE_COBRA }, { estado: "CANCELADA", motivoCancel: MOTIVO_TARDIA_SE_COBRA }, { estado: "CONFIRMADA", pagoEstado: "EN_REVISION" }],
+      },
       orderBy: { empiezaEn: "asc" },
       select: sel,
     }),
     saldosPorAlumno(tenantId, [a.id]),
   ]);
-  const num = <T extends { precio: unknown }>(c: T) => ({ ...c, precio: Number(c.precio) });
+  const num = <T extends { precio: unknown; pagado?: unknown; costoCancha?: unknown }>(c: T) => ({
+    ...c,
+    precio: Number(c.precio),
+    pagado: Number(c.pagado ?? 0),
+    costoCancha: c.costoCancha == null ? null : Number(c.costoCancha),
+  });
   const deudas = pendientesDePago.map(num).filter(esDeuda);
   const enRevision = pendientesDePago.map(num).filter(esEnRevision);
   return {
@@ -795,18 +911,23 @@ export async function configCompleta() {
   const bloqueos = await prisma.padelDisponibilidad.findMany({
     where: { tenantId, fecha: { gte: new Date(`${todayInBusinessTz()}T00:00:00.000Z`) } },
     orderBy: { fecha: "asc" },
+    // `select` explícito (schema-ahead, src/lib/padel/modelo.ts): nunca la fila entera.
+    select: { id: true, tenantId: true, diaSemana: true, fecha: true, desde: true, hasta: true, tipo: true, createdAt: true },
   });
   return { config, franjas: fr.filter((f) => f.fecha === null), bloqueos, negocio };
 }
 
 // ── Link del alumno (sin login): la llave es el token ──────────────────────
 
-const SELECT_CLASE_ALUMNO = {
-  id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, precio: true,
-  pagoEstado: true, pagoMedio: true, comprobanteEnviadoEl: true, pagoNota: true, motivoCancel: true,
-  // T3C: cuándo se rechazó o se canceló, para mostrarla tachada 48 h con su salida (M-100).
-  rechazadaEl: true, canceladaEl: true,
-} as const;
+const selectClaseAlumno = (t4: boolean) =>
+  ({
+    id: true, empiezaEn: true, terminaEn: true, tipo: true, personas: true, estado: true, precio: true,
+    pagoEstado: true, pagoMedio: true, comprobanteEnviadoEl: true, pagoNota: true, motivoCancel: true,
+    // T3C: cuándo se rechazó o se canceló, para mostrarla tachada 48 h con su salida (M-100).
+    rechazadaEl: true, canceladaEl: true,
+    // T4: lo ya pagado (pago parcial, M-124) y el club (M-126..M-128), sólo si la base los tiene.
+    pagado: t4, clubId: t4,
+  }) as const;
 
 /**
  * Lo que ve el alumno en su link. Antes eran las últimas 12 clases: una deuda vieja (la 14ª) no
@@ -824,6 +945,7 @@ export async function alumnoPublico(token: string) {
   const ahora = new Date();
   await vencerPedidosDelAlumno(tenantId, alumno.id, ahora);
   const delAlumno = { tenantId, alumnoId: alumno.id };
+  const SELECT_CLASE_ALUMNO = selectClaseAlumno(await modeloT4());
   const [futuras, pagables, pasadas, saldo, config, negocio] = await Promise.all([
     prisma.padelClase.findMany({ where: { ...delAlumno, terminaEn: { gt: ahora } }, orderBy: { empiezaEn: "asc" }, take: 20, select: SELECT_CLASE_ALUMNO }),
     prisma.padelClase.findMany({
@@ -834,6 +956,8 @@ export async function alumnoPublico(token: string) {
           { estado: "DADA", pagoEstado: { notIn: ["PAGADO", "ACREDITADO", "DEVUELTO"] } },
           // M-045: «No vino → se cobra igual» también es deuda (provisional hasta la columna seCobra de T4).
           { estado: "AUSENTE", motivoCancel: MOTIVO_AUSENTE_SE_COBRA, pagoEstado: { notIn: ["PAGADO", "ACREDITADO", "DEVUELTO"] } },
+          // M-125 (T4): «Cancelada tarde · se cobra» también se paga desde el link.
+          { estado: "CANCELADA", motivoCancel: MOTIVO_TARDIA_SE_COBRA, pagoEstado: { notIn: ["PAGADO", "ACREDITADO", "DEVUELTO"] } },
           { estado: "CONFIRMADA", pagoEstado: { in: ["PENDIENTE", "EN_REVISION"] } },
         ],
       },
@@ -848,7 +972,7 @@ export async function alumnoPublico(token: string) {
   const porId = new Map<string, (typeof futuras)[number]>();
   for (const c of [...futuras, ...pagables, ...pasadas]) porId.set(c.id, c);
   const clases = [...porId.values()]
-    .map((c) => ({ ...c, precio: Number(c.precio), estado: estadoEnPantalla(c.estado as EstadoClase, c.empiezaEn, ahora), pagoEstado: c.pagoEstado as EstadoPago }))
+    .map((c) => ({ ...c, precio: Number(c.precio), pagado: Number(c.pagado ?? 0), clubId: c.clubId ?? null, estado: estadoEnPantalla(c.estado as EstadoClase, c.empiezaEn, ahora), pagoEstado: c.pagoEstado as EstadoPago }))
     .sort((a, b) => +b.empiezaEn - +a.empiezaEn);
   const saldoAFavorAlumno = saldoAFavor(saldo.map((f) => ({ ...f, precio: Number(f.precio) })));
   return {
