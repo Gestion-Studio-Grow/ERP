@@ -2,8 +2,8 @@
 // Mapa de código de una zona del repo, para que un agente no gaste 20-40 llamadas explorando. Cero tokens: lo
 // corre Node, siempre fresco (se genera del código en el momento; no se versiona).
 //
-//   node scripts/mapa-codigo.mjs <carpeta|archivo> [...]                 imprime el mapa
-//   node scripts/mapa-codigo.mjs <...> --a /tmp/mapa-<tarea>.md          lo escribe en un archivo (para el brief)
+//   node .claude/scripts/mapa-codigo.mjs <carpeta|archivo> [...]                 imprime el mapa
+//   node .claude/scripts/mapa-codigo.mjs <...> --a /tmp/mapa-<tarea>.md          lo escribe en un archivo (para el brief)
 //
 // Por archivo: líneas, si es "use server" / "use client" / "server-only", qué exporta (con línea), qué modelos de
 // Prisma toca, de qué otras zonas de `@/` depende y qué tests tiene al lado. El agente lee esto (2-8 KB) y después

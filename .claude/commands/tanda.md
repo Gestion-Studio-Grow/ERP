@@ -16,8 +16,8 @@ Preparación (la hace el orquestador con comandos; no lances agentes para esto):
    sumá la de los criterios de aceptación en un segundo extracto concatenado.
 3. Worktree FUERA de la carpeta de la sesión: `git worktree add -b reing-<cliente>-t<n> /tmp/wt/<cliente>-t<n> <base>`,
    con `node_modules` (`cp -al`) y `src/generated` (o `npx prisma generate`).
-4. Mapa de código de la zona que se va a tocar: `npm run mapa -- <carpetas> --a <scratch>/mapa-<cliente>-t<n>.md`
-   (en el worktree). Va en el brief junto al extracto.
+4. Mapa de código de la zona que se va a tocar (en el worktree):
+   `node .claude/scripts/mapa-codigo.mjs <carpetas> --a <scratch>/mapa-<cliente>-t<n>.md`. Va en el brief junto al extracto.
 5. Del extracto, armá: archivos propios, archivos que no se tocan, criterios (IDs + una línea) y riesgos
    (`plata`, `seguridad`, `concurrencia`, `datos` o vacío si es sólo visual).
 6. Llamá a la herramienta Workflow con `name: "tanda-gsg"` y `args`:

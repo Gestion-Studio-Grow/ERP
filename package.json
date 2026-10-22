@@ -25,7 +25,6 @@
     "adr:linkcheck": "node scripts/adr-linkcheck.mjs",
     "adr:context": "node scripts/adr-context.mjs",
     "brain": "node scripts/brain-sync.mjs",
-    "mapa": "node scripts/mapa-codigo.mjs",
     "turnero": "node src/tenants/breakpoint/turnero/levantar.mjs",
     "test:turnero-e2e": "node src/tenants/breakpoint/turnero/e2e/turnero.e2e.mjs && node --import tsx src/tenants/breakpoint/turnero/e2e/sitio.e2e.mjs",
     "test:club-uat": "node --import tsx src/tenants/breakpoint/turnero/e2e/uat-b.e2e.mjs",
