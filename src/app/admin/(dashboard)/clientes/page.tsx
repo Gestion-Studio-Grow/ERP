@@ -24,6 +24,12 @@ import { getNegocioApps } from "@/apps/contexto.server";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import ClientesRenglon from "./ClientesRenglon";
 import { leerParametrosLista, paginaDeClientes, type FilaCliente } from "./lista-core";
+import { deudasDelNegocio } from "@/lib/clientes/deudas.server";
+import { ConDiseno } from "@/lib/diseno/ConDiseno";
+import { esteticaBackoffice } from "@/lib/estetica-backoffice";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import PielPropia from "../armazon/PielPropia";
+import BotonBuscar from "../armazon/BotonBuscar";
 
 export const dynamic = "force-dynamic";
 
@@ -39,11 +45,15 @@ export default async function ClientesPage({
   // El piloto («Trabaja por apps») usa la MISMA lista con situación que el diseño nuevo: una sola
   // implementación, paginada en el servidor (antes mandaba todas las fichas al navegador).
   if (nuevo || (await enInicioPorApps())) return <ClientesTabla user={user} sp={sp} />;
-  // CH (sin "Trabaja por apps") sigue viendo la lista de siempre, con las mismas tarjetas; la
-  // búsqueda y la página ahora se resuelven en la base (50 por página).
-  const p = leerParametrosLista(sp);
   // Cada ficha dice sus turnos o sus compras, según cómo cuenta la actividad el negocio (CRM).
   const { rubro } = await contextoCrm();
+  // REINGENIERÍA CH, TANDA 2 (§3.6): un negocio que da turnos (CH) ve la MISMA lista del diseño nuevo,
+  // con las vistas para escribirles (Frecuentes · Hace mucho · Cumplen · Deben) y su WhatsApp, con
+  // piel propia (regla de independencia del interruptor, §0.2). Un mostrador sigue con la de siempre.
+  if (rubro === "servicios") return <ClientesTabla user={user} sp={sp} pielPropia />;
+  // El resto (sin "Trabaja por apps") sigue viendo la lista de siempre, con las mismas tarjetas; la
+  // búsqueda y la página se resuelven en la base (50 por página).
+  const p = leerParametrosLista(sp);
   const [pagina, negocio] = await Promise.all([getPaginaDeClientes({ q: p.q, pagina: p.pagina, rubro }), getNegocioApps(user.role)]);
   // Sin clientes, el siguiente paso es dar el primer turno: sólo si puede abrir la agenda y darlo.
   const vacio = vacioDeClientes({
@@ -67,16 +77,29 @@ export default async function ClientesPage({
 // Las filas se arman IGUAL que en ClientesPiloto (mismas consultas, mismo `evaluarFichas`); lo
 // único nuevo es que la búsqueda, la situación, el orden y la página se resuelven acá, en el
 // servidor (lista-core.ts), y al navegador viaja sólo la página que se mira.
-async function ClientesTabla({ user, sp }: { user: SessionUser; sp: Record<string, string | string[] | undefined> }) {
+async function ClientesTabla({
+  user,
+  sp,
+  pielPropia = false,
+}: {
+  user: SessionUser;
+  sp: Record<string, string | string[] | undefined>;
+  /** Con «Diseño nuevo» apagado (CH): la pantalla se viste sola con la piel «Renglón». */
+  pielPropia?: boolean;
+}) {
   const c = await contextoCrm();
   const puedeCrear = roleHasCapability(user.role, "clients:manage");
-  const [fichas, primeras, sinFicha, negocio, atajos] = await Promise.all([
+  // «Deben» sólo donde hay turnos (la deuda es de turnos ya prestados); un mostrador no la lee.
+  const conDeudas = c.rubro === "servicios";
+  const [fichas, primeras, sinFicha, negocio, atajos, deudas, slug] = await Promise.all([
     leerFichasConActividad(prisma, c.tenantId, { desde: desdeHistorial(c.ahora), rubro: c.rubro }),
     leerPrimerasVisitas(prisma, c.tenantId, c.rubro),
     c.rubro === "mostrador" && puedeCrear ? cargarCompradoresSinFicha() : Promise.resolve([]),
     // Cacheado por pedido (lo leyó el layout): sólo decide si va la columna de turnos.
     getNegocioApps(user.role),
     atajosDeClientes(user.role),
+    conDeudas ? deudasDelNegocio(c.tenantId, desdeHistorial(c.ahora)) : Promise.resolve(new Map<string, number>()),
+    pielPropia ? getCurrentTenantSlug() : Promise.resolve(null),
   ]);
   const base = evaluarFichas(fichas, c.rubro, c.hoy, c.ahora);
   const nuevas = contarNuevas(primeras, bordesDelMes(c.hoy));
@@ -88,18 +111,22 @@ async function ClientesTabla({ user, sp }: { user: SessionUser; sp: Record<strin
     diasSinVenir: ev.diasSinVenir,
     proximoTurno: persona.proximoTurno ? persona.proximoTurno.startsAt.toISOString() : null,
     visitas: ev.cantidadVisitas,
+    cumple: persona.cumple,
+    debe: deudas.get(persona.id) ?? 0,
   }));
   const p = leerParametrosLista(sp);
-  const pagina = paginaDeClientes(todas, p);
+  const pagina = paginaDeClientes(todas, p, c.hoy);
   const visita = c.rubro === "servicios" ? "visita" : "compra";
+  const conTurnos = appPermitida(appPorId("agenda"), negocio);
 
-  return (
+  const lista = (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
       {/* En el celular, arriba sólo va la lista: los atajos, «Nueva ficha» y «Compraron sin ficha»
           pasan al «⋯» de la barra de la lista (ClientesRenglon). En la PC siguen a la vista. */}
       <PageHeader
         title="Clientes"
         description={`${todas.length} ${todas.length === 1 ? "ficha" : "fichas"} · ${nuevas} ${nuevas === 1 ? "nuevo" : "nuevos"} este mes`}
+        actions={conTurnos ? <BotonBuscar /> : undefined}
       />
       <EnlacesClientes role={user.role} actual="clientes" className="mb-4 flex flex-wrap gap-2 max-sm:hidden" />
       {puedeCrear && <NuevaFicha compacta sinFicha={sinFicha.map((x) => ({ ...x, ultimo: x.ultimo.toISOString() }))} />}
@@ -116,8 +143,19 @@ async function ClientesTabla({ user, sp }: { user: SessionUser; sp: Record<strin
         q={p.q}
         situacion={p.situacion}
         visitaSingular={visita}
-        conTurnos={appPermitida(appPorId("agenda"), negocio)}
+        conTurnos={conTurnos}
+        vista={p.vista ?? null}
+        porVista={pagina.porVista}
+        hoy={c.hoy}
       />
     </main>
+  );
+  if (!pielPropia) return lista;
+  return (
+    <ConDiseno nuevo precargarLetra={false}>
+      <PielPropia pantalla="clientes" letraDelNegocio={esteticaBackoffice(slug) !== null} className="min-h-full bg-surface text-body">
+        {lista}
+      </PielPropia>
+    </ConDiseno>
   );
 }

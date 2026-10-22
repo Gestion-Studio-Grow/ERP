@@ -21,7 +21,36 @@ import { normalizarBusqueda, rangoCoincidencia } from "@/modules/nav-search";
 import type { NombreIcono } from "@/apps/contract";
 import type { GrupoDeRegistros, GrupoRegistro } from "@/lib/buscador/registros-core";
 
-export type GrupoComando = "acciones" | "apps" | GrupoRegistro;
+/**
+ * FICHAS (reingeniería CH, Tanda 2, §3.5): clientas y turnos encontrados por nombre o teléfono,
+ * con lo que hace falta para decidir sin abrir nada (próximo turno, si debe, faltazos, última vez)
+ * y sus teclas. Llegan YA armadas por el servidor (src/lib/clientes/buscar-actions.ts): la
+ * paleta no calcula plata ni permisos, sólo pinta.
+ */
+export type GrupoFicha = "clientas" | "turnos";
+
+export type GrupoComando = "acciones" | "apps" | GrupoRegistro | GrupoFicha;
+
+/** Una tecla de una ficha: un enlace (Dar turno, Ver ficha, Abrir el turno) o WhatsApp (externo). */
+export interface TeclaDeFicha {
+  id: "dar-turno" | "whatsapp" | "cobrar-deuda" | "ver-ficha" | "abrir-turno";
+  etiqueta: string;
+  href: string;
+  /** Sale del panel (wa.me): se abre en otra pestaña. */
+  externo?: boolean;
+}
+
+/**
+ * Lugar para una tecla que hace PLATA y todavía no existe en esta rama (la construye otro frente):
+ *   · «Llegó la seña» → `cobrarSeniaYConfirmar` (agente 2-B, src/lib/turnos/cobro-actions.ts);
+ *   · «Cobrar lo que debe» → `cobrarVariosTurnos` (agente 2-B).
+ * Trae sólo los ids y el monto que esas acciones necesitan. Quien monta la paleta decide cómo se
+ * dibuja (`dibujarTecla`); sin eso, «Cobrar lo que debe» cae al enlace de la tecla `cobrar-deuda`
+ * y «Llegó la seña» no se ofrece.
+ */
+export type HuecoDeFicha =
+  | { tipo: "llego-la-senia"; turnoId: string; monto: number }
+  | { tipo: "cobrar-deuda"; clienteId: string; monto: number; turnoIds: readonly string[] };
 
 export interface Comando {
   id: string;
@@ -33,6 +62,19 @@ export interface Comando {
   icono?: NombreIcono;
   /** Palabras con las que se busca además del nombre («arqueo», «afip», «fiado»). */
   alias?: readonly string[];
+  /** Sólo fichas: lo que dice el panel de la seleccionada (una línea por dato). */
+  resumen?: readonly string[];
+  /** Sólo fichas: sus teclas, en orden (la primera es la de Enter). */
+  teclas?: readonly TeclaDeFicha[];
+  /** Sólo fichas: las teclas de plata que dibuja quien monta la paleta. */
+  huecos?: readonly HuecoDeFicha[];
+}
+
+/** Un grupo de fichas como lo devuelve el servidor. */
+export interface GrupoDeFichas {
+  grupo: GrupoFicha;
+  nombre: string;
+  items: Comando[];
 }
 
 export const NOMBRE_GRUPO: Record<GrupoComando, string> = {
@@ -41,10 +83,13 @@ export const NOMBRE_GRUPO: Record<GrupoComando, string> = {
   clientes: "Clientes",
   productos: "Productos",
   pedidos: "Pedidos",
+  clientas: "Clientes",
+  turnos: "Turnos",
 };
 
 /** El ícono de cada renglón de registros: el de la app que lo abre. */
 const ICONO_REGISTRO: Record<GrupoRegistro, NombreIcono> = { clientes: "clientes", productos: "catalogo", pedidos: "pedidos" };
+const ICONO_FICHA: Record<GrupoFicha, NombreIcono> = { clientas: "clientes", turnos: "agenda" };
 
 /** Sin texto: las primeras acciones (las más comunes) y todas las apps. */
 export const ACCIONES_SIN_TEXTO = 6;
@@ -67,12 +112,19 @@ function rangoEnLaPaleta(c: Comando, q: string): number | null {
   return alias.some((a) => palabras(a).some((p) => p.startsWith(q))) ? 3 : null;
 }
 
+/**
+ * Con `fichas` (el buscador de clientas y turnos, «/»): van PRIMERO, porque es lo que se vino a
+ * buscar, y reemplazan al grupo «Clientes» de los registros (la misma persona dos veces, una con
+ * sus teclas y otra sin, confunde). Sin fichas, la paleta de siempre.
+ */
 export function buscarComandos(
   comandos: readonly Comando[],
   texto: string,
   registros: readonly GrupoDeRegistros[] = [],
+  fichas: readonly GrupoDeFichas[] = [],
 ): ResultadoComandos {
   const q = normalizarBusqueda(texto);
+  const conFichas = q !== "" && fichas.some((f) => f.items.length > 0);
   const orden = ["acciones", "apps"] as const;
   const grupos: ResultadoComandos["grupos"] = orden
     .map((grupo) => {
@@ -93,8 +145,15 @@ export function buscarComandos(
   if (q) {
     for (const r of registros) {
       if (r.items.length === 0) continue;
+      if (conFichas && r.grupo === "clientes") continue;
       grupos.push({ grupo: r.grupo, nombre: NOMBRE_GRUPO[r.grupo], items: r.items.map((i) => ({ ...i, icono: ICONO_REGISTRO[i.grupo] })) });
     }
+  }
+  if (conFichas) {
+    const primero = fichas
+      .filter((f) => f.items.length > 0)
+      .map((f) => ({ grupo: f.grupo, nombre: NOMBRE_GRUPO[f.grupo], items: f.items.map((i) => ({ ...i, grupo: f.grupo, icono: ICONO_FICHA[f.grupo] })) }));
+    grupos.unshift(...primero);
   }
   return { grupos, plano: grupos.flatMap((g) => g.items) };
 }
