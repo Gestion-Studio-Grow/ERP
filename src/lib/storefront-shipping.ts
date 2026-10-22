@@ -67,3 +67,19 @@ export function orderTotal(
 ): number {
   return subtotal + shippingCost(subtotal, fulfillment, config);
 }
+
+// ── Agregado (reingeniería Magra, 1E): la tarifa del negocio por zona ───────────────────────────
+// Las funciones de arriba quedan intactas (Shine sigue con su `StorefrontCopy.shipping`). Un
+// negocio con zonas cargadas en Envíos (`src/lib/envios/`, config en AuditLog) cotiza con
+// `costoDeEnvio`/`cotizarEnvio`, y `configComoShipping` traduce la zona elegida a esta forma.
+
+/**
+ * Qué tarifa rige: la del negocio (la zona elegida en Envíos, ya traducida) si la hay; si no, la
+ * del copy de la vidriera; si tampoco, ninguna (envío 0, lo de siempre).
+ */
+export function shippingVigente(
+  delNegocio: ShippingConfig | null | undefined,
+  delCopy: ShippingConfig | null | undefined,
+): ShippingConfig | null {
+  return delNegocio ?? delCopy ?? null;
+}
