@@ -3,6 +3,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import { instalarEnPool } from "@/lib/pg-begin-con-negocio";
 import { empaquetarBeginConNegocio, limitesDelPool } from "@/lib/db-pool";
+import { OMITIR_HASTA_MIGRAR } from "@/lib/prisma-omit";
 
 // Cliente Prisma CRUDO (base). Conecta con el rol de DATABASE_URL tal cual
 // (hoy `neondb_owner`, que está EXENTO de RLS por ser dueño de las tablas).
@@ -41,7 +42,9 @@ function crearCliente(): PrismaClient {
   const limites = limitesDelPool(process.env);
   // Apagado (el defecto, db-pool.ts): el adaptador arma su pool como siempre, con los mismos números.
   if (!empaquetarBeginConNegocio(process.env)) {
+    // `omit`: columnas escritas y todavía sin migrar en producción (src/lib/prisma-omit.ts).
     return new PrismaClient({
+      omit: OMITIR_HASTA_MIGRAR,
       adapter: new PrismaPg({
         connectionString: process.env.DATABASE_URL,
         max: limites.conexiones,
@@ -57,7 +60,7 @@ function crearCliente(): PrismaClient {
     idleTimeoutMillis: limites.ociosaMs,
   });
   instalarEnPool(pool);
-  return new PrismaClient({ adapter: new PrismaPg(pool, { disposeExternalPool: true }) });
+  return new PrismaClient({ omit: OMITIR_HASTA_MIGRAR, adapter: new PrismaPg(pool, { disposeExternalPool: true }) });
 }
 
 export const basePrisma = globalForPrisma[CLAVE_DEL_CLIENTE] ?? crearCliente();

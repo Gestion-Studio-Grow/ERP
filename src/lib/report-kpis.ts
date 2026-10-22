@@ -23,7 +23,9 @@ export type KpiAppointmentStatus =
   | "COMPLETED"
   | "NO_SHOW";
 
-export type KpiPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
+// DEBITO y CREDITO: el enum `PaymentMethod` los tiene desde la migración M1 de CH (Tanda 3,
+// 20261024120000_ch_medios_tarjeta). El mix por medio los cuenta como cualquier otro.
+export type KpiPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA" | "DEBITO" | "CREDITO";
 
 // Forma mínima de turno que necesitan los KPIs. La Server Action mapea las filas
 // de Prisma a esto (con `select` acotado), así el cálculo no depende del shape del

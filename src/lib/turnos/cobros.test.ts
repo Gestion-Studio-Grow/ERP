@@ -27,6 +27,12 @@ import {
   esCuentaACobrar,
   claveCobroTurno,
   esMetodoDePago,
+  medioHabilitado,
+  metodosDePago,
+  tarjetaHabilitada,
+  avisoDeTarjeta,
+  METODOS_DE_PAGO,
+  METODO_LABEL,
 } from "./cobros";
 
 // ── Saldo derivado ──────────────────────────────────────────────────────────
@@ -330,6 +336,47 @@ test("sólo los tres medios del negocio son válidos", () => {
   assert.equal(esMetodoDePago("TRANSFERENCIA"), true);
   assert.equal(esMetodoDePago("TARJETA"), false);
   assert.equal(esMetodoDePago(null), false);
+  // Sin la lista de la base, Débito y Crédito siguen rechazados (comportamiento de siempre).
+  assert.equal(esMetodoDePago("DEBITO"), false);
+  assert.equal(esMetodoDePago("CREDITO"), false);
+});
+
+// ── Débito y Crédito (reingeniería CH, Tanda 3 · CH-031/CH-032) ─────────────
+
+const BASE_SIN_M1 = ["MERCADOPAGO", "EFECTIVO", "TRANSFERENCIA"] as const; // orden de pg_enum hoy
+const BASE_CON_M1 = [...BASE_SIN_M1, "DEBITO", "CREDITO"] as const;
+
+test("CH-032 · sin la migración M1, no se ofrecen Débito ni Crédito y la caja lo aclara", () => {
+  assert.deepEqual(metodosDePago(BASE_SIN_M1), ["EFECTIVO", "MERCADOPAGO", "TRANSFERENCIA"]);
+  assert.equal(medioHabilitado("DEBITO", BASE_SIN_M1), false);
+  assert.equal(medioHabilitado("CREDITO", BASE_SIN_M1), false);
+  assert.equal(medioHabilitado("EFECTIVO", BASE_SIN_M1), true);
+  assert.equal(tarjetaHabilitada(BASE_SIN_M1), false);
+  assert.equal(avisoDeTarjeta(BASE_SIN_M1), "Hoy la tarjeta se registra como Mercado Pago.");
+  // La lista por defecto (lo que usan todas las pantallas que no preguntan) es la de siempre.
+  assert.deepEqual(metodosDePago(), [...METODOS_DE_PAGO]);
+  assert.deepEqual([...METODOS_DE_PAGO], ["EFECTIVO", "MERCADOPAGO", "TRANSFERENCIA"]);
+});
+
+test("CH-031 · con la migración M1, Débito y Crédito se ofrecen al final y se validan", () => {
+  assert.deepEqual(metodosDePago(BASE_CON_M1), ["EFECTIVO", "MERCADOPAGO", "TRANSFERENCIA", "DEBITO", "CREDITO"]);
+  assert.equal(medioHabilitado("DEBITO", BASE_CON_M1), true);
+  assert.equal(esMetodoDePago("CREDITO", BASE_CON_M1), true);
+  assert.equal(tarjetaHabilitada(BASE_CON_M1), true);
+  assert.equal(avisoDeTarjeta(BASE_CON_M1), null);
+  assert.equal(METODO_LABEL.DEBITO, "Débito");
+  assert.equal(METODO_LABEL.CREDITO, "Crédito");
+});
+
+test("medioHabilitado: un valor que el código no conoce no se habilita aunque la base lo tenga", () => {
+  assert.equal(medioHabilitado("TARJETA", [...BASE_CON_M1, "TARJETA"]), false);
+  assert.equal(medioHabilitado("", BASE_CON_M1), false);
+  assert.equal(medioHabilitado(undefined, BASE_CON_M1), false);
+  assert.equal(medioHabilitado("debito", BASE_CON_M1), false); // sin adivinar mayúsculas
+  // Sólo uno de los dos en la base (migración a medias, a mano): se ofrece ése solo, y la
+  // tarjeta no cuenta como habilitada (el aviso sigue).
+  assert.deepEqual(metodosDePago([...BASE_SIN_M1, "DEBITO"]), ["EFECTIVO", "MERCADOPAGO", "TRANSFERENCIA", "DEBITO"]);
+  assert.equal(tarjetaHabilitada([...BASE_SIN_M1, "DEBITO"]), false);
 });
 
 // «No se presentó» (UAT de CH, 18/10): reservado o confirmado, y sólo cuando ya llegó la hora.

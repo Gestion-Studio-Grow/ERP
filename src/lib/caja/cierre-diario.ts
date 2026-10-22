@@ -105,9 +105,15 @@ export function frozenDayMessage(day: DayKey, lastClosedDay: DayKey): string {
 //
 // Un cobro de cartera (`Collection` RECEIVABLE) viene con el `PaymentMethod` de la
 // cartera, que no es el `CashMethod` del libro: la cartera no distingue MP de
-// transferencia (y el libro los junta a propósito en una sola columna), y no tiene
-// TARJETA. Esta es la ÚNICA traducción entre los dos vocabularios. `null` = no hay
-// columna del libro para ese medio: el llamador tiene que frenar, no adivinar.
+// transferencia (y el libro los junta a propósito en una sola columna). Esta es la ÚNICA
+// traducción entre los dos vocabularios. `null` = no hay columna del libro para ese
+// medio: el llamador tiene que frenar, no adivinar.
+//
+// DEBITO y CREDITO (reingeniería CH, Tanda 3 · M1, CH-031) van a la columna TARJETA, la que
+// CH lleva aparte en su libro: NUNCA a MP, porque la columna MP se concilia contra el extracto
+// de Mercado Pago y una venta con tarjeta del posnet bancario no está en ese extracto. Mientras
+// la migración no esté aplicada nadie escribe esos valores (`medioHabilitado`,
+// src/lib/turnos/cobros.ts) y la tarjeta del Point sigue entrando como MERCADOPAGO → MP.
 
 export function cashMethodFromPaymentMethod(paymentMethod: string): CashMethod | null {
   switch (paymentMethod) {
@@ -116,6 +122,9 @@ export function cashMethodFromPaymentMethod(paymentMethod: string): CashMethod |
     case "MERCADOPAGO":
     case "TRANSFERENCIA":
       return "MP";
+    case "DEBITO":
+    case "CREDITO":
+      return "TARJETA";
     default:
       return null;
   }
