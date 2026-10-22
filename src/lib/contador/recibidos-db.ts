@@ -20,6 +20,7 @@
 // Sin "use server": no es un endpoint. Lo llaman recibidos-actions.ts, la página y la ruta CSV.
 
 import "server-only";
+import { notasDelLocalSinMarca } from "@/lib/stock/factura-de-compra";
 import { Prisma } from "@/generated/prisma/client";
 import { basePrisma } from "@/lib/prisma-base";
 import { tenantTransaction } from "@/lib/rls";
@@ -37,14 +38,16 @@ import {
   type RechazoRecibido,
   rotuloRecibido,
   NOTA_A_REVISAR,
+  NOTA_IMPORTADO,
   aRevisarDeNotas,
   notasRevisadas,
 } from "./recibidos-formato";
 
 type Tx = Prisma.TransactionClient;
 
-/** Encabezado de `notes` de un comprobante importado del archivo de ARCA. */
-export const NOTA_IMPORTADO = "Importado de Mis Comprobantes Recibidos (ARCA)";
+// El encabezado de `notes` de un comprobante importado vive en recibidos-formato.ts (puro: lo lee
+// también el alta de compras del local para reconocer una compra importada, R3).
+export { NOTA_IMPORTADO };
 // La marca «a revisar» vive en recibidos-formato.ts (pura: la lee también el Libro IVA).
 export { NOTA_A_REVISAR, aRevisarDeNotas };
 export const ACCION_IMPORTACION = "compras.recibidos-importados";
@@ -132,9 +135,15 @@ export function notasDelRecibido(c: ComprobanteRecibido, por: string): string {
 
 
 export interface ResultadoGuardado {
+  /** Los que entraron al Libro IVA: los nuevos y los que completaron una compra del local. */
   cargados: ComprobanteRecibido[];
   /** Los que ya estaban en el negocio (misma clave): no se cargan de nuevo. */
   yaCargados: RechazoRecibido[];
+  /**
+   * De los `cargados`, los que el LOCAL ya había cargado con su factura (R3): no se crea otra compra,
+   * se completa ESA con los datos de ARCA. Con el número de la compra.
+   */
+  vinculados: { fila: number; comprobante: string; compra: number }[];
 }
 
 /**
@@ -154,22 +163,56 @@ export async function guardarRecibidos(
   const existentes = cuits.length
     ? await tx.stockPurchase.findMany({
         where: { tenantId, facturaCuit: { in: cuits } },
-        select: { facturaCuit: true, facturaTipo: true, facturaPuntoVenta: true, facturaNumero: true, code: true },
+        select: {
+          id: true,
+          facturaCuit: true,
+          facturaTipo: true,
+          facturaPuntoVenta: true,
+          facturaNumero: true,
+          code: true,
+          notes: true,
+          facturaNeto: true,
+        },
       })
     : [];
   const yaEsta = new Map(
     existentes.map((e) => [
       claveRecibido({ cuitEmisor: e.facturaCuit!, tipo: e.facturaTipo ?? 0, puntoVenta: e.facturaPuntoVenta ?? 0, numero: e.facturaNumero ?? 0 }),
-      e.code,
+      e,
     ]),
   );
   const yaCargados: RechazoRecibido[] = [];
   const nuevos: ComprobanteRecibido[] = [];
+  const aVincular: { c: ComprobanteRecibido; compra: (typeof existentes)[number] }[] = [];
   for (const c of comprobantes) {
-    const code = yaEsta.get(claveRecibido(c));
-    if (code != null) {
-      yaCargados.push({ fila: c.fila, comprobante: rotuloRecibido(c), motivo: `Ya estaba cargado (compra #${code}): no se duplica.` });
-    } else nuevos.push(c);
+    const e = yaEsta.get(claveRecibido(c));
+    if (!e) nuevos.push(c);
+    // R3: la compra la cargó el LOCAL con esta factura (no es una importación) y todavía no tiene el
+    // IVA de ARCA → es la MISMA compra: se completa, no se crea otra (la ficha del proveedor la suma
+    // una vez). Si ya estaba completa o la importó otra carga, como siempre: no se duplica.
+    else if (!(e.notes ?? "").startsWith(NOTA_IMPORTADO) && e.facturaNeto == null) aVincular.push({ c, compra: e });
+    else yaCargados.push({ fila: c.fila, comprobante: rotuloRecibido(c), motivo: `Ya estaba cargado (compra #${e.code}): no se duplica.` });
+  }
+
+  const dec = (n: number) => new Prisma.Decimal(textoAlCentavo(n));
+  const datosFiscales = (c: ComprobanteRecibido) => ({
+    facturaFecha: c.fecha,
+    facturaNeto: dec(c.neto),
+    facturaIva: dec(c.iva),
+    facturaIvaDesglose: c.desglose == null ? Prisma.JsonNull : (c.desglose as LineaIvaRecibida[] as unknown as Prisma.InputJsonValue),
+    facturaNoGravado: dec(c.noGravado),
+    facturaExento: dec(c.exento),
+    facturaOtrosTributos: dec(c.otrosTributos),
+    facturaTotal: dec(c.total),
+  });
+  for (const { c, compra } of aVincular) {
+    // Las notas: las de la importación (empiezan con NOTA_IMPORTADO, así «revisar» la encuentra y el
+    // Libro IVA lee su marca «a revisar» si la trae), más lo que había escrito el local, sin su marca.
+    const delLocal = notasDelLocalSinMarca(compra.notes);
+    const notas = [notasDelRecibido(c, quien.por), `Vinculada con la compra #${compra.code} que cargó el local.`, delLocal]
+      .filter(Boolean)
+      .join(" ");
+    await tx.stockPurchase.updateMany({ where: { id: compra.id, tenantId }, data: { ...datosFiscales(c), notes: notas } });
   }
 
   if (nuevos.length) {
@@ -180,7 +223,6 @@ export async function guardarRecibidos(
     const proveedorPorCuit = new Map(proveedores.map((p) => [p.taxId!, p.id]));
     const last = await tx.stockPurchase.findFirst({ where: { tenantId }, orderBy: { code: "desc" }, select: { code: true } });
     let code = last?.code ?? 0;
-    const dec = (n: number) => new Prisma.Decimal(textoAlCentavo(n));
     await tx.stockPurchase.createMany({
       data: nuevos.map((c) => ({
         tenantId,
@@ -218,13 +260,18 @@ export async function guardarRecibidos(
         por: quien.por,
         archivo: quien.archivo,
         cargados: nuevos.length,
+        vinculados: aVincular.map((v) => v.compra.code),
         yaCargados: yaCargados.length,
-        aRevisar: nuevos.filter((c) => c.aRevisar).length,
+        aRevisar: [...nuevos, ...aVincular.map((v) => v.c)].filter((c) => c.aRevisar).length,
       },
       channel: "admin",
     },
   });
-  return { cargados: nuevos, yaCargados };
+  return {
+    cargados: [...nuevos, ...aVincular.map((v) => v.c)].sort((a, b) => a.fila - b.fila),
+    yaCargados,
+    vinculados: aVincular.map((v) => ({ fila: v.c.fila, comprobante: rotuloRecibido(v.c), compra: v.compra.code })),
+  };
 }
 
 // ---------------------------------------------------------------------------
