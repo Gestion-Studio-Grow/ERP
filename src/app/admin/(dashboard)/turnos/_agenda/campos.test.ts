@@ -11,10 +11,12 @@ import {
   aFormData,
   camposDeAnular,
   camposDeCobro,
+  camposDeCerrarSinPrestar,
   camposDeCondonar,
   camposDelTurno,
   camposDeTerminar,
   leerMontoDelCobro,
+  leerResultado,
   metodoElegido,
 } from "./campos";
 
@@ -49,6 +51,14 @@ describe("los campos que viajan son los que lee cada acción", () => {
     assert.deepEqual(sinSaldo, [["appointmentId", "t1"]]);
   });
 
+  test("cerrarTurnoSinPrestar: el turno, qué se hace y, si hubo plata, qué pasa con la seña", () => {
+    const lee = camposQueLee("cerrarTurnoSinPrestar");
+    const conSenia = camposDeCerrarSinPrestar({ turnoId: "t1", accion: "cancelar", senia: "devolver" });
+    assert.deepEqual(claves(conSenia), lee);
+    assert.deepEqual(conSenia, [["appointmentId", "t1"], ["accion", "cancelar"], ["senia", "devolver"]]);
+    assert.deepEqual(camposDeCerrarSinPrestar({ turnoId: "t1", accion: "no-vino", senia: null }), [["appointmentId", "t1"], ["accion", "no-vino"]]);
+  });
+
   test("confirmarTurno, cancelAppointment y markNoShow leen sólo el turno", () => {
     for (const a of ["confirmarTurno", "cancelAppointment", "markNoShow"]) {
       assert.deepEqual(claves(camposDelTurno("t1")), camposQueLee(a), a);
@@ -59,6 +69,52 @@ describe("los campos que viajan son los que lee cada acción", () => {
     assert.deepEqual(claves(camposDeAnular({ cobroId: "k1", turnoId: "t1", motivo: " medio equivocado " })), camposQueLee("anularCobroTurno"));
     assert.deepEqual(claves(camposDeCondonar({ turnoId: "t1", motivo: "descuento" })), camposQueLee("condonarSaldoTurno"));
     assert.equal(aFormData(camposDeAnular({ cobroId: "k1", turnoId: "t1", motivo: " medio equivocado " })).get("motivo"), "medio equivocado");
+  });
+});
+
+describe("«vino=on» viaja sólo con un Reservado (la clienta vino sin que nadie confirmara)", () => {
+  test("PENDING → vino=on, con medio, dejando el saldo o sin saldo", () => {
+    const conMedio = camposDeTerminar({ turnoId: "t1", saldo: 9000, cobro: { metodo: "MERCADOPAGO" }, estado: "PENDING" });
+    assert.deepEqual(conMedio, [["appointmentId", "t1"], ["vino", "on"], ["method", "MERCADOPAGO"]]);
+    assert.deepEqual(camposDeTerminar({ turnoId: "t1", saldo: 9000, cobro: "dejar-a-cobrar", estado: "PENDING" }), [
+      ["appointmentId", "t1"],
+      ["vino", "on"],
+      ["saldo", "a-cobrar"],
+    ]);
+    assert.deepEqual(camposDeTerminar({ turnoId: "t1", saldo: 0, cobro: null, estado: "PENDING" }), [["appointmentId", "t1"], ["vino", "on"]]);
+  });
+
+  test("CONFIRMED (o sin estado) → sin vino: el cierre de siempre", () => {
+    for (const estado of ["CONFIRMED", undefined]) {
+      const c = camposDeTerminar({ turnoId: "t1", saldo: 9000, cobro: { metodo: "EFECTIVO" }, estado });
+      assert.equal(aFormData(c).has("vino"), false, String(estado));
+    }
+    assert.equal(aFormData(camposDeTerminar({ turnoId: "t1", saldo: 0, cobro: null, estado: "COMPLETED" })).has("vino"), false);
+  });
+
+  // Contrato con 1-A: `completeAppointment` lee «vino». Mientras su cambio no esté en la rama, la
+  // prueba se saltea diciendo por qué; con el cambio adentro, falla si alguien le cambia el nombre.
+  const leeVino = camposQueLee("completeAppointment").has("vino");
+  test("completeAppointment lee «vino»", { skip: leeVino ? false : "completeAppointment todavía no lee «vino» (lo agrega 1-A en src/lib/actions.ts)" }, () => {
+    const c = camposDeTerminar({ turnoId: "t1", saldo: 9000, cobro: { metodo: "EFECTIVO" }, estado: "PENDING" });
+    const lee = camposQueLee("completeAppointment");
+    for (const k of claves(c)) assert.ok(lee.has(k), `completeAppointment no lee ${k}`);
+  });
+});
+
+describe("el resultado de una acción se lee igual, devuelva algo o no", () => {
+  test("nada = salió bien (la firma vieja de cancelar y confirmar)", () => {
+    assert.deepEqual(leerResultado(undefined), { ok: true });
+  });
+  test("{ ok: false } trae el motivo, para mostrarlo (B3: antes fallaba en silencio)", () => {
+    assert.deepEqual(leerResultado({ ok: false, error: "Ese turno cambió recién. Recargá la agenda." }), {
+      ok: false,
+      error: "Ese turno cambió recién. Recargá la agenda.",
+    });
+    assert.equal(leerResultado({ ok: false }).ok, false);
+  });
+  test("{ ok: true, aviso } conserva el aviso", () => {
+    assert.deepEqual(leerResultado({ ok: true, aviso: "Le sirve a 2 de la lista de espera." }), { ok: true, aviso: "Le sirve a 2 de la lista de espera." });
   });
 });
 

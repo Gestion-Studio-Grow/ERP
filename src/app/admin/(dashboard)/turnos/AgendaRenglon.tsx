@@ -16,18 +16,22 @@
 //   5. Mañana al pie, plegado, con una sola tecla para avisar a todas de a una.
 //
 // Los datos son los de siempre (`getAgendaDay`, `getMananaConfirmar`, los huecos del piloto): la
-// agenda nueva cambia CÓMO se ve y se opera, no QUÉ se consulta ni quién puede qué.
+// agenda nueva cambia CÓMO se ve y se opera, no QUÉ se consulta ni quién puede qué. Lo único que
+// se suma es cuántos turnos quedaron sin cerrar EN CUALQUIER DÍA (`turnosSinCerrar`, el loader de
+// la bandeja): el chip «Sin cerrar» lleva a «Cerrar lo pendiente» (/admin/turnos/cerrar), donde se
+// cierran de a muchos. Un pasado sin cerrar de hace meses también cuenta (CH-044).
 
 import Link from "next/link";
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
-import { roleHasCapability, type Role } from "@/lib/capabilities";
+import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
+import { turnosSinCerrar } from "@/lib/turnos/sin-cerrar.server";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { cargarHuecosLiberados } from "@/lib/crm/cargas.server";
 import { anotadosConHueco } from "@/lib/crm/huecos";
-import { EmptyState, Franja, PageContainer, PageHeader, Pestanas, atributosBoton, buttonClasses } from "@/components/ui";
+import { EmptyState, Franja, PageContainer, PageHeader, Pestanas, atributosBoton, buttonClasses, chipLinkAtributos } from "@/components/ui";
 import { enInicioPorApps } from "../inicio/piloto";
 import { diaMas, fechaCorta, fechaLarga, lineaDeLaAgenda, nombreRelativo, type Permisos } from "./agenda-core";
 import { proyectarAgenda } from "./agenda.server";
@@ -37,6 +41,10 @@ import { RenglonDeManana } from "./_agenda/ParaManana";
 import OtroDia from "./_agenda/OtroDia";
 
 type Quien = { role: Role; professionalId?: string | null };
+
+// STUB 1-C: `agenda:forgive` (dar de baja un saldo: sólo la dueña, D5) la suma 1-A a capabilities.ts. Hasta
+// que entre, el nombre no existe en el tipo y nadie la tiene: «Dar de baja» no se ofrece (lo seguro).
+const PERDONAR = "agenda:forgive" as string as Capability;
 
 function hrefDia(dia: string, hoy: string, vista: "lista" | "profesionales"): string {
   const p = new URLSearchParams();
@@ -107,18 +115,26 @@ export default async function AgendaRenglon({
     gestionar: roleHasCapability(quien.role, "agenda:manage"),
     cobrar: roleHasCapability(quien.role, "agenda:collect"),
     terminar: roleHasCapability(quien.role, "agenda:complete"),
+    perdonar: roleHasCapability(quien.role, PERDONAR),
   };
   // Mañana, sólo mirando HOY y para quien gestiona la agenda (como siempre).
   const verManana = permisos.gestionar && dia === hoy;
-  const [cruda, manana, piloto, negocio] = await Promise.all([
+  const [cruda, manana, piloto, negocio, pendientes] = await Promise.all([
     getAgendaDay(dia),
     verManana ? getMananaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(quien.role),
+    // Sólo quien cierra turnos ve cuántos quedaron sin cerrar (y puede ir a cerrarlos).
+    // Si el loader falla, la agenda se dibuja igual (cuenta los de hoy): no se cae por el chip.
+    permisos.terminar ? turnosSinCerrar().catch(() => null) : Promise.resolve(null),
   ]);
   const agenda = proyectarAgenda(cruda, quien);
   const ahora = new Date();
   const linea = lineaDeLaAgenda(agenda.turnos, ahora);
+  // Los de hoy ya están en la agenda del día; el loader suma los de los otros días. Si el loader no
+  // trae nada (todavía no está, o falló en silencio), se cuentan al menos los de hoy.
+  const sinCerrar = permisos.terminar ? Math.max(pendientes?.turnos.length ?? 0, dia === hoy ? linea.sinCerrar : 0) : 0;
+  const sinCerrarTexto = pendientes?.hayMas ? `${sinCerrar}+` : String(sinCerrar);
   const abreClientes = appPermitida(appPorId("clientes"), negocio);
 
   const sinProfesionales = vacioSinProfesionales({
@@ -157,7 +173,11 @@ export default async function AgendaRenglon({
           <strong key="t">{linea.turnos === 1 ? "1 turno" : `${linea.turnos} turnos`}</strong>,
           linea.sinConfirmar > 0 ? `${linea.sinConfirmar} sin confirmar` : null,
           linea.porCobrar > 0 ? `${linea.porCobrar} por cobrar` : null,
-          linea.sinCerrar > 0 && dia === hoy ? `${linea.sinCerrar} sin cerrar` : null,
+          sinCerrar > 0 ? (
+            <Link key="sc" href="/admin/turnos/cerrar" {...chipLinkAtributos(false)} aria-label={`${sinCerrarTexto} turnos sin cerrar: cerrar lo pendiente`}>
+              Sin cerrar <span data-parte="conteo">{sinCerrarTexto}</span>
+            </Link>
+          ) : null,
           linea.masCargada ? `${linea.masCargada.nombre.split(" ")[0]} con ${linea.masCargada.turnos}` : null,
         ]}
         actions={<ElDia dia={dia} hoy={hoy} vista={vista} />}
