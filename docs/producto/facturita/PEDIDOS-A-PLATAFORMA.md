@@ -4,7 +4,7 @@ Cosas que la célula de Facturita **no tocó** porque son de Plataforma (proxy, 
 fábrica de tenants). Cada pedido dice qué, por qué y cómo se verifica. Fecha: 2026-10-22.
 Rama de origen: `claude/facturacion-automatica-facturita`.
 
-## P-1 · Ruteo host → producto para `facturita-gsg.vercel.app` (ADR-076 §2, ADR-029) — ⏸ PENDIENTE: depende del `TENANT_HOST_MAP` vivo en Vercel (hoy mapea el host al tenant `facturita`, runbook golive-suite §7); cambiar la raíz del host cambia producción → decide el dueño
+## P-1 · Ruteo host → producto para `facturita-gsg.vercel.app` (ADR-076 §2, ADR-029) — ✅ HECHO en código (`src/lib/producto-host.ts` + `src/proxy.ts`, rewrite de la raíz). Falta sólo sumar `facturita-gsg.vercel.app=facturita` al `TENANT_HOST_MAP` vivo: lo pega el dueño (docs/runbooks/facturacion/publicacion.md §3)
 
 - **Qué:** que la raíz `/` del host `facturita-gsg.vercel.app` sirva la vidriera `/facturita`
   (rewrite en `src/proxy.ts`, o redirect 308 a `/facturita`), y que el host quede en
