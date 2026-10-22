@@ -11,7 +11,7 @@ export const meta = {
 }
 
 // args (los arma el comando /tanda):
-// { cliente, tanda, worktree, rama, base, extracto, archivosPropios, noTocar, criterios, riesgos: [],
+// { cliente, tanda, worktree, rama, base, extracto, mapa, archivosPropios, noTocar, criterios, riesgos: [],
 //   factory, scratch, trailers, maxVueltas? }
 const a = args || {}
 const RIESGOS_CERT = ['plata', 'seguridad', 'concurrencia', 'datos']
@@ -58,7 +58,7 @@ ${a.trailers}`
 phase('Construir')
 let construido = await agent(
   `Tarea: ${a.cliente}, Tanda ${a.tanda}.
-Leé SOLO el extracto ${a.extracto} y los archivo:línea que necesites.
+Leé SOLO el extracto ${a.extracto}${a.mapa ? ` y el mapa de código ${a.mapa}` : ''}, y después los archivo:línea que necesites.
 Archivos tuyos: ${a.archivosPropios}. No toques: ${a.noTocar}.
 Criterios de aceptación: ${a.criterios}.
 Riesgo: ${riesgos.join(', ') || 'visual'}. ${riesgos.length ? 'Plata/datos: test Postgres con dos negocios y doble envío (Postgres local del arnés).' : 'Todo archivo de pantalla tocado lleva un test o una línea de QA clic por clic en el informe.'}

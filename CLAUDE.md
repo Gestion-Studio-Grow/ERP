@@ -47,6 +47,9 @@ con «un agente = una tarea»).
   rol + este archivo + la lección del área de riesgo que toque; no se lee el corpus entero.
 - **Contexto fijo chico:** el agente trabaja con el cwd dentro del repo (no en la carpeta madre, que suma otros
   CLAUDE.md) y con los agentes `gsg-ingeniero` / `gsg-certificador` (`.claude/agents/`), sin conectores que no usa.
+- **Mapa antes de explorar:** `npm run mapa -- <carpeta> --a <archivo>` da exportaciones con línea, modelos de
+  Prisma, dependencias y tests de una zona (600 KB de código → ~11 KB). El brief lo adjunta; el agente abre sólo
+  los `archivo:línea` que necesita.
 - **Techo de contexto:** al acercarse a ~150k tokens, el agente escribe un relevo de 1 página y termina.
 - **Máximo 3 agentes pesados en simultáneo**; un frente a la vez hasta cerrarlo.
 - Tests y `tsc` devuelven **sólo el resumen** (`n/n` y fallas), nunca logs completos al contexto.
