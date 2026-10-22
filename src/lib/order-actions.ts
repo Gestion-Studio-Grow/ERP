@@ -97,6 +97,7 @@ import {
   AnulacionVentaRechazada,
   reglasDeAnulacion,
   fronteraDeVenta,
+  laVentaEscribeEnCaja,
   ajustarPedidoInTx,
   type AjustarPedidoResult,
   wherePedidosAbiertos,
@@ -112,6 +113,13 @@ import {
   ventaDeOrden,
   type VentaTicket,
 } from "@/app/admin/(dashboard)/vender/reglas-venta";
+import {
+  CAMPO_HORA_DEL_CUADERNO,
+  CUADERNO_APAGADO,
+  decidirHoraDelCuaderno,
+} from "@/lib/cuaderno/hora-de-la-venta";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
 
 const ORDERS_PATH = "/admin/pedidos";
 // Las otras dos pantallas del mostrador que muestran ventas: se revalidan junto con la bandeja
@@ -348,11 +356,43 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // La DECISIÓN entera vive en `fronteraDeVenta` (pura, probada sin base); acá sólo se le
   // pasan los dos hechos que hay que ir a buscar: hasta qué día está cerrado y qué día es hoy
   // en la zona del negocio.
+  const cerradoHasta = await lastClosedDay(tenantId);
+
+  // LA VENTA DEL CUADERNO (Magra, tanda 2 · 2E, MG-060). Se cortó internet, se vendió anotando en
+  // el cuaderno, y ahora se carga con la hora en que se vendió (`occurredAt`, hora de pared del
+  // negocio). La decide `decidirHoraDelCuaderno` (pura, la misma que usa la pantalla): sólo venta de
+  // mostrador cobrada con un medio, nunca en el futuro, nunca en un día cerrado, y hasta cuántos días
+  // atrás según el ROL de la sesión (nunca del formulario). Va detrás del interruptor del mostrador
+  // boutique: en un negocio que no lo tiene, el campo se rechaza (CH sigue igual). Sin el campo,
+  // nada de esto corre: la venta de siempre.
+  const horaCruda = String(formData.get(CAMPO_HORA_DEL_CUADERNO) ?? "").trim();
+  let delCuaderno: { en: Date; dia: string } | null = null;
+  if (horaCruda) {
+    if (!mostradorBoutiquePrendido(await interruptoresDelNegocio())) return { ok: false, error: CUADERNO_APAGADO };
+    const hora = decidirHoraDelCuaderno({
+      crudo: horaCruda,
+      ahora: new Date(),
+      rol: user.role,
+      cerradoHasta,
+      venta: {
+        channel,
+        fulfillment,
+        cobrada: laVentaEscribeEnCaja({ paid, paymentMethod }),
+        aCuenta,
+        pagoDividido: asientos !== null,
+        cupon: cupon !== null,
+      },
+    });
+    if (!hora.ok) return { ok: false, error: hora.error };
+    delCuaderno = hora;
+  }
+
   const frontera = fronteraDeVenta({
     paid,
     paymentMethod,
-    hoy: dateStrInBusinessTz(new Date()),
-    cerradoHasta: await lastClosedDay(tenantId),
+    // La venta del cuaderno se mide contra SU día, no contra hoy (la misma frontera).
+    hoy: delCuaderno?.dia ?? dateStrInBusinessTz(new Date()),
+    cerradoHasta,
     esDiaCerrado: isFrozenDay,
   });
   if (frontera.bloquea) return { ok: false, error: frontera.error };
@@ -454,6 +494,7 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
         pagosMixtos: asientos ? { asientos } : null,
         envioZona,
         clientId: clientIdElegido,
+        ...(delCuaderno ? { occurredAt: delCuaderno.en } : {}),
       },
     );
   } catch (err) {
@@ -559,6 +600,8 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
       ...(aCuenta ? { aCuenta: true, por: user.name } : {}),
       ...(asientos ? { pagos: asientos } : {}),
       ...(envioZona ? { zona: envioZona.nombre, envio: result.envio ?? 0 } : {}),
+      // La venta del cuaderno: cuándo se vendió y quién la cargó (la fila de auditoría es de ahora).
+      ...(delCuaderno ? { delCuaderno: { vendidaEn: delCuaderno.en.toISOString(), cargadaPor: user.name } } : {}),
     },
   });
 

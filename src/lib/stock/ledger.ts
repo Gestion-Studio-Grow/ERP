@@ -100,6 +100,10 @@ export type RecordMovementArgs = {
   // Permitir dejar stock negativo en una salida (default false → guarda anti-oversell).
   // Se usa, p.ej., para no bloquear el cierre de un turno por falta de insumo cargado.
   allowNegative?: boolean;
+  // Cuándo PASÓ el movimiento, si no es ahora (la venta del cuaderno: se vendió a las 11:20 sin
+  // señal y se carga a las 15:00). Va a `createdAt` para que la venta caiga en su día y su mes.
+  // `balanceAfter` sigue siendo el saldo al momento de cargarla: por eso la fila lleva su `reason`.
+  at?: Date | null;
 };
 
 // ¿Esta fila del ledger lleva el costo vigente estampado? Toda SALIDA que llega sin costo:
@@ -197,6 +201,7 @@ export async function recordMovement(tx: LedgerTx, args: RecordMovementArgs): Pr
       purchaseId: args.purchaseId ?? null,
       appointmentId: args.appointmentId ?? null,
       createdBy: args.createdBy,
+      ...(args.at ? { createdAt: args.at } : {}),
     },
   });
 

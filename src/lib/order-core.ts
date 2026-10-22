@@ -58,6 +58,7 @@ import { aplicarPromociones, type ContextoDePromo, type Promocion, type PromoApl
 import { imputarPagosMixtosEnTx, validarPagosContraElTotal, type AsientoDePago } from "@/lib/supermercado/pago-mixto-tx";
 import { medioPrincipal } from "@/lib/supermercado/pago-mixto";
 import { registrarPromocionesDeLaVentaEnTx } from "@/lib/supermercado/promos-de-la-venta";
+import { CUADERNO_SOLO_VENTA_COBRADA } from "@/lib/cuaderno/hora-de-la-venta";
 import type { Prisma, ProductSaleUnit } from "@/generated/prisma/client";
 
 export type OrderPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
@@ -219,6 +220,16 @@ export type InsertOrderOpts = {
    * rechazo con su motivo y no se graba nada. Sólo la pasa el mostrador.
    */
   clientId?: string | null;
+  /**
+   * LA VENTA DEL CUADERNO (Magra, tanda 2 · 2E): cuándo se vendió de verdad, si no es ahora (se
+   * cortó internet, se anotó en el cuaderno y se carga después). La valida `createOrder` antes
+   * (`decidirHoraDelCuaderno`: nunca en el futuro, nunca en un día cerrado, rol con permiso). Acá
+   * sólo se escribe: el pedido nace con `createdAt` = esa hora (Ventas del día y el total del día lo
+   * cuentan en su día), el movimiento de stock también, y el asiento del libro con `occurredAt` =
+   * esa hora. Sólo para la venta de mostrador cobrada con un medio (`decidirAlta` lo vuelve a
+   * frenar). Sin el dato, el alta de siempre.
+   */
+  occurredAt?: Date | null;
 };
 
 // A-2: cuántas veces se reintenta el alta ante una colisión del correlativo por tenant
@@ -387,7 +398,7 @@ export function decidirAlta(p: {
   tenantId: string;
   input: OrderInput;
   products: OrderProduct[];
-  opts?: Pick<InsertOrderOpts, "descuento" | "imputarCajaActor" | "envio" | "envioZona" | "cupon" | "aCuenta" | "promociones" | "pagosMixtos">;
+  opts?: Pick<InsertOrderOpts, "descuento" | "imputarCajaActor" | "envio" | "envioZona" | "cupon" | "aCuenta" | "promociones" | "pagosMixtos" | "occurredAt">;
 }): AltaDecidida {
   const brutas = buildOrderLines(p.products, pedidasValidas(p.input.items));
   const aMano = p.input.lineasAMano ?? [];
@@ -438,6 +449,24 @@ export function decidirAlta(p: {
       throw new RechazoDeDominio("El medio de la venta tiene que ser el principal del pago mixto.");
     }
   }
+  // LA VENTA DEL CUADERNO: sólo mostrador, cobrada en el acto con UN medio y por el mostrador (que
+  // asienta la caja). Lo valida `createOrder` antes; esto es la defensa de cualquier otro llamador.
+  const occurredAt = p.opts?.occurredAt ?? null;
+  if (occurredAt) {
+    const i = p.input;
+    if (
+      i.channel !== "COUNTER" ||
+      i.fulfillment !== "PICKUP" ||
+      !i.paid ||
+      !i.paymentMethod ||
+      !p.opts?.imputarCajaActor ||
+      p.opts.pagosMixtos ||
+      p.opts.aCuenta ||
+      normalizarCodigoDeCupon(p.opts.cupon)
+    ) {
+      throw new RechazoDeDominio(CUADERNO_SOLO_VENTA_COBRADA);
+    }
+  }
   // Lo que se compra: las líneas con producto (precio de la base) más las de precio a mano.
   const productos = round2(orderSubtotal(lines) + aMano.reduce((s, l) => s + l.importe, 0));
   const cupon = normalizarCodigoDeCupon(p.opts?.cupon) || null;
@@ -472,6 +501,7 @@ export function decidirAlta(p: {
     ...(p.opts?.aCuenta ? { aCuenta: p.opts.aCuenta } : {}),
     ...(promosDeLaVenta ? { promos: promosDeLaVenta } : {}),
     ...(p.opts?.pagosMixtos ? { pagosMixtos: p.opts.pagosMixtos.asientos } : {}),
+    ...(occurredAt ? { occurredAt } : {}),
   };
 }
 
@@ -674,6 +704,9 @@ export async function insertOrder(
             createdBy: "system",
             label: l.name,
             allowNegative: negativoPermitido.has(l.productId),
+            // Del cuaderno: el movimiento cae en su día; el motivo explica por qué su saldo es el
+            // de la hora de carga (`balanceAfter`).
+            ...(datos.occurredAt ? { at: datos.occurredAt, reason: "Venta del cuaderno (se cargó después de vender)" } : {}),
           });
         }
 
@@ -803,6 +836,8 @@ export type DatosDelAlta = {
   promos?: PromosDeLaVenta;
   /** Pago con varios medios: un cobro y un asiento por medio; la venta lleva el principal. */
   pagosMixtos?: readonly AsientoDePago[];
+  /** La venta del cuaderno: cuándo se vendió (va a `createdAt` del pedido y del stock, y al libro). */
+  occurredAt?: Date;
 };
 
 /**
@@ -852,6 +887,8 @@ export async function crearOrdenEnTx(
       // (no se referencia la columna) → el POS/API y el fallback schema-ahead siguen
       // funcionando aunque la columna no exista todavía en la DB.
       ...(d.writeKey ? { idempotencyKey: d.writeKey } : {}),
+      // La venta del cuaderno nace con la hora en que se vendió (Ventas del día la cuenta en su día).
+      ...(d.occurredAt ? { createdAt: d.occurredAt } : {}),
       items: {
         create: [
           ...d.lines.map((l) => ({
@@ -926,6 +963,7 @@ export async function imputarVentaEnTx(
     paymentMethod: d.input.paid ? d.input.paymentMethod : null,
     total: d.total,
     actor: d.imputarCajaActor,
+    ...(d.occurredAt ? { occurredAt: d.occurredAt } : {}),
   });
 }
 
