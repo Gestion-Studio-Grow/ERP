@@ -60,6 +60,7 @@ import {
   anotarIntentoConReserva,
   CorridaDeEnvios,
   posponerSinContar,
+  reactivarEnvios,
   soltarReserva,
   tomarDeLosNegocios,
   tomarSiguienteEnvio,
@@ -237,7 +238,11 @@ export function crearClientePara(
       );
     }
     const config: EmisorConfig = cfg ?? { cuit: 0, homologacion: true };
-    const modo = modoDesdeEnv(env);
+    // ADR-066 · el entorno es el TECHO y el negocio decide por debajo: con ARCA_MODO=real, un
+    // negocio todavía en homologación (`arcaHomologacion`, default true) corre exactamente como el
+    // modo homologación (endpoint de prueba forzado, sin el guard estricto de cert↔CUIT).
+    const modo = modoEfectivoDelTenant(modoDesdeEnv(env), config.homologacion);
+    const envDelNegocio = modo === modoDesdeEnv(env) ? env : { ...env, ARCA_MODO: modo };
 
     // En stub NO se firma ni se autentica → no se toca la credencial ni el TA. Sí sigue la
     // numeración guardada del negocio, como ARCA: sin eso cada factura de prueba pedía el 1.
@@ -259,7 +264,7 @@ export function crearClientePara(
     // invocación — el seam que cierra el ciclo en serverless.
     const ticketInicial = await leerTicket(tenantId);
     return crearAfipClient(config, {
-      env,
+      env: envDelNegocio,
       credencial: firma.credencial,
       cuitFirmante: firma.cuitFirmante,
       ticketInicial,
@@ -379,6 +384,12 @@ export interface OpcionesDelNegocio {
   ignorarEspera?: boolean;
   /** La política de reintentos (default `POLITICA_DE_REINTENTOS`). */
   politica?: PoliticaDeReintentos;
+  /**
+   * Motor de facturación · `true` = antes de tomar, vuelve a dejar disponibles los envíos
+   * DETENIDOS del negocio (tope de intentos o dato fiscal faltante): «Reintentar los fallidos».
+   * Cada uno tiene UN intento más; si vuelve a fallar, se detiene de nuevo. Sólo con un negocio.
+   */
+  reactivarDetenidos?: boolean;
   /** Avisa cada envío que falló por un error nuestro (va dentro de `fallidos`). */
   alFallarPorElSistema?: (envioId: string) => void;
 }
@@ -441,12 +452,23 @@ export async function procesarEnviosDelNegocio(
   deps: DepsDespacho = DEPS_DESPACHO,
   opciones: OpcionesDelNegocio = {},
 ): Promise<DispatchResumen> {
+  if (opciones.reactivarDetenidos) await reactivarEnvios(enElNegocio(tenantId), tenantId);
   return despacharEnvios(
     (corrida) => tomarSiguienteEnvio(enElNegocio(tenantId), corrida, tenantId),
     limit,
     deps,
     opciones,
   );
+}
+
+/**
+ * Motor de facturación · pedido 6 de la consola del contador: cuántos comprobantes del negocio
+ * esperan la autorización de ARCA (Invoice PENDING). UNA sola cuenta para el panel del negocio,
+ * la consola del contador y el lote: parada en el negocio (RLS) y con el predicado explícito
+ * (MT-1), por el índice (tenantId, status). No necesita sesión: el contador la pide por cliente.
+ */
+export async function contarPendientesDelNegocio(tenantId: string): Promise<number> {
+  return tenantTransaction((tx) => tx.invoice.count({ where: { tenantId, status: "PENDING" } }), { tenantId });
 }
 
 /**

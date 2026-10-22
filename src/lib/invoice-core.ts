@@ -23,6 +23,10 @@ import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { centavosDe, sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { buildInvoiceOriginLink, type InvoiceOriginType } from "@/lib/settlement/invoice-origin";
+import { decidirComprobante } from "@/lib/fiscal/decidir-comprobante";
+import { normalizarFecha } from "@/lib/fiscal/vigencias";
+import { leerRegimenFacturaAEnTx } from "@/lib/fiscal/regimen-factura-a.server";
+import { montosDeLaNota, saldoPorAnular } from "@/lib/facturacion/nota-credito-core";
 
 /** Cliente de transacción interactiva (mismo patrón que `LedgerTx` en stock/ledger.ts):
  *  `createInvoiceInTx` corre DENTRO de una tx ya abierta por el llamador → componible y
@@ -42,7 +46,35 @@ export interface SubtotalIva {
  * traductor origen→FK es el helper puro `buildInvoiceOriginLink` (settlement/invoice-origin),
  * la MISMA fuente que usa el settlement — no se duplica la lógica.
  */
-export type InvoiceOrigin = { type: InvoiceOriginType; id: string };
+export type InvoiceOrigin = { type: InvoiceOriginType; id: string } | { type: "ABONO"; id: string };
+
+/**
+ * Motor de facturación · origen ABONO (pedido 2 de la consola del contador): `id` =
+ * `<reglaId>:<AAAA-MM>`. Va en `Invoice.abonoClave`, con índice único (tenantId, abonoClave): la
+ * BASE impide dos facturas de la misma regla en el mismo mes (migración
+ * 20261022140000_invoice_abono_descripcion, Gate 2).
+ */
+const FORMA_CLAVE_ABONO = /^[A-Za-z0-9_-]{1,64}:\d{4}-(0[1-9]|1[0-2])$/;
+
+/** La clave de un abono (regla, mes), validada. Lanza si no tiene la forma `<reglaId>:<AAAA-MM>`. */
+export function claveDeAbono(reglaId: string, mes: string): string {
+  const clave = `${reglaId}:${mes}`;
+  if (!FORMA_CLAVE_ABONO.test(clave)) throw new Error(`Clave de abono inválida: «${clave}» (va <regla>:<AAAA-MM>).`);
+  return clave;
+}
+
+/** Enlace de origen para `invoice.create/findFirst`: el de una venta (D10) o el del abono. */
+function enlaceDeOrigen(origin: InvoiceOrigin | undefined): { orderId?: string; appointmentId?: string; mpPaymentId?: string; abonoClave?: string } {
+  if (!origin) return {};
+  if (origin.type === "ABONO") {
+    if (!FORMA_CLAVE_ABONO.test(origin.id)) throw new Error(`Clave de abono inválida: «${origin.id}» (va <regla>:<AAAA-MM>).`);
+    return { abonoClave: origin.id };
+  }
+  return buildInvoiceOriginLink(origin.type, origin.id);
+}
+
+const tieneOrigen = (link: ReturnType<typeof enlaceDeOrigen>) =>
+  "orderId" in link || "appointmentId" in link || "mpPaymentId" in link || "abonoClave" in link;
 
 /** Datos que se guardan en el payload del evento `InvoiceCreated`. */
 export interface CreateInvoiceInput {
@@ -75,11 +107,17 @@ export interface CreateInvoiceInput {
   /**
    * Motor de facturación · Default factura. `nota_credito`: anula (total o parcialmente) el
    * comprobante `asociado`, que tiene que estar AUTORIZADO (CbtesAsoc). Lo arma
-   * `emitirNotaDeCredito` (src/lib/facturacion/motor.server.ts), que controla el saldo.
+   * `crearNotaDeCreditoInTx` (más abajo), que controla el saldo con la fila de la factura tomada.
    */
   clase?: "factura" | "nota_credito";
   /** La factura que corrige la nota (su fila y sus datos ante ARCA). Sólo con `clase: nota_credito`. */
   asociado?: ComprobanteAsociadoInput;
+  /**
+   * Motor de facturación · pedido 5: «qué se factura» («Honorarios de octubre»). Se guarda en
+   * `Invoice.descripcion` para el PDF y el CSV; no viaja a ARCA (WSFEv1 no lleva descripción).
+   * Sólo se escribe si viene (la columna nace con 20261022140000, Gate 2).
+   */
+  descripcion?: string;
 }
 
 /** El comprobante que corrige una nota de crédito: la fila del Core y cómo lo conoce ARCA. */
@@ -94,7 +132,7 @@ export interface ComprobanteAsociadoInput {
 
 /** Forma del payload del evento `InvoiceCreated` que viaja por el outbox. */
 export interface InvoiceCreatedPayload
-  extends Omit<CreateInvoiceInput, "tenantId" | "origin" | "reabrirSiRechazada" | "asociado"> {
+  extends Omit<CreateInvoiceInput, "tenantId" | "origin" | "reabrirSiRechazada" | "asociado" | "descripcion"> {
   /** Nota de crédito: la factura que corrige, como la conoce ARCA (CbtesAsoc). */
   asociado?: { cbteTipo: number; puntoVenta: number; numero: number; fecha: string };
   invoiceId: string;
@@ -180,8 +218,8 @@ async function escribirSiElEnvioSigueAbierto(
 export async function createInvoice(input: CreateInvoiceInput): Promise<string> {
   // Enlace a la venta (D10) vía el helper puro compartido; `hasOrigin` = la creación es
   // idempotente por venta. Sin origen (MP standalone/histórico) no hay dedupe → crea siempre.
-  const originLink = input.origin ? buildInvoiceOriginLink(input.origin.type, input.origin.id) : {};
-  const hasOrigin = "orderId" in originLink || "appointmentId" in originLink || "mpPaymentId" in originLink;
+  const originLink = enlaceDeOrigen(input.origin);
+  const hasOrigin = tieneOrigen(originLink);
   try {
     return await tenantTransaction((tx) => createInvoiceInTx(tx, input), {
       tenantId: input.tenantId,
@@ -227,8 +265,8 @@ export async function createInvoiceInTx(
   tx: InvoiceTx,
   input: CreateInvoiceInput,
 ): Promise<string> {
-  const originLink = input.origin ? buildInvoiceOriginLink(input.origin.type, input.origin.id) : {};
-  const hasOrigin = "orderId" in originLink || "appointmentId" in originLink || "mpPaymentId" in originLink;
+  const originLink = enlaceDeOrigen(input.origin);
+  const hasOrigin = tieneOrigen(originLink);
 
   if ("orderId" in originLink && originLink.orderId) {
     await tomarPedidoNoAnulado(tx, input.tenantId, originLink.orderId);
@@ -377,6 +415,7 @@ function datosDelComprobante(input: CreateInvoiceInput) {
     total: input.total,
     status: "PENDING" as const,
     ...(input.clase === "nota_credito" && input.asociado ? { comprobanteAsociadoId: input.asociado.invoiceId } : {}),
+    ...(input.descripcion?.trim() ? { descripcion: input.descripcion.trim().slice(0, 300) } : {}),
   };
 }
 
@@ -554,6 +593,198 @@ export async function cerrarEnvioDeFacturaNoPendiente(
     { tenantId },
   );
 }
+
+// ─── Motor de facturación · NOTA DE CRÉDITO ASOCIADA (pedido 1 de la consola del contador) ────
+
+/** Lo que pide quien anula una factura autorizada. */
+export interface NotaDeCreditoInput {
+  tenantId: string;
+  /** La factura AUTORIZADA que se anula (del mismo negocio: la llave foránea lo impone). */
+  facturaId: string;
+  /** Total a anular, IVA incluido. Sin él, todo lo que queda por anular. */
+  importe?: number;
+  /** Por qué se anula: queda en la descripción del comprobante y en la auditoría de quien llama. */
+  motivo: string;
+  /** Fecha de la nota (CbteFch), AAAAMMDD o AAAA-MM-DD: el día en que se emite. */
+  fecha: string;
+  /** El día en que se pide el CAE, para la ventana de fechas de ARCA. Default: `fecha`. */
+  fechaDeEnvio?: string;
+}
+
+export type ResultadoNotaDeCredito = { ok: true; invoiceId: string } | { ok: false; error: string };
+
+/** Lo que queda de la factura original en su envío (lo que viajó a ARCA). */
+interface DatosEmitidos {
+  concepto: number;
+  emisor: CreateInvoiceInput["emisor"];
+  receptor: CreateInvoiceInput["receptor"];
+  neto: number;
+  iva: SubtotalIva[];
+  total: number;
+  ivaPorProducto?: boolean;
+  servicioDesde?: string;
+  servicioHasta?: string;
+  vencimientoPago?: string;
+}
+
+const NATURALEZA_DEL_CONCEPTO: Record<number, "productos" | "servicios" | "productos_y_servicios"> = {
+  1: "productos",
+  2: "servicios",
+  3: "productos_y_servicios",
+};
+
+/**
+ * Emite una NOTA DE CRÉDITO asociada a una factura autorizada, dentro de la transacción del
+ * llamador (con el contexto RLS del negocio): crea la Invoice PENDING de clase nota de crédito
+ * (`comprobanteAsociadoId` = la factura) y encola su envío a ARCA por el outbox, como cualquier
+ * factura. Nunca lanza por un dato del usuario: devuelve `{ ok: false, error }` en criollo.
+ *
+ * INVARIANTE — nunca se anula más de lo facturado, ni con dos pedidos a la vez: la fila de la
+ * factura se toma FOR UPDATE antes de sumar las notas vivas (PENDING o AUTHORIZED), así dos notas
+ * simultáneas sobre la misma factura se ordenan y la segunda ve el saldo que dejó la primera
+ * (DB-4: la exclusión la da la base, no un chequeo suelto).
+ *
+ * La decisión fiscal es la única del Core (`decidirComprobante`): misma letra, mismo receptor,
+ * saldo, fechas. Lo que no queda «lista» no se emite: vuelve el motivo.
+ */
+export async function crearNotaDeCreditoInTx(tx: InvoiceTx, input: NotaDeCreditoInput): Promise<ResultadoNotaDeCredito> {
+  const motivo = input.motivo?.trim() ?? "";
+  if (!motivo) return { ok: false, error: "Contá por qué se anula la factura: queda escrito en la nota de crédito." };
+  const fecha = normalizarFecha(input.fecha);
+  if (!fecha) return { ok: false, error: "La fecha de la nota de crédito no es válida." };
+  const fechaDeEnvio = normalizarFecha(input.fechaDeEnvio ?? input.fecha) ?? fecha;
+
+  const filas = await tx.$queryRaw<
+    { status: string; tipoComprobante: number | null; puntoVenta: number; numero: number | null; fecha: string; total: string; comprobanteAsociadoId: string | null }[]
+  >`
+    SELECT status::text AS status, "tipoComprobante", "puntoVenta", numero, fecha, total::text AS total, "comprobanteAsociadoId"
+    FROM "Invoice"
+    WHERE id = ${input.facturaId} AND "tenantId" = ${input.tenantId}
+    FOR UPDATE`;
+  const f = filas[0];
+  if (!f) return { ok: false, error: "No encontramos esa factura en este negocio." };
+  if (f.comprobanteAsociadoId) return { ok: false, error: "Eso ya es una nota: se anula una factura, no una nota de crédito." };
+  if (f.status !== "AUTHORIZED" || f.numero == null || f.tipoComprobante == null) {
+    return {
+      ok: false,
+      error:
+        f.status === "PENDING"
+          ? "La factura todavía no la autorizó ARCA: esperá a que tenga CAE para anularla."
+          : "La factura no está autorizada por ARCA (fue rechazada): no hay nada que anular con una nota de crédito.",
+    };
+  }
+
+  const notas = await tx.invoice.findMany({
+    where: { tenantId: input.tenantId, comprobanteAsociadoId: input.facturaId, status: { in: ["PENDING", "AUTHORIZED"] } },
+    select: { total: true },
+  });
+  const yaAcreditado = sumarAlCentavo(notas.map((n) => Number(n.total)));
+  const totalFactura = Number(f.total);
+  const saldo = saldoPorAnular(totalFactura, yaAcreditado);
+  if (saldo <= 0) return { ok: false, error: "Esa factura ya está anulada entera con notas de crédito." };
+  const importe = input.importe ?? saldo;
+  if (!Number.isFinite(importe) || centavosDe(importe) <= 0) {
+    return { ok: false, error: "El importe a anular tiene que ser mayor a cero." };
+  }
+  if (centavosDe(importe) > centavosDe(saldo)) {
+    return { ok: false, error: `No se puede anular ${pesosAR(importe)}: de esa factura queda ${pesosAR(saldo)} por anular.` };
+  }
+
+  // Los datos con los que la factura viajó a ARCA: su último envío (emisor, receptor, IVA, fechas).
+  const envio = await tx.outboxEvent.findFirst({
+    where: { tenantId: input.tenantId, type: OUTBOX_INVOICE_CREATED, payload: { path: ["invoiceId"], equals: input.facturaId } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { payload: true },
+  });
+  const emitida = envio?.payload as unknown as DatosEmitidos | undefined;
+  if (!emitida?.emisor || !emitida.receptor) {
+    return { ok: false, error: "No encontramos con qué datos se emitió esa factura: anulala desde ARCA y avisá a soporte." };
+  }
+
+  let montos: { neto: number; iva: SubtotalIva[]; total: number };
+  try {
+    montos = montosDeLaNota({ neto: emitida.neto, iva: emitida.iva ?? [], total: totalFactura }, importe);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "No se pudo calcular la nota de crédito." };
+  }
+  // Servicios: la nota informa el mismo período; el vencimiento no puede ser anterior a la nota.
+  const vto = emitida.vencimientoPago && emitida.vencimientoPago >= fecha ? emitida.vencimientoPago : fecha;
+  const conServicio = emitida.concepto === 2 || emitida.concepto === 3;
+
+  const decision = decidirComprobante(
+    {
+      condicionIva: emitida.emisor.condicionIva,
+      cuit: emitida.emisor.cuit,
+      regimenFacturaA:
+        emitida.emisor.condicionIva === "RESPONSABLE_INSCRIPTO" ? await leerRegimenFacturaAEnTx(tx, input.tenantId) : null,
+    },
+    { condicionIva: emitida.receptor.condicionIva, docTipo: emitida.receptor.docTipo, docNro: emitida.receptor.docNro },
+    {
+      clase: "nota_credito",
+      fecha,
+      fechaDeEnvio,
+      importeTotal: montos.total,
+      naturaleza: NATURALEZA_DEL_CONCEPTO[emitida.concepto] ?? null,
+      servicio: conServicio ? { desde: emitida.servicioDesde ?? null, hasta: emitida.servicioHasta ?? null, vencimientoPago: vto } : null,
+      asociado: {
+        cbteTipo: f.tipoComprobante,
+        puntoVenta: f.puntoVenta,
+        numero: f.numero,
+        fecha: f.fecha,
+        importeTotal: totalFactura,
+        importeYaAcreditado: yaAcreditado,
+        docNro: emitida.receptor.docNro,
+      },
+    },
+    { exigirPeriodoDeServicio: true },
+  );
+  if (decision.estado !== "lista") {
+    const porQue = decision.motivos.filter((m) => m.gravedad !== "aviso").map((m) => m.mensaje).join(" ");
+    return { ok: false, error: porQue || "La nota de crédito no se puede emitir con estos datos." };
+  }
+
+  const nota = await tx.invoice.create({
+    data: {
+      tenantId: input.tenantId,
+      ...datosDelComprobante({
+        tenantId: input.tenantId,
+        concepto: emitida.concepto,
+        fecha,
+        emisor: emitida.emisor,
+        receptor: emitida.receptor,
+        neto: montos.neto,
+        iva: montos.iva,
+        total: montos.total,
+        clase: "nota_credito",
+        asociado: { invoiceId: input.facturaId, cbteTipo: f.tipoComprobante, puntoVenta: f.puntoVenta, numero: f.numero, fecha: f.fecha },
+        descripcion: `Anula ${centavosDe(montos.total) === centavosDe(totalFactura) ? "la" : "parte de la"} factura ${f.puntoVenta}-${f.numero}: ${motivo}`,
+      }),
+    },
+    select: { id: true },
+  });
+  await encolarInvoiceCreated(tx, nota.id, {
+    tenantId: input.tenantId,
+    concepto: emitida.concepto,
+    fecha,
+    emisor: emitida.emisor,
+    receptor: emitida.receptor,
+    neto: montos.neto,
+    iva: montos.iva,
+    total: montos.total,
+    ...(emitida.ivaPorProducto === true ? { ivaPorProducto: true } : {}),
+    ...(conServicio ? { servicioDesde: emitida.servicioDesde, servicioHasta: emitida.servicioHasta, vencimientoPago: vto } : {}),
+    clase: "nota_credito",
+    asociado: { invoiceId: input.facturaId, cbteTipo: f.tipoComprobante, puntoVenta: f.puntoVenta, numero: f.numero, fecha: f.fecha },
+  });
+  return { ok: true, invoiceId: nota.id };
+}
+
+/** `crearNotaDeCreditoInTx` en su propia transacción, parada en el negocio (RLS). */
+export async function crearNotaDeCredito(input: NotaDeCreditoInput): Promise<ResultadoNotaDeCredito> {
+  return tenantTransaction((tx) => crearNotaDeCreditoInTx(tx, input), { tenantId: input.tenantId });
+}
+
+const pesosAR = (n: number) => `$${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** Consulta una factura del tenant. */
 export async function getInvoice(id: string, tenantId: string) {

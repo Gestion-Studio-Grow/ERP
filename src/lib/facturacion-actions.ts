@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
+import { contarPendientesDelNegocio, procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
 import { modoDesdeEnv, type ModoArca } from "@/plugins/arca";
 import { logger } from "@/lib/logger";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -80,7 +80,8 @@ function estadoFiscalVacio(): EstadoFiscal {
  * (QA vuelta 2): no depende de que el cliente sea el de RLS ni del filtro por negocio del otro.
  */
 function contarPendientes(tenantId: string): Promise<number> {
-  return prisma.invoice.count({ where: { tenantId, status: "PENDING" } });
+  // Una sola cuenta para el panel y la consola del contador (pedido 6 al motor).
+  return contarPendientesDelNegocio(tenantId);
 }
 
 /** El estado fiscal del negocio: config de ARCA y cuántos comprobantes esperan autorización. */
@@ -199,6 +200,10 @@ export async function procesarFacturacionPendiente(
   // ENG-012: sólo los envíos de ESTE negocio; el barrido de todos es del cron.
   const resumen = await procesarEnviosDelNegocio(tenantId, TANDA_DE_ARCA, undefined, {
     saltear: enviosASaltear(saltear),
+    // Lo pidió una persona: no espera el backoff y le da un intento más a los detenidos
+    // (motor de facturación, arca-reintentos.ts). El cron y las ventas sí respetan la espera.
+    ignorarEspera: true,
+    reactivarDetenidos: true,
     alFallarPorElSistema: (envioId) => conErrorDelSistema.push(envioId),
   });
   const quedan = await contarPendientes(tenantId);
