@@ -42,7 +42,7 @@ import OtroDia from "./_agenda/OtroDia";
 
 type Quien = { role: Role; professionalId?: string | null };
 
-// `agenda:forgive` (dar de baja un saldo: sólo la dueña, D5) la suma 1-A a capabilities.ts. Hasta
+// STUB 1-C: `agenda:forgive` (dar de baja un saldo: sólo la dueña, D5) la suma 1-A a capabilities.ts. Hasta
 // que entre, el nombre no existe en el tipo y nadie la tiene: «Dar de baja» no se ofrece (lo seguro).
 const PERDONAR = "agenda:forgive" as string as Capability;
 
@@ -125,7 +125,8 @@ export default async function AgendaRenglon({
     enInicioPorApps(),
     getNegocioApps(quien.role),
     // Sólo quien cierra turnos ve cuántos quedaron sin cerrar (y puede ir a cerrarlos).
-    permisos.terminar ? turnosSinCerrar() : Promise.resolve(null),
+    // Si el loader falla, la agenda se dibuja igual (cuenta los de hoy): no se cae por el chip.
+    permisos.terminar ? turnosSinCerrar().catch(() => null) : Promise.resolve(null),
   ]);
   const agenda = proyectarAgenda(cruda, quien);
   const ahora = new Date();
