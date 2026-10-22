@@ -25,7 +25,7 @@ test("guard /facturita/app: con sesión válida → pasa", async () => {
   assert.equal(res.headers.get("location"), null);
 });
 
-for (const ruta of ["/facturita", "/facturita/alta", "/facturita/planes", "/facturita/manifest.webmanifest", "/facturita/sw.js", "/facturita/sin-conexion.html", "/facturita/aplicacion"]) {
+for (const ruta of ["/facturita", "/facturita/alta", "/facturita/planes", "/facturita/terminos", "/facturita/privacidad", "/facturita/manifest.webmanifest", "/facturita/sw.js", "/facturita/sin-conexion.html", "/facturita/aplicacion"]) {
   test(`${ruta} sigue público sin sesión`, async () => {
     const res = await proxy(new NextRequest(`https://app.test${ruta}`));
     assert.equal(res.headers.get("location"), null, `${ruta} no debe redirigir al login`);

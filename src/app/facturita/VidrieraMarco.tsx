@@ -47,6 +47,10 @@ export default function VidrieraMarco({ children }: { children: ReactNode }) {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 py-6 text-xs text-faint sm:flex-row sm:justify-between sm:px-6">
           <p>Facturita emite comprobantes electrónicos con el servicio oficial de ARCA.</p>
+          <nav aria-label="Legales" className="flex gap-4">
+            <Link href="/facturita/terminos" className={`rounded hover:text-strong ${FOCO}`}>Términos</Link>
+            <Link href="/facturita/privacidad" className={`rounded hover:text-strong ${FOCO}`}>Privacidad</Link>
+          </nav>
           <p>Un producto de Gestión Studio Grow</p>
         </div>
       </footer>
