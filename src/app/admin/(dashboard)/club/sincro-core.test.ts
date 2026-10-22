@@ -537,6 +537,24 @@ test("BP-005/006 · «Cobrar la seña y abrir» en dos puestos a la vez (o doble
   assert.match(item.texto, /seña .* y abrir la cancha de Pedro Paz/);
 });
 
+test("H1 · un clic que falla sin tocar nada no cambia la foto, no entra a la cola ni gasta un guardado (Neon Free)", async () => {
+  const { b, tablet } = await dosPuestos();
+  const turno = turnoQueDebe(tablet.a.estado());
+  assert.equal(tablet.a.comando("cuenta", [turno, { tipo: "cobrarTodo", medio: "efectivo" }]).ok, true);
+  await vaciar();
+  const version = b.foto!.version;
+  const aplicados = leerSincro(tablet.a.estado()).aplicados.length;
+  // Lo mismo otra vez: ya no debe nada, el motor dice que no y no cambió nada.
+  const d = tablet.a.comando("cuenta", [turno, { tipo: "cobrarTodo", medio: "efectivo" }]);
+  assert.equal(d.ok, false);
+  assert.equal(tablet.a.aviso()!.mensaje, d.mensaje, "el aviso dice por qué");
+  assert.equal(tablet.a.sincro().enCola, 0, "no entró a la cola");
+  assert.equal(leerSincro(tablet.a.estado()).aplicados.length, aplicados, "la foto no cambió");
+  assert.equal(tablet.a.pendienteDeGuardar(), false, "nada para guardar");
+  await vaciar();
+  assert.equal(b.foto!.version, version, "ningún guardado");
+});
+
 test("«Deshacer» saca la acción de la cola: no se re-aplica ni se espera su confirmación", async () => {
   const { tablet } = await dosPuestos();
   tablet.g.retener();

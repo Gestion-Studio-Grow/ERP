@@ -126,6 +126,11 @@ function fueraDeVentana(estado: EstadoClub, fecha: Fecha, ahora: Ahora | undefin
   return fecha > hasta ? `Los turnos se dan hasta ${dias} días adelante (hasta el ${fechaLinda(hasta)}).` : null;
 }
 
+/** La regla del motor para el mostrador (`crearReserva`): un turno ya pasó si terminó (se puede cargar uno en juego). */
+const yaPaso = (ahora: Ahora | undefined, fecha: Fecha, inicio: number, duracion: number) => !!ahora && minutosHasta(ahora, fecha, inicio) + duracion <= 0;
+/** Lo que dice el motor al reservar un horario que ya pasó (H3 de la cert: la previa lo dice antes de tocar «Reservar»). */
+export const YA_PASO = "Ese horario ya pasó.";
+
 /** Los horarios libres de una cancha para esa duración, que todavía no pasaron. */
 export function horariosLibres(estado: EstadoClub, fecha: Fecha, canchaId: string, duracion: number, ahora: Ahora): { min: number; texto: string }[] {
   return huecosLibres(estado, fecha, canchaId, duracion)
@@ -142,8 +147,14 @@ export function horariosDelDia(estado: EstadoClub, fecha: Fecha, canchaId: strin
   const { abre, cierra } = horarioDe(estado, fecha);
   const out: { min: number; texto: string; entra: boolean; cuanto: number }[] = [];
   for (let m = abre; m < cierra; m += paso) {
-    if (m !== elegida && minutosHasta(ahora, fecha, m) + duracion <= 0) continue;
+    const pasada = yaPaso(ahora, fecha, m, duracion);
+    if (m !== elegida && pasada) continue;
     const cuanto = cuantoEntra(estado, fecha, canchaId, m).minutos;
+    // La elegida que ya pasó (el alta quedó abierta) queda en la lista, pero dice que pasó: no se puede reservar.
+    if (pasada) {
+      out.push({ min: m, entra: false, cuanto, texto: `${hhmm(m)} · ya pasó` });
+      continue;
+    }
     const entra = validarHueco(estado, { canchaId, fecha, inicio: m, duracion }).ok;
     out.push({ min: m, entra, cuanto, texto: entra ? `${hhmm(m)} a ${hhmm(m + duracion)}` : cuanto >= paso ? `${hhmm(m)} · entran ${cuanto} min` : `${hhmm(m)} · ocupado` });
   }
@@ -166,6 +177,7 @@ export function previaDelTurno(
 ): Previa {
   const ventana = fueraDeVentana(estado, d.fecha, ahora);
   if (ventana) return { ok: false, motivo: ventana };
+  if (yaPaso(ahora, d.fecha, d.inicio, d.duracion)) return { ok: false, motivo: YA_PASO };
   const v = validarHueco(estado, d);
   if (!v.ok) return { ok: false, motivo: motivoDelHueco(estado, d) ?? v.motivo };
   const precio = precioTurno(estado, d);
@@ -228,9 +240,11 @@ export function alternativas(estado: EstadoClub, d: Pick<DatosAlta, "canchaId" |
   const ventana = fueraDeVentana(estado, d.fecha, ahora);
   if (ventana) return { entra: false, cuantoEntra: cuanto, aviso: ventana, opciones: [], espera };
   const v = validarHueco(estado, d);
-  if (v.ok) return { entra: true, cuantoEntra: cuanto, aviso: null, opciones: [], espera };
+  const pasada = yaPaso(ahora, d.fecha, d.inicio, d.duracion);
+  if (v.ok && !pasada) return { entra: true, cuantoEntra: cuanto, aviso: null, opciones: [], espera };
   const entra = false;
-  const aviso = motivoDelHueco(estado, d) ?? v.motivo;
+  // Ya pasó: se dice eso (y se ofrece lo que todavía está a tiempo: el siguiente hueco acá u otra cancha).
+  const aviso = pasada ? YA_PASO : (motivoDelHueco(estado, d) ?? v.motivo);
   const vigente = (inicio: number, duracion: number) => minutosHasta(ahora, d.fecha, inicio) + duracion > 0;
   const nombre = (id: string) => canchaDe(estado, id)?.nombre ?? id;
   const armar = (canchaId: string, inicio: number, duracion: number, tipo: Alternativa["tipo"]): Alternativa => {

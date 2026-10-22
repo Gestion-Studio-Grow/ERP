@@ -938,6 +938,8 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     if (texto?.cambios !== cambios) texto = { cambios, valor: textoDelEstado(estado) };
     return texto.valor;
   };
+  /** El texto del estado de ahora si ya está armado (no lo arma). */
+  const textoYaArmado = (): string | null => (texto?.cambios === cambios ? texto.valor : null);
   const textoParaGuardar = () => textoDeLaDemo(textoActual(), real ? ahora.fecha : hoyDemo, relojMs());
   // Después de cada cambio, el texto nuevo se arma cuando el navegador está libre (si no, a demanda).
   const adelantarTexto = () => {
@@ -1668,6 +1670,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
         foto = null;
       }
     }
+    // El texto de antes, si ya está armado (casi siempre: se adelanta en reposo): si la acción falla sin tocar nada, ni
+    // se encola ni se guarda (H1: un clic fallido no cambia la foto ni gasta un guardado).
+    const textoAntes = foto ?? textoYaArmado();
     const op = operadorActual();
     const auth = op?.auth ?? {};
     // Dos puestos: el azar y el contador anotados, así re-aplicarlo sobre lo de la base da lo mismo (ids, código de seña).
@@ -1681,6 +1686,20 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     } catch {
       // El motor no tira por una regla; si algo tiró igual, no se rompe la pantalla.
       d = { ok: false, mensaje: "No se pudo hacer. Probá de nuevo." };
+    }
+    if (!d.ok && textoAntes !== null) {
+      let intacto = false;
+      try {
+        intacto = textoDelEstado(estado) === textoAntes;
+      } catch {
+        intacto = false;
+      }
+      if (intacto) {
+        // Como cualquier falla, lo de antes ya no se deshace (la regla de siempre); sólo que no hay nada que guardar.
+        soltarFoto();
+        informarFalla(d.mensaje);
+        return d;
+      }
     }
     let nuevo: Pendiente | null = null;
     let reservas: string[] = [];

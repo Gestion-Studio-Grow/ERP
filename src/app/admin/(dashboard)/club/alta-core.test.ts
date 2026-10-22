@@ -375,3 +375,22 @@ test("BP-013: se reserva hasta 14 días adelante (+13 y +14 sí, +15 no)", () =>
   assert.ok(reservar(e, { ...d(sabado), titular: "Beto", otros: "" }, domingo).ok);
 });
 
+
+test("H3 · la hora elegida que YA PASÓ (el alta quedó abierta): la lista, la previa y el aviso lo dicen y «Reservar» no se prende", () => {
+  const e = demo();
+  const tarde: Ahora = { fecha: HOY, min: 23 * 60 };
+  let hit: { c: string; m: number } | null = null;
+  for (const c of e.canchas) for (let m = 9 * 60; m < 20 * 60 && !hit; m += 30) if (M.validarHueco(e, { canchaId: c.id, fecha: HOY, inicio: m, duracion: 60 }).ok) hit = { c: c.id, m };
+  assert.ok(hit, "hay un hueco libre a la tarde");
+  const h = horariosDelDia(e, HOY, hit.c, 60, tarde, hit.m).find((x) => x.min === hit!.m)!;
+  assert.equal(h.entra, false);
+  assert.match(h.texto, /· ya pasó$/);
+  const alt = alternativas(e, { canchaId: hit.c, fecha: HOY, inicio: hit.m, duracion: 60 }, tarde);
+  assert.equal(alt.entra, false, "Reservar apagado");
+  assert.equal(alt.aviso, "Ese horario ya pasó.");
+  for (const o of alt.opciones) assert.ok(o.inicio + o.duracion > tarde.min, "sólo se ofrece lo que está a tiempo");
+  const p = previaDelTurno(e, { canchaId: hit.c, fecha: HOY, inicio: hit.m, duracion: 60, tipo: "turno", clienteId: null }, tarde);
+  assert.deepEqual(p, { ok: false, motivo: "Ese horario ya pasó." });
+  // Lo mismo que dice el motor al tocar «Reservar».
+  assert.equal(reservar(e, { canchaId: hit.c, fecha: HOY, inicio: hit.m, duracion: 60, tipo: "turno", clienteId: null, titular: "X", otros: "" }, tarde).mensaje, p.motivo);
+});
