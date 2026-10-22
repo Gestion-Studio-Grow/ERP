@@ -17,14 +17,15 @@
 //
 // Los datos son los de siempre (`getAgendaDay`, `getMananaConfirmar`, los huecos del piloto): la
 // agenda nueva cambia CÓMO se ve y se opera, no QUÉ se consulta ni quién puede qué. Lo único que
-// se suma es cuántos turnos quedaron sin cerrar EN CUALQUIER DÍA (`turnosSinCerrar`, el loader de
-// la bandeja): el chip «Sin cerrar» lleva a «Cerrar lo pendiente» (/admin/turnos/cerrar), donde se
-// cierran de a muchos. Un pasado sin cerrar de hace meses también cuenta (CH-044).
+// se suma es cuántos turnos quedaron sin cerrar EN CUALQUIER DÍA (`contarSinCerrarDeQuienMira`: un
+// `count` con el mismo criterio y permisos que la bandeja, no su loader entero): el chip «Sin cerrar»
+// lleva a «Cerrar lo pendiente» (/admin/turnos/cerrar), donde se cierran de a muchos. Un pasado sin
+// cerrar de hace meses también cuenta (CH-044).
 
 import Link from "next/link";
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
 import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
-import { turnosSinCerrar } from "@/lib/turnos/sin-cerrar.server";
+import { contarSinCerrarDeQuienMira } from "@/lib/turnos/sin-cerrar.server";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
@@ -123,17 +124,18 @@ export default async function AgendaRenglon({
     verManana ? getMananaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(quien.role),
-    // Sólo quien cierra turnos ve cuántos quedaron sin cerrar (y puede ir a cerrarlos).
-    // Si el loader falla, la agenda se dibuja igual (cuenta los de hoy): no se cae por el chip.
-    permisos.terminar ? turnosSinCerrar().catch(() => null) : Promise.resolve(null),
+    // Sólo quien cierra turnos ve cuántos quedaron sin cerrar (y puede ir a cerrarlos). Un `count`,
+    // no el loader de la bandeja (cert O-4). Si falla, la agenda se dibuja igual (cuenta los de
+    // hoy): no se cae por el chip.
+    permisos.terminar ? contarSinCerrarDeQuienMira().catch(() => null) : Promise.resolve(null),
   ]);
   const agenda = proyectarAgenda(cruda, quien);
   const ahora = new Date();
   const linea = lineaDeLaAgenda(agenda.turnos, ahora);
-  // Los de hoy ya están en la agenda del día; el loader suma los de los otros días. Si el loader no
-  // trae nada (todavía no está, o falló en silencio), se cuentan al menos los de hoy.
-  const sinCerrar = permisos.terminar ? Math.max(pendientes?.turnos.length ?? 0, dia === hoy ? linea.sinCerrar : 0) : 0;
-  const sinCerrarTexto = pendientes?.hayMas ? `${sinCerrar}+` : String(sinCerrar);
+  // Los de hoy ya están en la agenda del día; el conteo suma los de los otros días. Si el conteo no
+  // trae nada (falló en silencio), se cuentan al menos los de hoy.
+  const sinCerrar = permisos.terminar ? Math.max(pendientes ?? 0, dia === hoy ? linea.sinCerrar : 0) : 0;
+  const sinCerrarTexto = String(sinCerrar);
   const abreClientes = appPermitida(appPorId("clientes"), negocio);
 
   const sinProfesionales = vacioSinProfesionales({

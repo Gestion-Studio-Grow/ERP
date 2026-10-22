@@ -1087,17 +1087,25 @@ async function leerProfesionalParaCobro(professionalId: string): Promise<{
  * `20260911120000_profesional_cobra_en_mostrador` no esté aplicada en Neon, se devuelve el
  * flag en `undefined` y la regla lo trata como el default de la columna (`true`). El cobro
  * sigue funcionando; lo único que no rige todavía es la excepción.
+ *
+ * Con el negocio en el `where` (además de RLS) y `findFirst`, no `findUniqueOrThrow`: un id de otro
+ * negocio (o borrado) devuelve `null` y quien llama contesta «Ese turno ya no existe», nunca un
+ * P2025 crudo que la pantalla muestra como error genérico (cert CH Tanda 1, O-1).
  */
-async function leerProfesionalDelTurno(appointmentId: string): Promise<{
+async function leerProfesionalDelTurno(
+  tenantId: string,
+  appointmentId: string,
+): Promise<{
   professionalId: string;
   nombre: string | null;
   cobraEnMostrador?: boolean;
-}> {
+} | null> {
   try {
-    const a = await prisma.appointment.findUniqueOrThrow({
-      where: { id: appointmentId },
+    const a = await prisma.appointment.findFirst({
+      where: { id: appointmentId, tenantId },
       select: { professionalId: true, professional: { select: { name: true, cobraEnMostrador: true } } },
     });
+    if (!a) return null;
     return {
       professionalId: a.professionalId,
       nombre: a.professional?.name ?? null,
@@ -1105,10 +1113,11 @@ async function leerProfesionalDelTurno(appointmentId: string): Promise<{
     };
   } catch (err) {
     if (!isColumnMissing(err, "cobraEnMostrador")) throw err;
-    const a = await prisma.appointment.findUniqueOrThrow({
-      where: { id: appointmentId },
+    const a = await prisma.appointment.findFirst({
+      where: { id: appointmentId, tenantId },
       select: { professionalId: true, professional: { select: { name: true } } },
     });
+    if (!a) return null;
     return { professionalId: a.professionalId, nombre: a.professional?.name ?? null };
   }
 }
@@ -1142,7 +1151,8 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
   // antes del cobro no abre ninguna carrera que importe. Y se lee tolerando que la columna
   // todavía no exista (migración sin aplicar): un flag ausente NO puede frenar un cobro —
   // sería una caja que deja de funcionar por un deploy.
-  const delTurno = await leerProfesionalDelTurno(appointmentId);
+  const delTurno = await leerProfesionalDelTurno(tenantId, appointmentId);
+  if (!delTurno) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
   const veredicto = puedeCobrarEsteTurno({
     rol: user.role,
     professionalIdDelUsuario: user.professionalId,
@@ -1264,7 +1274,8 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
 
   // Mismo orden que el cobro: el permiso se resuelve ANTES de abrir la transacción (fallar
   // acá no escribe nada y devuelve una frase accionable, no una tx abortada a medias).
-  const delTurno = await leerProfesionalDelTurno(appointmentId);
+  const delTurno = await leerProfesionalDelTurno(tenantId, appointmentId);
+  if (!delTurno) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
   const veredicto = puedeCobrarEsteTurno({
     rol: user.role,
     professionalIdDelUsuario: user.professionalId,
@@ -1387,10 +1398,12 @@ export async function condonarSaldoTurno(formData: FormData): Promise<ResultadoA
   const run = (withSchema: boolean) =>
     tenantTransaction(
       async (tx) => {
-        const appointment = await tx.appointment.findUniqueOrThrow({
-          where: { id: appointmentId },
+        // Con el negocio en el `where`: un id ajeno contesta «ya no existe», no un P2025 crudo (O-1).
+        const appointment = await tx.appointment.findFirst({
+          where: { id: appointmentId, tenantId },
           include: { service: { select: { price: true } } },
         });
+        if (!appointment) throw new RechazoDeDominio("Ese turno ya no existe. Recargá la agenda.");
         return condonarSaldoTurnoInTx(tx, tenantId, {
           appointmentId,
           status: appointment.status,
@@ -1410,7 +1423,7 @@ export async function condonarSaldoTurno(formData: FormData): Promise<ResultadoA
       runWithoutBridge: () => run(false),
     });
   } catch (e) {
-    if (e instanceof CondonacionRechazada) return { ok: false, error: e.message };
+    if (e instanceof CondonacionRechazada || e instanceof RechazoDeDominio) return { ok: false, error: e.message };
     throw e;
   }
 
@@ -1681,12 +1694,33 @@ export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE
 // dice qué hacer («Recargá la agenda»).
 //
 // `quien` (opcional, «clienta» | «negocio»): quién canceló, para la auditoría (sin migración).
+//
+// Éste es el camino SIN plata (CH-013, cert Tanda 1 O-2). Un turno con seña se cancela por
+// `cerrarTurnoSinPrestar`, que obliga a decir qué pasa con la plata (retener o devolver). La
+// pantalla ya elige bien (`CancelarONoVino`, `AppointmentRow`: `cobrado > 0` → la hoja de la
+// seña), pero esto es un endpoint: un POST a mano dejaba la seña huérfana sobre un turno
+// cancelado. Se lee lo cobrado con la MISMA cuenta que `cerrarTurnoSinPrestar`
+// (`estadoCobroTurno` sobre `cobrosDetalladosPorTurno` + el `Payment` legado) y, si hay plata,
+// se rechaza sin tocar nada. Lo que queda abierto es la carrera de un cobro que entra entre esta
+// lectura y el `updateMany` (milisegundos, dos personas sobre el mismo turno a la vez): la
+// cancelación no abre una transacción Serializable por eso; la bandeja y la hoja de la seña sí.
 export async function cancelAppointment(formData: FormData): Promise<ResultadoAccion> {
   await requireCapability("agenda:manage");
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId") ?? "");
   if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
   const tenantId = await getCurrentTenantId();
+  const turno = await prisma.appointment.findFirst({
+    where: { id: appointmentId, tenantId },
+    select: { priceAtBooking: true, service: { select: { price: true } }, payment: { select: { status: true, amount: true } } },
+  });
+  if (!turno) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
+  const cobros = (await cobrosDetalladosPorTurno(prisma, tenantId, [appointmentId])).get(appointmentId) ?? [];
+  const { cobrado } = estadoCobroTurno({ precio: turno.priceAtBooking ?? turno.service.price, cobros, pagoLegado: turno.payment });
+  if (cobrado > 0) {
+    logger.warn("agenda", "cancelación rechazada: el turno tiene plata cobrada", { appointmentId, cobrado });
+    return { ok: false, error: MENSAJE_CANCELAR_CON_SENIA };
+  }
   const cambiados = await cancelarTurnoVivo(prisma, tenantId, appointmentId);
   if (cambiados === 0) {
     logger.warn("agenda", "cancelación rechazada: el turno no está reservado ni confirmado", { appointmentId });
@@ -1701,6 +1735,9 @@ export async function cancelAppointment(formData: FormData): Promise<ResultadoAc
   revalidatePath("/admin/espera");
   return { ok: true };
 }
+
+/** `cancelAppointment` sobre un turno con plata cobrada: se cancela por la hoja de la seña. */
+const MENSAJE_CANCELAR_CON_SENIA = "Este turno tiene seña: cancelalo desde la hoja que pregunta qué pasa con la plata.";
 
 /** Quién canceló («la clienta avisó» / «lo cancela el negocio»), si la pantalla lo mandó. */
 function quienCancelo(formData: FormData): "clienta" | "negocio" | null {
@@ -1917,7 +1954,8 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   // aunque fuerce un `method` en el formulario (CH-007). Se mira sólo si se pidió cobrar.
   let veredictoDeCobro: { ok: true } | { ok: false; motivo: string } = { ok: true };
   if (method && !dejarSaldoACobrar) {
-    const delTurno = await leerProfesionalDelTurno(appointmentId);
+    const delTurno = await leerProfesionalDelTurno(tenantId, appointmentId);
+    if (!delTurno) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
     veredictoDeCobro = puedeCobrarEsteTurno({
       rol: user.role,
       professionalIdDelUsuario: user.professionalId,

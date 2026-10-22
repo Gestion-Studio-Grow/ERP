@@ -12,7 +12,9 @@
 //     tecla a /admin/turnos/cerrar (inicio/bandeja-core.ts). Cuenta los de días ANTERIORES: los
 //     de hoy con la hora pasada se están atendiendo;
 //   · el renglón «N pasados sin cerrar → [Cerrar lo pendiente]» de /admin/turnos/lista (B8),
-//     que cuenta todo lo que ya pasó, hoy incluido.
+//     que cuenta todo lo que ya pasó, hoy incluido;
+//   · el chip «Sin cerrar N» de la agenda del día (`contarSinCerrarDeQuienMira`,
+//     lib/turnos/sin-cerrar.server.ts), con el mismo recorte por profesional que la bandeja.
 //
 // Mismas reglas que el resto de la carpeta: el `db` del contexto y UNA consulta por número.
 // Reingeniería CH, Tanda 1, agente 1-D.
@@ -23,17 +25,30 @@ import { rangoDelDia } from "@/lib/turnos/turno-abierto";
 import { resumirAgenda } from "./comercial.server";
 import type { DatoKpi, LoaderKpi } from "./nucleo.server";
 
-/** Reservados y Confirmados de este negocio que empezaron antes de `antesDe`. PURO. */
-export function whereSinCerrar(tenantId: string, antesDe: Date): Prisma.AppointmentWhereInput {
-  return { tenantId, status: { in: ["PENDING", "CONFIRMED"] }, startsAt: { lt: antesDe } };
+/**
+ * Reservados y Confirmados de este negocio que empezaron antes de `antesDe`. PURO.
+ * `professionalId`: sólo los de esa profesional (lo que ve una PROFESIONAL en la bandeja).
+ */
+export function whereSinCerrar(tenantId: string, antesDe: Date, professionalId?: string | null): Prisma.AppointmentWhereInput {
+  return {
+    tenantId,
+    status: { in: ["PENDING", "CONFIRMED"] },
+    startsAt: { lt: antesDe },
+    ...(professionalId ? { professionalId } : {}),
+  };
 }
 
 /** Lo único que necesita el conteo: el `db` de un loader o el `prisma` del request. */
 type DbConteo = { appointment: { count(args: { where: Prisma.AppointmentWhereInput }): Promise<number> } };
 
 /** Cuántos turnos quedaron sin cerrar antes de `antesDe` (una consulta, con el negocio). */
-export function contarTurnosSinCerrar(db: DbConteo, tenantId: string, antesDe: Date): Promise<number> {
-  return db.appointment.count({ where: whereSinCerrar(tenantId, antesDe) });
+export function contarTurnosSinCerrar(
+  db: DbConteo,
+  tenantId: string,
+  antesDe: Date,
+  professionalId?: string | null,
+): Promise<number> {
+  return db.appointment.count({ where: whereSinCerrar(tenantId, antesDe, professionalId) });
 }
 
 /** «AAAA-MM-DD» del día anterior, estable ante zonas (se ancla al mediodía UTC). */

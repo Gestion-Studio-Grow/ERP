@@ -6,7 +6,12 @@
  *   · CH-060 · un turno de OTRO negocio dentro del lote contesta «ya no existe» y no se toca;
  *   · CH-002 · un Reservado de ayer que vino y paga queda COMPLETED con su cobro, sin Confirmar;
  *   · CH-006 · una línea que falla (la caja de hoy cerrada) no frena a las demás;
- *   · CH-040 · la recepción no da de baja saldos.
+ *   · CH-040 · la recepción no da de baja saldos;
+ *   · cert O-1 · cobrar / anular / dar de baja con el id de OTRO negocio contesta «ya no existe»
+ *     (un `ResultadoAccion`, no un P2025 crudo) y no toca nada;
+ *   · cert O-2 · `cancelAppointment` forjado sobre un turno con seña se rechaza y no cambia nada;
+ *   · cert O-3 · el segundo envío de un cierre dice «Ese turno ya está cerrado.»;
+ *   · cert O-4 · el chip de la agenda cuenta lo mismo que trae la bandeja, con un `count`.
  *
  * Sin Postgres local se saltea diciendo por qué (en CI falla), como los demás `*-postgres.test.ts`.
  */
@@ -152,6 +157,88 @@ test("CH-040 · la recepción no da de baja saldos (agenda:forgive es de la due�
   const r = await ejecutarAccion({ negocio: s.base.a, usuario: s.base.a.recepcion }, () => condonarSaldoTurno(fd));
   assert.deepEqual(r.tipo === "respuesta" && r.valor, { ok: false, error: "Dar de baja un saldo lo decide la dueña. Pasale el turno a ella." });
   assert.deepEqual(await foto(s, id), { status: "COMPLETED", tenantId: s.base.a.id, cobros: [] }, "el saldo sigue ahí");
+});
+
+function fd(campos: Record<string, string>): FormData {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(campos)) f.set(k, v);
+  return f;
+}
+
+async function comoRecepcion<R>(s: Sembrado, fn: () => Promise<R>, quien: "recepcion" | "duenia" = "recepcion"): Promise<R> {
+  const r = await ejecutarAccion({ negocio: s.base.a, usuario: s.base.a[quien] }, fn);
+  assert.equal(r.tipo, "respuesta", `la acción no respondió (¿tiró crudo?): ${JSON.stringify(r)}`);
+  if (r.tipo !== "respuesta") throw new Error("sin respuesta");
+  return r.valor;
+}
+
+const YA_NO_EXISTE = { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
+
+test("cert O-1 · cobrar, anular y dar de baja con el id de otro negocio: «ya no existe», sin error crudo ni cambios", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { registrarCobroTurno, anularCobroTurno, condonarSaldoTurno } = await import("@/lib/actions");
+  const antes = await foto(s, s.tOtro);
+  assert.deepEqual(
+    await comoRecepcion(s, () => registrarCobroTurno(fd({ appointmentId: s.tOtro, amount: "5000", method: "EFECTIVO", idempotencyKey: `o1-${s.tOtro}` }))),
+    YA_NO_EXISTE,
+  );
+  assert.deepEqual(
+    await comoRecepcion(s, () => anularCobroTurno(fd({ appointmentId: s.tOtro, collectionId: "cualquiera", motivo: "prueba cruzada" }))),
+    YA_NO_EXISTE,
+  );
+  assert.deepEqual(await comoRecepcion(s, () => condonarSaldoTurno(fd({ appointmentId: s.tOtro, motivo: "prueba cruzada" })), "duenia"), YA_NO_EXISTE);
+  assert.deepEqual(await foto(s, s.tOtro), antes, "T-OTRO no cambia");
+});
+
+test("cert O-2 · cancelAppointment forjado sobre un turno con seña se rechaza y no cambia nada; sin seña cancela", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { registrarCobroTurno, cancelAppointment } = await import("@/lib/actions");
+  const conSena = await s.turnoA("Paula");
+  assert.deepEqual(
+    await comoRecepcion(s, () => registrarCobroTurno(fd({ appointmentId: conSena, amount: "5000", method: "TRANSFERENCIA", idempotencyKey: `o2-${conSena}` }))),
+    { ok: true },
+  );
+  const r = await comoRecepcion(s, () => cancelAppointment(fd({ appointmentId: conSena, quien: "clienta" })));
+  assert.deepEqual(r, { ok: false, error: "Este turno tiene seña: cancelalo desde la hoja que pregunta qué pasa con la plata." });
+  assert.deepEqual(
+    await foto(s, conSena),
+    { status: "PENDING", tenantId: s.base.a.id, cobros: [{ amount: 5000, method: "TRANSFERENCIA" }] },
+    "el turno sigue Reservado y la seña donde estaba",
+  );
+  const duenio = await prismaComoDuenio(s.base);
+  assert.equal(await duenio.auditLog.count({ where: { entityId: conSena, action: "cancel" } }), 0, "no se audita una cancelación que no pasó");
+
+  const sinSena = await s.turnoA("Quimey");
+  assert.deepEqual(await comoRecepcion(s, () => cancelAppointment(fd({ appointmentId: sinSena }))), { ok: true });
+  assert.equal((await foto(s, sinSena)).status, "CANCELLED");
+  // El id de otro negocio: «ya no existe», y T-OTRO sigue Reservado.
+  assert.deepEqual(await comoRecepcion(s, () => cancelAppointment(fd({ appointmentId: s.tOtro }))), YA_NO_EXISTE);
+  assert.equal((await foto(s, s.tOtro)).status, "PENDING");
+});
+
+test("cert O-3 · el segundo envío de un cierre dice «Ese turno ya está cerrado.» y no cobra dos veces", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { completeAppointment } = await import("@/lib/actions");
+  const id = await s.turnoA("Rocío");
+  const campos = { appointmentId: id, vino: "on", method: "MERCADOPAGO" };
+  assert.deepEqual(await comoRecepcion(s, () => completeAppointment(fd(campos))), { ok: true });
+  assert.deepEqual(await comoRecepcion(s, () => completeAppointment(fd(campos))), { ok: false, error: "Ese turno ya está cerrado." });
+  assert.deepEqual(await foto(s, id), { status: "COMPLETED", tenantId: s.base.a.id, cobros: [{ amount: 14000, method: "MERCADOPAGO" }] });
+});
+
+test("cert O-4 · el chip de la agenda cuenta exactamente los que trae la bandeja (ni T-OTRO ni cerrados)", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  await s.turnoA("Sol");
+  const { turnosSinCerrar, contarSinCerrarDeQuienMira } = await import("./sin-cerrar.server");
+  const bandeja = await comoRecepcion(s, () => turnosSinCerrar());
+  const cuenta = await comoRecepcion(s, () => contarSinCerrarDeQuienMira());
+  assert.ok(bandeja.turnos.length > 0);
+  assert.equal(cuenta, bandeja.turnos.length);
+  assert.ok(!bandeja.turnos.some((x) => x.id === s.tOtro));
 });
 
 // Va ÚLTIMO: cierra la caja de hoy del negocio A.

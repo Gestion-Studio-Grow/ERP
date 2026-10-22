@@ -3,7 +3,9 @@
 // AGENDA PRÁCTICA (T10 + E3): «Cancelar turno» y «No se presentó» con la consecuencia escrita y,
 // si la clienta ya pagó algo, la pregunta de qué pasa con esa plata. Un clic suelto ya no cancela:
 // primero se lee qué va a pasar. La decisión la aplica `cerrarTurnoSinPrestar` (actions.ts) en una
-// sola transacción. Sólo se usa con el interruptor «agenda-practica» prendido.
+// sola transacción. Es el camino de siempre de la tarjeta vieja (`AppointmentRow`), con o sin el
+// interruptor «agenda-practica»: desde la reingeniería CH (Tanda 1, 1-D) cancelar y «no vino» pasan
+// siempre por acá; el interruptor ya no decide si existe esta hoja.
 
 import { useEffect, useRef, useState } from "react";
 import { cerrarTurnoSinPrestar } from "@/lib/actions";

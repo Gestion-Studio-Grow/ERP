@@ -23,6 +23,7 @@ import { isColumnMissing } from "@/lib/prisma-errors";
 import { dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
+import { contarTurnosSinCerrar } from "@/apps/kpis/turnos-sin-cerrar.server";
 import { cobrosDetalladosPorTurno } from "./anulacion";
 import { puedeCobrarEsteTurno } from "./cobro-mostrador";
 import { permisosDeRol, turnoSinCerrar, type BandejaSinCerrar, type FilaDeTurno } from "./cierre-lote";
@@ -106,6 +107,28 @@ export async function leerFilasDeTurnos(tenantId: string, filtro: Filtro): Promi
 }
 
 /**
+ * De quién son los pasados sin cerrar que ve este usuario: una PROFESIONAL, sólo los suyos
+ * (fail-closed sin `professionalId`: un id que no existe no trae nada); el resto, todo el negocio.
+ */
+function soloDeQuienMira(user: { role: string; professionalId?: string | null }): string | null {
+  return user.role === "PROFESSIONAL" ? user.professionalId ?? "__no_professional__" : null;
+}
+
+/**
+ * CUÁNTOS pasados sin cerrar ve quien mira: el chip «Sin cerrar N» de la agenda del día. El mismo
+ * criterio y los mismos permisos que la bandeja (`turnosSinCerrar`: `agenda:read`, la profesional
+ * sólo los suyos, el negocio en el `where`), pero UN `count` en vez del loader entero (5 relaciones
+ * + cobros, hasta 301 filas) para pintar un número (cert CH Tanda 1, O-4). Sin tope: es el número
+ * exacto, no «300+».
+ */
+export async function contarSinCerrarDeQuienMira(): Promise<number> {
+  const user = await requireCapability("agenda:read");
+  if (isDemoSandbox()) return 0;
+  const tenantId = await getCurrentTenantId();
+  return contarTurnosSinCerrar(prisma, tenantId, new Date(), soloDeQuienMira(user));
+}
+
+/**
  * La bandeja «Cerrar lo pendiente»: los turnos pasados sin cerrar de este negocio, del más reciente
  * al más viejo, cada uno con su veredicto de cobro; más los permisos de quien mira y si la caja de
  * hoy ya está cerrada. Una PROFESIONAL ve sólo los suyos (fail-closed sin `professionalId`).
@@ -116,7 +139,7 @@ export async function turnosSinCerrar(): Promise<BandejaSinCerrar> {
   if (isDemoSandbox()) return { turnos: [], permisos, hayMas: false, cajaDeHoyCerrada: false };
 
   const tenantId = await getCurrentTenantId();
-  const soloDe = user.role === "PROFESSIONAL" ? user.professionalId ?? "__no_professional__" : null;
+  const soloDe = soloDeQuienMira(user);
   const [filas, cerradoHasta] = await Promise.all([
     leerFilasDeTurnos(tenantId, { sinCerrarAntesDe: new Date(), professionalId: soloDe, tope: TOPE_DE_LA_BANDEJA + 1 }),
     lastClosedDay(tenantId),

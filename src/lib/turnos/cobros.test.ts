@@ -211,11 +211,21 @@ test("el turno del martes NO se puede completar el domingo (lo que el QA pudo ha
   assert.deepEqual(r, { ok: false, motivo: "no-ocurrio" });
 });
 
-test("sólo un turno CONFIRMED se completa (reservado, cancelado, completado, no-show: no)", () => {
-  for (const status of ["PENDING", "CANCELLED", "COMPLETED", "NO_SHOW"]) {
+test("sólo un turno CONFIRMED se completa (reservado, cancelado, no-show: no confirmado)", () => {
+  for (const status of ["PENDING", "CANCELLED", "NO_SHOW"]) {
     const r = puedeCompletarse({ status, startsAt: new Date(0), ahora: new Date() });
-    assert.deepEqual(r, { ok: false, motivo: "no-confirmado" });
+    assert.deepEqual(r, { ok: false, motivo: "no-confirmado" }, status);
   }
+});
+
+test("un turno ya COMPLETED dice «ya-cerrado», no «no-confirmado» (cert O-3, doble envío)", () => {
+  for (const vino of [undefined, false, true]) {
+    const r = puedeCompletarse({ status: "COMPLETED", startsAt: new Date(0), ahora: new Date(), vino });
+    assert.deepEqual(r, { ok: false, motivo: "ya-cerrado" }, `vino=${vino}`);
+  }
+  // Cerrado es cerrado aunque la hora todavía no haya llegado (no se lo manda a «no ocurrió»).
+  const futuro = puedeCompletarse({ status: "COMPLETED", startsAt: new Date("2026-10-23T13:00:00Z"), ahora: new Date("2026-10-22T10:00:00Z") });
+  assert.deepEqual(futuro, { ok: false, motivo: "ya-cerrado" });
 });
 
 // ── «Vino» desde un Reservado (reingeniería CH, Tanda 1 · CH-002, CH-046) ────
@@ -248,10 +258,12 @@ test("sin «vino» (o con vino=false), un Reservado pasado sigue rechazado: la r
 });
 
 test("«vino» no resucita lo cerrado: cancelado, completado o no-show siguen rechazados", () => {
-  for (const status of ["CANCELLED", "COMPLETED", "NO_SHOW"]) {
+  for (const status of ["CANCELLED", "NO_SHOW"]) {
     const r = puedeCompletarse({ status, startsAt: new Date(0), ahora: new Date(), vino: true });
     assert.deepEqual(r, { ok: false, motivo: "no-confirmado" }, status);
   }
+  const completado = puedeCompletarse({ status: "COMPLETED", startsAt: new Date(0), ahora: new Date(), vino: true });
+  assert.deepEqual(completado, { ok: false, motivo: "ya-cerrado" });
 });
 
 test("«vino» sobre un Confirmado pasado no cambia nada: se completa igual", () => {
