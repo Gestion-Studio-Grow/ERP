@@ -5,6 +5,8 @@
 import { PageHeader, Badge } from "@/components/ui";
 import { getFacturacion } from "@/lib/facturacion-actions";
 import { estadoFacturitaAction } from "@/lib/facturita-actions";
+import Link from "next/link";
+import { ESTADO_PRECIOS, PLAN_SALTO, precioConPeriodo } from "@/lib/facturita-planes";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +59,12 @@ export default async function FacturitaCuentaPage() {
           solas. Es el mismo espacio, con más músculo — no perdés nada de lo que ya emitiste.
         </p>
         <p className="mt-2 text-sm text-muted">
-          Escribinos y lo activamos en el día.
+          {PLAN_SALTO.nombre} arranca en{" "}
+          <strong className="font-semibold tabular-nums text-strong">{precioConPeriodo(PLAN_SALTO.precioMensual)}</strong>{" "}
+          ({ESTADO_PRECIOS.toLowerCase()}). Escribinos y lo activamos en el día.{" "}
+          <Link href="/facturita/planes" className="font-semibold text-strong underline underline-offset-4">
+            Ver los planes
+          </Link>
         </p>
       </section>
     </>
