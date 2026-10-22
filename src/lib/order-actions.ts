@@ -77,6 +77,9 @@ import { fmtMoneyARS } from "@/components/ui/format";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
+import { productosQuePuedenFaltarAFuturo } from "@/lib/pedidos/interpretar-whatsapp";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { round2 } from "@/lib/round";
 import { buscarFichaPorTelefono } from "@/lib/clientes/ficha-por-telefono";
@@ -371,13 +374,27 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // un pedido ONLINE devuelve la lista vacía y bloquea como siempre. `insertOrder` recibe el
   // dato ya decidido: no lo infiere, así que la vidriera y la ingesta externa no lo heredan.
   const items = parseItems(formData);
-  const permitirNegativoPorProducto = productosQuePuedenQuedarNegativos(
-    await prisma.product.findMany({
-      where: { tenantId, id: { in: items.map((l) => l.productId).filter(Boolean) } },
-      select: { id: true, saleUnit: true },
-    }),
-    channel,
-  );
+  const productosDelAlta = await prisma.product.findMany({
+    where: { tenantId, id: { in: items.map((l) => l.productId).filter(Boolean) } },
+    select: { id: true, saleUnit: true },
+  });
+  const permitirNegativoPorProducto = productosQuePuedenQuedarNegativos(productosDelAlta, channel);
+  // MAGRA T2 · 2B (E08): un pedido para OTRO DÍA de un corte por kilo, con el mostrador boutique
+  // prendido en este negocio, AVISA el faltante en vez de bloquear (el viernes se envasa lo del
+  // sábado). Decisión del dueño, provisional a confirmar (`FALTANTE_A_FUTURO_AVISA`). Lo decide
+  // el servidor: la unidad sale de la base, el día del horario leído en la zona del negocio y el
+  // interruptor de la consola; del formulario no se toma ningún permiso.
+  if (channel === "ONLINE" && scheduledRaw) {
+    const horario = horarioDelFormulario(scheduledRaw);
+    permitirNegativoPorProducto.push(
+      ...productosQuePuedenFaltarAFuturo(productosDelAlta, {
+        channel,
+        dia: horario ? dateStrInBusinessTz(horario) : null,
+        hoy: dateStrInBusinessTz(new Date()),
+        prendido: mostradorBoutiquePrendido(await interruptoresDelNegocio()),
+      }),
+    );
+  }
 
   // EL ENVÍO DEL MOSTRADOR (Magra, MG-031; cierra el cable de 1B). Con entrega a domicilio y un
   // negocio con zonas de Envíos, la zona que eligió quien vende (`envioZona`) se valida acá contra

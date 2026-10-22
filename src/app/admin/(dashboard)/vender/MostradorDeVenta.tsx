@@ -19,6 +19,7 @@ import { UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, vigenteEn } from "@/lib/fiscal/
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { motivoSinFactura, textoDelReceptor } from "./factura-del-mostrador";
 import VenderForm from "./VenderForm";
+import PedidoDesdeWhatsApp from "./PedidoDesdeWhatsApp";
 import { cargarBoutique, cargarEnvios, cargarVender } from "./datos";
 import { puedeAbrirApp } from "./puede-abrir";
 import { balanzaDeVender } from "./balanza.server";
@@ -94,6 +95,10 @@ export default async function MostradorDeVenta({
     sinFactura: motivoSinFactura({ puedeFacturar, rolFactura, conDocumento: boutique }),
   };
   // Boutique: teclas del catálogo aunque no haya ventas (las vendidas primero), hasta 24.
+  // MAGRA T2 · 2B: «Nuevo pedido de WhatsApp» (pegar el chat → propuesta → confirmar renglón por
+  // renglón → `createOrder`). Sólo con el mostrador boutique y para quien puede tomar pedidos (la
+  // misma capability que exige `createOrder`). Apagado, Vender queda igual que siempre.
+  const pedidoDeWhatsApp = boutique && identidad.isRetail && roleHasCapability(user.role, "orders:manage");
   const teclas = teclasDelMostrador(
     datos.rapidos,
     datos.products.map((p) => p.id),
@@ -115,6 +120,16 @@ export default async function MostradorDeVenta({
             </ButtonLink>
           )}
         </div>
+      )}
+      {pedidoDeWhatsApp && (
+        <PedidoDesdeWhatsApp
+          productos={datos.products.map(({ id, name, saleUnit, price, pricePerKg }) => ({ id, name, saleUnit, price, pricePerKg }))}
+          stockById={stockSnap.stockById}
+          hoy={hoy}
+          negocio={datos.negocio}
+          envios={extras?.envios ?? null}
+          boutique={boutique}
+        />
       )}
       <VenderForm
         products={productos}
