@@ -4,7 +4,7 @@ Cosas que la célula de Facturita **no tocó** porque son de Plataforma (proxy, 
 fábrica de tenants). Cada pedido dice qué, por qué y cómo se verifica. Fecha: 2026-10-22.
 Rama de origen: `claude/facturacion-automatica-facturita`.
 
-## P-1 · Ruteo host → producto para `facturita-gsg.vercel.app` (ADR-076 §2, ADR-029)
+## P-1 · Ruteo host → producto para `facturita-gsg.vercel.app` (ADR-076 §2, ADR-029) — ⏸ PENDIENTE: depende del `TENANT_HOST_MAP` vivo en Vercel (hoy mapea el host al tenant `facturita`, runbook golive-suite §7); cambiar la raíz del host cambia producción → decide el dueño
 
 - **Qué:** que la raíz `/` del host `facturita-gsg.vercel.app` sirva la vidriera `/facturita`
   (rewrite en `src/proxy.ts`, o redirect 308 a `/facturita`), y que el host quede en
@@ -18,7 +18,7 @@ Rama de origen: `claude/facturacion-automatica-facturita`.
   `public/facturita/sw.js` (un solo lugar cada uno).
 - **Se verifica:** `curl -I https://facturita-gsg.vercel.app/` → 200 con la vidriera o 308 a `/facturita`.
 
-## P-2 · `/facturita/app` no pasa por el portón de sesión del proxy
+## P-2 · `/facturita/app` no pasa por el portón de sesión del proxy — ✅ HECHO (orquestador, `src/proxy.ts` + `src/app/facturita/guard.test.ts`)
 
 - **Qué:** sumar `/facturita/app` (y lo de abajo) a `esSuperficieDeTenant` en `src/proxy.ts`,
   como `/admin` y `/contador`.
@@ -31,7 +31,7 @@ Rama de origen: `claude/facturacion-automatica-facturita`.
 - **Se verifica:** sin cookie, `GET /facturita/app` → 307 a `/admin/login?next=/facturita/app`;
   `GET /facturita/manifest.webmanifest` → 200 JSON.
 
-## P-3 · Encabezados del service worker (opcional, recomendado)
+## P-3 · Encabezados del service worker (opcional, recomendado) — ✅ HECHO (`next.config.ts` → `headers()`)
 
 - **Qué:** en `next.config.*` → `headers()`, para `/facturita/sw.js`:
   `Cache-Control: no-cache, no-store, must-revalidate` y

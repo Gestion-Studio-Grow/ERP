@@ -98,7 +98,12 @@ export async function proxy(request: NextRequest) {
     pathname === "/admin" ||
     pathname.startsWith("/admin/") ||
     pathname === "/contador" ||
-    pathname.startsWith("/contador/");
+    pathname.startsWith("/contador/") ||
+    // La app de Facturita (Emitir / Mis facturas / Mi cuenta) es superficie de tenant. Sólo
+    // `/facturita/app`: la vidriera, el alta, los planes, el manifiesto y el service worker
+    // siguen públicos (el navegador baja manifiesto y SW sin cookies).
+    pathname === "/facturita/app" ||
+    pathname.startsWith("/facturita/app/");
   if (!esSuperficieDeTenant) return pass();
 
   // Portón grueso (ADR-017 §2.e): solo verifica que la cookie tenga una firma

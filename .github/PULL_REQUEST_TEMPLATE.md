@@ -1,37 +1,31 @@
 <!--
-Gate de Excelencia — OBLIGATORIO, no salteable (ver docs/METODOLOGIA-SPRINT.md → "GATE DE EXCELENCIA").
-Ningún cambio se integra a main sin tildar los tres bloques. Ítem que no aplica: marcar N/A + por qué.
-Fundamento transversal: filosofía SAP/Fiori (rol-based · coherente · simple · adaptable · delightful · calidad enterprise).
+Gate de Excelencia — OBLIGATORIO, no salteable (CLAUDE.md → "Gate de Excelencia" · docs/METODOLOGIA-SPRINT.md).
+Ningún cambio se integra a main sin tildar los CUATRO bloques. Ítem que no aplica: marcarlo y escribir "N/A + por qué".
+El job `release / gate-pr` rechaza el PR si falta un bloque o queda una casilla sin tildar (docs/release/CHECKLIST-RELEASE.md §2).
 -->
 
 ## Qué cambia y por qué
 
 
+## Cómo se verificó
+<!-- tsc / tests / build / capturas / recorrido clic por clic -->
+
 ## Core/frente y sector
-<!-- ej. Pagos / ERP · Consultores / Agencia -->
+<!-- ej. Facturación / ERP · Facturita / Agencia Digital -->
 
 ---
 
-## 🛡️ Gate de Excelencia (obligatorio — no se integra sin los 3 bloques)
-
-### 1. Excelencia UX (SAP/Fiori)
-- [ ] **Rol-based** — cada rol ve lo suyo (OWNER/RECEPTION/PROFESSIONAL).
-- [ ] **Coherente** — usa design system/tokens y patrones existentes; no reinventa UI.
-- [ ] **Simple** — camino feliz obvio, menos pasos.
-- [ ] **Adaptable** — responsive + branding por tenant; sin fork.
-- [ ] **Delightful + enterprise** — estados de carga/vacío/error cuidados.
-
-### 2. Excelencia Arquitectura
-- [ ] **Capas / límites de dominio** respetados (el cambio vive en su core).
-- [ ] **Testabilidad** — lógica pura separable y testeada.
-- [ ] **Escalabilidad multi-tenant** — query con predicado `tenantId` / `tenantTransaction`.
-- [ ] **Seguridad / RLS** — no rompe aislamiento; nada evade RLS; secretos fuera del repo.
-- [ ] **Deuda técnica** — no suma deuda silenciosa (lo que quede, anotado en ADR/`PROXIMOS-PASOS.md`).
-
-### 3. Confiabilidad de Producción
-- [ ] **Verde** — `tsc --noEmit` + `npm run build` + `npm test` pasan.
-- [ ] **Aislamiento** — un tenant no ve datos de otro (donde aplique).
-- [ ] **Manejo de errores** — fallas controladas, sin tumbar el flujo.
-- [ ] **No rompe prod** — cambios de schema = migración SIN aplicar (Gate 2); nada irreversible se corre solo.
+## 🛡️ Gate de Excelencia
+### 1. Auditoría SAP Fiori + ángulo argentino
+- [ ] Rol-based · coherente · simple · adaptable (responsive + marca del negocio) · delightful/enterprise
+- [ ] Accesibilidad (labels reales, ARIA, role="alert", teclado, contraste AA)
+- [ ] Consistencia (no duplica patrones existentes)
+- [ ] 🇦🇷 Criollo claro · fiscal ARCA · Mercado Pago/transferencia · WhatsApp-first · simple para la pyme
+### 2. Sello de marca GSG
+- [ ] App: metadata.generator="Gestión Studio Grow" (+ crédito en el footer del backoffice) · doc: «— Elaborado por GSG» · commit: trailer
+### 3. Excelencia Arquitectura
+- [ ] Capas y límites de dominio · testeable · multi-tenant (tenantId / tenantTransaction) · RLS no evadido · deuda anotada
+### 4. Confiabilidad de Producción
+- [ ] tsc + build + test verdes · aislamiento por negocio · manejo de errores · no rompe prod (schema = migración SIN aplicar)
 
 > Ítems N/A: listar cuáles y por qué.
