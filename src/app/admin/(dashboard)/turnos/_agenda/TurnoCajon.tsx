@@ -11,16 +11,16 @@
 //
 // PC: cajón de 480 px a la derecha, con la agenda a la vista. Celular: sube como hoja.
 // Cada acción es la de siempre, con los mismos campos y las mismas guardias (campos.ts). Lo que
-// mueve plata hacia atrás pide motivo, en dos pasos, como la fila de siempre.
+// mueve plata hacia atrás pide motivo, en dos pasos, como la fila de siempre. Cancelar y «no vino»
+// no salen de acá con un toque: abren la hoja `CancelarONoVino` (quién cancela, la seña, la
+// consecuencia). «Dar de baja el saldo» es sólo de quien puede perdonar plata (la dueña, D5).
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
   anularCobroTurno,
-  cancelAppointment,
   condonarSaldoTurno,
   confirmarTurno,
-  markNoShow,
   type ResultadoAccion,
 } from "@/lib/actions";
 import { Cajon } from "@/components/ui/Cajon";
@@ -36,10 +36,12 @@ import {
 import { useToast } from "../../ToastProvider";
 import RescheduleForm from "../RescheduleForm";
 import {
+  cierraElTurno,
   marcaDelTurno,
   minutosEntre,
   pasoDelTurno,
   yaEmpezo,
+  type CierreSinPrestar,
   type Permisos,
   type TurnoDelDia,
 } from "../agenda-core";
@@ -48,6 +50,7 @@ import {
   camposDeAnular,
   camposDeCondonar,
   camposDelTurno,
+  leerResultado,
 } from "./campos";
 import CobrarTurno from "./CobrarTurno";
 import TerminarTurno from "./TerminarTurno";
@@ -148,7 +151,7 @@ function ConMotivo({
   );
 }
 
-/** Una acción de un solo toque que no devuelve resultado (confirmar, no vino, cancelar). */
+/** Una acción de un solo toque (confirmar): el motivo del servidor, si lo rechaza, se muestra. */
 function useAccionSimple() {
   const { showError, showSuccess } = useToast();
   const [pendiente, empezar] = useTransition();
@@ -160,10 +163,9 @@ function useAccionSimple() {
   ) =>
     empezar(async () => {
       try {
-        const r = await accion(aFormData(camposDelTurno(turnoId)));
-        // markNoShow devuelve el motivo ({ ok: false, error }); confirmar y cancelar no devuelven nada.
-        if (r && typeof r === "object" && "ok" in r && r.ok === false && "error" in r) {
-          showError(String(r.error));
+        const r = leerResultado(await accion(aFormData(camposDelTurno(turnoId))));
+        if (!r.ok) {
+          showError(r.error);
           return;
         }
         showSuccess(ok);
@@ -185,6 +187,7 @@ export default function TurnoCajon({
   ahora,
   hrefFicha,
   onCerrar,
+  onCerrarSinPrestar,
 }: {
   turno: TurnoDelDia | null;
   permisos: Permisos;
@@ -193,10 +196,11 @@ export default function TurnoCajon({
   /** La ficha de la clienta, si quien mira puede abrir Clientes. */
   hrefFicha: ((clienteId: string) => string) | null;
   onCerrar: () => void;
+  /** Abre la hoja de cancelar / «no vino» (la tiene la mesa). */
+  onCerrarSinPrestar: (accion: CierreSinPrestar) => void;
 }) {
   const reloj = new Date(ahora);
   const { pendiente, correr } = useAccionSimple();
-  const [cancelando, setCancelando] = useState(false);
   const t = turno;
   if (!t) return null;
 
@@ -210,17 +214,22 @@ export default function TurnoCajon({
       (c) => c.id,
     ),
   );
+  // «No vino» sólo desde la hora del turno (la misma regla que `markNoShow`: CH-014), también
+  // para un Reservado al que nadie confirmó.
+  const noVino = vivo && yaEmpezo(t, reloj) && permisos.terminar;
+  const cancela = permisos.gestionar && vivo;
+  const perdona = permisos.perdonar && t.cuentaACobrar;
+  const hayOtras = cancela || perdona || noVino;
+  // La tecla que cierra el turno (terminar, o el «vino» de un Reservado pasado) ya cobra el saldo.
+  const cierra = cierraElTurno(paso);
   // Cobrar (un parcial, la seña, el saldo) cuando falta plata y el turno lo acepta, y no es ya la
-  // tecla de «Terminar» (que cobra el saldo al terminar).
-  const noVino =
-    t.estado === "CONFIRMED" && yaEmpezo(t, reloj) && permisos.terminar;
-  const hayOtras = (permisos.gestionar && (vivo || t.cuentaACobrar)) || noVino;
+  // tecla que cierra el turno.
   const ofreceCobro =
     cobraEste &&
     t.saldo > 0 &&
     t.estado !== "NO_SHOW" &&
     t.estado !== "CANCELLED" &&
-    paso.tipo !== "terminar";
+    !cierra;
 
   return (
     <Cajon
@@ -319,12 +328,13 @@ export default function TurnoCajon({
           </Seccion>
         )}
 
-        {paso.tipo === "terminar" && (
-          <Seccion titulo="Terminar">
+        {cierra && (
+          <Seccion titulo={t.estado === "PENDING" ? "Vino" : "Terminar"}>
             <div className="pt-3">
               <TerminarTurno
                 turnoId={t.id}
                 clienta={t.clienta}
+                estado={t.estado}
                 saldo={t.saldo}
                 puedeCobrar={cobraEste}
                 motivoSinCobro={t.veredicto.ok ? undefined : t.veredicto.motivo}
@@ -349,7 +359,7 @@ export default function TurnoCajon({
           </Seccion>
         )}
 
-        {!t.veredicto.ok && t.saldo > 0 && paso.tipo !== "terminar" && (
+        {!t.veredicto.ok && t.saldo > 0 && !cierra && (
           <p className="text-sm text-muted">
             {t.veredicto.motivo} Quedan <Plata valor={t.saldo} /> a cobrar.
           </p>
@@ -465,7 +475,7 @@ export default function TurnoCajon({
         {hayOtras && (
           <Seccion titulo="Otras acciones">
             <div className="flex flex-col items-start gap-3 pt-3">
-              {permisos.gestionar && vivo && (
+              {cancela && (
                 <RescheduleForm
                   appointmentId={t.id}
                   serviceId={t.servicioId}
@@ -477,20 +487,13 @@ export default function TurnoCajon({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={pendiente}
-                  onClick={() =>
-                    correr(
-                      markNoShow,
-                      t.id,
-                      `Marcado: ${t.clienta} no vino.`,
-                      onCerrar,
-                    )
-                  }
+                  aria-haspopup="dialog"
+                  onClick={() => onCerrarSinPrestar("no-vino")}
                 >
                   No vino
                 </Button>
               )}
-              {permisos.gestionar && t.cuentaACobrar && (
+              {perdona && (
                 <ConMotivo
                   etiqueta="Dar de baja el saldo"
                   pregunta="¿Dar de baja lo que falta? No mueve la caja: sólo deja de figurar como deuda."
@@ -504,54 +507,17 @@ export default function TurnoCajon({
                   }
                 />
               )}
-              {permisos.gestionar &&
-                vivo &&
-                (cancelando ? (
-                  <div
-                    role="group"
-                    aria-label="Cancelar el turno"
-                    className="w-full space-y-2 border-l-2 border-line-strong pl-3"
-                  >
-                    <p className="text-sm font-medium text-strong">
-                      ¿Cancelar el turno de {t.clienta}? El horario queda libre.
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="danger"
-                        size="sm"
-                        disabled={pendiente}
-                        onClick={() =>
-                          correr(
-                            cancelAppointment,
-                            t.id,
-                            `Cancelado: ${t.clienta}, ${fmtTime(t.inicio)}.`,
-                            onCerrar,
-                          )
-                        }
-                      >
-                        Sí, cancelar
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setCancelando(false)}
-                      >
-                        No
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setCancelando(true)}
-                  >
-                    Cancelar el turno
-                  </Button>
-                ))}
+              {cancela && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-haspopup="dialog"
+                  onClick={() => onCerrarSinPrestar("cancelar")}
+                >
+                  Cancelar el turno
+                </Button>
+              )}
             </div>
           </Seccion>
         )}

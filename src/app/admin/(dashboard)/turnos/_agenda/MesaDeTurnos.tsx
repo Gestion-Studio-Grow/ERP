@@ -6,8 +6,11 @@
 //
 // Lo comparten el libro del día (la agenda) y «Todos los turnos» (la lista): un turno se ve y se
 // opera igual en los dos lados. La mesa guarda qué turno está abierto (en la URL: `?turno=<id>`,
-// así Atrás lo cierra y un enlace lo abre) y qué hoja de cobro está arriba; los renglones piden
-// abrir el cajón o la hoja con `useMesa()`.
+// así Atrás lo cierra y un enlace lo abre), qué hoja de cobro está arriba y si está abierta la hoja
+// de cancelar / «no vino»; los renglones piden abrir el cajón o las hojas con `useMesa()`.
+//
+// Cobrar es 2 toques: la tecla del renglón («Cobrar $9.000») abre la hoja y el MEDIO ya cobra. Un
+// Reservado al que se le pasó la hora se cobra igual, sin «Confirmar» antes (viaja con `vino=on`).
 
 import { createContext, useContext, useRef, useState, useTransition } from "react";
 import Link from "next/link";
@@ -18,8 +21,22 @@ import { MenuMas } from "@/components/ui/MenuMas";
 import { dateStrInBusinessTz, fmtShortDate, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { useToast } from "../../ToastProvider";
-import { estaResuelto, fechaCorta, marcaDelTurno, minutosEntre, pasoDelTurno, pesos, verboDelPaso, type Paso, type Permisos, type TurnoDelDia } from "../agenda-core";
-import { aFormData, camposDelTurno, camposDeTerminar } from "./campos";
+import {
+  estaResuelto,
+  fechaCorta,
+  marcaDelTurno,
+  minutosEntre,
+  pasoDelTurno,
+  pesos,
+  verboDelPaso,
+  yaEmpezo,
+  type CierreSinPrestar,
+  type Paso,
+  type Permisos,
+  type TurnoDelDia,
+} from "../agenda-core";
+import { aFormData, camposDelTurno, camposDeTerminar, leerResultado } from "./campos";
+import CancelarONoVino, { type CierreAbierto } from "./CancelarONoVino";
 import CobrarTurno from "./CobrarTurno";
 import TerminarTurno from "./TerminarTurno";
 import TurnoCajon from "./TurnoCajon";
@@ -32,6 +49,8 @@ type Mesa = {
   fichaDe: ((clienteId: string) => string) | null;
   abrir: (id: string) => void;
   hoja: (h: NonNullable<HojaAbierta>) => void;
+  /** Abre la hoja de cancelar / «no vino» de un turno. */
+  cerrarSinPrestar: (turnoId: string, accion: CierreSinPrestar) => void;
   cambiarUrl: (cambios: Record<string, string | null>, modo?: "reemplazar" | "empujar") => void;
 };
 
@@ -63,6 +82,7 @@ export default function MesaDeTurnos({
   const idAbierto = params.get("turno");
   const abierto = idAbierto ? (turnos.find((t) => t.id === idAbierto) ?? null) : null;
   const [hoja, setHoja] = useState<HojaAbierta>(null);
+  const [cierre, setCierre] = useState<CierreAbierto | null>(null);
   const empujado = useRef(false);
 
   const cambiarUrl = (cambios: Record<string, string | null>, modo: "reemplazar" | "empujar" = "reemplazar") => {
@@ -82,19 +102,53 @@ export default function MesaDeTurnos({
   };
   const fichaDe = hrefFicha ? (id: string) => `${hrefFicha}${encodeURIComponent(id)}` : null;
   const turnoDeLaHoja = hoja ? turnos.find((t) => t.id === hoja.turnoId) : undefined;
+  const turnoDelCierre = cierre ? (turnos.find((t) => t.id === cierre.turnoId) ?? null) : null;
+  const cerrarSinPrestar = (turnoId: string, accion: CierreSinPrestar) => setCierre({ turnoId, accion });
+  const cobraLaHoja = !!turnoDeLaHoja && permisos.cobrar && turnoDeLaHoja.veredicto.ok;
 
   return (
-    <Contexto.Provider value={{ permisos, reloj, fichaDe, abrir, hoja: setHoja, cambiarUrl }}>
+    <Contexto.Provider value={{ permisos, reloj, fichaDe, abrir, hoja: setHoja, cerrarSinPrestar, cambiarUrl }}>
       {children}
 
-      <TurnoCajon turno={abierto} permisos={permisos} ahora={ahora} hrefFicha={fichaDe} onCerrar={cerrar} />
+      <TurnoCajon
+        turno={abierto}
+        permisos={permisos}
+        ahora={ahora}
+        hrefFicha={fichaDe}
+        onCerrar={cerrar}
+        onCerrarSinPrestar={(accion) => abierto && cerrarSinPrestar(abierto.id, accion)}
+      />
+
+      <CancelarONoVino
+        turno={turnoDelCierre}
+        accion={cierre?.accion ?? "cancelar"}
+        ahora={reloj}
+        puedeDevolver={!!turnoDelCierre && permisos.cobrar && turnoDelCierre.veredicto.ok}
+        onCerrar={() => setCierre(null)}
+        onListo={() => {
+          // Hecho: se cierra la hoja y, si el turno estaba abierto en el cajón, también el cajón.
+          const delCajon = !!abierto && abierto.id === cierre?.turnoId;
+          setCierre(null);
+          if (delCajon) cerrar();
+        }}
+      />
 
       <Hoja
         abierta={!!turnoDeLaHoja}
         onCerrar={() => setHoja(null)}
         titulo={
           turnoDeLaHoja
-            ? `${hoja?.que === "terminar" ? "Terminar" : turnoDeLaHoja.sugerido.tipo === "senia" ? "Cobrar la seña" : "Cobrar"} · ${turnoDeLaHoja.clienta}`
+            ? `${
+                hoja?.que === "terminar"
+                  ? turnoDeLaHoja.saldo > 0 && cobraLaHoja
+                    ? "Cobrar"
+                    : turnoDeLaHoja.estado === "PENDING"
+                      ? "Vino"
+                      : "Terminar"
+                  : turnoDeLaHoja.sugerido.tipo === "senia"
+                    ? "Cobrar la seña"
+                    : "Cobrar"
+              } · ${turnoDeLaHoja.clienta}`
             : ""
         }
         descripcion={turnoDeLaHoja ? `${fmtTime(turnoDeLaHoja.inicio)} · ${turnoDeLaHoja.servicio} · ${turnoDeLaHoja.profesional}` : undefined}
@@ -107,6 +161,7 @@ export default function MesaDeTurnos({
             sugerido={turnoDeLaHoja.sugerido}
             saldo={turnoDeLaHoja.saldo}
             onListo={() => setHoja(null)}
+            onQuedaDebiendo={turnoDeLaHoja.cuentaACobrar ? () => setHoja(null) : undefined}
           />
         )}
         {turnoDeLaHoja && hoja?.que === "terminar" && (
@@ -114,8 +169,9 @@ export default function MesaDeTurnos({
             key={turnoDeLaHoja.id}
             turnoId={turnoDeLaHoja.id}
             clienta={turnoDeLaHoja.clienta}
+            estado={turnoDeLaHoja.estado}
             saldo={turnoDeLaHoja.saldo}
-            puedeCobrar={permisos.cobrar && turnoDeLaHoja.veredicto.ok}
+            puedeCobrar={cobraLaHoja}
             motivoSinCobro={turnoDeLaHoja.veredicto.ok ? undefined : turnoDeLaHoja.veredicto.motivo}
             onListo={() => setHoja(null)}
           />
@@ -135,8 +191,8 @@ function TeclaDelTurno({ t, paso }: { t: TurnoDelDia; paso: Paso }) {
   const directo = (accion: (fd: FormData) => Promise<unknown>, fd: FormData, ok: string) =>
     empezar(async () => {
       try {
-        const r = (await accion(fd)) as { ok?: boolean; error?: string; aviso?: string } | undefined;
-        if (r && r.ok === false) showError(r.error ?? "No se pudo.");
+        const r = leerResultado(await accion(fd));
+        if (!r.ok) showError(r.error);
         else {
           showSuccess(ok);
           if (r?.aviso) showError(r.aviso);
@@ -172,7 +228,7 @@ function TeclaDelTurno({ t, paso }: { t: TurnoDelDia; paso: Paso }) {
             aria-label={etiqueta}
             disabled={pendiente}
             estado={pendiente ? "cargando" : undefined}
-            onClick={() => directo(completeAppointment, aFormData(camposDeTerminar({ turnoId: t.id, saldo: 0, cobro: null })), `Terminado: ${t.clienta}.`)}
+            onClick={() => directo(completeAppointment, aFormData(camposDeTerminar({ turnoId: t.id, saldo: 0, cobro: null, estado: t.estado })), `Terminado: ${t.clienta}.`)}
           >
             Terminar
           </Button>
@@ -183,17 +239,55 @@ function TeclaDelTurno({ t, paso }: { t: TurnoDelDia; paso: Paso }) {
           {paso.conCobro ? `Cobrar ${pesos(paso.saldo)}` : "Terminar"}
         </Button>
       );
+    case "vino":
+      // Saldado: un toque lo cierra (como «Terminar» sin saldo). Con saldo que cobra otra
+      // persona, la hoja dice por qué y ofrece sólo «Terminar y dejar el saldo».
+      if (paso.saldo <= 0) {
+        return (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label={`Vino: ${t.clienta}, ${fmtTime(t.inicio)}`}
+            disabled={pendiente}
+            estado={pendiente ? "cargando" : undefined}
+            onClick={() =>
+              directo(completeAppointment, aFormData(camposDeTerminar({ turnoId: t.id, saldo: 0, cobro: null, estado: t.estado })), `Vino: ${t.clienta}.`)
+            }
+          >
+            Vino ✓
+          </Button>
+        );
+      }
+      return (
+        <Button type="button" variant="outline" size="sm" aria-label={`Vino: ${t.clienta}, ${fmtTime(t.inicio)}`} onClick={() => hoja({ turnoId: t.id, que: "terminar" })}>
+          Vino ✓
+        </Button>
+      );
     case "cobrar":
+      if (paso.vino) {
+        // Reservado pasado: «Cobrar $X» abre la hoja de cierre; el medio cobra y lo cierra.
+        return (
+          <Button type="button" size="sm" aria-label={etiqueta} onClick={() => hoja({ turnoId: t.id, que: "terminar" })}>
+            Cobrar {pesos(paso.monto)}
+          </Button>
+        );
+      }
+      return (
+        <Button type="button" size="sm" aria-label={etiqueta} onClick={() => hoja({ turnoId: t.id, que: "cobrar" })}>
+          Cobrar {pesos(paso.monto)}
+        </Button>
+      );
     case "cobrar-senia":
       return (
         <Button
           type="button"
           size="sm"
-          variant={paso.tipo === "cobrar" ? "solid" : "outline"}
+          variant="outline"
           aria-label={etiqueta}
           onClick={() => hoja({ turnoId: t.id, que: "cobrar" })}
         >
-          {paso.tipo === "cobrar-senia" ? `Seña ${pesos(paso.monto)}` : `Cobrar ${pesos(paso.monto)}`}
+          Seña {pesos(paso.monto)}
         </Button>
       );
     default:
@@ -206,11 +300,16 @@ function TeclaDelTurno({ t, paso }: { t: TurnoDelDia; paso: Paso }) {
  * `conFecha` pone el día en el folio (la lista de todos los turnos mezcla días).
  */
 export function RenglonDelTurno({ t, conFecha = false }: { t: TurnoDelDia; conFecha?: boolean }) {
-  const { permisos, reloj, fichaDe, abrir } = useMesa();
+  const { permisos, reloj, fichaDe, abrir, cerrarSinPrestar } = useMesa();
   const paso = pasoDelTurno(t, permisos, reloj);
   const marca = marcaDelTurno(t, reloj);
   const resuelto = estaResuelto(t);
   const wa = waLinkClienta(t.telefono);
+  const vivo = t.estado === "PENDING" || t.estado === "CONFIRMED";
+  // «No vino» recién desde la hora del turno (CH-014); cancelar, quien gestiona la agenda. Los dos
+  // abren la hoja con la consecuencia: nunca un toque suelto.
+  const noVino = vivo && permisos.terminar && yaEmpezo(t, reloj);
+  const cancela = vivo && permisos.gestionar;
   return (
     <Renglon
       as="li"
@@ -266,6 +365,16 @@ export function RenglonDelTurno({ t, conFecha = false }: { t: TurnoDelDia; conFe
               </a>
             )}
             {fichaDe && t.clienteId && <Link href={fichaDe(t.clienteId)}>Ver su ficha</Link>}
+            {noVino && (
+              <button type="button" aria-haspopup="dialog" onClick={() => cerrarSinPrestar(t.id, "no-vino")}>
+                No vino
+              </button>
+            )}
+            {cancela && (
+              <button type="button" aria-haspopup="dialog" onClick={() => cerrarSinPrestar(t.id, "cancelar")}>
+                Cancelar el turno
+              </button>
+            )}
           </MenuMas>
         </>
       }
