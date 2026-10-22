@@ -26,7 +26,7 @@ import { cancha as canchaDe, hhmm, reserva as reservaDe } from "@/lib/club/motor
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import type { Almacen } from "./almacen";
-import { DURACIONES, ORIGENES_ALTA, ORIGEN_DE_FABRICA, TIPOS_ALTA, alternativas, clientesQueCoinciden, horariosDelDia, previaDelTurno, reservar, type DatosAlta, type OrigenAlta } from "./alta-core";
+import { DURACIONES, ORIGENES_ALTA, ORIGEN_DE_FABRICA, TIPOS_ALTA, alternativas, clientesQueCoinciden, horariosDelDia, previaDelTurno, previaFijoSemanal, reservar, type DatosAlta, type OrigenAlta } from "./alta-core";
 import { BotonWhatsApp, TextoWhatsApp } from "./WhatsAppDelClub";
 import { celularDelTurno, enlaceWhatsApp, fechaCorta, textoConfirmacion } from "./whatsapp-core";
 // La piel de Break Point («chapa», como el «Nuevo turno» del club de hoy); sin esa estética no pinta nada.
@@ -122,9 +122,11 @@ export default function AltaDeTurno({
   const [otros, setOtros] = useState("");
   const [tel, setTel] = useState("");
   const [origen, setOrigen] = useState<OrigenAlta>(ORIGEN_DE_FABRICA);
+  // «Fijo semanal» (Tanda 3C): sólo con «Turno»; la previa dice qué semanas entran antes de reservar.
+  const [fijo, setFijo] = useState(false);
   const [hecho, setHecho] = useState<Reservado | null>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
-  const ids = { titulo: useId(), cancha: useId(), hora: useId(), dur: useId(), tipo: useId(), titular: useId(), otros: useId(), previa: useId(), tel: useId(), origen: useId(), aviso: useId() };
+  const ids = { titulo: useId(), cancha: useId(), hora: useId(), dur: useId(), tipo: useId(), titular: useId(), otros: useId(), previa: useId(), tel: useId(), origen: useId(), aviso: useId(), fijo: useId(), fijoPrevia: useId() };
 
   useEffect(() => {
     titulo.current?.focus();
@@ -136,6 +138,8 @@ export default function AltaDeTurno({
   const entra = salida?.entra === true;
   const previa = hora === null || !entra ? null : previaDelTurno(estado, { canchaId, fecha, inicio: hora, duracion, tipo, clienteId, tel: clienteId ? "" : tel, titular }, ahora);
   const fichas = clienteId ? [] : clientesQueCoinciden(estado, titular);
+  const conFijo = fijo && tipo === "turno";
+  const semanas = conFijo && hora !== null && entra ? previaFijoSemanal(estado, { canchaId, fecha, inicio: hora, duracion }) : null;
 
   const anotarEnEspera = () => {
     if (!salida) return;
@@ -150,7 +154,7 @@ export default function AltaDeTurno({
     const salida: { listo: Reservado | null } = { listo: null };
     const d = almacen.ejecutar(
       (est, ahora) => {
-        const r = reservar(est, { canchaId, fecha, inicio: horaValida, duracion, tipo, titular, clienteId, otros, tel: clienteId ? "" : tel, origen }, ahora);
+        const r = reservar(est, { canchaId, fecha, inicio: horaValida, duracion, tipo, titular, clienteId, otros, tel: clienteId ? "" : tel, origen, ...(conFijo ? { fijo: true } : {}) }, ahora);
         const nueva = r.reservaId ? reservaDe(est, r.reservaId) : undefined;
         // El texto se arma en el momento, con el estado recién reservado (la seña y su código ya están).
         if (nueva) salida.listo = { reservaId: nueva.id, sub: `${nueva.titular} · ${canchaDe(est, nueva.canchaId)?.nombre ?? ""} ${hhmm(nueva.inicio)}`, texto: textoConfirmacion(est, nueva), celular: celularDelTurno(est, nueva) };
@@ -352,6 +356,25 @@ export default function AltaDeTurno({
             </label>
             <Input id={ids.otros} value={otros} autoComplete="off" onChange={(e) => setOtros(e.target.value)} />
           </div>
+          {tipo === "turno" && (
+            <div data-alta="fijo" className="flex flex-col gap-1">
+              <label htmlFor={ids.fijo} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium text-strong">
+                <input id={ids.fijo} type="checkbox" checked={fijo} onChange={(e) => setFijo(e.target.checked)} aria-describedby={semanas ? ids.fijoPrevia : undefined} className="size-5 accent-[var(--accent)]" />
+                Fijo semanal
+              </label>
+              {semanas && (
+                <p id={ids.fijoPrevia} role="status" data-alta="fijo-previa" className="text-sm text-body">
+                  <span className="sr-only">Las próximas semanas: </span>
+                  {semanas.map((s, i) => (
+                    <span key={s.fecha} data-entra={s.entra ? "si" : "no"} className={s.entra ? "" : "font-semibold text-strong"}>
+                      {i > 0 ? " · " : "→ "}
+                      {s.entra ? s.texto : `⚠ ${s.texto}`}
+                    </span>
+                  ))}
+                </p>
+              )}
+            </div>
+          )}
           <p id={ids.previa} role="status" data-alta="previa" className="text-sm font-medium text-strong">
             {hora === null ? "Elegí otra cancha o duración: no queda lugar." : !entra ? "Con esta cancha, hora y duración no entra: elegí una opción." : previa === null ? "" : previa.ok ? previa.texto : previa.motivo}
           </p>

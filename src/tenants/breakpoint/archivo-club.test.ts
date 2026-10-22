@@ -175,8 +175,12 @@ test("mes cargado: medida del tamaño antes y después (bytes del sobre v1)", ()
   console.log(`# tamaño del sobre v1, un mes lleno: ${antes} → ${d21} (archivando lo de más de 21 días; anexo ${bytes(conDefecto.anexo)}) → ${d7} (más de 7 días; anexo ${bytes(alMaximo.anexo)})`);
   assert.ok(d21 < antes * 0.75, "con 21 días se va al menos un cuarto del mes");
   assert.ok(d7 < antes * 0.35, "con 7 días queda menos de un tercio");
-  // El resumen que queda en el estado es chico: menos de 300 bytes por día archivado.
-  assert.ok(bytes(alMaximo.estado.archivo) < alMaximo.estado.archivo.dias.length * 300 + bytes(alMaximo.estado.archivo.clientes) + 2000);
+  // El resumen que queda en el estado es chico: menos de 300 bytes por día archivado, más el desglose por medio × rubro
+  // y por categoría de egreso que suma la Tanda 3 para «Números por período» (≈ 250 bytes por día: un año, ~200 KB).
+  const desglose = alMaximo.estado.archivo.dias.reduce((s: number, f: any) => s + bytes({ porMedioRubro: f.porMedioRubro, egresosPorCategoria: f.egresosPorCategoria }), 0);
+  console.log(`# resumen archivado: ${alMaximo.estado.archivo.dias.length} días, ${bytes(alMaximo.estado.archivo)} bytes (desglose ${desglose})`);
+  assert.ok(desglose < alMaximo.estado.archivo.dias.length * 300, "el desglose también es chico");
+  assert.ok(bytes(alMaximo.estado.archivo) - desglose < alMaximo.estado.archivo.dias.length * 300 + bytes(alMaximo.estado.archivo.clientes) + 2000);
 });
 
 test("no archiva la última semana ni un día que no es fecha", () => {

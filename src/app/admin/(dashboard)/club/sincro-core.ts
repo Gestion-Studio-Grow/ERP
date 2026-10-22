@@ -391,6 +391,8 @@ export function altaEquivalente(estado: EstadoClub, antes: { reservas: number; c
     tel: fichaNueva ? fichaNueva.tel : "",
     origen: r.origen as DatosAlta["origen"],
     conSena: r.sena.monto > 0,
+    // «Fijo semanal» (3C): el turno quedó como el primero de un fijo; re-aplicado, crea el mismo fijo y baja lo mismo.
+    ...(r.fijoId ? { fijo: true } : {}),
   };
   return { nombre: "alta", args: [datos] };
 }
@@ -466,6 +468,9 @@ export function prometeAlgo(nombre: string, args: unknown): boolean {
       return tipo(a[0]) === "asignar";
     case "fijo":
       return tipo(a[0]) === "nuevo" || tipo(a[0]) === "baja";
+    // Dar de baja, pausar o liberar un fijo (3C): libera huecos y puede devolver plata.
+    case "bajaDeFijo":
+      return true;
     case "canchas":
       return ["lluvia", "bloquear", "mantenimiento"].includes(tipo(a[0]));
     case "venta":

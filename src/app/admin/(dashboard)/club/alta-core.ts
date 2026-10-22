@@ -22,7 +22,7 @@
 // («A las 20:30 en Cancha 2 entran 30 min (Beto juega 21:00)»), «Reservar» queda apagado y `alternativas` ofrece
 // otra cancha a la misma hora, el siguiente hueco en esa cancha, una duración menor acá y anotarlo en espera.
 
-import { altaCliente, anotarEspera, buscarClientes, cancha as canchaDe, cliente as clienteDe, crearReserva, cuantoEntra, diaSemana, franjaDe, hhmm, horarioDe, huecosLibres, minutosHasta, montoSena, motivoSena, NOMBRE_DIA, pesos, precioTurno, sumarDias, validarHueco } from "@/lib/club/motor.mjs";
+import { altaCliente, anotarEspera, buscarClientes, cancha as canchaDe, cliente as clienteDe, crearFijo, crearReserva, cuantoEntra, diaSemana, fijoJuegaEl, franjaDe, hhmm, horarioDe, huecosLibres, materializarFijos, minutosHasta, montoSena, motivoSena, NOMBRE_DIA, pesos, precioTurno, sumarDias, validarHueco } from "@/lib/club/motor.mjs";
 import type { Ahora, Cliente, CorteDelHueco, EstadoClub, Fecha, TipoReserva } from "@/lib/club/motor.mjs";
 import { normalizarTelefono } from "@/lib/clientes/telefono";
 import type { Desenlace } from "./almacen";
@@ -62,6 +62,41 @@ export interface DatosAlta {
   tel?: string;
   /** «Llegó por» (vacío = «mostrador», el de fábrica del motor). */
   origen?: OrigenAlta;
+  /**
+   * «Fijo semanal» (Tanda 3C, Rec. 12): sólo con «Turno». El turno queda como el primero de un fijo de ese día y hora
+   * (`fijo.desde` = este día) y las próximas `SEMANAS_DEL_FIJO` fechas se bajan a la grilla en el acto (la que choca,
+   * no se pisa: lo dijo la previa, `previaFijoSemanal`).
+   */
+  fijo?: boolean;
+}
+
+/** Cuántas semanas siguientes se bajan a la grilla al dar un turno como «Fijo semanal» (y muestra la previa). */
+export const SEMANAS_DEL_FIJO = 4;
+
+export interface FechaDelFijo {
+  fecha: Fecha;
+  entra: boolean;
+  /** «30/10 ✔» o «6/11 · se pisa con Beto (20:00–21:30)». */
+  texto: string;
+}
+
+/**
+ * La previa del interruptor «Fijo semanal»: las próximas `SEMANAS_DEL_FIJO` fechas del mismo día, hora, cancha y
+ * duración, y si entran. Mira lo que hay en la grilla (`validarHueco`) Y los otros fijos que todavía no se bajaron
+ * (un fijo de otro que juega ese día a esa hora también choca). PURA: no toca el estado.
+ */
+export function previaFijoSemanal(estado: EstadoClub, d: Pick<DatosAlta, "canchaId" | "fecha" | "inicio" | "duracion">): FechaDelFijo[] {
+  const fin = d.inicio + d.duracion;
+  return Array.from({ length: SEMANAS_DEL_FIJO }, (_, i) => sumarDias(d.fecha, 7 * (i + 1))).map((fecha) => {
+    const dd = `${Number(fecha.slice(8))}/${Number(fecha.slice(5, 7))}`;
+    const v = validarHueco(estado, { canchaId: d.canchaId, fecha, inicio: d.inicio, duracion: d.duracion });
+    if (!v.ok) return { fecha, entra: false, texto: `${dd} · ${v.motivo.replace(/\.$/, "").replace(/^Se pisa/, "se pisa")}` };
+    const otro = estado.fijos.find(
+      (f) => f.canchaId === d.canchaId && fijoJuegaEl(f, fecha) && f.inicio < fin && d.inicio < f.inicio + f.duracion && !estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha),
+    );
+    if (otro) return { fecha, entra: false, texto: `${dd} · se pisa con el fijo de ${otro.titular} (${hhmm(otro.inicio)})` };
+    return { fecha, entra: true, texto: `${dd} ✔` };
+  });
 }
 
 /** Lo mínimo para que un teléfono sirva (área + número argentino: 10; se aceptan 8 para fijos del interior viejos). */
@@ -336,12 +371,27 @@ export function reservar(estado: EstadoClub, d: DatosAlta, ahora: Ahora): Desenl
     return { ok: false, mensaje: res.motivo };
   }
   const r = res.reserva;
+  // «Fijo semanal»: este turno es el primero del fijo (así no se baja dos veces) y las semanas siguientes van a la grilla.
+  let fijo = "";
+  if (d.fijo && d.tipo === "turno") {
+    const f = crearFijo(estado, { clienteId: clienteId ?? null, canchaId: d.canchaId, dia: diaSemana(d.fecha), inicio: d.inicio, duracion: d.duracion, titular: r.titular, desde: d.fecha });
+    r.fijoId = f.id;
+    const quedaron: string[] = [];
+    const chocaron: string[] = [];
+    for (let i = 1; i <= SEMANAS_DEL_FIJO; i++) {
+      const fecha = sumarDias(d.fecha, 7 * i);
+      const dd = `${Number(fecha.slice(8))}/${Number(fecha.slice(5, 7))}`;
+      const choque = materializarFijos(estado, fecha).find((c) => c.fijo.id === f.id);
+      (choque ? chocaron : quedaron).push(dd);
+    }
+    fijo = ` Fijo los ${NOMBRE_DIA[f.dia].toLowerCase()} a las ${hhmm(f.inicio)}${quedaron.length ? `: ${quedaron.join(", ")} en la grilla` : ""}${chocaron.length ? `; ${chocaron.join(", ")} no entró (está ocupado)` : ""}.`;
+  }
   const sena = r.sena.monto > 0 ? ` Pide seña de ${pesos(r.sena.monto)}${r.ref ? ` (código ${r.ref} para la transferencia)` : ""}.` : "";
   const liberadas = res.liberadas.length ? ` Se liberó la seña de ${res.liberadas.map((x) => x.cliente).join(", ")}: vuelve como crédito.` : "";
   return {
     ok: true,
     reservaId: r.id,
-    mensaje: `Turno de ${r.titular} en ${canchaDe(estado, r.canchaId)?.nombre ?? "la cancha"}, ${hhmm(r.inicio)} a ${hhmm(r.inicio + r.duracion)}: ${pesos(r.precio)}.${sena}${liberadas}${
+    mensaje: `Turno de ${r.titular} en ${canchaDe(estado, r.canchaId)?.nombre ?? "la cancha"}, ${hhmm(r.inicio)} a ${hhmm(r.inicio + r.duracion)}: ${pesos(r.precio)}.${sena}${liberadas}${fijo}${
       ficha ? (ficha.nueva ? ` ${r.titular} quedó dado de alta como cliente.` : ` Ya había una ficha con ese teléfono (${clienteDe(estado, ficha.id)?.nombre ?? r.titular}): el turno quedó atado a ella.`) : ""
     }`,
   };

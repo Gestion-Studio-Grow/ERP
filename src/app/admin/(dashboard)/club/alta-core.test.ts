@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { ORIGENES_ALTA, ORIGEN_DE_FABRICA, alternativas, anotarEnEsperaDesdeAlta, clientesQueCoinciden, fichaPorTelefono, horariosDelDia, horariosLibres, previaDelTurno, reservar, senaDelAlta, ventanaDeReserva } from "./alta-core";
+import { ORIGENES_ALTA, ORIGEN_DE_FABRICA, SEMANAS_DEL_FIJO, alternativas, previaFijoSemanal, anotarEnEsperaDesdeAlta, clientesQueCoinciden, fichaPorTelefono, horariosDelDia, horariosLibres, previaDelTurno, reservar, senaDelAlta, ventanaDeReserva } from "./alta-core";
 import { armarAgenda } from "./agenda-core";
 import { textoConfirmacion } from "./whatsapp-core";
 
@@ -393,4 +393,47 @@ test("H3 · la hora elegida que YA PASÓ (el alta quedó abierta): la lista, la 
   assert.deepEqual(p, { ok: false, motivo: "Ese horario ya pasó." });
   // Lo mismo que dice el motor al tocar «Reservar».
   assert.equal(reservar(e, { canchaId: hit.c, fecha: HOY, inicio: hit.m, duracion: 60, tipo: "turno", clienteId: null, titular: "X", otros: "" }, tarde).mensaje, p.motivo);
+});
+
+// ───────────── Tanda 3C · «Fijo semanal» desde el alta (BP-103) ─────────────
+
+test("BP-103: alta del jueves 20:00 con «Fijo semanal»: la previa marca la semana que choca; al reservar, las otras quedan en la grilla", () => {
+  const e = demo();
+  const jueves = M.sumarDias(HOY, 5); // jueves 22/10
+  assert.equal(M.diaSemana(jueves), 4);
+  const d = { canchaId: "c4", fecha: jueves, inicio: 20 * 60, duracion: 90, tipo: "turno" as const, titular: "Juan Pérez", clienteId: null, otros: "", fijo: true };
+  // Otro turno a esa hora dentro de dos semanas: la previa lo marca, y un fijo de otro que juega los jueves también.
+  const choca = M.sumarDias(jueves, 14);
+  assert.equal(M.crearReserva(e, { canchaId: "c4", fecha: choca, inicio: 20 * 60, duracion: 60, clienteId: null, titular: "Beto", conSena: false }, AHORA).ok, true);
+  const semanas = previaFijoSemanal(e, d);
+  assert.equal(semanas.length, SEMANAS_DEL_FIJO);
+  assert.deepEqual(semanas.map((x) => x.fecha), [7, 14, 21, 28].map((n) => M.sumarDias(jueves, n)));
+  assert.deepEqual(semanas.map((x) => x.entra), [true, false, true, true]);
+  assert.match(semanas[1].texto, /^5\/11 · se pisa con Beto/);
+  assert.equal(semanas[0].texto, "29/10 ✔");
+  const antes = JSON.stringify(e);
+  previaFijoSemanal(e, d);
+  assert.equal(JSON.stringify(e), antes, "la previa no toca el club");
+  // Reservar con «Fijo semanal».
+  const r = reservar(e, d, AHORA);
+  assert.equal(r.ok, true, r.mensaje);
+  const turno = M.reserva(e, r.reservaId!)!;
+  const f = e.fijos.find((x) => x.id === turno.fijoId)!;
+  assert.ok(f, "el turno es el primero del fijo");
+  assert.deepEqual([f.dia, f.inicio, f.duracion, f.canchaId, f.desde], [4, 20 * 60, 90, "c4", jueves]);
+  const enGrilla = e.reservas.filter((x) => x.fijoId === f.id && x.estado === "reservada").map((x) => x.fecha).sort();
+  assert.deepEqual(enGrilla, [jueves, ...semanas.filter((x) => x.entra).map((x) => x.fecha)], "el alta y las semanas que entraban; la que chocaba, no");
+  assert.match(r.mensaje, /Fijo los jueves a las 20:00: 29\/10, 12\/11, 19\/11 en la grilla; 5\/11 no entró/);
+  // No se baja dos veces ni antes del alta.
+  M.materializarFijosHasta(e, HOY, 40);
+  assert.equal(e.reservas.filter((x) => x.fijoId === f.id && x.fecha <= M.sumarDias(jueves, 28)).length, 4);
+  assert.ok(!e.reservas.some((x) => x.fijoId === f.id && x.fecha < jueves), "nada antes de su primera fecha");
+});
+
+test("«Fijo semanal» sólo con «Turno»: una clase con la marca no crea fijo", () => {
+  const e = demo();
+  const n = e.fijos.length;
+  const r = reservar(e, { canchaId: "c4", fecha: M.sumarDias(HOY, 5), inicio: 10 * 60, duracion: 60, tipo: "clase", titular: "Profe", clienteId: null, otros: "", fijo: true }, AHORA);
+  assert.equal(r.ok, true, r.mensaje);
+  assert.equal(e.fijos.length, n);
 });
