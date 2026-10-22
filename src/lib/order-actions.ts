@@ -124,8 +124,6 @@ import {
   CUADERNO_APAGADO,
   decidirHoraDelCuaderno,
 } from "@/lib/cuaderno/hora-de-la-venta";
-import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
-import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
 
 const ORDERS_PATH = "/admin/pedidos";
 // Las otras dos pantallas del mostrador que muestran ventas: se revalidan junto con la bandeja
