@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 const PASOS = [
   { t: "Contá qué vendiste", d: "Una línea y el total. Sin catálogo, sin configurar nada." },
   { t: "Decí a quién", d: "Consumidor final, o con CUIT o DNI. La letra (A, B o C) la elige el sistema." },
-  { t: "Listo, sale aprobada", d: "ARCA la aprueba en el momento. La descargás o la mandás por WhatsApp." },
+  { t: "Listo, sale aprobada", d: "ARCA la aprueba en el momento. La descargás en PDF y se la mandás a tu cliente." },
 ];
 
 const PREGUNTAS = [
@@ -109,9 +109,8 @@ export default function FacturitaLanding() {
               <span className="text-sm text-muted">Total</span>
               <span className="text-2xl font-semibold tabular-nums text-strong">$18.500</span>
             </div>
-            <div className="mt-5 grid grid-cols-2 gap-2 text-center text-sm font-semibold">
-              <span className="rounded-lg bg-surface-sunken py-2 text-strong">Descargar</span>
-              <span className="rounded-lg bg-surface-sunken py-2 text-strong">Mandar por WhatsApp</span>
+            <div className="mt-5 text-center text-sm font-semibold">
+              <span className="block rounded-lg bg-surface-sunken py-2 text-strong">Descargar en PDF</span>
             </div>
           </div>
           <figcaption className="mt-3 text-center text-xs text-faint">Ejemplo ilustrativo, con datos inventados.</figcaption>

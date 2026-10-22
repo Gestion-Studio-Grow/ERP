@@ -335,10 +335,19 @@ test("la vista y la descarga exigen la app de facturación y el permiso de factu
     const fuente = readFileSync(path.join(raiz, archivo), "utf8");
     const app = fuente.indexOf('requireApp("facturacion")');
     const permiso = fuente.indexOf('requireCapability("billing:manage")');
-    const lectura = fuente.indexOf("leerComprobanteImpreso(");
+    // La descarga lee a través de respuestaPdfDeComprobante (que usa el lector único, abajo).
+    const lectura = Math.max(fuente.indexOf("leerComprobanteImpreso("), fuente.indexOf("respuestaPdfDeComprobante("));
     assert.ok(app > 0 && permiso > 0 && lectura > 0, `${archivo}: tiene que pedir la app, el permiso y leer por el lector único`);
     assert.ok(app < lectura && permiso < lectura, `${archivo}: la guardia va antes de leer`);
   }
+  // El helper de la descarga lee SÓLO por el lector único, con el negocio del pedido.
+  const helper = readFileSync(path.join(process.cwd(), "src/lib/comprobante-pdf-respuesta.ts"), "utf8");
+  assert.ok(helper.includes("leerComprobanteImpreso(id, tenantId)"), "el helper lee por el lector único con el negocio");
+  // Facturita no tiene la app «facturacion» del backoffice: pide el permiso de facturar antes de leer.
+  const facturita = readFileSync(path.join(process.cwd(), "src/app/facturita/app/facturas/[id]/pdf/route.ts"), "utf8");
+  const permisoF = facturita.indexOf('requireCapability("billing:manage")');
+  const lecturaF = facturita.indexOf("respuestaPdfDeComprobante(");
+  assert.ok(permisoF > 0 && lecturaF > permisoF, "facturita: el permiso va antes de leer");
   assert.equal(roleHasCapability("OWNER", "billing:manage"), true);
   assert.equal(roleHasCapability("RECEPTION", "billing:manage"), false);
 });

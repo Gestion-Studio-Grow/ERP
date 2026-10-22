@@ -296,6 +296,13 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
               Mandanos este resumen y te activamos la cuenta en el día. Todavía no guardamos nada: estos datos quedan
               sólo en tu pantalla hasta que los mandes.
             </p>
+            <p className="mt-2 text-xs text-muted">
+              Al mandarlo aceptás los{" "}
+              <a href="/facturita/terminos" className={`rounded underline underline-offset-2 hover:text-strong ${FOCO}`}>términos</a>{" "}
+              y que usemos tus datos para darte de alta y emitir tus facturas, como dice la{" "}
+              <a href="/facturita/privacidad" className={`rounded underline underline-offset-2 hover:text-strong ${FOCO}`}>política de privacidad</a>.
+              Podés pedir acceso, corrección o borrado cuando quieras (Ley 25.326).
+            </p>
 
             {altaCompleta(datos) ? (
               <div className="mt-5 flex flex-col gap-3 sm:flex-row">

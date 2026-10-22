@@ -1,4 +1,4 @@
-// FACTURITA · Mis facturas — lista simple con estado ARCA, CAE y número.
+// FACTURITA · Mis facturas — lista simple con estado ARCA, CAE y número, y el PDF de las autorizadas.
 // Reusa el estado fiscal del Core (getFacturacion), sin duplicar lógica.
 
 import { PageHeader, Badge, EmptyState, fmtMoneyARS } from "@/components/ui";
@@ -24,7 +24,7 @@ export default async function FacturitaFacturasPage() {
     <>
       <PageHeader
         title="Mis facturas"
-        description="Todas las que emitiste, con su estado en ARCA."
+        description="Todas las que emitiste, con su estado en ARCA. Las autorizadas se descargan en PDF para mandárselas a tu cliente."
       />
       {facturas.length === 0 ? (
         <EmptyState
@@ -41,6 +41,7 @@ export default async function FacturitaFacturasPage() {
                 <th scope="col" className="px-[22px] py-[9px]">Número</th>
                 <th scope="col" className="px-[22px] py-[9px]">Estado</th>
                 <th scope="col" className="px-[22px] py-[9px] text-right">Total</th>
+                <th scope="col" className="px-[22px] py-[9px]"><span className="sr-only">PDF</span></th>
               </tr>
             </thead>
             <tbody>
@@ -65,6 +66,18 @@ export default async function FacturitaFacturasPage() {
                   </td>
                   <td className="whitespace-nowrap px-[22px] py-[13px] text-right font-semibold tabular-nums text-strong">
                     {fmtMoneyARS(Number(f.total))}
+                  </td>
+                  <td className="whitespace-nowrap px-[22px] py-[13px] text-right">
+                    {f.status === "AUTHORIZED" && (
+                      // Descarga, no navegación: <a> plano (un Link de Next intentaría prefetch de un PDF).
+                      <a
+                        href={`/facturita/app/facturas/${f.id}/pdf`}
+                        className="inline-flex min-h-11 items-center rounded-lg px-3 font-medium text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        aria-label={`Descargar en PDF la factura ${f.numero != null ? `${String(f.puntoVenta).padStart(4, "0")}-${String(f.numero).padStart(8, "0")}` : ""}`}
+                      >
+                        PDF
+                      </a>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -7,7 +7,7 @@ import { getSessionCookieName, createSessionToken } from "@/lib/auth";
 // La app de Facturita pasa por el portón grueso de tenant, como /admin y /contador. La vidriera,
 // el alta, los planes, el manifiesto y el service worker NO: el navegador los baja sin cookies.
 
-for (const ruta of ["/facturita/app", "/facturita/app/facturas", "/facturita/app/cuenta"]) {
+for (const ruta of ["/facturita/app", "/facturita/app/facturas", "/facturita/app/cuenta", "/facturita/app/facturas/abc123/pdf"]) {
   test(`guard ${ruta}: sin sesión → redirect a /admin/login`, async () => {
     const res = await proxy(new NextRequest(`https://app.test${ruta}`));
     assert.equal(res.status, 307);
