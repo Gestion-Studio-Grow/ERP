@@ -196,7 +196,7 @@ test("el orden del reparto no depende del orden de entrada y deja «Sin zona» a
 });
 
 test("integración T2 · fiado: lo que quedó sin cobrar y fue a la cuenta del cliente se suma aparte de «A cobrar»", () => {
-  const base = { tipo: "rendido", reparto: "rep_1", cliente: "Ana", pagos: [] } as const;
+  const base = { tipo: "rendido" as const, reparto: "rep_1", cliente: "Ana", pagos: [] };
   const r = resumenDeLaRendicion([
     { ...base, code: 1, resultado: "a-cobrar", total: 25700, aCuenta: true },
     { ...base, code: 2, resultado: "a-cobrar", total: 9000 },
