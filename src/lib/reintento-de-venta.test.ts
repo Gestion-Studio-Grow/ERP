@@ -312,7 +312,7 @@ test("TRINQUETE: createOrder e insertOrder buscan la clave antes de toda validac
   const acciones = cuerpo(sinComentarios(readFileSync(new URL("./order-actions.ts", import.meta.url), "utf8")), "export async function createOrder(");
   const busca = acciones.indexOf("pedidoConClave(");
   assert.ok(busca > 0, "createOrder no busca la clave");
-  for (const despues of ["cuentasCorrientesEnabled(", "requireAppAccion(", "medioDeCobroRequerido(", "lastClosedDay(", "insertOrder("]) {
+  for (const despues of ["cuentasCorrientesDe(", "requireAppAccion(", "medioDeCobroRequerido(", "lastClosedDay(", "insertOrder("]) {
     const i = acciones.indexOf(despues);
     assert.ok(i > busca, `«${despues}» corre antes de buscar la clave`);
   }

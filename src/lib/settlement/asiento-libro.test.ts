@@ -16,6 +16,9 @@ import {
 import { AsientoRechazadoError, aplicarConAsientoInTx } from "./collection-repo";
 import { buildCierreDiario } from "@/lib/caja/cierre-diario";
 import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
+import { cuentasCorrientesPrendidas } from "./asiento-libro";
+import { estadoDesdeFilas, todosApagados } from "@/cambios/interruptores-core";
+import { CUENTAS_CORRIENTES, esInterruptorId, interruptorPorId } from "@/cambios/interruptores";
 
 test("el flag: apagado por defecto; sólo valores explícitos lo prenden", () => {
   assert.equal(cuentasCorrientesEnabled({}), false);
@@ -173,4 +176,37 @@ test("sin turno abierto, el asiento queda suelto (el libro lo toma igual)", asyn
   const mov = escrituras.find((e) => e.modelo === "cashMovement")!.data;
   assert.equal(mov.sessionId, null);
   assert.equal(mov.method, "MP");
+});
+
+// ── El interruptor por negocio reemplaza a la variable (Magra, tanda 2 · 2D) ──────────────────
+
+test("cuentas corrientes por negocio: el interruptor tocado manda; sin tocar, la variable de siempre", () => {
+  const prendida = { CUENTAS_CORRIENTES_ENABLED: "true" };
+  const apagada = {};
+  // Nunca tocado (cuando = null): la variable decide, como antes del cambio.
+  const sinTocar = todosApagados()[CUENTAS_CORRIENTES];
+  assert.equal(cuentasCorrientesPrendidas(sinTocar, prendida), true, "un negocio que dependía de la variable sigue igual");
+  assert.equal(cuentasCorrientesPrendidas(sinTocar, apagada), false);
+  assert.equal(cuentasCorrientesPrendidas(null, prendida), true, "lectura fallida: la variable");
+  assert.equal(cuentasCorrientesPrendidas(undefined, apagada), false);
+  // Tocado por la consola: manda, para los dos lados.
+  const fila = (action: string, h: number) => ({
+    id: `f${h}`,
+    entity: "Interruptor",
+    entityId: CUENTAS_CORRIENTES,
+    action,
+    actor: "operator:facu",
+    channel: "operador",
+    createdAt: new Date(Date.UTC(2026, 9, 22, h)),
+  });
+  const encendido = estadoDesdeFilas([fila("interruptor.encender", 10)])[CUENTAS_CORRIENTES];
+  assert.equal(cuentasCorrientesPrendidas(encendido, apagada), true, "prendido en el negocio aunque la variable esté apagada");
+  const apagadoDespues = estadoDesdeFilas([fila("interruptor.encender", 10), fila("interruptor.apagar", 11)])[CUENTAS_CORRIENTES];
+  assert.equal(cuentasCorrientesPrendidas(apagadoDespues, prendida), false, "apagado en el negocio aunque la variable esté prendida");
+  // Una fila forjada desde la app (canal admin) no cuenta: sigue la variable.
+  const forjada = estadoDesdeFilas([{ ...fila("interruptor.encender", 12), channel: "admin" }])[CUENTAS_CORRIENTES];
+  assert.equal(cuentasCorrientesPrendidas(forjada, apagada), false);
+  // Está en el catálogo de la consola y no cambia qué apps ve nadie.
+  assert.ok(esInterruptorId("cuentas-corrientes"));
+  assert.equal(interruptorPorId(CUENTAS_CORRIENTES).cambiaLasApps, false);
 });

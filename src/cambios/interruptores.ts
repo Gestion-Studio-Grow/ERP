@@ -101,6 +101,22 @@ export const INTERRUPTORES = [
     enAuditoria: "el mostrador boutique",
     cambiaLasApps: false,
   },
+  {
+    // Las cuentas corrientes (el fiado y las cuentas de proveedores) por negocio: reemplaza la
+    // variable de deploy CUENTAS_CORRIENTES_ENABLED (Magra, tanda 2 · 2D). Prendido, el cobro de
+    // un fiado y el pago a un proveedor entran solos al libro de caja, Vender ofrece «A cuenta» y,
+    // con el mostrador boutique, «Queda a cobrar» deja la deuda en la ficha del cliente. Si la
+    // consola NUNCA lo tocó en ese negocio, manda la variable de siempre (`cuentasCorrientesPrendidas`,
+    // settlement/asiento-libro.ts): ningún negocio cambia el día que esto se publica. Prenderlo exige
+    // la columna `CashMovement.collectionId` en la base (lote de 5): sin ella el cobro falla entero
+    // (la transacción vuelve atrás, no se pierde plata). Es decisión del dueño, lo prende GSG.
+    id: "cuentas-corrientes",
+    nombre: "Fiado y cuentas corrientes",
+    queCambia:
+      "El fiado en un solo lugar: lo que se entrega sin cobrar queda en la cuenta del cliente, «A cuenta» en Vender y los cobros del fiado y los pagos a proveedores entran solos al libro de caja. Si nunca se tocó acá, sigue la configuración general del servidor.",
+    enAuditoria: "el fiado y las cuentas corrientes",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -115,6 +131,9 @@ export const AGENDA_PRACTICA: InterruptorId = "agenda-practica";
 
 /** El mostrador boutique (reingeniería de Magra): Vender, Pedidos, Armar y el cobro nuevos. */
 export const MOSTRADOR_BOUTIQUE: InterruptorId = "mostrador-boutique";
+
+/** Fiado y cuentas corrientes por negocio (reemplaza CUENTAS_CORRIENTES_ENABLED; tri-estado). */
+export const CUENTAS_CORRIENTES: InterruptorId = "cuentas-corrientes";
 
 /**
  * ¿Este negocio trabaja con el mostrador boutique? Recibe el estado que arma

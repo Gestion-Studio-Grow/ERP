@@ -13,6 +13,9 @@ import { cargarKpi } from "@/apps/kpis/index.server";
 import { LineaDeEstado } from "@/components/ui";
 import type { Role } from "@/lib/capabilities";
 import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
+import { getAperturaEnVender } from "@/lib/caja-actions";
+import { mostradorBoutiqueDelNegocio } from "@/lib/clientes/fiado.server";
+import AbrirCajaEnLinea from "./AbrirCajaEnLinea";
 
 
 /**
@@ -57,7 +60,11 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
   const user = await requireApp("vender");
   const { modo } = await searchParams;
   const tenantId = await getCurrentTenantId();
-  const [identidad, nuevo] = await Promise.all([getTenantIdentity(), disenoNuevo()]);
+  const [identidad, nuevo, boutique] = await Promise.all([getTenantIdentity(), disenoNuevo(), mostradorBoutiqueDelNegocio()]);
+  // MOSTRADOR BOUTIQUE (Magra, tanda 2 · 2D): con la caja cerrada, la tarjeta «Abrí la caja: ayer
+  // quedaron $X» arriba de todo, para abrirla sin salir de Vender (MG-057). Apagado, nada cambia.
+  const apertura = boutique && roleHasCapability(user.role, "orders:manage") ? await getAperturaEnVender() : null;
+  const tarjetaCaja = apertura ? <AbrirCajaEnLinea esperado={apertura.esperado} ultimoCierre={apertura.ultimoCierre} hoy={apertura.hoy} /> : null;
   // Los servicios se cobran creando un turno (ver MostradorTabs): sólo en un negocio de
   // servicios y sólo para quien puede dar turnos. En un comercio no hay solapa de Servicios.
   const conServicios = !identidad.isRetail;
@@ -75,6 +82,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
     return (
       <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
         <h1 className="sr-only">Vender</h1>
+        {tarjetaCaja}
         <Suspense fallback={<p data-ui="linea-estado" aria-hidden>&nbsp;</p>}>
           <EstadoDelMostrador role={user.role} mostrador={identidad.isRetail} />
         </Suspense>
@@ -106,6 +114,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
           </>
         }
       />
+      {tarjetaCaja}
       <MostradorTabs
         viewer={{ role: user.role, professionalId: user.professionalId }}
         // El formulario de productos es el de Vender (abajo): el de la bandeja no se usa, así
