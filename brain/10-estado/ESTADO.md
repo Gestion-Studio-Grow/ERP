@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-10-20 03:38 UTC
+generado_el: 2026-10-22 01:56 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-10-20 03:38 UTC sobre `afb3413`.**
+> ⏱️ **Foto tomada el 2026-10-22 01:56 UTC sobre `b45d376`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -18,27 +18,25 @@ tags: [brain/estado, fase-0]
 
 | Campo | Valor |
 |---|---|
-| Rama actual | `claude/balanza-universal` |
-| HEAD | `afb3413` (2026-10-20) |
-| Árbol | **12 archivo(s) sin commitear** _(sin contar `brain/`)_ |
-| Tip de `main` | 5f0cac8 · 2026-10-19 · feat(consola): dar de alta a una persona desde la ficha del negocio |
-
-**Ramas locales (6, más reciente primero):** `claude/balanza-universal` · `claude/balanza-serie` · `claude/magra-nivel-bp` · `claude/magra-practicidad` · `claude/magra-eventualidades` · `claude/sleepy-tesla-392rov`
+| Rama actual | `main` |
+| HEAD | `b45d376` (2026-10-22) |
+| Árbol | limpio _(sin contar `brain/`)_ |
+| Tip de `main` | b45d376 · 2026-10-22 · fix(build): next build con 6 GB de heap en Vercel — el chequeo de tipos ya pide ~2,5 GB y el tope por defecto de Node ronda 2 GB |
 
 **Últimos commits**
 
-- afb3413 · 2026-10-20 · feat(balanza): «Tomar peso» en Vender y Pedidos, asistente por cable en Balanza y lector, y recorrido E2E (test:balanza-e2e, 24/24)
-- 962de48 · 2026-10-20 · feat(balanza): «Tomar peso» y el asistente de la balanza por cable
-- 318e872 · 2026-10-20 · feat(balanza): leer el peso de la balanza por cable (Web Serial) — protocolos, detector, hook y simulador
-- 27eb20f · 2026-10-20 · feat(pedidos): el campo de la etiqueta de la balanza también en Pedidos (el POS que usa MAGRA desde el celular)
-- f4d99c3 · 2026-10-20 · feat(balanza): pantalla «Balanza y lector» en el menú del mostrador — detectar, probar, guardar el formato y el PLU de cada producto
-- 91f6621 · 2026-10-20 · feat(balanza): etiquetas de cualquier balanza — prefijo de 1 dígito, control del precio GS1, UPC-A, presets por marca y «detectar con una etiqueta»
-- 5f0cac8 · 2026-10-19 · feat(consola): dar de alta a una persona desde la ficha del negocio
-- 740867f · 2026-10-19 · fix(alta): «Profe de pádel» escrito a mano ya no cae en la tienda de pádel
-- 3e2a5d6 · 2026-10-19 · fix(build): el control de [sin-deploy] no adivina la base y construye si no la tiene
-- 35cb452 · 2026-10-19 · chore(lote): ensayo y pase de Neon regenerados con la migración del profe [sin-deploy]
-- ead6a00 · 2026-10-19 · merge: main al día en la rama del profe Matías
-- 9063bae · 2026-10-19 · docs(breakpoint): deuda anotada por el Gate del panel de casa y la estética por cliente
+- b45d376 · 2026-10-22 · fix(build): next build con 6 GB de heap en Vercel — el chequeo de tipos ya pide ~2,5 GB y el tope por defecto de Node ronda 2 GB
+- 2ba4df6 · 2026-10-22 · Merge remote-tracking branch 'origin/claude/ch-mostrador' into claude/sleepy-tesla-392rov
+- c362cd2 · 2026-10-22 · Pedidos: el ancho del nombre arranca justo después del apilado; el test mira la sombra
+- 56c64e3 · 2026-10-21 · Tabla densa: sombra en el borde con más tabla; Pedidos: lo accionable primero (A-2)
+- 4433719 · 2026-10-21 · Merge remote-tracking branch 'origin/claude/ch-mostrador' into claude/sleepy-tesla-392rov
+- 879e421 · 2026-10-21 · Tabla densa: el marco que se desliza se enfoca y tiene nombre si no entra (A-1)
+- df763f7 · 2026-10-21 · Merge remote-tracking branch 'origin/claude/ch-mostrador' into claude/sleepy-tesla-392rov
+- e24af7b · 2026-10-21 · Merge remote-tracking branch 'origin/ccr-63ed11dc-brcdpp' into claude/sleepy-tesla-392rov
+- d35067e · 2026-10-21 · fix(club): la pasada a hash diferida suelta el «Deshacer» de antes (que traería los PIN en claro) y tiene su test (observaciones del Gate)
+- 5b38e0a · 2026-10-21 · Tabla densa: se desliza en su marco y no empuja la página de costado (O4)
+- 0e157d8 · 2026-10-21 · fix(club): deuda del PIN con hash — la pasada a hash al abrir corre con el navegador libre (m7), G8 no estrena una sal que no es hex y recorta el PIN viejo (O1/O2), test del aviso del link viejo (m5); copia del motor y sitio al día
+- 3dc35bf · 2026-10-21 · fix(club): restaurar un respaldo en la demo del club de hoy no pasa los PIN a hash (sólo la jornada real) (Gate O3)
 
 ## Migraciones (Prisma)
 
@@ -56,8 +54,8 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 355 |
-| Palabras en `docs/` | 612.144 |
+| Documentos en `docs/` | 357 |
+| Palabras en `docs/` | 613.623 |
 | ADRs | 87 |
 | Nodos en el grafo | 93 _(los 87 ADR + 6 enmiendas)_ |
 
