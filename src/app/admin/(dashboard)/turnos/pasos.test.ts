@@ -12,6 +12,7 @@ import {
   hrefAtenderAhora,
   hrefNuevoTurno,
   hrefTurnoEnHueco,
+  hrefDiaDeLaAgenda,
   leerClienteDelAlta,
   leerHuecoDelAlta,
   leerNuevoTurno,
@@ -156,4 +157,14 @@ test("al terminar el alta: la agenda del día; con «ahora», el cobro de ese tu
   assert.equal(hrefAlTerminarElAlta({ dia: HOY, turnoId: "t1", ahora: true }, HOY), "/admin/turnos?turno=t1&hoja=terminar");
   assert.equal(hrefAlTerminarElAlta({ dia: HOY, turnoId: null, ahora: true }, HOY), "/admin/turnos");
   assert.equal(hrefAlTerminarElAlta({ dia: HOY, turnoId: "a&b", ahora: true }, HOY), "/admin/turnos");
+});
+
+test("cambiar de día no pierde la vista ni el «Ver por: Box» (?por=box)", () => {
+  const hoy = "2026-10-22";
+  assert.equal(hrefDiaDeLaAgenda(hoy, hoy), "/admin/turnos");
+  assert.equal(hrefDiaDeLaAgenda("2026-10-23", hoy), "/admin/turnos?date=2026-10-23");
+  assert.equal(hrefDiaDeLaAgenda("2026-10-23", hoy, { vista: "profesionales", por: "box" }), "/admin/turnos?date=2026-10-23&vista=profesionales&por=box");
+  assert.equal(hrefDiaDeLaAgenda(hoy, hoy, { por: "box" }), "/admin/turnos?por=box");
+  // Lo que no es «box» o «profesionales» no viaja; un día inválido es hoy.
+  assert.equal(hrefDiaDeLaAgenda("2026-02-31", hoy, { vista: "x", por: "otra" }), "/admin/turnos");
 });

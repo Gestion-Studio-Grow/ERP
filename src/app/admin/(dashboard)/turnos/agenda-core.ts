@@ -24,6 +24,7 @@ import { estadoCobroTurno, cobroSugerido, esCuentaACobrar, seniaDelServicio, typ
 import { desglosarCobros } from "@/lib/turnos/anulacion";
 import type { CierreSinPrestar, DestinoDeLaSenia } from "@/lib/turnos/practica";
 import type { TipoMarca } from "@/components/ui/Marca";
+import { dateStrInBusinessTz, fmtShortDate, fmtTime } from "@/lib/datetime";
 
 export type EstadoDelTurno = "PENDING" | "CONFIRMED" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
 
@@ -63,6 +64,11 @@ export type TurnoDelDia = {
   avisadaEl: string | null;
   /** ¿Quien mira puede cobrar ESTE turno? (la regla del servidor, `puedeCobrarEsteTurno`). */
   veredicto: Veredicto;
+  /**
+   * Cuándo se le pidió la seña por WhatsApp (la marca «seña pedida», `seniasPedidas`: AuditLog, sin
+   * migración). Ausente o null: no se pidió (o la agenda no la leyó).
+   */
+  seniaPedidaEl?: string | null;
 };
 
 /** Lo mínimo que la agenda lee de un turno crudo (el loader de siempre, ya con sus cobros). */
@@ -133,6 +139,27 @@ export function turnoDelDia(a: TurnoCrudo, veredicto: Veredicto): TurnoDelDia {
     avisadaEl: a.reminderSentAt ? iso(a.reminderSentAt) : null,
     veredicto,
   };
+}
+
+/**
+ * La seña que falta de un Reservado que todavía no llegó (CH-021/022): la que propone el cobro
+ * (`cobroSugerido`: con seña en el catálogo y sin nada cobrado). 0 si no corresponde. Es lo que cobra
+ * «Llegó la seña» y lo que pide «Recordar la seña».
+ */
+export function seniaQueFalta(t: Pick<TurnoDelDia, "estado" | "inicio" | "sugerido">, ahora: Date): number {
+  if (t.estado !== "PENDING" || yaEmpezo(t, ahora)) return 0;
+  return t.sugerido.tipo === "senia" && t.sugerido.monto > 0 ? t.sugerido.monto : 0;
+}
+
+/**
+ * «seña pedida 14:03» (hoy) · «seña pedida el 20/10»: la marca del renglón y del cajón, sólo mientras
+ * la seña siga faltando. `null` si no hay nada que decir.
+ */
+export function textoSeniaPedida(t: Pick<TurnoDelDia, "estado" | "inicio" | "sugerido" | "seniaPedidaEl">, ahora: Date): string | null {
+  if (!t.seniaPedidaEl || seniaQueFalta(t, ahora) <= 0) return null;
+  const cuando = new Date(t.seniaPedidaEl);
+  if (Number.isNaN(cuando.getTime())) return null;
+  return dateStrInBusinessTz(cuando) === dateStrInBusinessTz(ahora) ? `seña pedida ${fmtTime(cuando)}` : `seña pedida el ${fmtShortDate(cuando).slice(0, 5)}`;
 }
 
 /** Qué puede hacer quien mira (lo calcula el servidor con sus capacidades). */

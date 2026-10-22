@@ -173,7 +173,7 @@ export default function ClientesRenglon({
       alinear: vista === "deben" ? "derecha" : undefined,
       movil: "tecla",
       celda: (f) => {
-        const wa = waLinkClienta(f.telefono, textoDeWhatsApp(vista, f, hoy ?? null, pesos));
+        const wa = waLinkClienta(f.telefono, textoDeWhatsApp(vista, f, hoy ?? null));
         const dato = vista === "cumplen" ? cuandoCumple(f.cumple, hoy) : vista === "deben" ? `Debe ${pesos(f.debe ?? 0)}` : null;
         return (
           <span className="inline-flex flex-wrap items-center justify-end gap-2">

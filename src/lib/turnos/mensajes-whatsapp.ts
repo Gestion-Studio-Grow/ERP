@@ -349,6 +349,42 @@ export function mensajeCierreDeCaja(d: {
   return frases(`Cierre${dia ? ` ${dia}` : ""}: ${columnas}${turnos}.`, nota && `Qué pasó: ${nota}.`, quien && `Cerró ${quien}.`);
 }
 
+// ── 9. Escribirle sin un turno de por medio ───────────────────────────────────
+
+/**
+ * El saludo solo («¡Hola Laura!»), para abrir el chat desde el buscador o la ficha sin un motivo
+ * armado: la recepción escribe el resto. Sin nombre, «¡Hola!».
+ */
+export function mensajeSaludo(clienta: string): string {
+  return saludo(clienta);
+}
+
+/** Por qué se le escribe a una clienta que no tiene un turno en juego (las vistas de Clientes). */
+export type MotivoDeVolver = "frecuente" | "hace-mucho" | "cumple-hoy" | "cumple-cerca";
+
+/**
+ * Invitarla a volver (Clientes: Frecuentes · Hace mucho · Cumplen):
+ *   · frecuente: «¡Hola Laura! ¿Cómo estás? Te escribimos para ver si querés que te reservemos el
+ *     próximo turno. 💚»
+ *   · hace mucho: «…Hace mucho que no te vemos. ¿Querés que te reservemos un turno? Decinos qué día
+ *     te queda bien 💚»
+ *   · cumple hoy: «¡Feliz cumple, Laura! Que tengas un día hermoso 💚»
+ *   · cumple cerca: «…Se viene tu cumple. ¿Querés que te reservemos un turno para esa semana? 💚»
+ */
+export function mensajeParaVolver(motivo: MotivoDeVolver, clienta: string): string {
+  const n = primerNombre(limpio(clienta));
+  switch (motivo) {
+    case "cumple-hoy":
+      return `¡Feliz cumple${n ? `, ${n}` : ""}! Que tengas un día hermoso 💚`;
+    case "cumple-cerca":
+      return frases(saludo(clienta), "Se viene tu cumple. ¿Querés que te reservemos un turno para esa semana? 💚");
+    case "hace-mucho":
+      return frases(saludo(clienta), "Hace mucho que no te vemos. ¿Querés que te reservemos un turno? Decinos qué día te queda bien 💚");
+    default:
+      return frases(saludo(clienta), "¿Cómo estás? Te escribimos para ver si querés que te reservemos el próximo turno 💚");
+  }
+}
+
 // ── El link ───────────────────────────────────────────────────────────────────
 
 /**

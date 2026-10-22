@@ -155,18 +155,19 @@ test("la vista filtra, cuenta con la búsqueda y ordena por lo que importa (deud
   assert.deepEqual(porNombre.filas.map((x) => x.id), ["x", "y"]);
 });
 
-test("el WhatsApp de cada vista: en criollo, con el monto en «Deben», sin undefined/null/NaN (CH-050)", () => {
+test("el WhatsApp de cada vista: los textos de la agenda, con el monto en «Deben», sin undefined/null/NaN (CH-050)", () => {
   const hoy = "2026-10-22";
-  const plata = (n: number) => `$${n.toLocaleString("es-AR")}`;
   const laura = f("l", "Laura Gómez", "11 5566-7788", { debe: 9000, cumple: "10-22" });
-  assert.match(textoDeWhatsApp("deben", laura, hoy, plata), /^¡Hola Laura! .*saldo de \$9\.000/);
-  assert.match(textoDeWhatsApp("cumplen", laura, hoy, plata), /^¡Feliz cumple, Laura!/);
-  assert.match(textoDeWhatsApp("cumplen", { ...laura, cumple: "10-25" }, hoy, plata), /Se viene tu cumple/);
-  assert.match(textoDeWhatsApp("hace-mucho", laura, hoy, plata), /Hace mucho que no te vemos/);
+  assert.match(textoDeWhatsApp("deben", laura, hoy), /^¡Hola Laura! .*saldo de \$9\.000/);
+  assert.equal(textoDeWhatsApp("deben", { ...laura, debe: 0 }, hoy), "¡Hola Laura!");
+  assert.match(textoDeWhatsApp("cumplen", laura, hoy), /^¡Feliz cumple, Laura!/);
+  assert.match(textoDeWhatsApp("cumplen", { ...laura, cumple: "10-25" }, hoy), /Se viene tu cumple/);
+  assert.match(textoDeWhatsApp("hace-mucho", laura, hoy), /Hace mucho que no te vemos/);
+  assert.match(textoDeWhatsApp("frecuentes", laura, hoy), /próximo turno/);
   const sinNombre = f("s", "   ", "11 5566-0000");
   for (const v of ["frecuentes", "hace-mucho", "cumplen", "deben"] as const) {
     for (const fila of [laura, sinNombre]) {
-      const t = textoDeWhatsApp(v, fila, hoy, plata);
+      const t = textoDeWhatsApp(v, fila, hoy);
       assert.doesNotMatch(t, /undefined|null|NaN|\$0\b/, `${v}: ${t}`);
     }
   }

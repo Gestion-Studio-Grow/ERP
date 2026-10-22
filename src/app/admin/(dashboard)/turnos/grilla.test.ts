@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { horasDeLaGrilla } from "./grilla";
+import { hrefTurnoEnHueco, leerHuecoDelAlta, leerNuevoTurno } from "./pasos";
 
 const h = (hh: number, mm = 0) => hh * 60 + mm;
 
@@ -27,6 +28,9 @@ import {
   enMinutos,
   estadoDeLaCelda,
   hrefNuevoTurnoEnHueco,
+  bloqueosPorHorario,
+  ausenciaDeLaColumna,
+  NO_TRABAJA_ESE_DIA,
   leerVerPor,
   rayaDeAhora,
   LEYENDA_DE_LA_GRILLA,
@@ -58,17 +62,21 @@ test("CH-029 · el hueco «jue 14:00 · Lu» lleva a Dar turno con Lu, el jueves
   });
   assert.equal(celda.tipo, "hueco");
   if (celda.tipo !== "hueco") return;
-  assert.equal(celda.href, "/admin/turnos/lista?nuevo=1&fecha=2030-10-24&profesional=lu&hora=14%3A00");
+  assert.equal(celda.href, "/admin/turnos/lista?nuevo=1&fecha=2030-10-24&profesional=lu&hora=14:00");
   assert.equal(new URL(celda.href, "https://x.test").searchParams.get("hora"), "14:00");
   assert.equal(celda.etiqueta, "Dar un turno a las 14:00 con Lu");
 });
 
-test("hrefNuevoTurnoEnHueco: contrato ?profesional=&hora= sobre la base de hrefNuevoTurno", () => {
-  assert.equal(hrefNuevoTurnoEnHueco(DIA, "caro", h(9, 30)), "/admin/turnos/lista?nuevo=1&fecha=2030-10-24&profesional=caro&hora=09%3A30");
+test("hrefNuevoTurnoEnHueco: contrato ?profesional=&hora= — el mismo armado que hrefTurnoEnHueco (pasos.ts) y lo que lee el alta", () => {
+  assert.equal(hrefNuevoTurnoEnHueco(DIA, "lu", h(14)), hrefTurnoEnHueco(DIA, "lu", "14:00"));
+  const q = new URL(hrefNuevoTurnoEnHueco(DIA, "lu", h(14)), "http://x").searchParams;
+  assert.deepEqual(leerHuecoDelAlta({ nuevo: q.get("nuevo"), profesional: q.get("profesional"), hora: q.get("hora"), ahora: q.get("ahora") }), { profesional: "lu", hora: "14:00", ahora: false });
+  assert.deepEqual(leerNuevoTurno({ nuevo: q.get("nuevo") ?? undefined, fecha: q.get("fecha") ?? undefined }, "2030-10-20"), { abrir: true, fecha: DIA });
+  assert.equal(hrefNuevoTurnoEnHueco(DIA, "caro", h(9, 30)), "/admin/turnos/lista?nuevo=1&fecha=2030-10-24&profesional=caro&hora=09:30");
   // Por box con dos profesionales: sin profesional (el alta pregunta con quién).
-  assert.equal(hrefNuevoTurnoEnHueco(DIA, null, h(16)), "/admin/turnos/lista?nuevo=1&fecha=2030-10-24&hora=16%3A00");
+  assert.equal(hrefNuevoTurnoEnHueco(DIA, null, h(16)), "/admin/turnos/lista?nuevo=1&fecha=2030-10-24&hora=16:00");
   // Un id raro no viaja; una fecha inválida no precarga nada.
-  assert.equal(hrefNuevoTurnoEnHueco(DIA, "x&y=1", h(16)), "/admin/turnos/lista?nuevo=1&fecha=2030-10-24&hora=16%3A00");
+  assert.equal(hrefNuevoTurnoEnHueco(DIA, "x&y=1", h(16)), "/admin/turnos/lista?nuevo=1&fecha=2030-10-24&hora=16:00");
   assert.equal(hrefNuevoTurnoEnHueco("2030-02-31", "caro", h(16)), "/admin/turnos/lista?nuevo=1");
 });
 
@@ -152,4 +160,25 @@ test("bloqueosDelDia descarta los de la demo (sin horario) y la leyenda tiene 5 
   assert.equal(LEYENDA_DE_LA_GRILLA.length, 5);
   assert.deepEqual(new Set(LEYENDA_DE_LA_GRILLA.map((e) => e.tipo)).size, 5);
   assert.ok(LEYENDA_DE_LA_GRILLA.some((e) => /No vino/.test(e.palabra)));
+});
+
+test("horario de trabajo: fuera de su horario no hay hueco; sin horario ese día, no trabaja (Tanda 2)", () => {
+  const horarios = [{ profesionalId: "caro", desde: "09:00", hasta: "13:00" }];
+  const bloqueos = bloqueosPorHorario(DIA, ["caro", "lu"], horarios);
+  const col = (id: string) => colDe(columnasDeLaGrilla("profesional", PROFES), id);
+  const celda = (id: string, minuto: number) =>
+    estadoDeLaCelda({ dia: DIA, hoy: "2030-10-23", ahoraMin: 0, minuto, columna: col(id), ocupados: [], bloqueos, puedeDarTurno: true }).tipo;
+  assert.equal(celda("caro", h(8, 30)), "bloqueada");
+  assert.equal(celda("caro", h(9)), "hueco");
+  assert.equal(celda("caro", h(12, 30)), "hueco");
+  assert.equal(celda("caro", h(13)), "bloqueada");
+  assert.equal(celda("lu", h(10)), "bloqueada");
+  // La cabecera: sólo «no trabaja ese día», no el fuera de horario de la mañana o la noche.
+  assert.equal(ausenciaDeLaColumna(["caro"], bloqueos), undefined);
+  assert.equal(ausenciaDeLaColumna(["lu"], bloqueos)?.motivo, NO_TRABAJA_ESE_DIA);
+  // Una ausencia cargada manda sobre el horario.
+  const conMedico = [...bloqueos, { profesionalId: "lu", desde: "x", hasta: "y", motivo: "médico" }];
+  assert.equal(ausenciaDeLaColumna(["lu"], conMedico)?.motivo, "médico");
+  // Sin lectura (null) no se marca nada: el alta valida igual.
+  assert.deepEqual(bloqueosPorHorario(DIA, ["caro"], null), []);
 });

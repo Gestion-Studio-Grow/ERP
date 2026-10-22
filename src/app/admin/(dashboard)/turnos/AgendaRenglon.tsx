@@ -35,9 +35,10 @@ import { anotadosConHueco } from "@/lib/crm/huecos";
 import { EmptyState, Franja, PageContainer, PageHeader, Pestanas, atributosBoton, buttonClasses, chipLinkAtributos } from "@/components/ui";
 import { enInicioPorApps } from "../inicio/piloto";
 import { diaMas, fechaCorta, fechaLarga, lineaDeLaAgenda, nombreRelativo, type Permisos } from "./agenda-core";
-import { proyectarAgenda } from "./agenda.server";
-import { bloqueosDelDia } from "./grilla";
-import { esFechaDeCalendario, hrefNuevoTurno, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
+import { extrasDeLaAgenda, proyectarAgenda } from "./agenda.server";
+import { esFechaDeCalendario, hrefDiaDeLaAgenda, hrefNuevoTurno, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
+import LinkAlDia from "./_agenda/LinkAlDia";
+import BotonBuscar from "../armazon/BotonBuscar";
 import LibroDelDia from "./_agenda/LibroDelDia";
 import { RenglonDeManana } from "./_agenda/ParaManana";
 import OtroDia from "./_agenda/OtroDia";
@@ -47,15 +48,15 @@ type Quien = { role: Role; professionalId?: string | null };
 // Dar de baja un saldo: sólo la dueña (D5).
 const PERDONAR: Capability = "agenda:forgive";
 
+/** La pestaña de una vista (sin `por`: cada vista arranca como viene). */
 function hrefDia(dia: string, hoy: string, vista: "lista" | "profesionales"): string {
-  const p = new URLSearchParams();
-  if (dia !== hoy) p.set("date", dia);
-  if (vista === "profesionales") p.set("vista", "profesionales");
-  const q = p.toString();
-  return q ? `/admin/turnos?${q}` : "/admin/turnos";
+  return hrefDiaDeLaAgenda(dia, hoy, { vista });
 }
 
-/** ← Ayer · Jueves 24 de septiembre · Mañana → · Otro día */
+/**
+ * ← Ayer · Jueves 24 de septiembre · Mañana → · Otro día. Cambiar de día no pierde «Ver por: Box»
+ * (`LinkAlDia` lee `?por=` de la dirección de ahora: se cambia en el navegador).
+ */
 function ElDia({ dia, hoy, vista }: { dia: string; hoy: string; vista: "lista" | "profesionales" }) {
   const antes = diaMas(dia, -1);
   const despues = diaMas(dia, 1);
@@ -64,20 +65,20 @@ function ElDia({ dia, hoy, vista }: { dia: string; hoy: string; vista: "lista" |
     // Celular: dos renglones parejos (← Ayer · fecha / Mañana → · Otro día), sin que «Otro día»
     // quede colgado solo en un tercer renglón. PC: todo en una línea.
     <nav aria-label="Elegir el día" className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 lg:flex lg:w-auto lg:flex-wrap lg:gap-2">
-      <Link href={hrefDia(antes, hoy, vista)} className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")} aria-label={`Día anterior: ${fechaLarga(antes)}`}>
+      <LinkAlDia dia={antes} hoy={hoy} vista={vista} className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")} aria-label={`Día anterior: ${fechaLarga(antes)}`}>
         ← {nombre(antes)}
-      </Link>
+      </LinkAlDia>
       <span className="truncate px-1 text-sm font-semibold text-strong" aria-current="date">
         {fechaLarga(dia)}
       </span>
-      <Link href={hrefDia(despues, hoy, vista)} className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")} aria-label={`Día siguiente: ${fechaLarga(despues)}`}>
+      <LinkAlDia dia={despues} hoy={hoy} vista={vista} className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")} aria-label={`Día siguiente: ${fechaLarga(despues)}`}>
         {nombre(despues)} →
-      </Link>
+      </LinkAlDia>
       <span className="flex flex-wrap items-center gap-1 lg:contents">
         {dia !== hoy && (
-          <Link href={hrefDia(hoy, hoy, vista)} className={buttonClasses("ghost", "sm")} {...atributosBoton("ghost", "sm")}>
+          <LinkAlDia dia={hoy} hoy={hoy} vista={vista} className={buttonClasses("ghost", "sm")} {...atributosBoton("ghost", "sm")}>
             Hoy
-          </Link>
+          </LinkAlDia>
         )}
         <OtroDia dia={dia} base={vista === "profesionales" ? "vista=profesionales" : ""} />
       </span>
@@ -130,7 +131,9 @@ export default async function AgendaRenglon({
     // hoy): no se cae por el chip.
     permisos.terminar ? contarSinCerrarDeQuienMira().catch(() => null) : Promise.resolve(null),
   ]);
-  const agenda = proyectarAgenda(cruda, quien);
+  // La marca «seña pedida» y el horario de trabajo: una lectura más por día, con tenantId (Tanda 2).
+  const extras = await extrasDeLaAgenda(cruda, dia);
+  const agenda = proyectarAgenda(cruda, quien, { seniasPedidas: extras.seniasPedidas });
   const ahora = new Date();
   const linea = lineaDeLaAgenda(agenda.turnos, ahora);
   // Los de hoy ya están en la agenda del día; el conteo suma los de los otros días. Si el conteo no
@@ -182,7 +185,13 @@ export default async function AgendaRenglon({
           ) : null,
           linea.masCargada ? `${linea.masCargada.nombre.split(" ")[0]} con ${linea.masCargada.turnos}` : null,
         ]}
-        actions={<ElDia dia={dia} hoy={hoy} vista={vista} />}
+        actions={
+          <>
+            {/* En el celular no hay «/»: el buscador de clientas y turnos, a un toque (CH-028). */}
+            <BotonBuscar />
+            <ElDia dia={dia} hoy={hoy} vista={vista} />
+          </>
+        }
       />
 
       {pestanas.length > 1 && <Pestanas pestanas={pestanas} etiqueta="Vistas de la agenda" conRaya className="mb-4" />}
@@ -206,7 +215,7 @@ export default async function AgendaRenglon({
         vacio={vacio}
         vista={vista}
         profesionales={agenda.profesionales}
-        bloqueos={bloqueosDelDia(cruda.blocksToday)}
+        bloqueos={extras.bloqueos}
       />
 
       {manana && <RenglonDeManana dia={manana.dia} turnos={manana.turnos} />}

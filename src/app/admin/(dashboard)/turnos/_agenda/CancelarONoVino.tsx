@@ -40,6 +40,7 @@ function Pregunta({
   ahora,
   puedeDevolver,
   motivoSinDevolver,
+  conDeshacer = false,
   onListo,
   onVolver,
 }: {
@@ -48,7 +49,8 @@ function Pregunta({
   ahora: Date;
   puedeDevolver: boolean;
   motivoSinDevolver?: string;
-  onListo: () => void;
+  conDeshacer?: boolean;
+  onListo: (mensaje: string) => void;
   onVolver: () => void;
 }) {
   const id = useId();
@@ -85,8 +87,10 @@ function Pregunta({
           return;
         }
         const hecho = accion === "cancelar" ? `Cancelado: ${turno.clienta}, ${hora}.` : `Marcado: ${turno.clienta} no vino.`;
-        showSuccess(r.aviso ? `${hecho} ${r.aviso}` : hecho);
-        onListo();
+        const mensaje = r.aviso ? `${hecho} ${r.aviso}` : hecho;
+        // Con [Deshacer], el aviso lo da quien monta la hoja (un solo cartel, no dos encimados).
+        if (!conDeshacer) showSuccess(mensaje);
+        onListo(mensaje);
       } catch {
         setError("No se pudo. Probá de nuevo; si sigue, avisá.");
       }
@@ -180,6 +184,7 @@ export default function CancelarONoVino({
   accion,
   ahora,
   puedeDevolver,
+  conDeshacer = false,
   onCerrar,
   onListo,
 }: {
@@ -188,9 +193,11 @@ export default function CancelarONoVino({
   ahora: Date;
   /** ¿Quien mira puede devolver la seña? (cobra turnos y el veredicto de ESTE turno lo deja). */
   puedeDevolver: boolean;
+  /** Quien la monta muestra el aviso con [Deshacer] (la mesa): la hoja no muestra el suyo. */
+  conDeshacer?: boolean;
   onCerrar: () => void;
-  /** Salió bien: cerrar la hoja y lo que haya abajo (el cajón). */
-  onListo: () => void;
+  /** Salió bien (con el texto del aviso): cerrar la hoja y lo que haya abajo (el cajón). */
+  onListo: (mensaje: string) => void;
 }) {
   const t = turno;
   return (
@@ -208,6 +215,7 @@ export default function CancelarONoVino({
           ahora={ahora}
           puedeDevolver={puedeDevolver}
           motivoSinDevolver={t.veredicto.ok ? undefined : t.veredicto.motivo}
+          conDeshacer={conDeshacer}
           onListo={onListo}
           onVolver={onCerrar}
         />

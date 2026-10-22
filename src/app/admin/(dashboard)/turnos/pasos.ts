@@ -53,8 +53,14 @@ export function hrefNuevoTurno(fecha?: string | null, cliente?: string | null, e
   return href;
 }
 
-/** Tocar un hueco de la agenda (celda vacía): «Dar turno» con la profesional, el día y la hora puestos. */
-export function hrefTurnoEnHueco(fecha: string, profesionalId: string, hora: string): string {
+/**
+ * Tocar un hueco de la agenda (celda vacía): «Dar turno» con la profesional, el día y la hora puestos
+ * (`?profesional=<id>&hora=HH:MM`, lo lee `leerHuecoDelAlta`). EL ÚNICO armado de ese enlace: la
+ * grilla (grilla.ts, `hrefNuevoTurnoEnHueco`) pasa por acá. Sin profesional (por box con dos que
+ * atienden) va sólo la hora; un id o una hora rara no viajan; un día inválido no precarga nada.
+ */
+export function hrefTurnoEnHueco(fecha: string, profesionalId: string | null, hora: string | null): string {
+  if (!esFechaDeCalendario(fecha)) return hrefNuevoTurno(null);
   return hrefNuevoTurno(fecha, null, { profesional: profesionalId, hora });
 }
 
@@ -116,6 +122,20 @@ export function leerNuevoTurno(
   const abrir = uno(sp.nuevo) === "1";
   const fecha = uno(sp.fecha);
   return { abrir, fecha: abrir && esFechaDeCalendario(fecha) && fecha >= hoy ? fecha : "" };
+}
+
+/**
+ * La agenda de otro día SIN perder cómo se la está mirando: la vista («Por profesional») y el «Ver
+ * por: Box» de la planilla (`?por=box`, que se cambia en el navegador sin ir al servidor). Hoy va
+ * sin `date`. Un día inválido lleva a hoy.
+ */
+export function hrefDiaDeLaAgenda(dia: string, hoy: string, como: { vista?: string | null; por?: string | null } = {}): string {
+  const p = new URLSearchParams();
+  if (dia !== hoy && esFechaDeCalendario(dia)) p.set("date", dia);
+  if (como.vista === "profesionales") p.set("vista", "profesionales");
+  if (como.por === "box") p.set("por", "box");
+  const q = p.toString();
+  return q ? `/admin/turnos?${q}` : "/admin/turnos";
 }
 
 /** La agenda de un día (hoy, sin parámetro). */

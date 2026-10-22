@@ -9,6 +9,8 @@
 // (D6, *provisional a confirmar*), y se cambia en el mismo lugar con [▾] antes de tocar. Después,
 // un aviso con [Deshacer] durante 10 s: anula esa seña con motivo «deshacer» y el turno vuelve a
 // Reservado (CH-049). Si la caja del día ya cerró, el servidor no deja deshacer y lo dice.
+// Se toca cuando la plata SE VE en el banco o en Mercado Pago, no por la captura que manda la clienta:
+// lo dice la ayuda debajo del botón y el cobro queda «verificada por recepción» (nota y auditoría).
 //
 // Listo para montar donde haya un Reservado con seña pendiente: el renglón/cajón de la agenda, el
 // buscador global («/» → «laura» → [Llegó la seña]) y la bandeja del Inicio. `onListo` se llama
@@ -17,7 +19,7 @@
 import { useId, useState, useTransition } from "react";
 import { Aviso, Button, Segmented } from "@/components/ui";
 import { METODOS_DE_PAGO, METODO_LABEL, esMetodoDePago, type MetodoDePago } from "@/lib/turnos/cobros";
-import { MEDIO_DE_LA_SENIA, camposDeDeshacer, pesosDelCobro } from "@/lib/turnos/cobro-dividido";
+import { AYUDA_LLEGO_LA_SENIA, MEDIO_DE_LA_SENIA, camposDeDeshacer, pesosDelCobro } from "@/lib/turnos/cobro-dividido";
 import { cobrarSeniaYConfirmar, deshacerCierre } from "@/lib/turnos/cobro-actions";
 import { useToast } from "../../ToastProvider";
 import { aFormData, camposDeSenia } from "./campos";
@@ -107,7 +109,7 @@ export default function LlegoLaSenia({
   return (
     <div data-ui="llego-la-senia" className={className}>
       <div className="flex items-stretch gap-1.5">
-        <Button type="button" size="lg" className="flex-1" disabled={pendiente} estado={pendiente ? "cargando" : undefined} onClick={cobrar}>
+        <Button type="button" size="lg" className="flex-1" disabled={pendiente} estado={pendiente ? "cargando" : undefined} onClick={cobrar} aria-describedby={`${id}-ayuda`}>
           {pendiente ? "Guardando…" : `Llegó la seña ${pesosDelCobro(monto)}`}
           <span className="sr-only"> por {METODO_LABEL[medio].toLowerCase()}</span>
         </Button>
@@ -126,6 +128,10 @@ export default function LlegoLaSenia({
       </div>
       <p className="mt-1 text-xs text-muted">
         Por {METODO_LABEL[medio].toLowerCase()} · cobra y confirma el turno.
+      </p>
+      {/* Comprobante informado ≠ cobrado: el cobro es firme, se toca con la plata a la vista. */}
+      <p id={`${id}-ayuda`} className="mt-0.5 text-xs text-muted">
+        {AYUDA_LLEGO_LA_SENIA}
       </p>
       {cambiando && (
         <div id={`${id}-medio`} className="mt-2">

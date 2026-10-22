@@ -16,6 +16,8 @@ import {
   nombreRelativo,
   pasoDelTurno,
   propuestaDeSenia,
+  seniaQueFalta,
+  textoSeniaPedida,
   turnoDelDia,
   verboDelPaso,
   type Permisos,
@@ -287,5 +289,26 @@ describe("cancelar o «no vino»: la seña se propone, no se decide sola", () =>
       "Queda como faltazo en su ficha. Los $5.000 que pagó se los queda el negocio: la caja no cambia.",
     );
     assert.match(consecuenciaDelCierre({ accion: "no-vino", hora: "10:00", cobrado: 5000, destino: null }), /Falta elegir/);
+  });
+});
+
+describe("la seña que falta y la marca «seña pedida» (CH-021, CH-022)", () => {
+  const conSenia = { name: "Piernas completas", price: 14000, depositAmount: 5000 };
+  test("un Reservado que todavía no llegó, con seña en el catálogo y nada cobrado: falta la seña", () => {
+    assert.equal(seniaQueFalta(turno({ hora: "16:00", status: "PENDING", service: conSenia }), AHORA), 5000);
+    // Ya empezó, ya confirmado, sin seña en el catálogo o con algo cobrado: no.
+    assert.equal(seniaQueFalta(turno({ hora: "10:00", status: "PENDING", service: conSenia }), AHORA), 0);
+    assert.equal(seniaQueFalta(turno({ hora: "16:00", status: "CONFIRMED", service: conSenia }), AHORA), 0);
+    assert.equal(seniaQueFalta(turno({ hora: "16:00", status: "PENDING" }), AHORA), 0);
+    assert.equal(seniaQueFalta(turno({ hora: "16:00", status: "PENDING", service: conSenia, collections: [{ amount: 5000, method: "TRANSFERENCIA" }] }), AHORA), 0);
+  });
+  test("la marca: hoy con la hora, otro día con la fecha; sin seña que falte, nada", () => {
+    const t = turno({ hora: "16:00", status: "PENDING", service: conSenia });
+    assert.equal(textoSeniaPedida({ ...t, seniaPedidaEl: "2026-09-24T13:03:00.000Z" }, AHORA), "seña pedida 10:03");
+    assert.equal(textoSeniaPedida({ ...t, seniaPedidaEl: "2026-09-20T13:03:00.000Z" }, AHORA), "seña pedida el 20/09");
+    assert.equal(textoSeniaPedida({ ...t, seniaPedidaEl: null }, AHORA), null);
+    assert.equal(textoSeniaPedida({ ...t, seniaPedidaEl: "basura" }, AHORA), null);
+    const pago = turno({ hora: "16:00", status: "PENDING", service: conSenia, collections: [{ amount: 5000, method: "TRANSFERENCIA" }] });
+    assert.equal(textoSeniaPedida({ ...pago, seniaPedidaEl: "2026-09-24T13:03:00.000Z" }, AHORA), null);
   });
 });

@@ -91,23 +91,6 @@ function useTemaDeLaRaiz(ref: React.RefObject<HTMLElement | null>): "light" | "d
   return tema;
 }
 
-/**
- * ¿Se ve la planilla (PC)? El cajón y las hojas son <dialog> modales: abiertos adentro de un bloque
- * escondido en el celular dejarían la página inerte sin mostrarse. En el celular la mesa no recibe
- * turnos, así un `?turno=` en la URL no abre nada ahí.
- */
-function useEsEscritorio(): boolean {
-  const [si, setSi] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const leer = () => setSi(mq.matches);
-    leer();
-    mq.addEventListener("change", leer);
-    return () => mq.removeEventListener("change", leer);
-  }, []);
-  return si;
-}
-
 export default function CalendarGrid({
   professionals,
   appointments,
@@ -139,7 +122,6 @@ export default function CalendarGrid({
 }) {
   const piel = useRef<HTMLDivElement>(null);
   const tema = useTemaDeLaRaiz(piel);
-  const escritorio = useEsEscritorio();
 
   if (professionals.length === 0) {
     return sinProfesionales ? (
@@ -177,25 +159,27 @@ export default function CalendarGrid({
       {HOJAS_DEL_DISENO.map((href) => (
         <link key={href} rel="stylesheet" href={href} precedence={PRECEDENCIA_DEL_DISENO} />
       ))}
-      <div ref={piel} data-diseno={PIEL_RENGLON} data-theme={tema} data-pantalla="agenda-planilla" style={estilo} className="hidden bg-surface text-body lg:block">
-        <MesaDeTurnos
-          turnos={escritorio ? planilla.turnos : []}
-          permisos={planilla.permisos}
-          ahora={planilla.ahora}
-          hrefFicha={planilla.hrefFicha}
-        >
-          <PorProfesional
-            turnos={planilla.turnos}
-            profesionales={planilla.profesionales}
-            ahora={planilla.ahora}
-            dia={planilla.dia}
-            bloqueos={planilla.bloqueos}
-          />
-          {planilla.turnos.length === 0 && diaVacio && (
-            <div className="mt-4">
-              <PasoVacio paso={diaVacio} />
-            </div>
-          )}
+      {/* La mesa (cajón del turno, hojas de cobro y de cancelar) queda VISIBLE en todos los anchos:
+          sus <dialog> modales no pueden vivir adentro de un bloque escondido (dejarían la página
+          inerte sin mostrarse). Lo que se esconde en el celular es sólo la planilla. Así un
+          `?turno=<id>` (el buscador, «Mañana», «Atender ahora» con `&hoja=terminar`) abre el turno
+          también en el celular, como hoja desde abajo. */}
+      <div ref={piel} data-diseno={PIEL_RENGLON} data-theme={tema} data-pantalla="agenda-planilla" style={estilo} className="text-body lg:bg-surface">
+        <MesaDeTurnos turnos={planilla.turnos} permisos={planilla.permisos} ahora={planilla.ahora} hrefFicha={planilla.hrefFicha}>
+          <div className="hidden lg:block">
+            <PorProfesional
+              turnos={planilla.turnos}
+              profesionales={planilla.profesionales}
+              ahora={planilla.ahora}
+              dia={planilla.dia}
+              bloqueos={planilla.bloqueos}
+            />
+            {planilla.turnos.length === 0 && diaVacio && (
+              <div className="mt-4">
+                <PasoVacio paso={diaVacio} />
+              </div>
+            )}
+          </div>
         </MesaDeTurnos>
       </div>
     </div>

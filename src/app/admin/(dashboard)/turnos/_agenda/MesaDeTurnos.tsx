@@ -11,10 +11,17 @@
 //
 // Cobrar es 2 toques: la tecla del renglón («Cobrar $9.000») abre la hoja y el MEDIO ya cobra. Un
 // Reservado al que se le pasó la hora se cobra igual, sin «Confirmar» antes (viaja con `vino=on`).
+//
+// `?turno=<id>&hoja=terminar` (CH-019, «Atender ahora» → al dar el turno): abre ESE turno directo en
+// la hoja de terminar y cobrar (sin el cajón debajo). Al cerrarla se saca de la URL, así no vuelve.
+//
+// «Deshacer» (CH-026): cuando la hoja de cancelar / «no vino» termina bien, queda un aviso con
+// [Deshacer] unos segundos (`AvisoDeshacerCierre`, Deshacer.tsx): el turno vuelve a Reservado si
+// el hueco sigue libre; si no, el servidor dice por qué.
 
 import { createContext, useContext, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { completeAppointment, confirmarTurno } from "@/lib/actions";
 import { Button, Hoja, Marca, Plata, Renglon, hrefConParametros } from "@/components/ui";
 import { MenuMas } from "@/components/ui/MenuMas";
@@ -28,6 +35,7 @@ import {
   minutosEntre,
   pasoDelTurno,
   pesos,
+  textoSeniaPedida,
   verboDelPaso,
   yaEmpezo,
   type CierreSinPrestar,
@@ -40,6 +48,7 @@ import CancelarONoVino, { type CierreAbierto } from "./CancelarONoVino";
 import CobrarTurno from "./CobrarTurno";
 import TerminarTurno from "./TerminarTurno";
 import TurnoCajon from "./TurnoCajon";
+import AvisoDeshacerCierre from "./Deshacer";
 
 type HojaAbierta = { turnoId: string; que: "cobrar" | "terminar" } | null;
 
@@ -78,10 +87,26 @@ export default function MesaDeTurnos({
 }) {
   const ruta = usePathname();
   const params = useSearchParams();
+  const router = useRouter();
   const reloj = new Date(ahora);
   const idAbierto = params.get("turno");
-  const abierto = idAbierto ? (turnos.find((t) => t.id === idAbierto) ?? null) : null;
-  const [hoja, setHoja] = useState<HojaAbierta>(null);
+  const [hojaPedida, setHoja] = useState<HojaAbierta>(null);
+  // `?hoja=terminar` (CH-019): ESE turno abre directo en la hoja de terminar y cobrar (en cuanto está
+  // en la lista: la grilla lo recibe recién montada). Al cerrarla se saca `hoja` de la URL y no vuelve.
+  const [hojaDescartada, setHojaDescartada] = useState<string | null>(null);
+  const pedidoDeHoja =
+    params.get("hoja") === "terminar" && idAbierto && turnos.some((t) => t.id === idAbierto) ? idAbierto : null;
+  const hojaDeLaUrl = !hojaPedida && !!pedidoDeHoja && hojaDescartada !== pedidoDeHoja;
+  const hoja: HojaAbierta = hojaPedida ?? (hojaDeLaUrl && pedidoDeHoja ? { turnoId: pedidoDeHoja, que: "terminar" } : null);
+  // Con la hoja de la URL arriba, el cajón del mismo turno no se abre debajo (dos veces lo mismo).
+  const abierto = idAbierto && !hojaDeLaUrl ? (turnos.find((t) => t.id === idAbierto) ?? null) : null;
+  const cerrarHoja = () => {
+    setHoja(null);
+    if (hojaDeLaUrl && pedidoDeHoja) {
+      setHojaDescartada(pedidoDeHoja);
+      window.history.replaceState(null, "", hrefConParametros(window.location.pathname, new URLSearchParams(window.location.search), { hoja: null, turno: null }));
+    }
+  };
   const [cierre, setCierre] = useState<CierreAbierto | null>(null);
   const empujado = useRef(false);
 
@@ -105,6 +130,9 @@ export default function MesaDeTurnos({
   const turnoDelCierre = cierre ? (turnos.find((t) => t.id === cierre.turnoId) ?? null) : null;
   const cerrarSinPrestar = (turnoId: string, accion: CierreSinPrestar) => setCierre({ turnoId, accion });
   const cobraLaHoja = !!turnoDeLaHoja && permisos.cobrar && turnoDeLaHoja.veredicto.ok;
+  // Lo recién cancelado / marcado «no vino», con su [Deshacer] (CH-026).
+  const [deshacer, setDeshacer] = useState<{ turnoId: string; clienta: string; que: CierreSinPrestar; mensaje: string } | null>(null);
+
 
   return (
     <Contexto.Provider value={{ permisos, reloj, fichaDe, abrir, hoja: setHoja, cerrarSinPrestar, cambiarUrl }}>
@@ -125,17 +153,31 @@ export default function MesaDeTurnos({
         ahora={reloj}
         puedeDevolver={!!turnoDelCierre && permisos.cobrar && turnoDelCierre.veredicto.ok}
         onCerrar={() => setCierre(null)}
-        onListo={() => {
+        conDeshacer
+        onListo={(mensaje) => {
           // Hecho: se cierra la hoja y, si el turno estaba abierto en el cajón, también el cajón.
           const delCajon = !!abierto && abierto.id === cierre?.turnoId;
+          if (cierre && turnoDelCierre) setDeshacer({ turnoId: cierre.turnoId, clienta: turnoDelCierre.clienta, que: cierre.accion, mensaje });
           setCierre(null);
           if (delCajon) cerrar();
         }}
       />
 
+      {deshacer && (
+        <AvisoDeshacerCierre
+          key={deshacer.turnoId}
+          turnoId={deshacer.turnoId}
+          clienta={deshacer.clienta}
+          que={deshacer.que === "no-vino" ? "no-vino" : "cancelacion"}
+          mensaje={deshacer.mensaje}
+          onTermina={() => setDeshacer(null)}
+          onDeshecho={() => router.refresh()}
+        />
+      )}
+
       <Hoja
         abierta={!!turnoDeLaHoja}
-        onCerrar={() => setHoja(null)}
+        onCerrar={cerrarHoja}
         titulo={
           turnoDeLaHoja
             ? `${
@@ -160,8 +202,8 @@ export default function MesaDeTurnos({
             clienta={turnoDeLaHoja.clienta}
             sugerido={turnoDeLaHoja.sugerido}
             saldo={turnoDeLaHoja.saldo}
-            onListo={() => setHoja(null)}
-            onQuedaDebiendo={turnoDeLaHoja.cuentaACobrar ? () => setHoja(null) : undefined}
+            onListo={cerrarHoja}
+            onQuedaDebiendo={turnoDeLaHoja.cuentaACobrar ? cerrarHoja : undefined}
           />
         )}
         {turnoDeLaHoja && hoja?.que === "terminar" && (
@@ -173,7 +215,7 @@ export default function MesaDeTurnos({
             saldo={turnoDeLaHoja.saldo}
             puedeCobrar={cobraLaHoja}
             motivoSinCobro={turnoDeLaHoja.veredicto.ok ? undefined : turnoDeLaHoja.veredicto.motivo}
-            onListo={() => setHoja(null)}
+            onListo={cerrarHoja}
           />
         )}
       </Hoja>
@@ -303,6 +345,7 @@ export function RenglonDelTurno({ t, conFecha = false }: { t: TurnoDelDia; conFe
   const { permisos, reloj, fichaDe, abrir, cerrarSinPrestar } = useMesa();
   const paso = pasoDelTurno(t, permisos, reloj);
   const marca = marcaDelTurno(t, reloj);
+  const pedida = textoSeniaPedida(t, reloj);
   const resuelto = estaResuelto(t);
   const wa = waLinkClienta(t.telefono);
   const vivo = t.estado === "PENDING" || t.estado === "CONFIRMED";
@@ -343,6 +386,7 @@ export function RenglonDelTurno({ t, conFecha = false }: { t: TurnoDelDia; conFe
           <Marca tipo={marca.tipo} className="ml-1 align-baseline">
             {marca.texto}
           </Marca>
+          {pedida && <span className="ml-2">{pedida}</span>}
         </>
       }
       plata={

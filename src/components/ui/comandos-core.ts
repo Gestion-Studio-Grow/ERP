@@ -41,7 +41,7 @@ export interface TeclaDeFicha {
 }
 
 /**
- * Lugar para una tecla que hace PLATA y todavía no existe en esta rama (la construye otro frente):
+ * Lugar para una tecla que hace PLATA (la dibuja quien monta la paleta: armazon/TeclaDePlata.tsx):
  *   · «Llegó la seña» → `cobrarSeniaYConfirmar` (agente 2-B, src/lib/turnos/cobro-actions.ts);
  *   · «Cobrar lo que debe» → `cobrarVariosTurnos` (agente 2-B).
  * Trae sólo los ids y el monto que esas acciones necesitan. Quien monta la paleta decide cómo se
@@ -49,8 +49,16 @@ export interface TeclaDeFicha {
  * y «Llegó la seña» no se ofrece.
  */
 export type HuecoDeFicha =
-  | { tipo: "llego-la-senia"; turnoId: string; monto: number }
-  | { tipo: "cobrar-deuda"; clienteId: string; monto: number; turnoIds: readonly string[] };
+  | { tipo: "llego-la-senia"; turnoId: string; clienta: string; monto: number }
+  | {
+      tipo: "cobrar-deuda";
+      clienteId: string;
+      clienta: string;
+      monto: number;
+      turnoIds: readonly string[];
+      /** Lo que se cobra de cada turno (un cobro por turno, imputado a SU turno). */
+      cobros: readonly { id: string; monto: number }[];
+    };
 
 export interface Comando {
   id: string;

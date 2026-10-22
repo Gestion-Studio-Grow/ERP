@@ -26,6 +26,8 @@ import PielPropia from "./PielPropia";
 import { EVENTO_BUSCAR, comandosDelMenu, esAtajoDeBuscar } from "./buscar-global";
 
 const PaletaDeComandos = dynamic(() => import("@/components/ui/PaletaDeComandos").then((m) => m.PaletaDeComandos));
+// «Llegó la seña» y «Cobrar lo que debe» (TeclaDePlata.tsx): se piden recién cuando una ficha los trae.
+const TeclaDePlata = dynamic(() => import("./TeclaDePlata"));
 
 export default function BuscadorGlobal({
   menu,
@@ -77,9 +79,7 @@ export default function BuscadorGlobal({
         comandos={comandos}
         buscarFichas={buscarClientasYTurnos}
         etiqueta="Buscar una clienta o un turno"
-        // TODO(2-B): `dibujarHueco` con «Llegó la seña» (`cobrarSeniaYConfirmar`) y «Cobrar lo que
-        // debe» (`cobrarVariosTurnos`) de src/lib/turnos/cobro-actions.ts al integrar la Tanda 2.
-        // Mientras, «Cobrar lo que debe» es un enlace a «Saldos a cobrar» y «Llegó la seña» no se ofrece.
+        dibujarHueco={(hueco, cerrarPaleta) => <TeclaDePlata hueco={hueco} cerrar={cerrarPaleta} />}
       />
     </PielPropia>
   );

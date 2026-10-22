@@ -25,7 +25,9 @@ export type CierreParaDeshacer = { turnoId: string; clienta: string; que: "cance
 
 const DURACION_DESHACER_MS = 10_000;
 
-export default function AvisoDeshacerCierre({ turnoId, clienta, que, onTermina, onDeshecho }: CierreParaDeshacer & {
+export default function AvisoDeshacerCierre({ turnoId, clienta, que, mensaje, onTermina, onDeshecho }: CierreParaDeshacer & {
+  /** El texto del aviso (el de la hoja, con lo que pasó con la seña); sin él, el de siempre. */
+  mensaje?: string;
   onTermina: () => void;
   /** Volvió a Reservado: quien lo monta recarga lo que muestra (la agenda ya se revalida sola). */
   onDeshecho?: () => void;
@@ -53,7 +55,7 @@ export default function AvisoDeshacerCierre({ turnoId, clienta, que, onTermina, 
   return (
     <div className="pointer-events-none fixed bottom-[calc(1rem_+_var(--alto-barra-inferior,0px))] left-4 right-4 z-50 flex justify-end sm:left-auto">
       <Aviso
-        mensaje={que === "cancelacion" ? `Cancelado: ${clienta}.` : `Marcado: ${clienta} no vino.`}
+        mensaje={mensaje ?? (que === "cancelacion" ? `Cancelado: ${clienta}.` : `Marcado: ${clienta} no vino.`)}
         duracion={DURACION_DESHACER_MS}
         onDeshacer={pendiente ? undefined : deshacer}
         onTermina={onTermina}

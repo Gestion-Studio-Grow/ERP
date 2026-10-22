@@ -12,8 +12,10 @@ import {
   mensajeConfirmacion,
   mensajeMover,
   mensajeNoVino,
+  mensajeParaVolver,
   mensajePedidoDeSenia,
   mensajeRecordarSaldo,
+  mensajeSaludo,
   pesosEnTexto,
 } from "./mensajes-whatsapp";
 
@@ -185,5 +187,30 @@ describe("el link", () => {
   test("un teléfono que no es un celular argentino no da link", () => {
     assert.equal(linkWhatsApp("123", "hola"), null);
     assert.equal(linkWhatsApp(null, "hola"), null);
+  });
+});
+
+describe("escribirle sin un turno (buscador y Clientes)", () => {
+  test("el saludo solo, con el primer nombre; sin nombre, «¡Hola!»", () => {
+    assert.equal(mensajeSaludo("Laura Gómez"), "¡Hola Laura!");
+    assert.equal(mensajeSaludo("   "), "¡Hola!");
+    assert.equal(mensajeSaludo("undefined"), "¡Hola!");
+  });
+
+  test("invitarla a volver: cada motivo con su frase, sin basura (CH-050)", () => {
+    assert.match(mensajeParaVolver("frecuente", "Laura Gómez"), /^¡Hola Laura! ¿Cómo estás\? .*próximo turno/);
+    assert.match(mensajeParaVolver("hace-mucho", "Laura Gómez"), /^¡Hola Laura! Hace mucho que no te vemos/);
+    assert.match(mensajeParaVolver("cumple-hoy", "Laura Gómez"), /^¡Feliz cumple, Laura!/);
+    assert.match(mensajeParaVolver("cumple-cerca", "Laura Gómez"), /^¡Hola Laura! Se viene tu cumple/);
+    assert.equal(mensajeParaVolver("cumple-hoy", " "), "¡Feliz cumple! Que tengas un día hermoso 💚");
+    for (const m of ["frecuente", "hace-mucho", "cumple-hoy", "cumple-cerca"] as const) {
+      for (const n of ["Laura Gómez", "", "null"]) sinBasura(mensajeParaVolver(m, n));
+    }
+  });
+
+  test("mover: con el servicio, la profesional y de cuándo era", () => {
+    const t = mensajeMover({ clienta: "Laura Gómez", servicios: "Piernas completas", inicio: DOM_1730, profesional: "Lu", inicioAnterior: SAB_16 });
+    assert.match(t, /Te pasamos el turno de \*Piernas completas\* al \*domingo 25 a las 17:30\* con Lu \(era el sábado 24 a las 16:00\)/);
+    sinBasura(t);
   });
 });

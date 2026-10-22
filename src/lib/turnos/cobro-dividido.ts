@@ -158,8 +158,15 @@ export function leerPagos(raw: unknown): { ok: true; lineas: { metodo: string; m
 /** Cómo llegan las señas a CH: por transferencia (D6, *provisional a confirmar*). Se cambia en el botón. */
 export const MEDIO_DE_LA_SENIA: MetodoDePago = "TRANSFERENCIA";
 
-/** La nota del cobro de «Llegó la seña»: es lo que reconoce «Deshacer» (no es una marca reservada). */
-export const NOTA_LLEGO_LA_SENIA = "Llegó la seña";
+/**
+ * La nota del cobro de «Llegó la seña»: es lo que reconoce «Deshacer» (no es una marca reservada).
+ * «Verificada por recepción»: el botón se toca cuando la plata SE VE en el banco o en Mercado Pago,
+ * no por la captura que manda la clienta (comprobante informado ≠ cobrado; decisión del orquestador).
+ */
+export const NOTA_LLEGO_LA_SENIA = "Llegó la seña (verificada por recepción)";
+
+/** La ayuda debajo de «Llegó la seña» (buscador y cajón): cuándo se toca. */
+export const AYUDA_LLEGO_LA_SENIA = "Tocalo cuando la veas en el banco o en Mercado Pago, no por la captura.";
 
 /** La seña que FALTA cobrar: la del servicio (acotada al precio) menos la plata que ya entró. */
 export function seniaQueFalta(p: { depositAmount: number | null | undefined; precio: number; cobradoReal: number }): number {

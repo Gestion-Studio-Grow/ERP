@@ -194,6 +194,14 @@ test("CH-022 · «Llegó la seña»: $5.000 por transferencia + Confirmado; dos 
   assert.ok(r.ok && r.cobroId && r.monto === 5000 && r.confirmo);
   const esperado = { status: "CONFIRMED", cobros: [{ amount: 5000, method: "TRANSFERENCIA" }], libro: [{ type: "VENTA", method: "MP", amount: 5000 }] };
   assert.deepEqual(await foto(s, id), esperado);
+  // Comprobante informado ≠ cobrado: el cobro y su auditoría dicen «verificada por recepción».
+  {
+    const duenio = await prismaComoDuenio(s.base);
+    const [cobro] = await duenio.collection.findMany({ where: { appointmentId: id }, select: { note: true } });
+    assert.match(cobro.note ?? "", /verificada por recepción/);
+    const audit = await duenio.auditLog.findFirst({ where: { entityId: id, action: "collect_payment" }, select: { changes: true } });
+    assert.match(JSON.stringify(audit?.changes ?? null), /verificada por recepción/);
+  }
   const otra = await comoRecepcion(s, () => cobrarSeniaYConfirmar(fd(campos)));
   assert.deepEqual(otra, { ok: true, cobroId: null, monto: 0, confirmo: false, aviso: "La seña ya estaba cobrada y el turno confirmado." });
   assert.deepEqual(await foto(s, id), esperado, "el doble toque no cobró dos veces");

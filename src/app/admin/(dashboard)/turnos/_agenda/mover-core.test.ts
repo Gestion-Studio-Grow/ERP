@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { destinoDelArrastre, diasParaMover, preguntaDeMover, sePuedeMover, textoDeMover, veredictoDelDestino } from "./mover-core";
+import { destinoDelArrastre, diasParaMover, preguntaDeMover, sePuedeMover, veredictoDelDestino } from "./mover-core";
 
 const iso = (dia: string, hhmm: string) => new Date(`${dia}T${hhmm}:00-03:00`).toISOString();
 const DIA = "2030-10-24"; // jueves
@@ -41,14 +41,8 @@ test("destino por columna: por box con dos, sólo si la del turno atiende ahí",
   assert.equal(sePuedeMover({ estado: "NO_SHOW" }), false);
 });
 
-test("textos: la pregunta y el WhatsApp de mover, sin undefined ni null", () => {
+test("textos: la pregunta de mover (el WhatsApp es `mensajeMover`, con su test en mensajes-whatsapp)", () => {
   assert.equal(preguntaDeMover(aLu), "¿Mover a jue 24 17:30 con Lu?");
-  const t = textoDeMover({ clienta: "Laura Gómez", inicio: aLu.inicio, profesional: "Lu" });
-  assert.equal(t, "¡Hola Laura! Te pasamos el turno al jue 24 17:30 con Lu. Cualquier cosa, avisanos por acá.");
-  assert.match(t, /Te pasamos el turno al jue 24 17:30 con Lu/);
-  const sinNombre = textoDeMover({ clienta: "  ", inicio: aLu.inicio, profesional: "Lu" });
-  assert.doesNotMatch(sinNombre, /undefined|null|NaN/);
-  assert.match(sinNombre, /^¡Hola! Te pasamos/);
 });
 
 test("diasParaMover: hoy + 6, y el día del turno si cae más adelante", () => {

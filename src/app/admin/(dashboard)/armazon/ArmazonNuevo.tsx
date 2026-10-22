@@ -44,6 +44,10 @@ import { ROLE_LABEL, type PropsDelArmazon } from "../AdminShell";
 import { dondeEstoy, espacioPedido, hrefDelEspacio, iniciales, tituloDePantalla, type EspacioDeNav } from "./armazon-core";
 import type { NavDelArmazon } from "./navegacion";
 import { EVENTO_BUSCAR, esAtajoDeBuscar, veLaAgenda } from "./buscar-global";
+import dynamic from "next/dynamic";
+
+// «Llegó la seña» y «Cobrar lo que debe» del buscador (TeclaDePlata.tsx): se piden recién cuando una ficha los trae.
+const TeclaDePlata = dynamic(() => import("./TeclaDePlata"));
 
 /** Cuántos lugares tiene la cápsula antes de la tecla del rubro (5 botones entran en 360 px). */
 const LUGARES_EN_LA_CAPSULA = 4;
@@ -384,7 +388,7 @@ export default function ArmazonNuevo({
         comandos={nav.comandos}
         buscarRegistros={buscarEnElNegocio}
         buscarFichas={conFichas ? buscarClientasYTurnos : undefined}
-        // TODO(2-B): `dibujarHueco` con «Llegó la seña» y «Cobrar lo que debe» (cobro-actions.ts).
+        dibujarHueco={(hueco, cerrar) => <TeclaDePlata hueco={hueco} cerrar={cerrar} />}
       />
     </div>
   );

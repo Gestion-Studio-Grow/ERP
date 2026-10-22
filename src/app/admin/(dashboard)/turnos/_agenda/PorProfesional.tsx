@@ -31,7 +31,7 @@ import { useSearchParams } from "next/navigation";
 import { Chip, Marca, Segmented } from "@/components/ui";
 import { businessWallTimeToUtc, dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
 import { huecosParaMover } from "@/lib/turnos/mover-actions";
-import { FILTROS_AGENDA, entraEnFiltro, leerFiltroAgenda, marcaDelTurno, type TurnoDelDia } from "../agenda-core";
+import { FILTROS_AGENDA, entraEnFiltro, leerFiltroAgenda, marcaDelTurno, textoSeniaPedida, type TurnoDelDia } from "../agenda-core";
 import {
   LEYENDA_DE_LA_GRILLA,
   PASO_MIN,
@@ -45,6 +45,9 @@ import {
   leerVerPor,
   minutosDelDia,
   rayaDeAhora,
+  FUERA_DE_HORARIO,
+  NO_TRABAJA_ESE_DIA,
+  ausenciaDeLaColumna,
   type BloqueoDelDia,
   type ColumnaDeLaGrilla,
 } from "../grilla";
@@ -276,7 +279,7 @@ export default function PorProfesional({
                   key={`c-${c.clave}-${f}`}
                   {...comun}
                   aria-hidden
-                  title={celda.tipo === "bloqueada" ? `No atiende (${celda.motivo})` : undefined}
+                  title={celda.tipo === "bloqueada" ? (celda.motivo === FUERA_DE_HORARIO || celda.motivo === NO_TRABAJA_ESE_DIA ? `No atiende: ${celda.motivo}` : `No atiende (${celda.motivo})`) : undefined}
                   className={`border-b border-l border-line/60 ${celda.tipo === "bloqueada" ? "bg-surface-sunken" : ""}`}
                 />
               );
@@ -305,6 +308,7 @@ export default function PorProfesional({
               const alto = Math.max(1, Math.ceil((m.hasta - desde) / PASO_MIN) - fila);
               const { carril, de } = carriles.get(t.id) ?? { carril: 0, de: 1 };
               const marca = marcaDelTurno(t, reloj);
+              const pedida = textoSeniaPedida(t, reloj);
               const movible = permisos.gestionar && sePuedeMover(t);
               const atenuado = filtro !== "todos" && !entraEnFiltro(t, filtro, reloj);
               const choca = choques.has(t.id);
@@ -349,7 +353,7 @@ export default function PorProfesional({
                     } else arrastre.current = null;
                   }}
                   onPointerCancel={cancelar}
-                  aria-label={`${fmtTime(t.inicio)}, ${t.clienta}, ${t.servicio}, ${marca.texto}${choca ? ", se pisa con otro turno" : ""}: abrir el turno`}
+                  aria-label={`${fmtTime(t.inicio)}, ${t.clienta}, ${t.servicio}, ${marca.texto}${pedida ? `, ${pedida}` : ""}${choca ? ", se pisa con otro turno" : ""}: abrir el turno`}
                   className={`z-[1] flex min-w-0 flex-col items-start gap-0.5 self-stretch overflow-hidden rounded border border-line-strong bg-surface-raised px-2 py-1 text-left hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus ${
                     movible ? "lg:cursor-grab" : ""
                   } ${atenuado ? "opacity-40" : ""} ${arrastrando === t.id ? "opacity-60" : ""}`}
@@ -365,7 +369,12 @@ export default function PorProfesional({
                     <span className="text-xs font-semibold tabular-nums text-strong">{fmtTime(t.inicio)}</span>
                     <span className="truncate font-medium text-strong">{t.clienta}</span>
                   </span>
-                  {alto > 1 && <span className="w-full truncate text-xs text-muted">{verPor === "box" ? `${t.servicio} · ${t.profesional}` : t.servicio}</span>}
+                  {alto > 1 && (
+                    <span className="w-full truncate text-xs text-muted">
+                      {verPor === "box" ? `${t.servicio} · ${t.profesional}` : t.servicio}
+                      {pedida ? " · seña pedida" : ""}
+                    </span>
+                  )}
                   {alto > 1 && !choca && <Marca tipo={marca.tipo}>{marca.texto}</Marca>}
                   {choca && <Marca tipo="atencion">{verPor === "box" ? "Choca en el box" : "Se pisa con otro turno"}</Marca>}
                 </button>
@@ -404,14 +413,14 @@ export default function PorProfesional({
 }
 
 function EncabezadoDeColumna({ columna, numero, bloqueos }: { columna: ColumnaDeLaGrilla; numero: number; bloqueos: readonly BloqueoDelDia[] }) {
-  const ausencia = columna.profesionalIds.length === 1 ? bloqueos.find((b) => b.profesionalId === columna.profesionalIds[0]) : undefined;
+  const ausencia = ausenciaDeLaColumna(columna.profesionalIds, bloqueos);
   return (
     <div className="flex min-w-0 flex-col justify-center border-b border-l border-line px-2" style={{ gridColumn: numero + 2, gridRow: 1 }}>
       <span className="truncate font-semibold text-strong">{columna.titulo}</span>
       {(columna.detalle || ausencia) && (
         <span className="truncate text-xs text-muted">
           {columna.detalle}
-          {ausencia ? `${columna.detalle ? " · " : ""}no atiende (${ausencia.motivo})` : ""}
+          {ausencia ? `${columna.detalle ? " · " : ""}${ausencia.tipo === "horario" ? ausencia.motivo : `no atiende (${ausencia.motivo})`}` : ""}
         </span>
       )}
     </div>

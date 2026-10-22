@@ -17,6 +17,9 @@
 // [Confirmó] (confirma: `confirmarTurno`, devuelve el error si el turno cambió) · [Quiere cambiar]
 // (abre mover) · [Cancela] (abre la cancelación, que pregunta por la seña: `CancelarONoVino`), y
 // arriba el contador «7 avisadas · 5 confirmadas · 1 cambia · 1 cancela» (manana/manana-core.ts).
+// [Quiere cambiar] abre `MoverTurno` (chips de días con huecos + [Mover y avisar por WhatsApp]: el
+// mismo turno, nunca uno nuevo). La clienta se toca y abre el turno en la agenda de mañana, con su
+// cajón (`?date=…&turno=…`, lo lee la mesa de turnos).
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
@@ -27,7 +30,7 @@ import { fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { useToast } from "../../ToastProvider";
 import { fechaLarga, type TurnoDelDia } from "../agenda-core";
-import RescheduleForm from "../RescheduleForm";
+import MoverTurno from "./MoverTurno";
 import CancelarONoVino from "./CancelarONoVino";
 import { aFormData, camposDelTurno } from "./campos";
 import {
@@ -284,6 +287,8 @@ export function ListaDeManana({
   // Los turnos que se vieron al abrir: una que canceló o se movió sigue en la lista y en el contador.
   const [vistos] = useState(() => turnos);
   const [cambiar, setCambiar] = useState<string | null>(null);
+  // El «ahora» de Mover (los huecos que ya pasaron no se ofrecen): se toma al abrir la hoja.
+  const [ahoraDeLaHoja, setAhoraDeLaHoja] = useState(() => new Date().toISOString());
   const [cancelar, setCancelar] = useState<{ id: string; ahora: Date } | null>(null);
   const todos = unirTurnos(vistos, turnos).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   const responder = (id: string, r: Respuesta) => setRespuestas((x) => ({ ...x, [id]: r }));
@@ -324,7 +329,15 @@ export function ListaDeManana({
               as="li"
               key={t.id}
               folio={<span className={`text-[15px] font-semibold tabular-nums text-strong ${fuera ? "line-through" : ""}`}>{fmtTime(t.startsAt)}</span>}
-              titulo={t.clienta}
+              titulo={
+                <Link
+                  href={`/admin/turnos?date=${dia}&turno=${encodeURIComponent(t.id)}`}
+                  aria-label={`${t.clienta}, mañana ${fmtTime(t.startsAt)}: abrir el turno`}
+                  className="inline-flex min-h-11 items-center underline-offset-2 hover:underline lg:min-h-0"
+                >
+                  {t.clienta}
+                </Link>
+              }
               detalle={
                 <>
                   {t.servicio} · {t.profesional}{" "}
@@ -375,6 +388,7 @@ export function ListaDeManana({
                             onClick={() => {
                               if (r === "cambia") {
                                 responder(t.id, "cambia");
+                                setAhoraDeLaHoja(new Date().toISOString());
                                 setCambiar(t.id);
                               } else {
                                 setCancelar({ id: t.id, ahora: new Date() });
@@ -402,8 +416,7 @@ export function ListaDeManana({
           onConfirmo={(id) => responder(id, "confirmo")}
         />
       )}
-      {/* [Quiere cambiar]: TODO(2-C) reemplazar RescheduleForm por MoverTurno (chips de días + huecos +
-          [Mover y avisar] con el WhatsApp de 2-A) al integrar la Tanda 2. */}
+      {/* [Quiere cambiar]: Mover (2-C) — chips de días con huecos + [Mover y avisar por WhatsApp]. */}
       <Hoja
         abierta={!!aCambiar}
         onCerrar={() => setCambiar(null)}
@@ -412,11 +425,17 @@ export function ListaDeManana({
       >
         {aCambiar && turnoACambiar && (
           <div className="space-y-3 py-1">
-            <p className="text-sm text-muted">Elegí el día y la hora nuevos. Después avisale por WhatsApp.</p>
-            <RescheduleForm appointmentId={aCambiar.id} serviceId={turnoACambiar.servicioId} currentProfessionalId={turnoACambiar.profesionalId} />
-            <Button type="button" variant="ghost" onClick={() => setCambiar(null)}>
-              Listo
-            </Button>
+            <p className="text-sm text-muted">Elegí el día y la hora nuevos: «Mover y avisar» le manda el WhatsApp con el cambio.</p>
+            <MoverTurno
+              key={aCambiar.id}
+              turno={turnoACambiar}
+              ahora={ahoraDeLaHoja}
+              abiertoAlEmpezar
+              onListo={(movido) => {
+                setCambiar(null);
+                if (movido) router.refresh();
+              }}
+            />
           </div>
         )}
       </Hoja>

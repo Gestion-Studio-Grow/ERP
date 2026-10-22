@@ -271,3 +271,79 @@ export function SumarLoQueDebe({ turnoId, clienta, estado, saldo, onListo, disab
     </div>
   );
 }
+
+/**
+ * «Cobrar lo que debe ($9.000)» SIN un turno de hoy (el buscador global, CH-028): la tecla despliega
+ * los medios y un toque cobra todo, un cobro por turno imputado a SU turno (`cobrarVariosTurnos` sin
+ * `terminar`, una transacción). La deuda la trae quien la monta (`cobros`: id y saldo de cada turno).
+ */
+export function CobrarLoQueDebe({
+  clienta,
+  cobros,
+  onListo,
+}: {
+  clienta: string;
+  cobros: readonly { id: string; monto: number }[];
+  /** Salió bien (cerrar lo que la mostraba y recargar). */
+  onListo?: () => void;
+}) {
+  const id = useId();
+  const { showError, showSuccess } = useToast();
+  const [abierto, setAbierto] = useState(false);
+  const [enCurso, setEnCurso] = useState<MetodoDePago | null>(null);
+  const [error, setError] = useState("");
+  const [pendiente, empezar] = useTransition();
+  const total = totalDeLaDeuda(cobros.map((c) => ({ saldo: c.monto })));
+  if (cobros.length === 0 || !(total > 0)) return null;
+
+  const cobrar = (metodo: MetodoDePago) => {
+    if (pendiente) return; // un doble toque no manda dos veces (y las claves de idempotencia tampoco cobrarían dos)
+    setError("");
+    setEnCurso(metodo);
+    empezar(async () => {
+      try {
+        const r = await cobrarVariosTurnos(aFormData(camposDeCobrarVarios({ cobros, metodo })));
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        showSuccess(`Cobrado: ${clienta}, ${pesosDelCobro(total)} en ${METODO_LABEL[metodo].toLowerCase()}. Ya no debe nada.`);
+        if (r.aviso) showError(r.aviso);
+        onListo?.();
+      } catch {
+        showError("No se pudo cobrar. Probá de nuevo; si sigue, avisá.");
+      } finally {
+        setEnCurso(null);
+      }
+    });
+  };
+
+  return (
+    <div data-ui="cobrar-lo-que-debe" className="w-full space-y-3">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-expanded={abierto}
+        aria-controls={`${id}-medios`}
+        disabled={pendiente}
+        onClick={() => setAbierto((a) => !a)}
+      >
+        Cobrar lo que debe ({pesosDelCobro(total)})
+      </Button>
+      {abierto && (
+        <div id={`${id}-medios`} className="space-y-2">
+          <TeclasDeMedio etiqueta={`Cobrar ${pesosDelCobro(total)} que debe ${clienta}, con`} onElegir={cobrar} disabled={pendiente} enCurso={enCurso} />
+          <p className="text-xs text-muted">
+            {cobros.length === 1 ? "Un toque en el medio cobra lo que quedó debiendo." : `Un toque en el medio cobra los ${cobros.length} turnos que quedaron debiendo, cada uno en el suyo.`}
+          </p>
+          {error && (
+            <p role="alert" className="text-sm text-danger">
+              {error}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -14,7 +14,6 @@ import {
   deudaDe,
   hrefDarTurno,
   ordenarClientas,
-  saludoDeWhatsApp,
   seniaPendiente,
   type LecturaDelBuscador,
   type PermisosDelBuscador,
@@ -121,13 +120,13 @@ test("CH-028 · Laura: próximo turno, «Debe $9.000», faltazos, última vez y 
   assert.equal(laura.teclas?.find((t) => t.id === "cobrar-deuda")?.href, "/admin/turnos/lista?desde=2026-09-12");
   // Los huecos de plata (2-B): la deuda con sus turnos y la seña del próximo.
   assert.deepEqual(laura.huecos, [
-    { tipo: "cobrar-deuda", clienteId: "laura", monto: 9000, turnoIds: ["c-vieja"] },
-    { tipo: "llego-la-senia", turnoId: "t-jue", monto: 5000 },
+    { tipo: "cobrar-deuda", clienteId: "laura", clienta: "Laura Gómez", monto: 9000, turnoIds: ["c-vieja"], cobros: [{ id: "c-vieja", monto: 9000 }] },
+    { tipo: "llego-la-senia", turnoId: "t-jue", clienta: "Laura Gómez", monto: 5000 },
   ]);
   // CH-022: el turno también sale en «Turnos», con «Llegó la seña» como hueco.
   const t = grupos[1].items[0];
   assert.equal(t.nombre, "Laura Gómez · sáb 24 13:00");
-  assert.deepEqual(t.huecos, [{ tipo: "llego-la-senia", turnoId: "t-jue", monto: 5000 }]);
+  assert.deepEqual(t.huecos, [{ tipo: "llego-la-senia", turnoId: "t-jue", clienta: "Laura Gómez", monto: 5000 }]);
   assert.equal(t.teclas?.[0].href, "/admin/turnos?date=2026-10-24&turno=t-jue");
 });
 
@@ -176,8 +175,9 @@ test("turnos: del más cercano al más lejano, como mucho 5; sin nada, sin grupo
 test("cómo se dice: hoy, mañana o el día; el saludo sin nombre no dice undefined (CH-050)", () => {
   assert.equal(cuandoEs(new Date(AHORA.getTime() + 2 * H), AHORA), "hoy 13:00");
   assert.equal(cuandoEs(new Date(AHORA.getTime() + 24 * H), AHORA), "mañana 11:00");
-  assert.equal(saludoDeWhatsApp("Laura Gómez"), "¡Hola Laura!");
-  assert.equal(saludoDeWhatsApp("   "), "¡Hola!");
+  // El saludo es el de la agenda (mensajes-whatsapp.ts: `mensajeSaludo`, con su test).
+  const sinNombre = armarFichas({ ...lecturaDeLaura(), clientas: [{ id: "laura", nombre: "   ", telefono: "11 5566-7788" }] }, RECEPCION, AHORA);
+  assert.equal(sinNombre[0].items[0].teclas?.find((t) => t.id === "whatsapp")?.href, "https://wa.me/5491155667788?text=%C2%A1Hola!");
   const sinTel = armarFichas({ ...lecturaDeLaura(), clientas: [{ id: "laura", nombre: "Laura Gómez", telefono: "" }] }, RECEPCION, AHORA);
   assert.ok(!sinTel[0].items[0].teclas?.some((t) => t.id === "whatsapp"), "sin celular, sin WhatsApp");
   assert.match(sinTel[0].items[0].segunda ?? "", /^Sin teléfono/);

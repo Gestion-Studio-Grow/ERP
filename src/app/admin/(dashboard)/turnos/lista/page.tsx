@@ -21,6 +21,10 @@ import { roleHasCapability } from "@/lib/capabilities";
 import { contarSinCerrarDeQuienMira } from "@/lib/turnos/sin-cerrar.server";
 import { RUTA_CERRAR_PENDIENTE } from "../../inicio/bandeja-core";
 import { diaCorto, textoSinCerrar, ventanaDeLista } from "./lista-core";
+import { ConDiseno } from "@/lib/diseno/ConDiseno";
+import { esteticaBackoffice } from "@/lib/estetica-backoffice";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import PielPropia from "../../armazon/PielPropia";
 
 export const dynamic = "force-dynamic";
 
@@ -122,19 +126,25 @@ export default async function TurnosListaPage({
   // "Darle un turno" desde la ficha: ?cliente=<id>. El formulario la busca entre las MISMAS
   // fichas que ya recibe (getFichasParaAlta, del negocio); si no está, el alta queda vacía.
   const clienteInicial = leerClienteDelAlta(sp);
-  // DISEÑO NUEVO («Renglón»): «Dar un turno» es un cajón encima del libro del día, no el formulario
-  // viejo dentro de la lista. Mismas lecturas que el alta de abajo (profesionales con servicios,
-  // fichas del negocio, faltazos del piloto) y la misma acción de alta; no se trae el historial,
-  // que el cajón no usa. Apagado el interruptor (CH hoy), la lista de siempre.
-  if (nuevo.abrir && (await disenoNuevo())) {
+  // «Dar un turno» (Tanda 2, §2.3) es un cajón encima del libro del día, no el formulario viejo
+  // dentro de la lista. Mismas lecturas que el alta de abajo (profesionales con servicios, fichas del
+  // negocio, faltazos del piloto) y la misma acción de alta; no se trae el historial, que el cajón no
+  // usa. REGLA DE INDEPENDENCIA DEL INTERRUPTOR (§0.2, decisión del orquestador, como 2-C/2-D/Tanda 1):
+  // también con «Diseño nuevo» apagado (CH hoy) — el cajón se viste solo (DarTurnoCajon) y el libro
+  // de atrás va con la piel propia (`PielPropia` + `ConDiseno nuevo`). Es un `return` aparte: el
+  // formulario viejo (NewAppointmentForm) no se dibuja en esta respuesta, así no hay dos altas. Sin
+  // `?nuevo=1`, la lista de siempre con su «+ Nuevo turno» tal cual.
+  if (nuevo.abrir) {
     const hoy = todayInBusinessTz();
-    const [profesionales, fichasAlta, faltazosAlta, practicaAlta] = await Promise.all([
+    const [profesionales, fichasAlta, faltazosAlta, practicaAlta, pielDelPanel, slug] = await Promise.all([
       getProfessionalsWithServices(),
       getFichasParaAlta(),
       enInicioPorApps().then((piloto) => (piloto ? cargarFaltazosPorFicha() : undefined)),
       agendaPractica(),
+      disenoNuevo(),
+      getCurrentTenantSlug(),
     ]);
-    return (
+    const agenda = (
       <AgendaRenglon
         quien={{ role: user.role, professionalId: user.professionalId }}
         fecha={nuevo.fecha || undefined}
@@ -151,6 +161,14 @@ export default async function TurnosListaPage({
           />
         }
       />
+    );
+    if (pielDelPanel) return agenda;
+    return (
+      <ConDiseno nuevo precargarLetra={false}>
+        <PielPropia pantalla="agenda" letraDelNegocio={esteticaBackoffice(slug) !== null} className="min-h-full bg-surface text-body">
+          {agenda}
+        </PielPropia>
+      </ConDiseno>
     );
   }
   // B8: 90 días (o lo que pida «Ver más atrás»), no 365. Los pasados sin cerrar se CUENTAN aparte,

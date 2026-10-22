@@ -8,7 +8,7 @@
 //   · `veredictoDelDestino`: ¿se puede soltar el turno en esa celda? Y si no, por qué, en criollo.
 //   · `destinoDelArrastre`: a qué profesional va el turno según la columna donde se soltó.
 //   · `diasParaMover`: los chips de días del cajón (hoy + 6).
-//   · `textoDeMover`: el WhatsApp «Te pasamos el turno al …».
+//   · el WhatsApp «Te pasamos el turno al …» es `mensajeMover` (src/lib/turnos/mensajes-whatsapp.ts).
 //
 // Client-safe: sin Prisma ni servidor.
 
@@ -89,17 +89,4 @@ export function diasParaMover(hoy: string, diaDelTurno: string, cuantos = 7): st
 /** «¿Mover a jue 24 16:30 con Caro?» */
 export function preguntaDeMover(d: Destino): string {
   return `¿Mover a ${fechaCorta(dateStrInBusinessTz(new Date(d.inicio)))} ${fmtTime(d.inicio)} con ${d.profesional}?`;
-}
-
-/**
- * El WhatsApp de «mover». Texto: «Te pasamos el turno al {dia} {hora} con {profesional}».
- *
- * TODO(2-A): reemplazar por `mensajeDeMover` de `src/lib/turnos/mensajes-whatsapp.ts` al integrar
- * la Tanda 2 (2-A arma ahí todos los textos de WhatsApp con la plantilla del negocio).
- */
-export function textoDeMover(input: { clienta: string; inicio: string; profesional: string }): string {
-  const nombre = input.clienta.trim().split(/\s+/)[0] ?? "";
-  const dia = fechaCorta(dateStrInBusinessTz(new Date(input.inicio)));
-  const saludo = nombre ? `¡Hola ${nombre}! ` : "¡Hola! ";
-  return `${saludo}Te pasamos el turno al ${dia} ${fmtTime(input.inicio)} con ${input.profesional.trim()}. Cualquier cosa, avisanos por acá.`;
 }

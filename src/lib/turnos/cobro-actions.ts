@@ -409,6 +409,8 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
       changes: {
         tipo: "senia",
         llegoLaSenia: true,
+        // Se toca con la plata a la vista en el banco / Mercado Pago, no por la captura de la clienta.
+        verificacion: "verificada por recepción",
         cobroId: cobrado.collectionId,
         method,
         amount: cobrado.monto,

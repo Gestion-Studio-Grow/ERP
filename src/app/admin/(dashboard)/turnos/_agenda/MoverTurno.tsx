@@ -20,7 +20,7 @@
 // servidor, el navegador la bloquea) y recién se completa con el mensaje cuando el servidor dijo
 // que sí; si dijo que no, se cierra. Si el navegador igual la bloqueó, queda el enlace a mano.
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { rescheduleAppointment } from "@/lib/actions";
 import { huecosParaMover, type ProfesionalParaMover } from "@/lib/turnos/mover-actions";
 import { Button, Chip, Hoja } from "@/components/ui";
@@ -29,7 +29,8 @@ import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { useToast } from "../../ToastProvider";
 import { esRedireccionDeNext } from "../errores";
 import { fechaCorta, type TurnoDelDia } from "../agenda-core";
-import { diasParaMover, preguntaDeMover, textoDeMover, type Destino } from "./mover-core";
+import { mensajeMover } from "@/lib/turnos/mensajes-whatsapp";
+import { diasParaMover, preguntaDeMover, type Destino } from "./mover-core";
 
 type ResultadoDeMover = { ok: true; avisoPendiente: string | null } | { ok: false; error: string };
 
@@ -38,10 +39,12 @@ export function useMoverTurno() {
   const { showSuccess } = useToast();
   const [pendiente, empezar] = useTransition();
 
-  const mover = (t: Pick<TurnoDelDia, "id" | "clienta" | "telefono">, d: Destino, avisar: boolean) =>
+  const mover = (t: Pick<TurnoDelDia, "id" | "clienta" | "telefono" | "servicio" | "inicio">, d: Destino, avisar: boolean) =>
     new Promise<ResultadoDeMover>((listo) =>
       empezar(async () => {
-        const wa = avisar ? waLinkClienta(t.telefono, textoDeMover({ clienta: t.clienta, inicio: d.inicio, profesional: d.profesional })) : null;
+        const wa = avisar
+          ? waLinkClienta(t.telefono, mensajeMover({ clienta: t.clienta, servicios: t.servicio, inicio: d.inicio, profesional: d.profesional, inicioAnterior: t.inicio }))
+          : null;
         // En el mismo toque, antes de esperar: si no, el navegador la toma por una ventana emergente.
         const ventana = wa ? window.open("", "_blank") : null;
         const fd = new FormData();
@@ -191,8 +194,20 @@ type Carga =
   | { fase: "lista"; profesionales: ProfesionalParaMover[]; huecos: Record<string, string[]> }
   | { fase: "error"; error: string };
 
-export default function MoverTurno({ turno, ahora }: { turno: TurnoDelDia; ahora: string }) {
-  const [abierto, setAbierto] = useState(false);
+export default function MoverTurno({
+  turno,
+  ahora,
+  abiertoAlEmpezar = false,
+  onListo,
+}: {
+  turno: TurnoDelDia;
+  ahora: string;
+  /** Arranca desplegado y buscando (la hoja de «Quiere cambiar» de Mañana: ya se eligió mover). */
+  abiertoAlEmpezar?: boolean;
+  /** Se movió (o se cerró el panel): quien lo monta cierra su hoja y recarga. */
+  onListo?: (movido: boolean) => void;
+}) {
+  const [abierto, setAbierto] = useState(abiertoAlEmpezar);
   const [profesionalId, setProfesionalId] = useState(turno.profesionalId);
   const hoy = dateStrInBusinessTz(new Date(ahora));
   const dias = diasParaMover(hoy, dateStrInBusinessTz(new Date(turno.inicio)));
@@ -219,6 +234,16 @@ export default function MoverTurno({ turno, ahora }: { turno: TurnoDelDia; ahora
       }
     });
   };
+
+  // Desplegado desde el principio: la primera búsqueda sale al montar.
+  const primeraBusqueda = useRef(false);
+  useEffect(() => {
+    if (!abiertoAlEmpezar || primeraBusqueda.current) return;
+    primeraBusqueda.current = true;
+    buscar(profesionalId);
+    // Sólo al montar: después busca cada tecla.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!abierto) {
     return (
@@ -247,7 +272,15 @@ export default function MoverTurno({ turno, ahora }: { turno: TurnoDelDia; ahora
     <div role="group" aria-label="Mover el turno" className="w-full space-y-4 border-l-2 border-line-strong pl-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-semibold text-strong">Mover el turno</p>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setAbierto(false)}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setAbierto(false);
+            onListo?.(false);
+          }}
+        >
           Cerrar
         </Button>
       </div>
@@ -323,7 +356,10 @@ export default function MoverTurno({ turno, ahora }: { turno: TurnoDelDia; ahora
             onListo={(pendiente) => {
               setElegido("");
               setAviso(pendiente);
-              if (!pendiente) setAbierto(false);
+              if (!pendiente) {
+                setAbierto(false);
+                onListo?.(true);
+              }
             }}
           />
         </div>

@@ -15,6 +15,7 @@
 import { normalizarTelefono } from "@/lib/clientes/telefono";
 import { SEGMENTOS, esSegmento, type Segmento } from "@/lib/crm/segmentos";
 import { ordenDesdeUrl, type OrdenTabla } from "@/components/ui/tabla-core";
+import { ALIAS_SENIA_PROVISIONAL, mensajeParaVolver, mensajeRecordarSaldo, mensajeSaludo } from "@/lib/turnos/mensajes-whatsapp";
 
 /** Una fila de la lista con situación (diseño nuevo y piloto), armada con el motor comercial. */
 export type FilaCliente = {
@@ -135,31 +136,21 @@ function ordenDeVista(filas: FilaCliente[], vista: VistaClientes, hoy: string | 
   return filas;
 }
 
-const pila = (nombre: string) => nombre.trim().split(/\s+/)[0] ?? "";
-
 /**
- * El WhatsApp de cada vista, en criollo y sin «undefined» (CH-050). TODO(2-A): reemplazar por los
- * textos de src/lib/turnos/mensajes-whatsapp.ts al integrar la Tanda 2 (hoy no existe en esta rama).
+ * El WhatsApp de cada vista, en criollo y sin «undefined» (CH-050). Los textos son los de la agenda
+ * (src/lib/turnos/mensajes-whatsapp.ts): «Deben» es el recordatorio de saldo; las demás, invitarla a
+ * volver. Sin deuda en «Deben», el saludo solo.
  */
-export function textoDeWhatsApp(vista: VistaClientes, f: FilaCliente, hoy: string | null, plata: (n: number) => string): string {
-  const hola = pila(f.nombre) ? `¡Hola ${pila(f.nombre)}!` : "¡Hola!";
+export function textoDeWhatsApp(vista: VistaClientes, f: FilaCliente, hoy: string | null): string {
   switch (vista) {
     case "frecuentes":
-      return `${hola} ¿Cómo estás? Te escribimos para ver si querés que te reservemos el próximo turno.`;
+      return mensajeParaVolver("frecuente", f.nombre);
     case "hace-mucho":
-      return `${hola} Hace mucho que no te vemos. ¿Querés que te reservemos un turno? Decinos qué día te queda bien.`;
-    case "cumplen": {
-      const d = hoy ? diasHastaElCumple(f.cumple, hoy) : null;
-      return d === 0
-        ? `¡Feliz cumple${pila(f.nombre) ? `, ${pila(f.nombre)}` : ""}! Que tengas un día hermoso.`
-        : `${hola} Se viene tu cumple. ¿Querés que te reservemos un turno para esa semana?`;
-    }
-    case "deben": {
-      const debe = f.debe ?? 0;
-      return debe > 0
-        ? `${hola} Te escribimos para recordarte que quedó un saldo de ${plata(debe)} de tu turno. Lo podés pagar cuando vengas o por transferencia. ¡Gracias!`
-        : `${hola} ¿Cómo estás?`;
-    }
+      return mensajeParaVolver("hace-mucho", f.nombre);
+    case "cumplen":
+      return mensajeParaVolver(hoy && diasHastaElCumple(f.cumple, hoy) === 0 ? "cumple-hoy" : "cumple-cerca", f.nombre);
+    case "deben":
+      return mensajeRecordarSaldo({ clienta: f.nombre, saldo: f.debe ?? 0, alias: ALIAS_SENIA_PROVISIONAL }) || mensajeSaludo(f.nombre);
   }
 }
 

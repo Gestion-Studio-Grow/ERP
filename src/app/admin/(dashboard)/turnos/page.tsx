@@ -16,8 +16,9 @@ import { enInicioPorApps } from "../inicio/piloto";
 import { esFechaDeCalendario, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import AgendaRenglon from "./AgendaRenglon";
-import { proyectarAgenda } from "./agenda.server";
-import { bloqueosDelDia } from "./grilla";
+import { extrasDeLaAgenda, proyectarAgenda } from "./agenda.server";
+import LinkAlDia from "./_agenda/LinkAlDia";
+import BotonBuscar from "../armazon/BotonBuscar";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 
@@ -114,7 +115,10 @@ export default async function TurnosCalendarPage({
   const { professionals, appointments, blocksToday } = cruda;
   // La planilla de la PC (Tanda 2 · 2-C): el día proyectado campo por campo (agenda.server.ts), con
   // el veredicto de cobro de quien mira, y lo que puede hacer (las mismas capacidades del servidor).
-  const proyectada = proyectarAgenda(cruda, { role: user.role, professionalId: user.professionalId });
+  // Tanda 2: la marca «seña pedida» y el horario de trabajo (una lectura más por día, con tenantId).
+  const diaDeLaPlanilla = esFechaDeCalendario(date) ? date : today;
+  const extras = await extrasDeLaAgenda(cruda, diaDeLaPlanilla);
+  const proyectada = proyectarAgenda(cruda, { role: user.role, professionalId: user.professionalId }, { seniasPedidas: extras.seniasPedidas });
   const planilla = {
     turnos: proyectada.turnos,
     profesionales: proyectada.profesionales,
@@ -125,8 +129,8 @@ export default async function TurnosCalendarPage({
       perdonar: roleHasCapability(user.role, "agenda:forgive"),
     },
     ahora: new Date().toISOString(),
-    dia: esFechaDeCalendario(date) ? date : today,
-    bloqueos: bloqueosDelDia(blocksToday),
+    dia: diaDeLaPlanilla,
+    bloqueos: extras.bloqueos,
     hrefFicha: appPermitida(appPorId("clientes"), negocio) ? "/admin/clientes/" : null,
     letraDelNegocio: esteticaBackoffice(slug) !== null,
   };
@@ -142,7 +146,11 @@ export default async function TurnosCalendarPage({
 
   return (
     <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
-      <h1 className="text-2xl font-semibold text-strong mb-1">Agenda</h1>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold text-strong">Agenda</h1>
+        {/* En el celular no hay «/»: el buscador de clientas y turnos, a un toque (CH-028). */}
+        <BotonBuscar />
+      </div>
       {/* Pestañas: en el celular llevan el alto táctil (44 px) sin cambiar cómo se ven en la PC. */}
       <div className="flex gap-4 text-sm mb-6 border-b border-line">
         <Link href="/admin/turnos" className="px-1 pb-2 border-b-2 border-accent text-strong font-medium max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
@@ -154,24 +162,16 @@ export default async function TurnosCalendarPage({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-6">
-        <Link
-          href={`/admin/turnos?date=${addDays(date, -1)}`}
-          className={buttonClasses("outline", "sm")}
-        >
+        {/* Cambiar de día no pierde el «Ver por: Box» de la planilla (LinkAlDia lee `?por=`). */}
+        <LinkAlDia dia={addDays(date, -1)} hoy={today} className={buttonClasses("outline", "sm")}>
           ← Anterior
-        </Link>
-        <Link
-          href={`/admin/turnos?date=${today}`}
-          className={buttonClasses("outline", "sm")}
-        >
+        </LinkAlDia>
+        <LinkAlDia dia={today} hoy={today} className={buttonClasses("outline", "sm")}>
           Hoy
-        </Link>
-        <Link
-          href={`/admin/turnos?date=${addDays(date, 1)}`}
-          className={buttonClasses("outline", "sm")}
-        >
+        </LinkAlDia>
+        <LinkAlDia dia={addDays(date, 1)} hoy={today} className={buttonClasses("outline", "sm")}>
           Siguiente →
-        </Link>
+        </LinkAlDia>
         {/* Salto directo a cualquier fecha, sin ir de a un día. Form GET
             nativo: funciona server-side sin componente client. Los controles se
             mantienen compactos (inline) con tokens en vez de los primitivos

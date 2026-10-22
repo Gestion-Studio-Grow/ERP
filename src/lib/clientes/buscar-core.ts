@@ -26,6 +26,7 @@ import { fmtMoneyARS } from "@/components/ui/format";
 import { BUSINESS_TIMEZONE } from "@/lib/business-config";
 import { dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { mensajeSaludo } from "@/lib/turnos/mensajes-whatsapp";
 import { esCuentaACobrar, estadoCobroTurno, seniaDelServicio, type CobroTurno, type PagoLegado } from "@/lib/turnos/cobros";
 import type { Comando, GrupoDeFichas, HuecoDeFicha, TeclaDeFicha } from "@/components/ui/comandos-core";
 import type { Busqueda } from "@/lib/buscador/registros-core";
@@ -133,6 +134,8 @@ export interface DeudaDeClienta {
   monto: number;
   /** Los turnos con saldo (para «Cobrar lo que debe»), del más viejo al más nuevo. */
   turnoIds: string[];
+  /** Lo que se cobra de cada uno (`cobrarVariosTurnos`: un cobro por turno, imputado a SU turno). */
+  cobros: { id: string; monto: number }[];
   /** El día del turno con saldo más viejo (AAAA-MM-DD): hasta dónde ir para atrás en la Lista. */
   desde: string | null;
 }
@@ -144,7 +147,7 @@ export function deudaDe(completados: readonly CompletadoLeido[], cobros: Readonl
     .filter((x) => esCuentaACobrar({ status: "COMPLETED", saldo: x.saldo }))
     .sort((a, b) => a.c.inicio.getTime() - b.c.inicio.getTime());
   const monto = Math.round(conSaldo.reduce((n, x) => n + x.saldo, 0) * 100) / 100;
-  return { monto, turnoIds: conSaldo.map((x) => x.c.id), desde: conSaldo.length > 0 ? dateStrInBusinessTz(conSaldo[0].c.inicio) : null };
+  return { monto, turnoIds: conSaldo.map((x) => x.c.id), cobros: conSaldo.map((x) => ({ id: x.c.id, monto: x.saldo })), desde: conSaldo.length > 0 ? dateStrInBusinessTz(conSaldo[0].c.inicio) : null };
 }
 
 // ── Cómo se dice ─────────────────────────────────────────────────────────────
@@ -170,28 +173,19 @@ const pesos = (n: number) => fmtMoneyARS(n, 0);
 const faltazosEnPalabras = (n: number) => (n === 1 ? "1 faltazo" : `${n} faltazos`);
 const estadoEnPalabras = (estado: string) => (estado === "CONFIRMED" ? "Confirmado" : "Reservado");
 
-/**
- * El saludo de WhatsApp desde el buscador. TODO(2-A): reemplazar por el texto de
- * src/lib/turnos/mensajes-whatsapp.ts al integrar la Tanda 2 (hoy ese archivo no existe en esta
- * rama). Sin «undefined» ni montos: un saludo con el nombre de pila (CH-050).
- */
-export function saludoDeWhatsApp(nombre: string): string {
-  const pila = nombre.trim().split(/\s+/)[0] ?? "";
-  return pila ? `¡Hola ${pila}!` : "¡Hola!";
-}
-
 // ── Los enlaces (los mismos que ya existen) ─────────────────────────────────
 
 /** El alta con la clienta elegida: lo mismo que `hrefNuevoTurno(null, id)` (turnos/pasos.ts). */
 export const hrefDarTurno = (clienteId: string) => `/admin/turnos/lista?nuevo=1&cliente=${encodeURIComponent(clienteId)}`;
 export const hrefFicha = (clienteId: string) => `/admin/clientes/${encodeURIComponent(clienteId)}`;
 /**
- * El turno en la agenda de su día. Con el diseño nuevo, `?turno=` abre el cajón (MesaDeTurnos);
- * apagado, la agenda de ese día. TODO(2-C): cuando la grilla abra el cajón (CH-030), lo abre ahí.
+ * El turno en la agenda de su día: `?turno=` abre su cajón (MesaDeTurnos), con el diseño nuevo y con
+ * la agenda de siempre (la mesa de la planilla, en la PC y en el celular).
  */
 export const hrefTurno = (turnoId: string, dia: string) => `/admin/turnos?date=${dia}&turno=${encodeURIComponent(turnoId)}`;
 /**
- * Hasta que exista `cobrarVariosTurnos` (2-B): «Saldos a cobrar» de «Todos los turnos», yendo
+ * El respaldo de «Cobrar lo que debe» cuando quien monta la paleta no dibuja la tecla de plata
+ * (armazon/TeclaDePlata.tsx, `cobrarVariosTurnos`): «Saldos a cobrar» de «Todos los turnos», yendo
  * para atrás hasta el turno con saldo más viejo (la lista ignora un `desde` dentro de sus 90 días).
  */
 export const hrefSaldos = (desde: string | null) => (desde ? `/admin/turnos/lista?desde=${desde}` : "/admin/turnos/lista");
@@ -203,7 +197,7 @@ function renglonDeTurno(t: TurnoLeido, l: LecturaDelBuscador, p: PermisosDelBusc
   const senia = seniaPendiente(t, cobrosDe(l, t.id));
   const teclas: TeclaDeFicha[] = [{ id: "abrir-turno", etiqueta: "Abrir el turno", href: hrefTurno(t.id, dia) }];
   if (p.verClientas) teclas.push({ id: "ver-ficha", etiqueta: "Ver ficha", href: hrefFicha(t.clienteId) });
-  const huecos: HuecoDeFicha[] = senia > 0 && p.cobrar && t.cobrable ? [{ tipo: "llego-la-senia", turnoId: t.id, monto: senia }] : [];
+  const huecos: HuecoDeFicha[] = senia > 0 && p.cobrar && t.cobrable ? [{ tipo: "llego-la-senia", turnoId: t.id, clienta: t.clienta, monto: senia }] : [];
   const resumen = [`${cuandoEs(t.inicio, ahora)} · ${t.servicio} con ${t.profesional}`, estadoEnPalabras(t.estado)];
   if (senia > 0) resumen.push(`Seña de ${pesos(senia)} sin cobrar`);
   return {
@@ -236,15 +230,15 @@ function renglonDeClienta(c: ClientaLeida, l: LecturaDelBuscador, p: PermisosDel
 
   const teclas: TeclaDeFicha[] = [];
   if (p.darTurno) teclas.push({ id: "dar-turno", etiqueta: "Dar turno", href: hrefDarTurno(c.id) });
-  const wa = waLinkClienta(c.telefono, saludoDeWhatsApp(c.nombre));
+  const wa = waLinkClienta(c.telefono, mensajeSaludo(c.nombre));
   if (wa) teclas.push({ id: "whatsapp", etiqueta: "WhatsApp", href: wa, externo: true });
   // El enlace de respaldo a «Saldos a cobrar»: sólo a quien cobra (sin agenda:collect no puede).
   if (deuda.monto > 0 && p.cobrar) teclas.push({ id: "cobrar-deuda", etiqueta: `Cobrar lo que debe (${pesos(deuda.monto)})`, href: hrefSaldos(deuda.desde) });
   teclas.push({ id: "ver-ficha", etiqueta: "Ver ficha", href: hrefFicha(c.id) });
 
   const huecos: HuecoDeFicha[] = [];
-  if (deuda.monto > 0 && p.cobrar) huecos.push({ tipo: "cobrar-deuda", clienteId: c.id, monto: deuda.monto, turnoIds: deuda.turnoIds });
-  if (proximo && senia > 0 && p.cobrar && proximo.cobrable) huecos.push({ tipo: "llego-la-senia", turnoId: proximo.id, monto: senia });
+  if (deuda.monto > 0 && p.cobrar) huecos.push({ tipo: "cobrar-deuda", clienteId: c.id, clienta: c.nombre, monto: deuda.monto, turnoIds: deuda.turnoIds, cobros: deuda.cobros });
+  if (proximo && senia > 0 && p.cobrar && proximo.cobrable) huecos.push({ tipo: "llego-la-senia", turnoId: proximo.id, clienta: c.nombre, monto: senia });
 
   const segunda = [
     c.telefono.trim() || "Sin teléfono",

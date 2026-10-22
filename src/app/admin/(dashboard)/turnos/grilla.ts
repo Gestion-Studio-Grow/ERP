@@ -10,9 +10,9 @@
 // existiera (UAT de CH, 18/10). Ahora se estira hasta cubrir todos los turnos del día; sin turnos
 // raros, sigue siendo de 9 a 19 como siempre.
 
-import { dateStrInBusinessTz, wallHourMinuteInBusinessTz } from "@/lib/datetime";
+import { businessWallTimeToUtc, dateStrInBusinessTz, wallHourMinuteInBusinessTz } from "@/lib/datetime";
 import type { TipoMarca } from "@/components/ui/Marca";
-import { esIdDeFicha, hrefNuevoTurno } from "./pasos";
+import { hrefTurnoEnHueco } from "./pasos";
 
 export const HORA_DESDE = 9;
 export const HORA_HASTA = 19;
@@ -173,7 +173,65 @@ export function carrilesDeLaColumna(turnos: readonly TurnoConHorario[]): {
 
 // ── Los huecos: qué celda se toca para dar un turno ──────────────────────────
 
-export type BloqueoDelDia = { profesionalId: string; desde: string; hasta: string; motivo: string };
+export type BloqueoDelDia = {
+  profesionalId: string;
+  desde: string;
+  hasta: string;
+  motivo: string;
+  /** `horario`: fuera del horario de trabajo (WorkingHours), no una ausencia cargada. */
+  tipo?: "ausencia" | "horario";
+};
+
+/** El horario de trabajo de una profesional ESE día (una fila de WorkingHours), hora de pared. */
+export type HorarioDelDia = { profesionalId: string; desde: string; hasta: string };
+
+/** Lo que dice la celda / la cabecera cuando la profesional no trabaja (provisional a confirmar). */
+export const FUERA_DE_HORARIO = "fuera de horario";
+export const NO_TRABAJA_ESE_DIA = "no trabaja ese día";
+
+const HORA_DE_PARED = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * El horario de trabajo como bloqueos de la grilla: antes de que entre y después de que se va, la
+ * celda no es hueco («fuera de horario»); quien no tiene horario ese día, el día entero («no trabaja
+ * ese día») — la misma regla que el motor de turnos (sin fila de WorkingHours para ese día, no hay
+ * horarios). `horarios === null` = no se pudo leer: no se marca nada (el alta igual valida).
+ */
+export function bloqueosPorHorario(dia: string, profesionalIds: readonly string[], horarios: readonly HorarioDelDia[] | null): BloqueoDelDia[] {
+  if (!horarios || !/^\d{4}-\d{2}-\d{2}$/.test(dia)) return [];
+  const inicioDelDia = businessWallTimeToUtc(dia, "00:00").toISOString();
+  const finDelDia = businessWallTimeToUtc(diaSiguiente(dia), "00:00").toISOString();
+  const out: BloqueoDelDia[] = [];
+  for (const id of profesionalIds) {
+    const h = horarios.find((x) => x.profesionalId === id);
+    if (!h || !HORA_DE_PARED.test(h.desde) || !HORA_DE_PARED.test(h.hasta) || h.desde >= h.hasta) {
+      out.push({ profesionalId: id, desde: inicioDelDia, hasta: finDelDia, motivo: NO_TRABAJA_ESE_DIA, tipo: "horario" });
+      continue;
+    }
+    if (h.desde > "00:00") out.push({ profesionalId: id, desde: inicioDelDia, hasta: businessWallTimeToUtc(dia, h.desde).toISOString(), motivo: FUERA_DE_HORARIO, tipo: "horario" });
+    out.push({ profesionalId: id, desde: businessWallTimeToUtc(dia, h.hasta).toISOString(), hasta: finDelDia, motivo: FUERA_DE_HORARIO, tipo: "horario" });
+  }
+  return out;
+}
+
+function diaSiguiente(dia: string): string {
+  const d = new Date(`${dia}T12:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Lo que dice la cabecera de una columna de una sola profesional: la ausencia cargada (franco,
+ * médico) o, si no trabaja ese día, eso. Fuera de horario a la mañana o a la noche no se dice ahí.
+ */
+export function ausenciaDeLaColumna(profesionalIds: readonly string[], bloqueos: readonly BloqueoDelDia[]): BloqueoDelDia | undefined {
+  if (profesionalIds.length !== 1) return undefined;
+  const id = profesionalIds[0];
+  return (
+    bloqueos.find((b) => b.profesionalId === id && b.tipo !== "horario") ??
+    bloqueos.find((b) => b.profesionalId === id && b.tipo === "horario" && b.motivo === NO_TRABAJA_ESE_DIA)
+  );
+}
 
 /**
  * Los bloqueos (franco, médico, vacaciones) que trae el loader del día, en la forma de la grilla.
@@ -203,8 +261,8 @@ export type EstadoDeLaCelda =
  * la profesional, el día y la hora puestos) sólo si: quien mira da turnos, el día no pasó, la
  * media hora todavía no empezó, ningún turno la pisa y la profesional no está bloqueada.
  *
- * No mira el horario de trabajo (el loader del día no lo trae): si la profesional no atiende a esa
- * hora, el alta lo dice al buscar horarios, que es el mismo motor que valida al guardar.
+ * El horario de trabajo entra como bloqueos (`bloqueosPorHorario`, una lectura por día en la agenda):
+ * fuera de su horario la celda no se ofrece. El alta igual lo re-valida al buscar horarios.
  */
 export function estadoDeLaCelda(input: {
   dia: string;
@@ -250,21 +308,13 @@ function cubre(b: BloqueoDelDia, desde: number, hasta: number, dia: string): boo
 const diaDe = (iso: string) => dateStrInBusinessTz(new Date(iso));
 
 /**
- * El enlace de un hueco: «Dar turno» con el día, la profesional y la hora puestos.
- *
- * CONTRATO con el alta (2-A, `turnos/pasos.ts` lo lee): sobre la base de `hrefNuevoTurno(dia)` se
- * suman `&profesional=<id de Professional>` (sólo si se sabe; por box con dos profesionales, no va)
- * y `&hora=HH:MM` (hora de pared del negocio, 24 h, múltiplo de 30). Un día pasado o inválido no lo
- * precarga la base (`hrefNuevoTurno`/`leerNuevoTurno`); entonces tampoco se manda la hora.
+ * El enlace de un hueco: «Dar turno» con el día, la profesional y la hora puestos. Es
+ * `hrefTurnoEnHueco` (pasos.ts, el contrato con el alta que lee `leerHuecoDelAlta`) con la hora
+ * sacada del minuto de la celda (hora de pared del negocio, 24 h, múltiplo de 30).
  */
 export function hrefNuevoTurnoEnHueco(dia: string, profesionalId: string | null, minuto: number): string {
-  const base = hrefNuevoTurno(dia);
-  if (!base.includes("fecha=")) return base;
-  const extra = new URLSearchParams();
-  if (esIdDeFicha(profesionalId)) extra.set("profesional", profesionalId);
-  if (Number.isInteger(minuto) && minuto >= 0 && minuto < 24 * 60) extra.set("hora", horaDeMinuto(minuto));
-  const q = extra.toString();
-  return q ? `${base}&${q}` : base;
+  const hora = Number.isInteger(minuto) && minuto >= 0 && minuto < 24 * 60 ? horaDeMinuto(minuto) : null;
+  return hrefTurnoEnHueco(dia, profesionalId, hora);
 }
 
 // ── La raya de «ahora» ───────────────────────────────────────────────────────

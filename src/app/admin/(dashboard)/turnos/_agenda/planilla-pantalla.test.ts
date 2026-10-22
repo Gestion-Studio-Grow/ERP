@@ -12,9 +12,12 @@
 //   · «Ver por: Box».
 //   · CH-025: arrastrar el turno de Laura (Caro 16:00) a las 17:30 de Lu → «¿Mover a …?» → [Mover y
 //     avisar por WhatsApp] manda el MISMO turno con la profesional y la hora nuevas y abre WhatsApp
-//     con «Te pasamos el turno al jue 24 17:30 con Lu»; soltarlo donde choca no abre nada y se lee
+//     con «Te pasamos el turno de *Piernas completas* al *jueves 24 a las 17:30* con Lu» (mensajeMover); soltarlo donde choca no abre nada y se lee
 //     por qué; el servidor que rechaza deja leer su motivo.
 //   · «Mover» desde el cajón: chips de días con huecos → hora → [Mover sin avisar].
+//   · Integración Tanda 2: el cajón cabe entero en 1024/1280/1440; el hover no pisa el chip prendido;
+//     `?turno=…&hoja=terminar` abre la hoja de cobro (CH-019); «Llegó la seña» y «seña pedida» en el
+//     cajón (CH-021/022); [Deshacer] después de cancelar (CH-026).
 // Sin Chromium o sin esbuild, se saltea con el motivo. Con PLANILLA_FOTOS=<carpeta> deja capturas.
 
 import { after, before, describe, test } from "node:test";
@@ -59,6 +62,17 @@ export async function huecosParaMover(turnoId, dias, profesionalId) {
   }
   return { ok: true, servicio: "Piernas completas", profesionales, huecos };
 }`;
+// Las acciones de plata de 2-B y la marca de seña de 2-A: la hoja de cobro y el cajón las importan.
+const COBRO_FALSO = `
+const anotar = (accion, fd) => { (window.__enviado ??= []).push({ accion, ...Object.fromEntries(fd.entries()) }); };
+export async function terminarYCobrarDividido(fd) { anotar("dividir", fd); return { ok: true }; }
+export async function cobrarSeniaYConfirmar(fd) { anotar("senia", fd); return { ok: true, cobroId: "cobro-1", monto: Number(fd.get("monto")) || 0, confirmo: true }; }
+export async function cobrarVariosTurnos(fd) { anotar("cobrar-varios", fd); return { ok: true }; }
+export async function deudaViejaDelTurno() { return []; }
+export async function deshacerCierre(fd) { anotar("deshacer", fd); return { ok: true }; }`;
+const SENIA_FALSA = `
+export async function marcarSeniaPedida(fd) { (window.__enviado ??= []).push({ accion: "senia-pedida", ...Object.fromEntries(fd.entries()) }); return { ok: true }; }
+export async function seniasPedidas() { return {}; }`;
 const NAVEGACION_FALSA = `
 import { useSyncExternalStore } from "react";
 const avisos = new Set();
@@ -204,6 +218,8 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
     const falsos: Record<string, string> = {
       "@/lib/actions": ACCIONES_FALSAS,
       "@/lib/turnos/mover-actions": MOVER_FALSO,
+      "@/lib/turnos/cobro-actions": COBRO_FALSO,
+      "@/lib/turnos/senia-actions": SENIA_FALSA,
       "next/navigation": NAVEGACION_FALSA,
       "next/link": LINK_FALSO,
     };
@@ -221,7 +237,7 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
         {
           name: "falsos",
           setup(b) {
-            b.onResolve({ filter: /^(@\/lib\/actions|@\/lib\/turnos\/mover-actions|next\/navigation|next\/link)$/ }, (a) => ({ path: a.path, namespace: "falso" }));
+            b.onResolve({ filter: /^(@\/lib\/actions|@\/lib\/turnos\/(mover|cobro|senia)-actions|next\/navigation|next\/link)$/ }, (a) => ({ path: a.path, namespace: "falso" }));
             b.onLoad({ filter: /.*/, namespace: "falso" }, (a) => ({ contents: falsos[a.path], loader: "js", resolveDir: RAIZ }));
           },
         },
@@ -236,14 +252,14 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
     await browser?.close();
   });
 
-  async function montar(ancho = 1280): Promise<{ page: Page; errores: string[] }> {
+  async function montar(ancho = 1280, opciones: { query?: string; turnos?: TurnoDelDia[] } = {}): Promise<{ page: Page; errores: string[] }> {
     const contexto = await browser!.newContext({ viewport: { width: ancho, height: 1000 }, locale: "es-AR", timezoneId: "America/Argentina/Buenos_Aires" });
     const html = `<!doctype html><html lang="es"><head><style>${css}</style></head><body><div data-skin="fable" data-estetica="beauty-spa" data-theme="light"><div id="root" data-diseno="renglon" data-theme="light" class="min-h-dvh bg-surface p-4"></div></div></body></html>`;
     await contexto.route(/localhost:3998/, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
     const page = await contexto.newPage();
     const errores: string[] = [];
     page.on("pageerror", (e) => errores.push(e.message));
-    await page.goto(ORIGEN);
+    await page.goto(ORIGEN + (opciones.query ?? ""));
     await page.evaluate((h) => {
       const w = window as unknown as Ventana;
       w.__huecos = h;
@@ -257,13 +273,16 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
       }) as unknown as typeof window.open;
     }, HUECOS);
     await page.addScriptTag({ content: bundle });
-    await page.evaluate((m) => (window as unknown as Ventana).__montar(m), MONTAJE);
+    await page.evaluate((m) => (window as unknown as Ventana).__montar(m), { ...MONTAJE, turnos: opciones.turnos ?? MONTAJE.turnos });
     await page.getByRole("region", { name: "La agenda por profesional" }).waitFor();
     return { page, errores };
   }
 
   const foto = async (page: Page, nombre: string) => {
     if (!FOTOS) return;
+    // La foto con lo que flota YA quieto: la entrada del cajón dura 320 ms y una captura a mitad de
+    // camino lo muestra cortado por el borde derecho (la «captura del cajón cortado» de 2-C).
+    await quieto(page);
     mkdirSync(FOTOS, { recursive: true });
     await page.screenshot({ path: join(FOTOS, `${nombre}.png`), fullPage: true });
   };
@@ -295,6 +314,127 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
     assert.equal(await page.evaluate(() => (window as unknown as Ventana).__cargada), cargada, "no recargó");
     assert.equal(await page.locator("[data-atenuado]").count(), 4, "Sofía, Martina, Carla y Julia no son «sin confirmar»");
     assert.equal(await page.getByRole("button", { name: /Ana Paz/ }).getAttribute("data-atenuado"), null);
+    assert.deepEqual(errores, []);
+  });
+
+  test("el cajón cabe entero en la PC (1024, 1280 y 1440 px): nada se corta por el borde derecho", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    for (const ancho of [1024, 1280, 1440]) {
+      const { page } = await montar(ancho);
+      await page.getByRole("button", { name: /16:00, Laura Gómez.*abrir el turno/ }).click();
+      const cajon = page.getByRole("dialog", { name: /Laura Gómez/ });
+      await cajon.waitFor();
+      await quieto(page);
+      const medida = await page.evaluate(() => {
+        const d = document.querySelector('dialog[data-ui="cajon"][open]')!;
+        const r = d.getBoundingClientRect();
+        const salidos = [...d.querySelectorAll<HTMLElement>("button, a, input, h2, p")]
+          .filter((e) => e.offsetParent !== null)
+          .filter((e) => e.getBoundingClientRect().right > window.innerWidth + 0.5 || e.getBoundingClientRect().left < -0.5)
+          .map((e) => e.innerText.slice(0, 30));
+        return { izquierda: r.left, derecha: r.right, ancho: window.innerWidth, salidos };
+      });
+      assert.ok(medida.izquierda >= 0 && medida.derecha <= medida.ancho + 0.5, `${ancho}: el cajón va de ${medida.izquierda} a ${medida.derecha}`);
+      assert.deepEqual(medida.salidos, [], `${ancho}: se cortan ${medida.salidos.join(", ")}`);
+      assert.ok(await cajon.getByRole("button", { name: "Confirmar el turno" }).isVisible());
+      await foto(page, `cajon-${ancho}`);
+      await page.context().close();
+    }
+  });
+
+  test("el chip prendido se sigue leyendo con el mouse encima (el hover no lo pisa)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page } = await montar();
+    const todos = page.getByRole("button", { name: /^Todos/ });
+    assert.equal(await todos.getAttribute("aria-pressed"), "true");
+    const fondo = () => todos.evaluate((e) => getComputedStyle(e).backgroundColor);
+    const quieto = await fondo();
+    await todos.hover();
+    assert.equal(await fondo(), quieto, "prendido, con el mouse encima, sigue igual");
+    // Uno apagado sí cambia con el hover.
+    const otro = page.getByRole("button", { name: /^Sin confirmar/ });
+    const antes = await otro.evaluate((e) => getComputedStyle(e).backgroundColor);
+    await otro.hover();
+    assert.notEqual(await otro.evaluate((e) => getComputedStyle(e).backgroundColor), antes);
+  });
+
+  test("CH-019 · ?turno=…&hoja=terminar abre el turno directo en la hoja de cobro, una sola vez", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar(1280, { query: "?turno=martina&hoja=terminar" });
+    const hoja = page.getByRole("dialog", { name: /Cobrar · Martina Ruiz/ });
+    await hoja.waitFor();
+    assert.ok(await hoja.getByRole("button", { name: /Efectivo/ }).first().isVisible(), "los medios, a un toque");
+    assert.equal(await page.locator('dialog[data-ui="cajon"][open]').count(), 0, "sin el cajón del mismo turno debajo");
+    await foto(page, "hoja-de-cobro-atender-ahora");
+    await page.keyboard.press("Escape");
+    await hoja.waitFor({ state: "hidden" });
+    assert.equal(new URL(page.url()).searchParams.get("hoja"), null, "la hoja sale de la URL al cerrarse");
+    assert.equal(new URL(page.url()).searchParams.get("turno"), null);
+    assert.equal(await page.getByRole("dialog", { name: /Cobrar · Martina Ruiz/ }).count(), 0);
+    assert.deepEqual(errores, []);
+  });
+
+  test("CH-021 · CH-022 · el Reservado con seña: «seña pedida», «Llegó la seña» (cobra y confirma) con Deshacer, y pedirla por WhatsApp", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const paula = {
+      ...turno("paula", "Paula Ríos", "lu", "14:00", "15:00"),
+      senia: 5000,
+      sugerido: { tipo: "senia" as const, monto: 5000 },
+      seniaPedidaEl: iso("10:03"),
+    };
+    const { page, errores } = await montar(1280, { turnos: [...TURNOS, paula] });
+    const bloque = page.getByRole("button", { name: /14:00, Paula Ríos.*seña pedida 10:03.*abrir el turno/ });
+    assert.match(await bloque.innerText(), /seña pedida/);
+    await bloque.click();
+    const cajon = page.getByRole("dialog", { name: /Paula Ríos/ });
+    await cajon.waitFor();
+    assert.match(await cajon.innerText(), /seña pedida 10:03/);
+    // Pedirla otra vez: el enlace lleva el pedido armado y deja la marca (sin salir de la página).
+    const pedir = cajon.getByRole("link", { name: /Recordarle la seña por WhatsApp/ });
+    const wa = new URL((await pedir.getAttribute("href"))!);
+    assert.equal(wa.origin, "https://wa.me");
+    assert.match(wa.searchParams.get("text") ?? "", /seña de \$5\.000/);
+    await pedir.evaluate((a) => a.addEventListener("click", (e) => e.preventDefault()));
+    await pedir.click();
+    await page.waitForFunction(() => ((window as unknown as Ventana).__enviado ?? []).some((x) => x.accion === "senia-pedida"));
+    // «Confirmar sin seña» queda al costado, no compite.
+    assert.ok(await cajon.getByRole("button", { name: "Confirmar sin seña" }).isVisible());
+    await foto(page, "cajon-llego-la-senia");
+    // Comprobante informado ≠ cobrado: la ayuda dice cuándo se toca.
+    assert.match(await cajon.innerText(), /Tocalo cuando la veas en el banco o en Mercado Pago, no por la captura/);
+    await cajon.getByRole("button", { name: /Llegó la seña \$\s?5\.000/ }).click();
+    await cajon.getByRole("button", { name: "Deshacer" }).click();
+    const enviado = await page.evaluate(() => (window as unknown as Ventana).__enviado ?? []);
+    const senia = enviado.find((x) => x.accion === "senia")!;
+    assert.deepEqual([senia.appointmentId, senia.method, Number(senia.amount)], ["paula", "TRANSFERENCIA", 5000]);
+    await page.waitForFunction(() => ((window as unknown as Ventana).__enviado ?? []).some((x) => x.accion === "deshacer"));
+    const deshacer = (await page.evaluate(() => (window as unknown as Ventana).__enviado ?? [])).find((x) => x.accion === "deshacer")!;
+    assert.deepEqual([deshacer.appointmentId, deshacer.que, deshacer.cobroId], ["paula", "senia", "cobro-1"]);
+    assert.deepEqual(errores, []);
+  });
+
+  test("CH-026 · después de cancelar queda [Deshacer]: el turno vuelve a Reservado", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    await page.getByRole("button", { name: /16:00, Laura Gómez.*abrir el turno/ }).click();
+    const cajon = page.getByRole("dialog", { name: /Laura Gómez/ });
+    await cajon.getByRole("button", { name: "Cancelar el turno" }).click();
+    const hoja = page.getByRole("dialog", { name: "Cancelar el turno · Laura Gómez" });
+    await hoja.getByRole("button", { name: "Sí, cancelar el turno" }).click();
+    await hoja.waitFor({ state: "hidden" });
+    const deshacer = page.getByRole("button", { name: "Deshacer" });
+    await deshacer.waitFor();
+    // Un solo cartel: el de la mesa, con [Deshacer] (no el de la hoja encimado).
+    assert.equal(await page.getByText(/Cancelado: Laura Gómez/).count(), 1);
+    await foto(page, "deshacer-cancelacion");
+    await deshacer.click();
+    await page.waitForFunction(() => ((window as unknown as Ventana).__enviado ?? []).some((x) => x.accion === "deshacer"));
+    const enviado = await page.evaluate(() => (window as unknown as Ventana).__enviado ?? []);
+    assert.equal(enviado[0].accion, "cancelar");
+    assert.deepEqual(
+      enviado.filter((x) => x.accion === "deshacer").map((x) => [x.appointmentId, x.que]),
+      [["laura", "cancelacion"]],
+    );
     assert.deepEqual(errores, []);
   });
 
@@ -344,7 +484,7 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
     const wa = new URL(ventana.location.href);
     assert.equal(wa.origin, "https://wa.me");
     assert.equal(wa.pathname, "/5491155667788");
-    assert.match(wa.searchParams.get("text") ?? "", /Te pasamos el turno al jue 24 17:30 con Lu/);
+    assert.match(wa.searchParams.get("text") ?? "", /Te pasamos el turno de \*Piernas completas\* al \*jueves 24 a las 17:30\* con Lu \(era el jueves 24 a las 16:00\)/);
     assert.doesNotMatch(wa.searchParams.get("text") ?? "", /undefined|null|NaN/);
     assert.deepEqual(errores, []);
   });
@@ -414,4 +554,16 @@ async function arrastrar(page: Page, clienta: string, columna: string, minuto: n
   await page.mouse.move(destino.x + destino.width / 2, destino.y + 6, { steps: 8 });
   await page.waitForTimeout(50);
   await page.mouse.up();
+}
+
+/** Espera a que lo que flota (cajón, hojas) termine de entrar: sin `translate` ni opacidad a medias. */
+async function quieto(page: Page) {
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll("dialog")].every((d) => {
+      const cs = getComputedStyle(d);
+      // Cerrado: ya no se dibuja (la salida terminó). Abierto: sin corrimiento ni transparencia.
+      if (!d.open) return cs.display === "none";
+      return (cs.translate === "none" || cs.translate === "0px") && cs.opacity === "1";
+    }),
+  );
 }

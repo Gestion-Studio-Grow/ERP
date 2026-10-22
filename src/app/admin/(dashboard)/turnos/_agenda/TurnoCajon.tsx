@@ -14,9 +14,15 @@
 // mueve plata hacia atrás pide motivo, en dos pasos, como la fila de siempre. Cancelar y «no vino»
 // no salen de acá con un toque: abren la hoja `CancelarONoVino` (quién cancela, la seña, la
 // consecuencia). «Dar de baja el saldo» es sólo de quien puede perdonar plata (la dueña, D5).
+//
+// Tanda 2: un Reservado que viene con la seña sin cobrar tiene de tecla principal «Llegó la seña
+// $5.000» (`LlegoLaSenia`: cobra y confirma en una operación, con [Deshacer], CH-022) y «Confirmar sin
+// seña» al lado; y «Recordar la seña» abre WhatsApp con el pedido armado y deja la marca «seña
+// pedida» (`marcarSeniaPedida`, CH-021), que se lee arriba junto al estado.
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   anularCobroTurno,
   condonarSaldoTurno,
@@ -27,6 +33,8 @@ import { Cajon } from "@/components/ui/Cajon";
 import { Button, Input, Marca, Plata, Renglon, Seccion } from "@/components/ui";
 import { fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { ALIAS_SENIA_PROVISIONAL, mensajePedidoDeSenia } from "@/lib/turnos/mensajes-whatsapp";
+import { marcarSeniaPedida } from "@/lib/turnos/senia-actions";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
 import {
   claseDeCobro,
@@ -39,6 +47,8 @@ import {
   marcaDelTurno,
   minutosEntre,
   pasoDelTurno,
+  seniaQueFalta,
+  textoSeniaPedida,
   yaEmpezo,
   type CierreSinPrestar,
   type Permisos,
@@ -54,6 +64,46 @@ import {
 import CobrarTurno from "./CobrarTurno";
 import TerminarTurno from "./TerminarTurno";
 import MoverTurno from "./MoverTurno";
+import LlegoLaSenia from "./LlegoLaSenia";
+
+/**
+ * «Recordar la seña»: abre WhatsApp con el pedido armado (es un enlace: el navegador no lo bloquea) y
+ * deja la marca «seña pedida». Si la marca no se pudo guardar, se dice; el WhatsApp ya salió.
+ */
+function RecordarLaSenia({ t, wa }: { t: TurnoDelDia; wa: string }) {
+  const { showError, showSuccess } = useToast();
+  const router = useRouter();
+  const [pendiente, empezar] = useTransition();
+  return (
+    <a
+      href={wa}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-ui="button"
+      data-variant="outline"
+      data-size="sm"
+      aria-busy={pendiente || undefined}
+      className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-3 text-sm font-medium"
+      onClick={() =>
+        empezar(async () => {
+          try {
+            const r = await marcarSeniaPedida(aFormData(camposDelTurno(t.id)));
+            if (!r.ok) showError(`Se abrió WhatsApp, pero no quedó anotada la seña pedida: ${r.error}`);
+            else {
+              showSuccess(`Seña de ${t.clienta} pedida: queda marcada en la agenda.`);
+              router.refresh();
+            }
+          } catch {
+            showError("Se abrió WhatsApp, pero no quedó anotada la seña pedida. Probá de nuevo.");
+          }
+        })
+      }
+    >
+      {t.seniaPedidaEl ? "Recordarle la seña" : "Pedirle la seña"} por WhatsApp
+      <span className="sr-only"> (se abre en otra pestaña)</span>
+    </a>
+  );
+}
 
 function ConMotivo({
   etiqueta,
@@ -201,6 +251,7 @@ export default function TurnoCajon({
 }) {
   const reloj = new Date(ahora);
   const { pendiente, correr } = useAccionSimple();
+  const router = useRouter();
   const t = turno;
   if (!t) return null;
 
@@ -224,12 +275,25 @@ export default function TurnoCajon({
   const cierra = cierraElTurno(paso);
   // Cobrar (un parcial, la seña, el saldo) cuando falta plata y el turno lo acepta, y no es ya la
   // tecla que cierra el turno.
+  // Un Reservado que viene, con la seña sin cobrar: «Llegó la seña» es la tecla (cobra y confirma).
+  const senia = seniaQueFalta(t, reloj);
+  const llegoLaSenia = senia > 0 && cobraEste;
+  const pedida = textoSeniaPedida(t, reloj);
+  const pedidoPorWa =
+    senia > 0 && permisos.gestionar
+      ? waLinkClienta(
+          t.telefono,
+          mensajePedidoDeSenia({ clienta: t.clienta, servicios: t.servicio, inicio: t.inicio, profesional: t.profesional, monto: senia, alias: ALIAS_SENIA_PROVISIONAL }),
+        )
+      : null;
   const ofreceCobro =
     cobraEste &&
     t.saldo > 0 &&
     t.estado !== "NO_SHOW" &&
     t.estado !== "CANCELLED" &&
-    !cierra;
+    !cierra &&
+    // La seña de un Reservado ya la cobra «Llegó la seña» (que además confirma): no dos teclas.
+    !llegoLaSenia;
 
   return (
     <Cajon
@@ -251,6 +315,7 @@ export default function TurnoCajon({
               avisada {fmtTime(t.avisadaEl)}
             </span>
           )}
+          {pedida && <span className="text-sm text-muted">{pedida}</span>}
         </p>
 
         <Seccion titulo="La clienta">
@@ -302,15 +367,39 @@ export default function TurnoCajon({
           )}
         </Seccion>
 
+        {(llegoLaSenia || (senia > 0 && pedidoPorWa)) && (
+          <Seccion titulo="La seña">
+            <div className="space-y-3 pt-3">
+              <p className="text-sm text-muted">
+                Pide una seña de <Plata valor={senia} /> que todavía no entró.
+                {pedida ? ` Ya se la pedimos (${pedida.replace(/^seña pedida /, "")}).` : ""}
+              </p>
+              {llegoLaSenia && (
+                <LlegoLaSenia
+                  key={t.id}
+                  turnoId={t.id}
+                  clienta={t.clienta}
+                  monto={senia}
+                  onListo={() => router.refresh()}
+                />
+              )}
+              {pedidoPorWa && <RecordarLaSenia t={t} wa={pedidoPorWa} />}
+            </div>
+          </Seccion>
+        )}
+
         {paso.tipo === "confirmar" && (
           <Seccion titulo="Qué falta">
             <div className="space-y-2 pt-3">
               <p className="text-sm text-muted">
-                Está reservado. Confirmalo cuando la clienta te diga que viene.
+                {llegoLaSenia
+                  ? "Si la clienta confirma sin mandar la seña, confirmalo igual."
+                  : "Está reservado. Confirmalo cuando la clienta te diga que viene."}
               </p>
               <Button
                 type="button"
-                size="lg"
+                size={llegoLaSenia ? "md" : "lg"}
+                variant={llegoLaSenia ? "outline" : undefined}
                 className="w-full"
                 disabled={pendiente}
                 estado={pendiente ? "cargando" : undefined}
@@ -322,7 +411,7 @@ export default function TurnoCajon({
                   )
                 }
               >
-                Confirmar el turno
+                {llegoLaSenia ? "Confirmar sin seña" : "Confirmar el turno"}
               </Button>
             </div>
           </Seccion>
