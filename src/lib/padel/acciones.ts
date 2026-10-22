@@ -32,7 +32,6 @@ import { auditAdmin } from "@/lib/audit-core";
 import { leerImporte } from "@/lib/dinero/leer";
 import { businessWallTimeToUtc, todayInBusinessTz } from "@/lib/datetime";
 import {
-  CLAVES_PLANTILLA,
   ESTADOS_QUE_OCUPAN,
   MOTIVO_AUSENTE_NO_SE_COBRA,
   MOTIVO_AUSENTE_SE_COBRA,
@@ -55,6 +54,8 @@ import {
   nombreValido,
   pagoAlCancelar,
   pagoAlNoVino,
+  COMPROBANTE_NO_APLICA,
+  MOTIVO_OTRO_CAMBIO_CONFIRMADO,
   conLinkVigente,
   pesos,
   plantillaDeCancelacion,
@@ -86,6 +87,7 @@ import {
   avisarAlAlumno,
   choqueEn,
   conErrorNegocio,
+  respuestaDeError,
   nuevoToken,
   origen,
   pagoConSaldo,
@@ -153,7 +155,7 @@ type OpcionesTransicion = {
   seCobra?: boolean;
 };
 
-type ResultadoTransicion = Resultado<ConAviso & { aFavor?: number; linkNuevo?: boolean; claseId: string; nombre: string; cambioDe?: string }>;
+type ResultadoTransicion = Resultado<ConAviso & { aFavor?: number; comprobanteNoAplica?: boolean; linkNuevo?: boolean; claseId: string; nombre: string; cambioDe?: string }>;
 
 /**
  * El corazón de confirmar, rechazar, dar, ausente y cancelar (un toque). Devuelve el WhatsApp listo
@@ -188,6 +190,7 @@ async function transicionar(id: string, evento: EventoClase, op: OpcionesTransic
       nuevo === "CANCELADA" || nuevo === "RECHAZADA" ? pagoAlCancelar(clase) :
       nuevo === "AUSENTE" && op.seCobra !== undefined ? pagoAlNoVino(clase, op.seCobra) :
       null;
+    const comprobanteNoAplica = Boolean(pago && "pagoNota" in pago && pago.pagoNota === COMPROBANTE_NO_APLICA);
     const r = await bookingTransaction(async (tx) => {
       // Un pedido vencido liberó su franja (M-031): darlo la vuelve a ocupar, si nadie la tomó.
       if (clase.estado === "SIN_RESPUESTA" && (await choqueEn(tx, tenantId, clase.empiezaEn, clase.terminaEn, id))) {
@@ -211,7 +214,7 @@ async function transicionar(id: string, evento: EventoClase, op: OpcionesTransic
     const tokenViejo = alumno.token;
     alumno.token = r.token;
     await prisma.padelAviso.updateMany({ where: { tenantId, claseId: id, destino: "PROFE", leidoEl: null }, data: { leidoEl: ahora } });
-    const cambioPago = r.conSaldo ? "SALDO_A_FAVOR" : pago?.pagoEstado;
+    const cambioPago = r.conSaldo ? "SALDO_A_FAVOR" : comprobanteNoAplica ? "COMPROBANTE_NO_APLICA" : pago?.pagoEstado;
     await auditAdmin({
       action: `padel.${evento}`, entity: "PadelClase", entityId: id,
       changes: { de: clase.estado, a: nuevo, ...(cambioPago ? { pago: cambioPago } : {}), ...(op.motivo ? { motivo: op.motivo } : {}), ...(op.seCobra !== undefined ? { seCobra: op.seCobra } : {}), ...(r.cambioDe ? { cancelaLaDe: r.cambioDe.toISOString() } : {}) },
@@ -241,6 +244,7 @@ async function transicionar(id: string, evento: EventoClase, op: OpcionesTransic
     return {
       ok: true as const, ...aviso, claseId: id, nombre: alumno.nombre,
       ...(acreditada ? { aFavor: Number(clase.precio) } : {}),
+      ...(comprobanteNoAplica ? { comprobanteNoAplica: true } : {}),
       ...(r.regenerado ? { linkNuevo: true } : {}),
       ...(r.cambioDe ? { cambioDe: r.cambioDe.toISOString() } : {}),
     };
@@ -260,6 +264,29 @@ async function confirmarCambio(
   if (!clase.repiteDe) return null;
   const pedido = await tx.padelAviso.findFirst({ where: { tenantId, destino: "PROFE", tipo: "cambio-pedido", claseId: clase.id }, select: { id: true } });
   if (!pedido) return null;
+  // O-5 (CERT T2+T3): si el alumno pidió DOS cambios de la misma clase, al confirmar uno el otro ya
+  // no tiene sentido: se rechaza acá, en la misma transacción, y su aviso se da por leído. Sólo los
+  // pedidos de cambio (aviso «cambio-pedido»): un «la semana que viene igual» también usa `repiteDe`
+  // y ése sigue su curso. O-5b: vale también si el alumno ya había cancelado la vieja (por eso va
+  // antes de buscarla viva). O-5c: el motivo le dice la verdad («Ya confirmaste otro horario…»).
+  const hermanas = await tx.padelClase.findMany({
+    where: { tenantId, alumnoId: clase.alumnoId, repiteDe: clase.repiteDe, estado: "PEDIDA", id: { not: clase.id } },
+    select: { id: true },
+  });
+  if (hermanas.length) {
+    const deCambio = await tx.padelAviso.findMany({
+      where: { tenantId, destino: "PROFE", tipo: "cambio-pedido", claseId: { in: hermanas.map((h) => h.id) } },
+      select: { claseId: true },
+    });
+    const ids = [...new Set(deCambio.map((a) => a.claseId).filter((x): x is string => Boolean(x)))];
+    if (ids.length) {
+      await tx.padelClase.updateMany({
+        where: { tenantId, id: { in: ids }, estado: "PEDIDA" },
+        data: { estado: "RECHAZADA", rechazadaEl: ahora, motivoCancel: MOTIVO_OTRO_CAMBIO_CONFIRMADO },
+      });
+      await tx.padelAviso.updateMany({ where: { tenantId, destino: "PROFE", claseId: { in: ids }, leidoEl: null }, data: { leidoEl: ahora } });
+    }
+  }
   const vieja = await tx.padelClase.findFirst({
     where: { tenantId, id: clase.repiteDe, alumnoId: clase.alumnoId, estado: { in: ACTIVAS } },
     select: { id: true, estado: true, empiezaEn: true, pagoEstado: true, pagoMedio: true, comprobante: true, comprobanteEnviadoEl: true },
@@ -276,28 +303,6 @@ async function confirmarCambio(
     },
   });
   if (n.count === 0) throw new ErrorNegocio("La clase de antes cambió recién. Actualizá la pantalla.");
-  // O-5 (CERT T2+T3): si el alumno pidió DOS cambios de la misma clase, al confirmar uno el otro ya
-  // no tiene sentido (la vieja se canceló): se rechaza acá, en la misma transacción, y su aviso se da
-  // por leído. Sólo los pedidos de cambio (aviso «cambio-pedido»): un «la semana que viene igual»
-  // también usa `repiteDe` y ése sigue su curso.
-  const hermanas = await tx.padelClase.findMany({
-    where: { tenantId, alumnoId: clase.alumnoId, repiteDe: vieja.id, estado: "PEDIDA", id: { not: clase.id } },
-    select: { id: true },
-  });
-  if (hermanas.length) {
-    const deCambio = await tx.padelAviso.findMany({
-      where: { tenantId, destino: "PROFE", tipo: "cambio-pedido", claseId: { in: hermanas.map((h) => h.id) } },
-      select: { claseId: true },
-    });
-    const ids = [...new Set(deCambio.map((a) => a.claseId).filter((x): x is string => Boolean(x)))];
-    if (ids.length) {
-      await tx.padelClase.updateMany({
-        where: { tenantId, id: { in: ids }, estado: "PEDIDA" },
-        data: { estado: "RECHAZADA", rechazadaEl: ahora, motivoCancel: "Ya la pasó a otro horario" },
-      });
-      await tx.padelAviso.updateMany({ where: { tenantId, destino: "PROFE", claseId: { in: ids }, leidoEl: null }, data: { leidoEl: ahora } });
-    }
-  }
   return {
     empiezaEn: vieja.empiezaEn,
     pagoDeLaVieja: viajaRevision ? { pagoEstado: "EN_REVISION", pagoMedio: vieja.pagoMedio, comprobante: vieja.comprobante, comprobanteEnviadoEl: vieja.comprobanteEnviadoEl } : null,
@@ -553,7 +558,7 @@ export async function cerrarPasada(claseId: string, accion: "dar" | "ausente", s
  * se cobre; con «No se cobra», no. Queda escrito en `motivoCancel` — provisional hasta la columna
  * `seCobra` de T4 (TODO(T4)).
  */
-export async function marcarNoVino(claseId: string, seCobra: boolean): Promise<Resultado<ConAviso & { linkNuevo?: boolean; seCobra: boolean }>> {
+export async function marcarNoVino(claseId: string, seCobra: boolean): Promise<Resultado<ConAviso & { aFavor?: number; comprobanteNoAplica?: boolean; linkNuevo?: boolean; seCobra: boolean }>> {
   const r = await transicionar(claseId, "ausente", { seCobra: Boolean(seCobra) });
   return r.ok ? { ...r, seCobra: Boolean(seCobra) } : r;
 }
@@ -907,7 +912,8 @@ export async function agendarProxima(id: string): Promise<Resultado<ConAviso & {
     refrescar(alumno.token, tokenViejo);
     return { ok: true, ...aviso, cuando: `${diaHumano(empiezaEn)} ${horaHumana(empiezaEn)}`, ...(link.regenerado ? { linkNuevo: true } : {}) };
   } catch (e) {
-    if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
+    const r = respuestaDeError(e);
+    if (r) return r;
     throw e;
   }
 }
@@ -957,7 +963,8 @@ export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & {
     refrescar(r.alumno.token, r.tokenViejo);
     return { ok: true, ...aviso, cuando: `${diaHumano(empiezaEn)} ${horaHumana(empiezaEn)}`, ...(r.regenerado ? { linkNuevo: true } : {}) };
   } catch (e) {
-    if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
+    const r = respuestaDeError(e);
+    if (r) return r;
     throw e;
   }
 }
@@ -1006,7 +1013,8 @@ export async function recordatorio(id: string): Promise<Resultado<ConAviso>> {
     const { tenantId, clase, config, alumno } = await claseDelProfe(id);
     return { ok: true, ...(await avisarAlAlumno({ tenantId, config, clave: "recordatorio", tipo: "recordatorio", clase, alumno })) };
   } catch (e) {
-    if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
+    const r = respuestaDeError(e);
+    if (r) return r;
     throw e;
   }
 }
@@ -1032,7 +1040,8 @@ export async function devolverSaldo(claseId: string): Promise<Resultado<{ aFavor
     refrescar(clase.alumno.token);
     return { ok: true, aFavor: r.aFavor };
   } catch (e) {
-    if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
+    const r = respuestaDeError(e);
+    if (r) return r;
     throw e;
   }
 }
@@ -1046,42 +1055,10 @@ export async function marcarAvisosLeidos(): Promise<void> {
 
 // ── Configuración ───────────────────────────────────────────────────────────
 
-const entero = (v: FormDataEntryValue | null, min: number, max: number, def: number): number => {
-  const n = parseInt(String(v ?? ""), 10);
-  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
-};
-const importe = (v: FormDataEntryValue | null): number => {
-  const l = leerImporte(typeof v === "string" ? v : "");
-  return l.estado === "ok" ? l.valor : 0;
-};
-
-export async function guardarConfig(fd: FormData): Promise<Resultado> {
-  await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
-  const plantillas: Record<string, string> = {};
-  for (const k of CLAVES_PLANTILLA) {
-    const t = String(fd.get(`plantilla_${k}`) ?? "").trim();
-    if (t) plantillas[k] = t.slice(0, 600);
-  }
-  const whatsapp = String(fd.get("whatsappProfe") ?? "").trim();
-  if (whatsapp && !telefonoAlumno(whatsapp)) return { ok: false, error: "El celular tiene que ser argentino, con código de área (ej. 11 5555-1234)." };
-  const data = {
-    duracionMin: entero(fd.get("duracionMin"), 30, 180, 60),
-    precioIndividual: importe(fd.get("precioIndividual")),
-    precioGrupal: importe(fd.get("precioGrupal")),
-    aliasCbu: String(fd.get("aliasCbu") ?? "").trim().slice(0, 60) || null,
-    titularCuenta: String(fd.get("titularCuenta") ?? "").trim().slice(0, 80) || null,
-    anticipacionMin: entero(fd.get("anticipacionMin"), 0, 48 * 60, 120),
-    diasAdelante: entero(fd.get("diasAdelante"), 1, 60, 14),
-    maxPendientesPorTel: entero(fd.get("maxPendientesPorTel"), 1, 10, 2),
-    whatsappProfe: whatsapp ? telefonoAlumno(whatsapp) : null,
-    plantillas,
-  };
-  await prisma.padelConfig.upsert({ where: { tenantId }, create: { tenantId, ...data }, update: data });
-  await auditAdmin({ action: "padel.config", entity: "PadelConfig", entityId: tenantId });
-  refrescar();
-  return { ok: true };
-}
+// O-9b (CERT T2+T3): el `guardarConfig(FormData)` de la primera pantalla de Ajustes se retiró. Ninguna
+// pantalla lo usaba (Ajustes guarda de a un campo con `guardarCampoConfig`, acciones-config.ts), pero
+// seguía exportado como Server Action y reconstruía el JSON de plantillas desde el formulario: pisaba
+// los textos editados y la marca de la Bienvenida.
 
 /**
  * Los horarios de la semana: por cada día, "desde-hasta" separados por coma

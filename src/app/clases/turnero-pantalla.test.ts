@@ -292,24 +292,36 @@ describe("El turnero y Pagar en el navegador", { timeout: 240_000 }, () => {
     assert.deepEqual(errores, []);
   });
 
-  test("F-1: si la acción del servidor TIRA (choque que escapó o corte), «Se ocupó recién, elegí otro horario», nunca el error boundary", async (t) => {
+  test("F-1/O-16: si la acción TIRA (corte o error nuestro), un texto honesto, nunca el error boundary, y lo tipeado queda", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const errores: string[] = [];
-    const page = await abrir("__turnero", BASE, {}, errores, { nombre: "Juan", telefono: "1155551234" });
+    // Primera vez en este teléfono: tipea nombre y celular en la hoja.
+    const page = await abrir("__turnero", BASE, {}, errores);
     // La acción rechaza la promesa (como un 500 de una Server Action).
     await page.evaluate(() => {
-      (window as unknown as Ventana).__resp.pedirClase = () => Promise.reject(new Error("DriverAdapterError: TransactionWriteConflict"));
+      (window as unknown as Ventana).__resp.pedirClase = () => Promise.reject(new Error("se cortó"));
     });
     await page.getByRole("button", { name: "18:00" }).click();
     await page.getByRole("button", { name: /^Pedir hoy · 18:00/ }).click();
-    await page.getByRole("alert").filter({ hasText: "Se ocupó recién, elegí otro horario." }).waitFor();
-    // La pantalla sigue viva: se puede elegir otra hora y pedir.
+    const hoja = page.getByRole("dialog", { name: "¿Quién sos?" });
+    await hoja.getByLabel("Nombre").fill("Lola Paz");
+    await hoja.getByLabel("Celular (WhatsApp)").fill("11 5800 4242");
+    await hoja.getByRole("button", { name: /^Pedir/ }).click();
+    const alerta = page.getByRole("alert").filter({ hasText: "No pudimos tomar tu pedido" });
+    await alerta.waitFor();
+    assert.doesNotMatch((await alerta.textContent()) ?? "", /ocup/i, "no dice «se ocupó» si no sabe que se ocupó");
+    // Lo tipeado no se perdió: «Pedís como Lola Paz», y la hora sigue elegida.
+    await page.getByText("Pedís como").waitFor();
+    await page.getByText("Lola Paz").first().waitFor();
+    // Vuelve la señal: un toque y listo, sin volver a tipear.
     await page.evaluate(() => {
-      (window as unknown as Ventana).__resp.pedirClase = { ok: true, token: "tokentokentokentoken1234", conocido: false, waProfe: null, cuando: "viernes 23/10 a las 19:00", claseId: "c2" };
+      (window as unknown as Ventana).__resp.pedirClase = { ok: true, token: "tokentokentokentoken1234", conocido: false, waProfe: null, cuando: "viernes 23/10 a las 18:00", claseId: "c2" };
     });
-    await page.getByRole("button", { name: "19:00" }).click();
-    await page.getByRole("button", { name: /^Pedir hoy · 19:00/ }).click();
+    await page.getByRole("button", { name: /^Pedir hoy · 18:00/ }).click();
     await page.getByRole("heading", { name: "¡Listo! Pediste tu clase" }).waitFor();
+    assert.equal(await hoja.isVisible(), false, "no hizo falta la hoja otra vez");
+    const ls = await llamadas(page);
+    assert.deepEqual((ls.at(-1)!.args[0] as { nombre: string; telefono: string }).nombre, "Lola Paz");
     assert.deepEqual(errores, []);
   });
 

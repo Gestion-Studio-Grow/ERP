@@ -6,7 +6,8 @@
 // del campo y queda guardado (M-077), sin un «Guardar» al final de un formulario largo. Por eso la
 // clave viene de la pantalla, y una pantalla es del lado del cliente: NUNCA se escribe una clave
 // que no esté en esta lista blanca, y cada una tiene su propia validación (los mismos topes que
-// tenía `guardarConfig`, acciones.ts:1026-1056). Lo que no está acá, no se guarda.
+// tenía el `guardarConfig(FormData)` de la primera versión, retirado en O-9b). Lo que no está acá,
+// no se guarda.
 //
 // Tres formas:
 // - Un campo de PadelConfig (precio, duración, alias, reglas…).
@@ -14,6 +15,8 @@
 //   fábrica = «Restaurar original» (se borra del JSON y vuelve el de fábrica).
 // - `horarios`: la grilla semanal entera, en UN guardado (M-079: «Copiar a…» deja 4 días con 8–12
 //   de una). Reemplaza las franjas semanales, igual que `guardarHorarios`.
+// - `bienvenidaVista` (sólo `true`): la marca «ya vio la Bienvenida» (O-9), en el mismo JSON que los
+//   textos. Los textos y la marca se reescriben en Serializable (F-2, acciones-config.ts).
 
 import { leerImporte } from "@/lib/dinero/leer";
 import { CLAVES_PLANTILLA, PLANTILLAS_DEFAULT, horaValida, telefonoAlumno, type ClavePlantilla } from "./core";

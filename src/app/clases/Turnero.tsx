@@ -25,7 +25,7 @@ import { YaSoyAlumno } from "./YaSoyAlumno";
 import { alerta, botonPrincipal, caja, campo, chip, etiqueta } from "./_estilos";
 import {
   RECUERDO,
-  SE_OCUPO_RECIEN,
+  SIN_CONEXION_PEDIDO,
   alternativasEnCinta,
   cercanas,
   diaYHora,
@@ -156,9 +156,8 @@ export default function Turnero({
         try {
           r = await reservarDesdeLink(null, iso, undefined, { tipo, personas, nota });
         } catch {
-          // La acción tiró (choque que escapó o corte): nunca al error boundary.
-          setHora(null);
-          setError(SE_OCUPO_RECIEN);
+          // La acción tiró (corte de señal o error nuestro; un choque vuelve como «se ocupó»).
+          setError(SIN_CONEXION_PEDIDO);
           return;
         }
         if (r.ok) {
@@ -187,9 +186,11 @@ export default function Turnero({
       try {
         r = await pedirClase({ hora: iso, nombre: q.nombre, telefono: q.telefono, tipo, personas, nota });
       } catch {
+        // Corte de señal o error nuestro (O-16): lo que tipeó queda («Pedís como …») y la hora también,
+        // para probar de nuevo con un toque.
+        setRecuerdo(q);
         setHojaQuien(false);
-        setHora(null);
-        setError(SE_OCUPO_RECIEN);
+        setError(SIN_CONEXION_PEDIDO);
         return;
       }
       if (r.ok) {
@@ -202,6 +203,8 @@ export default function Turnero({
         return;
       }
       if (r.alternativas || /ocup/i.test(r.error)) {
+        // Lo que tipeó no se pierde: con otra hora, pide de un toque.
+        setRecuerdo(q);
         setHojaQuien(false);
         return seOcupo(iso, r.error, r.alternativas);
       }

@@ -18,6 +18,7 @@ import "server-only";
 // «Avisar a Juan (1 de 6)») vive en acciones.ts porque es una Server Action (pide agenda:manage):
 // la pantalla la importa de "@/lib/padel/acciones" y los tipos de acá con `import type`.
 
+import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
 import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -54,12 +55,28 @@ export const SIN_AVISO: ConAviso = { wa: null, enviado: false, avisoId: null };
 /** Error de negocio: se le muestra al usuario tal cual. Cualquier otro error sube. */
 export class ErrorNegocio extends Error {}
 
-/** Corre la acción y convierte un ErrorNegocio en `{ ok: false, error }`. */
+/** Lo que se contesta cuando dos personas tocaron lo mismo a la vez y la base no pudo ordenarlas. */
+export const SE_OCUPO_A_LA_VEZ = "Se ocupó recién: alguien lo tomó al mismo tiempo. Elegí otro horario.";
+
+/**
+ * El error como respuesta para la pantalla, o null si tiene que subir. Un ErrorNegocio, tal cual.
+ * Un conflicto de escritura que siguió chocando después de los reintentos de `bookingTransaction`
+ * (O-16 de la CERT T2+T3) también es «se ocupó», no un 500: así la pantalla del alumno sabe que fue
+ * un choque y no un corte, y puede decir la verdad en cada caso.
+ */
+export function respuestaDeError(e: unknown): { ok: false; error: string } | null {
+  if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
+  if (esConflictoDeEscritura(e)) return { ok: false, error: SE_OCUPO_A_LA_VEZ };
+  return null;
+}
+
+/** Corre la acción y convierte un ErrorNegocio (o un choque que no se pudo reintentar) en `{ ok: false, error }`. */
 export async function conErrorNegocio<T>(fn: () => Promise<T>): Promise<T | { ok: false; error: string }> {
   try {
     return await fn();
   } catch (e) {
-    if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
+    const r = respuestaDeError(e);
+    if (r) return r;
     throw e;
   }
 }

@@ -8,7 +8,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { armarIcs, conLinkVigente, escaparIcs, pagoAlNoVino, puedeCobrarProfe, transicionPago } from "./core";
+import { COMPROBANTE_NO_APLICA, ESTADOS_PAGO, MOTIVO_AUSENTE_NO_SE_COBRA, MOTIVO_AUSENTE_SE_COBRA, MOTIVO_OTRO_CAMBIO_CONFIRMADO, armarIcs, conLinkVigente, escaparIcs, pagoAlCancelar, pagoAlNoVino, puedeCobrarProfe, transicionPago } from "./core";
+import { chipEstado, explicacionTerminal } from "@/app/alumno/_vista/estado";
 import { MARCA_BIENVENIDA, bienvenidaVista, plantillasConBienvenida, plantillasConCambio, validarCampoConfig } from "./config-campos";
 import { partirCifra } from "@/components/ui/display-core";
 import { plataTexto } from "@/app/admin/(dashboard)/clases/_plata";
@@ -42,7 +43,34 @@ test("O-3: «No vino» sobre una pagada — no se cobra → a favor; se cobra �
   assert.deepEqual(pagoAlNoVino({ pagoEstado: "PAGADO", pagoMedio: "SALDO_A_FAVOR" }, false), { pagoEstado: "PENDIENTE", pagoMedio: null }, "el saldo que usó le vuelve");
   assert.equal(pagoAlNoVino({ pagoEstado: "PAGADO", pagoMedio: "TRANSFERENCIA" }, true), null);
   assert.equal(pagoAlNoVino({ pagoEstado: "PENDIENTE" }, false), null);
-  assert.equal(pagoAlNoVino({ pagoEstado: "EN_REVISION" }, false), null, "comprobante sin validar: no entró plata");
+  // O-3c: un comprobante por revisar de una clase que no se cobra queda «no aplica» (deja de esperar).
+  assert.deepEqual(pagoAlNoVino({ pagoEstado: "EN_REVISION" }, false), { pagoEstado: "PENDIENTE", pagoNota: COMPROBANTE_NO_APLICA });
+  assert.equal(pagoAlNoVino({ pagoEstado: "EN_REVISION" }, true), null, "si se cobra igual, el comprobante se revisa como siempre");
+});
+
+test("O-3b: la máquina pura (`acreditar`) y las acciones (pagoAlCancelar / pagoAlNoVino) dicen lo mismo", () => {
+  for (const pago of ESTADOS_PAGO) {
+    const c = { pagoEstado: pago, pagoMedio: "EFECTIVO" };
+    // Cancelada / rechazada.
+    for (const estado of ["CANCELADA", "RECHAZADA"]) {
+      assert.equal(transicionPago(pago, estado, "acreditar", "profe") === "ACREDITADO", pagoAlCancelar(c)?.pagoEstado === "ACREDITADO", `${pago} ${estado}`);
+    }
+    // No vino: «no se cobra» acredita lo pagado; «se cobra» nunca.
+    assert.equal(transicionPago(pago, "AUSENTE", "acreditar", "profe", MOTIVO_AUSENTE_NO_SE_COBRA) === "ACREDITADO", pagoAlNoVino(c, false)?.pagoEstado === "ACREDITADO", `${pago} ausente no se cobra`);
+    assert.equal(transicionPago(pago, "AUSENTE", "acreditar", "profe", MOTIVO_AUSENTE_SE_COBRA), null);
+    assert.equal(pagoAlNoVino(c, true), null);
+  }
+  // Una clase viva nunca se acredita, y una ausente sin decir si se cobra, tampoco.
+  assert.equal(transicionPago("PAGADO", "CONFIRMADA", "acreditar", "profe"), null);
+  assert.equal(transicionPago("PAGADO", "AUSENTE", "acreditar", "profe"), null);
+});
+
+test("O-5c: el pedido de cambio que se cayó porque quedó el otro no dice «no puede ese horario»", () => {
+  const base = { id: "x", empiezaEn: new Date(), terminaEn: new Date(), estado: "RECHAZADA" as const, pagoEstado: "PENDIENTE", pagoMedio: null, precio: 25_000, rechazadaEl: new Date(), canceladaEl: null };
+  assert.equal(explicacionTerminal({ ...base, motivoCancel: MOTIVO_OTRO_CAMBIO_CONFIRMADO } as never, "Matías"), "Ya confirmaste otro horario para esa clase.");
+  assert.doesNotMatch(chipEstado("RECHAZADA", "Matías", MOTIVO_OTRO_CAMBIO_CONFIRMADO).texto, /no puede/);
+  assert.equal(chipEstado("RECHAZADA", "Matías").texto, "Matías no puede ese horario", "un rechazo del profe sigue diciendo eso");
+  assert.equal(explicacionTerminal({ ...base, motivoCancel: null } as never, "Matías"), "Matías no puede ese horario.");
 });
 
 test("O-9: la marca de la Bienvenida — sólo `true` pasa la lista blanca, y editar un texto no la borra", () => {

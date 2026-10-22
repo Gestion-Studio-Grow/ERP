@@ -91,11 +91,13 @@ export function leerRecuerdo(raw: string | null | undefined): { nombre: string; 
 }
 
 /**
- * Lo que ve el alumno si la acción del servidor TIRA en vez de contestar (F-1 de la CERT T2+T3:
- * un choque de concurrencia que escapó, o un corte en el medio). Nunca el error boundary: lo
- * más probable es que otro haya tomado la hora, y en cualquier caso no cambió nada.
+ * Lo que ve el alumno si la acción del servidor TIRA en vez de contestar. Nunca el error boundary.
+ * Un choque con otro alumno NO llega acá: el servidor lo contesta como «Se ocupó recién» (también
+ * cuando agotó los reintentos, `respuestaDeError` en acciones-compartido.ts). Lo que tira es un corte
+ * de señal, la base caída o un error nuestro: no se sabe si llegó, y se dice así (O-16 de la CERT).
  */
-export const SE_OCUPO_RECIEN = "Se ocupó recién, elegí otro horario.";
+export const SIN_CONEXION_PEDIDO = "No pudimos tomar tu pedido: puede que se haya cortado la señal o que algo falló de nuestro lado. Probá de nuevo en un ratito.";
+export const SIN_CONEXION_CAMBIO = "No pudimos hacer el cambio: puede que se haya cortado la señal o que algo falló de nuestro lado. Mirá tus clases para ver cómo quedó y probá de nuevo.";
 
 /** Las `n` horas libres de la cinta más cercanas a `iso` (sin contarla): para «Se ocupó recién». */
 export function cercanas(dias: readonly DiaConLugar[], iso: string, n = 2): string[] {

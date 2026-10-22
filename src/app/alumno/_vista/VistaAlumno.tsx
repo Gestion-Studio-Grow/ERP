@@ -36,7 +36,7 @@ const TONO_CHIP: Record<Tono, string> = {
 };
 
 function ChipEstado({ c, profe }: { c: ClaseVista; profe: string }) {
-  const e = chipEstado(c.estado, profe);
+  const e = chipEstado(c.estado, profe, c.motivoCancel);
   return (
     <span className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold ${TONO_CHIP[e.tono]}`} data-qa="estado">
       <span aria-hidden>{e.icono}</span>
@@ -225,7 +225,7 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
                 <li key={c.id} className="flex flex-wrap justify-between gap-x-3 py-2">
                   <span className="tabular-nums">{cuando(c.empiezaEn)}</span>
                   <span className="text-[var(--padel-suave)]">
-                    {chipEstado(c.estado, profe).texto} · {etiquetaPago(c)}
+                    {chipEstado(c.estado, profe, c.motivoCancel).texto} · {etiquetaPago(c)}
                   </span>
                 </li>
               ))}

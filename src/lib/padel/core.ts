@@ -117,12 +117,18 @@ const PAGO_RESUELTO: readonly EstadoPago[] = ["PAGADO", "ACREDITADO", "DEVUELTO"
  * (O-2: una pedida todavía no; una rechazada o cancelada, nunca). El comprobante lo sube el alumno
  * de una clase confirmada o dada: una PEDIDA nunca es pagable (el profe todavía no dijo que sí).
  *
- * `acreditar`: la clase pagada se canceló o se rechazó → la plata queda a favor del alumno.
+ * `acreditar`: la clase pagada se canceló o se rechazó, o el alumno no vino y el profe dijo «no se
+ * cobra» (`motivoCancel` = MOTIVO_AUSENTE_NO_SE_COBRA, O-3b) → la plata queda a favor del alumno. Es
+ * la MISMA regla que aplican las acciones con `pagoAlCancelar` / `pagoAlNoVino` (que además cubren la
+ * pagada con saldo a favor: ahí el saldo vuelve solo, sin acreditar dos veces).
  * `devolver`: el profe le devolvió esa plata («Le devolví») → sale del saldo.
  */
-export function transicionPago(pago: string, estadoClase: string, evento: EventoPago, quien: Quien): EstadoPago | null {
+export function transicionPago(pago: string, estadoClase: string, evento: EventoPago, quien: Quien, motivoCancel?: string | null): EstadoPago | null {
   if (!esEstadoPago(pago) || !esEstadoClase(estadoClase)) return null;
-  if (evento === "acreditar") return pago === "PAGADO" && (estadoClase === "CANCELADA" || estadoClase === "RECHAZADA") ? "ACREDITADO" : null;
+  if (evento === "acreditar") {
+    const sinClase = estadoClase === "CANCELADA" || estadoClase === "RECHAZADA" || (estadoClase === "AUSENTE" && motivoCancel === MOTIVO_AUSENTE_NO_SE_COBRA);
+    return pago === "PAGADO" && sinClase ? "ACREDITADO" : null;
+  }
   if (evento === "devolver") return quien === "profe" && pago === "ACREDITADO" ? "DEVUELTO" : null;
   if (!ESTADOS_QUE_OCUPAN.includes(estadoClase)) return null;
   switch (evento) {
@@ -250,9 +256,24 @@ export const conLinkVigente = (texto: string, token: string): string => texto.re
  * favor del alumno igual que al cancelar una pagada (pagoAlCancelar); con «se cobra igual», el pago
  * se queda donde está. Sin pagar, nada cambia (no se cobra → no es deuda; se cobra → es deuda).
  */
-export function pagoAlNoVino(c: { pagoEstado: string; pagoMedio?: string | null }, seCobra: boolean): { pagoEstado: EstadoPago; pagoMedio?: null } | null {
-  return seCobra ? null : pagoAlCancelar(c);
+export function pagoAlNoVino(c: { pagoEstado: string; pagoMedio?: string | null }, seCobra: boolean): { pagoEstado: EstadoPago; pagoMedio?: null; pagoNota?: string } | null {
+  if (seCobra) return null;
+  // O-3c: comprobante todavía por revisar de una clase que no se cobra → «no aplica». Deja de esperar
+  // en la Bandeja (vuelve a PENDIENTE, que en una ausente que no se cobra no es deuda) y queda la nota.
+  // La imagen se conserva: si el alumno ya transfirió, el profe tiene con qué devolvérselo.
+  if (c.pagoEstado === "EN_REVISION") return { pagoEstado: "PENDIENTE", pagoNota: COMPROBANTE_NO_APLICA };
+  return pagoAlCancelar(c);
 }
+
+/**
+ * El motivo de un pedido de cambio que se rechazó solo porque el profe confirmó OTRO de los cambios
+ * pedidos para la misma clase (O-5/O-5c). Lo lee el alumno en su link: no fue que el profe «no
+ * puede ese horario», fue que ya quedó el otro.
+ */
+export const MOTIVO_OTRO_CAMBIO_CONFIRMADO = "Ya confirmaste otro horario para esa clase";
+
+/** La nota que queda en un comprobante por revisar de una clase que el profe no cobra (O-3c). */
+export const COMPROBANTE_NO_APLICA = "No hace falta: esa clase no se cobra. Si ya transferiste, hablalo con tu profe.";
 
 // ── Franjas libres ──────────────────────────────────────────────────────────
 

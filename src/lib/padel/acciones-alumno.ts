@@ -60,6 +60,7 @@ import {
   avisarAlProfe,
   choqueEn,
   conErrorNegocio,
+  respuestaDeError,
   frenadoPorIp,
   frenadoPorTelefono,
   origen,
@@ -186,7 +187,8 @@ export async function pedirClase(
     // T3C: el id de la clase sólo viaja con el token (lo usa «Agregar al calendario»); sin token no sirve.
     return { ok: true, token, conocido: !r.alumno.esNuevo && !token, waProfe, cuando, claseId: token ? r.claseId : null };
   } catch (e) {
-    if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
+    const r = respuestaDeError(e);
+    if (r) return r;
     throw e;
   }
 }
@@ -378,7 +380,8 @@ export async function reservarDesdeLink(
     refrescar(alumno.token);
     return { ok: true, estado: confirmada ? "CONFIRMADA" : "PEDIDA", cuando, pagadaConSaldo: clase.pagoMedio === "SALDO_A_FAVOR", claseId: clase.id };
   } catch (e) {
-    if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
+    const r = respuestaDeError(e);
+    if (r) return r;
     throw e;
   }
 }

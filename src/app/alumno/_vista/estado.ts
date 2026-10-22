@@ -3,7 +3,7 @@
 // (48 h, tachada, con su salida) y la línea de la cuenta («Debés…» / «Estás al día ✓» / «a favor»).
 // Corre en el servidor (VistaAlumno): la fecha de «ahora» se inyecta, así las pruebas fijan el día.
 
-import { PAGO_LABEL, MEDIO_LABEL, esMedioCobro, horaHumana, pesos, puedeCancelarAlumno, type EstadoClase, type EstadoPago } from "@/lib/padel/core";
+import { MOTIVO_OTRO_CAMBIO_CONFIRMADO, PAGO_LABEL, MEDIO_LABEL, esMedioCobro, horaHumana, pesos, puedeCancelarAlumno, type EstadoClase, type EstadoPago } from "@/lib/padel/core";
 
 const HORA = 3_600_000;
 const ZONA = "America/Argentina/Buenos_Aires";
@@ -37,7 +37,9 @@ export function enCuanto(empiezaEn: Date, ahora: Date): string {
 }
 
 /** El chip de estado: ícono distinto para lo que espera y lo confirmado (M-099), nunca sólo color. */
-export function chipEstado(estado: EstadoClase, profe: string): { icono: string; texto: string; tono: Tono } {
+export function chipEstado(estado: EstadoClase, profe: string, motivoCancel?: string | null): { icono: string; texto: string; tono: Tono } {
+  // O-5c: un pedido de cambio que se cayó porque quedó el otro no es «el profe no puede».
+  if (estado === "RECHAZADA" && motivoCancel === MOTIVO_OTRO_CAMBIO_CONFIRMADO) return { icono: "↪", texto: "Quedó el otro horario", tono: "neutro" };
   switch (estado) {
     case "PEDIDA":
       return { icono: "⏳", texto: `Esperando a ${profe}`, tono: "espera" };
@@ -111,7 +113,8 @@ export function terminalVisible(c: ClaseVista, ahora: Date): boolean {
 export function explicacionTerminal(c: ClaseVista, profe: string): string {
   const motivo = (c.motivoCancel ?? "").trim();
   let base: string;
-  if (c.estado === "RECHAZADA") base = `${profe} no puede ese horario`;
+  if (c.estado === "RECHAZADA" && motivo === MOTIVO_OTRO_CAMBIO_CONFIRMADO) base = MOTIVO_OTRO_CAMBIO_CONFIRMADO;
+  else if (c.estado === "RECHAZADA") base = `${profe} no puede ese horario`;
   else if (c.estado === "SIN_RESPUESTA") base = `${profe} no llegó a confirmarte`;
   else if (motivo === "La canceló el alumno") base = `La cancelaste vos. ${profe} ya lo sabe`;
   else if (motivo === "La pasó a otro horario") base = "La pasaste a otro horario";

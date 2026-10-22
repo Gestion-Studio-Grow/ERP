@@ -13,7 +13,7 @@ import { cambiarHorarioDesdeLink, reservarDesdeLink } from "@/lib/padel/acciones
 import { HojaPublica } from "@/app/clases/_hoja";
 import { ElegirHora } from "@/app/clases/_elegir-hora";
 import { alerta, botonBorde, botonLleno, botonPrincipal, chip, listo } from "@/app/clases/_estilos";
-import { SE_OCUPO_RECIEN, alternativasEnCinta, diaYHora, horaCorta, sinLaHora } from "@/app/clases/cinta";
+import { SIN_CONEXION_CAMBIO, SIN_CONEXION_PEDIDO, alternativasEnCinta, diaYHora, horaCorta, sinLaHora } from "@/app/clases/cinta";
 
 export function CambiarHorario({
   token,
@@ -48,9 +48,9 @@ export function CambiarHorario({
       try {
         r = await cambiarHorarioDesdeLink(token, claseId, iso);
       } catch {
-        // La acción tiró (choque que escapó o corte): la clase sigue como estaba, nunca al error boundary.
-        setHora(null);
-        setError(`${SE_OCUPO_RECIEN} Tu clase sigue como estaba.`);
+        // Corte de señal o error nuestro (un choque vuelve como «se ocupó»): nunca al error boundary,
+        // y sin prometer que no cambió nada (O-16).
+        setError(SIN_CONEXION_CAMBIO);
         return;
       }
       if (r.ok) {
@@ -146,7 +146,7 @@ export function Repetir({ token, horaIso, repiteDe, etiqueta, profe }: { token: 
       try {
         r = await reservarDesdeLink(token, iso, repite);
       } catch {
-        setMsg({ ok: false, texto: SE_OCUPO_RECIEN });
+        setMsg({ ok: false, texto: SIN_CONEXION_PEDIDO });
         return;
       }
       if (r.ok) {

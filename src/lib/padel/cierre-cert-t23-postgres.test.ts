@@ -11,6 +11,12 @@
 //   O-10 el freno de 3 por celular no cuenta los pedidos que fallan por «se ocupó».
 //   O-11 `cancelarDesdeLink` frena por IP como el resto de las acciones del link.
 //   O-12 `recordarVarios` no reusa un recordatorio con el link viejo.
+// Vuelta 2:
+//   F-2  el JSON de textos y la marca de la Bienvenida no pierden escrituras simultáneas.
+//   O-3c «no vino, no se cobra» con un comprobante por revisar → «no aplica», deja de esperar.
+//   O-5b/c la hermana de cambio se rechaza aunque el alumno haya cancelado la vieja, con texto honesto.
+//   O-9b el `guardarConfig(FormData)` legado ya no existe.
+//   O-16 un choque que agotó los reintentos vuelve como «se ocupó», no como un 500.
 //
 //   node --import tsx --test src/lib/padel/cierre-cert-t23-postgres.test.ts
 
@@ -146,7 +152,7 @@ test("O-5 — dos pedidos de cambio de la misma clase: al confirmar uno, el otro
   assert.equal((await fila(c, n1.id)).estado, "CONFIRMADA");
   const otro = await fila(c, n2.id);
   assert.equal(otro.estado, "RECHAZADA", "el segundo pedido de cambio no queda suelto");
-  assert.equal(otro.motivoCancel, "Ya la pasó a otro horario");
+  assert.equal(otro.motivoCancel, "Ya confirmaste otro horario para esa clase", "O-5c: el motivo dice la verdad");
   const avisoOtro = await c.db.padelAviso.findFirstOrThrow({ where: { tenantId: c.base.a.id, destino: "PROFE", tipo: "cambio-pedido", claseId: n2.id } });
   assert.ok(avisoOtro.leidoEl, "su aviso deja de esperar en la bandeja");
   assert.equal((await fila(c, repetida)).estado, "PEDIDA", "la repetida sigue su curso");
@@ -243,4 +249,108 @@ test("O-12 — recordarVarios no reusa un recordatorio con el link viejo: pone e
   assert.ok(wa.includes(`/alumno/${nuevo}`) && !wa.includes(al.token), wa);
   const guardado = await c.db.padelAviso.findUniqueOrThrow({ where: { id: aviso.id } });
   assert.ok(guardado.texto.includes(`/alumno/${nuevo}`) && !guardado.texto.includes(al.token));
+});
+
+test("O-5b — el alumno canceló la vieja antes de que el profe confirme: al confirmar un cambio, el otro igual se rechaza", async (t) => {
+  const c = await preparar(t);
+  if (!c) return;
+  const al = await nuevoAlumno(c, "Bruno Bis");
+  const link = { negocio: c.base.a, headers: ip() };
+  const f = fechaEn(10);
+  const vieja = await clase(c, al, f, "09:00", "CONFIRMADA");
+  assert.ok(valor(await ejecutarAccion(link, () => c.alumno.cambiarHorarioDesdeLink(al.token, vieja, aLas(f, "12:00").toISOString()))).ok);
+  assert.ok(valor(await ejecutarAccion(link, () => c.alumno.cambiarHorarioDesdeLink(al.token, vieja, aLas(f, "14:00").toISOString()))).ok);
+  assert.ok(valor(await ejecutarAccion(link, () => c.alumno.cancelarDesdeLink(al.token, vieja))).ok);
+  const [k1, k2] = await c.db.padelClase.findMany({ where: { tenantId: c.base.a.id, repiteDe: vieja, estado: "PEDIDA" }, orderBy: { empiezaEn: "asc" } });
+  assert.ok(valor(await ejecutarAccion(duenia(c), () => c.profe.moverClase(k1.id, "confirmar"))).ok);
+  assert.equal((await fila(c, k1.id)).estado, "CONFIRMADA");
+  const k2d = await fila(c, k2.id);
+  assert.equal(k2d.estado, "RECHAZADA", "no queda PEDIDA suelta");
+  assert.equal(k2d.motivoCancel, "Ya confirmaste otro horario para esa clase");
+  // Lo que ve el alumno en su link: el motivo honesto, no «no puede ese horario».
+  const pub = valor(await ejecutarAccion({ negocio: c.base.a, headers: ip() }, () => c.datos.alumnoPublico(al.token)));
+  assert.equal(pub!.alumno.clases.find((x) => x.id === k2.id)?.motivoCancel, "Ya confirmaste otro horario para esa clase");
+});
+
+test("O-3c — «no vino, no se cobra» con el comprobante por revisar: queda «no aplica», sale de la Bandeja, no es deuda ni plata", async (t) => {
+  const c = await preparar(t);
+  if (!c) return;
+  const al = await nuevoAlumno(c, "Celia Comprobante");
+  const ayer = fechaEn(-1);
+  const rev = await clase(c, al, ayer, "16:00", "CONFIRMADA", { pagoEstado: "EN_REVISION", pagoMedio: "TRANSFERENCIA", comprobante: "data:image/png;base64,AAAA", comprobanteEnviadoEl: new Date() });
+  await c.db.padelAviso.create({ data: { tenantId: c.base.a.id, destino: "PROFE", tipo: "comprobante", texto: "x", claseId: rev, alumnoId: al.id } });
+  const r = valor(await ejecutarAccion(duenia(c), () => c.profe.marcarNoVino(rev, false)));
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal((r as { comprobanteNoAplica?: boolean }).comprobanteNoAplica, true, "la pantalla se entera");
+  const f = await fila(c, rev);
+  assert.equal(f.pagoEstado, "PENDIENTE");
+  assert.match(f.pagoNota ?? "", /no se cobra/);
+  assert.ok(f.comprobante, "la imagen queda (si transfirió, el profe tiene con qué devolver)");
+  assert.ok((await c.db.padelAviso.findFirstOrThrow({ where: { tenantId: c.base.a.id, tipo: "comprobante", claseId: rev } })).leidoEl, "deja de esperar en la Bandeja");
+  const fi = valor(await ejecutarAccion(duenia(c), () => c.datos.ficha(al.id)))!;
+  assert.equal(fi.debe, 0);
+  assert.equal(fi.aFavor, 0, "nunca se validó plata: no se acredita nada");
+  assert.equal(fi.enRevision, 0);
+  // Con «se cobra igual», el comprobante se sigue revisando como siempre.
+  const rev2 = await clase(c, al, ayer, "18:00", "CONFIRMADA", { pagoEstado: "EN_REVISION", pagoMedio: "TRANSFERENCIA", comprobante: "data:image/png;base64,AAAA", comprobanteEnviadoEl: new Date() });
+  assert.ok(valor(await ejecutarAccion(duenia(c), () => c.profe.marcarNoVino(rev2, true))).ok);
+  assert.equal((await fila(c, rev2)).pagoEstado, "EN_REVISION");
+});
+
+test("F-2 — textos de WhatsApp y la marca de la Bienvenida guardados a la vez: no se pierde ninguno (20 rondas)", async (t) => {
+  const c = await preparar(t);
+  if (!c) return;
+  const tenantId = c.base.a.id;
+  const { bienvenidaVista } = await import("@/lib/padel/config-campos");
+  const leer = async () => (await c.db.padelConfig.findUniqueOrThrow({ where: { tenantId } })).plantillas as Record<string, string> | null;
+  const guardar = (clave: string, v: unknown) => ejecutarAccion(duenia(c), () => c.config.guardarCampoConfig(clave, v));
+  let perdidos = 0;
+  const detalle: string[] = [];
+  try {
+    for (let i = 0; i < 10; i++) {
+      // Dos textos a la vez.
+      await c.db.padelConfig.update({ where: { tenantId }, data: { plantillas: { _bienvenidaVista: "1" } } });
+      const [a, b] = await Promise.all([guardar("plantilla.movida", `A${i} {nombre}`), guardar("plantilla.suspendida", `B${i} {nombre}`)]);
+      assert.ok(valor(a).ok && valor(b).ok, `ronda ${i}: ${JSON.stringify([a, b])}`);
+      const p = await leer();
+      if (p?.movida !== `A${i} {nombre}`) (perdidos++, detalle.push(`movida ${i}`));
+      if (p?.suspendida !== `B${i} {nombre}`) (perdidos++, detalle.push(`suspendida ${i}`));
+      if (!bienvenidaVista(p)) (perdidos++, detalle.push(`marca ${i} (textos)`));
+      // La marca y un texto a la vez («Ir a Hoy» mientras se guarda un texto).
+      await c.db.padelConfig.update({ where: { tenantId }, data: { plantillas: {} } });
+      const [m, e] = await Promise.all([guardar("bienvenidaVista", true), guardar("plantilla.confirmada", `C${i} {nombre}`)]);
+      assert.ok(valor(m).ok && valor(e).ok, `ronda ${i}: ${JSON.stringify([m, e])}`);
+      const q = await leer();
+      if (!bienvenidaVista(q)) (perdidos++, detalle.push(`marca ${i}`));
+      if (q?.confirmada !== `C${i} {nombre}`) (perdidos++, detalle.push(`confirmada ${i}`));
+    }
+    // Tres a la vez también.
+    await c.db.padelConfig.update({ where: { tenantId }, data: { plantillas: {} } });
+    const tres = await Promise.all([guardar("plantilla.movida", "M3 {nombre}"), guardar("plantilla.suspendida", "S3 {nombre}"), guardar("bienvenidaVista", true)]);
+    for (const x of tres) assert.ok(valor(x).ok, JSON.stringify(x));
+    const z = await leer();
+    if (z?.movida !== "M3 {nombre}" || z?.suspendida !== "S3 {nombre}" || !bienvenidaVista(z)) (perdidos++, detalle.push("tres a la vez"));
+  } finally {
+    await c.db.padelConfig.update({ where: { tenantId }, data: { plantillas: {} } });
+  }
+  assert.deepEqual(detalle, [], `${perdidos} escrituras perdidas`);
+});
+
+test("O-9b — el `guardarConfig(FormData)` legado ya no es una acción: no hay cómo pisar el JSON desde un formulario", async (t) => {
+  const c = await preparar(t);
+  if (!c) return;
+  assert.equal("guardarConfig" in c.profe, false);
+});
+
+test("O-16 — un choque que siguió chocando después de los reintentos vuelve como «se ocupó» (error de negocio), no como un throw", async (t) => {
+  const c = await preparar(t);
+  if (!c) return;
+  const { respuestaDeError, ErrorNegocio } = await import("@/lib/padel/acciones-compartido");
+  const crudo = Object.assign(new Error("TransactionWriteConflict"), { name: "DriverAdapterError", cause: { originalCode: "40001", kind: "TransactionWriteConflict" } });
+  assert.match(respuestaDeError(crudo)?.error ?? "", /Se ocupó recién/);
+  assert.match(respuestaDeError(Object.assign(new Error("x"), { code: "P2034" }))?.error ?? "", /Se ocupó recién/);
+  assert.deepEqual(respuestaDeError(new ErrorNegocio("Ese horario se acaba de ocupar. Elegí otro.")), { ok: false, error: "Ese horario se acaba de ocupar. Elegí otro." });
+  // Lo que no es un choque sube (la pantalla lo muestra como corte, sin decir «se ocupó»).
+  assert.equal(respuestaDeError(new Error("connect ECONNREFUSED")), null);
+  assert.equal(respuestaDeError(Object.assign(new Error("dup"), { name: "DriverAdapterError", cause: { originalCode: "23505", kind: "UniqueConstraintViolation" } })), null);
 });
