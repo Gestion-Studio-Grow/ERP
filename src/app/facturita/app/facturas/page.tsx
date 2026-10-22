@@ -4,21 +4,15 @@
 import { PageHeader, Badge, EmptyState, fmtMoneyARS } from "@/components/ui";
 import { getFacturacion } from "@/lib/facturacion-actions";
 import { requireCapability } from "@/lib/authz";
-import { fmtShortDate } from "@/lib/datetime";
+import { esDePrueba, fechaFiscalLegible, motivoLegible, origenDelRechazo } from "@/lib/facturita-core";
 
 export const dynamic = "force-dynamic";
 
-function fechaArcaADate(aaaammdd: string): Date {
-  return new Date(
-    Number(aaaammdd.slice(0, 4)),
-    Number(aaaammdd.slice(4, 6)) - 1,
-    Number(aaaammdd.slice(6, 8)),
-  );
-}
-
 export default async function FacturitaFacturasPage() {
   await requireCapability("billing:manage");
-  const { facturas } = await getFacturacion();
+  const { facturas, estado } = await getFacturacion();
+  // Con ARCA simulado o en homologación el CAE no vale como factura: se dice «de prueba».
+  const dePrueba = esDePrueba(estado.modo, estado.homologacion);
 
   return (
     <>
@@ -26,6 +20,11 @@ export default async function FacturitaFacturasPage() {
         title="Mis facturas"
         description="Todas las que emitiste, con su estado en ARCA. Las autorizadas se descargan en PDF para mandárselas a tu cliente."
       />
+      {dePrueba && facturas.length > 0 && (
+        <p role="note" className="mb-4 rounded-xl border border-warning bg-warning-soft px-4 py-3 text-sm text-strong">
+          Tu cuenta está en modo de prueba: las facturas autorizadas acá no tienen validez fiscal.
+        </p>
+      )}
       {facturas.length === 0 ? (
         <EmptyState
           title="Todavía no emitiste ninguna"
@@ -48,7 +47,7 @@ export default async function FacturitaFacturasPage() {
               {facturas.map((f) => (
                 <tr key={f.id} className="border-b border-line-soft last:border-b-0">
                   <td className="whitespace-nowrap px-[22px] py-[13px] tabular-nums text-muted">
-                    {fmtShortDate(fechaArcaADate(f.fecha))}
+                    {fechaFiscalLegible(f.fecha)}
                   </td>
                   <td className="whitespace-nowrap px-[22px] py-[13px] font-mono text-strong">
                     {f.numero != null
@@ -57,9 +56,18 @@ export default async function FacturitaFacturasPage() {
                   </td>
                   <td className="px-[22px] py-[13px]">
                     {f.status === "AUTHORIZED" ? (
-                      <Badge tone="success" dot>Autorizada</Badge>
+                      dePrueba ? (
+                        <Badge tone="warning" dot>Autorizada de prueba</Badge>
+                      ) : (
+                        <Badge tone="success" dot>Autorizada</Badge>
+                      )
                     ) : f.status === "REJECTED" ? (
-                      <Badge tone="danger" dot>Rechazada</Badge>
+                      <div className="flex flex-col items-start gap-1">
+                        <Badge tone="danger" dot>
+                          {origenDelRechazo(f.rechazoMotivo) === "arca" ? "Rechazada por ARCA" : "Frenada antes de ARCA"}
+                        </Badge>
+                        <span className="max-w-xs text-xs text-muted">{motivoLegible(f.rechazoMotivo)}</span>
+                      </div>
                     ) : (
                       <Badge tone="neutral" dot>Pendiente</Badge>
                     )}

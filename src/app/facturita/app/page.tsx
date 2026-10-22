@@ -2,19 +2,19 @@
 // clics, con el tope de 5 gratis por mes y el gancho de upgrade a Comerciante.
 
 import { PageHeader } from "@/components/ui";
-import { estadoFacturitaAction } from "@/lib/facturita-actions";
+import { datosEmisorFacturitaAction, estadoFacturitaAction } from "@/lib/facturita-actions";
 import EmitirForm from "./EmitirForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function FacturitaEmitirPage() {
-  const limite = await estadoFacturitaAction();
+  const [limite, emisor] = await Promise.all([estadoFacturitaAction(), datosEmisorFacturitaAction()]);
 
   return (
     <>
       <PageHeader
         title="Emitir una factura"
-        description={`Cargá qué vendiste y el total: la factura sale con validez de ARCA. Este mes usaste ${limite.usadas} de ${limite.limite} gratis.`}
+        description={`Cargá qué vendiste, el total y a quién: la factura va a ARCA para su autorización. Este mes usaste ${limite.usadas} de ${limite.limite} gratis.`}
       />
       {limite.mensaje && (
         <p
@@ -28,7 +28,11 @@ export default async function FacturitaEmitirPage() {
           {limite.mensaje}
         </p>
       )}
-      <EmitirForm bloqueado={!limite.puedeEmitir} />
+      <EmitirForm
+        bloqueado={!limite.puedeEmitir}
+        inscripto={emisor.condicionIva === "RESPONSABLE_INSCRIPTO"}
+        hoy={emisor.hoy}
+      />
     </>
   );
 }

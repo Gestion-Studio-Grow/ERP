@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 
 const PASOS = [
   { t: "Contá qué vendiste", d: "Una línea y el total. Sin catálogo, sin configurar nada." },
-  { t: "Decí a quién", d: "Consumidor final, o con CUIT o DNI. La letra (A, B o C) la elige el sistema." },
+  { t: "Decí a quién", d: "Consumidor final, o con CUIT o DNI (con CUIT, cómo está inscripto). La letra (A, B o C) la elige el sistema." },
   { t: "Listo, sale aprobada", d: "ARCA la aprueba en el momento. La descargás en PDF y se la mandás a tu cliente." },
 ];
 
@@ -46,7 +46,7 @@ const PREGUNTAS = [
   },
   {
     p: "¿Sirve si soy responsable inscripto?",
-    r: "Sí: emitís A o B según a quién le vendas, y el sistema lo resuelve solo. Si facturás mucho, Comerciante te va a quedar más cómodo.",
+    r: "Sí: emitís A o B según a quién le vendas y elegís la alícuota de IVA de la factura (21, 10,5 o 27 %). Cada factura lleva una sola alícuota; si mezclás varias en una misma venta, Comerciante te queda más cómodo.",
   },
   {
     p: "¿Puedo cobrar con Mercado Pago o subir el extracto del banco?",
