@@ -120,7 +120,7 @@ test("medir: si no se pueden listar los negocios, 'sin-medicion'", async () => {
   assert.equal(r.estado, "sin-medicion");
 });
 
-test("cache: una medición completa se reusa CACHE_MS; una incompleta no", async () => {
+test("cache: una medición completa se reusa CACHE_MS; una incompleta, 30 s", async () => {
   olvidarCacheMotorArca();
   let medidas = 0;
   let reloj = AHORA.getTime();
@@ -140,9 +140,26 @@ test("cache: una medición completa se reusa CACHE_MS; una incompleta no", async
 
   olvidarCacheMotorArca();
   let fallas = 0;
-  const rota = deps({ medir: async () => (fallas++, Promise.reject(new Error("x"))) });
+  let reloj2 = AHORA.getTime();
+  const rota = deps({ medir: async () => (fallas++, Promise.reject(new Error("x"))), ahora: () => new Date(reloj2) });
   await estadoMotorArca(rota);
   await estadoMotorArca(rota);
-  assert.equal(fallas, 4);
+  assert.equal(fallas, 2); // incompleta: se guarda, no se re-mide en cada request
+  reloj2 += 30_001;
+  await estadoMotorArca(rota);
+  assert.equal(fallas, 4); // pasados 30 s se vuelve a intentar
+  olvidarCacheMotorArca();
+});
+
+test("cache: requests simultáneos comparten una sola medición en curso", async () => {
+  olvidarCacheMotorArca();
+  let medidas = 0;
+  let soltar!: () => void;
+  const freno = new Promise<void>((r) => (soltar = r));
+  const d = deps({ medir: async () => (medidas++, await freno, sano) });
+  const pedidos = [estadoMotorArca(d), estadoMotorArca(d), estadoMotorArca(d)];
+  soltar();
+  await Promise.all(pedidos);
+  assert.equal(medidas, 2); // dos negocios, un solo recorrido para los tres requests
   olvidarCacheMotorArca();
 });

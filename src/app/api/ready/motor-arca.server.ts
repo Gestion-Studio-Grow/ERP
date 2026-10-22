@@ -126,14 +126,43 @@ export async function medirMotorArca(deps: DepsMedicion = DEPS_REALES): Promise<
 }
 
 let cache: { hasta: number; valor: EstadoMotorArca } | null = null;
+// La medición en curso se comparte: /api/ready es público, y sin esto cada request que llega mientras
+// otra mide (o después de que venció el techo y la anterior sigue de fondo) lanzaría otro recorrido de
+// todos los negocios contra Neon (plan gratuito).
+let enCurso: Promise<EstadoMotorArca> | null = null;
+/** Una medición incompleta se guarda menos tiempo: se reintenta pronto, pero no en cada request. */
+const CACHE_INCOMPLETA_MS = 30_000;
 
 /** Para tests: olvida la medición guardada. */
 export function olvidarCacheMotorArca(): void {
   cache = null;
+  enCurso = null;
+}
+
+function medirUnaVez(deps: DepsMedicion, ahora: Date): Promise<EstadoMotorArca> {
+  if (!enCurso) {
+    enCurso = medirMotorArca(deps)
+      .then((valor) => {
+        const ttl = valor.negociosSinMedir === 0 ? CACHE_MS : CACHE_INCOMPLETA_MS;
+        cache = { hasta: deps.ahora().getTime() + ttl, valor };
+        return valor;
+      })
+      .catch((err) => {
+        logger.error("health.arca", "falló la medición del motor ARCA", err);
+        const valor = resumirMotorArca([], { ahora, env: deps.env, sinMedir: 1 });
+        cache = { hasta: deps.ahora().getTime() + CACHE_INCOMPLETA_MS, valor };
+        return valor;
+      })
+      .finally(() => {
+        enCurso = null;
+      });
+  }
+  return enCurso;
 }
 
 /**
- * La medición que usa /api/ready: cacheada CACHE_MS y con techo TIMEOUT_MS. Nunca rechaza.
+ * La medición que usa /api/ready: cacheada CACHE_MS (CACHE_INCOMPLETA_MS si quedó algún negocio sin
+ * medir), compartida mientras está en curso y con techo TIMEOUT_MS. Nunca rechaza.
  */
 export async function estadoMotorArca(deps: DepsMedicion = DEPS_REALES): Promise<EstadoMotorArca> {
   const ahora = deps.ahora();
@@ -149,13 +178,7 @@ export async function estadoMotorArca(deps: DepsMedicion = DEPS_REALES): Promise
     }, TIMEOUT_MS);
   });
   try {
-    const valor = await Promise.race([medirMotorArca(deps), techo]);
-    // Una medición incompleta no se guarda: la próxima consulta vuelve a intentar.
-    if (valor.negociosSinMedir === 0) cache = { hasta: ahora.getTime() + CACHE_MS, valor };
-    return valor;
-  } catch (err) {
-    logger.error("health.arca", "falló la medición del motor ARCA", err);
-    return resumirMotorArca([], { ahora, env: deps.env, sinMedir: 1 });
+    return await Promise.race([medirUnaVez(deps, ahora), techo]);
   } finally {
     if (timer) clearTimeout(timer);
   }
