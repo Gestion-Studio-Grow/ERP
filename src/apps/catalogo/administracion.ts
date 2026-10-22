@@ -84,6 +84,23 @@ export const APPS_ADMINISTRACION = [
     palabras: ["direccion", "ubicacion", "contacto", "sucursal", "telefono"],
     menuDeHoy: { etiqueta: "Localización", orden: 230 },
   },
+  // Reingeniería CH, Tanda 3 (3-D): las reglas del mostrador de turnos que fija la dueña (alias de la
+  // seña, cuánto antes se cancela, qué pasa con la seña, tope de la recepción). Columnas de la migración
+  // M2, escrita y SIN aplicar: sin ella la pantalla muestra el placeholder D2/D5 «pendiente de activar».
+  // Sin `menuDeHoy`: no estaba en la barra de hoy (la suma la integración, ver el informe de 3-D).
+  {
+    id: "mi-negocio",
+    nombre: "Mi negocio",
+    descripcion: "Alias de la seña, reglas de cancelación y lo que puede hacer la recepción.",
+    icono: "ajustes",
+    ruta: "/admin/configuracion/mi-negocio",
+    espacio: "administracion",
+    capability: "location:manage",
+    modulo: null,
+    rubro: "servicios",
+    estado: "lista",
+    palabras: ["sena", "senia", "alias", "cbu", "cancelacion", "reglas", "tope", "recepcion"],
+  },
   {
     id: "apariencia",
     nombre: "Apariencia",
