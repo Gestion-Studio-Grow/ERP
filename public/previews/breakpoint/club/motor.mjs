@@ -214,6 +214,7 @@ export function hidratarEstado(foto) {
     estado.clima = esObjeto(estado.clima) ? estado.clima : { lluvia: null };
     for (const k of ["pedidos", "novedades", "difusiones", "solicitudesAcceso", "contenido"]) estado[k] = estado[k].filter((x) => esObjeto(x) && /^[\w-]{1,60}$/.test(String(x.id ?? "")));
     estado.clientes = estado.clientes.map(normalizarCliente);
+    normalizarConfig(estado.config);
     // `archivo` (resumen de los días archivados) es opcional: un estado viejo no lo tiene y sigue igual.
     if ("archivo" in estado) {
       if (!esObjeto(estado.archivo)) delete estado.archivo;
@@ -224,6 +225,17 @@ export function hidratarEstado(foto) {
   } catch {
     return { ok: false, motivo: "no se pudo leer" };
   }
+}
+
+/**
+ * Defaults de los campos de configuración que una foto vieja no trae (sin migración: la foto es JSON). Sólo completa
+ * lo que falta o no sirve; nunca pisa lo que el club eligió.
+ */
+function normalizarConfig(config) {
+  if (!esObjeto(config.politica)) config.politica = structuredClone(CONFIG_DEMO.politica);
+  if (typeof config.politica.senaNuevos !== "boolean") config.politica.senaNuevos = CONFIG_DEMO.politica.senaNuevos;
+  if (!(Number.isInteger(config.politica.turnosConfianza) && config.politica.turnosConfianza >= 0)) config.politica.turnosConfianza = CONFIG_DEMO.politica.turnosConfianza;
+  if (!(Number.isInteger(config.diasAdelante) && config.diasAdelante >= 1 && config.diasAdelante <= DIAS_ADELANTE_MAX)) config.diasAdelante = CONFIG_DEMO.diasAdelante;
 }
 
 const esFecha = (x) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
@@ -1019,7 +1031,21 @@ export function cobrarDeuda(estado, clienteId, { medio, monto } = {}, ahora) {
 
 // ───────────────────────── reservas (la cuenta de la CANCHA) ─────────────────────────
 
-/** ¿Este cliente tiene que dejar seña? Reincidentes, clientes con deuda y turnos sin ficha. Clases y fijos no. */
+/**
+ * Turnos que un cliente ya jugó (cerrados), contando los de los días archivados (archivarDiasCerrados deja cuántos
+ * jugó cada uno). Acepta la ficha o su id; sin ficha, 0.
+ */
+export function turnosJugados(estado, cl) {
+  const id = typeof cl === "string" ? cl : cl?.id;
+  if (!id) return 0;
+  return estado.reservas.filter((r) => r.clienteId === id && r.estado === "finalizada").length + (estado.archivo?.clientes?.[id]?.jugados ?? 0);
+}
+
+/**
+ * ¿Este cliente tiene que dejar seña? Reincidentes, clientes con deuda, turnos sin ficha (`senaSinCliente`) y, con
+ * `senaNuevos` (de fábrica, sí), quien todavía jugó menos de `turnosConfianza` turnos: el nuevo es el que más falta.
+ * Clases y fijos no.
+ */
 export function requiereSena(estado, clienteId, tipo) {
   const { politica } = estado.config;
   if (tipo === "clase" || tipo === "fijo") return false;
@@ -1027,6 +1053,7 @@ export function requiereSena(estado, clienteId, tipo) {
   if (!cl) return politica.senaSinCliente;
   if (cl.strikes >= politica.strikesParaSena) return true;
   if (cl.deuda > 0 && !cl.cc.habilitada) return true;
+  if ((politica.senaNuevos ?? true) && turnosJugados(estado, cl) < (politica.turnosConfianza ?? 3)) return true;
   return politica.senaSiempre;
 }
 
@@ -1043,9 +1070,7 @@ export function requiereSenaWeb(estado, clienteId) {
   if (modo === "siempre") return true;
   const cl = clienteId ? cliente(estado, clienteId) : null;
   if (!cl || cl.strikes > 0) return true;
-  // Los turnos ya archivados también cuentan (archivarDiasCerrados deja cuántos jugó cada uno).
-  const jugados = estado.reservas.filter((r) => r.clienteId === cl.id && r.estado === "finalizada").length + (estado.archivo?.clientes?.[cl.id]?.jugados ?? 0);
-  return jugados < (politica.turnosConfianza ?? 3);
+  return turnosJugados(estado, cl) < (politica.turnosConfianza ?? 3);
 }
 
 /**
@@ -3250,6 +3275,9 @@ export function ajustarPolitica(estado, clave, valor) {
 
 const H = (hh, mm = 0) => hh * 60 + mm;
 
+/** Tope de la ventana de reserva (`config.diasAdelante`): más allá, un número mal tipeado abriría el año entero. */
+export const DIAS_ADELANTE_MAX = 90;
+
 /** Configuración de ejemplo (precios y horarios provisionales a confirmar con el club). */
 export const CONFIG_DEMO = Object.freeze({
   nombre: "Break Point Pádel",
@@ -3267,6 +3295,7 @@ export const CONFIG_DEMO = Object.freeze({
   cobro: { alias: "bp.demo.ficticio" }, // DEMO: alias ficticio rotulado; el real lo carga el dueño post-venta
   paso: 30,
   duracionTurno: 90,
+  diasAdelante: 14, // ventana de reserva en días desde hoy (la misma que el turnero web); la edita el dueño
   feriados: [],
   tarifas: [
     { nombre: "Valle", desde: H(8), hasta: H(17), precioHora: 20000 },
@@ -3277,6 +3306,7 @@ export const CONFIG_DEMO = Object.freeze({
     senaPct: 50,
     senaSiempre: false,
     senaSinCliente: true,
+    senaNuevos: true, // pide seña a quien jugó menos de `turnosConfianza` turnos, también en el mostrador
     strikesParaSena: 2,
     toleranciaMin: 15,
     minutosAvisoSena: 180,
@@ -3369,6 +3399,9 @@ export function generarDemo(hoy, ahoraMin = H(19, 10)) {
   }));
   const e = crearEstado({ config: CONFIG_DEMO, canchas: CANCHAS_DEMO, clientes, productos: PRODUCTOS_DEMO, usuarios: USUARIOS_DEMO, proveedores: PROVEEDORES_DEMO });
   e.caja.fondo = 30000;
+  // La historia de la demo se arma con la seña de antes (sin «seña a los nuevos»): así los turnos ya dados y la plata
+  // de la demo no cambian. La regla vuelve a la de fábrica al terminar, para todo lo que se dé después.
+  e.config.politica.senaNuevos = false;
   const ahora = { fecha: hoy, min: ahoraMin };
   const elegir = () => clientes[Math.floor(rnd() * clientes.length)];
   const medios = ["efectivo", "mercadopago", "transferencia", "debito"];
@@ -3500,6 +3533,7 @@ export function generarDemo(hoy, ahoraMin = H(19, 10)) {
     if (n >= 1 && n <= 28) agregarContenido(e, { fecha: diaMes(n), hora, canal, titulo, texto, estado: est }, dueno);
   }
 
+  e.config.politica.senaNuevos = CONFIG_DEMO.politica.senaNuevos;
   e.log.length = 0;
   registrar(e, "Arrancó el turno tarde de recepción (Lu).", t(H(16)));
   return e;
