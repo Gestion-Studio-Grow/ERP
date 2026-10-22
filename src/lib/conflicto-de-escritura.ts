@@ -17,6 +17,16 @@
 // Antes sólo se reconocía P2034, así que ninguna transacción Serializable que chocaba en una
 // consulta cruda se reintentaba.
 //
+// Y una TERCERA forma, sin envoltorio de Prisma (CERT Matías T2+T3, F-1, 2026-10-22): cuando el
+// abort salta en el `$executeRaw` del GUC o en el COMMIT del transaction-manager, el adaptador pg
+// tira su `DriverAdapterError` CRUDO — `name: "DriverAdapterError"`, sin `code`, con
+// `cause = { originalCode: "40001", kind: "TransactionWriteConflict", originalMessage }`
+// (`@prisma/driver-adapter-utils` + `convertDriverError` de `@prisma/adapter-pg`). No es un
+// `PrismaClientKnownRequestError`, así que el `instanceof` de `rls.ts` lo dejaba pasar sin
+// reintentar: 1 de cada ~24 movidas simultáneas al mismo hueco terminaba en un 500 en vez de
+// «Se ocupó recién». Se reconoce por FORMA (nombre + causa), igual que `isDriverAdapterError`
+// de Prisma, para no importar valores de Prisma acá.
+//
 // PURA y sin importar valores de Prisma: mira el `code` del error, como hace cualquier llamador
 // que no quiera arrastrar el cliente (y así se prueba en node con errores armados a mano).
 
@@ -33,8 +43,29 @@ function sqlstateDeConsultaCruda(e: Error): string | null {
   return m ? m[1] : null;
 }
 
-/** ¿Conflicto de escritura o deadlock (P2034, o P2010 con 40001/40P01)? Lo demás, no. */
+type CausaDelAdaptador = { originalCode?: unknown; kind?: unknown };
+
+/** La causa de un `DriverAdapterError` crudo (por forma), o null si `e` no lo es. */
+function causaDelAdaptador(e: unknown): CausaDelAdaptador | null {
+  if (!e || typeof e !== "object") return null;
+  const x = e as { name?: unknown; cause?: unknown };
+  if (x.name !== "DriverAdapterError" || !x.cause || typeof x.cause !== "object") return null;
+  return x.cause as CausaDelAdaptador;
+}
+
+function esCausaDeConflicto(c: CausaDelAdaptador): boolean {
+  return c.kind === "TransactionWriteConflict" || (typeof c.originalCode === "string" && SQLSTATE_DE_CONFLICTO.has(c.originalCode));
+}
+
+/**
+ * ¿Conflicto de escritura o deadlock? Acepta las tres formas en que llega con Prisma 7 + el
+ * adaptador pg: P2034 (operación de modelo), P2010 con 40001/40P01 (consulta cruda) y el
+ * `DriverAdapterError` crudo con `kind: "TransactionWriteConflict"` o SQLSTATE 40001/40P01
+ * (también si viene como `cause` de otro error). Lo demás, no.
+ */
 export function esConflictoDeEscritura(e: unknown): boolean {
+  const delAdaptador = causaDelAdaptador(e) ?? causaDelAdaptador((e as { cause?: unknown } | null)?.cause);
+  if (delAdaptador) return esCausaDeConflicto(delAdaptador);
   if (!(e instanceof Error)) return false;
   const code = (e as { code?: unknown }).code;
   if (code === "P2034") return true;
