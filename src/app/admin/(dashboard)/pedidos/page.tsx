@@ -48,6 +48,10 @@ import AvisoDePedidosNuevos from "./AvisoDePedidosNuevos";
 import { armarTablero, leerAvisados } from "./tablero.server";
 import { LineaDeEstado, Plata } from "@/components/ui";
 import { lineaDelTablero, listoDesdeAyer, otrosPedidosDeLaClienta, textoDeLaTiendaEsperando, textoDeOtrosPedidos } from "./pedidos-core";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
+import { CobroDelNegocio } from "./CobroDelPedido";
+import { guardarArmado } from "./[code]/armar/acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -87,17 +91,27 @@ export default async function PedidosPage() {
   // por pedido): no suma un viaje a la base.
   // La identidad también va en esta tanda (cacheada: el layout ya la leyó) porque decide qué
   // mostrador se arma y, con eso, qué hace falta leer de la base.
-  const [modeloNuevo, nuevo, identidad] = await Promise.all([enInicioPorApps(), disenoNuevo(), getTenantIdentity()]);
+  const [modeloNuevo, nuevo, identidad, interruptores] = await Promise.all([
+    enInicioPorApps(),
+    disenoNuevo(),
+    getTenantIdentity(),
+    interruptoresDelNegocio(),
+  ]);
   // Lo nuevo de la bandeja (pesar y ajustar, horario, aviso por WhatsApp, Nuevo → Preparando)
   // es de COMERCIO: en una estética no hay nada que pesar, y su bandeja queda como estaba.
   const comercio = identidad.isRetail;
+  // MOSTRADOR BOUTIQUE (interruptor «mostrador-boutique», Magra tanda 1 · 1C): cobro y entrega con
+  // el pie de cobro único y su ticket, «Armar y pesar» a pantalla completa, «Quitar» en el ajuste, y
+  // una sola puerta para vender: el link «Vender» en lugar del mostrador de esta pantalla. Sólo
+  // comercio; apagado (CH y todo negocio sin prender), la bandeja de siempre, byte a byte.
+  const boutique = comercio && mostradorBoutiquePrendido(interruptores);
   // UN SOLO MOSTRADOR: la venta de mostrador de esta pantalla es la MISMA que Vender
   // (MostradorDeVenta: vuelto, factura, cobro fijo a la vista; etiqueta y balanza sólo en un
   // comercio). En un comercio con «Diseño nuevo» se va a Vender entero. En CH (aprobado por el
   // dueño el 21/10; otro negocio de servicios, cuando su dueño lo apruebe) es la solapa «Productos»;
   // «Servicios» sigue siendo el alta del turno con su profesional, su seña y su cupón
   // (NewAppointmentForm). Sin productos con precio, el cajón abre en «Servicios», como antes.
-  const conMostradorUnico = !modeloNuevo && (comercio ? !nuevo : esteticaBackoffice(identidad.slug) === "beauty-spa");
+  const conMostradorUnico = !modeloNuevo && !boutique && (comercio ? !nuevo : esteticaBackoffice(identidad.slug) === "beauty-spa");
   // Lo que se lee, sólo si se usa (Neon, plan gratuito): la lista de productos, para el formulario
   // de siempre (otro negocio de servicios); si hay alguno con precio, para que CH abra en «Servicios»
   // sin productos. El stock (mismo gate) va donde hay solapas: la estética. Un comercio no lee
@@ -253,7 +267,7 @@ export default async function PedidosPage() {
               dos columnas, que miden la pantalla, se pisaban desde 1024 px. */}
           {!modeloNuevo && comercio && (await puedeAbrirApp("vender")) && (
             <Link href="/admin/vender" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")}>
-              Cobrar en el mostrador
+              {boutique ? "Vender" : "Cobrar en el mostrador"}
             </Link>
           )}
           {!modeloNuevo && !comercio && (
@@ -285,16 +299,18 @@ export default async function PedidosPage() {
         </header>
 
         {avisoDePedidos}
-        <TableroPedidos
-          abiertos={tablero.abiertos}
-          cerrados={tablero.cerrados}
-          extras={tablero.extras}
-          comercio={comercio}
-          puedeOperar={roleHasCapability(user.role, "orders:manage")}
-          anulacion={alcance ? { motivoObligatorio: alcance.motivoObligatorio } : null}
-          simulacion={simulacion}
-          tomarPedido={puedeTomar ? "/admin/vender?modo=pedido" : null}
-        />
+        <CobroDelNegocio boutique={boutique} negocio={local?.negocio ?? ""}>
+          <TableroPedidos
+            abiertos={tablero.abiertos}
+            cerrados={tablero.cerrados}
+            extras={tablero.extras}
+            comercio={comercio}
+            puedeOperar={roleHasCapability(user.role, "orders:manage")}
+            anulacion={alcance ? { motivoObligatorio: alcance.motivoObligatorio } : null}
+            simulacion={simulacion}
+            tomarPedido={puedeTomar ? "/admin/vender?modo=pedido" : null}
+          />
+        </CobroDelNegocio>
       </main>
     );
   }
@@ -324,7 +340,7 @@ export default async function PedidosPage() {
 
   return (
     <main className={modeloNuevo ? "mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8" : "mx-auto max-w-4xl px-6 py-8"}>
-      {modeloNuevo ? (
+      {modeloNuevo || boutique ? (
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold mb-1">Pedidos para preparar</h1>
@@ -410,6 +426,7 @@ export default async function PedidosPage() {
         />
       )}
 
+      <CobroDelNegocio boutique={boutique} negocio={local?.negocio ?? ""}>
       <div className="space-y-3">
         {abiertos.map((o) => {
           const aCobrar = o.status === "DELIVERED" && !o.paid;
@@ -525,6 +542,15 @@ export default async function PedidosPage() {
                       className={`chip-btn text-xs min-h-8 w-full sm:w-auto${comercio ? " h-11 sm:h-auto" : ""}`}
                     />
                   )}
+                  {boutique && sePuedeAjustar && o.status !== "READY" && (
+                    <Link
+                      href={`/admin/pedidos/${o.code}/armar`}
+                      className={buttonClasses("solid", "md", "w-full sm:w-auto")}
+                      {...atributosBoton("solid", "md")}
+                    >
+                      Armar y pesar
+                    </Link>
+                  )}
                   {sePuedeAjustar && (
                     <AjustarPedidoForm
                       id={o.id}
@@ -540,16 +566,17 @@ export default async function PedidosPage() {
                         unitPrice: it.unitPrice,
                         lineTotal: it.lineTotal,
                       }))}
+                      {...(boutique ? { conQuitar: true, guardar: guardarArmado } : {})}
                     />
                   )}
                   {avisoWa && <AvisarPorWhatsApp orderId={o.id} href={avisoWa} />}
                   {recordatorio && <AvisarPorWhatsApp orderId={o.id} href={recordatorio} tipo="recordatorio-retiro" />}
                   {/* Listo: entregar pide el cobro o «Queda a cobrar» (EntregarPedidoForm). */}
-                  {o.status === "READY" && <EntregarPedidoForm id={o.id} code={o.code} paid={o.paid} />}
+                  {o.status === "READY" && <EntregarPedidoForm id={o.id} code={o.code} paid={o.paid} total={o.total} />}
                   {/* Cobrar sin entregar sigue estando, también en Listo: el que pagó por
                       transferencia y retira más tarde. Sin medio por defecto y con el motivo
                       del rechazo en pantalla (antes era un select en EFECTIVO y un botón mudo). */}
-                  {!o.paid && <CobrarPedidoForm id={o.id} code={o.code} />}
+                  {!o.paid && <CobrarPedidoForm id={o.id} code={o.code} total={o.total} />}
                   {/* En el modo de prueba, un pedido ya cobrado por su link sigue ofreciendo repetir
                       el aviso: es como se ve que Mercado Pago reintentando no asienta dos veces. */}
                   {ofrecerLink && (!o.paid || (simulacion && enviado)) && (
@@ -587,7 +614,7 @@ export default async function PedidosPage() {
         })}
 
         {abiertos.length === 0 &&
-          (modeloNuevo ? (
+          (modeloNuevo || boutique ? (
             <EmptyState
               title="No hay pedidos para preparar"
               description="Los pedidos de la tienda online y los que tomás por teléfono aparecen acá."
@@ -599,6 +626,7 @@ export default async function PedidosPage() {
             </p>
           ))}
       </div>
+      </CobroDelNegocio>
 
       {cerrados.length > 0 && (
         <>

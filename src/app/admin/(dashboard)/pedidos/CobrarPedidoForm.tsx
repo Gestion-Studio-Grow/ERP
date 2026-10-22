@@ -25,6 +25,7 @@ import { cobrarPedido } from "@/lib/order-actions";
 import { MEDIOS_DE_COBRO } from "@/lib/caja/medio-cobro";
 import { Select } from "@/components/ui";
 import { useToast } from "../ToastProvider";
+import { CobroConPie, useCobroDelNegocio } from "./CobroDelPedido";
 
 // Ver el mismo helper en PosForm: el redirect de sesión vencida llega como excepción con
 // digest NEXT_REDIRECT y tragarlo dejaría a la persona sin login.
@@ -33,7 +34,38 @@ function isNextRedirect(e: unknown): boolean {
   return typeof digest === "string" && digest.startsWith("NEXT_REDIRECT");
 }
 
-export default function CobrarPedidoForm({ id, code }: { id: string; code: number }) {
+type Props = { id: string; code: number; total?: number };
+
+// Mostrador boutique (interruptor «mostrador-boutique»): «Cobrar» abre el PIE DE COBRO único, el
+// mismo de Vender y de la entrega, y al cobrar se ve el ticket (CobroDelNegocio). Apagado, el
+// select de siempre.
+export default function CobrarPedidoForm(props: Props) {
+  const { boutique } = useCobroDelNegocio();
+  if (boutique && props.total !== undefined) return <CobrarConPie id={props.id} code={props.code} total={props.total} />;
+  return <CobrarDeSiempre id={props.id} code={props.code} />;
+}
+
+function CobrarConPie({ id, code, total }: { id: string; code: number; total: number }) {
+  const [abierto, setAbierto] = useState(false);
+  if (!abierto) {
+    return (
+      <button type="button" onClick={() => setAbierto(true)} aria-expanded={false} className="chip-btn h-11 text-xs">
+        Cobrar
+      </button>
+    );
+  }
+  return (
+    <div className="flex w-96 max-w-full flex-col gap-2 whitespace-normal rounded-md border border-line bg-surface-sunken p-2">
+      <p className="text-xs font-medium text-strong">¿Cómo pagó el pedido #{code}?</p>
+      <CobroConPie id={id} code={code} total={total} modo="cobrar" onHecho={() => setAbierto(false)} />
+      <button type="button" onClick={() => setAbierto(false)} className="h-11 self-start px-2 text-xs text-muted hover:underline">
+        Volver
+      </button>
+    </div>
+  );
+}
+
+function CobrarDeSiempre({ id, code }: { id: string; code: number }) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [medio, setMedio] = useState("");
