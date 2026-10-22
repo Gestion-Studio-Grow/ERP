@@ -21,6 +21,12 @@
 // (`LuzDeCancha`): prender o apagar repinta sólo ese botón. La grilla no lee las luces, así que su firma no
 // cambia y ni la agenda ni los turnos se vuelven a pintar.
 //
+// El BOTÓN DEL MOMENTO (bp-DISENO §2.2, `botonesDelMomento` de agenda-core.ts) va abajo del bloque, fuera del botón del
+// turno (no se anidan botones): abrir, cobrar la seña y abrir, +30 min, cobrar, cerrar, la mesa sigue, no vino. Lo que
+// necesita un medio despliega los 4 en un menú chico (`MenuDelMomento`), como «Cobrar la seña y abrir» del clic derecho.
+// Todo sale como COMANDO de la lista blanca (re-aplicable en otro puesto). Arriba, junto a «+ Turno»: «Buscar lugar» y
+// «Compartir lo libre» (AgendaExtras.tsx).
+//
 // La piel de Break Point (piel/agenda.css, bajo `[data-estetica="breakpoint"]`) la deja densa como el club de hoy:
 // franjas de 30 px por media hora, la lamparita y los botones de 32 px a la vista (el área de toque sigue en 44). Por
 // eso la geometría (la raya de ahora, el arrastre, dónde arranca la grilla) NO supone un alto: lo lee de la grilla
@@ -30,8 +36,10 @@ import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "
 import "./piel/agenda.css";
 import { Marca } from "@/components/ui/Marca";
 import { cn } from "@/components/ui/cn";
-import { armarAgenda, compartirAgenda, opcionesDelMenu, previaArrastre, velocidadAlBorde, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type OpcionDelMenu, type PreviaArrastre, type VistaAgenda } from "./agenda-core";
-import { DESHACIBLE, ETIQUETA_MEDIO, MEDIOS_CAJA } from "./cuenta-core";
+import { armarAgenda, compartirAgenda, opcionesDelMenu, previaArrastre, velocidadAlBorde, vecino, type BotonDelMomento, type CeldaTurno, type Direccion, type FranjaLibre, type OpcionDelMenu, type PreviaArrastre, type VistaAgenda } from "./agenda-core";
+import { BuscarLugar, CompartirLoLibre } from "./AgendaExtras";
+import { DESHACIBLE, ETIQUETA_MEDIO, MEDIOS_CAJA, type MedioCaja } from "./cuenta-core";
+import { pesos } from "@/lib/club/motor.mjs";
 import { Button } from "@/components/ui/Button";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
@@ -107,9 +115,12 @@ const BloqueTurno = memo(function BloqueTurno({
   onMenu,
   onArrastrar,
   onTecla,
+  onMomento,
 }: {
   celda: CeldaTurno;
   activo: boolean;
+  /** El botón del momento: la acción y dónde se tocó (para desplegar los medios ahí). */
+  onMomento: (id: string, boton: BotonDelMomento, x: number, y: number) => void;
   onAbrir: (id: string) => void;
   onMenu: (id: string, x: number, y: number) => void;
   /** Mover (arrastrando el turno, o su manija en la tablet) o estirar (la manija de abajo). */
@@ -118,6 +129,9 @@ const BloqueTurno = memo(function BloqueTurno({
   onTecla: (id: string, e: React.KeyboardEvent) => void;
 }) {
   const movible = celda.estado === "reservada" || celda.estado === "en_cancha";
+  // El botón del momento necesita lugar: en un turno de media hora (una franja) queda en el clic derecho.
+  const momento = celda.alto >= 2 ? celda.momento : [];
+  const fijo = celda.tipo === "Turno fijo";
   const largo = useRef<{ timer: ReturnType<typeof setTimeout> | null; abrio: boolean }>({ timer: null, abrio: false });
   const soltar = () => {
     if (largo.current.timer) clearTimeout(largo.current.timer);
@@ -130,7 +144,8 @@ const BloqueTurno = memo(function BloqueTurno({
         id={`turno-${celda.id}`}
         data-celda={celda.id}
         data-turno={celda.estado}
-        data-turno-tipo={celda.tipo === "Turno fijo" ? "fijo" : undefined}
+        data-turno-tipo={fijo ? "fijo" : undefined}
+        data-con-momento={momento.length ? "" : undefined}
         onClick={() => {
           if (largo.current.abrio) {
             largo.current.abrio = false;
@@ -164,9 +179,10 @@ const BloqueTurno = memo(function BloqueTurno({
         aria-current={activo ? "true" : undefined}
         className={cn(
           "flex min-h-11 w-full min-w-0 flex-col items-start gap-0.5 overflow-hidden rounded-md border px-2 py-1 text-left",
+          momento.length > 0 && "pb-12",
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus",
           TONO[celda.estado],
-          celda.tipo === "Turno fijo" && "border-l-4 border-l-warning",
+          fijo && "border-l-4 border-l-warning",
           // «Necesita atención» (una alerta urgente de la bandeja): el aro rojo del vanilla. El estado lo dicen la
           // marca y el texto para el lector; el aro sólo refuerza.
           activo ? "ring-2 ring-accent" : celda.atencion && "ring-2 ring-danger",
@@ -175,7 +191,17 @@ const BloqueTurno = memo(function BloqueTurno({
         {/* El estado siempre con forma + palabra (nunca sólo el color del fondo), también en el turno de una hora.
             En uno de media hora (una franja) la marca va al lado del nombre. */}
         <span className="flex w-full min-w-0 items-baseline gap-1.5">
+          {/* «Debe» de antes: el punto rojo SIEMPRE, también en el turno de una hora (antes sólo si medía más de 2 franjas).
+              El monto va en la etiqueta para el lector. */}
+          {celda.deudor && <span aria-hidden="true" data-turno-deuda="" title="Debe de antes" className="size-2 shrink-0 self-center rounded-full bg-danger" />}
           <span className="truncate font-semibold text-strong">{celda.titular}</span>
+          {(celda.nuevo || celda.web || fijo) && (
+            <span aria-hidden="true" data-turno-marcas="" className="flex shrink-0 gap-1">
+              {celda.nuevo && <span data-turno-marca="nuevo" className="rounded-sm border border-line-strong px-1 text-[10px] font-bold uppercase leading-4 tracking-wide text-strong">Nuevo</span>}
+              {celda.web && <span data-turno-marca="web" className="rounded-sm border border-accent px-1 text-[10px] font-bold uppercase leading-4 tracking-wide text-accent">Web</span>}
+              {fijo && <span data-turno-marca="fijo" className="rounded-sm border border-warning px-1 text-[10px] font-bold uppercase leading-4 tracking-wide text-warning">Fijo</span>}
+            </span>
+          )}
           {celda.alto < 2 && (
             <span data-turno-parte="estado" className="contents">
               <Marca tipo={celda.marca.tipo} className="shrink-0">{celda.marca.texto}</Marca>
@@ -185,7 +211,7 @@ const BloqueTurno = memo(function BloqueTurno({
         {celda.alto >= 2 && (
           <span className={cn("w-full truncate text-xs tabular-nums", celda.estado === "reservada" || celda.estado === "en_cancha" ? "text-muted" : "text-body")}>
             {celda.horario} · {celda.jugadores}
-            {celda.tipo && celda.tipo !== "Turno" ? ` · ${celda.tipo}` : ""}
+            {celda.tipo && celda.tipo !== "Turno" && !fijo ? ` · ${celda.tipo}` : ""}
           </span>
         )}
         {celda.alto >= 2 && (
@@ -194,8 +220,28 @@ const BloqueTurno = memo(function BloqueTurno({
           </span>
         )}
         {celda.senal && <span className="w-full truncate text-xs font-semibold tabular-nums text-danger">{celda.senal}</span>}
-        {celda.deudor && celda.alto > 2 && <span data-turno-parte="deuda" className="w-full truncate text-xs text-danger">⚠ cuenta con deuda</span>}
       </button>
+      {momento.length > 0 && (
+        <span data-agenda="momento" className="pointer-events-none absolute inset-x-1 bottom-2 z-[3] flex gap-1">
+          {momento.map((b) => (
+            <button
+              key={b.accion}
+              type="button"
+              data-momento={b.accion}
+              aria-label={b.etiqueta}
+              aria-haspopup={necesitaMenu(b) ? "menu" : undefined}
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                onMomento(celda.id, b, r.left, r.bottom + 4);
+              }}
+              className="pointer-events-auto relative inline-flex min-h-11 min-w-0 max-w-full items-center rounded-md border border-line-strong bg-surface-raised px-2 text-xs font-semibold text-strong tabular-nums hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
+            >
+              {b.accion === "abrir" && b.monto > 0 && <span aria-hidden="true" className="mr-1 size-2 shrink-0 rounded-full bg-danger" />}
+              <span className="min-w-0 truncate">{b.texto}</span>
+            </button>
+          ))}
+        </span>
+      )}
       {movible && (
         <>
           {/* La manija para mover con el dedo (con el mouse se arrastra el turno entero). */}
@@ -246,10 +292,19 @@ const Franja = memo(function Franja({
         tabIndex={enTab ? 0 : -1}
         onClick={() => onReservar(franja.canchaId, franja.min)}
         aria-label={franja.etiqueta}
-        className="z-0 m-px flex min-h-11 w-full items-center justify-center rounded text-xs text-faint hover:bg-accent-soft hover:text-strong focus-visible:outline-2 focus-visible:outline-focus"
+        aria-describedby={franja.corto ? `${idDeCelda(franja.id)}-entra` : undefined}
+        data-corto={franja.corto ? "" : undefined}
+        className="z-0 m-px flex min-h-11 w-full items-center justify-center rounded text-xs text-faint tabular-nums hover:bg-accent-soft hover:text-strong focus-visible:outline-2 focus-visible:outline-focus"
       >
         + {franja.hora}
+        {/* No aguanta la duración de siempre: se dice cuánto entra (y la piel le pone trama) antes de tocar. */}
+        {franja.corto && <span aria-hidden="true">&nbsp;· {franja.cuantoEntra} min</span>}
       </button>
+      {franja.corto && (
+        <span id={`${idDeCelda(franja.id)}-entra`} className="sr-only">
+          Entran {franja.cuantoEntra} minutos.
+        </span>
+      )}
     </li>
   );
 });
@@ -328,6 +383,111 @@ function MenuDelTurno({ id, x, y, opciones, onElegir, onCerrar }: { id: string; 
           {o.texto}
         </button>
       ))}
+    </div>
+  );
+}
+
+/** El botón del momento abre un menú chico (los medios, o «Debe de antes»): no hace nada al primer toque. */
+const necesitaMenu = (b: BotonDelMomento) => (b.accion === "abrir" || b.accion === "cobrarSenaYAbrir" ? b.monto > 0 : b.accion === "cobrar");
+
+type PasoDelMomento = { paso: "deuda" } | { paso: "medios"; para: "deuda" | "sena" | "cobrar" };
+
+/**
+ * El menú del botón del momento: «Debe $X de antes · Cobrar ahora / Después» y los 4 medios (seña, cobrar la cancha,
+ * la deuda). Mismo manejo que el menú rápido: Escape o Tab lo cierran (el foco vuelve al botón), flechas para recorrerlo.
+ */
+function MenuDelMomento({
+  boton,
+  x,
+  y,
+  onMedio,
+  onAbrirSinCobrar,
+  onDividir,
+  onCerrar,
+}: {
+  boton: BotonDelMomento;
+  x: number;
+  y: number;
+  onMedio: (para: "deuda" | "sena" | "cobrar", medio: MedioCaja) => void;
+  onAbrirSinCobrar: () => void;
+  onDividir: () => void;
+  onCerrar: (devolverFoco: boolean) => void;
+}) {
+  const caja = useRef<HTMLDivElement>(null);
+  const [paso, setPaso] = useState<PasoDelMomento>(boton.accion === "abrir" ? { paso: "deuda" } : { paso: "medios", para: boton.accion === "cobrar" ? "cobrar" : "sena" });
+  useEffect(() => {
+    caja.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
+  }, [paso]);
+  useEffect(() => {
+    const m = caja.current;
+    if (!m) return;
+    m.style.left = `${Math.max(8, Math.min(x, window.innerWidth - m.offsetWidth - 8))}px`;
+    m.style.top = `${Math.max(8, Math.min(y, window.innerHeight - m.offsetHeight - 8))}px`;
+    const afuera = (e: PointerEvent) => {
+      if (!m.contains(e.target as Node)) onCerrar(false);
+    };
+    document.addEventListener("pointerdown", afuera);
+    return () => document.removeEventListener("pointerdown", afuera);
+  }, [x, y, onCerrar]);
+  const titulo =
+    paso.paso === "deuda"
+      ? `Debe ${pesos(boton.monto)} de antes`
+      : paso.para === "deuda"
+        ? `Cobrar ${pesos(boton.monto)} de la deuda y abrir: ¿cómo paga?`
+        : paso.para === "sena"
+          ? `Seña ${pesos(boton.monto)} y abrir: ¿cómo paga?`
+          : `Cobrar ${pesos(boton.monto)}: ¿cómo paga?`;
+  const item = "min-h-11 rounded-md px-3 text-left text-sm hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus";
+  return (
+    <div
+      ref={caja}
+      role="menu"
+      aria-label={titulo}
+      data-ui="menu-del-momento"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" || e.key === "Tab") {
+          e.preventDefault();
+          onCerrar(true);
+        } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          const items = [...(caja.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? [])];
+          const i = items.indexOf(document.activeElement as HTMLButtonElement);
+          items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+        }
+      }}
+      className="fixed z-50 flex min-w-52 flex-col rounded-lg border border-line bg-surface-raised p-1 shadow-overlay"
+    >
+      <p aria-hidden="true" className="px-3 pb-1 pt-2 text-sm font-semibold text-strong tabular-nums">
+        {titulo}
+      </p>
+      {paso.paso === "deuda" ? (
+        <>
+          <button type="button" role="menuitem" onClick={() => setPaso({ paso: "medios", para: "deuda" })} className={cn(item, "text-strong")}>
+            Cobrar ahora y abrir
+          </button>
+          <button type="button" role="menuitem" onClick={onAbrirSinCobrar} className={cn(item, "text-strong")}>
+            Después: abrir igual
+          </button>
+        </>
+      ) : (
+        <>
+          {MEDIOS_CAJA.map((m) => (
+            <button key={m} type="button" role="menuitem" onClick={() => onMedio(paso.para, m)} className={cn(item, "text-strong")}>
+              {ETIQUETA_MEDIO[m]}
+            </button>
+          ))}
+          {paso.para === "cobrar" && (
+            <button type="button" role="menuitem" onClick={onDividir} className={cn(item, "text-strong")}>
+              Dividir o cobrar por jugador…
+            </button>
+          )}
+          {boton.accion === "abrir" && (
+            <button type="button" role="menuitem" onClick={() => setPaso({ paso: "deuda" })} className={cn(item, "text-muted")}>
+              Volver
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -447,8 +607,11 @@ export default function AgendaCanchas({
   dia: string;
   abierto: string | null;
   onAbrir: (id: string) => void;
-  /** Dar un turno: en una cancha y desde una hora (null = la primera libre). */
-  onReservar: (canchaId: string, min: number | null) => void;
+  /**
+   * Dar un turno: en una cancha y desde una hora (null = la primera libre). «Buscar lugar» pasa también la duración que
+   * se buscó (quien abre el alta puede usarla; si no, el alta arranca con la de siempre y conserva la hora).
+   */
+  onReservar: (canchaId: string, min: number | null, duracion?: number) => void;
 }) {
   const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarAgenda(e, dia, a), [dia]);
   const vista = useSeleccion(almacen, seleccionar, compartir);
@@ -605,6 +768,70 @@ export default function AgendaCanchas({
     [onAbrir],
   );
   const abrirMenu = useCallback((id: string, x: number, y: number) => setMenu({ id, x, y }), []);
+
+  // ── El botón del momento (bp-DISENO §2.2): lo de un toque sale directo; lo que pide un medio abre su menú chico ──
+  const [momento, setMomento] = useState<{ id: string; boton: BotonDelMomento; x: number; y: number } | null>(null);
+  const alMomento = useCallback(
+    (id: string, b: BotonDelMomento, x: number, y: number) => {
+      if (necesitaMenu(b)) return setMomento({ id, boton: b, x, y });
+      switch (b.accion) {
+        case "abrir":
+          almacen.comando("cuenta", [id, { tipo: "abrirCancha" }], { deshacible: DESHACIBLE.abrirCancha });
+          return;
+        case "cobrarSenaYAbrir":
+          // La seña ya está cubierta con pagos: abre sin cobrar (el medio no se usa).
+          almacen.comando("cuenta", [id, { tipo: "cobrarSenaYAbrir", medio: "efectivo" }], { deshacible: DESHACIBLE.cobrarSenaYAbrir });
+          return;
+        case "extender":
+          almacen.comando("ciclo", [id, { tipo: "extender", minutos: b.minutos ?? 30 }], { deshacible: true });
+          return;
+        case "cerrar":
+          almacen.comando("cuenta", [id, { tipo: "cerrarCancha" }], { deshacible: DESHACIBLE.cerrarCancha });
+          return;
+        case "mesaSigue":
+          // La cancha está paga: no se cobra nada (el medio no se usa); la mesa pasa a Buffet → Mesas.
+          almacen.comando("cuenta", [id, { tipo: "cerrarYSeguir", medio: "efectivo" }], { deshacible: DESHACIBLE.cerrarYSeguir });
+          return;
+        case "noVino":
+          onAbrir(id);
+          desplegarEnLaCuenta("falta");
+          return;
+      }
+    },
+    [almacen, onAbrir],
+  );
+  const cerrarMomento = useCallback(
+    (devolverFoco: boolean) => {
+      const id = momento?.id;
+      const accion = momento?.boton.accion;
+      setMomento(null);
+      if (devolverFoco && id) requestAnimationFrame(() => document.querySelector<HTMLElement>(`#turno-${CSS.escape(id)} ~ [data-agenda="momento"] [data-momento="${accion}"]`)?.focus());
+    },
+    [momento],
+  );
+  const medioDelMomento = useCallback(
+    (para: "deuda" | "sena" | "cobrar", medio: MedioCaja) => {
+      if (!momento) return;
+      const { id, boton } = momento;
+      setMomento(null);
+      if (para === "deuda") almacen.comando("abrirConDeuda", [id, medio], { deshacible: true, promete: true });
+      else if (para === "sena") almacen.comando("cuenta", [id, { tipo: "cobrarSenaYAbrir", medio }], { deshacible: DESHACIBLE.cobrarSenaYAbrir });
+      else almacen.comando("cuenta", [id, { tipo: "cobrarCancha", monto: boton.monto, medio }], { deshacible: DESHACIBLE.cobrarCancha });
+      requestAnimationFrame(() => document.getElementById(`turno-${id}`)?.focus());
+    },
+    [almacen, momento],
+  );
+
+  // ── «Buscar lugar» y «Compartir lo libre» (arriba, junto a «+ Turno»): uno abierto a la vez ──
+  const [herramienta, setHerramienta] = useState<"buscar" | "libre" | null>(null);
+  const idsHerramienta = { buscar: `club-buscar-lugar`, libre: `club-lo-libre` } as const;
+  const elegirLugar = useCallback(
+    (canchaId: string, inicio: number, duracion: number) => {
+      setHerramienta(null);
+      onReservar(canchaId, inicio, duracion);
+    },
+    [onReservar],
+  );
   const cerrarMenu = useCallback(() => setMenu(null), []);
   const elegirDelMenu = useCallback(
     (o: OpcionDelMenu) => {
@@ -673,9 +900,17 @@ export default function AgendaCanchas({
         <Button variant="solid" size="md" aria-keyshortcuts={atajoTurno ? "N" : undefined} onClick={() => onReservar(vista.canchas.find((c) => !c.detalle.includes("mantenimiento"))?.id ?? vista.canchas[0]?.id ?? "", null)}>
           + Turno
         </Button>
+        <Button variant="outline" size="md" aria-expanded={herramienta === "buscar"} aria-controls={idsHerramienta.buscar} onClick={() => setHerramienta((h) => (h === "buscar" ? null : "buscar"))}>
+          Buscar lugar
+        </Button>
+        <Button variant="outline" size="md" aria-expanded={herramienta === "libre"} aria-controls={idsHerramienta.libre} onClick={() => setHerramienta((h) => (h === "libre" ? null : "libre"))}>
+          Compartir lo libre
+        </Button>
         {accesos}
         <p className="ml-auto text-xs text-muted">{vista.resumen}</p>
       </div>
+      {herramienta === "buscar" && <BuscarLugar id={idsHerramienta.buscar} almacen={almacen} dia={dia} onElegir={elegirLugar} onCerrar={() => setHerramienta(null)} />}
+      {herramienta === "libre" && <CompartirLoLibre id={idsHerramienta.libre} almacen={almacen} onCerrar={() => setHerramienta(null)} />}
       <p id="club-agenda-ayuda" className="sr-only">
         Cada cancha es una lista de turnos y huecos libres. Con las flechas pasás al de arriba, al de abajo o a la cancha de al lado. Enter abre la cuenta del turno o da un turno en el hueco.
       </p>
@@ -745,7 +980,7 @@ export default function AgendaCanchas({
               className="contents"
             >
               {deLaCancha.map((t) => (
-                <BloqueTurno key={t.id} celda={t} activo={t.id === abierto} onAbrir={abrirSiNoSeArrastro} onMenu={abrirMenu} onArrastrar={onArrastrar} onTecla={moverConTeclado} />
+                <BloqueTurno key={t.id} celda={t} activo={t.id === abierto} onAbrir={abrirSiNoSeArrastro} onMenu={abrirMenu} onArrastrar={onArrastrar} onTecla={moverConTeclado} onMomento={alMomento} />
               ))}
               {libresDeLaCancha.map((f) => (
                 <Franja key={f.id} franja={f} enTab={f.id === primerLibreEnTab} onReservar={onReservar} />
@@ -754,6 +989,27 @@ export default function AgendaCanchas({
           ))}
         </div>
       </div>
+      {momento && (
+        <MenuDelMomento
+          key={`${momento.id}:${momento.boton.accion}`}
+          boton={momento.boton}
+          x={momento.x}
+          y={momento.y}
+          onMedio={medioDelMomento}
+          onAbrirSinCobrar={() => {
+            const id = momento.id;
+            setMomento(null);
+            almacen.comando("cuenta", [id, { tipo: "abrirCancha" }], { deshacible: DESHACIBLE.abrirCancha });
+            requestAnimationFrame(() => document.getElementById(`turno-${id}`)?.focus());
+          }}
+          onDividir={() => {
+            const id = momento.id;
+            setMomento(null);
+            onAbrir(id);
+          }}
+          onCerrar={cerrarMomento}
+        />
+      )}
       {menu && (
         <MenuDelTurno id={menu.id} x={menu.x} y={menu.y} opciones={opcionesDelMenu(almacen.estado(), menu.id, almacen.ahora().fecha)} onElegir={elegirDelMenu} onCerrar={cerrarMenu} />
       )}

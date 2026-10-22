@@ -7,8 +7,10 @@ import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { destinosParaMover, opcionesCiclo } from "./ciclo-core";
 import { reservar } from "./alta-core";
-import { DIAS_ANTES, DIAS_DESPUES, armarAgenda, calendarioDeLaAgenda, compartirAgenda, diasDeLaAgenda, fueraDelCalendario, marcaDelTurno, opcionesDelMenu, ponerLuz, previaArrastre, senalDelTurno, velocidadAlBorde, vecino } from "./agenda-core";
-import { bajarFijosDelDia, fijosPorBajar } from "./canchas-core";
+import { DIAS_ANTES, DIAS_DESPUES, abrirCobrandoLaDeuda, armarAgenda, botonesDelMomento, buscarLugar, calendarioDeLaAgenda, compartirAgenda, diasDeLaAgenda, fueraDelCalendario, horaPorDefecto, marcaDelTurno, opcionesDelMenu, ponerLuz, previaArrastre, senalDelTurno, velocidadAlBorde, vecino } from "./agenda-core";
+import { bajarFijosDelDia, diasDeLaEspera, ejecutarEspera, fijosPorBajar } from "./canchas-core";
+import { correrComando, describirComando, rebasar, type Comando } from "./comandos-core";
+import { textoDelEstado } from "./almacen";
 import { ejecutar } from "./cuenta-core";
 
 const HOY = "2026-10-17";
@@ -407,4 +409,236 @@ test("BP-013 · un día lejano del calendario baja sus turnos fijos a la grilla 
   const n = e.reservas.length;
   bajarFijosDelDia(e, lejos);
   assert.equal(e.reservas.length, n, "idempotente");
+});
+
+// ═════════════ Tanda 2C · la agenda: botón del momento, calendario +14, buscar lugar, marcas (BP-060…BP-066) ═════════════
+
+/** Un día sin la historia de la demo (martes que viene): la grilla vacía para armar cada caso a mano. */
+const MARTES = M.sumarDias(HOY, 3);
+const a = (min: number, fecha = MARTES): Ahora => ({ fecha, min });
+/** Un turno nuevo en ese día, con la ficha de un cliente de la demo. Sin seña salvo que el caso la ponga. */
+function turno(e: EstadoClub, canchaId: string, inicio: number, extra: Partial<{ duracion: number; clienteId: string | null; titular: string; origen: string; tipo: "turno" | "fijo" | "clase" }> = {}) {
+  const res = M.crearReserva(e, { canchaId, fecha: MARTES, inicio, duracion: 90, clienteId: "k3", ...extra } as Parameters<typeof M.crearReserva>[1], a(8 * 60));
+  assert.equal(res.ok, true, res.ok ? "" : res.motivo);
+  const r = res.reserva;
+  r.sena = { ...r.sena, monto: 0, pagada: false };
+  return r;
+}
+const acciones = (e: EstadoClub, r: { id: string }, ahora: Ahora) => botonesDelMomento(e, M.reserva(e, r.id)!, ahora).map((b) => b.accion);
+
+test("BP-060 · el calendario de la agenda y la lista de espera llegan a hoy + 14; +15 no (ni en el calendario ni al anotar)", () => {
+  const e = demo();
+  const cal = calendarioDeLaAgenda(e, HOY);
+  assert.equal(cal.max, M.sumarDias(HOY, 14));
+  assert.equal(fueraDelCalendario(cal, M.sumarDias(HOY, 14)), null);
+  assert.ok(fueraDelCalendario(cal, M.sumarDias(HOY, 15)));
+  // La lista de espera: la misma ventana (antes, sólo la semana a la vista).
+  const dias = diasDeLaEspera(e, HOY);
+  assert.equal(dias.length, 15);
+  assert.equal(dias.at(-1), M.sumarDias(HOY, 14));
+  const anotar = (fecha: string) => ejecutarEspera(e, { tipo: "anotar", titular: "Lola Paz", clienteId: null, fecha, desde: 20 * 60, hasta: 22 * 60, duracion: 90, soloCubierta: false }, AHORA);
+  assert.equal(anotar(M.sumarDias(HOY, 14)).ok, true);
+  const mas15 = anotar(M.sumarDias(HOY, 15));
+  assert.equal(mas15.ok, false);
+  assert.match(mas15.mensaje, /hasta 14 días adelante/);
+  assert.equal(anotar(M.sumarDias(HOY, -1)).ok, false, "un día que ya pasó, tampoco");
+  e.config.diasAdelante = 10;
+  assert.equal(diasDeLaEspera(e, HOY).length, 11, "lo edita el dueño en Reglas");
+});
+
+test("BP-061 · «Abrir» aparece en el bloque a ≤ 15 min con la seña paga (o sin seña), y no antes; respeta «minutos antes para entrar»", () => {
+  const e = demo();
+  const r = turno(e, "c2", 20 * 60);
+  assert.deepEqual(acciones(e, r, a(20 * 60 - 16)), [], "a 16 min, todavía nada");
+  assert.deepEqual(acciones(e, r, a(20 * 60 - 15)), ["abrir"]);
+  assert.deepEqual(acciones(e, r, a(20 * 60 + 10)), ["abrir"], "llegaron tarde, dentro de la tolerancia");
+  r.sena = { monto: 21000, pagada: true };
+  assert.deepEqual(acciones(e, r, a(20 * 60 - 5)), ["abrir"], "con la seña paga, «Abrir»");
+  e.config.politica.minutosAntesParaEntrar = 10;
+  assert.deepEqual(acciones(e, r, a(20 * 60 - 12)), [], "el club abre desde 10 min antes: a 12, nada");
+  assert.deepEqual(acciones(e, r, a(20 * 60 - 10)), ["abrir"]);
+  // El toque hace lo mismo que el menú: el comando «cuenta» abrirCancha (en cancha, luz prendida).
+  const c = comando(e, "cuenta", [r.id, { tipo: "abrirCancha" }], a(20 * 60 - 5));
+  assert.equal(correrComando(e, c).ok, true);
+  assert.equal(M.reserva(e, r.id)!.estado, "en_cancha");
+  assert.equal(e.luces.c2, true);
+});
+
+test("BP-062 · con la seña sin pagar el bloque ofrece «Seña y abrir» (no «Abrir»); con transferencia queda en cancha y la caja la tiene", () => {
+  const e = demo();
+  const r = turno(e, "c2", 20 * 60);
+  r.sena = { monto: 21000, pagada: false };
+  const [b] = botonesDelMomento(e, r, a(20 * 60 - 5));
+  assert.equal(b.accion, "cobrarSenaYAbrir");
+  assert.equal(b.monto, 21000);
+  assert.equal(b.texto, "Seña y abrir");
+  assert.match(b.etiqueta, /^Cobrar la seña de \$\s?21\.000 y abrir la cancha de /);
+  const caja = e.caja.movimientos.length;
+  assert.equal(correrComando(e, comando(e, "cuenta", [r.id, { tipo: "cobrarSenaYAbrir", medio: "transferencia" }], a(20 * 60 - 5))).ok, true);
+  assert.equal(M.reserva(e, r.id)!.estado, "en_cancha");
+  assert.equal(e.luces.c2, true);
+  const nuevos = e.caja.movimientos.slice(caja);
+  assert.deepEqual(nuevos.map((m) => [m.medio, m.monto]), [["transferencia", 21000]]);
+});
+
+test("BP-063 · el punto rojo de «debe» y el botón del momento también en los bloques de 60 min", () => {
+  const e = demo();
+  const agus = M.cliente(e, "k10")!;
+  assert.ok(agus.deuda > 0, "Agustina debe de antes (demo)");
+  const r = turno(e, "c3", 19 * 60, { duracion: 60, clienteId: "k10" });
+  const celda = armarAgenda(e, MARTES, a(19 * 60 - 10)).turnos.find((t) => t.id === r.id)!;
+  assert.equal(celda.alto, 2, "un turno de 60 min ocupa dos franjas");
+  assert.equal(celda.deudor, true, "lleva la marca de deuda (el punto rojo lo pinta la grilla en TODOS los bloques)");
+  assert.match(celda.etiqueta, /tiene saldo deudor de/);
+  // «Abrir» con punto rojo: el botón dice cuánto debe de antes.
+  assert.deepEqual(celda.momento.map((m) => [m.accion, m.monto]), [["abrir", agus.deuda]]);
+  assert.match(celda.momento[0].etiqueta, /debe \$\s?21\.000 de antes/);
+});
+
+test("botón del momento en cancha: +30 min (≤ 10 min y hueco libre), cobrar si no se puede extender o terminó y debe, «Cerrar» y «La mesa sigue» si está paga; «No vino» pasada la tolerancia", () => {
+  const e = demo();
+  const r = turno(e, "c2", 18 * 60);
+  M.checkIn(e, r.id, a(18 * 60));
+  assert.deepEqual(acciones(e, r, a(19 * 60)), [], "a media hora del final, nada");
+  const [ext] = botonesDelMomento(e, r, a(19 * 60 + 20));
+  assert.equal(ext.accion, "extender");
+  assert.equal(ext.minutos, 30);
+  assert.equal(ext.monto, M.precioTurno(e, { canchaId: "c2", fecha: MARTES, inicio: 19 * 60 + 30, duracion: 30 }));
+  assert.equal(ext.texto, `+30 min · ${M.pesos(ext.monto)}`);
+  // Viene otro turno pegado: no se ofrece extender; como debe la cancha, «Cobrar».
+  turno(e, "c2", 19 * 60 + 30, { clienteId: "k5" });
+  const [cob] = botonesDelMomento(e, M.reserva(e, r.id)!, a(19 * 60 + 25));
+  assert.equal(cob.accion, "cobrar");
+  assert.equal(cob.monto, M.saldo(M.reserva(e, r.id)!));
+  assert.deepEqual(acciones(e, r, a(19 * 60 + 35)), ["cobrar"], "terminó y debe");
+  // Cobrar con un medio (comando «cuenta» cobrarCancha por lo que debe la cancha): queda paga → «Cerrar» · «La mesa sigue».
+  assert.equal(correrComando(e, comando(e, "cuenta", [r.id, { tipo: "cobrarCancha", monto: cob.monto, medio: "mercadopago" }], a(19 * 60 + 35))).ok, true);
+  assert.deepEqual(acciones(e, r, a(19 * 60 + 35)), ["cerrar", "mesaSigue"]);
+  assert.equal(correrComando(e, comando(e, "cuenta", [r.id, { tipo: "cerrarYSeguir", medio: "efectivo" }], a(19 * 60 + 36))).ok, true);
+  assert.equal(M.reserva(e, r.id)!.estado, "finalizada");
+  assert.equal(M.reserva(e, r.id)!.mesaSigue, true);
+  assert.deepEqual(acciones(e, r, a(19 * 60 + 40)), [], "cerrada: nada");
+  // Reservado que no llegó: pasada la tolerancia (15 min), «No vino».
+  const tarde = turno(e, "c4", 21 * 60);
+  assert.deepEqual(acciones(e, tarde, a(21 * 60 + 15)), ["abrir"], "en el minuto 15 todavía está en tolerancia");
+  assert.deepEqual(acciones(e, tarde, a(21 * 60 + 16)), ["noVino"]);
+});
+
+let nCmd = 0;
+function comando<N extends Comando["nombre"]>(e: EstadoClub, nombre: N, args: Comando<N>["args"], ahora: Ahora): Comando<N> {
+  return { id: `cmd-2c-${++nCmd}`, equipo: "pc", persona: "u-lu", versionBase: 1, version: M.VERSION_ESTADO, nombre, args, ahora, auth: { usuarioId: "u-lu" }, azar: 300 + nCmd, idsDesde: M.secuenciaIds() };
+}
+
+test("«Abrir» con deuda de antes → «Cobrar ahora»: la deuda y la cancha en UN comando (abrirConDeuda); o las dos cosas o ninguna", () => {
+  const e = demo();
+  const r = turno(e, "c3", 19 * 60, { clienteId: "k10" });
+  const deuda = M.cliente(e, "k10")!.deuda;
+  const caja = e.caja.movimientos.length;
+  // Temprano (el club abre 10 min antes): no se abre y NO se cobra.
+  e.config.politica.minutosAntesParaEntrar = 10;
+  const temprano = abrirCobrandoLaDeuda(e, r.id, "efectivo", a(19 * 60 - 14));
+  assert.equal(temprano.ok, false);
+  assert.match(temprano.mensaje, /No se cobró nada/);
+  assert.equal(e.caja.movimientos.length, caja);
+  assert.equal(M.cliente(e, "k10")!.deuda, deuda);
+  // Medio que no es de caja: nada.
+  assert.equal(abrirCobrandoLaDeuda(e, r.id, "monedero" as never, a(19 * 60 - 5)).ok, false);
+  // A tiempo: cobra la deuda entera con el medio y abre.
+  const ok = abrirCobrandoLaDeuda(e, r.id, "debito", a(19 * 60 - 5));
+  assert.equal(ok.ok, true, ok.mensaje);
+  assert.equal(M.cliente(e, "k10")!.deuda, 0);
+  assert.equal(M.reserva(e, r.id)!.estado, "en_cancha");
+  assert.deepEqual(e.caja.movimientos.slice(caja).map((m) => [m.medio, m.monto]), [["debito", deuda]]);
+  // Doble toque (o el otro puesto ya la abrió): no cobra dos veces.
+  const otra = abrirCobrandoLaDeuda(e, r.id, "debito", a(19 * 60 - 4));
+  assert.equal(otra.ok, false);
+  assert.equal(e.caja.movimientos.length, caja + 1);
+  // Con la seña sin pagar, no: primero la seña.
+  const conSena = turno(e, "c4", 19 * 60, { clienteId: "k10" });
+  conSena.sena = { monto: 21000, pagada: false };
+  M.cliente(e, "k10")!.deuda = 5000;
+  assert.match(abrirCobrandoLaDeuda(e, conSena.id, "efectivo", a(19 * 60 - 5)).mensaje, /Falta la seña/);
+});
+
+test("comando «abrirConDeuda»: re-aplicado sobre la misma base da lo mismo byte a byte; en otro puesto donde la deuda ya se cobró, abre sin cobrar dos veces; se cuenta en criollo", () => {
+  M.prefijoIds("");
+  const e0 = demo();
+  const r = turno(e0, "c3", 19 * 60, { clienteId: "k10" });
+  const texto = textoDelEstado(e0);
+  const abrir = () => (JSON.parse(texto) as { estado: EstadoClub }).estado;
+  const local = abrir();
+  const c = comando(local, "abrirConDeuda", [r.id, "efectivo"], a(19 * 60 - 5));
+  assert.equal(correrComando(local, c).ok, true);
+  const deNuevo = abrir();
+  const rb = rebasar(deNuevo, [c], new Set());
+  assert.deepEqual(rb.rechazados, []);
+  assert.equal(JSON.stringify(deNuevo), JSON.stringify(local), "el mismo estado, byte a byte");
+  assert.equal(describirComando(c, abrir()), `18:55 · Cobro de la deuda ${M.pesos(21000)} efectivo y abrir la cancha de Agustina Romero (turno 19:00 C3) · Lu`);
+  // Otro puesto ya cobró la deuda desde la ficha: al re-aplicar, abre y no cobra de nuevo.
+  const otro = abrir();
+  M.cobrarDeuda(otro, "k10", { medio: "efectivo" }, a(19 * 60 - 8));
+  const caja = otro.caja.movimientos.length;
+  const rb2 = rebasar(otro, [c], new Set());
+  assert.deepEqual(rb2.rechazados, []);
+  assert.equal(otro.caja.movimientos.length, caja, "ni un peso más");
+  assert.equal(M.reserva(otro, r.id)!.estado, "en_cancha");
+});
+
+test("BP-064 · «Buscar lugar 20:00 · 90»: primero la cancha que ENTRA a esa hora, después lo más cerca en cada una; tocarla da cancha, hora y duración", () => {
+  const e = demo();
+  turno(e, "c1", 19 * 60 + 30); // C1 ocupada 19:30–21:00
+  turno(e, "c2", 20 * 60 + 30); // C2: a las 20:00 entran 30 min
+  const { opciones, aviso } = buscarLugar(e, { fecha: MARTES, inicio: 20 * 60, duracion: 90 }, AHORA);
+  assert.equal(aviso, null);
+  assert.deepEqual(
+    opciones.map((o) => [o.canchaId, M.hhmm(o.inicio), o.exacto]),
+    [
+      ["c3", "20:00", true],
+      ["c4", "20:00", true],
+      ["c2", "19:00", false],
+      ["c1", "21:00", false],
+    ],
+    "C3 y C4 entran a las 20:00 (en su orden); después lo más cerca: C2 a las 19:00 y C1 a las 21:00 (a 1 h las dos: primero la de antes)",
+  );
+  for (const o of opciones) {
+    assert.equal(o.duracion, 90);
+    assert.equal(o.precio, M.precioTurno(e, { canchaId: o.canchaId, fecha: MARTES, inicio: o.inicio, duracion: 90 }));
+    assert.equal(o.etiqueta, `${M.cancha(e, o.canchaId)!.nombre} · ${M.hhmm(o.inicio)} · ${M.pesos(o.precio)}`);
+    assert.equal(M.validarHueco(e, { canchaId: o.canchaId, fecha: MARTES, inicio: o.inicio, duracion: 90 }).ok, true, "lo que ofrece, entra");
+  }
+  // Ninguna entra a esa hora: lo dice y ofrece lo más cerca.
+  turno(e, "c3", 19 * 60 + 30);
+  turno(e, "c4", 19 * 60 + 30);
+  const r2 = buscarLugar(e, { fecha: MARTES, inicio: 20 * 60, duracion: 90 }, AHORA);
+  assert.match(r2.aviso!, /^A las 20:00 no entran 90 min en ninguna cancha/);
+  assert.ok(r2.opciones.every((o) => !o.exacto));
+  // Fuera de la ventana (+15) o un día que pasó: no ofrece nada.
+  assert.match(buscarLugar(e, { fecha: M.sumarDias(HOY, 15), inicio: 20 * 60, duracion: 90 }, AHORA).aviso!, /Todavía no se reserva/);
+  // Hoy: nada que ya empezó (salvo la hora pedida si sigue en juego). A las 19:10 no ofrece las 18:00.
+  const hoy = buscarLugar(e, { fecha: HOY, inicio: 18 * 60, duracion: 60 }, AHORA);
+  assert.ok(hoy.opciones.every((o) => o.inicio >= AHORA.min || o.inicio === 18 * 60));
+  assert.equal(horaPorDefecto(e, MARTES, AHORA), 20 * 60, "propone las 20:00");
+});
+
+test("BP-066 · marcas del turno: «nuevo» (primer turno de la ficha), «web» (vino del turnero) y «fijo»; la firma cambia con ellas", () => {
+  const e = demo();
+  e.clientes.push({ ...M.cliente(e, "k3")!, id: "k-nuevo", nombre: "Bruno Nuevo", deuda: 0, movCC: [] });
+  const nuevo = turno(e, "c1", 19 * 60, { clienteId: "k-nuevo" });
+  const web = turno(e, "c2", 19 * 60, { origen: "web" });
+  const fijo = turno(e, "c3", 19 * 60, { tipo: "fijo" });
+  const sinFicha = turno(e, "c4", 19 * 60, { clienteId: null, titular: "Grupo de Bruno" });
+  const v = armarAgenda(e, MARTES, AHORA);
+  const celda = (id: string) => v.turnos.find((t) => t.id === id)!;
+  assert.deepEqual([celda(nuevo.id).nuevo, celda(nuevo.id).web], [true, false]);
+  assert.match(celda(nuevo.id).etiqueta, /cliente nuevo/);
+  assert.deepEqual([celda(web.id).nuevo, celda(web.id).web], [false, true], "Martín ya jugó: no es nuevo");
+  assert.match(celda(web.id).etiqueta, /reservó por la web/);
+  assert.equal(celda(fijo.id).tipo, "Turno fijo");
+  assert.equal(celda(sinFicha.id).nuevo, false, "sin ficha no se sabe: no se marca");
+  // Jugó su primer turno: deja de ser nuevo (y la celda se repinta).
+  const r = M.reserva(e, nuevo.id)!;
+  r.estado = "finalizada";
+  const otro = turno(e, "c1", 21 * 60, { clienteId: "k-nuevo" });
+  const v2 = armarAgenda(e, MARTES, AHORA);
+  assert.equal(v2.turnos.find((t) => t.id === otro.id)!.nuevo, false);
 });

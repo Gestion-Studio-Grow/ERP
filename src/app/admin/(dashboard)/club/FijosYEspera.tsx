@@ -15,11 +15,11 @@ import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
-import { NOMBRE_DIA, diaSemana, hayDescubiertas, sumarDias } from "@/lib/club/motor.mjs";
+import { NOMBRE_DIA, diaSemana, hayDescubiertas } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { clientesQueCoinciden, DURACIONES } from "./alta-core";
-import { DIAS_A_LA_VISTA, SE_DESHACE, armarEspera, armarFijos, bajaFijo, bajarFijos, horasDelDia, nuevoFijo, type AccionEspera, type VistaEspera } from "./canchas-core";
+import { SE_DESHACE, diasDeLaEspera, armarEspera, armarFijos, bajaFijo, bajarFijos, horasDelDia, nuevoFijo, type AccionEspera, type VistaEspera } from "./canchas-core";
 import { porFirma, useSeleccion } from "./usar-almacen";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
 import { enlaceWhatsApp, type ModoDelClub } from "./whatsapp-core";
@@ -154,7 +154,8 @@ function NuevoFijo({ almacen }: { almacen: Almacen }) {
 
 function Anotar({ almacen, hacer }: { almacen: Almacen; hacer: (a: AccionEspera) => boolean }) {
   const ahora = almacen.ahora();
-  const dias = Array(DIAS_A_LA_VISTA).fill(0).map((_, i) => sumarDias(ahora.fecha, i));
+  // La lista de espera llega a la misma ventana que la agenda y el turnero (hoy + 14), no sólo a la semana a la vista.
+  const dias = diasDeLaEspera(almacen.estado(), ahora.fecha);
   const [fecha, setFecha] = useState(dias[0]);
   const horas = horasDelDia(almacen.estado(), fecha);
   const [titular, setTitular] = useState("");

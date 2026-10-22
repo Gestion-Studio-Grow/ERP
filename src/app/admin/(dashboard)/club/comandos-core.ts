@@ -16,7 +16,7 @@
 import { cancha as canchaDe, crearClubReal, cuenta as cuentaDe, hhmm, pesos, prefijoIds, producto as productoDe, reserva as reservaDe, retomarSecuencia, saldo, secuenciaIds, usuario as usuarioDe, VERSION_ESTADO } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
-import { ponerLuz } from "./agenda-core";
+import { abrirCobrandoLaDeuda, ponerLuz } from "./agenda-core";
 import { anotarEnEsperaDesdeAlta, reservar, type DatosAlta } from "./alta-core";
 import { ejecutarBuffet, type AccionBuffet } from "./buffet-core";
 import { ejecutarMesa, venderEnMostrador, type AccionMesa, type Carrito, type DesenlaceMesa } from "./buffet-mesa-core";
@@ -140,6 +140,16 @@ export const REGISTRO = {
   tablero: entrada<[accion: AccionTablero], DesenlaceTablero>({
     correr: (e, [a], ahora, auth) => ejecutarTablero(e, a, ahora, auth),
     sinInternet: () => false,
+  }),
+  // ── Tanda 2C · la agenda ──
+  /**
+   * «Abrir» del bloque con el titular que debe de antes → «Cobrar ahora»: la deuda con un medio y la cancha abierta, o
+   * nada (`abrirCobrandoLaDeuda`). Sin secretos en los argumentos (el turno y el medio).
+   */
+  abrirConDeuda: entrada<[reservaId: string, medio: MedioCaja]>({
+    correr: (e, [reservaId, medio], ahora) => abrirCobrandoLaDeuda(e, reservaId, medio, ahora),
+    // Como «cobrar la deuda» de la ficha: sin internet sólo en efectivo.
+    sinInternet: ([, medio]) => sinRed(medio),
   }),
 } as const;
 
@@ -500,6 +510,12 @@ export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub 
         if (x.tipo === "autorizar") return "Autorizar un fiado";
         if (x.tipo === "otorgar") return "Dar acceso a alguien nuevo";
         return "Rechazar un pedido";
+      }
+      case "abrirConDeuda": {
+        const [reservaId, medio] = a as [string, MedioCaja];
+        const { titular, turno, r } = elTurno(estado, reservaId);
+        const deuda = estado && r?.clienteId ? (estado.clientes.find((c) => c.id === r.clienteId)?.deuda ?? 0) : 0;
+        return `Cobro de la deuda${deuda > 0 ? ` ${pesos(deuda)}` : ""} ${medioDe(medio)} y abrir la cancha de ${titular}${turno}`;
       }
     }
   } catch {

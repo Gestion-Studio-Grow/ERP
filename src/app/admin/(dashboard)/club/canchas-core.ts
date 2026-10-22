@@ -41,6 +41,27 @@ import { celularDeLaEspera, textoOfertaEspera } from "./whatsapp-core";
 /** Cuántos días para adelante se bajan los fijos a la grilla (los que ve la agenda). */
 export const DIAS_A_LA_VISTA = 7;
 
+/** Hasta cuántos días adelante se anota en la lista de espera si la configuración no dice otra cosa. */
+const DIAS_DE_ESPERA_DE_FABRICA = 14;
+
+/**
+ * Los días en que alguien se puede anotar en la lista de espera (bp-DISENO §3.4, Tanda 2C): de hoy a hoy +
+ * `config.diasAdelante` (14, la misma ventana que el calendario de la agenda y el turnero), no sólo la semana a la vista.
+ */
+export function diasDeLaEspera(estado: EstadoClub, hoy: Fecha): Fecha[] {
+  const dias = Number.isInteger(estado.config.diasAdelante) && estado.config.diasAdelante > 0 ? estado.config.diasAdelante : DIAS_DE_ESPERA_DE_FABRICA;
+  return Array.from({ length: dias + 1 }, (_, i) => sumarDias(hoy, i));
+}
+
+/** Por qué no se anota en la espera para ese día (ya pasó, o fuera de la ventana), o null. */
+export function fueraDeLaEspera(estado: EstadoClub, fecha: Fecha, hoy: Fecha): string | null {
+  const dias = diasDeLaEspera(estado, hoy);
+  if (fecha < hoy) return "Ese día ya pasó.";
+  if (fecha > dias[dias.length - 1]) return `La lista de espera llega hasta ${dias.length - 1} días adelante (hasta el ${ddmmDe(dias[dias.length - 1])}).`;
+  return null;
+}
+const ddmmDe = (f: Fecha) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
+
 const ddmm = (f: Fecha) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
 
 // ───────────── mantenimiento y bloqueos ─────────────
@@ -312,6 +333,8 @@ export function ejecutarEspera(estado: EstadoClub, a: AccionEspera, ahora: Ahora
     case "anotar": {
       if (!a.titular.trim()) return { ok: false, mensaje: "¿Quién espera?" };
       if (!(a.hasta >= a.desde)) return { ok: false, mensaje: "El «hasta» no puede ser antes del «desde»." };
+      const fuera = fueraDeLaEspera(estado, a.fecha, ahora.fecha);
+      if (fuera) return { ok: false, mensaje: fuera };
       anotarEspera(estado, { titular: a.titular.trim(), clienteId: a.clienteId, tel: a.tel?.trim() ?? "", fecha: a.fecha, desde: a.desde, hasta: a.hasta, duracion: a.duracion, soloCubierta: a.soloCubierta }, ahora);
       return { ok: true, mensaje: `${a.titular.trim()} anotado en la lista de espera.` };
     }
