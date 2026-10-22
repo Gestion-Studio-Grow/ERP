@@ -1,13 +1,16 @@
 import { headers } from "next/headers";
 import { requireApp } from "@/lib/require-app";
 import { badgePendientes, configCompleta } from "@/lib/padel/datos.server";
+import { buttonClasses, cn } from "@/components/ui";
+import { contactoParaWhatsAppBusiness } from "./contacto-gsg";
 import { CLAVES_PLANTILLA, PLANTILLA_LABEL } from "@/lib/padel/core";
 import { modoWhatsApp } from "@/lib/padel/whatsapp-cloud";
-import { BarraClases, tarjeta } from "../_vista";
+import { tarjeta } from "../_vista";
+import { Cabecera } from "../_cabecera";
 import { FormBloqueo, FormConfig, FormHorarios, QuitarBloqueo, CopiarLink } from "./Formularios";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Clases · Horarios y precios", manifest: "/clases/app.webmanifest" };
+export const metadata = { title: "Clases · Ajustes", manifest: "/clases/app.webmanifest" };
 
 const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
@@ -18,12 +21,11 @@ export default async function ClasesConfig() {
   const turnero = `${host.includes("localhost") ? "http" : "https"}://${host}/clases`;
   const porDia = DIAS.map((_, i) => franjas.filter((f) => f.diaSemana === i).map((f) => `${f.desde}-${f.hasta}`).join(", "));
   const cloud = modoWhatsApp(process.env) === "cloud";
+  const contactoGsg = contactoParaWhatsAppBusiness(turnero);
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
-      <h1 className="mb-1 text-2xl font-bold text-strong">Horarios y precios</h1>
-      <p className="mb-4 text-sm text-muted">Lo que ve el alumno en el turnero sale de acá.</p>
-      <BarraClases activa="/admin/clases/config" pendientes={numero} />
+      <Cabecera titulo="Ajustes" detalle="Horarios, precios y reglas. Lo que ve el alumno en el turnero sale de acá." pendientes={numero} actual="config" />
 
       <section className={`${tarjeta} mb-4`} aria-labelledby="t-link">
         <h2 id="t-link" className="mb-1 text-base font-bold text-strong">Tu link para la bio de Instagram</h2>
@@ -69,10 +71,21 @@ export default async function ClasesConfig() {
         {cloud ? (
           <p className="text-sm text-strong" data-qa="wa-modo">Conectado a WhatsApp Business: los avisos a los alumnos salen solos.</p>
         ) : (
-          <p className="text-sm text-muted" data-qa="wa-modo">
-            Hoy los avisos salen con un botón verde que abre WhatsApp con el mensaje listo: lo tocás y lo mandás. Para que salgan solos hay que
-            conectar WhatsApp Business (lo hace Gestión Studio Grow con tu número; guía en docs/tenants/matiasconsoli/whatsapp-business-paso-a-paso.md).
-          </p>
+          <div className="grid gap-3" data-qa="wa-modo">
+            <p className="text-sm text-muted">
+              Hoy los avisos salen con un botón verde que abre WhatsApp con el mensaje listo: lo tocás y lo mandás. Para que salgan solos,
+              sin tocar nada, Gestión Studio Grow conecta tu número a WhatsApp Business.
+            </p>
+            <a
+              href={contactoGsg.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(buttonClasses("outline", "lg"), "h-12 w-full justify-center")}
+              data-qa="contacto-gsg"
+            >
+              {contactoGsg.rotulo}
+            </a>
+          </div>
         )}
       </section>
     </main>

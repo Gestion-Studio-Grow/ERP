@@ -3,7 +3,8 @@ import { requireApp } from "@/lib/require-app";
 import { EmptyState, cn } from "@/components/ui";
 import { alumnos, badgePendientes } from "@/lib/padel/datos.server";
 import { diaHumano, linkWhatsApp, pesos } from "@/lib/padel/core";
-import { BarraClases, tarjeta } from "../_vista";
+import { tarjeta } from "../_vista";
+import { Cabecera } from "../_cabecera";
 import { BotonDevolver, BotonLink, BotonRegenerarLink } from "../_acciones";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +19,7 @@ export default async function ClasesAlumnos({ searchParams }: { searchParams: Pr
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
-      <h1 className="mb-1 text-2xl font-bold text-strong">Alumnos</h1>
-      <p className="mb-4 text-sm text-muted">Se suman solos cuando piden clase desde tu link.</p>
-      <BarraClases activa="/admin/clases/alumnos" pendientes={numero} />
+      <Cabecera titulo="Alumnos" detalle="Se suman solos cuando piden clase desde tu link." pendientes={numero} />
 
       <form className="mb-4" role="search">
         <label htmlFor="buscar-alumno" className="sr-only">Buscar alumno</label>

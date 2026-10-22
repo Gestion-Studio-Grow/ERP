@@ -121,6 +121,26 @@ const TRAZOS = {
       <path d="M12 19.5v.1M3 3l18 18" />
     </>
   ),
+  // Las del módulo de clases (barra de abajo y cabecera del profe).
+  calendario: (
+    <>
+      <rect x="4" y="5.5" width="16" height="14.5" rx="2" />
+      <path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" />
+    </>
+  ),
+  campana: (
+    <>
+      <path d="M6 16.5V11a6 6 0 0112 0v5.5l1.5 1.5h-15z" />
+      <path d="M10 20.5a2 2 0 004 0" />
+    </>
+  ),
+  ajustes: (
+    <>
+      <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+      <circle cx="15" cy="7" r="2" />
+      <circle cx="9" cy="17" r="2" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type NombreIconoPieza = keyof typeof TRAZOS;

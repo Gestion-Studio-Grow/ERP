@@ -57,22 +57,22 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
     minHeight: 48,
     borderRadius: 12,
     border: `2px solid ${activo ? marca.cancha : marca.linea}`,
-    background: activo ? marca.cancha : "#fff",
-    color: activo ? "#fff" : marca.texto,
+    background: activo ? marca.cancha : "var(--padel-superficie)",
+    color: activo ? "var(--padel-sobre-cancha)" : marca.texto,
     fontSize: 16,
     fontWeight: 600,
     cursor: "pointer",
     padding: "0 12px",
   });
-  const caja: React.CSSProperties = { background: "#fff", border: `1px solid ${marca.linea}`, borderRadius: 16, padding: 16, marginBottom: 14 };
+  const caja: React.CSSProperties = { background: "var(--padel-superficie)", border: `1px solid ${marca.linea}`, borderRadius: 16, padding: 16, marginBottom: 14 };
   const titulo: React.CSSProperties = { margin: "0 0 12px", fontSize: 18 };
-  const campo: React.CSSProperties = { width: "100%", minHeight: 48, borderRadius: 12, border: `1px solid ${marca.linea}`, padding: "0 14px", fontSize: 16, boxSizing: "border-box", color: marca.texto, background: "#fff" };
+  const campo: React.CSSProperties = { width: "100%", minHeight: 48, borderRadius: 12, border: `1px solid ${marca.linea}`, padding: "0 14px", fontSize: 16, boxSizing: "border-box", color: marca.texto, background: "var(--padel-superficie)" };
   // M-003 (mínimo hasta T3C): con la cookie del alumno, «Mis clases» lleva a su vista sin tipear nada.
   const misClases = conSesion ? (
     <a
       href="/mis-clases"
       data-qa="mis-clases"
-      style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 48, borderRadius: 14, border: `2px solid ${marca.cancha}`, color: marca.cancha, fontWeight: 700, fontSize: 16, textDecoration: "none", marginBottom: 14, background: "#fff" }}
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 48, borderRadius: 14, border: `2px solid ${marca.cancha}`, color: marca.cancha, fontWeight: 700, fontSize: 16, textDecoration: "none", marginBottom: 14, background: "var(--padel-superficie)" }}
     >
       Mis clases
     </a>
@@ -91,7 +91,7 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
             target="_blank"
             rel="noopener noreferrer"
             data-qa="avisar-profe"
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 56, borderRadius: 14, background: marca.cancha, color: "#fff", fontWeight: 700, fontSize: 17, textDecoration: "none", marginBottom: 12 }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 56, borderRadius: 14, background: marca.cancha, color: "var(--padel-sobre-cancha)", fontWeight: 700, fontSize: 18, textDecoration: "none", marginBottom: 12 }}
           >
             Avisarle por WhatsApp
           </a>
@@ -217,7 +217,7 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
           </div>
         )}
         {precio > 0 && (
-          <p style={{ margin: "12px 0 0", fontSize: 15, color: marca.suave }}>
+          <p style={{ margin: "12px 0 0", fontSize: 16, color: marca.suave }}>
             Valor: <strong style={{ color: marca.texto }}>{pesos(precio)}</strong>
           </p>
         )}
@@ -232,7 +232,7 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
       </section>
 
       {error && (
-        <p role="alert" style={{ margin: "0 0 12px", padding: 12, borderRadius: 12, background: "#f6e3de", color: "#b23b2b", fontWeight: 600 }}>
+        <p role="alert" style={{ margin: "0 0 12px", padding: 12, borderRadius: 12, background: "var(--padel-peligro-suave)", color: "var(--padel-peligro)", fontWeight: 600 }}>
           {error}
         </p>
       )}
@@ -241,7 +241,7 @@ export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIn
         type="submit"
         disabled={pendiente}
         data-qa="pedir"
-        style={{ width: "100%", minHeight: 58, borderRadius: 14, border: 0, background: marca.cancha, color: "#fff", fontSize: 18, fontWeight: 700, cursor: pendiente ? "wait" : "pointer", opacity: pendiente ? 0.7 : 1 }}
+        style={{ width: "100%", minHeight: 58, borderRadius: 14, border: 0, background: marca.cancha, color: "var(--padel-sobre-cancha)", fontSize: 18, fontWeight: 700, cursor: pendiente ? "wait" : "pointer", opacity: pendiente ? 0.7 : 1 }}
       >
         {pendiente ? "Pidiendo…" : elegida ? `Pedir clase · ${dias.find((d) => d.fecha === fecha)?.etiqueta} ${hora(elegida)}` : "Pedir clase"}
       </button>
