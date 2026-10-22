@@ -65,7 +65,15 @@ export {
   type ComprobanteConsultado,
   ArcaRechazoError,
   ArcaPasajeroError,
+  ArcaNoDisponibleError,
 } from './afip/port';
+export {
+  InterruptorArca,
+  INTERRUPTOR_ARCA,
+  servicioDeUrl,
+  type EstadoInterruptor,
+  type OpcionesInterruptor,
+} from './afip/interruptor';
 export { esErrorPasajero, CODIGOS_PASAJEROS_ARCA } from './domain/errores-arca';
 export { StubAfipClient } from './afip/stub';
 export {

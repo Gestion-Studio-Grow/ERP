@@ -68,7 +68,7 @@ async function preparar(t: import("node:test").TestContext) {
   const envioDe = (invoiceId: string) =>
     duenio.outboxEvent.findFirstOrThrow({
       where: { payload: { path: ["invoiceId"], equals: invoiceId } },
-      select: { tenantId: true, attempts: true, lastError: true, processedAt: true, payload: true },
+      select: { id: true, tenantId: true, attempts: true, lastError: true, processedAt: true, payload: true, proximoIntentoEn: true, muertoEn: true },
     });
   const estadoDe = async (invoiceId: string) =>
     (await duenio.invoice.findUniqueOrThrow({ where: { id: invoiceId }, select: { status: true } })).status;
@@ -110,6 +110,11 @@ test("cron de ARCA con la consola sujeta a RLS: encuentra el envío de cada nego
   assert.equal(envioB.attempts, 0);
   assert.equal(envioB.lastError, null);
   assert.equal(await p.estadoDe(deB), "AUTHORIZED");
+
+  // Motor de facturación: el de A espera su próximo intento (1 min) antes de que el cron lo retome.
+  assert.ok(envioA.proximoIntentoEn && envioA.proximoIntentoEn > new Date(), `el de A espera su próximo intento: ${String(envioA.proximoIntentoEn)} vs ${new Date().toISOString()}`);
+  assert.equal(envioA.muertoEn, null);
+  await p.duenio.outboxEvent.update({ where: { id: envioA.id }, data: { proximoIntentoEn: new Date(Date.now() - 1000) } });
 
   // La próxima corrida reintenta el de A (ARCA ya contesta) y no vuelve a tocar el de B.
   const r2 = await p.dispatch.processArcaOutbox(20);

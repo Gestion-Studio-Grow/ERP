@@ -28,6 +28,7 @@ import {
 } from "@/lib/invoice-core";
 import {
   procesarInvoiceCreated,
+  ArcaNoDisponibleError,
   ArcaPasajeroError,
   ArcaRechazoError,
   ComprobanteInvalidoError,
@@ -39,9 +40,18 @@ import {
   type CredencialEmisor,
   type HandlerDeps,
   type InvoiceCreatedEvent,
+  type ModoArca,
   type TicketAcceso,
 } from "@/plugins/arca";
-import { credencialParaTenant } from "@/lib/fiscal/tenant-cert";
+import { credencialParaTenant, CredencialFiscalAusenteError } from "@/lib/fiscal/tenant-cert";
+import { elegirFirmante, type DelegacionLeida } from "@/lib/fiscal/firmante";
+import {
+  ConfiguracionFiscalError,
+  clasificarFalla,
+  despuesDeLaFalla,
+  POLITICA_DE_REINTENTOS,
+  type PoliticaDeReintentos,
+} from "@/lib/arca-reintentos";
 import { leerTicketAcceso, guardarTicketAcceso } from "@/lib/fiscal/arca-ta-store";
 import { logger } from "@/lib/logger";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
@@ -49,6 +59,7 @@ import {
   anotarFallaYSoltar,
   anotarIntentoConReserva,
   CorridaDeEnvios,
+  posponerSinContar,
   soltarReserva,
   tomarDeLosNegocios,
   tomarSiguienteEnvio,
@@ -97,6 +108,100 @@ const leerConfigFiscalPrisma: LeerConfigFiscal = async (tenantId) => {
 };
 
 /**
+ * Lo que firma el pedido de un negocio: la credencial y, si es una DELEGACIÓN (ADR-077 §6), el CUIT
+ * del representante dueño del certificado. Sin `cuitFirmante`, el certificado es del propio emisor.
+ */
+export interface FirmaResuelta {
+  credencial: CredencialEmisor;
+  cuitFirmante?: string;
+}
+
+/** Lee la delegación de facturación (wsfe) del negocio, parado en él (RLS). */
+async function leerDelegacionPrisma(tenantId: string): Promise<DelegacionLeida | null> {
+  return tenantTransaction(
+    (tx) =>
+      tx.delegacionFiscal.findFirst({
+        where: { tenantId, servicio: "wsfe" },
+        select: { estado: true, servicio: true, cuitRepresentado: true, cuitRepresentante: true, estudioTenantId: true },
+      }),
+    { tenantId },
+  );
+}
+
+/** El CUIT cargado de un negocio (`Tenant` no tiene RLS propia; se da el contexto igual). */
+async function leerCuitPrisma(tenantId: string): Promise<string | null> {
+  const t = await tenantTransaction(
+    (tx) => tx.tenant.findUnique({ where: { id: tenantId }, select: { arcaCuit: true } }),
+    { tenantId },
+  );
+  return t?.arcaCuit ?? null;
+}
+
+/** Seams de `resolverFirmaParaTenant` (default: la base). */
+export interface DepsFirma {
+  credencialDe: (tenantId: string) => Promise<CredencialEmisor>;
+  leerDelegacion: (tenantId: string) => Promise<DelegacionLeida | null>;
+  leerCuit: (tenantId: string) => Promise<string | null>;
+}
+
+const DEPS_FIRMA: DepsFirma = {
+  credencialDe: (tenantId) => credencialParaTenant(tenantId),
+  leerDelegacion: leerDelegacionPrisma,
+  leerCuit: leerCuitPrisma,
+};
+
+/**
+ * ADR-066 + ADR-077 §6 · Con qué certificado firma el negocio. PRIMERO el propio (cifrado, con el
+ * guard de CUIT de `credencialParaTenant`). Si no tiene, la delegación VERIFICADA en un estudio:
+ * firma el certificado del estudio (con el guard contra el CUIT del estudio), y el estudio tiene que
+ * ser el representante que figura en la delegación. Cualquier otro caso: error de configuración
+ * (el envío se detiene; no se firma con lo que haya).
+ */
+export async function resolverFirmaParaTenant(tenantId: string, deps: DepsFirma = DEPS_FIRMA): Promise<FirmaResuelta> {
+  try {
+    return { credencial: await deps.credencialDe(tenantId) };
+  } catch (e) {
+    if (!(e instanceof CredencialFiscalAusenteError)) throw e;
+  }
+  const decision = elegirFirmante({
+    tieneCredencialPropia: false,
+    cuitEmisor: await deps.leerCuit(tenantId),
+    delegacion: await deps.leerDelegacion(tenantId),
+  });
+  if (!decision.ok) throw new ConfiguracionFiscalError(decision.motivo);
+  if (decision.firmante.tipo === "propio") throw new ConfiguracionFiscalError("Sin certificado propio cargado.");
+  const { estudioTenantId, cuitRepresentante } = decision.firmante;
+  const cuitEstudio = await deps.leerCuit(estudioTenantId);
+  if (!cuitEstudio || normalizarCuit(cuitEstudio) !== cuitRepresentante) {
+    throw new ConfiguracionFiscalError(
+      "El estudio de la delegación no tiene cargado el CUIT del representante: no se firma con su certificado.",
+    );
+  }
+  let credencial: CredencialEmisor;
+  try {
+    credencial = await deps.credencialDe(estudioTenantId);
+  } catch (e) {
+    if (e instanceof CredencialFiscalAusenteError) {
+      throw new ConfiguracionFiscalError("El estudio de la delegación no tiene su certificado de ARCA cargado.");
+    }
+    throw e;
+  }
+  logger.info("arca", "firma por delegación (ADR-077 §6)", { tenantId, estudioTenantId });
+  return { credencial, cuitFirmante: cuitRepresentante };
+}
+
+/**
+ * ADR-066 · El modo en que corre UN negocio. El entorno (`ARCA_MODO`) es el TECHO de la plataforma
+ * y el negocio decide por debajo: en `real`, un negocio marcado en homologación (`arcaHomologacion`,
+ * default true) sigue en el ambiente de prueba de ARCA; `homologacion` pisa a todos (nadie emite
+ * real); `stub` no habla con ARCA.
+ */
+export function modoEfectivoDelTenant(modoEntorno: ModoArca, homologacionDelTenant: boolean): ModoArca {
+  if (modoEntorno === "real") return homologacionDelTenant ? "homologacion" : "real";
+  return modoEntorno;
+}
+
+/**
  * Construye el resolvedor `clientePara(tenantId)` a partir de un lector de
  * config y el entorno. Testeable offline sin DB (se le inyecta un lector fake).
  *
@@ -107,14 +212,17 @@ const leerConfigFiscalPrisma: LeerConfigFiscal = async (tenantId) => {
  * fiscal cargada cae a un stub `cuit:0` (inofensivo en modo stub).
  *
  * Pero SOLO en modo stub: apenas el modo habla con ARCA de verdad (real u
- * homologación), un tenant sin CUIT válido LANZA en vez de mandar `cuit:0`. Es
- * el mismo criterio que `getFiscalProfile` (src/lib/fiscal.ts) — no emitir es
- * reversible, emitir con un CUIT inventado no.
+ * homologación), un tenant sin CUIT válido LANZA (`ConfiguracionFiscalError`: el envío se
+ * detiene) en vez de mandar `cuit:0`. Es el mismo criterio que `getFiscalProfile`
+ * (src/lib/fiscal.ts) — no emitir es reversible, emitir con un CUIT inventado no.
+ *
+ * `resolverCredencial` devuelve la credencial (certificado propio) o una `FirmaResuelta` (con el
+ * CUIT del representante si es una delegación, ADR-077 §6).
  */
 export function crearClientePara(
   leer: LeerConfigFiscal = leerConfigFiscalPrisma,
   env: Record<string, string | undefined> = process.env,
-  resolverCredencial: (tenantId: string) => Promise<CredencialEmisor> = credencialParaTenant,
+  resolverCredencial: (tenantId: string) => Promise<CredencialEmisor | FirmaResuelta> = (id) => resolverFirmaParaTenant(id),
   leerTicket: (tenantId: string) => Promise<TicketAcceso | undefined> = leerTicketAcceso,
   guardarTicket: (tenantId: string, ta: TicketAcceso) => Promise<void> = guardarTicketAcceso,
   leerUltimoEmitido: (tenantId: string, puntoVenta: number, tipo: number) => Promise<number> = ultimoNumeroAutorizado,
@@ -122,7 +230,7 @@ export function crearClientePara(
   return async (tenantId) => {
     const cfg = await leer(tenantId);
     if (modoDesdeEnv(env) !== "stub" && !cuitValido(cfg?.cuit ?? 0)) {
-      throw new Error(
+      throw new ConfiguracionFiscalError(
         `El tenant ${tenantId} no tiene un CUIT válido cargado (arcaCuit) y ARCA está en modo ` +
           `${modoDesdeEnv(env)}. No se despacha: un comprobante emitido con un CUIT inventado no se ` +
           `borra, se anula con nota de crédito. Cargá el CUIT del emisor — acción humana.`,
@@ -141,9 +249,10 @@ export function crearClientePara(
     }
 
     // 🔒 ADR-066: la credencial se resuelve POR TENANT (cifrada en la DB), NUNCA de un env
-    // compartido. Si el tenant no tiene credencial cargada, `credencialParaTenant` lanza →
-    // fail-closed.
-    const credencial = await resolverCredencial(tenantId);
+    // compartido. Sin credencial propia ni delegación verificada (ADR-077 §6) → lanza:
+    // fail-closed (el envío se detiene como error de configuración).
+    const resuelta = await resolverCredencial(tenantId);
+    const firma: FirmaResuelta = "certPem" in resuelta ? { credencial: resuelta } : resuelta;
     // Reutilización del TA (ADR-022 §6): si hay un TA vigente persistido, se lo damos al
     // cliente para que NO re-loguee (WSAA bloquea `alreadyAuthenticated` ~10-15 min). Cuando
     // el cliente acuña uno nuevo, `alRenovarTicket` lo persiste (cifrado) para la próxima
@@ -151,7 +260,8 @@ export function crearClientePara(
     const ticketInicial = await leerTicket(tenantId);
     return crearAfipClient(config, {
       env,
-      credencial,
+      credencial: firma.credencial,
+      cuitFirmante: firma.cuitFirmante,
       ticketInicial,
       alRenovarTicket: (ta) => guardarTicket(tenantId, ta),
     });
@@ -201,6 +311,8 @@ function aEventoPluginBase(p: InvoiceCreatedPayload): InvoiceCreatedEvent {
     servicioHasta: p.servicioHasta,
     vencimientoPago: p.vencimientoPago,
     intentoArca: p.intentoArca,
+    // Motor de facturación · nota de crédito: la clase y la factura que corrige (CbtesAsoc).
+    ...(p.clase === "nota_credito" && p.asociado ? { clase: "nota_credito" as const, asociado: p.asociado } : {}),
   };
 }
 
@@ -259,6 +371,14 @@ export function esErrorDelSistema(err: unknown): boolean {
 export interface OpcionesDelNegocio {
   /** Envíos que no toma: los que ya fallaron por un error nuestro en el mismo toque. */
   saltear?: readonly string[];
+  /**
+   * Motor de facturación · `true` = lo pidió una persona («Autorizar ahora», «Reintentar»): toma
+   * también los envíos que esperaban su próximo intento. El cron y los disparos de las ventas lo
+   * dejan en `false` y respetan la espera creciente (`arca-reintentos.ts`).
+   */
+  ignorarEspera?: boolean;
+  /** La política de reintentos (default `POLITICA_DE_REINTENTOS`). */
+  politica?: PoliticaDeReintentos;
   /** Avisa cada envío que falló por un error nuestro (va dentro de `fallidos`). */
   alFallarPorElSistema?: (envioId: string) => void;
 }
@@ -274,6 +394,18 @@ export interface DispatchResumen {
    * se registró en ninguna factura: mayor a 0 es para mirar (ENG-019).
    */
   descartados: number;
+  /**
+   * Motor de facturación · envíos que quedaron DETENIDOS en esta corrida (llegaron al tope de
+   * intentos o falta un dato fiscal): van dentro de `fallidos`. Sólo aparece si es mayor a 0.
+   */
+  detenidos?: number;
+  /**
+   * Motor de facturación · envíos que no se mandaron porque ARCA no está disponible (interruptor
+   * abierto): quedan pendientes, sin sumar un intento. Sólo aparece si es mayor a 0; con él la
+   * corrida se cortó (`arcaNoDisponible`).
+   */
+  pospuestos?: number;
+  arcaNoDisponible?: true;
 }
 
 /** La transacción de un negocio, con su contexto de RLS (escrituras del envío y toma por negocio). */
@@ -289,8 +421,12 @@ const enElNegocio =
  * depende de una conexión que vea todo: antes leía los pendientes de todos con la del operador y,
  * como en producción esa conexión está sujeta a RLS (26/09/2026), no despachaba ninguno.
  */
-export async function processArcaOutbox(limit = 20, deps: DepsDespacho = DEPS_DESPACHO): Promise<DispatchResumen> {
-  return despacharEnvios(tomarDeLosNegocios(await idsDeLosNegocios(), enElNegocio), limit, deps);
+export async function processArcaOutbox(
+  limit = 20,
+  deps: DepsDespacho = DEPS_DESPACHO,
+  opciones: OpcionesDelNegocio = {},
+): Promise<DispatchResumen> {
+  return despacharEnvios(tomarDeLosNegocios(await idsDeLosNegocios(), enElNegocio), limit, deps, opciones);
 }
 
 /**
@@ -336,9 +472,9 @@ async function despacharEnvios(
     fallidos: 0,
     descartados: 0,
   };
-  const corrida = new CorridaDeEnvios(opciones.saltear);
+  const corrida = new CorridaDeEnvios(opciones.saltear, { ignorarEspera: opciones.ignorarEspera });
 
-  while (corrida.vistos.length < limit) {
+  while (corrida.vistos.length < limit && !resumen.arcaNoDisponible) {
     const envio = await tomar(corrida);
     if (!envio) break;
     try {
@@ -411,7 +547,13 @@ async function despacharUno(
       } catch (errAlRechazar) {
         // No se pudo guardar el rechazo (es nuestro, ARCA contestó): el envío sigue abierto y se
         // reintenta; el resto del lote sigue.
-        await anotarFallaYSoltar(enSuNegocio, envio, token, motivoDelError(errAlRechazar));
+        await anotarFallaYSoltar(
+          enSuNegocio,
+          envio,
+          token,
+          motivoDelError(errAlRechazar),
+          despuesDeLaFalla("sistema", envio.attempts, opciones.politica ?? POLITICA_DE_REINTENTOS),
+        );
         logger.error("arca", "no se pudo guardar el rechazo de ARCA de un envío", errAlRechazar, { tenantId: envio.tenantId });
         resumen.fallidos++;
         opciones.alFallarPorElSistema?.(envio.id);
@@ -422,8 +564,24 @@ async function despacharUno(
       // el evento se reintenta. El reintento consulta antes de pedir otro CAE (ENG-020).
       // Si la falla es nuestra (`esErrorDelSistema`), además queda en el log y se avisa: la
       // pantalla no se la achaca a ARCA ni la vuelve a mandar en el mismo toque.
-      await anotarFallaYSoltar(enSuNegocio, envio, token, motivoDelError(err));
+      // Motor de facturación: con espera creciente; detenido al tope o si falta un dato fiscal;
+      // con ARCA no disponible (interruptor abierto), se pospone sin contar y se corta la corrida.
+      const clase = clasificarFalla(err);
+      if (clase === "arca_no_disponible") {
+        const hasta = (err as ArcaNoDisponibleError).reabreEn;
+        await posponerSinContar(enSuNegocio, envio, token, hasta, motivoDelError(err));
+        resumen.pospuestos = (resumen.pospuestos ?? 0) + 1;
+        resumen.arcaNoDisponible = true;
+        return;
+      }
+      const despues = despuesDeLaFalla(
+        clase === "rechazo" ? "sistema" : clase,
+        envio.attempts,
+        opciones.politica ?? POLITICA_DE_REINTENTOS,
+      );
+      await anotarFallaYSoltar(enSuNegocio, envio, token, motivoDelError(err), despues);
       resumen.fallidos++;
+      if (despues.detener) resumen.detenidos = (resumen.detenidos ?? 0) + 1;
       if (esErrorDelSistema(err)) {
         logger.error("arca", "un envío falló por un error del sistema, no de ARCA", err, { tenantId: envio.tenantId });
         opciones.alFallarPorElSistema?.(envio.id);

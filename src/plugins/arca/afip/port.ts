@@ -49,13 +49,42 @@ export class ArcaRechazoError extends Error {
  * que ARCA autorizó, el reintento lo descubre consultando (ENG-020) y no pide otro CAE.
  */
 export class ArcaPasajeroError extends Error {
+  /**
+   * Motor de facturación · el servicio de ARCA que no contestó (host de WSAA o WSFEv1), cuando la
+   * falla es del servicio entero (sin red, sin respuesta a tiempo, HTTP que no es 2xx) y no del
+   * comprobante. Lo usa el interruptor por servicio (`interruptor.ts`). Vacío: la falla es pasajera
+   * pero ARCA sí contestó (600 token, 10016, 501 interno…).
+   */
+  readonly servicioCaido?: string;
+
   constructor(
     message: string,
     readonly observaciones: ObservacionArca[] = [],
-    options?: { cause?: unknown },
+    options?: { cause?: unknown; servicioCaido?: string },
   ) {
     super(message, options);
     this.name = 'ArcaPasajeroError';
+    this.servicioCaido = options?.servicioCaido;
+  }
+}
+
+/**
+ * Motor de facturación · el interruptor del servicio está ABIERTO (ARCA viene cayéndose): no se
+ * mandó nada. No es culpa del comprobante ni cuenta como intento: el envío se pospone hasta que
+ * el interruptor deje probar de nuevo (`reabreEn`).
+ */
+export class ArcaNoDisponibleError extends ArcaPasajeroError {
+  constructor(
+    readonly servicio: string,
+    readonly reabreEn: Date,
+  ) {
+    super(
+      `ARCA (${servicio}) viene sin responder: no se le manda nada hasta las ` +
+        `${reabreEn.toISOString()} (interruptor abierto). El comprobante sigue pendiente.`,
+      [],
+      { servicioCaido: servicio },
+    );
+    this.name = 'ArcaNoDisponibleError';
   }
 }
 

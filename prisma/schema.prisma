@@ -266,6 +266,9 @@ model Tenant {
   conversacionesWhatsapp   ConversacionWhatsapp[]
   receptoresFiscales       ReceptorFiscal[]
   arcaAuthTickets          ArcaAuthTicket[]
+  // Motor de facturación (20261022120000_motor_facturacion_lotes): lotes y borradores.
+  lotesFacturacion         LoteFacturacion[]
+  borradoresComprobante    BorradorComprobante[]
 
   // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
   // La gestiona el plano de operador (superficie separada, cross-tenant), no el
@@ -1088,6 +1091,9 @@ model Invoice {
   comprobanteAsociado   Invoice?           @relation("ComprobanteAsociado", fields: [tenantId, comprobanteAsociadoId], references: [tenantId, id], onDelete: Restrict)
   notasAsociadas        Invoice[]          @relation("ComprobanteAsociado")
   envios                EnvioComprobante[]
+  // Motor de facturación: el borrador (de un lote o de una nota de crédito) del que salió.
+  // Sólo relación: la columna vive en BorradorComprobante (Invoice no cambia).
+  borradores            BorradorComprobante[]
 
   @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
   @@unique([tenantId, puntoVenta, tipoComprobante, numero]) // guarda anti-duplicado de numeración fiscal (spec §1). NULLs (PENDING) no colisionan.
@@ -2301,6 +2307,57 @@ model EnvioComprobante {
 
   @@unique([tenantId, invoiceId, canal])
   @@index([wamid]) // estados de entrega del webhook
+}
+
+// --- MOTOR DE FACTURACIÓN: lotes y borradores (src/lib/facturacion/motor.server.ts) ---
+// Los crea `20261022120000_motor_facturacion_lotes`: SIN APLICAR en Neon (Gate 2), fuera de
+// prisma/lote-deploy.txt. RLS viaja con la migración (tenant_isolation).
+//
+// Un LOTE es una corrida de facturación automática (p. ej. «abonos de octubre 2026»): `clave` lo
+// hace idempotente (generar dos veces el mismo lote devuelve el mismo). Un BORRADOR es un
+// comprobante PROPUESTO todavía sin valor fiscal: se revisa, se emite (recién ahí nace la
+// Invoice PENDING + su envío a ARCA) o se descarta. `clave` es la llave de idempotencia de cada
+// comprobante (regla + período, o la nota de crédito pedida): el mismo borrador no se crea dos
+// veces y uno emitido no se vuelve a emitir (`invoiceId` único). Estados y clase son texto
+// validado en el código y con CHECK en la base.
+model LoteFacturacion {
+  id           String                @id @default(cuid())
+  tenant       Tenant                @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  clave        String // idempotencia del lote: "abonos:2026-10"
+  periodo      String // AAAA-MM
+  fechaEmision String // AAAAMMDD: la fecha de los comprobantes del lote
+  descripcion  String?
+  creadoPor    String?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  borradores   BorradorComprobante[]
+
+  @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
+  @@unique([tenantId, clave])
+}
+
+model BorradorComprobante {
+  id        String           @id @default(cuid())
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  loteId    String? // nulo: un comprobante suelto (la nota de crédito pedida a mano)
+  lote      LoteFacturacion? @relation(fields: [tenantId, loteId], references: [tenantId, id], onDelete: Restrict)
+  clave     String // idempotencia del comprobante dentro del negocio
+  clase     String           @default("factura") // factura | nota_credito
+  estado    String           @default("borrador") // borrador | revision | emitido | descartado
+  datos     Json // CreateInvoiceInput sin tenantId (lo que se va a emitir)
+  total     Decimal          @db.Decimal(14, 2)
+  motivos   Json? // por qué está en revisión (los de la decisión fiscal)
+  invoiceId String?
+  invoice   Invoice?         @relation(fields: [tenantId, invoiceId], references: [tenantId, id], onDelete: Restrict)
+  emitidoEn DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([tenantId, clave])
+  @@unique([tenantId, invoiceId]) // una Invoice sale de un solo borrador (NULLs no colisionan)
+  @@index([tenantId, loteId, estado])
 }
 
 // --- Caché del ticket de acceso de ARCA (promovida de prisma/pending-gate2/ArcaAuthTicket.sql) ---

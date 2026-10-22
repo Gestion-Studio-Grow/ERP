@@ -72,11 +72,31 @@ export interface CreateInvoiceInput {
    * piden: reciben la misma factura rechazada, sin reenviar los mismos datos.
    */
   reabrirSiRechazada?: boolean;
+  /**
+   * Motor de facturación · Default factura. `nota_credito`: anula (total o parcialmente) el
+   * comprobante `asociado`, que tiene que estar AUTORIZADO (CbtesAsoc). Lo arma
+   * `emitirNotaDeCredito` (src/lib/facturacion/motor.server.ts), que controla el saldo.
+   */
+  clase?: "factura" | "nota_credito";
+  /** La factura que corrige la nota (su fila y sus datos ante ARCA). Sólo con `clase: nota_credito`. */
+  asociado?: ComprobanteAsociadoInput;
+}
+
+/** El comprobante que corrige una nota de crédito: la fila del Core y cómo lo conoce ARCA. */
+export interface ComprobanteAsociadoInput {
+  invoiceId: string;
+  cbteTipo: number;
+  puntoVenta: number;
+  numero: number;
+  /** AAAAMMDD. */
+  fecha: string;
 }
 
 /** Forma del payload del evento `InvoiceCreated` que viaja por el outbox. */
 export interface InvoiceCreatedPayload
-  extends Omit<CreateInvoiceInput, "tenantId" | "origin" | "reabrirSiRechazada"> {
+  extends Omit<CreateInvoiceInput, "tenantId" | "origin" | "reabrirSiRechazada" | "asociado"> {
+  /** Nota de crédito: la factura que corrige, como la conoce ARCA (CbtesAsoc). */
+  asociado?: { cbteTipo: number; puntoVenta: number; numero: number; fecha: string };
   invoiceId: string;
   tenantId: string;
   /**
@@ -356,6 +376,7 @@ function datosDelComprobante(input: CreateInvoiceInput) {
     ivaDesglose: input.iva as unknown as object, // desglose por alícuota (audit)
     total: input.total,
     status: "PENDING" as const,
+    ...(input.clase === "nota_credito" && input.asociado ? { comprobanteAsociadoId: input.asociado.invoiceId } : {}),
   };
 }
 
@@ -379,6 +400,17 @@ async function encolarInvoiceCreated(
     servicioDesde: input.servicioDesde,
     servicioHasta: input.servicioHasta,
     vencimientoPago: input.vencimientoPago,
+    ...(input.clase === "nota_credito" && input.asociado
+      ? {
+          clase: "nota_credito" as const,
+          asociado: {
+            cbteTipo: input.asociado.cbteTipo,
+            puntoVenta: input.asociado.puntoVenta,
+            numero: input.asociado.numero,
+            fecha: input.asociado.fecha,
+          },
+        }
+      : {}),
   };
 
   await tx.outboxEvent.create({
