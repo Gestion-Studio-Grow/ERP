@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Gestión Studio Grow">
+<meta name="robots" content="noindex">
+<title>Sin conexión · Facturita</title>
+<link rel="icon" href="/facturita/icon.svg" type="image/svg+xml">
+<style>
+  /* Página que guarda el service worker de Facturita: tiene que andar sola, sin red, sin el CSS
+     de la app. Los valores espejan los tokens de la piel Fable (globals.css [data-skin="fable"])
+     y el acento ámbar de Facturita (branding.ts ACCENT_PRESETS.ambar). */
+  :root {
+    --surface: #f5f5f7; /* design-lint-ignore: página offline autónoma, espeja --surface de Fable */
+    --surface-raised: #ffffff; /* design-lint-ignore: espeja --surface-raised de Fable */
+    --text-strong: #1d1d1f; /* design-lint-ignore: espeja --text-strong de Fable */
+    --text-muted: #6e6e73; /* design-lint-ignore: espeja --text-muted de Fable */
+    --line: rgba(0, 0, 0, 0.08);
+    --accent: #9a6a1f; /* design-lint-ignore: espeja ACCENT_PRESETS.ambar.light */
+    --on-accent: #ffffff; /* design-lint-ignore: espeja ACCENT_PRESETS.ambar.onLight */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #15140f; /* design-lint-ignore: espeja --surface oscuro */
+      --surface-raised: #201e17; /* design-lint-ignore: espeja --surface-raised oscuro */
+      --text-strong: #f0ebde; /* design-lint-ignore: espeja --text-strong oscuro */
+      --text-muted: #928b7b; /* design-lint-ignore: espeja --text-muted oscuro */
+      --line: rgba(255, 255, 255, 0.1);
+      --accent: #e0a83e; /* design-lint-ignore: espeja ACCENT_PRESETS.ambar.dark */
+      --on-accent: #1b1508; /* design-lint-ignore: espeja ACCENT_PRESETS.ambar.onDark */
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem 1rem;
+    background: var(--surface);
+    color: var(--text-strong);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main {
+    max-width: 26rem;
+    width: 100%;
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    padding: 2rem 1.5rem;
+    text-align: center;
+  }
+  img { display: block; margin: 0 auto 1rem; }
+  h1 { font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.02em; margin: 0 0 0.5rem; }
+  p { color: var(--text-muted); margin: 0 0 1.5rem; }
+  button {
+    font: inherit;
+    font-weight: 600;
+    min-height: 2.75rem;
+    padding: 0 1.5rem;
+    border: 0;
+    border-radius: 0.625rem;
+    background: var(--accent);
+    color: var(--on-accent);
+    cursor: pointer;
+  }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+</style>
+</head>
+<body>
+<main>
+  <img src="/facturita/icon.svg" alt="" width="56" height="56">
+  <h1>Estás sin internet</h1>
+  <p>Para emitir una factura hace falta conexión, porque ARCA la tiene que aprobar en el momento. No se perdió nada: cuando vuelva la señal, seguís donde estabas.</p>
+  <button type="button" onclick="location.reload()">Probar de nuevo</button>
+</main>
+</body>
+</html>

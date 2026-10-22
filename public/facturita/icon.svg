@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Facturita">
+  <rect width="512" height="512" rx="112" fill="#9a6a1f"/>
+  <path d="M152 104h208v304l-26-18-26 18-26-18-26 18-26-18-26 18-26-18-26 18z" fill="#ffffff"/>
+  <path d="M212 168h96v28h-64v36h52v28h-52v68h-32z" fill="#9a6a1f"/>
+</svg>
