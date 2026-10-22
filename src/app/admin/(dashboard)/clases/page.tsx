@@ -1,8 +1,10 @@
 import { Suspense } from "react";
-import { unstable_rethrow } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { AvisoError, EmptyState, Esqueleto, Plata } from "@/components/ui";
-import { hoy } from "@/lib/padel/datos.server";
+import { configPadel, franjas, hoy } from "@/lib/padel/datos.server";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { necesitaBienvenida, RUTA_BIENVENIDA } from "./bienvenida/necesita";
 import { MEDIO_LABEL, diaCorto, horaHumana, linkWhatsApp, pesos, sumarDias, type MedioPago } from "@/lib/padel/core";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { TarjetaClase } from "./_vista";
@@ -24,6 +26,10 @@ const titulo = "mb-2 text-sm font-bold uppercase tracking-wide text-strong";
 // red, «Reintentar» (nunca pantalla en blanco).
 export default async function ClasesHoy() {
   await requireApp("padel-clases");
+  // Profe que todavía no configuró nada (sin precio ni horarios): a la Bienvenida (M-083).
+  const tenantId = await getCurrentTenantId();
+  const [config, fr] = await Promise.all([configPadel(tenantId), franjas(tenantId)]);
+  if (necesitaBienvenida({ precioIndividual: config.precioIndividual, franjas: fr })) redirect(RUTA_BIENVENIDA);
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <Suspense fallback={<EsqueletoHoy />}>
