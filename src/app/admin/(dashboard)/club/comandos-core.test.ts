@@ -7,7 +7,7 @@ import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo, textoDelEstado } from "./almacen";
 import { horariosLibres } from "./alta-core";
-import { correrComando, rebasar, vaSinInternet, type ArgsDe, type Comando, type NombreDeComando } from "./comandos-core";
+import { comandoSinPin, correrComando, describirComando, rebasar, vaSinInternet, type ArgsDe, type Comando, type NombreDeComando } from "./comandos-core";
 
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -121,13 +121,62 @@ test("lista blanca: un nombre que no está (o uno del prototipo) no corre, ni co
   assert.equal(JSON.stringify(e), antes, "nada cambió");
 });
 
-test("misma pestaña sin recargar: el contador ya pasó y los ids salen distintos — se avisa, no se esconde", () => {
+test("misma pestaña sin recargar (o «Volver a aplicar» una hora después): aunque el contador ya pasó, salen los MISMOS ids y nunca se repite uno", () => {
   const b = base();
   const local = b.abrir();
   const { alta } = sabadoSinInternet(local);
-  const r = rebasar(b.abrir(), [alta], new Set()); // sin `base()`: el contador sigue donde quedó
+  const turno = local.reservas.at(-1)!;
+  const contador = M.secuenciaIds();
+  const otra = b.abrir();
+  const r = rebasar(otra, [alta], new Set()); // sin `base()`: el contador sigue donde quedó
   assert.equal(r.aplicados.length, 1);
-  assert.equal(r.idsDistintos, true);
+  assert.equal(r.idsDistintos, false);
+  assert.equal(otra.reservas.at(-1)!.id, turno.id, "el mismo id de turno");
+  assert.equal(otra.reservas.at(-1)!.ref, turno.ref, "el mismo código de seña");
+  assert.equal(M.secuenciaIds(), contador, "el contador queda en lo más alto: lo próximo no repite un id");
+});
+
+test("con el prefijo del puesto: re-aplicado en OTRO puesto (otro prefijo en el proceso) da los ids del puesto donde se hizo", () => {
+  const b = base();
+  const local = b.abrir();
+  const inicio = horariosLibres(local, HOY, "c4", 60, AHORA)[0].min;
+  const datos = { canchaId: "c4", fecha: HOY, inicio, duracion: 60, tipo: "turno" as const, titular: "Grupo de Bruno", clienteId: null, otros: "" };
+  const c: Comando<"alta"> = { id: "x1", equipo: "tab1", persona: "u-lu", versionBase: 1, version: M.VERSION_ESTADO, nombre: "alta", args: [datos], ahora: AHORA, auth: recepcion(local), azar: 77, idsDesde: M.secuenciaIds(), prefijo: "tab1-" };
+  assert.equal(correrComando(local, c).ok, true);
+  const id = local.reservas.at(-1)!.id;
+  assert.match(id, /^tab1-/);
+  M.prefijoIds("pc01-");
+  const otra = b.abrir();
+  assert.equal(correrComando(otra, c).ok, true);
+  assert.equal(otra.reservas.at(-1)!.id, id, "el mismo id, con el prefijo de la tablet");
+  M.prefijoIds("");
+});
+
+test("(e) describirComando: qué se hizo en criollo, con la hora, quién y en qué puesto — nunca un PIN", () => {
+  const e = base().abrir();
+  const r = e.reservas.find((x) => x.fecha === HOY && x.canchaId === "c2" && x.estado !== "cancelada")!;
+  const c: Comando<"cuenta"> = {
+    id: "x",
+    equipo: "tab1",
+    puesto: "tablet",
+    persona: "u-lu",
+    versionBase: 1,
+    version: M.VERSION_ESTADO,
+    nombre: "cuenta",
+    args: [r.id, { tipo: "cobrarCancha", monto: 9000, medio: "efectivo" }],
+    ahora: { fecha: HOY, min: 19 * 60 + 42 },
+    auth: { usuarioId: "u-lu", pin: "33" },
+    azar: 1,
+    idsDesde: 0,
+  };
+  assert.equal(describirComando(c, e), `19:42 · Cobro $ 9.000 efectivo a ${r.titular} (turno ${M.hhmm(r.inicio)} C2) · Lu (tablet)`);
+  // Sin el estado (otro puesto que no tiene ese turno), lo que dice el comando, sin romperse.
+  assert.equal(describirComando(c), "19:42 · Cobro $ 9.000 efectivo a quien jugaba · tablet");
+  const alta: Comando<"alta"> = { ...c, nombre: "alta", args: [{ canchaId: "c2", fecha: HOY, inicio: 21 * 60, duracion: 90, tipo: "turno", titular: "Juan", clienteId: null, otros: "" }] } as Comando<"alta">;
+  assert.equal(describirComando(alta, e), "19:42 · Turno a Juan en C2 a las 21:00 (90 min) · Lu (tablet)");
+  const sinPin = comandoSinPin({ ...c, nombre: "caja", args: [{ tipo: "egreso", monto: 500, concepto: "hielo", pin: "1111" }] } as unknown as Comando);
+  assert.doesNotMatch(JSON.stringify(sinPin), /"pin"/, "ni el del operador ni el tipeado");
+  assert.equal(describirComando(sinPin, e), "19:42 · Egreso de caja $ 500 «hielo» · Lu (tablet)");
 });
 
 test("qué va sin internet (D4, versión del Challenger): sólo lo que hace entrar plata en efectivo o créditos; egreso, devolución, MP, transferencia, débito, cierre y reordenar la agenda no", () => {
