@@ -14,7 +14,7 @@
 // - Un texto de WhatsApp: `plantilla.<clave>` con <clave> de CLAVES_PLANTILLA. Vacío o igual al de
 //   fábrica = «Restaurar original» (se borra del JSON y vuelve el de fábrica).
 // - `horarios`: la grilla semanal entera, en UN guardado (M-079: «Copiar a…» deja 4 días con 8–12
-//   de una). Reemplaza las franjas semanales, igual que `guardarHorarios`.
+//   de una). Reemplaza las franjas semanales (el `guardarHorarios(FormData)` de antes se retiró: O-9c).
 // - `bienvenidaVista` (sólo `true`): la marca «ya vio la Bienvenida» (O-9), en el mismo JSON que los
 //   textos. Los textos y la marca se reescriben en Serializable (F-2, acciones-config.ts).
 

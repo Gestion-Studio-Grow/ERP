@@ -27,7 +27,24 @@ import { requestIp } from "@/lib/audit-core";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { ESTADOS_QUE_OCUPAN, armarMensaje, diaHumano, horaHumana, pesos, plantillaConfirmada, saldoAFavor, saldoCubre, tokenValido, type ClavePlantilla } from "./core";
+import {
+  ESTADOS_QUE_OCUPAN,
+  armarMensaje,
+  choqueDeTraslado,
+  costoDeLaClase,
+  descontarPaquete,
+  diaHumano,
+  estadoPaquete,
+  horaHumana,
+  pesos,
+  plantillaConfirmada,
+  precioConPaquete,
+  saldoAFavor,
+  saldoCubre,
+  tokenValido,
+  type ClavePlantilla,
+} from "./core";
+import { clubDelNegocio, type ClubPanel } from "./datos-modelo.server";
 import type { ConfigPadel } from "./datos.server";
 import { notificadorActual } from "./notificador";
 import { regenerarAlReconocer } from "./sesion-alumno";
@@ -59,23 +76,33 @@ export class ErrorNegocio extends Error {}
 export const SE_OCUPO_A_LA_VEZ = "Se ocupó recién: alguien lo tomó al mismo tiempo. Elegí otro horario.";
 
 /**
+ * O-16b (CERT T2+T3, vuelta 3): lo mismo para las acciones que NO son de horario (cobrar, devolver el
+ * saldo, editar un alumno, validar un comprobante): ahí «Elegí otro horario» no tiene sentido.
+ */
+export const OTRA_PERSONA_CAMBIO = "Otra persona cambió esto recién. Probá de nuevo.";
+
+/**
  * El error como respuesta para la pantalla, o null si tiene que subir. Un ErrorNegocio, tal cual.
  * Un conflicto de escritura que siguió chocando después de los reintentos de `bookingTransaction`
  * (O-16 de la CERT T2+T3) también es «se ocupó», no un 500: así la pantalla del alumno sabe que fue
  * un choque y no un corte, y puede decir la verdad en cada caso.
  */
-export function respuestaDeError(e: unknown): { ok: false; error: string } | null {
+export function respuestaDeError(e: unknown, textoChoque: string = SE_OCUPO_A_LA_VEZ): { ok: false; error: string } | null {
   if (e instanceof ErrorNegocio) return { ok: false, error: e.message };
-  if (esConflictoDeEscritura(e)) return { ok: false, error: SE_OCUPO_A_LA_VEZ };
+  if (esConflictoDeEscritura(e)) return { ok: false, error: textoChoque };
   return null;
 }
 
-/** Corre la acción y convierte un ErrorNegocio (o un choque que no se pudo reintentar) en `{ ok: false, error }`. */
-export async function conErrorNegocio<T>(fn: () => Promise<T>): Promise<T | { ok: false; error: string }> {
+/**
+ * Corre la acción y convierte un ErrorNegocio (o un choque que no se pudo reintentar) en `{ ok: false, error }`.
+ * `textoChoque`: lo que se dice si chocó con otra escritura (por defecto, el de horario; las acciones
+ * de plata o de datos pasan OTRA_PERSONA_CAMBIO).
+ */
+export async function conErrorNegocio<T>(fn: () => Promise<T>, textoChoque?: string): Promise<T | { ok: false; error: string }> {
   try {
     return await fn();
   } catch (e) {
-    const r = respuestaDeError(e);
+    const r = respuestaDeError(e, textoChoque);
     if (r) return r;
     throw e;
   }
@@ -338,4 +365,78 @@ export async function avisarAlAlumno(p: {
 
 export async function avisarAlProfe(tenantId: string, tipo: string, texto: string, claseId: string | null, alumnoId: string | null) {
   await prisma.padelAviso.create({ data: { tenantId, destino: "PROFE", tipo, texto, claseId, alumnoId } });
+}
+
+// ── T4: paquete y club (sólo se llaman con la migración aplicada: modeloT4() en true) ──────────
+
+/**
+ * Dar una clase con el paquete (M-118/M-119), ADENTRO de la transacción: el paquete vigente que vence
+ * primero pierde una clase (condicionado a `clasesUsadas` leído: dos «Dada» a la vez no usan la misma
+ * dos veces) y la clase queda «Pagada con paquete» por lo que vale una clase del paquete. Sin paquete
+ * vigente → null; si sólo hay clases vencidas, `info.vencidas` para que la pantalla ofrezca «Extender».
+ */
+export async function usarPaqueteEnTx(
+  tx: Tx,
+  tenantId: string,
+  alumnoId: string,
+  ahora: Date,
+): Promise<{
+  data: Record<string, unknown> | null;
+  info: { usado: boolean; paqueteAlumnoId?: string; nombre?: string; quedan?: number; ofrecerRenovar?: boolean; vencidas?: number; precioPaquete?: number };
+} | null> {
+  const paquetes = await tx.padelPaqueteAlumno.findMany({
+    where: { tenantId, alumnoId },
+    orderBy: { venceEl: "asc" },
+    take: 20,
+    select: { id: true, clasesTotal: true, clasesUsadas: true, precio: true, venceEl: true, extendidoHasta: true, paquete: { select: { nombre: true, precio: true } } },
+  });
+  const vigente = paquetes.find((p) => estadoPaquete(p, ahora).vigente);
+  if (!vigente) {
+    const vencidas = paquetes.filter((p) => estadoPaquete(p, ahora).vencido).reduce((s, p) => s + estadoPaquete(p, ahora).quedan, 0);
+    return vencidas > 0 ? { data: null, info: { usado: false, vencidas } } : null;
+  }
+  const d = descontarPaquete(vigente, ahora);
+  if (!d.ok) return null;
+  const n = await tx.padelPaqueteAlumno.updateMany({
+    where: { tenantId, id: vigente.id, clasesUsadas: vigente.clasesUsadas },
+    data: { clasesUsadas: d.clasesUsadas },
+  });
+  if (n.count === 0) throw new ErrorNegocio("El paquete cambió recién. Actualizá la pantalla.");
+  const { precio } = precioConPaquete(0, vigente, ahora);
+  return {
+    // Sin `pagoValidadoEl`: la plata del paquete entró cuando se vendió (no se cuenta dos veces en Plata).
+    data: { pagoEstado: "PAGADO", pagoMedio: "PAQUETE", paqueteAlumnoId: vigente.id, precio, pagado: precio },
+    info: { usado: true, paqueteAlumnoId: vigente.id, nombre: vigente.paquete.nombre, quedan: d.quedan, ofrecerRenovar: d.ofrecerRenovar, precioPaquete: Number(vigente.paquete.precio) },
+  };
+}
+
+/**
+ * El club (de ESTE negocio) donde va una clase, lo que cuesta su cancha y si el profe llega de/a las
+ * otras clases del día en otro club (M-123). `excluir`: la clase que se está moviendo.
+ */
+export async function clubYTraslado(
+  tenantId: string,
+  clubId: string,
+  empiezaEn: Date,
+  terminaEn: Date,
+  trasladoDefault: number,
+  excluir?: string,
+): Promise<{ error: string } | { club: ClubPanel; costoCancha: number | null; noLlega: string | null }> {
+  const club = await clubDelNegocio(tenantId, String(clubId).slice(0, 40));
+  if (!club || !club.activo) return { error: "No encontramos ese club." };
+  const DIA = 86_400_000;
+  const vecinas = await prisma.padelClase.findMany({
+    where: {
+      tenantId, estado: { in: [...ESTADOS_QUE_OCUPAN] }, clubId: { not: null },
+      empiezaEn: { gte: new Date(empiezaEn.getTime() - DIA / 2), lt: new Date(terminaEn.getTime() + DIA / 2) },
+      ...(excluir ? { id: { not: excluir } } : {}),
+    },
+    select: { id: true, empiezaEn: true, terminaEn: true, club: { select: { id: true, nombre: true, trasladoMin: true, costoCancha: true, modoCobroClub: true } } },
+  });
+  const choque = choqueDeTraslado(
+    { empiezaEn, terminaEn, club },
+    vecinas.map((v) => ({ ...v, club: v.club ? { ...v.club, costoCancha: v.club.costoCancha == null ? null : Number(v.club.costoCancha) } : null })),
+    trasladoDefault,
+  );
+  return { club, costoCancha: costoDeLaClase(club, (terminaEn.getTime() - empiezaEn.getTime()) / 60_000), noLlega: choque?.mensaje ?? null };
 }

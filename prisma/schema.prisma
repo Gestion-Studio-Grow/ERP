@@ -245,6 +245,14 @@ model Tenant {
   padelAlumnos             PadelAlumno[]
   padelClases              PadelClase[]
   padelAvisos              PadelAviso[]
+  // T4 (migración 20261023120000_padel_reingenieria, SIN aplicar en Neon: Gate 2).
+  padelClubes              PadelClub[]
+  padelSeries              PadelSerie[]
+  padelPaquetes            PadelPaquete[]
+  padelPaquetesAlumno      PadelPaqueteAlumno[]
+  padelParticipantes       PadelParticipante[]
+  padelSuscripcionesPush   PadelSuscripcionPush[]
+  padelEsperas             PadelEspera[]
   invoices                 Invoice[]
   outboxEvents             OutboxEvent[]
   orders                   Order[]
@@ -2872,6 +2880,17 @@ model PadelConfig {
   whatsappProfe       String? // el celular del profe para el wa.me del alumno
   plantillas          Json? // { clave: texto } — sólo las que el profe editó
   updatedAt           DateTime @updatedAt
+  // ── T4 (20261023120000_padel_reingenieria). OJO schema-ahead: estas columnas NO existen en una
+  // base sin la migración. Toda lectura de PadelConfig lleva `select` explícito (src/lib/padel/
+  // modelo.ts → COLUMNAS_T4; guardia en modelo-t4.test.ts). Los defaults van con `dbgenerated`:
+  // Prisma 7 manda en el INSERT los `@default(valor)` (medido: «column ausenteSeCobra does not
+  // exist» al crear una config en una base sin la migración); con `dbgenerated` los pone la base.
+  ausenteSeCobra      Boolean  @default(dbgenerated("false")) // «No vino» arranca marcado «Se cobra igual»
+  tardiaSeCobra       Boolean  @default(dbgenerated("false")) // avisar tarde que no va → «Cancelada tarde · debe»
+  confirmarConocidos  Boolean  @default(dbgenerated("true")) // un alumno que ya tomó clases nace CONFIRMADA
+  cierreAutoHoras     Int      @default(dbgenerated("0")) // 0 = no; N = la CONFIRMADA pasa a DADA N horas después (T6)
+  recordatorioHora    String? // "20:00" del día anterior (T6, modo cloud)
+  trasladoMinDefault  Int      @default(dbgenerated("0")) // minutos de viaje entre clubes si el club no dice
 }
 
 // Franja semanal (diaSemana 0..6) o excepción de un día (fecha). tipo DA = da clases;
@@ -2886,6 +2905,9 @@ model PadelDisponibilidad {
   hasta      String // "12:00"
   tipo       String    @default("DA") // DA · NO
   createdAt  DateTime  @default(now())
+  // T4: en qué club da ese tramo (null = sin club / el de siempre). Schema-ahead: ver PadelConfig.
+  club       PadelClub? @relation(fields: [clubId], references: [id])
+  clubId     String?
 
   @@index([tenantId, diaSemana])
   @@index([tenantId, fecha])
@@ -2905,6 +2927,11 @@ model PadelAlumno {
   recibeAvisos Boolean      @default(true)
   clases       PadelClase[]
   avisos       PadelAviso[]
+  // T4 (relaciones, sin columnas nuevas en esta tabla).
+  series       PadelSerie[]
+  paquetes     PadelPaqueteAlumno[]
+  participaEn  PadelParticipante[]
+  esperas      PadelEspera[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -2943,11 +2970,33 @@ model PadelClase {
   avisos               PadelAviso[]
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
+  // ── T4 (20261023120000_padel_reingenieria). Schema-ahead: estas columnas NO existen en una base
+  // sin la migración. Toda lectura y escritura de PadelClase lleva `select` explícito (nunca el
+  // registro entero), y lo nuevo se pide sólo con `modeloT4()` en true (src/lib/padel/modelo.server.ts).
+  // Defaults con `dbgenerated` (ver PadelConfig): un alta de clase no nombra las columnas nuevas.
+  club                 PadelClub?          @relation(fields: [clubId], references: [id])
+  clubId               String?
+  serie                PadelSerie?         @relation(fields: [serieId], references: [id])
+  serieId              String?
+  // La fecha (AR) de la ocurrencia de la serie que generó esta clase: generarSemana no la duplica
+  // aunque el profe la haya movido de hora o el alumno la haya cancelado esa semana.
+  serieFecha           DateTime?           @db.Date
+  paqueteAlumno        PadelPaqueteAlumno? @relation(fields: [paqueteAlumnoId], references: [id])
+  paqueteAlumnoId      String?
+  cupo                 Int? // grupal abierta: cuántos lugares (null = no es abierta)
+  pagado               Decimal             @default(dbgenerated("0")) @db.Decimal(14, 2) // pago parcial: lo que ya entró
+  seCobra              Boolean             @default(dbgenerated("true")) // espejo de «No vino / tardía se cobra» (la regla vive en motivoCancel)
+  nota                 String? // nota del profe sobre esa clase
+  costoCancha          Decimal?            @db.Decimal(14, 2) // lo que le cuesta al profe ESA clase en el club, congelado al agendar
+  participantes        PadelParticipante[]
 
   @@index([tenantId, empiezaEn])
   @@index([tenantId, estado])
   @@index([tenantId, alumnoId])
   @@index([tenantId, pagoEstado])
+  @@unique([serieId, serieFecha])
+  @@index([tenantId, clubId])
+  @@index([tenantId, paqueteAlumnoId])
 }
 
 // La bandeja del profe (destino PROFE) y lo que se le avisa al alumno (destino ALUMNO).
@@ -2974,4 +3023,151 @@ model PadelAviso {
   @@unique([tenantId, idExterno])
   @@index([tenantId, destino, leidoEl])
   @@index([tenantId, createdAt])
+}
+
+// ============================================================================
+// PADEL-CLASES · T4 — clubes, turnos fijos, paquetes, grupales con participantes, push y espera.
+// Migración 20261023120000_padel_reingenieria (aditiva, RLS adentro). SIN aplicar en Neon: Gate 2.
+// El código anda con y sin ella (src/lib/padel/modelo.server.ts → modeloT4()).
+// ============================================================================
+
+// Un club donde el profe da clases, y lo que el profe le paga al club por la cancha.
+model PadelClub {
+  id            String                @id @default(cuid())
+  tenant        Tenant                @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  nombre        String
+  direccion     String?
+  mapsUrl       String?
+  trasladoMin   Int                   @default(0) // cuánto tarda el profe en llegar a ESTE club desde otro
+  costoCancha   Decimal?              @db.Decimal(14, 2) // por hora, por clase o por mes según modoCobroClub
+  modoCobroClub String? // por-hora · por-clase · mensual (lista blanca en core.ts)
+  techada       Boolean               @default(false)
+  activo        Boolean               @default(true)
+  createdAt     DateTime              @default(now())
+  franjas       PadelDisponibilidad[]
+  clases        PadelClase[]
+  series        PadelSerie[]
+
+  @@index([tenantId, activo])
+}
+
+// Turno fijo: «todos los martes 19:00». Las clases de cada semana las genera generarSemana.
+model PadelSerie {
+  id           String       @id @default(cuid())
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  alumno       PadelAlumno  @relation(fields: [alumnoId], references: [id])
+  alumnoId     String
+  diaSemana    Int // 0 = domingo … 6 = sábado
+  hora         String // "19:00"
+  duracionMin  Int          @default(60)
+  tipo         String       @default("INDIVIDUAL")
+  personas     Int          @default(1)
+  club         PadelClub?   @relation(fields: [clubId], references: [id])
+  clubId       String?
+  desde        DateTime     @db.Date
+  hasta        DateTime?    @db.Date
+  pausadaDesde DateTime?    @db.Date // pausa con fecha de inicio (M-115: 11–24/11); null = desde ya
+  pausadaHasta DateTime?    @db.Date
+  activa       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  clases       PadelClase[]
+
+  @@index([tenantId, activa])
+  @@index([tenantId, alumnoId])
+}
+
+// Un paquete que vende el profe («Pack 4 · $ 90.000 · 30 días»).
+model PadelPaquete {
+  id        String               @id @default(cuid())
+  tenant    Tenant               @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  nombre    String
+  clases    Int
+  precio    Decimal              @db.Decimal(14, 2)
+  venceDias Int
+  activo    Boolean              @default(true)
+  createdAt DateTime             @default(now())
+  ventas    PadelPaqueteAlumno[]
+
+  @@index([tenantId, activo])
+}
+
+// Un paquete vendido a un alumno: cuántas clases le quedan y hasta cuándo.
+model PadelPaqueteAlumno {
+  id             String       @id @default(cuid())
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  paquete        PadelPaquete @relation(fields: [paqueteId], references: [id])
+  paqueteId      String
+  alumno         PadelAlumno  @relation(fields: [alumnoId], references: [id])
+  alumnoId       String
+  clasesTotal    Int
+  clasesUsadas   Int          @default(0)
+  precio         Decimal      @db.Decimal(14, 2)
+  pagoEstado     String       @default("PENDIENTE") // PENDIENTE · PAGADO
+  pagoMedio      String?
+  compradoEl     DateTime     @default(now())
+  venceEl        DateTime
+  extendidoHasta DateTime?
+  // Doble toque en «Vender»: la misma clave no vende dos veces (nunca se cobra dos veces).
+  idempotencia   String?
+  clases         PadelClase[]
+
+  @@unique([tenantId, idempotencia])
+  @@index([tenantId, alumnoId])
+}
+
+// Cada persona de una grupal: su parte, su pago y su comprobante («1 de 3 pagaron»).
+model PadelParticipante {
+  id                   String       @id @default(cuid())
+  tenant               Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId             String
+  clase                PadelClase   @relation(fields: [claseId], references: [id])
+  claseId              String
+  alumno               PadelAlumno? @relation(fields: [alumnoId], references: [id])
+  alumnoId             String? // null = «lugar libre» (todavía sin alumno)
+  nombre               String?
+  precio               Decimal      @db.Decimal(14, 2)
+  pagoEstado           String       @default("PENDIENTE")
+  pagoMedio            String?
+  comprobante          String?
+  comprobanteEnviadoEl DateTime?
+  pagoValidadoEl       DateTime?
+  pagoNota             String?
+  createdAt            DateTime     @default(now())
+
+  @@unique([claseId, alumnoId])
+  @@index([tenantId, claseId])
+  @@index([tenantId, alumnoId])
+}
+
+// Suscripción a Web Push del panel del profe (T6).
+model PadelSuscripcionPush {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  userId    String?
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, endpoint])
+}
+
+// «Avisame si se libera» (T6).
+model PadelEspera {
+  id        String      @id @default(cuid())
+  tenant    Tenant      @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  alumno    PadelAlumno @relation(fields: [alumnoId], references: [id])
+  alumnoId  String
+  fecha     DateTime?   @db.Date
+  desde     String?
+  hasta     String?
+  createdAt DateTime    @default(now())
+
+  @@index([tenantId, fecha])
 }

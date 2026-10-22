@@ -40,18 +40,26 @@ import {
   puedePedir,
   puedeSubirComprobante,
   repetidaNaceConfirmada,
+  naceConfirmada,
+  lugarTomado,
+  lugaresLibres,
+  MOTIVO_TARDIA_SE_COBRA,
+  pesos as pesosTxt,
   telefonoAlumno,
   textoMensajeValido,
   tokenValido,
   type TipoClase,
 } from "./core";
 import { configPadel, datosDelNegocio, libresCercanos, libresDelDia } from "./datos.server";
+import { SIN_ACTUALIZACION, faltaModeloT4 } from "./modelo";
+import { modeloT4 } from "./modelo.server";
 import { notificadorActual } from "./notificador";
 import { conPisoDeTiempo, decidirPedidoDeLink, politicaDeToken } from "./sesion-alumno";
 import { escribirTokenCookie, leerTokenCookie } from "./sesion-alumno.server";
 import {
   DIEZ_MIN,
   ErrorNegocio,
+  OTRA_PERSONA_CAMBIO,
   FRENADO,
   LINK_INVALIDO,
   alumnoDelLink,
@@ -353,7 +361,8 @@ export async function reservarDesdeLink(
     return { ok: false, error: "Ese horario ya no está libre.", alternativas: await libresCercanos(tenantId, empiezaEn) };
   }
   const tipo: TipoClase = esTipoClase(base.tipo) ? base.tipo : "INDIVIDUAL";
-  const confirmada = repetidaNaceConfirmada(alumno._count.clases);
+  // T4 · M-142: con «Confirmar a todos» (confirmarConocidos = false) hasta el conocido nace PEDIDA.
+  const confirmada = naceConfirmada(alumno._count.clases, config.reglas.confirmarConocidos);
   const terminaEn = new Date(empiezaEn.getTime() + config.duracionMin * 60_000);
   try {
     const clase = await bookingTransaction(async (tx) => {
@@ -436,7 +445,7 @@ export async function subirComprobanteVarias(token: string | null, claseIds: str
     await auditPublic({ action: "padel.comprobante", entity: "PadelClase", entityId: primera.id, clientPhone: alumno.client.phone, changes: { clases: r.clases.length } });
     refrescar(alumno.token);
     return { ok: true as const, clases: r.clases.length, total: r.total };
-  });
+  }, OTRA_PERSONA_CAMBIO);
 }
 
 /** El alumno cancela desde su link (sólo con la anticipación que fijó el profe). */
@@ -561,17 +570,19 @@ export async function cambiarHorarioDesdeLink(
  * «Avisar que no voy» (A·E13): pasado el plazo para cancelar gratis, el alumno igual le avisa al profe
  * (entra a la bandeja aunque el profe no tenga WhatsApp). La clase no cambia: el profe decide si es
  * «No vino · se cobra» o la cancela. Dentro del plazo, se le dice que la cancele (queda libre).
- * TODO(T4): con la regla «tardía se cobra» (`PadelConfig.tardiaSeCobra`, default no) se marcará
- * `seCobra`; hoy, sin la regla, no se marca nada (MOTIVO_TARDIA_SE_COBRA queda reservado).
+ * T4 · M-125: con la regla «tardía se cobra» (`PadelConfig.tardiaSeCobra`, de fábrica NO) una clase
+ * CONFIRMADA queda «Cancelada tarde · se cobra» (CANCELADA con motivo TARDIA_SE_COBRA: la franja se
+ * libera y la clase es deuda para el profe y para el alumno, `seCobra: true`). Sin la regla (o sin la
+ * migración), como antes: sólo el aviso. Un pedido (PEDIDA) nunca se cobra: el profe no lo confirmó.
  */
-export async function avisarNoVoy(token: string | null, claseId: string): Promise<Resultado<{ yaAvisado: boolean }>> {
+export async function avisarNoVoy(token: string | null, claseId: string): Promise<Resultado<{ yaAvisado: boolean; seCobra?: boolean }>> {
   const tenantIdFreno = await getCurrentTenantId();
   if (await frenadoPorIp("link", tenantIdFreno)) return { ok: false, error: FRENADO };
   const d = await alumnoDelLink(token);
   if (!d) return { ok: false, error: LINK_INVALIDO };
   const { tenantId, alumno } = d;
   const [clase, config] = await Promise.all([
-    prisma.padelClase.findFirst({ where: { tenantId, id: claseId, alumnoId: alumno.id }, select: { id: true, estado: true, empiezaEn: true, terminaEn: true } }),
+    prisma.padelClase.findFirst({ where: { tenantId, id: claseId, alumnoId: alumno.id }, select: { id: true, estado: true, empiezaEn: true, terminaEn: true, precio: true } }),
     configPadel(tenantId),
   ]);
   if (!clase) return { ok: false, error: "No encontramos esa clase." };
@@ -582,8 +593,117 @@ export async function avisarNoVoy(token: string | null, claseId: string): Promis
   }
   const ya = await prisma.padelAviso.findFirst({ where: { tenantId, destino: "PROFE", tipo: "no-voy", claseId: clase.id }, select: { id: true } });
   if (ya) return { ok: true, yaAvisado: true };
+  if (config.reglas.tardiaSeCobra && clase.estado === "CONFIRMADA") {
+    // Condicionada al estado leído: si el profe la tocó en el medio, no se pisa nada.
+    const n = await prisma.padelClase.updateMany({
+      where: { tenantId, id: clase.id, alumnoId: alumno.id, estado: "CONFIRMADA" },
+      data: { estado: "CANCELADA", canceladaEl: ahora, motivoCancel: MOTIVO_TARDIA_SE_COBRA, ...(config.modeloT4 ? { seCobra: true } : {}) },
+    });
+    if (n.count === 0) return { ok: false, error: "Esa clase ya cambió. Actualizá la pantalla." };
+    const deuda = pesosTxt(Number(clase.precio));
+    await avisarAlProfe(tenantId, "no-voy", `${alumno.client.name} avisó tarde que no va a la clase del ${diaHumano(clase.empiezaEn)} a las ${horaHumana(clase.empiezaEn)}. Quedó «Cancelada tarde · debe ${deuda}» (tu regla: la tardía se cobra) y el horario quedó libre.`, clase.id, alumno.id);
+    await auditPublic({ action: "padel.avisarNoVoy", entity: "PadelClase", entityId: clase.id, clientPhone: alumno.client.phone, changes: { tardiaSeCobra: true } });
+    refrescar(alumno.token);
+    return { ok: true, yaAvisado: false, seCobra: true };
+  }
   await avisarAlProfe(tenantId, "no-voy", `${alumno.client.name} avisó que no va a la clase del ${diaHumano(clase.empiezaEn)} a las ${horaHumana(clase.empiezaEn)} (fuera de término). Decidí si la cobrás («No vino») o la cancelás.`, clase.id, alumno.id);
   await auditPublic({ action: "padel.avisarNoVoy", entity: "PadelClase", entityId: clase.id, clientPhone: alumno.client.phone });
   refrescar(alumno.token);
   return { ok: true, yaAvisado: false };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// T4 — grupales abiertas y turno fijo, del lado del alumno
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Sin la migración 20261023120000 (producción hoy, Gate 2) contestan «Esta función se habilita cuando
+// se active la actualización de la base» y no tocan nada.
+
+/**
+ * «Me sumo» a una grupal abierta (M-122/M-140): con el link (token o cookie) o, sin link, con nombre y
+ * celular (como el turnero: el link del alumno NUNCA se devuelve acá; le llega por WhatsApp cuando el
+ * profe confirme). Sólo una grupal CONFIRMADA, futura, con lugar. Su parte es el precio grupal por
+ * persona. Serializable: dos que se suman al último lugar a la vez → uno entra y el otro «se llenó».
+ */
+export async function sumarmeAGrupal(
+  quien: { token?: string | null; nombre?: string; telefono?: string },
+  claseId: string,
+): Promise<Resultado<{ cuando: string; precio: number; quedan: number }>> {
+  const tenantId = await getCurrentTenantId();
+  if (await frenadoPorIp("grupal", tenantId)) return { ok: false, error: FRENADO };
+  if (!(await modeloT4())) return { ok: false, error: SIN_ACTUALIZACION };
+  const id = String(claseId ?? "").slice(0, 40);
+  let porLink: { id: string; token: string; clientId: string; nombre: string; telefono: string } | null = null;
+  let porDatos: { nombre: string; telefono: string } | null = null;
+  if (quien?.token !== undefined || !quien?.telefono) {
+    const d = await alumnoDelLink(quien?.token ?? null);
+    if (!d) return { ok: false, error: LINK_INVALIDO };
+    porLink = { id: d.alumno.id, token: d.alumno.token, clientId: d.alumno.clientId, nombre: d.alumno.client.name, telefono: d.alumno.client.phone };
+  } else {
+    const nombre = nombreValido(quien.nombre);
+    if (!nombre) return { ok: false, error: "Poné tu nombre (y apellido si querés)." };
+    const telefono = telefonoAlumno(quien.telefono);
+    if (!telefono) return { ok: false, error: "Poné tu celular con código de área, por ejemplo 11 5555-1234." };
+    if (frenadoPorTelefono("grupal", tenantId, telefono)) return { ok: false, error: FRENADO };
+    porDatos = { nombre, telefono };
+  }
+  const config = await configPadel(tenantId);
+  try {
+    const r = await bookingTransaction(async (tx) => {
+      const clase = await tx.padelClase.findFirst({
+        where: { tenantId, id, tipo: "GRUPAL", estado: "CONFIRMADA", cupo: { not: null }, empiezaEn: { gt: new Date() } },
+        select: { id: true, empiezaEn: true, cupo: true, pagoEstado: true },
+      });
+      if (!clase || clase.pagoEstado !== "POR_PARTICIPANTE") throw new ErrorNegocio("Ese grupo ya no está disponible.");
+      const alumno = porLink ?? (await alumnoPorTelefono(tx, tenantId, porDatos!.telefono, porDatos!.nombre));
+      const ps = await tx.padelParticipante.findMany({ where: { tenantId, claseId: clase.id }, select: { alumnoId: true, nombre: true } });
+      if (ps.some((p) => p.alumnoId === alumno.id)) throw new ErrorNegocio("Ya estás anotado en ese grupo.");
+      const libres = lugaresLibres(clase.cupo, ps);
+      if (libres <= 0) throw new ErrorNegocio("Ese grupo se llenó recién.");
+      await tx.padelParticipante.create({ data: { tenantId, claseId: clase.id, alumnoId: alumno.id, precio: config.precioGrupal }, select: { id: true } });
+      const todos = [...ps, { alumnoId: alumno.id, nombre: null }];
+      const tomados = todos.filter(lugarTomado).length;
+      const precios = await tx.padelParticipante.aggregate({ where: { tenantId, claseId: clase.id }, _sum: { precio: true } });
+      await tx.padelClase.updateMany({ where: { tenantId, id: clase.id }, data: { personas: tomados, precio: Number(precios._sum.precio ?? 0) } });
+      return { clase, alumnoId: alumno.id, nombre: alumno.nombre, quedan: libres - 1 };
+    }, { tenantId });
+    const cuando = `${diaHumano(r.clase.empiezaEn)} a las ${horaHumana(r.clase.empiezaEn)}`;
+    await avisarAlProfe(tenantId, "grupal", `${r.nombre} se sumó a la grupal del ${cuando}. ${r.quedan > 0 ? `Quedan ${r.quedan} lugar${r.quedan === 1 ? "" : "es"}.` : "El grupo quedó completo."}`, r.clase.id, r.alumnoId);
+    await auditPublic({ action: "padel.grupal.sumarme", entity: "PadelClase", entityId: r.clase.id, clientPhone: porLink?.telefono ?? porDatos!.telefono });
+    refrescar(porLink?.token);
+    return { ok: true, cuando, precio: config.precioGrupal, quedan: r.quedan };
+  } catch (e) {
+    if (faltaModeloT4(e)) return { ok: false, error: SIN_ACTUALIZACION };
+    const r = respuestaDeError(e, "Ese grupo se llenó recién. Probá con otro.");
+    if (r) return r;
+    throw e;
+  }
+}
+
+/**
+ * «Quiero este horario todas las semanas» (M-132): el alumno pide turno fijo con una de SUS clases como
+ * modelo (día, hora, club). Le llega al profe «Juan pide turno fijo mar 19:00» y lo aprueba con un toque
+ * (aprobarSerie). Un pedido por clase (no se repite si lo toca dos veces).
+ */
+export async function pedirSerie(token: string | null, claseId: string): Promise<Resultado<{ yaPedido: boolean; texto: string }>> {
+  const tenantIdFreno = await getCurrentTenantId();
+  if (await frenadoPorIp("link", tenantIdFreno)) return { ok: false, error: FRENADO };
+  if (!(await modeloT4())) return { ok: false, error: SIN_ACTUALIZACION };
+  const d = await alumnoDelLink(token);
+  if (!d) return { ok: false, error: LINK_INVALIDO };
+  const { tenantId, alumno } = d;
+  const clase = await prisma.padelClase.findFirst({
+    where: { tenantId, id: String(claseId ?? "").slice(0, 40), alumnoId: alumno.id, estado: { in: ["PEDIDA", "CONFIRMADA", "DADA"] } },
+    select: { id: true, empiezaEn: true, serieId: true },
+  });
+  if (!clase) return { ok: false, error: "No encontramos esa clase." };
+  if (clase.serieId) return { ok: false, error: "Esa clase ya es de tu turno fijo." };
+  const dia = clase.empiezaEn.toLocaleDateString("es-AR", { weekday: "short", timeZone: "America/Argentina/Buenos_Aires" }).replace(".", "");
+  const texto = `${alumno.client.name} pide turno fijo ${dia} ${horaHumana(clase.empiezaEn)}`;
+  const n = await prisma.padelAviso.createMany({
+    data: [{ tenantId, destino: "PROFE", tipo: "serie-pedida", claseId: clase.id, alumnoId: alumno.id, texto: `${texto}. Aprobalo con un toque.`, idExterno: `serie-pedida:${clase.id}` }],
+    skipDuplicates: true,
+  });
+  if (n.count > 0) await auditPublic({ action: "padel.serie.pedir", entity: "PadelClase", entityId: clase.id, clientPhone: alumno.client.phone });
+  return { ok: true, yaPedido: n.count === 0, texto };
 }

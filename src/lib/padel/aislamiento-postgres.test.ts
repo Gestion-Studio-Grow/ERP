@@ -16,6 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
+import { OMITIR_COLUMNAS_T4 } from "@/lib/padel/modelo";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const laBase = baseEfimeraDelArchivo();
@@ -34,7 +35,9 @@ type Sembrado = Awaited<ReturnType<typeof sembrar>>;
 let sembrado: Sembrado | null = null;
 
 async function sembrar(base: BaseEfimera) {
-  const db = await prismaComoDuenio(base);
+  // T4: sin pedir las columnas nuevas por defecto, así la suite corre igual con y sin la migración
+  // 20261023120000 (ERP_TEST_SIN_MIGRACIONES=20261023120000_padel_reingenieria).
+  const db = await prismaComoDuenio(base, { omit: OMITIR_COLUMNAS_T4 });
   const f3 = fechaEn(3);
   const f4 = fechaEn(4);
   const ayer = fechaEn(-2);
