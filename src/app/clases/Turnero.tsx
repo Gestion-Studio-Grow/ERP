@@ -25,6 +25,7 @@ import { YaSoyAlumno } from "./YaSoyAlumno";
 import { alerta, botonPrincipal, caja, campo, chip, etiqueta } from "./_estilos";
 import {
   RECUERDO,
+  SE_OCUPO_RECIEN,
   alternativasEnCinta,
   cercanas,
   diaYHora,
@@ -151,7 +152,15 @@ export default function Turnero({
     setSugeridas([]);
     if (porCookie && !quien) {
       start(async () => {
-        const r = await reservarDesdeLink(null, iso, undefined, { tipo, personas, nota });
+        let r: Awaited<ReturnType<typeof reservarDesdeLink>>;
+        try {
+          r = await reservarDesdeLink(null, iso, undefined, { tipo, personas, nota });
+        } catch {
+          // La acción tiró (choque que escapó o corte): nunca al error boundary.
+          setHora(null);
+          setError(SE_OCUPO_RECIEN);
+          return;
+        }
         if (r.ok) {
           setListo({ estado: r.estado, cuando: r.cuando, token: null, claseId: r.claseId, conocido: false, waProfe: null, porCookie: true });
           return;
@@ -174,7 +183,15 @@ export default function Turnero({
       return;
     }
     start(async () => {
-      const r = await pedirClase({ hora: iso, nombre: q.nombre, telefono: q.telefono, tipo, personas, nota });
+      let r: Awaited<ReturnType<typeof pedirClase>>;
+      try {
+        r = await pedirClase({ hora: iso, nombre: q.nombre, telefono: q.telefono, tipo, personas, nota });
+      } catch {
+        setHojaQuien(false);
+        setHora(null);
+        setError(SE_OCUPO_RECIEN);
+        return;
+      }
       if (r.ok) {
         try {
           localStorage.setItem(RECUERDO, JSON.stringify(q));

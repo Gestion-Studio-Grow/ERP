@@ -13,7 +13,7 @@ import { cambiarHorarioDesdeLink, reservarDesdeLink } from "@/lib/padel/acciones
 import { HojaPublica } from "@/app/clases/_hoja";
 import { ElegirHora } from "@/app/clases/_elegir-hora";
 import { alerta, botonBorde, botonLleno, botonPrincipal, chip, listo } from "@/app/clases/_estilos";
-import { alternativasEnCinta, diaYHora, horaCorta, sinLaHora } from "@/app/clases/cinta";
+import { SE_OCUPO_RECIEN, alternativasEnCinta, diaYHora, horaCorta, sinLaHora } from "@/app/clases/cinta";
 
 export function CambiarHorario({
   token,
@@ -44,7 +44,15 @@ export function CambiarHorario({
   const cambiar = (iso: string) =>
     start(async () => {
       setError(null);
-      const r = await cambiarHorarioDesdeLink(token, claseId, iso);
+      let r: Awaited<ReturnType<typeof cambiarHorarioDesdeLink>>;
+      try {
+        r = await cambiarHorarioDesdeLink(token, claseId, iso);
+      } catch {
+        // La acción tiró (choque que escapó o corte): la clase sigue como estaba, nunca al error boundary.
+        setHora(null);
+        setError(`${SE_OCUPO_RECIEN} Tu clase sigue como estaba.`);
+        return;
+      }
       if (r.ok) {
         setHecho(
           estado === "PEDIDA"
@@ -134,7 +142,13 @@ export function Repetir({ token, horaIso, repiteDe, etiqueta, profe }: { token: 
 
   const reservar = (iso: string, repite?: string) =>
     start(async () => {
-      const r = await reservarDesdeLink(token, iso, repite);
+      let r: Awaited<ReturnType<typeof reservarDesdeLink>>;
+      try {
+        r = await reservarDesdeLink(token, iso, repite);
+      } catch {
+        setMsg({ ok: false, texto: SE_OCUPO_RECIEN });
+        return;
+      }
       if (r.ok) {
         setAlternativas([]);
         setMsg({ ok: true, texto: r.estado === "CONFIRMADA" ? `¡Listo! Quedó confirmada: ${r.cuando}.` : `Pedida: ${r.cuando}. ${profe} te la confirma.` });

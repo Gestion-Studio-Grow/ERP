@@ -90,6 +90,13 @@ export function leerRecuerdo(raw: string | null | undefined): { nombre: string; 
   }
 }
 
+/**
+ * Lo que ve el alumno si la acción del servidor TIRA en vez de contestar (F-1 de la CERT T2+T3:
+ * un choque de concurrencia que escapó, o un corte en el medio). Nunca el error boundary: lo
+ * más probable es que otro haya tomado la hora, y en cualquier caso no cambió nada.
+ */
+export const SE_OCUPO_RECIEN = "Se ocupó recién, elegí otro horario.";
+
 /** Las `n` horas libres de la cinta más cercanas a `iso` (sin contarla): para «Se ocupó recién». */
 export function cercanas(dias: readonly DiaConLugar[], iso: string, n = 2): string[] {
   const t = new Date(iso).getTime();

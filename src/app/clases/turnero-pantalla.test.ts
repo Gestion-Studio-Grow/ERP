@@ -292,6 +292,27 @@ describe("El turnero y Pagar en el navegador", { timeout: 240_000 }, () => {
     assert.deepEqual(errores, []);
   });
 
+  test("F-1: si la acción del servidor TIRA (choque que escapó o corte), «Se ocupó recién, elegí otro horario», nunca el error boundary", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const errores: string[] = [];
+    const page = await abrir("__turnero", BASE, {}, errores, { nombre: "Juan", telefono: "1155551234" });
+    // La acción rechaza la promesa (como un 500 de una Server Action).
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__resp.pedirClase = () => Promise.reject(new Error("DriverAdapterError: TransactionWriteConflict"));
+    });
+    await page.getByRole("button", { name: "18:00" }).click();
+    await page.getByRole("button", { name: /^Pedir hoy · 18:00/ }).click();
+    await page.getByRole("alert").filter({ hasText: "Se ocupó recién, elegí otro horario." }).waitFor();
+    // La pantalla sigue viva: se puede elegir otra hora y pedir.
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__resp.pedirClase = { ok: true, token: "tokentokentokentoken1234", conocido: false, waProfe: null, cuando: "viernes 23/10 a las 19:00", claseId: "c2" };
+    });
+    await page.getByRole("button", { name: "19:00" }).click();
+    await page.getByRole("button", { name: /^Pedir hoy · 19:00/ }).click();
+    await page.getByRole("heading", { name: "¡Listo! Pediste tu clase" }).waitFor();
+    assert.deepEqual(errores, []);
+  });
+
   test("M-094/M-095: con la cookie no se tipea nada, pide por el link y puede nacer confirmada", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const errores: string[] = [];
