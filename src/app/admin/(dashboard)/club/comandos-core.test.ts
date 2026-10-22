@@ -204,6 +204,10 @@ test("qué va sin internet (D4, versión del Challenger): sólo lo que hace entr
     ["caja", [{ tipo: "cerrar", contado: "0", dia: null, pin: "1234" }], false],
     ["caja", [{ tipo: "fondo", monto: "500" }], false],
     ["alta", [{}], true],
+    // Fiado no va sin internet (D4), tampoco el código del dueño: sale del PIN del dueño que está en el estado (H-T2-1).
+    ["fiado", [{ tipo: "pedir", cuentaId: "k" }], false],
+    ["fiado", [{ tipo: "aprobarCodigo", novedadId: "n", codigo: "ABC-DEF" }], false],
+    ["clientes", [{ tipo: "aprobarCodigo", novedadId: "n", codigo: "ABC-DEF", monto: "100" }], false],
     ["borrarTodo", [], false],
     ["cuenta", "no es una lista", false],
   ];

@@ -88,7 +88,7 @@ import type { Ahora, AnexoJornada, Auth, ConteosArchivo, EstadoClub, Fecha, Foto
 import type { Role } from "@/lib/capabilities";
 import { crearGuardadoLocal, esGuardadoLocal, separarVersion, type AlmacenamientoLocal, type GuardadoDelClub, type GuardadoLocal, type MarcaDelEspejo, type ResultadoDelGuardado } from "./guardado-del-club";
 import { fechaLocal, mismoAhora, relojReal } from "./reloj-del-club";
-import { comandoSinPin, correrComando, correrDeterminista, queHizo, REGISTRO, type ArgsDe, type Comando, type NombreDeComando, type ResultadoDe } from "./comandos-core";
+import { comandoSinPin, correrComando, correrDeterminista, queHizo, rechazoSinInternet, REGISTRO, type ArgsDe, type Comando, type NombreDeComando, type ResultadoDe } from "./comandos-core";
 import {
   altaEquivalente,
   anotarAplicado,
@@ -590,6 +590,11 @@ export interface OpcionesAlmacen {
   puesto?: string;
   /** ¿La pestaña está a la vista? (default `document.visibilityState`): sin pestaña visible no se pregunta la versión. */
   visible?: () => boolean;
+  /**
+   * ¿El equipo tiene red? (default `navigator.onLine`). Sólo cuenta cuando dice que NO: que diga que sí no prueba que
+   * haya internet (wifi sin salida). Ver «sin internet» en `crearAlmacen`.
+   */
+  enLinea?: () => boolean;
   /** Cuánto se espera a que la otra pestaña ceda la jornada antes de robarla (default 3 s). */
   esperaPostaMs?: number;
   /** Al robar la jornada, cuánto se espera antes de leer lo guardado: lo que la otra escribe al perderla (default 1 s). */
@@ -628,6 +633,11 @@ function almacenamientoDelNavegador(): AlmacenamientoLocal | null {
   } catch {
     return null;
   }
+}
+
+/** `navigator.onLine` (en Node no está: cuenta como con red). Sólo el «no» es seguro: sin red de verdad. */
+function navegadorEnLinea(): boolean {
+  return typeof navigator === "undefined" || (navigator as Navigator & { onLine?: boolean }).onLine !== false;
 }
 
 /** `navigator.locks` si el navegador lo tiene (Safari < 15.4 y navegadores viejos no). */
@@ -726,6 +736,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   const prefijo = dosPuestos ? `${equipo}-` : undefined;
   const nombrePuesto = dosPuestos ? (opciones.puesto ?? puestoDelNavegador()) : "";
   const visible = opciones.visible ?? pestaniaVisible;
+  const enLinea = opciones.enLinea ?? navegadorEnLinea;
 
   // ── lo que se abre al crear (sincrónico: lo de este equipo) ──
   const hoyDemo = opciones.hoy ?? fechaLocal(new Date(relojMs()));
@@ -1666,6 +1677,10 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     } finally {
       latiendoVersion = false;
     }
+    // La base no contestó: sin internet (la cinta lo dice y `comando` frena lo que no va sin internet, H-T2-1). Contestó:
+    // volvió, aunque no haya nada que subir (si no, «sin internet» quedaría puesto hasta la próxima subida).
+    if (v === null && sincro.sinInternetDesde === null) avisarSincro({ sinInternetDesde: relojMs() });
+    else if (v !== null && sincro.sinInternetDesde !== null) avisarSincro({ sinInternetDesde: null });
     if (v === null || v <= versionGuardada || !activo || !tieneLaJornada() || recargando) return;
     if (enVuelo) return void conLatido.subirYa?.();
     await sincronizar("latido");
@@ -1852,6 +1867,29 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     aviso = { id: ++idAviso, ok: false, mensaje, deshacer: fotoPrevia !== null && deshacerVigente(fotoDesde, relojMs()) };
     avisar();
     return { ok: false, mensaje };
+  };
+  /**
+   * SIN INTERNET (H-T2-1 de la cert de la Tanda 2; D4 de docs/producto/MODO-SIN-INTERNET-CLUB.md §5). Sólo en dos puestos
+   * (la jornada real contra la base: la demo y el guardado de este equipo no dependen de internet). Hay internet salvo que:
+   *   · la última subida a la base falló por red (`sincro.sinInternetDesde`, lo mismo que pinta la cinta «Sin internet
+   *     desde las…»; se limpia cuando una subida sale o el latido de versión vuelve a contestar), o
+   *   · el latido de versión (cada 15 s) no tuvo respuesta (también pone `sinInternetDesde`), o
+   *   · el navegador dice que no tiene red (`navigator.onLine === false`): cubre el primer toque después de apagar el
+   *     wifi, antes de que falle una subida. Que diga que sí no cuenta (wifi sin salida): eso lo agarran los dos de arriba.
+   * Queda una ventana: con wifi «conectado» pero sin salida, hasta la primera subida o latido fallidos (≤ 15 s) el
+   * almacén no puede saberlo.
+   */
+  const sinInternet = () => dosPuestos && (sincro.sinInternetDesde !== null || !enLinea());
+  /**
+   * Sin internet, lo que no va sin internet (`vaSinInternet` del REGISTRO) se rechaza ANTES de correr: no toca el estado,
+   * no entra a la cola, no gasta un intento de PIN (`envolver` no corre) y no anula «Deshacer». La pantalla no se limpia
+   * (sus formularios sólo se vacían con `ok`) y el aviso sale en el `role="alert"` de `AvisosDelClub`, en criollo y con
+   * qué hacer (`rechazoSinInternet`). null: va.
+   */
+  const negarSinInternet = (nombre: string, args: unknown): Desenlace | null => {
+    if (!sinInternet()) return null;
+    const motivo = rechazoSinInternet(nombre, args);
+    return motivo === null ? null : informarFalla(motivo);
   };
 
   // ── archivar los días cerrados ──
@@ -2243,6 +2281,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     comando<N extends NombreDeComando>(nombre: N, args: ArgsDe<N>, opciones: OpcionesDeComando<N> = {}): ResultadoDe<N> {
       type R = ResultadoDe<N>;
       if (!Object.hasOwn(REGISTRO, nombre)) return informarFalla("Esta operación no se reconoce. Recargá la página.") as R;
+      // La regla «sin internet» se aplica acá, en un solo lugar, para toda pantalla (H-T2-1).
+      const negado = negarSinInternet(nombre, args);
+      if (negado) return negado as R;
       const e = REGISTRO[nombre] as unknown as { correr: (estado: EstadoClub, args: unknown[], ahora: Ahora, auth: Auth) => R };
       const { envolver, ...resto } = opciones;
       const pelado = (est: EstadoClub, a: Ahora, auth: Auth): R => e.correr(est, args as unknown[], a, auth);
@@ -2270,6 +2311,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       const c = item.comando && alternativa ? conOtroHueco(item.comando, alternativa) : item.comando;
       if (!c && !enMemoria?.correr)
         return informarFalla("Esto se hizo antes de recargar la página y no se puede volver a aplicar solo: cargalo de nuevo a mano y después descartalo.");
+      // «Volver a aplicar» un cobro por MP sin internet es el mismo cobro: la misma regla que `comando`.
+      const negado = c ? negarSinInternet(c.nombre, c.args) : null;
+      if (negado) return negado;
       // Con los ids, el azar y la hora de la primera vez (el mismo turno y el mismo código BP); firma quien lo vuelve a aplicar.
       return correrAccion(
         (est, _a, auth) => {

@@ -45,6 +45,11 @@ interface Entrada<A extends unknown[], D extends Desenlace = Desenlace> {
   /** Si va sin internet (D4 del diseño; la confirma el dueño). Ante la duda, no. */
   sinInternet: (args: A) => boolean;
   /**
+   * Si lo que lo frena sin internet es SÓLO el medio (MP, transferencia, débito): en efectivo sí iría. Elige el texto
+   * del rechazo (`rechazoSinInternet`): «Elegí Efectivo…» en vez de «Esto necesita internet…». Default: no.
+   */
+  conEfectivo?: (args: A) => boolean;
+  /**
    * Los campos SECRETOS de los argumentos, además de `pin` (que se saca siempre): no van a la cola del equipo ni a la
    * foto (`comandoSinPin`, a cualquier profundidad). Al re-aplicar después de recargar faltan, y la acción los vuelve a
    * pedir. OBLIGATORIO en todo comando (`[]` si no lleva ninguno): un comando nuevo no puede olvidarse de declararlo
@@ -80,6 +85,7 @@ export const REGISTRO = {
     // Sin internet sólo si TODO lo que cobra no se verifica afuera: con «créditos + el resto» (`resto`), también el resto
     // (créditos + MP pide internet, como MP solo).
     sinInternet: ([, a]) => ("medio" in a && (a.tipo !== "cargo" || a.modo === "cobrar") ? sinRed(a.medio) && (!("resto" in a) || !a.resto || sinRed(a.resto)) : true),
+    conEfectivo: ([, a]) => "medio" in a && (a.tipo !== "cargo" || a.modo === "cobrar"),
     secretos: [],
   }),
   ciclo: entrada<[reservaId: string, accion: AccionCiclo]>({
@@ -87,11 +93,14 @@ export const REGISTRO = {
     // Sin internet sólo lo que hace ENTRAR plata (Challenger, 18/10): la falta y cobrarla. Devolver saca plata; mover,
     // extender, cancelar e interrumpir reordenan la agenda de todos: con internet.
     sinInternet: ([, a]) => a.tipo === "falta" || (a.tipo === "cobrarFalta" && sinRed(a.medio)),
+    // Devolver no: en efectivo tampoco va (saca plata).
+    conEfectivo: ([, a]) => a.tipo === "cobrarFalta",
     secretos: [],
   }),
   buffet: entrada<[accion: AccionBuffet]>({
     correr: (e, [a], ahora, auth) => ejecutarBuffet(e, a, ahora, auth),
     sinInternet: ([a]) => (a.tipo === "cobrar" ? sinRed(a.medio) : true),
+    conEfectivo: ([a]) => a.tipo === "cobrar",
     secretos: [],
   }),
   mesa: entrada<[accion: AccionMesa], DesenlaceMesa>({
@@ -146,24 +155,29 @@ export const REGISTRO = {
   venta: entrada<[carrito: Carrito, medio: MedioCaja]>({
     correr: (e, [carrito, medio], ahora) => venderEnMostrador(e, carrito, medio, ahora),
     sinInternet: ([, medio]) => sinRed(medio),
+    conEfectivo: () => true,
     secretos: [],
   }),
   fiado: entrada<[accion: AccionFiado]>({
     correr: (e, [a], ahora, auth) =>
       a.tipo === "pedir" ? pedirFiado(e, a.cuentaId, auth, ahora) : !a.codigo ? { ok: false, mensaje: FALTA_CODIGO } : aprobarConCodigo(e, a.novedadId, a.codigo, auth, ahora),
-    // El código del dueño se verifica en el puesto (no hace falta red); el pedido viaja al dueño: con internet.
-    sinInternet: ([a]) => a.tipo === "aprobarCodigo",
+    // Todo con internet (D4: «Fiado» no va sin internet). El pedido viaja al dueño; y el código del dueño, aunque se
+    // verifique en el puesto, sale del PIN del dueño que está en el estado: sin la base mirando, quien tenga el estado
+    // podría fabricar un OK (H-T2-1 de la cert de la Tanda 2).
+    sinInternet: () => false,
     secretos: ["codigo"],
   }),
   clientes: entrada<[accion: AccionClientes], DesenlaceClientes>({
     correr: (e, [a], ahora, auth) => (a.tipo === "aprobarCodigo" && !a.codigo ? { ok: false, mensaje: FALTA_CODIGO } : ejecutarClientes(e, a, ahora, auth)),
     sinInternet: ([a]) => a.tipo === "cobrarDeuda" && sinRed(a.medio),
+    conEfectivo: ([a]) => a.tipo === "cobrarDeuda",
     // El código del dueño de la cuenta corriente. (El `codigo` de stock es el del producto: no es secreto, no va acá.)
     secretos: ["codigo"],
   }),
   tienda: entrada<[accion: AccionTienda], ReturnType<typeof ejecutarTienda>>({
     correr: (e, [a], ahora, auth) => ejecutarTienda(e, a, ahora, auth),
     sinInternet: ([a]) => a.tipo === "entregar" && sinRed(a.medio),
+    conEfectivo: ([a]) => a.tipo === "entregar",
     secretos: [],
   }),
   stock: entrada<[accion: AccionStock], DesenlaceStock>({
@@ -248,6 +262,7 @@ export const REGISTRO = {
     correr: (e, [reservaId, medio], ahora) => abrirCobrandoLaDeuda(e, reservaId, medio, ahora),
     // Como «cobrar la deuda» de la ficha: sin internet sólo en efectivo.
     sinInternet: ([, medio]) => sinRed(medio),
+    conEfectivo: () => true,
     // Sin secretos en los argumentos (el turno y el medio): lo verifica el test que recorre el REGISTRO entero.
     secretos: [],
   }),
@@ -260,6 +275,7 @@ export const REGISTRO = {
     correr: (e, [a], ahora, auth) => ejecutarCierre(e, a, ahora, auth),
     // Hace entrar plata: sin internet sólo si todo lo que cobra va en efectivo (lo que no se verifica afuera).
     sinInternet: ([a]) => mediosDelCierre(a).every((m) => sinRed(m as MedioCobro)),
+    conEfectivo: () => true,
     // Sin secretos en los argumentos (los turnos y los medios; ningún PIN): lo verifica el test que recorre el REGISTRO entero.
     secretos: [],
   }),
@@ -378,6 +394,27 @@ export function vaSinInternet(nombre: string, args: unknown): boolean {
     return Array.isArray(args) && e.sinInternet(args);
   } catch {
     return false;
+  }
+}
+
+/** El rechazo sin internet de un cobro que en efectivo sí iría (MP, transferencia, débito no se verifican sin red). */
+export const SIN_INTERNET_SOLO_EFECTIVO = "Sin internet sólo se cobra en efectivo. Elegí Efectivo o esperá a que vuelva la señal.";
+/** El rechazo sin internet de lo que saca plata o lleva PIN o el código del dueño (egreso, devolución, fiado, descuento…). */
+export const SIN_INTERNET_NECESITA = "Esto necesita internet: lo podés hacer cuando vuelva la señal.";
+
+/**
+ * Sin internet (H-T2-1): null si el comando va igual (`vaSinInternet`); si no, el texto del rechazo en criollo, que dice
+ * qué hacer: «Elegí Efectivo…» si lo único que lo frena es el medio (`conEfectivo`), «Esto necesita internet…» si no.
+ * Lo usa `almacen.comando` ANTES de correr nada. Nunca tira.
+ */
+export function rechazoSinInternet(nombre: string, args: unknown): string | null {
+  if (vaSinInternet(nombre, args)) return null;
+  if (!Object.hasOwn(REGISTRO, nombre) || !Array.isArray(args)) return SIN_INTERNET_NECESITA;
+  const e = REGISTRO[nombre as NombreDeComando] as unknown as Entrada<unknown[]>;
+  try {
+    return e.conEfectivo?.(args) ? SIN_INTERNET_SOLO_EFECTIVO : SIN_INTERNET_NECESITA;
+  } catch {
+    return SIN_INTERNET_NECESITA;
   }
 }
 

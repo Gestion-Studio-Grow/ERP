@@ -900,10 +900,16 @@ export default function AgendaCanchas({
     (para: "deuda" | "sena" | "cobrar", medio: MedioCaja) => {
       if (!momento) return;
       const { id, boton } = momento;
+      const d =
+        para === "deuda"
+          ? almacen.comando("abrirConDeuda", [id, medio], { deshacible: true, promete: true })
+          : para === "sena"
+            ? almacen.comando("cuenta", [id, { tipo: "cobrarSenaYAbrir", medio }], { deshacible: DESHACIBLE.cobrarSenaYAbrir })
+            : almacen.comando("cuenta", [id, { tipo: "cobrarCancha", monto: boton.monto, medio }], { deshacible: DESHACIBLE.cobrarCancha });
+      // Si no entró (p. ej. sin internet por MP: «Elegí Efectivo…»), los medios quedan abiertos para elegir otro; el aviso
+      // sale en el role="alert" de abajo.
+      if (!d.ok) return;
       setMomento(null);
-      if (para === "deuda") almacen.comando("abrirConDeuda", [id, medio], { deshacible: true, promete: true });
-      else if (para === "sena") almacen.comando("cuenta", [id, { tipo: "cobrarSenaYAbrir", medio }], { deshacible: DESHACIBLE.cobrarSenaYAbrir });
-      else almacen.comando("cuenta", [id, { tipo: "cobrarCancha", monto: boton.monto, medio }], { deshacible: DESHACIBLE.cobrarCancha });
       requestAnimationFrame(() => document.getElementById(`turno-${id}`)?.focus());
     },
     [almacen, momento],
@@ -917,8 +923,9 @@ export default function AgendaCanchas({
       const cerrarId = momento?.boton.ocupada?.cerrarId;
       if (!momento || !cerrarId) return;
       const { id } = momento;
+      // Si no entró (sin internet con MP, la seña que no alcanza…), lo elegido queda a la vista para cambiarlo.
+      if (!almacen.comando("cierre", [{ tipo: "cerrarYAbrir", cerrarId, abrirId: id, ...a }], { deshacible: true }).ok) return;
       setMomento(null);
-      almacen.comando("cierre", [{ tipo: "cerrarYAbrir", cerrarId, abrirId: id, ...a }], { deshacible: true });
       requestAnimationFrame(() => document.getElementById(`turno-${id}`)?.focus());
     },
     [almacen, momento],
