@@ -663,6 +663,22 @@ export async function alumnosFrecuentes(n = 6, ahora = new Date()) {
   });
 }
 
+/**
+ * Tanda 3A · «¿A quién?» de Agendar (M-070): TODOS los alumnos del negocio, sólo id, nombre y
+ * celular, para que el buscador encuentre cualquiera con 3 letras sin el tope de 60 de antes (B5).
+ * Una lectura liviana por índice [tenantId]; el tope de 2000 es sólo un techo de seguridad.
+ */
+export async function alumnosParaBuscar(tope = 2000) {
+  const tenantId = await getCurrentTenantId();
+  const filas = await prisma.padelAlumno.findMany({
+    where: { tenantId },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    take: Math.min(2000, Math.max(1, tope)),
+    select: { id: true, client: { select: { name: true, phone: true } } },
+  });
+  return filas.map((a) => ({ id: a.id, nombre: a.client.name, telefono: a.client.phone }));
+}
+
 /** La ficha del alumno: datos, próximas, últimas 10 con su pago, deuda, en revisión y saldo a favor. */
 export async function ficha(alumnoId: string, ahora = new Date()) {
   const tenantId = await getCurrentTenantId();
