@@ -1047,14 +1047,27 @@ export function turnosJugados(estado, cl) {
  * Clases y fijos no.
  */
 export function requiereSena(estado, clienteId, tipo) {
+  return motivoSena(estado, clienteId, tipo) !== null;
+}
+
+/**
+ * Por qué pide seña (en criollo, para la previa del alta: «cliente nuevo», «tiene 2 faltas»…) o `null` si no pide.
+ * Es LA regla del mostrador: `requiereSena` es `motivoSena(...) !== null`.
+ */
+export function motivoSena(estado, clienteId, tipo) {
   const { politica } = estado.config;
-  if (tipo === "clase" || tipo === "fijo") return false;
+  if (tipo === "clase" || tipo === "fijo") return null;
   const cl = clienteId ? cliente(estado, clienteId) : null;
-  if (!cl) return politica.senaSinCliente;
-  if (cl.strikes >= politica.strikesParaSena) return true;
-  if (cl.deuda > 0 && !cl.cc.habilitada) return true;
-  if ((politica.senaNuevos ?? true) && turnosJugados(estado, cl) < (politica.turnosConfianza ?? 3)) return true;
-  return politica.senaSiempre;
+  if (!cl) return politica.senaSinCliente ? "sin ficha" : politica.senaSiempre ? "la pide siempre el club" : null;
+  if (cl.strikes >= politica.strikesParaSena) return `tiene ${cl.strikes} falta${cl.strikes === 1 ? "" : "s"}`;
+  if (cl.deuda > 0 && !cl.cc.habilitada) return `debe ${pesos(cl.deuda)}`;
+  if ((politica.senaNuevos ?? true) && turnosJugados(estado, cl) < (politica.turnosConfianza ?? 3)) return "cliente nuevo";
+  return politica.senaSiempre ? "la pide siempre el club" : null;
+}
+
+/** Monto de la seña de un turno de ese precio (`senaPct`, redondeado a $100). Es el mismo que guarda `crearReserva`. */
+export function montoSena(estado, precio) {
+  return redondear100((precio * estado.config.politica.senaPct) / 100);
 }
 
 /**
@@ -1071,6 +1084,25 @@ export function requiereSenaWeb(estado, clienteId) {
   const cl = clienteId ? cliente(estado, clienteId) : null;
   if (!cl || cl.strikes > 0) return true;
   return turnosJugados(estado, cl) < (politica.turnosConfianza ?? 3);
+}
+
+/**
+ * Cuántos minutos seguidos quedan libres en esa cancha desde `inicio`: hasta el próximo turno o bloqueo, o hasta el
+ * cierre. 0 si en `inicio` ya hay algo, la cancha está en mantenimiento o el club está cerrado a esa hora.
+ * Con `hasta` también dice QUÉ corta el hueco (`{ tipo: "turno", reserva }`, `{ tipo: "bloqueo", bloqueo }` o
+ * `{ tipo: "cierre", min }`), para que la pantalla avise en criollo («Beto juega 21:00»).
+ */
+export function cuantoEntra(estado, fecha, canchaId, inicio) {
+  const { abre, cierra } = horarioDe(estado, fecha);
+  const c = cancha(estado, canchaId);
+  if (!c || c.estado === "mantenimiento" || inicio < abre || inicio >= cierra) return { minutos: 0, hasta: null };
+  const { reservas, bloqueos } = ocupantes(estado, fecha, canchaId);
+  if (reservas.some((r) => r.inicio <= inicio && inicio < r.inicio + r.duracion) || bloqueos.some((b) => b.desde <= inicio && inicio < b.hasta)) return { minutos: 0, hasta: null };
+  let hasta = { tipo: "cierre", min: cierra };
+  let fin = cierra;
+  for (const r of reservas) if (r.inicio > inicio && r.inicio < fin) { fin = r.inicio; hasta = { tipo: "turno", reserva: r }; }
+  for (const b of bloqueos) if (b.desde > inicio && b.desde < fin) { fin = b.desde; hasta = { tipo: "bloqueo", bloqueo: b }; }
+  return { minutos: fin - inicio, hasta };
 }
 
 /**
@@ -1129,7 +1161,7 @@ export function crearReserva(estado, datos, ahora) {
 
   const precio = precioFijo ?? precioTurno(estado, { fecha, inicio, duracion, canchaId });
   const pideSena = conSena ?? requiereSena(estado, clienteId, tipo);
-  const senaMonto = pideSena ? redondear100((precio * estado.config.politica.senaPct) / 100) : 0;
+  const senaMonto = pideSena ? montoSena(estado, precio) : 0;
   const lista = (jugadores?.length ? jugadores : [nombre]).slice(0, 4).map((j) => (typeof j === "string" ? { nombre: j } : { ...j }));
   if (cl && !lista[0].clienteId && lista[0].nombre === nombre) lista[0].clienteId = cl.id;
   const r = {
@@ -1843,21 +1875,48 @@ export const cuentasAbiertas = (estado) => estado.cuentas.filter((c) => c.estado
 export function checkIn(estado, id, ahora) {
   const r = reserva(estado, id);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
-  if (r.estado !== "reservada") return { ok: false, motivo: `El turno está ${ESTADOS[r.estado].toLowerCase()}.` };
-  if (r.sena.monto > 0 && !r.sena.pagada) return { ok: false, motivo: "Falta la seña: cobrala antes de abrir la cancha." };
-  if (ahora) {
-    const falta = minutosHasta(ahora, r.fecha, r.inicio);
-    const limite = estado.config.politica.minutosAntesParaEntrar;
-    if (limite != null && falta > limite) return { ok: false, motivo: `Todavía es temprano: la cancha se abre desde ${limite} min antes del turno.` };
-    if (falta + r.duracion <= 0) return { ok: false, motivo: "El horario de ese turno ya terminó." };
-  }
-  const ocupada = estado.reservas.find((x) => x.id !== r.id && x.fecha === r.fecha && x.canchaId === r.canchaId && x.estado === "en_cancha");
-  if (ocupada) return { ok: false, motivo: `${cancha(estado, r.canchaId).nombre} sigue ocupada por ${ocupada.titular}: cerrá esa cancha primero.` };
+  const motivo = motivoParaNoAbrir(estado, r, ahora, false);
+  if (motivo) return { ok: false, motivo };
   r.estado = "en_cancha";
   r.checkIn = ahora ? { ...ahora } : null;
   estado.luces[r.canchaId] = true;
   registrar(estado, `Se abrió ${cancha(estado, r.canchaId).nombre} para ${r.titular}.`, ahora);
   return { ok: true };
+}
+
+/** Por qué no se puede abrir la cancha de ese turno (o `null`). Con `sinMirarSena`, todo menos la seña. */
+function motivoParaNoAbrir(estado, r, ahora, sinMirarSena) {
+  if (r.estado !== "reservada") return `El turno está ${ESTADOS[r.estado].toLowerCase()}.`;
+  if (!sinMirarSena && r.sena.monto > 0 && !r.sena.pagada) return "Falta la seña: cobrala antes de abrir la cancha.";
+  if (ahora) {
+    const falta = minutosHasta(ahora, r.fecha, r.inicio);
+    const limite = estado.config.politica.minutosAntesParaEntrar;
+    if (limite != null && falta > limite) return `Todavía es temprano: la cancha se abre desde ${limite} min antes del turno.`;
+    if (falta + r.duracion <= 0) return "El horario de ese turno ya terminó.";
+  }
+  const ocupada = estado.reservas.find((x) => x.id !== r.id && x.fecha === r.fecha && x.canchaId === r.canchaId && x.estado === "en_cancha");
+  if (ocupada) return `${cancha(estado, r.canchaId).nombre} sigue ocupada por ${ocupada.titular}: cerrá esa cancha primero.`;
+  return null;
+}
+
+/**
+ * «Cobrar la seña y abrir»: lo que falta de la seña con un medio y la cancha abierta, en un solo paso. Si la cancha
+ * no se puede abrir (temprano, ocupada, ya terminó) no se cobra nada: o pasan las dos cosas o ninguna. Sin seña
+ * pendiente es `checkIn`.
+ */
+export function cobrarSenaYAbrir(estado, id, { medio, auth = null } = {}, ahora) {
+  const r = reserva(estado, id);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (!(r.sena.monto > 0) || r.sena.pagada) return { ...checkIn(estado, id, ahora), cobrado: 0 };
+  const motivo = motivoParaNoAbrir(estado, r, ahora, true);
+  if (motivo) return { ok: false, motivo };
+  const falta = Math.max(0, r.sena.monto - cobrado(r));
+  if (falta > 0) {
+    const pago = registrarPago(estado, id, { medio, monto: falta, auth }, ahora);
+    if (!pago.ok) return pago;
+  } else r.sena.pagada = true;
+  const abierto = checkIn(estado, id, ahora);
+  return abierto.ok ? { ok: true, cobrado: falta } : abierto;
 }
 
 /**

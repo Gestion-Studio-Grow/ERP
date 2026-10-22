@@ -25,7 +25,7 @@
 // La plata la lee del motor (`saldo`, `cuentaDelTurno`): no decide nada. El motor tiene un contador
 // de ids de módulo, así que esto corre sólo en el navegador (y en los tests), nunca en el servidor.
 
-import { ESTADOS, NOMBRE_DIA, TIPOS, alertas, validarHueco, cancha as canchaDe, cliente as clienteDe, cuentaDelTurno, diaSemana, hhmm, horarioDe, minutosHasta, ocupantes, pesos, saldo, sumarDias } from "@/lib/club/motor.mjs";
+import { ESTADOS, NOMBRE_DIA, TIPOS, alertas, validarHueco, cancha as canchaDe, cuantoEntra, cliente as clienteDe, cuentaDelTurno, diaSemana, hhmm, horarioDe, minutosHasta, ocupantes, pesos, saldo, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, EstadoReserva, Fecha, Reserva } from "@/lib/club/motor.mjs";
 import type { TipoMarca } from "@/components/ui/Marca";
 import { opcionesCiclo } from "./ciclo-core";
@@ -86,6 +86,10 @@ export interface FranjaLibre {
   min: number;
   hora: string;
   etiqueta: string;
+  /** Minutos seguidos libres desde esta franja (hasta el próximo turno, bloqueo o el cierre: `cuantoEntra`). */
+  cuantoEntra: number;
+  /** No entra un turno de la duración de siempre (`config.duracionTurno`): se pinta «+ 20:30 · 30 min» con trama. */
+  corto: boolean;
 }
 
 export interface VistaAgenda {
@@ -217,7 +221,8 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
       const tapa = (d: number, h: number) => m < h && m + paso > d;
       if (reservas.some((r) => tapa(r.inicio, r.inicio + r.duracion)) || bs.some((b) => tapa(b.desde, b.hasta))) continue;
       const hora = hhmm(m);
-      libres.push({ id: `${c.id}@${m}`, canchaId: c.id, columna, fila: (m - abre) / paso, min: m, hora, etiqueta: `${c.nombre}, ${hora}, libre: reservar` });
+      const entra = cuantoEntra(estado, fecha, c.id, m).minutos;
+      libres.push({ id: `${c.id}@${m}`, canchaId: c.id, columna, fila: (m - abre) / paso, min: m, hora, etiqueta: `${c.nombre}, ${hora}, libre: reservar`, cuantoEntra: entra, corto: entra < estado.config.duracionTurno });
     }
   });
 
@@ -239,7 +244,7 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
   const vista: Omit<VistaAgenda, "firma"> = { fecha, canchas, paso, desde: abre, filas, horas, turnos, libres, bloqueos, ahora: filaAhora, resumen, diaTitulo, horarioTexto };
   return {
     ...vista,
-    firma: [fecha, abre, cierra, paso, filaAhora, resumen, diaTitulo, canchas.map((c) => `${c.id}:${c.nombre}:${c.detalle}`).join(","), turnos.map((t) => t.firma).join("|"), libres.map((l) => l.id).join(","), bloqueos.map((b) => `${b.id}:${b.fila}:${b.alto}`).join(",")].join("#"),
+    firma: [fecha, abre, cierra, paso, filaAhora, resumen, diaTitulo, canchas.map((c) => `${c.id}:${c.nombre}:${c.detalle}`).join(","), turnos.map((t) => t.firma).join("|"), libres.map((l) => `${l.id}:${l.cuantoEntra}`).join(","), bloqueos.map((b) => `${b.id}:${b.fila}:${b.alto}`).join(",")].join("#"),
   };
 }
 
@@ -265,7 +270,7 @@ export function compartirAgenda(previa: VistaAgenda | null, nueva: VistaAgenda):
   const libresViejas = new Map(previa.libres.map((l) => [l.id, l]));
   const libres = nueva.libres.map((l) => {
     const v = libresViejas.get(l.id);
-    return v && v.fila === l.fila && v.etiqueta === l.etiqueta ? v : l;
+    return v && v.fila === l.fila && v.etiqueta === l.etiqueta && v.cuantoEntra === l.cuantoEntra ? v : l;
   });
   const mismosLibres = libres.length === previa.libres.length && libres.every((l, i) => l === previa.libres[i]);
   return { ...nueva, turnos, canchas, horas, libres: mismosLibres ? previa.libres : libres };

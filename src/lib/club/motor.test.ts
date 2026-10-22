@@ -19,7 +19,7 @@ function ok<R extends { ok: boolean }>(r: R, contexto = ""): Extract<R, { ok: tr
 }
 
 function club(): EstadoClub {
-  return M.crearEstado({
+  const e = M.crearEstado({
     config: M.CONFIG_DEMO,
     canchas: M.CANCHAS_DEMO,
     clientes: [
@@ -32,6 +32,9 @@ function club(): EstadoClub {
     usuarios: M.USUARIOS_DEMO,
     proveedores: M.PROVEEDORES_DEMO,
   });
+  // Ana, Beto, Caro y Dani son clientes de siempre: sin «seña a los nuevos» (esa regla tiene sus tests abajo).
+  e.config.politica.senaNuevos = false;
+  return e;
 }
 
 const mesa4 = (e: EstadoClub, hh = 20, canchaId = "c1"): Reserva =>
@@ -103,6 +106,8 @@ const FUNCIONES_PIN_POR_ROL = ["largoPin", "pinValidoPara", "pinAceptadoPara", "
 const FUNCIONES_TOPE_PIN = ["intentosPin", "esperaPin", "anotarIntentoPin"] as const satisfies readonly Funciones[];
 /** El PIN guardado con hash (21/10/2026). */
 const FUNCIONES_PIN_CON_HASH = ["esPinConHash", "hashPin", "pinCoincide", "largoDelPinGuardado", "pasarPinesAHash", "pinDeEjemplo"] as const satisfies readonly Funciones[];
+/** Reingeniería Break Point · tanda 1A: la seña del nuevo, el hueco donde no entra la duración, cobrar la seña y abrir. */
+const FUNCIONES_REING_BP_1A = ["turnosJugados", "motivoSena", "montoSena", "cuantoEntra", "cobrarSenaYAbrir"] as const satisfies readonly Funciones[];
 type FuncionesListadas =
   | (typeof FUNCIONES)[number]
   | (typeof FUNCIONES_OLA1_CUENTA_Y_BUFFET)[number]
@@ -113,12 +118,13 @@ type FuncionesListadas =
   | (typeof FUNCIONES_OLA4_NOVEDADES)[number]
   | (typeof FUNCIONES_PIN_POR_ROL)[number]
   | (typeof FUNCIONES_TOPE_PIN)[number]
-  | (typeof FUNCIONES_PIN_CON_HASH)[number];
+  | (typeof FUNCIONES_PIN_CON_HASH)[number]
+  | (typeof FUNCIONES_REING_BP_1A)[number];
 const CONSTANTES = [
   "VERSION_ESTADO", "MEDIOS", "ESTADOS", "TIPOS", "ROLES", "PERMISOS", "NOMBRE_DIA",
   "CONFIG_DEMO", "CANCHAS_DEMO", "USUARIOS_DEMO", "USUARIOS_REALES", "PRODUCTOS_DEMO", "PROVEEDORES_DEMO", "DIAS_SIN_ARCHIVAR", "LIMITES_POLITICA", "LIMITES_BLOQUEO",
   "TIPOS_NOVEDAD", "AUDIENCIAS", "CANALES", "ESTADOS_CONTENIDO", "LARGO_PIN", "LARGO_PIN_VIEJO", "MOTIVO_PIN_VIEJO",
-  "TOPE_INTENTOS_PIN", "ESPERAS_PIN_S", "VUELTAS_PIN",
+  "TOPE_INTENTOS_PIN", "ESPERAS_PIN_S", "VUELTAS_PIN", "DIAS_ADELANTE_MAX",
 ] as const satisfies readonly Exclude<keyof Motor, Funciones>[];
 
 // Comprobación de tipos en los dos sentidos: ninguna función ni constante tipada queda afuera de las listas.
@@ -147,7 +153,7 @@ const REQ_CLIENTE: readonly Requeridas<Cliente>[] = ["id", "nombre", "tel", "niv
 
 test("contrato de motor.d.mts: cada export tipado existe en la copia con su clase (función o constante)", () => {
   const motor = M as unknown as Record<string, unknown>;
-  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES, ...FUNCIONES_PIN_POR_ROL, ...FUNCIONES_TOPE_PIN, ...FUNCIONES_PIN_CON_HASH]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
+  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES, ...FUNCIONES_PIN_POR_ROL, ...FUNCIONES_TOPE_PIN, ...FUNCIONES_PIN_CON_HASH, ...FUNCIONES_REING_BP_1A]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
   for (const n of CONSTANTES) {
     assert.ok(n in motor, `${n} no está exportada`);
     assert.notEqual(typeof motor[n], "function", `${n} es una función: va en FUNCIONES`);
@@ -420,3 +426,117 @@ function ok0(r: { ok: boolean; motivo?: string }): string {
   assert.equal(r.ok, false);
   return r.motivo ?? "";
 }
+
+// ───────────── reingeniería BP · 1A: seña del nuevo, cuánto entra, cobrar la seña y abrir ─────────────
+
+/** El club con la regla de fábrica (seña a los nuevos prendida). */
+function clubDeFabrica(): EstadoClub {
+  const e = club();
+  e.config.politica.senaNuevos = M.CONFIG_DEMO.politica.senaNuevos;
+  return e;
+}
+const jugo = (e: EstadoClub, clienteId: string, veces: number) => {
+  for (let i = 0; i < veces; i++) {
+    const r = ok(M.crearReserva(e, { canchaId: "c2", fecha: M.sumarDias(HOY, -1 - i), inicio: 10 * 60, clienteId, conSena: false })).reserva;
+    r.estado = "finalizada";
+  }
+};
+
+test("de fábrica: seña a los nuevos sí, ventana de 14 días", () => {
+  assert.equal(M.CONFIG_DEMO.politica.senaNuevos, true);
+  assert.equal(M.CONFIG_DEMO.diasAdelante, 14);
+  assert.equal(M.crearClubReal(HOY).config.politica.senaNuevos, true, "también en la jornada real");
+});
+
+test("BP-001/002: el nuevo con ficha deja seña; con 3 jugados sin faltas, no", () => {
+  const e = clubDeFabrica();
+  assert.equal(M.turnosJugados(e, "a"), 0);
+  assert.equal(M.requiereSena(e, "a", "turno"), true, "nuevo con ficha: pide seña");
+  assert.equal(M.motivoSena(e, "a", "turno"), "cliente nuevo");
+  const r = ok(M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 20 * 60, clienteId: "a" }, ahora(8))).reserva;
+  assert.equal(r.sena.monto, M.montoSena(e, r.precio));
+  assert.equal(r.sena.monto, 21000);
+  assert.match(r.ref ?? "", /^BP-[A-Z2-9]{4}$/);
+  jugo(e, "b", 3);
+  assert.equal(M.turnosJugados(e, M.cliente(e, "b")!), 3, "acepta la ficha o el id");
+  assert.equal(M.requiereSena(e, "b", "turno"), false, "3 jugados y sin faltas: sin seña");
+  assert.equal(M.motivoSena(e, "b", "turno"), null);
+  // Los archivados cuentan.
+  e.archivo = { clientes: { d: { jugados: 3 } } } as unknown as EstadoClub["archivo"];
+  assert.equal(M.turnosJugados(e, "d"), 3);
+  assert.equal(M.requiereSena(e, "d", "turno"), false);
+});
+
+test("BP-003/004: dos faltas piden seña aunque tenga 10 jugados; clase y fijo nunca", () => {
+  const e = clubDeFabrica();
+  jugo(e, "c", 10);
+  assert.equal(M.cliente(e, "c")!.strikes, 2);
+  assert.equal(M.requiereSena(e, "c", "turno"), true);
+  assert.equal(M.motivoSena(e, "c", "turno"), "tiene 2 faltas");
+  for (const tipo of ["clase", "fijo"] as const) {
+    assert.equal(M.requiereSena(e, "a", tipo), false, `${tipo} con un nuevo`);
+    assert.equal(M.requiereSena(e, "c", tipo), false, `${tipo} con faltas`);
+    assert.equal(M.requiereSena(e, null, tipo), false, `${tipo} sin ficha`);
+  }
+  // Con la regla apagada, el nuevo vuelve a la seña de antes.
+  e.config.politica.senaNuevos = false;
+  assert.equal(M.requiereSena(e, "a", "turno"), false);
+});
+
+test("hidratarEstado completa lo nuevo de la configuración sin pisar lo que eligió el club", () => {
+  const e = club();
+  const vieja = M.serializarEstado(e);
+  const cfg = vieja.estado.config as unknown as Record<string, unknown> & { politica: Record<string, unknown> };
+  delete cfg.diasAdelante;
+  delete cfg.politica.senaNuevos;
+  const h = ok(M.hidratarEstado(JSON.parse(JSON.stringify(vieja))));
+  assert.equal(h.estado.config.diasAdelante, 14);
+  assert.equal(h.estado.config.politica.senaNuevos, true);
+  const elegida = M.serializarEstado(e);
+  elegida.estado.config.diasAdelante = 21;
+  elegida.estado.config.politica.senaNuevos = false;
+  const h2 = ok(M.hidratarEstado(JSON.parse(JSON.stringify(elegida))));
+  assert.equal(h2.estado.config.diasAdelante, 21);
+  assert.equal(h2.estado.config.politica.senaNuevos, false);
+  const rota = M.serializarEstado(e);
+  (rota.estado.config as unknown as Record<string, unknown>).diasAdelante = 9999;
+  const h3 = ok(M.hidratarEstado(JSON.parse(JSON.stringify(rota))));
+  assert.equal(h3.estado.config.diasAdelante, 14, "fuera de rango vuelve a la de fábrica");
+});
+
+test("cuantoEntra: hasta el próximo turno, el bloqueo o el cierre; 0 si ya está ocupado", () => {
+  const e = club();
+  const beto = ok(M.crearReserva(e, { canchaId: "c2", fecha: HOY, inicio: 21 * 60, clienteId: "b" }, ahora(8))).reserva;
+  const a = M.cuantoEntra(e, HOY, "c2", 20 * 60 + 30);
+  assert.equal(a.minutos, 30);
+  assert.equal(a.hasta?.tipo === "turno" && a.hasta.reserva.id, beto.id);
+  assert.equal(M.cuantoEntra(e, HOY, "c2", 21 * 60 + 30).minutos, 0, "dentro del turno de Beto");
+  const { cierra } = M.horarioDe(e, HOY);
+  const fin = M.cuantoEntra(e, HOY, "c3", cierra - 60);
+  assert.deepEqual([fin.minutos, fin.hasta?.tipo], [60, "cierre"]);
+  assert.equal(M.cuantoEntra(e, HOY, "c3", cierra).minutos, 0, "cerrado");
+});
+
+test("BP-005/006: cobrar la seña y abrir — cobra lo que falta, abre y prende la luz; si no se puede abrir, no cobra", () => {
+  const e = clubDeFabrica();
+  const r = ok(M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 20 * 60, clienteId: "a" }, ahora(8))).reserva;
+  assert.match((M.checkIn(e, r.id, ahora(20)) as { motivo: string }).motivo, /seña/, "«Abrir la cancha» solo no alcanza");
+  // Ocupada por otro turno: no se cobra nada.
+  const otro = ok(M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 18 * 60 + 30, clienteId: "b", conSena: false }, ahora(8))).reserva;
+  ok(M.checkIn(e, otro.id, ahora(18, 30)));
+  const antes = cajaIngresos(e);
+  const choca = M.cobrarSenaYAbrir(e, r.id, { medio: "transferencia" }, ahora(19, 55));
+  assert.equal(choca.ok, false);
+  assert.equal(cajaIngresos(e), antes, "no cobró");
+  assert.equal(r.sena.pagada, false);
+  e.reservas = e.reservas.filter((x) => x.id !== otro.id);
+  e.luces.c1 = false;
+  const res = ok(M.cobrarSenaYAbrir(e, r.id, { medio: "transferencia" }, ahora(19, 55)));
+  assert.equal(res.cobrado, 21000);
+  assert.equal(r.estado, "en_cancha");
+  assert.equal(r.sena.pagada, true);
+  assert.equal(e.luces.c1, true, "la luz prendida");
+  const mov = e.caja.movimientos.at(-1)!;
+  assert.deepEqual([mov.medio, mov.monto], ["transferencia", 21000]);
+});
+

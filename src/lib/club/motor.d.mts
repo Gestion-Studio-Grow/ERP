@@ -64,6 +64,11 @@ export interface Politica {
   minutosAvisoSena: number;
   senaWeb: "siempre" | "nuevos" | "politica";
   turnosConfianza: number;
+  /**
+   * Seña a los nuevos también en el mostrador: pide seña a quien jugó menos de `turnosConfianza` turnos. De fábrica,
+   * sí (`hidratarEstado` la completa en una foto vieja).
+   */
+  senaNuevos: boolean;
   minutosParaSenar: number;
   liberarSinSena: "manual" | "auto";
   unaCanchaPorHorario: boolean;
@@ -84,6 +89,8 @@ export interface ConfigClub {
   /** Grilla de la agenda, en minutos. */
   paso: number;
   duracionTurno: number;
+  /** Ventana de reserva en días desde hoy (de fábrica 14; entre 1 y `DIAS_ADELANTE_MAX`). */
+  diasAdelante: number;
   feriados: Fecha[];
   tarifas: Tarifa[];
   politica: Politica;
@@ -545,6 +552,8 @@ export declare const ROLES: Readonly<Record<Rol, string>>;
 export declare const PERMISOS: Readonly<Record<Rol, readonly string[]>>;
 export declare const NOMBRE_DIA: readonly string[];
 export declare const CONFIG_DEMO: Readonly<ConfigClub>;
+/** Tope de `config.diasAdelante`. */
+export declare const DIAS_ADELANTE_MAX: number;
 export declare const CANCHAS_DEMO: readonly Cancha[];
 export declare const USUARIOS_DEMO: readonly Usuario[];
 export declare const USUARIOS_REALES: readonly Usuario[];
@@ -674,7 +683,7 @@ export interface DatosReserva {
 export declare function horarioDe(estado: EstadoClub, fecha: Fecha): { abre: number; cierra: number };
 export declare function precioTurno(estado: EstadoClub, hueco: Hueco): number;
 export declare function franjaDe(estado: EstadoClub, fecha: Fecha, min: number): "pico" | "valle";
-/** ¿Este turno pide seña? Reincidentes, clientes con deuda y turnos sin ficha (clases y fijos no). */
+/** ¿Este turno pide seña? Reincidentes, clientes con deuda, turnos sin ficha y nuevos con `senaNuevos` (clases y fijos no). */
 export declare function requiereSena(estado: EstadoClub, clienteId: string | null | undefined, tipo: TipoReserva): boolean;
 export declare function ocupantes(estado: EstadoClub, fecha: Fecha, canchaId: string, ignorarId?: string): { reservas: Reserva[]; bloqueos: Bloqueo[] };
 export declare function validarHueco(estado: EstadoClub, hueco: Hueco, ignorarId?: string): Resultado;
@@ -1361,3 +1370,18 @@ export declare function pinCoincide(estado: Pick<EstadoClub, "salPin">, u: Pick<
 export declare function largoDelPinGuardado(u: Pick<Usuario, "pin" | "pinLargo"> | null | undefined): number;
 export declare function pasarPinesAHash(estado: EstadoClub): number;
 export declare function pinDeEjemplo(u: Pick<Usuario, "id" | "pin"> | null | undefined): string;
+
+// ───────────── Reingeniería Break Point · tanda 1A (alta: seña del nuevo + hueco con alternativas) ─────────────
+
+/** Turnos que jugó (cerrados, más los archivados). Acepta la ficha o su id; sin ficha, 0. */
+export declare function turnosJugados(estado: EstadoClub, cl: Cliente | string | null | undefined): number;
+/** Por qué pide seña, en criollo («cliente nuevo», «tiene 2 faltas»…), o `null` si no pide. */
+export declare function motivoSena(estado: EstadoClub, clienteId: string | null | undefined, tipo: TipoReserva): string | null;
+/** Monto de la seña para un turno de ese precio (el mismo que guarda `crearReserva`). */
+export declare function montoSena(estado: EstadoClub, precio: number): number;
+/** Lo que corta un hueco libre: el próximo turno, un bloqueo o el cierre. */
+export type CorteDelHueco = { tipo: "turno"; reserva: Reserva } | { tipo: "bloqueo"; bloqueo: Bloqueo } | { tipo: "cierre"; min: number };
+/** Minutos seguidos libres desde `inicio` en esa cancha (0 si ya está ocupado o cerrado) y qué los corta. */
+export declare function cuantoEntra(estado: EstadoClub, fecha: Fecha, canchaId: string, inicio: number): { minutos: number; hasta: CorteDelHueco | null };
+/** «Cobrar la seña y abrir»: cobra lo que falta de la seña y abre la cancha, o no hace nada. */
+export declare function cobrarSenaYAbrir(estado: EstadoClub, id: string, opciones: { medio: Medio; auth?: Auth | null }, ahora?: Ahora): Resultado<{ cobrado: number }>;

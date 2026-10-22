@@ -25,7 +25,8 @@ const A_LAS_8 = { fecha: HOY, min: 8 * 60 };
 
 function club(): EstadoClub {
   return M.crearEstado({
-    config: M.CONFIG_DEMO,
+    // Clientes de siempre: sin «seña a los nuevos» (esa regla tiene sus tests en motor.test.ts y alta-core.test.ts).
+    config: { ...M.CONFIG_DEMO, politica: { ...M.CONFIG_DEMO.politica, senaNuevos: false } },
     // Break Point tiene las 4 techadas; para la lluvia, la Cancha 4 descubierta (otro club).
     canchas: M.CANCHAS_DEMO.map((c) => (c.id === "c4" ? { ...c, cubierta: false } : c)),
     clientes: [

@@ -332,3 +332,25 @@ test("arrastrar hasta el borde corre la grilla: quieto en el medio, más rápido
   assert.equal(velocidadAlBorde(130, 100, 160, borde), 0);
   assert.equal(velocidadAlBorde(100, 100, 100, borde), 0, "sin lugar visible no se corre");
 });
+
+test("cada hueco libre dice cuánto entra: «+ 20:30 · 30 min» si no aguanta la duración de siempre (reingeniería BP · 1A)", () => {
+  const e = demo();
+  const martes = M.sumarDias(HOY, 3);
+  const beto = reservar(e, { canchaId: "c2", fecha: martes, inicio: 21 * 60, duracion: 90, tipo: "clase", titular: "Beto", clienteId: null, otros: "" }, AHORA);
+  assert.equal(beto.ok, true, beto.mensaje);
+  const v = armarAgenda(e, martes, AHORA);
+  const hueco = (min: number) => v.libres.find((l) => l.canchaId === "c2" && l.min === min);
+  assert.deepEqual([hueco(20 * 60 + 30)?.cuantoEntra, hueco(20 * 60 + 30)?.corto], [30, true], "a las 20:30 entran 30 min: corto");
+  assert.deepEqual([hueco(19 * 60 + 30)?.cuantoEntra, hueco(19 * 60 + 30)?.corto], [90, false], "a las 19:30 entra justo");
+  for (const l of v.libres) assert.equal(l.cuantoEntra, M.cuantoEntra(e, martes, l.canchaId, l.min).minutos, l.etiqueta);
+  // La etiqueta para el lector de pantalla no cambia (la usa la navegación por teclado).
+  assert.equal(hueco(20 * 60 + 30)?.etiqueta, "Cancha 2, 20:30, libre: reservar");
+  // Un turno que cambia cuánto entra en un hueco cambia la firma (React repinta ese hueco).
+  const antes = armarAgenda(e, martes, AHORA);
+  const r = reservar(e, { canchaId: "c2", fecha: martes, inicio: 18 * 60 + 30, duracion: 60, tipo: "clase", titular: "Otra", clienteId: null, otros: "" }, AHORA);
+  assert.equal(r.ok, true, r.mensaje);
+  const despues = compartirAgenda(antes, armarAgenda(e, martes, AHORA));
+  const h = despues.libres.find((l) => l.canchaId === "c2" && l.min === 18 * 60)!;
+  assert.equal(h.cuantoEntra, 30);
+  assert.notEqual(despues.firma, antes.firma);
+});

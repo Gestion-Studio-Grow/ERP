@@ -14,6 +14,11 @@
 // (con la seña, el alias y el código si pide seña), «Abrir el turno» (para cobrar la seña ahí mismo) y «Listo».
 // Nada se manda solo: el link abre WhatsApp y la persona aprieta enviar (whatsapp-core.ts).
 //
+// La hora que eligió la persona (tocando un hueco o en «Hora») NO se cambia nunca por atrás: si con esa cancha o esa
+// duración no entra, se avisa («A las 20:30 en Cancha 2 entran 30 min (Beto juega 21:00)»), «Reservar» se apaga y se
+// ofrecen alternativas de un toque (otra cancha a esa hora, el siguiente hueco, menos tiempo, anotarlo en espera).
+// Sólo con «+ Turno», mientras nadie eligió hora, se propone la primera que entra.
+//
 // Las reglas son de alta-core.ts (y del motor): la pantalla propone, `crearReserva` decide.
 
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
@@ -21,7 +26,7 @@ import { cancha as canchaDe, hhmm, reserva as reservaDe } from "@/lib/club/motor
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import type { Almacen } from "./almacen";
-import { DURACIONES, ORIGENES_ALTA, ORIGEN_DE_FABRICA, TIPOS_ALTA, clientesQueCoinciden, horariosLibres, previaDelTurno, reservar, type DatosAlta, type OrigenAlta } from "./alta-core";
+import { DURACIONES, ORIGENES_ALTA, ORIGEN_DE_FABRICA, TIPOS_ALTA, alternativas, anotarEnEsperaDesdeAlta, clientesQueCoinciden, horariosDelDia, previaDelTurno, reservar, type DatosAlta, type OrigenAlta } from "./alta-core";
 import { BotonWhatsApp, TextoWhatsApp } from "./WhatsAppDelClub";
 import { celularDelTurno, enlaceWhatsApp, fechaCorta, textoConfirmacion } from "./whatsapp-core";
 // La piel de Break Point («chapa», como el «Nuevo turno» del club de hoy); sin esa estética no pinta nada.
@@ -102,10 +107,12 @@ export default function AltaDeTurno({
   // Se vuelve a pintar si el almacén cambia (otro toque, «Deshacer»): los horarios libres son los de ahora.
   useSyncExternalStore(almacen.suscribir, almacen.version, almacen.version);
   const estado = almacen.estado();
+  const ahora = almacen.ahora();
   const [canchaId, setCanchaId] = useState(canchaInicial);
   const [duracion, setDuracion] = useState<number>(estado.config.duracionTurno);
-  const libres = horariosLibres(estado, fecha, canchaId, duracion, almacen.ahora());
+  // La hora que eligió la persona (el hueco que tocó o la que puso en «Hora»): no se toca. `null` = «+ Turno» sin elegir.
   const [inicio, setInicio] = useState<number | null>(inicioInicial);
+  const horas = horariosDelDia(estado, fecha, canchaId, duracion, ahora, inicio);
   const [tipo, setTipo] = useState<DatosAlta["tipo"]>("turno");
   const [titular, setTitular] = useState("");
   const [clienteId, setClienteId] = useState<string | null>(null);
@@ -114,20 +121,29 @@ export default function AltaDeTurno({
   const [origen, setOrigen] = useState<OrigenAlta>(ORIGEN_DE_FABRICA);
   const [hecho, setHecho] = useState<Reservado | null>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
-  const ids = { titulo: useId(), cancha: useId(), hora: useId(), dur: useId(), tipo: useId(), titular: useId(), otros: useId(), previa: useId(), tel: useId(), origen: useId() };
+  const ids = { titulo: useId(), cancha: useId(), hora: useId(), dur: useId(), tipo: useId(), titular: useId(), otros: useId(), previa: useId(), tel: useId(), origen: useId(), aviso: useId() };
 
   useEffect(() => {
     titulo.current?.focus();
   }, []);
 
-  // Si la hora elegida no entra con esta cancha o duración, se toma la primera que sí (o ninguna).
-  const horaValida = inicio !== null && libres.some((h) => h.min === inicio) ? inicio : (libres[0]?.min ?? null);
-  const previa = horaValida === null ? null : previaDelTurno(estado, { canchaId, fecha, inicio: horaValida, duracion, tipo, clienteId });
+  // La hora del alta: la elegida, tal cual; sin elegir («+ Turno»), la primera que entra (una propuesta, no un cambio).
+  const hora = inicio ?? horas.find((h) => h.entra)?.min ?? null;
+  const salida = hora === null ? null : alternativas(estado, { canchaId, fecha, inicio: hora, duracion }, ahora);
+  const entra = salida?.entra === true;
+  const previa = hora === null || !entra ? null : previaDelTurno(estado, { canchaId, fecha, inicio: hora, duracion, tipo, clienteId, tel: clienteId ? "" : tel, titular }, ahora);
   const fichas = clienteId ? [] : clientesQueCoinciden(estado, titular);
+
+  const anotarEnEspera = () => {
+    if (!salida) return;
+    const d = almacen.ejecutar((est, ah) => anotarEnEsperaDesdeAlta(est, { titular, clienteId, tel, espera: salida.espera }, ah), { deshacible: true });
+    if (d.ok) onVolver();
+  };
 
   const enviar = (e: React.FormEvent) => {
     e.preventDefault();
-    if (horaValida === null) return;
+    if (hora === null || !entra) return;
+    const horaValida = hora;
     const salida: { listo: Reservado | null } = { listo: null };
     const d = almacen.ejecutar(
       (est, ahora) => {
@@ -207,9 +223,9 @@ export default function AltaDeTurno({
               <label htmlFor={ids.hora} data-alta="etiqueta" className="text-xs font-semibold text-body">
                 Hora
               </label>
-              <Select id={ids.hora} value={horaValida ?? ""} onChange={(e) => setInicio(Number(e.target.value))} disabled={libres.length === 0}>
-                {libres.length === 0 && <option value="">No queda lugar ese día</option>}
-                {libres.map((h) => (
+              <Select id={ids.hora} value={hora ?? ""} onChange={(e) => setInicio(e.target.value === "" ? null : Number(e.target.value))} disabled={horas.length === 0} aria-describedby={salida && !entra ? ids.aviso : undefined}>
+                {hora === null && <option value="">{horas.length === 0 ? "No queda lugar ese día" : "Elegí la hora"}</option>}
+                {horas.map((h) => (
                   <option key={h.min} value={h.min}>
                     {h.texto}
                   </option>
@@ -241,6 +257,41 @@ export default function AltaDeTurno({
               </Select>
             </div>
           </div>
+          {salida && !entra && (
+            <div id={ids.aviso} role="alert" data-alta="aviso" className="flex flex-col gap-2 rounded-md border border-line bg-surface-sunken p-3">
+              <p className="text-sm font-medium text-strong">
+                <span aria-hidden="true">⚠ </span>
+                {salida.aviso}
+              </p>
+              <div className="flex flex-col gap-1.5">
+                  <p className="text-xs font-semibold text-body">Opciones:</p>
+                  <ul aria-label="Opciones donde sí entra" className="flex flex-wrap gap-2">
+                    {salida.opciones.map((o) => (
+                      <li key={`${o.tipo}-${o.canchaId}-${o.inicio}-${o.duracion}`}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="md"
+                          data-alta="opcion"
+                          onClick={() => {
+                            setCanchaId(o.canchaId);
+                            setInicio(o.inicio);
+                            setDuracion(o.duracion);
+                          }}
+                        >
+                          {o.etiqueta}
+                        </Button>
+                      </li>
+                    ))}
+                    <li>
+                      <Button type="button" variant="ghost" size="md" data-alta="opcion" onClick={anotarEnEspera} disabled={!titular.trim()} title={titular.trim() ? undefined : "Poné a nombre de quién"}>
+                        Anotar en espera
+                      </Button>
+                    </li>
+                  </ul>
+              </div>
+            </div>
+          )}
           <div data-alta="campos" className="grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-2.5">
             <div className="flex flex-col gap-1">
               <label htmlFor={ids.titular} data-alta="etiqueta" className="text-xs font-semibold text-body">
@@ -299,7 +350,7 @@ export default function AltaDeTurno({
             <Input id={ids.otros} value={otros} autoComplete="off" onChange={(e) => setOtros(e.target.value)} />
           </div>
           <p id={ids.previa} role="status" data-alta="previa" className="text-sm font-medium text-strong">
-            {previa === null ? "Elegí otra cancha o duración: no queda lugar." : previa.ok ? previa.texto : previa.motivo}
+            {hora === null ? "Elegí otra cancha o duración: no queda lugar." : !entra ? "Con esta cancha, hora y duración no entra: elegí una opción." : previa === null ? "" : previa.ok ? previa.texto : previa.motivo}
           </p>
         </div>
         {/* El pie fijo del diálogo del club de hoy: «Cancelar» y «Reservar» siempre a la vista, aunque el formulario scrollee. */}
@@ -307,7 +358,7 @@ export default function AltaDeTurno({
           <Button type="button" variant="outline" size="md" onClick={onVolver}>
             Cancelar
           </Button>
-          <Button type="submit" variant="solid" size="md" disabled={horaValida === null || !titular.trim()}>
+          <Button type="submit" variant="solid" size="md" disabled={hora === null || !entra || !previa?.ok || !titular.trim()}>
             Reservar
           </Button>
         </footer>

@@ -20,7 +20,8 @@ const RECEP = { usuarioId: "u-lu", pin: "33" };
 const CON_DESCUBIERTA = M.CANCHAS_DEMO.map((c: any) => (c.id === "c4" ? { ...c, cubierta: false } : c));
 
 function club(canchas = M.CANCHAS_DEMO) {
-  return M.crearEstado({
+  // Ana, Beto, Caro y Dani son clientes de siempre: sin «seña a los nuevos» (esa regla tiene su test propio).
+  return conClientesDeSiempre(M.crearEstado({
     config: M.CONFIG_DEMO,
     canchas,
     clientes: [
@@ -32,7 +33,11 @@ function club(canchas = M.CANCHAS_DEMO) {
     productos: M.PRODUCTOS_DEMO,
     usuarios: M.USUARIOS_DEMO,
     proveedores: M.PROVEEDORES_DEMO,
-  });
+  }));
+}
+function conClientesDeSiempre<T extends { config: { politica: { senaNuevos: boolean } } }>(e: T): T {
+  e.config.politica.senaNuevos = false;
+  return e;
 }
 const turno = (e: ReturnType<typeof club>, cancha: string, hh: number, datos: object, mm = 0) =>
   M.crearReserva(e, { canchaId: cancha, fecha: HOY, inicio: hh * 60 + mm, ...datos }, ahora(8)).reserva;
@@ -1130,7 +1135,8 @@ test("limpieza para el go-live: se borra lo transaccional, se conserva lo maestr
   M.ajustarFondo(e, 20000, R, ahora(9));
   M.ajustarStock(e, "p2", 40, R, ahora(9));
   const juan = M.altaCliente(e, { nombre: "Juan", tel: "1155550001" }, ahora(9)).cliente;
-  const r = turno(e, "c1", 20, { clienteId: juan.id, jugadores: [{ nombre: "Juan", clienteId: juan.id }, "Pedro"] });
+  // Sin seña (Juan es nuevo y la jornada real se la pediría): esta prueba es de la limpieza, no de la seña.
+  const r = turno(e, "c1", 20, { clienteId: juan.id, jugadores: [{ nombre: "Juan", clienteId: juan.id }, "Pedro"], conSena: false });
   M.checkIn(e, r.id, ahora(20));
   M.consumoJugador(e, r.id, 0, "p2", 2, {}, ahora(20, 10));
   M.cobrarTodoElTurno(e, r.id, { medio: "efectivo" }, ahora(21));
