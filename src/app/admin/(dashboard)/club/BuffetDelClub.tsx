@@ -11,18 +11,14 @@
 //      elegido o con sus créditos, con el paso previo), pasar a su cuenta corriente o, si no tiene, pedir el OK del
 //      dueño para fiar y tipear el código de 6 letras que manda (5 intentos).
 //   4. Abrir una cuenta sin turno (alguien que viene al bar).
-// Ola 1 de paridad: la «Venta rápida de mostrador» (VentaDeMostrador.tsx) y, en cada cuenta, la «Mesa compleja»
-// (buffet-mesa-compleja.tsx): pasar un cargo a otra cuenta y cargo manual, con descuento firmado por el dueño.
+// Ola 1 de paridad: en cada cuenta, la «Mesa compleja» (buffet-mesa-compleja.tsx): pasar un cargo a otra cuenta y
+// cargo manual, con descuento firmado por el dueño.
 // Cada tarjeta es un `memo`: cargar en una cuenta repinta sólo esa tarjeta (compartirBuffet).
 // Tanda 2D (reingeniería de Break Point): la mesa que sigue vive ACÁ con sus comensales (`MesaQueSigue`): «+ plato» al
 // comensal elegido, cada uno paga lo suyo con su medio de un toque, «Cobrar todo y cerrar la mesa» o a cuenta corriente,
 // sin saltar a la Agenda. Sus cuentas no se repiten en «Cuentas abiertas»: van dentro de la mesa («Más»).
-// La venta de mostrador pasa a la hoja global «Vender» (tecla V, de 2A): acá queda un botón que la abre (`onVender`).
-//
-// CONTRATO PARA INTEGRAR (`onVender`): `ClubDemo` monta `<BuffetDelClub … onVender={() => abrirVender()} />`, donde
-// `abrirVender` es lo mismo que hace la tecla V (abrir `HojaDeVender` de VentaDeMostrador.tsx). Sin `onVender` (esta rama
-// antes de integrar), el Buffet sigue mostrando la venta rápida de antes: nunca queda un botón que no hace nada. Al
-// integrar, si VentaDeMostrador ya no exporta el panel por defecto, se borra esa rama de respaldo (`VentaDeMostrador`).
+// Una sola venta de mostrador: la hoja global «Vender» (tecla V, Tanda 2A, VentaDeMostrador.tsx). Acá queda su acceso de
+// un toque (`onVender`, lo mismo que la tecla V: lo monta ClubDemo). La «Venta rápida» de la Tanda 1 ya no existe.
 // Piel del club de hoy: cada cuenta es una tarjeta RESUMIDA (quién, cuánto debe, qué lleva) y «Cargar / cobrar» la
 // despliega con el − / + de cada cargo y los «+ Plato»; cobrar, cuenta corriente, fiar y la mesa compleja siguen a la
 // vista. Los colores de Break Point van en piel/buffet.css (bajo [data-estetica="breakpoint"], por `data-buffet`).
@@ -42,7 +38,6 @@ import PedidoDelDuenio from "./pedido-del-duenio";
 import { DESHACIBLE, ETIQUETA_MEDIO, MEDIOS_CAJA, MEDIO_CORTO, revisarConfirmacion, type AccionCuenta, type MedioCobro } from "./cuenta-core";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
 import { useSeleccion } from "./usar-almacen";
-import VentaDeMostrador from "./VentaDeMostrador";
 import "./piel/buffet.css";
 
 const seleccionarBuffet = (e: EstadoClub, a: Ahora) => armarBuffet(e, a);
@@ -548,15 +543,15 @@ export default function BuffetDelClub({
   onVerTurno,
   negocio,
   onVender,
+  atajos = true,
 }: {
   almacen: Almacen;
   onVerTurno: (reservaId: string) => void;
   negocio?: string;
-  /**
-   * Abre la hoja global «Vender» (la de la tecla V, 2A). Contrato para integrar: arriba del archivo. Sin ella, queda la
-   * venta rápida de antes.
-   */
-  onVender?: () => void;
+  /** Abre la hoja global «Vender» (lo mismo que la tecla V, 2A): la única venta de mostrador. */
+  onVender: () => void;
+  /** Los atajos de una tecla prendidos: el botón anuncia (y muestra) la V sólo si anda. */
+  atajos?: boolean;
 }) {
   const vista = useSeleccion(almacen, seleccionarBuffet, compartirBuffet);
   const mesas = useSeleccion(almacen, seleccionarMesas, compartirMesas);
@@ -619,25 +614,23 @@ export default function BuffetDelClub({
 
       {mesas.length === 0 && seccionMesas}
 
-      {onVender ? (
-        // La venta de mostrador es la hoja global «Vender» (tecla V, desde cualquier solapa): acá, el acceso de un toque.
-        <section aria-labelledby="club-vender" data-buffet="vender" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface-raised p-3">
-          <div className="min-w-0">
-            <h2 id="club-vender" className="font-semibold text-strong">
-              Venta de mostrador
-            </h2>
-            <p className="text-sm text-muted">Alguien que compra y se va: se cobra al toque, sin abrir cuenta.</p>
-          </div>
-          <Button variant="solid" size="md" aria-keyshortcuts="V" onClick={onVender}>
-            Vender
+      {/* La venta de mostrador es la hoja global «Vender» (tecla V, desde cualquier solapa): acá, el acceso de un toque. */}
+      <section aria-labelledby="club-vender" data-buffet="vender" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface-raised p-3">
+        <div className="min-w-0">
+          <h2 id="club-vender" className="font-semibold text-strong">
+            Venta de mostrador
+          </h2>
+          <p className="text-sm text-muted">Alguien que compra y se va: se cobra al toque, sin abrir cuenta.</p>
+        </div>
+        <Button variant="solid" size="md" aria-keyshortcuts={atajos ? "V" : undefined} onClick={onVender}>
+          Vender
+          {atajos && (
             <kbd aria-hidden="true" className="ml-2 rounded-sm border border-current px-1 text-xs font-semibold">
               V
             </kbd>
-          </Button>
-        </section>
-      ) : (
-        <VentaDeMostrador almacen={almacen} />
-      )}
+          )}
+        </Button>
+      </section>
 
       <Cargar almacen={almacen} cuentas={vista.cuentas} onAccion={onAccion} />
 

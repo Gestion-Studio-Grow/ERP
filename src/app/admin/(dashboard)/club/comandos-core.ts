@@ -46,9 +46,11 @@ interface Entrada<A extends unknown[], D extends Desenlace = Desenlace> {
   sinInternet: (args: A) => boolean;
   /**
    * Los campos SECRETOS de los argumentos, además de `pin` (que se saca siempre): no van a la cola del equipo ni a la
-   * foto (`comandoSinPin`). Al re-aplicar después de recargar faltan, y la acción los vuelve a pedir.
+   * foto (`comandoSinPin`, a cualquier profundidad). Al re-aplicar después de recargar faltan, y la acción los vuelve a
+   * pedir. OBLIGATORIO en todo comando (`[]` si no lleva ninguno): un comando nuevo no puede olvidarse de declararlo
+   * (lo recorre entero comandos-core.test.ts, «ningún secreto queda en la cola»).
    */
-  secretos?: readonly string[];
+  secretos: readonly string[];
   /**
    * Lo que no se puede re-aplicar solo porque el motor dio algo de UNA vez (un PIN nuevo que se mostró una sola vez:
    * re-aplicado daría otro distinto). Devuelve por qué, en criollo; null si se puede.
@@ -75,62 +77,76 @@ const PIN_DE_UNA_VEZ = "El PIN nuevo ya se mostró una vez y no se puede volver 
 export const REGISTRO = {
   cuenta: entrada<[reservaId: string, accion: AccionCuenta]>({
     correr: (e, [reservaId, a], ahora, auth) => ejecutarCuenta(e, reservaId, a, ahora, auth),
-    sinInternet: ([, a]) => ("medio" in a && (a.tipo !== "cargo" || a.modo === "cobrar") ? sinRed(a.medio) : true),
+    // Sin internet sólo si TODO lo que cobra no se verifica afuera: con «créditos + el resto» (`resto`), también el resto
+    // (créditos + MP pide internet, como MP solo).
+    sinInternet: ([, a]) => ("medio" in a && (a.tipo !== "cargo" || a.modo === "cobrar") ? sinRed(a.medio) && (!("resto" in a) || !a.resto || sinRed(a.resto)) : true),
+    secretos: [],
   }),
   ciclo: entrada<[reservaId: string, accion: AccionCiclo]>({
     correr: (e, [reservaId, a], ahora, auth) => ejecutarCiclo(e, reservaId, a, ahora, auth),
     // Sin internet sólo lo que hace ENTRAR plata (Challenger, 18/10): la falta y cobrarla. Devolver saca plata; mover,
     // extender, cancelar e interrumpir reordenan la agenda de todos: con internet.
     sinInternet: ([, a]) => a.tipo === "falta" || (a.tipo === "cobrarFalta" && sinRed(a.medio)),
+    secretos: [],
   }),
   buffet: entrada<[accion: AccionBuffet]>({
     correr: (e, [a], ahora, auth) => ejecutarBuffet(e, a, ahora, auth),
     sinInternet: ([a]) => (a.tipo === "cobrar" ? sinRed(a.medio) : true),
+    secretos: [],
   }),
   mesa: entrada<[accion: AccionMesa], DesenlaceMesa>({
     correr: (e, [a], ahora, auth) => ejecutarMesa(e, a, ahora, auth),
     // Un descuento lo firma el dueño: D4 no lo nombra.
     sinInternet: ([a]) => a.tipo === "pasarCargo" || !a.descuento,
+    secretos: [],
   }),
   caja: entrada<[accion: AccionCaja], ReturnType<typeof ejecutarCaja>>({
     correr: (e, [a], ahora, auth) => ejecutarCaja(e, a, ahora, auth),
     // Todo con internet: el egreso saca plata y el PIN viaja en claro en el estado (Challenger, 18/10); el cierre y el
     // fondo, también.
     sinInternet: () => false,
+    secretos: [],
   }),
   alta: entrada<[datos: DatosAlta], ReturnType<typeof reservar>>({
     correr: (e, [d], ahora) => reservar(e, d, ahora),
     // Turno presencial: si choca con uno que dio otro equipo, el motor dice que no y va a «Para resolver».
     sinInternet: () => true,
+    secretos: [],
   }),
   // ── las demás pantallas que ya despachaban acciones (F3 del certificador: toda acción de pantalla es un comando) ──
   /** «Anotar en espera» desde el alta que no entra. */
   esperaDesdeAlta: entrada<[datos: Parameters<typeof anotarEnEsperaDesdeAlta>[1]]>({
     correr: (e, [d], ahora) => anotarEnEsperaDesdeAlta(e, d, ahora),
     sinInternet: () => true,
+    secretos: [],
   }),
   espera: entrada<[accion: AccionEspera], ReturnType<typeof ejecutarEspera>>({
     correr: (e, [a], ahora) => ejecutarEspera(e, a, ahora),
     // Darle el turno a uno de la espera es como un alta presencial: si el hueco ya lo dio otro puesto, «Para resolver».
     sinInternet: () => true,
+    secretos: [],
   }),
   fijo: entrada<[accion: AccionFijo]>({
     correr: (e, [a], ahora, auth) => ejecutarFijo(e, a, ahora, auth),
     // Dar de baja un fijo cancela turnos (y puede devolver plata): con internet.
     sinInternet: ([a]) => a.tipo !== "baja",
+    secretos: [],
   }),
   luz: entrada<[canchaId: string, prendida: boolean]>({
     correr: (e, [canchaId, prendida]) => ponerLuz(e, canchaId, prendida),
     sinInternet: () => true,
+    secretos: [],
   }),
   canchas: entrada<[accion: AccionCanchas], DesenlaceCanchas>({
     correr: (e, [a], ahora) => ejecutarCanchas(e, a, ahora),
     // Lluvia, bloqueos y mantenimiento reordenan la agenda de todos: con internet.
     sinInternet: () => false,
+    secretos: [],
   }),
   venta: entrada<[carrito: Carrito, medio: MedioCaja]>({
     correr: (e, [carrito, medio], ahora) => venderEnMostrador(e, carrito, medio, ahora),
     sinInternet: ([, medio]) => sinRed(medio),
+    secretos: [],
   }),
   fiado: entrada<[accion: AccionFiado]>({
     correr: (e, [a], ahora, auth) =>
@@ -148,24 +164,29 @@ export const REGISTRO = {
   tienda: entrada<[accion: AccionTienda], ReturnType<typeof ejecutarTienda>>({
     correr: (e, [a], ahora, auth) => ejecutarTienda(e, a, ahora, auth),
     sinInternet: ([a]) => a.tipo === "entregar" && sinRed(a.medio),
+    secretos: [],
   }),
   stock: entrada<[accion: AccionStock], DesenlaceStock>({
     correr: (e, [a], ahora, auth) => ejecutarStock(e, a, ahora, auth),
     sinInternet: () => false,
+    secretos: [],
   }),
   proveedores: entrada<[accion: AccionProveedores], DesenlaceProveedores>({
     correr: (e, [a], ahora, auth) => ejecutarProveedores(e, a, ahora, auth),
     // Pagar saca plata (y lleva PIN tipeado): con internet.
     sinInternet: () => false,
+    secretos: [],
   }),
   novedades: entrada<[accion: AccionNovedades], DesenlaceNovedades>({
     correr: (e, [a], ahora, auth) => ejecutarNovedades(e, a, ahora, auth),
     sinInternet: () => false,
+    secretos: [],
   }),
   tablero: entrada<[accion: AccionTablero], DesenlaceTablero>({
     correr: (e, [a], ahora, auth) => ejecutarTablero(e, a, ahora, auth),
     sinInternet: () => false,
     unaVez: ([a]) => (a.tipo === "otorgar" ? PIN_DE_UNA_VEZ : null),
+    secretos: [],
   }),
   // ── Configuración (N4 de la cert de la Tanda 1: deja de despachar funciones sueltas) ──
   /** La solapa de Configuración (usuarios y PIN, avisos, reglas, horarios): `ejecutarConfiguracion`. */
@@ -181,6 +202,7 @@ export const REGISTRO = {
   abrirClub: entrada<[]>({
     correr: (e, _a, ahora, auth) => abrirElClub(e, ahora, auth),
     sinInternet: () => false,
+    secretos: [],
   }),
   /**
    * La limpieza para el go-live. Lleva la HUELLA del respaldo elegido (no el archivo: es el club entero y no viaja en la
@@ -190,17 +212,22 @@ export const REGISTRO = {
   golive: entrada<[pedido: PedidoDeLimpiezaPorHuella], DesenlaceLimpieza>({
     correr: (e, [p], ahora, auth) => limpiarPorHuella(e, p, ahora, auth),
     sinInternet: () => false,
+    secretos: [],
   }),
   // ── Tanda 2B: plata pendiente y bandeja en dos niveles ──
   /** «Se fue: que se cierre sola al aprobar» (el fiado que espera el OK del dueño). No mueve plata. */
   plata: entrada<[accion: AccionPlata]>({
     correr: (e, [a], ahora, auth) => ejecutarPlata(e, a, ahora, auth),
     sinInternet: () => true,
+    // Sin secretos en los argumentos (el id del pedido de fiado): lo verifica el test que recorre el REGISTRO entero.
+    secretos: [],
   }),
   /** «Posponer hasta mañana» una alerta. No mueve plata. */
   bandeja: entrada<[accion: AccionBandeja]>({
     correr: (e, [a], ahora, auth) => ejecutarBandeja(e, a, ahora, auth),
     sinInternet: () => true,
+    // Sin secretos en los argumentos (la clave de la alerta): lo verifica el test que recorre el REGISTRO entero.
+    secretos: [],
   }),
   // ── Tanda 2A · Vender (hoja global) ──
   /** «Pasar a la cuenta de…» desde la hoja Vender: el carrito como cargos de una cuenta abierta; la caja no se toca. */
@@ -209,6 +236,8 @@ export const REGISTRO = {
     // No mueve plata (como cargar en una cuenta del buffet): va sin internet; si la cuenta la cerró otro puesto, el
     // motor dice que no y va a «Para resolver».
     sinInternet: () => true,
+    // Sin secretos en los argumentos (la cuenta y el carrito): lo verifica el test que recorre el REGISTRO entero.
+    secretos: [],
   }),
   // ── Tanda 2C · la agenda ──
   /**
@@ -219,6 +248,8 @@ export const REGISTRO = {
     correr: (e, [reservaId, medio], ahora) => abrirCobrandoLaDeuda(e, reservaId, medio, ahora),
     // Como «cobrar la deuda» de la ficha: sin internet sólo en efectivo.
     sinInternet: ([, medio]) => sinRed(medio),
+    // Sin secretos en los argumentos (el turno y el medio): lo verifica el test que recorre el REGISTRO entero.
+    secretos: [],
   }),
   // ── Tanda 2D: la cancha ocupada y «la mesa sigue · dividido» ──
   /**
@@ -229,6 +260,8 @@ export const REGISTRO = {
     correr: (e, [a], ahora, auth) => ejecutarCierre(e, a, ahora, auth),
     // Hace entrar plata: sin internet sólo si todo lo que cobra va en efectivo (lo que no se verifica afuera).
     sinInternet: ([a]) => mediosDelCierre(a).every((m) => sinRed(m as MedioCobro)),
+    // Sin secretos en los argumentos (los turnos y los medios; ningún PIN): lo verifica el test que recorre el REGISTRO entero.
+    secretos: [],
   }),
 } as const;
 
@@ -394,10 +427,12 @@ export function rebasar(estado: EstadoClub, pendientes: readonly Comando[], yaAp
 export function comandoSinPin<N extends NombreDeComando>(c: Comando<N>): Comando<N> {
   // Además del PIN, los secretos de ese comando (el código del dueño, los PIN que se arman): `Entrada.secretos`.
   const secretos = ["pin", ...((Object.hasOwn(REGISTRO, c.nombre) ? (REGISTRO[c.nombre] as unknown as Entrada<unknown[]>).secretos : undefined) ?? [])];
+  // A cualquier profundidad (una acción con un objeto adentro no esconde un PIN de la cola).
   const sinPin = (x: unknown): unknown => {
-    if (!x || typeof x !== "object" || Array.isArray(x)) return x;
-    const o = { ...(x as Record<string, unknown>) };
-    for (const k of secretos) delete o[k];
+    if (!x || typeof x !== "object") return x;
+    if (Array.isArray(x)) return x.map(sinPin);
+    const o: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(x as Record<string, unknown>)) if (!secretos.includes(k)) o[k] = sinPin(v);
     return o;
   };
   const auth: Auth = c.auth?.usuarioId ? { usuarioId: c.auth.usuarioId } : {};

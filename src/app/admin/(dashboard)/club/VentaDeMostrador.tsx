@@ -4,17 +4,17 @@
 // VENDER EN EL MOSTRADOR — se carga, se cobra y se cierra en el acto, sin cuenta a nombre de nadie.
 // ============================================================================
 //
-// Dos maneras de la misma venta (el `mostrador` del club vanilla, `venderEnMostrador` de buffet-mesa-core.ts):
+// La venta (el `mostrador` del club vanilla, `venderEnMostrador` de buffet-mesa-core.ts):
 //   · `HojaDeVender` (Tanda 2A, diseño §2.4 E y §3.7): la hoja GLOBAL que abre «Vender» de la barra o la tecla V desde
 //     cualquier solapa (la monta ClubDemo.tsx). Arriba los 8 favoritos (favoritos-core.ts: los más vendidos de 7 días),
 //     el lector siempre escuchando (vender-core.ts), el total grande y los 4 medios que COBRAN DE UNA (el medio va en
 //     el comando, no queda elegido para la venta siguiente). Con efectivo, «Paga con» muestra el vuelto (montos-core).
 //     «Pasar a la cuenta de…» manda el carrito a una cuenta abierta (comando «ventaACuenta»): no entra a la caja.
 //     El carrito sobrevive a cerrar la hoja (se cerró sin querer: vuelve como estaba); se vacía si cambia quien opera.
-//   · La venta rápida al fondo de Buffet (default export), como hasta la Tanda 1: buscar, − / +, cómo paga y «Cobrar».
+// Es la ÚNICA venta de mostrador: Buffet ya no tiene la «Venta rápida» de la Tanda 1; su botón «Vender» abre esta hoja.
 // Lo de alquiler no se vende acá: va a la cuenta de un jugador. Toda acción es un COMANDO con nombre (comandos-core.ts).
 
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { Hoja } from "@/components/ui/Hoja";
@@ -24,7 +24,7 @@ import { VENTA_DESHACIBLE, armarCarrito, productosParaMostrador, sumarAlCarrito,
 import { ETIQUETA_MEDIO, MEDIOS_CAJA, type MedioCaja } from "./cuenta-core";
 import { favoritosDelMostrador } from "./favoritos-core";
 import { vueltoDe } from "./montos-core";
-import { AvisosDelClub, ComoPaga } from "./piezas";
+import { AvisosDelClub } from "./piezas";
 import { crearLector, cuentasParaPasar } from "./vender-core";
 import "./piel/vender.css";
 
@@ -59,93 +59,6 @@ function LineasDelCarrito({ lineas, onSumar, onSacar }: { lineas: LineaDelCarrit
     </ul>
   );
 }
-
-function VentaDeMostrador({ almacen }: { almacen: Almacen }) {
-  const [carrito, setCarrito] = useState<Carrito>(VACIO);
-  const [texto, setTexto] = useState("");
-  const [medio, setMedio] = useState<MedioCaja>("efectivo");
-  const id = useId();
-  const estado = almacen.estado();
-  const { porCodigo, productos } = productosParaMostrador(estado, texto);
-  const { lineas, total } = armarCarrito(estado, carrito);
-  const sumar = (productoId: string, delta: number) => setCarrito((c) => sumarAlCarrito(c, productoId, delta));
-  const elegir = (productoId: string) => {
-    sumar(productoId, 1);
-    setTexto("");
-  };
-  return (
-    <section aria-labelledby={`${id}-t`} data-buffet="mostrador" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-3">
-      <div>
-        <h2 id={`${id}-t`} className="font-semibold text-strong">
-          Venta rápida de mostrador
-        </h2>
-        <p className="text-sm text-muted">Se cobra en el acto. Para dejarlo a nombre de alguien, abrí una cuenta.</p>
-      </div>
-      <Field label="Código o producto (pasá el lector o escribí)" htmlFor={id}>
-        <Input
-          id={id}
-          value={texto}
-          autoComplete="off"
-          onChange={(e) => setTexto(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && productos.length === 1 && (porCodigo || texto.trim())) {
-              e.preventDefault();
-              elegir(productos[0].id);
-            }
-          }}
-          aria-describedby={`${id}-r`}
-        />
-      </Field>
-      <p id={`${id}-r`} className="sr-only" aria-live="polite">
-        {texto.trim() ? (productos.length ? `${productos.length} productos` : "No hay productos con eso") : ""}
-      </p>
-      {texto.trim() !== "" && (
-        <ul aria-label="Productos para la venta" className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-          {productos.length === 0 && <li className="text-sm text-muted">No hay productos con eso.</li>}
-          {productos.map((p) => (
-            <li key={p.id}>
-              <Button variant="ghost" size="md" className="w-full justify-between!" onClick={() => elegir(p.id)}>
-                <span className="truncate">+ {p.nombre}</span>
-                <span className="tabular-nums text-muted">
-                  {pesos(p.precio)} · {p.stock}
-                </span>
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {lineas.length > 0 ? <LineasDelCarrito lineas={lineas} onSumar={sumar} /> : <p className="text-sm text-muted">Buscá y sumá productos.</p>}
-      {lineas.length > 0 && (
-        <>
-          <ComoPaga medio={medio} onElegir={(m) => m !== "monedero" && setMedio(m)} leyenda="Cómo paga la venta" />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p data-buffet="total" className="text-lg font-bold tabular-nums text-strong">
-              Total {pesos(total)}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="ghost" size="md" onClick={() => setCarrito(VACIO)}>
-                Vaciar
-              </Button>
-              <Button
-                variant="solid"
-                size="md"
-                disabled={!(total > 0)}
-                onClick={() => {
-                  const d = almacen.comando("venta", [carrito, medio], { deshacible: VENTA_DESHACIBLE });
-                  if (d.ok) setCarrito(VACIO);
-                }}
-              >
-                Cobrar {pesos(total)}
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
-    </section>
-  );
-}
-
-export default memo(VentaDeMostrador);
 
 // ───────────── la hoja global «Vender» (tecla V) ─────────────
 

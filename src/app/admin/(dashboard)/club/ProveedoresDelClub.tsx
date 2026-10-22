@@ -260,7 +260,8 @@ function RemitosDelProveedor({ f }: { f: VistaFichaProveedor }) {
                 <summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-x-3 font-medium text-strong focus-visible:outline-2 focus-visible:outline-focus">
                   <span>Remito {r.numero}</span>
                   <span className="font-normal text-body tabular-nums">
-                    {r.cuando} · {r.lineas.length === 1 ? "1 producto" : `${r.lineas.length} productos`} · <span className="font-semibold text-strong">{pesos(r.total)}</span>
+                    {r.cuando} · {r.lineas.length === 1 ? "1 producto" : `${r.lineas.length} productos`}
+                    {r.vence ? ` · ${r.vence}` : ""} · <span className="font-semibold text-strong">{pesos(r.total)}</span>
                   </span>
                 </summary>
                 <ul className="flex flex-col gap-0.5 pb-2 tabular-nums text-strong">

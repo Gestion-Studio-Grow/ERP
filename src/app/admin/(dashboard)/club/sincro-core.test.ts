@@ -767,3 +767,43 @@ test("N3 · «aplicados» rota con cada comando: un ítem que otro puesto ya res
   assert.deepEqual(leerSincro(e).paraResolver.map((x) => x.id), ["tab1.c"]);
   assert.deepEqual(leerSincro(e).resueltos, ["tab1.a", "tab1.b"]);
 });
+
+test("Tanda 2 · «sube ya»: abrir cobrando la deuda, cerrar la de X y abrir, la mesa sigue dividido y vender prometen; pasar a una cuenta, «que se cierre sola» y posponer no", () => {
+  assert.equal(prometeAlgo("abrirConDeuda", ["r1", "efectivo"]), true);
+  assert.equal(prometeAlgo("cierre", [{ tipo: "cerrarYAbrir", cerrarId: "r1", abrirId: "r2", medio: "mercadopago" }]), true);
+  assert.equal(prometeAlgo("cierre", [{ tipo: "mesaSigue", reservaId: "r1", porJugador: { 0: "efectivo" } }]), true);
+  assert.equal(prometeAlgo("venta", [{ p1: 2 }, "efectivo"]), true);
+  assert.equal(prometeAlgo("ventaACuenta", ["k1", { p1: 2 }]), false);
+  assert.equal(prometeAlgo("plata", [{ tipo: "esperarOK", novedadId: "n1" }]), false);
+  assert.equal(prometeAlgo("bandeja", [{ tipo: "posponer", clave: "stock:p1" }]), false);
+});
+
+test("Tanda 2 · la cola guardada en el equipo (sin internet) no tiene ningún PIN ni secreto: descuento con el PIN del dueño, egreso y cambiar mi PIN", async () => {
+  const b = baseCompartida();
+  const datos = new Map<string, string>();
+  const guardado: AlmacenamientoLocal = { getItem: (k) => datos.get(k) ?? null, setItem: (k, v) => void datos.set(k, String(v)), removeItem: (k) => void datos.delete(k) };
+  const tablet = await puesto(b, "tab1", "tablet", LU, guardado).abrir();
+  tablet.g.retener();
+  const cuenta = tablet.a.estado().cuentas.find((c) => c.estado === "abierta")!;
+  const hechos = [
+    tablet.a.comando("mesa", [{ tipo: "cargoManual", cuentaId: cuenta.id, concepto: "Cortesía", monto: 1000, descuento: true, pin: "1111" }]),
+    tablet.a.comando("caja", [{ tipo: "egreso", monto: "500", concepto: "Hielo", pin: LU.pin }]),
+    tablet.a.comando("config", [{ tipo: "cambiarMiPin", actual: LU.pin, nuevo: "57", repetido: "57" }]),
+  ];
+  for (const d of hechos) assert.equal(d.ok, true, d.mensaje);
+  await vaciar();
+  const todo = [...datos.values()].join("\n");
+  const cola = [...datos.values()].map((v) => {
+    try {
+      return JSON.parse(v) as { pendientes?: unknown[] };
+    } catch {
+      return null;
+    }
+  }).find((x) => Array.isArray(x?.pendientes));
+  assert.ok(cola && cola.pendientes!.length >= 3, "lo hecho sin internet quedó en la cola del equipo");
+  assert.doesNotMatch(JSON.stringify(cola), /"pin"|"actual"|"nuevo"|"repetido"/, "ni el PIN de quien opera ni los tipeados");
+  for (const secreto of ['"1111"', `"${LU.pin}"`, '"57"']) assert.ok(!JSON.stringify(cola).includes(secreto), `la cola no lleva ${secreto}`);
+  assert.ok(!/"pin":"(1111|57|33)"/.test(todo), "en nada de lo guardado en el equipo");
+  tablet.g.soltar();
+  await vaciar();
+});

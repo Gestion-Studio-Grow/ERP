@@ -1,7 +1,7 @@
 // LA PALETA DEL CLUB (Ctrl/⌘+K o «/») — buscar y hacer desde cualquier pantalla, como la del club de hoy
 // (public/previews/breakpoint/club/app.mjs, `itemsPaleta`). PURO: arma la lista; ClubDemo ejecuta lo elegido.
 //
-// Sin texto: lo de todos los días (nuevo turno, abrir cuenta, ir a hoy y a cada solapa, con su tecla). Con texto:
+// Sin texto: lo de todos los días (nuevo turno, vender, abrir cuenta, ir a hoy y a cada solapa, con su tecla). Con texto:
 // turnos de hoy y del día que se mira, clientes (en rojo «debe $X» si deben), cuentas abiertas del buffet y las
 // acciones que coinciden. Sólo lo que quien opera puede abrir (las solapas que ve).
 // Tanda 2B: con texto, también la PLATA PENDIENTE de cualquier día que coincide por nombre o celular («Pablo · debe la
@@ -15,6 +15,8 @@ export type AccionPaleta =
   | { tipo: "solapa"; id: string }
   | { tipo: "hoy" }
   | { tipo: "nuevoTurno" }
+  /** La hoja global «Vender» (lo mismo que el botón de la barra y la tecla V). */
+  | { tipo: "vender" }
   | { tipo: "abrirCuenta" }
   | { tipo: "turno"; id: string }
   | { tipo: "cliente"; id: string }
@@ -63,6 +65,8 @@ export function armarPaleta(
   });
   const hacer: ItemPaleta[] = [
     ...(ve("agenda") ? [item("a-nuevo", "Hacer", "Nuevo turno", { tipo: "nuevoTurno" }, { atajo: atajos ? "N" : "" })] : []),
+    // «Vender» como el botón de la barra y la tecla V: desde cualquier solapa (no depende de cuáles ve quien opera).
+    item("a-vender", "Hacer", "Vender", { tipo: "vender" }, { atajo: atajos ? "V" : "", detalle: "venta de mostrador" }),
     ...(ve("buffet") ? [item("a-cuenta", "Hacer", "Abrir cuenta del buffet", { tipo: "abrirCuenta" }, { atajo: atajos ? "C" : "" })] : []),
     ...(ve("agenda") ? [item("a-hoy", "Ir a", "Agenda de hoy", { tipo: "hoy" }, { atajo: atajos ? "T" : "" })] : []),
     ...solapas.map((s, i) => item(`t-${s.id}`, "Ir a", s.etiqueta, { tipo: "solapa", id: s.id }, { atajo: atajos && i < 9 ? String(i + 1) : "" })),
@@ -70,7 +74,7 @@ export function armarPaleta(
     item("a-atajos", "Ajustes", atajos ? "Apagar los atajos de una tecla" : "Prender los atajos de una tecla", { tipo: "atajos", prender: !atajos }),
     // La lista de todos los atajos (la «?» del club de hoy), también desde acá: con los de una tecla apagados, es la entrada.
     item("a-ayuda", "Ayuda", "Atajos de teclado", { tipo: "ayudaAtajos" }, { atajo: atajos ? "?" : "" }),
-  ].filter((a) => coincide(a.titulo, a.grupo, ...(a.accion.tipo === "ayudaAtajos" ? ["teclas", "teclado", "ayuda"] : [])));
+  ].filter((a) => coincide(a.titulo, a.grupo, ...(a.accion.tipo === "ayudaAtajos" ? ["teclas", "teclado", "ayuda"] : a.accion.tipo === "vender" ? ["venta", "mostrador", "cobrar"] : [])));
   if (!q) return hacer;
 
   const turnos = estado.reservas
@@ -125,6 +129,7 @@ export function atajosDelClub({ mac = false, unaTecla = true }: { mac?: boolean;
     { teclas: [ctrl, "K"], que: "Buscar y hacer (turnos, clientes, cuentas, acciones)", unaTecla: false },
     { teclas: ["/"], que: "Lo mismo, con una sola tecla", unaTecla: true },
     { teclas: ["N"], que: "Nuevo turno", unaTecla: true },
+    { teclas: ["V"], que: "Vender (la venta de mostrador, desde cualquier solapa)", unaTecla: true },
     { teclas: ["C"], que: "Abrir cuenta del buffet", unaTecla: true },
     { teclas: ["←", "→"], que: "Día anterior / siguiente en la agenda", unaTecla: true },
     { teclas: ["T"], que: "Volver a hoy", unaTecla: true },

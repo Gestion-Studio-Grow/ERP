@@ -642,3 +642,64 @@ test("BP-066 · marcas del turno: «nuevo» (primer turno de la ficha), «web» 
   const v2 = armarAgenda(e, MARTES, AHORA);
   assert.equal(v2.turnos.find((t) => t.id === otro.id)!.nuevo, false);
 });
+
+// ── Tanda 2 · integración: «Cerrar la de X y abrir» desde el BLOQUE de la agenda (canchaOcupada + comando «cierre») ──
+/** 20:25: Martín Ríos (C1 17:30) sigue en cancha debiendo y llega Lucas Fernández (C1 20:30). */
+function canchaUnoOcupadaEnLaAgenda(conSena = false) {
+  M.prefijoIds("");
+  const e = demo();
+  const x = e.reservas.find((r) => r.fecha === HOY && r.canchaId === "c1" && r.estado === "en_cancha")!;
+  const sig = e.reservas.find((r) => r.fecha === HOY && r.canchaId === "c1" && r.estado === "reservada" && r.inicio === 20 * 60 + 30)!;
+  if (conSena) sig.sena = { ...sig.sena, monto: 21000, pagada: false };
+  return { e, x, sig, ahora: a(20 * 60 + 25, HOY) };
+}
+
+test("Tanda 2 · la cancha sigue ocupada: el bloque del que llega ofrece «Cerrar y abrir» (no «Abrir»), con lo que debe X; el de después no", () => {
+  const { e, x, sig, ahora } = canchaUnoOcupadaEnLaAgenda();
+  const [b, ...otros] = botonesDelMomento(e, sig, ahora);
+  assert.equal(otros.length, 0);
+  assert.equal(b.accion, "cerrarYAbrir");
+  assert.equal(b.texto, "Cerrar y abrir");
+  assert.equal(b.monto, M.saldo(x));
+  assert.deepEqual(b.ocupada, { cerrarId: x.id, titular: x.titular, debe: M.saldo(x), aCuenta: b.ocupada!.aCuenta, sena: null, llega: sig.titular });
+  assert.equal(b.etiqueta, `Cancha 1 sigue ocupada por ${x.titular}: cerrar la de ${x.titular} y abrir la de ${sig.titular} (${x.titular} debe ${M.pesos(M.saldo(x))})`);
+  // El de después en la misma cancha no saltea al que sigue.
+  const despues = e.reservas.find((r) => r.fecha === HOY && r.canchaId === "c1" && r.estado === "reservada" && r.inicio > sig.inicio);
+  if (despues) assert.deepEqual(botonesDelMomento(e, despues, a(despues.inicio - 5, HOY)), []);
+  // La celda de la grilla lo lleva (y la firma cambia si cambia lo que debe X: la celda se repinta).
+  const celda = armarAgenda(e, HOY, ahora).turnos.find((t) => t.id === sig.id)!;
+  assert.equal(celda.momento[0].accion, "cerrarYAbrir");
+  const firma = celda.firma;
+  x.pagos.push({ monto: 1000, medio: "efectivo", fecha: HOY, min: ahora.min } as (typeof x.pagos)[number]);
+  assert.notEqual(armarAgenda(e, HOY, ahora).turnos.find((t) => t.id === sig.id)!.firma, firma);
+});
+
+test("Tanda 2 · «Cerrar y abrir» del bloque = UN comando «cierre»: X paga en MP, la seña del que llega en efectivo y la mesa sigue; sube ya; re-aplicado no cobra dos veces", async () => {
+  const { prometeAlgo } = await import("./sincro-core");
+  const { e, x, sig, ahora } = canchaUnoOcupadaEnLaAgenda(true);
+  const [b] = botonesDelMomento(e, sig, ahora);
+  assert.equal(b.ocupada!.sena, 21000, "pide la seña del que llega");
+  assert.match(b.etiqueta, /seña de Lucas Fernández \$ 21\.000\)$/);
+  const ingresos = () => e.caja.movimientos.filter((m) => m.tipo === "ingreso").reduce((s, m) => s + m.monto, 0);
+  const antes = ingresos();
+  const debe = b.ocupada!.debe;
+  // Lo mismo que arma el menú del bloque (AgendaCanchas: `cerrarYAbrirDelMomento`).
+  const args: Comando<"cierre">["args"] = [{ tipo: "cerrarYAbrir", cerrarId: b.ocupada!.cerrarId, abrirId: sig.id, medio: "mercadopago", seguir: true, medioSena: "efectivo" }];
+  const texto = textoDelEstado(e);
+  const c = comando(e, "cierre", args, ahora);
+  const d = correrComando(e, c);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(M.reserva(e, sig.id)!.estado, "en_cancha");
+  assert.equal(M.saldo(M.reserva(e, x.id)!), 0);
+  assert.equal(ingresos() - antes, debe + 21000, "entra lo que debía X y la seña, ni un peso más");
+  assert.equal(prometeAlgo("cierre", args), true, "sube ya");
+  // Re-aplicado (otro puesto, «Volver a aplicar») sobre la base de antes: el mismo estado; sobre el de después, nada.
+  const deNuevo = (JSON.parse(texto) as { estado: EstadoClub }).estado;
+  assert.deepEqual(rebasar(deNuevo, [c], new Set()).rechazados, []);
+  assert.equal(JSON.stringify(deNuevo), JSON.stringify(e));
+  const otraVez = rebasar(e, [{ ...c, id: "otra" }], new Set());
+  assert.equal(otraVez.rechazados.length, 1, "el segundo no hace nada");
+  assert.equal(ingresos() - antes, debe + 21000);
+  // Ya abierta: el bloque deja de ofrecer «Cerrar y abrir».
+  assert.ok(!botonesDelMomento(e, M.reserva(e, sig.id)!, ahora).some((x) => x.accion === "cerrarYAbrir"));
+});

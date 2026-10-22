@@ -24,6 +24,8 @@
 // El BOTÓN DEL MOMENTO (bp-DISENO §2.2, `botonesDelMomento` de agenda-core.ts) va abajo del bloque, fuera del botón del
 // turno (no se anidan botones): abrir, cobrar la seña y abrir, +30 min, cobrar, cerrar, la mesa sigue, no vino. Lo que
 // necesita un medio despliega los 4 en un menú chico (`MenuDelMomento`), como «Cobrar la seña y abrir» del clic derecho.
+// Si a la hora de abrir la cancha sigue ocupada por el anterior, «Cerrar y abrir»: el menú pide la seña del que llega (si
+// falta), cómo paga lo suyo el que se va (o a su cuenta corriente) y si su mesa sigue; sale como UN comando «cierre».
 // Todo sale como COMANDO de la lista blanca (re-aplicable en otro puesto). Arriba, junto a «+ Turno»: «Buscar lugar» y
 // «Compartir lo libre» (AgendaExtras.tsx).
 //
@@ -348,7 +350,7 @@ function MenuDelTurno({ id, x, y, opciones, onElegir, onCerrar }: { id: string; 
           cerrar();
         } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
           e.preventDefault();
-          const items = [...(caja.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? [])];
+          const items = [...(caja.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem], [role=menuitemcheckbox]") ?? [])];
           const i = items.indexOf(document.activeElement as HTMLButtonElement);
           items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
         }
@@ -387,10 +389,40 @@ function MenuDelTurno({ id, x, y, opciones, onElegir, onCerrar }: { id: string; 
   );
 }
 
-/** El botón del momento abre un menú chico (los medios, o «Debe de antes»): no hace nada al primer toque. */
-const necesitaMenu = (b: BotonDelMomento) => (b.accion === "abrir" || b.accion === "cobrarSenaYAbrir" ? b.monto > 0 : b.accion === "cobrar");
+/**
+ * El botón del momento abre un menú chico (los medios, o «Debe de antes»): no hace nada al primer toque. «Cerrar la de X y
+ * abrir» siempre lo abre: cierra el turno de OTRO (con lo que debe, la seña del que llega y si la mesa sigue).
+ */
+const necesitaMenu = (b: BotonDelMomento) => (b.accion === "abrir" || b.accion === "cobrarSenaYAbrir" ? b.monto > 0 : b.accion === "cobrar" || b.accion === "cerrarYAbrir");
 
-type PasoDelMomento = { paso: "deuda" } | { paso: "medios"; para: "deuda" | "sena" | "cobrar" };
+type PasoDelMomento = { paso: "deuda" } | { paso: "medios"; para: "deuda" | "sena" | "cobrar" } | { paso: "senaDelQueLlega" } | { paso: "cerrarLaDe" };
+
+/** Lo que «Cerrar la de X y abrir» le pasa al comando «cierre» además de los dos turnos. */
+export type CerrarYAbrirDelMomento = { medio?: MedioCaja; aCuenta?: boolean; seguir: boolean; medioSena: MedioCaja | null };
+
+/** La seña del que llega: con la que se eligió; cubierta con pagos (falta $ 0), se marca paga sin cobrar (como la cuenta). */
+const senaElegida = (sena: number | null, medio: MedioCaja | null): MedioCaja | null => (sena === null ? null : (medio ?? "efectivo"));
+
+/** Por dónde arranca el menú: la seña del que llega primero (si falta algo), después lo que debe el que se va. */
+function primerPaso(b: BotonDelMomento): PasoDelMomento {
+  if (b.accion === "cerrarYAbrir") return b.ocupada?.sena ? { paso: "senaDelQueLlega" } : { paso: "cerrarLaDe" };
+  return b.accion === "abrir" ? { paso: "deuda" } : { paso: "medios", para: b.accion === "cobrar" ? "cobrar" : "sena" };
+}
+
+/** El título del menú (y su nombre para el lector de pantalla), según el paso. */
+function tituloDelMenu(boton: BotonDelMomento, paso: PasoDelMomento): string {
+  const o = boton.ocupada;
+  switch (paso.paso) {
+    case "senaDelQueLlega":
+      return `Seña de ${o?.llega ?? "quien llega"} ${pesos(o?.sena ?? 0)}: ¿cómo paga?`;
+    case "cerrarLaDe":
+      return o && o.debe > 0 ? `${o.titular} debe ${pesos(o.debe)}: ¿cómo paga y se abre?` : `Cerrar la de ${o?.titular ?? "la cancha"} y abrir`;
+    case "deuda":
+      return `Debe ${pesos(boton.monto)} de antes`;
+    case "medios":
+      return paso.para === "deuda" ? `Cobrar ${pesos(boton.monto)} de la deuda y abrir: ¿cómo paga?` : paso.para === "sena" ? `Seña ${pesos(boton.monto)} y abrir: ¿cómo paga?` : `Cobrar ${pesos(boton.monto)}: ¿cómo paga?`;
+  }
+}
 
 /**
  * El menú del botón del momento: «Debe $X de antes · Cobrar ahora / Después» y los 4 medios (seña, cobrar la cancha,
@@ -403,6 +435,7 @@ function MenuDelMomento({
   onMedio,
   onAbrirSinCobrar,
   onDividir,
+  onCerrarYAbrir,
   onCerrar,
 }: {
   boton: BotonDelMomento;
@@ -411,12 +444,17 @@ function MenuDelMomento({
   onMedio: (para: "deuda" | "sena" | "cobrar", medio: MedioCaja) => void;
   onAbrirSinCobrar: () => void;
   onDividir: () => void;
+  /** «Cerrar la de X y abrir»: lo elegido en el menú (medio o cuenta corriente de X, seña del que llega, la mesa sigue). */
+  onCerrarYAbrir: (a: CerrarYAbrirDelMomento) => void;
   onCerrar: (devolverFoco: boolean) => void;
 }) {
   const caja = useRef<HTMLDivElement>(null);
-  const [paso, setPaso] = useState<PasoDelMomento>(boton.accion === "abrir" ? { paso: "deuda" } : { paso: "medios", para: boton.accion === "cobrar" ? "cobrar" : "sena" });
+  const [paso, setPaso] = useState<PasoDelMomento>(() => primerPaso(boton));
+  // «Cerrar la de X y abrir»: con qué paga la seña el que llega (null: no se eligió todavía) y si la mesa de X sigue.
+  const [medioSena, setMedioSena] = useState<MedioCaja | null>(null);
+  const [seguir, setSeguir] = useState(false);
   useEffect(() => {
-    caja.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
+    caja.current?.querySelector<HTMLButtonElement>("[role=menuitem], [role=menuitemcheckbox]")?.focus();
   }, [paso]);
   useEffect(() => {
     const m = caja.current;
@@ -429,14 +467,8 @@ function MenuDelMomento({
     document.addEventListener("pointerdown", afuera);
     return () => document.removeEventListener("pointerdown", afuera);
   }, [x, y, onCerrar]);
-  const titulo =
-    paso.paso === "deuda"
-      ? `Debe ${pesos(boton.monto)} de antes`
-      : paso.para === "deuda"
-        ? `Cobrar ${pesos(boton.monto)} de la deuda y abrir: ¿cómo paga?`
-        : paso.para === "sena"
-          ? `Seña ${pesos(boton.monto)} y abrir: ¿cómo paga?`
-          : `Cobrar ${pesos(boton.monto)}: ¿cómo paga?`;
+  const ocupada = boton.ocupada;
+  const titulo = tituloDelMenu(boton, paso);
   const item = "min-h-11 rounded-md px-3 text-left text-sm hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus";
   return (
     <div
@@ -450,7 +482,7 @@ function MenuDelMomento({
           onCerrar(true);
         } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
           e.preventDefault();
-          const items = [...(caja.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? [])];
+          const items = [...(caja.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem], [role=menuitemcheckbox]") ?? [])];
           const i = items.indexOf(document.activeElement as HTMLButtonElement);
           items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
         }
@@ -460,7 +492,62 @@ function MenuDelMomento({
       <p aria-hidden="true" className="px-3 pb-1 pt-2 text-sm font-semibold text-strong tabular-nums">
         {titulo}
       </p>
-      {paso.paso === "deuda" ? (
+      {paso.paso === "senaDelQueLlega" ? (
+        MEDIOS_CAJA.map((m) => (
+          <button
+            key={m}
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setMedioSena(m);
+              setPaso({ paso: "cerrarLaDe" });
+            }}
+            className={cn(item, "text-strong")}
+          >
+            {ETIQUETA_MEDIO[m]}
+          </button>
+        ))
+      ) : paso.paso === "cerrarLaDe" && ocupada ? (
+        <>
+          {ocupada.debe > 0 ? (
+            <>
+              {MEDIOS_CAJA.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="menuitem"
+                  aria-label={`${ocupada.titular} paga ${pesos(ocupada.debe)} en ${ETIQUETA_MEDIO[m]} y se abre la de ${ocupada.llega}`}
+                  onClick={() => onCerrarYAbrir({ medio: m, seguir, medioSena: senaElegida(ocupada.sena, medioSena) })}
+                  className={cn(item, "text-strong")}
+                >
+                  {ETIQUETA_MEDIO[m]}
+                </button>
+              ))}
+              {ocupada.aCuenta && (
+                <button type="button" role="menuitem" onClick={() => onCerrarYAbrir({ aCuenta: true, seguir, medioSena: senaElegida(ocupada.sena, medioSena) })} className={cn(item, "text-strong")}>
+                  A su cuenta corriente y abrir
+                </button>
+              )}
+            </>
+          ) : (
+            <button type="button" role="menuitem" onClick={() => onCerrarYAbrir({ seguir, medioSena: senaElegida(ocupada.sena, medioSena) })} className={cn(item, "text-strong")}>
+              Cerrar la de {ocupada.titular} y abrir
+            </button>
+          )}
+          {/* «La mesa sigue»: X se queda a comer; su mesa pasa a Buffet (el mismo tilde que en la cuenta del turno). */}
+          <button type="button" role="menuitemcheckbox" aria-checked={seguir} onClick={() => setSeguir((v) => !v)} className={cn(item, "flex items-center gap-2 text-strong")}>
+            <span aria-hidden="true" className="inline-grid size-5 place-items-center rounded-sm border border-line-strong text-xs">
+              {seguir ? "✓" : ""}
+            </span>
+            Se quedan a comer: la mesa sigue en Buffet
+          </button>
+          {ocupada.sena ? (
+            <button type="button" role="menuitem" onClick={() => setPaso({ paso: "senaDelQueLlega" })} className={cn(item, "text-muted")}>
+              Volver (seña{medioSena ? ` en ${ETIQUETA_MEDIO[medioSena]}` : ""})
+            </button>
+          ) : null}
+        </>
+      ) : paso.paso === "deuda" ? (
         <>
           <button type="button" role="menuitem" onClick={() => setPaso({ paso: "medios", para: "deuda" })} className={cn(item, "text-strong")}>
             Cobrar ahora y abrir
@@ -469,7 +556,7 @@ function MenuDelMomento({
             Después: abrir igual
           </button>
         </>
-      ) : (
+      ) : paso.paso === "medios" ? (
         <>
           {MEDIOS_CAJA.map((m) => (
             <button key={m} type="button" role="menuitem" onClick={() => onMedio(paso.para, m)} className={cn(item, "text-strong")}>
@@ -487,7 +574,7 @@ function MenuDelMomento({
             </button>
           )}
         </>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -822,6 +909,21 @@ export default function AgendaCanchas({
     [almacen, momento],
   );
 
+  // «Cerrar la de X y abrir» desde el bloque (Tanda 2: `canchaOcupada` + el comando «cierre» de 2D): cerrar el turno que
+  // ocupa la cancha (lo que debe, con su medio o a su cuenta corriente; su mesa sigue si se quedan) y abrir el que llega
+  // (con su seña), en UN comando: o pasan las dos o ninguna. La recepción no tiene que entrar a la cuenta.
+  const cerrarYAbrirDelMomento = useCallback(
+    (a: CerrarYAbrirDelMomento) => {
+      const cerrarId = momento?.boton.ocupada?.cerrarId;
+      if (!momento || !cerrarId) return;
+      const { id } = momento;
+      setMomento(null);
+      almacen.comando("cierre", [{ tipo: "cerrarYAbrir", cerrarId, abrirId: id, ...a }], { deshacible: true });
+      requestAnimationFrame(() => document.getElementById(`turno-${id}`)?.focus());
+    },
+    [almacen, momento],
+  );
+
   // ── «Buscar lugar» y «Compartir lo libre» (arriba, junto a «+ Turno»): uno abierto a la vez ──
   const [herramienta, setHerramienta] = useState<"buscar" | "libre" | null>(null);
   const idsHerramienta = { buscar: `club-buscar-lugar`, libre: `club-lo-libre` } as const;
@@ -1002,6 +1104,7 @@ export default function AgendaCanchas({
             almacen.comando("cuenta", [id, { tipo: "abrirCancha" }], { deshacible: DESHACIBLE.abrirCancha });
             requestAnimationFrame(() => document.getElementById(`turno-${id}`)?.focus());
           }}
+          onCerrarYAbrir={cerrarYAbrirDelMomento}
           onDividir={() => {
             const id = momento.id;
             setMomento(null);

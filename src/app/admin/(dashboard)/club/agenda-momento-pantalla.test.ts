@@ -7,7 +7,8 @@
 // Cancha 3 no llegó; Agustina, que debe de antes, juega a las 21). Se prueba, clic por clic:
 //   · el botón del momento: «Cobrar $X» → los 4 medios → la cancha paga → «Cerrar» · «La mesa sigue» → cerrar;
 //     «No vino» abre la cuenta con la falta desplegada; el punto rojo de «debe» se ve en el bloque;
-//   · «Buscar lugar»: hora + duración → la cancha que entra primero → tocarla abre el alta en esa cancha y hora;
+//   · «Buscar lugar»: hora + duración → la cancha que entra primero → tocarla abre el alta en esa cancha, hora y duración;
+//   · la cancha ocupada por el anterior: «Cerrar y abrir» desde el bloque (seña, lo que debe X, la mesa sigue), un comando;
 //   · «Compartir lo libre»: el texto con los huecos, el precio y el link, y «Copiar el texto»;
 //   · y los toques de 44 px (la chapa de 26 px a la vista, el área de toque con el `::after`).
 // Sin Chromium o sin esbuild, los tests se saltean con el motivo.
@@ -196,6 +197,66 @@ describe("La agenda de Break Point en el navegador (Tanda 2C)", { timeout: 180_0
     assert.equal(await alta.getByLabel("Cancha", { exact: true }).inputValue(), `c${cancha}`);
     assert.equal(await alta.getByLabel("Hora", { exact: true }).inputValue(), String(21 * 60));
     assert.equal(await page.getByRole("region", { name: "Buscar lugar" }).count(), 0, "el panel se cierra al elegir");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("Tanda 2 · «Buscar lugar» pasa la duración: 21:00 · 120 → el alta arranca con «2 horas» (no con la de siempre)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    await page.getByRole("button", { name: "Buscar lugar" }).click();
+    const panel = page.getByRole("region", { name: "Buscar lugar" });
+    await panel.getByLabel("Hora", { exact: true }).selectOption({ label: "21:00" });
+    await panel.getByRole("group", { name: "Duración" }).getByRole("button", { name: "120 min" }).click();
+    const primero = panel.getByRole("list", { name: "Dónde hay lugar" }).getByRole("button").first();
+    await primero.waitFor();
+    assert.match((await primero.getAttribute("aria-label")) ?? "", /, 120 minutos/);
+    await primero.click();
+    const alta = page.getByRole("region", { name: "Dar un turno" });
+    await alta.waitFor();
+    assert.equal(await alta.getByLabel("Cuánto juegan").inputValue(), "120", "la duración que se buscó");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("Tanda 2 · cancha ocupada: «Cerrar y abrir» desde el bloque — la seña del que llega, lo que debe X con su medio y «la mesa sigue», sin entrar a la cuenta", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    // Martín Ríos sigue en la Cancha 1 (terminó a las 19:00 y debe). Se da un turno en esa cancha a las 19:00: llegó.
+    await page.getByRole("button", { name: "Cancha 1, 19:00, libre: reservar" }).click();
+    const alta = page.getByRole("region", { name: "Dar un turno" });
+    await alta.waitFor();
+    await alta.getByLabel("Cuánto juegan").selectOption({ label: "1 hora" });
+    await alta.getByLabel("A nombre de").fill("Grupo de Juli");
+    await alta.getByRole("button", { name: "Reservar", exact: true }).click();
+    await page.getByRole("region", { name: "Turno reservado" }).waitFor();
+    await page.keyboard.press("Escape");
+    await page.locator('[data-ui="hoja-del-turno"]').waitFor({ state: "detached" });
+
+    // El bloque del que llega: «Cerrar y abrir» (no «Abrir», que diría «sigue ocupada»).
+    const juli = page.locator("li").filter({ has: page.getByRole("button", { name: /^Grupo de Juli, Cancha 1/ }) });
+    const boton = juli.getByRole("button", { name: /^Cancha 1 sigue ocupada por Martín Ríos: cerrar la de Martín Ríos y abrir la de Grupo de Juli \(Martín Ríos debe \$ [\d.]+; seña de Grupo de Juli \$ [\d.]+\)$/ });
+    await boton.waitFor();
+    assert.equal((await boton.textContent())?.trim(), "Cerrar y abrir");
+    assert.equal(await boton.getAttribute("aria-haspopup"), "menu");
+    assert.equal(await juli.locator('[data-momento="abrir"], [data-momento="cobrarSenaYAbrir"]').count(), 0);
+    await boton.click();
+    // Primero la seña del que llega…
+    const sena = page.getByRole("menu", { name: /^Seña de Grupo de Juli \$ [\d.]+: ¿cómo paga\?$/ });
+    await sena.waitFor();
+    await sena.getByRole("menuitem", { name: "Efectivo" }).click();
+    // …después lo que debe Martín, con su medio (o a su cuenta corriente) y «la mesa sigue».
+    const cierre = page.getByRole("menu", { name: /^Martín Ríos debe \$ [\d.]+: ¿cómo paga y se abre\?$/ });
+    await cierre.waitFor();
+    const mesa = cierre.getByRole("menuitemcheckbox", { name: "Se quedan a comer: la mesa sigue en Buffet" });
+    assert.equal(await mesa.getAttribute("aria-checked"), "false");
+    await mesa.click();
+    assert.equal(await mesa.getAttribute("aria-checked"), "true");
+    await cierre.getByRole("menuitem", { name: /^Martín Ríos paga \$ [\d.]+ en Mercado Pago \(QR\) y se abre la de Grupo de Juli$/ }).click();
+    await page.getByRole("status").filter({ hasText: /^Cerrada la de Martín Ríos/ }).waitFor();
+    await page.getByRole("button", { name: /^Grupo de Juli, Cancha 1,.*En cancha/ }).waitFor();
+    assert.equal(await page.locator('[data-ui="hoja-del-turno"]').count(), 0, "sin abrir la cuenta");
+    assert.equal(await juli.locator('[data-momento="cerrarYAbrir"]').count(), 0, "ya abierta: no se ofrece más");
     assert.deepEqual(errores, []);
     await page.close();
   });

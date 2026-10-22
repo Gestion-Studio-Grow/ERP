@@ -520,7 +520,8 @@ function SoloConOperador({ almacen, negocio, children }: { almacen: Almacen; neg
 
 type Panel =
   | { tipo: "cuenta"; id: string }
-  | { tipo: "alta"; canchaId: string; inicio: number | null }
+  /** `duracion`: la que se eligió en «Buscar lugar» (sin ella, la de siempre del club). */
+  | { tipo: "alta"; canchaId: string; inicio: number | null; duracion?: number }
   | { tipo: "ofrecer"; ofertas: OfertaDeHueco[]; canchaId: string; inicio: number }
   /** Dos puestos: el alta espera el ok de la base antes de ofrecer el WhatsApp (`id`: el de la cola). */
   | { tipo: "reservando"; id: string; reservaId: string }
@@ -618,7 +619,8 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     setPanel(null);
   }, [almacen]);
   const onAbrir = useCallback((id: string) => setPanel({ tipo: "cuenta", id }), []);
-  const onReservar = useCallback((canchaId: string, inicio: number | null) => setPanel({ tipo: "alta", canchaId, inicio }), []);
+  // «Buscar lugar» pasa también la duración que se buscó: el alta arranca con esa (no con la de siempre).
+  const onReservar = useCallback((canchaId: string, inicio: number | null, duracion?: number) => setPanel({ tipo: "alta", canchaId, inicio, ...(duracion ? { duracion } : {}) }), []);
   const abiertoId = panel?.tipo === "cuenta" ? panel.id : null;
   const onVolver = useCallback(
     (devolverFoco = true) => {
@@ -840,6 +842,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         cambiarSolapa("agenda");
         elegirDia(hoy);
       } else if (a.tipo === "nuevoTurno") nuevoTurno();
+      else if (a.tipo === "vender") abrirVender();
       else if (a.tipo === "abrirCuenta") abrirCuenta();
       else if (a.tipo === "turno") verTurno(a.id);
       else if (a.tipo === "atajos") cambiarAtajos(a.prender);
@@ -849,7 +852,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         irASolapa("clientes");
       }
     },
-    [abrirCuenta, cambiarAtajos, cambiarSolapa, elegirDia, hoy, irASolapa, nuevoTurno, verTurno],
+    [abrirCuenta, abrirVender, cambiarAtajos, cambiarSolapa, elegirDia, hoy, irASolapa, nuevoTurno, verTurno],
   );
 
   // Al cambiar quien opera, la cuenta (o el alta) que tenía abierta la persona anterior se cierra (como el vanilla).
@@ -942,11 +945,12 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
               <ReservandoElTurno key={panel.id} almacen={almacen} id={panel.id} reservaId={panel.reservaId} onAbrir={onAbrir} onVolver={cerrarAlta} />
             ) : (
               <AltaDeTurno
-                key={`${dia}:${panel.canchaId}@${panel.inicio}`}
+                key={`${dia}:${panel.canchaId}@${panel.inicio}:${panel.duracion ?? ""}`}
                 almacen={almacenDelAlta}
                 fecha={dia}
                 canchaInicial={panel.canchaId}
                 inicioInicial={panel.inicio}
+                duracionInicial={panel.duracion}
                 onListo={onAbrir}
                 onVolver={cerrarAlta}
               />
@@ -957,7 +961,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
           <Suspense fallback={<SolapaCargando />}>
             {solapa === "fijos" && <FijosYEspera almacen={almacen} onVerTurno={verTurno} />}
             {solapa === "canchas" && <CanchasDelClub almacen={almacen} dia={dia} />}
-            {solapa === "buffet" && <BuffetDelClub almacen={almacen} onVerTurno={verTurno} negocio={negocio} />}
+            {solapa === "buffet" && <BuffetDelClub almacen={almacen} onVerTurno={verTurno} negocio={negocio} onVender={abrirVender} atajos={atajos} />}
             {solapa === "caja" && <CajaDelClub almacen={almacen} negocio={negocio} />}
             {solapa === "tienda" && <TiendaDelClub almacen={almacen} />}
             {extras.map((e) =>

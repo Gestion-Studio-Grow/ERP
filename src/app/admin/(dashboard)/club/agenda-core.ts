@@ -17,7 +17,8 @@
 //   · qué turnos «necesitan atención» (los de una alerta urgente de la bandeja, sólo en la grilla de hoy, como el
 //     vanilla con `conAlerta`);
 //   · el BOTÓN DEL MOMENTO de cada turno (`botonesDelMomento`, bp-DISENO §2.2): lo que pasa cien veces al día (abrir,
-//     cobrar la seña y abrir, +30 min, cobrar, cerrar, la mesa sigue, no vino) se hace desde la grilla, sin abrir la hoja;
+//     cobrar la seña y abrir, +30 min, cobrar, cerrar, la mesa sigue, no vino, y «Cerrar la de X y abrir» si la cancha
+//     sigue ocupada por el anterior) se hace desde la grilla, sin abrir la hoja;
 //   · las MARCAS del turno: «nuevo» (primer turno de la ficha), «web» (vino del turnero), «fijo» y el punto rojo de
 //     «debe» en TODOS los bloques (también en los de 60 min);
 //   · «Buscar lugar» (`buscarLugar`, §3.2): una hora y una duración → una opción por cancha, primero las que entran a
@@ -36,7 +37,7 @@ import type { Ahora, EstadoClub, EstadoReserva, Fecha, Reserva } from "@/lib/clu
 import type { Desenlace } from "./almacen";
 import type { TipoMarca } from "@/components/ui/Marca";
 import { opcionesCiclo } from "./ciclo-core";
-import { ETIQUETA_MEDIO, MEDIOS_CAJA, senaSinPagar, type MedioCaja } from "./cuenta-core";
+import { ETIQUETA_MEDIO, MEDIOS_CAJA, canchaOcupada, senaSinPagar, type MedioCaja } from "./cuenta-core";
 
 /** Los estados que ocupan la cancha en la grilla (lo cancelado, suspendido o la falta van aparte). */
 const EN_GRILLA: ReadonlySet<EstadoReserva> = new Set(["reservada", "en_cancha", "finalizada"]);
@@ -268,7 +269,7 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
 }
 
 function firmaDe(c: Omit<CeldaTurno, "firma">): string {
-  return [c.id, c.columna, c.fila, c.alto, c.titular, c.horario, c.jugadores, c.tipo, c.estado, c.marca.tipo, c.marca.texto, c.senal, c.deudor, c.atencion, c.nuevo, c.web, c.momento.map((b) => `${b.accion}:${b.texto}:${b.monto}`).join(",")].join("¦");
+  return [c.id, c.columna, c.fila, c.alto, c.titular, c.horario, c.jugadores, c.tipo, c.estado, c.marca.tipo, c.marca.texto, c.senal, c.deudor, c.atencion, c.nuevo, c.web, c.momento.map((b) => `${b.accion}:${b.texto}:${b.monto}${b.ocupada ? `:${b.ocupada.cerrarId}:${b.ocupada.aCuenta}:${b.ocupada.sena}:${b.etiqueta}` : ""}`).join(",")].join("¦");
 }
 
 /**
@@ -522,8 +523,11 @@ export function previaArrastre(
  *   · `cobrar`: en cancha, terminó (o termina y no se puede extender) y la cancha debe `monto`.
  *   · `cerrar` + `mesaSigue`: en cancha, terminó y está paga.
  *   · `noVino`: reservado y pasó la tolerancia (abre «Marcar falta» de la cuenta: titular o grupo, y el WhatsApp).
+ *   · `cerrarYAbrir` (Tanda 2, integración de 2C + 2D): es la hora de abrir pero la cancha sigue ocupada por el anterior
+ *     (`canchaOcupada` de cuenta-core): «Cerrar la de X y abrir» desde el bloque, con lo que debe X (sus medios o su
+ *     cuenta corriente), la seña del que llega y «la mesa sigue», en UN comando «cierre». Sin entrar a la cuenta.
  */
-export type AccionDelMomento = "abrir" | "cobrarSenaYAbrir" | "extender" | "cobrar" | "cerrar" | "mesaSigue" | "noVino";
+export type AccionDelMomento = "abrir" | "cobrarSenaYAbrir" | "extender" | "cobrar" | "cerrar" | "mesaSigue" | "noVino" | "cerrarYAbrir";
 
 export interface BotonDelMomento {
   accion: AccionDelMomento;
@@ -535,6 +539,11 @@ export interface BotonDelMomento {
   monto: number;
   /** `extender`: cuántos minutos suma. */
   minutos?: number;
+  /**
+   * `cerrarYAbrir`: el turno que ocupa la cancha (se cierra), su titular, lo que debe (= `monto`), si puede ir a su cuenta
+   * corriente, la seña sin pagar del que llega (lo que falta; 0 = cubierta con pagos; null = no pide) y quién llega.
+   */
+  ocupada?: { cerrarId: string; titular: string; debe: number; aCuenta: boolean; sena: number | null; llega: string };
 }
 
 /** Desde cuántos minutos antes del turno aparece «Abrir» (o lo que diga `minutosAntesParaEntrar`, si es menos). */
@@ -556,6 +565,23 @@ export function botonesDelMomento(estado: EstadoClub, r: Reserva, ahora: Ahora):
     const limite = politica.minutosAntesParaEntrar;
     const ventana = limite == null ? MINUTOS_PARA_ABRIR : Math.min(MINUTOS_PARA_ABRIR, limite);
     if (falta > ventana) return [];
+    // La cancha sigue ocupada por el anterior: «Abrir» diría «sigue ocupada». Si este es el que sigue, «Cerrar la de X y
+    // abrir» (un comando); si antes hay otro turno reservado, nada (se abre desde ese).
+    const ocupada = canchaOcupada(estado, r);
+    if (ocupada) {
+      if (!ocupada.esElQueSigue) return [];
+      const { cerrarId, titular, debe, aCuenta, sena: senaQueFalta } = ocupada;
+      const extras = [debe > 0 ? `${titular} debe ${pesos(debe)}` : "", senaQueFalta ? `seña de ${quien} ${pesos(senaQueFalta)}` : ""].filter(Boolean).join("; ");
+      return [
+        {
+          accion: "cerrarYAbrir",
+          texto: "Cerrar y abrir",
+          etiqueta: `${ocupada.cancha} sigue ocupada por ${titular}: cerrar la de ${titular} y abrir la de ${quien}${extras ? ` (${extras})` : ""}`,
+          monto: debe,
+          ocupada: { cerrarId, titular, debe, aCuenta, sena: senaQueFalta, llega: quien },
+        },
+      ];
+    }
     const sena = senaSinPagar(r);
     if (sena !== null)
       return [{ accion: "cobrarSenaYAbrir", texto: sena > 0 ? "Seña y abrir" : "Abrir", etiqueta: sena > 0 ? `Cobrar la seña de ${pesos(sena)} y abrir la cancha de ${quien}` : `Abrir la cancha de ${quien} (la seña ya está cubierta)`, monto: sena }];

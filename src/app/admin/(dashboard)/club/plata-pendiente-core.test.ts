@@ -208,3 +208,24 @@ test("BP-054 (pantalla): el cierre de ayer con −$ 2.000 de la demo está en «
   assert.match(agenda, /Para resolver ahora/);
   assert.doesNotMatch(agenda, /cerró con|pide cuenta corriente/, "lo del dueño no va en la Agenda");
 });
+
+test("Tanda 2 · sin duplicados: la devolución y la falta están UNA vez al lado de la agenda (en «Plata pendiente», no también como alerta de la bandeja), y el contador de la bandeja no las cuenta", () => {
+  const a = crearAlmacen({ hoy: HOY, clave: "gsg-club:prueba:yo:v1", almacenamiento: null, rol: "RECEPTION", enReposo: null });
+  a.aplicar((e) => {
+    conPlata(e);
+    return { ok: true };
+  });
+  // El motor sí las trae como alertas (por eso hace falta el filtro de `partir`).
+  const tipos = M.alertas(a.estado(), a.ahora()).map((x) => x.tipo);
+  assert.ok(tipos.includes("devolucion") && tipos.includes("falta_sin_ficha"));
+  const html = renderToStaticMarkup(h(BandejaDelClub, { almacen: a, onVerTurno: () => undefined, irASolapa: () => true }));
+  const veces = (texto: string) => html.split(texto).length - 1;
+  assert.equal(veces("Sofi Paz"), 1, "la devolución de Sofi, una sola vez");
+  assert.equal(veces("Pablo Ruiz"), 1, "la falta de Pablo, una sola vez");
+  assert.match(html, /Plata pendiente \(2\)/);
+  const enLaBandeja = armarDosBandejas(a.estado(), a.ahora(), true);
+  for (const i of [...enLaBandeja.mostrador, ...enLaBandeja.duenio]) assert.ok(!["devolucion", "falta_sin_ficha"].includes(i.alerta.tipo), i.texto);
+  // Y la plata pendiente las tiene a las dos, una vez cada una.
+  const claves = armarPlataPendiente(a.estado()).items.map((i) => i.clave);
+  assert.equal(new Set(claves).size, claves.length);
+});

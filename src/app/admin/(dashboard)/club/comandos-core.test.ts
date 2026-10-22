@@ -7,7 +7,7 @@ import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo, textoDelEstado } from "./almacen";
 import { horariosLibres } from "./alta-core";
-import { comandoSinPin, correrComando, describirComando, FALTA_CODIGO, rebasar, vaSinInternet, type ArgsDe, type Comando, type NombreDeComando } from "./comandos-core";
+import { comandoSinPin, correrComando, describirComando, FALTA_CODIGO, rebasar, REGISTRO, vaSinInternet, type ArgsDe, type Comando, type NombreDeComando } from "./comandos-core";
 import { codigoDeLaDemo } from "./credito-core";
 import { ejecutarConfiguracion, huellaDelElegido, respaldoAntesDeLimpiar, valoresDeReglas } from "./configuracion-core";
 
@@ -450,4 +450,87 @@ test("N4 · «golive» lleva la huella del respaldo (no el archivo): sobre la mi
   // Sin el PIN (después de recargar) tampoco.
   const sinPin = rebasar(abrir(), [comandoSinPin(c)], new Set());
   assert.equal(sinPin.rechazados.length, 1);
+});
+
+// ── Tanda 2 · integración: ningún secreto queda en la cola, recorriendo el REGISTRO ENTERO ──────────────────────────
+// Una muestra (o varias) por CADA comando de la lista blanca: el tipo obliga a que estén todos (un comando nuevo sin
+// muestra no compila). A cada argumento se le mete además un PIN arriba y otro ANIDADO, y quien opera firma con su PIN:
+// lo que queda para la cola y la foto (`comandoSinPin`) no puede tener ni la palabra «pin» ni ningún valor secreto.
+
+const PIN = "8642";
+const CODIGO_DEL_DUENIO = "ZXC-VBN";
+const PIN_QUE_SE_ARMA = "5173";
+const MUESTRAS: { [N in NombreDeComando]: unknown[][] } = {
+  cuenta: [["r1", { tipo: "cobrarJugador", idx: 0, medio: "monedero", resto: "mercadopago", usa: 4000 }], ["r1", { tipo: "cargo", idx: 0, productoId: "p1", cant: 1, modo: "cuenta", medio: "efectivo" }]],
+  ciclo: [["r1", { tipo: "devolver", medio: "efectivo" }], ["r1", { tipo: "mover", canchaId: "c2", inicio: 1200 }]],
+  buffet: [[{ tipo: "cobrar", cuentaId: "k1", medio: "efectivo" }]],
+  mesa: [[{ tipo: "cargoManual", cuentaId: "k1", concepto: "Cortesía", monto: 1000, descuento: true, pin: PIN }]],
+  caja: [[{ tipo: "egreso", monto: "500", concepto: "Hielo", pin: PIN }], [{ tipo: "cerrar", contado: "10000", dia: null, pin: PIN }]],
+  alta: [[{ canchaId: "c1", fecha: HOY, inicio: 1200, duracion: 90, tipo: "turno", titular: "Ana", clienteId: null, otros: "" }]],
+  esperaDesdeAlta: [[{ titular: "Ana", clienteId: null, fecha: HOY, desde: 1200, hasta: 1320, duracion: 90 }]],
+  espera: [[{ tipo: "asignar", esperaId: "e1", canchaId: "c1", inicio: 1200 }]],
+  fijo: [[{ tipo: "baja", fijoId: "f1" }]],
+  luz: [["c1", true]],
+  canchas: [[{ tipo: "lluvia", fecha: HOY, desde: 1200, hasta: 1320 }]],
+  venta: [[{ p1: 2 }, "efectivo"]],
+  fiado: [[{ tipo: "aprobarCodigo", novedadId: "n1", codigo: CODIGO_DEL_DUENIO }]],
+  clientes: [[{ tipo: "aprobarCodigo", novedadId: "n1", codigo: CODIGO_DEL_DUENIO, monto: "4000" }]],
+  tienda: [[{ tipo: "entregar", pedidoId: "pd1", medio: "efectivo" }]],
+  stock: [[{ tipo: "alta", nombre: "Agua", categoria: "Bebidas", precio: "1", costo: "1", minimo: "1", stock: "1", codigo: "779123", codigoExterno: "", plato: false }]],
+  proveedores: [[{ tipo: "pagar", proveedorId: "pv1", medio: "efectivo", monto: "1000", pin: PIN }]],
+  novedades: [[{ tipo: "baja", clienteId: "k1", volver: false }]],
+  tablero: [[{ tipo: "autorizar", novedadId: "n1", monto: "4000" }]],
+  config: [
+    [{ tipo: "pinInicial", usuarioId: "u1", pin: PIN_QUE_SE_ARMA, repetido: PIN_QUE_SE_ARMA }],
+    [{ tipo: "cambiarMiPin", actual: PIN, nuevo: PIN_QUE_SE_ARMA, repetido: PIN_QUE_SE_ARMA }],
+  ],
+  abrirClub: [[]],
+  golive: [[{ conservarSaldos: true, conservarStock: true, pin: PIN, descargado: null, huellaElegida: "h", rol: "OWNER" }]],
+  plata: [[{ tipo: "esperarOK", novedadId: "n1" }]],
+  bandeja: [[{ tipo: "posponer", clave: "stock:p1" }]],
+  ventaACuenta: [["k1", { p1: 2 }]],
+  abrirConDeuda: [["r1", "mercadopago"]],
+  cierre: [
+    [{ tipo: "cerrarYAbrir", cerrarId: "r1", abrirId: "r2", medio: "efectivo", aCuenta: false, seguir: true, medioSena: "transferencia" }],
+    [{ tipo: "mesaSigue", reservaId: "r1", porJugador: { 0: "efectivo", 1: "mercadopago" }, medio: null }],
+  ],
+};
+
+/** Mete un PIN arriba y otro anidado en cada objeto de los argumentos (lo que una acción futura podría traer). */
+const conPinesMetidos = (args: unknown[]) => args.map((x) => (x && typeof x === "object" && !Array.isArray(x) ? { ...x, pin: PIN, anidado: { pin: PIN, lista: [{ pin: PIN }] } } : x));
+
+test("Tanda 2 · el REGISTRO entero: todo comando declara sus secretos y ninguno deja un PIN o el código del dueño en la cola ni en la foto", () => {
+  const nombres = Object.keys(REGISTRO) as NombreDeComando[];
+  assert.deepEqual(nombres.slice().sort(), Object.keys(MUESTRAS).sort(), "una muestra por cada comando de la lista blanca");
+  for (const nombre of nombres) {
+    assert.ok(Array.isArray(REGISTRO[nombre].secretos), `${nombre}: declara sus secretos (aunque sea [])`);
+    for (const args of MUESTRAS[nombre]) {
+      for (const variante of [args, conPinesMetidos(args)]) {
+        const c = { id: "x", equipo: "e", persona: "u", versionBase: 1, version: M.VERSION_ESTADO, nombre, args: variante, ahora: AHORA, auth: { usuarioId: "u", pin: PIN }, azar: 1, idsDesde: 0 } as unknown as Comando;
+        const texto = JSON.stringify(comandoSinPin(c));
+        assert.doesNotMatch(texto, /"pin"/, `${nombre}: ${texto}`);
+        for (const secreto of [PIN, CODIGO_DEL_DUENIO, PIN_QUE_SE_ARMA]) assert.ok(!texto.includes(secreto), `${nombre} deja «${secreto}»: ${texto}`);
+        for (const campo of REGISTRO[nombre].secretos) assert.ok(!texto.includes(`"${campo}"`), `${nombre}: el campo secreto «${campo}» no queda`);
+        // Lo que no es secreto queda tal cual (el comando se puede volver a aplicar y contar).
+        assert.equal(JSON.parse(texto).nombre, nombre);
+      }
+    }
+  }
+  // Lo que no es secreto no se toca: el código de barras de un producto, el carrito, los medios de un cierre.
+  const sinPin = (nombre: NombreDeComando, args: unknown[]) => JSON.stringify(comandoSinPin({ id: "x", equipo: "e", persona: "u", versionBase: 1, version: M.VERSION_ESTADO, nombre, args, ahora: AHORA, auth: {}, azar: 1, idsDesde: 0 } as unknown as Comando));
+  assert.match(sinPin("stock", MUESTRAS.stock[0]), /"codigo":"779123"/);
+  assert.match(sinPin("ventaACuenta", MUESTRAS.ventaACuenta[0]), /"p1":2/);
+  assert.match(sinPin("cierre", MUESTRAS.cierre[1]), /"porJugador":\{"0":"efectivo","1":"mercadopago"\}/);
+});
+
+test("Tanda 2 · sin internet, la cuenta: créditos + el resto por MP NO va (se verifica afuera); créditos + el resto en efectivo sí", () => {
+  const casos: [unknown, boolean][] = [
+    [["r1", { tipo: "cobrarJugador", idx: 0, medio: "monedero", resto: "mercadopago", usa: 4000 }], false],
+    [["r1", { tipo: "cobrarJugador", idx: 0, medio: "monedero", resto: "transferencia", usa: 4000 }], false],
+    [["r1", { tipo: "cobrarJugador", idx: 0, medio: "monedero", resto: "debito", usa: 4000 }], false],
+    [["r1", { tipo: "cobrarJugador", idx: 0, medio: "monedero", resto: "efectivo", usa: 4000 }], true],
+    [["r1", { tipo: "cobrarJugador", idx: 0, medio: "monedero" }], true],
+    [["r1", { tipo: "cobrarJugador", idx: 0, medio: "mercadopago" }], false],
+  ];
+  for (const [args, esperado] of casos) assert.equal(vaSinInternet("cuenta", args), esperado, JSON.stringify(args));
 });

@@ -6,7 +6,7 @@
 // las DevTools de React que cuenta los renders por componente). Se prueba lo que suma la ola 1:
 //   · la cuenta del turno: sumar un jugador (por nombre y con su ficha), cobrar una parte de la cancha, cerrar la
 //     cancha a cuenta corriente; sumar un jugador o un cargo NO repinta la grilla (salvo el «x/4» de ESE turno);
-//   · el buffet: la venta rápida de mostrador (tipear no repinta las cuentas), pasar un cargo a otra cuenta y un
+//   · el buffet: «Vender» abre la hoja global, la única venta de mostrador (tipear no repinta las cuentas), pasar un cargo a otra cuenta y un
 //     descuento con el PIN del dueño (con los PIN de ejemplo rotulados en la demo);
 //   · 44 px y sin scroll de costado a 390 px con la mesa compleja abierta, y el teclado en la mesa compleja;
 //   · la piel de Break Point (piel/buffet.css): tarjetas resumidas por cuenta con «Cargar / cobrar», que despliega el
@@ -217,26 +217,36 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     await page.close();
   });
 
-  test("buffet: venta rápida de mostrador (tipear no repinta las cuentas), pasar un cargo y descuento con el PIN del dueño", async (t) => {
+  test("buffet: «Vender» abre la hoja global (la única venta de mostrador; tipear no repinta las cuentas), pasar un cargo y descuento con el PIN del dueño", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
     await irASolapa(page, "Buffet");
-    const venta = page.getByRole("region", { name: "Venta rápida de mostrador" });
+    const acceso = page.getByRole("region", { name: "Venta de mostrador" });
+    await acceso.waitFor();
+    assert.equal(await page.getByRole("region", { name: "Venta rápida de mostrador" }).count(), 0, "una sola venta de mostrador: la vieja ya no está");
+    assert.equal(await acceso.getByRole("button", { name: /^Vender/ }).getAttribute("aria-keyshortcuts"), "V");
+    await acceso.getByRole("button", { name: /^Vender/ }).click();
+    const venta = page.getByRole("dialog", { name: "Vender" });
     await venta.waitFor();
 
     const antes = await renders(page);
-    await venta.getByLabel(/^Código o producto/).pressSequentially("agua");
+    await venta.getByLabel("Buscar o pasar el lector").pressSequentially("agua");
     const porTipear = resta(await renders(page), antes);
     t.diagnostic(`tipear 4 letras en la venta: renders ${JSON.stringify(porTipear)}`);
     assert.equal(porTipear.TarjetaCuenta, undefined, "las cuentas no se repintan");
     assert.equal(porTipear.BuffetDelClub, undefined);
     await venta.getByRole("button", { name: /^\+ Agua 500 ml/ }).click();
     await venta.getByRole("button", { name: "Uno más de Agua 500 ml" }).click();
-    await venta.getByText("Mercado Pago (QR)").click();
-    const porVenta = await medir(page, () => venta.getByRole("button", { name: "Cobrar $ 4.000" }).click(), "Venta cobrada: $ 4.000 (Mercado Pago (QR)).");
-    t.diagnostic(`venta de mostrador: ${porVenta.ms.toFixed(1)} ms · renders ${JSON.stringify(porVenta.porComponente)}`);
-    assert.equal(porVenta.porComponente.TarjetaCuenta, undefined, "vender no repinta las cuentas abiertas");
-    await venta.getByText("Buscá y sumá productos.").waitFor();
+    const antesDeCobrar = await renders(page);
+    await venta.getByRole("button", { name: "Cobrar $ 4.000 en MP" }).click();
+    await venta.getByRole("status").filter({ hasText: "Venta cobrada: $ 4.000 (Mercado Pago (QR))." }).waitFor();
+    const porVenta = resta(await renders(page), antesDeCobrar);
+    t.diagnostic(`venta de mostrador: renders ${JSON.stringify(porVenta)}`);
+    assert.equal(porVenta.TarjetaCuenta, undefined, "vender no repinta las cuentas abiertas");
+    await venta.getByText("Última venta: $ 4.000 en Mercado Pago (QR).").waitFor();
+    assert.equal(await venta.getByRole("list", { name: "Lo que lleva" }).count(), 0, "el carrito queda vacío");
+    await page.keyboard.press("Escape");
+    await venta.waitFor({ state: "hidden" });
 
     // Mesa compleja de Martín: pasarle un cargo a Federico.
     const martin = page.getByRole("article", { name: "Martín Ríos" });
@@ -292,16 +302,14 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     assert.ok((await corre()) <= 0);
 
     await irASolapa(page, "Buffet");
-    const venta = page.getByRole("region", { name: "Venta rápida de mostrador" });
-    await venta.getByLabel(/^Código o producto/).fill("agua");
-    await venta.getByRole("button", { name: /^\+ Agua 500 ml/ }).click();
+    await page.getByRole("region", { name: "Venta de mostrador" }).getByRole("button", { name: /^Vender/ }).waitFor();
     // Teclado: Tab hasta el resumen de la mesa compleja y Enter la abre (es un <details> nativo).
     const resumen = page.getByRole("article", { name: "Martín Ríos" }).locator("summary");
     await resumen.focus();
     await page.keyboard.press("Enter");
     await page.getByRole("article", { name: "Martín Ríos" }).getByRole("button", { name: "Pasar el cargo" }).waitFor();
     await page.getByRole("article", { name: "Martín Ríos" }).getByLabel("Tipo").selectOption("descuento");
-    assert.deepEqual(await chicos(), [], "el buffet con la venta y la mesa compleja abiertas");
+    assert.deepEqual(await chicos(), [], "el buffet con «Vender» y la mesa compleja abierta");
     assert.ok((await corre()) <= 0, `se corre ${await corre()} px`);
     assert.deepEqual(errores, []);
     await page.close();
@@ -370,7 +378,7 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
 
     // 44 px en todo lo tocable del buffet (la tarjeta desplegada y la venta) y sin scroll de costado.
     const chicos = await page.evaluate(() =>
-      [...document.querySelectorAll('[data-buffet="cuenta"], [data-buffet="mostrador"]')]
+      [...document.querySelectorAll('[data-buffet="cuenta"], [data-buffet="vender"]')]
         .flatMap((raiz) => [...raiz.querySelectorAll("button, select, summary, input:not([type=radio]):not([type=checkbox]), label:has(input[type=radio])")])
         .map((el) => ({ el, r: el.getBoundingClientRect() }))
         .filter(({ r }) => r.width > 0 && (r.height < 44 || r.width < 44))

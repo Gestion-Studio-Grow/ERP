@@ -445,7 +445,8 @@ export const sigueElTurno = (estado: EstadoClub, reservaId: string) => !!reserva
 
 /**
  * Lo que PROMETE algo a alguien sube ya (≤ 2 s, sin los 30 s): es el bloqueo optimista del hueco (la primera foto que la
- * base acepta se queda con él). Dar, mover o extender un turno, hacerlo fijo y cobrar. Lo demás (cargos, buffet) se agrupa.
+ * base acepta se queda con él). Dar, mover o extender un turno, hacerlo fijo, abrir o cerrar la cancha con plata y cobrar.
+ * Lo demás (cargos, buffet) se agrupa.
  */
 export function prometeAlgo(nombre: string, args: unknown): boolean {
   const a = Array.isArray(args) ? args : [];
@@ -484,6 +485,16 @@ export function prometeAlgo(nombre: string, args: unknown): boolean {
     case "abrirClub":
     case "golive":
       return true;
+    // Tanda 2: «Abrir» cobrando la deuda de antes y «Cerrar la de X y abrir» / «la mesa sigue · dividido» toman la cancha
+    // y mueven plata: suben ya (como el alta y el cobro). Pasar la venta a una cuenta, «que se cierre sola al aprobar» y
+    // posponer una alerta no prometen nada ni mueven la caja: se agrupan.
+    case "abrirConDeuda":
+    case "cierre":
+      return true;
+    case "ventaACuenta":
+    case "plata":
+    case "bandeja":
+      return false;
     default:
       return false;
   }

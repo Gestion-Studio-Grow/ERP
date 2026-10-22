@@ -93,6 +93,7 @@ export default function AltaDeTurno({
   fecha,
   canchaInicial,
   inicioInicial,
+  duracionInicial,
   onListo,
   onVolver,
 }: {
@@ -101,6 +102,8 @@ export default function AltaDeTurno({
   fecha: string;
   canchaInicial: string;
   inicioInicial: number | null;
+  /** La duración que se eligió antes de abrir el alta («Buscar lugar»); sin ella, la de siempre del club. */
+  duracionInicial?: number;
   onListo: (reservaId: string) => void;
   onVolver: () => void;
 }) {
@@ -109,7 +112,7 @@ export default function AltaDeTurno({
   const estado = almacen.estado();
   const ahora = almacen.ahora();
   const [canchaId, setCanchaId] = useState(canchaInicial);
-  const [duracion, setDuracion] = useState<number>(estado.config.duracionTurno);
+  const [duracion, setDuracion] = useState<number>(duracionInicial ?? estado.config.duracionTurno);
   // La hora que eligió la persona (el hueco que tocó o la que puso en «Hora»): no se toca. `null` = «+ Turno» sin elegir.
   const [inicio, setInicio] = useState<number | null>(inicioInicial);
   const horas = horariosDelDia(estado, fecha, canchaId, duracion, ahora, inicio);
