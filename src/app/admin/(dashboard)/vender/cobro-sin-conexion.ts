@@ -532,6 +532,7 @@ export function guardarCobroSinConfirmar(almacen: AlmacenDeSesion | null, negoci
   if (!almacen) return false;
   try {
     almacen.setItem(claveDelAlmacen(negocio), JSON.stringify(c));
+    avisarQueCambioElCobroSinConfirmar();
     return true;
   } catch {
     return false;
@@ -542,6 +543,7 @@ export function borrarCobroSinConfirmar(almacen: AlmacenDeSesion | null, negocio
   if (!almacen) return;
   try {
     almacen.removeItem(claveDelAlmacen(negocio));
+    avisarQueCambioElCobroSinConfirmar();
   } catch {
     // sin almacén: no hay nada que borrar que se pueda leer después
   }
@@ -557,6 +559,7 @@ export function borrarCobrosSinConfirmarDeLaPestana(almacen: Pick<Storage, "leng
       if (k?.startsWith(PREFIJO_DEL_ALMACEN)) claves.push(k);
     }
     for (const k of claves) almacen.removeItem(k);
+    if (claves.length > 0) avisarQueCambioElCobroSinConfirmar();
   } catch {
     // sin almacén no quedó nada guardado
   }
@@ -666,4 +669,65 @@ export function avisoDeGrabadaAhoraPorOtroTotal(v: { code: number; esPedido: boo
     `${que} recién ahora (la cortada no había llegado) y quedó por ${fmtMoneyARS(v.grabado)}, no por los ` +
     `${fmtMoneyARS(v.mandado)} que se habían mandado: cambió un precio o un producto del catálogo. Revisá lo cobrado.`
   );
+}
+
+// ── El estado, a la vista de quien no es Vender (Magra, tanda 2 · 2E) ─────────────────────────
+//
+// La tarjeta del protocolo sin señal (`vender/ProtocoloSinSenal.tsx`) tiene que saber dos cosas
+// sin meterse en el formulario: si el navegador está sin conexión y si en esta pestaña quedó un
+// cobro sin confirmar. Lo de abajo SÓLO LEE y avisa: no cambia ninguna regla del cobro. El aviso es
+// un evento de la ventana (`EVENTO_COBRO_SIN_CONFIRMAR`) que se dispara al guardar o borrar la duda,
+// porque el `storage` del navegador no avisa a la misma pestaña que lo escribió.
+
+/** Evento de la ventana: cambió el cobro sin confirmar de la pestaña (se guardó o se borró). */
+export const EVENTO_COBRO_SIN_CONFIRMAR = "gsg:vender:cobro-sin-confirmar";
+
+function avisarQueCambioElCobroSinConfirmar(): void {
+  try {
+    if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+      window.dispatchEvent(new Event(EVENTO_COBRO_SIN_CONFIRMAR));
+    }
+  } catch {
+    // sin ventana (servidor, tests): nadie escucha
+  }
+}
+
+/**
+ * ¿Quedó en esta pestaña un cobro sin confirmar de este negocio (propio, de otra persona o
+ * ilegible)? La misma lectura que restaura Vender (`leerCobroSinConfirmar`): uno vencido no cuenta.
+ */
+export function hayCobroSinConfirmar(almacen: AlmacenDeSesion | null, negocio: string, ahora: number = Date.now()): boolean {
+  return leerCobroSinConfirmar(almacen, negocio, { usuario: "", ahora }) !== null;
+}
+
+/** ¿El navegador dice que hay conexión? Sin navegador (o si no lo sabe), sí: no se inventa un corte. */
+export function hayConexion(): boolean {
+  try {
+    return typeof navigator === "undefined" || navigator.onLine !== false;
+  } catch {
+    return true;
+  }
+}
+
+/** Lo que mira la tarjeta del protocolo. */
+export type EstadoDeLaSenal = { sinSenal: boolean; cobroSinConfirmar: boolean };
+
+export function estadoDeLaSenal(enLinea: boolean, almacen: AlmacenDeSesion | null, negocio: string, ahora: number = Date.now()): EstadoDeLaSenal {
+  return { sinSenal: !enLinea, cobroSinConfirmar: hayCobroSinConfirmar(almacen, negocio, ahora) };
+}
+
+/**
+ * Se suscribe a lo que cambia ese estado: la conexión (`online`/`offline`), la duda de la pestaña
+ * (`EVENTO_COBRO_SIN_CONFIRMAR`) y volver a la pestaña. Devuelve cómo desuscribirse. Para
+ * `useSyncExternalStore`.
+ */
+export function suscribirseALaSenal(alCambiar: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const eventos = ["online", "offline", EVENTO_COBRO_SIN_CONFIRMAR, "focus"] as const;
+  for (const e of eventos) window.addEventListener(e, alCambiar);
+  document.addEventListener("visibilitychange", alCambiar);
+  return () => {
+    for (const e of eventos) window.removeEventListener(e, alCambiar);
+    document.removeEventListener("visibilitychange", alCambiar);
+  };
 }
