@@ -292,10 +292,36 @@ export function rebasar(estado: EstadoClub, cola: readonly Pendiente[], ahoraMs:
     } else {
       const item = itemParaResolver(estado, p, d.mensaje, ahoraMs);
       anotarParaResolver(estado, item);
+      // Su id también va a `aplicados`: «la base ya lo tiene» (en «para resolver»). Así, si la subida de esta foto choca
+      // otra vez, el puesto sabe si el ítem ya llegó (`volverAAnotar`) y no lo duplica ni lo resucita.
+      anotarAplicado(estado, p, [], ahoraMs, { reciente: false });
       r.rechazados.push({ pendiente: p, item });
     }
   }
   return r;
+}
+
+/**
+ * Lo que este puesto mandó a «para resolver» y la base todavía no confirmó se vuelve a anotar sobre CADA foto nueva de
+ * la base (F1 del certificador: si la base avanzaba entre el rebase y la subida, el ítem se perdía al reemplazar la foto).
+ * Lo que la base ya tiene (su id está en `aplicados`: llegó, y quizás otro puesto ya lo resolvió o lo descartó) no se
+ * toca. MUTA el estado. Devuelve cuántos anotó y cuáles ya estaban en la base (ésos dejan de esperar).
+ */
+export function volverAAnotar(estado: EstadoClub, items: readonly ItemParaResolver[]): { anotados: number; yaEnLaBase: string[] } {
+  const ya = aplicadosDe(estado);
+  const out = { anotados: 0, yaEnLaBase: [] as string[] };
+  for (const item of items) {
+    if (ya.has(item.id)) {
+      out.yaEnLaBase.push(item.id);
+      continue;
+    }
+    anotarParaResolver(estado, item);
+    const s = sincroDe(estado);
+    s.aplicados.push(item.id);
+    if (s.aplicados.length > TOPE_APLICADOS) s.aplicados.splice(0, s.aplicados.length - TOPE_APLICADOS);
+    out.anotados++;
+  }
+  return out;
 }
 
 // ── la cinta ─────────────────────────────────────────────────────────────────────────────────────────────────────────

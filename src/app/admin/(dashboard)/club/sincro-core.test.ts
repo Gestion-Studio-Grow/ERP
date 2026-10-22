@@ -379,6 +379,65 @@ test("BP-026: «Volver a aplicar» con el hueco ya libre — el turno entra con 
   assert.equal(leerSincro(tablet.a.estado()).paraResolver.length, 0);
 });
 
+test("F1 · lo que fue a «Para resolver» no se pierde si la base avanza entre el rebase y la subida (dos puestos, wifi inestable)", async () => {
+  const { b, pc, tablet } = await dosPuestos();
+  tablet.g.retener();
+  const deLu = darTurno(tablet, { canchaId: "c2", inicio: A_LAS_21, titular: "Pedro Paz" });
+  darTurno(pc, { canchaId: "c2", inicio: A_LAS_21, titular: "Juan Pérez" });
+  await vaciar();
+  // Vuelve el wifi: la subida retenida choca, la tablet re-aplica y manda la foto nueva… que vuelve a quedar retenida.
+  tablet.g.soltar();
+  tablet.g.retener();
+  await vaciar();
+  assert.equal(tablet.a.confirmacion(deLu.id), "para-resolver");
+  // Mientras tanto la PC guarda otra cosa: la subida de la tablet va a chocar de nuevo y la foto se reemplaza.
+  darTurno(pc, { ...hueco(pc.a.estado(), { canchaId: "c2", inicio: A_LAS_21 }), titular: "Ana" });
+  await vaciar();
+  tablet.g.soltar();
+  await vaciar();
+  for (let i = 0; i < 4; i++) {
+    tablet.t.correr();
+    await vaciar();
+  }
+  const base = enLaBase(b);
+  const enBase = leerSincro(base).paraResolver;
+  assert.deepEqual(enBase.map((x) => x.id), [deLu.id], "el turno de Pedro Paz está «para resolver» en la base, una sola vez");
+  assert.equal(enBase[0].motivo, "Ese hueco lo acaba de dar Caro (PC) a Juan Pérez");
+  assert.ok(enBase[0].comando, "y se puede volver a aplicar desde cualquier puesto");
+  assert.deepEqual(leerSincro(tablet.a.estado()).paraResolver.map((x) => x.id), [deLu.id], "la tablet lo ve igual");
+  assert.equal(turnosEn(base, "c2", A_LAS_21).length, 1, "el hueco sigue siendo de uno solo");
+  assert.equal(tablet.a.sincro().enCola, 0);
+  assert.equal(tablet.a.apartes().length, 0);
+  // La PC lo ve en un latido y lo descarta: la tablet no lo resucita al volver a bajar la foto.
+  await pc.latir();
+  assert.equal(pc.a.descartarParaResolver(deLu.id).ok, true);
+  await vaciar();
+  await tablet.latir();
+  assert.equal(leerSincro(enLaBase(b)).paraResolver.length, 0, "descartado en la base");
+  assert.equal(leerSincro(tablet.a.estado()).paraResolver.length, 0, "y la tablet no lo vuelve a anotar");
+});
+
+test("F1 · corte justo después de subir el «para resolver»: al reintentar no se duplica ni se resucita", async () => {
+  const { b, pc, tablet } = await dosPuestos();
+  tablet.g.retener();
+  const deLu = darTurno(tablet, { canchaId: "c2", inicio: A_LAS_21, titular: "Pedro Paz" });
+  darTurno(pc, { canchaId: "c2", inicio: A_LAS_21, titular: "Juan Pérez" });
+  await vaciar();
+  // La foto con el ítem llega a la base pero la respuesta se pierde; mientras tanto la PC guarda otra cosa.
+  tablet.g.cortarLaProxima();
+  tablet.g.soltar();
+  await vaciar();
+  assert.equal(leerSincro(enLaBase(b)).paraResolver.length, 1, "llegó a la base");
+  darTurno(pc, { ...hueco(pc.a.estado(), { canchaId: "c2", inicio: A_LAS_21 }), titular: "Ana" });
+  await vaciar();
+  for (let i = 0; i < 4; i++) {
+    tablet.t.correr();
+    await vaciar();
+  }
+  assert.deepEqual(leerSincro(enLaBase(b)).paraResolver.map((x) => x.id), [deLu.id], "uno solo");
+  assert.equal(tablet.a.estadoDelGuardado().guardado, "guardado");
+});
+
 test("BP-028: sin internet un rato — todo lo cargado queda en la cola, la cinta lo dice, y al volver llega a la base", async () => {
   const { b, pc, tablet } = await dosPuestos();
   tablet.g.caer(true);

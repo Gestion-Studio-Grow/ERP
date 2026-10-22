@@ -102,7 +102,9 @@ import {
   textoDeLaCinta,
   TOPE_VUELTAS,
   turnosNuevos,
+  volverAAnotar,
   type Alternativa,
+  type ItemParaResolver,
   type Pendiente,
   type Rebase,
 } from "./sincro-core";
@@ -783,6 +785,12 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   const confirmaciones = new Map<string, "confirmado" | "para-resolver">();
   /** Lo rechazado acá que era una función de pantalla (sin nombre): «Volver a aplicar» mientras la pestaña siga abierta. */
   const rechazadosAca = new Map<string, Pendiente>();
+  /**
+   * Lo que este puesto mandó a «Para resolver» y la base todavía no confirmó (F1). Hasta que un guardado con ese texto
+   * vuelva `ok`, se vuelve a anotar sobre cada foto nueva de la base: si la base avanza entre el rebase y la subida, el
+   * ítem no se pierde al reemplazar la foto.
+   */
+  let rechazadosSinSubir: { item: ItemParaResolver; cambios: number }[] = [];
   /** El `cambios` del último cambio que NO pasó por la cola (restaurar, `aplicar`): eso sí se aparta si choca. */
   let cambiosSinCola: number | null = null;
   /** Vueltas seguidas de «conflicto → re-aplicar» (tope `TOPE_VUELTAS`; después se espera, con la cinta avisando). */
@@ -934,6 +942,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
         const llegaron = cola.filter((p) => p.cambios <= c);
         for (const p of llegaron) confirmar(p.id, "confirmado");
         cola = cola.filter((p) => p.cambios > c);
+        rechazadosSinSubir = rechazadosSinSubir.filter((x) => x.cambios > c);
         if (llegaron.length || sincro.sinInternetDesde !== null) avisarSincro({ sinInternetDesde: null });
       }
       ponerMeta(largo === undefined ? { guardado: "guardado" } : { guardado: "guardado", bytes: largo, lleno: largo > AVISO_LLENO });
@@ -1204,23 +1213,33 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     const aparte = perdido && real ? apartarLoDeAca() : false;
     const pinesAHash = reemplazar(abiertoAlla.estado);
     retomo = true;
+    // Primero, lo que ya estaba «para resolver» y la base no confirmó (si no, se perdería con la foto vieja). Va ANTES de
+    // la cola: un «Volver a aplicar» o «Descartar» que espera en la cola lo encuentra.
+    let reanotados = 0;
+    if (dosPuestos && rechazadosSinSubir.length) {
+      const r = volverAAnotar(estado, rechazadosSinSubir.map((x) => x.item));
+      if (r.yaEnLaBase.length) rechazadosSinSubir = rechazadosSinSubir.filter((x) => !r.yaEnLaBase.includes(x.item.id));
+      reanotados = r.anotados;
+    }
     // Lo de la cola, encima de lo de la base, en orden (sincro-core.ts): lo que choca va a «Para resolver».
     let rebase: Rebase | null = null;
     if (dosPuestos && cola.length) {
       rebase = rebasar(estado, cola, relojMs());
       for (const p of [...rebase.salteados, ...rebase.callados]) confirmar(p.id, "confirmado");
-      for (const { pendiente } of rebase.rechazados) {
+      for (const { pendiente, item } of rebase.rechazados) {
         confirmar(pendiente.id, "para-resolver");
         if (pendiente.correr) guardarRechazado(pendiente);
+        rechazadosSinSubir.push({ item, cambios: 0 });
       }
       cola = rebase.aplicados;
     }
     cambios++;
     cambiosSinCola = null;
     for (const p of cola) p.cambios = cambios;
-    const tocoLaCola = rebase !== null && rebase.aplicados.length + rebase.rechazados.length + rebase.callados.length > 0;
+    for (const x of rechazadosSinSubir) x.cambios = cambios;
+    const tocoLaCola = reanotados > 0 || (rebase !== null && rebase.aplicados.length + rebase.rechazados.length + rebase.callados.length > 0);
     cambiosGuardados = pinesAHash || tocoLaCola ? -1 : cambios;
-    if (tocoLaCola && (cola.some((p) => p.promete) || rebase!.rechazados.length > 0)) subirYa();
+    if (tocoLaCola && (cola.some((p) => p.promete) || reanotados > 0 || (rebase?.rechazados.length ?? 0) > 0)) subirYa();
     else if (pinesAHash || tocoLaCola) programarGuardado();
     if (dosPuestos) {
       if (motivo === "conflicto") vueltas++;
