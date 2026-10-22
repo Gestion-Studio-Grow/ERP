@@ -267,9 +267,8 @@ export function desdeCuando(desde: string, hoy: string): string {
 /**
  * EL texto del recordatorio de pago, uno solo para la ficha y la bandeja. PURA.
  *
- * Con `pedido`, es EXACTAMENTE el de la bandeja en columnas (2C, `recordatorioDeCobro`,
- * pedidos-core.ts): en la integración, `recordatorioDeCobro(p)` pasa a ser
- * `recordatorioDePago({ cliente: p.cliente, negocio: p.negocio, monto: p.total, pedido: p.code })`.
+ * Con `pedido`, es el «Recordarle» de la tarjeta «A cobrar» de la bandeja en columnas (2C,
+ * tablero.server.ts): integrados, ya no hay otro texto.
  * Sin pedido, habla de la cuenta: lo que debe en total y desde cuándo.
  * Texto PROVISIONAL A CONFIRMAR con el dueño (cómo le gusta pedir la plata).
  */

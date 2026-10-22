@@ -748,15 +748,5 @@ export function puedeMarcarNoRetiro(p: Pick<PedidoDelTablero, "status" | "entreg
   return p.status === "READY" && p.entrega === "PICKUP";
 }
 
-/**
- * «Recordarle» el pago de un pedido que se entregó sin cobrar, 1 a 1 por WhatsApp desde el teléfono
- * de quien atiende. PURA. Texto PROVISIONAL A CONFIRMAR con el dueño (cómo le gusta pedir la plata).
- */
-export function recordatorioDeCobro(p: { cliente: string; code: number; total: string; negocio: string }): string {
-  const nombre = p.cliente.trim().split(/\s+/)[0] || "";
-  const saludo = nombre && nombre.toLowerCase() !== "mostrador" ? `¡Hola ${nombre}!` : "¡Hola!";
-  return (
-    `${saludo} Te escribimos de ${p.negocio} por el pedido #${p.code}: quedó pendiente el pago de ${p.total}. ` +
-    "Cuando puedas, lo pagás en el local, por transferencia o con Mercado Pago. ¡Gracias!"
-  );
-}
+// «Recordarle» el pago de un pedido entregado sin cobrar: el texto es UNO solo para la bandeja y la
+// ficha, `recordatorioDePago` (src/lib/clientes/fiado.ts, con `pedido`). Lo arma tablero.server.ts.

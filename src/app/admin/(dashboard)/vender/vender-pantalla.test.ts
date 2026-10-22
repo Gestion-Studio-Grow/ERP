@@ -2327,9 +2327,9 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     const campo = page.getByLabel("Escaneá o buscá");
     await campo.fill(armarEtiquetaDeBalanza(FORMATO_BALANZA_POR_DEFECTO, "00201", 1.25));
     await campo.press("Enter");
-    await page.getByRole("button", { name: "Cobrar $15.625 en efectivo" }).click();
+    // MG-041 (tanda 2): los billetes están a la vista abajo de los medios; el billete cobra en un toque.
     // Ningún billete menor al total, ninguno elegido de antemano.
-    await page.getByRole("button", { name: "$20.000" }).click();
+    await page.getByRole("button", { name: /^Paga con \$20\.000 en efectivo/ }).click();
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
     const [e] = await envios(page);
     assert.deepEqual(e.productId, ["p_vacio"]);
@@ -2711,6 +2711,90 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     const [e] = await envios(page);
     assert.deepEqual(e.quantity, ["1.24"]);
     assert.equal((await page.evaluate(() => (window as unknown as Ventana).__consultasDePrecio)) ?? 0, 1, "una sola consulta de precios");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+  test("integración T2 · MG-041: Vacío → peso → «Efectivo» cobra justo: 2 toques + el peso, sin elegir billete", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await focoEnElCampoUnico(page);
+    await tecla2a(page, "Vacío").click(); // toque 1
+    await page.keyboard.type("1,240");
+    await page.getByRole("button", { name: "Cobrar $15.500 en efectivo" }).click(); // toque 2
+    await page.getByLabel("Ticket de la venta #42").waitFor();
+    await focoEnElCampoUnico(page);
+    const todos = await envios(page);
+    assert.equal(todos.length, 1);
+    assert.deepEqual(todos[0].quantity, ["1.24"]);
+    assert.deepEqual(todos[0].paymentMethod, ["EFECTIVO"]);
+    assert.deepEqual(todos[0].recibido, ["15500.00"], "justo: pagó con el total, sin vuelto");
+    assert.equal(await page.getByText(/^Vuelto$/i).count(), 0, "sin vuelto que mostrar");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("integración T2 · MG-041: con billete, también en un toque y con el vuelto; «Otro» pide el importe", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await tecla2a(page, "Vacío").click();
+    await page.keyboard.type("1,240");
+    // «Otro»: se abre el campo «Pagó con» (y «Volver» deja todo como estaba, sin cobrar).
+    await page.getByRole("button", { name: "Paga en efectivo con otro importe" }).click();
+    await page.getByLabel("Pagó con").waitFor();
+    await page.getByRole("button", { name: "Volver" }).click();
+    assert.equal((await envios(page)).length, 0, "abrir «Otro» no cobra");
+    await page.getByRole("button", { name: /^Paga con \$20\.000 en efectivo/ }).click();
+    await page.getByLabel("Ticket de la venta #42").waitFor();
+    const [e] = await envios(page);
+    assert.deepEqual(e.paymentMethod, ["EFECTIVO"]);
+    assert.deepEqual(e.recibido, ["20000.00"]);
+    await page.getByText(/vuelto \$4\.500/i).first().waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("integración T2 · 2D: «Repetir» desde la ficha arranca con el cliente y sus renglones; lo por kilo sin peso, y avisa lo omitido", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const FICHA = { id: "cli_1", nombre: "Parrilla UAT", telefono: "1155551234", docTipo: 80, docNro: "27123456789", razonSocial: "Parrilla UAT SRL", condicionIva: "RESPONSABLE_INSCRIPTO", domicilio: null, ultimaDireccion: null, ultimosPedidos: [], saldo: null };
+    const desdeLaFicha = {
+      cliente: FICHA,
+      repetir: {
+        code: 31,
+        renglones: [
+          { productId: "p_vacio", nombre: "Vacío", porPeso: true, qtyText: "" },
+          { productId: "p_crema", nombre: "Crema", porPeso: false, qtyText: "2" },
+          { productId: "p_viejo", nombre: "Matambre", porPeso: true, qtyText: "" },
+        ],
+        omitidos: ["Pieza especial"],
+      },
+    };
+    const { page, errores } = await montar("vender", 10, boutique({ desdeLaFicha }));
+    const aviso = page.locator('[data-vender="desde-la-ficha"]');
+    await aviso.waitFor();
+    const texto = (await aviso.textContent()) ?? "";
+    assert.match(texto, /Repetís el pedido #31 de Parrilla\./);
+    assert.match(texto, /pesarlo de nuevo/);
+    assert.match(texto, /No se repite: Pieza especial, Matambre/);
+    const renglones = page.locator('[data-vender="ticket-boutique"] [data-vender="renglon"]');
+    assert.equal(await renglones.count(), 2, "Vacío y Crema; Matambre no está a la venta en esta pantalla");
+    assert.equal(await page.locator('input[name="customerName"]').inputValue(), "Parrilla UAT");
+    // El vacío pide el peso: no se cobra hasta pesarlo.
+    assert.equal(await page.getByRole("button", { name: /Cobrar .* en efectivo/ }).isDisabled(), true);
+    await page.getByRole("button", { name: "Entendido" }).click();
+    assert.equal(await aviso.count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("integración T2 · 2D: «Venderle» sólo trae al cliente, sin renglones ni aviso", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const FICHA = { id: "cli_1", nombre: "Parrilla UAT", telefono: "1155551234", docTipo: null, docNro: null, razonSocial: null, condicionIva: null, domicilio: null, ultimaDireccion: null, ultimosPedidos: [], saldo: null };
+    const { page, errores } = await montar("vender", 10, boutique({ desdeLaFicha: { cliente: FICHA, repetir: null } }));
+    await page.locator('input[name="customerName"]').waitFor({ state: "attached" });
+    assert.equal(await page.locator('input[name="customerName"]').inputValue(), "Parrilla UAT");
+    assert.equal(await page.locator('input[name="clientId"]').inputValue(), "cli_1", "la ficha elegida viaja al cobrar");
+    assert.equal(await page.locator('[data-vender="desde-la-ficha"]').count(), 0, "sin repetir no hay aviso");
+    assert.equal(await page.locator('[data-vender="ticket-boutique"] [data-vender="renglon"]').count(), 0);
     assert.deepEqual(errores, []);
     await page.close();
   });

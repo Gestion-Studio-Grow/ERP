@@ -73,7 +73,8 @@ import {
   puedeCobrarElDeLaEtiqueta,
   textoEtiquetaDistinta,
 } from "./etiqueta-de-balanza";
-import ClienteDeLaVenta, { type ValorDelCliente } from "./ClienteDeLaVenta";
+import ClienteDeLaVenta, { type ClienteElegido, type ValorDelCliente } from "./ClienteDeLaVenta";
+import type { RepetirPedido } from "@/lib/clientes/fiado";
 import ZonaDelEnvio from "./ZonaDelEnvio";
 import { CampoUnico, ID_CAMPO_UNICO, type LecturaUnica } from "@/components/lector/CampoUnico";
 import { PieDeCobro, type ResultadoDelPie } from "@/components/cobro/PieDeCobro";
@@ -126,6 +127,8 @@ import {
   reemplazosDe,
   teclasPrincipales,
   textoDelCambioDePrecio,
+  lineasDesdeLaFicha,
+  avisoDeRepetir,
   type CambioDePrecio,
   type RenglonQuitado,
 } from "./reglas-venta";
@@ -334,6 +337,12 @@ export type BoutiqueDeVender = {
    * pestaña principal y las góndolas sacadas del nombre.
    */
   teclas?: TeclasDelMostrador | null;
+  /**
+   * Tanda 2 · 2D: «Venderle» / «Repetir» desde la ficha (`pedidoDeVentaDesdeLaFicha`). El ticket
+   * arranca con el cliente elegido y, con `repetir`, sus renglones (lo por kilo sin peso). Un cobro
+   * sin confirmar en la pestaña gana: se restaura ése y esto no se aplica.
+   */
+  desdeLaFicha?: { cliente: ClienteElegido; repetir: RepetirPedido | null } | null;
 };
 
 /** Una línea con precio a mano: nombre, importe tipeado y motivo. */
@@ -465,10 +474,17 @@ export default function VenderForm(props: PropsDeVender) {
   return <FormularioVender key={enNavegador ? "navegador" : "servidor"} {...props} enNavegador={enNavegador} />;
 }
 
-/** Las líneas con las que arranca el formulario: las de un cobro sin confirmar, o una vacía. */
-function lineasIniciales(k: CargadoDelCobro | undefined): { lines: Line[]; manuales: LineaManual[]; nextKey: number } {
+/**
+ * Las líneas con las que arranca el formulario: las de un cobro sin confirmar, las del pedido que
+ * se repite desde la ficha (boutique), o una vacía.
+ */
+function lineasIniciales(
+  k: CargadoDelCobro | undefined,
+  repetidas: readonly { productId: string; qtyText: string }[] = [],
+): { lines: Line[]; manuales: LineaManual[]; nextKey: number } {
   let n = 1;
-  const lines: Line[] = (k?.lineas ?? []).map((l) => ({ key: n++, productId: l.productId, qtyText: l.qtyText }));
+  const desde = k?.lineas?.length ? k.lineas : k ? [] : repetidas;
+  const lines: Line[] = desde.map((l) => ({ key: n++, productId: l.productId, qtyText: l.qtyText }));
   if (lines.length === 0) lines.push({ key: n++, productId: "", qtyText: "" });
   const manuales = (k?.manuales ?? []).map((m) => ({ key: n++, nombre: m.nombre, importeText: m.importeText, motivo: m.motivo }));
   return { lines, manuales, nextKey: n };
@@ -533,7 +549,22 @@ function FormularioVender({
   const [nombresDeLaDuda] = useState<Record<string, string>>(() =>
     Object.fromEntries((k?.lineas ?? []).map((l) => [l.productId, l.nombre ?? "Un producto"])),
   );
-  const [inicial] = useState(() => lineasIniciales(k));
+  // «Venderle» / «Repetir» desde la ficha (boutique): sólo si no hay un cobro sin confirmar que restaurar.
+  const desdeLaFicha = !arranque && boutique?.desdeLaFicha ? boutique.desdeLaFicha : null;
+  const [deLaFicha] = useState(() =>
+    lineasDesdeLaFicha(desdeLaFicha?.repetir ?? null, new Set(productosDeLaPagina.map((p) => p.id))),
+  );
+  const [avisoDeLaFicha, setAvisoDeLaFicha] = useState(() =>
+    desdeLaFicha?.repetir
+      ? avisoDeRepetir({
+          code: desdeLaFicha.repetir.code,
+          cliente: desdeLaFicha.cliente.nombre,
+          porPeso: deLaFicha.lineas.some((l) => l.qtyText === ""),
+          omitidos: deLaFicha.omitidos,
+        })
+      : null,
+  );
+  const [inicial] = useState(() => lineasIniciales(k, deLaFicha.lineas));
 
   const [isOrder, setIsOrder] = useState(k ? k.esPedido : pedidoInicial);
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">(k?.entrega.tipo ?? "PICKUP");
@@ -611,7 +642,7 @@ function FormularioVender({
   // Opcionales, cerrados hasta que alguien los abre (ninguno suma un paso al camino feliz).
   const Quien = quienCompra === "clienta" ? "Clienta" : "Cliente";
   const alQuien = quienCompra === "clienta" ? "a la clienta" : "al cliente";
-  const [conCliente, setConCliente] = useState(k?.conCliente ?? false);
+  const [conCliente, setConCliente] = useState(k?.conCliente ?? Boolean(desdeLaFicha));
   const [telefono, setTelefono] = useState(k?.telefono ?? "");
   const [nombreCliente, setNombreCliente] = useState(k?.nombre ?? "");
   const [busqueda, setBusqueda] = useState<"nada" | "buscando" | "encontrado" | "sin-ficha" | "error">(
@@ -1076,6 +1107,7 @@ function FormularioVender({
       setZonaId("");
       setCoincidencias(null);
       setAvisoBoutique(null);
+      setAvisoDeLaFicha(null);
       camposDelUltimoPie.current = null;
       pagoConDelPie.current = null;
       setQuitado(null);
@@ -2879,6 +2911,14 @@ function FormularioVender({
         {bloqueUltima}
         {bloqueGrabada}
         {bloqueConfirmacion}
+        {avisoDeLaFicha && (
+          <div role="status" data-vender="desde-la-ficha" className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-sunken p-2 text-sm text-body">
+            <p className="min-w-0 flex-1">{avisoDeLaFicha}</p>
+            <button type="button" className="h-11 px-2 text-sm text-muted underline" onClick={() => setAvisoDeLaFicha(null)}>
+              Entendido
+            </button>
+          </div>
+        )}
 
         <form
           ref={formulario}
@@ -3073,6 +3113,8 @@ function FormularioVender({
             {(isOrder || conCliente) && (
               <ClienteDeLaVenta
                 key={clienteKey}
+                // Desde la ficha, el cliente ya elegido (sólo el primero: al limpiar, vacío).
+                inicial={clienteKey === 0 ? (desdeLaFicha?.cliente ?? null) : null}
                 quien={quienCompra}
                 puedeFacturar={puedeFacturar}
                 rolFactura={b.rolFactura}

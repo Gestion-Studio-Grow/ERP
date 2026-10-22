@@ -7,9 +7,11 @@
 // Vive en Vender, en la entrega de un pedido, en la rendición del cadete y en la devolución. Si
 // se arregla acá, se arregla en todos lados.
 //
-//   · Medios que cobran de un toque: Mercado Pago y Transferencia cobran el total exacto.
-//   · Efectivo abre los chips «Justo · $40.000 · $50.000 · $100.000 · Otro» (ninguno elegido de
-//     antemano); cada chip cobra y deja el VUELTO en la cifra más grande del pie (48 px).
+//   · Medios que cobran de un toque: Efectivo, Mercado Pago y Transferencia cobran el total exacto
+//     (MG-041, tanda 2: el kilo en efectivo en 2 toques + el peso — la tecla y «Efectivo»).
+//   · El vuelto, también de un toque: abajo de los medios, «Paga con $40.000 · $50.000 · $100.000 ·
+//     Otro» (ninguno elegido de antemano); cada billete cobra en efectivo y deja el VUELTO en la
+//     cifra más grande del pie (48 px). Sin billete elegido, «Efectivo» es justo.
 //   · «Otro»: se escribe con cuánto paga; si no alcanza, «Te faltan $X» y hay que confirmar
 //     «Cobrar igual» (se cobra el total: lo que falta lo completa el cliente).
 //   · Dividir: dos o más medios con `repartirPagos`; el único renglón sin monto paga lo que falta.
@@ -319,7 +321,7 @@ export function PieDeCobro({ total, deshabilitado, textoBoton = "Cobrar", permit
           className={TECLA}
           disabled={bloqueado}
           aria-label={`${etiquetaCobrar} en efectivo`}
-          onClick={() => ir({ tipo: "efectivo", otro: null })}
+          onClick={() => cobrar({ modo: "simple", medio: "EFECTIVO", recibido: total })}
         >
           <span>Efectivo</span>
           <span className="tabular-nums text-muted">{textoPlata(total)}</span>
@@ -355,6 +357,37 @@ export function PieDeCobro({ total, deshabilitado, textoBoton = "Cobrar", permit
             Dividir
           </button>
         )}
+      </div>
+    );
+    // El vuelto de un toque (MG-041): el billete con que paga cobra en efectivo y muestra el vuelto.
+    const billetes = billetesSugeridos(total);
+    cuerpo = (
+      <div className="flex flex-col gap-3">
+        {cuerpo}
+        <div role="group" aria-label="Paga en efectivo con" data-parte="billetes" className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted">Paga con</span>
+          {billetes.map((b) => (
+            <button
+              key={b}
+              type="button"
+              className={CHIP}
+              disabled={bloqueado}
+              aria-label={`Paga con ${textoPlata(b)} en efectivo: cobrar ${textoPlata(total)} y dar el vuelto`}
+              onClick={() => cobrar({ modo: "simple", medio: "EFECTIVO", recibido: b })}
+            >
+              {textoPlata(b)}
+            </button>
+          ))}
+          <button
+            type="button"
+            className={CHIP}
+            disabled={bloqueado}
+            aria-label="Paga en efectivo con otro importe"
+            onClick={() => ir({ tipo: "efectivo", otro: "" })}
+          >
+            Otro
+          </button>
+        </div>
       </div>
     );
   }

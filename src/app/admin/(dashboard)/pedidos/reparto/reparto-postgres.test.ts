@@ -111,11 +111,12 @@ test("reparto contra Postgres: salida, rendición por medio al libro, volvió / 
   assert.equal(await marcas(base.a.id), 4);
 
   // ── La bandeja los ve «En reparto» (la misma consulta de los avisos). ──
-  const avisados = valor(await ejecutarAccion(sesionA, () => leerAvisados([o20.id, o18.id, o25.id, o9.id])));
-  assert.equal(avisados.boutique, true);
+  // El mostrador boutique lo decide la página (comercio + interruptor) y se lo pasa: no se relee.
+  const avisados = valor(await ejecutarAccion(sesionA, () => leerAvisados([o20.id, o18.id, o25.id, o9.id], { boutique: true })));
   assert.deepEqual([...(avisados.repartos?.keys() ?? [])].sort(), [o20.id, o18.id, o25.id, o9.id].sort());
-  const avisadosB = valor(await ejecutarAccion(sesionB, () => leerAvisados([o20.id])));
-  assert.equal(avisadosB.boutique, undefined, "apagado: el Map de siempre");
+  const avisadosB = valor(await ejecutarAccion(sesionB, () => leerAvisados([o20.id], { boutique: false })));
+  assert.equal(avisadosB.repartos, undefined, "apagado: el Map de siempre");
+  assert.equal(avisadosB.size, 0, "y un pedido de otro negocio no se ve");
 
   // ── MG-056: la rendición ──
   const rendir = (o: { id: string }, pares: [string, string][], sesion = sesionA) =>

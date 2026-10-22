@@ -25,9 +25,8 @@ import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { etiquetaDeMedio } from "@/lib/caja/medio-cobro";
 import type { AlcanceDeAnulacion } from "@/lib/capabilities";
 import { textoDelLinkDePago, type LinkEnviado } from "./link-de-pago";
-import { cuandoDelPedido, listoDesdeAyer, recordatorioDeCobro, type PedidoCerrado, type PedidoDelTablero } from "./pedidos-core";
-import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
-import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
+import { cuandoDelPedido, listoDesdeAyer, type PedidoCerrado, type PedidoDelTablero } from "./pedidos-core";
+import { recordatorioDePago } from "@/lib/clientes/fiado";
 import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
 import { ACCION_REPARTO, estadoDelReparto, estaEnReparto, zonaDelPedido } from "./reparto/reparto-core";
 
@@ -123,23 +122,22 @@ export function verboEnPantalla(status: string, comercio: boolean): string | nul
 
 /**
  * Lo que lee `leerAvisados`: el Map de siempre (id → cuándo se avisó «listo») y, SÓLO con el
- * mostrador boutique prendido (Magra tanda 2 · 2C), lo que necesita la bandeja en columnas:
- *   · `boutique`: el interruptor (la lectura cacheada por pedido que la página ya hizo: cero viajes);
- *   · `repartos`: los Listos que salieron con el cadete y no se rindieron (id → desde cuándo).
- * Viaja pegado al Map para que la página no cambie (pedidos/page.tsx es de otro frente): sigue
- * llamando `leerAvisados` y pasándole el resultado a `armarTablero`. Apagado, es el Map de siempre.
+ * mostrador boutique prendido (Magra tanda 2 · 2C), `repartos`: los Listos que salieron con el
+ * cadete y no se rindieron (id → desde cuándo). Apagado, es el Map de siempre.
  */
-export type AvisadosDelTablero = Map<string, Date> & { boutique?: boolean; repartos?: ReadonlyMap<string, Date> };
+export type AvisadosDelTablero = Map<string, Date> & { repartos?: ReadonlyMap<string, Date> };
 
-/** Cuándo se abrió el aviso de «listo» de cada pedido (el último). Ver el encabezado. */
-export async function leerAvisados(ids: readonly string[]): Promise<AvisadosDelTablero> {
+/**
+ * Cuándo se abrió el aviso de «listo» de cada pedido (el último). Ver el encabezado. El mostrador
+ * boutique lo pasa la página (la MISMA decisión con la que arma la pantalla: comercio + interruptor):
+ * acá no se vuelve a leer el interruptor. Sólo cuenta como avisado el tipo «pedido-listo»: el
+ * «Confirmar por WhatsApp» del pedido tomado (2B, «pedido-confirmado») y el recordatorio de retiro
+ * o de cobro tienen su propio tipo y no mueven la tecla a «Entregar».
+ */
+export async function leerAvisados(ids: readonly string[], opciones: { boutique: boolean }): Promise<AvisadosDelTablero> {
   const out: AvisadosDelTablero = new Map<string, Date>();
-  // Cacheada por pedido (react.cache): la página ya la leyó para decidir el mostrador. Sin viaje.
-  const boutique = mostradorBoutiquePrendido(await interruptoresDelNegocio());
-  if (boutique) {
-    out.boutique = true;
-    out.repartos = new Map();
-  }
+  const boutique = opciones.boutique;
+  if (boutique) out.repartos = new Map();
   if (ids.length === 0) return out;
   const tenantId = await getCurrentTenantId();
   // UNA consulta: con el mostrador boutique, las marcas del reparto van en la misma (Neon free).
@@ -183,10 +181,10 @@ export function armarTablero(e: {
   local: { negocio: string; direccion: string | null; horario: string | null } | null;
   links: ReadonlyMap<string, LinkEnviado>;
   cupones: ReadonlyMap<string, CuponDelPedido>;
-  /** Lo que devolvió `leerAvisados` (con `boutique` y `repartos` si el mostrador boutique está prendido). */
-  avisados: ReadonlyMap<string, Date> & { boutique?: boolean; repartos?: ReadonlyMap<string, Date> };
-  /** El mostrador boutique; si no viene, el que leyó `leerAvisados`. */
-  boutique?: boolean;
+  /** Lo que devolvió `leerAvisados` (con `repartos` si el mostrador boutique está prendido). */
+  avisados: ReadonlyMap<string, Date> & { repartos?: ReadonlyMap<string, Date> };
+  /** El mostrador boutique, decidido por la página (comercio + interruptor). */
+  boutique: boolean;
   ofrecerLink: boolean;
   simulacion: boolean;
   alcance: AlcanceDeAnulacion | null;
@@ -194,7 +192,7 @@ export function armarTablero(e: {
   const extras: Record<string, ExtraDelPedido> = {};
   // MOSTRADOR BOUTIQUE (2C): la zona, si salió con el cadete y el «Recordarle» de la tarjeta. Sólo
   // comercio y con el interruptor; apagado, cada pedido viaja exactamente como siempre.
-  const boutique = e.comercio && (e.boutique ?? e.avisados.boutique === true);
+  const boutique = e.comercio && e.boutique;
   const repartos = e.avisados.repartos ?? new Map<string, Date>();
   const abiertos = e.abiertos.map((o): PedidoDelTablero => {
     const entrega = e.entrega ?? ENTREGA_POR_DEFECTO;
@@ -337,7 +335,8 @@ function delMostradorBoutique(
   } else if (local && o.status === "DELIVERED" && !o.paid) {
     recordarle = waLinkClienta(
       o.customerPhone,
-      recordatorioDeCobro({ cliente: o.customerName, code: o.code, total: textoPlata(o.total), negocio: local.negocio }),
+      // EL texto del recordatorio, uno solo con la ficha (2C + 2D unificados).
+      recordatorioDePago({ cliente: o.customerName, negocio: local.negocio, monto: textoPlata(o.total), pedido: o.code }),
     );
   }
   return {

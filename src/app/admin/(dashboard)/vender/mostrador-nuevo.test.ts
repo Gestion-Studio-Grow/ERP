@@ -182,3 +182,28 @@ test("MG-045: vacío 1,240 + bondiola 0,800 + 4 chorizos = $55.384", () => {
   const total = round2(round2(1.24 * 28600) + round2(0.8 * 15400) + round2(4 * 1900));
   assert.equal(total, 55384);
 });
+
+test("integración T2 · «Repetir» desde la ficha: sólo lo vendible entra al ticket, lo por kilo sin peso, y el aviso lo dice", async () => {
+  const { lineasDesdeLaFicha, avisoDeRepetir } = await import("./reglas-venta");
+  const repetir = {
+    renglones: [
+      { productId: "vacio", nombre: "Vacío", qtyText: "" },
+      { productId: "chorizo", nombre: "Chorizo", qtyText: "6" },
+      { productId: "sin-precio", nombre: "Matambre", qtyText: "" },
+    ],
+    omitidos: ["Pieza especial"],
+  };
+  const r = lineasDesdeLaFicha(repetir, new Set(["vacio", "chorizo"]));
+  assert.deepEqual(r.lineas, [
+    { productId: "vacio", qtyText: "" },
+    { productId: "chorizo", qtyText: "6" },
+  ]);
+  assert.deepEqual(r.omitidos, ["Pieza especial", "Matambre"]);
+  assert.deepEqual(lineasDesdeLaFicha(null, new Set(["vacio"])), { lineas: [], omitidos: [] });
+  assert.equal(
+    avisoDeRepetir({ code: 31, cliente: "Ana Pérez", porPeso: true, omitidos: r.omitidos }),
+    "Repetís el pedido #31 de Ana. Lo que va por kilo hay que pesarlo de nuevo. No se repite: Pieza especial, Matambre (ya no está a la venta o se carga aparte).",
+  );
+  assert.equal(avisoDeRepetir({ code: 2, cliente: "", porPeso: false, omitidos: [] }), "Repetís el pedido #2 del cliente.");
+  assert.equal(avisoDeRepetir(null), null);
+});

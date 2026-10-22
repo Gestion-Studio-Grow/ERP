@@ -572,6 +572,7 @@ function BandejaEnColumnas({
   onColumna,
   onAbrir,
   onNoRetiro,
+  fiado = false,
 }: {
   pedidos: PedidoDelTablero[];
   /** Todos los abiertos (el doble pedido de la clienta se busca en todos, no sólo en los filtrados). */
@@ -584,6 +585,8 @@ function BandejaEnColumnas({
   onColumna: (c: ColumnaDeLaBandeja) => void;
   onAbrir: (id: string, seccion?: SeccionDelCajon) => void;
   onNoRetiro: (p: PedidoDelTablero) => void;
+  /** El fiado del negocio prendido (2D): lo entregado sin cobrar con ficha va a la cuenta del cliente. */
+  fiado?: boolean;
 }) {
   const uid = useId();
   const columnas = bandejaEnColumnas(pedidos);
@@ -627,6 +630,15 @@ function BandejaEnColumnas({
               <span>{TITULO_DE_LA_COLUMNA[c]}</span>
               <span className="tabular-nums text-strong">{conteos[c]}</span>
             </h2>
+            {c === "a-cobrar" && fiado && (
+              <p data-bandeja="fiado" className="text-sm text-muted">
+                Lo que se entrega sin cobrar a un cliente con ficha va a su cuenta:{" "}
+                <Link href="/admin/cuentas-a-cobrar" className="font-medium text-accent-ink underline underline-offset-4">
+                  Fiado y cuentas
+                </Link>
+                .
+              </p>
+            )}
             {c === "en-reparto" && conteos[c] > 0 && (
               <Link href={HREF_RENDICION} className="text-sm font-medium text-accent-ink underline underline-offset-4">
                 Rendición del cadete
@@ -746,6 +758,7 @@ export default function TableroPedidos({
   anulacion,
   simulacion,
   tomarPedido,
+  fiado = false,
 }: {
   abiertos: PedidoDelTablero[];
   cerrados: PedidoCerrado[];
@@ -756,6 +769,8 @@ export default function TableroPedidos({
   simulacion: boolean;
   /** «Tomar un pedido» (Vender en modo pedido), si esta persona puede. */
   tomarPedido: string | null;
+  /** Mostrador boutique con el fiado del negocio prendido (2D): lo dice la columna «A cobrar». */
+  fiado?: boolean;
 }) {
   const vocab = useVocabulario();
   const params = useSearchParams();
@@ -1012,6 +1027,7 @@ export default function TableroPedidos({
               }}
               onAbrir={abrir}
               onNoRetiro={setNoRetiro}
+              fiado={fiado}
             />
           )}
         </>

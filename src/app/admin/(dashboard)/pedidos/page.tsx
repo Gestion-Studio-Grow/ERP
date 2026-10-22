@@ -53,6 +53,9 @@ import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
 import { CobroDelNegocio } from "./CobroDelPedido";
 import { guardarArmado } from "./[code]/armar/acciones";
+import { ConDiseno } from "@/lib/diseno/ConDiseno";
+import { PIEL_RENGLON } from "@/lib/diseno/diseno";
+import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
 
 /** Vender con el bloque «Nuevo pedido de WhatsApp» ya abierto (PedidoDesdeWhatsApp lee el #). */
 const HREF_PEDIDO_DE_WHATSAPP = "/admin/vender#whatsapp";
@@ -214,8 +217,17 @@ export default async function PedidosPage() {
   // DISEÑO NUEVO («Renglón»): el tablero vivo. Los MISMOS pedidos, las MISMAS acciones y las
   // mismas reglas de arriba; cambia cómo se ven y cómo se opera (tabla densa con una tecla por
   // pedido, filtros en la URL, en lote, el pedido entero en un cajón). Apagado, lo de abajo tal cual.
-  if (nuevo) {
-    const avisados = comercio ? await leerAvisados(abiertos.filter((o) => o.status === "READY").map((o) => o.id)) : new Map<string, Date>();
+  // MOSTRADOR BOUTIQUE (Magra T2 · 2C): la bandeja en columnas vive en este tablero, así que con el
+  // boutique prendido se arma aunque «Diseño nuevo» esté apagado, con su PIEL PROPIA (la hoja del
+  // diseño nuevo acotada a la bandeja, como hizo CH con «Cerrar el día»): el resto del panel queda
+  // como está. CH y Shine (boutique apagado) no entran acá sin «Diseño nuevo»: byte a byte igual.
+  if (nuevo || boutique) {
+    // El boutique lo decide ESTA página (comercio + interruptor) y lo pasa: no se relee abajo.
+    const avisados = comercio
+      ? await leerAvisados(abiertos.filter((o) => o.status === "READY").map((o) => o.id), { boutique })
+      : new Map<string, Date>();
+    // Con el fiado del negocio prendido (2D), «A cobrar» dice adónde va lo entregado sin cobrar con ficha.
+    const fiado = boutique && (await cuentasCorrientesDe(await getCurrentTenantId()));
     const tablero = armarTablero({
       abiertos,
       cerrados,
@@ -226,6 +238,7 @@ export default async function PedidosPage() {
       links,
       cupones,
       avisados,
+      boutique,
       ofrecerLink,
       simulacion,
       alcance,
@@ -235,7 +248,7 @@ export default async function PedidosPage() {
     // tienda ni retiros, y su línea queda como estaba).
     const linea = lineaDelTablero(tablero.abiertos, verPlata, comercio ? { ahora: new Date(), hoy } : undefined);
     const puedeTomar = modeloNuevo && roleHasCapability(user.role, "orders:manage");
-    return (
+    const pagina = (
       <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
         {/* En el celular el título va solo en su fila y «Tomar un pedido» baja debajo del estado: a
             360 px no entran los dos y el título se partía en dos renglones. */}
@@ -325,9 +338,17 @@ export default async function PedidosPage() {
             anulacion={alcance ? { motivoObligatorio: alcance.motivoObligatorio } : null}
             simulacion={simulacion}
             tomarPedido={puedeTomar ? "/admin/vender?modo=pedido" : null}
+            fiado={fiado}
           />
         </CobroDelNegocio>
       </main>
+    );
+    if (nuevo) return pagina;
+    // Sin «Diseño nuevo» (sólo el boutique): la piel acotada a esta pantalla.
+    return (
+      <div data-diseno={PIEL_RENGLON}>
+        <ConDiseno nuevo>{pagina}</ConDiseno>
+      </div>
     );
   }
 

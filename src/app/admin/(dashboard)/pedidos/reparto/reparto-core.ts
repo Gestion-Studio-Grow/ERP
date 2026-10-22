@@ -43,6 +43,11 @@ export type MarcaDeReparto =
       total: number;
       /** Lo que entró por cada medio (cobrado). Vacío si ya estaba pago o quedó a cobrar. */
       pagos: { medio: MedioDeCobro; monto: number }[];
+      /**
+       * «A cobrar» con el fiado prendido (2D) y el pedido con ficha: la deuda quedó en la cuenta del
+       * cliente (`AccountReceivable`), no en la columna A cobrar. Sólo se escribe si es así.
+       */
+      aCuenta?: true;
     };
 
 const MEDIOS: ReadonlySet<string> = new Set(MEDIOS_DE_COBRO.map((m) => m.valor));
@@ -76,6 +81,7 @@ export function leerMarcaDeReparto(changes: unknown): MarcaDeReparto | null {
       cliente: texto(c.cliente) ?? "",
       total: Number(c.total) || 0,
       pagos,
+      ...(resultado === "a-cobrar" && c.aCuenta === true ? { aCuenta: true as const } : {}),
     };
   }
   return null;
@@ -437,6 +443,8 @@ export type ResumenDeLaRendicion = {
   cobrados: number;
   yaPagos: number;
   aCobrar: { cantidad: number; monto: number };
+  /** De lo que quedó sin cobrar, lo que fue a la cuenta de cada cliente (fiado, 2D). */
+  aCuenta: { cantidad: number; monto: number };
 };
 
 /** Lo rendido, sumado: cuánto entró por cada medio y qué quedó a cobrar (MG-056). PURA. */
@@ -445,12 +453,16 @@ export function resumenDeLaRendicion(rendidos: readonly Extract<MarcaDeReparto, 
   let cobrados = 0;
   let yaPagos = 0;
   const aCobrar = { cantidad: 0, monto: 0 };
+  const aCuenta = { cantidad: 0, monto: 0 };
   for (const r of rendidos) {
     if (r.resultado === "cobrado") {
       cobrados += 1;
       for (const p of r.pagos) suma.set(p.medio, centavos((suma.get(p.medio) ?? 0) + p.monto));
     } else if (r.resultado === "ya-pago") yaPagos += 1;
-    else {
+    else if (r.aCuenta) {
+      aCuenta.cantidad += 1;
+      aCuenta.monto = centavos(aCuenta.monto + r.total);
+    } else {
       aCobrar.cantidad += 1;
       aCobrar.monto = centavos(aCobrar.monto + r.total);
     }
@@ -460,7 +472,7 @@ export function resumenDeLaRendicion(rendidos: readonly Extract<MarcaDeReparto, 
     etiqueta: m.etiqueta,
     monto: suma.get(m.valor) ?? 0,
   }));
-  return { porMedio, efectivo: suma.get("EFECTIVO") ?? 0, cobrados, yaPagos, aCobrar };
+  return { porMedio, efectivo: suma.get("EFECTIVO") ?? 0, cobrados, yaPagos, aCobrar, aCuenta };
 }
 
 /** «Efectivo $38.000 · Mercado Pago $25.000» (o «Nada cobrado todavía»). PURA. */

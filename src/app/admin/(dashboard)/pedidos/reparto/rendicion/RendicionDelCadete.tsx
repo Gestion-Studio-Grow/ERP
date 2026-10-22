@@ -46,6 +46,8 @@ type RendidoDeHoy = {
   total: number;
   resultado: ResultadoDeRendicion;
   pagos: { medio: MedioDeCobro; monto: number }[];
+  /** Quedó en la cuenta del cliente (fiado, 2D). */
+  aCuenta?: boolean;
 };
 
 const TECLA =
@@ -210,6 +212,8 @@ export default function RendicionDelCadete({
           {textoDelResumen(resumen)}
           {resumen.aCobrar.cantidad > 0 &&
             ` · quedó a cobrar ${textoPlata(resumen.aCobrar.monto)} (${resumen.aCobrar.cantidad === 1 ? "1 pedido" : `${resumen.aCobrar.cantidad} pedidos`})`}
+          {resumen.aCuenta.cantidad > 0 &&
+            ` · fue a la cuenta de los clientes ${textoPlata(resumen.aCuenta.monto)} (${resumen.aCuenta.cantidad === 1 ? "1 pedido" : `${resumen.aCuenta.cantidad} pedidos`})`}
         </p>
         {rendidos.length > 0 && (
           <ul className="flex flex-col divide-y divide-line text-sm">
@@ -221,7 +225,9 @@ export default function RendicionDelCadete({
                 <span className="tabular-nums text-body">
                   {r.resultado === "cobrado" && r.pagos.length
                     ? r.pagos.map((p) => `${etiquetaDeMedio(p.medio)} ${textoPlata(p.monto)}`).join(" + ")
-                    : `${PALABRA[r.resultado]} · ${textoPlata(r.total)}`}
+                    : r.aCuenta
+                      ? `En su cuenta · ${textoPlata(r.total)}`
+                      : `${PALABRA[r.resultado]} · ${textoPlata(r.total)}`}
                 </span>
               </li>
             ))}

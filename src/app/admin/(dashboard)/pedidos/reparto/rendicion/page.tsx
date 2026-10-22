@@ -55,7 +55,7 @@ export default async function RendicionPage() {
       <CobroDelNegocio boutique negocio={datos.negocio}>
         <RendicionDelCadete
           salidas={salidas}
-          rendidos={datos.rendidosHoy.map((r) => ({ id: r.id, code: r.code, cliente: r.cliente, total: r.total, resultado: r.resultado, pagos: r.pagos }))}
+          rendidos={datos.rendidosHoy.map((r) => ({ id: r.id, code: r.code, cliente: r.cliente, total: r.total, resultado: r.resultado, pagos: r.pagos, aCuenta: r.aCuenta === true }))}
           resumen={resumenDeLaRendicion(datos.rendidosHoy)}
           puedeOperar={roleHasCapability(user.role, "orders:manage")}
         />

@@ -194,3 +194,20 @@ test("el orden del reparto no depende del orden de entrada y deja «Sin zona» a
   assert.deepEqual(ordenarReparto(lista, ZONAS).map((x) => x.code), [1, 2, 3]);
   assert.deepEqual(ordenarReparto([...lista].reverse(), ZONAS).map((x) => x.code), [1, 2, 3]);
 });
+
+test("integración T2 · fiado: lo que quedó sin cobrar y fue a la cuenta del cliente se suma aparte de «A cobrar»", () => {
+  const base = { tipo: "rendido", reparto: "rep_1", cliente: "Ana", pagos: [] } as const;
+  const r = resumenDeLaRendicion([
+    { ...base, code: 1, resultado: "a-cobrar", total: 25700, aCuenta: true },
+    { ...base, code: 2, resultado: "a-cobrar", total: 9000 },
+  ]);
+  assert.deepEqual(r.aCuenta, { cantidad: 1, monto: 25700 });
+  assert.deepEqual(r.aCobrar, { cantidad: 1, monto: 9000 });
+  // La marca guardada: `aCuenta` sólo cuenta en un «a-cobrar» y si es exactamente true.
+  const leida = leerMarcaDeReparto({ tipo: "rendido", reparto: "r", resultado: "a-cobrar", code: 1, cliente: "A", total: 10, pagos: [], aCuenta: true });
+  assert.equal(leida?.tipo === "rendido" && leida.aCuenta, true);
+  const forjada = leerMarcaDeReparto({ tipo: "rendido", reparto: "r", resultado: "cobrado", code: 1, cliente: "A", total: 10, pagos: [], aCuenta: true });
+  assert.equal(forjada?.tipo === "rendido" ? forjada.aCuenta : "x", undefined);
+  const texto = leerMarcaDeReparto({ tipo: "rendido", reparto: "r", resultado: "a-cobrar", code: 1, cliente: "A", total: 10, pagos: [], aCuenta: "si" });
+  assert.equal(texto?.tipo === "rendido" ? texto.aCuenta : "x", undefined);
+});

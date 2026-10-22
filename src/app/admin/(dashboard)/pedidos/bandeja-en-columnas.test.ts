@@ -9,11 +9,11 @@ import {
   conteosDeLasColumnas,
   leerColumnaDeLaUrl,
   puedeMarcarNoRetiro,
-  recordatorioDeCobro,
   resumenDeLineas,
   teclaDeLaTarjeta,
   type PedidoDelTablero,
 } from "./pedidos-core";
+import { recordatorioDePago } from "@/lib/clientes/fiado";
 
 function pedido(o: Partial<PedidoDelTablero> & { id: string; status: string }): PedidoDelTablero {
   return {
@@ -112,8 +112,9 @@ test("«No retiró» sólo en un retiro Listo; el recordatorio del pago dice nú
   assert.equal(puedeMarcarNoRetiro({ status: "READY", entrega: "PICKUP" }), true);
   assert.equal(puedeMarcarNoRetiro({ status: "READY", entrega: "DELIVERY" }), false, "un envío que vuelve se rinde como «Volvió»");
   assert.equal(puedeMarcarNoRetiro({ status: "PREPARING", entrega: "PICKUP" }), false);
-  const t = recordatorioDeCobro({ cliente: "Ana Pérez", code: 128, total: "$25.700", negocio: "Magra" });
+  // Un solo texto con la ficha (2D): `recordatorioDePago` con el pedido.
+  const t = recordatorioDePago({ cliente: "Ana Pérez", pedido: 128, monto: "$25.700", negocio: "Magra" });
   assert.match(t, /^¡Hola Ana! Te escribimos de Magra por el pedido #128: quedó pendiente el pago de \$25\.700\./);
   assert.match(t, /transferencia o con Mercado Pago/);
-  assert.match(recordatorioDeCobro({ cliente: "Mostrador", code: 1, total: "$1", negocio: "Magra" }), /^¡Hola! /);
+  assert.match(recordatorioDePago({ cliente: "Mostrador", pedido: 1, monto: "$1", negocio: "Magra" }), /^¡Hola! /);
 });

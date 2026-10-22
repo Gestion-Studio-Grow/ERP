@@ -53,7 +53,7 @@ test("desde cuándo, en criollo: hoy, ayer, el día de la semana, o la fecha", (
 });
 
 test("el recordatorio: con un pedido es el MISMO texto de la bandeja (2C); sin pedido habla de la cuenta", () => {
-  // Copia literal de `recordatorioDeCobro` (pedidos-core.ts de 2C) para la unificación en la integración.
+  // El texto que antes era `recordatorioDeCobro` de la bandeja (2C): integrados, es éste.
   const bandeja =
     "¡Hola Ana! Te escribimos de Magra por el pedido #128: quedó pendiente el pago de $ 25.700. " +
     "Cuando puedas, lo pagás en el local, por transferencia o con Mercado Pago. ¡Gracias!";

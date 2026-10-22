@@ -5,7 +5,7 @@
 // etiqueta de balanza: dos mostradores que hacían lo mismo con capacidades distintas.
 import "server-only";
 import { ButtonLink } from "@/components/ui";
-import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
+import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
@@ -23,6 +23,9 @@ import PedidoDesdeWhatsApp from "./PedidoDesdeWhatsApp";
 import { cargarBoutique, cargarEnvios, cargarVender } from "./datos";
 import { puedeAbrirApp } from "./puede-abrir";
 import { balanzaDeVender } from "./balanza.server";
+import { cargarTeclasDelMostrador } from "./teclas.server";
+import type { ClienteElegido } from "@/lib/clientes/buscar-para-venta";
+import type { RepetirPedido } from "@/lib/clientes/fiado";
 import { TECLAS_BOUTIQUE, teclasDelMostrador, topeDeDescuento, topeDePrecioAMano } from "./reglas-venta";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
@@ -34,11 +37,17 @@ export default async function MostradorDeVenta({
   tenantId,
   pedidoInicial = false,
   conVendedor = false,
+  desdeLaFicha = null,
 }: {
   user: Quien;
   tenantId: string;
   pedidoInicial?: boolean;
   conVendedor?: boolean;
+  /**
+   * «Venderle» / «Repetir» desde la ficha (Magra 2D): el cliente y los renglones a precargar, ya
+   * leídos por la página con `pedidoDeVentaDesdeLaFicha` (acotados al negocio). Sólo el boutique.
+   */
+  desdeLaFicha?: { cliente: ClienteElegido; repetir: RepetirPedido | null } | null;
 }) {
   const hoy = todayInBusinessTz();
   const [datos, stockSnap, identidad, puedeCuentas, puedeFacturar, nuevo, rubro, terminal, interruptores] = await Promise.all([
@@ -62,11 +71,18 @@ export default async function MostradorDeVenta({
   // MOSTRADOR BOUTIQUE: sólo con el interruptor prendido en ESTE negocio (CH lo tiene apagado: su
   // mostrador sigue igual). Suma las zonas de envío y si el día está cerrado.
   const boutique = mostradorBoutiquePrendido(interruptores);
-  const extras = boutique ? await cargarBoutique(tenantId, hoy) : null;
+  // Tanda 2 · 2A: las teclas fijas del dueño y la góndola de cada producto, en la misma tanda.
+  const [extras, teclasFijas] = boutique
+    ? await Promise.all([cargarBoutique(tenantId, hoy), cargarTeclasDelMostrador(tenantId, user.role)])
+    : [null, null];
   // O-2: en el Vender de siempre de un COMERCIO (interruptor apagado), las zonas de envío también:
   // si el negocio tiene zonas, el servidor exige la zona en el pedido con envío y la pantalla tiene
   // que poder elegirla. CH (no es comercio) no lee nada nuevo.
   const enviosDeSiempre = !boutique && identidad.isRetail ? await cargarEnvios(tenantId) : null;
+  // «A cuenta» por NEGOCIO (2D): el interruptor «cuentas-corrientes» de este negocio (sin fila de
+  // la consola, la variable de siempre). La misma lectura que exige `createOrder` con `aCuenta`.
+  // Sólo se lee si quien vende puede abrir la app (sin ella no se ofrece igual).
+  const cuentasCorrientes = puedeCuentas ? await cuentasCorrientesDe(tenantId) : false;
   const balanza = identidad.isRetail ? await balanzaDeVender(tenantId, datos.products, user.role) : null;
   // Sin el módulo ni la balanza configurada, los códigos no viajan al navegador: la lista es la de
   // siempre. Con la balanza, el campo de la etiqueta necesita el PLU de cada producto.
@@ -141,9 +157,9 @@ export default async function MostradorDeVenta({
         negocio={datos.negocio}
         topeDescuentoPct={topeDeDescuento(user.role)}
         pedidoInicial={pedidoInicial}
-        // Detrás del flag de cuentas corrientes: sin el asiento del cobro del fiado en el
+        // Detrás de las cuentas corrientes DEL NEGOCIO: sin el asiento del cobro del fiado en el
         // libro, una deuda nacida en el mostrador no se podría cobrar bien.
-        aCuentaDisponible={puedeCuentas && cuentasCorrientesEnabled()}
+        aCuentaDisponible={puedeCuentas && cuentasCorrientes}
         puedeFacturar={puedeFacturar}
         factura={factura}
         topePrecioAMano={topeDePrecioAMano(user.role)}
@@ -166,6 +182,8 @@ export default async function MostradorDeVenta({
                 diaCerrado: extras.diaCerrado,
                 rolFactura,
                 puedeEditarFicha: roleHasCapability(user.role, "clients:manage"),
+                teclas: teclasFijas,
+                desdeLaFicha,
               },
             }
           : {})}

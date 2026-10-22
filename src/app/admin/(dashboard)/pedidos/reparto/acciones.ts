@@ -145,8 +145,11 @@ export async function rendirPedido(formData: FormData): Promise<OrderActionState
   const reparto = ultima.reparto;
   const total = Number(o.total);
   const soloId = formularioDe([["id", id]]);
-  const rendido = (r: ResultadoDeRendicion, pagos: { medio: "EFECTIVO" | "MERCADOPAGO" | "TRANSFERENCIA"; monto: number }[]) =>
-    marcar(id, { tipo: "rendido", reparto, resultado: r, code: o.code, cliente: o.customerName, total, pagos });
+  const rendido = (
+    r: ResultadoDeRendicion,
+    pagos: { medio: "EFECTIVO" | "MERCADOPAGO" | "TRANSFERENCIA"; monto: number }[],
+    aCuenta = false,
+  ) => marcar(id, { tipo: "rendido", reparto, resultado: r, code: o.code, cliente: o.customerName, total, pagos, ...(aCuenta ? { aCuenta: true as const } : {}) });
 
   if (resultado === "volvio") {
     const motivo = texto(formData.get("motivo")) ?? "Volvió sin entregar";
@@ -166,11 +169,20 @@ export async function rendirPedido(formData: FormData): Promise<OrderActionState
 
   if (resultado === "a-cobrar") {
     if (o.paid) return { ok: false, error: `El pedido #${o.code} ya está cobrado: rendilo como «Ya pagó».` };
+    // La entrega de siempre decide el fiado (2D, `decidirFiadoDeLaEntrega`): con las cuentas
+    // corrientes prendidas y el pedido con ficha, la deuda queda en la cuenta del cliente y el
+    // pedido sale de «A cobrar» (saldado contra la cuenta: `paid` sin medio). Se lee cómo quedó.
     const r = await entregarPedido(null, formularioDe([["id", id], ["quedaACobrar", "on"]]));
     if (!r?.ok) return r;
-    await rendido("a-cobrar", []);
+    const quedo = await prisma.order.findFirst({ where: { id, tenantId }, select: { paid: true, paymentMethod: true } });
+    const alFiado = Boolean(quedo?.paid && !quedo.paymentMethod);
+    await rendido("a-cobrar", [], alFiado);
     revalidar();
-    return { ok: true, mensaje: `Pedido #${o.code} entregado sin cobrar: queda en «A cobrar» por ${textoPlata(total)}.` };
+    return {
+      ok: true,
+      // Al fiado, el mensaje de la entrega: «… quedó en la cuenta de Ana, que debe $X …».
+      mensaje: alFiado ? r.mensaje : `Pedido #${o.code} entregado sin cobrar: queda en «A cobrar» por ${textoPlata(total)}.`,
+    };
   }
 
   // COBRADO: primero el cobro (la acción de siempre: si se rechaza, no se entrega ni se marca),

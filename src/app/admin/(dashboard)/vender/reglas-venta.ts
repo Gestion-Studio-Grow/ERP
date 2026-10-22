@@ -763,3 +763,35 @@ export function htmlDelTicket(renglones: readonly RenglonTicket[], opts: { ancho
     cuerpoHtml: filas,
   });
 }
+
+// ── «VENDERLE» Y «REPETIR» DESDE LA FICHA (Magra tanda 2 · 2D, integración) ──────────────────
+//
+// Vender llega con `?cliente=…&repetir=…` (fiado.ts, `pedidoDeVentaDesdeLaFicha`): la página trae
+// los renglones del pedido anterior SUYO, ya acotados al negocio. Acá se decide, sin base, cuáles
+// arrancan en el ticket: sólo lo que hoy se puede vender en ESTA pantalla (con precio); lo por kilo
+// llega con `qtyText` vacío (se pesa de nuevo) y lo que no entra se nombra en el aviso.
+
+/** Los renglones con los que arranca el ticket y lo que no se pudo repetir. PURA. */
+export function lineasDesdeLaFicha(
+  repetir: { renglones: readonly { productId: string; nombre: string; qtyText: string }[]; omitidos: readonly string[] } | null,
+  vendibles: ReadonlySet<string>,
+): { lineas: { productId: string; qtyText: string }[]; omitidos: string[] } {
+  if (!repetir) return { lineas: [], omitidos: [] };
+  const lineas: { productId: string; qtyText: string }[] = [];
+  const omitidos = [...repetir.omitidos];
+  for (const r of repetir.renglones) {
+    if (vendibles.has(r.productId)) lineas.push({ productId: r.productId, qtyText: r.qtyText });
+    else omitidos.push(r.nombre);
+  }
+  return { lineas, omitidos };
+}
+
+/** El aviso de arriba del ticket al repetir un pedido. null si no se repite nada. PURA. */
+export function avisoDeRepetir(p: { code: number; cliente: string; porPeso: boolean; omitidos: readonly string[] } | null): string | null {
+  if (!p) return null;
+  const nombre = p.cliente.trim().split(/\s+/)[0];
+  const partes = [`Repetís el pedido #${p.code} ${nombre ? `de ${nombre}` : "del cliente"}.`];
+  if (p.porPeso) partes.push("Lo que va por kilo hay que pesarlo de nuevo.");
+  if (p.omitidos.length) partes.push(`No se repite: ${p.omitidos.join(", ")} (ya no está a la venta o se carga aparte).`);
+  return partes.join(" ");
+}
