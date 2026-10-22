@@ -19,13 +19,67 @@ export function esFechaDeCalendario(s: unknown): s is string {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
+/** Lo que además puede traer «Dar turno» (reingeniería CH, Tanda 2): de un hueco o «Atender ahora». */
+export type ExtraDelAlta = {
+  /** La profesional del hueco tocado (id). */
+  profesional?: string | null;
+  /** La hora de pared del hueco, «HH:MM» (en la zona del negocio). */
+  hora?: string | null;
+  /** «Atender ahora»: hoy, la franja de ahora y sólo las libres ahora. */
+  ahora?: boolean;
+};
+
+const FORMATO_HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** ¿Es una hora de pared «HH:MM» válida? */
+export function esHoraDePared(s: unknown): s is string {
+  return typeof s === "string" && FORMATO_HORA.test(s);
+}
+
 /**
  * El link que abre "Nuevo turno" ya desplegado en la lista, con la fecha puesta si viene. Ahorra
- * los dos toques de "Lista" → "+ Nuevo turno" y el de elegir la fecha.
+ * los dos toques de "Lista" → "+ Nuevo turno" y el de elegir la fecha. Con `extra`, además la
+ * profesional y la hora del hueco tocado, o «Atender ahora» (que no lleva fecha: es hoy).
  */
-export function hrefNuevoTurno(fecha?: string | null, cliente?: string | null): string {
-  const base = esFechaDeCalendario(fecha) ? `/admin/turnos/lista?nuevo=1&fecha=${fecha}` : "/admin/turnos/lista?nuevo=1";
-  return esIdDeFicha(cliente) ? `${base}&cliente=${cliente}` : base;
+export function hrefNuevoTurno(fecha?: string | null, cliente?: string | null, extra?: ExtraDelAlta): string {
+  const ahora = extra?.ahora === true;
+  let href = !ahora && esFechaDeCalendario(fecha) ? `/admin/turnos/lista?nuevo=1&fecha=${fecha}` : "/admin/turnos/lista?nuevo=1";
+  if (esIdDeFicha(cliente)) href += `&cliente=${cliente}`;
+  if (ahora) return `${href}&ahora=1`;
+  const profesional = extra?.profesional;
+  const hora = extra?.hora;
+  if (esIdDeFicha(profesional)) href += `&profesional=${profesional}`;
+  if (esHoraDePared(hora)) href += `&hora=${hora}`;
+  return href;
+}
+
+/** Tocar un hueco de la agenda (celda vacía): «Dar turno» con la profesional, el día y la hora puestos. */
+export function hrefTurnoEnHueco(fecha: string, profesionalId: string, hora: string): string {
+  return hrefNuevoTurno(fecha, null, { profesional: profesionalId, hora });
+}
+
+/** «Atender ahora» (la clienta está en el mostrador): hoy, la franja de ahora, sólo las libres. */
+export function hrefAtenderAhora(cliente?: string | null): string {
+  return hrefNuevoTurno(null, cliente, { ahora: true });
+}
+
+/**
+ * Lo que «Dar turno» lee de la URL además de la fecha y la clienta: la profesional y la hora del
+ * hueco, o «ahora». Sólo con el alta abierta (`nuevo=1`). Un id o una hora rara no se precargan;
+ * con «ahora» la profesional y la hora se ignoran (las decide el reloj).
+ */
+export function leerHuecoDelAlta(sp: {
+  nuevo?: string | string[] | null;
+  profesional?: string | string[] | null;
+  hora?: string | string[] | null;
+  ahora?: string | string[] | null;
+}): { profesional: string; hora: string; ahora: boolean } {
+  const uno = (v: string | string[] | null | undefined) => (Array.isArray(v) ? v[0] : (v ?? undefined));
+  if (uno(sp.nuevo) !== "1") return { profesional: "", hora: "", ahora: false };
+  if (uno(sp.ahora) === "1") return { profesional: "", hora: "", ahora: true };
+  const profesional = uno(sp.profesional);
+  const hora = uno(sp.hora);
+  return { profesional: esIdDeFicha(profesional) ? profesional : "", hora: esHoraDePared(hora) ? hora : "", ahora: false };
 }
 
 const FORMATO_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -62,6 +116,20 @@ export function leerNuevoTurno(
   const abrir = uno(sp.nuevo) === "1";
   const fecha = uno(sp.fecha);
   return { abrir, fecha: abrir && esFechaDeCalendario(fecha) && fecha >= hoy ? fecha : "" };
+}
+
+/** La agenda de un día (hoy, sin parámetro). */
+export function hrefAgendaDelDia(dia: string, hoy: string): string {
+  return dia === hoy || !esFechaDeCalendario(dia) ? "/admin/turnos" : `/admin/turnos?date=${dia}`;
+}
+
+/**
+ * A dónde va «Dar turno» al terminar: la agenda del día del turno; con «Atender ahora», la agenda
+ * de hoy con ESE turno abierto y su hoja de cobro (`?turno=<id>&hoja=terminar`, CH-019).
+ */
+export function hrefAlTerminarElAlta(fin: { dia: string; turnoId: string | null; ahora: boolean }, hoy: string): string {
+  if (fin.ahora && esIdDeFicha(fin.turnoId)) return `/admin/turnos?turno=${fin.turnoId}&hoja=terminar`;
+  return hrefAgendaDelDia(fin.dia, hoy);
 }
 
 /**
