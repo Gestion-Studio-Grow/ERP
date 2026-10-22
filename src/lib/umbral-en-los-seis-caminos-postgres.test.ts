@@ -206,7 +206,8 @@ test("facturita (emitirFacturitaAction, Server Action real): sin identificar des
   // La pantalla recibe el rechazo en el momento, con el motivo (antes: ok:true y «Factura
   // emitida» con la factura rechazada).
   assert.ok(r && !r.ok, JSON.stringify(r));
-  assert.match(r.error, /^ARCA no autorizó la factura: /);
+  // Lo frena la decisión del sistema antes de mandarla: se dice así, no «ARCA no autorizó».
+  assert.match(r.error, /^No la mandamos a ARCA porque le falta algo: /);
   assert.match(r.error, MOTIVO_UMBRAL);
   assert.ok(r.invoiceId, "el rechazo dice qué factura quedó rechazada");
   await p.rechazadaPor(r.invoiceId, MOTIVO_UMBRAL, b);

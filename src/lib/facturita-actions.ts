@@ -13,7 +13,6 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { createInvoice } from "@/lib/invoice-core";
 import {
-  calcularImpuestos,
   getFiscalProfile,
   isInvoicingEnabled,
   PerfilFiscalIncompletoError,
@@ -21,38 +20,61 @@ import {
 import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
 import { contarFacturasDelMes, fechaFiscalDelDia } from "@/lib/bancos-glue";
 import { logger } from "@/lib/logger";
+import { modoDesdeEnv } from "@/plugins/arca";
 import {
+  esDePrueba,
   estadoLimite,
+  mensajeDeEmision,
+  numeroDeComprobante,
+  origenDelRechazo,
   validarEmision,
   type EmisionFacturita,
+  type EstadoEmision,
   type EstadoLimite,
 } from "@/lib/facturita-core";
-
-const CONCEPTO_PRODUCTOS = 1;
+import { montosFacturita } from "@/lib/facturita-montos";
 
 /** Barrera del producto: sesión con permiso de facturación + tenant facturita. */
-async function requireTenantFacturita(): Promise<string> {
+async function requireTenantFacturita(): Promise<{ tenantId: string; homologacion: boolean }> {
   await requireCapability("billing:manage");
   const tenantId = await getCurrentTenantId();
   const tenant = await tenantTransaction(
-    (tx) => tx.tenant.findUnique({ where: { id: tenantId }, select: { blueprintId: true } }),
+    (tx) =>
+      tx.tenant.findUnique({ where: { id: tenantId }, select: { blueprintId: true, arcaHomologacion: true } }),
     { tenantId },
   );
   if (tenant?.blueprintId !== "facturita") {
     throw new Error("Esta pantalla es del producto Facturita.");
   }
-  return tenantId;
+  return { tenantId, homologacion: tenant.arcaHomologacion ?? true };
 }
 
 /** Estado del tope mensual (5 gratis) para el tablero. */
 export async function estadoFacturitaAction(): Promise<EstadoLimite> {
-  const tenantId = await requireTenantFacturita();
+  const { tenantId } = await requireTenantFacturita();
   return estadoLimite(await contarFacturasDelMes(tenantId));
 }
 
+/**
+ * Lo que la pantalla «Emitir» necesita saber del emisor: si es inscripto (muestra la alícuota) y la
+ * fecha fiscal de hoy (default de las fechas del servicio). Sin perfil fiscal cargado, `null`: la
+ * emisión igual lo frena con su mensaje.
+ */
+export async function datosEmisorFacturitaAction(): Promise<{ condicionIva: string | null; hoy: string }> {
+  const { tenantId } = await requireTenantFacturita();
+  const hoy = fechaHoy();
+  try {
+    const perfil = await getFiscalProfile(tenantId);
+    return { condicionIva: perfil.condicionIva, hoy };
+  } catch (err) {
+    if (err instanceof PerfilFiscalIncompletoError) return { condicionIva: null, hoy };
+    throw err;
+  }
+}
+
 export type ResultadoEmisionFacturita =
-  | { ok: true; invoiceId: string; limite: EstadoLimite }
-  | { ok: false; error: string; invoiceId?: string };
+  | { ok: true; invoiceId: string; limite: EstadoLimite; estado: EstadoEmision; mensaje: string }
+  | { ok: false; error: string; invoiceId?: string; estado?: EstadoEmision };
 
 // La fecha del comprobante es el día del NEGOCIO, no el del proceso. Armada con
 // `getDate()` salía en la zona del proceso: con TZ=UTC (medido) una factura del 31/08 a
@@ -63,16 +85,18 @@ function fechaHoy(): string {
 }
 
 /**
- * Emite una factura manual: valida receptor y total, respeta el tope de 5 por
- * mes, y crea la factura por el motor del Core (la letra la decide el sistema
- * según la condición del emisor; monotributo → Factura C).
+ * Emite una factura manual: valida receptor, concepto y total, respeta el tope de 5 por mes, y crea
+ * la factura por el motor del Core (la letra la decide el sistema con el emisor y el receptor).
+ * Devuelve el estado REAL de la factura: autorizada (con CAE, o de prueba), pendiente o rechazada
+ * (por ARCA o frenada por el sistema), nunca un «emitida» genérico.
  */
 export async function emitirFacturitaAction(
   datos: EmisionFacturita,
 ): Promise<ResultadoEmisionFacturita> {
-  const tenantId = await requireTenantFacturita();
+  const { tenantId, homologacion } = await requireTenantFacturita();
+  const hoy = fechaHoy();
 
-  const validacion = validarEmision(datos);
+  const validacion = validarEmision(datos, hoy);
   if (!validacion.ok) return { ok: false, error: validacion.error };
 
   const limite = estadoLimite(await contarFacturasDelMes(tenantId));
@@ -82,24 +106,36 @@ export async function emitirFacturitaAction(
 
   try {
     const perfil = await getFiscalProfile(tenantId);
-    const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, datos.total);
+    // Inscripto: IVA declarado en el renglón con la alícuota elegida (ivaPorProducto). C: sin IVA.
+    const montos = montosFacturita(perfil.condicionIva, datos.total, validacion.alicuotaId);
+    if (!montos.ok) return { ok: false, error: montos.error };
+
     const invoiceId = await createInvoice({
       tenantId,
-      concepto: CONCEPTO_PRODUCTOS,
-      fecha: fechaHoy(),
+      concepto: validacion.concepto,
+      fecha: hoy,
       emisor: { cuit: perfil.cuit, condicionIva: perfil.condicionIva, puntoVenta: perfil.puntoVenta },
-      receptor: {
-        docTipo: validacion.receptor.docTipo,
-        docNro: validacion.receptor.docNro,
-        condicionIva: "CONSUMIDOR_FINAL",
-      },
-      neto,
-      iva,
-      total,
+      // RG 5616: la condición REAL del comprador (con CUIT la eligió la persona; sin CUIT, consumidor final).
+      receptor: validacion.receptor,
+      neto: montos.neto,
+      iva: montos.iva,
+      total: montos.total,
+      ...(montos.ivaPorProducto ? { ivaPorProducto: true } : {}),
+      ...(validacion.servicio
+        ? {
+            servicioDesde: validacion.servicio.desde,
+            servicioHasta: validacion.servicio.hasta,
+            vencimientoPago: validacion.servicio.vencimientoPago,
+          }
+        : {}),
+      // Lo que se vendió, para el PDF y la lista (no viaja a ARCA). Necesita la migración
+      // 20261022140000_invoice_abono_descripcion (Gate 2), igual que la consola.
+      descripcion: validacion.descripcion,
     });
 
     // Despacho a ARCA (CAE) si la facturación está encendida (stub/homologación/real).
-    if (isInvoicingEnabled()) {
+    const encendida = isInvoicingEnabled();
+    if (encendida) {
       await procesarEnviosDelNegocio(tenantId).catch((err) =>
         logger.warn("facturita", "despacho ARCA diferido (lo toma el próximo ciclo)", {
           tenantId,
@@ -110,21 +146,31 @@ export async function emitirFacturitaAction(
 
     revalidatePath("/facturita/app");
 
-    // Si el despacho ya la rechazó (la decisión del comprobante o ARCA), se dice ahora y con el
-    // motivo: responder «Factura emitida» con la factura rechazada deja al usuario creyendo que
-    // entregó un comprobante válido. En camino (despacho diferido) sigue siendo ok.
-    const decidida = await tenantTransaction(
-      (tx) => tx.invoice.findFirst({ where: { id: invoiceId, tenantId }, select: { status: true, rechazoMotivo: true } }),
+    // Cómo quedó de verdad: se lee la factura después del despacho.
+    const f = await tenantTransaction(
+      (tx) =>
+        tx.invoice.findFirst({
+          where: { id: invoiceId, tenantId },
+          select: { status: true, rechazoMotivo: true, cae: true, numero: true, puntoVenta: true },
+        }),
       { tenantId },
     );
-    if (decidida?.status === "REJECTED") {
-      return {
-        ok: false,
-        error: `ARCA no autorizó la factura: ${decidida.rechazoMotivo ?? "sin motivo informado"}`,
-        invoiceId,
-      };
+    const estado: EstadoEmision =
+      f?.status === "AUTHORIZED"
+        ? {
+            estado: "autorizada",
+            dePrueba: esDePrueba(modoDesdeEnv(), homologacion),
+            numero: numeroDeComprobante(f.puntoVenta, f.numero),
+            cae: f.cae,
+          }
+        : f?.status === "REJECTED"
+          ? { estado: "rechazada", origen: origenDelRechazo(f.rechazoMotivo), motivo: f.rechazoMotivo ?? "" }
+          : { estado: "pendiente", motivo: encendida ? "esperando" : "apagada" };
+
+    if (estado.estado === "rechazada") {
+      return { ok: false, error: mensajeDeEmision(estado), invoiceId, estado };
     }
-    return { ok: true, invoiceId, limite: estadoLimite(limite.usadas + 1) };
+    return { ok: true, invoiceId, limite: estadoLimite(limite.usadas + 1), estado, mensaje: mensajeDeEmision(estado) };
   } catch (err) {
     logger.error("facturita", "emisión falló", err, { tenantId });
     // Perfil fiscal sin cargar: reintentar no lo arregla, hay que cargar el dato.

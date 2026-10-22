@@ -36,7 +36,9 @@ export default async function FacturitaCuentaPage() {
         <div className="flex items-center justify-between gap-4 px-[22px] py-[13px] text-sm">
           <dt className="text-muted">Estado de ARCA</dt>
           <dd>
-            {estado.homologacion ? (
+            {estado.modo === "stub" ? (
+              <Badge tone="warning" dot>Simulado (de prueba, sin validez fiscal)</Badge>
+            ) : estado.homologacion || estado.modo === "homologacion" ? (
               <Badge tone="warning" dot>Homologación (pruebas oficiales)</Badge>
             ) : (
               <Badge tone="success" dot>En línea</Badge>
@@ -54,7 +56,7 @@ export default async function FacturitaCuentaPage() {
       <section className="rounded-xl border border-line bg-surface-sunken px-[22px] py-5">
         <h2 className="text-sm font-semibold text-strong">¿Te quedaste corto?</h2>
         <p className="mt-1 text-sm text-muted">
-          Con <strong className="font-semibold text-strong">Comerciante</strong> facturás sin límite y,
+          Con <strong className="font-semibold text-strong">Comerciante</strong> facturás hasta {PLAN_SALTO.facturasPorMes} por mes y,
           mejor todavía: subís el extracto del banco o conectás Mercado Pago y las facturas se arman
           solas. Es el mismo espacio, con más músculo — no perdés nada de lo que ya emitiste.
         </p>

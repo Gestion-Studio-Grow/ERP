@@ -60,7 +60,7 @@ export const PLAN_FACTURITA: Plan = {
     "Cobrar con Mercado Pago",
     "Soporte por persona (tenés la ayuda paso a paso)",
   ],
-  nota: "Para siempre, sin tarjeta.",
+  nota: "Sin tarjeta.",
 };
 
 /**
@@ -76,7 +76,7 @@ export const PLANES_COMERCIANTE: readonly Plan[] = [
     para: "Monotributo o responsable inscripto chico, sin empleados.",
     facturasPorMes: 159,
     incluye: [
-      "Todo lo de Facturita, sin el tope de 5",
+      "Todo lo de Facturita, con más facturas por mes",
       "Las facturas se arman solas desde el extracto del banco y Mercado Pago",
       "Notas de crédito y débito en un clic",
       "Avisos de recategorización y del tope del monotributo",
@@ -100,7 +100,7 @@ export const PLANES_COMERCIANTE: readonly Plan[] = [
     precioMensual: 89_900,
     para: "Dos o más locales, varias cuentas de banco.",
     facturasPorMes: 1_500,
-    incluye: ["Todo lo de Comercio", "Varios locales con su conciliación", "Usuarios sin límite", "Soporte prioritario"],
+    incluye: ["Todo lo de Comercio", "Varios locales con su conciliación", "Más usuarios, con roles", "Soporte prioritario"],
   },
   {
     id: "cm",

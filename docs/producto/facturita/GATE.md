@@ -55,6 +55,46 @@ Fecha: 2026-10-22. Sin deploy, sin migraciones, sin Neon, sin credenciales ARCA,
 - [x] No rompe prod: sin schema, sin migraciones, sin cambios en `src/proxy.ts`, `next.config`, `/api/pwa/admin.webmanifest` intacto.
 - [x] Errores: registro del SW con `catch` silencioso (la app anda sin él); portapapeles con `try/catch`; sin número de WhatsApp no aparece el botón (no se inventa).
 
+---
+
+## Vuelta 2 — revisión del contador (2026-10-22)
+
+| # | Hallazgo | Qué se hizo | Dónde |
+|---|---|---|---|
+| C1 | Inscripto: toda factura rechazada (ENG-024) | El inscripto elige alícuota (21 % por defecto, 10,5 %, 27 %) y el IVA va **declarado en el renglón** con `montosDeRenglones` del motor → `ivaPorProducto: true`. Monotributo/exento siguen con `calcularImpuestos`. | `src/lib/facturita-montos.ts`, `EmitirForm.tsx` |
+| C1b | «ARCA no autorizó» cuando lo frenó el sistema | `origenDelRechazo`: con código numérico es ARCA («ARCA rechazó…»), si no, «No la mandamos a ARCA porque le falta algo: …». | `facturita-core.ts` |
+| C2 | Receptor fijo en consumidor final (RG 5616) | Con CUIT se pide la condición (RI / monotributo / exento) y viaja la real; CUIL, DNI o sin documento → consumidor final. Sin condición con CUIT no se emite. `src/lib/fiscal/**` sin tocar. | `validarEmision`, `EmitirForm.tsx` |
+| C3 | Descripción no se guardaba | Se pasa `descripcion` a `createInvoice` (PDF y lista). | `facturita-actions.ts` |
+| C4 | Concepto fijo en productos | Productos / Servicios / Ambos (`Segmented`). Con servicios: período desde/hasta y vencimiento del pago (hoy por defecto; se valida hasta ≥ desde y vencimiento ≥ hoy), que el motor manda como FchServDesde/Hasta/FchVtoPago. El placeholder del detalle sigue al concepto. | `facturita-core.ts`, `EmitirForm.tsx` |
+| C5 | «Factura emitida» siempre | La acción lee la factura después del despacho y responde el estado real: autorizada (con N.º y CAE, o «de prueba»), pendiente («sale apenas ARCA responda» / «la conexión con ARCA todavía no está activa»), o rechazada con el motivo. | `facturita-actions.ts`, `mensajeDeEmision` |
+| M | «sin límite» / «para siempre» | Fuera: el tope del aviso nombra 159 (plan Solo, lo vigila un test); Facturita dice «Sin tarjeta». | `facturita-core.ts`, `facturita-planes.ts`, `cuenta/page.tsx` |
+| M | Stub mostraba «Autorizada» | `esDePrueba(modo, homologación)`: en stub u homologación, «Autorizada de prueba» + aviso de que no tiene validez fiscal; en Mi cuenta, «Simulado». | `facturas/page.tsx`, `cuenta/page.tsx` |
+| M | Fecha de «Mis facturas» un día antes | `fechaFiscalLegible` formatea AAAAMMDD como texto, sin `Date`. | `facturas/page.tsx` |
+| M | CUIT real en el placeholder y en tests | Placeholder genérico («11 números, con o sin guiones»; DNI «7 u 8 números»); tests con CUIT inventados (20-11111111-2, 30-11111111-8). | `EmitirForm.tsx`, `facturita-core.test.ts` |
+| M | `CUIT_GSG_DELEGACION` | Sigue `null` con su texto («te lo pasamos por WhatsApp»), como se pidió. | `facturita-onboarding.ts` |
+
+**Verificación vuelta 2:** `tsc` verde; eslint 0; 56 tests puros de Facturita verdes; nuevo
+`src/lib/facturita-emision-postgres.test.ts` (4 casos, Server Action real contra base efímera con RLS
+y ARCA en stub): monotributo → servicio a empresa RI (C, concepto 2, fechas, condición real en el
+envío, descripción guardada); CUIT sin condición no crea factura; inscripto 10,5 % → B con desglose
+código 4 e `ivaPorProducto`; inscripto → inscripto frenado por el sistema (régimen de Factura A sin
+cargar, RG 1575) con el mensaje del sistema; facturación apagada → PENDIENTE y «todavía no está
+activa». Suite completa (una corrida, con Postgres en :5434): 5934 tests, 5930 pasan, 4 fallan — los
+3 de la base (pie pegado, cron de recordatorios con RLS, redondeos con archivos de `club/`) y
+`cartera-abonos-postgres` (carrera de idempotencia de la consola bajo carga; corrido solo, pasa).
+`npm run build` verde.
+
+**Fuera de mi lista, tocado a sabiendas (1 línea):** `src/lib/umbral-en-los-seis-caminos-postgres.test.ts:209`
+esperaba el texto viejo «ARCA no autorizó la factura:» para un rechazo que es del SISTEMA (el umbral de
+la RG 5700). Con C1b el texto correcto es «No la mandamos a ARCA…»: se actualizó la aserción.
+
+**Limitaciones que quedan (anotadas):**
+- Inscripto → inscripto (Factura A) necesita la clase de Factura A que asignó ARCA (RG 1575); Facturita
+  no la deja cargar: hoy la carga Soporte GSG. Sin ella, la A se frena con ese motivo, en criollo.
+- Una alícuota por factura (la vidriera lo dice). Varias alícuotas en una venta → Comerciante.
+- `descripcion` necesita la migración `20261022140000_invoice_abono_descripcion` (**Gate 2, sin
+  aplicar**), igual que la consola: **no desplegar esta rama a una base sin esa migración**.
+
 **Nota de entorno (no afecta la rama):** el `npm install` del worktree no pudo bajar `xlsx` de
 `cdn.sheetjs.com` (bloqueado por el proxy de la sesión). Para verificar se instaló localmente con
 `xlsx@0.18.5` del registro y se restauraron `package.json`/`package-lock.json` sin cambios.
