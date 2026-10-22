@@ -68,8 +68,7 @@ test("M-007: frenado → «Probá de nuevo», sin aviso; dentro de los 10 min no
 });
 
 test("guardia de código: pedirClase entrega el token sólo vía tokenAEntregar y pedirMiLink nunca lo devuelve", async () => {
-  const { readFileSync } = await import("node:fs");
-  const fuente = readFileSync(new URL("./acciones.ts", import.meta.url), "utf8");
+  const fuente = await fuenteAcciones();
   const cuerpo = (nombre: string) => {
     const i = fuente.indexOf(`export async function ${nombre}(`);
     assert.ok(i >= 0, nombre);
@@ -87,7 +86,12 @@ test("guardia de código: pedirClase entrega el token sólo vía tokenAEntregar 
 
 // ── O-1: «squatting» ────────────────────────────────────────────────────────
 
-const fuenteAcciones = async () => (await import("node:fs")).readFileSync(new URL("./acciones.ts", import.meta.url), "utf8");
+// Tanda 2A: las escrituras se partieron en acciones.ts (profe), acciones-alumno.ts (público) y
+// acciones-compartido.ts (piezas comunes). Las guardias miran las tres juntas.
+async function fuenteAcciones(): Promise<string> {
+  const { readFileSync } = await import("node:fs");
+  return ["./acciones.ts", "./acciones-alumno.ts", "./acciones-compartido.ts"].map((f) => readFileSync(new URL(f, import.meta.url), "utf8")).join("\n");
+}
 const cuerpoDe = (fuente: string, nombre: string) => {
   const i = fuente.search(new RegExp(`(export )?async function ${nombre}\\(`));
   assert.ok(i >= 0, nombre);
@@ -162,7 +166,9 @@ test("O-1: escenario completo — el que tipeó un celular ajeno pierde el acces
 
 test("O-1: guardia — confirmar/dar/ausente, agendar la próxima y el alta del profe pasan por reconocerAlumno; «Regenerar link» invalida el viejo", async () => {
   const f = await fuenteAcciones();
-  const mover = cuerpoDe(f, "moverClase");
+  // moverClase delega en transicionar (el corazón de confirmar/dar/ausente/cancelar).
+  assert.match(cuerpoDe(f, "moverClase"), /return transicionar\(id, evento\)/);
+  const mover = cuerpoDe(f, "transicionar");
   assert.match(mover, /\["CONFIRMADA", "DADA", "AUSENTE"\]\.includes\(nuevo\)\s*\?\s*await reconocerAlumno\(tx/);
   assert.match(mover, /alumno\.token = r\.token;/, "el WhatsApp sale con el link nuevo");
   const proxima = cuerpoDe(f, "agendarProxima");

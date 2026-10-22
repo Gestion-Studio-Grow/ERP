@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { cancelarDesdeLink, recordarToken, reservarDesdeLink, subirComprobante } from "@/lib/padel/acciones";
+import { cancelarDesdeLink, recordarToken, reservarDesdeLink, subirComprobante } from "@/lib/padel/acciones-alumno";
 
 /**
  * Al abrir el link, este teléfono queda recordado (cookie httpOnly que escribe el servidor): la

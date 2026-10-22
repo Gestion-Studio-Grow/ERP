@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { botonRespuestaMeta, credencialesCloud, cuerpoMensaje, firmaValida, interpretarRespuesta, modoWhatsApp, respuestaAlAlumno, responderDesafio } from "./whatsapp-cloud";
+import { PLANTILLAS_META, botonRespuestaMeta, credencialesCloud, cuerpoMensaje, firmaValida, interpretarRespuesta, modoWhatsApp, respuestaAlAlumno, responderDesafio } from "./whatsapp-cloud";
+import { PLANTILLAS_DEFAULT, armarMensaje } from "./core";
 
 const q = (o: Record<string, string>) => new URLSearchParams(o);
 
@@ -110,4 +111,19 @@ test("O-4: sólo CANCELAR exacto cancela; «¿cancelar?» y cualquier variante p
   assert.notEqual(interpretarRespuesta("cancelarr"), "cancelar");
   // El botón rápido de la plantilla sigue cancelando (payload exacto).
   assert.equal(interpretarRespuesta("No puedo", "CANCELAR"), "cancelar");
+});
+
+test("A·E21: el recordatorio lleva el link del alumno (texto de fábrica y plantilla de Meta)", () => {
+  assert.match(PLANTILLAS_DEFAULT.recordatorio, /\{link\}/);
+  assert.ok((PLANTILLAS_META.recordatorio.variables as readonly string[]).includes("link"));
+  const texto = armarMensaje(PLANTILLAS_DEFAULT.recordatorio, { nombre: "Juan", dia: "jueves 23/10", hora: "19:00", link: "https://x/alumno/abc" });
+  assert.match(texto, /https:\/\/x\/alumno\/abc/);
+  const p = cuerpoMensaje("5491151839732", { tipo: "plantilla", clave: "recordatorio", vars: { nombre: "Juan", dia: "jueves 23/10", hora: "19:00", link: "https://x/alumno/abc" } });
+  const t = p.template as { components: { parameters: { text: string }[] }[] };
+  assert.deepEqual(t.components[0].parameters.map((x) => x.text), ["Juan", "jueves 23/10", "19:00", "https://x/alumno/abc"]);
+});
+
+test("plantillas de Meta nuevas: movida y suspendida con sus variables en orden", () => {
+  assert.deepEqual([...PLANTILLAS_META.movida.variables], ["nombre", "diaAnterior", "horaAnterior", "dia", "hora", "link"]);
+  assert.deepEqual([...PLANTILLAS_META.suspendida.variables], ["nombre", "motivo", "dia", "hora", "turnero"]);
 });

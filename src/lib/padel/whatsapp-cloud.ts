@@ -162,8 +162,14 @@ export const PLANTILLAS_META = {
   proxima: { nombre: "proxima_clase", variables: ["nombre", "dia", "hora", "link"] },
   pagoOk: { nombre: "pago_recibido", variables: ["nombre", "dia"] },
   pagoNo: { nombre: "comprobante_no_valido", variables: ["nombre", "dia", "link"] },
-  recordatorio: { nombre: "recordatorio_clase", variables: ["nombre", "dia", "hora"] },
+  // A·E21: el recordatorio lleva el link del alumno (cancelar o cambiar sin escribirle al profe).
+  // La plantilla aprobada en Meta tiene que tener la 4ª variable: hasta que se apruebe así, Meta la
+  // rechaza y el notificador cae al link wa.me (nunca se queda sin avisar).
+  recordatorio: { nombre: "recordatorio_clase", variables: ["nombre", "dia", "hora", "link"] },
   linkAlumno: { nombre: "link_alumno", variables: ["nombre", "link"] },
+  // Tanda 2A. A aprobar en Meta; mientras tanto, el mismo fallback a wa.me.
+  movida: { nombre: "clase_movida", variables: ["nombre", "diaAnterior", "horaAnterior", "dia", "hora", "link"] },
+  suspendida: { nombre: "clase_suspendida", variables: ["nombre", "motivo", "dia", "hora", "turnero"] },
 } as const;
 export type ClaveMeta = keyof typeof PLANTILLAS_META;
 

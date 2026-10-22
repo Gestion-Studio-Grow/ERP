@@ -8,7 +8,7 @@
 // celular es de un alumno conocido y el teléfono es otro, «Te confirmamos por WhatsApp».
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { pedirClase, pedirMiLink } from "@/lib/padel/acciones";
+import { pedirClase, pedirMiLink } from "@/lib/padel/acciones-alumno";
 import type { DiaConLugar } from "@/lib/padel/datos.server";
 
 type Marca = { cancha: string; vivo: string; texto: string; suave: string; linea: string };
