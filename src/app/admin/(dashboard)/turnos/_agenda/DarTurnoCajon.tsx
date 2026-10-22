@@ -31,6 +31,8 @@ import { HOJAS_DEL_DISENO, PIEL_RENGLON, PRECEDENCIA_DEL_DISENO } from "@/lib/di
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import { hrefAgendaDelDia, hrefAlTerminarElAlta, leerHuecoDelAlta } from "../pasos";
 import AltaDeTurno from "./AltaDeTurno";
+import { MediosDePago } from "./medios";
+import type { MetodoDePago } from "@/lib/turnos/cobros";
 import type { ProfesionalDelAlta } from "./alta-core";
 
 
@@ -57,6 +59,8 @@ export default function DarTurnoCajon({
   fechaInicial,
   clienteInicial,
   viewer,
+  combos = false,
+  medios,
 }: {
   profesionales: ProfesionalDelAlta[];
   fichas: FichaParaAlta[];
@@ -65,6 +69,10 @@ export default function DarTurnoCajon({
   fechaInicial: string;
   clienteInicial?: string;
   viewer: { role: string; professionalId?: string | null };
+  /** ¿La base guarda varias zonas en un turno? (`combosHabilitados()`, Tanda 3 · 3-B). */
+  combos?: boolean;
+  /** Los medios de esta base (Débito/Crédito sólo con M1); sin esto, los tres de siempre. */
+  medios?: readonly MetodoDePago[];
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -93,7 +101,9 @@ export default function DarTurnoCajon({
       titulo={hueco.ahora ? "Atender ahora" : "Dar turno"}
       descripcion={nombre ? `Para ${nombre}` : hueco.ahora ? "Hoy, ya: servicio y quién la atiende" : "Qué, cuándo, quién y la seña"}
     >
+      <MediosDePago medios={medios}>
       <AltaDeTurno
+        combos={combos}
         profesionales={profesionales}
         fichas={fichas}
         faltazos={faltazos}
@@ -109,6 +119,7 @@ export default function DarTurnoCajon({
           router.refresh();
         }}
       />
+      </MediosDePago>
     </Cajon>
   );
 

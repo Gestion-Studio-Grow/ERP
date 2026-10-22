@@ -22,12 +22,13 @@ import { useEffect, useId, useState, useTransition } from "react";
 import { Button, Input, Plata, Segmented } from "@/components/ui";
 import { leerImporte } from "@/lib/dinero/leer";
 import { fmtShortDate } from "@/lib/datetime";
-import { METODOS_DE_PAGO, METODO_LABEL, esMetodoDePago, type MetodoDePago } from "@/lib/turnos/cobros";
+import { METODO_LABEL, esMetodoDePago, type MetodoDePago } from "@/lib/turnos/cobros";
 import { camposDeCobrarVarios, pesosDelCobro, repartoEnPantalla, totalDeLaDeuda, type DeudaVieja } from "@/lib/turnos/cobro-dividido";
 import { cobrarVariosTurnos, deudaViejaDelTurno, terminarYCobrarDividido } from "@/lib/turnos/cobro-actions";
 import { useToast } from "../../ToastProvider";
 import TeclasDeMedio from "../cerrar/TeclasDeMedio";
 import { aFormData, camposDeDividir } from "./campos";
+import { useMediosDePago } from "./medios";
 
 type PropsDelCobro = {
   turnoId: string;
@@ -42,11 +43,14 @@ type PropsDelCobro = {
   disabled?: boolean;
 };
 
-const OPCIONES_DE_MEDIO = METODOS_DE_PAGO.map((m) => ({ valor: m, etiqueta: METODO_LABEL[m] }));
+/** Las opciones de los dos medios: los de esta base (Débito/Crédito sólo con M1, `useMediosDePago`). */
+function opcionesDeMedio(medios: readonly MetodoDePago[]) {
+  return medios.map((m) => ({ valor: m, etiqueta: METODO_LABEL[m] }));
+}
 
-function medioDelEvento(e: React.ChangeEvent<HTMLFieldSetElement>): MetodoDePago | null {
+function medioDelEvento(e: React.ChangeEvent<HTMLFieldSetElement>, medios: readonly MetodoDePago[]): MetodoDePago | null {
   const v = (e.nativeEvent.target as HTMLInputElement | null)?.value;
-  return esMetodoDePago(v) ? v : null;
+  return esMetodoDePago(v, medios) ? v : null;
 }
 
 export default function DividirPago({ turnoId, clienta, estado, saldo, onListo, disabled = false }: PropsDelCobro) {
@@ -58,6 +62,10 @@ export default function DividirPago({ turnoId, clienta, estado, saldo, onListo, 
   const [segundo, setSegundo] = useState<MetodoDePago | null>(null);
   const [error, setError] = useState("");
   const [pendiente, empezar] = useTransition();
+  const { medios } = useMediosDePago();
+  const OPCIONES_DE_MEDIO = opcionesDeMedio(medios);
+  // Con cinco medios (Débito/Crédito activados) la fila no entra en un celular: se parte en dos.
+  const partir = medios.length > 3 ? "flex-wrap" : undefined;
 
   const lectura = leerImporte(texto);
   const monto = lectura.estado === "ok" ? lectura.valor : null;
@@ -110,11 +118,12 @@ export default function DividirPago({ turnoId, clienta, estado, saldo, onListo, 
               lleno
               value={primero ?? ""}
               onChange={(e) => {
-                const m = medioDelEvento(e);
+                const m = medioDelEvento(e, medios);
                 setPrimero(m);
                 if (m && m === segundo) setSegundo(null);
               }}
               opciones={OPCIONES_DE_MEDIO}
+              className={partir}
             />
             <label htmlFor={`${id}-monto`} className="block text-sm font-medium text-strong">
               {primero ? `Cuánto paga con ${METODO_LABEL[primero].toLowerCase()}` : "Cuánto paga con ese medio"}
@@ -144,8 +153,9 @@ export default function DividirPago({ turnoId, clienta, estado, saldo, onListo, 
               leyendaVisible
               lleno
               value={segundo ?? ""}
-              onChange={(e) => setSegundo(medioDelEvento(e))}
+              onChange={(e) => setSegundo(medioDelEvento(e, medios))}
               opciones={OPCIONES_DE_MEDIO.map((o) => ({ ...o, disabled: o.valor === primero }))}
+              className={partir}
             />
             <p className="flex items-baseline justify-between gap-3 text-sm text-muted" aria-live="polite">
               <span>{segundo ? `Con ${METODO_LABEL[segundo].toLowerCase()} (se completa solo)` : "El resto (se completa solo)"}</span>
@@ -184,6 +194,7 @@ export function SumarLoQueDebe({ turnoId, clienta, estado, saldo, onListo, disab
   const [enCurso, setEnCurso] = useState<MetodoDePago | null>(null);
   const [error, setError] = useState("");
   const [pendiente, empezar] = useTransition();
+  const { medios } = useMediosDePago();
 
   useEffect(() => {
     if (deudasDadas) return;
@@ -260,6 +271,7 @@ export function SumarLoQueDebe({ turnoId, clienta, estado, saldo, onListo, disab
             onElegir={cobrar}
             disabled={pendiente || disabled}
             enCurso={enCurso}
+            medios={medios}
           />
           <p className="text-center text-xs text-muted">Un toque en el medio cobra todo y termina el turno de hoy.</p>
           {error && (
@@ -294,6 +306,7 @@ export function CobrarLoQueDebe({
   const [enCurso, setEnCurso] = useState<MetodoDePago | null>(null);
   const [error, setError] = useState("");
   const [pendiente, empezar] = useTransition();
+  const { medios } = useMediosDePago();
   const total = totalDeLaDeuda(cobros.map((c) => ({ saldo: c.monto })));
   if (cobros.length === 0 || !(total > 0)) return null;
 
@@ -334,7 +347,7 @@ export function CobrarLoQueDebe({
       </Button>
       {abierto && (
         <div id={`${id}-medios`} className="space-y-2">
-          <TeclasDeMedio etiqueta={`Cobrar ${pesosDelCobro(total)} que debe ${clienta}, con`} onElegir={cobrar} disabled={pendiente} enCurso={enCurso} />
+          <TeclasDeMedio etiqueta={`Cobrar ${pesosDelCobro(total)} que debe ${clienta}, con`} onElegir={cobrar} disabled={pendiente} enCurso={enCurso} medios={medios} />
           <p className="text-xs text-muted">
             {cobros.length === 1 ? "Un toque en el medio cobra lo que quedó debiendo." : `Un toque en el medio cobra los ${cobros.length} turnos que quedaron debiendo, cada uno en el suyo.`}
           </p>

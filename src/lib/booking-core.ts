@@ -58,9 +58,16 @@ export async function assertSlotAvailable(
     startsAt: Date;
     endsAt: Date;
     excludeAppointmentId?: string;
+    /**
+     * Un turno con varias zonas (combo, camino B — reingeniería CH, Tanda 3): TODOS sus servicios,
+     * el principal incluido. Los recursos que pide cualquiera de ellos se exigen en todo el bloque
+     * (con las unidades de la zona que más pide). Sin esto, sólo los de `serviceId`.
+     */
+    serviceIds?: readonly string[];
   }
 ) {
   const { professionalId, boxId, serviceId, startsAt, endsAt, excludeAppointmentId } = params;
+  const servicios = params.serviceIds && params.serviceIds.length > 0 ? [...new Set([serviceId, ...params.serviceIds])] : [serviceId];
   const notSelf = excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {};
 
   // Solape de profesional/box con el margen de limpieza/preparación (BUFFER_MIN),
@@ -105,10 +112,18 @@ export async function assertSlotAvailable(
   }
 
   // Capacidad de recursos (G17): máquinas/gabinetes compartidos. No usa buffer.
-  const serviceResources = await tx.serviceResource.findMany({
-    where: { serviceId },
+  // Con varias zonas, un recurso que piden dos de ellas cuenta una vez, con las unidades de la que
+  // más pide (las zonas se hacen una después de la otra, no a la vez).
+  const pedidos = await tx.serviceResource.findMany({
+    where: servicios.length === 1 ? { serviceId } : { serviceId: { in: servicios } },
     include: { resource: true },
   });
+  const porRecurso = new Map<string, (typeof pedidos)[number]>();
+  for (const sr of pedidos) {
+    const ya = porRecurso.get(sr.resourceId);
+    if (!ya || sr.units > ya.units) porRecurso.set(sr.resourceId, sr);
+  }
+  const serviceResources = [...porRecurso.values()];
   if (serviceResources.length > 0) {
     const resourceIds = serviceResources.map((sr) => sr.resourceId);
     // Una sola query para TODOS los recursos del servicio (antes: N+1, una por

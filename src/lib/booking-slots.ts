@@ -43,7 +43,10 @@ export function hasOverlap(startsAt: Date, endsAt: Date, busy: Interval[]): bool
 //   - no se solapa con ningún intervalo de `busy` (turnos con su buffer, bloqueos),
 //   - `capacityOk` (si se pasa) la acepta — para recursos compartidos con cupo,
 //   - no empezó antes de `notBefore` (si se pasa): un horario de hoy que ya pasó no se ofrece.
-// No muta sus argumentos. Devuelve ISO strings, listas para el cliente.
+// Con `pegarAlAnterior` (reingeniería CH, Tanda 3 · CH-054), además de la grilla de `stepMin` se
+// prueba el instante en que termina cada ocupado (ya con su margen): después de un combo de 10:00
+// a 11:10 se ofrece 11:20, no se deja un hueco muerto hasta las 11:30 o las 12:00.
+// No muta sus argumentos. Devuelve ISO strings ordenadas, listas para el cliente.
 export function generateSlots(params: {
   dayStart: Date;
   dayEnd: Date;
@@ -52,18 +55,24 @@ export function generateSlots(params: {
   busy: Interval[];
   capacityOk?: (slotStart: Date, slotEnd: Date) => boolean;
   notBefore?: Date;
+  pegarAlAnterior?: boolean;
 }): string[] {
-  const { dayStart, dayEnd, durationMin, stepMin, busy, capacityOk, notBefore } = params;
+  const { dayStart, dayEnd, durationMin, stepMin, busy, capacityOk, notBefore, pegarAlAnterior } = params;
   const slots: string[] = [];
   if (durationMin <= 0 || stepMin <= 0) return slots;
 
   const durationMs = durationMin * 60000;
   const stepMs = stepMin * 60000;
-  for (
-    let t = dayStart.getTime();
-    t + durationMs <= dayEnd.getTime();
-    t += stepMs
-  ) {
+  const inicios: number[] = [];
+  for (let t = dayStart.getTime(); t + durationMs <= dayEnd.getTime(); t += stepMs) inicios.push(t);
+  if (pegarAlAnterior) {
+    for (const b of busy) {
+      const t = b.endsAt.getTime();
+      if (t > dayStart.getTime() && t + durationMs <= dayEnd.getTime() && !inicios.includes(t)) inicios.push(t);
+    }
+    inicios.sort((a, b) => a - b);
+  }
+  for (const t of inicios) {
     const slotStart = new Date(t);
     const slotEnd = new Date(t + durationMs);
     if (notBefore && slotStart < notBefore) continue;
@@ -115,6 +124,8 @@ export function generateSlotsForDays(params: {
   resourceUsage: OccupiedAppointment[];
   requiredResources: RequiredResource[];
   notBefore?: Date;
+  /** Ofrecer también el instante en que termina cada ocupado (CH-054). Ver `generateSlots`. */
+  pegarAlAnterior?: boolean;
 }): Record<string, string[]> {
   const {
     windows,
@@ -127,6 +138,7 @@ export function generateSlotsForDays(params: {
     resourceUsage,
     requiredResources,
     notBefore,
+    pegarAlAnterior,
   } = params;
 
   const out: Record<string, string[]> = {};
@@ -163,6 +175,7 @@ export function generateSlotsForDays(params: {
       busy,
       capacityOk: requiredResources.length > 0 ? capacityOk : undefined,
       notBefore,
+      pegarAlAnterior,
     });
   }
   return out;

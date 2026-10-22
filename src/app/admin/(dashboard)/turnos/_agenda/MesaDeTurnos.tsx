@@ -49,6 +49,7 @@ import CobrarTurno from "./CobrarTurno";
 import TerminarTurno from "./TerminarTurno";
 import TurnoCajon from "./TurnoCajon";
 import AvisoDeshacerCierre from "./Deshacer";
+import { MediosDePago } from "./medios";
 
 type HojaAbierta = { turnoId: string; que: "cobrar" | "terminar" } | null;
 
@@ -136,6 +137,7 @@ export default function MesaDeTurnos({
 
   return (
     <Contexto.Provider value={{ permisos, reloj, fichaDe, abrir, hoja: setHoja, cerrarSinPrestar, cambiarUrl }}>
+      <MediosDePago medios={permisos.medios}>
       {children}
 
       <TurnoCajon
@@ -219,6 +221,7 @@ export default function MesaDeTurnos({
           />
         )}
       </Hoja>
+      </MediosDePago>
     </Contexto.Provider>
   );
 }

@@ -20,8 +20,9 @@
 //
 // No decide nada de plata: sólo la LEE con las funciones de src/lib/turnos. Nada de Prisma.
 
-import { estadoCobroTurno, cobroSugerido, esCuentaACobrar, seniaDelServicio, type PagoLegado } from "@/lib/turnos/cobros";
+import { estadoCobroTurno, cobroSugerido, esCuentaACobrar, seniaDelServicio, type MetodoDePago, type PagoLegado } from "@/lib/turnos/cobros";
 import { desglosarCobros } from "@/lib/turnos/anulacion";
+import { etiquetaDelCombo, nombresDelCombo } from "@/lib/turnos/combos";
 import type { CierreSinPrestar, DestinoDeLaSenia } from "@/lib/turnos/practica";
 import type { TipoMarca } from "@/components/ui/Marca";
 import { dateStrInBusinessTz, fmtShortDate, fmtTime } from "@/lib/datetime";
@@ -69,6 +70,12 @@ export type TurnoDelDia = {
    * migración). Ausente o null: no se pidió (o la agenda no la leyó).
    */
   seniaPedidaEl?: string | null;
+  /**
+   * Un turno con varias zonas (combo, camino B — Tanda 3): sus servicios en orden. `servicio` dice
+   * entonces «4 zonas» y el renglón le suma la duración del bloque («4 zonas · 70′»). Ausente: un
+   * servicio, como siempre.
+   */
+  zonas?: string[];
 };
 
 /** Lo mínimo que la agenda lee de un turno crudo (el loader de siempre, ya con sus cobros). */
@@ -89,6 +96,8 @@ export type TurnoCrudo = {
   box: { name: string } | null;
   payment: { status?: string; amount?: number } | null;
   collections?: readonly { id?: string; amount: number; method: string; note?: string | null; createdAt?: Date | string }[];
+  /** Las zonas del turno (`AppointmentItem`, M3), si es un combo. */
+  items?: readonly { nombre: string; durationMin: number }[];
 };
 
 const ESTADOS: readonly EstadoDelTurno[] = ["PENDING", "CONFIRMED", "COMPLETED", "NO_SHOW", "CANCELLED"];
@@ -120,7 +129,8 @@ export function turnoDelDia(a: TurnoCrudo, veredicto: Veredicto): TurnoDelDia {
     estado,
     clienta: a.client.name,
     telefono: a.client.phone,
-    servicio: a.service.name,
+    servicio: a.items && a.items.length > 1 ? etiquetaDelCombo(a.items.map((i) => i.nombre)) : a.service.name,
+    ...(a.items && a.items.length > 1 ? { zonas: a.items.map((i) => i.nombre) } : {}),
     profesional: a.professional.name,
     profesionalId: a.professionalId,
     servicioId: a.serviceId,
@@ -139,6 +149,11 @@ export function turnoDelDia(a: TurnoCrudo, veredicto: Veredicto): TurnoDelDia {
     avisadaEl: a.reminderSentAt ? iso(a.reminderSentAt) : null,
     veredicto,
   };
+}
+
+/** Lo que se le escribe a la clienta: «Bozo, axilas, piernas completas y cavado» en un combo; si no, el servicio. */
+export function serviciosEnTexto(t: Pick<TurnoDelDia, "servicio" | "zonas">): string {
+  return t.zonas && t.zonas.length > 1 ? nombresDelCombo(t.zonas) : t.servicio;
 }
 
 /**
@@ -175,6 +190,12 @@ export type Permisos = {
    * Sólo la dueña (D5 del diseño: la recepción tiene tope $0). Lo calcula el servidor.
    */
   perdonar: boolean;
+  /**
+   * Las teclas de medio que se dibujan al cobrar (Tanda 3 · CH-031/032): con la migración M1, Débito
+   * y Crédito al final; sin ella, los tres de siempre. Lo calcula el servidor
+   * (`metodosDePago(await mediosDePagoHabilitados())`). Ausente = los tres de siempre.
+   */
+  medios?: MetodoDePago[];
 };
 
 export type Paso =

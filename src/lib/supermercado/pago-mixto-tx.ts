@@ -18,9 +18,10 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
-import { etiquetaDeMedio, type MedioDeCobro } from "@/lib/caja/medio-cobro";
+import { MENSAJE_TARJETA_SIN_ACTIVAR, esMedioDeTarjeta, etiquetaDeMedio, leerMedioDeCobro, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { PAGO_MIXTO_ACTOR_PREFIX } from "./marcas";
+import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 
 export type { AsientoDePago } from "./pago-mixto";
 import type { AsientoDePago } from "./pago-mixto";
@@ -32,6 +33,12 @@ export const MENSAJE_TOTAL_CAMBIO =
 export function validarPagosContraElTotal(asientos: readonly AsientoDePago[], total: number): string | null {
   if (asientos.length < 2) return "Un pago mixto lleva al menos dos medios.";
   if (new Set(asientos.map((a) => a.medio)).size !== asientos.length) return "Un medio aparece dos veces en el pago.";
+  // Sólo los medios del mostrador (`leerMedioDeCobro`). Desde la Tanda 3 de CH el libro tiene columna
+  // para DEBITO/CREDITO (`cashMethodFromPaymentMethod` → TARJETA), así que esa traducción ya no frena
+  // una tarjeta forjada: sin esta línea, un DEBITO armado a mano pasaba la validación y reventaba
+  // la venta contra una base sin la migración M1. Se rechaza con la frase de qué hacer.
+  if (asientos.some((a) => esMedioDeTarjeta(a.medio))) return MENSAJE_TARJETA_SIN_ACTIVAR;
+  if (!asientos.every((a) => leerMedioDeCobro(a.medio) !== null)) return "Hay un pago sin importe o con un medio que el libro no conoce.";
   if (!asientos.every((a) => cashMethodFromPaymentMethod(a.medio) !== null && centavosDe(a.monto) > 0)) {
     return "Hay un pago sin importe o con un medio que el libro no conoce.";
   }
@@ -49,6 +56,8 @@ export async function imputarPagosMixtosEnTx(
   tenantId: string,
   v: { orderId: string; orderCode: number; asientos: readonly AsientoDePago[]; actor: string },
 ): Promise<{ collectionIds: string[]; sessionId: string | null }> {
+  // Defensa en profundidad: aunque el llamador no haya validado, una tarjeta no se escribe (ver arriba).
+  if (v.asientos.some((a) => esMedioDeTarjeta(a.medio))) throw new RechazoDeDominio(MENSAJE_TARJETA_SIN_ACTIVAR);
   const turno = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
   const collectionIds: string[] = [];
   for (const a of v.asientos) {

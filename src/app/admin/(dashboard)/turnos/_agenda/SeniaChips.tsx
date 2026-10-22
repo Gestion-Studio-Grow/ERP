@@ -15,9 +15,10 @@
 // no se ofrece y se dice por qué: el turno se da igual.
 
 import { Chip } from "@/components/ui";
-import { METODOS_DE_PAGO, METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
+import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
 import { pesos } from "../agenda-core";
 import { MEDIO_DE_LA_SENIA, type EleccionSenia } from "./alta-core";
+import { useMediosDePago } from "./medios";
 
 export default function SeniaChips({
   senia,
@@ -36,6 +37,8 @@ export default function SeniaChips({
   onElegir: (e: EleccionSenia) => void;
   onMedio: (m: MetodoDePago) => void;
 }) {
+  // Débito/Crédito sólo si la base los tiene (Tanda 3 · CH-032): sin quien los ponga, los tres de siempre.
+  const { medios } = useMediosDePago();
   if (senia <= 0) return <p className="pt-3 text-sm text-muted">Este servicio no pide seña.</p>;
   const medioDeLaTecla = medio ?? MEDIO_DE_LA_SENIA;
   return (
@@ -57,7 +60,7 @@ export default function SeniaChips({
       {eleccion === "ya" && puedeCobrar.ok && (
         <div role="group" aria-label="Por dónde llegó la seña" className="flex flex-wrap items-center gap-1.5 text-sm">
           <span className="text-muted">Llegó por</span>
-          {[MEDIO_DE_LA_SENIA, ...METODOS_DE_PAGO.filter((m) => m !== MEDIO_DE_LA_SENIA)].map((m) => (
+          {[MEDIO_DE_LA_SENIA, ...medios.filter((m) => m !== MEDIO_DE_LA_SENIA)].map((m) => (
             <button
               key={m}
               type="button"

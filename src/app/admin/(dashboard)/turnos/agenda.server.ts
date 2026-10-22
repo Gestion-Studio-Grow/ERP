@@ -55,6 +55,8 @@ type TurnoDeLaBase = {
   box: { name: string } | null;
   payment: { status?: string; amount?: number; method?: string } | null;
   collections?: readonly { id?: string; amount: number; method: string; note?: string | null; createdAt?: Date }[];
+  /** Las zonas de un combo (Tanda 3 · 3-B; `getAgendaDay` las trae si la migración M3 está). */
+  items?: readonly { nombre: string; durationMin: number }[];
 };
 
 /** Proyecta la agenda cruda a lo que se muestra, con el veredicto de cobro de quien mira. */
@@ -85,6 +87,7 @@ export function proyectarAgenda(
           box: a.box ? { name: a.box.name } : null,
           payment: a.payment ? { status: a.payment.status, amount: a.payment.amount } : null,
           collections: a.collections,
+          items: a.items,
         },
         puedeCobrarEsteTurno({
           rol: quien.role,

@@ -23,6 +23,7 @@ import { pesos, type EstadoDelTurno } from "../agenda-core";
 import TeclasDeMedio from "../cerrar/TeclasDeMedio";
 import { aFormData, camposDeTerminar } from "./campos";
 import DividirPago, { SumarLoQueDebe } from "./DividirPago";
+import { useMediosDePago } from "./medios";
 
 type Cobro = { metodo: MetodoDePago } | "dejar-a-cobrar" | null;
 
@@ -50,6 +51,7 @@ export default function TerminarTurno({
   const [error, setError] = useState("");
   const [enCurso, setEnCurso] = useState<Cobro | undefined>(undefined);
   const [pendiente, empezar] = useTransition();
+  const { medios, aviso } = useMediosDePago();
   const vino = estado === "PENDING";
 
   const terminar = (cobro: Cobro) => {
@@ -128,8 +130,11 @@ export default function TerminarTurno({
         onElegir={(metodo) => terminar({ metodo })}
         disabled={pendiente}
         enCurso={enCurso && typeof enCurso === "object" ? enCurso.metodo : null}
+        medios={medios}
       />
-      <p className="text-center text-xs text-muted">Un toque en el medio cobra y {vino ? "la marca como que vino" : "termina el turno"}.</p>
+      <p className="text-center text-xs text-muted">
+        Un toque en el medio cobra y {vino ? "la marca como que vino" : "termina el turno"}.{aviso ? ` ${aviso}` : ""}
+      </p>
       {/* CH Tanda 2 (2-B): pagar en dos medios, o sumar lo que debía de antes (cada cobro a su turno). */}
       <DividirPago turnoId={turnoId} clienta={clienta} estado={estado} saldo={saldo} onListo={onListo} disabled={pendiente} />
       <SumarLoQueDebe turnoId={turnoId} clienta={clienta} estado={estado} saldo={saldo} onListo={onListo} disabled={pendiente} />

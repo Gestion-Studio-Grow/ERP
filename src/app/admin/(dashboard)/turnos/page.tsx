@@ -1,4 +1,6 @@
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
+import { metodosDePago } from "@/lib/turnos/cobros";
+import { mediosDePagoHabilitados } from "@/lib/turnos/medios-habilitados.server";
 import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
 import MananaConfirmar from "./MananaConfirmar";
@@ -126,6 +128,8 @@ export default async function TurnosCalendarPage({
       cobrar: canCollect,
       terminar: roleHasCapability(user.role, "agenda:complete"),
       perdonar: roleHasCapability(user.role, "agenda:forgive"),
+      // Débito/Crédito sólo con la migración M1 aplicada (Tanda 3 · CH-031/032).
+      medios: metodosDePago(await mediosDePagoHabilitados()),
     },
     ahora: new Date().toISOString(),
     dia: diaDeLaPlanilla,

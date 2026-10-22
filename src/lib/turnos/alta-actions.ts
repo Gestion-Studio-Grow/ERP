@@ -31,6 +31,7 @@ import { createManualAppointment } from "@/lib/actions";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { franjaDeAhora } from "@/app/admin/(dashboard)/turnos/_agenda/alta-core";
 import { ACCION_SENIA_PEDIDA } from "./senia-pedida";
+import { duracionDelCombo, leerServiciosDelCombo } from "./combos";
 
 export type ResultadoDarTurno =
   | {
@@ -95,12 +96,17 @@ export type LibresAhora = {
  * «Atender ahora»: quiénes de las que hacen `servicioId` pueden atender desde la franja de ahora
  * (su horario de hoy la cubre y no choca con turnos, bloqueos ni recursos).
  */
-export async function libresAhora(servicioId: string): Promise<LibresAhora> {
+export async function libresAhora(servicioId: string, zonasPedidas?: unknown): Promise<LibresAhora> {
   await requireCapability("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const inicio = new Date(franjaDeAhora(new Date()));
   const vacio: LibresAhora = { inicio: inicio.toISOString(), profesionales: [] };
   if (typeof servicioId !== "string" || !servicioId) return vacio;
+  // Combo B (Tanda 3 · 3-B): todas las zonas; el bloque dura la suma y sólo sirven las que hacen todas.
+  const lectura = Array.isArray(zonasPedidas) ? leerServiciosDelCombo(zonasPedidas) : null;
+  if (lectura && !lectura.ok) return vacio;
+  const zonas = lectura?.ok && lectura.ids.length > 1 ? lectura.ids : null;
+  if (zonas && zonas[0] !== servicioId) return vacio;
 
   const servicio = await prisma.service.findFirst({
     where: { id: servicioId, tenantId, active: true, deletedAt: null },
@@ -115,16 +121,27 @@ export async function libresAhora(servicioId: string): Promise<LibresAhora> {
     },
   });
   if (!servicio) return vacio;
-  const fin = new Date(inicio.getTime() + servicio.durationMin * 60_000);
+  let durationMin = servicio.durationMin;
+  let candidatas = servicio.professionals;
+  if (zonas) {
+    const filas = await prisma.service.findMany({
+      where: { id: { in: zonas }, tenantId, active: true, deletedAt: null },
+      select: { durationMin: true, professionals: { where: { tenantId }, select: { id: true } } },
+    });
+    if (filas.length !== zonas.length) return vacio;
+    durationMin = duracionDelCombo(filas);
+    candidatas = candidatas.filter((p) => filas.every((f) => f.professionals.some((x) => x.id === p.id)));
+  }
+  const fin = new Date(inicio.getTime() + durationMin * 60_000);
   const dia = dateStrInBusinessTz(inicio);
 
   const libres: string[] = [];
-  for (const p of servicio.professionals) {
+  for (const p of candidatas) {
     const ventana = await getWorkingWindow(p.id, dia);
     if (!ventana || inicio < ventana.dayStart || fin > ventana.dayEnd) continue;
     try {
       await tenantTransaction(
-        (tx) => assertSlotAvailable(tx, { professionalId: p.id, boxId: p.boxId as string, serviceId: servicio.id, startsAt: inicio, endsAt: fin }),
+        (tx) => assertSlotAvailable(tx, { professionalId: p.id, boxId: p.boxId as string, serviceId: servicio.id, startsAt: inicio, endsAt: fin, serviceIds: zonas ?? undefined }),
         { tenantId },
       );
       libres.push(p.id);

@@ -15,6 +15,9 @@ import { agendaPractica } from "@/lib/turnos/practica.server";
 import { fechaPropuestaDelAlta } from "@/lib/turnos/practica";
 import AgendaRenglon from "../AgendaRenglon";
 import DarTurnoCajon from "../_agenda/DarTurnoCajon";
+import { combosHabilitados } from "@/lib/turnos/combos.server";
+import { mediosDePagoHabilitados } from "@/lib/turnos/medios-habilitados.server";
+import { metodosDePago } from "@/lib/turnos/cobros";
 import { buttonClasses } from "@/components/ui";
 import { roleHasCapability } from "@/lib/capabilities";
 import { contarSinCerrarDeQuienMira } from "@/lib/turnos/sin-cerrar.server";
@@ -135,13 +138,16 @@ export default async function TurnosListaPage({
   // `?nuevo=1`, la lista de siempre; su «+ Nuevo turno» también abre ESTE alta (cert CH T2, F-4).
   if (nuevo.abrir) {
     const hoy = todayInBusinessTz();
-    const [profesionales, fichasAlta, faltazosAlta, practicaAlta, pielDelPanel, slug] = await Promise.all([
+    const [profesionales, fichasAlta, faltazosAlta, practicaAlta, pielDelPanel, slug, combosAlta, mediosAlta] = await Promise.all([
       getProfessionalsWithServices(),
       getFichasParaAlta(),
       enInicioPorApps().then((piloto) => (piloto ? cargarFaltazosPorFicha() : undefined)),
       agendaPractica(),
       disenoNuevo(),
       getCurrentTenantSlug(),
+      // Tanda 3 · 3-B: varias zonas en un turno sólo con la migración M3; Débito/Crédito sólo con M1.
+      combosHabilitados(),
+      mediosDePagoHabilitados().then((enBase) => metodosDePago(enBase)),
     ]);
     const agenda = (
       <AgendaRenglon
@@ -157,6 +163,8 @@ export default async function TurnosListaPage({
             fechaInicial={nuevo.fecha || (practicaAlta ? fechaPropuestaDelAlta(hoy) : hoy)}
             clienteInicial={clienteInicial || undefined}
             viewer={viewer}
+            combos={combosAlta}
+            medios={mediosAlta}
           />
         }
       />

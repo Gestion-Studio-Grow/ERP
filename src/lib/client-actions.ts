@@ -1,5 +1,6 @@
 "use server";
 
+import { duracionPropiaDelTurno } from "@/lib/turnos/combos";
 import { prisma } from "@/lib/prisma";
 import { bookingTransaction } from "@/lib/rls";
 import { revalidatePath } from "next/cache";
@@ -176,7 +177,9 @@ async function reprogramarMiTurno(formData: FormData): Promise<void> {
   if (Number.isNaN(startsAt.getTime()) || startsAt.getTime() < Date.now()) {
     throw new RechazoDeDominio("Elegí un horario futuro.");
   }
-  const endsAt = new Date(startsAt.getTime() + appointment.service.durationMin * 60000);
+  // Lo que dura ESE turno: un combo de varias zonas (reingeniería CH, Tanda 3) movido por la clienta
+  // no se achica a la duración de su servicio principal.
+  const endsAt = new Date(startsAt.getTime() + duracionPropiaDelTurno(appointment, appointment.service.durationMin) * 60000);
 
   const { professional } = appointment;
   if (!professional.active || professional.deletedAt) {

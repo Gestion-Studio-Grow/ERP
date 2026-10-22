@@ -28,6 +28,8 @@ import {
   telefonoParaGuardar,
   telefonoRecortado,
   type ProfesionalDelAlta,
+  sumarZonas,
+  tocarZona,
 } from "./alta-core";
 import type { FichaParaAlta } from "@/lib/clientes/ficha-por-telefono";
 
@@ -81,6 +83,56 @@ describe("el alta en el orden de la llamada", () => {
   });
 });
 
+describe("combos camino B (Tanda 3 · 3-B): las zonas se suman en un turno", () => {
+  const z = (id: string, name: string, durationMin: number, price: number, depositAmount: number | null, profesionales: string[]) => ({
+    id, name, durationMin, price, residentPrice: null, depositAmount, profesionales,
+  });
+  const ZONAS = [
+    z("bozo", "Bozo", 10, 4000, null, ["caro"]),
+    z("axilas", "Axilas", 15, 6000, 5000, ["caro", "lu"]),
+    z("piernas", "Piernas completas", 30, 14000, 5000, ["caro", "lu"]),
+    z("cavado", "Cavado c/tira", 15, 8000, null, ["caro"]),
+  ];
+
+  test("CH-033 · tocar zonas las suma (con combos) o reemplaza (sin la migración: camino A)", () => {
+    let ids: string[] = [];
+    for (const id of ["bozo", "axilas", "piernas", "cavado"]) ids = tocarZona(ids, id, true);
+    assert.deepEqual(ids, ["bozo", "axilas", "piernas", "cavado"]);
+    assert.deepEqual(tocarZona(ids, "axilas", true), ["bozo", "piernas", "cavado"]);
+    assert.deepEqual(tocarZona(["bozo"], "axilas", false), ["axilas"]);
+    assert.deepEqual(tocarZona(["bozo"], "bozo", false), []);
+  });
+
+  test("CH-033 · 4 zonas = 70′, $32.000, UNA seña de $5.000, sólo Caro las hace todas", () => {
+    const e = sumarZonas(ZONAS, ["bozo", "axilas", "piernas", "cavado"], false);
+    assert.ok(e);
+    assert.equal(e.etiqueta, "4 zonas");
+    assert.equal(e.nombres, "Bozo, axilas, piernas completas y cavado c/tira");
+    assert.equal(e.durationMin, 70);
+    assert.equal(e.precio, 32000);
+    assert.equal(e.senia, 5000);
+    assert.deepEqual(e.profesionales, ["caro"]);
+    // Una sola zona: es el servicio de siempre.
+    const una = sumarZonas(ZONAS, ["piernas"], false);
+    assert.deepEqual([una?.etiqueta, una?.durationMin, una?.precio, una?.senia, una?.profesionales], ["Piernas completas", 30, 14000, 5000, ["caro", "lu"]]);
+    assert.equal(sumarZonas(ZONAS, [], false), null);
+  });
+
+  test("el combo viaja como `serviceIds` en orden, el primero es `serviceId`; lo lee createManualAppointment", () => {
+    const c = camposDelAlta({
+      profesionalId: "caro", servicioId: "bozo", servicioIds: ["bozo", "axilas", "piernas", "cavado"], inicio: "2026-10-25T13:00:00.000Z",
+      nombre: "Laura", telefono: "1155667788", deLaZona: false, cupon: "", cobro: null, estado: "PENDING", notas: "",
+    });
+    const fd = aFormData(c);
+    assert.deepEqual(fd.getAll("serviceIds"), ["bozo", "axilas", "piernas", "cavado"]);
+    assert.equal(fd.get("serviceId"), "bozo");
+    assert.ok(camposQueLee("createManualAppointment").has("serviceIds"));
+    // Con una sola zona no viaja (el alta de siempre).
+    const una = aFormData(camposDelAlta({ profesionalId: "caro", servicioId: "bozo", servicioIds: ["bozo"], inicio: "x", nombre: "L", telefono: "1", deLaZona: false, cupon: "", cobro: null, estado: "PENDING", notas: "" }));
+    assert.deepEqual(una.getAll("serviceIds"), []);
+  });
+});
+
 describe("lo que viaja es lo que lee createManualAppointment", () => {
   const base = {
     profesionalId: "carla",
@@ -98,7 +150,8 @@ describe("lo que viaja es lo que lee createManualAppointment", () => {
     const c = camposDelAlta({ ...base, cobro: { monto: 5000, metodo: "TRANSFERENCIA" } });
     const lee = camposQueLee("createManualAppointment");
     for (const [k] of c) assert.ok(lee.has(k), `createManualAppointment no lee ${k}`);
-    assert.deepEqual(new Set(c.map(([k]) => k)), lee);
+    // `serviceIds` (combo, Tanda 3) sólo viaja con varias zonas: ver el test de abajo.
+    assert.deepEqual(new Set([...c.map(([k]) => k), "serviceIds"]), lee);
     const fd = aFormData(c);
     assert.equal(fd.get("isResident"), "on");
     assert.equal(fd.get("senaCobrar"), "on");

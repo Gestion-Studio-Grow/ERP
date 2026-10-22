@@ -16,7 +16,16 @@ import { importeParaFormulario } from "@/lib/pos-peso";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 import { normalizarTelefono } from "@/lib/clientes/telefono";
 import type { FichaParaAlta } from "@/lib/clientes/ficha-por-telefono";
-import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
+import { METODO_LABEL, seniaDelServicio, type MetodoDePago } from "@/lib/turnos/cobros";
+import {
+  MAX_ZONAS,
+  duracionDelCombo,
+  etiquetaDelCombo,
+  nombresDelCombo,
+  precioDeListaDelCombo,
+  quienesHacenTodo,
+  seniaDelCombo,
+} from "@/lib/turnos/combos";
 import { linkWhatsApp, mensajeConfirmacion, mensajePedidoDeSenia, pesosEnTexto } from "@/lib/turnos/mensajes-whatsapp";
 import type { Campos } from "./campos";
 
@@ -50,6 +59,54 @@ export function serviciosDelNegocio(profesionales: readonly ProfesionalDelAlta[]
     }
   }
   return [...porId.values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
+}
+
+// ── Varias zonas en un turno (combo camino B, reingeniería CH Tanda 3 · 3-B) ──────────────────
+
+/** Lo elegido en «Qué», sumado: una zona o varias, con quiénes hacen TODAS. `null` si no hay nada. */
+export type Eleccion = {
+  /** En el orden en que se tocaron; el primero es el principal (`serviceId`). */
+  ids: string[];
+  servicios: ServicioDelNegocio[];
+  /** «Bozo» o «4 zonas» (el renglón de la agenda). */
+  etiqueta: string;
+  /** «Bozo, axilas, piernas completas y cavado» (el WhatsApp, el «Listo ✓»). */
+  nombres: string;
+  /** La suma, sin márgenes entre zonas. */
+  durationMin: number;
+  /** El precio de lista para esta clienta (con o sin precio de la zona). */
+  precio: number;
+  /** UNA seña (la mayor de las zonas, D4). */
+  senia: number;
+  /** Las profesionales que hacen todas las zonas (en el orden del alta). */
+  profesionales: string[];
+};
+
+/**
+ * Tocar una zona (CH-033): con varias zonas habilitadas (la base tiene la tabla de ítems), se suma
+ * al final o se saca si ya estaba; sin eso (camino A), reemplaza a la que había.
+ */
+export function tocarZona(ids: readonly string[], id: string, varias: boolean): string[] {
+  if (!varias) return ids.length === 1 && ids[0] === id ? [] : [id];
+  if (ids.includes(id)) return ids.filter((x) => x !== id);
+  return ids.length >= MAX_ZONAS ? [...ids] : [...ids, id];
+}
+
+/** Las zonas elegidas, sumadas: duración, precio, una seña, quiénes hacen todo. */
+export function sumarZonas(servicios: readonly ServicioDelNegocio[], ids: readonly string[], vecina: boolean): Eleccion | null {
+  const elegidos = ids.map((id) => servicios.find((s) => s.id === id)).filter((s): s is ServicioDelNegocio => !!s);
+  if (elegidos.length === 0) return null;
+  const precio = precioDeListaDelCombo(elegidos, vecina);
+  return {
+    ids: elegidos.map((s) => s.id),
+    servicios: elegidos,
+    etiqueta: etiquetaDelCombo(elegidos.map((s) => s.name)),
+    nombres: nombresDelCombo(elegidos.map((s) => s.name)),
+    durationMin: duracionDelCombo(elegidos),
+    precio,
+    senia: elegidos.length === 1 ? seniaDelServicio({ depositAmount: elegidos[0].depositAmount, precio }) : seniaDelCombo(elegidos, precio),
+    profesionales: quienesHacenTodo(elegidos),
+  };
 }
 
 export type HorarioLibre = { inicio: string; profesionales: string[] };
@@ -113,6 +170,8 @@ export type AltaParaMandar = {
    */
   deLaZonaDeLaFicha?: boolean | null;
   cupon: string;
+  /** Varias zonas en un turno (combo B): todas, en orden, la primera es `servicioId`. */
+  servicioIds?: readonly string[];
   /** Cobrar algo en el acto: el monto y el medio. `null` = no se cobra nada ahora. */
   cobro: { monto: number; metodo: string } | null;
   estado: "PENDING" | "CONFIRMED";
@@ -128,6 +187,8 @@ export function camposDelAlta(a: AltaParaMandar): Campos {
   const c: [string, string][] = [
     ["professionalId", a.profesionalId],
     ["serviceId", a.servicioId],
+    // Combo B: cada zona en orden (`createManualAppointment` las lee con `getAll("serviceIds")`).
+    ...(a.servicioIds && a.servicioIds.length > 1 ? a.servicioIds.map((id): [string, string] => ["serviceIds", id]) : []),
     ["startsAt", a.inicio],
     ["clientName", a.nombre.trim()],
     ["clientPhone", a.telefono.trim()],

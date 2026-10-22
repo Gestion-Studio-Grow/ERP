@@ -335,3 +335,20 @@ export const METODO_LABEL: Record<MetodoDePago, string> = {
   DEBITO: "Débito",
   CREDITO: "Crédito",
 };
+
+/**
+ * Por qué NO se puede cobrar con `raw` en esta base, en una frase que dice qué hacer; `null` si se
+ * puede (reingeniería CH, Tanda 3 · 3-B). Un Débito/Crédito forjado sin la migración M1 no llega a
+ * la base (escribirlo reventaría el cobro): se rechaza diciendo que hoy la tarjeta va como Mercado
+ * Pago (D6). Cualquier otra cosa: «Elegí …» con los medios que sí hay. `pedido` es el comienzo de
+ * la frase de quien llama («Elegí el medio de pago», «Elegí por dónde llegó la seña»).
+ */
+export function medioRechazado(raw: string | null | undefined, enBase: readonly string[], pedido = "Elegí el medio de pago"): string | null {
+  if (medioHabilitado(raw, enBase)) return null;
+  if ((METODOS_DE_TARJETA as readonly string[]).includes(String(raw ?? ""))) {
+    return "Débito y Crédito todavía no están activados: cobralo con «Mercado Pago» (hoy la tarjeta se registra así).";
+  }
+  const medios = metodosDePago(enBase).map((m) => (m === "MERCADOPAGO" ? METODO_LABEL[m] : METODO_LABEL[m].toLowerCase()));
+  const lista = medios.length > 1 ? `${medios.slice(0, -1).join(", ")} o ${medios[medios.length - 1]}` : (medios[0] ?? "");
+  return `${pedido}: ${lista}.`;
+}

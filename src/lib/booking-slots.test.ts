@@ -256,3 +256,69 @@ test("generateSlotsForDays: notBefore sólo vacía lo pasado; los días siguient
   assert.deepEqual(r["2026-07-10"], []);
   assert.deepEqual(r["2026-07-11"], [on("2026-07-11", "12:00").toISOString(), on("2026-07-11", "13:00").toISOString()]);
 });
+
+// ── Combos (reingeniería CH, Tanda 3 · 3-B) ─────────────────────────────────
+// Un combo es UN bloque: dura la suma de sus zonas, SIN margen entre una y otra; el margen de
+// limpieza (buffer) va sólo alrededor del bloque, como en cualquier turno.
+
+test("combo de 70′ (10+15+30+15) entra justo en un hueco de 70′: no hay buffer interno", () => {
+  // Ocupado 09:00-09:50 y 11:20-12:00; con buffer 10, el hueco libre es 10:00-11:10 = 70′.
+  const zonas = [10, 15, 30, 15];
+  const duracion = zonas.reduce((s, x) => s + x, 0);
+  const porDia = generateSlotsForDays({
+    windows: [{ date: "2026-07-10", dayStart: at("09:00"), dayEnd: at("13:00") }],
+    durationMin: duracion,
+    stepMin: 30,
+    bufferMin: 10,
+    busyAppointments: [
+      { startsAt: at("09:00"), endsAt: at("09:50") },
+      { startsAt: at("11:20"), endsAt: at("12:00") },
+    ],
+    boxBlocks: [],
+    professionalBlocks: [],
+    resourceUsage: [],
+    requiredResources: [],
+  });
+  assert.ok(porDia["2026-07-10"].includes(at("10:00").toISOString()), "el combo entra a las 10:00");
+  // Si se sumara un margen entre zonas (3 × 10′ = 100′) no entraría en ningún lado.
+  const conMargenesInternos = generateSlotsForDays({
+    windows: [{ date: "2026-07-10", dayStart: at("09:00"), dayEnd: at("13:00") }],
+    durationMin: duracion + 3 * 10,
+    stepMin: 30,
+    bufferMin: 10,
+    busyAppointments: [
+      { startsAt: at("09:00"), endsAt: at("09:50") },
+      { startsAt: at("11:20"), endsAt: at("12:00") },
+    ],
+    boxBlocks: [],
+    professionalBlocks: [],
+    resourceUsage: [],
+    requiredResources: [],
+  });
+  assert.equal(conMargenesInternos["2026-07-10"].includes(at("10:00").toISOString()), false);
+});
+
+test("CH-054 · después de un combo de 10:00 a 11:10, el próximo horario es 11:20 (margen sólo al final)", () => {
+  const busy: Interval[] = [withBuffer(at("10:00"), at("11:10"), 10)];
+  const conPegados = generateSlots({ dayStart: at("09:00"), dayEnd: at("14:00"), durationMin: 30, stepMin: 30, busy, pegarAlAnterior: true });
+  const despues = conPegados.filter((s) => s > at("10:00").toISOString());
+  assert.equal(despues[0], at("11:20").toISOString());
+  // Nada se pisa con el bloque + su margen.
+  for (const s of conPegados) {
+    const ini = new Date(s);
+    assert.equal(intervalsOverlap(ini, new Date(ini.getTime() + 30 * 60000), busy[0].startsAt, busy[0].endsAt), false);
+  }
+  // Sin la opción (la vidriera pública), la grilla de siempre: 11:30.
+  const grilla = generateSlots({ dayStart: at("09:00"), dayEnd: at("14:00"), durationMin: 30, stepMin: 30, busy });
+  assert.equal(grilla.filter((s) => s > at("10:00").toISOString())[0], at("11:30").toISOString());
+  // Ordenados y sin repetidos.
+  assert.deepEqual([...conPegados].sort(), conPegados);
+  assert.equal(new Set(conPegados).size, conPegados.length);
+});
+
+test("pegarAlAnterior no ofrece un horario que se pasa del cierre ni uno que choca con el siguiente", () => {
+  const busy: Interval[] = [withBuffer(at("10:00"), at("11:10"), 10), withBuffer(at("11:40"), at("12:00"), 10)];
+  const slots = generateSlots({ dayStart: at("09:00"), dayEnd: at("12:30"), durationMin: 30, stepMin: 30, busy, pegarAlAnterior: true });
+  assert.equal(slots.includes(at("11:20").toISOString()), false); // 11:20-11:50 pisa 11:30-12:10
+  assert.equal(slots.includes(at("12:10").toISOString()), false); // 12:10-12:40 se pasa de las 12:30
+});

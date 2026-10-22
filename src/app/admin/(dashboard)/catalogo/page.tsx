@@ -20,6 +20,7 @@ import ProductsSection from "./ProductsSection";
 import ResourcesSection from "./ResourcesSection";
 import CouponsSection from "./CouponsSection";
 import AsignacionSection from "./AsignacionSection";
+import CombosSection from "./CombosSection";
 import CortesSection, { type Corte } from "./CortesSection";
 import PlanillaCortes from "./PlanillaCortes";
 import { vocabularioDelRubro } from "./vocabulario";
@@ -252,6 +253,20 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
             active: p.active,
             serviceIds: p.services.map((s) => s.id),
           }))}
+        />
+        {/* Tanda 3 · 3-B: los combos frecuentes como servicios (camino A, ADR-055). Sólo LEE servicios. */}
+        <CombosSection
+          servicios={services.map((s) => ({
+            id: s.id,
+            name: s.name,
+            durationMin: s.durationMin,
+            price: s.price,
+            depositAmount: s.depositAmount,
+            active: s.active,
+            categoryName: s.category?.name ?? null,
+            description: s.description,
+          }))}
+          profesionales={professionals.map((p) => ({ id: p.id, name: p.name, active: p.active, serviceIds: p.services.map((s) => s.id) }))}
         />
         <CouponsSection coupons={coupons} />
       </div>
