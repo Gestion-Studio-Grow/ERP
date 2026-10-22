@@ -6,7 +6,7 @@ import { todayInBusinessTz } from "@/lib/datetime";
 import { agingOf, summarizeAging } from "@/lib/cuentas/aging";
 import { leerCuentasACobrar, type CuentaACobrarConSaldo } from "@/lib/debts/cuentas-lectura";
 import { DIAS_FIADO_VIEJO, resumirFiado } from "@/lib/debts/resumen-cuentas";
-import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
+import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
 import { appsQuePuedeAbrir } from "@/lib/reports/apps-a-mano.server";
 import { AvisoError, EmptyState, PageHeader, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { DebtListTable, type DebtRowVM } from "@/components/cuentas/DebtListTable";
@@ -47,6 +47,8 @@ function aFila(c: CuentaACobrarConSaldo, ahora: Date): DebtRowVM {
 export default async function CuentasACobrarPage() {
   const user = await requireApp("cuentas-a-cobrar");
   const tenantId = await getCurrentTenantId();
+  // Las cuentas corrientes de ESTE negocio (interruptor por negocio; si nunca se tocó, la variable).
+  const enLibro = await cuentasCorrientesDe(tenantId);
   const [{ cuentas, faltanTablas }, abribles, nuevo] = await Promise.all([
     leerCuentasACobrar(prisma, tenantId),
     appsQuePuedeAbrir(user.role, ["vender", "flujo-de-fondos"]),
@@ -157,7 +159,7 @@ export default async function CuentasACobrarPage() {
             ))}
           </details>
         )}
-        {!cuentasCorrientesEnabled() && conSaldo.length > 0 && (
+        {!enLibro && conSaldo.length > 0 && (
           <p className="mt-6 max-w-3xl text-sm text-muted">
             Los cobros quedan en cada cuenta, pero todavía no pasan solos al libro de caja: si te pagan en efectivo, anotalo también en
             el libro.
@@ -238,7 +240,7 @@ export default async function CuentasACobrarPage() {
         </details>
       )}
 
-      {!cuentasCorrientesEnabled() && conSaldo.length > 0 && (
+      {!enLibro && conSaldo.length > 0 && (
         <p className="mt-6 text-sm text-muted">
           Los cobros quedan en cada cuenta, pero todavía no pasan solos al libro de caja: si te pagan en efectivo,
           anotalo también en el libro.

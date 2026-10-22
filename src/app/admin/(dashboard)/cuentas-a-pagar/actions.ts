@@ -7,7 +7,8 @@ import { requireAppAccion } from "@/lib/require-app";
 import { auditAdmin } from "@/lib/audit-core";
 import { addChequeToPayable, payPayable, transitionCheque } from "@/lib/debts/payable-service";
 import { esEstadoDeCheque, ETIQUETA_CHEQUE } from "@/lib/debts/cheque";
-import { MEDIO_OBLIGATORIO, cuentasCorrientesEnabled, leerMedio } from "@/lib/settlement/asiento-libro";
+import { MEDIO_OBLIGATORIO, leerMedio } from "@/lib/settlement/asiento-libro";
+import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
 import { leerFecha, leerMonto, leerTexto, mensajeDeRechazo, type EstadoFormularioCuenta } from "@/lib/debts/formularios";
 import { fmtMoneyARS } from "@/components/ui/format";
 
@@ -53,7 +54,7 @@ export async function registerPayablePayment(
     const note = leerTexto(formData.get("nota"), 200) || null;
 
     const r = await payPayable(tenantId, id, { amount, method, note, by: `user:${user.id}` });
-    const enLibro = cuentasCorrientesEnabled();
+    const enLibro = await cuentasCorrientesDe(tenantId);
     revalidarCuenta(id, enLibro);
     const saldo = r.settlement.balance > 0 ? `Queda por pagar ${fmtMoneyARS(r.settlement.balance)}.` : "La deuda quedó saldada.";
     return {
@@ -141,7 +142,7 @@ export async function cambiarEstadoCheque(
     // Con la cuenta: el cheque tiene que ser de ESTA deuda, la que se audita y se revalida.
     await transitionCheque(tenantId, chequeId, a, `user:${user.id}`, cuentaId);
     await auditAdmin({ action: "update", entity: "PayableCheque", entityId: chequeId, changes: { cuenta: cuentaId, estado: a } });
-    const enLibro = a === "CLEARED" && cuentasCorrientesEnabled();
+    const enLibro = a === "CLEARED" && (await cuentasCorrientesDe(tenantId));
     revalidarCuenta(cuentaId, enLibro);
     const que =
       a === "CLEARED"

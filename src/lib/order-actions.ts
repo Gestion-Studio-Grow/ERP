@@ -35,7 +35,9 @@ import { medioDeCobroRequerido, mensajeYaCobrado } from "@/lib/caja/medio-cobro"
 import { leerPagos, vueltoDelCobro } from "@/lib/cobro/leer-pagos";
 import type { AsientoDePago } from "@/lib/supermercado/pago-mixto";
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
-import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
+import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
+import { entregarAlFiadoEnTx, mensajeEntregaAlFiado, mensajeEntregaSinFicha, type ResultadoFiado } from "@/lib/clientes/fiado";
+import { decidirFiadoDeLaEntrega } from "@/lib/clientes/fiado.server";
 import { facturarOrden } from "@/lib/invoice-from-order";
 import { VentaAnuladaError } from "@/lib/invoice-core";
 import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
@@ -74,6 +76,7 @@ import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { isUniqueViolation } from "@/lib/prisma-errors";
 import { cantidadOCero, formatearCantidad } from "@/lib/pos-peso";
 import { fmtMoneyARS } from "@/components/ui/format";
+import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
@@ -286,7 +289,8 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   }
 
   if (aCuenta) {
-    if (!cuentasCorrientesEnabled()) {
+    // Las cuentas corrientes de ESTE negocio (interruptor por negocio; si nunca se tocó, la variable).
+    if (!(await cuentasCorrientesDe(tenantId))) {
       return {
         ok: false,
         error: "Las cuentas corrientes todavía no están encendidas en este negocio: cobrá la venta con un medio o dejala sin cobrar.",
@@ -1042,11 +1046,18 @@ export async function entregarPedido(
   _prev: OrderActionState,
   formData: FormData,
 ): Promise<OrderActionState> {
-  await requireCapability("orders:manage");
+  const user = await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
   const id = String(formData.get("id") || "").trim();
   if (!id) return { ok: false, error: "Falta identificar el pedido a entregar." };
   const quedaACobrar = String(formData.get("quedaACobrar") || "") === "on";
+  // UN SOLO FIADO (Magra, tanda 2 · 2D; src/lib/clientes/fiado.ts). Con el mostrador boutique y las
+  // cuentas corrientes prendidas en el negocio, «Queda a cobrar» de un pedido CON ficha deja la
+  // deuda en la cuenta del cliente: Listo → Entregado y la `AccountReceivable` en UNA transacción
+  // (`entregarAlFiadoEnTx`, idempotente). Es el único lugar que la crea al entregar. Apagado, sin
+  // ficha o sin la app de Fiado, la entrega de siempre («Entregado · a cobrar»), byte a byte.
+  const fiado = quedaACobrar ? await decidirFiadoDeLaEntrega(tenantId, id) : null;
+  let alFiado: ResultadoFiado | null = null;
   // Los pagos del pie (o el medio de siempre). Con pago mixto, el «medio» que mira la guarda es el
   // principal: con eso sabe que se eligió cómo pagó; el cobro lleva los asientos.
   const pagos = leerPagos((campo) => formData.getAll(campo).map(String));
@@ -1065,29 +1076,56 @@ export async function entregarPedido(
       if (c?.ok && c.vuelto !== undefined) vuelto = c.vuelto;
       return c ?? { ok: false, error: "No se pudo cobrar el pedido." };
     },
-    marcarEntregado: async () =>
-      (
-        await prisma.order.updateMany({
-          where: { id, tenantId, status: "READY" },
-          data: { status: "DELIVERED" },
-        })
-      ).count === 1,
+    marcarEntregado: async () => {
+      if (fiado?.va) {
+        const e = await tenantTransaction(
+          (tx) => entregarAlFiadoEnTx(tx, tenantId, { orderId: id, actor: `user:${user.id}` }),
+          { tenantId },
+        );
+        alFiado = e.fiado;
+        return e.entregado;
+      }
+      return (
+        (
+          await prisma.order.updateMany({
+            where: { id, tenantId, status: "READY" },
+            data: { status: "DELIVERED" },
+          })
+        ).count === 1
+      );
+    },
   });
 
   revalidarMostrador();
   if (!r.ok) return r;
+  // TS no sigue la asignación hecha adentro del callback: se lee con su tipo.
+  const deuda = alFiado as ResultadoFiado | null;
   if (r.entregado) {
     await auditAdmin({
       action: "update",
       entity: "Order",
       entityId: id,
-      changes: { status: { from: "READY", to: "DELIVERED" }, ...(r.quedaACobrar ? { quedaACobrar: true } : {}) },
+      changes: {
+        status: { from: "READY", to: "DELIVERED" },
+        ...(r.quedaACobrar ? { quedaACobrar: true } : {}),
+        ...(deuda?.tipo === "creado" ? { fiado: { cuenta: deuda.receivableId, monto: deuda.monto } } : {}),
+      },
     });
+  }
+  let mensaje = r.mensaje;
+  if (r.entregado && deuda?.tipo === "creado") {
+    const p = await prisma.order.findFirst({ where: { id, tenantId }, select: { customerName: true } });
+    mensaje = mensajeEntregaAlFiado({ code: deuda.code, cliente: p?.customerName ?? "", monto: textoPlata(deuda.monto) });
+    revalidatePath(`/admin/clientes/${deuda.clientId}`);
+    revalidatePath("/admin/cuentas-a-cobrar");
+  } else if (r.entregado && r.quedaACobrar && fiado && !fiado.va && fiado.motivo === "sin-ficha") {
+    const p = await prisma.order.findFirst({ where: { id, tenantId }, select: { code: true } });
+    if (p) mensaje = mensajeEntregaSinFicha(p.code);
   }
   // La venta para el ticket (lo que quedó grabado): con vuelto si se cobró en efectivo y llegó
   // lo que entregó el cliente.
   const venta = (await ventaParaTicket(tenantId, id)) ?? undefined;
-  return { ok: true, mensaje: r.mensaje, ...(vuelto !== undefined ? { vuelto } : {}), ...(venta ? { venta } : {}) };
+  return { ok: true, mensaje, ...(vuelto !== undefined ? { vuelto } : {}), ...(venta ? { venta } : {}) };
 }
 
 // --- Anular una venta (lo que antes era "Cancelar") ---
@@ -1131,7 +1169,7 @@ async function anularVentaCore(
   // Con cuentas corrientes encendidas, una venta A CUENTA tiene su deuda: se anula en la MISMA
   // transacción (`anularCuentaDeLaVentaEnTx`). Apagadas no se mira: no hay deudas nacidas de una
   // venta y la tabla puede no estar en la base.
-  const conCuentas = cuentasCorrientesEnabled();
+  const conCuentas = await cuentasCorrientesDe(tenantId);
 
   let resultado;
   let cuenta = { anulada: false, monto: 0 };
