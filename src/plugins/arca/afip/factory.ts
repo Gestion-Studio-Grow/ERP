@@ -47,6 +47,14 @@ export interface CrearAfipClientOpts {
    * el modo prueba siga la numeración como ARCA y no vuelva al 1 en cada pedido.
    */
   ultimoEmitido?: (puntoVenta: number, tipo: number) => Promise<number>;
+  /**
+   * ADR-077 §6 · DELEGACIÓN: el CUIT dueño del certificado que firma, cuando NO es el del emisor
+   * (el representado delegó `wsfe` en el CUIT del representante desde el Administrador de
+   * Relaciones de ARCA). El guard de modo real compara el cert contra ESTE CUIT; el comprobante
+   * sigue saliendo a nombre del emisor (`config.cuit` va en `<Auth><Cuit>`). Sin dato: el cert
+   * tiene que ser del propio emisor (ADR-066).
+   */
+  cuitFirmante?: number | string | null;
 }
 
 /** Modo de ARCA declarado por entorno. Default `stub` (seguro). */
@@ -98,7 +106,7 @@ export function crearAfipClient(
     }
     // Guard fail-closed: en modo real, el cert tiene que ser del CUIT del tenant.
     if (modo === 'real') {
-      assertCertCoincideConCuit(cred.certPem, String(config.cuit));
+      assertCertCoincideConCuit(cred.certPem, String(opts.cuitFirmante ?? config.cuit));
     }
     return new SoapAfipClient(configParaModo(config, modo), {
       signer: new Pkcs7TraSigner(cred),

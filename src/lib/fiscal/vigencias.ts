@@ -74,7 +74,9 @@ export const UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL: TablaVigencias = congelar({
       verificacion:
         "Monto, fecha, criterio \"igual o superior\" y documentos (CUIT, CUIL, CDI o DNI) coinciden en " +
         "resúmenes de búsqueda de fuentes secundarias. El Boletín Oficial, argentina.gob.ar y afip.gob.ar " +
-        "no se pudieron abrir desde este entorno (a verificar).",
+        "no se pudieron abrir desde este entorno (a verificar). Revisado de nuevo el 22/10/2026 por el motor " +
+        "de facturación: sin una fila nueva publicada que se haya podido leer; VALOR A CONFIRMAR CON EL " +
+        "CONTADOR antes de emitir en producción (si cambió, se AGREGA una fila con su fecha).",
     },
   ],
 });

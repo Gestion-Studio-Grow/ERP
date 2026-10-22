@@ -266,6 +266,8 @@ model Tenant {
   conversacionesWhatsapp   ConversacionWhatsapp[]
   receptoresFiscales       ReceptorFiscal[]
   arcaAuthTickets          ArcaAuthTicket[]
+  // Motor de facturación (20261022140100_regla_facturacion): abonos del estudio por cliente.
+  reglasFacturacion        ReglaFacturacion[]
 
   // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
   // La gestiona el plano de operador (superficie separada, cross-tenant), no el
@@ -1089,6 +1091,14 @@ model Invoice {
   notasAsociadas        Invoice[]          @relation("ComprobanteAsociado")
   envios                EnvioComprobante[]
 
+  // Motor de facturación (20261022140000_invoice_abono_descripcion, SIN APLICAR: Gate 2).
+  // `abonoClave`: origen ABONO = "<reglaId>:<AAAA-MM>". Con el @@unique de abajo la BASE impide
+  // dos facturas del mismo abono en el mismo mes, venga por donde venga el pedido (DB-4).
+  // `descripcion`: «qué se factura» («Honorarios de octubre»), para el PDF y el CSV.
+  abonoClave            String?
+  descripcion           String?
+
+  @@unique([tenantId, abonoClave]) // 1 factura por (regla, mes); NULLs no colisionan
   @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
   @@unique([tenantId, puntoVenta, tipoComprobante, numero]) // guarda anti-duplicado de numeración fiscal (spec §1). NULLs (PENDING) no colisionan.
   @@unique([tenantId, mpPaymentId]) // A-6 — 1 factura por pago MP (dedupe del webhook; NULLs no colisionan)
@@ -1917,6 +1927,7 @@ model CarteraCliente {
   // llave foránea de dos columnas (estudio, cliente). Así la base impide que un estudio anote
   // contactos, conversaciones, extractos o delegaciones de un negocio que no está en su cartera.
   contactos      ContactoCartera[]
+  reglas         ReglaFacturacion[]
   conversaciones ConversacionWhatsapp[]
   extractos      ExtractoRecibido[]
   delegaciones   DelegacionFiscal[]
@@ -2301,6 +2312,38 @@ model EnvioComprobante {
 
   @@unique([tenantId, invoiceId, canal])
   @@index([wamid]) // estados de entrega del webhook
+}
+
+// --- MOTOR DE FACTURACIÓN: reglas de abono del estudio (pedido 3 de la consola del contador) ---
+// La crea `20261022140100_regla_facturacion`: SIN APLICAR en Neon (Gate 2), fuera de
+// prisma/lote-deploy.txt. RLS viaja con la migración (tenant_isolation).
+//
+// «A este cliente facturale todos los meses $X a Fulano». `tenantId` es el ESTUDIO (como en
+// CarteraCliente); el cliente sólo puede ser uno de SU cartera: la llave foránea de dos columnas
+// (estudio, cliente) → CarteraCliente la impone la base (VARIANTE, ADR-055). Una regla dada de
+// baja no se borra (`estado = baja`): las facturas emitidas la nombran en `Invoice.abonoClave`.
+model ReglaFacturacion {
+  id                   String         @id @default(cuid())
+  tenant               Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId             String // el ESTUDIO
+  clienteTenantId      String
+  cartera              CarteraCliente @relation(fields: [tenantId, clienteTenantId], references: [tenantId, clienteTenantId], onDelete: Restrict)
+  receptorNombre       String
+  receptorDocTipo      Int // 80 CUIT / 96 DNI / 99 sin identificar
+  receptorDocNro       String?
+  receptorCondicionIva String
+  descripcion          String
+  importe              Decimal        @db.Decimal(14, 2)
+  concepto             Int // 1 productos, 2 servicios, 3 ambos
+  desde                String // AAAA-MM
+  hasta                String? // AAAA-MM; nula = sin fin
+  diasVencimiento      Int            @default(10)
+  estado               String         @default("activa") // activa | baja (CHECK en la base)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
+  @@index([tenantId, clienteTenantId])
 }
 
 // --- Caché del ticket de acceso de ARCA (promovida de prisma/pending-gate2/ArcaAuthTicket.sql) ---
