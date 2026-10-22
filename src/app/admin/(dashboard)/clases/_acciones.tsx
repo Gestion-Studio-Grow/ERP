@@ -12,7 +12,7 @@ import { agendarProxima, devolverSaldo, mandarLinkAlAlumno, moverClase, moverPag
 import { esPagable, pesos, type EventoClase } from "@/lib/padel/core";
 import { useAvisoAccion } from "./_aviso";
 
-type Resultado = { ok: true; wa?: string | null; enviado?: boolean; cuando?: string; aFavor?: number; linkNuevo?: boolean } | { ok: false; error: string };
+type Resultado = { ok: true; wa?: string | null; enviado?: boolean; avisoId?: string | null; cuando?: string; aFavor?: number; linkNuevo?: boolean } | { ok: false; error: string };
 
 export interface ClaseAcciones {
   id: string;
@@ -42,7 +42,7 @@ function useAccion(nombre: string) {
       const conSaldo = r.aFavor ? `${texto} · ${pesos(r.aFavor)} quedan a favor de ${nombre.split(" ")[0]}` : texto;
       // Primera vez que lo reconocés: su link se renovó y el mensaje ya lleva el nuevo.
       const conLink = r.linkNuevo ? `${conSaldo} · va con su link nuevo` : conSaldo;
-      mostrar({ texto: conLink, wa: r.wa, enviado: r.enviado, nombre });
+      mostrar({ texto: conLink, wa: r.wa, enviado: r.enviado, nombre, avisoId: r.avisoId ?? null });
       router.refresh();
     });
   return { pendiente, error, correr };

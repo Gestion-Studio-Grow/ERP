@@ -42,8 +42,8 @@ export function ColaAvisos({
   children: React.ReactNode;
   /**
    * Marca `enviadoEl` del aviso al tocar el link (la acción `marcarAvisado(avisoId)` de la Tanda
-   * 2A). TODO(M-034): el layout se la pasa al integrar 2A; hasta entonces la cola avanza igual y
-   * el aviso queda sin `enviadoEl` (lo ve la Bandeja como «Sin avisar»).
+   * 2A), que le pasa el layout. Sin ella la cola avanza igual y el aviso queda sin `enviadoEl`
+   * (lo ve la Bandeja como «Sin avisar»).
    */
   marcarAvisado?: (avisoId: string) => Promise<unknown>;
 }) {

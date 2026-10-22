@@ -1,4 +1,5 @@
 import { badgePendientes } from "@/lib/padel/datos.server";
+import { marcarAvisado } from "@/lib/padel/acciones";
 import { BarraInferior } from "./_barra-inferior";
 import { ColaAvisos } from "./_aviso";
 
@@ -26,8 +27,8 @@ export default async function ClasesLayout({ children }: { children: React.React
       className="[--alto-barra-inferior:calc(4rem_+_1px_+_env(safe-area-inset-bottom))] pb-[var(--alto-barra-inferior)] motion-reduce:[&_*]:transition-none"
     >
       <style href="padel-clases-barra" precedence="default">{`body:has([data-barra-clases]) nav[aria-label="Espacios"]{display:none}`}</style>
-      {/* TODO(M-034): pasar `marcarAvisado` (acción de la Tanda 2A, lib/padel/acciones*.ts) al integrar. */}
-      <ColaAvisos>
+      {/* M-034: al tocar el link, el aviso queda con `enviadoEl` (Tanda 2A). */}
+      <ColaAvisos marcarAvisado={marcarAvisado}>
         {children}
         <p className="pb-6 pt-2 text-center text-xs text-muted">Con tecnología de Gestión Studio Grow</p>
       </ColaAvisos>
