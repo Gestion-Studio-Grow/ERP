@@ -19,10 +19,12 @@ import { UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, vigenteEn } from "@/lib/fiscal/
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { motivoSinFactura, textoDelReceptor } from "./factura-del-mostrador";
 import VenderForm from "./VenderForm";
-import { cargarVender } from "./datos";
+import { cargarBoutique, cargarVender } from "./datos";
 import { puedeAbrirApp } from "./puede-abrir";
 import { balanzaDeVender } from "./balanza.server";
-import { teclasDelMostrador, topeDeDescuento, topeDePrecioAMano } from "./reglas-venta";
+import { TECLAS_BOUTIQUE, teclasDelMostrador, topeDeDescuento, topeDePrecioAMano } from "./reglas-venta";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
 
 type Quien = Parameters<typeof terminalDelEquipo>[0] & { id: string; name: string; role: Role };
 
@@ -37,8 +39,9 @@ export default async function MostradorDeVenta({
   pedidoInicial?: boolean;
   conVendedor?: boolean;
 }) {
-  const [datos, stockSnap, identidad, puedeCuentas, puedeFacturar, nuevo, rubro, terminal] = await Promise.all([
-    cargarVender(tenantId, todayInBusinessTz()),
+  const hoy = todayInBusinessTz();
+  const [datos, stockSnap, identidad, puedeCuentas, puedeFacturar, nuevo, rubro, terminal, interruptores] = await Promise.all([
+    cargarVender(tenantId, hoy),
     getPosStockSnapshot(),
     getTenantIdentity(),
     // «A cuenta» y «Facturar» se ofrecen con la MISMA regla que exige su action: la app de
@@ -52,7 +55,13 @@ export default async function MostradorDeVenta({
     // El perfil de este equipo (ticket 58/80, imprimir solo, avisos, lector) vale sólo si el negocio
     // tiene el módulo `terminal`: lo decide el servidor con la regla de «Este equipo».
     terminalDelEquipo(user),
+    // El mostrador boutique (Magra): la misma lectura cacheada de interruptores del layout.
+    interruptoresDelNegocio(),
   ]);
+  // MOSTRADOR BOUTIQUE: sólo con el interruptor prendido en ESTE negocio (CH lo tiene apagado: su
+  // mostrador sigue igual). Suma las zonas de envío y si el día está cerrado.
+  const boutique = mostradorBoutiquePrendido(interruptores);
+  const extras = boutique ? await cargarBoutique(tenantId, hoy) : null;
   const balanza = identidad.isRetail ? await balanzaDeVender(tenantId, datos.products, user.role) : null;
   // Sin el módulo ni la balanza configurada, los códigos no viajan al navegador: la lista es la de
   // siempre. Con la balanza, el campo de la etiqueta necesita el PLU de cada producto.
@@ -72,13 +81,19 @@ export default async function MostradorDeVenta({
   // La factura, en palabras: a quién sale (el umbral, de la tabla de vigencias) o por qué no se ofrece.
   // En CH la que compra es «la clienta», como en el resto de su panel.
   const quienCompra = esteticaBackoffice(rubro.slug) === "beauty-spa" ? "clienta" : "cliente";
+  // En el boutique el bloque Cliente tiene «CUIT/DNI» (ClienteDeLaVenta): el texto dice que se carga ahí.
+  const rolFactura = roleHasCapability(user.role, "billing:manage");
   const factura = {
-    receptor: textoDelReceptor(vigenteEn(UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, fechaFiscalDelDia())?.valor ?? null, quienCompra),
-    sinFactura: motivoSinFactura({ puedeFacturar, rolFactura: roleHasCapability(user.role, "billing:manage") }),
+    receptor: textoDelReceptor(vigenteEn(UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, fechaFiscalDelDia())?.valor ?? null, quienCompra, {
+      conDocumento: boutique,
+    }),
+    sinFactura: motivoSinFactura({ puedeFacturar, rolFactura, conDocumento: boutique }),
   };
+  // Boutique: teclas del catálogo aunque no haya ventas (las vendidas primero), hasta 24.
   const teclas = teclasDelMostrador(
     datos.rapidos,
     datos.products.map((p) => p.id),
+    boutique ? TECLAS_BOUTIQUE : undefined,
   );
 
   return (
@@ -102,8 +117,8 @@ export default async function MostradorDeVenta({
         stockById={stockSnap.stockById}
         // Diseño nuevo: el primer día (sin ventas) las teclas se completan con el catálogo.
         // Apagado, igual que hoy: sólo los más vendidos.
-        rapidos={nuevo ? teclas.ids : datos.rapidos}
-        rotuloRapidos={nuevo ? teclas.rotulo : undefined}
+        rapidos={nuevo || boutique ? teclas.ids : datos.rapidos}
+        rotuloRapidos={nuevo || boutique ? teclas.rotulo : undefined}
         negocio={datos.negocio}
         topeDescuentoPct={topeDeDescuento(user.role)}
         pedidoInicial={pedidoInicial}
@@ -124,6 +139,16 @@ export default async function MostradorDeVenta({
         // que no es comercio (una heladería) sigue como estaba.
         conPeso={quienCompra !== "clienta"}
         quienCompra={quienCompra}
+        {...(extras
+          ? {
+              boutique: {
+                envios: extras.envios,
+                diaCerrado: extras.diaCerrado,
+                rolFactura,
+                puedeEditarFicha: roleHasCapability(user.role, "clients:manage"),
+              },
+            }
+          : {})}
       />
     </div>
   );
