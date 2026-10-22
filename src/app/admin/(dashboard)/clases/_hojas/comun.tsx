@@ -8,7 +8,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn, Hoja, type HojaProps } from "@/components/ui";
-import { pesos } from "@/lib/padel/core";
+import { plataTexto } from "../_plata";
 import { useColaAvisos, type ItemAviso } from "../_aviso";
 import { primerNombre } from "../_cola";
 import { altoTeclado } from "../_agenda-core";
@@ -24,7 +24,7 @@ export const SIN_CONEXION = "No pudimos conectarnos. Fijate la señal y probá d
 export function textoResultado(listo: string, r: Extract<ResultadoUI, { ok: true }>, nombre: string): string {
   const partes = [r.cuando ? `${listo}: ${r.cuando}` : listo];
   // Clase pagada que se cancela: la plata no se pierde, queda a favor del alumno.
-  if (r.aFavor) partes.push(`${pesos(r.aFavor)} quedan a favor de ${primerNombre(nombre)}`);
+  if (r.aFavor) partes.push(`${plataTexto(r.aFavor)} quedan a favor de ${primerNombre(nombre)}`);
   // Primera vez que lo reconocés: su link se renovó y el mensaje ya lleva el nuevo.
   if (r.linkNuevo) partes.push("va con su link nuevo");
   return partes.join(" · ");

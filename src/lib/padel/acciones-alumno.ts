@@ -125,7 +125,6 @@ export async function pedirClase(
   if (!nombre) return { ok: false, error: "Poné tu nombre (y apellido si querés)." };
   const telefono = telefonoAlumno(p.telefono);
   if (!telefono) return { ok: false, error: "Poné tu celular con código de área, por ejemplo 11 5555-1234." };
-  if (frenadoPorTelefono("pedir", tenantId, telefono)) return { ok: false, error: FRENADO };
   const tipo: TipoClase = esTipoClase(p.tipo) ? p.tipo : "INDIVIDUAL";
   const personas = tipo === "GRUPAL" ? Math.min(4, Math.max(2, Math.trunc(Number(p.personas)) || 2)) : 1;
   const empiezaEn = new Date(p.hora);
@@ -136,6 +135,10 @@ export async function pedirClase(
   if (!libres.includes(empiezaEn.toISOString())) {
     return { ok: false, error: "Ese horario se acaba de ocupar. Elegí otro.", alternativas: await libresCercanos(tenantId, empiezaEn, { n: 2 }) };
   }
+  // El freno de 3 por celular cuenta DESPUÉS de ver que la hora está libre (O-10 de la CERT T2+T3):
+  // un alumno al que «se le ocupó» tres veces seguidas no queda frenado 10 minutos. El de IP, arriba,
+  // sigue contando todo.
+  if (frenadoPorTelefono("pedir", tenantId, telefono)) return { ok: false, error: FRENADO };
   const terminaEn = new Date(empiezaEn.getTime() + config.duracionMin * 60_000);
 
   const tokenCookie = await leerTokenCookie();
@@ -435,6 +438,9 @@ export async function subirComprobanteVarias(token: string | null, claseIds: str
 
 /** El alumno cancela desde su link (sólo con la anticipación que fijó el profe). */
 export async function cancelarDesdeLink(token: string | null, claseId: string): Promise<Resultado> {
+  // El mismo freno por IP que el resto de las acciones del link (O-11 de la CERT T2+T3).
+  const tenantIdFreno = await getCurrentTenantId();
+  if (await frenadoPorIp("link", tenantIdFreno)) return { ok: false, error: FRENADO };
   const d = await alumnoDelLink(token);
   if (!d) return { ok: false, error: LINK_INVALIDO };
   const { tenantId, alumno } = d;

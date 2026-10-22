@@ -11,6 +11,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { resolveLocation } from "@/lib/settings";
 import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { createRateLimiter } from "@/lib/rate-limit";
+import { bienvenidaVista } from "./config-campos";
 import {
   CLAVES_PLANTILLA,
   ESTADOS_QUE_OCUPAN,
@@ -50,6 +51,8 @@ export interface ConfigPadel {
   maxPendientesPorTel: number;
   whatsappProfe: string;
   plantillas: Record<ClavePlantilla, string>;
+  /** El profe ya pasó por la Bienvenida y tocó «Ir a Hoy» (O-9): Hoy no lo rebota. */
+  bienvenidaVista?: boolean;
 }
 
 export async function configPadel(tenantId: string): Promise<ConfigPadel> {
@@ -70,6 +73,7 @@ export async function configPadel(tenantId: string): Promise<ConfigPadel> {
     maxPendientesPorTel: c?.maxPendientesPorTel ?? 2,
     whatsappProfe: c?.whatsappProfe ?? "",
     plantillas,
+    bienvenidaVista: bienvenidaVista(c?.plantillas),
   };
 }
 

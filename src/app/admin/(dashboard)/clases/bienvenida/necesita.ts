@@ -15,13 +15,20 @@
 //
 // Con `configCompleta()`: necesitaBienvenida({ ...c.config, franjas: c.franjas }).
 // La Bienvenida misma NO redirige a ningún lado (nunca hay loop): «Lo hago después» va a Ajustes.
+//
+// O-9 (CERT T2+T3): si el profe ya la vio y tocó «Ir a Hoy» (marca `bienvenidaVista`, guardada con
+// `guardarCampoConfig("bienvenidaVista", true)`), Hoy no lo rebota aunque haya salteado horarios y
+// precio: Hoy le muestra su estado vacío.
 
 export const RUTA_BIENVENIDA = "/admin/clases/bienvenida";
 
 export function necesitaBienvenida(c: {
+  /** Ya la vio y eligió ir a Hoy: no se la vuelve a mostrar sola. */
+  vista?: boolean;
   precioIndividual: number | null | undefined;
   franjas: readonly { diaSemana?: number | null; fecha?: string | Date | null; tipo?: string | null }[] | null | undefined;
 }): boolean {
+  if (c.vista) return false;
   const sinPrecio = !(Number(c.precioIndividual) > 0);
   const semanales = (c.franjas ?? []).filter((f) => !f.fecha && f.diaSemana !== null && f.diaSemana !== undefined && (f.tipo ?? "DA") === "DA");
   return sinPrecio && semanales.length === 0;

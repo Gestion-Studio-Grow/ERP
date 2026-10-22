@@ -7,9 +7,10 @@
 // - «Le devolví»: lo que había quedado a favor se le devolvió en mano (devolverSaldo).
 
 import { useState } from "react";
-import { buttonClasses, cn } from "@/components/ui";
+import { Plata, buttonClasses, cn } from "@/components/ui";
 import { cobrarTodo, devolverSaldo, recordarDeuda } from "@/lib/padel/acciones";
-import { MEDIOS_COBRO, MEDIO_LABEL, pesos, type MedioCobro } from "@/lib/padel/core";
+import { MEDIOS_COBRO, MEDIO_LABEL, type MedioCobro } from "@/lib/padel/core";
+import { plataTexto } from "../_plata";
 import { ErrorEnLinea, useAccion } from "../alumnos/_usar-accion";
 
 const boton = (v: "solid" | "outline" | "ghost" = "outline") => cn(buttonClasses(v, "lg"), "h-12 w-full justify-center px-3");
@@ -22,7 +23,7 @@ export function CobrarTodo({ alumnoId, nombre, total, cantidad }: { alumnoId: st
   const cobrar = (medio: MedioCobro) =>
     correr(
       () => cobrarTodo(alumnoId, medio),
-      (r) => `Cobraste ${pesos(r.total)} a ${primero(nombre)} (${r.cantidad} clase${r.cantidad === 1 ? "" : "s"}) · ${MEDIO_LABEL[medio]}`,
+      (r) => `Cobraste ${plataTexto(r.total)} a ${primero(nombre)} (${r.cantidad} clase${r.cantidad === 1 ? "" : "s"}) · ${MEDIO_LABEL[medio]}`,
       nombre,
       () => setAbierto(false),
     );
@@ -36,7 +37,7 @@ export function CobrarTodo({ alumnoId, nombre, total, cantidad }: { alumnoId: st
         onClick={() => setAbierto((v) => !v)}
         data-qa="cobrar-todo"
       >
-        Cobrar todo · {pesos(total)}
+        Cobrar todo · <Plata valor={total} sinCentavos />
       </button>
       {abierto && (
         <div id={idMedios} role="group" aria-label={`¿Cómo te pagó ${primero(nombre)} las ${cantidad} clases?`} className="grid grid-cols-3 gap-2">
@@ -60,7 +61,7 @@ export function Recordarle({ alumnoId, nombre }: { alumnoId: string; nombre: str
         type="button"
         disabled={pendiente}
         className={boton()}
-        onClick={() => correr(() => recordarDeuda(alumnoId), (r) => `Recordatorio de ${pesos(r.total)} listo`, nombre)}
+        onClick={() => correr(() => recordarDeuda(alumnoId), (r) => `Recordatorio de ${plataTexto(r.total)} listo`, nombre)}
         data-qa="recordar-deuda"
       >
         Recordarle
@@ -78,10 +79,10 @@ export function LeDevolvi({ claseId, nombre, monto }: { claseId: string; nombre:
         type="button"
         disabled={pendiente}
         className={boton()}
-        onClick={() => correr(() => devolverSaldo(claseId), `Le devolviste ${pesos(monto)} a ${primero(nombre)}`, nombre)}
+        onClick={() => correr(() => devolverSaldo(claseId), `Le devolviste ${plataTexto(monto)} a ${primero(nombre)}`, nombre)}
         data-qa="devolver-saldo"
       >
-        Le devolví {pesos(monto)}
+        Le devolví <Plata valor={monto} sinCentavos />
       </button>
       <ErrorEnLinea texto={error} />
     </div>

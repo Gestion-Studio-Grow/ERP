@@ -24,3 +24,8 @@ test("un bloqueo o una excepción de un día no cuentan como horarios", () => {
 test("la ruta", () => {
   assert.equal(RUTA_BIENVENIDA, "/admin/clases/bienvenida");
 });
+
+test("O-9: si ya la vio y eligió ir a Hoy, no rebota aunque siga sin precio ni horarios", () => {
+  assert.equal(necesitaBienvenida({ vista: true, precioIndividual: 0, franjas: [] }), false);
+  assert.equal(necesitaBienvenida({ vista: false, precioIndividual: 0, franjas: [] }), true);
+});

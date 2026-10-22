@@ -121,7 +121,7 @@ export function ColaAvisos({
                 type="button"
                 onClick={() => despachar({ tipo: "cerrar" })}
                 aria-label={fin ? "Cerrar" : "Cerrar los avisos"}
-                className="grid size-11 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-sunken hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus"
+                className="grid size-12 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-sunken hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus"
                 data-qa="cerrar-cola"
               >
                 <Icono nombre="cerrar" />

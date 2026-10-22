@@ -126,7 +126,7 @@ export function EditorHorarios({
 
                 {tramos.length > 0 && (
                   <div className="grid gap-2">
-                    <button type="button" onClick={() => empezarCopia(dia)} aria-expanded={copiando === dia} className="min-h-11 justify-self-start text-sm font-semibold text-accent-ink underline underline-offset-2" data-qa={`copiar-${dia}`}>
+                    <button type="button" onClick={() => empezarCopia(dia)} aria-expanded={copiando === dia} className="min-h-12 justify-self-start text-sm font-semibold text-accent-ink underline underline-offset-2" data-qa={`copiar-${dia}`}>
                       Copiar a…
                     </button>
                     {copiando === dia && (

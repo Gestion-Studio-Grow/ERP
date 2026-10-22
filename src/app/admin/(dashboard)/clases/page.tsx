@@ -5,7 +5,8 @@ import { AvisoError, EmptyState, Esqueleto, Plata } from "@/components/ui";
 import { configPadel, franjas, hoy } from "@/lib/padel/datos.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { necesitaBienvenida, RUTA_BIENVENIDA } from "./bienvenida/necesita";
-import { MEDIO_LABEL, diaCorto, horaHumana, linkWhatsApp, pesos, sumarDias, type MedioPago } from "@/lib/padel/core";
+import { MEDIO_LABEL, diaCorto, horaHumana, linkWhatsApp, sumarDias, type MedioPago } from "@/lib/padel/core";
+import { plataTexto } from "./_plata";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { TarjetaClase } from "./_vista";
 import { Cabecera } from "./_cabecera";
@@ -29,7 +30,7 @@ export default async function ClasesHoy() {
   // Profe que todavía no configuró nada (sin precio ni horarios): a la Bienvenida (M-083).
   const tenantId = await getCurrentTenantId();
   const [config, fr] = await Promise.all([configPadel(tenantId), franjas(tenantId)]);
-  if (necesitaBienvenida({ precioIndividual: config.precioIndividual, franjas: fr })) redirect(RUTA_BIENVENIDA);
+  if (necesitaBienvenida({ vista: config.bienvenidaVista, precioIndividual: config.precioIndividual, franjas: fr })) redirect(RUTA_BIENVENIDA);
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <Suspense fallback={<EsqueletoHoy />}>
@@ -76,7 +77,7 @@ async function ContenidoHoy() {
         detalle={
           <>
             {deHoy.length === 0 ? "Sin clases hoy" : nClases(deHoy.length)}
-            {caja.total > 0 && <span className="tabular-nums">{` · cobrado ${pesos(caja.total)}`}</span>}
+            {caja.total > 0 && <> · cobrado <Plata valor={caja.total} sinCentavos /></>}
           </>
         }
         pendientes={pendientes}
@@ -188,9 +189,12 @@ async function ContenidoHoy() {
         <p className="text-sm text-muted" data-qa="cobrado-hoy">
           Cobrado hoy: <Plata valor={caja.total} sinCentavos />
           {" · "}
-          {Object.entries(caja.porMedio)
-            .map(([m, v]) => `${MEDIO_LABEL[m as MedioPago] ?? m} ${pesos(v)}`)
-            .join(" · ")}
+          {Object.entries(caja.porMedio).map(([m, v], i) => (
+            <span key={m}>
+              {i > 0 && " · "}
+              {MEDIO_LABEL[m as MedioPago] ?? m} <Plata valor={v} sinCentavos />
+            </span>
+          ))}
         </p>
       )}
       {negocio.whatsapp && !linkWhatsApp(negocio.whatsapp, "") && (
@@ -205,7 +209,7 @@ async function ContenidoHoy() {
 function detalleProxima(c: Awaited<ReturnType<typeof hoy>>["deHoy"][number]): string {
   return [
     c.tipo === "GRUPAL" ? `Con amigos · ${c.personas}` : "Individual",
-    c.precio > 0 ? pesos(c.precio) : null,
+    c.precio > 0 ? plataTexto(c.precio) : null,
     c.dadas > 0 ? `${nClases(c.dadas)} con vos` : "alumno nuevo",
   ]
     .filter(Boolean)

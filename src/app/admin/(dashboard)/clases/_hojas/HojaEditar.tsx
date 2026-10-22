@@ -8,7 +8,7 @@
 import { useId, useState } from "react";
 import { Chip, Plata, Segmented, TecladoNumerico } from "@/components/ui";
 import { editarClase } from "@/lib/padel/acciones";
-import { DURACIONES, horaHumana, pesos } from "@/lib/padel/core";
+import { DURACIONES, horaHumana } from "@/lib/padel/core";
 import { primerNombre } from "../_cola";
 import { ErrorAccion, HojaPanel, Pie, Rotulo, chip48, grande, useAccion } from "./comun";
 import { pisaOtra, type ClaseDelDia } from "./proponer";
@@ -104,7 +104,7 @@ export function HojaEditar({ c, onCerrar, otras = [] }: { c: ClaseAcciones; onCe
           )}
           {precio !== null && precio !== c.precio && (
             <p className="mt-2 text-sm text-muted tabular-nums">
-              Antes {pesos(c.precio)} → ahora {pesos(precio)}. La deuda y el WhatsApp van con el nuevo.
+              Antes <Plata valor={c.precio} sinCentavos /> → ahora <Plata valor={precio} sinCentavos />. La deuda y el WhatsApp van con el nuevo.
             </p>
           )}
         </>

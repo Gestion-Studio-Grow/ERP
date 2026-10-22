@@ -20,7 +20,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { PLANTILLAS_DEFAULT } from "./core";
-import { plantillasConCambio, validarCampoConfig, type TramoSemanal } from "./config-campos";
+import { plantillasConBienvenida, plantillasConCambio, validarCampoConfig, type TramoSemanal } from "./config-campos";
 import { refrescar, type Resultado } from "./acciones-compartido";
 
 /**
@@ -45,6 +45,18 @@ export async function guardarCampoConfig(
     await auditAdmin({ action: "padel.config.campo", entity: "PadelConfig", entityId: tenantId, changes: { campo: v.campo, ...(sensible ? {} : { valor: v.valor }) } });
     refrescar();
     return { ok: true, valor: v.valor };
+  }
+
+  if (v.tipo === "bienvenida") {
+    // «Ya vio la Bienvenida» (O-9): marca en el JSON de plantillas, en la misma transacción que lo lee.
+    await tenantTransaction(async (tx) => {
+      const actual = await tx.padelConfig.findUnique({ where: { tenantId }, select: { plantillas: true } });
+      const plantillas = plantillasConBienvenida(actual?.plantillas);
+      await tx.padelConfig.upsert({ where: { tenantId }, create: { tenantId, plantillas }, update: { plantillas } });
+    }, { tenantId });
+    await auditAdmin({ action: "padel.config.bienvenida", entity: "PadelConfig", entityId: tenantId, changes: { vista: true } });
+    refrescar();
+    return { ok: true, valor: null };
   }
 
   if (v.tipo === "plantilla") {

@@ -54,6 +54,8 @@ import {
   linkWhatsApp,
   nombreValido,
   pagoAlCancelar,
+  pagoAlNoVino,
+  conLinkVigente,
   pesos,
   plantillaDeCancelacion,
   precioDe,
@@ -180,8 +182,12 @@ async function transicionar(id: string, evento: EventoClase, op: OpcionesTransic
       nuevo === "AUSENTE" && op.seCobra !== undefined ? { motivoCancel: op.seCobra ? MOTIVO_AUSENTE_SE_COBRA : MOTIVO_AUSENTE_NO_SE_COBRA } : {};
     // Al confirmar se congela el precio vigente: si después cambia la lista, esta clase no se discute.
     const precio = nuevo === "CONFIRMADA" ? { precio: precioDe(config, esTipoClase(clase.tipo) ? clase.tipo : "INDIVIDUAL", clase.personas) } : {};
-    // Cancelada o rechazada: si estaba pagada, la plata queda a favor (pagoAlCancelar).
-    const pago = nuevo === "CANCELADA" || nuevo === "RECHAZADA" ? pagoAlCancelar(clase) : null;
+    // Cancelada o rechazada: si estaba pagada, la plata queda a favor (pagoAlCancelar). «No vino → no
+    // se cobra» sobre una ya pagada, lo mismo (O-3 de la CERT T2+T3, pagoAlNoVino).
+    const pago =
+      nuevo === "CANCELADA" || nuevo === "RECHAZADA" ? pagoAlCancelar(clase) :
+      nuevo === "AUSENTE" && op.seCobra !== undefined ? pagoAlNoVino(clase, op.seCobra) :
+      null;
     const r = await bookingTransaction(async (tx) => {
       // Un pedido vencido liberó su franja (M-031): darlo la vuelve a ocupar, si nadie la tomó.
       if (clase.estado === "SIN_RESPUESTA" && (await choqueEn(tx, tenantId, clase.empiezaEn, clase.terminaEn, id))) {
@@ -270,6 +276,28 @@ async function confirmarCambio(
     },
   });
   if (n.count === 0) throw new ErrorNegocio("La clase de antes cambió recién. Actualizá la pantalla.");
+  // O-5 (CERT T2+T3): si el alumno pidió DOS cambios de la misma clase, al confirmar uno el otro ya
+  // no tiene sentido (la vieja se canceló): se rechaza acá, en la misma transacción, y su aviso se da
+  // por leído. Sólo los pedidos de cambio (aviso «cambio-pedido»): un «la semana que viene igual»
+  // también usa `repiteDe` y ése sigue su curso.
+  const hermanas = await tx.padelClase.findMany({
+    where: { tenantId, alumnoId: clase.alumnoId, repiteDe: vieja.id, estado: "PEDIDA", id: { not: clase.id } },
+    select: { id: true },
+  });
+  if (hermanas.length) {
+    const deCambio = await tx.padelAviso.findMany({
+      where: { tenantId, destino: "PROFE", tipo: "cambio-pedido", claseId: { in: hermanas.map((h) => h.id) } },
+      select: { claseId: true },
+    });
+    const ids = [...new Set(deCambio.map((a) => a.claseId).filter((x): x is string => Boolean(x)))];
+    if (ids.length) {
+      await tx.padelClase.updateMany({
+        where: { tenantId, id: { in: ids }, estado: "PEDIDA" },
+        data: { estado: "RECHAZADA", rechazadaEl: ahora, motivoCancel: "Ya la pasó a otro horario" },
+      });
+      await tx.padelAviso.updateMany({ where: { tenantId, destino: "PROFE", claseId: { in: ids }, leidoEl: null }, data: { leidoEl: ahora } });
+    }
+  }
   return {
     empiezaEn: vieja.empiezaEn,
     pagoDeLaVieja: viajaRevision ? { pagoEstado: "EN_REVISION", pagoMedio: vieja.pagoMedio, comprobante: vieja.comprobante, comprobanteEnviadoEl: vieja.comprobanteEnviadoEl } : null,
@@ -480,7 +508,11 @@ export async function recordarVarios(ids: string[]): Promise<Resultado<{ avisos:
     }
     const sinMandar = deEsta[0];
     if (sinMandar) {
-      avisos.push({ wa: linkWhatsApp(c.client.phone, sinMandar.texto), enviado: false, avisoId: sinMandar.id, claseId: c.id, nombre: c.client.name });
+      // O-12 (CERT T2+T3): si el link del alumno se renovó entre medio, el texto guardado lleva el
+      // viejo. Se pone el vigente (en el aviso guardado también) antes de reusarlo.
+      const texto = conLinkVigente(sinMandar.texto, c.alumno.token);
+      if (texto !== sinMandar.texto) await prisma.padelAviso.updateMany({ where: { tenantId, id: sinMandar.id, enviadoEl: null }, data: { texto } });
+      avisos.push({ wa: linkWhatsApp(c.client.phone, texto), enviado: false, avisoId: sinMandar.id, claseId: c.id, nombre: c.client.name });
       continue;
     }
     const alumno = { id: c.alumno.id, token: c.alumno.token, nombre: c.client.name, telefono: c.client.phone };

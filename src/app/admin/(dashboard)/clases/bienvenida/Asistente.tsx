@@ -7,8 +7,10 @@
 // Al tocar «Listo», el link del turnero queda copiado y aparece «Instalar». Todo se guarda solo
 // al salir de cada campo (los horarios, con su botón): si cierra a mitad, lo hecho queda.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { guardarCampoConfig } from "@/lib/padel/acciones-config";
 import { buttonClasses, cn } from "@/components/ui";
 import { tarjeta } from "../_vista";
 import { CampoAuto, ChipsAuto } from "../config/_campo";
@@ -135,9 +137,7 @@ export function Asistente({ datos }: { datos: Datos }) {
             <CompartirLink url={datos.turnero} texto="Pedime clase de pádel acá" />
           </div>
           <Instalar />
-          <Link href="/admin/clases" className={grande()} data-qa="b-ir-a-hoy">
-            Ir a Hoy
-          </Link>
+          <IrAHoy />
         </section>
       )}
 
@@ -147,5 +147,34 @@ export function Asistente({ datos }: { datos: Datos }) {
         </Link>
       )}
     </div>
+  );
+}
+
+/**
+ * «Ir a Hoy» (O-9 de la CERT T2+T3): antes de ir, deja anotado que ya vio la Bienvenida; así Hoy no
+ * lo rebota aunque haya salteado horarios y precio. Si la marca no se pudo guardar (sin señal), va
+ * igual: a lo sumo vuelve a ver la Bienvenida, que no redirige a ningún lado.
+ */
+function IrAHoy() {
+  const router = useRouter();
+  const [pendiente, start] = useTransition();
+  return (
+    <button
+      type="button"
+      className={grande()}
+      disabled={pendiente}
+      aria-busy={pendiente}
+      onClick={() =>
+        start(async () => {
+          try {
+            await guardarCampoConfig("bienvenidaVista", true);
+          } catch {}
+          router.push("/admin/clases");
+        })
+      }
+      data-qa="b-ir-a-hoy"
+    >
+      {pendiente ? "Abriendo Hoy…" : "Ir a Hoy"}
+    </button>
   );
 }

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { cn, Icono } from "@/components/ui";
 import { badgePendientes, configCompleta } from "@/lib/padel/datos.server";
-import { CLAVES_PLANTILLA, PLANTILLAS_DEFAULT, pesos } from "@/lib/padel/core";
+import { CLAVES_PLANTILLA, PLANTILLAS_DEFAULT } from "@/lib/padel/core";
+import { plataTexto } from "../_plata";
 import { modoWhatsApp } from "@/lib/padel/whatsapp-cloud";
 import { tarjeta } from "../_vista";
 import { Cabecera } from "../_cabecera";
@@ -32,7 +33,7 @@ export default async function ClasesConfig() {
       href: "precios",
       titulo: "Precios",
       linea: config.precioIndividual > 0
-        ? `Individual ${pesos(config.precioIndividual)}${config.precioGrupal > 0 ? ` · grupal ${pesos(config.precioGrupal)} c/u` : ""} · ${config.duracionMin} min`
+        ? `Individual ${plataTexto(config.precioIndividual)}${config.precioGrupal > 0 ? ` · grupal ${plataTexto(config.precioGrupal)} c/u` : ""} · ${config.duracionMin} min`
         : "Todavía no pusiste el precio.",
     },
     { href: "cobro", titulo: "Cobro", linea: config.aliasCbu ? `Alias ${config.aliasCbu}` : "Sin alias: cargalo para que te paguen por transferencia." },

@@ -75,7 +75,7 @@ export function RevisarComprobante({ claseIds, nombre }: { claseIds: string[]; n
               </button>
             ))}
           </div>
-          <button type="button" className="min-h-11 justify-self-start text-sm text-muted underline underline-offset-2" onClick={() => setMotivos(false)}>
+          <button type="button" className="min-h-12 justify-self-start text-sm text-muted underline underline-offset-2" onClick={() => setMotivos(false)}>
             Volver
           </button>
         </div>

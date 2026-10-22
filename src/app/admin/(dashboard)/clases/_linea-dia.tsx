@@ -7,7 +7,8 @@
 import Link from "next/link";
 import { Icono } from "@/components/ui";
 import { quitarBloqueo } from "@/lib/padel/acciones";
-import { horaHumana, pesos, PAGO_LABEL, type EstadoPago } from "@/lib/padel/core";
+import { horaHumana, PAGO_LABEL, type EstadoPago } from "@/lib/padel/core";
+import { plataTexto } from "./_plata";
 import type { ClasePanel } from "@/lib/padel/datos.server";
 import { AccionesClase } from "./_acciones";
 import { hrefAgendar, lineaDelDia } from "./_agenda-core";
@@ -37,11 +38,11 @@ export function aAcciones(c: ClasePanel): ClaseAcciones {
 export const delDia = (clases: readonly ClasePanel[]): ClaseDelDia[] =>
   clases.map((c) => ({ id: c.id, nombre: c.nombre, empiezaEn: c.empiezaEn, terminaEn: c.terminaEn, estado: c.estado }));
 
-/** «Individual · $ 25.000 · Pagada» (lo que se lee en la fila, sin abrirla). */
+/** «Individual · $25.000 · Pagada» (lo que se lee en la fila, sin abrirla). */
 export function detalleClase(c: Pick<ClasePanel, "tipo" | "personas" | "precio" | "pagoEstado" | "estado" | "dadas">): string {
   return [
     c.tipo === "GRUPAL" ? `Con amigos · ${c.personas}` : "Individual",
-    c.precio > 0 ? pesos(c.precio) : null,
+    c.precio > 0 ? plataTexto(c.precio) : null,
     ["CONFIRMADA", "DADA"].includes(c.estado) ? PAGO_LABEL[c.pagoEstado as EstadoPago] : null,
     c.dadas === 0 ? "alumno nuevo" : null,
   ]

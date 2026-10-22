@@ -117,7 +117,7 @@ describe("Tanda 3A en pantalla", () => {
     const iso = new Date(Date.now() + 5 * 3_600_000);
     iso.setUTCMinutes(0, 0, 0);
     const conHueco = render("AgendarHoja", { ...props, inicial: { ...props.inicial, hora: iso.toISOString(), libres: [iso.toISOString()] } });
-    assert.match(conHueco, /data-qa="resumen-agendar"[^>]*>Hoy · \d\d:00 · \$ 25\.000</);
+    assert.match(conHueco, /data-qa="resumen-agendar"[^>]*>Hoy · \d\d:00 · \$25\.000</);
     assert.match(conHueco, />Elegí el alumno<\/button>/);
     assert.match(conHueco, new RegExp(`aria-pressed="true"[^>]*data-hora="${iso.toISOString()}"`), "la hora del hueco viene elegida");
     const conAlumno = render("AgendarHoja", { ...props, inicial: { ...props.inicial, hora: iso.toISOString(), libres: [iso.toISOString()], alumnoId: "a1" } });

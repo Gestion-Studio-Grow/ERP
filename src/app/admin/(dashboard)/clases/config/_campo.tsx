@@ -9,14 +9,14 @@ import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/components/ui";
 import { guardarCampoConfig } from "@/lib/padel/acciones-config";
-import { pesos } from "@/lib/padel/core";
+import { plataTexto } from "../_plata";
 import { useToast } from "../../ToastProvider";
 import { campo, chipEleccion, rotulo } from "./_estilos";
 
 type Formato = "texto" | "pesos" | "celular";
 
 function mostrar(formato: Formato, v: string): string {
-  if (formato === "pesos") return pesos(Number(v) || 0);
+  if (formato === "pesos") return plataTexto(Number(v) || 0);
   if (formato === "celular" && /^\d{10}$/.test(v)) return v.startsWith("11") ? `11 ${v.slice(2, 6)}-${v.slice(6)}` : v;
   return v;
 }

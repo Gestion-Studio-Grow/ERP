@@ -33,7 +33,7 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
-      <Link href="/admin/clases/alumnos" className="mb-2 inline-flex min-h-11 items-center text-sm font-semibold text-accent-ink underline-offset-2 hover:underline">
+      <Link href="/admin/clases/alumnos" className="mb-2 inline-flex min-h-12 items-center text-sm font-semibold text-accent-ink underline-offset-2 hover:underline">
         ‹ Alumnos
       </Link>
       <Cabecera
@@ -97,7 +97,7 @@ export default async function FichaAlumno({ params }: { params: Promise<{ id: st
           <p className="text-base font-semibold text-success" data-qa="ficha-al-dia">Está al día ✓</p>
         )}
         {a.enRevision > 0 && (
-          <Link href="/admin/clases/pendientes?ver=comprobantes" className="min-h-11 content-center text-sm font-semibold text-accent-ink underline underline-offset-2">
+          <Link href="/admin/clases/pendientes?ver=comprobantes" className="min-h-12 content-center text-sm font-semibold text-accent-ink underline underline-offset-2">
             Mandó un comprobante de <Plata valor={a.enRevision} sinCentavos />: revisalo en la campana
           </Link>
         )}

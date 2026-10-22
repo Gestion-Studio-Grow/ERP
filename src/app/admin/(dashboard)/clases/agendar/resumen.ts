@@ -1,7 +1,8 @@
 // El resumen al pie de Agendar y lo que dice el botón (matias-DISENO.md §2.3 · M-053/M-055).
 // «Juan · jue 24 · 19:00 · $ 25.000». Puro: lo prueba resumen.test.ts.
 
-import { diaCorto, pesos, sumarDias } from "@/lib/padel/core";
+import { diaCorto, sumarDias } from "@/lib/padel/core";
+import { plataTexto } from "../_plata";
 import { primerNombre } from "../_cola";
 
 export type DatosResumen = {
@@ -33,7 +34,7 @@ export function textoResumen(d: DatosResumen): string {
   if (d.hora) partes.push(d.hora);
   if (!partes.length) return "";
   if (d.tipo === "GRUPAL") partes.push(`Con amigos (${d.personas})`);
-  if (d.precio > 0) partes.push(pesos(d.precio));
+  if (d.precio > 0) partes.push(plataTexto(d.precio));
   return partes.join(" · ");
 }
 

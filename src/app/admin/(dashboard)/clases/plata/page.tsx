@@ -74,7 +74,7 @@ export default async function ClasesPlata({ searchParams }: { searchParams: Prom
             {p.quienDebe.map((d) => (
               <li key={d.alumnoId} className={cn(tarjeta, "grid gap-3")} data-qa="deudor">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <Link href={`/admin/clases/alumnos/${d.alumnoId}`} className="min-h-11 content-center text-base font-semibold text-strong underline-offset-2 hover:underline">
+                  <Link href={`/admin/clases/alumnos/${d.alumnoId}`} className="min-h-12 content-center text-base font-semibold text-strong underline-offset-2 hover:underline">
                     {d.nombre}
                   </Link>
                   <span className="text-sm text-muted">
@@ -101,7 +101,7 @@ export default async function ClasesPlata({ searchParams }: { searchParams: Prom
               return (
                 <li key={a.alumnoId} className={cn(tarjeta, "grid gap-3")} data-qa="a-favor">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <Link href={`/admin/clases/alumnos/${a.alumnoId}`} className="min-h-11 content-center text-base font-semibold text-strong underline-offset-2 hover:underline">
+                    <Link href={`/admin/clases/alumnos/${a.alumnoId}`} className="min-h-12 content-center text-base font-semibold text-strong underline-offset-2 hover:underline">
                       {a.nombre}
                     </Link>
                     <span className="text-sm text-muted">

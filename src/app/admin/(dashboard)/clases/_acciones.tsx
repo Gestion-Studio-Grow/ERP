@@ -29,7 +29,8 @@ import {
   recordatorio,
   regenerarLink,
 } from "@/lib/padel/acciones";
-import { MOTIVOS_COMPROBANTE, esPagable, pesos, type MotivoComprobante } from "@/lib/padel/core";
+import { MOTIVOS_COMPROBANTE, esPagable, type MotivoComprobante } from "@/lib/padel/core";
+import { plataTexto } from "./_plata";
 import { clases as nClases } from "./_agenda-core";
 import { ErrorAccion, aCola, chip48, grande, useAccion } from "./_hojas/comun";
 import { HojaCancelar } from "./_hojas/HojaCancelar";
@@ -347,7 +348,7 @@ export function BotonDevolver({ claseId, nombre, monto }: { claseId: string; nom
   const { pendiente, error, correr } = useAccion(nombre);
   return (
     <div>
-      <button type="button" disabled={pendiente} className={cn(buttonClasses("outline", "sm"), "w-full")} onClick={() => correr(() => devolverSaldo(claseId), `Le devolviste ${pesos(monto)}`)} data-qa="devolver-saldo">
+      <button type="button" disabled={pendiente} className={cn(buttonClasses("outline", "sm"), "w-full")} onClick={() => correr(() => devolverSaldo(claseId), `Le devolviste ${plataTexto(monto)}`)} data-qa="devolver-saldo">
         Le devolví
       </button>
       <ErrorAccion texto={error} />
@@ -396,7 +397,7 @@ export function BotonRegenerarLink({ alumnoId, nombre }: { alumnoId: string; nom
           </div>
         </div>
       ) : (
-        <button type="button" className="h-11 w-full text-sm text-muted underline" onClick={() => setSeguro(true)} data-qa="regenerar-link">
+        <button type="button" className="h-12 w-full text-sm text-muted underline" onClick={() => setSeguro(true)} data-qa="regenerar-link">
           Regenerar link
         </button>
       )}

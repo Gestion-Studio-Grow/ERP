@@ -113,8 +113,8 @@ export type EventoPago = "subir" | "validar" | "noValido" | "efectivo" | "acredi
 const PAGO_RESUELTO: readonly EstadoPago[] = ["PAGADO", "ACREDITADO", "DEVUELTO"];
 
 /**
- * El estado de pago al que pasa la clase, o null si no corre. Se cobra una clase viva (pedida,
- * confirmada o dada): una rechazada o cancelada no se cobra. El comprobante lo sube el alumno
+ * El estado de pago al que pasa la clase, o null si no corre. Se cobra una clase confirmada o dada
+ * (O-2: una pedida todavía no; una rechazada o cancelada, nunca). El comprobante lo sube el alumno
  * de una clase confirmada o dada: una PEDIDA nunca es pagable (el profe todavía no dijo que sí).
  *
  * `acreditar`: la clase pagada se canceló o se rechazó → la plata queda a favor del alumno.
@@ -133,7 +133,9 @@ export function transicionPago(pago: string, estadoClase: string, evento: Evento
     case "noValido":
       return quien === "profe" && pago === "EN_REVISION" ? "PENDIENTE" : null;
     case "efectivo":
-      return quien === "profe" && !PAGO_RESUELTO.includes(pago) ? "PAGADO" : null;
+      // O-2 (CERT T2+T3): una PEDIDA no se cobra. El profe todavía no dijo que sí; si la rechaza, la
+      // plata quedaría a favor de una clase que nunca existió. Primero se confirma (o se da).
+      return quien === "profe" && estadoClase !== "PEDIDA" && !PAGO_RESUELTO.includes(pago) ? "PAGADO" : null;
   }
 }
 
@@ -238,6 +240,18 @@ export function pagoAlCancelar(c: { pagoEstado: string; pagoMedio?: string | nul
   if (c.pagoEstado !== "PAGADO") return null;
   if (c.pagoMedio === "SALDO_A_FAVOR") return { pagoEstado: "PENDIENTE", pagoMedio: null };
   return { pagoEstado: "ACREDITADO" };
+}
+
+/** El texto de un aviso con el link del alumno apuntando al token vigente (O-12: el link se renovó). */
+export const conLinkVigente = (texto: string, token: string): string => texto.replace(/\/alumno\/[A-Za-z0-9_-]+/g, `/alumno/${token}`);
+
+/**
+ * «No vino» sobre una clase YA pagada (O-3 de la CERT T2+T3): con «no se cobra», la plata queda a
+ * favor del alumno igual que al cancelar una pagada (pagoAlCancelar); con «se cobra igual», el pago
+ * se queda donde está. Sin pagar, nada cambia (no se cobra → no es deuda; se cobra → es deuda).
+ */
+export function pagoAlNoVino(c: { pagoEstado: string; pagoMedio?: string | null }, seCobra: boolean): { pagoEstado: EstadoPago; pagoMedio?: null } | null {
+  return seCobra ? null : pagoAlCancelar(c);
 }
 
 // ── Franjas libres ──────────────────────────────────────────────────────────
@@ -600,7 +614,9 @@ export function textoMensajeValido(raw: unknown): string | null {
 
 // ── .ics («Agregar al calendario»), sin dependencias ──────────────────────
 
-const escaparIcs = (t: string): string => t.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+// RFC 5545 §3.3.11: `\\`, `;`, `,` y el salto de línea se escapan con barra. (O-1 de la CERT T2+T3:
+// el `"\;"` de antes en JS es `";"` pelado, así que el punto y coma no se escapaba.)
+export const escaparIcs = (t: string): string => t.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 
 /** "20261023T190000" en la hora de pared de Buenos Aires (UTC−3 todo el año: Argentina no tiene horario de verano). */
 function paredBsAs(d: Date): string {

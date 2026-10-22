@@ -31,7 +31,19 @@ export const CAMPOS_CONFIG = [
 ] as const;
 export type CampoConfig = (typeof CAMPOS_CONFIG)[number];
 
-export type ClaveConfig = CampoConfig | `plantilla.${ClavePlantilla}` | "horarios";
+export type ClaveConfig = CampoConfig | `plantilla.${ClavePlantilla}` | "horarios" | "bienvenidaVista";
+
+/**
+ * «El profe ya vio la Bienvenida» (O-9 de la CERT T2+T3): si la saltea sin cargar horarios ni precio
+ * y toca «Ir a Hoy», Hoy no lo tiene que rebotar. Sin migración: es una marca dentro del JSON de
+ * `PadelConfig.plantillas` con una clave que ningún texto usa (empieza con «_»). TODO(T4): columna
+ * propia (`PadelConfig.bienvenidaVista Boolean`) cuando haya migración; se llena desde esta marca.
+ */
+export const MARCA_BIENVENIDA = "_bienvenidaVista";
+
+/** ¿El JSON de plantillas guardado trae la marca de «ya vio la Bienvenida»? */
+export const bienvenidaVista = (guardadas: unknown): boolean =>
+  Boolean(guardadas && typeof guardadas === "object" && !Array.isArray(guardadas) && (guardadas as Record<string, unknown>)[MARCA_BIENVENIDA] === "1");
 
 /** Un tramo semanal: 0 = domingo … 6 = sábado, «08:00»–«12:00». */
 export type TramoSemanal = { diaSemana: number; desde: string; hasta: string };
@@ -39,7 +51,8 @@ export type TramoSemanal = { diaSemana: number; desde: string; hasta: string };
 export type CampoValidado =
   | { tipo: "campo"; campo: CampoConfig; valor: number | string | null }
   | { tipo: "plantilla"; clave: ClavePlantilla; texto: string | null }
-  | { tipo: "horarios"; tramos: TramoSemanal[] };
+  | { tipo: "horarios"; tramos: TramoSemanal[] }
+  | { tipo: "bienvenida" };
 
 export type Validacion = { ok: true; v: CampoValidado } | { ok: false; error: string };
 
@@ -120,6 +133,8 @@ export const DIA_NOMBRE = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves",
 export function validarCampoConfig(clave: unknown, valor: unknown): Validacion {
   if (typeof clave !== "string" || clave.length > 40) return mal("Ese ajuste no existe.");
 
+  if (clave === "bienvenidaVista") return valor === true ? ok({ tipo: "bienvenida" }) : mal("Ese ajuste no existe.");
+
   if (clave === "horarios") {
     const r = validarTramos(valor);
     return r.ok ? ok({ tipo: "horarios", tramos: r.tramos }) : mal(r.error);
@@ -183,5 +198,19 @@ export function plantillasConCambio(guardadas: unknown, clave: ClavePlantilla, t
   }
   if (texto === null) delete out[clave];
   else out[clave] = texto;
+  // La marca de la Bienvenida viaja en el mismo JSON: editar un texto no la borra (O-9).
+  if (bienvenidaVista(base)) out[MARCA_BIENVENIDA] = "1";
+  return out;
+}
+
+/** Las plantillas guardadas (sólo las claves válidas) más la marca «ya vio la Bienvenida». */
+export function plantillasConBienvenida(guardadas: unknown): Record<string, string> {
+  const base = guardadas && typeof guardadas === "object" && !Array.isArray(guardadas) ? (guardadas as Record<string, unknown>) : {};
+  const out: Record<string, string> = {};
+  for (const k of CLAVES_PLANTILLA) {
+    const v = base[k];
+    if (typeof v === "string" && v.trim()) out[k] = v;
+  }
+  out[MARCA_BIENVENIDA] = "1";
   return out;
 }

@@ -43,6 +43,9 @@ const semana: Franja[] = [
 const en = (fecha: string, h: string) => new Date(`${fecha}T${h}:00-03:00`);
 const iso = (fecha: string, h: string) => en(fecha, h).toISOString();
 
+/** Una barra invertida (para leer el escape de un .ics sin pelearse con los escapes del test). */
+const BARRA = String.fromCharCode(92);
+
 test("plantillas nuevas: movida, suspendida, recordatorioDeuda y linkPedido, con su rótulo", () => {
   for (const k of ["movida", "suspendida", "recordatorioDeuda", "linkPedido"] as const) {
     assert.ok(CLAVES_PLANTILLA.includes(k), k);
@@ -203,7 +206,8 @@ test(".ics: hora de pared de Buenos Aires con TZID, CRLF y texto escapado", () =
   assert.match(ics, /DTSTART;TZID=America\/Argentina\/Buenos_Aires:20261023T190000/);
   assert.match(ics, /DTEND;TZID=America\/Argentina\/Buenos_Aires:20261023T200000/);
   assert.match(ics, /TZOFFSETTO:-0300/);
-  assert.match(ics, /SUMMARY:Clase de pádel\\, Profe\; Matías/);
+  // O-1 (CERT T2+T3): el `;` va escapado (`\;`, RFC 5545 §3.3.11). Antes esta línea aceptaba el `;` pelado.
+  assert.ok(ics.includes(`SUMMARY:Clase de pádel${BARRA}, Profe${BARRA}; Matías\r\n`), "coma y punto y coma escapados");
   assert.match(ics, /DTSTAMP:20261022T120000Z/);
   assert.match(ics, /^BEGIN:VCALENDAR\r\n[\s\S]*END:VCALENDAR\r\n$/);
 });
