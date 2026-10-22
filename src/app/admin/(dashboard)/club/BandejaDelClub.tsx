@@ -30,9 +30,7 @@ import { alternativasDelHueco, leerSincro, type ItemParaResolver } from "./sincr
 import { useSeleccion } from "./usar-almacen";
 import { celularDelTurno, enlaceWhatsApp, textoConfirmacion } from "./whatsapp-core";
 import { armarBandeja, compartirBandeja, queHace, type ItemBandeja, type QueHace, type VistaBandeja } from "./bandeja-core";
-import { ponerLuz } from "./agenda-core";
-import { ejecutarCiclo } from "./ciclo-core";
-import { SE_DESHACE, ejecutarEspera } from "./canchas-core";
+import { SE_DESHACE } from "./canchas-core";
 import type { MedioCaja } from "./cuenta-core";
 import { ComoPaga } from "./piezas";
 import { BotonWhatsApp, TextoWhatsApp } from "./WhatsAppDelClub";
@@ -90,7 +88,7 @@ function PlataSinFicha({ almacen, que, onListo }: { almacen: Almacen; que: Extra
           size="md"
           onClick={() => {
             // Devolver y cobrar la falta se deshacen (`devuelto`, `cobrarFalta` en DESHACIBLES del vanilla).
-            const d = almacen.ejecutar((e, a, auth) => ejecutarCiclo(e, que.reservaId, { tipo: que.tipo, medio }, a, auth), { deshacible: true });
+            const d = almacen.comando("ciclo", [que.reservaId, { tipo: que.tipo, medio }], { deshacible: true });
             if (d.ok) onListo();
           }}
         >
@@ -115,7 +113,7 @@ export function OfrecerHueco({ almacen, que, onListo }: { almacen: Almacen; que:
           variant="solid"
           size="md"
           onClick={() => {
-            const d = almacen.ejecutar((e, a) => ejecutarEspera(e, { tipo: "asignar", esperaId: que.esperaId, canchaId: que.canchaId, inicio: que.inicio }, a), { deshacible: SE_DESHACE.asignar });
+            const d = almacen.comando("espera", [{ tipo: "asignar", esperaId: que.esperaId, canchaId: que.canchaId, inicio: que.inicio }], { deshacible: SE_DESHACE.asignar });
             if (d.ok) onListo();
           }}
         >
@@ -149,7 +147,7 @@ const ItemDeLaBandeja = memo(function ItemDeLaBandeja({
     if (!q) return almacen.informar({ ok: false, mensaje: "Esto ya no está para resolver." });
     if (q.tipo === "verTurno") return onVerTurno(q.reservaId);
     // Apagar desde la bandeja no se deshace (la acción `alerta` del vanilla no está en DESHACIBLES).
-    if (q.tipo === "apagarLuz") return void almacen.ejecutar((e) => ponerLuz(e, q.canchaId, false));
+    if (q.tipo === "apagarLuz") return void almacen.comando("luz", [q.canchaId, false]);
     if (q.tipo === "solapa" && !irASolapa(q.solapa)) almacen.informar({ ok: false, mensaje: q.siNoEsta });
   };
   return (

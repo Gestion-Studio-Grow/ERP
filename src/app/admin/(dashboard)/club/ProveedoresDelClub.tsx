@@ -33,7 +33,6 @@ import {
   MEDIOS_PROVEEDOR,
   armarFichaProveedor,
   armarProveedores,
-  ejecutarProveedores,
   permisosProveedores,
   type AccionProveedores,
   type DesenlaceProveedores,
@@ -52,7 +51,7 @@ const OPCIONES_MEDIO = MEDIOS_PROVEEDOR.map((m) => ({ valor: m, etiqueta: ETIQUE
 function useHacer(almacen: Almacen) {
   // El pago lleva PIN: no se deshace (como el vanilla). Alta y edición, sí.
   return useCallback(
-    (a: AccionProveedores): DesenlaceProveedores => almacen.ejecutar((e, ahora, auth) => ejecutarProveedores(e, a, ahora, auth), { deshacible: a.tipo !== "pagar" }),
+    (a: AccionProveedores): DesenlaceProveedores => almacen.comando("proveedores", [a], { deshacible: a.tipo !== "pagar" }),
     [almacen],
   );
 }

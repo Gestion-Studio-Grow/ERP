@@ -12,7 +12,7 @@
 //   · Precios y rentabilidad: el costo, el % sobre costo y el precio se tocan en la tabla (Enter o al salir del
 //     campo) y se ve el margen, lo vendido, lo facturado y la ganancia de los últimos 7 días.
 // Es del dueño (solapa `soloDuenos` + permiso `stock` del motor): si quien opera con su PIN es recepción, lo ve pero
-// no lo cambia. Todo cambia con `almacen.ejecutar` (aviso abajo y «Deshacer»). Reglas: stock-core.ts.
+// no lo cambia. Todo cambia con `almacen.comando`, re-aplicable en otro puesto (aviso abajo y «Deshacer»). Reglas: stock-core.ts.
 //
 // La piel es la del club de hoy (sitio/club.html, «Stock»): una TABLA DENSA con producto, rubro, códigos, precio,
 // costo, stock, mínimo y estado, y el stock en rojo cuando llegó al mínimo. La estructura va acá (Tailwind, con
@@ -36,7 +36,6 @@ import {
   armarPrecios,
   armarProducto,
   armarStock,
-  ejecutarStock,
   puedeTocarStock,
   textoStock,
   type AccionStock,
@@ -74,7 +73,7 @@ function Estampa({ tono, children }: { tono: Tono; children: React.ReactNode }) 
 
 function useHacer(almacen: Almacen) {
   // Todo lo del stock se puede deshacer en los 6 s del aviso (nada pide PIN).
-  return useCallback((a: AccionStock): DesenlaceStock => almacen.ejecutar((e, ahora, auth) => ejecutarStock(e, a, ahora, auth), { deshacible: true }), [almacen]);
+  return useCallback((a: AccionStock): DesenlaceStock => almacen.comando("stock", [a], { deshacible: true }), [almacen]);
 }
 
 function EstadoDelProductoBadge({ estado }: { estado: EstadoDelProducto }) {
@@ -619,7 +618,7 @@ export default function StockDelClub({ almacen }: PropsDeSolapa) {
                 <li key={p.id} className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-strong">{p.nombre}</span>
                   {puedeTocar && (
-                    <Button variant="outline" size="md" onClick={() => almacen.ejecutar((e, a, auth) => ejecutarStock(e, { tipo: "baja", productoId: p.id, activo: true }, a, auth), { deshacible: true })}>
+                    <Button variant="outline" size="md" onClick={() => almacen.comando("stock", [{ tipo: "baja", productoId: p.id, activo: true }], { deshacible: true })}>
                       Volver a activar
                     </Button>
                   )}

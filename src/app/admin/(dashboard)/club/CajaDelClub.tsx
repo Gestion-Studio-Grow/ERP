@@ -21,7 +21,7 @@ import { cn } from "@/components/ui/cn";
 import { pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
-import { MOVIMIENTOS_POR_PAGINA, armarCaja, ejecutarCaja, pinesDeEjemplo, puedeAjustarFondo, type AccionCaja, type CierreDeHoy, type VistaCaja } from "./caja-core";
+import { MOVIMIENTOS_POR_PAGINA, armarCaja, pinesDeEjemplo, puedeAjustarFondo, type AccionCaja, type CierreDeHoy, type VistaCaja } from "./caja-core";
 import { conTopeDePin, guardaDelPin } from "./tope-de-pin";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 import { operadorActual } from "./operador-del-club";
@@ -357,9 +357,8 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
   // esperar). El fondo no lleva PIN: no se traba.
   const hacer = useCallback(
     (a: AccionCaja) =>
-      almacen.ejecutar((e, ahora, auth) =>
-        a.tipo === "fondo" ? ejecutarCaja(e, a, ahora, auth) : conTopeDePin(guardaDelPin(almacen, negocio), Date.now(), () => ejecutarCaja(e, a, ahora, auth)).desenlace,
-      ).ok,
+      // Por comando (re-aplicable en otro puesto); el tope de PIN cuenta sólo el toque, no las re-aplicaciones.
+      almacen.comando("caja", [a], a.tipo === "fondo" ? {} : { envolver: (correr) => conTopeDePin(guardaDelPin(almacen, negocio), Date.now(), correr).desenlace }).ok,
     [almacen, negocio],
   );
 

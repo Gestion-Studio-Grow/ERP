@@ -234,3 +234,71 @@ test("rinde: re-aplicar 500 comandos sobre la demo tarda poco (cota holgada para
   t.diagnostic(`500 comandos re-aplicados en ${ms.toFixed(0)} ms`);
   assert.ok(ms < 1500, `${ms.toFixed(0)} ms`);
 });
+
+// ── F3 del certificador: cada pantalla despacha un comando con nombre ────────────────────────────────────────────────
+// Por cada comando que ahora sale de una pantalla: corrido en el mostrador y re-aplicado sobre la MISMA base da el mismo
+// estado byte a byte (mismos ids, mismo azar), y se cuenta en criollo (no «Operación …»).
+
+const duenio = (e: EstadoClub): Auth => operadorDeLaDemo(e, "OWNER")!.auth;
+
+function conAuth<N extends NombreDeComando>(e: EstadoClub, nombre: N, args: ArgsDe<N>, auth: Auth): Comando<N> {
+  const c: Comando<N> = { id: `cmd-${++n}`, equipo: "mostrador-1", persona: auth.usuarioId ?? "", versionBase: 7, version: M.VERSION_ESTADO, nombre, args, ahora: AHORA, auth, azar: 2000 + n, idsDesde: M.secuenciaIds() };
+  const d = correrComando(e, c);
+  assert.equal(d.ok, true, `${nombre}: ${d.mensaje}`);
+  return c;
+}
+
+type Caso = { nombre: NombreDeComando; args: (e: EstadoClub) => unknown; duenio?: boolean };
+const productoConStock = (e: EstadoClub) => e.productos.find((p) => p.activo !== false && !p.alquiler && (typeof p.stock !== "number" || p.stock > 5))!.id;
+const huecoLibre = (e: EstadoClub) => horariosLibres(e, HOY, "c3", 60, AHORA)[0].min;
+const CASOS: Caso[] = [
+  { nombre: "luz", args: (e) => [e.canchas[0].id, !e.luces[e.canchas[0].id]] },
+  { nombre: "ciclo", args: (e) => [e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada" && x.inicio > AHORA.min)!.id, { tipo: "cancelar", porClub: false, motivo: "Avisó que no viene" }] },
+  { nombre: "cuenta", args: (e) => [turnoQueDebe(e), { tipo: "cargo", idx: 0, productoId: productoConStock(e), cant: 1, modo: "cuenta", medio: "efectivo" }] },
+  { nombre: "buffet", args: () => [{ tipo: "abrir", titular: "Mesa del fondo", clienteId: null }] },
+  { nombre: "caja", args: () => [{ tipo: "fondo", monto: "15000" }], duenio: true },
+  { nombre: "venta", args: (e) => [{ [productoConStock(e)]: 2 }, "efectivo"] },
+  { nombre: "espera", args: () => [{ tipo: "anotar", titular: "Lola Paz", clienteId: null, fecha: HOY, desde: 20 * 60, hasta: 23 * 60, duracion: 60, soloCubierta: false }] },
+  { nombre: "esperaDesdeAlta", args: () => [{ titular: "Lola Paz", clienteId: null, tel: "", espera: { fecha: HOY, desde: 20 * 60, hasta: 23 * 60, duracion: 60 } }] },
+  { nombre: "fijo", args: (e) => [{ tipo: "nuevo", datos: { titular: "Los del martes", clienteId: null, canchaId: "c3", dia: M.diaSemana(M.sumarDias(HOY, 1)), inicio: horariosLibres(e, M.sumarDias(HOY, 1), "c3", 60, AHORA)[0].min, duracion: 60 } }] },
+  { nombre: "canchas", args: () => [{ tipo: "bloquear", canchaId: "c3", fecha: M.sumarDias(HOY, 2), desde: 8 * 60, hasta: 9 * 60, motivo: "Arreglo de la red" }], duenio: true },
+  { nombre: "clientes", args: () => [{ tipo: "alta", nombre: "Lola Paz", tel: "11 5555 1234", nivel: "" }] },
+  { nombre: "stock", args: () => [{ tipo: "alta", nombre: "Agua saborizada", categoria: "Bebidas", precio: "1500", costo: "700", minimo: "2", stock: "10", codigo: "", codigoExterno: "", plato: false }], duenio: true },
+  { nombre: "proveedores", args: () => [{ tipo: "alta", nombre: "Distribuidora Sur", rubro: "Bebidas", cuit: "", tel: "" }], duenio: true },
+];
+
+for (const caso of CASOS) {
+  test(`comando «${caso.nombre}» (lo despacha la pantalla): re-aplicado sobre la misma base da lo mismo, y se cuenta en criollo`, () => {
+    const b = base();
+    const local = b.abrir();
+    const c = conAuth(local, caso.nombre, caso.args(local) as ArgsDe<typeof caso.nombre>, caso.duenio ? duenio(local) : recepcion(local));
+    base();
+    const deNuevo = b.abrir();
+    const r = rebasar(deNuevo, [c], new Set());
+    assert.deepEqual(r.rechazados, [], JSON.stringify(r.rechazados));
+    assert.equal(JSON.stringify(deNuevo), JSON.stringify(local), "el mismo estado, byte a byte");
+    const texto = describirComando(c, deNuevo);
+    assert.doesNotMatch(texto, /Operación «/, texto);
+  });
+}
+
+test("comando «espera» asignar: si el hueco ya lo dio otro puesto, el motor dice que no (va a «Para resolver»), no se pisa", () => {
+  const b = base((e) => M.anotarEspera(e, { titular: "Lola Paz", clienteId: null, tel: "", fecha: HOY, desde: 20 * 60, hasta: 23 * 60, duracion: 60 }, AHORA));
+  const local = b.abrir();
+  const inicio = huecoLibre(local);
+  const esperaId = local.espera.at(-1)!.id;
+  const c = enElMostrador(local, "espera", [{ tipo: "asignar", esperaId, canchaId: "c3", inicio }]);
+  base();
+  const enLaBase = b.abrir();
+  M.prefijoIds("b-");
+  enElMostrador(enLaBase, "alta", [{ canchaId: "c3", fecha: HOY, inicio, duracion: 60, tipo: "turno", titular: "Paula Gómez", clienteId: null, otros: "" }]);
+  M.prefijoIds("");
+  const r = rebasar(enLaBase, [c], new Set());
+  assert.equal(r.rechazados.length, 1);
+  assert.equal(enLaBase.reservas.filter((x) => x.canchaId === "c3" && x.inicio === inicio && x.fecha === HOY && x.estado === "reservada").length, 1);
+});
+
+test("caja con PIN tipeado: el comando que va a la foto no lleva el PIN (al re-aplicarse en otro puesto, lo vuelve a pedir)", () => {
+  const c = { id: "x", equipo: "e", persona: "u", versionBase: 1, version: M.VERSION_ESTADO, nombre: "caja", args: [{ tipo: "egreso", monto: "500", concepto: "Hielo", pin: "1111" }], ahora: AHORA, auth: { usuarioId: "u", pin: "1111" }, azar: 1, idsDesde: 0 } as Comando<"caja">;
+  assert.ok(!JSON.stringify(comandoSinPin(c)).includes("1111"));
+});

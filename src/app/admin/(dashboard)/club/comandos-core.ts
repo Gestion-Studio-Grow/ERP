@@ -16,24 +16,36 @@
 import { cancha as canchaDe, crearClubReal, cuenta as cuentaDe, hhmm, pesos, prefijoIds, producto as productoDe, reserva as reservaDe, retomarSecuencia, saldo, secuenciaIds, usuario as usuarioDe, VERSION_ESTADO } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
-import { reservar, type DatosAlta } from "./alta-core";
+import { ponerLuz } from "./agenda-core";
+import { anotarEnEsperaDesdeAlta, reservar, type DatosAlta } from "./alta-core";
 import { ejecutarBuffet, type AccionBuffet } from "./buffet-core";
-import { ejecutarMesa, type AccionMesa } from "./buffet-mesa-core";
+import { ejecutarMesa, venderEnMostrador, type AccionMesa, type Carrito, type DesenlaceMesa } from "./buffet-mesa-core";
 import { ejecutarCaja, type AccionCaja } from "./caja-core";
+import { ejecutarCanchas, ejecutarEspera, ejecutarFijo, type AccionCanchas, type AccionEspera, type AccionFijo, type DesenlaceCanchas } from "./canchas-core";
 import { ejecutarCiclo, type AccionCiclo } from "./ciclo-core";
-import { ejecutar as ejecutarCuenta, type AccionCuenta, type MedioCobro } from "./cuenta-core";
+import { ejecutarClientes, type AccionClientes, type DesenlaceClientes } from "./clientes-core";
+import { aprobarConCodigo, pedirFiado } from "./credito-core";
+import { ejecutar as ejecutarCuenta, type AccionCuenta, type MedioCaja, type MedioCobro } from "./cuenta-core";
+import { ejecutarNovedades, type AccionNovedades, type DesenlaceNovedades } from "./novedades-core";
+import { ejecutarProveedores, type AccionProveedores, type DesenlaceProveedores } from "./proveedores-core";
+import { ejecutarStock, type AccionStock, type DesenlaceStock } from "./stock-core";
+import { ejecutarTablero, type AccionTablero, type DesenlaceTablero } from "./tablero-core";
+import { ejecutarTienda, type AccionTienda } from "./tienda-core";
 
 /** Lo que se puede cobrar sin internet: lo que no hay que verificar afuera (MP, transferencia, posnet). */
 const MEDIOS_SIN_INTERNET: ReadonlySet<MedioCobro> = new Set(["efectivo", "monedero"]);
 const sinRed = (medio: MedioCobro) => MEDIOS_SIN_INTERNET.has(medio);
 
-interface Entrada<A extends unknown[]> {
-  correr: (estado: EstadoClub, args: A, ahora: Ahora, auth: Auth) => Desenlace;
+interface Entrada<A extends unknown[], D extends Desenlace = Desenlace> {
+  correr: (estado: EstadoClub, args: A, ahora: Ahora, auth: Auth) => D;
   /** Si va sin internet (D4 del diseño; la confirma el dueño). Ante la duda, no. */
   sinInternet: (args: A) => boolean;
 }
 
-const entrada = <A extends unknown[]>(e: Entrada<A>) => e;
+const entrada = <A extends unknown[], D extends Desenlace = Desenlace>(e: Entrada<A, D>) => e;
+
+/** Lo que el dueño resuelve desde el mostrador con el código que mandó por WhatsApp, y el pedido de fiado. */
+export type AccionFiado = { tipo: "pedir"; cuentaId: string } | { tipo: "aprobarCodigo"; novedadId: string; codigo: string };
 
 /**
  * La lista blanca. Cada núcleo de pantalla que ya despacha acciones `{ tipo, … }` entra como UN comando: migrar una
@@ -54,26 +66,87 @@ export const REGISTRO = {
     correr: (e, [a], ahora, auth) => ejecutarBuffet(e, a, ahora, auth),
     sinInternet: ([a]) => (a.tipo === "cobrar" ? sinRed(a.medio) : true),
   }),
-  mesa: entrada<[accion: AccionMesa]>({
+  mesa: entrada<[accion: AccionMesa], DesenlaceMesa>({
     correr: (e, [a], ahora, auth) => ejecutarMesa(e, a, ahora, auth),
     // Un descuento lo firma el dueño: D4 no lo nombra.
     sinInternet: ([a]) => a.tipo === "pasarCargo" || !a.descuento,
   }),
-  caja: entrada<[accion: AccionCaja]>({
+  caja: entrada<[accion: AccionCaja], ReturnType<typeof ejecutarCaja>>({
     correr: (e, [a], ahora, auth) => ejecutarCaja(e, a, ahora, auth),
     // Todo con internet: el egreso saca plata y el PIN viaja en claro en el estado (Challenger, 18/10); el cierre y el
     // fondo, también.
     sinInternet: () => false,
   }),
-  alta: entrada<[datos: DatosAlta]>({
+  alta: entrada<[datos: DatosAlta], ReturnType<typeof reservar>>({
     correr: (e, [d], ahora) => reservar(e, d, ahora),
     // Turno presencial: si choca con uno que dio otro equipo, el motor dice que no y va a «Para resolver».
     sinInternet: () => true,
+  }),
+  // ── las demás pantallas que ya despachaban acciones (F3 del certificador: toda acción de pantalla es un comando) ──
+  /** «Anotar en espera» desde el alta que no entra. */
+  esperaDesdeAlta: entrada<[datos: Parameters<typeof anotarEnEsperaDesdeAlta>[1]]>({
+    correr: (e, [d], ahora) => anotarEnEsperaDesdeAlta(e, d, ahora),
+    sinInternet: () => true,
+  }),
+  espera: entrada<[accion: AccionEspera], ReturnType<typeof ejecutarEspera>>({
+    correr: (e, [a], ahora) => ejecutarEspera(e, a, ahora),
+    // Darle el turno a uno de la espera es como un alta presencial: si el hueco ya lo dio otro puesto, «Para resolver».
+    sinInternet: () => true,
+  }),
+  fijo: entrada<[accion: AccionFijo]>({
+    correr: (e, [a], ahora, auth) => ejecutarFijo(e, a, ahora, auth),
+    // Dar de baja un fijo cancela turnos (y puede devolver plata): con internet.
+    sinInternet: ([a]) => a.tipo !== "baja",
+  }),
+  luz: entrada<[canchaId: string, prendida: boolean]>({
+    correr: (e, [canchaId, prendida]) => ponerLuz(e, canchaId, prendida),
+    sinInternet: () => true,
+  }),
+  canchas: entrada<[accion: AccionCanchas], DesenlaceCanchas>({
+    correr: (e, [a], ahora) => ejecutarCanchas(e, a, ahora),
+    // Lluvia, bloqueos y mantenimiento reordenan la agenda de todos: con internet.
+    sinInternet: () => false,
+  }),
+  venta: entrada<[carrito: Carrito, medio: MedioCaja]>({
+    correr: (e, [carrito, medio], ahora) => venderEnMostrador(e, carrito, medio, ahora),
+    sinInternet: ([, medio]) => sinRed(medio),
+  }),
+  fiado: entrada<[accion: AccionFiado]>({
+    correr: (e, [a], ahora, auth) => (a.tipo === "pedir" ? pedirFiado(e, a.cuentaId, auth, ahora) : aprobarConCodigo(e, a.novedadId, a.codigo, auth, ahora)),
+    // El código del dueño se verifica en el puesto (no hace falta red); el pedido viaja al dueño: con internet.
+    sinInternet: ([a]) => a.tipo === "aprobarCodigo",
+  }),
+  clientes: entrada<[accion: AccionClientes], DesenlaceClientes>({
+    correr: (e, [a], ahora, auth) => ejecutarClientes(e, a, ahora, auth),
+    sinInternet: ([a]) => a.tipo === "cobrarDeuda" && sinRed(a.medio),
+  }),
+  tienda: entrada<[accion: AccionTienda], ReturnType<typeof ejecutarTienda>>({
+    correr: (e, [a], ahora, auth) => ejecutarTienda(e, a, ahora, auth),
+    sinInternet: ([a]) => a.tipo === "entregar" && sinRed(a.medio),
+  }),
+  stock: entrada<[accion: AccionStock], DesenlaceStock>({
+    correr: (e, [a], ahora, auth) => ejecutarStock(e, a, ahora, auth),
+    sinInternet: () => false,
+  }),
+  proveedores: entrada<[accion: AccionProveedores], DesenlaceProveedores>({
+    correr: (e, [a], ahora, auth) => ejecutarProveedores(e, a, ahora, auth),
+    // Pagar saca plata (y lleva PIN tipeado): con internet.
+    sinInternet: () => false,
+  }),
+  novedades: entrada<[accion: AccionNovedades], DesenlaceNovedades>({
+    correr: (e, [a], ahora, auth) => ejecutarNovedades(e, a, ahora, auth),
+    sinInternet: () => false,
+  }),
+  tablero: entrada<[accion: AccionTablero], DesenlaceTablero>({
+    correr: (e, [a], ahora, auth) => ejecutarTablero(e, a, ahora, auth),
+    sinInternet: () => false,
   }),
 } as const;
 
 export type NombreDeComando = keyof typeof REGISTRO;
 export type ArgsDe<N extends NombreDeComando> = Parameters<(typeof REGISTRO)[N]["correr"]>[1];
+/** Lo que devuelve el núcleo de la pantalla (con lo suyo: el id del cliente nuevo, la lluvia, el PIN que se miró…). */
+export type ResultadoDe<N extends NombreDeComando> = ReturnType<(typeof REGISTRO)[N]["correr"]>;
 
 export interface Comando<N extends NombreDeComando = NombreDeComando> {
   /** Idempotencia: un id que la base ya aplicó no se aplica dos veces. */
@@ -357,6 +430,74 @@ export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub 
         if (x.tipo === "egreso") return `Egreso de caja $ ${x.monto} «${x.concepto}»`;
         if (x.tipo === "cerrar") return "Cierre de caja";
         return `Fondo de caja $ ${x.monto}`;
+      }
+      case "esperaDesdeAlta": {
+        const d = a[0] as { titular?: string; espera?: { fecha: string; desde: number; hasta: number } };
+        return `Anotar a ${String(d.titular ?? "").trim() || "alguien"} en la espera${d.espera ? ` (${hhmm(d.espera.desde)} a ${hhmm(d.espera.hasta)})` : ""}`;
+      }
+      case "espera": {
+        const x = a[0] as AccionEspera;
+        const quien = x.tipo === "anotar" ? x.titular : (estado?.espera.find((w) => w.id === x.esperaId)?.titular ?? "alguien de la espera");
+        if (x.tipo === "anotar") return `Anotar a ${quien} en la espera`;
+        if (x.tipo === "asignar") return `Turno a ${quien} (de la espera) en ${canchaCorta(estado ? canchaDe(estado, x.canchaId)?.nombre : x.canchaId)} a las ${hhmm(x.inicio)}`;
+        return `Sacar a ${quien} de la espera`;
+      }
+      case "fijo": {
+        const x = a[0] as AccionFijo;
+        if (x.tipo === "nuevo") return `Turno fijo de ${x.datos.titular.trim() || "alguien"} a las ${hhmm(x.datos.inicio)}`;
+        if (x.tipo === "baja") return `Dar de baja el fijo de ${estado?.fijos.find((f) => f.id === x.fijoId)?.titular ?? "alguien"}`;
+        return "Bajar los fijos a la grilla";
+      }
+      case "luz": {
+        const [canchaId, prendida] = a as [string, boolean];
+        return `${prendida ? "Prender" : "Apagar"} la luz de ${canchaCorta(estado ? canchaDe(estado, canchaId)?.nombre : canchaId)}`;
+      }
+      case "canchas": {
+        const x = a[0] as AccionCanchas;
+        const cancha = "canchaId" in x ? canchaCorta(estado ? canchaDe(estado, x.canchaId)?.nombre : x.canchaId) : "";
+        if (x.tipo === "lluvia") return `Plan lluvia de ${hhmm(x.desde)} a ${hhmm(x.hasta)}`;
+        if (x.tipo === "bloquear") return `Bloquear ${cancha} de ${hhmm(x.desde)} a ${hhmm(x.hasta)}`;
+        if (x.tipo === "quitarBloqueo") return "Quitar un bloqueo";
+        if (x.tipo === "mantenimiento") return `${x.activo ? "Poner en mantenimiento" : "Habilitar"} ${cancha}`;
+        return `Cambiar el techo de ${cancha}`;
+      }
+      case "venta": {
+        const [carrito, medio] = a as [Carrito, MedioCaja];
+        const n = Object.values(carrito ?? {}).reduce((s, x) => s + (x > 0 ? x : 0), 0);
+        return `Venta de mostrador (${n} producto${n === 1 ? "" : "s"}) ${medioDe(medio)}`;
+      }
+      case "fiado": {
+        const x = a[0] as AccionFiado;
+        if (x.tipo === "pedir") return `Pedir fiado para la cuenta${estado ? ` de ${cuentaDe(estado, x.cuentaId)?.titular ?? ""}` : ""}`.trim();
+        return "Aprobar un fiado con el código del dueño";
+      }
+      case "clientes": {
+        const x = a[0] as AccionClientes;
+        if (x.tipo === "alta") return `Ficha nueva: ${x.nombre}`;
+        if (x.tipo === "cobrarDeuda") return `Cobro de deuda ${medioDe(x.medio)}`;
+        return "Cambio en una ficha de cliente";
+      }
+      case "tienda": {
+        const x = a[0] as AccionTienda;
+        if (x.tipo === "entregar") return `Entregar un pedido de la tienda, cobrado ${medioDe(x.medio)}`;
+        if (x.tipo === "pegar") return "Cargar un pedido de la tienda";
+        return "Cambio en un pedido de la tienda";
+      }
+      case "stock":
+        return "Cambio en el stock";
+      case "proveedores": {
+        const x = a[0] as AccionProveedores;
+        if (x.tipo === "pagar") return `Pago a proveedor $ ${x.monto} ${medioDe(x.medio)}`;
+        if (x.tipo === "remito") return "Remito de proveedor";
+        return "Cambio en un proveedor";
+      }
+      case "novedades":
+        return "Cambio en novedades y difusión";
+      case "tablero": {
+        const x = a[0] as AccionTablero;
+        if (x.tipo === "autorizar") return "Autorizar un fiado";
+        if (x.tipo === "otorgar") return "Dar acceso a alguien nuevo";
+        return "Rechazar un pedido";
       }
     }
   } catch {

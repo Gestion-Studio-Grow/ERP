@@ -22,7 +22,7 @@ import { ROLES, pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, Rol } from "@/lib/club/motor.mjs";
 import { operadorActual } from "./operador-del-club";
 import type { PropsDeSolapa } from "./solapas-club";
-import { armarTablero, ejecutarTablero, type AccesoPedido, type AccionTablero, type DesenlaceTablero, type PedidoParaAutorizar, type VistaTablero } from "./tablero-core";
+import { armarTablero, type AccesoPedido, type AccionTablero, type DesenlaceTablero, type PedidoParaAutorizar, type VistaTablero } from "./tablero-core";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 import { SoloEnElPuestoDelDuenio, puestoDeDuenio } from "./config-jornada";
 
@@ -231,7 +231,7 @@ export default function TableroDelDuenio({ almacen }: PropsDeSolapa) {
   const [pinNuevo, setPinNuevo] = useState<DesenlaceTablero["acceso"] | null>(null);
   const hacer = useCallback(
     (a: AccionTablero): DesenlaceTablero => {
-      const d: DesenlaceTablero = almacen.ejecutar((e, ahora, auth) => ejecutarTablero(e, a, ahora, auth));
+      const d: DesenlaceTablero = almacen.comando("tablero", [a]);
       if (d.ok && d.acceso) setPinNuevo(d.acceso);
       return d;
     },

@@ -18,7 +18,7 @@ import { cn } from "@/components/ui/cn";
 import { pesos } from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
-import { ejecutarCiclo, fueraDeGrilla, type FueraDeGrilla as Fila } from "./ciclo-core";
+import { fueraDeGrilla, type FueraDeGrilla as Fila } from "./ciclo-core";
 import { ETIQUETA_MEDIO, MEDIOS_CAJA, type MedioCaja } from "./cuenta-core";
 import { diasDeLaAgenda } from "./agenda-core";
 import { useSeleccion } from "./usar-almacen";
@@ -88,12 +88,12 @@ export function FueraDeLaGrilla({ almacen, dia }: { almacen: Almacen; dia: strin
           <li key={f.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-2 first:border-t-0">
             <span className="min-w-0 text-muted">{f.texto}</span>
             {f.devolver > 0 && (
-              <Button variant="outline" size="md" onClick={() => almacen.ejecutar((e, a, auth) => ejecutarCiclo(e, f.id, { tipo: "devolver", medio }, a, auth), { deshacible: true })}>
+              <Button variant="outline" size="md" onClick={() => almacen.comando("ciclo", [f.id, { tipo: "devolver", medio }], { deshacible: true })}>
                 Devolver {pesos(f.devolver)}
               </Button>
             )}
             {f.cobrarFalta > 0 && (
-              <Button variant="outline" size="md" onClick={() => almacen.ejecutar((e, a, auth) => ejecutarCiclo(e, f.id, { tipo: "cobrarFalta", medio }, a, auth), { deshacible: true })}>
+              <Button variant="outline" size="md" onClick={() => almacen.comando("ciclo", [f.id, { tipo: "cobrarFalta", medio }], { deshacible: true })}>
                 Cobrar la falta {pesos(f.cobrarFalta)}
               </Button>
             )}

@@ -5,8 +5,9 @@
 // La PC y la tablet trabajan cada una sobre su copia del club. Antes, el que subía segundo recibía «conflicto», recargaba
 // lo del otro y LO SUYO QUEDABA APARTE entero (almacen.ts, «Lo que quedó aparte»). Ahora (bp-DISENO.md §3.3):
 //
-//   1. Toda acción de pantalla entra a la COLA del puesto (`Pendiente`): el comando con nombre (comandos-core.ts) o, si
-//      la pantalla todavía despacha una función, la función misma (sirve mientras la pestaña esté abierta). Corre al
+//   1. Toda acción de pantalla entra a la COLA del puesto (`Pendiente`): el comando con nombre (comandos-core.ts; desde
+//      el cierre de la cert de la Tanda 1 lo despachan todas las pantallas de operación) o, si una pantalla todavía
+//      despacha una función (Configuración), la función misma (sirve mientras la pestaña esté abierta). Corre al
 //      instante, como siempre, con la semilla del azar y el contador de ids anotados (`correrDeterminista`).
 //   2. Cuando la base avanzó (el latido de versión cada 15 s, o un «conflicto» al subir), el almacén baja la foto de la
 //      base, la pone en lugar de la suya y RE-APLICA la cola encima, en orden (`rebasar`). Lo que el motor acepta queda,
@@ -18,8 +19,9 @@
 //      puesto dice «Caro (PC) dio un turno a las 21:00» al enterarse.
 //
 // MODELO (la foto, sin migración): `estado.sincro = { aplicados: string[] ≤500, recientes: Reciente[] ≤40,
-// paraResolver: ItemParaResolver[] ≤50 }`. La cola (`pendientes`) NO va en la foto: es del puesto (memoria). Nada de lo
-// que va a la foto lleva un PIN (`comandoSinPin`).
+// paraResolver: ItemParaResolver[] ≤50 }`. La cola (`pendientes`) NO va en la foto: es del puesto (memoria, espejada en
+// el equipo en `<clave>:cola` para sobrevivir a recargar la pestaña: almacen.ts). Nada de lo que va a la foto ni al
+// equipo lleva un PIN (`comandoSinPin`).
 //
 // Puro salvo `correrPendiente` / `rebasar`, que MUTAN el estado que reciben (como todo el motor). No lee reloj ni red.
 //
@@ -436,6 +438,24 @@ export function prometeAlgo(nombre: string, args: unknown): boolean {
       return tipo(a[1]) === "hacerFijo" || tipo(a[1]).startsWith("cobrar");
     case "buffet":
       return tipo(a[0]) === "cobrar";
+    // Darle el turno a uno de la espera o crear un fijo toma un hueco (como el alta); la lluvia y los bloqueos mueven la
+    // agenda de todos; vender, entregar, cobrar una deuda y pagar mueven plata.
+    case "espera":
+      return tipo(a[0]) === "asignar";
+    case "fijo":
+      return tipo(a[0]) === "nuevo" || tipo(a[0]) === "baja";
+    case "canchas":
+      return ["lluvia", "bloquear", "mantenimiento"].includes(tipo(a[0]));
+    case "venta":
+      return true;
+    case "tienda":
+      return tipo(a[0]) === "entregar";
+    case "clientes":
+      return tipo(a[0]) === "cobrarDeuda";
+    case "proveedores":
+      return tipo(a[0]) === "pagar";
+    case "caja":
+      return tipo(a[0]) !== "fondo";
     default:
       return false;
   }

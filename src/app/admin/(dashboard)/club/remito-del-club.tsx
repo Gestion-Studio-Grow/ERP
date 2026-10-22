@@ -31,7 +31,6 @@ import {
   armarRemito,
   cambiarLinea,
   candidatosParaRemito,
-  ejecutarProveedores,
   leerParaElRemito,
   quitarDelRemito,
   remitoVacio,
@@ -200,7 +199,7 @@ export function RegistrarRemito({ almacen, onListo, onCerrar, enfocar = true }: 
           variant="solid"
           size="md"
           onClick={() => {
-            const d = almacen.ejecutar((e, ahora, auth) => ejecutarProveedores(e, { tipo: "remito", borrador: b }, ahora, auth), { deshacible: true });
+            const d = almacen.comando("proveedores", [{ tipo: "remito", borrador: b }], { deshacible: true });
             if (!d.ok) return;
             setB(remitoVacio(almacen.estado()));
             setBusca("");

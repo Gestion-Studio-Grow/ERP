@@ -17,7 +17,7 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import { pesos } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import type { VistaCuentaBuffet } from "./buffet-core";
-import { DESHACIBLE_MESA, ejecutarMesa, pinesDeEjemplo, type AccionMesa, type DesenlaceMesa } from "./buffet-mesa-core";
+import { DESHACIBLE_MESA, pinesDeEjemplo, type AccionMesa, type DesenlaceMesa } from "./buffet-mesa-core";
 import { leerMonto } from "./montos-core";
 import { conTopeDePin, guardaDelPin } from "./tope-de-pin";
 
@@ -27,15 +27,11 @@ import { conTopeDePin, guardaDelPin } from "./tope-de-pin";
  */
 function correr(almacen: Almacen, accion: AccionMesa, negocio?: string): DesenlaceMesa {
   const conPin = accion.tipo === "cargoManual" && accion.descuento;
-  let d: DesenlaceMesa = { ok: false, mensaje: "", pin: null };
-  almacen.ejecutar(
-    (e, ahora, auth) => {
-      d = conPin ? conTopeDePin(guardaDelPin(almacen, negocio), Date.now(), () => ejecutarMesa(e, accion, ahora, auth)).desenlace : ejecutarMesa(e, accion, ahora, auth);
-      return d;
-    },
-    { deshacible: DESHACIBLE_MESA[accion.tipo] },
-  );
-  return d;
+  // Por comando (re-aplicable en otro puesto); el tope de PIN cuenta sólo el toque, no las re-aplicaciones.
+  return almacen.comando("mesa", [accion], {
+    deshacible: DESHACIBLE_MESA[accion.tipo],
+    ...(conPin ? { envolver: (correr: () => DesenlaceMesa) => conTopeDePin(guardaDelPin(almacen, negocio), Date.now(), correr).desenlace as DesenlaceMesa } : {}),
+  });
 }
 
 function PasarCargo({ almacen, cuenta }: { almacen: Almacen; cuenta: VistaCuentaBuffet }) {

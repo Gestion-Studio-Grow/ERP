@@ -17,6 +17,7 @@ import * as M from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import { claveDeLaJornada, crearAlmacen, MINUTO_DEMO, textoDeLaDemo, textoDelEstado, type AlmacenamientoLocal, type Confirmacion, type ResultadoDelGuardado, type Temporizador } from "./almacen";
 import { reservar, type DatosAlta } from "./alta-core";
+import { ejecutar as ejecutarCuenta } from "./cuenta-core";
 import { anotarAplicado, leerSincro, prometeAlgo, TOPE_APLICADOS, type Pendiente } from "./sincro-core";
 
 const HOY = "2026-10-17";
@@ -117,14 +118,14 @@ function guardadoDe(b: Base) {
 }
 
 /** Un puesto: el almacén de la jornada real contra la base, con quien opera (su usuario del club y su PIN). */
-function puesto(b: Base, equipo: string, nombre: string, quien: { id: string; pin: string }) {
+function puesto(b: Base, equipo: string, nombre: string, quien: { id: string; pin: string }, almacenamiento: AlmacenamientoLocal = memoria()) {
   const g = guardadoDe(b);
   const t = temporizadorFalso();
   let visible = true;
   const a = crearAlmacen({
     reloj: "real",
     clave: claveDeLaJornada(NEGOCIO),
-    almacenamiento: memoria(),
+    almacenamiento,
     guardado: g,
     cerrojos: null,
     canal: null,
@@ -461,6 +462,50 @@ test("BP-028: sin internet un rato — todo lo cargado queda en la cola, la cint
   assert.equal(turnosEn(base, h2.canchaId, h2.inicio).length, 1, "lo de la PC sigue");
   assert.equal(tablet.a.sincro().sinInternetDesde, null);
   assert.equal(tablet.a.sincro().enCola, 0);
+});
+
+test("BP-028 · la cola sobrevive a recargar la pestaña: lo cargado sin internet llega a la base al volver, por ítem y sin «aparte» entero", async () => {
+  const { b, pc } = await dosPuestos();
+  const disco = memoria();
+  const tablet = await puesto(b, "tab1", "tablet", LU, disco).abrir();
+  tablet.g.caer(true);
+  const turno = turnoQueDebe(tablet.a.estado());
+  assert.equal(tablet.a.comando("cuenta", [turno, { tipo: "cobrarTodo", medio: "efectivo" }]).ok, true);
+  const alta = darTurno(tablet, { canchaId: "c2", inicio: A_LAS_21, titular: "Pedro Paz" });
+  await vaciar();
+  assert.equal(tablet.a.sincro().enCola, 2);
+  const guardada = disco.getItem(`${claveDeLaJornada(NEGOCIO)}:cola`) ?? "";
+  assert.ok(guardada.includes(alta.id), "la cola quedó en el equipo");
+  assert.ok(!guardada.includes('"pin"'), "sin PIN");
+  // Mientras tanto la PC da el mismo hueco y la base avanza.
+  darTurno(pc, { canchaId: "c2", inicio: A_LAS_21, titular: "Juan Pérez" });
+  await vaciar();
+  // «F5» en la tablet, ya con internet: otro almacén sobre el mismo equipo.
+  const otraVez = await puesto(b, "tab1", "tablet", LU, disco).abrir();
+  await vaciar();
+  const base = enLaBase(b);
+  assert.equal(M.saldo(M.reserva(base, turno)!), 0, "el cobro de antes de recargar llegó");
+  assert.deepEqual(turnosEn(base, "c2", A_LAS_21).map((r) => r.titular), ["Juan Pérez"], "el hueco quedó para el primero");
+  assert.deepEqual(leerSincro(base).paraResolver.map((x) => x.id), [alta.id], "el turno de Pedro, «para resolver» y re-aplicable");
+  assert.ok(leerSincro(base).paraResolver[0].comando);
+  assert.equal(otraVez.a.apartes().length, 0, "nada aparte entero");
+  assert.equal(otraVez.a.sincro().enCola, 0);
+  assert.equal(disco.getItem(`${claveDeLaJornada(NEGOCIO)}:cola`), null, "la cola del equipo quedó vacía");
+});
+
+test("BP-028 · recargar con una acción que no es comando (función de pantalla): la red de siempre, lo de acá aparte entero", async () => {
+  const { b, pc } = await dosPuestos();
+  const disco = memoria();
+  const tablet = await puesto(b, "tab1", "tablet", LU, disco).abrir();
+  tablet.g.caer(true);
+  const turno = turnoQueDebe(tablet.a.estado());
+  assert.equal(tablet.a.ejecutar((e, ahora, auth) => ejecutarCuenta(e, turno, { tipo: "cobrarTodo", medio: "efectivo" }, ahora, auth)).ok, true);
+  await vaciar();
+  darTurno(pc, { ...hueco(pc.a.estado()), titular: "Ana" });
+  await vaciar();
+  const otraVez = await puesto(b, "tab1", "tablet", LU, disco).abrir();
+  await vaciar();
+  assert.equal(otraVez.a.apartes().length, 1, "sin nombre no se puede re-aplicar: queda aparte entero, no se pierde");
 });
 
 test("«Deshacer» saca la acción de la cola: no se re-aplica ni se espera su confirmación", async () => {

@@ -30,9 +30,8 @@ import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "
 import "./piel/agenda.css";
 import { Marca } from "@/components/ui/Marca";
 import { cn } from "@/components/ui/cn";
-import { armarAgenda, compartirAgenda, opcionesDelMenu, ponerLuz, previaArrastre, velocidadAlBorde, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type OpcionDelMenu, type PreviaArrastre, type VistaAgenda } from "./agenda-core";
-import { ejecutarCiclo } from "./ciclo-core";
-import { DESHACIBLE, ejecutar } from "./cuenta-core";
+import { armarAgenda, compartirAgenda, opcionesDelMenu, previaArrastre, velocidadAlBorde, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type OpcionDelMenu, type PreviaArrastre, type VistaAgenda } from "./agenda-core";
+import { DESHACIBLE } from "./cuenta-core";
 import { Button } from "@/components/ui/Button";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
@@ -337,7 +336,7 @@ const LuzDeCancha = memo(function LuzDeCancha({ almacen, canchaId, nombre }: { a
       data-agenda="luz"
       aria-label={`Luz de ${nombre}`}
       title={prendida ? "Luz prendida: tocá para apagarla" : "Luz apagada: tocá para prenderla"}
-      onClick={() => almacen.ejecutar((e) => ponerLuz(e, canchaId, !prendida), { deshacible: true })}
+      onClick={() => almacen.comando("luz", [canchaId, !prendida], { deshacible: true })}
       // 44 × 44 para el dedo, pero a la vista una chapa de 32 px con aire: el margen negativo hace que ocupe 32 de alto
       // y 38 de ancho en la cabecera (el área de toque sobrante no le saca lugar al nombre de la cancha).
       className="group -my-1.5 -ml-1.5 inline-grid size-11 shrink-0 place-items-center rounded-md focus-visible:outline-none"
@@ -470,7 +469,7 @@ export default function AgendaCanchas({
         return;
       }
       const accion = p.modo === "mover" ? { tipo: "mover" as const, canchaId: p.canchaId, inicio: p.inicio } : { tipo: "extender" as const, minutos: p.minutos };
-      almacen.ejecutar((e, ahora, auth) => ejecutarCiclo(e, id, accion, ahora, auth), { deshacible: true });
+      almacen.comando("ciclo", [id, accion], { deshacible: true });
     },
     [almacen],
   );
@@ -602,7 +601,7 @@ export default function AgendaCanchas({
         onAbrir(id);
         return desplegarEnLaCuenta(accion);
       }
-      almacen.ejecutar((e, ahora, auth) => ejecutar(e, id, { tipo: accion }, ahora, auth), { deshacible: DESHACIBLE[accion] });
+      almacen.comando("cuenta", [id, { tipo: accion }], { deshacible: DESHACIBLE[accion] });
     },
     [almacen, menu, onAbrir],
   );

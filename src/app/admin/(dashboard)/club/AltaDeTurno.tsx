@@ -26,7 +26,7 @@ import { cancha as canchaDe, hhmm, reserva as reservaDe } from "@/lib/club/motor
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import type { Almacen } from "./almacen";
-import { DURACIONES, ORIGENES_ALTA, ORIGEN_DE_FABRICA, TIPOS_ALTA, alternativas, anotarEnEsperaDesdeAlta, clientesQueCoinciden, horariosDelDia, previaDelTurno, reservar, type DatosAlta, type OrigenAlta } from "./alta-core";
+import { DURACIONES, ORIGENES_ALTA, ORIGEN_DE_FABRICA, TIPOS_ALTA, alternativas, clientesQueCoinciden, horariosDelDia, previaDelTurno, reservar, type DatosAlta, type OrigenAlta } from "./alta-core";
 import { BotonWhatsApp, TextoWhatsApp } from "./WhatsAppDelClub";
 import { celularDelTurno, enlaceWhatsApp, fechaCorta, textoConfirmacion } from "./whatsapp-core";
 // La piel de Break Point («chapa», como el «Nuevo turno» del club de hoy); sin esa estética no pinta nada.
@@ -136,7 +136,7 @@ export default function AltaDeTurno({
 
   const anotarEnEspera = () => {
     if (!salida) return;
-    const d = almacen.ejecutar((est, ah) => anotarEnEsperaDesdeAlta(est, { titular, clienteId, tel, espera: salida.espera }, ah), { deshacible: true });
+    const d = almacen.comando("esperaDesdeAlta", [{ titular, clienteId, tel, espera: salida.espera }], { deshacible: true });
     if (d.ok) onVolver();
   };
 

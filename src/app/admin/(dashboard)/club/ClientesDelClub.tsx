@@ -10,7 +10,7 @@
 // La ficha: los datos, la baja (sólo sin deuda ni cargos), las novedades por WhatsApp y la CUENTA CORRIENTE: el
 // dueño la configura; recepción la pide y espera al dueño (con el código de 6 letras que le manda); el estado de
 // cuenta con el saldo corrido; cobrar la deuda y recordarla por WhatsApp.
-// Todo cambia con `almacen.ejecutar` (aviso abajo y «Deshacer» de lo que se puede deshacer). Lo de las reglas está
+// Todo cambia con `almacen.comando`, re-aplicable en otro puesto (aviso abajo y «Deshacer» de lo que se puede deshacer). Lo de las reglas está
 // en clientes-core.ts; quién opera, en operador-del-club.ts.
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -21,7 +21,7 @@ import { cn } from "@/components/ui/cn";
 import { pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
-import { LIMITE_SUGERIDO, armarClientes, armarFicha, ejecutarClientes, textoCC, type AccionClientes, type DesenlaceClientes, type FilaCliente, type VistaFicha } from "./clientes-core";
+import { LIMITE_SUGERIDO, armarClientes, armarFicha, textoCC, type AccionClientes, type DesenlaceClientes, type FilaCliente, type VistaFicha } from "./clientes-core";
 import { codigoDeLaDemo } from "./credito-core";
 import type { MedioCaja } from "./cuenta-core";
 import { useNegocioDelClub } from "./negocio-del-club";
@@ -36,7 +36,7 @@ const DESHACIBLES: ReadonlySet<AccionClientes["tipo"]> = new Set(["alta", "edita
 
 function useHacer(almacen: Almacen) {
   return useCallback(
-    (a: AccionClientes): DesenlaceClientes => almacen.ejecutar((e, ahora, auth) => ejecutarClientes(e, a, ahora, auth), { deshacible: DESHACIBLES.has(a.tipo) }),
+    (a: AccionClientes): DesenlaceClientes => almacen.comando("clientes", [a], { deshacible: DESHACIBLES.has(a.tipo) }),
     [almacen],
   );
 }

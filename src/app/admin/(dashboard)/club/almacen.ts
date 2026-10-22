@@ -88,12 +88,15 @@ import type { Ahora, AnexoJornada, Auth, ConteosArchivo, EstadoClub, Fecha, Foto
 import type { Role } from "@/lib/capabilities";
 import { crearGuardadoLocal, esGuardadoLocal, separarVersion, type AlmacenamientoLocal, type GuardadoDelClub, type GuardadoLocal, type MarcaDelEspejo, type ResultadoDelGuardado } from "./guardado-del-club";
 import { fechaLocal, mismoAhora, relojReal } from "./reloj-del-club";
-import { correrComando, correrDeterminista, queHizo, REGISTRO, type ArgsDe, type Comando, type NombreDeComando } from "./comandos-core";
+import { comandoSinPin, correrComando, correrDeterminista, queHizo, REGISTRO, type ArgsDe, type Comando, type NombreDeComando, type ResultadoDe } from "./comandos-core";
 import {
   altaEquivalente,
   anotarAplicado,
+  anotarParaResolver,
+  aplicadosDe,
   conOtroHueco,
   correrPendiente,
+  itemParaResolver,
   leerSincro,
   novedadesDeOtros,
   prometeAlgo,
@@ -158,6 +161,25 @@ export interface OpcionesDeEjecutar {
   comoAlta?: boolean;
   /** Recibe el id con el que entró a la cola (para esperar la confirmación de la base) y los turnos que creó. */
   alEncolar?: (p: { id: string; reservas: string[] }) => void;
+}
+
+/** La cola del puesto como queda en este equipo (`<clave>:cola`): sólo comandos con nombre y sin PIN. */
+interface ColaGuardada {
+  v: 1;
+  equipo: string;
+  pendientes: Omit<Pendiente, "correr">[];
+  rechazados: ItemParaResolver[];
+  /** Hubo algo que no pasó por la cola: si la base avanzó, lo de acá va aparte entero. */
+  sinCola: boolean;
+}
+
+/** Cómo corre un comando de la pantalla (`comando(nombre, args)`). */
+export interface OpcionesDeComando<N extends NombreDeComando> extends Omit<OpcionesDeEjecutar, "comoAlta"> {
+  /**
+   * Envuelve SÓLO la primera corrida (la del toque): el tope de intentos de PIN del equipo (tope-de-pin.ts) cuenta lo que
+   * tipeó la persona, no las re-aplicaciones sobre la base, que corren el comando pelado.
+   */
+  envolver?: (correr: () => ResultadoDe<N>) => ResultadoDe<N>;
 }
 
 /** Cuántas entradas del registro quedan si falta lugar para guardar (como el vanilla). */
@@ -495,7 +517,7 @@ export interface Almacen {
    * Lo mismo que `ejecutar`, con un comando de la lista blanca (comandos-core.ts): `comando("cuenta", [reservaId, accion])`.
    * Con nombre, lo hecho se puede re-aplicar en cualquier puesto (también desde «Para resolver» después de recargar).
    */
-  comando<N extends NombreDeComando>(nombre: N, args: ArgsDe<N>, opciones?: Omit<OpcionesDeEjecutar, "comoAlta">): Desenlace;
+  comando<N extends NombreDeComando>(nombre: N, args: ArgsDe<N>, opciones?: OpcionesDeComando<N>): ResultadoDe<N>;
   /** Este puesto: el id (prefijo de sus ids) y cómo se lo nombra («PC», «tablet»). Vacío fuera de la jornada real con base. */
   puesto(): { equipo: string; nombre: string };
   /** ¿Lo hecho acá espera la confirmación de una base? (la jornada real contra la base). */
@@ -807,6 +829,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   const oyentesSincro = new Set<() => void>();
   const avisarSincro = (cambio: Partial<EstadoDeLaSincro> = {}) => {
     sincro = { ...sincro, ...cambio, enCola: cola.length, marcas: sincro.marcas + 1 };
+    guardarCola();
     for (const o of oyentesSincro) o();
   };
   const confirmar = (id: string, como: "confirmado" | "para-resolver") => {
@@ -817,6 +840,98 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   const guardarRechazado = (p: Pendiente) => {
     rechazadosAca.set(p.id, p);
     if (rechazadosAca.size > 50) rechazadosAca.delete(rechazadosAca.keys().next().value!);
+  };
+
+  // ── la cola sobrevive a recargar la pestaña (BP-028, bp-DISENO.md §3.3: «la cola pendiente del puesto, espejada en el
+  // equipo») ──
+  // Va a `<clave>:cola` en este equipo: los comandos con nombre (SIN PIN: quien opera queda por su id; lo que pedía un PIN
+  // tipeado, al re-aplicarse lo vuelve a pedir y va a «Para resolver»), lo rechazado que la base todavía no confirmó y si
+  // hubo algo que NO pasó por la cola (una función de pantalla sin nombre, una restauración): eso, si la base avanzó, sigue
+  // yendo aparte entero (la red de siempre, sólo para lo que no es comando).
+  const CLAVE_COLA = `${clave}:cola`;
+  const guardarCola = () => {
+    if (!dosPuestos || !almacenamiento || !tieneLaJornada()) return;
+    try {
+      if (!cola.length && !rechazadosSinSubir.length && cambiosSinCola === null) return almacenamiento.removeItem(CLAVE_COLA);
+      const conNombre = cola.filter((p) => p.comando);
+      const guardada: ColaGuardada = {
+        v: 1,
+        equipo,
+        pendientes: conNombre.map(({ correr: _sinFuncion, ...p }) => ({ ...p, comando: comandoSinPin(p.comando!), auth: p.auth.usuarioId ? { usuarioId: p.auth.usuarioId } : {} })),
+        rechazados: rechazadosSinSubir.map((x) => x.item),
+        sinCola: cambiosSinCola !== null || conNombre.length !== cola.length,
+      };
+      almacenamiento.setItem(CLAVE_COLA, JSON.stringify(guardada));
+    } catch {
+      // Sin lugar: mejor sin cola guardada que una vieja (al recargar, lo de acá sin confirmar va aparte entero).
+      try {
+        almacenamiento.removeItem(CLAVE_COLA);
+      } catch {
+        // nada que borrar
+      }
+    }
+  };
+  const leerCola = (): ColaGuardada | null => {
+    if (!dosPuestos || !almacenamiento) return null;
+    try {
+      const x = JSON.parse(almacenamiento.getItem(CLAVE_COLA) ?? "null") as Partial<ColaGuardada> | null;
+      if (!x || x.v !== 1 || x.equipo !== equipo || !Array.isArray(x.pendientes) || !Array.isArray(x.rechazados)) return null;
+      return {
+        v: 1,
+        equipo,
+        pendientes: x.pendientes.filter((p) => p && typeof p.id === "string" && p.comando && typeof p.comando.nombre === "string"),
+        rechazados: x.rechazados.filter((i) => i && typeof i.id === "string"),
+        sinCola: x.sinCola === true,
+      };
+    } catch {
+      return null;
+    }
+  };
+  /** Pide re-aplicar la cola sobre la base aunque la versión no haya cambiado (la cola vino de otra pestaña). */
+  let forzarRebase = false;
+  if (dosPuestos && real && abierto?.ok) {
+    const g = leerCola();
+    if (g) {
+      // Lo que la foto de este equipo no tiene (se guardó la cola después que la foto) se corre ahora, con los mismos ids:
+      // así lo que se ve y lo que espera la base coinciden aunque no haya internet.
+      const ya = aplicadosDe(estado);
+      volverAAnotar(estado, g.rechazados);
+      rechazadosSinSubir = g.rechazados.map((item) => ({ item, cambios: 0 }));
+      for (const guardado of g.pendientes) {
+        const p: Pendiente = { ...guardado, cambios: 0 };
+        if (!ya.has(p.id)) {
+          const antes = estado.reservas.length;
+          const d = correrPendiente(estado, p);
+          if (!d.ok) {
+            if (!p.fallo) {
+              const item = itemParaResolver(estado, p, d.mensaje, relojMs());
+              anotarParaResolver(estado, item);
+              anotarAplicado(estado, p, [], relojMs(), { reciente: false });
+              rechazadosSinSubir.push({ item, cambios: 0 });
+              confirmar(p.id, "para-resolver");
+            }
+            continue;
+          }
+          anotarAplicado(estado, p, turnosNuevos(estado, antes), relojMs());
+        }
+        cola.push(p);
+      }
+      if (g.sinCola) cambiosSinCola = 0;
+      if (cola.length || rechazadosSinSubir.length) cambiosGuardados = -1;
+    } else if (marcaEspejo) {
+      // Lo de este equipo sin confirmar y sin la cola guardada (otra versión de la app, o sin lugar): si la base avanzó,
+      // va aparte entero, como siempre.
+      cambiosSinCola = 0;
+    }
+  }
+  /** «Usar acá»: la cola que vale es la que dejó la otra pestaña del equipo (la de esta memoria es vieja). */
+  const tomarColaDelEquipo = () => {
+    const g = leerCola();
+    if (!g) return;
+    cola = g.pendientes.map((p) => ({ ...p, cambios: 0 }));
+    rechazadosSinSubir = g.rechazados.map((item) => ({ item, cambios: 0 }));
+    if (g.sinCola) cambiosSinCola = 0;
+    forzarRebase = cola.length + rechazadosSinSubir.length > 0;
   };
 
   const textoActual = (): string => {
@@ -944,6 +1059,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
         cola = cola.filter((p) => p.cambios > c);
         rechazadosSinSubir = rechazadosSinSubir.filter((x) => x.cambios > c);
         if (llegaron.length || sincro.sinInternetDesde !== null) avisarSincro({ sinInternetDesde: null });
+        else guardarCola();
       }
       ponerMeta(largo === undefined ? { guardado: "guardado" } : { guardado: "guardado", bytes: largo, lleno: largo > AVISO_LLENO });
       return;
@@ -1123,6 +1239,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
    */
   const sincronizar = async (motivo: "abrir" | "usarAca" | "conflicto" | "latido", vigente: () => boolean = () => true): Promise<void> => {
     if (!guardado) return;
+    if (motivo === "usarAca" && dosPuestos) tomarColaDelEquipo();
     let r: { texto: string; version: number } | null;
     if (motivo === "conflicto" || motivo === "latido") recargando = true;
     try {
@@ -1174,11 +1291,13 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       programarGuardado();
       return;
     }
-    if (motivo !== "conflicto" && r.version === versionGuardada) {
+    const forzada = forzarRebase;
+    forzarRebase = false;
+    if (motivo !== "conflicto" && r.version === versionGuardada && !forzada) {
       if (sinGuardar) programarGuardado();
       return;
     }
-    if ((motivo === "abrir" || motivo === "usarAca") && marcaEspejo && r.version >= marcaEspejo.base && r.version <= marcaEspejo.hasta) {
+    if ((motivo === "abrir" || motivo === "usarAca") && !forzada && marcaEspejo && r.version >= marcaEspejo.base && r.version <= marcaEspejo.hasta) {
       versionGuardada = r.version;
       cambiosGuardados = -1;
       programarGuardado();
@@ -1188,8 +1307,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     versionGuardada = r.version;
     // Con dos puestos, lo de acá que no llegó está en la cola y se re-aplica encima: no se pierde. Sólo lo que NO pasó por
     // la cola (una restauración, `aplicar`) queda aparte; sin dos puestos, como siempre: todo lo que no llegó.
+    // (La cola sobrevive a recargar la pestaña: al abrir, lo de acá sin confirmar también se re-aplica por ítem.)
     const sinCola = !dosPuestos || cambiosSinCola !== null;
-    const perdido = motivo === "conflicto" ? sinCola : (marcaEspejo !== null && sinGuardar) || (motivo === "latido" && sinGuardar && sinCola);
+    const perdido = motivo === "conflicto" ? sinCola : (marcaEspejo !== null && sinGuardar && sinCola) || (motivo === "latido" && sinGuardar && sinCola);
     marcaEspejo = null;
     if (!primarioLocal) espejo?.alDia();
     if (!abiertoAlla.ok) {
@@ -1287,9 +1407,22 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   let candadoPedido = false;
   let soltarCandado: (() => void) | null = null;
   let cancelarSoltar: (() => void) | null = null;
+  /**
+   * Recién abierta la jornada (con el candado o sin bloqueo): lo que quedó sin subir mientras se abría (la cola de antes
+   * de recargar, re-aplicada sobre la base) sale ahora; mientras se abría no se podía escribir.
+   */
+  const alTenerLaJornada = () => {
+    if (!dosPuestos) return;
+    guardarCola();
+    // Sólo si hay algo de la persona esperando (lo demás, como siempre, sale con la próxima acción: no gasta un guardado).
+    if (cambiosGuardados === cambios || (!cola.length && !rechazadosSinSubir.length)) return;
+    if (cola.some((p) => p.promete) || rechazadosSinSubir.length) subirYa();
+    else programarGuardado();
+  };
   const abrirSinBloqueo = () => {
     void sincronizar("abrir").finally(() => {
       if (meta.jornada === "abriendo") ponerMeta({ jornada: "sin-bloqueo" });
+      alTenerLaJornada();
     });
   };
   /**
@@ -1358,7 +1491,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
           const abrir = () => {
             if (!vigente()) return;
             void sincronizar(modo === "abrir" ? "abrir" : "usarAca", vigente).finally(() => {
-              if (vigente()) ponerMeta({ jornada: "propia" });
+              if (!vigente()) return;
+              ponerMeta({ jornada: "propia" });
+              alTenerLaJornada();
             });
           };
           if (modo === "robar") temporizador.despues(abrir, graciaRoboMs);
@@ -1507,7 +1642,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   // ── acciones de la pantalla (y la cola de dos puestos) ──
   /** El cambio no pasó por la cola: si choca, se aparta entero (la red de seguridad de siempre). */
   const marcarSinCola = () => {
-    if (dosPuestos) cambiosSinCola = cambios;
+    if (!dosPuestos) return;
+    cambiosSinCola = cambios;
+    guardarCola();
   };
   type Extra = OpcionesDeEjecutar & { comando?: { nombre: NombreDeComando; args: unknown }; texto?: string; siFalla?: "callar" };
   const correrAccion = (accion: (estado: EstadoClub, ahora: Ahora, auth: Auth) => Desenlace, extra: Extra = {}): Desenlace => {
@@ -1558,7 +1695,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
         : undefined;
       nuevo = {
         id,
-        correr: accion,
+        // Un comando de la lista blanca se re-aplica por su nombre (sin la envoltura del primer toque); una función de
+        // pantalla (o el alta, que además lleva su comando equivalente), con la función.
+        ...(extra.comando ? {} : { correr: accion }),
         ...(comando ? { comando } : {}),
         ahora,
         auth,
@@ -1994,10 +2133,14 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     ejecutar(accion, opciones = {}) {
       return correrAccion(accion, opciones);
     },
-    comando(nombre, args, opciones = {}) {
-      if (!Object.hasOwn(REGISTRO, nombre)) return informarFalla("Esta operación no se reconoce. Recargá la página.");
-      const e = REGISTRO[nombre] as unknown as { correr: (estado: EstadoClub, args: unknown[], ahora: Ahora, auth: Auth) => Desenlace };
-      return correrAccion((est, a, auth) => e.correr(est, args as unknown[], a, auth), { ...opciones, comando: { nombre, args } });
+    comando<N extends NombreDeComando>(nombre: N, args: ArgsDe<N>, opciones: OpcionesDeComando<N> = {}): ResultadoDe<N> {
+      type R = ResultadoDe<N>;
+      if (!Object.hasOwn(REGISTRO, nombre)) return informarFalla("Esta operación no se reconoce. Recargá la página.") as R;
+      const e = REGISTRO[nombre] as unknown as { correr: (estado: EstadoClub, args: unknown[], ahora: Ahora, auth: Auth) => R };
+      const { envolver, ...resto } = opciones;
+      const pelado = (est: EstadoClub, a: Ahora, auth: Auth): R => e.correr(est, args as unknown[], a, auth);
+      const accion = envolver ? (est: EstadoClub, a: Ahora, auth: Auth): R => envolver(() => pelado(est, a, auth)) : pelado;
+      return correrAccion(accion, { ...resto, comando: { nombre, args } }) as R;
     },
     puesto: () => ({ equipo, nombre: nombrePuesto }),
     confirmaLaBase: () => dosPuestos,

@@ -114,7 +114,7 @@ function CreditoDelJugador({ almacen, fila, onAccion }: { almacen: Almacen; fila
           size="md"
           className="self-start"
           // Pedir el OK no se deshace (tampoco en el vanilla): se resuelve con el código o lo rechaza el dueño.
-          onClick={() => almacen.ejecutar((e, ahora, auth) => pedirFiado(e, c.cuentaId, auth, ahora))}
+          onClick={() => almacen.comando("fiado", [{ tipo: "pedir", cuentaId: c.cuentaId }])}
         >
           Pedir OK para fiar {pesos(c.monto)}
           <span className="sr-only"> a {fila.nombre}</span>
@@ -483,7 +483,7 @@ export default function CuentaDelTurno({
   const onAccion = useCallback(
     (a: AccionCuenta): Desenlace => {
       setConfirmando(null);
-      const d = almacen.ejecutar((estado, ahora, auth) => ejecutar(estado, reservaId, a, ahora, auth), { deshacible: DESHACIBLE[a.tipo] });
+      const d = almacen.comando("cuenta", [reservaId, a], { deshacible: DESHACIBLE[a.tipo] });
       // Si la tecla tocada desapareció (ya no hay nada que cobrar), el foco no se pierde en la página:
       // vuelve al título de la cuenta.
       requestAnimationFrame(() => {

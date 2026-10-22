@@ -26,9 +26,8 @@ import { pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { clientesQueCoinciden } from "./alta-core";
-import { DESHACIBLE_BUFFET, armarBuffet, compartirBuffet, confirmarCreditosCuenta, ejecutarBuffet, productosParaCargar, type AccionBuffet, type VistaBuffet, type VistaCuentaBuffet } from "./buffet-core";
+import { DESHACIBLE_BUFFET, armarBuffet, compartirBuffet, confirmarCreditosCuenta, productosParaCargar, type AccionBuffet, type VistaBuffet, type VistaCuentaBuffet } from "./buffet-core";
 import MesaCompleja from "./buffet-mesa-compleja";
-import { pedirFiado } from "./credito-core";
 import PedidoDelDuenio from "./pedido-del-duenio";
 import { revisarConfirmacion, type MedioCobro } from "./cuenta-core";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
@@ -190,7 +189,7 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
                 </Button>
               )}
               {cuenta.aCobrar > 0 && !cuenta.aCuenta.ok && cuenta.aCuenta.puedePedirFiado && (
-                <Button variant="outline" size="md" onClick={() => almacen.ejecutar((e, ahora, auth) => pedirFiado(e, cuenta.id, auth, ahora))}>
+                <Button variant="outline" size="md" onClick={() => almacen.comando("fiado", [{ tipo: "pedir", cuentaId: cuenta.id }])}>
                   Pedir OK para fiar {pesos(cuenta.aCobrar)}
                 </Button>
               )}
@@ -348,7 +347,7 @@ export default function BuffetDelClub({ almacen, onVerTurno, negocio }: { almace
   const [medio, setMedio] = useState<MedioCobro>("efectivo");
   const onAccion = useCallback(
     (a: AccionBuffet) => {
-      almacen.ejecutar((e, ahora, auth) => ejecutarBuffet(e, a, ahora, auth), { deshacible: DESHACIBLE_BUFFET[a.tipo] });
+      almacen.comando("buffet", [a], { deshacible: DESHACIBLE_BUFFET[a.tipo] });
     },
     [almacen],
   );

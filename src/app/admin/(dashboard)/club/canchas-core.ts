@@ -211,6 +211,18 @@ export function nuevoFijo(
   return { ok: true, mensaje: `Turno fijo de ${titular} los ${NOMBRE_DIA[datos.dia].toLowerCase()} a las ${hhmm(datos.inicio)}. ${bajada.mensaje}` };
 }
 
+/** Las acciones de los turnos fijos como un solo comando (comandos-core.ts: re-aplicable en otro puesto). */
+export type AccionFijo =
+  | { tipo: "nuevo"; datos: Parameters<typeof nuevoFijo>[1] }
+  | { tipo: "baja"; fijoId: string }
+  | { tipo: "bajar" };
+
+export function ejecutarFijo(estado: EstadoClub, a: AccionFijo, ahora: Ahora, auth?: Auth): Desenlace {
+  if (a.tipo === "nuevo") return nuevoFijo(estado, a.datos, ahora);
+  if (a.tipo === "baja") return bajaFijo(estado, a.fijoId, ahora, auth);
+  return bajarFijos(estado, ahora.fecha);
+}
+
 /**
  * Dar de baja un fijo (la inversa explícita de crearlo, que no se deshace): sus turnos que todavía no se jugaron se
  * cancelan (con un dueño, como «cancela el club»: lo pagado vuelve siempre; si no, con la regla de siempre) y el fijo

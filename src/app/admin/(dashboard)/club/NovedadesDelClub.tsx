@@ -11,7 +11,7 @@
 // calendario de redes del mes. El Studio de redes (la placa con la marca del club y el caption) se abre desde la
 // novedad que se está armando («Hacer la imagen en el Studio») y desde el calendario, como el vanilla; baja en su
 // propio chunk (`import()` dinámico) recién al tocarlo: studio-de-redes.tsx, lo puro en studio-core.ts.
-// Todo cambia con `almacen.ejecutar` (aviso abajo y «Deshacer» de lo que se puede deshacer). Las reglas están en
+// Todo cambia con `almacen.comando`, re-aplicable en otro puesto (aviso abajo y «Deshacer» de lo que se puede deshacer). Las reglas están en
 // novedades-core.ts; quién opera, en operador-del-club.ts.
 
 import { useCallback, useEffect, useId, useRef, useState, type ComponentType } from "react";
@@ -37,7 +37,6 @@ import {
   armarHistorial,
   csvDeLaDifusion,
   datosDePublicacion,
-  ejecutarNovedades,
   mesDe,
   mesVecino,
   type AccionNovedades,
@@ -60,7 +59,7 @@ const titulo2 = "text-lg font-semibold text-strong";
 const mismo = <T,>(_previa: T | undefined, nueva: T) => nueva;
 
 function useHacer(almacen: Almacen): Hacer {
-  return useCallback((a: AccionNovedades) => almacen.ejecutar((e, ahora, auth) => ejecutarNovedades(e, a, ahora, auth), { deshacible: DESHACIBLES_NOVEDADES.has(a.tipo) }), [almacen]);
+  return useCallback((a: AccionNovedades) => almacen.comando("novedades", [a], { deshacible: DESHACIBLES_NOVEDADES.has(a.tipo) }), [almacen]);
 }
 
 // ───────────── armar la novedad ─────────────

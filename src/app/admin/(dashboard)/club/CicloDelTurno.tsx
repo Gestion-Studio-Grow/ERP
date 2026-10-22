@@ -20,7 +20,7 @@ import { operadorActual } from "./operador-del-club";
 import { ofertasDelHueco, type OfertaDeHueco } from "./bandeja-core";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
 import { celularDelTurno, enlaceWhatsApp, recordatorioDisponible, textoRecordatorio } from "./whatsapp-core";
-import { destinosParaMover, ejecutarCiclo, opcionesCiclo, previaCancelar, previaExtender, previaFalta, previaInterrumpir, type AccionCiclo } from "./ciclo-core";
+import { destinosParaMover, opcionesCiclo, previaCancelar, previaExtender, previaFalta, previaInterrumpir, type AccionCiclo } from "./ciclo-core";
 
 type Cual = "mover" | "extender" | "falta" | "cancelar" | "interrumpir";
 const ETIQUETAS: Record<Cual, string> = {
@@ -216,7 +216,7 @@ export default function CicloDelTurno({
     onAntes();
     // El hueco que deja el turno, por si se libera (para ofrecérselo a la lista de espera, como el club de hoy).
     const hueco = { fecha: r.fecha, canchaId: r.canchaId, inicio: r.inicio, duracion: r.duracion };
-    const d = almacen.ejecutar((e, ahora, auth) => ejecutarCiclo(e, reservaId, a, ahora, auth), { deshacible: true });
+    const d = almacen.comando("ciclo", [reservaId, a], { deshacible: true });
     if (d.ok) {
       setAbierta(null);
       onListo();

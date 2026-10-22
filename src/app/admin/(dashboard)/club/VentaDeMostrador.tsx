@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { pesos } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
-import { VENTA_DESHACIBLE, armarCarrito, productosParaMostrador, sumarAlCarrito, venderEnMostrador, type Carrito } from "./buffet-mesa-core";
+import { VENTA_DESHACIBLE, armarCarrito, productosParaMostrador, sumarAlCarrito, type Carrito } from "./buffet-mesa-core";
 import type { MedioCaja } from "./cuenta-core";
 import { ComoPaga } from "./piezas";
 
@@ -111,7 +111,7 @@ function VentaDeMostrador({ almacen }: { almacen: Almacen }) {
                 size="md"
                 disabled={!(total > 0)}
                 onClick={() => {
-                  const d = almacen.ejecutar((e, ahora) => venderEnMostrador(e, carrito, medio, ahora), { deshacible: VENTA_DESHACIBLE });
+                  const d = almacen.comando("venta", [carrito, medio], { deshacible: VENTA_DESHACIBLE });
                   if (d.ok) setCarrito(VACIO);
                 }}
               >

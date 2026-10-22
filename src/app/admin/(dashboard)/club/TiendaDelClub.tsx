@@ -22,7 +22,7 @@ import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import type { MedioCaja } from "./cuenta-core";
 import { ComoPaga } from "./piezas";
-import { SE_DESHACE_TIENDA, armarTienda, ejecutarTienda, fichasParaElPedido, mensajeDeEjemplo, type AccionTienda, type VistaPedido } from "./tienda-core";
+import { SE_DESHACE_TIENDA, armarTienda, fichasParaElPedido, mensajeDeEjemplo, type AccionTienda, type VistaPedido } from "./tienda-core";
 import { porFirma, useSeleccion } from "./usar-almacen";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
 
@@ -194,7 +194,7 @@ export default function TiendaDelClub({ almacen }: { almacen: Almacen }) {
   const titulo = useRef<HTMLHeadingElement>(null);
   const hacer = useCallback(
     (a: AccionTienda) => {
-      const d = almacen.ejecutar((e, ahora, auth) => ejecutarTienda(e, a, ahora, auth), { deshacible: SE_DESHACE_TIENDA[a.tipo] });
+      const d = almacen.comando("tienda", [a], { deshacible: SE_DESHACE_TIENDA[a.tipo] });
       if (d.ok) {
         setAbierto(null);
         // La tarjeta resuelta se va: el foco vuelve a la lista (no se pierde en el cuerpo de la página).
