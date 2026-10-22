@@ -9,7 +9,7 @@
 // Colores por tokens (bg-surface-raised, text-strong, accent…): la marca del negocio (en Magra,
 // oscuro y oro) la pone el tema, no este componente.
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Button, Input, Seccion } from "@/components/ui";
 import { guardarConfigEnvios, pausarTienda } from "@/lib/envios/acciones";
 import { MAX_LARGO_MENSAJE_PAUSA, MAX_ZONAS, MENSAJE_PAUSA_POR_DEFECTO, validarConfigEnvios, type ConfigEnvios } from "@/lib/envios/modelo";
@@ -41,7 +41,14 @@ export default function EnviosForm({ inicial, version: versionInicial }: { inici
   const [guardando, empezarGuardado] = useTransition();
   const [pausando, empezarPausa] = useTransition();
   // La zona recién sumada recibe el foco en su nombre (teclado y lector de pantalla).
+  // `Input` no reenvía ref: se busca por id cuando la fila ya está en pantalla.
   const focoPendiente = useRef<string | null>(null);
+  useEffect(() => {
+    const id = focoPendiente.current;
+    if (!id) return;
+    focoPendiente.current = null;
+    document.getElementById(`envios-zona-${id}-nombre`)?.focus();
+  }, [zonas]);
 
   const cambiarZona = (id: string, campo: keyof ZonaEnPantalla, valor: string) =>
     setZonas((zs) => zs.map((z) => (z.id === id ? { ...z, [campo]: valor } : z)));
@@ -217,12 +224,6 @@ export default function EnviosForm({ inicial, version: versionInicial }: { inici
                         </label>
                         <Input
                           id={id("nombre")}
-                          ref={(el) => {
-                            if (el && focoPendiente.current === z.id) {
-                              focoPendiente.current = null;
-                              el.focus();
-                            }
-                          }}
                           value={z.nombre}
                           onChange={(e) => cambiarZona(z.id, "nombre", e.target.value)}
                           placeholder="Canning centro"
