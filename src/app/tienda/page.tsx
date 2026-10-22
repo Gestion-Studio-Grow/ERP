@@ -34,6 +34,11 @@ import { usaVidrieraNueva } from "./vidriera/marcas";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { gondolasDeLaVidriera, ofertasDeLaVidriera } from "@/lib/supermercado/vidriera-ofertas";
+import { prisma } from "@/lib/prisma";
+import { leerConfigEnvios } from "@/lib/envios/config";
+import type { ConfigEnvios } from "@/lib/envios/modelo";
+import { dateStrInBusinessTz } from "@/lib/datetime";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +60,23 @@ function tenantInitials(name: string): string {
 // (tenantFaviconDataUri), acá con las iniciales derivadas del nombre del
 // storefront en vez del monograma del brand map. Antes la vidriera de cualquier
 // tenant mostraba el ícono "CH" del layout raíz (p. ej. Magra, con el del spa).
+
+// Los ENVÍOS del negocio (src/lib/envios, pantalla Envíos del panel), sin su versión: zonas,
+// costos, mínimo, retiro, franjas y tienda pausada. Se lee en el servidor en cada request (la
+// página es dinámica): lo que el dueño guarda se ve al instante, sin deploy (MG-030). Si la
+// lectura falla, la vidriera sigue con lo de siempre (null) y `placeOnlineOrder`, que vuelve a
+// leerla para decidir, es el que manda.
+async function enviosDelNegocio(): Promise<ConfigEnvios | null> {
+  try {
+    const tenantId = await getCurrentTenantId();
+    const { version: _version, ...config } = await leerConfigEnvios(prisma, tenantId);
+    void _version;
+    return config;
+  } catch (e) {
+    logger.warn("tienda", "no se pudo leer la configuración de envíos", { error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}
 
 // Base de las URL absolutas de la metadata (og:image), sacada del host del request. Sin `metadataBase`
 // Next resuelve las imágenes contra VERCEL_PROJECT_PRODUCTION_URL (el .vercel.app del proyecto) y la
@@ -173,8 +195,13 @@ export default async function TiendaPage({
   // del theme del brand-sheet). Copy TEXTUAL autorizado (magra-content.ts) para lo editorial;
   // los datos del local (dirección/horarios/WhatsApp) viajan en `branding` (BusinessSettings).
   if (front === "magra") {
+    // Envíos del negocio: zona, costo, «te faltan $X», mínimo, franjas y pausa. Con zonas cargadas,
+    // la tarifa del copy (`envio`) deja de regir; sin config, MAGRA sigue como siempre.
+    const entrega = await enviosDelNegocio();
     return (
       <MagraFront
+        entrega={entrega}
+        hoy={dateStrInBusinessTz(new Date())}
         products={data.products}
         branding={data.branding}
         tenantKey={slug ?? "magra"}

@@ -24,6 +24,8 @@ import {
   tomarPedidoOnlineGuarded,
   motivoDelRechazoDelAlta,
   claveDeLaVidriera,
+  buildOrderLines,
+  orderSubtotal,
   AnulacionDeCuentaRechazada,
   CobroDePedidoAnulado,
   type CobroDePedido,
@@ -49,6 +51,9 @@ import {
   problemasDeLaBolsa,
   mensajeDeLaBolsa,
   preciosVistos,
+  franjasDeLaEntrega,
+  horarioDeLaEntrega,
+  notaDelPedido,
   MENSAJE_NO_SE_PUDO,
   type LineaDeLaBolsa,
   type EstadoPedidoOnline,
@@ -75,6 +80,10 @@ import { dateStrInBusinessTz } from "@/lib/datetime";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { round2 } from "@/lib/round";
 import { buscarFichaPorTelefono } from "@/lib/clientes/ficha-por-telefono";
+import { leerConfigEnvios } from "@/lib/envios/config";
+import { cotizarEnvio, motivoTiendaPausada, tieneZonas, zonaPorId, type ModoDeEntrega } from "@/lib/envios/tarifa";
+import { shippingVigente } from "@/lib/storefront-shipping";
+import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import {
   AnulacionVentaRechazada,
   reglasDeAnulacion,
@@ -570,6 +579,15 @@ export async function placeOnlineOrder(
 ): Promise<EstadoPedidoOnline> {
   const tenantId = await getCurrentTenantId();
 
+  // ENVÍOS DEL NEGOCIO (src/lib/envios, reingeniería Magra 1H): la configuración se lee ACÁ, de la
+  // base, y decide todo —pausa, retiro, zona, mínimo, costo y franja—. Del formulario sólo se
+  // toma QUÉ eligió la clienta (la zona por id, la franja por texto, el día); el costo que mostró
+  // la pantalla no viaja ni se lee: lo vuelve a calcular el alta con `costoDeEnvio`.
+  const configEnvios = await leerConfigEnvios(prisma, tenantId);
+  // Tienda pausada (Envíos → «Pausar»): no se graba nada y se dice el mensaje del dueño (MG-036).
+  const pausa = motivoTiendaPausada(configEnvios);
+  if (pausa) return { ok: false, error: pausa };
+
   const fulfillment =
     String(formData.get("fulfillment") || "PICKUP") === "DELIVERY" ? "DELIVERY" : "PICKUP";
   const customerName = String(formData.get("customerName") || "").trim().slice(0, 120);
@@ -586,6 +604,27 @@ export async function placeOnlineOrder(
     return { ok: false, error: "Para el envío a domicilio necesitamos la dirección.", campo: "datos" };
   }
   const porWhatsApp = String(formData.get("via") || "") === "whatsapp";
+
+  // La entrega elegida, contra la configuración leída arriba. Sin zonas propias, la tarifa es la
+  // del copy de la marca (Shine, `storefront.ts`) o ninguna: lo de siempre.
+  const modo: ModoDeEntrega = fulfillment === "DELIVERY" ? "envio" : "retiro";
+  const conZonas = modo === "envio" && tieneZonas(configEnvios);
+  const zonaId = conZonas ? String(formData.get("envioZona") || "").slice(0, 60) || null : null;
+  const zonaElegida = zonaPorId(configEnvios, zonaId);
+  const ahora = new Date();
+  const horario = horarioDeLaEntrega({
+    franjas: franjasDeLaEntrega(configEnvios, modo, zonaElegida),
+    franja: String(formData.get("franja") || "").slice(0, 80) || null,
+    dia: String(formData.get("dia") || "").slice(0, 10) || null,
+    hoy: dateStrInBusinessTz(ahora),
+    ahora,
+  });
+  if (!horario.ok) return { ok: false, error: horario.error, campo: "datos" };
+  const notes = notaDelPedido({
+    zona: conZonas ? (zonaElegida?.nombre ?? null) : null,
+    franja: horario.nota,
+    deLaClienta: String(formData.get("notes") || "").trim().slice(0, 500) || null,
+  });
 
   // A-1: clave de idempotencia del carrito (la genera el cliente por pedido). Con el doble
   // submit del mobile —el camino infeliz #1— los dos envíos traen la MISMA clave → `insertOrder`
@@ -608,8 +647,9 @@ export async function placeOnlineOrder(
   }
 
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true, name: true } });
-  // La tarifa de envío es de la MARCA (storefront.ts): la misma que la vidriera usa para mostrar.
-  const envio = getStorefrontCopy(tenant?.slug)?.shipping ?? null;
+  // Con zonas propias, la tarifa es la de la zona (`envioZona`, abajo). Si no, la de la MARCA
+  // (storefront.ts, `shippingVigente`): la misma que la vidriera usa para mostrar (Shine).
+  const envio = tieneZonas(configEnvios) ? null : shippingVigente(null, getStorefrontCopy(tenant?.slug)?.shipping);
   const cupon = normalizarCodigoDeCupon(formData.get("cupon")) || null;
   // El alta también es una puerta para probar códigos: pasa por el mismo freno que «Aplicar»
   // (cupones/prueba-publica.ts). Frenado, ni se intenta el alta.
@@ -626,19 +666,26 @@ export async function placeOnlineOrder(
     idempotencyKey,
     buscarPorClave: (key) => pedidoConClave(tenantId, key),
     revisarBolsa: () => problemasDeLaBolsaEnBase(tenantId, lineasDeLaBolsa),
-    insertar: () =>
-      insertOrder(tenantId, {
+    insertar: async () => {
+      // La cotización con las reglas del negocio (retiro habilitado, zona que existe, pedido
+      // mínimo) sobre lo que suman los productos A PRECIO DE LA BASE. Un no es un rechazo con su
+      // motivo («te faltan $X… lo retirás en el local sin mínimo»): no se graba nada.
+      const subtotalDeLaBase = conZonas ? await subtotalDeLaBolsaEnBase(tenantId, items) : 0;
+      const cotizacion = cotizarEnvio(configEnvios, { subtotal: subtotalDeLaBase, modo, zonaId });
+      if (!cotizacion.ok) throw new RechazoDeDominio(cotizacion.motivo);
+      return insertOrder(tenantId, {
         channel: "ONLINE",
         fulfillment,
         customerName,
         customerPhone,
         address,
-        notes: String(formData.get("notes") || "").trim().slice(0, 500) || null,
-        scheduledFor: null,
+        notes,
+        scheduledFor: horario.scheduledFor,
         paid: false,
         paymentMethod: null,
         items,
-      }, { idempotencyKey, envio, cupon, promociones }),
+      }, { idempotencyKey, envio, envioZona: cotizacion.zona, cupon, promociones });
+    },
   });
   if (toma.tipo === "cupon") {
     // Hacia afuera, el texto único ("venció el…" diría que el código existe) y suma al freno.
@@ -672,6 +719,8 @@ export async function placeOnlineOrder(
         fulfillment,
         total: result.total ?? result.subtotal,
         ...(result.envio ? { envio: result.envio } : {}),
+        ...(zonaElegida ? { zona: zonaElegida.nombre } : {}),
+        ...(horario.scheduledFor ? { horario: horario.scheduledFor.toISOString() } : {}),
         ...(result.cupon ? { cupon: { codigo: result.cupon, monto: result.descuento ?? 0 } } : {}),
         ...(porWhatsApp ? { via: "whatsapp" } : {}),
       },
@@ -690,6 +739,18 @@ export async function placeOnlineOrder(
     return null;
   });
   return { ok: true, code: result.code, total: result.total ?? result.subtotal, whatsapp };
+}
+
+/**
+ * Lo que suma la bolsa a precio de la base (sin envío, cupón ni promos), para el pedido mínimo
+ * del envío. El alta vuelve a armar las líneas en su transacción: esto sólo decide si se puede.
+ */
+async function subtotalDeLaBolsaEnBase(tenantId: string, items: { productId: string; qty: number }[]): Promise<number> {
+  const productos = await prisma.product.findMany({
+    where: { tenantId, id: { in: items.map((l) => l.productId) }, deletedAt: null, active: true },
+    select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, trackStock: true },
+  });
+  return orderSubtotal(buildOrderLines(productos, items));
 }
 
 /** La bolsa contra la base: qué línea no se puede pedir y por qué (`problemasDeLaBolsa`). */

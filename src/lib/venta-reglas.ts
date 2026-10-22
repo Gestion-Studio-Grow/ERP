@@ -361,9 +361,17 @@ export function controlarPrecioAMano(input: {
 
 export const NOMBRE_LINEA_ENVIO = "Envío a domicilio";
 
-/** ¿Este nombre es el de la línea de envío? Sin mayúsculas ni tildes. PURA. */
+/** El renglón del envío por zona (src/lib/envios, `renglonDeEnvio`): «Envío · Canning centro». */
+const PREFIJO_ENVIO_CON_ZONA = "envio · ";
+
+/**
+ * ¿Este nombre es el de la línea de envío? Sin mayúsculas ni tildes. PURA. El de siempre
+ * («Envío a domicilio») o el de una zona de Envíos («Envío · <zona>»).
+ */
 export function esNombreDeEnvio(nombre: string | null | undefined): boolean {
-  return normalizarNombre(nombre) === normalizarNombre(NOMBRE_LINEA_ENVIO);
+  const n = normalizarNombre(nombre);
+  if (n === normalizarNombre(NOMBRE_LINEA_ENVIO)) return true;
+  return n.startsWith(PREFIJO_ENVIO_CON_ZONA) && n.length > PREFIJO_ENVIO_CON_ZONA.length;
 }
 
 /** ¿Esta línea guardada es el envío? Sin producto y con el nombre reservado. PURA. */

@@ -13,6 +13,8 @@
 import { formatearCantidad } from "@/lib/pos-peso";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { esLineaDeEnvio } from "@/lib/venta-reglas";
+import { horarioDeNegocioDelFormulario } from "@/lib/datetime";
+import type { ConfigEnvios, ZonaDeEnvio } from "@/lib/envios/modelo";
 
 // ── DISPONIBILIDAD ───────────────────────────────────────────────────────────
 
@@ -264,4 +266,110 @@ export function nuevaClaveDePedido(
   }
   const azar = `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`.padEnd(12, "0").slice(0, 12);
   return `${Date.now()}-${azar}`;
+}
+
+// ── LA ENTREGA: zona, franja y día (reingeniería Magra 1H) ───────────────────────────────────
+//
+// La configuración de Envíos del negocio (src/lib/envios) dice qué zonas hay, cuánto cuesta cada
+// una, el mínimo, si hay retiro y en qué franjas se entrega. La tienda la recibe del servidor y
+// cotiza con las MISMAS funciones puras (`cotizarEnvio`); `placeOnlineOrder` vuelve a decidir todo
+// con la configuración que lee él, nunca con lo que mandó el navegador. Acá sólo vive lo que la
+// tienda y el servidor tienen que leer igual: los días que se ofrecen y la franja elegida.
+
+/** Cuántos días se ofrecen para recibir o retirar (hoy incluido). */
+export const DIAS_DE_ENTREGA = 7;
+
+const DIAS_SEMANA = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+
+/** «2026-10-22» + n días, sin zona horaria (la fecha de calendario del negocio). PURA. */
+export function sumarDias(dia: string, n: number): string {
+  const d = new Date(`${dia}T12:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Los días que se ofrecen: «Hoy», «Mañana», «sáb 24/10»… desde `hoy` (YYYY-MM-DD del negocio). PURA. */
+export function diasDeEntrega(hoy: string, cuantos = DIAS_DE_ENTREGA): { valor: string; texto: string }[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(hoy) || Number.isNaN(new Date(`${hoy}T12:00:00.000Z`).getTime())) return [];
+  return Array.from({ length: cuantos }, (_, i) => {
+    const valor = sumarDias(hoy, i);
+    const semana = DIAS_SEMANA[new Date(`${valor}T12:00:00.000Z`).getUTCDay()];
+    const texto = i === 0 ? "Hoy" : i === 1 ? "Mañana" : `${semana} ${valor.slice(8, 10)}/${valor.slice(5, 7)}`;
+    return { valor, texto };
+  });
+}
+
+/**
+ * Desde qué hora y hasta qué hora es una franja escrita a mano: «L-S 11-13» → 11:00 a 13:00,
+ * «Hoy tarde 17–20» → 17:00 a 20:00, «Ma, Vi 17:30 a 19» → 17:30 a 19:00. null si no trae
+ * horas. Las letras de los días («L-S») no cuentan: sólo números. PURA.
+ */
+export function horasDeLaFranja(franja: string): { desde: string; hasta: string } | null {
+  const m = /(\d{1,2})(?:[:.](\d{2}))?\s*(?:hs?\.?)?\s*(?:-|–|—|a)\s*(\d{1,2})(?:[:.](\d{2}))?/.exec(franja);
+  if (!m) return null;
+  const [h1, m1, h2, m2] = [Number(m[1]), Number(m[2] ?? 0), Number(m[3]), Number(m[4] ?? 0)];
+  if (h1 > 23 || h2 > 24 || m1 > 59 || m2 > 59) return null;
+  if (h2 * 60 + m2 <= h1 * 60 + m1) return null;
+  const hh = (h: number, mm: number) => (h === 24 ? "23:59" : `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
+  return { desde: hh(h1, m1), hasta: hh(h2, m2) };
+}
+
+/** Las franjas que se ofrecen para esa entrega: las de la zona (envío) o las de retiro. PURA. */
+export function franjasDeLaEntrega(
+  config: Pick<ConfigEnvios, "franjasRetiro">,
+  modo: "retiro" | "envio",
+  zona: Pick<ZonaDeEnvio, "franjas"> | null,
+): readonly string[] {
+  return modo === "retiro" ? config.franjasRetiro : (zona?.franjas ?? []);
+}
+
+export type HorarioDeLaEntrega = { ok: true; scheduledFor: Date | null; nota: string | null } | { ok: false; error: string };
+
+/**
+ * El horario del pedido a partir del día y la franja elegidos. PURA (recibe `hoy` y `ahora`). La
+ * usa el servidor (`placeOnlineOrder`) con lo que llega del formulario, contra las franjas de la
+ * configuración que leyó él:
+ *   · sin franjas configuradas para esa entrega → sin horario (lo de siempre);
+ *   · con franjas, hay que elegir una de ESAS (una inventada no entra);
+ *   · el día, entre hoy y los próximos `DIAS_DE_ENTREGA`; una franja de hoy que ya terminó, no.
+ * El pedido guarda el comienzo de la franja (`scheduledFor`) y la franja tal cual en la nota.
+ * Que la franja sea de un día que el local atiende («Ma, Vi») lo controla el local al confirmar:
+ * el texto de los días es libre (provisional a confirmar con Mariano).
+ */
+export function horarioDeLaEntrega(p: {
+  franjas: readonly string[];
+  franja: string | null;
+  dia: string | null;
+  hoy: string;
+  ahora: Date;
+}): HorarioDeLaEntrega {
+  if (p.franjas.length === 0) return { ok: true, scheduledFor: null, nota: null };
+  const franja = (p.franja ?? "").replace(/\s+/g, " ").trim();
+  if (!franja) return { ok: false, error: "Elegí en qué franja te queda mejor." };
+  if (!p.franjas.includes(franja)) return { ok: false, error: "Esa franja ya no está: elegí una de las que se ven ahora." };
+  const dia = diasDeEntrega(p.hoy).find((d) => d.valor === p.dia);
+  if (!dia) return { ok: false, error: "Elegí el día de la entrega." };
+  const horas = horasDeLaFranja(franja);
+  if (horas) {
+    const fin = horarioDeNegocioDelFormulario(`${dia.valor}T${horas.hasta}`);
+    if (fin && fin.getTime() <= p.ahora.getTime()) {
+      return { ok: false, error: "Esa franja de hoy ya pasó: elegí otra o un día más adelante." };
+    }
+  }
+  const fecha = `${dia.valor.slice(8, 10)}/${dia.valor.slice(5, 7)}`;
+  const cuando = dia.texto === "Hoy" || dia.texto === "Mañana" ? `${dia.texto.toLowerCase()} ${fecha}` : dia.texto;
+  return {
+    ok: true,
+    scheduledFor: horas ? horarioDeNegocioDelFormulario(`${dia.valor}T${horas.desde}`) : null,
+    nota: `Franja: ${franja} (${cuando})`,
+  };
+}
+
+/**
+ * La nota del pedido con la zona y la franja delante de lo que escribió la clienta, para que el
+ * local y el cadete lo vean sin abrir nada más. Hasta 500 caracteres, como siempre. PURA.
+ */
+export function notaDelPedido(p: { zona: string | null; franja: string | null; deLaClienta: string | null }): string | null {
+  const partes = [p.zona ? `Zona: ${p.zona}` : null, p.franja, p.deLaClienta?.trim() || null].filter((x): x is string => Boolean(x));
+  return partes.length ? partes.join(" · ").slice(0, 500) : null;
 }

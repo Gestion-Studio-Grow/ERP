@@ -26,6 +26,8 @@ import { logger } from "@/lib/logger";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { pedidoDelReintento, type PedidoDelReintento } from "@/lib/reintento-de-venta";
 import { shippingCost, type ShippingConfig } from "@/lib/storefront-shipping";
+import { costoDeEnvio, renglonDeEnvio } from "@/lib/envios/tarifa";
+import type { ZonaDeEnvio } from "@/lib/envios/modelo";
 import { createReceivable } from "@/lib/debts/receivable-service";
 import { audit } from "@/lib/audit-core";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
@@ -200,6 +202,13 @@ export type InsertOrderOpts = {
   permitirNegativoPorProducto?: readonly string[];
   descuento?: { pedido: PedidoDeDescuento; topePct: number | null } | null;
   envio?: ShippingConfig | null;
+  /**
+   * La ZONA de Envíos del negocio (src/lib/envios, reingeniería Magra 1H). Con zona y entrega a
+   * domicilio, el costo sale de `costoDeEnvio` sobre lo que suman los productos a precio de la
+   * base (no de lo que mandó el navegador) y el renglón se llama «Envío · <zona>»
+   * (`renglonDeEnvio`). Gana sobre `envio` (la tarifa del copy, que queda para Shine).
+   */
+  envioZona?: ZonaDeEnvio | null;
   cupon?: string | null;
   aCuenta?: { createdBy: string } | null;
   topePrecioAMano?: TopePrecioAMano | null;
@@ -371,7 +380,7 @@ export function decidirAlta(p: {
   tenantId: string;
   input: OrderInput;
   products: OrderProduct[];
-  opts?: Pick<InsertOrderOpts, "descuento" | "imputarCajaActor" | "envio" | "cupon" | "aCuenta" | "promociones" | "pagosMixtos">;
+  opts?: Pick<InsertOrderOpts, "descuento" | "imputarCajaActor" | "envio" | "envioZona" | "cupon" | "aCuenta" | "promociones" | "pagosMixtos">;
 }): AltaDecidida {
   const brutas = buildOrderLines(p.products, pedidasValidas(p.input.items));
   const aMano = p.input.lineasAMano ?? [];
@@ -432,7 +441,12 @@ export function decidirAlta(p: {
     topePct: p.opts?.descuento?.topePct ?? null,
   });
   if (!desc.ok) throw new RechazoDeDominio(desc.error);
-  const envio = p.opts?.envio ? round2(shippingCost(productos, p.input.fulfillment, p.opts.envio)) : 0;
+  const zonaDeEnvio = p.input.fulfillment === "DELIVERY" ? (p.opts?.envioZona ?? null) : null;
+  const envio = zonaDeEnvio
+    ? round2(costoDeEnvio(productos, zonaDeEnvio))
+    : p.opts?.envio
+      ? round2(shippingCost(productos, p.input.fulfillment, p.opts.envio))
+      : 0;
   const subtotal = round2(productos + envio);
   return {
     tenantId: p.tenantId,
@@ -446,6 +460,7 @@ export function decidirAlta(p: {
     imputarCajaActor: p.opts?.imputarCajaActor,
     // Lo nuevo sólo aparece cuando existe: el alta de siempre devuelve lo mismo que antes.
     ...(envio > 0 ? { envio } : {}),
+    ...(envio > 0 && zonaDeEnvio ? { envioRenglon: renglonDeEnvio(zonaDeEnvio) } : {}),
     ...(cupon ? { cupon } : {}),
     ...(p.opts?.aCuenta ? { aCuenta: p.opts.aCuenta } : {}),
     ...(promosDeLaVenta ? { promos: promosDeLaVenta } : {}),
@@ -750,6 +765,8 @@ export type DatosDelAlta = {
   writeKey: string | null;
   /** Costo del envío (la tienda), que entra como línea sin producto. Ausente o 0 = sin envío. */
   envio?: number;
+  /** El nombre del renglón del envío con zona («Envío · Canning centro»); sin él, `NOMBRE_LINEA_ENVIO`. */
+  envioRenglon?: string;
   /** Código de cupón pedido (normalizado). Lo valida y consume `aplicarCuponEnTx`. */
   cupon?: string | null;
   /** El código del cupón que efectivamente se aplicó (lo pone `aplicarCuponEnTx`). */
@@ -840,7 +857,7 @@ export async function crearOrdenEnTx(
                 {
                   tenantId,
                   productId: null,
-                  name: NOMBRE_LINEA_ENVIO,
+                  name: d.envioRenglon ?? NOMBRE_LINEA_ENVIO,
                   saleUnit: "UNIT" as const,
                   quantity: 1,
                   unitPrice: d.envio,
