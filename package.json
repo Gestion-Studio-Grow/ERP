@@ -44,7 +44,13 @@
     "load-test": "node scripts/load-test.mjs",
     "postinstall": "prisma generate",
     "medir:neon": "bash scripts/medir-neon.sh",
-    "build:vercel": "node scripts/vercel-build.mjs"
+    "build:vercel": "node scripts/vercel-build.mjs",
+    "test:release": "node --test scripts/release/lib.test.mjs",
+    "gate:sello": "node scripts/release/sello-gsg.mjs",
+    "release:notas": "node scripts/release/notas.mjs",
+    "release:smoke": "node scripts/release/smoke.mjs",
+    "release:preparar": "node scripts/release/preparar.mjs",
+    "release:pr-checklist": "node scripts/release/pr-checklist.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
