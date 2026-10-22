@@ -3,7 +3,7 @@
 // La lógica de la regla vive en abonos-core.ts; el guardado y la emisión, en cartera-abonos.ts.
 
 import { exigirEstudio, filasDeCarteraDb } from "@/lib/cartera-gate";
-import { leerReglasDelEstudio } from "@/lib/cartera-abonos";
+import { MigracionPendienteError, leerReglasDelEstudio } from "@/lib/cartera-abonos";
 import { mesDelNegocio } from "@/lib/libros/fecha-fiscal";
 import { formatearCuit } from "@/lib/fiscal/cuit";
 import { Bloque, ButtonLink, Franja, PageContainer, PageHeader, Plata, Renglon } from "@/components/ui";
@@ -23,7 +23,21 @@ export default async function AbonosPage() {
       </PageContainer>
     );
   }
-  const [reglas, cartera] = await Promise.all([leerReglasDelEstudio(gate.estudioTenantId), filasDeCarteraDb(gate.estudioTenantId)]);
+  const cartera = await filasDeCarteraDb(gate.estudioTenantId);
+  let reglas;
+  try {
+    reglas = await leerReglasDelEstudio(gate.estudioTenantId);
+  } catch (e) {
+    // Gate 2: el código llegó antes que su migración. Estado honesto, no un 500.
+    if (!(e instanceof MigracionPendienteError)) throw e;
+    return (
+      <PageContainer>
+        <PageHeader title="Abonos" />
+        <Franja tono="atencion">{e.message}</Franja>
+        <ButtonLink href="/contador" variant="outline" className="mt-4 min-h-11">Volver a la cartera</ButtonLink>
+      </PageContainer>
+    );
+  }
   const alias = new Map(cartera.map((f) => [f.clienteTenantId, f.alias]));
   const clientes = cartera.map((f) => ({ id: f.clienteTenantId, alias: f.alias, pausado: f.estado === "pausada" }));
   const condicion = new Map(CONDICIONES_RECEPTOR.map((c) => [c.valor, c.etiqueta]));

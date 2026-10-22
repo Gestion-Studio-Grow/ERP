@@ -3,11 +3,12 @@
 // Formulario «Cargar un abono». Manda a `guardarReglaAction`, que valida TODO de nuevo en el
 // servidor (`validarReglaAbono`) y verifica que el cliente sea de la cartera. Acá sólo se ordena
 // la carga: el documento pide CUIT o DNI según lo elegido, y el error vuelve marcado en su campo.
-// UNA región viva para el resultado (role="alert" si falló, role="status" si salió bien).
+// Dos regiones vivas fijas para el resultado (`Avisos`: status si salió bien, alert si falló).
 
 import { useActionState, useId, useState } from "react";
 import { Button, Field, Input, Select } from "@/components/ui";
 import { guardarReglaAction, type ResultadoRegla } from "@/lib/cartera-abonos-actions";
+import Avisos from "../Avisos";
 import { CONDICIONES_RECEPTOR, DIAS_VENCIMIENTO_DEFAULT, DIAS_VENCIMIENTO_MAX, DESCRIPCION_MAX } from "./abonos-core";
 
 export default function FormAbono({
@@ -110,9 +111,7 @@ export default function FormAbono({
         <Button type="submit" disabled={pendiente} className="min-h-11">
           {pendiente ? "Guardando…" : "Guardar el abono"}
         </Button>
-        <p role={error ? "alert" : "status"} className={error ? "text-sm text-danger" : "text-sm text-muted"}>
-          {estado ? (estado.ok ? estado.mensaje : estado.error) : ""}
-        </p>
+        <Avisos ok={estado?.ok ? estado.mensaje : undefined} error={error?.error} />
       </div>
     </form>
   );

@@ -4,19 +4,24 @@
 //
 // Lo que decide este archivo (sin base, sin React; lo prueba abonos-core.test.ts):
 //   1. qué es una regla de abono válida (`validarReglaAbono`), con los mensajes para la contadora;
-//   2. cómo se reconstruyen las reglas vigentes desde sus filas guardadas (`plegarReglas`): cada
-//      guardado es una versión nueva, una baja la saca — nada se edita ni se borra;
+//   2. cómo se lee y se escribe una regla en la tabla del motor `ReglaFacturacion`
+//      (`reglaDesdeFila` / `filaDesdeRegla`: los códigos de ARCA ↔ las palabras de la pantalla);
 //   3. qué hace el lote del mes con cada regla (`prepararLote`): emitir, ya emitida, volver a
 //      emitir (ARCA rechazó la anterior) o bloqueada, con el motivo en criollo;
 //   4. el comprobante que sale de una regla (`armarComprobante`), en la forma que pide el motor
-//      (`CreateInvoiceInput` de invoice-core, sin el tenantId).
+//      (`CreateInvoiceInput` de invoice-core, sin el tenantId ni el origen). Monotributo y exento:
+//      Factura C con `calcularImpuestos`. Responsable inscripto: IVA declarado por renglón con
+//      `montosDeRenglones` del motor, a la alícuota general (21 %).
 //
-// Dónde se guardan las reglas y cómo se emite sin duplicar: src/lib/cartera-abonos.ts.
+// Dónde se guardan las reglas y cómo se emite sin duplicar (origen ABONO del motor):
+// src/lib/cartera-abonos.ts.
 
 import { cuitValido, normalizarCuit } from "@/plugins/bancos/domain/cuit";
 import { leerImporte } from "@/lib/dinero/leer";
 import { admiteCentavos, sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { calcularImpuestos } from "@/lib/fiscal/impuestos-por-alicuota";
+import { montosDeRenglones } from "@/lib/facturacion/renglones";
+import { UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, vigenteEn } from "@/lib/fiscal/vigencias";
 import { diasDelMes, esMesKey, nombreDelMes, type MesKey } from "@/lib/libros/fecha-fiscal";
 
 // ── Vocabulario ──────────────────────────────────────────────────────────────
@@ -63,6 +68,8 @@ export interface ReglaAbono {
 export type DatosRegla = Omit<ReglaAbono, "id">;
 
 export type ValidacionRegla = { ok: true; regla: DatosRegla } | { ok: false; error: string; campo: string };
+
+const pesos = (n: number) => `$${n.toLocaleString("es-AR")}`;
 
 const texto = (v: unknown) => (typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : "");
 
@@ -122,6 +129,21 @@ export function validarReglaAbono(input: Record<string, unknown>): ValidacionReg
   }
   if (lectura.valor > IMPORTE_MAXIMO) return { ok: false, campo: "importe", error: "Ese importe es demasiado grande: revisalo." };
 
+  // Consumidor final sin identificar: desde el umbral vigente, ARCA pide su documento (RG 5700 y la
+  // tabla de vigencias del motor). Se frena acá para no generar un rechazo por mes. El umbral se
+  // toma al primer día del mes de inicio; si la norma cambia después, el motor frena el
+  // comprobante y el rechazo lo explica.
+  if (receptorDocTipo === "CF" && esMesKey(texto(input.desde))) {
+    const umbral = vigenteEn(UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, `${texto(input.desde)}-01`);
+    if (umbral && lectura.valor >= umbral.valor) {
+      return {
+        ok: false,
+        campo: "receptorDocTipo",
+        error: `Desde ${pesos(umbral.valor)}, ARCA pide identificar al comprador: cargale CUIT o DNI.`,
+      };
+    }
+  }
+
   const concepto = texto(input.concepto) as ConceptoAbono;
   if (concepto !== "servicios" && concepto !== "productos") {
     return { ok: false, campo: "concepto", error: "Elegí si lo que se factura es un servicio o productos." };
@@ -161,51 +183,64 @@ export function validarReglaAbono(input: Record<string, unknown>): ValidacionReg
   };
 }
 
-// ── Guardado: versiones + bajas (las filas son de sólo agregar) ──────────────
+// ── La fila de `ReglaFacturacion` (tabla del motor) ↔ la regla de la pantalla ─
 
-export interface EventoRegla {
-  /** «guardada» = una versión completa; «baja» = desde acá no se factura más. */
-  tipo: "guardada" | "baja";
-  reglaId: string;
-  /** Instante ISO de la fila: el orden entre versiones. */
-  en: string;
-  /** La regla de la versión (sólo en «guardada»). Viene de la base: se revalida al leer. */
-  datos?: unknown;
+/** Lo que trae una fila de `ReglaFacturacion` (el Decimal ya pasado a número en el borde). */
+export interface FilaRegla {
+  id: string;
+  clienteTenantId: string;
+  receptorNombre: string;
+  receptorDocTipo: number;
+  receptorDocNro: string | null;
+  receptorCondicionIva: string;
+  descripcion: string;
+  importe: number;
+  concepto: number;
+  desde: string;
+  hasta: string | null;
+  diasVencimiento: number;
 }
 
-/** Relee una versión guardada (JSON de la base). Lo que no tenga forma de regla se ignora. */
-export function leerReglaGuardada(reglaId: string, datos: unknown): ReglaAbono | null {
-  if (!datos || typeof datos !== "object") return null;
-  const d = datos as Record<string, unknown>;
-  const v = validarReglaAbono({
-    ...d,
-    importe: typeof d.importe === "number" ? String(d.importe).replace(".", ",") : d.importe,
-    diasVencimiento: d.diasVencimiento ?? "",
-    hasta: d.hasta ?? "",
-    receptorDocNro: d.receptorDocNro ?? "",
-  });
-  return v.ok ? { id: reglaId, ...v.regla } : null;
+const DOC_TIPO: Readonly<Record<DocReceptor, number>> = { CUIT: 80, DNI: 96, CF: 99 };
+
+/** Los datos de la regla en las columnas de la tabla (códigos de ARCA). PURA. */
+export function filaDesdeRegla(r: DatosRegla): Omit<FilaRegla, "id"> {
+  return {
+    clienteTenantId: r.clienteTenantId,
+    receptorNombre: r.receptorNombre,
+    receptorDocTipo: DOC_TIPO[r.receptorDocTipo],
+    receptorDocNro: r.receptorDocNro,
+    receptorCondicionIva: r.receptorCondicionIva,
+    descripcion: r.descripcion,
+    importe: r.importe,
+    concepto: r.concepto === "servicios" ? 2 : 1,
+    desde: r.desde,
+    hasta: r.hasta,
+    diasVencimiento: r.diasVencimiento,
+  };
 }
 
 /**
- * Las reglas vigentes: la última versión de cada una, sin las dadas de baja. Una baja posterior a
- * la última versión la saca; una versión posterior a la baja la reactiva (volver a guardarla).
- * Ordenadas por cliente y descripción, para que la pantalla no salte entre recargas.
+ * Una fila de la tabla como regla de la pantalla. Se revalida con las mismas reglas del formulario:
+ * una fila que no las cumple (cargada por otro camino) no entra al lote. PURA.
  */
-export function plegarReglas(eventos: readonly EventoRegla[]): ReglaAbono[] {
-  const ordenados = [...eventos].sort((a, b) => a.en.localeCompare(b.en));
-  const vivas = new Map<string, ReglaAbono>();
-  for (const e of ordenados) {
-    if (e.tipo === "baja") {
-      vivas.delete(e.reglaId);
-      continue;
-    }
-    const r = leerReglaGuardada(e.reglaId, e.datos);
-    if (r) vivas.set(e.reglaId, r);
-  }
-  return [...vivas.values()].sort(
-    (a, b) => a.clienteTenantId.localeCompare(b.clienteTenantId) || a.descripcion.localeCompare(b.descripcion, "es") || a.id.localeCompare(b.id),
-  );
+export function reglaDesdeFila(f: FilaRegla): ReglaAbono | null {
+  const docTipo = f.receptorDocTipo === 80 ? "CUIT" : f.receptorDocTipo === 96 ? "DNI" : f.receptorDocTipo === 99 ? "CF" : null;
+  if (!docTipo || (f.concepto !== 1 && f.concepto !== 2)) return null;
+  const v = validarReglaAbono({
+    clienteTenantId: f.clienteTenantId,
+    receptorNombre: f.receptorNombre,
+    receptorDocTipo: docTipo,
+    receptorDocNro: f.receptorDocNro ?? "",
+    receptorCondicionIva: f.receptorCondicionIva,
+    descripcion: f.descripcion,
+    importe: String(f.importe).replace(".", ","),
+    concepto: f.concepto === 2 ? "servicios" : "productos",
+    desde: f.desde,
+    hasta: f.hasta ?? "",
+    diasVencimiento: String(f.diasVencimiento),
+  });
+  return v.ok ? { id: f.id, ...v.regla } : null;
 }
 
 /** ¿La regla factura ese mes? */
@@ -217,11 +252,6 @@ export function vigenteEnMes(r: Pick<ReglaAbono, "desde" | "hasta">, mes: MesKey
 export function textoVigencia(r: Pick<ReglaAbono, "desde" | "hasta">): string {
   const et = (m: MesKey) => `${nombreDelMes(m)} ${m.slice(0, 4)}`;
   return r.hasta ? `De ${et(r.desde)} a ${et(r.hasta)}` : `Todos los meses desde ${et(r.desde)}`;
-}
-
-/** La llave de idempotencia de una emisión: una por regla y por mes. */
-export function claveDeEmision(reglaId: string, mes: MesKey): string {
-  return `${reglaId}:${mes}`;
 }
 
 // ── El lote del mes ──────────────────────────────────────────────────────────
@@ -239,9 +269,9 @@ export interface ClienteDelLote {
   sinLeer?: boolean;
 }
 
-/** Una emisión anterior de la misma regla y el mismo mes, con el estado de su factura. */
+/** La factura que ya salió de una regla en el mes del lote (origen ABONO), con su estado. */
 export interface EmisionPrevia {
-  clave: string;
+  reglaId: string;
   status: "PENDING" | "AUTHORIZED" | "REJECTED" | "DESCONOCIDO";
 }
 
@@ -273,9 +303,6 @@ export function bloqueoDelCliente(c: ClienteDelLote | undefined): string | null 
   if (c.estado === "pausada") return "El cliente está en pausa: reactivalo para facturarle.";
   if (!c.cuit) return "Le falta el CUIT: pedíselo a Soporte GSG desde su ficha.";
   if (!c.puntoVenta) return "Le falta el punto de venta: pedíselo a Soporte GSG desde su ficha.";
-  if (c.condicionIva === "RESPONSABLE_INSCRIPTO") {
-    return "Es responsable inscripto: el sistema todavía no emite facturas A/B con IVA desde un abono. Por ahora hacela desde ARCA.";
-  }
   return null;
 }
 
@@ -289,15 +316,15 @@ export function prepararLote(
   previas: readonly EmisionPrevia[],
   mes: MesKey,
 ): RenglonLote[] {
-  const porClave = new Map<string, EmisionPrevia[]>();
-  for (const p of previas) porClave.set(p.clave, [...(porClave.get(p.clave) ?? []), p]);
+  const porRegla = new Map<string, EmisionPrevia[]>();
+  for (const p of previas) porRegla.set(p.reglaId, [...(porRegla.get(p.reglaId) ?? []), p]);
   const orden: Record<EstadoRenglonLote, number> = { para_emitir: 0, reemitir: 1, bloqueada: 2, ya_emitida: 3 };
   return reglas
     .filter((r) => vigenteEnMes(r, mes))
     .map((regla): RenglonLote => {
       const c = clientes.get(regla.clienteTenantId);
       const alias = c?.alias ?? "Cliente que ya no está en tu cartera";
-      const decision = decidirEmision(porClave.get(claveDeEmision(regla.id, mes)) ?? []);
+      const decision = decidirEmision(porRegla.get(regla.id) ?? []);
       if (decision === "ya_emitida") {
         return { regla, alias, estado: "ya_emitida", motivo: `Ya se emitió la de ${nombreDelMes(mes)}.` };
       }
@@ -305,6 +332,8 @@ export function prepararLote(
       if (bloqueo) return { regla, alias, estado: "bloqueada", motivo: bloqueo };
       return decision === "reemitir"
         ? { regla, alias, estado: "reemitir", motivo: "ARCA rechazó la anterior: se vuelve a emitir con los datos de hoy." }
+        : c?.condicionIva === "RESPONSABLE_INSCRIPTO"
+        ? { regla, alias, estado: "para_emitir", motivo: "Responsable inscripto: sale con IVA 21 % discriminado." }
         : { regla, alias, estado: "para_emitir", motivo: "" };
     })
     .sort(
@@ -341,8 +370,6 @@ export interface EmisorAbono {
   puntoVenta: number;
 }
 
-const DOC_TIPO: Readonly<Record<DocReceptor, number>> = { CUIT: 80, DNI: 96, CF: 99 };
-
 /** "20261031" + N días → "20261110" (anclado a mediodía UTC: sin corrimientos de zona). */
 export function sumarDias(aaaammdd: string, dias: number): string {
   const d = new Date(Date.UTC(Number(aaaammdd.slice(0, 4)), Number(aaaammdd.slice(4, 6)) - 1, Number(aaaammdd.slice(6, 8)), 12));
@@ -350,14 +377,26 @@ export function sumarDias(aaaammdd: string, dias: number): string {
   return d.toISOString().slice(0, 10).replace(/-/g, "");
 }
 
+/** Código de ARCA de la alícuota general del IVA (21 %): la de los abonos de un inscripto. */
+export const ALICUOTA_GENERAL = 5;
+
 /**
- * El comprobante de la regla para `mes`, emitido HOY (`hoy` = AAAAMMDD del negocio): la fecha
- * del día siempre cae dentro del plazo de ARCA. En servicios va el período del mes facturado y el
- * vencimiento del pago. Los importes los calcula el mismo cálculo que el resto de la facturación
- * automática (`calcularImpuestos`). PURA.
+ * El comprobante de la regla para `mes`, emitido HOY (`hoy` = AAAAMMDD del negocio): la fecha del
+ * día siempre cae dentro del plazo de ARCA. En servicios va el período del mes facturado y el
+ * vencimiento del pago. Monotributo y exento: Factura C (`calcularImpuestos`, lo mismo que el resto
+ * de la facturación automática). Responsable inscripto: el importe es IVA incluido y el IVA va
+ * DECLARADO por renglón a la alícuota general (`montosDeRenglones`, del motor). La `descripcion`
+ * lleva el mes («Honorarios mensuales · octubre 2026»): sale en el PDF y en el CSV. PURA.
  */
 export function armarComprobante(regla: ReglaAbono, emisor: EmisorAbono, mes: MesKey, hoy: string) {
-  const { neto, iva, total } = calcularImpuestos(emisor.condicionIva, regla.importe);
+  let montos: { neto: number; iva: ReturnType<typeof calcularImpuestos>["iva"]; total: number; ivaPorProducto?: true };
+  if (emisor.condicionIva === "RESPONSABLE_INSCRIPTO") {
+    const m = montosDeRenglones("RESPONSABLE_INSCRIPTO", [{ total: regla.importe, alicuotaIva: ALICUOTA_GENERAL }]);
+    if (!m.ok) return { ok: false as const, error: m.error };
+    montos = { neto: m.neto, iva: m.iva, total: m.total, ...(m.ivaPorProducto ? { ivaPorProducto: true as const } : {}) };
+  } else {
+    montos = calcularImpuestos(emisor.condicionIva, regla.importe);
+  }
   const compacto = mes.replace("-", "");
   const servicio =
     regla.concepto === "servicios"
@@ -368,17 +407,19 @@ export function armarComprobante(regla: ReglaAbono, emisor: EmisorAbono, mes: Me
         }
       : {};
   return {
-    concepto: regla.concepto === "servicios" ? 2 : 1,
-    fecha: hoy,
-    emisor: { cuit: emisor.cuit, condicionIva: emisor.condicionIva, puntoVenta: emisor.puntoVenta },
-    receptor: {
-      docTipo: DOC_TIPO[regla.receptorDocTipo],
-      docNro: regla.receptorDocNro ? Number(regla.receptorDocNro) : 0,
-      condicionIva: regla.receptorCondicionIva,
+    ok: true as const,
+    comprobante: {
+      concepto: regla.concepto === "servicios" ? 2 : 1,
+      fecha: hoy,
+      emisor: { cuit: emisor.cuit, condicionIva: emisor.condicionIva, puntoVenta: emisor.puntoVenta },
+      receptor: {
+        docTipo: DOC_TIPO[regla.receptorDocTipo],
+        docNro: regla.receptorDocNro ? Number(regla.receptorDocNro) : 0,
+        condicionIva: regla.receptorCondicionIva,
+      },
+      ...montos,
+      ...servicio,
+      descripcion: `${regla.descripcion} · ${nombreDelMes(mes)} ${mes.slice(0, 4)}`,
     },
-    neto,
-    iva,
-    total,
-    ...servicio,
   };
 }

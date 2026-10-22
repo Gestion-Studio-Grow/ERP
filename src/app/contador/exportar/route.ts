@@ -14,10 +14,34 @@ import { bordesDelMes, esMesKey, mesDelNegocio } from "@/lib/libros/fecha-fiscal
 import { TOPE_CSV, type FiltrosComprobantes } from "@/lib/facturacion/lista-core";
 import { leerParaExportar } from "@/lib/facturacion/lista.server";
 import { exigirEstudio, filasDeCarteraDb, metadataClientesDb } from "@/lib/cartera-gate";
+import { esMigracionPendiente } from "@/lib/cartera-abonos";
+import { tenantTransaction } from "@/lib/rls";
 import { lineasCsvCartera, nombreArchivoCartera, type BloqueDeCliente } from "../exportar-core";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * «Qué se facturó» de los comprobantes del mes de UN cliente (`Invoice.descripcion`), con SU
+ * transacción. Antes de la migración del motor (Gate 2) la columna no existe: el CSV sale igual,
+ * con esa columna vacía.
+ */
+async function descripcionesDelMes(clienteTenantId: string, fiscal: { gte: string; lt: string }): Promise<Map<string, string>> {
+  try {
+    const filas = await tenantTransaction(
+      (tx) =>
+        tx.invoice.findMany({
+          where: { tenantId: clienteTenantId, fecha: fiscal, descripcion: { not: null } },
+          select: { id: true, descripcion: true },
+        }),
+      { tenantId: clienteTenantId },
+    );
+    return new Map(filas.map((f) => [f.id, f.descripcion ?? ""]));
+  } catch (e) {
+    if (esMigracionPendiente(e)) return new Map();
+    throw e;
+  }
+}
 
 const TEXTO = { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" };
 
@@ -38,7 +62,8 @@ export async function GET(request: Request) {
       if (!meta) continue;
       try {
         const { renglones, recortado } = await leerParaExportar(f.clienteTenantId, filtros);
-        bloques.push({ alias: f.alias, cuit: meta.arcaCuit, renglones, recortado });
+        const descripciones = await descripcionesDelMes(f.clienteTenantId, b.fiscal);
+        bloques.push({ alias: f.alias, cuit: meta.arcaCuit, renglones, recortado, descripciones });
       } catch (e) {
         logger.error("contador/exportar", "no se pudieron leer los comprobantes de un cliente", e, { clienteTenantId: f.clienteTenantId });
         bloques.push({ alias: f.alias, cuit: meta.arcaCuit, renglones: null, recortado: false });

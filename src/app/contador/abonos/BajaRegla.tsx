@@ -1,51 +1,66 @@
 "use client";
 
-// «Dar de baja» un abono: pide confirmar en el mismo lugar (sin ventana emergente) y avisa el
-// resultado en una región viva. Lo ya emitido no se toca: sólo deja de salir en los lotes.
+// «Dar de baja» un abono: pide confirmar en el mismo lugar (sin ventana emergente). Lo ya emitido
+// no se toca: sólo deja de salir en los lotes. Foco: al confirmar va al «Sí, …»; al cancelar vuelve
+// a «Dar de baja». Dos regiones vivas fijas (`Avisos`).
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { bajaReglaAction } from "@/lib/cartera-abonos-actions";
+import Avisos from "../Avisos";
 
 export default function BajaRegla({ reglaId, descripcion }: { reglaId: string; descripcion: string }) {
   const router = useRouter();
   const [confirmando, setConfirmando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendiente, startTransition] = useTransition();
+  const disparador = useRef<HTMLSpanElement>(null);
+  const confirmar = useRef<HTMLSpanElement>(null);
+  const yaAbrio = useRef(false);
 
-  if (!confirmando) {
-    return (
-      <Button variant="ghost" size="sm" className="min-h-11" onClick={() => setConfirmando(true)} aria-label={`Dar de baja el abono ${descripcion}`}>
-        Dar de baja
-      </Button>
-    );
-  }
+  useEffect(() => {
+    if (confirmando) {
+      yaAbrio.current = true;
+      confirmar.current?.querySelector("button")?.focus();
+    } else if (yaAbrio.current) {
+      disparador.current?.querySelector("button")?.focus();
+    }
+  }, [confirmando]);
+
   return (
-    <span className="flex flex-wrap items-center gap-2">
-      <Button
-        variant="outline"
-        size="sm"
-        className="min-h-11"
-        disabled={pendiente}
-        onClick={() =>
-          startTransition(async () => {
-            const r = await bajaReglaAction(reglaId);
-            if (r.ok) router.refresh();
-            else setError(r.error);
-          })
-        }
-      >
-        {pendiente ? "Dando de baja…" : "Sí, que no salga más"}
-      </Button>
-      <Button variant="ghost" size="sm" className="min-h-11" onClick={() => setConfirmando(false)}>
-        No
-      </Button>
-      {error && (
-        <span role="alert" className="text-xs text-danger">
-          {error}
+    <div className="flex flex-wrap items-center gap-2">
+      {!confirmando ? (
+        <span ref={disparador}>
+          <Button variant="ghost" size="sm" className="min-h-11" onClick={() => setConfirmando(true)} aria-label={`Dar de baja el abono ${descripcion}`}>
+            Dar de baja
+          </Button>
         </span>
+      ) : (
+        <>
+          <span ref={confirmar}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="min-h-11"
+              disabled={pendiente}
+              onClick={() =>
+                startTransition(async () => {
+                  const r = await bajaReglaAction(reglaId);
+                  if (r.ok) router.refresh();
+                  else setError(r.error);
+                })
+              }
+            >
+              {pendiente ? "Dando de baja…" : "Sí, que no salga más"}
+            </Button>
+          </span>
+          <Button variant="ghost" size="sm" className="min-h-11" onClick={() => setConfirmando(false)}>
+            No
+          </Button>
+        </>
       )}
-    </span>
+      <Avisos error={error ?? undefined} />
+    </div>
   );
 }
