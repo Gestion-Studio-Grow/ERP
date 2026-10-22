@@ -110,6 +110,42 @@ test("la versión y la poda se calculan sin traer la foto: sólo se lee `changes
   assert.deepEqual(b.selects[0], ["id", "action"]);
 });
 
+test("el latido de los puestos (`leerMetaVigente`) no trae la foto: lee `id` + `action` y nada más (cuida Neon)", async () => {
+  const b = baseFalsa();
+  const repo = crearRepoDelClub(b.correr);
+  assert.equal(await repo.leerMetaVigente(TENANT), null, "nunca se guardó");
+  // Una foto de verdad (el respaldo de ejemplo del club), varias versiones.
+  for (let v = 0; v < 3; v++) await repo.guardar(TENANT, EJEMPLO, v, "user:x", mediodia("2026-10-17", v));
+  // Cuántos bytes devuelve la «base» a cada pregunta.
+  let bytes = 0;
+  const contar: CorrerEnElNegocio = (tenantId, fn, serializable) =>
+    b.correr(
+      tenantId,
+      (db) => {
+        const al = (db as unknown as { auditLog: Record<string, (...a: unknown[]) => Promise<unknown>> }).auditLog;
+        const espia = Object.fromEntries(
+          Object.entries(al).map(([k, f]) => [k, async (...a: unknown[]) => {
+            const r = await f(...a);
+            bytes += JSON.stringify(r ?? null).length;
+            return r;
+          }]),
+        );
+        return fn({ auditLog: espia } as never);
+      },
+      serializable,
+    );
+  const medido = crearRepoDelClub(contar);
+  b.selects.length = 0;
+  const meta = await medido.leerMetaVigente(TENANT);
+  assert.deepEqual(meta, { version: 3, dia: "2026-10-17" });
+  const bytesMeta = bytes;
+  assert.deepEqual(b.selects, [["id", "action"]], "una sola consulta, sin `changes`");
+  bytes = 0;
+  await medido.leerVigente(TENANT);
+  assert.ok(bytesMeta < 200, `la versión pesa ${bytesMeta} bytes`);
+  assert.ok(bytes > EJEMPLO.length / 2, `la foto pesa ${bytes} bytes`);
+});
+
 test("una foto que no es del club no se guarda (y no gasta versión)", async () => {
   const b = baseFalsa();
   const repo = crearRepoDelClub(b.correr);

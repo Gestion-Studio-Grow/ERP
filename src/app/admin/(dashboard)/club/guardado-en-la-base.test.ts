@@ -12,7 +12,7 @@ import { gzipSync } from "node:zlib";
 import * as M from "@/lib/club/motor.mjs";
 import { descomprimir, guardadoDelTexto } from "@/lib/club/foto";
 import { clavesDelEspejo, crearGuardadoEnLaBase, type GuardadoDelClub, type ObjetivoDeSalida, type PuertaDeLaBase } from "./guardado-en-la-base";
-import type { RespuestaGuardarFoto, RespuestaLeerFoto } from "./estado-actions";
+import type { RespuestaGuardarFoto, RespuestaLeerFoto, RespuestaLeerVersion } from "./estado-actions";
 
 const SLUG = "club-prueba";
 const CLAVES = clavesDelEspejo(SLUG);
@@ -32,7 +32,13 @@ function baseFalsa() {
   const subidas: { version: number; fondo: number }[] = [];
   let caida = false;
   let falla = false;
+  let preguntas = 0;
   const puerta: PuertaDeLaBase = {
+    async leerVersion(): Promise<RespuestaLeerVersion> {
+      preguntas++;
+      if (caida) throw new Error("sin red");
+      return { ok: true, version: foto?.version ?? 0 };
+    },
     async leer(): Promise<RespuestaLeerFoto> {
       if (caida) throw new Error("sin red");
       return { ok: true, foto: foto && { gzip: gzipSync(foto.texto).toString("base64"), version: foto.version, guardado: guardadoDelTexto(foto.texto), actualizada: new Date(T0).toISOString() } };
@@ -57,6 +63,7 @@ function baseFalsa() {
     otraTerminal(texto: string, ms: number) {
       foto = { texto: `${texto.slice(0, -1)},"guardado":${ms}}`, version: (foto?.version ?? 0) + 1 };
     },
+    preguntas: () => preguntas,
     caer: (si: boolean) => void (caida = si),
     fallar: (si: boolean) => void (falla = si),
   };
@@ -319,4 +326,27 @@ test("un almacén falso con el contrato { leer(), guardar(texto, version) } trab
   assert.equal(fondoDe(al2.texto()), 20);
   assert.equal(al2.version(), 2);
   assert.equal(otro.g.estado().origen, "base");
+});
+
+test("dos puestos: `leerVersion` pregunta sólo la versión (sin la foto) y sin internet devuelve null, sin tirar", async () => {
+  const { base, g } = armar();
+  assert.equal(await g.leerVersion!(), 0, "nunca se guardó");
+  base.otraTerminal(textoDelClub(5), T0);
+  assert.equal(await g.leerVersion!(), 1);
+  base.caer(true);
+  assert.equal(await g.leerVersion!(), null);
+  assert.equal(base.preguntas(), 3);
+  // Sin la puerta del latido, el adaptador no ofrece latir (el almacén no pregunta).
+  const sinLatido = crearGuardadoEnLaBase({ negocio: SLUG, base: { leer: base.puerta.leer, guardar: base.puerta.guardar }, espejo: null });
+  assert.equal(sinLatido.leerVersion, undefined);
+});
+
+test("dos puestos: `subirYa` sube en el acto lo que promete (sin esperar los 30 s) y el guardado recibe el ok de la base", async () => {
+  const { base, g } = armar();
+  await g.leer();
+  const p = g.guardar(textoDelClub(21), 0);
+  assert.equal(base.subidas.length, 0, "todavía no subió: espera los 30 s");
+  await g.subirYa();
+  assert.deepEqual(await p, { ok: true, version: 1 });
+  assert.deepEqual(base.subidas, [{ version: 1, fondo: 21 }]);
 });

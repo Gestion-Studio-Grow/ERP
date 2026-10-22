@@ -31,7 +31,7 @@ import { gzipSync } from "node:zlib";
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import type { SessionUser } from "@/lib/session";
-import { guardar, leerVigente, restaurar, MENSAJE_CAMBIO_MIENTRAS_MIRABAS } from "@/lib/club/estado-repo";
+import { guardar, leerMetaVigente, leerVigente, restaurar, MENSAJE_CAMBIO_MIENTRAS_MIRABAS } from "@/lib/club/estado-repo";
 import { leerSobre, resumenDelRespaldo, type ResumenDelRespaldo } from "@/lib/club/foto";
 import { conservarLoDelicado } from "@/lib/club/delicado";
 import { leerRespaldo } from "./configuracion-core";
@@ -42,6 +42,9 @@ const SOLO_DUENIO = "Restaurar un respaldo lo hace un dueño.";
 export type RespuestaLeerFoto =
   | { ok: true; foto: null | { gzip: string; version: number; guardado: number | null; actualizada: string } }
   | { ok: false; error: string };
+
+/** El latido de los puestos: sólo la versión vigente (0 = nunca se guardó), sin la foto. */
+export type RespuestaLeerVersion = { ok: true; version: number } | { ok: false; error: string };
 
 export type RespuestaGuardarFoto =
   | { ok: true; version: number }
@@ -83,6 +86,18 @@ export async function leerFotoDelClub(): Promise<RespuestaLeerFoto> {
     ok: true,
     foto: { gzip: gzipSync(foto.texto).toString("base64"), version: foto.version, guardado: foto.guardado, actualizada: foto.actualizada.toISOString() },
   };
+}
+
+/**
+ * La versión vigente del club, SIN la foto (dos puestos, Tanda 1B). Cada puesto la pregunta cada 15 s con la pestaña
+ * visible: si avanzó, baja la foto y re-aplica lo suyo encima. Lee `id` + `action` (unos bytes por fila), nunca
+ * `changes`: cuida el plan gratuito de Neon. Misma guardia que leer la foto; el negocio sale de la sesión.
+ */
+export async function leerVersionDelClub(): Promise<RespuestaLeerVersion> {
+  const q = await quien();
+  if ("error" in q) return { ok: false, error: q.error };
+  const meta = await leerMetaVigente(q.tenantId);
+  return { ok: true, version: meta?.version ?? 0 };
 }
 
 /** Guarda la foto. `datos`: `foto` (el sobre en gzip) y `version` (la que se leyó). */

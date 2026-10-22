@@ -30,12 +30,19 @@
 // el espejo. Si el espejo tiene trabajo sin subir pero la base avanzó desde otra terminal, gana la base y el espejo
 // se aparta en `…:descartada` (no se borra: se puede recuperar a mano).
 //
+// DOS PUESTOS (Tanda 1B). Dos agregados chicos para que la PC y la tablet no se pisen:
+//   · `leerVersion()` pregunta SÓLO la versión vigente (`leerVersionDelClub`, sin la foto). El almacén la llama cada
+//     15 s con la pestaña visible: si avanzó, baja la foto con `leer()` y re-aplica lo suyo encima (sincro-core.ts).
+//     null = no se pudo preguntar (sin internet): no es un error que haya que mostrar, se pregunta en el próximo latido.
+//   · `subirYa()` sube en el acto lo que espera (sin los 30 s): lo usa el almacén para lo que PROMETE algo a alguien (un
+//     turno dado): el WhatsApp de confirmación recién se ofrece cuando la base devolvió `ok` para esa versión.
+//
 // Corre en el navegador; en los tests se le pasan la base, el espejo y el reloj falsos.
 //
 // — Elaborado por GSG
 
 import { comprimir, conGuardado, descomprimir, guardadoDelTexto } from "@/lib/club/foto";
-import type { RespuestaGuardarFoto, RespuestaLeerFoto } from "./estado-actions";
+import type { RespuestaGuardarFoto, RespuestaLeerFoto, RespuestaLeerVersion } from "./estado-actions";
 
 /** El contrato del almacén para guardar el club (el de localStorage y éste lo cumplen). */
 export interface GuardadoDelClub {
@@ -49,6 +56,8 @@ export type ResultadoDelGuardado = { ok: true; version: number } | { ok: false; 
 export interface PuertaDeLaBase {
   leer(): Promise<RespuestaLeerFoto>;
   guardar(datos: FormData): Promise<RespuestaGuardarFoto>;
+  /** `leerVersionDelClub`: sólo la versión vigente, sin la foto (el latido de los puestos). Sin ella, no se late. */
+  leerVersion?(): Promise<RespuestaLeerVersion>;
 }
 
 export type Espejo = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -88,6 +97,10 @@ export interface EstadoDelGuardado {
 export interface GuardadoEnLaBase extends GuardadoDelClub {
   /** Sube ya lo pendiente (al ocultar o salir). */
   guardarYa(): Promise<void>;
+  /** Lo mismo que `guardarYa`, con el nombre que busca el almacén (lo que promete algo sube sin esperar los 30 s). */
+  subirYa(): Promise<void>;
+  /** La versión vigente en la base SIN traer la foto (null: no se pudo preguntar). Sólo si la puerta la trae. */
+  leerVersion?(): Promise<number | null>;
   estado(): EstadoDelGuardado;
   /** Sube al ocultar la pestaña (`visibilitychange`) y al salir (`pagehide`). Devuelve cómo desengancharlo. */
   engancharSalida(objetivo?: ObjetivoDeSalida | null): () => void;
@@ -341,6 +354,20 @@ export function crearGuardadoEnLaBase({
     },
 
     guardarYa,
+    subirYa: guardarYa,
+
+    ...(base.leerVersion
+      ? {
+          async leerVersion(): Promise<number | null> {
+            try {
+              const r = await base.leerVersion!();
+              return r.ok && Number.isInteger(r.version) && r.version >= 0 ? r.version : null;
+            } catch {
+              return null;
+            }
+          },
+        }
+      : {}),
 
     estado: () => ({ version, origen, pendiente: pendiente !== null, subiendo: enVuelo !== null, ultimaSubida, conflicto, error, apartado }),
 
