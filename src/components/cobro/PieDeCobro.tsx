@@ -75,6 +75,13 @@ const PRIMARIO =
   "hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus " +
   "disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-faint";
 
+// «Cobrar igual» (falta plata): el mismo botón en tono de peligro. `cn` no fusiona clases, así que
+// es una constante aparte y no un `bg-danger` encima de `bg-accent`.
+const PRIMARIO_PELIGRO =
+  "inline-flex min-h-12 items-center justify-center rounded-lg bg-danger px-6 text-base font-semibold text-on-danger " +
+  "hover:bg-danger-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus " +
+  "disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-faint";
+
 const CAMPO =
   "h-11 w-full rounded-md border border-line-strong bg-surface px-3 text-base tabular-nums text-strong " +
   "placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus";
@@ -191,7 +198,7 @@ export function PieDeCobro({ total, deshabilitado, textoBoton = "Cobrar", permit
             {estado?.estado === "falta" ? (
               <button
                 type="button"
-                className={cn(PRIMARIO, "bg-danger hover:bg-danger")}
+                className={PRIMARIO_PELIGRO}
                 disabled={bloqueado}
                 onClick={() => cobrar({ modo: "simple", medio: "EFECTIVO" })}
               >
