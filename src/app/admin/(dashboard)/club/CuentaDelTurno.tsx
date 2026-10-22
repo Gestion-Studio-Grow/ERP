@@ -21,6 +21,13 @@
 // Lo que pasó se anuncia en la barra de avisos del club (con «Deshacer»). Nada se anima: se toca cien
 // veces por día.
 //
+// Tanda 2D (reingeniería de Break Point):
+//   · cancha ocupada por el turno anterior → «Cerrar la de X y abrir» en un toque (y, si X debe, sus 4 medios: cobrarle
+//     a X y abrir; la seña del que llega se elige antes si la pide), con «su mesa sigue en Buffet»: comando «cierre»;
+//   · «La mesa sigue · dividido»: cada jugador elige SU medio (nada viene elegido) y un toque cobra a cada uno y suelta la
+//     cancha; la mesa pasa a Buffet con sus comensales;
+//   · después de marcar la falta, la hoja no se cierra: queda «Avisar por WhatsApp» con lo que le quedó (BP-056).
+//
 // La vista sale de `armarCuenta` y cada toque va a `ejecutar` (cuenta-core.ts) por el almacén: la
 // pantalla no suma ni decide nada de plata.
 
@@ -45,6 +52,7 @@ import {
   revisarConfirmacion,
   textoCierre,
   type AccionCuenta,
+  type CanchaOcupada as DatosCanchaOcupada,
   type CobroConCreditos,
   type FilaJugador,
   type MedioCaja,
@@ -55,7 +63,8 @@ import { pedirFiado } from "./credito-core";
 import { CobroDeLaCancha, SumarJugador } from "./cuenta-piezas";
 import PedidoDelDuenio from "./pedido-del-duenio";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
-import CicloDelTurno from "./CicloDelTurno";
+import CicloDelTurno, { AvisoDeLaFalta } from "./CicloDelTurno";
+import { avisoDeLaFalta, type AccionCierre } from "./ciclo-core";
 import type { OfertaDeHueco } from "./bandeja-core";
 import { useSeleccion } from "./usar-almacen";
 import "./piel/cuenta.css";
@@ -327,6 +336,162 @@ const FilaDeJugador = memo(function FilaDeJugador({
   );
 });
 
+/**
+ * Elegir un medio de caja SIN uno elegido de entrada (a diferencia de «Cómo paga»): para cuando hay que decidir el de
+ * cada uno antes de un toque que cobra a todos. Radios nativos: flechas del teclado, foco visible.
+ */
+function ElegirMedio({ leyenda, elegido, onElegir }: { leyenda: string; elegido: MedioCaja | null; onElegir: (m: MedioCaja) => void }) {
+  const nombre = useId();
+  return (
+    <fieldset className="min-w-0">
+      <legend className="mb-1 text-sm font-medium text-strong">{leyenda}</legend>
+      <div className="flex flex-wrap gap-1.5">
+        {MEDIOS_CAJA.map((m) => (
+          <label
+            key={m}
+            className={cn(
+              "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-md border px-3 text-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus",
+              elegido === m ? "border-accent bg-accent-soft font-semibold text-strong" : "border-line-strong bg-surface-raised text-body",
+            )}
+          >
+            <input type="radio" name={nombre} value={m} checked={elegido === m} onChange={() => onElegir(m)} className="sr-only" />
+            <span aria-hidden="true">{MEDIO_CORTO[m]}</span>
+            <span className="sr-only">{ETIQUETA_MEDIO[m]}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+/**
+ * La cancha sigue ocupada por el turno anterior: «Cerrar la de X y abrir» en UN paso (comando «cierre»). Si X debe, sus 4
+ * medios cobran y abren de un toque (o a su cuenta corriente); si el que llega debe la seña, primero se elige con qué la
+ * paga. «Su mesa sigue en Buffet» deja la mesa de X cargando. O pasan las dos cosas o ninguna (lo mira el motor).
+ */
+function CanchaOcupada({ ocupada, quienLlega, onCerrarYAbrir }: { ocupada: DatosCanchaOcupada; quienLlega: string; onCerrarYAbrir: (a: Omit<Extract<AccionCierre, { tipo: "cerrarYAbrir" }>, "tipo" | "cerrarId" | "abrirId">) => void }) {
+  const [medioSena, setMedioSena] = useState<MedioCaja | null>(null);
+  const [seguir, setSeguir] = useState(false);
+  const titulo = useId();
+  const idSeguir = useId();
+  const pideSena = ocupada.sena !== null && ocupada.sena > 0;
+  const falta = pideSena && !medioSena;
+  // Seña ya cubierta por lo pagado (falta $ 0): se marca paga al abrir, sin cobrar nada.
+  const sena = ocupada.sena === null ? null : (medioSena ?? "efectivo");
+  const hacer = (extra: { medio?: MedioCaja; aCuenta?: boolean }) => onCerrarYAbrir({ ...extra, seguir, medioSena: sena });
+  return (
+    <section aria-labelledby={titulo} data-cuenta="ocupada" className="flex flex-col gap-3 rounded-md border border-l-4 border-warning bg-surface-raised p-3">
+      <h3 id={titulo} className="font-semibold text-strong">
+        {ocupada.cancha} sigue ocupada por {ocupada.titular} ({ocupada.desde})
+      </h3>
+      {!ocupada.esElQueSigue ? (
+        <p className="text-sm text-body">Antes que {quienLlega} hay otro turno en esta cancha: abrila desde ese turno.</p>
+      ) : (
+        <>
+          {pideSena && <ElegirMedio leyenda={`Seña de ${quienLlega} ${pesos(ocupada.sena!)}: ¿con qué la paga?`} elegido={medioSena} onElegir={setMedioSena} />}
+          {ocupada.debe > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm text-body">
+                {ocupada.titular} debe <strong className="tabular-nums text-strong">{pesos(ocupada.debe)}</strong> de la cancha. Cobrale y se abre la de {quienLlega}:
+              </p>
+              <div role="group" aria-label={`Cobrarle ${pesos(ocupada.debe)} a ${ocupada.titular} y abrir`} className="flex flex-wrap gap-1.5">
+                {MEDIOS_CAJA.map((m) => (
+                  <Button key={m} variant="outline" size="md" className="min-w-11 px-3" disabled={falta} aria-label={`${ocupada.titular} paga ${pesos(ocupada.debe)} en ${ETIQUETA_MEDIO[m]} y se abre la de ${quienLlega}`} onClick={() => hacer({ medio: m })}>
+                    {MEDIO_CORTO[m]}
+                  </Button>
+                ))}
+                {ocupada.aCuenta && (
+                  <Button variant="ghost" size="md" disabled={falta} onClick={() => hacer({ aCuenta: true })}>
+                    A su cuenta corriente y abrir
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <Button variant="solid" size="md" className="self-start" disabled={falta} onClick={() => hacer({})}>
+              Cerrar la de {ocupada.titular} y abrir
+            </Button>
+          )}
+          <label htmlFor={idSeguir} className="flex min-h-11 cursor-pointer items-center gap-2 self-start text-sm text-strong">
+            <input id={idSeguir} type="checkbox" checked={seguir} onChange={(e) => setSeguir(e.target.checked)} className="size-5 accent-[var(--accent)]" />
+            Se quedan a comer: la mesa de {ocupada.titular} sigue en Buffet
+          </label>
+          {falta && <p className="text-xs text-muted">Primero elegí con qué paga la seña {quienLlega}.</p>}
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * «La mesa sigue · dividido»: cada jugador paga SU parte de la cancha con SU medio (ninguno viene elegido: nada se arrastra)
+ * y un toque cobra a todos y suelta la cancha; la mesa pasa a Buffet con sus comensales (comando «cierre»).
+ */
+function MesaSigueDividida({
+  datos,
+  dividir,
+  onDividir,
+  onCerrar,
+  onCancelar,
+}: {
+  datos: NonNullable<VistaCuenta["cierres"]["mesaSigueDividido"]>;
+  /** «Dividir entre 4» primero, si juegan menos (null si ya son 4). */
+  dividir: number | null;
+  onDividir: () => void;
+  onCerrar: (porJugador: Partial<Record<number, MedioCaja>>, resto: MedioCaja | null) => void;
+  onCancelar: () => void;
+}) {
+  const [medios, setMedios] = useState<Partial<Record<number, MedioCaja>>>({});
+  const [resto, setResto] = useState<MedioCaja | null>(null);
+  const titulo = useId();
+  const faltan = datos.partes.filter((p) => !medios[p.idx]).length + (datos.resto > 0 && !resto ? 1 : 0);
+  const total = datos.partes.reduce((s, p) => s + p.monto, 0) + datos.resto;
+  return (
+    <section aria-labelledby={titulo} data-cuenta="dividido" className="flex flex-col gap-3 rounded-md border border-accent bg-accent-soft p-3">
+      <h3 id={titulo} className="font-semibold text-strong">
+        La mesa sigue · cada uno paga su parte de la cancha
+      </h3>
+      {dividir !== null && (
+        <Button variant="outline" size="md" className="self-start" onClick={onDividir}>
+          Dividir entre {dividir} primero
+        </Button>
+      )}
+      <ul aria-label="Parte de la cancha de cada uno" className="flex flex-col gap-2">
+        {datos.partes.map((p) => (
+          <li key={p.idx}>
+            <ElegirMedio leyenda={`${p.nombre} · ${pesos(p.monto)}`} elegido={medios[p.idx] ?? null} onElegir={(m) => setMedios((x) => ({ ...x, [p.idx]: m }))} />
+          </li>
+        ))}
+        {datos.resto > 0 && (
+          <li>
+            <ElegirMedio leyenda={`Lo que queda de la cancha · ${pesos(datos.resto)}`} elegido={resto} onElegir={setResto} />
+          </li>
+        )}
+      </ul>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="solid"
+          size="md"
+          className="h-auto! min-h-11 whitespace-normal! py-2"
+          disabled={faltan > 0}
+          onClick={() => {
+            // Sólo los que deben su parte ahora (si alguno pagó suelto mientras tanto, su medio no viaja).
+            const porJugador: Partial<Record<number, MedioCaja>> = {};
+            for (const p of datos.partes) if (medios[p.idx]) porJugador[p.idx] = medios[p.idx];
+            onCerrar(porJugador, datos.resto > 0 ? resto : null);
+          }}
+        >
+          Cobrar {pesos(total)} a cada uno y cerrar · la mesa sigue
+        </Button>
+        <Button variant="ghost" size="md" onClick={onCancelar}>
+          Mejor no
+        </Button>
+      </div>
+      {faltan > 0 && <p className="text-xs text-body">Falta elegir el medio de {faltan === 1 ? "uno" : faltan}.</p>}
+    </section>
+  );
+}
+
 function Totales({ vista }: { vista: VistaCuenta }) {
   const T = vista.totales;
   return (
@@ -471,6 +636,7 @@ export default function CuentaDelTurno({
   const vista = useSeleccion(almacen, seleccionar, compartirCuenta);
   const [medio, setMedio] = useState<MedioCobro>("efectivo");
   const [confirmando, setConfirmando] = useState<{ datos: DatosConfirmacion; accion: AccionCuenta & CobroConCreditos } | null>(null);
+  const [dividida, setDividida] = useState(false);
   const titulo = useRef<HTMLHeadingElement>(null);
   const seccion = useRef<HTMLElement>(null);
   const idTitulo = useId();
@@ -540,12 +706,27 @@ export default function CuentaDelTurno({
     [onAccion],
   );
   const onCreditos = useCallback((idx: number) => pedirCreditos({ tipo: "cobrarJugador", idx, medio: "monedero" }), [pedirCreditos]);
+  // Los cierres de cancha que encadenan dos cosas (cerrar y abrir, la mesa sigue dividido): UN comando, o nada.
+  const cierre = useCallback(
+    (a: AccionCierre): Desenlace => {
+      setConfirmando(null);
+      const d = almacen.comando("cierre", [a], { deshacible: true });
+      if (d.ok) setDividida(false);
+      requestAnimationFrame(() => {
+        if (seccion.current && !seccion.current.contains(document.activeElement)) titulo.current?.focus();
+      });
+      return d;
+    },
+    [almacen],
+  );
 
   if (!vista) {
+    // Después de marcar la falta, la hoja no se cierra sola: queda el WhatsApp con lo que le quedó (BP-056).
     return (
-      <section aria-label="Cuenta del turno" className="rounded-lg border border-line bg-surface-raised p-4">
-        <p className="text-sm text-muted">Ese turno ya no tiene cuenta para cobrar.</p>
-        <Button variant="outline" size="md" className="mt-3" onClick={onVolver}>
+      <section aria-label="Cuenta del turno" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
+        <AvisoDeLaFalta almacen={almacen} reservaId={reservaId} />
+        {!avisoDeLaFalta(almacen.estado(), reservaId) && <p className="text-sm text-muted">Ese turno ya no tiene cuenta para cobrar.</p>}
+        <Button variant="outline" size="md" className="self-start" onClick={onVolver}>
           Volver a la agenda
         </Button>
       </section>
@@ -598,6 +779,15 @@ export default function CuentaDelTurno({
         <p className="text-sm text-muted">
           Seña {pesos(vista.sena.monto)}: {vista.sena.pagada ? "✔ pagada" : <strong className="text-strong">pendiente</strong>}
         </p>
+      )}
+
+      {cierres.cerrarYAbrir && (
+        <CanchaOcupada
+          key={cierres.cerrarYAbrir.cerrarId}
+          ocupada={cierres.cerrarYAbrir}
+          quienLlega={vista.titular}
+          onCerrarYAbrir={(a) => cierre({ tipo: "cerrarYAbrir", cerrarId: cierres.cerrarYAbrir!.cerrarId, abrirId: vista.reservaId, ...a })}
+        />
       )}
 
       {hayQueCobrar && <ComoPaga medio={medio} onElegir={(m) => {
@@ -677,6 +867,12 @@ export default function CuentaDelTurno({
             {textoCierre("cerrarYSeguir", cierres.cerrarYSeguir)}
           </Button>
         )}
+        {/* «La mesa sigue ▾: uno solo / dividido»: el de arriba lo paga uno con el medio de «Cómo paga»; éste, cada uno el suyo. */}
+        {cierres.mesaSigueDividido && !conCreditos && (
+          <Button variant="outline" size="md" data-cuenta="dividido-abrir" aria-expanded={dividida} onClick={() => setDividida((x) => !x)}>
+            La mesa sigue · dividido
+          </Button>
+        )}
         {cierres.cerrarCargos !== null && !conCreditos && (
           <Button variant="outline" size="md" onClick={() => conMedio({ tipo: "cerrarCargos", medio: medioCaja })}>
             {textoCierre("cerrarCargos", cierres.cerrarCargos)}
@@ -692,6 +888,15 @@ export default function CuentaDelTurno({
         <button type="button" data-cuenta="enlace" onClick={() => onAccion({ tipo: "hacerFijo" })} className="-my-1 inline-flex min-h-11 items-center self-start text-sm text-accent-ink underline underline-offset-4 hover:text-strong">
           Hacer fijo (todos los {cierres.hacerFijo})
         </button>
+      )}
+      {dividida && cierres.mesaSigueDividido && !conCreditos && (
+        <MesaSigueDividida
+          datos={cierres.mesaSigueDividido}
+          dividir={vista.dividir}
+          onDividir={() => onAccion({ tipo: "dividir", n: vista.dividir! })}
+          onCerrar={(porJugador, resto) => cierre({ tipo: "mesaSigue", reservaId: vista.reservaId, porJugador, medio: resto })}
+          onCancelar={() => setDividida(false)}
+        />
       )}
       {conCreditos && <p className="text-sm text-muted">Con créditos se cobra jugador por jugador (o la seña): elegí a quién.</p>}
       {cierres.cerrarYSeguir !== null && !conCreditos && (
@@ -717,8 +922,9 @@ export default function CuentaDelTurno({
         onAntes={() => setConfirmando(null)}
         onOfrecer={onOfrecer}
         onListo={() => {
-          // Si el turno salió de la grilla (cancelado, no vino), la cuenta ya no tiene nada que mostrar.
-          if (!armarCuenta(almacen.estado(), reservaId)) onVolver();
+          // Si el turno salió de la grilla (cancelado, no vino), la cuenta ya no tiene nada que mostrar; salvo una falta con
+          // cargo: queda el WhatsApp para avisarle lo que le quedó (BP-056).
+          if (!armarCuenta(almacen.estado(), reservaId) && !avisoDeLaFalta(almacen.estado(), reservaId)) onVolver();
         }}
       />
     </section>

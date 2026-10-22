@@ -14,10 +14,23 @@
 //   · devolver en mano lo pendiente y cobrar la falta de alguien sin ficha.
 // La plata la calcula el motor. Las previas se calculan sobre una COPIA del estado (lo que diría el motor si se
 // hiciera), así lo que se anuncia es exactamente lo que va a pasar.
+//
+// Tanda 2D (reingeniería de Break Point): los cierres que encadenan dos cosas en UN comando («cierre», al final de la lista
+// blanca de comandos-core.ts):
+//   · «Cerrar la de X y abrir»: la cancha sigue ocupada por el turno anterior y llega el siguiente. Se cierra la de X
+//     (cobrando lo que debe con un medio, o a su cuenta corriente; con «la mesa sigue», queda en Buffet) y se abre la del
+//     que llega (cobrando antes lo que falte de su seña) — `cerrarYAbrirLaSiguiente` del motor, que mira todo antes de
+//     tocar nada: o pasan las dos cosas o ninguna;
+//   · «La mesa sigue · dividido»: cada jugador paga SU parte de la cancha con SU medio y la cancha queda libre; la mesa
+//     sigue en Buffet con sus comensales (`cerrarCanchaYSeguir` con `porJugador`).
+// Y después de una falta, el WhatsApp con lo que le quedó al titular en su cuenta (`avisoDeLaFalta`, BP-056).
 
 import {
   ESTADOS,
   cancelar,
+  cerrarCanchaYSeguir,
+  cerrarYAbrirLaSiguiente,
+  mensajeDeLaFalta,
   cancha as canchaDe,
   cliente as clienteDe,
   cobrado,
@@ -33,12 +46,13 @@ import {
   pesos,
   precioTurno,
   reserva as reservaDe,
+  saldo,
   validarHueco,
   horarioDe,
 } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub, Fecha, Reserva } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
-import { ETIQUETA_MEDIO, type MedioCaja } from "./cuenta-core";
+import { ETIQUETA_MEDIO, MEDIOS_CAJA, type MedioCaja } from "./cuenta-core";
 import { operadorDesdeAuth } from "./operador-del-club";
 
 /** Los destinos posibles para mover el turno: cada cancha con sus horas libres (misma duración, sin pisarse). */
@@ -227,3 +241,106 @@ export function fueraDeGrilla(estado: EstadoClub, fecha: Fecha): FueraDeGrilla[]
 
 // Lo que hay que devolver o cobrar de CUALQUIER día (antes `devolucionesPendientes`, sin uso) es `plataPendiente` del
 // motor, que también suma faltas sin ficha, señas vencidas y fiados: plata-pendiente-core.ts (Tanda 2B).
+
+// ───────────── Tanda 2D: cerrar y abrir en un paso, «la mesa sigue · dividido» y el aviso de la falta ─────────────
+
+/**
+ * Los cierres de cancha que encadenan dos cosas (comando «cierre»). Los medios son de caja (sin créditos: con créditos se
+ * cobra jugador por jugador en la cuenta, con su paso previo).
+ */
+export type AccionCierre =
+  /**
+   * «Cerrar la de X y abrir»: `cerrarId` es el turno que ocupa la cancha y `abrirId` el que llega. Lo que debe X se cobra
+   * con `medio` (o va a su cuenta corriente con `aCuenta`); con `seguir`, su mesa sigue en Buffet. `medioSena`: con qué se
+   * cobra lo que falte de la seña del que llega (obligatorio si la pide).
+   */
+  | { tipo: "cerrarYAbrir"; cerrarId: string; abrirId: string; medio?: MedioCaja | null; aCuenta?: boolean; seguir?: boolean; medioSena?: MedioCaja | null }
+  /**
+   * «La mesa sigue · dividido»: cada jugador (índice → medio) paga SU parte de la cancha con el suyo; `medio`, lo que no
+   * es de nadie (se extendió después de que todos pagaron). La cancha queda libre y la mesa sigue en Buffet.
+   */
+  | { tipo: "mesaSigue"; reservaId: string; porJugador: Partial<Record<number, MedioCaja>>; medio?: MedioCaja | null };
+
+/** Todos los medios que usa un cierre (para decidir si va sin internet: sólo si todos son efectivo). */
+export function mediosDelCierre(a: AccionCierre): string[] {
+  const m: (string | null | undefined)[] = a.tipo === "cerrarYAbrir" ? [a.aCuenta ? null : a.medio, a.medioSena] : [...Object.values(a.porJugador ?? {}), a.medio];
+  return m.filter((x): x is string => typeof x === "string" && x !== "");
+}
+
+const esMedioDeCaja = (m: unknown): m is MedioCaja => typeof m === "string" && (MEDIOS_CAJA as readonly string[]).includes(m);
+const ELIGE_MEDIO = "Elegí cómo paga (efectivo, Mercado Pago, transferencia o débito).";
+
+/** « (cobrados $ 21.000 en Efectivo)» o, con varios medios, « (cobrados $ 21.000: Efectivo $ 7.000 · …)». */
+function cobradosEn(total: number, porMedio: Partial<Record<string, number>>): string {
+  if (!(total > 0)) return "";
+  const usados = MEDIOS_CAJA.filter((m) => (porMedio[m] ?? 0) > 0);
+  if (usados.length === 1) return ` (cobrados ${pesos(total)} en ${ETIQUETA_MEDIO[usados[0]]})`;
+  return ` (cobrados ${pesos(total)}: ${usados.map((m) => `${ETIQUETA_MEDIO[m]} ${pesos(porMedio[m]!)}`).join(" · ")})`;
+}
+
+/** Corre un cierre sobre el estado (lo MUTA, como todo el motor). Nunca tira: si el motor dice que no, su motivo. */
+export function ejecutarCierre(estado: EstadoClub, accion: AccionCierre, ahora: Ahora, auth?: Auth): Desenlace {
+  const firma = auth?.usuarioId ? auth : null;
+  if (accion.tipo === "cerrarYAbrir") {
+    const x = reservaDe(estado, accion.cerrarId);
+    const sig = reservaDe(estado, accion.abrirId);
+    if (!x || !sig) return { ok: false, mensaje: "No encuentro el turno." };
+    if (accion.medio != null && !esMedioDeCaja(accion.medio)) return { ok: false, mensaje: ELIGE_MEDIO };
+    if (accion.medioSena != null && !esMedioDeCaja(accion.medioSena)) return { ok: false, mensaje: "Elegí con qué paga la seña (efectivo, Mercado Pago, transferencia o débito)." };
+    const debe = Math.max(0, x.estado === "en_cancha" ? saldo(x) : 0);
+    if (debe > 0 && !accion.aCuenta && !accion.medio) return { ok: false, mensaje: `Elegí cómo paga ${x.titular} los ${pesos(debe)} que debe de la cancha.` };
+    const sena = sig.estado === "reservada" && sig.sena.monto > 0 && !sig.sena.pagada;
+    if (sena && !accion.medioSena) return { ok: false, mensaje: `Elegí con qué paga ${sig.titular} la seña antes de abrir.` };
+    const res = cerrarYAbrirLaSiguiente(
+      estado,
+      {
+        cerrarId: x.id,
+        abrirId: sig.id,
+        medio: accion.medio ?? undefined,
+        aCuenta: !!accion.aCuenta,
+        seguir: !!accion.seguir,
+        medioSena: sena ? accion.medioSena : null,
+        auth: firma,
+      },
+      ahora,
+    );
+    if (!res.ok) {
+      // El motor mira todo antes de tocar: si igual algo falló después de cerrar, se dice qué quedó hecho.
+      const cerrada = (res as { cerrada?: unknown }).cerrada;
+      return { ok: false, mensaje: cerrada ? `Se cerró la de ${x.titular}, pero no se pudo abrir la de ${sig.titular}: ${res.motivo}` : res.motivo };
+    }
+    const { cerrada, abierta } = res;
+    const cobro = cerrada.cobradoCancha > 0 ? cobradosEn(cerrada.cobradoCancha, cerrada.porMedio) : accion.aCuenta && debe > 0 ? ` (${pesos(debe)} a su cuenta corriente)` : "";
+    const mesa = accion.seguir ? " Su mesa sigue en Buffet." : "";
+    const senaCobrada = abierta.cobrado > 0 && accion.medioSena ? ` Seña cobrada: ${pesos(abierta.cobrado)} (${ETIQUETA_MEDIO[accion.medioSena]}).` : "";
+    return { ok: true, mensaje: `Cerrada la de ${x.titular}${cobro}.${mesa} Cancha abierta para ${sig.titular} y luz prendida.${senaCobrada}` };
+  }
+  // «La mesa sigue · dividido».
+  const r = reservaDe(estado, accion.reservaId);
+  if (!r) return { ok: false, mensaje: "No encuentro el turno." };
+  const porJugador: Partial<Record<number, MedioCaja>> = {};
+  for (const [k, m] of Object.entries(accion.porJugador ?? {})) {
+    const idx = Number(k);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= r.jugadores.length) return { ok: false, mensaje: "Elegí el jugador." };
+    if (!esMedioDeCaja(m)) return { ok: false, mensaje: `Elegí cómo paga ${r.jugadores[idx].nombre} (efectivo, Mercado Pago, transferencia o débito).` };
+    porJugador[idx] = m;
+  }
+  if (accion.medio != null && !esMedioDeCaja(accion.medio)) return { ok: false, mensaje: ELIGE_MEDIO };
+  const res = cerrarCanchaYSeguir(estado, r.id, { medio: accion.medio ?? undefined, porJugador, auth: firma }, ahora);
+  if (!res.ok) return { ok: false, mensaje: res.motivo };
+  const cobro = cobradosEn(res.cobradoCancha, res.porMedio);
+  const n = r.jugadores.length;
+  return { ok: true, mensaje: `Cancha cerrada y libre${cobro}. La mesa sigue en Buffet con ${n === 1 ? r.titular : `sus ${n}`}.` };
+}
+
+/**
+ * BP-056 · Después de marcar la falta: el WhatsApp para el titular con lo que le quedó en su cuenta (el texto `falta` del
+ * motor, `mensajeDeLaFalta`) y su celular. null si el turno no es una falta o fue sin cargo. Pura.
+ */
+export function avisoDeLaFalta(estado: EstadoClub, reservaId: string): { titular: string; texto: string; tel: string } | null {
+  const texto = mensajeDeLaFalta(estado, reservaId);
+  const r = reservaDe(estado, reservaId);
+  if (!texto || !r) return null;
+  const tel = (r.clienteId && clienteDe(estado, r.clienteId)?.tel) || "";
+  return { titular: r.titular, texto, tel };
+}

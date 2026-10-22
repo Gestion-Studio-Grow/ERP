@@ -8,7 +8,7 @@ import type { Ahora, EstadoClub, Reserva } from "@/lib/club/motor.mjs";
 import { readFileSync } from "node:fs";
 import { operadorDeLaDemo } from "./almacen";
 import { aprobarConCodigo, codigoDeLaDemo, pedidosPendientes, pedirFiado } from "./credito-core";
-import { armarCuenta, confirmarCreditos, DESHACIBLE, EN_EL_VANILLA, ejecutar, fichasParaSumar, partirConCreditos, revisarConfirmacion, textoCierre, type VistaCuenta } from "./cuenta-core";
+import { armarCuenta, canchaOcupada, confirmarCreditos, DESHACIBLE, EN_EL_VANILLA, ejecutar, fichasParaSumar, partirConCreditos, revisarConfirmacion, textoCierre, type VistaCuenta } from "./cuenta-core";
 
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -834,7 +834,8 @@ test("BP-005: con la seña pendiente la cuenta ofrece «Cobrar la seña y abrir�
   const c = armarCuenta(e, r.id)!;
   assert.equal(c.cierres.abrirCancha, false, "no «Abrir la cancha» (diría «Falta la seña»)");
   assert.equal(c.cierres.cobrarSenaYAbrir, r.sena.monto);
-  const sinSena = e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada" && !(x.sena.monto > 0))!;
+  // En una cancha libre (con la cancha ocupada por el anterior va «Cerrar la de X y abrir», Tanda 2D).
+  const sinSena = e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada" && !(x.sena.monto > 0) && !canchaOcupada(e, x))!;
   assert.equal(armarCuenta(e, sinSena.id)!.cierres.abrirCancha, true);
   assert.equal(armarCuenta(e, sinSena.id)!.cierres.cobrarSenaYAbrir, null);
   // Cobrar sólo la seña (por teléfono, antes de llegar): ya no hay seña pendiente y vuelve «Abrir la cancha».

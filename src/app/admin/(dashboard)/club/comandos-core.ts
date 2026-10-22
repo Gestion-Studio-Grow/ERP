@@ -22,7 +22,7 @@ import { ejecutarBuffet, type AccionBuffet } from "./buffet-core";
 import { ejecutarMesa, venderEnMostrador, type AccionMesa, type Carrito, type DesenlaceMesa } from "./buffet-mesa-core";
 import { ejecutarCaja, type AccionCaja } from "./caja-core";
 import { ejecutarCanchas, ejecutarEspera, ejecutarFijo, type AccionCanchas, type AccionEspera, type AccionFijo, type DesenlaceCanchas } from "./canchas-core";
-import { ejecutarCiclo, type AccionCiclo } from "./ciclo-core";
+import { ejecutarCiclo, ejecutarCierre, mediosDelCierre, type AccionCiclo, type AccionCierre } from "./ciclo-core";
 import { ejecutarClientes, type AccionClientes, type DesenlaceClientes } from "./clientes-core";
 import { abrirElClub, ejecutarConfiguracion, limpiarPorHuella, type AccionConfig, type DesenlaceConfig, type DesenlaceLimpieza, type PedidoDeLimpiezaPorHuella } from "./configuracion-core";
 import { aprobarConCodigo, pedirFiado } from "./credito-core";
@@ -219,6 +219,16 @@ export const REGISTRO = {
     correr: (e, [reservaId, medio], ahora) => abrirCobrandoLaDeuda(e, reservaId, medio, ahora),
     // Como «cobrar la deuda» de la ficha: sin internet sólo en efectivo.
     sinInternet: ([, medio]) => sinRed(medio),
+  }),
+  // ── Tanda 2D: la cancha ocupada y «la mesa sigue · dividido» ──
+  /**
+   * «Cerrar la de X y abrir» (cerrar el turno que ocupa la cancha y abrir el siguiente, con su seña) y «la mesa sigue ·
+   * dividido» (cada jugador paga su parte con su medio): dos cosas en UN comando, o ninguna (ciclo-core.ts).
+   */
+  cierre: entrada<[accion: AccionCierre]>({
+    correr: (e, [a], ahora, auth) => ejecutarCierre(e, a, ahora, auth),
+    // Hace entrar plata: sin internet sólo si todo lo que cobra va en efectivo (lo que no se verifica afuera).
+    sinInternet: ([a]) => mediosDelCierre(a).every((m) => sinRed(m as MedioCobro)),
   }),
 } as const;
 
@@ -607,6 +617,19 @@ export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub 
         const { titular, turno, r } = elTurno(estado, reservaId);
         const deuda = estado && r?.clienteId ? (estado.clientes.find((c) => c.id === r.clienteId)?.deuda ?? 0) : 0;
         return `Cobro de la deuda${deuda > 0 ? ` ${pesos(deuda)}` : ""} ${medioDe(medio)} y abrir la cancha de ${titular}${turno}`;
+      }
+      case "cierre": {
+        const x = a[0] as AccionCierre;
+        if (x.tipo === "cerrarYAbrir") {
+          const cierra = elTurno(estado, x.cerrarId);
+          const abre = elTurno(estado, x.abrirId);
+          const debe = cierra.r ? saldo(cierra.r) : 0;
+          const cobro = x.aCuenta ? " (a su cuenta corriente)" : debe > 0 && x.medio ? ` (cobro ${pesos(debe)} ${medioDe(x.medio)})` : "";
+          return `Cerrar la de ${cierra.titular}${cobro}${x.seguir ? ", la mesa sigue," : ""} y abrir la de ${abre.titular}${abre.turno}`;
+        }
+        const { titular, turno } = elTurno(estado, x.reservaId);
+        const medios = [...new Set(Object.values(x.porJugador ?? {}).map(medioDe))].join(", ");
+        return `Cerrar la cancha de ${titular}, la mesa sigue: cada uno paga su parte${medios ? ` (${medios})` : ""}${turno}`;
       }
     }
   } catch {
