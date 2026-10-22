@@ -30,14 +30,14 @@ const boton = (color: string, lleno = true): React.CSSProperties => ({
   minHeight: 54,
   borderRadius: 14,
   border: `2px solid ${color}`,
-  background: lleno ? color : "#fff",
-  color: lleno ? "#fff" : color,
-  fontSize: 17,
+  background: lleno ? color : "var(--padel-superficie)",
+  color: lleno ? "var(--padel-sobre-cancha)" : color,
+  fontSize: 18,
   fontWeight: 700,
   cursor: "pointer",
 });
-const alerta: React.CSSProperties = { margin: "10px 0 0", padding: 10, borderRadius: 10, background: "#f6e3de", color: "#b23b2b", fontWeight: 600, fontSize: 15 };
-const ok: React.CSSProperties = { margin: "10px 0 0", padding: 10, borderRadius: 10, background: "#e7eee4", color: "#197934", fontWeight: 600, fontSize: 15 };
+const alerta: React.CSSProperties = { margin: "10px 0 0", padding: 10, borderRadius: 10, background: "var(--padel-peligro-suave)", color: "var(--padel-peligro)", fontWeight: 600, fontSize: 16 };
+const ok: React.CSSProperties = { margin: "10px 0 0", padding: 10, borderRadius: 10, background: "var(--padel-ok-suave)", color: "var(--padel-cancha)", fontWeight: 600, fontSize: 16 };
 
 export function BotonRepetir({ token, horaIso, repiteDe, etiqueta, color }: { token: string; horaIso: string; repiteDe: string; etiqueta: string; color: string }) {
   const router = useRouter();
@@ -66,7 +66,7 @@ export function BotonRepetir({ token, horaIso, repiteDe, etiqueta, color }: { to
       {msg && <p role={msg.ok ? "status" : "alert"} style={msg.ok ? ok : alerta}>{msg.texto}</p>}
       {alternativas.length > 0 && (
         <div style={{ marginTop: 10 }}>
-          <p style={{ margin: "0 0 8px", fontSize: 15 }}>Te quedan libres:</p>
+          <p style={{ margin: "0 0 8px", fontSize: 16 }}>Te quedan libres:</p>
           <div style={{ display: "grid", gap: 8 }}>
             {alternativas.map((a) => (
               <button key={a} type="button" disabled={pendiente} onClick={() => reservar(a)} style={{ ...boton(color, false), textTransform: "capitalize" }} data-qa="alternativa">
@@ -135,14 +135,14 @@ export function BotonCancelar({ token, claseId, color }: { token: string; claseI
 
   if (!seguro) {
     return (
-      <button type="button" onClick={() => setSeguro(true)} style={{ background: "none", border: 0, color, textDecoration: "underline", fontSize: 15, minHeight: 44, cursor: "pointer", padding: 0 }} data-qa="cancelar">
+      <button type="button" onClick={() => setSeguro(true)} style={{ background: "none", border: 0, color, textDecoration: "underline", fontSize: 16, minHeight: 44, cursor: "pointer", padding: 0 }} data-qa="cancelar">
         No puedo ir, cancelar
       </button>
     );
   }
   return (
     <div>
-      <p style={{ margin: "0 0 8px", fontSize: 15 }}>¿Seguro? El horario queda libre para otro.</p>
+      <p style={{ margin: "0 0 8px", fontSize: 16 }}>¿Seguro? El horario queda libre para otro.</p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <button type="button" onClick={() => setSeguro(false)} style={boton(color, false)}>No</button>
         <button
@@ -156,7 +156,7 @@ export function BotonCancelar({ token, claseId, color }: { token: string; claseI
               else setError(r.error);
             })
           }
-          style={boton("#b23b2b")}
+          style={boton("var(--padel-peligro)")}
         >
           {pendiente ? "Cancelando…" : "Sí, cancelar"}
         </button>

@@ -2,7 +2,8 @@ import { requireApp } from "@/lib/require-app";
 import { cn, EmptyState } from "@/components/ui";
 import { badgePendientes, pendientes } from "@/lib/padel/datos.server";
 import { diaHumano, horaHumana, pesos } from "@/lib/padel/core";
-import { BarraClases, tarjeta } from "../_vista";
+import { tarjeta } from "../_vista";
+import { Cabecera } from "../_cabecera";
 import { AccionesClase } from "../_acciones";
 import { MarcarLeidos } from "./MarcarLeidos";
 
@@ -20,9 +21,7 @@ export default async function ClasesPendientes() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
-      <h1 className="mb-1 text-2xl font-bold text-strong">Pendientes</h1>
-      <p className="mb-4 text-sm text-muted">Lo que espera tu respuesta. Cada cosa se resuelve con un toque.</p>
-      <BarraClases activa="/admin/clases/pendientes" pendientes={numero} />
+      <Cabecera titulo="Pendientes" detalle="Lo que espera tu respuesta. Cada cosa se resuelve con un toque." pendientes={numero} actual="pendientes" />
 
       {nada && <EmptyState title="Estás al día" description="No hay pedidos ni comprobantes esperando." />}
 

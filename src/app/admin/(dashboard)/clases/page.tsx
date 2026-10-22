@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
-import { buttonClasses, cn, EmptyState } from "@/components/ui";
+import { cn, EmptyState } from "@/components/ui";
 import { hoy } from "@/lib/padel/datos.server";
 import { MEDIO_LABEL, horaHumana, linkWhatsApp, pesos, type MedioPago } from "@/lib/padel/core";
-import { BarraClases, ChipEstado, tarjeta, tonoEstado } from "./_vista";
+import { ChipEstado, tarjeta, tonoEstado } from "./_vista";
+import { Cabecera } from "./_cabecera";
 import { AccionesClase, BotonRecordatorio } from "./_acciones";
 
 export const dynamic = "force-dynamic";
@@ -18,27 +19,22 @@ export default async function ClasesHoy() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-strong">Hoy</h1>
-          <p className="text-sm text-muted">
+      <Cabecera
+        titulo="Hoy"
+        detalle={
+          <>
             {deHoy.length === 0 ? "Sin clases hoy." : `${deHoy.length} clase${deHoy.length > 1 ? "s" : ""} hoy`}
-            {caja.total > 0 && ` · cobrado ${pesos(caja.total)}`}
-          </p>
-        </div>
-        <Link href="/admin/clases/agendar" className={cn(buttonClasses("solid", "lg"), "h-12 w-full justify-center sm:w-auto")} data-qa="agendar">
-          + Agendar clase
-        </Link>
-      </header>
-
-      <BarraClases activa="/admin/clases" pendientes={pendientes} />
+            {caja.total > 0 && <span className="tabular-nums">{` · cobrado ${pesos(caja.total)}`}</span>}
+          </>
+        }
+        pendientes={pendientes}
+      />
 
       {pendientes > 0 && (
         <Link
           href="/admin/clases/pendientes"
           data-qa="aviso-pendientes"
-          className="mb-4 flex min-h-12 items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm font-semibold text-strong"
-          style={{ background: "var(--warning-soft)" }}
+          className="mb-4 flex min-h-12 items-center gap-2 rounded-xl border border-line bg-warning-soft px-3 py-2 text-sm font-semibold text-strong"
         >
           <span aria-hidden>🔔</span> {pendientes} cosa{pendientes > 1 ? "s" : ""} esperando tu respuesta (pedidos, comprobantes o cancelaciones)
         </Link>
@@ -118,7 +114,7 @@ export default async function ClasesHoy() {
         </p>
       )}
       {negocio.whatsapp && !linkWhatsApp(negocio.whatsapp, "") && (
-        <p className="mt-2 text-sm" style={{ color: "var(--danger)" }}>Tu celular en «Horarios y precios» no parece un celular argentino: los alumnos no van a poder avisarte.</p>
+        <p className="mt-2 text-sm" style={{ color: "var(--danger)" }}>Tu celular en «Ajustes» no parece un celular argentino: los alumnos no van a poder avisarte.</p>
       )}
     </main>
   );

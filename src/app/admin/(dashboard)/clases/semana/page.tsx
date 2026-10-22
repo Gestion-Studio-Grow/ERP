@@ -4,7 +4,8 @@ import { buttonClasses, cn } from "@/components/ui";
 import { badgePendientes, semana } from "@/lib/padel/datos.server";
 import { fmtCalendarDateLabel, todayInBusinessTz } from "@/lib/datetime";
 import { fechaValida, horaHumana } from "@/lib/padel/core";
-import { BarraClases, ChipEstado, tarjeta, tonoEstado } from "../_vista";
+import { ChipEstado, tarjeta, tonoEstado } from "../_vista";
+import { Cabecera } from "../_cabecera";
 import { AccionesClase } from "../_acciones";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +26,7 @@ export default async function ClasesSemana({ searchParams }: { searchParams: Pro
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
-      <h1 className="mb-1 text-2xl font-bold text-strong">Semana</h1>
-      <p className="mb-4 text-sm text-muted">{total} clase{total === 1 ? "" : "s"} del {fmtCalendarDateLabel(desde)} en adelante.</p>
-      <BarraClases activa="/admin/clases/semana" pendientes={numero} />
+      <Cabecera titulo="Semana" detalle={`${total} clase${total === 1 ? "" : "s"} del ${fmtCalendarDateLabel(desde)} en adelante.`} pendientes={numero} />
 
       <div className="mb-4 grid grid-cols-2 gap-2">
         <Link href={`/admin/clases/semana?desde=${correr(desde, -7)}`} className={cn(buttonClasses("outline", "md"), "w-full")}>← Anterior</Link>
