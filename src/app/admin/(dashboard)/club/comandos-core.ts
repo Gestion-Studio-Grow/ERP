@@ -13,7 +13,7 @@
 //
 // Puro: no lee el reloj ni la red ni el almacenamiento. Muta el estado que recibe, como todo el motor.
 
-import { cancha as canchaDe, crearClubReal, cuenta as cuentaDe, hhmm, pesos, prefijoIds, producto as productoDe, reserva as reservaDe, retomarSecuencia, saldo, secuenciaIds, usuario as usuarioDe, VERSION_ESTADO } from "@/lib/club/motor.mjs";
+import { cancha as canchaDe, cuenta as cuentaDe, fijarSecuencia, hhmm, pesos, prefijoActualIds, prefijoIds, producto as productoDe, reserva as reservaDe, retomarSecuencia, saldo, secuenciaIds, usuario as usuarioDe, VERSION_ESTADO } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
 import { ponerLuz } from "./agenda-core";
@@ -31,6 +31,8 @@ import { ejecutarProveedores, type AccionProveedores, type DesenlaceProveedores 
 import { ejecutarStock, type AccionStock, type DesenlaceStock } from "./stock-core";
 import { ejecutarTablero, type AccionTablero, type DesenlaceTablero } from "./tablero-core";
 import { ejecutarTienda, type AccionTienda } from "./tienda-core";
+import { ejecutarBandeja, type AccionBandeja } from "./bandeja-core";
+import { ejecutarPlata, type AccionPlata } from "./plata-pendiente-core";
 
 /** Lo que se puede cobrar sin internet: lo que no hay que verificar afuera (MP, transferencia, posnet). */
 const MEDIOS_SIN_INTERNET: ReadonlySet<MedioCobro> = new Set(["efectivo", "monedero"]);
@@ -141,6 +143,17 @@ export const REGISTRO = {
     correr: (e, [a], ahora, auth) => ejecutarTablero(e, a, ahora, auth),
     sinInternet: () => false,
   }),
+  // ── Tanda 2B: plata pendiente y bandeja en dos niveles ──
+  /** «Se fue: que se cierre sola al aprobar» (el fiado que espera el OK del dueño). No mueve plata. */
+  plata: entrada<[accion: AccionPlata]>({
+    correr: (e, [a], ahora, auth) => ejecutarPlata(e, a, ahora, auth),
+    sinInternet: () => true,
+  }),
+  /** «Posponer hasta mañana» una alerta. No mueve plata. */
+  bandeja: entrada<[accion: AccionBandeja]>({
+    correr: (e, [a], ahora, auth) => ejecutarBandeja(e, a, ahora, auth),
+    sinInternet: () => true,
+  }),
 } as const;
 
 export type NombreDeComando = keyof typeof REGISTRO;
@@ -204,16 +217,6 @@ function conAzar<T>(semilla: number, fn: () => T): T {
 }
 
 /**
- * Pone el contador de ids del motor EXACTAMENTE en `n` (también para abajo). El motor sólo deja subirlo
- * (`retomarSecuencia`); el único camino que lo baja es `crearClubReal`, que lo pone en 0 (y arma un club en blanco que
- * se tira: ~0,1 ms). Pedido al dueño del motor: un `fijarSecuencia(n)` propio que reemplace este rodeo.
- */
-function fijarSecuencia(n: number) {
-  if (secuenciaIds() > n) crearClubReal("2000-01-01");
-  retomarSecuencia(n);
-}
-
-/**
  * Corre `fn` como la primera vez: el azar en la misma semilla y el contador de ids donde estaba (`idsDesde`), así
  * re-aplicar da los MISMOS ids y el mismo código de seña aunque el contador ya haya pasado (otra cosa que se hizo
  * después, o «Volver a aplicar» una hora más tarde). Al terminar, el contador queda en lo más alto que llegó: nunca
@@ -221,25 +224,18 @@ function fijarSecuencia(n: number) {
  */
 export function correrDeterminista<T>(azar: number, idsDesde: number, fn: () => T, prefijo?: string): T {
   const antes = secuenciaIds();
-  const prefijoAntes = prefijoActual;
-  if (prefijo !== undefined) usarPrefijo(prefijo);
+  // El prefijo REAL del motor (no uno que se supone puesto: H2 del CERT BP T1), así se restaura el que había aunque lo
+  // haya puesto otro módulo del mismo proceso.
+  const prefijoAntes = prefijoActualIds();
+  if (prefijo !== undefined) prefijoIds(prefijo);
+  // El motor lo pone exacto, también para abajo (H4): antes era armar y tirar un club en blanco.
   fijarSecuencia(idsDesde);
   try {
     return conAzar(azar, fn);
   } finally {
     retomarSecuencia(antes);
-    if (prefijo !== undefined) usarPrefijo(prefijoAntes);
+    if (prefijo !== undefined) prefijoIds(prefijoAntes);
   }
-}
-
-/**
- * El prefijo de ids que se sabe puesto (el motor no lo deja leer). Sólo lo cambia `correrDeterminista` con un prefijo,
- * y lo vuelve a dejar como estaba: dos almacenes en el mismo proceso (los tests de dos puestos) no se pisan.
- */
-let prefijoActual = "";
-function usarPrefijo(p: string) {
-  prefijoActual = p;
-  prefijoIds(p);
 }
 
 export type Corrida = Desenlace & {
@@ -500,6 +496,17 @@ export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub 
         if (x.tipo === "autorizar") return "Autorizar un fiado";
         if (x.tipo === "otorgar") return "Dar acceso a alguien nuevo";
         return "Rechazar un pedido";
+      }
+      case "plata": {
+        const x = a[0] as AccionPlata;
+        const n = estado?.novedades.find((y) => y.id === x.novedadId);
+        const quien = n && estado ? (estado.clientes.find((c) => c.id === n.clienteId)?.nombre ?? "") : "";
+        return `Dejar la cuenta${quien ? ` de ${quien}` : ""} esperando el OK del dueño (se cierra sola al aprobar)`;
+      }
+      case "bandeja": {
+        const x = a[0] as AccionBandeja;
+        const que: Record<string, string> = { cierreConDiferencia: "el cierre de caja que no cuadró", vencePago: "el pago a un proveedor", aparte: "lo que quedó aparte", stock: "el aviso de stock" };
+        return `Dejar para mañana ${que[String(x.clave).split(":")[0]] ?? "un aviso"}`;
       }
     }
   } catch {

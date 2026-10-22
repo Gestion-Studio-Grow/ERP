@@ -108,6 +108,11 @@ const FUNCIONES_TOPE_PIN = ["intentosPin", "esperaPin", "anotarIntentoPin"] as c
 const FUNCIONES_PIN_CON_HASH = ["esPinConHash", "hashPin", "pinCoincide", "largoDelPinGuardado", "pasarPinesAHash", "pinDeEjemplo"] as const satisfies readonly Funciones[];
 /** Reingeniería Break Point · tanda 1A: la seña del nuevo, el hueco donde no entra la duración, cobrar la seña y abrir. */
 const FUNCIONES_REING_BP_1A = ["turnosJugados", "motivoSena", "montoSena", "cuantoEntra", "cobrarSenaYAbrir"] as const satisfies readonly Funciones[];
+/** Reingeniería Break Point · tanda 2B: plata pendiente, bandeja en dos niveles, alertas de caja; H2/H4; lo de 2D. */
+const FUNCIONES_REING_BP_2B = [
+  "prefijoActualIds", "fijarSecuencia", "plataPendiente", "pagosPorVencer", "claveDeAlerta", "posponerAlerta", "cerrarAlAprobar",
+  "mensajeDeLaFalta", "materializarFijosHasta", "cerrarYAbrirLaSiguiente", "vencerSenas",
+] as const satisfies readonly Funciones[];
 type FuncionesListadas =
   | (typeof FUNCIONES)[number]
   | (typeof FUNCIONES_OLA1_CUENTA_Y_BUFFET)[number]
@@ -119,12 +124,13 @@ type FuncionesListadas =
   | (typeof FUNCIONES_PIN_POR_ROL)[number]
   | (typeof FUNCIONES_TOPE_PIN)[number]
   | (typeof FUNCIONES_PIN_CON_HASH)[number]
-  | (typeof FUNCIONES_REING_BP_1A)[number];
+  | (typeof FUNCIONES_REING_BP_1A)[number]
+  | (typeof FUNCIONES_REING_BP_2B)[number];
 const CONSTANTES = [
   "VERSION_ESTADO", "MEDIOS", "ESTADOS", "TIPOS", "ROLES", "PERMISOS", "NOMBRE_DIA",
   "CONFIG_DEMO", "CANCHAS_DEMO", "USUARIOS_DEMO", "USUARIOS_REALES", "PRODUCTOS_DEMO", "PROVEEDORES_DEMO", "DIAS_SIN_ARCHIVAR", "LIMITES_POLITICA", "LIMITES_BLOQUEO",
   "TIPOS_NOVEDAD", "AUDIENCIAS", "CANALES", "ESTADOS_CONTENIDO", "LARGO_PIN", "LARGO_PIN_VIEJO", "MOTIVO_PIN_VIEJO",
-  "TOPE_INTENTOS_PIN", "ESPERAS_PIN_S", "VUELTAS_PIN", "DIAS_ADELANTE_MAX",
+  "TOPE_INTENTOS_PIN", "ESPERAS_PIN_S", "VUELTAS_PIN", "DIAS_ADELANTE_MAX", "ALERTAS_POSPONIBLES",
 ] as const satisfies readonly Exclude<keyof Motor, Funciones>[];
 
 // Comprobación de tipos en los dos sentidos: ninguna función ni constante tipada queda afuera de las listas.
@@ -140,7 +146,7 @@ function claves<T>() {
 }
 // `archivo` es opcional: aparece recién cuando se archivan días cerrados (archivarDiasCerrados). `salPin` también:
 // aparece cuando un PIN se guarda con hash (21/10/2026).
-const CLAVES_ESTADO = claves<Omit<EstadoClub, "archivo" | "salPin">>()([
+const CLAVES_ESTADO = claves<Omit<EstadoClub, "archivo" | "salPin" | "alertasPospuestas">>()([
   "config", "canchas", "clientes", "productos", "usuarios", "reservas", "cuentas", "caja", "novedades", "bloqueos", "luces", "clima",
   "proveedores", "solicitudesAcceso", "difusiones", "pedidos", "fijos", "espera", "remitos", "pagosProveedor", "contenido", "log",
 ]);
@@ -153,7 +159,7 @@ const REQ_CLIENTE: readonly Requeridas<Cliente>[] = ["id", "nombre", "tel", "niv
 
 test("contrato de motor.d.mts: cada export tipado existe en la copia con su clase (función o constante)", () => {
   const motor = M as unknown as Record<string, unknown>;
-  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES, ...FUNCIONES_PIN_POR_ROL, ...FUNCIONES_TOPE_PIN, ...FUNCIONES_PIN_CON_HASH, ...FUNCIONES_REING_BP_1A]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
+  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES, ...FUNCIONES_PIN_POR_ROL, ...FUNCIONES_TOPE_PIN, ...FUNCIONES_PIN_CON_HASH, ...FUNCIONES_REING_BP_1A, ...FUNCIONES_REING_BP_2B]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
   for (const n of CONSTANTES) {
     assert.ok(n in motor, `${n} no está exportada`);
     assert.notEqual(typeof motor[n], "function", `${n} es una función: va en FUNCIONES`);
@@ -540,3 +546,266 @@ test("BP-005/006: cobrar la seña y abrir — cobra lo que falta, abre y prende 
   assert.deepEqual([mov.medio, mov.monto], ["transferencia", 21000]);
 });
 
+
+// ───────────── reingeniería BP · 2B: plata pendiente, dos bandejas, alertas de caja; H2/H4; lo que pide 2D ─────────────
+
+const DIA = (n: number) => M.sumarDias(HOY, n);
+const en = (dias: number, hh: number, mm = 0): Ahora => ({ fecha: DIA(dias), min: hh * 60 + mm });
+/** Un turno sin ficha, pagado y cancelado con tiempo hace `dias` días: queda para devolver en mano. */
+function devolucionDeHace(e: EstadoClub, dias: number, titular = "Sofi"): Reserva {
+  const r = ok(M.crearReserva(e, { canchaId: "c3", fecha: DIA(-dias), inicio: 20 * 60, titular, conSena: false }, en(-dias - 2, 9))).reserva;
+  ok(M.registrarPago(e, r.id, { medio: "transferencia", monto: 21000 }, en(-dias - 2, 9, 5)));
+  ok(M.cancelar(e, r.id, {}, en(-dias - 1, 9)));
+  return r;
+}
+
+test("H2/H4: prefijoActualIds lee el prefijo puesto; fijarSecuencia lo pone exacto (también para abajo) y no acepta basura", () => {
+  M.prefijoIds("pc 01-!");
+  assert.equal(M.prefijoActualIds(), "pc01-", "saneado como lo guarda el motor");
+  M.prefijoIds("");
+  assert.equal(M.prefijoActualIds(), "");
+  const e = club();
+  M.retomarSecuencia(500);
+  M.fijarSecuencia(10);
+  assert.equal(M.secuenciaIds(), 10, "baja");
+  const a = M.anotarEspera(e, { titular: "X", clienteId: null, fecha: HOY, desde: 600, hasta: 700 }, ahora(9));
+  assert.equal(a.id, "e" + (11).toString(36));
+  for (const malo of [-1, 2.5, Number.NaN, "x" as unknown as number]) {
+    M.fijarSecuencia(malo);
+    assert.equal(M.secuenciaIds(), 11, `ignora ${String(malo)}`);
+  }
+  M.retomarSecuencia(500);
+});
+
+test("BP-050: la devolución de hace 5 días sigue en «Plata pendiente» (y en las alertas); devuelta con el medio elegido, se va y sale de la caja", () => {
+  const e = club();
+  const r = devolucionDeHace(e, 5);
+  const lista = M.plataPendiente(e);
+  assert.equal(lista.length, 1);
+  const x = lista[0];
+  assert.deepEqual([x.tipo, x.reservaId, x.monto, x.sentido, x.nombre], ["devolucion", r.id, 21000, "sale", "Sofi"]);
+  assert.match(x.texto, /^Devolver \$ 21\.000 a Sofi \(turno del \d\d\/10 20:00\)$/);
+  assert.ok(M.alertas(e, ahora(19)).some((a) => a.tipo === "devolucion" && a.reservaId === r.id), "la alerta tampoco vence (la bandeja de siempre)");
+  const caja = e.caja.movimientos.length;
+  ok(M.marcarDevuelto(e, r.id, "mercadopago", ahora(19)));
+  assert.deepEqual(M.plataPendiente(e), [], "desaparece de la lista");
+  const mov = e.caja.movimientos.at(-1)!;
+  assert.equal(e.caja.movimientos.length, caja + 1);
+  assert.deepEqual([mov.tipo, mov.medio, mov.monto], ["egreso", "mercadopago", 21000]);
+  assert.equal(M.marcarDevuelto(e, r.id, "efectivo", ahora(19, 1)).ok, false, "dos veces no");
+});
+
+test("BP-051 (motor): la falta sin ficha de la semana pasada queda con nombre, monto y fecha; la seña vencida también; cobradas, se van", () => {
+  const e = club();
+  const r = ok(M.crearReserva(e, { canchaId: "c2", fecha: DIA(-7), inicio: 21 * 60, titular: "Pablo", conSena: false }, en(-8, 10))).reserva;
+  const falta = ok(M.marcarNoShow(e, r.id, {}, en(-7, 21, 30)));
+  assert.deepEqual(falta.cargos, [{ nombre: "Pablo", monto: 42000, sinFicha: true }]);
+  const web = ok(M.crearReserva(e, { canchaId: "c1", fecha: DIA(1), inicio: 20 * 60, clienteId: "a", conSena: true, plazoSenaMin: 60, origen: "web" }, ahora(9))).reserva;
+  M.vencerSenas(e, ahora(11));
+  assert.equal(web.senaVencida, true);
+  const lista = M.plataPendiente(e);
+  assert.deepEqual(lista.map((x) => x.tipo), ["falta_sin_ficha", "sena_vencida"], "de lo más viejo a lo más nuevo");
+  assert.match(lista[0].texto, /^Pablo debe la falta del \d\d\/10 · \$ 42\.000$/);
+  assert.deepEqual([lista[1].monto, lista[1].tel], [21000, "5491100000001"], "con el celular de la ficha");
+  ok(M.cobrarFaltaSinFicha(e, r.id, "efectivo", ahora(19)));
+  ok(M.registrarPago(e, web.id, { medio: "transferencia", monto: 21000 }, ahora(19, 1)));
+  assert.deepEqual(M.plataPendiente(e), []);
+});
+
+test("BP-052: fiado pedido y el cliente se va: «esperando OK» en la lista; al aprobar (con el código o en el sistema) la cuenta se cierra sola a cuenta corriente", () => {
+  for (const como of ["codigo", "sistema"] as const) {
+    const e = club();
+    const r = mesa4(e);
+    M.consumoJugador(e, r.id, 0, "k-pica", 1, {}, ahora(20, 10));
+    const cta = M.cuentaDeJugador(e, r, 0)!;
+    const debe = M.saldoCuenta(cta);
+    const { novedad: n } = ok(M.solicitarCredito(e, { clienteId: "a", tipo: "fiado", monto: debe, cuentaId: cta.id }, RECEP, ahora(21)));
+    let x = M.plataPendiente(e).find((y) => y.tipo === "fiado")!;
+    assert.deepEqual([x.estadoFiado, x.cuentaId, x.monto, x.cerrarAlAprobar], ["esperando", cta.id, debe, false]);
+    assert.equal(ok(M.cerrarAlAprobar(e, n.id, RECEP, ahora(21, 1))).yaEstaba, false);
+    assert.equal(ok(M.cerrarAlAprobar(e, n.id, RECEP, ahora(21, 2))).yaEstaba, true, "idempotente");
+    x = M.plataPendiente(e).find((y) => y.tipo === "fiado")!;
+    assert.equal(x.cerrarAlAprobar, true);
+    const caja = cajaIngresos(e);
+    if (como === "codigo") {
+      const d = M.datosAprobacion(e, n.id)!;
+      ok(M.aprobarPorCodigo(e, n.id, { codigo: M.codigoAprobacion({ pin: "1111", novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f }) }, RECEP, ahora(22)));
+    } else ok(M.resolverCredito(e, n.id, { aprobar: true }, DUENO, ahora(22)));
+    assert.equal(M.cuenta(e, cta.id)!.estado, "cerrada", `${como}: se cerró sola`);
+    assert.equal(M.cliente(e, "a")!.deuda, debe, "a la cuenta corriente, exacto");
+    assert.equal(cajaIngresos(e), caja, "lo fiado no entra a la caja");
+    assert.equal(M.plataPendiente(e).filter((y) => y.tipo === "fiado").length, 0, "y sale de la lista");
+  }
+});
+
+test("fiado sin «se fue»: aprobado, queda «Pasar a su cuenta corriente»; aprobado por menos de lo que debe, no se cierra solo y lo dice", () => {
+  const e = club();
+  const r = mesa4(e);
+  M.consumoJugador(e, r.id, 0, "k-pica", 2, {}, ahora(20, 10));
+  const cta = M.cuentaDeJugador(e, r, 0)!;
+  const debe = M.saldoCuenta(cta);
+  const { novedad: n } = ok(M.solicitarCredito(e, { clienteId: "a", tipo: "fiado", monto: debe, cuentaId: cta.id }, RECEP, ahora(21)));
+  ok(M.cerrarAlAprobar(e, n.id, RECEP, ahora(21, 1)));
+  ok(M.resolverCredito(e, n.id, { aprobar: true, monto: debe - 1000 }, DUENO, ahora(22)));
+  assert.equal(M.cuenta(e, cta.id)!.estado, "abierta", "no entra: no se fuerza");
+  const x = M.plataPendiente(e).find((y) => y.tipo === "fiado")!;
+  assert.equal(x.estadoFiado, "aprobado");
+  assert.match(x.texto, /no se pudo cerrar sola/);
+  // Rechazado con el cliente que se fue: queda para cobrar la cuenta.
+  const e2 = club();
+  const r2 = mesa4(e2);
+  M.consumoJugador(e2, r2.id, 0, "k-pica", 1, {}, ahora(20, 10));
+  const c2 = M.cuentaDeJugador(e2, r2, 0)!;
+  const { novedad: n2 } = ok(M.solicitarCredito(e2, { clienteId: "a", tipo: "fiado", monto: M.saldoCuenta(c2), cuentaId: c2.id }, RECEP, ahora(21)));
+  ok(M.cerrarAlAprobar(e2, n2.id, RECEP, ahora(21, 1)));
+  ok(M.resolverCredito(e2, n2.id, { aprobar: false }, DUENO, ahora(22)));
+  assert.equal(M.plataPendiente(e2)[0].estadoFiado, "rechazado");
+  assert.equal(M.cerrarAlAprobar(e2, n2.id, RECEP, ahora(22)).ok, false, "ya se resolvió");
+});
+
+test("BP-053/054 (motor): caja sin cerrar → alerta para los dos; cierre con diferencia y pago que vence → sólo dueño", () => {
+  const e = club();
+  ok(M.ventaMostrador(e, [{ productoId: "k-pica", cant: 1 }], "efectivo", en(-1, 20)));
+  const a = M.alertas(e, ahora(13));
+  const caja = a.find((x) => x.tipo === "caja")!;
+  assert.equal(caja.nivel, "alta");
+  assert.equal(caja.paraDuenio, undefined, "para recepción y dueño");
+  assert.equal(caja.texto, `Quedó la caja del ${DIA(-1).slice(8)}/10 sin cerrar.`);
+  assert.deepEqual(caja.dias, [DIA(-1)]);
+  ok(M.cerrarCaja(e, { contado: 0, usuarioId: "u-lu", pin: "33", dia: DIA(-1) }, ahora(13, 5)));
+  const b = M.alertas(e, ahora(13, 6));
+  assert.equal(b.some((x) => x.tipo === "caja"), false, "cerrada, se va");
+  const dif = b.find((x) => x.tipo === "cierreConDiferencia")!;
+  assert.equal(dif.paraDuenio, true);
+  assert.match(dif.texto, /^La caja del \d\d\/10 cerró con \$ [\d.]+ de menos \(Lu, 13:05\)\.$/);
+  // Remito que vence mañana: alerta del dueño; pagado, se va.
+  const conStock = M.PRODUCTOS_DEMO.find((p) => p.stock != null && !p.alquiler)!.id;
+  const { remito } = ok(M.registrarRemito(e, { proveedorId: "pv1", numero: "A-1", items: [{ productoId: conStock, cant: 10, costo: 4800 }], vence: DIA(1) }, DUENO, ahora(9)));
+  assert.equal(M.registrarRemito(e, { proveedorId: "pv1", numero: "A-2", items: [{ productoId: conStock, cant: 1 }], vence: "mañana" }, DUENO, ahora(9)).ok, false);
+  const v = M.alertas(e, ahora(14)).find((x) => x.tipo === "vencePago")!;
+  assert.deepEqual([v.paraDuenio, v.nivel, v.remitoId], [true, "media", remito.id]);
+  assert.equal(v.texto, "Mañana vence el pago de $ 48.000 a Distribuidora Ezeiza Bebidas (remito A-1).");
+  assert.deepEqual(M.pagosPorVencer(e, en(3, 10)).map((x) => [x.enDias, x.monto]), [[-2, 48000]], "vencido");
+  ok(M.pagarProveedor(e, { proveedorId: "pv1", medio: "transferencia", monto: 30000 }, DUENO, ahora(15)));
+  assert.equal(M.pagosPorVencer(e, ahora(15))[0].monto, 18000, "lo pagado cubre del más viejo");
+  ok(M.pagarProveedor(e, { proveedorId: "pv1", medio: "transferencia", monto: 18000 }, DUENO, ahora(15)));
+  assert.equal(M.alertas(e, ahora(15)).some((x) => x.tipo === "vencePago"), false);
+});
+
+test("«aparte»: lo que chocó entre puestos (en la foto) es alerta del dueño", () => {
+  const e = club() as EstadoClub & { sincro?: { paraResolver: unknown[] } };
+  e.sincro = { paraResolver: [{ id: "x" }, { id: "y" }] };
+  const a = M.alertas(e, ahora(10)).find((x) => x.tipo === "aparte")!;
+  assert.deepEqual([a.paraDuenio, a.texto], [true, "Quedaron 2 cosas de los puestos para resolver."]);
+});
+
+test("BP-055: una alerta pospuesta no aparece hoy y sí mañana; sólo las posponibles; las del dueño, un dueño; sobrevive al respaldo", () => {
+  const e = club();
+  ok(M.cerrarCaja(e, { contado: 100, usuarioId: "u-rober", pin: "1111" }, ahora(13)));
+  const dif = M.alertas(e, ahora(14)).find((x) => x.tipo === "cierreConDiferencia")!;
+  const clave = M.claveDeAlerta(dif);
+  assert.equal(clave, `cierreConDiferencia:${dif.dia}`);
+  assert.equal(M.posponerAlerta(e, clave, RECEP, ahora(14)).ok, false, "la del dueño no la pospone recepción");
+  const p = ok(M.posponerAlerta(e, clave, DUENO, ahora(14)));
+  assert.equal(p.hasta, DIA(1));
+  assert.equal(M.alertas(e, ahora(23)).some((x) => x.tipo === "cierreConDiferencia"), false, "hoy no");
+  assert.equal(ok(M.posponerAlerta(e, clave, DUENO, ahora(15))).yaEstaba, true);
+  const foto = ok(M.hidratarEstado(JSON.parse(JSON.stringify(M.serializarEstado(e))))).estado;
+  assert.equal(M.alertas(foto, ahora(23)).some((x) => x.tipo === "cierreConDiferencia"), false, "la foto la recuerda");
+  assert.equal(M.alertas(e, en(1, 9)).some((x) => x.tipo === "cierreConDiferencia"), true, "mañana, sí");
+  // Lo del día no se pospone.
+  ok(M.ventaMostrador(e, [{ productoId: "k-pica", cant: 1 }], "efectivo", en(1, 9)));
+  const caja = M.alertas(e, en(2, 13)).find((x) => x.tipo === "caja")!;
+  assert.match((M.posponerAlerta(e, M.claveDeAlerta(caja), DUENO, en(2, 13)) as { motivo: string }).motivo, /hoy/);
+  // Una foto con basura en las pospuestas se limpia sin rechazarse.
+  const rara = M.serializarEstado(e);
+  (rara.estado as unknown as Record<string, unknown>).alertasPospuestas = [{ tipo: 1 }, "x"];
+  assert.equal("alertasPospuestas" in ok(M.hidratarEstado(JSON.parse(JSON.stringify(rara)))).estado, false);
+});
+
+test("BP-056 (motor): el WhatsApp de la falta lleva lo que le quedó al titular en su cuenta (al titular, en grupo, sin cargo)", () => {
+  const e = club();
+  const r = mesa4(e, 18);
+  ok(M.marcarNoShow(e, r.id, {}, ahora(18, 30)));
+  assert.equal(r.faltaTitular, 42000);
+  assert.equal(M.mensajeDeLaFalta(e, r.id), "¡Hola Ana! Hoy no llegaron al turno de las 18:00. Como avisamos, la falta se cobra entera: te quedó $ 42.000 en tu cuenta. Lo podés pasar por transferencia o Mercado Pago. ¡Gracias!");
+  const g = mesa4(e, 16, "c2");
+  ok(M.marcarNoShow(e, g.id, { cobrarA: "grupo" }, ahora(16, 30)));
+  // Ana (titular) + Caro y Dani sin ficha en el turno → a cargo de la titular; Beto, lo suyo.
+  const partes = M.dividir(g.precio, 4);
+  assert.equal(g.faltaTitular, g.precio - partes[1]);
+  assert.ok(M.mensajeDeLaFalta(e, g.id)!.includes(`te quedó ${M.pesos(g.precio - partes[1])} en tu cuenta`));
+  const nadie = mesa4(e, 14, "c3");
+  ok(M.marcarNoShow(e, nadie.id, { cobrarA: "nadie", auth: DUENO }, ahora(14, 30)));
+  assert.equal(M.mensajeDeLaFalta(e, nadie.id), null, "sin cargo, sin mensaje de plata");
+  assert.equal(M.mensajeDeLaFalta(e, mesa4(e, 22, "c4").id), null, "no es falta");
+});
+
+test("materializarFijosHasta: baja los fijos de toda la ventana (+14), idempotente, y avisa el que choca con su fecha", () => {
+  const e = club();
+  const dia = M.diaSemana(DIA(3));
+  M.crearFijo(e, { clienteId: "b", canchaId: "c2", dia, inicio: 19 * 60 });
+  ok(M.crearReserva(e, { canchaId: "c2", fecha: DIA(10), inicio: 19 * 60, clienteId: "a", conSena: false }, ahora(9)));
+  const choques = M.materializarFijosHasta(e, HOY);
+  assert.deepEqual(choques.map((c) => c.fecha), [DIA(10)]);
+  assert.deepEqual(e.reservas.filter((r) => r.fijoId).map((r) => r.fecha).sort(), [DIA(3), DIA(17)].filter((f) => f <= DIA(14)));
+  const n = e.reservas.length;
+  M.materializarFijosHasta(e, HOY, 14);
+  assert.equal(e.reservas.length, n, "idempotente");
+});
+
+test("2D · cerrar la cancha y seguir con un medio por jugador: cada parte con el suyo, caja por medio exacta; si a uno le falta el medio, no se cobra nada", () => {
+  const e = club();
+  const r = mesa4(e);
+  ok(M.checkIn(e, r.id, ahora(20)));
+  const antes = cajaIngresos(e);
+  const sinMedio = M.cerrarCanchaYSeguir(e, r.id, { porJugador: { 0: "mercadopago", 1: "efectivo", 2: "debito" } }, ahora(21, 30));
+  assert.equal(sinMedio.ok, false);
+  assert.match((sinMedio as { motivo: string }).motivo, /Dani/);
+  assert.equal(cajaIngresos(e), antes, "nada cobrado");
+  assert.equal(M.cerrarCanchaYSeguir(e, r.id, { porJugador: { 0: "monedero" as never }, medio: "efectivo" }, ahora(21, 30)).ok, false, "sin créditos");
+  const res = ok(M.cerrarCanchaYSeguir(e, r.id, { porJugador: { 0: "mercadopago", 1: "efectivo", 2: "debito" }, medio: "transferencia" }, ahora(21, 30)));
+  assert.equal(res.cobradoCancha, 42000);
+  assert.deepEqual(res.porMedio, { mercadopago: 10500, efectivo: 10500, debito: 10500, transferencia: 10500 });
+  assert.equal(r.estado, "finalizada");
+  assert.equal(r.mesaSigue, true);
+  assert.equal(cajaIngresos(e) - antes, 42000, "ni un peso más");
+  assert.deepEqual(r.jugadores.map((j) => j.saldado), [true, true, true, true]);
+  // Con un solo medio, como siempre.
+  const e2 = club();
+  const r2 = mesa4(e2);
+  ok(M.checkIn(e2, r2.id, ahora(20)));
+  assert.deepEqual(ok(M.cerrarCanchaYSeguir(e2, r2.id, { medio: "efectivo" }, ahora(21, 30))).porMedio, { efectivo: 42000 });
+});
+
+test("2D · «cerrar la de X y abrir la siguiente» en un paso: cobra a X por jugador, la cierra y abre la otra (con su seña); si la siguiente no se puede abrir, no toca nada", () => {
+  const e = club();
+  const x = mesa4(e, 18, "c1");
+  ok(M.checkIn(e, x.id, ahora(18)));
+  const sig = ok(M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 19 * 60 + 30, clienteId: "c", conSena: true }, ahora(9))).reserva;
+  assert.equal(sig.sena.monto, 21000);
+  const antes = cajaIngresos(e);
+  // Sin medio para la seña: no se cierra ni se cobra.
+  const falla = M.cerrarYAbrirLaSiguiente(e, { cerrarId: x.id, abrirId: sig.id, medio: "efectivo" }, ahora(19, 30));
+  assert.equal(falla.ok, false);
+  assert.match((falla as { motivo: string }).motivo, /seña/);
+  assert.deepEqual([x.estado, cajaIngresos(e)], ["en_cancha", antes]);
+  // Otra cancha: no.
+  const otra = ok(M.crearReserva(e, { canchaId: "c2", fecha: HOY, inicio: 19 * 60 + 30, clienteId: "b", conSena: false }, ahora(9))).reserva;
+  assert.equal(M.cerrarYAbrirLaSiguiente(e, { cerrarId: x.id, abrirId: otra.id, medio: "efectivo" }, ahora(19, 30)).ok, false);
+  const res = ok(M.cerrarYAbrirLaSiguiente(e, { cerrarId: x.id, abrirId: sig.id, porJugador: { 0: "mercadopago" }, medio: "efectivo", seguir: true, medioSena: "transferencia" }, ahora(19, 30)));
+  assert.deepEqual(res.cerrada.porMedio, { mercadopago: 10500, efectivo: 31500 });
+  assert.equal(res.abierta.cobrado, 21000);
+  assert.deepEqual([x.estado, x.mesaSigue, sig.estado, sig.sena.pagada, e.luces.c1], ["finalizada", true, "en_cancha", true, true]);
+  assert.equal(cajaIngresos(e) - antes, 42000 + 21000, "exacto");
+  // Repetirlo no cobra de nuevo.
+  assert.equal(M.cerrarYAbrirLaSiguiente(e, { cerrarId: x.id, abrirId: sig.id, medio: "efectivo", medioSena: "efectivo" }, ahora(19, 31)).ok, false);
+  assert.equal(cajaIngresos(e) - antes, 63000);
+  // A cuenta corriente (Dani tiene) y sin seña.
+  const e2 = club();
+  const d = ok(M.crearReserva(e2, { canchaId: "c4", fecha: HOY, inicio: 18 * 60, clienteId: "d", conSena: false }, ahora(9))).reserva;
+  ok(M.checkIn(e2, d.id, ahora(18)));
+  const s2 = ok(M.crearReserva(e2, { canchaId: "c4", fecha: HOY, inicio: 19 * 60 + 30, clienteId: "b", conSena: false }, ahora(9))).reserva;
+  ok(M.cerrarYAbrirLaSiguiente(e2, { cerrarId: d.id, abrirId: s2.id, aCuenta: true }, ahora(19, 30)));
+  assert.deepEqual([d.estado, d.aCuentaCorriente, M.cliente(e2, "d")!.deuda, s2.estado], ["finalizada", 42000, 42000, "en_cancha"]);
+});

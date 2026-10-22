@@ -15,6 +15,8 @@ const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
 const demo = (): { e: EstadoClub; auth: Auth } => {
   const e = M.generarDemo(HOY, AHORA.min);
+  // La demo trae las cajas de los días pasados cerradas (Tanda 2B); estas pruebas parten de la semana sin cerrar.
+  e.caja.cierres = [];
   return { e, auth: operadorDeLaDemo(e, "RECEPTION")!.auth };
 };
 
