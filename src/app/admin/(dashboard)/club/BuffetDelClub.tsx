@@ -11,14 +11,19 @@
 //      elegido o con sus créditos, con el paso previo), pasar a su cuenta corriente o, si no tiene, pedir el OK del
 //      dueño para fiar y tipear el código de 6 letras que manda (5 intentos).
 //   4. Abrir una cuenta sin turno (alguien que viene al bar).
-// Ola 1 de paridad: la «Venta rápida de mostrador» (VentaDeMostrador.tsx) y, en cada cuenta, la «Mesa compleja»
-// (buffet-mesa-compleja.tsx): pasar un cargo a otra cuenta y cargo manual, con descuento firmado por el dueño.
+// Ola 1 de paridad: en cada cuenta, la «Mesa compleja» (buffet-mesa-compleja.tsx): pasar un cargo a otra cuenta y
+// cargo manual, con descuento firmado por el dueño.
 // Cada tarjeta es un `memo`: cargar en una cuenta repinta sólo esa tarjeta (compartirBuffet).
+// Tanda 2D (reingeniería de Break Point): la mesa que sigue vive ACÁ con sus comensales (`MesaQueSigue`): «+ plato» al
+// comensal elegido, cada uno paga lo suyo con su medio de un toque, «Cobrar todo y cerrar la mesa» o a cuenta corriente,
+// sin saltar a la Agenda. Sus cuentas no se repiten en «Cuentas abiertas»: van dentro de la mesa («Más»).
+// Una sola venta de mostrador: la hoja global «Vender» (tecla V, Tanda 2A, VentaDeMostrador.tsx). Acá queda su acceso de
+// un toque (`onVender`, lo mismo que la tecla V: lo monta ClubDemo). La «Venta rápida» de la Tanda 1 ya no existe.
 // Piel del club de hoy: cada cuenta es una tarjeta RESUMIDA (quién, cuánto debe, qué lleva) y «Cargar / cobrar» la
 // despliega con el − / + de cada cargo y los «+ Plato»; cobrar, cuenta corriente, fiar y la mesa compleja siguen a la
 // vista. Los colores de Break Point van en piel/buffet.css (bajo [data-estetica="breakpoint"], por `data-buffet`).
 
-import { memo, useCallback, useId, useState } from "react";
+import { memo, useCallback, useId, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
@@ -26,17 +31,17 @@ import { pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { clientesQueCoinciden } from "./alta-core";
-import { DESHACIBLE_BUFFET, armarBuffet, compartirBuffet, confirmarCreditosCuenta, ejecutarBuffet, productosParaCargar, type AccionBuffet, type VistaBuffet, type VistaCuentaBuffet } from "./buffet-core";
+import { DESHACIBLE_BUFFET, armarBuffet, compartirBuffet, confirmarCreditosCuenta, productosParaCargar, type AccionBuffet, type VistaBuffet, type VistaCuentaBuffet } from "./buffet-core";
 import MesaCompleja from "./buffet-mesa-compleja";
-import { pedirFiado } from "./credito-core";
+import { compartirMesas, mesasDelBuffet, textoCerrarMesa, type MesaDelBuffet } from "./buffet-mesa-core";
 import PedidoDelDuenio from "./pedido-del-duenio";
-import { revisarConfirmacion, type MedioCobro } from "./cuenta-core";
+import { DESHACIBLE, ETIQUETA_MEDIO, MEDIOS_CAJA, MEDIO_CORTO, revisarConfirmacion, type AccionCuenta, type MedioCobro } from "./cuenta-core";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
 import { useSeleccion } from "./usar-almacen";
-import VentaDeMostrador from "./VentaDeMostrador";
 import "./piel/buffet.css";
 
 const seleccionarBuffet = (e: EstadoClub, a: Ahora) => armarBuffet(e, a);
+const seleccionarMesas = (e: EstadoClub) => mesasDelBuffet(e);
 
 /** «Cargar / cobrar», como el botón de la tarjeta del club de hoy: despliega los platos y el − / + de cada cargo. */
 function CargarCobrar({ abierta, detalle, titular, onCambiar }: { abierta: boolean; detalle: string; titular: string; onCambiar: () => void }) {
@@ -190,7 +195,7 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
                 </Button>
               )}
               {cuenta.aCobrar > 0 && !cuenta.aCuenta.ok && cuenta.aCuenta.puedePedirFiado && (
-                <Button variant="outline" size="md" onClick={() => almacen.ejecutar((e, ahora, auth) => pedirFiado(e, cuenta.id, auth, ahora))}>
+                <Button variant="outline" size="md" onClick={() => almacen.comando("fiado", [{ tipo: "pedir", cuentaId: cuenta.id }])}>
                   Pedir OK para fiar {pesos(cuenta.aCobrar)}
                 </Button>
               )}
@@ -200,6 +205,196 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
           </div>
         )}
         <MesaCompleja almacen={almacen} cuenta={cuenta} negocio={negocio} />
+      </article>
+    </li>
+  );
+});
+
+/**
+ * Una mesa que sigue (la cancha ya se cerró): sus comensales con lo que lleva cada uno y su cobro de un toque, los «+ plato»
+ * al comensal elegido y el cierre de la mesa. Todo por la cuenta del turno (comando «cuenta»): la plata la decide el motor.
+ */
+const MesaQueSigue = memo(function MesaQueSigue({
+  mesa,
+  almacen,
+  platos,
+  cuentas,
+  medio,
+  negocio,
+  onAccionBuffet,
+  onVerTurno,
+}: {
+  mesa: MesaDelBuffet;
+  almacen: Almacen;
+  platos: VistaBuffet["platos"];
+  /** Las tarjetas de sus cuentas, para «Más» (repartir, cargar a mano, fiar). */
+  cuentas: VistaCuentaBuffet[];
+  medio: MedioCobro;
+  negocio?: string;
+  onAccionBuffet: (a: AccionBuffet) => void;
+  onVerTurno: (reservaId: string) => void;
+}) {
+  const [para, setPara] = useState(mesa.comensales[0]?.idx ?? 0);
+  const [texto, setTexto] = useState("");
+  const [mas, setMas] = useState(false);
+  const titulo = useId();
+  const idPara = useId();
+  const idBusca = useId();
+  const idMas = useId();
+  const elegido = mesa.comensales.find((c) => c.idx === para) ?? mesa.comensales[0];
+  const accion = (a: AccionCuenta) => almacen.comando("cuenta", [mesa.reservaId, a], { deshacible: DESHACIBLE[a.tipo] });
+  const cargar = (productoId: string) => {
+    if (!elegido) return;
+    accion({ tipo: "cargo", idx: elegido.idx, productoId, cant: 1, modo: "cuenta", medio: "efectivo" });
+    setTexto("");
+  };
+  const { porCodigo, productos } = productosParaCargar(almacen.estado(), texto);
+  return (
+    <li>
+      <article aria-labelledby={titulo} data-buffet="mesa" className="flex h-full flex-col gap-3 rounded-lg border border-line bg-surface-raised p-3">
+        <header className="flex items-baseline justify-between gap-2">
+          <div className="min-w-0">
+            <h3 id={titulo} className="truncate font-semibold text-strong">
+              {mesa.titulo}
+            </h3>
+            <p className="text-xs text-muted">{mesa.detalle}</p>
+          </div>
+          <p data-buffet="total" className="shrink-0 text-lg font-bold tabular-nums text-strong">
+            {pesos(mesa.total)}
+          </p>
+        </header>
+
+        {/* Sumar: a quién (chips, un toque) y qué (los platos de un toque, o el lector / el nombre). */}
+        <fieldset className="flex flex-col gap-1">
+          <legend id={idPara} className="mb-1 text-xs font-medium text-muted">
+            Sumar a
+          </legend>
+          <div className="flex flex-wrap gap-1.5">
+            {mesa.comensales.map((c) => (
+              <label
+                key={c.idx}
+                className={cn(
+                  "inline-flex min-h-11 cursor-pointer items-center rounded-md border px-3 text-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus",
+                  elegido?.idx === c.idx ? "border-accent bg-accent-soft font-semibold text-strong" : "border-line-strong text-body",
+                )}
+              >
+                <input type="radio" name={idPara} value={c.idx} checked={elegido?.idx === c.idx} onChange={() => setPara(c.idx)} className="sr-only" />
+                {c.nombre}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        {platos.length > 0 && elegido && (
+          <div role="group" aria-label={`Sumarle un plato a ${elegido.nombre}`} data-buffet="platos" className="flex flex-wrap gap-1.5">
+            {platos.map((p) => (
+              <Button key={p.id} variant="outline" size="md" onClick={() => cargar(p.id)}>
+                + {p.nombre}
+              </Button>
+            ))}
+          </div>
+        )}
+        <div className="flex flex-col gap-1">
+          <label htmlFor={idBusca} className="text-xs font-medium text-muted">
+            Otro producto (pasá el lector o escribí)
+          </label>
+          <Input
+            id={idBusca}
+            value={texto}
+            autoComplete="off"
+            onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && productos.length === 1 && (porCodigo || texto.trim())) {
+                e.preventDefault();
+                cargar(productos[0].id);
+              }
+            }}
+          />
+        </div>
+        {texto.trim() !== "" && (
+          <ul aria-label={`Productos para ${elegido?.nombre ?? "la mesa"}`} className="grid grid-cols-1 gap-1">
+            {productos.length === 0 && <li className="text-sm text-muted">No hay productos con eso.</li>}
+            {productos.map((p) => (
+              <li key={p.id}>
+                <Button variant="ghost" size="md" className="w-full justify-between!" onClick={() => cargar(p.id)}>
+                  <span className="truncate">1 × {p.nombre}</span>
+                  <span className="tabular-nums text-muted">{pesos(p.precio)}</span>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Cada comensal con lo suyo y sus 4 medios: cobra de un toque, nada queda elegido para el que sigue. */}
+        <ul aria-label={`Comensales de la ${mesa.titulo.toLowerCase()}`} data-buffet="comensales" className="flex flex-col">
+          {mesa.comensales.map((c) => (
+            <li key={c.idx} data-buffet="comensal" className="flex flex-col gap-1.5 border-t border-line py-2 first:border-t-0">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold text-strong">{c.nombre}</span>
+                  {c.lleva.length > 0 && <span className="block text-xs text-muted">{c.lleva.join(" · ")}</span>}
+                </span>
+                {c.aPagar > 0 ? (
+                  <span className="shrink-0 font-semibold tabular-nums text-strong">{pesos(c.aPagar)}</span>
+                ) : (
+                  <span className="shrink-0 text-sm text-muted">{c.situacion === "al día" ? "✔ al día" : c.situacion}</span>
+                )}
+              </div>
+              {c.aPagar > 0 && (
+                <div role="group" aria-label={`Cobrarle ${pesos(c.aPagar)} a ${c.nombre}`} className="flex flex-wrap gap-1.5">
+                  {MEDIOS_CAJA.map((m) => (
+                    <Button key={m} variant="outline" size="md" className="min-w-11 px-3" aria-label={`${c.nombre} paga ${pesos(c.aPagar)} en ${ETIQUETA_MEDIO[m]}`} onClick={() => accion({ tipo: "cobrarJugador", idx: c.idx, medio: m })}>
+                      {MEDIO_CORTO[m]}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+
+        {/* Cerrar la mesa: todo con un medio, o a cuenta corriente; en cero, cerrarla. */}
+        <div className="mt-auto flex flex-col gap-2 border-t border-line pt-3">
+          {mesa.total > 0 ? (
+            <div role="group" aria-label={textoCerrarMesa(mesa.total)} className="flex flex-col gap-1.5">
+              <p className="text-sm font-semibold text-strong">{textoCerrarMesa(mesa.total)}:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {MEDIOS_CAJA.map((m) => (
+                  <Button key={m} variant="outline" size="md" className="min-w-11 px-3" aria-label={`${textoCerrarMesa(mesa.total)} en ${ETIQUETA_MEDIO[m]}`} onClick={() => accion({ tipo: "cerrarCargos", medio: m })}>
+                    {MEDIO_CORTO[m]}
+                  </Button>
+                ))}
+                {mesa.aCuentaCorriente && (
+                  <Button variant="ghost" size="md" onClick={() => accion({ tipo: "cargosACuenta" })}>
+                    A cuenta corriente
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <Button variant="solid" size="md" className="self-start" onClick={() => accion({ tipo: "cerrarCargos", medio: "efectivo" })}>
+              {textoCerrarMesa(0)}
+              <span className="sr-only"> ({mesa.titulo})</span>
+            </Button>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {cuentas.length > 0 && (
+              <Button variant="ghost" size="md" aria-expanded={mas} aria-controls={idMas} onClick={() => setMas((x) => !x)}>
+                Más: repartir, cargar a mano, fiar
+              </Button>
+            )}
+            <Button variant="ghost" size="md" onClick={() => onVerTurno(mesa.reservaId)}>
+              Ver la cuenta del turno
+              <span className="sr-only"> ({mesa.titulo})</span>
+            </Button>
+          </div>
+          {mas && cuentas.length > 0 && (
+            <ul id={idMas} aria-label={`Cuentas de la ${mesa.titulo.toLowerCase()}`} className="grid grid-cols-1 gap-3">
+              {cuentas.map((c) => (
+                <TarjetaCuenta key={c.id} cuenta={c} almacen={almacen} medio={medio} onAccion={onAccionBuffet} negocio={negocio} platos={platos} />
+              ))}
+            </ul>
+          )}
+        </div>
       </article>
     </li>
   );
@@ -343,62 +538,99 @@ function AbrirCuenta({ almacen, onAccion }: { almacen: Almacen; onAccion: (a: Ac
   );
 }
 
-export default function BuffetDelClub({ almacen, onVerTurno, negocio }: { almacen: Almacen; onVerTurno: (reservaId: string) => void; negocio?: string }) {
+export default function BuffetDelClub({
+  almacen,
+  onVerTurno,
+  negocio,
+  onVender,
+  atajos = true,
+}: {
+  almacen: Almacen;
+  onVerTurno: (reservaId: string) => void;
+  negocio?: string;
+  /** Abre la hoja global «Vender» (lo mismo que la tecla V, 2A): la única venta de mostrador. */
+  onVender: () => void;
+  /** Los atajos de una tecla prendidos: el botón anuncia (y muestra) la V sólo si anda. */
+  atajos?: boolean;
+}) {
   const vista = useSeleccion(almacen, seleccionarBuffet, compartirBuffet);
+  const mesas = useSeleccion(almacen, seleccionarMesas, compartirMesas);
   const [medio, setMedio] = useState<MedioCobro>("efectivo");
   const onAccion = useCallback(
     (a: AccionBuffet) => {
-      almacen.ejecutar((e, ahora, auth) => ejecutarBuffet(e, a, ahora, auth), { deshacible: DESHACIBLE_BUFFET[a.tipo] });
+      almacen.comando("buffet", [a], { deshacible: DESHACIBLE_BUFFET[a.tipo] });
     },
     [almacen],
   );
+  // Las cuentas de una mesa que sigue van dentro de la mesa (con sus comensales): no se repiten abajo.
+  const { sueltas, deLaMesa } = useMemo(() => {
+    const deLaMesa = new Map<string, VistaCuentaBuffet[]>();
+    const enMesa = new Set<string>();
+    for (const m of mesas) {
+      deLaMesa.set(m.reservaId, vista.cuentas.filter((c) => m.cuentas.includes(c.id)));
+      for (const id of m.cuentas) enMesa.add(id);
+    }
+    return { sueltas: vista.cuentas.filter((c) => !enMesa.has(c.id)), deLaMesa };
+  }, [mesas, vista.cuentas]);
+  const sinCobrar = sueltas.reduce((s, c) => s + c.saldo, 0);
   const creditos = Math.max(0, ...vista.cuentas.map((c) => c.creditos));
+  const seccionMesas = (
+    <section aria-labelledby="club-mesas" data-buffet="mesas" className="flex flex-col gap-2">
+      <h2 id="club-mesas" className="text-lg font-semibold text-strong">
+        Mesas que siguen cargando
+      </h2>
+      {mesas.length === 0 ? (
+        <p className="text-sm text-muted">Ninguna: cuando se cierre una cancha y la mesa siga, aparece acá con sus comensales.</p>
+      ) : (
+        <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {mesas.map((m) => (
+            <MesaQueSigue key={m.reservaId} mesa={m} almacen={almacen} platos={vista.platos} cuentas={deLaMesa.get(m.reservaId) ?? []} medio={medio} negocio={negocio} onAccionBuffet={onAccion} onVerTurno={onVerTurno} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
   return (
     <div className="flex flex-col gap-4">
-      {/* Como el club de hoy: las cuentas abiertas arriba, como tarjetas; después las mesas, la venta de mostrador y
-          abrir una cuenta a mano. */}
+      {/* Las mesas que siguen arriba cuando hay (es lo que se cobra cuando se van); después las cuentas abiertas como
+          tarjetas, la venta de mostrador y abrir una cuenta a mano. */}
+      {mesas.length > 0 && seccionMesas}
       <section aria-labelledby="club-cuentas" data-pantalla-tarjeta className="flex flex-col gap-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 id="club-cuentas" data-pantalla className="text-lg font-semibold text-strong">
             Cuentas abiertas
           </h2>
           <p className="text-sm tabular-nums text-muted">
-            {vista.cuentas.length} {vista.cuentas.length === 1 ? "cuenta" : "cuentas"} · {pesos(vista.totalAbierto)} sin cobrar
+            {sueltas.length} {sueltas.length === 1 ? "cuenta" : "cuentas"} · {pesos(sinCobrar)} sin cobrar
           </p>
         </div>
         <ComoPaga medio={medio} onElegir={setMedio} conCreditos={creditos} leyenda="Cómo pagan (para «Cobrar»)" />
         <ul data-buffet="cuentas" className={cn("grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3")}>
-          {vista.cuentas.map((c) => (
+          {sueltas.map((c) => (
             <TarjetaCuenta key={c.id} cuenta={c} almacen={almacen} medio={medio} onAccion={onAccion} negocio={negocio} platos={vista.platos} />
           ))}
         </ul>
       </section>
 
-      <section aria-labelledby="club-mesas" data-buffet="mesas" className="flex flex-col gap-2">
-        <h2 id="club-mesas" className="text-lg font-semibold text-strong">
-          Mesas que siguen cargando
-        </h2>
-        {vista.mesas.length === 0 ? (
-          <p className="text-sm text-muted">Ninguna: cuando se cierre una cancha y la mesa siga, aparece acá.</p>
-        ) : (
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {vista.mesas.map((m) => (
-              <li key={m.reservaId} data-buffet="mesa" className="flex items-center justify-between gap-2 rounded-lg border border-line bg-surface-raised p-3">
-                <span className="min-w-0">
-                  <span className="block truncate font-semibold text-strong">{m.titulo}</span>
-                  <span className="text-sm tabular-nums text-muted">{m.saldo > 0 ? `Deben ${pesos(m.saldo)}` : "Sin cargos todavía"}</span>
-                </span>
-                <Button variant="outline" size="md" onClick={() => onVerTurno(m.reservaId)}>
-                  Ver la cuenta
-                  <span className="sr-only"> de {m.titulo}</span>
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {mesas.length === 0 && seccionMesas}
 
-      <VentaDeMostrador almacen={almacen} />
+      {/* La venta de mostrador es la hoja global «Vender» (tecla V, desde cualquier solapa): acá, el acceso de un toque. */}
+      <section aria-labelledby="club-vender" data-buffet="vender" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface-raised p-3">
+        <div className="min-w-0">
+          <h2 id="club-vender" className="font-semibold text-strong">
+            Venta de mostrador
+          </h2>
+          <p className="text-sm text-muted">Alguien que compra y se va: se cobra al toque, sin abrir cuenta.</p>
+        </div>
+        <Button variant="solid" size="md" aria-keyshortcuts={atajos ? "V" : undefined} onClick={onVender}>
+          Vender
+          {atajos && (
+            <kbd aria-hidden="true" className="ml-2 rounded-sm border border-current px-1 text-xs font-semibold">
+              V
+            </kbd>
+          )}
+        </Button>
+      </section>
 
       <Cargar almacen={almacen} cuentas={vista.cuentas} onAccion={onAccion} />
 

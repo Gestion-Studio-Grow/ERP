@@ -49,6 +49,7 @@ const PIN_ARMADO: Record<string, string> = { "u-duenio-1": "5821", "u-duenio-2":
 const DUENIO = { usuarioId: "u-duenio-1", pin: PIN_ARMADO["u-duenio-1"] };
 function conPinesDelPiloto(e: EstadoClub): EstadoClub {
   for (const u of e.usuarios) { const viejo = USUARIOS_EJEMPLO.find((x) => x.id === u.id); if (viejo) u.pin = viejo.pin; }
+  e.config.politica.senaNuevos = M.CONFIG_DEMO.politica.senaNuevos;
   return e;
 }
 
@@ -85,6 +86,9 @@ function clubDeEjemplo(nClientes: number, stockInicial: number): EstadoClub {
   });
   e.config.cobro = { ...e.config.cobro, alias: "club.ejemplo.ficticio" };
   e.caja.fondo = 30000;
+  // Se arma con la seña de antes (sin «seña a los nuevos»), como el PIN: lo cargado no cambia y al final la regla
+  // vuelve a la de fábrica (`conPinesDelPiloto`).
+  e.config.politica.senaNuevos = false;
   return e;
 }
 

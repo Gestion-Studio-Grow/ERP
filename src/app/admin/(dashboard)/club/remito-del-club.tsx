@@ -6,7 +6,7 @@
 //
 // Lo abren Proveedores («Registrar remito») y Stock («Ingresar por remito»); recepción lo tiene a mano en
 // Proveedores (es lo único de proveedores que hace). Como el vanilla (`remitoDialogo`):
-//   · el proveedor y el número de remito;
+//   · el proveedor, el número de remito y, si tiene, «Vence» (la fecha de pago: alimenta la alerta `vencePago` del dueño);
 //   · el LECTOR: un campo que recibe lo que tipea el lector (código y Enter) y suma 1 por lectura, sin moverse de ahí;
 //   · o BUSCARLO por nombre o código y tocarlo para sumar 1;
 //   · cada línea con su cantidad y su costo por unidad (arranca con el costo de hoy), el subtotal y «Quitar»;
@@ -31,7 +31,6 @@ import {
   armarRemito,
   cambiarLinea,
   candidatosParaRemito,
-  ejecutarProveedores,
   leerParaElRemito,
   quitarDelRemito,
   remitoVacio,
@@ -99,6 +98,14 @@ export function RegistrarRemito({ almacen, onListo, onCerrar, enfocar = true }: 
           </Select>
         </div>
         <Campo label="Número de remito" placeholder="0001-00001234" value={b.numero} onChange={(e) => setB({ ...b, numero: e.target.value })} />
+        {/* «Vence»: hasta cuándo se le paga. Opcional; con fecha, el Tablero del dueño avisa cuando se acerca (vencePago). */}
+        <Campo
+          label="Vence (opcional)"
+          ayuda="Hasta cuándo hay que pagarlo. El dueño lo ve en su Tablero cuando se acerca."
+          type="date"
+          value={b.vence ?? ""}
+          onChange={(e) => setB({ ...b, vence: e.target.value })}
+        />
       </div>
 
       {/* El lector escribe el código y un Enter, como un teclado: cada lectura suma 1 y el foco se queda acá. */}
@@ -200,7 +207,7 @@ export function RegistrarRemito({ almacen, onListo, onCerrar, enfocar = true }: 
           variant="solid"
           size="md"
           onClick={() => {
-            const d = almacen.ejecutar((e, ahora, auth) => ejecutarProveedores(e, { tipo: "remito", borrador: b }, ahora, auth), { deshacible: true });
+            const d = almacen.comando("proveedores", [{ tipo: "remito", borrador: b }], { deshacible: true });
             if (!d.ok) return;
             setB(remitoVacio(almacen.estado()));
             setBusca("");

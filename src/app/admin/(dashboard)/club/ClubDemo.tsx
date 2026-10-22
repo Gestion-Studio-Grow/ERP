@@ -32,7 +32,7 @@
 // `next/dynamic` y `ssr: false` (el motor guarda su contador de ids a nivel de módulo; en el
 // servidor sería compartido entre pedidos).
 
-import { Suspense, createElement, lazy, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
+import { Suspense, createElement, lazy, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
 import { cn } from "@/components/ui/cn";
 import { Button } from "@/components/ui/Button";
 import { alertas, hhmm, pesos, reserva as reservaDe, resumenCaja, sumarDias } from "@/lib/club/motor.mjs";
@@ -47,12 +47,15 @@ import { useOperador, useSeleccion } from "./usar-almacen";
 import AgendaCanchas from "./AgendaCanchas";
 import AltaDeTurno from "./AltaDeTurno";
 import { DiasDeLaAgenda, FueraDeLaGrilla } from "./AgendaExtras";
+import { calendarioDeLaAgenda } from "./agenda-core";
+import { DIAS_A_LA_VISTA, fijosPorBajar } from "./canchas-core";
 import { armarTira } from "./tira-de-solapas-core";
 import PaletaDelClub, { AyudaDeAtajos } from "./PaletaDelClub";
 import type { AccionPaleta } from "./paleta-core";
 import { pedirFichaDeCliente } from "./ficha-pedida";
-import BandejaDelClub, { OfrecerHueco } from "./BandejaDelClub";
+import BandejaDelClub, { OfrecerHueco, ReservandoElTurno } from "./BandejaDelClub";
 import CuentaDelTurno from "./CuentaDelTurno";
+import { HojaDeVender } from "./VentaDeMostrador";
 import { Esqueleto } from "@/components/ui/Esqueleto";
 import { AvisosDelClub } from "./piezas";
 import { NegocioDelClub } from "./negocio-del-club";
@@ -397,6 +400,25 @@ function OfrecerElHueco({ almacen, panel, onListo }: { almacen: Almacen; panel: 
   );
 }
 
+/** «Vender» de la barra: abre la hoja global del mostrador (lo mismo que la tecla V). */
+function BotonVender({ atajos, onAbrir }: { atajos: boolean; onAbrir: () => void }) {
+  return (
+    <button type="button" data-casa="vender" onClick={onAbrir} aria-keyshortcuts={atajos ? "V" : undefined} className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-sm border px-3 text-sm font-semibold">
+      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 5h2l2 10h10l2-7H7" />
+        <circle cx="9.5" cy="19" r="1.25" />
+        <circle cx="16.5" cy="19" r="1.25" />
+      </svg>
+      <span data-casa="vender-texto">Vender</span>
+      {atajos && (
+        <kbd aria-hidden="true" data-casa="vender-tecla" className="rounded-sm border px-1.5 py-px text-xs font-semibold">
+          V
+        </kbd>
+      )}
+    </button>
+  );
+}
+
 /** Lleva el foco a `el` o, si no está, a «+ Turno» de la agenda (nunca al principio de la página). */
 function enfocarEnLaAgenda(el: HTMLElement | null) {
   (el ?? document.querySelector<HTMLElement>('[data-agenda="acciones"] button'))?.focus();
@@ -498,8 +520,11 @@ function SoloConOperador({ almacen, negocio, children }: { almacen: Almacen; neg
 
 type Panel =
   | { tipo: "cuenta"; id: string }
-  | { tipo: "alta"; canchaId: string; inicio: number | null }
+  /** `duracion`: la que se eligió en «Buscar lugar» (sin ella, la de siempre del club). */
+  | { tipo: "alta"; canchaId: string; inicio: number | null; duracion?: number }
   | { tipo: "ofrecer"; ofertas: OfertaDeHueco[]; canchaId: string; inicio: number }
+  /** Dos puestos: el alta espera el ok de la base antes de ofrecer el WhatsApp (`id`: el de la cola). */
+  | { tipo: "reservando"; id: string; reservaId: string }
   | null;
 
 const elDia = (_: EstadoClub, a: Ahora) => a.fecha;
@@ -594,7 +619,8 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     setPanel(null);
   }, [almacen]);
   const onAbrir = useCallback((id: string) => setPanel({ tipo: "cuenta", id }), []);
-  const onReservar = useCallback((canchaId: string, inicio: number | null) => setPanel({ tipo: "alta", canchaId, inicio }), []);
+  // «Buscar lugar» pasa también la duración que se buscó: el alta arranca con esa (no con la de siempre).
+  const onReservar = useCallback((canchaId: string, inicio: number | null, duracion?: number) => setPanel({ tipo: "alta", canchaId, inicio, ...(duracion ? { duracion } : {}) }), []);
   const abiertoId = panel?.tipo === "cuenta" ? panel.id : null;
   const onVolver = useCallback(
     (devolverFoco = true) => {
@@ -608,6 +634,32 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     [abiertoId, almacen],
   );
   const cerrarAlta = useCallback(() => setPanel(null), []);
+  /**
+   * Dos puestos (Tanda 1B): el alta pasa por el almacén como el COMANDO «alta» (re-aplicable sobre lo del otro puesto,
+   * con los mismos ids y el mismo código de seña) y sube ya. AltaDeTurno no cambia: recibe el almacén con su `ejecutar`
+   * envuelto; si hay base, en vez de su «Turno reservado» se abre «Reservando…» y el WhatsApp aparece recién con el
+   * ok de la base (`ReservandoElTurno`). Sin base (la demo), todo sigue igual.
+   */
+  const almacenDelAlta = useMemo<Almacen>(
+    () => ({
+      ...almacen,
+      ejecutar(accion, opciones = {}) {
+        let encolado: { id: string; reservas: string[] } | null = null;
+        const d = almacen.ejecutar(accion, {
+          ...opciones,
+          comoAlta: true,
+          alEncolar: (x) => {
+            encolado = x;
+            opciones.alEncolar?.(x);
+          },
+        });
+        const e = encolado as { id: string; reservas: string[] } | null;
+        if (d.ok && e && e.reservas[0] && almacen.confirmaLaBase()) setPanel({ tipo: "reservando", id: e.id, reservaId: e.reservas[0] });
+        return d;
+      },
+    }),
+    [almacen],
+  );
   // Al cerrar el ofrecimiento, el foco va al turno que se dio en ese hueco o, si nadie lo tomó, a la franja libre.
   const cerrarOferta = useCallback((canchaId: string, inicio: number) => {
     setPanel(null);
@@ -633,6 +685,10 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       almacen.olvidarDeshacer();
       setDia(d);
       setPanel(null);
+      // Un día del calendario más allá de la semana a la vista (BP-013): sus turnos fijos se bajan a la grilla al abrirlo
+      // (como el club vanilla al cambiar de día), así nadie da un turno encima de un fijo. Sólo si falta alguno.
+      if (d > sumarDias(almacen.ahora().fecha, DIAS_A_LA_VISTA - 1) && fijosPorBajar(almacen.estado(), d) > 0 && !almacen.soloLectura() && almacen.operador())
+        almacen.comando("fijo", [{ tipo: "bajarDia", fecha: d }]);
     },
     [almacen],
   );
@@ -670,6 +726,10 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
   }, [almacen, irASolapaSiEsta]);
 
   const [paleta, setPaleta] = useState(false);
+  // La hoja global «Vender» (Tanda 2A): botón de la barra o tecla V, desde cualquier solapa.
+  const [vender, setVender] = useState(false);
+  const abrirVender = useCallback(() => setVender(true), []);
+  const cerrarVender = useCallback(() => setVender(false), []);
   // La ayuda de atajos (tecla «?» o «Atajos de teclado» en la paleta).
   const [ayuda, setAyuda] = useState(false);
   // Los atajos de una tecla se pueden apagar desde la paleta (WCAG 2.1.4); se recuerda en el equipo.
@@ -756,7 +816,9 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       let hizo = true;
       if (k === "/") setPaleta(true);
       else if (k === "?") setAyuda(true);
-      else if (k === "n" || k === "N") nuevoTurno(); else if ((k === "c" || k === "C") && visibles.some((s) => s.id === "buffet")) abrirCuenta();
+      else if (k === "n" || k === "N") nuevoTurno();
+      else if (k === "v" || k === "V") abrirVender();
+      else if ((k === "c" || k === "C") && visibles.some((s) => s.id === "buffet")) abrirCuenta();
       else if (k === "t" || k === "T") {
         cambiarSolapa("agenda");
         elegirDia(hoy);
@@ -770,7 +832,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     };
     document.addEventListener("keydown", alTeclear);
     return () => document.removeEventListener("keydown", alTeclear);
-  }, [almacen, abrirCuenta, atajos, nuevoTurno, cambiarSolapa, elegirDia, hoy, dia, solapa]);
+  }, [almacen, abrirCuenta, abrirVender, atajos, nuevoTurno, cambiarSolapa, elegirDia, hoy, dia, solapa]);
 
   // Lo elegido en la paleta.
   const hacerDeLaPaleta = useCallback(
@@ -780,6 +842,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         cambiarSolapa("agenda");
         elegirDia(hoy);
       } else if (a.tipo === "nuevoTurno") nuevoTurno();
+      else if (a.tipo === "vender") abrirVender();
       else if (a.tipo === "abrirCuenta") abrirCuenta();
       else if (a.tipo === "turno") verTurno(a.id);
       else if (a.tipo === "atajos") cambiarAtajos(a.prender);
@@ -789,12 +852,19 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         irASolapa("clientes");
       }
     },
-    [abrirCuenta, cambiarAtajos, cambiarSolapa, elegirDia, hoy, irASolapa, nuevoTurno, verTurno],
+    [abrirCuenta, abrirVender, cambiarAtajos, cambiarSolapa, elegirDia, hoy, irASolapa, nuevoTurno, verTurno],
   );
 
   // Al cambiar quien opera, la cuenta (o el alta) que tenía abierta la persona anterior se cierra (como el vanilla).
   // Sin suscribir a ClubDemo al operador: si no había nada abierto, `setPanel(null)` no repinta.
-  useEffect(() => almacen.suscribirOperador(() => setPanel(null)), [almacen]);
+  useEffect(
+    () =>
+      almacen.suscribirOperador(() => {
+        setPanel(null);
+        setVender(false);
+      }),
+    [almacen],
+  );
 
   return (
     // El negocio a mano para el aviso al dueño (pedido-del-duenio.tsx, la ficha del cliente): aprobador-externo.ts.
@@ -825,6 +895,10 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
           <kbd aria-hidden="true" className="rounded-sm border px-1.5 py-px text-xs font-semibold">Ctrl K</kbd>
         </button>
       </EnLaCabecera>
+      {/* «Vender» al lado del buscador (diseño §2.1: Buscar · Vender · quién opera · reloj). Sin la barra, arriba de las solapas. */}
+      <EnLaCabecera en="casa-buscar" fuera={<div className="flex justify-end"><BotonVender atajos={atajos} onAbrir={abrirVender} /></div>}>
+        <BotonVender atajos={atajos} onAbrir={abrirVender} />
+      </EnLaCabecera>
 
       <TiraDeSolapas almacen={almacen} solapa={solapa} onCambiar={cambiarSolapa} botones={botones} atajos={atajos} />
 
@@ -839,7 +913,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
                 onAbrir={onAbrir}
                 onReservar={onReservar}
                 atajoTurno={atajos}
-                dias={<DiasDeLaAgenda hoy={hoy} dia={dia} onDia={elegirDia} />}
+                dias={<DiasDeLaAgenda hoy={hoy} dia={dia} onDia={elegirDia} calendario={calendarioDeLaAgenda(almacen.estado(), hoy)} />}
                 accesos={<AccesosDeLaAgenda almacen={almacen} hoy={hoy} onIr={(s) => (s === "buffet" ? abrirCuenta() : irASolapa(s))} />}
                 cambiarHorario={<CambiarHorario almacen={almacen} onIr={() => irASolapa("configuracion")} />}
               />
@@ -860,20 +934,23 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
             cobrar y con la bandeja siempre a la vista al costado. Escape o tocar afuera vuelve a la agenda. */}
         {solapa === "agenda" && panel && (
           <HojaDelTurno
-            etiqueta={panel.tipo === "cuenta" ? "Cuenta del turno" : panel.tipo === "ofrecer" ? "Ofrecer el hueco" : "Dar un turno"}
+            etiqueta={panel.tipo === "cuenta" ? "Cuenta del turno" : panel.tipo === "ofrecer" ? "Ofrecer el hueco" : panel.tipo === "reservando" ? "Turno dado" : "Dar un turno"}
             onCerrar={panel.tipo === "cuenta" ? onVolver : panel.tipo === "ofrecer" ? (devolverFoco) => (devolverFoco === false ? cerrarAlta() : cerrarOferta(panel.canchaId, panel.inicio)) : cerrarAlta}
           >
             {panel.tipo === "cuenta" ? (
               <CuentaDelTurno key={panel.id} almacen={almacen} reservaId={panel.id} onVolver={onVolver} onOfrecer={ofrecerHueco} />
             ) : panel.tipo === "ofrecer" ? (
               <OfrecerElHueco almacen={almacen} panel={panel} onListo={() => cerrarOferta(panel.canchaId, panel.inicio)} />
+            ) : panel.tipo === "reservando" ? (
+              <ReservandoElTurno key={panel.id} almacen={almacen} id={panel.id} reservaId={panel.reservaId} onAbrir={onAbrir} onVolver={cerrarAlta} />
             ) : (
               <AltaDeTurno
-                key={`${dia}:${panel.canchaId}@${panel.inicio}`}
-                almacen={almacen}
+                key={`${dia}:${panel.canchaId}@${panel.inicio}:${panel.duracion ?? ""}`}
+                almacen={almacenDelAlta}
                 fecha={dia}
                 canchaInicial={panel.canchaId}
                 inicioInicial={panel.inicio}
+                duracionInicial={panel.duracion}
                 onListo={onAbrir}
                 onVolver={cerrarAlta}
               />
@@ -884,7 +961,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
           <Suspense fallback={<SolapaCargando />}>
             {solapa === "fijos" && <FijosYEspera almacen={almacen} onVerTurno={verTurno} />}
             {solapa === "canchas" && <CanchasDelClub almacen={almacen} dia={dia} />}
-            {solapa === "buffet" && <BuffetDelClub almacen={almacen} onVerTurno={verTurno} negocio={negocio} />}
+            {solapa === "buffet" && <BuffetDelClub almacen={almacen} onVerTurno={verTurno} negocio={negocio} onVender={abrirVender} atajos={atajos} />}
             {solapa === "caja" && <CajaDelClub almacen={almacen} negocio={negocio} />}
             {solapa === "tienda" && <TiendaDelClub almacen={almacen} />}
             {extras.map((e) =>
@@ -899,6 +976,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       </div>
 
       <AvisosDelClub almacen={almacen} />
+      <HojaDeVender almacen={almacen} abierta={vender} onCerrar={cerrarVender} />
       {paleta && (
         <PaletaDelClub
           almacen={almacen}

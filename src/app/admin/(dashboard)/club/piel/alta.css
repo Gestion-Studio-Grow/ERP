@@ -43,3 +43,22 @@
   padding: 0.75rem 1.125rem 1rem;
   border-top-color: var(--line);
 }
+
+/* El aviso «no entra» (BP-010…012): la hora elegida no se mueve; arriba de los datos del cliente, con la franja de
+   advertencia a la izquierda y las opciones de un toque abajo. Tokens de advertencia de la estética (AA en claro y
+   oscuro); las opciones conservan los 44 px del botón. */
+[data-estetica="breakpoint"] [data-alta="aviso"] {
+  border-color: var(--warning);
+  border-left-width: 4px;
+  background: var(--warning-soft);
+  color: var(--text-strong);
+}
+
+[data-estetica="breakpoint"] [data-alta="aviso"] p {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+[data-estetica="breakpoint"] [data-alta="opcion"] {
+  font-variant-numeric: lining-nums tabular-nums;
+  white-space: nowrap;
+}

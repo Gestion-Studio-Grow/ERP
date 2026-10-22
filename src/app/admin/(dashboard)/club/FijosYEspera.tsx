@@ -15,11 +15,11 @@ import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
-import { NOMBRE_DIA, diaSemana, hayDescubiertas, sumarDias } from "@/lib/club/motor.mjs";
+import { NOMBRE_DIA, diaSemana, hayDescubiertas } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { clientesQueCoinciden, DURACIONES } from "./alta-core";
-import { DIAS_A_LA_VISTA, SE_DESHACE, armarEspera, armarFijos, bajaFijo, bajarFijos, ejecutarEspera, horasDelDia, nuevoFijo, type AccionEspera, type VistaEspera } from "./canchas-core";
+import { SE_DESHACE, diasDeLaEspera, armarEspera, armarFijos, bajaFijo, bajarFijos, horasDelDia, nuevoFijo, type AccionEspera, type VistaEspera } from "./canchas-core";
 import { porFirma, useSeleccion } from "./usar-almacen";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
 import { enlaceWhatsApp, type ModoDelClub } from "./whatsapp-core";
@@ -73,7 +73,7 @@ function NuevoFijo({ almacen }: { almacen: Almacen }) {
         onSubmit={(e) => {
           e.preventDefault();
           // Crear un fijo no se deshace: su inversa es «Dar de baja» en la lista de fijos.
-          const d = almacen.ejecutar((est, a) => nuevoFijo(est, { titular, clienteId, canchaId, dia, inicio, duracion }, a), { deshacible: SE_DESHACE.nuevoFijo });
+          const d = almacen.comando("fijo", [{ tipo: "nuevo", datos: { titular, clienteId, canchaId, dia, inicio, duracion } }], { deshacible: SE_DESHACE.nuevoFijo });
           if (d.ok) {
             setTitular("");
             setClienteId(null);
@@ -154,7 +154,8 @@ function NuevoFijo({ almacen }: { almacen: Almacen }) {
 
 function Anotar({ almacen, hacer }: { almacen: Almacen; hacer: (a: AccionEspera) => boolean }) {
   const ahora = almacen.ahora();
-  const dias = Array(DIAS_A_LA_VISTA).fill(0).map((_, i) => sumarDias(ahora.fecha, i));
+  // La lista de espera llega a la misma ventana que la agenda y el turnero (hoy + 14), no sólo a la semana a la vista.
+  const dias = diasDeLaEspera(almacen.estado(), ahora.fecha);
   const [fecha, setFecha] = useState(dias[0]);
   const horas = horasDelDia(almacen.estado(), fecha);
   const [titular, setTitular] = useState("");
@@ -306,7 +307,7 @@ export default function FijosYEspera({ almacen, onVerTurno }: { almacen: Almacen
   const hacerEspera = useCallback(
     (a: AccionEspera) => {
       // Anotar y darle el turno se deshacen (como en vanilla); sacar de la espera no: se vuelve a anotar.
-      const d = almacen.ejecutar((e, ahora) => ejecutarEspera(e, a, ahora), { deshacible: SE_DESHACE[a.tipo] });
+      const d = almacen.comando("espera", [a], { deshacible: SE_DESHACE[a.tipo] });
       return d.ok;
     },
     [almacen],
@@ -319,7 +320,7 @@ export default function FijosYEspera({ almacen, onVerTurno }: { almacen: Almacen
             <h2 data-pantalla id="club-fijos" className="text-lg font-semibold text-strong">
               Turnos fijos
             </h2>
-            <Button variant="outline" size="md" onClick={() => almacen.ejecutar((e, a) => bajarFijos(e, a.fecha), { deshacible: SE_DESHACE.bajarFijos })}>
+            <Button variant="outline" size="md" onClick={() => almacen.comando("fijo", [{ tipo: "bajar" }], { deshacible: SE_DESHACE.bajarFijos })}>
               Bajar los fijos a la semana
             </Button>
           </div>
@@ -333,7 +334,7 @@ export default function FijosYEspera({ almacen, onVerTurno }: { almacen: Almacen
                     <span className="block font-medium text-strong">{f.texto}</span>
                     <span className="text-muted">{f.proximas}</span>
                   </span>
-                  <Button variant="ghost" size="md" onClick={() => almacen.ejecutar((e, a, auth) => bajaFijo(e, f.id, a, auth), { deshacible: SE_DESHACE.bajaFijo })}>
+                  <Button variant="ghost" size="md" onClick={() => almacen.comando("fijo", [{ tipo: "baja", fijoId: f.id }], { deshacible: SE_DESHACE.bajaFijo })}>
                     Dar de baja<span className="sr-only"> el fijo de {f.texto.split(" · ")[0]}</span>
                   </Button>
                 </li>
@@ -365,16 +366,8 @@ export default function FijosYEspera({ almacen, onVerTurno }: { almacen: Almacen
                       x={x}
                       modo={almacen.modo()}
                       onDar={(h) => {
-                        const salida: { nuevo?: string } = {};
-                        almacen.ejecutar(
-                          (e, ahora) => {
-                            const d = ejecutarEspera(e, { tipo: "asignar", esperaId: x.id, canchaId: h.canchaId, inicio: h.inicio }, ahora);
-                            salida.nuevo = d.reservaId;
-                            return d;
-                          },
-                          { deshacible: true },
-                        );
-                        if (salida.nuevo) onVerTurno(salida.nuevo);
+                        const d = almacen.comando("espera", [{ tipo: "asignar", esperaId: x.id, canchaId: h.canchaId, inicio: h.inicio }], { deshacible: true });
+                        if (d.ok && d.reservaId) onVerTurno(d.reservaId);
                       }}
                     />
                   ) : (

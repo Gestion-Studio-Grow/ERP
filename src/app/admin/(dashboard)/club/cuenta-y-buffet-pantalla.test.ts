@@ -6,11 +6,13 @@
 // las DevTools de React que cuenta los renders por componente). Se prueba lo que suma la ola 1:
 //   · la cuenta del turno: sumar un jugador (por nombre y con su ficha), cobrar una parte de la cancha, cerrar la
 //     cancha a cuenta corriente; sumar un jugador o un cargo NO repinta la grilla (salvo el «x/4» de ESE turno);
-//   · el buffet: la venta rápida de mostrador (tipear no repinta las cuentas), pasar un cargo a otra cuenta y un
+//   · el buffet: «Vender» abre la hoja global, la única venta de mostrador (tipear no repinta las cuentas), pasar un cargo a otra cuenta y un
 //     descuento con el PIN del dueño (con los PIN de ejemplo rotulados en la demo);
 //   · 44 px y sin scroll de costado a 390 px con la mesa compleja abierta, y el teclado en la mesa compleja;
 //   · la piel de Break Point (piel/buffet.css): tarjetas resumidas por cuenta con «Cargar / cobrar», que despliega el
-//     − / + y los «+ Plato» (con el teclado), contraste AA y 44 px a 390 px.
+//     − / + y los «+ Plato» (con el teclado), contraste AA y 44 px a 390 px;
+//   · el cobro entre 4 (Tanda 1 · 1C, piel/cuenta.css): «Dividir entre 4» sin nombres, cada fila cobra con su medio de
+//     un toque (el medio no se arrastra a la fila siguiente), créditos + el resto en una acción, AA y 44 px a 390 px.
 // El CSS que importan las pantallas (la piel) no entra al bundle: lo pone la página, como en la app.
 // Sin Chromium o sin esbuild, se saltea con el motivo.
 
@@ -94,6 +96,7 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
   let bundle = "";
   let css = "";
   let piel = "";
+  let pielCuenta = "";
   let sinNavegador = "";
 
   before(async () => {
@@ -126,6 +129,7 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     bundle = r.outputFiles[0].text;
     css = await cssDeLaApp();
     piel = readFileSync(join(RAIZ, "src", "app", "admin", "(dashboard)", "club", "piel", "buffet.css"), "utf8");
+    pielCuenta = readFileSync(join(RAIZ, "src", "app", "admin", "(dashboard)", "club", "piel", "cuenta.css"), "utf8");
     browser = await playwright.chromium.launch({ executablePath: chrome });
   });
 
@@ -142,7 +146,7 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
       if (m.type() === "error") errores.push(m.text());
     });
     const raiz = conPiel ? ' data-skin="fable" data-estetica="breakpoint"' : "";
-    const html = `<!doctype html><html lang="es"${raiz}><head><style>${css}${conPiel ? piel : ""}</style><script>${CONTADOR}</script></head><body class="bg-surface text-body"><main id="root" class="p-4"></main></body></html>`;
+    const html = `<!doctype html><html lang="es"${raiz}><head><style>${css}${conPiel ? piel + pielCuenta : ""}</style><script>${CONTADOR}</script></head><body class="bg-surface text-body"><main id="root" class="p-4"></main></body></html>`;
     await page.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
     await page.goto(ORIGEN);
     await page.addScriptTag({ content: bundle });
@@ -213,26 +217,36 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     await page.close();
   });
 
-  test("buffet: venta rápida de mostrador (tipear no repinta las cuentas), pasar un cargo y descuento con el PIN del dueño", async (t) => {
+  test("buffet: «Vender» abre la hoja global (la única venta de mostrador; tipear no repinta las cuentas), pasar un cargo y descuento con el PIN del dueño", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
     await irASolapa(page, "Buffet");
-    const venta = page.getByRole("region", { name: "Venta rápida de mostrador" });
+    const acceso = page.getByRole("region", { name: "Venta de mostrador" });
+    await acceso.waitFor();
+    assert.equal(await page.getByRole("region", { name: "Venta rápida de mostrador" }).count(), 0, "una sola venta de mostrador: la vieja ya no está");
+    assert.equal(await acceso.getByRole("button", { name: /^Vender/ }).getAttribute("aria-keyshortcuts"), "V");
+    await acceso.getByRole("button", { name: /^Vender/ }).click();
+    const venta = page.getByRole("dialog", { name: "Vender" });
     await venta.waitFor();
 
     const antes = await renders(page);
-    await venta.getByLabel(/^Código o producto/).pressSequentially("agua");
+    await venta.getByLabel("Buscar o pasar el lector").pressSequentially("agua");
     const porTipear = resta(await renders(page), antes);
     t.diagnostic(`tipear 4 letras en la venta: renders ${JSON.stringify(porTipear)}`);
     assert.equal(porTipear.TarjetaCuenta, undefined, "las cuentas no se repintan");
     assert.equal(porTipear.BuffetDelClub, undefined);
     await venta.getByRole("button", { name: /^\+ Agua 500 ml/ }).click();
     await venta.getByRole("button", { name: "Uno más de Agua 500 ml" }).click();
-    await venta.getByText("Mercado Pago (QR)").click();
-    const porVenta = await medir(page, () => venta.getByRole("button", { name: "Cobrar $ 4.000" }).click(), "Venta cobrada: $ 4.000 (Mercado Pago (QR)).");
-    t.diagnostic(`venta de mostrador: ${porVenta.ms.toFixed(1)} ms · renders ${JSON.stringify(porVenta.porComponente)}`);
-    assert.equal(porVenta.porComponente.TarjetaCuenta, undefined, "vender no repinta las cuentas abiertas");
-    await venta.getByText("Buscá y sumá productos.").waitFor();
+    const antesDeCobrar = await renders(page);
+    await venta.getByRole("button", { name: "Cobrar $ 4.000 en MP" }).click();
+    await venta.getByRole("status").filter({ hasText: "Venta cobrada: $ 4.000 (Mercado Pago (QR))." }).waitFor();
+    const porVenta = resta(await renders(page), antesDeCobrar);
+    t.diagnostic(`venta de mostrador: renders ${JSON.stringify(porVenta)}`);
+    assert.equal(porVenta.TarjetaCuenta, undefined, "vender no repinta las cuentas abiertas");
+    await venta.getByText("Última venta: $ 4.000 en Mercado Pago (QR).").waitFor();
+    assert.equal(await venta.getByRole("list", { name: "Lo que lleva" }).count(), 0, "el carrito queda vacío");
+    await page.keyboard.press("Escape");
+    await venta.waitFor({ state: "hidden" });
 
     // Mesa compleja de Martín: pasarle un cargo a Federico.
     const martin = page.getByRole("article", { name: "Martín Ríos" });
@@ -288,16 +302,14 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     assert.ok((await corre()) <= 0);
 
     await irASolapa(page, "Buffet");
-    const venta = page.getByRole("region", { name: "Venta rápida de mostrador" });
-    await venta.getByLabel(/^Código o producto/).fill("agua");
-    await venta.getByRole("button", { name: /^\+ Agua 500 ml/ }).click();
+    await page.getByRole("region", { name: "Venta de mostrador" }).getByRole("button", { name: /^Vender/ }).waitFor();
     // Teclado: Tab hasta el resumen de la mesa compleja y Enter la abre (es un <details> nativo).
     const resumen = page.getByRole("article", { name: "Martín Ríos" }).locator("summary");
     await resumen.focus();
     await page.keyboard.press("Enter");
     await page.getByRole("article", { name: "Martín Ríos" }).getByRole("button", { name: "Pasar el cargo" }).waitFor();
     await page.getByRole("article", { name: "Martín Ríos" }).getByLabel("Tipo").selectOption("descuento");
-    assert.deepEqual(await chicos(), [], "el buffet con la venta y la mesa compleja abiertas");
+    assert.deepEqual(await chicos(), [], "el buffet con «Vender» y la mesa compleja abierta");
     assert.ok((await corre()) <= 0, `se corre ${await corre()} px`);
     assert.deepEqual(errores, []);
     await page.close();
@@ -366,7 +378,7 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
 
     // 44 px en todo lo tocable del buffet (la tarjeta desplegada y la venta) y sin scroll de costado.
     const chicos = await page.evaluate(() =>
-      [...document.querySelectorAll('[data-buffet="cuenta"], [data-buffet="mostrador"]')]
+      [...document.querySelectorAll('[data-buffet="cuenta"], [data-buffet="vender"]')]
         .flatMap((raiz) => [...raiz.querySelectorAll("button, select, summary, input:not([type=radio]):not([type=checkbox]), label:has(input[type=radio])")])
         .map((el) => ({ el, r: el.getBoundingClientRect() }))
         .filter(({ r }) => r.width > 0 && (r.height < 44 || r.width < 44))
@@ -379,6 +391,93 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     await boton.click();
     assert.equal(await boton.getAttribute("aria-expanded"), "false");
     assert.equal(await martin.getByRole("button", { name: /^Uno más de/ }).count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("cobro entre 4: «Dividir entre 4» sin nombres, cada fila con su medio de un toque y créditos + el resto (piel, AA, 44 px a 390 px)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS de la app");
+    const { page, errores } = await montar({ width: 390, height: 844 }, true);
+    await page.getByRole("button", { name: /^Lucas Fernández, Cancha/ }).click();
+    const cuenta = page.getByRole("region", { name: "Lucas Fernández", exact: true });
+    await cuenta.waitFor();
+    const jugadores = cuenta.getByRole("list", { name: "Jugadores del turno" });
+    assert.equal(await jugadores.getByRole("listitem").count(), 1);
+
+    // Un toque: 4 filas, sin escribir un nombre.
+    await cuenta.getByRole("button", { name: "Dividir entre 4" }).click();
+    await page.getByRole("status").filter({ hasText: /^Dividido entre 4: / }).waitFor();
+    assert.equal(await jugadores.getByRole("listitem").count(), 4);
+    for (const n of ["Jugador 2", "Jugador 3", "Jugador 4"]) await jugadores.getByText(n, { exact: true }).waitFor();
+    assert.equal(await cuenta.getByRole("button", { name: "Dividir entre 4" }).count(), 0, "ya son 4");
+
+    // La fila 2 con MP, de un toque: sin elegir medio arriba.
+    const fila2 = cuenta.getByRole("group", { name: /^Cobrarle \$ [\d.]+ a Jugador 2$/ });
+    await fila2.getByRole("button", { name: /^Jugador 2 paga \$ [\d.]+ en Mercado Pago/ }).click();
+    await page.getByRole("status").filter({ hasText: /^Cobrado \$ [\d.]+ a Jugador 2\./ }).waitFor();
+    await jugadores.getByText("✔ pagó MP").waitFor();
+    // La fila 3 sigue con sus 4 medios y nada elegido; y la fila 3 en efectivo NO hereda el MP.
+    const fila3 = cuenta.getByRole("group", { name: /^Cobrarle \$ [\d.]+ a Jugador 3$/ });
+    assert.equal(await fila3.getByRole("button").count(), 4);
+    assert.equal(await fila3.locator("[aria-pressed=true], [aria-checked=true]").count(), 0, "ningún medio elegido en la que sigue");
+    await fila3.getByRole("button", { name: /^Jugador 3 paga \$ [\d.]+ en Efectivo$/ }).click();
+    await page.getByRole("status").filter({ hasText: /^Cobrado \$ [\d.]+ a Jugador 3\./ }).waitFor();
+    await jugadores.getByText("✔ pagó Efectivo").waitFor();
+    // «Deshacer» el último cobro de una fila.
+    await page.getByRole("button", { name: "Deshacer" }).click();
+    await page.getByRole("status").filter({ hasText: /^Listo, se deshizo: Cobrado/ }).waitFor();
+    await cuenta.getByRole("group", { name: /^Cobrarle \$ [\d.]+ a Jugador 3$/ }).waitFor();
+
+    // Lucas tiene ficha: si tiene créditos y no le alcanzan, «Créditos» ofrece usarlos y cobrar el resto en una acción.
+    const creditos = cuenta.getByRole("button", { name: /^Lucas Fernández: usar sus \$ [\d.]+ de créditos y cobrar el resto$/ });
+    if (await creditos.count()) {
+      await creditos.click();
+      const partir = cuenta.getByRole("group", { name: /^Usar \$ [\d.]+ de créditos de Lucas Fernández y cobrar \$ [\d.]+ en:$/ });
+      await partir.getByRole("button", { name: /de créditos y \$ [\d.]+ en Débito/ }).click();
+      await page.getByRole("status").filter({ hasText: /con sus créditos y \$ [\d.]+ en Débito/ }).waitFor();
+    } else t.diagnostic("Lucas no tiene créditos en la demo: créditos + el resto lo cubre cuenta-core.test.ts (BP-032)");
+
+    // Piel de Break Point: la fila paga en verde, AA; los medios, AA; 44 px y sin scroll de costado.
+    const medidas: { pago: number; medio: number; raya: string } = await page.evaluate(`(() => {
+      const rgb = (c) => {
+        const m = c.match(/color\\(srgb ([\\d.]+) ([\\d.]+) ([\\d.]+)/);
+        if (m) return [m[1], m[2], m[3]].map((x) => Number(x) * 255);
+        return (c.match(/[\\d.]+/g) || []).slice(0, 3).map(Number);
+      };
+      const lum = (c) => c.map((v) => v / 255).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+      const ratio = (a, b) => {
+        const [x, y] = [lum(rgb(a)), lum(rgb(b))].sort((p, q) => q - p);
+        return (x + 0.05) / (y + 0.05);
+      };
+      const fila = document.querySelector('[data-cuenta="fila"][data-pago="ok"]');
+      const ok = fila.querySelector('[data-cuenta="pago-ok"]');
+      const medio = document.querySelector('[data-cuenta="medio"]');
+      const fondoMedio = getComputedStyle(medio).backgroundColor;
+      return {
+        pago: ratio(getComputedStyle(ok).color, getComputedStyle(fila).backgroundColor),
+        medio: ratio(getComputedStyle(medio).color, fondoMedio === "rgba(0, 0, 0, 0)" ? "rgb(255, 255, 255)" : fondoMedio),
+        raya: getComputedStyle(fila).borderLeftWidth,
+      };
+    })()`);
+    t.diagnostic(`piel de la cuenta: ${JSON.stringify(medidas)}`);
+    assert.equal(medidas.raya, "3px", "la fila paga lleva la raya verde de la piel");
+    assert.ok(medidas.pago >= 4.5, `«✔ pagó» sobre la fila verde: ${medidas.pago.toFixed(2)}:1`);
+    assert.ok(medidas.medio >= 4.5, `los medios: ${medidas.medio.toFixed(2)}:1`);
+    // La lista va `data-tactil="compacto"` (globals.css): el botón se dibuja de 36 px y su ::after estira el toque a 44 px.
+    const chicos = await page.evaluate(() =>
+      [...document.querySelectorAll('[aria-label="Jugadores del turno"] button, [data-cuenta="dividir"]')]
+        .map((el) => {
+          const b = el.getBoundingClientRect();
+          const a = getComputedStyle(el, "::after");
+          const estira = a.content !== "none" && a.position === "absolute" ? -(parseFloat(a.top) || 0) - (parseFloat(a.bottom) || 0) : 0;
+          return { el, r: { width: b.width, height: b.height + Math.max(0, estira) } };
+        })
+        .filter(({ r }) => r.width > 0 && (r.height < 44 || r.width < 44))
+        .map(({ el, r }) => `${(el.getAttribute("aria-label") ?? el.textContent ?? "").slice(0, 40)} (${Math.round(r.width)}×${Math.round(r.height)})`),
+    );
+    assert.deepEqual(chicos, []);
+    assert.ok((await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) <= 0);
     assert.deepEqual(errores, []);
     await page.close();
   });

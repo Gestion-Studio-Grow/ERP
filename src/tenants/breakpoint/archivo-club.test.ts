@@ -198,7 +198,8 @@ const AHORA = en(HOY, 19);
 
 function club() {
   return M.crearEstado({
-    config: M.CONFIG_DEMO,
+    // Clientes de siempre: sin «seña a los nuevos» (esa regla tiene sus tests en motor.test.ts y alta-core.test.ts).
+    config: { ...M.CONFIG_DEMO, politica: { ...M.CONFIG_DEMO.politica, senaNuevos: false } },
     canchas: M.CANCHAS_DEMO,
     clientes: [
       { id: "a", nombre: "Ana", tel: "5491100000001" },

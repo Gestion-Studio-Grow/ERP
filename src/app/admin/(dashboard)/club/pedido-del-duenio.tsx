@@ -18,7 +18,7 @@ import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { avisosAlDuenio } from "./aprobar-core";
 import { useNegocioDelClub } from "./negocio-del-club";
-import { aprobarConCodigo, codigoDeLaDemo, mensajeParaElDuenio, pedidosPendientes } from "./credito-core";
+import { codigoDeLaDemo, mensajeParaElDuenio, pedidosPendientes } from "./credito-core";
 import { useSeleccion } from "./usar-almacen";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
 
@@ -72,7 +72,7 @@ export default function PedidoDelDuenio({ almacen, novedadId }: { almacen: Almac
         className="flex flex-col gap-2 sm:flex-row sm:items-end"
         onSubmit={(e) => {
           e.preventDefault();
-          const d = almacen.ejecutar((est, ahora, auth) => aprobarConCodigo(est, pedido.id, codigo, auth, ahora));
+          const d = almacen.comando("fiado", [{ tipo: "aprobarCodigo", novedadId: pedido.id, codigo }]);
           if (d.ok) setCodigo("");
         }}
       >

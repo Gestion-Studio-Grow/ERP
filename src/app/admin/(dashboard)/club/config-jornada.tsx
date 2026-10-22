@@ -15,6 +15,10 @@
 //     abajo, como la limpieza del go-live — UNA descarga del respaldo de ahora, elegir ese archivo y el PIN; se
 //     verifica que es la jornada de ahora (`autorizarEnBlanco`) y recién ahí `almacen.empezarEnBlanco` (copia en este
 //     equipo, club sin configurar, sin operador: aparece la consola de primera vez). Con otro archivo, nada.
+//   · Lo que quedó aparte, POR ÍTEM y de todos los puestos (Tanda 1B): lo que un puesto cargó y no entró sobre lo que
+//     guardó otro, legible («19:42 · Cobro $ 9.000 efectivo a Juan (turno 19:00 C2) · Lu (tablet)»), EN VIVO (lo trae la
+//     foto: un choque nuevo aparece sin recargar), con «Volver a aplicar» y «Descartar» (BandejaDelClub.tsx). La copia
+//     entera del club queda sólo como red de seguridad para lo que no pasó por la cola.
 
 import { useCallback, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -47,6 +51,7 @@ import {
 } from "./configuracion-core";
 import { ErrorDeSeccion, Seccion, campoArchivo, conElTopeDelEquipo, descargarTexto, despuesDePintar, sinDesborde, subtarjeta, textoElegido } from "./config-piezas";
 import { porFirma, useEstadoDelGuardado, useOperador, useSeleccion } from "./usar-almacen";
+import { ParaResolverDeLosPuestos } from "./BandejaDelClub";
 
 const seleccionarArchivo = (e: EstadoClub, a: Ahora) => armarArchivo(e, a);
 
@@ -459,9 +464,9 @@ function LoQueQuedoAparte({ almacen }: { almacen: Almacen }) {
   if (!apartes.length) return null;
   return (
     <div className={cn(subtarjeta, "flex flex-col gap-2")}>
-      <h3 className="font-semibold text-strong">Lo que quedó aparte</h3>
+      <h3 className="font-semibold text-strong">Copias enteras de esta compu</h3>
       <p className="text-sm text-body">
-        Otra pantalla guardó primero y estos cambios de este equipo no llegaron. Bajalos para revisarlos o restaurarlos con «Restaurar desde un archivo».
+        Otra pantalla guardó primero y estos cambios de este equipo (que no se pudieron volver a aplicar uno por uno) no llegaron. Bajalos para revisarlos o restaurarlos con «Restaurar desde un archivo».
       </p>
       <ul className="flex flex-col gap-2">
         {apartes.map((a) => {
@@ -525,6 +530,7 @@ export function JornadaDelClub({ almacen, negocio }: { almacen: Almacen; negocio
       </div>
       {puestoDeDuenio(almacen) ? (
         <>
+          <ParaResolverDeLosPuestos almacen={almacen} className={cn(subtarjeta, "flex flex-col gap-2")} />
           <LoQueQuedoAparte almacen={almacen} />
           <Restaurar almacen={almacen} quien={quien} negocio={negocio} />
           <Archivar almacen={almacen} quien={quien} bytes={g.bytes} negocio={negocio} />

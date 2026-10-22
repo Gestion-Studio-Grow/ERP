@@ -44,6 +44,7 @@ function conPinesDelPiloto(e: EstadoClub): EstadoClub {
     const viejo = USUARIOS_EJEMPLO.find((x) => x.id === u.id);
     if (viejo) u.pin = viejo.pin;
   }
+  e.config.politica.senaNuevos = M.CONFIG_DEMO.politica.senaNuevos;
   return e;
 }
 
@@ -80,6 +81,9 @@ function clubDeEjemplo(nClientes: number, stockInicial: number): EstadoClub {
   });
   e.config.cobro = { ...e.config.cobro, alias: "club.ejemplo.ficticio" };
   e.caja.fondo = 30000;
+  // Se arma con la seña de antes (sin «seña a los nuevos»), como el PIN: lo cargado no cambia y al final la regla
+  // vuelve a la de fábrica (`conPinesDelPiloto`).
+  e.config.politica.senaNuevos = false;
   return e;
 }
 

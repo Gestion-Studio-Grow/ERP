@@ -33,7 +33,6 @@ import {
   MEDIOS_PROVEEDOR,
   armarFichaProveedor,
   armarProveedores,
-  ejecutarProveedores,
   permisosProveedores,
   type AccionProveedores,
   type DesenlaceProveedores,
@@ -52,7 +51,7 @@ const OPCIONES_MEDIO = MEDIOS_PROVEEDOR.map((m) => ({ valor: m, etiqueta: ETIQUE
 function useHacer(almacen: Almacen) {
   // El pago lleva PIN: no se deshace (como el vanilla). Alta y edición, sí.
   return useCallback(
-    (a: AccionProveedores): DesenlaceProveedores => almacen.ejecutar((e, ahora, auth) => ejecutarProveedores(e, a, ahora, auth), { deshacible: a.tipo !== "pagar" }),
+    (a: AccionProveedores): DesenlaceProveedores => almacen.comando("proveedores", [a], { deshacible: a.tipo !== "pagar" }),
     [almacen],
   );
 }
@@ -261,7 +260,8 @@ function RemitosDelProveedor({ f }: { f: VistaFichaProveedor }) {
                 <summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-x-3 font-medium text-strong focus-visible:outline-2 focus-visible:outline-focus">
                   <span>Remito {r.numero}</span>
                   <span className="font-normal text-body tabular-nums">
-                    {r.cuando} · {r.lineas.length === 1 ? "1 producto" : `${r.lineas.length} productos`} · <span className="font-semibold text-strong">{pesos(r.total)}</span>
+                    {r.cuando} · {r.lineas.length === 1 ? "1 producto" : `${r.lineas.length} productos`}
+                    {r.vence ? ` · ${r.vence}` : ""} · <span className="font-semibold text-strong">{pesos(r.total)}</span>
                   </span>
                 </summary>
                 <ul className="flex flex-col gap-0.5 pb-2 tabular-nums text-strong">

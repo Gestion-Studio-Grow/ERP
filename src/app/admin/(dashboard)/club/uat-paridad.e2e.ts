@@ -811,28 +811,29 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
   // ═══ 5. Venta de mostrador, remito desde la Caja (recepción) y el stock ═══
   async (g) => {
     const p = g.p;
-    // Venta rápida de mostrador (Buffet): 2 aguas y una isotónica sin conteo, con Mercado Pago.
+    // Venta de mostrador (Buffet → «Vender», la hoja global de la tecla V): 2 aguas y una isotónica sin conteo, con Mercado Pago.
     await irA(p, "Buffet");
-    const venta = p.getByRole("region", { name: "Venta rápida de mostrador" });
+    await p.getByRole("region", { name: "Venta de mostrador" }).getByRole("button", { name: /^Vender/ }).click();
+    const venta = p.getByRole("dialog", { name: "Vender" });
     let e5 = await estado(p);
     const antes = ingresos(e5);
     const aguaAntes = e5.productos.find((x) => x.id === "p2")?.stock ?? 0;
     for (let i = 0; i < 2; i++) {
-      await venta.getByLabel("Código o producto (pasá el lector o escribí)").fill("agua");
+      await venta.getByLabel("Buscar o pasar el lector").fill("agua");
       await venta.getByRole("list", { name: "Productos para la venta" }).getByRole("button", { name: /^\+ Agua 500 ml/ }).click();
     }
     // El lector: el código de la isotónica + Enter (en la jornada real los códigos de fábrica arrancan vacíos: el interno).
-    await venta.getByLabel("Código o producto (pasá el lector o escribí)").fill("BP-003");
-    await venta.getByLabel("Código o producto (pasá el lector o escribí)").press("Enter");
+    await venta.getByLabel("Buscar o pasar el lector").fill("BP-003");
+    await venta.getByLabel("Buscar o pasar el lector").press("Enter");
     await p.waitForTimeout(150);
     const lleva = (await venta.getByRole("list", { name: "Lo que lleva" }).innerText()).replace(/\s+/g, " ");
-    await medio(venta, "Mercado Pago (QR)");
-    await venta.getByRole("button", { name: /^Cobrar \$\s?7\.500/ }).click();
+    await venta.getByRole("button", { name: /^Cobrar \$\s?7\.500 en MP$/ }).click();
     await p.waitForTimeout(200);
+    await p.keyboard.press("Escape");
     e5 = await estado(p);
     ok("5.mostrador", ingresos(e5) - antes === 7500 && e5.productos.find((x) => x.id === "p2")?.stock === aguaAntes - 2, `Venta de mostrador: 2 aguas (por nombre) + 1 isotónica (por el lector) = $ 7.500 por Mercado Pago; agua ${aguaAntes} → ${e5.productos.find((x) => x.id === "p2")?.stock} («${lleva.slice(0, 80)}»)`);
     // Alguien que viene al bar: «Abrir una cuenta», 2 aguas, y la mesa compleja: cargo manual y descuento con PIN del dueño.
-    await venta.page().getByRole("region", { name: "Abrir una cuenta" }).getByLabel(/^A nombre de/).fill("Mesa del bar");
+    await p.getByRole("region", { name: "Abrir una cuenta" }).getByLabel(/^A nombre de/).fill("Mesa del bar");
     await p.getByRole("region", { name: "Abrir una cuenta" }).getByRole("button", { name: "Abrir la cuenta" }).click();
     await p.waitForTimeout(150);
     const carga = p.getByRole("region", { name: "Cargar productos" });

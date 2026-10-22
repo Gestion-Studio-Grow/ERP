@@ -13,8 +13,9 @@
 //
 // Corre sólo en el navegador (y en los tests): el motor tiene un contador de ids de módulo.
 
-import { alertas, cancha as canchaDe, hhmm, mensajeWhatsApp, ofertasEspera } from "@/lib/club/motor.mjs";
-import type { Ahora, Alerta, EstadoClub, Fecha, NivelAlerta } from "@/lib/club/motor.mjs";
+import { ALERTAS_POSPONIBLES, alertas, cancha as canchaDe, claveDeAlerta, hhmm, mensajeWhatsApp, ofertasEspera, posponerAlerta } from "@/lib/club/motor.mjs";
+import type { Ahora, Alerta, Auth, EstadoClub, Fecha, NivelAlerta, TipoAlerta } from "@/lib/club/motor.mjs";
+import type { Desenlace } from "./almacen";
 import type { TipoMarca } from "@/components/ui/Marca";
 import { celularDeLaEspera, enlaceWhatsApp, type EnlaceWhatsApp, type ModoDelClub } from "./whatsapp-core";
 
@@ -45,10 +46,8 @@ function rotuloDe(a: Alerta): { rotulo: string; marca: TipoMarca } {
   return { rotulo: "Aviso", marca: "info" };
 }
 
-function claveDe(a: Alerta): string {
-  const ref = a.reservaId ?? a.pedidoId ?? a.novedadId ?? a.solicitudId ?? a.esperaId ?? a.productoId ?? a.canchaId ?? "";
-  return `${a.tipo}:${ref}`;
-}
+/** La del motor (`claveDeAlerta`): la misma que guarda una alerta pospuesta. */
+const claveDe = (a: Alerta): string => claveDeAlerta(a);
 
 /**
  * Lo que ve quien opera: TODAS las alertas del motor, en su orden, menos las que son sólo de un dueño si quien
@@ -77,14 +76,14 @@ function firmaDelItem(i: ItemBandeja): string {
  * Reusa lo que no cambió: si la bandeja entera es igual, la MISMA vista (no se repinta); si no, las alertas que siguen
  * iguales como el MISMO objeto (React sólo pinta las nuevas o las que cambiaron).
  */
-export function compartirBandeja(previa: VistaBandeja | undefined, nueva: VistaBandeja): VistaBandeja {
+export function compartirBandeja<V extends { items: ItemBandeja[]; firma: string }>(previa: V | undefined, nueva: V): V {
   if (!previa) return nueva;
   if (previa.firma === nueva.firma) return previa;
   const viejas = new Map(previa.items.map((i) => [i.clave, i]));
   const items = nueva.items.map((i) => {
     const v = viejas.get(i.clave);
     return v && firmaDelItem(v) === firmaDelItem(i) ? v : i;
-  });
+  }) as V["items"];
   return { ...nueva, items };
 }
 
@@ -134,6 +133,14 @@ export function queHace(estado: EstadoClub, a: Alerta, modo: ModoDelClub): QueHa
       return { tipo: "solapa", solapa: "stock", siNoEsta: "Avisale al dueño: hay que reponer." };
     case "pedido":
       return { tipo: "solapa", solapa: "tienda", siNoEsta: "Andá a la solapa «Tienda»." };
+    // Tanda 2B: la caja (sin cerrar, o el cierre que no cuadró), el pago que vence y lo que chocó entre puestos.
+    case "caja":
+    case "cierreConDiferencia":
+      return { tipo: "solapa", solapa: "caja", siNoEsta: "Andá a la solapa «Caja»." };
+    case "vencePago":
+      return { tipo: "solapa", solapa: "proveedores", siNoEsta: "El pago a proveedores lo ve un dueño." };
+    case "aparte":
+      return { tipo: "solapa", solapa: "configuracion", siNoEsta: "Lo que chocó entre puestos lo revisa un dueño en Configuración." };
     case "espera": {
       const e = estado.espera.find((x) => x.id === a.esperaId);
       const c = a.canchaId ? canchaDe(estado, a.canchaId) : undefined;
@@ -160,4 +167,112 @@ export function ofertasDelHueco(estado: EstadoClub, hueco: { fecha: Fecha; canch
     const mensaje = mensajeWhatsApp("espera", { nombre: e.titular.split(" ")[0], cancha: c.nombre, hora: hhmm(hueco.inicio), fecha });
     return { tipo: "ofrecerEspera", esperaId: e.id, canchaId: c.id, inicio: hueco.inicio, mensaje, whatsapp: enlaceWhatsApp(celularDeLaEspera(estado, e), mensaje, modo) };
   });
+}
+
+// ── dos bandejas: Mostrador (Agenda) y Dueño (Tablero) · Tanda 2B ─────────────────────────────────────────────────
+
+/** Lo que va en las DOS bandejas (le importa a quien esté): la caja que quedó sin cerrar. */
+const PARA_LOS_DOS: ReadonlySet<TipoAlerta> = new Set(["caja"]);
+/** La plata pendiente no va en la lista de alertas: tiene su sección propia, de cualquier día (plata-pendiente-core.ts). */
+const DE_LA_PLATA: ReadonlySet<TipoAlerta> = new Set(["devolucion", "falta_sin_ficha"]);
+
+/**
+ * Parte las alertas del motor por bandeja: `mostrador` (la Agenda: lo del día de la recepción y la caja) y `duenio` (el
+ * Tablero: lo que sólo resuelve un dueño y la caja). La plata pendiente no va en ninguna: tiene su sección. Mantiene el
+ * orden del motor (lo urgente primero).
+ */
+export function partir(lista: readonly Alerta[]): { mostrador: Alerta[]; duenio: Alerta[] } {
+  const mostrador: Alerta[] = [];
+  const duenio: Alerta[] = [];
+  for (const a of lista) {
+    if (DE_LA_PLATA.has(a.tipo)) continue;
+    if (PARA_LOS_DOS.has(a.tipo)) {
+      mostrador.push(a);
+      duenio.push(a);
+    } else if (a.paraDuenio) duenio.push(a);
+    else mostrador.push(a);
+  }
+  return { mostrador, duenio };
+}
+
+/** Plazo de una alerta en la bandeja del dueño: urgente (alta) · hoy (media) · esta semana (info). */
+export type Plazo = "urgente" | "hoy" | "semana";
+const PLAZO: Record<NivelAlerta, Plazo> = { alta: "urgente", media: "hoy", info: "semana" };
+export const TITULO_DEL_PLAZO: Record<Plazo, string> = { urgente: "Urgente", hoy: "Hoy", semana: "Esta semana" };
+
+export interface ItemDeBandeja extends ItemBandeja {
+  /** Se puede dejar para mañana (`ALERTAS_POSPONIBLES` del motor). */
+  posponible: boolean;
+  plazo: Plazo;
+}
+
+export interface VistaDeDosBandejas {
+  mostrador: ItemDeBandeja[];
+  duenio: ItemDeBandeja[];
+  /** Urgentes de cada una (el contador de arriba). */
+  urgentesMostrador: number;
+  urgentesDuenio: number;
+  firma: string;
+}
+
+function itemsDe(lista: readonly Alerta[], vistas: Map<string, number>): ItemDeBandeja[] {
+  return lista.map((a) => {
+    const base = claveDe(a);
+    const n = vistas.get(base) ?? 0;
+    vistas.set(base, n + 1);
+    return {
+      clave: n ? `${base}#${n}` : base,
+      nivel: a.nivel,
+      ...rotuloDe(a),
+      texto: a.texto,
+      accion: a.accion,
+      alerta: a,
+      posponible: (ALERTAS_POSPONIBLES as readonly string[]).includes(a.tipo),
+      plazo: PLAZO[a.nivel],
+    };
+  });
+}
+
+/**
+ * Las dos bandejas para quien opera. A quien no es dueño, la del dueño le llega vacía (ni la ve ni la cuenta): el motor
+ * vuelve a controlar al resolver cada cosa.
+ */
+export function armarDosBandejas(estado: EstadoClub, ahora: Ahora, esDuenio: boolean): VistaDeDosBandejas {
+  const { mostrador, duenio } = partir(alertas(estado, ahora));
+  const m = itemsDe(mostrador, new Map());
+  const d = esDuenio ? itemsDe(duenio, new Map()) : [];
+  const firma = [...m, ...d.map((i) => ({ ...i, clave: `d:${i.clave}` }))].map(firmaDelItem).join("|");
+  return { mostrador: m, duenio: d, urgentesMostrador: m.filter((i) => i.nivel === "alta").length, urgentesDuenio: d.filter((i) => i.nivel === "alta").length, firma };
+}
+
+export interface VistaDeUnaBandeja {
+  items: ItemDeBandeja[];
+  urgentes: number;
+  firma: string;
+}
+const unaBandeja = (items: ItemDeBandeja[]): VistaDeUnaBandeja => ({ items, urgentes: items.filter((i) => i.nivel === "alta").length, firma: items.map(firmaDelItem).join("|") });
+
+/**
+ * La bandeja del MOSTRADOR (Agenda). No depende de quién opera: lo del dueño ya no está acá (va al Tablero), así que
+ * cambiar de operador no la repinta.
+ */
+export function bandejaDelMostrador(estado: EstadoClub, ahora: Ahora): VistaDeUnaBandeja {
+  return unaBandeja(itemsDe(partir(alertas(estado, ahora)).mostrador, new Map()));
+}
+/** La bandeja del DUEÑO (Tablero): quién la ve lo decide quien la monta (el Tablero, sólo a un dueño). */
+export function bandejaDelDuenio(estado: EstadoClub, ahora: Ahora): VistaDeUnaBandeja {
+  return unaBandeja(itemsDe(partir(alertas(estado, ahora)).duenio, new Map()));
+}
+
+/** Lo que la bandeja hace sin ir a otro lado (comando `bandeja` de la lista blanca). */
+export type AccionBandeja = { tipo: "posponer"; clave: string };
+
+export function ejecutarBandeja(estado: EstadoClub, accion: AccionBandeja, ahora: Ahora, auth: Auth): Desenlace {
+  if (accion.tipo === "posponer") {
+    const res = posponerAlerta(estado, accion.clave, auth, ahora);
+    if (!res.ok) return { ok: false, mensaje: res.motivo };
+    const d = res.hasta;
+    return { ok: true, mensaje: `Listo: vuelve a aparecer el ${Number(d.slice(8))}/${Number(d.slice(5, 7))} si sigue pendiente.` };
+  }
+  return { ok: false, mensaje: "Esta operación no se reconoce. Recargá la página." };
 }

@@ -106,6 +106,8 @@ export interface RemitoVisto {
   cuando: string;
   cargo: string;
   total: number;
+  /** «vence el 30/10»: la fecha de pago que se le puso al remito (null si no tiene). */
+  vence: string | null;
   lineas: { nombre: string; cant: number; costo: number; subtotal: number }[];
 }
 
@@ -134,7 +136,7 @@ export function armarFichaProveedor(estado: EstadoClub, proveedorId: string, aut
     .filter((r) => r.proveedorId === proveedorId)
     .slice()
     .reverse()
-    .map((r) => ({ id: r.id, numero: r.numero, cuando: cuando(r), cargo: r.cargo, total: r.total, lineas: r.items.map((i) => ({ nombre: i.nombre, cant: i.cant, costo: i.costo, subtotal: i.cant * i.costo })) }));
+    .map((r) => ({ id: r.id, numero: r.numero, cuando: cuando(r), cargo: r.cargo, total: r.total, vence: r.vence ? `vence el ${Number(r.vence.slice(8))}/${Number(r.vence.slice(5, 7))}` : null, lineas: r.items.map((i) => ({ nombre: i.nombre, cant: i.cant, costo: i.costo, subtotal: i.cant * i.costo })) }));
   const vista: Omit<VistaFichaProveedor, "firma"> = {
     id: p.id,
     nombre: p.nombre,
@@ -161,10 +163,15 @@ export interface BorradorRemito {
   proveedorId: string;
   numero: string;
   lineas: LineaBorrador[];
+  /**
+   * «Vence»: hasta cuándo hay que pagarlo (AAAA-MM-DD, el campo de fecha). Vacío = sin fecha. Con fecha, el Tablero del
+   * dueño avisa unos días antes («Mañana vence $X a …», alerta `vencePago` del motor).
+   */
+  vence?: string;
 }
 
 export function remitoVacio(estado: EstadoClub): BorradorRemito {
-  return { proveedorId: proveedoresDe(estado).find((p) => p.activo !== false)?.id ?? "", numero: "", lineas: [] };
+  return { proveedorId: proveedoresDe(estado).find((p) => p.activo !== false)?.id ?? "", numero: "", lineas: [], vence: "" };
 }
 
 /** Si un producto no puede entrar por remito, por qué (en criollo); null si puede. */
@@ -285,10 +292,13 @@ export function ejecutarProveedores(estado: EstadoClub, accion: AccionProveedore
         if (Number.isNaN(costo) || costo < 0) return no(`Poné el costo de ${p.nombre} (lo que sale cada uno, 0 o más).`);
         items.push({ productoId: p.id, cant, costo });
       }
-      const r = registrarRemito(estado, { proveedorId: b.proveedorId, numero: b.numero, items }, auth, ahora);
+      const vence = b.vence?.trim() || null;
+      if (vence && !/^\d{4}-\d{2}-\d{2}$/.test(vence)) return no("La fecha de pago no se entiende: elegila en el calendario (o dejala vacía).");
+      const r = registrarRemito(estado, { proveedorId: b.proveedorId, numero: b.numero, items, vence }, auth, ahora);
       if (!r.ok) return falla(r);
       const pv = proveedorDe(estado, b.proveedorId)?.nombre ?? "el proveedor";
-      return { ok: true, mensaje: `Remito ${r.remito.numero} de ${pv} cargado: ${pesos(r.remito.total)}. Ya suma al stock.` };
+      const pago = vence ? ` Se paga hasta el ${Number(vence.slice(8))}/${Number(vence.slice(5, 7))}: el dueño lo ve en su Tablero cuando se acerca.` : "";
+      return { ok: true, mensaje: `Remito ${r.remito.numero} de ${pv} cargado: ${pesos(r.remito.total)}. Ya suma al stock.${pago}` };
     }
     case "pagar": {
       const pin = accion.pin.trim();

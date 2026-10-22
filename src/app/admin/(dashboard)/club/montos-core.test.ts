@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { leerMonto as deLaCaja } from "./caja-core";
-import { leerMonto } from "./montos-core";
+import { leerMonto, vueltoDe } from "./montos-core";
 
 /** La regla de caja-core.ts antes de moverla (copiada tal cual): la equivalencia se mide contra ella. */
 function referenciaDeLaCaja(texto: string): number {
@@ -33,4 +33,16 @@ test("leerMonto: la caja y la cuenta leen igual (y como la caja leía antes)", (
     assert.deepEqual(referenciaDeLaCaja(texto), leerMonto(texto), `referencia «${texto}»`);
   }
   assert.equal(deLaCaja, leerMonto, "caja-core re-exporta la misma función");
+});
+
+test("BP-041 · vuelto: $ 3.800 y paga con 10.000 → vuelto $ 6.200 (con la misma lectura de montos del club)", () => {
+  assert.deepEqual(vueltoDe(3800, "10.000"), { estado: "ok", vuelto: 6200 });
+  assert.deepEqual(vueltoDe(3800, "$ 10.000"), { estado: "ok", vuelto: 6200 });
+  assert.deepEqual(vueltoDe(3800, "10000"), { estado: "ok", vuelto: 6200 });
+  assert.deepEqual(vueltoDe(3800, "3.800"), { estado: "ok", vuelto: 0 }, "justo: vuelto cero");
+  assert.deepEqual(vueltoDe(3800, ""), { estado: "vacio" }, "sin «paga con» se cobra justo");
+  assert.deepEqual(vueltoDe(3800, "   "), { estado: "vacio" });
+  assert.deepEqual(vueltoDe(3800, "2.000"), { estado: "falta", falta: 1800 });
+  assert.deepEqual(vueltoDe(3800, "diez"), { estado: "invalido" });
+  assert.deepEqual(vueltoDe(3800, "0"), { estado: "invalido" });
 });

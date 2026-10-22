@@ -40,3 +40,36 @@
 [data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="dias"] { gap: 0.25rem; padding-block: 0.375rem; margin-block: -0.375rem; }
 [data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="dias"] button { position: relative; flex-direction: row; align-items: center; gap: 0.375rem; height: 2rem; min-height: 0; min-width: 0; padding-inline: 0.625rem; }
 [data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="dias"] button::after { content: ""; position: absolute; inset: -0.375rem 0; }
+
+/* BP-013 · el calendario de la agenda («Otro día», hasta hoy + 14): a la altura de los días, con la piel del club. */
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="calendario"] input { border-color: var(--line-strong); background: var(--surface-raised); }
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="calendario"] input[aria-invalid="true"] { border-color: var(--danger); }
+
+/* ── Tanda 2C · el botón del momento: una chapa de 26 px al pie del bloque (el `::after` lleva el toque a 44, sin tapar
+   la manija de estirar, que queda debajo con su franja de 8 px). El bloque le deja lugar abajo. ── */
+[data-estetica="breakpoint"] [data-agenda-piel] [data-turno][data-con-momento] { padding-bottom: 2.125rem; }
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="momento"] { bottom: 0.5rem; }
+[data-estetica="breakpoint"] [data-agenda-piel] [data-momento] { min-height: 0; height: 1.625rem; padding-inline: 0.5rem; border-radius: 2px; font-size: 0.75rem; letter-spacing: 0; }
+[data-estetica="breakpoint"] [data-agenda-piel] [data-momento]::after { content: ""; position: absolute; inset: -0.5625rem -0.125rem; }
+/* El de plata y el de abrir con la seña: el azul del club (un acento: es la acción del momento, no hay otra en el bloque). */
+[data-estetica="breakpoint"] [data-agenda-piel] :is([data-momento="abrir"], [data-momento="cobrarSenaYAbrir"], [data-momento="cobrar"], [data-momento="extender"]) {
+  border-color: var(--accent); color: var(--accent); background: var(--surface-raised);
+}
+
+/* ── Las marcas del turno: «NUEVO», «WEB» y «FIJO» (fijo en naranja: «ahora» y «fijo» son naranja en el club de hoy). ── */
+[data-estetica="breakpoint"] [data-agenda-piel] [data-turno-marca] { border-radius: 2px; font-size: 0.625rem; letter-spacing: 0.06em; }
+[data-estetica="breakpoint"] [data-agenda-piel] [data-turno-marca="fijo"] { border-color: var(--club-naranja-ui); color: var(--club-naranja-texto); }
+[data-estetica="breakpoint"] [data-agenda-piel] [data-turno-tipo="fijo"] { border-left-color: var(--club-naranja-ui); }
+/* «Debe»: el punto rojo de 8 px, en todos los bloques (no es un `data-turno-parte`: ésos la piel los esconde, globals.css). */
+[data-estetica="breakpoint"] [data-agenda-piel] [data-turno-deuda] { background: var(--danger); }
+
+/* ── El hueco donde no entra la duración de siempre: «+ 20:30 · 30 min» con trama (se sabe antes de tocar). ── */
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="libre"][data-corto] {
+  color: var(--text-muted);
+  background-image: repeating-linear-gradient(135deg, var(--line) 0 1px, transparent 1px 6px);
+}
+[data-estetica="breakpoint"] [data-agenda-piel] [data-agenda="libre"][data-corto]:hover { background-color: var(--accent-soft); }
+
+/* ── «Buscar lugar» y «Compartir lo libre»: chapa del club (radio 3 px, sin sombra). ── */
+[data-estetica="breakpoint"] [data-agenda-piel] :is([data-agenda="buscar-lugar"], [data-agenda="lo-libre"]) { border-radius: 3px; }
+[data-estetica="breakpoint"] [data-agenda-piel] :is([data-agenda="buscar-lugar"], [data-agenda="lo-libre"]) :is(button, a, select) { border-radius: 2px; }

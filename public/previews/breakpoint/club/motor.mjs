@@ -130,6 +130,17 @@ export function retomarSecuencia(n) {
 export function prefijoIds(prefijo = "") {
   origenIds = String(prefijo).replace(/[^a-z0-9-]/gi, "");
 }
+/** El prefijo de ids que tiene puesto ESTE proceso (el que dejó `prefijoIds`, ya saneado). */
+export const prefijoActualIds = () => origenIds;
+/**
+ * Pone el contador de ids EXACTAMENTE en `n` (también para abajo). Es para re-aplicar una operación con los mismos ids
+ * que tuvo la primera vez (comandos del backoffice): quien lo baja tiene que volver a subirlo con `retomarSecuencia`
+ * apenas termina, o se repetirían ids. Un `n` que no es un entero ≥ 0 no cambia nada.
+ */
+export function fijarSecuencia(n) {
+  const v = Number(n);
+  if (Number.isInteger(v) && v >= 0) secuencia = v;
+}
 
 function registrar(estado, texto, ahora) {
   estado.log.unshift({ fecha: ahora?.fecha ?? null, min: ahora?.min ?? null, texto });
@@ -214,16 +225,35 @@ export function hidratarEstado(foto) {
     estado.clima = esObjeto(estado.clima) ? estado.clima : { lluvia: null };
     for (const k of ["pedidos", "novedades", "difusiones", "solicitudesAcceso", "contenido"]) estado[k] = estado[k].filter((x) => esObjeto(x) && /^[\w-]{1,60}$/.test(String(x.id ?? "")));
     estado.clientes = estado.clientes.map(normalizarCliente);
+    normalizarConfig(estado.config);
     // `archivo` (resumen de los días archivados) es opcional: un estado viejo no lo tiene y sigue igual.
     if ("archivo" in estado) {
       if (!esObjeto(estado.archivo)) delete estado.archivo;
       else estado.archivo = normalizarArchivo(estado.archivo);
+    }
+    // `alertasPospuestas` también es opcional (aparece la primera vez que alguien pospone una alerta): sólo lo que se
+    // entiende queda.
+    if ("alertasPospuestas" in estado) {
+      const sanas = esLista(estado.alertasPospuestas) ? estado.alertasPospuestas.filter((x) => esObjeto(x) && typeof x.tipo === "string" && typeof x.clave === "string" && esFecha(x.hasta)) : [];
+      if (sanas.length) estado.alertasPospuestas = sanas.map((x) => ({ tipo: x.tipo, clave: x.clave, hasta: x.hasta, ...(typeof x.por === "string" ? { por: x.por.slice(0, 60) } : {}) }));
+      else delete estado.alertasPospuestas;
     }
     retomarSecuencia(foto.secuencia);
     return { ok: true, estado };
   } catch {
     return { ok: false, motivo: "no se pudo leer" };
   }
+}
+
+/**
+ * Defaults de los campos de configuración que una foto vieja no trae (sin migración: la foto es JSON). Sólo completa
+ * lo que falta o no sirve; nunca pisa lo que el club eligió.
+ */
+function normalizarConfig(config) {
+  if (!esObjeto(config.politica)) config.politica = structuredClone(CONFIG_DEMO.politica);
+  if (typeof config.politica.senaNuevos !== "boolean") config.politica.senaNuevos = CONFIG_DEMO.politica.senaNuevos;
+  if (!(Number.isInteger(config.politica.turnosConfianza) && config.politica.turnosConfianza >= 0)) config.politica.turnosConfianza = CONFIG_DEMO.politica.turnosConfianza;
+  if (!(Number.isInteger(config.diasAdelante) && config.diasAdelante >= 1 && config.diasAdelante <= DIAS_ADELANTE_MAX)) config.diasAdelante = CONFIG_DEMO.diasAdelante;
 }
 
 const esFecha = (x) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
@@ -898,6 +928,34 @@ function aplicarCredito(estado, n, c, monto, quien, ahora, porCodigo = false) {
   n.resolvio = quien;
   n.porCodigo = porCodigo;
   registrar(estado, `${quien} ${n.tipo === "fiado" ? `aprobó fiarle ${pesos(monto)} a ${c.nombre}` : `habilitó la cuenta corriente de ${c.nombre} hasta ${pesos(monto)}`}${porCodigo ? " (código por WhatsApp)" : ""}.`, ahora);
+  // El cliente se fue esperando el OK (`cerrarAlAprobar`): su cuenta pasa sola a la cuenta corriente con lo aprobado.
+  // Si ya no entra (cargó más después de pedir, o se aprobó menos), queda abierta y en «Plata pendiente».
+  if (n.tipo === "fiado" && n.cerrarAlAprobar && n.cuentaId) {
+    const cta = cuenta(estado, n.cuentaId);
+    if (cta?.estado === "abierta") {
+      const res = cerrarCuenta(estado, n.cuentaId, { aCuenta: true }, ahora);
+      if (res.ok) n.cuentaCerrada = true;
+      else n.noSeCerro = res.motivo;
+    }
+  }
+}
+
+/**
+ * «El cliente se va esperando el OK»: el pedido de fiado queda marcado para que, cuando el dueño lo apruebe (en el
+ * sistema o con el código), la cuenta pase sola a la cuenta corriente. No bloquea nada: la cuenta sigue en «Plata
+ * pendiente» hasta que llegue la respuesta. Idempotente.
+ */
+export function cerrarAlAprobar(estado, novedadId, auth, ahora) {
+  const a = autorizar(estado, auth, "solicitarCC", false);
+  if (!a.ok) return a;
+  const n = estado.novedades.find((x) => x.id === novedadId);
+  if (!n || n.tipo !== "fiado" || !n.cuentaId) return { ok: false, motivo: "Ese pedido no es un fiado de una cuenta." };
+  if (n.estado !== "pendiente") return { ok: false, motivo: "Ese pedido ya se resolvió." };
+  if (cuenta(estado, n.cuentaId)?.estado !== "abierta") return { ok: false, motivo: "Esa cuenta ya está cerrada." };
+  if (n.cerrarAlAprobar) return { ok: true, yaEstaba: true };
+  n.cerrarAlAprobar = true;
+  registrar(estado, `La cuenta de ${cliente(estado, n.clienteId)?.nombre ?? "el cliente"} queda esperando el OK del dueño (se cierra sola al aprobar).`, ahora);
+  return { ok: true, yaEstaba: false };
 }
 
 /** El dueño resuelve el pedido en el sistema (con su usuario). */
@@ -1019,15 +1077,43 @@ export function cobrarDeuda(estado, clienteId, { medio, monto } = {}, ahora) {
 
 // ───────────────────────── reservas (la cuenta de la CANCHA) ─────────────────────────
 
-/** ¿Este cliente tiene que dejar seña? Reincidentes, clientes con deuda y turnos sin ficha. Clases y fijos no. */
+/**
+ * Turnos que un cliente ya jugó (cerrados), contando los de los días archivados (archivarDiasCerrados deja cuántos
+ * jugó cada uno). Acepta la ficha o su id; sin ficha, 0.
+ */
+export function turnosJugados(estado, cl) {
+  const id = typeof cl === "string" ? cl : cl?.id;
+  if (!id) return 0;
+  return estado.reservas.filter((r) => r.clienteId === id && r.estado === "finalizada").length + (estado.archivo?.clientes?.[id]?.jugados ?? 0);
+}
+
+/**
+ * ¿Este cliente tiene que dejar seña? Reincidentes, clientes con deuda, turnos sin ficha (`senaSinCliente`) y, con
+ * `senaNuevos` (de fábrica, sí), quien todavía jugó menos de `turnosConfianza` turnos: el nuevo es el que más falta.
+ * Clases y fijos no.
+ */
 export function requiereSena(estado, clienteId, tipo) {
+  return motivoSena(estado, clienteId, tipo) !== null;
+}
+
+/**
+ * Por qué pide seña (en criollo, para la previa del alta: «cliente nuevo», «tiene 2 faltas»…) o `null` si no pide.
+ * Es LA regla del mostrador: `requiereSena` es `motivoSena(...) !== null`.
+ */
+export function motivoSena(estado, clienteId, tipo) {
   const { politica } = estado.config;
-  if (tipo === "clase" || tipo === "fijo") return false;
+  if (tipo === "clase" || tipo === "fijo") return null;
   const cl = clienteId ? cliente(estado, clienteId) : null;
-  if (!cl) return politica.senaSinCliente;
-  if (cl.strikes >= politica.strikesParaSena) return true;
-  if (cl.deuda > 0 && !cl.cc.habilitada) return true;
-  return politica.senaSiempre;
+  if (!cl) return politica.senaSinCliente ? "sin ficha" : politica.senaSiempre ? "la pide siempre el club" : null;
+  if (cl.strikes >= politica.strikesParaSena) return `tiene ${cl.strikes} falta${cl.strikes === 1 ? "" : "s"}`;
+  if (cl.deuda > 0 && !cl.cc.habilitada) return `debe ${pesos(cl.deuda)}`;
+  if ((politica.senaNuevos ?? true) && turnosJugados(estado, cl) < (politica.turnosConfianza ?? 3)) return "cliente nuevo";
+  return politica.senaSiempre ? "la pide siempre el club" : null;
+}
+
+/** Monto de la seña de un turno de ese precio (`senaPct`, redondeado a $100). Es el mismo que guarda `crearReserva`. */
+export function montoSena(estado, precio) {
+  return redondear100((precio * estado.config.politica.senaPct) / 100);
 }
 
 /**
@@ -1043,9 +1129,26 @@ export function requiereSenaWeb(estado, clienteId) {
   if (modo === "siempre") return true;
   const cl = clienteId ? cliente(estado, clienteId) : null;
   if (!cl || cl.strikes > 0) return true;
-  // Los turnos ya archivados también cuentan (archivarDiasCerrados deja cuántos jugó cada uno).
-  const jugados = estado.reservas.filter((r) => r.clienteId === cl.id && r.estado === "finalizada").length + (estado.archivo?.clientes?.[cl.id]?.jugados ?? 0);
-  return jugados < (politica.turnosConfianza ?? 3);
+  return turnosJugados(estado, cl) < (politica.turnosConfianza ?? 3);
+}
+
+/**
+ * Cuántos minutos seguidos quedan libres en esa cancha desde `inicio`: hasta el próximo turno o bloqueo, o hasta el
+ * cierre. 0 si en `inicio` ya hay algo, la cancha está en mantenimiento o el club está cerrado a esa hora.
+ * Con `hasta` también dice QUÉ corta el hueco (`{ tipo: "turno", reserva }`, `{ tipo: "bloqueo", bloqueo }` o
+ * `{ tipo: "cierre", min }`), para que la pantalla avise en criollo («Beto juega 21:00»).
+ */
+export function cuantoEntra(estado, fecha, canchaId, inicio) {
+  const { abre, cierra } = horarioDe(estado, fecha);
+  const c = cancha(estado, canchaId);
+  if (!c || c.estado === "mantenimiento" || inicio < abre || inicio >= cierra) return { minutos: 0, hasta: null };
+  const { reservas, bloqueos } = ocupantes(estado, fecha, canchaId);
+  if (reservas.some((r) => r.inicio <= inicio && inicio < r.inicio + r.duracion) || bloqueos.some((b) => b.desde <= inicio && inicio < b.hasta)) return { minutos: 0, hasta: null };
+  let hasta = { tipo: "cierre", min: cierra };
+  let fin = cierra;
+  for (const r of reservas) if (r.inicio > inicio && r.inicio < fin) { fin = r.inicio; hasta = { tipo: "turno", reserva: r }; }
+  for (const b of bloqueos) if (b.desde > inicio && b.desde < fin) { fin = b.desde; hasta = { tipo: "bloqueo", bloqueo: b }; }
+  return { minutos: fin - inicio, hasta };
 }
 
 /**
@@ -1104,7 +1207,7 @@ export function crearReserva(estado, datos, ahora) {
 
   const precio = precioFijo ?? precioTurno(estado, { fecha, inicio, duracion, canchaId });
   const pideSena = conSena ?? requiereSena(estado, clienteId, tipo);
-  const senaMonto = pideSena ? redondear100((precio * estado.config.politica.senaPct) / 100) : 0;
+  const senaMonto = pideSena ? montoSena(estado, precio) : 0;
   const lista = (jugadores?.length ? jugadores : [nombre]).slice(0, 4).map((j) => (typeof j === "string" ? { nombre: j } : { ...j }));
   if (cl && !lista[0].clienteId && lista[0].nombre === nombre) lista[0].clienteId = cl.id;
   const r = {
@@ -1707,33 +1810,136 @@ export function cobrarTodoElTurno(estado, reservaId, { medio, auth = null }, aho
 }
 
 /**
+ * El medio de cada parte de la cancha que falta cobrar: el de ese jugador en `porJugador` (índice → medio) o, si no
+ * lo tiene, `medio`. Valida TODO antes de cobrar nada (sin créditos: con créditos se cobra jugador por jugador).
+ * Devuelve el plan `[{ idx, medio, monto }]` (más lo que quede de la cancha sin parte, con el medio del titular) o
+ * por qué no.
+ */
+function planDeCobroCancha(estado, r, { medio, porJugador = null }) {
+  const elegido = (i) => {
+    const m = porJugador && typeof porJugador === "object" ? porJugador[i] : undefined;
+    return m == null || m === "" ? medio : m;
+  };
+  const partes = partesCancha(r);
+  const plan = [];
+  for (let i = 0; i < partes.length; i++) {
+    if (!(partes[i].aPagar > 0)) continue;
+    const m = elegido(i);
+    const v = validarMedio(m, { monedero: false });
+    if (!v.ok) return { ok: false, motivo: m ? v.motivo : `Elegí cómo paga ${r.jugadores[i]?.nombre ?? `el jugador ${i + 1}`}.` };
+    plan.push({ idx: i, medio: m, monto: partes[i].aPagar });
+  }
+  const resto = saldo(r) - plan.reduce((s, x) => s + x.monto, 0);
+  if (resto > 0) {
+    // Lo que no es de ninguna parte (se extendió después de que todos pagaron la suya): con el medio general o el del titular.
+    const m = medio ?? elegido(0);
+    const v = validarMedio(m, { monedero: false });
+    if (!v.ok) return { ok: false, motivo: m ? v.motivo : "Elegí cómo se paga lo que queda de la cancha." };
+    plan.push({ idx: null, medio: m, monto: resto });
+  }
+  return { ok: true, plan };
+}
+
+/**
+ * Cobra la cancha según el plan: parte por parte (mirando las partes de nuevo después de cada cobro, como siempre: el
+ * que paga por otros los cubre) con el medio de cada uno, y lo que quede sin parte con el medio general. Devuelve lo
+ * cobrado y cuánto por medio.
+ */
+function cobrarCanchaConPlan(estado, r, plan, ahora) {
+  const medioDe = new Map(plan.filter((x) => x.idx != null).map((x) => [x.idx, x.medio]));
+  const otro = plan.find((x) => x.idx == null)?.medio ?? plan[plan.length - 1]?.medio;
+  let cobrado = 0;
+  const porMedio = {};
+  const sumar = (m, monto) => { cobrado += monto; porMedio[m] = (porMedio[m] ?? 0) + monto; };
+  for (let vuelta = 0; vuelta < r.jugadores.length + 1 && saldo(r) > 0; vuelta++) {
+    const i = partesCancha(r).findIndex((x, k) => x.aPagar > 0 && medioDe.has(k));
+    if (i < 0) break;
+    const res = cobrarParte(estado, r.id, i, { medio: medioDe.get(i) }, ahora);
+    if (!res.ok) return { ...res, cobrado, porMedio };
+    sumar(medioDe.get(i), res.monto);
+  }
+  if (saldo(r) > 0 && otro) {
+    const monto = saldo(r);
+    const res = registrarPago(estado, r.id, { medio: otro, monto }, ahora);
+    if (!res.ok) return { ...res, cobrado, porMedio };
+    sumar(otro, monto);
+  }
+  return { ok: true, cobrado, porMedio };
+}
+
+/**
  * Se termina el turno pero la mesa sigue: cobra lo que falte de la CANCHA y la cierra (luz apagada, cancha libre
  * para el turno siguiente). Los cargos quedan abiertos: siguen cargando y se cierran después.
+ * `porJugador` (índice del jugador → medio): cada uno paga SU parte con su medio; el que no está, con `medio`. Se
+ * valida todo antes de cobrar: o se cobra y se cierra, o no pasa nada.
  */
-export function cerrarCanchaYSeguir(estado, reservaId, { medio, auth = null } = {}, ahora) {
+export function cerrarCanchaYSeguir(estado, reservaId, { medio, porJugador = null, auth = null } = {}, ahora) {
   if (auth) { const a = autorizar(estado, auth, "cobrar", false); if (!a.ok) return a; }
   const r = reserva(estado, reservaId);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   if (!turnoAbierto(r)) return { ok: false, motivo: "Esa cancha ya está cerrada." };
   let cobrado = 0;
+  let porMedio = {};
   if (saldo(r) > 0) {
-    const v = validarMedio(medio, { monedero: false });
-    if (!v.ok) return v;
-    for (let vuelta = 0; vuelta < r.jugadores.length + 1 && saldo(r) > 0; vuelta++) {
-      const i = partesCancha(r).findIndex((x) => x.aPagar > 0);
-      if (i < 0) break;
-      const res = cobrarParte(estado, reservaId, i, { medio }, ahora);
-      if (!res.ok) return res;
-      cobrado += res.monto;
-    }
-    if (saldo(r) > 0) { const m = saldo(r); const res = registrarPago(estado, reservaId, { medio, monto: m }, ahora); if (!res.ok) return res; cobrado += m; }
+    const p = planDeCobroCancha(estado, r, { medio, porJugador });
+    if (!p.ok) return p;
+    const res = cobrarCanchaConPlan(estado, r, p.plan, ahora);
+    if (!res.ok) return res;
+    cobrado = res.cobrado;
+    porMedio = res.porMedio;
   }
   const fin = finalizar(estado, reservaId, {}, ahora);
   if (!fin.ok) return fin;
   // La mesa sigue AUNQUE esté en cero (todos al día): es para seguir cargando lo que pidan. Queda en Buffet → Mesas
   // hasta que alguien la cierre (cerrarCargosDelTurno).
   r.mesaSigue = true;
-  return { ok: true, cobradoCancha: cobrado, cuentasAbiertas: cuentasDeLaMesa(estado, r) };
+  return { ok: true, cobradoCancha: cobrado, porMedio, cuentasAbiertas: cuentasDeLaMesa(estado, r) };
+}
+
+/**
+ * «Cerrar la de X y abrir»: la cancha sigue ocupada por el turno anterior y llega el siguiente. En UN paso: se cierra
+ * la de X (cobrando lo que falte de la cancha con `medio` / `porJugador`, o a su cuenta corriente con `aCuenta`; con
+ * `seguir`, la mesa sigue en Buffet) y se abre la siguiente (con `medioSena`, cobrando antes lo que falte de su seña).
+ * Se mira TODO antes de tocar nada: si la siguiente no se puede abrir por otra cosa que la cancha ocupada (temprano,
+ * seña sin medio, ya terminó), no se cierra ni se cobra nada.
+ */
+export function cerrarYAbrirLaSiguiente(estado, { cerrarId, abrirId, medio, porJugador = null, aCuenta = false, seguir = false, medioSena = null, auth = null } = {}, ahora) {
+  if (auth) { const a = autorizar(estado, auth, "cobrar", false); if (!a.ok) return a; }
+  const x = reserva(estado, cerrarId);
+  const sig = reserva(estado, abrirId);
+  if (!x || !sig) return { ok: false, motivo: "No encuentro el turno." };
+  if (x.id === sig.id) return { ok: false, motivo: "Elegí el turno que sigue." };
+  if (x.estado !== "en_cancha") return { ok: false, motivo: `La cancha de ${x.titular} no está abierta.` };
+  if (x.canchaId !== sig.canchaId) return { ok: false, motivo: "Los dos turnos tienen que ser de la misma cancha." };
+  const senaPendiente = sig.sena.monto > 0 && !sig.sena.pagada;
+  if (senaPendiente && medioSena) { const v = validarMedio(medioSena); if (!v.ok) return v; }
+  const motivo = motivoParaNoAbrir(estado, sig, ahora, senaPendiente && !!medioSena, x.id);
+  if (motivo) return { ok: false, motivo };
+  // Lo de X: o se cobra con lo elegido o va entero a su cuenta corriente (validado antes de tocar nada).
+  let plan = null;
+  if (saldo(x) > 0 && !aCuenta) {
+    const p = planDeCobroCancha(estado, x, { medio, porJugador });
+    if (!p.ok) return p;
+    plan = p.plan;
+  } else if (saldo(x) > 0) {
+    const p = puedeACuenta(x.clienteId ? cliente(estado, x.clienteId) : null, saldo(x));
+    if (!p.ok) return p;
+  }
+  // La seña de la siguiente con créditos: que le alcancen, antes de cerrar nada.
+  if (senaPendiente && medioSena === "monedero") {
+    const c = sig.clienteId ? cliente(estado, sig.clienteId) : null;
+    if (!c || c.monedero < Math.max(0, sig.sena.monto - cobrado(sig))) return { ok: false, motivo: "No le alcanzan los créditos para la seña." };
+  }
+  let cobro = { cobrado: 0, porMedio: {} };
+  if (plan) { cobro = cobrarCanchaConPlan(estado, x, plan, ahora); if (!cobro.ok) return cobro; }
+  const fin = finalizar(estado, x.id, { aCuenta }, ahora);
+  if (!fin.ok) return fin;
+  // Con «la mesa sigue», como `cerrarCanchaYSeguir`: queda en Buffet → Mesas aunque esté en cero.
+  if (seguir) x.mesaSigue = true;
+  const cerrada = { cobradoCancha: cobro.cobrado, porMedio: cobro.porMedio, cuentasAbiertas: seguir ? cuentasDeLaMesa(estado, x) : fin.cuentasAbiertas };
+  const abierta = senaPendiente && medioSena ? cobrarSenaYAbrir(estado, sig.id, { medio: medioSena }, ahora) : { ...checkIn(estado, sig.id, ahora), cobrado: 0 };
+  if (!abierta.ok) return { ...abierta, cerrada };
+  return { ok: true, cerrada, abierta };
 }
 
 /** Cierra los cargos de la mesa del turno: cobrados con un medio, o a la cuenta corriente de cada uno. */
@@ -1818,21 +2024,51 @@ export const cuentasAbiertas = (estado) => estado.cuentas.filter((c) => c.estado
 export function checkIn(estado, id, ahora) {
   const r = reserva(estado, id);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
-  if (r.estado !== "reservada") return { ok: false, motivo: `El turno está ${ESTADOS[r.estado].toLowerCase()}.` };
-  if (r.sena.monto > 0 && !r.sena.pagada) return { ok: false, motivo: "Falta la seña: cobrala antes de abrir la cancha." };
-  if (ahora) {
-    const falta = minutosHasta(ahora, r.fecha, r.inicio);
-    const limite = estado.config.politica.minutosAntesParaEntrar;
-    if (limite != null && falta > limite) return { ok: false, motivo: `Todavía es temprano: la cancha se abre desde ${limite} min antes del turno.` };
-    if (falta + r.duracion <= 0) return { ok: false, motivo: "El horario de ese turno ya terminó." };
-  }
-  const ocupada = estado.reservas.find((x) => x.id !== r.id && x.fecha === r.fecha && x.canchaId === r.canchaId && x.estado === "en_cancha");
-  if (ocupada) return { ok: false, motivo: `${cancha(estado, r.canchaId).nombre} sigue ocupada por ${ocupada.titular}: cerrá esa cancha primero.` };
+  const motivo = motivoParaNoAbrir(estado, r, ahora, false);
+  if (motivo) return { ok: false, motivo };
   r.estado = "en_cancha";
   r.checkIn = ahora ? { ...ahora } : null;
   estado.luces[r.canchaId] = true;
   registrar(estado, `Se abrió ${cancha(estado, r.canchaId).nombre} para ${r.titular}.`, ahora);
   return { ok: true };
+}
+
+/**
+ * Por qué no se puede abrir la cancha de ese turno (o `null`). Con `sinMirarSena`, todo menos la seña. Con
+ * `ignorarOcupadaPor`, el turno que la ocupa no cuenta (es el que se cierra en el mismo paso).
+ */
+function motivoParaNoAbrir(estado, r, ahora, sinMirarSena, ignorarOcupadaPor = null) {
+  if (r.estado !== "reservada") return `El turno está ${ESTADOS[r.estado].toLowerCase()}.`;
+  if (!sinMirarSena && r.sena.monto > 0 && !r.sena.pagada) return "Falta la seña: cobrala antes de abrir la cancha.";
+  if (ahora) {
+    const falta = minutosHasta(ahora, r.fecha, r.inicio);
+    const limite = estado.config.politica.minutosAntesParaEntrar;
+    if (limite != null && falta > limite) return `Todavía es temprano: la cancha se abre desde ${limite} min antes del turno.`;
+    if (falta + r.duracion <= 0) return "El horario de ese turno ya terminó.";
+  }
+  const ocupada = estado.reservas.find((x) => x.id !== r.id && x.id !== ignorarOcupadaPor && x.fecha === r.fecha && x.canchaId === r.canchaId && x.estado === "en_cancha");
+  if (ocupada) return `${cancha(estado, r.canchaId).nombre} sigue ocupada por ${ocupada.titular}: cerrá esa cancha primero.`;
+  return null;
+}
+
+/**
+ * «Cobrar la seña y abrir»: lo que falta de la seña con un medio y la cancha abierta, en un solo paso. Si la cancha
+ * no se puede abrir (temprano, ocupada, ya terminó) no se cobra nada: o pasan las dos cosas o ninguna. Sin seña
+ * pendiente es `checkIn`.
+ */
+export function cobrarSenaYAbrir(estado, id, { medio, auth = null } = {}, ahora) {
+  const r = reserva(estado, id);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (!(r.sena.monto > 0) || r.sena.pagada) return { ...checkIn(estado, id, ahora), cobrado: 0 };
+  const motivo = motivoParaNoAbrir(estado, r, ahora, true);
+  if (motivo) return { ok: false, motivo };
+  const falta = Math.max(0, r.sena.monto - cobrado(r));
+  if (falta > 0) {
+    const pago = registrarPago(estado, id, { medio, monto: falta, auth }, ahora);
+    if (!pago.ok) return pago;
+  } else r.sena.pagada = true;
+  const abierto = checkIn(estado, id, ahora);
+  return abierto.ok ? { ok: true, cobrado: falta } : abierto;
 }
 
 /**
@@ -1883,11 +2119,11 @@ export function marcarNoShow(estado, id, { cobrarA = "titular", auth = null } = 
   const importe = Math.max(0, saldo(r));
   const cargos = [];
   const concepto = `Falta ${r.fecha.slice(8)}/${r.fecha.slice(5, 7)} ${hhmm(r.inicio)}`;
+  let aCargoDelTitular = 0;
   if (importe > 0 && cobrarA !== "nadie") {
     const enGrupo = cobrarA === "grupo";
     const partes = enGrupo ? dividir(importe, r.jugadores.length) : [importe];
     const destinos = enGrupo ? r.jugadores.map((j, i) => (i === 0 ? j.clienteId ?? r.clienteId : j.clienteId)) : [r.clienteId];
-    let aCargoDelTitular = 0;
     partes.forEach((monto, i) => {
       const c = destinos[i] ? cliente(estado, destinos[i]) : null;
       if (c && c !== titular) { movimientoCC(estado, c, monto, concepto, ahora); cargos.push({ nombre: c.nombre, monto }); }
@@ -1899,8 +2135,23 @@ export function marcarNoShow(estado, id, { cobrarA = "titular", auth = null } = 
     }
   }
   r.faltaCobrada = cargos.reduce((s, c) => s + c.monto, 0);
+  // Lo que le quedó al titular (en su cuenta, o para cobrarle si no tiene ficha): es el monto del WhatsApp de la falta.
+  r.faltaTitular = aCargoDelTitular;
   registrar(estado, `Falta de ${r.titular}: ${cargos.length ? cargos.map((c) => `${c.nombre} ${pesos(c.monto)}`).join(", ") : "sin cargo"}.`, ahora);
   return { ok: true, cargos, ofertas: ofertasEspera(estado, r.fecha, r.canchaId, r.inicio, r.duracion) };
+}
+
+/**
+ * El WhatsApp de la falta para el titular, con el monto que le quedó en su cuenta (o para pagar, si no tiene ficha).
+ * `null` si el turno no es una falta o si no se le cobró nada.
+ */
+export function mensajeDeLaFalta(estado, reservaId) {
+  const r = reserva(estado, reservaId);
+  if (!r || r.estado !== "no_show") return null;
+  const monto = r.faltaTitular ?? (r.deudaSinFicha > 0 ? r.deudaSinFicha : r.faltaCobrada ?? 0);
+  if (!(monto > 0)) return null;
+  const nombre = String(r.titular ?? "").trim().split(/\s+/)[0] || r.titular;
+  return mensajeWhatsApp("falta", { nombre, hora: hhmm(r.inicio), monto: pesos(monto) });
 }
 
 /**
@@ -2109,6 +2360,20 @@ export function materializarFijos(estado, fecha) {
     if (estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha)) continue;
     const res = crearReserva(estado, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion, tipo: "fijo", clienteId: f.clienteId, titular: f.titular, fijoId: f.id, origen: "fijo" });
     if (!res.ok) conflictos.push({ fijo: f, motivo: res.motivo });
+  }
+  return conflictos;
+}
+
+/**
+ * Baja los fijos de toda la ventana de reserva: de `desde` a `desde + dias` (por defecto `config.diasAdelante`, 14).
+ * Idempotente (lo ya bajado no se repite). Devuelve los que chocan, con su fecha.
+ */
+export function materializarFijosHasta(estado, desde, dias = estado.config.diasAdelante ?? 14) {
+  const n = Math.max(0, Math.min(DIAS_ADELANTE_MAX, Math.round(Number(dias)) || 0));
+  const conflictos = [];
+  for (let i = 0; i <= n; i++) {
+    const fecha = sumarDias(desde, i);
+    for (const c of materializarFijos(estado, fecha)) conflictos.push({ ...c, fecha });
   }
   return conflictos;
 }
@@ -2648,7 +2913,7 @@ export function editarProveedor(estado, proveedorId, cambios, auth, ahora) {
  * Remito: entra mercadería. Suma stock, actualiza el costo y genera la deuda con el proveedor. Lo puede
  * cargar recepción (es lo único de proveedores que hace recepción, junto con el egreso en efectivo).
  */
-export function registrarRemito(estado, { proveedorId, numero, items }, auth, ahora) {
+export function registrarRemito(estado, { proveedorId, numero, items, vence = null }, auth, ahora) {
   const a = autorizar(estado, auth, "remito", false);
   if (!a.ok) return a;
   const pv = proveedor(estado, proveedorId);
@@ -2658,6 +2923,7 @@ export function registrarRemito(estado, { proveedorId, numero, items }, auth, ah
   if (estado.remitos.some((r) => r.proveedorId === proveedorId && r.numero === num)) return { ok: false, motivo: `El remito ${num} de ${pv.nombre} ya está cargado.` };
   const lineas = (items ?? []).filter((i) => Number(i.cant) > 0);
   if (!lineas.length) return { ok: false, motivo: "El remito no tiene productos." };
+  if (vence != null && vence !== "" && !esFecha(vence)) return { ok: false, motivo: "La fecha de pago del remito no se entiende." };
   for (const i of lineas) {
     const p = producto(estado, i.productoId);
     if (!p) return { ok: false, motivo: "Hay un producto que no existe." };
@@ -2673,7 +2939,7 @@ export function registrarRemito(estado, { proveedorId, numero, items }, auth, ah
     total += cant * costo;
     return { productoId: p.id, nombre: p.nombre, cant, costo };
   });
-  const rem = { id: nuevoId("rm"), proveedorId, numero: num, items: detalle, total, cargo: a.usuario.nombre, ...sello(ahora) };
+  const rem = { id: nuevoId("rm"), proveedorId, numero: num, items: detalle, total, cargo: a.usuario.nombre, ...sello(ahora), ...(esFecha(vence) ? { vence } : {}) };
   estado.remitos.push(rem);
   registrar(estado, `${a.usuario.nombre} cargó el remito ${num} de ${pv.nombre}: ${pesos(total)}.`, ahora);
   return { ok: true, remito: rem };
@@ -3072,6 +3338,108 @@ export function linkWhatsApp(tel, texto) {
   return `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`;
 }
 
+// ───────────────────────── plata pendiente (no vence) ─────────────────────────
+
+const ddmm = (f) => (f ? `${f.slice(8)}/${f.slice(5, 7)}` : "");
+const telDeFicha = (estado, clienteId) => (clienteId ? cliente(estado, clienteId)?.tel ?? "" : "");
+const ordenFechaHora = (x) => `${x.fecha ?? "9999-99-99"}|${String(x.inicio ?? 9999).padStart(4, "0")}`;
+
+/**
+ * Toda la plata que quedó pendiente, de CUALQUIER fecha, hasta que alguien la resuelve (nada vence ni se pierde de
+ * vista): lo que hay que devolver en mano, la falta de alguien sin ficha, la seña de un turno que venció sin pagarse y
+ * los fiados de una cuenta que esperan (o ya tienen) el OK del dueño. De lo más viejo a lo más nuevo. Cada ítem trae
+ * con quién es (nombre y celular de su ficha, si la tiene), de qué turno o cuenta, el monto exacto, si la plata entra o
+ * sale, y el texto y el botón en criollo. Las acciones que lo resuelven son las de siempre (`marcarDevuelto`,
+ * `cobrarFaltaSinFicha`, `registrarPago` de la seña, `cerrarCuenta` a cuenta corriente, `pagarCuenta`).
+ */
+export function plataPendiente(estado) {
+  const out = [];
+  for (const r of estado.reservas) {
+    const delTurno = { reservaId: r.id, clienteId: r.clienteId ?? null, nombre: r.titular, tel: telDeFicha(estado, r.clienteId), fecha: r.fecha, inicio: r.inicio, canchaId: r.canchaId };
+    const turno = `turno del ${ddmm(r.fecha)} ${hhmm(r.inicio)}`;
+    if (r.devolucionPendiente > 0)
+      out.push({ tipo: "devolucion", clave: `devolucion:${r.id}`, ...delTurno, monto: r.devolucionPendiente, sentido: "sale", texto: `Devolver ${pesos(r.devolucionPendiente)} a ${r.titular} (${turno})`, accion: "Devolver" });
+    if (r.deudaSinFicha > 0)
+      out.push({ tipo: "falta_sin_ficha", clave: `falta_sin_ficha:${r.id}`, ...delTurno, monto: r.deudaSinFicha, sentido: "entra", texto: `${r.titular} debe la falta del ${ddmm(r.fecha)} · ${pesos(r.deudaSinFicha)}`, accion: "Cobrar" });
+    if (r.estado === "reservada" && r.senaVencida && r.sena.monto > 0 && !r.sena.pagada) {
+      const falta = Math.max(0, r.sena.monto - cobrado(r));
+      if (falta > 0) out.push({ tipo: "sena_vencida", clave: `sena_vencida:${r.id}`, ...delTurno, monto: falta, sentido: "entra", texto: `${r.titular}: venció el plazo de la seña de ${pesos(falta)} (${turno})`, accion: "Cobrar la seña" });
+    }
+  }
+  // El último pedido de fiado de cada cuenta que sigue abierta.
+  const ultimo = new Map();
+  for (const n of estado.novedades) if (n.tipo === "fiado" && n.cuentaId) ultimo.set(n.cuentaId, n);
+  for (const [cuentaId, n] of ultimo) {
+    const cta = cuenta(estado, cuentaId);
+    if (!cta || cta.estado !== "abierta") continue;
+    const c = cliente(estado, n.clienteId);
+    const nombre = c?.nombre ?? cta.titular;
+    const debe = deudaDe(estado, cta);
+    const base = { tipo: "fiado", clave: `fiado:${n.id}`, novedadId: n.id, cuentaId, clienteId: n.clienteId ?? null, nombre, tel: c?.tel ?? "", fecha: n.fecha ?? null, inicio: n.min ?? null, canchaId: null, sentido: "entra", cerrarAlAprobar: !!n.cerrarAlAprobar, pidio: n.pidio };
+    if (n.estado === "pendiente")
+      out.push({ ...base, monto: n.monto, estadoFiado: "esperando", texto: `${nombre}: fiado de ${pesos(n.monto)} esperando el OK del dueño (lo pidió ${n.pidio})`, accion: n.cerrarAlAprobar ? "Se cierra sola al aprobar" : "Esperando OK" });
+    else if (n.estado === "aprobada" && debe > 0)
+      out.push({ ...base, monto: debe, estadoFiado: "aprobado", aprobo: n.resolvio ?? null, texto: `Aprobado por ${n.resolvio ?? "el dueño"}: ${nombre} pasa ${pesos(debe)} a su cuenta corriente${n.noSeCerro ? ` (no se pudo cerrar sola: ${n.noSeCerro})` : ""}`, accion: "Pasar a su cuenta corriente" });
+    else if (n.estado === "rechazada" && n.cerrarAlAprobar && debe > 0)
+      // Se fue esperando el OK y el dueño dijo que no: la cuenta queda para cobrarle cuando vuelva.
+      out.push({ ...base, monto: debe, estadoFiado: "rechazado", aprobo: n.resolvio ?? null, texto: `${n.resolvio ?? "El dueño"} no aprobó el fiado de ${nombre}: la cuenta sigue abierta con ${pesos(debe)}`, accion: "Cobrar la cuenta" });
+  }
+  return out.sort((a, b) => ordenFechaHora(a).localeCompare(ordenFechaHora(b)));
+}
+
+const diasEntre = (desde, hasta) => Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86400000);
+
+/**
+ * Los remitos con fecha de pago (`vence`) que todavía se deben y vencen dentro de `dias` días (o ya vencieron). Lo
+ * pagado a cada proveedor cubre sus remitos del más viejo al más nuevo. `enDias`: 0 hoy, 1 mañana, negativo si venció.
+ */
+export function pagosPorVencer(estado, ahora, dias = 7) {
+  const out = [];
+  for (const pv of estado.proveedores) {
+    const remitos = estado.remitos.filter((r) => r.proveedorId === pv.id).sort((a, b) => `${a.fecha ?? ""}|${String(a.min ?? 0).padStart(4, "0")}`.localeCompare(`${b.fecha ?? ""}|${String(b.min ?? 0).padStart(4, "0")}`));
+    let pagado = estado.pagosProveedor.filter((p) => p.proveedorId === pv.id).reduce((s, p) => s + p.monto, 0);
+    for (const r of remitos) {
+      const cubre = Math.min(pagado, r.total);
+      pagado -= cubre;
+      const debe = r.total - cubre;
+      if (!(debe > 0) || !esFecha(r.vence)) continue;
+      const enDias = diasEntre(ahora.fecha, r.vence);
+      if (enDias <= dias) out.push({ remitoId: r.id, proveedorId: pv.id, proveedor: pv.nombre, numero: r.numero, vence: r.vence, monto: debe, enDias });
+    }
+  }
+  return out.sort((a, b) => a.enDias - b.enDias);
+}
+
+/** Las alertas que se pueden posponer hasta mañana (las demás son de hoy y no tiene sentido: hay que resolverlas). */
+export const ALERTAS_POSPONIBLES = Object.freeze(["cierreConDiferencia", "vencePago", "aparte", "stock"]);
+
+/** La clave de una alerta: su tipo y a qué se refiere. Es la misma entre armados (y la que guarda una pospuesta). */
+export function claveDeAlerta(a) {
+  const ref = a.reservaId ?? a.pedidoId ?? a.novedadId ?? a.solicitudId ?? a.esperaId ?? a.productoId ?? a.remitoId ?? a.dia ?? a.canchaId ?? "";
+  return `${a.tipo}:${ref}`;
+}
+
+const pospuestaVigente = (estado, clave, ahora) => (estado.alertasPospuestas ?? []).some((p) => p.clave === clave && ahora.fecha < p.hasta);
+
+/**
+ * «Posponer hasta mañana»: la alerta no aparece en ninguna bandeja hasta mañana (y mañana, si sigue, vuelve). Sólo
+ * las de `ALERTAS_POSPONIBLES`; las del dueño las pospone un dueño. Idempotente.
+ */
+export function posponerAlerta(estado, clave, auth, ahora) {
+  const tipo = String(clave ?? "").split(":")[0];
+  if (!ALERTAS_POSPONIBLES.includes(tipo)) return { ok: false, motivo: "Eso no se puede dejar para mañana: hay que resolverlo hoy." };
+  if (pospuestaVigente(estado, clave, ahora)) return { ok: true, hasta: estado.alertasPospuestas.find((p) => p.clave === clave).hasta, yaEstaba: true };
+  const a = alertas(estado, ahora).find((x) => claveDeAlerta(x) === clave);
+  if (!a) return { ok: false, motivo: "Eso ya no está para resolver." };
+  const ok = autorizar(estado, auth ?? {}, a.paraDuenio ? "metricas" : "agenda", false);
+  if (!ok.ok) return a.paraDuenio ? { ok: false, motivo: "Lo del dueño lo pospone un dueño." } : ok;
+  const hasta = sumarDias(ahora.fecha, 1);
+  // Las vencidas se limpian al pasar (la lista no crece).
+  estado.alertasPospuestas = [...(estado.alertasPospuestas ?? []).filter((p) => ahora.fecha < p.hasta && p.clave !== clave), { tipo, clave, hasta, por: ok.usuario.nombre }];
+  registrar(estado, `${ok.usuario.nombre} dejó para mañana: ${a.texto}`, ahora);
+  return { ok: true, hasta, yaEstaba: false };
+}
+
 // ───────────────────────── eventualidades (la bandeja) ─────────────────────────
 
 /**
@@ -3102,10 +3470,16 @@ export function alertas(estado, ahora) {
       out.push({ nivel: saldo(r) > 0 ? "alta" : "media", tipo: "cerrar", reservaId: r.id, texto: saldo(r) > 0 ? `${r.titular} terminó y la cancha debe ${pesos(saldo(r))}.${marcaRoja}` : `${r.titular} terminó: cerrá la cancha y apagá la luz.`, accion: saldo(r) > 0 ? "Cobrar o sumar a cuenta" : "Cerrar cancha" });
     if (r.estado === "en_cancha" && fin > 0 && fin <= 10)
       out.push({ nivel: "info", tipo: "termina", reservaId: r.id, texto: `${r.titular} termina en ${fin} min (${nombreCancha}).`, accion: "Ofrecer extender" });
-    if (r.devolucionPendiente > 0)
-      out.push({ nivel: "media", tipo: "devolucion", reservaId: r.id, texto: `Hay que devolverle ${pesos(r.devolucionPendiente)} a ${r.titular} (no tiene ficha).`, accion: "Registrar la devolución" });
-    if (r.deudaSinFicha > 0)
-      out.push({ nivel: "media", tipo: "falta_sin_ficha", reservaId: r.id, texto: `${r.titular} debe la falta de las ${hhmm(r.inicio)}: ${pesos(r.deudaSinFicha)} (no tiene ficha).`, accion: "Cobrar la falta" });
+  }
+  // La plata pendiente de CUALQUIER día (no sólo la de hoy: no vence). Las pantallas nuevas la leen de `plataPendiente`.
+  for (const x of plataPendiente(estado)) {
+    const r = x.reservaId ? reserva(estado, x.reservaId) : null;
+    if (!r) continue;
+    const cuando = r.fecha === ahora.fecha ? `las ${hhmm(r.inicio)}` : `el ${ddmm(r.fecha)} ${hhmm(r.inicio)}`;
+    if (x.tipo === "devolucion")
+      out.push({ nivel: "media", tipo: "devolucion", reservaId: r.id, texto: `Hay que devolverle ${pesos(x.monto)} a ${r.titular} (no tiene ficha${r.fecha === ahora.fecha ? "" : `; turno del ${ddmm(r.fecha)}`}).`, accion: "Registrar la devolución" });
+    else if (x.tipo === "falta_sin_ficha")
+      out.push({ nivel: "media", tipo: "falta_sin_ficha", reservaId: r.id, texto: `${r.titular} debe la falta de ${cuando}: ${pesos(x.monto)} (no tiene ficha).`, accion: "Cobrar la falta" });
   }
   for (const c of estado.canchas) {
     if (!estado.luces[c.id]) continue;
@@ -3142,8 +3516,32 @@ export function alertas(estado, ahora) {
     out.push({ nivel: "media", tipo: "pedido", pedidoId: pd.id, texto: `Pedido de la tienda ${pd.codigo} de ${pd.nombre}: ${pesos(pd.total)} para retirar.`, accion: "Ver pedido" });
   for (const s of estado.solicitudesAcceso.filter((x) => x.estado === "pendiente"))
     out.push({ nivel: "media", tipo: "acceso", solicitudId: s.id, paraDuenio: true, texto: `${s.nombre} pidió acceso al sistema.`, accion: "Dar acceso" });
+  // La caja: la que quedó sin cerrar (para todos, en todas las solapas) y el último cierre que no cuadró (para el dueño).
+  const atrasadas = cajasSinCerrar(estado, ahora);
+  if (atrasadas.length)
+    out.push({
+      nivel: "alta", tipo: "caja", dia: atrasadas[0], dias: atrasadas,
+      texto: atrasadas.length === 1 ? `Quedó la caja del ${ddmm(atrasadas[0])} sin cerrar.` : `Quedaron ${atrasadas.length} cajas sin cerrar (del ${ddmm(atrasadas[0])} al ${ddmm(atrasadas[atrasadas.length - 1])}).`,
+      accion: atrasadas.length === 1 ? "Cerrar esa caja" : "Cerrar esas cajas",
+    });
+  const ultimoCierre = estado.caja.cierres.reduce((u, c) => (!u || c.dia > u.dia ? c : u), null);
+  if (ultimoCierre && ultimoCierre.diferencia !== 0 && ultimoCierre.dia >= sumarDias(diaDeCaja(estado, ahora.fecha, ahora.min), -7)) {
+    const d = ultimoCierre.diferencia;
+    const quien = [String(ultimoCierre.responsable ?? "").replace(/\s*\(.*\)$/, ""), Number.isFinite(ultimoCierre.min) ? hhmm(ultimoCierre.min) : null].filter(Boolean).join(", ");
+    out.push({ nivel: "media", tipo: "cierreConDiferencia", dia: ultimoCierre.dia, paraDuenio: true, texto: `La caja del ${ddmm(ultimoCierre.dia)} cerró con ${pesos(Math.abs(d))} de ${d < 0 ? "menos" : "más"}${quien ? ` (${quien})` : ""}.`, accion: "Ver la caja" });
+  }
+  // Pagos a proveedores que vencen (con fecha de pago en el remito).
+  for (const v of pagosPorVencer(estado, ahora)) {
+    const cuando = v.enDias < 0 ? `Venció el ${ddmm(v.vence)}` : v.enDias === 0 ? "Hoy vence" : v.enDias === 1 ? "Mañana vence" : `El ${ddmm(v.vence)} vence`;
+    out.push({ nivel: v.enDias <= 0 ? "alta" : v.enDias === 1 ? "media" : "info", tipo: "vencePago", remitoId: v.remitoId, proveedorId: v.proveedorId, paraDuenio: true, texto: `${cuando} el pago de ${pesos(v.monto)} a ${v.proveedor} (remito ${v.numero}).`, accion: "Ver el proveedor" });
+  }
+  // Lo de los puestos que chocó y espera que alguien lo resuelva (la sincronización lo deja en la foto).
+  const aparte = esLista(estado.sincro?.paraResolver) ? estado.sincro.paraResolver.length : 0;
+  if (aparte) out.push({ nivel: "media", tipo: "aparte", paraDuenio: true, texto: aparte === 1 ? "Quedó 1 cosa de los puestos para resolver." : `Quedaron ${aparte} cosas de los puestos para resolver.`, accion: "Ver lo que quedó aparte" });
   const peso = { alta: 0, media: 1, info: 2 };
-  return out.sort((a, b) => peso[a.nivel] - peso[b.nivel]);
+  // Lo pospuesto hasta mañana no aparece hoy (posponerAlerta).
+  const visibles = estado.alertasPospuestas?.length ? out.filter((a) => !pospuestaVigente(estado, claveDeAlerta(a), ahora)) : out;
+  return visibles.sort((a, b) => peso[a.nivel] - peso[b.nivel]);
 }
 
 // ───────────────────────── tablero del dueño ─────────────────────────
@@ -3250,6 +3648,9 @@ export function ajustarPolitica(estado, clave, valor) {
 
 const H = (hh, mm = 0) => hh * 60 + mm;
 
+/** Tope de la ventana de reserva (`config.diasAdelante`): más allá, un número mal tipeado abriría el año entero. */
+export const DIAS_ADELANTE_MAX = 90;
+
 /** Configuración de ejemplo (precios y horarios provisionales a confirmar con el club). */
 export const CONFIG_DEMO = Object.freeze({
   nombre: "Break Point Pádel",
@@ -3267,6 +3668,7 @@ export const CONFIG_DEMO = Object.freeze({
   cobro: { alias: "bp.demo.ficticio" }, // DEMO: alias ficticio rotulado; el real lo carga el dueño post-venta
   paso: 30,
   duracionTurno: 90,
+  diasAdelante: 14, // ventana de reserva en días desde hoy (la misma que el turnero web); la edita el dueño
   feriados: [],
   tarifas: [
     { nombre: "Valle", desde: H(8), hasta: H(17), precioHora: 20000 },
@@ -3277,6 +3679,7 @@ export const CONFIG_DEMO = Object.freeze({
     senaPct: 50,
     senaSiempre: false,
     senaSinCliente: true,
+    senaNuevos: true, // pide seña a quien jugó menos de `turnosConfianza` turnos, también en el mostrador
     strikesParaSena: 2,
     toleranciaMin: 15,
     minutosAvisoSena: 180,
@@ -3369,6 +3772,9 @@ export function generarDemo(hoy, ahoraMin = H(19, 10)) {
   }));
   const e = crearEstado({ config: CONFIG_DEMO, canchas: CANCHAS_DEMO, clientes, productos: PRODUCTOS_DEMO, usuarios: USUARIOS_DEMO, proveedores: PROVEEDORES_DEMO });
   e.caja.fondo = 30000;
+  // La historia de la demo se arma con la seña de antes (sin «seña a los nuevos»): así los turnos ya dados y la plata
+  // de la demo no cambian. La regla vuelve a la de fábrica al terminar, para todo lo que se dé después.
+  e.config.politica.senaNuevos = false;
   const ahora = { fecha: hoy, min: ahoraMin };
   const elegir = () => clientes[Math.floor(rnd() * clientes.length)];
   const medios = ["efectivo", "mercadopago", "transferencia", "debito"];
@@ -3484,6 +3890,15 @@ export function generarDemo(hoy, ahoraMin = H(19, 10)) {
   // Caja de hoy: un egreso con PIN (hielo).
   egresoCaja(e, { monto: 6500, concepto: "Hielo para el bar", usuarioId: "u-lu", pin: "33" }, t(H(16, 40)));
 
+  // Las cajas de los días pasados, cerradas (como en un club que cierra cada noche): cuadran, salvo la de ayer, que
+  // cerró con $ 2.000 de menos (el Tablero del dueño lo avisa). Sin esto la demo arrancaba con 7 cajas «sin cerrar».
+  const quien = ["Lu (recepción tarde)", "Caro (recepción mañana)"];
+  cajasSinCerrar(e, ahora).forEach((dia, i) => {
+    const r = resumenCaja(e, dia);
+    const diferencia = dia === sumarDias(hoy, -1) ? -2000 : 0;
+    e.caja.cierres.push({ dia, responsable: quien[i % 2], fecha: sumarDias(dia, 1), min: H(0, 30), esperado: r.efectivoEsperado, contado: r.efectivoEsperado + diferencia, diferencia, ingresos: r.ingresos, egresos: r.egresos });
+  });
+
   // Plataforma de contenido: el mes armado.
   const [anio, mes] = hoy.split("-");
   const diaMes = (n) => `${anio}-${mes}-${String(n).padStart(2, "0")}`;
@@ -3500,6 +3915,7 @@ export function generarDemo(hoy, ahoraMin = H(19, 10)) {
     if (n >= 1 && n <= 28) agregarContenido(e, { fecha: diaMes(n), hora, canal, titulo, texto, estado: est }, dueno);
   }
 
+  e.config.politica.senaNuevos = CONFIG_DEMO.politica.senaNuevos;
   e.log.length = 0;
   registrar(e, "Arrancó el turno tarde de recepción (Lu).", t(H(16)));
   return e;

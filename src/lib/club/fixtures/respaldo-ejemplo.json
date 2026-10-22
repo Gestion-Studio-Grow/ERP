@@ -42,6 +42,7 @@
    },
    "paso": 30,
    "duracionTurno": 90,
+   "diasAdelante": 14,
    "feriados": [],
    "tarifas": [
     {
@@ -63,6 +64,7 @@
     "senaPct": 50,
     "senaSiempre": false,
     "senaSinCliente": true,
+    "senaNuevos": true,
     "strikesParaSena": 2,
     "toleranciaMin": 15,
     "minutosAvisoSena": 180,

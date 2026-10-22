@@ -5,7 +5,7 @@
 > club. Hasta la síntesis del dueño **no se construye F0.c en adelante**. F0.a queda commiteado: es puro, no lo
 > usa ninguna pantalla y no cambia nada. Ver §12.
 >
-> Estado: **diseño + núcleo puro**. Las pantallas todavía no lo usan. Las decisiones D4 y D6 las cierra el
+> Estado: **diseño + núcleo puro**; la regla D4 la aplica el almacén desde el 22/10/2026 (ver §5). Las decisiones D4 y D6 las cierra el
 > dueño en la síntesis del ADR de back separado (Advisory → Challenger). Si la síntesis cambia algo, se
 > ajusta este doc antes de construir la parte afectada.
 > Autores: sesión de terminales/React, con los aportes de la sesión del club (18/10/2026).
@@ -110,6 +110,16 @@ tenga el estado puede fabricar un OK. Por eso, sin internet, nada que saque plat
 La regla vive **en la lista blanca**: cada comando declara `sinInternet: true|false`. El almacén niega
 los que no, con el aviso «Esto necesita internet. Probá cuando vuelva.» La pantalla no decide.
 
+**Aplicada desde el 22/10/2026 (H-T2-1 de la cert de la Tanda 2).** `almacen.comando` (y «Volver a aplicar»)
+rechaza ANTES de correr — estado y cola intactos, sin gastar un intento de PIN, lo cargado en pantalla queda —
+con el aviso `role="alert"`: «Sin internet sólo se cobra en efectivo. Elegí Efectivo o esperá a que vuelva la
+señal.» si lo único que frena es el medio (`conEfectivo`), o «Esto necesita internet: lo podés hacer cuando
+vuelva la señal.» si no (`rechazoSinInternet`, comandos-core.ts). **Sin internet** = sólo en dos puestos, y la
+última subida falló por red, o el latido de versión no contestó, o `navigator.onLine === false`; se levanta
+cuando una subida sale o el latido vuelve a contestar. Ventana que queda: con wifi «conectado» sin salida, el
+primer toque antes de la primera subida o latido fallidos (≤ 15 s). **Fiado** (pedir y el código del dueño):
+con internet.
+
 ## 6. La cola
 
 - **Dónde:** IndexedDB `gsg-club:<slug>:<userId>:cola:v1` (localStorage no alcanza: un sábado sin
@@ -176,8 +186,8 @@ navegador; la foto en la base sigue siendo el mismo texto con un campo más (los
 - **Rinde:** 500 comandos re-aplicados en **19 ms** (Node, contenedor de CI), con el estado final idéntico al del
   mostrador. La cota del mostrador modesto (CPU ×4 en el navegador) va con F0.c.
 
-**Fiado con el código del dueño** (`credito-core`) todavía no está en la lista blanca: entra con F0.c, cuando el
-almacén lo despache por nombre.
+**Fiado con el código del dueño** (`credito-core`): ya está en la lista blanca (comando `fiado`) y NO va sin
+internet (H-T2-1).
 
 ## 12. Lo que dijo el Challenger (18/10/2026) — insumo para la síntesis del dueño
 

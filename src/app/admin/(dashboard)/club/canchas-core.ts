@@ -41,6 +41,27 @@ import { celularDeLaEspera, textoOfertaEspera } from "./whatsapp-core";
 /** Cuántos días para adelante se bajan los fijos a la grilla (los que ve la agenda). */
 export const DIAS_A_LA_VISTA = 7;
 
+/** Hasta cuántos días adelante se anota en la lista de espera si la configuración no dice otra cosa. */
+const DIAS_DE_ESPERA_DE_FABRICA = 14;
+
+/**
+ * Los días en que alguien se puede anotar en la lista de espera (bp-DISENO §3.4, Tanda 2C): de hoy a hoy +
+ * `config.diasAdelante` (14, la misma ventana que el calendario de la agenda y el turnero), no sólo la semana a la vista.
+ */
+export function diasDeLaEspera(estado: EstadoClub, hoy: Fecha): Fecha[] {
+  const dias = Number.isInteger(estado.config.diasAdelante) && estado.config.diasAdelante > 0 ? estado.config.diasAdelante : DIAS_DE_ESPERA_DE_FABRICA;
+  return Array.from({ length: dias + 1 }, (_, i) => sumarDias(hoy, i));
+}
+
+/** Por qué no se anota en la espera para ese día (ya pasó, o fuera de la ventana), o null. */
+export function fueraDeLaEspera(estado: EstadoClub, fecha: Fecha, hoy: Fecha): string | null {
+  const dias = diasDeLaEspera(estado, hoy);
+  if (fecha < hoy) return "Ese día ya pasó.";
+  if (fecha > dias[dias.length - 1]) return `La lista de espera llega hasta ${dias.length - 1} días adelante (hasta el ${ddmmDe(dias[dias.length - 1])}).`;
+  return null;
+}
+const ddmmDe = (f: Fecha) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
+
 const ddmm = (f: Fecha) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
 
 // ───────────── mantenimiento y bloqueos ─────────────
@@ -211,6 +232,36 @@ export function nuevoFijo(
   return { ok: true, mensaje: `Turno fijo de ${titular} los ${NOMBRE_DIA[datos.dia].toLowerCase()} a las ${hhmm(datos.inicio)}. ${bajada.mensaje}` };
 }
 
+/** Las acciones de los turnos fijos como un solo comando (comandos-core.ts: re-aplicable en otro puesto). */
+export type AccionFijo =
+  | { tipo: "nuevo"; datos: Parameters<typeof nuevoFijo>[1] }
+  | { tipo: "baja"; fijoId: string }
+  | { tipo: "bajar" }
+  /** Los fijos de UN día más allá de la semana a la vista (el calendario de la agenda, BP-013). */
+  | { tipo: "bajarDia"; fecha: Fecha };
+
+export function ejecutarFijo(estado: EstadoClub, a: AccionFijo, ahora: Ahora, auth?: Auth): Desenlace {
+  if (a.tipo === "nuevo") return nuevoFijo(estado, a.datos, ahora);
+  if (a.tipo === "baja") return bajaFijo(estado, a.fijoId, ahora, auth);
+  if (a.tipo === "bajarDia") return bajarFijosDelDia(estado, a.fecha);
+  return bajarFijos(estado, ahora.fecha);
+}
+
+/** Cuántos fijos de ese día todavía no están en la grilla (para bajarlos al abrir un día lejano del calendario). PURO. */
+export function fijosPorBajar(estado: EstadoClub, fecha: Fecha): number {
+  const dia = diaSemana(fecha);
+  return estado.fijos.filter((f) => f.dia === dia && !f.excepciones.includes(fecha) && !estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha)).length;
+}
+
+/** Baja a la grilla los fijos de un día (idempotente; lo que choca, avisa y no pisa). */
+export function bajarFijosDelDia(estado: EstadoClub, fecha: Fecha): Desenlace {
+  const antes = estado.reservas.length;
+  const choques = materializarFijos(estado, fecha).map((c) => `${c.fijo.titular}: ${c.motivo}`);
+  const nuevos = estado.reservas.length - antes;
+  const base = nuevos ? `${nuevos} turno${nuevos > 1 ? "s" : ""} fijo${nuevos > 1 ? "s" : ""} del ${ddmm(fecha)} a la grilla.` : `Los fijos del ${ddmm(fecha)} ya estaban en la grilla.`;
+  return { ok: choques.length === 0, mensaje: choques.length ? `${base} No entraron: ${choques.join(" · ")}.` : base };
+}
+
 /**
  * Dar de baja un fijo (la inversa explícita de crearlo, que no se deshace): sus turnos que todavía no se jugaron se
  * cancelan (con un dueño, como «cancela el club»: lo pagado vuelve siempre; si no, con la regla de siempre) y el fijo
@@ -282,6 +333,8 @@ export function ejecutarEspera(estado: EstadoClub, a: AccionEspera, ahora: Ahora
     case "anotar": {
       if (!a.titular.trim()) return { ok: false, mensaje: "¿Quién espera?" };
       if (!(a.hasta >= a.desde)) return { ok: false, mensaje: "El «hasta» no puede ser antes del «desde»." };
+      const fuera = fueraDeLaEspera(estado, a.fecha, ahora.fecha);
+      if (fuera) return { ok: false, mensaje: fuera };
       anotarEspera(estado, { titular: a.titular.trim(), clienteId: a.clienteId, tel: a.tel?.trim() ?? "", fecha: a.fecha, desde: a.desde, hasta: a.hasta, duracion: a.duracion, soloCubierta: a.soloCubierta }, ahora);
       return { ok: true, mensaje: `${a.titular.trim()} anotado en la lista de espera.` };
     }

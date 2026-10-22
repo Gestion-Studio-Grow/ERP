@@ -197,3 +197,27 @@ test("recepción: carga remitos, pero no ve las cuentas, no da de alta, no edita
   }
   assert.equal(JSON.stringify([e.proveedores, e.pagosProveedor, e.caja]), antes);
 });
+
+test("Tanda 2 · remito con «Vence»: la fecha de pago queda en el remito, el dueño ve «Mañana vence $X a …» en su bandeja y en la ficha dice «vence el»", async () => {
+  const { bandejaDelDuenio, bandejaDelMostrador } = await import("./bandeja-core");
+  const { e, recep, duenio } = demo();
+  const agua = prod(e, "Agua 500 ml");
+  const manana = M.sumarDias(HOY, 1);
+  assert.equal(remitoVacio(e).vence, "", "arranca sin fecha");
+  const b: BorradorRemito = { proveedorId: "pv1", numero: "0001-00004700", lineas: [{ productoId: agua.id, cant: "10", costo: "800" }], vence: manana };
+  assert.match(ejecutarProveedores(e, { tipo: "remito", borrador: { ...b, vence: "18/10" } }, AHORA, recep).mensaje, /^La fecha de pago no se entiende/);
+  const d = ejecutarProveedores(e, { tipo: "remito", borrador: b }, AHORA, recep);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(d.mensaje, "Remito 0001-00004700 de Distribuidora Ezeiza Bebidas cargado: $ 8.000. Ya suma al stock. Se paga hasta el 18/10: el dueño lo ve en su Tablero cuando se acerca.");
+  const remito = (e.remitos as { numero: string; vence?: string }[]).find((r) => r.numero === "0001-00004700")!;
+  assert.equal(remito.vence, manana);
+  const alerta = bandejaDelDuenio(e, AHORA).items.find((i) => i.alerta.tipo === "vencePago");
+  assert.ok(alerta, "la alerta del dueño");
+  assert.equal(alerta.texto, "Mañana vence el pago de $ 8.000 a Distribuidora Ezeiza Bebidas (remito 0001-00004700).");
+  assert.ok(!bandejaDelMostrador(e, AHORA).items.some((i) => i.alerta.tipo === "vencePago"), "la recepción no la ve");
+  assert.equal(ficha(e, "pv1", duenio).remitos[0].vence, "vence el 18/10");
+  // Sin fecha, como siempre: sin alerta y sin «vence».
+  const sin = ejecutarProveedores(e, { tipo: "remito", borrador: { ...b, numero: "0001-00004701", vence: "" } }, AHORA, recep);
+  assert.equal(sin.mensaje, "Remito 0001-00004701 de Distribuidora Ezeiza Bebidas cargado: $ 8.000. Ya suma al stock.");
+  assert.equal(ficha(e, "pv1", duenio).remitos[0].vence, null);
+});

@@ -13,27 +13,67 @@
 //
 // Puro: no lee el reloj ni la red ni el almacenamiento. Muta el estado que recibe, como todo el motor.
 
-import { retomarSecuencia, secuenciaIds, VERSION_ESTADO } from "@/lib/club/motor.mjs";
+import { cancha as canchaDe, cuenta as cuentaDe, fijarSecuencia, hhmm, pesos, prefijoActualIds, prefijoIds, producto as productoDe, reserva as reservaDe, retomarSecuencia, saldo, secuenciaIds, usuario as usuarioDe, VERSION_ESTADO } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
-import { reservar, type DatosAlta } from "./alta-core";
+import { abrirCobrandoLaDeuda, ponerLuz } from "./agenda-core";
+import { anotarEnEsperaDesdeAlta, reservar, type DatosAlta } from "./alta-core";
 import { ejecutarBuffet, type AccionBuffet } from "./buffet-core";
-import { ejecutarMesa, type AccionMesa } from "./buffet-mesa-core";
+import { ejecutarMesa, venderEnMostrador, type AccionMesa, type Carrito, type DesenlaceMesa } from "./buffet-mesa-core";
 import { ejecutarCaja, type AccionCaja } from "./caja-core";
-import { ejecutarCiclo, type AccionCiclo } from "./ciclo-core";
-import { ejecutar as ejecutarCuenta, type AccionCuenta, type MedioCobro } from "./cuenta-core";
+import { ejecutarCanchas, ejecutarEspera, ejecutarFijo, type AccionCanchas, type AccionEspera, type AccionFijo, type DesenlaceCanchas } from "./canchas-core";
+import { ejecutarCiclo, ejecutarCierre, mediosDelCierre, type AccionCiclo, type AccionCierre } from "./ciclo-core";
+import { ejecutarClientes, type AccionClientes, type DesenlaceClientes } from "./clientes-core";
+import { abrirElClub, ejecutarConfiguracion, limpiarPorHuella, type AccionConfig, type DesenlaceConfig, type DesenlaceLimpieza, type PedidoDeLimpiezaPorHuella } from "./configuracion-core";
+import { aprobarConCodigo, pedirFiado } from "./credito-core";
+import { ejecutar as ejecutarCuenta, type AccionCuenta, type MedioCaja, type MedioCobro } from "./cuenta-core";
+import { ejecutarNovedades, type AccionNovedades, type DesenlaceNovedades } from "./novedades-core";
+import { ejecutarProveedores, type AccionProveedores, type DesenlaceProveedores } from "./proveedores-core";
+import { ejecutarStock, type AccionStock, type DesenlaceStock } from "./stock-core";
+import { ejecutarTablero, type AccionTablero, type DesenlaceTablero } from "./tablero-core";
+import { ejecutarTienda, type AccionTienda } from "./tienda-core";
+import { ejecutarBandeja, type AccionBandeja } from "./bandeja-core";
+import { ejecutarPlata, type AccionPlata } from "./plata-pendiente-core";
+import { pasarVentaACuenta } from "./vender-core";
 
 /** Lo que se puede cobrar sin internet: lo que no hay que verificar afuera (MP, transferencia, posnet). */
 const MEDIOS_SIN_INTERNET: ReadonlySet<MedioCobro> = new Set(["efectivo", "monedero"]);
 const sinRed = (medio: MedioCobro) => MEDIOS_SIN_INTERNET.has(medio);
 
-interface Entrada<A extends unknown[]> {
-  correr: (estado: EstadoClub, args: A, ahora: Ahora, auth: Auth) => Desenlace;
+interface Entrada<A extends unknown[], D extends Desenlace = Desenlace> {
+  correr: (estado: EstadoClub, args: A, ahora: Ahora, auth: Auth) => D;
   /** Si va sin internet (D4 del diseño; la confirma el dueño). Ante la duda, no. */
   sinInternet: (args: A) => boolean;
+  /**
+   * Si lo que lo frena sin internet es SÓLO el medio (MP, transferencia, débito): en efectivo sí iría. Elige el texto
+   * del rechazo (`rechazoSinInternet`): «Elegí Efectivo…» en vez de «Esto necesita internet…». Default: no.
+   */
+  conEfectivo?: (args: A) => boolean;
+  /**
+   * Los campos SECRETOS de los argumentos, además de `pin` (que se saca siempre): no van a la cola del equipo ni a la
+   * foto (`comandoSinPin`, a cualquier profundidad). Al re-aplicar después de recargar faltan, y la acción los vuelve a
+   * pedir. OBLIGATORIO en todo comando (`[]` si no lleva ninguno): un comando nuevo no puede olvidarse de declararlo
+   * (lo recorre entero comandos-core.test.ts, «ningún secreto queda en la cola»).
+   */
+  secretos: readonly string[];
+  /**
+   * Lo que no se puede re-aplicar solo porque el motor dio algo de UNA vez (un PIN nuevo que se mostró una sola vez:
+   * re-aplicado daría otro distinto). Devuelve por qué, en criollo; null si se puede.
+   */
+  unaVez?: (args: A) => string | null;
 }
 
-const entrada = <A extends unknown[]>(e: Entrada<A>) => e;
+const entrada = <A extends unknown[], D extends Desenlace = Desenlace>(e: Entrada<A, D>) => e;
+
+/** Lo que el dueño resuelve desde el mostrador con el código que mandó por WhatsApp, y el pedido de fiado. */
+export type AccionFiado = { tipo: "pedir"; cuentaId: string } | { tipo: "aprobarCodigo"; novedadId: string; codigo: string };
+
+/**
+ * El código del dueño es un secreto de un solo uso (viaja por WhatsApp): no se guarda en la cola ni en la foto. Sin él
+ * (re-aplicado después de recargar, o «Volver a aplicar» desde otro puesto) la acción lo vuelve a pedir.
+ */
+export const FALTA_CODIGO = "Falta el código del dueño (por seguridad no se guarda): volvé a tipearlo en el pedido.";
+const PIN_DE_UNA_VEZ = "El PIN nuevo ya se mostró una vez y no se puede volver a generar solo: hacelo de nuevo desde Configuración → Usuarios.";
 
 /**
  * La lista blanca. Cada núcleo de pantalla que ya despacha acciones `{ tipo, … }` entra como UN comando: migrar una
@@ -42,44 +82,217 @@ const entrada = <A extends unknown[]>(e: Entrada<A>) => e;
 export const REGISTRO = {
   cuenta: entrada<[reservaId: string, accion: AccionCuenta]>({
     correr: (e, [reservaId, a], ahora, auth) => ejecutarCuenta(e, reservaId, a, ahora, auth),
-    sinInternet: ([, a]) => ("medio" in a && (a.tipo !== "cargo" || a.modo === "cobrar") ? sinRed(a.medio) : true),
+    // Sin internet sólo si TODO lo que cobra no se verifica afuera: con «créditos + el resto» (`resto`), también el resto
+    // (créditos + MP pide internet, como MP solo).
+    sinInternet: ([, a]) => ("medio" in a && (a.tipo !== "cargo" || a.modo === "cobrar") ? sinRed(a.medio) && (!("resto" in a) || !a.resto || sinRed(a.resto)) : true),
+    conEfectivo: ([, a]) => "medio" in a && (a.tipo !== "cargo" || a.modo === "cobrar"),
+    secretos: [],
   }),
   ciclo: entrada<[reservaId: string, accion: AccionCiclo]>({
     correr: (e, [reservaId, a], ahora, auth) => ejecutarCiclo(e, reservaId, a, ahora, auth),
     // Sin internet sólo lo que hace ENTRAR plata (Challenger, 18/10): la falta y cobrarla. Devolver saca plata; mover,
     // extender, cancelar e interrumpir reordenan la agenda de todos: con internet.
     sinInternet: ([, a]) => a.tipo === "falta" || (a.tipo === "cobrarFalta" && sinRed(a.medio)),
+    // Devolver no: en efectivo tampoco va (saca plata).
+    conEfectivo: ([, a]) => a.tipo === "cobrarFalta",
+    secretos: [],
   }),
   buffet: entrada<[accion: AccionBuffet]>({
     correr: (e, [a], ahora, auth) => ejecutarBuffet(e, a, ahora, auth),
     sinInternet: ([a]) => (a.tipo === "cobrar" ? sinRed(a.medio) : true),
+    conEfectivo: ([a]) => a.tipo === "cobrar",
+    secretos: [],
   }),
-  mesa: entrada<[accion: AccionMesa]>({
+  mesa: entrada<[accion: AccionMesa], DesenlaceMesa>({
     correr: (e, [a], ahora, auth) => ejecutarMesa(e, a, ahora, auth),
     // Un descuento lo firma el dueño: D4 no lo nombra.
     sinInternet: ([a]) => a.tipo === "pasarCargo" || !a.descuento,
+    secretos: [],
   }),
-  caja: entrada<[accion: AccionCaja]>({
+  caja: entrada<[accion: AccionCaja], ReturnType<typeof ejecutarCaja>>({
     correr: (e, [a], ahora, auth) => ejecutarCaja(e, a, ahora, auth),
     // Todo con internet: el egreso saca plata y el PIN viaja en claro en el estado (Challenger, 18/10); el cierre y el
     // fondo, también.
     sinInternet: () => false,
+    secretos: [],
   }),
-  alta: entrada<[datos: DatosAlta]>({
+  alta: entrada<[datos: DatosAlta], ReturnType<typeof reservar>>({
     correr: (e, [d], ahora) => reservar(e, d, ahora),
     // Turno presencial: si choca con uno que dio otro equipo, el motor dice que no y va a «Para resolver».
     sinInternet: () => true,
+    secretos: [],
+  }),
+  // ── las demás pantallas que ya despachaban acciones (F3 del certificador: toda acción de pantalla es un comando) ──
+  /** «Anotar en espera» desde el alta que no entra. */
+  esperaDesdeAlta: entrada<[datos: Parameters<typeof anotarEnEsperaDesdeAlta>[1]]>({
+    correr: (e, [d], ahora) => anotarEnEsperaDesdeAlta(e, d, ahora),
+    sinInternet: () => true,
+    secretos: [],
+  }),
+  espera: entrada<[accion: AccionEspera], ReturnType<typeof ejecutarEspera>>({
+    correr: (e, [a], ahora) => ejecutarEspera(e, a, ahora),
+    // Darle el turno a uno de la espera es como un alta presencial: si el hueco ya lo dio otro puesto, «Para resolver».
+    sinInternet: () => true,
+    secretos: [],
+  }),
+  fijo: entrada<[accion: AccionFijo]>({
+    correr: (e, [a], ahora, auth) => ejecutarFijo(e, a, ahora, auth),
+    // Dar de baja un fijo cancela turnos (y puede devolver plata): con internet.
+    sinInternet: ([a]) => a.tipo !== "baja",
+    secretos: [],
+  }),
+  luz: entrada<[canchaId: string, prendida: boolean]>({
+    correr: (e, [canchaId, prendida]) => ponerLuz(e, canchaId, prendida),
+    sinInternet: () => true,
+    secretos: [],
+  }),
+  canchas: entrada<[accion: AccionCanchas], DesenlaceCanchas>({
+    correr: (e, [a], ahora) => ejecutarCanchas(e, a, ahora),
+    // Lluvia, bloqueos y mantenimiento reordenan la agenda de todos: con internet.
+    sinInternet: () => false,
+    secretos: [],
+  }),
+  venta: entrada<[carrito: Carrito, medio: MedioCaja]>({
+    correr: (e, [carrito, medio], ahora) => venderEnMostrador(e, carrito, medio, ahora),
+    sinInternet: ([, medio]) => sinRed(medio),
+    conEfectivo: () => true,
+    secretos: [],
+  }),
+  fiado: entrada<[accion: AccionFiado]>({
+    correr: (e, [a], ahora, auth) =>
+      a.tipo === "pedir" ? pedirFiado(e, a.cuentaId, auth, ahora) : !a.codigo ? { ok: false, mensaje: FALTA_CODIGO } : aprobarConCodigo(e, a.novedadId, a.codigo, auth, ahora),
+    // Todo con internet (D4: «Fiado» no va sin internet). El pedido viaja al dueño; y el código del dueño, aunque se
+    // verifique en el puesto, sale del PIN del dueño que está en el estado: sin la base mirando, quien tenga el estado
+    // podría fabricar un OK (H-T2-1 de la cert de la Tanda 2).
+    sinInternet: () => false,
+    secretos: ["codigo"],
+  }),
+  clientes: entrada<[accion: AccionClientes], DesenlaceClientes>({
+    correr: (e, [a], ahora, auth) => (a.tipo === "aprobarCodigo" && !a.codigo ? { ok: false, mensaje: FALTA_CODIGO } : ejecutarClientes(e, a, ahora, auth)),
+    sinInternet: ([a]) => a.tipo === "cobrarDeuda" && sinRed(a.medio),
+    conEfectivo: ([a]) => a.tipo === "cobrarDeuda",
+    // El código del dueño de la cuenta corriente. (El `codigo` de stock es el del producto: no es secreto, no va acá.)
+    secretos: ["codigo"],
+  }),
+  tienda: entrada<[accion: AccionTienda], ReturnType<typeof ejecutarTienda>>({
+    correr: (e, [a], ahora, auth) => ejecutarTienda(e, a, ahora, auth),
+    sinInternet: ([a]) => a.tipo === "entregar" && sinRed(a.medio),
+    conEfectivo: ([a]) => a.tipo === "entregar",
+    secretos: [],
+  }),
+  stock: entrada<[accion: AccionStock], DesenlaceStock>({
+    correr: (e, [a], ahora, auth) => ejecutarStock(e, a, ahora, auth),
+    sinInternet: () => false,
+    secretos: [],
+  }),
+  proveedores: entrada<[accion: AccionProveedores], DesenlaceProveedores>({
+    correr: (e, [a], ahora, auth) => ejecutarProveedores(e, a, ahora, auth),
+    // Pagar saca plata (y lleva PIN tipeado): con internet.
+    sinInternet: () => false,
+    secretos: [],
+  }),
+  novedades: entrada<[accion: AccionNovedades], DesenlaceNovedades>({
+    correr: (e, [a], ahora, auth) => ejecutarNovedades(e, a, ahora, auth),
+    sinInternet: () => false,
+    secretos: [],
+  }),
+  tablero: entrada<[accion: AccionTablero], DesenlaceTablero>({
+    correr: (e, [a], ahora, auth) => ejecutarTablero(e, a, ahora, auth),
+    sinInternet: () => false,
+    unaVez: ([a]) => (a.tipo === "otorgar" ? PIN_DE_UNA_VEZ : null),
+    secretos: [],
+  }),
+  // ── Configuración (N4 de la cert de la Tanda 1: deja de despachar funciones sueltas) ──
+  /** La solapa de Configuración (usuarios y PIN, avisos, reglas, horarios): `ejecutarConfiguracion`. */
+  config: entrada<[accion: AccionConfig], DesenlaceConfig>({
+    correr: (e, [a], ahora, auth) => ejecutarConfiguracion(e, a, ahora, auth),
+    // Cambia lo de todos los puestos (y lleva PIN): con internet.
+    sinInternet: () => false,
+    // Los PIN tipeados: el de quien opera (`pin`), el que se arma o se repite, y el actual y el nuevo de «Cambiar mi PIN».
+    secretos: ["repetido", "actual", "nuevo"],
+    unaVez: ([a]) => (a.tipo === "alta" || a.tipo === "pinNuevo" ? PIN_DE_UNA_VEZ : null),
+  }),
+  /** «Abrir el club» con quien entró (sin nadie adentro va por `almacen.arranque`, que no es de la cola). */
+  abrirClub: entrada<[]>({
+    correr: (e, _a, ahora, auth) => abrirElClub(e, ahora, auth),
+    sinInternet: () => false,
+    secretos: [],
+  }),
+  /**
+   * La limpieza para el go-live. Lleva la HUELLA del respaldo elegido (no el archivo: es el club entero y no viaja en la
+   * cola ni en la foto). Re-aplicada sobre una base que avanzó, la huella ya no es la de la jornada y no limpia: va a
+   * «Para resolver» («cambió algo desde que descargaste el respaldo»).
+   */
+  golive: entrada<[pedido: PedidoDeLimpiezaPorHuella], DesenlaceLimpieza>({
+    correr: (e, [p], ahora, auth) => limpiarPorHuella(e, p, ahora, auth),
+    sinInternet: () => false,
+    secretos: [],
+  }),
+  // ── Tanda 2B: plata pendiente y bandeja en dos niveles ──
+  /** «Se fue: que se cierre sola al aprobar» (el fiado que espera el OK del dueño). No mueve plata. */
+  plata: entrada<[accion: AccionPlata]>({
+    correr: (e, [a], ahora, auth) => ejecutarPlata(e, a, ahora, auth),
+    sinInternet: () => true,
+    // Sin secretos en los argumentos (el id del pedido de fiado): lo verifica el test que recorre el REGISTRO entero.
+    secretos: [],
+  }),
+  /** «Posponer hasta mañana» una alerta. No mueve plata. */
+  bandeja: entrada<[accion: AccionBandeja]>({
+    correr: (e, [a], ahora, auth) => ejecutarBandeja(e, a, ahora, auth),
+    sinInternet: () => true,
+    // Sin secretos en los argumentos (la clave de la alerta): lo verifica el test que recorre el REGISTRO entero.
+    secretos: [],
+  }),
+  // ── Tanda 2A · Vender (hoja global) ──
+  /** «Pasar a la cuenta de…» desde la hoja Vender: el carrito como cargos de una cuenta abierta; la caja no se toca. */
+  ventaACuenta: entrada<[cuentaId: string, carrito: Carrito]>({
+    correr: (e, [cuentaId, carrito], ahora) => pasarVentaACuenta(e, cuentaId, carrito, ahora),
+    // No mueve plata (como cargar en una cuenta del buffet): va sin internet; si la cuenta la cerró otro puesto, el
+    // motor dice que no y va a «Para resolver».
+    sinInternet: () => true,
+    // Sin secretos en los argumentos (la cuenta y el carrito): lo verifica el test que recorre el REGISTRO entero.
+    secretos: [],
+  }),
+  // ── Tanda 2C · la agenda ──
+  /**
+   * «Abrir» del bloque con el titular que debe de antes → «Cobrar ahora»: la deuda con un medio y la cancha abierta, o
+   * nada (`abrirCobrandoLaDeuda`). Sin secretos en los argumentos (el turno y el medio).
+   */
+  abrirConDeuda: entrada<[reservaId: string, medio: MedioCaja]>({
+    correr: (e, [reservaId, medio], ahora) => abrirCobrandoLaDeuda(e, reservaId, medio, ahora),
+    // Como «cobrar la deuda» de la ficha: sin internet sólo en efectivo.
+    sinInternet: ([, medio]) => sinRed(medio),
+    conEfectivo: () => true,
+    // Sin secretos en los argumentos (el turno y el medio): lo verifica el test que recorre el REGISTRO entero.
+    secretos: [],
+  }),
+  // ── Tanda 2D: la cancha ocupada y «la mesa sigue · dividido» ──
+  /**
+   * «Cerrar la de X y abrir» (cerrar el turno que ocupa la cancha y abrir el siguiente, con su seña) y «la mesa sigue ·
+   * dividido» (cada jugador paga su parte con su medio): dos cosas en UN comando, o ninguna (ciclo-core.ts).
+   */
+  cierre: entrada<[accion: AccionCierre]>({
+    correr: (e, [a], ahora, auth) => ejecutarCierre(e, a, ahora, auth),
+    // Hace entrar plata: sin internet sólo si todo lo que cobra va en efectivo (lo que no se verifica afuera).
+    sinInternet: ([a]) => mediosDelCierre(a).every((m) => sinRed(m as MedioCobro)),
+    conEfectivo: () => true,
+    // Sin secretos en los argumentos (los turnos y los medios; ningún PIN): lo verifica el test que recorre el REGISTRO entero.
+    secretos: [],
   }),
 } as const;
 
 export type NombreDeComando = keyof typeof REGISTRO;
 export type ArgsDe<N extends NombreDeComando> = Parameters<(typeof REGISTRO)[N]["correr"]>[1];
+/** Lo que devuelve el núcleo de la pantalla (con lo suyo: el id del cliente nuevo, la lluvia, el PIN que se miró…). */
+export type ResultadoDe<N extends NombreDeComando> = ReturnType<(typeof REGISTRO)[N]["correr"]>;
 
 export interface Comando<N extends NombreDeComando = NombreDeComando> {
   /** Idempotencia: un id que la base ya aplicó no se aplica dos veces. */
   id: string;
   /** El puesto donde se hizo. */
   equipo: string;
+  /** Cómo se lo nombra al puesto en la pantalla («PC», «tablet»). Opcional: un comando viejo no lo trae. */
+  puesto?: string;
   /** Quién operaba con su PIN (para «Para resolver ahora»: quién lo hizo). */
   persona: string;
   /** La versión de la base sobre la que se hizo. */
@@ -94,6 +307,11 @@ export interface Comando<N extends NombreDeComando = NombreDeComando> {
   azar: number;
   /** Por dónde iba el contador de ids del motor antes de correrlo. */
   idsDesde: number;
+  /**
+   * El prefijo de ids del puesto donde se hizo (`prefijoIds` del motor, «k3f9-»): re-aplicado en otro puesto o una hora
+   * después, crea los MISMOS ids. Opcional: un comando sin prefijo corre con el que tenga el proceso.
+   */
+  prefijo?: string;
 }
 
 /** Generador chico y conocido (mulberry32): de la misma semilla, la misma serie. */
@@ -123,8 +341,30 @@ function conAzar<T>(semilla: number, fn: () => T): T {
   }
 }
 
+/**
+ * Corre `fn` como la primera vez: el azar en la misma semilla y el contador de ids donde estaba (`idsDesde`), así
+ * re-aplicar da los MISMOS ids y el mismo código de seña aunque el contador ya haya pasado (otra cosa que se hizo
+ * después, o «Volver a aplicar» una hora más tarde). Al terminar, el contador queda en lo más alto que llegó: nunca
+ * se repite un id. Los ids no chocan con los de otro puesto porque cada puesto tiene su prefijo (`prefijoIds`).
+ */
+export function correrDeterminista<T>(azar: number, idsDesde: number, fn: () => T, prefijo?: string): T {
+  const antes = secuenciaIds();
+  // El prefijo REAL del motor (no uno que se supone puesto: H2 del CERT BP T1), así se restaura el que había aunque lo
+  // haya puesto otro módulo del mismo proceso.
+  const prefijoAntes = prefijoActualIds();
+  if (prefijo !== undefined) prefijoIds(prefijo);
+  // El motor lo pone exacto, también para abajo (H4): antes era armar y tirar un club en blanco.
+  fijarSecuencia(idsDesde);
+  try {
+    return conAzar(azar, fn);
+  } finally {
+    retomarSecuencia(antes);
+    if (prefijo !== undefined) prefijoIds(prefijoAntes);
+  }
+}
+
 export type Corrida = Desenlace & {
-  /** El contador de ids no estaba donde estaba la primera vez: los ids que creó éste salieron distintos. */
+  /** (Histórico) el contador no pudo volver a donde estaba: hoy no pasa, re-aplicar siempre da los mismos ids. */
   idsDistintos?: boolean;
 };
 
@@ -136,16 +376,14 @@ export function correrComando(estado: EstadoClub, c: Comando): Corrida {
   if (c.version !== VERSION_ESTADO) return OTRA_VERSION;
   if (!Object.hasOwn(REGISTRO, c.nombre)) return NO_ESTA;
   const e = REGISTRO[c.nombre] as unknown as Entrada<unknown[]>;
-  // El contador sólo sube: si no llegó a donde estaba la primera vez, retomarlo ahí da los mismos ids.
-  retomarSecuencia(c.idsDesde);
-  const idsDistintos = secuenciaIds() !== c.idsDesde;
-  let d: Desenlace;
   try {
-    d = conAzar(c.azar, () => e.correr(estado, c.args as unknown[], c.ahora, c.auth));
+    // Re-aplicar (sobre la base, al recargar o «Volver a aplicar»): lo que dio algo de una vez no se repite solo.
+    const unaVez = Array.isArray(c.args) ? e.unaVez?.(c.args) : null;
+    if (unaVez) return { ok: false, mensaje: unaVez };
+    return correrDeterminista(c.azar, c.idsDesde, () => e.correr(estado, c.args as unknown[], c.ahora, c.auth), c.prefijo);
   } catch {
-    d = { ok: false, mensaje: "No se pudo hacer. Probá de nuevo." };
+    return { ok: false, mensaje: "No se pudo hacer. Probá de nuevo." };
   }
-  return idsDistintos ? { ...d, idsDistintos } : d;
 }
 
 /** Si el comando puede ir sin internet. Un nombre que no está, no. */
@@ -156,6 +394,27 @@ export function vaSinInternet(nombre: string, args: unknown): boolean {
     return Array.isArray(args) && e.sinInternet(args);
   } catch {
     return false;
+  }
+}
+
+/** El rechazo sin internet de un cobro que en efectivo sí iría (MP, transferencia, débito no se verifican sin red). */
+export const SIN_INTERNET_SOLO_EFECTIVO = "Sin internet sólo se cobra en efectivo. Elegí Efectivo o esperá a que vuelva la señal.";
+/** El rechazo sin internet de lo que saca plata o lleva PIN o el código del dueño (egreso, devolución, fiado, descuento…). */
+export const SIN_INTERNET_NECESITA = "Esto necesita internet: lo podés hacer cuando vuelva la señal.";
+
+/**
+ * Sin internet (H-T2-1): null si el comando va igual (`vaSinInternet`); si no, el texto del rechazo en criollo, que dice
+ * qué hacer: «Elegí Efectivo…» si lo único que lo frena es el medio (`conEfectivo`), «Esto necesita internet…» si no.
+ * Lo usa `almacen.comando` ANTES de correr nada. Nunca tira.
+ */
+export function rechazoSinInternet(nombre: string, args: unknown): string | null {
+  if (vaSinInternet(nombre, args)) return null;
+  if (!Object.hasOwn(REGISTRO, nombre) || !Array.isArray(args)) return SIN_INTERNET_NECESITA;
+  const e = REGISTRO[nombre as NombreDeComando] as unknown as Entrada<unknown[]>;
+  try {
+    return e.conEfectivo?.(args) ? SIN_INTERNET_SOLO_EFECTIVO : SIN_INTERNET_NECESITA;
+  } catch {
+    return SIN_INTERNET_NECESITA;
   }
 }
 
@@ -192,4 +451,278 @@ export function rebasar(estado: EstadoClub, pendientes: readonly Comando[], yaAp
     else r.rechazados.push({ comando: c, motivo: d.mensaje });
   }
   return r;
+}
+
+// ── lo que se guarda de un comando y cómo se lo cuenta ───────────────────────────────────────────────────────────
+
+/**
+ * El comando listo para quedar en la foto («Para resolver», que viaja a la base y lo ve otro puesto) y en la cola del
+ * equipo: SIN PIN ni los otros secretos de ese comando (`Entrada.secretos`: el código del dueño, los PIN que se arman). El de
+ * quien operaba (`auth.pin`) y el que se tipeó en la acción (egreso, cierre, descuento: `args[…].pin`) se sacan; «Volver a
+ * aplicar» firma con quien lo vuelve a aplicar y, si la acción pedía un PIN tipeado, el motor lo vuelve a pedir.
+ */
+export function comandoSinPin<N extends NombreDeComando>(c: Comando<N>): Comando<N> {
+  // Además del PIN, los secretos de ese comando (el código del dueño, los PIN que se arman): `Entrada.secretos`.
+  const secretos = ["pin", ...((Object.hasOwn(REGISTRO, c.nombre) ? (REGISTRO[c.nombre] as unknown as Entrada<unknown[]>).secretos : undefined) ?? [])];
+  // A cualquier profundidad (una acción con un objeto adentro no esconde un PIN de la cola).
+  const sinPin = (x: unknown): unknown => {
+    if (!x || typeof x !== "object") return x;
+    if (Array.isArray(x)) return x.map(sinPin);
+    const o: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(x as Record<string, unknown>)) if (!secretos.includes(k)) o[k] = sinPin(v);
+    return o;
+  };
+  const auth: Auth = c.auth?.usuarioId ? { usuarioId: c.auth.usuarioId } : {};
+  return { ...c, auth, args: (Array.isArray(c.args) ? c.args.map(sinPin) : c.args) as ArgsDe<N> };
+}
+
+const MEDIO: Record<string, string> = { efectivo: "efectivo", mercadopago: "Mercado Pago", transferencia: "transferencia", debito: "débito", monedero: "créditos" };
+const medioDe = (m: unknown) => MEDIO[String(m)] ?? String(m ?? "");
+/** «Cancha 2» → «C2» (como se la nombra en el mostrador). */
+export const canchaCorta = (nombre: string | undefined) => (nombre ?? "").replace(/^cancha\s*/i, "C") || "la cancha";
+
+/** El turno de un comando, como lo dice la recepción: «turno 19:00 C2». */
+function elTurno(estado: EstadoClub | null, reservaId: string) {
+  const r = estado ? reservaDe(estado, reservaId) : undefined;
+  if (!r || !estado) return { titular: "quien jugaba", turno: "", r };
+  return { titular: r.titular, turno: ` (turno ${hhmm(r.inicio)} ${canchaCorta(canchaDe(estado, r.canchaId)?.nombre)})`, r };
+}
+
+/**
+ * Qué se hizo, en una frase de recepción: «Cobro $ 9.000 efectivo a Juan (turno 19:00 C2)». Con `estado` (el de ANTES
+ * de correrlo, o el de ahora) pone los nombres y los montos; sin él, lo que dice el comando. Nunca tira.
+ */
+export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub | null = null): string {
+  try {
+    const a = c.args as unknown[];
+    switch (c.nombre) {
+      case "alta": {
+        const d = a[0] as Partial<DatosAlta>;
+        const cancha = canchaCorta(estado && d.canchaId ? canchaDe(estado, d.canchaId)?.nombre : d.canchaId);
+        const tipo = d.tipo === "clase" ? "Clase" : d.tipo === "abierto" ? "Partido abierto" : "Turno";
+        return `${tipo} a ${String(d.titular ?? "").trim() || "alguien"} en ${cancha} a las ${hhmm(Number(d.inicio))} (${Number(d.duracion)} min)`;
+      }
+      case "cuenta": {
+        const [reservaId, x] = a as [string, AccionCuenta];
+        const { titular, turno, r } = elTurno(estado, reservaId);
+        const jug = (idx: number) => r?.jugadores[idx]?.nombre ?? `el jugador ${idx + 1}`;
+        switch (x.tipo) {
+          case "cobrarTodo": {
+            const debe = r ? saldo(r) : 0;
+            return `Cobro ${debe > 0 ? `${pesos(debe)} ` : ""}${medioDe(x.medio)} a ${titular}${turno}`;
+          }
+          case "cobrarCancha":
+            return `Cobro ${pesos(x.monto)} ${medioDe(x.medio)} a ${titular}${turno}`;
+          case "cobrarSena":
+            return `Cobro de la seña${r?.sena.monto ? ` ${pesos(r.sena.monto)}` : ""} ${medioDe(x.medio)} a ${titular}${turno}`;
+          case "cobrarJugador":
+          case "cobrarParte":
+            return `Cobro de la parte de ${jug(x.idx)} ${medioDe(x.medio)}${turno}`;
+          case "cargo": {
+            const p = estado ? productoDe(estado, x.productoId)?.nombre : undefined;
+            return `${x.cant} × ${p ?? "producto"} a ${jug(x.idx)}${x.modo === "cobrar" ? `, cobrado ${medioDe(x.medio)}` : ", a la cuenta"}${turno}`;
+          }
+          case "abrirCancha":
+            return `Abrir la cancha de ${titular}${turno}`;
+          case "cobrarSenaYAbrir":
+            return `Cobro de la seña${r?.sena.monto ? ` ${pesos(r.sena.monto)}` : ""} ${medioDe(x.medio)} y abrir la cancha de ${titular}${turno}`;
+          case "cerrarCancha":
+          case "cerrarYSeguir":
+            return `Cerrar la cancha de ${titular}${turno}`;
+          case "hacerFijo":
+            return `Hacer fijo el turno de ${titular}${turno}`;
+          case "sumarJugador":
+            return `Sumar a ${x.nombre} al turno de ${titular}${turno}`;
+          default:
+            return `Cambio en la cuenta de ${titular}${turno}`;
+        }
+      }
+      case "ciclo": {
+        const [reservaId, x] = a as [string, AccionCiclo];
+        const { titular, turno } = elTurno(estado, reservaId);
+        switch (x.tipo) {
+          case "mover":
+            return `Mover el turno de ${titular} a ${canchaCorta(estado ? canchaDe(estado, x.canchaId)?.nombre : x.canchaId)} ${hhmm(x.inicio)}${turno}`;
+          case "extender":
+            return `Extender ${x.minutos} min el turno de ${titular}${turno}`;
+          case "falta":
+            return `Falta de ${titular}${turno}`;
+          case "cancelar":
+            return `Cancelar el turno de ${titular}${turno}`;
+          case "interrumpir":
+            return `Cortar el turno de ${titular}${turno}`;
+          case "liberarFijo":
+            return `Liberar el fijo de ${titular}${turno}`;
+          case "devolver":
+            return `Devolución ${medioDe(x.medio)} a ${titular}${turno}`;
+          case "cobrarFalta":
+            return `Cobro de la falta ${medioDe(x.medio)} a ${titular}${turno}`;
+        }
+        return `Cambio en el turno de ${titular}${turno}`;
+      }
+      case "buffet": {
+        const x = a[0] as AccionBuffet;
+        if (x.tipo === "abrir") return `Abrir la cuenta de ${x.titular}`;
+        const cta = estado ? cuentaDe(estado, x.cuentaId) : undefined;
+        const de = cta ? ` de ${cta.titular}` : "";
+        if (x.tipo === "cargar") return `${x.cant} × ${(estado ? productoDe(estado, x.productoId)?.nombre : undefined) ?? "producto"} en la cuenta${de}`;
+        if (x.tipo === "cobrar") return `Cobro de la cuenta${de} ${medioDe(x.medio)}`;
+        if (x.tipo === "aCuenta") return `Pasar a la cuenta corriente la cuenta${de}`;
+        if (x.tipo === "cerrarEnCero") return `Cerrar en cero la cuenta${de}`;
+        return `Cambio en la cuenta${de}`;
+      }
+      case "mesa": {
+        const x = a[0] as AccionMesa;
+        const de = estado ? cuentaDe(estado, x.cuentaId)?.titular : undefined;
+        if (x.tipo === "pasarCargo") return `Pasar un cargo de la cuenta${de ? ` de ${de}` : ""} a la de ${(estado ? cuentaDe(estado, x.aCuentaId)?.titular : undefined) ?? "otro"}`;
+        return `${x.descuento ? "Descuento" : "Cargo"} ${pesos(x.monto)} «${x.concepto}» en la cuenta${de ? ` de ${de}` : ""}`;
+      }
+      case "caja": {
+        const x = a[0] as AccionCaja;
+        if (x.tipo === "egreso") return `Egreso de caja $ ${x.monto} «${x.concepto}»`;
+        if (x.tipo === "cerrar") return "Cierre de caja";
+        return `Fondo de caja $ ${x.monto}`;
+      }
+      case "esperaDesdeAlta": {
+        const d = a[0] as { titular?: string; espera?: { fecha: string; desde: number; hasta: number } };
+        return `Anotar a ${String(d.titular ?? "").trim() || "alguien"} en la espera${d.espera ? ` (${hhmm(d.espera.desde)} a ${hhmm(d.espera.hasta)})` : ""}`;
+      }
+      case "espera": {
+        const x = a[0] as AccionEspera;
+        const quien = x.tipo === "anotar" ? x.titular : (estado?.espera.find((w) => w.id === x.esperaId)?.titular ?? "alguien de la espera");
+        if (x.tipo === "anotar") return `Anotar a ${quien} en la espera`;
+        if (x.tipo === "asignar") return `Turno a ${quien} (de la espera) en ${canchaCorta(estado ? canchaDe(estado, x.canchaId)?.nombre : x.canchaId)} a las ${hhmm(x.inicio)}`;
+        return `Sacar a ${quien} de la espera`;
+      }
+      case "fijo": {
+        const x = a[0] as AccionFijo;
+        if (x.tipo === "nuevo") return `Turno fijo de ${x.datos.titular.trim() || "alguien"} a las ${hhmm(x.datos.inicio)}`;
+        if (x.tipo === "baja") return `Dar de baja el fijo de ${estado?.fijos.find((f) => f.id === x.fijoId)?.titular ?? "alguien"}`;
+        return "Bajar los fijos a la grilla";
+      }
+      case "luz": {
+        const [canchaId, prendida] = a as [string, boolean];
+        return `${prendida ? "Prender" : "Apagar"} la luz de ${canchaCorta(estado ? canchaDe(estado, canchaId)?.nombre : canchaId)}`;
+      }
+      case "canchas": {
+        const x = a[0] as AccionCanchas;
+        const cancha = "canchaId" in x ? canchaCorta(estado ? canchaDe(estado, x.canchaId)?.nombre : x.canchaId) : "";
+        if (x.tipo === "lluvia") return `Plan lluvia de ${hhmm(x.desde)} a ${hhmm(x.hasta)}`;
+        if (x.tipo === "bloquear") return `Bloquear ${cancha} de ${hhmm(x.desde)} a ${hhmm(x.hasta)}`;
+        if (x.tipo === "quitarBloqueo") return "Quitar un bloqueo";
+        if (x.tipo === "mantenimiento") return `${x.activo ? "Poner en mantenimiento" : "Habilitar"} ${cancha}`;
+        return `Cambiar el techo de ${cancha}`;
+      }
+      case "venta": {
+        const [carrito, medio] = a as [Carrito, MedioCaja];
+        const n = Object.values(carrito ?? {}).reduce((s, x) => s + (x > 0 ? x : 0), 0);
+        return `Venta de mostrador (${n} producto${n === 1 ? "" : "s"}) ${medioDe(medio)}`;
+      }
+      case "fiado": {
+        const x = a[0] as AccionFiado;
+        if (x.tipo === "pedir") return `Pedir fiado para la cuenta${estado ? ` de ${cuentaDe(estado, x.cuentaId)?.titular ?? ""}` : ""}`.trim();
+        return "Aprobar un fiado con el código del dueño";
+      }
+      case "clientes": {
+        const x = a[0] as AccionClientes;
+        if (x.tipo === "alta") return `Ficha nueva: ${x.nombre}`;
+        if (x.tipo === "cobrarDeuda") return `Cobro de deuda ${medioDe(x.medio)}`;
+        return "Cambio en una ficha de cliente";
+      }
+      case "tienda": {
+        const x = a[0] as AccionTienda;
+        if (x.tipo === "entregar") return `Entregar un pedido de la tienda, cobrado ${medioDe(x.medio)}`;
+        if (x.tipo === "pegar") return "Cargar un pedido de la tienda";
+        return "Cambio en un pedido de la tienda";
+      }
+      case "stock":
+        return "Cambio en el stock";
+      case "proveedores": {
+        const x = a[0] as AccionProveedores;
+        if (x.tipo === "pagar") return `Pago a proveedor $ ${x.monto} ${medioDe(x.medio)}`;
+        if (x.tipo === "remito") return "Remito de proveedor";
+        return "Cambio en un proveedor";
+      }
+      case "novedades":
+        return "Cambio en novedades y difusión";
+      case "tablero": {
+        const x = a[0] as AccionTablero;
+        if (x.tipo === "autorizar") return "Autorizar un fiado";
+        if (x.tipo === "otorgar") return "Dar acceso a alguien nuevo";
+        return "Rechazar un pedido";
+      }
+      case "config": {
+        const x = a[0] as AccionConfig;
+        const quien = (id: string) => (estado ? usuarioDe(estado, id)?.nombre : undefined) ?? "alguien";
+        if (x.tipo === "pinInicial") return `Armar el PIN de ${quien(x.usuarioId)}`;
+        if (x.tipo === "alta") return `Dar acceso a ${String(x.nombre ?? "").trim() || "alguien"}`;
+        if (x.tipo === "pinNuevo") return `PIN nuevo para ${quien(x.usuarioId)}`;
+        if (x.tipo === "sacarAcceso") return `Sacarle el acceso a ${quien(x.usuarioId)}`;
+        if (x.tipo === "cambiarMiPin") return "Cambiar mi PIN";
+        if (x.tipo === "avisos") return "Cambiar los avisos por WhatsApp";
+        if (x.tipo === "reglas") return "Cambiar las reglas del club";
+        return "Cambiar los horarios del club";
+      }
+      case "abrirClub":
+        return "Abrir el club";
+      case "golive":
+        return "Limpieza para el go-live";
+      case "plata": {
+        const x = a[0] as AccionPlata;
+        const n = estado?.novedades.find((y) => y.id === x.novedadId);
+        const quien = n && estado ? (estado.clientes.find((c) => c.id === n.clienteId)?.nombre ?? "") : "";
+        return `Dejar la cuenta${quien ? ` de ${quien}` : ""} esperando el OK del dueño (se cierra sola al aprobar)`;
+      }
+      case "bandeja": {
+        const x = a[0] as AccionBandeja;
+        const que: Record<string, string> = { cierreConDiferencia: "el cierre de caja que no cuadró", vencePago: "el pago a un proveedor", aparte: "lo que quedó aparte", stock: "el aviso de stock" };
+        return `Dejar para mañana ${que[String(x.clave).split(":")[0]] ?? "un aviso"}`;
+      }
+      case "ventaACuenta": {
+        const [cuentaId, carrito] = a as [string, Carrito];
+        const n = Object.values(carrito ?? {}).reduce((s, x) => s + (x > 0 ? x : 0), 0);
+        const de = estado ? cuentaDe(estado, cuentaId)?.titular : undefined;
+        return `Venta de mostrador (${n} producto${n === 1 ? "" : "s"}) a la cuenta${de ? ` de ${de}` : ""}`;
+      }
+      case "abrirConDeuda": {
+        const [reservaId, medio] = a as [string, MedioCaja];
+        const { titular, turno, r } = elTurno(estado, reservaId);
+        const deuda = estado && r?.clienteId ? (estado.clientes.find((c) => c.id === r.clienteId)?.deuda ?? 0) : 0;
+        return `Cobro de la deuda${deuda > 0 ? ` ${pesos(deuda)}` : ""} ${medioDe(medio)} y abrir la cancha de ${titular}${turno}`;
+      }
+      case "cierre": {
+        const x = a[0] as AccionCierre;
+        if (x.tipo === "cerrarYAbrir") {
+          const cierra = elTurno(estado, x.cerrarId);
+          const abre = elTurno(estado, x.abrirId);
+          const debe = cierra.r ? saldo(cierra.r) : 0;
+          const cobro = x.aCuenta ? " (a su cuenta corriente)" : debe > 0 && x.medio ? ` (cobro ${pesos(debe)} ${medioDe(x.medio)})` : "";
+          return `Cerrar la de ${cierra.titular}${cobro}${x.seguir ? ", la mesa sigue," : ""} y abrir la de ${abre.titular}${abre.turno}`;
+        }
+        const { titular, turno } = elTurno(estado, x.reservaId);
+        const medios = [...new Set(Object.values(x.porJugador ?? {}).map(medioDe))].join(", ");
+        return `Cerrar la cancha de ${titular}, la mesa sigue: cada uno paga su parte${medios ? ` (${medios})` : ""}${turno}`;
+      }
+    }
+  } catch {
+    // un comando raro se cuenta con su nombre
+  }
+  return `Operación «${String(c.nombre)}»`;
+}
+
+/** El nombre corto de quien operaba (el usuario del club; nunca su PIN). */
+export function nombreDeQuien(estado: EstadoClub | null, persona: string): string {
+  const u = estado ? usuarioDe(estado, persona) : undefined;
+  return (u?.nombre ?? "").split(" ")[0];
+}
+
+/**
+ * El renglón de «Lo que quedó aparte» y de la bandeja: «19:42 · Cobro $ 9.000 efectivo a Juan (turno 19:00 C2) · Lu
+ * (tablet)». Quién: el nombre del usuario del club (no su id); el puesto, si el comando lo trae. Nunca muestra un PIN.
+ */
+export function describirComando(c: Comando, estado: EstadoClub | null = null): string {
+  const nombre = nombreDeQuien(estado, c.persona);
+  const firma = nombre ? ` · ${nombre}${c.puesto ? ` (${c.puesto})` : ""}` : c.puesto ? ` · ${c.puesto}` : "";
+  const hora = c.ahora && Number.isFinite(c.ahora.min) ? `${hhmm(c.ahora.min)} · ` : "";
+  return `${hora}${queHizo(c, estado)}${firma}`;
 }

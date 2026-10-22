@@ -129,6 +129,17 @@ export async function metasEnTx(db: Db, tenantId: string): Promise<MetaDeFoto[]>
   return filas.flatMap((f) => metaDeFila(f) ?? []).sort((a, b) => a.version - b.version);
 }
 
+/**
+ * Sólo la versión vigente (y su día), SIN traer la foto: el latido de los puestos (cada 15 s por pestaña visible) lee
+ * `id` + `action` de las filas del negocio, unos bytes por fila, en vez de los ~3 MB de un mes de club. null = nunca se
+ * guardó. Es lo que pregunta `leerVersionDelClub` (estado-actions.ts) para cuidar el plan gratuito de Neon.
+ */
+export async function leerMetaVigenteEnTx(db: Db, tenantId: string): Promise<{ version: number; dia: Fecha } | null> {
+  const metas = await metasEnTx(db, tenantId);
+  const ultima = metas[metas.length - 1];
+  return ultima ? { version: ultima.version, dia: ultima.dia } : null;
+}
+
 /** La foto vigente del negocio, o null si nunca se guardó. */
 export async function leerVigenteEnTx(db: Db, tenantId: string): Promise<FotoVigente | null> {
   const metas = await metasEnTx(db, tenantId);
@@ -193,6 +204,8 @@ const correrConRls: CorrerEnElNegocio = async (tenantId, fn, serializable) => {
 
 export interface RepoDelClub {
   leerVigente(tenantId: string): Promise<FotoVigente | null>;
+  /** La versión vigente sin la foto (el latido de los puestos). */
+  leerMetaVigente(tenantId: string): Promise<{ version: number; dia: Fecha } | null>;
   /** Guarda el sobre (texto del almacén) si nadie guardó desde `versionEsperada`. */
   guardar(tenantId: string, texto: string, versionEsperada: number, actor: string, ahoraMs?: number): Promise<ResultadoDeGuardar>;
   /** Pone un respaldo como estado vigente (sólo un dueño). No pide versión: es una decisión explícita. */
@@ -202,6 +215,7 @@ export interface RepoDelClub {
 export function crearRepoDelClub(correr: CorrerEnElNegocio = correrConRls, dias = DIAS_CON_FOTO): RepoDelClub {
   return {
     leerVigente: (tenantId) => correr(tenantId, (db) => leerVigenteEnTx(db, tenantId), false),
+    leerMetaVigente: (tenantId) => correr(tenantId, (db) => leerMetaVigenteEnTx(db, tenantId), false),
 
     async guardar(tenantId, texto, versionEsperada, actor, ahoraMs = Date.now()) {
       if (!Number.isInteger(versionEsperada) || versionEsperada < 0) return { ok: false, motivo: "FOTO_INVALIDA", detalle: "La versión no es válida." };
@@ -225,4 +239,4 @@ export function crearRepoDelClub(correr: CorrerEnElNegocio = correrConRls, dias 
 }
 
 /** El repositorio de la app (con `tenantTransaction`). */
-export const { leerVigente, guardar, restaurar } = crearRepoDelClub();
+export const { leerVigente, leerMetaVigente, guardar, restaurar } = crearRepoDelClub();
