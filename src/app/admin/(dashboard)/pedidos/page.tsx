@@ -6,6 +6,7 @@ import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
 import { posEmptyState } from "@/lib/stock/pos-stock-rules";
 import MostradorTabs from "./MostradorTabs";
 import MostradorDeVenta from "../vender/MostradorDeVenta";
+import { cargarEnvios } from "../vender/datos";
 import { puedeAbrirApp } from "../vender/puede-abrir";
 import MostradorEnCajon from "./MostradorEnCajon";
 import CobrarPedidoForm from "./CobrarPedidoForm";
@@ -48,6 +49,16 @@ import AvisoDePedidosNuevos from "./AvisoDePedidosNuevos";
 import { armarTablero, leerAvisados } from "./tablero.server";
 import { LineaDeEstado, Plata } from "@/components/ui";
 import { lineaDelTablero, listoDesdeAyer, otrosPedidosDeLaClienta, textoDeLaTiendaEsperando, textoDeOtrosPedidos } from "./pedidos-core";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
+import { CobroDelNegocio } from "./CobroDelPedido";
+import { guardarArmado } from "./[code]/armar/acciones";
+import { ConDiseno } from "@/lib/diseno/ConDiseno";
+import { PIEL_RENGLON } from "@/lib/diseno/diseno";
+import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
+
+/** Vender con el bloque «Nuevo pedido de WhatsApp» ya abierto (PedidoDesdeWhatsApp lee el #). */
+const HREF_PEDIDO_DE_WHATSAPP = "/admin/vender#whatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -87,17 +98,29 @@ export default async function PedidosPage() {
   // por pedido): no suma un viaje a la base.
   // La identidad también va en esta tanda (cacheada: el layout ya la leyó) porque decide qué
   // mostrador se arma y, con eso, qué hace falta leer de la base.
-  const [modeloNuevo, nuevo, identidad] = await Promise.all([enInicioPorApps(), disenoNuevo(), getTenantIdentity()]);
+  const [modeloNuevo, nuevo, identidad, interruptores] = await Promise.all([
+    enInicioPorApps(),
+    disenoNuevo(),
+    getTenantIdentity(),
+    interruptoresDelNegocio(),
+  ]);
   // Lo nuevo de la bandeja (pesar y ajustar, horario, aviso por WhatsApp, Nuevo → Preparando)
   // es de COMERCIO: en una estética no hay nada que pesar, y su bandeja queda como estaba.
   const comercio = identidad.isRetail;
+  // MOSTRADOR BOUTIQUE (interruptor «mostrador-boutique», Magra tanda 1 · 1C): cobro y entrega con
+  // el pie de cobro único y su ticket, «Armar y pesar» a pantalla completa, «Quitar» en el ajuste, y
+  // una sola puerta para vender: el link «Vender» en lugar del mostrador de esta pantalla. Sólo
+  // comercio; apagado (CH y todo negocio sin prender), la bandeja de siempre, byte a byte.
+  const boutique = comercio && mostradorBoutiquePrendido(interruptores);
+  // «Nuevo pedido de WhatsApp» (Magra T2 · 2B): con el mostrador boutique y para quien toma pedidos.
+  const pedidoDeWhatsApp = boutique && roleHasCapability(user.role, "orders:manage");
   // UN SOLO MOSTRADOR: la venta de mostrador de esta pantalla es la MISMA que Vender
   // (MostradorDeVenta: vuelto, factura, cobro fijo a la vista; etiqueta y balanza sólo en un
   // comercio). En un comercio con «Diseño nuevo» se va a Vender entero. En CH (aprobado por el
   // dueño el 21/10; otro negocio de servicios, cuando su dueño lo apruebe) es la solapa «Productos»;
   // «Servicios» sigue siendo el alta del turno con su profesional, su seña y su cupón
   // (NewAppointmentForm). Sin productos con precio, el cajón abre en «Servicios», como antes.
-  const conMostradorUnico = !modeloNuevo && (comercio ? !nuevo : esteticaBackoffice(identidad.slug) === "beauty-spa");
+  const conMostradorUnico = !modeloNuevo && !boutique && (comercio ? !nuevo : esteticaBackoffice(identidad.slug) === "beauty-spa");
   // Lo que se lee, sólo si se usa (Neon, plan gratuito): la lista de productos, para el formulario
   // de siempre (otro negocio de servicios); si hay alguno con precio, para que CH abra en «Servicios»
   // sin productos. El stock (mismo gate) va donde hay solapas: la estética. Un comercio no lee
@@ -126,6 +149,9 @@ export default async function PedidosPage() {
   const mostradorUnico = conMostradorUnico
     ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} conVendedor={!comercio} />
     : undefined;
+  // O-2: el POS de siempre (sólo cuando se muestra con productos) ofrece la zona del envío si el
+  // negocio tiene zonas; el servidor la exige igual. Donde no se usa, no se lee nada.
+  const enviosDelPos = !modeloNuevo && !boutique && !mostradorUnico && servicios ? await cargarEnvios(await getCurrentTenantId()) : null;
   const empty =
     stockSnap && hayVendibles === false
       ? posEmptyState({ activeProducts: stockSnap.activeProducts, canManageCatalog: stockSnap.canManageCatalog })
@@ -191,8 +217,17 @@ export default async function PedidosPage() {
   // DISEÑO NUEVO («Renglón»): el tablero vivo. Los MISMOS pedidos, las MISMAS acciones y las
   // mismas reglas de arriba; cambia cómo se ven y cómo se opera (tabla densa con una tecla por
   // pedido, filtros en la URL, en lote, el pedido entero en un cajón). Apagado, lo de abajo tal cual.
-  if (nuevo) {
-    const avisados = comercio ? await leerAvisados(abiertos.filter((o) => o.status === "READY").map((o) => o.id)) : new Map<string, Date>();
+  // MOSTRADOR BOUTIQUE (Magra T2 · 2C): la bandeja en columnas vive en este tablero, así que con el
+  // boutique prendido se arma aunque «Diseño nuevo» esté apagado, con su PIEL PROPIA (la hoja del
+  // diseño nuevo acotada a la bandeja, como hizo CH con «Cerrar el día»): el resto del panel queda
+  // como está. CH y Shine (boutique apagado) no entran acá sin «Diseño nuevo»: byte a byte igual.
+  if (nuevo || boutique) {
+    // El boutique lo decide ESTA página (comercio + interruptor) y lo pasa: no se relee abajo.
+    const avisados = comercio
+      ? await leerAvisados(abiertos.filter((o) => o.status === "READY").map((o) => o.id), { boutique })
+      : new Map<string, Date>();
+    // Con el fiado del negocio prendido (2D), «A cobrar» dice adónde va lo entregado sin cobrar con ficha.
+    const fiado = boutique && (await cuentasCorrientesDe(await getCurrentTenantId()));
     const tablero = armarTablero({
       abiertos,
       cerrados,
@@ -203,6 +238,7 @@ export default async function PedidosPage() {
       links,
       cupones,
       avisados,
+      boutique,
       ofrecerLink,
       simulacion,
       alcance,
@@ -212,7 +248,7 @@ export default async function PedidosPage() {
     // tienda ni retiros, y su línea queda como estaba).
     const linea = lineaDelTablero(tablero.abiertos, verPlata, comercio ? { ahora: new Date(), hoy } : undefined);
     const puedeTomar = modeloNuevo && roleHasCapability(user.role, "orders:manage");
-    return (
+    const pagina = (
       <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
         {/* En el celular el título va solo en su fila y «Tomar un pedido» baja debajo del estado: a
             360 px no entran los dos y el título se partía en dos renglones. */}
@@ -247,13 +283,19 @@ export default async function PedidosPage() {
               Tomar un pedido
             </Link>
           )}
+          {/* MAGRA T2 · 2B: pegar el chat de WhatsApp en Vender (se abre solo con #whatsapp). */}
+          {pedidoDeWhatsApp && (
+            <Link href={HREF_PEDIDO_DE_WHATSAPP} className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+              Nuevo pedido de WhatsApp
+            </Link>
+          )}
           {/* Sin «Trabaja por apps» (CH) el mostrador vive acá: el MISMO formulario de siempre, en
               un cajón que se abre con su tecla, para que la pantalla sea la bandeja. */}
           {/* En un comercio, el mostrador es Vender a pantalla completa: dentro del cajón (30rem) sus
               dos columnas, que miden la pantalla, se pisaban desde 1024 px. */}
           {!modeloNuevo && comercio && (await puedeAbrirApp("vender")) && (
             <Link href="/admin/vender" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")}>
-              Cobrar en el mostrador
+              {boutique ? "Vender" : "Cobrar en el mostrador"}
             </Link>
           )}
           {!modeloNuevo && !comercio && (
@@ -265,6 +307,7 @@ export default async function PedidosPage() {
                 professionals={professionals}
                 conServicios
                 formProductos={mostradorUnico}
+                envios={enviosDelPos}
                 abrirEnServicios={!!mostradorUnico && !!empty}
                 productosBloqueados={
                   !mostradorUnico && empty ? (
@@ -285,17 +328,27 @@ export default async function PedidosPage() {
         </header>
 
         {avisoDePedidos}
-        <TableroPedidos
-          abiertos={tablero.abiertos}
-          cerrados={tablero.cerrados}
-          extras={tablero.extras}
-          comercio={comercio}
-          puedeOperar={roleHasCapability(user.role, "orders:manage")}
-          anulacion={alcance ? { motivoObligatorio: alcance.motivoObligatorio } : null}
-          simulacion={simulacion}
-          tomarPedido={puedeTomar ? "/admin/vender?modo=pedido" : null}
-        />
+        <CobroDelNegocio boutique={boutique} negocio={local?.negocio ?? ""}>
+          <TableroPedidos
+            abiertos={tablero.abiertos}
+            cerrados={tablero.cerrados}
+            extras={tablero.extras}
+            comercio={comercio}
+            puedeOperar={roleHasCapability(user.role, "orders:manage")}
+            anulacion={alcance ? { motivoObligatorio: alcance.motivoObligatorio } : null}
+            simulacion={simulacion}
+            tomarPedido={puedeTomar ? "/admin/vender?modo=pedido" : null}
+            fiado={fiado}
+          />
+        </CobroDelNegocio>
       </main>
+    );
+    if (nuevo) return pagina;
+    // Sin «Diseño nuevo» (sólo el boutique): la piel acotada a esta pantalla.
+    return (
+      <div data-diseno={PIEL_RENGLON}>
+        <ConDiseno nuevo>{pagina}</ConDiseno>
+      </div>
     );
   }
 
@@ -324,7 +377,7 @@ export default async function PedidosPage() {
 
   return (
     <main className={modeloNuevo ? "mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8" : "mx-auto max-w-4xl px-6 py-8"}>
-      {modeloNuevo ? (
+      {modeloNuevo || boutique ? (
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold mb-1">Pedidos para preparar</h1>
@@ -337,6 +390,11 @@ export default async function PedidosPage() {
             <Link href="/admin/vender" className={buttonClasses("solid", "md")}>
               Vender
             </Link>
+            {pedidoDeWhatsApp && (
+              <Link href={HREF_PEDIDO_DE_WHATSAPP} className={buttonClasses("outline", "md")}>
+                Nuevo pedido de WhatsApp
+              </Link>
+            )}
             <Link href="/admin/ventas" className={buttonClasses("outline", "md")}>
               Ventas del día
             </Link>
@@ -369,6 +427,7 @@ export default async function PedidosPage() {
             professionals={professionals}
             conServicios={!comercio}
             formProductos={mostradorUnico}
+            envios={enviosDelPos}
             abrirEnServicios={!!mostradorUnico && !!empty}
             productosBloqueados={
               !mostradorUnico && empty ? (
@@ -410,6 +469,7 @@ export default async function PedidosPage() {
         />
       )}
 
+      <CobroDelNegocio boutique={boutique} negocio={local?.negocio ?? ""}>
       <div className="space-y-3">
         {abiertos.map((o) => {
           const aCobrar = o.status === "DELIVERED" && !o.paid;
@@ -525,6 +585,15 @@ export default async function PedidosPage() {
                       className={`chip-btn text-xs min-h-8 w-full sm:w-auto${comercio ? " h-11 sm:h-auto" : ""}`}
                     />
                   )}
+                  {boutique && sePuedeAjustar && o.status !== "READY" && (
+                    <Link
+                      href={`/admin/pedidos/${o.code}/armar`}
+                      className={buttonClasses("solid", "md", "w-full sm:w-auto")}
+                      {...atributosBoton("solid", "md")}
+                    >
+                      Armar y pesar
+                    </Link>
+                  )}
                   {sePuedeAjustar && (
                     <AjustarPedidoForm
                       id={o.id}
@@ -540,16 +609,17 @@ export default async function PedidosPage() {
                         unitPrice: it.unitPrice,
                         lineTotal: it.lineTotal,
                       }))}
+                      {...(boutique ? { conQuitar: true, guardar: guardarArmado } : {})}
                     />
                   )}
                   {avisoWa && <AvisarPorWhatsApp orderId={o.id} href={avisoWa} />}
                   {recordatorio && <AvisarPorWhatsApp orderId={o.id} href={recordatorio} tipo="recordatorio-retiro" />}
                   {/* Listo: entregar pide el cobro o «Queda a cobrar» (EntregarPedidoForm). */}
-                  {o.status === "READY" && <EntregarPedidoForm id={o.id} code={o.code} paid={o.paid} />}
+                  {o.status === "READY" && <EntregarPedidoForm id={o.id} code={o.code} paid={o.paid} total={o.total} />}
                   {/* Cobrar sin entregar sigue estando, también en Listo: el que pagó por
                       transferencia y retira más tarde. Sin medio por defecto y con el motivo
                       del rechazo en pantalla (antes era un select en EFECTIVO y un botón mudo). */}
-                  {!o.paid && <CobrarPedidoForm id={o.id} code={o.code} />}
+                  {!o.paid && <CobrarPedidoForm id={o.id} code={o.code} total={o.total} />}
                   {/* En el modo de prueba, un pedido ya cobrado por su link sigue ofreciendo repetir
                       el aviso: es como se ve que Mercado Pago reintentando no asienta dos veces. */}
                   {ofrecerLink && (!o.paid || (simulacion && enviado)) && (
@@ -587,7 +657,7 @@ export default async function PedidosPage() {
         })}
 
         {abiertos.length === 0 &&
-          (modeloNuevo ? (
+          (modeloNuevo || boutique ? (
             <EmptyState
               title="No hay pedidos para preparar"
               description="Los pedidos de la tienda online y los que tomás por teléfono aparecen acá."
@@ -599,6 +669,7 @@ export default async function PedidosPage() {
             </p>
           ))}
       </div>
+      </CobroDelNegocio>
 
       {cerrados.length > 0 && (
         <>

@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "playwright";
 import { getRetailRubro } from "@/blueprints/retail/rubros";
+import { CONFIG_MAGRA } from "./envio-de-la-tienda.fixture";
 
 const RAIZ = fileURLToPath(new URL("../../../", import.meta.url));
 const ORIGEN = "http://localhost:3998/tienda";
@@ -117,7 +118,7 @@ describe("La bolsa de MAGRA en el navegador", { timeout: 120_000 }, () => {
     await browser?.close();
   });
 
-  async function montar(ancho: number, notaDePeso: string | null = NOTA): Promise<{ page: Page; errores: string[] }> {
+  async function montar(ancho: number, notaDePeso: string | null = NOTA, extra: Record<string, unknown> = {}): Promise<{ page: Page; errores: string[] }> {
     const page = await browser!.newPage({ viewport: { width: ancho, height: ancho < 600 ? 844 : 900 }, locale: "es-AR" });
     const errores: string[] = [];
     page.on("pageerror", (e) => errores.push(e.message));
@@ -132,9 +133,9 @@ describe("La bolsa de MAGRA en el navegador", { timeout: 120_000 }, () => {
     await page.goto(ORIGEN);
     await page.addScriptTag({ content: bundle });
     await page.evaluate(
-      ([products, branding, nota]) =>
-        (window as unknown as { __montar: (p: unknown) => void }).__montar({ products, branding, tenantKey: "magra", notaDePeso: nota }),
-      [CORTES, LOCAL, notaDePeso] as const,
+      ([products, branding, nota, mas]) =>
+        (window as unknown as { __montar: (p: unknown) => void }).__montar({ products, branding, tenantKey: "magra", notaDePeso: nota, ...mas }),
+      [CORTES, LOCAL, notaDePeso, extra] as const,
     );
     await page.getByRole("button", { name: "Agregar Entraña" }).first().waitFor();
     return { page, errores };
@@ -183,6 +184,61 @@ describe("La bolsa de MAGRA en el navegador", { timeout: 120_000 }, () => {
     await grilla.getByText("0,25 kg", { exact: true }).waitFor();
     await grilla.getByText("1 u", { exact: true }).waitFor();
     assert.equal(await grilla.getByText("0.25").count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  // ── ENVÍOS DEL NEGOCIO (reingeniería Magra 1H): zona, «te faltan $X», mínimo, franja y pausa ──
+  const CON_ENVIOS = { entrega: CONFIG_MAGRA, hoy: "2026-10-22" };
+
+  test("MG-032 · con zonas: elegir la zona suma su envío y dice cuánto falta para el gratis; sin franja no se manda", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar(1440, NOTA, CON_ENVIOS);
+    const rail = page.locator("#pedido");
+    for (let i = 0; i < 4; i++) await page.getByRole("button", { name: "Agregar Ojo de bife" }).first().click(); // 1 kg · $31.900
+    const enviar = rail.getByRole("button", { name: "Enviar pedido" });
+    await rail.getByText("Elegí la zona", { exact: true }).waitFor();
+    await rail.getByText("Elegí a qué zona va el envío.").waitFor();
+    assert.equal(await enviar.isDisabled(), true, "sin zona no se manda");
+
+    await rail.getByLabel("Zona *").selectOption("barrios");
+    await rail.getByText("Envío · Canning – barrios cerrados").waitFor();
+    await rail.getByText(/Te faltan \$\s?28\.100 para el envío gratis/).waitFor();
+    await rail.getByText(/\$\s?35\.900,00/).waitFor(); // 31.900 + 4.000
+    await rail.getByText("Elegí en qué franja te queda mejor.").waitFor();
+    assert.equal(await enviar.isDisabled(), true, "con franjas, hay que elegir una");
+
+    await rail.getByText("L-S 17-19", { exact: true }).click();
+    await page.waitForFunction(() => !(document.querySelector('#pedido button[value="tienda"]') as HTMLButtonElement | null)?.disabled);
+    assert.equal(await rail.locator('select[name="dia"]').inputValue(), "2026-10-22");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("MG-034 · bajo el mínimo de envío avisa cuánto falta y «Retiro en el local» lo resuelve en un toque", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar(390, NOTA, CON_ENVIOS);
+    const rail = page.locator("#pedido");
+    await page.getByRole("button", { name: "Agregar Chorizo (paquete)" }).first().click(); // $6.900
+    await rail.getByLabel("Zona *").selectOption("barrios");
+    await rail.getByText(/El envío es para pedidos desde \$20\.000: te faltan \$13\.100/).waitFor();
+    await rail.getByRole("button", { name: "Retiro en el local" }).click();
+    await rail.getByText("Sin cargo", { exact: true }).waitFor();
+    assert.equal(await rail.getByLabel("Entrega").inputValue(), "PICKUP");
+    assert.equal(await rail.getByRole("button", { name: "Enviar pedido" }).isDisabled(), false);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("MG-036 · tienda pausada: se ve el mensaje del dueño y no se puede mandar", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const pausada = { ...CON_ENVIOS, entrega: { ...CONFIG_MAGRA, tiendaPausada: { mensaje: "Hoy no tomamos pedidos por la web" } } };
+    const { page, errores } = await montar(1440, NOTA, pausada);
+    await page.getByRole("status").filter({ hasText: "Hoy no tomamos pedidos por la web" }).first().waitFor();
+    await page.getByRole("button", { name: "Agregar Chorizo (paquete)" }).first().click();
+    const rail = page.locator("#pedido");
+    assert.equal(await rail.getByRole("button", { name: "Enviar pedido" }).isDisabled(), true);
+    assert.equal(await rail.getByRole("button", { name: "Pedir por WhatsApp" }).isDisabled(), true);
     assert.deepEqual(errores, []);
     await page.close();
   });

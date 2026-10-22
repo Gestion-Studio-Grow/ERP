@@ -26,6 +26,9 @@ import { etiquetaDeMedio } from "@/lib/caja/medio-cobro";
 import type { AlcanceDeAnulacion } from "@/lib/capabilities";
 import { textoDelLinkDePago, type LinkEnviado } from "./link-de-pago";
 import { cuandoDelPedido, listoDesdeAyer, type PedidoCerrado, type PedidoDelTablero } from "./pedidos-core";
+import { recordatorioDePago } from "@/lib/clientes/fiado";
+import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
+import { ACCION_REPARTO, estadoDelReparto, estaEnReparto, zonaDelPedido } from "./reparto/reparto-core";
 
 /** Lo que el cajón del pedido necesita además de la fila (las acciones de «Más»). */
 export type ExtraDelPedido = {
@@ -117,19 +120,53 @@ export function verboEnPantalla(status: string, comercio: boolean): string | nul
   return comercio && v === "Pasar a preparación" ? "Preparar" : v;
 }
 
-/** Cuándo se abrió el aviso de «listo» de cada pedido (el último). Ver el encabezado. */
-export async function leerAvisados(ids: readonly string[]): Promise<Map<string, Date>> {
-  const out = new Map<string, Date>();
+/**
+ * Lo que lee `leerAvisados`: el Map de siempre (id → cuándo se avisó «listo») y, SÓLO con el
+ * mostrador boutique prendido (Magra tanda 2 · 2C), `repartos`: los Listos que salieron con el
+ * cadete y no se rindieron (id → desde cuándo). Apagado, es el Map de siempre.
+ */
+export type AvisadosDelTablero = Map<string, Date> & { repartos?: ReadonlyMap<string, Date> };
+
+/**
+ * Cuándo se abrió el aviso de «listo» de cada pedido (el último). Ver el encabezado. El mostrador
+ * boutique lo pasa la página (la MISMA decisión con la que arma la pantalla: comercio + interruptor):
+ * acá no se vuelve a leer el interruptor. Sólo cuenta como avisado el tipo «pedido-listo»: el
+ * «Confirmar por WhatsApp» del pedido tomado (2B, «pedido-confirmado») y el recordatorio de retiro
+ * o de cobro tienen su propio tipo y no mueven la tecla a «Entregar».
+ */
+export async function leerAvisados(ids: readonly string[], opciones: { boutique: boolean }): Promise<AvisadosDelTablero> {
+  const out: AvisadosDelTablero = new Map<string, Date>();
+  const boutique = opciones.boutique;
+  if (boutique) out.repartos = new Map();
   if (ids.length === 0) return out;
   const tenantId = await getCurrentTenantId();
+  // UNA consulta: con el mostrador boutique, las marcas del reparto van en la misma (Neon free).
   const filas = await prisma.auditLog.findMany({
-    where: { tenantId, entity: "Order", action: "whatsapp", entityId: { in: [...ids] } },
+    where: {
+      tenantId,
+      entity: "Order",
+      ...(boutique ? { action: { in: ["whatsapp", ACCION_REPARTO] } } : { action: "whatsapp" }),
+      entityId: { in: [...ids] },
+    },
     orderBy: { createdAt: "asc" },
-    select: { entityId: true, createdAt: true, changes: true },
+    select: { entityId: true, createdAt: true, changes: true, action: true },
   });
+  const delReparto: typeof filas = [];
   for (const f of filas) {
+    if (boutique && f.action === ACCION_REPARTO) {
+      delReparto.push(f);
+      continue;
+    }
     const tipo = (f.changes as { tipo?: unknown } | null)?.tipo;
     if (f.entityId && tipo === "pedido-listo") out.set(f.entityId, f.createdAt);
+  }
+  if (boutique) {
+    // Los ids son los Listos (los únicos que pueden estar en la calle).
+    const repartos = new Map<string, Date>();
+    for (const [id, ultima] of estadoDelReparto(delReparto)) {
+      if (estaEnReparto("READY", ultima)) repartos.set(id, ultima.cuando);
+    }
+    out.repartos = repartos;
   }
   return out;
 }
@@ -144,12 +181,19 @@ export function armarTablero(e: {
   local: { negocio: string; direccion: string | null; horario: string | null } | null;
   links: ReadonlyMap<string, LinkEnviado>;
   cupones: ReadonlyMap<string, CuponDelPedido>;
-  avisados: ReadonlyMap<string, Date>;
+  /** Lo que devolvió `leerAvisados` (con `repartos` si el mostrador boutique está prendido). */
+  avisados: ReadonlyMap<string, Date> & { repartos?: ReadonlyMap<string, Date> };
+  /** El mostrador boutique, decidido por la página (comercio + interruptor). */
+  boutique: boolean;
   ofrecerLink: boolean;
   simulacion: boolean;
   alcance: AlcanceDeAnulacion | null;
 }): { abiertos: PedidoDelTablero[]; cerrados: PedidoCerrado[]; extras: Record<string, ExtraDelPedido> } {
   const extras: Record<string, ExtraDelPedido> = {};
+  // MOSTRADOR BOUTIQUE (2C): la zona, si salió con el cadete y el «Recordarle» de la tarjeta. Sólo
+  // comercio y con el interruptor; apagado, cada pedido viaja exactamente como siempre.
+  const boutique = e.comercio && e.boutique;
+  const repartos = e.avisados.repartos ?? new Map<string, Date>();
   const abiertos = e.abiertos.map((o): PedidoDelTablero => {
     const entrega = e.entrega ?? ENTREGA_POR_DEFECTO;
     const horario = e.comercio && o.scheduledFor ? etiquetaDeHorario(o.scheduledFor, o.fulfillment, e.hoy, entrega.corto) : null;
@@ -247,6 +291,7 @@ export function armarTablero(e: {
       })),
       avisoWa,
       avisado: avisado ? cuando(avisado, e.hoy) : null,
+      ...(boutique ? delMostradorBoutique(o, e.local, repartos.get(o.id) ?? null) : {}),
     };
   });
   const cerrados = e.cerrados.map(
@@ -267,4 +312,36 @@ export function armarTablero(e: {
     }),
   );
   return { abiertos, cerrados, extras };
+}
+
+/**
+ * Lo que suma la bandeja en columnas a cada pedido (sólo mostrador boutique): la zona del envío, si
+ * está en la calle con el cadete y «Recordarle» por WhatsApp — el retiro de un Listo que no se
+ * envía, o el pago de un Entregado sin cobrar. Los textos salen de las funciones puras de siempre.
+ */
+function delMostradorBoutique(
+  o: OrdenAbierta,
+  local: { negocio: string; direccion: string | null; horario: string | null } | null,
+  salioDesde: Date | null,
+): Pick<PedidoDelTablero, "zona" | "reparto" | "recordarle"> {
+  const envio = o.fulfillment === "DELIVERY";
+  const enReparto = o.status === "READY" && envio && salioDesde !== null;
+  let recordarle: string | null = null;
+  if (local && o.status === "READY" && !envio) {
+    recordarle = waLinkClienta(
+      o.customerPhone,
+      recordatorioDeRetiro({ cliente: o.customerName, code: o.code, negocio: local.negocio, direccionLocal: local.direccion, horarioLocal: local.horario }),
+    );
+  } else if (local && o.status === "DELIVERED" && !o.paid) {
+    recordarle = waLinkClienta(
+      o.customerPhone,
+      // EL texto del recordatorio, uno solo con la ficha (2C + 2D unificados).
+      recordatorioDePago({ cliente: o.customerName, negocio: local.negocio, monto: textoPlata(o.total), pedido: o.code }),
+    );
+  }
+  return {
+    zona: envio ? zonaDelPedido({ notas: o.notes, lineas: o.items.map((it) => ({ productId: it.productId, nombre: it.name })) }) : null,
+    reparto: enReparto && salioDesde ? { desde: fmtTime(salioDesde) } : null,
+    recordarle,
+  };
 }

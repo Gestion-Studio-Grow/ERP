@@ -24,6 +24,7 @@ import VelaDiferida from "../shine/VelaDiferida";
 import { CONFIG, marcaDeLaVidriera, seccionDe, type ConfigDeMarca, type MarcaId } from "./marcas";
 import type { VidrieraDelRubro } from "@/blueprints/retail/rubros";
 import type { OfertasDeLaVidriera } from "@/lib/supermercado/vidriera-ofertas";
+import type { ConfigEnvios } from "@/lib/envios/modelo";
 import { leerFiltros, marcaYModelo, plata, precioDe, type ProductoVidriera } from "./catalogo-core";
 import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
 import { textoDeMediosDePago } from "../reglas-tienda";
@@ -73,6 +74,13 @@ export type EntradaTienda = {
   gondolas?: Record<string, string>;
   /** Las ofertas de la semana, si el negocio tiene el módulo de Ofertas. */
   ofertas?: OfertasDeLaVidriera | null;
+  /**
+   * La configuración de Envíos del negocio (src/lib/envios), leída en el servidor, y hoy en su zona
+   * horaria: zona con su costo, franjas, mínimo y tienda pausada en la bolsa (Magra 1I). null = el
+   * negocio nunca configuró envíos: la bolsa de siempre.
+   */
+  entrega?: ConfigEnvios | null;
+  hoy?: string | null;
 };
 
 const ANIO = 2026;
@@ -200,6 +208,9 @@ export default function TiendaNueva(e: EntradaTienda) {
     productoInicial,
     precioPorMedida: Boolean(delRubro?.precioPorMedida),
     ofertas: e.ofertas && e.ofertas.promos.length > 0 ? e.ofertas : null,
+    entrega: e.entrega ?? null,
+    hoy: e.hoy ?? null,
+    direccionDelLocal: local ? local.addressLine : (e.branding?.addressLine ?? null),
     ...carta,
   };
 

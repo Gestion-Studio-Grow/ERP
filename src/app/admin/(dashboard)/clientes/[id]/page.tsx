@@ -17,6 +17,8 @@ import { roleHasCapability } from "@/lib/capabilities";
 import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
 import { getNegocioApps } from "@/apps/contexto.server";
+import MostradorDeLaFicha from "./MostradorDeLaFicha";
+import { mostradorBoutiqueDelNegocio } from "@/lib/clientes/fiado.server";
 
 // "Reservado", igual que la agenda (CalendarGrid, lista): la ficha decía "Pendiente de pago"
 // para el mismo estado, y el estado del turno no habla de plata (la seña se cobra al reservar).
@@ -34,13 +36,15 @@ export default async function ClienteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireApp("clientes");
-  const [{ id }, nuevo] = await Promise.all([params, disenoNuevo()]);
+  const [{ id }, nuevo, conMostrador] = await Promise.all([params, disenoNuevo(), mostradorBoutiqueDelNegocio()]);
+  // MOSTRADOR BOUTIQUE (Magra, tanda 2 · 2D): arriba de la ficha, lo que debe, «Recordarle»,
+  // «Venderle» y «Repetir» (MostradorDeLaFicha.tsx). Apagado (CH, Shine), la ficha de siempre.
   // DISEÑO NUEVO («Renglón»): la ficha como ciclo de vida (FichaRenglon.tsx), con los datos y las
   // guardias de la ficha única. Apagado (CH hoy), lo de abajo tal cual.
-  if (nuevo) return <FichaRenglon id={id} user={user} />;
+  if (nuevo) return <FichaRenglon id={id} user={user} conMostrador={conMostrador} />;
   // En el Inicio por apps, la ficha única (próximo turno, lo que debe, faltazos, pedidos, fiado,
   // cumpleaños y permiso de mensajes). CH, fuera del piloto, sigue con la ficha de siempre.
-  if (await enInicioPorApps()) return <FichaUnica id={id} user={user} />;
+  if (await enInicioPorApps()) return <FichaUnica id={id} user={user} conMostrador={conMostrador} />;
   const client = await getClient(id);
   if (!client) notFound();
 
@@ -96,6 +100,15 @@ export default async function ClienteDetailPage({
         )}
       </p>
       {contacto.tipo === "sin-celular" && <p className="mb-6 text-sm text-warning">{contacto.texto}</p>}
+      {conMostrador && (
+        <MostradorDeLaFicha
+          clientId={client.id}
+          nombre={client.name}
+          telefono={client.phone}
+          noQuiere={false}
+          verPlata={roleHasCapability(user.role, "reports:read")}
+        />
+      )}
 
       {puedeDarTurno && (
         <div className="mb-8">

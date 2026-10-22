@@ -19,10 +19,15 @@
 //
 // Se invoca directo, como CobrarPedidoForm: al salir bien la bandeja se refresca y el
 // resultado —el total de antes y el de ahora— va al toast.
+//
+// Mostrador boutique (Magra, tanda 1 · 1C): `conQuitar` suma «Quitar» por renglón (la cantidad
+// pasa a 0 y el renglón se saca al guardar; «Volver a poner» lo devuelve) y `guardar` es la acción
+// de Armar (`guardarArmado`), que deja escrito lo que pidió la clienta antes del primer ajuste. Sin
+// esas dos props, lo de siempre: `updateOrderItems` directo.
 
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { updateOrderItems } from "@/lib/order-actions";
+import { updateOrderItems, type OrderActionState } from "@/lib/order-actions";
 import { leerCantidad, cantidadParaFormulario, formatearCantidad, avisoDeCantidad, desvioDelPeso, textosDelAjuste } from "@/lib/pos-peso";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { round2 } from "@/lib/round";
@@ -57,6 +62,8 @@ export default function AjustarPedidoForm({
   descuento,
   cupon = null,
   etiqueta,
+  conQuitar = false,
+  guardar = updateOrderItems,
 }: {
   id: string;
   code: number;
@@ -69,6 +76,10 @@ export default function AjustarPedidoForm({
   cupon?: CuponDelPedido | null;
   /** El texto del botón. Sin él, según las líneas: "Pesar y ajustar" sólo si hay algo por peso. */
   etiqueta?: string;
+  /** «Quitar» por renglón (mostrador boutique). */
+  conQuitar?: boolean;
+  /** La acción que guarda (por defecto `updateOrderItems`). */
+  guardar?: (prev: OrderActionState, fd: FormData) => Promise<OrderActionState>;
 }) {
   const rotulos = textosDelAjuste(items);
   const router = useRouter();
@@ -108,7 +119,7 @@ export default function AjustarPedidoForm({
     startTransition(async () => {
       let r;
       try {
-        r = await updateOrderItems(null, fd);
+        r = await guardar(null, fd);
       } catch (err) {
         if (isNextRedirect(err)) throw err;
         const msg = "No se pudo ajustar el pedido. Revisá la conexión y volvé a intentar.";
@@ -197,6 +208,20 @@ export default function AjustarPedidoForm({
               </p>
             )}
             {aviso && <p className="text-xs text-warning">{aviso}</p>}
+            {conQuitar && (
+              <button
+                type="button"
+                onClick={() => {
+                  const v = l.qty > 0 || l.invalida ? "0" : formatearCantidad(conProducto[i].quantity);
+                  setTextos((ts) => ts.map((t, j) => (j === i ? v : t)));
+                  setError(null);
+                }}
+                aria-label={l.qty > 0 || l.invalida ? `Quitar ${l.name} del pedido` : `Volver a poner ${l.name}`}
+                className="h-11 px-2 text-xs font-medium text-muted hover:underline sm:h-8"
+              >
+                {l.qty > 0 || l.invalida ? "Quitar" : "Volver a poner"}
+              </button>
+            )}
             {l.qty > 0 && (
               <>
                 <input type="hidden" name="productId" value={l.productId} />

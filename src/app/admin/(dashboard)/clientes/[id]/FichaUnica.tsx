@@ -27,6 +27,7 @@ import { explicarSegmento, SEGMENTO_ETIQUETA } from "@/lib/crm/segmentos";
 import { ACCION_BAJA, CRM_REGLAS, MOTIVO_ETIQUETA, esMotivoContacto } from "@/lib/crm/reglas";
 import EditarClienteForm from "./EditarClienteForm";
 import PermisoMensajes from "./PermisoMensajes";
+import MostradorDeLaFicha from "./MostradorDeLaFicha";
 
 const ESTADO_TURNO: Record<string, string> = {
   PENDING: "Reservado",
@@ -49,7 +50,16 @@ function quienYCuando(el: Date, por: string | null): string {
   return `el ${fmtShortDate(el)}${por ? `, lo cargó ${por}` : ""}`;
 }
 
-export default async function FichaUnica({ id, user }: { id: string; user: SessionUser }) {
+export default async function FichaUnica({
+  id,
+  user,
+  conMostrador = false,
+}: {
+  id: string;
+  user: SessionUser;
+  /** Mostrador boutique (Magra, 2D): lo que debe, «Recordarle», «Venderle» y «Repetir» arriba. */
+  conMostrador?: boolean;
+}) {
   const [f, negocio] = await Promise.all([cargarFichaCompleta(id), getNegocioApps(user.role)]);
   if (!f) notFound();
   // El detalle de cada deuda vive en "Fiado y cuentas de clientes": se enlaza sólo si esta
@@ -92,6 +102,10 @@ export default async function FichaUnica({ id, user }: { id: string; user: Sessi
         {noQuiere && <Badge tone="danger">No quiere mensajes</Badge>}
         {client.isResident && <Badge tone="accent">Cliente de la zona (precio local)</Badge>}
       </div>
+
+      {conMostrador && (
+        <MostradorDeLaFicha clientId={client.id} nombre={client.name} telefono={client.phone} noQuiere={noQuiere} verPlata={verPlata} />
+      )}
 
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {servicios && (

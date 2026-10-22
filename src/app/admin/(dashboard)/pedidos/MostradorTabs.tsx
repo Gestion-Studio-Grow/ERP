@@ -31,6 +31,7 @@ export default function MostradorTabs({
   conServicios = true,
   formProductos,
   abrirEnServicios = false,
+  envios = null,
 }: {
   // Se pasan tal cual al formulario de productos: este componente no sabe de stock.
   products: React.ComponentProps<typeof PosForm>["products"];
@@ -52,6 +53,8 @@ export default function MostradorTabs({
   /** Abrir en «Servicios» aunque «Productos» tenga su formulario (un negocio de servicios sin
    *  productos con precio: lo de todos los días es el servicio). */
   abrirEnServicios?: boolean;
+  /** Las zonas de envío del negocio, para el pedido con envío del POS (O-2). */
+  envios?: React.ComponentProps<typeof PosForm>["envios"];
 }) {
   const hayServicios = professionals.some((p) => p.services.length > 0);
   // Si no se puede vender producto pero sí servicios, se abre directo en Servicios: no
@@ -59,7 +62,7 @@ export default function MostradorTabs({
   const [tab, setTab] = useState<"productos" | "servicios">(
     conServicios && (productosBloqueados || abrirEnServicios) && hayServicios ? "servicios" : "productos",
   );
-  const productos = productosBloqueados ?? formProductos ?? <PosForm products={products} stockById={stockById} />;
+  const productos = productosBloqueados ?? formProductos ?? <PosForm products={products} stockById={stockById} envios={envios} />;
   // B5: quien entra sin turno se atiende HOY. El alta llega con el día puesto y, al elegir
   // profesional y servicio, el primer horario que ofrece es la próxima franja libre (el servidor
   // no ofrece los de hoy que ya empezaron, `getAvailableSlotsRange`). Se lee una vez al montar.

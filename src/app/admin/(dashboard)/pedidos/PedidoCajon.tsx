@@ -12,17 +12,24 @@
 //
 // Las acciones son las de siempre: los formularios viejos de pesar y de link de pago (tal cual) y
 // los nuevos de cobro y anulación, que mandan los mismos campos (formularios-del-pedido.ts).
+//
+// Mostrador boutique (interruptor, Magra tanda 1 · 1C): arriba del paso que sigue, «Armar y pesar»
+// abre la pantalla completa de Armar (campo único, balanza, diferencia, «Listo y avisar»); el cobro
+// es el PIE DE COBRO único con su ticket (CobroDelPedido); «Pesar y ajustar» suma «Quitar» y deja
+// escrito lo que pidió la clienta (`guardarArmado`).
 
 import { useEffect, useRef, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { advanceOrderStatus, registrarAvisoWhatsApp } from "@/lib/order-actions";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { Cajon } from "@/components/ui/Cajon";
-import { Button, Marca, Plata, Renglon, Rotulo } from "@/components/ui";
+import { Button, Marca, Plata, Renglon, Rotulo, buttonClasses, atributosBoton } from "@/components/ui";
 import { useToast } from "../ToastProvider";
 import AjustarPedidoForm from "./AjustarPedidoForm";
 import LinkDePagoPedido from "./LinkDePagoPedido";
-import CobroDelPedido from "./CobroDelPedido";
+import CobroDelPedido, { useCobroDelNegocio } from "./CobroDelPedido";
+import { guardarArmado } from "./[code]/armar/acciones";
 import AnularDelPedido from "./AnularDelPedido";
 import { rechazoDeAccion, sinRespuestaAlAvanzar } from "./avanzar-pedido";
 import { esRedirectDeNext } from "./formularios-del-pedido";
@@ -112,6 +119,7 @@ export default function PedidoCajon({
 }) {
   const router = useRouter();
   const vocab = useVocabulario();
+  const { boutique } = useCobroDelNegocio();
   const masRef = useRef<HTMLDetailsElement>(null);
   const cobroRef = useRef<HTMLDivElement>(null);
   // Si se abrió desde «Más» (pesar, link, anular) o desde «Cobrar», se va directo a esa parte.
@@ -139,12 +147,25 @@ export default function PedidoCajon({
   const canal = pedido.canal === "ONLINE" ? "Pedido por la tienda o por teléfono" : "Pedido del mostrador";
   const conMas = puedeOperar && Boolean(extra?.ajustar || extra?.link || anulacion);
 
+  // Mostrador boutique: armar a pantalla completa mientras no esté cobrado ni Listo.
+  const armar =
+    boutique && comercio && puedeOperar && extra?.ajustar && pedido.status !== "READY" ? (
+      <Link
+        href={`/admin/pedidos/${pedido.code}/armar`}
+        className={buttonClasses("solid", "lg", "w-full")}
+        {...atributosBoton("solid", "lg")}
+      >
+        Armar y pesar ▶
+      </Link>
+    ) : null;
+
   // La tecla del paso que sigue, al pie.
   let pie: React.ReactNode = null;
   if (puedeOperar && tecla) {
     if (tecla.tipo === "avanzar")
       pie = (
-        <div className="w-full">
+        <div className="flex w-full flex-col gap-2">
+          {armar}
           <AvanzarDelCajon pedido={pedido} />
         </div>
       );
@@ -296,6 +317,7 @@ export default function PedidoCajon({
                     descuento={extra.ajustar.descuento}
                     cupon={extra.ajustar.cupon}
                     items={extra.ajustar.items}
+                    {...(boutique ? { conQuitar: true, guardar: guardarArmado } : {})}
                   />
                 </section>
               )}

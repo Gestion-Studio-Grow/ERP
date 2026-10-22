@@ -67,9 +67,14 @@ test("anular manda id, motivo y, sólo tildada, que la mercadería no volvió", 
 
 test("los nombres de los campos son los que leen las acciones del servidor", () => {
   const acciones = readFileSync(new URL("../../../../lib/order-actions.ts", import.meta.url), "utf8");
-  for (const campo of ["paymentMethod", "quedaACobrar", "stockNoVolvio", "motivo"]) {
+  for (const campo of ["quedaACobrar", "stockNoVolvio", "motivo"]) {
     assert.match(acciones, new RegExp(`formData\\.get\\("${campo}"\\)`), `order-actions.ts ya no lee «${campo}»`);
   }
+  // El medio (y los pagos del PieDeCobro) se leen con `leerPagos` (src/lib/cobro/leer-pagos.ts),
+  // que toma «paymentMethod» del formulario (Magra, tanda 1 · 1A).
+  assert.match(acciones, /leerPagos\(\(campo\) => formData\.getAll\(campo\)/);
+  const pie = readFileSync(new URL("../../../../lib/cobro/pie-de-cobro-core.ts", import.meta.url), "utf8");
+  assert.match(pie, /medio: "paymentMethod",/);
 });
 
 test("la tecla de la entrega dice lo que va a pasar", () => {

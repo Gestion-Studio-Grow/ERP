@@ -6,7 +6,9 @@ import { leerConfigCaja } from "@/lib/supermercado/config-repo";
 import { logger } from "@/lib/logger";
 import { roleHasCapability, type Role } from "@/lib/capabilities";
 import { puedeAbrirApp } from "./puede-abrir";
-import type { BalanzaDeVender } from "./CampoEtiqueta";
+import type { BalanzaDeVender } from "./reglas-venta";
+
+export type { BalanzaDeVender };
 
 /**
  * El campo «Etiqueta de la balanza o código», sólo en un negocio de mostrador que vende por kilo o

@@ -33,6 +33,7 @@ import {
 } from "./catalogo-core";
 import type { Disposicion, MarcaId, Palabras } from "./marcas";
 import type { ShippingConfig } from "@/lib/storefront-shipping";
+import type { ConfigEnvios } from "@/lib/envios/modelo";
 import { etiquetaDeDisponibilidad } from "../reglas-tienda";
 import { useVidriera, type EstadoVidriera } from "./useVidriera";
 import { Paso } from "./Paso";
@@ -85,6 +86,11 @@ export type DatosVidriera = {
   precioPorMedida?: boolean;
   /** Las ofertas de la semana, si el negocio tiene el módulo de Ofertas. */
   ofertas?: OfertasDeLaVidriera | null;
+  /** Envíos del negocio (zonas, franjas, mínimo, pausa) y hoy en su zona horaria; null = lo de siempre. */
+  entrega?: ConfigEnvios | null;
+  hoy?: string | null;
+  /** La dirección del local, para «Retirás en …» cuando el negocio cargó el horario de retiro. */
+  direccionDelLocal?: string | null;
 };
 
 type Slots = {
@@ -103,6 +109,8 @@ export default function Vidriera(props: DatosVidriera & Slots) {
     envio: props.envio,
     entregaPorDefecto: props.entregaPorDefecto,
     hayWhatsApp,
+    entrega: props.entrega ?? null,
+    hoy: props.hoy ?? null,
     promos: props.ofertas
       ? { vigentes: props.ofertas.promos, hoy: props.ofertas.hoy, diaSemana: props.ofertas.diaSemana, seccionDe }
       : null,
@@ -376,6 +384,7 @@ export default function Vidriera(props: DatosVidriera & Slots) {
             textoPago={props.textoPago}
             envio={props.envio}
             envioSinTarifa={props.envioSinTarifa}
+            direccionDelLocal={props.direccionDelLocal ?? null}
             abierta={bolsaAbierta}
             onCerrar={() => setBolsaAbierta(false)}
             onAbrirFicha={abrirFicha}

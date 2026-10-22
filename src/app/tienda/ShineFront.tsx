@@ -5,7 +5,8 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
-import { shippingCost } from "@/lib/storefront-shipping";
+import type { ConfigEnvios } from "@/lib/envios/modelo";
+import { CamposDeEntrega, FrenoDeEntrega, useEntregaDeLaTienda, type AparienciaDeEntrega } from "./EntregaDeLaTienda";
 import { usePedidoOnline, useCuponDePedido } from "./pedido-online";
 import { nuevaClaveDePedido, etiquetaDeDisponibilidad, type Disponibilidad } from "./reglas-tienda";
 import type { StorefrontCopy } from "@/tenants/storefront";
@@ -42,6 +43,9 @@ type Props = {
   copy: StorefrontCopy;
   imagery: TenantImagery | null;
   tenantKey: string;
+  /** Envíos del negocio (src/lib/envios) y hoy en su zona horaria; null = la tarifa del copy, como siempre. */
+  entrega?: ConfigEnvios | null;
+  hoy?: string | null;
 };
 
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -120,11 +124,18 @@ function Seal({ size = 112 }: { size?: number }) {
   );
 }
 
-export default function ShineFront({ products, branding, copy, imagery, tenantKey }: Props) {
+export default function ShineFront({ products, branding, copy, imagery, tenantKey, entrega = null, hoy = null }: Props) {
   const configured = branding?.whatsapp ?? null;
   return (
     <WhatsAppCtaProvider tenantKey={tenantKey} configuredNumber={configured}>
-      <ShineContent products={products} copy={copy} imagery={imagery} hayWhatsApp={Boolean(configured?.replace(/\D/g, ""))} />
+      <ShineContent
+        products={products}
+        copy={copy}
+        imagery={imagery}
+        hayWhatsApp={Boolean(configured?.replace(/\D/g, ""))}
+        entrega={entrega}
+        hoy={hoy}
+      />
     </WhatsAppCtaProvider>
   );
 }
@@ -143,16 +154,33 @@ function Disponible({ d }: { d: Disponibilidad | undefined }) {
   return <span className={`sh-avail${d === "sin-stock" ? " off" : ""}`}>{texto}</span>;
 }
 
+// La piel de Shine para la zona, el día, la franja y el freno (EntregaDeLaTienda.tsx). Sin Envíos
+// cargados no se dibuja nada.
+const APARIENCIA_ENTREGA: AparienciaDeEntrega = {
+  bloque: { className: "sh-checkout" },
+  campo: { className: "sh-field" },
+  grupo: { className: "sh-franjas" },
+  opcion: { className: "sh-franja" },
+  nota: { className: "sh-rail-muted" },
+  empujon: { className: "sh-nudge" },
+  freno: { className: "sh-error" },
+  boton: { className: "sh-btn sh-btn-ghost" },
+};
+
 function ShineContent({
   products,
   copy,
   imagery,
   hayWhatsApp,
+  entrega: configEnvios,
+  hoy,
 }: {
   products: Product[];
   copy: StorefrontCopy;
   imagery: TenantImagery | null;
   hayWhatsApp: boolean;
+  entrega: ConfigEnvios | null;
+  hoy: string | null;
 }) {
   const { requestWhatsApp } = useWhatsAppCta();
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -189,8 +217,20 @@ function ShineContent({
   // Envío: fijo + umbral de envío gratis (del copy). Nudge "te faltan $X". Con la MISMA regla
   // (`shippingCost`) con la que el servidor lo suma como línea del pedido: antes esta cuenta
   // cobraba el envío también al que retiraba, y el pedido de la bandeja no lo traía.
-  const freeAt = copy.shipping?.freeThreshold ?? 0;
-  const shipCost = shippingCost(subtotal, fulfillment, copy.shipping);
+  // Con Envíos del negocio cargados (zonas, franjas, mínimo, pausa), la entrega se elige y se cotiza
+  // con las mismas reglas que el servidor (EntregaDeLaTienda.tsx); sin config, `shippingCost` con la
+  // tarifa del copy, exactamente lo de siempre.
+  const entrega = useEntregaDeLaTienda({
+    entrega: configEnvios,
+    hoy,
+    subtotal,
+    hayProductos: hasItems,
+    envio: copy.shipping ?? null,
+    fulfillment,
+    setFulfillment,
+  });
+  const freeAt = entrega.conZonas ? 0 : (copy.shipping?.freeThreshold ?? 0);
+  const shipCost = entrega.costoEnvio;
   const missingForFree = freeAt > 0 && subtotal > 0 && subtotal < freeAt ? freeAt - subtotal : 0;
   const cupon = useCuponDePedido(subtotal);
   const total = subtotal - cupon.descuento + shipCost;
@@ -510,10 +550,12 @@ function ShineContent({
                   <span className="sh-v sh-num">−{money.format(cupon.descuento)}</span>
                 </div>
               )}
-              {copy.shipping && (
+              {(copy.shipping || entrega.conZonas) && (
                 <div className="sh-totrow">
-                  <span className="sh-k">Envío</span>
-                  <span className="sh-v sh-num">{!hasItems ? "—" : shipCost === 0 ? <b className="sh-free">Gratis</b> : money.format(shipCost)}</span>
+                  <span className="sh-k">{entrega.zona ? `Envío · ${entrega.zona.nombre}` : "Envío"}</span>
+                  <span className="sh-v sh-num">
+                    {!hasItems ? "—" : entrega.modo === "envio" && entrega.conZonas && !entrega.zona ? "Elegí la zona" : shipCost === 0 ? <b className="sh-free">Gratis</b> : money.format(shipCost)}
+                  </span>
                 </div>
               )}
               <div className="sh-totrow sh-big">
@@ -534,17 +576,18 @@ function ShineContent({
                   </label>
                   <label className="sh-field">
                     <span>Entrega</span>
-                    <select name="fulfillment" value={fulfillment} onChange={(e) => setFulfillment(e.target.value as "PICKUP" | "DELIVERY")}>
+                    <select name="fulfillment" value={entrega.fulfillment} onChange={(e) => setFulfillment(e.target.value as "PICKUP" | "DELIVERY")}>
                       <option value="DELIVERY">Envío a domicilio</option>
-                      <option value="PICKUP">Retiro</option>
+                      {entrega.hayRetiro && <option value="PICKUP">Retiro</option>}
                     </select>
                   </label>
-                  {fulfillment === "DELIVERY" && (
+                  {entrega.fulfillment === "DELIVERY" && (
                     <label className="sh-field">
                       <span>Dirección *</span>
                       <input name="address" required autoComplete="street-address" placeholder="Calle, número, barrio" />
                     </label>
                   )}
+                  <CamposDeEntrega e={entrega} idBase="sh-entrega" apariencia={APARIENCIA_ENTREGA} />
                   <label className="sh-field">
                     <span>Nota (opcional)</span>
                     <input name="notes" placeholder="Aroma preferido, para regalo…" />
@@ -576,6 +619,7 @@ function ShineContent({
               )}
 
               <p className="sh-rail-muted">Coordinamos el pago al confirmar: transferencia, tarjetas o Mercado Pago.</p>
+              {hasItems && <FrenoDeEntrega e={entrega} apariencia={APARIENCIA_ENTREGA} />}
               {pedido.error && pedido.error.campo !== "cupon" && (
                 <p role="alert" className="sh-error">
                   {pedido.error.texto}
@@ -599,14 +643,14 @@ function ShineContent({
                 name="via"
                 value="tienda"
                 className="sh-btn sh-btn-vino sh-rail-submit"
-                disabled={!hasItems || pedido.enviando}
+                disabled={!hasItems || pedido.enviando || Boolean(entrega.freno)}
                 aria-busy={pedido.enviando || undefined}
               >
                 {pedido.enviando ? "Enviando…" : "Enviar pedido"}
               </button>
               {hasItems && hayWhatsApp ? (
                 // Registra el pedido y DESPUÉS abre el chat con su número.
-                <button type="submit" name="via" value="whatsapp" className="sh-btn sh-btn-wa sh-rail-wa" disabled={pedido.enviando}>
+                <button type="submit" name="via" value="whatsapp" className="sh-btn sh-btn-wa sh-rail-wa" disabled={pedido.enviando || Boolean(entrega.freno)}>
                   <WaIcon /> Pedir por WhatsApp
                 </button>
               ) : (
@@ -904,6 +948,10 @@ const CSS = `
 .shine .sh-ri-qt{font-size:12px;color:var(--malva-d)}
 .shine .sh-ri-amt{font-size:16px;color:var(--vino);font-weight:600;white-space:nowrap}
 .shine .sh-rail-foot{padding:16px 22px 22px;border-top:1px solid var(--blush);margin-top:auto}
+.shine .sh-franjas{display:flex;flex-wrap:wrap;gap:8px}
+.shine .sh-franja{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border:1px solid var(--nude);border-radius:22px;color:var(--tinta);font-size:13px;cursor:pointer}
+.shine .sh-field .sh-franja input{min-height:0;width:16px;height:16px;padding:0;accent-color:var(--vino)}
+.shine .sh-franja[data-elegida]{border-color:var(--vino);color:var(--vino);font-weight:600}
 .shine .sh-nudge{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--vino);background:var(--blush);border-radius:10px;padding:9px 12px;margin-bottom:14px;line-height:1.4}
 .shine .sh-totrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
 .shine .sh-totrow .sh-k{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--malva-d)}

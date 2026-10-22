@@ -39,6 +39,8 @@ import { PIEL_RENGLON } from "@/lib/diseno/diseno";
 import { armarNavegacion } from "./armazon/navegacion";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import type { CSSProperties } from "react";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
 
 // Monograma de respaldo a partir del nombre ("Velas DEMO" → "VD", "Magra" → "M").
 function initialsOf(name: string): string {
@@ -78,7 +80,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // que su lugar es acá. La lectura de la ficha sigue siendo condicional al flag: con el
   // flag OFF no se consulta nada (`null` sin viaje).
   const useSheet = tenantBrandSheetEnabled();
-  const [user, brand, activeProfile, productoCtx, , , sheet, teamPreset, modoApps, nuevo, rubroDelNegocio] = await Promise.all([
+  const [user, brand, activeProfile, productoCtx, , , sheet, teamPreset, modoApps, nuevo, rubroDelNegocio, interruptores] = await Promise.all([
     requireUser(),
     getTenantBrand(),
     // Perfil activo (ADR-058/059): "lite"/"enterprise" o null si `PROFILES_ENABLED`
@@ -108,6 +110,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     // por pedido (react.cache) y lo leen después el Inicio, Vender y el catálogo: largarlo acá
     // saca un viaje en serie de esas pantallas. Mismo dato, misma función: cambia CUÁNDO se lee.
     getCurrentTenantRubro(),
+    // MOSTRADOR BOUTIQUE (Magra 1I): el chip de pedidos nuevos en la cabecera. Es la MISMA lectura de
+    // interruptores que las dos de arriba (cacheada por pedido): cero viajes nuevos.
+    interruptoresDelNegocio(),
   ]);
 
   // PORTÓN DE CAMBIO FORZADO: si la contraseña del usuario está marcada como temporal (reset del
@@ -250,6 +255,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     ? armarNavegacion({ visibles, menu, modoApps, esMostrador: negocioApps.esMostrador, role: user.role })
     : undefined;
 
+  // CHIP DE PEDIDOS NUEVOS (Magra 1I, MG-054): sólo con el mostrador boutique prendido y para quien
+  // puede ver pedidos (orders:read, la misma guarda que la consulta del chip). CH y todo negocio con
+  // el interruptor apagado: no se monta, no consulta y el HTML de la cabecera queda como estaba.
+  const pedidosNuevos = mostradorBoutiquePrendido(interruptores) && roleHasCapability(user.role, "orders:read");
+
   // DENSIDAD por perfil (ADR-059 D4): el MISMO design system en dos densidades. Comercio
   // (lite) → `data-density="lite"` (espacioso, --density 1.32); Empresa (enterprise) y motor
   // OFF → sin atributo (denso, :root --density 1 = hoy). Es el diferenciador visual que el
@@ -312,7 +322,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {children}
               </PanelDeCasa>
             ) : (
-              <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} {...(logo ? { logo } : {})} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})}>
+              <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} {...(logo ? { logo } : {})} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})} {...(pedidosNuevos ? { pedidosNuevos } : {})}>
                 {/* Cómo se llama el retiro y qué ejemplo lleva la nota, según el rubro (una perfumería
                     entrega en un punto de encuentro, no en un local): sale del rubro ya leído arriba. */}
                 <VocabularioDelNegocio valor={vocabularioDelNegocio(rubroDelNegocio.rubro)}>{children}</VocabularioDelNegocio>

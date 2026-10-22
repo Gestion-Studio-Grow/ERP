@@ -3,9 +3,16 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatearCantidad } from "@/lib/pos-peso";
-import { shippingCost, type ShippingConfig } from "@/lib/storefront-shipping";
+import type { ShippingConfig } from "@/lib/storefront-shipping";
 import { usePedidoOnline, useCuponDePedido } from "./pedido-online";
-import { nuevaClaveDePedido, etiquetaDeDisponibilidad, propuestasConMediosDeLaMarca, type Disponibilidad } from "./reglas-tienda";
+import {
+  nuevaClaveDePedido,
+  etiquetaDeDisponibilidad,
+  propuestasConMediosDeLaMarca,
+  type Disponibilidad,
+} from "./reglas-tienda";
+import { useEntregaDeLaTienda } from "./EntregaDeLaTienda";
+import type { ConfigEnvios } from "@/lib/envios/modelo";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 import {
   MAGRA,
@@ -64,6 +71,15 @@ type Props = {
    * que muestra la vidriera nueva): el total de la bolsa es estimado hasta que se pesa cada pieza.
    */
   notaDePeso?: string | null;
+  /**
+   * La configuración de Envíos del negocio (src/lib/envios), leída en el servidor: zonas con su
+   * costo y su «gratis desde», pedido mínimo, retiro, franjas y tienda pausada. Con zonas, la
+   * tienda cotiza con `cotizarEnvio` —la MISMA función con la que `placeOnlineOrder` vuelve a
+   * decidir— y la tarifa del copy (`envio`) no se usa. Sin config (null), todo como siempre.
+   */
+  entrega?: ConfigEnvios | null;
+  /** Hoy en la zona del negocio (YYYY-MM-DD), para los días que se ofrecen con las franjas. */
+  hoy?: string | null;
 };
 
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -78,7 +94,17 @@ const unitLabel = (p: Product) => (p.saleUnit === "WEIGHT" ? "/ kg" : "/ u");
 // cambia un corte y reenvía está pidiendo OTRA cosa, y con la clave vieja recibiría el pedido
 // viejo sin enterarse. La genera `nuevaClaveDePedido` (reglas-tienda.ts), la misma en todas las vidrieras.
 
-export default function MagraFront({ products, branding, tenantKey, content = MAGRA, envio = null, mediosDePago = null, notaDePeso = null }: Props) {
+export default function MagraFront({
+  products,
+  branding,
+  tenantKey,
+  content = MAGRA,
+  envio = null,
+  mediosDePago = null,
+  notaDePeso = null,
+  entrega = null,
+  hoy = null,
+}: Props) {
   // UN SOLO número, el del LOCAL (BusinessSettings.whatsapp): el mismo que abren los botones
   // y el mismo que se muestra escrito en el pie. Antes había dos fuentes —el CTA usaba el
   // branding del tenant con caída a un número del archivo de copy, y el pie pintaba un tercer
@@ -88,7 +114,16 @@ export default function MagraFront({ products, branding, tenantKey, content = MA
   const local = resolveMagraLocal(branding);
   return (
     <WhatsAppCtaProvider tenantKey={tenantKey} configuredNumber={local.whatsapp}>
-      <MagraFrontContent products={products} content={content} local={local} envio={envio} mediosDePago={mediosDePago} notaDePeso={notaDePeso} />
+      <MagraFrontContent
+        products={products}
+        content={content}
+        local={local}
+        envio={envio}
+        mediosDePago={mediosDePago}
+        notaDePeso={notaDePeso}
+        entrega={entrega}
+        hoy={hoy}
+      />
     </WhatsAppCtaProvider>
   );
 }
@@ -100,6 +135,8 @@ function MagraFrontContent({
   envio,
   mediosDePago,
   notaDePeso,
+  entrega,
+  hoy,
 }: {
   products: Product[];
   content: MagraContent;
@@ -107,6 +144,8 @@ function MagraFrontContent({
   envio: ShippingConfig | null;
   mediosDePago: readonly string[] | null;
   notaDePeso: string | null;
+  entrega: ConfigEnvios | null;
+  hoy: string | null;
 }) {
   const { requestWhatsApp } = useWhatsAppCta();
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -143,9 +182,30 @@ function MagraFrontContent({
   const hayPeso = lines.some((l) => l.p.saleUnit === "WEIGHT");
   const count = lines.reduce((s, l) => s + (l.p.saleUnit === "WEIGHT" ? 1 : l.q), 0);
 
-  // El envío, con la MISMA regla y tarifa que usa el servidor para sumarlo al pedido. Sin tarifa
-  // (MAGRA) es 0 y la pantalla dice "Gratis", como siempre.
-  const costoEnvio = shippingCost(subtotal, fulfillment, envio);
+  // LA ENTREGA con la configuración de Envíos del negocio. Con zonas: la zona elegida, su costo,
+  // «te faltan $X para el envío gratis», el mínimo (con «Retiro en el local» a mano) y las franjas,
+  // con `entregaDeLaBolsa` (reglas-tienda.ts): la MISMA vista previa que las demás vidrieras, sobre
+  // `cotizarEnvio`, la que usa el servidor. `placeOnlineOrder` vuelve a leer la configuración y a
+  // calcular; el costo de esta pantalla no viaja. Sin zonas, la tarifa del copy de la marca o 0.
+  const {
+    zonas,
+    conZonas,
+    hayRetiro,
+    pausa,
+    modo,
+    zona,
+    franjas,
+    franjaElegida,
+    dias,
+    diaElegido,
+    freno: frenoDeEntrega,
+    faltaParaGratis,
+    ofrecerRetiro,
+    costoEnvio,
+    setZonaId,
+    setFranja,
+    setDia,
+  } = useEntregaDeLaTienda({ entrega, hoy, subtotal, hayProductos: hasItems, envio, fulfillment, setFulfillment });
   const cupon = useCuponDePedido(subtotal);
   const total = subtotal - cupon.descuento + costoEnvio;
 
@@ -201,6 +261,12 @@ function MagraFrontContent({
               <span className="mf-eyebrow mf-hero-eyebrow">{c.heroEyebrow}</span>
               <h1 className="mf-display mf-hero-h1">{c.heroTitle}</h1>
               <p className="mf-lede">{c.heroLede}</p>
+              {/* Tienda pausada desde Envíos: se dice antes de que armen la bolsa (MG-036). */}
+              {pausa && (
+                <p className="mf-pausa mf-pausa-hero" role="status">
+                  {pausa}
+                </p>
+              )}
               <div className="mf-cta-row">
                 <a className="mf-btn mf-btn-oro" href="#cortes">
                   Armar mi pedido&nbsp;&nbsp;→
@@ -302,7 +368,9 @@ function MagraFrontContent({
                           </div>
                           <div>
                             <div className="mf-meta-k">Envío</div>
-                            <div className="mf-meta-v mf-display">{local.zoneLabel ? `Gratis · ${local.zoneLabel}` : "Gratis"}</div>
+                            <div className="mf-meta-v mf-display">
+                              {conZonas ? "Según tu zona" : local.zoneLabel ? `Gratis · ${local.zoneLabel}` : "Gratis"}
+                            </div>
                           </div>
                         </div>
                         <div className="mf-price-add">
@@ -548,6 +616,72 @@ function MagraFrontContent({
             </div>
 
             <div className="mf-rail-foot">
+              {pausa && <p className="mf-pausa">{pausa}</p>}
+              {hasItems && (
+                // La ENTREGA va antes de los totales: elegir envío y zona cambia lo que se paga.
+                <div className="mf-checkout mf-entrega">
+                  <label className="mf-field">
+                    <span>Entrega</span>
+                    <select
+                      name="fulfillment"
+                      value={modo === "envio" ? "DELIVERY" : "PICKUP"}
+                      onChange={(e) => setFulfillment(e.target.value as "PICKUP" | "DELIVERY")}
+                    >
+                      <option value="DELIVERY">Envío a domicilio</option>
+                      {hayRetiro && <option value="PICKUP">Retiro en el local</option>}
+                    </select>
+                  </label>
+                  {modo === "envio" && conZonas && (
+                    <label className="mf-field">
+                      <span>Zona *</span>
+                      <select name="envioZona" required value={zona?.id ?? ""} onChange={(e) => setZonaId(e.target.value)}>
+                        <option value="">Elegí tu zona</option>
+                        {zonas.map((z) => (
+                          <option key={z.id} value={z.id}>
+                            {z.nombre} · {z.costo > 0 ? money.format(z.costo) : "sin cargo"}
+                            {z.gratisDesde !== null && z.costo > 0 ? ` (gratis desde ${money.format(z.gratisDesde)})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {modo === "envio" && (
+                    <label className="mf-field">
+                      <span>Dirección *</span>
+                      <input name="address" required autoComplete="street-address" placeholder="Calle, número, barrio" />
+                    </label>
+                  )}
+                  {modo === "retiro" && (local.addressLine || entrega?.horarioRetiro) && (
+                    <p className="mf-retiro">
+                      Retirás en {local.addressLine ?? "el local"}
+                      {entrega?.horarioRetiro ? ` · ${entrega.horarioRetiro}` : ""}
+                    </p>
+                  )}
+                  {franjas.length > 0 && (
+                    <fieldset className="mf-franjas">
+                      <legend>{modo === "envio" ? "¿Cuándo te lo llevamos? *" : "¿Cuándo lo retirás? *"}</legend>
+                      <label className="mf-field">
+                        <span>Día</span>
+                        <select name="dia" value={diaElegido} onChange={(e) => setDia(e.target.value)}>
+                          {dias.map((d) => (
+                            <option key={d.valor} value={d.valor}>
+                              {d.texto}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="mf-chips" role="radiogroup" aria-label="Franja horaria">
+                        {franjas.map((f) => (
+                          <label key={f} className={f === franjaElegida ? "mf-chip on" : "mf-chip"}>
+                            <input type="radio" name="franja" value={f} checked={f === franjaElegida} onChange={() => setFranja(f)} />
+                            {f}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  )}
+                </div>
+              )}
               <div className="mf-totrow">
                 <span className="mf-k">Subtotal</span>
                 <span className="mf-v mf-display mf-num">{money2.format(subtotal)}</span>
@@ -559,13 +693,22 @@ function MagraFrontContent({
                 </div>
               )}
               <div className="mf-totrow">
-                <span className="mf-k">{local.zoneLabel ? `Envío · ${local.zoneLabel}` : "Envío"}</span>
-                {costoEnvio > 0 ? (
+                <span className="mf-k">
+                  {modo === "retiro" ? "Retiro en el local" : zona ? `Envío · ${zona.nombre}` : local.zoneLabel && !conZonas ? `Envío · ${local.zoneLabel}` : "Envío"}
+                </span>
+                {modo === "envio" && conZonas && !zona ? (
+                  <span className="mf-v mf-pend">Elegí la zona</span>
+                ) : costoEnvio > 0 ? (
                   <span className="mf-v mf-display mf-num">{money2.format(costoEnvio)}</span>
                 ) : (
-                  <span className="mf-v mf-display mf-free">Gratis</span>
+                  <span className="mf-v mf-display mf-free">{modo === "retiro" ? "Sin cargo" : "Gratis"}</span>
                 )}
               </div>
+              {faltaParaGratis > 0 && (
+                <p className="mf-nudge" aria-live="polite">
+                  Te faltan {money.format(faltaParaGratis)} para el envío gratis
+                </p>
+              )}
               <div className="mf-totrow mf-big">
                 <span className="mf-k">{hayPeso ? "Total estimado" : "Total"}</span>
                 <span className="mf-v mf-display mf-num" aria-live="polite">{money2.format(total)}</span>
@@ -584,21 +727,8 @@ function MagraFrontContent({
                     <input name="customerPhone" required autoComplete="tel" inputMode="tel" placeholder="11 …" />
                   </label>
                   <label className="mf-field">
-                    <span>Entrega</span>
-                    <select name="fulfillment" value={fulfillment} onChange={(e) => setFulfillment(e.target.value as "PICKUP" | "DELIVERY")}>
-                      <option value="DELIVERY">Envío a domicilio</option>
-                      <option value="PICKUP">Retiro en el local</option>
-                    </select>
-                  </label>
-                  {fulfillment === "DELIVERY" && (
-                    <label className="mf-field">
-                      <span>Dirección *</span>
-                      <input name="address" required autoComplete="street-address" placeholder="Calle, número, barrio" />
-                    </label>
-                  )}
-                  <label className="mf-field">
                     <span>Nota (opcional)</span>
-                    <input name="notes" placeholder="Punto de cocción, horario…" />
+                    <input name="notes" placeholder={franjas.length > 0 ? "Punto de cocción, timbre…" : "Punto de cocción, horario…"} />
                   </label>
                   <div className="mf-field">
                     <label htmlFor="mf-cupon">Cupón (opcional)</label>
@@ -631,6 +761,16 @@ function MagraFrontContent({
                   un medio que el mostrador no tiene. */}
               <p className="mf-rail-muted">Pagás al recibir: efectivo, transferencia o Mercado Pago.</p>
 
+              {hasItems && frenoDeEntrega && (
+                <div className="mf-freno" role="status">
+                  <p>{frenoDeEntrega}</p>
+                  {ofrecerRetiro && (
+                    <button type="button" className="mf-btn mf-btn-ghost" onClick={() => setFulfillment("PICKUP")}>
+                      Retiro en el local
+                    </button>
+                  )}
+                </div>
+              )}
               {pedido.error && pedido.error.campo !== "cupon" && (
                 <p role="alert" className="mf-error">
                   {pedido.error.texto}
@@ -657,7 +797,7 @@ function MagraFrontContent({
                 name="via"
                 value="tienda"
                 className="mf-btn mf-btn-oro mf-rail-submit"
-                disabled={!hasItems || pedido.enviando}
+                disabled={!hasItems || pedido.enviando || Boolean(frenoDeEntrega)}
                 aria-busy={pedido.enviando || undefined}
               >
                 {pedido.enviando ? "Enviando…" : "Enviar pedido"}
@@ -670,7 +810,7 @@ function MagraFrontContent({
                   name="via"
                   value="whatsapp"
                   className="mf-btn mf-btn-wa mf-rail-wa"
-                  disabled={pedido.enviando}
+                  disabled={pedido.enviando || Boolean(frenoDeEntrega)}
                 >
                   <WaIcon /> Pedir por WhatsApp
                 </button>
@@ -964,6 +1104,23 @@ const CSS = `
 .magra .mf-cupon input{flex:1;min-width:0;text-transform:uppercase}
 .magra .mf-cupon .mf-btn{padding:10px 14px;min-height:44px;font-size:12px}
 .magra .mf-rail-wa{width:100%}
+/* ENTREGA (Envíos del negocio): zona, franjas, aviso del gratis, mínimo y tienda pausada. */
+.magra .mf-entrega{margin:0 0 14px}
+.magra .mf-franjas{border:0;padding:0;margin:0;display:grid;gap:8px;min-width:0}
+.magra .mf-franjas legend{font-size:12px;color:var(--acero);margin-bottom:6px;padding:0}
+.magra .mf-chips{display:flex;flex-wrap:wrap;gap:8px}
+.magra .mf-chip{position:relative;display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:22px;border:1px solid rgba(242,230,215,.22);color:var(--crema);font-size:13px;cursor:pointer}
+.magra .mf-chip input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.magra .mf-chip.on{border-color:var(--oro);color:var(--oro);font-weight:700}
+.magra .mf-chip:focus-within{outline:2px solid var(--oro);outline-offset:2px}
+.magra .mf-retiro{margin:0;font-size:12.5px;color:var(--acero);line-height:1.45}
+.magra .mf-nudge{margin:0 0 8px;font-size:13px;color:var(--oro);font-weight:600}
+.magra .mf-pend{font-size:13px;color:var(--acero)}
+.magra .mf-pausa{margin:0 0 14px;padding:10px 12px;border-radius:7px;border:1px solid var(--oro);color:var(--crema);font-size:13.5px;line-height:1.45}
+.magra .mf-pausa-hero{max-width:46ch;margin-top:18px;background:rgba(0,0,0,.45);font-weight:600}
+.magra .mf-freno{display:grid;gap:8px;margin:0 0 12px;font-size:13px;color:var(--crema);line-height:1.45}
+.magra .mf-freno p{margin:0}
+.magra .mf-freno .mf-btn{min-height:44px}
 @media(max-width:1080px){
   .magra .mf-rail{position:static;height:auto;border-left:none;border-top:1px solid rgba(197,174,134,.3)}
   .magra .mf-rail-items{max-height:none}
