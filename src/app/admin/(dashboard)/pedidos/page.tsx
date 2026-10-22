@@ -54,6 +54,9 @@ import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
 import { CobroDelNegocio } from "./CobroDelPedido";
 import { guardarArmado } from "./[code]/armar/acciones";
 
+/** Vender con el bloque «Nuevo pedido de WhatsApp» ya abierto (PedidoDesdeWhatsApp lee el #). */
+const HREF_PEDIDO_DE_WHATSAPP = "/admin/vender#whatsapp";
+
 export const dynamic = "force-dynamic";
 
 // Etiqueta del estado. El botón que avanza lo decide `verboDelPaso` (order-anulacion.ts): en
@@ -106,6 +109,8 @@ export default async function PedidosPage() {
   // una sola puerta para vender: el link «Vender» en lugar del mostrador de esta pantalla. Sólo
   // comercio; apagado (CH y todo negocio sin prender), la bandeja de siempre, byte a byte.
   const boutique = comercio && mostradorBoutiquePrendido(interruptores);
+  // «Nuevo pedido de WhatsApp» (Magra T2 · 2B): con el mostrador boutique y para quien toma pedidos.
+  const pedidoDeWhatsApp = boutique && roleHasCapability(user.role, "orders:manage");
   // UN SOLO MOSTRADOR: la venta de mostrador de esta pantalla es la MISMA que Vender
   // (MostradorDeVenta: vuelto, factura, cobro fijo a la vista; etiqueta y balanza sólo en un
   // comercio). En un comercio con «Diseño nuevo» se va a Vender entero. En CH (aprobado por el
@@ -265,6 +270,12 @@ export default async function PedidosPage() {
               Tomar un pedido
             </Link>
           )}
+          {/* MAGRA T2 · 2B: pegar el chat de WhatsApp en Vender (se abre solo con #whatsapp). */}
+          {pedidoDeWhatsApp && (
+            <Link href={HREF_PEDIDO_DE_WHATSAPP} className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+              Nuevo pedido de WhatsApp
+            </Link>
+          )}
           {/* Sin «Trabaja por apps» (CH) el mostrador vive acá: el MISMO formulario de siempre, en
               un cajón que se abre con su tecla, para que la pantalla sea la bandeja. */}
           {/* En un comercio, el mostrador es Vender a pantalla completa: dentro del cajón (30rem) sus
@@ -358,6 +369,11 @@ export default async function PedidosPage() {
             <Link href="/admin/vender" className={buttonClasses("solid", "md")}>
               Vender
             </Link>
+            {pedidoDeWhatsApp && (
+              <Link href={HREF_PEDIDO_DE_WHATSAPP} className={buttonClasses("outline", "md")}>
+                Nuevo pedido de WhatsApp
+              </Link>
+            )}
             <Link href="/admin/ventas" className={buttonClasses("outline", "md")}>
               Ventas del día
             </Link>
