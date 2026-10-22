@@ -3,17 +3,15 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatearCantidad } from "@/lib/pos-peso";
-import { shippingCost, type ShippingConfig } from "@/lib/storefront-shipping";
+import type { ShippingConfig } from "@/lib/storefront-shipping";
 import { usePedidoOnline, useCuponDePedido } from "./pedido-online";
 import {
   nuevaClaveDePedido,
   etiquetaDeDisponibilidad,
   propuestasConMediosDeLaMarca,
-  diasDeEntrega,
-  franjasDeLaEntrega,
   type Disponibilidad,
 } from "./reglas-tienda";
-import { cotizarEnvio, motivoTiendaPausada, zonaPorId } from "@/lib/envios/tarifa";
+import { useEntregaDeLaTienda } from "./EntregaDeLaTienda";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 import {
@@ -152,9 +150,6 @@ function MagraFrontContent({
   const { requestWhatsApp } = useWhatsAppCta();
   const [cart, setCart] = useState<Record<string, number>>({});
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
-  const [zonaId, setZonaId] = useState("");
-  const [franja, setFranja] = useState("");
-  const [dia, setDia] = useState(hoy ?? "");
   // La clave se manda sólo con la bolsa llena, así que nunca sale en el HTML del servidor y
   // generarla distinta en el servidor y en el navegador no rompe la hidratación.
   const [claveDePedido, setClaveDePedido] = useState(nuevaClaveDePedido);
@@ -189,34 +184,28 @@ function MagraFrontContent({
 
   // LA ENTREGA con la configuración de Envíos del negocio. Con zonas: la zona elegida, su costo,
   // «te faltan $X para el envío gratis», el mínimo (con «Retiro en el local» a mano) y las franjas,
-  // todo con `cotizarEnvio`, la misma que usa el servidor. Es una vista previa: `placeOnlineOrder`
-  // vuelve a leer la configuración y a calcular; el costo de esta pantalla no viaja.
-  const zonas = entrega?.zonas ?? [];
-  const conZonas = zonas.length > 0;
-  const hayRetiro = entrega ? entrega.retiroEnLocal : true;
-  const pausa = entrega ? motivoTiendaPausada(entrega) : null;
-  const modo = fulfillment === "DELIVERY" || !hayRetiro ? "envio" : "retiro";
-  const zona = entrega && modo === "envio" ? zonaPorId(entrega, zonaId) : null;
-  const cotizacion = entrega && hasItems ? cotizarEnvio(entrega, { subtotal, modo, zonaId }) : null;
-  const franjas = entrega ? franjasDeLaEntrega(entrega, modo, zona) : [];
-  const franjaElegida = franjas.includes(franja) ? franja : "";
-  const dias = hoy && franjas.length > 0 ? diasDeEntrega(hoy) : [];
-  const diaElegido = dias.some((d) => d.valor === dia) ? dia : (dias[0]?.valor ?? "");
-  // Lo que frena el envío del pedido, en criollo y al lado del botón (el servidor dice lo mismo).
-  const frenoDeEntrega =
-    pausa ??
-    (cotizacion && !cotizacion.ok ? cotizacion.motivo : null) ??
-    (hasItems && franjas.length > 0 && !franjaElegida ? "Elegí en qué franja te queda mejor." : null);
-  const faltaParaGratis = cotizacion?.ok ? cotizacion.faltaParaGratis : 0;
-  const ofrecerRetiro = cotizacion && !cotizacion.ok && cotizacion.ofrecerRetiro && cotizacion.faltaParaMinimo > 0;
-
-  // El envío, con la MISMA regla y tarifa que usa el servidor para sumarlo al pedido. Con zonas,
-  // el de la zona (0 hasta elegirla); sin zonas, la tarifa del copy de la marca o 0 ("Gratis").
-  const costoEnvio = conZonas
-    ? cotizacion?.ok
-      ? cotizacion.costo
-      : 0
-    : shippingCost(subtotal, modo === "envio" ? "DELIVERY" : "PICKUP", envio);
+  // con `entregaDeLaBolsa` (reglas-tienda.ts): la MISMA vista previa que las demás vidrieras, sobre
+  // `cotizarEnvio`, la que usa el servidor. `placeOnlineOrder` vuelve a leer la configuración y a
+  // calcular; el costo de esta pantalla no viaja. Sin zonas, la tarifa del copy de la marca o 0.
+  const {
+    zonas,
+    conZonas,
+    hayRetiro,
+    pausa,
+    modo,
+    zona,
+    franjas,
+    franjaElegida,
+    dias,
+    diaElegido,
+    freno: frenoDeEntrega,
+    faltaParaGratis,
+    ofrecerRetiro,
+    costoEnvio,
+    setZonaId,
+    setFranja,
+    setDia,
+  } = useEntregaDeLaTienda({ entrega, hoy, subtotal, hayProductos: hasItems, envio, fulfillment, setFulfillment });
   const cupon = useCuponDePedido(subtotal);
   const total = subtotal - cupon.descuento + costoEnvio;
 

@@ -15,6 +15,8 @@ import { fmtMoneyARS } from "@/components/ui/format";
 import { esLineaDeEnvio } from "@/lib/venta-reglas";
 import { horarioDeNegocioDelFormulario } from "@/lib/datetime";
 import type { ConfigEnvios, ZonaDeEnvio } from "@/lib/envios/modelo";
+import { cotizarEnvio, motivoTiendaPausada, zonaPorId, type ModoDeEntrega } from "@/lib/envios/tarifa";
+import { shippingCost, type ShippingConfig } from "@/lib/storefront-shipping";
 
 // ── DISPONIBILIDAD ───────────────────────────────────────────────────────────
 
@@ -372,4 +374,106 @@ export function horarioDeLaEntrega(p: {
 export function notaDelPedido(p: { zona: string | null; franja: string | null; deLaClienta: string | null }): string | null {
   const partes = [p.zona ? `Zona: ${p.zona}` : null, p.franja, p.deLaClienta?.trim() || null].filter((x): x is string => Boolean(x));
   return partes.length ? partes.join(" · ").slice(0, 500) : null;
+}
+
+// ── LA ENTREGA DE LA BOLSA, en todas las vidrieras (reingeniería Magra 1I) ──────────────────────
+//
+// 1H puso la zona, el mínimo, la franja y la tienda pausada en la vidriera de MAGRA. Las demás
+// vidrieras que mandan a `placeOnlineOrder` (la nueva de «Diseño nuevo», Shine, la genérica, la
+// réplica, Qué Bien Olés) no tenían selector: si el negocio cargaba zonas, el servidor rechazaba el
+// envío a domicilio y la pantalla no tenía cómo elegir. Esta función es la vista previa ÚNICA que
+// usan todas (MagraFront incluida), con las mismas funciones puras que el servidor (`cotizarEnvio`,
+// `franjasDeLaEntrega`); `placeOnlineOrder` vuelve a decidir con la configuración que lee él.
+//
+// Sin configuración guardada (`entrega` null) da EXACTAMENTE lo de siempre: el envío de la tarifa
+// de la marca (`shippingCost` con el copy, Shine) o 0, retiro habilitado, sin franjas y sin freno.
+
+/** Lo que eligió la clienta en la pantalla (la entrega, la zona por id, la franja y el día). */
+export type EntregaElegida = {
+  fulfillment: "PICKUP" | "DELIVERY";
+  zonaId: string;
+  franja: string;
+  dia: string;
+};
+
+export type EntregaDeLaBolsa = {
+  /** Cómo se entrega de verdad: sin retiro habilitado, siempre envío aunque se haya elegido retiro. */
+  modo: ModoDeEntrega;
+  /** Lo mismo, como lo espera el formulario (`fulfillment`). */
+  fulfillment: "PICKUP" | "DELIVERY";
+  /** ¿El negocio tiene zonas propias? Entonces hay que elegir una para el envío. */
+  conZonas: boolean;
+  zonas: readonly ZonaDeEnvio[];
+  /** La zona elegida (sólo con envío y si existe). */
+  zona: ZonaDeEnvio | null;
+  /** ¿Se ofrece «Retiro en el local»? */
+  hayRetiro: boolean;
+  horarioRetiro: string | null;
+  /** El mensaje del dueño si la tienda está pausada. */
+  pausa: string | null;
+  /** Las franjas de esta entrega (las de la zona o las de retiro) y la elegida si sigue valiendo. */
+  franjas: readonly string[];
+  franjaElegida: string;
+  /** Los días que se ofrecen con las franjas y el elegido (hoy, si no eligió). */
+  dias: { valor: string; texto: string }[];
+  diaElegido: string;
+  /** Lo que frena el envío del pedido, en criollo (el servidor dice lo mismo). null = se puede mandar. */
+  freno: string | null;
+  /** «Te faltan $X para el envío gratis» a la zona elegida; 0 si no aplica. */
+  faltaParaGratis: number;
+  /** Bajo el mínimo de envío, con retiro habilitado: ofrecer «Retiro en el local» en un toque. */
+  ofrecerRetiro: boolean;
+  /** El costo del envío que se muestra (vista previa: el costo no viaja, lo recalcula el alta). */
+  costoEnvio: number;
+};
+
+/** La entrega de la bolsa con la configuración de Envíos del negocio. PURA. */
+export function entregaDeLaBolsa(p: {
+  entrega: ConfigEnvios | null;
+  hoy: string | null;
+  subtotal: number;
+  hayProductos: boolean;
+  /** La tarifa de la marca (copy), la de siempre cuando el negocio no tiene zonas propias. */
+  envio: ShippingConfig | null;
+  elegida: EntregaElegida;
+}): EntregaDeLaBolsa {
+  const { entrega, elegida } = p;
+  const zonas = entrega?.zonas ?? [];
+  const conZonas = zonas.length > 0;
+  const hayRetiro = entrega ? entrega.retiroEnLocal : true;
+  const pausa = entrega ? motivoTiendaPausada(entrega) : null;
+  const modo: ModoDeEntrega = elegida.fulfillment === "DELIVERY" || !hayRetiro ? "envio" : "retiro";
+  const zona = entrega && modo === "envio" ? zonaPorId(entrega, elegida.zonaId) : null;
+  const cotizacion = entrega && p.hayProductos ? cotizarEnvio(entrega, { subtotal: p.subtotal, modo, zonaId: elegida.zonaId }) : null;
+  const franjas = entrega ? franjasDeLaEntrega(entrega, modo, zona) : [];
+  const franjaElegida = franjas.includes(elegida.franja) ? elegida.franja : "";
+  const dias = p.hoy && franjas.length > 0 ? diasDeEntrega(p.hoy) : [];
+  const diaElegido = dias.some((d) => d.valor === elegida.dia) ? elegida.dia : (dias[0]?.valor ?? "");
+  const freno =
+    pausa ??
+    (cotizacion && !cotizacion.ok ? cotizacion.motivo : null) ??
+    (p.hayProductos && franjas.length > 0 && !franjaElegida ? "Elegí en qué franja te queda mejor." : null);
+  const costoEnvio = conZonas
+    ? cotizacion?.ok
+      ? cotizacion.costo
+      : 0
+    : shippingCost(p.subtotal, modo === "envio" ? "DELIVERY" : "PICKUP", p.envio);
+  return {
+    modo,
+    fulfillment: modo === "envio" ? "DELIVERY" : "PICKUP",
+    conZonas,
+    zonas,
+    zona,
+    hayRetiro,
+    horarioRetiro: entrega?.horarioRetiro ?? null,
+    pausa,
+    franjas,
+    franjaElegida,
+    dias,
+    diaElegido,
+    freno,
+    faltaParaGratis: cotizacion?.ok ? cotizacion.faltaParaGratis : 0,
+    ofrecerRetiro: Boolean(cotizacion && !cotizacion.ok && cotizacion.ofrecerRetiro && cotizacion.faltaParaMinimo > 0),
+    costoEnvio,
+  };
 }

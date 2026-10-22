@@ -10,7 +10,7 @@
 //
 // Lo monta la bandeja SÓLO en el negocio que vende por kilo (page.tsx): en CH no cambia nada.
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   REFRESCO_DE_LA_BANDEJA_MS,
@@ -19,56 +19,20 @@ import {
   textoDePedidosWebNuevos,
   type PedidoWeb,
 } from "./pedidos-core";
+import { bip, guardarPreferenciaDeSonido, useAudioDelAviso, useSonidoDelAviso, useSuenaElChip } from "./sonido-del-aviso";
 
-const PREF_SONIDO = "pedidos:sonido-del-aviso";
-
-// La preferencia del sonido, de este navegador. Se lee con useSyncExternalStore (el servidor
-// dice «prendido», el navegador lo que haya guardado) y si el almacenamiento no anda vale el
-// valor en memoria de esta pantalla.
-let sonidoEnMemoria: boolean | null = null;
-const oyentes = new Set<() => void>();
-function leerPreferencia(): boolean {
-  if (sonidoEnMemoria !== null) return sonidoEnMemoria;
-  try {
-    return window.localStorage.getItem(PREF_SONIDO) !== "0";
-  } catch {
-    return true;
-  }
-}
-function guardarPreferencia(prendido: boolean) {
-  sonidoEnMemoria = prendido;
-  try {
-    window.localStorage.setItem(PREF_SONIDO, prendido ? "1" : "0");
-  } catch {
-    // vale para esta pantalla
-  }
-  for (const o of oyentes) o();
-}
-function suscribir(o: () => void) {
-  oyentes.add(o);
-  return () => oyentes.delete(o);
-}
+// La preferencia del sonido y el «bip» son los de todo el panel (sonido-del-aviso.ts): la misma
+// tecla acá y en el chip de la cabecera. Con el chip montado (mostrador boutique), el pedido nuevo
+// lo hace sonar el chip y acá sólo se muestra: el mismo pedido no suena dos veces.
 
 export default function AvisoDePedidosNuevos({ pedidosWeb }: { pedidosWeb: PedidoWeb[] }) {
   const router = useRouter();
   const vistos = useRef<Set<string> | null>(null);
-  const audio = useRef<AudioContext | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
-  const sonido = useSyncExternalStore(suscribir, leerPreferencia, () => true);
-
   // El navegador deja sonar recién después de un toque en la página: el primero lo habilita.
-  useEffect(() => {
-    const habilitar = () => {
-      try {
-        audio.current ??= new AudioContext();
-        void audio.current.resume().catch(() => undefined);
-      } catch {
-        // sin audio: queda el aviso visible
-      }
-    };
-    document.addEventListener("pointerdown", habilitar, { once: true });
-    return () => document.removeEventListener("pointerdown", habilitar);
-  }, []);
+  const audio = useAudioDelAviso();
+  const [aviso, setAviso] = useState<string | null>(null);
+  const sonido = useSonidoDelAviso();
+  const suenaElChip = useSuenaElChip();
 
   // El refresco: sólo a la vista, sin interrumpir a quien carga algo.
   useEffect(() => {
@@ -90,11 +54,11 @@ export default function AvisoDePedidosNuevos({ pedidosWeb }: { pedidosWeb: Pedid
     const texto = textoDePedidosWebNuevos(nuevos);
     if (!texto) return;
     setAviso(texto);
-    if (sonido) bip(audio.current);
-  }, [pedidosWeb, sonido]);
+    if (sonido && !suenaElChip) bip(audio.current);
+  }, [pedidosWeb, sonido, suenaElChip, audio]);
 
   function cambiarSonido() {
-    guardarPreferencia(!sonido);
+    guardarPreferenciaDeSonido(!sonido);
   }
 
   return (
@@ -114,21 +78,4 @@ export default function AvisoDePedidosNuevos({ pedidosWeb }: { pedidosWeb: Pedid
       </button>
     </div>
   );
-}
-
-/** Un «bip» corto (0,2 s). Si el navegador no lo deja, no pasa nada: el aviso ya está a la vista. */
-function bip(ctx: AudioContext | null) {
-  try {
-    if (!ctx || ctx.state !== "running") return;
-    const osc = ctx.createOscillator();
-    const vol = ctx.createGain();
-    osc.frequency.value = 880;
-    vol.gain.setValueAtTime(0.15, ctx.currentTime);
-    vol.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
-    osc.connect(vol).connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.2);
-  } catch {
-    // sin audio: queda el aviso visible
-  }
 }
