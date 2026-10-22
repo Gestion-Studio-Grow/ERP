@@ -15,10 +15,21 @@
  * ARCA despacha cada envío parado en su negocio con la conexión de la app (arca-dispatch.ts), así
  * que esa condición dejó de importar. Con la consola sujeta a RLS, como en producción, seguiría
  * marcando "no listo" con la facturación encendida aunque el cron ya despacha.
+ *
+ * MOTOR ARCA (bloque `arca`). Con la base arriba, suma el semáforo del motor de facturación:
+ * envíos pendientes, CAE en duda, trabados, rechazos del día y el último CAE obtenido — AGREGADO,
+ * sin nombrar negocios (motor-arca.ts). Un motor ARCA en rojo NO pone la instancia en 503: la app
+ * sigue pudiendo atender (vender, cobrar, turnos); el semáforo es para la alerta y el runbook
+ * (docs/runbooks/facturacion/incidentes.md), no para sacar la instancia del balanceo.
+ *
+ * El error de la base NO viaja en la respuesta (podía traer host o rol de la conexión): va al log
+ * estructurado; la respuesta dice sólo `db-unreachable`.
  */
 
 import { basePrisma } from "@/lib/prisma-base";
 import { withRequestId } from "@/lib/request-context";
+import { logger } from "@/lib/logger";
+import { estadoMotorArca } from "./motor-arca.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,18 +37,20 @@ export const dynamic = "force-dynamic";
 export const GET = withRequestId(async () => {
   try {
     await basePrisma.$queryRaw`SELECT 1`;
-    return Response.json(
-      { status: "ready", ts: new Date().toISOString() },
-      { headers: { "Cache-Control": "no-store" } },
-    );
   } catch (err) {
+    logger.error("health.ready", "la base no responde", err);
     return Response.json(
       {
         status: "not-ready",
-        error: err instanceof Error ? err.message : "db-unreachable",
+        error: "db-unreachable",
         ts: new Date().toISOString(),
       },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
+  const arca = await estadoMotorArca();
+  return Response.json(
+    { status: "ready", arca, ts: new Date().toISOString() },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 });
