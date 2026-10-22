@@ -157,6 +157,14 @@ export function cotizarEnvio(
 }
 
 /**
+ * El rechazo de un pedido CON ENVÍO sin zona, en un negocio que cobra el envío por zona (O-2 de la
+ * certificación de Magra T1). Dice qué falta, dónde se elige y la salida (retiro). Nada se graba.
+ */
+export const MOTIVO_FALTA_ZONA_DEL_ENVIO =
+  "Este negocio cobra el envío por zona y el pedido no dice a cuál va: elegí la «Zona de envío» del pedido " +
+  "(en Vender: Pedido → Envío a domicilio → Zona de envío) o marcalo «Retira en el local». No se grabó nada.";
+
+/**
  * La cotización del envío en el MOSTRADOR (Vender, pedido con envío; `createOrder` en el servidor
  * y la vista previa de la pantalla, con el mismo resultado). Las MISMAS zonas, el mismo costo y el
  * mismo «gratis desde» que la tienda, sin las reglas que son sólo de la tienda:

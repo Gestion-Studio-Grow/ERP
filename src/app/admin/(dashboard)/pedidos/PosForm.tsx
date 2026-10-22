@@ -16,6 +16,9 @@ import {
 import { lineaSinCantidad, motivoDeLineaSinCantidad } from "../vender/reglas-venta";
 import { useToast } from "../ToastProvider";
 import { useVocabulario } from "../VocabularioDelNegocio";
+import ZonaDelEnvio from "../vender/ZonaDelEnvio";
+import { cotizarEnvioDelMostrador, tieneZonas } from "@/lib/envios/tarifa";
+import type { ConfigEnvios } from "@/lib/envios/modelo";
 
 // Producto vendible que llega del loader (getPosData): ya viene con precio.
 type SellableProduct = {
@@ -100,7 +103,13 @@ const CLIENTE_VACIO = { customerName: "", customerPhone: "", scheduledFor: "", a
 export default function PosForm({
   products,
   stockById,
+  envios = null,
 }: {
+  /**
+   * Las zonas de envío del negocio (O-2). Con zonas, el pedido con envío pide la zona: el servidor
+   * la exige y el costo lo decide él. Sin esto (o sin zonas), como siempre.
+   */
+  envios?: ConfigEnvios | null;
   products: SellableProduct[];
   // Stock y flag de control por producto (getPosStockSnapshot): lo que permite avisar
   // el faltante ANTES de mandar la venta. Puede faltar un id (producto recién borrado):
@@ -114,6 +123,7 @@ export default function PosForm({
   // Caja de mostrador (venta rápida, se cobra en el acto) vs. pedido con retiro/envío.
   const [isOrder, setIsOrder] = useState(false);
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
+  const [zonaId, setZonaId] = useState("");
   // Los datos del cliente del pedido, CONTROLADOS. Sueltos, React 19 los vaciaba al terminar la
   // acción del <form> AUNQUE hubiera fallado (se cortó la señal, el servidor rechazó): medido en
   // Chromium, nombre, teléfono y nota quedaban en blanco y había que volver a pedírselos al
@@ -206,6 +216,11 @@ export default function PosForm({
   }, 0);
 
   const hasValidLine = leidas.some((l) => byId.get(l.productId) && l.qty > 0);
+  // El envío por zona (O-2): la vista previa con la MISMA regla del servidor; el total que se ve lo
+  // incluye, porque es el que graba el alta.
+  const conZona = isOrder && fulfillment === "DELIVERY" && envios !== null && tieneZonas(envios);
+  const cotizacionEnvio = conZona && envios ? cotizarEnvioDelMostrador(envios, { subtotal, zonaId: zonaId || null }) : null;
+  const totalConEnvio = subtotal + (cotizacionEnvio?.ok ? cotizacionEnvio.costo : 0);
   // Dónde se descuenta el stock: el mostrador (la mercadería está en la mano) o un pedido.
   const contextoStock = isOrder ? "ONLINE" : "COUNTER";
   const faltanteDe = (l: { productId: string; qty: number }) => {
@@ -275,6 +290,7 @@ export default function PosForm({
     setPaid(!isOrder);
     setYaGrabada(null);
     setCliente(CLIENTE_VACIO);
+    setZonaId("");
     ticketKey.current = "";
   }
 
@@ -488,6 +504,9 @@ export default function PosForm({
             <span className="block text-muted mb-1">Horario deseado</span>
             <Input name="scheduledFor" type="datetime-local" value={cliente.scheduledFor} onChange={escribir("scheduledFor")} />
           </label>
+          {conZona && envios && (
+            <ZonaDelEnvio zonas={envios.zonas} valor={zonaId} alCambiar={setZonaId} cotizacion={cotizacionEnvio} />
+          )}
           {fulfillment === "DELIVERY" && (
             <label className="text-sm sm:col-span-2">
               <span className="block text-muted mb-1">Dirección *</span>
@@ -611,7 +630,7 @@ export default function PosForm({
         <div className="text-sm text-muted">
           Total{" "}
           <span className="ml-1 text-2xl font-semibold tabular-nums text-strong">
-            {fmtMoneyARS(subtotal)}
+            {fmtMoneyARS(totalConEnvio)}
           </span>
         </div>
         <CobrarSubmit

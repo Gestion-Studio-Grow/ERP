@@ -449,15 +449,31 @@ export function renglonesDelTicket(
     r.push({ texto: "Pagó con:", chico: true });
     for (const p of v.pagos) r.push({ texto: `  ${etiquetaDeMedio(p.medio)}`, importe: fmtMoneyARS(p.monto), chico: true });
   } else if (v.aCuenta) r.push({ texto: "Queda a cuenta", chico: true });
-  if (v.medio === "EFECTIVO" && opts.pagoCon != null) {
-    const vuelto = round2(opts.pagoCon - v.total);
-    if (vuelto >= 0) {
-      r.push({ texto: "Recibido", importe: fmtMoneyARS(opts.pagoCon), chico: true });
-      r.push({ texto: "Vuelto", importe: fmtMoneyARS(vuelto), chico: true });
-    }
+  const vuelto = vueltoDelTicket(v, opts.pagoCon);
+  if (vuelto !== null) {
+    r.push({ texto: `Pagó con ${fmtMoneyARS(opts.pagoCon!)} · Vuelto ${fmtMoneyARS(vuelto)}`, chico: true });
   }
   r.push({ texto: LEYENDA_NO_FACTURA, chico: true });
   return r;
+}
+
+/**
+ * El vuelto que se le dio al cliente, para el ticket (O-3 de la certificación de Magra T1). PURA.
+ * `pagoCon` es lo que entregó en EFECTIVO (no se guarda: sólo existe al cobrar). El vuelto es
+ * contra lo que se asentó en efectivo: el total si pagó todo en efectivo, o el renglón de efectivo
+ * de un pago dividido (Efectivo $25.000 + MP $16.608 sobre $36.608 → asentado $20.000, vuelto
+ * $5.000), la MISMA cuenta que hace el servidor (`vueltoDelCobro`). Sin efectivo, sin `pagoCon`,
+ * o si lo entregado no alcanza: null (no se inventa un vuelto).
+ */
+export function vueltoDelTicket(v: Pick<VentaTicket, "medio" | "pagos" | "total">, pagoCon: number | null | undefined): number | null {
+  if (pagoCon == null || !Number.isFinite(pagoCon)) return null;
+  const efectivo =
+    v.medio === "EFECTIVO"
+      ? v.total
+      : (v.pagos ?? []).filter((p) => p.medio === "EFECTIVO").reduce((s, p) => s + p.monto, 0) || null;
+  if (efectivo == null) return null;
+  const vuelto = round2(pagoCon - efectivo);
+  return vuelto >= 0 ? vuelto : null;
 }
 
 /** El ticket como texto para WhatsApp (negritas con *). */

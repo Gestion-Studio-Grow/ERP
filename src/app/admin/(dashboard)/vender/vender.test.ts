@@ -401,7 +401,7 @@ test("ticket: kilos con coma, descuento, vuelto y 'No válido como factura'; la 
   assert.doesNotMatch(texto, /1\.24|0\.95/, "nunca el punto decimal en una cantidad");
   assert.match(texto, /Descuento \(10 %\): −\$3\.212,50/);
   assert.match(texto, /\*TOTAL: \$28\.912,50\*/);
-  assert.match(texto, /Vuelto: \$21\.087,50/);
+  assert.match(texto, /Pagó con \$50\.000,00 · Vuelto \$21\.087,50/);
   assert.ok(texto.trim().endsWith(LEYENDA_NO_FACTURA));
 });
 

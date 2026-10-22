@@ -30,6 +30,7 @@ test("createOrder (Vender): envío por zona decidido en el servidor, reintento c
   const { createOrder } = await import("@/lib/order-actions");
   const { guardarConfigEnviosEnTx } = await import("@/lib/envios/config");
   const { FICHA_DE_OTRO_NEGOCIO } = await import("@/lib/order-core");
+  const { MOTIVO_FALTA_ZONA_DEL_ENVIO } = await import("@/lib/envios/tarifa");
 
   const caja = await duenio.product.create({ data: { tenantId: base.a.id, name: "Caja parrillera", saleUnit: "UNIT", price: 45000, unit: "u", trackStock: false } });
   const chorizo = await duenio.product.create({ data: { tenantId: base.a.id, name: "Chorizo", saleUnit: "UNIT", price: 12000, unit: "u", trackStock: false } });
@@ -148,15 +149,23 @@ test("createOrder (Vender): envío por zona decidido en el servidor, reintento c
   assert.deepEqual(inexistente && !inexistente.ok ? inexistente.error : null, FICHA_DE_OTRO_NEGOCIO);
   assert.equal(await contar(base.a.id), cuenta2, "la ficha ajena no grabó nada");
 
-  // 7 · Un formulario que no trae el campo de zona (el POS de la bandeja): como hoy, sin renglón.
-  const r9 = valor(await vender(base.a, formulario({ envioZona: null }, chorizo.id)));
-  assert.equal(r9?.ok, true, JSON.stringify(r9));
-  const p9 = await ultimo(base.a.id);
-  assert.deepEqual([p9?.total, renglonDeEnvio(p9)], [12000, null]);
+  // 7 · O-2 (cert. Magra T1): un pedido con envío que NO trae el campo de zona (un formulario viejo,
+  // un POST a mano) en un negocio CON zonas ya no graba el envío en $0: rechazo claro que dice dónde
+  // elegirla, y nada grabado. Con el campo vacío, lo mismo. Con retiro en el local, sigue pasando.
+  const cuenta9 = await contar(base.a.id);
+  for (const envioZona of [null, "", "   "]) {
+    const r9 = valor(await vender(base.a, formulario({ envioZona }, chorizo.id)));
+    assert.equal(r9?.ok, false, JSON.stringify(r9));
+    assert.equal(r9 && !r9.ok ? r9.error : null, MOTIVO_FALTA_ZONA_DEL_ENVIO);
+  }
+  assert.equal(await contar(base.a.id), cuenta9, "sin zona no se grabó nada");
+  const r9b = valor(await vender(base.a, formulario({ envioZona: null, fulfillment: "PICKUP", address: "" }, chorizo.id)));
+  assert.equal(r9b?.ok, true, JSON.stringify(r9b));
+  assert.deepEqual([(await ultimo(base.a.id))?.total, renglonDeEnvio(await ultimo(base.a.id))], [12000, null]);
 
   // 8 · Sin zonas (el negocio B: CH, Shine): con o sin el campo, nada cambia — ni renglón ni rechazo.
   const vela = await duenio.product.create({ data: { tenantId: base.b.id, name: "Vela", saleUnit: "UNIT", price: 20000, unit: "u", trackStock: false } });
-  for (const envioZona of ["barrios", ""]) {
+  for (const envioZona of ["barrios", "", null]) {
     const rb = valor(await vender(base.b, formulario({ envioZona }, vela.id)));
     assert.equal(rb?.ok, true, JSON.stringify(rb));
     const pb = await ultimo(base.b.id);

@@ -6,6 +6,7 @@ import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
 import { posEmptyState } from "@/lib/stock/pos-stock-rules";
 import MostradorTabs from "./MostradorTabs";
 import MostradorDeVenta from "../vender/MostradorDeVenta";
+import { cargarEnvios } from "../vender/datos";
 import { puedeAbrirApp } from "../vender/puede-abrir";
 import MostradorEnCajon from "./MostradorEnCajon";
 import CobrarPedidoForm from "./CobrarPedidoForm";
@@ -140,6 +141,9 @@ export default async function PedidosPage() {
   const mostradorUnico = conMostradorUnico
     ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} conVendedor={!comercio} />
     : undefined;
+  // O-2: el POS de siempre (sólo cuando se muestra con productos) ofrece la zona del envío si el
+  // negocio tiene zonas; el servidor la exige igual. Donde no se usa, no se lee nada.
+  const enviosDelPos = !modeloNuevo && !boutique && !mostradorUnico && servicios ? await cargarEnvios(await getCurrentTenantId()) : null;
   const empty =
     stockSnap && hayVendibles === false
       ? posEmptyState({ activeProducts: stockSnap.activeProducts, canManageCatalog: stockSnap.canManageCatalog })
@@ -279,6 +283,7 @@ export default async function PedidosPage() {
                 professionals={professionals}
                 conServicios
                 formProductos={mostradorUnico}
+                envios={enviosDelPos}
                 abrirEnServicios={!!mostradorUnico && !!empty}
                 productosBloqueados={
                   !mostradorUnico && empty ? (
@@ -385,6 +390,7 @@ export default async function PedidosPage() {
             professionals={professionals}
             conServicios={!comercio}
             formProductos={mostradorUnico}
+            envios={enviosDelPos}
             abrirEnServicios={!!mostradorUnico && !!empty}
             productosBloqueados={
               !mostradorUnico && empty ? (

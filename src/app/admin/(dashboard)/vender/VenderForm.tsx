@@ -66,7 +66,15 @@ import {
 import { textoDelFaltante, type Faltante } from "@/lib/reintento-de-venta";
 import { round2 } from "@/lib/round";
 import TicketVenta from "./TicketVenta";
+import {
+  COBRAR_EL_DE_LA_ETIQUETA,
+  etiquetaDistinta,
+  lineaAManoDeLaEtiqueta,
+  puedeCobrarElDeLaEtiqueta,
+  textoEtiquetaDistinta,
+} from "./etiqueta-de-balanza";
 import ClienteDeLaVenta, { type ValorDelCliente } from "./ClienteDeLaVenta";
+import ZonaDelEnvio from "./ZonaDelEnvio";
 import { CampoUnico, ID_CAMPO_UNICO, type LecturaUnica } from "@/components/lector/CampoUnico";
 import { PieDeCobro, type ResultadoDelPie } from "@/components/cobro/PieDeCobro";
 import { camposDelPie } from "@/lib/cobro/pie-de-cobro-core";
@@ -74,6 +82,7 @@ import { cotizarEnvioDelMostrador, tieneZonas } from "@/lib/envios/tarifa";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
 import { describirFormato } from "@/lib/supermercado/balanza";
 import { indiceDelLector, lineaDesdeLectura, REGLA_DEL_PRECIO_DE_BALANZA, type ProductoDelLector } from "@/lib/lector/linea-desde-lectura";
+import { etiquetaDistintaDelSistema } from "@/lib/lector/decidir-lectura";
 import TomarPesoParaElTicket from "@/components/balanza/TomarPesoParaElTicket";
 import { usePerfilSiHayTerminal, type TerminalDelEquipo } from "@/lib/terminal/usar-perfil";
 import { enCampoDeTexto, enCampoEditable, esCampoDeCantidad, motivoParaNoSumar } from "@/lib/terminal/lector-core";
@@ -100,6 +109,7 @@ import {
   buscarEnElCatalogo,
   sumarUnaUnidad,
   teclaDeProducto,
+  vueltoDelTicket,
   type BalanzaDeVender,
 } from "./reglas-venta";
 import {
@@ -144,7 +154,17 @@ type SellableProduct = {
 };
 
 /** Una línea del ticket: el producto y lo TIPEADO (texto, no número: ver PosForm). */
-type Line = { key: number; productId: string; qtyText: string };
+type Line = {
+  key: number;
+  productId: string;
+  qtyText: string;
+  /**
+   * Mostrador boutique (MG-023): el importe que IMPRIMIÓ la balanza en la etiqueta, si no coincide
+   * con el del sistema. El renglón cobra el del sistema y lo deja escrito; al tocar el peso a mano
+   * se borra (ya no es la etiqueta).
+   */
+  etiqueta?: number;
+};
 
 /** La preferencia del teclado grande en este navegador (sólo comodidad: si falta, cerrado). */
 const PREF_TECLADO = "vender:teclado-grande";
@@ -399,6 +419,11 @@ type PropsDeVender = {
    * esto (CH y todo negocio con el interruptor apagado), la pantalla de siempre.
    */
   boutique?: BoutiqueDeVender | null;
+  /**
+   * Las zonas de envío del negocio para el Vender de siempre (comercio sin el interruptor). Con
+   * zonas, el pedido con envío pide la zona (el servidor la exige). Sin esto, como siempre.
+   */
+  envios?: ConfigEnvios | null;
 };
 
 const sinSuscripcion = () => () => {};
@@ -443,6 +468,7 @@ function FormularioVender({
   balanza = null,
   terminal = null,
   boutique = null,
+  envios = null,
   enNavegador,
 }: PropsDeVender & { enNavegador: boolean }) {
   // El perfil de este equipo, o `null` sin el módulo `terminal`: entonces todo es como siempre.
@@ -644,7 +670,7 @@ function FormularioVender({
     return key;
   }
   function removeLine(key: number) {
-    setLines((ls) => (ls.length > 1 ? ls.filter((l) => l.key !== key) : [{ ...ls[0], productId: "", qtyText: "" }]));
+    setLines((ls) => (ls.length > 1 ? ls.filter((l) => l.key !== key) : [{ ...ls[0], productId: "", qtyText: "", etiqueta: undefined }]));
   }
   function setManual(key: number, patch: Partial<LineaManual>) {
     setManuales((ms) => ms.map((m) => (m.key === key ? { ...m, ...patch } : m)));
@@ -849,10 +875,14 @@ function FormularioVender({
   // productos ANTES del descuento: el descuento no toca el envío). Entra al total que se muestra
   // y al que cobra el pie: un pago dividido tiene que sumar el total CON el envío, que es el que
   // graba el alta. El servidor lo vuelve a calcular: lo de acá sólo se muestra.
-  const zonasDelEnvio = boutique?.envios && tieneZonas(boutique.envios) ? boutique.envios.zonas : [];
-  const conZona = enBoutique && isOrder && fulfillment === "DELIVERY" && zonasDelEnvio.length > 0;
+  // Las zonas vienen del boutique o, en el Vender de siempre de un comercio con zonas, de `envios`
+  // (O-2: el servidor exige la zona en todo pedido con envío de un negocio con zonas; la pantalla la
+  // ofrece en las tres vistas para que nunca quede un callejón).
+  const configEnvios = boutique?.envios ?? envios;
+  const zonasDelEnvio = configEnvios && tieneZonas(configEnvios) ? configEnvios.zonas : [];
+  const conZona = isOrder && fulfillment === "DELIVERY" && zonasDelEnvio.length > 0;
   const cotizacionEnvio =
-    conZona && boutique?.envios ? cotizarEnvioDelMostrador(boutique.envios, { subtotal, zonaId: zonaId || null }) : null;
+    conZona && configEnvios ? cotizarEnvioDelMostrador(configEnvios, { subtotal, zonaId: zonaId || null }) : null;
   const envioPrevisto = cotizacionEnvio?.ok ? cotizacionEnvio.costo : 0;
   const totalACobrar = round2(total + envioPrevisto);
 
@@ -893,7 +923,7 @@ function FormularioVender({
   const faltaFichaACuenta = aCuentaActivo && (enBoutique ? !clienteVenta?.cliente : busqueda !== "encontrado");
   // En el boutique el medio se elige en el pie, al cobrar: no falta antes.
   const faltaMedio = paid && !medio && !aCuentaActivo && !enBoutique;
-  const vuelto = paid && !aCuentaActivo && medio === "EFECTIVO" ? calcularVuelto(total, pagoConText) : null;
+  const vuelto = paid && !aCuentaActivo && medio === "EFECTIVO" ? calcularVuelto(totalACobrar, pagoConText) : null;
 
   // Lo que define este cobro —TODO lo que el servidor compara con lo grabado—, para saber si un
   // reintento es la misma venta. Cliente y entrega van como viajan: sin la sección abierta no se
@@ -1107,7 +1137,7 @@ function FormularioVender({
     fd.set("conTicket", "1");
     const pagoCon = medio === "EFECTIVO" ? leerImporte(pagoConText) : null;
     // Lo que viaja, por si la respuesta no vuelve: queda en duda, en memoria y en la pestaña.
-    const enviado: EnvioSinRespuesta = { firma, total, desde: new Date().toISOString() };
+    const enviado: EnvioSinRespuesta = { firma, total: totalACobrar, desde: new Date().toISOString() };
     // La duda con la que sale este envío (si es un reintento): su total es lo que se había mandado.
     const enDuda = sinRespuesta;
     const cargado = cargadoActual();
@@ -1120,7 +1150,7 @@ function FormularioVender({
           v: 3,
           clave,
           firma,
-          total,
+          total: totalACobrar,
           desde: enviado.desde!,
           usuario: usuarioId,
           cargado,
@@ -1243,14 +1273,14 @@ function FormularioVender({
           ? etiquetaDeReintento(true)
           : // El reintento de la duda dice lo que se MANDÓ (y quizá se cobró), no el total a
             // precios de hoy: si estaba grabada, vuelve esa venta con ese total.
-            `${etiquetaDeReintento()} ${fmtMoneyARS(reintentoDeLaMisma && sinRespuesta ? sinRespuesta.total : total)}`
+            `${etiquetaDeReintento()} ${fmtMoneyARS(reintentoDeLaMisma && sinRespuesta ? sinRespuesta.total : totalACobrar)}`
         : isOrder
           ? nuevo && paid
-            ? `Registrar y cobrar ${fmtMoneyARS(total)}`
+            ? `Registrar y cobrar ${fmtMoneyARS(totalACobrar)}`
             : "Registrar pedido"
           : aCuentaActivo
             ? `Dejar a cuenta ${fmtMoneyARS(total)}`
-            : `Cobrar ${fmtMoneyARS(total)}`);
+            : `Cobrar ${fmtMoneyARS(totalACobrar)}`);
 
   // Los bloques de la pantalla: los mismos en la vista de siempre y en el ticket del diseño nuevo.
   const bloqueUltima = (
@@ -1265,8 +1295,8 @@ function FormularioVender({
             <p className="text-sm font-medium text-strong">
               Venta #{ultima.venta.code} {ultima.venta.anulada ? "ANULADA" : ultima.venta.aCuenta ? "a cuenta" : "cobrada"} ·{" "}
               {fmtMoneyARS(ultima.venta.total)}
-              {ultima.pagoCon != null && ultima.pagoCon >= ultima.venta.total && (
-                <> · vuelto {fmtMoneyARS(round2(ultima.pagoCon - ultima.venta.total))}</>
+              {vueltoDelTicket(ultima.venta, ultima.pagoCon) !== null && (
+                <> · vuelto {fmtMoneyARS(vueltoDelTicket(ultima.venta, ultima.pagoCon)!)}</>
               )}
             </p>
             <button
@@ -1525,6 +1555,7 @@ function FormularioVender({
                     onChange={(e) => setHorario(e.target.value)}
                   />
                 </label>
+                {conZona && <ZonaDelEnvio zonas={zonasDelEnvio} valor={zonaId} alCambiar={setZonaId} cotizacion={cotizacionEnvio} />}
                 {fulfillment === "DELIVERY" && (
                   <label className="text-sm sm:col-span-2">
                     <span className="mb-1 block text-muted">Dirección *</span>
@@ -2245,7 +2276,7 @@ function FormularioVender({
                 </div>
                 {/* En CH, el total en su petróleo (como en la pantalla clásica). `!`: renglon.css le pone
                     la tinta a toda la plata, sin capa, y le gana a las utilidades. */}
-                <Plata valor={total} tamano="grande" sinCentavos={Number.isInteger(total)} className="in-data-[estetica=beauty-spa]:!text-accent-ink" />
+                <Plata valor={totalACobrar} tamano="grande" sinCentavos={Number.isInteger(totalACobrar)} className="in-data-[estetica=beauty-spa]:!text-accent-ink" />
               </div>
               {isOrder && casillaCobrado}
               {bloqueMedios}
@@ -2310,7 +2341,10 @@ function FormularioVender({
     const campos = camposDelPie(totalACobrar, r);
     const principal = leerMedioDeCobro(campos.find(([n]) => n === "paymentMethod")?.[1] ?? "") ?? "";
     camposDelUltimoPie.current = campos;
-    pagoConDelPie.current = r.modo === "simple" && r.medio === "EFECTIVO" ? (r.recibido ?? null) : null;
+    // «Pagó con $X · Vuelto $Y» en el ticket (O-3): lo que entregó en efectivo, también en un pago
+    // dividido (el vuelto se cuenta contra el renglón de efectivo, `vueltoDelTicket`).
+    pagoConDelPie.current =
+      (r.modo === "simple" ? r.medio === "EFECTIVO" : r.pagos.some((p) => p.medio === "EFECTIVO")) ? (r.recibido ?? null) : null;
     // La firma del cobro (lo que el servidor compara en un reintento) lleva el medio: se fija ANTES
     // de mandar, para que `submit` salga con él.
     flushSync(() => {
@@ -2352,10 +2386,10 @@ function FormularioVender({
   }
 
   /** Un renglón con su cantidad ya puesta (etiqueta) o esperando el peso (código de un corte). */
-  function cargarRenglon(productId: string, qtyText: string) {
+  function cargarRenglon(productId: string, qtyText: string, etiqueta?: number) {
     const vacia = lines.find((l) => !l.productId);
     const key = vacia ? vacia.key : addLine(productId);
-    setLine(key, { productId, qtyText });
+    setLine(key, { productId, qtyText, etiqueta });
     pedirFoco(qtyText ? ID_CAMPO_UNICO : `qty-${key}`);
   }
 
@@ -2409,11 +2443,31 @@ function FormularioVender({
     if (!sePuedeSumar()) return;
     setCoincidencias(null);
     if (l.tipo === "etiqueta") {
-      cargarRenglon(l.productId, formatearCantidad(l.kg));
+      // MG-023: si el papel dice otro importe, el renglón lo guarda para mostrarlo (y, al Dueño,
+      // ofrecer «Cobrar el de la etiqueta»). Cobra el del sistema.
+      cargarRenglon(l.productId, formatearCantidad(l.kg), etiquetaDistintaDelSistema(l) ? (l.importeEtiqueta ?? undefined) : undefined);
       return;
     }
     if (l.cantidad == null) alPeso(l.productId);
     else sumarUnidades(l.productId, l.cantidad);
+  }
+
+  /**
+   * «Cobrar el de la etiqueta» (sólo el Dueño, MG-023): el renglón pasa a una línea a precio a mano
+   * con el importe del papel y el motivo «etiqueta de balanza». El servidor la vuelve a controlar
+   * con el tope del ROL de la sesión (`controlarPreciosAManoEnTx`): sin el rol, no se graba.
+   */
+  function cobrarElDeLaEtiqueta(key: number) {
+    const l = leidas.find((x) => x.key === key);
+    const p = l ? byId.get(l.productId) : undefined;
+    if (!l || !p || l.etiqueta == null || !puedeCobrarElDeLaEtiqueta(topePrecioAMano)) return;
+    const m = lineaAManoDeLaEtiqueta({ nombre: p.name, kg: l.qty, importeEtiqueta: l.etiqueta, importeSistema: totalDeLinea(l) });
+    const nueva = nextKey;
+    removeLine(key);
+    setManuales((ms) => [...ms, { key: nueva, ...m }]);
+    setNextKey((k) => k + 1);
+    setAvisoBoutique(null);
+    pedirFoco(ID_CAMPO_UNICO);
   }
 
   function vistaBoutique(b: BoutiqueDeVender) {
@@ -2524,7 +2578,7 @@ function FormularioVender({
                   autoComplete="off"
                   value={l.qtyText}
                   placeholder={esPeso ? "0,000" : "Cant."}
-                  onChange={(e) => setLine(l.key, { qtyText: e.target.value })}
+                  onChange={(e) => setLine(l.key, { qtyText: e.target.value, etiqueta: undefined })}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -2571,6 +2625,24 @@ function FormularioVender({
               alCorregir={() => setLine(l.key, { qtyText: formatearCantidad(confirmar.corregido) })}
             />
           )}
+          {l.etiqueta != null && lineTotal > 0 && etiquetaDistinta(l.etiqueta, lineTotal) && (
+            <div data-vender="etiqueta-distinta" className="flex flex-wrap items-center gap-2">
+              <p role="status" className="text-xs text-warning">
+                <span className="font-semibold tabular-nums">{textoEtiquetaDistinta(l.etiqueta, lineTotal)}</span> · se cobra el del
+                sistema.
+              </p>
+              {puedeCobrarElDeLaEtiqueta(topePrecioAMano) && (
+                <button
+                  type="button"
+                  className="chip-btn h-11 text-sm"
+                  aria-label={`${COBRAR_EL_DE_LA_ETIQUETA} de ${p.name}: ${fmtMoneyARS(l.etiqueta)}`}
+                  onClick={() => cobrarElDeLaEtiqueta(l.key)}
+                >
+                  {COBRAR_EL_DE_LA_ETIQUETA}
+                </button>
+              )}
+            </div>
+          )}
           {l.invalida && (
             <p role="alert" className="text-xs text-danger">
               Eso no es una cantidad. Escribí el {esPeso ? "peso, con coma si tiene gramos (1,240)" : "número"}.
@@ -2609,7 +2681,7 @@ function FormularioVender({
                   etiqueta={`Peso de ${p.name}`}
                   ayuda="Los números de la etiqueta de la balanza: la coma la ponemos nosotros."
                   inicial={l.qty > 0 ? String(Math.round(l.qty * 1000)) : ""}
-                  onCambio={(valor) => setLine(l.key, { qtyText: valor > 0 ? formatearCantidad(valor) : "" })}
+                  onCambio={(valor) => setLine(l.key, { qtyText: valor > 0 ? formatearCantidad(valor) : "", etiqueta: undefined })}
                   className="max-w-sm"
                 />
               )}
@@ -3284,12 +3356,17 @@ function FormularioVender({
                   Subtotal {fmtMoneyARS(subtotal)} · descuento −{fmtMoneyARS(descuento.descuento)}
                 </p>
               )}
+              {envioPrevisto > 0 && cotizacionEnvio?.ok && (
+                <p data-vender="total-envio" className="tabular-nums">
+                  Productos {fmtMoneyARS(total)} · {cotizacionEnvio.renglon ?? "Envío"} {fmtMoneyARS(envioPrevisto)}
+                </p>
+              )}
               <p>
                 Total{" "}
                 {/* En CH (piel `data-estetica="beauty-spa"` del layout) el total va en su serif y su
                     petróleo, como los títulos de su marca; en el resto, como siempre. */}
                 <span className="ml-1 text-2xl font-semibold tabular-nums text-strong in-data-[estetica=beauty-spa]:font-display in-data-[estetica=beauty-spa]:font-medium in-data-[estetica=beauty-spa]:text-accent-ink">
-                  {fmtMoneyARS(total)}
+                  {fmtMoneyARS(totalACobrar)}
                 </span>
               </p>
             </div>

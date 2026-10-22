@@ -84,6 +84,7 @@ import { leerConfigEnvios } from "@/lib/envios/config";
 import {
   cotizarEnvio,
   cotizarEnvioDelMostrador,
+  MOTIVO_FALTA_ZONA_DEL_ENVIO,
   motivoTiendaPausada,
   tieneZonas,
   zonaPorId,
@@ -386,13 +387,17 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // mande no se lee. En el mostrador no frenan la tienda pausada, el pedido mínimo ni la franja
   // (`cotizarEnvioDelMostrador`, con el porqué).
   //
-  // Sólo si el formulario TRAE el campo (el mostrador boutique, que conoce las zonas). Los
-  // formularios que no lo conocen (el POS de la bandeja, el Vender de siempre) siguen como hoy, y
-  // un negocio sin zonas (CH, Shine) también: sin zona no hay renglón ni cambia nada.
+  // Con zonas, la zona es OBLIGATORIA en todo pedido con envío, traiga o no el formulario el campo
+  // (O-2 de la certificación de Magra T1): antes sólo se cotizaba si venía `envioZona`, y un
+  // formulario que no lo mandaba (o un POST a mano) grababa el envío en $0. Ahora sin zona válida
+  // se rechaza con el motivo y dónde elegirla, y no se graba nada. Un negocio sin zonas (CH, Shine)
+  // sigue igual: sin zona no hay renglón ni cambia nada.
   let envioZona: ZonaDeEnvio | null = null;
-  if (fulfillment === "DELIVERY" && formData.has("envioZona")) {
+  if (fulfillment === "DELIVERY") {
     const configEnvios = await leerConfigEnvios(prisma, tenantId);
     if (tieneZonas(configEnvios)) {
+      const zonaPedida = String(formData.get("envioZona") ?? "").trim().slice(0, 60) || null;
+      if (!zonaPedida) return { ok: false, error: MOTIVO_FALTA_ZONA_DEL_ENVIO };
       const conProducto = items.filter((l) => l.productId && l.qty > 0);
       const cotizacion = cotizarEnvioDelMostrador(configEnvios, {
         // Lo mismo sobre lo que cobra el alta: productos a precio de la base más las líneas a mano.
@@ -400,7 +405,7 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
           (conProducto.length ? await subtotalDeLaBolsaEnBase(tenantId, conProducto) : 0) +
             aMano.lineas.reduce((s, l) => s + l.importe, 0),
         ),
-        zonaId: String(formData.get("envioZona") || "").trim().slice(0, 60) || null,
+        zonaId: zonaPedida,
       });
       if (!cotizacion.ok) return { ok: false, error: cotizacion.motivo };
       envioZona = cotizacion.zona;

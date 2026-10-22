@@ -2407,4 +2407,93 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     assert.deepEqual(errores, []);
     await page.close();
   });
+
+  // ── Cierre de la cert. Magra T1 ──────────────────────────────────────────────────────────────
+  // F-1 / MG-023: una etiqueta de IMPORTE que no da justo con el precio del sistema (15.630 a
+  // $12.500/kg → 1,250 kg → $15.625). El renglón cobra el del sistema y lo deja escrito; el chip
+  // «Cobrar el de la etiqueta» sólo con el tope del Dueño (null).
+  const FORMATO_IMPORTE = { ...FORMATO_BALANZA_POR_DEFECTO, contenido: "importe" as const, decimales: 0 };
+  const conBalanzaDeImporte = (extra: Record<string, unknown>) =>
+    boutique({}, { balanza: { formato: FORMATO_IMPORTE, porDefecto: false, configurar: null }, ...extra });
+  async function pasarEtiquetaDistinta(page: Page) {
+    await focoEnElCampoUnico(page);
+    const campo = page.getByLabel("Escaneá o buscá");
+    await campo.fill(armarEtiquetaDeBalanza(FORMATO_IMPORTE, "00201", 15630));
+    await campo.press("Enter");
+    await page.locator('[data-vender="etiqueta-distinta"]').getByText("Etiqueta $15.630,00 · Sistema $15.625,00").waitFor();
+  }
+
+  test("F-1: etiqueta con otro importe → «Etiqueta $X · Sistema $Y» en el renglón; el Dueño cobra el de la etiqueta como precio a mano con motivo", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", null, conBalanzaDeImporte({ topePrecioAMano: null }));
+    await pasarEtiquetaDistinta(page);
+    // Cobra el del sistema mientras no se toque el chip.
+    await page.getByRole("button", { name: "Cobrar $15.625 con Mercado Pago" }).waitFor();
+    await page.getByRole("button", { name: "Cobrar el de la etiqueta de Vacío: $15.630,00" }).click();
+    assert.equal(await page.locator('[data-vender="etiqueta-distinta"]').count(), 0, "el renglón pasó a precio a mano");
+    await page.getByRole("button", { name: "Cobrar $15.630 con Mercado Pago" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.equal(e.productId, undefined, "ya no va el producto pesado");
+    assert.deepEqual(e.manualNombre, ["Vacío"]);
+    assert.deepEqual(e.manualImporte, ["15630"]);
+    assert.match(e.manualMotivo[0], /^etiqueta de balanza \(1,25 kg; el sistema daba \$15\.625/);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("F-1: con el tope de la recepción, la diferencia se ve pero el chip NO aparece y se cobra el del sistema", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, conBalanzaDeImporte({ topePrecioAMano: { bajaPct: 10, maximo: 50000 } }));
+    await pasarEtiquetaDistinta(page);
+    assert.equal(await page.getByRole("button", { name: /Cobrar el de la etiqueta/ }).count(), 0);
+    await page.getByRole("button", { name: "Cobrar $15.625 con Mercado Pago" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.deepEqual(e.productId, ["p_vacio"]);
+    assert.deepEqual(e.quantity, ["1.25"]);
+    assert.equal(e.manualNombre, undefined);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  // O-2: en el Vender de siempre (sin el interruptor) de un negocio con zonas, el pedido con envío
+  // pide la zona (el servidor la exige) y el total que se ve suma el envío.
+  test("O-2: Vender de siempre con zonas → «Zona de envío» obligatoria, el total suma el envío y viaja `envioZona`", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("pedido", 10, { envios: ENVIOS });
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1");
+    await page.locator('select[name="fulfillment"]').selectOption("DELIVERY");
+    const zona = page.locator('select[name="envioZona"]');
+    assert.equal(await zona.getAttribute("required"), "", "obligatoria");
+    await zona.selectOption("z1");
+    await page.getByText(/Envío · Canning – barrios cerrados: \$4\.000/).waitFor();
+    await page.locator('input[name="customerName"]').fill("Ana Pérez");
+    await page.locator('input[name="address"]').fill("Los Álamos 123");
+    await page.getByText("$16.500,00").first().waitFor();
+    await page.getByRole("button", { name: /Registrar pedido/ }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.deepEqual(e.envioZona, ["z1"]);
+    assert.deepEqual(e.fulfillment, ["DELIVERY"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("O-2: el POS de la bandeja con zonas también ofrece la zona en el pedido con envío", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("pos", 10, { envios: ENVIOS });
+    await page.getByRole("button", { name: "Pedido (retiro / envío)" }).click();
+    await page.locator("#prod-1").fill("Vac");
+    await page.getByRole("option", { name: /Vacío/ }).first().click();
+    await page.locator("#qty-1").fill("1");
+    assert.equal(await page.locator('select[name="envioZona"]').count(), 0, "con retiro no se pide");
+    await page.locator('select[name="fulfillment"]').selectOption("DELIVERY");
+    await page.locator('select[name="envioZona"]').selectOption("z1");
+    await page.getByText(/Envío · Canning – barrios cerrados: \$4\.000/).waitFor();
+    await page.getByText("$16.500,00").first().waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
 });

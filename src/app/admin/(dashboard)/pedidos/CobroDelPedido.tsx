@@ -144,7 +144,9 @@ export function CobroConPie({
 
   function cobrar(res: ResultadoDelPie): Promise<void> {
     const fd = aFormData([["id", id], ...camposDelPie(total, res)]);
-    const pagoCon = res.modo === "simple" && res.medio === "EFECTIVO" && res.recibido !== undefined ? res.recibido : null;
+    // Lo que entregó en efectivo, también en un pago dividido: el ticket dice «Pagó con $X · Vuelto $Y» (O-3).
+    const conEfectivo = res.modo === "simple" ? res.medio === "EFECTIVO" : res.pagos.some((p) => p.medio === "EFECTIVO");
+    const pagoCon = conEfectivo && res.recibido !== undefined ? res.recibido : null;
     return enviar(fd, pagoCon);
   }
 

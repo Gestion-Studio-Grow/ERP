@@ -19,7 +19,7 @@ import { UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, vigenteEn } from "@/lib/fiscal/
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { motivoSinFactura, textoDelReceptor } from "./factura-del-mostrador";
 import VenderForm from "./VenderForm";
-import { cargarBoutique, cargarVender } from "./datos";
+import { cargarBoutique, cargarEnvios, cargarVender } from "./datos";
 import { puedeAbrirApp } from "./puede-abrir";
 import { balanzaDeVender } from "./balanza.server";
 import { TECLAS_BOUTIQUE, teclasDelMostrador, topeDeDescuento, topeDePrecioAMano } from "./reglas-venta";
@@ -62,6 +62,10 @@ export default async function MostradorDeVenta({
   // mostrador sigue igual). Suma las zonas de envío y si el día está cerrado.
   const boutique = mostradorBoutiquePrendido(interruptores);
   const extras = boutique ? await cargarBoutique(tenantId, hoy) : null;
+  // O-2: en el Vender de siempre de un COMERCIO (interruptor apagado), las zonas de envío también:
+  // si el negocio tiene zonas, el servidor exige la zona en el pedido con envío y la pantalla tiene
+  // que poder elegirla. CH (no es comercio) no lee nada nuevo.
+  const enviosDeSiempre = !boutique && identidad.isRetail ? await cargarEnvios(tenantId) : null;
   const balanza = identidad.isRetail ? await balanzaDeVender(tenantId, datos.products, user.role) : null;
   // Sin el módulo ni la balanza configurada, los códigos no viajan al navegador: la lista es la de
   // siempre. Con la balanza, el campo de la etiqueta necesita el PLU de cada producto.
@@ -139,6 +143,7 @@ export default async function MostradorDeVenta({
         // que no es comercio (una heladería) sigue como estaba.
         conPeso={quienCompra !== "clienta"}
         quienCompra={quienCompra}
+        envios={enviosDeSiempre}
         {...(extras
           ? {
               boutique: {

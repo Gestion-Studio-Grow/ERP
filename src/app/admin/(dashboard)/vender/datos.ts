@@ -65,17 +65,25 @@ export type ExtrasBoutique = {
   diaCerrado: string | null;
 };
 
+/**
+ * Las zonas de envío del negocio (sin la versión). null si no se pudieron leer: el pedido sigue sin
+ * zonas en pantalla y, si el negocio tiene zonas, el servidor pide la zona con su motivo (O-2).
+ */
+export function cargarEnvios(tenantId: string): Promise<ConfigEnvios | null> {
+  return leerConfigEnvios(prisma, tenantId)
+    .then(({ version: _version, ...config }): ConfigEnvios => {
+      void _version;
+      return config;
+    })
+    .catch((e) => {
+      logger.error("vender.envios", "no se pudo leer la configuración de envíos: el pedido sigue sin zonas", e);
+      return null;
+    });
+}
+
 export async function cargarBoutique(tenantId: string, hoy: string): Promise<ExtrasBoutique> {
   const [envios, cerradoHasta] = await Promise.all([
-    leerConfigEnvios(prisma, tenantId)
-      .then(({ version: _version, ...config }): ConfigEnvios => {
-        void _version;
-        return config;
-      })
-      .catch((e) => {
-        logger.error("vender.envios", "no se pudo leer la configuración de envíos: el pedido sigue sin zonas", e);
-        return null;
-      }),
+    cargarEnvios(tenantId),
     lastClosedDay(tenantId).catch((e) => {
       logger.error("vender.dia", "no se pudo leer el cierre del día: Vender no muestra la banda (el cobro lo frena igual)", e);
       return null;
