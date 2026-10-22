@@ -70,6 +70,37 @@ export function camposDeTerminar(p: {
   return [...base, ["method", p.cobro.metodo]];
 }
 
+/**
+ * «Dividir el pago» (Tanda 2): los campos de `terminarYCobrarDividido` (src/lib/turnos/cobro-actions.ts).
+ * Las líneas viajan como JSON en `pagos`, con el monto en número (el servidor revalida el reparto
+ * contra el saldo, al centavo). Un Reservado viaja con `vino=on`, igual que en `camposDeTerminar`.
+ */
+export function camposDeDividir(p: {
+  turnoId: string;
+  lineas: readonly { metodo: MetodoDePago; monto: number }[];
+  estado?: string;
+}): Campos {
+  const c: [string, string][] = [
+    ["appointmentId", p.turnoId],
+    ["pagos", JSON.stringify(p.lineas.map((l) => ({ metodo: l.metodo, monto: l.monto })))],
+  ];
+  if (p.estado === "PENDING") c.push(["vino", "on"]);
+  return c;
+}
+
+/**
+ * «Llegó la seña» (Tanda 2): los campos de `cobrarSeniaYConfirmar`. El medio por defecto (transferencia)
+ * lo pone la pantalla, no el servidor; `amount` es lo que decía el botón, para que una pantalla vieja
+ * no cobre un monto que la recepción no vio.
+ */
+export function camposDeSenia(p: { turnoId: string; monto: number; metodo: MetodoDePago }): Campos {
+  return [
+    ["appointmentId", p.turnoId],
+    ["method", p.metodo],
+    ["amount", importeParaFormulario(p.monto)],
+  ];
+}
+
 /** Confirmar, cancelar, no vino: sólo el turno. */
 export function camposDelTurno(turnoId: string): Campos {
   return [["appointmentId", turnoId]];
