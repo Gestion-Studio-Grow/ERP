@@ -61,8 +61,10 @@ con «un agente = una tarea»).
 - **Nada binario en Git** (mp4, png, pdf, ttf): Drive o almacenamiento de archivos.
 
 ## Modelo
-Decisión del dueño (2026-09-23): Opus 5.5 en sesiones, células, subagentes y workflows. Excepción ordenada por el
-dueño el 22/10/2026 para la reingeniería: **diseño, planificación y certificación en Fable**; construcción en Opus.
+Decisión del dueño (2026-09-23): Opus 5.5 en sesiones, células, subagentes y workflows. Desde el 23/10/2026 también
+diseño, planificación y certificación van en **Opus** (reemplaza la excepción Fable del 22/10). **Fable sólo como
+escalamiento técnico:** cuando Opus agotó sus 2 vueltas de corrección y siguen fallas alta/media, una única vuelta en
+Fable, con el motivo escrito en el informe. Si Opus lo resuelve, no se usa Fable.
 
 ## Verificación y QA
 `npm run gates` · `npx tsc --noEmit` · `node --import tsx --test <archivos>` · `npm run build` al integrar.
