@@ -31,12 +31,14 @@ import { decidirFiadoDeLaEntrega } from "@/lib/clientes/fiado.server";
 import {
   ACCION_REPARTO,
   cobradoAntesDeSalir,
+  cobroDelLibro,
   idDeReparto,
+  rendicionDelYaPago,
   mensajeDeLoDejadoSinCobrar,
   type MarcaDeReparto,
   type ResultadoDeRendicion,
 } from "./reparto-core";
-import { ultimaMarcaConFecha, ultimaMarcaDelPedido } from "./datos.server";
+import { ultimaMarcaConFecha, ultimaMarcaDelPedido, ventasDelLibro } from "./datos.server";
 
 const RUTAS = ["/admin/pedidos", "/admin/pedidos/reparto", "/admin/pedidos/reparto/rendicion"];
 const MAX_POR_SALIDA = 60;
@@ -137,7 +139,7 @@ export async function rendirPedido(formData: FormData): Promise<OrderActionState
 
   const o = await prisma.order.findFirst({
     where: { id, tenantId },
-    select: { id: true, code: true, status: true, paid: true, total: true, fulfillment: true, customerName: true },
+    select: { id: true, code: true, status: true, paid: true, paymentMethod: true, total: true, fulfillment: true, customerName: true },
   });
   if (!o || o.fulfillment !== "DELIVERY") return { ok: false, error: "No se encontró ese envío. Recargá la rendición." };
   const conFecha = await ultimaMarcaConFecha(tenantId, id);
@@ -169,11 +171,25 @@ export async function rendirPedido(formData: FormData): Promise<OrderActionState
 
   if (resultado === "ya-pago") {
     if (!o.paid) return { ok: false, error: `El pedido #${o.code} no figura cobrado: rendilo con el medio con que pagó o «Lo dejó sin cobrar».` };
+    // O-3 (recertificación): «Ya pagó» de un pedido cobrado en ESTE reparto (el puesto 1 cobró y
+    // la entrega falló; el puesto 2 lo ve pago) se rinde «cobrado» con los pagos del LIBRO: si no,
+    // el efectivo que trae el cadete desaparecería del resumen. El formulario no trae pagos.
+    const yaPagoDe = rendicionDelYaPago({
+      paid: o.paid,
+      salio: conFecha?.en ?? null,
+      libro: cobroDelLibro(await ventasDelLibro(tenantId, id), o.paymentMethod),
+    });
     const r = await entregarPedido(null, soloId);
     if (!r?.ok) return r;
-    await rendido("ya-pago", []);
+    await rendido(yaPagoDe.resultado, yaPagoDe.pagos);
     revalidar();
-    return { ok: true, mensaje: `Pedido #${o.code} entregado (ya estaba pago).` };
+    return {
+      ok: true,
+      mensaje:
+        yaPagoDe.resultado === "cobrado"
+          ? `Pedido #${o.code} entregado: se cobró en este reparto (${textoPlata(yaPagoDe.pagos.reduce((s, p) => s + p.monto, 0))}), va en la rendición.`
+          : `Pedido #${o.code} entregado (ya estaba pago).`,
+    };
   }
 
   if (resultado === "a-cobrar") {
@@ -210,14 +226,9 @@ export async function rendirPedido(formData: FormData): Promise<OrderActionState
   // O-3: «ya pagó» sólo si el cobro es ANTERIOR a la salida del cadete. Cobrado en este reparto
   // (el reintento tras una entrega que falló, o el doble envío que encontró el cobro hecho), la
   // marca lleva los pagos: si no, el resumen perdería el efectivo que trae el cadete.
-  const primeraVenta = o.paid
-    ? await prisma.cashMovement.findFirst({
-        where: { tenantId, orderId: id, type: "VENTA" },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        select: { createdAt: true },
-      })
-    : null;
-  const yaPago = cobradoAntesDeSalir({ paid: o.paid, primeraVenta: primeraVenta?.createdAt ?? null, salio: conFecha?.en ?? null });
+  // El libro incluye las VENTAs del pago mixto (cuelgan del cobro, no del pedido).
+  const primeraVenta = o.paid ? cobroDelLibro(await ventasDelLibro(tenantId, id), o.paymentMethod).primeraVenta : null;
+  const yaPago = cobradoAntesDeSalir({ paid: o.paid, primeraVenta, salio: conFecha?.en ?? null });
   const cobro = await cobrarPedido(null, formData);
   if (!cobro?.ok) return cobro;
   const entrega = await entregarPedido(null, soloId);

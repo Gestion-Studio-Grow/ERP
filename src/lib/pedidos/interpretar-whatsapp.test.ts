@@ -534,6 +534,16 @@ test("F-2a (CERT-magra-t2b) · la marca invisible LRM/RLM/BOM que WhatsApp iOS/W
   assert.equal(leer(chat).nombre, "Laura Gómez");
 });
 
+test("F-2a (recertificación) · la marca invisible delante del nombre o envolviendo el número no agendado (iOS) no queda en el nombre", () => {
+  const LRE = "‪";
+  const PDF = "‬";
+  const numero = leer(`[10:16] ${LRE}+54 9 11 5555-1234${PDF}: 2 kg de vacío`);
+  assert.equal(numero.nombre, "+54 9 11 5555-1234");
+  assert.ok(!/[​-‏‪-‮⁠-⁩﻿]/.test(numero.nombre ?? ""), "sin marcas de formato");
+  assert.deepEqual(trio(`[10:16] ${LRE}+54 9 11 5555-1234${PDF}: 2 kg de vacío`), [["vacio", 2, true]]);
+  assert.equal(leer(`⁨[10:16] ‎Laura Gómez⁩: 2 kg de vacío`).nombre, "Laura Gómez");
+});
+
 test("F-2b · la fecha dd/mm no se lee como cantidad: «para el 25/10 2 kg de vacío» son 2 kg; las fracciones siguen", () => {
   assert.deepEqual(trio("para el 25/10 2 kg de vacío"), [["vacio", 2, true]]);
   assert.deepEqual(trio("para el 25/10/2026 2 kg de vacío"), [["vacio", 2, true]]);

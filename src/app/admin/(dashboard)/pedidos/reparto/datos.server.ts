@@ -24,6 +24,7 @@ import {
   type EnvioDelReparto,
   type EnvioLeido,
   type MarcaDeReparto,
+  type VentaDelLibro,
 } from "./reparto-core";
 
 export type Rendido = Extract<MarcaDeReparto, { tipo: "rendido" }> & { id: string; cuando: string };
@@ -126,4 +127,18 @@ export async function ultimaMarcaConFecha(tenantId: string, orderId: string): Pr
   });
   const marca = fila ? leerMarcaDeReparto(fila.changes) : null;
   return fila && marca ? { marca, en: fila.createdAt } : null;
+}
+
+/**
+ * Las VENTAs del libro de UN pedido (O-3): la del cobro de un medio (`orderId`) y las del pago
+ * mixto (cuelgan del cobro, `Collection.orderId`). Acotado por el `tenantId` de la sesión.
+ */
+export async function ventasDelLibro(tenantId: string, orderId: string): Promise<VentaDelLibro[]> {
+  const filas = await prisma.cashMovement.findMany({
+    where: { tenantId, type: "VENTA", OR: [{ orderId }, { collection: { tenantId, orderId } }] },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    take: 10,
+    select: { createdAt: true, amount: true, method: true, collection: { select: { method: true } } },
+  });
+  return filas.map((f) => ({ en: f.createdAt, monto: Number(f.amount), columna: f.method, medioDelCobro: f.collection?.method ?? null }));
 }

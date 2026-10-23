@@ -6,6 +6,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   cobradoAntesDeSalir,
+  cobroDelLibro,
+  rendicionDelYaPago,
   cobroDelEnvio,
   envioDelReparto,
   estadoDelReparto,
@@ -262,4 +264,35 @@ test("O-2 (CERT-magra-t2b) · «Lo dejó sin cobrar» con las cuentas corrientes
   assert.equal(mensajeDeLoDejadoSinCobrar({ ...base, motivoSinFiado: "apagado" }), "Pedido #7001 entregado sin cobrar: queda en «A cobrar» por $8.000.");
   assert.equal(mensajeDeLoDejadoSinCobrar({ ...base, motivoSinFiado: null }), "Pedido #7001 entregado sin cobrar: queda en «A cobrar» por $8.000.");
   assert.equal(mensajeDeLoDejadoSinCobrar({ ...base, alFiado: true, mensajeDeLaEntrega: "quedó en la cuenta de Ana", motivoSinFiado: null }), "quedó en la cuenta de Ana");
+});
+
+test("O-3 (recertificación) · cobrado en ESTE reparto y rendido «Ya pagó» desde otro puesto: se rinde «cobrado» con los pagos del libro y el resumen conserva el efectivo", () => {
+  const salio = new Date("2026-10-22T20:00:00.000Z");
+  const despues = new Date("2026-10-22T20:30:00.000Z");
+  const antes = new Date("2026-10-22T19:00:00.000Z");
+  // Puesto 1 cobró $12.000 en efectivo (VENTA posterior a «salió») y la entrega falló.
+  const libro = cobroDelLibro([{ en: despues, monto: 12000, columna: "EFECTIVO", medioDelCobro: null }], "EFECTIVO");
+  assert.deepEqual(libro, { primeraVenta: despues, pagos: [{ medio: "EFECTIVO", monto: 12000 }] });
+  const r = rendicionDelYaPago({ paid: true, salio, libro });
+  assert.deepEqual(r, { resultado: "cobrado", pagos: [{ medio: "EFECTIVO", monto: 12000 }] });
+  const marca = { tipo: "rendido" as const, reparto: "rep_1", code: 7003, cliente: "Ana", total: 12000, id: "o7003", ...r };
+  const resumen = resumenDeLaRendicion([marca]);
+  assert.deepEqual([resumen.efectivo, resumen.cobrados, resumen.yaPagos], [12000, 1, 0]);
+  // Pago mixto: los medios salen de los cobros; la columna MP no se adivina.
+  const mixto = cobroDelLibro(
+    [
+      { en: despues, monto: 7000, columna: "EFECTIVO", medioDelCobro: "EFECTIVO" },
+      { en: despues, monto: 5000, columna: "MP", medioDelCobro: "TRANSFERENCIA" },
+    ],
+    "EFECTIVO",
+  );
+  assert.deepEqual(rendicionDelYaPago({ paid: true, salio, libro: mixto }).pagos, [
+    { medio: "EFECTIVO", monto: 7000 },
+    { medio: "TRANSFERENCIA", monto: 5000 },
+  ]);
+  // Pagó antes de salir (MP de la tienda): «ya-pago», sin plata del cadete.
+  const previo = cobroDelLibro([{ en: antes, monto: 12000, columna: "MP", medioDelCobro: null }], "MERCADOPAGO");
+  assert.deepEqual(rendicionDelYaPago({ paid: true, salio, libro: previo }), { resultado: "ya-pago", pagos: [] });
+  // Sin VENTA en el libro: «ya-pago».
+  assert.deepEqual(rendicionDelYaPago({ paid: true, salio, libro: cobroDelLibro([], null) }), { resultado: "ya-pago", pagos: [] });
 });

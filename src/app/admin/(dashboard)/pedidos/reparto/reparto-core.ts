@@ -508,6 +508,47 @@ export function cobradoAntesDeSalir(p: { paid: boolean; primeraVenta: Date | nul
   return p.primeraVenta.getTime() < p.salio.getTime();
 }
 
+/** Una VENTA del libro del pedido: su asiento y, si fue un pago mixto, el cobro (`Collection`) que la originó. */
+export type VentaDelLibro = { en: Date; monto: number; columna: string; medioDelCobro: string | null };
+
+/**
+ * Lo que dice el LIBRO del cobro de un pedido (O-3, recertificación): cuándo entró la primera VENTA
+ * y cuánto por cada medio. El medio sale del cobro del pago mixto; si no, del medio del pedido; si
+ * tampoco, de la columna Efectivo del libro (la de MP junta MP y transferencia: no se adivina). PURA.
+ */
+export function cobroDelLibro(
+  ventas: readonly VentaDelLibro[],
+  medioDelPedido: string | null,
+): { primeraVenta: Date | null; pagos: { medio: MedioDeCobro; monto: number }[] } {
+  let primeraVenta: Date | null = null;
+  const suma = new Map<MedioDeCobro, number>();
+  for (const v of ventas) {
+    if (!primeraVenta || v.en.getTime() < primeraVenta.getTime()) primeraVenta = v.en;
+    const medio = medioValido(v.medioDelCobro) ?? medioValido(medioDelPedido) ?? (v.columna === "EFECTIVO" ? "EFECTIVO" : null);
+    if (!medio || !(Number.isFinite(v.monto) && v.monto > 0)) continue;
+    suma.set(medio, (suma.get(medio) ?? 0) + v.monto);
+  }
+  return { primeraVenta, pagos: [...suma].map(([medio, monto]) => ({ medio, monto })) };
+}
+
+function medioValido(m: string | null): MedioDeCobro | null {
+  return m && MEDIOS.has(m) ? (m as MedioDeCobro) : null;
+}
+
+/**
+ * «Ya pagó» de la rendición (O-3, recertificación): si el libro dice que se cobró en ESTE reparto
+ * (la primera VENTA es posterior a «salió»: el puesto 1 cobró y la entrega falló, el puesto 2 lo ve
+ * pago), se rinde «cobrado» con los pagos DEL LIBRO, nunca los del formulario; si no, «ya-pago». PURA.
+ */
+export function rendicionDelYaPago(p: {
+  paid: boolean;
+  salio: Date | null;
+  libro: { primeraVenta: Date | null; pagos: { medio: MedioDeCobro; monto: number }[] };
+}): { resultado: ResultadoDeRendicion; pagos: { medio: MedioDeCobro; monto: number }[] } {
+  const antes = cobradoAntesDeSalir({ paid: p.paid, primeraVenta: p.libro.primeraVenta, salio: p.salio });
+  return antes || p.libro.pagos.length === 0 ? { resultado: "ya-pago", pagos: [] } : { resultado: "cobrado", pagos: p.libro.pagos };
+}
+
 /**
  * Lo que contesta «Lo dejó sin cobrar» (O-2, CERT-magra-t2b): al fiado, el mensaje de la entrega
  * («… quedó en la cuenta de Ana …»); con las cuentas corrientes prendidas y sin la app de Fiado,

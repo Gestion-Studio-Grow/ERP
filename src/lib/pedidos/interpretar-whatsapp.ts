@@ -797,8 +797,16 @@ export const IMPORTE_A_REVISAR_DEL_CHAT = 500_000;
  * «22/10/26 10:15 - Ana: …»): se saca el encabezado, se toma quién escribe y se descartan las
  * líneas del propio negocio (y «Yo»/«Tú»).
  */
+/**
+ * Las marcas de formato invisibles que iOS y WhatsApp meten al copiar (LRM/RLM, los embebidos
+ * U+202A–U+202E que envuelven un número no agendado «‪+54 9 11 5555-1234‬», los aislados
+ * U+2066–U+2069, los de ancho cero y el BOM). `trim` no las saca: sin esto quedan en el nombre
+ * del remitente y se graban en el pedido (F-2a, recertificación).
+ */
+const MARCAS_DE_FORMATO = /[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g;
+
 function limpiarEncabezados(original: string, negocio: string | null): { texto: string; remitente: string | null } {
-  const lineas = original.split("\n");
+  const lineas = original.replace(MARCAS_DE_FORMATO, "").split("\n");
   const negocioNorm = negocio ? normalizarTexto(negocio).replace(/[^a-z0-9 ]/g, " ").trim() : "";
   let remitente: string | null = null;
   const out: string[] = [];
