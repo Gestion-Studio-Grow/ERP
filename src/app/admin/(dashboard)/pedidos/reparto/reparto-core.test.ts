@@ -5,6 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  cobradoAntesDeSalir,
   cobroDelEnvio,
   envioDelReparto,
   estadoDelReparto,
@@ -16,6 +17,7 @@ import {
   hojaImprimible,
   idDeReparto,
   leerMarcaDeReparto,
+  mensajeDeLoDejadoSinCobrar,
   notaDeLaClienta,
   ordenarReparto,
   resumenDeLaRendicion,
@@ -224,4 +226,40 @@ test("O-3 · doble «cobrado» del mismo envío (dos marcas «rendido»): el res
   assert.deepEqual(r.porMedio.map((m) => [m.medio, m.monto]), [["EFECTIVO", 20000], ["MERCADOPAGO", 5000]]);
   // Sin id, por el número del pedido.
   assert.equal(resumenDeLaRendicion([marca, marca]).efectivo, 20000);
+});
+
+test("O-3 (CERT-magra-t2b) · el reintento del «cobrado» deja un «ya-pago» después del «cobrado»: el resumen conserva el efectivo del cadete", () => {
+  const base = { tipo: "rendido" as const, reparto: "rep_1", code: 7001, cliente: "Ana", total: 12000, id: "o7001" };
+  const cobrado = { ...base, resultado: "cobrado" as const, pagos: [{ medio: "EFECTIVO" as const, monto: 12000 }] };
+  const yaPago = { ...base, resultado: "ya-pago" as const, pagos: [] };
+  // El hallazgo: manda la última → efectivo 0, yaPagos 1, con la VENTA de $12.000 en el libro.
+  const r = resumenDeLaRendicion([cobrado, yaPago]);
+  assert.deepEqual([r.efectivo, r.cobrados, r.yaPagos], [12000, 1, 0]);
+  // En cualquier orden.
+  const inverso = resumenDeLaRendicion([yaPago, cobrado]);
+  assert.deepEqual([inverso.efectivo, inverso.cobrados, inverso.yaPagos], [12000, 1, 0]);
+  // Un «ya-pago» solo sigue contando como ya pago; y otro pedido no se mezcla.
+  const solo = resumenDeLaRendicion([yaPago, { ...yaPago, id: "o7002", code: 7002 }]);
+  assert.deepEqual([solo.efectivo, solo.yaPagos], [0, 2]);
+});
+
+test("O-3 (CERT-magra-t2b) · «ya pagó» sólo si la VENTA del libro es anterior a la salida del cadete", () => {
+  const salio = new Date("2026-10-22T20:00:00.000Z");
+  const antes = new Date("2026-10-22T19:00:00.000Z");
+  const despues = new Date("2026-10-22T20:30:00.000Z");
+  assert.equal(cobradoAntesDeSalir({ paid: true, primeraVenta: antes, salio }), true, "pagó por MP antes de salir");
+  assert.equal(cobradoAntesDeSalir({ paid: true, primeraVenta: despues, salio }), false, "se cobró en este reparto: el reintento");
+  assert.equal(cobradoAntesDeSalir({ paid: false, primeraVenta: null, salio }), false);
+  assert.equal(cobradoAntesDeSalir({ paid: true, primeraVenta: null, salio }), true, "sin VENTA en el libro no hay plata del cadete");
+  assert.equal(cobradoAntesDeSalir({ paid: true, primeraVenta: despues, salio: null }), true);
+});
+
+test("O-2 (CERT-magra-t2b) · «Lo dejó sin cobrar» con las cuentas corrientes prendidas y sin la app de Fiado avisa que NO quedó en la cuenta", () => {
+  const base = { code: 7001, total: 8000, alFiado: false, mensajeDeLaEntrega: "Pedido #7001 entregado sin cobrar, pero NO quedó…" };
+  const sinApp = mensajeDeLoDejadoSinCobrar({ ...base, motivoSinFiado: "sin-app" });
+  assert.match(sinApp, /^Pedido #7001 entregado sin cobrar, pero NO quedó en la cuenta del cliente/);
+  assert.notEqual(sinApp, "Pedido #7001 entregado sin cobrar: queda en «A cobrar» por $8.000.");
+  assert.equal(mensajeDeLoDejadoSinCobrar({ ...base, motivoSinFiado: "apagado" }), "Pedido #7001 entregado sin cobrar: queda en «A cobrar» por $8.000.");
+  assert.equal(mensajeDeLoDejadoSinCobrar({ ...base, motivoSinFiado: null }), "Pedido #7001 entregado sin cobrar: queda en «A cobrar» por $8.000.");
+  assert.equal(mensajeDeLoDejadoSinCobrar({ ...base, alFiado: true, mensajeDeLaEntrega: "quedó en la cuenta de Ana", motivoSinFiado: null }), "quedó en la cuenta de Ana");
 });

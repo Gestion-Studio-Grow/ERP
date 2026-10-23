@@ -218,4 +218,51 @@ test("reparto contra Postgres: salida, rendición por medio al libro, volvió / 
   // B no ve nada de A.
   const datosB = valor(await ejecutarAccion(sesionB, () => leerDatosDelReparto(base.b.id)));
   assert.equal(datosB.rendidosHoy.length, 0);
+
+  // ── O-3 (CERT-magra-t2b) · la ventana entre el cobro y la marca: el pedido ya quedó cobrado EN
+  // este reparto (el primer intento cobró y no llegó a marcar). El «cobrado» que llega después no
+  // es «ya-pago»: la marca lleva el efectivo y el resumen lo suma. ──
+  const { cobrarPedido } = await import("@/lib/order-actions");
+  const espera = () => new Promise((r) => setTimeout(r, 15));
+  const o13 = await envio(caja12.id);
+  assert.ok(valor(await ejecutarAccion(sesionA, () => salioElReparto(formulario(ids([o13]))))).ok);
+  await espera();
+  const primerCobro = valor(await ejecutarAccion(sesionA, () => cobrarPedido(null, formulario([["id", o13.id], ...efectivo("12000.00").slice(1)]))));
+  assert.equal(primerCobro?.ok, true, JSON.stringify(primerCobro));
+  const reintento = valor(await rendir(o13, efectivo("12000.00")));
+  assert.equal(reintento?.ok, true, JSON.stringify(reintento));
+  const marca13 = await duenio.auditLog.findFirstOrThrow({
+    where: { tenantId: base.a.id, entity: "Order", action: "reparto", entityId: o13.id },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  });
+  const leida13 = leerMarcaDeReparto(marca13.changes);
+  assert.ok(leida13?.tipo === "rendido" && leida13.resultado === "cobrado", JSON.stringify(leida13));
+  assert.deepEqual(leida13.tipo === "rendido" ? leida13.pagos : null, [{ medio: "EFECTIVO", monto: 12000 }]);
+  assert.equal(await duenio.cashMovement.count({ where: { tenantId: base.a.id, orderId: o13.id, type: "VENTA" } }), 1, "una sola VENTA");
+  const conO13 = resumenDeLaRendicion(valor(await ejecutarAccion(sesionA, () => leerDatosDelReparto(base.a.id))).rendidosHoy);
+  assert.deepEqual([conO13.efectivo, conO13.cobrados, conO13.yaPagos], [38000 + 12000 + 12000, 5, 0]);
+
+  // Pagado ANTES de salir (Mercado Pago por adelantado): el «cobrado» del cadete es «ya-pago».
+  const o14 = await envio(caja12.id);
+  assert.equal(valor(await ejecutarAccion(sesionA, () => cobrarPedido(null, formulario([["id", o14.id], ["paymentMethod", "MERCADOPAGO"], ["pagado", "1"], ["paid", "on"]]))))?.ok, true);
+  await espera();
+  assert.ok(valor(await ejecutarAccion(sesionA, () => salioElReparto(formulario(ids([o14]))))).ok);
+  const r14 = valor(await rendir(o14, [["resultado", "cobrado"], ["paymentMethod", "MERCADOPAGO"], ["pagado", "1"], ["paid", "on"]]));
+  assert.ok(r14?.ok && r14.mensaje?.includes("ya estaba cobrado"), JSON.stringify(r14));
+  const conO14 = resumenDeLaRendicion(valor(await ejecutarAccion(sesionA, () => leerDatosDelReparto(base.a.id))).rendidosHoy);
+  assert.deepEqual([conO14.efectivo, conO14.cobrados, conO14.yaPagos], [38000 + 12000 + 12000, 5, 1]);
+
+  // ── O-2 (CERT-magra-t2b) · cuentas corrientes prendidas e «inicio por apps» apagado: «Lo dejó
+  // sin cobrar» no registra la deuda y lo DICE (no el genérico de «A cobrar»). ──
+  delete process.env.CUENTAS_CORRIENTES_ENABLED;
+  await duenio.auditLog.create({
+    data: { tenantId: base.a.id, actor: "operator:test", action: "interruptor.encender", entity: "Interruptor", entityId: "cuentas-corrientes", channel: "operador", changes: {} },
+  });
+  const o15 = await envio(cajas[4].id);
+  assert.ok(valor(await ejecutarAccion(sesionA, () => salioElReparto(formulario(ids([o15]))))).ok);
+  const sinApp = valor(await rendir(o15, [["resultado", "a-cobrar"]]));
+  assert.ok(sinApp?.ok && /NO quedó en la cuenta del cliente/.test(sinApp.mensaje ?? ""), JSON.stringify(sinApp));
+  const g15 = await duenio.order.findUniqueOrThrow({ where: { id: o15.id } });
+  assert.deepEqual([g15.status, g15.paid], ["DELIVERED", false], "queda en la bandeja «a cobrar»");
+  assert.equal(await duenio.accountReceivable.count({ where: { tenantId: base.a.id } }), 0, "ninguna deuda en una cuenta que nadie puede cobrar");
 });

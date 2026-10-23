@@ -23,6 +23,7 @@ import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
 import { MEDIOS_DE_COBRO, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import { resumenDeLineas } from "../pedidos-core";
+import { mensajeEntregaSinAppDeFiado } from "@/lib/clientes/fiado";
 
 /** La acción de AuditLog de las marcas del reparto (entity "Order", entityId = id del pedido). */
 export const ACCION_REPARTO = "reparto";
@@ -453,13 +454,20 @@ export type ResumenDeLaRendicion = {
  * Cada pedido cuenta UNA vez (O-3, CERT-magra-t2): dos «cobrado» del mismo envío en paralelo dejan
  * dos marcas «rendido» (la plata entra una sola vez: el cobro es idempotente), y el resumen no
  * puede decir que el cadete trae el doble. Se deduplica por el id del pedido (`id`, el de
- * `leerDatosDelReparto`) o, sin él, por su número; manda la última marca de la lista.
+ * `leerDatosDelReparto`) o, sin él, por su número; manda la última marca de la lista, salvo que
+ * sea un «ya-pago» de un pedido que ya tiene un «cobrado» con pagos (O-3, CERT-magra-t2b): el
+ * reintento del mismo cobro no borra del resumen el efectivo que trae el cadete.
  */
 export function resumenDeLaRendicion(
   todas: readonly (Extract<MarcaDeReparto, { tipo: "rendido" }> & { id?: string })[],
 ): ResumenDeLaRendicion {
   const porPedido = new Map<string, Extract<MarcaDeReparto, { tipo: "rendido" }>>();
-  for (const r of todas) porPedido.set(r.id ?? `#${r.code}`, r);
+  for (const r of todas) {
+    const clave = r.id ?? `#${r.code}`;
+    const previa = porPedido.get(clave);
+    if (r.resultado === "ya-pago" && previa?.resultado === "cobrado" && previa.pagos.length > 0) continue;
+    porPedido.set(clave, r);
+  }
   const rendidos = [...porPedido.values()];
   const suma = new Map<MedioDeCobro, number>();
   let cobrados = 0;
@@ -485,6 +493,36 @@ export function resumenDeLaRendicion(
     monto: suma.get(m.valor) ?? 0,
   }));
   return { porMedio, efectivo: suma.get("EFECTIVO") ?? 0, cobrados, yaPagos, aCobrar, aCuenta };
+}
+
+/**
+ * «Cobrado» de un envío que el pedido ya figura cobrado: ¿estaba pago ANTES de que saliera el
+ * cadete («ya-pago», el cadete no trae plata) o se cobró en ESTE reparto y la marca no llegó a
+ * grabarse (el reintento diseñado, o el doble envío que encontró el cobro hecho)? Lo decide el
+ * libro: la primera VENTA del pedido contra la marca «salió» (O-3, CERT-magra-t2b). Sin VENTA en
+ * el libro o sin la fecha de la salida no hay plata que atribuirle al cadete: «ya-pago». PURA.
+ */
+export function cobradoAntesDeSalir(p: { paid: boolean; primeraVenta: Date | null; salio: Date | null }): boolean {
+  if (!p.paid) return false;
+  if (!p.primeraVenta || !p.salio) return true;
+  return p.primeraVenta.getTime() < p.salio.getTime();
+}
+
+/**
+ * Lo que contesta «Lo dejó sin cobrar» (O-2, CERT-magra-t2b): al fiado, el mensaje de la entrega
+ * («… quedó en la cuenta de Ana …»); con las cuentas corrientes prendidas y sin la app de Fiado,
+ * el aviso de que NO quedó en la cuenta (`mensajeEntregaSinAppDeFiado`); si no, el de siempre. PURA.
+ */
+export function mensajeDeLoDejadoSinCobrar(p: {
+  code: number;
+  total: number;
+  alFiado: boolean;
+  mensajeDeLaEntrega: string | undefined;
+  motivoSinFiado: string | null;
+}): string {
+  if (p.alFiado && p.mensajeDeLaEntrega) return p.mensajeDeLaEntrega;
+  if (p.motivoSinFiado === "sin-app") return mensajeEntregaSinAppDeFiado(p.code);
+  return `Pedido #${p.code} entregado sin cobrar: queda en «A cobrar» por ${textoPlata(p.total)}.`;
 }
 
 /** «Efectivo $38.000 · Mercado Pago $25.000» (o «Nada cobrado todavía»). PURA. */

@@ -114,10 +114,16 @@ export async function leerDatosDelReparto(tenantId: string): Promise<DatosDelRep
 
 /** Las marcas de UN pedido, la última primero (para las acciones). */
 export async function ultimaMarcaDelPedido(tenantId: string, orderId: string): Promise<MarcaDeReparto | null> {
+  return (await ultimaMarcaConFecha(tenantId, orderId))?.marca ?? null;
+}
+
+/** La última marca y cuándo se grabó (la rendición compara «salió» contra el cobro: O-3). */
+export async function ultimaMarcaConFecha(tenantId: string, orderId: string): Promise<{ marca: MarcaDeReparto; en: Date } | null> {
   const fila = await prisma.auditLog.findFirst({
     where: { tenantId, entity: "Order", action: ACCION_REPARTO, entityId: orderId },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    select: { changes: true },
+    select: { changes: true, createdAt: true },
   });
-  return fila ? leerMarcaDeReparto(fila.changes) : null;
+  const marca = fila ? leerMarcaDeReparto(fila.changes) : null;
+  return fila && marca ? { marca, en: fila.createdAt } : null;
 }

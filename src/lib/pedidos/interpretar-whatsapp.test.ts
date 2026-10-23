@@ -520,6 +520,20 @@ test("F-2a · encabezados de WhatsApp Web/Desktop: «[hh:mm, dd/mm/yyyy] Nombre:
   assert.deepEqual(trio("22/10/26, 10:15 - Laura: 2 kg de vacío"), [["vacio", 2, true]]);
 });
 
+test("F-2a (CERT-magra-t2b) · la marca invisible LRM/RLM/BOM que WhatsApp iOS/Web antepone a la línea no deja la hora como cantidad", () => {
+  const LRM = "‎";
+  // El hallazgo: "‎[10:20] Laura: chorizo" → [["chorizo",10,true]].
+  assert.notDeepEqual(trio(`${LRM}[10:20] Laura: chorizo`), [["chorizo", 10, true]]);
+  assert.deepEqual(trio(`${LRM}[10:20] Laura: chorizo`), [["chorizo", null, false]]);
+  assert.deepEqual(trio(`‏[10:20, 22/10/2026] Laura: chorizo`), [["chorizo", null, false]]);
+  assert.deepEqual(trio(`﻿${LRM} [22/10/26, 10:15] Laura: chorizo`), [["chorizo", null, false]]);
+  assert.deepEqual(trio(`${LRM}22/10/26, 10:15 - Laura: 2 kg de vacío`), [["vacio", 2, true]]);
+  // Con la marca, la línea del negocio también se reconoce y se descarta; el remitente se toma.
+  const chat = `${LRM}[10:15] Magra: te mando 3 kg de vacío?\n${LRM}[10:16] Laura Gómez: 2 kg de vacío`;
+  assert.deepEqual(trio(chat), [["vacio", 2, true]]);
+  assert.equal(leer(chat).nombre, "Laura Gómez");
+});
+
 test("F-2b · la fecha dd/mm no se lee como cantidad: «para el 25/10 2 kg de vacío» son 2 kg; las fracciones siguen", () => {
   assert.deepEqual(trio("para el 25/10 2 kg de vacío"), [["vacio", 2, true]]);
   assert.deepEqual(trio("para el 25/10/2026 2 kg de vacío"), [["vacio", 2, true]]);

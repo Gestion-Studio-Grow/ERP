@@ -755,13 +755,19 @@ function leerDireccion(original: string): { direccion: string | null; tramos: Tr
 
 const HORA_DEL_CHAT = String.raw`\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?\s*m\.?)?`;
 const FECHA_DEL_CHAT = String.raw`\d{1,2}\/\d{1,2}\/\d{2,4}`;
+/**
+ * Las marcas invisibles que WhatsApp (iOS / Web) antepone a cada línea copiada: LRM U+200E, RLM
+ * U+200F y el BOM U+FEFF. No son `\s`: sin tolerarlas el encabezado no se reconoce y la hora
+ * «[10:20]» se leería como cantidad segura (F-2a, CERT-magra-t2b).
+ */
+const MARCAS_INVISIBLES = String.raw`[\s\u200E\u200F\uFEFF]*`;
 /** Android y exportado: «22/10/26, 10:15 - Ana:» o «[22/10/26, 10:15] Ana:». */
 const ENCABEZADO_ANDROID = new RegExp(
-  String.raw`^\s*\[?\s*${FECHA_DEL_CHAT},?\s+${HORA_DEL_CHAT}\s*\]?\s*(?:-\s*)?([^:]{1,40}):\s?(.*)$`,
+  String.raw`^${MARCAS_INVISIBLES}\[?\s*${FECHA_DEL_CHAT},?\s+${HORA_DEL_CHAT}\s*\]?\s*(?:-\s*)?([^:]{1,40}):\s?(.*)$`,
   "i",
 );
 /** WhatsApp Web / Desktop: «[10:15, 22/10/2026] Ana:» y «[10:15] Ana:» (F-2, CERT-magra-t2). */
-const ENCABEZADO_WEB = new RegExp(String.raw`^\s*\[\s*${HORA_DEL_CHAT}(?:\s*,\s*${FECHA_DEL_CHAT})?\s*\]\s*([^:\]]{1,40}):\s?(.*)$`, "i");
+const ENCABEZADO_WEB = new RegExp(String.raw`^${MARCAS_INVISIBLES}\[\s*${HORA_DEL_CHAT}(?:\s*,\s*${FECHA_DEL_CHAT})?\s*\]\s*([^:\]]{1,40}):\s?(.*)$`, "i");
 
 /**
  * Las fechas «25/10» o «25/10/2026» del chat («para el 25/10 2 kg»): se tapan antes de leer
