@@ -447,8 +447,20 @@ export type ResumenDeLaRendicion = {
   aCuenta: { cantidad: number; monto: number };
 };
 
-/** Lo rendido, sumado: cuánto entró por cada medio y qué quedó a cobrar (MG-056). PURA. */
-export function resumenDeLaRendicion(rendidos: readonly Extract<MarcaDeReparto, { tipo: "rendido" }>[]): ResumenDeLaRendicion {
+/**
+ * Lo rendido, sumado: cuánto entró por cada medio y qué quedó a cobrar (MG-056). PURA.
+ *
+ * Cada pedido cuenta UNA vez (O-3, CERT-magra-t2): dos «cobrado» del mismo envío en paralelo dejan
+ * dos marcas «rendido» (la plata entra una sola vez: el cobro es idempotente), y el resumen no
+ * puede decir que el cadete trae el doble. Se deduplica por el id del pedido (`id`, el de
+ * `leerDatosDelReparto`) o, sin él, por su número; manda la última marca de la lista.
+ */
+export function resumenDeLaRendicion(
+  todas: readonly (Extract<MarcaDeReparto, { tipo: "rendido" }> & { id?: string })[],
+): ResumenDeLaRendicion {
+  const porPedido = new Map<string, Extract<MarcaDeReparto, { tipo: "rendido" }>>();
+  for (const r of todas) porPedido.set(r.id ?? `#${r.code}`, r);
+  const rendidos = [...porPedido.values()];
   const suma = new Map<MedioDeCobro, number>();
   let cobrados = 0;
   let yaPagos = 0;

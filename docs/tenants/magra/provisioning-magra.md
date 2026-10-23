@@ -74,6 +74,28 @@ agrega como catálogo del tenant magra cuando el dueño confirme SKUs/precios re
 - **Fotos de producto** con permiso de uso para la vidriera.
 - Confirmar **modelo de venta** (pack a precio fijo vs. por kg pesado). Hoy: cortes por kg + packs/gourmet por unidad.
 
+## 3 bis. Interruptores del mostrador: se prenden JUNTOS (O-2, CERT-magra-t2)
+
+El fiado del mostrador (entregar «Queda a cobrar» y que la deuda quede en la cuenta del cliente)
+necesita, en el negocio, los tres interruptores de la consola del operador más el módulo asignado:
+
+| Interruptor / dato | Para qué |
+|---|---|
+| `mostrador-boutique` | El mostrador nuevo (Armar, reparto, rendición). |
+| `cuentas-corrientes` | Que «Queda a cobrar» deje la deuda en la cuenta del cliente. |
+| `inicio-por-apps` | Que se abra la app «Fiado y cuentas de clientes» (y su cobro, `requireAppAccion("cuentas-a-cobrar")`). Sin él y sin motor de perfiles, la app no abre en ningún negocio. |
+| módulo `cuentas-a-cobrar` en `tenant.modules` | Lo que habilita esa app con «Trabaja por apps». |
+
+**Si falta `inicio-por-apps`** (con `cuentas-corrientes` prendido): la deuda **no** se registra en una
+cuenta que nadie podría cobrar. El pedido queda en la bandeja como «Entregado · a cobrar» y la entrega
+**lo dice** («… NO quedó en la cuenta del cliente: … falta prender «Trabaja por apps»»,
+`mensajeEntregaSinAppDeFiado`, `src/lib/clientes/fiado.ts`). Nunca en silencio. Al ver ese mensaje en
+la UAT: prender `inicio-por-apps` desde la consola y volver a probar con un pedido nuevo (lo ya
+entregado se cobra desde la bandeja). Verificado en `src/lib/clientes/fiado-postgres.test.ts` (§ 7b).
+
+Cuaderno sin señal (O-5): una venta cargada después cae en su día, pero descuenta stock al cargarla;
+la ficha de movimientos lo aclara («quedó X al cargarla · Las ventas del cuaderno descuentan al cargar»).
+
 ## 4. Notas de fidelidad al negocio real
 
 - Tagline **"Esto no es una carnicería"** → va en el hero (contactNote), es su posicionamiento.

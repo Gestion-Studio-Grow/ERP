@@ -497,3 +497,49 @@ test("faltante · lo que el servidor deja quedar en negativo: sólo por kilo, ON
   assert.deepEqual(productosQuePuedenFaltarAFuturo(productos, { ...ok, channel: "COUNTER" }), []);
   assert.deepEqual(productosQuePuedenFaltarAFuturo(productos, { ...ok, prendido: false }), []);
 });
+
+// ── F-2 (CERT-magra-t2): encabezados de WhatsApp Web, fechas y cantidades fuera de escala ─────
+
+const trio = (texto: string) => leer(texto).renglones.map((r) => [r.productId, r.cantidad, r.seguro] as const);
+
+test("F-2a · encabezados de WhatsApp Web/Desktop: «[hh:mm, dd/mm/yyyy] Nombre:» y «[hh:mm] Nombre:» se limpian; la hora no es cantidad", () => {
+  const chat =
+    "[10:15, 22/10/2026] Magra: Hola! Qué te preparo?\n[10:16, 22/10/2026] Laura Gómez: 1 kg de vacío\n[10:20] Laura Gómez: chorizo\n[10:21] Magra: algo más?\n[10:22] Laura Gómez: vacío para mañana";
+  const r = trio(chat);
+  // El hallazgo de la certificación era [["vacio",1,true],["chorizo",20,true],["vacio",null,false]]:
+  // la hora «10:20» quedaba como 20 chorizos «seguros».
+  assert.notDeepEqual(r, [["vacio", 1, true], ["chorizo", 20, true], ["vacio", null, false]]);
+  assert.deepEqual(r, [["vacio", 1, true], ["chorizo", null, false], ["vacio", null, false]]);
+  assert.equal(leer(chat).nombre, "Laura Gómez");
+  // Ningún renglón seguro sale de una hora.
+  assert.deepEqual(trio("[20:15] Laura: chorizo"), [["chorizo", null, false]]);
+  assert.deepEqual(trio("[8:05 p. m.] Laura: vacío"), [["vacio", null, false]]);
+  // Los mensajes del negocio con el encabezado Web tampoco cuentan.
+  assert.deepEqual(trio("[10:15] Magra: te mando 3 kg de vacío?\n[10:16] Laura: 2 kg de vacío"), [["vacio", 2, true]]);
+  // El formato Android sigue igual.
+  assert.deepEqual(trio("22/10/26, 10:15 - Laura: 2 kg de vacío"), [["vacio", 2, true]]);
+});
+
+test("F-2b · la fecha dd/mm no se lee como cantidad: «para el 25/10 2 kg de vacío» son 2 kg; las fracciones siguen", () => {
+  assert.deepEqual(trio("para el 25/10 2 kg de vacío"), [["vacio", 2, true]]);
+  assert.deepEqual(trio("para el 25/10/2026 2 kg de vacío"), [["vacio", 2, true]]);
+  assert.deepEqual(trio("el 3/11 medio kilo de picada"), [["picada", 0.5, true]]);
+  assert.deepEqual(resumen("1/2 kg de vacío"), [["vacio", 0.5, "kg", false]]);
+  assert.deepEqual(resumen("3/4 de picada"), [["picada", 0.75, "kg", false]]);
+});
+
+test("F-2c · más de 25 kg por renglón o más de $500.000 quedan como duda, nunca seguros", () => {
+  const [mil] = leer("1500 kg de vacío").renglones;
+  assert.equal(mil.cantidad, 1500);
+  assert.equal(mil.seguro, false);
+  assert.match(mil.dudas.join(" "), /de verdad/);
+  assert.equal(leer("26 kg de picada").renglones[0].seguro, false);
+  assert.equal(leer("25 kg de picada").renglones[0].seguro, true);
+  const [plata] = leer("$600.000 de vacío").renglones;
+  assert.equal(plata.seguro, false);
+  assert.match(plata.dudas.join(" "), /revisá que sea así/);
+  // Por unidad, un total fuera de escala también se pregunta.
+  const [prov] = leer("200 provoletas").renglones;
+  assert.equal(prov.totalEstimado, 900000);
+  assert.equal(prov.seguro, false);
+});

@@ -211,3 +211,17 @@ test("integración T2 · fiado: lo que quedó sin cobrar y fue a la cuenta del c
   const texto = leerMarcaDeReparto({ tipo: "rendido", reparto: "r", resultado: "a-cobrar", code: 1, cliente: "A", total: 10, pagos: [], aCuenta: "si" });
   assert.equal(texto?.tipo === "rendido" ? texto.aCuenta : "x", undefined);
 });
+
+test("O-3 · doble «cobrado» del mismo envío (dos marcas «rendido»): el resumen lo cuenta UNA vez", () => {
+  const marca = { tipo: "rendido" as const, reparto: "rep_1", resultado: "cobrado" as const, code: 7, cliente: "Ana", total: 20000, pagos: [{ medio: "EFECTIVO" as const, monto: 20000 }] };
+  const r = resumenDeLaRendicion([
+    { ...marca, id: "o7" },
+    { ...marca, id: "o7" },
+    { ...marca, id: "o8", code: 8, total: 5000, pagos: [{ medio: "MERCADOPAGO" as const, monto: 5000 }] },
+  ]);
+  assert.equal(r.efectivo, 20000, "no $40.000");
+  assert.equal(r.cobrados, 2);
+  assert.deepEqual(r.porMedio.map((m) => [m.medio, m.monto]), [["EFECTIVO", 20000], ["MERCADOPAGO", 5000]]);
+  // Sin id, por el número del pedido.
+  assert.equal(resumenDeLaRendicion([marca, marca]).efectivo, 20000);
+});

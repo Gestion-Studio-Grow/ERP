@@ -75,6 +75,16 @@ export function mensajeEntregaSinFicha(code: number): string {
   return `Pedido #${code} entregado sin cobrar. No tiene ficha de cliente, así que no va a una cuenta: sigue en la bandeja como «Entregado · a cobrar» hasta que se cobre.`;
 }
 
+/**
+ * Lo que dice la entrega sin cobrar cuando las cuentas corrientes están prendidas pero la app de
+ * Fiado no se abre en el negocio (O-2, CERT-magra-t2: sin «Trabaja por apps» y sin motor de
+ * perfiles). La deuda NO va a una cuenta que nadie podría cobrar: el pedido queda en la bandeja
+ * «a cobrar», y se avisa en vez de callar. PURA.
+ */
+export function mensajeEntregaSinAppDeFiado(code: number): string {
+  return `Pedido #${code} entregado sin cobrar, pero NO quedó en la cuenta del cliente: el negocio no tiene abierta «Fiado y cuentas de clientes» (falta prender «Trabaja por apps»). Sigue en la bandeja como «Entregado · a cobrar» hasta que se cobre.`;
+}
+
 // ── 2. La plata: una sola deuda por pedido ────────────────────────────────────
 
 export type ResultadoFiado =

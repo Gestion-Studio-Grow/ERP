@@ -39,6 +39,13 @@ export async function mostradorBoutiqueDelNegocio(): Promise<boolean> {
  * ¿«Queda a cobrar» de ESTE pedido deja la deuda en la cuenta del cliente? Decide por el NEGOCIO,
  * no por quien entrega: la app de Fiado se mira con el rol del dueño (la recepción entrega aunque
  * no pueda abrir la cuenta; el dueño la cobra).
+ *
+ * O-2 (CERT-magra-t2): con `cuentas-corrientes` prendido y `inicio-por-apps` apagado (sin motor de
+ * perfiles), la app de Fiado no se abre y el cobro de la cuenta (`requireAppAccion("cuentas-a-cobrar")`)
+ * tampoco: dejar la deuda ahí sería plata que nadie puede cobrar. Por eso NO se registra, pero la
+ * decisión `sin-app` no es silenciosa: `entregarPedido` lo dice con `mensajeEntregaSinAppDeFiado` y
+ * el pedido queda en la bandeja «Entregado · a cobrar». El alta de Magra prende los tres
+ * interruptores juntos (docs/tenants/magra/provisioning-magra.md).
  */
 export async function decidirFiadoDeLaEntrega(tenantId: string, orderId: string): Promise<DecisionFiado> {
   const boutique = await mostradorBoutiqueDelNegocio();

@@ -11,6 +11,7 @@ import {
   hrefVenderle,
   leerPedidoDeVenta,
   mensajeEntregaAlFiado,
+  mensajeEntregaSinAppDeFiado,
   recordatorioDePago,
   renglonesParaRepetir,
 } from "./fiado";
@@ -89,4 +90,12 @@ test("Repetir: lo por kilo se vuelve a pesar, por unidad la misma cantidad; el e
     { productId: "chorizo", nombre: "Chorizo", porPeso: false, qtyText: "6" },
   ]);
   assert.deepEqual(r.omitidos, ["Pieza especial", "Entraña"]);
+});
+
+test("O-2 · sin la app de Fiado, la entrega sin cobrar lo dice: no quedó en la cuenta y sigue «a cobrar»", () => {
+  const m = mensajeEntregaSinAppDeFiado(131);
+  assert.match(m, /#131/);
+  assert.match(m, /NO quedó en la cuenta/);
+  assert.match(m, /Trabaja por apps/);
+  assert.match(m, /Entregado · a cobrar/);
 });

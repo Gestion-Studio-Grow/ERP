@@ -174,6 +174,16 @@ test("un solo fiado contra Postgres: entrega a la cuenta, idempotencia, cobro pa
   assert.deepEqual(await duenio.order.findUnique({ where: { id: pb.id }, select: { status: true, paid: true } }), { status: "DELIVERED", paid: false });
   assert.equal((await deudasDe(pb.id)).length, 0);
 
+  // ── 7b · O-2: B con cuentas corrientes pero SIN «Trabaja por apps» → no deja una deuda que
+  //    nadie podría cobrar, y lo DICE (nunca en silencio) ───────────────────────────────────
+  await prender(base.b.id, "cuentas-corrientes");
+  const pb2 = await pedidoListo(base.b.id, deB, 8000);
+  const rB2 = valor(await entregarSinCobrar(duenaB, pb2.id));
+  assert.equal(ok(rB2), true);
+  assert.match(mensajeDe(rB2), /NO quedó en la cuenta del cliente.*Trabaja por apps.*Entregado · a cobrar/);
+  assert.deepEqual(await duenio.order.findUnique({ where: { id: pb2.id }, select: { status: true, paid: true } }), { status: "DELIVERED", paid: false });
+  assert.equal((await deudasDe(pb2.id)).length, 0);
+
   // ── 8 · Aislamiento: desde B nada de A ─────────────────────────────────────────────────────
   const p4 = await pedidoListo(base.a.id, ana, 3000);
   const rX = valor(await entregarSinCobrar(duenaB, p4.id));

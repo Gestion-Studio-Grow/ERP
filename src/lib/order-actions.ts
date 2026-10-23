@@ -36,7 +36,7 @@ import { leerPagos, vueltoDelCobro } from "@/lib/cobro/leer-pagos";
 import type { AsientoDePago } from "@/lib/supermercado/pago-mixto";
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
 import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
-import { entregarAlFiadoEnTx, mensajeEntregaAlFiado, mensajeEntregaSinFicha, type ResultadoFiado } from "@/lib/clientes/fiado";
+import { entregarAlFiadoEnTx, mensajeEntregaAlFiado, mensajeEntregaSinAppDeFiado, mensajeEntregaSinFicha, type ResultadoFiado } from "@/lib/clientes/fiado";
 import { decidirFiadoDeLaEntrega } from "@/lib/clientes/fiado.server";
 import { facturarOrden } from "@/lib/invoice-from-order";
 import { VentaAnuladaError } from "@/lib/invoice-core";
@@ -1179,6 +1179,10 @@ export async function entregarPedido(
   } else if (r.entregado && r.quedaACobrar && fiado && !fiado.va && fiado.motivo === "sin-ficha") {
     const p = await prisma.order.findFirst({ where: { id, tenantId }, select: { code: true } });
     if (p) mensaje = mensajeEntregaSinFicha(p.code);
+  } else if (r.entregado && r.quedaACobrar && fiado && !fiado.va && fiado.motivo === "sin-app") {
+    // O-2: con las cuentas corrientes prendidas y la app de Fiado cerrada, nunca en silencio.
+    const p = await prisma.order.findFirst({ where: { id, tenantId }, select: { code: true } });
+    if (p) mensaje = mensajeEntregaSinAppDeFiado(p.code);
   }
   // La venta para el ticket (lo que quedó grabado): con vuelto si se cobró en efectivo y llegó
   // lo que entregó el cliente.

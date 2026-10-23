@@ -184,4 +184,38 @@ test("reparto contra Postgres: salida, rendición por medio al libro, volvió / 
   const g9 = await duenio.order.findUniqueOrThrow({ where: { id: o9.id } });
   assert.deepEqual([g9.status, g9.paid], ["DELIVERED", false]);
   assert.equal(await duenio.cashMovement.count({ where: { tenantId: base.a.id, orderId: o9.id } }), 0);
+
+  // ── O-3 · Doble envío: dos «cobrado» del mismo pedido A LA VEZ (y uno desde B) ──
+  // La plata entra una vez (el cobro es idempotente) y el resumen del día lo cuenta una vez,
+  // aunque queden dos marcas «rendido» en la auditoría.
+  const caja12 = await producto(base.a.id, "Caja UAT 12", 12000);
+  const o12 = await envio(caja12.id);
+  assert.ok(valor(await ejecutarAccion(sesionA, () => salioElReparto(formulario(ids([o12]))))).ok);
+  const [d1, d2, dB] = await Promise.all([rendir(o12, efectivo("12000.00")), rendir(o12, efectivo("12000.00")), rendir(o12, efectivo("12000.00"), sesionB)]);
+  assert.equal(valor(d1)?.ok || valor(d2)?.ok, true, JSON.stringify([d1, d2]));
+  assert.equal(valor(dB)?.ok, false, "desde B no se rinde un pedido de A");
+  const f12 = await duenio.order.findUniqueOrThrow({ where: { id: o12.id } });
+  assert.deepEqual([f12.status, f12.paid], ["DELIVERED", true]);
+  const ventas12 = await duenio.cashMovement.findMany({ where: { tenantId: base.a.id, orderId: o12.id, type: "VENTA" }, select: { amount: true } });
+  assert.deepEqual(ventas12.map((v) => Number(v.amount)), [12000], "la plata entra UNA vez");
+  assert.equal(await duenio.cashMovement.count({ where: { tenantId: base.b.id, orderId: o12.id } }), 0, "nada en el libro de B");
+  // El peor caso: TODAS las marcas «rendido» de hoy, tal cual están en la base (con duplicados).
+  const filasRendido = await duenio.auditLog.findMany({
+    where: { tenantId: base.a.id, entity: "Order", action: "reparto" },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { entityId: true, changes: true },
+  });
+  const { leerMarcaDeReparto } = await import("./reparto-core");
+  const crudas = filasRendido.flatMap((f) => {
+    const m = leerMarcaDeReparto(f.changes);
+    return m?.tipo === "rendido" ? [{ ...m, id: f.entityId ?? undefined }] : [];
+  });
+  const crudo = resumenDeLaRendicion(crudas);
+  assert.equal(crudo.efectivo, 38000 + 12000, "con la marca doble en la base, el efectivo del día suma el de #o12 una vez");
+  const despues = resumenDeLaRendicion(valor(await ejecutarAccion(sesionA, () => leerDatosDelReparto(base.a.id))).rendidosHoy);
+  assert.equal(despues.efectivo, 38000 + 12000);
+  assert.equal(despues.cobrados, 4);
+  // B no ve nada de A.
+  const datosB = valor(await ejecutarAccion(sesionB, () => leerDatosDelReparto(base.b.id)));
+  assert.equal(datosB.rendidosHoy.length, 0);
 });

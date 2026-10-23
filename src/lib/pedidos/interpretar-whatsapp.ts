@@ -753,6 +753,39 @@ function leerDireccion(original: string): { direccion: string | null; tramos: Tr
   return d ? { direccion: d, tramos: [{ i: m.index, f: m.index + m[0].length }] } : { direccion: null, tramos: [] };
 }
 
+const HORA_DEL_CHAT = String.raw`\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?\s*m\.?)?`;
+const FECHA_DEL_CHAT = String.raw`\d{1,2}\/\d{1,2}\/\d{2,4}`;
+/** Android y exportado: «22/10/26, 10:15 - Ana:» o «[22/10/26, 10:15] Ana:». */
+const ENCABEZADO_ANDROID = new RegExp(
+  String.raw`^\s*\[?\s*${FECHA_DEL_CHAT},?\s+${HORA_DEL_CHAT}\s*\]?\s*(?:-\s*)?([^:]{1,40}):\s?(.*)$`,
+  "i",
+);
+/** WhatsApp Web / Desktop: «[10:15, 22/10/2026] Ana:» y «[10:15] Ana:» (F-2, CERT-magra-t2). */
+const ENCABEZADO_WEB = new RegExp(String.raw`^\s*\[\s*${HORA_DEL_CHAT}(?:\s*,\s*${FECHA_DEL_CHAT})?\s*\]\s*([^:\]]{1,40}):\s?(.*)$`, "i");
+
+/**
+ * Las fechas «25/10» o «25/10/2026» del chat («para el 25/10 2 kg»): se tapan antes de leer
+ * cantidades, porque «25/10» se leería como la fracción 2,5. PURA. Es fecha si trae año, o si el
+ * mes es mayor que 4 o el día no es menor que el mes: así «1/2», «3/4», «1/4» siguen siendo
+ * fracciones de kilo. La fecha no se usa para la franja (no se adivina el día).
+ */
+function leerFechas(norm: string): Tramo[] {
+  const tramos: Tramo[] = [];
+  const re = /(?<![\d/])(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?![\d/])/g;
+  for (let m = re.exec(norm); m; m = re.exec(norm)) {
+    const d = Number(m[1]);
+    const mes = Number(m[2]);
+    if (d < 1 || d > 31 || mes < 1 || mes > 12) continue;
+    if (m[3] !== undefined || mes > 4 || d >= mes) tramos.push({ i: m.index, f: m.index + m[0].length });
+  }
+  return tramos;
+}
+
+/** Un renglón por kilo de más de esto se pregunta (Armar pregunta desde `KG_SOSPECHOSO`, 30 kg). */
+export const KG_A_REVISAR_DEL_CHAT = 25;
+/** Un renglón de más de esta plata se pregunta: es un dedo de más o un mayorista. */
+export const IMPORTE_A_REVISAR_DEL_CHAT = 500_000;
+
 /**
  * Las líneas de encabezado de un chat exportado o copiado («[22/10/26, 10:15] Ana Pérez: …»,
  * «22/10/26 10:15 - Ana: …»): se saca el encabezado, se toma quién escribe y se descartan las
@@ -763,9 +796,8 @@ function limpiarEncabezados(original: string, negocio: string | null): { texto: 
   const negocioNorm = negocio ? normalizarTexto(negocio).replace(/[^a-z0-9 ]/g, " ").trim() : "";
   let remitente: string | null = null;
   const out: string[] = [];
-  const re = /^\s*\[?\s*\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?\s*m\.?)?\s*\]?\s*(?:-\s*)?([^:]{1,40}):\s?(.*)$/i;
   for (const linea of lineas) {
-    const m = re.exec(linea);
+    const m = ENCABEZADO_ANDROID.exec(linea) ?? ENCABEZADO_WEB.exec(linea);
     if (!m) {
       out.push(linea);
       continue;
@@ -968,6 +1000,7 @@ export function interpretarPedidoDeWhatsApp(
     norm = a.join("");
   };
   tapar([...tel.tramos, ...nom.tramos, ...dir.tramos, ...fr.tramos]);
+  tapar(leerFechas(norm));
 
   const prep = preparar(catalogo);
 
@@ -1069,6 +1102,16 @@ export function interpretarPedidoDeWhatsApp(
       const iTexto = usadoDespues ? iMen : (trozo.toks.find((x) => x.i >= iAntes && x.f <= iMen && esComienzoDeCantidad(x.t))?.i ?? iMen);
       const fTexto = Math.max(fMen, ...trozo.toks.filter((x) => x.i >= fMen && x.f <= fDespues && (usadoDespues || porPieza !== null || detalle !== null)).map((x) => x.f));
       const totalEstimado = r.cantidad !== null && elegido.precio ? redondearAlCentavo(r.cantidad * elegido.precio) : null;
+      // F-2c: un peso o un importe fuera de escala nunca pasa como seguro (un dedo de más, «1500 kg»).
+      let fueraDeEscala = false;
+      if (elegido.porPeso && r.cantidad !== null && r.cantidad > KG_A_REVISAR_DEL_CHAT) {
+        fueraDeEscala = true;
+        dudas.push(`¿Son ${r.cantidad.toLocaleString("es-AR", { maximumFractionDigits: 3 })} kg de verdad? Confirmalo con la clienta.`);
+      }
+      if (totalEstimado !== null && totalEstimado > IMPORTE_A_REVISAR_DEL_CHAT) {
+        fueraDeEscala = true;
+        dudas.push(`Da ${pesos(totalEstimado)}: revisá que sea así.`);
+      }
       renglones.push({
         id: `r${renglones.length + 1}`,
         texto: cita.slice(iTexto, fTexto).replace(/^[\s\-–•*]+/, "").trim(),
@@ -1084,7 +1127,7 @@ export function interpretarPedidoDeWhatsApp(
         alternativas,
         dudas,
         detalle,
-        seguro: r.seguro && alternativas.length === 0 && m.puntaje >= 0.9,
+        seguro: r.seguro && !fueraDeEscala && alternativas.length === 0 && m.puntaje >= 0.9,
       });
     }
   }

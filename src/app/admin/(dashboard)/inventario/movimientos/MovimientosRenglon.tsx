@@ -157,6 +157,10 @@ function RenglonDeMovimiento({ m, datos, filtros, elegido }: { m: Movimiento; da
     origen,
     datos.conCostos && m.unitCost != null && m.unitCost > 0 ? `costo ${fmtMoneyARS(m.unitCost)}/${unidad}` : null,
   ].filter(Boolean);
+  // O-5 (CERT-magra-t2): una venta del cuaderno sin señal cae en el día en que se vendió, pero
+  // descuenta al CARGARLA: su «quedó» es el saldo de la hora de carga, no el de ese día. El motivo
+  // lo graba `createOrderCore` (order-core.ts) con `occurredAt`.
+  const delCuaderno = typeof m.reason === "string" && m.reason.startsWith("Venta del cuaderno");
   return (
     <Renglon
       as="li"
@@ -183,7 +187,8 @@ function RenglonDeMovimiento({ m, datos, filtros, elegido }: { m: Movimiento; da
           ) : (
             <span className={m.qty > 0 ? "font-semibold text-success" : "font-semibold text-danger"}>{`${firmado.format(m.qty)} ${unidad}`}</span>
           )}
-          <span className="block text-[13px] text-muted">{`quedó ${formatearCantidad(m.balanceAfter)} ${unidad}`}</span>
+          <span className="block text-[13px] text-muted">{`quedó ${formatearCantidad(m.balanceAfter)} ${unidad}${delCuaderno ? " al cargarla" : ""}`}</span>
+          {delCuaderno && <span className="block text-[13px] text-muted">Las ventas del cuaderno descuentan al cargar.</span>}
         </span>
       }
     />
