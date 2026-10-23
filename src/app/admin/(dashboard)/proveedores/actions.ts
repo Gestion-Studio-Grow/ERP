@@ -11,6 +11,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { auditAdmin } from "@/lib/audit-core";
+import { mensajeParaLaPantalla } from "@/lib/prisma-errors";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireAppAccion } from "@/lib/require-app";
 import { createSupplier, setSupplierActive, updateSupplier } from "@/lib/suppliers/supplier-repo";
@@ -26,7 +27,7 @@ function datosDelFormulario(fd: FormData): SupplierInput {
 function comoError(err: unknown): { ok: false; error: string } {
   // La sesión vencida llega como un redirect de Next: se deja pasar.
   unstable_rethrow(err);
-  return { ok: false, error: err instanceof Error && err.message ? err.message : "No se pudo guardar. Probá de nuevo." };
+  return { ok: false, error: mensajeParaLaPantalla(err, "No se pudo guardar. Probá de nuevo.", "proveedores") };
 }
 
 /** Alta. Si sale bien, lleva a la ficha del proveedor nuevo. */

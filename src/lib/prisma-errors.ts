@@ -11,6 +11,7 @@
 // (main auto-deploya ANTES de migrar — el código debe tolerarlo).
 
 import { Prisma } from "@/generated/prisma/client";
+import { logger } from "@/lib/logger";
 
 /** ¿Es un `PrismaClientKnownRequestError` con este código? */
 export function isPrismaError(e: unknown, code: string): e is Prisma.PrismaClientKnownRequestError {
@@ -91,4 +92,32 @@ export function isColumnMissing(e: unknown, column?: string): boolean {
   const needle = column.toLowerCase();
   if (String(col ?? "").toLowerCase().includes(needle)) return true;
   return String(e.message ?? "").toLowerCase().includes(needle);
+}
+
+/**
+ * ¿El error viene de la base (Prisma o el driver de Postgres)? Su mensaje trae nombres de tablas, columnas y
+ * restricciones: la estructura de los datos, que no tiene que llegar al navegador.
+ */
+export function esErrorDeLaBase(e: unknown): boolean {
+  return (
+    e instanceof Prisma.PrismaClientKnownRequestError ||
+    e instanceof Prisma.PrismaClientUnknownRequestError ||
+    e instanceof Prisma.PrismaClientRustPanicError ||
+    e instanceof Prisma.PrismaClientInitializationError ||
+    e instanceof Prisma.PrismaClientValidationError ||
+    // Error del driver `pg` (DatabaseError): trae la severidad y el código SQLSTATE de Postgres.
+    (e instanceof Error && "severity" in e && "code" in e)
+  );
+}
+
+/**
+ * El texto de error que una Server Action le devuelve a la pantalla. Los errores de negocio se lanzan con un mensaje
+ * en criollo pensado para la persona y viajan tal cual; los de la base van al log y la persona ve `generico`.
+ */
+export function mensajeParaLaPantalla(e: unknown, generico: string, scope: string): string {
+  if (esErrorDeLaBase(e)) {
+    logger.error(scope, "error de la base en una acción", e);
+    return generico;
+  }
+  return e instanceof Error && e.message ? e.message : generico;
 }

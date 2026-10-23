@@ -12,6 +12,7 @@
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { auditAdmin } from "@/lib/audit-core";
+import { mensajeParaLaPantalla } from "@/lib/prisma-errors";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireAppAccion } from "@/lib/require-app";
 import { parseCashMethod } from "@/lib/comision-liquidacion";
@@ -80,6 +81,6 @@ export async function registrarDevolucionAccion(_prev: EstadoDevolucion, fd: For
   } catch (err) {
     unstable_rethrow(err);
     if (err instanceof DevolucionRechazada) return { ok: false, error: err.message, errores: err.errores };
-    return { ok: false, error: err instanceof Error && err.message ? err.message : "No se pudo registrar. Probá de nuevo." };
+    return { ok: false, error: mensajeParaLaPantalla(err, "No se pudo registrar. Probá de nuevo.", "devoluciones-proveedor") };
   }
 }

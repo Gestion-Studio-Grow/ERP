@@ -25,6 +25,7 @@
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { auditAdmin } from "@/lib/audit-core";
+import { mensajeParaLaPantalla } from "@/lib/prisma-errors";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { roleHasCapability } from "@/lib/capabilities";
 import { requireAppAccion } from "@/lib/require-app";
@@ -158,6 +159,6 @@ export async function recibirMercaderia(_prev: EstadoRecepcion, formData: FormDa
   } catch (err) {
     // La sesión vencida llega como un redirect de Next: se deja pasar.
     unstable_rethrow(err);
-    return { ok: false, error: err instanceof Error && err.message ? err.message : "No se pudo registrar. Probá de nuevo." };
+    return { ok: false, error: mensajeParaLaPantalla(err, "No se pudo registrar. Probá de nuevo.", "compras") };
   }
 }

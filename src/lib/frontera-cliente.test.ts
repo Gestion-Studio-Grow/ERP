@@ -10,6 +10,9 @@
 //      club (`src/lib/club/motor.mjs` y `dominio/`), y lo hace a propósito: el modo sin internet del mostrador (G9)
 //      lo necesita en la compu del club. Pasarlo al servidor es el back separado (G10, PARIDAD-REACT.md). Hasta
 //      entonces queda confinado a /admin/club; que lo pida otra pantalla cliente es una decisión, no un descuido.
+//   3. Lo que se sirve tal cual, sin pasar por el build (`public/` y las carpetas de los sitios estáticos), no puede
+//      ser una copia de código del ERP: ahí no hay ni minificación. La única copia permitida es la declarada en
+//      `src/lib/club/ORIGEN.json` (el motor del club y su dominio, cuya fuente vive en las previews durante el piloto).
 //
 // Un archivo `"use server"` corta el recorrido: al navegador baja sólo la referencia a la acción, no su código.
 // Si una regla se rompe a propósito, se agrega acá con el porqué, no se apaga el test.
@@ -18,8 +21,11 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
+import { SITIOS_ESTATICOS } from "./sitio-estatico";
+import { CARPETA_BUSCATUFOTO } from "./sitio-buscatufoto";
 
 const RAIZ = resolve(import.meta.dirname, "..", "..");
 const SRC = join(RAIZ, "src");
@@ -153,4 +159,38 @@ test("frontera: ninguna pantalla cliente arrastra código de servidor ni un moto
   const hallazgos = raicesCliente().flatMap(recorrer);
   const detalle = hallazgos.map((h) => `· ${h.motivo}: ${h.cadena.join(" → ")}`).join("\n");
   assert.equal(hallazgos.length, 0, `Lo que baja al navegador no puede llevar esto:\n${detalle}`);
+});
+
+/** Carpetas que se sirven tal cual, sin build. */
+const SERVIDAS_TAL_CUAL = ["public", CARPETA_BUSCATUFOTO, ...SITIOS_ESTATICOS.map((s) => s.carpeta)];
+const ES_SCRIPT = /\.(c|m)?(j|t)sx?$/;
+/** Un archivo chico puede coincidir por casualidad (un `export {}`); no es código que valga la pena copiar. */
+const MINIMO_BYTES = 200;
+
+function scriptsDe(carpeta: string): string[] {
+  if (!existsSync(carpeta)) return [];
+  return readdirSync(carpeta, { recursive: true, encoding: "utf8" })
+    .map((r) => join(carpeta, r))
+    .filter((r) => ES_SCRIPT.test(r) && statSync(r).isFile() && statSync(r).size >= MINIMO_BYTES);
+}
+
+const sha256 = (ruta: string) => createHash("sha256").update(readFileSync(ruta)).digest("hex");
+
+test("frontera: lo servido tal cual no es una copia de código del ERP (salvo la declarada en ORIGEN.json)", () => {
+  const servidas = SERVIDAS_TAL_CUAL.map((c) => join(RAIZ, c));
+  const esServida = (ruta: string) => servidas.some((c) => ruta === c || ruta.startsWith(c + sep));
+  const delErp = new Map<string, string>();
+  for (const ruta of scriptsDe(SRC)) {
+    if (!esServida(ruta) && !/[\\/](node_modules|generated)[\\/]/.test(ruta)) delErp.set(sha256(ruta), aPosix(ruta));
+  }
+  const origen = JSON.parse(readFileSync(join(SRC, "lib/club/ORIGEN.json"), "utf8")) as {
+    archivos: Record<string, { fuente: string }>;
+  };
+  const declaradas = new Set(Object.values(origen.archivos).map((a) => a.fuente));
+  const copias = servidas
+    .flatMap(scriptsDe)
+    .map((ruta) => ({ servida: aPosix(ruta), igualA: delErp.get(sha256(ruta)) }))
+    .filter((c) => c.igualA && !declaradas.has(c.servida));
+  const detalle = copias.map((c) => `· ${c.servida} es igual a ${c.igualA}`).join("\n");
+  assert.equal(copias.length, 0, `Código del ERP servido tal cual, sin build:\n${detalle}`);
 });

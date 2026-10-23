@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
+import { mensajeParaLaPantalla } from "@/lib/prisma-errors";
 import { round2 } from "@/lib/round";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { cobrarPedidoPorAvisoDePago } from "@/lib/order-core";
@@ -96,7 +97,7 @@ export async function generarCobro(formData: FormData): Promise<GenerarCobroResu
         error: `Mercado Pago rechazó la solicitud (${e.status}). Revisá el access token y que la cuenta esté habilitada para cobrar.`,
       };
     }
-    return { ok: false, error: e instanceof Error ? e.message : "No se pudo generar el cobro." };
+    return { ok: false, error: mensajeParaLaPantalla(e, "No se pudo generar el cobro.", "cobros") };
   }
 }
 

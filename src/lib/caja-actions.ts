@@ -18,6 +18,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { auditAdmin } from "@/lib/audit-core";
+import { mensajeParaLaPantalla } from "@/lib/prisma-errors";
 // GUARDA DE DÍA CERRADO — el QA de recorrido la encontró faltando acá y el agujero era
 // real: con el 07/09 ya cerrado y congelado desde el libro, esta pantalla dejaba registrar
 // un egreso CON FECHA 07/09 sin decir nada, y el saldo del día siguiente pasaba de los
@@ -49,8 +50,7 @@ export type CajaActionState = { ok: true } | { ok: false; error: string } | null
 // transacción) al estado de error de la UI. Un error inesperado no filtra detalles
 // internos: cae a un mensaje genérico.
 function toActionError(err: unknown): { ok: false; error: string } {
-  const msg = err instanceof Error && err.message ? err.message : "No se pudo completar la operación.";
-  return { ok: false, error: msg };
+  return { ok: false, error: mensajeParaLaPantalla(err, "No se pudo completar la operación.", "caja") };
 }
 
 function parseAmount(raw: FormDataEntryValue | null): number {

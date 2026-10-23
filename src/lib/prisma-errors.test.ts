@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Prisma } from "@/generated/prisma/client";
-import { isUniqueViolation, isColumnMissing, isPrismaError } from "./prisma-errors";
+import { esErrorDeLaBase, isUniqueViolation, isColumnMissing, isPrismaError, mensajeParaLaPantalla } from "./prisma-errors";
 
 function p2002(target: string | string[]): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
@@ -139,4 +139,29 @@ test("sigue funcionando la forma CLÁSICA del P2002 (`meta.target`)", () => {
   );
   assert.equal(isUniqueViolation(e, "idempotencyKey"), true);
   assert.equal(isUniqueViolation(e, "paymentId"), false);
+});
+
+// ── mensajeParaLaPantalla: la estructura de la base no llega al navegador ────
+
+test("mensajeParaLaPantalla: un error de Prisma no muestra tablas ni columnas, muestra el genérico", () => {
+  const original = console.error;
+  console.error = () => {};
+  try {
+    const columna = p2022("Supplier.taxId");
+    assert.equal(mensajeParaLaPantalla(columna, "No se pudo guardar.", "test"), "No se pudo guardar.");
+    const validacion = new Prisma.PrismaClientValidationError("Argument `tenantId` is missing.", { clientVersion: "7.8.0" });
+    assert.equal(mensajeParaLaPantalla(validacion, "No se pudo guardar.", "test"), "No se pudo guardar.");
+    // Error crudo del driver `pg`: trae severidad y código SQLSTATE.
+    const pg = Object.assign(new Error('relation "Supplier" does not exist'), { severity: "ERROR", code: "42P01" });
+    assert.equal(mensajeParaLaPantalla(pg, "No se pudo guardar.", "test"), "No se pudo guardar.");
+  } finally {
+    console.error = original;
+  }
+});
+
+test("mensajeParaLaPantalla: el mensaje de negocio viaja tal cual; lo vacío o lo que no es Error cae al genérico", () => {
+  assert.equal(mensajeParaLaPantalla(new Error("El día de caja está cerrado."), "x", "test"), "El día de caja está cerrado.");
+  assert.equal(mensajeParaLaPantalla(new Error(""), "No se pudo.", "test"), "No se pudo.");
+  assert.equal(mensajeParaLaPantalla("texto suelto", "No se pudo.", "test"), "No se pudo.");
+  assert.equal(esErrorDeLaBase(new Error("El día de caja está cerrado.")), false);
 });

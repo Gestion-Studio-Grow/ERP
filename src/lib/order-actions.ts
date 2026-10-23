@@ -37,6 +37,7 @@ import { VentaAnuladaError } from "@/lib/invoice-core";
 import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
 import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
 import { logger } from "@/lib/logger";
+import { mensajeParaLaPantalla } from "@/lib/prisma-errors";
 import { normalizarCodigoDeCupon, topeDePrecioAMano, CUPON_NO_VALE } from "@/lib/venta-reglas";
 import type { VentaYaGrabada } from "@/lib/reintento-de-venta";
 import { pedidoDelFormulario, rechazoDelAltaConClave, respuestaAlReintento } from "@/lib/respuesta-al-reintento";
@@ -209,7 +210,7 @@ export type OrderActionState =
   | null;
 
 function errorDeAccion(err: unknown, generico: string): { ok: false; error: string } {
-  return { ok: false, error: err instanceof Error && err.message ? err.message : generico };
+  return { ok: false, error: mensajeParaLaPantalla(err, generico, "pedidos") };
 }
 
 // I7 (ADR-064): la imputación de la venta cobrada a la caja YA NO es una segunda tx
