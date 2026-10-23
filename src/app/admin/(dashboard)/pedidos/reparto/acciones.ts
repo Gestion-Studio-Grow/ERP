@@ -239,11 +239,18 @@ export async function rendirPedido(formData: FormData): Promise<OrderActionState
       error: `El pedido #${o.code} quedó cobrado, pero no se pudo marcar entregado: ${entrega?.error ?? "volvé a intentar"}. Al reintentar no se cobra dos veces.`,
     };
   }
+  // F-3 (recertificación): la marca lleva los pagos DEL LIBRO, cobro fresco o «ya estaba cobrado»
+  // (el puesto 1 cobró mixto y el puesto 2 manda el pie por defecto): el formulario sólo decide el
+  // cobro, nunca lo que rinde el cadete. Sin VENTAs en el libro, lo que se cobró recién.
   const medio = leerMedioDeCobro(pagos.medio);
-  await rendido(
-    yaPago ? "ya-pago" : "cobrado",
-    yaPago ? [] : pagos.asientos ? pagos.asientos.map((a) => ({ medio: a.medio, monto: a.monto })) : medio ? [{ medio, monto: total }] : [],
-  );
+  const delFormulario = pagos.asientos ? pagos.asientos.map((a) => ({ medio: a.medio, monto: a.monto })) : medio ? [{ medio, monto: total }] : [];
+  const libro = yaPago
+    ? null
+    : cobroDelLibro(
+        await ventasDelLibro(tenantId, id),
+        (await prisma.order.findFirst({ where: { id, tenantId }, select: { paymentMethod: true } }))?.paymentMethod ?? null,
+      );
+  await rendido(yaPago ? "ya-pago" : "cobrado", yaPago ? [] : libro && libro.pagos.length ? libro.pagos : delFormulario);
   revalidar();
   return {
     ok: true,

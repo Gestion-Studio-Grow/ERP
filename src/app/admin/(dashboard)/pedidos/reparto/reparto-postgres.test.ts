@@ -252,6 +252,30 @@ test("reparto contra Postgres: salida, rendición por medio al libro, volvió / 
   const conO14 = resumenDeLaRendicion(valor(await ejecutarAccion(sesionA, () => leerDatosDelReparto(base.a.id))).rendidosHoy);
   assert.deepEqual([conO14.efectivo, conO14.cobrados, conO14.yaPagos], [38000 + 12000 + 12000, 5, 1]);
 
+  // F-3 (recertificación) · el puesto 1 cobró MIXTO en este reparto y el puesto 2 rinde «cobrado» con
+  // el pie por defecto (EFECTIVO 12.000): la marca y el resumen dicen lo del LIBRO, no del formulario.
+  const o16 = await envio(caja12.id);
+  assert.ok(valor(await ejecutarAccion(sesionA, () => salioElReparto(formulario(ids([o16]))))).ok);
+  await espera();
+  const mixto: [string, string][] = [
+    ["id", o16.id], ["paymentMethod", "EFECTIVO"], ["pagado", "1"], ["paid", "on"],
+    ["pago.medio", "EFECTIVO"], ["pago.monto", "7000"], ["pago.medio", "TRANSFERENCIA"], ["pago.monto", "5000"],
+  ];
+  assert.equal(valor(await ejecutarAccion(sesionA, () => cobrarPedido(null, formulario(mixto))))?.ok, true);
+  const r16 = valor(await rendir(o16, efectivo("12000.00")));
+  assert.equal(r16?.ok, true, JSON.stringify(r16));
+  const marca16 = await duenio.auditLog.findFirstOrThrow({
+    where: { tenantId: base.a.id, entity: "Order", action: "reparto", entityId: o16.id },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  });
+  const leida16 = leerMarcaDeReparto(marca16.changes);
+  assert.deepEqual(leida16?.tipo === "rendido" ? [leida16.resultado, leida16.pagos] : null, [
+    "cobrado",
+    [{ medio: "EFECTIVO", monto: 7000 }, { medio: "TRANSFERENCIA", monto: 5000 }],
+  ]);
+  const conO16 = resumenDeLaRendicion(valor(await ejecutarAccion(sesionA, () => leerDatosDelReparto(base.a.id))).rendidosHoy);
+  assert.deepEqual([conO16.efectivo, conO16.cobrados], [38000 + 12000 + 12000 + 7000, 6], "el efectivo del cadete, el del libro");
+
   // ── O-2 (CERT-magra-t2b) · cuentas corrientes prendidas e «inicio por apps» apagado: «Lo dejó
   // sin cobrar» no registra la deuda y lo DICE (no el genérico de «A cobrar»). ──
   delete process.env.CUENTAS_CORRIENTES_ENABLED;
