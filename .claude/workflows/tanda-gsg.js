@@ -13,12 +13,15 @@ export const meta = {
 
 // args (los arma el comando /tanda):
 // { cliente, tanda, worktree, rama, base, extracto, mapa, archivosPropios, noTocar, criterios, riesgos: [],
-//   factory, scratch, trailers, maxVueltas?, escalarFable? }
+//   factory, scratch, trailers, maxVueltas?, escalarFable?, frentes? }
+// `frentes` (opcional, máximo 2): [{ nombre, archivosPropios, criterios, riesgos }]. Cuando la tanda junta frentes
+// que no se tocan (p. ej. un parser puro y una rendición con plata), un constructor fresco por frente, en serie: cada
+// uno carga sólo su zona (magra 2b, 23/10: un constructor con 4 frentes = 51 llamadas y 3,5 M). Sin `frentes`, uno solo.
 // Modelo (decisión del dueño, 23/10/2026): todo en Opus. Fable sólo como escalamiento técnico: una única vuelta de
 // corrección cuando Opus agotó sus vueltas y siguen fallas alta/media. `escalarFable: false` lo apaga.
 const a = args || {}
 const RIESGOS_CERT = ['plata', 'seguridad', 'concurrencia', 'datos']
-const riesgos = (a.riesgos || []).filter((r) => RIESGOS_CERT.includes(r))
+const riesgos = [...new Set([...(a.riesgos || []), ...(a.frentes || []).flatMap((f) => f.riesgos || [])])].filter((r) => RIESGOS_CERT.includes(r))
 const maxVueltas = Math.min(a.maxVueltas || 2, 2)
 const resumen = `node ${a.factory}/entorno/tokens/resumen-tests.mjs --`
 const nombre = `${a.cliente}-t${a.tanda}`
@@ -46,9 +49,10 @@ const DICTAMEN = {
   type: 'object',
   properties: {
     veredicto: { type: 'string', enum: ['CERTIFICA', 'CON OBSERVACIONES', 'NO CERTIFICA'] },
-    fallas: { type: 'array', items: { type: 'object', properties: { severidad: { type: 'string', enum: ['alta', 'media', 'baja'] }, que: { type: 'string' }, reproduccion: { type: 'string' }, arreglo: { type: 'string' }, donde: { type: 'string' } }, required: ['severidad', 'que'] } },
+    fallas: { type: 'array', items: { type: 'object', properties: { severidad: { type: 'string', enum: ['alta', 'media', 'baja'] }, que: { type: 'string' }, reproduccion: { type: 'string' }, arreglo: { type: 'string' }, donde: { type: 'string' }, test: { type: 'string', description: 'ruta del test adversarial que la reproduce (y subtest)' } }, required: ['severidad', 'que'] } },
     observaciones: { type: 'array', items: { type: 'string' } },
     dictamen: { type: 'string' },
+    archivoDictamen: { type: 'string', description: 'ruta del dictamen escrito en el scratchpad' },
   },
   required: ['veredicto', 'fallas'],
 }
@@ -58,17 +62,38 @@ Verificación SOLO con resúmenes: \`${resumen} <comando>\`. tsc una vez al fina
 Commit por pathspec, sin push, con estos trailers:
 ${a.trailers}`
 
+const frentes = (a.frentes || []).slice(0, 2)
+const trabajos = frentes.length
+  ? frentes.map((f) => ({ ...f, riesgos: (f.riesgos || []).filter((r) => RIESGOS_CERT.includes(r)) }))
+  : [{ nombre: '', archivosPropios: a.archivosPropios, criterios: a.criterios, riesgos }]
+// Lo que certifica el certificador: los archivos de los frentes con riesgo (sin frentes, todo el diff).
+const archivosDeRiesgo = frentes.length ? trabajos.filter((f) => f.riesgos.length).map((f) => f.archivosPropios).join('; ') : ''
+
 phase('Construir')
-let construido = await agent(
-  `Tarea: ${a.cliente}, Tanda ${a.tanda}.
+let construido = null
+for (const f of trabajos) {
+  const otros = trabajos.filter((o) => o !== f).map((o) => o.archivosPropios)
+  const hecho = await agent(
+    `Tarea: ${a.cliente}, Tanda ${a.tanda}${f.nombre ? `, frente «${f.nombre}» (sólo este; el otro frente lo hace otro agente)` : ''}.
 Leé SOLO el extracto ${a.extracto}${a.mapa ? ` y el mapa de código ${a.mapa}` : ''}, y después los archivo:línea que necesites.
-Archivos tuyos: ${a.archivosPropios}. No toques: ${a.noTocar}.
-Criterios de aceptación: ${a.criterios}.
-Riesgo: ${riesgos.join(', ') || 'visual'}. ${riesgos.length ? 'Plata/datos: test Postgres con dos negocios y doble envío (Postgres local del arnés).' : 'Todo archivo de pantalla tocado lleva un test o una línea de QA clic por clic en el informe.'}
+Archivos tuyos: ${f.archivosPropios}. No toques: ${[a.noTocar, ...otros].join('; ')}.
+Criterios de aceptación: ${f.criterios}.
+Riesgo: ${f.riesgos.join(', ') || 'visual'}. ${f.riesgos.length ? 'Plata/datos: test Postgres con dos negocios y doble envío (Postgres local del arnés).' : 'Todo archivo de pantalla tocado lleva un test o una línea de QA clic por clic en el informe.'}
 ${comun}`,
-  { label: `construir ${nombre}`, phase: 'Construir', agentType: 'gsg-ingeniero', schema: CONSTRUCCION },
-)
-if (!construido) return { estado: 'cortado en la construcción', cliente: a.cliente, tanda: a.tanda }
+    { label: `construir ${nombre}${f.nombre ? ` · ${f.nombre}` : ''}`, phase: 'Construir', agentType: 'gsg-ingeniero', schema: CONSTRUCCION },
+  )
+  if (!hecho) return { estado: `cortado en la construcción${f.nombre ? ` (${f.nombre})` : ''}`, cliente: a.cliente, tanda: a.tanda, hecho: construido }
+  construido = construido
+    ? {
+        ...hecho,
+        resultado: [construido.resultado, hecho.resultado].includes('NO CUMPLE') ? 'NO CUMPLE' : [construido.resultado, hecho.resultado].includes('PARCIAL') ? 'PARCIAL' : 'CUMPLE',
+        archivosTocados: [...new Set([...construido.archivosTocados, ...hecho.archivosTocados])],
+        criterios: [...construido.criterios, ...hecho.criterios],
+        supuestos: [...(construido.supuestos || []), ...(hecho.supuestos || [])],
+        pendientes: [...(construido.pendientes || []), ...(hecho.pendientes || [])],
+      }
+    : hecho
+}
 
 const verificar = async (etiqueta) => agent(
   `Sólo verificar, sin cambiar nada. En ${a.worktree}:
@@ -88,12 +113,20 @@ if (riesgos.length) {
   phase('Certificar')
   const certificar = (foco) => agent(
     `Certificá adversarialmente el diff ${a.base}..${a.rama} en ${a.worktree} (no modifiques el repo).
-Riesgos a atacar: ${riesgos.join(', ')}. Criterios: ${a.criterios}.
+Riesgos a atacar: ${riesgos.join(', ')}. Criterios: ${trabajos.map((f) => f.criterios).join('; ')}.${archivosDeRiesgo ? `\nSuperficies de riesgo (el resto del diff ya tiene sus tests): ${archivosDeRiesgo}.` : ''}
 ${foco}
-Tus tests adversariales y el dictamen van en ${a.scratch}/cert-${nombre}/. Corré suites con \`${resumen} <comando>\`.`,
+Tus tests adversariales y el dictamen van en ${a.scratch}/cert-${nombre}/. Corré suites con \`${resumen} <comando>\`.
+Cada falla lleva en \`test\` la ruta (y el subtest) del test que la reproduce, y devolvés en \`archivoDictamen\` la ruta del dictamen: el corrector parte de ahí, no la redescubre.`,
     { label: `certificar ${nombre}${vueltas ? ` (vuelta ${vueltas + 1})` : ''}`, phase: 'Certificar', agentType: 'gsg-certificador', model: 'opus', schema: DICTAMEN },
   )
-  dictamen = await certificar('Primera vuelta: el diff completo de las superficies de riesgo.')
+  // Primera vuelta con las ramas vecinas: en magra 2b la regresión del puesto 2 en la rama «cobrado» apareció recién
+  // en la tercera vuelta, por mirar sólo la rama corregida. Verla en la primera ahorra una vuelta entera.
+  dictamen = await certificar(`Primera vuelta: el diff completo de las superficies de riesgo. Por cada función de riesgo tocada, atacá también las ramas VECINAS del mismo flujo (las otras opciones del mismo formulario o acción, el segundo puesto o el reintento, el otro negocio) aunque el diff no las cambie: una corrección en una rama suele romper la de al lado.`)
+
+  const briefCorreccion = (fallas, encabezado) => `${encabezado}
+${fallas.map((f, i) => `${i + 1}. [${f.severidad}] ${f.que} — ${f.donde || ''} — arreglo sugerido: ${f.arreglo || 'a criterio'}${f.test ? ` — test que la reproduce: ${f.test}` : ''}`).join('\n')}
+${dictamen?.archivoDictamen ? `Dictamen: ${dictamen.archivoDictamen} (leé sólo la parte de estas fallas). ` : ''}Arrancá corriendo el test del certificador (copialo a src/test/, corrélo y borralo): tiene que fallar antes y pasar después. Llevá el caso al test del repo de esa zona.
+${comun}`
 
   while (dictamen && dictamen.fallas.some((f) => f.severidad !== 'baja') && vueltas < maxVueltas) {
     vueltas++
@@ -101,16 +134,14 @@ Tus tests adversariales y el dictamen van en ${a.scratch}/cert-${nombre}/. Corr�
     log(`Vuelta ${vueltas}: ${aCorregir.length} falla(s) alta/media para corregir`)
     phase('Corregir')
     const correccion = await agent(
-      `Corregí SOLO estas fallas de la certificación (con test que las reproduzca y pase):
-${aCorregir.map((f, i) => `${i + 1}. [${f.severidad}] ${f.que} — ${f.donde || ''} — arreglo sugerido: ${f.arreglo || 'a criterio'}`).join('\n')}
-${comun}`,
+      briefCorreccion(aCorregir, 'Corregí SOLO estas fallas de la certificación (con test que las reproduzca y pase):'),
       { label: `corregir ${nombre} (vuelta ${vueltas})`, phase: 'Corregir', agentType: 'gsg-ingeniero', schema: CONSTRUCCION },
     )
     if (!correccion) break
     construido = { ...construido, commit: correccion.commit, archivosTocados: [...new Set([...construido.archivosTocados, ...correccion.archivosTocados])] }
     verificado = await verificar(`verificar ${nombre} (vuelta ${vueltas})`)
     phase('Certificar')
-    dictamen = await certificar(`Vuelta ${vueltas + 1}: mirá SOLO lo corregido para estas fallas y su regresión inmediata:\n${aCorregir.map((f) => `- ${f.que}`).join('\n')}`)
+    dictamen = await certificar(`Vuelta ${vueltas + 1}: mirá SOLO lo corregido para estas fallas y su regresión inmediata (incluidas las ramas vecinas del mismo flujo):\n${aCorregir.map((f) => `- ${f.que}`).join('\n')}`)
   }
   let quedan = (dictamen?.fallas || []).filter((f) => f.severidad !== 'baja')
   if (quedan.length && vueltas >= maxVueltas && a.escalarFable !== false) {
@@ -118,9 +149,7 @@ ${comun}`,
     log(`Escalamiento técnico a Fable (una única vuelta). Motivo: ${escalado}`)
     phase('Escalar')
     const escalada = await agent(
-      `Escalamiento técnico: Opus no pudo cerrar estas fallas en ${vueltas} vuelta(s). Corregí SOLO estas (con test que las reproduzca y pase):
-${quedan.map((f, i) => `${i + 1}. [${f.severidad}] ${f.que} — ${f.donde || ''} — arreglo sugerido: ${f.arreglo || 'a criterio'}`).join('\n')}
-${comun}`,
+      briefCorreccion(quedan, `Escalamiento técnico: Opus no pudo cerrar estas fallas en ${vueltas} vuelta(s). Corregí SOLO estas (con test que las reproduzca y pase):`),
       { label: `escalar ${nombre} (Fable)`, phase: 'Escalar', agentType: 'gsg-ingeniero', model: 'fable', schema: CONSTRUCCION },
     )
     if (escalada) {
