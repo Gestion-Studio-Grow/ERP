@@ -335,6 +335,49 @@ test("BP-101 (cert v3 A1): acortar la pausa con el hueco ya vendido (otro puesto
   assert.doesNotMatch(wa, new RegExp(`de vuelta el \\S+ ${dm.replace("/", "\\/")}`), wa);
 });
 
+test("BP-101 (cert v3 A1 fuera de la ventana): la primera fecha después de la pausa, todavía sin bajar, ya la vendió otro → «vuelve solo» salta a la libre y el choque se dice en previa, aviso y WhatsApp", () => {
+  const e = M.generarDemo(HOY, AHORA.min);
+  const k = 3;
+  const dia = M.diaSemana(M.sumarDias(HOY, k));
+  const canchaId = e.canchas.find((c) => [0, 1, 2, 3, 4].every((i) => M.validarHueco(e, { canchaId: c.id, fecha: M.sumarDias(HOY, k + 7 * i), inicio: 22 * 60, duracion: 60 }).ok))!.id;
+  const f = M.crearFijo(e, { clienteId: null, canchaId, dia, inicio: 22 * 60, duracion: 60, titular: "Fijo Martes", desde: HOY });
+  M.materializarFijosHasta(e, HOY, 14);
+  const ocupada = M.sumarDias(HOY, k + 21); // fuera de la ventana de 14 días: el fijo no la bajó
+  assert.equal(e.reservas.some((r) => r.fijoId === f.id && r.fecha === ocupada), false);
+  assert.equal(M.crearReserva(e, { canchaId, fecha: ocupada, inicio: 22 * 60, duracion: 60, tipo: "turno", titular: "Otro" }, AHORA).ok, true);
+  const a = { tipo: "pausa" as const, fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, k + 14) };
+  const previa = previaBajaFijo(e, a, AHORA);
+  assert.equal(previa.ok, true);
+  if (!previa.ok) return;
+  const dm = `${Number(ocupada.slice(8))}/${Number(ocupada.slice(5, 7))}`;
+  assert.equal(previa.vuelve, M.sumarDias(ocupada, 7), "salta a la semana libre");
+  assert.deepEqual(previa.chocan.map((c) => c.fecha), [ocupada]);
+  assert.ok(previa.lineas.some((l) => l.includes(dm) && /no vuelve/.test(l)), previa.lineas.join(" | "));
+  const wa = textoAvisoBaja(e, f, a, previa);
+  assert.doesNotMatch(wa, new RegExp(`de vuelta el \\S+ ${dm.replace("/", "\\/")}`), wa);
+  assert.match(wa, new RegExp(`${dm.replace("/", "\\/")} no: ese horario ya está tomado`), wa);
+  const d = ejecutarBajaFijo(e, a, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(d.vuelve, M.sumarDias(ocupada, 7));
+  assert.match(d.mensaje, new RegExp(`No vuelve el \\S+ ${dm.replace("/", "\\/")}: se pisa con otro turno`), d.mensaje);
+});
+
+test("BP-101 (cert v3 A2): la previa de acortar la pausa cuenta los turnos que VUELVEN a la grilla", () => {
+  const e = M.generarDemo(HOY, AHORA.min);
+  const k = 3;
+  const dia = M.diaSemana(M.sumarDias(HOY, k));
+  const canchaId = e.canchas.find((c) => [0, 1, 2, 3].every((i) => M.validarHueco(e, { canchaId: c.id, fecha: M.sumarDias(HOY, k + 7 * i), inicio: 22 * 60, duracion: 60 }).ok))!.id;
+  const f = M.crearFijo(e, { clienteId: null, canchaId, dia, inicio: 22 * 60, duracion: 60, titular: "Fijo Martes", desde: HOY });
+  M.materializarFijosHasta(e, HOY, 14);
+  assert.equal(ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, 20) }, AHORA).ok, true);
+  const p = previaBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, 1) }, AHORA);
+  assert.equal(p.ok, true);
+  if (!p.ok) return;
+  assert.doesNotMatch(p.resumen, /No hay turnos suyos/, p.resumen);
+  assert.match(p.resumen, /^Vuelven 2 turnos a la grilla$/, p.resumen);
+  assert.equal(p.lineas.filter((l) => /vuelve a la grilla/.test(l)).length, 2, p.lineas.join(" | "));
+});
+
 test("BP-104: liberar UN día de dentro de 3 semanas: esa fecha no se baja y las demás sí", () => {
   const { e, f } = fijoConTurnos();
   const en3 = armarFijos(e, AHORA).fijos.find((x) => x.id === f.id)!.fechas[3].fecha;

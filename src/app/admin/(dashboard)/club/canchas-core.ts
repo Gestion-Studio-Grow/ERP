@@ -213,9 +213,27 @@ export function proximasFechasDelFijo(f: Fijo, ahora: Ahora, n = FECHAS_DEL_FIJO
   return out;
 }
 
-function estadoDelFijo(f: Fijo, ahora: Ahora): string | null {
+/**
+ * La vuelta de un fijo pausado mirando la GRILLA, no sólo el calendario: recorre sus fechas después de la pausa y la
+ * primera que de verdad juega (ya bajada a la grilla, o con el hueco libre) es «vuelve». Las de antes que no pueden
+ * volver porque el hueco ya lo vendió otro (otro puesto, la web) o está bloqueado van en `chocan`, aunque todavía no
+ * se hubieran bajado (fuera de la ventana de reserva). Las que el titular liberó o canceló aparte se saltan sin choque.
+ */
+export function vueltaDelFijo(estado: EstadoClub, f: Fijo, desde: Fecha): { vuelve: Fecha | null; chocan: ChoqueDeLaVuelta[] } {
+  const chocan: ChoqueDeLaVuelta[] = [];
+  for (const fecha of proximasFechasDelFijo(f, { fecha: desde, min: 0 }, FECHAS_DEL_FIJO)) {
+    if (estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha && r.estado === "reservada")) return { vuelve: fecha, chocan };
+    if (fijoBajadoEl(estado, f, fecha)) continue;
+    const v = validarHueco(estado, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion });
+    if (v.ok) return { vuelve: fecha, chocan };
+    chocan.push({ fecha, motivo: v.motivo ?? "el hueco ya está tomado" });
+  }
+  return { vuelve: null, chocan };
+}
+
+function estadoDelFijo(estado: EstadoClub, f: Fijo, ahora: Ahora): string | null {
   if (f.pausa && f.pausa.hasta >= ahora.fecha) {
-    const vuelve = proximasFechasDelFijo(f, { fecha: sumarDias(f.pausa.hasta, 1), min: 0 }, 1)[0];
+    const vuelve = vueltaDelFijo(estado, f, sumarDias(f.pausa.hasta, 1)).vuelve;
     return `${f.pausa.desde > ahora.fecha ? `Se pausa del ${ddmm(f.pausa.desde)}` : "Pausado"} hasta el ${ddmm(f.pausa.hasta)}${vuelve ? ` · vuelve el ${ddmm(vuelve)}` : ""}`;
   }
   if (f.hasta) return `Juega hasta el ${ddmm(f.hasta)}`;
@@ -244,7 +262,7 @@ export function armarFijos(estado: EstadoClub, hoy: Fecha | Ahora): { fijos: Vis
       id: f.id,
       titular: f.titular,
       texto: `${f.titular} · ${NOMBRE_DIA[f.dia].toLowerCase()} ${hhmm(f.inicio)} a ${hhmm(f.inicio + f.duracion)} · ${canchaDe(estado, f.canchaId)?.nombre ?? ""}`,
-      estado: estadoDelFijo(f, ahora),
+      estado: estadoDelFijo(estado, f, ahora),
       proximas,
       fechas: proximasFechasDelFijo(f, ahora).map((fecha) => ({ fecha, texto: fechaCorta(fecha) })),
       celular: (f.clienteId && estado.clientes.find((c) => c.id === f.clienteId)?.tel) || "",
@@ -381,9 +399,13 @@ export function ejecutarBajaFijo(estado: EstadoClub, a: AccionBajaFijo, ahora: A
     // «Vuelve solo el …»: la primera fecha después de la pausa que de verdad vuelve a la grilla. Si alguna de las que
     // tenían que volver chocó con un turno vendido mientras tanto (`res.chocan`: otro puesto o la web), no se anuncia
     // ésa — se salta a la siguiente — y el choque se dice con todas las letras, para que el titular no crea que juega.
-    const chocan = res.chocan ?? [];
-    const ocupadas = new Set(chocan.map((c) => c.fecha));
-    const vuelve = proximasFechasDelFijo({ ...f, pausa: { desde: a.desde, hasta: a.hasta } }, { fecha: sumarDias(a.hasta, 1), min: 0 }, FECHAS_DEL_FIJO).find((x) => !ocupadas.has(x)) ?? null;
+    // `res.chocan` sólo trae las que la pausa anterior había bajado; `vueltaDelFijo` mira la grilla también fuera de
+    // la ventana (una fecha todavía sin bajar que otro ya vendió), así que se juntan sin repetir fecha.
+    const grilla = vueltaDelFijo(estado, f, sumarDias(a.hasta, 1));
+    const chocan = [...(res.chocan ?? [])];
+    for (const c of grilla.chocan) if (!chocan.some((x) => x.fecha === c.fecha)) chocan.push(c);
+    chocan.sort((x, y) => x.fecha.localeCompare(y.fecha));
+    const vuelve = grilla.vuelve;
     const noVuelven = chocan.length ? ` No vuelve${chocan.length > 1 ? "n" : ""} ${chocan.map((c) => `el ${fechaCorta(c.fecha)}`).join(" ni ")}: ${chocan.length > 1 ? "se pisan con otros turnos" : `se pisa con otro turno (${chocan[0].motivo.replace(/\.$/, "")})`}.` : "";
     return { ok: true, turnos: res.turnos, vuelve, vuelven: res.vuelven ?? [], chocan, mensaje: `Pausado ${de} hasta el ${ddmm(a.hasta)}${vuelve ? `; vuelve solo el ${fechaCorta(vuelve)}` : ""}.${noVuelven}${resumen}` };
   }
@@ -401,12 +423,15 @@ export function previaBajaFijo(estado: EstadoClub, a: AccionBajaFijo, ahora: Aho
   if (!d.ok) return { ok: false, mensaje: d.mensaje };
   const turnos = d.turnos ?? [];
   const chocan = d.chocan ?? [];
+  const vuelven = d.vuelven ?? [];
   const suma = (k: "devuelto" | "devolverEnMano") => turnos.reduce((s, t) => s + t[k], 0);
   return {
     ok: true,
-    resumen: resumenDeLaBaja(turnos),
-    // Las fechas que tenían que volver y chocan van como línea propia: lo que la previa dice es lo que pasa.
-    lineas: [...turnos.map(lineaDeLaBaja), ...chocan.map((c) => lineaDelChoque({ inicio: f?.inicio ?? 0 }, c))],
+    // Si la pausa acortada devuelve turnos a la grilla, la previa los cuenta («Vuelve 1 turno a la grilla»), no
+    // «No hay turnos suyos para liberar».
+    resumen: vuelven.length ? [turnos.length ? resumenDeLaBaja(turnos) : null, `Vuelve${vuelven.length > 1 ? `n ${vuelven.length} turnos` : " 1 turno"} a la grilla`].filter(Boolean).join(" · ") : resumenDeLaBaja(turnos),
+    // Las fechas que vuelven y las que chocan van como línea propia: lo que la previa dice es lo que pasa.
+    lineas: [...turnos.map(lineaDeLaBaja), ...vuelven.map((x) => `${fechaCorta(x)} ${hhmm(f?.inicio ?? 0)} · vuelve a la grilla`), ...chocan.map((c) => lineaDelChoque({ inicio: f?.inicio ?? 0 }, c))],
     chocan,
     turnos: turnos.length,
     plata: { credito: suma("devuelto"), enMano: suma("devolverEnMano"), enSuspenso: turnos.reduce((s, t) => s + (t.enSuspenso ? t.pagado : 0), 0) },
@@ -421,7 +446,7 @@ export function textoAvisoBaja(estado: EstadoClub, f: Pick<Fijo, "titular" | "di
   const club = estado.config.nombre ?? "el club";
   const turno = `tu turno fijo de los ${enPlural(f.dia)} a las ${hhmm(f.inicio)}`;
   const plata = previa.plata.credito ? ` Te quedan ${pesos(previa.plata.credito)} a favor para tu próximo turno.` : previa.plata.enMano ? ` Tenemos ${pesos(previa.plata.enMano)} para devolverte: pasá cuando quieras.` : "";
-  if (a.tipo === "pausa") return `¡Hola ${nombre}! Dejamos en pausa ${turno} hasta el ${ddmm(a.hasta)}${previa.vuelve ? `; te esperamos de vuelta el ${fechaCorta(previa.vuelve)}` : ""}.${plata} ${club}`;
+  if (a.tipo === "pausa") return `¡Hola ${nombre}! Dejamos en pausa ${turno} hasta el ${ddmm(a.hasta)}${previa.vuelve ? `; te esperamos de vuelta el ${fechaCorta(previa.vuelve)}` : ""}.${previa.chocan.length ? ` ${previa.chocan.map((c) => `El ${fechaCorta(c.fecha)}`).join(" y el ")} no: ese horario ya está tomado.` : ""}${plata} ${club}`;
   if (a.tipo === "liberar") return `¡Hola ${nombre}! Liberamos ${turno} del ${fechaCorta(a.fecha)}; las otras semanas siguen igual.${plata} ${club}`;
   return `¡Hola ${nombre}! Dimos de baja ${turno}${previa.quitado ? "" : ` desde el ${fechaCorta(a.desde)}`}.${plata} ¡Gracias por jugar con nosotros! ${club}`;
 }
