@@ -22,10 +22,11 @@
 // («A las 20:30 en Cancha 2 entran 30 min (Beto juega 21:00)»), «Reservar» queda apagado y `alternativas` ofrece
 // otra cancha a la misma hora, el siguiente hueco en esa cancha, una duración menor acá y anotarlo en espera.
 
-import { altaCliente, anotarEspera, buscarClientes, cancha as canchaDe, cliente as clienteDe, crearFijo, crearReserva, cuantoEntra, diaSemana, fijoBajadoEl, fijoJuegaEl, franjaDe, hhmm, horarioDe, huecosLibres, materializarFijos, minutosHasta, montoSena, motivoSena, NOMBRE_DIA, pesos, precioTurno, sumarDias, validarHueco } from "@/lib/club/motor.mjs";
+import { altaCliente, anotarEspera, buscarClientes, cancha as canchaDe, cliente as clienteDe, crearFijo, crearReserva, cuantoEntra, diaSemana, franjaDe, hhmm, horarioDe, huecosLibres, materializarFijos, minutosHasta, montoSena, motivoSena, NOMBRE_DIA, pesos, precioTurno, sumarDias, validarHueco } from "@/lib/club/motor.mjs";
 import type { Ahora, Cliente, CorteDelHueco, EstadoClub, Fecha, TipoReserva } from "@/lib/club/motor.mjs";
 import { normalizarTelefono } from "@/lib/clientes/telefono";
 import type { Desenlace } from "./almacen";
+import { otroFijoQuePisa } from "./canchas-core";
 
 export const DURACIONES = [60, 90, 120] as const;
 export const TIPOS_ALTA: readonly { valor: Extract<TipoReserva, "turno" | "clase" | "abierto">; etiqueta: string }[] = [
@@ -86,14 +87,11 @@ export interface FechaDelFijo {
  * (un fijo de otro que juega ese día a esa hora también choca). PURA: no toca el estado.
  */
 export function previaFijoSemanal(estado: EstadoClub, d: Pick<DatosAlta, "canchaId" | "fecha" | "inicio" | "duracion">): FechaDelFijo[] {
-  const fin = d.inicio + d.duracion;
   return Array.from({ length: SEMANAS_DEL_FIJO }, (_, i) => sumarDias(d.fecha, 7 * (i + 1))).map((fecha) => {
     const dd = `${Number(fecha.slice(8))}/${Number(fecha.slice(5, 7))}`;
     const v = validarHueco(estado, { canchaId: d.canchaId, fecha, inicio: d.inicio, duracion: d.duracion });
     if (!v.ok) return { fecha, entra: false, texto: `${dd} · ${v.motivo.replace(/\.$/, "").replace(/^Se pisa/, "se pisa")}` };
-    const otro = estado.fijos.find(
-      (f) => f.canchaId === d.canchaId && fijoJuegaEl(f, fecha) && f.inicio < fin && d.inicio < f.inicio + f.duracion && !fijoBajadoEl(estado, f, fecha),
-    );
+    const otro = otroFijoQuePisa(estado, { canchaId: d.canchaId, fecha, inicio: d.inicio, duracion: d.duracion });
     if (otro) return { fecha, entra: false, texto: `${dd} · se pisa con el fijo de ${otro.titular} (${hhmm(otro.inicio)})` };
     return { fecha, entra: true, texto: `${dd} ✔` };
   });

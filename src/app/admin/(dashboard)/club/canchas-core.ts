@@ -214,6 +214,23 @@ export function proximasFechasDelFijo(f: Fijo, ahora: Ahora, n = FECHAS_DEL_FIJO
 }
 
 /**
+ * Otro fijo (no `excluirId`) que juega esa fecha, en esa cancha, se superpone con el hueco y todavía no se bajó a la
+ * grilla (lo bajado ya lo ve `validarHueco`). Respeta la pausa, las fechas liberadas y la vigencia del otro
+ * (`fijoJuegaEl`): si ese día no juega, no choca. PURA. La usan la vuelta de una pausa, `nuevoFijo` y la previa del
+ * «Fijo semanal» (alta-core.ts).
+ */
+export function otroFijoQuePisa(
+  estado: EstadoClub,
+  h: { canchaId: string; fecha: Fecha; inicio: number; duracion: number },
+  excluirId?: string,
+): Fijo | undefined {
+  const fin = h.inicio + h.duracion;
+  return estado.fijos.find(
+    (g) => g.id !== excluirId && g.canchaId === h.canchaId && fijoJuegaEl(g, h.fecha) && g.inicio < fin && h.inicio < g.inicio + g.duracion && !fijoBajadoEl(estado, g, h.fecha),
+  );
+}
+
+/**
  * La vuelta de un fijo pausado mirando la GRILLA, no sólo el calendario: recorre sus fechas después de la pausa y la
  * primera que de verdad juega (ya bajada a la grilla, o con el hueco libre) es «vuelve». Las de antes que no pueden
  * volver porque el hueco ya lo vendió otro (otro puesto, la web) o está bloqueado van en `chocan`, aunque todavía no
@@ -225,8 +242,14 @@ export function vueltaDelFijo(estado: EstadoClub, f: Fijo, desde: Fecha): { vuel
     if (estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha && r.estado === "reservada")) return { vuelve: fecha, chocan };
     if (fijoBajadoEl(estado, f, fecha)) continue;
     const v = validarHueco(estado, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion });
-    if (v.ok) return { vuelve: fecha, chocan };
-    chocan.push({ fecha, motivo: v.motivo ?? "el hueco ya está tomado" });
+    if (!v.ok) {
+      chocan.push({ fecha, motivo: v.motivo ?? "el hueco ya está tomado" });
+      continue;
+    }
+    // Un fijo de otro que juega esa fecha y todavía no se bajó también la ocupa (Falla 1 del dictamen v4).
+    const otro = otroFijoQuePisa(estado, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion }, f.id);
+    if (!otro) return { vuelve: fecha, chocan };
+    chocan.push({ fecha, motivo: `se pisa con el fijo de ${otro.titular} (${hhmm(otro.inicio)})`, fijoId: otro.id });
   }
   return { vuelve: null, chocan };
 }
@@ -300,6 +323,16 @@ export function nuevoFijo(
   for (let i = 0; i < 14 && (diaSemana(proxima) !== datos.dia || minutosHasta(ahora, proxima, datos.inicio) + datos.duracion <= 0); i++) proxima = sumarDias(proxima, 1);
   const v = validarHueco(estado, { canchaId: datos.canchaId, fecha: proxima, inicio: datos.inicio, duracion: datos.duracion });
   if (!v.ok) return { ok: false, mensaje: `El ${ddmm(proxima)} no entra: ${v.motivo}` };
+  // Un fijo es para siempre: no puede pisar a otro fijo en ninguna de sus próximas fechas (tampoco al que está en
+  // pausa y vuelve más adelante). Se mira lo mismo que `proximasFechasDelFijo`: hasta un año y medio.
+  for (let fecha = proxima, i = 0; i < 80; i++, fecha = sumarDias(fecha, 7)) {
+    const otro = otroFijoQuePisa(estado, { canchaId: datos.canchaId, fecha, inicio: datos.inicio, duracion: datos.duracion });
+    if (otro)
+      return {
+        ok: false,
+        mensaje: `Ese horario ya es del fijo de ${otro.titular} (${enPlural(otro.dia)} ${hhmm(otro.inicio)}${fecha > proxima ? `; lo juega el ${fechaCorta(fecha)}` : ""}). Elegí otro día, hora o cancha.`,
+      };
+  }
   crearFijo(estado, { ...datos, titular });
   const bajada = bajarFijos(estado, ahora.fecha);
   return { ok: true, mensaje: `Turno fijo de ${titular} los ${NOMBRE_DIA[datos.dia].toLowerCase()} a las ${hhmm(datos.inicio)}. ${bajada.mensaje}` };
@@ -368,7 +401,12 @@ function resumenDeLaBaja(turnos: TurnoDeLaBaja[]): string {
 }
 
 /** Una fecha que tenía que volver a la grilla y choca con un turno vendido mientras tanto (otro puesto o la web). */
-export type ChoqueDeLaVuelta = { fecha: Fecha; motivo: string };
+export type ChoqueDeLaVuelta = {
+  fecha: Fecha;
+  motivo: string;
+  /** Si choca con otro fijo todavía sin bajar: ése (la fecha se le libera al pausado para que no se la gane al bajar). */
+  fijoId?: string;
+};
 
 /** «mar 27/10 20:00 · no vuelve: se pisa con otro turno» (la fecha que la pausa acortada no pudo devolver). */
 export function lineaDelChoque(f: Pick<Fijo, "inicio">, c: ChoqueDeLaVuelta): string {
@@ -402,11 +440,14 @@ export function ejecutarBajaFijo(estado: EstadoClub, a: AccionBajaFijo, ahora: A
     // `res.chocan` sólo trae las que la pausa anterior había bajado; `vueltaDelFijo` mira la grilla también fuera de
     // la ventana (una fecha todavía sin bajar que otro ya vendió), así que se juntan sin repetir fecha.
     const grilla = vueltaDelFijo(estado, f, sumarDias(a.hasta, 1));
-    const chocan = [...(res.chocan ?? [])];
+    // La fecha que choca con el fijo de otro se le libera al pausado: si no, al bajar la ventana se la gana él por
+    // orden de la lista y el otro (a quien se la prometieron) la pierde sin aviso. Idempotente.
+    for (const c of grilla.chocan) if (c.fijoId && !f.excepciones.includes(c.fecha)) f.excepciones.push(c.fecha);
+    const chocan: ChoqueDeLaVuelta[] = [...(res.chocan ?? [])];
     for (const c of grilla.chocan) if (!chocan.some((x) => x.fecha === c.fecha)) chocan.push(c);
     chocan.sort((x, y) => x.fecha.localeCompare(y.fecha));
     const vuelve = grilla.vuelve;
-    const noVuelven = chocan.length ? ` No vuelve${chocan.length > 1 ? "n" : ""} ${chocan.map((c) => `el ${fechaCorta(c.fecha)}`).join(" ni ")}: ${chocan.length > 1 ? "se pisan con otros turnos" : `se pisa con otro turno (${chocan[0].motivo.replace(/\.$/, "")})`}.` : "";
+    const noVuelven = chocan.length ? ` No vuelve${chocan.length > 1 ? "n" : ""} ${chocan.map((c) => `el ${fechaCorta(c.fecha)}`).join(" ni ")}: ${chocan.length > 1 ? (chocan.every((c) => c.fijoId && c.motivo === chocan[0].motivo) ? chocan[0].motivo.replace(/^se pisa/, "se pisan") : "se pisan con otros turnos") : chocan[0].fijoId ? chocan[0].motivo : `se pisa con otro turno (${chocan[0].motivo.replace(/\.$/, "")})`}.` : "";
     return { ok: true, turnos: res.turnos, vuelve, vuelven: res.vuelven ?? [], chocan, mensaje: `Pausado ${de} hasta el ${ddmm(a.hasta)}${vuelve ? `; vuelve solo el ${fechaCorta(vuelve)}` : ""}.${noVuelven}${resumen}` };
   }
   return { ok: true, turnos: res.turnos, quitado: res.quitado, mensaje: `Dado de baja ${de}${res.quitado ? "" : ` desde el ${fechaCorta(a.desde)}`}.${resumen}` };

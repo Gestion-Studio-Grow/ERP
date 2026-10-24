@@ -418,6 +418,18 @@ test("BP-101 (cert v2-1): tras acortar una pausa, la previa del «Fijo semanal»
   assert.equal(p2[0].entra, false, p2[0].texto);
 });
 
+test("BP-101 (cert v4): el fijo de otro en pausa no choca en las fechas de la pausa, sí cuando vuelve (función compartida)", () => {
+  const e = demo();
+  const f = e.fijos[0];
+  M.materializarFijosHasta(e, HOY, 14);
+  let en7 = M.sumarDias(HOY, 7);
+  while (M.diaSemana(en7) !== f.dia) en7 = M.sumarDias(en7, 1);
+  assert.equal(M.darDeBajaFijo(e, f.id, { desde: HOY, pausaHasta: M.sumarDias(en7, 7) }, AHORA).ok, true);
+  const p = previaFijoSemanal(e, { canchaId: f.canchaId, fecha: M.sumarDias(en7, -7), inicio: f.inicio, duracion: f.duracion });
+  assert.deepEqual(p.slice(0, 3).map((x) => x.entra), [true, true, false]);
+  assert.match(p[2].texto, new RegExp(`se pisa con el fijo de ${f.titular}`));
+});
+
 test("BP-103: alta del jueves 20:00 con «Fijo semanal»: la previa marca la semana que choca; al reservar, las otras quedan en la grilla", () => {
   const e = demo();
   const jueves = M.sumarDias(HOY, 5); // jueves 22/10
