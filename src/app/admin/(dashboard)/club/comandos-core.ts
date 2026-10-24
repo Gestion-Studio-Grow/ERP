@@ -289,7 +289,8 @@ export const REGISTRO = {
   bajaDeFijo: entrada<[accion: AccionBajaFijo], ReturnType<typeof ejecutarBajaFijo>>({
     correr: (e, [a], ahora, auth) => ejecutarBajaFijo(e, a, ahora, auth),
     // Cancela turnos y puede devolver plata (crédito o en mano), y libera huecos que otro puesto puede estar dando: con
-    // internet, como «Dar de baja» del comando «fijo».
+    // internet, como «Dar de baja» del comando «fijo». Provisional, a confirmar con el dueño (decisión abierta «sin
+    // internet»): mientras no la tome, la regla más segura para la plata es «con internet».
     sinInternet: () => false,
     // Sin secretos en los argumentos (el fijo y las fechas): lo verifica el test que recorre el REGISTRO entero.
     secretos: [],
