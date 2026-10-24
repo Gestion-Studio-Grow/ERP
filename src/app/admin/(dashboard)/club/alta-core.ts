@@ -26,7 +26,7 @@ import { altaCliente, anotarEspera, buscarClientes, cancha as canchaDe, cliente 
 import type { Ahora, Cliente, CorteDelHueco, EstadoClub, Fecha, TipoReserva } from "@/lib/club/motor.mjs";
 import { normalizarTelefono } from "@/lib/clientes/telefono";
 import type { Desenlace } from "./almacen";
-import { otroFijoQuePisa } from "./canchas-core";
+import { fijoQuePisaAlNuevo, otroFijoQuePisa } from "./canchas-core";
 
 export const DURACIONES = [60, 90, 120] as const;
 export const TIPOS_ALTA: readonly { valor: Extract<TipoReserva, "turno" | "clase" | "abierto">; etiqueta: string }[] = [
@@ -338,6 +338,12 @@ export function reservar(estado: EstadoClub, d: DatosAlta, ahora: Ahora): Desenl
     .map((x) => x.trim())
     .filter(Boolean)
     .slice(0, 3);
+  // «Fijo semanal»: el guardián de todo fijo nuevo decide antes de reservar nada (la previa de 4 semanas es sólo la
+  // vista; el fijo es para siempre y no puede pisar al de otro, aunque esté en pausa). Dictamen v5, Falla 2.
+  if (d.fijo && d.tipo === "turno") {
+    const pisa = fijoQuePisaAlNuevo(estado, { canchaId: d.canchaId, desde: d.fecha, inicio: d.inicio, duracion: d.duracion });
+    if (pisa) return { ok: false, mensaje: `${pisa} Para reservar sólo este día, sacá «Fijo semanal».` };
+  }
   const titular = d.titular.trim();
   let clienteId = d.clienteId;
   let ficha: { id: string; nueva: boolean } | null = null;

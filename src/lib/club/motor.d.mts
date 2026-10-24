@@ -357,6 +357,11 @@ export interface Fijo {
   titular: string;
   /** Fechas liberadas («esta semana no venimos»). */
   excepciones: Fecha[];
+  /**
+   * De `excepciones`, las que se liberaron solas porque chocaban con el fijo de otro al acortar una pausa
+   * (canchas-core.ts `ejecutarBajaFijo`). Si ese otro se da de baja, vuelven a este fijo. Opcional: estados viejos no la traen.
+   */
+  liberadasPor?: { fecha: Fecha; fijoId: string }[];
   /** Primera fecha que juega (el fijo que nace en el alta de un turno de más adelante). */
   desde?: Fecha;
   /** Última fecha que juega (inclusive): lo deja «Dar de baja desde…» (`darDeBajaFijo`). */
