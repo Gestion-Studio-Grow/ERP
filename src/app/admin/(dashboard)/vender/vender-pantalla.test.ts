@@ -156,6 +156,38 @@ export async function probarCuponEnPedido(codigo, base) {
   return { ok: false, error: "Ese cupón no existe o no está activo. Revisá cómo está escrito." };
 }
 `;
+// El bloque Cliente del mostrador boutique (ClienteDeLaVenta) busca y trae fichas con estas
+// acciones (src/lib/clientes/buscar-para-venta.ts, "use server"): acá, una ficha fija.
+const CLIENTES_FALSOS = `
+const FICHA = { id: "cli_1", nombre: "Parrilla UAT", telefono: "1155551234", docTipo: 80, docNro: "27123456789", razonSocial: "Parrilla UAT SRL", condicionIva: "RESPONSABLE_INSCRIPTO", domicilio: null, ultimaDireccion: "Los Álamos 123", ultimosPedidos: [], saldo: null };
+export async function buscarClientesParaVenta(texto) {
+  return /parr/i.test(texto) ? [{ id: FICHA.id, nombre: FICHA.nombre, telefono: FICHA.telefono, docTipo: FICHA.docTipo, docNro: FICHA.docNro, razonSocial: FICHA.razonSocial, condicionIva: FICHA.condicionIva, coincide: "nombre" }] : [];
+}
+export async function traerClienteDeLaVenta(id) { return id === FICHA.id ? FICHA : null; }
+export async function guardarClienteDeLaVenta() { return { ok: false, error: "no en la prueba" }; }
+export async function consultarPadronParaVenta() { return null; }
+`;
+// Las acciones del mostrador nuevo (2A, acciones-del-mostrador.ts): el precio de HOY sale de la
+// misma "base" que \`createOrder\` (los de lista, o \`window.__precios\` si la dueña los cambió) y
+// las teclas fijadas se anotan.
+const MOSTRADOR_FALSO = `
+const LISTA = { p_vacio: [12500, "WEIGHT"], p_entrana: [17500, "WEIGHT"], p_crema: [9000, "UNIT"] };
+export async function preciosVigentesDelTicket(ids) {
+  window.__consultasDePrecio = (window.__consultasDePrecio || 0) + 1;
+  const out = {};
+  for (const id of ids) {
+    if (!LISTA[id]) continue;
+    const [lista, u] = LISTA[id];
+    const hoy = (window.__precios || {})[id] ?? lista;
+    out[id] = u === "WEIGHT" ? { price: null, pricePerKg: hoy } : { price: hoy, pricePerKg: null };
+  }
+  return out;
+}
+export async function fijarTeclasDelMostrador(e) {
+  window.__fijadas = (window.__fijadas || []).concat([e]);
+  return { ok: true, version: "v" + window.__fijadas.length, ids: e.ids };
+}
+`;
 const NAVEGACION_FALSA = `
 export function useRouter() { return { refresh() { window.__refrescos = (window.__refrescos || 0) + 1; } }; }
 export function usePathname() { return "/admin/vender"; }
@@ -236,6 +268,8 @@ type Ventana = {
   __sinConfirmar?: boolean;
   __grabadas: Map<string, Grabada>;
   __cupones?: { codigo: string; base: number }[];
+  __consultasDePrecio?: number;
+  __fijadas?: { ids: string[]; version: string | null }[];
   __montar: (cual: Montaje, tope: number | null, extra?: Record<string, unknown>) => void;
   __montarBarra: () => void;
 };
@@ -306,7 +340,9 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
           setup(b) {
             b.onResolve({ filter: /^@\/lib\/order-actions$/ }, () => ({ path: "acciones", namespace: "falso" }));
             b.onResolve({ filter: /^@\/lib\/coupon-actions$/ }, () => ({ path: "cupones", namespace: "falso" }));
+            b.onResolve({ filter: /^@\/lib\/clientes\/buscar-para-venta$/ }, () => ({ path: "clientes", namespace: "falso" }));
             b.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navegacion", namespace: "falso" }));
+            b.onResolve({ filter: /\/acciones-del-mostrador$/ }, () => ({ path: "mostrador", namespace: "falso" }));
             b.onResolve({ filter: /^next\/link$/ }, () => ({ path: "link", namespace: "falso" }));
             b.onLoad({ filter: /.*/, namespace: "falso" }, (a) => ({
               contents:
@@ -314,6 +350,10 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
                   ? ACCIONES_FALSAS
                   : a.path === "cupones"
                     ? CUPONES_FALSOS
+                    : a.path === "clientes"
+                    ? CLIENTES_FALSOS
+                    : a.path === "mostrador"
+                    ? MOSTRADOR_FALSO
                     : a.path === "link"
                       ? LINK_FALSO
                       : NAVEGACION_FALSA,
@@ -2216,6 +2256,545 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     // El cajero pasa el próximo producto SIN tocar la pantalla: entra.
     await pasarElLector();
     assert.equal(await page.locator("iframe").count(), 1, "un solo iframe de impresión");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+  // ── MOSTRADOR BOUTIQUE (interruptor `mostrador-boutique`, Magra tanda 1 · 1B) ─────────────
+  // Lo que la página manda con el interruptor prendido (MostradorDeVenta): teclas del catálogo,
+  // el pie de cobro único, el campo único, el cliente con CUIT, la zona de envío, el día cerrado.
+  const PRODUCTOS_BOUTIQUE = [
+    { id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 12500, unit: "kg", codigo: "00201" },
+    { id: "p_entrana", name: "Entraña", saleUnit: "WEIGHT", price: null, pricePerKg: 17500, unit: "kg", codigo: null },
+    { id: "p_crema", name: "Crema", saleUnit: "UNIT", price: 9000, pricePerKg: null, unit: "u", codigo: "7790001000014" },
+  ];
+  const ENVIOS = {
+    retiroEnLocal: true,
+    horarioRetiro: null,
+    pedidoMinimoEnvio: null,
+    zonas: [{ id: "z1", nombre: "Canning – barrios cerrados", costo: 4000, gratisDesde: 60000, franjas: [] }],
+    franjasRetiro: [],
+    tiendaPausada: null,
+  };
+  const boutique = (b: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
+    products: PRODUCTOS_BOUTIQUE,
+    stockById: { p_vacio: { stock: 30, trackStock: true }, p_entrana: { stock: 0, trackStock: true }, p_crema: { stock: 24, trackStock: true } },
+    // Sin ventas previas: las teclas salen del catálogo (teclasDelMostrador con TECLAS_BOUTIQUE).
+    rapidos: ["p_crema", "p_entrana", "p_vacio"],
+    rotuloRapidos: "Tus productos",
+    boutique: { envios: ENVIOS, diaCerrado: null, rolFactura: true, puedeEditarFicha: false, ...b },
+    ...extra,
+  });
+  const envios = (page: Page) => page.evaluate(() => (window as unknown as Ventana).__envios);
+  const focoEnElCampoUnico = (page: Page) => page.waitForFunction(() => document.activeElement?.id === "campo-unico");
+
+  test("boutique: teclas del catálogo con precio y stock, la unidad entra con 1 y suma, el pie cobra; foco en el campo único al montar y al limpiar", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await focoEnElCampoUnico(page);
+    const tecla = (n: string) => page.locator('[data-vender="tecla"]').filter({ hasText: n });
+    await tecla("Vacío").getByText("$12.500/kg").waitFor();
+    await tecla("Vacío").getByText(/quedan 30/).waitFor();
+    await tecla("Entraña").getByText("agotado").waitFor();
+    // Lo de siempre no está: ni el radiogroup de medios, ni «Pagó con», ni el campo de la etiqueta.
+    assert.equal(await page.getByRole("radiogroup", { name: "Cómo pagó" }).count(), 0);
+    assert.equal(await page.getByLabel("Pagó con").count(), 0);
+    assert.equal(await page.getByLabel("Etiqueta de la balanza o código").count(), 0);
+    await tecla("Crema").click();
+    await tecla("Crema").click();
+    assert.equal(await page.locator('[data-vender="ticket-boutique"] [data-vender="renglon"]').count(), 1, "un renglón, no dos");
+    assert.equal(await page.locator('[data-vender="ticket-boutique"] input[data-tipo="cantidad"]').inputValue(), "2");
+    await page.getByRole("button", { name: "Cobrar $18.000 con Mercado Pago" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.deepEqual(e.productId, ["p_crema"]);
+    assert.deepEqual(e.quantity, ["2"]);
+    assert.deepEqual(e.paymentMethod, ["MERCADOPAGO"]);
+    assert.deepEqual(e.pagado, ["1"]);
+    await page.getByLabel("Ticket de la venta #42").waitFor();
+    await focoEnElCampoUnico(page);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("boutique: la etiqueta entra por el campo único y Efectivo $20.000 cobra con el vuelto a la vista", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar(
+      "vender",
+      10,
+      boutique({}, { balanza: { formato: FORMATO_BALANZA_POR_DEFECTO, porDefecto: false, configurar: null } }),
+    );
+    await focoEnElCampoUnico(page);
+    const campo = page.getByLabel("Escaneá o buscá");
+    await campo.fill(armarEtiquetaDeBalanza(FORMATO_BALANZA_POR_DEFECTO, "00201", 1.25));
+    await campo.press("Enter");
+    // MG-041 (tanda 2): los billetes están a la vista abajo de los medios; el billete cobra en un toque.
+    // Ningún billete menor al total, ninguno elegido de antemano.
+    await page.getByRole("button", { name: /^Paga con \$20\.000 en efectivo/ }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.deepEqual(e.productId, ["p_vacio"]);
+    assert.deepEqual(e.quantity, ["1.25"]);
+    assert.deepEqual(e.paymentMethod, ["EFECTIVO"]);
+    assert.deepEqual(e.recibido, ["20000.00"]);
+    await page.getByText(/vuelto \$4\.375/i).first().waitFor();
+    await focoEnElCampoUnico(page);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("boutique: Dividir Efectivo $10.000 + Mercado Pago el resto, con doble toque, es UNA venta con dos pagos", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await page.locator('[data-vender="tecla"]').filter({ hasText: "Vacío" }).click();
+    await page.keyboard.type("1,25");
+    await page.getByRole("button", { name: "Dividir" }).click();
+    await page.getByLabel("Con Efectivo").fill("10000");
+    await page.getByRole("group", { name: "Medio del pago 2" }).getByRole("button", { name: "Mercado Pago" }).click();
+    await page.getByText("Se completa solo").waitFor();
+    await page.getByRole("button", { name: "Cobrar $15.625" }).dblclick();
+    await page.getByLabel("Ticket de la venta #42").waitFor();
+    await page.waitForTimeout(100);
+    const todos = await envios(page);
+    assert.equal(todos.length, 1, "el doble toque no arma otra venta");
+    assert.deepEqual(todos[0]["pago.medio"], ["EFECTIVO", "MERCADOPAGO"]);
+    assert.deepEqual(todos[0]["pago.monto"], ["10000.00", "5625.00"]);
+    assert.deepEqual(todos[0].paymentMethod, ["EFECTIVO"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("boutique: cliente con CUIT y «Facturar al cobrar» → facturarVenta corre DESPUÉS de createOrder, con la venta grabada", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique({}, { puedeFacturar: true }));
+    await page.locator('[data-vender="tecla"]').filter({ hasText: "Crema" }).click();
+    await page.getByRole("button", { name: "+ Cliente" }).click();
+    await page.locator('input[name="customerName"]').fill("Parr");
+    await page.getByRole("option", { name: /Parrilla UAT/ }).click();
+    await page.getByText(/CUIT 27-12345678-9/).waitFor();
+    await page.getByLabel("Facturar al cobrar").check();
+    await page.getByRole("button", { name: "Cobrar $9.000 con Transferencia" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 2);
+    const [venta, factura] = await envios(page);
+    assert.deepEqual(venta.customerName, ["Parrilla UAT"]);
+    assert.deepEqual(venta.clientId, ["cli_1"]);
+    assert.deepEqual(venta.paymentMethod, ["TRANSFERENCIA"]);
+    assert.deepEqual(factura.id, ["ord_42"], "la factura es de la venta que se acaba de grabar");
+    await page.getByText(/Sin factura: La facturación electrónica no está encendida/).first().waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("boutique: día cerrado → banda arriba, el pie no cobra y «Registrar para cobrar mañana» manda la venta sin cobrar", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique({ diaCerrado: "2026-10-21" }));
+    await page.getByText("El día está cerrado: lo que vendas queda para cobrar mañana.").waitFor();
+    await page.locator('[data-vender="tecla"]').filter({ hasText: "Crema" }).click();
+    assert.equal(await page.getByRole("button", { name: "Cobrar $9.000 en efectivo" }).isDisabled(), true);
+    await page.getByRole("button", { name: "Registrar para cobrar mañana" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.equal(e.pagado, undefined);
+    assert.equal(e.paid, undefined);
+    assert.equal(e.paymentMethod, undefined);
+    assert.deepEqual(e.productId, ["p_crema"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("boutique: pedido con envío → la zona sale de la configuración de Envíos y viaja como `envioZona`", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await page.locator('[data-vender="tecla"]').filter({ hasText: "Crema" }).click();
+    await page.getByRole("button", { name: "Pedido (retiro / envío)" }).click();
+    await page.locator('select[name="fulfillment"]').selectOption("DELIVERY");
+    await page.locator('select[name="envioZona"]').selectOption("z1");
+    await page.getByText(/Envío · Canning – barrios cerrados: \$4\.000.*te faltan \$51\.000/).waitFor();
+    await page.locator('input[name="customerName"]').fill("Ana Pérez");
+    await page.locator('input[name="address"]').fill("Los Álamos 123");
+    await page.getByRole("button", { name: "Registrar pedido" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.deepEqual(e.envioZona, ["z1"]);
+    assert.deepEqual(e.fulfillment, ["DELIVERY"]);
+    assert.deepEqual(e.channel, ["ONLINE"]);
+    assert.equal(e.pagado, undefined);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("boutique: un nombre escrito en el campo único ofrece lo que coincide, y el toque lo carga", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    const campo = page.getByLabel("Escaneá o buscá");
+    await campo.fill("crem");
+    await campo.press("Enter");
+    await page.getByRole("button", { name: "Crema · $9.000/u" }).click();
+    assert.equal(await page.locator('[data-vender="ticket-boutique"] input[data-tipo="cantidad"]').inputValue(), "1");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  // ── Cierre de la cert. Magra T1 ──────────────────────────────────────────────────────────────
+  // F-1 / MG-023: una etiqueta de IMPORTE que no da justo con el precio del sistema (15.630 a
+  // $12.500/kg → 1,250 kg → $15.625). El renglón cobra el del sistema y lo deja escrito; el chip
+  // «Cobrar el de la etiqueta» sólo con el tope del Dueño (null).
+  const FORMATO_IMPORTE = { ...FORMATO_BALANZA_POR_DEFECTO, contenido: "importe" as const, decimales: 0 };
+  const conBalanzaDeImporte = (extra: Record<string, unknown>) =>
+    boutique({}, { balanza: { formato: FORMATO_IMPORTE, porDefecto: false, configurar: null }, ...extra });
+  async function pasarEtiquetaDistinta(page: Page) {
+    await focoEnElCampoUnico(page);
+    const campo = page.getByLabel("Escaneá o buscá");
+    await campo.fill(armarEtiquetaDeBalanza(FORMATO_IMPORTE, "00201", 15630));
+    await campo.press("Enter");
+    await page.locator('[data-vender="etiqueta-distinta"]').getByText("Etiqueta $15.630,00 · Sistema $15.625,00").waitFor();
+  }
+
+  test("F-1: etiqueta con otro importe → «Etiqueta $X · Sistema $Y» en el renglón; el Dueño cobra el de la etiqueta como precio a mano con motivo", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", null, conBalanzaDeImporte({ topePrecioAMano: null }));
+    await pasarEtiquetaDistinta(page);
+    // Cobra el del sistema mientras no se toque el chip.
+    await page.getByRole("button", { name: "Cobrar $15.625 con Mercado Pago" }).waitFor();
+    await page.getByRole("button", { name: "Cobrar el de la etiqueta de Vacío: $15.630,00" }).click();
+    assert.equal(await page.locator('[data-vender="etiqueta-distinta"]').count(), 0, "el renglón pasó a precio a mano");
+    await page.getByRole("button", { name: "Cobrar $15.630 con Mercado Pago" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.equal(e.productId, undefined, "ya no va el producto pesado");
+    assert.deepEqual(e.manualNombre, ["Vacío"]);
+    assert.deepEqual(e.manualImporte, ["15630"]);
+    assert.match(e.manualMotivo[0], /^etiqueta de balanza \(1,25 kg; el sistema daba \$15\.625/);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("F-1: con el tope de la recepción, la diferencia se ve pero el chip NO aparece y se cobra el del sistema", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, conBalanzaDeImporte({ topePrecioAMano: { bajaPct: 10, maximo: 50000 } }));
+    await pasarEtiquetaDistinta(page);
+    assert.equal(await page.getByRole("button", { name: /Cobrar el de la etiqueta/ }).count(), 0);
+    await page.getByRole("button", { name: "Cobrar $15.625 con Mercado Pago" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.deepEqual(e.productId, ["p_vacio"]);
+    assert.deepEqual(e.quantity, ["1.25"]);
+    assert.equal(e.manualNombre, undefined);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  // O-2: en el Vender de siempre (sin el interruptor) de un negocio con zonas, el pedido con envío
+  // pide la zona (el servidor la exige) y el total que se ve suma el envío.
+  test("O-2: Vender de siempre con zonas → «Zona de envío» obligatoria, el total suma el envío y viaja `envioZona`", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("pedido", 10, { envios: ENVIOS });
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1");
+    await page.locator('select[name="fulfillment"]').selectOption("DELIVERY");
+    const zona = page.locator('select[name="envioZona"]');
+    assert.equal(await zona.getAttribute("required"), "", "obligatoria");
+    await zona.selectOption("z1");
+    await page.getByText(/Envío · Canning – barrios cerrados: \$4\.000/).waitFor();
+    await page.locator('input[name="customerName"]').fill("Ana Pérez");
+    await page.locator('input[name="address"]').fill("Los Álamos 123");
+    await page.getByText("$16.500,00").first().waitFor();
+    await page.getByRole("button", { name: /Registrar pedido/ }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.deepEqual(e.envioZona, ["z1"]);
+    assert.deepEqual(e.fulfillment, ["DELIVERY"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("O-2: el POS de la bandeja con zonas también ofrece la zona en el pedido con envío", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("pos", 10, { envios: ENVIOS });
+    await page.getByRole("button", { name: "Pedido (retiro / envío)" }).click();
+    await page.locator("#prod-1").fill("Vac");
+    await page.getByRole("option", { name: /Vacío/ }).first().click();
+    await page.locator("#qty-1").fill("1");
+    assert.equal(await page.locator('select[name="envioZona"]').count(), 0, "con retiro no se pide");
+    await page.locator('select[name="fulfillment"]').selectOption("DELIVERY");
+    await page.locator('select[name="envioZona"]').selectOption("z1");
+    await page.getByText(/Envío · Canning – barrios cerrados: \$4\.000/).waitFor();
+    await page.getByText("$16.500,00").first().waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+  // ── TANDA 2 · 2A: el ticket que crece y las teclas por góndola (MG-041 … MG-050) ────────────────
+  const tecla2a = (page: Page, n: string) => page.locator('[data-vender="tecla"]').filter({ hasText: n });
+  const renglones2a = (page: Page) => page.locator('[data-vender="ticket-boutique"] [data-vender="renglon"]');
+
+  test("2A · MG-042/043: góndolas en pestañas con TODO el catálogo; la unidad tres veces es UN renglón «3 u»", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    const tabs = page.getByRole("tablist", { name: "Góndolas" }).getByRole("tab");
+    assert.deepEqual(await tabs.allTextContents(), ["Tus productos", "Vaca", "Otros"]);
+    await page.getByRole("tab", { name: "Vaca" }).click();
+    assert.equal(await page.getByRole("tab", { name: "Vaca" }).getAttribute("aria-selected"), "true");
+    assert.deepEqual(await page.locator('[role="tabpanel"] [data-vender="tecla"] span:first-child').allTextContents(), ["Entraña", "Vacío"], "las más vendidas primero");
+    // Con el teclado: flecha a la derecha pasa a la góndola siguiente.
+    await page.keyboard.press("ArrowRight");
+    assert.equal(await page.getByRole("tab", { name: "Otros" }).getAttribute("aria-selected"), "true");
+    for (let i = 0; i < 3; i++) await tecla2a(page, "Crema").click();
+    assert.equal(await renglones2a(page).count(), 1, "un renglón, no tres");
+    assert.equal(await page.locator('[data-vender="ticket-boutique"] input[data-tipo="cantidad"]').inputValue(), "3");
+    await renglones2a(page).getByText("3 u × $9.000/u").waitFor();
+    await page.getByRole("button", { name: "Cobrar $27.000 con Mercado Pago" }).waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("2A · MG-046: «Quitar» deja «Deshacer»; al tocarlo el renglón vuelve igual; a los 5 s se va solo", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await tecla2a(page, "Crema").click();
+    await tecla2a(page, "Crema").click();
+    await tecla2a(page, "Vacío").click();
+    await page.keyboard.type("1,24");
+    await page.getByRole("button", { name: "Quitar línea de Crema" }).click();
+    assert.equal(await renglones2a(page).count(), 1);
+    await page.getByRole("status").filter({ hasText: "Quitaste Crema." }).waitFor();
+    await page.getByRole("button", { name: "Deshacer" }).click();
+    assert.equal(await renglones2a(page).count(), 2);
+    assert.equal(await page.locator("#qty-1").inputValue(), "2", "vuelve con su cantidad");
+    assert.equal(await renglones2a(page).first().getByText("Crema", { exact: true }).count(), 1, "y en su lugar");
+    await page.getByRole("button", { name: "Quitar línea de Vacío" }).click();
+    await page.locator('[data-vender="deshacer"]').waitFor();
+    await page.locator('[data-vender="deshacer"]').waitFor({ state: "detached", timeout: 7000 });
+    assert.equal(await renglones2a(page).count(), 1);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("2A · MG-047: la tecla agotada está en gris y no carga; por unidad «Quedan 2 · Dejar 2 · Reemplazo»", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const productos = [...PRODUCTOS_BOUTIQUE, { id: "p_hamb", name: "Hamburguesa casera", saleUnit: "UNIT", price: 2400, pricePerKg: null, unit: "u", codigo: null }];
+    const { page, errores } = await montar(
+      "vender",
+      10,
+      boutique({}, {
+        products: productos.map((p) => (p.id === "p_crema" ? { ...p, name: "Chorizo" } : p)),
+        stockById: { p_vacio: { stock: 30, trackStock: true }, p_entrana: { stock: 0, trackStock: true }, p_crema: { stock: 2, trackStock: true }, p_hamb: { stock: 18, trackStock: true } },
+        rapidos: ["p_crema", "p_entrana", "p_vacio", "p_hamb"],
+      }),
+    );
+    const entrana = tecla2a(page, "Entraña");
+    assert.equal(await entrana.getAttribute("aria-disabled"), "true");
+    await entrana.getByText("agotado").waitFor();
+    // `aria-disabled` (no `disabled`): se puede tocar para ofrecer «venderlo igual»; Playwright lo
+    // trata como deshabilitada, así que se fuerza el toque.
+    await entrana.click({ force: true });
+    assert.equal(await renglones2a(page).count(), 0, "no entra al ticket");
+    // Por kilo, si el paquete está en la mano, se vende igual (MAG-4) con un toque más.
+    await page.getByRole("button", { name: "Lo tengo: venderlo igual" }).click();
+    assert.equal(await renglones2a(page).count(), 1);
+    await page.getByRole("button", { name: "Quitar línea de Entraña" }).click();
+    for (let i = 0; i < 3; i++) await tecla2a(page, "Chorizo").click();
+    const falta = page.locator('[data-vender="faltan-unidades"]');
+    await falta.getByText("Quedan 2").waitFor();
+    await falta.getByRole("button", { name: "Reemplazo" }).click();
+    await page.locator('[data-vender="coincidencias"]').getByRole("button", { name: /Hamburguesa casera/ }).waitFor();
+    await falta.getByRole("button", { name: "Dejar 2" }).click();
+    assert.equal(await page.locator('[data-vender="ticket-boutique"] input[data-tipo="cantidad"]').inputValue(), "2");
+    await page.getByRole("button", { name: "Cobrar $18.000 con Mercado Pago" }).waitFor();
+    assert.ok(await page.getByRole("button", { name: "Cobrar $18.000 con Mercado Pago" }).isEnabled());
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("2A · MG-048: el dueño sube el vacío con el ticket abierto → «Subió a $13.000 recién» y se cobra el precio que se ve", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await tecla2a(page, "Vacío").click();
+    await page.keyboard.type("1");
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__precios = { p_vacio: 13000 };
+    });
+    await page.getByRole("button", { name: "Cobrar $12.500 con Mercado Pago" }).click();
+    await page.locator('[data-vender="cambio-de-precio"]').getByText("Subió a $13.000 recién").waitFor();
+    await page.getByText(/Cambió un precio mientras cargabas/).waitFor();
+    assert.equal((await envios(page)).length, 0, "no se cobró un precio que no se veía");
+    await page.locator('[data-vender="total"]').getByText("$13.000").waitFor();
+    await page.getByRole("button", { name: "Cobrar $13.000 con Mercado Pago" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    await page.getByLabel("Ticket de la venta #42").getByText("$13.000,00").first().waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("2A · MG-049: chips 5 % · 10 % · Redondear; con la recepción, 15 % dice que el tope es 10 %", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await tecla2a(page, "Vacío").click();
+    await page.keyboard.type("1,234");
+    const chips = page.getByRole("group", { name: "Descuento" });
+    await chips.getByRole("button", { name: "Redondear −$25" }).click();
+    await page.getByRole("button", { name: "Cobrar $15.400 con Mercado Pago" }).waitFor();
+    await chips.getByRole("button", { name: "10 %" }).click();
+    assert.equal(await chips.getByRole("button", { name: "10 %" }).getAttribute("aria-pressed"), "true");
+    await page.getByRole("button", { name: "Cobrar $13.882,50 con Mercado Pago" }).waitFor();
+    await page.fill("#descuento-valor", "15");
+    await page.getByRole("alert").filter({ hasText: "llega hasta el 10 %" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: /con Mercado Pago/ }).isDisabled(), true);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("2A · MG-050: precio a mano sin motivo → el pie dice qué falta; el chip «Pieza especial» lo completa y cobra", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await page.getByRole("button", { name: "+ Precio a mano" }).click();
+    await page.getByPlaceholder("Qué se vende (ej.: Bondiola)").fill("Bondiola");
+    await page.getByPlaceholder("$ Importe").fill("12.000");
+    await page.locator('[data-ui="pie-de-cobro"]').getByText("Falta el motivo de «Bondiola»").waitFor();
+    assert.equal(await page.getByRole("button", { name: /con Mercado Pago/ }).isDisabled(), true);
+    await page.getByRole("group", { name: "Motivos frecuentes" }).getByRole("button", { name: "Pieza especial" }).click();
+    await page.getByRole("button", { name: "Cobrar $12.000 con Mercado Pago" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.deepEqual(e.manualNombre, ["Bondiola"]);
+    assert.deepEqual(e.manualMotivo, ["Pieza especial"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("2A · teclas fijas: el dueño elige en la góndola, guarda, y la pestaña principal pasa a «Fijadas»; sin permiso no aparece", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const sinPermiso = await montar("vender", 10, boutique({ teclas: { fijadas: [], version: null, puedeFijar: false, gondolas: {} } }));
+    assert.equal(await sinPermiso.page.getByRole("button", { name: "Elegir teclas fijas" }).count(), 0);
+    await sinPermiso.page.close();
+    const { page, errores } = await montar("vender", null, boutique({ teclas: { fijadas: [], version: null, puedeFijar: true, gondolas: {} } }));
+    await page.getByRole("button", { name: "Elegir teclas fijas" }).click();
+    await page.getByRole("tab", { name: "Vaca" }).click();
+    await tecla2a(page, "Vacío").click();
+    assert.equal(await tecla2a(page, "Vacío").getAttribute("aria-pressed"), "true");
+    assert.equal(await renglones2a(page).count(), 0, "elegir no carga el ticket");
+    await page.getByRole("button", { name: "Guardar teclas" }).click();
+    await page.getByRole("tab", { name: "Fijadas" }).waitFor();
+    assert.equal(await page.getByRole("tab", { name: "Fijadas" }).getAttribute("aria-selected"), "true");
+    assert.deepEqual(await page.locator('[role="tabpanel"] [data-vender="tecla"] span:first-child').allTextContents(), ["Vacío"]);
+    const fijadas = await page.evaluate(() => (window as unknown as Ventana).__fijadas);
+    assert.deepEqual(fijadas, [{ ids: ["p_vacio"], version: null }]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("2A · MG-045: en el celular el total está a la vista sin desplazar, abajo junto al cobro", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS de la app");
+    const { page, errores } = await montar("vender", 10, boutique(), { encabezado: 120, alto: 844 });
+    await tecla2a(page, "Vacío").click();
+    await page.keyboard.type("1,24");
+    for (let i = 0; i < 4; i++) await tecla2a(page, "Crema").click();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const fijo = page.locator('[data-vender="total-fijo"]');
+    await fijo.getByText("$51.500").waitFor();
+    const caja = await fijo.boundingBox();
+    assert.ok(caja && caja.y >= 0 && caja.y + caja.height <= 844, `el total se ve sin bajar (y=${caja?.y})`);
+    const total = await page.locator('[data-vender="total"] p[aria-live]').evaluate((el) => getComputedStyle(el).fontSize);
+    assert.equal(total, "48px", "el total del ticket, 48 px");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("2A · MG-041: Vacío → peso → Mercado Pago: 2 toques + el peso, el ticket aparece y el foco vuelve al campo único", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await focoEnElCampoUnico(page);
+    await tecla2a(page, "Vacío").click(); // toque 1
+    await page.keyboard.type("1,240");
+    await page.getByRole("button", { name: "Cobrar $15.500 con Mercado Pago" }).click(); // toque 2
+    await page.getByLabel("Ticket de la venta #42").waitFor();
+    await focoEnElCampoUnico(page);
+    const [e] = await envios(page);
+    assert.deepEqual(e.quantity, ["1.24"]);
+    assert.equal((await page.evaluate(() => (window as unknown as Ventana).__consultasDePrecio)) ?? 0, 1, "una sola consulta de precios");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+  test("integración T2 · MG-041: Vacío → peso → «Efectivo» cobra justo: 2 toques + el peso, sin elegir billete", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await focoEnElCampoUnico(page);
+    await tecla2a(page, "Vacío").click(); // toque 1
+    await page.keyboard.type("1,240");
+    await page.getByRole("button", { name: "Cobrar $15.500 en efectivo" }).click(); // toque 2
+    await page.getByLabel("Ticket de la venta #42").waitFor();
+    await focoEnElCampoUnico(page);
+    const todos = await envios(page);
+    assert.equal(todos.length, 1);
+    assert.deepEqual(todos[0].quantity, ["1.24"]);
+    assert.deepEqual(todos[0].paymentMethod, ["EFECTIVO"]);
+    assert.deepEqual(todos[0].recibido, ["15500.00"], "justo: pagó con el total, sin vuelto");
+    assert.equal(await page.getByText(/^Vuelto$/i).count(), 0, "sin vuelto que mostrar");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("integración T2 · MG-041: con billete, también en un toque y con el vuelto; «Otro» pide el importe", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await tecla2a(page, "Vacío").click();
+    await page.keyboard.type("1,240");
+    // «Otro»: se abre el campo «Pagó con» (y «Volver» deja todo como estaba, sin cobrar).
+    await page.getByRole("button", { name: "Paga en efectivo con otro importe" }).click();
+    await page.getByLabel("Pagó con").waitFor();
+    await page.getByRole("button", { name: "Volver" }).click();
+    assert.equal((await envios(page)).length, 0, "abrir «Otro» no cobra");
+    await page.getByRole("button", { name: /^Paga con \$20\.000 en efectivo/ }).click();
+    await page.getByLabel("Ticket de la venta #42").waitFor();
+    const [e] = await envios(page);
+    assert.deepEqual(e.paymentMethod, ["EFECTIVO"]);
+    assert.deepEqual(e.recibido, ["20000.00"]);
+    await page.getByText(/vuelto \$4\.500/i).first().waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("integración T2 · 2D: «Repetir» desde la ficha arranca con el cliente y sus renglones; lo por kilo sin peso, y avisa lo omitido", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const FICHA = { id: "cli_1", nombre: "Parrilla UAT", telefono: "1155551234", docTipo: 80, docNro: "27123456789", razonSocial: "Parrilla UAT SRL", condicionIva: "RESPONSABLE_INSCRIPTO", domicilio: null, ultimaDireccion: null, ultimosPedidos: [], saldo: null };
+    const desdeLaFicha = {
+      cliente: FICHA,
+      repetir: {
+        code: 31,
+        renglones: [
+          { productId: "p_vacio", nombre: "Vacío", porPeso: true, qtyText: "" },
+          { productId: "p_crema", nombre: "Crema", porPeso: false, qtyText: "2" },
+          { productId: "p_viejo", nombre: "Matambre", porPeso: true, qtyText: "" },
+        ],
+        omitidos: ["Pieza especial"],
+      },
+    };
+    const { page, errores } = await montar("vender", 10, boutique({ desdeLaFicha }));
+    const aviso = page.locator('[data-vender="desde-la-ficha"]');
+    await aviso.waitFor();
+    const texto = (await aviso.textContent()) ?? "";
+    assert.match(texto, /Repetís el pedido #31 de Parrilla\./);
+    assert.match(texto, /pesarlo de nuevo/);
+    assert.match(texto, /No se repite: Pieza especial, Matambre/);
+    const renglones = page.locator('[data-vender="ticket-boutique"] [data-vender="renglon"]');
+    assert.equal(await renglones.count(), 2, "Vacío y Crema; Matambre no está a la venta en esta pantalla");
+    assert.equal(await page.locator('input[name="customerName"]').inputValue(), "Parrilla UAT");
+    // El vacío pide el peso: no se cobra hasta pesarlo.
+    assert.equal(await page.getByRole("button", { name: /Cobrar .* en efectivo/ }).isDisabled(), true);
+    await page.getByRole("button", { name: "Entendido" }).click();
+    assert.equal(await aviso.count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("integración T2 · 2D: «Venderle» sólo trae al cliente, sin renglones ni aviso", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const FICHA = { id: "cli_1", nombre: "Parrilla UAT", telefono: "1155551234", docTipo: null, docNro: null, razonSocial: null, condicionIva: null, domicilio: null, ultimaDireccion: null, ultimosPedidos: [], saldo: null };
+    const { page, errores } = await montar("vender", 10, boutique({ desdeLaFicha: { cliente: FICHA, repetir: null } }));
+    await page.locator('input[name="customerName"]').waitFor({ state: "attached" });
+    assert.equal(await page.locator('input[name="customerName"]').inputValue(), "Parrilla UAT");
+    assert.equal(await page.locator('input[name="clientId"]').inputValue(), "cli_1", "la ficha elegida viaja al cobrar");
+    assert.equal(await page.locator('[data-vender="desde-la-ficha"]').count(), 0, "sin repetir no hay aviso");
+    assert.equal(await page.locator('[data-vender="ticket-boutique"] [data-vender="renglon"]').count(), 0);
     assert.deepEqual(errores, []);
     await page.close();
   });

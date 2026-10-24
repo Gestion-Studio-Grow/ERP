@@ -6,6 +6,10 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { businessWallTimeToUtc } from "@/lib/datetime";
+import { logger } from "@/lib/logger";
+import { leerConfigEnvios, type ConfigEnvios } from "@/lib/envios/config";
+import { lastClosedDay } from "@/lib/caja/frontera-cierre";
+import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { BOTONES_RAPIDOS, DIAS_MAS_VENDIDOS, masVendidos } from "./reglas-venta";
 
 export async function cargarVender(tenantId: string, hoy: string) {
@@ -45,4 +49,45 @@ export async function cargarVender(tenantId: string, hoy: string) {
   ]);
   const rapidos = masVendidos(grupos, new Set(products.map((p) => p.id)));
   return { products, rapidos, negocio: tenant?.name ?? "Mi negocio" };
+}
+
+// ── MOSTRADOR BOUTIQUE (interruptor `mostrador-boutique`) ───────────────────────
+//
+// Lo que suma el mostrador boutique: las zonas de envío del negocio (el MISMO módulo que lee la
+// tienda, src/lib/envios) y si el día de caja está cerrado (la MISMA frontera que frena el cobro
+// en `createOrder`). Si algo no se puede leer, Vender sigue: sin zonas ofrece el pedido como hoy
+// y sin el dato del día el servidor igual frena el cobro con su mensaje.
+
+export type ExtrasBoutique = {
+  /** Las zonas de envío y la regla del retiro; null = no se pudo leer (el pedido sigue como hoy). */
+  envios: ConfigEnvios | null;
+  /** Hasta qué día está cerrada la caja, si HOY está cerrado; null = hoy se cobra. */
+  diaCerrado: string | null;
+};
+
+/**
+ * Las zonas de envío del negocio (sin la versión). null si no se pudieron leer: el pedido sigue sin
+ * zonas en pantalla y, si el negocio tiene zonas, el servidor pide la zona con su motivo (O-2).
+ */
+export function cargarEnvios(tenantId: string): Promise<ConfigEnvios | null> {
+  return leerConfigEnvios(prisma, tenantId)
+    .then(({ version: _version, ...config }): ConfigEnvios => {
+      void _version;
+      return config;
+    })
+    .catch((e) => {
+      logger.error("vender.envios", "no se pudo leer la configuración de envíos: el pedido sigue sin zonas", e);
+      return null;
+    });
+}
+
+export async function cargarBoutique(tenantId: string, hoy: string): Promise<ExtrasBoutique> {
+  const [envios, cerradoHasta] = await Promise.all([
+    cargarEnvios(tenantId),
+    lastClosedDay(tenantId).catch((e) => {
+      logger.error("vender.dia", "no se pudo leer el cierre del día: Vender no muestra la banda (el cobro lo frena igual)", e);
+      return null;
+    }),
+  ]);
+  return { envios, diaCerrado: cerradoHasta && isFrozenDay(hoy, cerradoHasta) ? cerradoHasta : null };
 }

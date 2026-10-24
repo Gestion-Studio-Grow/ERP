@@ -7,14 +7,13 @@ import {
   anularCobroTurno,
   condonarSaldoTurno,
   confirmarTurno,
-  cancelAppointment,
   completeAppointment,
-  markNoShow,
   type ResultadoAccion,
 } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import RescheduleForm from "./RescheduleForm";
 import CerrarSinPrestar from "./CerrarSinPrestar";
+import FormDelTurno from "./FormDelTurno";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
@@ -33,6 +32,7 @@ import {
   desglosarCobros,
   MOTIVO_MIN,
 } from "@/lib/turnos/anulacion";
+import { puedeCompletarConMedio, puedeDarDeBajaSaldo } from "./fila-core";
 
 // La fila de cobro tal como la ve esta pantalla: la de `anulacion.ts` más lo que la grilla
 // del calendario puede no traer.
@@ -98,9 +98,26 @@ function nuevaClave() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `k-${Date.now()}-${Math.random()}`;
 }
 
-function MetodoSelect({ name, id, defaultValue = "EFECTIVO" }: { name: string; id?: string; defaultValue?: string }) {
+// B7: SIN medio preelegido. Antes venía en Efectivo y un toque sin mirar asentaba la venta en el
+// cajón equivocado (la caja no cuadraba). Ahora arranca en «Elegí el medio» y es obligatorio: el
+// navegador no deja mandar el formulario sin elegir uno.
+function MetodoSelect({
+  name,
+  id,
+  value,
+  onChange,
+}: {
+  name: string;
+  id?: string;
+  value?: string;
+  onChange?: (medio: string) => void;
+}) {
+  const control = value !== undefined ? { value, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => onChange?.(e.target.value) } : { defaultValue: "" };
   return (
-    <select name={name} id={id} className={selectClasses} defaultValue={defaultValue} required aria-label="Medio de pago">
+    <select name={name} id={id} className={selectClasses} {...control} required aria-label="Medio de pago">
+      <option value="" disabled>
+        Elegí el medio
+      </option>
       {METODOS_DE_PAGO.map((m) => (
         <option key={m} value={m}>
           {METODO_LABEL[m]}
@@ -157,6 +174,9 @@ function CobroForm({ appointmentId, monto, titulo }: { appointmentId: string; mo
 function CompletarForm({ appointmentId, saldo, yaOcurrio }: { appointmentId: string; saldo: number; yaOcurrio: boolean }) {
   const [error, setError] = useState("");
   const [dejarSaldo, setDejarSaldo] = useState(false);
+  const [medio, setMedio] = useState("");
+  // B7: con saldo, no se completa hasta elegir el medio (o tildar «Dejar saldo a cobrar»).
+  const listo = puedeCompletarConMedio({ saldo, dejarSaldo, medio });
   return (
     <form
       action={async (fd) => {
@@ -172,7 +192,7 @@ function CompletarForm({ appointmentId, saldo, yaOcurrio }: { appointmentId: str
         <>
           <p className="text-xs font-medium text-muted">Cobrar el saldo de {fmtMoneyARS(saldo, 0)} con</p>
           <div className="flex flex-wrap items-center gap-2">
-            {!dejarSaldo && <MetodoSelect name="method" />}
+            {!dejarSaldo && <MetodoSelect name="method" value={medio} onChange={setMedio} />}
             <label className={`flex items-center gap-1.5 text-xs text-body ${TOQUE_CEL}`}>
               <input
                 type="checkbox"
@@ -187,38 +207,29 @@ function CompletarForm({ appointmentId, saldo, yaOcurrio }: { appointmentId: str
           </div>
         </>
       )}
-      <SubmitButton
-        pendingText="Guardando…"
-        className={buttonClasses("solid", "sm", `whitespace-nowrap self-start ${yaOcurrio ? "" : "opacity-60"}`)}
-      >
-        Marcar como completado
-      </SubmitButton>
-      {!yaOcurrio && <p className="text-xs text-muted">Se puede completar recién a partir de su horario.</p>}
-      {error && (
-        <p className="text-sm text-danger" role="alert">
-          {error}
+      {listo ? (
+        <SubmitButton
+          pendingText="Guardando…"
+          className={buttonClasses("solid", "sm", `whitespace-nowrap self-start ${yaOcurrio ? "" : "opacity-60"}`)}
+        >
+          Marcar como completado
+        </SubmitButton>
+      ) : (
+        <button
+          type="button"
+          disabled
+          aria-describedby={`medio-${appointmentId}`}
+          className={buttonClasses("solid", "sm", "whitespace-nowrap self-start opacity-50 cursor-not-allowed")}
+        >
+          Marcar como completado
+        </button>
+      )}
+      {!listo && (
+        <p id={`medio-${appointmentId}`} className="text-xs text-muted">
+          Elegí con qué pagó, o tildá «Dejar saldo a cobrar».
         </p>
       )}
-    </form>
-  );
-}
-
-// «No se presentó»: el servidor dice por qué no (turno que todavía no llegó, que ya cambió).
-function NoVinoForm({ appointmentId }: { appointmentId: string }) {
-  const [error, setError] = useState("");
-  return (
-    <form
-      action={async (fd) => {
-        setError("");
-        const r: ResultadoAccion = await markNoShow(fd);
-        if (!r.ok) setError(r.error);
-      }}
-      className="flex flex-col gap-1"
-    >
-      <input type="hidden" name="appointmentId" value={appointmentId} />
-      <SubmitButton pendingText="Guardando…" className={linkButtonClasses}>
-        No se presentó
-      </SubmitButton>
+      {!yaOcurrio && <p className="text-xs text-muted">Se puede completar recién a partir de su horario.</p>}
       {error && (
         <p className="text-sm text-danger" role="alert">
           {error}
@@ -311,8 +322,8 @@ function CorreccionConMotivo({
 
 // Los cobros ya registrados del turno, con su anulación al lado. Es la pantalla que faltaba:
 // antes la fila decía "cobrado $18.000 · saldado" y no ofrecía NADA más — ni ver con qué
-// medio se cobró, ni corregirlo. El error típico (medio equivocado, el select viene en
-// EFECTIVO por default) se arreglaba tipeando dos asientos de fantasía en el libro.
+// medio se cobró, ni corregirlo. El error típico (medio equivocado: el select venía en
+// EFECTIVO por default, B7) se arreglaba tipeando dos asientos de fantasía en el libro.
 function CobrosRegistrados({
   appointmentId,
   cobros,
@@ -383,9 +394,9 @@ export default function AppointmentRow({
   appointment: Appointment;
   statusLabel: Record<string, string>;
   /**
-   * Agenda práctica (interruptor «agenda-practica»): cancelar y «no vino» confirman con la
-   * consecuencia y preguntan por la seña; un completado ofrece «Reservar el próximo». Apagado
-   * (CH hoy), la fila de siempre.
+   * Agenda práctica (interruptor «agenda-practica»): un completado ofrece «Reservar el próximo».
+   * Cancelar y «no vino» ya NO dependen de esto: siempre confirman con la consecuencia y
+   * preguntan por la seña (reingeniería CH, Tanda 1).
    */
   practica?: boolean;
   /**
@@ -393,8 +404,8 @@ export default function AppointmentRow({
    * por turno puede llevarla: la lista dibuja un Completado con saldo en "Saldos a cobrar" y
    * otra vez en el Historial, y el calendario dibuja el mismo turno en la grilla y en el
    * detalle. Un `id` repetido en el DOM deja el enlace yendo a cualquiera de las dos. Por eso
-   * es opt-in: la pone sólo la sección a la que apunta el enlace (los pasados sin cerrar y los
-   * reservados de la lista).
+   * es opt-in: la pone sólo la sección a la que apunta el enlace (los reservados de la lista; los
+   * pasados sin cerrar ya no se dibujan ahí: se cierran en /admin/turnos/cerrar).
    */
   ancla?: boolean;
   /**
@@ -454,27 +465,23 @@ export default function AppointmentRow({
   // de 10 dígitos, queda como texto: no se abre un chat a un número que no es el de ella.
   const wa = waLinkClienta(appointment.client.phone);
 
-  // Cancelar y «no vino»: con la agenda práctica, con su consecuencia y la pregunta por la seña.
-  const cerrarSinPrestar = (accion: "cancelar" | "no-vino") =>
-    practica ? (
-      <CerrarSinPrestar
-        appointmentId={appointment.id}
-        accion={accion}
-        clienta={appointment.client.name}
-        hora={fmtTime(appointment.startsAt)}
-        cobrado={desglose.cobrado}
-        botonClassName={linkButtonClasses}
-      />
-    ) : accion === "cancelar" ? (
-      <form action={cancelAppointment}>
-        <input type="hidden" name="appointmentId" value={appointment.id} />
-        <SubmitButton pendingText="Cancelando…" className={linkButtonClasses}>
-          Cancelar turno
-        </SubmitButton>
-      </form>
-    ) : (
-      <NoVinoForm appointmentId={appointment.id} />
-    );
+  // Cancelar y «no vino»: SIEMPRE con confirmación, la consecuencia escrita y, si ya pagó algo,
+  // la pregunta por la seña (`CerrarSinPrestar` → `cerrarTurnoSinPrestar`). Antes, con el
+  // interruptor apagado (CH), un toque suelto cancelaba y, si fallaba, no se decía nada (B3).
+  // El error del servidor se lee en la misma hoja.
+  const cerrarSinPrestar = (accion: "cancelar" | "no-vino") => (
+    <CerrarSinPrestar
+      appointmentId={appointment.id}
+      accion={accion}
+      clienta={appointment.client.name}
+      hora={fmtTime(appointment.startsAt)}
+      cobrado={desglose.cobrado}
+      botonClassName={linkButtonClasses}
+    />
+  );
+  // Dar de baja un saldo es perdonar plata: sólo con `agenda:forgive` (la dueña). El servidor
+  // (`condonarSaldoTurno`) lo exige igual; acá es para no ofrecer lo que va a rechazar.
+  const perdonar = canManage && puedeDarDeBajaSaldo(viewer);
 
   return (
     // `id` = el ancla a la que lleva el cierre de caja ("#turno-<id>", ver `ancla`); `target:`
@@ -563,12 +570,9 @@ export default function AppointmentRow({
 
         {isPending && canManage && (
           <div className="flex flex-col gap-2 min-w-[260px]">
-            <form action={confirmarTurno}>
-              <input type="hidden" name="appointmentId" value={appointment.id} />
-              <SubmitButton pendingText="Confirmando…" className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
-                Confirmar turno
-              </SubmitButton>
-            </form>
+            <FormDelTurno accion={confirmarTurno} appointmentId={appointment.id} pendingText="Confirmando…" className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
+              Confirmar turno
+            </FormDelTurno>
             {cerrarSinPrestar("cancelar")}
             <RescheduleForm
               appointmentId={appointment.id}
@@ -617,7 +621,7 @@ export default function AppointmentRow({
             saldo; y a la recepción se le ofrecía el botón incluso para la profesional que
             cobra aparte, con el servidor rechazándolo después, con la clienta enfrente.
             Ahora usa el mismo veredicto que aplica el servidor. */}
-        {cuentaACobrar && (canCollect || canManage) && (
+        {cuentaACobrar && (canCollect || perdonar) && (
           <div className="flex flex-col gap-2 min-w-[260px]">
             {canCollect &&
               (veredictoCobro.ok ? (
@@ -631,8 +635,8 @@ export default function AppointmentRow({
                 —un descuento hecho en el sillón, una deuda incobrable— se queda para
                 siempre en "Saldos a cobrar" (la única pantalla que muestra el fiado real)
                 y además traba la comisión de la profesional, que sí prestó el servicio.
-                Va con `canManage`: perdonar plata lo decide el negocio, no quien cobra. */}
-            {canManage && (
+                Sólo con `agenda:forgive`: perdonar plata lo decide la dueña, no el mostrador. */}
+            {perdonar && (
               <CorreccionConMotivo
                 etiqueta={`Dar de baja el saldo de ${fmtMoneyARS(plata.saldo, 0)}`}
                 pregunta={`¿Dar de baja ${fmtMoneyARS(plata.saldo, 0)} que no se van a cobrar? No mueve la caja: sólo deja de figurar como deuda.`}

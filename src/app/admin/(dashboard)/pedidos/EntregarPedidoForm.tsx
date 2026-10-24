@@ -22,6 +22,7 @@ import { entregarPedido } from "@/lib/order-actions";
 import { MEDIOS_DE_COBRO } from "@/lib/caja/medio-cobro";
 import { Select } from "@/components/ui";
 import { useToast } from "../ToastProvider";
+import { CobroConPie, useCobroDelNegocio } from "./CobroDelPedido";
 
 // El redirect de sesión vencida llega como excepción con digest NEXT_REDIRECT: tragarlo
 // dejaría a la persona sin login (el mismo helper que CobrarPedidoForm y PosForm).
@@ -30,7 +31,43 @@ function isNextRedirect(e: unknown): boolean {
   return typeof digest === "string" && digest.startsWith("NEXT_REDIRECT");
 }
 
-export default function EntregarPedidoForm({ id, code, paid }: { id: string; code: number; paid: boolean }) {
+type Props = { id: string; code: number; paid: boolean; total?: number };
+
+// Mostrador boutique (interruptor «mostrador-boutique»): sin cobrar, «Entregar» abre el PIE DE
+// COBRO único (medios que cobran, billetes con vuelto, pago dividido) y «Queda a cobrar»; al
+// cobrar se ve el ticket (CobroDelNegocio). Ya cobrado, o con el interruptor apagado, lo de siempre.
+export default function EntregarPedidoForm(props: Props) {
+  const { boutique } = useCobroDelNegocio();
+  if (boutique && !props.paid && props.total !== undefined) return <EntregarConPie id={props.id} code={props.code} total={props.total} />;
+  return <EntregarDeSiempre {...props} />;
+}
+
+function EntregarConPie({ id, code, total }: { id: string; code: number; total: number }) {
+  const [abierto, setAbierto] = useState(false);
+  if (!abierto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        aria-expanded={false}
+        className="chip-btn text-xs h-11 sm:h-auto w-full sm:w-auto"
+      >
+        Entregar
+      </button>
+    );
+  }
+  return (
+    <div className="flex w-96 max-w-full flex-col gap-2 whitespace-normal rounded-md border border-line bg-surface-sunken p-2">
+      <p className="text-xs font-medium text-strong">¿Cómo pagó el pedido #{code}?</p>
+      <CobroConPie id={id} code={code} total={total} modo="entregar" onHecho={() => setAbierto(false)} />
+      <button type="button" onClick={() => setAbierto(false)} className="h-11 self-start px-2 text-xs text-muted hover:underline">
+        Volver
+      </button>
+    </div>
+  );
+}
+
+function EntregarDeSiempre({ id, code, paid }: Props) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [abierto, setAbierto] = useState(false);

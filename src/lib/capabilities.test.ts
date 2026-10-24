@@ -103,3 +103,21 @@ test("recepción anula sólo lo cobrado hoy y siempre con motivo", () => {
 test("el profesional no anula", () => {
   assert.equal(alcanceDeAnulacion("PROFESSIONAL"), null);
 });
+
+// ── Dar de baja un saldo (reingeniería CH, D5 · CH-040) ─────────────────────
+//
+// «Tope $0: sólo la dueña da de baja saldos.» Antes bastaba `agenda:manage`, que la recepción
+// tiene para gestionar la agenda entera: con eso podía regalar el saldo de una clienta.
+
+test("sólo la dueña da de baja saldos: OWNER con agenda:forgive, recepción y profesional sin", () => {
+  assert.ok(ALL_CAPABILITIES.includes("agenda:forgive"), "agenda:forgive no está declarada");
+  assert.equal(roleHasCapability("OWNER", "agenda:forgive"), true);
+  assert.equal(roleHasCapability("RECEPTION", "agenda:forgive"), false, "la recepción gestiona la agenda, no perdona plata");
+  assert.equal(roleHasCapability("PROFESSIONAL", "agenda:forgive"), false);
+});
+
+test("sacarle agenda:forgive a la recepción no le saca gestionar, terminar ni cobrar", () => {
+  for (const cap of ["agenda:manage", "agenda:collect", "agenda:complete"] as const) {
+    assert.equal(roleHasCapability("RECEPTION", cap), true, `RECEPTION necesita ${cap}`);
+  }
+});

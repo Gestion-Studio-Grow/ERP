@@ -1,7 +1,6 @@
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
 import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
-import { agendaPractica } from "@/lib/turnos/practica.server";
 import MananaConfirmar from "./MananaConfirmar";
 import { todayInBusinessTz, fmtCalendarDateLabel } from "@/lib/datetime";
 import { requireApp } from "@/lib/require-app";
@@ -13,9 +12,15 @@ import { getNegocioApps } from "@/apps/contexto.server";
 import { cargarHuecosLiberados } from "@/lib/crm/cargas.server";
 import { anotadosConHueco } from "@/lib/crm/huecos";
 import { enInicioPorApps } from "../inicio/piloto";
-import { vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
+import { esFechaDeCalendario, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import AgendaRenglon from "./AgendaRenglon";
+import { extrasDeLaAgenda, proyectarAgenda } from "./agenda.server";
+import LinkAlDia from "./_agenda/LinkAlDia";
+import BotonBuscar from "../armazon/BotonBuscar";
+import AtajosDelAlta from "./_agenda/AtajosDelAlta";
+import { esteticaBackoffice } from "@/lib/estetica-backoffice";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
 
 // Muestra en un vistazo qué profesionales tienen novedad (franco/vacaciones)
 // ese día, para no tener que ir a buscarlo a Catálogo (ADR-011 G9).
@@ -99,13 +104,35 @@ export default async function TurnosCalendarPage({
   // de la recepción al final del día, y mañana es mañana de verdad (no "el día siguiente al
   // que se está mirando"). Al profesional no se le muestra: confirmar no es su tarea.
   const verManana = canManage && date === today;
-  const [{ professionals, appointments, blocksToday }, manana, piloto, negocio, practica] = await Promise.all([
+  const [cruda, manana, piloto, negocio, slug] = await Promise.all([
     getAgendaDay(date),
     verManana ? getMananaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(user.role),
-    agendaPractica(),
+    getCurrentTenantSlug(),
   ]);
+  const { professionals, blocksToday } = cruda;
+  // La planilla de la PC (Tanda 2 · 2-C): el día proyectado campo por campo (agenda.server.ts), con
+  // el veredicto de cobro de quien mira, y lo que puede hacer (las mismas capacidades del servidor).
+  // Tanda 2: la marca «seña pedida» y el horario de trabajo (una lectura más por día, con tenantId).
+  const diaDeLaPlanilla = esFechaDeCalendario(date) ? date : today;
+  const extras = await extrasDeLaAgenda(cruda, diaDeLaPlanilla);
+  const proyectada = proyectarAgenda(cruda, { role: user.role, professionalId: user.professionalId }, { seniasPedidas: extras.seniasPedidas });
+  const planilla = {
+    turnos: proyectada.turnos,
+    profesionales: proyectada.profesionales,
+    permisos: {
+      gestionar: canManage,
+      cobrar: canCollect,
+      terminar: roleHasCapability(user.role, "agenda:complete"),
+      perdonar: roleHasCapability(user.role, "agenda:forgive"),
+    },
+    ahora: new Date().toISOString(),
+    dia: diaDeLaPlanilla,
+    bloqueos: extras.bloqueos,
+    hrefFicha: appPermitida(appPorId("clientes"), negocio) ? "/admin/clientes/" : null,
+    letraDelNegocio: esteticaBackoffice(slug) !== null,
+  };
 
   const label = fmtCalendarDateLabel(date);
   // Qué se ofrece si la agenda está vacía (pasos.ts): el botón sólo lleva a una pantalla que esta
@@ -118,7 +145,16 @@ export default async function TurnosCalendarPage({
 
   return (
     <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
-      <h1 className="text-2xl font-semibold text-strong mb-1">Agenda</h1>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold text-strong">Agenda</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Las entradas fijas al alta nueva (cert CH T2, F-2/F-4): «Dar turno» y «Atender ahora»
+              (CH-019), en la PC y en el celular. Sólo quien da turnos. */}
+          {canManage && <AtajosDelAlta fecha={date} hoy={today} />}
+          {/* En el celular no hay «/»: el buscador de clientas y turnos, a un toque (CH-028). */}
+          <BotonBuscar />
+        </div>
+      </div>
       {/* Pestañas: en el celular llevan el alto táctil (44 px) sin cambiar cómo se ven en la PC. */}
       <div className="flex gap-4 text-sm mb-6 border-b border-line">
         <Link href="/admin/turnos" className="px-1 pb-2 border-b-2 border-accent text-strong font-medium max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
@@ -130,24 +166,16 @@ export default async function TurnosCalendarPage({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-6">
-        <Link
-          href={`/admin/turnos?date=${addDays(date, -1)}`}
-          className={buttonClasses("outline", "sm")}
-        >
+        {/* Cambiar de día no pierde el «Ver por: Box» de la planilla (LinkAlDia lee `?por=`). */}
+        <LinkAlDia dia={addDays(date, -1)} hoy={today} className={buttonClasses("outline", "sm")}>
           ← Anterior
-        </Link>
-        <Link
-          href={`/admin/turnos?date=${today}`}
-          className={buttonClasses("outline", "sm")}
-        >
+        </LinkAlDia>
+        <LinkAlDia dia={today} hoy={today} className={buttonClasses("outline", "sm")}>
           Hoy
-        </Link>
-        <Link
-          href={`/admin/turnos?date=${addDays(date, 1)}`}
-          className={buttonClasses("outline", "sm")}
-        >
+        </LinkAlDia>
+        <LinkAlDia dia={addDays(date, 1)} hoy={today} className={buttonClasses("outline", "sm")}>
           Siguiente →
-        </Link>
+        </LinkAlDia>
         {/* Salto directo a cualquier fecha, sin ir de a un día. Form GET
             nativo: funciona server-side sin componente client. Los controles se
             mantienen compactos (inline) con tokens en vez de los primitivos
@@ -175,16 +203,7 @@ export default async function TurnosCalendarPage({
 
       {manana && <MananaConfirmar dia={manana.dia} turnos={manana.turnos} />}
 
-      <CalendarGrid
-        professionals={professionals}
-        appointments={appointments}
-        canManage={canManage}
-        canCollect={canCollect}
-        viewer={{ role: user.role, professionalId: user.professionalId }}
-        sinProfesionales={sinProfesionales}
-        diaVacio={diaVacio}
-        practica={practica}
-      />
+      <CalendarGrid professionals={professionals} planilla={planilla} sinProfesionales={sinProfesionales} diaVacio={diaVacio} />
     </main>
   );
 }

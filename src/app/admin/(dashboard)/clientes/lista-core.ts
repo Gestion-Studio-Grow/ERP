@@ -6,10 +6,16 @@
 // consulta nada ni se calcula plata; sólo se filtra, se ordena y se corta.
 //
 // Client-safe: sin Prisma ni servidor.
+//
+// VISTAS PARA ESCRIBIRLES (reingeniería CH, Tanda 2, §3.6 «Clientas: frecuentes, por recuperar,
+// cumplen, deben»): además de la situación, cuatro vistas con su número y su WhatsApp armado:
+// Frecuentes · Hace mucho (en riesgo + no volvió) · Cumplen (en los próximos 7 días) · Deben
+// (saldo de turnos ya prestados). Viajan en `?vista=`; lo que no se entiende se ignora.
 
 import { normalizarTelefono } from "@/lib/clientes/telefono";
 import { SEGMENTOS, esSegmento, type Segmento } from "@/lib/crm/segmentos";
 import { ordenDesdeUrl, type OrdenTabla } from "@/components/ui/tabla-core";
+import { ALIAS_SENIA_PROVISIONAL, mensajeParaVolver, mensajeRecordarSaldo, mensajeSaludo } from "@/lib/turnos/mensajes-whatsapp";
 
 /** Una fila de la lista con situación (diseño nuevo y piloto), armada con el motor comercial. */
 export type FilaCliente = {
@@ -21,7 +27,28 @@ export type FilaCliente = {
   /** ISO del próximo turno, si tiene. */
   proximoTurno: string | null;
   visitas: number;
+  /** «MM-DD» del cumpleaños (de la ficha), si lo tiene. */
+  cumple?: string | null;
+  /** Lo que debe de turnos ya prestados (0 si nada). Lo calcula el servidor con `esCuentaACobrar`. */
+  debe?: number;
 };
+
+export const VISTAS = ["frecuentes", "hace-mucho", "cumplen", "deben"] as const;
+export type VistaClientes = (typeof VISTAS)[number];
+
+export const VISTA_ETIQUETA: Record<VistaClientes, string> = {
+  frecuentes: "Frecuentes",
+  "hace-mucho": "Hace mucho",
+  cumplen: "Cumplen",
+  deben: "Deben",
+};
+
+/** «Cumplen»: hoy o en los próximos tantos días. *Provisional a confirmar* con la dueña (¿semana o mes?). */
+export const DIAS_PARA_EL_CUMPLE = 7;
+
+export function esVista(v: unknown): v is VistaClientes {
+  return typeof v === "string" && (VISTAS as readonly string[]).includes(v);
+}
 
 export const TAMANIO_PAGINA = 50;
 
@@ -33,6 +60,8 @@ export type ParametrosLista = {
   situacion: Segmento | null;
   orden: OrdenTabla;
   pagina: number;
+  /** Una vista para escribirles (opcional: sin ella, todas). */
+  vista?: VistaClientes | null;
 };
 
 type Sp = Readonly<Record<string, string | string[] | undefined>>;
@@ -45,12 +74,84 @@ export function leerParametrosLista(sp: Sp): ParametrosLista {
   const s = uno(sp.situacion);
   // La página viaja como `?cursor=` (el nombre que la Tabla ya limpia al cambiar orden o filtro).
   const n = Number.parseInt(uno(sp.cursor) ?? "", 10);
+  const v = uno(sp.vista);
   return {
     q,
     situacion: esSegmento(s) ? s : null,
     orden: ordenDesdeUrl(uno(sp.orden), ORDENABLES),
     pagina: Number.isFinite(n) && n >= 1 ? n : 1,
+    vista: esVista(v) ? v : null,
   };
+}
+
+/**
+ * Cuántos días faltan para el cumple (0 = hoy), contando desde `hoy` (AAAA-MM-DD del negocio).
+ * Un 29 de febrero, en un año que no es bisiesto, se festeja el 28. `null` sin cumple o mal escrito.
+ */
+export function diasHastaElCumple(cumple: string | null | undefined, hoy: string): number | null {
+  const m = /^(\d{2})-(\d{2})$/.exec(cumple ?? "");
+  const h = /^(\d{4})-(\d{2})-(\d{2})$/.exec(hoy);
+  if (!m || !h) return null;
+  const mes = Number(m[1]);
+  const dia = Number(m[2]);
+  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+  const base = Date.UTC(Number(h[1]), Number(h[2]) - 1, Number(h[3]));
+  const en = (anio: number) => {
+    const bisiesto = (anio % 4 === 0 && anio % 100 !== 0) || anio % 400 === 0;
+    const d = mes === 2 && dia === 29 && !bisiesto ? 28 : dia;
+    return Date.UTC(anio, mes - 1, d);
+  };
+  const anio = Number(h[1]);
+  const este = en(anio);
+  const proximo = este >= base ? este : en(anio + 1);
+  return Math.round((proximo - base) / 86_400_000);
+}
+
+/** ¿La fila entra en la vista? */
+export function enVista(f: FilaCliente, vista: VistaClientes, hoy: string | null): boolean {
+  switch (vista) {
+    case "frecuentes":
+      return f.segmento === "frecuente";
+    case "hace-mucho":
+      return f.segmento === "en-riesgo" || f.segmento === "perdida";
+    case "cumplen": {
+      if (!hoy) return false;
+      const d = diasHastaElCumple(f.cumple, hoy);
+      return d !== null && d <= DIAS_PARA_EL_CUMPLE;
+    }
+    case "deben":
+      return (f.debe ?? 0) > 0;
+  }
+}
+
+/** El orden propio de cada vista cuando no se eligió uno: el cumple más cerca, la deuda más grande, la que hace más que no viene. */
+function ordenDeVista(filas: FilaCliente[], vista: VistaClientes, hoy: string | null): FilaCliente[] {
+  const nombre = (a: FilaCliente, b: FilaCliente) => a.nombre.localeCompare(b.nombre, "es");
+  if (vista === "cumplen" && hoy) {
+    const d = (f: FilaCliente) => diasHastaElCumple(f.cumple, hoy) ?? Number.POSITIVE_INFINITY;
+    return [...filas].sort((a, b) => d(a) - d(b) || nombre(a, b));
+  }
+  if (vista === "deben") return [...filas].sort((a, b) => (b.debe ?? 0) - (a.debe ?? 0) || nombre(a, b));
+  if (vista === "hace-mucho") return [...filas].sort((a, b) => (b.diasSinVenir ?? 0) - (a.diasSinVenir ?? 0) || nombre(a, b));
+  return filas;
+}
+
+/**
+ * El WhatsApp de cada vista, en criollo y sin «undefined» (CH-050). Los textos son los de la agenda
+ * (src/lib/turnos/mensajes-whatsapp.ts): «Deben» es el recordatorio de saldo; las demás, invitarla a
+ * volver. Sin deuda en «Deben», el saludo solo.
+ */
+export function textoDeWhatsApp(vista: VistaClientes, f: FilaCliente, hoy: string | null): string {
+  switch (vista) {
+    case "frecuentes":
+      return mensajeParaVolver("frecuente", f.nombre);
+    case "hace-mucho":
+      return mensajeParaVolver("hace-mucho", f.nombre);
+    case "cumplen":
+      return mensajeParaVolver(hoy && diasHastaElCumple(f.cumple, hoy) === 0 ? "cumple-hoy" : "cumple-cerca", f.nombre);
+    case "deben":
+      return mensajeRecordarSaldo({ clienta: f.nombre, saldo: f.debe ?? 0, alias: ALIAS_SENIA_PROVISIONAL }) || mensajeSaludo(f.nombre);
+  }
 }
 
 function sinTildes(s: string): string {
@@ -112,15 +213,22 @@ export type PaginaDeClientes = {
   paginas: number;
   /** Cuántas hay por situación, con la búsqueda aplicada: los números de los filtros. */
   porSituacion: Record<Segmento, number>;
+  /** Cuántas hay por vista, con la búsqueda aplicada. */
+  porVista: Record<VistaClientes, number>;
 };
 
-/** Filtrar, ordenar y cortar la página. Una página que no existe muestra la última. */
-export function paginaDeClientes(todas: readonly FilaCliente[], p: ParametrosLista): PaginaDeClientes {
+/**
+ * Filtrar, ordenar y cortar la página. Una página que no existe muestra la última. `hoy`
+ * (AAAA-MM-DD del negocio) hace falta sólo para «Cumplen»; sin él, esa vista queda vacía.
+ */
+export function paginaDeClientes(todas: readonly FilaCliente[], p: ParametrosLista, hoy: string | null = null): PaginaDeClientes {
   const buscadas = todas.filter((f) => coincide(f, p.q));
   const porSituacion = Object.fromEntries(SEGMENTOS.map((s) => [s, 0])) as Record<Segmento, number>;
   for (const f of buscadas) porSituacion[f.segmento] += 1;
-  const filtradas = p.situacion ? buscadas.filter((f) => f.segmento === p.situacion) : buscadas;
-  const ordenadas = ordenarClientes(filtradas, p.orden);
+  const porVista = Object.fromEntries(VISTAS.map((v) => [v, buscadas.filter((f) => enVista(f, v, hoy)).length])) as Record<VistaClientes, number>;
+  const vista = p.vista ?? null;
+  const filtradas = buscadas.filter((f) => (!p.situacion || f.segmento === p.situacion) && (!vista || enVista(f, vista, hoy)));
+  const ordenadas = vista && !p.orden ? ordenDeVista(ordenarClientes(filtradas, null), vista, hoy) : ordenarClientes(filtradas, p.orden);
   const paginas = Math.max(1, Math.ceil(ordenadas.length / TAMANIO_PAGINA));
   const pagina = Math.min(p.pagina, paginas);
   const desde = (pagina - 1) * TAMANIO_PAGINA;
@@ -130,6 +238,7 @@ export function paginaDeClientes(todas: readonly FilaCliente[], p: ParametrosLis
     pagina,
     paginas,
     porSituacion,
+    porVista,
   };
 }
 

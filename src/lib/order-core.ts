@@ -26,6 +26,8 @@ import { logger } from "@/lib/logger";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { pedidoDelReintento, type PedidoDelReintento } from "@/lib/reintento-de-venta";
 import { shippingCost, type ShippingConfig } from "@/lib/storefront-shipping";
+import { costoDeEnvio, renglonDeEnvio } from "@/lib/envios/tarifa";
+import type { ZonaDeEnvio } from "@/lib/envios/modelo";
 import { createReceivable } from "@/lib/debts/receivable-service";
 import { audit } from "@/lib/audit-core";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
@@ -56,6 +58,7 @@ import { aplicarPromociones, type ContextoDePromo, type Promocion, type PromoApl
 import { imputarPagosMixtosEnTx, validarPagosContraElTotal, type AsientoDePago } from "@/lib/supermercado/pago-mixto-tx";
 import { medioPrincipal } from "@/lib/supermercado/pago-mixto";
 import { registrarPromocionesDeLaVentaEnTx } from "@/lib/supermercado/promos-de-la-venta";
+import { CUADERNO_SOLO_VENTA_COBRADA } from "@/lib/cuaderno/hora-de-la-venta";
 import type { Prisma, ProductSaleUnit } from "@/generated/prisma/client";
 
 export type OrderPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
@@ -200,9 +203,33 @@ export type InsertOrderOpts = {
   permitirNegativoPorProducto?: readonly string[];
   descuento?: { pedido: PedidoDeDescuento; topePct: number | null } | null;
   envio?: ShippingConfig | null;
+  /**
+   * La ZONA de Envíos del negocio (src/lib/envios, reingeniería Magra 1H). Con zona y entrega a
+   * domicilio, el costo sale de `costoDeEnvio` sobre lo que suman los productos a precio de la
+   * base (no de lo que mandó el navegador) y el renglón se llama «Envío · <zona>»
+   * (`renglonDeEnvio`). Gana sobre `envio` (la tarifa del copy, que queda para Shine).
+   */
+  envioZona?: ZonaDeEnvio | null;
   cupon?: string | null;
   aCuenta?: { createdBy: string } | null;
   topePrecioAMano?: TopePrecioAMano | null;
+  /**
+   * La FICHA que eligió quien vende (Vender, bloque Cliente: `clientId`). Gana sobre la búsqueda
+   * por teléfono (`clienteDelTelefono`), que sigue siendo lo de siempre cuando no llega. Se
+   * verifica acá, con el `tenantId` (`fichaDelNegocio`): una ficha que no es de este negocio es un
+   * rechazo con su motivo y no se graba nada. Sólo la pasa el mostrador.
+   */
+  clientId?: string | null;
+  /**
+   * LA VENTA DEL CUADERNO (Magra, tanda 2 · 2E): cuándo se vendió de verdad, si no es ahora (se
+   * cortó internet, se anotó en el cuaderno y se carga después). La valida `createOrder` antes
+   * (`decidirHoraDelCuaderno`: nunca en el futuro, nunca en un día cerrado, rol con permiso). Acá
+   * sólo se escribe: el pedido nace con `createdAt` = esa hora (Ventas del día y el total del día lo
+   * cuentan en su día), el movimiento de stock también, y el asiento del libro con `occurredAt` =
+   * esa hora. Sólo para la venta de mostrador cobrada con un medio (`decidirAlta` lo vuelve a
+   * frenar). Sin el dato, el alta de siempre.
+   */
+  occurredAt?: Date | null;
 };
 
 // A-2: cuántas veces se reintenta el alta ante una colisión del correlativo por tenant
@@ -371,7 +398,7 @@ export function decidirAlta(p: {
   tenantId: string;
   input: OrderInput;
   products: OrderProduct[];
-  opts?: Pick<InsertOrderOpts, "descuento" | "imputarCajaActor" | "envio" | "cupon" | "aCuenta" | "promociones" | "pagosMixtos">;
+  opts?: Pick<InsertOrderOpts, "descuento" | "imputarCajaActor" | "envio" | "envioZona" | "cupon" | "aCuenta" | "promociones" | "pagosMixtos" | "occurredAt">;
 }): AltaDecidida {
   const brutas = buildOrderLines(p.products, pedidasValidas(p.input.items));
   const aMano = p.input.lineasAMano ?? [];
@@ -409,7 +436,9 @@ export function decidirAlta(p: {
     }
   }
   if (p.opts?.pagosMixtos) {
-    if (p.input.channel !== "COUNTER" || !p.opts.imputarCajaActor) {
+    // Lo cobra el mostrador (con caja), en el acto: la venta COUNTER o el pedido con retiro o envío
+    // que se toma ya pagado. La vidriera y la ingesta externa no cobran (no traen el actor).
+    if (!p.opts.imputarCajaActor) {
       throw new RechazoDeDominio("El pago con varios medios es para la venta de mostrador.");
     }
     if (p.opts.aCuenta) throw new RechazoDeDominio("Una venta a cuenta no se cobra con varios medios.");
@@ -418,6 +447,24 @@ export function decidirAlta(p: {
     // cuenta (cobrada y sin medio). El detalle por medio vive en sus cobros.
     if (!p.input.paid || p.input.paymentMethod !== medioPrincipal(p.opts.pagosMixtos.asientos)) {
       throw new RechazoDeDominio("El medio de la venta tiene que ser el principal del pago mixto.");
+    }
+  }
+  // LA VENTA DEL CUADERNO: sólo mostrador, cobrada en el acto con UN medio y por el mostrador (que
+  // asienta la caja). Lo valida `createOrder` antes; esto es la defensa de cualquier otro llamador.
+  const occurredAt = p.opts?.occurredAt ?? null;
+  if (occurredAt) {
+    const i = p.input;
+    if (
+      i.channel !== "COUNTER" ||
+      i.fulfillment !== "PICKUP" ||
+      !i.paid ||
+      !i.paymentMethod ||
+      !p.opts?.imputarCajaActor ||
+      p.opts.pagosMixtos ||
+      p.opts.aCuenta ||
+      normalizarCodigoDeCupon(p.opts.cupon)
+    ) {
+      throw new RechazoDeDominio(CUADERNO_SOLO_VENTA_COBRADA);
     }
   }
   // Lo que se compra: las líneas con producto (precio de la base) más las de precio a mano.
@@ -430,7 +477,12 @@ export function decidirAlta(p: {
     topePct: p.opts?.descuento?.topePct ?? null,
   });
   if (!desc.ok) throw new RechazoDeDominio(desc.error);
-  const envio = p.opts?.envio ? round2(shippingCost(productos, p.input.fulfillment, p.opts.envio)) : 0;
+  const zonaDeEnvio = p.input.fulfillment === "DELIVERY" ? (p.opts?.envioZona ?? null) : null;
+  const envio = zonaDeEnvio
+    ? round2(costoDeEnvio(productos, zonaDeEnvio))
+    : p.opts?.envio
+      ? round2(shippingCost(productos, p.input.fulfillment, p.opts.envio))
+      : 0;
   const subtotal = round2(productos + envio);
   return {
     tenantId: p.tenantId,
@@ -444,10 +496,12 @@ export function decidirAlta(p: {
     imputarCajaActor: p.opts?.imputarCajaActor,
     // Lo nuevo sólo aparece cuando existe: el alta de siempre devuelve lo mismo que antes.
     ...(envio > 0 ? { envio } : {}),
+    ...(envio > 0 && zonaDeEnvio ? { envioRenglon: renglonDeEnvio(zonaDeEnvio) } : {}),
     ...(cupon ? { cupon } : {}),
     ...(p.opts?.aCuenta ? { aCuenta: p.opts.aCuenta } : {}),
     ...(promosDeLaVenta ? { promos: promosDeLaVenta } : {}),
     ...(p.opts?.pagosMixtos ? { pagosMixtos: p.opts.pagosMixtos.asientos } : {}),
+    ...(occurredAt ? { occurredAt } : {}),
   };
 }
 
@@ -591,7 +645,9 @@ export async function insertOrder(
   const negativoPermitido = new Set(opts?.permitirNegativoPorProducto ?? []);
   // A cuenta la ficha es obligatoria: si la búsqueda FALLA (la base, la red) no se sabe si hay
   // ficha, y eso no es un rechazo de negocio ("no tiene ficha"): el error sigue de largo.
-  const clientId = await clienteDelTelefono(tenantId, input.customerPhone, { estricto: Boolean(alta.aCuenta) });
+  const clientId = opts?.clientId?.trim()
+    ? await fichaDelNegocio(tenantId, opts.clientId.trim())
+    : await clienteDelTelefono(tenantId, input.customerPhone, { estricto: Boolean(alta.aCuenta) });
   // "A cuenta" es la deuda de ALGUIEN: sin ficha no hay a quién cobrarle después.
   if (alta.aCuenta && !clientId) {
     throw new RechazoDeDominio(
@@ -648,6 +704,9 @@ export async function insertOrder(
             createdBy: "system",
             label: l.name,
             allowNegative: negativoPermitido.has(l.productId),
+            // Del cuaderno: el movimiento cae en su día; el motivo explica por qué su saldo es el
+            // de la hora de carga (`balanceAfter`).
+            ...(datos.occurredAt ? { at: datos.occurredAt, reason: "Venta del cuaderno (se cargó después de vender)" } : {}),
           });
         }
 
@@ -733,6 +792,21 @@ export async function clienteDelTelefono(
   }
 }
 
+/** La ficha elegida no está en este negocio (no existe, o es de otro). */
+export const FICHA_DE_OTRO_NEGOCIO =
+  "No encontramos esa ficha de cliente en este negocio. Buscalo de nuevo en el bloque Cliente (o dejá la venta sin ficha) y volvé a intentar.";
+
+/**
+ * La ficha que eligió quien vende, verificada contra el negocio: `findFirst` con `tenantId` (no
+ * sólo RLS). Si no está, la venta NO se graba: atarla a la ficha de otro negocio, o a una que no
+ * existe, es peor que no atarla, y lo que eligió la cajera no se cambia en silencio por otra cosa.
+ */
+export async function fichaDelNegocio(tenantId: string, clientId: string): Promise<string> {
+  const ficha = await prisma.client.findFirst({ where: { id: clientId, tenantId }, select: { id: true } });
+  if (!ficha) throw new RechazoDeDominio(FICHA_DE_OTRO_NEGOCIO);
+  return ficha.id;
+}
+
 /** Todo lo que el alta ya decidió antes de abrir la transacción. */
 export type DatosDelAlta = {
   tenantId: string;
@@ -748,6 +822,8 @@ export type DatosDelAlta = {
   writeKey: string | null;
   /** Costo del envío (la tienda), que entra como línea sin producto. Ausente o 0 = sin envío. */
   envio?: number;
+  /** El nombre del renglón del envío con zona («Envío · Canning centro»); sin él, `NOMBRE_LINEA_ENVIO`. */
+  envioRenglon?: string;
   /** Código de cupón pedido (normalizado). Lo valida y consume `aplicarCuponEnTx`. */
   cupon?: string | null;
   /** El código del cupón que efectivamente se aplicó (lo pone `aplicarCuponEnTx`). */
@@ -760,6 +836,8 @@ export type DatosDelAlta = {
   promos?: PromosDeLaVenta;
   /** Pago con varios medios: un cobro y un asiento por medio; la venta lleva el principal. */
   pagosMixtos?: readonly AsientoDePago[];
+  /** La venta del cuaderno: cuándo se vendió (va a `createdAt` del pedido y del stock, y al libro). */
+  occurredAt?: Date;
 };
 
 /**
@@ -809,6 +887,8 @@ export async function crearOrdenEnTx(
       // (no se referencia la columna) → el POS/API y el fallback schema-ahead siguen
       // funcionando aunque la columna no exista todavía en la DB.
       ...(d.writeKey ? { idempotencyKey: d.writeKey } : {}),
+      // La venta del cuaderno nace con la hora en que se vendió (Ventas del día la cuenta en su día).
+      ...(d.occurredAt ? { createdAt: d.occurredAt } : {}),
       items: {
         create: [
           ...d.lines.map((l) => ({
@@ -838,7 +918,7 @@ export async function crearOrdenEnTx(
                 {
                   tenantId,
                   productId: null,
-                  name: NOMBRE_LINEA_ENVIO,
+                  name: d.envioRenglon ?? NOMBRE_LINEA_ENVIO,
                   saleUnit: "UNIT" as const,
                   quantity: 1,
                   unitPrice: d.envio,
@@ -883,6 +963,7 @@ export async function imputarVentaEnTx(
     paymentMethod: d.input.paid ? d.input.paymentMethod : null,
     total: d.total,
     actor: d.imputarCajaActor,
+    ...(d.occurredAt ? { occurredAt: d.occurredAt } : {}),
   });
 }
 
@@ -1172,8 +1253,24 @@ export type CobroDePedido =
 export async function cobrarPedidoEnTx(
   tx: Prisma.TransactionClient,
   tenantId: string,
-  args: { orderId: string; method: OrderPaymentMethod; actor: string },
+  args: {
+    orderId: string;
+    method: OrderPaymentMethod;
+    actor: string;
+    /**
+     * PAGO MIXTO (Magra, tanda 1 · 1A): dos o más asientos que suman EXACTO el total del pedido
+     * que está en la base. El pedido queda con el medio PRINCIPAL (`method`, que tiene que ser
+     * `medioPrincipal(asientos)`) y cada medio entra como un cobro con su asiento
+     * (`imputarPagosMixtosEnTx`, clave `pago-mixto:<orderId>:<medio>`), igual que la venta de
+     * mostrador con varios medios. Sin asientos, el cobro de siempre.
+     */
+    asientos?: readonly AsientoDePago[] | null;
+  },
 ): Promise<CobroDePedido> {
+  const mixto = args.asientos && args.asientos.length > 0 ? args.asientos : null;
+  if (mixto && medioPrincipal(mixto) !== args.method) {
+    throw new RechazoDeDominio("El medio de la venta tiene que ser el principal del pago mixto.");
+  }
   const res = await tx.order.updateMany({
     where: { id: args.orderId, tenantId, paid: false },
     data: { paid: true, paymentMethod: args.method },
@@ -1185,6 +1282,14 @@ export async function cobrarPedidoEnTx(
   if (!order) return { tipo: "no-existe" };
   if (order.status === "CANCELLED") throw new CobroDePedidoAnulado(order.code);
   if (res.count === 0) return { tipo: "ya-cobrado", code: order.code, medioRegistrado: order.paymentMethod };
+  if (mixto) {
+    // Contra el total de la BASE, con la fila ya bloqueada por el update: si el pedido se pesó y
+    // cambió mientras se cobraba, no cierra y la transacción vuelve atrás entera (el `paid` también).
+    const problema = validarPagosContraElTotal(mixto, order.total);
+    if (problema) throw new RechazoDeDominio(problema);
+    await imputarPagosMixtosEnTx(tx, tenantId, { orderId: order.id, orderCode: order.code, asientos: mixto, actor: args.actor });
+    return { tipo: "cobrado", order: { id: order.id, code: order.code, total: order.total } };
+  }
   await recordCashSaleMovementInTx(tx, tenantId, {
     orderId: order.id,
     orderCode: order.code,

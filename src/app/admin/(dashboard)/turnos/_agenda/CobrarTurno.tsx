@@ -5,20 +5,24 @@
 // ============================================================================
 //
 // La recepcionista cobra con la clienta enfrente: el monto viene puesto (la seña si no entró nada,
-// si no el saldo: `cobroSugerido`), el medio NO viene puesto (la fila de siempre traía «Efectivo» por
-// defecto y el error típico era cobrar por el medio equivocado: la caja cerraba con faltante en una
-// columna y sobrante en la otra). La tecla se enciende al elegir el medio y dice cuánto cobra.
+// si no el saldo: `cobroSugerido`) y se puede cambiar para un parcial; el medio NO viene puesto (la
+// fila de siempre traía «Efectivo» por defecto y el error típico era cobrar por el medio
+// equivocado: la caja cerraba con faltante en una columna y sobrante en la otra).
+//
+// Un toque en el medio YA cobra (§2.6): no hay segundo botón de «Cobrar». El botón grande queda
+// sólo para «Queda debiendo», cuando el turno ya terminó y la clienta paga otro día.
 //
 // Usa `registrarCobroTurno` con los mismos campos que la fila de siempre (campos.ts, con prueba).
 // La clave de idempotencia es una por intento: un doble toque no cobra dos veces.
 
 import { useId, useState, useTransition } from "react";
 import { registrarCobroTurno } from "@/lib/actions";
-import { Button, Input, Plata, Segmented } from "@/components/ui";
-import { METODOS_DE_PAGO, METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
+import { Button, Input, Plata } from "@/components/ui";
+import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
 import { useToast } from "../../ToastProvider";
 import { pesos } from "../agenda-core";
-import { aFormData, camposDeCobro, claveNueva, leerMontoDelCobro, metodoElegido } from "./campos";
+import TeclasDeMedio from "../cerrar/TeclasDeMedio";
+import { aFormData, camposDeCobro, claveNueva, leerMontoDelCobro } from "./campos";
 
 export function montoParaEditar(n: number): string {
   // «22000» y no «22.000»: lo que se muestra es lo que se relee igual (leerImporte).
@@ -31,6 +35,7 @@ export default function CobrarTurno({
   sugerido,
   saldo,
   onListo,
+  onQuedaDebiendo,
 }: {
   turnoId: string;
   clienta: string;
@@ -38,22 +43,24 @@ export default function CobrarTurno({
   sugerido: { tipo: "senia" | "saldo"; monto: number };
   saldo: number;
   onListo?: () => void;
+  /** Turno terminado con saldo: «Queda debiendo» cierra la hoja sin cobrar (la deuda ya figura). */
+  onQuedaDebiendo?: () => void;
 }) {
   const id = useId();
   const { showError, showSuccess } = useToast();
   const [texto, setTexto] = useState(montoParaEditar(sugerido.monto));
-  const [metodo, setMetodo] = useState<MetodoDePago | null>(null);
   const [clave, setClave] = useState(claveNueva);
   const [error, setError] = useState("");
+  const [enCurso, setEnCurso] = useState<MetodoDePago | null>(null);
   const [pendiente, empezar] = useTransition();
 
   const lectura = leerMontoDelCobro(texto, saldo);
-  const listo = lectura.ok && metodo !== null;
 
-  const cobrar = () => {
-    if (!lectura.ok || !metodo) return;
+  const cobrar = (metodo: MetodoDePago) => {
+    if (!lectura.ok || pendiente) return;
     const monto = lectura.monto;
     setError("");
+    setEnCurso(metodo);
     empezar(async () => {
       try {
         const r = await registrarCobroTurno(aFormData(camposDeCobro({ turnoId, clave, monto, metodo })));
@@ -62,10 +69,12 @@ export default function CobrarTurno({
           return;
         }
         setClave(claveNueva());
-        showSuccess(`Cobrado: ${clienta}, ${METODO_LABEL[metodo].toLowerCase()}.`);
+        showSuccess(`Cobrado: ${clienta}, ${pesos(monto)} en ${METODO_LABEL[metodo].toLowerCase()}.`);
         onListo?.();
       } catch {
         showError("No se pudo registrar el cobro. Probá de nuevo; si sigue, avisá.");
+      } finally {
+        setEnCurso(null);
       }
     });
   };
@@ -74,7 +83,7 @@ export default function CobrarTurno({
     <div data-ui="cobrar-turno" className="space-y-4">
       <p className="flex items-baseline justify-between gap-3 text-sm text-muted">
         <span>{sugerido.tipo === "senia" ? "Seña del servicio" : "Falta cobrar"}</span>
-        <Plata valor={sugerido.tipo === "senia" ? sugerido.monto : saldo} />
+        <Plata valor={sugerido.tipo === "senia" ? sugerido.monto : saldo} sinCentavos={Number.isInteger(sugerido.tipo === "senia" ? sugerido.monto : saldo)} />
       </p>
       <div>
         <label htmlFor={`${id}-monto`} data-ui="rotulo" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted">
@@ -97,31 +106,24 @@ export default function CobrarTurno({
           </p>
         )}
       </div>
-      <Segmented
-        name={`${id}-medio`}
-        leyenda="Cómo paga"
-        leyendaVisible
-        tono="acento"
-        lleno
-        value={metodo ?? ""}
-        onChange={(e) => setMetodo(metodoElegido((e.nativeEvent.target as HTMLInputElement | null)?.value))}
-        opciones={METODOS_DE_PAGO.map((m) => ({ valor: m, etiqueta: METODO_LABEL[m] }))}
+      <TeclasDeMedio
+        tamano="grande"
+        etiqueta={lectura.ok ? `Cobrar ${pesos(lectura.monto)} con` : "Cobrar con"}
+        onElegir={cobrar}
+        disabled={!lectura.ok || pendiente}
+        enCurso={enCurso}
       />
+      <p className="text-center text-xs text-muted">{lectura.ok ? "Un toque en el medio cobra." : "Escribí cuánto cobrás para elegir el medio."}</p>
       {error && (
         <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       )}
-      <Button type="button" size="lg" className="w-full" disabled={!listo || pendiente} estado={pendiente ? "cargando" : undefined} onClick={cobrar}>
-        {pendiente ? (
-          "Cobrando…"
-        ) : lectura.ok ? (
-          `Cobrar ${pesos(lectura.monto)}`
-        ) : (
-          "Cobrar"
-        )}
-      </Button>
-      {!metodo && lectura.ok && <p className="text-center text-xs text-muted">Elegí cómo paga para cobrar.</p>}
+      {onQuedaDebiendo && (
+        <Button type="button" variant="outline" size="lg" className="w-full" disabled={pendiente} onClick={onQuedaDebiendo}>
+          Queda debiendo
+        </Button>
+      )}
     </div>
   );
 }

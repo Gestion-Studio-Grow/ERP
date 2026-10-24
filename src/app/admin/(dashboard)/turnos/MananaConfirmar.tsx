@@ -86,7 +86,13 @@ function FilaAConfirmar({ turno }: { turno: TurnoAConfirmar }) {
           </a>
         )}
         {turno.status === "PENDING" && (
-          <form action={confirmarTurno}>
+          <form
+            action={async (fd) => {
+              setError("");
+              const r = await confirmarTurno(fd);
+              if (!r.ok) setError(r.error);
+            }}
+          >
             <input type="hidden" name="appointmentId" value={turno.id} />
             <SubmitButton pendingText="Confirmando…" className={buttonClasses("outline", "md", "whitespace-nowrap max-sm:w-full")}>
               Confirmar turno

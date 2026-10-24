@@ -13,6 +13,7 @@ import {
   montoANumero,
   pendientesDeLaBandeja,
   porObjetivo,
+  RUTA_CERRAR_PENDIENTE,
   tituloDeHoy,
 } from "./bandeja-core";
 
@@ -277,4 +278,41 @@ test("mostrador: cada paso sale sólo si se ve la app donde se resuelve (un caje
   const cajero = new Map([["vender", "/admin/vender"], ["caja-del-dia", "/admin/caja"]]);
   const pasos = pasosParaArrancar(arrancandoMostrador(), cajero, null, null, NADA_HECHO);
   assert.deepEqual(pasos.map((p) => p.id), ["venta", "caja"]);
+});
+
+// ── Reingeniería CH, Tanda 1 (1-D): los turnos que quedaron sin cerrar ───────
+
+test("turnos sin cerrar: «Quedaron N sin cerrar» en Cerrar, con la tecla a «Cerrar lo pendiente»", () => {
+  const agenda = app("agenda", "/admin/turnos", "Agenda");
+  const deAyer = ok("12", { detalle: "turnos hoy · 50% de los que faltan confirmados", alerta: { valor: "4", texto: "turnos de ayer sin cerrar" } });
+  const { pendientes } = pendientesDeLaBandeja([{ app: agenda, resultado: deAyer }], new Map());
+  assert.equal(pendientes.length, 1);
+  const p = pendientes[0];
+  assert.equal(p.objetivo, "cerrar");
+  assert.equal(p.folio, "Ayer");
+  assert.equal(p.titulo, "Quedaron 4 sin cerrar");
+  assert.deepEqual(p.tecla, { texto: "Cerrar los 4", href: "/admin/turnos/cerrar" });
+  assert.equal(p.tecla.href, RUTA_CERRAR_PENDIENTE);
+  // «Más»: la agenda que los mide.
+  assert.deepEqual(p.mas, { texto: "Ver la agenda", href: "/admin/turnos" });
+
+  // De varios días: el folio no dice «Ayer».
+  const viejos = ok("3", { alerta: { valor: "1", texto: "turno sin cerrar de días anteriores" } });
+  const [uno] = pendientesDeLaBandeja([{ app: agenda, resultado: viejos }], new Map()).pendientes;
+  assert.equal(uno.folio, "Antes");
+  assert.equal(uno.titulo, "Quedó 1 sin cerrar");
+  assert.equal(uno.tecla.texto, "Cerrarlo");
+
+  // Sin aviso (el día de siempre), la agenda no sube nada a la bandeja.
+  assert.deepEqual(pendientesDeLaBandeja([{ app: agenda, resultado: ok("12", { detalle: "turnos hoy" }) }], new Map()).pendientes, []);
+  // La agenda está entre los números que pide la bandeja, y va a «Cerrar» antes que la caja.
+  assert.ok((APPS_DE_LA_BANDEJA as readonly string[]).includes("agenda"));
+  const conCaja = pendientesDeLaBandeja(
+    [
+      { app: agenda, resultado: deAyer },
+      { app: app("cierre-del-dia", "/admin/caja/cierre"), resultado: ok("1", { alerta: { valor: "1", texto: "1 día sin cerrar" } }) },
+    ],
+    new Map(),
+  ).pendientes;
+  assert.deepEqual(conCaja.map((x) => x.tecla.href), ["/admin/turnos/cerrar", "/admin/caja/cierre"]);
 });

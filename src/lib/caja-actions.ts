@@ -37,13 +37,23 @@ import { isDemoSandbox, getDemoCajaData, DEMO_WRITE_BLOCKED } from "@/lib/demo-s
 import { leerImporte } from "@/lib/pos-peso";
 
 const CAJA_PATH = "/admin/caja";
+const VENDER_PATH = "/admin/vender";
 
 // Resultado de las acciones de formulario de caja, para `useActionState` en la UI.
 // `null` = estado inicial (ocioso). En vez de lanzar (que rompe el flujo con la
 // pantalla de error de Next), las acciones DEVUELVEN el error de validación/dominio
 // para mostrarlo inline junto al formulario. Los mensajes ya son texto amable en
 // español (van directo a la UI del mostrador).
-export type CajaActionState = { ok: true } | { ok: false; error: string } | null;
+export type CajaActionState =
+  | { ok: true }
+  // `yaAbierta`: el rechazo es porque YA hay una caja abierta (otra pestaña, el doble toque). La
+  // tarjeta de Vender (AbrirCajaEnLinea) lo toma como «listo» y recarga; el formulario de Caja
+  // muestra el texto como siempre.
+  | { ok: false; error: string; yaAbierta?: true }
+  | null;
+
+/** El rechazo de abrir con una caja ya abierta (lo lee `openCashSession` para marcar `yaAbierta`). */
+const YA_HAY_CAJA_ABIERTA = "Ya hay una caja abierta. Cerrá el turno actual antes de abrir otro.";
 
 // Traduce un error (de validación propia o de dominio lanzado dentro de la
 // transacción) al estado de error de la UI. Un error inesperado no filtra detalles
@@ -135,7 +145,7 @@ export async function openCashSession(
         select: { id: true },
       });
       if (already) {
-        throw new Error("Ya hay una caja abierta. Cerrá el turno actual antes de abrir otro.");
+        throw new Error(YA_HAY_CAJA_ABIERTA);
       }
       const ahora = new Date();
       // Leído en la MISMA transacción Serializable: una venta que entre en paralelo aborta una
@@ -177,6 +187,7 @@ export async function openCashSession(
       return { id: creada.id, saldoDelLibro, diferenciaDeApertura: conSigno };
     }, { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (err) {
+    if (err instanceof Error && err.message === YA_HAY_CAJA_ABIERTA) return { ok: false, error: YA_HAY_CAJA_ABIERTA, yaAbierta: true };
     return toActionError(err);
   }
 
@@ -187,7 +198,48 @@ export async function openCashSession(
     changes: { openingFloat, saldoDelLibro: session.saldoDelLibro, diferenciaDeApertura: session.diferenciaDeApertura },
   });
   revalidatePath(CAJA_PATH);
+  // La tarjeta «Abrí la caja» de Vender (Magra, tanda 2 · 2D) abre desde ahí: Vender también cambia.
+  revalidatePath(VENDER_PATH);
   return { ok: true };
+}
+
+// --- Abrir la caja desde Vender (Magra, tanda 2 · 2D; magra-DISENO.md E21 · MG-057) ---
+//
+// Lo que necesita la tarjeta «Abrí la caja: ayer quedaron $X en el cajón» (vender/AbrirCajaEnLinea):
+// el FONDO SUGERIDO y desde cuándo. El fondo sugerido es el MISMO número contra el que
+// `openCashSession` cuenta (ADR-101): el saldo en efectivo del libro, que después de un cierre es
+// lo que se contó al cerrar (con su diferencia ya asentada) más lo que se movió después (un retiro
+// del dueño, por ejemplo). Así «Abrir con $X» abre SIN diferencia, y «Conté otro» deja asentada la
+// diferencia una sola vez, con la regla de siempre. La apertura en sí es `openCashSession`: acá no
+// se escribe nada.
+//
+// `null` cuando no corresponde la tarjeta: ya hay una caja abierta, hoy ya está cerrado (no se
+// puede abrir) o es la demo. Pide `orders:manage`: lo mismo que abrir.
+export type AperturaSugerida = {
+  /** El fondo sugerido: el efectivo que el libro dice que hay en el cajón. */
+  esperado: number;
+  /** El último día cerrado (`lastClosedDay`), o null si nunca se cerró uno. */
+  ultimoCierre: string | null;
+  /** Hoy, en el día del negocio. */
+  hoy: string;
+};
+
+export async function getAperturaEnVender(): Promise<AperturaSugerida | null> {
+  await requireCapability("orders:manage");
+  if (isDemoSandbox()) return null;
+  const tenantId = await getCurrentTenantId();
+  const hoy = dateStrInBusinessTz(new Date());
+  const ultimoCierre = await lastClosedDay(tenantId);
+  if (ultimoCierre && isFrozenDay(hoy, ultimoCierre)) return null;
+  return tenantTransaction(
+    async (tx) => {
+      const abierta = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
+      if (abierta) return null;
+      const esperado = await saldoEfectivoDelLibro(tx, tenantId, finDelDiaDelNegocio(new Date()));
+      return { esperado, ultimoCierre: ultimoCierre ?? null, hoy };
+    },
+    { tenantId },
+  );
 }
 
 // El alta manual de movimientos se fue de acá: la escribe `addLibroEntry`

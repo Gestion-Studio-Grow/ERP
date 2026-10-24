@@ -39,8 +39,9 @@
 // Sin imports de valor de Prisma: esto es un client component.
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useFormStatus } from "react-dom";
-import { createOrder, buscarClienteParaVenta } from "@/lib/order-actions";
+import { flushSync, useFormStatus } from "react-dom";
+import Link from "next/link";
+import { createOrder, buscarClienteParaVenta, facturarVenta } from "@/lib/order-actions";
 import { AvisoError, BuscadorCombo, Input, Select, buttonClasses, cn, fmtMoneyARS, type OpcionBuscador } from "@/components/ui";
 import { Atajos } from "@/components/ui/Renglon";
 import { Kbd } from "@/components/ui/Kbd";
@@ -65,15 +66,33 @@ import {
 import { textoDelFaltante, type Faltante } from "@/lib/reintento-de-venta";
 import { round2 } from "@/lib/round";
 import TicketVenta from "./TicketVenta";
-import CampoEtiqueta, { ID_CAMPO_ETIQUETA, type BalanzaDeVender } from "./CampoEtiqueta";
+import {
+  COBRAR_EL_DE_LA_ETIQUETA,
+  etiquetaDistinta,
+  lineaAManoDeLaEtiqueta,
+  puedeCobrarElDeLaEtiqueta,
+  textoEtiquetaDistinta,
+} from "./etiqueta-de-balanza";
+import ClienteDeLaVenta, { type ClienteElegido, type ValorDelCliente } from "./ClienteDeLaVenta";
+import type { RepetirPedido } from "@/lib/clientes/fiado";
+import ZonaDelEnvio from "./ZonaDelEnvio";
+import { CampoUnico, ID_CAMPO_UNICO, type LecturaUnica } from "@/components/lector/CampoUnico";
+import { PieDeCobro, type ResultadoDelPie } from "@/components/cobro/PieDeCobro";
+import { camposDelPie } from "@/lib/cobro/pie-de-cobro-core";
+import { cotizarEnvioDelMostrador, tieneZonas } from "@/lib/envios/tarifa";
+import type { ConfigEnvios } from "@/lib/envios/modelo";
+import { describirFormato } from "@/lib/supermercado/balanza";
+import { indiceDelLector, lineaDesdeLectura, REGLA_DEL_PRECIO_DE_BALANZA, type ProductoDelLector } from "@/lib/lector/linea-desde-lectura";
+import { etiquetaDistintaDelSistema } from "@/lib/lector/decidir-lectura";
 import TomarPesoParaElTicket from "@/components/balanza/TomarPesoParaElTicket";
+import type { BalanzaSerie } from "@/lib/balanza-serie/usar-balanza-serie";
 import { usePerfilSiHayTerminal, type TerminalDelEquipo } from "@/lib/terminal/usar-perfil";
 import { enCampoDeTexto, enCampoEditable, esCampoDeCantidad, motivoParaNoSumar } from "@/lib/terminal/lector-core";
 import { useLectorDeRafaga, type OrigenDeLaLectura } from "@/lib/terminal/usar-lector";
 import { avisar } from "@/lib/terminal/senal";
 import { indexarPorCodigo, resolverCodigo } from "@/lib/supermercado/lectura";
 import FacturarVenta from "../ventas/FacturarVenta";
-import { SIN_FACTURA } from "../ventas/factura";
+import { SIN_FACTURA, type FacturaDeVenta } from "../ventas/factura";
 import { useCuponDePedido } from "@/app/tienda/pedido-online";
 import {
   aplicarDescuento,
@@ -87,7 +106,36 @@ import {
   type TipoDescuento,
   type TopePrecioAMano,
   type VentaTicket,
+  BANDA_DIA_CERRADO,
+  REGISTRAR_PARA_MANANA,
+  buscarEnElCatalogo,
+  sumarUnaUnidad,
+  teclaDeProducto,
+  vueltoDelTicket,
+  type BalanzaDeVender,
+  CHIPS_DE_DESCUENTO,
+  DESHACER_MS,
+  MOTIVOS_PRECIO_A_MANO,
+  avisoDeCambioDePrecio,
+  cambiosDePrecio,
+  descuentoParaRedondear,
+  deshacerRenglon,
+  faltaEnLineaAMano,
+  gondolasDelMostrador,
+  pasoDelRenglon,
+  quitarRenglon,
+  reemplazosDe,
+  teclasPrincipales,
+  textoDelCambioDePrecio,
+  lineasDesdeLaFicha,
+  avisoDeRepetir,
+  type CambioDePrecio,
+  type RenglonQuitado,
 } from "./reglas-venta";
+import TeclasPorGondola from "./TeclasPorGondola";
+import TicketQueCrece, { ConBalanzaEnVivo, PesoEnVivoDelRenglon, RenglonDelTicket } from "./TicketQueCrece";
+import { fijarTeclasDelMostrador, preciosVigentesDelTicket, type PrecioVigente } from "./acciones-del-mostrador";
+import type { TeclasDelMostrador } from "./teclas.server";
 import {
   almacenDeSesion,
   antesDeCobrar,
@@ -130,7 +178,17 @@ type SellableProduct = {
 };
 
 /** Una línea del ticket: el producto y lo TIPEADO (texto, no número: ver PosForm). */
-type Line = { key: number; productId: string; qtyText: string };
+type Line = {
+  key: number;
+  productId: string;
+  qtyText: string;
+  /**
+   * Mostrador boutique (MG-023): el importe que IMPRIMIÓ la balanza en la etiqueta, si no coincide
+   * con el del sistema. El renglón cobra el del sistema y lo deja escrito; al tocar el peso a mano
+   * se borra (ya no es la etiqueta).
+   */
+  etiqueta?: number;
+};
 
 /** La preferencia del teclado grande en este navegador (sólo comodidad: si falta, cerrado). */
 const PREF_TECLADO = "vender:teclado-grande";
@@ -187,6 +245,106 @@ function ConfirmarPeso({
     </div>
   );
 }
+
+const ID_CAMPO_ETIQUETA = "vender-etiqueta";
+
+/**
+ * «Etiqueta de la balanza o código» — el campo de la vista DE SIEMPRE (sin el mostrador boutique),
+ * al lado del buscador. Antes era su propio archivo (CampoEtiqueta.tsx); con el boutique lo
+ * reemplaza el campo único (`CampoUnico`) y éste quedó acá, igual, sólo para la vista de siempre.
+ *
+ * El lector "tipea" los dígitos y manda un Enter: ese Enter carga el renglón (lib/lector) en vez de
+ * mandar el formulario. Lo que no se puede leer se avisa con role="status" y no frena nada. El
+ * campo no tiene `name`: no viaja al servidor, que vuelve a decidir todo al cobrar.
+ */
+function CampoEtiqueta({
+  productos,
+  balanza,
+  alLeer,
+}: {
+  productos: readonly ProductoDelLector[];
+  balanza: BalanzaDeVender;
+  /** Carga el renglón. `qtyText` vacío = falta el peso (el foco va a ese campo). */
+  alLeer: (productId: string, qtyText: string) => void;
+}) {
+  const indice = useMemo(() => indiceDelLector(productos), [productos]);
+  const [texto, setTexto] = useState("");
+  const [aviso, setAviso] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+
+  function leer() {
+    const r = lineaDesdeLectura(texto, indice, balanza.formato);
+    if (!r.ok) {
+      setAviso({ tipo: "error", texto: r.mensaje });
+      return;
+    }
+    setTexto("");
+    setAviso(r.aviso ? { tipo: "ok", texto: r.aviso } : null);
+    alLeer(r.productId, r.qtyText);
+  }
+
+  return (
+    <div data-vender="etiqueta" className="space-y-1">
+      <label htmlFor={ID_CAMPO_ETIQUETA} className="block text-sm font-medium text-strong">
+        Etiqueta de la balanza o código
+      </label>
+      <Input
+        id={ID_CAMPO_ETIQUETA}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="Pasá la etiqueta por el lector"
+        value={texto}
+        aria-describedby={`${ID_CAMPO_ETIQUETA}-regla`}
+        onChange={(e) => setTexto(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          // Sin esto, el Enter del lector mandaría el formulario de la venta.
+          e.preventDefault();
+          leer();
+        }}
+      />
+      <p role="status" className={aviso?.tipo === "error" ? "text-xs text-warning" : "text-xs text-body"}>
+        {aviso?.texto ?? ""}
+      </p>
+      <p id={`${ID_CAMPO_ETIQUETA}-regla`} className="text-xs text-muted">
+        {REGLA_DEL_PRECIO_DE_BALANZA} Formato: {describirFormato(balanza.formato)}
+        {balanza.configurar && (
+          <>
+            {" "}
+            <Link href={balanza.configurar} className="font-semibold text-accent-ink underline">
+              Cambiar el formato
+            </Link>
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
+/** Lo que suma el mostrador boutique (interruptor `mostrador-boutique`); lo arma MostradorDeVenta. */
+export type BoutiqueDeVender = {
+  /** Zonas de envío del negocio (src/lib/envios); null = no se pudo leer: el pedido sigue sin zonas. */
+  envios: ConfigEnvios | null;
+  /** Hasta qué día está cerrada la caja, si hoy está cerrado; null = hoy se cobra. */
+  diaCerrado: string | null;
+  /** ¿El rol tiene `billing:manage`? Sin él, la factura la hace el dueño (MG-018). */
+  rolFactura: boolean;
+  /** ¿Puede dar de alta o corregir fichas (`clients:manage`)? */
+  puedeEditarFicha: boolean;
+  /**
+   * Tanda 2 · 2A: las teclas que fijó el dueño, si puede fijarlas y la góndola explícita de cada
+   * producto (`cargarTeclasDelMostrador`, teclas.server.ts). Sin esto, las teclas de siempre en la
+   * pestaña principal y las góndolas sacadas del nombre.
+   */
+  teclas?: TeclasDelMostrador | null;
+  /**
+   * Tanda 2 · 2D: «Venderle» / «Repetir» desde la ficha (`pedidoDeVentaDesdeLaFicha`). El ticket
+   * arranca con el cliente elegido y, con `repetir`, sus renglones (lo por kilo sin peso). Un cobro
+   * sin confirmar en la pestaña gana: se restaura ése y esto no se aplica.
+   */
+  desdeLaFicha?: { cliente: ClienteElegido; repetir: RepetirPedido | null } | null;
+};
+
 /** Una línea con precio a mano: nombre, importe tipeado y motivo. */
 type LineaManual = { key: number; nombre: string; importeText: string; motivo: string };
 
@@ -291,6 +449,17 @@ type PropsDeVender = {
   balanza?: BalanzaDeVender | null;
   /** El equipo y la persona, si el negocio tiene el módulo `terminal` (lo decide el servidor). */
   terminal?: TerminalDelEquipo | null;
+  /**
+   * El MOSTRADOR BOUTIQUE (interruptor `mostrador-boutique`, Magra): pie de cobro único, campo
+   * único, teclas con precio y stock, cliente con CUIT, zona de envío y banda del día cerrado. Sin
+   * esto (CH y todo negocio con el interruptor apagado), la pantalla de siempre.
+   */
+  boutique?: BoutiqueDeVender | null;
+  /**
+   * Las zonas de envío del negocio para el Vender de siempre (comercio sin el interruptor). Con
+   * zonas, el pedido con envío pide la zona (el servidor la exige). Sin esto, como siempre.
+   */
+  envios?: ConfigEnvios | null;
 };
 
 const sinSuscripcion = () => () => {};
@@ -305,17 +474,24 @@ export default function VenderForm(props: PropsDeVender) {
   return <FormularioVender key={enNavegador ? "navegador" : "servidor"} {...props} enNavegador={enNavegador} />;
 }
 
-/** Las líneas con las que arranca el formulario: las de un cobro sin confirmar, o una vacía. */
-function lineasIniciales(k: CargadoDelCobro | undefined): { lines: Line[]; manuales: LineaManual[]; nextKey: number } {
+/**
+ * Las líneas con las que arranca el formulario: las de un cobro sin confirmar, las del pedido que
+ * se repite desde la ficha (boutique), o una vacía.
+ */
+function lineasIniciales(
+  k: CargadoDelCobro | undefined,
+  repetidas: readonly { productId: string; qtyText: string }[] = [],
+): { lines: Line[]; manuales: LineaManual[]; nextKey: number } {
   let n = 1;
-  const lines: Line[] = (k?.lineas ?? []).map((l) => ({ key: n++, productId: l.productId, qtyText: l.qtyText }));
+  const desde = k?.lineas?.length ? k.lineas : k ? [] : repetidas;
+  const lines: Line[] = desde.map((l) => ({ key: n++, productId: l.productId, qtyText: l.qtyText }));
   if (lines.length === 0) lines.push({ key: n++, productId: "", qtyText: "" });
   const manuales = (k?.manuales ?? []).map((m) => ({ key: n++, nombre: m.nombre, importeText: m.importeText, motivo: m.motivo }));
   return { lines, manuales, nextKey: n };
 }
 
 function FormularioVender({
-  products,
+  products: productosDeLaPagina,
   stockById,
   rapidos,
   rotuloRapidos = "Más vendidos",
@@ -334,8 +510,21 @@ function FormularioVender({
   conPeso = true,
   balanza = null,
   terminal = null,
+  boutique = null,
+  envios = null,
   enNavegador,
 }: PropsDeVender & { enNavegador: boolean }) {
+  // «Subió a $X recién» (MG-048, sólo el boutique): el precio de HOY de los productos cuyo precio
+  // cambió con el ticket abierto (lo leyó `preciosAlDia` antes de cobrar). Pisa al de la página en
+  // TODA la pantalla (renglones, teclas, total): lo que se ve es lo que se cobra.
+  const [preciosNuevos, setPreciosNuevos] = useState<Record<string, PrecioVigente>>({});
+  const products = useMemo(
+    () =>
+      Object.keys(preciosNuevos).length === 0
+        ? productosDeLaPagina
+        : productosDeLaPagina.map((p) => (preciosNuevos[p.id] ? { ...p, ...preciosNuevos[p.id] } : p)),
+    [productosDeLaPagina, preciosNuevos],
+  );
   // El perfil de este equipo, o `null` sin el módulo `terminal`: entonces todo es como siempre.
   const perfil = usePerfilSiHayTerminal(terminal);
   // Diseño nuevo («Renglón»): la MISMA venta (estado, reglas, envío) dibujada como el ticket que
@@ -360,7 +549,22 @@ function FormularioVender({
   const [nombresDeLaDuda] = useState<Record<string, string>>(() =>
     Object.fromEntries((k?.lineas ?? []).map((l) => [l.productId, l.nombre ?? "Un producto"])),
   );
-  const [inicial] = useState(() => lineasIniciales(k));
+  // «Venderle» / «Repetir» desde la ficha (boutique): sólo si no hay un cobro sin confirmar que restaurar.
+  const desdeLaFicha = !arranque && boutique?.desdeLaFicha ? boutique.desdeLaFicha : null;
+  const [deLaFicha] = useState(() =>
+    lineasDesdeLaFicha(desdeLaFicha?.repetir ?? null, new Set(productosDeLaPagina.map((p) => p.id))),
+  );
+  const [avisoDeLaFicha, setAvisoDeLaFicha] = useState(() =>
+    desdeLaFicha?.repetir
+      ? avisoDeRepetir({
+          code: desdeLaFicha.repetir.code,
+          cliente: desdeLaFicha.cliente.nombre,
+          porPeso: deLaFicha.lineas.some((l) => l.qtyText === ""),
+          omitidos: deLaFicha.omitidos,
+        })
+      : null,
+  );
+  const [inicial] = useState(() => lineasIniciales(k, deLaFicha.lineas));
 
   const [isOrder, setIsOrder] = useState(k ? k.esPedido : pedidoInicial);
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">(k?.entrega.tipo ?? "PICKUP");
@@ -391,10 +595,54 @@ function FormularioVender({
   // El cobro está en vuelo (se mandó y no volvió): el lector no suma nada hasta que termine.
   const cobrandoAhora = useRef(false);
 
+  // MOSTRADOR BOUTIQUE (interruptor). Todo esto existe sólo con `boutique`; apagado, nada cambia.
+  const enBoutique = boutique !== null;
+  // Lo que dice el bloque Cliente (ClienteDeLaVenta): la ficha elegida, el CUIT y el tilde «Facturar
+  // al cobrar». `clienteKey` lo vuelve a armar vacío al limpiar el ticket.
+  const [clienteVenta, setClienteVenta] = useState<ValorDelCliente | null>(null);
+  const [clienteKey, setClienteKey] = useState(0);
+  const [zonaId, setZonaId] = useState(k?.entrega.zona ?? "");
+  // Lo escrito en el campo único que no es un código: los productos que coinciden, como teclas.
+  const [coincidencias, setCoincidencias] = useState<{ texto: string; ids: string[] } | null>(null);
+  const [avisoBoutique, setAvisoBoutique] = useState<string | null>(null);
+  // Registrar sin cobrar / a cuenta / reintentar: el envío en curso (frena el doble toque).
+  const [enviandoBoutique, setEnviandoBoutique] = useState(false);
+  // «Reintentar cobro»: los campos del pie del intento que quedó en duda, para mandar LO MISMO.
+  const [reintentando, setReintentando] = useState(false);
+  const camposDelUltimoPie = useRef<[string, string][] | null>(null);
+  // Lo que entregó en efectivo (el pie), para el vuelto del ticket. No se guarda.
+  const pagoConDelPie = useRef<number | null>(null);
+  // El cobro del pie termina cuando termina `submit` (no cuando se manda): así el pie queda
+  // «enviando» todo el cobro y un doble toque no arma otra venta (MG-005).
+  const finDelCobro = useRef<(() => void) | null>(null);
+  // ── Tanda 2 · 2A: el ticket que crece y las teclas por góndola (sólo el boutique) ──
+  // Lo último que se quitó, con «Deshacer» 5 s (sin modal, sin animación).
+  const [quitado, setQuitado] = useState<{ tipo: "producto"; q: RenglonQuitado<Line>; nombre: string } | { tipo: "manual"; q: RenglonQuitado<LineaManual>; nombre: string } | null>(null);
+  useEffect(() => {
+    if (!quitado) return;
+    const t = setTimeout(() => setQuitado(null), DESHACER_MS);
+    return () => clearTimeout(t);
+  }, [quitado]);
+  // El renglón que recibe el peso (teclado grande, balanza por cable): el último que entró o el tocado.
+  const [activoKey, setActivoKey] = useState<number | null>(null);
+  // Cuántas veces cambió el peso de cada renglón DESDE AFUERA del teclado (−/+, balanza): rearma el teclado.
+  const [versionDelPeso, setVersionDelPeso] = useState<Record<number, number>>({});
+  // Los precios que cambiaron con el ticket abierto (MG-048), por producto: el chip del renglón.
+  const [cambios, setCambios] = useState<Record<string, CambioDePrecio>>({});
+  // Rearma el pie de cobro cuando un cobro se frenó por un precio que cambió (su vuelto era del total viejo).
+  const [pieKey, setPieKey] = useState(0);
+  // Las teclas fijadas por el dueño (la página las trae; al guardar se actualizan acá sin recargar).
+  const [fijadas, setFijadas] = useState<{ ids: string[]; version: string | null }>(() => ({
+    ids: boutique?.teclas?.fijadas ?? [],
+    version: boutique?.teclas?.version ?? null,
+  }));
+  // Una tecla por kilo «agotada» que se tocó: ¿lo tiene en la mano? (MAG-4: se vende igual si sí).
+  const [agotadoEnLaMano, setAgotadoEnLaMano] = useState<string | null>(null);
+
   // Opcionales, cerrados hasta que alguien los abre (ninguno suma un paso al camino feliz).
   const Quien = quienCompra === "clienta" ? "Clienta" : "Cliente";
   const alQuien = quienCompra === "clienta" ? "a la clienta" : "al cliente";
-  const [conCliente, setConCliente] = useState(k?.conCliente ?? false);
+  const [conCliente, setConCliente] = useState(k?.conCliente ?? Boolean(desdeLaFicha));
   const [telefono, setTelefono] = useState(k?.telefono ?? "");
   const [nombreCliente, setNombreCliente] = useState(k?.nombre ?? "");
   const [busqueda, setBusqueda] = useState<"nada" | "buscando" | "encontrado" | "sin-ficha" | "error">(
@@ -443,7 +691,29 @@ function FormularioVender({
   }, []);
 
   // La última venta cobrada, con su ticket. No frena la próxima: el formulario ya está limpio.
-  const [ultima, setUltima] = useState<{ venta: VentaTicket; pagoCon: number | null } | null>(null);
+  // `factura`/`facturando`: sólo con «Facturar al cobrar» del boutique.
+  const [ultima, setUltima] = useState<{
+    venta: VentaTicket;
+    pagoCon: number | null;
+    factura?: FacturaDeVenta;
+    facturando?: boolean;
+  } | null>(null);
+
+  function facturarAlCobrar(orderId: string) {
+    const fd = new FormData();
+    fd.set("id", orderId);
+    const poner = (cambio: { factura?: FacturaDeVenta; facturando: boolean }) =>
+      setUltima((u) => (u && u.venta.id === orderId ? { ...u, ...cambio } : u));
+    poner({ facturando: true });
+    facturarVenta(null, fd).then(
+      (e) => poner({ factura: e?.factura, facturando: false }),
+      (e) => {
+        if (isNextRedirect(e)) throw e;
+        const motivo = "No se pudo facturar ahora. Reintentá con «Facturar»: si ya se había emitido, no se emite dos veces.";
+        poner({ factura: { estado: "sin-factura", texto: `Sin factura: ${motivo}` }, facturando: false });
+      },
+    );
+  }
   // Lo que salió sin ticket (un pedido, una venta sin cobrar, el reintento que ya estaba
   // registrado), escrito arriba del formulario. No en el aviso flotante: en el celular tapaba el
   // botón de cobrar de la venta siguiente.
@@ -492,7 +762,7 @@ function FormularioVender({
     return key;
   }
   function removeLine(key: number) {
-    setLines((ls) => (ls.length > 1 ? ls.filter((l) => l.key !== key) : [{ ...ls[0], productId: "", qtyText: "" }]));
+    setLines((ls) => (ls.length > 1 ? ls.filter((l) => l.key !== key) : [{ ...ls[0], productId: "", qtyText: "", etiqueta: undefined }]));
   }
   function setManual(key: number, patch: Partial<LineaManual>) {
     setManuales((ms) => ms.map((m) => (m.key === key ? { ...m, ...patch } : m)));
@@ -624,7 +894,8 @@ function FormularioVender({
   }
 
   useLectorDeRafaga({
-    lector: perfil?.lector ?? null,
+    // En el boutique la ráfaga la lee el campo único (con el lector de este equipo): una sola vez.
+    lector: enBoutique ? null : (perfil?.lector ?? null),
     // Fuera de un campo de texto (una casilla o un medio de pago tocado no cuentan) o en el peso o
     // la cantidad de una línea, y sin un diálogo abierto. En el buscador, el teclado es de la persona.
     acepta: (e) => {
@@ -691,6 +962,22 @@ function FormularioVender({
       : { ok: false, error: pedidoDescuento.error };
   const total = descuento.ok ? descuento.total : subtotal;
 
+  // EL ENVÍO DEL PEDIDO (mostrador boutique, negocio con zonas de Envíos). La vista previa con la
+  // MISMA regla que decide el servidor (`cotizarEnvioDelMostrador`, sobre lo que suman los
+  // productos ANTES del descuento: el descuento no toca el envío). Entra al total que se muestra
+  // y al que cobra el pie: un pago dividido tiene que sumar el total CON el envío, que es el que
+  // graba el alta. El servidor lo vuelve a calcular: lo de acá sólo se muestra.
+  // Las zonas vienen del boutique o, en el Vender de siempre de un comercio con zonas, de `envios`
+  // (O-2: el servidor exige la zona en todo pedido con envío de un negocio con zonas; la pantalla la
+  // ofrece en las tres vistas para que nunca quede un callejón).
+  const configEnvios = boutique?.envios ?? envios;
+  const zonasDelEnvio = configEnvios && tieneZonas(configEnvios) ? configEnvios.zonas : [];
+  const conZona = isOrder && fulfillment === "DELIVERY" && zonasDelEnvio.length > 0;
+  const cotizacionEnvio =
+    conZona && configEnvios ? cotizarEnvioDelMostrador(configEnvios, { subtotal, zonaId: zonaId || null }) : null;
+  const envioPrevisto = cotizacionEnvio?.ok ? cotizacionEnvio.costo : 0;
+  const totalACobrar = round2(total + envioPrevisto);
+
   const contextoStock = isOrder ? "ONLINE" : "COUNTER";
   const faltanteDe = (l: { productId: string; qty: number }) => {
     const p = byId.get(l.productId);
@@ -725,9 +1012,10 @@ function FormularioVender({
   const hayManualInvalida = manualesLeidas.some((m) => m.error !== null);
   // A cuenta: la deuda es de ALGUIEN. Sin la ficha encontrada por teléfono no hay a quién.
   const aCuentaActivo = aCuentaDisponible && !isOrder && paid && aCuenta;
-  const faltaFichaACuenta = aCuentaActivo && busqueda !== "encontrado";
-  const faltaMedio = paid && !medio && !aCuentaActivo;
-  const vuelto = paid && !aCuentaActivo && medio === "EFECTIVO" ? calcularVuelto(total, pagoConText) : null;
+  const faltaFichaACuenta = aCuentaActivo && (enBoutique ? !clienteVenta?.cliente : busqueda !== "encontrado");
+  // En el boutique el medio se elige en el pie, al cobrar: no falta antes.
+  const faltaMedio = paid && !medio && !aCuentaActivo && !enBoutique;
+  const vuelto = paid && !aCuentaActivo && medio === "EFECTIVO" ? calcularVuelto(totalACobrar, pagoConText) : null;
 
   // Lo que define este cobro —TODO lo que el servidor compara con lo grabado—, para saber si un
   // reintento es la misma venta. Cliente y entrega van como viajan: sin la sección abierta no se
@@ -745,7 +1033,7 @@ function FormularioVender({
     cupon: usaCupon ? (cupon.aplicado?.codigo ?? cupon.codigo) : null,
     descuento: conDescuento && !usaCupon && pedidoDescuento.ok ? pedidoDescuento.pedido : null,
     entrega: isOrder
-      ? { tipo: fulfillment, direccion: fulfillment === "DELIVERY" ? direccion : "", horario, nota }
+      ? { tipo: fulfillment, direccion: fulfillment === "DELIVERY" ? direccion : "", horario, nota, zona: conZona ? zonaId : "" }
       : null,
   });
   const cambioTrasCorte = sinRespuesta !== null && cambioDespuesDelCorte(sinRespuesta.firma, firma);
@@ -777,7 +1065,7 @@ function FormularioVender({
         cupon: cupon.aplicado,
         cuponTexto: cupon.codigo,
       },
-      entrega: { tipo: fulfillment, horario, direccion, nota },
+      entrega: { tipo: fulfillment, horario, direccion, nota, ...(conZona && zonaId ? { zona: zonaId } : {}) },
     };
   }
 
@@ -809,8 +1097,24 @@ function FormularioVender({
   function limpiar() {
     // El foco vuelve al buscador: el próximo cliente se atiende sin tocar el mouse. Con el lector,
     // el próximo cliente se atiende con el lector: el foco queda en la página (ver `soltarFoco…`).
-    if (conLector) soltarFocoParaElLector();
+    // En el boutique vuelve al campo único, que lee la etiqueta, el código y el nombre.
+    if (enBoutique) pedirFoco(ID_CAMPO_UNICO);
+    else if (conLector) soltarFocoParaElLector();
     else pedirFoco(`prod-${nextKey}`);
+    if (enBoutique) {
+      setClienteKey((n) => n + 1);
+      setClienteVenta(null);
+      setZonaId("");
+      setCoincidencias(null);
+      setAvisoBoutique(null);
+      setAvisoDeLaFicha(null);
+      camposDelUltimoPie.current = null;
+      pagoConDelPie.current = null;
+      setQuitado(null);
+      setActivoKey(null);
+      setCambios({});
+      setAgotadoEnLaMano(null);
+    }
     setLines([{ key: nextKey, productId: "", qtyText: "" }]);
     setManuales([]);
     setNextKey((k) => k + 1);
@@ -910,6 +1214,9 @@ function FormularioVender({
       await enviarCobro(fd);
     } finally {
       cobrandoAhora.current = false;
+      const fin = finDelCobro.current;
+      finDelCobro.current = null;
+      fin?.();
     }
   }
 
@@ -927,7 +1234,7 @@ function FormularioVender({
     fd.set("conTicket", "1");
     const pagoCon = medio === "EFECTIVO" ? leerImporte(pagoConText) : null;
     // Lo que viaja, por si la respuesta no vuelve: queda en duda, en memoria y en la pestaña.
-    const enviado: EnvioSinRespuesta = { firma, total, desde: new Date().toISOString() };
+    const enviado: EnvioSinRespuesta = { firma, total: totalACobrar, desde: new Date().toISOString() };
     // La duda con la que sale este envío (si es un reintento): su total es lo que se había mandado.
     const enDuda = sinRespuesta;
     const cargado = cargadoActual();
@@ -940,7 +1247,7 @@ function FormularioVender({
           v: 3,
           clave,
           firma,
-          total,
+          total: totalACobrar,
           desde: enviado.desde!,
           usuario: usuarioId,
           cargado,
@@ -997,7 +1304,16 @@ function FormularioVender({
       // Con ticket, la confirmación es el bloque «Última venta», que queda a la vista. El aviso
       // flotante de 4 s, en el celular, tapaba el botón de cobrar de la venta siguiente (medido
       // a 412 px: 138 × 44 px encima del botón).
-      setUltima({ venta: r.venta, pagoCon: pagoCon?.estado === "ok" ? pagoCon.valor : null });
+      setUltima({
+        venta: r.venta,
+        pagoCon: enBoutique ? pagoConDelPie.current : pagoCon?.estado === "ok" ? pagoCon.valor : null,
+      });
+      // «Facturar al cobrar» (boutique): la factura sale DESPUÉS de grabar la venta, con la misma
+      // acción que «Facturar» (que no emite dos veces). No frena el ticket siguiente: se espera
+      // aparte y el resultado aparece en la venta cobrada.
+      if (enBoutique && clienteVenta?.facturarAlCobrar && r.venta.medio && !r.venta.anulada) {
+        facturarAlCobrar(r.venta.id);
+      }
       // El reintento de una venta que ya estaba grabada vuelve con su ticket Y con el aviso de
       // que no se cobró dos veces (order-actions.ts, rama `dedup`): se dicen las dos cosas.
       if (r.mensaje) setConfirmacion(r.mensaje);
@@ -1054,14 +1370,14 @@ function FormularioVender({
           ? etiquetaDeReintento(true)
           : // El reintento de la duda dice lo que se MANDÓ (y quizá se cobró), no el total a
             // precios de hoy: si estaba grabada, vuelve esa venta con ese total.
-            `${etiquetaDeReintento()} ${fmtMoneyARS(reintentoDeLaMisma && sinRespuesta ? sinRespuesta.total : total)}`
+            `${etiquetaDeReintento()} ${fmtMoneyARS(reintentoDeLaMisma && sinRespuesta ? sinRespuesta.total : totalACobrar)}`
         : isOrder
           ? nuevo && paid
-            ? `Registrar y cobrar ${fmtMoneyARS(total)}`
+            ? `Registrar y cobrar ${fmtMoneyARS(totalACobrar)}`
             : "Registrar pedido"
           : aCuentaActivo
             ? `Dejar a cuenta ${fmtMoneyARS(total)}`
-            : `Cobrar ${fmtMoneyARS(total)}`);
+            : `Cobrar ${fmtMoneyARS(totalACobrar)}`);
 
   // Los bloques de la pantalla: los mismos en la vista de siempre y en el ticket del diseño nuevo.
   const bloqueUltima = (
@@ -1076,8 +1392,8 @@ function FormularioVender({
             <p className="text-sm font-medium text-strong">
               Venta #{ultima.venta.code} {ultima.venta.anulada ? "ANULADA" : ultima.venta.aCuenta ? "a cuenta" : "cobrada"} ·{" "}
               {fmtMoneyARS(ultima.venta.total)}
-              {ultima.pagoCon != null && ultima.pagoCon >= ultima.venta.total && (
-                <> · vuelto {fmtMoneyARS(round2(ultima.pagoCon - ultima.venta.total))}</>
+              {vueltoDelTicket(ultima.venta, ultima.pagoCon) !== null && (
+                <> · vuelto {fmtMoneyARS(vueltoDelTicket(ultima.venta, ultima.pagoCon)!)}</>
               )}
             </p>
             <button
@@ -1088,7 +1404,18 @@ function FormularioVender({
               Cerrar
             </button>
           </div>
-          {puedeFacturar && <FacturarVenta key={ultima.venta.id} orderId={ultima.venta.id} inicial={SIN_FACTURA} />}
+          {puedeFacturar && ultima.facturando && (
+            <p role="status" className="text-sm text-muted">
+              Facturando…
+            </p>
+          )}
+          {puedeFacturar && !ultima.facturando && (
+            <FacturarVenta
+              key={ultima.factura ? `${ultima.venta.id}-${ultima.factura.estado}` : ultima.venta.id}
+              orderId={ultima.venta.id}
+              inicial={ultima.factura ?? SIN_FACTURA}
+            />
+          )}
           {factura && !ultima.venta.anulada && (
             <p data-vender="factura" className="text-xs text-muted">
               {puedeFacturar ? factura.receptor : factura.sinFactura}
@@ -1213,7 +1540,7 @@ function FormularioVender({
                 </label>
                 <button
                   type="button"
-                  onClick={() => setManuales((ms) => ms.filter((x) => x.key !== m.key))}
+                  onClick={() => (enBoutique ? quitarManual(m.key) : setManuales((ms) => ms.filter((x) => x.key !== m.key)))}
                   aria-label="Quitar la línea con precio a mano"
                   className="inline-flex h-11 w-11 items-center justify-center text-lg leading-none text-muted hover:text-danger"
                 >
@@ -1222,6 +1549,7 @@ function FormularioVender({
                 <label className="col-span-2 @md:col-span-3">
                   <span className="sr-only">Motivo</span>
                   <Input
+                    id={enBoutique ? `manual-motivo-${m.key}` : undefined}
                     value={m.motivo}
                     onChange={(e) => setManual(m.key, { motivo: e.target.value })}
                     placeholder="Motivo (obligatorio): ej. no tiene precio cargado"
@@ -1229,6 +1557,32 @@ function FormularioVender({
                     aria-invalid={m.error ? true : undefined}
                   />
                 </label>
+                {/* Mostrador boutique (2A): los motivos frecuentes en chips; «Otro…» va a escribirlo. */}
+                {enBoutique && (
+                  <div role="group" aria-label="Motivos frecuentes" data-vender="motivos-a-mano" className="col-span-2 flex flex-wrap gap-2 @md:col-span-3">
+                    {MOTIVOS_PRECIO_A_MANO.map((motivo) => (
+                      <button
+                        key={motivo}
+                        type="button"
+                        aria-pressed={m.motivo === motivo}
+                        onClick={() => setManual(m.key, { motivo })}
+                        className={cn("chip-btn h-11 text-sm", m.motivo === motivo && "!border-accent !bg-accent !text-on-accent")}
+                      >
+                        {motivo}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if ((MOTIVOS_PRECIO_A_MANO as readonly string[]).includes(m.motivo)) setManual(m.key, { motivo: "" });
+                        pedirFoco(`manual-motivo-${m.key}`);
+                      }}
+                      className="chip-btn h-11 text-sm"
+                    >
+                      Otro…
+                    </button>
+                  </div>
+                )}
               </div>
               {m.error && (
                 <p role="alert" className="text-xs text-danger">
@@ -1325,6 +1679,7 @@ function FormularioVender({
                     onChange={(e) => setHorario(e.target.value)}
                   />
                 </label>
+                {conZona && <ZonaDelEnvio zonas={zonasDelEnvio} valor={zonaId} alCambiar={setZonaId} cotizacion={cotizacionEnvio} />}
                 {fulfillment === "DELIVERY" && (
                   <label className="text-sm sm:col-span-2">
                     <span className="mb-1 block text-muted">Dirección *</span>
@@ -1687,7 +2042,8 @@ function FormularioVender({
   // limpia (sólo sin un cobro en duda: con una duda, «Empezar de nuevo» pregunta antes). Nunca con
   // el foco en un campo (Esc ahí es del campo) ni con un diálogo abierto.
   useEffect(() => {
-    if (!nuevo) return;
+    // En el boutique cobra el pie (sus medios son botones): los atajos del ticket no aplican.
+    if (!nuevo || enBoutique) return;
     const alPresionar = (e: KeyboardEvent) => {
       const enCampo = enCampoEditable(e.target as HTMLElement | null);
       if (document.querySelector("dialog[open]")) return;
@@ -2044,7 +2400,7 @@ function FormularioVender({
                 </div>
                 {/* En CH, el total en su petróleo (como en la pantalla clásica). `!`: renglon.css le pone
                     la tinta a toda la plata, sin capa, y le gana a las utilidades. */}
-                <Plata valor={total} tamano="grande" sinCentavos={Number.isInteger(total)} className="in-data-[estetica=beauty-spa]:!text-accent-ink" />
+                <Plata valor={totalACobrar} tamano="grande" sinCentavos={Number.isInteger(totalACobrar)} className="in-data-[estetica=beauty-spa]:!text-accent-ink" />
               </div>
               {isOrder && casillaCobrado}
               {bloqueMedios}
@@ -2075,6 +2431,849 @@ function FormularioVender({
       </div>
     );
   }
+
+  // ══ MOSTRADOR BOUTIQUE (interruptor `mostrador-boutique`, Magra tanda 1 · 1B) ══════════════
+  //
+  // La MISMA venta (estado, reglas, firma, idempotencia, duda sin señal) con otras piezas:
+  //   · el campo único «Escaneá o buscá» (etiqueta de la balanza, código o nombre) en lugar del
+  //     buscador y del campo de la etiqueta; con foco al montar y otra vez al limpiar;
+  //   · teclas con precio y stock del catálogo (sin exigir ventas previas); la unidad entra con 1
+  //     y suma si se repite; por kilo, al peso (teclado grande en táctil);
+  //   · el pie de cobro único (`PieDeCobro`): medios que cobran, billetes, vuelto, Dividir. Escribe
+  //     sus campos en el formulario y el cobro sale por el MISMO `submit` de siempre;
+  //   · el bloque Cliente con CUIT (`ClienteDeLaVenta`) y «Facturar al cobrar»;
+  //   · en un pedido con envío, la zona del negocio (src/lib/envios) → `envioZona`;
+  //   · arriba, la banda del día cerrado (y el botón que registra para cobrar mañana).
+
+  /** Manda el formulario y espera a que `submit` termine (o nada, si el navegador lo frena). */
+  function enviarYEsperar(): Promise<void> {
+    const f = formulario.current;
+    if (!f) return Promise.resolve();
+    // Un campo obligatorio vacío (el nombre del pedido, la dirección): el navegador no lo manda.
+    if (!f.checkValidity()) {
+      f.reportValidity();
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolver) => {
+      finDelCobro.current = resolver;
+      f.requestSubmit();
+    });
+  }
+
+  /** El pie eligió cómo pagó: el estado de la venta queda con ese medio y sale el cobro. */
+  async function cobrarConElPie(r: ResultadoDelPie) {
+    // MG-048: si un precio cambió con el ticket abierto, no se cobra uno que no se ve.
+    if (!(await preciosAlDia())) return;
+    const campos = camposDelPie(totalACobrar, r);
+    const principal = leerMedioDeCobro(campos.find(([n]) => n === "paymentMethod")?.[1] ?? "") ?? "";
+    camposDelUltimoPie.current = campos;
+    // «Pagó con $X · Vuelto $Y» en el ticket (O-3): lo que entregó en efectivo, también en un pago
+    // dividido (el vuelto se cuenta contra el renglón de efectivo, `vueltoDelTicket`).
+    pagoConDelPie.current =
+      (r.modo === "simple" ? r.medio === "EFECTIVO" : r.pagos.some((p) => p.medio === "EFECTIVO")) ? (r.recibido ?? null) : null;
+    // La firma del cobro (lo que el servidor compara en un reintento) lleva el medio: se fija ANTES
+    // de mandar, para que `submit` salga con él.
+    flushSync(() => {
+      setPaid(true);
+      setMedio(principal);
+      setACuenta(false);
+    });
+    await enviarYEsperar();
+  }
+
+  /** Registrar sin cobrar (día cerrado, pedido, «Más») o dejar a cuenta, por el mismo `submit`. */
+  async function registrarBoutique(como: "sin-cobrar" | "a-cuenta") {
+    if (enviandoBoutique) return;
+    setEnviandoBoutique(true);
+    pagoConDelPie.current = null;
+    flushSync(() => {
+      setPaid(como === "a-cuenta");
+      setMedio("");
+      setACuenta(como === "a-cuenta");
+    });
+    try {
+      await enviarYEsperar();
+    } finally {
+      setEnviandoBoutique(false);
+    }
+  }
+
+  /** «Reintentar cobro»: lo mismo que se mandó (los campos del pie de ese intento), misma clave. */
+  async function reintentarBoutique() {
+    if (enviandoBoutique) return;
+    setEnviandoBoutique(true);
+    flushSync(() => setReintentando(true));
+    try {
+      await enviarYEsperar();
+    } finally {
+      setReintentando(false);
+      setEnviandoBoutique(false);
+    }
+  }
+
+  /** Un renglón con su cantidad ya puesta (etiqueta) o esperando el peso (código de un corte). */
+  function cargarRenglon(productId: string, qtyText: string, etiqueta?: number) {
+    const vacia = lines.find((l) => !l.productId);
+    const key = vacia ? vacia.key : addLine(productId);
+    setLine(key, { productId, qtyText, etiqueta });
+    setActivoKey(key);
+    pedirFoco(qtyText ? ID_CAMPO_UNICO : `qty-${key}`);
+  }
+
+  function sumarUnidades(productId: string, n = 1) {
+    const r = sumarUnaUnidad(lines, productId, nextKey, n);
+    setLines(r.lineas);
+    if (r.usoNuevaKey) setNextKey((k) => k + 1);
+  }
+
+  /** Por kilo: el renglón espera el peso, con el teclado grande abierto en una pantalla táctil. */
+  function alPeso(productId: string) {
+    const vacia = lines.find((l) => !l.productId);
+    const key = vacia ? vacia.key : addLine(productId);
+    if (vacia) setLine(key, { productId, qtyText: "" });
+    setActivoKey(key);
+    if (esTactil() || prefiereTeclado()) setTecladoDe(key);
+    pedirFoco(`qty-${key}`);
+  }
+
+  /** ¿Pantalla táctil? (tablet, celular): ahí el teclado grande está siempre abierto en lo que se pesa. */
+  function esTactil(): boolean {
+    try {
+      return window.matchMedia("(pointer: coarse)").matches;
+    } catch {
+      return false; // sin matchMedia: como en la PC
+    }
+  }
+
+  /** El renglón tocado pasa a ser el activo (el que recibe el peso); en táctil, con el teclado grande. */
+  function activar(key: number, porKilo: boolean) {
+    if (activoKey !== key) setActivoKey(key);
+    if (porKilo && esTactil() && tecladoDe !== key) setTecladoDe(key);
+  }
+
+  /** El peso o la cantidad cambió DESDE AFUERA del teclado (−/+, balanza): se escribe y se rearma el teclado. */
+  function ponerCantidad(key: number, qty: number) {
+    setLine(key, { qtyText: formatearCantidad(qty), etiqueta: undefined });
+    setVersionDelPeso((v) => ({ ...v, [key]: (v[key] ?? 0) + 1 }));
+  }
+
+  /** «Quitar»: sin preguntar, con «Deshacer» 5 s. */
+  function quitarProducto(key: number) {
+    const r = quitarRenglon(lines, key, nextKey);
+    if (!r.quitado) return;
+    setLines(r.lineas);
+    if (r.usoKeyVacia) setNextKey((k) => k + 1);
+    setActivoKey((a) => (a === key ? null : a));
+    setQuitado({ tipo: "producto", q: r.quitado, nombre: byId.get(r.quitado.linea.productId)?.name ?? nombresDeLaDuda[r.quitado.linea.productId] ?? "el renglón" });
+  }
+
+  function quitarManual(key: number) {
+    const indice = manuales.findIndex((m) => m.key === key);
+    if (indice < 0) return;
+    const linea = manuales[indice];
+    setManuales((ms) => ms.filter((m) => m.key !== key));
+    setQuitado({ tipo: "manual", q: { linea, indice }, nombre: linea.nombre.trim() || "la línea con precio a mano" });
+  }
+
+  function deshacerQuitado() {
+    const q = quitado;
+    if (!q) return;
+    if (q.tipo === "producto") setLines((ls) => deshacerRenglon(ls, q.q));
+    else
+      setManuales((ms) => {
+        if (ms.some((m) => m.key === q.q.linea.key)) return ms;
+        const i = Math.min(q.q.indice, ms.length);
+        return [...ms.slice(0, i), q.q.linea, ...ms.slice(i)];
+      });
+    setQuitado(null);
+  }
+
+  /**
+   * MG-048: antes de cobrar, el precio de HOY de lo que lleva el ticket. Si alguno cambió (el dueño
+   * lo subió con el ticket abierto), la pantalla pasa a ese precio, el renglón dice «Subió a $X
+   * recién» y NO se cobra todavía: se cobra con el próximo toque, ya con el total a la vista. Sin
+   * señal o sin respuesta a tiempo, sigue el cobro de siempre (el servidor cobra con su catálogo).
+   */
+  async function preciosAlDia(): Promise<boolean> {
+    if (reintentando || !enLinea) return true;
+    const enTicket = [...new Set(leidas.filter((l) => l.qty > 0 && byId.has(l.productId)).map((l) => l.productId))];
+    if (enTicket.length === 0) return true;
+    let vigentes: Record<string, PrecioVigente>;
+    try {
+      const r = await conTiempoMaximo(preciosVigentesDelTicket(enTicket), 2500);
+      if (r.tipo !== "respuesta") return true;
+      vigentes = r.valor;
+    } catch (e) {
+      if (isNextRedirect(e)) throw e;
+      return true;
+    }
+    const nuevos = cambiosDePrecio(enTicket.map((id) => byId.get(id)!), vigentes);
+    if (nuevos.length === 0) return true;
+    setPreciosNuevos((p) => ({ ...p, ...Object.fromEntries(nuevos.map((c) => [c.id, vigentes[c.id]])) }));
+    // El chip dice el cambio desde lo que se veía la PRIMERA vez (si cambió dos veces, desde el original).
+    setCambios((c) => ({ ...c, ...Object.fromEntries(nuevos.map((x) => [x.id, { ...x, antes: c[x.id]?.antes ?? x.antes }])) }));
+    setAvisoBoutique(avisoDeCambioDePrecio(nuevos));
+    setPieKey((k) => k + 1);
+    return false;
+  }
+
+  /** El dueño guarda las teclas fijas (con la versión que leyó: no pisa a otro). */
+  async function guardarFijadas(ids: string[]): Promise<string | null> {
+    try {
+      const r = await fijarTeclasDelMostrador({ ids, version: fijadas.version });
+      if (!r.ok) return r.error;
+      setFijadas({ ids: r.ids, version: r.version });
+      return null;
+    } catch (e) {
+      if (isNextRedirect(e)) throw e;
+      return "No pudimos guardar las teclas: revisá la señal y probá de nuevo.";
+    }
+  }
+
+  /** ¿Se puede tocar el ticket ahora? (no con un cobro en vuelo o en duda: se borraría al limpiar). */
+  function sePuedeSumar(): boolean {
+    const motivo = motivoParaNoSumar({ cobrando: cobrandoAhora.current, cobroEnDuda: sinRespuesta !== null || yaGrabada !== null });
+    setAvisoBoutique(motivo);
+    return motivo === null;
+  }
+
+  function tocarTecla(productId: string, enLaMano = false) {
+    const p = byId.get(productId);
+    if (!p || !sePuedeSumar()) return;
+    setCoincidencias(null);
+    setAgotadoEnLaMano(null);
+    const t = teclaDeProducto(p, stockById[p.id]);
+    if (t.bloquea) {
+      setAvisoBoutique(`${p.name} está agotado.`);
+      return;
+    }
+    // MG-047: la tecla agotada no carga el renglón. Por kilo, si el paquete está en la mano (el
+    // stock del sistema puede ir atrasado, MAG-4), se vende igual con un toque más.
+    if (t.agotado && !enLaMano) {
+      setAgotadoEnLaMano(p.id);
+      return;
+    }
+    if (p.saleUnit === "UNIT") sumarUnidades(p.id);
+    else alPeso(p.id);
+  }
+
+  function alLeerBoutique(l: LecturaUnica) {
+    if (l.tipo === "desconocida") return; // el campo ya dijo por qué
+    if (l.tipo === "texto") {
+      setAvisoBoutique(null);
+      setCoincidencias({ texto: l.texto, ids: buscarEnElCatalogo(products, l.texto) });
+      return;
+    }
+    if (!sePuedeSumar()) return;
+    setCoincidencias(null);
+    if (l.tipo === "etiqueta") {
+      // MG-023: si el papel dice otro importe, el renglón lo guarda para mostrarlo (y, al Dueño,
+      // ofrecer «Cobrar el de la etiqueta»). Cobra el del sistema.
+      cargarRenglon(l.productId, formatearCantidad(l.kg), etiquetaDistintaDelSistema(l) ? (l.importeEtiqueta ?? undefined) : undefined);
+      return;
+    }
+    if (l.cantidad == null) alPeso(l.productId);
+    else sumarUnidades(l.productId, l.cantidad);
+  }
+
+  /**
+   * «Cobrar el de la etiqueta» (sólo el Dueño, MG-023): el renglón pasa a una línea a precio a mano
+   * con el importe del papel y el motivo «etiqueta de balanza». El servidor la vuelve a controlar
+   * con el tope del ROL de la sesión (`controlarPreciosAManoEnTx`): sin el rol, no se graba.
+   */
+  function cobrarElDeLaEtiqueta(key: number) {
+    const l = leidas.find((x) => x.key === key);
+    const p = l ? byId.get(l.productId) : undefined;
+    if (!l || !p || l.etiqueta == null || !puedeCobrarElDeLaEtiqueta(topePrecioAMano)) return;
+    const m = lineaAManoDeLaEtiqueta({ nombre: p.name, kg: l.qty, importeEtiqueta: l.etiqueta, importeSistema: totalDeLinea(l) });
+    const nueva = nextKey;
+    removeLine(key);
+    setManuales((ms) => [...ms, { key: nueva, ...m }]);
+    setNextKey((k) => k + 1);
+    setAvisoBoutique(null);
+    pedirFoco(ID_CAMPO_UNICO);
+  }
+
+  function vistaBoutique(b: BoutiqueDeVender) {
+    const conProducto = leidas.filter((l) => l.productId);
+    // Las teclas (2A): la pestaña principal (las fijadas por el dueño, o las de siempre) y una
+    // pestaña por góndola con TODO el catálogo vendible, las más vendidas primero.
+    const explicitas = b.teclas?.gondolas;
+    const vendibles = new Set(products.map((p) => p.id));
+    const principal = teclasPrincipales(fijadas.ids, vendibles, { ids: botonesRapidos.map((p) => p.id), rotulo: rotuloRapidos });
+    const gondolas = gondolasDelMostrador(products, { explicitas, primero: rapidos });
+    const faltaEnManual = manualesLeidas.map((m) => (m.error ? faltaEnLineaAMano(m) : null)).find((x) => x !== null) ?? null;
+    // Las zonas y la cotización del envío salen de arriba (`zonasDelEnvio`, `cotizacionEnvio`):
+    // las mismas que suman al total que cobra el pie.
+    const zonas = zonasDelEnvio;
+    const cotizacion = cotizacionEnvio;
+    const diaCerrado = b.diaCerrado !== null;
+    const enDuda = sinRespuesta !== null || yaGrabada !== null;
+    // Lo que frena el pie, en palabras (el pie se deshabilita con este motivo). Sin renglones lo
+    // dice el pie solo («Cargá algo para cobrar»).
+    const motivoDelPie = !hayLineaValida
+      ? // Sólo una línea a mano a medio llenar: se dice qué le falta (MG-050), no «Cargá algo».
+        (faltaEnManual ?? undefined)
+      : diaCerrado
+        ? "El día está cerrado: registrala para cobrar mañana."
+        : enDuda
+          ? "Hay un cobro sin confirmar: resolvelo arriba antes de cobrar otra vez."
+          : (motivoBloqueo ??
+            (hayFaltante
+              ? "No alcanza el stock de un producto: revisá el ticket."
+              : hayCantidadInvalida
+                ? "Revisá la cantidad: hay una que no se entiende."
+                : hayManualInvalida
+                  ? // MG-050: el botón dice QUÉ falta («Falta el motivo de «Bondiola»»).
+                    (faltaEnManual ?? "Revisá el precio a mano: pasa el tope de tu usuario.")
+                  : null)) ?? undefined;
+    const registrarBloqueado =
+      enviandoBoutique ||
+      !hayLineaValida ||
+      (hayFaltante && !reintentoDeLaMisma) ||
+      hayCantidadInvalida ||
+      lineaSinCantidad !== undefined ||
+      lineaConPesoSinConfirmar !== undefined ||
+      hayManualInvalida ||
+      !descuento.ok ||
+      cuponSinAplicar ||
+      enDuda;
+    const cobrarEnPedido = isOrder && paid && !diaCerrado;
+    const ficha = clienteVenta?.cliente ?? null;
+    // Sin cobrar o a cuenta, el reintento no lleva campos del pie; cobrada, los del intento cortado
+    // (o, si la pantalla se recargó, el medio que quedó guardado con la duda).
+    const camposDelReintento: [string, string][] =
+      !paid || aCuentaActivo ? [] : (camposDelUltimoPie.current ?? (medio ? camposDelPie(totalACobrar, { modo: "simple", medio }) : []));
+    const puedeReintentar = sinRespuesta !== null && !cambioTrasCorte && aviso?.reintentar === true;
+    // «Redondear»: lo que baja el total a la centena de abajo (sobre lo que se compra, sin el envío).
+    const redondeo = descuentoParaRedondear(subtotal);
+    const ponerDescuento = (tipo: TipoDescuento, valor: string) => {
+      cupon.limpiar();
+      setConDescuento(true);
+      setTipoDescuento(tipo);
+      setDescuentoText(valor);
+    };
+
+    const renglon = (l: (typeof leidas)[number], balanzaEnVivo: BalanzaSerie | null) => {
+      const p = byId.get(l.productId);
+      if (!p) {
+        if (!huerfana(l.productId)) return null;
+        const nombre = nombresDeLaDuda[l.productId] ?? "Un producto";
+        return (
+          <li key={l.key} data-vender="renglon" className="flex flex-wrap items-center gap-2 py-2">
+            <p className="min-w-0 flex-1 text-sm text-strong">
+              {nombre} <span className="text-xs text-warning">· ya no está en el catálogo (va igual en el reintento)</span>
+            </p>
+            <span id={`qty-${l.key}`} className="text-sm tabular-nums text-body">
+              {l.qtyText}
+            </span>
+            <button type="button" onClick={() => quitarProducto(l.key)} aria-label={`Quitar línea de ${nombre}`} className="chip-btn h-11 text-sm">
+              Quitar
+            </button>
+            {l.qty > 0 && (
+              <>
+                <input type="hidden" name="productId" value={l.productId} />
+                <input type="hidden" name="quantity" value={cantidadParaFormulario(l.qty)} />
+              </>
+            )}
+          </li>
+        );
+      }
+      const esPeso = p.saleUnit === "WEIGHT";
+      const lineTotal = totalDeLinea(l);
+      const faltante = faltanteDe(l);
+      const falta = faltante?.bloquea && !reintentoDeLaMisma ? faltante : null;
+      const faltaEnDuda = faltante?.bloquea && reintentoDeLaMisma ? faltante : null;
+      const avisoStock = faltante && !faltante.bloquea ? faltante.aviso : null;
+      const confirmar = confirmacionDe(l);
+      // El activo es el elegido, o el último por kilo que entró si no se eligió ninguno.
+      const activo = activoKey !== null ? activoKey === l.key : esPeso && conProducto.filter((x) => byId.get(x.productId)?.saleUnit === "WEIGHT").at(-1)?.key === l.key;
+      const cambio = cambios[l.productId];
+      // «Quedan 2 · dejar 2 · reemplazo» (MG-047): por unidad, lo que hay y los de la misma góndola.
+      const alcanza = falta && !esPeso ? Math.max(0, Math.floor(falta.available)) : 0;
+      const reemplazos = falta && !esPeso ? reemplazosDe(p.id, products, stockById, explicitas) : [];
+      return (
+        <RenglonDelTicket
+          key={l.key}
+          linea={l}
+          nombre={p.name}
+          porKilo={esPeso}
+          precio={precioDe(p)}
+          total={lineTotal}
+          activo={activo}
+          invalida={l.invalida}
+          marcarInvalida={!!falta || l.invalida}
+          cambioDePrecio={cambio ? textoDelCambioDePrecio(cambio) : null}
+          onActivar={() => activar(l.key, esPeso)}
+          onTipear={(qtyText) => setLine(l.key, { qtyText, etiqueta: undefined })}
+          onEnter={() => pedirFoco(ID_CAMPO_UNICO)}
+          onPaso={(sentido) => ponerCantidad(l.key, pasoDelRenglon(l.qty, esPeso, sentido))}
+          onQuitar={() => quitarProducto(l.key)}
+          teclado={
+            esPeso
+              ? {
+                  abierto: tecladoDe === l.key,
+                  version: versionDelPeso[l.key] ?? 0,
+                  onAlternar: () => usarTeclado(tecladoDe === l.key ? null : l.key),
+                  onPeso: (valor) => setLine(l.key, { qtyText: valor > 0 ? formatearCantidad(valor) : "", etiqueta: undefined }),
+                }
+              : null
+          }
+          pesoEnVivo={
+            esPeso && activo && balanzaEnVivo ? (
+              <PesoEnVivoDelRenglon key={l.key} balanza={balanzaEnVivo} nombre={p.name} onTomar={(kg) => ponerCantidad(l.key, kg)} />
+            ) : undefined
+          }
+        >
+          {confirmar && (
+            <ConfirmarPeso
+              confirmacion={confirmar}
+              pendiente={sinConfirmar(l)}
+              alConfirmar={() => setPesosConfirmados((c) => ({ ...c, [l.key]: l.qty }))}
+              alCorregir={() => ponerCantidad(l.key, confirmar.corregido)}
+            />
+          )}
+          {l.etiqueta != null && lineTotal > 0 && etiquetaDistinta(l.etiqueta, lineTotal) && (
+            <div data-vender="etiqueta-distinta" className="flex flex-wrap items-center gap-2">
+              <p role="status" className="text-xs text-warning">
+                <span className="font-semibold tabular-nums">{textoEtiquetaDistinta(l.etiqueta, lineTotal)}</span> · se cobra el del
+                sistema.
+              </p>
+              {puedeCobrarElDeLaEtiqueta(topePrecioAMano) && (
+                <button
+                  type="button"
+                  className="chip-btn h-11 text-sm"
+                  aria-label={`${COBRAR_EL_DE_LA_ETIQUETA} de ${p.name}: ${fmtMoneyARS(l.etiqueta)}`}
+                  onClick={() => cobrarElDeLaEtiqueta(l.key)}
+                >
+                  {COBRAR_EL_DE_LA_ETIQUETA}
+                </button>
+              )}
+            </div>
+          )}
+          {l.invalida && (
+            <p role="alert" className="text-xs text-danger">
+              Eso no es una cantidad. Escribí el {esPeso ? "peso, con coma si tiene gramos (1,240)" : "número"}.
+            </p>
+          )}
+          {faltaEnDuda && (
+            <p role="status" className="text-xs text-warning">
+              Quedan {formatearCantidad(faltaEnDuda.available)} {esPeso ? "kg" : "u"} de {p.name}, pero puede ser porque esta misma venta
+              ya se grabó: el reintento lo controla el sistema.
+            </p>
+          )}
+          {falta && esPeso && (
+            <p role="alert" className="text-xs text-danger">
+              No alcanza el stock: quedan {formatearCantidad(falta.available)} kg de {p.name}.
+            </p>
+          )}
+          {falta && !esPeso && (
+            <div role="alert" data-vender="faltan-unidades" className="flex flex-wrap items-center gap-2 text-xs text-danger">
+              <span className="font-semibold">Quedan {formatearCantidad(alcanza)}</span>
+              {alcanza > 0 && (
+                <button type="button" className="chip-btn h-11 text-sm" onClick={() => ponerCantidad(l.key, alcanza)}>
+                  Dejar {formatearCantidad(alcanza)}
+                </button>
+              )}
+              {reemplazos.length > 0 && (
+                <button
+                  type="button"
+                  className="chip-btn h-11 text-sm"
+                  onClick={() => setCoincidencias({ texto: `reemplazo de ${p.name}`, ids: reemplazos })}
+                >
+                  Reemplazo
+                </button>
+              )}
+            </div>
+          )}
+          {avisoStock && (
+            <p role="status" className="text-xs text-warning">
+              {avisoStock}
+            </p>
+          )}
+          {l.qty > 0 && (
+            <>
+              <input type="hidden" name="productId" value={l.productId} />
+              <input type="hidden" name="quantity" value={cantidadParaFormulario(l.qty)} />
+            </>
+          )}
+        </RenglonDelTicket>
+      );
+    };
+    return (
+      <div data-vender="boutique" className="space-y-4">
+        {diaCerrado && (
+          <p role="status" data-vender="dia-cerrado" className="rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm font-semibold text-strong">
+            {BANDA_DIA_CERRADO}
+          </p>
+        )}
+        {bloqueDudas}
+        {bloqueUltima}
+        {bloqueGrabada}
+        {bloqueConfirmacion}
+        {avisoDeLaFicha && (
+          <div role="status" data-vender="desde-la-ficha" className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-sunken p-2 text-sm text-body">
+            <p className="min-w-0 flex-1">{avisoDeLaFicha}</p>
+            <button type="button" className="h-11 px-2 text-sm text-muted underline" onClick={() => setAvisoDeLaFicha(null)}>
+              Entendido
+            </button>
+          </div>
+        )}
+
+        <form
+          ref={formulario}
+          action={submit}
+          data-vender="mostrador-boutique"
+          className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] lg:items-start"
+        >
+          <input type="hidden" name="channel" value={isOrder ? "ONLINE" : "COUNTER"} />
+          {/* «Reintentar cobro»: lo mismo que se mandó en el intento que quedó en duda. */}
+          {reintentando &&
+            camposDelReintento.map(([nombre, valor], i) => <input key={`${nombre}-${i}`} type="hidden" name={nombre} value={valor} />)}
+          {aCuentaActivo && <input type="hidden" name="aCuenta" value="1" />}
+
+          <div data-vender="elegir" className="min-w-0 space-y-4">
+            <CampoUnico
+              productos={productosConCodigo}
+              balanza={balanza ? { formato: balanza.formato } : null}
+              rafaga={balanza !== null || perfil !== null}
+              lector={perfil?.lector}
+              onLectura={alLeerBoutique}
+            />
+            {avisoBoutique && (
+              <p role="alert" className="text-sm font-medium text-danger">
+                {avisoBoutique}
+              </p>
+            )}
+            {coincidencias && (
+              <section aria-label={`Lo que coincide con «${coincidencias.texto}»`} data-vender="coincidencias" className="space-y-2">
+                {coincidencias.ids.length === 0 ? (
+                  <p role="status" className="text-sm text-muted">
+                    No hay nada que se llame «{coincidencias.texto}». Probá con otra palabra o cargalo con «Precio a mano».
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {coincidencias.ids.map((id) => {
+                      const p = byId.get(id);
+                      return p ? (
+                        <button key={id} type="button" className="chip-btn h-11 text-sm" onClick={() => tocarTecla(id)}>
+                          {p.name} · {teclaDeProducto(p, stockById[id]).precio}
+                        </button>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+            {balanza?.configurar && (
+              <p className="text-xs text-muted">
+                {REGLA_DEL_PRECIO_DE_BALANZA}{" "}
+                <Link href={balanza.configurar} className="font-semibold text-accent-ink underline">
+                  Cambiar el formato de la balanza
+                </Link>
+              </p>
+            )}
+            {agotadoEnLaMano && byId.get(agotadoEnLaMano) && (
+              <div role="status" data-vender="agotado-en-la-mano" className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-sunken p-2 text-sm text-body">
+                <p className="min-w-0 flex-1">
+                  {byId.get(agotadoEnLaMano)!.name} figura agotado en el sistema. Si tenés el paquete en la mano, vendelo igual: el stock queda
+                  para recontar.
+                </p>
+                <button type="button" className="chip-btn h-11 text-sm" onClick={() => tocarTecla(agotadoEnLaMano, true)}>
+                  Lo tengo: venderlo igual
+                </button>
+                <button type="button" className="h-11 px-2 text-sm text-muted underline" onClick={() => setAgotadoEnLaMano(null)}>
+                  No
+                </button>
+              </div>
+            )}
+            {(principal.ids.length > 0 || gondolas.length > 0) && (
+              <TeclasPorGondola
+                productos={products}
+                stockById={stockById}
+                principal={principal}
+                gondolas={gondolas}
+                onTocar={(id) => tocarTecla(id)}
+                fijar={b.teclas?.puedeFijar ? { fijadas: fijadas.ids, onGuardar: guardarFijadas } : null}
+              />
+            )}
+          </div>
+
+          <ConBalanzaEnVivo negocio={conPeso && negocioId && products.some((p) => p.saleUnit === "WEIGHT") ? negocioId : null}>
+          {(balanzaEnVivo) => (
+          <section data-vender="ticket-boutique" aria-label={isOrder ? "Pedido" : "Ticket"} className="min-w-0 space-y-3 rounded-lg border border-line bg-surface-raised p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div role="group" aria-label="Qué se registra" className="flex gap-1">
+                <button
+                  type="button"
+                  aria-pressed={!isOrder}
+                  onClick={() => {
+                    if (!isOrder) return;
+                    setIsOrder(false);
+                    setPaid(true);
+                  }}
+                  className={cn("chip-btn h-11 text-sm", !isOrder && "!border-accent !bg-accent !text-on-accent")}
+                >
+                  Venta
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={isOrder}
+                  onClick={() => {
+                    if (isOrder) return;
+                    setIsOrder(true);
+                    setPaid(false);
+                    setACuenta(false);
+                    setConCliente(true);
+                  }}
+                  className={cn("chip-btn h-11 text-sm", isOrder && "!border-accent !bg-accent !text-on-accent")}
+                >
+                  Pedido (retiro / envío)
+                </button>
+              </div>
+            </div>
+
+            <TicketQueCrece
+              rotuloTotal={isOrder ? "Total del pedido" : "Total"}
+              total={totalACobrar}
+              vacio={conProducto.length === 0 && manuales.length === 0}
+              deshacer={quitado ? { texto: `Quitaste ${quitado.nombre}.`, onDeshacer: deshacerQuitado } : null}
+              detalles={
+                <>
+                  {descuento.ok && descuento.descuento > 0 && (
+                    <p className="text-xs tabular-nums text-muted">
+                      Subtotal {fmtMoneyARS(subtotal)} · descuento −{fmtMoneyARS(descuento.descuento)}
+                    </p>
+                  )}
+                  {envioPrevisto > 0 && cotizacionEnvio?.ok && (
+                    <p data-vender="total-envio" className="text-xs tabular-nums text-muted">
+                      Productos {fmtMoneyARS(total)} · {cotizacionEnvio.renglon ?? "Envío"} {fmtMoneyARS(envioPrevisto)}
+                    </p>
+                  )}
+                </>
+              }
+            >
+              {conProducto.map((l) => renglon(l, balanzaEnVivo))}
+            </TicketQueCrece>
+
+            {bloqueManuales}
+
+            <div className="flex flex-wrap gap-2">
+              {!isOrder && !conCliente && (
+                <button type="button" onClick={() => setConCliente(true)} className="chip-btn h-11 text-sm">
+                  + {Quien}
+                </button>
+              )}
+              <button type="button" onClick={addManual} className="chip-btn h-11 text-sm">
+                + Precio a mano
+              </button>
+            </div>
+
+            {/* Descuento en chips (2A): 5 % · 10 % · Redondear · Otro. El tope del rol lo controla
+                `aplicarDescuento` igual que el servidor: un % de más se ve y frena el cobro. */}
+            <div role="group" aria-label="Descuento" data-vender="chips-descuento" className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-muted">Descuento</span>
+              {CHIPS_DE_DESCUENTO.map((pct) => {
+                const puesto = conDescuento && tipoDescuento === "porcentaje" && leerImporte(descuentoText).estado === "ok" && importeOCero(descuentoText) === pct;
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    aria-pressed={puesto}
+                    onClick={() => ponerDescuento("porcentaje", String(pct))}
+                    className={cn("chip-btn h-11 text-sm", puesto && "!border-accent !bg-accent !text-on-accent")}
+                  >
+                    {pct} %
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                disabled={redondeo === 0}
+                title={redondeo === 0 ? "El total ya está redondo" : undefined}
+                onClick={() => ponerDescuento("monto", String(redondeo).replace(".", ","))}
+                className="chip-btn h-11 text-sm"
+              >
+                Redondear{redondeo > 0 ? ` −${fmtMoneyARS(redondeo, Number.isInteger(redondeo) ? 0 : 2)}` : ""}
+              </button>
+              {!conDescuento && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConDescuento(true);
+                    pedirFoco("descuento-valor");
+                  }}
+                  className="chip-btn h-11 text-sm"
+                >
+                  Otro…
+                </button>
+              )}
+            </div>
+
+            {(isOrder || conCliente) && (
+              <ClienteDeLaVenta
+                key={clienteKey}
+                // Desde la ficha, el cliente ya elegido (sólo el primero: al limpiar, vacío).
+                inicial={clienteKey === 0 ? (desdeLaFicha?.cliente ?? null) : null}
+                quien={quienCompra}
+                puedeFacturar={puedeFacturar}
+                rolFactura={b.rolFactura}
+                puedeEditarFicha={b.puedeEditarFicha}
+                nombreObligatorio={isOrder}
+                onCambio={(v) => {
+                  setClienteVenta(v);
+                  // El teléfono y el nombre van en la firma del cobro, como viajan en el formulario.
+                  setTelefono(v.telefono);
+                  setNombreCliente(v.nombre);
+                  // La última dirección de la ficha, propuesta y editable (MG-035).
+                  if (v.cliente?.ultimaDireccion) setDireccion((d) => d || v.cliente!.ultimaDireccion!);
+                }}
+              />
+            )}
+
+            {isOrder && (
+              <fieldset data-vender="entrega" className="grid gap-3 border-t border-line pt-3 sm:grid-cols-2">
+                <legend className="sr-only">Entrega</legend>
+                <label className="text-sm">
+                  <span className="mb-1 block text-muted">Entrega</span>
+                  <Select name="fulfillment" value={fulfillment} onChange={(e) => setFulfillment(e.target.value as "PICKUP" | "DELIVERY")}>
+                    <option value="PICKUP">Retira en el local</option>
+                    <option value="DELIVERY">Envío a domicilio</option>
+                  </Select>
+                </label>
+                <label className="text-sm">
+                  <span className="mb-1 block text-muted">Horario deseado</span>
+                  <Input name="scheduledFor" type="datetime-local" value={horario} onChange={(e) => setHorario(e.target.value)} />
+                </label>
+                {conZona && (
+                  <label className="text-sm sm:col-span-2">
+                    <span className="mb-1 block text-muted">Zona de envío *</span>
+                    <Select name="envioZona" required value={zonaId} onChange={(e) => setZonaId(e.target.value)}>
+                      <option value="">Elegí la zona</option>
+                      {zonas.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {z.nombre} · {z.costo > 0 ? fmtMoneyARS(z.costo, 0) : "sin cargo"}
+                          {z.gratisDesde !== null ? ` · gratis desde ${fmtMoneyARS(z.gratisDesde, 0)}` : ""}
+                        </option>
+                      ))}
+                    </Select>
+                    {cotizacion && (
+                      <span role="status" data-vender="envio" className="mt-1 block text-xs text-body">
+                        {cotizacion.ok
+                          ? `${cotizacion.renglon ?? "Envío"}: ${cotizacion.costo > 0 ? fmtMoneyARS(cotizacion.costo) : "sin cargo"}` +
+                            (cotizacion.faltaParaGratis > 0 ? ` · te faltan ${fmtMoneyARS(cotizacion.faltaParaGratis)} para el envío gratis` : "")
+                          : cotizacion.motivo}
+                      </span>
+                    )}
+                  </label>
+                )}
+                {fulfillment === "DELIVERY" && (
+                  <label className="text-sm sm:col-span-2">
+                    <span className="mb-1 block text-muted">Dirección *</span>
+                    <Input name="address" required value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Calle, número, barrio" />
+                  </label>
+                )}
+                <label className="text-sm sm:col-span-2">
+                  <span className="mb-1 block text-muted">Nota</span>
+                  <Input name="notes" value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Ej.: cortar en milanesas, sin grasa" />
+                </label>
+                <label className="flex min-h-11 w-fit items-center gap-2 text-sm sm:col-span-2">
+                  <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} className="h-5 w-5" />
+                  <span className="text-body">Ya está cobrado</span>
+                </label>
+              </fieldset>
+            )}
+
+            {bloqueDescuento}
+          </section>
+          )}
+          </ConBalanzaEnVivo>
+
+          {/* El cobro, fijo abajo en el celular (encima de la barra de espacios) y a lo ancho en la PC. */}
+          <div
+            data-vender="cobro-boutique"
+            className="sticky bottom-[var(--alto-barra-inferior,0px)] z-20 space-y-2 rounded-lg border border-line bg-surface-sunken lg:col-span-2"
+          >
+            {/* En el celular el ticket queda arriba de las teclas: el total, también acá abajo (MG-045). */}
+            <p data-vender="total-fijo" aria-hidden className="flex items-baseline justify-between gap-2 px-3 pt-2 lg:hidden">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted">{isOrder ? "Total del pedido" : "Total"}</span>
+              <span className="font-display text-3xl leading-none tabular-nums text-accent-ink">
+                {fmtMoneyARS(totalACobrar, Number.isInteger(totalACobrar) ? 0 : 2)}
+              </span>
+            </p>
+            <div className="space-y-2 px-3 pt-3 empty:hidden">{bloqueAviso}</div>
+            {puedeReintentar && (
+              <div className="px-3">
+                <button type="button" className={buttonClasses("solid", "lg", "w-full")} disabled={enviandoBoutique} onClick={() => void reintentarBoutique()}>
+                  {enviandoBoutique ? "Cobrando…" : `${etiquetaDeReintento(isOrder)} ${isOrder ? "" : fmtMoneyARS(sinRespuesta!.total)}`.trim()}
+                </button>
+              </div>
+            )}
+            {isOrder && !paid ? (
+              <div className="p-3">
+                <button
+                  type="button"
+                  className={buttonClasses("solid", "lg", "w-full")}
+                  disabled={registrarBloqueado}
+                  onClick={() => void registrarBoutique("sin-cobrar")}
+                >
+                  {enviandoBoutique ? "Registrando…" : registrarBloqueado && motivoBloqueo ? motivoBloqueo : "Registrar pedido"}
+                </button>
+              </div>
+            ) : (
+              <>
+                <PieDeCobro
+                  key={pieKey}
+                  total={totalACobrar}
+                  deshabilitado={motivoDelPie ? { motivo: motivoDelPie } : undefined}
+                  textoBoton={cobrarEnPedido ? "Registrar y cobrar" : "Cobrar"}
+                  onCobrar={cobrarConElPie}
+                />
+                {!isOrder && (
+                  <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
+                    {diaCerrado ? (
+                      <button
+                        type="button"
+                        className={buttonClasses("solid", "lg", "w-full")}
+                        disabled={registrarBloqueado}
+                        onClick={() => void registrarBoutique("sin-cobrar")}
+                      >
+                        {enviandoBoutique ? "Registrando…" : REGISTRAR_PARA_MANANA}
+                      </button>
+                    ) : (
+                      <>
+                        {aCuentaDisponible && (
+                          <button
+                            type="button"
+                            className="chip-btn h-11 text-sm"
+                            disabled={registrarBloqueado || !ficha}
+                            title={ficha ? undefined : `Elegí ${alQuien} para dejarlo a cuenta`}
+                            onClick={() => void registrarBoutique("a-cuenta")}
+                          >
+                            Dejar a cuenta {fmtMoneyARS(total)}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="h-11 px-2 text-sm text-muted underline"
+                          disabled={registrarBloqueado}
+                          onClick={() => void registrarBoutique("sin-cobrar")}
+                        >
+                          Registrar sin cobrar
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  if (boutique) return vistaBoutique(boutique);
 
   if (nuevo) return vistaTicket();
 
@@ -2400,12 +3599,17 @@ function FormularioVender({
                   Subtotal {fmtMoneyARS(subtotal)} · descuento −{fmtMoneyARS(descuento.descuento)}
                 </p>
               )}
+              {envioPrevisto > 0 && cotizacionEnvio?.ok && (
+                <p data-vender="total-envio" className="tabular-nums">
+                  Productos {fmtMoneyARS(total)} · {cotizacionEnvio.renglon ?? "Envío"} {fmtMoneyARS(envioPrevisto)}
+                </p>
+              )}
               <p>
                 Total{" "}
                 {/* En CH (piel `data-estetica="beauty-spa"` del layout) el total va en su serif y su
                     petróleo, como los títulos de su marca; en el resto, como siempre. */}
                 <span className="ml-1 text-2xl font-semibold tabular-nums text-strong in-data-[estetica=beauty-spa]:font-display in-data-[estetica=beauty-spa]:font-medium in-data-[estetica=beauty-spa]:text-accent-ink">
-                  {fmtMoneyARS(total)}
+                  {fmtMoneyARS(totalACobrar)}
                 </span>
               </p>
             </div>

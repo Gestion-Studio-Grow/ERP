@@ -5,7 +5,8 @@ import { unstable_rethrow } from "next/navigation";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireAppAccion } from "@/lib/require-app";
 import { collectReceivable } from "@/lib/debts/receivable-service";
-import { MEDIO_OBLIGATORIO, cuentasCorrientesEnabled, leerMedio } from "@/lib/settlement/asiento-libro";
+import { MEDIO_OBLIGATORIO, leerMedio } from "@/lib/settlement/asiento-libro";
+import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
 import { leerMonto, leerTexto, mensajeDeRechazo, type EstadoFormularioCuenta } from "@/lib/debts/formularios";
 import { fmtMoneyARS } from "@/components/ui/format";
 
@@ -17,7 +18,7 @@ import { fmtMoneyARS } from "@/components/ui/format";
 //
 // El MEDIO es obligatorio: si no viene, no se cobra. Antes, sin medio se suponía efectivo, y
 // un cobro por transferencia anotado como efectivo descuadra el cajón. Con
-// CUENTAS_CORRIENTES_ENABLED el cobro además entra al libro de caja en la misma transacción
+// las cuentas corrientes del negocio prendidas (`cuentasCorrientesDe`) el cobro además entra al libro de caja en la misma transacción
 // (y se frena si hoy ya está cerrado); por eso se revalidan el libro y el cierre.
 //
 // DEVUELVE el resultado al formulario (useActionState) en vez de tirar: un rechazo (día
@@ -45,8 +46,9 @@ export async function registerReceivableCollection(
     if (!method) return { estado: "error", mensaje: MEDIO_OBLIGATORIO };
     const note = leerTexto(formData.get("nota"), 200) || null;
 
-    const r = await collectReceivable(tenantId, id, { amount, method, note, by: `user:${user.id}` });
-    const enLibro = cuentasCorrientesEnabled();
+    // Una sola lectura de las cuentas corrientes del negocio: decide el asiento y el mensaje.
+    const enLibro = await cuentasCorrientesDe(tenantId);
+    const r = await collectReceivable(tenantId, id, { amount, method, note, by: `user:${user.id}` }, { asentarEnLibro: enLibro });
 
     revalidatePath(`/admin/cuentas-a-cobrar/${id}`);
     revalidatePath("/admin/cuentas-a-cobrar");

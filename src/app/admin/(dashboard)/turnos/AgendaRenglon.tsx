@@ -16,37 +16,48 @@
 //   5. Mañana al pie, plegado, con una sola tecla para avisar a todas de a una.
 //
 // Los datos son los de siempre (`getAgendaDay`, `getMananaConfirmar`, los huecos del piloto): la
-// agenda nueva cambia CÓMO se ve y se opera, no QUÉ se consulta ni quién puede qué.
+// agenda nueva cambia CÓMO se ve y se opera, no QUÉ se consulta ni quién puede qué. Lo único que
+// se suma es cuántos turnos quedaron sin cerrar EN CUALQUIER DÍA (`contarSinCerrarDeQuienMira`: un
+// `count` con el mismo criterio y permisos que la bandeja, no su loader entero): el chip «Sin cerrar»
+// lleva a «Cerrar lo pendiente» (/admin/turnos/cerrar), donde se cierran de a muchos. Un pasado sin
+// cerrar de hace meses también cuenta (CH-044).
 
 import Link from "next/link";
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
-import { roleHasCapability, type Role } from "@/lib/capabilities";
+import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
+import { contarSinCerrarDeQuienMira } from "@/lib/turnos/sin-cerrar.server";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { cargarHuecosLiberados } from "@/lib/crm/cargas.server";
 import { anotadosConHueco } from "@/lib/crm/huecos";
-import { EmptyState, Franja, PageContainer, PageHeader, Pestanas, atributosBoton, buttonClasses } from "@/components/ui";
+import { EmptyState, Franja, PageContainer, PageHeader, Pestanas, atributosBoton, buttonClasses, chipLinkAtributos } from "@/components/ui";
 import { enInicioPorApps } from "../inicio/piloto";
 import { diaMas, fechaCorta, fechaLarga, lineaDeLaAgenda, nombreRelativo, type Permisos } from "./agenda-core";
-import { proyectarAgenda } from "./agenda.server";
-import { esFechaDeCalendario, hrefNuevoTurno, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
+import { extrasDeLaAgenda, proyectarAgenda } from "./agenda.server";
+import { esFechaDeCalendario, hrefDiaDeLaAgenda, hrefNuevoTurno, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
+import LinkAlDia from "./_agenda/LinkAlDia";
+import BotonBuscar from "../armazon/BotonBuscar";
+import AtajosDelAlta from "./_agenda/AtajosDelAlta";
 import LibroDelDia from "./_agenda/LibroDelDia";
 import { RenglonDeManana } from "./_agenda/ParaManana";
 import OtroDia from "./_agenda/OtroDia";
 
 type Quien = { role: Role; professionalId?: string | null };
 
+// Dar de baja un saldo: sólo la dueña (D5).
+const PERDONAR: Capability = "agenda:forgive";
+
+/** La pestaña de una vista (sin `por`: cada vista arranca como viene). */
 function hrefDia(dia: string, hoy: string, vista: "lista" | "profesionales"): string {
-  const p = new URLSearchParams();
-  if (dia !== hoy) p.set("date", dia);
-  if (vista === "profesionales") p.set("vista", "profesionales");
-  const q = p.toString();
-  return q ? `/admin/turnos?${q}` : "/admin/turnos";
+  return hrefDiaDeLaAgenda(dia, hoy, { vista });
 }
 
-/** ← Ayer · Jueves 24 de septiembre · Mañana → · Otro día */
+/**
+ * ← Ayer · Jueves 24 de septiembre · Mañana → · Otro día. Cambiar de día no pierde «Ver por: Box»
+ * (`LinkAlDia` lee `?por=` de la dirección de ahora: se cambia en el navegador).
+ */
 function ElDia({ dia, hoy, vista }: { dia: string; hoy: string; vista: "lista" | "profesionales" }) {
   const antes = diaMas(dia, -1);
   const despues = diaMas(dia, 1);
@@ -55,20 +66,20 @@ function ElDia({ dia, hoy, vista }: { dia: string; hoy: string; vista: "lista" |
     // Celular: dos renglones parejos (← Ayer · fecha / Mañana → · Otro día), sin que «Otro día»
     // quede colgado solo en un tercer renglón. PC: todo en una línea.
     <nav aria-label="Elegir el día" className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 lg:flex lg:w-auto lg:flex-wrap lg:gap-2">
-      <Link href={hrefDia(antes, hoy, vista)} className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")} aria-label={`Día anterior: ${fechaLarga(antes)}`}>
+      <LinkAlDia dia={antes} hoy={hoy} vista={vista} className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")} aria-label={`Día anterior: ${fechaLarga(antes)}`}>
         ← {nombre(antes)}
-      </Link>
+      </LinkAlDia>
       <span className="truncate px-1 text-sm font-semibold text-strong" aria-current="date">
         {fechaLarga(dia)}
       </span>
-      <Link href={hrefDia(despues, hoy, vista)} className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")} aria-label={`Día siguiente: ${fechaLarga(despues)}`}>
+      <LinkAlDia dia={despues} hoy={hoy} vista={vista} className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")} aria-label={`Día siguiente: ${fechaLarga(despues)}`}>
         {nombre(despues)} →
-      </Link>
+      </LinkAlDia>
       <span className="flex flex-wrap items-center gap-1 lg:contents">
         {dia !== hoy && (
-          <Link href={hrefDia(hoy, hoy, vista)} className={buttonClasses("ghost", "sm")} {...atributosBoton("ghost", "sm")}>
+          <LinkAlDia dia={hoy} hoy={hoy} vista={vista} className={buttonClasses("ghost", "sm")} {...atributosBoton("ghost", "sm")}>
             Hoy
-          </Link>
+          </LinkAlDia>
         )}
         <OtroDia dia={dia} base={vista === "profesionales" ? "vista=profesionales" : ""} />
       </span>
@@ -107,18 +118,29 @@ export default async function AgendaRenglon({
     gestionar: roleHasCapability(quien.role, "agenda:manage"),
     cobrar: roleHasCapability(quien.role, "agenda:collect"),
     terminar: roleHasCapability(quien.role, "agenda:complete"),
+    perdonar: roleHasCapability(quien.role, PERDONAR),
   };
   // Mañana, sólo mirando HOY y para quien gestiona la agenda (como siempre).
   const verManana = permisos.gestionar && dia === hoy;
-  const [cruda, manana, piloto, negocio] = await Promise.all([
+  const [cruda, manana, piloto, negocio, pendientes] = await Promise.all([
     getAgendaDay(dia),
     verManana ? getMananaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(quien.role),
+    // Sólo quien cierra turnos ve cuántos quedaron sin cerrar (y puede ir a cerrarlos). Un `count`,
+    // no el loader de la bandeja (cert O-4). Si falla, la agenda se dibuja igual (cuenta los de
+    // hoy): no se cae por el chip.
+    permisos.terminar ? contarSinCerrarDeQuienMira().catch(() => null) : Promise.resolve(null),
   ]);
-  const agenda = proyectarAgenda(cruda, quien);
+  // La marca «seña pedida» y el horario de trabajo: una lectura más por día, con tenantId (Tanda 2).
+  const extras = await extrasDeLaAgenda(cruda, dia);
+  const agenda = proyectarAgenda(cruda, quien, { seniasPedidas: extras.seniasPedidas });
   const ahora = new Date();
   const linea = lineaDeLaAgenda(agenda.turnos, ahora);
+  // Los de hoy ya están en la agenda del día; el conteo suma los de los otros días. Si el conteo no
+  // trae nada (falló en silencio), se cuentan al menos los de hoy.
+  const sinCerrar = permisos.terminar ? Math.max(pendientes ?? 0, dia === hoy ? linea.sinCerrar : 0) : 0;
+  const sinCerrarTexto = String(sinCerrar);
   const abreClientes = appPermitida(appPorId("clientes"), negocio);
 
   const sinProfesionales = vacioSinProfesionales({
@@ -157,10 +179,22 @@ export default async function AgendaRenglon({
           <strong key="t">{linea.turnos === 1 ? "1 turno" : `${linea.turnos} turnos`}</strong>,
           linea.sinConfirmar > 0 ? `${linea.sinConfirmar} sin confirmar` : null,
           linea.porCobrar > 0 ? `${linea.porCobrar} por cobrar` : null,
-          linea.sinCerrar > 0 && dia === hoy ? `${linea.sinCerrar} sin cerrar` : null,
+          sinCerrar > 0 ? (
+            <Link key="sc" href="/admin/turnos/cerrar" {...chipLinkAtributos(false)} aria-label={`${sinCerrarTexto} turnos sin cerrar: cerrar lo pendiente`}>
+              Sin cerrar <span data-parte="conteo">{sinCerrarTexto}</span>
+            </Link>
+          ) : null,
           linea.masCargada ? `${linea.masCargada.nombre.split(" ")[0]} con ${linea.masCargada.turnos}` : null,
         ]}
-        actions={<ElDia dia={dia} hoy={hoy} vista={vista} />}
+        actions={
+          <>
+            {/* Las entradas fijas al alta nueva (cert CH T2, F-2/F-4). Con el alta ya abierta, no. */}
+            {permisos.gestionar && !alta && <AtajosDelAlta fecha={dia} hoy={hoy} />}
+            {/* En el celular no hay «/»: el buscador de clientas y turnos, a un toque (CH-028). */}
+            <BotonBuscar />
+            <ElDia dia={dia} hoy={hoy} vista={vista} />
+          </>
+        }
       />
 
       {pestanas.length > 1 && <Pestanas pestanas={pestanas} etiqueta="Vistas de la agenda" conRaya className="mb-4" />}
@@ -178,11 +212,13 @@ export default async function AgendaRenglon({
         turnos={agenda.turnos}
         permisos={permisos}
         ahora={ahora.toISOString()}
+        dia={dia}
         esHoy={dia === hoy}
         hrefFicha={abreClientes ? "/admin/clientes/" : null}
         vacio={vacio}
         vista={vista}
         profesionales={agenda.profesionales}
+        bloqueos={extras.bloqueos}
       />
 
       {manana && <RenglonDeManana dia={manana.dia} turnos={manana.turnos} />}

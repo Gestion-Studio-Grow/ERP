@@ -126,6 +126,40 @@ test("R2 — pedido: entrega, dirección, horario y nota cambiados → una frase
   ]);
 });
 
+test("zona de envío (Magra MG-031): se compara sólo cuando se sabe de los dos lados; el costo nunca; la firma sin zona es la de siempre", () => {
+  const conRenglon: VentaGrabadaLeida = {
+    ...pedidoGrabado,
+    items: [vacio(2), { productId: null, name: "Envío · Canning – barrios cerrados", saleUnit: "UNIT", quantity: 1, unitPrice: 4000, lineTotal: 4000 }],
+  };
+  const zonas = new Map([["barrios", "Canning – barrios cerrados"], ["ezeiza", "Ezeiza / Monte Grande"]]);
+  const conZona = (id: string | null) =>
+    pedidoDelReintento(
+      { channel: "ONLINE", fulfillment: "DELIVERY", customerPhone: "11 4000 0000", address: "Av. Mitre 1234", notes: "en milanesas", scheduledFor: new Date(sabado), paid: false, paymentMethod: null, items: [{ productId: "p_vacio", qty: 2 }] },
+      { envioZona: id ? { id } : null },
+    );
+  // La misma zona (aunque el costo de hoy sea otro): igual. El renglón del envío no es un producto.
+  assert.deepEqual(textos(compararConLoGrabado(conRenglon, conZona("barrios"), new Map(), zonas)), []);
+  // Otra zona: una frase, no "de más".
+  const otra = compararConLoGrabado(conRenglon, conZona("ezeiza"), new Map(), zonas);
+  assert.deepEqual(textos(otra), ["Zona de envío: se grabó «Canning – barrios cerrados»; ahora «Ezeiza / Monte Grande»."]);
+  assert.equal(otra.faltante, null);
+  assert.deepEqual(textos(compararConLoGrabado(conRenglon, conZona(null), new Map(), zonas)), [
+    "Zona de envío: se grabó «Canning – barrios cerrados»; ahora sin zona.",
+  ]);
+  // Sin saber: un id que ya no existe, o la grabada sin renglón (envío gratis): no se inventa nada.
+  assert.deepEqual(textos(compararConLoGrabado(conRenglon, conZona("borrada"), new Map(), zonas)), []);
+  assert.deepEqual(textos(compararConLoGrabado(pedidoGrabado, conZona("ezeiza"), new Map(), zonas)), []);
+  // La firma: con zona cambia por zona; sin zona, idéntica a la de antes de las zonas.
+  assert.notEqual(firmaDelPedido(conZona("barrios")), firmaDelPedido(conZona("ezeiza")));
+  assert.equal(firmaDelPedido(conZona(null)), firmaDelPedido(pedidoDe({})));
+  assert.equal(
+    firmaDelPedido(conZona(null)),
+    JSON.stringify(["ONLINE", [["p_vacio", 2]], [], "", null, ["sin-cobrar"], "1140000000", ["DELIVERY", "Av. Mitre 1234", sabado.getTime(), "en milanesas"]]),
+  );
+  // La zona en un retiro no cuenta (no viaja).
+  assert.equal(envio({ channel: "ONLINE", fulfillment: "PICKUP" }, { envioZona: { id: "barrios" } }).entrega.zona, undefined);
+});
+
 test("lo que falta: SÓLO si todo lo distinto es de más (más peso, un corte nuevo, un precio a mano nuevo)", () => {
   const catalogo = new Map([["p_entrana", { nombre: "Entraña", porPeso: true }]]);
   const enEfectivo: VentaGrabadaLeida = { ...grabadaMaria, paymentMethod: "EFECTIVO", items: [vacio(1.24), { productId: null, name: "Bolsa", saleUnit: "UNIT", quantity: 1, unitPrice: 500, lineTotal: 500 }], total: 16000 };
@@ -278,7 +312,7 @@ test("TRINQUETE: createOrder e insertOrder buscan la clave antes de toda validac
   const acciones = cuerpo(sinComentarios(readFileSync(new URL("./order-actions.ts", import.meta.url), "utf8")), "export async function createOrder(");
   const busca = acciones.indexOf("pedidoConClave(");
   assert.ok(busca > 0, "createOrder no busca la clave");
-  for (const despues of ["cuentasCorrientesEnabled(", "requireAppAccion(", "medioDeCobroRequerido(", "lastClosedDay(", "insertOrder("]) {
+  for (const despues of ["cuentasCorrientesDe(", "requireAppAccion(", "medioDeCobroRequerido(", "lastClosedDay(", "insertOrder("]) {
     const i = acciones.indexOf(despues);
     assert.ok(i > busca, `«${despues}» corre antes de buscar la clave`);
   }
@@ -411,6 +445,22 @@ test("FIJA: lo que firma la pantalla (firmaDelCobro) es lo que el servidor lee d
     entrega: { tipo: "DELIVERY", direccion: "Av. Mitre 1234", horario: "2026-09-26T10:00", nota: "en milanesas" },
   });
   assert.equal(pantalla, servidor);
+  // El mismo pedido con zona de envío (mostrador boutique): la pantalla y el servidor firman la zona.
+  fd.set("envioZona", "barrios");
+  const servidorConZona = firmaDelPedido(pedidoDelFormulario(fd, { channel: "ONLINE", fulfillment: "DELIVERY", scheduledRaw: "2026-09-26T10:00", aCuenta: false }));
+  const pantallaConZona = firmaDelCobro({
+    esPedido: true,
+    lineas: [{ productId: "p_vacio", cantidad: 2.5 }],
+    manuales: [{ nombre: "Bolsa", importe: 500 }],
+    medio: "SIN_COBRAR",
+    telefono: "11 4000 0000",
+    cupon: null,
+    descuento: { tipo: "porcentaje", valor: 5 },
+    entrega: { tipo: "DELIVERY", direccion: "Av. Mitre 1234", horario: "2026-09-26T10:00", nota: "en milanesas", zona: "barrios" },
+  });
+  assert.equal(pantallaConZona, servidorConZona);
+  assert.notEqual(servidorConZona, servidor);
+  fd.delete("envioZona");
   // Una venta en efectivo con cupón.
   const venta = new FormData();
   venta.append("productId", "p_vacio");

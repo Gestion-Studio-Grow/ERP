@@ -42,6 +42,8 @@ export type ResultadoImportacion =
        * mismo archivo (se toman una sola vez) y los que tienen errores. Se cuentan por separado.
        */
       yaCargadosTotal: number;
+      /** De los que entraron, los que el local ya había cargado con su factura: se completaron (R3). */
+      vinculadosTotal: number;
       repetidosTotal: number;
       conErroresTotal: number;
       aRevisar: { fila: number; comprobante: string; motivo: string }[];
@@ -100,6 +102,7 @@ export async function importarRecibidosAction(formData: FormData): Promise<Resul
     rechazados: rechazados.slice(0, TOPE_DE_DETALLE),
     rechazadosTotal: rechazados.length,
     yaCargadosTotal: guardado.yaCargados.length,
+    vinculadosTotal: guardado.vinculados.length,
     repetidosTotal: lectura.repetidos.length,
     conErroresTotal: lectura.rechazos.length,
     aRevisar: guardado.cargados

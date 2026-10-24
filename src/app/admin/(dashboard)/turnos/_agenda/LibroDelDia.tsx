@@ -16,7 +16,9 @@
 //   · Teclado: ↑/↓ o j/k recorren los turnos, Enter abre el cajón, Esc lo cierra.
 //   · La tecla «Cobrar»/«Terminar y cobrar» abre una hoja chica con el cobro (en el celular, a mano
 //     del pulgar); «Confirmar» y «Terminar» sin saldo se hacen de un toque.
-//   · Vista «Por profesional»: la misma mesa (cajón y hoja) sobre la planilla de boxes.
+//   · Vista «Por profesional»: la misma mesa (cajón y hoja) sobre la planilla (PorProfesional): huecos
+//     que se tocan para dar turno, arrastrar para mover, ver por profesional o por box, la raya de
+//     «ahora» y la leyenda (Tanda 2 · 2-C).
 
 import { Fragment, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
@@ -27,6 +29,7 @@ import { fmtTime } from "@/lib/datetime";
 import { FILTROS_AGENDA, entraEnFiltro, leerFiltroAgenda, lugarDeLaRaya, type Permisos, type TurnoDelDia } from "../agenda-core";
 import MesaDeTurnos, { RenglonDelTurno, useMesa } from "./MesaDeTurnos";
 import PorProfesional from "./PorProfesional";
+import type { BloqueoDelDia } from "../grilla";
 
 /** ↑/↓ o j/k recorren los botones `[data-abrir]` de la lista (Enter abre el cajón). */
 export function useRecorrerTurnos(lista: React.RefObject<HTMLElement | null>) {
@@ -50,20 +53,24 @@ export function useRecorrerTurnos(lista: React.RefObject<HTMLElement | null>) {
 
 function ElDia({
   turnos,
+  dia,
   esHoy,
   vacio,
   vista,
   profesionales,
+  bloqueos,
   ahora,
 }: {
   turnos: TurnoDelDia[];
+  dia: string;
   esHoy: boolean;
   vacio: React.ReactNode;
   vista: "lista" | "profesionales";
   profesionales: { id: string; nombre: string; box: string | null }[];
+  bloqueos: BloqueoDelDia[];
   ahora: string;
 }) {
-  const { reloj, abrir, cambiarUrl } = useMesa();
+  const { reloj, cambiarUrl } = useMesa();
   const params = useSearchParams();
   const filtro = leerFiltroAgenda(params.get("ver"));
   const lista = useRef<HTMLOListElement>(null);
@@ -73,7 +80,7 @@ function ElDia({
     if (turnos.length === 0 && profesionales.length === 0) return <>{vacio}</>;
     return (
       <>
-        {profesionales.length > 0 && <PorProfesional turnos={turnos} profesionales={profesionales} ahora={ahora} onAbrir={abrir} />}
+        {profesionales.length > 0 && <PorProfesional turnos={turnos} profesionales={profesionales} ahora={ahora} dia={dia} bloqueos={bloqueos} />}
         {turnos.length === 0 && <div className="mt-4">{vacio}</div>}
       </>
     );
@@ -131,15 +138,19 @@ export default function LibroDelDia({
   turnos,
   permisos,
   ahora,
+  dia,
   esHoy,
   hrefFicha,
   vacio,
   vista = "lista",
   profesionales = [],
+  bloqueos = [],
 }: {
   turnos: TurnoDelDia[];
   permisos: Permisos;
   ahora: string;
+  /** El día que se mira ("YYYY-MM-DD"): los huecos de la planilla abren «Dar turno» en ese día. */
+  dia: string;
   esHoy: boolean;
   /** Base de la ficha de la clienta («/admin/clientes/»), si quien mira puede abrir Clientes. */
   hrefFicha: string | null;
@@ -148,11 +159,13 @@ export default function LibroDelDia({
   /** «lista» (el libro del día) o «profesionales» (la planilla de boxes). Mismo cajón. */
   vista?: "lista" | "profesionales";
   profesionales?: { id: string; nombre: string; box: string | null }[];
+  /** Francos y ausencias del día, con horario (sus celdas no se ofrecen como hueco). */
+  bloqueos?: BloqueoDelDia[];
 }) {
   return (
     <div data-agenda="libro">
       <MesaDeTurnos turnos={turnos} permisos={permisos} ahora={ahora} hrefFicha={hrefFicha}>
-        <ElDia turnos={turnos} esHoy={esHoy} vacio={vacio} vista={vista} profesionales={profesionales} ahora={ahora} />
+        <ElDia turnos={turnos} dia={dia} esHoy={esHoy} vacio={vacio} vista={vista} profesionales={profesionales} bloqueos={bloqueos} ahora={ahora} />
       </MesaDeTurnos>
     </div>
   );

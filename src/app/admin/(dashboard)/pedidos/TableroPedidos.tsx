@@ -20,19 +20,41 @@
 //
 // Las acciones son las de la bandeja de siempre, con los mismos campos: no cambia ninguna regla.
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { advanceOrderStatus, registrarAvisoWhatsApp } from "@/lib/order-actions";
+import { advanceOrderStatus, anularVenta, registrarAvisoWhatsApp } from "@/lib/order-actions";
 import { Tabla, type ColumnaTabla } from "@/components/ui/Tabla";
 import { MenuMas } from "@/components/ui/MenuMas";
 import { Dialogo } from "@/components/ui/Cajon";
 import { teclaDeLaPantalla } from "@/components/ui/tecla-de-pantalla";
-import { Button, Chip, Icono, Marca, Plata, Renglon, RielDeEstados, hrefConParametros, ordenDesdeUrl } from "@/components/ui";
+import { Button, Chip, Field, Icono, Input, Marca, Plata, Renglon, RielDeEstados, hrefConParametros, ordenDesdeUrl } from "@/components/ui";
 import { useToast } from "../ToastProvider";
 import PedidoCajon, { type SeccionDelCajon } from "./PedidoCajon";
 import AnularDelPedido from "./AnularDelPedido";
 import { rechazoDeAccion, sinRespuestaAlAvanzar } from "./avanzar-pedido";
 import { esRedirectDeNext } from "./formularios-del-pedido";
+import { useCobroDelNegocio } from "./CobroDelPedido";
+import { MOTIVO_MAX } from "@/lib/turnos/anulacion";
+import { registrarRecordatorioDeCobro } from "./reparto/acciones";
+import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
+import { dateStrInBusinessTz } from "@/lib/datetime";
+import {
+  COLUMNAS_DE_LA_BANDEJA,
+  HREF_ARMAR_REPARTO,
+  HREF_RENDICION,
+  MOTIVO_NO_RETIRO,
+  TITULO_DE_LA_COLUMNA,
+  VACIO_DE_LA_COLUMNA,
+  bandejaEnColumnas,
+  conteosDeLasColumnas,
+  leerColumnaDeLaUrl,
+  listoDesdeAyer,
+  puedeMarcarNoRetiro,
+  resumenDeLineas,
+  teclaDeLaTarjeta,
+  type ColumnaDeLaBandeja,
+} from "./pedidos-core";
 import {
   ESTADOS_DEL_FILTRO,
   ETIQUETA_DEL_ESTADO,
@@ -337,6 +359,394 @@ function Entrega({ p }: { p: PedidoDelTablero }) {
   );
 }
 
+// ── LA BANDEJA EN COLUMNAS (mostrador boutique, Magra tanda 2 · 2C) ─────────────────────────────
+//
+// Nuevos · Preparando · Listos · En reparto · A cobrar, de izquierda a derecha el camino del pedido.
+// Cada tarjeta tiene UNA tecla grande para el paso que sigue (`teclaDeLaTarjeta`); lo demás va en
+// «Más». En el celular y la tablet vertical, una columna por vez con pestañas y su contador
+// (`?columna=` en la URL); desde 1024 px, las cinco a la vista. Las acciones son las de siempre
+// (`advanceOrderStatus`, el cajón con el pie de cobro, `anularVenta`): no cambia ninguna regla.
+
+const TECLA_SECUNDARIA =
+  "inline-flex min-h-11 items-center justify-center rounded-md border border-line-strong px-3 text-sm font-medium text-strong " +
+  "hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
+
+const TECLA_PRIMARIA =
+  "inline-flex min-h-12 flex-1 items-center justify-center rounded-lg bg-accent px-4 text-base font-semibold text-on-accent " +
+  "hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus " +
+  "disabled:cursor-not-allowed disabled:opacity-60";
+
+function TeclaGrande({ p, onAbrir }: { p: PedidoDelTablero; onAbrir: (id: string, seccion?: SeccionDelCajon) => void }) {
+  const router = useRouter();
+  const { showError } = useToast();
+  const [pending, startTransition] = useTransition();
+  const t = teclaDeLaTarjeta(p);
+  if (!t) return null;
+  const etiqueta = `${t.texto}: ${p.cliente}, pedido #${p.code}`;
+  if (t.tipo === "armar") {
+    // Armar = empezar a prepararlo (la guarda de siempre: Nuevo → Preparando) y abrir la pantalla
+    // Armar y pesar. Si otra pantalla ya lo movió, igual se abre: Armar muestra el estado real.
+    return (
+      <button
+        type="button"
+        data-tecla-de={p.id}
+        className={TECLA_PRIMARIA}
+        aria-label={etiqueta}
+        disabled={pending}
+        onClick={() => {
+          const fd = new FormData();
+          fd.set("id", p.id);
+          startTransition(async () => {
+            try {
+              const rechazo = rechazoDeAccion(await advanceOrderStatus(fd));
+              if (rechazo) showError(rechazo);
+            } catch (e) {
+              if (esRedirectDeNext(e)) throw e;
+              showError(sinRespuestaAlAvanzar("Preparar", p.code, navigator.onLine));
+              return;
+            }
+            router.push(t.href);
+          });
+        }}
+      >
+        {pending ? "Abriendo…" : t.texto}
+      </button>
+    );
+  }
+  if (t.tipo === "seguir" || t.tipo === "rendicion") {
+    return (
+      <Link href={t.href} data-tecla-de={p.id} className={TECLA_PRIMARIA} aria-label={etiqueta}>
+        {t.texto}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" data-tecla-de={p.id} className={TECLA_PRIMARIA} aria-label={etiqueta} onClick={() => onAbrir(p.id, "cobro")}>
+      {t.tipo === "cobrar" ? `Cobrar ${textoPlata(p.total)}` : t.texto}
+    </button>
+  );
+}
+
+/** «Avisar» (Listo sin avisar) o «Recordarle» (el retiro, o el pago de lo entregado sin cobrar). */
+function TeclaDeWhatsApp({ p }: { p: PedidoDelTablero }) {
+  const router = useRouter();
+  if (p.status === "READY" && p.avisoWa && !p.avisado && !p.reparto) {
+    return (
+      <a
+        href={p.avisoWa}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={TECLA_SECUNDARIA}
+        aria-label={`Avisar por WhatsApp que está listo: ${p.cliente}, pedido #${p.code}`}
+        onClick={() => void registrarAvisoWhatsApp(p.id, "pedido-listo").catch(() => undefined).finally(() => router.refresh())}
+      >
+        Avisar
+      </a>
+    );
+  }
+  if (!p.recordarle) return null;
+  return (
+    <a
+      href={p.recordarle}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={TECLA_SECUNDARIA}
+      aria-label={`Recordarle por WhatsApp: ${p.cliente}, pedido #${p.code}`}
+      onClick={() => {
+        const constancia = p.status === "DELIVERED" ? registrarRecordatorioDeCobro(p.id) : registrarAvisoWhatsApp(p.id, "recordatorio-retiro");
+        void constancia.catch(() => undefined);
+      }}
+    >
+      Recordarle
+    </a>
+  );
+}
+
+function TarjetaDelPedido({
+  p,
+  extra,
+  otros,
+  puedeOperar,
+  anulacion,
+  hoy,
+  onAbrir,
+  onNoRetiro,
+}: {
+  p: PedidoDelTablero;
+  extra: ExtraDelPedido | undefined;
+  otros: readonly number[];
+  puedeOperar: boolean;
+  anulacion: Anulacion;
+  hoy: string;
+  onAbrir: (id: string, seccion?: SeccionDelCajon) => void;
+  onNoRetiro: (p: PedidoDelTablero) => void;
+}) {
+  const vocab = useVocabulario();
+  const uid = useId();
+  const doble = textoDeOtrosPedidos(otros);
+  const entrega =
+    p.entrega === "DELIVERY"
+      ? ["Envío", p.zona, p.horario?.texto.replace(/^Envío\s+/, "")].filter(Boolean).join(" · ")
+      : (p.horario?.texto ?? vocab.corto);
+  const resumen = resumenDeLineas(p.lineas);
+  const deAyer = listoDesdeAyer(p, hoy);
+  return (
+    <li>
+      <article aria-labelledby={`${uid}-t`} data-pedido={p.code} className="flex flex-col gap-1.5 rounded-lg border border-line bg-surface-raised p-3">
+        <header className="flex items-start justify-between gap-2">
+          <button
+            type="button"
+            id={`${uid}-t`}
+            onClick={() => onAbrir(p.id)}
+            className="min-w-0 text-left font-semibold text-strong hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            <span className="tabular-nums">#{p.code}</span> · {p.cliente}
+            {p.canal === "COUNTER" && <span className="font-normal text-muted"> · mostrador</span>}
+          </button>
+          <span className="shrink-0 text-xs text-muted tabular-nums">{p.cuando}</span>
+        </header>
+        {p.telefono && <p className="text-xs text-muted tabular-nums">{p.telefono}</p>}
+        <p className={`text-sm ${p.horario?.esHoy ? "font-semibold text-strong" : "text-body"}`}>{entrega}</p>
+        <p className="flex items-baseline justify-between gap-2 text-sm">
+          <span className="min-w-0 text-muted">{resumen || `${p.lineas.length} renglones`}</span>
+          <span className="shrink-0 font-semibold tabular-nums text-strong">
+            <Plata valor={p.total} />
+          </span>
+        </p>
+        <p className="flex flex-wrap gap-1.5">
+          {p.cobrado ? <Marca tipo="hecho">{p.medio ? `Cobrado · ${p.medio}` : "Cobrado"}</Marca> : null}
+          {p.reparto && <Marca tipo="info">En la calle desde {p.reparto.desde}</Marca>}
+          {p.status === "READY" && p.avisado && !p.reparto && <Marca tipo="hecho">Avisado {p.avisado}</Marca>}
+          {deAyer && p.entrega === "PICKUP" && <Marca tipo="atencion">Listo desde ayer sin retirar</Marca>}
+          {doble && <Marca tipo="atencion">{doble}</Marca>}
+        </p>
+        {puedeOperar && (
+          <footer className="mt-1 flex items-center gap-1.5">
+            <TeclaGrande p={p} onAbrir={onAbrir} />
+            <TeclaDeWhatsApp p={p} />
+            <MenuMas etiqueta={`Más acciones del pedido #${p.code}`}>
+              <button type="button" onClick={() => onAbrir(p.id)}>
+                Ver el pedido
+              </button>
+              {extra?.whatsapp && (
+                <a href={extra.whatsapp} target="_blank" rel="noopener noreferrer">
+                  Escribirle por WhatsApp
+                </a>
+              )}
+              {extra?.ajustar && (
+                <button type="button" onClick={() => onAbrir(p.id, "ajustar")}>
+                  {extra.ajustar.items.some((i) => i.saleUnit === "WEIGHT") ? "Pesar y ajustar" : "Ajustar el pedido"}
+                </button>
+              )}
+              {extra?.link && (
+                <button type="button" onClick={() => onAbrir(p.id, "link")}>
+                  Mandar link de pago
+                </button>
+              )}
+              {anulacion && puedeMarcarNoRetiro(p) && (
+                <button type="button" onClick={() => onNoRetiro(p)}>
+                  No retiró…
+                </button>
+              )}
+              {anulacion && (
+                <button type="button" data-peligro onClick={() => onAbrir(p.id, "anular")}>
+                  Anular…
+                </button>
+              )}
+            </MenuMas>
+          </footer>
+        )}
+      </article>
+    </li>
+  );
+}
+
+function BandejaEnColumnas({
+  pedidos,
+  todos,
+  extras,
+  puedeOperar,
+  anulacion,
+  hoy,
+  columna,
+  onColumna,
+  onAbrir,
+  onNoRetiro,
+  fiado = false,
+}: {
+  pedidos: PedidoDelTablero[];
+  /** Todos los abiertos (el doble pedido de la clienta se busca en todos, no sólo en los filtrados). */
+  todos: PedidoDelTablero[];
+  extras: Record<string, ExtraDelPedido>;
+  puedeOperar: boolean;
+  anulacion: Anulacion;
+  hoy: string;
+  columna: ColumnaDeLaBandeja;
+  onColumna: (c: ColumnaDeLaBandeja) => void;
+  onAbrir: (id: string, seccion?: SeccionDelCajon) => void;
+  onNoRetiro: (p: PedidoDelTablero) => void;
+  /** El fiado del negocio prendido (2D): lo entregado sin cobrar con ficha va a la cuenta del cliente. */
+  fiado?: boolean;
+}) {
+  const uid = useId();
+  const columnas = bandejaEnColumnas(pedidos);
+  const conteos = conteosDeLasColumnas(columnas);
+  const otros = otrosPedidosDeLaClienta(todos);
+  return (
+    <div data-bandeja="columnas">
+      {/* Celular y tablet vertical: una columna por vez, con su contador. */}
+      <div role="tablist" aria-label="Columnas de pedidos" className="mb-3 flex max-w-full gap-1.5 overflow-x-auto pb-0.5 lg:hidden">
+        {COLUMNAS_DE_LA_BANDEJA.map((c) => (
+          <button
+            key={c}
+            type="button"
+            role="tab"
+            id={`${uid}-tab-${c}`}
+            aria-selected={columna === c}
+            aria-controls={`${uid}-col-${c}`}
+            data-ui="chip"
+            onClick={() => onColumna(c)}
+            className={
+              "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-medium " +
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus " +
+              (columna === c ? "border-accent bg-accent text-on-accent" : "border-line-strong bg-surface-raised text-strong")
+            }
+          >
+            {TITULO_DE_LA_COLUMNA[c]}
+            <span className="tabular-nums">{conteos[c]}</span>
+          </button>
+        ))}
+      </div>
+      <div className="lg:grid lg:grid-cols-5 lg:gap-3">
+        {COLUMNAS_DE_LA_BANDEJA.map((c) => (
+          <section
+            key={c}
+            id={`${uid}-col-${c}`}
+            role="tabpanel"
+            aria-labelledby={`${uid}-h-${c}`}
+            className={`min-w-0 flex-col gap-2 ${columna === c ? "flex" : "hidden lg:flex"}`}
+          >
+            <h2 id={`${uid}-h-${c}`} className="flex items-center justify-between gap-2 border-b border-line-strong pb-1 text-sm font-semibold uppercase tracking-wide text-muted">
+              <span>{TITULO_DE_LA_COLUMNA[c]}</span>
+              <span className="tabular-nums text-strong">{conteos[c]}</span>
+            </h2>
+            {c === "a-cobrar" && fiado && (
+              <p data-bandeja="fiado" className="text-sm text-muted">
+                Lo que se entrega sin cobrar a un cliente con ficha va a su cuenta:{" "}
+                <Link href="/admin/cuentas-a-cobrar" className="font-medium text-accent-ink underline underline-offset-4">
+                  Fiado y cuentas
+                </Link>
+                .
+              </p>
+            )}
+            {c === "en-reparto" && conteos[c] > 0 && (
+              <Link href={HREF_RENDICION} className="text-sm font-medium text-accent-ink underline underline-offset-4">
+                Rendición del cadete
+              </Link>
+            )}
+            {columnas[c].length === 0 ? (
+              <p className="py-2 text-sm text-muted">{VACIO_DE_LA_COLUMNA[c]}</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {columnas[c].map((p) => (
+                  <TarjetaDelPedido
+                    key={p.id}
+                    p={p}
+                    extra={extras[p.id]}
+                    otros={otros.get(p.id) ?? []}
+                    puedeOperar={puedeOperar}
+                    anulacion={anulacion}
+                    hoy={hoy}
+                    onAbrir={onAbrir}
+                    onNoRetiro={onNoRetiro}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * «No retiró»: anular el Listo que nunca vinieron a buscar, con el motivo ya escrito (E31). La
+ * carne vuelve al stock salvo que se tilde lo contrario; la regla (quién, qué día, motivo) la
+ * decide el servidor en `anularVenta`, como cualquier anulación. Sin estado propio (Gate 2).
+ */
+function NoRetiro({ p, motivoObligatorio, onCerrar }: { p: PedidoDelTablero; motivoObligatorio: boolean; onCerrar: () => void }) {
+  const router = useRouter();
+  const { showError, showSuccess } = useToast();
+  const [motivo, setMotivo] = useState(MOTIVO_NO_RETIRO);
+  const [stockNoVolvio, setStockNoVolvio] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const uid = useId();
+  function enviar() {
+    const fd = new FormData();
+    fd.set("id", p.id);
+    fd.set("motivo", motivo);
+    if (stockNoVolvio) fd.set("stockNoVolvio", "on");
+    startTransition(async () => {
+      let r;
+      try {
+        r = await anularVenta(null, fd);
+      } catch (e) {
+        if (esRedirectDeNext(e)) throw e;
+        const msg = "No se pudo anular. Revisá la conexión y volvé a intentar: si ya se había anulado, no se anula dos veces.";
+        setError(msg);
+        showError(msg);
+        return;
+      }
+      if (r && !r.ok) {
+        setError(r.error);
+        return;
+      }
+      showSuccess(r?.mensaje ?? `Pedido #${p.code} anulado: no lo retiró.`);
+      onCerrar();
+      router.refresh();
+    });
+  }
+  return (
+    <Dialogo abierto onCerrar={onCerrar} titulo={`#${p.code} no se retiró`} descripcion={`${p.cliente} · ${p.cuando}`}>
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!pending) enviar();
+        }}
+        className="flex flex-col gap-3"
+      >
+        <p className="text-sm text-body">
+          {p.cobrado ? "Estaba cobrado: se devuelve la plata en la caja del día en que se cobró." : "No estaba cobrado: la caja no se toca."} La
+          mercadería vuelve al stock.
+        </p>
+        <Field label={`Motivo ${motivoObligatorio ? "(obligatorio)" : "(queda en la auditoría)"}`} htmlFor={`${uid}-motivo`} error={error ?? undefined}>
+          <Input
+            id={`${uid}-motivo`}
+            value={motivo}
+            maxLength={MOTIVO_MAX}
+            aria-required={motivoObligatorio || undefined}
+            aria-invalid={error ? true : undefined}
+            onChange={(e) => {
+              setMotivo(e.target.value);
+              setError(null);
+            }}
+          />
+        </Field>
+        <label htmlFor={`${uid}-stock`} className="flex min-h-11 items-center gap-2 text-sm text-body">
+          <input id={`${uid}-stock`} type="checkbox" checked={stockNoVolvio} onChange={(e) => setStockNoVolvio(e.target.checked)} className="size-5" />
+          La mercadería no volvió al stock (se tiró o se regaló)
+        </label>
+        <Button type="submit" variant="danger" disabled={pending} estado={pending ? "cargando" : undefined}>
+          {pending ? "Anulando…" : `Anular el pedido #${p.code}`}
+        </Button>
+      </form>
+    </Dialogo>
+  );
+}
+
 // ── El tablero ───────────────────────────────────────────────────────────────
 
 export default function TableroPedidos({
@@ -348,6 +758,7 @@ export default function TableroPedidos({
   anulacion,
   simulacion,
   tomarPedido,
+  fiado = false,
 }: {
   abiertos: PedidoDelTablero[];
   cerrados: PedidoCerrado[];
@@ -358,6 +769,8 @@ export default function TableroPedidos({
   simulacion: boolean;
   /** «Tomar un pedido» (Vender en modo pedido), si esta persona puede. */
   tomarPedido: string | null;
+  /** Mostrador boutique con el fiado del negocio prendido (2D): lo dice la columna «A cobrar». */
+  fiado?: boolean;
 }) {
   const vocab = useVocabulario();
   const params = useSearchParams();
@@ -368,7 +781,13 @@ export default function TableroPedidos({
   const [seccion, setSeccion] = useState<SeccionDelCajon>(null);
   const [avisar, setAvisar] = useState<string[]>([]);
   const [anularCerrado, setAnularCerrado] = useState<PedidoCerrado | null>(null);
+  const [noRetiro, setNoRetiro] = useState<PedidoDelTablero | null>(null);
   const empujado = useRef(false);
+  // MOSTRADOR BOUTIQUE (2C): la bandeja en columnas. `?vista=lista` vuelve a la tabla de siempre
+  // (con el lote y los filtros por estado); «Cerrados» sigue siendo la tabla del historial.
+  const { boutique } = useCobroDelNegocio();
+  const enColumnas = boutique && comercio && params.get("vista") !== "lista" && filtros.estado !== "cerrados";
+  const [columna, setColumna] = useState<ColumnaDeLaBandeja>(() => leerColumnaDeLaUrl(params.get("columna")));
 
   // La URL manda: se cambia sin ir al servidor (los pedidos ya están acá).
   const cambiarUrl = (cambios: Record<string, string | null>, modo: "reemplazar" | "empujar" = "reemplazar") => {
@@ -541,8 +960,79 @@ export default function TableroPedidos({
     </div>
   );
 
+  const aSalir = enColumnas ? abiertos.filter((p) => p.entrega === "DELIVERY" && p.status === "READY" && !p.reparto).length : 0;
+  const barraDeColumnas = enColumnas ? (
+    <div data-ui="filtros" role="toolbar" aria-label="Filtrar y repartir los pedidos" className="mb-3 flex flex-wrap items-center gap-2">
+      <div role="group" aria-label="Canal" className="flex gap-1.5">
+        {([
+          [null, "Todos"],
+          ["pedido", "Pedidos"],
+          ["mostrador", "Mostrador"],
+        ] as const).map(([c, etiqueta]) => (
+          <Chip key={etiqueta} prendido={filtros.canal === c} onClick={() => cambiarUrl({ canal: c })}>
+            {etiqueta}
+          </Chip>
+        ))}
+      </div>
+      <Link
+        href={HREF_ARMAR_REPARTO}
+        className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-3 text-sm font-semibold text-strong hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      >
+        Armar reparto{aSalir > 0 ? ` · ${aSalir} para salir` : ""}
+      </Link>
+      <button
+        type="button"
+        className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-accent-ink underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        onClick={() => cambiarUrl({ vista: "lista" })}
+      >
+        Ver en lista
+      </button>
+      <button
+        type="button"
+        className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-accent-ink underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        onClick={() => cambiarUrl({ estado: "cerrados", vista: null })}
+      >
+        Cerrados
+      </button>
+      {buscadorEl}
+    </div>
+  ) : null;
+
   return (
     <section aria-label="Pedidos" data-tablero="pedidos">
+      {enColumnas ? (
+        <>
+          {barraDeColumnas}
+          {abiertos.length === 0 ? (
+            <p data-ui="vacio" className="flex flex-wrap items-center gap-3 border-y border-line py-4 text-sm text-body">
+              Nada esperando. Tomá un pedido o vendé en el mostrador.
+              {tomarPedido && (
+                <a href={tomarPedido} data-ui="button" data-variant="outline" data-size="sm" className="inline-flex h-11 items-center rounded-md border border-line-strong px-3 text-sm font-medium sm:h-9">
+                  Tomar un pedido
+                </a>
+              )}
+            </p>
+          ) : (
+            <BandejaEnColumnas
+              pedidos={filtrarPedidos(abiertos, { estado: "abiertos", canal: filtros.canal, q })}
+              todos={abiertos}
+              extras={extras}
+              puedeOperar={puedeOperar}
+              anulacion={anulacion}
+              hoy={dateStrInBusinessTz(new Date())}
+              columna={columna}
+              onColumna={(c) => {
+                setColumna(c);
+                cambiarUrl({ columna: c === "nuevos" ? null : c });
+              }}
+              onAbrir={abrir}
+              onNoRetiro={setNoRetiro}
+              fiado={fiado}
+            />
+          )}
+        </>
+      ) : (
+      <>
       {/* En el celular, estado y canal van en UNA fila con scroll propio (antes, dos filas). */}
       <div data-ui="filtros" role="toolbar" aria-label="Filtrar los pedidos">
         <div role="group" aria-label="Estado" className="flex max-w-full gap-1.5 overflow-x-auto pb-0.5">
@@ -558,6 +1048,11 @@ export default function TableroPedidos({
             </Chip>
           ))}
         </div>
+        {boutique && comercio && (
+          <Chip onClick={() => cambiarUrl({ vista: null, estado: null })} className="shrink-0">
+            Ver en columnas
+          </Chip>
+        )}
         {filtros.estado !== "cerrados" && !sinAbiertos && (
           <div role="group" aria-label="Canal" className="flex gap-1.5 max-sm:shrink-0 max-sm:border-l max-sm:border-line max-sm:pl-2">
             {([
@@ -649,6 +1144,12 @@ export default function TableroPedidos({
           pie={<span>{orden ? null : "Más nuevo primero"}</span>}
           className="[&_tbody_tr]:cursor-pointer"
         />
+      )}
+      </>
+      )}
+
+      {noRetiro && anulacion && (
+        <NoRetiro p={noRetiro} motivoObligatorio={anulacion.motivoObligatorio} onCerrar={() => setNoRetiro(null)} />
       )}
 
       <PedidoCajon

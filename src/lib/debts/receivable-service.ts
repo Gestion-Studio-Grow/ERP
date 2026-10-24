@@ -7,7 +7,7 @@
 // desde los Collections — acá solo se escriben hechos. Comercio: fiado light (sin dueDate);
 // Empresa: con vencimiento (lo decide el llamador según perfil).
 //
-// Con `CUENTAS_CORRIENTES_ENABLED` el cobro además ASIENTA el ingreso en el libro de caja en
+// Con las cuentas corrientes del negocio prendidas (`cuentasCorrientesDe`) el cobro además ASIENTA el ingreso en el libro de caja en
 // la misma transacción (settlement/asiento-libro.ts): la plata del fiado que entra al cajón
 // pasa por el libro y el cierre del día cuadra. Apagado, se comporta como antes.
 
@@ -17,7 +17,7 @@ import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { round2 } from "@/lib/round";
 import { aplicarConAsientoInTx, applyCollectionInTx } from "@/lib/settlement/collection-repo";
-import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
+import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
 
 export interface CreateReceivableInput {
   clientId: string;
@@ -118,8 +118,15 @@ export async function cobrarFiadoInTx(
  * En UNA transacción Serializable (`cobrarFiadoInTx`), con el libro o sin él: antes, con el
  * flag apagado, la cuenta se leía afuera y el cobro se escribía en otra transacción.
  */
-export async function collectReceivable(tenantId: string, receivableId: string, input: CobroFiadoInput) {
-  const asentarEnLibro = cuentasCorrientesEnabled();
+export async function collectReceivable(
+  tenantId: string,
+  receivableId: string,
+  input: CobroFiadoInput,
+  opts: { asentarEnLibro?: boolean } = {},
+) {
+  // Las cuentas corrientes de ESTE negocio (interruptor por negocio; si nunca se tocó, la variable
+  // de siempre). La action que ya lo leyó para su mensaje lo pasa, así deciden lo mismo.
+  const asentarEnLibro = opts.asentarEnLibro ?? (await cuentasCorrientesDe(tenantId));
   return tenantTransaction(
     (tx) => cobrarFiadoInTx(tx, tenantId, receivableId, input, new Date(), asentarEnLibro),
     { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

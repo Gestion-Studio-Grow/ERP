@@ -64,6 +64,14 @@ export type PedidoDelTablero = {
   avisoWa: string | null;
   /** Cuándo se abrió por última vez el aviso de listo (auditoría), "10:12"; null si nunca. */
   avisado: string | null;
+  // ── Sólo con el mostrador boutique (Magra tanda 2 · 2C). Apagado, no viajan (la bandeja de CH y
+  //    de Shine recibe exactamente lo de siempre). ──
+  /** La zona del envío («Canning – barrios cerrados»), de la nota o del renglón del envío. */
+  zona?: string | null;
+  /** Salió con el cadete y todavía no se rindió: desde cuándo («17:05»). null/ausente = no. */
+  reparto?: { desde: string } | null;
+  /** «Recordarle» por WhatsApp, armado: el retiro (Listo) o el pago (Entregado sin cobrar). */
+  recordarle?: string | null;
 };
 
 /** Un pedido cerrado (anulado o entregado y cobrado): historial, con la anulación si aplica. */
@@ -515,3 +523,230 @@ export function textoDePedidosWebNuevos(nuevos: readonly PedidoWeb[]): string | 
 export function puedeRefrescarLaBandeja(estado: { visible: boolean; escribiendo: boolean; dialogoAbierto: boolean }): boolean {
   return estado.visible && !estado.escribiendo && !estado.dialogoAbierto;
 }
+
+// ── EL CHIP DE PEDIDOS NUEVOS EN LA CABECERA (reingeniería Magra 1I, E30 · MG-054) ──────────────
+// El aviso de arriba vive en la bandeja: con la pestaña de Vender abierta, el pedido de la tienda
+// entraba y nadie se enteraba. El chip de la cabecera (ChipDePedidosNuevos.tsx) está en TODO el panel
+// y lee sólo esto: cuántos pedidos de la tienda esperan sin que nadie los toque, desde cuándo espera
+// el más viejo (para abrirlo con un toque) y el número más alto (para saber si entró uno nuevo).
+// «Nuevo» es lo MISMO que cuenta la línea de estado del tablero (`pedidosDeLaTiendaEsperando`):
+// ONLINE y en PENDING. La lectura es del servidor (pedidos-nuevos.ts); acá, sólo la regla y el texto.
+
+/** Qué es un pedido nuevo de la tienda: el mismo criterio que `pedidosDeLaTiendaEsperando`. */
+export const CRITERIO_PEDIDO_NUEVO = { channel: "ONLINE", status: "PENDING" } as const;
+
+/** Cada cuánto pregunta el chip (sólo con la pestaña a la vista). El mismo ritmo que la bandeja. */
+export const REFRESCO_DEL_CHIP_MS = REFRESCO_DE_LA_BANDEJA_MS;
+
+/** Volver a la pestaña pregunta enseguida, salvo que la última vez haya sido hace menos de esto. */
+export const PAUSA_MINIMA_DEL_CHIP_MS = 15_000;
+
+/** Lo que contesta el servidor. Serializable. */
+export type ConteoDePedidosNuevos = {
+  cantidad: number;
+  /** El que espera hace más (para el «hace X min» y para abrirlo). null si no hay ninguno. */
+  masViejo: { id: string; code: number; creado: string } | null;
+  /** El número más alto entre los que esperan: si sube, entró uno nuevo. null si no hay ninguno. */
+  ultimoCode: number | null;
+};
+
+/** Minutos enteros desde `creado` (ISO) hasta `ahora` (ms). Nunca negativo. PURA. */
+function minutosDesde(creado: string, ahora: number): number {
+  const t = Date.parse(creado);
+  return Number.isFinite(t) ? Math.max(0, Math.floor((ahora - t) / 60_000)) : 0;
+}
+
+/**
+ * Lo que dice el chip: «2 pedidos nuevos · el más viejo hace 12 min»; uno solo: «1 pedido nuevo ·
+ * hace 3 min». null si no hay ninguno (el chip no se muestra). PURA (recibe la hora).
+ */
+export function textoDelChipDePedidosNuevos(c: ConteoDePedidosNuevos, ahora: number): string | null {
+  if (c.cantidad <= 0) return null;
+  const m = c.masViejo ? minutosDesde(c.masViejo.creado, ahora) : 0;
+  const hace = m < 1 ? "hace menos de 1 min" : `hace ${duracionCorta(m)}`;
+  return c.cantidad === 1 ? `1 pedido nuevo · ${hace}` : `${c.cantidad} pedidos nuevos · el más viejo ${hace}`;
+}
+
+/**
+ * El nombre del chip para el lector de pantalla: arranca con lo MISMO que se ve (quien maneja la
+ * pantalla con la voz dice lo que lee) y suma de dónde son y a dónde lleva el toque. PURA.
+ */
+export function etiquetaDelChipDePedidosNuevos(c: ConteoDePedidosNuevos, ahora: number): string | null {
+  const texto = textoDelChipDePedidosNuevos(c, ahora);
+  if (!texto || !c.masViejo) return texto;
+  return `${texto}. Pedidos de la tienda: abrir el #${c.masViejo.code}`;
+}
+
+/**
+ * ¿Entró un pedido nuevo desde la vuelta anterior? PURA. `anterior` null es la primera lectura de
+ * la pantalla: lo que ya estaba no suena (como el aviso de la bandeja). Se mira el número más alto
+ * y no la cantidad: si en la misma vuelta se tomó uno y entró otro, la cantidad no cambia y el
+ * pedido nuevo igual tiene que sonar.
+ */
+export function entroUnPedidoNuevo(anterior: ConteoDePedidosNuevos | null, actual: ConteoDePedidosNuevos): boolean {
+  if (anterior === null || actual.ultimoCode === null) return false;
+  return anterior.ultimoCode === null || actual.ultimoCode > anterior.ultimoCode;
+}
+
+/** Lo que se anuncia (aria-live) cuando entra uno: «Entró un pedido nuevo de la tienda (#130).». PURA. */
+export function anuncioDelChip(actual: ConteoDePedidosNuevos): string {
+  const numero = actual.ultimoCode !== null ? ` (#${actual.ultimoCode})` : "";
+  const resto = actual.cantidad > 1 ? ` Hay ${actual.cantidad} esperando.` : "";
+  return `Entró un pedido nuevo de la tienda${numero}.${resto}`;
+}
+
+// ── LA BANDEJA EN COLUMNAS (reingeniería Magra, tanda 2 · 2C; magra-DISENO.md §2.2) ─────────────
+// Con el mostrador boutique prendido, la bandeja deja de ser una tabla con filtros y pasa a ser el
+// tablero físico del local: cinco columnas, de izquierda a derecha el camino del pedido, y en cada
+// tarjeta UNA tecla grande para el paso que sigue. En el celular, pestañas con su contador.
+//
+//   Nuevos      (Pendiente / Confirmado)  → «Armar»            (lo pasa a Preparando y abre Armar)
+//   Preparando  (En preparación)          → «Seguir armando»
+//   Listos      (Listo, no salió)         → «Entregar y cobrar» (el pie de cobro, en el cajón)
+//   En reparto  (Listo y salió con el cadete, sin rendir) → «Rendición del cadete»
+//   A cobrar    (Entregado sin cobrar)    → «Cobrar»            (el pie de cobro)
+//
+// No hay estado nuevo (sin migración): «En reparto» es un Listo con la marca de salida del reparto
+// (AuditLog, `reparto/reparto-core.ts`). Las reglas de cada paso siguen en el servidor.
+
+export const COLUMNAS_DE_LA_BANDEJA = ["nuevos", "preparando", "listos", "en-reparto", "a-cobrar"] as const;
+export type ColumnaDeLaBandeja = (typeof COLUMNAS_DE_LA_BANDEJA)[number];
+
+export const TITULO_DE_LA_COLUMNA: Record<ColumnaDeLaBandeja, string> = {
+  nuevos: "Nuevos",
+  preparando: "Preparando",
+  listos: "Listos",
+  "en-reparto": "En reparto",
+  "a-cobrar": "A cobrar",
+};
+
+/** Lo que dice la columna vacía: qué va a aparecer ahí (nunca un hueco mudo). */
+export const VACIO_DE_LA_COLUMNA: Record<ColumnaDeLaBandeja, string> = {
+  nuevos: "Ningún pedido nuevo.",
+  preparando: "Nada armándose.",
+  listos: "Nada listo esperando.",
+  "en-reparto": "Ningún envío en la calle.",
+  "a-cobrar": "Nada entregado sin cobrar.",
+};
+
+/** ¿En qué columna va un pedido abierto? PURA. null = no va en la bandeja (cerrado). */
+export function columnaDelPedido(p: { status: string; cobrado: boolean; reparto?: { desde: string } | null }): ColumnaDeLaBandeja | null {
+  switch (p.status) {
+    case "PENDING":
+    case "CONFIRMED":
+      return "nuevos";
+    case "PREPARING":
+      return "preparando";
+    case "READY":
+      return p.reparto ? "en-reparto" : "listos";
+    case "DELIVERED":
+      return p.cobrado ? null : "a-cobrar";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Los pedidos repartidos en las cinco columnas. PURA. Dentro de cada columna, primero el que más
+ * espera (el trabajo se hace por orden de llegada); en Listos, primero el que tiene horario más
+ * temprano (lo que hay que entregar antes) y después los sin horario, por orden de llegada.
+ */
+export function bandejaEnColumnas<T extends Pick<PedidoDelTablero, "status" | "cobrado" | "creado" | "code" | "horarioIso" | "reparto">>(
+  pedidos: readonly T[],
+): Record<ColumnaDeLaBandeja, T[]> {
+  const out = { nuevos: [], preparando: [], listos: [], "en-reparto": [], "a-cobrar": [] } as Record<ColumnaDeLaBandeja, T[]>;
+  for (const p of pedidos) {
+    const c = columnaDelPedido(p);
+    if (c) out[c].push(p);
+  }
+  const porLlegada = (a: T, b: T) => a.creado.localeCompare(b.creado) || a.code - b.code;
+  for (const c of COLUMNAS_DE_LA_BANDEJA) out[c].sort(porLlegada);
+  out.listos.sort((a, b) => {
+    if (a.horarioIso && b.horarioIso && a.horarioIso !== b.horarioIso) return a.horarioIso.localeCompare(b.horarioIso);
+    if (a.horarioIso && !b.horarioIso) return -1;
+    if (!a.horarioIso && b.horarioIso) return 1;
+    return porLlegada(a, b);
+  });
+  return out;
+}
+
+/** La pantalla Armar y pesar del pedido (tanda 1 · 1C). */
+export function hrefDeArmar(code: number): string {
+  return `/admin/pedidos/${code}/armar`;
+}
+
+export const HREF_ARMAR_REPARTO = "/admin/pedidos/reparto";
+export const HREF_RENDICION = "/admin/pedidos/reparto/rendicion";
+
+export type TeclaDeLaTarjeta =
+  /** Nuevo: lo pasa a Preparando (la guarda de siempre) y abre Armar. */
+  | { tipo: "armar"; texto: "Armar"; href: string }
+  | { tipo: "seguir"; texto: "Seguir armando"; href: string }
+  /** Listo: el pie de cobro en el cajón (o entregar directo si ya está pago). */
+  | { tipo: "entregar"; texto: "Entregar y cobrar" | "Entregar" }
+  | { tipo: "rendicion"; texto: "Rendición del cadete"; href: string }
+  | { tipo: "cobrar"; texto: "Cobrar" };
+
+/** LA tecla de la tarjeta: el paso que sigue según la columna. PURA. */
+export function teclaDeLaTarjeta(p: Pick<PedidoDelTablero, "status" | "cobrado" | "code" | "reparto">): TeclaDeLaTarjeta | null {
+  switch (columnaDelPedido(p)) {
+    case "nuevos":
+      return { tipo: "armar", texto: "Armar", href: hrefDeArmar(p.code) };
+    case "preparando":
+      return { tipo: "seguir", texto: "Seguir armando", href: hrefDeArmar(p.code) };
+    case "listos":
+      return { tipo: "entregar", texto: p.cobrado ? "Entregar" : "Entregar y cobrar" };
+    case "en-reparto":
+      return { tipo: "rendicion", texto: "Rendición del cadete", href: HREF_RENDICION };
+    case "a-cobrar":
+      return { tipo: "cobrar", texto: "Cobrar" };
+    default:
+      return null;
+  }
+}
+
+/** Cuántos hay en cada columna (las pestañas del celular y los encabezados). PURA. */
+export function conteosDeLasColumnas(columnas: Record<ColumnaDeLaBandeja, readonly unknown[]>): Record<ColumnaDeLaBandeja, number> {
+  return {
+    nuevos: columnas.nuevos.length,
+    preparando: columnas.preparando.length,
+    listos: columnas.listos.length,
+    "en-reparto": columnas["en-reparto"].length,
+    "a-cobrar": columnas["a-cobrar"].length,
+  };
+}
+
+/** Lee la columna de la URL (`?columna=listos`, la pestaña del celular). Lo desconocido: Nuevos. */
+export function leerColumnaDeLaUrl(valor: string | null | undefined): ColumnaDeLaBandeja {
+  const v = (valor ?? "").trim();
+  return (COLUMNAS_DE_LA_BANDEJA as readonly string[]).includes(v) ? (v as ColumnaDeLaBandeja) : "nuevos";
+}
+
+/**
+ * Lo que lleva, en una línea corta para la tarjeta y la hoja del cadete: «0,5 kg Vacío · 6 × Chorizo».
+ * Sin el renglón del envío (se lee aparte, como la zona). Hasta tres renglones y «y N más». PURA.
+ */
+export function resumenDeLineas(
+  lineas: readonly { productId: string | null; nombre: string; unidad: "UNIT" | "WEIGHT"; cantidad: number; marca?: string | null }[],
+): string {
+  const productos = lineas.filter((l) => l.marca !== "envío" && !(l.productId == null && /^env[ií]o\b/i.test(l.nombre)));
+  const texto = (l: (typeof productos)[number]) => {
+    const n = Math.round(l.cantidad * 1000) / 1000;
+    const cantidad = String(n).replace(".", ",");
+    return l.unidad === "WEIGHT" ? `${cantidad} kg ${l.nombre}` : `${cantidad} × ${l.nombre}`;
+  };
+  const primeros = productos.slice(0, 3).map(texto);
+  const resto = productos.length - primeros.length;
+  return resto > 0 ? `${primeros.join(" · ")} y ${resto} más` : primeros.join(" · ");
+}
+
+/** El motivo sugerido para anular el Listo que nunca vinieron a buscar (E31; sin estado propio: Gate 2). */
+export const MOTIVO_NO_RETIRO = "No retiró";
+
+/** ¿Se ofrece «No retiró…»? Sólo un retiro Listo (un envío que vuelve se rinde como «Volvió»). PURA. */
+export function puedeMarcarNoRetiro(p: Pick<PedidoDelTablero, "status" | "entrega">): boolean {
+  return p.status === "READY" && p.entrega === "PICKUP";
+}
+
+// «Recordarle» el pago de un pedido entregado sin cobrar: el texto es UNO solo para la bandeja y la
+// ficha, `recordatorioDePago` (src/lib/clientes/fiado.ts, con `pedido`). Lo arma tablero.server.ts.

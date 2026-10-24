@@ -23,12 +23,22 @@ export default function AppointmentsHistoryList({
   appointments,
   statusLabel,
   practica = false,
+  viewer,
+  permisos,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   appointments: any[];
   statusLabel: Record<string, string>;
   /** Agenda práctica: un completado del historial ofrece «Reservar el próximo». */
   practica?: boolean;
+  /**
+   * B2: quién mira y qué puede. Antes el historial dibujaba las tarjetas sin esto y le ofrecía a
+   * la recepción cobrar o anular turnos de la profesional que cobra aparte; el servidor lo
+   * rechazaba después. Con `viewer`, la fila usa la MISMA regla que el servidor
+   * (`puedeCobrarEsteTurno`) y no ofrece lo que se va a rechazar.
+   */
+  viewer: { role: string; professionalId?: string | null };
+  permisos: { gestionar: boolean; cobrar: boolean };
 }) {
   const [query, setQuery] = useState("");
 
@@ -61,7 +71,15 @@ export default function AppointmentsHistoryList({
           <p className="text-sm text-muted">Todavía no hay turnos en el historial.</p>
         )}
         {filtered.map((a) => (
-          <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} practica={practica} />
+          <AppointmentRow
+            key={a.id}
+            appointment={a}
+            statusLabel={statusLabel}
+            practica={practica}
+            viewer={viewer}
+            canManage={permisos.gestionar}
+            canCollect={permisos.cobrar}
+          />
         ))}
       </div>
     </div>

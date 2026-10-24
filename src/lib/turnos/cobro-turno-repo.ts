@@ -137,6 +137,8 @@ export class CompletarTurnoRechazado extends Error {
 
 export function mensajeNoCompletable(motivo: MotivoNoCompletable | "falta-medio"): string {
   switch (motivo) {
+    case "ya-cerrado":
+      return "Ese turno ya está cerrado.";
     case "no-confirmado":
       return "Solo se puede completar un turno que esté confirmado.";
     case "no-ocurrio":

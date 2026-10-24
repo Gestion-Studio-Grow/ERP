@@ -38,6 +38,7 @@ import { contactoDeLaFicha } from "../contacto-ficha";
 import { hrefNuevoTurno } from "../../turnos/pasos";
 import EditarClienteForm from "./EditarClienteForm";
 import PermisoMensajes from "./PermisoMensajes";
+import MostradorDeLaFicha from "./MostradorDeLaFicha";
 import { comoVieneMostrador, detalleSinDeuda, estadoDeLaFicha, notaDelRitmo, pedidoSinCobrar, teclaPrincipal } from "./ficha-core";
 
 const ESTADO_TURNO: Record<string, string> = {
@@ -57,7 +58,16 @@ const ESTADO_PEDIDO: Record<string, string> = {
   CANCELLED: "Anulado",
 };
 
-export default async function FichaRenglon({ id, user }: { id: string; user: SessionUser }) {
+export default async function FichaRenglon({
+  id,
+  user,
+  conMostrador = false,
+}: {
+  id: string;
+  user: SessionUser;
+  /** Mostrador boutique (Magra, 2D): lo que debe, «Recordarle», «Venderle» y «Repetir» arriba. */
+  conMostrador?: boolean;
+}) {
   const [f, negocio] = await Promise.all([cargarFichaCompleta(id), getNegocioApps(user.role)]);
   if (!f) notFound();
   const { client, resumen, ev } = f;
@@ -150,6 +160,9 @@ export default async function FichaRenglon({ id, user }: { id: string; user: Ses
         actions={acciones}
       />
       {contacto.tipo === "sin-celular" && <p className="-mt-2 mb-6 text-sm text-warning">{contacto.texto}</p>}
+      {conMostrador && (
+        <MostradorDeLaFicha clientId={client.id} nombre={client.name} telefono={client.phone} noQuiere={noQuiere} verPlata={verPlata} />
+      )}
 
       <DosColumnas>
         {/* En el celular va primero lo de la derecha (plata y datos); en la PC, a la derecha. */}

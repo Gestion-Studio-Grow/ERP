@@ -15,7 +15,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { round2 } from "@/lib/round";
 import { aplicarConAsientoInTx, applyCollectionInTx } from "@/lib/settlement/collection-repo";
-import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
+import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
 import { computeSettlement } from "@/lib/settlement/collection";
 import { canTransitionCheque, type ChequeStatus } from "./cheque";
 import { PagoRechazadoError, validarChequeNuevo, validarPagoAMano } from "./resumen-cuentas";
@@ -148,7 +148,7 @@ export async function addChequeToPayable(
 /**
  * El cambio de estado del cheque DENTRO de la transacción del llamador. Exportado para que el
  * test lo ejecute con una transacción falsa; en la app lo llama `transitionCheque`, que abre
- * la transacción Serializable. `asentarEnLibro` es `cuentasCorrientesEnabled()`.
+ * la transacción Serializable. `asentarEnLibro` es `cuentasCorrientesDe(tenantId)`.
  */
 export async function transicionarChequeInTx(
   tx: DebtTx,
@@ -237,10 +237,11 @@ export async function transitionCheque(
   actor: string,
   payableId?: string,
 ): Promise<void> {
+  const asentarEnLibro = await cuentasCorrientesDe(tenantId);
   await tenantTransaction(
     (tx) =>
       transicionarChequeInTx(tx, tenantId, chequeId, to, actor, {
-        asentarEnLibro: cuentasCorrientesEnabled(),
+        asentarEnLibro,
         ahora: new Date(),
         payableId,
       }),
@@ -314,7 +315,7 @@ export async function pagarDeudaInTx(
  * transacción. Devuelve el settlement actualizado.
  */
 export async function payPayable(tenantId: string, payableId: string, input: PagoDeudaInput) {
-  const asentarEnLibro = cuentasCorrientesEnabled();
+  const asentarEnLibro = await cuentasCorrientesDe(tenantId);
   return tenantTransaction(
     (tx) => pagarDeudaInTx(tx, tenantId, payableId, input, new Date(), asentarEnLibro),
     { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

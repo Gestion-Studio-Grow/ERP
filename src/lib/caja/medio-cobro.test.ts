@@ -163,14 +163,41 @@ function cortaConLaRegla(cuerpo: string, escritura: string) {
 test("createOrder y setOrderPaidCore llaman a medioDeCobroRequerido y cortan si rechaza", () => {
   const alta = cuerpoDe(orderActions, "export async function createOrder(");
   cortaConLaRegla(alta, "insertOrder(");
-  // El medio crudo se lee UNA vez, adentro de la llamada a la regla.
-  assert.equal(alta.split('formData.get("paymentMethod")').length - 1, 1);
-  assert.match(alta, /medioDeCobroRequerido\(\{[^}]*paymentMethod: formData\.get\("paymentMethod"\)/);
+  // El medio crudo se lee UNA vez, con `leerPagos` (cobro/leer-pagos.ts: el `paymentMethod` del
+  // formulario o el principal del pago dividido, sin relleno), y va directo a la regla. Si la
+  // lectura de los pagos rechaza, se corta antes de la regla y antes de escribir.
+  assert.equal(alta.split('formData.get("paymentMethod")').length - 1, 0);
+  assert.equal(alta.split("leerPagos(").length - 1, 1);
+  assert.ok(alta.search(/if \(!pagos\.ok\) return \{ ok: false, error: pagos\.error \};/) < alta.search(/const medio = medioDeCobroRequerido\(/));
+  assert.match(alta, /medioDeCobroRequerido\(\{[^}]*paymentMethod: pagos\.medio/);
+  // Los pagos mixtos viajan al alta (y se validan contra el total ADENTRO de la transacción).
+  assert.match(alta, /pagosMixtos: asientos \? \{ asientos \} : null/);
 
   const cobro = cuerpoDe(orderActions, "async function setOrderPaidCore(");
   cortaConLaRegla(cobro, "tenantTransaction(");
   // `methodRaw` aparece en la firma y en la llamada a la regla, en ningún otro lado.
   assert.equal(cobro.split("methodRaw").length - 1, 2);
+});
+
+test("cobrarPedido y entregarPedido leen el medio con leerPagos, nunca el `paymentMethod` crudo con relleno", () => {
+  for (const firma of ["export async function cobrarPedido(", "export async function entregarPedido("]) {
+    const cuerpo = cuerpoDe(orderActions, firma);
+    assert.equal(cuerpo.split('formData.get("paymentMethod")').length - 1, 0, firma);
+    assert.match(cuerpo, /const pagos = leerPagos\(/, firma);
+    assert.match(cuerpo, /if \(!pagos\.ok\) return \{ ok: false, error: pagos\.error \};/, firma);
+    // Los asientos del pago dividido llegan al cobro (setOrderPaidCore → cobrarPedidoEnTx).
+    assert.match(cuerpo, /asientos: pagos\.asientos/, firma);
+  }
+});
+
+test("el pago mixto de un pedido pasa por cobrarPedidoEnTx con imputarPagosMixtosEnTx y sin el asiento único", () => {
+  const cuerpo = cuerpoDe(orderCore, "export async function cobrarPedidoEnTx(");
+  const valida = cuerpo.search(/validarPagosContraElTotal\(mixto, order\.total\)/);
+  const imputa = cuerpo.search(/imputarPagosMixtosEnTx\(/);
+  const vuelve = cuerpo.indexOf("return { tipo: \"cobrado\"", imputa);
+  const unico = cuerpo.search(/recordCashSaleMovementInTx\(/);
+  assert.ok(valida > 0 && imputa > valida, "valida contra el total de la base antes de imputar");
+  assert.ok(vuelve > imputa && vuelve < unico, "con pago mixto no llega al asiento único de la venta");
 });
 
 test("insertOrder (vidriera + ingesta externa) NO llama a la regla", () => {

@@ -11,6 +11,7 @@ import {
   importeParaFormulario,
 } from "@/lib/pos-peso";
 import { useEnvio } from "@/lib/inventario/envio";
+import { TIPOS_DE_FACTURA_DE_COMPRA } from "@/lib/stock/factura-de-compra";
 
 // Producto reponible que llega del loader (getComprasData): con stock/unidad actuales.
 type ReplenishableProduct = {
@@ -38,6 +39,10 @@ type Line = { key: number; productId: string; qtyText: string; costText: string 
 const qtyFmt = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
 
 const lineaVacia = (key: number): Line => ({ key, productId: "", qtyText: "", costText: "" });
+
+// La factura del proveedor, en sus campos fiscales (R3, cert. Magra T1): la misma clave con la que la
+// contadora importa «Mis Comprobantes Recibidos». Todo vacío = la compra no trae factura.
+const FACTURA_VACIA = { tipo: "", puntoVenta: "", numero: "", cuit: "", fecha: "" };
 
 // Mismo blindaje que el POS: sin esto, un doble clic registraba DOS compras (medidas a
 // 52 ms de diferencia) y el stock subía el doble. Reponer mercadería que no llegó es
@@ -90,7 +95,9 @@ export default function ComprasForm({
   // A cuenta corriente: el vencimiento arranca en el plazo que se propone (30 días,
   // provisional) y la factura, vacía. Controlados para que un error no los pierda.
   const [vence, setVence] = useState(cuentaCorriente?.venceSugerido ?? "");
-  const [factura, setFactura] = useState("");
+  const [factura, setFactura] = useState(FACTURA_VACIA);
+  const escribirFactura = (campo: keyof typeof FACTURA_VACIA) => (e: { target: { value: string } }) =>
+    setFactura((f) => ({ ...f, [campo]: e.target.value }));
   const [lines, setLines] = useState<Line[]>([lineaVacia(1)]);
   const [nextKey, setNextKey] = useState(2);
   const [supplierId, setSupplierId] = useState("");
@@ -118,7 +125,7 @@ export default function ComprasForm({
       setNextKey(2);
       setPago("");
       setVence(cuentaCorriente?.venceSugerido ?? "");
-      setFactura("");
+      setFactura(FACTURA_VACIA);
       setKind("COMPRA");
       setSupplierId("");
       setVuelta((v) => v + 1);
@@ -132,6 +139,7 @@ export default function ComprasForm({
     [proveedores],
   );
   const isCompra = kind === "COMPRA";
+  const cuitDelElegido = proveedores.find((p) => p.id === supplierId)?.taxId ?? null;
   const conMaestro = proveedores.length > 0;
   const aCuenta = isCompra && pago === "CUENTA_CORRIENTE";
 
@@ -330,8 +338,8 @@ export default function ComprasForm({
         </label>
       )}
 
-      {/* A cuenta corriente: cuándo vence y el número de factura del proveedor, que es como la
-          dueña la reconoce después en Cuentas a pagar. */}
+      {/* A cuenta corriente: cuándo vence. El número de factura va en «Factura del proveedor» (abajo),
+          y es como la dueña la reconoce después en Cuentas a pagar. */}
       {aCuenta && cuentaCorriente && (
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm">
@@ -340,17 +348,6 @@ export default function ComprasForm({
             <span className="mt-1 block text-xs text-faint">
               Propuesto a {cuentaCorriente.dias} días. Dejalo vacío si no tiene vencimiento.
             </span>
-          </label>
-          <label className="text-sm">
-            <span className="block text-muted mb-1">N° de factura (opcional)</span>
-            <Input
-              name="factura"
-              value={factura}
-              maxLength={40}
-              autoComplete="off"
-              onChange={(e) => setFactura(e.target.value)}
-              placeholder="Ej.: A 0001-00012345"
-            />
           </label>
           {/* Una guía, no un error: dice por qué el botón todavía no se habilita. */}
           {faltaParaCuenta && (
@@ -371,6 +368,72 @@ export default function ComprasForm({
             </p>
           )}
         </div>
+      )}
+
+      {/* La factura del proveedor (R3): tipo, punto de venta, número y CUIT, como figuran en el papel.
+          Con esto, si la contadora importa la misma factura desde ARCA, no se cuenta dos veces. */}
+      {isCompra && conCostos && (
+        <fieldset className="grid gap-3 rounded-md border border-line p-3 sm:grid-cols-2">
+          <legend className="px-1 text-sm text-muted">Factura del proveedor (opcional)</legend>
+          <label className="text-sm">
+            <span className="block text-muted mb-1">Comprobante</span>
+            <Select name="facturaTipo" value={factura.tipo} onChange={escribirFactura("tipo")}>
+              <option value="">Sin factura</option>
+              {TIPOS_DE_FACTURA_DE_COMPRA.map((t) => (
+                <option key={t.tipo} value={t.tipo}>
+                  {t.nombre}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label className="text-sm">
+            <span className="block text-muted mb-1">Fecha de la factura</span>
+            <Input type="date" name="facturaFecha" value={factura.fecha} onChange={escribirFactura("fecha")} />
+            <span className="mt-1 block text-xs text-faint">Vacía, se toma la de hoy.</span>
+          </label>
+          <label className="text-sm">
+            <span className="block text-muted mb-1">Punto de venta</span>
+            <Input
+              name="facturaPuntoVenta"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={5}
+              value={factura.puntoVenta}
+              onChange={escribirFactura("puntoVenta")}
+              placeholder="Ej.: 0001"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="block text-muted mb-1">Número</span>
+            <Input
+              name="facturaNumero"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={8}
+              value={factura.numero}
+              onChange={escribirFactura("numero")}
+              placeholder="Ej.: 00012345"
+            />
+          </label>
+          <label className="text-sm sm:col-span-2">
+            <span className="block text-muted mb-1">CUIT del proveedor</span>
+            <Input
+              name="facturaCuit"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={13}
+              value={factura.cuit}
+              onChange={escribirFactura("cuit")}
+              placeholder={cuitDelElegido ? fmtCuit(cuitDelElegido) : "30-71234567-1"}
+              aria-describedby="factura-cuit-ayuda"
+            />
+            <span id="factura-cuit-ayuda" className="mt-1 block text-xs text-faint">
+              {cuitDelElegido
+                ? `Vacío, se usa el del proveedor elegido (${fmtCuit(cuitDelElegido)}).`
+                : "El que figura en la factura. Sin factura, dejá todo vacío."}
+            </span>
+          </label>
+        </fieldset>
       )}
 
       {/* Líneas de la entrada */}

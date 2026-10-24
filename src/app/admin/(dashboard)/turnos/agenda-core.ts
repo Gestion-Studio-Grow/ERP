@@ -22,7 +22,9 @@
 
 import { estadoCobroTurno, cobroSugerido, esCuentaACobrar, seniaDelServicio, type PagoLegado } from "@/lib/turnos/cobros";
 import { desglosarCobros } from "@/lib/turnos/anulacion";
+import type { CierreSinPrestar, DestinoDeLaSenia } from "@/lib/turnos/practica";
 import type { TipoMarca } from "@/components/ui/Marca";
+import { dateStrInBusinessTz, fmtShortDate, fmtTime } from "@/lib/datetime";
 
 export type EstadoDelTurno = "PENDING" | "CONFIRMED" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
 
@@ -62,6 +64,11 @@ export type TurnoDelDia = {
   avisadaEl: string | null;
   /** ¿Quien mira puede cobrar ESTE turno? (la regla del servidor, `puedeCobrarEsteTurno`). */
   veredicto: Veredicto;
+  /**
+   * Cuándo se le pidió la seña por WhatsApp (la marca «seña pedida», `seniasPedidas`: AuditLog, sin
+   * migración). Ausente o null: no se pidió (o la agenda no la leyó).
+   */
+  seniaPedidaEl?: string | null;
 };
 
 /** Lo mínimo que la agenda lee de un turno crudo (el loader de siempre, ya con sus cobros). */
@@ -134,6 +141,27 @@ export function turnoDelDia(a: TurnoCrudo, veredicto: Veredicto): TurnoDelDia {
   };
 }
 
+/**
+ * La seña que falta de un Reservado que todavía no llegó (CH-021/022): la que propone el cobro
+ * (`cobroSugerido`: con seña en el catálogo y sin nada cobrado). 0 si no corresponde. Es lo que cobra
+ * «Llegó la seña» y lo que pide «Recordar la seña».
+ */
+export function seniaQueFalta(t: Pick<TurnoDelDia, "estado" | "inicio" | "sugerido">, ahora: Date): number {
+  if (t.estado !== "PENDING" || yaEmpezo(t, ahora)) return 0;
+  return t.sugerido.tipo === "senia" && t.sugerido.monto > 0 ? t.sugerido.monto : 0;
+}
+
+/**
+ * «seña pedida 14:03» (hoy) · «seña pedida el 20/10»: la marca del renglón y del cajón, sólo mientras
+ * la seña siga faltando. `null` si no hay nada que decir.
+ */
+export function textoSeniaPedida(t: Pick<TurnoDelDia, "estado" | "inicio" | "sugerido" | "seniaPedidaEl">, ahora: Date): string | null {
+  if (!t.seniaPedidaEl || seniaQueFalta(t, ahora) <= 0) return null;
+  const cuando = new Date(t.seniaPedidaEl);
+  if (Number.isNaN(cuando.getTime())) return null;
+  return dateStrInBusinessTz(cuando) === dateStrInBusinessTz(ahora) ? `seña pedida ${fmtTime(cuando)}` : `seña pedida el ${fmtShortDate(cuando).slice(0, 5)}`;
+}
+
 /** Qué puede hacer quien mira (lo calcula el servidor con sus capacidades). */
 export type Permisos = {
   /** agenda:manage — confirmar, cancelar, reprogramar, dar de baja un saldo. */
@@ -142,13 +170,25 @@ export type Permisos = {
   cobrar: boolean;
   /** agenda:complete — terminar y marcar que no vino. */
   terminar: boolean;
+  /**
+   * agenda:forgive — dar de baja un saldo (no es plata que entra: es plata que se deja de cobrar).
+   * Sólo la dueña (D5 del diseño: la recepción tiene tope $0). Lo calcula el servidor.
+   */
+  perdonar: boolean;
 };
 
 export type Paso =
   | { tipo: "confirmar" }
   | { tipo: "cobrar-senia"; monto: number }
   | { tipo: "terminar"; saldo: number; conCobro: boolean }
-  | { tipo: "cobrar"; monto: number }
+  /**
+   * Cobrar el saldo. Con `vino`, el turno es un Reservado al que ya se le pasó la hora: cobrar es
+   * cerrarlo como «vino» y cobrar en la misma acción (`completeAppointment` con `vino=on`), sin
+   * pasar antes por «Confirmar». Sin `vino`, es un terminado que quedó debiendo.
+   */
+  | { tipo: "cobrar"; monto: number; vino?: true }
+  /** Un Reservado pasado que se cierra sin cobrar acá: no falta nada, o la profesional cobra aparte. */
+  | { tipo: "vino"; saldo: number }
   | { tipo: "ninguno" };
 
 /** ¿Ya empezó? Mismo borde que el servidor para dejar terminar un turno (`puedeCompletarse`). */
@@ -162,7 +202,10 @@ function cobraEste(t: TurnoDelDia, p: Permisos): boolean {
 
 /**
  * La tecla del renglón: el paso que sigue, uno solo.
- *   · Reservado → Confirmar (quien gestiona la agenda).
+ *   · Reservado al que ya se le pasó la hora → Cobrar $X (o «Vino ✓» si no falta nada o quien
+ *     mira no cobra ese turno): la clienta vino y nadie tocó «Confirmar». Pedirle a la recepción
+ *     que confirme algo que ya pasó para recién después poder cobrarlo era la queja de CH.
+ *   · Reservado que todavía no llegó → Confirmar (quien gestiona la agenda).
  *   · Confirmado que todavía no empezó → Cobrar la seña, si la tiene y no entró nada.
  *   · Confirmado que ya empezó → Terminar (con el cobro del saldo si falta y quien mira cobra).
  *   · Terminado con saldo → Cobrar el saldo.
@@ -171,6 +214,9 @@ function cobraEste(t: TurnoDelDia, p: Permisos): boolean {
 export function pasoDelTurno(t: TurnoDelDia, p: Permisos, ahora: Date): Paso {
   switch (t.estado) {
     case "PENDING":
+      if (yaEmpezo(t, ahora) && p.terminar) {
+        return t.saldo > 0 && cobraEste(t, p) ? { tipo: "cobrar", monto: t.saldo, vino: true } : { tipo: "vino", saldo: t.saldo };
+      }
       return p.gestionar ? { tipo: "confirmar" } : { tipo: "ninguno" };
     case "CONFIRMED":
       if (yaEmpezo(t, ahora)) {
@@ -199,9 +245,70 @@ export function verboDelPaso(p: Paso): string | null {
       return p.conCobro ? "Terminar y cobrar" : "Terminar";
     case "cobrar":
       return "Cobrar";
+    case "vino":
+      return "Vino";
     default:
       return null;
   }
+}
+
+/**
+ * ¿La tecla cierra el turno? (terminar, o el «vino» de un Reservado pasado, con o sin cobro).
+ * Esas van por `completeAppointment`; las demás de plata, por `registrarCobroTurno`.
+ */
+export function cierraElTurno(p: Paso): boolean {
+  return p.tipo === "terminar" || p.tipo === "vino" || (p.tipo === "cobrar" && p.vino === true);
+}
+
+// ── Cancelar o «no vino»: quién cancela y qué pasa con la seña ───────────────
+
+export type { CierreSinPrestar, DestinoDeLaSenia };
+export type QuienCancela = "clienta" | "negocio";
+
+/** Con cuánta anticipación tiene que avisar la clienta para que se le devuelva la seña (D2). */
+export const HORAS_PARA_DEVOLVER = 24;
+
+/**
+ * Lo que se le PROPONE a la recepción hacer con la seña (D2 del diseño, *provisional a confirmar*
+ * por la dueña): cancela el negocio → se devuelve; la clienta avisa con 24 h o más → se devuelve;
+ * con menos de 24 h, o no vino → se la queda el negocio. Es una propuesta: la recepción la ve
+ * marcada y la puede cambiar. Sin plata cobrada no hay nada que proponer.
+ */
+export function propuestaDeSenia(input: {
+  accion: CierreSinPrestar;
+  quien: QuienCancela | null;
+  inicio: string;
+  ahora: Date;
+  cobrado: number;
+}): DestinoDeLaSenia | null {
+  if (input.cobrado <= 0) return null;
+  if (input.accion === "no-vino") return "retener";
+  if (input.quien === null) return null;
+  if (input.quien === "negocio") return "devolver";
+  const horas = (new Date(input.inicio).getTime() - input.ahora.getTime()) / 3_600_000;
+  return horas >= HORAS_PARA_DEVOLVER ? "devolver" : "retener";
+}
+
+/**
+ * La consecuencia, escrita antes de confirmar: qué pasa con el turno y qué pasa con la plata.
+ * «Queda cancelado y las 16:00 quedan libres para otra clienta. La seña de $5.000 se le devuelve:
+ * se anula el cobro en la caja.» Mientras falte elegir algo, dice qué falta.
+ */
+export function consecuenciaDelCierre(input: {
+  accion: CierreSinPrestar;
+  hora: string;
+  cobrado: number;
+  destino: DestinoDeLaSenia | null;
+}): string {
+  const turno =
+    input.accion === "cancelar"
+      ? `Queda cancelado y las ${input.hora} quedan libres para otra clienta.`
+      : "Queda como faltazo en su ficha.";
+  if (input.cobrado <= 0) return turno;
+  const plata = pesos(input.cobrado);
+  if (input.destino === "devolver") return `${turno} Los ${plata} que pagó se le devuelven: se anula el cobro en la caja.`;
+  if (input.destino === "retener") return `${turno} Los ${plata} que pagó se los queda el negocio: la caja no cambia.`;
+  return `${turno} Falta elegir qué pasa con los ${plata} que pagó.`;
 }
 
 export type MarcaDelTurno = { tipo: TipoMarca; texto: string };

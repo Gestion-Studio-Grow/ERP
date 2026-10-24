@@ -16,6 +16,7 @@ import { LOADERS_LOCALES } from "./locales.server";
 import { LOADERS_LOGISTICA } from "./logistica.server";
 import { LOADERS_MOSTRADOR } from "./mostrador.server";
 import { LOADERS_PRECIOS } from "./precios.server";
+import { LOADERS_TURNOS_SIN_CERRAR } from "./turnos-sin-cerrar.server";
 
 export const LOADERS_KPI: Readonly<Record<string, LoaderKpi>> = {
   ...LOADERS_MOSTRADOR,
@@ -25,4 +26,7 @@ export const LOADERS_KPI: Readonly<Record<string, LoaderKpi>> = {
   ...LOADERS_COMERCIAL,
   ...LOADERS_ADMINISTRACION,
   ...LOADERS_LOCALES,
+  // Va ÚLTIMO a propósito: reemplaza el número de la Agenda de comercial.server.ts por el mismo
+  // número MÁS el aviso de los turnos sin cerrar (reingeniería CH, Tanda 1, 1-D).
+  ...LOADERS_TURNOS_SIN_CERRAR,
 };

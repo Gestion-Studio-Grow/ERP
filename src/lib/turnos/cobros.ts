@@ -150,18 +150,33 @@ export function validarCobroTurno(input: {
 // No pongas otro Σ sobre esta columna.
 
 export type MotivoNoCompletable =
-  | "no-confirmado" // sólo un turno CONFIRMED se puede completar (ciclo de la dueña)
+  | "ya-cerrado" // ya está COMPLETED: el segundo envío de un cierre (no es «no confirmado»)
+  | "no-confirmado" // sin «vino», sólo un turno CONFIRMED se puede completar (ciclo de la dueña)
   | "no-ocurrio"; // startsAt en el futuro: un turno no se presta antes de pasar
 
 // ¿Se puede marcar como realizado? El QA completó un turno del martes estando domingo:
 // `completeAppointment` validaba el estado pero no la fecha. Un turno no puede estar
 // realizado antes de que empiece.
+//
+// `vino` (reingeniería CH, Tanda 1): la recepción dice «vino» sobre un RESERVADO cuya hora ya
+// pasó. Es la queja del dueño: un Reservado de ayer no se podía terminar sin pasar antes por
+// «Confirmar» (dos vueltas por turno, 60-90 toques para cerrar un sábado). Con `vino`, PENDING
+// también se completa — pero la fecha manda igual: un Reservado de mañana sigue rechazado
+// («no-ocurrio»). Sin `vino`, la regla de siempre (sólo CONFIRMED).
+//
+// Un turno ya COMPLETED contesta «ya-cerrado», no «no-confirmado» (cert CH Tanda 1, O-3): el doble
+// envío de un cierre decía «Solo se puede completar un turno que esté confirmado», que confunde
+// sobre un turno que ya está terminado. Va primero: un cerrado es cerrado aunque no haya ocurrido.
+// Cancelado y no-show siguen en «no-confirmado» (no se terminaron: se cayeron).
 export function puedeCompletarse(input: {
   status: EstadoTurno | string;
   startsAt: Date;
   ahora: Date;
+  vino?: boolean;
 }): { ok: true } | { ok: false; motivo: MotivoNoCompletable } {
-  if (input.status !== "CONFIRMED") return { ok: false, motivo: "no-confirmado" };
+  if (input.status === "COMPLETED") return { ok: false, motivo: "ya-cerrado" };
+  const estadoQueSeCompleta = input.status === "CONFIRMED" || (input.vino === true && input.status === "PENDING");
+  if (!estadoQueSeCompleta) return { ok: false, motivo: "no-confirmado" };
   if (input.startsAt.getTime() > input.ahora.getTime()) return { ok: false, motivo: "no-ocurrio" };
   return { ok: true };
 }
