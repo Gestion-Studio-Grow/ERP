@@ -1551,6 +1551,8 @@ export declare function cerrarYAbrirLaSiguiente(
 
 /** ¿Ese fijo juega esa fecha? Su día, no liberada, dentro de `desde`…`hasta` y fuera de la `pausa`. */
 export declare function fijoJuegaEl(fijo: Fijo | null | undefined, fecha: Fecha): boolean;
+export declare const MOTIVO_PAUSA_FIJO: "Pausa del turno fijo";
+export declare function fijoBajadoEl(estado: EstadoClub, fijo: Fijo, fecha: Fecha): boolean;
 /** Lo más largo que se pausa un fijo, en días (un año). */
 export declare const PAUSA_FIJO_MAX_DIAS: number;
 /** Un turno del fijo que se liberó al darlo de baja o pausarlo, con su plata. */

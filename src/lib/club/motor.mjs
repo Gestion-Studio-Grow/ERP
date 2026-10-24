@@ -2570,12 +2570,24 @@ export function fijoJuegaEl(f, fecha) {
   return true;
 }
 
+/** Motivo con el que `darDeBajaFijo` cancela los turnos de una pausa (marca: esa fecha NO quedó bajada para siempre). */
+export const MOTIVO_PAUSA_FIJO = "Pausa del turno fijo";
+
+/**
+ * ¿Ese fijo ya está bajado esa fecha? Cuenta cualquier turno suyo de ese día (vivo o cancelado por el cliente, la
+ * baja o «liberar»), salvo los cancelados por una PAUSA: si la pausa se reemplaza por otra más corta y la fecha
+ * vuelve a jugar (`fijoJuegaEl`), el turno tiene que volver a la grilla (BP-101 «vuelve solo»). PURA.
+ */
+export function fijoBajadoEl(estado, f, fecha) {
+  return estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha && !(r.estado === "cancelada" && r.motivoCancelacion === MOTIVO_PAUSA_FIJO));
+}
+
 /** Baja a la grilla los turnos fijos del día (idempotente). Un fijo que choca no pisa: avisa. */
 export function materializarFijos(estado, fecha) {
   const conflictos = [];
   for (const f of estado.fijos) {
     if (!fijoJuegaEl(f, fecha)) continue;
-    if (estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha)) continue;
+    if (fijoBajadoEl(estado, f, fecha)) continue;
     const res = crearReserva(estado, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion, tipo: "fijo", clienteId: f.clienteId, titular: f.titular, fijoId: f.id, origen: "fijo" });
     if (!res.ok) conflictos.push({ fijo: f, motivo: res.motivo });
   }
@@ -2637,7 +2649,7 @@ export function darDeBajaFijo(estado, fijoId, { desde, pausaHasta = null, auth =
   const porClub = !!auth?.usuarioId && puede(estado, auth.usuarioId, "autorizarCC");
   const enRango = (r) => r.fijoId === f.id && r.estado === "reservada" && r.fecha >= desde && (!pausa || r.fecha <= pausaHasta) && (!ahora || minutosHasta(ahora, r.fecha, r.inicio) > 0);
   const afectadas = estado.reservas.filter(enRango).sort((a, b) => (a.fecha + String(a.inicio).padStart(5, "0")).localeCompare(b.fecha + String(b.inicio).padStart(5, "0")));
-  const motivo = pausa ? "Pausa del turno fijo" : "Baja del turno fijo";
+  const motivo = pausa ? MOTIVO_PAUSA_FIJO : "Baja del turno fijo";
   const turnos = [];
   for (const r of afectadas) {
     const pagado = cobrado(r);

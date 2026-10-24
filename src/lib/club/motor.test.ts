@@ -115,7 +115,7 @@ const FUNCIONES_REING_BP_2B = [
 ] as const satisfies readonly Funciones[];
 /** Reingeniería Break Point · tanda 3C (dueño del motor): fijos con baja/pausa, y lo que consumen 3A, 3B y 3D. */
 const FUNCIONES_REING_BP_3C = [
-  "fijoJuegaEl", "darDeBajaFijo", "autorizarNovedad", "reglaDelDia", "reglaFinde", "esFeriado", "esFechaReal", "validarReglaFinde", "ajustarFinde",
+  "fijoJuegaEl", "fijoBajadoEl", "darDeBajaFijo", "autorizarNovedad", "reglaDelDia", "reglaFinde", "esFeriado", "esFechaReal", "validarReglaFinde", "ajustarFinde",
   "validarFeriados", "ajustarFeriados", "ajustarHorarioDelDia", "rubroDeMovimiento", "categoriaDeEgreso", "desglosePorDia",
 ] as const satisfies readonly Funciones[];
 type FuncionesListadas =
@@ -137,7 +137,7 @@ const CONSTANTES = [
   "CONFIG_DEMO", "CANCHAS_DEMO", "USUARIOS_DEMO", "USUARIOS_REALES", "PRODUCTOS_DEMO", "PROVEEDORES_DEMO", "DIAS_SIN_ARCHIVAR", "LIMITES_POLITICA", "LIMITES_BLOQUEO",
   "TIPOS_NOVEDAD", "AUDIENCIAS", "CANALES", "ESTADOS_CONTENIDO", "LARGO_PIN", "LARGO_PIN_VIEJO", "MOTIVO_PIN_VIEJO",
   "TOPE_INTENTOS_PIN", "ESPERAS_PIN_S", "VUELTAS_PIN", "DIAS_ADELANTE_MAX", "ALERTAS_POSPONIBLES",
-  "PAUSA_FIJO_MAX_DIAS", "FERIADOS_MAX", "RUBROS_CAJA", "CATEGORIAS_EGRESO",
+  "PAUSA_FIJO_MAX_DIAS", "MOTIVO_PAUSA_FIJO", "FERIADOS_MAX", "RUBROS_CAJA", "CATEGORIAS_EGRESO",
 ] as const satisfies readonly Exclude<keyof Motor, Funciones>[];
 
 // Comprobación de tipos en los dos sentidos: ninguna función ni constante tipada queda afuera de las listas.

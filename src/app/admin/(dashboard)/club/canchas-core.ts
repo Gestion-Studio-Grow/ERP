@@ -22,6 +22,7 @@ import {
   crearFijo,
   darDeBajaFijo,
   diaSemana,
+  fijoBajadoEl,
   fijoJuegaEl,
   hhmm,
   horarioDe,
@@ -303,7 +304,7 @@ export function ejecutarFijo(estado: EstadoClub, a: AccionFijo, ahora: Ahora, au
 
 /** Cuántos fijos de ese día todavía no están en la grilla (para bajarlos al abrir un día lejano del calendario). PURO. */
 export function fijosPorBajar(estado: EstadoClub, fecha: Fecha): number {
-  return estado.fijos.filter((f) => fijoJuegaEl(f, fecha) && !estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha)).length;
+  return estado.fijos.filter((f) => fijoJuegaEl(f, fecha) && !fijoBajadoEl(estado, f, fecha)).length;
 }
 
 /** Baja a la grilla los fijos de un día (idempotente; lo que choca, avisa y no pisa). */

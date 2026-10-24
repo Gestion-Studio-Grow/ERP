@@ -248,6 +248,30 @@ test("pausa: los turnos del rango se liberan, la lista dice «Pausado hasta … 
   assert.equal(M.fijoJuegaEl(g, M.sumarDias(d.vuelve!, -7)), false, "en la pausa, no");
 });
 
+test("BP-101: acortar la pausa (pausar de nuevo hasta antes): las fechas que quedan fuera vuelven a la grilla y no se venden a otro", () => {
+  const { e, f } = fijoConTurnos();
+  M.materializarFijosHasta(e, HOY, 14);
+  const en7 = M.sumarDias(HOY, 7), en14 = M.sumarDias(HOY, 14);
+  const vivos = (fecha: string) => e.reservas.filter((r) => r.fijoId === f.id && r.fecha === fecha && r.estado === "reservada").length;
+  assert.equal(vivos(en7), 1);
+  assert.equal(ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, 20) }, AHORA).ok, true);
+  assert.equal(vivos(en7), 0, "en la pausa larga, el +7 se libera");
+  const d = ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, 1) }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(d.vuelve, en7);
+  assert.ok(fijosPorBajar(e, en7) >= 1, "el +7 figura como por bajar");
+  M.materializarFijosHasta(e, HOY, 14);
+  assert.equal(vivos(en7), 1, "el +7 vuelve a la grilla");
+  assert.equal(vivos(en14), 1, "el +14 también");
+  assert.equal(fijosPorBajar(e, en7), 0);
+  M.materializarFijosHasta(e, HOY, 14);
+  assert.equal(vivos(en7), 1, "idempotente: no se duplica");
+  // La baja y «liberar» siguen contando como bajadas (no reviven).
+  assert.equal(ejecutarBajaFijo(e, { tipo: "liberar", fijoId: f.id, fecha: en14 }, AHORA).ok, true);
+  M.materializarFijosHasta(e, HOY, 14);
+  assert.equal(vivos(en14), 0, "lo liberado no vuelve");
+});
+
 test("BP-104: liberar UN día de dentro de 3 semanas: esa fecha no se baja y las demás sí", () => {
   const { e, f } = fijoConTurnos();
   const en3 = armarFijos(e, AHORA).fijos.find((x) => x.id === f.id)!.fechas[3].fecha;
