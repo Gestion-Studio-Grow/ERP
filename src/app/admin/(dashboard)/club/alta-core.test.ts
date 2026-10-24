@@ -397,6 +397,27 @@ test("H3 · la hora elegida que YA PASÓ (el alta quedó abierta): la lista, la 
 
 // ───────────── Tanda 3C · «Fijo semanal» desde el alta (BP-103) ─────────────
 
+test("BP-101 (cert v2-1): tras acortar una pausa, la previa del «Fijo semanal» marca que se pisa con el fijo que vuelve", () => {
+  const e = demo();
+  const f = e.fijos[0];
+  M.materializarFijosHasta(e, HOY, 14);
+  let en7 = M.sumarDias(HOY, 7);
+  while (M.diaSemana(en7) !== f.dia) en7 = M.sumarDias(en7, 1);
+  assert.equal(M.darDeBajaFijo(e, f.id, { desde: HOY, pausaHasta: M.sumarDias(en7, 7) }, AHORA).ok, true);
+  const d = { canchaId: f.canchaId, fecha: M.sumarDias(en7, -7), inicio: f.inicio, duracion: f.duracion };
+  // Datos guardados antes del arreglo: la pausa ya es más corta pero el turno cancelado por la pausa sigue sin volver.
+  const viejo = structuredClone(e);
+  viejo.fijos[0].pausa = { desde: HOY, hasta: M.sumarDias(en7, -1) };
+  const p1 = previaFijoSemanal(viejo, d);
+  assert.equal(p1[0].fecha, en7);
+  assert.equal(p1[0].entra, false, p1[0].texto);
+  assert.match(p1[0].texto, new RegExp(`se pisa con el fijo de ${f.titular}`));
+  // Con el arreglo, acortar la pausa lo devuelve a la grilla y la previa también lo marca.
+  assert.equal(M.darDeBajaFijo(e, f.id, { desde: HOY, pausaHasta: M.sumarDias(en7, -1) }, AHORA).ok, true);
+  const p2 = previaFijoSemanal(e, d);
+  assert.equal(p2[0].entra, false, p2[0].texto);
+});
+
 test("BP-103: alta del jueves 20:00 con «Fijo semanal»: la previa marca la semana que choca; al reservar, las otras quedan en la grilla", () => {
   const e = demo();
   const jueves = M.sumarDias(HOY, 5); // jueves 22/10

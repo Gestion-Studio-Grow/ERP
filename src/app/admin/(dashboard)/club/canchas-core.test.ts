@@ -259,9 +259,10 @@ test("BP-101: acortar la pausa (pausar de nuevo hasta antes): las fechas que que
   const d = ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, 1) }, AHORA);
   assert.equal(d.ok, true, d.mensaje);
   assert.equal(d.vuelve, en7);
-  assert.ok(fijosPorBajar(e, en7) >= 1, "el +7 figura como por bajar");
+  assert.equal(vivos(en7), 1, "el +7 vuelve a la grilla en el acto (no recién al próximo arranque)");
+  assert.equal(fijosPorBajar(e, en7), 0, "no queda «por bajar»");
   M.materializarFijosHasta(e, HOY, 14);
-  assert.equal(vivos(en7), 1, "el +7 vuelve a la grilla");
+  assert.equal(vivos(en7), 1, "el +7 sigue en la grilla");
   assert.equal(vivos(en14), 1, "el +14 también");
   assert.equal(fijosPorBajar(e, en7), 0);
   M.materializarFijosHasta(e, HOY, 14);
@@ -270,6 +271,33 @@ test("BP-101: acortar la pausa (pausar de nuevo hasta antes): las fechas que que
   assert.equal(ejecutarBajaFijo(e, { tipo: "liberar", fijoId: f.id, fecha: en14 }, AHORA).ok, true);
   M.materializarFijosHasta(e, HOY, 14);
   assert.equal(vivos(en14), 0, "lo liberado no vuelve");
+});
+
+test("BP-101 (cert v2-2): acortar la pausa devuelve YA a la grilla el turno de la semana a la vista; el hueco no se vende y no se duplica", () => {
+  const e = M.generarDemo(HOY, AHORA.min);
+  const k = 3;
+  const dia = M.diaSemana(M.sumarDias(HOY, k));
+  const canchaId = e.canchas.find((c) => [0, 1, 2, 3].every((i) => M.validarHueco(e, { canchaId: c.id, fecha: M.sumarDias(HOY, k + 7 * i), inicio: 22 * 60, duracion: 60 }).ok))!.id;
+  const f = M.crearFijo(e, { clienteId: null, canchaId, dia, inicio: 22 * 60, duracion: 60, titular: "Fijo Martes", desde: HOY });
+  const fecha = M.sumarDias(HOY, k);
+  const vivos = () => e.reservas.filter((r) => r.fijoId === f.id && r.fecha === fecha && r.estado === "reservada");
+  M.materializarFijosHasta(e, HOY, 14);
+  assert.equal(ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, 20) }, AHORA).ok, true);
+  const copia = structuredClone(e);
+  const previa = previaBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, 1) }, AHORA, undefined, copia);
+  assert.equal(previa.ok, true);
+  assert.equal(copia.reservas.filter((r) => r.fijoId === f.id && r.fecha === fecha && r.estado === "reservada").length, 1, "la previa (sobre copia) ya lo muestra de vuelta");
+  assert.equal(vivos().length, 0, "la previa no toca el estado de verdad");
+  const d = ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, 1) }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(d.vuelve, fecha);
+  assert.equal(vivos().length, 1, "vuelve a la grilla en el acto");
+  assert.equal(vivos()[0].pagos.length, 0, "sin plata vieja");
+  assert.equal(M.validarHueco(e, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion }).ok, false, "el hueco ya no está libre");
+  assert.equal(M.crearReserva(e, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion, tipo: "turno", titular: "Otro" }, AHORA).ok, false, "un alta suelta no lo pisa");
+  ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, 1) }, AHORA);
+  M.materializarFijosHasta(e, HOY, 14);
+  assert.equal(vivos().length, 1, "reaplicar no duplica");
 });
 
 test("BP-104: liberar UN día de dentro de 3 semanas: esa fecha no se baja y las demás sí", () => {

@@ -22,7 +22,7 @@
 // («A las 20:30 en Cancha 2 entran 30 min (Beto juega 21:00)»), «Reservar» queda apagado y `alternativas` ofrece
 // otra cancha a la misma hora, el siguiente hueco en esa cancha, una duración menor acá y anotarlo en espera.
 
-import { altaCliente, anotarEspera, buscarClientes, cancha as canchaDe, cliente as clienteDe, crearFijo, crearReserva, cuantoEntra, diaSemana, fijoJuegaEl, franjaDe, hhmm, horarioDe, huecosLibres, materializarFijos, minutosHasta, montoSena, motivoSena, NOMBRE_DIA, pesos, precioTurno, sumarDias, validarHueco } from "@/lib/club/motor.mjs";
+import { altaCliente, anotarEspera, buscarClientes, cancha as canchaDe, cliente as clienteDe, crearFijo, crearReserva, cuantoEntra, diaSemana, fijoBajadoEl, fijoJuegaEl, franjaDe, hhmm, horarioDe, huecosLibres, materializarFijos, minutosHasta, montoSena, motivoSena, NOMBRE_DIA, pesos, precioTurno, sumarDias, validarHueco } from "@/lib/club/motor.mjs";
 import type { Ahora, Cliente, CorteDelHueco, EstadoClub, Fecha, TipoReserva } from "@/lib/club/motor.mjs";
 import { normalizarTelefono } from "@/lib/clientes/telefono";
 import type { Desenlace } from "./almacen";
@@ -92,7 +92,7 @@ export function previaFijoSemanal(estado: EstadoClub, d: Pick<DatosAlta, "cancha
     const v = validarHueco(estado, { canchaId: d.canchaId, fecha, inicio: d.inicio, duracion: d.duracion });
     if (!v.ok) return { fecha, entra: false, texto: `${dd} · ${v.motivo.replace(/\.$/, "").replace(/^Se pisa/, "se pisa")}` };
     const otro = estado.fijos.find(
-      (f) => f.canchaId === d.canchaId && fijoJuegaEl(f, fecha) && f.inicio < fin && d.inicio < f.inicio + f.duracion && !estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha),
+      (f) => f.canchaId === d.canchaId && fijoJuegaEl(f, fecha) && f.inicio < fin && d.inicio < f.inicio + f.duracion && !fijoBajadoEl(estado, f, fecha),
     );
     if (otro) return { fecha, entra: false, texto: `${dd} · se pisa con el fijo de ${otro.titular} (${hhmm(otro.inicio)})` };
     return { fecha, entra: true, texto: `${dd} ✔` };

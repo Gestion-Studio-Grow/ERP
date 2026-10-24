@@ -2657,9 +2657,20 @@ export function darDeBajaFijo(estado, fijoId, { desde, pausaHasta = null, auth =
     if (res.ok) turnos.push({ reservaId: r.id, fecha: r.fecha, inicio: r.inicio, canchaId: r.canchaId, pagado, devuelto: res.devuelto, devolverEnMano: res.devolverEnMano, enSuspenso: !!res.enSuspenso });
   }
   let quitado = false;
+  const vuelven = [];
+  const chocan = [];
   const ddmm = (x) => `${Number(x.slice(8))}/${Number(x.slice(5, 7))}`;
   if (pausa) {
     f.pausa = { desde, hasta: pausaHasta };
+    // BP-101 «vuelve solo»: si la pausa nueva es más corta, las fechas que la anterior había bajado y ahora juegan
+    // vuelven a la grilla YA (no recién al próximo arranque), para que nadie venda ese hueco. Sólo las que no empezaron.
+    const fechasQueVuelven = [...new Set(estado.reservas.filter((r) => r.fijoId === f.id && r.estado === "cancelada" && r.motivoCancelacion === MOTIVO_PAUSA_FIJO && (!ahora || minutosHasta(ahora, r.fecha, f.inicio) > 0)).map((r) => r.fecha))].sort();
+    for (const fecha of fechasQueVuelven) {
+      if (!fijoJuegaEl(f, fecha) || fijoBajadoEl(estado, f, fecha)) continue;
+      const res = crearReserva(estado, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion, tipo: "fijo", clienteId: f.clienteId, titular: f.titular, fijoId: f.id, origen: "fijo" });
+      if (res.ok) vuelven.push(fecha);
+      else chocan.push({ fecha, motivo: res.motivo });
+    }
     registrar(estado, `Se pausó el turno fijo de ${f.titular} del ${ddmm(desde)} al ${ddmm(pausaHasta)}${turnos.length ? ` (${turnos.length} turno${turnos.length > 1 ? "s" : ""} liberado${turnos.length > 1 ? "s" : ""})` : ""}.`, ahora);
   } else {
     const hasta = sumarDias(desde, -1);
@@ -2670,7 +2681,7 @@ export function darDeBajaFijo(estado, fijoId, { desde, pausaHasta = null, auth =
     registrar(estado, `Se dio de baja el turno fijo de ${f.titular}${quitado ? "" : ` desde el ${ddmm(desde)}`}${turnos.length ? ` (${turnos.length} turno${turnos.length > 1 ? "s" : ""} liberado${turnos.length > 1 ? "s" : ""})` : ""}.`, ahora);
   }
   const suma = (k) => turnos.reduce((s, t) => s + (t[k] ?? 0), 0);
-  return { ok: true, modo: pausa ? "pausa" : "baja", quitado, porClub, turnos, devuelto: suma("devuelto"), devolverEnMano: suma("devolverEnMano"), enSuspenso: turnos.filter((t) => t.enSuspenso).length, retenido: turnos.reduce((s, t) => s + (t.enSuspenso ? t.pagado : 0), 0) };
+  return { ok: true, modo: pausa ? "pausa" : "baja", quitado, porClub, turnos, vuelven, chocan, devuelto: suma("devuelto"), devolverEnMano: suma("devolverEnMano"), enSuspenso: turnos.filter((t) => t.enSuspenso).length, retenido: turnos.reduce((s, t) => s + (t.enSuspenso ? t.pagado : 0), 0) };
 }
 
 // ───────────────────────── lista de espera ─────────────────────────

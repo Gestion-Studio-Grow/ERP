@@ -1587,6 +1587,10 @@ export declare function darDeBajaFijo(
   /** Se canceló como «cancela el club» (lo firmó un dueño). */
   porClub: boolean;
   turnos: TurnoDeLaBaja[];
+  /** Pausa más corta que la anterior: fechas que vuelven a la grilla en el acto (BP-101 «vuelve solo»). */
+  vuelven: Fecha[];
+  /** Las que debían volver y chocan con otro turno (no pisa: avisa). */
+  chocan: { fecha: Fecha; motivo: string }[];
   devuelto: number;
   devolverEnMano: number;
   /** Cuántos turnos quedaron con la seña en suspenso, y cuánta plata (`retenido`). */
