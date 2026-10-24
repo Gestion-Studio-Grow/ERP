@@ -349,8 +349,16 @@ function resumenDeLaBaja(turnos: TurnoDeLaBaja[]): string {
     .join(" · ");
 }
 
+/** Una fecha que tenía que volver a la grilla y choca con un turno vendido mientras tanto (otro puesto o la web). */
+export type ChoqueDeLaVuelta = { fecha: Fecha; motivo: string };
+
+/** «mar 27/10 20:00 · no vuelve: se pisa con otro turno» (la fecha que la pausa acortada no pudo devolver). */
+export function lineaDelChoque(f: Pick<Fijo, "inicio">, c: ChoqueDeLaVuelta): string {
+  return `${fechaCorta(c.fecha)} ${hhmm(f.inicio)} · no vuelve: ${c.motivo.replace(/\.$/, "")}`;
+}
+
 /** Corre la baja / la pausa / liberar una fecha sobre `estado` (lo MUTA). Lo usan la previa (sobre copia) y el comando. */
-export function ejecutarBajaFijo(estado: EstadoClub, a: AccionBajaFijo, ahora: Ahora, auth?: Auth): Desenlace & { turnos?: TurnoDeLaBaja[]; vuelve?: Fecha | null; quitado?: boolean } {
+export function ejecutarBajaFijo(estado: EstadoClub, a: AccionBajaFijo, ahora: Ahora, auth?: Auth): Desenlace & { turnos?: TurnoDeLaBaja[]; vuelve?: Fecha | null; vuelven?: Fecha[]; chocan?: ChoqueDeLaVuelta[]; quitado?: boolean } {
   const f = estado.fijos.find((x) => x.id === a.fijoId);
   if (!f) return { ok: false, mensaje: "Ese turno fijo ya no está (¿lo dio de baja otro puesto?)." };
   const de = `el fijo de ${f.titular} (${enPlural(f.dia)} ${hhmm(f.inicio)})`;
@@ -370,26 +378,36 @@ export function ejecutarBajaFijo(estado: EstadoClub, a: AccionBajaFijo, ahora: A
   if (!res.ok) return { ok: false, mensaje: res.motivo };
   const resumen = res.turnos.length ? ` ${resumenDeLaBaja(res.turnos)}.` : "";
   if (a.tipo === "pausa") {
-    const vuelve = proximasFechasDelFijo({ ...f, pausa: { desde: a.desde, hasta: a.hasta } }, { fecha: sumarDias(a.hasta, 1), min: 0 }, 1)[0] ?? null;
-    return { ok: true, turnos: res.turnos, vuelve, mensaje: `Pausado ${de} hasta el ${ddmm(a.hasta)}${vuelve ? `; vuelve solo el ${fechaCorta(vuelve)}` : ""}.${resumen}` };
+    // «Vuelve solo el …»: la primera fecha después de la pausa que de verdad vuelve a la grilla. Si alguna de las que
+    // tenían que volver chocó con un turno vendido mientras tanto (`res.chocan`: otro puesto o la web), no se anuncia
+    // ésa — se salta a la siguiente — y el choque se dice con todas las letras, para que el titular no crea que juega.
+    const chocan = res.chocan ?? [];
+    const ocupadas = new Set(chocan.map((c) => c.fecha));
+    const vuelve = proximasFechasDelFijo({ ...f, pausa: { desde: a.desde, hasta: a.hasta } }, { fecha: sumarDias(a.hasta, 1), min: 0 }, FECHAS_DEL_FIJO).find((x) => !ocupadas.has(x)) ?? null;
+    const noVuelven = chocan.length ? ` No vuelve${chocan.length > 1 ? "n" : ""} ${chocan.map((c) => `el ${fechaCorta(c.fecha)}`).join(" ni ")}: ${chocan.length > 1 ? "se pisan con otros turnos" : `se pisa con otro turno (${chocan[0].motivo.replace(/\.$/, "")})`}.` : "";
+    return { ok: true, turnos: res.turnos, vuelve, vuelven: res.vuelven ?? [], chocan, mensaje: `Pausado ${de} hasta el ${ddmm(a.hasta)}${vuelve ? `; vuelve solo el ${fechaCorta(vuelve)}` : ""}.${noVuelven}${resumen}` };
   }
   return { ok: true, turnos: res.turnos, quitado: res.quitado, mensaje: `Dado de baja ${de}${res.quitado ? "" : ` desde el ${fechaCorta(a.desde)}`}.${resumen}` };
 }
 
 export type PreviaBajaFijo =
-  | { ok: true; resumen: string; lineas: string[]; turnos: number; plata: { credito: number; enMano: number; enSuspenso: number }; vuelve: Fecha | null; quitado: boolean }
+  | { ok: true; resumen: string; lineas: string[]; turnos: number; plata: { credito: number; enMano: number; enSuspenso: number }; vuelve: Fecha | null; quitado: boolean; chocan: ChoqueDeLaVuelta[] }
   | { ok: false; mensaje: string };
 
 /** La previa: corre la baja sobre una COPIA del estado (el de verdad no cambia) y cuenta turnos y plata. */
 export function previaBajaFijo(estado: EstadoClub, a: AccionBajaFijo, ahora: Ahora, auth?: Auth, copia: EstadoClub = structuredClone(estado)): PreviaBajaFijo {
+  const f = estado.fijos.find((x) => x.id === a.fijoId);
   const d = ejecutarBajaFijo(copia, a, ahora, auth);
   if (!d.ok) return { ok: false, mensaje: d.mensaje };
   const turnos = d.turnos ?? [];
+  const chocan = d.chocan ?? [];
   const suma = (k: "devuelto" | "devolverEnMano") => turnos.reduce((s, t) => s + t[k], 0);
   return {
     ok: true,
     resumen: resumenDeLaBaja(turnos),
-    lineas: turnos.map(lineaDeLaBaja),
+    // Las fechas que tenían que volver y chocan van como línea propia: lo que la previa dice es lo que pasa.
+    lineas: [...turnos.map(lineaDeLaBaja), ...chocan.map((c) => lineaDelChoque({ inicio: f?.inicio ?? 0 }, c))],
+    chocan,
     turnos: turnos.length,
     plata: { credito: suma("devuelto"), enMano: suma("devolverEnMano"), enSuspenso: turnos.reduce((s, t) => s + (t.enSuspenso ? t.pagado : 0), 0) },
     vuelve: d.vuelve ?? null,

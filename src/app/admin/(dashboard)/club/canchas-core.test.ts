@@ -300,6 +300,41 @@ test("BP-101 (cert v2-2): acortar la pausa devuelve YA a la grilla el turno de l
   assert.equal(vivos().length, 1, "reaplicar no duplica");
 });
 
+test("BP-101 (cert v3 A1): acortar la pausa con el hueco ya vendido (otro puesto / la web): no pisa, la previa y el aviso dicen que esa fecha NO vuelve, y «vuelve solo» salta a la siguiente", () => {
+  const e = M.generarDemo(HOY, AHORA.min);
+  const k = 3;
+  const dia = M.diaSemana(M.sumarDias(HOY, k));
+  const canchaId = e.canchas.find((c) => [0, 1, 2, 3].every((i) => M.validarHueco(e, { canchaId: c.id, fecha: M.sumarDias(HOY, k + 7 * i), inicio: 22 * 60, duracion: 60 }).ok))!.id;
+  const f = M.crearFijo(e, { clienteId: null, canchaId, dia, inicio: 22 * 60, duracion: 60, titular: "Fijo Martes", desde: HOY });
+  const fecha = M.sumarDias(HOY, k);
+  const vivos = (x: EstadoClub) => x.reservas.filter((r) => r.fijoId === f.id && r.fecha === fecha && r.estado === "reservada");
+  M.materializarFijosHasta(e, HOY, 14);
+  assert.equal(ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, 20) }, AHORA).ok, true);
+  assert.equal(vivos(e).length, 0);
+  // Mientras tanto otro puesto (o el turnero web) vende ese hueco.
+  assert.equal(M.crearReserva(e, { canchaId, fecha, inicio: 22 * 60, duracion: 60, tipo: "turno", titular: "Otro" }, AHORA).ok, true);
+  const copia = structuredClone(e);
+  const previa = previaBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, 1) }, AHORA, undefined, copia);
+  assert.equal(previa.ok, true);
+  if (!previa.ok) return;
+  const dm = `${Number(fecha.slice(8))}/${Number(fecha.slice(5, 7))}`;
+  assert.equal(previa.chocan.length, 1, "la previa trae el choque");
+  assert.equal(previa.chocan[0].fecha, fecha);
+  assert.ok(previa.lineas.some((l) => l.includes(dm) && /no vuelve/.test(l)), `la previa dice que el ${dm} no vuelve: ${previa.lineas.join(" | ")}`);
+  assert.notEqual(previa.vuelve, fecha, "no anuncia como «vuelve solo» una fecha ocupada");
+  assert.equal(previa.vuelve, M.sumarDias(fecha, 7), "salta a la semana siguiente");
+  const d = ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, 1) }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(vivos(e).length, 0, "no pisa el turno vendido");
+  assert.doesNotMatch(d.mensaje, new RegExp(`vuelve solo el \\S+ ${dm.replace("/", "\\/")}\\.`), `anuncia una fecha ocupada: «${d.mensaje}»`);
+  assert.match(d.mensaje, new RegExp(`No vuelve el \\S+ ${dm.replace("/", "\\/")}: se pisa con otro turno`), d.mensaje);
+  assert.equal(d.vuelve, M.sumarDias(fecha, 7));
+  assert.deepEqual(d.chocan?.map((c) => c.fecha), [fecha]);
+  // El WhatsApp al titular tampoco lo cita para el día ocupado.
+  const wa = textoAvisoBaja(e, f, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(HOY, 1) }, previa);
+  assert.doesNotMatch(wa, new RegExp(`de vuelta el \\S+ ${dm.replace("/", "\\/")}`), wa);
+});
+
 test("BP-104: liberar UN día de dentro de 3 semanas: esa fecha no se baja y las demás sí", () => {
   const { e, f } = fijoConTurnos();
   const en3 = armarFijos(e, AHORA).fijos.find((x) => x.id === f.id)!.fechas[3].fecha;

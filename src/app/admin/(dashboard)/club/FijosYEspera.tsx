@@ -184,6 +184,7 @@ function HojaBajaFijo({ almacen, fijo, onCerrar, onHecho }: { almacen: Almacen; 
               <p className="font-semibold text-strong">
                 {previa.resumen}
                 {modo === "pausa" && previa.vuelve ? ` · vuelve solo el ${ddmm(previa.vuelve)}` : ""}
+                {modo === "pausa" && previa.chocan.length ? ` · ${previa.chocan.length > 1 ? "no vuelven" : "no vuelve"} ${previa.chocan.map((c) => `el ${ddmm(c.fecha)}`).join(" ni ")}: se pisa con otro turno` : ""}
                 {modo === "dia" ? " · las otras semanas siguen" : ""}
                 {(modo === "semana" || modo === "desde") && !previa.turnos ? ` · deja de bajarse a la grilla${modo === "desde" ? ` desde el ${ddmm(desde)}` : ""}` : ""}
               </p>
