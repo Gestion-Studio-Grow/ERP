@@ -58,6 +58,8 @@ export interface PedidoDesdeWhatsAppProps {
   envios: ConfigEnvios | null;
   /** ¿El negocio tiene el mostrador boutique? (decide si el faltante a futuro avisa o frena). */
   boutique: boolean;
+  /** Montado por un toque en el botón (carga diferida, boutique/WhatsAppDiferido): arranca abierto. */
+  abrirAlMontar?: boolean;
 }
 
 /** Un renglón en pantalla: lo que propuso el lector y lo que corrigió quien atiende. */
@@ -104,12 +106,12 @@ function cantidadInicial(r: RenglonPropuesto): string {
   return r.cantidad === null ? "" : String(r.cantidad).replace(".", ",");
 }
 
-export default function PedidoDesdeWhatsApp({ productos, stockById, hoy, negocio, envios, boutique }: PedidoDesdeWhatsAppProps) {
+export default function PedidoDesdeWhatsApp({ productos, stockById, hoy, negocio, envios, boutique, abrirAlMontar = false }: PedidoDesdeWhatsAppProps) {
   const id = useId();
   // «Nuevo pedido de WhatsApp» desde la bandeja llega con #whatsapp: se abre solo. Lo que toque
   // la persona («Cerrar», la tecla) manda sobre el #.
   const porHash = useSyncExternalStore(suscribirHash, () => window.location.hash === ABRIR_CON_HASH, () => false);
-  const [abiertoAMano, setAbierto] = useState<boolean | null>(null);
+  const [abiertoAMano, setAbierto] = useState<boolean | null>(abrirAlMontar ? true : null);
   const abierto = abiertoAMano ?? porHash;
   const [texto, setTexto] = useState("");
   const [propuesta, setPropuesta] = useState<PropuestaDePedido | null>(null);

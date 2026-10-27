@@ -73,7 +73,9 @@ import {
   puedeCobrarElDeLaEtiqueta,
   textoEtiquetaDistinta,
 } from "./etiqueta-de-balanza";
-import ClienteDeLaVenta, { type ClienteElegido, type ValorDelCliente } from "./ClienteDeLaVenta";
+import type { ClienteElegido, ValorDelCliente } from "./ClienteDeLaVenta";
+// Rama boutique (tanda perf): el bloque Cliente diferido y las teclas memorizadas.
+import { ClienteDeLaVentaDiferido as ClienteDeLaVenta, TeclasMemorizadas, useLlamadaEstable, usePrecargaDelCliente } from "./boutique/perezosos";
 import type { RepetirPedido } from "@/lib/clientes/fiado";
 import ZonaDelEnvio from "./ZonaDelEnvio";
 import { CampoUnico, ID_CAMPO_UNICO, type LecturaUnica } from "@/components/lector/CampoUnico";
@@ -132,7 +134,6 @@ import {
   type CambioDePrecio,
   type RenglonQuitado,
 } from "./reglas-venta";
-import TeclasPorGondola from "./TeclasPorGondola";
 import TicketQueCrece, { ConBalanzaEnVivo, PesoEnVivoDelRenglon, RenglonDelTicket } from "./TicketQueCrece";
 import { fijarTeclasDelMostrador, preciosVigentesDelTicket, type PrecioVigente } from "./acciones-del-mostrador";
 import type { TeclasDelMostrador } from "./teclas.server";
@@ -751,6 +752,19 @@ function FormularioVender({
     () => rapidos.map((id) => byId.get(id)).filter((p): p is SellableProduct => !!p),
     [rapidos, byId],
   );
+  // TANDA PERF (P-3, sólo el boutique): las teclas no cambian al tocar una. Sus listas se memorizan
+  // y el toque y el «fijar» pasan con identidad fija (`useLlamadaEstable`, abajo), así
+  // `TeclasMemorizadas` no se vuelve a dibujar en cada toque (era el grueso de los 224 ms por
+  // tecla). Apagado (CH) no se calcula nada.
+  const teclasBoutique = useMemo(() => {
+    if (!boutique) return null;
+    const vendibles = new Set(products.map((p) => p.id));
+    return {
+      principal: teclasPrincipales(fijadas.ids, vendibles, { ids: botonesRapidos.map((p) => p.id), rotulo: rotuloRapidos }),
+      gondolas: gondolasDelMostrador(products, { explicitas: boutique.teclas?.gondolas, primero: rapidos }),
+    };
+  }, [boutique, products, fijadas.ids, botonesRapidos, rotuloRapidos, rapidos]);
+  usePrecargaDelCliente(Boolean(boutique));
 
   function setLine(key: number, patch: Partial<Line>) {
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -2699,9 +2713,8 @@ function FormularioVender({
     // Las teclas (2A): la pestaña principal (las fijadas por el dueño, o las de siempre) y una
     // pestaña por góndola con TODO el catálogo vendible, las más vendidas primero.
     const explicitas = b.teclas?.gondolas;
-    const vendibles = new Set(products.map((p) => p.id));
-    const principal = teclasPrincipales(fijadas.ids, vendibles, { ids: botonesRapidos.map((p) => p.id), rotulo: rotuloRapidos });
-    const gondolas = gondolasDelMostrador(products, { explicitas, primero: rapidos });
+    // Memorizadas arriba (`teclasBoutique`): las mismas listas, calculadas sólo si cambian.
+    const { principal, gondolas } = teclasBoutique!;
     const faltaEnManual = manualesLeidas.map((m) => (m.error ? faltaEnLineaAMano(m) : null)).find((x) => x !== null) ?? null;
     // Las zonas y la cotización del envío salen de arriba (`zonasDelEnvio`, `cotizacionEnvio`):
     // las mismas que suman al total que cobra el pie.
@@ -2988,13 +3001,13 @@ function FormularioVender({
               </div>
             )}
             {(principal.ids.length > 0 || gondolas.length > 0) && (
-              <TeclasPorGondola
+              <TeclasMemorizadas
                 productos={products}
                 stockById={stockById}
                 principal={principal}
                 gondolas={gondolas}
-                onTocar={(id) => tocarTecla(id)}
-                fijar={b.teclas?.puedeFijar ? { fijadas: fijadas.ids, onGuardar: guardarFijadas } : null}
+                onTocar={tocarTeclaEstable}
+                fijar={b.teclas?.puedeFijar ? { fijadas: fijadas.ids, onGuardar: guardarFijadasEstable } : null}
               />
             )}
           </div>
@@ -3272,6 +3285,11 @@ function FormularioVender({
       </div>
     );
   }
+
+  // El toque y el «fijar» de las teclas, con identidad fija (P-3): acá, después de declarar
+  // `tocarTecla` y `guardarFijadas`, y antes de elegir la vista.
+  const tocarTeclaEstable = useLlamadaEstable((id: string) => tocarTecla(id));
+  const guardarFijadasEstable = useLlamadaEstable((ids: string[]) => guardarFijadas(ids));
 
   if (boutique) return vistaBoutique(boutique);
 

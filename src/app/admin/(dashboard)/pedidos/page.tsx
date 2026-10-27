@@ -4,11 +4,11 @@ import { fmtMoneyARS, EmptyState, ButtonLink, buttonClasses, atributosBoton } fr
 import { fmtShortDate, todayInBusinessTz, dateStrInBusinessTz } from "@/lib/datetime";
 import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
 import { posEmptyState } from "@/lib/stock/pos-stock-rules";
-import MostradorTabs from "./MostradorTabs";
 import MostradorDeVenta from "../vender/MostradorDeVenta";
+import { MostradorTabsDiferido as MostradorTabs } from "./boutique/diferidos";
+import MostradorEnCajon from "./MostradorEnCajon";
 import { cargarEnvios } from "../vender/datos";
 import { puedeAbrirApp } from "../vender/puede-abrir";
-import MostradorEnCajon from "./MostradorEnCajon";
 import CobrarPedidoForm from "./CobrarPedidoForm";
 import EntregarPedidoForm from "./EntregarPedidoForm";
 import AnularPedidoForm from "./AnularPedidoForm";
@@ -56,6 +56,11 @@ import { guardarArmado } from "./[code]/armar/acciones";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import { PIEL_RENGLON } from "@/lib/diseno/diseno";
 import { fiadoAbreEnLaBandeja } from "@/lib/clientes/fiado.server";
+
+// TANDA PERF (P-2): el mostrador (VenderForm + PedidoDesdeWhatsApp, por MostradorDeVenta) y las
+// solapas (POS y alta de turno) llegan al navegador DIFERIDOS (vender/boutique/diferidos.tsx y
+// ./boutique/diferidos.tsx): sólo los dibuja la bandeja sin boutique (CH, el modelo de siempre), ahí
+// con el mismo HTML, y la bandeja del boutique ya no baja su código.
 
 /** Vender con el bloque «Nuevo pedido de WhatsApp» ya abierto (PedidoDesdeWhatsApp lee el #). */
 const HREF_PEDIDO_DE_WHATSAPP = "/admin/vender#whatsapp";

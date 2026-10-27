@@ -18,8 +18,8 @@ import { roleHasCapability, type Role } from "@/lib/capabilities";
 import { UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, vigenteEn } from "@/lib/fiscal/vigencias";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { motivoSinFactura, textoDelReceptor } from "./factura-del-mostrador";
-import VenderForm from "./VenderForm";
-import PedidoDesdeWhatsApp from "./PedidoDesdeWhatsApp";
+// Tanda perf (P-2): diferidos en el navegador (mismo HTML; su código no entra en el JS de la bandeja).
+import { PedidoDesdeWhatsAppDiferido as PedidoDesdeWhatsApp, VenderFormDiferido as VenderForm } from "./boutique/diferidos";
 import { cargarBoutique, cargarEnvios, cargarVender } from "./datos";
 import { puedeAbrirApp } from "./puede-abrir";
 import { balanzaDeVender } from "./balanza.server";
