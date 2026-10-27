@@ -103,6 +103,14 @@ export type CashSaleInput = {
   paymentMethod: string | null;
   total: number;
   actor: string;
+  /**
+   * Cuándo se COBRÓ, si no es ahora: la venta del cuaderno (se vendió sin señal y se carga
+   * después). Va a `occurredAt` (la fecha contable del libro), así la plata cae en su día. Y el
+   * asiento se engancha al turno abierto SÓLO si ese turno ya estaba abierto a esa hora: si el
+   * turno de ahora se abrió después, esa plata no entró a su cajón y no infla su arqueo (queda en
+   * el libro del día, sin turno). Sin el dato, todo como siempre.
+   */
+  occurredAt?: Date | null;
 };
 
 // Cuerpo tx-scoped (I7): registra la VENTA DENTRO de la transacción del llamador, para
@@ -124,7 +132,7 @@ export async function recordCashSaleMovementInTx(
   if (!elig.eligible) return { recorded: false, reason: elig.reason };
 
   const session = await tx.cashSession.findFirst({
-    where: { tenantId, status: "OPEN" },
+    where: { tenantId, status: "OPEN", ...(input.occurredAt ? { openedAt: { lte: input.occurredAt } } : {}) },
     select: { id: true },
   });
 
@@ -152,6 +160,7 @@ export async function recordCashSaleMovementInTx(
       reason: `Venta #${input.orderCode}`,
       orderId: input.orderId,
       createdBy: input.actor,
+      ...(input.occurredAt ? { occurredAt: input.occurredAt } : {}),
     },
     select: { id: true },
   });

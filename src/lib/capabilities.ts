@@ -22,6 +22,11 @@ export type Capability =
   // `agenda:manage`. Con una capacidad propia, el profesional cobra LO SUYO (el scoping a
   // su `professionalId` lo hace la acción) y nada más.
   | "agenda:collect"
+  // Dar de baja (perdonar) el saldo de un turno ya prestado. SIN plata, pero es plata que el
+  // negocio resigna: decisión de la dueña (reingeniería CH, D5: «tope $0, sólo la dueña da de
+  // baja saldos»). Va SEPARADA de `agenda:manage` porque la recepción gestiona la agenda entera
+  // y, con eso, podía regalar saldos. Sólo OWNER; `condonarSaldoTurno` la exige.
+  | "agenda:forgive"
   | "clients:read"
   | "clients:manage"
   | "waitlist:manage" // anotar/gestionar la lista de espera y convertir en turno
@@ -106,6 +111,7 @@ const DEL_DUENIO: Record<Exclude<Capability, keyof typeof NO_SON_DEL_DUENIO>, tr
   "agenda:manage": true,
   "agenda:complete": true,
   "agenda:collect": true,
+  "agenda:forgive": true,
   "clients:read": true,
   "clients:manage": true,
   "waitlist:manage": true,

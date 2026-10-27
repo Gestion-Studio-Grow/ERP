@@ -24,14 +24,20 @@ import {
   tomarPedidoOnlineGuarded,
   motivoDelRechazoDelAlta,
   claveDeLaVidriera,
+  buildOrderLines,
+  orderSubtotal,
   AnulacionDeCuentaRechazada,
   CobroDePedidoAnulado,
   type CobroDePedido,
   type OrderPaymentMethod,
 } from "@/lib/order-core";
 import { medioDeCobroRequerido, mensajeYaCobrado } from "@/lib/caja/medio-cobro";
+import { leerPagos, vueltoDelCobro } from "@/lib/cobro/leer-pagos";
+import type { AsientoDePago } from "@/lib/supermercado/pago-mixto";
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
-import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
+import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
+import { entregarAlFiadoEnTx, mensajeEntregaAlFiado, mensajeEntregaSinAppDeFiado, mensajeEntregaSinFicha, type ResultadoFiado } from "@/lib/clientes/fiado";
+import { decidirFiadoDeLaEntrega } from "@/lib/clientes/fiado.server";
 import { facturarOrden } from "@/lib/invoice-from-order";
 import { VentaAnuladaError } from "@/lib/invoice-core";
 import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
@@ -47,6 +53,9 @@ import {
   problemasDeLaBolsa,
   mensajeDeLaBolsa,
   preciosVistos,
+  franjasDeLaEntrega,
+  horarioDeLaEntrega,
+  notaDelPedido,
   MENSAJE_NO_SE_PUDO,
   type LineaDeLaBolsa,
   type EstadoPedidoOnline,
@@ -67,16 +76,34 @@ import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { isUniqueViolation } from "@/lib/prisma-errors";
 import { cantidadOCero, formatearCantidad } from "@/lib/pos-peso";
 import { fmtMoneyARS } from "@/components/ui/format";
+import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
+import { productosQuePuedenFaltarAFuturo } from "@/lib/pedidos/interpretar-whatsapp";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { round2 } from "@/lib/round";
 import { buscarFichaPorTelefono } from "@/lib/clientes/ficha-por-telefono";
+import { leerConfigEnvios } from "@/lib/envios/config";
+import {
+  cotizarEnvio,
+  cotizarEnvioDelMostrador,
+  MOTIVO_FALTA_ZONA_DEL_ENVIO,
+  motivoTiendaPausada,
+  tieneZonas,
+  zonaPorId,
+  type ModoDeEntrega,
+} from "@/lib/envios/tarifa";
+import type { ZonaDeEnvio } from "@/lib/envios/modelo";
+import { shippingVigente } from "@/lib/storefront-shipping";
+import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import {
   AnulacionVentaRechazada,
   reglasDeAnulacion,
   fronteraDeVenta,
+  laVentaEscribeEnCaja,
   ajustarPedidoInTx,
   type AjustarPedidoResult,
   wherePedidosAbiertos,
@@ -92,6 +119,11 @@ import {
   ventaDeOrden,
   type VentaTicket,
 } from "@/app/admin/(dashboard)/vender/reglas-venta";
+import {
+  CAMPO_HORA_DEL_CUADERNO,
+  CUADERNO_APAGADO,
+  decidirHoraDelCuaderno,
+} from "@/lib/cuaderno/hora-de-la-venta";
 
 const ORDERS_PATH = "/admin/pedidos";
 // Las otras dos pantallas del mostrador que muestran ventas: se revalidan junto con la bandeja
@@ -201,7 +233,9 @@ function parseItems(formData: FormData): { productId: string; qty: number }[] {
 //     transacción al confirmarse). No se sabe si se grabó: se reintenta con la MISMA clave.
 export type OrderActionState =
   // `yaEstaba`: la venta ya estaba grabada con esta clave y se devolvió ésa (no se grabó nada).
-  | { ok: true; mensaje?: string; venta?: VentaTicket; yaEstaba?: true }
+  // `vuelto`: lo que entregó el cliente en efectivo (`recibido`) menos lo que va en efectivo al
+  // libro, para la pantalla y el ticket. No se guarda. Sólo viene si llegó `recibido`.
+  | { ok: true; mensaje?: string; venta?: VentaTicket; yaEstaba?: true; vuelto?: number }
   // `claveLibre`: un rechazo del alta, y con esta clave NO hay nada grabado (se buscó al rechazar).
   | { ok: false; error: string; tipo?: undefined; claveLibre?: true }
   | { ok: false; error: string; tipo: "ya-grabada-distinta"; grabada: VentaYaGrabada }
@@ -264,7 +298,8 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   }
 
   if (aCuenta) {
-    if (!cuentasCorrientesEnabled()) {
+    // Las cuentas corrientes de ESTE negocio (interruptor por negocio; si nunca se tocó, la variable).
+    if (!(await cuentasCorrientesDe(tenantId))) {
       return {
         ok: false,
         error: "Las cuentas corrientes todavía no están encendidas en este negocio: cobrá la venta con un medio o dejala sin cobrar.",
@@ -280,7 +315,14 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
       return { ok: false, error: "«A cuenta» es para la venta de mostrador. Un pedido se deja sin cobrar y se cobra al entregarlo." };
     }
   }
-  const paid = !aCuenta && (String(formData.get("paid")) === "on" || String(formData.get("paid")) === "true");
+  // LOS PAGOS (Magra, tanda 1 · 1A): lo que escribió `PieDeCobro` —o el `paid` + `paymentMethod`
+  // de los formularios de siempre— leído por `leerPagos` (cobro/leer-pagos.ts). Con dos o más
+  // `pago.*` es un pago MIXTO: los asientos se validan contra el total de la base adentro de la
+  // transacción del alta. Sin cobrar (o a cuenta) no hay medio ni asientos: se descartan.
+  const pagos = leerPagos((campo) => formData.getAll(campo).map(String));
+  if (!pagos.ok) return { ok: false, error: pagos.error };
+  const paid = !aCuenta && pagos.pagado;
+  const asientos = paid ? pagos.asientos : null;
   // Cupón: el código tal cual lo escribió el cajero. Se valida y se consume en la transacción del
   // alta (order-core.ts). No se suma a un descuento a mano: es uno o el otro.
   const cupon = normalizarCodigoDeCupon(formData.get("cupon")) || null;
@@ -290,7 +332,7 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // La decisión entera vive en `medioDeCobroRequerido` (caja/medio-cobro.ts, probada con
   // datos); acá sólo se usa el medio que ella devuelve. No va en `insertOrder`: la vidriera y
   // la ingesta externa no la heredan.
-  const medio = medioDeCobroRequerido({ channel, paid, paymentMethod: formData.get("paymentMethod") });
+  const medio = medioDeCobroRequerido({ channel, paid, paymentMethod: pagos.medio });
   if (!medio.ok) return { ok: false, error: medio.error };
   const paymentMethod: PaymentMethod | null = medio.paymentMethod;
 
@@ -319,11 +361,43 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // La DECISIÓN entera vive en `fronteraDeVenta` (pura, probada sin base); acá sólo se le
   // pasan los dos hechos que hay que ir a buscar: hasta qué día está cerrado y qué día es hoy
   // en la zona del negocio.
+  const cerradoHasta = await lastClosedDay(tenantId);
+
+  // LA VENTA DEL CUADERNO (Magra, tanda 2 · 2E, MG-060). Se cortó internet, se vendió anotando en
+  // el cuaderno, y ahora se carga con la hora en que se vendió (`occurredAt`, hora de pared del
+  // negocio). La decide `decidirHoraDelCuaderno` (pura, la misma que usa la pantalla): sólo venta de
+  // mostrador cobrada con un medio, nunca en el futuro, nunca en un día cerrado, y hasta cuántos días
+  // atrás según el ROL de la sesión (nunca del formulario). Va detrás del interruptor del mostrador
+  // boutique: en un negocio que no lo tiene, el campo se rechaza (CH sigue igual). Sin el campo,
+  // nada de esto corre: la venta de siempre.
+  const horaCruda = String(formData.get(CAMPO_HORA_DEL_CUADERNO) ?? "").trim();
+  let delCuaderno: { en: Date; dia: string } | null = null;
+  if (horaCruda) {
+    if (!mostradorBoutiquePrendido(await interruptoresDelNegocio())) return { ok: false, error: CUADERNO_APAGADO };
+    const hora = decidirHoraDelCuaderno({
+      crudo: horaCruda,
+      ahora: new Date(),
+      rol: user.role,
+      cerradoHasta,
+      venta: {
+        channel,
+        fulfillment,
+        cobrada: laVentaEscribeEnCaja({ paid, paymentMethod }),
+        aCuenta,
+        pagoDividido: asientos !== null,
+        cupon: cupon !== null,
+      },
+    });
+    if (!hora.ok) return { ok: false, error: hora.error };
+    delCuaderno = hora;
+  }
+
   const frontera = fronteraDeVenta({
     paid,
     paymentMethod,
-    hoy: dateStrInBusinessTz(new Date()),
-    cerradoHasta: await lastClosedDay(tenantId),
+    // La venta del cuaderno se mide contra SU día, no contra hoy (la misma frontera).
+    hoy: delCuaderno?.dia ?? dateStrInBusinessTz(new Date()),
+    cerradoHasta,
     esDiaCerrado: isFrozenDay,
   });
   if (frontera.bloquea) return { ok: false, error: frontera.error };
@@ -342,13 +416,65 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // un pedido ONLINE devuelve la lista vacía y bloquea como siempre. `insertOrder` recibe el
   // dato ya decidido: no lo infiere, así que la vidriera y la ingesta externa no lo heredan.
   const items = parseItems(formData);
-  const permitirNegativoPorProducto = productosQuePuedenQuedarNegativos(
-    await prisma.product.findMany({
-      where: { tenantId, id: { in: items.map((l) => l.productId).filter(Boolean) } },
-      select: { id: true, saleUnit: true },
-    }),
-    channel,
-  );
+  const productosDelAlta = await prisma.product.findMany({
+    where: { tenantId, id: { in: items.map((l) => l.productId).filter(Boolean) } },
+    select: { id: true, saleUnit: true },
+  });
+  const permitirNegativoPorProducto = productosQuePuedenQuedarNegativos(productosDelAlta, channel);
+  // MAGRA T2 · 2B (E08): un pedido para OTRO DÍA de un corte por kilo, con el mostrador boutique
+  // prendido en este negocio, AVISA el faltante en vez de bloquear (el viernes se envasa lo del
+  // sábado). Decisión del dueño, provisional a confirmar (`FALTANTE_A_FUTURO_AVISA`). Lo decide
+  // el servidor: la unidad sale de la base, el día del horario leído en la zona del negocio y el
+  // interruptor de la consola; del formulario no se toma ningún permiso.
+  if (channel === "ONLINE" && scheduledRaw) {
+    const horario = horarioDelFormulario(scheduledRaw);
+    permitirNegativoPorProducto.push(
+      ...productosQuePuedenFaltarAFuturo(productosDelAlta, {
+        channel,
+        dia: horario ? dateStrInBusinessTz(horario) : null,
+        hoy: dateStrInBusinessTz(new Date()),
+        prendido: mostradorBoutiquePrendido(await interruptoresDelNegocio()),
+      }),
+    );
+  }
+
+  // EL ENVÍO DEL MOSTRADOR (Magra, MG-031; cierra el cable de 1B). Con entrega a domicilio y un
+  // negocio con zonas de Envíos, la zona que eligió quien vende (`envioZona`) se valida acá contra
+  // la configuración LEÍDA DE LA BASE, y el renglón «Envío · <zona>» lo arma el alta con el costo
+  // de la zona sobre lo que suman los productos a precio de la base (`decidirAlta` →
+  // `costoDeEnvio`, lo mismo que la tienda). Del navegador sólo se toma QUÉ zona: un costo que
+  // mande no se lee. En el mostrador no frenan la tienda pausada, el pedido mínimo ni la franja
+  // (`cotizarEnvioDelMostrador`, con el porqué).
+  //
+  // Con zonas, la zona es OBLIGATORIA en todo pedido con envío, traiga o no el formulario el campo
+  // (O-2 de la certificación de Magra T1): antes sólo se cotizaba si venía `envioZona`, y un
+  // formulario que no lo mandaba (o un POST a mano) grababa el envío en $0. Ahora sin zona válida
+  // se rechaza con el motivo y dónde elegirla, y no se graba nada. Un negocio sin zonas (CH, Shine)
+  // sigue igual: sin zona no hay renglón ni cambia nada.
+  let envioZona: ZonaDeEnvio | null = null;
+  if (fulfillment === "DELIVERY") {
+    const configEnvios = await leerConfigEnvios(prisma, tenantId);
+    if (tieneZonas(configEnvios)) {
+      const zonaPedida = String(formData.get("envioZona") ?? "").trim().slice(0, 60) || null;
+      if (!zonaPedida) return { ok: false, error: MOTIVO_FALTA_ZONA_DEL_ENVIO };
+      const conProducto = items.filter((l) => l.productId && l.qty > 0);
+      const cotizacion = cotizarEnvioDelMostrador(configEnvios, {
+        // Lo mismo sobre lo que cobra el alta: productos a precio de la base más las líneas a mano.
+        subtotal: round2(
+          (conProducto.length ? await subtotalDeLaBolsaEnBase(tenantId, conProducto) : 0) +
+            aMano.lineas.reduce((s, l) => s + l.importe, 0),
+        ),
+        zonaId: zonaPedida,
+      });
+      if (!cotizacion.ok) return { ok: false, error: cotizacion.motivo };
+      envioZona = cotizacion.zona;
+    }
+  }
+
+  // LA FICHA ELEGIDA (bloque Cliente de Vender, `clientId`). La verifica el alta contra el negocio
+  // (`fichaDelNegocio`, order-core.ts): si no es de acá, rechazo con su motivo y nada grabado. Sin
+  // ficha elegida, la venta se ata por el teléfono, como siempre.
+  const clientIdElegido = String(formData.get("clientId") || "").trim().slice(0, 64) || null;
 
   // I7 (ADR-064): la imputación a caja de la venta cobrada va ATÓMICA con la orden+stock
   // dentro de `insertOrder` (una sola tx, todo-o-nada). `imputarCajaActor` la activa: solo el
@@ -384,6 +510,10 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
         aCuenta: aCuenta ? { createdBy: `user:${user.id}` } : null,
         // El tope del precio a mano sale del ROL de la sesión, igual que el del descuento.
         topePrecioAMano: topeDePrecioAMano(user.role),
+        pagosMixtos: asientos ? { asientos } : null,
+        envioZona,
+        clientId: clientIdElegido,
+        ...(delCuaderno ? { occurredAt: delCuaderno.en } : {}),
       },
     );
   } catch (err) {
@@ -487,15 +617,23 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
       // El cupón queda con su monto y quién lo cargó: es lo que suma Promociones.
       ...(result.cupon ? { cupon: { codigo: result.cupon, monto: descuento, por: user.name } } : {}),
       ...(aCuenta ? { aCuenta: true, por: user.name } : {}),
+      ...(asientos ? { pagos: asientos } : {}),
+      ...(envioZona ? { zona: envioZona.nombre, envio: result.envio ?? 0 } : {}),
+      // La venta del cuaderno: cuándo se vendió y quién la cargó (la fila de auditoría es de ahora).
+      ...(delCuaderno ? { delCuaderno: { vendidaEn: delCuaderno.en.toISOString(), cargadaPor: user.name } } : {}),
     },
   });
 
   revalidarMostrador();
   const mensaje = aCuenta ? `Venta #${result.code} a cuenta: queda en la cuenta corriente del cliente.` : undefined;
-  if (String(formData.get("conTicket") || "") !== "1") return { ok: true, ...(mensaje ? { mensaje } : {}) };
+  const vuelto = paid
+    ? vueltoDelCobro({ total: result.total ?? result.subtotal, medio: paymentMethod, asientos, recibido: pagos.recibido })
+    : null;
+  const extra = { ...(mensaje ? { mensaje } : {}), ...(vuelto !== null ? { vuelto } : {}) };
+  if (String(formData.get("conTicket") || "") !== "1") return { ok: true, ...extra };
   return {
     ok: true,
-    ...(mensaje ? { mensaje } : {}),
+    ...extra,
     venta: (await ventaParaTicket(tenantId, result.id)) ?? undefined,
   };
 }
@@ -523,6 +661,8 @@ async function ventaParaTicket(tenantId: string, id: string): Promise<VentaTicke
         select: { productId: true, name: true, saleUnit: true, quantity: true, unitPrice: true, lineTotal: true },
         orderBy: { id: "asc" },
       },
+      // Los cobros de la venta: sólo existen con pago mixto, y el ticket los muestra medio por medio.
+      collections: { where: { tenantId, originType: "ORDER" }, select: { method: true, amount: true }, orderBy: { id: "asc" } },
     },
   });
   return o ? ventaDeOrden(o) : null;
@@ -551,6 +691,15 @@ export async function placeOnlineOrder(
 ): Promise<EstadoPedidoOnline> {
   const tenantId = await getCurrentTenantId();
 
+  // ENVÍOS DEL NEGOCIO (src/lib/envios, reingeniería Magra 1H): la configuración se lee ACÁ, de la
+  // base, y decide todo —pausa, retiro, zona, mínimo, costo y franja—. Del formulario sólo se
+  // toma QUÉ eligió la clienta (la zona por id, la franja por texto, el día); el costo que mostró
+  // la pantalla no viaja ni se lee: lo vuelve a calcular el alta con `costoDeEnvio`.
+  const configEnvios = await leerConfigEnvios(prisma, tenantId);
+  // Tienda pausada (Envíos → «Pausar»): no se graba nada y se dice el mensaje del dueño (MG-036).
+  const pausa = motivoTiendaPausada(configEnvios);
+  if (pausa) return { ok: false, error: pausa };
+
   const fulfillment =
     String(formData.get("fulfillment") || "PICKUP") === "DELIVERY" ? "DELIVERY" : "PICKUP";
   const customerName = String(formData.get("customerName") || "").trim().slice(0, 120);
@@ -567,6 +716,27 @@ export async function placeOnlineOrder(
     return { ok: false, error: "Para el envío a domicilio necesitamos la dirección.", campo: "datos" };
   }
   const porWhatsApp = String(formData.get("via") || "") === "whatsapp";
+
+  // La entrega elegida, contra la configuración leída arriba. Sin zonas propias, la tarifa es la
+  // del copy de la marca (Shine, `storefront.ts`) o ninguna: lo de siempre.
+  const modo: ModoDeEntrega = fulfillment === "DELIVERY" ? "envio" : "retiro";
+  const conZonas = modo === "envio" && tieneZonas(configEnvios);
+  const zonaId = conZonas ? String(formData.get("envioZona") || "").slice(0, 60) || null : null;
+  const zonaElegida = zonaPorId(configEnvios, zonaId);
+  const ahora = new Date();
+  const horario = horarioDeLaEntrega({
+    franjas: franjasDeLaEntrega(configEnvios, modo, zonaElegida),
+    franja: String(formData.get("franja") || "").slice(0, 80) || null,
+    dia: String(formData.get("dia") || "").slice(0, 10) || null,
+    hoy: dateStrInBusinessTz(ahora),
+    ahora,
+  });
+  if (!horario.ok) return { ok: false, error: horario.error, campo: "datos" };
+  const notes = notaDelPedido({
+    zona: conZonas ? (zonaElegida?.nombre ?? null) : null,
+    franja: horario.nota,
+    deLaClienta: String(formData.get("notes") || "").trim().slice(0, 500) || null,
+  });
 
   // A-1: clave de idempotencia del carrito (la genera el cliente por pedido). Con el doble
   // submit del mobile —el camino infeliz #1— los dos envíos traen la MISMA clave → `insertOrder`
@@ -589,8 +759,9 @@ export async function placeOnlineOrder(
   }
 
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true, name: true } });
-  // La tarifa de envío es de la MARCA (storefront.ts): la misma que la vidriera usa para mostrar.
-  const envio = getStorefrontCopy(tenant?.slug)?.shipping ?? null;
+  // Con zonas propias, la tarifa es la de la zona (`envioZona`, abajo). Si no, la de la MARCA
+  // (storefront.ts, `shippingVigente`): la misma que la vidriera usa para mostrar (Shine).
+  const envio = tieneZonas(configEnvios) ? null : shippingVigente(null, getStorefrontCopy(tenant?.slug)?.shipping);
   const cupon = normalizarCodigoDeCupon(formData.get("cupon")) || null;
   // El alta también es una puerta para probar códigos: pasa por el mismo freno que «Aplicar»
   // (cupones/prueba-publica.ts). Frenado, ni se intenta el alta.
@@ -607,19 +778,26 @@ export async function placeOnlineOrder(
     idempotencyKey,
     buscarPorClave: (key) => pedidoConClave(tenantId, key),
     revisarBolsa: () => problemasDeLaBolsaEnBase(tenantId, lineasDeLaBolsa),
-    insertar: () =>
-      insertOrder(tenantId, {
+    insertar: async () => {
+      // La cotización con las reglas del negocio (retiro habilitado, zona que existe, pedido
+      // mínimo) sobre lo que suman los productos A PRECIO DE LA BASE. Un no es un rechazo con su
+      // motivo («te faltan $X… lo retirás en el local sin mínimo»): no se graba nada.
+      const subtotalDeLaBase = conZonas ? await subtotalDeLaBolsaEnBase(tenantId, items) : 0;
+      const cotizacion = cotizarEnvio(configEnvios, { subtotal: subtotalDeLaBase, modo, zonaId });
+      if (!cotizacion.ok) throw new RechazoDeDominio(cotizacion.motivo);
+      return insertOrder(tenantId, {
         channel: "ONLINE",
         fulfillment,
         customerName,
         customerPhone,
         address,
-        notes: String(formData.get("notes") || "").trim().slice(0, 500) || null,
-        scheduledFor: null,
+        notes,
+        scheduledFor: horario.scheduledFor,
         paid: false,
         paymentMethod: null,
         items,
-      }, { idempotencyKey, envio, cupon, promociones }),
+      }, { idempotencyKey, envio, envioZona: cotizacion.zona, cupon, promociones });
+    },
   });
   if (toma.tipo === "cupon") {
     // Hacia afuera, el texto único ("venció el…" diría que el código existe) y suma al freno.
@@ -653,6 +831,8 @@ export async function placeOnlineOrder(
         fulfillment,
         total: result.total ?? result.subtotal,
         ...(result.envio ? { envio: result.envio } : {}),
+        ...(zonaElegida ? { zona: zonaElegida.nombre } : {}),
+        ...(horario.scheduledFor ? { horario: horario.scheduledFor.toISOString() } : {}),
         ...(result.cupon ? { cupon: { codigo: result.cupon, monto: result.descuento ?? 0 } } : {}),
         ...(porWhatsApp ? { via: "whatsapp" } : {}),
       },
@@ -671,6 +851,18 @@ export async function placeOnlineOrder(
     return null;
   });
   return { ok: true, code: result.code, total: result.total ?? result.subtotal, whatsapp };
+}
+
+/**
+ * Lo que suma la bolsa a precio de la base (sin envío, cupón ni promos), para el pedido mínimo
+ * del envío. El alta vuelve a armar las líneas en su transacción: esto sólo decide si se puede.
+ */
+async function subtotalDeLaBolsaEnBase(tenantId: string, items: { productId: string; qty: number }[]): Promise<number> {
+  const productos = await prisma.product.findMany({
+    where: { tenantId, id: { in: items.map((l) => l.productId) }, deletedAt: null, active: true },
+    select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, trackStock: true },
+  });
+  return orderSubtotal(buildOrderLines(productos, items));
 }
 
 /** La bolsa contra la base: qué línea no se puede pedir y por qué (`problemasDeLaBolsa`). */
@@ -776,9 +968,20 @@ export async function advanceOrderStatus(formData: FormData): Promise<OrderActio
 // (order-core.ts) se lanza ADENTRO de la transacción para que el `paid` que ya se escribió
 // vuelva atrás con todo lo demás.
 
+// PAGO MIXTO (Magra, tanda 1 · 1A): `opts.asientos` (dos o más, leídos por `leerPagos`) cobran el
+// pedido con varios medios. `methodRaw` es entonces el medio principal, y pasa por la MISMA regla y
+// la MISMA frontera; `cobrarPedidoEnTx` valida los asientos contra el total de la base y escribe un
+// cobro con su asiento por medio. `opts.conTicket` devuelve la venta para el ticket (`VentaTicket`).
+type OpcionesDelCobro = {
+  asientos?: readonly AsientoDePago[] | null;
+  recibido?: number | null;
+  conTicket?: boolean;
+};
+
 async function setOrderPaidCore(
   id: string,
   methodRaw: string,
+  opts: OpcionesDelCobro = {},
 ): Promise<OrderActionState> {
   const user = await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
@@ -819,7 +1022,7 @@ async function setOrderPaidCore(
   let cobro: CobroDePedido;
   try {
     cobro = await tenantTransaction(
-      (tx) => cobrarPedidoEnTx(tx, tenantId, { orderId: id, method, actor: `user:${user.id}` }),
+      (tx) => cobrarPedidoEnTx(tx, tenantId, { orderId: id, method, actor: `user:${user.id}`, asientos: opts.asientos ?? null }),
       { tenantId },
     );
   } catch (e) {
@@ -831,7 +1034,8 @@ async function setOrderPaidCore(
     // espera el lock de la fila y sale por "ya-cobrado" sin llegar a asentar, así que este
     // choque del @@unique del asiento VENTA no debería darse. Si igual se diera, la tx aborta
     // entera —el `paid` también— y no hay nada que reparar: ni re-auditoría ni un 500.
-    if (isUniqueViolation(e, "orderId")) {
+    // Con pago mixto, el árbitro es la clave del cobro (`pago-mixto:<orderId>:<medio>`, único).
+    if (isUniqueViolation(e, "orderId") || isUniqueViolation(e, "idempotencyKey")) {
       revalidarMostrador();
       return { ok: true, mensaje: "Ese pedido ya estaba cobrado." };
     }
@@ -841,14 +1045,27 @@ async function setOrderPaidCore(
   if (cobro.tipo === "no-existe") return { ok: false, error: "No se encontró el pedido a cobrar." };
   if (cobro.tipo === "ya-cobrado") {
     revalidarMostrador();
-    return mensajeYaCobrado({ code: cobro.code, medioRegistrado: cobro.medioRegistrado, medioElegido: method });
+    const ya = mensajeYaCobrado({ code: cobro.code, medioRegistrado: cobro.medioRegistrado, medioElegido: method });
+    if (!ya.ok || !opts.conTicket) return ya;
+    return { ...ya, venta: (await ventaParaTicket(tenantId, id)) ?? undefined };
   }
 
   const { order } = cobro;
-  await auditAdmin({ action: "update", entity: "Order", entityId: order.id, changes: { paid: true, method } });
+  await auditAdmin({
+    action: "update",
+    entity: "Order",
+    entityId: order.id,
+    changes: { paid: true, method, ...(opts.asientos ? { pagos: opts.asientos } : {}) },
+  });
 
   revalidarMostrador();
-  return { ok: true, mensaje: `Pedido #${order.code} cobrado: ${fmtMoneyARS(order.total)}.` };
+  const vuelto = vueltoDelCobro({ total: order.total, medio: method, asientos: opts.asientos ?? null, recibido: opts.recibido ?? null });
+  return {
+    ok: true,
+    mensaje: `Pedido #${order.code} cobrado: ${fmtMoneyARS(order.total)}.`,
+    ...(vuelto !== null ? { vuelto } : {}),
+    ...(opts.conTicket ? { venta: (await ventaParaTicket(tenantId, order.id)) ?? undefined } : {}),
+  };
 }
 
 /**
@@ -864,10 +1081,16 @@ export async function cobrarPedido(
   _prev: OrderActionState,
   formData: FormData,
 ): Promise<OrderActionState> {
-  return setOrderPaidCore(
-    String(formData.get("id") || "").trim(),
-    String(formData.get("paymentMethod") || "").trim(),
-  );
+  // Los pagos como los escribe `PieDeCobro` (o el `paymentMethod` de siempre): con dos o más
+  // `pago.*`, el medio es el principal y los asientos viajan al cobro. Devuelve la venta para el
+  // ticket: es lo que se imprime o se manda por WhatsApp después de cobrar.
+  const pagos = leerPagos((campo) => formData.getAll(campo).map(String));
+  if (!pagos.ok) return { ok: false, error: pagos.error };
+  return setOrderPaidCore(String(formData.get("id") || "").trim(), pagos.medio, {
+    asientos: pagos.asientos,
+    recibido: pagos.recibido,
+    conTicket: true,
+  });
 }
 
 // --- Entregar ---
@@ -881,41 +1104,90 @@ export async function entregarPedido(
   _prev: OrderActionState,
   formData: FormData,
 ): Promise<OrderActionState> {
-  await requireCapability("orders:manage");
+  const user = await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
   const id = String(formData.get("id") || "").trim();
   if (!id) return { ok: false, error: "Falta identificar el pedido a entregar." };
   const quedaACobrar = String(formData.get("quedaACobrar") || "") === "on";
+  // UN SOLO FIADO (Magra, tanda 2 · 2D; src/lib/clientes/fiado.ts). Con el mostrador boutique y las
+  // cuentas corrientes prendidas en el negocio, «Queda a cobrar» de un pedido CON ficha deja la
+  // deuda en la cuenta del cliente: Listo → Entregado y la `AccountReceivable` en UNA transacción
+  // (`entregarAlFiadoEnTx`, idempotente). Es el único lugar que la crea al entregar. Apagado, sin
+  // ficha o sin la app de Fiado, la entrega de siempre («Entregado · a cobrar»), byte a byte.
+  const fiado = quedaACobrar ? await decidirFiadoDeLaEntrega(tenantId, id) : null;
+  let alFiado: ResultadoFiado | null = null;
+  // Los pagos del pie (o el medio de siempre). Con pago mixto, el «medio» que mira la guarda es el
+  // principal: con eso sabe que se eligió cómo pagó; el cobro lleva los asientos.
+  const pagos = leerPagos((campo) => formData.getAll(campo).map(String));
+  if (!pagos.ok) return { ok: false, error: pagos.error };
+  let vuelto: number | undefined;
 
   const r = await entregarPedidoGuarded({
-    medio: String(formData.get("paymentMethod") || ""),
+    medio: pagos.medio,
     quedaACobrar,
     leer: () =>
       prisma.order.findFirst({ where: { id, tenantId }, select: { code: true, status: true, paid: true } }),
     // El MISMO cobro que el botón «Cobrar»: medio obligatorio, frontera del día cerrado,
     // "sólo lo que no estaba cobrado" y el asiento en la caja en la misma transacción.
-    cobrar: async (medio) =>
-      (await setOrderPaidCore(id, medio)) ?? { ok: false, error: "No se pudo cobrar el pedido." },
-    marcarEntregado: async () =>
-      (
-        await prisma.order.updateMany({
-          where: { id, tenantId, status: "READY" },
-          data: { status: "DELIVERED" },
-        })
-      ).count === 1,
+    cobrar: async (medio) => {
+      const c = await setOrderPaidCore(id, medio, { asientos: pagos.asientos, recibido: pagos.recibido });
+      if (c?.ok && c.vuelto !== undefined) vuelto = c.vuelto;
+      return c ?? { ok: false, error: "No se pudo cobrar el pedido." };
+    },
+    marcarEntregado: async () => {
+      if (fiado?.va) {
+        const e = await tenantTransaction(
+          (tx) => entregarAlFiadoEnTx(tx, tenantId, { orderId: id, actor: `user:${user.id}` }),
+          { tenantId },
+        );
+        alFiado = e.fiado;
+        return e.entregado;
+      }
+      return (
+        (
+          await prisma.order.updateMany({
+            where: { id, tenantId, status: "READY" },
+            data: { status: "DELIVERED" },
+          })
+        ).count === 1
+      );
+    },
   });
 
   revalidarMostrador();
   if (!r.ok) return r;
+  // TS no sigue la asignación hecha adentro del callback: se lee con su tipo.
+  const deuda = alFiado as ResultadoFiado | null;
   if (r.entregado) {
     await auditAdmin({
       action: "update",
       entity: "Order",
       entityId: id,
-      changes: { status: { from: "READY", to: "DELIVERED" }, ...(r.quedaACobrar ? { quedaACobrar: true } : {}) },
+      changes: {
+        status: { from: "READY", to: "DELIVERED" },
+        ...(r.quedaACobrar ? { quedaACobrar: true } : {}),
+        ...(deuda?.tipo === "creado" ? { fiado: { cuenta: deuda.receivableId, monto: deuda.monto } } : {}),
+      },
     });
   }
-  return { ok: true, mensaje: r.mensaje };
+  let mensaje = r.mensaje;
+  if (r.entregado && deuda?.tipo === "creado") {
+    const p = await prisma.order.findFirst({ where: { id, tenantId }, select: { customerName: true } });
+    mensaje = mensajeEntregaAlFiado({ code: deuda.code, cliente: p?.customerName ?? "", monto: textoPlata(deuda.monto) });
+    revalidatePath(`/admin/clientes/${deuda.clientId}`);
+    revalidatePath("/admin/cuentas-a-cobrar");
+  } else if (r.entregado && r.quedaACobrar && fiado && !fiado.va && fiado.motivo === "sin-ficha") {
+    const p = await prisma.order.findFirst({ where: { id, tenantId }, select: { code: true } });
+    if (p) mensaje = mensajeEntregaSinFicha(p.code);
+  } else if (r.entregado && r.quedaACobrar && fiado && !fiado.va && fiado.motivo === "sin-app") {
+    // O-2: con las cuentas corrientes prendidas y la app de Fiado cerrada, nunca en silencio.
+    const p = await prisma.order.findFirst({ where: { id, tenantId }, select: { code: true } });
+    if (p) mensaje = mensajeEntregaSinAppDeFiado(p.code);
+  }
+  // La venta para el ticket (lo que quedó grabado): con vuelto si se cobró en efectivo y llegó
+  // lo que entregó el cliente.
+  const venta = (await ventaParaTicket(tenantId, id)) ?? undefined;
+  return { ok: true, mensaje, ...(vuelto !== undefined ? { vuelto } : {}), ...(venta ? { venta } : {}) };
 }
 
 // --- Anular una venta (lo que antes era "Cancelar") ---
@@ -959,7 +1231,7 @@ async function anularVentaCore(
   // Con cuentas corrientes encendidas, una venta A CUENTA tiene su deuda: se anula en la MISMA
   // transacción (`anularCuentaDeLaVentaEnTx`). Apagadas no se mira: no hay deudas nacidas de una
   // venta y la tabla puede no estar en la base.
-  const conCuentas = cuentasCorrientesEnabled();
+  const conCuentas = await cuentasCorrientesDe(tenantId);
 
   let resultado;
   let cuenta = { anulada: false, monto: 0 };

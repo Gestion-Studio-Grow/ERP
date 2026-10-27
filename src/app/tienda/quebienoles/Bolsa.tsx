@@ -8,12 +8,30 @@
 // es cierto: el envío o el punto de encuentro en Ezeiza y el pago se coordinan por mensaje.
 
 import Image from "next/image";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { plata, textoDelEnvio } from "../vidriera/catalogo-core";
 import type { EstadoVidriera } from "../vidriera/useVidriera";
 import { MENSAJE_NO_SE_PUDO } from "../reglas-tienda";
 import { mensajeDirecto, type Pieza } from "./vitrina";
 import { IconoBolsa, IconoCerrar } from "./Iconos";
+import { CamposDeEntrega, FrenoDeEntrega, type AparienciaDeEntrega } from "../EntregaDeLaTienda";
+
+// La piel de Qué Bien Olés para la zona, el día, la franja y el freno, si el negocio carga Envíos
+// (EntregaDeLaTienda.tsx). Sin configuración no se dibuja nada y la bolsa queda como siempre.
+const ROTULO: CSSProperties = { font: "500 11px/1 var(--palo)", letterSpacing: ".22em", textTransform: "uppercase", color: "var(--hueso-2)" };
+const APARIENCIA_ENTREGA: AparienciaDeEntrega = {
+  bloque: { style: { display: "grid", gap: 14 } },
+  campo: { className: "qb-campo" },
+  rotulo: { style: ROTULO },
+  control: {
+    style: { height: 52, padding: "0 14px", border: "1px solid var(--linea-2)", borderRadius: 0, background: "transparent", color: "var(--hueso)", font: "400 16px var(--palo)" },
+  },
+  grupo: { className: "qb-entrega" },
+  nota: { className: "qb-tenue", style: { margin: 0 } },
+  empujon: { className: "qb-tenue", style: { margin: 0 } },
+  freno: { style: { display: "grid", gap: 10, padding: "12px 14px", borderLeft: "2px solid var(--oro)" } },
+  boton: { className: "qb-boton qb-boton-linea" },
+};
 
 const NO_SE_PUDO_SIN_WHATSAPP =
   "No pudimos tomar el pedido. Tu bolsa sigue acá: probá de nuevo en un rato o escribinos por Instagram.";
@@ -41,7 +59,7 @@ export default function Bolsa({
   const titulo = useRef<HTMLHeadingElement>(null);
   const [paso, setPaso] = useState<"bolsa" | "datos">("bolsa");
   const id = useId();
-  const { pedido, cupon } = v;
+  const { pedido, cupon, entrega } = v;
   const hay = v.lineas.length > 0;
 
   useEffect(() => {
@@ -66,7 +84,8 @@ export default function Bolsa({
   const envio = textoDelEnvio({
     fulfillment: v.fulfillment,
     costo: v.costoEnvio,
-    hayTarifa: false,
+    // Con zonas propias en Envíos, el costo es el de la zona; sin ellas, como siempre: «a coordinar».
+    hayTarifa: entrega.conZonas,
     sinTarifa: "a-coordinar",
     hayProductos: hay,
   });
@@ -182,7 +201,7 @@ export default function Bolsa({
                 </div>
                 <div>
                   <dt>Envío o punto de encuentro</dt>
-                  <dd>{envio}</dd>
+                  <dd>{entrega.modo === "envio" && entrega.conZonas && !entrega.zona ? "Elegí la zona" : envio}</dd>
                 </div>
               </dl>
               <p className="qb-tenue qb-bolsa-nota">La entrega y el medio de pago los coordinamos por mensaje.</p>
@@ -231,19 +250,21 @@ export default function Bolsa({
                     <small>Te pasamos el costo por mensaje.</small>
                   </span>
                 </label>
-                <label>
-                  <input
-                    type="radio"
-                    name="fulfillment"
-                    value="PICKUP"
-                    checked={v.fulfillment === "PICKUP"}
-                    onChange={() => v.setFulfillment("PICKUP")}
-                  />
-                  <span>
-                    <strong>Punto de encuentro en {ciudad}</strong>
-                    <small>Coordinamos lugar y horario por mensaje.</small>
-                  </span>
-                </label>
+                {entrega.hayRetiro && (
+                  <label>
+                    <input
+                      type="radio"
+                      name="fulfillment"
+                      value="PICKUP"
+                      checked={v.fulfillment === "PICKUP"}
+                      onChange={() => v.setFulfillment("PICKUP")}
+                    />
+                    <span>
+                      <strong>Punto de encuentro en {ciudad}</strong>
+                      <small>Coordinamos lugar y horario por mensaje.</small>
+                    </span>
+                  </label>
+                )}
               </fieldset>
               {v.fulfillment === "DELIVERY" && (
                 <div className="qb-campo">
@@ -251,6 +272,7 @@ export default function Bolsa({
                   <input id={`${id}-dir`} name="address" required autoComplete="street-address" maxLength={300} placeholder="Calle, número, localidad" />
                 </div>
               )}
+              <CamposDeEntrega e={entrega} idBase={`${id}-entrega`} apariencia={APARIENCIA_ENTREGA} />
               <div className="qb-campo">
                 <label htmlFor={`${id}-nota`}>
                   Nota <em>(opcional)</em>
@@ -306,16 +328,23 @@ export default function Bolsa({
                   <dd className="qb-num">{plata(v.total)}</dd>
                 </div>
               </dl>
+              <FrenoDeEntrega e={entrega} apariencia={APARIENCIA_ENTREGA} />
               {error && (
                 <p className="qb-error" role="alert">
                   {error}
                 </p>
               )}
-              <button type="submit" name="via" value="tienda" className="qb-boton qb-boton-oro qb-boton-ancho" disabled={pedido.enviando}>
+              <button
+                type="submit"
+                name="via"
+                value="tienda"
+                className="qb-boton qb-boton-oro qb-boton-ancho"
+                disabled={pedido.enviando || Boolean(entrega.freno)}
+              >
                 {pedido.enviando ? "Tomando tu pedido…" : "Hacer pedido"}
               </button>
               {hayWhatsApp && (
-                <button type="submit" name="via" value="whatsapp" className="qb-boton qb-boton-linea qb-boton-ancho" disabled={pedido.enviando}>
+                <button type="submit" name="via" value="whatsapp" className="qb-boton qb-boton-linea qb-boton-ancho" disabled={pedido.enviando || Boolean(entrega.freno)}>
                   Pedir por WhatsApp
                 </button>
               )}

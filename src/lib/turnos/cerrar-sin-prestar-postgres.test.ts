@@ -137,14 +137,36 @@ test("T10 · un turno ya cancelado no se vuelve a cancelar (la condición va en 
   assert.equal(otra?.ok, false);
 });
 
-test("M3 · con la agenda práctica apagada, la acción no existe para el negocio", async (t) => {
+// Reingeniería CH (Tanda 1): la acción ya no depende del interruptor «agenda-practica» (antes, en un
+// negocio sin el interruptor, contestaba «no está activa» y la seña quedaba en silencio). El
+// interruptor sólo decide qué pantalla se dibuja.
+test("M3 · sin la agenda práctica, la acción igual funciona; y un turno de otro negocio no se toca", async (t) => {
   const s = await preparar(t);
   if (!s) return;
   const { cerrarTurnoSinPrestar } = await import("@/lib/actions");
+  const deA = await s.turno("Eva");
   const fd = new FormData();
-  fd.set("appointmentId", await s.turno("Eva"));
+  fd.set("appointmentId", deA);
   fd.set("accion", "cancelar");
-  // Negocio B: sin el interruptor.
-  const r = await ejecutarAccion({ negocio: s.base.b, usuario: s.base.b.recepcion }, () => cerrarTurnoSinPrestar(fd));
-  assert.deepEqual(r.tipo === "respuesta" && r.valor, { ok: false, error: "Esta opción no está activa en tu negocio." });
+  // Negocio B (sin el interruptor) con un turno de A: no existe para B.
+  const cruzado = await ejecutarAccion({ negocio: s.base.b, usuario: s.base.b.recepcion }, () => cerrarTurnoSinPrestar(fd));
+  assert.deepEqual(cruzado.tipo === "respuesta" && cruzado.valor, { ok: false, error: "Ese turno ya no existe. Recargá la agenda." });
+  assert.equal((await foto(s, deA)).status, "PENDING");
+  // Negocio B con un turno suyo: cancela, aunque el interruptor esté apagado.
+  const duenio = await prismaComoDuenio(s.base);
+  const tenantB = s.base.b.id;
+  const box = await duenio.box.create({ data: { tenantId: tenantB, name: "Box B" } });
+  const servicio = await duenio.service.create({ data: { tenantId: tenantB, name: "Facial", durationMin: 60, price: 9000 } });
+  const prof = await duenio.professional.create({ data: { tenantId: tenantB, name: "Bru", boxId: box.id, services: { connect: [{ id: servicio.id }] } } });
+  const clienta = await duenio.client.create({ data: { tenantId: tenantB, name: "Flor", phone: "1130009999" } });
+  const startsAt = new Date(Date.now() + 72 * HORA);
+  const deB = await duenio.appointment.create({
+    data: { tenantId: tenantB, clientId: clienta.id, professionalId: prof.id, serviceId: servicio.id, boxId: box.id, startsAt, endsAt: new Date(startsAt.getTime() + HORA), status: "PENDING", priceAtBooking: 9000 },
+  });
+  const fdB = new FormData();
+  fdB.set("appointmentId", deB.id);
+  fdB.set("accion", "cancelar");
+  const r = await ejecutarAccion({ negocio: s.base.b, usuario: s.base.b.recepcion }, () => cerrarTurnoSinPrestar(fdB));
+  assert.deepEqual(r.tipo === "respuesta" && r.valor, { ok: true });
+  assert.equal((await duenio.appointment.findUniqueOrThrow({ where: { id: deB.id }, select: { status: true } })).status, "CANCELLED");
 });

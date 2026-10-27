@@ -14,7 +14,7 @@ const TODAS = [
 test("sin texto: lo de todos los días con su tecla, como el club de hoy", () => {
   const e = M.generarDemo(HOY, 19 * 60);
   const items = armarPaleta(e, { texto: "", hoy: HOY, dia: HOY, solapas: TODAS });
-  assert.deepEqual(items.slice(0, 3).map((i) => [i.titulo, i.atajo]), [["Nuevo turno", "N"], ["Abrir cuenta del buffet", "C"], ["Agenda de hoy", "T"]]);
+  assert.deepEqual(items.slice(0, 4).map((i) => [i.titulo, i.atajo]), [["Nuevo turno", "N"], ["Vender", "V"], ["Abrir cuenta del buffet", "C"], ["Agenda de hoy", "T"]]);
   assert.equal(items.find((i) => i.titulo === "Caja")?.atajo, "3");
 });
 
@@ -60,9 +60,19 @@ test("la lista de atajos: la del club de hoy, con Ctrl/⌘+Z para deshacer; sin 
   const que = (teclas: string) => todos.find((a) => a.teclas.join("+") === teclas)?.que ?? "";
   assert.match(que("Ctrl+Z"), /^Deshacer/);
   assert.match(que("Ctrl+K"), /^Buscar/);
-  for (const t of ["N", "C", "T", "L", "?", "/", "Esc"]) assert.ok(que(t), t);
+  for (const t of ["N", "V", "C", "T", "L", "?", "/", "Esc"]) assert.ok(que(t), t);
+  assert.match(que("V"), /^Vender/);
   assert.match(atajosDelClub({ mac: true }).map((a) => a.teclas.join("+")).join(" "), /⌘\+Z/);
   const apagados = atajosDelClub({ unaTecla: false });
   assert.ok(apagados.every((a) => !a.unaTecla));
   assert.deepEqual(apagados.map((a) => a.teclas.at(-1)), ["K", "Z", "L", "Esc"]);
+});
+
+test("Tanda 2 · «Vender» en la paleta: con su V (sin ella si los atajos están apagados), aunque no se vea Buffet, y se encuentra por «venta» o «mostrador»", () => {
+  const e = M.generarDemo(HOY, 19 * 60);
+  const vender = (o: Partial<Parameters<typeof armarPaleta>[1]> = {}) => armarPaleta(e, { texto: "", hoy: HOY, dia: HOY, solapas: TODAS, ...o }).find((i) => i.accion.tipo === "vender");
+  assert.deepEqual([vender()?.titulo, vender()?.atajo, vender()?.grupo], ["Vender", "V", "Hacer"]);
+  assert.equal(vender({ atajos: false })?.atajo, "", "con los de una tecla apagados, no se anuncia la V");
+  assert.ok(vender({ solapas: [{ id: "agenda", etiqueta: "Agenda" }] }), "como el botón de la barra: desde cualquier solapa");
+  for (const q of ["vender", "venta", "mostrador"]) assert.ok(armarPaleta(e, { texto: q, hoy: HOY, dia: HOY, solapas: TODAS }).some((i) => i.accion.tipo === "vender"), q);
 });

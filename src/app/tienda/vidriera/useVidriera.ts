@@ -16,12 +16,14 @@
 // recargar no la vacíe. Al leerla no se le cree nada (`bolsaGuardada`).
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { shippingCost, amountToFreeShipping, type ShippingConfig } from "@/lib/storefront-shipping";
+import { amountToFreeShipping, type ShippingConfig } from "@/lib/storefront-shipping";
 import { usePedidoOnline, useCuponDePedido } from "../pedido-online";
 import { nuevaClaveDePedido } from "../reglas-tienda";
 import { bolsaGuardada, fijar, lineas, mover, precioDe, resumen, textoCantidad, type Bolsa, type ProductoVidriera } from "./catalogo-core";
 import { aplicarPromociones, type Promocion } from "@/lib/supermercado/promociones";
 import { sumarAlCentavo } from "@/lib/dinero/redondeo";
+import type { ConfigEnvios } from "@/lib/envios/modelo";
+import { useEntregaDeLaTienda } from "../EntregaDeLaTienda";
 
 /** Dónde se guarda la bolsa de cada negocio en el navegador. */
 export const CLAVE_BOLSA = (tenantKey: string) => `gsg:bolsa:${tenantKey}`;
@@ -40,6 +42,14 @@ export function useVidriera(opts: {
    * el mismo motor (supermercado/promociones.ts), y ese es el total que vale.
    */
   promos?: { vigentes: readonly Promocion[]; hoy: string; diaSemana: number; seccionDe: Readonly<Record<string, string>> } | null;
+  /**
+   * La configuración de Envíos del negocio (src/lib/envios), leída en el servidor, y hoy en la zona
+   * del negocio. Con zonas, franjas, mínimo o la tienda pausada, la bolsa ofrece elegirlas y cotiza
+   * con las MISMAS reglas que `placeOnlineOrder` (../EntregaDeLaTienda.tsx). Sin config (null), todo
+   * como siempre: la tarifa del copy (`envio`) o «sin cargo / a coordinar».
+   */
+  entrega?: ConfigEnvios | null;
+  hoy?: string | null;
 }) {
   const { tenantKey, productos, envio, hayWhatsApp } = opts;
   const porId = useMemo(() => new Map(productos.map((p) => [p.id, p])), [productos]);
@@ -99,8 +109,20 @@ export function useVidriera(opts: {
   const ahorro = conPromos?.totalDescuento ?? 0;
   const ofertasAplicadas = conPromos?.aplicadas.map((a) => ({ nombre: a.nombre, descuento: a.descuento })) ?? [];
   const subtotal = ahorro > 0 ? sumarAlCentavo([bruto, -ahorro]) : bruto;
-  const costoEnvio = shippingCost(subtotal, fulfillment, envio);
-  const faltaParaSinCargo = fulfillment === "DELIVERY" ? amountToFreeShipping(subtotal, envio) : 0;
+  // La entrega con la configuración de Envíos del negocio; sin config, `shippingCost` con la tarifa
+  // del copy, exactamente lo de siempre (lo prueba storefront.test.ts).
+  const entrega = useEntregaDeLaTienda({
+    entrega: opts.entrega ?? null,
+    hoy: opts.hoy ?? null,
+    subtotal,
+    hayProductos: ls.length > 0,
+    envio,
+    fulfillment,
+    setFulfillment,
+  });
+  const costoEnvio = entrega.costoEnvio;
+  // Con zonas propias, el «te faltan $X» es el de la zona (lo dice la entrega); si no, el de la tarifa del copy.
+  const faltaParaSinCargo = entrega.modo === "envio" && !entrega.conZonas ? amountToFreeShipping(subtotal, envio) : 0;
   const cupon = useCuponDePedido(subtotal);
   const total = subtotal - cupon.descuento + costoEnvio;
   const hayPeso = ls.some((l) => l.p.saleUnit === "WEIGHT");
@@ -136,8 +158,11 @@ export function useVidriera(opts: {
     hayPeso,
     costoEnvio,
     faltaParaSinCargo,
-    fulfillment,
+    /** Retiro o envío, como se va a mandar (sin retiro habilitado en Envíos, siempre envío). */
+    fulfillment: entrega.fulfillment,
     setFulfillment,
+    /** Zona, franja, día, lo que frena y el «te faltan $X» de la zona (Envíos del negocio). */
+    entrega,
     clave,
     cupon,
     pedido,

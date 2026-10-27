@@ -269,6 +269,27 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.close();
   });
 
+  test("BP-013 · el calendario de la agenda: «Otro día» de hoy a hoy + 14; +13 se elige y queda como un día más; +15 no", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    const cal = page.getByLabel("Otro día");
+    const [min, max] = await Promise.all([cal.getAttribute("min"), cal.getAttribute("max")]);
+    assert.ok(min && max, "con mínimo y máximo");
+    const dias = Math.round((Date.parse(max!) - Date.parse(min!)) / 86_400_000);
+    assert.equal(dias, 14, "hasta hoy + 14, el mismo número que el turnero");
+    const mas = (n: number) => new Date(Date.parse(min!) + n * 86_400_000).toISOString().slice(0, 10);
+    await cal.fill(mas(13));
+    const grupo = page.getByRole("group", { name: "Elegir el día de la agenda" });
+    const ultimo = grupo.getByRole("button").last();
+    assert.equal(await ultimo.getAttribute("aria-pressed"), "true", "el +13 es un día más, elegido");
+    assert.equal(await grupo.getByRole("button").count(), 8);
+    await cal.fill(mas(15));
+    await page.getByRole("alert").filter({ hasText: /^Todavía no se reserva para ese día\./ }).waitFor();
+    assert.equal(await ultimo.getAttribute("aria-pressed"), "true", "sigue en el +13");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("«Cobrar la cancha y cerrarla · la mesa sigue» y después los cargos; Escape vuelve al turno", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
@@ -607,7 +628,10 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await cuenta.waitFor();
     await page.getByRole("button", { name: /^Turno de prueba, Cancha 4/ }).waitFor();
 
-    await cuenta.getByRole("button", { name: /^Cobrar la seña \$/ }).click();
+    // BP-005: con la seña pendiente, el botón del momento es «Cobrar la seña y abrir» y no hay «Abrir la cancha».
+    await cuenta.getByRole("button", { name: /^Cobrar la seña y abrir · \$/ }).waitFor();
+    assert.equal(await cuenta.getByRole("button", { name: "Abrir la cancha", exact: true }).count(), 0);
+    await cuenta.getByRole("button", { name: /^Cobrar sólo la seña \$/ }).click();
     await page.getByRole("status").filter({ hasText: /^Seña cobrada: \$ [\d.]+\. Ya se puede abrir la cancha\./ }).waitFor();
     await cuenta.getByText("✔ pagada").waitFor();
 
@@ -699,9 +723,11 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     // El cierre también pide el PIN: sin él no cierra.
     const cierre = page.getByRole("region", { name: "Cerrar la caja" });
     await cierre.getByLabel("Efectivo contado", { exact: true }).fill(String(numero(await efectivo()) + 500));
+    // La demo ya trae cerradas las cajas de los días pasados (Tanda 2B): se cuenta que no se sume ninguna.
+    const cierresAntes = await page.locator('section[aria-labelledby="club-cierres"] li').count();
     await cierre.getByRole("button", { name: "Cerrar la caja" }).click();
     await page.getByRole("alert").filter({ hasText: /^Poné tu PIN/ }).waitFor();
-    assert.equal(await page.getByRole("heading", { name: "Cierres" }).count(), 0, "sin PIN no quedó ningún cierre");
+    assert.equal(await page.locator('section[aria-labelledby="club-cierres"] li').count(), cierresAntes, "sin PIN no quedó ningún cierre");
     await cierre.getByLabel("PIN de Lu").fill("33");
     await cierre.getByRole("button", { name: "Cerrar la caja" }).click();
     await page.getByRole("status").filter({ hasText: /^Caja del .* cerrada: sobran \$ 500\./ }).waitFor();
@@ -854,7 +880,8 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       const e = (window as unknown as { __almacen: import("./almacen").Almacen }).__almacen.estado();
       return e.novedades.filter((n) => n.estado === "pendiente").length + (e.solicitudesAcceso as { estado: string }[]).filter((x) => x.estado === "pendiente").length;
     });
-    assert.equal(ItemDeLaBandeja, deDuenio, "en la bandeja se pintan sólo las alertas del dueño que aparecieron");
+    // Tanda 2B (BP-054): lo del dueño ya no va en la bandeja de la Agenda sino en la del Tablero: no se pinta nada.
+    assert.equal(ItemDeLaBandeja, 0, "la bandeja de la Agenda no cambia al entrar un dueño (lo suyo está en el Tablero)");
     assert.ok(Button <= deDuenio + BloquearDesdeLaCinta && Marca <= deDuenio && Forma <= deDuenio, "y sólo sus botones y marcas (más «Bloquear»)");
     assert.ok((BandejaDelClub ?? 0) <= 1 && (Badge ?? 0) <= 1);
     await p1.evaluate(() => (window as unknown as { __irASolapa: (id: string) => void }).__irASolapa("caja"));

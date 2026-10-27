@@ -136,6 +136,15 @@ const tocar = (a: Awaited<ReturnType<typeof abrir>>["a"], fondo: number) =>
     e.caja.fondo = fondo;
     return { ok: true, mensaje: "" };
   });
+/**
+ * Un cambio que NO pasa por la cola de dos puestos (Tanda 1B: restaurar, una pantalla de una versión vieja): si choca,
+ * no se puede re-aplicar por ítem y queda «aparte» entero, la red de seguridad de siempre. Lo que pasa por la cola
+ * (`ejecutar`/`comando`) se re-aplica encima de lo del otro puesto: sincro-core.test.ts.
+ */
+const tocarSinCola = (a: Awaited<ReturnType<typeof abrir>>["a"], fondo: number) =>
+  a.aplicar((e) => {
+    e.caja.fondo = fondo;
+  });
 
 test("abrir lee la base UNA vez; con movimiento sube a lo sumo una vez cada 30 s (nunca antes); en el equipo queda una sola copia", async () => {
   const { a, base, m, r } = await abrir();
@@ -237,7 +246,33 @@ test("al ocultar la pestaña lo pendiente sube en el acto, sin esperar los 30 s"
   assert.equal(base.llamadas.guardar, tras + 1);
 });
 
-test("dos puestos sobre la misma base: después de chocar, el puesto sigue guardando (no pierde cambios en silencio) y lo que no llegó queda aparte (regresión 21/10)", async () => {
+test("dos puestos sobre la misma base: lo de la cola se RE-APLICA sobre lo del otro (no queda aparte) y ninguno pierde nada (Tanda 1B)", async () => {
+  const A = await abrir();
+  const B = await abrir(A.base);
+  await A.r.avanzar(ESPERA_GUARDADO_MS + 1000);
+  await B.r.avanzar(ESPERA_GUARDADO_MS + 1000);
+  operarComoDuenio(A.a);
+  operarComoDuenio(B.a);
+  const enLaBase = () => (JSON.parse(A.base.foto()!.texto) as { estado: { caja: { fondo: number }; log: { texto: string }[] } }).estado;
+  const anotar = (a: Awaited<ReturnType<typeof abrir>>["a"], texto: string) =>
+    a.ejecutar((e) => {
+      e.log.unshift({ fecha: null, min: null, texto });
+      return { ok: true, mensaje: "" };
+    });
+  anotar(A.a, "lo de A");
+  await A.r.avanzar(ESPERA_GUARDADO_MS + 1000);
+  await quieto(A.enLaBase, A.r);
+  await hastaQue(() => enLaBase().log.some((x) => x.texto === "lo de A"), A.r);
+  // B, armado sobre la versión vieja, choca: baja lo de A y re-aplica lo suyo encima.
+  anotar(B.a, "lo de B");
+  // (Choca a los 30 s; re-aplicado, lo suyo vuelve a esperar su subida: se avanza el reloj hasta que llega.)
+  await hastaQue(() => enLaBase().log.some((x) => x.texto === "lo de B"), B.r);
+  const textos = enLaBase().log.map((x) => x.texto);
+  assert.ok(textos.includes("lo de A") && textos.includes("lo de B"), "quedan las dos cosas");
+  assert.equal(B.a.apartes().length, 0, "nada aparte: se re-aplicó");
+});
+
+test("dos puestos sobre la misma base: después de chocar, el puesto sigue guardando (no pierde cambios en silencio) y lo que no llegó (sin cola) queda aparte (regresión 21/10)", async () => {
   const A = await abrir();
   const B = await abrir(A.base);
   await A.r.avanzar(ESPERA_GUARDADO_MS + 1000);
@@ -251,8 +286,8 @@ test("dos puestos sobre la misma base: después de chocar, el puesto sigue guard
   await quieto(A.enLaBase, A.r);
   await hastaQue(() => fondo() === 111, A.r);
   assert.equal(fondo(), 111);
-  // B, armado sobre la versión vieja, choca: se recarga lo de A y lo suyo queda aparte.
-  tocar(B.a, 222);
+  // B, armado sobre la versión vieja, choca: se recarga lo de A y lo suyo (que no pasó por la cola) queda aparte.
+  tocarSinCola(B.a, 222);
   await B.r.avanzar(ESPERA_GUARDADO_MS + 1000);
   await quieto(B.enLaBase, B.r);
   await B.r.avanzar(1000);
@@ -285,7 +320,7 @@ test("lo apartado por choques tiene tope: quedan las últimas copias, no se acum
     tocar(A.a, 1000 + i);
     await A.r.avanzar(ESPERA_GUARDADO_MS + 1000);
     await quieto(A.enLaBase, A.r);
-    tocar(B.a, 2000 + i);
+    tocarSinCola(B.a, 2000 + i);
     await B.r.avanzar(ESPERA_GUARDADO_MS + 1000);
     await quieto(B.enLaBase, B.r);
     await B.r.avanzar(1000);

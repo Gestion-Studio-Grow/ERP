@@ -48,6 +48,17 @@
 // En el toque no se suma nada por el guardado: no se llama al guardado ni se avisa a la cinta (lo «pendiente» no es
 // un estado visible; la cinta sólo cambia si falla o vuelve a andar).
 //
+// DOS PUESTOS A LA VEZ (Tanda 1B, bp-DISENO.md §3.3; sincro-core.ts). En la jornada real contra la base, cada acción
+// (`ejecutar` con una función de la pantalla, o `comando(nombre, args)` de la lista blanca de comandos-core.ts) corre al
+// instante como siempre y entra a la COLA del puesto, con el azar y el contador de ids anotados. Cuando la base avanzó
+// (un «conflicto» al subir, o el LATIDO DE VERSIÓN cada 15 s con la pestaña visible, que pregunta sólo la versión), se
+// baja la foto de la base y se RE-APLICA la cola encima: lo que el motor acepta queda (mismos ids, mismo código de
+// seña); lo que no (el mismo hueco ya lo dio el otro puesto) va a «Para resolver» de la foto con el nombre de quién lo
+// dio. Nada se fuerza ni se pierde. Lo que promete algo a alguien (dar un turno, cobrar) sube en el acto (`subirYa`) y
+// el WhatsApp del alta espera la confirmación de la base (`confirmacion`). Idempotencia: la foto lleva los ids de los
+// últimos 500 comandos aplicados. «Lo que quedó aparte» (la foto entera) queda SÓLO para lo que no pasó por la cola
+// (restaurar, `aplicar` de los tests).
+//
 // La demo es DEL DÍA: si lo guardado es de otro día, arranca una demo nueva (los turnos de ayer no
 // le sirven a nadie). «Volver a la demo» la rearma desde cero. La jornada real no es del día: sigue de un día al otro.
 //
@@ -77,6 +88,29 @@ import type { Ahora, AnexoJornada, Auth, ConteosArchivo, EstadoClub, Fecha, Foto
 import type { Role } from "@/lib/capabilities";
 import { crearGuardadoLocal, esGuardadoLocal, separarVersion, type AlmacenamientoLocal, type GuardadoDelClub, type GuardadoLocal, type MarcaDelEspejo, type ResultadoDelGuardado } from "./guardado-del-club";
 import { fechaLocal, mismoAhora, relojReal } from "./reloj-del-club";
+import { comandoSinPin, correrComando, correrDeterminista, queHizo, rechazoSinInternet, REGISTRO, type ArgsDe, type Comando, type NombreDeComando, type ResultadoDe } from "./comandos-core";
+import {
+  altaEquivalente,
+  anotarAplicado,
+  anotarParaResolver,
+  aplicadosDe,
+  conOtroHueco,
+  correrPendiente,
+  itemParaResolver,
+  leerSincro,
+  novedadesDeOtros,
+  prometeAlgo,
+  rebasar,
+  sacarParaResolver,
+  textoDeLaCinta,
+  TOPE_VUELTAS,
+  turnosNuevos,
+  volverAAnotar,
+  type Alternativa,
+  type ItemParaResolver,
+  type Pendiente,
+  type Rebase,
+} from "./sincro-core";
 
 export type { AlmacenamientoLocal, GuardadoDelClub, ResultadoDelGuardado } from "./guardado-del-club";
 
@@ -94,11 +128,65 @@ function demoDelDia(hoy: Fecha): EstadoClub {
 
 /** El reloj de la demo: la jornada del club a las 19:10, con turnos en juego y mesas abiertas. */
 export const MINUTO_DEMO = 19 * 60 + 10;
+/** Por qué un ítem de la cola de otro id de equipo (en este mismo navegador) quedó «para resolver» acá (N1). */
+const MOTIVO_COLA_HUERFANA = "Quedó sin subir en este equipo, de una sesión anterior del navegador: fijate si hace falta y volvelo a aplicar o descartalo.";
+
 /** Cuántas copias de «lo que quedó aparte» (choques con otra pantalla) se guardan en el equipo: cada una es el club entero. */
 export const TOPE_APARTES = 3;
 
 /** Cada cuánto late el reloj real (como el vanilla: 15 s). */
 export const LATIDO_MS = 15_000;
+
+/** Cómo va con la base lo hecho en este puesto (dos puestos): por el id que da `alEncolar`. */
+export type Confirmacion = "esperando" | "confirmado" | "para-resolver" | "desconocido";
+
+/** Dos puestos: la cola, lo último que hizo el otro puesto (la cinta) y desde cuándo no hay internet. */
+export interface EstadoDeLaSincro {
+  /** ¿Hay base y otro puesto puede estar trabajando? (la jornada real contra la base). */
+  dosPuestos: boolean;
+  /** Lo hecho acá que la base todavía no confirmó. */
+  enCola: number;
+  /** «Caro (PC) dio un turno a las 21:00 en C2» (sube `id` con cada una nueva). */
+  novedad: { id: number; texto: string; cuando: number } | null;
+  /** Desde cuándo falla la subida (ms de este equipo); null si anda. */
+  sinInternetDesde: number | null;
+  /** Sube con cada confirmación o rechazo de la base (para «Reservando…»). */
+  marcas: number;
+}
+
+/** Cómo corre una acción de la pantalla. */
+export interface OpcionesDeEjecutar {
+  /** Guarda la foto de antes para «Deshacer» (sólo la última acción, 6 s). */
+  deshacible?: boolean;
+  /** Promete algo a alguien: sube ya. Default: si dio un turno (o el comando promete: `prometeAlgo`). */
+  promete?: boolean;
+  /** Es el alta de un turno (AltaDeTurno): además de la función, se anota como el comando «alta» (re-aplicable siempre). */
+  comoAlta?: boolean;
+  /** Recibe el id con el que entró a la cola (para esperar la confirmación de la base) y los turnos que creó. */
+  alEncolar?: (p: { id: string; reservas: string[] }) => void;
+}
+
+/**
+ * La cola del puesto como queda en este equipo (`<clave>:cola:<equipo>`; la Tanda 1 la dejaba en `<clave>:cola`): sólo
+ * comandos con nombre y sin PIN ni otros secretos (`comandoSinPin`).
+ */
+interface ColaGuardada {
+  v: 1;
+  equipo: string;
+  pendientes: Omit<Pendiente, "correr">[];
+  rechazados: ItemParaResolver[];
+  /** Hubo algo que no pasó por la cola: si la base avanzó, lo de acá va aparte entero. */
+  sinCola: boolean;
+}
+
+/** Cómo corre un comando de la pantalla (`comando(nombre, args)`). */
+export interface OpcionesDeComando<N extends NombreDeComando> extends Omit<OpcionesDeEjecutar, "comoAlta"> {
+  /**
+   * Envuelve SÓLO la primera corrida (la del toque): el tope de intentos de PIN del equipo (tope-de-pin.ts) cuenta lo que
+   * tipeó la persona, no las re-aplicaciones sobre la base, que corren el comando pelado.
+   */
+  envolver?: (correr: () => ResultadoDe<N>) => ResultadoDe<N>;
+}
 
 /** Cuántas entradas del registro quedan si falta lugar para guardar (como el vanilla). */
 export const REGISTRO_SI_FALTA_LUGAR = 60;
@@ -430,7 +518,25 @@ export interface Almacen {
    * Corre una acción de la pantalla, deja el aviso y, si salió bien y es `deshacible`, guarda la foto de antes para
    * «Deshacer» (sólo la ÚLTIMA acción, como el club vanilla con PREVIO/UNDO). En sólo lectura no corre: lo dice.
    */
-  ejecutar(accion: (estado: EstadoClub, ahora: Ahora, auth: Auth) => Desenlace, opciones?: { deshacible?: boolean }): Desenlace;
+  ejecutar(accion: (estado: EstadoClub, ahora: Ahora, auth: Auth) => Desenlace, opciones?: OpcionesDeEjecutar): Desenlace;
+  /**
+   * Lo mismo que `ejecutar`, con un comando de la lista blanca (comandos-core.ts): `comando("cuenta", [reservaId, accion])`.
+   * Con nombre, lo hecho se puede re-aplicar en cualquier puesto (también desde «Para resolver» después de recargar).
+   */
+  comando<N extends NombreDeComando>(nombre: N, args: ArgsDe<N>, opciones?: OpcionesDeComando<N>): ResultadoDe<N>;
+  /** Este puesto: el id (prefijo de sus ids) y cómo se lo nombra («PC», «tablet»). Vacío fuera de la jornada real con base. */
+  puesto(): { equipo: string; nombre: string };
+  /** ¿Lo hecho acá espera la confirmación de una base? (la jornada real contra la base). */
+  confirmaLaBase(): boolean;
+  /** Cómo va una acción (por el id de `alEncolar`): esperando la base, confirmada, o fue a «Para resolver». */
+  confirmacion(id: string): Confirmacion;
+  /** La cola, la novedad del otro puesto y la conexión (un objeto nuevo sólo cuando algo cambia). */
+  sincro(): EstadoDeLaSincro;
+  suscribirSincro(alCambiar: () => void): () => void;
+  /** «Volver a aplicar» un ítem de «Para resolver» (con otra cancha u hora, si se eligió una alternativa). */
+  volverAAplicar(id: string, alternativa?: Pick<Alternativa, "canchaId" | "inicio" | "duracion"> | null, opciones?: Pick<OpcionesDeEjecutar, "alEncolar">): Desenlace;
+  /** Saca un ítem de «Para resolver» sin aplicarlo. */
+  descartarParaResolver(id: string): Desenlace;
   /** Deja un aviso sin tocar el estado (un control previo de la pantalla que dijo que no). No anula «Deshacer». */
   informar(d: Desenlace): void;
   /**
@@ -478,6 +584,17 @@ export interface OpcionesAlmacen {
   latidoMs?: number;
   /** Abre el canal entre pestañas (default: BroadcastChannel, si hay). null = no hay: «Usar acá» roba el candado. */
   canal?: ((nombre: string) => CanalDeLaJornada | null) | null;
+  /** El id de este puesto (default: 4 letras al azar guardadas en el equipo). Sólo en la jornada real con base. */
+  equipo?: string;
+  /** Cómo se lo nombra al puesto («PC», «tablet», «celular»; default: por el navegador). */
+  puesto?: string;
+  /** ¿La pestaña está a la vista? (default `document.visibilityState`): sin pestaña visible no se pregunta la versión. */
+  visible?: () => boolean;
+  /**
+   * ¿El equipo tiene red? (default `navigator.onLine`). Sólo cuenta cuando dice que NO: que diga que sí no prueba que
+   * haya internet (wifi sin salida). Ver «sin internet» en `crearAlmacen`.
+   */
+  enLinea?: () => boolean;
   /** Cuánto se espera a que la otra pestaña ceda la jornada antes de robarla (default 3 s). */
   esperaPostaMs?: number;
   /** Al robar la jornada, cuánto se espera antes de leer lo guardado: lo que la otra escribe al perderla (default 1 s). */
@@ -518,6 +635,11 @@ function almacenamientoDelNavegador(): AlmacenamientoLocal | null {
   }
 }
 
+/** `navigator.onLine` (en Node no está: cuenta como con red). Sólo el «no» es seguro: sin red de verdad. */
+function navegadorEnLinea(): boolean {
+  return typeof navigator === "undefined" || (navigator as Navigator & { onLine?: boolean }).onLine !== false;
+}
+
 /** `navigator.locks` si el navegador lo tiene (Safari < 15.4 y navegadores viejos no). */
 function cerrojosDelNavegador(): CerrojosDelNavegador | null {
   const n = typeof navigator !== "undefined" ? (navigator as Navigator & { locks?: CerrojosDelNavegador }) : null;
@@ -543,6 +665,34 @@ function canalDelNavegador(nombre: string): CanalDeLaJornada | null {
     return null;
   }
 }
+
+/** El id de este equipo (el prefijo de sus ids): 4 letras al azar, guardadas en el equipo para que no cambie. */
+function equipoDeEsteNavegador(almacenamiento: AlmacenamientoLocal | null, clave: string): string {
+  const k = `${clave}:equipo`;
+  try {
+    const v = almacenamiento?.getItem(k);
+    if (v && /^[a-z0-9]{4,8}$/.test(v)) return v;
+  } catch {
+    // incógnito: uno nuevo por pestaña
+  }
+  const nuevo = Math.random().toString(36).slice(2, 6).padEnd(4, "0");
+  try {
+    almacenamiento?.setItem(k, nuevo);
+  } catch {
+    // sin lugar: sigue en memoria
+  }
+  return nuevo;
+}
+
+/** Cómo se lo nombra al puesto en la cinta del otro: «PC», «tablet» o «celular». */
+function puestoDelNavegador(): string {
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  if (/iPad|Tablet/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua))) return "tablet";
+  if (/Mobi|iPhone|Android/i.test(ua)) return "celular";
+  return "PC";
+}
+
+const pestaniaVisible = () => typeof document === "undefined" || document.visibilityState !== "hidden";
 
 /** Lo que manda «Usar acá» por el canal. */
 const PEDIDO_DE_POSTA = "gsg-club:ceder-la-jornada";
@@ -579,6 +729,14 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   const espejo: GuardadoLocal | null = esGuardadoLocal(opciones.guardado) ? opciones.guardado : almacenamiento ? crearGuardadoLocal(almacenamiento, clave) : null;
   const guardado: GuardadoDelClub | null = opciones.guardado ?? espejo;
   const primarioLocal = guardado !== null && guardado === espejo;
+  // ── dos puestos: la jornada real contra la base ──
+  const dosPuestos = real && guardado !== null && !primarioLocal;
+  const conLatido = guardado as (GuardadoDelClub & { leerVersion?: () => Promise<number | null>; subirYa?: () => Promise<void> }) | null;
+  const equipo = dosPuestos ? (opciones.equipo ?? equipoDeEsteNavegador(almacenamiento, clave)) : "";
+  const prefijo = dosPuestos ? `${equipo}-` : undefined;
+  const nombrePuesto = dosPuestos ? (opciones.puesto ?? puestoDelNavegador()) : "";
+  const visible = opciones.visible ?? pestaniaVisible;
+  const enLinea = opciones.enLinea ?? navegadorEnLinea;
 
   // ── lo que se abre al crear (sincrónico: lo de este equipo) ──
   const hoyDemo = opciones.hoy ?? fechaLocal(new Date(relojMs()));
@@ -661,10 +819,226 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     lleno: (inicial?.texto.length ?? 0) > AVISO_LLENO,
   };
 
+  // ── la cola de este puesto (dos puestos) ──
+  let cola: Pendiente[] = [];
+  const confirmaciones = new Map<string, "confirmado" | "para-resolver">();
+  /** Lo rechazado acá que era una función de pantalla (sin nombre): «Volver a aplicar» mientras la pestaña siga abierta. */
+  const rechazadosAca = new Map<string, Pendiente>();
+  /**
+   * Lo que este puesto mandó a «Para resolver» y la base todavía no confirmó (F1). Hasta que un guardado con ese texto
+   * vuelva `ok`, se vuelve a anotar sobre cada foto nueva de la base: si la base avanza entre el rebase y la subida, el
+   * ítem no se pierde al reemplazar la foto.
+   */
+  let rechazadosSinSubir: { item: ItemParaResolver; cambios: number }[] = [];
+  /** El `cambios` del último cambio que NO pasó por la cola (restaurar, `aplicar`): eso sí se aparta si choca. */
+  let cambiosSinCola: number | null = null;
+  /** Vueltas seguidas de «conflicto → re-aplicar» (tope `TOPE_VUELTAS`; después se espera, con la cinta avisando). */
+  let vueltas = 0;
+  let nPendiente = 0;
+  let idNovedad = 0;
+  let apurar = false;
+  let latiendoVersion = false;
+  /** El id del pendiente de la última acción deshacible («Deshacer» lo saca de la cola). */
+  let idDeshacible: string | null = null;
+  /** Lo que hizo el otro puesto y ya se sabía (no va a la cinta). */
+  const vistos = new Set<string>(leerSincro(estado).recientes.map((x) => x.id));
+  let sincro: EstadoDeLaSincro = { dosPuestos, enCola: 0, novedad: null, sinInternetDesde: null, marcas: 0 };
+  const oyentesSincro = new Set<() => void>();
+  const avisarSincro = (cambio: Partial<EstadoDeLaSincro> = {}) => {
+    sincro = { ...sincro, ...cambio, enCola: cola.length, marcas: sincro.marcas + 1 };
+    guardarCola();
+    for (const o of oyentesSincro) o();
+  };
+  const confirmar = (id: string, como: "confirmado" | "para-resolver") => {
+    confirmaciones.delete(id);
+    confirmaciones.set(id, como);
+    if (confirmaciones.size > 200) confirmaciones.delete(confirmaciones.keys().next().value!);
+  };
+  const guardarRechazado = (p: Pendiente) => {
+    rechazadosAca.set(p.id, p);
+    if (rechazadosAca.size > 50) rechazadosAca.delete(rechazadosAca.keys().next().value!);
+  };
+
+  // ── la cola sobrevive a recargar la pestaña (BP-028, bp-DISENO.md §3.3: «la cola pendiente del puesto, espejada en el
+  // equipo») ──
+  // Va a `<clave>:cola:<equipo>` en este equipo: los comandos con nombre (SIN PIN ni código del dueño: quien opera queda
+  // por su id; lo que pedía un PIN o el código, al re-aplicarse lo vuelve a pedir y va a «Para resolver»), lo rechazado que la base todavía no confirmó y si
+  // hubo algo que NO pasó por la cola (una función de pantalla sin nombre, una restauración): eso, si la base avanzó, sigue
+  // yendo aparte entero (la red de siempre, sólo para lo que no es comando).
+  //
+  // Cada equipo tiene SU cola (`<clave>:cola:<equipo>`, N1 de la cert): si en el mismo navegador cambia el id del equipo
+  // (se borró `<clave>:equipo` y no lo demás, otra sesión del navegador), el equipo nuevo no pisa la cola del anterior.
+  // Esa cola huérfana no se pierde ni se corre sola: al abrir, lo suyo pasa a «Para resolver» de este equipo, con quién
+  // lo hizo y dónde (`Volver a aplicar` firma con quien lo vuelve a aplicar y pide de nuevo lo que llevaba PIN o código);
+  // lo que la base ya tiene (subió antes) no reaparece. Recién cuando eso quedó guardado en la cola de este equipo, la
+  // huérfana se borra. El índice `<clave>:colas` dice qué equipos tienen cola (el almacenamiento no deja listar claves).
+  const CLAVE_COLA = `${clave}:cola:${equipo}`;
+  const CLAVE_COLA_VIEJA = `${clave}:cola`;
+  const CLAVE_COLAS = `${clave}:colas`;
+  /** Las colas de otros equipos (o la vieja de la Tanda 1) que ya pasaron a esta: se borran al guardar la de este equipo. */
+  let colasAdoptadas: string[] = [];
+  const leerIndice = (): string[] => {
+    try {
+      const x = JSON.parse(almacenamiento?.getItem(CLAVE_COLAS) ?? "[]") as unknown;
+      return Array.isArray(x) ? x.filter((e): e is string => typeof e === "string" && /^[a-z0-9-]{1,16}$/i.test(e)) : [];
+    } catch {
+      return [];
+    }
+  };
+  const escribirIndice = (equipos: string[]) => {
+    const unicos = [...new Set(equipos)];
+    if (unicos.length) almacenamiento?.setItem(CLAVE_COLAS, JSON.stringify(unicos));
+    else almacenamiento?.removeItem(CLAVE_COLAS);
+  };
+  /** Ya quedó todo en la cola de este equipo (o subió): las adoptadas se borran (y salen del índice). */
+  const soltarAdoptadas = () => {
+    if (!colasAdoptadas.length || !almacenamiento) return;
+    for (const k of colasAdoptadas) almacenamiento.removeItem(k);
+    const borrados = new Set(colasAdoptadas);
+    escribirIndice(leerIndice().filter((e) => !borrados.has(`${clave}:cola:${e}`)));
+    colasAdoptadas = [];
+  };
+  const guardarCola = () => {
+    if (!dosPuestos || !almacenamiento || !tieneLaJornada()) return;
+    try {
+      if (!cola.length && !rechazadosSinSubir.length && cambiosSinCola === null) {
+        almacenamiento.removeItem(CLAVE_COLA);
+        soltarAdoptadas();
+        const indice = leerIndice();
+        if (indice.includes(equipo)) escribirIndice(indice.filter((e) => e !== equipo));
+        return;
+      }
+      const conNombre = cola.filter((p) => p.comando);
+      const guardada: ColaGuardada = {
+        v: 1,
+        equipo,
+        pendientes: conNombre.map(({ correr: _sinFuncion, ...p }) => ({ ...p, comando: comandoSinPin(p.comando!), auth: p.auth.usuarioId ? { usuarioId: p.auth.usuarioId } : {} })),
+        rechazados: rechazadosSinSubir.map((x) => x.item),
+        sinCola: cambiosSinCola !== null || conNombre.length !== cola.length,
+      };
+      almacenamiento.setItem(CLAVE_COLA, JSON.stringify(guardada));
+      const indice = leerIndice();
+      if (!indice.includes(equipo)) escribirIndice([...indice, equipo]);
+      soltarAdoptadas();
+    } catch {
+      // Sin lugar: mejor sin cola guardada que una vieja (al recargar, lo de acá sin confirmar va aparte entero).
+      try {
+        almacenamiento.removeItem(CLAVE_COLA);
+      } catch {
+        // nada que borrar
+      }
+    }
+  };
+  /** La cola guardada en `k`, del equipo `de` (null: la de cualquier equipo). null si no hay o no se puede leer. */
+  const leerColaDe = (k: string, de: string | null): ColaGuardada | null => {
+    if (!dosPuestos || !almacenamiento) return null;
+    try {
+      const x = JSON.parse(almacenamiento.getItem(k) ?? "null") as Partial<ColaGuardada> | null;
+      if (!x || x.v !== 1 || typeof x.equipo !== "string" || (de !== null && x.equipo !== de) || !Array.isArray(x.pendientes) || !Array.isArray(x.rechazados)) return null;
+      return {
+        v: 1,
+        equipo: x.equipo,
+        pendientes: x.pendientes.filter((p) => p && typeof p.id === "string" && p.comando && typeof p.comando.nombre === "string"),
+        rechazados: x.rechazados.filter((i) => i && typeof i.id === "string"),
+        sinCola: x.sinCola === true,
+      };
+    } catch {
+      return null;
+    }
+  };
+  /** La cola de este equipo (o, si todavía no hay, la de la Tanda 1 si era de este equipo: pasa a la clave nueva). */
+  const leerCola = (): ColaGuardada | null => {
+    const g = leerColaDe(CLAVE_COLA, equipo);
+    if (g) return g;
+    const vieja = leerColaDe(CLAVE_COLA_VIEJA, equipo);
+    if (vieja && !colasAdoptadas.includes(CLAVE_COLA_VIEJA)) colasAdoptadas.push(CLAVE_COLA_VIEJA);
+    return vieja;
+  };
+  /**
+   * Las colas huérfanas de este negocio en este almacenamiento (de otro id de equipo): lo suyo, como ítems «para
+   * resolver» con su autor. Lo que ya había fallado la primera vez, y los «Volver a aplicar» / «Descartar» (no eran algo
+   * nuevo), no se ofrecen. Anota qué colas se adoptaron (se borran recién con la cola de este equipo guardada).
+   */
+  const colasHuerfanas = (): ItemParaResolver[] => {
+    if (!dosPuestos || !almacenamiento) return [];
+    const claves = [...leerIndice().filter((e) => e !== equipo).map((e) => `${clave}:cola:${e}`), CLAVE_COLA_VIEJA];
+    const items: ItemParaResolver[] = [];
+    for (const k of claves) {
+      const g = leerColaDe(k, null);
+      if (!g || g.equipo === equipo) continue;
+      for (const item of g.rechazados) items.push(item);
+      for (const guardado of g.pendientes) {
+        if (guardado.fallo || guardado.siFalla === "callar") continue;
+        items.push(itemParaResolver(estado, { ...guardado, cambios: 0 }, MOTIVO_COLA_HUERFANA, relojMs()));
+      }
+      if (!colasAdoptadas.includes(k)) colasAdoptadas.push(k);
+    }
+    const yaEstan = new Set<string>();
+    return items.filter((x) => !yaEstan.has(x.id) && yaEstan.add(x.id));
+  };
+  /** Pide re-aplicar la cola sobre la base aunque la versión no haya cambiado (la cola vino de otra pestaña). */
+  let forzarRebase = false;
+  if (dosPuestos && real && abierto?.ok) {
+    const g = leerCola();
+    if (g) {
+      // Lo que la foto de este equipo no tiene (se guardó la cola después que la foto) se corre ahora, con los mismos ids:
+      // así lo que se ve y lo que espera la base coinciden aunque no haya internet.
+      const ya = aplicadosDe(estado);
+      volverAAnotar(estado, g.rechazados);
+      rechazadosSinSubir = g.rechazados.map((item) => ({ item, cambios: 0 }));
+      for (const guardado of g.pendientes) {
+        const p: Pendiente = { ...guardado, cambios: 0 };
+        if (!ya.has(p.id)) {
+          const antes = estado.reservas.length;
+          const d = correrPendiente(estado, p);
+          if (!d.ok) {
+            if (!p.fallo) {
+              const item = itemParaResolver(estado, p, d.mensaje, relojMs());
+              anotarParaResolver(estado, item);
+              anotarAplicado(estado, p, [], relojMs(), { reciente: false });
+              rechazadosSinSubir.push({ item, cambios: 0 });
+              confirmar(p.id, "para-resolver");
+            }
+            continue;
+          }
+          anotarAplicado(estado, p, turnosNuevos(estado, antes), relojMs());
+        }
+        cola.push(p);
+      }
+      if (g.sinCola) cambiosSinCola = 0;
+      if (cola.length || rechazadosSinSubir.length) cambiosGuardados = -1;
+    } else if (marcaEspejo) {
+      // Lo de este equipo sin confirmar y sin la cola guardada (otra versión de la app, o sin lugar): si la base avanzó,
+      // va aparte entero, como siempre.
+      cambiosSinCola = 0;
+    }
+  }
+  if (dosPuestos && real) {
+    // N1: lo que dejó otro id de equipo en este navegador, a «Para resolver» de éste (sobre cada foto nueva de la base
+    // se vuelve a anotar si la base no lo tiene, como lo rechazado de acá: `rechazadosSinSubir`).
+    const huerfanos = colasHuerfanas().filter((x) => !rechazadosSinSubir.some((y) => y.item.id === x.id));
+    if (huerfanos.length) {
+      volverAAnotar(estado, huerfanos);
+      for (const item of huerfanos) rechazadosSinSubir.push({ item, cambios: 0 });
+      cambiosGuardados = -1;
+    }
+  }
+  /** «Usar acá»: la cola que vale es la que dejó la otra pestaña del equipo (la de esta memoria es vieja). */
+  const tomarColaDelEquipo = () => {
+    const g = leerCola();
+    if (!g) return;
+    cola = g.pendientes.map((p) => ({ ...p, cambios: 0 }));
+    rechazadosSinSubir = g.rechazados.map((item) => ({ item, cambios: 0 }));
+    if (g.sinCola) cambiosSinCola = 0;
+    forzarRebase = cola.length + rechazadosSinSubir.length > 0;
+  };
+
   const textoActual = (): string => {
     if (texto?.cambios !== cambios) texto = { cambios, valor: textoDelEstado(estado) };
     return texto.valor;
   };
+  /** El texto del estado de ahora si ya está armado (no lo arma). */
+  const textoYaArmado = (): string | null => (texto?.cambios === cambios ? texto.valor : null);
   const textoParaGuardar = () => textoDeLaDemo(textoActual(), real ? ahora.fecha : hoyDemo, relojMs());
   // Después de cada cambio, el texto nuevo se arma cuando el navegador está libre (si no, a demanda).
   const adelantarTexto = () => {
@@ -777,14 +1151,37 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
         espejo?.alDia();
         marcaEspejo = null;
       }
+      if (cambiosSinCola !== null && c >= cambiosSinCola) cambiosSinCola = null;
+      if (dosPuestos) {
+        // Lo de la cola que iba en este texto ya está en la base: confirmado (el WhatsApp del alta ya se puede ofrecer).
+        vueltas = 0;
+        const llegaron = cola.filter((p) => p.cambios <= c);
+        for (const p of llegaron) confirmar(p.id, "confirmado");
+        cola = cola.filter((p) => p.cambios > c);
+        rechazadosSinSubir = rechazadosSinSubir.filter((x) => x.cambios > c);
+        if (llegaron.length || sincro.sinInternetDesde !== null) avisarSincro({ sinInternetDesde: null });
+        else guardarCola();
+      }
       ponerMeta(largo === undefined ? { guardado: "guardado" } : { guardado: "guardado", bytes: largo, lleno: largo > AVISO_LLENO });
       return;
     }
     if (r.motivo === "conflicto") {
+      if (dosPuestos && vueltas >= TOPE_VUELTAS) {
+        // La base no para de avanzar: lo de acá queda en la cola y se vuelve a probar con espera creciente.
+        intentos++;
+        ponerMeta({ guardado: "reintentando" });
+        cancelarReintento?.();
+        cancelarReintento = temporizador.despues(() => {
+          cancelarReintento = null;
+          void sincronizar("conflicto");
+        }, esperaDelReintento(intentos));
+        return;
+      }
       void sincronizar("conflicto");
       return;
     }
     intentos++;
+    if (dosPuestos && sincro.sinInternetDesde === null) avisarSincro({ sinInternetDesde: relojMs() });
     // Si el que falla es el de este equipo, es que no hay lugar: se está llenando (como el vanilla).
     ponerMeta(primarioLocal ? { guardado: "reintentando", lleno: true } : { guardado: "reintentando" });
     espejarSiHaceFalta();
@@ -857,6 +1254,11 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     } catch {
       promesa = Promise.resolve({ ok: false, motivo: "error" });
     }
+    // Lo que promete algo a alguien no espera los 30 s del adaptador: sale ya.
+    if (apurar) {
+      apurar = false;
+      void conLatido?.subirYa?.();
+    }
     promesaEnVuelo = promesa
       .catch((): ResultadoDelGuardado => ({ ok: false, motivo: "error" }))
       .then((r) => {
@@ -912,6 +1314,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     const habia = fotoPrevia !== null;
     fotoPrevia = null;
     fotoDesde = null;
+    idDeshacible = null;
     if (habia && aviso?.deshacer) {
       aviso = { ...aviso, deshacer: false };
       avisar();
@@ -935,16 +1338,22 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
    * misma versión → lo de acá; el espejo con algo sin confirmar que viene de esa versión → lo de acá (es más nuevo);
    * si no, lo de allá (y si acá había algo sin guardar, se avisa).
    */
-  const sincronizar = async (motivo: "abrir" | "usarAca" | "conflicto", vigente: () => boolean = () => true): Promise<void> => {
+  const sincronizar = async (motivo: "abrir" | "usarAca" | "conflicto" | "latido", vigente: () => boolean = () => true): Promise<void> => {
     if (!guardado) return;
+    if (motivo === "usarAca" && dosPuestos) tomarColaDelEquipo();
     let r: { texto: string; version: number } | null;
-    if (motivo === "conflicto") recargando = true;
+    if (motivo === "conflicto" || motivo === "latido") recargando = true;
     try {
       r = primarioLocal ? espejo!.leerYa() : await guardado.leer();
     } catch {
       recargando = false;
       // Se perdió el candado (otra pestaña tomó la jornada) o la pantalla se fue: no se sigue (no pisar «otra-pestania»).
       if (!vigente()) return;
+      // El latido no pudo leer (sin internet): se pregunta en el próximo; lo de acá sigue su curso.
+      if (motivo === "latido") {
+        if (cambiosGuardados !== cambios) programarGuardado();
+        return;
+      }
       intentos++;
       if (real && !primarioLocal && !abierto?.ok && (motivo === "abrir" || motivo === "usarAca")) {
         // (Al abrir o al tomar la jornada la pantalla está en sólo lectura: no hay nada del usuario sin guardar; lo
@@ -983,11 +1392,13 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       programarGuardado();
       return;
     }
-    if (motivo !== "conflicto" && r.version === versionGuardada) {
+    const forzada = forzarRebase;
+    forzarRebase = false;
+    if (motivo !== "conflicto" && r.version === versionGuardada && !forzada) {
       if (sinGuardar) programarGuardado();
       return;
     }
-    if (motivo !== "conflicto" && marcaEspejo && r.version >= marcaEspejo.base && r.version <= marcaEspejo.hasta) {
+    if ((motivo === "abrir" || motivo === "usarAca") && !forzada && marcaEspejo && r.version >= marcaEspejo.base && r.version <= marcaEspejo.hasta) {
       versionGuardada = r.version;
       cambiosGuardados = -1;
       programarGuardado();
@@ -995,7 +1406,11 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     }
     const abiertoAlla = abrirTexto(r.texto);
     versionGuardada = r.version;
-    const perdido = motivo === "conflicto" || (marcaEspejo !== null && sinGuardar);
+    // Con dos puestos, lo de acá que no llegó está en la cola y se re-aplica encima: no se pierde. Sólo lo que NO pasó por
+    // la cola (una restauración, `aplicar`) queda aparte; sin dos puestos, como siempre: todo lo que no llegó.
+    // (La cola sobrevive a recargar la pestaña: al abrir, lo de acá sin confirmar también se re-aplica por ítem.)
+    const sinCola = !dosPuestos || cambiosSinCola !== null;
+    const perdido = motivo === "conflicto" ? sinCola : (marcaEspejo !== null && sinGuardar && sinCola) || (motivo === "latido" && sinGuardar && sinCola);
     marcaEspejo = null;
     if (!primarioLocal) espejo?.alDia();
     if (!abiertoAlla.ok) {
@@ -1019,9 +1434,55 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     const aparte = perdido && real ? apartarLoDeAca() : false;
     const pinesAHash = reemplazar(abiertoAlla.estado);
     retomo = true;
+    // Primero, lo que ya estaba «para resolver» y la base no confirmó (si no, se perdería con la foto vieja). Va ANTES de
+    // la cola: un «Volver a aplicar» o «Descartar» que espera en la cola lo encuentra.
+    let reanotados = 0;
+    if (dosPuestos && rechazadosSinSubir.length) {
+      const r = volverAAnotar(estado, rechazadosSinSubir.map((x) => x.item));
+      if (r.yaEnLaBase.length) rechazadosSinSubir = rechazadosSinSubir.filter((x) => !r.yaEnLaBase.includes(x.item.id));
+      reanotados = r.anotados;
+    }
+    // Lo de la cola, encima de lo de la base, en orden (sincro-core.ts): lo que choca va a «Para resolver».
+    let rebase: Rebase | null = null;
+    if (dosPuestos && cola.length) {
+      rebase = rebasar(estado, cola, relojMs());
+      for (const p of [...rebase.salteados, ...rebase.callados]) confirmar(p.id, "confirmado");
+      for (const { pendiente, item } of rebase.rechazados) {
+        confirmar(pendiente.id, "para-resolver");
+        if (pendiente.correr) guardarRechazado(pendiente);
+        rechazadosSinSubir.push({ item, cambios: 0 });
+      }
+      cola = rebase.aplicados;
+    }
     cambios++;
-    cambiosGuardados = pinesAHash ? -1 : cambios;
-    if (pinesAHash) programarGuardado();
+    cambiosSinCola = null;
+    for (const p of cola) p.cambios = cambios;
+    for (const x of rechazadosSinSubir) x.cambios = cambios;
+    const tocoLaCola = reanotados > 0 || (rebase !== null && rebase.aplicados.length + rebase.rechazados.length + rebase.callados.length > 0);
+    cambiosGuardados = pinesAHash || tocoLaCola ? -1 : cambios;
+    if (tocoLaCola && (cola.some((p) => p.promete) || reanotados > 0 || (rebase?.rechazados.length ?? 0) > 0)) subirYa();
+    else if (pinesAHash || tocoLaCola) programarGuardado();
+    if (dosPuestos) {
+      if (motivo === "conflicto") vueltas++;
+      // La cinta: lo que hizo el otro puesto y este no sabía (al abrir no es «novedad»: es lo que ya estaba).
+      const nuevas = novedadesDeOtros(estado, equipo, vistos);
+      for (const n of nuevas) vistos.add(n.id);
+      if (vistos.size > 200) {
+        const siguen = new Set(leerSincro(estado).recientes.map((x) => x.id));
+        for (const id of vistos) if (!siguen.has(id)) vistos.delete(id);
+      }
+      const texto = motivo === "latido" || motivo === "conflicto" ? textoDeLaCinta(estado, nuevas) : null;
+      avisarSincro(texto ? { novedad: { id: ++idNovedad, texto, cuando: relojMs() } } : {});
+    }
+    if (rebase?.rechazados.length && !perdido) {
+      const n = rebase.rechazados.length;
+      aviso = {
+        id: ++idAviso,
+        ok: false,
+        mensaje: `${rebase.rechazados[0].item.motivo}: ${n > 1 ? `${n} cosas tuyas quedaron` : "quedó"} en «Para resolver». Lo demás se guardó.`,
+        deshacer: false,
+      };
+    }
     if (perdido) {
       aviso = {
         id: ++idAviso,
@@ -1047,9 +1508,22 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   let candadoPedido = false;
   let soltarCandado: (() => void) | null = null;
   let cancelarSoltar: (() => void) | null = null;
+  /**
+   * Recién abierta la jornada (con el candado o sin bloqueo): lo que quedó sin subir mientras se abría (la cola de antes
+   * de recargar, re-aplicada sobre la base) sale ahora; mientras se abría no se podía escribir.
+   */
+  const alTenerLaJornada = () => {
+    if (!dosPuestos) return;
+    guardarCola();
+    // Sólo si hay algo de la persona esperando (lo demás, como siempre, sale con la próxima acción: no gasta un guardado).
+    if (cambiosGuardados === cambios || (!cola.length && !rechazadosSinSubir.length)) return;
+    if (cola.some((p) => p.promete) || rechazadosSinSubir.length) subirYa();
+    else programarGuardado();
+  };
   const abrirSinBloqueo = () => {
     void sincronizar("abrir").finally(() => {
       if (meta.jornada === "abriendo") ponerMeta({ jornada: "sin-bloqueo" });
+      alTenerLaJornada();
     });
   };
   /**
@@ -1118,7 +1592,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
           const abrir = () => {
             if (!vigente()) return;
             void sincronizar(modo === "abrir" ? "abrir" : "usarAca", vigente).finally(() => {
-              if (vigente()) ponerMeta({ jornada: "propia" });
+              if (!vigente()) return;
+              ponerMeta({ jornada: "propia" });
+              alTenerLaJornada();
             });
           };
           if (modo === "robar") temporizador.despues(abrir, graciaRoboMs);
@@ -1185,7 +1661,35 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   };
 
   // ── el latido (reloj real) ──
+  /**
+   * El latido de versión (dos puestos): con la pestaña visible, pregunta SÓLO la versión de la base (unos bytes, no la
+   * foto). Si avanzó, baja la foto y re-aplica lo de acá encima (la grilla muestra lo del otro puesto en ≤ 15 s). Si hay
+   * algo subiendo, que salga ya: si choca, el conflicto hace lo mismo.
+   */
+  const latirVersion = async () => {
+    if (!dosPuestos || !conLatido?.leerVersion || !activo || latiendoVersion || !visible() || !tieneLaJornada() || recargando) return;
+    latiendoVersion = true;
+    let v: number | null;
+    try {
+      v = await conLatido.leerVersion();
+    } catch {
+      v = null;
+    } finally {
+      latiendoVersion = false;
+    }
+    // La base no contestó: sin internet (la cinta lo dice y `comando` frena lo que no va sin internet, H-T2-1). Contestó:
+    // volvió, aunque no haya nada que subir (si no, «sin internet» quedaría puesto hasta la próxima subida).
+    if (v === null && sincro.sinInternetDesde === null) avisarSincro({ sinInternetDesde: relojMs() });
+    else if (v !== null && sincro.sinInternetDesde !== null) avisarSincro({ sinInternetDesde: null });
+    if (v === null || v <= versionGuardada || !activo || !tieneLaJornada() || recargando) return;
+    if (enVuelo) return void conLatido.subirYa?.();
+    await sincronizar("latido");
+  };
   const latir = () => {
+    latirReloj();
+    void latirVersion();
+  };
+  const latirReloj = () => {
     if (!real) return;
     const t = relojReal(estado, new Date(relojMs()));
     if (mismoAhora(t, ahora)) return;
@@ -1226,6 +1730,166 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     // Con otro guardado: se lanza (puede no llegar si la página se cierra) y la copia de este equipo se escribe ya.
     escribir();
     espejarSiHaceFalta();
+  };
+  /** Lo que promete algo a alguien: sube en el acto, sin los 30 s del adaptador (≤ 2 s con internet). */
+  const subirYa = () => {
+    if (!conLatido?.subirYa) return guardarYa();
+    apurar = true;
+    if (enVuelo) {
+      // Lo que está en camino sale ya; lo de ahora, apenas vuelva (y también sin esperar).
+      otraVez = true;
+      void conLatido.subirYa();
+      return;
+    }
+    guardarYa();
+  };
+
+  // ── acciones de la pantalla (y la cola de dos puestos) ──
+  /** El cambio no pasó por la cola: si choca, se aparta entero (la red de seguridad de siempre). */
+  const marcarSinCola = () => {
+    if (!dosPuestos) return;
+    cambiosSinCola = cambios;
+    guardarCola();
+  };
+  type Extra = OpcionesDeEjecutar & { comando?: { nombre: NombreDeComando; args: unknown }; texto?: string; siFalla?: "callar" };
+  const correrAccion = (accion: (estado: EstadoClub, ahora: Ahora, auth: Auth) => Desenlace, extra: Extra = {}): Desenlace => {
+    const { deshacible = false } = extra;
+    if (!puedeOperar()) return negarSoloLectura();
+    // En la jornada real nadie opera sin haber entrado con su PIN: no depende de que el bloqueo (pieza global de la
+    // sesión del club) ya esté cargado y encima. Varias operaciones del motor no piden `auth`; sin esto correrían
+    // con un `auth` vacío y sin saber quién las hizo.
+    if (real && !operadorActual()) {
+      const mensaje = "Entrá con tu PIN para operar.";
+      aviso = { id: ++idAviso, ok: false, mensaje, deshacer: false };
+      avisar();
+      return { ok: false, mensaje };
+    }
+    // La foto de antes: casi siempre ya está armada (se adelanta en reposo después de cada cambio).
+    let foto: string | null = null;
+    if (deshacible) {
+      try {
+        foto = textoActual();
+      } catch {
+        foto = null;
+      }
+    }
+    // El texto de antes, si ya está armado (casi siempre: se adelanta en reposo): si la acción falla sin tocar nada, ni
+    // se encola ni se guarda (H1: un clic fallido no cambia la foto ni gasta un guardado).
+    const textoAntes = foto ?? textoYaArmado();
+    const op = operadorActual();
+    const auth = op?.auth ?? {};
+    // Dos puestos: el azar y el contador anotados, así re-aplicarlo sobre lo de la base da lo mismo (ids, código de seña).
+    const azar = dosPuestos ? Math.floor(Math.random() * 0x1_0000_0000) : 0;
+    const idsDesde = secuenciaIds();
+    const antes = { reservas: estado.reservas.length, clientes: estado.clientes.length };
+    const texto = extra.comando ? queHizo(extra.comando as Pick<Comando, "nombre" | "args">, estado) : extra.texto;
+    let d: Desenlace;
+    try {
+      d = dosPuestos ? correrDeterminista(azar, idsDesde, () => accion(estado, ahora, auth), prefijo) : accion(estado, ahora, auth);
+    } catch {
+      // El motor no tira por una regla; si algo tiró igual, no se rompe la pantalla.
+      d = { ok: false, mensaje: "No se pudo hacer. Probá de nuevo." };
+    }
+    if (!d.ok && textoAntes !== null) {
+      let intacto = false;
+      try {
+        intacto = textoDelEstado(estado) === textoAntes;
+      } catch {
+        intacto = false;
+      }
+      if (intacto) {
+        // Como cualquier falla, lo de antes ya no se deshace (la regla de siempre); sólo que no hay nada que guardar.
+        soltarFoto();
+        informarFalla(d.mensaje);
+        return d;
+      }
+    }
+    let nuevo: Pendiente | null = null;
+    let reservas: string[] = [];
+    if (dosPuestos) {
+      const nuevos = turnosNuevos(estado, antes.reservas);
+      reservas = nuevos.map((x) => x.id);
+      const nombrado = extra.comando ?? (extra.comoAlta && d.ok ? altaEquivalente(estado, antes) : null);
+      const id = `${equipo}.${relojMs().toString(36)}.${(++nPendiente).toString(36)}`;
+      const persona = op?.usuario.id ?? "";
+      const comando: Comando | undefined = nombrado
+        ? ({ id, equipo, puesto: nombrePuesto, persona, versionBase: versionGuardada, version: VERSION_ESTADO, nombre: nombrado.nombre, args: nombrado.args, ahora, auth: auth.usuarioId ? { usuarioId: auth.usuarioId } : {}, azar, idsDesde, prefijo } as Comando)
+        : undefined;
+      nuevo = {
+        id,
+        // Un comando de la lista blanca se re-aplica por su nombre (sin la envoltura del primer toque); una función de
+        // pantalla (o el alta, que además lleva su comando equivalente), con la función.
+        ...(extra.comando ? {} : { correr: accion }),
+        ...(comando ? { comando } : {}),
+        ahora,
+        auth,
+        azar,
+        idsDesde,
+        equipo,
+        puesto: nombrePuesto,
+        persona,
+        texto: (nombrado && !extra.comando ? queHizo(nombrado as Pick<Comando, "nombre" | "args">, estado) : texto) ?? d.mensaje,
+        promete: extra.promete ?? (nombrado ? prometeAlgo(nombrado.nombre, nombrado.args) : nuevos.length > 0),
+        cambios: 0,
+        cuando: relojMs(),
+        prefijo,
+        ...(d.ok ? {} : { fallo: true }),
+        ...(extra.siFalla ? { siFalla: extra.siFalla } : {}),
+      };
+      // En la foto: el id (idempotencia) y, si salió, lo que hizo y quién (la cinta del otro puesto).
+      anotarAplicado(estado, nuevo, nuevos, relojMs(), { reciente: d.ok && extra.siFalla !== "callar" });
+    }
+    // Sólo se deshace la ÚLTIMA acción. Si ésta no se puede deshacer, o falló (el motor puede haber cobrado una
+    // parte antes de decir que no), lo de antes ya no se deshace: volver a una foto vieja pisaría lo que pasó.
+    fotoPrevia = d.ok && foto ? foto : null;
+    fotoDesde = fotoPrevia ? relojMs() : null;
+    idDeshacible = fotoPrevia && nuevo ? nuevo.id : null;
+    if (fotoPrevia) {
+      mensajePrevio = d.mensaje;
+      const esta = fotoPrevia;
+      // A los 6 s se apaga solo (si nadie hizo otra cosa antes).
+      programar(() => {
+        if (fotoPrevia === esta) soltarFoto();
+      }, DESHACER_MS);
+    }
+    aviso = { id: ++idAviso, ok: d.ok, mensaje: d.mensaje, deshacer: d.ok && fotoPrevia !== null };
+    cambio();
+    if (nuevo) {
+      nuevo.cambios = cambios;
+      cola.push(nuevo);
+      avisarSincro();
+      extra.alEncolar?.({ id: nuevo.id, reservas });
+      if (nuevo.promete && d.ok) subirYa();
+    }
+    return d;
+  };
+  const informarFalla = (mensaje: string): Desenlace => {
+    aviso = { id: ++idAviso, ok: false, mensaje, deshacer: fotoPrevia !== null && deshacerVigente(fotoDesde, relojMs()) };
+    avisar();
+    return { ok: false, mensaje };
+  };
+  /**
+   * SIN INTERNET (H-T2-1 de la cert de la Tanda 2; D4 de docs/producto/MODO-SIN-INTERNET-CLUB.md §5). Sólo en dos puestos
+   * (la jornada real contra la base: la demo y el guardado de este equipo no dependen de internet). Hay internet salvo que:
+   *   · la última subida a la base falló por red (`sincro.sinInternetDesde`, lo mismo que pinta la cinta «Sin internet
+   *     desde las…»; se limpia cuando una subida sale o el latido de versión vuelve a contestar), o
+   *   · el latido de versión (cada 15 s) no tuvo respuesta (también pone `sinInternetDesde`), o
+   *   · el navegador dice que no tiene red (`navigator.onLine === false`): cubre el primer toque después de apagar el
+   *     wifi, antes de que falle una subida. Que diga que sí no cuenta (wifi sin salida): eso lo agarran los dos de arriba.
+   * Queda una ventana: con wifi «conectado» pero sin salida, hasta la primera subida o latido fallidos (≤ 15 s) el
+   * almacén no puede saberlo.
+   */
+  const sinInternet = () => dosPuestos && (sincro.sinInternetDesde !== null || !enLinea());
+  /**
+   * Sin internet, lo que no va sin internet (`vaSinInternet` del REGISTRO) se rechaza ANTES de correr: no toca el estado,
+   * no entra a la cola, no gasta un intento de PIN (`envolver` no corre) y no anula «Deshacer». La pantalla no se limpia
+   * (sus formularios sólo se vacían con `ok`) y el aviso sale en el `role="alert"` de `AvisosDelClub`, en criollo y con
+   * qué hacer (`rechazoSinInternet`). null: va.
+   */
+  const negarSinInternet = (nombre: string, args: unknown): Desenlace | null => {
+    if (!sinInternet()) return null;
+    const motivo = rechazoSinInternet(nombre, args);
+    return motivo === null ? null : informarFalla(motivo);
   };
 
   // ── archivar los días cerrados ──
@@ -1327,6 +1991,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       fotoPrevia = null;
       fotoDesde = null;
       cambios++;
+      marcarSinCola();
       const bytesDespues = textoActual().length;
       const c = ahoraRes.conteos;
       aviso = {
@@ -1401,6 +2066,10 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     }
     for (const o of oyentesOperador) o();
     cambios++;
+    // Restaurar reemplaza todo: lo de la cola (hecho sobre lo de antes) ya no corre.
+    cola = [];
+    marcarSinCola();
+    if (dosPuestos) avisarSincro();
     const bytesDespues = textoActual().length;
     aviso = { id: ++idAviso, ok: true, mensaje: `Listo: se restauró el respaldo (lo de antes quedó copiado en este equipo).`, deshacer: false };
     avisar();
@@ -1434,6 +2103,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     operadorElegido = null;
     for (const o of oyentesOperador) o();
     cambios++;
+    cola = [];
+    marcarSinCola();
+    if (dosPuestos) avisarSincro();
     const bytesDespues = textoActual().length;
     aviso = { id: ++idAviso, ok: true, mensaje: "Listo: empezó una jornada nueva en blanco (la anterior quedó copiada en este equipo). Cada dueño arma su PIN.", deshacer: false };
     avisar();
@@ -1465,6 +2137,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     fotoDesde = null;
     aviso = { id: ++idAviso, ok: d.ok, mensaje: d.mensaje, deshacer: false };
     cambio();
+    marcarSinCola();
     return d;
   };
 
@@ -1554,6 +2227,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
         return accion(estado, ahora);
       } finally {
         cambio();
+        marcarSinCola();
       }
     },
     operador: operadorActual,
@@ -1601,48 +2275,63 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       ponerMeta({ jornada: "abriendo" });
       pedirLaPosta();
     },
-    ejecutar(accion, { deshacible = false } = {}) {
-      if (!puedeOperar()) return negarSoloLectura();
-      // En la jornada real nadie opera sin haber entrado con su PIN: no depende de que el bloqueo (pieza global de la
-      // sesión del club) ya esté cargado y encima. Varias operaciones del motor no piden `auth`; sin esto correrían
-      // con un `auth` vacío y sin saber quién las hizo.
-      if (real && !operadorActual()) {
-        const mensaje = "Entrá con tu PIN para operar.";
-        aviso = { id: ++idAviso, ok: false, mensaje, deshacer: false };
-        avisar();
-        return { ok: false, mensaje };
-      }
-      // La foto de antes: casi siempre ya está armada (se adelanta en reposo después de cada cambio).
-      let foto: string | null = null;
-      if (deshacible) {
-        try {
-          foto = textoActual();
-        } catch {
-          foto = null;
-        }
-      }
-      let d: Desenlace;
-      try {
-        d = accion(estado, ahora, operadorActual()?.auth ?? {});
-      } catch {
-        // El motor no tira por una regla; si algo tiró igual, no se rompe la pantalla.
-        d = { ok: false, mensaje: "No se pudo hacer. Probá de nuevo." };
-      }
-      // Sólo se deshace la ÚLTIMA acción. Si ésta no se puede deshacer, o falló (el motor puede haber cobrado una
-      // parte antes de decir que no), lo de antes ya no se deshace: volver a una foto vieja pisaría lo que pasó.
-      fotoPrevia = d.ok && foto ? foto : null;
-      fotoDesde = fotoPrevia ? relojMs() : null;
-      if (fotoPrevia) {
-        mensajePrevio = d.mensaje;
-        const esta = fotoPrevia;
-        // A los 6 s se apaga solo (si nadie hizo otra cosa antes).
-        programar(() => {
-          if (fotoPrevia === esta) soltarFoto();
-        }, DESHACER_MS);
-      }
-      aviso = { id: ++idAviso, ok: d.ok, mensaje: d.mensaje, deshacer: d.ok && fotoPrevia !== null };
-      cambio();
-      return d;
+    ejecutar(accion, opciones = {}) {
+      return correrAccion(accion, opciones);
+    },
+    comando<N extends NombreDeComando>(nombre: N, args: ArgsDe<N>, opciones: OpcionesDeComando<N> = {}): ResultadoDe<N> {
+      type R = ResultadoDe<N>;
+      if (!Object.hasOwn(REGISTRO, nombre)) return informarFalla("Esta operación no se reconoce. Recargá la página.") as R;
+      // La regla «sin internet» se aplica acá, en un solo lugar, para toda pantalla (H-T2-1).
+      const negado = negarSinInternet(nombre, args);
+      if (negado) return negado as R;
+      const e = REGISTRO[nombre] as unknown as { correr: (estado: EstadoClub, args: unknown[], ahora: Ahora, auth: Auth) => R };
+      const { envolver, ...resto } = opciones;
+      const pelado = (est: EstadoClub, a: Ahora, auth: Auth): R => e.correr(est, args as unknown[], a, auth);
+      const accion = envolver ? (est: EstadoClub, a: Ahora, auth: Auth): R => envolver(() => pelado(est, a, auth)) : pelado;
+      return correrAccion(accion, { ...resto, comando: { nombre, args } }) as R;
+    },
+    puesto: () => ({ equipo, nombre: nombrePuesto }),
+    confirmaLaBase: () => dosPuestos,
+    confirmacion(id) {
+      if (!dosPuestos) return "confirmado";
+      if (cola.some((p) => p.id === id)) return "esperando";
+      return confirmaciones.get(id) ?? "desconocido";
+    },
+    sincro: () => sincro,
+    suscribirSincro(alCambiar) {
+      oyentesSincro.add(alCambiar);
+      return () => {
+        oyentesSincro.delete(alCambiar);
+      };
+    },
+    volverAAplicar(itemId, alternativa, opciones = {}) {
+      const item = leerSincro(estado).paraResolver.find((x) => x.id === itemId);
+      if (!item) return informarFalla("Esto ya no está para resolver.");
+      const enMemoria = rechazadosAca.get(itemId);
+      const c = item.comando && alternativa ? conOtroHueco(item.comando, alternativa) : item.comando;
+      if (!c && !enMemoria?.correr)
+        return informarFalla("Esto se hizo antes de recargar la página y no se puede volver a aplicar solo: cargalo de nuevo a mano y después descartalo.");
+      // «Volver a aplicar» un cobro por MP sin internet es el mismo cobro: la misma regla que `comando`.
+      const negado = c ? negarSinInternet(c.nombre, c.args) : null;
+      if (negado) return negado;
+      // Con los ids, el azar y la hora de la primera vez (el mismo turno y el mismo código BP); firma quien lo vuelve a aplicar.
+      return correrAccion(
+        (est, _a, auth) => {
+          if (!leerSincro(est).paraResolver.some((x) => x.id === itemId)) return { ok: false, mensaje: "Ya lo resolvió otro puesto." };
+          const d = c ? correrComando(est, { ...c, auth }) : correrPendiente(est, { ...enMemoria!, auth });
+          if (d.ok) sacarParaResolver(est, itemId);
+          return d;
+        },
+        { siFalla: "callar", promete: c ? prometeAlgo(c.nombre, c.args) : true, texto: `Volver a aplicar: ${item.texto}`, alEncolar: opciones.alEncolar },
+      );
+    },
+    descartarParaResolver(itemId) {
+      rechazadosAca.delete(itemId);
+      return correrAccion((est) => (sacarParaResolver(est, itemId) ? { ok: true, mensaje: "Listo: se descartó." } : { ok: false, mensaje: "Ya no estaba para resolver." }), {
+        siFalla: "callar",
+        promete: false,
+        texto: "Descartar algo de «Para resolver»",
+      });
     },
     informar(d) {
       aviso = { id: ++idAviso, ok: d.ok, mensaje: d.mensaje, deshacer: fotoPrevia !== null && deshacerVigente(fotoDesde, relojMs()) };
@@ -1674,6 +2363,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       fotoPrevia = null;
       fotoDesde = null;
       cambio();
+      marcarSinCola();
       return d;
     },
     puedeDeshacer: () => fotoPrevia !== null && deshacerVigente(fotoDesde, relojMs()),
@@ -1690,10 +2380,18 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       }
       fotoPrevia = null;
       fotoDesde = null;
+      const deshecho = idDeshacible;
+      idDeshacible = null;
       if (!h.ok) {
         aviso = { id: ++idAviso, ok: false, mensaje: "No se pudo deshacer.", deshacer: false };
       } else {
         estado = h.estado;
+        // Lo deshecho sale de la cola (la foto de antes no lo tiene): no se re-aplica ni se espera su confirmación.
+        if (deshecho) {
+          cola = cola.filter((p) => p.id !== deshecho);
+          confirmaciones.delete(deshecho);
+          avisarSincro();
+        }
         aviso = { id: ++idAviso, ok: true, mensaje: `Listo, se deshizo: ${mensajePrevio}`, deshacer: false };
       }
       cambio();

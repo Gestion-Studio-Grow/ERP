@@ -69,6 +69,7 @@ export default function ImportarRecibidos({ clienteId }: { clienteId: string }) 
               notasDeCredito: resultado.resumen.notasDeCredito,
               aRevisar: resultado.resumen.aRevisar,
               yaCargados: resultado.yaCargadosTotal,
+              vinculados: resultado.vinculadosTotal,
               repetidosEnElArchivo: resultado.repetidosTotal,
               conErrores: resultado.conErroresTotal,
             })}

@@ -5,7 +5,7 @@ import { getReceivableDetail } from "@/lib/debts/receivable-repo";
 import { medioDelPago } from "@/lib/cuentas/loader";
 import { agingOf } from "@/lib/cuentas/aging";
 import type { DebtAccountDetail } from "@/lib/cuentas/types";
-import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
+import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DebtDetailBody } from "@/components/cuentas/DebtDetailBody";
 import { registerReceivableCollection } from "../actions";
@@ -26,6 +26,8 @@ const volver = (
 export default async function CuentaACobrarDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireApp("cuentas-a-cobrar");
   const tenantId = await getCurrentTenantId();
+  // Las cuentas corrientes de ESTE negocio (interruptor por negocio; si nunca se tocó, la variable).
+  const enLibro = await cuentasCorrientesDe(tenantId);
 
   const { id } = await params;
   const d = await getReceivableDetail(tenantId, id);
@@ -62,7 +64,7 @@ export default async function CuentaACobrarDetailPage({ params }: { params: Prom
         volver={{ href: "/admin/cuentas-a-cobrar", texto: "Fiado y cuentas de clientes" }}
         desde={null}
         action={registerReceivableCollection}
-        asientaEnLibro={cuentasCorrientesEnabled()}
+        asientaEnLibro={enLibro}
         anulada={d.status !== "OPEN"}
       />
     );
@@ -79,7 +81,7 @@ export default async function CuentaACobrarDetailPage({ params }: { params: Prom
         aging={aging}
         kind="cobrar"
         action={registerReceivableCollection}
-        asientaEnLibro={cuentasCorrientesEnabled()}
+        asientaEnLibro={enLibro}
         anulada={d.status !== "OPEN"}
       />
     </main>

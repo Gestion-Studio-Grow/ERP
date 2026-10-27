@@ -95,10 +95,13 @@ async function main() {
   }
 
   // 1) Tenant (upsert por slug) + perfil + módulos por rubro + subdomain.
+  //    Acento `oro` (reingeniería de Magra, diseño §1.2): el backoffice boutique grafito y oro en la
+  //    base de QA/local. En Neon el negocio real NO cambia por este seed (barandas de arriba): el
+  //    acento del cliente lo cambia el dueño desde la consola o desde /admin/apariencia.
   const tenant = await prisma.tenant.upsert({
     where: { slug: SLUG },
-    update: { name: "Magra — DEMO (carnicería)", profile: PROFILE, blueprintId: "carniceria", status: "TRIAL", accentPreset: "oxblood", frontTheme: "light", subdomain: SUBDOMAIN, modules: MODULES },
-    create: { slug: SLUG, name: "Magra — DEMO (carnicería)", profile: PROFILE, blueprintId: "carniceria", status: "TRIAL", accentPreset: "oxblood", frontTheme: "light", subdomain: SUBDOMAIN, modules: MODULES },
+    update: { name: "Magra — DEMO (carnicería)", profile: PROFILE, blueprintId: "carniceria", status: "TRIAL", accentPreset: "oro", frontTheme: "light", subdomain: SUBDOMAIN, modules: MODULES },
+    create: { slug: SLUG, name: "Magra — DEMO (carnicería)", profile: PROFILE, blueprintId: "carniceria", status: "TRIAL", accentPreset: "oro", frontTheme: "light", subdomain: SUBDOMAIN, modules: MODULES },
   });
   const tenantId = tenant.id;
 

@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Prisma } from "@/generated/prisma/client";
-import { aplicarCobroTurnoInTx, CobroTurnoRechazado, type AplicarCobroArgs, type CobroTurnoTx } from "./cobro-turno-repo";
+import { aplicarCobroTurnoInTx, CobroTurnoRechazado, mensajeNoCompletable, type AplicarCobroArgs, type CobroTurnoTx } from "./cobro-turno-repo";
 // La lectura tolerante vive ahora acá: `cobrosPorTurno` se borró por ser un Σ ciego a `note`.
 import { cobrosDetalladosPorTurno, desglosarCobros } from "./anulacion";
 import { estadoCobroTurno } from "./cobros";
@@ -452,4 +452,11 @@ test("los tres caminos que cobran un turno leen la frontera de la caja (seña al
   assert.equal(llamadas.length, 3);
   for (const l of llamadas) assert.match(l, /cerradoHasta,\s*camino: "(reserva|cobro|completar)"/);
   assert.equal((src.match(/await lastClosedDay\(tenantId\)/g) ?? []).length >= 3, true);
+});
+
+// ── Mensajes de «completar» (cert CH Tanda 1, O-3) ──────────────────────────
+
+test("completar un turno ya cerrado dice «Ese turno ya está cerrado.», no «que esté confirmado»", () => {
+  assert.equal(mensajeNoCompletable("ya-cerrado"), "Ese turno ya está cerrado.");
+  assert.equal(mensajeNoCompletable("no-confirmado"), "Solo se puede completar un turno que esté confirmado.");
 });

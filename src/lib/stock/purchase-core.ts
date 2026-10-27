@@ -21,6 +21,14 @@ import type { CashMethod } from "@/lib/caja/cash-register";
 import { createPayable } from "@/lib/debts/payable-service";
 import { cantidadDelFormulario, importeDelFormulario } from "@/lib/pos-peso";
 import { parseCashMethod } from "@/lib/comision-liquidacion";
+import { NOTA_IMPORTADO } from "@/lib/contador/recibidos-formato";
+import {
+  decidirFacturaDeCompra,
+  leerFacturaDeCompra,
+  notasDeCompraConFactura,
+  rotuloDeLaFactura,
+  type FacturaDelFormulario,
+} from "@/lib/stock/factura-de-compra";
 import {
   decidirDeudaDeCompra,
   decidirEgresoDeCompra,
@@ -48,6 +56,11 @@ export type PurchaseInput = {
   // reposición, el encargado sin costos, un llamador que no es el formulario), se aplica
   // `PAGO_POR_DEFECTO` (pagada, medio asumido y MARCADO en el detalle del asiento).
   pago?: PagoDeCompra;
+  // La factura del proveedor (R3, cert. Magra T1): tipo, punto de venta, número, CUIT y fecha, tal
+  // como llegan del formulario. Se valida ADENTRO de la transacción, con el CUIT del proveedor del
+  // maestro; va a los campos fiscales de la compra, la misma clave que la importación de la
+  // contadora (factura-de-compra.ts). Sólo en una COMPRA; sin esto, como siempre.
+  factura?: FacturaDelFormulario | null;
 };
 
 // Resultado del asiento de caja de la compra. Va en el resultado —y no se descarta—
@@ -78,6 +91,11 @@ export type InsertedPurchase = {
   lines: number;
   egreso: PurchaseEgresoResult;
   deuda: DeudaDeLaCompra;
+  /**
+   * La factura del proveedor, si se cargó. `vinculada`: la contadora ya la había importado y la
+   * compra del local se le sumó (misma compra, mismo número), en vez de crear otra.
+   */
+  factura?: { rotulo: string; vinculada: boolean } | null;
 };
 
 // Producto tal como lo ve la aritmética: lo mínimo para snapshotear la línea.
@@ -334,7 +352,7 @@ export async function registrarCompraEnTx(
 ): Promise<InsertedPurchase> {
   const { lines, hoy, cerradoHasta } = previo;
   const totalCost = purchaseTotal(lines);
-  const pago = input.pago ?? PAGO_POR_DEFECTO;
+  let pago = input.pago ?? PAGO_POR_DEFECTO;
 
   // Una compra a la vez por negocio: el correlativo es max(code)+1 y la verificación de
   // compra repetida lee las recientes; sin este candado, dos envíos simultáneos leían lo
@@ -345,16 +363,52 @@ export async function registrarCompraEnTx(
   // Proveedor del maestro: del negocio y activo, o no se registra nada.
   let supplierId: string | null = null;
   let supplier = input.supplier;
+  let cuitDelProveedor: string | null = null;
   if (input.supplierId) {
     const prov = await tx.supplier.findFirst({
       where: { id: input.supplierId, tenantId, active: true },
-      select: { id: true, name: true },
+      select: { id: true, name: true, taxId: true },
     });
     if (!prov) {
       throw new Error("El proveedor elegido no existe o está dado de baja. Elegí otro de la lista.");
     }
     supplierId = prov.id;
     supplier = prov.name;
+    cuitDelProveedor = prov.taxId?.trim() || null;
+  }
+
+  // LA FACTURA DEL PROVEEDOR (R3): se lee con el CUIT del proveedor del maestro y se busca en el
+  // negocio por la MISMA clave que usa la importación de la contadora. Bajo el candado de compras
+  // (el mismo que toma la importación), así las dos no se cruzan.
+  const lecturaFactura =
+    input.kind === "COMPRA" && input.factura
+      ? leerFacturaDeCompra(input.factura, { hoy, cuitDelProveedor })
+      : ({ ok: true, factura: null } as const);
+  if (!lecturaFactura.ok) throw new Error(lecturaFactura.error);
+  const factura = lecturaFactura.factura;
+  const rotulo = factura ? rotuloDeLaFactura(factura) : null;
+  let vincularCon: { id: string; code: number; notes: string | null; supplierId: string | null; supplier: string | null } | null = null;
+  if (factura && rotulo) {
+    const conEsaFactura = await tx.stockPurchase.findFirst({
+      where: {
+        tenantId,
+        facturaCuit: factura.cuit,
+        facturaTipo: factura.tipo,
+        facturaPuntoVenta: factura.puntoVenta,
+        facturaNumero: factura.numero,
+      },
+      select: { id: true, code: true, notes: true, supplierId: true, supplier: true, _count: { select: { items: true } } },
+    });
+    const decision = decidirFacturaDeCompra(
+      conEsaFactura
+        ? { code: conEsaFactura.code, renglones: conEsaFactura._count.items, importada: (conEsaFactura.notes ?? "").startsWith(NOTA_IMPORTADO) }
+        : null,
+      rotulo,
+    );
+    if (decision.accion === "rechazo") throw new Error(decision.error);
+    if (decision.accion === "vincular" && conEsaFactura) vincularCon = conEsaFactura;
+    // A cuenta corriente, el detalle de la deuda lleva el rótulo fiscal (no el texto suelto).
+    if (pago.estado === "CUENTA_CORRIENTE") pago = { ...pago, factura: rotulo };
   }
 
   // A cuenta corriente: se decide ANTES de escribir nada. Una compra "a cuenta corriente" sin
@@ -392,39 +446,73 @@ export async function registrarCompraEnTx(
     );
   }
 
-  // Correlativo legible por tenant: max(code)+1 (mismo criterio que Order), ya sin
-  // carrera por el candado de arriba.
-  const last = await tx.stockPurchase.findFirst({
-    where: { tenantId },
-    orderBy: { code: "desc" },
-    select: { code: true },
-  });
-  const code = (last?.code ?? 0) + 1;
+  const renglones = lines.map((l) => ({
+    tenantId,
+    productId: l.productId,
+    name: l.name,
+    unit: l.unit,
+    quantity: l.quantity,
+    unitCost: l.unitCost,
+    lineTotal: l.lineTotal,
+  }));
 
-  const created = await tx.stockPurchase.create({
-    data: {
-      tenantId,
-      code,
-      kind: input.kind,
-      supplier,
-      supplierId,
-      notes: input.notes,
-      totalCost,
-      createdBy: input.createdBy,
-      items: {
-        create: lines.map((l) => ({
-          tenantId,
-          productId: l.productId,
-          name: l.name,
-          unit: l.unit,
-          quantity: l.quantity,
-          unitCost: l.unitCost,
-          lineTotal: l.lineTotal,
-        })),
+  let created: { id: string; code: number };
+  if (vincularCon) {
+    // VINCULAR (contadora primero): la compra importada de ARCA ES esta compra. Se le suman los
+    // renglones, el proveedor del maestro (si no tenía) y el total que pagó o debe el local; los
+    // datos fiscales de ARCA quedan como estaban (son los del Libro IVA). Una sola compra: la ficha
+    // del proveedor la suma una vez.
+    const notas = [vincularCon.notes?.trim(), `Vinculada con la compra que cargó el local (${input.createdBy}).`, input.notes?.trim()]
+      .filter(Boolean)
+      .join(" ");
+    await tx.stockPurchase.updateMany({
+      where: { id: vincularCon.id, tenantId },
+      data: {
+        kind: input.kind,
+        supplier: supplier ?? vincularCon.supplier,
+        supplierId: supplierId ?? vincularCon.supplierId,
+        totalCost,
+        notes: notas,
       },
-    },
-    select: { id: true, code: true },
-  });
+    });
+    await tx.stockPurchaseItem.createMany({ data: renglones.map((r) => ({ ...r, purchaseId: vincularCon!.id })) });
+    created = { id: vincularCon.id, code: vincularCon.code };
+  } else {
+    // Correlativo legible por tenant: max(code)+1 (mismo criterio que Order), ya sin
+    // carrera por el candado de arriba.
+    const last = await tx.stockPurchase.findFirst({
+      where: { tenantId },
+      orderBy: { code: "desc" },
+      select: { code: true },
+    });
+    const code = (last?.code ?? 0) + 1;
+
+    created = await tx.stockPurchase.create({
+      data: {
+        tenantId,
+        code,
+        kind: input.kind,
+        supplier,
+        supplierId,
+        // Con factura, la marca «a revisar» hasta que la importación de la contadora traiga el IVA.
+        notes: factura ? notasDeCompraConFactura(input.notes) : input.notes,
+        totalCost,
+        createdBy: input.createdBy,
+        ...(factura
+          ? {
+              facturaTipo: factura.tipo,
+              facturaPuntoVenta: factura.puntoVenta,
+              facturaNumero: factura.numero,
+              facturaCuit: factura.cuit,
+              facturaFecha: factura.fecha,
+              facturaTotal: totalCost,
+            }
+          : {}),
+        items: { create: renglones },
+      },
+      select: { id: true, code: true },
+    });
+  }
 
   // Reposición de stock vía ledger (`recordMovement`): incremento atómico por
   // producto + fila del StockMovement (COMPRA o REPOSICION, según el documento) en
@@ -538,5 +626,13 @@ export async function registrarCompraEnTx(
     }
   }
 
-  return { id: created.id, code: created.code, totalCost, lines: lines.length, egreso, deuda };
+  return {
+    id: created.id,
+    code: created.code,
+    totalCost,
+    lines: lines.length,
+    egreso,
+    deuda,
+    factura: rotulo ? { rotulo, vinculada: vincularCon !== null } : null,
+  };
 }

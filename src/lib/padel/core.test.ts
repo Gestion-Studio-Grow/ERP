@@ -1,7 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  ESTADOS_QUE_OCUPAN,
   armarMensaje,
+  esDeuda,
+  esEnRevision,
+  esPagable,
+  estadoEnPantalla,
+  totalEnRevision,
+  pagoAlCancelar,
+  saldoAFavor,
+  saldoCubre,
+  totalDeuda,
   PLANTILLAS_DEFAULT,
   plantillaConfirmada,
   comprobanteValido,
@@ -170,4 +180,121 @@ test("clase confirmada: sin precio no dice «$ 0» y sin alias no promete uno; l
   assert.doesNotMatch(nada, /\{precio\}|\{alias\}/);
   assert.match(nada, /\{link\}/);
   assert.equal(plantillaConfirmada("Mi texto {precio}", { hayPrecio: false, hayAlias: false }), "Mi texto {precio}");
+});
+
+// ── Tanda 1: plata (B2/B4) ──────────────────────────────────────────────────
+
+test("B4: una clase cancelada después de pagar queda acreditada (saldo a favor), sin perder el pago", () => {
+  const pagada = { estado: "CONFIRMADA", pagoEstado: "PAGADO", pagoMedio: "TRANSFERENCIA", precio: 25_000 };
+  const cambio = pagoAlCancelar(pagada);
+  assert.deepEqual(cambio, { pagoEstado: "ACREDITADO" });
+  const cancelada = { ...pagada, estado: "CANCELADA", ...cambio! };
+  assert.equal(saldoAFavor([cancelada]), 25_000, "los $ 25.000 quedan a favor");
+  assert.equal(esDeuda(cancelada), false);
+  assert.equal(esPagable(cancelada), false);
+  // La transición de pago lo confirma: sólo se acredita una pagada que se canceló o rechazó.
+  assert.equal(transicionPago("PAGADO", "CANCELADA", "acreditar", "profe"), "ACREDITADO");
+  assert.equal(transicionPago("PAGADO", "RECHAZADA", "acreditar", "alumno"), "ACREDITADO");
+  assert.equal(transicionPago("PAGADO", "CONFIRMADA", "acreditar", "profe"), null, "viva: no se acredita");
+  assert.equal(transicionPago("PENDIENTE", "CANCELADA", "acreditar", "profe"), null, "sin pagar no hay qué acreditar");
+});
+
+test("cancelar: sin pagar o con el comprobante por revisar no cambia el pago; pagada con saldo devuelve el saldo", () => {
+  assert.equal(pagoAlCancelar({ pagoEstado: "PENDIENTE" }), null);
+  assert.equal(pagoAlCancelar({ pagoEstado: "EN_REVISION", pagoMedio: "TRANSFERENCIA" }), null);
+  // Juan tenía $ 25.000 a favor, los usó en otra clase y esa también se cancela: le vuelven los $ 25.000, no $ 50.000.
+  const origen = { estado: "CANCELADA", pagoEstado: "ACREDITADO", pagoMedio: "EFECTIVO", precio: 25_000 };
+  const usada = { estado: "CONFIRMADA", pagoEstado: "PAGADO", pagoMedio: "SALDO_A_FAVOR", precio: 25_000 };
+  assert.equal(saldoAFavor([origen, usada]), 0);
+  const cambio = pagoAlCancelar(usada);
+  assert.deepEqual(cambio, { pagoEstado: "PENDIENTE", pagoMedio: null });
+  assert.equal(saldoAFavor([origen, { ...usada, estado: "CANCELADA", ...cambio! }]), 25_000);
+});
+
+test("saldo a favor: acreditado − usado; lo devuelto no cuenta; un saldo parcial no se aplica", () => {
+  const acreditada = { estado: "CANCELADA", pagoEstado: "ACREDITADO", pagoMedio: "EFECTIVO", precio: 25_000 };
+  assert.equal(saldoAFavor([]), 0);
+  assert.equal(saldoAFavor([acreditada]), 25_000);
+  assert.equal(saldoAFavor([acreditada, { estado: "DADA", pagoEstado: "PAGADO", pagoMedio: "SALDO_A_FAVOR", precio: 25_000 }]), 0, "usado");
+  assert.equal(saldoAFavor([{ ...acreditada, pagoEstado: "DEVUELTO" }]), 0, "«Le devolví»");
+  assert.equal(saldoAFavor([{ estado: "DADA", pagoEstado: "PAGADO", pagoMedio: "EFECTIVO", precio: 25_000 }]), 0, "pagar no genera saldo");
+  assert.equal(saldoCubre(25_000, 25_000), true);
+  assert.equal(saldoCubre(25_000, 36_000), false, "grupal de $ 36.000: no se aplica a medias");
+  assert.equal(saldoCubre(25_000, 0), false, "una clase sin precio no consume saldo");
+  assert.equal(transicionPago("ACREDITADO", "CANCELADA", "devolver", "profe"), "DEVUELTO");
+  assert.equal(transicionPago("ACREDITADO", "CANCELADA", "devolver", "alumno"), null);
+  assert.equal(transicionPago("PAGADO", "CANCELADA", "devolver", "profe"), null);
+});
+
+test("B2: una sola regla de deuda — PEDIDA nunca; CONFIRMADA pagable pero no deuda; DADA deuda", () => {
+  const c = (estado: string, pagoEstado = "PENDIENTE", precio = 25_000) => ({ estado, pagoEstado, pagoMedio: null, precio });
+  assert.equal(esPagable(c("PEDIDA")), false, "un pedido sin confirmar no se paga");
+  assert.equal(esDeuda(c("PEDIDA")), false);
+  assert.equal(esPagable(c("SIN_RESPUESTA")), false, "un pedido vencido no aparece en Pagar");
+  assert.equal(esDeuda(c("SIN_RESPUESTA")), false);
+  assert.equal(esPagable(c("CONFIRMADA")), true);
+  assert.equal(esDeuda(c("CONFIRMADA")), false);
+  assert.equal(esPagable(c("CONFIRMADA", "EN_REVISION")), false, "ya mandó el comprobante");
+  assert.equal(esDeuda(c("DADA")), true);
+  assert.equal(esDeuda(c("DADA", "EN_REVISION")), false, "O-5: ya mandó el comprobante → «en revisión», no «Debés»");
+  assert.equal(esDeuda(c("DADA", "PAGADO")), false);
+  assert.equal(esDeuda(c("DADA", "ACREDITADO")), false);
+  assert.equal(esDeuda(c("DADA", "PENDIENTE", 0)), false, "sin precio no hay deuda");
+  assert.equal(esDeuda(c("CANCELADA")), false);
+  // M-029: 2 DADAS sin pagar + 1 CONFIRMADA → «Debés $ 50.000 · 2 clases».
+  const clases = [c("DADA"), c("DADA"), c("CONFIRMADA"), c("PEDIDA"), c("SIN_RESPUESTA")];
+  assert.equal(totalDeuda(clases), 50_000);
+  assert.equal(clases.filter(esPagable).length, 3);
+});
+
+test("B2: SIN_RESPUESTA — vence sólo un PEDIDA, sólo el sistema, y libera la franja", () => {
+  assert.equal(transicionClase("PEDIDA", "vencer", "sistema"), "SIN_RESPUESTA");
+  assert.equal(transicionClase("PEDIDA", "vencer", "profe"), null);
+  assert.equal(transicionClase("CONFIRMADA", "vencer", "sistema"), null);
+  assert.equal(ESTADOS_QUE_OCUPAN.includes("SIN_RESPUESTA"), false);
+  // M-031: la franja de un pedido vencido se vuelve a ofrecer.
+  const libres = franjasLibres({ fecha: MARTES, franjas: semana, ocupadas: [], duracionMin: 60, anticipacionMin: 0, ahora: lunesALaNoche });
+  assert.ok(libres.includes(hora("08:00").toISOString()));
+});
+
+test("comprobante: el alumno no paga un pedido sin confirmar", () => {
+  assert.equal(transicionPago("PENDIENTE", "PEDIDA", "subir", "alumno"), null);
+  assert.equal(transicionPago("ACREDITADO", "DADA", "subir", "alumno"), null);
+  assert.equal(transicionPago("ACREDITADO", "DADA", "efectivo", "profe"), null);
+});
+
+test("O-3: un pedido vencido (SIN_RESPUESTA) se puede dar si el alumno vino, y después se cobra", () => {
+  assert.equal(transicionClase("SIN_RESPUESTA", "dar", "profe"), "DADA");
+  // Lo demás sigue cerrado: la hora ya pasó.
+  for (const ev of ["confirmar", "rechazar", "ausente", "cancelar", "vencer"] as const) {
+    assert.equal(transicionClase("SIN_RESPUESTA", ev, "profe"), null, ev);
+  }
+  assert.equal(transicionClase("SIN_RESPUESTA", "dar", "alumno"), null, "el alumno no se la da solo");
+  // Una vez DADA, se cobra en efectivo o entra como deuda.
+  assert.equal(transicionPago("PENDIENTE", "DADA", "efectivo", "profe"), "PAGADO");
+  assert.equal(esDeuda({ estado: "DADA", pagoEstado: "PENDIENTE", pagoMedio: null, precio: 25_000 }), true);
+  // Mientras siga SIN_RESPUESTA, no se cobra (no pasó de largo un cobro sin clase).
+  assert.equal(transicionPago("PENDIENTE", "SIN_RESPUESTA", "efectivo", "profe"), null);
+});
+
+test("O-5: «Debés» no cuenta lo que está en revisión; se suma aparte", () => {
+  const c = (estado: string, pagoEstado: string, precio = 25_000) => ({ estado, pagoEstado, pagoMedio: null, precio });
+  const clases = [c("DADA", "PENDIENTE"), c("DADA", "EN_REVISION"), c("CONFIRMADA", "EN_REVISION"), c("CONFIRMADA", "PENDIENTE"), c("DADA", "PAGADO")];
+  assert.equal(totalDeuda(clases), 25_000, "sólo la DADA sin pagar ni comprobante");
+  assert.equal(totalEnRevision(clases), 50_000, "la DADA y la CONFIRMADA con comprobante");
+  assert.equal(esEnRevision(c("DADA", "EN_REVISION")), true);
+  assert.equal(esEnRevision(c("DADA", "EN_REVISION", 0)), false, "sin precio no hay nada que revisar");
+  assert.equal(esEnRevision(c("CANCELADA", "EN_REVISION")), false);
+  assert.equal(esEnRevision(c("PEDIDA", "EN_REVISION")), false);
+  // Ninguna clase está a la vez en «Debés» y «en revisión».
+  for (const x of clases) assert.equal(esDeuda(x) && esEnRevision(x), false, JSON.stringify(x));
+  assert.equal(esPagable(c("DADA", "EN_REVISION")), false, "no se le vuelve a pedir: ya pagó");
+});
+
+test("O-6: un pedido cuya hora pasó se MUESTRA vencido aunque la base todavía no lo haya vencido", () => {
+  const ahora = new Date("2026-10-22T19:05:00-03:00");
+  assert.equal(estadoEnPantalla("PEDIDA", new Date("2026-10-22T19:00:00-03:00"), ahora), "SIN_RESPUESTA");
+  assert.equal(estadoEnPantalla("PEDIDA", new Date("2026-10-22T20:00:00-03:00"), ahora), "PEDIDA");
+  assert.equal(estadoEnPantalla("PEDIDA", ahora, ahora), "PEDIDA", "en el borde exacto, igual que el `lt` de la base");
+  assert.equal(estadoEnPantalla("CONFIRMADA", new Date("2026-10-22T19:00:00-03:00"), ahora), "CONFIRMADA");
 });

@@ -33,6 +33,7 @@ import {
   Badge,
   PageHeader,
   EmptyState,
+  buttonClasses,
   fmtMoneyARS,
 } from "@/components/ui";
 import { CerrarDiaForm } from "./CierreForm";
@@ -379,19 +380,25 @@ export default async function CierreCajaPage({
 function TurnosSinCerrar({ day, turnos }: { day: DayKey; turnos: NonNullable<Awaited<ReturnType<typeof getCierreDiarioData>>["turnosSinCerrar"]> }) {
   return (
     <Card className="mb-8 border-warning/40">
-      <CardHeader>
+      <CardHeader className="flex-wrap">
+        <div className="min-w-0 flex-1">
         <CardTitle>Turnos sin cerrar ({turnos.length})</CardTitle>
         <CardDescription>
           Turnos del {formatDayLabel(day)} que siguen reservados o confirmados con la hora pasada.
           Cada uno es un cobro que no se registró o una ausencia sin marcar. Se puede cerrar la
-          caja igual; completalos o marcá la ausencia desde la agenda.
+          caja igual; se cierran todos juntos en «Cerrar lo pendiente».
         </CardDescription>
+        </div>
+        {/* Lleva a la bandeja que los cierra en lote (reingeniería CH, Tanda 1), no a la lista. */}
+        <Link href="/admin/turnos/cerrar" className={buttonClasses("solid", "sm", "whitespace-nowrap max-sm:min-h-11")}>
+          Cerrar lo pendiente
+        </Link>
       </CardHeader>
       <ul className="divide-y divide-line/60 border-t border-line text-sm">
         {turnos.map((t) => (
           <li key={t.id}>
             <Link
-              href={`/admin/turnos/lista#turno-${t.id}`}
+              href="/admin/turnos/cerrar"
               className="flex min-h-11 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-4 py-2.5 hover:bg-surface-raised"
             >
               <span className="text-body">

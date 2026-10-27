@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
-import { SE_DESHACE, armarCanchas, ejecutarCanchas, horasDelDia, previaLluvia, type AccionCanchas } from "./canchas-core";
+import { SE_DESHACE, armarCanchas, horasDelDia, previaLluvia, type AccionCanchas } from "./canchas-core";
 import { BotonWhatsApp, TextoWhatsApp } from "./WhatsAppDelClub";
 import { avisosLluvia, enlaceWhatsApp, type AvisoLluvia } from "./whatsapp-core";
 
@@ -73,18 +73,10 @@ function PlanLluvia({ almacen, dia }: { almacen: Almacen; dia: string }) {
   const ids = { desde: useId(), hasta: useId(), t: useId() };
   const aplicar = () => {
     // Los avisos se arman en el momento, con el estado ya aplicado (cada turno con su cancha nueva o su crédito).
-    const salida: { avisos: AvisoLluvia[] } = { avisos: [] };
-    const d = almacen.ejecutar(
-      (e, a) => {
-        const res = ejecutarCanchas(e, { tipo: "lluvia", fecha: dia, desde, hasta }, a);
-        if (res.ok && res.lluvia) salida.avisos = avisosLluvia(e, res.lluvia);
-        return res;
-      },
-      { deshacible: SE_DESHACE.lluvia },
-    );
+    const d = almacen.comando("canchas", [{ tipo: "lluvia", fecha: dia, desde, hasta }], { deshacible: SE_DESHACE.lluvia });
     if (d.ok) {
       setVerPrevia(false);
-      setAvisos(salida.avisos);
+      setAvisos(d.lluvia ? avisosLluvia(almacen.estado(), d.lluvia) : []);
     }
   };
   const previa = verPrevia ? almacen.simular(`lluvia:${dia}:${desde}:${hasta}`, (copia) => previaLluvia(almacen.estado(), dia, desde, hasta, ahora, copia)) : null;
@@ -287,7 +279,7 @@ export default function CanchasDelClub({ almacen, dia }: { almacen: Almacen; dia
   const v = useSeleccion(almacen, seleccionar, porFirma);
   // Como en el club vanilla, lluvia, mantenimiento y bloqueos NO se deshacen: tienen su acción inversa a la vista
   // (habilitar la cancha, quitar el bloqueo) y la lluvia muestra su previa antes de aplicarse.
-  const hacer = useCallback((a: AccionCanchas) => almacen.ejecutar((e, ahora) => ejecutarCanchas(e, a, ahora), { deshacible: SE_DESHACE[a.tipo] }).ok, [almacen]);
+  const hacer = useCallback((a: AccionCanchas) => almacen.comando("canchas", [a], { deshacible: SE_DESHACE[a.tipo] }).ok, [almacen]);
   useOperador(almacen);
   const esDuenio = esDuenoQuienMira(almacen);
   const fecha = `${Number(dia.slice(8))}/${Number(dia.slice(5, 7))}`;

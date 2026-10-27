@@ -820,6 +820,9 @@ export function resumirRecibidos(lista: readonly ParaResumir[]): ResumenRecibido
 /** Rótulo de la marca «a revisar» dentro de `notes` de la compra (sin columna propia hasta M1). */
 export const NOTA_A_REVISAR = "A revisar:";
 
+/** Encabezado de `notes` de un comprobante importado del archivo de ARCA (recibidos-db.ts). */
+export const NOTA_IMPORTADO = "Importado de Mis Comprobantes Recibidos (ARCA)";
+
 /** La marca «a revisar» de una compra, leída de sus notas; null si no tiene. PURA. */
 export function aRevisarDeNotas(notes: string | null): string | null {
   if (!notes) return null;

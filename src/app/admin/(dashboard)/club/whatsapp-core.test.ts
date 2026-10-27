@@ -12,8 +12,11 @@ import {
   avisosLluvia,
   celularDeLaEspera,
   celularDelTurno,
+  enlaceLoLibre,
   enlaceWhatsApp,
   fechaCorta,
+  loLibre,
+  textoLoLibre,
   recordatorioDisponible,
   textoConfirmacion,
   textoOfertaEspera,
@@ -25,7 +28,8 @@ const A_LAS_8 = { fecha: HOY, min: 8 * 60 };
 
 function club(): EstadoClub {
   return M.crearEstado({
-    config: M.CONFIG_DEMO,
+    // Clientes de siempre: sin «seña a los nuevos» (esa regla tiene sus tests en motor.test.ts y alta-core.test.ts).
+    config: { ...M.CONFIG_DEMO, politica: { ...M.CONFIG_DEMO.politica, senaNuevos: false } },
     // Break Point tiene las 4 techadas; para la lluvia, la Cancha 4 descubierta (otro club).
     canchas: M.CANCHAS_DEMO.map((c) => (c.id === "c4" ? { ...c, cubierta: false } : c)),
     clientes: [
@@ -163,4 +167,50 @@ test("de dónde sale el celular: la ficha del titular, o lo anotado en la espera
   assert.equal(celularDeLaEspera(e, { tel: "11 5555-0000", clienteId: "a" }), "11 5555-0000");
   assert.equal(celularDeLaEspera(e, { tel: "", clienteId: "a" }), "011 15-4000-7919");
   assert.equal(celularDeLaEspera(e, { tel: "", clienteId: null }), "");
+});
+
+test("BP-065 · «Compartir lo libre · hoy · noche»: 3 huecos de 90 después de las 18 → el texto con los 3, el precio y el link del turnero", () => {
+  const e = club();
+  // Sólo la Cancha 1 abierta (las otras en mantenimiento) y un turno a las 22:30: quedan 18:00, 19:30 y 21:00.
+  for (const c of e.canchas) if (c.id !== "c1") c.estado = "mantenimiento";
+  turno(e, { canchaId: "c1", fecha: HOY, inicio: 22 * 60 + 30, clienteId: "a", titular: "Ana Pérez" });
+  const ahora = { fecha: HOY, min: 17 * 60 };
+  const renglones = loLibre(e, HOY, "noche", ahora);
+  assert.deepEqual(renglones.map((r) => [M.hhmm(r.inicio), r.canchas]), [
+    ["18:00", ["Cancha 1"]],
+    ["19:30", ["Cancha 1"]],
+    ["21:00", ["Cancha 1"]],
+  ]);
+  const link = "https://club.example/turnero?modo=pedido";
+  const texto = textoLoLibre(e, "hoy", "noche", ahora, link);
+  const precio = (m: number) => M.pesos(M.precioTurno(e, { canchaId: "c1", fecha: HOY, inicio: m, duracion: 90 }));
+  assert.equal(
+    texto,
+    [
+      "¡Hola! Esto es lo que nos queda libre en Break Point Pádel hoy (mié 14/10) a la noche, turnos de 90 min:",
+      `• 18:00 · Cancha 1 · ${precio(18 * 60)}`,
+      `• 19:30 · Cancha 1 · ${precio(19 * 60 + 30)}`,
+      `• 21:00 · Cancha 1 · ${precio(21 * 60)}`,
+      `Reservalo desde acá: ${link}`,
+      "O contestame por acá y te lo guardo.",
+    ].join("\n"),
+  );
+  // El link de WhatsApp abre para elegir el chat (es para quien preguntó) con ese mismo texto.
+  assert.equal(textoDe(enlaceLoLibre(texto)), texto);
+  // Lo que ya empezó no se ofrece: a las 18:10, la de las 18:00 ya no; se arma desde el próximo horario (18:30 y 20:00).
+  assert.deepEqual(loLibre(e, HOY, "noche", { fecha: HOY, min: 18 * 60 + 10 }).map((r) => M.hhmm(r.inicio)), ["18:30", "20:00"]);
+});
+
+test("«Compartir lo libre»: varias canchas a la misma hora en un renglón; sin nada libre lo dice; mañana y la tarde", () => {
+  const e = club();
+  const ahora = { fecha: HOY, min: 8 * 60 };
+  const tarde = loLibre(e, HOY, "tarde", ahora);
+  assert.equal(tarde[0].inicio, 14 * 60, "la tarde arranca a las 14");
+  assert.deepEqual(tarde[0].canchas, ["Cancha 1", "Cancha 2", "Cancha 3", "Cancha 4"]);
+  assert.ok(tarde.every((r) => r.inicio >= 14 * 60 && r.inicio < 18 * 60), "sólo lo que arranca en la franja");
+  assert.match(textoLoLibre(e, "hoy", "tarde", ahora), /• 14:00 · Cancha 1, Cancha 2, Cancha 3 y Cancha 4 · \$/);
+  assert.match(textoLoLibre(e, "manana", "noche", ahora), /mañana \(jue 15\/10\) a la noche/);
+  assert.match(textoLoLibre(e, "hoy", "noche", ahora), /Contestame por acá y te lo guardo\.$/, "sin link, que contesten por el chat");
+  for (const c of e.canchas) c.estado = "mantenimiento";
+  assert.equal(textoLoLibre(e, "hoy", "noche", ahora), "¡Hola! Hoy (mié 14/10) a la noche no nos queda cancha libre para 90 min en Break Point Pádel. ¿Te sirve otro horario? Decime y te busco lugar.");
 });

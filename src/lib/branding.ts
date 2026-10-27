@@ -42,6 +42,14 @@ export const ACCENT_PRESETS = {
   // onDark #041e33 (tinta azul noche, AA sobre #0a84ff): blanco sobre #0a84ff
   // quedaba 3.2:1 — el único preset que rompía la regla del par AA (fix 5).
   azul: { light: "#0071e3", dark: "#0a84ff", onLight: "#ffffff", onDark: "#041e33" },
+  // ORO — el backoffice boutique de Magra (reingeniería, diseño §1.2: grafito profundo y oro).
+  // dark = el oro del diseño, con tinta carbón (7,5:1). light = el mismo hue oscurecido para
+  // fondo claro con tinta blanca (6:1; 5,4:1 como texto sobre el papel hueso de la vidriera).
+  // Valores PROVISIONALES A CONFIRMAR con el dueño. Elegirlo es configuración del negocio
+  // (Tenant.accentPreset desde /admin/apariencia; la consola lo ofrece cuando su espejo
+  // ACCENT_PRESET_IDS de operator-config.ts lo sume), no código: Magra sigue en oxblood en
+  // este mapa hasta que el dueño lo cambie.
+  oro: { light: "#7d5f1a", dark: "#c9a24a", onLight: "#ffffff", onDark: "#1a1708" },
 } satisfies Record<string, PresetTones>;
 
 /** Etiquetas criollas de los presets (selector de color del equipo, /admin/apariencia). */
@@ -53,6 +61,7 @@ export const ACCENT_PRESET_LABELS: Record<AccentPreset, string> = {
   verde: "Verde",
   ambar: "Ámbar",
   azul: "Azul",
+  oro: "Oro",
 };
 
 export type AccentPreset = keyof typeof ACCENT_PRESETS;

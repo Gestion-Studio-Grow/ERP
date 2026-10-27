@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { ORIGENES_ALTA, ORIGEN_DE_FABRICA, clientesQueCoinciden, fichaPorTelefono, horariosLibres, previaDelTurno, reservar } from "./alta-core";
+import { ORIGENES_ALTA, ORIGEN_DE_FABRICA, alternativas, anotarEnEsperaDesdeAlta, clientesQueCoinciden, fichaPorTelefono, horariosDelDia, horariosLibres, previaDelTurno, reservar, senaDelAlta, ventanaDeReserva } from "./alta-core";
 import { armarAgenda } from "./agenda-core";
 import { textoConfirmacion } from "./whatsapp-core";
 
@@ -202,4 +202,195 @@ test("«Llegó por» no cambia los flujos de alta: clase sin seña, cliente nuev
   const rs = M.reserva(e, conSena.reservaId!)!;
   assert.ok(M.requiereSena(e, null, "turno") && rs.sena.monto > 0 && rs.ref, "sin ficha sigue pidiendo seña con código");
   assert.equal(rs.origen, "teléfono");
+});
+
+// ───────────── reingeniería BP · 1A: la seña del nuevo se cobra de verdad (BP-001…004) ─────────────
+
+const martes = M.sumarDias(HOY, 3); // 20/10: abre hasta la 01:00
+/** Un club chico y conocido: Beto juega en la Cancha 2. Regla de fábrica (seña a los nuevos). */
+function clubConBeto(inicioBeto = 21 * 60): EstadoClub {
+  const e = M.crearEstado({
+    config: M.CONFIG_DEMO,
+    canchas: M.CANCHAS_DEMO,
+    clientes: [
+      { id: "beto", nombre: "Beto", tel: "1155550002" },
+      { id: "fiel", nombre: "Fiel", tel: "1155550003" },
+      { id: "faltador", nombre: "Faltador", tel: "1155550004", strikes: 2 },
+    ],
+    productos: M.PRODUCTOS_DEMO,
+    usuarios: M.USUARIOS_DEMO,
+    proveedores: M.PROVEEDORES_DEMO,
+  });
+  const beto = M.crearReserva(e, { canchaId: "c2", fecha: martes, inicio: inicioBeto, duracion: 90, clienteId: "beto", conSena: false }, AHORA);
+  assert.ok(beto.ok);
+  for (const id of ["fiel", "faltador", "faltador", "faltador"]) {
+    const r = M.crearReserva(e, { canchaId: "c4", fecha: HOY, inicio: 9 * 60 + 90 * e.reservas.length, duracion: 90, clienteId: id, conSena: false });
+    assert.ok(r.ok, r.ok ? "" : r.motivo);
+    r.reserva.estado = "finalizada";
+  }
+  return e;
+}
+
+test("BP-001: «Juan» con teléfono nuevo — la previa dice la seña con su monto y el turno queda con esa seña y código BP", () => {
+  const e = clubConBeto();
+  const d = { canchaId: "c1", fecha: martes, inicio: 21 * 60, duracion: 90, tipo: "turno" as const, clienteId: null, titular: "Juan", tel: "11 5555-1234" };
+  // Aunque el club no pida seña a los turnos sin ficha (como la jornada real), Juan va a quedar con ficha nueva: es nuevo.
+  e.config.politica.senaSinCliente = false;
+  const previa = previaDelTurno(e, d, AHORA);
+  assert.ok(previa.ok);
+  assert.equal(previa.pideSena, true);
+  assert.equal(previa.motivoSena, "cliente nuevo");
+  assert.equal(previa.sena, 21000);
+  assert.match(previa.texto, /pide seña \(50 %\): \$ 21\.000, cliente nuevo/);
+  const r = reservar(e, { ...d, otros: "" }, AHORA);
+  assert.equal(r.ok, true, r.mensaje);
+  const turno = M.reserva(e, r.reservaId!)!;
+  assert.equal(turno.sena.monto, previa.sena, "lo que dijo la previa es lo que quedó");
+  assert.match(turno.ref ?? "", /^BP-[A-Z2-9]{4}$/);
+  assert.equal(M.cliente(e, turno.clienteId!)!.nombre, "Juan");
+  assert.match(r.mensaje, /Pide seña de \$ 21\.000 \(código BP-/);
+});
+
+test("BP-001: con la regla apagada, la previa y el turno siguen coincidiendo (una sola decisión)", () => {
+  for (const [senaNuevos, senaSinCliente] of [[false, true], [false, false], [true, true]] as const) {
+    const e = clubConBeto();
+    e.config.politica.senaNuevos = senaNuevos;
+    e.config.politica.senaSinCliente = senaSinCliente;
+    const d = { canchaId: "c1", fecha: martes, inicio: 19 * 60, duracion: 60, tipo: "turno" as const, clienteId: null, titular: "Mara", tel: "1166667777" };
+    const previa = previaDelTurno(e, d, AHORA);
+    assert.ok(previa.ok);
+    const r = reservar(e, { ...d, otros: "" }, AHORA);
+    assert.equal(r.ok, true, r.mensaje);
+    assert.equal(M.reserva(e, r.reservaId!)!.sena.monto, previa.sena, `senaNuevos=${senaNuevos} senaSinCliente=${senaSinCliente}`);
+  }
+});
+
+test("BP-002/003/004: 3 jugados sin faltas no deja seña; 2 faltas sí aunque haya jugado; la clase nunca", () => {
+  const e = clubConBeto();
+  e.reservas.filter((r) => r.clienteId === "fiel").forEach((r) => (r.estado = "finalizada"));
+  for (let i = 0; i < 2; i++) {
+    const r = M.crearReserva(e, { canchaId: "c3", fecha: HOY, inicio: 9 * 60 + 90 * i, duracion: 90, clienteId: "fiel", conSena: false });
+    assert.ok(r.ok);
+    r.reserva.estado = "finalizada";
+  }
+  assert.equal(M.turnosJugados(e, "fiel"), 3);
+  const base = { canchaId: "c1", fecha: martes, inicio: 19 * 60, duracion: 60 };
+  const fiel = previaDelTurno(e, { ...base, tipo: "turno", clienteId: "fiel" }, AHORA);
+  assert.ok(fiel.ok && !fiel.pideSena && fiel.sena === 0, "BP-002");
+  assert.match(fiel.ok ? fiel.texto : "", /sin seña/);
+  const faltador = previaDelTurno(e, { ...base, tipo: "turno", clienteId: "faltador" }, AHORA);
+  assert.ok(faltador.ok && faltador.pideSena && faltador.motivoSena === "tiene 2 faltas", "BP-003");
+  const clase = previaDelTurno(e, { ...base, tipo: "clase", clienteId: null, titular: "Nuevo", tel: "1177778888" }, AHORA);
+  assert.ok(clase.ok && !clase.pideSena, "BP-004");
+  assert.deepEqual(senaDelAlta(e, { tipo: "clase", clienteId: "faltador" }), { pide: false, motivo: null });
+  // El teléfono de una ficha que ya está se mira con su historia (no como nuevo).
+  assert.deepEqual(senaDelAlta(e, { tipo: "turno", clienteId: null, titular: "Otro nombre", tel: "11 5555 0003" }), { pide: false, motivo: null });
+});
+
+// ───────────── reingeniería BP · 1A: el hueco donde no entra la duración (BP-010…012) ─────────────
+
+test("BP-010: Beto en C2 21:00, «+ 20:30» con 90 min — la hora sigue, no entra y avisa en criollo", () => {
+  const e = clubConBeto();
+  const alt = alternativas(e, { canchaId: "c2", fecha: martes, inicio: 20 * 60 + 30, duracion: 90 }, AHORA);
+  assert.equal(alt.entra, false);
+  assert.equal(alt.cuantoEntra, 30);
+  assert.equal(alt.aviso, "A las 20:30 en Cancha 2 entran 30 min (Beto juega 21:00).");
+  assert.deepEqual(
+    alt.opciones.slice(0, 2).map((o) => o.etiqueta),
+    ["Cancha 1 · 20:30 · 90 min · $ 42.000", "Cancha 2 · 22:30 · 90 min · $ 42.000"],
+    "otra cancha a la misma hora y el siguiente hueco en esa cancha",
+  );
+  assert.ok(alt.opciones.every((o) => M.validarHueco(e, { canchaId: o.canchaId, fecha: martes, inicio: o.inicio, duracion: o.duracion }).ok), "toda opción entra de verdad");
+  assert.ok(!alt.opciones.some((o) => o.tipo === "menosTiempo"), "30 min no es un turno: no se ofrece");
+  assert.deepEqual(alt.espera, { fecha: martes, desde: 20 * 60 + 30, hasta: 21 * 60 + 30, duracion: 90 });
+  // La previa dice lo mismo y no deja reservar; la lista de horas conserva la elegida, marcada.
+  const previa = previaDelTurno(e, { canchaId: "c2", fecha: martes, inicio: 20 * 60 + 30, duracion: 90, tipo: "turno", clienteId: null }, AHORA);
+  assert.deepEqual(previa, { ok: false, motivo: "A las 20:30 en Cancha 2 entran 30 min (Beto juega 21:00)." });
+  const hora = horariosDelDia(e, martes, "c2", 90, AHORA, 20 * 60 + 30).find((h) => h.min === 20 * 60 + 30)!;
+  assert.deepEqual([hora.entra, hora.cuanto, hora.texto], [false, 30, "20:30 · entran 30 min"]);
+});
+
+test("BP-010/012: con 60 min libres ofrece «60 min acá»; la hora nunca cambia al cambiar la duración", () => {
+  const e = clubConBeto(21 * 60 + 30);
+  const alt = alternativas(e, { canchaId: "c2", fecha: martes, inicio: 20 * 60 + 30, duracion: 90 }, AHORA);
+  assert.deepEqual(
+    alt.opciones.map((o) => [o.tipo, o.canchaId, M.hhmm(o.inicio), o.duracion]),
+    [
+      ["otraCancha", "c1", "20:30", 90],
+      ["siguienteHueco", "c2", "23:00", 90],
+      ["menosTiempo", "c2", "20:30", 60],
+    ],
+  );
+  assert.equal(alt.opciones[2].etiqueta, `60 min acá · ${M.pesos(M.precioTurno(e, { canchaId: "c2", fecha: martes, inicio: 20 * 60 + 30, duracion: 60 }))}`);
+  // BP-012: un alta de 60 a las 19:00 que pasa a 120 y no entra: la hora sigue y aparece el aviso.
+  const e2 = clubConBeto(20 * 60 + 30);
+  assert.equal(alternativas(e2, { canchaId: "c2", fecha: martes, inicio: 19 * 60, duracion: 60 }, AHORA).entra, true);
+  const a120 = alternativas(e2, { canchaId: "c2", fecha: martes, inicio: 19 * 60, duracion: 120 }, AHORA);
+  assert.equal(a120.entra, false);
+  assert.match(a120.aviso ?? "", /^A las 19:00 en Cancha 2 entran 90 min \(Beto juega 20:30\)\.$/);
+  assert.ok(horariosDelDia(e2, martes, "c2", 120, AHORA, 19 * 60).some((h) => h.min === 19 * 60), "la hora elegida sigue en la lista");
+});
+
+test("BP-011: tocar «Cancha 1 · 20:30» deja el alta en C1 20:30 90 min y se puede reservar", () => {
+  const e = clubConBeto();
+  const [otra] = alternativas(e, { canchaId: "c2", fecha: martes, inicio: 20 * 60 + 30, duracion: 90 }, AHORA).opciones;
+  const ahora = alternativas(e, { canchaId: otra.canchaId, fecha: martes, inicio: otra.inicio, duracion: otra.duracion }, AHORA);
+  assert.equal(ahora.entra, true);
+  assert.deepEqual(ahora.opciones, []);
+  const previa = previaDelTurno(e, { canchaId: otra.canchaId, fecha: martes, inicio: otra.inicio, duracion: otra.duracion, tipo: "turno", clienteId: "beto" }, AHORA);
+  assert.ok(previa.ok, "Reservar se prende");
+  const r = reservar(e, { canchaId: otra.canchaId, fecha: martes, inicio: otra.inicio, duracion: otra.duracion, tipo: "turno", titular: "Beto", clienteId: "beto", otros: "" }, AHORA);
+  assert.equal(r.ok, true, r.mensaje);
+  const t = M.reserva(e, r.reservaId!)!;
+  assert.deepEqual([t.canchaId, t.inicio, t.duracion], ["c1", 20 * 60 + 30, 90]);
+});
+
+test("«Anotar en espera» desde el alta que no entra: con el día, la franja y la duración tomados", () => {
+  const e = clubConBeto();
+  const alt = alternativas(e, { canchaId: "c2", fecha: martes, inicio: 20 * 60 + 30, duracion: 90 }, AHORA);
+  assert.equal(anotarEnEsperaDesdeAlta(e, { titular: "  ", clienteId: null, espera: alt.espera }, AHORA).ok, false);
+  const d = anotarEnEsperaDesdeAlta(e, { titular: "Juan", clienteId: null, tel: "1155551234", espera: alt.espera }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.match(d.mensaje, /^Juan quedó en la lista de espera: mar 20\/10, de 20:30 a 21:30, 90 min\.$/);
+  const anotado = e.espera.at(-1)!;
+  assert.deepEqual([anotado.titular, anotado.tel, anotado.fecha, anotado.desde, anotado.duracion], ["Juan", "1155551234", martes, 20 * 60 + 30, 90]);
+});
+
+test("BP-013: se reserva hasta 14 días adelante (+13 y +14 sí, +15 no)", () => {
+  const domingo: Ahora = { fecha: "2026-10-18", min: 10 * 60 };
+  const e = clubConBeto();
+  assert.deepEqual(ventanaDeReserva(e, domingo), { dias: 14, hasta: "2026-11-01" });
+  const dia = (n: number) => M.sumarDias(domingo.fecha, n);
+  const sabado = dia(13);
+  assert.equal(M.diaSemana(sabado), 6, "+13 es el sábado de la semana próxima");
+  const d = (fecha: string) => ({ canchaId: "c1", fecha, inicio: 19 * 60, duracion: 90, tipo: "turno" as const, clienteId: "beto" });
+  assert.ok(previaDelTurno(e, d(sabado), domingo).ok);
+  assert.ok(alternativas(e, d(sabado), domingo).entra);
+  assert.ok(previaDelTurno(e, d(dia(14)), domingo).ok);
+  const lejos = previaDelTurno(e, d(dia(15)), domingo);
+  assert.deepEqual(lejos, { ok: false, motivo: "Los turnos se dan hasta 14 días adelante (hasta el dom 1/11)." });
+  assert.equal(alternativas(e, d(dia(15)), domingo).entra, false);
+  const r = reservar(e, { ...d(dia(15)), titular: "Beto", otros: "" }, domingo);
+  assert.equal(r.ok, false);
+  assert.ok(reservar(e, { ...d(sabado), titular: "Beto", otros: "" }, domingo).ok);
+});
+
+
+test("H3 · la hora elegida que YA PASÓ (el alta quedó abierta): la lista, la previa y el aviso lo dicen y «Reservar» no se prende", () => {
+  const e = demo();
+  const tarde: Ahora = { fecha: HOY, min: 23 * 60 };
+  let hit: { c: string; m: number } | null = null;
+  for (const c of e.canchas) for (let m = 9 * 60; m < 20 * 60 && !hit; m += 30) if (M.validarHueco(e, { canchaId: c.id, fecha: HOY, inicio: m, duracion: 60 }).ok) hit = { c: c.id, m };
+  assert.ok(hit, "hay un hueco libre a la tarde");
+  const h = horariosDelDia(e, HOY, hit.c, 60, tarde, hit.m).find((x) => x.min === hit!.m)!;
+  assert.equal(h.entra, false);
+  assert.match(h.texto, /· ya pasó$/);
+  const alt = alternativas(e, { canchaId: hit.c, fecha: HOY, inicio: hit.m, duracion: 60 }, tarde);
+  assert.equal(alt.entra, false, "Reservar apagado");
+  assert.equal(alt.aviso, "Ese horario ya pasó.");
+  for (const o of alt.opciones) assert.ok(o.inicio + o.duracion > tarde.min, "sólo se ofrece lo que está a tiempo");
+  const p = previaDelTurno(e, { canchaId: hit.c, fecha: HOY, inicio: hit.m, duracion: 60, tipo: "turno", clienteId: null }, tarde);
+  assert.deepEqual(p, { ok: false, motivo: "Ese horario ya pasó." });
+  // Lo mismo que dice el motor al tocar «Reservar».
+  assert.equal(reservar(e, { canchaId: hit.c, fecha: HOY, inicio: hit.m, duracion: 60, tipo: "turno", clienteId: null, titular: "X", otros: "" }, tarde).mensaje, p.motivo);
 });

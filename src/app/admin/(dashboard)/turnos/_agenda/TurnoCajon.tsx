@@ -7,26 +7,34 @@
 // El renglón de la agenda ofrece UNA tecla. Todo lo demás del turno vive acá, en el orden en que
 // se lo necesita: quién es (y su WhatsApp), qué se hace ahora (cobrar, terminar, confirmar), la
 // plata (precio, lo que entró, lo dado de baja, lo que falta), los cobros con su anulación, y al
-// pie lo que casi nunca se toca (reprogramar, no vino, cancelar, dar de baja el saldo).
+// pie lo que casi nunca se toca (mover, no vino, cancelar, dar de baja el saldo).
 //
 // PC: cajón de 480 px a la derecha, con la agenda a la vista. Celular: sube como hoja.
 // Cada acción es la de siempre, con los mismos campos y las mismas guardias (campos.ts). Lo que
-// mueve plata hacia atrás pide motivo, en dos pasos, como la fila de siempre.
+// mueve plata hacia atrás pide motivo, en dos pasos, como la fila de siempre. Cancelar y «no vino»
+// no salen de acá con un toque: abren la hoja `CancelarONoVino` (quién cancela, la seña, la
+// consecuencia). «Dar de baja el saldo» es sólo de quien puede perdonar plata (la dueña, D5).
+//
+// Tanda 2: un Reservado que viene con la seña sin cobrar tiene de tecla principal «Llegó la seña
+// $5.000» (`LlegoLaSenia`: cobra y confirma en una operación, con [Deshacer], CH-022) y «Confirmar sin
+// seña» al lado; y «Recordar la seña» abre WhatsApp con el pedido armado y deja la marca «seña
+// pedida» (`marcarSeniaPedida`, CH-021), que se lee arriba junto al estado.
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   anularCobroTurno,
-  cancelAppointment,
   condonarSaldoTurno,
   confirmarTurno,
-  markNoShow,
   type ResultadoAccion,
 } from "@/lib/actions";
 import { Cajon } from "@/components/ui/Cajon";
 import { Button, Input, Marca, Plata, Renglon, Seccion } from "@/components/ui";
 import { fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { ALIAS_SENIA_PROVISIONAL, mensajePedidoDeSenia } from "@/lib/turnos/mensajes-whatsapp";
+import { marcarSeniaPedida } from "@/lib/turnos/senia-actions";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
 import {
   claseDeCobro,
@@ -34,12 +42,15 @@ import {
   MOTIVO_MIN,
 } from "@/lib/turnos/anulacion";
 import { useToast } from "../../ToastProvider";
-import RescheduleForm from "../RescheduleForm";
 import {
+  cierraElTurno,
   marcaDelTurno,
   minutosEntre,
   pasoDelTurno,
+  seniaQueFalta,
+  textoSeniaPedida,
   yaEmpezo,
+  type CierreSinPrestar,
   type Permisos,
   type TurnoDelDia,
 } from "../agenda-core";
@@ -48,9 +59,51 @@ import {
   camposDeAnular,
   camposDeCondonar,
   camposDelTurno,
+  leerResultado,
 } from "./campos";
 import CobrarTurno from "./CobrarTurno";
 import TerminarTurno from "./TerminarTurno";
+import MoverTurno from "./MoverTurno";
+import LlegoLaSenia from "./LlegoLaSenia";
+
+/**
+ * «Recordar la seña»: abre WhatsApp con el pedido armado (es un enlace: el navegador no lo bloquea) y
+ * deja la marca «seña pedida». Si la marca no se pudo guardar, se dice; el WhatsApp ya salió.
+ */
+function RecordarLaSenia({ t, wa }: { t: TurnoDelDia; wa: string }) {
+  const { showError, showSuccess } = useToast();
+  const router = useRouter();
+  const [pendiente, empezar] = useTransition();
+  return (
+    <a
+      href={wa}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-ui="button"
+      data-variant="outline"
+      data-size="sm"
+      aria-busy={pendiente || undefined}
+      className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-3 text-sm font-medium"
+      onClick={() =>
+        empezar(async () => {
+          try {
+            const r = await marcarSeniaPedida(aFormData(camposDelTurno(t.id)));
+            if (!r.ok) showError(`Se abrió WhatsApp, pero no quedó anotada la seña pedida: ${r.error}`);
+            else {
+              showSuccess(`Seña de ${t.clienta} pedida: queda marcada en la agenda.`);
+              router.refresh();
+            }
+          } catch {
+            showError("Se abrió WhatsApp, pero no quedó anotada la seña pedida. Probá de nuevo.");
+          }
+        })
+      }
+    >
+      {t.seniaPedidaEl ? "Recordarle la seña" : "Pedirle la seña"} por WhatsApp
+      <span className="sr-only"> (se abre en otra pestaña)</span>
+    </a>
+  );
+}
 
 function ConMotivo({
   etiqueta,
@@ -148,7 +201,7 @@ function ConMotivo({
   );
 }
 
-/** Una acción de un solo toque que no devuelve resultado (confirmar, no vino, cancelar). */
+/** Una acción de un solo toque (confirmar): el motivo del servidor, si lo rechaza, se muestra. */
 function useAccionSimple() {
   const { showError, showSuccess } = useToast();
   const [pendiente, empezar] = useTransition();
@@ -160,10 +213,9 @@ function useAccionSimple() {
   ) =>
     empezar(async () => {
       try {
-        const r = await accion(aFormData(camposDelTurno(turnoId)));
-        // markNoShow devuelve el motivo ({ ok: false, error }); confirmar y cancelar no devuelven nada.
-        if (r && typeof r === "object" && "ok" in r && r.ok === false && "error" in r) {
-          showError(String(r.error));
+        const r = leerResultado(await accion(aFormData(camposDelTurno(turnoId))));
+        if (!r.ok) {
+          showError(r.error);
           return;
         }
         showSuccess(ok);
@@ -185,6 +237,7 @@ export default function TurnoCajon({
   ahora,
   hrefFicha,
   onCerrar,
+  onCerrarSinPrestar,
 }: {
   turno: TurnoDelDia | null;
   permisos: Permisos;
@@ -193,10 +246,12 @@ export default function TurnoCajon({
   /** La ficha de la clienta, si quien mira puede abrir Clientes. */
   hrefFicha: ((clienteId: string) => string) | null;
   onCerrar: () => void;
+  /** Abre la hoja de cancelar / «no vino» (la tiene la mesa). */
+  onCerrarSinPrestar: (accion: CierreSinPrestar) => void;
 }) {
   const reloj = new Date(ahora);
   const { pendiente, correr } = useAccionSimple();
-  const [cancelando, setCancelando] = useState(false);
+  const router = useRouter();
   const t = turno;
   if (!t) return null;
 
@@ -210,17 +265,35 @@ export default function TurnoCajon({
       (c) => c.id,
     ),
   );
+  // «No vino» sólo desde la hora del turno (la misma regla que `markNoShow`: CH-014), también
+  // para un Reservado al que nadie confirmó.
+  const noVino = vivo && yaEmpezo(t, reloj) && permisos.terminar;
+  const cancela = permisos.gestionar && vivo;
+  const perdona = permisos.perdonar && t.cuentaACobrar;
+  const hayOtras = cancela || perdona || noVino;
+  // La tecla que cierra el turno (terminar, o el «vino» de un Reservado pasado) ya cobra el saldo.
+  const cierra = cierraElTurno(paso);
   // Cobrar (un parcial, la seña, el saldo) cuando falta plata y el turno lo acepta, y no es ya la
-  // tecla de «Terminar» (que cobra el saldo al terminar).
-  const noVino =
-    t.estado === "CONFIRMED" && yaEmpezo(t, reloj) && permisos.terminar;
-  const hayOtras = (permisos.gestionar && (vivo || t.cuentaACobrar)) || noVino;
+  // tecla que cierra el turno.
+  // Un Reservado que viene, con la seña sin cobrar: «Llegó la seña» es la tecla (cobra y confirma).
+  const senia = seniaQueFalta(t, reloj);
+  const llegoLaSenia = senia > 0 && cobraEste;
+  const pedida = textoSeniaPedida(t, reloj);
+  const pedidoPorWa =
+    senia > 0 && permisos.gestionar
+      ? waLinkClienta(
+          t.telefono,
+          mensajePedidoDeSenia({ clienta: t.clienta, servicios: t.servicio, inicio: t.inicio, profesional: t.profesional, monto: senia, alias: ALIAS_SENIA_PROVISIONAL }),
+        )
+      : null;
   const ofreceCobro =
     cobraEste &&
     t.saldo > 0 &&
     t.estado !== "NO_SHOW" &&
     t.estado !== "CANCELLED" &&
-    paso.tipo !== "terminar";
+    !cierra &&
+    // La seña de un Reservado ya la cobra «Llegó la seña» (que además confirma): no dos teclas.
+    !llegoLaSenia;
 
   return (
     <Cajon
@@ -242,6 +315,7 @@ export default function TurnoCajon({
               avisada {fmtTime(t.avisadaEl)}
             </span>
           )}
+          {pedida && <span className="text-sm text-muted">{pedida}</span>}
         </p>
 
         <Seccion titulo="La clienta">
@@ -293,15 +367,40 @@ export default function TurnoCajon({
           )}
         </Seccion>
 
+        {(llegoLaSenia || (senia > 0 && pedidoPorWa)) && (
+          <Seccion titulo="La seña">
+            <div className="space-y-3 pt-3">
+              <p className="text-sm text-muted">
+                Pide una seña de <Plata valor={senia} sinCentavos={Number.isInteger(senia)} /> que todavía no entró.
+                {pedida ? ` Ya se la pedimos (${pedida.replace(/^seña pedida /, "")}).` : ""}
+              </p>
+              {llegoLaSenia && (
+                <LlegoLaSenia
+                  key={t.id}
+                  turnoId={t.id}
+                  clienta={t.clienta}
+                  monto={senia}
+                  confirma={permisos.gestionar}
+                  onListo={() => router.refresh()}
+                />
+              )}
+              {pedidoPorWa && <RecordarLaSenia t={t} wa={pedidoPorWa} />}
+            </div>
+          </Seccion>
+        )}
+
         {paso.tipo === "confirmar" && (
           <Seccion titulo="Qué falta">
             <div className="space-y-2 pt-3">
               <p className="text-sm text-muted">
-                Está reservado. Confirmalo cuando la clienta te diga que viene.
+                {llegoLaSenia
+                  ? "Si la clienta confirma sin mandar la seña, confirmalo igual."
+                  : "Está reservado. Confirmalo cuando la clienta te diga que viene."}
               </p>
               <Button
                 type="button"
-                size="lg"
+                size={llegoLaSenia ? "md" : "lg"}
+                variant={llegoLaSenia ? "outline" : undefined}
                 className="w-full"
                 disabled={pendiente}
                 estado={pendiente ? "cargando" : undefined}
@@ -313,18 +412,19 @@ export default function TurnoCajon({
                   )
                 }
               >
-                Confirmar el turno
+                {llegoLaSenia ? "Confirmar sin seña" : "Confirmar el turno"}
               </Button>
             </div>
           </Seccion>
         )}
 
-        {paso.tipo === "terminar" && (
-          <Seccion titulo="Terminar">
+        {cierra && (
+          <Seccion titulo={t.estado === "PENDING" ? "Vino" : "Terminar"}>
             <div className="pt-3">
               <TerminarTurno
                 turnoId={t.id}
                 clienta={t.clienta}
+                estado={t.estado}
                 saldo={t.saldo}
                 puedeCobrar={cobraEste}
                 motivoSinCobro={t.veredicto.ok ? undefined : t.veredicto.motivo}
@@ -349,26 +449,29 @@ export default function TurnoCajon({
           </Seccion>
         )}
 
-        {!t.veredicto.ok && t.saldo > 0 && paso.tipo !== "terminar" && (
+        {!t.veredicto.ok && t.saldo > 0 && !cierra && (
           <p className="text-sm text-muted">
-            {t.veredicto.motivo} Quedan <Plata valor={t.saldo} /> a cobrar.
+            {t.veredicto.motivo} Quedan <Plata valor={t.saldo} sinCentavos={Number.isInteger(t.saldo)} /> a cobrar.
           </p>
         )}
 
         <Seccion titulo="La plata">
+          {/* O-3: el folio dice qué es; el título, en criollo, de dónde sale. O-4: CH cobra en
+              pesos sin centavos: «$14.000», como el botón y el WhatsApp (con centavos sólo si los hay). */}
           <Renglon
             folio="Precio"
-            titulo="Del servicio, al reservar"
-            plata={<Plata valor={t.precio} />}
+            titulo="Fijo desde la reserva"
+            plata={<Plata valor={t.precio} sinCentavos={Number.isInteger(t.precio)} />}
           />
           <Renglon
             folio="Entró"
             titulo={
-              t.cobrado > 0 ? "Lo cobrado hasta ahora" : "Todavía no entró nada"
+              t.cobrado > 0 ? "Cobrado hasta ahora" : "Todavía no entró nada"
             }
             plata={
               <Plata
                 valor={t.cobrado}
+                sinCentavos={Number.isInteger(t.cobrado)}
                 tono={t.cobrado > 0 ? "cobrado" : undefined}
               />
             }
@@ -376,8 +479,9 @@ export default function TurnoCajon({
           {t.condonado > 0 && (
             <Renglon
               folio="De baja"
-              titulo="Saldo que no se va a cobrar (no es plata que entró)"
-              plata={<Plata valor={t.condonado} />}
+              titulo="Saldo dado de baja"
+              detalle="No se va a cobrar; no es plata que entró."
+              plata={<Plata valor={t.condonado} sinCentavos={Number.isInteger(t.condonado)} />}
             />
           )}
           <Renglon
@@ -385,13 +489,14 @@ export default function TurnoCajon({
             titulo={
               t.saldo > 0
                 ? t.cuentaACobrar
-                  ? "Se prestó y todavía se debe"
-                  : "Lo que falta para saldar el servicio"
+                  ? "Se prestó y se debe"
+                  : "Falta para saldarlo"
                 : "Saldado"
             }
             plata={
               <Plata
                 valor={t.saldo}
+                sinCentavos={Number.isInteger(t.saldo)}
                 tono={t.cuentaACobrar ? "peligro" : undefined}
               />
             }
@@ -428,6 +533,7 @@ export default function TurnoCajon({
                               ? -Math.abs(c.amount)
                               : c.amount
                           }
+                          sinCentavos={Number.isInteger(c.amount)}
                         />
                       }
                       tecla={
@@ -465,32 +571,21 @@ export default function TurnoCajon({
         {hayOtras && (
           <Seccion titulo="Otras acciones">
             <div className="flex flex-col items-start gap-3 pt-3">
-              {permisos.gestionar && vivo && (
-                <RescheduleForm
-                  appointmentId={t.id}
-                  serviceId={t.servicioId}
-                  currentProfessionalId={t.profesionalId}
-                />
-              )}
+              {/* Mover y avisar (Tanda 2 · 2-C): chips de días y huecos, en vez del formulario de
+                  reprogramar. La misma acción del servidor, que re-valida el choque. */}
+              {cancela && <MoverTurno key={t.id} turno={t} ahora={ahora} />}
               {noVino && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={pendiente}
-                  onClick={() =>
-                    correr(
-                      markNoShow,
-                      t.id,
-                      `Marcado: ${t.clienta} no vino.`,
-                      onCerrar,
-                    )
-                  }
+                  aria-haspopup="dialog"
+                  onClick={() => onCerrarSinPrestar("no-vino")}
                 >
                   No vino
                 </Button>
               )}
-              {permisos.gestionar && t.cuentaACobrar && (
+              {perdona && (
                 <ConMotivo
                   etiqueta="Dar de baja el saldo"
                   pregunta="¿Dar de baja lo que falta? No mueve la caja: sólo deja de figurar como deuda."
@@ -504,54 +599,17 @@ export default function TurnoCajon({
                   }
                 />
               )}
-              {permisos.gestionar &&
-                vivo &&
-                (cancelando ? (
-                  <div
-                    role="group"
-                    aria-label="Cancelar el turno"
-                    className="w-full space-y-2 border-l-2 border-line-strong pl-3"
-                  >
-                    <p className="text-sm font-medium text-strong">
-                      ¿Cancelar el turno de {t.clienta}? El horario queda libre.
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="danger"
-                        size="sm"
-                        disabled={pendiente}
-                        onClick={() =>
-                          correr(
-                            cancelAppointment,
-                            t.id,
-                            `Cancelado: ${t.clienta}, ${fmtTime(t.inicio)}.`,
-                            onCerrar,
-                          )
-                        }
-                      >
-                        Sí, cancelar
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setCancelando(false)}
-                      >
-                        No
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setCancelando(true)}
-                  >
-                    Cancelar el turno
-                  </Button>
-                ))}
+              {cancela && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-haspopup="dialog"
+                  onClick={() => onCerrarSinPrestar("cancelar")}
+                >
+                  Cancelar el turno
+                </Button>
+              )}
             </div>
           </Seccion>
         )}

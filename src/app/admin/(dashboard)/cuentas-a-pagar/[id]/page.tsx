@@ -9,7 +9,7 @@ import { agingOf } from "@/lib/cuentas/aging";
 import type { DebtAccountDetail } from "@/lib/cuentas/types";
 import { diaLegible } from "@/lib/libros/fecha-fiscal";
 import { round2 } from "@/lib/round";
-import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
+import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DebtDetailBody } from "@/components/cuentas/DebtDetailBody";
 import type { ChequeVista } from "@/components/cuentas/ChequesDeLaDeuda";
@@ -32,6 +32,8 @@ const volver = (
 export default async function CuentaAPagarDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireApp("cuentas-a-pagar");
   const tenantId = await getCurrentTenantId();
+  // Las cuentas corrientes de ESTE negocio (interruptor por negocio; si nunca se tocó, la variable).
+  const enLibro = await cuentasCorrientesDe(tenantId);
 
   const { id } = await params;
   const d = await getPayableDetail(tenantId, id);
@@ -79,7 +81,7 @@ export default async function CuentaAPagarDetailPage({ params }: { params: Promi
         volver={{ href: "/admin/cuentas-a-pagar", texto: "Cuentas a pagar" }}
         desde={null}
         action={registerPayablePayment}
-        asientaEnLibro={cuentasCorrientesEnabled()}
+        asientaEnLibro={enLibro}
         anulada={d.status !== "OPEN"}
         cheques={{ lista: cheques, libre, agregar: agregarCheque, cambiarEstado: cambiarEstadoCheque }}
       />
@@ -97,7 +99,7 @@ export default async function CuentaAPagarDetailPage({ params }: { params: Promi
         aging={aging}
         kind="pagar"
         action={registerPayablePayment}
-        asientaEnLibro={cuentasCorrientesEnabled()}
+        asientaEnLibro={enLibro}
         cheques={{ lista: cheques, libre, agregar: agregarCheque, cambiarEstado: cambiarEstadoCheque }}
         anulada={d.status !== "OPEN"}
       />

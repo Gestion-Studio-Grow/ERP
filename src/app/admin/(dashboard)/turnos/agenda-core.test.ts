@@ -1,6 +1,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  cierraElTurno,
+  consecuenciaDelCierre,
   diaMas,
   entraEnFiltro,
   estaResuelto,
@@ -13,6 +15,9 @@ import {
   minutosEntre,
   nombreRelativo,
   pasoDelTurno,
+  propuestaDeSenia,
+  seniaQueFalta,
+  textoSeniaPedida,
   turnoDelDia,
   verboDelPaso,
   type Permisos,
@@ -22,8 +27,9 @@ import {
 
 // Jueves 24 de septiembre de 2026, 11:32 en Buenos Aires (14:32 UTC).
 const AHORA = new Date("2026-09-24T14:32:00.000Z");
-const TODO: Permisos = { gestionar: true, cobrar: true, terminar: true };
-const PROFESIONAL: Permisos = { gestionar: false, cobrar: true, terminar: true };
+const TODO: Permisos = { gestionar: true, cobrar: true, terminar: true, perdonar: true };
+const RECEPCION: Permisos = { gestionar: true, cobrar: true, terminar: true, perdonar: false };
+const PROFESIONAL: Permisos = { gestionar: false, cobrar: true, terminar: true, perdonar: false };
 const OK = { ok: true } as const;
 
 function crudo(p: Partial<TurnoCrudo> & { hora: string; minutos?: number }): TurnoCrudo {
@@ -121,12 +127,55 @@ describe("una tecla por renglón: el paso que sigue", () => {
     assert.deepEqual(pasoDelTurno(pagado, TODO, AHORA), { tipo: "ninguno" });
   });
 
+  test("reservado que todavía no llegó → Confirmar (aunque sea dentro de un rato)", () => {
+    const t = turno({ hora: "11:45", status: "PENDING" });
+    assert.deepEqual(pasoDelTurno(t, RECEPCION, AHORA), { tipo: "confirmar" });
+    assert.equal(cierraElTurno(pasoDelTurno(t, RECEPCION, AHORA)), false);
+  });
+
+  test("reservado con la hora pasada y saldo → Cobrar el saldo cerrándolo como «vino», sin Confirmar", () => {
+    const t = turno({ hora: "10:00", status: "PENDING" });
+    const paso = pasoDelTurno(t, RECEPCION, AHORA);
+    assert.deepEqual(paso, { tipo: "cobrar", monto: 22000, vino: true });
+    assert.equal(verboDelPaso(paso), "Cobrar");
+    assert.equal(cierraElTurno(paso), true);
+  });
+
+  test("reservado pasado con la seña adentro: cobra sólo lo que falta", () => {
+    const t = turno({
+      hora: "09:00",
+      status: "PENDING",
+      service: { name: "Piernas completas", price: 14000, depositAmount: 5000 },
+      collections: [{ id: "s", amount: 5000, method: "TRANSFERENCIA" }],
+    });
+    assert.deepEqual(pasoDelTurno(t, RECEPCION, AHORA), { tipo: "cobrar", monto: 9000, vino: true });
+  });
+
+  test("reservado pasado y saldado → «Vino»; si la profesional cobra aparte → «Vino» dejando el saldo", () => {
+    const pagado = turno({ hora: "10:00", status: "PENDING", collections: [{ id: "a", amount: 22000, method: "EFECTIVO" }] });
+    assert.deepEqual(pasoDelTurno(pagado, RECEPCION, AHORA), { tipo: "vino", saldo: 0 });
+    assert.equal(verboDelPaso(pasoDelTurno(pagado, RECEPCION, AHORA)), "Vino");
+    const deVero = turno({ hora: "10:00", status: "PENDING" }, { ok: false, motivo: "Vero cobra sus propios turnos." });
+    assert.deepEqual(pasoDelTurno(deVero, RECEPCION, AHORA), { tipo: "vino", saldo: 22000 });
+    assert.equal(cierraElTurno(pasoDelTurno(deVero, RECEPCION, AHORA)), true);
+  });
+
+  test("la profesional también cierra su Reservado pasado (agenda:complete), aunque no confirme", () => {
+    const t = turno({ hora: "10:00", status: "PENDING" });
+    assert.deepEqual(pasoDelTurno(t, PROFESIONAL, AHORA), { tipo: "cobrar", monto: 22000, vino: true });
+  });
+
+  test("terminado con saldo: Cobrar NO cierra el turno (ya está cerrado)", () => {
+    const debe = turno({ hora: "09:30", status: "COMPLETED" });
+    assert.equal(cierraElTurno(pasoDelTurno(debe, TODO, AHORA)), false);
+  });
+
   test("no vino → nada", () => {
     assert.deepEqual(pasoDelTurno(turno({ hora: "10:00", status: "NO_SHOW" }), TODO, AHORA), { tipo: "ninguno" });
   });
 
   test("sin agenda:complete no se ofrece terminar", () => {
-    assert.deepEqual(pasoDelTurno(turno({ hora: "11:15" }), { gestionar: true, cobrar: true, terminar: false }, AHORA), { tipo: "ninguno" });
+    assert.deepEqual(pasoDelTurno(turno({ hora: "11:15" }), { gestionar: true, cobrar: true, terminar: false, perdonar: false }, AHORA), { tipo: "ninguno" });
   });
 });
 
@@ -202,5 +251,64 @@ describe("fechas del libro", () => {
     assert.equal(nombreRelativo("2026-09-23", "2026-09-24"), "Ayer");
     assert.equal(nombreRelativo("2026-09-28", "2026-09-24"), null);
     assert.equal(minutosEntre("2026-09-24T14:15:00.000Z", "2026-09-24T14:55:00.000Z"), 40);
+  });
+});
+
+describe("cancelar o «no vino»: la seña se propone, no se decide sola", () => {
+  // Turno a las 16:00 del jueves 24 (faltan 4 h 28′) y otro el viernes 25 a las 16:00 (más de 24 h).
+  const HOY_16 = "2026-09-24T19:00:00.000Z";
+  const MANANA_16 = "2026-09-25T19:00:00.000Z";
+
+  test("sin plata cobrada no hay nada que proponer", () => {
+    assert.equal(propuestaDeSenia({ accion: "cancelar", quien: "clienta", inicio: HOY_16, ahora: AHORA, cobrado: 0 }), null);
+    assert.equal(propuestaDeSenia({ accion: "no-vino", quien: null, inicio: HOY_16, ahora: AHORA, cobrado: 0 }), null);
+  });
+
+  test("cancela el negocio → se devuelve; la clienta con 24 h o más → se devuelve; con menos → se retiene", () => {
+    assert.equal(propuestaDeSenia({ accion: "cancelar", quien: "negocio", inicio: HOY_16, ahora: AHORA, cobrado: 5000 }), "devolver");
+    assert.equal(propuestaDeSenia({ accion: "cancelar", quien: "clienta", inicio: MANANA_16, ahora: AHORA, cobrado: 5000 }), "devolver");
+    assert.equal(propuestaDeSenia({ accion: "cancelar", quien: "clienta", inicio: HOY_16, ahora: AHORA, cobrado: 5000 }), "retener");
+  });
+
+  test("mientras no dice quién cancela, no se propone nada; «no vino» → se la queda el negocio", () => {
+    assert.equal(propuestaDeSenia({ accion: "cancelar", quien: null, inicio: MANANA_16, ahora: AHORA, cobrado: 5000 }), null);
+    assert.equal(propuestaDeSenia({ accion: "no-vino", quien: null, inicio: HOY_16, ahora: AHORA, cobrado: 5000 }), "retener");
+  });
+
+  test("la consecuencia dice qué pasa con el turno y con la plata, antes de confirmar", () => {
+    assert.equal(
+      consecuenciaDelCierre({ accion: "cancelar", hora: "16:00", cobrado: 0, destino: null }),
+      "Queda cancelado y las 16:00 quedan libres para otra clienta.",
+    );
+    assert.equal(
+      consecuenciaDelCierre({ accion: "cancelar", hora: "16:00", cobrado: 5000, destino: "devolver" }),
+      "Queda cancelado y las 16:00 quedan libres para otra clienta. Los $5.000 que pagó se le devuelven: se anula el cobro en la caja.",
+    );
+    assert.equal(
+      consecuenciaDelCierre({ accion: "no-vino", hora: "10:00", cobrado: 5000, destino: "retener" }),
+      "Queda como faltazo en su ficha. Los $5.000 que pagó se los queda el negocio: la caja no cambia.",
+    );
+    assert.match(consecuenciaDelCierre({ accion: "no-vino", hora: "10:00", cobrado: 5000, destino: null }), /Falta elegir/);
+  });
+});
+
+describe("la seña que falta y la marca «seña pedida» (CH-021, CH-022)", () => {
+  const conSenia = { name: "Piernas completas", price: 14000, depositAmount: 5000 };
+  test("un Reservado que todavía no llegó, con seña en el catálogo y nada cobrado: falta la seña", () => {
+    assert.equal(seniaQueFalta(turno({ hora: "16:00", status: "PENDING", service: conSenia }), AHORA), 5000);
+    // Ya empezó, ya confirmado, sin seña en el catálogo o con algo cobrado: no.
+    assert.equal(seniaQueFalta(turno({ hora: "10:00", status: "PENDING", service: conSenia }), AHORA), 0);
+    assert.equal(seniaQueFalta(turno({ hora: "16:00", status: "CONFIRMED", service: conSenia }), AHORA), 0);
+    assert.equal(seniaQueFalta(turno({ hora: "16:00", status: "PENDING" }), AHORA), 0);
+    assert.equal(seniaQueFalta(turno({ hora: "16:00", status: "PENDING", service: conSenia, collections: [{ amount: 5000, method: "TRANSFERENCIA" }] }), AHORA), 0);
+  });
+  test("la marca: hoy con la hora, otro día con la fecha; sin seña que falte, nada", () => {
+    const t = turno({ hora: "16:00", status: "PENDING", service: conSenia });
+    assert.equal(textoSeniaPedida({ ...t, seniaPedidaEl: "2026-09-24T13:03:00.000Z" }, AHORA), "seña pedida 10:03");
+    assert.equal(textoSeniaPedida({ ...t, seniaPedidaEl: "2026-09-20T13:03:00.000Z" }, AHORA), "seña pedida el 20/09");
+    assert.equal(textoSeniaPedida({ ...t, seniaPedidaEl: null }, AHORA), null);
+    assert.equal(textoSeniaPedida({ ...t, seniaPedidaEl: "basura" }, AHORA), null);
+    const pago = turno({ hora: "16:00", status: "PENDING", service: conSenia, collections: [{ amount: 5000, method: "TRANSFERENCIA" }] });
+    assert.equal(textoSeniaPedida({ ...pago, seniaPedidaEl: "2026-09-24T13:03:00.000Z" }, AHORA), null);
   });
 });

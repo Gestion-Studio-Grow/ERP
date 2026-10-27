@@ -19,7 +19,7 @@ export const padelClasesModule: ModuleDescriptor = {
     "Turnero público para la bio de Instagram, confirmación del profe con un toque, link del alumno para repetir la clase y mandar el comprobante, y avisos por WhatsApp.",
   kind: "capability",
   capability: "agenda:read",
-  rubros: "todos",
+  rubros: ["profe-padel"],
   dependencias: [{ id: "clients", rango: "^1.0" }],
   grupo: "ventas-mostrador",
   resumen: "La agenda del profe en el celular: quién pidió, a quién confirmar, quién pagó y la próxima clase, entre clase y clase.",

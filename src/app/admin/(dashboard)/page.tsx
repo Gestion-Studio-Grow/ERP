@@ -3,7 +3,7 @@ import { getNegocioApps } from "@/apps/contexto.server";
 import { appCasa } from "@/apps/visibles";
 import { getDashboardData, getRetailDashboardData } from "@/lib/actions";
 import Link from "next/link";
-import { fmtTime, fmtDateTimeAr } from "@/lib/datetime";
+import { fmtTime, fmtDateTimeAr, todayInBusinessTz } from "@/lib/datetime";
 import { requireCapability, requireUser } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
@@ -17,8 +17,10 @@ import { getFacturacion, type EstadoFiscal } from "@/lib/facturacion-actions";
 import ArcaPill from "./facturacion/bancos/ArcaPill";
 import InicioApps from "./inicio/InicioApps";
 import InicioRenglon from "./inicio/InicioRenglon";
+import AtajosDelAlta from "./turnos/_agenda/AtajosDelAlta";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { enInicioPorApps } from "./inicio/piloto";
+import { puedeAbrirApp } from "./vender/puede-abrir";
 import {
   buttonClasses,
   KpiTile,
@@ -149,7 +151,18 @@ async function RetailHome({
   canSeeStock: boolean;
   itemNoun: string;
 }) {
-  const d = await getRetailDashboardData();
+  // «+ Nueva venta» y «Ventas hoy» van a SU pantalla (reingeniería de Magra, 1G · MG-040): vender
+  // es /admin/vender y las ventas cobradas del día son /admin/ventas, no la bandeja de Pedidos. Con
+  // la MISMA regla que la guardia de cada una (`requireApp`: módulo `pos`, capability, rubro): un
+  // comercio sin `pos` asignado, o un rol que no puede, sigue yendo a Pedidos como siempre, en vez
+  // de a una pantalla que lo rebota (callejón sin salida).
+  const [d, abreVender, abreVentas] = await Promise.all([
+    getRetailDashboardData(),
+    puedeAbrirApp("vender"),
+    puedeAbrirApp("ventas-del-dia"),
+  ]);
+  const nuevaVentaHref = abreVender ? "/admin/vender" : "/admin/pedidos";
+  const ventasHoyHref = abreVentas ? "/admin/ventas" : "/admin/pedidos";
   const plural = pluralTitulo(itemNoun);
   // Ticket promedio del día: el número con el que un mostrador se da cuenta de si hoy
   // vendió picada o vendió lomo. Sale de datos que el loader YA trae (no hay consulta
@@ -163,7 +176,7 @@ async function RetailHome({
           <h1 className="text-2xl font-bold text-strong tracking-tight mb-1">Inicio</h1>
           <p className="text-muted text-sm">Resumen del mostrador.</p>
         </div>
-        <Link href="/admin/pedidos" className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
+        <Link href={nuevaVentaHref} className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
           + Nueva venta
         </Link>
       </div>
@@ -185,7 +198,7 @@ async function RetailHome({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {/* Con la caja cerrada no se repite acá: lo dice la banda de arriba, que además
             explica qué se rompe y lleva a abrirla. */}
-        <Kpi label="Ventas hoy" value={String(d.todaySalesCount)} href="/admin/pedidos" icon="caja"
+        <Kpi label="Ventas hoy" value={String(d.todaySalesCount)} href={ventasHoyHref} icon="caja"
           sub={d.cashOpen ? "Caja abierta." : undefined} />
         {canSeeRevenue && (
           // A /admin/caja, no a /admin/reportes: lo que entró HOY, medio por medio, está
@@ -324,19 +337,15 @@ async function InicioVertical() {
             {analytical ? "Vista analítica del negocio." : "Resumen del día."}
           </p>
         </div>
-        {/* Home de una acción (Comercio): el atajo a la tarea más frecuente es el
-            héroe (botón sólido). Home analítico (Empresa): la acción cede el
-            protagonismo a los indicadores → botón secundario (ADR-059 D8). */}
-        {/* A /turnos/LISTA, no a /turnos: el calendario no tiene formulario de alta
-            (el alta vive en la pestaña Lista), así que el atajo a la acción más
-            frecuente del negocio caía en una pantalla desde la que NO se puede hacer
-            justamente eso. */}
-        <Link
-          href="/admin/turnos/lista"
-          className={buttonClasses(analytical ? "outline" : "solid", "sm", "whitespace-nowrap")}
-        >
-          + Nuevo turno
-        </Link>
+        {/* El atajo a la tarea más frecuente. Cert CH T2 (F-2/F-4): las dos entradas al alta NUEVA
+            (`?nuevo=1`), no a la lista con el formulario viejo: «+ Dar turno» y «Atender ahora»
+            (CH-019, la clienta en el mostrador). Home analítico (Empresa): la acción cede el
+            protagonismo a los indicadores → con borde (ADR-059 D8). Sólo quien da turnos. */}
+        {roleHasCapability(user.role, "agenda:manage") && (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <AtajosDelAlta hoy={todayInBusinessTz()} principal={analytical ? "ninguna" : "dar-turno"} />
+          </div>
+        )}
       </div>
 
       {analytical ? (

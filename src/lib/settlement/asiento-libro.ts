@@ -21,9 +21,11 @@
 //     collectionId, type)`) y la marca `cuenta-corriente:<collectionId>` en `createdBy`, que
 //     es como el libro distingue lo que asentó el sistema de lo tipeado a mano.
 //
-// TODO DETRÁS DE `CUENTAS_CORRIENTES_ENABLED` (default apagado). Se prende sólo cuando
-// `npm run medir:neon` muestre aplicado el lote de 5 (entre ellas, la que agrega
-// `CashMovement.collectionId`): sin esa columna, el asiento fallaría y con él el cobro.
+// TODO DETRÁS DE LAS CUENTAS CORRIENTES DEL NEGOCIO: el interruptor por negocio
+// «cuentas-corrientes» y, si nunca se tocó, `CUENTAS_CORRIENTES_ENABLED` (default apagado;
+// `cuentasCorrientesPrendidas`, abajo). Se prende sólo cuando `npm run medir:neon` muestre
+// aplicado el lote de 5 (entre ellas, la que agrega `CashMovement.collectionId`): sin esa
+// columna, el asiento fallaría y con él el cobro.
 //
 // Sin Prisma de valor: lo importan tests y, a través de la action, nada del cliente.
 
@@ -40,6 +42,26 @@ import type { CashMethod } from "@/lib/caja/cash-register";
 export function cuentasCorrientesEnabled(env: Record<string, string | undefined> = process.env): boolean {
   const v = env.CUENTAS_CORRIENTES_ENABLED?.trim().toLowerCase();
   return v === "1" || v === "true" || v === "on" || v === "yes";
+}
+
+/**
+ * ¿Este NEGOCIO tiene las cuentas corrientes prendidas? (Magra, tanda 2 · 2D) PURA.
+ *
+ * El interruptor por negocio «cuentas-corrientes» (src/cambios/interruptores.ts) reemplaza a la
+ * variable `CUENTAS_CORRIENTES_ENABLED`, sin romper a quien hoy depende de ella:
+ *   · si la consola TOCÓ el interruptor en este negocio (hay una fila válida: `cuando` no es null),
+ *     manda el interruptor, prendido o apagado;
+ *   · si nunca lo tocó, manda la variable de siempre (`cuentasCorrientesEnabled`): el día que
+ *     esto se publica, ningún negocio cambia.
+ * Un estado sin la entrada (lectura que falló, catálogo viejo) también cae a la variable.
+ * La lectura con base es `cuentasCorrientesDe(tenantId)` (cuentas-corrientes.server.ts).
+ */
+export function cuentasCorrientesPrendidas(
+  interruptor: { encendido: boolean; cuando: Date | null } | null | undefined,
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  if (interruptor && interruptor.cuando !== null) return interruptor.encendido;
+  return cuentasCorrientesEnabled(env);
 }
 
 /** Marca en `CashMovement.createdBy` de lo que asentó una cuenta corriente. */

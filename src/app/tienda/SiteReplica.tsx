@@ -6,6 +6,8 @@ import type { SiteReplicaData } from "@/tenants/site-replica";
 import { usePedidoOnline } from "./pedido-online";
 import { etiquetaDeDisponibilidad, nuevaClaveDePedido, type Disponibilidad } from "./reglas-tienda";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
+import type { ConfigEnvios } from "@/lib/envios/modelo";
+import { CamposDeEntrega, FrenoDeEntrega, useEntregaDeLaTienda, type AparienciaDeEntrega } from "./EntregaDeLaTienda";
 
 // Réplica del sitio de un tenant (config por tenant, resuelta por slug — NO un clon
 // suelto) con NUESTRO backoffice detrás. Contenido/imágenes vienen en `site`; el look
@@ -47,6 +49,9 @@ type SiteReplicaProps = {
   accent: string;
   /** Slug del tenant — namespacea el WhatsApp que complete el visitante (ver WhatsAppCtaProvider). */
   tenantKey: string;
+  /** Envíos del negocio (src/lib/envios) y hoy en su zona horaria; null = lo de siempre (Magra 1I). */
+  entrega?: ConfigEnvios | null;
+  hoy?: string | null;
 };
 
 // Mismo contrato que Storefront.tsx: nunca un número hardcodeado — sin
@@ -65,6 +70,8 @@ function SiteReplicaContent({
   branding,
   products,
   accent,
+  entrega: configEnvios = null,
+  hoy = null,
 }: SiteReplicaProps) {
   const { requestWhatsApp } = useWhatsAppCta();
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -93,6 +100,17 @@ function SiteReplicaContent({
   }
   const lines = Object.entries(cart).map(([id, q]) => { const p = byId.get(id); return p ? { p, q, t: q * price(p) } : null; }).filter((l): l is { p: Product; q: number; t: number } => !!l);
   const total = lines.reduce((s, l) => s + l.t, 0);
+  // Envíos del negocio (zona, franja, mínimo, pausa) con las reglas del servidor (EntregaDeLaTienda.tsx).
+  // Esta réplica nunca mostró tarifa (`envio` null): sin config, todo como siempre.
+  const entrega = useEntregaDeLaTienda({
+    entrega: configEnvios,
+    hoy,
+    subtotal: total,
+    hayProductos: lines.length > 0,
+    envio: null,
+    fulfillment,
+    setFulfillment,
+  });
 
   const root = { background: T.bg, color: T.ink, fontFamily: "var(--font-body), system-ui, -apple-system, sans-serif", ["--accent" as string]: accent } as CSSProperties;
 
@@ -216,8 +234,14 @@ function SiteReplicaContent({
                 ))}
                 {lines.length > 0 && (
                   <>
+                    {entrega.conZonas && entrega.modo === "envio" && (
+                      <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${T.line}`, paddingTop: 8, fontSize: 13 }}>
+                        <span>{entrega.zona ? `Envío · ${entrega.zona.nombre}` : "Envío"}</span>
+                        <span>{entrega.zona ? (entrega.costoEnvio > 0 ? money2.format(entrega.costoEnvio) : "Gratis") : "Elegí la zona"}</span>
+                      </div>
+                    )}
                     <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${T.line}`, paddingTop: 8, fontWeight: 800 }}>
-                      <span>Total</span><span style={{ color: accent }}>{money2.format(total)}</span>
+                      <span>Total</span><span style={{ color: accent }}>{money2.format(total + entrega.costoEnvio)}</span>
                     </div>
                     {/* A-1: la clave viaja con el form → dos envíos del mismo carrito = un solo pedido. */}
                     <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
@@ -229,16 +253,17 @@ function SiteReplicaContent({
                       <input name="customerPhone" type="tel" inputMode="tel" required placeholder="Tu WhatsApp" style={inp} />
                     </label>
                     <label style={fieldLabel}>Entrega
-                      <select name="fulfillment" value={fulfillment} onChange={(e) => setFulfillment(e.target.value as "PICKUP" | "DELIVERY")} style={inp}>
-                        <option value="PICKUP">Retiro en el local</option>
+                      <select name="fulfillment" value={entrega.fulfillment} onChange={(e) => setFulfillment(e.target.value as "PICKUP" | "DELIVERY")} style={inp}>
+                        {entrega.hayRetiro && <option value="PICKUP">Retiro en el local</option>}
                         <option value="DELIVERY">Envío a domicilio</option>
                       </select>
                     </label>
-                    {fulfillment === "DELIVERY" && (
+                    {entrega.fulfillment === "DELIVERY" && (
                       <label style={fieldLabel}>Dirección
                         <input name="address" required placeholder="Calle y número" style={inp} />
                       </label>
                     )}
+                    <CamposDeEntrega e={entrega} idBase="sr-entrega" apariencia={APARIENCIA_ENTREGA} direccionDelLocal={branding?.addressLine ?? null} />
                     <label style={fieldLabel}>Cupón (opcional)
                       <input name="cupon" autoComplete="off" placeholder="Código" style={{ ...inp, textTransform: "uppercase" }} />
                     </label>
@@ -247,7 +272,8 @@ function SiteReplicaContent({
                         {pedido.error.texto}
                       </p>
                     )}
-                    <OrderSubmit accent={accent} pending={pedido.enviando} />
+                    <FrenoDeEntrega e={entrega} apariencia={APARIENCIA_ENTREGA} />
+                    <OrderSubmit accent={accent} pending={pedido.enviando} frenado={Boolean(entrega.freno)} />
                     <div style={{ fontSize: 10.5, color: T.faint, textAlign: "center" }}>El pedido entra a nuestro sistema (bandeja + stock + facturación).</div>
                   </>
                 )}
@@ -322,11 +348,11 @@ function SiteReplicaContent({
 // A-1 (capa del botón): mientras el pedido se envía, el botón se DESHABILITA y cambia a
 // "Enviando…". Corta el doble-click del mobile (el camino infeliz #1) antes de que salga un
 // segundo submit; la clave de idempotencia server-side es la segunda capa por si igual sale.
-function OrderSubmit({ accent, pending }: { accent: string; pending: boolean }) {
+function OrderSubmit({ accent, pending, frenado = false }: { accent: string; pending: boolean; frenado?: boolean }) {
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || frenado}
       aria-busy={pending}
       style={{
         ...btn(accent, "var(--text-on-accent)"),
@@ -360,6 +386,21 @@ function qbtn(bg: string, color: string): CSSProperties {
 }
 const inp: CSSProperties = { width: "100%", border: "1px solid var(--line-strong)", borderRadius: 9, padding: "10px 11px", fontSize: 13.5, background: "var(--surface-raised)", color: "var(--text-strong)", minHeight: 44 };
 // Label real por campo (accesibilidad): texto arriba + su input asociado (el input es hijo del <label>).
+// La zona, el día, la franja y el freno (EntregaDeLaTienda.tsx) con los estilos del carrito. Sin Envíos
+// cargados no se dibuja nada.
+const APARIENCIA_ENTREGA: AparienciaDeEntrega = {
+  bloque: { style: { display: "grid", gap: 10 } },
+  campo: { style: { display: "grid", gap: 4, fontSize: 12, fontWeight: 600, color: "var(--text-muted)" } },
+  control: { style: { width: "100%", border: "1px solid var(--line-strong)", borderRadius: 9, padding: "10px 11px", fontSize: 13.5, background: "var(--surface-raised)", color: "var(--text-strong)", minHeight: 44 } },
+  grupo: { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
+  opcion: { style: { display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "0 10px", border: "1px solid var(--line-strong)", borderRadius: 999, fontSize: 12.5, color: "var(--text-strong)", cursor: "pointer" } },
+  opcionElegida: { style: { borderColor: "var(--accent)", fontWeight: 700 } },
+  nota: { style: { margin: 0, fontSize: 12, color: "var(--text-muted)" } },
+  empujon: { style: { margin: 0, fontSize: 12, color: "var(--text-muted)" } },
+  freno: { style: { display: "grid", gap: 8, fontSize: 13, color: "var(--text-strong)", border: "1px solid var(--line-strong)", borderRadius: 9, padding: "8px 10px" } },
+  boton: { style: { minHeight: 44, border: "1px solid var(--line-strong)", borderRadius: 9, background: "var(--surface-raised)", color: "var(--text-strong)", fontWeight: 700, cursor: "pointer" } },
+};
+
 const fieldLabel: CSSProperties = { display: "grid", gap: 4, fontSize: 12, fontWeight: 600, color: "var(--text-muted)" };
 const navlink: CSSProperties = { color: "var(--text-strong)", textDecoration: "none", fontWeight: 600 };
 const foot: CSSProperties = { fontSize: 13, lineHeight: 1.9, opacity: 0.82 };

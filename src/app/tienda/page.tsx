@@ -34,6 +34,11 @@ import { usaVidrieraNueva } from "./vidriera/marcas";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { gondolasDeLaVidriera, ofertasDeLaVidriera } from "@/lib/supermercado/vidriera-ofertas";
+import { prisma } from "@/lib/prisma";
+import { leerConfigEnvios } from "@/lib/envios/config";
+import type { ConfigEnvios } from "@/lib/envios/modelo";
+import { dateStrInBusinessTz } from "@/lib/datetime";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +60,25 @@ function tenantInitials(name: string): string {
 // (tenantFaviconDataUri), acá con las iniciales derivadas del nombre del
 // storefront en vez del monograma del brand map. Antes la vidriera de cualquier
 // tenant mostraba el ícono "CH" del layout raíz (p. ej. Magra, con el del spa).
+
+// Los ENVÍOS del negocio (src/lib/envios, pantalla Envíos del panel), sin su versión: zonas,
+// costos, mínimo, retiro, franjas y tienda pausada. Se lee en el servidor en cada request (la
+// página es dinámica): lo que el dueño guarda se ve al instante, sin deploy (MG-030). Si la
+// lectura falla, la vidriera sigue con lo de siempre (null) y `placeOnlineOrder`, que vuelve a
+// leerla para decidir, es el que manda. Un negocio que nunca guardó Envíos también da null: su
+// vidriera queda exactamente como siempre (Shine con la tarifa de su copy). La leen TODAS las
+// vidrieras que mandan a `placeOnlineOrder` (Magra 1I): si el negocio carga zonas, todas ofrecen
+// elegirlas, y ninguna queda con un envío a domicilio que el servidor rechaza.
+async function enviosDelNegocio(): Promise<ConfigEnvios | null> {
+  try {
+    const tenantId = await getCurrentTenantId();
+    const { version, ...config } = await leerConfigEnvios(prisma, tenantId);
+    return version === null ? null : config;
+  } catch (e) {
+    logger.warn("tienda", "no se pudo leer la configuración de envíos", { error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}
 
 // Base de las URL absolutas de la metadata (og:image), sacada del host del request. Sin `metadataBase`
 // Next resuelve las imágenes contra VERCEL_PROJECT_PRODUCTION_URL (el .vercel.app del proyecto) y la
@@ -122,7 +146,14 @@ export default async function TiendaPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [data, accent, identity, nuevo] = await Promise.all([loadStorefront(), loadAccent(), getTenantIdentity(), disenoNuevo()]);
+  const [data, accent, identity, nuevo, entrega] = await Promise.all([
+    loadStorefront(),
+    loadAccent(),
+    getTenantIdentity(),
+    disenoNuevo(),
+    enviosDelNegocio(),
+  ]);
+  const hoy = dateStrInBusinessTz(new Date());
   const slug = identity.slug;
   const front = editorialFrontFor(identity);
 
@@ -155,6 +186,8 @@ export default async function TiendaPage({
         imagery={resolveTenantLayout(brandForSlug(slug)).imagery ?? null}
         acento={accent}
         searchParams={await searchParams}
+        entrega={entrega}
+        hoy={hoy}
       />
     );
   }
@@ -173,8 +206,12 @@ export default async function TiendaPage({
   // del theme del brand-sheet). Copy TEXTUAL autorizado (magra-content.ts) para lo editorial;
   // los datos del local (dirección/horarios/WhatsApp) viajan en `branding` (BusinessSettings).
   if (front === "magra") {
+    // Envíos del negocio: zona, costo, «te faltan $X», mínimo, franjas y pausa. Con zonas cargadas,
+    // la tarifa del copy (`envio`) deja de regir; sin config, MAGRA sigue como siempre.
     return (
       <MagraFront
+        entrega={entrega}
+        hoy={hoy}
         products={data.products}
         branding={data.branding}
         tenantKey={slug ?? "magra"}
@@ -198,6 +235,8 @@ export default async function TiendaPage({
         copy={data.copy}
         imagery={resolveTenantLayout(brandForSlug(slug)).imagery ?? null}
         tenantKey={slug ?? "shinevelas"}
+        entrega={entrega}
+        hoy={hoy}
       />
     );
   }
@@ -213,6 +252,8 @@ export default async function TiendaPage({
         branding={data.branding}
         copy={data.copy}
         tenantKey={slug ?? "quebienoles"}
+        entrega={entrega}
+        hoy={hoy}
       />
     );
   }
@@ -239,7 +280,7 @@ export default async function TiendaPage({
   const skinAccent = sheet ? brandSheetAccent(sheet, sheet.frontTheme).accent : accent;
 
   const inner = replica ? (
-    <SiteReplica site={replica} name={data.name} branding={data.branding} products={data.products} accent={skinAccent} tenantKey={tenantKey} />
+    <SiteReplica site={replica} name={data.name} branding={data.branding} products={data.products} accent={skinAccent} tenantKey={tenantKey} entrega={entrega} hoy={hoy} />
   ) : (
     // FIDELIDAD DE LAYOUT (RFC-004-A §3), detrás de `TENANT_FIDELITY_ENABLED`: estructura real
     // del tenant (logo/banner/hero/orden) + logo asset. Con el flag OFF → molde de hoy.
@@ -254,6 +295,8 @@ export default async function TiendaPage({
       layout={resolveTenantLayout(brandForSlug(slug))}
       logoAsset={brandForSlug(slug).logoAsset ?? null}
       fidelity={tenantFidelityEnabled()}
+      entrega={entrega}
+      hoy={hoy}
     />
   );
 

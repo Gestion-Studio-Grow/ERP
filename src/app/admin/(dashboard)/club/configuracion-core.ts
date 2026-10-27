@@ -618,9 +618,33 @@ export function verificarRespaldoElegido(estado: EstadoClub, textoElegido: strin
     if (!hidratarEstado(elegido).ok) return { ok: false, causa: "danado", motivo: "Ese respaldo no se puede restaurar: descargalo de nuevo." };
     return { ok: true };
   }
-  if (huella === huellaDescargada)
-    return { ok: false, causa: "cambio", motivo: "Cambió algo desde que descargaste el respaldo (se cobró o se cargó algo): descargalo de nuevo y elegí el nuevo." };
-  return { ok: false, causa: "otro", motivo: "Ese archivo no es el respaldo que descargaste recién: elegí el último que bajaste." };
+  if (huella === huellaDescargada) return CAMBIO_DESDE_EL_RESPALDO;
+  return NO_ES_EL_ULTIMO;
+}
+
+const CAMBIO_DESDE_EL_RESPALDO: VerificacionDelRespaldo = {
+  ok: false,
+  causa: "cambio",
+  motivo: "Cambió algo desde que descargaste el respaldo (se cobró o se cargó algo): descargalo de nuevo y elegí el nuevo.",
+};
+const NO_ES_EL_ULTIMO: VerificacionDelRespaldo = { ok: false, causa: "otro", motivo: "Ese archivo no es el respaldo que descargaste recién: elegí el último que bajaste." };
+
+/**
+ * Paso 2, en la pantalla: el archivo elegido es un respaldo que se puede restaurar → su HUELLA (lo que lleva el comando
+ * «golive»: el archivo es el club entero y no viaja en la cola ni en la foto). Que la huella sea la de la jornada de
+ * ahora lo mira el comando al correr (`limpiarPorHuella`), también al re-aplicarse sobre la base.
+ */
+export function huellaDelElegido(textoElegido: string, para: ParaQue = PARA_LIMPIAR): { ok: true; huella: string } | { ok: false; causa: "otro" | "danado"; motivo: string } {
+  let elegido: { v?: unknown; estado?: unknown } | null;
+  try {
+    elegido = JSON.parse(textoElegido) as { v?: unknown; estado?: unknown } | null;
+  } catch {
+    return { ok: false, causa: "danado", motivo: "Ese archivo está incompleto o dañado (no se puede leer): descargá el respaldo de nuevo y elegí el nuevo." };
+  }
+  if (!elegido || typeof elegido !== "object" || elegido.v !== VERSION_ESTADO || !elegido.estado || typeof elegido.estado !== "object")
+    return { ok: false, causa: "otro", motivo: `Ese no es el respaldo que se descargó recién: elegí el «${para.archivo}».` };
+  if (!hidratarEstado(elegido).ok) return { ok: false, causa: "danado", motivo: "Ese respaldo no se puede restaurar: descargalo de nuevo." };
+  return { ok: true, huella: huellaRespaldo(elegido.estado) };
 }
 
 /** Lo que trae la pantalla para algo que no se deshace: el PIN de quien opera y el respaldo de los dos pasos. */
@@ -658,12 +682,32 @@ export type DesenlaceLimpieza = DesenlaceConPin & { causa?: "otro" | "danado" | 
 
 /** Paso 2 de la limpieza: verifica el respaldo elegido contra el estado de ahora y recién ahí limpia. Dice qué pasó con el PIN. */
 export function limpiarConRespaldo(estado: EstadoClub, pedido: PedidoDeLimpieza, ahora: Ahora, auth: Auth, rolPanel: string): DesenlaceLimpieza {
+  return limpiar(estado, pedido, ahora, auth, rolPanel, (texto, descargada) => verificarRespaldoElegido(estado, texto, descargada, PARA_LIMPIAR));
+}
+
+/**
+ * La limpieza como comando («golive», comandos-core.ts): con la huella del respaldo elegido (`huellaDelElegido`) en vez
+ * del archivo, y el rol del panel en el pedido (el comando corre sin el almacén). Lo demás, igual que `limpiarConRespaldo`.
+ */
+export interface PedidoDeLimpiezaPorHuella extends Omit<PedidoDeLimpieza, "textoElegido"> {
+  huellaElegida: string | null;
+  rol: string;
+}
+
+export function limpiarPorHuella(estado: EstadoClub, pedido: PedidoDeLimpiezaPorHuella, ahora: Ahora, auth: Auth): DesenlaceLimpieza {
+  const { huellaElegida, rol, ...resto } = pedido;
+  return limpiar(estado, { ...resto, textoElegido: huellaElegida }, ahora, auth, rol, (huella, descargada) =>
+    huella === huellaRespaldo(estado) ? { ok: true } : huella === descargada ? CAMBIO_DESDE_EL_RESPALDO : NO_ES_EL_ULTIMO,
+  );
+}
+
+function limpiar(estado: EstadoClub, pedido: PedidoDeLimpieza, ahora: Ahora, auth: Auth, rolPanel: string, verificar: (elegido: string, huellaDescargada: string) => VerificacionDelRespaldo): DesenlaceLimpieza {
   const d = duenioConLosDosPasos(estado, pedido, auth, rolPanel, PARA_LIMPIAR);
   const p = { pin: d.pin, duenio: d.duenio };
   if (!d.ok) return { ...no(d.mensaje), ...p };
   const pendientes = pendientesGoLive(estado, ahora);
   if (pendientes.length) return { ...no(`Antes de limpiar hay que resolver: ${pendientes.join(" ")}`), ...p };
-  const v = verificarRespaldoElegido(estado, d.textoElegido, d.descargado.huella, PARA_LIMPIAR);
+  const v = verificar(d.textoElegido, d.descargado.huella);
   if (!v.ok) return { ok: false, mensaje: v.motivo, causa: v.causa, ...p };
   const r = limpiarParaGoLive(estado, { conservarSaldos: pedido.conservarSaldos, conservarStock: pedido.conservarStock }, d.auth, ahora);
   if (!r.ok) return { ...no(r.motivo), ...p };

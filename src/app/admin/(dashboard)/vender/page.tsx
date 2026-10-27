@@ -13,6 +13,12 @@ import { cargarKpi } from "@/apps/kpis/index.server";
 import { LineaDeEstado } from "@/components/ui";
 import type { Role } from "@/lib/capabilities";
 import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
+import { getAperturaEnVender } from "@/lib/caja-actions";
+import { mostradorBoutiqueDelNegocio, pedidoDeVentaDesdeLaFicha } from "@/lib/clientes/fiado.server";
+import { leerPedidoDeVenta } from "@/lib/clientes/fiado";
+import { VENTANA_DEL_CUADERNO } from "@/lib/cuaderno/hora-de-la-venta";
+import AbrirCajaEnLinea from "./AbrirCajaEnLinea";
+import ProtocoloSinSenal, { RUTA_DEL_CUADERNO } from "./ProtocoloSinSenal";
 
 
 /**
@@ -53,11 +59,42 @@ export const dynamic = "force-dynamic";
 // `requireApp("vender")` (rol, módulo pos, rubro): esconder la app no la protegería.
 export const metadata = { title: "Vender", generator: "Gestión Studio Grow" };
 
-export default async function VenderPage({ searchParams }: { searchParams: Promise<{ modo?: string | string[] }> }) {
+type ParametrosDeVender = { modo?: string | string[]; cliente?: string | string[]; repetir?: string | string[] };
+
+export default async function VenderPage({ searchParams }: { searchParams: Promise<ParametrosDeVender> }) {
   const user = await requireApp("vender");
-  const { modo } = await searchParams;
+  const { modo, cliente, repetir } = await searchParams;
   const tenantId = await getCurrentTenantId();
-  const [identidad, nuevo] = await Promise.all([getTenantIdentity(), disenoNuevo()]);
+  const [identidad, nuevo, boutique] = await Promise.all([getTenantIdentity(), disenoNuevo(), mostradorBoutiqueDelNegocio()]);
+  // MOSTRADOR BOUTIQUE (Magra, tanda 2 · 2D): con la caja cerrada, la tarjeta «Abrí la caja: ayer
+  // quedaron $X» arriba de todo, para abrirla sin salir de Vender (MG-057). Apagado, nada cambia.
+  const apertura = boutique && roleHasCapability(user.role, "orders:manage") ? await getAperturaEnVender() : null;
+  const tarjetaCaja = apertura ? <AbrirCajaEnLinea esperado={apertura.esperado} ultimoCierre={apertura.ultimoCierre} hoy={apertura.hoy} /> : null;
+  // «Venderle» / «Repetir» desde la ficha (2D): `?cliente=&repetir=`. Sólo el boutique y quien
+  // toma pedidos (la acción lo vuelve a exigir y acota la ficha y el pedido al negocio). Sin la
+  // dirección, o con una ficha de otro negocio, Vender arranca vacío como siempre.
+  const desdeLaFicha =
+    boutique && roleHasCapability(user.role, "orders:manage") && leerPedidoDeVenta({ cliente, repetir }).clienteId
+      ? await pedidoDeVentaDesdeLaFicha({ cliente, repetir })
+      : null;
+  // RESPALDO SIN SEÑAL (2E): la tarjeta del protocolo (aparece sola si se corta) y el enlace fijo a
+  // «Cargar ventas del cuaderno», arriba del mostrador. Sólo el boutique; el enlace, sólo a quien
+  // la pantalla del cuaderno deja entrar (la misma regla que su page.tsx).
+  const respaldo = boutique ? (
+    <div data-vender="respaldo-sin-senal" className="mb-4 space-y-2">
+      <ProtocoloSinSenal negocioId={tenantId} />
+      {roleHasCapability(user.role, "orders:manage") && VENTANA_DEL_CUADERNO[user.role] !== null && (
+        <p className="text-sm">
+          <Link
+            href={RUTA_DEL_CUADERNO}
+            className="inline-flex min-h-11 items-center font-medium text-accent-ink underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            Cargar ventas del cuaderno
+          </Link>
+        </p>
+      )}
+    </div>
+  ) : null;
   // Los servicios se cobran creando un turno (ver MostradorTabs): sólo en un negocio de
   // servicios y sólo para quien puede dar turnos. En un comercio no hay solapa de Servicios.
   const conServicios = !identidad.isRetail;
@@ -65,7 +102,13 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
     conServicios && roleHasCapability(user.role, "agenda:manage") ? await getProfessionalsWithServices() : [];
   // El formulario es el MISMO que el mostrador de Pedidos de un comercio (MostradorDeVenta).
   const formProductos = (conVendedor: boolean) => (
-    <MostradorDeVenta user={user} tenantId={tenantId} pedidoInicial={modo === "pedido"} conVendedor={conVendedor} />
+    <MostradorDeVenta
+      user={user}
+      tenantId={tenantId}
+      pedidoInicial={modo === "pedido"}
+      conVendedor={conVendedor}
+      desdeLaFicha={desdeLaFicha}
+    />
   );
 
   // DISEÑO NUEVO («Renglón»): el ticket que crece. Sin encabezado ni párrafo (el nombre de la app ya
@@ -75,9 +118,11 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
     return (
       <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
         <h1 className="sr-only">Vender</h1>
+        {tarjetaCaja}
         <Suspense fallback={<p data-ui="linea-estado" aria-hidden>&nbsp;</p>}>
           <EstadoDelMostrador role={user.role} mostrador={identidad.isRetail} />
         </Suspense>
+        {respaldo}
         <MostradorTabs
           viewer={{ role: user.role, professionalId: user.professionalId }}
           products={[]}
@@ -106,6 +151,8 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
           </>
         }
       />
+      {tarjetaCaja}
+      {respaldo}
       <MostradorTabs
         viewer={{ role: user.role, professionalId: user.professionalId }}
         // El formulario de productos es el de Vender (abajo): el de la bandeja no se usa, así

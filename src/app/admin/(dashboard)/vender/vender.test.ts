@@ -40,6 +40,10 @@ import {
   ventaDeOrden,
   TOPE_DESCUENTO_RECEPCION_PCT,
   LEYENDA_NO_FACTURA,
+  TECLAS_BOUTIQUE,
+  buscarEnElCatalogo,
+  sumarUnaUnidad,
+  teclaDeProducto,
 } from "./reglas-venta";
 
 const VACIO = { id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT" as const, price: null, pricePerKg: 12500, trackStock: true };
@@ -397,7 +401,7 @@ test("ticket: kilos con coma, descuento, vuelto y 'No válido como factura'; la 
   assert.doesNotMatch(texto, /1\.24|0\.95/, "nunca el punto decimal en una cantidad");
   assert.match(texto, /Descuento \(10 %\): −\$3\.212,50/);
   assert.match(texto, /\*TOTAL: \$28\.912,50\*/);
-  assert.match(texto, /Vuelto: \$21\.087,50/);
+  assert.match(texto, /Pagó con \$50\.000,00 · Vuelto \$21\.087,50/);
   assert.ok(texto.trim().endsWith(LEYENDA_NO_FACTURA));
 });
 
@@ -408,4 +412,60 @@ test("ticket impreso: 58 mm y el texto que tipeó una persona va escapado", () =
   assert.match(html, /Bolsa &lt;térmica&gt;/);
   assert.doesNotMatch(html, /<térmica>/);
   assert.match(html, /No válido como factura/);
+});
+
+// ── MOSTRADOR BOUTIQUE (Magra tanda 1 · 1B): teclas, unidad que suma, búsqueda por nombre ──────
+
+test("boutique: la tecla dice precio y stock del catálogo; agotado frena por unidad y avisa por kilo", () => {
+  const vacio = { id: "v", name: "Vacío", saleUnit: "WEIGHT" as const, price: null, pricePerKg: 28600 };
+  const chorizo = { id: "c", name: "Chorizo", saleUnit: "UNIT" as const, price: 1900, pricePerKg: null };
+  assert.deepEqual(teclaDeProducto(vacio, { stock: 4.2, trackStock: true }), {
+    id: "v",
+    nombre: "Vacío",
+    precio: "$28.600/kg",
+    quedan: "quedan 4,2 kg",
+    agotado: false,
+    bloquea: false,
+  });
+  assert.equal(teclaDeProducto(chorizo, { stock: 24, trackStock: true }).precio, "$1.900/u");
+  assert.equal(teclaDeProducto(chorizo, undefined).quedan, null, "sin stock cargado no promete nada");
+  const chorizoAgotado = teclaDeProducto(chorizo, { stock: 0, trackStock: true });
+  assert.equal(chorizoAgotado.agotado, true);
+  assert.equal(chorizoAgotado.bloquea, true);
+  const vacioAgotado = teclaDeProducto(vacio, { stock: -0.2, trackStock: true });
+  assert.equal(vacioAgotado.agotado, true);
+  assert.equal(vacioAgotado.bloquea, false, "por kilo se avisa y no se frena (el paquete está en la mano)");
+});
+
+test("boutique: el primer día (sin ventas) hay teclas del catálogo, hasta 24", () => {
+  const catalogo = Array.from({ length: 30 }, (_, i) => `p${i}`);
+  const t = teclasDelMostrador([], catalogo, TECLAS_BOUTIQUE);
+  assert.equal(t.ids.length, 24);
+  assert.equal(t.rotulo, "Tus productos");
+  assert.deepEqual(teclasDelMostrador(["p9"], catalogo, TECLAS_BOUTIQUE).ids.slice(0, 2), ["p9", "p0"], "lo vendido primero");
+});
+
+test("boutique: la unidad entra con 1 y suma si se repite; usa el renglón vacío; el «3*» suma 3", () => {
+  const vacio = [{ key: 1, productId: "", qtyText: "" }];
+  const a = sumarUnaUnidad(vacio, "c", 9);
+  assert.deepEqual(a, { lineas: [{ key: 1, productId: "c", qtyText: "1" }], key: 1, usoNuevaKey: false });
+  const b = sumarUnaUnidad(a.lineas, "c", 9);
+  assert.deepEqual(b.lineas, [{ key: 1, productId: "c", qtyText: "2" }]);
+  const c = sumarUnaUnidad(b.lineas, "h", 9, 3);
+  assert.deepEqual(c, { lineas: [...b.lineas, { key: 9, productId: "h", qtyText: "3" }], key: 9, usoNuevaKey: true });
+  // Una cantidad no entera (alguien escribió 1,5) no se pisa: va a otro renglón.
+  const d = sumarUnaUnidad([{ key: 1, productId: "c", qtyText: "1,5" }], "c", 2);
+  assert.equal(d.lineas.length, 2);
+});
+
+test("boutique: buscar por nombre en el catálogo, sin tildes, primero lo que empieza así", () => {
+  const p = [
+    { id: "1", name: "Bife de chorizo" },
+    { id: "2", name: "Chorizo" },
+    { id: "3", name: "Vacío" },
+  ];
+  assert.deepEqual(buscarEnElCatalogo(p, "chori"), ["2", "1"]);
+  assert.deepEqual(buscarEnElCatalogo(p, "VACIO"), ["3"]);
+  assert.deepEqual(buscarEnElCatalogo(p, "bife chor"), ["1"]);
+  assert.deepEqual(buscarEnElCatalogo(p, "   "), []);
 });

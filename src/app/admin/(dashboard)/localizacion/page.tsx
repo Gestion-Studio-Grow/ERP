@@ -1,9 +1,12 @@
+import Link from "next/link";
 import { getBusinessSettingsForAdmin, updateBusinessSettings } from "@/lib/settings-actions";
 import { requireApp } from "@/lib/require-app";
 import SubmitButton from "@/components/SubmitButton";
-import { Input, PageContainer, PageHeader, Seccion, buttonClasses } from "@/components/ui";
+import { ButtonLink, Input, PageContainer, PageHeader, Seccion, buttonClasses } from "@/components/ui";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import type { BusinessSettingsRow } from "@/lib/settings";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import type { RetailRubro } from "@/blueprints/retail/rubros";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +55,26 @@ const AYUDA_CORTA: Partial<Record<keyof BusinessSettingsRow, string>> = {
   contactNote: "La frase del pie del sitio.",
 };
 
+// AYUDA POR RUBRO (E24, reingeniería Magra): un comercio (rubro retail: carnicería, velas, pádel…)
+// no tiene profesionales ni turnos, y sus ejemplos no pueden ser los de la estética
+// (`LOCATION_DEFAULTS`) ni un dato marcado «provisional» del blueprint. Para retail: ayudas sin
+// «profesional», ejemplos del rubro sin los provisionales, y el link a Envíos. Para el resto
+// (CH Estética), todo igual que antes.
+const PROVISIONAL = /provisional|a[- ]confirmar/i;
+
+function ejemplosDelRubro(rubro: RetailRubro): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rubro.brandingDefaults ?? {})) {
+    if (typeof v === "string" && v && !PROVISIONAL.test(v)) out[k] = v;
+  }
+  return out;
+}
+
+const AYUDA_RETAIL: Partial<Record<keyof BusinessSettingsRow, string>> = {
+  hoursLabel: "Tal cual se lee en la tienda («Lun a sáb de 10 a 20»).",
+  contactNote: "La frase del pie de la tienda.",
+};
+
 export default async function LocalizacionPage({
   searchParams,
 }: {
@@ -60,21 +83,34 @@ export default async function LocalizacionPage({
   // Config del negocio → solo OWNER (location:manage). El resto cae a la home de su rol.
   // La guardia de la app (rol, desde el registro): quien no puede ve "App no disponible".
   await requireApp("datos-del-negocio");
-  const [{ row, defaults }, { status }] = await Promise.all([
+  const [{ row, defaults }, { status }, { rubro }] = await Promise.all([
     getBusinessSettingsForAdmin(),
     searchParams,
+    getCurrentTenantRubro(),
   ]);
   const banner = status ? STATUS_MESSAGES[status] : undefined;
   // Solo algunas columnas tienen valor por defecto (las de LOCATION_DEFAULTS);
   // el resto muestra placeholder vacío. Se indexa como record para no pelear con
   // el keyof completo de la fila.
-  const d = defaults as Record<string, string>;
+  const d: Record<string, string> = rubro ? ejemplosDelRubro(rubro) : (defaults as Record<string, string>);
+  const ayudaCorta = rubro ? { ...AYUDA_CORTA, ...AYUDA_RETAIL } : AYUDA_CORTA;
+  const pistaDe = (f: (typeof FIELDS)[number]) => (rubro && f.key in AYUDA_RETAIL ? AYUDA_RETAIL[f.key] : f.hint);
 
   if (await disenoNuevo()) {
     const porClave = new Map(FIELDS.map((f) => [f.key, f]));
     return (
       <PageContainer width="narrow">
-        <PageHeader title="Datos del negocio" estado={["Lo que ven tus clientes en la web", "vacío = el de siempre"]} />
+        <PageHeader
+          title="Datos del negocio"
+          estado={rubro ? ["Lo que ven tus clientes en la tienda"] : ["Lo que ven tus clientes en la web", "vacío = el de siempre"]}
+          actions={
+            rubro ? (
+              <ButtonLink href="/admin/localizacion/envios" variant="outline">
+                Envíos
+              </ButtonLink>
+            ) : undefined
+          }
+        />
         {banner && (
           <p role={banner.ok ? "status" : "alert"} className={`mb-4 border-y border-line py-2 text-sm ${banner.ok ? "text-strong" : "text-danger"}`}>
             {banner.ok ? "✓ " : ""}
@@ -88,7 +124,7 @@ export default async function LocalizacionPage({
                 {g.campos.map((k) => {
                   const f = porClave.get(k);
                   if (!f) return null;
-                  const ayuda = AYUDA_CORTA[k];
+                  const ayuda = ayudaCorta[k];
                   const idCampo = `loc-${k}`;
                   return (
                     <div key={k} className={f.wide || k === "hoursLabel" ? "sm:col-span-2" : ""}>
@@ -127,6 +163,15 @@ export default async function LocalizacionPage({
   return (
     <main className="mx-auto max-w-2xl px-6 py-8">
       <h1 className="text-2xl font-semibold mb-1">Localización</h1>
+      {rubro && (
+        <p className="mb-4 text-sm text-body">
+          Zonas, costo de envío, retiro y pausa de la tienda:{" "}
+          <Link href="/admin/localizacion/envios" className="font-medium text-strong underline underline-offset-2">
+            Envíos
+          </Link>
+          .
+        </p>
+      )}
       <p className="text-muted mb-6">
         Dónde está el negocio y cómo contactarlo. Estos datos se muestran en el sitio público
         (portada, sección <span className="font-medium">“Dónde estamos”</span> y pie). Dejá un
@@ -155,7 +200,7 @@ export default async function LocalizacionPage({
                 defaultValue={row?.[f.key] ?? ""}
                 placeholder={placeholder}
               />
-              {f.hint && <p className="mt-1 text-xs text-faint">{f.hint}</p>}
+              {pistaDe(f) && <p className="mt-1 text-xs text-faint">{pistaDe(f)}</p>}
             </div>
           );
         })}

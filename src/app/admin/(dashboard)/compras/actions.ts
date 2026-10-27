@@ -96,6 +96,19 @@ export async function recibirMercaderia(_prev: EstadoRecepcion, formData: FormDa
         note: String(formData.get("notes") || ""),
       }),
       createdBy: `user:${user.id}`,
+      // La factura del proveedor en sus campos fiscales (R3): la misma clave con la que la contadora
+      // importa «Mis Comprobantes Recibidos», así la compra no se cuenta dos veces. Sólo una COMPRA de
+      // quien ve costos (el encargado recibe sin costo ni factura). Se valida en la transacción.
+      factura:
+        kind === "COMPRA" && conCostos
+          ? {
+              tipo: formData.get("facturaTipo"),
+              puntoVenta: formData.get("facturaPuntoVenta"),
+              numero: formData.get("facturaNumero"),
+              cuit: formData.get("facturaCuit"),
+              fecha: formData.get("facturaFecha"),
+            }
+          : null,
       items: lineasDeLaRecepcion(
         formData.getAll("productId").map(String),
         formData.getAll("quantity").map(String),
@@ -127,6 +140,7 @@ export async function recibirMercaderia(_prev: EstadoRecepcion, formData: FormDa
             }
           : { egresoMotivo: result.egreso.motivo }),
         ...(result.deuda ? { deudaId: result.deuda.payableId, deudaMonto: result.deuda.amount, deudaVence: result.deuda.vence } : {}),
+        ...(result.factura ? { factura: result.factura.rotulo, facturaVinculada: result.factura.vinculada } : {}),
       },
     });
     // La deuda también se audita sola: es lo que la dueña busca en Cuentas a pagar.
@@ -147,7 +161,12 @@ export async function recibirMercaderia(_prev: EstadoRecepcion, formData: FormDa
     for (const p of PATHS) revalidatePath(p);
 
     const que = kind === "COMPRA" ? "Compra" : "Reposición";
-    const base = `${que} #${result.code} registrada: ${result.lines === 1 ? "1 producto" : `${result.lines} productos`} con el stock actualizado.`;
+    const conFactura = result.factura
+      ? result.factura.vinculada
+        ? ` ${result.factura.rotulo}: la contadora ya la había cargado desde ARCA, así que se sumó a esa misma compra (no se cuenta dos veces).`
+        : ` ${result.factura.rotulo} cargada.`
+      : "";
+    const base = `${que} #${result.code} registrada: ${result.lines === 1 ? "1 producto" : `${result.lines} productos`} con el stock actualizado.${conFactura}`;
     if (!result.deuda) return { ok: true, mensaje: base };
     const vence = result.deuda.vence ? `, vence el ${fechaDelDia(result.deuda.vence)}` : ", sin vencimiento";
     return {

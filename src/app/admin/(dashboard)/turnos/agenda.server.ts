@@ -18,7 +18,10 @@ import "server-only";
 import { getAgendaDay } from "@/lib/actions";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
 import { fmtTime } from "@/lib/datetime";
+import { seniasPedidas } from "@/lib/turnos/senia-actions";
+import { horariosDelDia } from "@/lib/turnos/horario-del-dia.server";
 import { turnoDelDia, type TurnoDelDia } from "./agenda-core";
+import { bloqueosDelDia, bloqueosPorHorario, type BloqueoDelDia } from "./grilla";
 
 type AgendaCruda = Awaited<ReturnType<typeof getAgendaDay>>;
 
@@ -55,7 +58,12 @@ type TurnoDeLaBase = {
 };
 
 /** Proyecta la agenda cruda a lo que se muestra, con el veredicto de cobro de quien mira. */
-export function proyectarAgenda(cruda: AgendaCruda, quien: { role: string; professionalId?: string | null }): AgendaDelDia {
+export function proyectarAgenda(
+  cruda: AgendaCruda,
+  quien: { role: string; professionalId?: string | null },
+  /** Lo que se lee aparte (`extrasDeLaAgenda`): turno → cuándo se pidió la seña. */
+  extras?: { seniasPedidas?: Readonly<Record<string, string>> },
+): AgendaDelDia {
   const leidos: readonly TurnoDeLaBase[] = cruda.appointments;
   const turnos = leidos
     .map((a) =>
@@ -87,6 +95,7 @@ export function proyectarAgenda(cruda: AgendaCruda, quien: { role: string; profe
         }),
       ),
     )
+    .map((t) => (extras?.seniasPedidas?.[t.id] ? { ...t, seniaPedidaEl: extras.seniasPedidas[t.id] } : t))
     .sort((x, y) => new Date(x.inicio).getTime() - new Date(y.inicio).getTime());
   return {
     turnos,
@@ -98,4 +107,24 @@ export function proyectarAgenda(cruda: AgendaCruda, quien: { role: string; profe
 /** «10:00 a 10:45» — para el lector de pantalla y el cajón. */
 export function horario(t: Pick<TurnoDelDia, "inicio" | "fin">): string {
   return `${fmtTime(t.inicio)} a ${fmtTime(t.fin)}`;
+}
+
+/**
+ * Lo que la agenda lee ADEMÁS del loader del día (Tanda 2), en paralelo y una vez por día:
+ *   · la marca «seña pedida» de los Reservados del día (`seniasPedidas`: AuditLog, por `tenantId`);
+ *   · el horario de trabajo de las profesionales (`horariosDelDia`: WorkingHours, por `tenantId`),
+ *     como bloqueos de la grilla junto con las ausencias.
+ * Si una de las dos falla, la agenda se dibuja igual sin eso (no se cae por una marca).
+ */
+export async function extrasDeLaAgenda(
+  cruda: AgendaCruda,
+  dia: string,
+): Promise<{ seniasPedidas: Record<string, string>; bloqueos: BloqueoDelDia[] }> {
+  const reservados = cruda.appointments.filter((a) => a.status === "PENDING").map((a) => a.id);
+  const profesionales = cruda.professionals.map((p) => p.id);
+  const [senias, horarios] = await Promise.all([
+    reservados.length > 0 ? seniasPedidas(reservados).catch(() => ({})) : Promise.resolve({}),
+    profesionales.length > 0 ? horariosDelDia(dia, profesionales).catch(() => null) : Promise.resolve(null),
+  ]);
+  return { seniasPedidas: senias, bloqueos: [...bloqueosDelDia(cruda.blocksToday), ...bloqueosPorHorario(dia, profesionales, horarios)] };
 }

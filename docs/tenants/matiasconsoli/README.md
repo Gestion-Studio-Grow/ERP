@@ -69,6 +69,17 @@ ni el comprobante en revisión, y es la tabla viva de CH Estética en producció
 - Turnero y link del alumno: el negocio sale del dominio, el alumno del token (18 bytes al azar,
   base64url). Todo se vuelve a chequear en el servidor (la franja, el estado, la anticipación).
   Freno por IP (8 pedidos / 10 min) y tope de pedidos sin confirmar por celular (2, configurable).
+- **Link del alumno contra el «squatting»** (CERT T1, O-1): el link de un alumno que Matías todavía
+  no reconoció (nunca le confirmó, agendó ni dio una clase) es provisorio. Se regenera la primera vez
+  que lo confirma, lo agenda o se la da (el WhatsApp sale con el link nuevo), cuando otro dispositivo
+  pide clase con ese celular antes de eso (no se le entrega a nadie), y cada vez que se le manda el
+  link a un alumno sin reconocer. En **Alumnos** hay «Regenerar link»: el viejo deja de andar en el
+  acto. Sin columna nueva: «reconocido» se deriva de las clases (`claseReconoce`, `sesion-alumno.ts`)
+  y hay un solo token por alumno. El primero que tipea un celular nuevo sí ve sus propios pedidos
+  hasta que Matías lo confirme: es el costo de no pedir OTP (con la Cloud API se puede sumar).
+- «Pedí tu link» tarda lo mismo exista o no el celular (mismas lecturas, piso de 800 ms y el aviso
+  después de responder, O-2). Abrir el link recuerda el dispositivo con freno por IP (30 / 10 min) y
+  vence sólo los pedidos de ese alumno, una vez por minuto (O-6).
 - Altas de clase en transacción **Serializable** (`bookingTransaction`): dos alumnos que tocan la
   misma franja a la vez no quedan los dos adentro.
 - Comprobante: sólo imagen (jpeg/png/webp) en data URL, achicada en el teléfono, tope 400.000
@@ -131,6 +142,11 @@ una URL de demo con datos de ejemplo). Ni dominio propio, ni datos reales, ni Wh
 6. **Mercado Pago:** el pago es transferencia + comprobante o efectivo. El plugin de MP del motor
    (`src/plugins/mercadopago`) se puede enganchar después.
 7. **Factura electrónica:** no se emite desde acá (plugin ARCA, a futuro, si Matías factura).
+8. **«Mis clases» es mínimo (M-003):** `/mis-clases` lee la cookie del alumno y lleva a su link
+   (`/alumno/<token>`); sin cookie, al turnero con «Pedí tu link» abierto. El turnero muestra el botón
+   «Mis clases» si el teléfono tiene la cookie. La pantalla propia (VistaAlumno, manifiesto del
+   alumno, «Entrá con tu celular») es de la Tanda 3C del diseño. `/mis-clases` tiene que estar en
+   `SITE_GATE_PUBLIC_PATHS` si el portón está prendido en ese deploy (provisional a confirmar).
 
 ## Verificación hecha (15/10/2026)
 

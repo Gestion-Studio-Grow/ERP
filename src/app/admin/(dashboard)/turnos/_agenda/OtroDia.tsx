@@ -16,6 +16,8 @@ export default function OtroDia({ dia, base }: { dia: string; base: string }) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return;
     const p = new URLSearchParams(base);
     p.set("date", valor);
+    // «Ver por: Box» se cambia en el navegador: se conserva al saltar de día.
+    if (new URLSearchParams(window.location.search).get("por") === "box") p.set("por", "box");
     router.push(`/admin/turnos?${p.toString()}`);
   };
   return (

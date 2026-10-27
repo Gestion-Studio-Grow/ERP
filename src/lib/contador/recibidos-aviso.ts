@@ -9,6 +9,11 @@ export interface CuentasDeLaCarga {
   notasDeCredito: number;
   aRevisar: number;
   yaCargados: number;
+  /**
+   * De los que entraron, los que el local ya había cargado con su factura al recibir la mercadería:
+   * se completaron con los datos de ARCA en esa misma compra, no se duplicaron (R3). Opcional.
+   */
+  vinculados?: number;
   /** Filas que repiten otra del mismo archivo: el comprobante entra (o ya estaba) una sola vez. */
   repetidosEnElArchivo: number;
   conErrores: number;
@@ -25,6 +30,14 @@ export function avisoDeLaCarga(c: CuentasDeLaCarga): string {
         ? ` (${c.notasDeCredito} ${plural(c.notasDeCredito, "nota de crédito, que resta", "notas de crédito, que restan")})`
         : "";
     partes.push(`${plural(c.entraron, "Entró 1 comprobante", `Entraron ${c.entraron} comprobantes`)}${nc}.`);
+  }
+  const v = c.vinculados ?? 0;
+  if (v > 0) {
+    partes.push(
+      v === 1
+        ? "1 ya lo había cargado el local al recibir la mercadería: se completó con los datos de ARCA en esa misma compra (no se duplica)."
+        : `${v} ya los había cargado el local al recibir la mercadería: se completaron con los datos de ARCA en esas mismas compras (no se duplican).`,
+    );
   }
   if (c.aRevisar > 0) partes.push(`${c.aRevisar} ${plural(c.aRevisar, "quedó a revisar", "quedaron a revisar")}.`);
   if (c.yaCargados > 0) {

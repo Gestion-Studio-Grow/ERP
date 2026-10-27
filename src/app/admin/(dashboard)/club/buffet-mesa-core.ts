@@ -14,14 +14,19 @@
 //     sólo se dice qué pasó con el PIN (`pin`: "bueno" | "malo" | null); contarlo es de la pantalla.
 //   · El PIN VIEJO de un dueño (el de 2 del piloto, antes de elegir el de 4: `pinDesactualizado`) no firma: se rechaza
 //     y cuenta como intento malo (hallazgo del Gate del vanilla, 18/10).
+//   · «Mesas que siguen» (Tanda 2D de la reingeniería de Break Point): la mesa de un turno con la cancha cerrada vive EN
+//     Buffet con sus comensales (los jugadores del turno, `mesasDelBuffet`): lo que lleva cada uno, su cobro con su medio
+//     y el cierre de la mesa. Se arma con la MISMA cuenta del turno (`armarCuenta`) y se toca con sus acciones (comando
+//     «cuenta»): sumar un plato a un comensal, cobrarle lo suyo, cobrar todo y cerrar, o a cuenta corriente. Sin salir de
+//     Buffet (antes «Ver la cuenta» saltaba a la Agenda).
 // La plata la decide el motor; acá se traduce cada toque y se arma el aviso. Este archivo lo importa SÓLO el buffet
 // (su chunk aparte): la agenda no lo carga.
 
-import { pinDeEjemplo, cargoManual, cuenta as cuentaDe, pesos, pinDesactualizado, producto as productoDe, transferirCargo, usuarioPorPin, ventaMostrador } from "@/lib/club/motor.mjs";
+import { pinDeEjemplo, cargoManual, cancha as canchaDe, cuenta as cuentaDe, hhmm, mesasAbiertas, pesos, pinDesactualizado, producto as productoDe, transferirCargo, usuarioPorPin, ventaMostrador } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
 import { productosParaCargar, type ProductoParaCargar } from "./buffet-core";
-import { ETIQUETA_MEDIO, MEDIOS_CAJA, type MedioCaja } from "./cuenta-core";
+import { ETIQUETA_MEDIO, MEDIOS_CAJA, armarCuenta, type MedioCaja } from "./cuenta-core";
 import type { DesenlaceConPin } from "./tope-de-pin";
 
 // ───────────── mesa compleja ─────────────
@@ -139,4 +144,78 @@ export function venderEnMostrador(estado: EstadoClub, carrito: Carrito, medio: M
   const res = ventaMostrador(estado, items, medio, ahora);
   if (!res.ok) return { ok: false, mensaje: res.motivo };
   return { ok: true, mensaje: `Venta cobrada: ${pesos(res.total)} (${ETIQUETA_MEDIO[medio]}).` };
+}
+
+// ───────────── mesas que siguen (Tanda 2D) ─────────────
+
+/** Un comensal de la mesa: un jugador del turno, con lo que lleva y lo que se le cobra si paga lo suyo. */
+export interface ComensalDeLaMesa {
+  idx: number;
+  nombre: string;
+  /** Lo suyo (y lo de los que invita), o 0. */
+  aPagar: number;
+  /** «lo paga Ana» / «al día» si no se le cobra nada. */
+  situacion: string | null;
+  /** Lo que lleva en su cuenta («2 × Milanesa»). */
+  lleva: string[];
+}
+
+export interface MesaDelBuffet {
+  reservaId: string;
+  /** «Mesa de Martín Ríos». */
+  titulo: string;
+  /** «Cancha 1 · 17:30 · 4 comensales». */
+  detalle: string;
+  comensales: ComensalDeLaMesa[];
+  /** Lo que falta cobrar en la mesa. */
+  total: number;
+  /** Se puede pasar a cuenta corriente (hay cargos por cobrar). */
+  aCuentaCorriente: boolean;
+  /** Las cuentas abiertas de la mesa (en «Cuentas abiertas» no se repiten: van dentro de la mesa). */
+  cuentas: string[];
+  firma: string;
+}
+
+/**
+ * La mesa de un turno con la cancha cerrada, con sus comensales (los jugadores del turno, también los que todavía no
+ * cargaron nada), armada con la cuenta del turno: lo que debe cada uno sale de `cuentaDelTurno` del motor. null si la mesa
+ * ya se cerró o la cancha sigue en juego. Pura.
+ */
+export function mesaDelBuffet(estado: EstadoClub, reservaId: string): MesaDelBuffet | null {
+  const v = armarCuenta(estado, reservaId);
+  if (!v || !v.mesaAbierta) return null;
+  const r = estado.reservas.find((x) => x.id === reservaId)!;
+  const n = v.jugadores.length;
+  const cuentas = estado.cuentas.filter((c) => c.estado === "abierta" && c.reservaId === reservaId).map((c) => c.id);
+  const sinFirma: Omit<MesaDelBuffet, "firma"> = {
+    reservaId,
+    titulo: `Mesa de ${v.titular}`,
+    detalle: `${canchaDe(estado, r.canchaId)?.nombre ?? "Cancha"} · ${hhmm(r.inicio)} · ${n} ${n === 1 ? "comensal" : "comensales"}`,
+    comensales: v.jugadores.map((j) => ({ idx: j.idx, nombre: j.nombre, aPagar: j.aPagar, situacion: j.situacion, lleva: j.items.map((i) => `${i.cant} × ${i.nombre}`) })),
+    total: v.totales.pendiente,
+    aCuentaCorriente: v.cierres.cargosACuenta,
+    cuentas,
+  };
+  return { ...sinFirma, firma: JSON.stringify(sinFirma) };
+}
+
+/** Las mesas que siguen, de la más vieja a la más nueva (las de `mesasAbiertas` del motor). Pura. */
+export function mesasDelBuffet(estado: EstadoClub): MesaDelBuffet[] {
+  return mesasAbiertas(estado).flatMap((m) => {
+    const mesa = mesaDelBuffet(estado, m.reserva.id);
+    return mesa ? [mesa] : [];
+  });
+}
+
+/** Reusa las mesas que no cambiaron (cada una es un `memo`: cargar en una no repinta las otras). */
+export function compartirMesas(previas: MesaDelBuffet[] | undefined, nuevas: MesaDelBuffet[]): MesaDelBuffet[] {
+  if (!previas) return nuevas;
+  const viejas = new Map(previas.map((m) => [m.reservaId, m]));
+  const lista = nuevas.map((m) => (viejas.get(m.reservaId)?.firma === m.firma ? viejas.get(m.reservaId)! : m));
+  return lista.length === previas.length && lista.every((m, i) => m === previas[i]) ? previas : lista;
+}
+
+/** «Cobrar todo $X y cerrar la mesa» / «Cerrar la mesa» (sin nada por cobrar). */
+export function textoCerrarMesa(total: number): string {
+  return total > 0 ? `Cobrar todo ${pesos(total)} y cerrar la mesa` : "Cerrar la mesa";
 }

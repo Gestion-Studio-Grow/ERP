@@ -12,9 +12,18 @@
 // alta la ficha (`altaCliente`) y el turno queda atado a ella. El teléfono se compara con la clave de siempre
 // (`normalizarTelefono`): si ya hay una ficha con ese número escrito de otra forma, se usa ésa y no se duplica. Si el
 // turno no se puede reservar, la ficha recién dada de alta no queda.
+//
+// LA SEÑA SE DECIDE UNA VEZ (reingeniería BP, 1A · BP-001): la previa mira al titular como va a quedar —la ficha
+// elegida, la que ya tiene ese teléfono o una ficha NUEVA (0 turnos jugados: con `senaNuevos`, «cliente nuevo»)— y
+// `reservar` le pasa esa misma decisión a `crearReserva` (`conSena`). Antes la ficha se creaba antes de reservar y el
+// motor la veía limpia: la previa decía «pide seña» y el turno quedaba sin seña.
+//
+// LA HORA NO SE TOCA (BP-010…012): si en esa cancha y a esa hora no entra la duración, la previa lo dice
+// («A las 20:30 en Cancha 2 entran 30 min (Beto juega 21:00)»), «Reservar» queda apagado y `alternativas` ofrece
+// otra cancha a la misma hora, el siguiente hueco en esa cancha, una duración menor acá y anotarlo en espera.
 
-import { altaCliente, buscarClientes, cancha as canchaDe, cliente as clienteDe, crearReserva, franjaDe, hhmm, huecosLibres, minutosHasta, pesos, precioTurno, requiereSena, validarHueco } from "@/lib/club/motor.mjs";
-import type { Ahora, EstadoClub, Fecha, TipoReserva } from "@/lib/club/motor.mjs";
+import { altaCliente, anotarEspera, buscarClientes, cancha as canchaDe, cliente as clienteDe, crearReserva, cuantoEntra, diaSemana, franjaDe, hhmm, horarioDe, huecosLibres, minutosHasta, montoSena, motivoSena, NOMBRE_DIA, pesos, precioTurno, sumarDias, validarHueco } from "@/lib/club/motor.mjs";
+import type { Ahora, Cliente, CorteDelHueco, EstadoClub, Fecha, TipoReserva } from "@/lib/club/motor.mjs";
 import { normalizarTelefono } from "@/lib/clientes/telefono";
 import type { Desenlace } from "./almacen";
 
@@ -65,11 +74,62 @@ const DIGITOS_MINIMOS = 8;
 export function fichaPorTelefono(estado: EstadoClub, nombre: string, tel: string): { ok: true; clienteId: string; nueva: boolean } | { ok: false; motivo: string } {
   const clave = normalizarTelefono(tel);
   if (clave.length < DIGITOS_MINIMOS) return { ok: false, motivo: "Revisá el teléfono: le faltan números (con el código de área, ej. 11 5555-0001)." };
-  const ya = estado.clientes.find((c) => c.activo !== false && normalizarTelefono(c.tel) === clave);
+  const ya = fichaConTelefono(estado, tel);
   if (ya) return { ok: true, clienteId: ya.id, nueva: false };
   const alta = altaCliente(estado, { nombre, tel: tel.trim() });
   return alta.ok ? { ok: true, clienteId: alta.cliente.id, nueva: true } : { ok: false, motivo: alta.motivo };
 }
+
+/** La ficha activa que ya tiene ese teléfono (escrito como sea), sin dar nada de alta. PURA. */
+function fichaConTelefono(estado: EstadoClub, tel: string): Cliente | undefined {
+  const clave = normalizarTelefono(tel);
+  if (clave.length < DIGITOS_MINIMOS) return undefined;
+  return estado.clientes.find((c) => c.activo !== false && normalizarTelefono(c.tel) === clave);
+}
+
+/** Id de la ficha que todavía no existe (sólo para mirar la seña de un titular nuevo; nunca se guarda). */
+const FICHA_POR_DAR = "__ficha-nueva__";
+
+/**
+ * La seña de este alta, decidida UNA vez: con la ficha elegida, con la que ya tiene ese teléfono, o —titular nuevo con
+ * teléfono— como la ficha nueva que va a quedar (0 turnos jugados, sin faltas ni deuda). Sin teléfono, sin ficha. PURA:
+ * la ficha nueva se mira sobre una vista del estado, no se agrega.
+ */
+export function senaDelAlta(estado: EstadoClub, d: Pick<DatosAlta, "tipo" | "clienteId"> & Partial<Pick<DatosAlta, "tel" | "titular">>): { pide: boolean; motivo: string | null } {
+  let clienteId = d.clienteId;
+  let vista = estado;
+  if (!clienteId && d.tel?.trim() && normalizarTelefono(d.tel).length >= DIGITOS_MINIMOS) {
+    const ya = fichaConTelefono(estado, d.tel);
+    if (ya) clienteId = ya.id;
+    else {
+      const nueva = { id: FICHA_POR_DAR, nombre: d.titular?.trim() ?? "", tel: d.tel.trim(), nivel: "", strikes: 0, monedero: 0, deuda: 0, activo: true, cc: { habilitada: false, limite: 0 }, movCC: [], fiados: [] } as unknown as Cliente;
+      vista = { ...estado, clientes: [...estado.clientes, nueva] };
+      clienteId = FICHA_POR_DAR;
+    }
+  }
+  const motivo = motivoSena(vista, clienteId, d.tipo);
+  return { pide: motivo !== null, motivo };
+}
+
+/** Hasta qué día se puede dar un turno (`config.diasAdelante` desde hoy, inclusive). */
+export function ventanaDeReserva(estado: EstadoClub, ahora: Ahora): { dias: number; hasta: Fecha } {
+  const dias = estado.config.diasAdelante ?? 14;
+  return { dias, hasta: sumarDias(ahora.fecha, dias) };
+}
+
+const fechaLinda = (f: Fecha) => `${NOMBRE_DIA[diaSemana(f)].slice(0, 3).toLowerCase()} ${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
+
+/** Por qué ese día queda fuera de la ventana de reserva (o `null`). */
+function fueraDeVentana(estado: EstadoClub, fecha: Fecha, ahora: Ahora | undefined): string | null {
+  if (!ahora) return null;
+  const { dias, hasta } = ventanaDeReserva(estado, ahora);
+  return fecha > hasta ? `Los turnos se dan hasta ${dias} días adelante (hasta el ${fechaLinda(hasta)}).` : null;
+}
+
+/** La regla del motor para el mostrador (`crearReserva`): un turno ya pasó si terminó (se puede cargar uno en juego). */
+const yaPaso = (ahora: Ahora | undefined, fecha: Fecha, inicio: number, duracion: number) => !!ahora && minutosHasta(ahora, fecha, inicio) + duracion <= 0;
+/** Lo que dice el motor al reservar un horario que ya pasó (H3 de la cert: la previa lo dice antes de tocar «Reservar»). */
+export const YA_PASO = "Ese horario ya pasó.";
 
 /** Los horarios libres de una cancha para esa duración, que todavía no pasaron. */
 export function horariosLibres(estado: EstadoClub, fecha: Fecha, canchaId: string, duracion: number, ahora: Ahora): { min: number; texto: string }[] {
@@ -78,21 +138,134 @@ export function horariosLibres(estado: EstadoClub, fecha: Fecha, canchaId: strin
     .map((m) => ({ min: m, texto: `${hhmm(m)} a ${hhmm(m + duracion)}` }));
 }
 
+/**
+ * Cada horario de la grilla de ese día en esa cancha (que todavía no pasó), con si entra la duración y cuánto entra.
+ * La hora elegida (`elegida`) está siempre, aunque ya no entre: la lista no la cambia por atrás.
+ */
+export function horariosDelDia(estado: EstadoClub, fecha: Fecha, canchaId: string, duracion: number, ahora: Ahora, elegida: number | null = null): { min: number; texto: string; entra: boolean; cuanto: number }[] {
+  const { paso } = estado.config;
+  const { abre, cierra } = horarioDe(estado, fecha);
+  const out: { min: number; texto: string; entra: boolean; cuanto: number }[] = [];
+  for (let m = abre; m < cierra; m += paso) {
+    const pasada = yaPaso(ahora, fecha, m, duracion);
+    if (m !== elegida && pasada) continue;
+    const cuanto = cuantoEntra(estado, fecha, canchaId, m).minutos;
+    // La elegida que ya pasó (el alta quedó abierta) queda en la lista, pero dice que pasó: no se puede reservar.
+    if (pasada) {
+      out.push({ min: m, entra: false, cuanto, texto: `${hhmm(m)} · ya pasó` });
+      continue;
+    }
+    const entra = validarHueco(estado, { canchaId, fecha, inicio: m, duracion }).ok;
+    out.push({ min: m, entra, cuanto, texto: entra ? `${hhmm(m)} a ${hhmm(m + duracion)}` : cuanto >= paso ? `${hhmm(m)} · entran ${cuanto} min` : `${hhmm(m)} · ocupado` });
+  }
+  if (elegida !== null && !out.some((h) => h.min === elegida)) out.push({ min: elegida, texto: `${hhmm(elegida)} · fuera de horario`, entra: false, cuanto: 0 });
+  return out.sort((a, b) => a.min - b.min);
+}
+
 export type Previa =
-  | { ok: true; precio: number; franja: "pico" | "valle"; pideSena: boolean; texto: string }
+  | { ok: true; precio: number; franja: "pico" | "valle"; pideSena: boolean; sena: number; motivoSena: string | null; texto: string }
   | { ok: false; motivo: string };
 
-/** Lo que va a costar y si pide seña, antes de reservar (o por qué no se puede). */
-export function previaDelTurno(estado: EstadoClub, d: Pick<DatosAlta, "canchaId" | "fecha" | "inicio" | "duracion" | "tipo" | "clienteId">): Previa {
+/**
+ * Lo que va a costar y si pide seña (con el monto y por qué), antes de reservar, o por qué no se puede. La seña es la
+ * de `senaDelAlta` y el monto el de `montoSena`: los mismos que va a guardar `reservar`.
+ */
+export function previaDelTurno(
+  estado: EstadoClub,
+  d: Pick<DatosAlta, "canchaId" | "fecha" | "inicio" | "duracion" | "tipo" | "clienteId"> & Partial<Pick<DatosAlta, "tel" | "titular">>,
+  ahora?: Ahora,
+): Previa {
+  const ventana = fueraDeVentana(estado, d.fecha, ahora);
+  if (ventana) return { ok: false, motivo: ventana };
+  if (yaPaso(ahora, d.fecha, d.inicio, d.duracion)) return { ok: false, motivo: YA_PASO };
   const v = validarHueco(estado, d);
-  if (!v.ok) return { ok: false, motivo: v.motivo };
+  if (!v.ok) return { ok: false, motivo: motivoDelHueco(estado, d) ?? v.motivo };
   const precio = precioTurno(estado, d);
   const franja = franjaDe(estado, d.fecha, d.inicio);
-  // Si pide seña lo dice el motor (`requiereSena`); el monto exacto lo calcula `crearReserva` al reservar (y se ve en
-  // el aviso y en la cuenta). Acá no se recalcula para no duplicar la regla (motor.mjs: `senaMonto`).
-  const pideSena = requiereSena(estado, d.clienteId, d.tipo);
-  const texto = `${pesos(precio)} · ${franja === "pico" ? "horario pico" : "horario valle"}${pideSena ? ` · pide seña (${estado.config.politica.senaPct} %)` : " · sin seña"}`;
-  return { ok: true, precio, franja, pideSena, texto };
+  const { pide, motivo } = senaDelAlta(estado, d);
+  const sena = pide ? montoSena(estado, precio) : 0;
+  // «pide seña (50 %): $ 21.000, cliente nuevo» — el porcentaje primero, como siempre; después el monto y por qué.
+  const texto = `${pesos(precio)} · ${franja === "pico" ? "horario pico" : "horario valle"}${pide ? ` · pide seña (${estado.config.politica.senaPct} %): ${pesos(sena)}${motivo ? `, ${motivo}` : ""}` : " · sin seña"}`;
+  return { ok: true, precio, franja, pideSena: pide, sena, motivoSena: motivo, texto };
+}
+
+/** Qué corta el hueco, dicho como en el mostrador: «Beto juega 21:00», «cierra 00:00», «bloqueada: clase». */
+function quienCorta(corte: CorteDelHueco): string {
+  if (corte.tipo === "turno") return `${corte.reserva.titular} juega ${hhmm(corte.reserva.inicio)}`;
+  if (corte.tipo === "bloqueo") return `bloqueada desde las ${hhmm(corte.bloqueo.desde)}: ${corte.bloqueo.motivo}`;
+  return `cierra ${hhmm(corte.min)}`;
+}
+
+/** «A las 20:30 en Cancha 2 entran 30 min (Beto juega 21:00).» — sólo si a esa hora hay lugar pero no alcanza. */
+function motivoDelHueco(estado: EstadoClub, d: Pick<DatosAlta, "canchaId" | "fecha" | "inicio" | "duracion">): string | null {
+  const { minutos, hasta } = cuantoEntra(estado, d.fecha, d.canchaId, d.inicio);
+  if (!(minutos > 0 && minutos < d.duracion) || !hasta) return null;
+  return `A las ${hhmm(d.inicio)} en ${canchaDe(estado, d.canchaId)?.nombre ?? "esa cancha"} entran ${minutos} min (${quienCorta(hasta)}).`;
+}
+
+/** Una salida de un toque cuando no entra: dejar el alta armada en esa cancha, hora y duración. */
+export interface Alternativa {
+  canchaId: string;
+  inicio: number;
+  duracion: number;
+  precio: number;
+  /** «Cancha 4 · 20:30 · 90 min · $ 42.000», «Cancha 2 · 22:30 · …», «60 min acá · $ 28.000». */
+  etiqueta: string;
+  tipo: "otraCancha" | "siguienteHueco" | "menosTiempo";
+}
+
+export interface Alternativas {
+  entra: boolean;
+  /** Minutos libres desde esa hora en esa cancha (0 si ya está ocupado). */
+  cuantoEntra: number;
+  /** El aviso en criollo cuando no entra (o `null`). */
+  aviso: string | null;
+  /** Hasta 3, en este orden: otra cancha a la misma hora, el siguiente hueco acá, menos tiempo acá. */
+  opciones: Alternativa[];
+  /** Para «Anotar en espera» con el día, la franja y la duración ya tomados (`anotarEspera`). */
+  espera: { fecha: Fecha; desde: number; hasta: number; duracion: number };
+}
+
+const MAX_OPCIONES = 3;
+
+/**
+ * Si en esa cancha, a esa hora, entra esa duración; y si no, qué se puede ofrecer sin mover nada por atrás. PURA.
+ * La hora pedida se respeta: la otra cancha es A ESA HORA; el siguiente hueco es en ESA cancha; la duración menor es
+ * acá (una de `DURACIONES` que entre). Lo que ya pasó o queda fuera de la ventana de reserva no se ofrece.
+ */
+export function alternativas(estado: EstadoClub, d: Pick<DatosAlta, "canchaId" | "fecha" | "inicio" | "duracion">, ahora: Ahora): Alternativas {
+  const { paso } = estado.config;
+  const cuanto = cuantoEntra(estado, d.fecha, d.canchaId, d.inicio).minutos;
+  const espera = { fecha: d.fecha, desde: d.inicio, hasta: d.inicio + 2 * paso, duracion: d.duracion };
+  const ventana = fueraDeVentana(estado, d.fecha, ahora);
+  if (ventana) return { entra: false, cuantoEntra: cuanto, aviso: ventana, opciones: [], espera };
+  const v = validarHueco(estado, d);
+  const pasada = yaPaso(ahora, d.fecha, d.inicio, d.duracion);
+  if (v.ok && !pasada) return { entra: true, cuantoEntra: cuanto, aviso: null, opciones: [], espera };
+  const entra = false;
+  // Ya pasó: se dice eso (y se ofrece lo que todavía está a tiempo: el siguiente hueco acá u otra cancha).
+  const aviso = pasada || v.ok ? YA_PASO : (motivoDelHueco(estado, d) ?? v.motivo);
+  const vigente = (inicio: number, duracion: number) => minutosHasta(ahora, d.fecha, inicio) + duracion > 0;
+  const nombre = (id: string) => canchaDe(estado, id)?.nombre ?? id;
+  const armar = (canchaId: string, inicio: number, duracion: number, tipo: Alternativa["tipo"]): Alternativa => {
+    const precio = precioTurno(estado, { canchaId, fecha: d.fecha, inicio, duracion });
+    const etiqueta = tipo === "menosTiempo" ? `${duracion} min acá · ${pesos(precio)}` : `${nombre(canchaId)} · ${hhmm(inicio)} · ${duracion} min · ${pesos(precio)}`;
+    return { canchaId, inicio, duracion, precio, etiqueta, tipo };
+  };
+  // Otras canchas a la misma hora: primero las del mismo tipo (techada/descubierta), después el resto, en su orden.
+  const pedida = canchaDe(estado, d.canchaId);
+  const otras = estado.canchas
+    .filter((c) => c.id !== d.canchaId && vigente(d.inicio, d.duracion) && validarHueco(estado, { ...d, canchaId: c.id }).ok)
+    .sort((a, b) => Number(b.cubierta === pedida?.cubierta) - Number(a.cubierta === pedida?.cubierta));
+  const opciones: Alternativa[] = [];
+  if (otras[0]) opciones.push(armar(otras[0].id, d.inicio, d.duracion, "otraCancha"));
+  const siguiente = huecosLibres(estado, d.fecha, d.canchaId, d.duracion, d.inicio + paso).find((m) => m > d.inicio && vigente(m, d.duracion));
+  if (siguiente !== undefined) opciones.push(armar(d.canchaId, siguiente, d.duracion, "siguienteHueco"));
+  const menor = [...DURACIONES].reverse().find((x) => x < d.duracion && x <= cuanto && vigente(d.inicio, x) && validarHueco(estado, { ...d, duracion: x }).ok);
+  if (menor) opciones.push(armar(d.canchaId, d.inicio, menor, "menosTiempo"));
+  // Si sobra lugar, más canchas a la misma hora.
+  for (const c of otras.slice(1)) if (opciones.length < MAX_OPCIONES) opciones.push(armar(c.id, d.inicio, d.duracion, "otraCancha"));
+  return { entra, cuantoEntra: cuanto, aviso, opciones: opciones.slice(0, MAX_OPCIONES), espera };
 }
 
 /** Fichas que coinciden con lo que se tipea (hasta 5), para atar el turno a un cliente. */
@@ -109,8 +282,24 @@ export function clientesQueCoinciden(estado: EstadoClub, texto: string): { id: s
     }));
 }
 
+/**
+ * «Anotar en espera» desde el alta que no entra: el día, la franja y la duración ya tomados del alta (`alternativas`).
+ * Hace falta a nombre de quién; la ficha o el teléfono, si están, viajan para avisarle.
+ */
+export function anotarEnEsperaDesdeAlta(estado: EstadoClub, d: { titular: string; clienteId: string | null; tel?: string; espera: Alternativas["espera"] }, ahora: Ahora): Desenlace {
+  const titular = d.titular.trim();
+  if (!titular) return { ok: false, mensaje: "¿A nombre de quién lo anoto en la espera?" };
+  const tel = d.clienteId ? (clienteDe(estado, d.clienteId)?.tel ?? "") : (d.tel?.trim() ?? "");
+  anotarEspera(estado, { titular, clienteId: d.clienteId, tel, fecha: d.espera.fecha, desde: d.espera.desde, hasta: d.espera.hasta, duracion: d.espera.duracion }, ahora);
+  return { ok: true, mensaje: `${titular} quedó en la lista de espera: ${fechaLinda(d.espera.fecha)}, de ${hhmm(d.espera.desde)} a ${hhmm(d.espera.hasta)}, ${d.espera.duracion} min.` };
+}
+
 /** Reserva el turno. Devuelve el aviso y el id del turno nuevo (para abrir su cuenta). */
 export function reservar(estado: EstadoClub, d: DatosAlta, ahora: Ahora): Desenlace & { reservaId?: string } {
+  const ventana = fueraDeVentana(estado, d.fecha, ahora);
+  if (ventana) return { ok: false, mensaje: ventana };
+  // La seña se decide ANTES de dar de alta la ficha (con la ficha nueva mirada como «nueva»): es la de la previa.
+  const { pide: conSena } = senaDelAlta(estado, { ...d, tel: d.clienteId ? "" : d.tel });
   const otros = d.otros
     .split(",")
     .map((x) => x.trim())
@@ -137,6 +326,7 @@ export function reservar(estado: EstadoClub, d: DatosAlta, ahora: Ahora): Desenl
       titular,
       jugadores: titular ? [clienteId ? { nombre: titular, clienteId } : titular, ...otros] : undefined,
       origen: d.origen ?? ORIGEN_DE_FABRICA,
+      conSena,
     },
     ahora,
   );
