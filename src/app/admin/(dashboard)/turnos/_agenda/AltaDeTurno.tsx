@@ -418,7 +418,7 @@ export default function AltaDeTurno({
                 <span className="font-medium">{s.name}</span>
                 <span className="tabular-nums opacity-80">
                   {" "}
-                  · {s.durationMin}′ · {pesos(datos.vecina && s.residentPrice != null ? s.residentPrice : s.price)}
+                  · {s.durationMin}′ · {pesos(precioCongeladoDeReserva(s, datos.vecina).priceAtBooking)}
                 </span>
               </button>
             ))}
