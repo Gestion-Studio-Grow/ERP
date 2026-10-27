@@ -169,8 +169,10 @@ export async function consultarPadronParaVenta() { return null; }
 `;
 // Las acciones del mostrador nuevo (2A, acciones-del-mostrador.ts): el precio de HOY sale de la
 // misma "base" que \`createOrder\` (los de lista, o \`window.__precios\` si la dueña los cambió) y
-// las teclas fijadas se anotan.
+// las teclas fijadas se anotan. \`cobrarDelMostrador\` (tanda perf): el cobro en UN viaje, que
+// compara el precio visto con la "base" y, si es el mismo, cobra con el \`createOrder\` falso.
 const MOSTRADOR_FALSO = `
+import { createOrder } from "@/lib/order-actions";
 const LISTA = { p_vacio: [12500, "WEIGHT"], p_entrana: [17500, "WEIGHT"], p_crema: [9000, "UNIT"] };
 export async function preciosVigentesDelTicket(ids) {
   window.__consultasDePrecio = (window.__consultasDePrecio || 0) + 1;
@@ -182,6 +184,25 @@ export async function preciosVigentesDelTicket(ids) {
     out[id] = u === "WEIGHT" ? { price: null, pricePerKg: hoy } : { price: hoy, pricePerKg: null };
   }
   return out;
+}
+export async function cobrarDelMostrador(fd) {
+  window.__cobros = (window.__cobros || 0) + 1;
+  const vistos = fd.getAll("precioVisto").map(String);
+  window.__preciosVistos = vistos;
+  fd.delete("precioVisto");
+  const cambios = [];
+  const vigentes = {};
+  for (const v of vistos) {
+    const [id, p, k] = v.split("|");
+    if (!LISTA[id]) continue;
+    const [lista, u] = LISTA[id];
+    const hoy = (window.__precios || {})[id] ?? lista;
+    const visto = Number(u === "WEIGHT" ? k : p);
+    vigentes[id] = u === "WEIGHT" ? { price: null, pricePerKg: hoy } : { price: hoy, pricePerKg: null };
+    if (Math.round(visto * 100) !== Math.round(hoy * 100)) cambios.push({ id, nombre: id, porKilo: u === "WEIGHT", antes: visto, ahora: hoy });
+  }
+  if (cambios.length > 0) return { ok: false, tipo: "precio-cambio", error: "Cambió un precio", vigentes, cambios };
+  return createOrder(fd);
 }
 export async function fijarTeclasDelMostrador(e) {
   window.__fijadas = (window.__fijadas || []).concat([e]);
@@ -269,6 +290,8 @@ type Ventana = {
   __grabadas: Map<string, Grabada>;
   __cupones?: { codigo: string; base: number }[];
   __consultasDePrecio?: number;
+  __cobros?: number;
+  __preciosVistos?: string[];
   __fijadas?: { ids: string[]; version: string | null }[];
   __montar: (cual: Montaje, tope: number | null, extra?: Record<string, unknown>) => void;
   __montarBarra: () => void;
@@ -2620,6 +2643,29 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.getByRole("button", { name: "Cobrar $13.000 con Mercado Pago" }).click();
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
     await page.getByLabel("Ticket de la venta #42").getByText("$13.000,00").first().waitFor();
+    const v = await page.evaluate(() => ({ c: (window as unknown as Ventana).__consultasDePrecio, k: (window as unknown as Ventana).__cobros }));
+    assert.deepEqual(v, { c: 1, k: 2 }, "el precio se pidió al sumar (no antes de cobrar); el frenado y el bueno, un viaje cada uno");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("tanda perf · cobro: el precio cambió ANTES de sumar → la tecla ya trae «Subió a $13.000 recién» y el cobro es UN viaje con el precio visto", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, boutique());
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__precios = { p_vacio: 13000 };
+    });
+    await tecla2a(page, "Vacío").click();
+    await page.locator('[data-vender="cambio-de-precio"]').getByText("Subió a $13.000 recién").waitFor();
+    await page.getByText(/Cambió un precio en el catálogo/).waitFor();
+    await page.keyboard.type("1");
+    await page.getByRole("button", { name: "Cobrar $13.000 con Mercado Pago" }).click();
+    await page.getByLabel("Ticket de la venta #42").getByText("$13.000,00").first().waitFor();
+    const v = await page.evaluate(() => {
+      const w = window as unknown as Ventana;
+      return { consultas: w.__consultasDePrecio, cobros: w.__cobros, vistos: w.__preciosVistos, envios: w.__envios.length };
+    });
+    assert.deepEqual(v, { consultas: 1, cobros: 1, vistos: ["p_vacio||13000"], envios: 1 });
     assert.deepEqual(errores, []);
     await page.close();
   });

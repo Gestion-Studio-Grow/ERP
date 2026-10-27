@@ -38,7 +38,7 @@
 // al cobrar, como siempre. Sin el módulo, nada de esto existe.
 // Sin imports de valor de Prisma: esto es un client component.
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { flushSync, useFormStatus } from "react-dom";
 import Link from "next/link";
 import { createOrder, buscarClienteParaVenta, facturarVenta } from "@/lib/order-actions";
@@ -135,7 +135,8 @@ import {
   type RenglonQuitado,
 } from "./reglas-venta";
 import TicketQueCrece, { ConBalanzaEnVivo, PesoEnVivoDelRenglon, RenglonDelTicket } from "./TicketQueCrece";
-import { fijarTeclasDelMostrador, preciosVigentesDelTicket, type PrecioVigente } from "./acciones-del-mostrador";
+import { cobrarDelMostrador, fijarTeclasDelMostrador, preciosVigentesDelTicket, type PrecioVigente } from "./acciones-del-mostrador";
+import { avisoDePrecioAlSumar, camposDePreciosVistos, debeControlarPrecio } from "./boutique/precio-del-renglon";
 import type { TeclasDelMostrador } from "./teclas.server";
 import {
   almacenDeSesion,
@@ -516,7 +517,7 @@ function FormularioVender({
   enNavegador,
 }: PropsDeVender & { enNavegador: boolean }) {
   // «Subió a $X recién» (MG-048, sólo el boutique): el precio de HOY de los productos cuyo precio
-  // cambió con el ticket abierto (lo leyó `preciosAlDia` antes de cobrar). Pisa al de la página en
+  // cambió con el ticket abierto (lo leyó el control al sumar el renglón, o lo devolvió el cobro). Pisa al de la página en
   // TODA la pantalla (renglones, teclas, total): lo que se ve es lo que se cobra.
   const [preciosNuevos, setPreciosNuevos] = useState<Record<string, PrecioVigente>>({});
   const products = useMemo(
@@ -595,6 +596,8 @@ function FormularioVender({
   const ticketKey = useRef(arranque?.clave ?? "");
   // El cobro está en vuelo (se mandó y no volvió): el lector no suma nada hasta que termine.
   const cobrandoAhora = useRef(false);
+  // El último cobro del boutique volvió frenado porque cambió un precio (no se grabó nada).
+  const cobroFrenadoPorPrecio = useRef(false);
 
   // MOSTRADOR BOUTIQUE (interruptor). Todo esto existe sólo con `boutique`; apagado, nada cambia.
   const enBoutique = boutique !== null;
@@ -1268,9 +1271,15 @@ function FormularioVender({
         });
       }
     };
+    // Boutique (MG-048 en un viaje): la venta cobrada lleva el precio que se VE de cada producto y el
+    // servidor lo controla antes de grabar. No en el reintento: ése manda lo mismo que el cortado.
+    if (enBoutique && paid && !reintentando) {
+      const enTicket = [...new Set(leidas.filter((l) => l.qty > 0 && byId.has(l.productId)).map((l) => l.productId))];
+      for (const [campo, valor] of camposDePreciosVistos(enTicket.map((id) => byId.get(id)!))) fd.append(campo, valor);
+    }
     let espera;
     try {
-      espera = await conTiempoMaximo(createOrder(fd), TIEMPO_MAXIMO_DEL_COBRO_MS);
+      espera = await conTiempoMaximo(enBoutique ? cobrarDelMostrador(fd) : createOrder(fd), TIEMPO_MAXIMO_DEL_COBRO_MS);
     } catch (e) {
       if (isNextRedirect(e)) throw e;
       quedaEnDuda();
@@ -1282,6 +1291,13 @@ function FormularioVender({
       return;
     }
     const r = espera.valor;
+    // El precio que se veía ya no es el de la base: no se grabó nada. La pantalla pasa al precio de
+    // ahora («Subió a $X recién») y se cobra con el próximo toque, con el total a la vista.
+    if (r && !r.ok && r.tipo === "precio-cambio") {
+      aplicarPreciosVigentes(r.cambios.map((c) => byId.get(c.id)!).filter(Boolean), r.vigentes, "al-cobrar");
+      cobroFrenadoPorPrecio.current = true;
+      return;
+    }
     if (r && !r.ok) {
       // Falló algo que no es un rechazo de negocio (la base, la transacción al confirmarse): no
       // prueba que no se grabó. Se trata como un corte: misma clave para reintentar.
@@ -2476,8 +2492,10 @@ function FormularioVender({
 
   /** El pie eligió cómo pagó: el estado de la venta queda con ese medio y sale el cobro. */
   async function cobrarConElPie(r: ResultadoDelPie) {
-    // MG-048: si un precio cambió con el ticket abierto, no se cobra uno que no se ve.
-    if (!(await preciosAlDia())) return;
+    // MG-048: el precio se controla al sumar el renglón y otra vez en el mismo viaje del cobro
+    // (`cobrarDelMostrador`): si cambió, no se cobra uno que no se ve.
+    const antes = { paid, medio, aCuenta };
+    cobroFrenadoPorPrecio.current = false;
     const campos = camposDelPie(totalACobrar, r);
     const principal = leerMedioDeCobro(campos.find(([n]) => n === "paymentMethod")?.[1] ?? "") ?? "";
     camposDelUltimoPie.current = campos;
@@ -2493,6 +2511,13 @@ function FormularioVender({
       setACuenta(false);
     });
     await enviarYEsperar();
+    // Frenado por un precio que cambió: la venta sigue como estaba antes del toque (no se cobró).
+    if (cobroFrenadoPorPrecio.current) {
+      cobroFrenadoPorPrecio.current = false;
+      setPaid(antes.paid);
+      setMedio(antes.medio);
+      setACuenta(antes.aCuenta);
+    }
   }
 
   /** Registrar sin cobrar (día cerrado, pedido, «Más») o dejar a cuenta, por el mismo `submit`. */
@@ -2603,32 +2628,23 @@ function FormularioVender({
   }
 
   /**
-   * MG-048: antes de cobrar, el precio de HOY de lo que lleva el ticket. Si alguno cambió (el dueño
-   * lo subió con el ticket abierto), la pantalla pasa a ese precio, el renglón dice «Subió a $X
-   * recién» y NO se cobra todavía: se cobra con el próximo toque, ya con el total a la vista. Sin
-   * señal o sin respuesta a tiempo, sigue el cobro de siempre (el servidor cobra con su catálogo).
+   * MG-048: el precio de HOY de productos del ticket (leído al sumar el renglón, o devuelto por el
+   * cobro frenado). Si alguno cambió (el dueño lo subió con el ticket abierto), la pantalla pasa a
+   * ese precio y el renglón dice «Subió a $X recién». Al cobrar, además, se rearma el pie (su vuelto
+   * era del total viejo) y se cobra con el próximo toque, ya con el total a la vista.
    */
-  async function preciosAlDia(): Promise<boolean> {
-    if (reintentando || !enLinea) return true;
-    const enTicket = [...new Set(leidas.filter((l) => l.qty > 0 && byId.has(l.productId)).map((l) => l.productId))];
-    if (enTicket.length === 0) return true;
-    let vigentes: Record<string, PrecioVigente>;
-    try {
-      const r = await conTiempoMaximo(preciosVigentesDelTicket(enTicket), 2500);
-      if (r.tipo !== "respuesta") return true;
-      vigentes = r.valor;
-    } catch (e) {
-      if (isNextRedirect(e)) throw e;
-      return true;
-    }
-    const nuevos = cambiosDePrecio(enTicket.map((id) => byId.get(id)!), vigentes);
-    if (nuevos.length === 0) return true;
+  function aplicarPreciosVigentes(
+    enPantalla: { id: string; name: string; saleUnit: "UNIT" | "WEIGHT"; price: number | null; pricePerKg: number | null }[],
+    vigentes: Record<string, PrecioVigente>,
+    momento: "al-sumar" | "al-cobrar",
+  ) {
+    const nuevos = cambiosDePrecio(enPantalla, vigentes);
+    if (nuevos.length === 0) return;
     setPreciosNuevos((p) => ({ ...p, ...Object.fromEntries(nuevos.map((c) => [c.id, vigentes[c.id]])) }));
     // El chip dice el cambio desde lo que se veía la PRIMERA vez (si cambió dos veces, desde el original).
     setCambios((c) => ({ ...c, ...Object.fromEntries(nuevos.map((x) => [x.id, { ...x, antes: c[x.id]?.antes ?? x.antes }])) }));
-    setAvisoBoutique(avisoDeCambioDePrecio(nuevos));
-    setPieKey((k) => k + 1);
-    return false;
+    setAvisoBoutique(momento === "al-cobrar" ? avisoDeCambioDePrecio(nuevos) : avisoDePrecioAlSumar(nuevos));
+    if (momento === "al-cobrar") setPieKey((k) => k + 1);
   }
 
   /** El dueño guarda las teclas fijas (con la versión que leyó: no pisa a otro). */
@@ -3290,6 +3306,32 @@ function FormularioVender({
   // `tocarTecla` y `guardarFijadas`, y antes de elegir la vista.
   const tocarTeclaEstable = useLlamadaEstable((id: string) => tocarTecla(id));
   const guardarFijadasEstable = useLlamadaEstable((ids: string[]) => guardarFijadas(ids));
+
+  // MG-048 (tanda perf, sólo el boutique): el precio de HOY de cada producto se pide AL SUMARLO al
+  // ticket, en segundo plano (como mucho una vez por minuto y por producto). Así el cobro es un solo
+  // viaje: el servidor igual controla el precio visto al cobrar (`cobrarDelMostrador`).
+  const idsDelTicket = enBoutique
+    ? [...new Set(leidas.filter((l) => l.productId && byId.has(l.productId)).map((l) => l.productId))].sort().join(",")
+    : "";
+  const precioControlado = useRef(new Map<string, number>());
+  const controlarPreciosAlSumar = useEffectEvent((ids: string[], ahora: number) => {
+    const nuevos = ids.filter((id) => debeControlarPrecio(precioControlado.current.get(id), ahora));
+    if (nuevos.length === 0) return;
+    for (const id of nuevos) precioControlado.current.set(id, ahora);
+    const enPantalla = nuevos.map((id) => byId.get(id)!);
+    const olvidar = () => nuevos.forEach((id) => precioControlado.current.delete(id));
+    conTiempoMaximo(preciosVigentesDelTicket(nuevos), 2500).then(
+      (r) => {
+        if (r.tipo !== "respuesta") return olvidar();
+        aplicarPreciosVigentes(enPantalla, r.valor, "al-sumar");
+      },
+      // Sin respuesta (o la sesión venció): no se avisa nada; el cobro controla igual.
+      olvidar,
+    );
+  });
+  useEffect(() => {
+    if (idsDelTicket && enLinea) controlarPreciosAlSumar(idsDelTicket.split(","), Date.now());
+  }, [idsDelTicket, enLinea]);
 
   if (boutique) return vistaBoutique(boutique);
 
