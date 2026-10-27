@@ -143,6 +143,43 @@ test("cobro en un viaje: precio cambiado se frena sin grabar, doble envío = una
   const bDespues = await foto(base.b.id);
   assert.deepEqual(bDespues, [bAntes[0] + 1, bAntes[1] + 1], "B: sólo su venta y su asiento");
 
+  // ── F1 (certificación): un producto del ticket que el dueño pausa, borra o deja sin precio con el
+  // ticket abierto NO se cobra «sin ese renglón» a escondidas: se frena sin grabar y se dice ──
+  const pausado = await duenio.product.create({
+    data: { tenantId: base.a.id, name: "Pausado UAT", saleUnit: "UNIT", price: 700, unit: "u", trackStock: false },
+  });
+  const borrado = await duenio.product.create({
+    data: { tenantId: base.a.id, name: "Borrado UAT", saleUnit: "UNIT", price: 800, unit: "u", trackStock: false },
+  });
+  const sinPrecio = await duenio.product.create({
+    data: { tenantId: base.a.id, name: "SinPrecio UAT", saleUnit: "UNIT", price: 900, unit: "u", trackStock: false },
+  });
+  await duenio.product.update({ where: { id: pausado.id }, data: { active: false } });
+  await duenio.product.update({ where: { id: borrado.id }, data: { deletedAt: new Date() } });
+  await duenio.product.update({ where: { id: sinPrecio.id }, data: { price: null } });
+  const aAntesF1 = await foto(base.a.id);
+  for (const [clave, p, precio] of [["perf-f1-a", pausado, 700], ["perf-f1-b", borrado, 800], ["perf-f1-c", sinPrecio, 900]] as const) {
+    const r = await cobrar(
+      duenaA,
+      formulario(clave, [
+        { id: p.id, qty: "1", price: precio, pricePerKg: null },
+        { id: chorizo.id, qty: "1", price: 1900, pricePerKg: null },
+      ]),
+    );
+    assert.ok(r && !r.ok && r.tipo === "precio-cambio", `${p.name}: ${JSON.stringify(r)}`);
+    if (r && !r.ok && r.tipo === "precio-cambio") {
+      assert.deepEqual(r.noSeVenden, [{ id: p.id, nombre: p.name }]);
+      assert.deepEqual(r.cambios, [], "no es «Bajó a $0»: es que ya no se vende");
+      assert.match(r.error, new RegExp(`${p.name}: ya no se vende`));
+      assert.equal(r.vigentes[p.id], undefined);
+    }
+    assert.equal(await duenio.order.count({ where: { tenantId: base.a.id, idempotencyKey: clave } }), 0);
+  }
+  assert.deepEqual(await foto(base.a.id), aAntesF1, "F1: nada grabado, ni venta ni caja");
+  // La pantalla saca el renglón; el próximo toque cobra lo que queda, con la misma clave.
+  const sinElRenglon = await cobrar(duenaA, formulario("perf-f1-a", [{ id: chorizo.id, qty: "1", price: 1900, pricePerKg: null }]));
+  assert.ok(sinElRenglon?.ok, JSON.stringify(sinElRenglon));
+
   // ── Sin `precioVisto`: createOrder tal cual (reintento / registrar sin cobrar): sin control ──
   const sinControl = await cobrar(duenaA, formulario("perf-sin", [{ id: vacio.id, qty: "1", price: null, pricePerKg: 1 }], false));
   assert.ok(sinControl?.ok, JSON.stringify(sinControl));

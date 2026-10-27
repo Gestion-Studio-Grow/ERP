@@ -136,7 +136,7 @@ import {
 } from "./reglas-venta";
 import TicketQueCrece, { ConBalanzaEnVivo, PesoEnVivoDelRenglon, RenglonDelTicket } from "./TicketQueCrece";
 import { cobrarDelMostrador, fijarTeclasDelMostrador, preciosVigentesDelTicket, type PrecioVigente } from "./acciones-del-mostrador";
-import { avisoDePrecioAlSumar, camposDePreciosVistos, debeControlarPrecio } from "./boutique/precio-del-renglon";
+import { avisoDePrecioAlSumar, camposDePreciosVistos, debeControlarPrecio, sinLosQueNoSeVenden } from "./boutique/precio-del-renglon";
 import type { TeclasDelMostrador } from "./teclas.server";
 import {
   almacenDeSesion,
@@ -1295,6 +1295,17 @@ function FormularioVender({
     // ahora («Subió a $X recién») y se cobra con el próximo toque, con el total a la vista.
     if (r && !r.ok && r.tipo === "precio-cambio") {
       aplicarPreciosVigentes(r.cambios.map((c) => byId.get(c.id)!).filter(Boolean), r.vigentes, "al-cobrar");
+      // Lo que ya no se vende (pausado, borrado, sin precio) sale del ticket y se dice: no se cobra
+      // una venta sin ese renglón a escondidas.
+      if (r.noSeVenden?.length) {
+        const ids = new Set(r.noSeVenden.map((p) => p.id));
+        const keyVacia = nextKey;
+        setLines((ls) => sinLosQueNoSeVenden(ls, ids, keyVacia).lineas);
+        setNextKey((k) => Math.max(k, keyVacia) + 1);
+        setActivoKey(null);
+        setAvisoBoutique(r.error);
+        setPieKey((k) => k + 1);
+      }
       cobroFrenadoPorPrecio.current = true;
       return;
     }

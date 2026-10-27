@@ -92,6 +92,55 @@ export function cambiosContraLoVisto(
   return cambiosDePrecio(enPantalla, vigentes);
 }
 
+/** Un producto que se ve en el ticket y ya no se vende (pausado, borrado o sin precio). */
+export type ProductoQueNoSeVende = { id: string; nombre: string };
+type FilaDelControl = ProductoDeLaBase & { active: boolean; deletedAt: Date | null };
+
+function tienePrecio(p: ProductoConPrecio & { saleUnit: "UNIT" | "WEIGHT" }): boolean {
+  return (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price) != null;
+}
+
+/**
+ * Lo que se ve en el ticket y ya no se puede cobrar: el producto de ESTE negocio está pausado,
+ * borrado o sin precio para su unidad. Sin esto, `createOrder` descartaba el renglón y la venta
+ * salía SIN él y sin aviso. Un id que no es del negocio no está en `filas`: lo rechaza el alta. PURA.
+ */
+export function queYaNoSeVenden(
+  vistos: ReadonlyMap<string, PrecioVisto>,
+  filas: readonly FilaDelControl[],
+): ProductoQueNoSeVende[] {
+  const porId = new Map(filas.map((f) => [f.id, f]));
+  const out: ProductoQueNoSeVende[] = [];
+  for (const id of vistos.keys()) {
+    const f = porId.get(id);
+    if (f && (!f.active || f.deletedAt !== null || !tienePrecio(f))) out.push({ id, nombre: f.name });
+  }
+  return out;
+}
+
+/** Los que sí se pueden cobrar (activos, no borrados y con precio para su unidad). PURA. */
+export function vendibles<F extends FilaDelControl>(filas: readonly F[]): F[] {
+  return filas.filter((f) => f.active && f.deletedAt === null && tienePrecio(f));
+}
+
+/** El aviso del cobro frenado porque un producto del ticket ya no se vende. PURA. */
+export function avisoDeQueYaNoSeVende(productos: readonly ProductoQueNoSeVende[]): string {
+  const nombres = productos.map((p) => p.nombre).join(" · ");
+  return `${nombres}: ya no se vende (lo sacaron del catálogo o le falta el precio). Lo sacamos del ticket y no se cobró nada; revisá el total y cobrá de nuevo.`;
+}
+
+/** Saca del ticket los renglones de esos productos; si no queda ninguno, deja uno vacío. PURA. */
+export function sinLosQueNoSeVenden<L extends { key: number; productId: string; qtyText: string }>(
+  lineas: readonly L[],
+  ids: ReadonlySet<string>,
+  keyVacia: number,
+): { lineas: L[]; usoKeyVacia: boolean } {
+  const resto = lineas.filter((l) => !ids.has(l.productId));
+  if (resto.length > 0) return { lineas: resto, usoKeyVacia: false };
+  if (lineas.length === 0) return { lineas: [], usoKeyVacia: false };
+  return { lineas: [{ ...lineas[0], key: keyVacia, productId: "", qtyText: "", etiqueta: undefined } as L], usoKeyVacia: true };
+}
+
 /**
  * El precio con que quedó grabado cada producto, desde las líneas del ticket (sin otra lectura): la
  * línea se reconoce por el nombre del producto. Si alguna línea con producto no se puede atar a UN

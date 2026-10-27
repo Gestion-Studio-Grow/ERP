@@ -18,7 +18,8 @@
 //   · `cobrarDelMostrador` (sólo el mostrador boutique): el cobro en UN viaje. Controla el precio
 //     que se ve (`precioVisto`) contra la base y, si es el mismo, cobra con `createOrder` (que no
 //     cambia: idempotencia, caja, frontera del día). Si cambió, no graba nada y devuelve el de
-//     ahora. Las reglas, puras, en `boutique/precio-del-renglon.ts`.
+//     ahora; si un producto del ticket ya no se vende (pausado, borrado, sin precio), tampoco graba
+//     y lo dice. Las reglas, puras, en `boutique/precio-del-renglon.ts`.
 
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
@@ -36,10 +37,14 @@ import { avisoDeCambioDePrecio, type CambioDePrecio } from "./reglas-venta";
 import {
   CAMPO_PRECIO_VISTO,
   avisoDePrecioAlGrabar,
+  avisoDeQueYaNoSeVende,
   cambiosContraLoVisto,
   cambiosEnLoCobrado,
   cobradoPorProducto,
   leerPreciosVistos,
+  queYaNoSeVenden,
+  vendibles,
+  type ProductoQueNoSeVende,
 } from "./boutique/precio-del-renglon";
 
 export type EstadoTeclasFijadas = { ok: true; version: string; ids: string[] } | { ok: false; error: string };
@@ -88,7 +93,9 @@ export async function preciosVigentesDelTicket(ids: unknown): Promise<Record<str
 
 /**
  * El cobro frenado porque el precio que se veía ya no es el de la base. No se grabó nada con esta
- * clave: `vigentes` trae el precio de ahora para que la pantalla lo muestre y se cobre con él.
+ * clave: `vigentes` trae el precio de ahora para que la pantalla lo muestre y se cobre con él, y
+ * `noSeVenden` los productos del ticket que ya no se pueden cobrar (pausados, borrados o sin
+ * precio): la pantalla saca esos renglones en vez de cobrar una venta sin ellos y sin aviso.
  */
 export type CobroFrenadoPorPrecio = {
   ok: false;
@@ -96,6 +103,7 @@ export type CobroFrenadoPorPrecio = {
   error: string;
   vigentes: Record<string, PrecioVigente>;
   cambios: CambioDePrecio[];
+  noSeVenden: ProductoQueNoSeVende[];
 };
 export type CobroDelMostrador = OrderActionState | CobroFrenadoPorPrecio;
 
@@ -113,12 +121,16 @@ export async function cobrarDelMostrador(formData: FormData): Promise<CobroDelMo
   if (vistos.size === 0) return createOrder(formData);
 
   const tenantId = await getCurrentTenantId();
-  const enBase = await prisma.product.findMany({
-    where: { tenantId, id: { in: [...vistos.keys()] }, deletedAt: null, active: true },
-    select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true },
+  // Una sola lectura, también de los pausados y borrados: el que se ve y ya no se vende frena el
+  // cobro (antes `createOrder` descartaba ese renglón y la venta salía sin él, callada).
+  const filas = await prisma.product.findMany({
+    where: { tenantId, id: { in: [...vistos.keys()] } },
+    select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, active: true, deletedAt: true },
   });
+  const enBase = vendibles(filas);
+  const noSeVenden = queYaNoSeVenden(vistos, filas);
   const cambios = cambiosContraLoVisto(vistos, enBase);
-  if (cambios.length > 0) {
+  if (cambios.length > 0 || noSeVenden.length > 0) {
     // ¿Ya hay una venta con esta clave? Entonces es un reintento de una grabada: la contesta
     // `createOrder` (la compara con lo grabado), no se frena por el precio de hoy.
     const clave = String(formData.get("idempotencyKey") || "").trim();
@@ -129,9 +141,15 @@ export async function cobrarDelMostrador(formData: FormData): Promise<CobroDelMo
       return {
         ok: false,
         tipo: "precio-cambio",
-        error: avisoDeCambioDePrecio(cambios),
+        error: [
+          noSeVenden.length > 0 ? avisoDeQueYaNoSeVende(noSeVenden) : "",
+          cambios.length > 0 ? avisoDeCambioDePrecio(cambios) : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
         vigentes: Object.fromEntries(enBase.map((p) => [p.id, { price: p.price, pricePerKg: p.pricePerKg }])),
         cambios,
+        noSeVenden,
       };
     }
     return createOrder(formData);

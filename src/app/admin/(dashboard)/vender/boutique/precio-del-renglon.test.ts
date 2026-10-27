@@ -13,6 +13,10 @@ import {
   cobradoPorProducto,
   debeControlarPrecio,
   leerPreciosVistos,
+  avisoDeQueYaNoSeVende,
+  queYaNoSeVenden,
+  sinLosQueNoSeVenden,
+  vendibles,
 } from "./precio-del-renglon";
 
 const vacio = { id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT" as const, price: null, pricePerKg: 12500 };
@@ -70,4 +74,42 @@ test("al sumar: una vez por minuto y por producto; el aviso no pide cobrar de nu
   const aviso = avisoDePrecioAlSumar([{ id: "p_vacio", nombre: "Vacío", porKilo: true, antes: 12500, ahora: 13000 }]);
   assert.match(aviso, /^Cambió un precio en el catálogo: Vacío subió a/);
   assert.doesNotMatch(aviso, /cobrá de nuevo/);
+});
+
+test("lo que se ve y ya no se vende (pausado, borrado, sin precio) frena el cobro; lo ajeno lo decide el alta", () => {
+  const fila = <T extends object>(p: T, extra: { active?: boolean; deletedAt?: Date | null } = {}) => ({ ...p, active: true, deletedAt: null, ...extra });
+  const vistos = leerPreciosVistos(["p_vacio||12500", "p_crema|9000|", "p_pausa|700|", "p_borr|800|", "p_sinp||1000", "p_ajeno|5|"]);
+  const filas = [
+    fila(vacio),
+    fila(crema),
+    fila({ id: "p_pausa", name: "Pausado", saleUnit: "UNIT" as const, price: 700, pricePerKg: null }, { active: false }),
+    fila({ id: "p_borr", name: "Borrado", saleUnit: "UNIT" as const, price: 800, pricePerKg: null }, { deletedAt: new Date(0) }),
+    // Por kilo sin precio por kilo (el de unidad no cuenta).
+    fila({ id: "p_sinp", name: "Sin precio", saleUnit: "WEIGHT" as const, price: 1000, pricePerKg: null }),
+  ];
+  const no = queYaNoSeVenden(vistos, filas);
+  assert.deepEqual(no, [
+    { id: "p_pausa", nombre: "Pausado" },
+    { id: "p_borr", nombre: "Borrado" },
+    { id: "p_sinp", nombre: "Sin precio" },
+  ]);
+  assert.deepEqual(vendibles(filas).map((f) => f.id), ["p_vacio", "p_crema"]);
+  // Con los vendibles, el control de precio no dice «Bajó a $0» por el que se quedó sin precio.
+  assert.deepEqual(cambiosContraLoVisto(vistos, vendibles(filas)), []);
+  assert.match(avisoDeQueYaNoSeVende(no), /^Pausado · Borrado · Sin precio: ya no se vende/);
+  assert.match(avisoDeQueYaNoSeVende(no), /no se cobró nada/);
+});
+
+test("la pantalla saca los renglones que ya no se venden; si no queda ninguno, deja uno vacío", () => {
+  const ls = [
+    { key: 1, productId: "p_a", qtyText: "1" },
+    { key: 2, productId: "p_b", qtyText: "2" },
+    { key: 3, productId: "p_a", qtyText: "3" },
+  ];
+  assert.deepEqual(sinLosQueNoSeVenden(ls, new Set(["p_a"]), 9), { lineas: [ls[1]], usoKeyVacia: false });
+  assert.deepEqual(sinLosQueNoSeVenden(ls, new Set(["p_a", "p_b"]), 9), {
+    lineas: [{ key: 9, productId: "", qtyText: "", etiqueta: undefined }],
+    usoKeyVacia: true,
+  });
+  assert.deepEqual(sinLosQueNoSeVenden(ls, new Set(["p_x"]), 9).lineas, ls);
 });
