@@ -165,7 +165,7 @@ Repetir 10.1a–10.1e a 1440 px: mismo resultado.
 |---|---|---|
 | 10.2a | El pedido de 10.1g → **Armar** → escribir lo que pesó → **Listo y avisar** | Pasa a Listos. |
 | 10.2b | Pedidos → Listos → **Entregar y cobrar** del pedido → **Queda a cobrar: entregar sin cobrar** | Aviso: «Pedido #N entregado sin cobrar, pero NO quedó en la cuenta del cliente: el negocio no tiene abierta «Fiado y cuentas de clientes» (falta prender «Trabaja por apps»)…». Nunca en silencio. |
-| 10.2c | Pedidos → A cobrar | El pedido está ahí con «Cobrar $…»: se cobra desde la bandeja. (El texto de arriba de la columna todavía manda a «Fiado y cuentas», que con este interruptor apagado no abre: ver el resultado.) |
+| 10.2c | Pedidos → A cobrar | El pedido está ahí con «Cobrar $…»: se cobra desde la bandeja. Con este interruptor apagado, arriba de la columna NO aparece el enlace a «Fiado y cuentas» (no abriría). |
 
 ### 10.3 Rendición del reparto con dos puestos (Mostrador en el celular, Dueño en la PC)
 
@@ -193,11 +193,11 @@ misma ficha (en un pedido ya cobrado, «Seguir armando» no deja pesar: se usa l
 
 - 10.1, 10.2 y 10.3: **OK** a 390 y 1440 px. En la base, el cobro mixto dejó una fila por medio y una sola vez; el
   «ya pagó» apretado en los dos puestos dejó dos marcas de rendición, pero el resumen lo cuenta una vez (deduplica por pedido).
-- 10.4 con el diseño de siempre (`diseno-nuevo` apagado): **FALLA.** Se ve el motivo, pero no «al cargarla» ni la
-  aclaración: la ficha clásica (`inventario/movimientos/page.tsx:164`) no tiene el cambio, que está sólo en
-  `MovimientosRenglon.tsx:190-191`. Si MAGRA se publica sin el diseño nuevo, 10.4b no se cumple.
-- Observación de 10.2c: con `inicio-por-apps` apagado, la columna A cobrar dice «va a su cuenta: Fiado y cuentas» con un
-  enlace que termina en «no está disponible» (`pedidos/TableroPedidos.tsx:633-636`).
+- 10.4 con el diseño de siempre: en la prueba la ficha clásica no tenía la aclaración. **Corregido el mismo día**
+  (`inventario/movimientos/page.tsx`): ahora dice «al cargarla» y «Las ventas del cuaderno descuentan al cargar.» con
+  o sin el diseño nuevo. En la UAT real, 10.4b se cumple en los dos diseños.
+- 10.2c: el enlace a «Fiado y cuentas» que terminaba en «no está disponible» con `inicio-por-apps` apagado ya no se
+  muestra en ese caso (`pedidos/page.tsx`, `fiadoAbreEnLaBandeja` en `lib/clientes/fiado.server.ts`).
 
 ## Resultado
 
