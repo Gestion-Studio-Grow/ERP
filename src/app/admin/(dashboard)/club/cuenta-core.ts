@@ -80,7 +80,7 @@ import {
 } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, Cliente, Cuenta, EstadoClub, EstadoReserva, Medio, Reserva, Resultado } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
-import { bajarFijos } from "./canchas-core";
+import { bajarFijos, fijoQuePisaAlNuevo } from "./canchas-core";
 
 /** «Sábado» → «sábados» (lunes a viernes ya terminan en s): «todos los sábados 17:30». */
 const enPlural = (dia: string) => (dia.toLowerCase().endsWith("s") ? dia.toLowerCase() : `${dia.toLowerCase()}s`);
@@ -588,6 +588,9 @@ export function ejecutar(estado: EstadoClub, reservaId: string, accion: AccionCu
       if (!r || r.tipo !== "turno" || r.fijoId) return { ok: false, mensaje: "Ese turno no se puede hacer fijo." };
       // Los fijos se bajan desde hoy por una semana: más lejos aparecería uno antes de la fecha elegida (Gate).
       if (r.fecha > sumarDias(ahora.fecha, 6)) return { ok: false, mensaje: "Hacelo fijo desde la agenda de esa semana." };
+      // El guardián de todo fijo nuevo (canchas-core.ts): no puede pisar al fijo de otro, aunque esté en pausa.
+      const pisa = fijoQuePisaAlNuevo(estado, { canchaId: r.canchaId, desde: r.fecha, inicio: r.inicio, duracion: r.duracion });
+      if (pisa) return { ok: false, mensaje: pisa };
       const f = crearFijo(estado, { clienteId: r.clienteId ?? null, canchaId: r.canchaId, dia: diaSemana(r.fecha), inicio: r.inicio, duracion: r.duracion, titular: r.titular });
       r.tipo = "fijo";
       r.fijoId = f.id;

@@ -113,6 +113,11 @@ const FUNCIONES_REING_BP_2B = [
   "prefijoActualIds", "fijarSecuencia", "plataPendiente", "pagosPorVencer", "claveDeAlerta", "posponerAlerta", "cerrarAlAprobar",
   "mensajeDeLaFalta", "materializarFijosHasta", "cerrarYAbrirLaSiguiente", "vencerSenas",
 ] as const satisfies readonly Funciones[];
+/** Reingeniería Break Point · tanda 3C (dueño del motor): fijos con baja/pausa, y lo que consumen 3A, 3B y 3D. */
+const FUNCIONES_REING_BP_3C = [
+  "fijoJuegaEl", "fijoBajadoEl", "darDeBajaFijo", "autorizarNovedad", "reglaDelDia", "reglaFinde", "esFeriado", "esFechaReal", "validarReglaFinde", "ajustarFinde",
+  "validarFeriados", "ajustarFeriados", "ajustarHorarioDelDia", "rubroDeMovimiento", "categoriaDeEgreso", "desglosePorDia",
+] as const satisfies readonly Funciones[];
 type FuncionesListadas =
   | (typeof FUNCIONES)[number]
   | (typeof FUNCIONES_OLA1_CUENTA_Y_BUFFET)[number]
@@ -125,12 +130,14 @@ type FuncionesListadas =
   | (typeof FUNCIONES_TOPE_PIN)[number]
   | (typeof FUNCIONES_PIN_CON_HASH)[number]
   | (typeof FUNCIONES_REING_BP_1A)[number]
-  | (typeof FUNCIONES_REING_BP_2B)[number];
+  | (typeof FUNCIONES_REING_BP_2B)[number]
+  | (typeof FUNCIONES_REING_BP_3C)[number];
 const CONSTANTES = [
   "VERSION_ESTADO", "MEDIOS", "ESTADOS", "TIPOS", "ROLES", "PERMISOS", "NOMBRE_DIA",
   "CONFIG_DEMO", "CANCHAS_DEMO", "USUARIOS_DEMO", "USUARIOS_REALES", "PRODUCTOS_DEMO", "PROVEEDORES_DEMO", "DIAS_SIN_ARCHIVAR", "LIMITES_POLITICA", "LIMITES_BLOQUEO",
   "TIPOS_NOVEDAD", "AUDIENCIAS", "CANALES", "ESTADOS_CONTENIDO", "LARGO_PIN", "LARGO_PIN_VIEJO", "MOTIVO_PIN_VIEJO",
   "TOPE_INTENTOS_PIN", "ESPERAS_PIN_S", "VUELTAS_PIN", "DIAS_ADELANTE_MAX", "ALERTAS_POSPONIBLES",
+  "PAUSA_FIJO_MAX_DIAS", "MOTIVO_PAUSA_FIJO", "FERIADOS_MAX", "RUBROS_CAJA", "CATEGORIAS_EGRESO",
 ] as const satisfies readonly Exclude<keyof Motor, Funciones>[];
 
 // Comprobación de tipos en los dos sentidos: ninguna función ni constante tipada queda afuera de las listas.
@@ -159,7 +166,7 @@ const REQ_CLIENTE: readonly Requeridas<Cliente>[] = ["id", "nombre", "tel", "niv
 
 test("contrato de motor.d.mts: cada export tipado existe en la copia con su clase (función o constante)", () => {
   const motor = M as unknown as Record<string, unknown>;
-  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES, ...FUNCIONES_PIN_POR_ROL, ...FUNCIONES_TOPE_PIN, ...FUNCIONES_PIN_CON_HASH, ...FUNCIONES_REING_BP_1A, ...FUNCIONES_REING_BP_2B]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
+  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES, ...FUNCIONES_PIN_POR_ROL, ...FUNCIONES_TOPE_PIN, ...FUNCIONES_PIN_CON_HASH, ...FUNCIONES_REING_BP_1A, ...FUNCIONES_REING_BP_2B, ...FUNCIONES_REING_BP_3C]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
   for (const n of CONSTANTES) {
     assert.ok(n in motor, `${n} no está exportada`);
     assert.notEqual(typeof motor[n], "function", `${n} es una función: va en FUNCIONES`);
@@ -808,4 +815,225 @@ test("2D · «cerrar la de X y abrir la siguiente» en un paso: cobra a X por ju
   const s2 = ok(M.crearReserva(e2, { canchaId: "c4", fecha: HOY, inicio: 19 * 60 + 30, clienteId: "b", conSena: false }, ahora(9))).reserva;
   ok(M.cerrarYAbrirLaSiguiente(e2, { cerrarId: d.id, abrirId: s2.id, aCuenta: true }, ahora(19, 30)));
   assert.deepEqual([d.estado, d.aCuentaCorriente, M.cliente(e2, "d")!.deuda, s2.estado], ["finalizada", 42000, 42000, "en_cancha"]);
+});
+
+// ───────────── Tanda 3C (dueño del motor): fijos con baja y pausa; lo que consumen 3A, 3B y 3D ─────────────
+
+/** Un fijo de los martes 20:00 en la C1 a nombre de Beto, con la ventana de +14 bajada desde `hoy`. */
+function conFijoDeLosMartes(hoy: string) {
+  const e = club();
+  const f = M.crearFijo(e, { clienteId: "b", canchaId: "c1", dia: 2, inicio: 20 * 60, duracion: 90 });
+  M.materializarFijosHasta(e, hoy);
+  return { e, f };
+}
+const delFijo = (e: EstadoClub, fijoId: string, estado = "reservada") => e.reservas.filter((r) => r.fijoId === fijoId && r.estado === estado).map((r) => r.fecha).sort();
+
+test("BP-101: pausar hasta el 31/01 → no se bajan turnos de enero (los que estaban se liberan) y desde el 1/02 vuelven solos", () => {
+  const hoy = "2026-01-05"; // lunes
+  const { e, f } = conFijoDeLosMartes(hoy);
+  assert.deepEqual(delFijo(e, f.id), ["2026-01-06", "2026-01-13"], "dos martes en la grilla (+14)");
+  const d = ok(M.darDeBajaFijo(e, f.id, { desde: hoy, pausaHasta: "2026-01-31" }, { fecha: hoy, min: 10 * 60 }));
+  assert.equal(d.modo, "pausa");
+  assert.deepEqual(d.turnos.map((t) => t.fecha), ["2026-01-06", "2026-01-13"]);
+  assert.deepEqual(delFijo(e, f.id), [], "en enero no queda ninguno");
+  assert.ok(e.fijos.some((x) => x.id === f.id), "el fijo sigue en la lista");
+  // Pasan los días: la agenda baja la ventana desde el 20/01 y desde el 27/01.
+  M.materializarFijosHasta(e, "2026-01-20");
+  assert.deepEqual(delFijo(e, f.id), ["2026-02-03"], "el 27/01 no; el 3/02 sí");
+  M.materializarFijosHasta(e, "2026-01-27");
+  assert.deepEqual(delFijo(e, f.id), ["2026-02-03", "2026-02-10"], "y siguen solos");
+  assert.equal(M.fijoJuegaEl(e.fijos[0], "2026-01-27"), false);
+  assert.equal(M.fijoJuegaEl(e.fijos[0], "2026-02-03"), true);
+});
+
+test("darDeBajaFijo: desde una fecha futura deja `hasta` y sigue jugando antes; desde hoy sale de la lista; la previa sobre copia cuenta turnos y plata", () => {
+  const { e, f } = conFijoDeLosMartes(HOY); // martes 20/10 y 27/10
+  const [primero, segundo] = e.reservas.filter((r) => r.fijoId === f.id).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  M.registrarPago(e, segundo.id, { medio: "efectivo", monto: 21000 }, ahora(10));
+  // Previa: sobre una copia, el estado no cambia.
+  const copia = structuredClone(e);
+  const previa = ok(M.darDeBajaFijo(copia, f.id, { desde: segundo.fecha, auth: DUENO }, ahora(11)));
+  assert.deepEqual([previa.turnos.length, previa.devuelto, previa.quitado], [1, 21000, false]);
+  assert.equal(M.reserva(e, segundo.id)!.estado, "reservada", "la previa no tocó nada");
+  // Confirmada con el dueño: lo pagado vuelve como crédito a Beto, el primero sigue, el fijo termina el día anterior.
+  const monedero = M.cliente(e, "b")!.monedero;
+  const d = ok(M.darDeBajaFijo(e, f.id, { desde: segundo.fecha, auth: DUENO }, ahora(11)));
+  assert.equal(d.porClub, true);
+  assert.equal(M.cliente(e, "b")!.monedero, monedero + 21000);
+  assert.equal(M.reserva(e, primero.id)!.estado, "reservada");
+  assert.equal(e.fijos.find((x) => x.id === f.id)!.hasta, M.sumarDias(segundo.fecha, -1));
+  M.materializarFijosHasta(e, HOY, 30);
+  assert.deepEqual(delFijo(e, f.id), [primero.fecha], "después del `hasta` no se baja nada más");
+  // Desde hoy: sale de la lista; re-aplicado (otro puesto), dice que no y no toca plata.
+  ok(M.darDeBajaFijo(e, f.id, { desde: HOY }, ahora(12)));
+  assert.ok(!e.fijos.some((x) => x.id === f.id));
+  const antes = JSON.stringify(e);
+  assert.equal(M.darDeBajaFijo(e, f.id, { desde: HOY }, ahora(12)).ok, false);
+  assert.equal(JSON.stringify(e), antes);
+  // Validaciones.
+  const { e: e2, f: f2 } = conFijoDeLosMartes(HOY);
+  assert.equal(M.darDeBajaFijo(e2, f2.id, { desde: DIA(-1) }, ahora(12)).ok, false, "desde un día que pasó, no");
+  assert.equal(M.darDeBajaFijo(e2, f2.id, { desde: DIA(1), pausaHasta: HOY }, ahora(12)).ok, false, "pausa al revés, no");
+  assert.equal(M.darDeBajaFijo(e2, f2.id, { desde: "2026-02-31" }, ahora(12)).ok, false, "fecha que no existe, no");
+});
+
+test("darDeBajaFijo con recepción: la regla de siempre (tarde → seña en suspenso, nunca más que con el dueño); un turno que ya empezó no se toca", () => {
+  const martes = "2026-10-20";
+  const { e, f } = conFijoDeLosMartes(HOY);
+  const r = e.reservas.find((x) => x.fijoId === f.id && x.fecha === martes)!;
+  M.registrarPago(e, r.id, { medio: "efectivo", monto: 10000 }, ahora(10));
+  const tarde: Ahora = { fecha: martes, min: 19 * 60 };
+  const d = ok(M.darDeBajaFijo(structuredClone(e), f.id, { desde: martes, auth: RECEP }, tarde));
+  assert.deepEqual([d.porClub, d.enSuspenso, d.retenido, d.devuelto], [false, 1, 10000, 0]);
+  const enJuego: Ahora = { fecha: martes, min: 20 * 60 + 10 };
+  const d2 = ok(M.darDeBajaFijo(structuredClone(e), f.id, { desde: martes, auth: DUENO }, enJuego));
+  assert.ok(!d2.turnos.some((t) => t.fecha === martes), "el de hoy ya empezó: no se cancela");
+});
+
+test("BP-104: libero el martes de dentro de 3 semanas: esa fecha no se baja y las demás sí", () => {
+  const { e, f } = conFijoDeLosMartes(HOY);
+  const en3 = "2026-11-10";
+  ok(M.liberarFijo(e, f.id, en3, ahora(10)));
+  M.materializarFijosHasta(e, "2026-11-01", 21);
+  assert.deepEqual(delFijo(e, f.id), ["2026-10-20", "2026-10-27", "2026-11-03", "2026-11-17"]);
+});
+
+test("fijo desde el alta: con `desde`, no se baja antes de su primera fecha", () => {
+  const e = club();
+  const f = M.crearFijo(e, { clienteId: "a", canchaId: "c2", dia: 4, inicio: 20 * 60, desde: "2026-10-22" });
+  M.materializarFijosHasta(e, HOY, 22);
+  assert.deepEqual(delFijo(e, f.id), ["2026-10-22", "2026-10-29", "2026-11-05"]);
+  assert.equal(M.fijoJuegaEl(f, "2026-10-15"), false);
+  // Sin `desde`, la forma de siempre (sin la clave).
+  assert.ok(!("desde" in M.crearFijo(e, { clienteId: "a", canchaId: "c3", dia: 4, inicio: 20 * 60 })));
+});
+
+test("3A · autorizarNovedad: la aprobación del celular entra sin código; idempotente; el rechazo deja la cuenta abierta; sólo un dueño", () => {
+  const e = club();
+  const r = mesa4(e);
+  M.consumoJugador(e, r.id, 0, "k-pica", 1, {}, ahora(20, 10));
+  const cta = M.cuentaDeJugador(e, r, 0)!;
+  const debe = M.saldoCuenta(cta);
+  const { novedad: n } = ok(M.solicitarCredito(e, { clienteId: "a", tipo: "fiado", monto: debe, cuentaId: cta.id }, RECEP, ahora(21)));
+  ok(M.cerrarAlAprobar(e, n.id, RECEP, ahora(21, 1)));
+  assert.equal(M.autorizarNovedad(e, n.id, { aprobo: "u-lu", decision: "aprobado", monto: debe }, ahora(21, 5)).ok, false, "recepción no aprueba");
+  assert.equal(M.autorizarNovedad(e, n.id, { aprobo: "Rober", decision: "talvez" as "aprobado" }, ahora(21, 5)).ok, false);
+  const caja = cajaIngresos(e);
+  const a = ok(M.autorizarNovedad(e, n.id, { aprobo: "Rober", decision: "aprobado", monto: debe }, ahora(21, 5)));
+  assert.deepEqual([a.yaEstaba, a.aprobo, a.monto], [false, "Rober", debe]);
+  assert.equal(M.cuenta(e, cta.id)!.estado, "cerrada", "se fue: se cerró sola a su cuenta corriente");
+  assert.equal(M.cliente(e, "a")!.deuda, debe);
+  assert.equal(cajaIngresos(e), caja, "lo fiado no entra a la caja");
+  assert.equal(e.novedades[0].desdeElCelular, true);
+  // El latido de otro puesto la vuelve a aplicar: no hace nada.
+  const foto = JSON.stringify(e);
+  assert.equal(ok(M.autorizarNovedad(e, n.id, { aprobo: "u-rober", decision: "aprobado", monto: debe }, ahora(21, 6))).yaEstaba, true);
+  assert.equal(JSON.stringify(e), foto, "byte a byte");
+  assert.equal(M.autorizarNovedad(e, n.id, { aprobo: "Rober", decision: "rechazado" }, ahora(21, 7)).ok, false, "otra decisión sobre un pedido resuelto, no");
+  // Rechazo: la cuenta sigue abierta.
+  const e2 = club();
+  const r2 = mesa4(e2);
+  M.consumoJugador(e2, r2.id, 0, "k-pica", 1, {}, ahora(20, 10));
+  const c2 = M.cuentaDeJugador(e2, r2, 0)!;
+  const { novedad: n2 } = ok(M.solicitarCredito(e2, { clienteId: "a", tipo: "fiado", monto: M.saldoCuenta(c2), cuentaId: c2.id }, RECEP, ahora(21)));
+  ok(M.autorizarNovedad(e2, n2.id, { aprobo: "Majo", decision: "rechazado" }, ahora(21, 5)));
+  assert.deepEqual([e2.novedades[0].estado, e2.novedades[0].resolvio, M.cuenta(e2, c2.id)!.estado], ["rechazada", "Majo", "abierta"]);
+});
+
+test("3D · fin de semana: de fábrica todo pico; «como la semana»; «valle hasta las 14»; una regla por día; feriado siempre pico", () => {
+  const e = club();
+  const sab = "2026-10-17", dom = "2026-10-18", mar = "2026-10-20";
+  const p = (fecha: string, hh: number, dur = 60) => M.precioTurno(e, { fecha, inicio: hh * 60, duracion: dur, canchaId: "c1" });
+  assert.equal(p(sab, 10), 28000, "de fábrica: todo pico");
+  assert.equal(M.validarReglaFinde("nada").ok, false);
+  assert.equal(M.validarReglaFinde({ valleHasta: 14 * 60 + 15 }).ok, false, "cada 30 min");
+  assert.equal(M.ajustarFinde(e, "semana", RECEP, ahora(9)).ok, false, "lo cambia un dueño");
+  ok(M.ajustarFinde(e, "semana", DUENO, ahora(9)));
+  assert.equal(p(sab, 10), 20000);
+  assert.equal(M.franjaDe(e, sab, 10 * 60), "valle");
+  ok(M.ajustarFinde(e, { valleHasta: 14 * 60 }, DUENO, ahora(9)));
+  assert.equal(p(sab, 13, 120), 48000, "13 a 14 valle ($ 20.000), 14 a 15 pico ($ 28.000)");
+  ok(M.ajustarFinde(e, { sabado: "semana", domingo: "pico" }, DUENO, ahora(9)));
+  assert.deepEqual([p(sab, 10), p(dom, 10), M.reglaDelDia(e, mar)], [20000, 28000, "semana"]);
+  // Feriado (3D): «20/11 feriado → pico a las 10».
+  assert.equal(p("2026-11-20", 10), 20000, "viernes común: valle a las 10");
+  const v = M.validarFeriados(["2026-11-20", "2026-12-08", "2026-11-20", "2026-13-01"]);
+  assert.equal(v.ok, false);
+  assert.match(v.motivo!, /2026-13-01/, "nombra la que no sirve");
+  assert.equal(M.ajustarFeriados(e, ["2026-11-20", "2026-13-01"], DUENO, ahora(9)).ok, false, "con una mala no guarda nada");
+  assert.deepEqual(ok(M.ajustarFeriados(e, ["2026-12-08", "2026-11-20", "2026-11-20"], DUENO, ahora(9))).feriados, ["2026-11-20", "2026-12-08"]);
+  assert.equal(p("2026-11-20", 10), 28000, "feriado: pico a las 10");
+  assert.equal(M.esFeriado(e, "2026-11-20"), true);
+  // Lo ya reservado conserva su precio.
+  const r = ok(M.crearReserva(e, { canchaId: "c2", fecha: "2026-11-27", inicio: 10 * 60, duracion: 60, clienteId: "a", conSena: false }, ahora(9))).reserva;
+  ok(M.ajustarFeriados(e, ["2026-11-27"], DUENO, ahora(9)));
+  assert.equal(M.reserva(e, r.id)!.precio, 20000);
+});
+
+test("3D · «sólo este día cierra 20:00» no toca los otros viernes; avisa lo que queda afuera; null lo vuelve; hidratar lo conserva sano", () => {
+  const e = club();
+  const vie = "2026-10-23", otroVie = "2026-10-30";
+  const r = ok(M.crearReserva(e, { canchaId: "c1", fecha: vie, inicio: 21 * 60, clienteId: "a", conSena: false }, ahora(9))).reserva;
+  assert.equal(M.ajustarHorarioDelDia(e, vie, { abre: 8 * 60, cierra: 20 * 60 }, RECEP, ahora(9)).ok, false);
+  assert.equal(M.ajustarHorarioDelDia(e, vie, { abre: 20 * 60, cierra: 8 * 60 }, DUENO, ahora(9)).ok, false);
+  const d = ok(M.ajustarHorarioDelDia(e, vie, { abre: 8 * 60, cierra: 20 * 60 }, DUENO, ahora(9)));
+  assert.deepEqual(d.afuera.map((x) => x.id), [r.id]);
+  assert.deepEqual(M.horarioDe(e, vie), { abre: 8 * 60, cierra: 20 * 60 });
+  assert.deepEqual(M.horarioDe(e, otroVie), e.config.horarios[5], "los otros viernes, igual");
+  assert.equal(M.validarHueco(e, { canchaId: "c2", fecha: vie, inicio: 20 * 60, duracion: 60 }).ok, false);
+  assert.equal(M.validarHueco(e, { canchaId: "c2", fecha: otroVie, inicio: 20 * 60, duracion: 60 }).ok, true);
+  const foto = JSON.parse(JSON.stringify(M.serializarEstado(e)));
+  foto.estado.config.horarioExcepciones["2026-02-31"] = { abre: 1, cierra: 2 };
+  foto.estado.config.feriados = ["2026-11-20", "x"];
+  foto.estado.config.finde = { valleHasta: "mediodía" };
+  const h = M.hidratarEstado(foto);
+  assert.ok(h.ok);
+  if (!h.ok) return;
+  assert.deepEqual(Object.keys(h.estado.config.horarioExcepciones!), [vie]);
+  assert.deepEqual(h.estado.config.feriados, ["2026-11-20"]);
+  assert.ok(!("finde" in h.estado.config), "la regla que no se entiende se va (queda todo pico)");
+  ok(M.ajustarHorarioDelDia(e, vie, null, DUENO, ahora(9)));
+  assert.ok(!("horarioExcepciones" in e.config));
+});
+
+test("3B · el archivo deja por día lo que entró por medio × rubro y lo que salió por categoría, y cuadra con los totales", () => {
+  const e = club();
+  const a8 = ahora(13);
+  const r = mesa4(e, 14);
+  M.registrarPago(e, r.id, { medio: "mercadopago", monto: 10000 }, a8);
+  M.registrarPago(e, r.id, { medio: "efectivo", monto: 5000 }, a8);
+  M.consumoJugador(e, r.id, 0, "k-pica", 1, { modo: "cobrar", medio: "efectivo" }, a8);
+  ok(M.egresoCaja(e, { monto: 3000, concepto: "Hielo", ...RECEP }, a8));
+  const d = M.desglosePorDia(e)[HOY];
+  const ingresos = e.caja.movimientos.filter((m) => m.tipo === "ingreso").reduce((s, m) => s + m.monto, 0);
+  const suma = Object.values(d.porMedioRubro).flatMap((x) => Object.values(x ?? {})).reduce((s, n) => s + (n ?? 0), 0);
+  assert.equal(suma, ingresos, "Σ medio × rubro = ingresos de caja");
+  assert.equal(d.porMedioRubro.mercadopago?.canchas, 10000);
+  assert.ok((d.porMedioRubro.efectivo?.buffet ?? 0) > 0);
+  assert.deepEqual(d.egresosPorCategoria, { gastos: 3000 });
+  assert.equal(M.rubroDeMovimiento({ concepto: "Seña Ana" }), "senas");
+  assert.equal(M.rubroDeMovimiento({ concepto: "Buffet Tienda T-AB12 · Ana" }), "tienda");
+  assert.equal(M.categoriaDeEgreso({ concepto: "Pago a Coca" }), "proveedores");
+  assert.equal(M.categoriaDeEgreso({ concepto: "Hielo", categoria: "bar" }), "bar", "la categoría del movimiento (4B) manda");
+  // Archivado: el resumen del día (en el estado y en el paquete) lleva el desglose.
+  ok(M.cerrarCaja(e, { contado: 0, usuarioId: "u-rober", pin: "1111", dia: M.diaDeCaja(e, HOY, 13 * 60) }, ahora(23)));
+  const res = M.archivarDiasCerrados(e, M.diaDeCaja(e, HOY, 13 * 60));
+  assert.ok(res.ok && !res.vacio);
+  if (!res.ok) return;
+  const fila = res.estado.archivo!.dias[0];
+  assert.equal(Object.values(fila.porMedioRubro ?? {}).flatMap((x) => Object.values(x ?? {})).reduce((s, n) => s + (n ?? 0), 0), fila.ingresosCaja);
+  assert.equal(Object.values(fila.egresosPorCategoria ?? {}).reduce((s, n) => s + n, 0), fila.egresosCaja);
+  const paquete = M.paqueteParaArchivar(M.serializarEstado(e) as unknown as M.FotoEstado, res);
+  assert.deepEqual(paquete.anexo.resumen[0].porMedioRubro, fila.porMedioRubro);
+  // Sobrevive al respaldo; un día de antes (sin desglose) sigue sin desglose.
+  const foto = JSON.parse(JSON.stringify(M.serializarEstado(res.estado)));
+  const viejo = { ...foto.estado.archivo.dias[0], dia: "2026-09-01" };
+  delete viejo.porMedioRubro;
+  delete viejo.egresosPorCategoria;
+  foto.estado.archivo.dias.unshift(viejo);
+  const h = M.hidratarEstado(foto);
+  assert.ok(h.ok);
+  if (!h.ok) return;
+  assert.ok(!("porMedioRubro" in h.estado.archivo!.dias[0]));
+  assert.deepEqual(h.estado.archivo!.dias[1].porMedioRubro, fila.porMedioRubro);
 });

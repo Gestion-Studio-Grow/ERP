@@ -4,9 +4,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
+import type { Fijo } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, Reserva } from "@/lib/club/motor.mjs";
 import { readFileSync } from "node:fs";
 import { operadorDeLaDemo } from "./almacen";
+import { ejecutarBajaFijo, otroFijoQuePisa } from "./canchas-core";
 import { aprobarConCodigo, codigoDeLaDemo, pedidosPendientes, pedirFiado } from "./credito-core";
 import { armarCuenta, canchaOcupada, confirmarCreditos, DESHACIBLE, EN_EL_VANILLA, ejecutar, fichasParaSumar, partirConCreditos, revisarConfirmacion, textoCierre, type VistaCuenta } from "./cuenta-core";
 
@@ -869,3 +871,54 @@ test("BP-006: «Cobrar la seña y abrir» con transferencia — en cancha, luz p
   // Con créditos no va por acá (se cobra la seña sola, con su paso previo).
   assert.equal(ejecutar(demo(), r.id, { tipo: "cobrarSenaYAbrir", medio: "monedero" as never }, A_LAS_2055).ok, false);
 });
+
+// ── Dictamen v5 (BP-101): idempotencia de la pausa, un solo guardián del fijo nuevo, baja que devuelve lo liberado ──
+{
+  const HOY = "2026-10-17";
+  const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
+  const k = 3;
+  const d = (i: number) => M.sumarDias(HOY, k + 7 * i);
+  function base(semanas = 14) {
+    const e = M.generarDemo(HOY, AHORA.min) as EstadoClub;
+    const dia = M.diaSemana(d(0));
+    const canchaId = e.canchas.find((c) => Array.from({ length: semanas }, (_, i) => i).every((i) => M.validarHueco(e, { canchaId: c.id, fecha: d(i), inicio: 22 * 60, duracion: 60 }).ok))!.id;
+    const f = M.crearFijo(e, { clienteId: null, canchaId, dia, inicio: 22 * 60, duracion: 60, titular: "Juan Fijo", desde: HOY });
+    M.materializarFijosHasta(e, HOY, 14);
+    return { e, f, canchaId, dia };
+  }
+  /** Estado heredado (fijo de Pedro dentro de la pausa de Juan) como lo deja la UI vieja o una réplica. Por defecto
+   * Pedro juega sólo d(4) y d(5) (choque acotado: Juan vuelve el d(6)); `{}` = Pedro permanente. */
+  function conPedro(desde = d(4), extra: Partial<Fijo> = { hasta: d(5) } as Partial<Fijo>) {
+    const b = base();
+    ejecutarBajaFijo(b.e, { tipo: "pausa", fijoId: b.f.id, desde: HOY, hasta: d(10) }, AHORA);
+    const P = M.crearFijo(b.e, { clienteId: null, canchaId: b.canchaId, dia: b.dia, inicio: 22 * 60, duracion: 60, titular: "Pedro Nuevo", desde });
+    Object.assign(P, extra);
+    return { ...b, P, acortar: { tipo: "pausa" as const, fijoId: b.f.id, desde: HOY, hasta: M.sumarDias(d(4), -1) } };
+  }
+  /** Pares de fijos permanentes que juegan la misma fecha en el mismo hueco (próximas 80 semanas). */
+  function solapes(e: EstadoClub, f: Fijo) {
+    const out: string[] = [];
+    for (let i = 0; i < 80; i++) {
+      const fecha = M.sumarDias(HOY, k + 7 * i);
+      if (!M.fijoJuegaEl(f, fecha)) continue;
+      const o = otroFijoQuePisa({ ...e, reservas: [] } as EstadoClub, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion }, f.id);
+      if (o) out.push(`${fecha}:${o.titular}`);
+    }
+    return out;
+  }
+
+  const GUARDIAN = /^Ese horario ya es del fijo de Juan Fijo \(martes 22:00; lo juega el .*\)\. Elegí otro día, hora o cancha\./;
+
+  test("v5-10 «Hacer fijo» un turno suelto en el hueco de Juan pausado: el guardián lo frena", () => {
+    const { e, f, canchaId } = base();
+    ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: d(10) }, AHORA);
+    const t = M.crearReserva(e, { canchaId, fecha: d(0), inicio: 22 * 60, duracion: 60, tipo: "turno", titular: "Pedro Suelto" }, AHORA);
+    assert.equal(t.ok, true);
+    const antes = JSON.stringify(e);
+    const r = ejecutar(e, (t as { reserva: { id: string } }).reserva.id, { tipo: "hacerFijo" }, AHORA);
+    assert.equal(r.ok, false);
+    assert.match(r.mensaje, GUARDIAN);
+    assert.equal(JSON.stringify(e), antes);
+    assert.equal(e.fijos.some((x) => x.titular === "Pedro Suelto"), false);
+  });
+}

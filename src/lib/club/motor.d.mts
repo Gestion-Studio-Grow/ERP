@@ -91,7 +91,12 @@ export interface ConfigClub {
   duracionTurno: number;
   /** Ventana de reserva en días desde hoy (de fábrica 14; entre 1 y `DIAS_ADELANTE_MAX`). */
   diasAdelante: number;
+  /** Todo pico ese día (3D). Fechas reales, sin repetidos, ordenadas (`validarFeriados`). */
   feriados: Fecha[];
+  /** Cómo se cobra el fin de semana (3D). Sin él, todo pico (como siempre). */
+  finde?: ReglaFinde | { sabado: ReglaFinde; domingo: ReglaFinde };
+  /** «Sólo este día» (3D): el horario de UNA fecha, que manda sobre el de su día de la semana (`horarioDe`). */
+  horarioExcepciones?: Record<Fecha, { abre: number; cierra: number }>;
   tarifas: Tarifa[];
   politica: Politica;
   /** Sólo en la jornada real. */
@@ -317,6 +322,8 @@ export interface Novedad extends Sello {
   cuentaCerrada?: boolean;
   /** Se aprobó pero la cuenta no se pudo cerrar sola (y por qué): sigue en «Plata pendiente». */
   noSeCerro?: string;
+  /** Lo resolvió el dueño desde su celular (`autorizarNovedad`, 3A). */
+  desdeElCelular?: true;
 }
 
 /** Alguien nuevo pidió entrar al sistema desde el mostrador; lo otorga (o rechaza) un dueño. */
@@ -350,6 +357,17 @@ export interface Fijo {
   titular: string;
   /** Fechas liberadas («esta semana no venimos»). */
   excepciones: Fecha[];
+  /**
+   * De `excepciones`, las que se liberaron solas porque chocaban con el fijo de otro al acortar una pausa
+   * (canchas-core.ts `ejecutarBajaFijo`). Si ese otro se da de baja, vuelven a este fijo. Opcional: estados viejos no la traen.
+   */
+  liberadasPor?: { fecha: Fecha; fijoId: string }[];
+  /** Primera fecha que juega (el fijo que nace en el alta de un turno de más adelante). */
+  desde?: Fecha;
+  /** Última fecha que juega (inclusive): lo deja «Dar de baja desde…» (`darDeBajaFijo`). */
+  hasta?: Fecha;
+  /** No juega de `desde` a `hasta` (inclusive); después vuelve solo (`darDeBajaFijo` con `pausaHasta`). */
+  pausa?: { desde: Fecha; hasta: Fecha };
 }
 
 /** Anotado en la lista de espera: quiere cancha ese día, entre `desde` y `hasta`. */
@@ -421,6 +439,13 @@ export interface DiaArchivado {
   movimientos: number;
   cuentas: number;
   pedidos: number;
+  /**
+   * Lo que entró a la caja ese día por medio × rubro (`rubroDeMovimiento`): Σ = `ingresosCaja`. Tanda 3 (para «Números
+   * por período»). Un día archivado ANTES de este cambio no lo trae: de ese día sólo están los totales.
+   */
+  porMedioRubro?: Partial<Record<Medio, Partial<Record<RubroCaja, number>>>>;
+  /** Lo que salió de la caja ese día por categoría (`categoriaDeEgreso`): Σ = `egresosCaja`. Igual que arriba. */
+  egresosPorCategoria?: Record<string, number>;
 }
 
 export interface ConteosArchivo {
@@ -753,8 +778,6 @@ export interface ResultadoLluvia {
 }
 /** Mueve a techada lo que se pueda; si no, corta (jugando) o suspende (antes de empezar) devolviendo lo pagado. */
 export declare function planLluvia(estado: EstadoClub, fecha: Fecha, desde: number, hasta: number, ahora: Ahora): { ok: true; resultado: ResultadoLluvia[] };
-/** No valida el hueco: lo valida quien lo llama (y `materializarFijos`, que no pisa). */
-export declare function crearFijo(estado: EstadoClub, datos: { clienteId: string | null; canchaId: string; dia: number; inicio: number; duracion?: number; titular?: string }): Fijo;
 /** «Esta semana no venimos»: libera esa fecha sin dar de baja el fijo (y cancela el turno si ya estaba en la grilla). */
 export declare function liberarFijo(estado: EstadoClub, fijoId: string, fecha: Fecha, ahora?: Ahora): Resultado;
 export declare function anotarEspera(
@@ -1528,3 +1551,112 @@ export declare function cerrarYAbrirLaSiguiente(
   cerrada: { cobradoCancha: number; porMedio: Partial<Record<Medio, number>>; cuentasAbiertas: Cuenta[] };
   abierta: { cobrado: number };
 }>;
+
+// ───────────── Tanda 3 (3C dueño del motor): fijos con baja/pausa, aprobación desde el celular, precios, archivo ─────────────
+
+/** ¿Ese fijo juega esa fecha? Su día, no liberada, dentro de `desde`…`hasta` y fuera de la `pausa`. */
+export declare function fijoJuegaEl(fijo: Fijo | null | undefined, fecha: Fecha): boolean;
+export declare const MOTIVO_PAUSA_FIJO: "Pausa del turno fijo";
+export declare function fijoBajadoEl(estado: EstadoClub, fijo: Fijo, fecha: Fecha): boolean;
+/** Lo más largo que se pausa un fijo, en días (un año). */
+export declare const PAUSA_FIJO_MAX_DIAS: number;
+/** Un turno del fijo que se liberó al darlo de baja o pausarlo, con su plata. */
+export interface TurnoDeLaBaja {
+  reservaId: string;
+  fecha: Fecha;
+  inicio: number;
+  canchaId: string;
+  /** Lo que tenía pagado. */
+  pagado: number;
+  /** Lo que volvió como crédito a su ficha. */
+  devuelto: number;
+  /** Lo que hay que devolverle en mano (sin ficha). */
+  devolverEnMano: number;
+  /** Tarde y sin dueño: la seña queda en suspenso. */
+  enSuspenso: boolean;
+}
+/**
+ * «Dar de baja» un fijo desde `desde` (sin `pausaHasta`) o pausarlo de `desde` a `pausaHasta` (vuelve solo después).
+ * Cancela sus turnos en la grilla en ese rango que no empezaron; con `auth` de un dueño, «cancela el club». La previa
+ * lo corre sobre una copia.
+ */
+export declare function darDeBajaFijo(
+  estado: EstadoClub,
+  fijoId: string,
+  datos: { desde: Fecha; pausaHasta?: Fecha | null; auth?: Auth | null },
+  ahora?: Ahora,
+): Resultado<{
+  modo: "baja" | "pausa";
+  /** La baja lo sacó de la lista (no le quedaba ninguna fecha por jugar). */
+  quitado: boolean;
+  /** Se canceló como «cancela el club» (lo firmó un dueño). */
+  porClub: boolean;
+  turnos: TurnoDeLaBaja[];
+  /** Pausa más corta que la anterior: fechas que vuelven a la grilla en el acto (BP-101 «vuelve solo»). */
+  vuelven: Fecha[];
+  /** Las que debían volver y chocan con otro turno (no pisa: avisa). */
+  chocan: { fecha: Fecha; motivo: string }[];
+  devuelto: number;
+  devolverEnMano: number;
+  /** Cuántos turnos quedaron con la seña en suspenso, y cuánta plata (`retenido`). */
+  enSuspenso: number;
+  retenido: number;
+}>;
+/** Crea el fijo; con `desde`, no juega antes de esa fecha. No valida el hueco (lo valida quien lo llama). */
+export declare function crearFijo(
+  estado: EstadoClub,
+  datos: { clienteId: string | null; canchaId: string; dia: number; inicio: number; duracion?: number; titular?: string; desde?: Fecha | null },
+): Fijo;
+
+/**
+ * La resolución del dueño que llegó desde su celular (3A): SIN código ni PIN (lo verificó el servidor). `aprobo` = id o
+ * nombre de un dueño activo. Idempotente: la misma resolución dos veces → `yaEstaba: true` sin tocar nada.
+ */
+export declare function autorizarNovedad(
+  estado: EstadoClub,
+  novedadId: string,
+  resolucion: { aprobo: string; monto?: number; decision: "aprobado" | "rechazado" },
+  ahora?: Ahora,
+): Resultado<{ yaEstaba: boolean; aprobo: string; decision: "aprobado" | "rechazado"; monto: number }>;
+
+/** Regla de un día del fin de semana: todo pico, como la semana, o valle hasta una hora (minutos). */
+export type ReglaFinde = "pico" | "semana" | { valleHasta: number };
+/** Lo que se cobra ese día: feriado → "pico"; lunes a viernes → "semana"; sábado/domingo → su regla (`config.finde`). */
+export declare function reglaDelDia(estado: EstadoClub, fecha: Fecha): ReglaFinde;
+/** La regla del sábado o del domingo (de fábrica, "pico"). */
+export declare function reglaFinde(estado: EstadoClub, cual: "sabado" | "domingo"): ReglaFinde;
+export declare function esFeriado(estado: EstadoClub, fecha: Fecha): boolean;
+/** ¿Es una fecha AAAA-MM-DD que existe? */
+export declare function esFechaReal(x: unknown): x is Fecha;
+/** Valida la regla del fin de semana (una para los dos días, o `{ sabado, domingo }`). */
+export declare function validarReglaFinde(
+  regla: unknown,
+  paso?: number,
+): { ok: true; valor: ReglaFinde | { sabado: ReglaFinde; domingo: ReglaFinde } } | { ok: false; motivo: string };
+/** El dueño elige cómo se cobra el fin de semana. Lo reservado conserva su precio. */
+export declare function ajustarFinde(estado: EstadoClub, regla: unknown, auth: Auth, ahora?: Ahora): Resultado<{ finde: ReglaFinde | { sabado: ReglaFinde; domingo: ReglaFinde } }>;
+export declare const FERIADOS_MAX: number;
+/** Valida la lista de feriados: fechas reales, sin repetidos, ordenadas; el motivo nombra la que no sirve. */
+export declare function validarFeriados(fechas: unknown): { ok: boolean; motivo?: string; feriados: Fecha[] };
+/** El dueño carga los feriados (todo pico). Lo reservado conserva su precio. */
+export declare function ajustarFeriados(estado: EstadoClub, fechas: unknown, auth: Auth, ahora?: Ahora): Resultado<{ feriados: Fecha[] }>;
+/** «Sólo este día»: el horario de UNA fecha (no toca los otros de ese día de la semana); `null` lo vuelve al de siempre. */
+export declare function ajustarHorarioDelDia(
+  estado: EstadoClub,
+  fecha: Fecha,
+  horario: { abre: number; cierra: number } | null,
+  auth: Auth,
+  ahora?: Ahora,
+): Resultado<{ afuera: Reserva[] }>;
+
+/** De dónde vino un ingreso de caja (para «Números por período»). */
+export type RubroCaja = "canchas" | "senas" | "faltas" | "buffet" | "tienda" | "cuentaCorriente" | "otros";
+export declare const RUBROS_CAJA: Readonly<Record<RubroCaja, string>>;
+export declare const CATEGORIAS_EGRESO: Readonly<Record<"proveedores" | "devoluciones" | "gastos", string>>;
+export declare function rubroDeMovimiento(m: Partial<MovimientoCaja> & { rubro?: string }): RubroCaja;
+/** La categoría del egreso: `categoria` del movimiento (4B) o la deducida (proveedores, devoluciones, gastos). */
+export declare function categoriaDeEgreso(m: Partial<MovimientoCaja> & { categoria?: string }): string;
+/** Lo vivo, día de caja por día de caja, con la misma cuenta que queda en `archivo.dias[]`. */
+export declare function desglosePorDia(
+  datos: EstadoClub | AnexoJornada,
+): Record<Fecha, { porMedioRubro: Partial<Record<Medio, Partial<Record<RubroCaja, number>>>>; egresosPorCategoria: Record<string, number> }>;
