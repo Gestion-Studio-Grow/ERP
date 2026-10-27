@@ -118,6 +118,10 @@ const FUNCIONES_REING_BP_3C = [
   "fijoJuegaEl", "fijoBajadoEl", "darDeBajaFijo", "autorizarNovedad", "reglaDelDia", "reglaFinde", "esFeriado", "esFechaReal", "validarReglaFinde", "ajustarFinde",
   "validarFeriados", "ajustarFeriados", "ajustarHorarioDelDia", "rubroDeMovimiento", "categoriaDeEgreso", "desglosePorDia",
 ] as const satisfies readonly Funciones[];
+/** Reingeniería Break Point · tanda B4: la caja por turnos (cierre a ciegas, firma D-16, retiro, egreso por categoría). */
+const FUNCIONES_REING_BP_B4 = [
+  "largoFirmaCaja", "turnoDeCajaAbierto", "turnosDelDia", "contarTurnoCaja", "cerrarTurnoCaja", "cerrarDiaCaja", "corregirMedio", "retiroCajaFuerte", "egresoPorCategoria",
+] as const satisfies readonly Funciones[];
 type FuncionesListadas =
   | (typeof FUNCIONES)[number]
   | (typeof FUNCIONES_OLA1_CUENTA_Y_BUFFET)[number]
@@ -131,13 +135,15 @@ type FuncionesListadas =
   | (typeof FUNCIONES_PIN_CON_HASH)[number]
   | (typeof FUNCIONES_REING_BP_1A)[number]
   | (typeof FUNCIONES_REING_BP_2B)[number]
-  | (typeof FUNCIONES_REING_BP_3C)[number];
+  | (typeof FUNCIONES_REING_BP_3C)[number]
+  | (typeof FUNCIONES_REING_BP_B4)[number];
 const CONSTANTES = [
   "VERSION_ESTADO", "MEDIOS", "ESTADOS", "TIPOS", "ROLES", "PERMISOS", "NOMBRE_DIA",
   "CONFIG_DEMO", "CANCHAS_DEMO", "USUARIOS_DEMO", "USUARIOS_REALES", "PRODUCTOS_DEMO", "PROVEEDORES_DEMO", "DIAS_SIN_ARCHIVAR", "LIMITES_POLITICA", "LIMITES_BLOQUEO",
   "TIPOS_NOVEDAD", "AUDIENCIAS", "CANALES", "ESTADOS_CONTENIDO", "LARGO_PIN", "LARGO_PIN_VIEJO", "MOTIVO_PIN_VIEJO",
   "TOPE_INTENTOS_PIN", "ESPERAS_PIN_S", "VUELTAS_PIN", "DIAS_ADELANTE_MAX", "ALERTAS_POSPONIBLES",
   "PAUSA_FIJO_MAX_DIAS", "MOTIVO_PAUSA_FIJO", "FERIADOS_MAX", "RUBROS_CAJA", "CATEGORIAS_EGRESO",
+  "DENOMINACIONES", "CATEGORIAS_EGRESO_CAJA", "MEDIOS_CORREGIBLES", "LARGO_PIN_FIRMA_CAJA", "EVENTO_TURNO_CERRADO",
 ] as const satisfies readonly Exclude<keyof Motor, Funciones>[];
 
 // Comprobación de tipos en los dos sentidos: ninguna función ni constante tipada queda afuera de las listas.
@@ -166,7 +172,7 @@ const REQ_CLIENTE: readonly Requeridas<Cliente>[] = ["id", "nombre", "tel", "niv
 
 test("contrato de motor.d.mts: cada export tipado existe en la copia con su clase (función o constante)", () => {
   const motor = M as unknown as Record<string, unknown>;
-  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES, ...FUNCIONES_PIN_POR_ROL, ...FUNCIONES_TOPE_PIN, ...FUNCIONES_PIN_CON_HASH, ...FUNCIONES_REING_BP_1A, ...FUNCIONES_REING_BP_2B, ...FUNCIONES_REING_BP_3C]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
+  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES, ...FUNCIONES_PIN_POR_ROL, ...FUNCIONES_TOPE_PIN, ...FUNCIONES_PIN_CON_HASH, ...FUNCIONES_REING_BP_1A, ...FUNCIONES_REING_BP_2B, ...FUNCIONES_REING_BP_3C, ...FUNCIONES_REING_BP_B4]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
   for (const n of CONSTANTES) {
     assert.ok(n in motor, `${n} no está exportada`);
     assert.notEqual(typeof motor[n], "function", `${n} es una función: va en FUNCIONES`);
@@ -1036,4 +1042,175 @@ test("3B · el archivo deja por día lo que entró por medio × rubro y lo que s
   if (!h.ok) return;
   assert.ok(!("porMedioRubro" in h.estado.archivo!.dias[0]));
   assert.deepEqual(h.estado.archivo!.dias[1].porMedioRubro, fila.porMedioRubro);
+});
+
+// ── Tanda B4: caja por turnos (cierre a ciegas, firma D-16, corregir medio, retiro, egreso por categoría, archivo) ──
+
+const CARO = { usuarioId: "u-caro" };
+const FIRMA_DUENO = { usuarioId: "u-caro", firmaId: "u-rober", pin: "1111" };
+const PICADA = 21000;
+/** Billetes que suman `monto` (de a $10.000, el resto en monedas). */
+const billetesDe = (monto: number) => ({ "10000": Math.floor(monto / 10000), monedas: monto % 10000 });
+
+test("B4-C1: el turno se cuenta a ciegas (billetes, medios), se sella, y lo esperado sale recién después", () => {
+  const e = club();
+  e.caja.fondo = 10000;
+  ok(M.ventaMostrador(e, [{ productoId: "k-pica", cant: 1 }], "efectivo", ahora(13)));
+  ok(M.ventaMostrador(e, [{ productoId: "k-pica", cant: 1 }], "mercadopago", ahora(13, 30)));
+  const abierto = M.turnoDeCajaAbierto(e, HOY);
+  assert.equal(abierto.numero, 1);
+  assert.equal(abierto.movimientos.length, 2);
+  assert.deepEqual([...abierto.medios].sort(), ["efectivo", "mercadopago"]);
+  assert.equal(abierto.esperado.efectivo, 10000 + PICADA, "fondo + efectivo");
+  // Lo que la pantalla vio cuando se contó no coincide (entró otro cobro): se vuelve a contar.
+  const cambio = M.contarTurnoCaja(e, { contado: { efectivo: 1 }, usuarioId: CARO.usuarioId, esperados: { movimientos: 1, medios: ["efectivo"] } }, ahora(14));
+  assert.equal(cambio.ok, false);
+  // Los billetes tienen que coincidir con el efectivo a mano, y una denominación que no existe no va.
+  assert.equal(M.contarTurnoCaja(e, { contado: { efectivo: 5 }, billetes: { "10000": 1 }, usuarioId: CARO.usuarioId }, ahora(14)).ok, false);
+  assert.equal(M.contarTurnoCaja(e, { contado: {}, billetes: { "3000": 1 }, usuarioId: CARO.usuarioId }, ahora(14)).ok, false);
+  const contado = 10000 + PICADA - 500;
+  const { turno } = ok(M.contarTurnoCaja(e, { contado: { mercadopago: PICADA }, billetes: billetesDe(contado), usuarioId: CARO.usuarioId, esperados: { movimientos: 2, medios: ["mercadopago", "efectivo"] } }, ahora(14)));
+  assert.equal(turno.estado, "contado");
+  assert.equal(turno.responsable, "Caro (recepción mañana)");
+  assert.deepEqual(turno.desde, { fecha: HOY, min: 720 });
+  assert.deepEqual(turno.hasta, { fecha: HOY, min: 14 * 60 });
+  assert.equal(turno.contado.efectivo, contado);
+  assert.equal(turno.diferencias.efectivo, -500);
+  assert.equal(turno.diferencias.mercadopago, 0);
+  assert.equal(turno.diferencia, -500);
+  assert.ok(e.caja.movimientos.every((m) => m.turno === turno.id), "los movimientos quedan sellados en el turno");
+  // Lo que se cobra después es del turno 2, que arranca con lo CONTADO (no se arrastra la diferencia).
+  ok(M.ventaMostrador(e, [{ productoId: "k-pica", cant: 1 }], "efectivo", ahora(15)));
+  const dos = M.turnoDeCajaAbierto(e, HOY);
+  assert.equal(dos.numero, 2);
+  assert.equal(dos.movimientos.length, 1);
+  assert.equal(dos.inicioEfectivo, contado);
+  assert.equal(dos.pendienteDeFirma?.id, turno.id);
+  assert.match(String((M.contarTurnoCaja(e, { contado: { efectivo: 0 }, usuarioId: CARO.usuarioId }, ahora(15)) as { motivo?: string }).motivo), /Falta firmar el turno 1/);
+});
+
+test("B4-C1/C4: la firma pide PIN de 4 (recepción con 2 sólo opera), motivo si no cuadra, y firmar dos veces no duplica", () => {
+  const e = club();
+  ok(M.ventaMostrador(e, [{ productoId: "k-pica", cant: 1 }], "efectivo", ahora(13)));
+  const { turno } = ok(M.contarTurnoCaja(e, { contado: { efectivo: PICADA - 500 }, usuarioId: CARO.usuarioId }, ahora(14)));
+  const corto = M.cerrarTurnoCaja(e, { turnoId: turno.id, motivo: "faltó cambio", usuarioId: "u-caro", pin: "44" }, ahora(14, 1));
+  assert.equal(corto.ok, false);
+  assert.match((corto as { motivo: string }).motivo, /PIN de 4 dígitos/);
+  assert.equal(M.cerrarTurnoCaja(e, { turnoId: turno.id, motivo: "", ...FIRMA_DUENO, pin: "9999" }, ahora(14, 1)).ok, false, "PIN malo");
+  const sinMotivo = M.cerrarTurnoCaja(e, { turnoId: turno.id, motivo: "  ", ...FIRMA_DUENO }, ahora(14, 1));
+  assert.equal(sinMotivo.ok, false);
+  assert.match((sinMotivo as { motivo: string }).motivo, /motivo/);
+  const r = ok(M.cerrarTurnoCaja(e, { turnoId: turno.id, motivo: "Se dio mal un vuelto", ...FIRMA_DUENO }, ahora(14, 2)));
+  assert.equal(r.turno.estado, "cerrado");
+  assert.equal(r.turno.responsable, "Caro (recepción mañana)");
+  assert.equal(r.turno.firma, "Rober");
+  assert.equal(r.turno.motivo, "Se dio mal un vuelto");
+  // C8: el evento queda armado (el canal B1 todavía no existe), con clave de idempotencia.
+  assert.equal(r.evento.tipo, "caja.turno.cerrada");
+  assert.equal(r.evento.version, 1);
+  assert.equal(`${r.evento.tipo}@${r.evento.version}`, M.EVENTO_TURNO_CERRADO);
+  assert.equal(r.evento.clave, `caja.turno.cerrada@1:${turno.id}`);
+  assert.equal(r.evento.datos.diferencia, -500);
+  // Doble envío: la segunda firma no hace nada.
+  const otra = M.cerrarTurnoCaja(e, { turnoId: turno.id, motivo: "x", ...FIRMA_DUENO }, ahora(14, 3));
+  assert.equal(otra.ok, false);
+  assert.equal((otra as { yaCerrado?: boolean }).yaCerrado, true);
+  assert.equal(M.turnosDelDia(e, HOY).length, 1);
+  // Configurable (D-16): con largo 2, recepción firma.
+  const e2 = club();
+  e2.config.caja = { largoPinFirma: 2 };
+  ok(M.ventaMostrador(e2, [{ productoId: "k-pica", cant: 1 }], "efectivo", ahora(13)));
+  const t2 = ok(M.contarTurnoCaja(e2, { contado: { efectivo: PICADA }, usuarioId: "u-caro" }, ahora(14))).turno;
+  ok(M.cerrarTurnoCaja(e2, { turnoId: t2.id, usuarioId: "u-caro", pin: "44" }, ahora(14, 1)));
+});
+
+test("B4-C2: corregir el medio de un cobro del turno abierto deja rastro; en un turno contado, no", () => {
+  const e = club();
+  ok(M.ventaMostrador(e, [{ productoId: "k-pica", cant: 1 }], "efectivo", ahora(13)));
+  const mov = e.caja.movimientos[0];
+  assert.equal(M.corregirMedio(e, mov.id, { medio: "mercadopago", motivo: " ", usuarioId: "u-caro" }, ahora(13, 5)).ok, false, "sin motivo no");
+  assert.equal(M.corregirMedio(e, mov.id, { medio: "debito", motivo: "x", usuarioId: "u-caro" }, ahora(13, 5)).ok, false, "débito no es corregible");
+  assert.equal(M.corregirMedio(e, mov.id, { medio: "efectivo", motivo: "x", usuarioId: "u-caro" }, ahora(13, 5)).ok, false, "mismo medio");
+  ok(M.corregirMedio(e, mov.id, { medio: "mercadopago", motivo: "Tocó el botón equivocado", usuarioId: "u-caro" }, ahora(13, 5)));
+  assert.equal(mov.medio, "mercadopago");
+  assert.deepEqual(mov.correcciones, [{ de: "efectivo", a: "mercadopago", motivo: "Tocó el botón equivocado", quien: "Caro (recepción mañana)", fecha: HOY, min: 13 * 60 + 5 }]);
+  const t = M.turnoDeCajaAbierto(e, HOY);
+  assert.equal(t.esperado.efectivo, 0);
+  assert.equal(t.esperado.mercadopago, PICADA);
+  assert.equal(M.resumenCaja(e, HOY).ingresos, PICADA, "la plata no cambia, sólo el medio");
+  ok(M.contarTurnoCaja(e, { contado: { efectivo: 0, mercadopago: PICADA }, usuarioId: "u-caro" }, ahora(14)));
+  const cerrado = M.corregirMedio(e, mov.id, { medio: "efectivo", motivo: "volver", usuarioId: "u-caro" }, ahora(14, 5));
+  assert.equal(cerrado.ok, false);
+  assert.equal((cerrado as { turnoCerrado?: boolean }).turnoCerrado, true);
+});
+
+test("B4-C3/C4: retiro a caja fuerte y egreso por categoría, con comprobante opcional y firma de 4", () => {
+  const e = club();
+  e.caja.fondo = 5000;
+  ok(M.ventaMostrador(e, [{ productoId: "k-pica", cant: 3 }], "efectivo", ahora(13)));
+  const hay = 5000 + 3 * PICADA;
+  assert.equal(M.retiroCajaFuerte(e, { monto: 50000, usuarioId: "u-caro", pin: "44" }, ahora(14)).ok, false, "recepción con PIN de 2 no firma");
+  assert.equal(M.retiroCajaFuerte(e, { monto: hay + 1, ...FIRMA_DUENO }, ahora(14)).ok, false, "más que el cajón, no");
+  const { movimiento: ret } = ok(M.retiroCajaFuerte(e, { monto: 50000, comprobante: "sobre 14", ...FIRMA_DUENO }, ahora(14)));
+  assert.equal(ret.categoria, "cajaFuerte");
+  assert.equal(ret.comprobante, "sobre 14");
+  assert.equal(ret.usuario, "Caro (recepción mañana)");
+  assert.equal(ret.firma, "Rober");
+  assert.equal(M.egresoPorCategoria(e, { monto: 1000, categoria: "otros", ...FIRMA_DUENO }, ahora(14, 5)).ok, false, "«otros» pide concepto");
+  assert.equal(M.egresoPorCategoria(e, { monto: 1000, categoria: "viajes", concepto: "x", ...FIRMA_DUENO }, ahora(14, 5)).ok, false, "categoría que no existe");
+  const { movimiento: luz } = ok(M.egresoPorCategoria(e, { monto: 8000, categoria: "luz", comprobante: "Edenor 123", ...FIRMA_DUENO }, ahora(14, 5)));
+  assert.equal(luz.categoria, "luz");
+  assert.equal(luz.concepto, "Luz");
+  ok(M.egresoPorCategoria(e, { monto: 2000, categoria: "insumos", concepto: "hielo", ...FIRMA_DUENO }, ahora(14, 6)));
+  assert.equal(M.turnoDeCajaAbierto(e, HOY).esperado.efectivo, hay - 50000 - 8000 - 2000);
+  const d = M.desglosePorDia(e)[HOY];
+  assert.deepEqual(d.egresosPorCategoria, { cajaFuerte: 50000, luz: 8000, insumos: 2000 });
+});
+
+test("B4-C1/C6: el cierre del día consolida los turnos y el archivo guarda turnos, medio × rubro y egresos por categoría", () => {
+  const e = club();
+  e.caja.fondo = 10000;
+  // Mañana: Caro, falta $500.
+  ok(M.ventaMostrador(e, [{ productoId: "k-pica", cant: 1 }], "efectivo", ahora(13)));
+  ok(M.ventaMostrador(e, [{ productoId: "k-pica", cant: 1 }], "transferencia", ahora(13, 10)));
+  const t1 = ok(M.contarTurnoCaja(e, { contado: { efectivo: 10000 + PICADA - 500, transferencia: PICADA }, usuarioId: "u-caro" }, ahora(17))).turno;
+  ok(M.cerrarTurnoCaja(e, { turnoId: t1.id, motivo: "vuelto", ...FIRMA_DUENO }, ahora(17, 1)));
+  // Noche: Lu, sobran $200; un egreso de luz.
+  ok(M.ventaMostrador(e, [{ productoId: "k-pica", cant: 2 }], "efectivo", ahora(21)));
+  ok(M.egresoPorCategoria(e, { monto: 3000, categoria: "luz", usuarioId: "u-lu", firmaId: "u-majo", pin: "2222" }, ahora(22)));
+  // El cierre del día de siempre ya no va en un día por turnos; y con el turno abierto, el del día tampoco.
+  assert.equal(M.cerrarCaja(e, { contado: 0, usuarioId: "u-rober", pin: "1111" }, ahora(23)).ok, false);
+  assert.match(String((M.cerrarDiaCaja(e, { usuarioId: "u-rober", pin: "1111" }, ahora(23)) as { motivo?: string }).motivo), /sin turno/);
+  const esperado2 = 10000 + PICADA - 500 + 2 * PICADA - 3000;
+  const t2 = ok(M.contarTurnoCaja(e, { contado: { efectivo: esperado2 + 200 }, usuarioId: "u-lu" }, ahora(23, 30))).turno;
+  assert.equal(t2.diferencia, 200);
+  assert.equal(M.cerrarDiaCaja(e, { usuarioId: "u-rober", pin: "1111" }, ahora(23, 40)).ok, false, "falta firmar el turno 2");
+  ok(M.cerrarTurnoCaja(e, { turnoId: t2.id, motivo: "propina", ...FIRMA_DUENO }, ahora(23, 45)));
+  const { cierre } = ok(M.cerrarDiaCaja(e, { usuarioId: "u-rober", pin: "1111" }, ahora(23, 50)));
+  assert.equal(cierre.diferencia, -500 + 200, "la del día es la suma de las de los turnos");
+  assert.equal(cierre.contado, esperado2 + 200);
+  assert.equal(cierre.esperado, M.resumenCaja(e, HOY).efectivoEsperado);
+  assert.deepEqual(cierre.turnos?.map((t) => [t.numero, t.diferencia]), [[1, -500], [2, 200]]);
+  assert.equal(cierre.contadoPorMedio?.transferencia, PICADA);
+  assert.equal(M.cajaCerrada(e, HOY), true);
+  // La foto ida y vuelta conserva los turnos.
+  const h = M.hidratarEstado(JSON.parse(JSON.stringify(M.serializarEstado(e))));
+  assert.ok(h.ok);
+  assert.equal(h.ok && h.estado.caja.turnos?.length, 2);
+  // Archivo del día: turnos de caja, medio × rubro y egresos por categoría.
+  const res = M.archivarDiasCerrados(e, HOY);
+  assert.ok(res.ok && !res.vacio);
+  const fila = res.estado.archivo!.dias.find((f) => f.dia === HOY)!;
+  assert.deepEqual(fila.turnosCaja?.map((t) => [t.numero, t.responsable, t.firma, t.diferencia, t.motivo]), [
+    [1, "Caro (recepción mañana)", "Rober", -500, "vuelto"],
+    [2, "Lu (recepción tarde)", "Rober", 200, "propina"],
+  ]);
+  assert.equal(fila.porMedioRubro?.transferencia && Object.values(fila.porMedioRubro.transferencia).reduce((s, x) => s + (x ?? 0), 0), PICADA);
+  assert.deepEqual(fila.egresosPorCategoria, { luz: 3000 });
+  assert.equal(res.anexo.turnosCaja?.length, 2);
+  assert.equal(res.estado.caja.turnos, undefined, "los turnos archivados salen del estado");
+  // El archivo normalizado (al hidratar) conserva el resumen de los turnos.
+  const h2 = M.hidratarEstado(JSON.parse(JSON.stringify(M.serializarEstado(res.estado))));
+  assert.ok(h2.ok);
+  assert.equal(h2.ok && h2.estado.archivo!.dias.find((f) => f.dia === HOY)!.turnosCaja?.length, 2);
 });

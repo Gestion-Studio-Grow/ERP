@@ -64,6 +64,7 @@ import {
   puedeACuenta,
   sumarJugador,
   cobrarJugador,
+  altaCliente,
   cobrarTodoElTurno,
   cuentaDelTurno,
   pagarCuenta,
@@ -168,6 +169,11 @@ export interface FilaJugador {
    * no tiene créditos, si le alcanzan (va el cobro con créditos de siempre) o si no debe nada.
    */
   creditosYResto: { usa: number; resto: number } | null;
+  /**
+   * Tanda B4 (C5): es «Jugador 2/3/4» sin ficha: al cobrarle, la pantalla pide nombre o teléfono (`quien` en la acción),
+   * con las fichas sugeridas (`sugerirFichas`). Con `config.caja.pedirNombreJugador`, el cobro sin `quien` no pasa.
+   */
+  pideQuien?: boolean;
 }
 
 export interface VistaCuenta {
@@ -327,6 +333,7 @@ export function armarCuenta(estado: EstadoClub, reservaId: string): VistaCuenta 
       items,
       pagoCon: pagoDe(r, j.idx),
       creditosYResto: creditos > 0 && j.aPagar > creditos ? { usa: creditos, resto: j.aPagar - creditos } : null,
+      pideQuien: esJugadorGenerico(j),
     };
   });
 
@@ -460,7 +467,7 @@ export type AccionCuenta =
    * Todo lo de un jugador con un medio. Con `resto` (sólo con `medio: "monedero"`): usa TODOS sus créditos (`usa`, lo
    * que se le mostró) y cobra lo que falta con `resto`, en una acción.
    */
-  | { tipo: "cobrarJugador"; idx: number; medio: MedioCobro; resto?: MedioCaja; usa?: number }
+  | { tipo: "cobrarJugador"; idx: number; medio: MedioCobro; resto?: MedioCaja; usa?: number; quien?: QuienPaga }
   /** «Dividir entre 4»: suma «Jugador 2», «Jugador 3»… hasta `n`, sin pedir nombres. */
   | { tipo: "dividir"; n: number }
   | { tipo: "cobrarSena"; medio: MedioCobro }
@@ -551,10 +558,18 @@ export function ejecutar(estado: EstadoClub, reservaId: string, accion: AccionCu
         if (accion.medio !== "monedero") return { ok: false, mensaje: "El resto se cobra sólo junto con los créditos." };
         return creditosMasResto(estado, reservaId, accion.idx, accion.resto, accion.usa, ahora, auth);
       }
+      // Tanda B4 (C5): «Jugador 2/3/4» dice quién es (nombre o teléfono) antes de pagar; queda en la caja y en la ficha.
+      const q = prepararQuien(estado, reservaId, accion.idx, accion.quien);
+      if (!q.ok) return { ok: false, mensaje: q.motivo };
       const t = cuentaDelTurno(estado, reservaId);
       const quien = t.ok ? t.jugadores[accion.idx]?.nombre : undefined;
+      const movsAntes = new Set(estado.caja.movimientos.map((m) => m.id));
       const res = cobrarJugador(estado, reservaId, accion.idx, { medio: accion.medio, ...conAuth }, ahora);
-      if (!res.ok) return falla(res);
+      if (!res.ok) {
+        q.deshacer();
+        return falla(res);
+      }
+      q.guardar(movsAntes, ahora);
       const desglose = res.cancha && res.cargos ? ` (cancha ${pesos(res.cancha)} + cargos ${pesos(res.cargos)})` : "";
       const con = res.cubiertos.length ? `, con lo de ${res.cubiertos.join(", ")}` : "";
       const medio = accion.medio === "monedero" ? " con sus créditos" : "";
@@ -923,4 +938,73 @@ export function revisarConfirmacion<D extends { usa: number; creditos: number; q
   const { ok: _ok, ...datos } = ahora;
   void _ok;
   return { tipo: "otra", datos: datos as unknown as D };
+}
+
+// ── Tanda B4 (C5): quién es «Jugador 2/3/4» al cobrar ─────────────────────────────────────────────────────────────
+
+/** Nombre o teléfono de quien paga cuando era «Jugador N» (o la ficha elegida de las sugeridas). */
+export interface QuienPaga {
+  nombre?: string;
+  tel?: string;
+  clienteId?: string | null;
+}
+
+const GENERICO = /^jugador \d+$/i;
+/** ¿Es un «Jugador N» sin ficha (lo dejó «Dividir entre n»)? */
+export const esJugadorGenerico = (j: { nombre: string; clienteId?: string | null }) => !j.clienteId && GENERICO.test(j.nombre.trim());
+const digitos = (x: string) => x.replace(/\D/g, "");
+
+/** Las fichas que se sugieren mientras se tipea nombre o teléfono (hasta 5; desde 2 letras o 3 números). */
+export function sugerirFichas(estado: EstadoClub, texto: string): { id: string; nombre: string; tel: string }[] {
+  const q = texto.trim();
+  if (q.length < 2 && digitos(q).length < 3) return [];
+  return buscarClientes(estado, q).slice(0, 5).map((c) => ({ id: c.id, nombre: c.nombre, tel: c.tel }));
+}
+
+type QuienPreparado = { ok: true; deshacer: () => void; guardar: (movsAntes: Set<string>, ahora: Ahora) => void } | { ok: false; motivo: string };
+const NADA: QuienPreparado = { ok: true, deshacer: () => {}, guardar: () => {} };
+
+/**
+ * Si el jugador es «Jugador N»: le pone nombre y ficha ANTES de cobrar (los créditos son de su ficha) y, si el cobro no
+ * pasa, `deshacer` lo deja como estaba. Con el cobro hecho, `guardar` anota quién pagó en los movimientos nuevos de la
+ * caja y, si dio nombre y un teléfono sin ficha, le hace la ficha. Sin `quien`, sigue como siempre (salvo que el club
+ * pida el nombre: `config.caja.pedirNombreJugador`).
+ */
+function prepararQuien(estado: EstadoClub, reservaId: string, idx: number, quien: QuienPaga | undefined): QuienPreparado {
+  const r = reservaDe(estado, reservaId);
+  const j = r?.jugadores[idx];
+  if (!r || !j || !esJugadorGenerico(j)) return NADA;
+  const nombre = (quien?.nombre ?? "").trim().slice(0, 60);
+  const tel = (quien?.tel ?? "").trim().slice(0, 30);
+  if (!nombre && !tel && !quien?.clienteId) {
+    return estado.config.caja?.pedirNombreJugador ? { ok: false, motivo: `¿Quién es ${j.nombre}? Poné su nombre o su teléfono (si tiene ficha, aparece).` } : NADA;
+  }
+  if (tel && digitos(tel).length < 6) return { ok: false, motivo: "El teléfono tiene que tener al menos 6 números." };
+  let ficha: Cliente | undefined;
+  if (quien?.clienteId) {
+    ficha = clienteDe(estado, quien.clienteId);
+    if (!ficha) return { ok: false, motivo: "No encuentro esa ficha: elegila de nuevo." };
+  } else if (tel) ficha = estado.clientes.find((c) => c.activo !== false && c.tel && digitos(c.tel) === digitos(tel));
+  if (ficha && r.jugadores.some((x, k) => k !== idx && x.clienteId === ficha!.id)) return { ok: false, motivo: `${ficha.nombre} ya juega en este turno.` };
+  const antes = { nombre: j.nombre, clienteId: j.clienteId ?? null };
+  const queda = ficha?.nombre ?? (nombre || tel);
+  j.nombre = queda;
+  if (ficha) j.clienteId = ficha.id;
+  return {
+    ok: true,
+    deshacer: () => {
+      j.nombre = antes.nombre;
+      j.clienteId = antes.clienteId;
+    },
+    guardar: (movsAntes, ahora) => {
+      // Ficha nueva sólo con nombre Y teléfono (con el nombre solo se duplicarían fichas). Si el alta no pasa, el cobro
+      // ya está hecho: el jugador queda con su nombre, sin ficha.
+      if (!ficha && nombre && tel) {
+        const alta = altaCliente(estado, { nombre, tel }, ahora);
+        if (alta.ok) j.clienteId = alta.cliente.id;
+      }
+      const rotulo = tel && !ficha ? `${queda}${nombre ? ` (${tel})` : ""}` : queda;
+      for (const m of estado.caja.movimientos) if (!movsAntes.has(m.id)) m.jugador = rotulo;
+    },
+  };
 }

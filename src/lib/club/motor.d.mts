@@ -97,6 +97,12 @@ export interface ConfigClub {
   finde?: ReglaFinde | { sabado: ReglaFinde; domingo: ReglaFinde };
   /** «Sólo este día» (3D): el horario de UNA fecha, que manda sobre el de su día de la semana (`horarioDe`). */
   horarioExcepciones?: Record<Fecha, { abre: number; cierra: number }>;
+  /**
+   * Tanda B4 · caja por turnos (opcional; sin él, los valores de fábrica). `largoPinFirma`: largo del PIN que firma
+   * cierres, retiros y egresos (D-16, de fábrica 4, provisional a confirmar con el dueño). `pedirNombreJugador`: al cobrar
+   * a «Jugador 2/3/4» se pide nombre o teléfono (de fábrica no, hasta cablear el pedido en la cuenta del turno).
+   */
+  caja?: { largoPinFirma?: number; pedirNombreJugador?: boolean };
   tarifas: Tarifa[];
   politica: Politica;
   /** Sólo en la jornada real. */
@@ -282,6 +288,17 @@ export interface MovimientoCaja extends Sello {
   usuario: string | null;
   /** Día de caja (de 12 a 12) al que entró. */
   caja?: Fecha;
+  /** Tanda B4: el turno de caja que lo contó (sin él, es del turno abierto). */
+  turno?: string;
+  /** Tanda B4: categoría del egreso (luz, insumos, sueldos, otros, cajaFuerte…). */
+  categoria?: string;
+  comprobante?: string;
+  /** Quién firmó el retiro o el egreso (PIN de firma). */
+  firma?: string;
+  /** Rastro de `corregirMedio`. */
+  correcciones?: ({ de: string; a: string; motivo: string; quien: string } & Sello)[];
+  /** Tanda B4: el jugador que pagó, cuando era «Jugador 2/3/4» (nombre o teléfono). */
+  jugador?: string;
 }
 
 export interface CierreCaja extends Sello {
@@ -292,12 +309,19 @@ export interface CierreCaja extends Sello {
   diferencia: number;
   ingresos: number;
   egresos: number;
+  /** Tanda B4 (cierre del día por turnos): quién firmó, lo de cada medio y los turnos consolidados. */
+  firma?: string;
+  esperadoPorMedio?: Record<string, number>;
+  contadoPorMedio?: Record<string, number>;
+  turnos?: { id: string; numero: number; responsable: string; firma?: string; diferencia: number; motivo?: string }[];
 }
 
 export interface Caja {
   fondo: number;
   movimientos: MovimientoCaja[];
   cierres: CierreCaja[];
+  /** Tanda B4: los turnos de caja (aparece con el primero). */
+  turnos?: TurnoCaja[];
 }
 
 /** Pedido de crédito para el dueño (cuenta corriente o fiado puntual). */
@@ -446,6 +470,8 @@ export interface DiaArchivado {
   porMedioRubro?: Partial<Record<Medio, Partial<Record<RubroCaja, number>>>>;
   /** Lo que salió de la caja ese día por categoría (`categoriaDeEgreso`): Σ = `egresosCaja`. Igual que arriba. */
   egresosPorCategoria?: Record<string, number>;
+  /** Tanda B4: los turnos de caja de ese día (resumen chico, sin billetes). */
+  turnosCaja?: (Pick<TurnoCaja, "numero" | "estado" | "responsable" | "esperado" | "contado" | "diferencia"> & { firma: string | null; desde: Sello | null; hasta: Sello | null; motivo: string })[];
 }
 
 export interface ConteosArchivo {
@@ -491,6 +517,8 @@ export interface AnexoJornada {
   cuentas: Cuenta[];
   movimientos: MovimientoCaja[];
   pedidos: unknown[];
+  /** Tanda B4: los turnos de caja de los días archivados (sólo si hubo). */
+  turnosCaja?: TurnoCaja[];
   novedades: Novedad[];
   difusiones: unknown[];
   solicitudesAcceso: SolicitudAcceso[];
@@ -959,6 +987,109 @@ export declare function cerrarCaja(
   ahora: Ahora,
 ): Resultado<{ cierre: CierreCaja }>;
 export declare function egresoCaja(estado: EstadoClub, datos: { monto: number; concepto: string; usuarioId?: string; pin?: string }, ahora?: Ahora): Resultado;
+
+// ───────────── turnos de caja (Tanda B4) ─────────────
+
+export type MedioDeCaja = "efectivo" | "mercadopago" | "transferencia" | "debito";
+export type PorMedioDeCaja = Record<MedioDeCaja, number>;
+export type CategoriaEgresoCaja = "luz" | "insumos" | "sueldos" | "otros";
+export declare const DENOMINACIONES: readonly number[];
+export declare const CATEGORIAS_EGRESO_CAJA: Readonly<Record<CategoriaEgresoCaja, string>>;
+export declare const MEDIOS_CORREGIBLES: readonly ("efectivo" | "mercadopago" | "transferencia")[];
+/** D-16: largo del PIN que firma cierres, retiros y egresos. Provisional (a confirmar con el dueño); `config.caja.largoPinFirma`. */
+export declare const LARGO_PIN_FIRMA_CAJA: number;
+export declare const EVENTO_TURNO_CERRADO: "caja.turno.cerrada@1";
+export declare function largoFirmaCaja(estado: EstadoClub): number;
+
+/** Un turno de caja: contado a ciegas («contado») y después firmado («cerrado»). */
+export interface TurnoCaja {
+  id: string;
+  dia: Fecha;
+  numero: number;
+  estado: "contado" | "cerrado";
+  responsable: string;
+  responsableId: string;
+  desde: Sello;
+  hasta: Sello;
+  /** Con qué efectivo arrancó (lo contado del turno anterior, o el fondo). */
+  inicioEfectivo: number;
+  esperado: PorMedioDeCaja;
+  contado: PorMedioDeCaja;
+  /** Billetes por denominación ("20000": 3) y «monedas» (un importe). */
+  billetes?: Record<string, number>;
+  diferencias: PorMedioDeCaja;
+  diferencia: number;
+  ingresos: number;
+  egresos: number;
+  movimientos: number;
+  motivo?: string;
+  firma?: string;
+  firmaId?: string;
+  cerrado?: Sello;
+}
+
+/** Lo que el turno cerrado deja armado para el canal de eventos (B1), cuando exista. */
+export interface EventoTurnoCerrado {
+  tipo: "caja.turno.cerrada";
+  version: 1;
+  /** Idempotencia: un turno, un evento. */
+  clave: string;
+  datos: Pick<TurnoCaja, "dia" | "numero" | "responsable" | "desde" | "hasta" | "esperado" | "contado" | "diferencia"> & { turnoId: string; firma: string; motivo: string };
+}
+
+export interface TurnoAbierto {
+  dia: Fecha;
+  numero: number;
+  desde: Sello;
+  movimientos: MovimientoCaja[];
+  inicioEfectivo: number;
+  esperado: PorMedioDeCaja;
+  ingresos: number;
+  egresos: number;
+  /** Los medios que tuvieron movimientos en el turno. */
+  medios: MedioDeCaja[];
+  /** Un turno contado que espera la firma (no se cuenta otro hasta firmarlo). */
+  pendienteDeFirma: TurnoCaja | null;
+}
+
+/** Firma de caja: quien opera (`usuarioId`) es el responsable; firma `firmaId` (o él mismo) con su PIN de firma. */
+export interface FirmaCaja {
+  usuarioId?: string;
+  firmaId?: string | null;
+  pin?: string;
+}
+
+export declare function turnoDeCajaAbierto(estado: EstadoClub, dia: Fecha): TurnoAbierto;
+export declare function turnosDelDia(estado: EstadoClub, dia: Fecha): TurnoCaja[];
+export declare function contarTurnoCaja(
+  estado: EstadoClub,
+  datos: {
+    dia?: Fecha | null;
+    contado: Partial<Record<MedioDeCaja, number | string | null>>;
+    billetes?: Record<string, number | string> | null;
+    usuarioId?: string;
+    esperados?: { movimientos: number; medios: MedioDeCaja[] } | null;
+  },
+  ahora: Ahora,
+): Resultado<{ turno: TurnoCaja }> | (Falla & { cambio?: boolean });
+export declare function cerrarTurnoCaja(
+  estado: EstadoClub,
+  datos: FirmaCaja & { turnoId: string; motivo?: string },
+  ahora: Ahora,
+): Resultado<{ turno: TurnoCaja; evento: EventoTurnoCerrado }> | (Falla & { yaCerrado?: boolean; pideMotivo?: boolean; pinCorto?: boolean });
+export declare function cerrarDiaCaja(estado: EstadoClub, datos: FirmaCaja & { dia?: Fecha | null }, ahora: Ahora): Resultado<{ cierre: CierreCaja }>;
+export declare function corregirMedio(
+  estado: EstadoClub,
+  movimientoId: string,
+  datos: { medio: string; motivo: string; usuarioId?: string },
+  ahora: Ahora,
+): Resultado<{ movimiento: MovimientoCaja }> | (Falla & { turnoCerrado?: boolean });
+export declare function retiroCajaFuerte(estado: EstadoClub, datos: FirmaCaja & { monto: number; comprobante?: string }, ahora: Ahora): Resultado<{ movimiento: MovimientoCaja }>;
+export declare function egresoPorCategoria(
+  estado: EstadoClub,
+  datos: FirmaCaja & { monto: number; categoria: string; concepto?: string; comprobante?: string },
+  ahora: Ahora,
+): Resultado<{ movimiento: MovimientoCaja }>;
 
 // ───────────── crédito: cuenta corriente y fiado con código del dueño ─────────────
 
@@ -1652,7 +1783,7 @@ export declare function ajustarHorarioDelDia(
 /** De dónde vino un ingreso de caja (para «Números por período»). */
 export type RubroCaja = "canchas" | "senas" | "faltas" | "buffet" | "tienda" | "cuentaCorriente" | "otros";
 export declare const RUBROS_CAJA: Readonly<Record<RubroCaja, string>>;
-export declare const CATEGORIAS_EGRESO: Readonly<Record<"proveedores" | "devoluciones" | "gastos", string>>;
+export declare const CATEGORIAS_EGRESO: Readonly<Record<"proveedores" | "devoluciones" | "gastos" | "luz" | "insumos" | "sueldos" | "otros" | "cajaFuerte", string>>;
 export declare function rubroDeMovimiento(m: Partial<MovimientoCaja> & { rubro?: string }): RubroCaja;
 /** La categoría del egreso: `categoria` del movimiento (4B) o la deducida (proveedores, devoluciones, gastos). */
 export declare function categoriaDeEgreso(m: Partial<MovimientoCaja> & { categoria?: string }): string;

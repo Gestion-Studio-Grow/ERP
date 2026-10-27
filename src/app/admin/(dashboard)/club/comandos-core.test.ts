@@ -7,7 +7,7 @@ import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo, textoDelEstado } from "./almacen";
 import { horariosLibres } from "./alta-core";
-import { comandoSinPin, correrComando, describirComando, FALTA_CODIGO, rebasar, REGISTRO, vaSinInternet, type ArgsDe, type Comando, type NombreDeComando } from "./comandos-core";
+import { comandoSinPin, correrComando, describirComando, FALTA_CODIGO, rebasar, rechazoSinInternet, REGISTRO, SIN_INTERNET_SOLO_EFECTIVO, vaSinInternet, type ArgsDe, type Comando, type NombreDeComando } from "./comandos-core";
 import { codigoDeLaDemo } from "./credito-core";
 import { altaEquivalente } from "./sincro-core";
 import { ejecutarConfiguracion, huellaDelElegido, respaldoAntesDeLimpiar, valoresDeReglas } from "./configuracion-core";
@@ -618,4 +618,81 @@ test("3C · el almacén arma el comando «alta» desde el turno nuevo (`altaEqui
   const antes2 = { reservas: sinFijo.reservas.length, clientes: sinFijo.clientes.length };
   enElMostrador(sinFijo, "alta", [{ canchaId: "c4", fecha: jueves, inicio: 20 * 60, duracion: 90, tipo: "turno", titular: "Juan Pérez", clienteId: null, otros: "" }]);
   assert.ok(!("fijo" in altaEquivalente(sinFijo, antes2)!.args[0]));
+});
+
+// ── Tanda B4: la caja por turnos sin internet (C7), con rebase y doble envío ─────────────────────────────────────────
+
+/** La demo con la caja de hoy sólo en efectivo (sin MP ni transferencia), para el cierre de turno sin internet. */
+const cajaEnEfectivo = (e: EstadoClub) => {
+  const dia = M.cajaAbierta(e, AHORA);
+  e.caja.movimientos = e.caja.movimientos.filter((m) => (m.caja ?? (m.fecha && M.diaDeCaja(e, m.fecha, m.min ?? 0))) !== dia || m.medio === "efectivo");
+};
+const pinDe = (e: EstadoClub, id: string) => M.pinDeEjemplo(e.usuarios.find((u) => u.id === id)!);
+
+function cerrarTurnoEnElMostrador(e: EstadoClub) {
+  const v = M.turnoDeCajaAbierto(e, M.cajaAbierta(e, AHORA));
+  const contar = enElMostrador(e, "caja", [{ tipo: "contarTurno", dia: null, contado: { mercadopago: "", transferencia: "", debito: "" }, billetes: { monedas: String(v.esperado.efectivo - 500) }, movimientos: v.movimientos.length, medios: v.medios }]);
+  const turnoId = M.turnosDelDia(e, v.dia).at(-1)!.id;
+  const firmar = enElMostrador(e, "caja", [{ tipo: "cerrarTurno", turnoId, motivo: "faltó un vuelto", firmaId: "u-rober", pin: pinDe(e, "u-rober"), medios: v.medios }]);
+  return { contar, firmar, turnoId, dia: v.dia };
+}
+
+test("B4 (C7) · sin internet: contar y firmar un turno en efectivo va y se re-aplica sobre la base que avanzó; doble envío no duplica", () => {
+  const b = base(cajaEnEfectivo);
+  const local = b.abrir();
+  const cobro = enElMostrador(local, "cuenta", [turnoQueDebe(local), { tipo: "cobrarTodo", medio: "efectivo" }]);
+  const { contar, firmar, turnoId, dia } = cerrarTurnoEnElMostrador(local);
+  assert.equal(vaSinInternet("caja", contar.args), true, "contar en efectivo va sin internet");
+  assert.equal(vaSinInternet("caja", firmar.args), true, "firmar un turno sólo en efectivo va sin internet");
+  // Mientras, el otro puesto dio un turno (no toca la caja): la base avanzó.
+  base(cajaEnEfectivo);
+  const enLaBase = b.abrir();
+  const inicio = horariosLibres(enLaBase, HOY, "c4", 60, AHORA)[0].min;
+  enElMostrador(enLaBase, "alta", [{ canchaId: "c4", fecha: HOY, inicio, duracion: 60, tipo: "turno", titular: "Otro puesto", clienteId: null, otros: "" }]);
+  const r = rebasar(enLaBase, [cobro, contar, firmar], new Set());
+  assert.deepEqual(r.rechazados.map((x) => x.motivo), []);
+  const turnos = M.turnosDelDia(enLaBase, dia);
+  assert.equal(turnos.length, 1);
+  assert.equal(turnos[0].id, turnoId, "el mismo id que en el mostrador");
+  assert.equal(turnos[0].estado, "cerrado");
+  assert.equal(turnos[0].diferencia, -500);
+  // Doble envío: lo que la base ya tiene se saltea; y la firma suelta otra vez no firma de nuevo.
+  const otra = rebasar(enLaBase, [cobro, contar, firmar], new Set([cobro.id, contar.id, firmar.id]));
+  assert.equal(otra.salteados.length, 3);
+  const antes = JSON.stringify(enLaBase.caja);
+  const dos = correrComando(enLaBase, { ...firmar, id: "otro-id" });
+  assert.equal(dos.ok, false);
+  assert.equal(JSON.stringify(enLaBase.caja), antes, "la caja no cambió");
+  // Después de recargar, el comando de la cola va SIN el PIN: re-aplicado, pide la firma (no firma solo).
+  const sinPin = comandoSinPin(firmar);
+  assert.ok(!JSON.stringify(sinPin).includes(pinDe(local, "u-rober")));
+});
+
+test("B4 (C7) · un turno con Mercado Pago no se cierra sin internet (la pantalla lo deja en espera); si en la base entró otro cobro, se vuelve a contar", () => {
+  const contarMp = [{ tipo: "contarTurno", dia: null, contado: { mercadopago: "5000" }, billetes: {}, movimientos: 2, medios: ["efectivo", "mercadopago"] }] as ArgsDe<"caja">;
+  assert.equal(vaSinInternet("caja", contarMp), false);
+  assert.equal(rechazoSinInternet("caja", contarMp), SIN_INTERNET_SOLO_EFECTIVO);
+  const firmarMp = [{ tipo: "cerrarTurno", turnoId: "t", motivo: "", firmaId: null, pin: "1111", medios: ["mercadopago"] }] as ArgsDe<"caja">;
+  assert.equal(vaSinInternet("caja", firmarMp), false);
+  for (const a of [
+    { tipo: "retiro", monto: "1000", comprobante: "", firmaId: null, pin: "1111" },
+    { tipo: "egresoCategoria", monto: "1000", categoria: "luz", concepto: "", comprobante: "", firmaId: null, pin: "1111" },
+    { tipo: "cerrarDia", dia: null, firmaId: null, pin: "1111" },
+    { tipo: "corregirMedio", movimientoId: "m", medio: "mercadopago", motivo: "x" },
+  ] as ArgsDe<"caja">[0][]) assert.equal(vaSinInternet("caja", [a]), false, a.tipo);
+
+  // El otro puesto cobró en el mismo turno: el conteo de acá (con otros movimientos) va a «Para resolver» y la firma
+  // también (el turno no existe); la plata de los dos cobros queda en la caja, una vez cada uno.
+  const b = base(cajaEnEfectivo);
+  const local = b.abrir();
+  const { contar, firmar } = cerrarTurnoEnElMostrador(local);
+  base(cajaEnEfectivo);
+  const enLaBase = b.abrir();
+  enElMostrador(enLaBase, "cuenta", [turnoQueDebe(enLaBase), { tipo: "cobrarTodo", medio: "efectivo" }]);
+  const ingresos = M.resumenCaja(enLaBase).ingresos;
+  const r = rebasar(enLaBase, [contar, firmar], new Set());
+  assert.equal(r.rechazados.length, 2);
+  assert.match(r.rechazados[0].motivo, /volvé a contar/);
+  assert.equal(M.turnosDelDia(enLaBase, M.cajaAbierta(enLaBase, AHORA)).length, 0);
+  assert.equal(M.resumenCaja(enLaBase).ingresos, ingresos, "no se perdió ni se duplicó plata");
 });

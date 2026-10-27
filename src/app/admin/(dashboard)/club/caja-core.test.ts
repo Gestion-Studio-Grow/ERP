@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo } from "./almacen";
-import { MOVIMIENTOS_POR_PAGINA, PIN_VIEJO_CAJA, armarCaja, ejecutarCaja, leerMonto, pinesDeEjemplo, puedeAjustarFondo } from "./caja-core";
+import { MOVIMIENTOS_POR_PAGINA, PIN_VIEJO_CAJA, armarCaja, armarTurno, ejecutarCaja, firmantes, leerMonto, pinesDeEjemplo, puedeAjustarFondo } from "./caja-core";
 import { ejecutar } from "./cuenta-core";
 import { ejecutarBuffet } from "./buffet-core";
 
@@ -265,4 +265,76 @@ test("un dueño con el PIN VIEJO (el de 2 del piloto) no hace egresos ni cierra 
   assert.equal(recepcion.pin!.length, 2, "recepción sigue con 2 dígitos");
   const d = ejecutarCaja(e, { tipo: "egreso", monto: "1000", concepto: "Hielo", pin: recepcion.pin! }, AHORA, recepcion);
   assert.equal(d.ok, true, d.mensaje);
+});
+
+// ── Tanda B4: el turno de caja a ciegas, la firma de 4, corregir medio, retiro y egreso por categoría ──────────────
+
+test("B4 · el turno a ciegas: la vista del turno abierto no trae ningún importe esperado; contado, se ve y se firma con PIN de 4", () => {
+  const { e, auth } = demo();
+  const v = armarTurno(e, AHORA);
+  assert.ok(v.movimientos > 0);
+  assert.equal(v.paraFirmar, null);
+  // Nada de lo esperado: ni efectivo ni medios (el texto de la vista no trae el efectivo esperado).
+  assert.ok(!v.firma.includes(String(armarCaja(e, AHORA).efectivoEsperado)), "lo esperado no está en la vista del turno");
+  const sinContar = ejecutarCaja(e, { tipo: "contarTurno", dia: null, contado: {}, billetes: {}, movimientos: v.movimientos, medios: v.medios }, AHORA, auth);
+  assert.equal(sinContar.ok, false, "sin efectivo contado no");
+  const t = M.turnoDeCajaAbierto(e, v.dia);
+  const contado: Record<string, string> = Object.fromEntries(["mercadopago", "transferencia", "debito"].map((k) => [k, String(t.esperado[k as "debito"])]));
+  const d = ejecutarCaja(e, { tipo: "contarTurno", dia: null, contado, billetes: { monedas: String(t.esperado.efectivo - 500) }, movimientos: v.movimientos, medios: v.medios }, AHORA, auth);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(d.pin, null, "contar no lleva PIN");
+  assert.match(d.mensaje, /Faltan \$ 500/);
+  const f = armarTurno(e, AHORA).paraFirmar!;
+  assert.equal(f.diferencia, -500);
+  assert.equal(f.pideMotivo, true);
+  assert.equal(f.lineas.find((l) => l.clave === "efectivo")!.esperado, t.esperado.efectivo, "ahora sí se ve lo esperado");
+  // Recepción con su PIN de 2: el PIN es suyo («bueno» para el tope) pero no firma.
+  const corto = ejecutarCaja(e, { tipo: "cerrarTurno", turnoId: f.turnoId, motivo: "vuelto", firmaId: null, pin: auth.pin!, medios: f.medios }, AHORA, auth);
+  assert.equal(corto.ok, false);
+  assert.equal(corto.pin, "bueno");
+  assert.match(corto.mensaje, /PIN de 4/);
+  // Un dueño firma: con un PIN equivocado cuenta como malo; con otros medios que los del turno, no.
+  const rober = e.usuarios.find((u) => u.rol === "duenio")!;
+  assert.equal(ejecutarCaja(e, { tipo: "cerrarTurno", turnoId: f.turnoId, motivo: "vuelto", firmaId: rober.id, pin: "0000", medios: f.medios }, AHORA, auth).pin, "malo");
+  assert.equal(ejecutarCaja(e, { tipo: "cerrarTurno", turnoId: f.turnoId, motivo: "vuelto", firmaId: rober.id, pin: M.pinDeEjemplo(rober), medios: ["efectivo"] }, AHORA, auth).ok, false);
+  const ok = ejecutarCaja(e, { tipo: "cerrarTurno", turnoId: f.turnoId, motivo: "vuelto", firmaId: rober.id, pin: M.pinDeEjemplo(rober), medios: f.medios }, AHORA, auth);
+  assert.equal(ok.ok, true, ok.mensaje);
+  assert.equal(ok.evento?.tipo, "caja.turno.cerrada");
+  const despues = armarTurno(e, AHORA);
+  assert.equal(despues.paraFirmar, null);
+  assert.equal(despues.numero, 2);
+  assert.equal(despues.puedeCerrarDia, true);
+  assert.match(despues.turnos[0].texto, /firmó/);
+  const dia = ejecutarCaja(e, { tipo: "cerrarDia", dia: null, firmaId: rober.id, pin: M.pinDeEjemplo(rober) }, AHORA, auth);
+  assert.equal(dia.ok, true, dia.mensaje);
+  assert.match(dia.mensaje, /con 1 turnos: faltan \$ 500/);
+});
+
+test("B4 · corregir medio desde la caja: sólo los cobros del turno abierto, con motivo; el rastro se ve en el movimiento", () => {
+  const { e, auth } = demo();
+  const v = armarCaja(e, AHORA, 500);
+  const m = v.movimientos.find((x) => x.corregible && x.medioClave === "efectivo")!;
+  assert.ok(m, "hay un cobro en efectivo corregible");
+  assert.equal(v.movimientos.some((x) => x.tipo === "egreso" && x.corregible), false, "un egreso no se corrige");
+  assert.equal(ejecutarCaja(e, { tipo: "corregirMedio", movimientoId: m.id, medio: "mercadopago", motivo: "" }, AHORA, auth).ok, false);
+  const d = ejecutarCaja(e, { tipo: "corregirMedio", movimientoId: m.id, medio: "mercadopago", motivo: "se equivocó de botón" }, AHORA, auth);
+  assert.equal(d.ok, true, d.mensaje);
+  const visto = armarCaja(e, AHORA, 500).movimientos.find((x) => x.id === m.id)!;
+  assert.equal(visto.medioClave, "mercadopago");
+  assert.equal(visto.rastro.length, 1);
+  assert.match(visto.rastro[0], /^Efectivo → Mercado Pago \(QR\) · .+ · se equivocó de botón$/);
+});
+
+test("B4 · retiro a caja fuerte y egreso por categoría desde la caja: firma de 4 y sale del cajón", () => {
+  const { e, auth } = demo();
+  const rober = e.usuarios.find((u) => u.rol === "duenio")!;
+  const firma = { firmaId: rober.id, pin: M.pinDeEjemplo(rober) };
+  const antes = armarCaja(e, AHORA).efectivoEsperado;
+  assert.equal(ejecutarCaja(e, { tipo: "retiro", monto: "5.000", comprobante: "", firmaId: null, pin: "" }, AHORA, auth).ok, false, "sin PIN no");
+  const r = ejecutarCaja(e, { tipo: "retiro", monto: "5.000", comprobante: "sobre 3", ...firma }, AHORA, auth);
+  assert.equal(r.ok, true, r.mensaje);
+  const g = ejecutarCaja(e, { tipo: "egresoCategoria", monto: "2.000", categoria: "insumos", concepto: "hielo", comprobante: "", ...firma }, AHORA, auth);
+  assert.equal(g.ok, true, g.mensaje);
+  assert.equal(armarCaja(e, AHORA).efectivoEsperado, antes - 7000);
+  assert.equal(firmantes(e)[0].duenio, true, "primero los dueños");
 });

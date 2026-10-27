@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { operadorDeLaDemo } from "./almacen";
 import { ejecutarBajaFijo, otroFijoQuePisa } from "./canchas-core";
 import { aprobarConCodigo, codigoDeLaDemo, pedidosPendientes, pedirFiado } from "./credito-core";
-import { armarCuenta, canchaOcupada, confirmarCreditos, DESHACIBLE, EN_EL_VANILLA, ejecutar, fichasParaSumar, partirConCreditos, revisarConfirmacion, textoCierre, type VistaCuenta } from "./cuenta-core";
+import { armarCuenta, canchaOcupada, confirmarCreditos, DESHACIBLE, EN_EL_VANILLA, ejecutar, fichasParaSumar, partirConCreditos, revisarConfirmacion, sugerirFichas, textoCierre, type VistaCuenta } from "./cuenta-core";
 
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -922,3 +922,45 @@ test("BP-006: «Cobrar la seña y abrir» con transferencia — en cancha, luz p
     assert.equal(e.fijos.some((x) => x.titular === "Pedro Suelto"), false);
   });
 }
+
+// ── Tanda B4 (C5): «Jugador 2/3/4» dice quién es al cobrar; queda en la caja y en la ficha ──────────────────────────
+
+test("B4-C5 · al cobrar a «Jugador 2» se pone nombre y teléfono: queda en la fila, en el movimiento de la caja y en una ficha nueva", () => {
+  const e = demo();
+  const r = turnoDe42(e);
+  assert.equal(ejecutar(e, r.id, { tipo: "dividir", n: 4 }, AHORA).ok, true);
+  const v = cuenta(e, r.id);
+  assert.equal(v.jugadores[1].pideQuien, true);
+  assert.equal(v.jugadores[0].pideQuien, false);
+  const fichas = e.clientes.length;
+  const movs = e.caja.movimientos.length;
+  // Con créditos (sin ficha no tiene): el cobro no pasa y el jugador vuelve a llamarse «Jugador 2».
+  const mal = ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 1, medio: "monedero", quien: { nombre: "Pedro Paz", tel: "11 5555-1234" } }, AHORA);
+  assert.equal(mal.ok, false);
+  assert.equal(r.jugadores[1].nombre, "Jugador 2");
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 1, medio: "efectivo", quien: { tel: "123" } }, AHORA).ok, false, "teléfono corto");
+  const d = ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 1, medio: "efectivo", quien: { nombre: "Pedro Paz", tel: "11 5555-1234" } }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.match(d.mensaje, /a Pedro Paz/);
+  assert.equal(r.jugadores[1].nombre, "Pedro Paz");
+  assert.equal(e.clientes.length, fichas + 1, "ficha nueva");
+  assert.equal(r.jugadores[1].clienteId, e.clientes.at(-1)!.id);
+  assert.ok(e.caja.movimientos.length > movs);
+  assert.ok(e.caja.movimientos.slice(movs).every((m) => m.jugador === "Pedro Paz (11 5555-1234)"));
+  // «Jugador 3» con una ficha que ya existe (sugerida por el teléfono): se vincula, sin ficha nueva.
+  const existente = e.clientes.find((c) => c.activo !== false && c.tel && !r.jugadores.some((j) => j.clienteId === c.id))!;
+  const sug = sugerirFichas(e, existente.tel.slice(-6));
+  assert.ok(sug.some((x) => x.id === existente.id), "la ficha se sugiere por el teléfono");
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 2, medio: "efectivo", quien: { tel: existente.tel } }, AHORA).ok, true);
+  assert.equal(r.jugadores[2].clienteId, existente.id);
+  assert.equal(r.jugadores[2].nombre, existente.nombre);
+  assert.equal(e.clientes.length, fichas + 1);
+  // Con el club pidiéndolo (`config.caja.pedirNombreJugador`), «Jugador 4» sin nombre no se cobra.
+  e.config.caja = { pedirNombreJugador: true };
+  const sinQuien = ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 3, medio: "efectivo" }, AHORA);
+  assert.equal(sinQuien.ok, false);
+  assert.match(sinQuien.mensaje, /¿Quién es Jugador 4\?/);
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 3, medio: "efectivo", quien: { nombre: "Lola" } }, AHORA).ok, true);
+  assert.equal(r.jugadores[3].nombre, "Lola");
+  assert.equal(r.jugadores[3].clienteId ?? null, null, "con el nombre solo no se hace ficha (no se duplican)");
+});

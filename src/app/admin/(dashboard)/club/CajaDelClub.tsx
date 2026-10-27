@@ -14,6 +14,11 @@
 // persona. Lo valida el motor (permiso + PIN); la pantalla sólo lo pide, no lo muestra y lo borra después de cada
 // intento. En la demo, los PIN de ejemplo están a la vista, rotulados.
 //
+// Tanda B4: el cierre es POR TURNO y a ciegas (CierreDeCaja.tsx): recepción cuenta sin ver lo esperado, firma un PIN
+// de 4 (D-16) y el día se cierra consolidando los turnos. Por eso, a quien no es dueño la tarjeta no le muestra el
+// efectivo esperado ni lo cobrado por medio. El egreso es por categoría y hay retiro a caja fuerte (los dos con firma);
+// un cobro del turno abierto se puede corregir de medio, con motivo y rastro.
+//
 // Tanda 2B: debajo del aviso rojo, «Plata pendiente (n)» (plata-pendiente.tsx): lo que hay que devolver o cobrar de
 // cualquier día, con sus medios, sin salir de la Caja.
 
@@ -26,6 +31,7 @@ import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { MOVIMIENTOS_POR_PAGINA, armarCaja, pinesDeEjemplo, puedeAjustarFondo, type AccionCaja, type CierreDeHoy, type VistaCaja } from "./caja-core";
 import { conTopeDePin, guardaDelPin } from "./tope-de-pin";
+import CierreDeCaja, { CorregirMedio } from "./CierreDeCaja";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 import { operadorActual } from "./operador-del-club";
 import { permisosProveedores } from "./proveedores-core";
@@ -171,7 +177,7 @@ function FondoDeCaja({ almacen, fondo, hacer }: { almacen: Almacen; fondo: numbe
   );
 }
 
-function Movimientos({ v, onMas }: { v: VistaCaja; onMas: () => void }) {
+function Movimientos({ v, onMas, hacer }: { v: VistaCaja; onMas: () => void; hacer: (a: AccionCaja) => boolean }) {
   const faltan = v.totalMovimientos - v.movimientos.length;
   return (
     <section aria-labelledby="club-caja-movs" data-caja="movimientos" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
@@ -208,6 +214,12 @@ function Movimientos({ v, onMas }: { v: VistaCaja; onMas: () => void }) {
                     {m.medio}
                     {m.quien ? ` · ${m.quien}` : ""}
                   </span>
+                  {m.rastro.map((r) => (
+                    <span key={r} className="block text-xs text-warning">
+                      Corregido: {r}
+                    </span>
+                  ))}
+                  {m.corregible && <CorregirMedio movimientoId={m.id} medio={m.medioClave} hacer={hacer} />}
                 </td>
                 <td className="py-1.5 pr-2 text-right whitespace-nowrap text-strong">{m.tipo === "ingreso" ? pesos(m.monto) : ""}</td>
                 <td className="py-1.5 text-right whitespace-nowrap text-danger">{m.tipo === "egreso" ? pesos(m.monto) : ""}</td>
@@ -221,51 +233,6 @@ function Movimientos({ v, onMas }: { v: VistaCaja; onMas: () => void }) {
           Ver {Math.min(faltan, MOVIMIENTOS_POR_PAGINA)} movimientos más (quedan {faltan})
         </Button>
       )}
-    </section>
-  );
-}
-
-function Egreso({ almacen, hacer }: { almacen: Almacen; hacer: (a: AccionCaja) => boolean }) {
-  const [monto, setMonto] = useState("");
-  const [concepto, setConcepto] = useState("");
-  const [pin, setPin] = useState("");
-  const quien = useQuienOpera(almacen);
-  const ids = { monto: useId(), concepto: useId(), pin: useId() };
-  return (
-    <section aria-labelledby="club-egreso" data-caja="egreso" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
-      <h2 id="club-egreso" className="font-semibold text-strong">
-        Anotar un egreso en efectivo
-      </h2>
-      <form
-        className="flex flex-col gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (hacer({ tipo: "egreso", monto, concepto, pin })) {
-            setMonto("");
-            setConcepto("");
-          }
-          setPin("");
-        }}
-      >
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[8rem_1fr]">
-          <div className="flex flex-col gap-1">
-            <label htmlFor={ids.monto} className="text-sm font-medium text-strong">
-              Monto
-            </label>
-            <Input id={ids.monto} inputMode="numeric" importe value={monto} autoComplete="off" onChange={(e) => setMonto(e.target.value)} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor={ids.concepto} className="text-sm font-medium text-strong">
-              Concepto (para qué salió la plata)
-            </label>
-            <Input id={ids.concepto} value={concepto} autoComplete="off" placeholder="Ej.: hielo, artículos de limpieza" onChange={(e) => setConcepto(e.target.value)} />
-          </div>
-        </div>
-        <CampoPin id={ids.pin} quien={quien} value={pin} onChange={setPin} />
-        <Button type="submit" variant="outline" size="md">
-          Anotar el egreso
-        </Button>
-      </form>
     </section>
   );
 }
@@ -301,32 +268,6 @@ function CorteDeHoy({ cierre, ultimo }: { cierre: CierreDeHoy; ultimo: VistaCaja
   );
 }
 
-function CierreDeLaCaja({ almacen, cierre, esperado, hacer }: { almacen: Almacen; cierre: CierreDeHoy; esperado: number; hacer: (a: AccionCaja) => boolean }) {
-  return (
-    <section aria-labelledby="club-cierre" data-caja="cierre" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
-      <h2 id="club-cierre" className="font-semibold text-strong">
-        Cerrar la caja
-      </h2>
-      {cierre.tipo === "cerrada" ? (
-        <p className="text-sm text-strong">{cierre.texto}</p>
-      ) : (
-        <>
-          <p className="text-sm text-muted">
-            {cierre.tipo === "siguiente" ? cierre.texto : "Contá el efectivo del cajón (con el fondo); lo digital ya está registrado. Se cierra una sola vez; lo que se cobre después va a la caja siguiente."}
-          </p>
-          <CerrarCaja
-            almacen={almacen}
-            etiqueta="Efectivo contado"
-            boton="Cerrar la caja"
-            esperado={esperado}
-            onCerrar={(contado, pin) => hacer({ tipo: "cerrar", contado, dia: cierre.tipo === "siguiente" ? cierre.dia : null, pin })}
-          />
-        </>
-      )}
-    </section>
-  );
-}
-
 /**
  * Registrar un remito desde la caja, como el vanilla: recepción recibe la mercadería en el mostrador. Deudas y pagos a
  * proveedores siguen en la solapa Proveedores (sólo dueños). El permiso lo da el motor (`remito`).
@@ -356,13 +297,16 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
   const [cuantos, setCuantos] = useState(MOVIMIENTOS_POR_PAGINA);
   const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarCaja(e, a, cuantos), [cuantos]);
   const v = useSeleccion(almacen, seleccionar, porFirma);
+  // A ciegas (C1): quien no es dueño no ve lo esperado mientras el turno está abierto.
+  const operador = useOperador(almacen);
+  const veEsperado = puedeAjustarFondo(almacen.estado(), operador?.usuario.id);
   // Egreso, cierre y fondo NO se deshacen (como en vanilla: lo que pide PIN no tiene «Deshacer»).
   // El PIN de egreso y cierre pasa por el tope compartido del equipo: trabado, no se prueba (y el aviso dice cuánto
   // esperar). El fondo no lleva PIN: no se traba.
   const hacer = useCallback(
     (a: AccionCaja) =>
       // Por comando (re-aplicable en otro puesto); el tope de PIN cuenta sólo el toque, no las re-aplicaciones.
-      almacen.comando("caja", [a], a.tipo === "fondo" ? {} : { envolver: (correr) => conTopeDePin(guardaDelPin(almacen, negocio), Date.now(), correr).desenlace }).ok,
+      almacen.comando("caja", [a], a.tipo === "fondo" || a.tipo === "contarTurno" || a.tipo === "corregirMedio" ? {} : { envolver: (correr) => conTopeDePin(guardaDelPin(almacen, negocio), Date.now(), correr).desenlace }).ok,
     [almacen, negocio],
   );
 
@@ -385,7 +329,7 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
           <div data-caja="cajon" className="col-span-2 rounded-md bg-surface-sunken p-3 sm:col-span-1">
             {/* text-body: sobre el fondo hundido, text-muted no llega a 4,5:1. */}
             <dt className="text-xs text-body">Efectivo en el cajón</dt>
-            <dd className="text-xl font-bold text-strong">{pesos(v.efectivoEsperado)}</dd>
+            <dd className="text-xl font-bold text-strong">{veEsperado ? pesos(v.efectivoEsperado) : "Se ve al cerrar el turno"}</dd>
           </div>
           <div className="p-3">
             <dt className="text-xs text-muted">Fondo</dt>
@@ -393,11 +337,11 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
           </div>
           <div data-signo="ingreso" className="p-3">
             <dt className="text-xs text-muted">Ingresos</dt>
-            <dd className="font-semibold text-strong">{pesos(v.ingresos)}</dd>
+            <dd className="font-semibold text-strong">{veEsperado ? pesos(v.ingresos) : "—"}</dd>
           </div>
           <div data-signo="egreso" className="p-3">
             <dt className="text-xs text-muted">Egresos</dt>
-            <dd className="font-semibold text-strong">{pesos(v.egresos)}</dd>
+            <dd className="font-semibold text-strong">{veEsperado ? pesos(v.egresos) : "—"}</dd>
           </div>
         </dl>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -409,7 +353,7 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
               {v.porMedio.map((m) => (
                 <div key={m.medio} className="flex justify-between gap-2 border-b border-line py-1">
                   <dt className="text-muted">{m.medio}</dt>
-                  <dd className="text-strong">{pesos(m.monto)}</dd>
+                  <dd className="text-strong">{veEsperado ? pesos(m.monto) : "—"}</dd>
                 </div>
               ))}
             </dl>
@@ -419,14 +363,11 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
         <FondoDeCaja key={v.fondo} almacen={almacen} fondo={v.fondo} hacer={hacer} />
       </section>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Egreso almacen={almacen} hacer={hacer} />
-        <CierreDeLaCaja almacen={almacen} cierre={v.cierreDeHoy} esperado={v.efectivoEsperado} hacer={hacer} />
-      </div>
+      <CierreDeCaja almacen={almacen} hacer={hacer} />
 
       <RemitoDesdeLaCaja almacen={almacen} />
 
-      <Movimientos v={v} onMas={() => setCuantos((n) => n + MOVIMIENTOS_POR_PAGINA)} />
+      <Movimientos v={v} hacer={hacer} onMas={() => setCuantos((n) => n + MOVIMIENTOS_POR_PAGINA)} />
 
       {v.cierres.length > 0 && (
         <section aria-labelledby="club-cierres" className="flex flex-col gap-1">
