@@ -31,17 +31,20 @@ import { roleHasCapability } from "@/lib/capabilities";
 import { motivoMostrable } from "@/lib/rechazo-de-dominio";
 import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
 import { logger } from "@/lib/logger";
+import { cantidadOCero } from "@/lib/pos-peso";
 import { CAMBIO_MIENTRAS_MIRABAS_TECLAS, guardarTeclasFijadasEnTx } from "@/lib/vender/teclas-fijadas";
 import { createOrder, type OrderActionState } from "@/lib/order-actions";
 import { avisoDeCambioDePrecio, type CambioDePrecio } from "./reglas-venta";
 import {
   CAMPO_PRECIO_VISTO,
   avisoDePrecioAlGrabar,
+  avisoDeQueNoEntro,
   avisoDeQueYaNoSeVende,
   cambiosContraLoVisto,
   cambiosEnLoCobrado,
   cobradoPorProducto,
   leerPreciosVistos,
+  noEntraronEnLaVenta,
   queYaNoSeVenden,
   vendibles,
   type ProductoQueNoSeVende,
@@ -155,6 +158,9 @@ export async function cobrarDelMostrador(formData: FormData): Promise<CobroDelMo
     return createOrder(formData);
   }
 
+  // Lo que el ticket pide de verdad (con cantidad), leído como lo lee el alta.
+  const cantidades = formData.getAll("quantity").map((q) => cantidadOCero(String(q)));
+  const pedidos = formData.getAll("productId").map(String).filter((id, i) => id && (cantidades[i] ?? 0) > 0);
   const r = await createOrder(formData);
   if (!r || !r.ok || r.yaEstaba || !r.venta) return r;
   // El precio cambió en el instante entre el control y el alta: la venta quedó con el de la base
@@ -168,10 +174,18 @@ export async function cobrarDelMostrador(formData: FormData): Promise<CobroDelMo
     cobrado = items.flatMap((i) => (i.productId ? [{ productId: i.productId, precio: i.unitPrice }] : []));
   }
   const tarde = cambiosEnLoCobrado(cobrado, vistos, enBase);
-  if (tarde.length === 0) return r;
-  logger.warn("vender.precio", "el precio cambió entre el control y el alta; la venta quedó con el de la base", {
+  // Pausado o borrado en ese mismo instante: el alta descartó el renglón. Se dice, no se calla.
+  const faltan = noEntraronEnLaVenta(pedidos, cobrado, enBase);
+  if (tarde.length === 0 && faltan.length === 0) return r;
+  logger.warn("vender.precio", "el catálogo cambió entre el control y el alta; la venta quedó con lo de la base", {
     orderId: r.venta.id,
     productos: tarde.map((c) => c.id),
+    sinRenglon: faltan.map((p) => p.id),
   });
-  return { ...r, mensaje: [r.mensaje, avisoDePrecioAlGrabar(tarde)].filter(Boolean).join(" ") };
+  const avisos = [
+    r.mensaje,
+    faltan.length > 0 ? avisoDeQueNoEntro(faltan) : "",
+    tarde.length > 0 ? avisoDePrecioAlGrabar(tarde) : "",
+  ];
+  return { ...r, mensaje: avisos.filter(Boolean).join(" ") };
 }

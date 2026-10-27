@@ -13,7 +13,9 @@ import {
   cobradoPorProducto,
   debeControlarPrecio,
   leerPreciosVistos,
+  avisoDeQueNoEntro,
   avisoDeQueYaNoSeVende,
+  noEntraronEnLaVenta,
   queYaNoSeVenden,
   sinLosQueNoSeVenden,
   vendibles,
@@ -112,4 +114,17 @@ test("la pantalla saca los renglones que ya no se venden; si no queda ninguno, d
     usoKeyVacia: true,
   });
   assert.deepEqual(sinLosQueNoSeVenden(ls, new Set(["p_x"]), 9).lineas, ls);
+});
+
+test("F2: lo pedido que pasó el control y no quedó grabado (pausado en el instante del alta) se avisa", () => {
+  const enBase = [vacio, crema];
+  // Pedidos los dos, grabado sólo el vacío: la crema no entró.
+  const faltan = noEntraronEnLaVenta([vacio.id, crema.id], [{ productId: vacio.id }], enBase);
+  assert.deepEqual(faltan, [{ id: crema.id, nombre: "Crema" }]);
+  assert.match(avisoDeQueNoEntro(faltan), /^Ojo: Crema no entró en la venta/);
+  // Todo grabado, o un id que no pasó el control (lo decide el alta): nada que avisar.
+  assert.deepEqual(noEntraronEnLaVenta([vacio.id, crema.id], [{ productId: vacio.id }, { productId: crema.id }], enBase), []);
+  assert.deepEqual(noEntraronEnLaVenta(["p_ajeno"], [], enBase), []);
+  // Un producto en el ticket sin cantidad no se pidió: no se avisa.
+  assert.deepEqual(noEntraronEnLaVenta([vacio.id], [{ productId: vacio.id }], enBase), []);
 });

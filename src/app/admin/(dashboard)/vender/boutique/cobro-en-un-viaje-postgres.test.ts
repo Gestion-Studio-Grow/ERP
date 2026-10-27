@@ -9,10 +9,13 @@
 //   · C-4: dos envíos simultáneos del mismo cobro = UNA venta y UN movimiento de caja;
 //   · B: con la misma clave graba la suya; un producto de A no se controla ni se vende desde B; el
 //     control de precio de B mira sólo lo de B; nada de A cambia.
+//   · F2: un producto pausado ENTRE el control y el alta sale de la venta, pero con aviso «Ojo»;
 //   · sin `precioVisto` es `createOrder` tal cual (el camino del reintento y de registrar sin cobrar).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import path from "node:path";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
@@ -24,6 +27,22 @@ test("cobro en un viaje: precio cambiado se frena sin grabar, doble envío = una
   apuntarLaAppA(base);
   prepararAccionesDeServidor();
   const duenio = await prismaComoDuenio(base);
+  // Costura (F2): `createOrder` envuelto para meter un cambio del catálogo ENTRE el control y el
+  // alta. Sin gancho puesto es `createOrder` tal cual. Va antes de importar la acción.
+  const req = createRequire(path.join(process.cwd(), "src/lib/x.ts"));
+  const rutaAlta = req.resolve(path.join(process.cwd(), "src/lib/order-actions.ts"));
+  const oa = req(rutaAlta) as { createOrder: (fd: FormData) => Promise<unknown> };
+  const altaOriginal = oa.createOrder;
+  let antesDelAlta: (() => Promise<void>) | null = null;
+  req.cache[rutaAlta]!.exports = {
+    ...oa,
+    createOrder: async (fd: FormData) => {
+      const gancho = antesDelAlta;
+      antesDelAlta = null;
+      if (gancho) await gancho();
+      return altaOriginal(fd);
+    },
+  };
   const { cobrarDelMostrador } = await import("../acciones-del-mostrador");
   const { CAMPO_PRECIO_VISTO } = await import("./precio-del-renglon");
 
@@ -179,6 +198,28 @@ test("cobro en un viaje: precio cambiado se frena sin grabar, doble envío = una
   // La pantalla saca el renglón; el próximo toque cobra lo que queda, con la misma clave.
   const sinElRenglon = await cobrar(duenaA, formulario("perf-f1-a", [{ id: chorizo.id, qty: "1", price: 1900, pricePerKg: null }]));
   assert.ok(sinElRenglon?.ok, JSON.stringify(sinElRenglon));
+
+  // ── F2 (certificación): pausado ENTRE el control y el alta. El alta descarta el renglón; la
+  // venta sale (ya se cobró lo demás) pero NO callada: el mensaje dice qué no entró ──
+  const pausaTarde = await duenio.product.create({
+    data: { tenantId: base.a.id, name: "PausaTarde UAT", saleUnit: "UNIT", price: 700, unit: "u", trackStock: false },
+  });
+  antesDelAlta = async () => {
+    await duenio.product.update({ where: { id: pausaTarde.id }, data: { active: false } });
+  };
+  const tardia = await cobrar(
+    duenaA,
+    formulario("perf-f2", [
+      { id: pausaTarde.id, qty: "1", price: 700, pricePerKg: null },
+      { id: chorizo.id, qty: "1", price: 1900, pricePerKg: null },
+    ]),
+  );
+  assert.equal(antesDelAlta, null, "el gancho corrió entre el control y el alta");
+  assert.ok(tardia?.ok && tardia.venta, JSON.stringify(tardia));
+  const ordenF2 = await duenio.order.findFirst({ where: { tenantId: base.a.id, idempotencyKey: "perf-f2" }, include: { items: true } });
+  assert.equal(ordenF2?.total, 1900, "quedó sin el renglón pausado");
+  assert.ok(!ordenF2?.items.some((i) => i.productId === pausaTarde.id));
+  assert.match(tardia?.ok ? String(tardia.mensaje ?? "") : "", /Ojo: PausaTarde UAT no entró en la venta/);
 
   // ── Sin `precioVisto`: createOrder tal cual (reintento / registrar sin cobrar): sin control ──
   const sinControl = await cobrar(duenaA, formulario("perf-sin", [{ id: vacio.id, qty: "1", price: null, pricePerKg: 1 }], false));

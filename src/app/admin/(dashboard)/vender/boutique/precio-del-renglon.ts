@@ -184,6 +184,29 @@ export function cambiosEnLoCobrado(
   return out;
 }
 
+/**
+ * Lo que se pidió, pasó el control y NO quedó grabado: lo pausaron o borraron en el instante entre
+ * el control y el alta, y `createOrder` descartó el renglón. `cambiosEnLoCobrado` sólo mira lo
+ * grabado y no lo ve; sin esto la venta salía con un total menor y sin aviso. PURA.
+ */
+export function noEntraronEnLaVenta(
+  pedidos: readonly string[],
+  cobrado: readonly { productId: string }[],
+  enBase: readonly Pick<ProductoDeLaBase, "id" | "name">[],
+): ProductoQueNoSeVende[] {
+  const grabados = new Set(cobrado.map((c) => c.productId));
+  const pedidosSet = new Set(pedidos);
+  return enBase
+    .filter((p) => pedidosSet.has(p.id) && !grabados.has(p.id))
+    .map((p) => ({ id: p.id, nombre: p.name }));
+}
+
+/** La venta se grabó sin un renglón que se pidió (lo sacaron del catálogo en el instante del cobro). PURA. */
+export function avisoDeQueNoEntro(productos: readonly ProductoQueNoSeVende[]): string {
+  const nombres = productos.map((p) => p.nombre).join(" · ");
+  return `Ojo: ${nombres} no entró en la venta (lo sacaron del catálogo recién); revisá el total del ticket con el cliente.`;
+}
+
 /** ¿Se pide el precio de este producto al sumarlo? (nunca pedido, o hace más de un minuto). PURA. */
 export function debeControlarPrecio(ultimoControl: number | undefined, ahora: number): boolean {
   return ultimoControl === undefined || ahora - ultimoControl >= CONTROL_DEL_RENGLON_MS;
