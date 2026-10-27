@@ -135,6 +135,70 @@ Caso de acceso:
   botones de al menos 44 px en el celular, y cero errores en rojo en la consola.
 - El crédito «Gestión Studio Grow» va en el pie del panel, no en la tienda.
 
+## 10. Tanda 2b — mostrador
+
+Lo que entró en la tanda 2b (rama `reing-magra-t2b`), probado clic por clic el 27/10/2026 en una app local
+(`next dev`, base Postgres local sembrada con `prisma/seed-magra.ts`, 390 y 1440 px). **Antes de empezar**, en la consola
+del operador: `mostrador-boutique` y `cuentas-corrientes` prendidos y **`inicio-por-apps` apagado** (para el paso 10.2;
+después se prende, como dice `provisioning-magra.md` § 3 bis). Todo lo de prueba lleva «UAT» en el nombre y se anula al final.
+
+### 10.1 Pegar un pedido de WhatsApp (Mostrador, 390 px)
+
+Pedidos → **Nuevo pedido de WhatsApp** → pegar el chat en «Pegá el mensaje de la clienta». En cada caso se mira la lista
+«Lo que pidió».
+
+| # | Pegar | Esperado |
+|---|---|---|
+| 10.1a | Copiado del celular (Android): `27/10/26, 10:15 - Ana UAT: hola soy Ana 11 5555-1234` y abajo `27/10/26, 10:16 - Ana UAT: 2 kg de vacío y 1 chorizo de cerdo` | Dos renglones: «2 kg de vacío» y «1 chorizo de cerdo» (pregunta «¿1 paquete de 6?»). Ni la fecha ni la hora aparecen como cantidad. |
+| 10.1b | Copiado de WhatsApp Web: `[10:20, 27/10/2026] Ana UAT: hola soy Ana 11 5555-1234` y `[10:21, 27/10/2026] Ana UAT: 1 kg de vacío y 2 chorizos de cerdo` | Dos renglones: «1 kg de vacío» y «2 chorizos de cerdo» («Pidió 2: van 1 paquete de 6»). No hay renglón de «10» ni de «20». |
+| 10.1c | Web sin fecha: `[10:20] Ana UAT: hola soy Ana 11 5555-1234` y `[10:21] Ana UAT: 1 kg de vacío` | Un solo renglón: «1 kg de vacío». |
+| 10.1d | `hola soy Ana 11 5555-1234, 1500 kg de vacío` | El renglón pregunta «¿Son 1.500 kg de verdad? Confirmalo con la clienta.» y «Da $…: revisá que sea así.»; si no hay stock, también lo dice. |
+| 10.1e | `hola soy Ana 11 5555-1234, para el 25/10 2 kg de asado de tira` | «2 kg» de asado de tira (no 2,5 kg): la fecha no se lee como cantidad. |
+| 10.1f | `hola soy Ana 11 5555-1234, 100 paquetes de hamburguesas caseras` (más de $500.000) | El renglón pregunta «Da $650.000: revisá que sea así.» (con los precios de la demo; con los reales, el importe que dé). |
+| 10.1g | Uno limpio (10.1b) → «Está bien» en cada renglón → Hoy tarde → **Registrar pedido** | «Pedido #N anotado» con el mensaje listo para mandarle a la clienta. Aparece en Pedidos → Nuevos. |
+
+Repetir 10.1a–10.1e a 1440 px: mismo resultado.
+
+### 10.2 «Queda a cobrar» con «Trabaja por apps» apagado (Mostrador)
+
+| # | Paso | Esperado |
+|---|---|---|
+| 10.2a | El pedido de 10.1g → **Armar** → escribir lo que pesó → **Listo y avisar** | Pasa a Listos. |
+| 10.2b | Pedidos → Listos → **Entregar y cobrar** del pedido → **Queda a cobrar: entregar sin cobrar** | Aviso: «Pedido #N entregado sin cobrar, pero NO quedó en la cuenta del cliente: el negocio no tiene abierta «Fiado y cuentas de clientes» (falta prender «Trabaja por apps»)…». Nunca en silencio. |
+| 10.2c | Pedidos → A cobrar | El pedido está ahí con «Cobrar $…»: se cobra desde la bandeja. (El texto de arriba de la columna todavía manda a «Fiado y cuentas», que con este interruptor apagado no abre: ver el resultado.) |
+
+### 10.3 Rendición del reparto con dos puestos (Mostrador en el celular, Dueño en la PC)
+
+Preparación: dos pedidos con **Envío a domicilio**. Al primero se lo arma y queda listo sin cobrar. Al segundo, en Nuevos
+→ tocar el pedido → Más acciones → «¿Ya pagó…?» → **Transferencia**; después **Preparar** y **Marcar listo** desde la
+misma ficha (en un pedido ya cobrado, «Seguir armando» no deja pesar: se usa la ficha). Armar reparto → elegir la franja
+(«Sin horario» es otra) → **Salió el cadete**.
+
+| # | Paso | Esperado |
+|---|---|---|
+| 10.3a | Abrir Pedidos → Rendición del cadete en los **dos** puestos, sin recargar | Los dos ven los envíos: el primero «A cobrar», el segundo «Ya pagó». |
+| 10.3b | Puesto 1: primer envío → **Cobró** → **Dividir** → Efectivo una parte + Mercado Pago el resto → Cobrar | Queda rendido. «Rendido hoy» lo muestra con los dos medios. |
+| 10.3c | Puesto 2, con la pantalla vieja: el mismo envío → **Cobró** → Efectivo | «El pedido #N ya estaba rendido.» No cobra de nuevo. |
+| 10.3d | Los dos puestos a la vez: segundo envío → **Entregado (ya pagó)** | Los dos dicen «Pedido #N entregado (ya estaba pago)». |
+| 10.3e | Recargar la rendición en los dos puestos | «Rendido hoy» muestra **una vez** cada envío: el mixto con «Efectivo $X + Mercado Pago $Y» y el pago como «Ya pagaba · $…». «El cadete entrega en efectivo» es sólo la parte en efectivo. |
+
+### 10.4 Venta del cuaderno de ayer y la ficha de stock
+
+| # | Paso | Esperado |
+|---|---|---|
+| 10.4a | Mostrador: Vender → cuaderno sin señal (`/admin/vender/cuaderno`) → **Ayer** → hora 11:20 → Efectivo → Corte «Lomo» → 1,5 kg → **Cargar 1 venta del …** | «✓ Venta #N · $…» y «La venta quedó cargada con su hora.» |
+| 10.4b | Inventario → Movimientos (Mostrador 390 px y Dueño 1440 px), **con el diseño nuevo prendido** | En el día de ayer, a las 11:20: «Venta del cuaderno (se cargó después de vender)», «quedó X kg **al cargarla**» y «Las ventas del cuaderno descuentan al cargar.» |
+
+### Resultado de la prueba local (27/10/2026)
+
+- 10.1, 10.2 y 10.3: **OK** a 390 y 1440 px. En la base, el cobro mixto dejó una fila por medio y una sola vez; el
+  «ya pagó» apretado en los dos puestos dejó dos marcas de rendición, pero el resumen lo cuenta una vez (deduplica por pedido).
+- 10.4 con el diseño de siempre (`diseno-nuevo` apagado): **FALLA.** Se ve el motivo, pero no «al cargarla» ni la
+  aclaración: la ficha clásica (`inventario/movimientos/page.tsx:164`) no tiene el cambio, que está sólo en
+  `MovimientosRenglon.tsx:190-191`. Si MAGRA se publica sin el diseño nuevo, 10.4b no se cumple.
+- Observación de 10.2c: con `inicio-por-apps` apagado, la columna A cobrar dice «va a su cuenta: Fiado y cuentas» con un
+  enlace que termina en «no está disponible» (`pedidos/TableroPedidos.tsx:633-636`).
+
 ## Resultado
 
 **Recorrido automático (base local, 18/10/2026):** `npm run test:magra-uat` → **46/46 OK**, cero errores de consola,
