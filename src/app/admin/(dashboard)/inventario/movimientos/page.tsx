@@ -124,6 +124,8 @@ export default async function MovimientosPage({
           <ul className="divide-y divide-line rounded-lg border border-line">
             {datos.movimientos.map((m) => {
               const unidad = m.product?.unit ?? "";
+              // O-5: la venta del cuaderno cargada después graba el saldo de la hora de carga (igual que MovimientosRenglon).
+              const delCuaderno = typeof m.reason === "string" && m.reason.startsWith("Venta del cuaderno");
               const origen = m.orderId
                 ? datos.pedidos.has(m.orderId)
                   ? `Pedido #${datos.pedidos.get(m.orderId)}`
@@ -161,7 +163,11 @@ export default async function MovimientosPage({
                         {firmado.format(m.qty)} {unidad}
                       </span>
                     )}
-                    <span className="block text-xs text-muted">quedó {formatearCantidad(m.balanceAfter)} {unidad}</span>
+                    <span className="block text-xs text-muted">
+                      quedó {formatearCantidad(m.balanceAfter)} {unidad}
+                      {delCuaderno && " al cargarla"}
+                    </span>
+                    {delCuaderno && <span className="block text-xs text-muted">Las ventas del cuaderno descuentan al cargar.</span>}
                   </span>
                 </li>
               );

@@ -55,7 +55,7 @@ import { CobroDelNegocio } from "./CobroDelPedido";
 import { guardarArmado } from "./[code]/armar/acciones";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import { PIEL_RENGLON } from "@/lib/diseno/diseno";
-import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
+import { fiadoAbreEnLaBandeja } from "@/lib/clientes/fiado.server";
 
 /** Vender con el bloque «Nuevo pedido de WhatsApp» ya abierto (PedidoDesdeWhatsApp lee el #). */
 const HREF_PEDIDO_DE_WHATSAPP = "/admin/vender#whatsapp";
@@ -227,7 +227,8 @@ export default async function PedidosPage() {
       ? await leerAvisados(abiertos.filter((o) => o.status === "READY").map((o) => o.id), { boutique })
       : new Map<string, Date>();
     // Con el fiado del negocio prendido (2D), «A cobrar» dice adónde va lo entregado sin cobrar con ficha.
-    const fiado = boutique && (await cuentasCorrientesDe(await getCurrentTenantId()));
+    // …y sólo si la app de Fiado abre (sin «inicio por apps» el enlace era un callejón sin salida).
+    const fiado = boutique && (await fiadoAbreEnLaBandeja(await getCurrentTenantId()));
     const tablero = armarTablero({
       abiertos,
       cerrados,

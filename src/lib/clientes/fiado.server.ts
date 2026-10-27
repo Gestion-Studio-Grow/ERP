@@ -64,6 +64,15 @@ export async function decidirFiadoDeLaEntrega(tenantId: string, orderId: string)
   });
 }
 
+/**
+ * ¿La bandeja puede mandar a «Fiado y cuentas»? Sólo si las cuentas corrientes están prendidas Y la app abre
+ * (la misma regla que `decidirFiadoDeLaEntrega`): sin «inicio por apps», el enlace terminaba en «no está disponible».
+ */
+export async function fiadoAbreEnLaBandeja(tenantId: string): Promise<boolean> {
+  if (!(await cuentasCorrientesDe(tenantId))) return false;
+  return appPermitida(appPorId("cuentas-a-cobrar"), await getNegocioApps("OWNER"));
+}
+
 export interface PedidoParaRepetir {
   code: number;
   fecha: Date;
