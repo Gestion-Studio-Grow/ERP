@@ -128,3 +128,18 @@ test("F2: lo pedido que pasó el control y no quedó grabado (pausado en el inst
   // Un producto en el ticket sin cantidad no se pidió: no se avisa.
   assert.deepEqual(noEntraronEnLaVenta([vacio.id], [{ productId: vacio.id }], enBase), []);
 });
+
+test("un producto con precio $0 cuenta como «ya no se vende»: frena con aviso en vez de grabar la venta sin él", () => {
+  const fila = <T extends object>(p: T) => ({ ...p, active: true, deletedAt: null });
+  const vistos = leerPreciosVistos(["p_cero|0|", "p_kcero||0", "p_crema|9000|"]);
+  const filas = [
+    fila({ id: "p_cero", name: "A precio cero", saleUnit: "UNIT" as const, price: 0, pricePerKg: null }),
+    fila({ id: "p_kcero", name: "Kilo a cero", saleUnit: "WEIGHT" as const, price: null, pricePerKg: 0 }),
+    fila(crema),
+  ];
+  assert.deepEqual(queYaNoSeVenden(vistos, filas), [
+    { id: "p_cero", nombre: "A precio cero" },
+    { id: "p_kcero", nombre: "Kilo a cero" },
+  ]);
+  assert.deepEqual(vendibles(filas).map((f) => f.id), ["p_crema"]);
+});

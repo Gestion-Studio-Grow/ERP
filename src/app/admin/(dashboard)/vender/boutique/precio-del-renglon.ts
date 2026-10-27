@@ -96,8 +96,11 @@ export function cambiosContraLoVisto(
 export type ProductoQueNoSeVende = { id: string; nombre: string };
 type FilaDelControl = ProductoDeLaBase & { active: boolean; deletedAt: Date | null };
 
+// Mayor que cero, como `buildOrderLines` (order-core.ts:327), que descarta el renglón de $0: si acá
+// se aceptaba, el segundo toque grababa la venta sin ese renglón.
 function tienePrecio(p: ProductoConPrecio & { saleUnit: "UNIT" | "WEIGHT" }): boolean {
-  return (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price) != null;
+  const precio = p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price;
+  return precio != null && Number(precio) > 0;
 }
 
 /**
