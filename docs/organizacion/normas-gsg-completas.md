@@ -64,8 +64,9 @@ recomendación ni un default cómodo: es norma dura, no salteable. Fundamento y 
 anterior (Sonnet 5 por defecto, Opus 4.8 para alto juicio, subagentes en Sonnet o Haiku): **todo corre en
 Opus 5.5** (`claude-opus-5-5`) — sesiones, células, subagentes y workflows. `.claude/settings.json` fija
 `claude-opus-5-5` como modelo de la sesión; en un workflow se usa `model: 'opus'` o se omite (hereda);
-**nunca** `sonnet` ni `haiku`. `fable` sólo como escalamiento técnico (desde el 23/10/2026): una única vuelta cuando
-Opus agotó sus 2 vueltas de corrección y quedan fallas alta/media, con el motivo escrito en el informe. Mismo criterio en la factoría: `Factory-GSG/10-GOBIERNO/
+**nunca** `sonnet` ni `haiku`. `fable` (regla del 27/10/2026): **se planifica en Fable y se ejecuta en Opus**. Análisis,
+diseño y planificación en Fable; construcción, verificación y certificación en Opus, con Fable sólo como escalamiento
+técnico (una única vuelta cuando Opus agotó sus 2 vueltas y quedan fallas alta/media, con el motivo en el informe). Mismo criterio en la factoría: `Factory-GSG/10-GOBIERNO/
 reglas-que-costaron-caro.md` §Modelos.
 
 ### 1. Estructura de células (se auto-abren al decir `sprint`)
