@@ -135,10 +135,17 @@ test("P2 · outbox de eventos con y sin N2_hub, dos negocios, rollback y doble e
   );
   assert.equal(columnasAntes.length, 0, "la base efímera arranca sin N2_hub");
   await fase("sin-n2", false, base.a.pedidos[0]);
+  // Un hecho emitido ANTES de N2_hub, que se reemite después (transición del deploy).
+  assert.equal((await emitir(A, "transicion:hecho")).escrito, true);
 
   // ── Fase 2: con N2_hub aplicada (sólo en esta base efímera) ──
   aplicarN2Hub(base);
   olvidarColumnasDelOutbox();
+  // C4 en la transición: N2_hub copia payload._clave a la columna, y reemitir no duplica.
+  assert.deepEqual(await emitir(A, "transicion:hecho"), { escrito: false, motivo: "duplicado", modo: "columnas" });
+  const transicion = (await todas(true)).filter((f) => f.tenantId === A && f.payload.clave === "transicion:hecho");
+  assert.equal(transicion.length, 1, "reemitir tras aplicar N2_hub duplicó");
+  assert.equal(transicion[0].clave, "transicion:hecho", "N2_hub no hizo el backfill de la clave");
   await fase("con-n2", true, base.a.pedidos[1]);
 
   // ── Alta real (insertOrder) y factura (C5: InvoiceCreated sigue igual + factura.autorizada@1) ──
@@ -209,6 +216,25 @@ test("P2 · outbox de eventos con y sin N2_hub, dos negocios, rollback y doble e
   const rechazos = conClave(await todas(true), A, `factura:${factura2}:rechazada:${envio2.id}`, true);
   assert.equal(rechazos.length, 1);
   assert.ok(!JSON.stringify(rechazos[0].payload).includes("20301234567"));
+
+  // Un motivo de ARCA de 3000+ caracteres (todas las observaciones): la factura queda REJECTED y el
+  // evento sale recortado; antes la validación del evento tumbaba el rechazo (factura PENDING).
+  const venta3 = await insertOrder(A, {
+    channel: "COUNTER", fulfillment: "PICKUP", customerName: "Mostrador", customerPhone: "", address: null,
+    notes: null, scheduledFor: null, paid: true, paymentMethod: "EFECTIVO", items: [{ productId: producto.id, qty: 1 }],
+  });
+  const factura3 = await factura(venta3.id);
+  const envio3 = (await duenio.outboxEvent.findMany({ where: { tenantId: A, type: OUTBOX_INVOICE_CREATED } })).find(
+    (x) => (x.payload as { invoiceId: string }).invoiceId === factura3,
+  )!;
+  const motivoLargo = Array.from({ length: 40 }, (_, i) => `${10000 + i}: el campo informado no corresponde con el valor esperado para el receptor del comprobante`).join("; ");
+  assert.ok(motivoLargo.length > 3000);
+  assert.equal(await markInvoiceRejected(factura3, A, motivoLargo, envio3.id), true);
+  const inv3 = await duenio.invoice.findUnique({ where: { id: factura3 }, select: { status: true } });
+  assert.equal(inv3?.status, "REJECTED");
+  const rechazoLargo = conClave(await todas(true), A, `factura:${factura3}:rechazada:${envio3.id}`, true);
+  assert.equal(rechazoLargo.length, 1);
+  assert.ok((rechazoLargo[0].payload.datos as { motivo: string }).motivo.length <= 500);
 
   // Nada de A en B, al final de todo.
   const deB = await tenantTransaction((tx) => tx.outboxEvent.findMany({ select: { tenantId: true } }), { tenantId: B });

@@ -7,7 +7,7 @@ import path from "node:path";
 import { CATALOGO, definiciones } from "./catalogo";
 import { e, enmascararTelefono, erroresDe, nombresDeCampos, redactarTextoLibre } from "./esquema";
 import { armarSobre, emitirEvento, EventoInvalido, olvidarColumnasDelOutbox, SQL_CANDADO, SQL_INSERTAR_CON_COLUMNAS, SQL_INSERTAR_SIN_COLUMNAS, SQL_YA_ESTA } from "./emitir";
-import { canalYReferencia, emitirPedidoCobrado, medioDelCatalogo, pagoExternoDelActor } from "./del-core";
+import { canalYReferencia, emitirFacturaAutorizada, emitirFacturaRechazada, emitirPedidoCobrado, medioDelCatalogo, pagoExternoDelActor } from "./del-core";
 import { generarDocEventos } from "./doc";
 
 const RETAIL_73 = [
@@ -118,6 +118,60 @@ test("P2-C6 · los textos libres salen redactados en el payload (teléfono, DNI,
   assert.ok(!JSON.stringify(rech.payload).includes("20301234567"));
 });
 
+test("P2-C6 · separadores dobles o con espacios alrededor del guion no dejan el dato en claro", () => {
+  const cancelado = armarSobre({
+    tenantId: "t1", tipo: "pedido.cancelado", version: 1, clave: "pedido:o1:cancelado",
+    datos: { pedidoId: "o1", codigo: 1, motivo: "Llamar al 11 - 5566 - 7788 para coordinar" },
+  });
+  assert.ok(!JSON.stringify(cancelado.payload).includes("5566"), JSON.stringify(cancelado.payload));
+  const mitades = redactarTextoLibre("tel 11 5566 - 7788");
+  assert.equal(mitades, "tel ******7788");
+  assert.ok(!redactarTextoLibre("DNI 30  123  456").includes("123"));
+  assert.equal(redactarTextoLibre("(011) 5566-7788"), "(******7788");
+  assert.equal(redactarTextoLibre("pedido #1042 de $12500 · 3 u"), "pedido #1042 de $12500 · 3 u", "lo corto queda");
+});
+
+// 30 observaciones concatenadas, como arca-dispatch.ts las arma para el motivo del rechazo.
+const MOTIVO_ARCA_LARGO = Array.from({ length: 30 }, (_, i) => `${10000 + i}: el campo informado no corresponde con el valor esperado para el receptor (DocNro 20301234567)`).join("; ");
+
+test("P2-C1 · un motivo de ARCA de más de 2000 caracteres valida: se recorta a 500 y se redacta", () => {
+  assert.ok(MOTIVO_ARCA_LARGO.length > 3000);
+  const sobre = armarSobre({
+    tenantId: "t1", tipo: "factura.rechazada", version: 1, clave: "factura:i1:rechazada:e1",
+    datos: { facturaId: "i1", motivo: MOTIVO_ARCA_LARGO },
+  });
+  const motivo = (sobre.payload.datos as { motivo: string }).motivo;
+  assert.ok(motivo.length <= 500, `quedó de ${motivo.length}`);
+  assert.ok(!motivo.includes("20301234567"));
+});
+
+test("P2-C1 · factura.*: un dato fuera del catálogo no tumba el registro fiscal (CAE / rechazo)", async () => {
+  olvidarColumnasDelOutbox();
+  const tx = Object.assign(txFalso(true), {
+    invoice: { findFirst: async () => ({ total: 12500, orderId: "o1", appointmentId: null }) },
+  });
+  const original = console.error;
+  console.error = () => {};
+  try {
+    // caeVencimiento con otra forma: el CAE se guarda igual, sin evento.
+    const r = await emitirFacturaAutorizada(tx, {
+      tenantId: "t1", invoiceId: "i1", tipoComprobante: 11, puntoVenta: 3, numero: 12, cae: "76123456789012", caeVencimiento: "2026-11-07",
+    });
+    assert.equal(r, null);
+    assert.ok(!tx.llamadas.some((l) => l.sql === SQL_INSERTAR_CON_COLUMNAS));
+    // Un id vacío en el rechazo: tampoco tira.
+    assert.equal(await emitirFacturaRechazada(tx, { tenantId: "t1", invoiceId: "", motivo: "x", envioId: "e1" }), null);
+  } finally {
+    console.error = original;
+  }
+  // El motivo largo sí emite (recortado).
+  const r2 = await emitirFacturaRechazada(txFalso(true), { tenantId: "t1", invoiceId: "i1", motivo: MOTIVO_ARCA_LARGO, envioId: "e1" });
+  assert.equal(r2?.escrito, true);
+  // Un error de la base sube (la transacción ya está abortada).
+  const caida = { async $queryRawUnsafe() { throw new Error("base caída"); } };
+  await assert.rejects(emitirFacturaRechazada(caida, { tenantId: "t1", invoiceId: "i1", motivo: "x", envioId: "e2" }), /base caída/);
+});
+
 // ── El emisor con un SQL falso (sin base) ─────────────────────────────────────
 
 type Llamada = { sql: string; params: unknown[] };
@@ -143,6 +197,9 @@ test("P2-C1/C4 · con las columnas de N2_hub: type tipo@N, version, clave y ON C
   const tx = txFalso(true);
   const r = await emitirEvento(tx, { tenantId: "t1", tipo: "pedido.cobrado", version: 1, clave: "pedido:o1:cobrado", datos: COBRO });
   assert.equal(r.escrito, true);
+  // También con columnas: candado y chequeo por payload->>'clave' (ve las filas escritas sin N2_hub).
+  assert.deepEqual(tx.llamadas.map((l) => l.sql).filter((s) => !s.includes("pg_attribute")), [SQL_CANDADO, SQL_YA_ESTA, SQL_INSERTAR_CON_COLUMNAS]);
+  assert.ok(SQL_YA_ESTA.includes(`"payload"->>'clave'`));
   const ins = tx.llamadas.find((l) => l.sql === SQL_INSERTAR_CON_COLUMNAS)!;
   assert.ok(ins.sql.includes(`ON CONFLICT ("tenantId", "clave") DO NOTHING`));
   assert.equal(ins.params[1], "t1");

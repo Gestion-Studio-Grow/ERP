@@ -51,10 +51,11 @@ export type InferirObjeto<S extends Record<string, Esquema<unknown>>> = Aplanar<
 // ── Redacción de texto libre ──────────────────────────────────────────────────
 
 const RE_EMAIL = /[^\s@<>()"',;:]{1,64}@[^\s@<>()"',;:]{1,255}\.[a-z]{2,24}/gi;
-// Tiradas de 6 o más dígitos, con separadores sueltos (espacio, guion, punto, barra) y un «+»
-// adelante opcional: teléfonos («11 5566-7788», «+54 9 11…»), DNI («30.123.456»), CUIT
+// Tiradas de 6 o más dígitos, con hasta 3 separadores entre dígito y dígito (espacio, guion,
+// punto, barra, paréntesis) y un «+» adelante opcional: teléfonos («11 5566-7788», «11 - 5566 -
+// 7788», «(011) 5566-7788», «+54 9 11…»), DNI («30.123.456», «30  123  456»), CUIT
 // («20-30123456-7»). Las de 5 o menos (un código de pedido, un precio) quedan como están.
-const RE_DIGITOS = /\+?\d(?:[\s.\-/]?\d){5,}/g;
+const RE_DIGITOS = /\+?\d(?:[\s.\-/()]{0,3}\d){5,}/g;
 
 /** Enmascara un dato personal dejando los últimos 4 dígitos: «11 5566-7788» → «******7788». */
 export function enmascararTelefono(valor: string | null | undefined): string | null {
@@ -63,7 +64,7 @@ export function enmascararTelefono(valor: string | null | undefined): string | n
   return `******${digitos.slice(-4)}`;
 }
 
-/** Lo que una persona escribió, sin emails ni números de teléfono/documento. */
+/** Lo que una persona escribió, sin emails ni números de teléfono/documento, recortado a 500. */
 export function redactarTextoLibre(texto: string): string {
   return texto
     .slice(0, 500)
@@ -99,9 +100,12 @@ export const e = {
   id: () => primitivo<string>("id", esTexto, "un id (texto no vacío)"),
   /** Texto corto de sistema (no lo escribe una persona: códigos, referencias). */
   texto: () => primitivo<string>("texto", esTexto, "un texto no vacío"),
-  /** Texto que escribe una persona: se redacta al emitir. */
-  textoLibre: () =>
-    primitivo<string>("texto libre (se redacta)", (v) => typeof v === "string" && v.length <= 2000, "un texto", redactarTextoLibre),
+  /**
+   * Texto que escribe una persona (o que manda ARCA): se redacta y se recorta a 500 al emitir.
+   * Cualquier largo pasa la validación: un motivo de rechazo de ARCA con 25 observaciones no
+   * puede tumbar la transacción que registra el rechazo (se recorta, no se rechaza).
+   */
+  textoLibre: () => primitivo<string>("texto libre (se redacta)", (v) => typeof v === "string", "un texto", redactarTextoLibre),
   /** Pesos argentinos, número finito con hasta 2 decimales. */
   monto: () =>
     primitivo<number>(

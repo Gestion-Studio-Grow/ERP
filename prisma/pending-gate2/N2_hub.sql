@@ -176,6 +176,13 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 ALTER TABLE "OutboxEvent" ADD COLUMN IF NOT EXISTS "version" INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE "OutboxEvent" ADD COLUMN IF NOT EXISTS "clave" TEXT;
 
+-- Backfill ANTES del UNIQUE: los eventos emitidos sin esta migración llevan la clave en
+-- `payload._clave` y la columna en NULL; sin copiarla, el UNIQUE no los ve y reemitir el mismo
+-- hecho después del deploy escribiría una segunda fila. Idempotente (sólo toca los NULL).
+-- Corre como dueño (sin FORCE RLS, como hoy); si se aplicó 0003_force_rls, con un rol BYPASSRLS.
+UPDATE "OutboxEvent" SET "clave" = "payload"->>'_clave'
+  WHERE "clave" IS NULL AND "payload" ? '_clave';
+
 CREATE UNIQUE INDEX IF NOT EXISTS "OutboxEvent_tenantId_clave_key" ON "OutboxEvent"("tenantId", "clave");
 CREATE INDEX IF NOT EXISTS "OutboxEvent_tenantId_processedAt_proximoIntentoEn_idx" ON "OutboxEvent"("tenantId", "processedAt", "proximoIntentoEn");
 

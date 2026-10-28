@@ -14,11 +14,14 @@
 //    y el SQL sirve en los dos estados de la base:
 //      · CON las columnas (N2_hub aplicada): `version`, `clave` y
 //        `ON CONFLICT ("tenantId","clave") DO NOTHING` sobre el UNIQUE de N2_hub → una fila por hecho.
-//      · SIN las columnas (hoy en Neon): la clave va en `payload._clave`; antes de insertar se toma
-//        `pg_advisory_xact_lock` por (negocio, clave) y se mira si ya está. Dos emisiones a la vez
-//        del mismo hecho se ponen en fila: la segunda espera a que la primera confirme y la ve
-//        (READ COMMITTED: cada sentencia ve lo confirmado). En SERIALIZABLE la foto es la del
-//        comienzo y el chequeo no alcanza: el día que un emisor corra así, que use la base con N2_hub.
+//      · SIN las columnas (hoy en Neon): la clave va además en `payload._clave`.
+//    En LOS DOS modos, antes de insertar se toma `pg_advisory_xact_lock` por (negocio, clave) y se
+//    mira si ya está por `payload->>'clave'`, que el sobre trae siempre. Así la dedupe aguanta la
+//    transición: una fila escrita sin N2_hub tiene `clave` NULL (el UNIQUE no la ve) y un proceso
+//    con el probe todavía en false no ve la columna. Dos emisiones a la vez del mismo hecho se
+//    ponen en fila: la segunda espera a que la primera confirme y la ve (READ COMMITTED: cada
+//    sentencia ve lo confirmado). En SERIALIZABLE la foto es la del comienzo y el chequeo no
+//    alcanza: ahí el que ataja es el UNIQUE de N2_hub (que el backfill de N2_hub completa).
 // 4. ¿Hay columnas? Lo pregunta src/lib/schema-probe/probe.ts (caché por proceso), y la consulta
 //    al catálogo de Postgres corre EN LA MISMA CONEXIÓN de la transacción: preguntar por otra
 //    conexión del pool mientras la transacción retiene la suya puede dejar a 5 ventas simultáneas
@@ -116,8 +119,10 @@ export const SQL_INSERTAR_CON_COLUMNAS = `INSERT INTO "OutboxEvent" ("id", "tena
 
 export const SQL_CANDADO = `SELECT 1 AS ok FROM (SELECT pg_advisory_xact_lock(hashtextextended($1, 0))) AS candado`;
 
+// Por `payload->>'clave'` (el sobre), no por `_clave` ni por la columna: lo tienen las filas de
+// los dos modos.
 export const SQL_YA_ESTA = `SELECT "id" FROM "OutboxEvent"
-  WHERE "tenantId" = $1 AND "type" = $2 AND "payload"->>'_clave' = $3
+  WHERE "tenantId" = $1 AND "type" = $2 AND "payload"->>'clave' = $3
   LIMIT 1`;
 
 export const SQL_INSERTAR_SIN_COLUMNAS = `INSERT INTO "OutboxEvent" ("id", "tenantId", "type", "payload")
@@ -177,7 +182,13 @@ export async function emitirEvento<T extends TipoEvento, V extends VersionDe<T>>
   if (!tieneSql(tx)) return { escrito: false, motivo: "sin-sql" };
   const sql = tx;
 
-  if (await outboxConColumnasN2(sql)) {
+  const conColumnas = await outboxConColumnasN2(sql);
+  const modo = conColumnas ? "columnas" : "payload";
+  await sql.$queryRawUnsafe(SQL_CANDADO, `outbox:${ev.tenantId}:${sobre.clave}`);
+  const previas = await sql.$queryRawUnsafe<{ id: string }[]>(SQL_YA_ESTA, ev.tenantId, sobre.type, sobre.clave);
+  if (previas.length) return { escrito: false, motivo: "duplicado", modo };
+
+  if (conColumnas) {
     const filas = await sql.$queryRawUnsafe<{ id: string }[]>(
       SQL_INSERTAR_CON_COLUMNAS,
       sobre.id,
@@ -190,9 +201,6 @@ export async function emitirEvento<T extends TipoEvento, V extends VersionDe<T>>
     return filas.length ? { escrito: true, id: filas[0].id, modo: "columnas" } : { escrito: false, motivo: "duplicado", modo: "columnas" };
   }
 
-  await sql.$queryRawUnsafe(SQL_CANDADO, `outbox:${ev.tenantId}:${sobre.clave}`);
-  const previas = await sql.$queryRawUnsafe<{ id: string }[]>(SQL_YA_ESTA, ev.tenantId, sobre.type, sobre.clave);
-  if (previas.length) return { escrito: false, motivo: "duplicado", modo: "payload" };
   const filas = await sql.$queryRawUnsafe<{ id: string }[]>(
     SQL_INSERTAR_SIN_COLUMNAS,
     sobre.id,

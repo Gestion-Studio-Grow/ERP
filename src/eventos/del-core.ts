@@ -8,11 +8,12 @@
 // funciones no cambien de forma ni de firma.
 //
 // Si la emisión falla (dato fuera del catálogo, base caída), el error sube y la transacción del
-// hecho vuelve atrás entera: o hay venta Y evento, o no hay ninguno de los dos.
+// hecho vuelve atrás entera: o hay venta Y evento, o no hay ninguno de los dos. Salvo en los
+// hechos fiscales (factura.*), donde un dato fuera del catálogo no impide guardar lo que ARCA dijo.
 // ============================================================================
 
 import { round2 } from "@/lib/round";
-import { emitirEvento, tieneSql, type ResultadoEmision } from "./emitir";
+import { EventoInvalido, emitirEvento, tieneSql, type ResultadoEmision } from "./emitir";
 
 type Medio = "EFECTIVO" | "MP" | "TRANSFERENCIA" | "TARJETA";
 
@@ -147,6 +148,22 @@ export async function emitirPedidoCancelado(
 }
 
 // ── factura.autorizada@1 / factura.rechazada@1 ────────────────────────────────
+//
+// Excepción a «hecho y evento, o ninguno»: el hecho fiscal ya pasó en ARCA (el CAE está otorgado,
+// el rechazo está dado). Si el evento no cumple el catálogo, NO se tumba la transacción que lo
+// guarda —perder un CAE o dejar la factura PENDING reintentando contra ARCA es peor que un evento
+// de menos—: se anota el error y la factura se registra igual (devuelve null). Un error de la base
+// sí sube (la transacción ya está abortada). `armarSobre` valida antes de tocar la base.
+
+async function sinTumbarElHechoFiscal(emision: () => Promise<ResultadoEmision | null>): Promise<ResultadoEmision | null> {
+  try {
+    return await emision();
+  } catch (error) {
+    if (!(error instanceof EventoInvalido)) throw error;
+    console.error(`[eventos] ${error.message} · el hecho fiscal se registra sin su evento`);
+    return null;
+  }
+}
 
 type TxFactura = {
   invoice: {
@@ -168,7 +185,7 @@ export async function emitirFacturaAutorizada(
     select: { total: true, orderId: true, appointmentId: true },
   });
   if (!fila) return null;
-  return emitirEvento(tx, {
+  return sinTumbarElHechoFiscal(() => emitirEvento(tx, {
     tenantId: f.tenantId,
     tipo: "factura.autorizada",
     version: 1,
@@ -184,20 +201,20 @@ export async function emitirFacturaAutorizada(
       ...(fila.orderId ? { pedidoId: fila.orderId } : {}),
       ...(fila.appointmentId ? { turnoId: fila.appointmentId } : {}),
     },
-  });
+  }));
 }
 
 /** Lo llama markInvoiceRejected DESPUÉS de que la factura quedó rechazada (count === 1). */
 export async function emitirFacturaRechazada(
   tx: object,
   f: { tenantId: string; invoiceId: string; motivo: string; envioId: string },
-): Promise<ResultadoEmision> {
-  return emitirEvento(tx, {
+): Promise<ResultadoEmision | null> {
+  return sinTumbarElHechoFiscal(() => emitirEvento(tx, {
     tenantId: f.tenantId,
     tipo: "factura.rechazada",
     version: 1,
     // Con el envío: una factura rechazada se puede reabrir y volver a rechazar (otro hecho).
     clave: `factura:${f.invoiceId}:rechazada:${f.envioId}`,
     datos: { facturaId: f.invoiceId, motivo: f.motivo },
-  });
+  }));
 }
