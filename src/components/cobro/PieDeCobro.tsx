@@ -65,9 +65,10 @@ export interface PieDeCobroProps {
 
 /**
  * Tarjeta viaja por el mismo camino que los demás medios (`camposDelPie` → `paymentMethod`), pero
- * `MedioDeCobro` (20 archivos con tipos cerrados) todavía no la incluye: se ensancha el día que se
- * encienda el enum (schema.prisma `// N2-enum: TARJETA`). Hasta entonces la tecla no se muestra
- * (`conTarjeta` en false) y el servidor rechaza TARJETA con su mensaje de siempre (`leerMedioDeCobro`).
+ * `MedioDeCobro` (20 archivos con tipos cerrados) todavía no la incluye: va con este molde. La enciende
+ * Vender (boutique) con `tarjetaHabilitada()` y la acepta `createOrder` con la misma pregunta
+ * (`leerMedioDeCobroConTarjeta`); sin el valor en la base, la tecla no se muestra y el servidor la
+ * rechaza con su mensaje de siempre.
  */
 const MEDIO_TARJETA_DEL_PIE = MEDIO_TARJETA.valor as MedioConTarjeta as MedioDeCobro;
 

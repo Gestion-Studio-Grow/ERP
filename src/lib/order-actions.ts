@@ -31,7 +31,8 @@ import {
   type CobroDePedido,
   type OrderPaymentMethod,
 } from "@/lib/order-core";
-import { medioDeCobroRequerido, mensajeYaCobrado } from "@/lib/caja/medio-cobro";
+import { TARJETA, leerMedioDeCobroConTarjeta, medioDeCobroRequerido, mensajeYaCobrado } from "@/lib/caja/medio-cobro";
+import { tarjetaHabilitada } from "@/lib/caja-actions";
 import { leerPagos, vueltoDelCobro } from "@/lib/cobro/leer-pagos";
 import type { AsientoDePago } from "@/lib/supermercado/pago-mixto";
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
@@ -332,7 +333,13 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // La decisión entera vive en `medioDeCobroRequerido` (caja/medio-cobro.ts, probada con
   // datos); acá sólo se usa el medio que ella devuelve. No va en `insertOrder`: la vidriera y
   // la ingesta externa no la heredan.
-  const medio = medioDeCobroRequerido({ channel, paid, paymentMethod: pagos.medio });
+  //
+  // TARJETA (N2 · M1-C1): la tecla del pie la manda sola (no entra en un pago dividido). Se acepta
+  // SÓLO si `tarjetaHabilitada()` (el valor en la base, N2_enums.sql, y en el cliente de Prisma): sin
+  // el paquete, Postgres rechazaría el alta. Si no, TARJETA sigue el camino de siempre y se rechaza
+  // con el mensaje de elegir el medio. El probe se pregunta sólo cuando llega TARJETA.
+  const conTarjeta = paid && !asientos && leerMedioDeCobroConTarjeta(pagos.medio, true) === TARJETA ? await tarjetaHabilitada() : false;
+  const medio = medioDeCobroRequerido({ channel, paid, paymentMethod: pagos.medio, conTarjeta });
   if (!medio.ok) return { ok: false, error: medio.error };
   const paymentMethod: PaymentMethod | null = medio.paymentMethod;
 

@@ -223,5 +223,8 @@ test("reabrir: sólo la dueña, con motivo, el último día cerrado, nunca el co
   assert.match(error({ day: "2026-10-19" }), /Sólo se reabre el último día cerrado \(20\/10\/2026\)/);
   assert.match(error({ hayCierreDelDia: false }), /corte inicial/);
   assert.match(error({ mesCongelado: true }), /mes congelado/);
+  // El cierre del día arrastraba días de un mes anterior congelado: reabrirlo los abriría (cert C7).
+  assert.match(error({ mesCongeladoQueCubre: "septiembre de 2026" }), /también cubre días de septiembre de 2026, que está congelado/);
+  assert.deepEqual(validarReabrirDia({ ...base, mesCongeladoQueCubre: null }), { ok: true });
   assert.match(error({ day: "20-10-2026" }), /No se entendió/);
 });

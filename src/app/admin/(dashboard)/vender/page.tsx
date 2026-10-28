@@ -18,6 +18,7 @@ import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { VENTANA_DEL_CUADERNO } from "@/lib/cuaderno/hora-de-la-venta";
 import ProtocoloSinSenal, { RUTA_DEL_CUADERNO } from "./ProtocoloSinSenal";
 import { cargarMostradorBoutique } from "./boutique/cargar";
+import { tarjetaHabilitada } from "@/lib/caja-actions";
 import MostradorBoutique from "./boutique/MostradorBoutique";
 
 // TANDA PERF (P-2): el boutique arma su mostrador con `MostradorBoutique` (WhatsApp y Cliente
@@ -78,7 +79,13 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
     mostradorBoutiqueDelNegocio(),
     interruptoresDelNegocio(),
   ]);
-  const mostrador = boutique ? await cargarMostradorBoutique({ user, tenantId, interruptores, cliente, repetir }) : null;
+  // TARJETA (N2 · M1-C1): la tecla del pie y el protocolo sin señal, sólo con el valor en la base y en
+  // el cliente (`tarjetaHabilitada`); `createOrder` lo vuelve a preguntar al cobrar. Quien no toma
+  // pedidos no cobra: ni se pregunta.
+  const [mostrador, conTarjeta] = await Promise.all([
+    boutique ? cargarMostradorBoutique({ user, tenantId, interruptores, cliente, repetir }) : null,
+    boutique && roleHasCapability(user.role, "orders:manage") ? tarjetaHabilitada() : false,
+  ]);
   // MOSTRADOR BOUTIQUE (Magra, tanda 2 · 2D): con la caja cerrada, la tarjeta «Abrí la caja: ayer
   // quedaron $X» arriba de todo, para abrirla sin salir de Vender (MG-057). Apagado, nada cambia.
   // La lee `cargarMostradorBoutique` (la regla de `getAperturaEnVender`, sólo para quien toma pedidos).
@@ -96,7 +103,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
   // la fila de atajos, DEBAJO del buscador y las teclas (tanda practicidad, V-1): el mostrador primero.
   const respaldo = boutique ? (
     <div data-vender="respaldo-sin-senal" className="mb-4 space-y-2 empty:hidden">
-      <ProtocoloSinSenal negocioId={tenantId} />
+      <ProtocoloSinSenal negocioId={tenantId} conTarjeta={conTarjeta} />
     </div>
   ) : null;
   const cuaderno = roleHasCapability(user.role, "orders:manage") && VENTANA_DEL_CUADERNO[user.role] !== null ? RUTA_DEL_CUADERNO : null;
@@ -117,6 +124,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
         identidad={identidad}
         pedidoInicial={modo === "pedido"}
         conVendedor={conVendedor}
+        conTarjeta={conTarjeta}
       />
     ) : (
     <MostradorDeVenta

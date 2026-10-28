@@ -48,7 +48,7 @@ enum PaymentMethod {
   MERCADOPAGO
   EFECTIVO
   TRANSFERENCIA
-  // N2-enum: TARJETA // Gate 2 nivel 2 · prisma/pending-gate2/N2_enums.sql — lo enciende M1 junto con KpiAppointment (src/lib/actions.ts)
+  TARJETA // N2-enum-encendido: M1 (Gate 2 nivel 2 · prisma/pending-gate2/N2_enums.sql). El cliente lo conoce; la base, sólo con el paquete. Se escribe sólo con hayValorEnum en true (tarjetaHabilitada, caja-actions.ts)
 }
 
 enum PaymentStatus {

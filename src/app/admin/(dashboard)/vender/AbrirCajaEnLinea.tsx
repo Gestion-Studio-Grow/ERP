@@ -23,7 +23,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { openCashSession } from "@/lib/caja-actions";
 import { CAMPO_ESPERADO_CONFIRMADO, esperadoParaElFormulario } from "@/lib/caja/esperado-del-cajon";
-import { fondoParaElFormulario, tarjetaDeApertura, textoDelMotivoDeApertura } from "@/lib/caja/apertura-sugerida";
+import { fondoParaElFormulario, tarjetaDeApertura, textoDelMotivoDeApertura, textoDelRecuentoACiegas } from "@/lib/caja/apertura-sugerida";
 import { leerImporte } from "@/lib/pos-peso";
 import { round2 } from "@/lib/round";
 import { buttonClasses } from "@/components/ui";
@@ -53,7 +53,8 @@ export default function AbrirCajaEnLinea({
   const [confirmando, setConfirmando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // El servidor pidió el motivo: trae el esperado (recién ahora se ve) y la diferencia.
-  const [pideMotivo, setPideMotivo] = useState<{ esperado: number; diferencia: number } | null>(null);
+  // `primerConteo`: el conteo a ciegas que no cuadró ya quedó escrito; recontar no lo borra (cert F3).
+  const [pideMotivo, setPideMotivo] = useState<{ esperado: number; diferencia: number; primerConteo?: number } | null>(null);
   const [motivo, setMotivo] = useState("");
   const [pending, startTransition] = useTransition();
   const campo = useRef<HTMLInputElement>(null);
@@ -177,7 +178,9 @@ export default function AbrirCajaEnLinea({
           {pideMotivo && contado !== null ? (
             <div role="group" aria-labelledby="abrir-caja-motivo" className="space-y-3 rounded-md border border-line bg-surface-sunken p-3">
               <p id="abrir-caja-motivo" className="text-sm font-medium text-strong">
-                {textoDelMotivoDeApertura(contado, pideMotivo.esperado)}
+                {pideMotivo.primerConteo !== undefined
+                  ? textoDelRecuentoACiegas({ contado: pideMotivo.primerConteo, esperado: pideMotivo.esperado }, contado, pideMotivo.esperado)
+                  : textoDelMotivoDeApertura(contado, pideMotivo.esperado)}
               </p>
               <div className="flex flex-col gap-1">
                 <label htmlFor="motivo-apertura" className="text-sm font-medium text-strong">
@@ -201,7 +204,9 @@ export default function AbrirCajaEnLinea({
                 <button type="submit" disabled={pending} className={`${buttonClasses("solid", "md")} min-h-11`}>
                   {pending
                     ? "Abriendo…"
-                    : `Abrir con ${textoPlata(contado)} y asentar el ${pideMotivo.diferencia < 0 ? "faltante" : "sobrante"}`}
+                    : round2(contado - pideMotivo.esperado) === 0
+                      ? `Abrir con ${textoPlata(contado)}`
+                      : `Abrir con ${textoPlata(contado)} y asentar el ${round2(contado - pideMotivo.esperado) < 0 ? "faltante" : "sobrante"}`}
                 </button>
                 <button
                   type="button"

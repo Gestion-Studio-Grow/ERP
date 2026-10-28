@@ -636,6 +636,12 @@ export function validarReabrirDia(p: {
   hayCierreDelDia: boolean;
   /** ¿El mes de ese día está congelado (Cierre del mes)? */
   mesCongelado: boolean;
+  /**
+   * Un mes ANTERIOR congelado que ese cierre cubría (su etiqueta, «septiembre de 2026»), o null. El
+   * cierre de un día arrastra desde el día siguiente a la frontera anterior: si ese tramo toca un mes
+   * congelado, reabrir el día dejaría días de ese mes aceptando movimientos (M1-C7).
+   */
+  mesCongeladoQueCubre?: string | null;
 }): { ok: true } | { ok: false; error: string } {
   if (p.role !== "OWNER") return { ok: false, error: "Sólo la dueña o el dueño puede reabrir un día cerrado." };
   if (!isDayKey(p.day)) return { ok: false, error: "No se entendió qué día reabrir. Volvé a abrir el cierre y elegilo de nuevo." };
@@ -646,6 +652,12 @@ export function validarReabrirDia(p: {
     return {
       ok: false,
       error: `El ${formatDayLabel(p.day)} es de un mes congelado: un mes cerrado no se reabre desde la caja. Si hace falta, primero reabrí el mes en Cierre del mes.`,
+    };
+  }
+  if (p.mesCongeladoQueCubre) {
+    return {
+      ok: false,
+      error: `El cierre del ${formatDayLabel(p.day)} también cubre días de ${p.mesCongeladoQueCubre}, que está congelado: reabrirlo abriría esos días. Si hace falta, primero reabrí ${p.mesCongeladoQueCubre} en Cierre del mes.`,
     };
   }
   if (p.day !== p.ultimoCerrado) {

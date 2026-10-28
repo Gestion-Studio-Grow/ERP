@@ -17,7 +17,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { BuscadorCombo, Chip, Input, type OpcionBuscador } from "@/components/ui";
 import { fmtMoneyARS } from "@/components/ui/format";
-import { MEDIOS_DE_COBRO } from "@/lib/caja/medio-cobro";
+import { mediosDeCobroDisponibles } from "@/lib/caja/medio-cobro";
 import { formatDayLabel } from "@/lib/caja/cierre-diario";
 import {
   claveDelBorrador,
@@ -67,6 +67,7 @@ export default function CargarCuaderno({
   negocioId,
   usuarioId,
   cargar: cargarVentas,
+  conTarjeta = false,
 }: {
   productos: ProductoDelCuaderno[];
   hoy: string;
@@ -78,6 +79,8 @@ export default function CargarCuaderno({
   usuarioId: string;
   /** La acción que graba (`cargarVentasDelCuaderno`, la pasa la página: así la pantalla se prueba sola). */
   cargar: (ventas: VentaDelCuaderno[]) => Promise<ResultadoDelCuaderno>;
+  /** ¿Se ofrece Tarjeta (posnet)? (N2 · M1-C1, `tarjetaHabilitada` en la página). */
+  conTarjeta?: boolean;
 }) {
   const porId = useMemo(() => new Map(productos.map((p) => [p.id, p])), [productos]);
   const opciones = useMemo<OpcionBuscador[]>(
@@ -220,8 +223,9 @@ export default function CargarCuaderno({
       </fieldset>
 
       <p className="text-xs text-muted">
-        Medios: efectivo, Mercado Pago o transferencia (sólo si viste la plata acreditada). Lo cobrado con el posnet, con el medio en que te
-        acredita (provisional a confirmar con el dueño).
+        {conTarjeta
+          ? "Medios: efectivo, Mercado Pago o transferencia (sólo si viste la plata acreditada). Lo cobrado con el posnet, con Tarjeta."
+          : "Medios: efectivo, Mercado Pago o transferencia (sólo si viste la plata acreditada). Lo cobrado con el posnet, con el medio en que te acredita (provisional a confirmar con el dueño)."}
       </p>
 
       <ol className="space-y-3">
@@ -271,7 +275,7 @@ export default function CargarCuaderno({
                     />
                   </label>
                   <div role="group" aria-label={`Cómo pagó la venta ${n + 1}`} className="col-span-2 flex flex-wrap items-end gap-2 sm:col-span-1">
-                    {MEDIOS_DE_COBRO.map((m) => (
+                    {mediosDeCobroDisponibles(conTarjeta).map((m) => (
                       <Chip
                         key={m.valor}
                         prendido={f.medio === m.valor}

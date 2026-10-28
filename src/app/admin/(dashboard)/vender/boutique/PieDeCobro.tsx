@@ -56,6 +56,7 @@ export function PieDeCobroPlegable({
   textoBoton = "Cobrar",
   version = 0,
   cargado = total > 0,
+  conTarjeta = false,
   onCobrar,
   alLado,
 }: {
@@ -69,6 +70,8 @@ export function PieDeCobroPlegable({
   textoBoton?: string;
   /** Cambia cuando el total viejo ya no vale (subió un precio): los medios se rearman. */
   version?: number;
+  /** ¿Se ofrece Tarjeta? (N2 · M1-C1): pasa tal cual al pie de siempre. */
+  conTarjeta?: boolean;
   onCobrar(r: ResultadoDelPie): void | Promise<void>;
   /** Lo que va con los medios abiertos (dejar a cuenta, registrar sin cobrar). */
   alLado?: ReactNode;
@@ -157,7 +160,7 @@ export function PieDeCobroPlegable({
           Seguir cargando
         </button>
       </div>
-      <PieDeCobro key={version} total={total} deshabilitado={deshabilitado} textoBoton={textoBoton} onCobrar={cobrar} />
+      <PieDeCobro key={version} total={total} deshabilitado={deshabilitado} textoBoton={textoBoton} conTarjeta={conTarjeta} onCobrar={cobrar} />
       {alLado}
     </div>
   );

@@ -48,7 +48,7 @@ import {
   validarReabrir,
 } from "./cierre-mes";
 import { mayuscula } from "@/lib/texto";
-import { hayMovimientosSinCerrar, leerAuditoriaCierre, leerHechosCierreMes } from "./lectura";
+import { hayMovimientosSinCerrar, leerAuditoriaCierre, leerHechosCierreMes, mesesCongeladosQueReabririaElDia } from "./lectura";
 
 export type EstadoAccionCierre = { ok: true; mensaje: string } | { ok: false; error: string } | null;
 
@@ -240,23 +240,25 @@ export async function reabrirDiaAction(_prev: EstadoAccionCierre, formData: Form
       async (tx) => {
         // Dos «Reabrir» a la vez (doble toque, dos pestañas) o un cierre en paralelo: uno espera al otro.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cierre-dia:${tenantId}`}))`;
-        const [ultimoCerrado, cierreDelDia, auditoriaDelMes] = await Promise.all([
+        const [ultimoCerrado, cierreDelDia, congelados] = await Promise.all([
           lastClosedDayTx(tx, tenantId),
           tx.auditLog.findFirst({
             where: { tenantId, entity: CIERRE_DIARIO_ENTITY, action: CIERRE_DIARIO_ACTION, entityId: day },
             orderBy: { createdAt: "desc" },
             select: { id: true },
           }),
-          leerAuditoriaCierre(tx, tenantId, day.slice(0, 7)),
+          mesesCongeladosQueReabririaElDia(tx, tenantId, day),
         ]);
         if (!ultimoCerrado || day > ultimoCerrado) throw new DiaYaAbiertoError();
+        const anteriorCongelado = congelados.find((m) => m !== day.slice(0, 7));
         const v = validarReabrirDia({
           day,
           role: user.role,
           motivo,
           ultimoCerrado,
           hayCierreDelDia: cierreDelDia !== null,
-          mesCongelado: estadoDesdeAuditoria(auditoriaDelMes).congelado,
+          mesCongelado: congelados.includes(day.slice(0, 7)),
+          mesCongeladoQueCubre: anteriorCongelado ? etiquetaDelMes(anteriorCongelado) : null,
         });
         if (!v.ok) return v;
 

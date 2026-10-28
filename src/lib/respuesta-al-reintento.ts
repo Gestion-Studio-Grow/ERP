@@ -9,7 +9,7 @@
 // por quien lo llama, y lee con el cliente de siempre (RLS del negocio).
 
 import { leerVentaGrabada, pedidoConClave, type InsertedOrder, type OrderInput } from "@/lib/order-core";
-import { leerMedioDeCobro } from "@/lib/caja/medio-cobro";
+import { leerMedioDeCobroConTarjeta } from "@/lib/caja/medio-cobro";
 import { cantidadOCero } from "@/lib/pos-peso";
 import { horarioDelFormulario } from "@/lib/order-anulacion";
 import { descuentoDelFormulario, lineasAManoDelFormulario } from "@/lib/venta-reglas";
@@ -127,7 +127,10 @@ export function pedidoDelFormulario(
     notes: String(formData.get("notes") || "").trim() || null,
     scheduledFor: horarioDelFormulario(d.scheduledRaw),
     paid: pagada,
-    paymentMethod: pagada ? leerMedioDeCobro(formData.get("paymentMethod")) : null,
+    // TARJETA (M1-C1) también: es una firma para comparar con lo grabado, no un permiso (el alta la
+    // acepta sólo con `tarjetaHabilitada()`). Sin esto, el reintento de una venta con Tarjeta no se
+    // reconocería como la misma.
+    paymentMethod: pagada ? leerMedioDeCobroConTarjeta(formData.get("paymentMethod"), true) : null,
     items: formData.getAll("productId").map((id, i) => ({ productId: String(id), qty: cantidades[i] ?? 0 })),
     lineasAMano: aMano.ok ? aMano.lineas : [],
   };

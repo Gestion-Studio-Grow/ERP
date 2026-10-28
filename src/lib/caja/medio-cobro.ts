@@ -72,7 +72,9 @@ export function etiquetaDeMedio(medio: string | null | undefined): string {
 // Por eso Tarjeta NO entra en `MEDIOS_DE_COBRO` ni en `MedioDeCobro` (lo usan 20 archivos con
 // tipos cerrados: ampliarlo es el paso de M10/encendido): se ofrece aparte, sólo con
 // `tarjetaHabilitadaPor(...)` en true, y `leerMedioDeCobro` la sigue rechazando con su mensaje de
-// siempre hasta ese día. Lo decide el servidor (`tarjetaHabilitada`, caja-actions.ts).
+// siempre. Lo decide el servidor (`tarjetaHabilitada`, caja-actions.ts). M1 encendió el valor en el
+// cliente (schema.prisma `// N2-enum-encendido:`): con N2_enums.sql aplicada, Vender (boutique) y el
+// cuaderno ofrecen la tecla y `createOrder` la acepta con `leerMedioDeCobroConTarjeta`.
 
 export const TARJETA = "TARJETA" as const;
 export type MedioConTarjeta = MedioDeCobro | typeof TARJETA;
@@ -128,9 +130,14 @@ export function medioDeCobroRequerido(input: {
   paid: boolean;
   paymentMethod: unknown;
   contexto?: ContextoDeMedio;
-}): { ok: true; paymentMethod: MedioDeCobro | null } | { ok: false; error: string } {
+  /**
+   * N2 · M1-C1: ¿se acepta TARJETA? Sólo con `tarjetaHabilitada()` en true (lo pregunta el llamador,
+   * `createOrder`). Sin esto, TARJETA se rechaza como cualquier medio desconocido.
+   */
+  conTarjeta?: boolean;
+}): { ok: true; paymentMethod: MedioConTarjeta | null } | { ok: false; error: string } {
   if (!input.paid) return { ok: true, paymentMethod: null };
-  const medio = leerMedioDeCobro(input.paymentMethod);
+  const medio = leerMedioDeCobroConTarjeta(input.paymentMethod, input.conTarjeta === true);
   if (medio) return { ok: true, paymentMethod: medio };
   if (input.contexto === "cobro") return { ok: false, error: MENSAJE_FALTA_MEDIO_BANDEJA };
   return {
@@ -151,7 +158,7 @@ export function medioDeCobroRequerido(input: {
 export function mensajeYaCobrado(input: {
   code: number;
   medioRegistrado: string | null;
-  medioElegido: MedioDeCobro;
+  medioElegido: MedioConTarjeta;
 }): { ok: true; mensaje: string } | { ok: false; error: string } {
   const registrado = etiquetaDeMedio(input.medioRegistrado);
   if (input.medioRegistrado === input.medioElegido) {

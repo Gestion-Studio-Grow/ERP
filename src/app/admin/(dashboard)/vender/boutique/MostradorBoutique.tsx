@@ -36,6 +36,7 @@ export default function MostradorBoutique({
   conVendedor = false,
   caja = null,
   cuaderno = null,
+  conTarjeta = false,
 }: {
   datos: Datos;
   /** La caja cerrada («Abrí la caja: ayer quedaron $X»): va en la fila de atajos, debajo de las teclas. */
@@ -47,6 +48,8 @@ export default function MostradorBoutique({
   identidad: TenantIdentity;
   pedidoInicial?: boolean;
   conVendedor?: boolean;
+  /** ¿El pie ofrece Tarjeta? (N2 · M1-C1, `tarjetaHabilitada` en la página). */
+  conTarjeta?: boolean;
 }) {
   const balanza = identidad.isRetail ? balanzaDelMostrador(d, user.role) : null;
   // Sin el módulo ni la balanza configurada, los códigos no viajan al navegador.
@@ -138,6 +141,7 @@ export default function MostradorBoutique({
           teclas: d.teclas,
           desdeLaFicha: d.desdeLaFicha,
           atajos,
+          conTarjeta,
         }}
       />
     </div>

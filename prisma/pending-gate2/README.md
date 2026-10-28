@@ -31,7 +31,9 @@ policy `tenant_isolation` (en el archivo y otra vez en el paso 7).
 
 Modelos en `prisma/schema.prisma`: líneas con prefijo `// N2: ` (comentadas, como el criterio de
 `MustChangePassword`); los 3 valores de enum con `// N2-enum: ` (los encienden M1/M6 con su código:
-ampliar el enum rompe 4 tipos cerrados del dominio). El código pregunta con `src/lib/schema-probe` (`hayTabla`, `hayColumna`,
+ampliar el enum rompe 4 tipos cerrados del dominio). M1 ya encendió `TARJETA` (`PaymentMethod`): queda
+`TARJETA // N2-enum-encendido: …`, el cliente lo conoce y se escribe sólo con `hayValorEnum` en true; el test
+del paquete lo vuelve a comentar para medir la base de hoy. El código pregunta con `src/lib/schema-probe` (`hayTabla`, `hayColumna`,
 `hayValorEnum`, caché por proceso) y cae al camino de hoy si falta algo.
 
 **Verificación (Postgres local efímero, nunca Neon):**

@@ -61,7 +61,9 @@ import { registrarPromocionesDeLaVentaEnTx } from "@/lib/supermercado/promos-de-
 import { CUADERNO_SOLO_VENTA_COBRADA } from "@/lib/cuaderno/hora-de-la-venta";
 import type { Prisma, ProductSaleUnit } from "@/generated/prisma/client";
 
-export type OrderPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
+// TARJETA (N2 · M1-C1): sólo el mostrador la escribe, y sólo con `tarjetaHabilitada()` en true (el valor
+// en la base, N2_enums.sql). La vidriera y la ingesta externa siguen con los tres de siempre.
+export type OrderPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA" | "TARJETA";
 
 export type OrderInput = {
   channel: "COUNTER" | "ONLINE";

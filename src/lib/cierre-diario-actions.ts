@@ -74,9 +74,8 @@ import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
 import { leerImporte } from "@/lib/pos-peso";
 import { round2 } from "@/lib/round";
 import { tarjetaHabilitada } from "@/lib/caja-actions";
-import { bordesDelMes } from "@/lib/libros/fecha-fiscal";
-import { estadoDesdeAuditoria } from "@/lib/cierre-mes/cierre-mes";
-import { leerAuditoriaCierre } from "@/lib/cierre-mes/lectura";
+import { bordesDelMes, etiquetaDelMes } from "@/lib/libros/fecha-fiscal";
+import { mesesCongeladosQueReabririaElDia } from "@/lib/cierre-mes/lectura";
 
 const CIERRE_PATH = "/admin/caja/cierre";
 const LIBRO_PATH = "/admin/caja/libro";
@@ -458,20 +457,22 @@ async function puedeReabrir(
   day: DayKey,
   cerradoHasta: DayKey | null,
 ): Promise<{ puede: true } | { puede: false; porque: string }> {
-  const [cierreDelDia, auditoriaDelMes] = await Promise.all([
+  const [cierreDelDia, congelados] = await Promise.all([
     prisma.auditLog.findFirst({
       where: { tenantId, entity: CIERRE_DIARIO_ENTITY, action: CIERRE_DIARIO_ACTION, entityId: day },
       select: { id: true },
     }),
-    leerAuditoriaCierre(prisma, tenantId, day.slice(0, 7)),
+    mesesCongeladosQueReabririaElDia(prisma, tenantId, day),
   ]);
+  const anteriorCongelado = congelados.find((m) => m !== day.slice(0, 7));
   const v = validarReabrirDia({
     day,
     role: "OWNER",
     motivo: "x".repeat(MOTIVO_MINIMO_REABRIR_DIA),
     ultimoCerrado: cerradoHasta,
     hayCierreDelDia: cierreDelDia !== null,
-    mesCongelado: estadoDesdeAuditoria(auditoriaDelMes).congelado,
+    mesCongelado: congelados.includes(day.slice(0, 7)),
+    mesCongeladoQueCubre: anteriorCongelado ? etiquetaDelMes(anteriorCongelado) : null,
   });
   return v.ok ? { puede: true } : { puede: false, porque: v.error };
 }
@@ -613,6 +614,9 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
   try {
     const resultado = await tenantTransaction(
       async (tx) => {
+        // El MISMO candado por negocio que abrir un turno (`openCashSession`) y reabrir el día
+        // (`reabrirDiaAction`): cerrar, abrir y reabrir se ordenan uno detrás del otro.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cierre-dia:${tenantId}`}))`;
         // La frontera COMPARTIDA, leída sobre `tx`: filtra por `action` y descarta un cierre
         // con día futuro. La copia local que había acá no hacía ninguna de las dos cosas.
         const cerradoHasta = await lastClosedDayTx(tx, tenantId);
@@ -621,7 +625,9 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
         const end = endOfDayUtc(day);
 
         // M1-C5: con un turno de caja abierto no se cierra el día. Adentro de la transacción
-        // Serializable: un turno que se abre mientras tanto aborta una de las dos.
+        // Serializable y con el candado de arriba. La apertura toma el mismo candado y relee la
+        // frontera adentro de SU transacción: si las dos corren a la vez, la apertura espera, y al
+        // releer (o por el ciclo SSI frontera↔turno, con reintento) ve el día cerrado y no abre.
         const abierto = await tx.cashSession.findFirst({
           where: { tenantId, status: "OPEN" },
           orderBy: { openedAt: "desc" },
