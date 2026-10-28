@@ -4,6 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { avisoMpFirmado, conectorMercadoPago } from "@/plugins/mercadopago/conector";
 import { avisoWaFirmado, conectorWhatsApp } from "@/plugins/whatsapp/conector";
 import { conectorArca } from "@/plugins/arca/conector";
@@ -224,4 +226,18 @@ test("probarConexion de los tres conectores, con el transporte del simulador", a
   });
   assert.deepEqual(caido, { ok: false, codigo: "proveedor_caido" });
   assert.equal((await conectorWhatsApp.probarConexion({ credenciales: {}, transporte: mp, ahora })).ok, true);
+});
+
+test("lease de 'recibido' > maxDuration de toda ruta que despacha avisos (una ejecución viva no se reclama)", () => {
+  const rutas = [
+    "src/app/api/integraciones/c/[token]/route.ts",
+    "src/app/api/integraciones/[conector]/route.ts",
+    "src/app/api/webhooks/mercadopago/route.ts",
+  ];
+  for (const ruta of rutas) {
+    const m = /export const maxDuration = (\d+);/.exec(readFileSync(path.join(process.cwd(), ruta), "utf8"));
+    assert.ok(m, `${ruta} tiene que declarar maxDuration (sin él vale el tope de la cuenta, que puede igualar al lease)`);
+    const ms = Number(m[1]) * 1000;
+    assert.ok(ms + 60_000 <= LEASE_RECIBIDO_MS, `${ruta}: maxDuration ${m[1]} s + 1 min de margen supera el lease (${LEASE_RECIBIDO_MS} ms)`);
+  }
 });

@@ -12,6 +12,9 @@ import { CLAVE_MERCADOPAGO } from "@/plugins/mercadopago/gateway";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+// Tope de la función (s). Tiene que quedar por DEBAJO de LEASE_RECIBIDO_MS (entrada.server.ts, 5 min):
+// una fila "recibido" de una ejecución todavía viva no se reclama. Lo verifica entrada.test.ts.
+export const maxDuration = 120;
 
 /** Los deps de producción con los handlers de los conectores de URL por conexión (no se exporta: Next sólo admite los campos de ruta). */
 function depsDeLaRuta(): DepsEntrada {

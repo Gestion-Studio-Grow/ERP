@@ -20,4 +20,8 @@
 import { atenderAvisoMP } from "@/lib/mercadopago-dispatch";
 import { withRequestId } from "@/lib/request-context";
 
+// Tope de la función (s). Tiene que quedar por DEBAJO de LEASE_RECIBIDO_MS (entrada.server.ts, 5 min):
+// una fila "recibido" de una ejecución todavía viva no se reclama. Lo verifica entrada.test.ts.
+export const maxDuration = 120;
+
 export const POST = withRequestId((request: Request) => atenderAvisoMP(request));
