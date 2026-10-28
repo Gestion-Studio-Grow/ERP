@@ -3,7 +3,7 @@
 // migraciones está en ./paquete-gate2.test.ts.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crearSchemaProbe, SQL_COLUMNA, SQL_TABLA, SQL_VALOR_ENUM, type ConsultaSql } from "./probe";
+import { clienteConoceValor, crearSchemaProbe, SQL_COLUMNA, SQL_TABLA, SQL_VALOR_ENUM, type ConsultaSql } from "./probe";
 
 function consultaFalsa(existe: (sql: string, params: readonly string[]) => boolean | Error) {
   const llamadas: Array<{ sql: string; params: readonly string[] }> = [];
@@ -21,11 +21,11 @@ test("hayTabla/hayColumna/hayValorEnum mandan el SQL de catálogo con sus parám
   const p = crearSchemaProbe(consultar);
   assert.equal(await p.hayTabla("ApiKey"), true);
   assert.equal(await p.hayColumna("OutboxEvent", "clave"), true);
-  assert.equal(await p.hayValorEnum("PaymentMethod", "TARJETA"), true);
+  assert.equal(await p.hayValorEnum("PaymentMethod", "DEBITO"), true);
   assert.deepEqual(llamadas, [
     { sql: SQL_TABLA, params: ["ApiKey"] },
     { sql: SQL_COLUMNA, params: ["OutboxEvent", "clave"] },
-    { sql: SQL_VALOR_ENUM, params: ["PaymentMethod", "TARJETA"] },
+    { sql: SQL_VALOR_ENUM, params: ["PaymentMethod", "DEBITO"] },
   ]);
 });
 
@@ -83,4 +83,73 @@ test("olvidar() vacía la caché", async () => {
   p.olvidar();
   await p.hayTabla("ApiKey");
   assert.equal(llamadas.length, 2);
+});
+
+test("olvidar() con una consulta en vuelo: la vieja no repone su valor ni borra la promesa nueva", async () => {
+  // Consulta controlada a mano: cada llamada queda colgada hasta que el test la resuelve.
+  const colgadas: Array<(filas: Array<Record<string, unknown>>) => void> = [];
+  const consultar: ConsultaSql = () => new Promise((resolve) => colgadas.push(resolve));
+  const p = crearSchemaProbe(consultar, { ttlNegativoMs: 60_000 });
+
+  const vieja = p.hayTabla("ApiKey"); // consulta 1, en vuelo
+  p.olvidar();
+  const nueva = p.hayTabla("ApiKey"); // consulta 2, en vuelo (no comparte con la vieja)
+  assert.equal(colgadas.length, 2);
+
+  colgadas[0]([]); // la vieja termina: "no está" (estado previo a olvidar)
+  assert.equal(await vieja, false);
+  // (b) el `finally` de la vieja NO borró la promesa de la nueva: una 3.ª llamada la comparte.
+  const tercera = p.hayTabla("ApiKey");
+  assert.equal(colgadas.length, 2, "la 3.ª llamada se suma a la consulta nueva en vuelo");
+
+  colgadas[1]([{ ok: 1 }]); // la nueva termina: "sí está"
+  assert.equal(await nueva, true);
+  assert.equal(await tercera, true);
+  // (a) el `cache.set` de la vieja no repuso el `false`: queda el `true` de la nueva, sin consultar.
+  assert.equal(await p.hayTabla("ApiKey"), true);
+  assert.equal(colgadas.length, 2);
+});
+
+test("olvidar() con una consulta en vuelo que termina DESPUÉS: no deja nada en la caché", async () => {
+  const colgadas: Array<(filas: Array<Record<string, unknown>>) => void> = [];
+  const consultar: ConsultaSql = () => new Promise((resolve) => colgadas.push(resolve));
+  const p = crearSchemaProbe(consultar);
+  const vieja = p.hayValorEnum("PaymentMethod", "DEBITO");
+  p.olvidar();
+  colgadas[0]([]);
+  assert.equal(await vieja, false);
+  // Sin generación, este `false` viejo quedaba cacheado 60 s después de olvidar().
+  const otra = p.hayValorEnum("PaymentMethod", "DEBITO");
+  assert.equal(colgadas.length, 2, "vuelve a preguntar");
+  colgadas[1]([{ ok: 1 }]);
+  assert.equal(await otra, true);
+});
+
+test("sePuedeEscribirValorEnum: hace falta que la base lo tenga Y que el cliente de Prisma lo conozca", async () => {
+  const { consultar, llamadas } = consultaFalsa(() => true);
+  const clienteViejo = { PaymentMethod: { MERCADOPAGO: "MERCADOPAGO", EFECTIVO: "EFECTIVO", TRANSFERENCIA: "TRANSFERENCIA" } };
+  const clienteNuevo = { PaymentMethod: { ...clienteViejo.PaymentMethod, DEBITO: "DEBITO", CREDITO: "CREDITO" } };
+
+  // Base con el valor, cliente sin él (`// N2-enum:` apagado): NO se escribe, y ni se consulta.
+  const viejo = crearSchemaProbe(consultar, { enumsDelCliente: clienteViejo });
+  assert.equal(await viejo.sePuedeEscribirValorEnum("PaymentMethod", "DEBITO"), false);
+  assert.equal(llamadas.length, 0);
+  // Sin enums inyectados: fail-safe, no se escribe.
+  assert.equal(await crearSchemaProbe(consultar).sePuedeEscribirValorEnum("PaymentMethod", "DEBITO"), false);
+
+  // Cliente con el valor y base con el valor: se escribe.
+  const nuevo = crearSchemaProbe(consultar, { enumsDelCliente: clienteNuevo });
+  assert.equal(await nuevo.sePuedeEscribirValorEnum("PaymentMethod", "CREDITO"), true);
+  // Cliente con el valor y base SIN el valor (paquete sin aplicar): no se escribe.
+  const sinBase = crearSchemaProbe(consultaFalsa(() => false).consultar, { enumsDelCliente: clienteNuevo });
+  assert.equal(await sinBase.sePuedeEscribirValorEnum("PaymentMethod", "DEBITO"), false);
+});
+
+test("clienteConoceValor no se confunde con propiedades heredadas ni tipos inexistentes", () => {
+  const enums = { UserRole: { OWNER: "OWNER" } };
+  assert.equal(clienteConoceValor(enums, "UserRole", "OWNER"), true);
+  assert.equal(clienteConoceValor(enums, "UserRole", "ENCARGADO"), false);
+  assert.equal(clienteConoceValor(enums, "UserRole", "toString"), false);
+  assert.equal(clienteConoceValor(enums, "PaymentMethod", "DEBITO"), false);
+  assert.equal(clienteConoceValor(undefined, "UserRole", "OWNER"), false);
 });

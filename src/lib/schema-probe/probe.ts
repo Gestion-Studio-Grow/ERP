@@ -5,7 +5,7 @@
 // El paquete de migraciones del nivel 2 (prisma/pending-gate2/N2_*.sql) se escribe ANTES de
 // aplicarse, y `main` auto-deploya: el código de las tandas (M1, M3a, M6, P2, P4, P5, P6, B1)
 // corre con la base vieja hasta el día D. Cada una pregunta acá antes de usar lo nuevo:
-//   hayTabla("ApiKey") · hayColumna("OutboxEvent", "clave") · hayValorEnum("PaymentMethod", "TARJETA")
+//   hayTabla("ApiKey") · hayColumna("OutboxEvent", "clave") · hayValorEnum("PaymentMethod", "DEBITO")
 // y si contesta false muestra «En preparación» / cae al camino de hoy. Generaliza el patrón de
 // src/lib/carniceria/schema-probe.ts (que queda como está).
 //
@@ -34,12 +34,23 @@ export interface OpcionesProbe {
   ttlNegativoMs?: number;
   /** Reloj inyectable (tests). */
   ahora?: () => number;
+  /**
+   * Enums que conoce el cliente de Prisma generado de este build (`@/generated/prisma/enums`):
+   * { PaymentMethod: { EFECTIVO: "EFECTIVO", … }, … }. Sin esto, `sePuedeEscribirValorEnum`
+   * contesta false (fail-safe).
+   */
+  enumsDelCliente?: Readonly<Record<string, unknown>>;
 }
 
 export interface SchemaProbe {
   hayTabla(tabla: string): Promise<boolean>;
   hayColumna(tabla: string, columna: string): Promise<boolean>;
   hayValorEnum(tipo: string, valor: string): Promise<boolean>;
+  /**
+   * ¿Se puede ESCRIBIR este valor de enum? Sólo si la base lo tiene Y el cliente de Prisma de
+   * ESTE build lo conoce (`// N2-enum:` encendido y desplegado). Ver la regla en N2_enums.sql.
+   */
+  sePuedeEscribirValorEnum(tipo: string, valor: string): Promise<boolean>;
   /** Vacía la caché (tests y, si hiciera falta, un endpoint de operador). */
   olvidar(): void;
 }
@@ -78,6 +89,10 @@ export function crearSchemaProbe(consultar: ConsultaSql, opciones: OpcionesProbe
   const ahora = opciones.ahora ?? Date.now;
   const cache = new Map<string, Entrada>();
   const enVuelo = new Map<string, Promise<boolean>>();
+  // GENERACIÓN (cert. S2, observación de olvidar()): cada `olvidar()` la incrementa. Una
+  // consulta que salió antes de olvidar() ya no puede (a) reponer en la caché un valor viejo
+  // ni (b) borrar del mapa `enVuelo` la promesa de una consulta posterior.
+  let generacion = 0;
 
   function preguntar(clave: string, sql: string, params: readonly string[]): Promise<boolean> {
     const guardada = cache.get(clave);
@@ -86,29 +101,41 @@ export function crearSchemaProbe(consultar: ConsultaSql, opciones: OpcionesProbe
     const pendiente = enVuelo.get(clave);
     if (pendiente) return pendiente;
 
-    const promesa = (async () => {
+    const gen = generacion;
+    const promesa: Promise<boolean> = (async () => {
       try {
         const filas = await consultar(sql, params);
         const valor = Array.isArray(filas) && filas.length > 0;
-        cache.set(clave, { valor, vence: valor ? Number.POSITIVE_INFINITY : ahora() + ttl });
+        if (gen === generacion) cache.set(clave, { valor, vence: valor ? Number.POSITIVE_INFINITY : ahora() + ttl });
         return valor;
       } catch {
         return false; // fail-safe: ocultar lo nuevo; no se cachea → se reintenta
       } finally {
-        enVuelo.delete(clave);
+        if (enVuelo.get(clave) === promesa) enVuelo.delete(clave);
       }
     })();
     enVuelo.set(clave, promesa);
     return promesa;
   }
 
+  const hayValorEnum = (tipo: string, valor: string) => preguntar(`e:${tipo}.${valor}`, SQL_VALOR_ENUM, [tipo, valor]);
+
   return {
     hayTabla: (tabla) => preguntar(`t:${tabla}`, SQL_TABLA, [tabla]),
     hayColumna: (tabla, columna) => preguntar(`c:${tabla}.${columna}`, SQL_COLUMNA, [tabla, columna]),
-    hayValorEnum: (tipo, valor) => preguntar(`e:${tipo}.${valor}`, SQL_VALOR_ENUM, [tipo, valor]),
+    hayValorEnum,
+    sePuedeEscribirValorEnum: async (tipo, valor) =>
+      clienteConoceValor(opciones.enumsDelCliente, tipo, valor) && (await hayValorEnum(tipo, valor)),
     olvidar: () => {
+      generacion++;
       cache.clear();
       enVuelo.clear();
     },
   };
+}
+
+/** ¿El cliente de Prisma generado tiene `tipo.valor`? (objeto de `@/generated/prisma/enums`). */
+export function clienteConoceValor(enums: Readonly<Record<string, unknown>> | undefined, tipo: string, valor: string): boolean {
+  const e = enums?.[tipo];
+  return typeof e === "object" && e !== null && Object.prototype.hasOwnProperty.call(e, valor);
 }
