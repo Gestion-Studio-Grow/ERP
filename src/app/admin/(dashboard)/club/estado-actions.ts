@@ -20,7 +20,9 @@
 // de un restaurar ni sabe qué cambió. La regla G8 (lo delicado —usuarios y PIN, precios, restaurar, limpiar— es
 // del dueño) la hace cumplir la PANTALLA (el motor y el almacén piden el PIN de un dueño); desde el 21/10, para
 // usuarios y PIN, también esta acción: si no guarda un OWNER del ERP se conservan los de la foto vigente
-// (`conservarLoDelicado`, src/lib/club/delicado.ts). Precios y lo demás siguen en la pantalla. La
+// (`conservarLoDelicado`, src/lib/club/delicado.ts). Desde la vuelta 5 de CERT-B4 (F5), también lo de «Reglas y
+// precios» y «Avisos» que mueve plata o permisos (firma de caja, precios, seña, fondo, alias…: `CONFIG_DELICADA`).
+// Lo demás (movimientos, turnos) sigue en la pantalla. La
 // pantalla restaura con `almacen.restaurar` → `guardarYa()`, o sea por `guardarFotoDelClub`: `revisar…` y
 // `restaurarRespaldoDelClub` no las usa hoy ninguna pantalla (sí los tests). Se cierra con los comandos / el back
 // separado (G10).
@@ -108,16 +110,17 @@ export async function guardarFotoDelClub(datos: FormData): Promise<RespuestaGuar
   if (!Number.isInteger(version) || version < 0) return { ok: false, motivo: "error", error: "Falta la versión de lo que se leyó." };
   const subido = await textoSubido(datos, "foto");
   if ("error" in subido) return { ok: false, motivo: "error", error: subido.error };
-  // G8: si no guarda un dueño del ERP, los usuarios y los PIN quedan como en la foto vigente (salvo el PIN propio de
-  // recepción). Un guardado de la tablet de recepción no puede pisar ni borrar PIN (src/lib/club/delicado.ts).
+  // G8: si no guarda un dueño del ERP, los usuarios, los PIN y la configuración que mueve plata o permisos (firma de
+  // caja, precios, seña, fondo, alias) quedan como en la foto vigente (salvo el PIN propio de recepción). Un guardado
+  // de la tablet de recepción no puede pisar PIN ni bajar la firma de caja a 2 (src/lib/club/delicado.ts).
   let texto = subido.texto;
   if (q.user.role !== "OWNER") {
     const vigente = await leerVigente(q.tenantId);
     if (vigente) {
       const c = conservarLoDelicado(vigente.texto, texto);
       texto = c.texto;
-      // Es un evento de seguridad: alguien que no es dueño mandó usuarios o PIN distintos (queda en los logs).
-      if (c.corregido) console.warn("[club] G8: guardado sin dueño con usuarios/PIN distintos; se conservaron los de la base", { tenantId: q.tenantId, userId: q.user.id });
+      // Es un evento de seguridad: alguien que no es dueño mandó usuarios, PIN o reglas distintos (queda en los logs).
+      if (c.corregido) console.warn("[club] G8: guardado sin dueño con usuarios/PIN/reglas distintos; se conservaron los de la base", { tenantId: q.tenantId, userId: q.user.id });
     }
   }
   const r = await guardar(q.tenantId, texto, version, `user:${q.user.id}`);
