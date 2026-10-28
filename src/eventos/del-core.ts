@@ -13,6 +13,7 @@
 // ============================================================================
 
 import { round2 } from "@/lib/round";
+import { esNotaDeCreditoRecibida, nombreDelTipo } from "@/lib/contador/recibidos-formato";
 import { EventoInvalido, emitirEvento, tieneSql, type ResultadoEmision } from "./emitir";
 
 type Medio = "EFECTIVO" | "MP" | "TRANSFERENCIA" | "TARJETA";
@@ -127,6 +128,52 @@ export async function emitirPedidoCobrado(
   });
 }
 
+type TxSaldo = {
+  order: {
+    findFirst(args: { where: { id: string; tenantId: string }; select: { code: true; total: true } }): Promise<{ code: number; total: unknown } | null>;
+  };
+  accountReceivable: {
+    findFirst(args: { where: { id: string; tenantId: string }; select: { orderId: true } }): Promise<{ orderId: string | null } | null>;
+  };
+};
+
+/**
+ * El cobro que SALDA un pedido por la cobranza (settlement/collection-repo.ts: cobros parciales
+ * con `Collection`). Lo llama applyCollectionInTx cuando ESE cobro pasó el pedido a pago. Monto =
+ * el total del pedido (como el botón «Cobrar»); medio = el del cobro que cerró el saldo.
+ */
+export async function emitirPedidoCobradoAlSaldar(
+  tx: object,
+  p: { tenantId: string; pedidoId: string; medio: string; actor?: string | null },
+): Promise<ResultadoEmision | null> {
+  if (!tieneSql(tx)) return { escrito: false, motivo: "sin-sql" };
+  const o = await (tx as unknown as TxSaldo).order.findFirst({
+    where: { id: p.pedidoId, tenantId: p.tenantId },
+    select: { code: true, total: true },
+  });
+  if (!o) return null;
+  return emitirPedidoCobrado(tx, { tenantId: p.tenantId, pedidoId: p.pedidoId, codigo: o.code, monto: Number(o.total), medio: p.medio, actor: p.actor });
+}
+
+/**
+ * El cobro que salda la deuda de un pedido dejado al fiado (clientes/fiado.ts). Entregar al fiado
+ * no es un cobro —no entró plata, igual que la venta a cuenta de insertOrder— y no emite; cuando
+ * el cliente termina de pagar esa deuda, el pedido quedó cobrado. Una deuda sin pedido (cargada a
+ * mano en la cuenta) no emite nada: no hay pedido que cobrar.
+ */
+export async function emitirPedidoCobradoAlSaldarFiado(
+  tx: object,
+  p: { tenantId: string; receivableId: string; medio: string; actor?: string | null },
+): Promise<ResultadoEmision | null> {
+  if (!tieneSql(tx)) return { escrito: false, motivo: "sin-sql" };
+  const deuda = await (tx as unknown as TxSaldo).accountReceivable.findFirst({
+    where: { id: p.receivableId, tenantId: p.tenantId },
+    select: { orderId: true },
+  });
+  if (!deuda?.orderId) return null;
+  return emitirPedidoCobradoAlSaldar(tx, { tenantId: p.tenantId, pedidoId: deuda.orderId, medio: p.medio, actor: p.actor });
+}
+
 // ── pedido.cancelado@1 ────────────────────────────────────────────────────────
 
 export async function emitirPedidoCancelado(
@@ -165,6 +212,19 @@ async function sinTumbarElHechoFiscal(emision: () => Promise<ResultadoEmision | 
   }
 }
 
+/**
+ * Clase del comprobante por su tipo de ARCA, con la tabla oficial del repo
+ * (src/lib/contador/recibidos-formato.ts): 3/8/13/53/112…/203… = NOTA_CREDITO; 2/7/12/52/115…/202…
+ * = NOTA_DEBITO; 1/6/11/51/81/82/111/118/201… = FACTURA; el resto (recibos, liquidaciones) = OTRO.
+ */
+export function claseDelComprobante(tipo: number): "FACTURA" | "NOTA_DEBITO" | "NOTA_CREDITO" | "OTRO" {
+  if (esNotaDeCreditoRecibida(tipo)) return "NOTA_CREDITO";
+  const nombre = nombreDelTipo(tipo);
+  if (/^(Tique )?[Nn]ota de débito/.test(nombre)) return "NOTA_DEBITO";
+  if (/^(Tique )?[Ff]actura/.test(nombre)) return "FACTURA";
+  return "OTRO";
+}
+
 type TxFactura = {
   invoice: {
     findFirst(args: {
@@ -197,6 +257,7 @@ export async function emitirFacturaAutorizada(
       numero: f.numero,
       cae: f.cae,
       caeVencimiento: f.caeVencimiento,
+      clase: claseDelComprobante(f.tipoComprobante),
       total: round2(Number(fila.total)),
       ...(fila.orderId ? { pedidoId: fila.orderId } : {}),
       ...(fila.appointmentId ? { turnoId: fila.appointmentId } : {}),

@@ -205,7 +205,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `pedido.cobrado@1`
 
-- **Cuándo:** botón «Cobrar» y aviso de pago de MP (cobrarPedidoEnTx, que usa cobros-actions vía cobrarPedidoPorAvisoDePago) y venta de mostrador que nace cobrada (insertOrder); en la transacción del cobro
+- **Cuándo:** botón «Cobrar» y aviso de pago de MP (cobrarPedidoEnTx, que usa cobros-actions vía cobrarPedidoPorAvisoDePago), venta de mostrador que nace cobrada (insertOrder) y cobro parcial que salda el pedido o la deuda de su fiado (applyCollectionInTx, src/lib/settlement/collection-repo.ts: monto = total del pedido, medio = el del cobro que cierra el saldo); en la transacción del cobro. Entregar al fiado (clientes/fiado.ts) y la venta a cuenta NO emiten: no entró plata
 - **Emisión:** P2 · evento de plata (dentro de la transacción)
 - **Clave:** `pedido:<pedidoId>:cobrado`
 - **datos:** `{ pedidoId: id, codigo: entero, monto: monto (ARS), medio: EFECTIVO | MP | TRANSFERENCIA | TARJETA, pagoExterno?: id, cobradoEn: fecha ISO 8601 }`
@@ -433,7 +433,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 - **Cuándo:** registerFiscalDocument (src/lib/invoice-core.ts), en la transacción que guarda el CAE. InvoiceCreated (v0, ARCA) sigue igual
 - **Emisión:** P2 · evento de plata (dentro de la transacción)
 - **Clave:** `factura:<facturaId>:autorizada`
-- **datos:** `{ facturaId: id, tipoComprobante: entero, puntoVenta: entero, numero: entero, cae: texto, caeVencimiento: fecha AAAAMMDD, total: monto (ARS), pedidoId?: id, turnoId?: id }`
+- **datos:** `{ facturaId: id, tipoComprobante: entero, puntoVenta: entero, numero: entero, cae: texto, caeVencimiento: fecha AAAAMMDD, clase: FACTURA | NOTA_DEBITO | NOTA_CREDITO | OTRO, total: monto (ARS), pedidoId?: id, turnoId?: id }`
 
 ```json
 {
@@ -450,6 +450,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
     "numero": 1287,
     "cae": "76123456789012",
     "caeVencimiento": "20261107",
+    "clase": "FACTURA",
     "total": 18900,
     "pedidoId": "ord_01"
   }

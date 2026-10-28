@@ -15,8 +15,14 @@
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
+import pg from "pg";
 import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
+
+// PGlite (scripts/qa/p2-pglite.mjs) corre como superusuario: sin RLS. Las aserciones de
+// aislamiento por RLS sólo valen contra el Postgres del arnés (CI); acá se saltean, dicho.
+const SIN_RLS = process.env.ERP_TEST_MOTOR === "pglite";
 
 type Fila = { id: string; tenantId: string; type: string; payload: Record<string, unknown>; clave?: string | null; version?: number };
 
@@ -33,7 +39,8 @@ test("P2 · outbox de eventos con y sin N2_hub, dos negocios, rollback y doble e
   const { emitirEvento, olvidarColumnasDelOutbox } = await import("@/eventos/emitir");
   const { basePrisma } = await import("@/lib/prisma-base");
   const rol = await basePrisma.$queryRaw<{ bypass: boolean }[]>`SELECT rolbypassrls AS bypass FROM pg_roles WHERE rolname = current_user`;
-  assert.equal(rol[0]?.bypass, false, "la app corre con un rol SIN bypass de RLS");
+  if (SIN_RLS) t.diagnostic("PGlite: superusuario, sin RLS — se saltean las aserciones de aislamiento");
+  else assert.equal(rol[0]?.bypass, false, "la app corre con un rol SIN bypass de RLS");
 
   const A = base.a.id;
   const B = base.b.id;
@@ -87,6 +94,7 @@ test("P2 · outbox de eventos con y sin N2_hub, dos negocios, rollback y doble e
 
     // Dos negocios: la misma clave en B es OTRO hecho (su fila), y nunca se cruzan.
     assert.equal((await emitir(B, k)).escrito, true);
+    if (!SIN_RLS) {
     const deA = await tenantTransaction((tx) => tx.outboxEvent.findMany({ select: { tenantId: true, type: true } }), { tenantId: A });
     const deB = await tenantTransaction((tx) => tx.outboxEvent.findMany({ select: { tenantId: true, type: true } }), { tenantId: B });
     assert.ok(deA.length > 0 && deA.every((x) => x.tenantId === A), `${nombre}: A ve filas de B`);
@@ -94,6 +102,7 @@ test("P2 · outbox de eventos con y sin N2_hub, dos negocios, rollback y doble e
     // Emitir un evento de B desde la transacción de A: la RLS lo rechaza y no queda nada.
     await assert.rejects(emitir(B, `${nombre}:cruzado`, { comoNegocio: A }));
     assert.equal(conClave(await todas(conColumnas), B, `${nombre}:cruzado`, conColumnas).length, 0);
+    }
 
     // El Core real: cobrar emite pedido.cobrado@1 una sola vez; anular emite pedido.cancelado@1.
     const { cobrarPedidoEnTx } = await import("@/lib/order-core");
@@ -139,7 +148,7 @@ test("P2 · outbox de eventos con y sin N2_hub, dos negocios, rollback y doble e
   assert.equal((await emitir(A, "transicion:hecho")).escrito, true);
 
   // ── Fase 2: con N2_hub aplicada (sólo en esta base efímera) ──
-  aplicarN2Hub(base);
+  await aplicarN2Hub(base);
   olvidarColumnasDelOutbox();
   // C4 en la transición: N2_hub copia payload._clave a la columna, y reemitir no duplica.
   assert.deepEqual(await emitir(A, "transicion:hecho"), { escrito: false, motivo: "duplicado", modo: "columnas" });
@@ -196,7 +205,7 @@ test("P2 · outbox de eventos con y sin N2_hub, dos negocios, rollback y doble e
   const autorizadas = conClave(await todas(true), A, `factura:${invoiceId}:autorizada`, true);
   assert.equal(autorizadas.length, 1);
   assert.deepEqual(autorizadas[0].payload.datos, {
-    facturaId: invoiceId, tipoComprobante: 11, puntoVenta: 3, numero: 12, cae: "76123456789012", caeVencimiento: "20261107", total: 12500, pedidoId: venta.id,
+    facturaId: invoiceId, tipoComprobante: 11, puntoVenta: 3, numero: 12, cae: "76123456789012", caeVencimiento: "20261107", clase: "FACTURA", total: 12500, pedidoId: venta.id,
   });
 
   // Rechazo: con el envío en la clave; si el envío ya estaba cerrado no se escribe nada.
@@ -237,11 +246,24 @@ test("P2 · outbox de eventos con y sin N2_hub, dos negocios, rollback y doble e
   assert.ok((rechazoLargo[0].payload.datos as { motivo: string }).motivo.length <= 500);
 
   // Nada de A en B, al final de todo.
-  const deB = await tenantTransaction((tx) => tx.outboxEvent.findMany({ select: { tenantId: true } }), { tenantId: B });
-  assert.ok(deB.every((x) => x.tenantId === B));
+  if (!SIN_RLS) {
+    const deB = await tenantTransaction((tx) => tx.outboxEvent.findMany({ select: { tenantId: true } }), { tenantId: B });
+    assert.ok(deB.every((x) => x.tenantId === B));
+  }
 });
 
-function aplicarN2Hub(base: BaseEfimera): void {
+async function aplicarN2Hub(base: BaseEfimera): Promise<void> {
   const archivo = path.join(process.cwd(), "prisma", "pending-gate2", "N2_hub.sql");
-  execFileSync("psql", [base.urlDuenio, "-v", "ON_ERROR_STOP=1", "-q", "-f", archivo], { stdio: ["ignore", "ignore", "pipe"] });
+  if (!SIN_RLS) {
+    execFileSync("psql", [base.urlDuenio, "-v", "ON_ERROR_STOP=1", "-q", "-f", archivo], { stdio: ["ignore", "ignore", "pipe"] });
+    return;
+  }
+  // PGlite sin psql: el archivo entero como UNA consulta simple (trae su BEGIN/COMMIT).
+  const c = new pg.Client({ connectionString: base.urlDuenio });
+  await c.connect();
+  try {
+    await c.query(readFileSync(archivo, "utf8"));
+  } finally {
+    await c.end();
+  }
 }

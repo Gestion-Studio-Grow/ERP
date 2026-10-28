@@ -7,7 +7,7 @@ import path from "node:path";
 import { CATALOGO, definiciones } from "./catalogo";
 import { e, enmascararTelefono, erroresDe, nombresDeCampos, redactarTextoLibre } from "./esquema";
 import { armarSobre, emitirEvento, EventoInvalido, olvidarColumnasDelOutbox, SQL_CANDADO, SQL_INSERTAR_CON_COLUMNAS, SQL_INSERTAR_SIN_COLUMNAS, SQL_YA_ESTA, SQL_YA_ESTA_CON_COLUMNAS } from "./emitir";
-import { canalYReferencia, emitirFacturaAutorizada, emitirFacturaRechazada, emitirPedidoCobrado, medioDelCatalogo, pagoExternoDelActor } from "./del-core";
+import { canalYReferencia, claseDelComprobante, emitirFacturaAutorizada, emitirFacturaRechazada, emitirPedidoCobrado, medioDelCatalogo, pagoExternoDelActor } from "./del-core";
 import { generarDocEventos } from "./doc";
 
 const RETAIL_73 = [
@@ -281,4 +281,11 @@ test("P2-C7 · docs/integrations/eventos.md está al día con el catálogo y tra
     assert.ok(desde > 0, `${d.tipo} sin sección`);
     assert.ok(doc.slice(desde).includes(`"tipo": "${d.tipo}"`), `${d.tipo} sin ejemplo`);
   }
+});
+
+test("factura.autorizada · la clase sale del tipo de ARCA: una nota de crédito no se confunde con una venta", () => {
+  for (const t of [1, 6, 11, 51, 81, 82, 111, 118, 201, 206, 211]) assert.equal(claseDelComprobante(t), "FACTURA", `tipo ${t}`);
+  for (const t of [3, 8, 13, 53, 112, 113, 114, 119, 203, 208, 213]) assert.equal(claseDelComprobante(t), "NOTA_CREDITO", `tipo ${t}`);
+  for (const t of [2, 7, 12, 52, 115, 116, 117, 120, 202, 207, 212]) assert.equal(claseDelComprobante(t), "NOTA_DEBITO", `tipo ${t}`);
+  for (const t of [4, 9, 15, 63, 999]) assert.equal(claseDelComprobante(t), "OTRO", `tipo ${t}`);
 });

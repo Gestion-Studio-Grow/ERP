@@ -146,8 +146,10 @@ export const CATALOGO = {
   "pedido.cobrado@1": def({
     tipo: "pedido.cobrado", version: 1, familia: "retail", emision: "P2", plata: true,
     cuando:
-      "botón «Cobrar» y aviso de pago de MP (cobrarPedidoEnTx, que usa cobros-actions vía cobrarPedidoPorAvisoDePago) " +
-      "y venta de mostrador que nace cobrada (insertOrder); en la transacción del cobro",
+      "botón «Cobrar» y aviso de pago de MP (cobrarPedidoEnTx, que usa cobros-actions vía cobrarPedidoPorAvisoDePago), " +
+      "venta de mostrador que nace cobrada (insertOrder) y cobro parcial que salda el pedido o la deuda de su fiado " +
+      "(applyCollectionInTx, src/lib/settlement/collection-repo.ts: monto = total del pedido, medio = el del cobro que cierra el saldo); " +
+      "en la transacción del cobro. Entregar al fiado (clientes/fiado.ts) y la venta a cuenta NO emiten: no entró plata",
     clave: "pedido:<pedidoId>:cobrado",
     esquema: e.objeto({
       pedidoId: e.id(),
@@ -188,13 +190,15 @@ export const CATALOGO = {
       numero: e.entero(),
       cae: e.texto(),
       caeVencimiento: e.fechaArca(),
+      /** Por el tipo de comprobante de ARCA: una nota de crédito RESTA (un suscriptor contable no la suma como venta). */
+      clase: e.uno(["FACTURA", "NOTA_DEBITO", "NOTA_CREDITO", "OTRO"] as const),
       total: e.monto(),
       pedidoId: e.opcional(e.id()),
       turnoId: e.opcional(e.id()),
     }),
     ejemplo: {
       facturaId: "inv_01", tipoComprobante: 6, puntoVenta: 3, numero: 1287, cae: "76123456789012",
-      caeVencimiento: "20261107", total: 18900, pedidoId: "ord_01",
+      caeVencimiento: "20261107", clase: "FACTURA", total: 18900, pedidoId: "ord_01",
     },
   }),
   "factura.rechazada@1": def({
