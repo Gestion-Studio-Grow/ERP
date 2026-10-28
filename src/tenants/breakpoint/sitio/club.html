@@ -3869,6 +3869,10 @@ function firmarCaja(estado, { usuarioId, firmaId = null, pin }, accion) {
   const f = autorizar(estado, { usuarioId: quien, pin }, accion, true);
   if (!f.ok) return f;
   const largo = largoFirmaCaja(estado);
+  // Firma por ROL, no por el PIN que llega (CERT-B4 v5, F6): el largo de un PIN con hash lo declara el navegador, así
+  // que recepción con un PIN propio de 4 no firma. Mismo criterio que la pantalla (`puedeFirmarCierres`).
+  if (largoPin(f.usuario.rol) < largo)
+    return { ok: false, motivo: `Esto lo firma un PIN de ${largo} dígitos y ${f.usuario.nombre} opera con el de ${largoPin(f.usuario.rol)}: se opera pero no se firma. Que firme un dueño.`, pinCorto: true };
   if (String(pin ?? "").trim().length < largo)
     return { ok: false, motivo: `Esto lo firma un PIN de ${largo} dígitos: con el PIN de ${String(pin ?? "").trim().length} se opera pero no se firma. Que firme un dueño.`, pinCorto: true };
   return { ok: true, responsable: resp.usuario, firma: f.usuario };
