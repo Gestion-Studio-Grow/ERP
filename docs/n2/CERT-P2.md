@@ -1,4 +1,4 @@
-Veredicto final: CON OBSERVACIONES (vuelta 6: F7 cerrada, O-v5-1…5 cerradas; O-v6-1 baja, la dedupe del lote sin N2_hub lee el outbox de todos los negocios; ver dictamen vuelta 6 al final)
+Veredicto final: CERTIFICA (vuelta 7, cierre del orquestador: O-v6-1 cerrada; ver al final)
 
 # Dictamen de certificación — Tanda P2 (catálogo de eventos v1 y emisión desde el Core)
 
@@ -772,3 +772,12 @@ Siguen abiertos todos los puntos de «Verificación pendiente con Postgres real�
 dedupe del lote con N2_hub y 1 millón de filas de otros negocios.
 
 Veredicto final: CON OBSERVACIONES — F7 cerrada (2000 productos en ≈0,7 s, el lote ≡ uno por uno en sobre, dedupe y rollback) y O-v5-1…O-v5-5 cerradas; queda O-v6-1 baja: sin N2_hub, la dedupe del lote lee el outbox de todos los negocios desde ~50 claves (`emitir.ts:268`; arreglo: filtrar por la constante del negocio). El recuento de más de ~700 líneas, anterior a P2, pasa a la PMO.
+
+## Vuelta 7 — cierre de O-v6-1 (orquestador, 28/10/2026, modo acotado)
+
+- **O-v6-1 cerrada.** `SQL_YA_ESTAN_DEL_LOTE` y `SQL_YA_ESTAN_DEL_LOTE_CON_COLUMNAS` llevan `o."tenantId" = ANY($4::text[])`, con los negocios del lote como valor fijo (`src/eventos/emitir.ts`). Medido con el script del certificador (2000 claves, 500 mil filas ajenas, sin N2_hub): de ≈485 ms a 3–14 ms; el plan pasa de Seq Scan a Bitmap Index Scan sobre `OutboxEvent_tenantId_idx`.
+- **Test nuevo** `src/eventos/dedupe-lote-plan.test.ts`: con 100 mil filas ajenas, el plan no tiene Seq Scan del outbox, encuentra las 1000 ya escritas del negocio y ninguna de otro. Con la consulta vieja, falla.
+- **Sin regresión:** PGlite `emitir-postgres` y `vuelta6-postgres` (sin y con N2_hub) 2/2; unitarios de `src/eventos` 64 pasan, 0 fallan, 4 salteados (necesitan base).
+- **No verificado:** RLS con `app_rls`, concurrencia real y el plan contra Neon. El recuento grande (anterior a P2) sigue para la PMO.
+
+Veredicto final: CERTIFICA — 0 fallas y 0 observaciones de P2; lo no verificable queda declarado arriba.
