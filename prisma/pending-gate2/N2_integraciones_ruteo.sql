@@ -34,6 +34,10 @@
 
 BEGIN;
 
+-- Todo el archivo sin `public` en el camino (cert. del pase, vuelta 3, N-1): los bloques DO de abajo
+-- corren como el dueño y no pueden resolver una función u operador plantado en public.
+SET LOCAL search_path = pg_catalog, pg_temp;
+
 CREATE OR REPLACE FUNCTION public.gsg_conexion_por_cuenta(p_conector text, p_cuenta text)
 RETURNS TABLE("tenantId" text, id text)
 LANGUAGE sql STABLE SECURITY DEFINER
@@ -81,9 +85,9 @@ DO $$
 DECLARE
   sin_bypass boolean := NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = current_user AND (rolbypassrls OR rolsuper));
   forzada boolean;
-  dueno text;
+  dueno name;
 BEGIN
-  SELECT relforcerowsecurity, pg_get_userbyid(relowner) INTO forzada, dueno
+  SELECT relforcerowsecurity, pg_get_userbyid(relowner)::name INTO forzada, dueno
     FROM pg_class WHERE oid = 'public."IntegracionConexion"'::regclass;
   -- Miembro del rol dueño cuenta como dueño (cert. del pase, vuelta 2, O-4).
   IF sin_bypass AND (forzada OR NOT pg_has_role(current_user, dueno, 'USAGE')) THEN

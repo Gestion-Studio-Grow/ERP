@@ -9,6 +9,9 @@
 
 ## 0. Antes del día D (la víspera)
 
+- [ ] 🔴 Precondición de MP del §0 bis verificada y ANOTADA por el dueño (`MP_MODO`, cuenta de
+      `MP_ACCESS_TOKEN`, `MP_SIMULAR_AVISOS` apagado, `MP_MODO_LEGADO`). Sin esta casilla no hay push.
+- [ ] §0 bis corrido JUSTO ANTES del push (no después: avisos de MP perdidos).
 - [ ] Ramas que usan el paquete integradas en `main` y desplegadas **con la base vieja** (todas
       toleran la ausencia: muestran «En preparación» vía `src/lib/schema-probe`).
 - [ ] Ensayo en un **branch de Neon** creado desde producción (no en prod): pasos 2 a 6 de abajo
@@ -28,8 +31,10 @@ después (cert. del pase, vuelta 2, O-1).
 «Link de pago» con el token global, y el nuevo también si `MP_MODO_LEGADO=1`. Si `MP_MODO` es `test` o
 `real` y hay negocios SIN conexión MP propia que no son los dueños de ese token, sus links cobrarían en
 la cuenta del despliegue: **no correr, y no publicar S1/P1, hasta que el dueño decida** (conexión
-propia por negocio, o apagar MP en esos negocios). Con `MP_MODO` vacío o `stub` y el simulador
-apagado, no hay efecto de plata.
+propia por negocio, o apagar MP en esos negocios). Ojo: entre el 0 bis y el *Ready*, el código viejo
+usa el token global **aun para negocios con conexión propia** (no conoce conexiones). Con `MP_MODO`
+vacío o `stub` no hay efecto de plata; si `MP_SIMULAR_AVISOS` está prendido, apagarlo antes (si no,
+aparece «Simular que pagó» en todos los negocios).
 
 ```bash
 set -o pipefail
@@ -50,7 +55,8 @@ Control después del deploy (a los 10 minutos y al día siguiente), con el rol d
 psql -X -d "$MIGRATE_DATABASE_URL" -c "SELECT count(*) FROM \"AuditLog\" WHERE entity = 'WebhookMercadoPago' AND action = 'rechazado' AND changes->>'motivo' = 'negocio-sin-mercadopago' AND \"createdAt\" > now() - interval '1 day'"
 ```
 
-Si da más de 0: esos pagos no se acreditaron solos; reenviarlos desde el panel de MP o «Sincronizar MP»
+(Con el rol directo dueño de la tabla y sin `0003_force_rls`, ve todos los negocios; si se aplicó
+FORCE, correrla con un rol BYPASSRLS o da 0 falso.) Si da más de 0: esos pagos no se acreditaron solos; reenviarlos desde el panel de MP o «Sincronizar MP»
 del negocio.
 
 ## 1. Respaldo (obligatorio, sin esto no se sigue)

@@ -249,6 +249,29 @@ test("pase N2: módulo mercadopago en todos los negocios + funciones de ruteo", 
       ]);
     });
 
+    // Con superusuario (PGlite, el arnés) el aviso no llega a evaluar pg_has_role: la garantía es
+    // estructural — el SET LOCAL search_path va antes de cualquier sentencia del archivo. El secuestro
+    // con un dueño NO superusuario lo reprodujo y cerró el certificador (vuelta 3, N-1).
+    await t.test("6 bis: search_path sin public desde la 1.ª sentencia; aplica con pg_has_role plantado en public", async () => {
+      const sentencias = sentenciasSql(readFileSync(RUTEO, "utf8"));
+      assert.equal(sentencias[0], "BEGIN");
+      assert.equal(sentencias[1], "SET LOCAL search_path = pg_catalog, pg_temp");
+      await conCliente(async (c) => {
+        for (const firma of ["name, text, text", "name, name, text", "text, text, text"]) {
+          await c.query(`CREATE FUNCTION public.pg_has_role(${firma}) RETURNS boolean LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'secuestrado'; END $$`);
+        }
+      });
+      try {
+        await aplicar(RUTEO);
+      } finally {
+        await conCliente(async (c) => {
+          for (const firma of ["name, text, text", "name, name, text", "text, text, text"]) {
+            await c.query(`DROP FUNCTION IF EXISTS public.pg_has_role(${firma})`);
+          }
+        });
+      }
+    });
+
     await t.test("reversa del pie: borra las dos y se vuelven a crear", async () => {
       await conCliente((c) => c.query(reversaDe("N2_integraciones_ruteo.sql")));
       const cuantas = () =>
