@@ -469,3 +469,67 @@ Veredicto final: NO CERTIFICA
 
 1. F6: la firma por rol en `firmarCaja` y en `caja-core.ts:418`, con su test, y la copia del motor resincronizada (`copia.test.ts` + `motor-club.test.ts` en verde).
 2. Sugerido, no bloquea: O1, el «a ciegas» de §8 como recepción.
+
+## Certificador — vuelta 6
+
+- **Rango:** `2d9fbead..05609cc5` (4 commits: `d4b113bd`, `13680cfe`, `a11aba5b`, `05609cc5`). Worktree `C:/n2b4`, sin `.env` ni base remota.
+- **Alcance:** acotada a F6 de la vuelta 5 (la firma de caja se decidía por el largo del PIN tipeado y no por el rol).
+- **Tests adversariales propios:** en el scratchpad de la sesión (`b4v6/cert-b4-v6.test.ts`), no en el repo. También se volvieron a correr los de la vuelta 5 (`b4v5/`).
+- **Este veredicto reemplaza el de la vuelta 5.**
+
+### F6: cerrada por todos los caminos
+
+- [VERIFICADO] **Motor:** `firmarCaja` (`src/lib/club/motor.mjs:2853-2854`) exige `largoPin(f.usuario.rol) >= largoFirmaCaja`, el rol de **quien firma** (`firmaId` o quien opera), antes de mirar el PIN tipeado. Pasan por ahí las cuatro firmas nuevas: `cerrarTurnoCaja` (:2975), `cerrarDiaCaja` (:3005), `retiroCajaFuerte` (:3071) y `egresoPorCategoria` (:3085).
+- [VERIFICADO] **Egreso y cierre viejos:** `egresoCaja` y `cerrarCaja` del motor (:2737, :2787) siguen sin chequear la firma. En el ERP los guarda `ejecutarCaja` (`caja-core.ts:412` toma el rol del firmante verificado; `:421-422` exige rol y largo para `egreso` y `cerrar`). En `egreso` se ignora el `firmaId` (`:400`): firma quien opera.
+- [VERIFICADO] **No hay otro camino en el ERP:** por grep, los únicos llamadores de las seis funciones que firman caja son `caja-core.ts` y dos fixtures de datos de ejemplo (`armar-respaldo.ts`, `mes-cargado.fixture.ts`, como dueño). Los comandos llegan por la entrada `caja` → `ejecutarCaja` (`comandos-core.ts:112-113`). `cierre`, `plata` y `tablero` no tocan esas funciones. `pagarProveedor` (otra salida de efectivo) es sólo de dueños por permiso.
+- [VERIFICADO] **El test atrapa cada camino por separado** (mutación, revertida):
+  - Sin el chequeo en el motor ni en `caja-core`: los 2 tests F6 de `caja-core.test.ts` fallan.
+  - Sin el chequeo sólo en `caja-core`: falla «4444 · egreso: la dejó firmar».
+- [VERIFICADO] **Ataques de la vuelta 5:** V5-A (base con hash y base en claro) y V5-A por la acción real ahora dan `ok: false` con «Que firme un dueño». 6/6 en verde.
+- **Fuera del ERP, ya registrado:** el vanilla `club.html` llama `M.egresoCaja` y `M.cerrarCaja` sin firma (`:8307`, `:8309`). Es la observación 1 de la vuelta 4, con su pregunta a la PMO (opción C). F6 no le agrega nada: ahí recepción ya egresa con su PIN de 2 por diseño. Su retiro, egreso por categoría y cierres por turno usan `firmarCaja` y quedaron corregidos (`club.html:3872`).
+
+### Copia controlada
+
+- [VERIFICADO] `src/lib/club/motor.mjs` y `public/previews/breakpoint/club/motor.mjs` son el mismo blob en `HEAD` (`2fa76448…`), y es el mismo de `d4b113bd`.
+- [VERIFICADO] sha256 del archivo en LF: `ff772e18…6adc7`, el de `ORIGEN.json`. `ORIGEN.json.commit = d4b113bd…`, que es ancestro de `HEAD`. En este checkout, la fuente de `public/` tiene CRLF (`autocrlf=true`); sin `\r` da el mismo sha.
+- [VERIFICADO] El sitio empaquetado trae la corrección: `club.html` es el único HTML con `firmarCaja`. `copia.test.ts` y `motor-club.test.ts` están en verde dentro de la corrida de `src/lib/club` + `src/tenants/breakpoint`.
+
+### ¿El criterio por rol abre otro camino?
+
+Ahora el permiso es el rol. Se atacó lo que lo cambia:
+
+- **V6-A** [VERIFICADO]: recepción se pone `rol: "duenio"` y un PIN de 4 por la foto. El servidor conserva el rol y el PIN de la base (`delicado.ts:104-107`): no firma.
+- **V6-B** [VERIFICADO]: recepción da de alta por la foto un usuario dueño con un PIN que conoce y lo pone de firmante. El alta se descarta: no firma.
+- **V6-C** [VERIFICADO]: recepción baja la firma a 2.
+  - Por la foto, queda en 4 (`CONFIG_DELICADA`).
+  - Por «Reglas», tanto en la pantalla como en el comando `config`, se rechaza: «Las reglas y los precios los cambia un dueño».
+  - La dueña sí puede, y entonces recepción firma.
+- **V6-D** [VERIFICADO]: otro usuario de recepción con un PIN de 4 como `firmaId` no firma, ni por la pantalla ni por el motor directo. Un rol desconocido (`"Duenio"`) cae en el largo de recepción: falla cerrada.
+- **V6-E** [VERIFICADO]: la dueña sigue firmando el retiro, el egreso por categoría y el egreso viejo. Con firma 8 (sólo un OWNER del ERP por la foto; la pantalla ofrece 2 o 4) no firma nadie: falla cerrada, igual que antes del cambio.
+
+**Decisión sobre «si la dueña baja la firma a 2, recepción firma»:** es **configuración legítima de la dueña, no un hueco.**
+- D-16 la define configurable (`motor.mjs:2825-2826`).
+- La pantalla lo dice sin vueltas: «2 dígitos (también recepción)» y «Con el de recepción, recepción cierra y saca plata sin un dueño» (`config-reglas.tsx:170-175`).
+- Cambiarla exige `configurar` (sólo dueños, `configuracion-core.ts:903`) o una foto guardada por un OWNER del ERP (`estado-actions.ts:117`).
+- Ningún usuario que no sea dueño la puede cambiar (V6-C).
+
+### Hallazgos
+
+- **Fallas:** ninguna.
+- **Observaciones:** ninguna dentro del alcance de F6.
+- **Nota para la PMO, fuera de alcance y de antes de B4** [VERIFICADO por lectura, no ejecutado]: `guardarFotoDelClub` sólo corrige lo delicado si hay foto vigente (`estado-actions.ts:118-119`). El primer guardado de un club sin foto lo acepta tal cual, aunque venga de RECEPTION. Es el arranque del club y no depende del criterio por rol, pero conviene que la PMO lo mire junto con G10.
+
+### Corridas
+
+- `src/lib/club/*.test.ts` + `src/tenants/breakpoint/*.test.ts`: 191 tests. Pasan 182, fallan 0 y se saltean 9 (Postgres).
+- `src/app/admin/(dashboard)/club/*.test.ts`: 662 tests (2 nuevos de F6). Pasan 583, fallan 0 y se saltean 79 (Playwright).
+- Propios: `b4v5/` 6/6 y `b4v6/cert-b4-v6.test.ts` 5/5.
+- `tsc --noEmit`: 406 errores, igual que en la vuelta 5. En `caja-core.ts` y `caja-core.test.ts` no hay ninguno. Los de `uat-paridad.e2e.ts` son por la falta de `playwright`.
+- `git status` al terminar: sólo los 5 archivos «M» por fin de línea que ya estaban. Las mutaciones se revirtieron desde copia.
+
+### No verificable acá
+
+- El §8 de `uat-paridad.e2e.ts` reescrito como recepción (O1 de la vuelta 5, `05609cc5`): falta `playwright`. No se cuenta como falla de la rama. Se revisó sólo leyendo el diff: cuenta como Lu, mira toda la pantalla, firma primero con el PIN de Lu y después elige a Majo en «Firma».
+- Los e2e de caja (`test:club-paridad`, `test:club-pase`, `test:club-uat`), Postgres real con RLS y dos puestos, y el QA clic por clic en la tablet.
+
+Veredicto final: CERTIFICA — F6 cerrada en el motor (`firmarCaja`) y en el egreso y el cierre viejos (`caja-core.ts`), sin otro camino que firme caja en el ERP; la copia y el sha256 son correctos; bajar la firma a 2 es configuración sólo de la dueña; 0 fallas y 0 observaciones en el alcance (los e2e con Playwright quedan sin correr).
