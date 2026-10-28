@@ -7,6 +7,10 @@
 // Cada formulario arranca con lo guardado y se vuelve a armar si lo guardado cambia (p. ej. con «Deshacer»): va con
 // `key` = la firma de lo guardado. Todo se valida antes de llamar al motor (configuracion-core.ts) y se aplica entero
 // o nada; el aviso de abajo dice qué pasó y deja deshacer (no lleva PIN: lo controla el permiso `configurar`).
+// Avisos y «Reglas y precios» mueven plata o permisos (alias de cobro, celular de las aprobaciones, precios, seña,
+// fondo, quién firma la caja): sólo se cambian desde el puesto del dueño (login OWNER del ERP), igual que lo que el
+// servidor deja pasar (G8, src/lib/club/delicado.ts `CONFIG_DELICADA`, CERT-B4 vuelta 4 F5). En otro puesto, el
+// formulario no se ofrece: lo que se guardara ahí el servidor lo volvería a dejar como estaba.
 
 import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -32,6 +36,7 @@ import {
   type ValoresReglas,
 } from "./configuracion-core";
 import { Seccion, sinDesborde, useHacerConfig } from "./config-piezas";
+import { SoloEnElPuestoDelDuenio, puestoDeDuenio } from "./config-jornada";
 import { enlaceWhatsApp } from "./whatsapp-core";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
 import { porFirma, useSeleccion } from "./usar-almacen";
@@ -100,7 +105,7 @@ export function AvisosPorWhatsApp({ almacen }: { almacen: Almacen }) {
   const v = useSeleccion(almacen, seleccionarAvisos, porFirma);
   return (
     <Seccion id="club-config-avisos" titulo="Avisos por WhatsApp" bajada="El celular de cada dueño (ahí le llegan los pedidos de crédito), el WhatsApp del club y el alias para cobrar la seña.">
-      <FormularioAvisos key={v.firma} v={v} almacen={almacen} />
+      {puestoDeDuenio(almacen) ? <FormularioAvisos key={v.firma} v={v} almacen={almacen} /> : <SoloEnElPuestoDelDuenio que="Los celulares de los dueños y el alias para cobrar la seña" />}
     </Seccion>
   );
 }
@@ -187,7 +192,7 @@ export function ReglasDelClub({ almacen }: { almacen: Almacen }) {
   const v = useSeleccion(almacen, seleccionarReglas, porFirma);
   return (
     <Seccion id="club-config-reglas" titulo="Reglas y precios" bajada="Cambian en vivo lo que ve recepción: seña, tolerancia, faltas, precios por hora, el fondo de caja y quién firma la caja.">
-      <FormularioReglas key={v.firma} v={v} almacen={almacen} />
+      {puestoDeDuenio(almacen) ? <FormularioReglas key={v.firma} v={v} almacen={almacen} /> : <SoloEnElPuestoDelDuenio que="Las reglas, los precios, el fondo de caja y quién firma la caja" />}
     </Seccion>
   );
 }
