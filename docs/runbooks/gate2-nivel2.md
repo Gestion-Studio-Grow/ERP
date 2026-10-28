@@ -16,27 +16,42 @@
 - [ ] Ventana elegida con poco movimiento (MAGRA cerrada, sin turnos del club en curso).
 - [ ] Avisos enviados (ver §7, «quién avisa a quién»).
 
-## 0 bis. `mercadopago` en todos los negocios — apenas el deploy de main está *Ready*
+## 0 bis. `mercadopago` en todos los negocios — JUSTO ANTES del push a main
 
-Va FUERA de la ventana del paquete y ANTES de ella: con S1/P1 desplegados, un negocio sin
-`mercadopago` en `Tenant.modules` deja de procesar sus avisos de MP (MP los reintenta: lo que caiga
-entre el *Ready* y este paso se recupera). No se corre antes del push: con el código viejo de main,
-cualquier negocio con el módulo arma «Link de pago» con el token global del despliegue.
+Va FUERA de la ventana del paquete y ANTES de ella. Con S1/P1 desplegados, un aviso de MP de un
+negocio sin `mercadopago` en `Tenant.modules` se contesta 200 y se descarta (`mercadopago-dispatch.ts`,
+auditado como `negocio-sin-mercadopago`): **MP no lo reintenta**. Por eso se corre antes del push, no
+después (cert. del pase, vuelta 2, O-1).
 
 🔴 **Precondición (cert. del pase, F1):** el dueño mira en Vercel prod `MP_MODO`, `MP_ACCESS_TOKEN`
-(de qué cuenta es), `MP_SIMULAR_AVISOS` y `MP_MODO_LEGADO`. Si `MP_MODO` es `test` o `real` y hay
-negocios SIN conexión MP propia que no son los dueños de ese token, sus links cobrarían en la cuenta
-del despliegue: **no correr hasta que el dueño decida** (conexión propia por negocio, o apagar MP en
-esos negocios). Con `MP_MODO` vacío o `stub` y el simulador apagado, no hay efecto de plata.
+(de qué cuenta es), `MP_SIMULAR_AVISOS` y `MP_MODO_LEGADO`. Con el módulo, el código viejo arma
+«Link de pago» con el token global, y el nuevo también si `MP_MODO_LEGADO=1`. Si `MP_MODO` es `test` o
+`real` y hay negocios SIN conexión MP propia que no son los dueños de ese token, sus links cobrarían en
+la cuenta del despliegue: **no correr, y no publicar S1/P1, hasta que el dueño decida** (conexión
+propia por negocio, o apagar MP en esos negocios). Con `MP_MODO` vacío o `stub` y el simulador
+apagado, no hay efecto de plata.
 
 ```bash
+set -o pipefail
 cd prisma/pending-gate2
-psql -X -v ON_ERROR_STOP=1 -d "$MIGRATE_DATABASE_URL" -f N2_modulo_mercadopago.sql | tee ~/0bis-$(date +%F-%H%M).log
+psql -X -v ON_ERROR_STOP=1 -d "$MIGRATE_DATABASE_URL" -f N2_modulo_mercadopago.sql 2>&1 | tee ~/0bis-$(date +%F-%H%M).log
+echo "psql salió con $?"   # tiene que ser 0
 cd -
 ```
 
 La salida (`RETURNING`) es la lista exacta de negocios que cambiaron: guardar el `.log` (lo pide la
-reversa). Si el bloque final encuentra un negocio sin el módulo, falla y no confirma nada.
+reversa). **Si el `.log` no termina en `COMMIT` o psql no salió con 0, no vale**: no se cambió nada
+(el bloque final falla si queda un negocio sin el módulo). Negocios dados de alta después del día D
+nacen sin el módulo (presets): decisión del dueño pendiente (cert. F6).
+
+Control después del deploy (a los 10 minutos y al día siguiente), con el rol directo — tiene que dar 0:
+
+```bash
+psql -X -d "$MIGRATE_DATABASE_URL" -c "SELECT count(*) FROM \"AuditLog\" WHERE entity = 'WebhookMercadoPago' AND action = 'rechazado' AND changes->>'motivo' = 'negocio-sin-mercadopago' AND \"createdAt\" > now() - interval '1 day'"
+```
+
+Si da más de 0: esos pagos no se acreditaron solos; reenviarlos desde el panel de MP o «Sincronizar MP»
+del negocio.
 
 ## 1. Respaldo (obligatorio, sin esto no se sigue)
 
@@ -63,7 +78,7 @@ $P -f N2_hub.sql              # 3 · ApiKey, WebhookSuscripcion, EntregaWebhook,
 $P -f N2_pagos.sql            # 4 · PagoExterno (decisión: Payment no se extiende; ver el archivo)
 $P -f N2_retail.sql           # 5 · Client.limiteCredito, Order.cobroVerificadoEn/Por
 $P -f N2_club_indice.sql      # 6 · ClubReservaIndice
-$P -f N2_integraciones_ruteo.sql  # 6 bis · gsg_conexion_por_cuenta / gsg_conexiones_activas (pase N2; si sale un WARNING de FORCE RLS, anotarlo: no frena)
+$P -f N2_integraciones_ruteo.sql  # 6 bis · gsg_conexion_por_cuenta / gsg_conexiones_activas (pase N2; un WARNING «devolverán 0 filas» = FORCE o creador no dueño: anotarlo, no frena)
 $P -f ../rls/0001_enable_rls.sql   # 7 · re-ejecución: policy tenant_isolation en TODA tabla con tenantId
 ```
 

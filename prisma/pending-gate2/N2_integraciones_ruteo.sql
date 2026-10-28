@@ -85,7 +85,8 @@ DECLARE
 BEGIN
   SELECT relforcerowsecurity, pg_get_userbyid(relowner) INTO forzada, dueno
     FROM pg_class WHERE oid = 'public."IntegracionConexion"'::regclass;
-  IF sin_bypass AND (forzada OR dueno <> current_user) THEN
+  -- Miembro del rol dueño cuenta como dueño (cert. del pase, vuelta 2, O-4).
+  IF sin_bypass AND (forzada OR NOT pg_has_role(current_user, dueno, 'USAGE')) THEN
     RAISE WARNING 'gsg_conexion_por_cuenta / gsg_conexiones_activas devolverán 0 filas: % no tiene BYPASSRLS y la tabla IntegracionConexion % (dueño %)',
       current_user, CASE WHEN forzada THEN 'tiene FORCE RLS' ELSE 'no es suya' END, dueno;
   END IF;
