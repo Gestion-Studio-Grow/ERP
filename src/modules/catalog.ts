@@ -36,6 +36,7 @@ import { clubModule } from "./descriptors/club";
 import { padelClasesModule } from "./descriptors/padel-clases";
 import { arcaModule } from "@/plugins/arca/module";
 import { bancosModule } from "@/plugins/bancos/module";
+import { whatsappModule } from "@/plugins/whatsapp/module";
 
 /** Todos los descriptores del catálogo del producto (el "qué hay disponible"). */
 export const DESCRIPTORES_CATALOGO = [
@@ -59,6 +60,8 @@ export const DESCRIPTORES_CATALOGO = [
   clubModule,
   // Clases de pádel (src/modules/descriptors/padel-clases.ts). Al final, como los anteriores.
   padelClasesModule,
+  // WhatsApp (plugin; conector de la suite E3, Tanda P1): src/plugins/whatsapp/module.ts. Al final.
+  whatsappModule,
 ];
 
 /**
