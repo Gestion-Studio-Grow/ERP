@@ -58,7 +58,12 @@ async function preparar(t: import("node:test").TestContext) {
       ),
     numeroUsadoPorOtraFactura: invoiceCore.numeroUsadoPorOtraFactura,
   };
-  const despachar = () => processArcaOutbox(20, deps);
+  // Cada corrida de estos tests es «la siguiente, cuando ya pasó la espera»: la espera creciente
+  // entre intentos (motor de facturación, arca-reintentos.ts) la prueba motor-postgres.test.ts.
+  const despachar = async () => {
+    await duenio.outboxEvent.updateMany({ where: { processedAt: null, muertoEn: null }, data: { proximoIntentoEn: null } });
+    return processArcaOutbox(20, deps);
+  };
   const importes = { 1210: { neto: 1000, iva: 210 }, 2420: { neto: 2000, iva: 420 } } as const;
   const facturar = (tenantId: string, orderId?: string, total: 1210 | 2420 = 1210, reabrirSiRechazada = false) =>
     invoiceCore.createInvoice({

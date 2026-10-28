@@ -29,8 +29,10 @@ import { ComprobanteArca, ivaInformadoAArca } from '../domain/comprobante';
 // importa nada (ADR-100 §3; lo verifica src/lib/dinero/redondeo.test.ts).
 import { textoAlCentavo } from '@/lib/dinero/redondeo';
 import { esErrorPasajero } from '../domain/errores-arca';
+import { INTERRUPTOR_ARCA, servicioDeUrl, type InterruptorArca } from './interruptor';
 import {
   AfipClient,
+  ArcaNoDisponibleError,
   ArcaPasajeroError,
   ArcaRechazoError,
   ComprobanteConsultado,
@@ -689,13 +691,25 @@ export const TIMEOUT_ARCA_MS = 15_000;
 export class FetchSoapTransport implements SoapTransport {
   private readonly timeoutMs: number;
   private readonly hacerFetch: typeof fetch;
+  private readonly interruptor: InterruptorArca | null;
 
-  constructor(opciones: { timeoutMs?: number; fetch?: typeof fetch } = {}) {
+  /**
+   * @param opciones.interruptor el interruptor por servicio (motor de facturación). Default: el del
+   *   proceso (`INTERRUPTOR_ARCA`) cuando se habla con ARCA de verdad; NINGUNO cuando se inyecta un
+   *   `fetch` (simulador, tests): un test que quiere el interruptor lo pasa explícito.
+   */
+  constructor(opciones: { timeoutMs?: number; fetch?: typeof fetch; interruptor?: InterruptorArca | null } = {}) {
     this.timeoutMs = opciones.timeoutMs ?? TIMEOUT_ARCA_MS;
     this.hacerFetch = opciones.fetch ?? ((...a) => fetch(...a));
+    this.interruptor =
+      opciones.interruptor !== undefined ? opciones.interruptor : opciones.fetch ? null : INTERRUPTOR_ARCA;
   }
 
   async post(url: string, soapAction: string, body: string): Promise<string> {
+    const servicio = servicioDeUrl(url);
+    if (this.interruptor && !this.interruptor.permitir(servicio)) {
+      throw new ArcaNoDisponibleError(servicio, this.interruptor.reabreEn(servicio) ?? new Date());
+    }
     const corte = new AbortController();
     const reloj = setTimeout(() => corte.abort(), this.timeoutMs);
     try {
@@ -713,19 +727,24 @@ export class FetchSoapTransport implements SoapTransport {
         });
         texto = await res.text();
       } catch (e) {
+        this.interruptor?.registrarCaida(servicio);
         throw new ArcaPasajeroError(
           corte.signal.aborted
             ? `ARCA no respondió en ${this.timeoutMs / 1000} s (${url}).`
             : `No se pudo hablar con ARCA (${url}): ${e instanceof Error ? e.message : String(e)}`,
           [],
-          { cause: e },
+          { cause: e, servicioCaido: servicio },
         );
       }
       if (!res.ok) {
+        this.interruptor?.registrarCaida(servicio);
         throw new ArcaPasajeroError(
           `ARCA: transporte SOAP falló (HTTP ${res.status}). Cuerpo: ${texto.slice(0, 500)}`,
+          [],
+          { servicioCaido: servicio },
         );
       }
+      this.interruptor?.registrarExito(servicio);
       return texto;
     } finally {
       clearTimeout(reloj);

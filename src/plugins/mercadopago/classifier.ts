@@ -58,6 +58,15 @@ export const REGLAS_DEFAULT: ReglaClasificacion[] = [
     clasificacion: "NO_FACTURABLE",
   },
   {
+    // R1 · antes TODA transferencia era «cuenta propia»: la seña de una clienta por transferencia
+    // se perdía sin facturar. Una de un TERCERO va a revisión (no se pierde ni se factura a ciegas).
+    id: "transferencia-de-tercero",
+    descripcion:
+      "Transferencia de un tercero: puede ser una seña o un cobro. Confirmá si es una venta para facturarla.",
+    cuando: (p) => p.operacion === "transferencia" && p.cuentaPropia === false,
+    clasificacion: "REVISAR",
+  },
+  {
     id: "transferencia-propia",
     descripcion: "Transferencia entre cuentas propias: no es venta.",
     cuando: (p) => p.operacion === "transferencia",

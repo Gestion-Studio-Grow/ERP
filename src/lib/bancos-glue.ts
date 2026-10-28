@@ -27,7 +27,7 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { runInTenantContext } from "@/lib/tenant-context";
-import { createInvoice } from "@/lib/invoice-core";
+import { claveCobroBanco, claveCobroMP, cobrosYaFacturados, facturarCobros, vincularCobro } from "@/lib/facturacion/cobros-facturados";
 import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
 import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
 import { logger } from "@/lib/logger";
@@ -648,6 +648,12 @@ export interface ResultadoEmision {
   capAlcanzado: boolean;
   mensaje?: string;
   errores: { movimientoId: string; error: string }[];
+  /**
+   * R1 · Movimientos que NO se emitieron porque su cobro ya estaba facturado por otro camino
+   * (reconocido por su clave o por la referencia del pago de Mercado Pago): quedan atados a esa
+   * factura. Sólo aparece si es mayor a 0.
+   */
+  yaFacturadas?: number;
   /** Resumen del despacho a ARCA (solo si ARCA_INVOICING_ENABLED está prendido). */
   despachoArca?: DispatchResumen;
 }
@@ -695,6 +701,7 @@ export async function emitirPropuestas(
 
     let emitidas = 0;
     let bloqueadas = 0;
+    let yaFacturadas = 0;
     const errores: { movimientoId: string; error: string }[] = [];
 
     for (const mov of movimientos) {
@@ -719,8 +726,32 @@ export async function emitirPropuestas(
       try {
         // El monto del banco es TOTAL IVA-incluido; el Core calcula neto/IVA (ADR-006).
         const montoTotal = Math.abs(toNum(mov.monto));
+
+        // R1 · UNA FACTURA POR COBRO: antes de emitir, ¿este crédito ya está facturado por otro
+        // camino? Se reconoce por SU clave (`banco:<hash>`) o por la referencia del pago de
+        // Mercado Pago (`mp:<referencia>`), no sólo por el total. Si sí, el movimiento queda
+        // atado a esa factura y no se emite otra.
+        const claveBanco = claveCobroBanco(mov.hash);
+        const [yaFacturado] = await cobrosYaFacturados(tenantId, [
+          claveBanco,
+          ...(mov.referencia ? [claveCobroMP(mov.referencia)] : []),
+        ]);
+        if (yaFacturado) {
+          await vincularCobro(tenantId, { clave: claveBanco, importe: montoTotal }, yaFacturado.invoiceId);
+          await tenantTransaction(
+            (tx) =>
+              tx.movimientoImportado.updateMany({
+                where: { id: mov.id, tenantId },
+                data: { invoiceId: yaFacturado.invoiceId },
+              }),
+            { tenantId },
+          );
+          yaFacturadas++;
+          continue;
+        }
+
         const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, montoTotal);
-        const invoiceId = await createInvoice({
+        const invoiceId = await facturarCobros({
           tenantId,
           // Concepto 1 (productos/venta directa), mismo criterio que invoice-from-mp:
           // concepto 2 (servicios) exigiría fechas de servicio que el extracto no trae.
@@ -735,7 +766,7 @@ export async function emitirPropuestas(
           neto,
           iva,
           total,
-        });
+        }, [{ clave: claveBanco, importe: total }]);
         await tenantTransaction(
           (tx) =>
             tx.movimientoImportado.updateMany({
@@ -773,6 +804,7 @@ export async function emitirPropuestas(
     const capAlcanzado = bloqueadas > 0 || facturasMes + emitidas >= cap;
     return {
       emitidas,
+      ...(yaFacturadas > 0 ? { yaFacturadas } : {}),
       bloqueadasPorCap: bloqueadas,
       capAlcanzado,
       ...(capAlcanzado

@@ -154,3 +154,81 @@ test("ENG-021 · el motivo que queda en el envío no filtra la estructura intern
   assert.match(motivo, /P2002/);
   assert.doesNotMatch(motivo, /invoice-core|updateMany|\/home\/|tenantTransaction/);
 });
+
+// ── Motor de facturación · homologación/producción POR NEGOCIO (ADR-066) ──────────────────────
+
+test("modo efectivo: el entorno es el techo y el negocio decide por debajo", async () => {
+  const { modoEfectivoDelTenant } = await import("./arca-dispatch");
+  assert.equal(modoEfectivoDelTenant("real", true), "homologacion");
+  assert.equal(modoEfectivoDelTenant("real", false), "real");
+  assert.equal(modoEfectivoDelTenant("homologacion", false), "homologacion", "homologación pisa a todos");
+  assert.equal(modoEfectivoDelTenant("stub", false), "stub");
+});
+
+test("ARCA_MODO=real con un negocio TODAVÍA en homologación: endpoint de prueba y sin el guard estricto", async () => {
+  // El cert de prueba suele ser del CUIL del dueño, no del negocio: en homologación no se exige.
+  const clientePara = crearClientePara(
+    leerFijo({ cuit: 20111111112, homologacion: true }),
+    { ARCA_MODO: "real" },
+    async () => credencialDeTest(20222222223),
+    async () => undefined,
+  );
+  const cliente = await clientePara("tenant-en-prueba");
+  assert.ok(cliente instanceof SoapAfipClient);
+  assert.equal((cliente as unknown as { config: { homologacion: boolean } }).config.homologacion, true);
+});
+
+test("ADR-077 §6 · delegación: sin cert propio firma el del estudio con SU CUIT; el comprobante sigue a nombre del emisor", async () => {
+  const { resolverFirmaParaTenant } = await import("./arca-dispatch");
+  const { CredencialFiscalAusenteError } = await import("@/lib/fiscal/tenant-cert");
+  const { ConfiguracionFiscalError } = await import("@/lib/arca-reintentos");
+  const certEstudio = credencialDeTest(30712345671);
+  const verificada = {
+    estado: "verificada",
+    servicio: "wsfe",
+    cuitRepresentado: "20111111112",
+    cuitRepresentante: "30712345671",
+    estudioTenantId: "estudio",
+  };
+  const deps = {
+    credencialDe: async (id: string) => {
+      if (id === "estudio") return certEstudio;
+      throw new CredencialFiscalAusenteError(id);
+    },
+    leerDelegacion: async () => verificada,
+    leerCuit: async (id: string) => (id === "estudio" ? "30-71234567-1" : "20111111112"),
+    leerEstadoEnCartera: async () => "activa" as string | null,
+  };
+  const firma = await resolverFirmaParaTenant("cliente", deps);
+  assert.equal(firma.credencial, certEstudio);
+  assert.equal(firma.cuitFirmante, "30712345671");
+  assert.equal(firma.titularTenantId, "estudio", "el TA se guarda parado en quien tiene el certificado");
+
+  // Auditoría GSG M3: un cliente de BAJA en la cartera (o que no está) no firma con el certificado
+  // del estudio aunque la delegación siga cargada. Pausado sí (sigue siendo del estudio).
+  for (const estado of ["baja", null]) {
+    await assert.rejects(
+      resolverFirmaParaTenant("cliente", { ...deps, leerEstadoEnCartera: async () => estado }),
+      (e: unknown) => e instanceof ConfiguracionFiscalError && /cartera/.test(e.message),
+      String(estado),
+    );
+  }
+  assert.equal((await resolverFirmaParaTenant("cliente", { ...deps, leerEstadoEnCartera: async () => "pausada" })).titularTenantId, "estudio");
+
+  // Con ARCA_MODO=real el guard compara el cert contra el CUIT del FIRMANTE, no el del emisor.
+  const clientePara = crearClientePara(
+    leerFijo({ cuit: 20111111112, homologacion: false }),
+    { ARCA_MODO: "real" },
+    async () => firma,
+    async () => undefined,
+  );
+  assert.ok((await clientePara("cliente")) instanceof SoapAfipClient);
+
+  // Delegación sin verificar → error de CONFIGURACIÓN (el envío se detiene, no se reintenta solo).
+  await assert.rejects(
+    resolverFirmaParaTenant("cliente", { ...deps, leerDelegacion: async () => ({ ...verificada, estado: "declarada" }) }),
+    ConfiguracionFiscalError,
+  );
+  // El estudio no tiene cargado el CUIT del representante → tampoco firma con su certificado.
+  await assert.rejects(resolverFirmaParaTenant("cliente", { ...deps, leerCuit: async () => "20111111112" }), ConfiguracionFiscalError);
+});

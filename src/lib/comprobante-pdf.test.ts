@@ -335,10 +335,19 @@ test("la vista y la descarga exigen la app de facturación y el permiso de factu
     const fuente = readFileSync(path.join(raiz, archivo), "utf8");
     const app = fuente.indexOf('requireApp("facturacion")');
     const permiso = fuente.indexOf('requireCapability("billing:manage")');
-    const lectura = fuente.indexOf("leerComprobanteImpreso(");
+    // La descarga lee a través de respuestaPdfDeComprobante (que usa el lector único, abajo).
+    const lectura = Math.max(fuente.indexOf("leerComprobanteImpreso("), fuente.indexOf("respuestaPdfDeComprobante("));
     assert.ok(app > 0 && permiso > 0 && lectura > 0, `${archivo}: tiene que pedir la app, el permiso y leer por el lector único`);
     assert.ok(app < lectura && permiso < lectura, `${archivo}: la guardia va antes de leer`);
   }
+  // El helper de la descarga lee SÓLO por el lector único, con el negocio del pedido.
+  const helper = readFileSync(path.join(process.cwd(), "src/lib/comprobante-pdf-respuesta.ts"), "utf8");
+  assert.ok(helper.includes("leerComprobanteImpreso(id, tenantId)"), "el helper lee por el lector único con el negocio");
+  // Facturita no tiene la app «facturacion» del backoffice: pide el permiso de facturar antes de leer.
+  const facturita = readFileSync(path.join(process.cwd(), "src/app/facturita/app/facturas/[id]/pdf/route.ts"), "utf8");
+  const permisoF = facturita.indexOf('requireCapability("billing:manage")');
+  const lecturaF = facturita.indexOf("respuestaPdfDeComprobante(");
+  assert.ok(permisoF > 0 && lecturaF > permisoF, "facturita: el permiso va antes de leer");
   assert.equal(roleHasCapability("OWNER", "billing:manage"), true);
   assert.equal(roleHasCapability("RECEPTION", "billing:manage"), false);
 });
@@ -440,4 +449,66 @@ test("en modo de prueba el pie no dice que ARCA lo autorizó ni invita a verific
   assert.ok(!prueba.includes("Se puede verificar escaneando"));
   const real = await textoDelPdf((await pdfDe(factura())).bytes);
   assert.ok(real.includes("Comprobante autorizado por ARCA"));
+});
+
+// ── Facturita (vuelta 3 del contador): el PDF de una factura emitida a mano ──────────────────
+
+test("Facturita: sin los datos del emisor no sale, y cada faltante se dice sin mandar a pantallas que no existen", async () => {
+  const { faltantePdfEnFacturita, TEXTO_DATOS_PARA_FACTURAS } = await import("@/lib/facturita-emisor");
+  const sinDatos = factura({
+    tipoComprobante: 11,
+    emisor: { razonSocial: null, cuit: CUIT, condicionIva: "MONOTRIBUTO", domicilio: null, inicioActividades: null, iibb: null },
+    ivaDesglose: [],
+    iva: 0,
+    neto: 1210,
+  });
+  const faltantes = faltantesDelComprobante(sinDatos);
+  assert.deepEqual(
+    faltantes.map((f) => f.campo).sort(),
+    ["emisor.domicilio", "emisor.iibb", "emisor.inicioActividades", "emisor.razonSocial"],
+  );
+  const textos = new Set(faltantes.map(faltantePdfEnFacturita));
+  assert.deepEqual([...textos], [TEXTO_DATOS_PARA_FACTURAS], "un solo aviso, que lleva a Mi cuenta");
+  for (const t of textos) assert.doesNotMatch(t, /ficha|Facturación|datos fiscales del negocio/);
+});
+
+test("Facturita: con los datos del emisor y el comprador guardados, la C sale con la descripción de lo vendido", async () => {
+  const d = factura({
+    tipoComprobante: 11,
+    concepto: 2,
+    emisor: {
+      razonSocial: "Ana Pérez",
+      cuit: CUIT,
+      condicionIva: "MONOTRIBUTO",
+      domicilio: "Mitre 100, Quilmes",
+      inicioActividades: "20240101",
+      iibb: "Exento",
+    },
+    ivaDesglose: [],
+    iva: 0,
+    neto: 1210,
+    renglones: [{ descripcion: "Diseño de logo", cantidad: 1, precioUnitario: 1210, importe: 1210 }],
+    receptor: { docTipo: 80, docNro: "30712345671", nombre: "Distribuidora Norte SA", condicionIva: "RESPONSABLE_INSCRIPTO", domicilio: null },
+  });
+  assert.deepEqual(faltantesDelComprobante(d), []);
+  const texto = await textoDelPdf((await pdfDe(d)).bytes);
+  assert.ok(texto.includes("Diseño de logo"));
+  assert.ok(texto.includes("Distribuidora Norte SA"));
+});
+
+test("Facturita: un comprador con documento sin nombre guardado (facturas viejas) manda a ARCA, no a «su ficha»", async () => {
+  const { faltantePdfEnFacturita } = await import("@/lib/facturita-emisor");
+  const d = factura({ receptor: { docTipo: 96, docNro: "12345678", nombre: null, condicionIva: "CONSUMIDOR_FINAL", domicilio: null } });
+  const f = faltantesDelComprobante(d);
+  assert.deepEqual(f.map((x) => x.campo), ["receptor.nombre"]);
+  assert.match(faltantePdfEnFacturita(f[0]), /Mis Comprobantes/);
+});
+
+test("modo simulado: un CAE «STUB…» dice la verdad (prueba, sin CAE real), no «avisá a soporte»", () => {
+  const f = faltantesDelComprobante(factura({ cae: "STUB00000001" }));
+  assert.deepEqual(f.map((x) => x.campo), ["cae"]);
+  assert.match(f[0].mensaje, /En modo de prueba el PDF no sale porque la factura no tiene un CAE real/);
+  assert.doesNotMatch(f[0].mensaje, /soporte/);
+  // Un CAE roto de verdad sigue pidiendo soporte.
+  assert.match(faltantesDelComprobante(factura({ cae: "123" }))[0].mensaje, /soporte/);
 });

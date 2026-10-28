@@ -18,12 +18,20 @@ const nextConfig: NextConfig = {
   },
   // Las previews estáticas de Break Point (turnero y gestión del club, con botones) no se dejan embeber en otro
   // sitio: lo mismo que el sitio en breakpointpadel.* (D38/M6 del UAT). Sólo esa carpeta: el resto no cambia.
+  // El service worker de Facturita nunca se sirve de caché: un SW viejo en un CDN dejaría la app
+  // instalada atada a una versión vieja (guía PWA de Next 16, §Security).
   async headers() {
     return [{
       source: "/previews/breakpoint/:ruta*",
       headers: [
         { key: "X-Frame-Options", value: "SAMEORIGIN" },
         { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+      ],
+    }, {
+      source: "/facturita/sw.js",
+      headers: [
+        { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        { key: "Content-Type", value: "application/javascript; charset=utf-8" },
       ],
     }];
   },

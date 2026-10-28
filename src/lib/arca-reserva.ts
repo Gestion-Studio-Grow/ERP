@@ -72,8 +72,16 @@ export class CorridaDeEnvios {
    *   por un error nuestro en el mismo toque de «Autorizar los pendientes» (arca-dispatch.ts).
    */
   private readonly saltear: readonly string[];
-  constructor(saltear: readonly string[] = []) {
+  /**
+   * Motor de facturación · `true` = toma también los envíos que están esperando su próximo
+   * intento (`proximoIntentoEn` en el futuro). Lo pide una PERSONA («Autorizar ahora»,
+   * «Reintentar los fallidos»); el cron y los disparos automáticos respetan la espera. Los
+   * envíos DETENIDOS (`muertoEn`) no se toman nunca: se reactivan con `reactivarEnvios`.
+   */
+  readonly ignorarEspera: boolean;
+  constructor(saltear: readonly string[] = [], opciones: { ignorarEspera?: boolean } = {}) {
     this.saltear = saltear;
+    this.ignorarEspera = opciones.ignorarEspera === true;
   }
 
   /** Lo que la corrida no toma: lo que ya tomó y lo que le pidieron saltear. */
@@ -112,6 +120,8 @@ export async function tomarSiguienteEnvio(
           AND "processedAt" IS NULL
           AND NOT ("id" = ANY(${corrida.excluidos}::text[]))
           AND (("payload"->'reserva') IS NULL OR ("payload"->'reserva'->>'hasta')::timestamptz <= now())
+          AND "muertoEn" IS NULL
+          AND (${corrida.ignorarEspera}::boolean OR "proximoIntentoEn" IS NULL OR "proximoIntentoEn" <= now())
       ) AS hay`;
     if (!pendiente?.hay) return null;
 
@@ -137,11 +147,14 @@ export async function tomarSiguienteEnvio(
             AND o."processedAt" IS NULL
             AND NOT (o."id" = ANY(${corrida.excluidos}::text[]))
             AND ((o."payload"->'reserva') IS NULL OR (o."payload"->'reserva'->>'hasta')::timestamptz <= now())
+            AND o."muertoEn" IS NULL
+            AND (${corrida.ignorarEspera}::boolean OR o."proximoIntentoEn" IS NULL OR o."proximoIntentoEn" <= now())
           ORDER BY o."createdAt", o."id"
           LIMIT 1
           FOR UPDATE SKIP LOCKED
         )
         AND e."processedAt" IS NULL
+        AND e."muertoEn" IS NULL
         AND ((e."payload"->'reserva') IS NULL OR (e."payload"->'reserva'->>'hasta')::timestamptz <= now())
         AND NOT EXISTS (
           SELECT 1 FROM "OutboxEvent" AS x
@@ -212,20 +225,76 @@ export async function anotarIntentoConReserva(
 /**
  * Suma un intento fallido, guarda el motivo y suelta la reserva, sólo si el envío sigue abierto y
  * la reserva es de esta corrida (el motivo de un envío que otro ya tomó o cerró no se pisa).
+ *
+ * Motor de facturación · `despues` (de `arca-reintentos.ts`): cuándo vuelve a intentarse solo
+ * (`proximoIntentoEn` = ahora + espera) o si se DETIENE (`muertoEn`). Sin `despues`, el envío
+ * queda disponible enseguida (el comportamiento anterior).
  */
 export async function anotarFallaYSoltar(
   enTransaccion: EnTransaccion,
   envio: { id: string; tenantId: string },
   token: string,
   motivo: string,
+  despues?: { esperaSeg: number | null; detener: boolean },
 ): Promise<void> {
+  const espera = despues?.esperaSeg ?? null;
+  const detener = despues?.detener === true;
   await enTransaccion((tx) => tx.$executeRaw`
     UPDATE "OutboxEvent"
-    SET "attempts" = "attempts" + 1, "lastError" = ${motivo}::text, "payload" = "payload" - 'reserva'
+    SET "attempts" = "attempts" + 1,
+        "lastError" = ${motivo}::text,
+        "payload" = "payload" - 'reserva',
+        "proximoIntentoEn" = CASE WHEN ${espera}::int IS NULL THEN NULL
+                                  ELSE now() + ${espera}::int * interval '1 second' END,
+        "muertoEn" = CASE WHEN ${detener}::boolean THEN now() ELSE NULL END
     WHERE "id" = ${envio.id}::text
       AND "tenantId" = ${envio.tenantId}::text
       AND "processedAt" IS NULL
       AND "payload"->'reserva'->>'token' = ${token}::text`);
+}
+
+/**
+ * Motor de facturación · ARCA no está disponible (interruptor abierto): suelta la reserva y deja
+ * el envío esperando hasta `hasta`, SIN sumar un intento (no es culpa del comprobante). Sólo si
+ * la reserva sigue siendo de esta corrida.
+ */
+export async function posponerSinContar(
+  enTransaccion: EnTransaccion,
+  envio: { id: string; tenantId: string },
+  token: string,
+  hasta: Date,
+  motivo: string,
+): Promise<void> {
+  await enTransaccion((tx) => tx.$executeRaw`
+    UPDATE "OutboxEvent"
+    SET "payload" = "payload" - 'reserva',
+        "lastError" = ${motivo}::text,
+        "proximoIntentoEn" = GREATEST(${hasta}::timestamptz, now())
+    WHERE "id" = ${envio.id}::text
+      AND "tenantId" = ${envio.tenantId}::text
+      AND "processedAt" IS NULL
+      AND "payload"->'reserva'->>'token' = ${token}::text`);
+}
+
+/**
+ * Motor de facturación · «Reintentar los fallidos»: vuelve a dejar disponibles los envíos abiertos
+ * del negocio que estaban DETENIDOS o esperando su próximo intento (todos, o los de esas
+ * facturas). No toca la reserva de uno que se esté mandando ni los envíos ya cerrados. Devuelve
+ * cuántos reactivó.
+ */
+export async function reactivarEnvios(
+  enTransaccion: EnTransaccion,
+  tenantId: string,
+  invoiceIds: readonly string[] | null = null,
+): Promise<number> {
+  return enTransaccion((tx) => tx.$executeRaw`
+    UPDATE "OutboxEvent"
+    SET "muertoEn" = NULL, "proximoIntentoEn" = NULL
+    WHERE "tenantId" = ${tenantId}::text
+      AND "type" = ${OUTBOX_INVOICE_CREATED}
+      AND "processedAt" IS NULL
+      AND ("muertoEn" IS NOT NULL OR "proximoIntentoEn" IS NOT NULL)
+      AND (${invoiceIds === null}::boolean OR ("payload"->>'invoiceId') = ANY(${invoiceIds ?? []}::text[]))`);
 }
 
 /** Suelta la reserva sin anotar nada (un error inesperado a mitad del envío). */

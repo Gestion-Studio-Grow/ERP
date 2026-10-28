@@ -14,6 +14,7 @@
 //
 // Sin imports de valor de Prisma: sólo el tipo del `where`.
 
+import { ENTIDAD_RECEPTOR_DEL_COMPROBANTE } from "@/lib/comprobante-receptor-marca";
 import { ACCIONES_SOLO_SOPORTE } from "@/lib/soporte/avisos-a-la-contadora";
 import { ENTIDAD_CLUB_ESTADO } from "@/lib/club/marcas";
 import type { Prisma } from "@/generated/prisma/client";
@@ -253,9 +254,10 @@ export function whereAuditoria(f: FiltrosAuditoria): Prisma.AuditLogWhereInput {
 /**
  * Entidades de `AuditLog` que NO son un rastro para leer sino un almacén: no salen nunca en la
  * Auditoría del panel. Hoy, la foto del club (BP-3, src/lib/club/estado-repo.ts): cada fila trae el
- * estado entero (MB de texto) con los PIN de los usuarios del club en claro (Gate, B1).
+ * estado entero (MB de texto) con los PIN de los usuarios del club en claro (Gate, B1). Y la copia del
+ * comprador de un comprobante de Facturita (datos personales, comprobante-receptor-marca.ts).
  */
-export const ENTIDADES_FUERA_DE_LA_AUDITORIA: readonly string[] = [ENTIDAD_CLUB_ESTADO];
+export const ENTIDADES_FUERA_DE_LA_AUDITORIA: readonly string[] = [ENTIDAD_CLUB_ESTADO, ENTIDAD_RECEPTOR_DEL_COMPROBANTE];
 
 /**
  * Lo que lee la auditoría del panel del negocio: los filtros pedidos, NUNCA las notas internas de

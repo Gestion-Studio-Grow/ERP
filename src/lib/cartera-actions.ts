@@ -46,14 +46,11 @@
 // Hasta que se corran, nadie puede afirmar ninguna de las dos cosas — ni que sí ni que no.
 
 import { revalidatePath } from "next/cache";
-import { basePrisma } from "@/lib/prisma-base";
 import { tenantTransaction } from "@/lib/rls";
-import { requireCapability } from "@/lib/authz";
 // `audit()` nunca lanza: auditar no puede voltear la operación. (El pedido de alta NO pasa por acá:
 // si no se guarda, el estudio tiene que saberlo, así que se escribe con su propia transacción.)
 import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentUser } from "@/lib/session";
-import { getCurrentTenantId } from "@/lib/tenant";
 import {
   ACCION_SOLICITUD_ALTA,
   ACCIONES_QUE_CIERRAN_LA_SOLICITUD,
@@ -80,7 +77,7 @@ import {
   type FilaMonitor,
   type ResumenMonitor,
 } from "@/lib/monitor-core";
-import { decidirAcceso } from "@/lib/multilocal/multilocal-core";
+import { buscarFilaCartera, exigirEstudio, filasDeCarteraDb, metadataClientesDb } from "@/lib/cartera-gate";
 import {
   exigirClienteDeCartera,
   recolectarCliente,
@@ -88,8 +85,6 @@ import {
   type ContextoRecoleccion,
   type EstadoCartera,
   type FilaCartera,
-  type FilaCarteraDb,
-  type MetaCliente,
   type RecorridoPorts,
   type ResumenCartera,
 } from "@/lib/cartera-core";
@@ -117,98 +112,10 @@ export type ResultadoEmisionCliente =
   | { ok: true; resultado: ResultadoEmision }
   | { ok: false; error: string };
 
-// ── Gate compuesto (capability + módulo asignado) ─────────────────────────────
-
-type Gate = { ok: true; estudioTenantId: string } | { ok: false; error: string };
-
-async function exigirEstudio(): Promise<Gate> {
-  // requireCapability redirige si no hay sesión / rol sin la capability.
-  await requireCapability("cartera:manage");
-  const estudioTenantId = await getCurrentTenantId();
-  // Chequeo DURO sobre la asignación (Tenant.modules), independiente del flag del
-  // registry: sin el módulo `cartera` asignado, el panel no existe para ese tenant. Y con
-  // `multilocal` al lado tampoco: la casa de una red guarda sus locales en la misma tabla, y
-  // el panel del contador los trataría como clientes (y podría emitir facturas por ellos).
-  // La regla es la misma que usa Mis locales al revés (`decidirAcceso`, multilocal-core.ts).
-  const tenant = await basePrisma.tenant.findUnique({
-    where: { id: estudioTenantId },
-    select: { modules: true },
-  });
-  const acceso = decidirAcceso(tenant?.modules ?? null, "estudio");
-  if (!acceso.ok) return acceso;
-  return { ok: true, estudioTenantId };
-}
-
-// ── Puertos reales del core ───────────────────────────────────────────────────
-
-/** Filas de la cartera del estudio (tenant del ESTUDIO: RLS + predicado explícito). */
-async function filasDeCarteraDb(estudioTenantId: string): Promise<FilaCarteraDb[]> {
-  const filas = await tenantTransaction(
-    (tx) =>
-      tx.carteraCliente.findMany({
-        where: { tenantId: estudioTenantId, estado: { not: "baja" } },
-        orderBy: { alias: "asc" },
-        select: { id: true, clienteTenantId: true, alias: true, estado: true },
-      }),
-    { tenantId: estudioTenantId },
-  );
-  return filas.map((f) => ({ ...f, estado: f.estado as EstadoCartera }));
-}
-
-/** Busca UNA fila de la cartera (la guarda de pertenencia). */
-async function buscarFilaCartera(
-  estudioTenantId: string,
-  clienteTenantId: string,
-): Promise<FilaCarteraDb | null> {
-  const fila = await tenantTransaction(
-    (tx) =>
-      tx.carteraCliente.findUnique({
-        where: { tenantId_clienteTenantId: { tenantId: estudioTenantId, clienteTenantId } },
-        select: { id: true, clienteTenantId: true, alias: true, estado: true },
-      }),
-    { tenantId: estudioTenantId },
-  );
-  return fila ? { ...fila, estado: fila.estado as EstadoCartera } : null;
-}
-
-/**
- * Metadata de los clientes de la cartera en UNA lectura (antes: una por cliente).
- *
- * Tenant está fuera de RLS por diseño (raíz del aislamiento). Los ids llegan SOLO desde
- * `recorrerCartera`, que los toma de `filasDeCarteraDb(estudio)`: nunca de un input. Y se
- * selecciona sólo metadata de control, ningún dato de negocio del cliente.
- */
-async function metadataClientesDb(ids: string[]): Promise<Map<string, MetaCliente>> {
-  const tenants = await basePrisma.tenant.findMany({
-    where: { id: { in: ids } },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      subdomain: true,
-      arcaCuit: true,
-      arcaPuntoVenta: true,
-      arcaHomologacion: true,
-      arcaCondicionIva: true,
-      bancosCapFacturasMes: true,
-    },
-  });
-  return new Map(
-    tenants.map((t) => [
-      t.id,
-      {
-        nombre: t.name,
-        slug: t.slug,
-        subdomain: t.subdomain,
-        arcaCuit: t.arcaCuit,
-        arcaPuntoVenta: t.arcaPuntoVenta,
-        arcaHomologacion: t.arcaHomologacion,
-        arcaCondicionIva: t.arcaCondicionIva,
-        capFacturasMes: t.bancosCapFacturasMes,
-      },
-    ]),
-  );
-}
+// ── Gate compuesto y lecturas de la cartera ───────────────────────────────────
+// `exigirEstudio`, `filasDeCarteraDb`, `buscarFilaCartera` y `metadataClientesDb` viven en
+// `cartera-gate.ts` (sin "use server": reciben un tenantId y no pueden ser endpoints). Los
+// comparten las reglas de abono, el lote del mes y la exportación de la cartera.
 
 /**
  * Puertos reales del recorrido. Los DATOS de cada cliente se leen con UNA

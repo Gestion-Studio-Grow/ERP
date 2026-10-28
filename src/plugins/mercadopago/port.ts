@@ -19,7 +19,14 @@ import {
 // El modelo de pago es común a todos los gateways; MP no lo redefine.
 export type EstadoPagoMP = EstadoPago;
 export type TipoOperacionMP = TipoOperacion;
-export type PagoMP = PagoNormalizado;
+export type PagoMP = PagoNormalizado & {
+  /**
+   * R1 · Sólo transferencias: `true` = la plata vino de la MISMA cuenta (fondeo `account_fund`, o el
+   * pagador es el propio cobrador); `false` = de un TERCERO (la seña de una clienta por
+   * transferencia); sin dato = no se sabe. Lo arma `normalizarPago` (http.ts).
+   */
+  cuentaPropia?: boolean;
+};
 
 export type { CriterioBusqueda, PaginaPagos } from "@/plugins/pagos";
 

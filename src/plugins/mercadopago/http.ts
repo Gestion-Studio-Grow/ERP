@@ -45,6 +45,8 @@ export interface RawPagoMP {
   date_approved?: string | null;
   date_created?: string | null;
   fee_details?: Array<{ amount?: number }> | null;
+  /** La cuenta que COBRÓ (el comercio). Con `payer.id` igual, la transferencia es de la misma cuenta. */
+  collector_id?: number | string | null;
   payer?: {
     id?: number | string | null;
     email?: string | null;
@@ -252,6 +254,16 @@ export function normalizarPago(raw: RawPagoMP): PagoMP {
   }
   const nombre = nombreContraparte(raw.payer);
   if (nombre) pago.contraparteNombre = nombre;
+  // R1 · una transferencia NO es siempre «cuenta propia»: la seña de una clienta por
+  // transferencia es plata de un tercero. Propia = fondeo de la cuenta, o el que paga es el mismo
+  // que cobra. De un tercero = los dos ids están y son distintos. Sin datos, no se sabe.
+  if (pago.operacion === "transferencia") {
+    const cobrador = raw.collector_id;
+    if (raw.operation_type === "account_fund") pago.cuentaPropia = true;
+    else if (pago.contraparteId && cobrador !== undefined && cobrador !== null && cobrador !== "") {
+      pago.cuentaPropia = pago.contraparteId === String(cobrador);
+    }
+  }
   return pago;
 }
 

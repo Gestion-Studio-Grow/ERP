@@ -186,7 +186,7 @@ test("Mercado Pago (facturarPagoMP): sin identificar desde el umbral no emite; i
   await p.rechazadaPor(id, MOTIVO_IVA);
 });
 
-test("facturita (emitirFacturitaAction, Server Action real): sin identificar desde el umbral no emite y deja el motivo", async (t) => {
+test("facturita (emitirFacturitaAction, Server Action real): sin identificar desde el umbral no crea la factura y dice qué cargar", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const { base, duenio, umbral } = p;
@@ -203,13 +203,12 @@ test("facturita (emitirFacturitaAction, Server Action real): sin identificar des
   );
   assert.equal(salida.tipo, "respuesta");
   const r = salida.tipo === "respuesta" ? salida.valor : null;
-  // La pantalla recibe el rechazo en el momento, con el motivo (antes: ok:true y «Factura
-  // emitida» con la factura rechazada).
+  // Facturita lo frena ANTES de crear la factura (validarEmision, con la misma tabla de vigencias):
+  // no queda una factura rechazada en la lista, y la pantalla dice qué cargar.
   assert.ok(r && !r.ok, JSON.stringify(r));
-  assert.match(r.error, /^ARCA no autorizó la factura: /);
-  assert.match(r.error, MOTIVO_UMBRAL);
-  assert.ok(r.invoiceId, "el rechazo dice qué factura quedó rechazada");
-  await p.rechazadaPor(r.invoiceId, MOTIVO_UMBRAL, b);
+  assert.match(r.error, /exige identificar al comprador/);
+  assert.equal(r.invoiceId, undefined, "no se creó ninguna factura");
+  assert.equal(await duenio.invoice.count({ where: { tenantId: b.id } }), 0);
 
   // Control: un peso menos, emite y la respuesta es ok.
   const ok = await ejecutarAccion({ negocio: b, usuario: b.duenia }, () =>

@@ -74,11 +74,17 @@ export interface FilaTicket {
 export interface ArcaTaStoreDeps {
   /** ¿Existe la tabla `ArcaAuthTicket`? (migración Gate 2 aplicada). */
   tablaExiste: () => Promise<boolean>;
-  leerFila: (tenantId: string, servicio: string) => Promise<FilaTicket | null>;
+  /**
+   * `huella`: la del certificado que FIRMA, cuando quien llama ya la conoce (delegación, ADR-077 §6:
+   * el cliente no tiene certificado propio; firma el del estudio y `tenantId` es el estudio). Sin
+   * ella, se resuelve desde la credencial cargada de `tenantId`.
+   */
+  leerFila: (tenantId: string, servicio: string, huella?: string) => Promise<FilaTicket | null>;
   upsertFila: (
     tenantId: string,
     servicio: string,
     fila: FilaTicket,
+    huella?: string,
   ) => Promise<void>;
   master: () => MasterKey;
   ahora: () => Date;
@@ -166,12 +172,12 @@ export interface TablaPorCertificado {
  */
 export function depsPorCertificado(t: TablaPorCertificado): Pick<ArcaTaStoreDeps, "leerFila" | "upsertFila"> {
   return {
-    leerFila: async (tenantId, servicio) => {
-      const huella = await t.huellaDelNegocio(tenantId);
+    leerFila: async (tenantId, servicio, conocida) => {
+      const huella = conocida ?? (await t.huellaDelNegocio(tenantId));
       return huella ? t.leerPorHuella(huella, servicio, tenantId) : null;
     },
-    upsertFila: async (tenantId, servicio, fila) => {
-      const huella = await t.huellaDelNegocio(tenantId);
+    upsertFila: async (tenantId, servicio, fila, conocida) => {
+      const huella = conocida ?? (await t.huellaDelNegocio(tenantId));
       if (!huella) return;
       if (!(await t.upsertPorHuella(huella, servicio, tenantId, fila))) {
         logger.warn("arca.ta", "El ticket de este certificado lo guardó otro negocio: no se pisa y no se comparte (ENG-137)", {
@@ -236,6 +242,12 @@ function defaultDeps(): ArcaTaStoreDeps {
 }
 
 /**
+ * QUIÉN ES EL TITULAR DEL TICKET (ENG-137 / ADR-077 §6). El despacho (arca-dispatch.ts) llama con
+ * el negocio que TIENE CARGADO el certificado que firma y con la huella de ese certificado: el
+ * propio negocio si firma con su certificado; el ESTUDIO si el cliente firma por delegación. Así el
+ * estudio y todos sus delegados leen y escriben UNA fila, parados en el estudio (la RLS de hoy no
+ * se toca) y WSAA ve un solo login por certificado.
+ *
  * Devuelve el TA persistido y VIGENTE del certificado con el que firma el tenant, o
  * `undefined` si no hay, venció, o la tabla todavía no existe (Gate 2 sin aplicar).
  * Descifra el token+sign; el chequeo de vigencia se hace ANTES de descifrar (expiration va
@@ -244,10 +256,11 @@ function defaultDeps(): ArcaTaStoreDeps {
 export async function leerTicketAcceso(
   tenantId: string,
   deps: ArcaTaStoreDeps = defaultDeps(),
+  huella?: string,
 ): Promise<TicketAcceso | undefined> {
   if (!(await deps.tablaExiste())) return undefined;
 
-  const fila = await deps.leerFila(tenantId, SERVICIO_WSFE);
+  const fila = await deps.leerFila(tenantId, SERVICIO_WSFE, huella);
   if (!fila) return undefined;
 
   // Descartar un TA vencido sin gastar un descifrado (expiration está en claro).
@@ -281,6 +294,7 @@ export async function guardarTicketAcceso(
   tenantId: string,
   ta: TicketAcceso,
   deps: ArcaTaStoreDeps = defaultDeps(),
+  huella?: string,
 ): Promise<void> {
   try {
     if (!(await deps.tablaExiste())) return;
@@ -290,7 +304,7 @@ export async function guardarTicketAcceso(
       wrappedDek: sobre.wrappedDek,
       sealed: sobre.sealed,
       expiration: ta.expiration,
-    });
+    }, huella);
   } catch (e) {
     logger.warn("arca.ta", "No se pudo persistir el TA (se re-logueará la próxima)", {
       tenantId,

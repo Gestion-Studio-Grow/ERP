@@ -7,7 +7,7 @@ tags: [brain/indice]
 
 # 🛡️ Lecciones — índice de guardarraíles
 
-> 47 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
+> 49 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
 > — no el registro entero. Calibración obligatoria antes de tocar Prod/Deploy · Datos/DB ·
 > Multi-tenant · Seguridad (ADR-052).
 
@@ -49,6 +49,8 @@ tags: [brain/indice]
 - **[DX-10](DX-10-un-lector-que-tipea-mientras-el-cobro-anterior-todavia-no.md)** — toda entrada automática al ticket pasa por una función pura que recibe el estado del cobro (`en vuelo | en duda | libre`) y se testea el caso "leer durante el cobro" antes de integrarla.
 - **[DX-11](DX-11-los-tests-unitarios-estaban-verdes-y-el-inicio-igual.md)** — - Todo tenant que sale a producción tiene su guion de UAT con matriz por rol, y su recorrido E2E repetible contra `next start` y Postgres local, nunca Neon. Modelo: `test:club-uat` y […]
 - **[DX-12](DX-12-una-etiqueta-de-balanza-se-puede-leer-bien-de-dos-maneras-y.md)** — - La detección pide una segunda etiqueta, o el número del producto, cuando hay empate. - El peso por cable se recuerda en la PC recién cuando la persona confirma en el asistente que coincide con la […]
+- **[DX-13](DX-13-la-barra-de-cobrar-pegada-abajo-no-se-pegaba-y-la-lista-del.md)** — `npm run test:mostrador-e2e` mide «Cobrar» sin desplazar en 360 a 1920 px y elige productos con Enter. En los E2E, el «Cobrar» del mostrador se busca dentro de `form[data-vender="mostrador"]`: la […]
+- **[DX-14](DX-14-el-mostrador-de-ch-no-tenia-profesional-sena-ni-cupon.md)** — - `npm run test:ch-mostrador-e2e` recorre el servicio por tarjeta hasta el turno cobrado y el producto hasta la factura. - La piel de un negocio vive en `globals.css` y `renglon.css` SIN capa: una […]
 
 ## MP — Metodología / Proceso
 
