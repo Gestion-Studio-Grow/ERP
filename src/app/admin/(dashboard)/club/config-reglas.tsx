@@ -13,13 +13,14 @@ import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Field";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
-import { Campo } from "./formulario-del-club";
+import { Campo, etiquetaDelClub } from "./formulario-del-club";
 import {
   ABRE_DESDE,
   ABRE_HASTA,
   CIERRA_DESDE,
   CIERRA_HASTA,
   DIAS_DE_LA_SEMANA,
+  LARGOS_DE_FIRMA,
   REGLAS,
   contactosDe,
   etiquetaTarifa,
@@ -120,6 +121,7 @@ function seleccionarReglas(e: EstadoClub): VistaReglas {
 function FormularioReglas({ v, almacen }: { v: VistaReglas; almacen: Almacen }) {
   const hacer = useHacerConfig(almacen);
   const [d, setD] = useState<ValoresReglas>(v.valores);
+  const ids = { firma: useId(), nombre: useId() };
   return (
     <form
       aria-label="Reglas y precios"
@@ -152,6 +154,26 @@ function FormularioReglas({ v, almacen }: { v: VistaReglas; almacen: Almacen }) 
           value={d.bloqueoMin}
           onChange={(e) => setD({ ...d, bloqueoMin: e.target.value })}
         />
+        {/* B4-C4 (D-16): quién firma la caja; B4-C5: el nombre de «Jugador N» al cobrar. */}
+        <div className="flex min-w-0 flex-col gap-1">
+          <label htmlFor={ids.firma} className={etiquetaDelClub}>
+            PIN que firma cierres, retiros y egresos
+          </label>
+          <Select id={ids.firma} value={d.largoPinFirma ?? ""} aria-describedby={`${ids.firma}-ayuda`} onChange={(e) => setD({ ...d, largoPinFirma: e.target.value })}>
+            {LARGOS_DE_FIRMA.map((n) => (
+              <option key={n} value={String(n)}>
+                {n === Math.max(...LARGOS_DE_FIRMA) ? `${n} dígitos (sólo dueños)` : `${n} dígitos (también recepción)`}
+              </option>
+            ))}
+          </Select>
+          <p id={`${ids.firma}-ayuda`} className="text-sm text-body">
+            Con el de recepción, recepción cierra y saca plata sin un dueño.
+          </p>
+        </div>
+        <label htmlFor={ids.nombre} className="flex min-h-11 cursor-pointer items-center gap-2 self-end text-sm font-medium text-strong">
+          <input id={ids.nombre} type="checkbox" checked={!!d.pedirNombreJugador} onChange={(e) => setD({ ...d, pedirNombreJugador: e.target.checked })} className="size-5 accent-[var(--accent)]" />
+          Pedir nombre o teléfono de «Jugador 2, 3 y 4» al cobrar
+        </label>
       </div>
       <p className="text-sm text-body">Los precios valen para los turnos nuevos. Las faltas se cobran enteras (al titular o repartidas en el grupo).</p>
       <Button type="submit" variant="solid" size="md" className="self-start max-sm:h-auto max-sm:min-h-11 max-sm:w-full max-sm:py-2 max-sm:whitespace-normal">
@@ -164,7 +186,7 @@ function FormularioReglas({ v, almacen }: { v: VistaReglas; almacen: Almacen }) 
 export function ReglasDelClub({ almacen }: { almacen: Almacen }) {
   const v = useSeleccion(almacen, seleccionarReglas, porFirma);
   return (
-    <Seccion id="club-config-reglas" titulo="Reglas y precios" bajada="Cambian en vivo lo que ve recepción: seña, tolerancia, faltas, precios por hora y el fondo de caja.">
+    <Seccion id="club-config-reglas" titulo="Reglas y precios" bajada="Cambian en vivo lo que ve recepción: seña, tolerancia, faltas, precios por hora, el fondo de caja y quién firma la caja.">
       <FormularioReglas key={v.firma} v={v} almacen={almacen} />
     </Seccion>
   );
