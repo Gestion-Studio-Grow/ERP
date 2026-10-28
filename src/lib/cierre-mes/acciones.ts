@@ -24,7 +24,17 @@ import { AppNoDisponibleError, requireAppAccion } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { bordesDelMes, esMesKey, etiquetaDelMes, type MesKey } from "@/lib/libros/fecha-fiscal";
 import { CIERRE_DIARIO_ACTION, CIERRE_DIARIO_ENTITY, lastClosedDayTx } from "@/lib/caja/frontera-cierre";
-import { nextDayKey } from "@/lib/caja/cierre-diario";
+import {
+  nextDayKey,
+  formatDayLabel,
+  isDayKey,
+  validarReabrirDia,
+  CIERRE_DIARIO_REABIERTO_ACTION,
+  REABRIR_DIA_ACTION,
+} from "@/lib/caja/cierre-diario";
+import { cierreMarker } from "@/lib/caja/cierre-marca";
+import { requireCapability } from "@/lib/authz";
+import { Prisma } from "@/generated/prisma/client";
 import type { SessionUser } from "@/lib/session";
 import {
   ACCION_CONGELAR,
@@ -191,4 +201,104 @@ export async function reabrirMesAction(_prev: EstadoAccionCierre, formData: Form
     ok: true,
     mensaje: `${mayuscula(etiquetaDelMes(mes))} quedó abierto. La caja sigue cerrada día por día: lo que corrijas de plata va con la fecha de hoy.`,
   };
+}
+
+// ============================================================================
+// REABRIR EL DÍA (N2 · M1-C7) — la única pieza de la caja que vive en este archivo.
+// ============================================================================
+//
+// Un día cerrado se reabre cuando apareció algo que tenía que entrar ESE día (la venta del
+// cuaderno, la rendición del cadete). Reglas (`validarReabrirDia`, cierre-diario.ts): sólo la dueña
+// o el dueño, con motivo, sólo el ÚLTIMO día cerrado y nunca un día de un mes congelado — el mes
+// cerrado es del contador y se reabre desde Cierre del mes, no desde la caja.
+//
+// QUÉ HACE, en UNA transacción Serializable con candado por negocio:
+//   · la fila del cierre de ese día pasa a `caja.cierre-diario.reabierto`: la frontera
+//     (frontera-cierre.ts) ya no la cuenta y el día vuelve a aceptar movimientos. La fila queda
+//     (con lo que se contó): es la historia;
+//   · los ajustes que ese cierre había asentado (`cierre-diario:<día>`) se quitan del libro: el día
+//     vuelve a como estaba antes de cerrarlo, y al cerrarlo de nuevo la diferencia se calcula una
+//     vez, contra lo que haya. Lo quitado queda escrito, peso por peso, en la fila de auditoría;
+//   · una fila de auditoría `caja.reabrir-dia` con quién, el motivo y lo quitado (Auditoría la
+//     cuenta como «Reabrió la caja del …»).
+// Cerrar el día de nuevo (`cerrarDia`) vuelve a congelarlo con una fila de cierre nueva.
+
+class DiaYaAbiertoError extends Error {}
+
+export async function reabrirDiaAction(_prev: EstadoAccionCierre, formData: FormData): Promise<EstadoAccionCierre> {
+  const user = await requireCapability("orders:manage");
+  if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
+  const day = String(formData.get("day") ?? "").trim();
+  const motivo = String(formData.get("motivo") ?? "").replace(/\s+/g, " ").trim().slice(0, 500);
+  if (!isDayKey(day)) return { ok: false, error: "No se entendió qué día reabrir. Volvé a abrir el cierre y elegilo de nuevo." };
+  if (user.role !== "OWNER") return { ok: false, error: "Sólo la dueña o el dueño puede reabrir un día cerrado." };
+
+  const tenantId = await getCurrentTenantId();
+  let quitados: { tipo: string; medio: string; monto: number; detalle: string | null }[] = [];
+  try {
+    const r = await tenantTransaction(
+      async (tx) => {
+        // Dos «Reabrir» a la vez (doble toque, dos pestañas) o un cierre en paralelo: uno espera al otro.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cierre-dia:${tenantId}`}))`;
+        const [ultimoCerrado, cierreDelDia, auditoriaDelMes] = await Promise.all([
+          lastClosedDayTx(tx, tenantId),
+          tx.auditLog.findFirst({
+            where: { tenantId, entity: CIERRE_DIARIO_ENTITY, action: CIERRE_DIARIO_ACTION, entityId: day },
+            orderBy: { createdAt: "desc" },
+            select: { id: true },
+          }),
+          leerAuditoriaCierre(tx, tenantId, day.slice(0, 7)),
+        ]);
+        if (!ultimoCerrado || day > ultimoCerrado) throw new DiaYaAbiertoError();
+        const v = validarReabrirDia({
+          day,
+          role: user.role,
+          motivo,
+          ultimoCerrado,
+          hayCierreDelDia: cierreDelDia !== null,
+          mesCongelado: estadoDesdeAuditoria(auditoriaDelMes).congelado,
+        });
+        if (!v.ok) return v;
+
+        const ajustes = await tx.cashMovement.findMany({
+          where: { tenantId, createdBy: cierreMarker(day) },
+          orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
+          select: { id: true, type: true, method: true, amount: true, reason: true },
+        });
+        if (ajustes.length > 0) {
+          const borrados = await tx.cashMovement.deleteMany({ where: { tenantId, id: { in: ajustes.map((a) => a.id) } } });
+          if (borrados.count !== ajustes.length) throw new Error(`se esperaban ${ajustes.length} ajustes y se quitaron ${borrados.count}`);
+        }
+        await tx.auditLog.updateMany({
+          where: { tenantId, entity: CIERRE_DIARIO_ENTITY, action: CIERRE_DIARIO_ACTION, entityId: day },
+          data: { action: CIERRE_DIARIO_REABIERTO_ACTION },
+        });
+        const lista = ajustes.map((a) => ({ tipo: a.type, medio: a.method, monto: a.amount, detalle: a.reason }));
+        await tx.auditLog.create({
+          data: {
+            tenantId,
+            actor: `user:${user.id}`,
+            action: REABRIR_DIA_ACTION,
+            entity: CIERRE_DIARIO_ENTITY,
+            entityId: day,
+            channel: "admin",
+            changes: { day, por: user.name, motivo, ajustesQuitados: lista },
+          },
+        });
+        return { ok: true as const, lista };
+      },
+      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+    if (!r.ok) return r;
+    quitados = r.lista;
+  } catch (e) {
+    if (e instanceof DiaYaAbiertoError) return { ok: false, error: `El ${formatDayLabel(day)} ya está abierto. Actualizá la página.` };
+    throw e;
+  }
+
+  revalidatePath("/admin/caja/cierre");
+  revalidatePath("/admin/caja/libro");
+  revalidatePath("/admin/caja");
+  const cola = quitados.length === 0 ? "" : ` Se quitaron ${quitados.length === 1 ? "el ajuste" : `los ${quitados.length} ajustes`} de ese cierre; al cerrarlo de nuevo se vuelve a contar.`;
+  return { ok: true, mensaje: `El ${formatDayLabel(day)} quedó abierto: cargá lo que faltaba y cerralo de nuevo.${cola}` };
 }

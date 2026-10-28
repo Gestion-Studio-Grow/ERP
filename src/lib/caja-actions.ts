@@ -35,6 +35,11 @@ import { tenantTransaction } from "@/lib/rls";
 import { Prisma } from "@/generated/prisma/client";
 import { isDemoSandbox, getDemoCajaData, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
 import { leerImporte } from "@/lib/pos-peso";
+import { round2 } from "@/lib/round";
+import { aperturaPideMotivo, detalleConMotivo, leerMotivoDeApertura, textoDelMotivoDeApertura } from "@/lib/caja/apertura-sugerida";
+import { tarjetaHabilitadaPor } from "@/lib/caja/medio-cobro";
+import { ARQUEO_CIEGO } from "@/cambios/interruptores";
+import { estadoDesdeFilas, filtroDeFilasValidas } from "@/cambios/interruptores-core";
 
 const CAJA_PATH = "/admin/caja";
 const VENDER_PATH = "/admin/vender";
@@ -49,7 +54,11 @@ export type CajaActionState =
   // `yaAbierta`: el rechazo es porque YA hay una caja abierta (otra pestaña, el doble toque). La
   // tarjeta de Vender (AbrirCajaEnLinea) lo toma como «listo» y recarga; el formulario de Caja
   // muestra el texto como siempre.
-  | { ok: false; error: string; yaAbierta?: true }
+  | { ok: false; error: string; yaAbierta?: true; pideMotivo?: undefined }
+  // `pideMotivo` (N2 · M1-C3): el conteo de la apertura no coincide con el libro y falta el porqué.
+  // No se grabó nada. Trae el esperado para mostrarlo RECIÉN AHORA (a ciegas no se vio antes) y que
+  // el segundo envío lo confirme junto con el motivo.
+  | { ok: false; error: string; pideMotivo: { esperado: number; diferencia: number }; yaAbierta?: undefined }
   | null;
 
 /** El rechazo de abrir con una caja ya abierta (lo lee `openCashSession` para marcar `yaAbierta`). */
@@ -70,6 +79,51 @@ function parseAmount(raw: FormDataEntryValue | null): number {
   // mensaje en vez de asentar un número que nadie tipeó.
   const l = leerImporte(String(raw ?? ""));
   return l.estado === "ok" ? l.valor : NaN;
+}
+
+/**
+ * ¿El negocio abre la caja a ciegas? (interruptor «arqueo-ciego», N2 · M1-C3). La misma lectura
+ * que `interruptoresDelNegocio` (sólo filas de la consola), acotada a este interruptor. Si la
+ * lectura falla: apagado, la apertura de siempre.
+ */
+async function arqueoCiegoDelNegocio(tenantId: string): Promise<boolean> {
+  try {
+    const filas = await prisma.auditLog.findMany({
+      where: { ...filtroDeFilasValidas(tenantId), entityId: ARQUEO_CIEGO },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 1,
+      select: { id: true, entity: true, entityId: true, action: true, actor: true, channel: true, createdAt: true },
+    });
+    return estadoDesdeFilas(filas)[ARQUEO_CIEGO]?.encendido === true;
+  } catch {
+    return false;
+  }
+}
+
+/** No se graba nada: la apertura necesita el motivo de la diferencia (vuelve como `pideMotivo`). */
+class PideMotivoDeApertura extends Error {
+  constructor(
+    readonly esperado: number,
+    readonly diferencia: number,
+    contado: number,
+  ) {
+    super(textoDelMotivoDeApertura(contado, esperado));
+  }
+}
+
+/**
+ * ¿Se puede cobrar con Tarjeta en este negocio? (N2 · M1-C1). Hacen falta las dos cosas: el valor
+ * `TARJETA` en el enum `PaymentMethod` de la base (N2_enums.sql, probe con caché por proceso) y en
+ * el cliente de Prisma generado (prisma/schema.prisma, `// N2-enum: TARJETA`). Con una sola, Prisma
+ * rechaza el alta o rompe la lectura de pedidos (ver medio-cobro.ts). Sólo lectura.
+ */
+export async function tarjetaHabilitada(): Promise<boolean> {
+  await requireCapability("orders:read");
+  const { PaymentMethod } = await import("@/generated/prisma/enums");
+  const enElCliente = (Object.values(PaymentMethod) as string[]).includes("TARJETA");
+  if (!enElCliente) return false;
+  const { hayValorEnum } = await import("@/lib/schema-probe");
+  return tarjetaHabilitadaPor({ enLaBase: await hayValorEnum("PaymentMethod", "TARJETA"), enElCliente });
 }
 
 // --- Loader de la pantalla de caja ---
@@ -133,9 +187,16 @@ export async function openCashSession(
     return { ok: false, error: "El fondo inicial tiene que ser un monto válido (0 o más)." };
   }
   const actor = `user:${user.id}`;
+  const motivo = leerMotivoDeApertura(formData.get("motivo"));
 
   const congelado = await rechazarSiElDiaEstaCerrado(tenantId);
   if (congelado) return congelado;
+  // A CIEGAS (N2 · M1-C3): el primer envío llega sin el esperado (el cajero no lo vio). Si cuadra,
+  // abre; si no, no se graba nada y se contesta con el esperado y el pedido de motivo. Con el
+  // interruptor prendido la diferencia SIEMPRE lleva motivo, venga de la pantalla que venga.
+  const aCiegas = await arqueoCiegoDelNegocio(tenantId);
+  const crudoConfirmado = formData.get(CAMPO_ESPERADO_CONFIRMADO);
+  const sinVerElEsperado = aCiegas && (typeof crudoConfirmado !== "string" || crudoConfirmado.trim() === "");
 
   let session: { id: string; saldoDelLibro: number; diferenciaDeApertura: number };
   try {
@@ -154,8 +215,16 @@ export async function openCashSession(
       const saldoDelLibro = await saldoEfectivoDelLibro(tx, tenantId, finDelDiaDelNegocio(ahora));
       // Lo que la cajera vio antes de confirmar tiene que ser lo que se asienta: si el libro se
       // movió mientras contaba, no se abre y se le dice el número nuevo.
-      const vigente = esperadoConfirmadoVigente(formData.get(CAMPO_ESPERADO_CONFIRMADO), saldoDelLibro);
-      if (!vigente.ok) throw new Error(vigente.error);
+      // A ciegas, el primer envío no trae esperado: no hay nada que confirmar todavía.
+      if (!sinVerElEsperado) {
+        const vigente = esperadoConfirmadoVigente(crudoConfirmado, saldoDelLibro);
+        if (!vigente.ok) throw new Error(vigente.error);
+      }
+      const diferenciaContada = round2(openingFloat - saldoDelLibro);
+      // Con diferencia: a ciegas sin haber visto el esperado, o sin motivo → no se graba nada.
+      if (diferenciaContada !== 0 && (sinVerElEsperado || aperturaPideMotivo({ diferencia: diferenciaContada, motivo, exigido: aCiegas }))) {
+        throw new PideMotivoDeApertura(saldoDelLibro, diferenciaContada, openingFloat);
+      }
       const creada = await tx.cashSession.create({
         data: {
           tenantId,
@@ -181,13 +250,18 @@ export async function openCashSession(
       // El rastro al turno va en la marca (`apertura-turno:<id>`): quién es su `openedBy`.
       const diferencia = diferenciaDeApertura(openingFloat, saldoDelLibro, creada.id);
       if (diferencia) {
-        await tx.cashMovement.create({ data: { tenantId, sessionId: null, occurredAt: ahora, ...diferencia } });
+        await tx.cashMovement.create({
+          data: { tenantId, sessionId: null, occurredAt: ahora, ...diferencia, reason: detalleConMotivo(diferencia.reason, motivo) },
+        });
       }
       const conSigno = diferencia ? (diferencia.type === "INGRESO" ? diferencia.amount : -diferencia.amount) : 0;
       return { id: creada.id, saldoDelLibro, diferenciaDeApertura: conSigno };
     }, { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (err) {
     if (err instanceof Error && err.message === YA_HAY_CAJA_ABIERTA) return { ok: false, error: YA_HAY_CAJA_ABIERTA, yaAbierta: true };
+    if (err instanceof PideMotivoDeApertura) {
+      return { ok: false, error: err.message, pideMotivo: { esperado: err.esperado, diferencia: err.diferencia } };
+    }
     return toActionError(err);
   }
 
@@ -195,7 +269,13 @@ export async function openCashSession(
     action: "open",
     entity: "CashSession",
     entityId: session.id,
-    changes: { openingFloat, saldoDelLibro: session.saldoDelLibro, diferenciaDeApertura: session.diferenciaDeApertura },
+    changes: {
+      openingFloat,
+      saldoDelLibro: session.saldoDelLibro,
+      diferenciaDeApertura: session.diferenciaDeApertura,
+      ...(aCiegas ? { aCiegas: true } : {}),
+      ...(motivo && session.diferenciaDeApertura !== 0 ? { motivo } : {}),
+    },
   });
   revalidatePath(CAJA_PATH);
   // La tarjeta «Abrí la caja» de Vender (Magra, tanda 2 · 2D) abre desde ahí: Vender también cambia.
@@ -222,6 +302,11 @@ export type AperturaSugerida = {
   ultimoCierre: string | null;
   /** Hoy, en el día del negocio. */
   hoy: string;
+  /**
+   * A ciegas (interruptor «arqueo-ciego», N2 · M1-C3): la tarjeta pide contar sin mostrar el número,
+   * y `esperado` viaja en 0 para que ni siquiera llegue al navegador.
+   */
+  aCiegas: boolean;
 };
 
 export async function getAperturaEnVender(): Promise<AperturaSugerida | null> {
@@ -231,12 +316,14 @@ export async function getAperturaEnVender(): Promise<AperturaSugerida | null> {
   const hoy = dateStrInBusinessTz(new Date());
   const ultimoCierre = await lastClosedDay(tenantId);
   if (ultimoCierre && isFrozenDay(hoy, ultimoCierre)) return null;
+  const aCiegas = await arqueoCiegoDelNegocio(tenantId);
   return tenantTransaction(
     async (tx) => {
       const abierta = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
       if (abierta) return null;
+      if (aCiegas) return { esperado: 0, ultimoCierre: ultimoCierre ?? null, hoy, aCiegas };
       const esperado = await saldoEfectivoDelLibro(tx, tenantId, finDelDiaDelNegocio(new Date()));
-      return { esperado, ultimoCierre: ultimoCierre ?? null, hoy };
+      return { esperado, ultimoCierre: ultimoCierre ?? null, hoy, aCiegas };
     },
     { tenantId },
   );

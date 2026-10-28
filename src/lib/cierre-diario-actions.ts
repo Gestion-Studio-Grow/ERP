@@ -36,6 +36,7 @@ import {
   businessWallTimeToUtc,
   todayInBusinessTz,
   dateStrInBusinessTz,
+  fmtTime,
 } from "@/lib/datetime";
 import {
   buildCierreDiario,
@@ -45,10 +46,20 @@ import {
   nextDayKey,
   compareDayKeys,
   formatDayLabel,
+  columnasDelCierre,
+  conteoDelTurnoParaElCierre,
+  mensajeTurnoAbierto,
+  pagadosDeMasDelPeriodo,
+  puedeCerrarElDia,
+  validarReabrirDia,
+  CERRAR_DIA_SIN_PERMISO,
+  MOTIVO_MINIMO_REABRIR_DIA,
   type CierreDiario,
   type CierreMovement,
+  type ColumnaDelCierre,
   type DayKey,
   type DeclaredAmounts,
+  type HechosDelCierre,
 } from "@/lib/caja/cierre-diario";
 import {
   lastClosedDay,
@@ -61,6 +72,11 @@ import { resumenCierre } from "@/lib/caja/cierre-resumen";
 import { CASH_METHODS, libroOrigin, type LibroMovement } from "@/lib/caja/libro-caja";
 import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
 import { leerImporte } from "@/lib/pos-peso";
+import { round2 } from "@/lib/round";
+import { tarjetaHabilitada } from "@/lib/caja-actions";
+import { bordesDelMes } from "@/lib/libros/fecha-fiscal";
+import { estadoDesdeAuditoria } from "@/lib/cierre-mes/cierre-mes";
+import { leerAuditoriaCierre } from "@/lib/cierre-mes/lectura";
 
 const CIERRE_PATH = "/admin/caja/cierre";
 const LIBRO_PATH = "/admin/caja/libro";
@@ -122,6 +138,18 @@ export type CierreDiarioData = {
    * gestiona la agenda y no se le muestra.
    */
   turnosSinCerrar: TurnoSinCerrar[] | null;
+  /** Las columnas que cuenta la hoja (N2 · M1-C2): EFECTIVO · MP · TRANSFERENCIA · (TARJETA). */
+  columnas: ColumnaDelCierre[];
+  /** ¿Quien mira puede cerrar el día? (M1-C8: dueña/dueño o encargado; recepción, no). */
+  puedeCerrar: boolean;
+  /** Un turno de caja abierto: con él no se cierra el día (M1-C5). */
+  turnoAbierto: { quien: string; hora: string } | null;
+  /** Lo contado al cerrar el último turno del período (M1-C4): se reusa si sigue valiendo. */
+  conteoDelTurno: { contado: number; quien: string; cerradoEl: Date; vigente: boolean } | null;
+  /** Lo que suele explicar una diferencia (M1-C6). `null` en un día cerrado o en la demo. */
+  hechos: HechosDelCierre | null;
+  /** Reabrir el día (M1-C7): sólo para la dueña o el dueño en un día cerrado. `null` = no se ofrece. */
+  reabrir: { puede: true } | { puede: false; porque: string } | null;
 };
 
 export type TurnoSinCerrar = {
@@ -140,6 +168,61 @@ export type TurnoSinCerrar = {
 };
 
 const NADA_DECLARADO: DeclaredAmounts = { EFECTIVO: null, MP: null, TARJETA: null };
+
+// Lo que el cierre lee de cada movimiento del período. El MEDIO DE ORIGEN (el `PaymentMethod` del
+// cobro o del pedido) es lo que separa Mercado Pago de Transferencia (M1-C2); el total del pedido
+// y el `createdAt` alimentan las causas probables (M1-C6).
+const SELECT_DEL_PERIODO = {
+  id: true, occurredAt: true, createdAt: true, type: true, method: true,
+  amount: true, reason: true, orderId: true, collectionId: true, createdBy: true,
+  // El ORIGEN del cobro, no sólo su id: es lo que separa un cobro de fiado de un
+  // cobro de turno en el resumen del cierre (ver CierreMovement).
+  collection: { select: { originType: true, method: true, orderId: true } },
+  order: { select: { paymentMethod: true, total: true } },
+} as const;
+
+type FilaDelPeriodo = {
+  id: string;
+  occurredAt: Date;
+  createdAt: Date;
+  type: string;
+  method: string;
+  amount: number;
+  reason: string | null;
+  orderId: string | null;
+  collectionId: string | null;
+  createdBy: string | null;
+  collection: { originType: string; method: string; orderId: string | null } | null;
+  order: { paymentMethod: string | null; total: number } | null;
+};
+
+function movimientoDelPeriodo(r: FilaDelPeriodo): CierreMovement {
+  return {
+    id: r.id,
+    occurredAt: r.occurredAt,
+    type: r.type as CashMovementType,
+    method: r.method as CashMethod,
+    amount: r.amount,
+    detail: r.reason ?? "",
+    collectionId: r.collectionId ?? null,
+    collectionOrigin: r.collection?.originType ?? null,
+    medioDeOrigen: r.collection?.method ?? r.order?.paymentMethod ?? null,
+  };
+}
+
+function tarjetaSeMovioEn(c: CierreDiario): boolean {
+  const t = c.porMedio.TARJETA;
+  return t.opening !== 0 || t.ingresos !== 0 || t.egresos !== 0;
+}
+
+/** "user:<id>" → el nombre de esa persona en ESTE negocio; si no, lo que haya. */
+async function nombreDeActor(db: Pick<Prisma.TransactionClient, "user">, tenantId: string, actor: string | null): Promise<string> {
+  if (!actor) return "alguien";
+  const id = actor.startsWith("user:") ? actor.slice("user:".length) : null;
+  if (!id) return actor;
+  const u = await db.user.findFirst({ where: { tenantId, id }, select: { name: true } });
+  return u?.name ?? "alguien del equipo";
+}
 
 /**
  * Lee el ledger y arma el cierre del día pedido, sin declarar nada todavía.
@@ -169,10 +252,18 @@ export async function getCierreDiarioData(
       enElFuturo: compareDayKeys(day, today) > 0,
       registro: null,
       turnosSinCerrar: [],
+      columnas: columnasDelCierre({ tarjetaHabilitada: false, tarjetaSeMovio: false }),
+      puedeCerrar: false,
+      turnoAbierto: null,
+      conteoDelTurno: null,
+      hechos: null,
+      reabrir: null,
     };
   }
 
   const tenantId = await getCurrentTenantId();
+  const quienMira = await getCurrentUser();
+  const puedeCerrar = puedeCerrarElDia(quienMira?.role);
   // Del `day` que se CIERRA, no de hoy: el cierre acepta días anteriores. Se lee también con
   // el día ya cerrado —un turno que quedó abierto sigue siendo plata o una ausencia sin marcar.
   //
@@ -192,7 +283,11 @@ export async function getCierreDiarioData(
   // cierre, y este día ya está adentro. Calcularlo igual daba el rango invertido que vio el
   // QA ("Desde el 08/09 hasta el 07/09 — 0 movimientos") sobre el día recién cerrado.
   if (yaCerrado) {
-    const [registro, turnosSinCerrar] = await Promise.all([leerRegistro(tenantId, day), turnosSinCerrarP]);
+    const [registro, turnosSinCerrar, reabrir] = await Promise.all([
+      leerRegistro(tenantId, day),
+      turnosSinCerrarP,
+      quienMira?.role === "OWNER" ? puedeReabrir(tenantId, day, cerradoHasta) : Promise.resolve(null),
+    ]);
     return {
       day,
       today,
@@ -204,6 +299,12 @@ export async function getCierreDiarioData(
       enElFuturo: compareDayKeys(day, today) > 0,
       registro,
       turnosSinCerrar,
+      columnas: columnasDelCierre({ tarjetaHabilitada: false, tarjetaSeMovio: false }),
+      puedeCerrar,
+      turnoAbierto: null,
+      conteoDelTurno: null,
+      hechos: null,
+      reabrir: registro ? reabrir : null,
     };
   }
 
@@ -214,17 +315,11 @@ export async function getCierreDiarioData(
   const start = since ? businessWallTimeToUtc(since, "00:00") : new Date(0);
   const end = endOfDayUtc(day);
 
-  const [rows, previousTotals, turnosSinCerrar] = await Promise.all([
+  const [rows, previousTotals, turnosSinCerrar, abierto, ultimoTurno, sinCobrar, repartoSinRendir] = await Promise.all([
     prisma.cashMovement.findMany({
       where: { tenantId, occurredAt: { gte: start, lt: end } },
       orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
-      select: {
-        id: true, occurredAt: true, type: true, method: true,
-        amount: true, reason: true, orderId: true, collectionId: true, createdBy: true,
-        // El ORIGEN del cobro, no sólo su id: es lo que separa un cobro de fiado de un
-        // cobro de turno en el resumen del cierre (ver CierreMovement).
-        collection: { select: { originType: true } },
-      },
+      select: SELECT_DEL_PERIODO,
     }),
     // El saldo de apertura se DERIVA agregando lo anterior al período: un groupBy que no
     // crece con el histórico. Igual que el libro — no se copia a mano de un cierre al otro.
@@ -234,6 +329,28 @@ export async function getCierreDiarioData(
       _sum: { amount: true },
     }),
     turnosSinCerrarP,
+    // M1-C5: con un turno abierto no se cierra el día (se avisa antes; `cerrarDia` lo vuelve a mirar).
+    prisma.cashSession.findFirst({
+      where: { tenantId, status: "OPEN" },
+      orderBy: { openedAt: "desc" },
+      select: { openedBy: true, openedAt: true },
+    }),
+    // M1-C4: lo contado al cerrar el último turno del período.
+    prisma.cashSession.findFirst({
+      where: { tenantId, status: "CLOSED", closedAt: { gte: start, lt: end } },
+      orderBy: { closedAt: "desc" },
+      select: { closingCounted: true, closedAt: true, closedBy: true },
+    }),
+    // M1-C6: ventas del día sin cobrar y envíos sin rendir. Sólo la pantalla del cierre (la misma
+    // opción que los turnos): el resumen de /admin/caja no las muestra y no las paga.
+    opciones.conTurnosSinCerrar
+      ? prisma.order.aggregate({
+          where: { tenantId, createdAt: { gte: businessWallTimeToUtc(day, "00:00"), lt: end }, paid: false, status: { not: "CANCELLED" } },
+          _count: { _all: true },
+          _sum: { total: true },
+        })
+      : Promise.resolve(null),
+    opciones.conTurnosSinCerrar ? leerRepartoSinRendir(tenantId) : Promise.resolve(null),
   ]);
 
   const previous: LibroMovement[] = previousTotals.map((g, i) => ({
@@ -245,23 +362,37 @@ export async function getCierreDiarioData(
     detail: "",
   }));
 
-  const movements: CierreMovement[] = rows.map((r) => ({
-    id: r.id,
-    occurredAt: r.occurredAt,
-    type: r.type as CashMovementType,
-    method: r.method as CashMethod,
-    amount: r.amount,
-    detail: r.reason ?? "",
-    collectionId: r.collectionId ?? null,
-    collectionOrigin: r.collection?.originType ?? null,
-  }));
+  const movements: CierreMovement[] = rows.map(movimientoDelPeriodo);
+  const deSiempre = buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO });
+  const columnas = columnasDelCierre({ tarjetaHabilitada: await tarjetaHabilitada(), tarjetaSeMovio: tarjetaSeMovioEn(deSiempre) });
+  const preview = buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO, columnas });
+
+  const hechos: HechosDelCierre | null = !sinCobrar || !repartoSinRendir ? null : {
+    ventasSinCobrar: { cantidad: sinCobrar._count._all, monto: Number(sinCobrar._sum.total ?? 0) },
+    repartoSinRendir,
+    pagadosDeMas: pagadosDeMasDelPeriodo(
+      rows.map((r) => ({
+        orderId: r.orderId ?? r.collection?.orderId ?? null,
+        total: r.order ? Number(r.order.total) : null,
+        amount: r.amount,
+        type: r.type,
+      })),
+    ),
+    cuadernoConFechaVieja: rows.reduce(
+      (acc, r) =>
+        r.type === "VENTA" && compareDayKeys(dateStrInBusinessTz(r.occurredAt), dateStrInBusinessTz(r.createdAt)) < 0
+          ? { cantidad: acc.cantidad + 1, monto: round2(acc.monto + r.amount) }
+          : acc,
+      { cantidad: 0, monto: 0 },
+    ),
+  };
 
   return {
     day,
     today,
     lastClosedDay: cerradoHasta,
     since,
-    preview: buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO }),
+    preview,
     movements: rows.map((r) => ({
       id: r.id,
       day: dateStrInBusinessTz(r.occurredAt),
@@ -275,7 +406,74 @@ export async function getCierreDiarioData(
     enElFuturo: compareDayKeys(day, today) > 0,
     registro: null,
     turnosSinCerrar,
+    columnas,
+    puedeCerrar,
+    turnoAbierto: abierto ? { quien: await nombreDeActor(prisma, tenantId, abierto.openedBy), hora: fmtTime(abierto.openedAt) } : null,
+    conteoDelTurno: conteoDelTurnoParaElCierre({
+      turno: ultimoTurno?.closedAt
+        ? { contado: ultimoTurno.closingCounted, cerradoEl: ultimoTurno.closedAt, quien: await nombreDeActor(prisma, tenantId, ultimoTurno.closedBy) }
+        : null,
+      esperadoEfectivo: preview.porColumna.EFECTIVO.expected,
+    }),
+    hechos,
+    reabrir: null,
   };
+}
+
+/**
+ * Envíos que salieron con el cadete y todavía no se rindieron: la ÚLTIMA marca de reparto del
+ * pedido es «salió» (pedidos/reparto/reparto-core.ts, acción "reparto"). El monto es lo que falta
+ * cobrar de ésos: si el cadete lo cobra en efectivo, esa plata todavía no está en el cajón.
+ * SÓLO LECTURA; no exportada (recibe `tenantId`).
+ */
+async function leerRepartoSinRendir(tenantId: string): Promise<{ cantidad: number; monto: number }> {
+  const enCurso = await prisma.order.findMany({
+    where: { tenantId, fulfillment: "DELIVERY", status: { notIn: ["DELIVERED", "CANCELLED"] } },
+    select: { id: true, paid: true, total: true },
+  });
+  if (enCurso.length === 0) return { cantidad: 0, monto: 0 };
+  const marcas = await prisma.auditLog.findMany({
+    where: { tenantId, entity: "Order", action: "reparto", entityId: { in: enCurso.map((o) => o.id) } },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { entityId: true, changes: true },
+  });
+  const ultima = new Map<string, unknown>();
+  for (const m of marcas) if (m.entityId) ultima.set(m.entityId, (m.changes as { tipo?: unknown } | null)?.tipo);
+  let cantidad = 0;
+  let monto = 0;
+  for (const o of enCurso) {
+    if (ultima.get(o.id) !== "salio") continue;
+    cantidad += 1;
+    if (!o.paid) monto = round2(monto + Number(o.total));
+  }
+  return { cantidad, monto };
+}
+
+/**
+ * ¿Se ofrece «Reabrir el día» en este día cerrado? La MISMA regla que la acción
+ * (`validarReabrirDia`), sin el motivo (todavía no se escribió). SÓLO LECTURA.
+ */
+async function puedeReabrir(
+  tenantId: string,
+  day: DayKey,
+  cerradoHasta: DayKey | null,
+): Promise<{ puede: true } | { puede: false; porque: string }> {
+  const [cierreDelDia, auditoriaDelMes] = await Promise.all([
+    prisma.auditLog.findFirst({
+      where: { tenantId, entity: CIERRE_DIARIO_ENTITY, action: CIERRE_DIARIO_ACTION, entityId: day },
+      select: { id: true },
+    }),
+    leerAuditoriaCierre(prisma, tenantId, day.slice(0, 7)),
+  ]);
+  const v = validarReabrirDia({
+    day,
+    role: "OWNER",
+    motivo: "x".repeat(MOTIVO_MINIMO_REABRIR_DIA),
+    ultimoCerrado: cerradoHasta,
+    hayCierreDelDia: cierreDelDia !== null,
+    mesCongelado: estadoDesdeAuditoria(auditoriaDelMes).congelado,
+  });
+  return v.ok ? { puede: true } : { puede: false, porque: v.error };
 }
 
 /**
@@ -344,7 +542,8 @@ async function leerTurnosSinCerrar(tenantId: string, day: DayKey): Promise<Turno
  */
 async function leerRegistro(tenantId: string, day: DayKey): Promise<CierreRegistrado | null> {
   const fila = await prisma.auditLog.findFirst({
-    where: { tenantId, entity: CIERRE_DIARIO_ENTITY, entityId: day },
+    // Sólo un cierre VIGENTE: el de un día reabierto queda con otra acción (M1-C7).
+    where: { tenantId, entity: CIERRE_DIARIO_ENTITY, action: CIERRE_DIARIO_ACTION, entityId: day },
     orderBy: { createdAt: "desc" },
     select: { actor: true, createdAt: true, changes: true },
   });
@@ -365,9 +564,9 @@ async function leerRegistro(tenantId: string, day: DayKey): Promise<CierreRegist
 
 export type CierreActionState = { ok: true; message: string } | { ok: false; errors: string[] } | null;
 
-function parseDeclared(formData: FormData): DeclaredAmounts {
-  const out = { ...NADA_DECLARADO };
-  for (const k of CASH_METHODS) {
+function parseDeclared(formData: FormData, columnas: readonly ColumnaDelCierre[] = CASH_METHODS): DeclaredAmounts {
+  const out: DeclaredAmounts = { ...NADA_DECLARADO };
+  for (const k of columnas) {
     // Plata como se escribe acá ("12.500" = doce mil quinientos), no `Number` con la coma
     // cambiada por punto, que leía "12.500" como 12,5.
     const lectura = leerImporte(String(formData.get(`declarado_${k}`) ?? ""));
@@ -391,14 +590,20 @@ function parseDeclared(formData: FormData): DeclaredAmounts {
  * aviso, no un ajuste duplicado.
  */
 export async function cerrarDia(formData: FormData): Promise<CierreActionState> {
-  await requireCapability("orders:manage");
+  const quien = await requireCapability("orders:manage");
   if (isDemoSandbox()) return { ok: false, errors: [DEMO_WRITE_BLOCKED.error] };
+  // M1-C8: cierra la dueña / el dueño (o el encargado, cuando exista el rol). Recepción, no.
+  if (!puedeCerrarElDia(quien.role)) return { ok: false, errors: [CERRAR_DIA_SIN_PERMISO] };
 
   const dayRaw = String(formData.get("day") ?? "").trim();
   if (!isDayKey(dayRaw)) return { ok: false, errors: ["La fecha del cierre no es válida."] };
   const day: DayKey = dayRaw;
   const note = String(formData.get("note") ?? "").trim() || null;
-  const declared = parseDeclared(formData);
+  // La hoja nueva (ContarYCerrar) manda `columnas`: separa Transferencia de Mercado Pago. Qué
+  // columnas son lo decide el servidor (`columnasDelNegocio`), no el formulario. Sin el campo
+  // (el formulario de siempre), MP es «MP y transferencias», como antes.
+  const separaColumnas = formData.get("columnas") !== null;
+  const conTarjeta = separaColumnas ? await tarjetaHabilitada() : false;
   const today = todayInBusinessTz();
 
   const tenantId = await getCurrentTenantId();
@@ -415,14 +620,22 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
         const start = since ? businessWallTimeToUtc(since, "00:00") : new Date(0);
         const end = endOfDayUtc(day);
 
+        // M1-C5: con un turno de caja abierto no se cierra el día. Adentro de la transacción
+        // Serializable: un turno que se abre mientras tanto aborta una de las dos.
+        const abierto = await tx.cashSession.findFirst({
+          where: { tenantId, status: "OPEN" },
+          orderBy: { openedAt: "desc" },
+          select: { openedBy: true, openedAt: true },
+        });
+        if (abierto) {
+          return { ok: false as const, errors: [mensajeTurnoAbierto({ quien: await nombreDeActor(tx, tenantId, abierto.openedBy), hora: fmtTime(abierto.openedAt) })] };
+        }
+
         const [rows, previousTotals] = await Promise.all([
           tx.cashMovement.findMany({
             where: { tenantId, occurredAt: { gte: start, lt: end } },
             orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
-            select: {
-              id: true, occurredAt: true, type: true, method: true, amount: true, reason: true,
-              collectionId: true, collection: { select: { originType: true } },
-            },
+            select: SELECT_DEL_PERIODO,
           }),
           tx.cashMovement.groupBy({
             by: ["type", "method"],
@@ -431,29 +644,23 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
           }),
         ]);
 
-        const cierre = buildCierreDiario({
-          day,
-          since,
-          previous: previousTotals.map((g, i) => ({
-            id: `prev-${i}`,
-            occurredAt: start,
-            type: g.type as CashMovementType,
-            method: g.method as CashMethod,
-            amount: g._sum.amount ?? 0,
-            detail: "",
-          })),
-          movements: rows.map((r) => ({
-            id: r.id,
-            occurredAt: r.occurredAt,
-            type: r.type as CashMovementType,
-            method: r.method as CashMethod,
-            amount: r.amount,
-            detail: r.reason ?? "",
-            collectionId: r.collectionId ?? null,
-            collectionOrigin: r.collection?.originType ?? null,
-          })),
-          declared,
-        });
+        const previous: LibroMovement[] = previousTotals.map((g, i) => ({
+          id: `prev-${i}`,
+          occurredAt: start,
+          type: g.type as CashMovementType,
+          method: g.method as CashMethod,
+          amount: g._sum.amount ?? 0,
+          detail: "",
+        }));
+        const movements = rows.map(movimientoDelPeriodo);
+        const columnas = separaColumnas
+          ? columnasDelCierre({
+              tarjetaHabilitada: conTarjeta,
+              tarjetaSeMovio: tarjetaSeMovioEn(buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO })),
+            })
+          : undefined;
+        const declared = parseDeclared(formData, columnas);
+        const cierre = buildCierreDiario({ day, since, previous, movements, declared, columnas });
 
         const v = validateCierre(cierre, { note, today, lastClosedDay: cerradoHasta });
         if (!v.ok) return { ok: false as const, errors: v.errors };
@@ -503,6 +710,17 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
                   },
                 ]),
               ),
+              // Por columna de la hoja (con Transferencia separada): el detalle de lo contado.
+              ...(columnas
+                ? {
+                    porColumna: Object.fromEntries(
+                      cierre.columnas.map((c) => [
+                        c,
+                        { esperado: cierre.porColumna[c].expected, declarado: cierre.porColumna[c].declared, diferencia: cierre.porColumna[c].diff },
+                      ]),
+                    ),
+                  }
+                : {}),
               movimientos: cierre.movementCount,
               ajustes: filas.length,
             },

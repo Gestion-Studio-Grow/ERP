@@ -33,7 +33,7 @@ import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
 import type { PosStockInfo } from "@/lib/stock/pos-stock-rules";
 import { getAperturaEnVender } from "@/lib/caja-actions";
 import { cuentasCorrientesPrendidas } from "@/lib/settlement/asiento-libro";
-import { CUENTAS_CORRIENTES } from "@/cambios/interruptores";
+import { ARQUEO_CIEGO, CUENTAS_CORRIENTES } from "@/cambios/interruptores";
 import type { EstadoInterruptores } from "@/cambios/interruptores-core";
 import { pedidoDeVentaDesdeLaFicha } from "@/lib/clientes/fiado.server";
 import { leerPedidoDeVenta, type RepetirPedido } from "@/lib/clientes/fiado";
@@ -126,7 +126,7 @@ async function datosEnUnaTransaccion(tenantId: string, hoy: string, conApertura:
       const diaDeCajaCerrado = cerradoHasta !== null && isFrozenDay(hoyCaja, cerradoHasta);
       const apertura: Apertura =
         conApertura && !diaDeCajaCerrado && !sesionAbierta
-          ? { esperado: await saldoEfectivoDelLibro(tx, tenantId, finDelDiaDelNegocio(new Date())), ultimoCierre: cerradoHasta ?? null, hoy: hoyCaja }
+          ? { esperado: await saldoEfectivoDelLibro(tx, tenantId, finDelDiaDelNegocio(new Date())), ultimoCierre: cerradoHasta ?? null, hoy: hoyCaja, aCiegas: false }
           : null;
       const conPrecio = filas.filter((p) => p.price !== null || p.pricePerKg !== null);
       const stockById: Record<string, PosStockInfo> = {};
@@ -248,5 +248,7 @@ export async function cargarMostradorBoutique(p: {
       gondolas: Object.fromEntries(gondolas),
     },
     desdeLaFicha,
+    // Arqueo a ciegas (N2 · M1-C3): la tarjeta pide contar sin mostrar el número, y el número no viaja.
+    apertura: p.interruptores[ARQUEO_CIEGO]?.encendido === true && datos.apertura ? { ...datos.apertura, esperado: 0, aCiegas: true } : datos.apertura,
   };
 }

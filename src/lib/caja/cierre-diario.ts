@@ -116,6 +116,10 @@ export function cashMethodFromPaymentMethod(paymentMethod: string): CashMethod |
     case "MERCADOPAGO":
     case "TRANSFERENCIA":
       return "MP";
+    // N2 · M1: Tarjeta (posnet) tiene su columna en el libro desde siempre. En `PaymentMethod`
+    // existe sólo con N2_enums.sql aplicada; mientras tanto ningún cobro llega con este valor.
+    case "TARJETA":
+      return "TARJETA";
     default:
       return null;
   }
@@ -138,12 +142,65 @@ export function cashMethodFromPaymentMethod(paymentMethod: string): CashMethod |
 export type CierreMovement = LibroMovement & {
   collectionId?: string | null;
   collectionOrigin?: string | null;
+  /**
+   * El `PaymentMethod` con que se cobró lo que originó el movimiento (el del cobro si salió de
+   * uno, si no el del pedido). Es lo ÚNICO que separa Mercado Pago de Transferencia: el libro
+   * los guarda juntos en `MP` (ver `columnaDelMovimiento`). Ausente = no se sabe → Mercado Pago.
+   */
+  medioDeOrigen?: string | null;
 };
+
+// ── Columnas del cierre (N2 · M1-C2) ────────────────────────────────────────
+//
+// El libro tiene tres medios (`CashMethod`: EFECTIVO · MP · TARJETA) y junta Mercado Pago con
+// transferencia en `MP` a propósito (es la columna de la planilla). El cierre del día los
+// SEPARA para contarlos: lo que dice la app de Mercado Pago no es lo que dice el banco. La
+// columna Transferencia es un desglose de `MP`, no un medio nuevo del libro:
+//
+//   · lo que se movió en el período por transferencia (según `medioDeOrigen`) va a su columna;
+//     el resto de `MP` —con el saldo que venía de antes— queda en Mercado Pago. Las dos suman
+//     exactamente el `MP` del libro, así el total y el arrastre no cambian;
+//   · la diferencia de cada columna se asienta en `MP` (es donde vive en el libro), con el
+//     detalle que dice de cuál de las dos salió.
+//
+// Sin `columnas` (los llamadores de siempre) el cierre es el de antes: tres medios, MP junto.
+export type ColumnaDelCierre = CashMethod | "TRANSFERENCIA";
+
+/** El orden de la hoja nueva: EFECTIVO · MP · TRANSFERENCIA · TARJETA. */
+export const COLUMNAS_DEL_CIERRE: readonly ColumnaDelCierre[] = ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"];
+
+export const ETIQUETA_DE_COLUMNA: Record<ColumnaDelCierre, string> = {
+  EFECTIVO: "Efectivo",
+  MP: "Mercado Pago",
+  TRANSFERENCIA: "Transferencia",
+  TARJETA: "Tarjeta",
+};
+
+/** En qué medio del libro vive una columna. */
+export function metodoDeColumna(c: ColumnaDelCierre): CashMethod {
+  return c === "TRANSFERENCIA" ? "MP" : c;
+}
+
+/** La columna de un movimiento: su medio del libro, salvo `MP` cobrado por transferencia. PURA. */
+export function columnaDelMovimiento(m: { method: CashMethod; medioDeOrigen?: string | null }): ColumnaDelCierre {
+  if (m.method === "MP" && m.medioDeOrigen === "TRANSFERENCIA") return "TRANSFERENCIA";
+  return m.method;
+}
+
+/**
+ * Qué columnas cuenta la hoja. Tarjeta sólo si se puede cobrar con tarjeta (el valor está en
+ * `PaymentMethod`, ver `tarjetaHabilitadaPor` en medio-cobro.ts) o si igual se movió plata por
+ * tarjeta en el libro (un asiento a mano: esconderla dejaría plata sin columna). PURA.
+ */
+export function columnasDelCierre(p: { tarjetaHabilitada: boolean; tarjetaSeMovio: boolean }): ColumnaDelCierre[] {
+  return COLUMNAS_DEL_CIERRE.filter((c) => c !== "TARJETA" || p.tarjetaHabilitada || p.tarjetaSeMovio);
+}
 
 // Lo que la persona DECLARA que hay al cierre, por medio. `null` = ese medio no se
 // concilia hoy (la tarjeta se liquida a T+N y el negocio no la cuenta por día). El
 // EFECTIVO no puede quedar en null: contar el cajón es el acto mínimo del cierre.
-export type DeclaredAmounts = Record<CashMethod, number | null>;
+// `TRANSFERENCIA` sólo cuenta cuando el cierre separa esa columna (`columnas`).
+export type DeclaredAmounts = Record<CashMethod, number | null> & { TRANSFERENCIA?: number | null };
 
 export type CierreMedio = {
   opening: number; // saldo al arrancar el período (lo que quedó del cierre anterior)
@@ -208,7 +265,12 @@ export type AjusteCierre = {
 export type CierreDiario = {
   day: DayKey;
   since: DayKey | null; // primer día que abarca (día siguiente al último cierre); null = desde el origen
+  /** Por medio DEL LIBRO (lo que se asienta y arrastra). Con Transferencia separada, MP es la suma. */
   porMedio: Record<CashMethod, CierreMedio>;
+  /** Las columnas que se cuentan, en orden (sin `columnas` en la entrada: los tres medios de siempre). */
+  columnas: ColumnaDelCierre[];
+  /** Por columna de la hoja. Una columna que no está en `columnas` queda en cero y sin declarar. */
+  porColumna: Record<ColumnaDelCierre, CierreMedio>;
   total: CierreTotal;
   movementCount: number;
   cobrosCarteraCount: number;
@@ -224,9 +286,13 @@ function declaredOf(v: number | null | undefined): number | null {
   return typeof v === "number" && Number.isFinite(v) ? round2(v) : null;
 }
 
-function ajusteDetail(day: DayKey, method: CashMethod, diff: number): string {
+function ajusteDetail(day: DayKey, etiqueta: string, diff: number): string {
   const que = diff > 0 ? "sobrante" : "faltante";
-  return `Diferencia de caja ${formatDayLabel(day)}: ${que} en ${CASH_METHOD_LABEL[method]}`;
+  return `Diferencia de caja ${formatDayLabel(day)}: ${que} en ${etiqueta}`;
+}
+
+function medioVacio(): CierreMedio {
+  return { opening: 0, ingresos: 0, egresos: 0, expected: 0, cobrosCartera: 0, declared: null, diff: null };
 }
 
 // Arma el cierre de un día.
@@ -249,9 +315,16 @@ export function buildCierreDiario(input: {
   previous: readonly LibroMovement[];
   movements: readonly CierreMovement[];
   declared: DeclaredAmounts;
+  /** Las columnas que se cuentan (`columnasDelCierre`). Sin esto: EFECTIVO · MP · TARJETA, MP junto. */
+  columnas?: readonly ColumnaDelCierre[];
 }): CierreDiario {
   const opening = openingFromHistory(input.previous);
   const { summary } = buildLibro(opening, input.movements);
+  const columnas: ColumnaDelCierre[] = input.columnas ? COLUMNAS_DEL_CIERRE.filter((c) => input.columnas!.includes(c)) : [...CASH_METHODS];
+  // EFECTIVO siempre: contar el cajón es el acto mínimo del cierre.
+  if (!columnas.includes("EFECTIVO")) columnas.unshift("EFECTIVO");
+  const separaTransferencia = columnas.includes("TRANSFERENCIA");
+  const etiqueta = (c: ColumnaDelCierre) => (separaTransferencia ? ETIQUETA_DE_COLUMNA[c] : CASH_METHOD_LABEL[metodoDeColumna(c)]);
 
   // Cobros que vinieron de CUENTAS A COBRAR (fiado): ya están dentro de `ingresos` (son
   // filas del libro). Se suman aparte SOLO para mostrarlos; no vuelven a entrar al
@@ -259,15 +332,54 @@ export function buildCierreDiario(input: {
   // de turno también lo tiene y no es fiado.
   const cobros = zeroAmounts();
   let cobrosCount = 0;
+  // Lo que se movió por transferencia en el período (parte de `MP` del libro).
+  const transf = { ingresos: 0, egresos: 0, cobrosCartera: 0 };
   for (const m of input.movements) {
-    if (m.collectionOrigin !== ORIGEN_CUENTA_A_COBRAR) continue;
-    if (movementSign(m.type) <= 0) continue; // un cobro de cartera solo puede ser ingreso
     if (!Number.isFinite(m.amount) || m.amount <= 0) continue;
+    const signo = movementSign(m.type);
+    const esTransf = separaTransferencia && columnaDelMovimiento(m) === "TRANSFERENCIA";
+    if (esTransf && signo > 0) transf.ingresos += m.amount;
+    if (esTransf && signo < 0) transf.egresos += m.amount;
+    if (m.collectionOrigin !== ORIGEN_CUENTA_A_COBRAR) continue;
+    if (signo <= 0) continue; // un cobro de cartera solo puede ser ingreso
     cobros[m.method] += m.amount;
+    if (esTransf) transf.cobrosCartera += m.amount;
     cobrosCount += 1;
   }
 
-  const porMedio = {} as Record<CashMethod, CierreMedio>;
+  // Por columna: el medio del libro, con Transferencia sacada de MP cuando se separa.
+  const porColumna = {} as Record<ColumnaDelCierre, CierreMedio>;
+  for (const c of COLUMNAS_DEL_CIERRE) porColumna[c] = medioVacio();
+  for (const k of CASH_METHODS) {
+    if (!columnas.includes(k)) continue;
+    porColumna[k] = {
+      ...medioVacio(),
+      opening: opening[k],
+      ingresos: summary.ingresos[k],
+      egresos: summary.egresos[k],
+      expected: summary.saldo[k],
+      cobrosCartera: round2(cobros[k]),
+    };
+  }
+  if (separaTransferencia) {
+    const t: CierreMedio = {
+      ...medioVacio(),
+      ingresos: round2(transf.ingresos),
+      egresos: round2(transf.egresos),
+      expected: round2(transf.ingresos - transf.egresos),
+      cobrosCartera: round2(transf.cobrosCartera),
+    };
+    const mp = porColumna.MP;
+    porColumna.TRANSFERENCIA = t;
+    porColumna.MP = {
+      ...mp,
+      ingresos: round2(mp.ingresos - t.ingresos),
+      egresos: round2(mp.egresos - t.egresos),
+      expected: round2(mp.expected - t.expected),
+      cobrosCartera: round2(mp.cobrosCartera - t.cobrosCartera),
+    };
+  }
+
   const ajustes: AjusteCierre[] = [];
   const declaredTotal = zeroAmounts();
   const diffTotal = zeroAmounts();
@@ -275,23 +387,16 @@ export function buildCierreDiario(input: {
   let sobra = false;
   let falta = false;
 
-  for (const k of CASH_METHODS) {
-    const expected = summary.saldo[k];
-    const declared = declaredOf(input.declared[k]);
-    const diff = declared === null ? null : round2(declared - expected);
-    porMedio[k] = {
-      opening: opening[k],
-      ingresos: summary.ingresos[k],
-      egresos: summary.egresos[k],
-      expected,
-      cobrosCartera: round2(cobros[k]),
-      declared,
-      diff,
-    };
+  for (const c of columnas) {
+    const col = porColumna[c];
+    const declared = declaredOf(input.declared[c]);
+    const diff = declared === null ? null : round2(declared - col.expected);
+    porColumna[c] = { ...col, declared, diff };
     if (declared === null || diff === null) continue;
     anyDeclared = true;
-    declaredTotal[k] = declared;
-    diffTotal[k] = diff;
+    const k = metodoDeColumna(c);
+    declaredTotal[k] = round2(declaredTotal[k] + declared);
+    diffTotal[k] = round2(diffTotal[k] + diff);
     if (diff > 0) sobra = true;
     if (diff < 0) falta = true;
     if (diff !== 0) {
@@ -299,9 +404,28 @@ export function buildCierreDiario(input: {
         type: diff > 0 ? "INGRESO" : "EGRESO",
         method: k,
         amount: round2(Math.abs(diff)),
-        detail: ajusteDetail(input.day, k, diff),
+        detail: ajusteDetail(input.day, etiqueta(c), diff),
       });
     }
+  }
+
+  // Por medio del libro: lo que se arrastra. Declarado = lo contado en sus columnas (lo no contado
+  // de una columna vale su esperado), así `openingAfterCierre` es lo que el libro dice después.
+  const porMedio = {} as Record<CashMethod, CierreMedio>;
+  for (const k of CASH_METHODS) {
+    const suyas = columnas.filter((c) => metodoDeColumna(c) === k);
+    const contadas = suyas.filter((c) => porColumna[c].declared !== null);
+    const expected = summary.saldo[k];
+    const declared = contadas.length === 0 ? null : round2(suyas.reduce((s, c) => s + (porColumna[c].declared ?? porColumna[c].expected), 0));
+    porMedio[k] = {
+      opening: opening[k],
+      ingresos: summary.ingresos[k],
+      egresos: summary.egresos[k],
+      expected,
+      cobrosCartera: round2(cobros[k]),
+      declared,
+      diff: declared === null ? null : round2(declared - expected),
+    };
   }
 
   const estado: CierreEstado = !anyDeclared
@@ -318,6 +442,8 @@ export function buildCierreDiario(input: {
     day: input.day,
     since: input.since ?? null,
     porMedio,
+    columnas,
+    porColumna,
     total: {
       opening: totalOf(opening),
       ingresos: totalOf(summary.ingresos),
@@ -400,10 +526,12 @@ export function validateCierre(
   if (efectivo === null) {
     errors.push("Falta el efectivo contado. Contá el cajón y poné el total, aunque sea 0.");
   }
-  for (const k of CASH_METHODS) {
-    const d = cierre.porMedio[k].declared;
+  const separa = cierre.columnas.includes("TRANSFERENCIA");
+  for (const c of cierre.columnas) {
+    const d = cierre.porColumna[c].declared;
     if (d !== null && d < 0) {
-      errors.push(`Lo declarado en ${CASH_METHOD_LABEL[k]} no puede ser negativo.`);
+      const nombre = separa ? ETIQUETA_DE_COLUMNA[c] : CASH_METHOD_LABEL[metodoDeColumna(c)];
+      errors.push(`Lo declarado en ${nombre} no puede ser negativo.`);
     }
   }
 
@@ -443,4 +571,138 @@ export function nextDayKey(day: DayKey): DayKey {
   const [y, m, d] = day.split("-").map(Number);
   const next = new Date(Date.UTC(y, m - 1, d + 1));
   return next.toISOString().slice(0, 10);
+}
+
+// ── Quién cierra y quién reabre (N2 · M1-C5, C7, C8) ────────────────────────
+//
+// Reglas puras del cierre que no son aritmética. La server action (`cerrarDia`) y la de
+// reabrir (`reabrirDiaAction`, cierre-mes/acciones.ts) las corren contra la base adentro de su
+// transacción; la pantalla las usa para decir lo mismo antes del viaje.
+
+/**
+ * ¿Este rol cierra el día? La dueña / el dueño y, cuando exista el rol (N2 · M6, N2_enums.sql),
+ * el encargado. Recepción no: cerrar congela el día y asienta las diferencias. PURA.
+ */
+export function puedeCerrarElDia(role: string | null | undefined): boolean {
+  return role === "OWNER" || role === "ENCARGADO";
+}
+
+export const CERRAR_DIA_SIN_PERMISO =
+  "Cerrar el día lo hace la dueña, el dueño o el encargado: pedile al encargado que lo cierre. Vos podés cerrar tu turno de caja.";
+
+/** El rechazo de cerrar el día con un turno de caja abierto, con quién lo abrió. PURA. */
+export function mensajeTurnoAbierto(t: { quien: string; hora: string }): string {
+  return (
+    `No se puede cerrar el día con un turno de caja abierto: lo abrió ${t.quien} a las ${t.hora}. ` +
+    "Primero se cierra ese turno (Caja → Cerrar turno), con su conteo; después, el día."
+  );
+}
+
+/**
+ * Un solo conteo de efectivo (M1-C4): el cierre del día reusa lo contado al cerrar el último turno
+ * del período, SÓLO si desde entonces el efectivo no se movió (el libro dice exactamente eso). Si
+ * se movió (un retiro, otra venta sin turno), lo contado ya no es lo que hay: se cuenta de nuevo.
+ * PURA. `null` = no hay conteo para reusar.
+ */
+export function conteoDelTurnoParaElCierre(p: {
+  turno: { contado: number | null; cerradoEl: Date; quien: string } | null;
+  esperadoEfectivo: number;
+}): { contado: number; quien: string; cerradoEl: Date; vigente: boolean } | null {
+  const t = p.turno;
+  if (!t || t.contado === null || !Number.isFinite(t.contado)) return null;
+  return { contado: round2(t.contado), quien: t.quien, cerradoEl: t.cerradoEl, vigente: round2(t.contado) === round2(p.esperadoEfectivo) };
+}
+
+/** Acción con la que queda la fila de un cierre REABIERTO: la frontera ya no la cuenta (frontera-cierre.ts). */
+export const CIERRE_DIARIO_REABIERTO_ACTION = "caja.cierre-diario.reabierto";
+/** Acción de la fila de auditoría que deja la reapertura (entity "CierreDiario", entityId el día). */
+export const REABRIR_DIA_ACTION = "caja.reabrir-dia";
+/** Mínimo de letras del motivo (el mismo que reabrir el mes). */
+export const MOTIVO_MINIMO_REABRIR_DIA = 10;
+
+/**
+ * ¿Se puede reabrir este día? (M1-C7) PURA. Sólo la dueña o el dueño, con motivo, sólo el ÚLTIMO
+ * día cerrado (reabrir uno anterior dejaría cerrados días que arrastran de él), nunca el corte
+ * inicial y nunca un día de un mes congelado (el mes cerrado es del contador: primero se reabre
+ * el mes, desde Cierre del mes).
+ */
+export function validarReabrirDia(p: {
+  day: DayKey;
+  role: string | null | undefined;
+  motivo: string | null | undefined;
+  /** Último día cerrado (la frontera). */
+  ultimoCerrado: DayKey | null;
+  /** ¿La frontera sale de un cierre diario de ESE día (y no del corte inicial)? */
+  hayCierreDelDia: boolean;
+  /** ¿El mes de ese día está congelado (Cierre del mes)? */
+  mesCongelado: boolean;
+}): { ok: true } | { ok: false; error: string } {
+  if (p.role !== "OWNER") return { ok: false, error: "Sólo la dueña o el dueño puede reabrir un día cerrado." };
+  if (!isDayKey(p.day)) return { ok: false, error: "No se entendió qué día reabrir. Volvé a abrir el cierre y elegilo de nuevo." };
+  if (!p.ultimoCerrado || compareDayKeys(p.day, p.ultimoCerrado) > 0) {
+    return { ok: false, error: `El ${formatDayLabel(p.day)} no está cerrado: no hay nada que reabrir.` };
+  }
+  if (p.mesCongelado) {
+    return {
+      ok: false,
+      error: `El ${formatDayLabel(p.day)} es de un mes congelado: un mes cerrado no se reabre desde la caja. Si hace falta, primero reabrí el mes en Cierre del mes.`,
+    };
+  }
+  if (p.day !== p.ultimoCerrado) {
+    return {
+      ok: false,
+      error: `Sólo se reabre el último día cerrado (${formatDayLabel(p.ultimoCerrado)}): los días de después arrastran de éste.`,
+    };
+  }
+  if (!p.hayCierreDelDia) {
+    return { ok: false, error: `El ${formatDayLabel(p.day)} es el corte inicial de la caja: el corte no se reabre.` };
+  }
+  if (String(p.motivo ?? "").trim().length < MOTIVO_MINIMO_REABRIR_DIA) {
+    return { ok: false, error: "Escribí por qué lo reabrís (una frase): queda en la Auditoría con tu nombre." };
+  }
+  return { ok: true };
+}
+
+// ── Causas probables de una diferencia (N2 · M1-C6) ─────────────────────────
+//
+// Lo que el sistema SABE que suele explicar una diferencia del día, contado desde la base (la
+// lectura vive en `getCierreDiarioData`). No es un diagnóstico: es la lista corta de «fijate si
+// fue esto» que la pantalla pone al lado de la diferencia (`causasProbables`, revisar-cierre.ts).
+
+export type MontoContado = { cantidad: number; monto: number };
+
+export type HechosDelCierre = {
+  /** Pedidos creados en el día que siguen sin cobrar (no anulados). */
+  ventasSinCobrar: MontoContado;
+  /** Envíos que salieron con el cadete y no se rindieron (monto: lo que falta cobrar de ésos). */
+  repartoSinRendir: MontoContado;
+  /** Pedidos del período con más asentado que su total (monto: el excedente = vuelto que salió). */
+  pagadosDeMas: MontoContado;
+  /** Ventas cargadas en el período con fecha de un día anterior (el cuaderno). */
+  cuadernoConFechaVieja: MontoContado;
+};
+
+/**
+ * Pedidos pagados de más, desde los asientos del período: suma lo que entró por cada pedido y lo
+ * compara con su total. PURA. Un pedido sin total conocido no cuenta.
+ */
+export function pagadosDeMasDelPeriodo(
+  filas: readonly { orderId: string | null; total: number | null; amount: number; type: string }[],
+): MontoContado {
+  const porPedido = new Map<string, { asentado: number; total: number }>();
+  for (const f of filas) {
+    if (!f.orderId || f.type !== "VENTA" || f.total === null || !Number.isFinite(f.amount)) continue;
+    const p = porPedido.get(f.orderId) ?? { asentado: 0, total: f.total };
+    p.asentado = round2(p.asentado + f.amount);
+    porPedido.set(f.orderId, p);
+  }
+  const out: MontoContado = { cantidad: 0, monto: 0 };
+  for (const p of porPedido.values()) {
+    const excedente = round2(p.asentado - p.total);
+    if (excedente > 0) {
+      out.cantidad += 1;
+      out.monto = round2(out.monto + excedente);
+    }
+  }
+  return out;
 }

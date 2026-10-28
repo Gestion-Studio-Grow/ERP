@@ -36,7 +36,9 @@ export type TarjetaDeApertura = {
 };
 
 /** Lo que dice la tarjeta. PURA. */
-export function tarjetaDeApertura(p: { esperado: number; ultimoCierre: string | null; hoy: string }): TarjetaDeApertura {
+export function tarjetaDeApertura(p: { esperado: number; ultimoCierre: string | null; hoy: string; aCiegas?: boolean }): TarjetaDeApertura {
+  // A ciegas (interruptor «arqueo-ciego»): ni el número ni «Abrir con $X». Se cuenta primero.
+  if (p.aCiegas) return { titulo: "Abrí la caja: contá lo que hay en el cajón", conSugerido: false, sugerido: 0 };
   const esperado = Number.isFinite(p.esperado) ? round2(p.esperado) : 0;
   if (esperado < 0) {
     return {
@@ -60,4 +62,41 @@ export function tarjetaDeApertura(p: { esperado: number; ultimoCierre: string | 
  */
 export function fondoParaElFormulario(n: number): string {
   return String(round2(n)).replace(".", ",");
+}
+
+// ── Apertura a ciegas y motivo de la diferencia (N2 · M1-C3) ─────────────────
+//
+// Con el interruptor «arqueo-ciego» el cajero cuenta ANTES de ver el esperado: el primer envío va
+// sin `esperadoConfirmado`. Si cuadra, abre. Si no, `openCashSession` no graba nada y contesta con
+// el esperado (recién ahí se ve) y pide el motivo, como el cierre del turno: un faltante sin porqué
+// es lo que después nadie explica. El segundo envío trae el esperado visto y el motivo, y la
+// diferencia se asienta UNA vez (transacción Serializable + «ya hay una caja abierta»).
+
+/** Lo más largo que se guarda del motivo (va en el detalle del asiento). */
+export const MOTIVO_APERTURA_MAX = 300;
+
+/** El motivo tal como se guarda: sin espacios de más, recortado. `null` si no hay. PURA. */
+export function leerMotivoDeApertura(raw: unknown): string | null {
+  const s = typeof raw === "string" ? raw.replace(/\s+/g, " ").trim().slice(0, MOTIVO_APERTURA_MAX) : "";
+  return s || null;
+}
+
+/**
+ * ¿Hay que pedir el motivo antes de abrir? Con diferencia y sin motivo, cuando la regla lo exige
+ * (a ciegas). PURA. `diferencia` = contado − libro, ya redondeada.
+ */
+export function aperturaPideMotivo(p: { diferencia: number; motivo: string | null; exigido: boolean }): boolean {
+  return p.exigido && p.diferencia !== 0 && !p.motivo;
+}
+
+/** El texto que acompaña el pedido de motivo: lo contado, lo que dice el libro y la diferencia. PURA. */
+export function textoDelMotivoDeApertura(contado: number, esperado: number): string {
+  const d = round2(contado - esperado);
+  const que = d < 0 ? `faltan ${textoPlata(-d)}` : `sobran ${textoPlata(d)}`;
+  return `Contaste ${textoPlata(contado)} y el libro dice ${textoPlata(esperado)}: ${que}. Anotá por qué para abrir; la diferencia queda asentada una vez, con tu nombre.`;
+}
+
+/** El detalle del asiento de la diferencia, con el motivo si lo hay. PURA. */
+export function detalleConMotivo(detalle: string, motivo: string | null): string {
+  return motivo ? `${detalle}. Motivo: ${motivo}` : detalle;
 }

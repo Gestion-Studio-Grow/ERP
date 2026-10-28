@@ -84,7 +84,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
   // La lee `cargarMostradorBoutique` (la regla de `getAperturaEnVender`, sólo para quien toma pedidos).
   const apertura = mostrador?.apertura ?? null;
   // La tarjeta va en la fila de atajos (FilaDeAtajos) y su código baja recién al abrirla.
-  const caja = apertura ? { esperado: apertura.esperado, ultimoCierre: apertura.ultimoCierre, hoy: apertura.hoy } : null;
+  const caja = apertura ? { esperado: apertura.esperado, ultimoCierre: apertura.ultimoCierre, hoy: apertura.hoy, aCiegas: apertura.aCiegas } : null;
   // «Venderle» / «Repetir» desde la ficha (2D): `?cliente=&repetir=`. Sólo el boutique y quien
   // toma pedidos (la acción lo vuelve a exigir y acota la ficha y el pedido al negocio). Sin la
   // dirección, o con una ficha de otro negocio, Vender arranca vacío como siempre.
