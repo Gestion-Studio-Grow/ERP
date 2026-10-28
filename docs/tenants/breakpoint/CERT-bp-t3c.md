@@ -296,3 +296,105 @@ Se cierran las cinco BAJA abiertas: las dos de la v8 y las tres de la v7.
 **Sin verificar:**
 - la pantalla «Hecho» y la hoja en un navegador (Playwright no está instalado; la nota se probó con `renderToStaticMarkup`);
 - la baja contra un Postgres real con `app_rls` y concurrencia de verdad (PGlite serializa).
+
+## Dictamen del certificador — v9
+
+Diff certificado: `558e3f87..7b506752` (af596c39 arreglo, 97d5d582 nota de los botones, 5482838f tests, 7b506752 respuesta). Todo se probó en memoria con el motor y el almacén reales, y en PGlite. Nada se corrió contra Neon: no hay `.env` en el worktree y se borraron las `*DATABASE_URL` del entorno.
+
+### Veredicto: CON OBSERVACIONES
+Los cinco cierres se sostienen en lo que prometen puntualmente: C4, el texto, A3b contra otro fijo y las notas. Mi aleatorio no encontró dobles de la devolución, de liberar (desde la hoja o desde la grilla), de la baja ni de la A3b. Tampoco anuncios falsos ni fechas retenidas. Pero el título de C1, «la pausa no deja dos fijos figurando», no es cierto en general: sigue pasando cuando el hueco tiene además un bloqueo o un turno suelto (obs. 1). Es anterior a este diff y no deja dos turnos en la grilla ni mueve plata. Igual cambia quién juega, así que no es cosmética.
+
+### Aleatorio propio, independiente del v9-8
+Otro generador (xorshift) con 6 semillas: 11, 20261029, 4242, 99991, 8675309 y 1618. Son **4.200 secuencias de 14 pasos** (58.800 pasos), corridas contra HEAD y contra `558e3f87` con las mismas semillas.
+
+**Invariante: TODA ocupación que figura en el hueco contra toda otra.** Cuenta turnos vivos (de un fijo o sueltos), ventas del mostrador, bloqueos y fijos que juegan esa fecha sin bajar, en 72 semanas. Se anotan los pares **nuevos** que deja cada acción, por tipo: FF (fijo contra fijo), FS (fijo contra turno suelto) y FB (fijo contra bloqueo).
+
+Pasos posibles:
+- pausa desde hoy, **pausa acortada** (1.218 veces) y pausas encimadas;
+- pausa por comando con `desde` posterior (A3b);
+- liberar desde la hoja, y **liberar dos veces** (repetir);
+- «Liberar el fijo» **desde la grilla** (5.696 veces), y de nuevo sobre el mismo turno (1.887 veces, sin cambio);
+- baja;
+- **deshacer** (sólo la última acción, como el almacén);
+- **venta del mostrador DESPUÉS de liberar**, con el control del alta (918 sobre la fecha recién liberada);
+- el cliente cancela el turno de un fijo;
+- bloqueo, y quitar un bloqueo o una venta;
+- **serializar e hidratar** con `textoDelEstado`;
+- avanzar de 1 a 9 días y bajar la ventana.
+
+Hubo 253 recuperaciones y 342 rechazos A3b.
+
+| Resultado | HEAD | `558e3f87` |
+|---|---|---|
+| Pares FF nuevos por la A3b | **0** | 470 (415 sin aviso) |
+| Pares FS/FB nuevos por la A3b | 1 (anunciado) | 11 |
+| Pares FF nuevos por la pausa, en fechas «no vuelve: se pisan con otros turnos» (obs. 1) | 37 | 36 |
+| Pares FS/FB nuevos por la pausa (anunciados / sin aviso, después de la vuelta) | 30 / 6 | 29 / 6 |
+| Pares FB nuevos por un **bloqueo** sobre fijos sin bajar (motor, fuera del diff) | 4.365 | 4.368 |
+| Pares nuevos de cualquier tipo por devolución, liberar (hoja o grilla), baja, venta, cancelación o ventana | **0** | 0 |
+| Dos turnos vivos en la grilla | 0 | 0 |
+| Anuncio que no pasa (recupera o «vuelve solo el X» con otra ocupación figurando, o sin turno en la semana a la vista) | 0 | 0 |
+| Previa ≠ comando / previa muta / rechazo cambia | 0 / 0 / 0 | 0 / 0 / 0 |
+| Ida y vuelta serializar → hidratar cambia la foto | 0 | 0 |
+| Fecha retenida (espera a uno que no juega y el hueco libre de todo) | 0 | 0 |
+| Liberar dos veces cambia algo o anuncia | 0 | 0 |
+
+El ingeniero informó «129 dobles» contra el código anterior. Su aleatorio no tiene ventas ni bloqueos, y su invariante no cuenta bloqueos ni fijo contra turno suelto. Por eso no vio la obs. 1.
+
+### Refutación de los cinco cierres (casos propios, `cert-v9/v9-casos.test.ts`)
+| Cierre | Caso | Resultado |
+|---|---|---|
+| C4 | K1: Juan (el más antiguo) y Ana esperan a Pedro el d(0); Pedro lo libera **desde la grilla**, y la segunda vez sobre el mismo turno; después Juan lo libera desde la grilla | Se sostiene: recupera Juan con su turno en la grilla y Ana pasa a esperar a Juan. La segunda liberación no cambia nada. Cuando Juan lo libera, lo recupera Ana. |
+| C1 | K6: el d(3) bloqueado (torneo) y Pedro (heredado) lo juega sin bajar; Juan acorta la pausa | **Se refuta (obs. 1).** |
+| C1 «sin vuelta se bloquea» | K2: Juan acotado al d(0); el turno de Pedro (fijo de las 21) **movido** al hueco de Juan, y ningún fijo solapado | **Se refuta en el borde (obs. 2).** |
+| Texto «volvería…» | K4: choque el mismo día de la vuelta, con Pedro acotado | Se sostiene: dice «no puede volver el mar 20/10…», ofrece «Pausalo hasta el mar 10/11 … y vuelve el mar 17/11», y hacer eso da exactamente esa vuelta, sin dobles. |
+| A3b | K3b: la fecha del medio es de otro fijo | Se sostiene: rechaza sin tocar nada, y seguir la sugerencia «Pausalo desde el …» pasa sin dobles. |
+| A3b | K3: la fecha del medio es un turno **suelto** | Pasa sin aviso (obs. 3). |
+| Notas de los botones | K5, con `renderToStaticMarkup`: el titular con celular y dos que recuperan sin celular; y todos sin celular | Se sostiene: cada `aria-describedby` apunta a un id que existe. Si la nota es la misma, se comparte una sola vez. |
+
+### Observaciones (todas BAJA)
+1. **C1 a medias: la pausa sigue dejando dos fijos figurando cuando en el hueco hay además un bloqueo o un turno suelto.** Es anterior a este diff: está igual en `558e3f87`.
+   - **Dónde:** `vueltaDelFijo` (canchas-core.ts:265-269). Si `validarHueco` falla y el ocupante de la grilla no es un fijo, anota el choque sin `fijoId` y hace `continue`. No mira a un fijo que juega esa fecha detrás del bloqueo o del turno suelto, así que la fecha no se le libera al pausado.
+   - **Caso K6:** el mensaje dice bien «No vuelven el mar 10/11 ni el mar 17/11». Pero el 10/11 figuran Juan y Pedro sin bajar.
+   - **Consecuencia:** al levantarse el torneo y bajar la ventana, el turno es de **Juan**, a quien se le dijo que no venía. A Pedro, que sí juega, le sale «No entraron: Pedro el 10/11: se pisa con Juan».
+   - Son 37 en el aleatorio. Hace falta un fijo heredado solapado más un bloqueo o una venta en esa fecha.
+   - **Arreglo sugerido:** en esa rama, buscar también `otroFijoQuePisa(…, f.id)` y llevar su `fijoId`. Así `correrBajaFijo` la libera y la anota en `liberadasPor` como cualquier choque con un fijo.
+2. **«Sin vuelta, Confirmar se bloquea» tiene un borde.** El control previo sólo corre si hay otro **fijo solapado** en la lista (canchas-core.ts:523).
+   - **Caso K2:** el turno de Pedro, de otro horario, se movió al hueco de Juan, y Juan es acotado. La pausa pasa sin vuelta y no libera nada, con el mensaje «No vuelve el mar 20/10: se pisa con el fijo de Pedro (21:00)». Juan y el turno de Pedro figuran a la vez.
+   - Si Pedro cancela ese turno, Juan vuelve a la grilla sin aviso.
+   - La hora del mensaje es la del fijo de Pedro, no la del turno movido (cosmético).
+   - El estado es el mismo en `558e3f87`. Requiere «mover» y un fijo acotado.
+3. **A3b contra un turno suelto** (sólo por comando; la hoja no lo arma). La fecha del medio vuelve a jugar sin aviso aunque el mostrador la vendió (K3: `chocan=[]`; el fijo sin bajar figura con «Walk In»).
+   - Es la clase cerrada en la v3, pero allí se avisaba «no vuelve».
+   - Igual en `558e3f87`.
+4. **Fuera del diff:** «Bloquear» (`bloquear` del motor, vía `ejecutarCanchas`) sólo mira turnos vivos. Bloquea encima de fijos sin bajar, y al llegar la semana esos fijos «no entran».
+   - Sale en 4.365 pares nuevos, igual en las dos versiones.
+   - Lo mismo para las 6 FS/FB sin aviso de la pausa: son fechas posteriores a la vuelta, que `vueltaDelFijo` no recorre.
+
+Ninguna observación deja dos turnos vivos en la grilla ni toca plata.
+
+### Verificación n/n
+- **Motor:** el diff no toca `src/lib` ni `public`. El blob de `src/lib/club/motor.mjs` y el de `public/previews/breakpoint/club/motor.mjs` es `cda5b06d`, igual en HEAD y en `558e3f87`. Su sha256 es `0c290a3d…`, igual a `ORIGEN.json`.
+- **`npx tsc --noEmit`:** 406 errores propios del repo, los mismos archivos y cantidades que la línea de base de la v8. 0 en los archivos tocados. Mientras corría, la cuenta daba 412: los 6 de más eran de mis archivos temporales, ya borrados.
+- **`canchas-core.test.ts` + `hecho-de-la-baja.test.ts` + `ciclo-core.test.ts`:** 75/75.
+- **Club + motor:** 738 tests, 649 ok, 87 salteados y 2 fallas. Son las dos de CRLF ya conocidas: el fixture de `anonimizar` y el sha de la copia.
+- **`fijos-postgres.test.ts`** sobre PGlite en memoria, sin `*DATABASE_URL`: 1/1, sin salteo.
+- **No se reabre nada de v3 a v8:** mis `cert-v7/v7-fijos.test.ts` y `cert-v8/v8-casos.test.ts` contra HEAD dan 18/19.
+  - Pasan A1b (400 secuencias), A2–A8, A9b, A10–A12, A3b y C1–C4.
+  - Sigue la A9 de siempre: se corta en la preparación por el rechazo «se pisarían», que es correcto.
+- **Adversariales:** `cert-v9/v9-fuzz.test.ts` y `cert-v9/v9-casos.test.ts`, en el scratchpad del certificador.
+  - Se copiaron a `src/test/` y se corrieron. La versión base usó copias `zz-base-*` del código de `558e3f87`.
+  - Después se borraron, y `git status` quedó limpio.
+
+### Verificación pendiente
+- La pantalla «Hecho» y la hoja en un navegador (Playwright no está instalado).
+- La baja contra un Postgres real con `app_rls` y concurrencia de verdad (PGlite serializa).
+
+### Historia
+- v7 NO CERTIFICA: dobles en la devolución (MEDIA) y anuncio falso (BAJA).
+- v8 CON OBSERVACIONES: C4 (orden de la espera) y C1 (turno de otro fijo en la grilla).
+- v9 CON OBSERVACIONES: se cierran C4, A3b contra un fijo (470 → 0), el texto y las notas.
+  - C1 queda cerrado para el turno de otro fijo en la grilla, pero no cuando un bloqueo o un turno suelto tapan al otro fijo (obs. 1, anterior al diff).
+  - Hay un borde del bloqueo sin vuelta (obs. 2) y la A3b contra un turno suelto (obs. 3).
+
+Veredicto final: CON OBSERVACIONES
