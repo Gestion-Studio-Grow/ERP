@@ -141,15 +141,28 @@ test("P1-C1/C2/C6: dos negocios, dos conexiones MP, un aviso por cada una, cero 
   assert.equal(await s.duenio.integracionConexion.count({ where: { tenantId: b.id } }), 1);
   assert.equal(await s.duenio.integracionCredencial.count({ where: { tenantId: b.id } }), 2);
 
-  // Por la ruta real (sin handler en producción todavía): queda "recibido", con su negocio.
+  // Por la ruta real, con el handler de MP de producción (certificación P1, ADV-C2): lee el pago con
+  // el token de LA conexión de A. La red de MP se simula: el pago 900 no es de esa cuenta → "ignorado".
+  const fetchOriginal = globalThis.fetch;
+  const autorizaciones: string[] = [];
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    if (!String(url).startsWith("https://api.mercadopago.com/")) return fetchOriginal(url, init);
+    autorizaciones.push(String((init?.headers as Record<string, string>)?.Authorization));
+    return new Response("{}", { status: 404 });
+  }) as typeof fetch;
   const { POST } = await import("@/app/api/integraciones/c/[token]/route");
   const ahora = new Date();
-  const r0 = await POST(aRequest(ca.token, avisoMpFirmado(SECRETO_A, ahora, { pagoId: "900", requestId: "req-ruta-1" })), {
-    params: Promise.resolve({ token: ca.token }),
-  });
-  assert.equal(r0.status, 200);
+  try {
+    const r0 = await POST(aRequest(ca.token, avisoMpFirmado(SECRETO_A, ahora, { pagoId: "900", requestId: "req-ruta-1" })), {
+      params: Promise.resolve({ token: ca.token }),
+    });
+    assert.equal(r0.status, 200);
+  } finally {
+    globalThis.fetch = fetchOriginal;
+  }
+  assert.deepEqual(autorizaciones, ["Bearer APP_USR-token-a-000011112222"]);
   const ev0 = await s.duenio.eventoIntegracion.findMany({ where: { idExterno: "pago:900:req-ruta-1" } });
-  assert.deepEqual(ev0.map((e) => [e.tenantId, e.conexionId, e.estado]), [[a.id, ca.conexionId, "recibido"]]);
+  assert.deepEqual(ev0.map((e) => [e.tenantId, e.conexionId, e.estado, e.resumen]), [[a.id, ca.conexionId, "ignorado", "pago-no-encontrado"]]);
 
   // Con el handler: una notificación por cada negocio.
   const enviar = (token: string, e: EntradaCruda) => s.ent.atenderAvisoPorConexion(aRequest(token, e), token, s.deps());
@@ -277,12 +290,16 @@ test("P1-C5 (servicio): resolverConexionPorFirma elige la conexión que firmó, 
   for (const n of [a, b]) {
     await s.duenio.tenant.update({ where: { id: n.id }, data: { modules: { push: "mercadopago" } } });
   }
-  // Las conexiones de A comparten SECRETO_A (cuenta-a y cuenta-a2): una firma de A es ambigua.
+  // Una conexión activa por negocio (certificación P1, ADV-reconexion): cada alta de A (cuenta-a2,
+  // cuenta-rotar) desconectó a la anterior. Sólo firma la vigente (secreto rotado); SECRETO_A ya no.
   const deB = await s.m.resolverConexionPorFirma("mercadopago", avisoMpFirmado(SECRETO_B, new Date()), new Date());
   assert.ok(deB.ok);
   assert.equal(deB.ok && deB.conexion.tenantId, b.id);
-  const deA = await s.m.resolverConexionPorFirma("mercadopago", avisoMpFirmado(SECRETO_A, new Date()), new Date());
-  assert.deepEqual(deA, { ok: false, motivo: "ambigua" });
+  assert.equal(await s.duenio.integracionConexion.count({ where: { tenantId: a.id, estado: "conectada" } }), 1);
+  const deA = await s.m.resolverConexionPorFirma("mercadopago", avisoMpFirmado("whsec-nuevo-bbbb2222", new Date()), new Date());
+  assert.ok(deA.ok && deA.conexion.tenantId === a.id);
+  const vieja = await s.m.resolverConexionPorFirma("mercadopago", avisoMpFirmado(SECRETO_A, new Date()), new Date());
+  assert.deepEqual(vieja, { ok: false, motivo: "firma_invalida" });
   const nadie = await s.m.resolverConexionPorFirma("mercadopago", avisoMpFirmado("whsec-de-nadie-0000", new Date()), new Date());
   assert.deepEqual(nadie, { ok: false, motivo: "firma_invalida" });
 });

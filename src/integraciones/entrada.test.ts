@@ -21,6 +21,9 @@ import {
   atenderAvisoDeApp,
   atenderAvisoPorConexion,
   atenderDesafio,
+  filtroDeReclamo,
+  LEASE_RECIBIDO_MS,
+  MARCA_SIN_MANEJADOR,
   type DepsEntrada,
 } from "./entrada.server";
 import type { EntradaCruda } from "./contrato";
@@ -164,6 +167,20 @@ test("ruta de la aplicación (WhatsApp): desafío, firma de entorno y cuenta sin
   assert.equal((await atenderAvisoDeApp(req(url, avisoMpFirmado("s", new Date())), "mercadopago", deps())).status, 404);
 });
 
+test("filtroDeReclamo: sin handler sólo 'fallido'; con handler también 'recibido' sin handler o vencido (lease)", () => {
+  const ahora = new Date("2026-10-28T12:00:00Z");
+  assert.deepEqual(filtroDeReclamo(ahora, false), { OR: [{ estado: "fallido" }] });
+  const corte = new Date(ahora.getTime() - LEASE_RECIBIDO_MS);
+  assert.deepEqual(filtroDeReclamo(ahora, true), {
+    OR: [
+      { estado: "fallido" },
+      { estado: "recibido", resumen: MARCA_SIN_MANEJADOR },
+      { estado: "recibido", procesadoEn: { lt: corte } },
+      { estado: "recibido", procesadoEn: null, createdAt: { lt: corte } },
+    ],
+  });
+});
+
 test("elegirPorFirma: exactamente una conexión gana; ninguna, dos o demasiadas → rechazo", () => {
   const ahora = new Date();
   const aviso = avisoMpFirmado("sec-b", ahora);
@@ -172,7 +189,12 @@ test("elegirPorFirma: exactamente una conexión gana; ninguna, dos o demasiadas 
   assert.ok(una.ok && una.conexion.conexionId === "b");
   assert.deepEqual(elegirPorFirma(conectorMercadoPago, aviso, [c("a", "sec-a")], ahora), { ok: false, motivo: "firma_invalida" });
   assert.deepEqual(elegirPorFirma(conectorMercadoPago, aviso, [c("a", null)], ahora), { ok: false, motivo: "sin_secreto" });
-  assert.deepEqual(elegirPorFirma(conectorMercadoPago, aviso, [c("a", "sec-b"), c("b", "sec-b")], ahora), { ok: false, motivo: "ambigua" });
+  // Dos NEGOCIOS con el mismo secreto → ambigua. Dos conexiones del MISMO negocio (reconexión) →
+  // la primera, que conexionesDelConector da como la más reciente (certificación P1, ADV-reconexion).
+  const deOtro = { conexion: { ...MP, tenantId: "neg-b", conexionId: "b" }, secreto: "sec-b" };
+  assert.deepEqual(elegirPorFirma(conectorMercadoPago, aviso, [c("a", "sec-b"), deOtro], ahora), { ok: false, motivo: "ambigua" });
+  const mismo = elegirPorFirma(conectorMercadoPago, aviso, [c("nueva", "sec-b"), c("vieja", "sec-b")], ahora);
+  assert.ok(mismo.ok && mismo.conexion.conexionId === "nueva");
   assert.deepEqual(elegirPorFirma(conectorMercadoPago, aviso, null, ahora), { ok: false, motivo: "demasiadas" });
   const muchas = Array.from({ length: 21 }, (_, i) => c(`c${i}`, "sec-b"));
   assert.deepEqual(elegirPorFirma(conectorMercadoPago, aviso, muchas, ahora), { ok: false, motivo: "demasiadas" });

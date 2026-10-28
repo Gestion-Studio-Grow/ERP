@@ -180,6 +180,7 @@ export interface ConexionCreada {
  * ANTES de abrir la transacción: sin `INTEGRACIONES_MASTER_KEY`, con un campo inválido o con
  * un conector desconocido, lanza `ConexionError` y no escribe nada. La misma cuenta externa
  * conectada a otro negocio choca con @@unique([conector, cuentaExterna]) → "cuenta_en_uso".
+ * En "url-por-conexion" la conexión nueva DESCONECTA a las anteriores del mismo negocio y conector.
  */
 export async function crearConexion(
   tenantId: string,
@@ -209,9 +210,21 @@ export async function crearConexion(
     ultimos4: ultimos4(valor),
   }));
 
+  // "url-por-conexion" (Mercado Pago): UNA conexión activa por negocio y conector. La nueva
+  // reemplaza a la anterior en la misma transacción, con un candado por (negocio, conector) para
+  // que dos altas a la vez (dos puestos, doble clic) no dejen dos activas con el mismo secreto.
+  const unaPorNegocio = conector.entrada?.modo === "url-por-conexion";
+
   try {
     await tenantTransaction(
       async (tx) => {
+        if (unaPorNegocio) {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`integracion-conexion:${tenantId}:${conector.id}`}))`;
+          await tx.integracionConexion.updateMany({
+            where: { tenantId, conector: conector.id, estado: { not: "desconectada" } },
+            data: { estado: "desconectada" },
+          });
+        }
         await tx.integracionConexion.create({
           data: {
             id: conexionId,
@@ -364,37 +377,49 @@ export async function conexionDelNegocio(tenantId: string, conectorId: string): 
 /** Tope de conexiones que se prueban por firma o por cuenta en un aviso (P1-C5). */
 export const TOPE_CONEXIONES_POR_FIRMA = 20;
 
+/** Negocios por página al recorrer los que tienen el módulo. */
+const PAGINA_NEGOCIOS = 100;
+
 /**
  * Las conexiones activas de un conector, de los negocios que lo tienen activo (Tenant.modules).
  * Con RLS la app no lee conexiones de varios negocios en una consulta: se recorre negocio por
- * negocio (Tenant no tiene RLS). Devuelve null si hay MÁS que `tope` (fail-closed: no se elige
- * entre un montón).
+ * negocio (Tenant no tiene RLS), paginando por id, TODOS los que tienen el módulo: el tope cuenta
+ * CONEXIONES, no negocios (un negocio sin conexión no le quita lugar a uno con conexión). Devuelve
+ * null si hay MÁS que `tope` conexiones (fail-closed: no se elige entre un montón). Dentro de cada
+ * negocio, la más reciente primero (desempate de `elegirPorFirma`).
+ * Deuda anotada: una transacción por negocio con el módulo; con cientos de negocios conviene una
+ * vista de sólo-lectura sin RLS para el ruteo.
  */
 export async function conexionesDelConector(
   conectorId: string,
   tope: number = TOPE_CONEXIONES_POR_FIRMA,
 ): Promise<ConexionResuelta[] | null> {
-  const negocios = await basePrisma.tenant.findMany({
-    where: { modules: { has: conectorId } },
-    select: { id: true },
-    orderBy: { createdAt: "asc" },
-    take: tope + 1,
-  });
   const salida: ConexionResuelta[] = [];
-  for (const n of negocios) {
-    const filas = await tenantTransaction(
-      (tx) =>
-        tx.integracionConexion.findMany({
-          where: { tenantId: n.id, conector: conectorId, estado: { in: [...ESTADOS_QUE_RECIBEN] } },
-          select: { id: true, cuentaExterna: true },
-          take: tope + 1,
-        }),
-      { tenantId: n.id },
-    );
-    for (const f of filas) salida.push({ tenantId: n.id, conexionId: f.id, conector: conectorId, cuentaExterna: f.cuentaExterna });
-    if (salida.length > tope) return null;
+  let despuesDe: string | null = null;
+  for (;;) {
+    const negocios: Array<{ id: string }> = await basePrisma.tenant.findMany({
+      where: { modules: { has: conectorId }, ...(despuesDe ? { id: { gt: despuesDe } } : {}) },
+      select: { id: true },
+      orderBy: { id: "asc" },
+      take: PAGINA_NEGOCIOS,
+    });
+    for (const n of negocios) {
+      const filas = await tenantTransaction(
+        (tx) =>
+          tx.integracionConexion.findMany({
+            where: { tenantId: n.id, conector: conectorId, estado: { in: [...ESTADOS_QUE_RECIBEN] } },
+            select: { id: true, cuentaExterna: true },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: tope + 1,
+          }),
+        { tenantId: n.id },
+      );
+      for (const f of filas) salida.push({ tenantId: n.id, conexionId: f.id, conector: conectorId, cuentaExterna: f.cuentaExterna });
+      if (salida.length > tope) return null;
+    }
+    if (negocios.length < PAGINA_NEGOCIOS) return salida;
+    despuesDe = negocios[negocios.length - 1].id;
   }
-  return salida;
 }
 
 /** La conexión de una cuenta externa ("url-de-app"), entre las del conector. */
@@ -420,8 +445,9 @@ const SECRETO_DE_RELLENO = "relleno-de-tiempo-constante-sin-uso";
 /**
  * Elige la conexión cuyo secreto valida la firma del aviso. PURA sobre los candidatos: se
  * verifican TODOS y se rellena hasta `tope` con un secreto de descarte, así el tiempo no dice
- * cuántos hay ni cuál firmó. Exactamente una → ok; ninguna → el motivo del rechazo; más de
- * una → "ambigua" (dos negocios con el mismo secreto: no se adivina).
+ * cuántos hay ni cuál firmó. Exactamente una → ok; ninguna → el motivo del rechazo; varias del
+ * MISMO negocio (reconexión vieja que quedó activa) → la primera, que es la más reciente
+ * (`conexionesDelConector` las da así); varias de negocios distintos → "ambigua" (no se adivina).
  */
 export function elegirPorFirma(
   conector: Pick<ConectorDescriptor, "entrada">,
@@ -442,7 +468,7 @@ export function elegirPorFirma(
     if (r.ok) firmaron.push(c.conexion);
     else if (r.motivo !== "sin_secreto" && r.motivo !== "firma_invalida") motivo = r.motivo;
   }
-  if (firmaron.length === 1) return { ok: true, conexion: firmaron[0] };
+  if (firmaron.length >= 1 && firmaron.every((c) => c.tenantId === firmaron[0].tenantId)) return { ok: true, conexion: firmaron[0] };
   if (firmaron.length > 1) return { ok: false, motivo: "ambigua" };
   return { ok: false, motivo: algunSecreto ? motivo : "sin_secreto" };
 }

@@ -14,9 +14,16 @@
 //     conexión de SU cuenta externa · mismo registro y handler.
 //
 // Deduplicación: @@unique([tenantId, conexionId, direccion, idExterno]). El primero inserta y
-// corre el handler. Un reenvío choca: si el anterior quedó "fallido" se reclama (fallido →
-// recibido, uno solo gana) y se reintenta; si no, es "duplicado" y no corre nada. Sin handler
-// para el conector, el evento queda "recibido" (lo levanta quien se suscriba después).
+// corre el handler. Un reenvío choca y RECLAMA la fila (→ "recibido", uno solo gana) si:
+//   · quedó "fallido";
+//   · quedó "recibido" porque no había handler (marca MARCA_SIN_MANEJADOR) y ahora sí lo hay;
+//   · quedó "recibido" hace más de LEASE_RECIBIDO_MS (la función se cortó entre el insert y el
+//     handler: timeout serverless). El último reclamo se anota en `procesadoEn` mientras la fila
+//     está "recibido", así un reclamo en curso no se vuelve a reclamar antes del lease.
+// Si no, es "duplicado" y no corre nada. El reclamo es exclusivo: el updateMany cambia lo mismo
+// que filtra (estado, marca y procesadoEn), así que dos reenvíos a la vez → count 1 para uno solo.
+// Sin handler para el conector, el evento queda "recibido" con la marca (lo levanta el próximo
+// reenvío que sí tenga handler).
 
 import { createHash } from "node:crypto";
 import { runInTenantContext } from "@/lib/tenant-context";
@@ -90,6 +97,11 @@ export interface DepsEntrada {
 
 const limitador: RateLimiter = createRateLimiter({ max: 120, windowMs: 60_000 });
 
+/**
+ * Deps reales SIN handlers: los cablea cada ruta (la de MP, src/app/api/integraciones/c/[token]/route.ts,
+ * suma `manejadorAvisoMP`; acá sería un ciclo de imports). Sin handler el evento queda "recibido" con
+ * MARCA_SIN_MANEJADOR y lo reclama el próximo reenvío que sí lo tenga.
+ */
 export function depsDeProduccion(): DepsEntrada {
   return {
     registro: registroDelProducto(),
@@ -120,6 +132,29 @@ export interface ResumenDespacho {
 const esUnicaRepetida = (e: unknown) => !!e && typeof e === "object" && (e as { code?: unknown }).code === "P2002";
 const LARGO_DETALLE = 500;
 
+/** Una fila "recibido" más vieja que esto se da por abandonada (corte/timeout) y se reclama. */
+export const LEASE_RECIBIDO_MS = 5 * 60_000;
+/** `resumen` de la fila que quedó "recibido" porque el conector no tenía handler. */
+export const MARCA_SIN_MANEJADOR = "pendiente: sin handler para el conector";
+
+/**
+ * El filtro del reclamo de un reenvío (PURO, testeable). Sin handler sólo se reclaman los
+ * "fallido" (como antes); con handler, además los "recibido" sin handler o vencidos.
+ */
+export function filtroDeReclamo(ahora: Date, conManejador: boolean, leaseMs: number = LEASE_RECIBIDO_MS) {
+  const corte = new Date(ahora.getTime() - leaseMs);
+  const fallido = { estado: "fallido" as const };
+  if (!conManejador) return { OR: [fallido] };
+  return {
+    OR: [
+      fallido,
+      { estado: "recibido" as const, resumen: MARCA_SIN_MANEJADOR },
+      { estado: "recibido" as const, procesadoEn: { lt: corte } },
+      { estado: "recibido" as const, procesadoEn: null, createdAt: { lt: corte } },
+    ],
+  };
+}
+
 /**
  * Guarda cada evento en EventoIntegracion (redactado) y corre el handler UNA vez por clave.
  * Todo con el negocio de la conexión: tenantTransaction para escribir y runInTenantContext
@@ -145,18 +180,24 @@ export async function registrarYDespachar(
     let id: string | null = null;
     try {
       const fila = await tenantTransaction(
-        (tx) => tx.eventoIntegracion.create({ data: { ...clave, tipo: evento.tipo, payload, payloadSha256, intentos: 1 }, select: { id: true } }),
+        (tx) =>
+          tx.eventoIntegracion.create({
+            data: { ...clave, tipo: evento.tipo, payload, payloadSha256, intentos: 1, resumen: manejador ? null : MARCA_SIN_MANEJADOR },
+            select: { id: true },
+          }),
         { tenantId },
       );
       id = fila.id;
     } catch (e) {
       if (!esUnicaRepetida(e)) throw e;
-      // Reenvío. Sólo se reintenta lo que falló, y lo reclama UNO (updateMany condicionado).
+      // Reenvío: se reintenta lo que falló, lo que quedó sin handler o lo abandonado (lease), y lo
+      // reclama UNO (updateMany condicionado que cambia lo mismo que filtra).
+      const ahora = new Date();
       const reclamado = await tenantTransaction(
         async (tx) => {
           const n = await tx.eventoIntegracion.updateMany({
-            where: { ...clave, estado: "fallido" },
-            data: { estado: "recibido", intentos: { increment: 1 } },
+            where: { ...clave, ...filtroDeReclamo(ahora, !!manejador) },
+            data: { estado: "recibido", intentos: { increment: 1 }, resumen: manejador ? null : MARCA_SIN_MANEJADOR, procesadoEn: ahora },
           });
           if (n.count !== 1) return null;
           return tx.eventoIntegracion.findFirst({ where: clave, select: { id: true } });
