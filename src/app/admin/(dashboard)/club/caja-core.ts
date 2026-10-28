@@ -402,12 +402,14 @@ export function ejecutarCaja(estado: EstadoClub, accion: AccionCaja, ahora: Ahor
   const activo = estado.usuarios.some((u) => u.id === quien && u.activo !== false);
   let resultado: DesenlaceConPin["pin"] = null;
   let duenio = false;
+  let largoDelRol = 0;
   if (activo) {
     if (pinDesactualizado(estado, quien)) return { ok: false, mensaje: PIN_VIEJO_CAJA, pin: "malo" };
     const v = verificarFirma(estado, quien, pin);
     if (!v.ok) return { ok: false, mensaje: v.motivo, pin: "malo" };
     resultado = "bueno";
     duenio = v.usuario.rol === "duenio";
+    largoDelRol = largoPin(v.usuario.rol);
   }
   const fallo = (motivo: string): DesenlaceCaja => ({ ok: false, mensaje: motivo, pin: resultado, duenio });
   const firma = { usuarioId: auth.usuarioId, firmaId, pin };
@@ -415,8 +417,9 @@ export function ejecutarCaja(estado: EstadoClub, accion: AccionCaja, ahora: Ahor
   // recepción se opera pero no se firma. (Las demás firmas las valida el motor con `firmarCaja`.)
   // Un firmaId que no es de alguien activo no firma: sin esto, el cierre viejo se salteaba el chequeo de largo.
   if (accion.tipo === "cerrar" && firmaId && !activo) return fallo("Quien firma no está activo en el club: que firme un dueño.");
-  if ((accion.tipo === "egreso" || accion.tipo === "cerrar") && activo && pin.length < largoFirmaCaja(estado))
-    return fallo(`Esto lo firma un PIN de ${largoFirmaCaja(estado)} dígitos: con el PIN de ${pin.length} se opera pero no se firma. Que firme un dueño.`);
+  // Y firma por ROL, no por el largo del PIN que llega (CERT-B4 v5, F6): recepción con un PIN propio de 4 no firma.
+  if ((accion.tipo === "egreso" || accion.tipo === "cerrar") && activo && (largoDelRol < largoFirmaCaja(estado) || pin.length < largoFirmaCaja(estado)))
+    return fallo(`Esto lo firma un PIN de ${largoFirmaCaja(estado)} dígitos: con el PIN de ${Math.min(largoDelRol, pin.length)} se opera pero no se firma. Que firme un dueño.`);
   switch (accion.tipo) {
     case "egreso": {
       const monto = leerMonto(accion.monto);
