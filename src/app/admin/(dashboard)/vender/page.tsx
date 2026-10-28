@@ -16,7 +16,6 @@ import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
 import { mostradorBoutiqueDelNegocio } from "@/lib/clientes/fiado.server";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { VENTANA_DEL_CUADERNO } from "@/lib/cuaderno/hora-de-la-venta";
-import AbrirCajaEnLinea from "./AbrirCajaEnLinea";
 import ProtocoloSinSenal, { RUTA_DEL_CUADERNO } from "./ProtocoloSinSenal";
 import { cargarMostradorBoutique } from "./boutique/cargar";
 import MostradorBoutique from "./boutique/MostradorBoutique";
@@ -84,30 +83,23 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
   // quedaron $X» arriba de todo, para abrirla sin salir de Vender (MG-057). Apagado, nada cambia.
   // La lee `cargarMostradorBoutique` (la regla de `getAperturaEnVender`, sólo para quien toma pedidos).
   const apertura = mostrador?.apertura ?? null;
-  const tarjetaCaja = apertura ? <AbrirCajaEnLinea esperado={apertura.esperado} ultimoCierre={apertura.ultimoCierre} hoy={apertura.hoy} /> : null;
+  // La tarjeta va en la fila de atajos (FilaDeAtajos) y su código baja recién al abrirla.
+  const caja = apertura ? { esperado: apertura.esperado, ultimoCierre: apertura.ultimoCierre, hoy: apertura.hoy } : null;
   // «Venderle» / «Repetir» desde la ficha (2D): `?cliente=&repetir=`. Sólo el boutique y quien
   // toma pedidos (la acción lo vuelve a exigir y acota la ficha y el pedido al negocio). Sin la
   // dirección, o con una ficha de otro negocio, Vender arranca vacío como siempre.
   // También la lee `cargarMostradorBoutique` (`pedidoDeVentaDesdeLaFicha`, sólo con `?cliente=`).
   const desdeLaFicha = mostrador?.desdeLaFicha ?? null;
-  // RESPALDO SIN SEÑAL (2E): la tarjeta del protocolo (aparece sola si se corta) y el enlace fijo a
-  // «Cargar ventas del cuaderno», arriba del mostrador. Sólo el boutique; el enlace, sólo a quien
-  // la pantalla del cuaderno deja entrar (la misma regla que su page.tsx).
+  // RESPALDO SIN SEÑAL (2E): la tarjeta del protocolo (aparece sola si se corta), arriba del
+  // mostrador. Sólo el boutique. El enlace a «Cargar ventas del cuaderno» (sólo a quien la pantalla
+  // del cuaderno deja entrar, la misma regla que su page.tsx) y la tarjeta de la caja van ahora en
+  // la fila de atajos, DEBAJO del buscador y las teclas (tanda practicidad, V-1): el mostrador primero.
   const respaldo = boutique ? (
-    <div data-vender="respaldo-sin-senal" className="mb-4 space-y-2">
+    <div data-vender="respaldo-sin-senal" className="mb-4 space-y-2 empty:hidden">
       <ProtocoloSinSenal negocioId={tenantId} />
-      {roleHasCapability(user.role, "orders:manage") && VENTANA_DEL_CUADERNO[user.role] !== null && (
-        <p className="text-sm">
-          <Link
-            href={RUTA_DEL_CUADERNO}
-            className="inline-flex min-h-11 items-center font-medium text-accent-ink underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            Cargar ventas del cuaderno
-          </Link>
-        </p>
-      )}
     </div>
   ) : null;
+  const cuaderno = roleHasCapability(user.role, "orders:manage") && VENTANA_DEL_CUADERNO[user.role] !== null ? RUTA_DEL_CUADERNO : null;
   // Los servicios se cobran creando un turno (ver MostradorTabs): sólo en un negocio de
   // servicios y sólo para quien puede dar turnos. En un comercio no hay solapa de Servicios.
   const conServicios = !identidad.isRetail;
@@ -118,6 +110,8 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
     mostrador ? (
       <MostradorBoutique
         datos={mostrador}
+        caja={caja}
+        cuaderno={cuaderno}
         user={user}
         tenantId={tenantId}
         identidad={identidad}
@@ -156,7 +150,6 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
     return (
       <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
         <h1 className="sr-only">Vender</h1>
-        {tarjetaCaja}
         <Suspense fallback={<p data-ui="linea-estado" aria-hidden>&nbsp;</p>}>
           <EstadoDelMostrador role={user.role} mostrador={identidad.isRetail} />
         </Suspense>
@@ -182,7 +175,6 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
           </>
         }
       />
-      {tarjetaCaja}
       {respaldo}
       {/* El formulario de productos es el de Vender (abajo): el de la bandeja no se usa, así que
           no se le mandan los productos dos veces al navegador. */}

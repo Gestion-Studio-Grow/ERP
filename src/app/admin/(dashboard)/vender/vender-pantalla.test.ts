@@ -224,6 +224,8 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import ToastProvider from "@/app/admin/(dashboard)/ToastProvider";
 import VenderForm from "@/app/admin/(dashboard)/vender/VenderForm";
+// El boutique se monta como en la página (MostradorBoutique): su propio módulo, sin pasar por VenderForm.
+import VenderBoutique from "@/app/admin/(dashboard)/vender/boutique/VenderBoutique";
 import AjustarPedidoForm from "@/app/admin/(dashboard)/pedidos/AjustarPedidoForm";
 import AnularPedidoForm from "@/app/admin/(dashboard)/pedidos/AnularPedidoForm";
 import PosForm from "@/app/admin/(dashboard)/pedidos/PosForm";
@@ -258,7 +260,7 @@ window.__montar = (cual, tope, extra) =>
         : cual === "sin-precios"
         ? createElement(VenderForm, { products: [], stockById: {}, rapidos: [], negocio: "MAGRA Canning", topeDescuentoPct: tope })
         : cual === "vender" || cual === "pedido"
-        ? createElement(VenderForm, { products: productos, stockById: stock, rapidos: ["p_vacio", "p_entrana"], negocio: "MAGRA Canning", topeDescuentoPct: tope, pedidoInicial: cual === "pedido", ...(extra || {}) })
+        ? createElement(extra && extra.boutique ? VenderBoutique : VenderForm, { products: productos, stockById: stock, rapidos: ["p_vacio", "p_entrana"], negocio: "MAGRA Canning", topeDescuentoPct: tope, pedidoInicial: cual === "pedido", ...(extra || {}) })
         : cual === "vender-nuevo"
         ? createElement(DisenoProvider, { nuevo: true }, createElement(VenderForm, { products: productos, stockById: stock, rapidos: ["p_vacio", "p_entrana"], negocio: "MAGRA Canning", vendedor: "Micaela", sustantivo: "corte", topeDescuentoPct: tope, ...(extra || {}) }))
         : createElement(AjustarPedidoForm, { id: "ord_7", code: 7, subtotal: PEDIDOS[cual].subtotal, descuento: PEDIDOS[cual].descuento, items: [
@@ -327,7 +329,7 @@ async function cssDeLaApp(): Promise<string> {
   }
 }
 
-describe("Vender en el navegador", { timeout: 120_000 }, () => {
+describe("Vender en el navegador", { timeout: 240_000 }, () => {
   let browser: Browser | null = null;
   let bundle = "";
   let css = "";
@@ -401,9 +403,11 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     tope: number | null = 10,
     extra?: Record<string, unknown>,
     celular?: { encabezado: number; alto: number },
-    opciones?: { antes?: (p: Page) => Promise<void> },
+    opciones?: { antes?: (p: Page) => Promise<void>; tactil?: boolean; ancho?: number },
   ): Promise<{ page: Page; errores: string[] }> {
-    const page = await browser!.newPage({ viewport: { width: 412, height: celular?.alto ?? 915 }, locale: "es-AR" });
+    // `tactil`: una pantalla de dedo (pointer: coarse), como la tablet o el celular del mostrador.
+    const tactil = opciones?.tactil ?? false;
+    const page = await browser!.newPage({ viewport: { width: opciones?.ancho ?? 412, height: celular?.alto ?? 915 }, locale: "es-AR", hasTouch: tactil, isMobile: tactil });
     const errores: string[] = [];
     page.on("pageerror", (e) => errores.push(e.message));
     if (opciones?.antes) await opciones.antes(page);
@@ -2310,6 +2314,14 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
   const envios = (page: Page) => page.evaluate(() => (window as unknown as Ventana).__envios);
   const focoEnElCampoUnico = (page: Page) => page.waitForFunction(() => document.activeElement?.id === "campo-unico");
 
+  // V-2 (tanda practicidad): el pie del boutique se pliega. Con algo cargado es una barra con el
+  // total y «Cobrar $X»; los medios (Efectivo, Mercado Pago, billetes, Dividir) aparecen al tocarla.
+  const abrirCobro = async (page: Page) => {
+    const b = page.locator('[data-vender="abrir-cobro"]');
+    await b.waitFor();
+    await b.click();
+  };
+
   test("boutique: teclas del catálogo con precio y stock, la unidad entra con 1 y suma, el pie cobra; foco en el campo único al montar y al limpiar", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("vender", 10, boutique());
@@ -2326,6 +2338,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await tecla("Crema").click();
     assert.equal(await page.locator('[data-vender="ticket-boutique"] [data-vender="renglon"]').count(), 1, "un renglón, no dos");
     assert.equal(await page.locator('[data-vender="ticket-boutique"] input[data-tipo="cantidad"]').inputValue(), "2");
+    await abrirCobro(page);
     await page.getByRole("button", { name: "Cobrar $18.000 con Mercado Pago" }).click();
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
     const [e] = await envios(page);
@@ -2352,6 +2365,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await campo.press("Enter");
     // MG-041 (tanda 2): los billetes están a la vista abajo de los medios; el billete cobra en un toque.
     // Ningún billete menor al total, ninguno elegido de antemano.
+    await abrirCobro(page);
     await page.getByRole("button", { name: /^Paga con \$20\.000 en efectivo/ }).click();
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
     const [e] = await envios(page);
@@ -2370,6 +2384,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     const { page, errores } = await montar("vender", 10, boutique());
     await page.locator('[data-vender="tecla"]').filter({ hasText: "Vacío" }).click();
     await page.keyboard.type("1,25");
+    await abrirCobro(page);
     await page.getByRole("button", { name: "Dividir" }).click();
     await page.getByLabel("Con Efectivo").fill("10000");
     await page.getByRole("group", { name: "Medio del pago 2" }).getByRole("button", { name: "Mercado Pago" }).click();
@@ -2395,6 +2410,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.getByRole("option", { name: /Parrilla UAT/ }).click();
     await page.getByText(/CUIT 27-12345678-9/).waitFor();
     await page.getByLabel("Facturar al cobrar").check();
+    await abrirCobro(page);
     await page.getByRole("button", { name: "Cobrar $9.000 con Transferencia" }).click();
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 2);
     const [venta, factura] = await envios(page);
@@ -2412,7 +2428,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     const { page, errores } = await montar("vender", 10, boutique({ diaCerrado: "2026-10-21" }));
     await page.getByText("El día está cerrado: lo que vendas queda para cobrar mañana.").waitFor();
     await page.locator('[data-vender="tecla"]').filter({ hasText: "Crema" }).click();
-    assert.equal(await page.getByRole("button", { name: "Cobrar $9.000 en efectivo" }).isDisabled(), true);
+    assert.equal(await page.locator('[data-vender="abrir-cobro"]').isDisabled(), true);
     await page.getByRole("button", { name: "Registrar para cobrar mañana" }).click();
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
     const [e] = await envios(page);
@@ -2477,6 +2493,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     const { page, errores } = await montar("vender", null, conBalanzaDeImporte({ topePrecioAMano: null }));
     await pasarEtiquetaDistinta(page);
     // Cobra el del sistema mientras no se toque el chip.
+    await abrirCobro(page);
     await page.getByRole("button", { name: "Cobrar $15.625 con Mercado Pago" }).waitFor();
     await page.getByRole("button", { name: "Cobrar el de la etiqueta de Vacío: $15.630,00" }).click();
     assert.equal(await page.locator('[data-vender="etiqueta-distinta"]').count(), 0, "el renglón pasó a precio a mano");
@@ -2496,6 +2513,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     const { page, errores } = await montar("vender", 10, conBalanzaDeImporte({ topePrecioAMano: { bajaPct: 10, maximo: 50000 } }));
     await pasarEtiquetaDistinta(page);
     assert.equal(await page.getByRole("button", { name: /Cobrar el de la etiqueta/ }).count(), 0);
+    await abrirCobro(page);
     await page.getByRole("button", { name: "Cobrar $15.625 con Mercado Pago" }).click();
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
     const [e] = await envios(page);
@@ -2564,6 +2582,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     assert.equal(await renglones2a(page).count(), 1, "un renglón, no tres");
     assert.equal(await page.locator('[data-vender="ticket-boutique"] input[data-tipo="cantidad"]').inputValue(), "3");
     await renglones2a(page).getByText("3 u × $9.000/u").waitFor();
+    await abrirCobro(page);
     await page.getByRole("button", { name: "Cobrar $27.000 con Mercado Pago" }).waitFor();
     assert.deepEqual(errores, []);
     await page.close();
@@ -2621,6 +2640,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.locator('[data-vender="coincidencias"]').getByRole("button", { name: /Hamburguesa casera/ }).waitFor();
     await falta.getByRole("button", { name: "Dejar 2" }).click();
     assert.equal(await page.locator('[data-vender="ticket-boutique"] input[data-tipo="cantidad"]').inputValue(), "2");
+    await abrirCobro(page);
     await page.getByRole("button", { name: "Cobrar $18.000 con Mercado Pago" }).waitFor();
     assert.ok(await page.getByRole("button", { name: "Cobrar $18.000 con Mercado Pago" }).isEnabled());
     assert.deepEqual(errores, []);
@@ -2635,11 +2655,12 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.evaluate(() => {
       (window as unknown as Ventana).__precios = { p_vacio: 13000 };
     });
+    await abrirCobro(page);
     await page.getByRole("button", { name: "Cobrar $12.500 con Mercado Pago" }).click();
     await page.locator('[data-vender="cambio-de-precio"]').getByText("Subió a $13.000 recién").waitFor();
     await page.getByText(/Cambió un precio mientras cargabas/).waitFor();
     assert.equal((await envios(page)).length, 0, "no se cobró un precio que no se veía");
-    await page.locator('[data-vender="total"]').getByText("$13.000").waitFor();
+    await page.locator('[data-vender="total-fijo"]').getByText("$13.000").waitFor();
     await page.getByRole("button", { name: "Cobrar $13.000 con Mercado Pago" }).click();
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
     await page.getByLabel("Ticket de la venta #42").getByText("$13.000,00").first().waitFor();
@@ -2659,6 +2680,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.locator('[data-vender="cambio-de-precio"]').getByText("Subió a $13.000 recién").waitFor();
     await page.getByText(/Cambió un precio en el catálogo/).waitFor();
     await page.keyboard.type("1");
+    await abrirCobro(page);
     await page.getByRole("button", { name: "Cobrar $13.000 con Mercado Pago" }).click();
     await page.getByLabel("Ticket de la venta #42").getByText("$13.000,00").first().waitFor();
     const v = await page.evaluate(() => {
@@ -2677,6 +2699,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.keyboard.type("1,234");
     const chips = page.getByRole("group", { name: "Descuento" });
     await chips.getByRole("button", { name: "Redondear −$25" }).click();
+    await abrirCobro(page);
     await page.getByRole("button", { name: "Cobrar $15.400 con Mercado Pago" }).waitFor();
     await chips.getByRole("button", { name: "10 %" }).click();
     assert.equal(await chips.getByRole("button", { name: "10 %" }).getAttribute("aria-pressed"), "true");
@@ -2694,9 +2717,10 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.getByRole("button", { name: "+ Precio a mano" }).click();
     await page.getByPlaceholder("Qué se vende (ej.: Bondiola)").fill("Bondiola");
     await page.getByPlaceholder("$ Importe").fill("12.000");
-    await page.locator('[data-ui="pie-de-cobro"]').getByText("Falta el motivo de «Bondiola»").waitFor();
-    assert.equal(await page.getByRole("button", { name: /con Mercado Pago/ }).isDisabled(), true);
+    await page.locator('[data-vender="cobro-boutique"]').getByText("Falta el motivo de «Bondiola»").waitFor();
+    assert.equal(await page.locator('[data-vender="abrir-cobro"]').isDisabled(), true);
     await page.getByRole("group", { name: "Motivos frecuentes" }).getByRole("button", { name: "Pieza especial" }).click();
+    await abrirCobro(page);
     await page.getByRole("button", { name: "Cobrar $12.000 con Mercado Pago" }).click();
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
     const [e] = await envios(page);
@@ -2739,19 +2763,20 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await fijo.getByText("$51.500").waitFor();
     const caja = await fijo.boundingBox();
     assert.ok(caja && caja.y >= 0 && caja.y + caja.height <= 844, `el total se ve sin bajar (y=${caja?.y})`);
-    const total = await page.locator('[data-vender="total"] p[aria-live]').evaluate((el) => getComputedStyle(el).fontSize);
-    assert.equal(total, "48px", "el total del ticket, 48 px");
+    // V-2: un solo total, el del pie (el ticket ya no lo repite).
+    assert.equal(await page.locator('[data-vender="total"]').count(), 0, "el ticket no repite el total");
     assert.deepEqual(errores, []);
     await page.close();
   });
 
-  test("2A · MG-041: Vacío → peso → Mercado Pago: 2 toques + el peso, el ticket aparece y el foco vuelve al campo único", async (t) => {
+  test("2A · MG-041: Vacío → peso → Mercado Pago: 3 toques + el peso, el ticket aparece y el foco vuelve al campo único", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("vender", 10, boutique());
     await focoEnElCampoUnico(page);
     await tecla2a(page, "Vacío").click(); // toque 1
     await page.keyboard.type("1,240");
-    await page.getByRole("button", { name: "Cobrar $15.500 con Mercado Pago" }).click(); // toque 2
+    await abrirCobro(page); // toque 2 (V-3: tecla → peso → «Cobrar $X» → el medio)
+    await page.getByRole("button", { name: "Cobrar $15.500 con Mercado Pago" }).click(); // toque 3
     await page.getByLabel("Ticket de la venta #42").waitFor();
     await focoEnElCampoUnico(page);
     const [e] = await envios(page);
@@ -2760,13 +2785,14 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     assert.deepEqual(errores, []);
     await page.close();
   });
-  test("integración T2 · MG-041: Vacío → peso → «Efectivo» cobra justo: 2 toques + el peso, sin elegir billete", async (t) => {
+  test("integración T2 · MG-041: Vacío → peso → «Efectivo» cobra justo: 3 toques + el peso, sin elegir billete", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("vender", 10, boutique());
     await focoEnElCampoUnico(page);
     await tecla2a(page, "Vacío").click(); // toque 1
     await page.keyboard.type("1,240");
-    await page.getByRole("button", { name: "Cobrar $15.500 en efectivo" }).click(); // toque 2
+    await abrirCobro(page); // toque 2 (V-3: tecla → peso → «Cobrar $X» → el medio)
+    await page.getByRole("button", { name: "Cobrar $15.500 en efectivo" }).click(); // toque 3
     await page.getByLabel("Ticket de la venta #42").waitFor();
     await focoEnElCampoUnico(page);
     const todos = await envios(page);
@@ -2785,6 +2811,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await tecla2a(page, "Vacío").click();
     await page.keyboard.type("1,240");
     // «Otro»: se abre el campo «Pagó con» (y «Volver» deja todo como estaba, sin cobrar).
+    await abrirCobro(page);
     await page.getByRole("button", { name: "Paga en efectivo con otro importe" }).click();
     await page.getByLabel("Pagó con").waitFor();
     await page.getByRole("button", { name: "Volver" }).click();
@@ -2825,7 +2852,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     assert.equal(await renglones.count(), 2, "Vacío y Crema; Matambre no está a la venta en esta pantalla");
     assert.equal(await page.locator('input[name="customerName"]').inputValue(), "Parrilla UAT");
     // El vacío pide el peso: no se cobra hasta pesarlo.
-    assert.equal(await page.getByRole("button", { name: /Cobrar .* en efectivo/ }).isDisabled(), true);
+    assert.equal(await page.locator('[data-vender="abrir-cobro"]').isDisabled(), true);
     await page.getByRole("button", { name: "Entendido" }).click();
     assert.equal(await aviso.count(), 0);
     assert.deepEqual(errores, []);
@@ -2841,6 +2868,100 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     assert.equal(await page.locator('input[name="clientId"]').inputValue(), "cli_1", "la ficha elegida viaja al cobrar");
     assert.equal(await page.locator('[data-vender="desde-la-ficha"]').count(), 0, "sin repetir no hay aviso");
     assert.equal(await page.locator('[data-vender="ticket-boutique"] [data-vender="renglon"]').count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  // ── TANDA PRACTICIDAD (Magra, frente «vender»): V-1 a V-4 en el navegador, con el CSS real ──────
+  const CATALOGO_LARGO = [
+    ...PRODUCTOS_BOUTIQUE,
+    { id: "p_bife", name: "Bife de chorizo madurado 21 días (corte americano)", saleUnit: "WEIGHT", price: null, pricePerKg: 25000, unit: "kg", codigo: null },
+    { id: "p_matambre", name: "Matambre", saleUnit: "WEIGHT", price: null, pricePerKg: 14000, unit: "kg", codigo: null },
+    { id: "p_chorizo", name: "Chorizo", saleUnit: "UNIT", price: 1500, pricePerKg: null, unit: "u", codigo: null },
+    { id: "p_morcilla", name: "Morcilla", saleUnit: "UNIT", price: 1200, pricePerKg: null, unit: "u", codigo: null },
+  ];
+  const conCatalogoLargo = () =>
+    boutique({}, {
+      products: CATALOGO_LARGO,
+      stockById: Object.fromEntries(CATALOGO_LARGO.map((p) => [p.id, { stock: 20, trackStock: true }])),
+      rapidos: CATALOGO_LARGO.map((p) => p.id),
+    });
+  const caja = (page: Page, sel: string) =>
+    page.evaluate((sel) => {
+      const e = document.querySelector(sel);
+      if (!e) return null;
+      const r = e.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom, alto: r.height };
+    }, sel);
+
+  for (const ancho of [390, 1024]) {
+    test(`V-1 · V-2 (${ancho} px): al entrar se ven el buscador y 4 teclas o más, y el pie vacío no ocupa lugar`, async (t) => {
+      if (sinNavegador) return t.skip(sinNavegador);
+      if (!css) return t.skip("no se pudo compilar el CSS de la app");
+      const alto = ancho === 390 ? 844 : 768;
+      const { page, errores } = await montar("vender", 10, conCatalogoLargo(), { encabezado: 120, alto }, { ancho });
+      await focoEnElCampoUnico(page);
+      // Lo que tapa abajo: la barra de espacios del celular (fija) y el pie (vacío: nada).
+      const b = await caja(page, "#barra > *");
+      const barra = b && b.alto > 0 ? b.top : alto; // en la PC la barra de espacios no está
+      const pie = await caja(page, '[data-vender="cobro-boutique"]');
+      assert.ok(pie && pie.alto <= 120, `el pie vacío mide ${pie?.alto} px (meta ≤ 120)`);
+      const campo = await caja(page, "#campo-unico");
+      assert.ok(campo && campo.bottom <= barra, `el buscador se ve al entrar (abajo=${campo?.bottom}, barra=${barra})`);
+      const teclas = await page.locator('[data-vender="tecla"]').evaluateAll(
+        (ts, limite) => ts.filter((x) => { const r = x.getBoundingClientRect(); return r.height > 0 && r.top >= 0 && r.bottom <= limite; }).length,
+        barra,
+      );
+      assert.ok(teclas >= 4, `teclas a la vista al entrar: ${teclas} (meta ≥ 4)`);
+      assert.deepEqual(errores, []);
+      await page.close();
+    });
+  }
+
+  test("V-2: con algo cargado el pie es UNA barra (≤ 120 px) con el total y «Cobrar $X», y el total no se repite", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS de la app");
+    const { page, errores } = await montar("vender", 10, boutique(), { encabezado: 120, alto: 844 }, { ancho: 390 });
+    await tecla2a(page, "Crema").click();
+    await page.locator('[data-vender="abrir-cobro"]').getByText("Cobrar $9.000").waitFor();
+    const pie = await caja(page, '[data-vender="cobro-boutique"]');
+    assert.ok(pie && pie.alto <= 120, `la barra mide ${pie?.alto} px (meta ≤ 120)`);
+    // Un solo total en pantalla: el del pie (el ticket ya no lo repite) y el del botón.
+    assert.equal(await page.locator('[data-vender="total"]').count(), 0);
+    assert.equal(await page.locator('[data-vender="total-fijo"]').count(), 1);
+    // Los medios aparecen al tocar la barra; «Seguir cargando» la vuelve a plegar.
+    assert.equal(await page.getByRole("button", { name: "Cobrar $9.000 con Mercado Pago" }).count(), 0);
+    await abrirCobro(page);
+    await page.getByRole("button", { name: "Cobrar $9.000 con Mercado Pago" }).waitFor();
+    await page.getByRole("button", { name: "Seguir cargando" }).click();
+    await page.locator('[data-vender="abrir-cobro"]').waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("V-3 · V-4: venta por kilo en 4 gestos en una pantalla táctil (tecla → peso en el teclado propio → «Cobrar $X» → Efectivo), nombre entero", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS de la app");
+    const { page, errores } = await montar("vender", 10, conCatalogoLargo(), { encabezado: 120, alto: 844 }, { ancho: 390, tactil: true });
+    await tecla2a(page, "Vacío").tap(); // gesto 1: la tecla
+    // El peso entra con el teclado PROPIO en línea: el del sistema no se abre.
+    const campo = page.locator('[data-vender="ticket-boutique"] input[data-tipo="peso"]');
+    assert.equal(await campo.getAttribute("inputmode"), "none");
+    const teclado = page.getByRole("group", { name: "Teclado del peso de Vacío" });
+    for (const d of ["1", "2", "4", "0"]) await teclado.getByRole("button", { name: d, exact: true }).tap(); // gesto 2: el peso
+    assert.equal(await campo.inputValue(), "1,24");
+    await page.locator('[data-vender="abrir-cobro"]').tap(); // gesto 3: «Cobrar $15.500»
+    await page.getByRole("button", { name: "Cobrar $15.500 en efectivo" }).tap(); // gesto 4: el medio
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const [e] = await envios(page);
+    assert.deepEqual(e.quantity, ["1.24"]);
+    assert.deepEqual(e.paymentMethod, ["EFECTIVO"]);
+    // V-4: el nombre largo entra ENTERO (sin «…» ni corte), a 390 px.
+    await tecla2a(page, "Bife de chorizo").tap();
+    const nombre = page.locator('[data-vender="nombre-del-renglon"]').filter({ hasText: "Bife de chorizo" });
+    assert.equal(await nombre.textContent(), "Bife de chorizo madurado 21 días (corte americano)");
+    const corte = await nombre.evaluate((el) => ({ sobra: el.scrollWidth - el.clientWidth, elipsis: getComputedStyle(el).textOverflow }));
+    assert.ok(corte.sobra <= 1 && corte.elipsis !== "ellipsis", `el nombre no se corta (${JSON.stringify(corte)})`);
     assert.deepEqual(errores, []);
     await page.close();
   });

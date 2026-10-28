@@ -43,8 +43,8 @@ test("P-2: lo pesado del mostrador llega diferido en el navegador; el boutique d
   const boutique = leer("vender/boutique/MostradorBoutique.tsx");
   assert.ok(!importsEstaticos(boutique).includes("../PedidoDesdeWhatsApp"));
   assert.match(leer("vender/boutique/WhatsAppDiferido.tsx"), /dynamic\(traer,/);
-  const form = leer("vender/VenderForm.tsx");
-  assert.ok(!importsEstaticos(form).includes("./ClienteDeLaVenta"), "VenderForm importa ClienteDeLaVenta como valor");
+  const form = leer("vender/boutique/VenderBoutique.tsx");
+  assert.ok(!importsEstaticos(form).includes("../ClienteDeLaVenta"), "VenderBoutique importa ClienteDeLaVenta como valor");
   assert.match(form, /ClienteDeLaVentaDiferido as ClienteDeLaVenta/);
   assert.match(leer("vender/boutique/perezosos.tsx"), /export const ClienteDeLaVentaDiferido = dynamic\(traerCliente,/);
 });
@@ -68,10 +68,11 @@ test("P-3: las teclas memorizadas comparan los datos, no la identidad de las fun
 });
 
 test("P-3: la llamada estable siempre llama a la última versión (sin cierres viejos)", () => {
-  const form = leer("vender/VenderForm.tsx");
-  assert.match(form, /const tocarTeclaEstable = useLlamadaEstable\(\(id: string\) => tocarTecla\(id\)\);/);
+  // V-6: el estado vive en el núcleo (un hook, siempre en el mismo orden) y la vista boutique lo usa.
+  const nucleo = leer("vender/nucleo-de-venta.tsx");
+  assert.match(nucleo, /const tocarTeclaEstable = useLlamadaEstable\(\(id: string\) => tocarTecla\(id\)\);/);
+  const form = leer("vender/boutique/VenderBoutique.tsx");
   assert.match(form, /onTocar=\{tocarTeclaEstable\}/);
   assert.match(form, /onGuardar: guardarFijadasEstable/);
-  // Y se declara ANTES de elegir la vista (las reglas de los hooks: siempre, en el mismo orden).
-  assert.ok(form.indexOf("const tocarTeclaEstable") < form.indexOf("if (boutique) return vistaBoutique(boutique);"));
+  assert.ok(form.indexOf("useNucleoDeVenta(props)") < form.indexOf("return vistaBoutique(props.boutique!);"));
 });

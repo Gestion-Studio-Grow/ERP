@@ -1,8 +1,8 @@
 // EL MOSTRADOR BOUTIQUE, ARMADO CON LO YA LEÍDO (Magra · tanda perf, P-1 y P-2).
 //
 // La rama boutique de `MostradorDeVenta`, sin leer nada: recibe `cargarMostradorBoutique()` (una
-// tanda) y arma `VenderForm` con las MISMAS reglas (precios, factura, balanza, teclas). El pedido de
-// WhatsApp va diferido (`WhatsAppDiferido`): su código baja cuando se abre, no con la pantalla.
+// tanda) y arma `VenderBoutique` (su propio módulo, sobre el núcleo de la venta) con las MISMAS reglas (precios, factura, balanza, teclas). El pedido de
+// WhatsApp va diferido (`WhatsAppDiferido`, en la fila de atajos): su código baja cuando se abre.
 // Sin «use client» ni lecturas: es un componente de servidor síncrono.
 import "server-only";
 import { ButtonLink } from "@/components/ui";
@@ -13,10 +13,10 @@ import { UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, vigenteEn } from "@/lib/fiscal/
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import type { TenantIdentity } from "@/lib/identidad-rubro";
 import { motivoSinFactura, textoDelReceptor } from "../factura-del-mostrador";
-import VenderForm from "../VenderForm";
+import VenderBoutique from "./VenderBoutique";
 import { TECLAS_BOUTIQUE, teclasDelMostrador, topeDeDescuento, topeDePrecioAMano, type BalanzaDeVender } from "../reglas-venta";
 import type { MostradorBoutique as Datos } from "./cargar";
-import WhatsAppDiferido from "./WhatsAppDiferido";
+import FilaDeAtajos, { type DatosDeLaCaja } from "./FilaDeAtajos";
 
 /** La balanza de Vender con el formato ya leído (la regla de `balanzaDeVender`). */
 export function balanzaDelMostrador(d: Pick<Datos, "products" | "formatoBalanza" | "puedeBalanza">, role: Role): BalanzaDeVender | null {
@@ -34,8 +34,14 @@ export default function MostradorBoutique({
   identidad,
   pedidoInicial = false,
   conVendedor = false,
+  caja = null,
+  cuaderno = null,
 }: {
   datos: Datos;
+  /** La caja cerrada («Abrí la caja: ayer quedaron $X»): va en la fila de atajos, debajo de las teclas. */
+  caja?: DatosDeLaCaja | null;
+  /** La ruta del cuaderno, si quien vende puede entrar. */
+  cuaderno?: string | null;
   user: { id: string; name: string; role: Role };
   tenantId: string;
   identidad: TenantIdentity;
@@ -67,6 +73,27 @@ export default function MostradorBoutique({
     TECLAS_BOUTIQUE,
   );
 
+  // V-1 (tanda practicidad): la caja, el cuaderno y el pedido de WhatsApp en UNA fila de chips,
+  // debajo del buscador y las teclas (antes iban arriba y empujaban el mostrador fuera de la vista).
+  const atajos = (
+    <FilaDeAtajos
+      caja={caja}
+      cuaderno={cuaderno}
+      whatsapp={
+        pedidoDeWhatsApp
+          ? {
+              productos: d.products.map(({ id, name, saleUnit, price, pricePerKg }) => ({ id, name, saleUnit, price, pricePerKg })),
+              stockById: d.stockById,
+              hoy: d.hoy,
+              negocio: d.negocio,
+              envios: d.envios,
+              boutique: true,
+            }
+          : null
+      }
+    />
+  );
+
   return (
     <div className="space-y-4">
       {sinPrecios && (
@@ -83,17 +110,7 @@ export default function MostradorBoutique({
           )}
         </div>
       )}
-      {pedidoDeWhatsApp && (
-        <WhatsAppDiferido
-          productos={d.products.map(({ id, name, saleUnit, price, pricePerKg }) => ({ id, name, saleUnit, price, pricePerKg }))}
-          stockById={d.stockById}
-          hoy={d.hoy}
-          negocio={d.negocio}
-          envios={d.envios}
-          boutique
-        />
-      )}
-      <VenderForm
+      <VenderBoutique
         products={productos}
         stockById={d.stockById}
         rapidos={teclas.ids}
@@ -120,6 +137,7 @@ export default function MostradorBoutique({
           puedeEditarFicha: roleHasCapability(user.role, "clients:manage"),
           teclas: d.teclas,
           desdeLaFicha: d.desdeLaFicha,
+          atajos,
         }}
       />
     </div>

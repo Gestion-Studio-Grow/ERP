@@ -19,8 +19,13 @@
 //
 // Toques del caso de Ana (MG-051): abrir · pegar · «Está bien» ×2 · Registrar · Confirmar por
 // WhatsApp = 6 (la franja ya viene elegida del chat).
+//
+// «Confirmar todo» (tanda practicidad, V-5): un toque confirma los renglones completos que el lector
+// leyó SIN dudas. Los que traen una duda («Pidió 8: van 2 paquetes de 6», «se vende por unidad») se
+// siguen confirmando de a uno con «Está bien»: ahí es donde se confirmaba sin mirar.
 
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { confirmablesDeUnToque } from "./boutique/confirmar-todo";
 import Link from "next/link";
 import { Badge, Field, Input, Select, Textarea, atributosBoton, buttonClasses, cn } from "@/components/ui";
 import { createOrder, type OrderActionState } from "@/lib/order-actions";
@@ -60,6 +65,11 @@ export interface PedidoDesdeWhatsAppProps {
   boutique: boolean;
   /** Montado por un toque en el botón (carga diferida, boutique/WhatsAppDiferido): arranca abierto. */
   abrirAlMontar?: boolean;
+  /**
+   * Abierto desde la fila de atajos del boutique (boutique/FilaDeAtajos): «Cerrar» le avisa y,
+   * cerrado, no se dibuja nada (el atajo ya es el botón para abrirlo de nuevo).
+   */
+  onCerrar?: () => void;
 }
 
 /** Un renglón en pantalla: lo que propuso el lector y lo que corrigió quien atiende. */
@@ -106,7 +116,7 @@ function cantidadInicial(r: RenglonPropuesto): string {
   return r.cantidad === null ? "" : String(r.cantidad).replace(".", ",");
 }
 
-export default function PedidoDesdeWhatsApp({ productos, stockById, hoy, negocio, envios, boutique, abrirAlMontar = false }: PedidoDesdeWhatsAppProps) {
+export default function PedidoDesdeWhatsApp({ productos, stockById, hoy, negocio, envios, boutique, abrirAlMontar = false, onCerrar }: PedidoDesdeWhatsAppProps) {
   const id = useId();
   // «Nuevo pedido de WhatsApp» desde la bandeja llega con #whatsapp: se abre solo. Lo que toque
   // la persona («Cerrar», la tecla) manda sobre el #.
@@ -227,6 +237,7 @@ export default function PedidoDesdeWhatsApp({ productos, stockById, hoy, negocio
   });
   const activos = vista.filter((v) => !v.r.quitado);
   const sinConfirmar = activos.filter((v) => !v.r.confirmado).length;
+  const deUnToque = confirmablesDeUnToque(vista);
   const totalEstimado = activos.reduce((s, v) => s + (v.total ?? 0), 0);
   const zona = zonas.find((z) => z.id === zonaId) ?? null;
 
@@ -357,6 +368,7 @@ export default function PedidoDesdeWhatsApp({ productos, stockById, hoy, negocio
   }
 
   if (!abierto) {
+    if (onCerrar) return null;
     return (
       <div id="whatsapp" className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={() => setAbierto(true)} className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
@@ -418,7 +430,15 @@ export default function PedidoDesdeWhatsApp({ productos, stockById, hoy, negocio
           </h2>
           <p className="text-sm text-muted">Nada se anota hasta que confirmes cada renglón y toques «Registrar pedido».</p>
         </div>
-        <button type="button" onClick={() => setAbierto(false)} className={buttonClasses("ghost", "sm")} {...atributosBoton("ghost", "sm")}>
+        <button
+          type="button"
+          onClick={() => {
+            setAbierto(false);
+            onCerrar?.();
+          }}
+          className={buttonClasses("ghost", "sm")}
+          {...atributosBoton("ghost", "sm")}
+        >
           Cerrar
         </button>
       </div>
@@ -456,6 +476,27 @@ export default function PedidoDesdeWhatsApp({ productos, stockById, hoy, negocio
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-strong">Lo que pidió</h3>
             {renglones.length === 0 && <p className="text-sm text-muted">No reconocí ningún producto en el chat. Agregalos abajo.</p>}
+            {/* Detrás del interruptor: sin el boutique, el pedido de WhatsApp sigue como siempre. */}
+            {boutique && deUnToque.claves.length >= 2 && (
+              <div data-vender="confirmar-todo" className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const claves = new Set(deUnToque.claves);
+                    setRenglones((rs) => rs.map((r) => (claves.has(r.key) ? { ...r, confirmado: true } : r)));
+                  }}
+                  className={cn(buttonClasses("solid", "md"), "max-sm:h-12 max-sm:w-full max-sm:text-base")}
+                  {...atributosBoton("solid", "md")}
+                >
+                  Confirmar todo
+                </button>
+                <span className="text-sm text-muted">
+                  {deUnToque.conDudas > 0
+                    ? `Confirma los ${deUnToque.claves.length} renglones sin dudas. ${deUnToque.conDudas === 1 ? "El que tiene una duda se confirma" : `Los ${deUnToque.conDudas} con dudas se confirman`} de a uno.`
+                    : `Confirma los ${deUnToque.claves.length} renglones de una vez.`}
+                </span>
+              </div>
+            )}
             <ul className="space-y-3">
               {vista.map((v) => (
                 <RenglonEditable

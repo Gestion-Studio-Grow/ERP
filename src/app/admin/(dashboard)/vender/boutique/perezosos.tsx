@@ -4,7 +4,8 @@
 //
 //   · `ClienteDeLaVentaDiferido`: el bloque Cliente (584 líneas: buscador de fichas, CUIT, factura)
 //     se trae con `next/dynamic` cuando se abre («+ Cliente» o un pedido), no con la pantalla; con el
-//     navegador libre se adelanta (`usePrecargaDelCliente`) para que el toque no espere la red.
+//     primer toque en la pantalla se adelanta (`usePrecargaDelCliente`, tanda practicidad: antes era
+//     con el navegador libre y bajaba igual al entrar) para que el toque no espere la red.
 //   · `TeclasMemorizadas`: las teclas por góndola (`TeclasPorGondola`) con `memo`. Tocar una tecla
 //     cambia el ticket, no las teclas: con las props estables (`useLlamadaEstable` para el toque y
 //     las listas memorizadas en VenderForm) la grilla no se vuelve a dibujar en cada toque.
@@ -25,18 +26,30 @@ export const ClienteDeLaVentaDiferido = dynamic(traerCliente, {
   ),
 });
 
-/** Con el navegador libre, baja el código del bloque Cliente (sólo si `activo`: el boutique). */
-export function usePrecargaDelCliente(activo: boolean): void {
+/**
+ * Baja el código de `traer` con el PRIMER toque o tecla en la pantalla (no al entrar): lo que está
+ * cerrado no suma al JS de la entrada (V-6) y, cuando se lo abre, ya está bajado. Sólo si `activo`.
+ */
+export function usePrecargaAlPrimerToque(traer: () => unknown, activo = true): void {
   useEffect(() => {
     if (!activo) return;
-    const w = window as Window & { requestIdleCallback?: (f: () => void) => number; cancelIdleCallback?: (n: number) => void };
-    if (w.requestIdleCallback) {
-      const n = w.requestIdleCallback(() => void traerCliente());
-      return () => w.cancelIdleCallback?.(n);
+    const quitar = () => {
+      window.removeEventListener("pointerdown", una, true);
+      window.removeEventListener("keydown", una, true);
+    };
+    function una() {
+      quitar();
+      void traer();
     }
-    const t = window.setTimeout(() => void traerCliente(), 1500);
-    return () => window.clearTimeout(t);
-  }, [activo]);
+    window.addEventListener("pointerdown", una, true);
+    window.addEventListener("keydown", una, true);
+    return quitar;
+  }, [activo, traer]);
+}
+
+/** El bloque Cliente, bajado con el primer toque (sólo si `activo`: el boutique). */
+export function usePrecargaDelCliente(activo: boolean): void {
+  usePrecargaAlPrimerToque(traerCliente, activo);
 }
 
 type PropsDeTeclas = Parameters<typeof TeclasPorGondola>[0];

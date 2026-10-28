@@ -251,6 +251,40 @@ describe("Nuevo pedido de WhatsApp en el navegador", { timeout: 120_000 }, () =>
     await page.close();
   });
 
+  test("V-5 (tanda practicidad): «Confirmar todo» confirma de un toque los renglones sin dudas; el pedido de Ana en 5 toques (meta ≤ 12)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    let toques = 1; // el atajo «Pedido de WhatsApp» (acá llega con #whatsapp y se abre solo)
+    await page.getByLabel("Pegá el mensaje de la clienta").fill("hola, soy Ana 11 5555-1234, para mañana a la tarde 2 kg de vacío y 6 chorizos");
+    toques++; // pegar
+    const registrar = page.getByRole("button", { name: "Registrar pedido" });
+    assert.equal(await registrar.isDisabled(), true, "sin confirmar no se registra");
+    await page.getByText("Confirma los 2 renglones de una vez.").waitFor();
+    await page.getByRole("button", { name: "Confirmar todo" }).click();
+    toques++;
+    assert.equal(await page.getByText("✓ Confirmado").count(), 2);
+    assert.equal(await page.getByRole("button", { name: "Confirmar todo" }).count(), 0, "confirmado todo, el botón se va");
+    assert.equal(await registrar.isDisabled(), false);
+    assert.deepEqual(await envios(page), [], "confirmar no manda nada: recién «Registrar pedido»");
+    await registrar.click();
+    toques++;
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    toques++; // «Confirmar por WhatsApp» (el recorrido completo está en la prueba de arriba)
+    assert.ok(toques <= 12, `pedido de WhatsApp en ${toques} toques`);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("V-5: sin el mostrador boutique no aparece «Confirmar todo» (el pedido de WhatsApp sigue como siempre)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("#whatsapp", { boutique: false });
+    await page.getByLabel("Pegá el mensaje de la clienta").fill("hola, soy Ana 11 5555-1234, para mañana a la tarde 2 kg de vacío y 6 chorizos");
+    await page.getByText("Confirmá los 2 renglones que faltan.").waitFor();
+    assert.equal(await page.getByRole("button", { name: "Confirmar todo" }).count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("MG-052: «$15.000 de picada» queda a ajustar al pesar con el total estimado; corregir un renglón lo vuelve a pedir confirmar", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
