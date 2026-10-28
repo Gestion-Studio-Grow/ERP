@@ -3011,7 +3011,7 @@ model PadelAviso {
 // N2:   suscripcionId String
 // N2:   suscripcion   WebhookSuscripcion @relation(fields: [tenantId, suscripcionId], references: [tenantId, id], onDelete: Cascade)
 // N2:   outboxEventId String? // nulo = "probar envío"
-// N2:   outboxEvent   OutboxEvent?       @relation(fields: [tenantId, outboxEventId], references: [tenantId, id], onDelete: Restrict)
+// N2:   outboxEvent   OutboxEvent?       @relation(fields: [tenantId, outboxEventId], references: [tenantId, id], onDelete: Cascade) // purgar/resetear el outbox se lleva sus intentos
 // N2:   evento        String
 // N2:   intento       Int                @default(1)
 // N2:   estadoHttp    Int?

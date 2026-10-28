@@ -34,9 +34,12 @@ BEGIN;
 -- se hace ANTES de saber el negocio (como IntegracionConexion.rutaHash). `hash`: sha256 de
 -- la clave completa (la clave se muestra una sola vez y no se guarda). `alcances`:
 -- "pedidos:escribir", "turnos:leer"… Revocada = `revocadaEn` no nula.
--- ⚠️ Para P4: con la app como `app_rls` la RLS esconde la fila hasta setear el negocio; la
--- búsqueda por prefijo necesita el camino de resolución previo al contexto (ver cómo resuelve
--- hoy `rutaHash`). Anotado como deuda de P4, no de este archivo.
+-- ⚠️ TRASPASADO A P4 (cert. S2): con la app como `app_rls`, la RLS esconde la fila hasta setear
+-- el negocio, así que buscar por prefijo ANTES de conocer el negocio no encuentra nada. Es
+-- intencional que la tabla nazca con RLS (fail-closed: una clave no se puede leer sin
+-- contexto); el camino de resolución previo al contexto es diseño de P4, que es quien
+-- autentica con la clave (ver cómo resuelve hoy `IntegracionConexion.rutaHash`). Este archivo
+-- no lo resuelve a propósito: relajar la policy acá abriría las claves de todos los negocios.
 CREATE TABLE IF NOT EXISTS "ApiKey" (
     "id" TEXT NOT NULL,
     "tenantId" TEXT NOT NULL,
@@ -130,8 +133,31 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "EntregaWebhook" ADD CONSTRAINT "EntregaWebhook_tenantId_suscripcionId_fkey" FOREIGN KEY ("tenantId", "suscripcionId") REFERENCES "WebhookSuscripcion"("tenantId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- → OutboxEvent: ON DELETE CASCADE (cert. S2, falla baja de la vuelta 1). La entrega es el
+-- registro de los intentos de UN evento: sin el evento no significa nada (igual que su FK a la
+-- suscripción, que ya es CASCADE). Con RESTRICT, el reseteo de go-live
+-- (src/lib/reset-golive-db.ts, `outboxEvent.deleteMany`) y cualquier purga del outbox fallaban
+-- en cuanto el hub registrara una entrega. Por qué no las otras dos opciones:
+--   · SET NULL: la FK es compuesta (tenantId, outboxEventId); el SET NULL simple pondría
+--     tenantId en NULL (NOT NULL → error) y la forma con lista de columnas (PG 15+) no se
+--     puede expresar en schema.prisma (diff permanente). Además NULL ya significa
+--     "probar envío" y se mezclarían las dos cosas.
+--   · borrar las entregas antes en cada purga: obliga a todo camino que borre eventos (hoy el
+--     reseteo, mañana la purga por antigüedad y el operador) a conocer una tabla que el
+--     cliente de Prisma todavía no tiene; el que se olvide, falla.
+-- El CASCADE sigue el par (tenantId, id): sólo borra entregas del MISMO negocio.
+-- Traspasado a P3: al encender el modelo, sumar EntregaWebhook a ORDEN_DE_BORRADO
+-- (src/lib/reset-golive.ts) antes de OutboxEvent, para que el reseteo las CUENTE en su
+-- auditoría (hoy se irían "de rebote" sin contarse; no falla ni deja huérfanos).
+-- Guarda convergente: si la FK ya existe con otra acción (un ensayo con la versión anterior
+-- en un branch de Neon), se reemplaza; si ya es CASCADE, no se toca.
 DO $$ BEGIN
-  ALTER TABLE "EntregaWebhook" ADD CONSTRAINT "EntregaWebhook_tenantId_outboxEventId_fkey" FOREIGN KEY ("tenantId", "outboxEventId") REFERENCES "OutboxEvent"("tenantId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  IF EXISTS (SELECT 1 FROM pg_constraint
+             WHERE conname = 'EntregaWebhook_tenantId_outboxEventId_fkey'
+               AND conrelid = '"EntregaWebhook"'::regclass AND confdeltype <> 'c') THEN
+    ALTER TABLE "EntregaWebhook" DROP CONSTRAINT "EntregaWebhook_tenantId_outboxEventId_fkey";
+  END IF;
+  ALTER TABLE "EntregaWebhook" ADD CONSTRAINT "EntregaWebhook_tenantId_outboxEventId_fkey" FOREIGN KEY ("tenantId", "outboxEventId") REFERENCES "OutboxEvent"("tenantId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
