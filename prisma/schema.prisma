@@ -1164,6 +1164,8 @@ model OutboxEvent {
   @@index([processedAt])
   @@index([processedAt, proximoIntentoEn])
   // N2: @@index([tenantId, processedAt, proximoIntentoEn])
+  // N2_hub.sql también crea "OutboxEvent_tenantId_payloadClave_sinClave_idx" (tenantId, payload->>'clave') WHERE clave IS NULL:
+  // índice PARCIAL y de expresión, que Prisma no sabe declarar. Vive sólo en el SQL (dedupe del emisor de eventos, P2).
 }
 
 // --- Módulo BANCOS (plugin src/plugins/bancos + glue src/lib/bancos-*) ---

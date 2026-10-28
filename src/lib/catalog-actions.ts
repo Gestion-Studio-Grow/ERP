@@ -14,6 +14,7 @@ import { crearProductoConStockInicial } from "@/lib/stock/alta-producto";
 import { cantidadDelFormulario, importeDelFormulario } from "@/lib/pos-peso";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { cambioDePrecioDeUnProducto, registrarCambiosDePrecio } from "@/lib/catalogo/precios-auditoria";
+import { emitirProductosActualizados } from "@/eventos/del-core";
 import { importeONaN } from "@/lib/dinero/leer";
 import { codigoDelFormulario, esChoqueDeUnico, mensajeCodigoOcupado } from "@/lib/catalogo/codigo-producto";
 import { RechazoDeDominio, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
@@ -497,7 +498,15 @@ export async function toggleProductActive(formData: FormData) {
   const id = String(formData.get("id") || "");
   const active = String(formData.get("active")) === "true";
   if (!id) throw new Error(PRODUCTO_NO_ENCONTRADO);
-  const res = await prisma.product.updateMany({ where: { id, tenantId, deletedAt: null }, data: { active: !active } });
+  // N2/P2: el cambio de estado y `producto.actualizado@1` en una transacción.
+  const res = await tenantTransaction(
+    async (tx) => {
+      const r = await tx.product.updateMany({ where: { id, tenantId, deletedAt: null }, data: { active: !active } });
+      if (r.count === 1) await emitirProductosActualizados(tx, { tenantId, productIds: [id], cambio: "estado" });
+      return r;
+    },
+    { tenantId },
+  );
   if (res.count === 0) throw new Error(PRODUCTO_NO_ENCONTRADO);
   revalidatePath(CATALOG_PATH);
 }

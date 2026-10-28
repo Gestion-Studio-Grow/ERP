@@ -49,6 +49,21 @@ $P -f ../rls/0001_enable_rls.sql   # 7 · re-ejecución: policy tenant_isolation
   falló** (o desde el 1; no rompe nada).
 - `ON_ERROR_STOP=1`: ante el primer error, psql frena. **No seguir con el siguiente archivo**: ir a §5.
 
+### 2.3b · Re-backfill de `OutboxEvent.clave` (P2) — dos minutos después del paso 3
+
+Un proceso vivo que preguntó por las columnas ANTES del paso 3 guarda «no están» 60 s
+(`TTL_NEGATIVO_MS`, `src/lib/schema-probe/probe.ts`) y en ese rato escribe eventos con `clave` NULL y
+la clave en `payload._clave`. Pasados **2 minutos** desde el paso 3 (con la app corriendo), volver a
+correr el backfill del pie de `N2_hub.sql` («PASO POSTERIOR»):
+
+```bash
+$P -c "UPDATE \"OutboxEvent\" AS o SET \"clave\" = o.\"payload\"->>'_clave' WHERE o.\"clave\" IS NULL AND o.\"payload\" ? '_clave' AND NOT EXISTS (SELECT 1 FROM \"OutboxEvent\" AS d WHERE d.\"tenantId\" = o.\"tenantId\" AND d.\"clave\" = o.\"payload\"->>'_clave');"
+```
+
+Esperado: `UPDATE 0` o pocas filas. Si falla por el UNIQUE, o queda una fila con `clave` NULL por el
+`NOT EXISTS`, es un duplicado de un mismo hecho: **avisar, no borrar**. Es idempotente; se puede
+repetir.
+
 ## 3. Verificar RLS en vivo
 
 ```bash
@@ -92,7 +107,7 @@ copiada tal cual a psql (probadas en local):
 | 6 | `N2_club_indice.sql` | `DROP TABLE "ClubReservaIndice"` | no (es proyección de la foto) |
 | 5 | `N2_retail.sql` | `DROP COLUMN` de las 3 columnas | límites de fiado y verificaciones cargadas |
 | 4 | `N2_pagos.sql` | `DROP TABLE "PagoExterno"` | conciliación: exportar antes si hay filas |
-| 3 | `N2_hub.sql` | 4 `DROP TABLE` + 2 `DROP COLUMN` + 2 `DROP INDEX` en OutboxEvent | claves, suscripciones y plantillas cargadas |
+| 3 | `N2_hub.sql` | 4 `DROP TABLE` + 2 `DROP COLUMN` + 3 `DROP INDEX` en OutboxEvent (incluye el parcial de P2) | claves, suscripciones y plantillas cargadas |
 | 2 | `N2_enums.sql` | 🔴 **irreversible: no hay `DROP VALUE`**. Se dejan (inocuos si nadie los usa); recrear el tipo es el procedimiento manual al pie (otro Gate 2) | no |
 | 1 | `CarniceriaRubro.sql` | bloque `ROLLBACK` al pie (tablas, enums y 2 columnas de Product) | lotes y despieces cargados |
 

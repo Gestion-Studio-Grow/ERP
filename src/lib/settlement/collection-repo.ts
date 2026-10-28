@@ -28,6 +28,7 @@ import {
   type Settlement,
 } from "./collection";
 import { cuentaCorrienteMarker, decidirAsiento, type OrigenCuentaCorriente } from "./asiento-libro";
+import { emitirPedidoCobradoAlSaldar, emitirPedidoCobradoAlSaldarFiado } from "@/eventos/del-core";
 
 export interface RecordCollectionArgs {
   originType: $Enums.CollectionOriginType;
@@ -113,10 +114,20 @@ export async function applyCollectionInTx(
 
   // Coherencia con el booleano legado del POS: si un Order quedó saldado, marcarlo pago.
   if (args.orderId && isSettled(nuevo)) {
-    await tx.order.updateMany({
-      where: { id: args.orderId, tenantId },
+    const marcado = await tx.order.updateMany({
+      where: { id: args.orderId, tenantId, paid: false },
       data: { paid: true },
     });
+    // P2 · pedido.cobrado@1 en ESTA transacción, sólo si este cobro lo pasó a pago (un pedido que ya
+    // estaba pago no se vuelve a cobrar; si salió por el botón «Cobrar», la clave no lo duplica).
+    if (marcado.count === 1) {
+      await emitirPedidoCobradoAlSaldar(tx, { tenantId, pedidoId: args.orderId, medio: args.method, actor: args.collectedBy });
+    }
+  }
+  // P2 · el fiado de un pedido (clientes/fiado.ts) se cobra acá: la entrega al fiado no entró plata
+  // y no emite; el cobro que cierra la deuda del pedido es el que lo deja cobrado.
+  if (args.originType === "RECEIVABLE" && !isSettled(settlement) && isSettled(nuevo)) {
+    await emitirPedidoCobradoAlSaldarFiado(tx, { tenantId, receivableId: args.originId, medio: args.method, actor: args.collectedBy });
   }
 
   return { collectionId: created.id, amount: v.amount, settlement: nuevo };

@@ -10,7 +10,7 @@
 -- (PlantillaWhatsapp por conexión). Diseño: PLAN-REINGENIERIA-N2 §4.1.2–§4.1.6 y §4.3.
 --
 -- ADITIVA: crea 4 tablas y agrega 2 columnas al OutboxEvent (una con DEFAULT 1, otra
--- NULLABLE) + 2 índices. No toca columnas existentes ni borra nada. Los eventos de ARCA de
+-- NULLABLE) + 3 índices. No toca columnas existentes ni borra nada. Los eventos de ARCA de
 -- hoy siguen igual (version=1, clave=NULL; los NULL no chocan en el UNIQUE).
 -- IDEMPOTENTE: IF NOT EXISTS en tablas/columnas/índices y guardas DO para las FKs.
 -- Corre en UNA transacción (BEGIN/COMMIT): si algo falla no queda a medias.
@@ -202,7 +202,23 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 ALTER TABLE "OutboxEvent" ADD COLUMN IF NOT EXISTS "version" INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE "OutboxEvent" ADD COLUMN IF NOT EXISTS "clave" TEXT;
 
+-- Backfill ANTES del UNIQUE: los eventos emitidos sin esta migración llevan la clave en
+-- `payload._clave` y la columna en NULL; sin copiarla, el UNIQUE no los ve y reemitir el mismo
+-- hecho después del deploy escribiría una segunda fila. Idempotente (sólo toca los NULL).
+-- Corre como dueño (sin FORCE RLS, como hoy); si se aplicó 0003_force_rls, con un rol BYPASSRLS.
+-- Sin NOT EXISTS a propósito: acá todavía no está el UNIQUE y cada fila recorrería la tabla
+-- (cuadrático). Si hubiera dos filas del mismo hecho, el CREATE UNIQUE INDEX de abajo falla y
+-- la transacción entera vuelve atrás: no queda nada a medias (se avisa, no se borra).
+UPDATE "OutboxEvent" SET "clave" = "payload"->>'_clave'
+  WHERE "clave" IS NULL AND "payload" ? '_clave';
+
 CREATE UNIQUE INDEX IF NOT EXISTS "OutboxEvent_tenantId_clave_key" ON "OutboxEvent"("tenantId", "clave");
+-- Dedupe sin recorrer el outbox (CERT-P2 v2-d: 46,9 ms por emisión con 200k filas). El emisor
+-- busca `"clave" = $c OR ("clave" IS NULL AND "payload"->>'clave' = $c)`: la primera rama va
+-- por el UNIQUE y la segunda por este índice PARCIAL, que sólo guarda las filas con clave NULL
+-- (los InvoiceCreated de ARCA y lo emitido antes de esta migración). Chico y sin costo de
+-- escritura para las filas nuevas, que llevan clave.
+CREATE INDEX IF NOT EXISTS "OutboxEvent_tenantId_payloadClave_sinClave_idx" ON "OutboxEvent"("tenantId", ("payload"->>'clave')) WHERE "clave" IS NULL;
 CREATE INDEX IF NOT EXISTS "OutboxEvent_tenantId_processedAt_proximoIntentoEn_idx" ON "OutboxEvent"("tenantId", "processedAt", "proximoIntentoEn");
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -229,10 +245,24 @@ END $$;
 COMMIT;
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- PASO POSTERIOR (dos minutos después de aplicar, con la app ya corriendo): un proceso que
+-- preguntó por las columnas ANTES de la migración guarda «no están» 60 s (TTL_NEGATIVO_MS de
+-- src/lib/schema-probe/probe.ts) y en ese rato escribe eventos con `clave` NULL y la clave en
+-- `payload._clave`. El emisor los ve igual (índice parcial de arriba), pero el UNIQUE no. Volver
+-- a correr el backfill los completa; es idempotente, el NOT EXISTS va por el UNIQUE (no recorre
+-- la tabla) y deja afuera la fila de un hecho que ya tiene su clave:
+--   UPDATE "OutboxEvent" AS o SET "clave" = o."payload"->>'_clave'
+--     WHERE o."clave" IS NULL AND o."payload" ? '_clave'
+--       AND NOT EXISTS (SELECT 1 FROM "OutboxEvent" AS d WHERE d."tenantId" = o."tenantId" AND d."clave" = o."payload"->>'_clave');
+-- Esperado: «UPDATE 0» o pocas filas. Si una fila queda con clave NULL por el NOT EXISTS, o el
+-- UPDATE falla por el UNIQUE (dos filas tardías del mismo hecho), es un duplicado: avisar (no borrar).
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- REVERSA (orden inverso; correr en una transacción). Borra los datos de estas tablas:
 -- sólo si el humo falló el mismo día D, antes de que el Hub cargue claves o suscripciones.
 --   BEGIN;
 --   DROP INDEX IF EXISTS "OutboxEvent_tenantId_processedAt_proximoIntentoEn_idx";
+--   DROP INDEX IF EXISTS "OutboxEvent_tenantId_payloadClave_sinClave_idx";
 --   DROP INDEX IF EXISTS "OutboxEvent_tenantId_clave_key";
 --   ALTER TABLE "OutboxEvent" DROP COLUMN IF EXISTS "clave";
 --   ALTER TABLE "OutboxEvent" DROP COLUMN IF EXISTS "version";

@@ -23,6 +23,7 @@ import { centavosDe } from "@/lib/dinero/redondeo";
 import type { Prisma } from "@/generated/prisma/client";
 import type { FormaDeVenta } from "./planilla-core";
 import { precioDeVenta } from "./aumento-core";
+import { emitirProductosActualizados } from "@/eventos/del-core";
 
 export const ENTIDAD_PRODUCTO = "Product";
 export const ACCION_CAMBIO_DE_PRECIO = "cambio-de-precio";
@@ -94,6 +95,10 @@ export async function registrarCambiosDePrecio(
   const data = filasCambioDePrecio(args);
   if (data.length === 0) return 0;
   const r = await tx.auditLog.createMany({ data });
+  // N2/P2: `producto.actualizado@1` por producto, en la misma transacción que el precio.
+  await emitirProductosActualizados(tx, {
+    tenantId: args.tenantId, productIds: args.cambios.map((c) => c.productId), cambio: args.origen === "alta" ? "alta" : "precio", loteId: args.lote?.id,
+  });
   return r.count;
 }
 
