@@ -32,7 +32,7 @@ export default async function FacturitaFacturasPage() {
           description="La primera sale desde la pestaña Emitir."
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-line bg-surface-raised shadow-card">
+        <div className="relative overflow-x-auto rounded-xl border border-line bg-surface-raised shadow-card">
           <table className="w-full min-w-[560px] border-collapse text-left text-sm">
             <caption className="sr-only">Facturas emitidas</caption>
             <thead>

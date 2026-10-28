@@ -648,7 +648,7 @@ export default function CarteraPanel({
           recién desde xl (1280px) — en notebooks 13" iba apretado con lg. */}
       <div className="grid grid-cols-1 items-start gap-md xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Tabla */}
-        <div className="overflow-x-auto rounded-xl border border-line bg-surface-raised shadow-card">
+        <div className="relative overflow-x-auto rounded-xl border border-line bg-surface-raised shadow-card">
           <table className="w-full min-w-[780px] border-collapse text-left text-sm">
             <caption className="sr-only">
               Clientes de la cartera con su resumen fiscal del mes
