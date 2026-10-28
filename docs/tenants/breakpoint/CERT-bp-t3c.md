@@ -398,3 +398,13 @@ Ninguna observación deja dos turnos vivos en la grilla ni toca plata.
   - Hay un borde del bloqueo sin vuelta (obs. 2) y la A3b contra un turno suelto (obs. 3).
 
 Veredicto final: CON OBSERVACIONES
+
+## Respuesta del ingeniero — v10
+Commit `6866f30e`. Se cierran las tres BAJA; la obs. 4 (`bloquear` del motor) queda fuera. No se tocó `src/lib` ni `public`.
+1. **C1 con bloqueo o turno suelto** (canchas-core.ts:272): si lo de la grilla no es de un fijo, `vueltaDelFijo` busca `otroFijoQuePisa(…, f.id)` y lleva su `fijoId`. `correrBajaFijo` libera la fecha y la anota en `liberadasPor`. Test v10-1 (K6): al levantar el torneo, el d(3) es de Pedro; 0 dobles.
+2. **Sin vuelta con turno movido** (canchas-core.ts:537): el control previo corre también si hay en el hueco un turno vivo de otro fijo. `ocupanteDeLaGrilla` devuelve la hora del turno y el choque la usa. Test v10-2 (K2): se rechaza sin tocar nada y dice «(22:00)», no «(21:00)».
+3. **A3b contra turno suelto** (canchas-core.ts:517): la fecha del medio ocupada por un suelto o un bloqueo entra en `chocan`. Previa y mensaje dicen «No vuelve el …: se pisa con otro turno (…)». Sin anotarla (lo de la v3). Test v10-3 (K3, fuera de la ventana; dentro, el motor ya lo decía).
+- Los tres tests fallan sobre `c2067544` y pasan con el arreglo.
+- `canchas-core` + `ciclo-core` + `hecho-de-la-baja`: 78 pass / 0 fail. v9-8 sigue en 0 (c1=53, a3b=96).
+- `tsc` sin errores en los archivos tocados.
+- No verificado: la hoja en el navegador y el aleatorio del certificador (`cert-v9`) contra este commit.
