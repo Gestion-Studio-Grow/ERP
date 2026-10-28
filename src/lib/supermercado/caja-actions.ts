@@ -18,6 +18,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
+import { moverPedidoConEventoEnTx } from "@/eventos/del-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { auditAdmin } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
@@ -155,7 +156,11 @@ export async function cobrarVentaDeCaja(entrada: unknown): Promise<EstadoCobroCa
   }
 
   // La venta de mostrador cobrada ya terminó: nace entregada (como en Vender, order-actions.ts).
-  await prisma.order.updateMany({ where: { id: r.id, tenantId, status: "CONFIRMED" }, data: { status: "DELIVERED" } });
+  // N2/P2: el paso a Entregado y `pedido.entregado@1` en una transacción.
+  await tenantTransaction(
+    (tx) => moverPedidoConEventoEnTx(tx, { tenantId, pedidoId: r.id, de: "CONFIRMED", a: "DELIVERED" }),
+    { tenantId },
+  );
   await auditAdmin({
     action: "create",
     entity: "Order",
