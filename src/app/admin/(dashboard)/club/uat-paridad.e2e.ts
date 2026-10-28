@@ -1276,22 +1276,36 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
   // ═══ 8. Cierre (Tanda B4): el turno se cuenta A CIEGAS y se firma, el día se cierra con firma, la caja = lo cobrado al peso, y la medianoche (caja de 12 a 12) ═══
   async (g) => {
     const p = g.p;
+    // El cierre lo hace RECEPCIÓN (CERT-B4 v5, F6 y O1): Lu cuenta a ciegas, con su PIN no firma, y firma Majo.
+    await cambiarDeUsuario(p, /^Lu/, g.pinLu);
     await irA(p, "Caja");
     // La caja abierta (la del 17/10) se cierra como en el club desde B4 (CierreDeCaja.tsx): contar sin ver lo esperado,
-    // firmar el turno con un PIN de firma (primero uno equivocado: no firma) y cerrar el día consolidando el turno.
+    // firmar el turno con un PIN de firma (primero el de Lu: no firma) y cerrar el día consolidando el turno.
     const dia = M.cajaAbierta(await estado(p), await ahoraDelClub(p));
-    const c = await cerrarCajaPorTurno(p, p.getByRole("region", { name: "Cierre del turno" }), dia, "8484", "1111");
+    // A ciegas en TODA la pantalla de Lu (no sólo en el cierre): ni el efectivo esperado ni lo ingresado, y la lista va sin importes.
+    const abierto = M.turnoDeCajaAbierto(await estado(p), dia);
+    const pantalla = await p.locator("main").innerText();
+    const seVeEfectivo = abierto.esperado.efectivo > 0 && !M.DENOMINACIONES.includes(abierto.esperado.efectivo) && pantalla.includes(pesos(abierto.esperado.efectivo));
+    const seVenIngresos = abierto.ingresos > 0 && pantalla.includes(pesos(abierto.ingresos));
+    const listaACiegas = (await p.locator('[data-caja="a-ciegas"]').count()) > 0;
+    const majo8 = (await estado(p)).usuarios.find((u) => u.nombre.startsWith("Majo"))!;
+    const c = await cerrarCajaPorTurno(p, p.getByRole("region", { name: "Cierre del turno" }), dia, "8484", g.pinLu, majo8.id);
     const e8 = await estado(p);
     const turnos8 = M.turnosDelDia(e8, dia);
-    ok("8.a-ciegas", !c.mostrabaLoEsperado && /: cuadra$/.test(c.renglon), `Se cuenta a ciegas (lo esperado no se ve hasta confirmar el conteo) y recién ahí dice cómo dio: «${c.renglon}»`);
+    ok(
+      "8.a-ciegas",
+      abierto.ingresos > 0 && !seVeEfectivo && !seVenIngresos && listaACiegas && !c.mostrabaLoEsperado && /: cuadra$/.test(c.renglon),
+      `Lu (recepción) cuenta a ciegas: en toda su pantalla no se ve ni el efectivo esperado (${pesos(abierto.esperado.efectivo)}) ni lo ingresado (${pesos(abierto.ingresos)}), la lista va sin importes, y recién al confirmar el conteo dice cómo dio: «${c.renglon}»`,
+    );
     ok(
       "8.caja",
       !c.firmoConPinMalo && turnos8.length === 1 && turnos8[0].estado === "cerrado" && /^Majo/.test(turnos8[0].firma ?? "") && e8.caja.cierres.length === 1 && e8.caja.cierres[0].dia === dia && e8.caja.cierres[0].diferencia === 0,
-      `Con un PIN equivocado no firma; Majo firma el turno y cierra el día ${dia} con su PIN, y cuadra (efectivo ${pesos(c.efectivo)})`,
+      `Con el PIN de Lu (recepción) el turno no se firma (D-16, F6); eligiendo a Majo en «Firma», Majo firma el turno y cierra el día ${dia} con su PIN, y cuadra (efectivo ${pesos(c.efectivo)})`,
     );
     const corte = await p.locator('[data-caja="estado"]').getAttribute("data-estado");
     ok("8.caja-una-vez", corte === "cerrada" && (await p.getByRole("button", { name: "Cerrar el día" }).count()) === 0, `La caja del día no se cierra dos veces: queda «Cerrada» y no hay otro «Cerrar el día» (corte: ${corte})`);
     await foto(p, "caja-cerrada");
+    await cambiarDeUsuario(p, /^Majo/, "8484");
     // Cuentas claras: la caja es exactamente lo cobrado (pagos sin monedero) en canchas, cargos, tienda, mostrador y deudas.
     const sinMonedero = (pagos: { medio: string; monto: number }[]) => pagos.filter((x) => x.medio !== "monedero").reduce((t, x) => t + x.monto, 0);
     const canchas = e8.reservas.reduce((s, r) => s + sinMonedero(r.pagos), 0);
@@ -1542,11 +1556,12 @@ const formCon = (p: Page, donde: Locator, boton: string) => donde.getByRole("for
  * El cierre del turno abierto de la caja `dia` en `region` (la sección de CierreDeCaja), como en el club desde B4:
  *   1. contar A CIEGAS: la pantalla no muestra lo esperado (C1); el e2e lo saca del motor (`turnoDeCajaAbierto`) y cuenta
  *      justo, billete por billete y lo de los otros medios → «Confirmar el conteo»;
- *   2. firmar con un PIN de firma (D-16; `pinMalo` primero, si viene: no tiene que firmar) → «Firmar y cerrar el turno»;
+ *   2. firmar con un PIN de firma (D-16; `pinMalo` primero, si viene, como quien opera: no tiene que firmar) →
+ *      «Firmar y cerrar el turno»; con `firmaId`, eligiendo en «Firma» a quien firma (p. ej. un dueño si opera recepción);
  *   3. «Cerrar el día» con la firma (consolida los turnos).
  * Devuelve lo que se vio: si antes de contar se mostraba lo esperado, el renglón del turno contado y si el PIN malo firmó.
  */
-async function cerrarCajaPorTurno(p: Page, region: Locator, dia: string, pin: string, pinMalo?: string) {
+async function cerrarCajaPorTurno(p: Page, region: Locator, dia: string, pin: string, pinMalo?: string, firmaId?: string) {
   const t = M.turnoDeCajaAbierto(await estado(p), dia);
   const efectivo = t.esperado.efectivo;
   const conteo = formCon(p, region, "Confirmar el conteo");
@@ -1568,10 +1583,12 @@ async function cerrarCajaPorTurno(p: Page, region: Locator, dia: string, pin: st
     await p.waitForTimeout(150);
     firmoConPinMalo = M.turnosDelDia(await estado(p), dia).some((x) => x.estado === "cerrado");
   }
+  if (firmaId) await firma.getByLabel("Firma", { exact: true }).selectOption(firmaId);
   await firma.getByLabel(PIN_DE_FIRMA).fill(pin);
   await firma.getByRole("button", { name: "Firmar y cerrar el turno" }).click();
   const cerrarDia = formCon(p, region, "Cerrar el día");
   await cerrarDia.waitFor();
+  if (firmaId) await cerrarDia.getByLabel("Firma", { exact: true }).selectOption(firmaId);
   await cerrarDia.getByLabel(PIN_DE_FIRMA).fill(pin);
   await cerrarDia.getByRole("button", { name: "Cerrar el día" }).click();
   await p.waitForTimeout(200);
