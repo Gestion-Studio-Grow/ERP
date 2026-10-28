@@ -29,6 +29,7 @@ import "./piel/fijos.css";
 import { porFirma, useSeleccion } from "./usar-almacen";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
 import { enlaceWhatsApp, type ModoDelClub } from "./whatsapp-core";
+import { HechoDeLaBaja, type Hecho } from "./HechoDeLaBaja";
 
 const duracionTexto = (d: number) => (d === 60 ? "1 hora" : d === 90 ? "1 hora y media" : "2 horas");
 
@@ -61,17 +62,6 @@ function ANombreDe({ almacen, id, titular, onTitular, clienteId, onFicha }: { al
 
 type ModoBaja = "semana" | "desde" | "pausa" | "dia";
 const ddmm = (f: string) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
-
-/** Lo que quedó a la vista después de confirmar: qué se hizo y el WhatsApp para avisarle. */
-interface Hecho {
-  fijoId: string;
-  titular: string;
-  mensaje: string;
-  texto: string;
-  celular: string;
-  /** Los otros fijos que recuperan fechas por esto (observación 3 del dictamen v6): un WhatsApp para cada uno. */
-  recuperan: { titular: string; celular: string; texto: string }[];
-}
 
 /**
  * La hoja de «Dar de baja» (BP-100): ¿desde cuándo? → PREVIA → Confirmar. Hasta «Confirmar» no cambia nada: la previa
@@ -209,39 +199,6 @@ function HojaBajaFijo({ almacen, fijo, onCerrar, onHecho }: { almacen: Almacen; 
         </div>
       </div>
     </Hoja>
-  );
-}
-
-/** Después de confirmar: qué se hizo y «Avisar a Juan por WhatsApp» (en la lista, fuera del diálogo). */
-function HechoDeLaBaja({ hecho, modo, onListo }: { hecho: Hecho; modo: ModoDelClub; onListo: () => void }) {
-  const enlace = enlaceWhatsApp(hecho.celular, hecho.texto, modo);
-  const nota = useId();
-  return (
-    <div data-fijos="hecho" role="status" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3 text-sm">
-      <p className="font-medium text-strong">{hecho.mensaje}</p>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <BotonWhatsApp enlace={enlace} notaEn={enlace.nota ? nota : undefined} nombreAccesible={`Avisar a ${hecho.titular} por WhatsApp`}>
-          Avisar a {hecho.titular.split(" ")[0]} por WhatsApp
-        </BotonWhatsApp>
-        {hecho.recuperan.map((r, i) => {
-          const e = enlaceWhatsApp(r.celular, r.texto, modo);
-          return (
-            // Su celular es otro: la nota (sin celular, demo) va con su botón, no la del titular.
-            <BotonWhatsApp key={i} enlace={e} nombreAccesible={`Avisar a ${r.titular} que recupera su turno`}>
-              Avisar a {r.titular.split(" ")[0]} que recupera su turno
-            </BotonWhatsApp>
-          );
-        })}
-        <Button variant="ghost" size="md" onClick={onListo}>
-          Listo
-        </Button>
-      </div>
-      {enlace.nota && (
-        <p id={nota} className="text-xs text-muted">
-          {enlace.nota}
-        </p>
-      )}
-    </div>
   );
 }
 
