@@ -36,6 +36,46 @@ export function leerReferenciaDeNegocio(ref: string | null | undefined): Referen
   return m ? { slug: m[1], tipo: m[2] as TipoReferencia, id: m[3] } : null;
 }
 
+const ID_DE_REFERENCIA = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * La `external_reference` del link de pago de un PEDIDO (bandeja de Pedidos, cobros-actions.ts):
+ * `gsg:<slug>:pedido:<id>`, con el slug del negocio que genera el link. Es lo que el aviso lee para
+ * saber de quién es el pago, con uno o con varios negocios en la base. PURA.
+ */
+export function referenciaDelLinkDePedido(slug: string, orderId: string): string {
+  return referenciaDeNegocio(slug, "pedido", orderId);
+}
+
+export type ReferenciaDelLinkManual = { ok: true; referencia: string | undefined } | { ok: false; error: string };
+
+/**
+ * La `external_reference` de un link de cobro escrito a mano (Facturación → «Cobrar con link»),
+ * siempre con el slug del negocio que lo genera. PURA.
+ *  - vacía → sin referencia (venta suelta; con dos o más negocios el aviso no la puede atribuir:
+ *    la conexión por negocio de P5 lo resuelve);
+ *  - `pedido:<id>` → `gsg:<slug>:pedido:<id>`;
+ *  - un id (letras, números, `-`, `_`; el de un turno) → `gsg:<slug>:turno:<id>`;
+ *  - empieza con `gsg:` → RECHAZO: es la marca que dice de qué negocio es el pago; escrita a mano,
+ *    un negocio podría hacer que el aviso cobre un pedido de OTRO;
+ *  - cualquier otro texto → tal cual (como antes: no nombra un pedido ni un turno, y con dos o
+ *    más negocios el aviso lo rechaza sin efecto).
+ */
+export function referenciaDelLinkManual(slug: string, escrita: string | null | undefined): ReferenciaDelLinkManual {
+  const r = String(escrita ?? "").trim();
+  if (!r) return { ok: true, referencia: undefined };
+  if (/^gsg:/i.test(r)) {
+    return { ok: false, error: "La referencia no puede empezar con «gsg:»: esa marca la pone el sistema. Escribí sólo el número de turno o de pedido." };
+  }
+  if (r.startsWith("pedido:")) {
+    const id = r.slice("pedido:".length).trim();
+    if (ID_DE_REFERENCIA.test(id)) return { ok: true, referencia: referenciaDeNegocio(slug, "pedido", id) };
+    return { ok: true, referencia: r };
+  }
+  if (ID_DE_REFERENCIA.test(r)) return { ok: true, referencia: referenciaDeNegocio(slug, "turno", r) };
+  return { ok: true, referencia: r };
+}
+
 /**
  * La referencia en el formato que entiende el handler del plugin (`duenoDelCobro`):
  * pedido → `pedido:<id>`, turno → el id pelado. PURA.

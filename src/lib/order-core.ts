@@ -1379,10 +1379,11 @@ const DEPS_AVISO: DepsAvisoDePedido = {
  * pedido queda a cobrar (la bandeja lo muestra) y el aviso lo dice. Nunca tira por una regla de
  * negocio: devuelve el motivo. Un error de base sí sube, para que Mercado Pago reintente.
  *
- * QUIÉN LA LLAMA HOY: el simulador de avisos (cobros-actions.ts, sólo en modo de prueba). El
- * webhook de producción todavía no (src/lib/mercadopago-dispatch.ts no le pasa `cobrarPedido`
- * al handler, y la ruta descarta los avisos con la facturación apagada): conectarlo es una
- * decisión del dueño, porque abre el endpoint público al cobro de pedidos.
+ * QUIÉN LA LLAMA: el webhook de Mercado Pago (src/lib/mercadopago-dispatch.ts, `atenderAvisoMP`,
+ * con el negocio resuelto por la `external_reference` firmada y no por el host) y el simulador de
+ * avisos (cobros-actions.ts, sólo en modo de prueba). Conectar el webhook al cobro de pedidos lo
+ * decidió el dueño al aprobar el plan del nivel 2 (Tanda S1: criterio S1-C5 y QA paso 1,
+ * PLAN-REINGENIERIA-N2.md, Factory-GSG da9b8f8).
  */
 export async function cobrarPedidoPorAvisoDePago(
   aviso: AvisoDePagoDePedido,

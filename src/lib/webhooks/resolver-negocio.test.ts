@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRateLimiter } from "@/lib/rate-limit";
+import { duenoDelCobro } from "@/plugins/mercadopago/core-contract";
+import { referenciaDelLinkDePedido, referenciaDelLinkManual } from "./resolver-negocio";
 import {
   CLAVE_GLOBAL,
   candidatosDeFirma,
@@ -135,4 +137,46 @@ test("rate limit: 60 por minuto por IP, el 61 → espera", () => {
   assert.equal(limitarWebhook("mercadopago", otraIp, l), null);
   t = 61_000;
   assert.equal(limitarWebhook("mercadopago", req, l), null);
+});
+
+// Vuelta 3 (observación de la vuelta 1: «el emisor sigue escribiendo pedido:<id>»).
+test("link de un PEDIDO: emite gsg:<slug>:pedido:<id> y el aviso lo atribuye a su negocio con dos negocios", async () => {
+  const ref = referenciaDelLinkDePedido("magra", "ped_77");
+  assert.equal(ref, "gsg:magra:pedido:ped_77");
+  const r = await resolverNegocioDelPago({ externalReference: ref, subdominioDelHost: null }, deps([magra, breakpoint]));
+  assert.ok(r.ok);
+  assert.equal(r.negocio.id, "t-magra");
+  // lo que le llega al handler lo lee `duenoDelCobro` como el pedido (no como un turno)
+  assert.deepEqual(duenoDelCobro(r.referencia), { tipo: "pedido", id: "ped_77" });
+  // la de B no cae en A aunque llegue por la URL de A
+  const deB = await resolverNegocioDelPago(
+    { externalReference: referenciaDelLinkDePedido("breakpoint", "ped_1"), subdominioDelHost: "magra" },
+    deps([magra, breakpoint]),
+  );
+  assert.deepEqual(deB, { ok: false, motivo: "host-de-otro-negocio", auditarEn: breakpoint });
+});
+
+// Vuelta 3 (observación de la vuelta 1: «lo mismo para turnos que antes resolvía el host»).
+test("link manual: turno y pedido con el negocio adelante; gsg: escrito a mano se rechaza (cobro en otro negocio)", async () => {
+  assert.deepEqual(referenciaDelLinkManual("magra", ""), { ok: true, referencia: undefined });
+  assert.deepEqual(referenciaDelLinkManual("magra", null), { ok: true, referencia: undefined });
+  assert.deepEqual(referenciaDelLinkManual("magra", " apt_9 "), { ok: true, referencia: "gsg:magra:turno:apt_9" });
+  assert.deepEqual(referenciaDelLinkManual("magra", "pedido:p1"), { ok: true, referencia: "gsg:magra:pedido:p1" });
+  // texto libre: tal cual, como antes (no nombra pedido ni turno)
+  assert.deepEqual(referenciaDelLinkManual("magra", "Seña de Ana"), { ok: true, referencia: "Seña de Ana" });
+  assert.deepEqual(referenciaDelLinkManual("magra", "pedido:a;b"), { ok: true, referencia: "pedido:a;b" });
+  for (const spoof of ["gsg:breakpoint:pedido:p1", "GSG:breakpoint:pedido:p1", "gsg:magra:turno:a1", "gsg:"]) {
+    assert.equal(referenciaDelLinkManual("magra", spoof).ok, false, spoof);
+  }
+  // ida y vuelta con el aviso: el turno de magra va a magra y el handler recibe el id pelado
+  const d = deps([magra, breakpoint]);
+  const t = referenciaDelLinkManual("magra", "apt_9");
+  assert.ok(t.ok);
+  const r = await resolverNegocioDelPago({ externalReference: t.referencia, subdominioDelHost: null }, d);
+  assert.ok(r.ok);
+  assert.equal(r.negocio.id, "t-magra");
+  assert.deepEqual(duenoDelCobro(r.referencia), { tipo: "turno", id: "apt_9" });
+  // el texto libre, con dos negocios, no se atribuye a nadie
+  const libre = await resolverNegocioDelPago({ externalReference: "Seña de Ana", subdominioDelHost: null }, d);
+  assert.equal(libre.ok, false);
 });

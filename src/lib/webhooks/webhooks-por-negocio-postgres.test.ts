@@ -158,3 +158,66 @@ test("sin external_reference con dos negocios → 200 sin efecto", async (t) => 
   assert.equal(r.body.rechazado, "referencia-ausente");
   assert.equal(await duenio.cashMovement.count(), movAntes);
 });
+
+// ── Vuelta 3: el EMISOR. El link que genera la pantalla lleva el negocio (QA de S1, paso 1) ──────
+
+test("QA S1 paso 1: el link real de un pedido de A lleva gsg:<A>:pedido:<id> y su aviso lo cobra en A; B no cambia", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { base, duenio } = p;
+  const env = process.env as Record<string, string | undefined>;
+  delete env.MP_MODO; // stub
+  env.MP_SIMULAR_AVISOS = "1"; // en stub, el link de un pedido sólo se ofrece con el simulador
+  const { ejecutarAccion } = await import("@/test/accion-de-servidor");
+  const { generarLinkDePagoDePedido } = await import("@/lib/cobros-actions");
+  const { ACCION_LINK_DE_PAGO } = await import("@/app/admin/(dashboard)/pedidos/link-de-pago");
+  const pedidoA = base.a.pedidos[2];
+  const fd = new FormData();
+  fd.set("id", pedidoA);
+  const salida = await ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () => generarLinkDePagoDePedido(null, fd));
+  assert.equal(salida.tipo, "respuesta");
+  assert.ok(salida.tipo === "respuesta" && salida.valor?.ok, JSON.stringify(salida));
+  const fila = await duenio.auditLog.findFirstOrThrow({
+    where: { tenantId: base.a.id, entity: "Order", entityId: pedidoA, action: ACCION_LINK_DE_PAGO },
+    select: { changes: true },
+  });
+  const ref = (fila.changes as { referenciaMP?: string } | null)?.referenciaMP;
+  assert.equal(ref, `gsg:${base.a.slug}:pedido:${pedidoA}`);
+
+  const antesB = await fotoDeB(duenio, base);
+  const pagoId = "880005";
+  const pagos: Record<string, PagoMP> = { [pagoId]: { id: pagoId, estado: "approved", monto: TOTAL, externalReference: ref } as PagoMP };
+  const r = await enviar(base, aviso(pagoId, "sec-a", "erp-ch.vercel.app"), pagos);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal((await duenio.order.findUniqueOrThrow({ where: { id: pedidoA }, select: { paid: true } })).paid, true);
+  assert.equal(await duenio.cashMovement.count({ where: { tenantId: base.a.id, orderId: pedidoA } }), 1);
+  assert.deepEqual(await fotoDeB(duenio, base), antesB);
+});
+
+test("link manual: A no puede escribir una referencia gsg: de B; la suya sale con su negocio", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { base, duenio } = p;
+  delete (process.env as Record<string, string | undefined>).MP_MODO; // stub
+  const { ejecutarAccion } = await import("@/test/accion-de-servidor");
+  const { generarCobro } = await import("@/lib/cobros-actions");
+  const conRef = (referencia: string) => {
+    const fd = new FormData();
+    fd.set("concepto", "Seña");
+    fd.set("monto", "1000");
+    fd.set("referenciaExterna", referencia);
+    return ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () => generarCobro(fd));
+  };
+  const spoof = await conRef(`gsg:${base.b.slug}:pedido:${base.b.pedidos[0]}`);
+  assert.ok(spoof.tipo === "respuesta" && spoof.valor.ok === false, JSON.stringify(spoof));
+  assert.equal(await duenio.auditLog.count({ where: { entity: "PaymentLink", changes: { path: ["referenciaExterna"], string_contains: "gsg:" } } }), 0);
+
+  const turno = await conRef("apt_1");
+  assert.ok(turno.tipo === "respuesta" && turno.valor.ok, JSON.stringify(turno));
+  const fila = await duenio.auditLog.findFirstOrThrow({
+    where: { tenantId: base.a.id, entity: "PaymentLink", action: "create" },
+    orderBy: { createdAt: "desc" },
+    select: { changes: true },
+  });
+  assert.equal((fila.changes as { referenciaMP?: string }).referenciaMP, `gsg:${base.a.slug}:turno:apt_1`);
+});
