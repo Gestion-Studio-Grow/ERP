@@ -1,5 +1,7 @@
 # 🤝 HANDOFF — Suite de Facturación (retomar en otra sesión)
 
+> **SUPERSEDIDO el 28/10/2026** por los Gates del 22/10 (`docs/producto/contador/GATE.md`, `docs/producto/facturita/GATE.md`, `docs/producto/motor-facturacion/GATE.md`) y por el plan `Factory-GSG/00-ESTADO/reingenieria-2026-10/PLAN-CONTADOR-FACTURITA.md` (rama de integración `integ-facturacion`, tanda X0). Se conserva como historia: lo técnico de abajo ya no describe el código.
+
 **Fecha:** 2026-07-11 · **Rama de trabajo:** `frente/producto-contador` (worktree `estetica-erp-fiscal`)
 **Por qué el handoff:** el clasificador de permisos del sistema (claude-opus-4-8) tuvo una caída
 sostenida que bloqueó agentes/comandos/workflows. El trabajo quedó a salvo en el working tree.

@@ -160,7 +160,27 @@ Base: 8b67f3b6 (la copia del comprador ya va con la entidad `ComprobanteReceptor
 con los nuevos de domicilio de la A, umbral RG 5700, aviso de CUIT jurídico, estado de anulación, cupo,
 NC rechazada, formato del número y CAE simulado). `facturita-emision-postgres.test.ts` 5/5: el circuito
 del PDF ahora sigue con la NC (ficha copiada a la nota, PDF 200 de la nota, «en curso» → «anulada», número
-`00002-…`) y el cupo agotado que no deja anular. Suite completa y build: ver la entrega.
+`00002-…`) y el cupo agotado que no deja anular. Suite completa y build: cerrados en X0 (abajo).
+
+**Cierre de la vuelta 4 en X0 (28/10/2026, rama `integ-facturacion` = `origin/main` `d4798012` + `e2543c41`;
+dictamen completo en `docs/producto/X0-integracion-facturacion.md`):**
+- `npx tsc --noEmit`: 0 errores. `next build`: verde, con las 10 rutas `/facturita/**` y las 8 `/contador/**`.
+- `npm test` completo, **sin Postgres** en la máquina (los tests de base se saltean): 6936 tests, 6367 pasan,
+  34 fallan, 268 cancelados, 267 salteados. Los 53 archivos con fallas fallan igual en `main` (57 allá):
+  navegador que no arranca en Windows (`browserType.launch: spawn UNKNOWN`), rutas `C:\C:\…`, guardia de
+  redondeos con archivos de `club/`, contrato de ARCA y los de siempre. `src/tenants/breakpoint/turnero/demo-local.test.ts`
+  se cuelga en los dos y se cortó a mano. **Cero rojos nuevos.**
+- Tests puros de Facturita, consola, cartera, motor y PDF (56 archivos) con `CI=1`: **605/605**.
+- Tests de base del frente sobre PGlite (Postgres 17 en memoria, superusuario, una sola sesión):
+  `facturita-emision-postgres` 5/5, `umbral-en-los-seis-caminos-postgres` 7/7, `comprobante-pdf-postgres` 2/3
+  (el que falta es la afirmación de RLS, que PGlite no puede cumplir). RLS y concurrencia real: **sin verificar**.
+- QA clic por clic a 360 px sobre la app compilada (PGlite, ARCA simulado): emitir C a un inscripto con
+  servicios, B al 10,5 % a consumidor final, A con domicilio (sin domicilio el botón no se habilita);
+  PDF con CAE simulado → 409 con el texto nuevo; anular → foco al motivo, «Cancelar» devuelve el foco a
+  «Anular», el resultado se anuncia en `role="status"`; con el cupo en 5/5 no anula y avisa en `role="alert"`.
+  Sin las 3 migraciones: «Mis facturas» sale sin descripciones y sin error.
+- Arreglado en X0 (`f0ad761f`): la tabla de «Mis facturas» desbordaba la página a 360 px (648 px de ancho)
+  por el `sr-only` de «Acciones» fuera del contenedor con scroll.
 
 **Nota de entorno (no afecta la rama):** el `npm install` del worktree no pudo bajar `xlsx` de
 `cdn.sheetjs.com` (bloqueado por el proxy de la sesión). Para verificar se instaló localmente con

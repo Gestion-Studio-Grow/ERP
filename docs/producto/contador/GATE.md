@@ -111,4 +111,23 @@ el refactor de `cartera-actions.ts` (las llaves pasan a `cartera-gate.ts`) y los
   descripción) y el CSV sale con «Qué se facturó» vacío; la lista de comprobantes y el reintento
   andan igual. **No integrar a `main` antes de aplicarlas.**
 
+## Nota de integración (X0, 28/10/2026)
+
+La consola quedó integrada con `main` en la rama `integ-facturacion` (dictamen: `docs/producto/X0-integracion-facturacion.md`).
+Nada llegó a `main` y la advertencia de arriba sigue vigente.
+- Choque R3 (`5ed613f7`, la factura del proveedor es UNA compra): sobre PGlite, importar dos veces el mismo
+  «Mis Comprobantes Recibidos» desde la consola deja 8 compras y avisa «Ya estaba cargado» en las 8
+  (`recibidos-postgres.test.ts:132-155`); `compra-factura-postgres` 1/1. La afirmación de RLS del mismo
+  test no se puede probar en PGlite.
+- Choque Serializable (`003c27c1`): el lote usa `tenantTransaction` sin Serializable (`cartera-abonos.ts:260-275`)
+  y el reintento nuevo sólo actúa cuando se pide Serializable; el duplicado sigue llegando como P2002 →
+  «ya emitida». `cartera-abonos-postgres` y `una-factura-por-cobro-postgres` verdes en PGlite, que
+  atiende de a una sesión: prueba el resultado de la dedupe, **no la carrera**.
+- QA a 360 px sobre la app compilada: cartera → Abonos (alta) → Lote (confirmación, «1 autorizado»; repetir
+  no emite) → Comprobantes → NC por más de lo facturado (rechazada con el saldo) → NC parcial (−$30.000) →
+  Exportar (CSV con la NC en negativo). Sin las 3 migraciones: todas las pantallas 200, Abonos con la franja
+  «falta un paso de base de datos».
+- Arreglado en X0 (`f0ad761f`): la tabla de la cartera lleva `relative` en su contenedor con scroll (el
+  `caption` `sr-only` podía desbordar la página).
+
 — Elaborado por GSG
