@@ -14,6 +14,7 @@ import {
   referenciaParaElHandler,
   resolverNegocioDelPago,
   slugDelMensajeWA,
+  negocioDelMensajeWA,
   type DepsResolverNegocio,
   type NegocioDelWebhook,
 } from "./resolver-negocio";
@@ -106,6 +107,22 @@ test("WhatsApp: phone_number_id → slug; sin mapeo o JSON roto → null", () =>
   assert.equal(slugDelMensajeWA(payload, {}), null);
   assert.equal(slugDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: "{roto" }), null);
   assert.equal(leerTelefonosWA('{"1":5}').size, 0);
+});
+
+// F2 (certificación S1): sin WHATSAPP_PHONE_NUMBERS, un despliegue de UN negocio no pierde los mensajes.
+test("WhatsApp: sin la variable y con un solo negocio → ese negocio; con dos o con mapa cargado → sin negocio", async () => {
+  const payload = { entry: [{ changes: [{ value: { metadata: { phone_number_id: "100000000000001" } } }] }] };
+  const uno = await negocioDelMensajeWA(payload, {}, deps([magra]));
+  assert.ok(uno.ok);
+  assert.equal(uno.negocio.id, "t-magra");
+  assert.equal(uno.via, "negocio-unico");
+  assert.deepEqual(await negocioDelMensajeWA(payload, {}, deps([magra, breakpoint])), { ok: false, slug: null });
+  assert.deepEqual(await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: '{"999":"magra"}' }, deps([magra])), { ok: false, slug: null });
+  const mapa = await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: '{"100000000000001":"breakpoint"}' }, deps([magra, breakpoint]));
+  assert.ok(mapa.ok);
+  assert.equal(mapa.negocio.id, "t-bp");
+  assert.equal(mapa.via, "mapa");
+  assert.deepEqual(await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: '{"100000000000001":"nadie"}' }, deps([magra])), { ok: false, slug: "nadie" });
 });
 
 test("rate limit: 60 por minuto por IP, el 61 → espera", () => {

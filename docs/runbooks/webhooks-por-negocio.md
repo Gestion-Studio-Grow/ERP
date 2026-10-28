@@ -58,7 +58,12 @@ Otros: 60 POST/min por IP (429 con `Retry-After`) antes de verificar nada. Un pa
 ```
 
 - Clave: el «Identificador del número de teléfono» de WhatsApp Manager (no el número en sí). Valor: `Tenant.slug`.
-- Sin mapeo (o JSON roto) → **200 sin efecto** y aviso en el log (`aviso: wa-numero-sin-negocio`). Meta no reintenta.
+- **Requisito previo al push con dos o más negocios:** cargar la variable en Vercel. Sin ella:
+  - base con UN solo negocio → el mensaje va a ese negocio (compatibilidad, como Mercado Pago) con aviso al
+    monitor (`aviso: wa-sin-mapa-negocio-unico`);
+  - base con dos o más → **200 sin efecto** (`aviso: wa-numero-sin-negocio`) y Meta no reintenta.
+  (Un JSON roto cuenta como variable sin cargar.)
+- Con la variable cargada, un número que no está en el mapa → **200 sin efecto** y aviso en el log (`aviso: wa-numero-sin-negocio`). Meta no reintenta.
 - Sigue valiendo todo lo anterior: `PADEL_WHATSAPP=cloud`, `WHATSAPP_APP_SECRET` (503 sin él, 401 firma mala),
   60 POST/min por IP.
 

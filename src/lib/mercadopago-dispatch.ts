@@ -274,9 +274,19 @@ export async function atenderAvisoMP(request: Request, deps: DepsAvisoMP = DEPS_
   try {
     pago = await deps.leerPago(paymentId);
   } catch (err) {
-    if (err instanceof MercadoPagoApiError && err.status >= 400 && err.status < 500) {
+    // Sólo 404 (pago que la cuenta no tiene) y 400 (id inválido) se acusan con 200: lo demás tiene
+    // que volver a llegar, porque con 200 MP no reintenta y un pago acreditado quedaría sin cobrar.
+    if (err instanceof MercadoPagoApiError && (err.status === 404 || err.status === 400)) {
       logger.warn("mercadopago.webhook", "aviso de un pago que la cuenta no tiene", { paymentId, status: err.status });
       return ok({ rechazado: "pago-no-encontrado" });
+    }
+    if (err instanceof MercadoPagoApiError && (err.status === 401 || err.status === 403)) {
+      // Token vencido o rotado: no se arregla solo. 503 (MP reintenta) + alerta al monitor.
+      logger.error("monitor", "Mercado Pago rechazó la credencial al leer un pago: revisar el access token", err, {
+        paymentId,
+        status: err.status,
+      });
+      return falla(503, "mp-credencial-rechazada");
     }
     logger.error("mercadopago.webhook", "no se pudo leer el pago en Mercado Pago", err, { paymentId });
     return falla(500, "mp-no-disponible"); // transitorio: MP reintenta con espera, no en bucle

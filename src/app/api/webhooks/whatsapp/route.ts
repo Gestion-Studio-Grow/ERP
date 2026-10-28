@@ -25,7 +25,7 @@
 import { prisma } from "@/lib/prisma";
 import { basePrisma } from "@/lib/prisma-base";
 import { runInTenantContext } from "@/lib/tenant-context";
-import { limitarWebhook, respuestaDemasiados, slugDelMensajeWA, phoneNumberIdDe } from "@/lib/webhooks/resolver-negocio";
+import { limitarWebhook, respuestaDemasiados, negocioDelMensajeWA, phoneNumberIdDe } from "@/lib/webhooks/resolver-negocio";
 import { logger } from "@/lib/logger";
 import { parseInboundMeta } from "@/lib/wa-provider";
 import { diaHumano, horaHumana, pagoAlCancelar, puedeCancelarAlumno, telefonoAlumno } from "@/lib/padel/core";
@@ -71,18 +71,29 @@ export async function POST(request: Request) {
   if (!msg) return Response.json({ ok: true, ignorado: "no es un mensaje de texto ni un botón" });
 
   // El negocio, por el número de WhatsApp Business que recibió el mensaje.
-  const slug = slugDelMensajeWA(payload, process.env);
-  const negocio = slug ? await basePrisma.tenant.findUnique({ where: { slug }, select: { id: true } }).catch(() => null) : null;
-  if (!negocio) {
+  // Sin WHATSAPP_PHONE_NUMBERS y con UN solo negocio en la base → ese negocio (con aviso al monitor).
+  const SELECT_NEGOCIO_WA = { id: true, slug: true } as const;
+  const r = await negocioDelMensajeWA(payload, process.env, {
+    porSlug: (s) => basePrisma.tenant.findUnique({ where: { slug: s }, select: SELECT_NEGOCIO_WA }),
+    primerosDos: () => basePrisma.tenant.findMany({ take: 2, orderBy: { createdAt: "asc" }, select: SELECT_NEGOCIO_WA }),
+  }).catch(() => ({ ok: false as const, slug: null }));
+  if (!r.ok) {
     logger.warn("padel.whatsapp", "mensaje entrante de un número sin negocio: no se procesa", {
       aviso: "wa-numero-sin-negocio",
       phoneNumberId: phoneNumberIdDe(payload),
-      slug,
+      slug: r.slug,
       messageId: msg.messageId,
     });
     return Response.json({ ok: true, ignorado: "numero-sin-negocio" });
   }
-  const tenantId = negocio.id;
+  if (r.via === "negocio-unico") {
+    logger.warn("monitor", "WhatsApp sin WHATSAPP_PHONE_NUMBERS: mensaje asignado al único negocio de la base", {
+      aviso: "wa-sin-mapa-negocio-unico",
+      phoneNumberId: phoneNumberIdDe(payload),
+      negocio: r.negocio.slug,
+    });
+  }
+  const tenantId = r.negocio.id;
 
   try {
     return await runInTenantContext(tenantId, async () => await atenderMensaje(request, tenantId, msg));

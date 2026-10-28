@@ -203,6 +203,38 @@ export function slugDelMensajeWA(payload: unknown, env: Record<string, string | 
   return id ? (leerTelefonosWA(env.WHATSAPP_PHONE_NUMBERS).get(id) ?? null) : null;
 }
 
+type NegocioWA = Pick<NegocioDelWebhook, "id" | "slug">;
+export interface DepsNegocioWA {
+  porSlug(slug: string): Promise<NegocioWA | null>;
+  primerosDos(): Promise<NegocioWA[]>;
+}
+
+export type NegocioDelMensajeWA =
+  | { ok: true; negocio: NegocioWA; via: "mapa" | "negocio-unico" }
+  | { ok: false; slug: string | null };
+
+/**
+ * El negocio de un mensaje entrante de WhatsApp.
+ *  - número en `WHATSAPP_PHONE_NUMBERS` → ese negocio;
+ *  - variable SIN cargar (mapa vacío) y base con UN solo negocio → ese negocio (compatibilidad de
+ *    despliegue de un solo cliente, como Mercado Pago); el llamador avisa al monitor;
+ *  - cualquier otro caso (número fuera de un mapa cargado, o dos o más negocios) → sin negocio.
+ */
+export async function negocioDelMensajeWA(
+  payload: unknown,
+  env: Record<string, string | undefined>,
+  deps: DepsNegocioWA,
+): Promise<NegocioDelMensajeWA> {
+  const slug = slugDelMensajeWA(payload, env);
+  if (slug) {
+    const n = await deps.porSlug(slug);
+    return n ? { ok: true, negocio: n, via: "mapa" } : { ok: false, slug };
+  }
+  if (leerTelefonosWA(env.WHATSAPP_PHONE_NUMBERS).size > 0) return { ok: false, slug: null };
+  const todos = await deps.primerosDos();
+  return todos.length === 1 ? { ok: true, negocio: todos[0], via: "negocio-unico" } : { ok: false, slug: null };
+}
+
 // ── Rate limit de los webhooks ───────────────────────────────────────────────
 
 /**

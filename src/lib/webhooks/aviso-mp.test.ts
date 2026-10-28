@@ -158,6 +158,16 @@ test("pago que la cuenta no tiene (404 de MP) → 200 sin efecto; MP caído → 
   assert.equal((await atender(aviso(), caido.deps)).status, 500);
 });
 
+// F1 (certificación S1): 401/403/429 de MP no se acusan con 200 — MP no reintentaría y el pago se pierde.
+for (const [status, esperado] of [[400, 200], [401, 503], [403, 503], [429, 500], [502, 500]] as const) {
+  test(`MP contesta ${status} al leer el pago → ${esperado}${esperado === 200 ? " sin efecto" : " (MP reintenta)"}`, async () => {
+    const p = armar({ leerPago: async () => { throw new MercadoPagoApiError(`MP HTTP ${status}`, status); } });
+    const r = await atender(aviso(), p.deps);
+    assert.equal(r.status, esperado);
+    assert.equal(p.manejados.length, 0);
+  });
+}
+
 test("tipo distinto de payment → 200 ignorado, sin leer el pago", async () => {
   const p = armar();
   const id = "55";
