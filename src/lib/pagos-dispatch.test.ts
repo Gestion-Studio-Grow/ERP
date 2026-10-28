@@ -9,6 +9,7 @@ import { CLAVE_MERCADOPAGO, StubMercadoPagoClient } from "@/plugins/mercadopago"
 import {
   CobrosSinConexionError,
   configCobrosDesde,
+  estadoCobrosMP,
   construirRegistroCobros,
   gatewayCobrosDeConexion,
   gatewayCobrosPara,
@@ -134,4 +135,15 @@ test("un proveedor no registrado tira ProveedorPagoDesconocidoError", async () =
     () => gatewayCobrosPara("t-1", registroVacio, configPort),
     ProveedorPagoDesconocidoError,
   );
+});
+
+test("estadoCobrosMP: la pantalla sigue la regla del dispatch (conexión; global sólo con MP_MODO_LEGADO=1)", async () => {
+  const global = { MP_ACCESS_TOKEN: "APP_USR-global" };
+  const con = depsFalsas(global, { "t-a": { conexionId: "c-a", token: "APP_USR-a" } });
+  assert.deepEqual(await estadoCobrosMP("t-a", con.deps), { conectado: true, modo: "real", origen: "conexion" });
+  assert.deepEqual(con.tokensLeidos, [], "el estado no abre el secreto");
+  // Token global SIN el flag: el dispatch no lo usa → no se muestra «Conectado».
+  assert.deepEqual(await estadoCobrosMP("t-sin", depsFalsas(global).deps), { conectado: false, modo: "prueba", origen: "ninguno" });
+  assert.deepEqual(await estadoCobrosMP("t-sin", depsFalsas({ ...global, MP_MODO_LEGADO: "1" }).deps), { conectado: true, modo: "real", origen: "legado" });
+  assert.deepEqual(await estadoCobrosMP("t-sin", depsFalsas({ MP_MODO_LEGADO: "1" }).deps), { conectado: false, modo: "prueba", origen: "legado" });
 });

@@ -17,7 +17,7 @@ import {
 import type { ResumenIngesta } from "@/plugins/mercadopago";
 
 export interface EstadoMercadoPago {
-  /** ¿Hay credenciales reales cargadas (token en el entorno)? */
+  /** ¿El negocio tiene credenciales reales (su conexión, o el token global con MP_MODO_LEGADO=1)? */
   conectado: boolean;
   /** "real" con token; "prueba" sin token (stub, no llama a Mercado Pago). */
   modo: "real" | "prueba";
@@ -25,10 +25,10 @@ export interface EstadoMercadoPago {
   facturacionActiva: boolean;
 }
 
-/** Estado de la integración para la pantalla de Facturación. */
+/** Estado de la integración del negocio para la pantalla de Facturación. */
 export async function estadoMercadoPagoAction(): Promise<EstadoMercadoPago> {
   await requireCapability("billing:manage");
-  const { conectado, modo } = estadoIntegracionMP();
+  const { conectado, modo } = await estadoIntegracionMP(await getCurrentTenantId());
   return { conectado, modo, facturacionActiva: isInvoicingEnabled() };
 }
 

@@ -188,6 +188,31 @@ export const depsConfigCobrosDeLaBase: DepsConfigCobros = {
 /** Config de cobros por defecto: token de la conexión del negocio; legado sólo con el flag. */
 export const configCobrosPorDefecto: ConfigCobrosPort = configCobrosDesde(depsConfigCobrosDeLaBase);
 
+export interface EstadoCobrosMP {
+  /** ¿El negocio puede cobrar/leer en Mercado Pago con credenciales reales? */
+  conectado: boolean;
+  /** "real" con token; "prueba" sin token (stub, no llama a Mercado Pago). */
+  modo: "real" | "prueba";
+  /** De dónde sale el token: la conexión del negocio, el global con MP_MODO_LEGADO=1, o ninguno. */
+  origen: "conexion" | "legado" | "ninguno";
+}
+
+/**
+ * El estado de Mercado Pago DEL NEGOCIO con la misma regla que `configCobrosDesde` (P1-C4): manda
+ * la conexión; el token global cuenta sólo con `MP_MODO_LEGADO=1`. Así la pantalla no dice
+ * «Conectado» por un token global que el dispatch ya no usa, ni «Sin conectar» a un negocio con
+ * su conexión. No lee el secreto (no necesita la KEK).
+ */
+export async function estadoCobrosMP(
+  tenantId: string,
+  deps: Pick<DepsConfigCobros, "env" | "conexionMP"> = depsConfigCobrosDeLaBase,
+): Promise<EstadoCobrosMP> {
+  if (await deps.conexionMP(tenantId)) return { conectado: true, modo: "real", origen: "conexion" };
+  if (!modoLegadoMP(deps.env)) return { conectado: false, modo: "prueba", origen: "ninguno" };
+  const conToken = Boolean(deps.env.MP_ACCESS_TOKEN?.trim());
+  return { conectado: conToken, modo: conToken ? "real" : "prueba", origen: "legado" };
+}
+
 /**
  * Resuelve el `GatewayPagos` de un tenant vía el registro de proveedores. Lanza
  * `ProveedorPagoDesconocidoError` si el tenant apunta a un proveedor no registrado y
