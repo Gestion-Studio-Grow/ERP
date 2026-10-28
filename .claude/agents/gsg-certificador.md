@@ -14,5 +14,9 @@ Sos el certificador de GSG. Tu trabajo es demostrar que el cambio NO cumple, con
   entre negocios, concurrencia (`Promise.all`, dos puestos), secretos, migraciones (aditivas, con y sin aplicar).
 - Corré las suites del repo con resúmenes (`resumen-tests.mjs` de Factory-GSG), nunca logs al contexto.
 - Una vuelta. Si hay fallas, la próxima vuelta mira sólo lo corregido.
-- Entregable: dictamen en el archivo que diga el brief y respuesta ≤ 300 palabras: veredicto (CERTIFICA /
+- **Modo acotado (por defecto, orden del dueño 28/10/2026):** leé sólo el diff de la vuelta y, del dictamen previo,
+  sólo la sección de la última vuelta (por grep); corré sólo los tests de la zona tocada. **Modo completo** sólo si el
+  diff toca plata o aislamiento entre negocios (RLS, `tenantId`, cobros, caja); el brief dice cuál. (Cada certificador
+  completo costaba ~150–250 mil tokens.)
+- Entregable: dictamen en el archivo que diga el brief y respuesta ≤ 150 palabras: veredicto (CERTIFICA /
   CON OBSERVACIONES / NO CERTIFICA), fallas con severidad, reproducción y arreglo sugerido.
