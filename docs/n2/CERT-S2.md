@@ -215,3 +215,15 @@ hay que tomar ANTES del día D (`CashMethod.TRANSFERENCIA`), que no es defecto d
   la guarda convergente. Acá todo corrió como superusuario.
 - Para cerrarlo: `paquete-gate2.test.ts` y `adv-db.test.ts` con `GATE2_PG_URL` apuntando a un
   Postgres 16 local con `psql`.
+
+## Vuelta 3 — cierre de la falla baja de la vuelta 2 (orquestador, 28/10/2026)
+
+- **Falla baja → CORREGIDA.** `paquete-gate2-estatico.test.ts` suma «ninguna marca suelta en un enum que
+  N2_enums.sql no toca»: recorre TODOS los `enum` de `schema.prisma` y exige que cada `// N2-enum: X` esté en
+  el SQL. Reproducción del certificador (marca `// N2-enum: SUELTO` en `CashMethod`): ahora falla con
+  `CashMethod.SUELTO: marcado … pero N2_enums.sql no lo agrega`; sin la marca, 4/4 en verde.
+- **`CashMethod.TRANSFERENCIA` (M1-C2)** y el texto `TARJETA` de M1-C1 en el plan: no son fallas de S2;
+  traspasados a M1 como decisión de la PMO/dueño antes del día D (🔴 un valor de enum agregado no se quita).
+- Sin verificar acá (sin Postgres real): concurrencia real, `psql`, Postgres 16 y permisos del rol de Neon.
+
+Veredicto final: CERTIFICA — 0 fallas abiertas; lo que queda son traspasos con dueño (P3, P4, M1).

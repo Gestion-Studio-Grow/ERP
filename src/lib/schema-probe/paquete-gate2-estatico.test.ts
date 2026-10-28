@@ -71,3 +71,18 @@ test("regla N2-enum: cada valor del SQL tiene su marca (o está encendido) en sc
     assert.ok(delSql.includes(v), `${v}: marcado \`// N2-enum:\` en schema.prisma pero N2_enums.sql no lo agrega`);
   }
 });
+
+test("regla N2-enum: ninguna marca suelta en un enum que N2_enums.sql no toca (cert. S2 vuelta 2)", () => {
+  const delSql = valoresDelSql();
+  let enumActual: string | null = null;
+  for (const l of SCHEMA.split(/\r?\n/)) {
+    const abre = /^\s*enum (\w+) \{\s*$/.exec(l);
+    if (abre) { enumActual = abre[1]; continue; }
+    if (enumActual && l.trim() === "}") { enumActual = null; continue; }
+    const marca = /^\s*\/\/ N2-enum: (\w+)/.exec(l);
+    if (!marca) continue;
+    assert.ok(enumActual, `schema.prisma: marca \`// N2-enum: ${marca[1]}\` fuera de un enum`);
+    const v = `${enumActual}.${marca[1]}`;
+    assert.ok(delSql.includes(v), `${v}: marcado \`// N2-enum:\` en schema.prisma pero N2_enums.sql no lo agrega`);
+  }
+});
