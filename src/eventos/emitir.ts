@@ -40,7 +40,7 @@
 
 import { crearSchemaProbe, type ConsultaSql } from "@/lib/schema-probe/probe";
 import { definicionDe, type DatosDe, type TipoEvento, type VersionDe } from "./catalogo";
-import { erroresDe } from "./esquema";
+import { bienFormado, erroresDe } from "./esquema";
 
 /** Lo mínimo del cliente de transacción que usa el emisor (Prisma.TransactionClient lo cumple). */
 export interface TxConSql {
@@ -152,6 +152,17 @@ export function tieneSql(tx: object): tx is TxConSql {
   return typeof (tx as Partial<TxConSql>).$queryRawUnsafe === "function";
 }
 
+/** Cambia, en el lugar, todo sustituto suelto de los textos de un objeto JSON por U+FFFD. */
+function sanearTextos(o: Record<string, unknown> | unknown[]): void {
+  const entradas: [string | number, unknown][] = Array.isArray(o) ? o.map((v, i) => [i, v]) : Object.entries(o);
+  for (const [k, v] of entradas) {
+    let nuevo = v;
+    if (typeof v === "string") nuevo = bienFormado(v);
+    else if (v && typeof v === "object") sanearTextos(v as Record<string, unknown>);
+    if (nuevo !== v) (o as Record<string | number, unknown>)[k] = nuevo;
+  }
+}
+
 /** Valida, redacta y arma el sobre. Puro: lo usa el emisor y el test de redacción. */
 export function armarSobre<T extends TipoEvento, V extends VersionDe<T>>(
   ev: EventoAEmitir<T, V>,
@@ -162,7 +173,8 @@ export function armarSobre<T extends TipoEvento, V extends VersionDe<T>>(
   if (!def) throw new EventoInvalido(nombre, ["no está en el catálogo"]);
   const errores = erroresDe(def.esquema, ev.datos);
   if (!ev.tenantId) errores.push("tenantId: falta el negocio");
-  const clave = ev.clave?.trim() ?? "";
+  // Una clave armada con un texto de la persona tampoco puede llevar un sustituto suelto (O-v4-3).
+  const clave = bienFormado(ev.clave?.trim() ?? "");
   if (!clave || clave.length > 300) errores.push("clave: tiene que tener entre 1 y 300 caracteres");
   if (errores.length) throw new EventoInvalido(nombre, errores);
 
@@ -177,6 +189,9 @@ export function armarSobre<T extends TipoEvento, V extends VersionDe<T>>(
     datos: def.esquema.redactar(ev.datos),
     ...(ev.enlaces ? { enlaces: ev.enlaces } : {}),
   };
+  // Red de seguridad (O-v4-3, CERT-P2): ningún texto del sobre —un `id`, un `texto`, un nombre de
+  // producto— lleva un sustituto suelto. jsonb lo rechaza (22P02) y tumbaría el hecho entero.
+  sanearTextos(payload);
   return { id, type: nombre, clave: guardada, payload };
 }
 

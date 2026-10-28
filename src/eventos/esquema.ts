@@ -50,21 +50,76 @@ export type InferirObjeto<S extends Record<string, Esquema<unknown>>> = Aplanar<
 
 // ── Redacción de texto libre ──────────────────────────────────────────────────
 
-const RE_EMAIL = /[^\s@<>()"',;:]{1,64}@[^\s@<>()"',;:]{1,255}\.[a-z]{2,24}/gi;
+/**
+ * Un texto con un sustituto suelto (la mitad de un emoji: lo deja un copiar/pegar cortado o un
+ * teclado viejo) no entra en un jsonb: Postgres rechaza `"\ud83d"` con 22P02 y la transacción del
+ * hecho —la venta, la anulación— vuelve atrás entera (O-v4-3, CERT-P2). Se cambia por U+FFFD
+ * (el «carácter de reemplazo»), como hace un navegador al mostrarlo. La redacción NUNCA tira.
+ */
+export function bienFormado(texto: string): string {
+  return texto.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "�");
+}
+
+// Emails. Tres formas, todas a «[email]»:
+//   · la de siempre, `local@dominio`, CON o SIN TLD («juan@hotmail»), también con la arroba de
+//     ancho completo «＠» (copiado de un PDF o de un teclado asiático);
+//   · el espacio que mete el autocorrector después del punto: «juan@gmail. com» (se lleva el TLD);
+//   · espacios alrededor de la arroba o «(at)»: «juan @ gmail.com», «juan(at)gmail.com». Para no
+//     tapar «nos vemos @ las 5», esta forma exige un dominio con punto y un TLD de letras.
+// Una arroba sin parte local pegada («@magra», «@ las 5») queda como está.
+const NO_LOCAL = String.raw`\s@＠<>()\[\]"',;:`;
+const LOCAL = `[^${NO_LOCAL}]{1,64}`;
+const DOMINIO = `[^${NO_LOCAL}]{1,255}`;
+const ARROBA = String.raw`[@＠]`;
+const TLD_SUELTO = String.raw`(?:com|net|org|ar|edu|gob|gov|info|io|co|es|uy|cl|br|mx)(?![\p{L}\p{N}])`;
+const RE_EMAIL = new RegExp(String.raw`${LOCAL}${ARROBA}(?:${DOMINIO}?\.\s{1,2}${TLD_SUELTO}|${DOMINIO})`, "giu");
+const RE_EMAIL_COLGADO = new RegExp(String.raw`\[email\](?:${ARROBA}[^${NO_LOCAL}]*)+`, "gu");
+const DOMINIO_CON_PUNTO =String.raw`[\p{L}\p{N}-]{1,63}(?:\s?\.\s?[\p{L}\p{N}-]{1,63})*\s?\.\s?\p{L}{2,24}(?![\p{L}\p{N}])`;
+const RE_EMAIL_ESPACIADO = new RegExp(
+  String.raw`${LOCAL}(?:\s{1,2}${ARROBA}\s{0,2}|${ARROBA}\s{1,2}|\s?[(\[]\s?at\s?[)\]]\s?)${DOMINIO_CON_PUNTO}`,
+  "giu",
+);
 
 // Lo que puede ir ENTRE los dígitos de un teléfono, DNI o CUIT sin cortar la tirada, en
 // cualquier cantidad: espacios de todo tipo (también el salto de línea, NBSP, el espacio fino),
 // punto, coma («30,123,456»), barra, paréntesis, cualquier raya Unicode (el guion, «–» y «—» del
-// autocorrector, el U+2011 de WhatsApp…), el signo menos y los caracteres invisibles de formato
+// autocorrector, el U+2011 de WhatsApp…), el signo menos, los caracteres invisibles de formato
 // (\p{Cf}: el guion blando U+00AD que pega Word, el espacio de ancho cero, las marcas de
-// dirección U+202A…U+202E). No entran letras, dígitos ni otros símbolos («$», «#», «·», «x»):
-// «pedido #1042 – $12500» queda como está. Sin tope de largo: «11  -  5566  -  7788» (cinco
-// caracteres entre grupos) es la misma tirada. La clase no comparte nada con \d, así que la
-// búsqueda es lineal (no hay retroceso explosivo).
+// dirección U+202A…U+202E), el guion bajo («11_5566_7788») y los apóstrofos de miles
+// («30'123'456», «30’123’456», «´») y separadores raros que no aparecen entre números en un texto
+// normal: «~», «|», «\», la viñeta «•» y el punto de ancho completo «．». No entran letras ni otros
+// símbolos que sí separan números en un texto común («$», «#», «·», «x», «:», «*», «;»): «pedido
+// #1042 – $12500», «a las 18:30» y «2*1500» quedan como están. Sin tope de
+// largo: «11  -  5566  -  7788» es la misma tirada. La clase no comparte nada con \p{Nd}, así
+// que la búsqueda es lineal (no hay retroceso explosivo).
+// Dígitos: \p{Nd}, cualquier sistema decimal (ancho completo «１１５５…», arábigos orientales,
+// matemáticos «𝟏𝟏…»), no sólo 0-9.
 // Tiradas de 6 o más dígitos con un «+» adelante opcional: teléfonos («11 5566-7788»,
 // «+54 9 11…»), DNI («30.123.456»), CUIT («20-30123456-7»). Las de 5 o menos (un código de
 // pedido, un precio) quedan como están.
-const RE_DIGITOS = /\+?\d(?:[\s.,\/()\p{Pd}\u2212\p{Cf}]*\d){5,}/gu;
+const SEPARADOR = String.raw`[\s.,\/()\p{Pd}−\p{Cf}_'‘’´~|\\•．]`;
+const RE_DIGITOS = new RegExp(String.raw`\+?\p{Nd}(?:${SEPARADOR}*\p{Nd}){5,}`, "gu");
+
+// Un IMPORTE no es un dato personal (O-v4-2, CERT-P2): la coma que entró con F4 para el DNI
+// «30,123,456» se llevaba los centavos y tapaba precios («1.250,50», «125.000,50»). Una tirada
+// con forma de plata queda como está:
+//   · con centavos: miles con punto o coma y dos decimales al final («125.000,50»,
+//     «1,250,000.00»), o sin miles («12500.00», «125000,50»);
+//   · después de un «$» («$ 125.000», «$12500000»), con o sin miles y decimales.
+// Un DNI («30.123.456», «30,123,456») no termina en dos decimales y no va después de «$»: se
+// tapa. Un teléfono tiene grupos de 4 o espacios y tampoco calza. Sólo dígitos 0-9: con otro
+// sistema de dígitos no hay forma de plata y se tapa.
+const RE_IMPORTE_CON_CENTAVOS = /^(?:\d{1,3}(?:[.,]\d{3})+|\d+)[.,]\d{2}$/;
+const RE_IMPORTE = /^(?:\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,]\d{1,2})?$/;
+const RE_PESOS_ANTES = /\$\s{0,2}$/;
+// Una fecha («28/10/2026», «28-10-26», «1.11.2026») tampoco es un teléfono ni un documento.
+const RE_FECHA_EN_TEXTO = /^\d{1,2}([/.-])\d{1,2}\1(?:\d{2}|\d{4})$/;
+
+/** ¿La tirada es un importe (o una fecha)? `antes` = los caracteres que la preceden. PURA. */
+function esImporte(tirada: string, antes: string): boolean {
+  if (RE_IMPORTE_CON_CENTAVOS.test(tirada) || RE_FECHA_EN_TEXTO.test(tirada)) return true;
+  return RE_IMPORTE.test(tirada) && RE_PESOS_ANTES.test(antes);
+}
 
 /** Largo máximo de un texto libre en el sobre. */
 export const LARGO_TEXTO_LIBRE = 500;
@@ -78,9 +133,12 @@ const LARGO_A_REDACTAR = 4000;
 
 /** Enmascara un dato personal dejando los últimos 4 dígitos: «11 5566-7788» → «******7788». */
 export function enmascararTelefono(valor: string | null | undefined): string | null {
-  const digitos = String(valor ?? "").replace(/\D/g, "");
+  // NFKC pasa a 0-9 los dígitos de ancho completo y los matemáticos; los de otros sistemas
+  // (arábigos orientales) se cuentan pero no se muestran.
+  const digitos = [...String(valor ?? "").normalize("NFKC").replace(/[^\p{Nd}]/gu, "")];
   if (digitos.length < 6) return digitos.length ? "******" : null;
-  return `******${digitos.slice(-4)}`;
+  const ultimos = digitos.slice(-4).join("");
+  return /^\d{4}$/.test(ultimos) ? `******${ultimos}` : "******";
 }
 
 /** Corta en `largo` sin partir un emoji (un par sustituto suelto no entra en un jsonb). */
@@ -92,7 +150,7 @@ function cortarSinPartir(texto: string, largo: number): string {
 
 const ES_ESPACIO = /\s/u;
 /** Un carácter que puede ser parte de una tirada: dígito, «+» o separador (la clase de RE_DIGITOS). */
-const ES_DE_TIRADA = /^[\d+\s.,\/()\p{Pd}\u2212\p{Cf}]$/u;
+const ES_DE_TIRADA = new RegExp(String.raw`^(?:[+\p{Nd}]|${SEPARADOR})$`, "u");
 
 /**
  * Un texto de más de LARGO_A_REDACTAR se mira hasta ahí, y la cola cortada se descarta: la
@@ -109,15 +167,35 @@ function aRedactar(texto: string): string {
   return t.slice(0, fin);
 }
 
+// Una máscara o un «[email]» que el corte a 500 dejó por la mitad («… ****», «… [em»): no filtra
+// nada, pero se lee como basura (O-v4-4, CERT-P2). Se saca.
+const RE_MASCARA_PARTIDA = /(?:\*{1,6}\d{0,3}|\[(?:e(?:m(?:a(?:il?)?)?)?)?)$/;
+
+/** Recorta a LARGO_TEXTO_LIBRE sin partir un emoji, una máscara ni un «[email]». */
+function recortar(redactado: string): string {
+  if (redactado.length <= LARGO_TEXTO_LIBRE) return redactado;
+  const t = cortarSinPartir(redactado, LARGO_TEXTO_LIBRE);
+  const partida = RE_MASCARA_PARTIDA.exec(t);
+  return partida ? t.slice(0, partida.index) : t;
+}
+
 /**
  * Lo que una persona escribió, sin emails ni números de teléfono/documento, de hasta 500
- * caracteres. Primero se redacta y DESPUÉS se recorta (F5, CERT-P2 vuelta 2).
+ * caracteres. Primero se redacta y DESPUÉS se recorta (F5, CERT-P2 vuelta 2). Nunca tira: un
+ * sustituto suelto se cambia por U+FFFD antes que nada (O-v4-3).
  */
 export function redactarTextoLibre(texto: string): string {
-  const redactado = aRedactar(texto)
-    .replace(RE_EMAIL, "[email]")
-    .replace(RE_DIGITOS, (m) => enmascararTelefono(m) ?? "******");
-  return cortarSinPartir(redactado, LARGO_TEXTO_LIBRE);
+  const redactado = aRedactar(bienFormado(texto))
+    .replace(RE_EMAIL_ESPACIADO, "[email]")
+    // El punto final de la oración («escribime a juan@mail.com.») no es del email: queda.
+    .replace(RE_EMAIL, (m: string) => `[email]${/\.+$/.exec(m)?.[0] ?? ""}`)
+    // Dos emails pegados sin espacio («juan@hotmailana@gmail.com»): el segundo dominio queda
+    // colgado del primer «[email]»; se lo lleva.
+    .replace(RE_EMAIL_COLGADO, "[email]")
+    .replace(RE_DIGITOS, (m: string, desde: number, todo: string) =>
+      esImporte(m, todo.slice(Math.max(0, desde - 3), desde)) ? m : (enmascararTelefono(m) ?? "******"),
+    );
+  return recortar(redactado);
 }
 
 const RE_MASCARA = /^\*{6}\d{0,4}$/;
