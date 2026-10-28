@@ -93,3 +93,125 @@ Commits `e4d3945..c8ad6a8` sobre `ab84360`. El veredicto de la vuelta 2 lo emite
   sentencia por sentencia en autocommit); Postgres 16; y que sólo somos superusuario (los permisos
   de `neondb_owner` en Neon no se reproducen). Para eso: el Postgres 16 local con
   `GATE2_PG_URL` (el mismo test corre ahí con `psql`).
+
+---
+
+## Vuelta 2 — dictamen del certificador (28/10/2026)
+
+Diff: `ab84360..f71a43b` (7 commits, `e4d3945`…`f71a43b`) · Riesgo: datos · Sin Postgres instalado: todo
+sobre PGlite 17.5 en memoria (`scripts/qa/gate2-pglite.mjs`). Ninguna base remota; sin `.env`.
+
+Veredicto final: CON OBSERVACIONES
+
+Sin fallas alta ni media. Los cinco cierres de la vuelta 1 se sostienen contra tests adversariales
+propios. Queda una falla baja nueva (en el test estático que agregó esta vuelta) y una decisión que
+hay que tomar ANTES del día D (`CashMethod.TRANSFERENCIA`), que no es defecto de S2.
+
+### Verificación ejecutada
+- `node scripts/qa/gate2-pglite.mjs` → `paquete-gate2.test.ts` **14/14**.
+- `probe.test.ts` + `paquete-gate2-estatico.test.ts` **14/14** · `reset-golive.test.ts` +
+  `reset-golive-postgres.test.ts` **11 pass, 1 skip** (el de Postgres, sin servidor).
+- `tsc --noEmit`: **399 errores en 18 archivos, ninguno de S2.** Son TS2307 (playwright 96, three 3,
+  qrcode 2, pdf-lib 2) y sus TS7006/TS7031 derivados. Ninguno sale de `schema-probe/`, `scripts/qa/`,
+  `reset-golive*` ni `prisma/`.
+- Adversariales propios. Están en el scratchpad de la sesión y no se commitean, como pide el rol:
+  - `adv-s2/adv-probe.test.ts` (sin base) **5/5**:
+    - R1: tres generaciones de `olvidar()` intercaladas, que terminan en orden inverso (una tira, una
+      vieja dice true). La caché queda con el valor de la generación vigente y la llamada nueva
+      comparte la consulta vigente.
+    - R2: después de un error, la llamada siguiente vuelve a consultar.
+    - R3: quien ya esperaba la promesa vieja recibe su respuesta, pero esa respuesta no queda en la caché.
+    - R4: `sePuedeEscribirValorEnum` corta sin consultar la base si el cliente no conoce el valor; si
+      la base falla, da false. `__proto__`, `constructor` y `toString` dan false.
+    - R5: el `@/generated/prisma/enums` real no conoce `DEBITO`, `CREDITO`, `TARJETA`, `REPARTIDOR`
+      ni `ENCARGADO`, y sí conoce `CashMethod.TARJETA`.
+  - Contraprueba: R1, R3 y las tres carreras de `probe.test.ts` **fallan contra el `probe.ts`
+    anterior** (`origin/n2/s2-paquete-gate2`). Los tests distinguen el arreglo de verdad.
+  - `adv-s2/adv-db.test.ts` (PGlite) **6/6**:
+    - D1: `UPDATE "OutboxEvent" SET "tenantId"='tb'` sobre un evento de A que tiene entregas se
+      rechaza, como superusuario y como rol de la app. El `ON UPDATE CASCADE` no mueve entregas a otro
+      negocio, porque la FK compuesta a la suscripción lo frena.
+    - D2: con el rol sin bypass en el negocio A, borrar el evento de B afecta 0 filas. Borrar uno de A
+      se lleva sólo su entrega. Las de «probar envío» (sin evento) y las de B quedan.
+    - D3: si la FK estaba en RESTRICT y hay datos, correr `N2_hub.sql` dos veces la deja en CASCADE
+      (`confdeltype=c`, `confupdtype=c`, validada) y no se pierde ninguna fila.
+    - D4: la reversa ESCRITA de `N2_enums.sql` (pasos 1 y 2, descomentados tal cual) corre; los tipos
+      vuelven a los valores de hoy, sin `_old`; `check-rls-live` da 0, y `N2_enums.sql` vuelve a aplicar.
+    - D5: sobre una base que ya tiene la migración de CH T3 (`20261024120000_ch_medios_tarjeta`, en
+      `c4a4b09c`), `N2_enums.sql` no falla ni duplica: quedan 5 valores. D-C01 unifica sin choque.
+
+### Cierres de la vuelta 1, uno por uno
+| Cierre | Dictamen | Evidencia |
+|---|---|---|
+| Falla baja `EntregaWebhook → OutboxEvent` RESTRICT | **CERRADA** | `N2_hub.sql:153-161` + D1, D2, D3 y el subtest «vecino» del repo (reseteo real). CASCADE sigue el par `(tenantId, id)`; las FK actúan sin RLS, pero sólo alcanzan filas del mismo negocio. |
+| Carrera de `olvidar()` | **CERRADA** | `probe.ts:95,104,109,118,133` + R1 a R3, y la contraprueba contra el código anterior. |
+| Regla de enums | **CERRADA, con una falla baja en el test** (ver abajo) | `sePuedeEscribirValorEnum` (R4, R5) + `paquete-gate2-estatico.test.ts`. |
+| C7 en el runbook §6 | **ACLARADA** | Runbook §6, «Cómo se mide "sin diferencias"»; coincide con lo que hace el test. |
+| ApiKey con RLS → P4 | **TRASPASADA, aceptado** | `N2_hub.sql` §1. Relajar la policy en el paquete sería peor. |
+| D-C01 (`DEBITO` y `CREDITO`) | **CORRECTO** | Un `ADD VALUE IF NOT EXISTS` por paso y sin BEGIN (lo garantiza el test estático); runbook §2 sin `--single-transaction`; reversa completa y probada (D4); idempotente (D5). En `prisma/`, `docs/runbooks/`, `docs/n2/` (fuera de las citas de la vuelta 1), `src/lib/schema-probe/` y `scripts/qa/` no queda `TARJETA` como valor de `PaymentMethod`. |
+
+### Fallas
+1. **Baja: el test estático no ve una marca `// N2-enum:` huérfana en un enum que `N2_enums.sql` no toca.**
+   - Dónde: `paquete-gate2-estatico.test.ts:56`. `tipos` se arma sólo con los enums del SQL, así que
+     el control «viceversa» (`:70`) nunca mira, por ejemplo, `CashMethod`.
+   - Reproducción: en una copia, agregar `// N2-enum: TRANSFERENCIA` dentro de `enum CashMethod` y
+     correr el test con esa copia como directorio de trabajo: **3/3 en verde**. La mutación inversa
+     (un `ADD VALUE` de `CashMethod` sin marca) sí falla.
+   - Impacto: si alguien la enciende, el cliente de Prisma conoce un valor que la base no tiene, y el
+     INSERT falla en la base. `sePuedeEscribirValorEnum` lo frena si se usa, porque `hayValorEnum`
+     da false. Por eso es baja.
+   - Arreglo sugerido: recorrer TODAS las líneas `// N2-enum:` de `schema.prisma`, no sólo las de los
+     tipos que aparecen en el SQL.
+
+### Pregunta del brief: ¿`CashMethod` necesita `DEBITO` y `CREDITO`? **No.**
+- `CashMethod` es el libro de caja: `CashMovement.method`, columnas EFECTIVO · MP · TARJETA
+  (`schema.prisma:176-180`, `revisar-cierre.ts:25`).
+- La única traducción entre los dos enums es `cashMethodFromPaymentMethod` (`cierre-diario.ts:112-121`).
+- El plan que unificó D-C01 lo dice explícito: «`cashMethodFromPaymentMethod` manda ambos a
+  `CashMethod.TARJETA`» (`Factory-GSG/.../PLAN-CH-N2.md:266`). CH T3 ya lo implementó así (`c4a4b09c`).
+- La columna «Tarjeta» del cierre ES `CashMethod.TARJETA`. La separación vive en
+  `Order.paymentMethod`, `Payment.method` y `Collection.method`. Es coherente.
+- Matiz para el texto de D-C01: «separados en todo el ERP» no se cumple en los asientos MANUALES del
+  libro (`caja/libro/LibroForms.tsx:183`, compras, comisiones, reportes). Esos registran «Tarjeta» sin
+  distinguir débito de crédito. Si el dueño quiere esa separación también en el libro, el
+  `ADD VALUE` de `CashMethod` tiene que entrar en este paquete antes del día D. Hoy nada lo pide.
+
+### Observaciones (no bloquean S2)
+- 🔴 **Hay que decidirlo ANTES del día D (es irreversible): `CashMethod.TRANSFERENCIA`.**
+  - M1-C2 pide columnas «EFECTIVO · MP · TRANSFERENCIA · TARJETA» con el «esperado por columna» sacado
+    del libro (`PLAN-REINGENIERIA-N2.md:588`). CH C9-C2 pide distinguir MERCADOPAGO de TRANSFERENCIA
+    «en el libro» (`PLAN-CH-N2.md:564`).
+  - `CashMethod` no tiene TRANSFERENCIA. `cierre-diario.ts:117` manda TRANSFERENCIA a MP. M1 declara
+    «Migraciones: ninguna nueva».
+  - Hay dos caminos: (a) M1 deriva la columna por el rastro del asiento (`orderId`, `paymentId`,
+    `collectionId`), y los asientos manuales en MP quedan ambiguos; o (b) se agrega
+    `ALTER TYPE "CashMethod" ADD VALUE IF NOT EXISTS 'TRANSFERENCIA'` a este paquete.
+  - Si no se decide antes del día D, (b) exige otra ventana de Gate 2. No es defecto de S2, que cumple
+    su fila del plan (§4.5, fila 2). Es un hueco del plan, y es una decisión del dueño o la PMO.
+- **El plan sigue diciendo TARJETA** en `origin/main` de Factory-GSG (`da9b8f8`):
+  `PLAN-REINGENIERIA-N2.md:343` (§4.5, fila 2), `:404` (S2-C5), `:587` (M1-C1) y D-11.
+  - Si M1 sigue el plan y escribe `hayValorEnum("PaymentMethod","TARJETA")`, eso da false para
+    siempre y la Tarjeta queda oculta sin error. Falla cerrada, pero el producto no funciona.
+  - El test estático sí frena una marca `// N2-enum: TARJETA`. No frena la consulta en el código de M1.
+  - Hay que corregir el plan antes de que arranque M1.
+- **La regla «encender y desplegar» no cubre volver atrás el código.** Una vez escrito el primer
+  `DEBITO` o `ENCARGADO`, un *Instant Rollback* de Vercel a un build anterior a M1/M6 (o un preview
+  contra la misma base) vuelve a tener un cliente que no puede LEER esas filas. El runbook §6 no lo
+  advierte.
+- **CASCADE y retención:** hoy no hay ninguna purga del outbox además del reseteo
+  (`reset-golive-db.ts:167`). Cuando P3 sume una purga por antigüedad, se lleva el historial de
+  entregas de esos eventos. P3 tiene que fijar la retención de las entregas. Sigue traspasado a P3 que
+  las entregas se cuenten en `ORDEN_DE_BORRADO`.
+
+### Lo que no se pudo verificar sin Postgres real
+- **Concurrencia:** PGlite atiende de a un mensaje. Los «8 envíos a la vez» (`PagoExterno`, cobro
+  aplicado, dedupe del outbox por `clave`) prueban el resultado, no la carrera ni los bloqueos de
+  fila. Lo mismo vale para una purga del outbox concurrente con una entrega en curso (CASCADE contra
+  un INSERT de `EntregaWebhook` sobre el mismo evento).
+- `psql` real: `-f` en autocommit y `ON_ERROR_STOP`. Acá se emuló sentencia por sentencia.
+- Postgres 16, que es el de Neon. PGlite es 17.5.
+- Bases separadas y estado de sesión por conexión (`SET ROLE`), que PGlite comparte.
+- Permisos de `neondb_owner` en Neon para `ALTER TYPE … RENAME`, `CREATE TYPE` y `DROP CONSTRAINT` de
+  la guarda convergente. Acá todo corrió como superusuario.
+- Para cerrarlo: `paquete-gate2.test.ts` y `adv-db.test.ts` con `GATE2_PG_URL` apuntando a un
+  Postgres 16 local con `psql`.
