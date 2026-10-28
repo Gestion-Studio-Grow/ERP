@@ -4,7 +4,8 @@
 > producción es sólo del dueño. Este runbook NO se corre contra Neon sin su orden escrita.
 > Paquete: `prisma/pending-gate2/` (índice en su `README.md`). Tanda que lo armó: S2.
 > Verificado en Postgres local (16): paquete dos veces, reversa, y de nuevo —
-> `src/lib/schema-probe/paquete-gate2.test.ts`.
+> `src/lib/schema-probe/paquete-gate2.test.ts` (también corre sobre PGlite sin instalar nada:
+> `node scripts/qa/gate2-pglite.mjs`; ver el README del paquete para lo que PGlite no prueba).
 
 ## 0. Antes del día D (la víspera)
 
@@ -33,8 +34,9 @@ exporta en la terminal del dueño.
 cd prisma/pending-gate2
 P="psql -X -v ON_ERROR_STOP=1 -d $MIGRATE_DATABASE_URL"
 $P -f CarniceriaRubro.sql     # 1 · Product.category/cost, lotes, despiece (M3a, M3b)
-$P -f N2_enums.sql            # 2 · TARJETA, REPARTIDOR, ENCARGADO — SIN --single-transaction:
+$P -f N2_enums.sql            # 2 · DEBITO, CREDITO (D-C01), REPARTIDOR, ENCARGADO — SIN --single-transaction:
                               #     cada ADD VALUE es su propio paso (no usable en la misma tx)
+                              #     🔴 IRREVERSIBLE: Postgres no tiene DROP VALUE (ver §5)
 $P -f N2_hub.sql              # 3 · ApiKey, WebhookSuscripcion, EntregaWebhook, PlantillaWhatsapp, OutboxEvent.version/clave
 $P -f N2_pagos.sql            # 4 · PagoExterno (decisión: Payment no se extiende; ver el archivo)
 $P -f N2_retail.sql           # 5 · Client.limiteCredito, Order.cobroVerificadoEn/Por
@@ -68,7 +70,8 @@ del último deploy en Vercel (sin push).
 
 1. **Login**: entrar a `/admin` de MAGRA y de Break Point con OWNER. Carga el inicio sin error.
 2. **Vender (MAGRA)**: mostrador → un corte por peso → cobrar en Efectivo → aparece en la caja del
-   día. Si M1 ya está integrada, ver que aparezca el medio **Tarjeta**.
+   día. Si M1 ya está integrada, ver que aparezcan **Débito** y **Crédito** como medios separados
+   y que el cierre de caja los sume en la columna **Tarjeta** (D-C01).
 3. **Agenda del club (Break Point)**: abrir la agenda del día, crear una reserva de prueba en una
    cancha libre, verla en la grilla, cancelarla. Con B1 integrada, la disponibilidad pública del
    turnero muestra el hueco de nuevo.
@@ -90,7 +93,7 @@ copiada tal cual a psql (probadas en local):
 | 5 | `N2_retail.sql` | `DROP COLUMN` de las 3 columnas | límites de fiado y verificaciones cargadas |
 | 4 | `N2_pagos.sql` | `DROP TABLE "PagoExterno"` | conciliación: exportar antes si hay filas |
 | 3 | `N2_hub.sql` | 4 `DROP TABLE` + 2 `DROP COLUMN` + 2 `DROP INDEX` en OutboxEvent | claves, suscripciones y plantillas cargadas |
-| 2 | `N2_enums.sql` | **no hay `DROP VALUE`**: se dejan (inocuos si nadie los usa); procedimiento manual al pie | no |
+| 2 | `N2_enums.sql` | 🔴 **irreversible: no hay `DROP VALUE`**. Se dejan (inocuos si nadie los usa); recrear el tipo es el procedimiento manual al pie (otro Gate 2) | no |
 | 1 | `CarniceriaRubro.sql` | bloque `ROLLBACK` al pie (tablas, enums y 2 columnas de Product) | lotes y despieces cargados |
 
 Después de una reversa: *Redeploy* en Vercel (los procesos vivos cachean el «sí está» del probe
@@ -104,10 +107,27 @@ para siempre; un proceso nuevo vuelve a preguntar) y repetir el humo §4.
   quitar el prefijo `// N2: ` de todas las líneas que lo llevan
   (`sed -E 's#^([[:space:]]*)// N2: ?#\1#'`), `npx prisma generate`, `tsc` + tests, y recién ahí
   el código puede pasar de SQL crudo a Prisma. Verificado en local: así `tsc` queda limpio.
-  Los 3 valores de enum llevan otra marca (`// N2-enum: `): ampliar `PaymentMethod`/`UserRole`
+  Los 4 valores de enum llevan otra marca (`// N2-enum: `): ampliar `PaymentMethod`/`UserRole`
   rompe 4 tipos cerrados del dominio (`SessionUser.role` en `src/lib/session.ts`, `Usuario` en
-  `usuarios/page.tsx`, `KpiAppointment` en `src/lib/actions.ts`), así que los encienden M1 y M6
-  junto con ese código. Con las dos marcas quitadas, el schema no tiene diferencias con la base.
+  `usuarios/page.tsx`, `KpiAppointment` en `src/lib/actions.ts`), así que los encienden M1
+  (`DEBITO`, `CREDITO`) y M6 (`REPARTIDOR`, `ENCARGADO`) junto con ese código.
+- 🔴 **Regla de los valores de enum (M1, M6): encender `// N2-enum:` y DESPLEGAR antes de escribir
+  el primer valor nuevo.** Un cliente de Prisma generado sin el valor falla al LEER cualquier fila
+  que lo tenga (`Value 'DEBITO' not found in enum 'PaymentMethod'`), en cualquier pantalla. Orden:
+  (1) día D aplicado; (2) la tanda quita la marca de sus valores, `prisma generate`, tsc, y el build
+  queda desplegado; (3) recién ahí se escribe el primer valor. Chequeos automáticos: el código
+  escribe sólo si `sePuedeEscribirValorEnum(tipo, valor)` (`src/lib/schema-probe`: la base lo tiene
+  **y** el cliente de este build lo conoce), y `src/lib/schema-probe/paquete-gate2-estatico.test.ts`
+  (en `npm test`) falla si `N2_enums.sql` y las marcas de `schema.prisma` no nombran los mismos
+  valores. Nunca escribir esos valores por SQL a mano antes del paso (2).
+- **Cómo se mide «sin diferencias» (C7).** No es un diff vacío: es que el paquete **no agrega**
+  diferencias. `paquete-gate2.test.ts` toma una línea de base = `prisma migrate diff` entre la base
+  con sólo el paso 1 (`CarniceriaRubro.sql`, que vive fuera de `schema.prisma` por diseño, más el
+  drift previo ajeno a S2) y el `schema.prisma` de hoy; después aplica 2–7 y exige que el diff
+  contra el schema con `// N2:` **y** `// N2-enum:` descomentados sea **igual** a esa línea de base.
+  El descomentado se hace sobre una copia temporal, nunca sobre el archivo del repo: con
+  `// N2-enum:` encendido, tsc se rompe a propósito (los 4 tipos cerrados de arriba) hasta que M1/M6
+  encienden su código.
 - Mover los `.sql` aplicados a `prisma/migrations/<timestamp>_n2_*/migration.sql` + `prisma migrate
   resolve --applied` (también es tanda propia; ver el README del paquete).
 
