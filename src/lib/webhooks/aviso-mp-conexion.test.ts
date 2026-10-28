@@ -248,8 +248,9 @@ test("referenciaDeLaConexion: sólo la del propio negocio o la vieja", () => {
 
 test("WhatsApp (P1-C5): la conexión del número manda; sin conexión, el mapa de S1; demasiadas → sin negocio", async () => {
   const payload = { entry: [{ changes: [{ value: { metadata: { phone_number_id: "100000000000001" } } }] }] };
-  const bp = { id: "t-bp", slug: "breakpoint" };
-  const base = { porSlug: async () => ({ id: "t-magra", slug: "magra" }), primerosDos: async () => [{ id: "t-magra", slug: "magra" }] };
+  const bp = { id: "t-bp", slug: "breakpoint", status: "TRIAL" }; // S1 (pase N2): el negocio trae su status
+  const magra = { id: "t-magra", slug: "magra", status: "ACTIVE" };
+  const base = { porSlug: async () => magra, primerosDos: async () => [magra] };
   const env = { WHATSAPP_PHONE_NUMBERS: '{"100000000000001":"magra"}' };
   assert.deepEqual(await negocioDelMensajeWA(payload, env, { ...base, porConexion: async () => bp }), { ok: true, negocio: bp, via: "conexion" });
   assert.deepEqual(await negocioDelMensajeWA(payload, env, { ...base, porConexion: async () => null }), {
