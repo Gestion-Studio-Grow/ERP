@@ -263,3 +263,36 @@ Hubo dobles, pero ninguno de la devolución. Por origen:
 - v8 CON OBSERVACIONES: las dos están cerradas (0 en 5.600 secuencias). Queda una BAJA nueva de orden en la espera (obs. 1) y una BAJA anterior en la pausa (obs. 2).
 
 Veredicto final: CON OBSERVACIONES
+
+## Respuesta del ingeniero — v9
+
+Base: HEAD `558e3f87`. Commits: `af596c39` (arreglo), `97d5d582` (nota de los botones) y `5482838f` (tests). El motor no se tocó: el diff no tiene nada en `src/lib` ni en `public`, así que `ORIGEN.json` y los sha256 siguen iguales. No se mueve plata: los arreglos sólo cambian `excepciones` y `liberadasPor`, rechazan antes de tocar nada, o bajan turnos con `materializarFijos`.
+
+Se cierran las cinco BAJA abiertas: las dos de la v8 y las tres de la v7.
+
+| Obs. | Qué se hizo | Test |
+|---|---|---|
+| v8-1 · C4 (la espera apunta a un fijo que ya no juega) | «La fecha espera a ese fijo» vale sólo mientras ese fijo juega esa fecha. **(a)** Cuando la pausa le suelta a Pedro fechas por choque (`nuevas`), las esperas de los demás a Pedro en esas fechas entran en la devolución en el acto: el que las esperaba las recupera o pasa a esperar al que las juega (Tomi). **(b)** En `devolverLiberadasPor`, una entrada que espera a un fijo que no juega esa fecha (pausado, dado de baja, liberada o que ya no está) entra en la misma ronda si su hueco se pisa con el del que se va, y manda la antigüedad. **(c)** «Liberar el fijo» desde la grilla (`ciclo-core.ts`) también devuelve, con la misma regla, y lo dice en el mensaje. | v9-1 (el caso del dictamen: recupera Juan, no Pedro), v9-2 (foto heredada con la espera vieja), v9-3 (desde la grilla) |
+| v8-2 · C1 (acortar la pausa contra el turno de otro fijo ya en la grilla) | `vueltaDelFijo` reconoce el turno ya bajado de otro fijo como choque con ese fijo (`fijoId`). Con vuelta, la fecha se le libera al pausado y espera a ése: la previa dice «no vuelve: se pisa con el fijo de Pedro», la tarjeta la muestra «liberado» y, si Pedro la suelta, Juan la recupera con aviso y con su turno en la grilla. Sin vuelta, la pausa se rechaza con la regla que ya había (`role="alert"`, Confirmar deshabilitado) y no cambia nada. | v9-4 (se ajusta), v9-5 (se bloquea) |
+| v7 · texto «volvería el X, pero el X» | Si el choque es el mismo día de la vuelta, dice «Juan no puede volver el X: ese día el hueco también es del fijo de Pedro (…) y se pisarían». Si el otro fijo es acotado, ofrece «Pausalo hasta el {su último día} y vuelve el …», probado antes sobre una copia: sólo se ofrece si funciona. | v9-6 (el texto, y la pausa ofrecida sale como se dijo) |
+| v7 · A3b (pausa por comando con `desde` posterior) | Queda como precondición del comando: si la pausa nueva arranca después que la anterior y des-pausaría una fecha que ya es de otro fijo (la recuperó, o la juega), se rechaza sin tocar nada y dice desde cuándo pausarlo. Sin nadie en esas fechas, pasa igual que antes. | v9-7 |
+| v7 · `notaEn` en «Avisar a … que recupera» | Cada botón anuncia su nota (`aria-describedby`). Si es la misma que la del titular (la demo, o los dos sin celular), comparte el texto y sale una sola vez. Si es otra, va al lado de su botón. El «Hecho» pasó a `HechoDeLaBaja.tsx`, sin CSS, para probarlo sin navegador. | `hecho-de-la-baja.test.ts`, 3 tests con `renderToStaticMarkup` |
+
+**Aleatorio (v9-8).** Hay 5 semillas (7, 20261028, 424242, 9001 y 31337). Cada una corre 60 secuencias de 10 pasos con 3 a 5 fijos: Juan pausado y heredados de antes del guardián a las 21:30, 22:00 o 22:30, casi siempre ya bajados a la grilla. Los pasos posibles son pausa, pausa por comando con `desde` posterior, liberar, baja, «Liberar el fijo» desde la grilla, avanzar el tiempo y bajar la ventana, deshacer, y serializar e hidratar. Sobre 1.973 acciones salen 115 recuperaciones, 53 fechas C1, 19 esperas C4, 96 pausas A3b y 95 liberaciones desde la grilla. Resultados:
+- **Dobles que figuran: 0.** Se cuenta lo que figura, no sólo lo que se asigna: un turno vivo de la grilla o un fijo que juega esa fecha sin bajar, porque su turno cancelado por la pausa vuelve con la ventana.
+- **Anuncios de algo que no se asignó: 0.** El que recupera juega esa fecha, nadie más la ocupa y, en la semana a la vista, tiene su turno en la grilla. La previa anuncia lo mismo que el comando.
+- **Rechazos que cambian el estado: 0.**
+- **Fechas retenidas: 0.** No queda ninguna espera a un fijo que no juega con el hueco libre.
+- **Contra el código de `558e3f87`:** los 8 tests v9 fallan, y el aleatorio da 129 dobles.
+
+**Lo que el invariante no cuenta, a propósito:** un fijo sin bajar contra un turno suelto o del mostrador. Es lo cerrado en la v3 («no vuelve: se pisa con otro turno»): la grilla nunca lo baja encima y no se tocó.
+
+**Verificación**
+- `npx tsc --noEmit`: 406 errores, la misma cantidad que la línea de base. Ninguno está en los archivos tocados (`canchas-core.ts`, `ciclo-core.ts`, `FijosYEspera.tsx`, `HechoDeLaBaja.tsx` y sus tests). Todos vienen de módulos que faltan (`playwright` y otros).
+- `canchas-core.test.ts`, `hecho-de-la-baja.test.ts` y `ciclo-core.test.ts`: 75/75.
+- Club + motor (`club/*.test.ts` + `src/lib/club/*.test.ts`): 738 tests, 649 ok, 87 salteados (Playwright o Postgres no instalados) y 2 fallas ajenas. Son las mismas dos de CRLF: el sha de la copia y el fixture de `anonimizar`.
+- `fijos-postgres.test.ts` sobre PGlite en memoria, sin `.env` y sin `*DATABASE_URL`: 1/1, sin salteo.
+
+**Sin verificar:**
+- la pantalla «Hecho» y la hoja en un navegador (Playwright no está instalado; la nota se probó con `renderToStaticMarkup`);
+- la baja contra un Postgres real con `app_rls` y concurrencia de verdad (PGlite serializa).
