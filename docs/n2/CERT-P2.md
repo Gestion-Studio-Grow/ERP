@@ -1,4 +1,4 @@
-Veredicto final: NO CERTIFICA (vuelta 4: F6 media de alcance, P2-C2) · vuelta 5 entregada (d6836e5..7685160), pendiente de recertificar — ver «Respuesta del ingeniero — vuelta 5»
+Veredicto final: NO CERTIFICA (vuelta 5: F7 media, un evento por fila tumba por tiempo el aumento de precios, la planilla y el recuento grandes; F6 cerrada; ver dictamen vuelta 5 al final)
 
 # Dictamen de certificación — Tanda P2 (catálogo de eventos v1 y emisión desde el Core)
 
@@ -359,3 +359,201 @@ Lo que quedó (bajas, no bloquean):
 4. Concurrencia sin N2_hub (test nuevo): `cobrarFiadoInTx` (Serializable) que salda la deuda, en paralelo con `emitirPedidoCobradoAlSaldar` en READ COMMITTED sobre el mismo pedido. Esperado: 1 fila. Es el caso que `emitir.ts` admite que el chequeo no cubre con aislamientos mezclados.
 5. `src/lib/schema-probe/paquete-gate2.test.ts` (S2) con los cambios de P2 ya copiados, más el PASO POSTERIOR. Una fila escrita con el probe viejo después de N2_hub tiene que quedar con clave, y un duplicado tardío tiene que quedar en NULL sin abortar.
 6. `node scripts/qa/p2-costo-dedupe-pglite.mjs` repetido contra Postgres real (200k filas): los milisegundos de Neon para la ficha de D-01.
+
+---
+
+# Dictamen · vuelta 5 · P2 eventos · d6836e5..e594be7 (n2/p2-eventos)
+
+Veredicto final: NO CERTIFICA
+
+Una falla media y nueva de la vuelta 5: emitir un evento POR FILA dentro de las transacciones masivas hace que
+«Actualizar precios», la planilla, la lista de la marca y un recuento grande pasen el tope de 5 s de Prisma y se
+caigan enteros. Lo demás está bien:
+- F6 queda cerrada: 14 eventos retail emitidos, 3 traspasos válidos y `balanza.lectura`, que es opcional.
+- Los eventos salen una vez, en la transacción del hecho, con dedupe y sin cruzarse de negocio.
+- La redacción no tira.
+
+Quedan 5 observaciones bajas.
+
+Base: PGlite (nunca Neon, sin `.env`). Fecha 2026-10-28. Los tests del certificador están en el scratchpad de la sesión y no van al repo:
+- `…/scratchpad/cert-p2-v5/v5-redaccion.test.ts`
+- `v5-eventos-postgres.test.ts`
+- `v5-precios-masivos-postgres.test.ts`
+- `v5-recuento-postgres.test.ts`
+
+## Verificación
+- `tsc --noEmit`: 403 errores, los mismos de antes (paquetes que faltan); 0 en los `.ts` tocados en `d6836e5..HEAD`. [VERIFICADO]
+- Unitarios de `src/eventos`, `stock`, `caja`, `clientes`, `catalogo`, `supermercado`, `order*`, `cierre*`, `settlement`,
+  `debts` y `multilocal`: 967 · 962 pasan · 5 salteados · 0 fallan. [VERIFICADO]
+- PGlite del repo (`node scripts/qa/p2-pglite.mjs`): `emitir-postgres` 1/1, `vuelta4-postgres` 1/1, `vuelta5-postgres` 1/1. [VERIFICADO]
+- Mis tests:
+  - `v5-eventos-postgres`: 1/1 en los dos modos de la base.
+  - `v5-redaccion`: 16/28. Las 12 que fallan son O-v5-1, O-v5-2, O-v5-3 y los residuales aceptados.
+  - Mi archivo de la vuelta 4: 35/40, igual que dice el ingeniero. [VERIFICADO]
+
+## Falla
+### F7 · media · un evento por fila en una transacción masiva la pasa del tope de 5 s
+- **Dónde.** `registrarCambiosDePrecio` (`catalogo/precios-auditoria.ts:99`) llama a `emitirProductosActualizados`
+  (`del-core.ts:499`), y ésta emite un `producto.actualizado@1` por producto. Cada emisión son tres viajes a la base:
+  el candado, la dedupe y el INSERT. Antes de P2, el aumento escribía todo en dos sentencias: un `UPDATE … FROM unnest`
+  y un `createMany`. Lo mismo pasa con `stock.ajustado@1` en cada línea de un recuento (`stock/ledger.ts:212`).
+- **Quién la usa.** «Actualizar precios» (`aplicarAumentoEnTx`, Serializable), la planilla (`planilla-actions.ts`) y el
+  empuje de la lista de la marca (`catalogo-marca-core.ts:232`). Las tres aceptan hasta `MAX_FILAS` = 2000 productos y
+  corren con el tope por defecto de Prisma (5 s). El recuento (`insertStockAdjustment`) no tiene tope de líneas y usa el
+  mismo límite.
+- **Repro** (PGlite, en la misma máquina, sin la red de por medio):
+  `node scripts/qa/p2-pglite.mjs …/cert-p2-v5/v5-precios-masivos-postgres.test.ts`
+
+  | Productos | Sin N2_hub | Con N2_hub | Resultado |
+  |---|---|---|---|
+  | 300 | 1,4 s | 1,4 s | bien |
+  | 700 | 3,1 s | 2,8 s | bien |
+  | 1300 | 5,0 s | 4,1 s | bien, al borde |
+  | 2000 | 5,0 s | 5,0 s | `expired transaction. The timeout for this transaction was 5000 ms`: se deshace entero y no queda ningún precio cambiado |
+
+  Las 2000 filas de auditoría solas, sin eventos, tardan 0,4 s. En el recuento, 400 líneas tardan 2,2 s sin evento y
+  4,1 s con `stock.ajustado`: la emisión casi duplica el costo.
+- **Impacto.**
+  - En Neon cada viaje suma la latencia de la red, así que el corte llega bastante antes de los ~1200 productos de PGlite.
+  - Sin N2_hub, que es como está hoy en producción, cada dedupe además recorre el outbox del negocio (v2-d: 46,9 ms con
+    200k filas). Ahí alcanzan unas decenas o cientos de productos para pasarse.
+  - No se pierden datos. El negocio ve «No se pudieron cambiar los precios» y no puede hacer el aumento general, subir
+    la planilla ni hacer el recuento completo sin partirlo en tandas.
+- **Arreglo sugerido.**
+  - Emitir en lote dentro de la misma transacción, con un `emitirEventosEnLote(tx, eventos[])` que haga un candado por
+    lote, una dedupe con `clave = ANY($1)` y un `INSERT … SELECT FROM unnest(…)`.
+  - Usarlo en `emitirProductosActualizados` y, en el recuento, juntar los `stock.ajustado` de `ajustarEnTx`.
+  - Sumar un test: `MAX_FILAS` productos dentro del tope por defecto con margen (≤ 1,5 s en PGlite), en los dos modos.
+  - No subir `timeoutMs`: alarga una transacción Serializable con filas bloqueadas.
+
+## Intentos de refutación (cerrados)
+- **Una vez, en la transacción del hecho, con dedupe.** Cumplen los ocho eventos nuevos:
+  - `pedido.confirmado`, `pedido.listo` y `pedido.entregado` (compare-and-set + evento en una transacción);
+  - `stock.*`, `producto.actualizado` y `cliente.creado`;
+  - `caja.abierta`, `caja.turno.cerrada` y `caja.cerrada`.
+
+  Si la transacción vuelve atrás, no queda la fila. Volver a emitir el mismo paso devuelve `duplicado` (Y4), y un producto repetido en la lista da un solo evento. [VERIFICADO, PGlite, los dos modos]
+- **Otro negocio (Y1).** B no puede:
+  - mover ni emitir el paso de un pedido de A;
+  - emitir `producto.actualizado` de un producto de A;
+  - mover el stock de A (sale `RechazoDelStock`).
+
+  B no recibe ningún evento con ids de A.
+  - Una salvedad: `emitirCajaTurnoCerrada(B, sesión de A)` escribe en B con el id de la sesión de A, porque no filtra la sesión.
+  - No es alcanzable: `closeCashSession` lee la sesión con `tenantId` (`caja-actions.ts:300`). [VERIFICADO]
+- **Datos de borde (Y2).** Ninguno de estos casos tira ni tumba el hecho:
+  - un producto de peso con el nombre roto (un sustituto suelto) y `codigo` nulo;
+  - una venta que deja el stock en negativo;
+  - un precio por kg con 3 decimales;
+  - un producto sin precio;
+  - fichas con teléfono vacío, «abc», «123» o con dígitos de ancho completo: sale `******7788`, nunca en claro;
+  - una caja con montos en coma flotante (`0.1+0.2`).
+
+  `caja.cerrada` usa las claves EFECTIVO, MP y TARJETA de `CashMethod`, que son las del catálogo. [VERIFICADO]
+- **Orden después de la anulación (Y3).** Con el pedido anulado:
+  - no se mueve de READY;
+  - la entrega al fiado devuelve `entregado: false`;
+  - `cobrarPedidoEnTx` tira `CobroDePedidoAnulado`;
+  - `emitirPedidoCobradoAlSaldar` no emite.
+
+  El último evento del pedido es `pedido.cancelado@1`, y `pedido.confirmado` sólo sale desde PENDING. O-v4-5 queda cerrada. [VERIFICADO]
+- **La redacción no tira ni tarda.**
+  - Probé 4000 textos al azar (con sustitutos sueltos, `＠`, `(at)`, dígitos de otros sistemas y guion blando) y 12
+    entradas armadas para trabar las regex. Todas tardan menos de 200 ms.
+  - Ningún resultado pasa de 500 caracteres ni sale mal formado.
+  - Los importes quedan intactos: «$ 1.250,50», «1.500,75», «125.000,50», «12500.00», «$12500000» y «1,250,000.00».
+  - O-v4-2, O-v4-3 y O-v4-4 quedan cerradas. [VERIFICADO]
+- **RLS en los caminos nuevos.**
+  - Todas las emisiones van por `tenantTransaction` o por las fases del traslado, que ponen el GUC del negocio de la fila.
+  - Ningún llamador de los mutadores usa un `$transaction` crudo sin GUC; los de operador no los llaman.
+  - Lo revisé leyendo el código. Con un rol sin BYPASSRLS queda [A VALIDAR].
+
+## Observaciones (bajas, no bloquean)
+- **O-v5-1 · la excepción del importe abre una fuga nueva.**
+  - `RE_IMPORTE_CON_CENTAVOS` (`esquema.ts:112`) acepta `\d+[.,]\d{2}` sin tope de dígitos. Cualquier tirada pegada a
+    «,NN» o «.NN» pasa como plata y sale en claro. Por ejemplo: «llamar al 1155667788,15hs», «tel 1155667788.30 min
+    antes», «DNI 30123456,12 cuotas», «CUIT 20301234567,50» y «DNI 30.123.456,50».
+  - En la vuelta 4 esos casos salían tapados.
+  - Arreglo: sin separador de miles, que la parte entera tenga 7 dígitos como máximo, salvo que venga después de `$`.
+    Un teléfono (10 dígitos) y un CUIT (11) no entran. El DNI con miles y centavos es ambiguo y puede quedar como
+    residual escrito.
+- **O-v5-2 · email escrito con palabras.**
+  - «juan.perez arroba gmail punto com» y «juan.perez [at] gmail [dot] com» salen enteros.
+  - Es poco probable en un motivo. Anotarlo como residual o taparlo.
+- **O-v5-3 · `stock.bajo` se repite por coma flotante.**
+  - `cruzaElMinimo` (`del-stock.ts:38`) calcula `antes = saldo − delta` sin redondear.
+  - Con el stock justo en el mínimo, a veces da `5.000000000000001 > 5` y vuelve a avisar.
+  - Con un mínimo entero, sólo pasa cuando la venta deja el stock en negativo (mínimo 5, venta de 8,002 kg). Con un
+    mínimo fraccionario pasa en más casos (0,102).
+  - Arreglo: `round3(saldo - delta) > minimo`.
+- **O-v5-4 · el `cuando` de `stock.ajustado` está incompleto.**
+  - Dice «recuento, merma», pero también lo emiten la devolución de stock de la anulación (`order-anulacion.ts:519`),
+    el traslado entre locales (`traslado-core.ts:544`) y el despiece (`despiece-registro.ts:93`).
+  - Corregir el texto del catálogo y `eventos.md`.
+- **O-v5-5 · líneas de emisión en archivos de otras tandas.**
+  - `order-actions.ts` es de M8 y `clientes/fiado.ts` es de M7. Anotarlo en el plan para que no choquen al consolidar.
+  - `caja.turno.cerrada` retail: §4.1.2 lo asigna a M1, y ahora lo emite P2 desde `closeCashSession`. M1 no lo tiene que
+    volver a emitir; si lo hace con la misma clave `caja:turno:<id>:cerrada`, la dedupe lo ataja.
+  - La venta que nace entregada sigue siendo una segunda transacción después del alta (ya era así). Si esa transacción
+    falla, la venta queda CONFIRMED sin `pedido.entregado`.
+
+## Residuales aceptados por el ingeniero (mi juicio)
+- **`· * : ;` y superíndices dentro de un número.** Son aceptables: están escritos en `esquema.ts:83-100` y fijados
+  como residual en `redaccion-v5.test.ts:67-94`.
+  - En Argentina nadie escribe así un teléfono, un DNI ni un CUIT.
+  - Lo más que filtra es parcial y con el mismo formato raro: «tel 11 5566:7788» → «******5566:7788».
+- **Lista de códigos con coma.** También es aceptable: se pierde un dato, no se filtra nada.
+- La fuga real de esta vuelta no es ninguno de estos residuales: es O-v5-1.
+
+## Traspasos (contra PLAN-REINGENIERIA-N2.md, origin/main 7157018)
+- **`pago.acreditado@1` → P5-C5** (línea 509): «`pago.acreditado@1` al outbox; `aplicar-pago.ts` cobra pedido…». Válido.
+- **`pago.devuelto@1` → P5-C6** (línea 510): «`refunded`/contracargo → `pago.devuelto@1`…». Válido.
+- **`deuda.vencida@1` → M7-C6** (línea 732): «…`deuda.vencida@1` desde el barrido». Válido; lo repite §3.1 (línea 110).
+- **Cuenta de P2-C2 retail (18):**
+  - 5 eventos de las vueltas 1–4;
+  - 9 nuevos: `pedido.confirmado`, `pedido.listo` y `pedido.entregado`, `stock.bajo` y `stock.ajustado`,
+    `producto.actualizado`, `cliente.creado`, `caja.abierta` y `caja.cerrada`;
+  - 3 traspasos;
+  - `balanza.lectura`, que es opcional.
+
+  Además se emite `caja.turno.cerrada`, de §4.1.2. **F6 cerrada.** Los huecos del club y de `mensaje.recibido` quedan
+  para la PMO y están bien escritos en el catálogo.
+
+## Para sincronizar con el paquete de S2 (`origin/n2/s2-paquete-gate2` @ 1485e30 todavía no lo tiene)
+La vuelta 5 no tocó `prisma/`, así que sigue pendiente lo de la vuelta 4. Se copia **sobre** la versión de S2, sin
+traer las líneas viejas de P2 (FK RESTRICT, TARJETA):
+1. `prisma/pending-gate2/N2_hub.sql`:
+   - el `UPDATE "OutboxEvent" SET "clave" = "payload"->>'_clave' WHERE "clave" IS NULL AND "payload" ? '_clave';`,
+     **antes** del `CREATE UNIQUE INDEX … (tenantId, clave)` (en P2, líneas 179–188);
+   - `CREATE INDEX IF NOT EXISTS "OutboxEvent_tenantId_payloadClave_sinClave_idx" ON "OutboxEvent"("tenantId", ("payload"->>'clave')) WHERE "clave" IS NULL;` (en P2, 190–195);
+   - el pie «PASO POSTERIOR», con el re-backfill y su `NOT EXISTS` (en P2, 222–234);
+   - en la reversa, `DROP INDEX IF EXISTS "OutboxEvent_tenantId_payloadClave_sinClave_idx";` (en P2, 239).
+2. `prisma/pending-gate2/README.md`, fila 3: «+ índice parcial `(tenantId, payload->>'clave') WHERE clave IS NULL`
+   (dedupe de P2) · **paso posterior**: re-correr el backfill de `clave` a los 2 minutos». La fila 2 queda como la
+   tiene S2 (DEBITO/CREDITO).
+3. `docs/runbooks/gate2-nivel2.md`:
+   - en §2, un paso **3b**: a los 2 minutos de aplicar N2_hub, con la app corriendo, re-correr el backfill del pie
+     (depende de `TTL_NEGATIVO_MS` = 60 s);
+   - en §5, la fila 3 de la reversa pasa de «2 `DROP INDEX`» a «3 `DROP INDEX`».
+4. Después, correr `node scripts/qa/gate2-pglite.mjs` y el test estático de S2 sobre el paquete unido.
+
+🔴 Sin esto, D-01 deja el emisor sin backfill ni índice parcial. Y con F7, cada dedupe sin índice recorre el outbox
+**una vez por producto**.
+
+## Verificación pendiente con Postgres real (CI o arnés en localhost:5433, rol `app_rls` sin BYPASSRLS)
+1. Los 6 puntos de la vuelta 4 siguen abiertos:
+   - el aislamiento por RLS de `emitir-postgres`;
+   - `vuelta4-postgres` con `psql`;
+   - las dos carreras de `cobrarFiadoInTx`;
+   - `paquete-gate2.test.ts` con lo de P2 ya copiado;
+   - los milisegundos de la dedupe en Neon.
+2. `vuelta5-postgres.test.ts` y mi `v5-eventos-postgres.test.ts` con `app_rls`: cada emisión nueva tiene que pasar la
+   política del outbox en su transacción, también en las dos fases de `trasladoTransaction`.
+3. Concurrencia Serializable (test nuevo): `closeCashSession` o `cerrarDia` en paralelo con `cobrarVentaDeCaja` del
+   mismo negocio, sin y con N2_hub.
+   - Las dos leen y escriben el outbox, así que hay que esperar 40001 y reintento.
+   - Medir cuántas llegan al usuario después de los 3 reintentos.
+4. F7 contra Postgres real con la latencia de Neon: el aumento con `MAX_FILAS` productos y un recuento de 500 líneas,
+   dentro del tope de 5 s, después del arreglo.
+5. QA clic por clic en `magra`: avanzar, entregar, abrir y cerrar caja, cerrar el día, cambiar un precio, crear una
+   ficha y ajustar stock. Tiene que quedar una fila por hecho en `OutboxEvent`.
