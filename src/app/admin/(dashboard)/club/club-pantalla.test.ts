@@ -743,9 +743,11 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     // Las de días anteriores que quedaron sin cerrar se avisan en rojo y se cierran eligiendo el día.
     const aviso = page.getByRole("alert").filter({ hasText: /cajas? sin cerrar/ });
     if (await aviso.count()) {
-      const atrasada = page.getByRole("region", { name: /cajas? sin cerrar/ });
-      await atrasada.getByLabel(/^Efectivo contado de la caja del/).fill("0");
-      await atrasada.getByLabel("PIN de Lu").fill("33");
+      // Una de antes de B4 (sin turnos): el efectivo a ciegas y la firma de caja (D-16: con el PIN de 2 de Lu no se cierra).
+      const atrasada = page.getByRole("region", { name: /sin cerrar/ });
+      await atrasada.getByLabel(/^Efectivo contado \(con el fondo\)/).fill("0");
+      await atrasada.getByLabel("Firma").selectOption({ label: "Rober (dueño/a)" });
+      await atrasada.getByLabel("PIN de 4 dígitos").fill("1111");
       await atrasada.getByRole("button", { name: "Cerrar esa caja" }).click();
       await page.getByRole("status").filter({ hasText: /^Caja del .* cerrada/ }).waitFor();
     }

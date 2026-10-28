@@ -27,8 +27,9 @@ import { fileURLToPath } from "node:url";
 import type { Browser, BrowserContext, Locator, Page } from "playwright";
 import { irASolapa, tieneSolapa, nombresDeSolapas } from "./solapas-e2e";
 import * as M from "@/lib/club/motor.mjs";
-import type { EstadoClub } from "@/lib/club/motor.mjs";
+import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { claveDeLaJornada } from "./almacen";
+import { MEDIOS_DEL_TURNO } from "./caja-core";
 import { contactosDe } from "./configuracion-core";
 import { responderSitioEstatico } from "@/lib/sitio-estatico";
 import { armarMesCargado } from "@/lib/club/fixtures/armar-respaldo";
@@ -1272,24 +1273,24 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await ctx4.close();
   },
 
-  // ═══ 8. Cierre: la caja con PIN, la caja = lo cobrado al peso, y la medianoche (caja de 12 a 12) ═══
+  // ═══ 8. Cierre (Tanda B4): el turno se cuenta A CIEGAS y se firma, el día se cierra con firma, la caja = lo cobrado al peso, y la medianoche (caja de 12 a 12) ═══
   async (g) => {
     const p = g.p;
     await irA(p, "Caja");
-    const cierre = p.getByRole("region", { name: "Cerrar la caja" });
-    const esperado = Number(((await cierre.getByText(/^Tendría que haber/).innerText()).match(/\$\s?([\d.]+)/)?.[1] ?? "0").replace(/\./g, ""));
-    await cierre.getByLabel("Efectivo contado").fill(String(esperado));
-    await cierre.getByLabel(/^PIN de|^Tu PIN/).fill("1111");
-    await cierre.getByRole("button", { name: "Cerrar la caja" }).click();
-    await p.waitForTimeout(150);
-    const conPinMalo = (await estado(p)).caja.cierres.length;
-    await cierre.getByLabel("Efectivo contado").fill(String(esperado));
-    await cierre.getByLabel(/^PIN de|^Tu PIN/).fill("8484");
-    await cierre.getByRole("button", { name: "Cerrar la caja" }).click();
-    await p.waitForTimeout(200);
+    // La caja abierta (la del 17/10) se cierra como en el club desde B4 (CierreDeCaja.tsx): contar sin ver lo esperado,
+    // firmar el turno con un PIN de firma (primero uno equivocado: no firma) y cerrar el día consolidando el turno.
+    const dia = M.cajaAbierta(await estado(p), await ahoraDelClub(p));
+    const c = await cerrarCajaPorTurno(p, p.getByRole("region", { name: "Cierre del turno" }), dia, "8484", "1111");
     const e8 = await estado(p);
-    ok("8.caja", conPinMalo === 0 && e8.caja.cierres.length === 1 && e8.caja.cierres[0].diferencia === 0, `Con un PIN equivocado no cierra; Majo cierra la caja del día con su PIN y cuadra (efectivo ${pesos(esperado)})`);
-    ok("8.caja-una-vez", /ya está cerrada \(se cierra una sola vez\)/.test(await cierre.innerText()), "La caja no se cierra dos veces");
+    const turnos8 = M.turnosDelDia(e8, dia);
+    ok("8.a-ciegas", !c.mostrabaLoEsperado && /: cuadra$/.test(c.renglon), `Se cuenta a ciegas (lo esperado no se ve hasta confirmar el conteo) y recién ahí dice cómo dio: «${c.renglon}»`);
+    ok(
+      "8.caja",
+      !c.firmoConPinMalo && turnos8.length === 1 && turnos8[0].estado === "cerrado" && /^Majo/.test(turnos8[0].firma ?? "") && e8.caja.cierres.length === 1 && e8.caja.cierres[0].dia === dia && e8.caja.cierres[0].diferencia === 0,
+      `Con un PIN equivocado no firma; Majo firma el turno y cierra el día ${dia} con su PIN, y cuadra (efectivo ${pesos(c.efectivo)})`,
+    );
+    const corte = await p.locator('[data-caja="estado"]').getAttribute("data-estado");
+    ok("8.caja-una-vez", corte === "cerrada" && (await p.getByRole("button", { name: "Cerrar el día" }).count()) === 0, `La caja del día no se cierra dos veces: queda «Cerrada» y no hay otro «Cerrar el día» (corte: ${corte})`);
     await foto(p, "caja-cerrada");
     // Cuentas claras: la caja es exactamente lo cobrado (pagos sin monedero) en canchas, cargos, tienda, mostrador y deudas.
     const sinMonedero = (pagos: { medio: string; monto: number }[]) => pagos.filter((x) => x.medio !== "monedero").reduce((t, x) => t + x.monto, 0);
@@ -1408,18 +1409,13 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await p.waitForTimeout(150);
     const adelanto = M.cobrado(M.reserva(await estado(p), String(bruno))!);
     await volverALaAgenda(p);
-    // Las cajas que quedaron con lo cobrado después del cierre (la del 18/10): se cierran.
+    // Las cajas que quedaron con lo cobrado después del cierre (la del 18/10): se cierran como en B4 (a ciegas y con firma).
     await irA(p, "Caja");
     for (let i = 0; i < 3; i++) {
       const e = await estado(p);
       const sinCerrar = M.cajasConMovimientosSinCerrar(e);
       if (!sinCerrar.length) break;
-      const form = p.getByRole("region", { name: "Cerrar la caja" }).or(p.locator("section").filter({ has: p.getByRole("alert") })).first();
-      const esp = Number(((await form.getByText(/^Tendría que haber/).first().innerText()).match(/\$\s?([\d.]+)/)?.[1] ?? "0").replace(/\./g, ""));
-      await form.getByLabel(/^Efectivo contado/).first().fill(String(esp));
-      await form.getByLabel(/^PIN de|^Tu PIN/).first().fill("8484");
-      await form.getByRole("button", { name: /^Cerrar (la|esa) caja/ }).first().click();
-      await p.waitForTimeout(200);
+      await cerrarCajaQueQuedo(p, e, sinCerrar[0], "8484");
     }
     const resuelto = await estado(p);
     ok("10.resuelto", M.pendientesGoLive(resuelto, { fecha: "2026-10-17", min: 1470 }).length === 0 && adelanto === 21000, `Cancha cobrada y cerrada, cajas cerradas, el turno de mañana con un adelanto de ${pesos(adelanto)}: nada pendiente`);
@@ -1517,6 +1513,87 @@ async function limpiezaGoLive(p: Page, pin: string, otroArchivo?: string, bajado
   await grupo.getByRole("button", { name: "Ya lo guardé: limpiar" }).click();
   await p.waitForTimeout(500);
   return `${(await golive.innerText()).replace(/\s+/g, " ").match(/(Antes de limpiar hay que resolver:[^.]*|[^.]*(archivo|respaldo)[^.]*\.)/)?.[0] ?? ""} | ${await ultimoAviso(p)}`;
+}
+
+// ───────────── el cierre de caja de la Tanda B4 (CierreDeCaja.tsx): por turno, a ciegas y con firma ─────────────
+
+/** La hora del club en el reloj del navegador (Argentina, UTC−3, sin horario de verano). */
+async function ahoraDelClub(p: Page): Promise<Ahora> {
+  const d = new Date((await p.evaluate(() => Date.now())) - 3 * 3_600_000);
+  return { fecha: d.toISOString().slice(0, 10), min: d.getUTCHours() * 60 + d.getUTCMinutes() } as Ahora;
+}
+
+/** El efectivo en billetes, de los grandes a los chicos; lo que no llega a un billete va en «Monedas ($)». */
+function billetesPara(efectivo: number): { billetes: [number, number][]; monedas: number } {
+  let resto = Math.max(0, Math.round(efectivo));
+  const billetes: [number, number][] = [];
+  for (const d of M.DENOMINACIONES) {
+    const n = Math.floor(resto / d);
+    if (n > 0) billetes.push([d, n]);
+    resto -= n * d;
+  }
+  return { billetes, monedas: resto };
+}
+
+const PIN_DE_FIRMA = /^PIN de \d dígitos$/;
+const formCon = (p: Page, donde: Locator, boton: string) => donde.getByRole("form").filter({ has: p.getByRole("button", { name: boton, exact: true }) });
+
+/**
+ * El cierre del turno abierto de la caja `dia` en `region` (la sección de CierreDeCaja), como en el club desde B4:
+ *   1. contar A CIEGAS: la pantalla no muestra lo esperado (C1); el e2e lo saca del motor (`turnoDeCajaAbierto`) y cuenta
+ *      justo, billete por billete y lo de los otros medios → «Confirmar el conteo»;
+ *   2. firmar con un PIN de firma (D-16; `pinMalo` primero, si viene: no tiene que firmar) → «Firmar y cerrar el turno»;
+ *   3. «Cerrar el día» con la firma (consolida los turnos).
+ * Devuelve lo que se vio: si antes de contar se mostraba lo esperado, el renglón del turno contado y si el PIN malo firmó.
+ */
+async function cerrarCajaPorTurno(p: Page, region: Locator, dia: string, pin: string, pinMalo?: string) {
+  const t = M.turnoDeCajaAbierto(await estado(p), dia);
+  const efectivo = t.esperado.efectivo;
+  const conteo = formCon(p, region, "Confirmar el conteo");
+  const mostrabaLoEsperado = efectivo > 0 && !M.DENOMINACIONES.includes(efectivo) && (await region.innerText()).includes(pesos(efectivo));
+  const { billetes, monedas } = billetesPara(efectivo);
+  const grupo = conteo.getByRole("group", { name: "Billetes (cantidad)" });
+  for (const [d, n] of billetes) await grupo.getByLabel(pesos(d), { exact: true }).fill(String(n));
+  if (monedas || !billetes.length) await grupo.getByLabel("Monedas ($)").fill(String(monedas));
+  const otros = conteo.getByRole("group", { name: /^Lo de los otros medios/ });
+  for (const k of MEDIOS_DEL_TURNO) if (k !== "efectivo" && t.esperado[k]) await otros.getByLabel(M.MEDIOS[k], { exact: true }).fill(String(t.esperado[k]));
+  await conteo.getByRole("button", { name: "Confirmar el conteo" }).click();
+  const firma = formCon(p, region, "Firmar y cerrar el turno");
+  await firma.waitFor();
+  const renglon = (await firma.getByRole("heading").first().innerText()).replace(/\s+/g, " ").trim();
+  let firmoConPinMalo = false;
+  if (pinMalo) {
+    await firma.getByLabel(PIN_DE_FIRMA).fill(pinMalo);
+    await firma.getByRole("button", { name: "Firmar y cerrar el turno" }).click();
+    await p.waitForTimeout(150);
+    firmoConPinMalo = M.turnosDelDia(await estado(p), dia).some((x) => x.estado === "cerrado");
+  }
+  await firma.getByLabel(PIN_DE_FIRMA).fill(pin);
+  await firma.getByRole("button", { name: "Firmar y cerrar el turno" }).click();
+  const cerrarDia = formCon(p, region, "Cerrar el día");
+  await cerrarDia.waitFor();
+  await cerrarDia.getByLabel(PIN_DE_FIRMA).fill(pin);
+  await cerrarDia.getByRole("button", { name: "Cerrar el día" }).click();
+  await p.waitForTimeout(200);
+  return { efectivo, mostrabaLoEsperado, renglon, firmoConPinMalo };
+}
+
+/**
+ * Cierra una caja que quedó con movimientos (CajaDelClub.tsx): la abierta, por turno (`cerrarCajaPorTurno`); una de otro
+ * día, eligiéndola en «Caja para cerrar» del aviso en rojo: por turno si ya se trabajó por turnos, si no con el
+ * efectivo contado a ciegas (con el fondo; el e2e lo saca de `resumenCaja`) y la firma.
+ */
+async function cerrarCajaQueQuedo(p: Page, e: EstadoClub, dia: string, pin: string) {
+  if (dia === M.cajaAbierta(e, await ahoraDelClub(p))) return void (await cerrarCajaPorTurno(p, p.getByRole("region", { name: "Cierre del turno" }), dia, pin));
+  const ddmm = `${Number(dia.slice(8))}/${Number(dia.slice(5, 7))}`;
+  const aviso = p.locator("section").filter({ has: p.getByLabel("Caja para cerrar") });
+  await aviso.getByLabel("Caja para cerrar").selectOption({ value: dia });
+  if (M.turnosDelDia(e, dia).length) return void (await cerrarCajaPorTurno(p, aviso.getByRole("region", { name: `Cierre de la caja del ${ddmm} (por turnos)` }), dia, pin));
+  const form = formCon(p, aviso, "Cerrar esa caja");
+  await form.getByLabel(/^Efectivo contado \(con el fondo\)/).fill(String(M.resumenCaja(e, dia).efectivoEsperado));
+  await form.getByLabel(PIN_DE_FIRMA).fill(pin);
+  await form.getByRole("button", { name: "Cerrar esa caja" }).click();
+  await p.waitForTimeout(200);
 }
 
 /** La tarjeta de una cuenta abierta en Buffet → «Cuentas abiertas». */
