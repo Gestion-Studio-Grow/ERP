@@ -153,3 +153,16 @@ test("clienteConoceValor no se confunde con propiedades heredadas ni tipos inexi
   assert.equal(clienteConoceValor(enums, "PaymentMethod", "DEBITO"), false);
   assert.equal(clienteConoceValor(undefined, "UserRole", "OWNER"), false);
 });
+
+test("una consulta que tira en el acto (sincrónica) no deja una promesa vieja trabada en vuelo", async () => {
+  let n = 0;
+  const consultar: ConsultaSql = (() => {
+    n++;
+    if (n === 1) throw new Error("pool cerrado");
+    return Promise.resolve([{ ok: 1 }]);
+  }) as ConsultaSql;
+  const p = crearSchemaProbe(consultar);
+  assert.equal(await p.hayTabla("ApiKey"), false);
+  assert.equal(await p.hayTabla("ApiKey"), true, "vuelve a preguntar");
+  assert.equal(n, 2);
+});

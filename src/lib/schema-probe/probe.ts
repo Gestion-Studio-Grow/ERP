@@ -102,7 +102,7 @@ export function crearSchemaProbe(consultar: ConsultaSql, opciones: OpcionesProbe
     if (pendiente) return pendiente;
 
     const gen = generacion;
-    const promesa: Promise<boolean> = (async () => {
+    const promesa = (async () => {
       try {
         const filas = await consultar(sql, params);
         const valor = Array.isArray(filas) && filas.length > 0;
@@ -110,11 +110,14 @@ export function crearSchemaProbe(consultar: ConsultaSql, opciones: OpcionesProbe
         return valor;
       } catch {
         return false; // fail-safe: ocultar lo nuevo; no se cachea → se reintenta
-      } finally {
-        if (enVuelo.get(clave) === promesa) enVuelo.delete(clave);
       }
     })();
     enVuelo.set(clave, promesa);
+    // La limpieza va DESPUÉS del set y siempre asíncrona (aunque `consultar` tire en el acto), y
+    // sólo borra SU promesa: nunca la de una consulta posterior a olvidar(). Nunca rechaza.
+    void promesa.finally(() => {
+      if (enVuelo.get(clave) === promesa) enVuelo.delete(clave);
+    });
     return promesa;
   }
 
