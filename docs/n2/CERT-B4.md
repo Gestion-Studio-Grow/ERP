@@ -380,3 +380,92 @@ Veredicto final: NO CERTIFICA
 - **`src/app/admin/(dashboard)/club/*.test.ts`:** 660 tests. Pasan 581, fallan 0 y se saltean 79 (Playwright).
 - **No verificado acá:** los e2e (Playwright), Postgres real con RLS y dos puestos, y el QA clic por clic en tablet.
 - **Fuera de alcance, sin tocar:** las observaciones bajas A5 (`corregirMedio` puede dejar el cajón en negativo) y B2 (un dueño con `pinDesactualizado` puede guardar Reglas).
+
+## Certificador — vuelta 5
+
+- **Rango:** `0d4b802c..a43e36a1` (6 commits, `fc8c50fc`…`a43e36a1`). Worktree `C:/n2b4`, sin `.env` ni base remota.
+- **Tests adversariales propios:** en el scratchpad de la sesión (`b4v5/cert-b4-v5.test.ts` y `b4v5/cert-b4-v5-accion.test.ts`), no en el repo. El segundo usa los mismos dobles que `estado-actions-g8.test.ts` (guardia, negocio y repositorio en memoria) y llama a `guardarFotoDelClub` tal cual.
+- **Este veredicto reemplaza el «Veredicto final» del encabezado del documento.**
+
+Veredicto final: NO CERTIFICA
+
+### Fallas
+
+**F6 · media · plata/D-16 · Recepción se pone un PIN propio de 4 dígitos por el servidor y firma retiros, egresos y cierres.**
+- [VERIFICADO] Ataque V5-A, por la acción real con sesión RECEPTION:
+  1. La dueña guarda el club con `config.caja.largoPinFirma = 4` y los PIN con hash.
+  2. Recepción manda la foto con su propio usuario (`u-lu`) con `pin = hashPin("4444", salPin)` y `pinLargo: 2`.
+  3. `conservarLoDelicado` lo acepta como «PIN propio válido para su rol» (`delicado.ts:99`: para un PIN con hash sólo mira `pinLargo`, que declara el navegador y el servidor no puede comprobar). `corregido = false`: no queda ni el `console.warn` de G8.
+  4. Sobre lo guardado, `retiroCajaFuerte` de Lu con `"4444"` da `ok: true` y queda «firma: Lu (recepción tarde)». Lo mismo `egresoPorCategoria` y, por la pantalla, `ejecutarCaja` `retiro` (`pin: "bueno"`, `duenio: false`).
+  5. Pasa igual con una base con PIN en claro, estrenando una sal válida.
+- **Causa:** `firmarCaja` (`motor.mjs:2849-2851`) decide la firma por el largo del PIN **tipeado**, no por el rol de quien firma. Lo mismo el chequeo del egreso y el cierre viejos en `caja-core.ts:418`. La pantalla, en cambio, ya usa el rol (`puedeFirmarCierres`, `caja-core.ts:157-161`: `largoPin(u.rol) >= largoFirmaCaja`).
+- **Por qué es de B4:** la red G8 de PIN es del 21/10, pero hasta B4 un PIN de 4 en un usuario de recepción no le daba nada. Con D-16, el largo pasó a ser el permiso. Es la misma familia y el mismo modelo de amenaza que F5: un pedido armado a mano desde la tablet apaga D-16 para siempre, ahora sólo para ese usuario.
+- **Arreglo sugerido:**
+  - En `firmarCaja`, exigir además `largoPin(f.usuario.rol) >= largo`, el mismo criterio de `puedeFirmarCierres`. Lo mismo en `caja-core.ts:418` para `egreso` y `cerrar`.
+  - Test: recepción con PIN con hash de 4 y `pinLargo: 2` no firma `retiro`, `egresoCategoria`, `cerrarTurno`, `cerrarDia`, `egreso` ni `cerrar`, tanto directo como por `correrComando`.
+  - Si el cambio va en `motor.mjs`: es copia controlada. Hay que repetir la copia a la fuente, `empaquetar.mjs` y el sha (obs. 6).
+
+### F4 y F5 de la vuelta 4: cerradas
+
+- **F4 · cerrada.** [VERIFICADO]
+  - Clones limpios de `a43e36a1` con `core.autocrlf=false` y `=true`. En los dos, `node src/tenants/breakpoint/empaquetar.mjs` deja `git status` vacío.
+  - Los tres HTML dan el mismo sha256 en los dos clones (`club.html` `2499e70f…`, `index.html` `9bdc88de…`, `turnero.html` `a279ee44…`). `club.html` tiene 8 `"use strict"` y `turnero.html` 7.
+  - `copia.test.ts` + `motor-club.test.ts`: **77/77** en cada clon.
+  - Los `.gitattributes` alcanzan exactamente 7 archivos: `motor.mjs`, los 3 de `dominio/` y los 3 HTML del sitio. Los 7 ya estaban con LF en el índice, así que no renormalizan nada ajeno ni cambian otro archivo. Efecto menor: en un checkout CRLF que ya existía, esos archivos aparecen como «modificados» sin diferencias hasta que se refresca el índice (`C:/n2b4` lo muestra hoy). No rompe nada.
+- **F5 · cerrada.** [VERIFICADO]
+  - El ataque B3 de la vuelta 4 ahora da `corregido = true` y no deja guardado `largoPinFirma`. El retiro de Lu con `"33"` se rechaza.
+  - V5-C, formas raras: `config.caja` como array, `null`, texto, número, con `__proto__`, `largoPinFirma` como texto, claves duplicadas en el JSON (gana la última, igual que en el repositorio), y una base sin `config.caja`. En todos, la firma queda en 4.
+  - El repositorio guarda la foto hidratada (`estado-repo.ts:223-226`, `hidratarEstado`), que exige `usuarios`, `config` y `caja`. No hay forma de esquivar la red mandando una foto sin usuarios.
+  - **El dueño sigue pudiendo todo:** OWNER no pasa por `conservarLoDelicado` (`estado-actions.ts:117`), y el test de la dueña baja la firma a 2. V5-D: sin cambios delicados, el texto pasa byte a byte.
+  - **Otra acción del servidor:** no hay. `estado-actions.ts` es el único `"use server"` del club y no hay rutas `/api` que escriban la foto. `revisar…` y `restaurar…` son sólo OWNER.
+
+### F1 y F2 de la vuelta 1: siguen cerradas
+
+- Los 11 ataques de la vuelta 4 (`b4v4/cert-b4-v4.test.ts`) pasan 11/11 sobre `a43e36a1`.
+- F1′: un turno contado a las 23:00 y firmado al día siguiente a las 13:00 se cierra.
+- F2′: recepción con PIN de 2 no hace egreso ni cierre por el camino viejo, directo, por `correrComando` ni con el PIN rellenado.
+
+### Observaciones
+
+- **O1 · e2e §8: el «a ciegas» no prueba C1 para recepción.** Revisado contra `CierreDeCaja.tsx` y `CajaDelClub.tsx`:
+  - Los rótulos, roles y botones coinciden con la pantalla, también los de §10 y `club-pantalla.test.ts`.
+  - El flujo contar → ver la diferencia → PIN malo no firma → firmar → cerrar el día está bien armado.
+  - Pero `8.a-ciegas` corre como **Majo (dueña)**, que por diseño ve «Efectivo en el cajón» (`CajaDelClub.tsx:288`, `veEsperado`).
+  - Además mira sólo la región «Cierre del turno», que no muestra lo esperado a nadie.
+  - Y no prueba nada si el efectivo es 0 o justo un billete (`!DENOMINACIONES.includes`).
+  - Tampoco se prueba que el PIN de 2 de recepción no firme: el PIN malo es `1111`, de 4.
+  - **Sugerencia:**
+    - contar como Lu y afirmar sobre **toda la página** que no aparecen `pesos(efectivo)` ni los ingresos, y que se ve `[data-caja="a-ciegas"]`;
+    - intentar firmar con `"33"`;
+    - firmar eligiendo a Majo en «Firma».
+  - No bloquea: el criterio C1 ya lo cubren `caja-core.test.ts` y los tests de pantalla.
+- **O2 · baja · config fuera de `CONFIG_DELICADA`.** [VERIFICADO] V5-B: desde recepción pasan `config.finde`, `feriados` y `corteCaja`, los precios de `productos`, y `clientes[].cc` (`habilitada` y `limite`).
+  - `cc` y `fiados` son aprobaciones de un dueño guardadas como dato. Es la misma deuda G10 del modo foto, no de B4.
+  - La PMO la tiene que ver junto con G10 y B9.
+- **O3 · baja · la corrección del servidor es silenciosa para la tablet.**
+  - `guardarFotoDelClub` responde `{ ok, version }` sin decir que corrigió.
+  - El puesto sigue operando con su copia local hasta que recarga o choca (`guardado-en-la-base.ts:340`).
+  - No abre plata nueva, porque para tener la copia local tocada ya hace falta G10. Pero confunde.
+
+### Corridas
+
+- `tsc --noEmit`: 406 errores, igual que en la vuelta 4.
+  - **0 en `delicado.ts`, `estado-actions.ts`, `config-reglas.tsx`, `estado-actions-g8.test.ts` y `delicado.test.ts`.**
+  - Los de `uat-paridad.e2e.ts` y `club-pantalla.test.ts` son todos TS2307, TS7006 o TS7031: falta `playwright` en el `node_modules` compartido.
+- `src/lib/club/*.test.ts` + `src/tenants/breakpoint/*.test.ts`: 191 tests. Pasan 182, fallan 0 y se saltean 9 (Postgres).
+- `src/app/admin/(dashboard)/club/*.test.ts`: 660 tests. Pasan 581, fallan 0 y se saltean 79 (Playwright).
+- Propios:
+  - `cert-b4-v5`: V5-A falla 2/2. Es el registro de F6.
+  - V5-B, V5-C y V5-D pasan.
+  - `cert-b4-v5-accion` (F6 por la acción real) falla 1/1.
+
+### Verificación pendiente (no se puede correr acá)
+
+- `npm run test:club-paridad`, `npm run test:club-pase` y `npm run test:club-uat`, con `playwright` y Chromium.
+- `node --import tsx --test src/lib/club/estado-postgres.test.ts src/lib/club/caja-turnos-postgres.test.ts`, con Postgres real (RLS y dos puestos).
+- QA clic por clic en la tablet del recorrido B4.
+
+### Para la vuelta 6 (mirar sólo esto)
+
+1. F6: la firma por rol en `firmarCaja` y en `caja-core.ts:418`, con su test, y la copia del motor resincronizada (`copia.test.ts` + `motor-club.test.ts` en verde).
+2. Sugerido, no bloquea: O1, el «a ciegas» de §8 como recepción.
