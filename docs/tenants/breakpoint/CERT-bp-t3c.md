@@ -187,3 +187,79 @@ Para probar que el test detecta la falla, se corrió el bloque v8 contra el `can
 **Sin verificar:**
 - la pantalla «Hecho» en un navegador (Playwright no está instalado);
 - la baja contra un Postgres real con `app_rls` y concurrencia de verdad (PGlite serializa).
+
+## Dictamen del certificador — v8
+
+Diff certificado: `da7a9f69..75031d40` (7ec20279 arreglo, 29e76600 tests, 75031d40 respuesta). Todo se probó en memoria con el motor y el almacén reales, y en PGlite. Nada se corrió contra Neon: no hay `.env` en el worktree y se borraron las `*DATABASE_URL` del entorno.
+
+### Veredicto: CON OBSERVACIONES
+Las dos fallas de la v7 están cerradas. Mi aleatorio propio no encontró ningún doble ni ningún anuncio falso que salga de la devolución. Quedan observaciones BAJA: una es nueva y de esta regla; otra es anterior a este diff. Ninguna deja dos turnos en la grilla, ninguna mueve plata y ninguna le avisa a dos titulares que juegan la misma fecha.
+
+### Aleatorio propio, independiente del v8-4
+Es otro generador (xorshift) con 9 semillas: 20261028, 424242, 9001, 31337, 2718, 777, 123456789, 55555 y 8080. Son **5.600 secuencias de 12 pasos** y **713 recuperaciones** (baja 385, pausa 279, liberar 49). Cuatro de las semillas van con «foco en la devolución»: más bajas y pausas, y ningún fijo permanente.
+
+Cada corrida arranca con Juan pausado y de 3 a 5 fijos heredados de antes del guardián: a las 21:30, 22:00 o 22:30, algunos permanentes y algunos ya en pausa. Los pasos posibles:
+- pausa;
+- pausa con `desde` posterior (A3b), contada aparte;
+- liberar, y **repetir la última acción** (liberar dos veces);
+- baja;
+- **deshacer** (vuelve a la foto previa, como el almacén);
+- **venta del mostrador DESPUÉS de liberar**, a veces cancelando antes el turno del fijo;
+- **bloqueo** (a veces cancelando lo que había) y quitar un bloqueo o una venta;
+- **serializar e hidratar** con `textoDelEstado`;
+- avanzar de 1 a 9 días y bajar la ventana (entra y sale de la semana a la vista).
+
+| Invariante | Resultado |
+|---|---|
+| Dos fijos juegan el mismo hueco y fecha, causado por la **devolución** | **0** |
+| Anuncio que no pasa (no juega, otro fijo, turno ajeno, bloqueo, o en la semana a la vista sin turno en la grilla) | **0** |
+| Dos turnos vivos en la grilla | 0 |
+| La devolución deja a un fijo «jugando» un hueco vendido o bloqueado | 0 |
+| La previa anuncia algo distinto del comando | 0 |
+| Misma fecha anunciada dos veces | 0 |
+| Un rechazo cambia el estado / la previa muta el estado | 0 / 0 |
+| La ida y vuelta serializar → hidratar cambia la foto | 0 |
+| Fecha retenida con el hueco libre de todo, y el que espera no la juega | 0 (medido en 1.600 secuencias) |
+
+Hubo dobles, pero ninguno de la devolución. Por origen:
+- 301 vienen de la **pausa con choque en la grilla** (observación 2).
+- 525 vienen de **pausas por comando con `desde` posterior**. Es la A3b de la v7, ya declarada; desde la hoja no se puede armar.
+
+**Reproducción de la v7:** mi `cert-v7/v7-fijos.test.ts` original contra HEAD da 13/15. A1b (400 secuencias), A9b, A10 y A11 pasan. Siguen fallando A3b (observación conocida) y A9. La A9 se corta en la preparación por el rechazo «se pisarían» de la obs. 1 de la v6, que es correcto. Coincide con lo que declara el ingeniero.
+
+### Juicio sobre «la fecha espera a ese fijo»
+- **No hay retención para siempre.** Cada entrada es de una fecha, y `podarLiberadasPor` la saca cuando la fecha pasa. En 1.600 secuencias no apareció ninguna fecha retenida con el hueco libre.
+- **Si el cliente de Pedro cancela ese turno desde la grilla** (en lugar de «liberar»), Juan sigue esperando a Pedro y el mostrador puede vender el hueco (caso C2). Si Pedro se da de baja después y el hueco sigue libre, Juan lo recupera. Es un caso de negocio razonable: la cancelación suelta no es «irse del fijo». El dictamen lo describe como «vuelve cuando ése se vaya». **No es falla.**
+- **Si lo ocupa un turno suelto o un bloqueo, nadie lo recupera, aunque después se libere.** Está documentado y es seguro (no hay doble). **No es falla.**
+
+### Observaciones (todas BAJA)
+1. **Nueva, de esta regla: la entrada que espera puede quedar apuntando a un fijo que ya no juega esa fecha, y entonces no recupera el más antiguo** (caso C4, determinista). Hubo 196 entradas así en el aleatorio, siempre con el hueco ocupado por otro fijo.
+   - **Caso:** Juan (el más antiguo) espera a Pedro el 1/12 y el 8/12. Después Pedro se pausa, y esas fechas se le liberan por chocar con Tomi (`{fecha, fijoId: Tomi}`). La entrada de Juan sigue apuntando a Pedro. Cuando Tomi se da de baja, **Pedro recupera el 1/12 y el 8/12, y Juan no**.
+   - No hay doble ni anuncio falso, pero contradice «recupera el fijo más antiguo».
+   - **Arreglo sugerido:** cuando la pausa agrega `{D, otro}` a `f.liberadasPor`, re-apuntar a `otro` las entradas de los demás que esperaban a `f` en D.
+   - Hace falta un trío de fijos heredados solapados.
+2. **Anterior a este diff (está igual en `035cc59d` y en `da7a9f69`): la pausa no libera las fechas que chocan con el turno ya bajado de otro fijo** (caso C1, determinista). La salida de `vueltaDelFijo` es «chocan sin fijoId», porque `validarHueco` corta antes de `otroFijoQuePisa`.
+   - **Caso:** Juan acorta su pausa. El d(0) y el d(1) ya están en la grilla de Pedro (heredado). El mensaje dice bien «No vuelven … se pisan con otros turnos», pero `fijoJuegaEl` da que juegan los dos.
+   - La tarjeta de Juan muestra «20/10 sin bajar».
+   - Si Pedro libera el d(0), al bajar la ventana Juan vuelve a la grilla sin aviso, aunque se le dijo que no venía.
+   - Grilla con un solo turno y sin plata en juego.
+   - **Arreglo sugerido:** en `correrBajaFijo`, liberar también los choques cuyo turno es de otro fijo (`turno.fijoId`), anotándolo en `liberadasPor`.
+3. Siguen abiertas, como declara el ingeniero, las BAJA de la v7: `notaEn` en «Avisar a … que recupera», el texto «volvería el X, pero el X» y la A3b (sólo por comando).
+
+### Verificación n/n
+- **Motor:** el diff no toca `src/lib` ni `public`. El blob de `src/lib/club/motor.mjs` y el de `public/previews/breakpoint/club/motor.mjs` dan `0c290a3d…`, en HEAD y en `da7a9f69`, igual a `ORIGEN.json`.
+- **`npx tsc --noEmit`:** 406 errores, los mismos archivos y cantidades que la línea de base de la v7 (`diff` vacío). 0 en `canchas-core.ts` y en su test. Todos vienen de módulos no instalados (`playwright`, `three` y otros).
+- **`canchas-core.test.ts`:** 48/48.
+- **Club + motor** (`club/*.test.ts` + `src/lib/club/*.test.ts`): 727 tests, 638 ok, 87 salteados y 2 fallas. Las dos son las de CRLF ya conocidas: el sha de la copia y el fixture de `anonimizar`.
+- **`fijos-postgres.test.ts`** sobre PGlite en memoria (lanzador del scratchpad, sin `*DATABASE_URL`): 1/1, sin salteo.
+- **Adversariales:** `cert-v8/v8-fuzz.test.ts` y `cert-v8/v8-casos.test.ts` (C1–C4), en el scratchpad del certificador. Se copiaron a `src/test/`, se corrieron y se borraron; `git status` quedó limpio. Para C1 se puso un momento el `canchas-core.ts` de `035cc59d` y de `da7a9f69`, y se restauró con `git checkout`.
+
+### Verificación pendiente
+- La pantalla «Hecho» con los botones «Avisar a … que recupera» en un navegador (Playwright no está instalado).
+- La baja contra un Postgres real con `app_rls` y concurrencia de verdad (PGlite serializa).
+
+### Historia
+- v7 NO CERTIFICA: dobles en la devolución (MEDIA) y anuncio falso (BAJA).
+- v8 CON OBSERVACIONES: las dos están cerradas (0 en 5.600 secuencias). Queda una BAJA nueva de orden en la espera (obs. 1) y una BAJA anterior en la pausa (obs. 2).
+
+Veredicto final: CON OBSERVACIONES
