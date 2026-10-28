@@ -12,7 +12,14 @@
 //
 // Un test (motor-club.test.ts) compara la salida con la fuente: si alguien toca la demo y no re-empaqueta,
 // falla. Así el subdominio nunca sirve una versión vieja sin que nadie se entere.
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+//
+// DETERMINÍSTICO EN CUALQUIER MÁQUINA (CERT-B4 vuelta 4, F4): la salida no depende de dónde ni cómo se corre.
+//   · Fin de línea: la fuente se lee con LF aunque el checkout sea CRLF (Windows con core.autocrlf=true), y la
+//     salida se escribe con LF; `sitio/.gitattributes` la fija en LF también en el checkout.
+//   · tsconfig: esbuild lo toma del `tsconfig.json` de la raíz, explícito. Con `strict`, conserva los
+//     `"use strict"` de los módulos que envuelve; sin tsconfig (p. ej. corriendo sobre una copia suelta de la
+//     fuente) los saca y el sitio cambia de modo sin que nadie lo pida. Si falta el tsconfig, falla.
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { buildSync } from "esbuild";
 import { portada } from "./portada.mjs";
 import path from "node:path";
@@ -24,6 +31,9 @@ export const FUENTE = "public/previews/breakpoint/club";
 export const CARPETA_SITIO = "src/tenants/breakpoint/sitio";
 /** Compatibilidad: la gestión del club empaquetada (antes era la raíz del sitio). */
 export const SALIDA = `${CARPETA_SITIO}/club.html`;
+
+/** Un archivo de texto de la fuente, siempre con LF (el checkout de Windows puede traerlo con CRLF). */
+const leerTexto = (archivo) => readFileSync(archivo, "utf8").replace(/\r\n/g, "\n");
 
 /**
  * Arma el HTML de un solo archivo: el motor queda como `const M = {…}` y la app lo usa igual. PURA.
@@ -53,8 +63,10 @@ export function empaquetar({ html, app, motor, morph = null }) {
 }
 
 /** Empaqueta un módulo y todo lo que importa (también los import() dinámicos) en un solo JS. Determinístico. */
-function bundle(entrada, opciones = {}) {
-  const r = buildSync({ entryPoints: [entrada], bundle: true, write: false, minify: true, target: "es2022", legalComments: "none", charset: "utf8", logLevel: "silent", ...opciones });
+function bundle(raiz, entrada, opciones = {}) {
+  const tsconfig = path.join(raiz, "tsconfig.json");
+  if (!existsSync(tsconfig)) throw new Error(`falta ${tsconfig}: sin él esbuild arma otro sitio (sin "use strict")`);
+  const r = buildSync({ entryPoints: [entrada], bundle: true, write: false, minify: true, target: "es2022", legalComments: "none", charset: "utf8", logLevel: "silent", tsconfig, ...opciones });
   return r.outputFiles[0].text.replaceAll("</script", "<\\/script");
 }
 
@@ -73,7 +85,7 @@ export function armarSitio(raiz = RAIZ) {
   const club = empaquetar(leerFuente(raiz));
   const llamada = 'import("./conectado.mjs")';
   if (!club.includes(llamada)) throw new Error("app.mjs ya no carga conectado.mjs como espera el empaquetador");
-  const conectado = bundle(path.join(base, "club/conectado.mjs"), { format: "iife", globalName: "__BP_CONECTADO" });
+  const conectado = bundle(raiz, path.join(base, "club/conectado.mjs"), { format: "iife", globalName: "__BP_CONECTADO" });
   let clubHtml = club
     .replace(llamada, "Promise.resolve(__BP_CONECTADO)")
     .replace(/<meta charset="utf-8">/i, (m) => `${m}\n<meta name="bp-demo-bus" content="1">\n<meta name="bp-ambiente" content="real">`)
@@ -82,20 +94,20 @@ export function armarSitio(raiz = RAIZ) {
   // que el modo conectado. Si todavía no lo carga, no se inyecta (no es un error).
   const llamadaStudio = 'import("./studio.mjs")';
   if (clubHtml.includes(llamadaStudio)) {
-    const studio = bundle(path.join(base, "club/studio.mjs"), { format: "iife", globalName: "__BP_STUDIO" });
+    const studio = bundle(raiz, path.join(base, "club/studio.mjs"), { format: "iife", globalName: "__BP_STUDIO" });
     clubHtml = clubHtml
       .split(llamadaStudio).join("Promise.resolve(__BP_STUDIO)")
       .replace('<script type="module">', () => `<script>\n${studio}\n</script>\n<script type="module">`);
   }
   // Turnero: CSS y JS inline (en modo demo: <meta name="turnero-modo" content="demo">).
   const t = path.join(base, "turnero");
-  let turnero = readFileSync(path.join(t, "index.html"), "utf8");
+  let turnero = leerTexto(path.join(t, "index.html"));
   const css = '<link rel="stylesheet" href="./turnero.css">', js = '<script type="module" src="./app.mjs"></script>';
   if (!turnero.includes(css) || !turnero.includes(js)) throw new Error("turnero/index.html ya no carga turnero.css y app.mjs como espera el empaquetador");
   if (!/<meta name="turnero-modo" content="demo">/.test(turnero)) throw new Error("el turnero publicado tiene que estar en modo demo");
   turnero = turnero
-    .replace(css, () => `<style>\n${readFileSync(path.join(t, "turnero.css"), "utf8")}</style>`)
-    .replace(js, () => `<script type="module">\n${bundle(path.join(t, "app.mjs"), { format: "esm" })}</script>`)
+    .replace(css, () => `<style>\n${leerTexto(path.join(t, "turnero.css"))}</style>`)
+    .replace(js, () => `<script type="module">\n${bundle(raiz, path.join(t, "app.mjs"), { format: "esm" })}</script>`)
     .replace(/^(<!doctype html>\n)/i, "$1<!-- GENERADO por src/tenants/breakpoint/empaquetar.mjs desde public/previews/breakpoint/turnero/ — no editar a mano -->\n")
     .replace(/<meta charset="utf-8">/i, (m) => `${m}\n${metaPublico}`)
     // El turnero del club es el front público: se puede encontrar en buscadores (la gestión, /club, no).
@@ -104,7 +116,7 @@ export function armarSitio(raiz = RAIZ) {
 }
 
 export function leerFuente(raiz = RAIZ) {
-  const leer = (f) => readFileSync(path.join(raiz, FUENTE, f), "utf8");
+  const leer = (f) => leerTexto(path.join(raiz, FUENTE, f));
   let morph = null;
   try { morph = leer("morph.mjs"); } catch { /* versión sin morph */ }
   return { html: leer("index.html"), app: leer("app.mjs"), motor: leer("motor.mjs"), morph };

@@ -8,6 +8,8 @@
 //   · «Sumar jugador»: por nombre (Enter o «Sumar») o eligiendo su ficha (desde 2 letras, sin los que ya juegan).
 //   · «Cuenta de la cancha»: cobrar un monto (lo que falta de la seña, o todo, ya escrito) y, si el titular tiene
 //     cuenta corriente con margen, cerrar la cancha pasando lo que falta a su cuenta.
+//   · Tanda B4 (C5) «¿Quién es Jugador N?»: al cobrar una fila «Jugador 2/3/4» sin ficha, nombre o teléfono con las
+//     fichas sugeridas (`sugerirFichas`); va en el cobro como `quien` y queda en la caja y en la ficha.
 // Cada pieza tiene su estado (lo que se tipea): tipear no repinta la cuenta ni la agenda. Lo que pasa lo dice la barra
 // de avisos del club. Nada se anima: se toca cien veces por día.
 
@@ -16,7 +18,7 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { pesos } from "@/lib/club/motor.mjs";
 import type { Almacen, Desenlace } from "./almacen";
-import { fichasParaSumar, type AccionCuenta, type VistaCuenta } from "./cuenta-core";
+import { fichasParaSumar, sugerirFichas, type AccionCuenta, type QuienPaga, type VistaCuenta } from "./cuenta-core";
 import { leerMonto } from "./montos-core";
 
 export const SumarJugador = memo(function SumarJugador({
@@ -124,5 +126,86 @@ export function CobroDeLaCancha({
         <p className="text-xs text-muted">Cerrar a cuenta corriente: {cancha.aCuenta.motivo}</p>
       )}
     </section>
+  );
+}
+
+/** Lo tipeado en «Nombre o teléfono»: con letras es un nombre; si no, un teléfono. */
+export function quienDeLoTipeado(texto: string): QuienPaga | null {
+  const t = texto.trim();
+  if (!t) return null;
+  return /\p{L}/u.test(t) ? { nombre: t } : { tel: t };
+}
+
+/**
+ * B4-C5: «¿Quién es Jugador 2?» antes de cobrarle. Se tipea nombre o teléfono; desde 2 letras o 3 números aparecen
+ * hasta 5 fichas para elegir de un toque. Lo elegido (o lo tipeado) va en el cobro de la fila (`onCambiar`). Si el club
+ * pide el nombre (`config.caja.pedirNombreJugador`), el rótulo lo dice; si no, es optativo y el cobro va igual.
+ */
+export function QuienEsElJugador({
+  almacen,
+  jugador,
+  valor,
+  onCambiar,
+}: {
+  almacen: Almacen;
+  jugador: string;
+  valor: QuienPaga | null;
+  onCambiar: (q: QuienPaga | null) => void;
+}) {
+  const [texto, setTexto] = useState("");
+  const id = useId();
+  const estado = almacen.estado();
+  const pide = !!estado.config.caja?.pedirNombreJugador;
+  const elegida = valor?.clienteId ? estado.clientes.find((c) => c.id === valor.clienteId) : undefined;
+  if (elegida) {
+    return (
+      <div data-cuenta="quien" className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-body">
+          {jugador} es <span className="font-semibold text-strong">{elegida.nombre}</span>
+        </span>
+        <Button variant="ghost" size="md" onClick={() => onCambiar(quienDeLoTipeado(texto))}>
+          Cambiar
+          <span className="sr-only"> quién es {jugador}</span>
+        </Button>
+      </div>
+    );
+  }
+  const fichas = sugerirFichas(estado, texto);
+  return (
+    <div data-cuenta="quien" className="flex flex-col gap-1">
+      <Field label={`Nombre o teléfono de ${jugador}${pide ? "" : " (si querés)"}`} htmlFor={id} className="sm:max-w-sm">
+        <Input
+          id={id}
+          value={texto}
+          autoComplete="off"
+          maxLength={60}
+          required={pide}
+          aria-describedby={`${id}-r`}
+          onChange={(e) => {
+            setTexto(e.target.value);
+            onCambiar(quienDeLoTipeado(e.target.value));
+          }}
+        />
+      </Field>
+      <p id={`${id}-r`} className="text-xs text-body" aria-live="polite">
+        {fichas.length
+          ? `${fichas.length === 1 ? "Una ficha coincide" : `${fichas.length} fichas coinciden`}: tocá la suya.`
+          : pide
+            ? "Antes de cobrarle, poné su nombre o su teléfono. Con teléfono y nombre le queda una ficha."
+            : "Queda en la caja como quién pagó. Con nombre y teléfono le queda una ficha."}
+      </p>
+      {fichas.length > 0 && (
+        <ul aria-label={`Fichas para ${jugador}`} className="grid grid-cols-1 gap-1 sm:max-w-sm">
+          {fichas.map((f) => (
+            <li key={f.id}>
+              <Button variant="ghost" size="md" className="w-full justify-between!" onClick={() => onCambiar({ clienteId: f.id })}>
+                <span className="truncate">Es {f.nombre}</span>
+                <span className="text-xs text-body tabular-nums">{f.tel}</span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

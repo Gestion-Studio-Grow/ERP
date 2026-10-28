@@ -69,7 +69,9 @@ test("es EL contador del bloqueo: lo que falla en la caja suma al del bloqueo, l
   // Ni con el PIN bueno se prueba mientras dura la espera; después, sí, pero el de recepción NO borra la tanda (SEC-5).
   assert.equal(egreso(recepcion.pin!, 2000).trabado, true);
   const despues = egreso(recepcion.pin!, 1000 + ESPERAS_DEL_BLOQUEO_MS[0]);
-  assert.equal(despues.desenlace.ok, true, despues.desenlace.mensaje);
+  assert.equal(despues.trabado, false, "pasada la espera se prueba");
+  assert.equal(despues.desenlace.pin, "bueno", despues.desenlace.mensaje);
+  assert.match(despues.desenlace.mensaje, /PIN de 4 dígitos/, "el PIN de 2 opera pero no firma el egreso (D-16)");
   assert.equal(guardaDelBloqueo(ls, clave).leer().tandas, 1, "la próxima tanda de 5 mal ya espera 2 minutos");
 });
 
@@ -111,7 +113,8 @@ test("SEC-5: un acierto de recepción NO borra los fallos (4 PIN del dueño mal 
   for (let k = 0; k < INTENTOS_DEL_BLOQUEO - 1; k++) descuento("0000");
   // Recepción pone el suyo en la caja (bueno, pero no es dueño): los 4 fallos siguen.
   const egreso = conTopeDePin(g, 0, () => ejecutarCaja(e, { tipo: "egreso", monto: "100", concepto: "Hielo", pin: recepcion.pin! }, AHORA, recepcion));
-  assert.equal(egreso.desenlace.ok, true, egreso.desenlace.mensaje);
+  assert.equal(egreso.desenlace.pin, "bueno", egreso.desenlace.mensaje);
+  assert.equal(egreso.desenlace.ok, false, "con el PIN de 2 no se firma el egreso (D-16)");
   assert.equal(g.leer().fallos, INTENTOS_DEL_BLOQUEO - 1);
   // El quinto traba.
   assert.match(descuento("0000").desenlace.mensaje, /esperá 30 segundos/);

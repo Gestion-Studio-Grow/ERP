@@ -44,6 +44,7 @@ import {
   restaurarConPin,
   textoDelRespaldo,
   valoresDeReglas,
+  LARGOS_DE_FIRMA,
   verificarRespaldoElegido,
   vistaDelGuardado,
   type AccionConfig,
@@ -387,6 +388,49 @@ test("reglas y precios: se valida TODO antes de tocar nada (entero o nada)", () 
   assert.equal(e.config.bloqueoMin, 10);
   assert.equal(e.config.tarifas[0].precioHora, 24500);
   assert.equal(e.caja.fondo, 15000);
+});
+
+test("B4-C4/C5 (vuelta 4) · la firma de caja y el nombre de «Jugador N» se configuran en Reglas: sólo un dueño, sólo largos que existen", () => {
+  const e = demo();
+  const v = valoresDeReglas(e);
+  assert.equal(v.largoPinFirma, String(M.LARGO_PIN_FIRMA_CAJA), "de fábrica, el provisional de D-16");
+  assert.equal(v.pedirNombreJugador, false);
+  assert.deepEqual(LARGOS_DE_FIRMA, [M.LARGO_PIN.recepcion, M.LARGO_PIN.duenio]);
+  const reglas = (cambio: Partial<typeof v>, auth: Auth = ROBER) => hacer(e, { tipo: "reglas", ...v, ...cambio }, auth);
+  const caja = () => JSON.stringify(e.config.caja ?? null);
+  const antes = caja();
+  // Ataque 1: recepción baja la firma a su propio PIN de 2 para firmar cierres y egresos.
+  assert.equal(reglas({ largoPinFirma: "2" }, LU).mensaje, "Las reglas y los precios los cambia un dueño.");
+  assert.equal(M.largoFirmaCaja(e), M.LARGO_PIN_FIRMA_CAJA);
+  // Ataque 2: un largo que nadie tiene (la caja quedaría sin quién firme) o basura; entero o nada (lo demás tampoco cambia).
+  for (const largo of ["6", "8", "3", "0", "", "4.0x", "-4"]) {
+    const r = reglas({ largoPinFirma: largo, bloqueoMin: "10" });
+    assert.equal(r.ok, false, `largo «${largo}»`);
+    assert.match(r.mensaje, /PIN que firma la caja/);
+  }
+  assert.equal(reglas({ pedirNombreJugador: "sí" as unknown as boolean }).ok, false);
+  assert.equal(caja(), antes);
+  assert.notEqual(e.config.bloqueoMin, 10, "con un error no se aplicó nada");
+  // Una acción de antes (sin estos campos) no toca la caja.
+  const vieja = { ...v };
+  delete vieja.largoPinFirma;
+  delete vieja.pedirNombreJugador;
+  assert.equal(hacer(e, { tipo: "reglas", ...vieja }, ROBER).ok, true);
+  assert.equal(caja(), antes);
+  // El dueño la baja a 2 y pide el nombre: queda en config.caja y lo lee la caja.
+  const r = reglas({ largoPinFirma: "2", pedirNombreJugador: true });
+  assert.equal(r.ok, true, r.mensaje);
+  assert.deepEqual(e.config.caja, { largoPinFirma: 2, pedirNombreJugador: true });
+  assert.equal(M.largoFirmaCaja(e), 2);
+  assert.equal(valoresDeReglas(e).largoPinFirma, "2");
+  assert.equal(valoresDeReglas(e).pedirNombreJugador, true);
+  // Y la vuelve a 4: recepción (PIN de 2) ya no firma un retiro (D-16 sigue en pie).
+  assert.equal(reglas({ largoPinFirma: "4", pedirNombreJugador: false }).ok, true);
+  assert.equal(M.largoFirmaCaja(e), 4);
+  const lu = e.usuarios.find((u) => u.id === LU.usuarioId)!;
+  const retiro = M.retiroCajaFuerte(e, { monto: 1, usuarioId: lu.id, pin: M.pinDeEjemplo(lu) }, AHORA);
+  assert.equal(retiro.ok, false);
+  assert.match((retiro as { motivo: string }).motivo, /PIN de 4/);
 });
 
 test("horarios: el cierre después de la apertura, cada `paso`, hasta las 02:00; avisa los turnos que quedan afuera", () => {

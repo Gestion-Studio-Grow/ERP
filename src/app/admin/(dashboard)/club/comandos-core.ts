@@ -20,8 +20,8 @@ import { abrirCobrandoLaDeuda, ponerLuz } from "./agenda-core";
 import { anotarEnEsperaDesdeAlta, reservar, type DatosAlta } from "./alta-core";
 import { ejecutarBuffet, type AccionBuffet } from "./buffet-core";
 import { ejecutarMesa, venderEnMostrador, type AccionMesa, type Carrito, type DesenlaceMesa } from "./buffet-mesa-core";
-import { ejecutarCaja, type AccionCaja } from "./caja-core";
-import { ejecutarCanchas, ejecutarEspera, ejecutarFijo, type AccionCanchas, type AccionEspera, type AccionFijo, type DesenlaceCanchas } from "./canchas-core";
+import { cajaVaSinInternet, ejecutarCaja, type AccionCaja } from "./caja-core";
+import { ejecutarBajaFijo, ejecutarCanchas, ejecutarEspera, ejecutarFijo, type AccionBajaFijo, type AccionCanchas, type AccionEspera, type AccionFijo, type DesenlaceCanchas } from "./canchas-core";
 import { ejecutarCiclo, ejecutarCierre, mediosDelCierre, type AccionCiclo, type AccionCierre } from "./ciclo-core";
 import { ejecutarClientes, type AccionClientes, type DesenlaceClientes } from "./clientes-core";
 import { abrirElClub, ejecutarConfiguracion, limpiarPorHuella, type AccionConfig, type DesenlaceConfig, type DesenlaceLimpieza, type PedidoDeLimpiezaPorHuella } from "./configuracion-core";
@@ -111,9 +111,12 @@ export const REGISTRO = {
   }),
   caja: entrada<[accion: AccionCaja], ReturnType<typeof ejecutarCaja>>({
     correr: (e, [a], ahora, auth) => ejecutarCaja(e, a, ahora, auth),
-    // Todo con internet: el egreso saca plata y el PIN viaja en claro en el estado (Challenger, 18/10); el cierre y el
-    // fondo, también.
-    sinInternet: () => false,
+    // Con internet: el egreso, el retiro y el cierre del día sacan o consolidan plata (Challenger, 18/10); el fondo y
+    // corregir un medio (MP o transferencia se verifican afuera), también. Tanda B4 (C7): contar y firmar un turno que
+    // sólo tuvo efectivo SÍ van sin internet y se re-aplican al volver; con Mercado Pago, transferencia o débito, no
+    // (la pantalla lo deja en espera y la cinta lo dice). El PIN de la firma sale de la cola como todo PIN.
+    sinInternet: ([a]) => cajaVaSinInternet(a),
+    conEfectivo: ([a]) => a.tipo === "contarTurno" || a.tipo === "cerrarTurno",
     secretos: [],
   }),
   alta: entrada<[datos: DatosAlta], ReturnType<typeof reservar>>({
@@ -277,6 +280,22 @@ export const REGISTRO = {
     sinInternet: ([a]) => mediosDelCierre(a).every((m) => sinRed(m as MedioCobro)),
     conEfectivo: () => true,
     // Sin secretos en los argumentos (los turnos y los medios; ningún PIN): lo verifica el test que recorre el REGISTRO entero.
+    secretos: [],
+  }),
+  // ── Tanda 3C: los fijos (bp-DISENO §3.10) ──
+  /**
+   * «Dar de baja» un fijo desde una fecha, pausarlo hasta una fecha (vuelve solo) o liberar UNA fecha (BP-100…BP-104),
+   * después de la previa. Con un dueño, sus turnos se cancelan como «cancela el club» (lo pagado vuelve); si no, con la
+   * regla de siempre. Re-aplicado sobre un fijo que otro puesto ya dio de baja, el motor dice que no: va a «Para
+   * resolver» sin tocar plata (nunca devuelve dos veces).
+   */
+  bajaDeFijo: entrada<[accion: AccionBajaFijo], ReturnType<typeof ejecutarBajaFijo>>({
+    correr: (e, [a], ahora, auth) => ejecutarBajaFijo(e, a, ahora, auth),
+    // Cancela turnos y puede devolver plata (crédito o en mano), y libera huecos que otro puesto puede estar dando: con
+    // internet, como «Dar de baja» del comando «fijo». Provisional, a confirmar con el dueño (decisión abierta «sin
+    // internet»): mientras no la tome, la regla más segura para la plata es «con internet».
+    sinInternet: () => false,
+    // Sin secretos en los argumentos (el fijo y las fechas): lo verifica el test que recorre el REGISTRO entero.
     secretos: [],
   }),
 } as const;
@@ -581,6 +600,12 @@ export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub 
         const x = a[0] as AccionCaja;
         if (x.tipo === "egreso") return `Egreso de caja $ ${x.monto} «${x.concepto}»`;
         if (x.tipo === "cerrar") return "Cierre de caja";
+        if (x.tipo === "contarTurno") return "Conteo del turno de caja";
+        if (x.tipo === "cerrarTurno") return "Firma del cierre del turno de caja";
+        if (x.tipo === "corregirMedio") return "Corrección del medio de un cobro";
+        if (x.tipo === "retiro") return `Retiro a caja fuerte $ ${x.monto}`;
+        if (x.tipo === "egresoCategoria") return `Egreso de caja $ ${x.monto} (${x.categoria})`;
+        if (x.tipo === "cerrarDia") return "Cierre del día de caja (consolida los turnos)";
         return `Fondo de caja $ ${x.monto}`;
       }
       case "esperaDesdeAlta": {
@@ -689,6 +714,15 @@ export function queHizo(c: Pick<Comando, "nombre" | "args">, estado: EstadoClub 
         const { titular, turno, r } = elTurno(estado, reservaId);
         const deuda = estado && r?.clienteId ? (estado.clientes.find((c) => c.id === r.clienteId)?.deuda ?? 0) : 0;
         return `Cobro de la deuda${deuda > 0 ? ` ${pesos(deuda)}` : ""} ${medioDe(medio)} y abrir la cancha de ${titular}${turno}`;
+      }
+      case "bajaDeFijo": {
+        const x = a[0] as AccionBajaFijo;
+        const f = estado?.fijos.find((y) => y.id === x.fijoId);
+        const de = `el fijo de ${f?.titular ?? "alguien"}${f ? ` (${hhmm(f.inicio)})` : ""}`;
+        const dd = (fecha: string) => `${Number(fecha.slice(8))}/${Number(fecha.slice(5, 7))}`;
+        if (x.tipo === "pausa") return `Pausar ${de} del ${dd(x.desde)} al ${dd(x.hasta)}`;
+        if (x.tipo === "liberar") return `Liberar ${de} el ${dd(x.fecha)}`;
+        return `Dar de baja ${de} desde el ${dd(x.desde)}`;
       }
       case "cierre": {
         const x = a[0] as AccionCierre;

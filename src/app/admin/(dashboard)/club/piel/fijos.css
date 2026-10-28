@@ -1,0 +1,113 @@
+/* ═════════ «TURNOS FIJOS» CON LA PIEL DE BREAK POINT («chapa») — Tanda 3C ═════════
+   Sólo viste: la estructura y las acciones son las de FijosYEspera.tsx, que se engancha por `data-fijos`
+   (lista, fijo, estado, hoja, opcion, previa, hecho, pie). La hoja de «Dar de baja» es la `Hoja` del design system
+   (un <dialog> nativo); acá se la encuentra por lo que lleva adentro (`:has([data-fijos="hoja"])`), así ninguna otra
+   hoja cambia. Todo bajo [data-estetica="breakpoint"] y con los tokens de globals.css: otro negocio no ve nada, y el
+   contraste AA y el modo oscuro vienen de ahí. Los controles conservan sus 44 px (objetivo táctil).
+   · Celular: hoja de abajo; las opciones apiladas, cada control debajo de su opción.
+   · Desde 1024 px: panel lateral a la derecha (como «Vender»), la lista de fijos a la vista del otro lado del velo.
+   Movimiento: sólo la entrada de la hoja (transform y opacity, --dur-2); con prefers-reduced-motion queda quieta. */
+
+[data-estetica="breakpoint"] [data-fijos="lista"] h2 {
+  font-family: var(--font-display);
+  font-stretch: 75%;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* El estado del fijo («Pausado hasta el 31/1 · vuelve el 3/2»): una chapita, para que se vea de un vistazo. */
+[data-estetica="breakpoint"] [data-fijos="estado"] {
+  display: inline-block;
+  margin-block: 0.125rem;
+  padding: 0.0625rem 0.375rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  color: var(--text-strong);
+}
+
+[data-estetica="breakpoint"] [data-fijos="fijo"][data-pausado] [data-fijos="estado"] {
+  border-color: var(--accent);
+}
+
+/* La hoja: título en mayúsculas sobre un filete de tinta, como «Dar un turno». */
+[data-estetica="breakpoint"] dialog:has([data-fijos="hoja"]) {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+
+[data-estetica="breakpoint"] dialog:has([data-fijos="hoja"]) header {
+  border-bottom: 2px solid var(--text-strong);
+}
+
+[data-estetica="breakpoint"] dialog:has([data-fijos="hoja"]) header h2 {
+  font-family: var(--font-display);
+  font-stretch: 75%;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+@media (min-width: 1024px) {
+  [data-estetica="breakpoint"] dialog:has([data-fijos="hoja"]) {
+    margin: 0 0 0 auto;
+    height: 100dvh;
+    max-height: 100dvh;
+    width: 100%;
+    max-width: 32rem;
+    border-radius: 0;
+    border-width: 0 0 0 1px;
+  }
+  [data-estetica="breakpoint"] dialog:has([data-fijos="hoja"]) > div {
+    height: 100%;
+    max-height: 100dvh;
+  }
+  [data-estetica="breakpoint"] dialog:has([data-fijos="hoja"]) [data-parte="manija"] {
+    display: none;
+  }
+}
+
+/* La opción elegida se marca con el borde de tinta (no sólo con el radio). */
+[data-estetica="breakpoint"] [data-fijos="opcion"] {
+  border-radius: var(--radius-sm);
+}
+
+[data-estetica="breakpoint"] [data-fijos="opcion"][data-elegida] {
+  border-color: var(--text-strong);
+  background: var(--surface-raised);
+}
+
+/* La previa: turno por turno con números alineados, y lo que suma arriba en negrita. */
+[data-estetica="breakpoint"] [data-fijos="previa"] {
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+[data-estetica="breakpoint"] [data-fijos="hecho"] {
+  border-left: 3px solid var(--success);
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-estetica="breakpoint"] dialog[open]:has([data-fijos="hoja"]) {
+    transition:
+      transform var(--dur-2, 200ms) var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1)),
+      opacity var(--dur-2, 200ms) var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1));
+  }
+  @starting-style {
+    [data-estetica="breakpoint"] dialog[open]:has([data-fijos="hoja"]) {
+      transform: translateY(1.5rem);
+      opacity: 0;
+    }
+  }
+  @media (min-width: 1024px) {
+    @starting-style {
+      [data-estetica="breakpoint"] dialog[open]:has([data-fijos="hoja"]) {
+        transform: translateX(1.5rem);
+      }
+    }
+  }
+}

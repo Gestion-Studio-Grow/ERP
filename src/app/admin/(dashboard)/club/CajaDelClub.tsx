@@ -14,6 +14,11 @@
 // persona. Lo valida el motor (permiso + PIN); la pantalla sólo lo pide, no lo muestra y lo borra después de cada
 // intento. En la demo, los PIN de ejemplo están a la vista, rotulados.
 //
+// Tanda B4: el cierre es POR TURNO y a ciegas (CierreDeCaja.tsx): recepción cuenta sin ver lo esperado, firma un PIN
+// de 4 (D-16) y el día se cierra consolidando los turnos. Por eso, a quien no es dueño la tarjeta no le muestra el
+// efectivo esperado ni lo cobrado por medio. El egreso es por categoría y hay retiro a caja fuerte (los dos con firma);
+// un cobro del turno abierto se puede corregir de medio, con motivo y rastro.
+//
 // Tanda 2B: debajo del aviso rojo, «Plata pendiente (n)» (plata-pendiente.tsx): lo que hay que devolver o cobrar de
 // cualquier día, con sus medios, sin salir de la Caja.
 
@@ -21,11 +26,12 @@ import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
-import { pesos } from "@/lib/club/motor.mjs";
+import { largoFirmaCaja, pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
-import { MOVIMIENTOS_POR_PAGINA, armarCaja, pinesDeEjemplo, puedeAjustarFondo, type AccionCaja, type CierreDeHoy, type VistaCaja } from "./caja-core";
+import { MOVIMIENTOS_POR_PAGINA, armarCaja, movimientosALaVista, pinesDeEjemplo, puedeAjustarFondo, puedeFirmarCierres, type AccionCaja, type CierreDeHoy, type VistaCaja } from "./caja-core";
 import { conTopeDePin, guardaDelPin } from "./tope-de-pin";
+import CierreDeCaja, { ConFirma, CorregirMedio } from "./CierreDeCaja";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 import { operadorActual } from "./operador-del-club";
 import { permisosProveedores } from "./proveedores-core";
@@ -35,63 +41,17 @@ import "./piel/caja.css";
 
 const ddmm = (d: string) => `${Number(d.slice(8))}/${Number(d.slice(5, 7))}`;
 
-/** El PIN: numérico, sin mostrarse, sin autocompletar. */
-function CampoPin({ id, quien, value, onChange }: { id: string; quien: string | null; value: string; onChange: (pin: string) => void }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium text-strong">
-        {quien ? `PIN de ${quien}` : "Tu PIN"}
-      </label>
-      <Input id={id} type="password" inputMode="numeric" autoComplete="off" maxLength={4} value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} className="sm:w-28" />
-    </div>
-  );
-}
-
-/** El nombre de pila de quien opera (para «PIN de Lu»), por su propio canal. */
-function useQuienOpera(almacen: Almacen): string | null {
-  const operador = useOperador(almacen);
-  return operador ? operador.usuario.nombre.split(" ")[0] : null;
-}
-
-function CerrarCaja({ almacen, etiqueta, boton, esperado, onCerrar }: { almacen: Almacen; etiqueta: string; boton: string; esperado: number; onCerrar: (contado: string, pin: string) => boolean }) {
-  const [contado, setContado] = useState("");
-  const [pin, setPin] = useState("");
-  const quien = useQuienOpera(almacen);
-  const ids = { contado: useId(), pin: useId(), ayuda: useId() };
-  return (
-    <form
-      className="flex flex-col gap-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (onCerrar(contado, pin)) setContado("");
-        setPin("");
-      }}
-    >
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={ids.contado} className="text-sm font-medium text-strong">
-            {etiqueta}
-          </label>
-          <Input id={ids.contado} inputMode="numeric" importe value={contado} autoComplete="off" aria-describedby={ids.ayuda} onChange={(e) => setContado(e.target.value)} />
-        </div>
-        <CampoPin id={ids.pin} quien={quien} value={pin} onChange={setPin} />
-      </div>
-      {/* text-body: este formulario va también sobre fondos de aviso, donde text-muted no llega a 4,5:1. */}
-      <p id={ids.ayuda} className="text-sm text-body">
-        Tendría que haber {pesos(esperado)} en efectivo (con el fondo).
-      </p>
-      <Button type="submit" variant="solid" size="md">
-        {boton}
-      </Button>
-    </form>
-  );
-}
-
-/** Las cajas que quedaron con movimientos sin cerrar: el aviso en rojo y UN formulario para cerrar la que se elija. */
+/**
+ * Las cajas que quedaron con movimientos sin cerrar: el aviso en rojo y cómo cerrar la que se elija. Un día trabajado por
+ * turnos se cierra contando su turno abierto y consolidando (CierreDeCaja con ese día); uno sin turnos, contando el
+ * efectivo A CIEGAS y con la firma de caja (D-16): con el PIN de 2 de recepción no se cierra.
+ */
 function CajasAtrasadas({ almacen, atrasadas, hacer }: { almacen: Almacen; atrasadas: VistaCaja["atrasadas"]; hacer: (a: AccionCaja) => boolean }) {
   const [dia, setDia] = useState(atrasadas[0].dia);
+  const [contado, setContado] = useState("");
   const id = useId();
   const elegida = atrasadas.find((a) => a.dia === dia) ?? atrasadas[0];
+  const largo = largoFirmaCaja(almacen.estado());
   return (
     <section aria-labelledby={`${id}-t`} className="flex flex-col gap-3 rounded-lg border border-danger/40 bg-danger-soft p-3">
       <h2 id={`${id}-t`} role="alert" className="font-semibold text-danger">
@@ -101,22 +61,36 @@ function CajasAtrasadas({ almacen, atrasadas, hacer }: { almacen: Almacen; atras
         <label htmlFor={id} className="text-sm font-medium text-strong">
           Caja para cerrar
         </label>
-        <Select id={id} value={elegida.dia} onChange={(e) => setDia(e.target.value)}>
+        <Select id={id} value={elegida.dia} onChange={(e) => { setDia(e.target.value); setContado(""); }}>
           {atrasadas.map((a) => (
             <option key={a.dia} value={a.dia}>
-              Caja del {ddmm(a.dia)} · tendría que haber {pesos(a.efectivoEsperado)} en efectivo
+              Caja del {ddmm(a.dia)}
+              {a.porTurnos ? " · por turnos" : ""}
             </option>
           ))}
         </Select>
       </div>
-      <CerrarCaja
-        key={elegida.dia}
-        almacen={almacen}
-        etiqueta={`Efectivo contado de la caja del ${ddmm(elegida.dia)}`}
-        boton="Cerrar esa caja"
-        esperado={elegida.efectivoEsperado}
-        onCerrar={(contado, pin) => hacer({ tipo: "cerrar", contado, dia: elegida.dia, pin })}
-      />
+      {elegida.porTurnos ? (
+        <CierreDeCaja key={elegida.dia} almacen={almacen} hacer={hacer} dia={elegida.dia} />
+      ) : (
+        <ConFirma
+          key={elegida.dia}
+          almacen={almacen}
+          largo={largo}
+          titulo={`Cerrar la caja del ${ddmm(elegida.dia)}`}
+          boton="Cerrar esa caja"
+          alMandar={(firmaId, pin) => {
+            const ok = hacer({ tipo: "cerrar", contado, dia: elegida.dia, pin, firmaId });
+            if (ok) setContado("");
+            return ok;
+          }}
+        >
+          <label className="flex flex-col gap-1 text-sm font-medium text-strong">
+            Efectivo contado (con el fondo). Lo que tendría que haber se ve al cerrar.
+            <Input inputMode="numeric" importe autoComplete="off" value={contado} onChange={(e) => setContado(e.target.value)} />
+          </label>
+        </ConFirma>
+      )}
     </section>
   );
 }
@@ -171,8 +145,14 @@ function FondoDeCaja({ almacen, fondo, hacer }: { almacen: Almacen; fondo: numbe
   );
 }
 
-function Movimientos({ v, onMas }: { v: VistaCaja; onMas: () => void }) {
+/**
+ * Los movimientos de la caja. B4-C1: a quien no firma cierres (recepción con PIN de 2) los del turno abierto le van sin
+ * importe (hora, concepto y medio sí): sumando la lista sacaría el esperado del arqueo a ciegas.
+ */
+function Movimientos({ v, veImportes, onMas, hacer }: { v: VistaCaja; veImportes: boolean; onMas: () => void; hacer: (a: AccionCaja) => boolean }) {
   const faltan = v.totalMovimientos - v.movimientos.length;
+  const lista = movimientosALaVista(v.movimientos, veImportes);
+  const aCiegas = lista.some((m) => m.monto === null);
   return (
     <section aria-labelledby="club-caja-movs" data-caja="movimientos" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
       <h2 id="club-caja-movs" className="font-semibold text-strong">
@@ -181,40 +161,49 @@ function Movimientos({ v, onMas }: { v: VistaCaja; onMas: () => void }) {
       {v.totalMovimientos === 0 ? (
         <p className="text-sm text-muted">Todavía no entró ni salió nada en esta caja.</p>
       ) : (
-        <table className="w-full text-sm tabular-nums">
-          <thead>
-            <tr className="border-b border-line text-left text-xs text-muted">
-              <th scope="col" className="py-1.5 pr-2 font-medium">
-                Hora
-              </th>
-              <th scope="col" className="py-1.5 pr-2 font-medium">
-                Concepto
-              </th>
-              <th scope="col" className="py-1.5 pr-2 text-right font-medium">
-                Ingreso
-              </th>
-              <th scope="col" className="py-1.5 text-right font-medium">
-                Egreso
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {v.movimientos.map((m) => (
-              <tr key={m.id} className="border-b border-line align-top last:border-b-0">
-                <td className="py-1.5 pr-2 whitespace-nowrap text-muted">{m.hora}</td>
-                <td className="min-w-0 py-1.5 pr-2 break-words">
-                  <span className="text-strong">{m.concepto}</span>
-                  <span className="block text-xs text-muted">
-                    {m.medio}
-                    {m.quien ? ` · ${m.quien}` : ""}
-                  </span>
-                </td>
-                <td className="py-1.5 pr-2 text-right whitespace-nowrap text-strong">{m.tipo === "ingreso" ? pesos(m.monto) : ""}</td>
-                <td className="py-1.5 text-right whitespace-nowrap text-danger">{m.tipo === "egreso" ? pesos(m.monto) : ""}</td>
+        <>
+          {aCiegas && <p className="text-sm text-body">Los importes del turno abierto se ven al contar la caja: así el arqueo es a ciegas.</p>}
+          <table className="w-full text-sm tabular-nums">
+            <thead>
+              <tr className="border-b border-line text-left text-xs text-muted">
+                <th scope="col" className="py-1.5 pr-2 font-medium">
+                  Hora
+                </th>
+                <th scope="col" className="py-1.5 pr-2 font-medium">
+                  Concepto
+                </th>
+                <th scope="col" className="py-1.5 pr-2 text-right font-medium">
+                  Ingreso
+                </th>
+                <th scope="col" className="py-1.5 text-right font-medium">
+                  Egreso
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {lista.map((m) => (
+                <tr key={m.id} className="border-b border-line align-top last:border-b-0">
+                  <td className="py-1.5 pr-2 whitespace-nowrap text-muted">{m.hora}</td>
+                  <td className="min-w-0 py-1.5 pr-2 break-words">
+                    <span className="text-strong">{m.concepto}</span>
+                    <span className="block text-xs text-muted">
+                      {m.medio}
+                      {m.quien ? ` · ${m.quien}` : ""}
+                    </span>
+                    {m.rastro.map((r) => (
+                      <span key={r} className="block text-xs text-warning">
+                        Corregido: {r}
+                      </span>
+                    ))}
+                    {m.corregible && <CorregirMedio movimientoId={m.id} medio={m.medioClave} hacer={hacer} />}
+                  </td>
+                  <td className="py-1.5 pr-2 text-right whitespace-nowrap text-strong">{m.tipo === "ingreso" ? <Importe monto={m.monto} /> : ""}</td>
+                  <td className="py-1.5 text-right whitespace-nowrap text-danger">{m.tipo === "egreso" ? <Importe monto={m.monto} /> : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
       {faltan > 0 && (
         <Button variant="ghost" size="md" onClick={onMas}>
@@ -225,48 +214,14 @@ function Movimientos({ v, onMas }: { v: VistaCaja; onMas: () => void }) {
   );
 }
 
-function Egreso({ almacen, hacer }: { almacen: Almacen; hacer: (a: AccionCaja) => boolean }) {
-  const [monto, setMonto] = useState("");
-  const [concepto, setConcepto] = useState("");
-  const [pin, setPin] = useState("");
-  const quien = useQuienOpera(almacen);
-  const ids = { monto: useId(), concepto: useId(), pin: useId() };
+/** Un importe de la lista, o «—» con su texto para el lector de pantalla si va a ciegas. */
+function Importe({ monto }: { monto: number | null }) {
+  if (monto !== null) return <>{pesos(monto)}</>;
   return (
-    <section aria-labelledby="club-egreso" data-caja="egreso" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
-      <h2 id="club-egreso" className="font-semibold text-strong">
-        Anotar un egreso en efectivo
-      </h2>
-      <form
-        className="flex flex-col gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (hacer({ tipo: "egreso", monto, concepto, pin })) {
-            setMonto("");
-            setConcepto("");
-          }
-          setPin("");
-        }}
-      >
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[8rem_1fr]">
-          <div className="flex flex-col gap-1">
-            <label htmlFor={ids.monto} className="text-sm font-medium text-strong">
-              Monto
-            </label>
-            <Input id={ids.monto} inputMode="numeric" importe value={monto} autoComplete="off" onChange={(e) => setMonto(e.target.value)} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor={ids.concepto} className="text-sm font-medium text-strong">
-              Concepto (para qué salió la plata)
-            </label>
-            <Input id={ids.concepto} value={concepto} autoComplete="off" placeholder="Ej.: hielo, artículos de limpieza" onChange={(e) => setConcepto(e.target.value)} />
-          </div>
-        </div>
-        <CampoPin id={ids.pin} quien={quien} value={pin} onChange={setPin} />
-        <Button type="submit" variant="outline" size="md">
-          Anotar el egreso
-        </Button>
-      </form>
-    </section>
+    <span data-caja="a-ciegas" className="text-muted">
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">importe oculto hasta contar la caja</span>
+    </span>
   );
 }
 
@@ -301,32 +256,6 @@ function CorteDeHoy({ cierre, ultimo }: { cierre: CierreDeHoy; ultimo: VistaCaja
   );
 }
 
-function CierreDeLaCaja({ almacen, cierre, esperado, hacer }: { almacen: Almacen; cierre: CierreDeHoy; esperado: number; hacer: (a: AccionCaja) => boolean }) {
-  return (
-    <section aria-labelledby="club-cierre" data-caja="cierre" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
-      <h2 id="club-cierre" className="font-semibold text-strong">
-        Cerrar la caja
-      </h2>
-      {cierre.tipo === "cerrada" ? (
-        <p className="text-sm text-strong">{cierre.texto}</p>
-      ) : (
-        <>
-          <p className="text-sm text-muted">
-            {cierre.tipo === "siguiente" ? cierre.texto : "Contá el efectivo del cajón (con el fondo); lo digital ya está registrado. Se cierra una sola vez; lo que se cobre después va a la caja siguiente."}
-          </p>
-          <CerrarCaja
-            almacen={almacen}
-            etiqueta="Efectivo contado"
-            boton="Cerrar la caja"
-            esperado={esperado}
-            onCerrar={(contado, pin) => hacer({ tipo: "cerrar", contado, dia: cierre.tipo === "siguiente" ? cierre.dia : null, pin })}
-          />
-        </>
-      )}
-    </section>
-  );
-}
-
 /**
  * Registrar un remito desde la caja, como el vanilla: recepción recibe la mercadería en el mostrador. Deudas y pagos a
  * proveedores siguen en la solapa Proveedores (sólo dueños). El permiso lo da el motor (`remito`).
@@ -356,13 +285,18 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
   const [cuantos, setCuantos] = useState(MOVIMIENTOS_POR_PAGINA);
   const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarCaja(e, a, cuantos), [cuantos]);
   const v = useSeleccion(almacen, seleccionar, porFirma);
+  // A ciegas (C1): quien no es dueño no ve lo esperado mientras el turno está abierto.
+  const operador = useOperador(almacen);
+  const veEsperado = puedeAjustarFondo(almacen.estado(), operador?.usuario.id);
+  // B4-C1: tampoco ve los importes de los movimientos del turno abierto quien no puede firmar el cierre.
+  const veImportes = veEsperado || puedeFirmarCierres(almacen.estado(), operador?.usuario.id);
   // Egreso, cierre y fondo NO se deshacen (como en vanilla: lo que pide PIN no tiene «Deshacer»).
   // El PIN de egreso y cierre pasa por el tope compartido del equipo: trabado, no se prueba (y el aviso dice cuánto
   // esperar). El fondo no lleva PIN: no se traba.
   const hacer = useCallback(
     (a: AccionCaja) =>
       // Por comando (re-aplicable en otro puesto); el tope de PIN cuenta sólo el toque, no las re-aplicaciones.
-      almacen.comando("caja", [a], a.tipo === "fondo" ? {} : { envolver: (correr) => conTopeDePin(guardaDelPin(almacen, negocio), Date.now(), correr).desenlace }).ok,
+      almacen.comando("caja", [a], a.tipo === "fondo" || a.tipo === "contarTurno" || a.tipo === "corregirMedio" ? {} : { envolver: (correr) => conTopeDePin(guardaDelPin(almacen, negocio), Date.now(), correr).desenlace }).ok,
     [almacen, negocio],
   );
 
@@ -385,7 +319,7 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
           <div data-caja="cajon" className="col-span-2 rounded-md bg-surface-sunken p-3 sm:col-span-1">
             {/* text-body: sobre el fondo hundido, text-muted no llega a 4,5:1. */}
             <dt className="text-xs text-body">Efectivo en el cajón</dt>
-            <dd className="text-xl font-bold text-strong">{pesos(v.efectivoEsperado)}</dd>
+            <dd className="text-xl font-bold text-strong">{veEsperado ? pesos(v.efectivoEsperado) : "Se ve al cerrar el turno"}</dd>
           </div>
           <div className="p-3">
             <dt className="text-xs text-muted">Fondo</dt>
@@ -393,11 +327,11 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
           </div>
           <div data-signo="ingreso" className="p-3">
             <dt className="text-xs text-muted">Ingresos</dt>
-            <dd className="font-semibold text-strong">{pesos(v.ingresos)}</dd>
+            <dd className="font-semibold text-strong">{veEsperado ? pesos(v.ingresos) : "—"}</dd>
           </div>
           <div data-signo="egreso" className="p-3">
             <dt className="text-xs text-muted">Egresos</dt>
-            <dd className="font-semibold text-strong">{pesos(v.egresos)}</dd>
+            <dd className="font-semibold text-strong">{veEsperado ? pesos(v.egresos) : "—"}</dd>
           </div>
         </dl>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -409,7 +343,7 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
               {v.porMedio.map((m) => (
                 <div key={m.medio} className="flex justify-between gap-2 border-b border-line py-1">
                   <dt className="text-muted">{m.medio}</dt>
-                  <dd className="text-strong">{pesos(m.monto)}</dd>
+                  <dd className="text-strong">{veEsperado ? pesos(m.monto) : "—"}</dd>
                 </div>
               ))}
             </dl>
@@ -419,14 +353,11 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
         <FondoDeCaja key={v.fondo} almacen={almacen} fondo={v.fondo} hacer={hacer} />
       </section>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Egreso almacen={almacen} hacer={hacer} />
-        <CierreDeLaCaja almacen={almacen} cierre={v.cierreDeHoy} esperado={v.efectivoEsperado} hacer={hacer} />
-      </div>
+      <CierreDeCaja almacen={almacen} hacer={hacer} />
 
       <RemitoDesdeLaCaja almacen={almacen} />
 
-      <Movimientos v={v} onMas={() => setCuantos((n) => n + MOVIMIENTOS_POR_PAGINA)} />
+      <Movimientos v={v} veImportes={veImportes} hacer={hacer} onMas={() => setCuantos((n) => n + MOVIMIENTOS_POR_PAGINA)} />
 
       {v.cierres.length > 0 && (
         <section aria-labelledby="club-cierres" className="flex flex-col gap-1">

@@ -13,7 +13,6 @@
 
 import {
   NOMBRE_DIA,
-  cancelar,
   anotarEspera,
   asignarDesdeEspera,
   bloquear,
@@ -21,10 +20,14 @@ import {
   configurarMantenimiento,
   configurarTecho,
   crearFijo,
+  darDeBajaFijo,
   diaSemana,
+  fijoBajadoEl,
+  fijoJuegaEl,
   hhmm,
   horarioDe,
   huecosLibres,
+  liberarFijo,
   materializarFijos,
   minutosHasta,
   pesos,
@@ -33,8 +36,7 @@ import {
   sumarDias,
   validarHueco,
 } from "@/lib/club/motor.mjs";
-import type { Ahora, Auth, EstadoClub, Fecha, ResultadoLluvia } from "@/lib/club/motor.mjs";
-import { operadorDesdeAuth } from "./operador-del-club";
+import type { Ahora, Auth, EstadoClub, Fecha, Fijo, ResultadoLluvia, TurnoDeLaBaja } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
 import { celularDeLaEspera, textoOfertaEspera } from "./whatsapp-core";
 
@@ -122,8 +124,10 @@ export type AccionCanchas =
 
 /**
  * Qué se deshace (alineado con `DESHACIBLES` del club vanilla, app.mjs:24): ni la lluvia, ni el mantenimiento, ni los
- * bloqueos, ni crear/bajar/dar de baja fijos, ni sacar de la espera. Cada uno tiene su inversa a la vista (habilitar,
- * quitar el bloqueo, dar de baja, volver a anotar); la lluvia, su previa. Anotar en la espera y darle el turno sí.
+ * bloqueos, ni crear/bajar fijos, ni sacar de la espera. Cada uno tiene su inversa a la vista (habilitar, quitar el
+ * bloqueo, dar de baja, volver a anotar); la lluvia, su previa. Anotar en la espera y darle el turno sí.
+ * Tanda 3C (bp-DISENO §3.10): DAR DE BAJA un fijo, pausarlo y liberar una fecha SÍ se deshacen (6 s, la foto de antes):
+ * vuelven el fijo y sus turnos como estaban, con su plata.
  */
 export const SE_DESHACE = {
   mantenimiento: false,
@@ -133,11 +137,13 @@ export const SE_DESHACE = {
   lluvia: false,
   nuevoFijo: false,
   bajarFijos: false,
-  bajaFijo: false,
+  bajaFijo: true,
+  pausaFijo: true,
+  liberarFijo: true,
   anotar: true,
   asignar: true,
   quitar: false,
-} as const satisfies Record<AccionCanchas["tipo"] | AccionEspera["tipo"] | "nuevoFijo" | "bajarFijos" | "bajaFijo", boolean>;
+} as const satisfies Record<AccionCanchas["tipo"] | AccionEspera["tipo"] | "nuevoFijo" | "bajarFijos" | "bajaFijo" | "pausaFijo" | "liberarFijo", boolean>;
 
 /** Lo que devuelve una acción de las canchas; la lluvia, además, lo que pasó con cada turno (para avisarles). */
 export type DesenlaceCanchas = Desenlace & { lluvia?: ResultadoLluvia[] };
@@ -176,23 +182,130 @@ export function ejecutarCanchas(estado: EstadoClub, a: AccionCanchas, ahora: Aho
 
 // ───────────── turnos fijos ─────────────
 
+const DIAS_CORTOS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"] as const;
+/** «mar 20/10» */
+const fechaCorta = (f: Fecha) => `${DIAS_CORTOS[diaSemana(f)]} ${ddmm(f)}`;
+const enPlural = (dia: number) => (dia === 6 || dia === 0 ? `${NOMBRE_DIA[dia].toLowerCase()}s` : NOMBRE_DIA[dia].toLowerCase());
+
+/** Cuántas fechas próximas de un fijo se ofrecen para «desde el …» y «liberar el …». */
+export const FECHAS_DEL_FIJO = 8;
+
 export interface VistaFijo {
   id: string;
+  titular: string;
   texto: string;
-  /** Las próximas fechas en la grilla (o liberadas). */
+  /** «Pausado hasta el 31/1 · vuelve el 3/2», «Juega hasta el 9/11», «Empieza el 30/10»; null si juega como siempre. */
+  estado: string | null;
+  /** Las próximas fechas en la grilla (o liberadas, o en pausa). */
   proximas: string;
+  /** Las próximas fechas que juega (no liberadas, fuera de la pausa, dentro de su vigencia), para elegir. */
+  fechas: { fecha: Fecha; texto: string }[];
+  /** El celular de su ficha ("" sin ficha): para avisarle por WhatsApp. */
+  celular: string;
 }
 
-export function armarFijos(estado: EstadoClub, hoy: Fecha): { fijos: VistaFijo[]; firma: string } {
+/** Las próximas `n` fechas en que el fijo juega, desde `hoy` (un turno de hoy que ya empezó no cuenta). PURA. */
+export function proximasFechasDelFijo(f: Fijo, ahora: Ahora, n = FECHAS_DEL_FIJO): Fecha[] {
+  const out: Fecha[] = [];
+  let d = ahora.fecha;
+  // Hasta un año y medio para adelante (una pausa larga no deja la lista vacía).
+  for (let i = 0; i < 560 && out.length < n; i++, d = sumarDias(d, 1)) if (fijoJuegaEl(f, d) && (d > ahora.fecha || minutosHasta(ahora, d, f.inicio) > 0)) out.push(d);
+  return out;
+}
+
+/**
+ * Otro fijo (no `excluirId`) que juega esa fecha, en esa cancha, se superpone con el hueco y todavía no se bajó a la
+ * grilla (lo bajado ya lo ve `validarHueco`). Respeta la pausa, las fechas liberadas y la vigencia del otro
+ * (`fijoJuegaEl`): si ese día no juega, no choca. PURA. La usan la vuelta de una pausa, `nuevoFijo` y la previa del
+ * «Fijo semanal» (alta-core.ts).
+ */
+export function otroFijoQuePisa(
+  estado: EstadoClub,
+  h: { canchaId: string; fecha: Fecha; inicio: number; duracion: number },
+  excluirId?: string,
+): Fijo | undefined {
+  const fin = h.inicio + h.duracion;
+  return estado.fijos.find(
+    (g) => g.id !== excluirId && g.canchaId === h.canchaId && fijoJuegaEl(g, h.fecha) && g.inicio < fin && h.inicio < g.inicio + g.duracion && !fijoBajadoEl(estado, g, h.fecha),
+  );
+}
+
+/** Cuántas semanas mira el guardián del fijo nuevo: lo mismo que `proximasFechasDelFijo` (hasta un año y medio). */
+export const SEMANAS_DEL_GUARDIAN = 80;
+
+/**
+ * EL guardián de todo fijo nuevo (dictamen v5, Falla 2): un fijo es para siempre, así que no puede pisar a otro fijo en
+ * ninguna de sus próximas fechas (tampoco al que está en pausa y vuelve más adelante). Lo llaman las tres puertas que
+ * crean un fijo — `nuevoFijo`, el alta con «Fijo semanal» (alta-core.ts) y «Hacer fijo» desde la cuenta
+ * (cuenta-core.ts) — ANTES de `crearFijo`. Devuelve el mensaje para el mostrador, o `null` si entra. PURA.
+ */
+export function fijoQuePisaAlNuevo(estado: EstadoClub, h: { canchaId: string; desde: Fecha; inicio: number; duracion: number }): string | null {
+  for (let fecha = h.desde, i = 0; i < SEMANAS_DEL_GUARDIAN; i++, fecha = sumarDias(fecha, 7)) {
+    const otro = otroFijoQuePisa(estado, { canchaId: h.canchaId, fecha, inicio: h.inicio, duracion: h.duracion });
+    if (otro) return `Ese horario ya es del fijo de ${otro.titular} (${enPlural(otro.dia)} ${hhmm(otro.inicio)}${fecha > h.desde ? `; lo juega el ${fechaCorta(fecha)}` : ""}). Elegí otro día, hora o cancha.`;
+  }
+  return null;
+}
+
+/**
+ * La vuelta de un fijo pausado mirando la GRILLA, no sólo el calendario: recorre sus fechas después de la pausa y la
+ * primera que de verdad juega (ya bajada a la grilla, o con el hueco libre) es «vuelve». Las de antes que no pueden
+ * volver porque el hueco ya lo vendió otro (otro puesto, la web) o está bloqueado van en `chocan`, aunque todavía no
+ * se hubieran bajado (fuera de la ventana de reserva). Las que el titular liberó o canceló aparte se saltan sin choque.
+ */
+export function vueltaDelFijo(estado: EstadoClub, f: Fijo, desde: Fecha): { vuelve: Fecha | null; chocan: ChoqueDeLaVuelta[] } {
+  const chocan: ChoqueDeLaVuelta[] = [];
+  for (const fecha of proximasFechasDelFijo(f, { fecha: desde, min: 0 }, FECHAS_DEL_FIJO)) {
+    if (estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha && r.estado === "reservada")) return { vuelve: fecha, chocan };
+    if (fijoBajadoEl(estado, f, fecha)) continue;
+    const v = validarHueco(estado, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion });
+    if (!v.ok) {
+      chocan.push({ fecha, motivo: v.motivo ?? "el hueco ya está tomado" });
+      continue;
+    }
+    // Un fijo de otro que juega esa fecha y todavía no se bajó también la ocupa (Falla 1 del dictamen v4).
+    const otro = otroFijoQuePisa(estado, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion }, f.id);
+    if (!otro) return { vuelve: fecha, chocan };
+    chocan.push({ fecha, motivo: `se pisa con el fijo de ${otro.titular} (${hhmm(otro.inicio)})`, fijoId: otro.id });
+  }
+  return { vuelve: null, chocan };
+}
+
+function estadoDelFijo(estado: EstadoClub, f: Fijo, ahora: Ahora): string | null {
+  if (f.pausa && f.pausa.hasta >= ahora.fecha) {
+    const vuelve = vueltaDelFijo(estado, f, sumarDias(f.pausa.hasta, 1)).vuelve;
+    return `${f.pausa.desde > ahora.fecha ? `Se pausa del ${ddmm(f.pausa.desde)}` : "Pausado"} hasta el ${ddmm(f.pausa.hasta)}${vuelve ? ` · vuelve el ${ddmm(vuelve)}` : ""}`;
+  }
+  if (f.hasta) return `Juega hasta el ${ddmm(f.hasta)}`;
+  if (f.desde && f.desde > ahora.fecha) return `Empieza el ${ddmm(f.desde)}`;
+  return null;
+}
+
+export function armarFijos(estado: EstadoClub, hoy: Fecha | Ahora): { fijos: VistaFijo[]; firma: string } {
+  const ahora: Ahora = typeof hoy === "string" ? { fecha: hoy, min: 0 } : hoy;
   const fijos = estado.fijos.map((f) => {
-    const fechas = Array.from({ length: DIAS_A_LA_VISTA }, (_, i) => sumarDias(hoy, i)).filter((d) => diaSemana(d) === f.dia);
+    const fechas = Array.from({ length: DIAS_A_LA_VISTA }, (_, i) => sumarDias(ahora.fecha, i)).filter((d) => diaSemana(d) === f.dia);
     const proximas = fechas
-      .map((d) => (f.excepciones.includes(d) ? `${ddmm(d)} liberado` : estado.reservas.some((r) => r.fijoId === f.id && r.fecha === d && r.estado !== "cancelada") ? `${ddmm(d)} en la grilla` : `${ddmm(d)} sin bajar`))
+      .map((d) =>
+        f.excepciones.includes(d)
+          ? `${ddmm(d)} liberado`
+          : f.pausa && d >= f.pausa.desde && d <= f.pausa.hasta
+            ? `${ddmm(d)} en pausa`
+            : !fijoJuegaEl(f, d)
+              ? `${ddmm(d)} no juega`
+              : estado.reservas.some((r) => r.fijoId === f.id && r.fecha === d && r.estado !== "cancelada")
+                ? `${ddmm(d)} en la grilla`
+                : `${ddmm(d)} sin bajar`,
+      )
       .join(" · ");
     return {
       id: f.id,
+      titular: f.titular,
       texto: `${f.titular} · ${NOMBRE_DIA[f.dia].toLowerCase()} ${hhmm(f.inicio)} a ${hhmm(f.inicio + f.duracion)} · ${canchaDe(estado, f.canchaId)?.nombre ?? ""}`,
+      estado: estadoDelFijo(estado, f, ahora),
       proximas,
+      fechas: proximasFechasDelFijo(f, ahora).map((fecha) => ({ fecha, texto: fechaCorta(fecha) })),
+      celular: (f.clienteId && estado.clientes.find((c) => c.id === f.clienteId)?.tel) || "",
     };
   });
   return { fijos, firma: JSON.stringify(fijos) };
@@ -227,6 +340,8 @@ export function nuevoFijo(
   for (let i = 0; i < 14 && (diaSemana(proxima) !== datos.dia || minutosHasta(ahora, proxima, datos.inicio) + datos.duracion <= 0); i++) proxima = sumarDias(proxima, 1);
   const v = validarHueco(estado, { canchaId: datos.canchaId, fecha: proxima, inicio: datos.inicio, duracion: datos.duracion });
   if (!v.ok) return { ok: false, mensaje: `El ${ddmm(proxima)} no entra: ${v.motivo}` };
+  const pisa = fijoQuePisaAlNuevo(estado, { canchaId: datos.canchaId, desde: proxima, inicio: datos.inicio, duracion: datos.duracion });
+  if (pisa) return { ok: false, mensaje: pisa };
   crearFijo(estado, { ...datos, titular });
   const bajada = bajarFijos(estado, ahora.fecha);
   return { ok: true, mensaje: `Turno fijo de ${titular} los ${NOMBRE_DIA[datos.dia].toLowerCase()} a las ${hhmm(datos.inicio)}. ${bajada.mensaje}` };
@@ -249,8 +364,7 @@ export function ejecutarFijo(estado: EstadoClub, a: AccionFijo, ahora: Ahora, au
 
 /** Cuántos fijos de ese día todavía no están en la grilla (para bajarlos al abrir un día lejano del calendario). PURO. */
 export function fijosPorBajar(estado: EstadoClub, fecha: Fecha): number {
-  const dia = diaSemana(fecha);
-  return estado.fijos.filter((f) => f.dia === dia && !f.excepciones.includes(fecha) && !estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha)).length;
+  return estado.fijos.filter((f) => fijoJuegaEl(f, fecha) && !fijoBajadoEl(estado, f, fecha)).length;
 }
 
 /** Baja a la grilla los fijos de un día (idempotente; lo que choca, avisa y no pisa). */
@@ -262,27 +376,188 @@ export function bajarFijosDelDia(estado: EstadoClub, fecha: Fecha): Desenlace {
   return { ok: choques.length === 0, mensaje: choques.length ? `${base} No entraron: ${choques.join(" · ")}.` : base };
 }
 
+// ── dar de baja, pausar, liberar una fecha (Tanda 3C, bp-DISENO §3.10, BP-100…BP-104) ──
+//
+// La hoja: ¿desde cuándo? [esta semana] [desde el …] [pausar hasta el …] → PREVIA («se liberan 3 turnos · $ 21.000
+// vuelven como crédito», turno por turno) → Confirmar → aviso con Deshacer (6 s) y «Avisar a Juan por WhatsApp». Nada
+// cambia hasta Confirmar: la previa corre el motor (`darDeBajaFijo`) sobre una COPIA, y lo que dice es lo que pasa.
+
+/** Lo que se pide en la hoja (y viaja en el comando «bajaDeFijo»). */
+export type AccionBajaFijo =
+  | { tipo: "baja"; fijoId: string; desde: Fecha }
+  | { tipo: "pausa"; fijoId: string; desde: Fecha; hasta: Fecha }
+  | { tipo: "liberar"; fijoId: string; fecha: Fecha };
+
+/** Un turno que se libera, dicho como en el mostrador: «mar 20/10 20:00 · $ 21.000 vuelven como crédito». */
+export function lineaDeLaBaja(t: TurnoDeLaBaja): string {
+  const que = t.devuelto > 0 ? `${pesos(t.devuelto)} vuelven como crédito` : t.devolverEnMano > 0 ? `hay que devolverle ${pesos(t.devolverEnMano)} en mano` : t.enSuspenso ? `tarde: la seña de ${pesos(t.pagado)} queda en suspenso` : "sin nada pagado";
+  return `${fechaCorta(t.fecha)} ${hhmm(t.inicio)} · ${que}`;
+}
+
+/** «3 turnos · $ 21.000 vuelven como crédito · $ 5.000 para devolver en mano». */
+function resumenDeLaBaja(turnos: TurnoDeLaBaja[]): string {
+  if (!turnos.length) return "No hay turnos suyos en la grilla para liberar";
+  const suma = (k: "devuelto" | "devolverEnMano") => turnos.reduce((s, t) => s + t[k], 0);
+  const retenido = turnos.reduce((s, t) => s + (t.enSuspenso ? t.pagado : 0), 0);
+  return [
+    `Se libera${turnos.length > 1 ? `n ${turnos.length} turnos` : " 1 turno"}`,
+    suma("devuelto") ? `${pesos(suma("devuelto"))} vuelven como crédito` : null,
+    suma("devolverEnMano") ? `${pesos(suma("devolverEnMano"))} para devolver en mano` : null,
+    retenido ? `${pesos(retenido)} de seña quedan en suspenso` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** Una fecha que tenía que volver a la grilla y choca con un turno vendido mientras tanto (otro puesto o la web). */
+export type ChoqueDeLaVuelta = {
+  fecha: Fecha;
+  motivo: string;
+  /** Si choca con otro fijo todavía sin bajar: ése (la fecha se le libera al pausado para que no se la gane al bajar). */
+  fijoId?: string;
+};
+
+/** «mar 27/10 20:00 · no vuelve: se pisa con otro turno» (la fecha que la pausa acortada no pudo devolver). */
+export function lineaDelChoque(f: Pick<Fijo, "inicio">, c: ChoqueDeLaVuelta): string {
+  return `${fechaCorta(c.fecha)} ${hhmm(f.inicio)} · no vuelve: ${c.motivo.replace(/\.$/, "")}`;
+}
+
+/** Corre la baja / la pausa / liberar una fecha sobre `estado` (lo MUTA). Lo usan la previa (sobre copia) y el comando. */
+export function ejecutarBajaFijo(estado: EstadoClub, a: AccionBajaFijo, ahora: Ahora, auth?: Auth): Desenlace & { turnos?: TurnoDeLaBaja[]; vuelve?: Fecha | null; vuelven?: Fecha[]; chocan?: ChoqueDeLaVuelta[]; quitado?: boolean } {
+  const f = estado.fijos.find((x) => x.id === a.fijoId);
+  if (!f) return { ok: false, mensaje: "Ese turno fijo ya no está (¿lo dio de baja otro puesto?)." };
+  const de = `el fijo de ${f.titular} (${enPlural(f.dia)} ${hhmm(f.inicio)})`;
+  if (a.tipo === "liberar") {
+    if (!fijoJuegaEl(f, a.fecha)) return { ok: false, mensaje: `Ese día ${f.titular} no juega.` };
+    if (a.fecha < ahora.fecha) return { ok: false, mensaje: "Ese día ya pasó." };
+    const r = estado.reservas.find((x) => x.fijoId === f.id && x.fecha === a.fecha && x.estado === "reservada");
+    const pagado = r ? r.pagos.reduce((s, p) => s + p.monto, 0) : 0;
+    const res = liberarFijo(estado, f.id, a.fecha, ahora);
+    if (!res.ok) return { ok: false, mensaje: res.motivo };
+    // Con turno en la grilla, `liberarFijo` devuelve lo de `cancelar` (la plata de ese turno).
+    const x = res as { devuelto?: number; devolverEnMano?: number; enSuspenso?: boolean };
+    const t: TurnoDeLaBaja = { reservaId: r?.id ?? "", fecha: a.fecha, inicio: f.inicio, canchaId: f.canchaId, pagado, devuelto: x.devuelto ?? 0, devolverEnMano: x.devolverEnMano ?? 0, enSuspenso: !!x.enSuspenso };
+    return { ok: true, turnos: r ? [t] : [], mensaje: `${f.titular} no juega el ${fechaCorta(a.fecha)}: se liberó ese día y los demás siguen.${r && pagado ? ` ${lineaDeLaBaja(t).split(" · ")[1]}.` : ""}` };
+  }
+  const opciones = { desde: a.desde, pausaHasta: a.tipo === "pausa" ? a.hasta : null, auth: auth ?? null };
+  // Dictamen v5, Falla 1: si al terminar la pausa el hueco es del fijo de otro y no hay ninguna fecha de vuelta, no se
+  // le libera nada (cada repetición le sacaba 8 fechas más) ni se cambia la pausa: se avisa y el estado queda igual.
+  // Se prueba sobre una copia sólo si hay otro fijo en ese hueco (lo común es que no haya).
+  if (a.tipo === "pausa" && estado.fijos.some((g) => g.id !== f.id && g.canchaId === f.canchaId && g.inicio < f.inicio + f.duracion && f.inicio < g.inicio + g.duracion)) {
+    const prueba = structuredClone(estado);
+    if (darDeBajaFijo(prueba, f.id, opciones, ahora).ok) {
+      const g = vueltaDelFijo(prueba, prueba.fijos.find((x) => x.id === f.id)!, sumarDias(a.hasta, 1));
+      const deOtro = g.chocan.find((c) => c.fijoId);
+      if (!g.vuelve && deOtro) {
+        const otro = estado.fijos.find((x) => x.id === deOtro.fijoId);
+        return { ok: false, mensaje: `El hueco es del fijo de ${otro?.titular ?? "otro"} desde el ${fechaCorta(deOtro.fecha)}: ${f.titular} no tiene a qué volver. Elegí otra hora o dalo de baja.` };
+      }
+    }
+  }
+  const res = darDeBajaFijo(estado, f.id, opciones, ahora);
+  if (!res.ok) return { ok: false, mensaje: res.motivo };
+  const resumen = res.turnos.length ? ` ${resumenDeLaBaja(res.turnos)}.` : "";
+  if (a.tipo === "pausa") {
+    // «Vuelve solo el …»: la primera fecha después de la pausa que de verdad vuelve a la grilla. Si alguna de las que
+    // tenían que volver chocó con un turno vendido mientras tanto (`res.chocan`: otro puesto o la web), no se anuncia
+    // ésa — se salta a la siguiente — y el choque se dice con todas las letras, para que el titular no crea que juega.
+    // `res.chocan` sólo trae las que la pausa anterior había bajado; `vueltaDelFijo` mira la grilla también fuera de
+    // la ventana (una fecha todavía sin bajar que otro ya vendió), así que se juntan sin repetir fecha.
+    const grilla = vueltaDelFijo(estado, f, sumarDias(a.hasta, 1));
+    // La fecha que choca con el fijo de otro se le libera al pausado: si no, al bajar la ventana se la gana él por
+    // orden de la lista y el otro (a quien se la prometieron) la pierde sin aviso. Sólo con fecha de vuelta (choque
+    // acotado; sin vuelta ya se cortó arriba) y anotando con quién chocó, para devolvérsela si el otro se da de baja.
+    if (grilla.vuelve)
+      for (const c of grilla.chocan)
+        if (c.fijoId && !f.excepciones.includes(c.fecha)) {
+          f.excepciones.push(c.fecha);
+          (f.liberadasPor ??= []).push({ fecha: c.fecha, fijoId: c.fijoId });
+        }
+    const chocan: ChoqueDeLaVuelta[] = [...(res.chocan ?? [])];
+    for (const c of grilla.chocan) if (!chocan.some((x) => x.fecha === c.fecha)) chocan.push(c);
+    // Repetir la misma pausa dice lo mismo: las que ya se le liberaron por choque (antes de la vuelta) se siguen nombrando.
+    for (const x of f.liberadasPor ?? []) {
+      const otro = estado.fijos.find((g) => g.id === x.fijoId);
+      if (otro && x.fecha > a.hasta && (!grilla.vuelve || x.fecha < grilla.vuelve) && fijoJuegaEl(otro, x.fecha) && !chocan.some((c) => c.fecha === x.fecha))
+        chocan.push({ fecha: x.fecha, motivo: `se pisa con el fijo de ${otro.titular} (${hhmm(otro.inicio)})`, fijoId: otro.id });
+    }
+    chocan.sort((x, y) => x.fecha.localeCompare(y.fecha));
+    const vuelve = grilla.vuelve;
+    const noVuelven = chocan.length ? ` No vuelve${chocan.length > 1 ? "n" : ""} ${chocan.map((c) => `el ${fechaCorta(c.fecha)}`).join(" ni ")}: ${chocan.length > 1 ? (chocan.every((c) => c.fijoId && c.motivo === chocan[0].motivo) ? chocan[0].motivo.replace(/^se pisa/, "se pisan") : "se pisan con otros turnos") : chocan[0].fijoId ? chocan[0].motivo : `se pisa con otro turno (${chocan[0].motivo.replace(/\.$/, "")})`}.` : "";
+    return { ok: true, turnos: res.turnos, vuelve, vuelven: res.vuelven ?? [], chocan, mensaje: `Pausado ${de} hasta el ${ddmm(a.hasta)}${vuelve ? `; vuelve solo el ${fechaCorta(vuelve)}` : ""}.${noVuelven}${resumen}` };
+  }
+  const devueltas = devolverLiberadasPor(estado, f.id, a.desde, ahora);
+  const vuelvenA = devueltas.length ? ` ${[...new Set(devueltas.map((x) => x.titular))].join(", ")} recupera${devueltas.length > 1 ? "n" : ""} ${devueltas.map((x) => `el ${fechaCorta(x.fecha)}`).join(", ")}.` : "";
+  return { ok: true, turnos: res.turnos, quitado: res.quitado, mensaje: `Dado de baja ${de}${res.quitado ? "" : ` desde el ${fechaCorta(a.desde)}`}.${resumen}${vuelvenA}` };
+}
+
 /**
- * Dar de baja un fijo (la inversa explícita de crearlo, que no se deshace): sus turnos que todavía no se jugaron se
- * cancelan (con un dueño, como «cancela el club»: lo pagado vuelve siempre; si no, con la regla de siempre) y el fijo
- * sale de la lista.
- * DEUDA (BP-3/BP-4): el motor no tiene una función para dar de baja un fijo; se filtra `estado.fijos` acá. Cuando el
- * dominio se porte a TS, va al motor con su test.
+ * Observación v5-7: al dar de baja un fijo, las fechas que se le habían liberado a OTRO fijo por chocar con éste
+ * (`liberadasPor`) desde la baja en adelante vuelven a ese otro, y las de la semana a la vista se bajan a la grilla.
+ * Idempotente: lo devuelto sale de `liberadasPor`.
+ */
+function devolverLiberadasPor(estado: EstadoClub, bajaId: string, desde: Fecha, ahora: Ahora): { titular: string; fecha: Fecha }[] {
+  const out: { titular: string; fecha: Fecha }[] = [];
+  const tope = sumarDias(ahora.fecha, DIAS_A_LA_VISTA);
+  for (const g of estado.fijos) {
+    const vuelven = (g.liberadasPor ?? []).filter((x) => x.fijoId === bajaId && x.fecha >= desde && x.fecha >= ahora.fecha);
+    if (!vuelven.length) continue;
+    g.liberadasPor = g.liberadasPor!.filter((x) => !vuelven.includes(x));
+    g.excepciones = g.excepciones.filter((fecha) => !vuelven.some((x) => x.fecha === fecha));
+    for (const x of vuelven) {
+      if (!fijoJuegaEl(g, x.fecha)) continue;
+      if (x.fecha < tope) materializarFijos(estado, x.fecha);
+      out.push({ titular: g.titular, fecha: x.fecha });
+    }
+  }
+  return out;
+}
+
+export type PreviaBajaFijo =
+  | { ok: true; resumen: string; lineas: string[]; turnos: number; plata: { credito: number; enMano: number; enSuspenso: number }; vuelve: Fecha | null; quitado: boolean; chocan: ChoqueDeLaVuelta[] }
+  | { ok: false; mensaje: string };
+
+/** La previa: corre la baja sobre una COPIA del estado (el de verdad no cambia) y cuenta turnos y plata. */
+export function previaBajaFijo(estado: EstadoClub, a: AccionBajaFijo, ahora: Ahora, auth?: Auth, copia: EstadoClub = structuredClone(estado)): PreviaBajaFijo {
+  const f = estado.fijos.find((x) => x.id === a.fijoId);
+  const d = ejecutarBajaFijo(copia, a, ahora, auth);
+  if (!d.ok) return { ok: false, mensaje: d.mensaje };
+  const turnos = d.turnos ?? [];
+  const chocan = d.chocan ?? [];
+  const vuelven = d.vuelven ?? [];
+  const suma = (k: "devuelto" | "devolverEnMano") => turnos.reduce((s, t) => s + t[k], 0);
+  return {
+    ok: true,
+    // Si la pausa acortada devuelve turnos a la grilla, la previa los cuenta («Vuelve 1 turno a la grilla»), no
+    // «No hay turnos suyos para liberar».
+    resumen: vuelven.length ? [turnos.length ? resumenDeLaBaja(turnos) : null, `Vuelve${vuelven.length > 1 ? `n ${vuelven.length} turnos` : " 1 turno"} a la grilla`].filter(Boolean).join(" · ") : resumenDeLaBaja(turnos),
+    // Las fechas que vuelven y las que chocan van como línea propia: lo que la previa dice es lo que pasa.
+    lineas: [...turnos.map(lineaDeLaBaja), ...vuelven.map((x) => `${fechaCorta(x)} ${hhmm(f?.inicio ?? 0)} · vuelve a la grilla`), ...chocan.map((c) => lineaDelChoque({ inicio: f?.inicio ?? 0 }, c))],
+    chocan,
+    turnos: turnos.length,
+    plata: { credito: suma("devuelto"), enMano: suma("devolverEnMano"), enSuspenso: turnos.reduce((s, t) => s + (t.enSuspenso ? t.pagado : 0), 0) },
+    vuelve: d.vuelve ?? null,
+    quitado: !!d.quitado,
+  };
+}
+
+/** El WhatsApp para avisarle al del fijo lo que se hizo (con la plata que le quedó). */
+export function textoAvisoBaja(estado: EstadoClub, f: Pick<Fijo, "titular" | "dia" | "inicio">, a: AccionBajaFijo, previa: Extract<PreviaBajaFijo, { ok: true }>): string {
+  const nombre = f.titular.split(" ")[0] || f.titular;
+  const club = estado.config.nombre ?? "el club";
+  const turno = `tu turno fijo de los ${enPlural(f.dia)} a las ${hhmm(f.inicio)}`;
+  const plata = previa.plata.credito ? ` Te quedan ${pesos(previa.plata.credito)} a favor para tu próximo turno.` : previa.plata.enMano ? ` Tenemos ${pesos(previa.plata.enMano)} para devolverte: pasá cuando quieras.` : "";
+  if (a.tipo === "pausa") return `¡Hola ${nombre}! Dejamos en pausa ${turno} hasta el ${ddmm(a.hasta)}${previa.vuelve ? `; te esperamos de vuelta el ${fechaCorta(previa.vuelve)}` : ""}.${previa.chocan.length ? ` ${previa.chocan.map((c) => `El ${fechaCorta(c.fecha)}`).join(" y el ")} no: ese horario ya está tomado.` : ""}${plata} ${club}`;
+  if (a.tipo === "liberar") return `¡Hola ${nombre}! Liberamos ${turno} del ${fechaCorta(a.fecha)}; las otras semanas siguen igual.${plata} ${club}`;
+  return `¡Hola ${nombre}! Dimos de baja ${turno}${previa.quitado ? "" : ` desde el ${fechaCorta(a.desde)}`}.${plata} ¡Gracias por jugar con nosotros! ${club}`;
+}
+
+/**
+ * Dar de baja un fijo desde HOY (la acción vieja «baja» del comando «fijo», que algún puesto puede tener todavía en su
+ * cola): lo mismo que «Dar de baja · esta semana» de la hoja nueva (`ejecutarBajaFijo`).
  */
 export function bajaFijo(estado: EstadoClub, fijoId: string, ahora: Ahora, auth?: Auth): Desenlace {
-  const f = estado.fijos.find((x) => x.id === fijoId);
-  if (!f) return { ok: false, mensaje: "Ese turno fijo ya no está." };
-  // Devolver todo lo pagado aunque sea tarde («cancela el club») es plata: sólo con un dueño (21/10, como «Cancela el
-  // club» en la cuenta). Si da de baja recepción, sus turnos se cancelan con la regla de siempre (a tiempo, crédito;
-  // tarde, la seña en suspenso).
-  const porClub = operadorDesdeAuth(estado, auth ?? {}).esDuenio;
-  let canceladas = 0;
-  for (const r of estado.reservas) {
-    if (r.fijoId !== fijoId || r.estado !== "reservada" || r.fecha < ahora.fecha) continue;
-    if (cancelar(estado, r.id, { porClub, motivo: "Baja del turno fijo" }, ahora).ok) canceladas++;
-  }
-  estado.fijos = estado.fijos.filter((x) => x.id !== fijoId);
-  return { ok: true, mensaje: `Turno fijo de ${f.titular} dado de baja${canceladas ? ` (${canceladas} turno${canceladas > 1 ? "s" : ""} de la semana liberado${canceladas > 1 ? "s" : ""})` : ""}.` };
+  return ejecutarBajaFijo(estado, { tipo: "baja", fijoId, desde: ahora.fecha }, ahora, auth);
 }
 
 // ───────────── lista de espera ─────────────
