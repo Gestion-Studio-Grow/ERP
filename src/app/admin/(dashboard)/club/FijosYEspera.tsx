@@ -23,12 +23,13 @@ import { NOMBRE_DIA, diaSemana, hayDescubiertas, sumarDias } from "@/lib/club/mo
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { clientesQueCoinciden, DURACIONES } from "./alta-core";
-import { SE_DESHACE, diasDeLaEspera, armarEspera, armarFijos, horasDelDia, previaBajaFijo, textoAvisoBaja, type AccionBajaFijo, type AccionEspera, type VistaEspera, type VistaFijo } from "./canchas-core";
+import { SE_DESHACE, diasDeLaEspera, armarEspera, armarFijos, horasDelDia, previaBajaFijo, textoAvisoBaja, textoAvisoRecupera, type AccionBajaFijo, type AccionEspera, type VistaEspera, type VistaFijo } from "./canchas-core";
 import { esDuenoQuienMira } from "./operador-del-club";
 import "./piel/fijos.css";
 import { porFirma, useSeleccion } from "./usar-almacen";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
 import { enlaceWhatsApp, type ModoDelClub } from "./whatsapp-core";
+import { HechoDeLaBaja, type Hecho } from "./HechoDeLaBaja";
 
 const duracionTexto = (d: number) => (d === 60 ? "1 hora" : d === 90 ? "1 hora y media" : "2 horas");
 
@@ -62,15 +63,6 @@ function ANombreDe({ almacen, id, titular, onTitular, clienteId, onFicha }: { al
 type ModoBaja = "semana" | "desde" | "pausa" | "dia";
 const ddmm = (f: string) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
 
-/** Lo que quedó a la vista después de confirmar: qué se hizo y el WhatsApp para avisarle. */
-interface Hecho {
-  fijoId: string;
-  titular: string;
-  mensaje: string;
-  texto: string;
-  celular: string;
-}
-
 /**
  * La hoja de «Dar de baja» (BP-100): ¿desde cuándo? → PREVIA → Confirmar. Hasta «Confirmar» no cambia nada: la previa
  * corre el motor sobre una copia del club (`previaBajaFijo`). Confirmado, la hoja se cierra (el aviso con «Deshacer»
@@ -103,7 +95,9 @@ function HojaBajaFijo({ almacen, fijo, onCerrar, onHecho }: { almacen: Almacen; 
     const datos = { titular: fijo.titular, dia: f?.dia ?? 0, inicio: f?.inicio ?? 0 };
     const d = almacen.comando("bajaDeFijo", [accion], { deshacible: SE_DESHACE[accion.tipo === "baja" ? "bajaFijo" : accion.tipo === "pausa" ? "pausaFijo" : "liberarFijo"] });
     if (!d.ok) return;
-    onHecho({ fijoId: fijo.id, titular: fijo.titular, mensaje: d.mensaje, celular: fijo.celular, texto: textoAvisoBaja(almacen.estado(), datos, accion, previa) });
+    const despues = almacen.estado();
+    const recuperan = previa.recuperan.map((r) => ({ titular: r.titular, celular: r.celular, texto: textoAvisoRecupera(despues, r) }));
+    onHecho({ fijoId: fijo.id, titular: fijo.titular, mensaje: d.mensaje, celular: fijo.celular, texto: textoAvisoBaja(despues, datos, accion, previa), recuperan });
   };
   const opcion = (valor: ModoBaja, etiqueta: string, control?: React.ReactNode) => (
     <div data-fijos="opcion" data-elegida={modo === valor || undefined} className="flex flex-col gap-2 rounded-md border border-line p-2 sm:flex-row sm:items-center sm:justify-between">
@@ -205,30 +199,6 @@ function HojaBajaFijo({ almacen, fijo, onCerrar, onHecho }: { almacen: Almacen; 
         </div>
       </div>
     </Hoja>
-  );
-}
-
-/** Después de confirmar: qué se hizo y «Avisar a Juan por WhatsApp» (en la lista, fuera del diálogo). */
-function HechoDeLaBaja({ hecho, modo, onListo }: { hecho: Hecho; modo: ModoDelClub; onListo: () => void }) {
-  const enlace = enlaceWhatsApp(hecho.celular, hecho.texto, modo);
-  const nota = useId();
-  return (
-    <div data-fijos="hecho" role="status" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3 text-sm">
-      <p className="font-medium text-strong">{hecho.mensaje}</p>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <BotonWhatsApp enlace={enlace} notaEn={enlace.nota ? nota : undefined} nombreAccesible={`Avisar a ${hecho.titular} por WhatsApp`}>
-          Avisar a {hecho.titular.split(" ")[0]} por WhatsApp
-        </BotonWhatsApp>
-        <Button variant="ghost" size="md" onClick={onListo}>
-          Listo
-        </Button>
-      </div>
-      {enlace.nota && (
-        <p id={nota} className="text-xs text-muted">
-          {enlace.nota}
-        </p>
-      )}
-    </div>
   );
 }
 
