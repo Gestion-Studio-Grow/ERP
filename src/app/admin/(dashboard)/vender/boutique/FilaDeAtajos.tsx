@@ -77,7 +77,7 @@ export default function FilaDeAtajos({
         )}
         {cuaderno && (
           <Link href={cuaderno} className={CHIP}>
-            Cuaderno
+            Cargar del cuaderno
           </Link>
         )}
         {whatsapp && (

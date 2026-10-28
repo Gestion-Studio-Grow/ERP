@@ -466,7 +466,7 @@ export default function PedidoDesdeWhatsApp({ productos, stockById, hoy, negocio
             {ficha && (
               <p role="status" className="text-sm text-body sm:col-span-2">
                 Es <strong className="text-strong">{ficha.nombre}</strong>: ya tiene ficha y el pedido queda en su historial.{" "}
-                <button type="button" className="font-medium text-accent-ink underline" onClick={() => setFichaDescartada(claveTel)}>
+                <button type="button" className="inline-flex min-h-11 items-center font-medium text-accent-ink underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus" onClick={() => setFichaDescartada(claveTel)}>
                   No es ella
                 </button>
               </p>
@@ -488,7 +488,7 @@ export default function PedidoDesdeWhatsApp({ productos, stockById, hoy, negocio
                   className={cn(buttonClasses("solid", "md"), "max-sm:h-12 max-sm:w-full max-sm:text-base")}
                   {...atributosBoton("solid", "md")}
                 >
-                  Confirmar todo
+                  {deUnToque.conDudas > 0 ? `Confirmar los ${deUnToque.claves.length} sin dudas` : "Confirmar todo"}
                 </button>
                 <span className="text-sm text-muted">
                   {deUnToque.conDudas > 0

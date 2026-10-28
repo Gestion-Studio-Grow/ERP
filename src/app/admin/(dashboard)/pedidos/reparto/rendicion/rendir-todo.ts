@@ -9,11 +9,10 @@
 // Este archivo es PURO: lo usan la pantalla (el aviso de la confirmación) y la acción (el mensaje).
 
 import { textoPlata } from "@/lib/cobro/pie-de-cobro-core";
+import { redondearAlCentavo, sumarAlCentavo } from "@/lib/dinero/redondeo";
 import type { ResultadoDeRendicion } from "../reparto-core";
 
 export type PlanDeRendirTodo = { envios: number; yaPagos: number; aCobrar: { cantidad: number; monto: number } };
-
-const centavos = (n: number) => Math.round(n * 100) / 100;
 
 /** Qué va a pasar con cada envío de la salida, según cómo salió (pago o a cobrar). PURA. */
 export function planDeRendirTodo(envios: readonly { cobrado: boolean; total: number }[]): PlanDeRendirTodo {
@@ -23,7 +22,7 @@ export function planDeRendirTodo(envios: readonly { cobrado: boolean; total: num
     if (e.cobrado) yaPagos += 1;
     else {
       aCobrar.cantidad += 1;
-      aCobrar.monto = centavos(aCobrar.monto + (Number.isFinite(e.total) ? e.total : 0));
+      aCobrar.monto = redondearAlCentavo(aCobrar.monto + (Number.isFinite(e.total) ? e.total : 0));
     }
   }
   return { envios: envios.length, yaPagos, aCobrar };
@@ -63,7 +62,7 @@ export function mensajeDeRendirTodo(p: {
     const detalle: string[] = [];
     if (pagos) detalle.push(pagos === 1 ? "1 ya pagaba" : `${pagos} ya pagaban`);
     if (cobrados) detalle.push(cobrados === 1 ? "1 cobrado en la calle (lo del libro)" : `${cobrados} cobrados en la calle (lo del libro)`);
-    if (aCobrar.length) detalle.push(`${aCobrar.length} a cobrar por ${textoPlata(centavos(aCobrar.reduce((s, r) => s + r.total, 0)))}`);
+    if (aCobrar.length) detalle.push(`${aCobrar.length} a cobrar por ${textoPlata(sumarAlCentavo(aCobrar.map((r) => r.total)))}`);
     if (aCuenta.length) detalle.push(`${aCuenta.length} a la cuenta del cliente`);
     partes.push(`${p.rendidos.length === 1 ? "Rendido 1 envío" : `Rendidos ${p.rendidos.length} envíos`}: ${detalle.join(", ")}.`);
   }

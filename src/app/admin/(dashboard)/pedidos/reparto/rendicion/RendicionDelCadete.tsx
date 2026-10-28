@@ -16,7 +16,7 @@
 // confirmación, que dice qué queda pago y qué queda a cobrar). No cobra nada: si el cadete cobró
 // alguno, ése se rinde antes uno por uno con «Cobró».
 
-import { useId, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { PieDeCobro, type ResultadoDelPie } from "@/components/cobro/PieDeCobro";
@@ -172,8 +172,19 @@ function RendirTodaLaSalida({ s }: { s: SalidaEnLaCalle }) {
   const { showError, showSuccess } = useToast();
   const [pending, startTransition] = useTransition();
   const [confirmando, setConfirmando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const uid = useId();
+  // a11y: al abrir la confirmación el botón se desmonta; el foco va a la pregunta y, al cancelar,
+  // vuelve al botón (con teclado o lector no se pierde).
+  const preguntaRef = useRef<HTMLParagraphElement>(null);
+  const volverAlBoton = useRef(false);
+  useEffect(() => {
+    if (confirmando) preguntaRef.current?.focus();
+    else if (volverAlBoton.current) {
+      volverAlBoton.current = false;
+      document.getElementById(`${uid}-todo`)?.focus();
+    }
+  }, [confirmando, uid]);
+  const [error, setError] = useState<string | null>(null);
   const plan = planDeRendirTodo(s.envios);
 
   async function rendirTodo(): Promise<void> {
@@ -208,20 +219,23 @@ function RendirTodaLaSalida({ s }: { s: SalidaEnLaCalle }) {
     <div className="mb-3 flex flex-col gap-2 rounded-lg border border-line-strong bg-surface-raised p-3">
       {confirmando ? (
         <div role="group" aria-labelledby={`${uid}-q`} className="flex flex-col gap-2">
-          <p id={`${uid}-q`} className="text-sm text-strong">
+          <p id={`${uid}-q`} ref={preguntaRef} tabIndex={-1} className="text-sm text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
             <span className="font-semibold">¿El cadete volvió con todo como salió?</span> {textoDelPlan(plan)}. Si cobró alguno, rendilo antes con «Cobró».
           </p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" disabled={pending} estado={pending ? "cargando" : undefined} onClick={() => startTransition(() => rendirTodo())}>
               {etiquetaDeConfirmar(plan.envios)}
             </Button>
-            <button type="button" className={TECLA} disabled={pending} onClick={() => setConfirmando(false)}>
+            <button type="button" className={TECLA} disabled={pending} onClick={() => {
+                setConfirmando(false);
+                volverAlBoton.current = true;
+              }}>
               No, rindo uno por uno
             </button>
           </div>
         </div>
       ) : (
-        <Button type="button" className="w-full sm:w-auto" onClick={() => setConfirmando(true)}>
+        <Button id={`${uid}-todo`} type="button" className="w-full sm:w-auto" onClick={() => setConfirmando(true)}>
           Rindió todo como salió
         </Button>
       )}
