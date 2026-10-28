@@ -23,7 +23,7 @@ import { NOMBRE_DIA, diaSemana, hayDescubiertas, sumarDias } from "@/lib/club/mo
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { clientesQueCoinciden, DURACIONES } from "./alta-core";
-import { SE_DESHACE, diasDeLaEspera, armarEspera, armarFijos, horasDelDia, previaBajaFijo, textoAvisoBaja, type AccionBajaFijo, type AccionEspera, type VistaEspera, type VistaFijo } from "./canchas-core";
+import { SE_DESHACE, diasDeLaEspera, armarEspera, armarFijos, horasDelDia, previaBajaFijo, textoAvisoBaja, textoAvisoRecupera, type AccionBajaFijo, type AccionEspera, type VistaEspera, type VistaFijo } from "./canchas-core";
 import { esDuenoQuienMira } from "./operador-del-club";
 import "./piel/fijos.css";
 import { porFirma, useSeleccion } from "./usar-almacen";
@@ -69,6 +69,8 @@ interface Hecho {
   mensaje: string;
   texto: string;
   celular: string;
+  /** Los otros fijos que recuperan fechas por esto (observación 3 del dictamen v6): un WhatsApp para cada uno. */
+  recuperan: { titular: string; celular: string; texto: string }[];
 }
 
 /**
@@ -103,7 +105,9 @@ function HojaBajaFijo({ almacen, fijo, onCerrar, onHecho }: { almacen: Almacen; 
     const datos = { titular: fijo.titular, dia: f?.dia ?? 0, inicio: f?.inicio ?? 0 };
     const d = almacen.comando("bajaDeFijo", [accion], { deshacible: SE_DESHACE[accion.tipo === "baja" ? "bajaFijo" : accion.tipo === "pausa" ? "pausaFijo" : "liberarFijo"] });
     if (!d.ok) return;
-    onHecho({ fijoId: fijo.id, titular: fijo.titular, mensaje: d.mensaje, celular: fijo.celular, texto: textoAvisoBaja(almacen.estado(), datos, accion, previa) });
+    const despues = almacen.estado();
+    const recuperan = previa.recuperan.map((r) => ({ titular: r.titular, celular: r.celular, texto: textoAvisoRecupera(despues, r) }));
+    onHecho({ fijoId: fijo.id, titular: fijo.titular, mensaje: d.mensaje, celular: fijo.celular, texto: textoAvisoBaja(despues, datos, accion, previa), recuperan });
   };
   const opcion = (valor: ModoBaja, etiqueta: string, control?: React.ReactNode) => (
     <div data-fijos="opcion" data-elegida={modo === valor || undefined} className="flex flex-col gap-2 rounded-md border border-line p-2 sm:flex-row sm:items-center sm:justify-between">
@@ -219,6 +223,15 @@ function HechoDeLaBaja({ hecho, modo, onListo }: { hecho: Hecho; modo: ModoDelCl
         <BotonWhatsApp enlace={enlace} notaEn={enlace.nota ? nota : undefined} nombreAccesible={`Avisar a ${hecho.titular} por WhatsApp`}>
           Avisar a {hecho.titular.split(" ")[0]} por WhatsApp
         </BotonWhatsApp>
+        {hecho.recuperan.map((r, i) => {
+          const e = enlaceWhatsApp(r.celular, r.texto, modo);
+          return (
+            // Su celular es otro: la nota (sin celular, demo) va con su botón, no la del titular.
+            <BotonWhatsApp key={i} enlace={e} nombreAccesible={`Avisar a ${r.titular} que recupera su turno`}>
+              Avisar a {r.titular.split(" ")[0]} que recupera su turno
+            </BotonWhatsApp>
+          );
+        })}
         <Button variant="ghost" size="md" onClick={onListo}>
           Listo
         </Button>
