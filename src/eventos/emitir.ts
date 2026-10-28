@@ -265,12 +265,15 @@ export const SQL_CANDADOS_DEL_LOTE = `SELECT count(*)::int AS n FROM (
 
 const LOTE_PEDIDO = `unnest($1::text[], $2::text[], $3::text[]) WITH ORDINALITY AS p("t", "ty", "c", "i")`;
 
+// `$4` = los negocios del lote, como valor fijo (O-v6-1, CERT-P2 vuelta 6): sin él, con más de ~50 claves el
+// planificador recorre el outbox de TODOS los negocios (Seq Scan; ~480 ms con 500 mil filas ajenas). Con el
+// filtro fijo usa el índice por negocio.
 export const SQL_YA_ESTAN_DEL_LOTE = `SELECT p."i"::int AS i FROM ${LOTE_PEDIDO}
-  WHERE EXISTS (SELECT 1 FROM "OutboxEvent" o WHERE o."tenantId" = p."t" AND o."type" = p."ty" AND o."payload"->>'clave' = p."c")`;
+  WHERE EXISTS (SELECT 1 FROM "OutboxEvent" o WHERE o."tenantId" = ANY($4::text[]) AND o."tenantId" = p."t" AND o."type" = p."ty" AND o."payload"->>'clave' = p."c")`;
 
 export const SQL_YA_ESTAN_DEL_LOTE_CON_COLUMNAS = `SELECT p."i"::int AS i FROM ${LOTE_PEDIDO}
-  WHERE EXISTS (SELECT 1 FROM "OutboxEvent" o WHERE o."tenantId" = p."t" AND o."type" = p."ty" AND o."clave" = p."c")
-     OR EXISTS (SELECT 1 FROM "OutboxEvent" o WHERE o."tenantId" = p."t" AND o."type" = p."ty" AND o."clave" IS NULL AND o."payload"->>'clave' = p."c")`;
+  WHERE EXISTS (SELECT 1 FROM "OutboxEvent" o WHERE o."tenantId" = ANY($4::text[]) AND o."tenantId" = p."t" AND o."type" = p."ty" AND o."clave" = p."c")
+     OR EXISTS (SELECT 1 FROM "OutboxEvent" o WHERE o."tenantId" = ANY($4::text[]) AND o."tenantId" = p."t" AND o."type" = p."ty" AND o."clave" IS NULL AND o."payload"->>'clave' = p."c")`;
 
 export const SQL_INSERTAR_LOTE_CON_COLUMNAS = `INSERT INTO "OutboxEvent" ("id", "tenantId", "type", "payload", "version", "clave")
   SELECT f."id", f."t", f."ty", f."pl"::jsonb, f."v", f."c"
@@ -314,6 +317,7 @@ export async function emitirEventosEnLote(tx: object, eventos: readonly EventoDe
     unicos.map((i) => eventos[i].tenantId),
     unicos.map((i) => sobres[i].type),
     unicos.map((i) => sobres[i].clave),
+    [...new Set(unicos.map((i) => eventos[i].tenantId))],
   );
   const previos = new Set(yaEstan.map((f) => unicos[Number(f.i) - 1]));
   const aEscribir = unicos.filter((i) => !previos.has(i));
