@@ -142,7 +142,9 @@ test("pase N2: módulo mercadopago en todos los negocios + funciones de ruteo", 
     await c.query(`INSERT INTO "Tenant"(id, name, slug, "updatedAt", modules) VALUES
       ('n2-a','A','n2-a',now(),ARRAY['whatsapp','mercadopago','pos']),
       ('n2-b','B','n2-b',now(),ARRAY['whatsapp','pos']),
-      ('n2-c','C','n2-c',now(),ARRAY[]::text[])`);
+      ('n2-c','C','n2-c',now(),ARRAY[]::text[]),
+      ('n2-d','D','n2-d',now(),NULL),
+      ('n2-e','E','n2-e',now(),ARRAY['pos',NULL]::text[])`);
   });
   await aplicar(path.join(RAIZ, "prisma/rls/0002_app_role.sql"));
   await aplicar(path.join(RAIZ, "prisma/rls/0001_enable_rls.sql"));
@@ -159,25 +161,38 @@ test("pase N2: módulo mercadopago en todos los negocios + funciones de ruteo", 
           ["n2-a", ["whatsapp", "mercadopago", "pos"]],
           ["n2-b", ["whatsapp", "pos", "mercadopago"]],
           ["n2-c", ["mercadopago"]],
+          ["n2-d", ["mercadopago"]],
+          ["n2-e", ["pos", null, "mercadopago"]],
         ],
       );
       await aplicar(MODULO_MP);
       assert.deepEqual(await modulos(), r1, "idempotente: ni una fila reescrita");
     });
 
-    await t.test("6 bis: se aplica dos veces sin error", async () => {
+    await t.test("6 bis: se aplica dos veces sin error; search_path blindado (pg_catalog, pg_temp)", async () => {
       await aplicar(RUTEO);
       await aplicar(RUTEO);
+      const conf = await conCliente(
+        async (c) => (await c.query(`SELECT proname, proconfig, prosecdef FROM pg_proc WHERE proname LIKE 'gsg_conexion%' ORDER BY proname`)).rows,
+      );
+      assert.equal(conf.length, 2);
+      for (const f of conf) {
+        assert.equal(f.prosecdef, true, f.proname);
+        assert.deepEqual(f.proconfig, ["search_path=pg_catalog, pg_temp"], f.proname);
+      }
     });
 
     await conCliente(async (c) => {
       // n2-c NO tiene whatsapp en modules: su conexión no rutea aunque esté conectada.
       await c.query(`INSERT INTO "IntegracionConexion"(id,"tenantId",conector,"cuentaExterna",estado,"updatedAt",etiqueta,"rutaHash") VALUES
-        ('cx-a-wa','n2-a','whatsapp','111','conectada', now() - interval '3 min','secreta-a','hash-a'),
+        ('cx-a-wa','n2-a','whatsapp','111','conectada', now(),'secreta-a','hash-a'),
         ('cx-a-mp','n2-a','mercadopago','mp-a','conectada', now(),NULL,NULL),
         ('cx-b-pa','n2-b','whatsapp','222','pausada', now(),NULL,NULL),
-        ('cx-b-cp','n2-b','whatsapp','333','con_problemas', now() - interval '1 min',NULL,NULL),
+        ('cx-b-cp','n2-b','whatsapp','333','con_problemas', now() - interval '1 day',NULL,NULL),
         ('cx-c-wa','n2-c','whatsapp','444','conectada', now(),NULL,NULL)`);
+      // Orden como el código (createdAt desc), no por updatedAt: la de B es más NUEVA aunque se tocó antes.
+      await c.query(`UPDATE "IntegracionConexion" SET "createdAt" = now() - interval '3 min' WHERE id = 'cx-a-wa'`);
+      await c.query(`UPDATE "IntegracionConexion" SET "createdAt" = now() - interval '1 min' WHERE id = 'cx-b-cp'`);
     });
 
     await t.test("como app_rls sin negocio: la tabla da 0 filas, las funciones rutean", async () => {
@@ -193,9 +208,12 @@ test("pase N2: módulo mercadopago en todos los negocios + funciones de ruteo", 
         assert.deepEqual(activas.rows, [
           { tenantId: "n2-b", id: "cx-b-cp" },
           { tenantId: "n2-a", id: "cx-a-wa" },
-        ], "más reciente primero; sin pausada ni negocio sin módulo");
+        ], "más reciente (createdAt) primero; sin pausada ni negocio sin módulo");
         assert.equal((await c.query(`SELECT * FROM gsg_conexiones_activas('whatsapp', 1)`)).rowCount, 2, "tope 1 → 2 filas: se pasó");
         assert.equal((await c.query(`SELECT * FROM gsg_conexiones_activas('whatsapp', 0)`)).rowCount, 1);
+        assert.equal((await c.query(`SELECT * FROM gsg_conexiones_activas('whatsapp', NULL)`)).rowCount, 1, "NULL = tope 0");
+        assert.equal((await c.query(`SELECT * FROM gsg_conexiones_activas('whatsapp', -5)`)).rowCount, 1, "negativo = tope 0");
+        assert.equal((await c.query(`SELECT * FROM gsg_conexiones_activas('whatsapp', 2147483647)`)).rowCount, 2, "tope enorme: sin overflow");
       });
     });
 
@@ -204,6 +222,31 @@ test("pase N2: módulo mercadopago en todos los negocios + funciones de ruteo", 
         comoApp(OTRO, (c) => c.query(`SELECT * FROM gsg_conexion_por_cuenta('whatsapp','111')`)),
         /permission denied/,
       );
+    });
+
+    await t.test("3b: dos filas tardías del mismo hecho → completa una, la otra queda listada; idempotente", async () => {
+      await aplicar(path.join(PENDIENTES, "N2_hub.sql"));
+      await conCliente(async (c) => {
+        await c.query(`INSERT INTO "OutboxEvent"(id,"tenantId",type,payload,clave) VALUES ('ev-ok','n2-a','x','{"_clave":"k0"}'::jsonb,'k0')`);
+        await c.query(`INSERT INTO "OutboxEvent"(id,"tenantId",type,payload) VALUES
+          ('ev-t1','n2-a','x','{"_clave":"k1"}'::jsonb), ('ev-t2','n2-a','x','{"_clave":"k1"}'::jsonb),
+          ('ev-t3','n2-b','x','{"_clave":"k1"}'::jsonb), ('ev-t4','n2-a','x','{"_clave":"k0"}'::jsonb),
+          ('ev-t5','n2-a','x','{"_clave":"k2"}'::jsonb)`);
+      });
+      const posterior = path.join(PENDIENTES, "N2_hub_posterior.sql");
+      await aplicar(posterior);
+      await aplicar(posterior);
+      const filas = await conCliente(
+        async (c) => (await c.query(`SELECT id, clave FROM "OutboxEvent" WHERE id LIKE 'ev-%' ORDER BY id`)).rows,
+      );
+      assert.deepEqual(filas, [
+        { id: "ev-ok", clave: "k0" },
+        { id: "ev-t1", clave: "k1" },
+        { id: "ev-t2", clave: null }, // duplicado del mismo hecho en A: queda listado, no se borra
+        { id: "ev-t3", clave: "k1" }, // otro negocio: es otro hecho
+        { id: "ev-t4", clave: null }, // el hecho k0 ya tenía su fila
+        { id: "ev-t5", clave: "k2" },
+      ]);
     });
 
     await t.test("reversa del pie: borra las dos y se vuelven a crear", async () => {

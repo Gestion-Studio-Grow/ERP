@@ -16,6 +16,28 @@
 - [ ] Ventana elegida con poco movimiento (MAGRA cerrada, sin turnos del club en curso).
 - [ ] Avisos enviados (ver §7, «quién avisa a quién»).
 
+## 0 bis. `mercadopago` en todos los negocios — apenas el deploy de main está *Ready*
+
+Va FUERA de la ventana del paquete y ANTES de ella: con S1/P1 desplegados, un negocio sin
+`mercadopago` en `Tenant.modules` deja de procesar sus avisos de MP (MP los reintenta: lo que caiga
+entre el *Ready* y este paso se recupera). No se corre antes del push: con el código viejo de main,
+cualquier negocio con el módulo arma «Link de pago» con el token global del despliegue.
+
+🔴 **Precondición (cert. del pase, F1):** el dueño mira en Vercel prod `MP_MODO`, `MP_ACCESS_TOKEN`
+(de qué cuenta es), `MP_SIMULAR_AVISOS` y `MP_MODO_LEGADO`. Si `MP_MODO` es `test` o `real` y hay
+negocios SIN conexión MP propia que no son los dueños de ese token, sus links cobrarían en la cuenta
+del despliegue: **no correr hasta que el dueño decida** (conexión propia por negocio, o apagar MP en
+esos negocios). Con `MP_MODO` vacío o `stub` y el simulador apagado, no hay efecto de plata.
+
+```bash
+cd prisma/pending-gate2
+psql -X -v ON_ERROR_STOP=1 -d "$MIGRATE_DATABASE_URL" -f N2_modulo_mercadopago.sql | tee ~/0bis-$(date +%F-%H%M).log
+cd -
+```
+
+La salida (`RETURNING`) es la lista exacta de negocios que cambiaron: guardar el `.log` (lo pide la
+reversa). Si el bloque final encuentra un negocio sin el módulo, falla y no confirma nada.
+
 ## 1. Respaldo (obligatorio, sin esto no se sigue)
 
 Una de las dos, anotando el nombre/hora en el registro del día:
@@ -45,8 +67,7 @@ $P -f N2_integraciones_ruteo.sql  # 6 bis · gsg_conexion_por_cuenta / gsg_conex
 $P -f ../rls/0001_enable_rls.sql   # 7 · re-ejecución: policy tenant_isolation en TODA tabla con tenantId
 ```
 
-- El paso **0 bis** (`N2_modulo_mercadopago.sql`) NO va en este bloque: se corre **antes del push a main**
-  (ver `Factory-GSG/00-ESTADO/reingenieria-2026-10/PASE-N2.md`, runbook del día D).
+- El paso **0 bis** (`N2_modulo_mercadopago.sql`) NO va en este bloque: ver §0 bis.
 - Los 1, 3–6 y 6 bis tienen `BEGIN … COMMIT` adentro: si uno falla, ese archivo no deja nada a medias.
 - Todos son idempotentes: si se corta la luz a mitad, se vuelve a correr **desde el archivo que
   falló** (o desde el 1; no rompe nada).
@@ -57,17 +78,22 @@ $P -f ../rls/0001_enable_rls.sql   # 7 · re-ejecución: policy tenant_isolation
 Un proceso vivo que preguntó por las columnas ANTES del paso 3 guarda «no están» 60 s
 (`TTL_NEGATIVO_MS`, `src/lib/schema-probe/probe.ts`) y en ese rato escribe eventos con `clave` NULL y
 la clave en `payload._clave`. Pasados **2 minutos** desde el paso 3 (con la app corriendo), volver a
-correr el backfill del pie de `N2_hub.sql` («PASO POSTERIOR»):
+correr el backfill del pie de `N2_hub.sql` («PASO POSTERIOR»), que está en su propio archivo:
 
 ```bash
-$P -c "UPDATE \"OutboxEvent\" AS o SET \"clave\" = o.\"payload\"->>'_clave' WHERE o.\"clave\" IS NULL AND o.\"payload\" ? '_clave' AND NOT EXISTS (SELECT 1 FROM \"OutboxEvent\" AS d WHERE d.\"tenantId\" = o.\"tenantId\" AND d.\"clave\" = o.\"payload\"->>'_clave');"
+cd prisma/pending-gate2   # si no seguís en la misma terminal del §2
+P="psql -X -v ON_ERROR_STOP=1 -d $MIGRATE_DATABASE_URL"
+$P -f N2_hub_posterior.sql
+cd -
 ```
 
-Esperado: `UPDATE 0` o pocas filas. Si falla por el UNIQUE, o queda una fila con `clave` NULL por el
-`NOT EXISTS`, es un duplicado de un mismo hecho: **avisar, no borrar**. Es idempotente; se puede
+Esperado: `UPDATE 0` o pocas filas, y el `SELECT` final vacío. Cada fila que liste es un duplicado de
+un mismo hecho (de dos tardías completa una sola): **avisar, no borrar**. Idempotente; se puede
 repetir.
 
 ## 3. Verificar RLS en vivo
+
+Desde la RAÍZ del repo (después del `cd -`):
 
 ```bash
 RLS_AUDIT_DATABASE_URL="$MIGRATE_DATABASE_URL" node prisma/rls/check-rls-live.mjs
@@ -78,12 +104,17 @@ Tiene que salir con código 0 y listar `tenant_isolation` en: `ProductBatch`, `P
 `PagoExterno`, `ClubReservaIndice` (además de las de siempre). Si sale 1: re-correr el paso 7 y
 repetir; si sigue en 1, §5.
 
-Funciones de ruteo (6 bis), con la conexión de la APP (`DATABASE_URL` de Vercel, rol `app_rls`; no
-el rol directo, que no necesariamente puede `SET ROLE app_rls`). Tiene que devolver filas si hay
-conexiones de MP activas:
-`psql "$APP_DATABASE_URL" -c "SELECT count(*) FROM gsg_conexiones_activas('mercadopago', 20)"`
-Si da 0 y `SELECT count(*) FROM "IntegracionConexion" WHERE conector='mercadopago' AND estado='conectada'` (como dueño) da más:
-FORCE RLS sin BYPASSRLS — no rompe nada hoy (ningún código las llama), anotarlo para P5/P6.
+Funciones de ruteo (6 bis). `APP_DATABASE_URL` = la `DATABASE_URL` de Vercel prod (rol `app_rls`),
+exportada en la terminal del dueño sin imprimirla. Las dos cuentas tienen que dar lo mismo:
+
+```bash
+export APP_DATABASE_URL='<DATABASE_URL de Vercel prod>'   # no se imprime
+psql -X -d "$APP_DATABASE_URL" -c "SELECT count(*) AS por_funcion FROM gsg_conexiones_activas('mercadopago', 1000)"
+psql -X -d "$MIGRATE_DATABASE_URL" -c "SELECT count(*) AS como_dueno FROM \"IntegracionConexion\" c JOIN \"Tenant\" t ON t.id = c.\"tenantId\" WHERE c.conector = 'mercadopago' AND c.estado IN ('conectada','con_problemas','requiere_reconectar') AND COALESCE(t.\"modules\", '{}') @> ARRAY['mercadopago']"
+```
+
+Si `por_funcion` da 0 y `como_dueno` más: el creador no es dueño de la tabla o hay FORCE RLS (el 6 bis
+lo avisó con un WARNING). No rompe nada hoy (ningún código las llama): anotarlo para P5/P6.
 
 Chequeo rápido de enums (opcional):
 `SELECT t.typname, e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid WHERE t.typname IN ('PaymentMethod','UserRole');`
@@ -120,7 +151,7 @@ copiada tal cual a psql (probadas en local):
 | 4 | `N2_pagos.sql` | `DROP TABLE "PagoExterno"` | conciliación: exportar antes si hay filas |
 | 3 | `N2_hub.sql` | 4 `DROP TABLE` + 2 `DROP COLUMN` + 3 `DROP INDEX` en OutboxEvent (incluye el parcial de P2) | claves, suscripciones y plantillas cargadas |
 | 2 | `N2_enums.sql` | 🔴 **irreversible: no hay `DROP VALUE`**. Se dejan (inocuos si nadie los usa); recrear el tipo es el procedimiento manual al pie (otro Gate 2) | no |
-| 0 bis | `N2_modulo_mercadopago.sql` | `array_remove` SÓLO para los slugs que listó su primer SELECT (pie del archivo) | no |
+| 0 bis | `N2_modulo_mercadopago.sql` | 🔴 sólo si main vuelve a un código ANTERIOR a S1/P1 (con S1/P1 desplegados, sacar el módulo corta los avisos de MP). `array_remove` sólo para los slugs del `.log` del §0 bis | no, pero corta cobros si se hace con el código nuevo |
 | 1 | `CarniceriaRubro.sql` | bloque `ROLLBACK` al pie (tablas, enums y 2 columnas de Product) | lotes y despieces cargados |
 
 Después de una reversa: *Redeploy* en Vercel (los procesos vivos cachean el «sí está» del probe

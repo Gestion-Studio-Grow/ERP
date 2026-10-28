@@ -253,9 +253,14 @@ COMMIT;
 -- la tabla) y deja afuera la fila de un hecho que ya tiene su clave:
 --   UPDATE "OutboxEvent" AS o SET "clave" = o."payload"->>'_clave'
 --     WHERE o."clave" IS NULL AND o."payload" ? '_clave'
---       AND NOT EXISTS (SELECT 1 FROM "OutboxEvent" AS d WHERE d."tenantId" = o."tenantId" AND d."clave" = o."payload"->>'_clave');
--- Esperado: «UPDATE 0» o pocas filas. Si una fila queda con clave NULL por el NOT EXISTS, o el
--- UPDATE falla por el UNIQUE (dos filas tardías del mismo hecho), es un duplicado: avisar (no borrar).
+--       AND NOT EXISTS (SELECT 1 FROM "OutboxEvent" AS d WHERE d."tenantId" = o."tenantId" AND d."clave" = o."payload"->>'_clave')
+--       AND NOT EXISTS (SELECT 1 FROM "OutboxEvent" AS e WHERE e."tenantId" = o."tenantId" AND e."clave" IS NULL
+--                       AND e."payload"->>'_clave' = o."payload"->>'_clave' AND e.id < o.id);
+-- El segundo NOT EXISTS (pase N2, cert. F11): de dos filas tardías del MISMO hecho completa sólo
+-- una (la de id menor) en vez de fallar entero por el UNIQUE y dejar sin clave a las legítimas.
+-- Esperado: «UPDATE 0» o pocas filas. Una fila que queda con clave NULL y `_clave` es un duplicado:
+-- avisar (no borrar). Listarlas: SELECT id, "tenantId", "payload"->>'_clave' FROM "OutboxEvent"
+--   WHERE "clave" IS NULL AND "payload" ? '_clave';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- REVERSA (orden inverso; correr en una transacción). Borra los datos de estas tablas:
