@@ -1,0 +1,57 @@
+// Webhook de WhatsApp (ruta real): el negocio sale del phone_number_id, nunca del host.
+// Sin mapeo → 200 sin efecto (no toca la base); rate limit antes de la firma.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
+import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
+
+prepararAccionesDeServidor(); // dobles de next/headers y server-only, antes de importar la ruta
+
+const SECRETO = "wa-secreto-de-prueba";
+
+function mensaje(phoneNumberId: string, ip = "7.7.7.7"): Request {
+  const cuerpo = JSON.stringify({
+    entry: [
+      {
+        changes: [
+          {
+            value: {
+              metadata: { phone_number_id: phoneNumberId },
+              contacts: [{ wa_id: "5491100000000", profile: { name: "Ana" } }],
+              messages: [{ from: "5491100000000", id: "wamid.PRUEBA", type: "text", text: { body: "hola" }, timestamp: "1790000000" }],
+            },
+          },
+        ],
+      },
+    ],
+  });
+  const firma = "sha256=" + createHmac("sha256", SECRETO).update(cuerpo, "utf8").digest("hex");
+  return new Request("https://magra.erp.test/api/webhooks/whatsapp", {
+    method: "POST",
+    headers: { "x-hub-signature-256": firma, "x-forwarded-for": ip, host: "magra.erp.test" },
+    body: cuerpo,
+  });
+}
+
+test("número sin mapeo en WHATSAPP_PHONE_NUMBERS → 200 sin efecto, aunque el host sea de un negocio", async () => {
+  Object.assign(process.env, {
+    PADEL_WHATSAPP: "cloud",
+    WHATSAPP_APP_SECRET: SECRETO,
+    WHATSAPP_PHONE_NUMBERS: JSON.stringify({ "100000000000001": "breakpoint" }),
+    APP_BASE_DOMAIN: "erp.test",
+  });
+  const { POST } = await import("@/app/api/webhooks/whatsapp/route");
+  const r = await POST(mensaje("999999999999999"));
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true, ignorado: "numero-sin-negocio" });
+});
+
+test("rate limit antes de la firma: el 61.º POST de la misma IP → 429", async () => {
+  const { POST } = await import("@/app/api/webhooks/whatsapp/route");
+  const forjado = () =>
+    new Request("https://x/api/webhooks/whatsapp", { method: "POST", headers: { "x-forwarded-for": "6.6.6.6" }, body: "{}" });
+  const estados: number[] = [];
+  for (let i = 0; i < 61; i++) estados.push((await POST(forjado())).status);
+  assert.ok(estados.slice(0, 60).every((s) => s === 401));
+  assert.equal(estados[60], 429);
+});

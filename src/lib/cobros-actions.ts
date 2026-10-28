@@ -15,6 +15,7 @@ import { round2 } from "@/lib/round";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { cobrarPedidoPorAvisoDePago } from "@/lib/order-core";
 import {
+  CobrosSinConexionError,
   crearPasarelaCobrosPara,
   modoCobrosDesdeEnv,
   type ModoCobros,
@@ -70,7 +71,7 @@ export async function generarCobro(formData: FormData): Promise<GenerarCobroResu
   const solicitud: SolicitudCobro = { concepto, monto, referenciaExterna, emailPagador };
 
   try {
-    const pasarela = crearPasarelaCobrosPara(tenantId);
+    const pasarela = await crearPasarelaCobrosPara(tenantId);
     const link = await pasarela.crearLinkDePago(solicitud);
     await auditAdmin({
       action: "create",
@@ -89,6 +90,7 @@ export async function generarCobro(formData: FormData): Promise<GenerarCobroResu
     if (e instanceof SolicitudCobroInvalidaError) {
       return { ok: false, error: e.errores.map((x) => x.mensaje).join(" ") };
     }
+    if (e instanceof CobrosSinConexionError) return { ok: false, error: e.message };
     if (e instanceof MercadoPagoApiError) {
       // No filtrar detalles crudos del proveedor al operador: mensaje claro + código.
       return {
@@ -134,9 +136,9 @@ export async function estadoCobros(): Promise<{ modo: ModoCobros }> {
 // Recepción no elige cuánto se cobra; sólo manda el link del total que ya está.
 //
 // Y sólo en un negocio con el módulo de Mercado Pago contratado (`tieneMercadoPago`, sobre
-// `Tenant.modules` leído acá mismo, no sobre el menú): el token de Mercado Pago es uno por
-// despliegue (mercadopago-cobros-dispatch.ts), así que sin este candado recepción de cualquier
-// comercio del despliegue generaría links que cobran en esa cuenta. La pantalla usa la misma
+// `Tenant.modules` leído acá mismo, no sobre el menú). Además el token sale de la CONEXIÓN de
+// Mercado Pago del negocio (mercadopago-cobros-dispatch.ts, P1-C4): sin conexión (y sin
+// MP_MODO_LEGADO=1) no se arma el link (`CobrosSinConexionError`). La pantalla usa la misma
 // regla (`linkDePagoDisponible`) para mostrar el botón.
 //
 // Lo que el link NO hace todavía: cobrar solo el pedido cuando el cliente paga. Eso lo resuelve
@@ -186,7 +188,7 @@ export async function generarLinkDePagoDePedido(
     referenciaExterna: referenciaDePedido(o.id),
   };
   try {
-    const link = await crearPasarelaCobrosPara(tenantId).crearLinkDePago(solicitud);
+    const link = await (await crearPasarelaCobrosPara(tenantId)).crearLinkDePago(solicitud);
     // Con credenciales de prueba se paga en el sandbox de Mercado Pago; con las reales, el link real.
     const url = modo === "real" ? link.initPoint : (link.sandboxInitPoint ?? link.initPoint);
     await auditAdmin({
@@ -208,6 +210,7 @@ export async function generarLinkDePagoDePedido(
     if (e instanceof SolicitudCobroInvalidaError) {
       return { ok: false, error: e.errores.map((x) => x.mensaje).join(" ") };
     }
+    if (e instanceof CobrosSinConexionError) return { ok: false, error: SIN_MERCADO_PAGO };
     if (e instanceof MercadoPagoApiError) {
       return {
         ok: false,

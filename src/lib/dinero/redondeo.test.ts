@@ -183,6 +183,10 @@ test("el plugin ARCA sólo trae del Core el módulo de redondeo y la decisión f
     "@/lib/dinero/redondeo",
     "@/modules/contract",
     "@/lib/fiscal/decidir-comprobante",
+    // El contrato de la suite de integraciones (E3, Tanda P1: src/plugins/arca/conector.ts). Dato
+    // puro, sin base ni red: el plugin se describe ante la suite, no toca el Core.
+    "@/integraciones/contrato",
+    "@/integraciones/errores",
   ]);
   const ajenos: string[] = [];
   for (const archivo of archivosTs(plugin)) {

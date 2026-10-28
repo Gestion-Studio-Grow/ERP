@@ -103,3 +103,62 @@ test("fail-closed ante datos faltantes", () => {
     false,
   );
 });
+
+// ── S1: ventana de ±5 min y varios secretos ─────────────────────────────────
+
+import { tsDentroDeVentana, verificarFirmaMP, TOLERANCIA_TS_MS } from "./signature";
+
+const AHORA = 1_790_000_000_000; // ms
+const TS = String(AHORA / 1000);
+const firmaCon = (secreto: string, id: string, ts = TS, rid = "req-1") =>
+  `ts=${ts},v1=${createHmac("sha256", secreto).update(buildManifest(id, rid, ts)).digest("hex")}`;
+
+test("tsDentroDeVentana: ±5 min en segundos o milisegundos; ilegible → false", () => {
+  assert.equal(tsDentroDeVentana(TS, AHORA), true);
+  assert.equal(tsDentroDeVentana(String(AHORA), AHORA), true);
+  assert.equal(tsDentroDeVentana(String(AHORA / 1000 - 299), AHORA), true);
+  assert.equal(tsDentroDeVentana(String(AHORA / 1000 - 301), AHORA), false);
+  assert.equal(tsDentroDeVentana(String(AHORA / 1000 + 301), AHORA), false);
+  assert.equal(tsDentroDeVentana("abc", AHORA), false);
+  assert.equal(tsDentroDeVentana("", AHORA), false);
+  assert.equal(TOLERANCIA_TS_MS, 300_000);
+});
+
+test("verificarFirmaMP: devuelve qué claves firmaron", () => {
+  const r = verificarFirmaMP({
+    xSignature: firmaCon("sec-a", "123"),
+    xRequestId: "req-1",
+    dataId: "123",
+    candidatos: [
+      { clave: "a", secreto: "sec-a" },
+      { clave: "b", secreto: "sec-b" },
+    ],
+    ahoraMs: AHORA,
+  });
+  assert.deepEqual(r, { ok: true, firmantes: ["a"] });
+});
+
+test("verificarFirmaMP: ts viejo → ts-fuera-de-ventana aunque el HMAC sea bueno", () => {
+  const viejo = String(AHORA / 1000 - 600);
+  const r = verificarFirmaMP({
+    xSignature: firmaCon("sec-a", "123", viejo),
+    xRequestId: "req-1",
+    dataId: "123",
+    candidatos: [{ clave: "a", secreto: "sec-a" }],
+    ahoraMs: AHORA,
+  });
+  assert.deepEqual(r, { ok: false, motivo: "ts-fuera-de-ventana" });
+});
+
+test("verificarFirmaMP: otro id que el firmado → firma-invalida; sin header → sin-firma", () => {
+  const base = { xRequestId: "req-1", candidatos: [{ clave: "a", secreto: "sec-a" }], ahoraMs: AHORA };
+  assert.deepEqual(verificarFirmaMP({ ...base, xSignature: firmaCon("sec-a", "123"), dataId: "999" }), {
+    ok: false,
+    motivo: "firma-invalida",
+  });
+  assert.deepEqual(verificarFirmaMP({ ...base, xSignature: null, dataId: "123" }), { ok: false, motivo: "sin-firma" });
+  assert.deepEqual(verificarFirmaMP({ ...base, xSignature: firmaCon("sec-a", "123"), dataId: "" }), {
+    ok: false,
+    motivo: "sin-firma",
+  });
+});
