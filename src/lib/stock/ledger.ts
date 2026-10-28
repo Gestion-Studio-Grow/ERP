@@ -17,6 +17,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { costoVigenteEnTx } from "@/lib/stock/costo";
+import { emitirEventosDelMovimiento } from "@/eventos/del-stock";
 
 // Cliente de transacción interactiva: lo que recibe el callback de
 // `tenantTransaction`/`$transaction`. `recordMovement` corre SIEMPRE dentro de una tx
@@ -173,7 +174,8 @@ export async function recordMovement(tx: LedgerTx, args: RecordMovementArgs): Pr
 
   const after = await tx.product.findUnique({
     where: { id: args.productId },
-    select: { stock: true },
+    // N2/P2: el mínimo y si controla stock, para `stock.bajo@1` (src/eventos/del-stock.ts).
+    select: { stock: true, lowStockAt: true, trackStock: true },
   });
   const balanceAfter = round3(after?.stock ?? 0);
   const corregido = after ? stockARedondear(after.stock) : null;
@@ -188,7 +190,7 @@ export async function recordMovement(tx: LedgerTx, args: RecordMovementArgs): Pr
     ? await costoVigenteEnTx(tx, args.tenantId, args.productId)
     : (args.unitCost ?? null);
 
-  await tx.stockMovement.create({
+  const movimiento = await tx.stockMovement.create({
     data: {
       tenantId: args.tenantId,
       productId: args.productId,
@@ -203,6 +205,13 @@ export async function recordMovement(tx: LedgerTx, args: RecordMovementArgs): Pr
       createdBy: args.createdBy,
       ...(args.at ? { createdAt: args.at } : {}),
     },
+    select: { id: true },
+  });
+
+  // N2/P2: `stock.ajustado@1` y `stock.bajo@1`, en la transacción del movimiento.
+  await emitirEventosDelMovimiento(tx, {
+    tenantId: args.tenantId, productId: args.productId, movimientoId: movimiento?.id ?? "", tipo: args.type, delta,
+    saldo: balanceAfter, motivo: args.reason ?? null, minimo: after?.lowStockAt, controlaStock: after?.trackStock,
   });
 
   return balanceAfter;
