@@ -203,3 +203,105 @@ Recomendación: **(A)**, antes del PR de B4 (Q3-C1).
 **No verificado**
 - Nada en el navegador: no hay `.env` ni base, por decisión.
 - PGlite no hizo falta: ningún cambio toca la base. RLS y concurrencia quedan fuera, como en la vuelta 3.
+
+## Certificador — vuelta 4
+
+- **Rango:** `70cd126a..f42b7797` sobre `origin/n2/b4-caja-club`. Worktree `C:/n2b4`, sin `.env` ni base remota.
+- **Tests adversariales propios:** 11, en el scratchpad de la sesión (`b4v4/cert-b4-v4.test.ts`), no en el repo. Pasan 11/11; cuatro registran lo observado (A5, B2, B3, C1 segundo conteo).
+- **Este veredicto reemplaza el «Veredicto final» del encabezado del documento.**
+
+Veredicto final: NO CERTIFICA
+
+### Fallas
+
+**F4 · media · El sitio reempaquetado en `f5e64621` no es el que sale del empaquetador.**
+- [VERIFICADO] `club.html` y `turnero.html` perdieron todas sus directivas `"use strict"`: 8 y 7 en `70cd126a~1`, 0 en `f5e64621` y `HEAD`. En `origin/main` hay 8.
+- [VERIFICADO] En un export LF limpio (`git -c core.autocrlf=false archive`), `motor-club.test.ts` + `copia.test.ts`:
+  - en la base `70cd126a~1`: **77/77**;
+  - en `HEAD`: **76/77**. Falla «el sitio … está empaquetado con la última versión».
+- Con el mismo esbuild (0.28.1), `armarSitio` sobre la fuente de `HEAD` da el sitio commiteado **más** esas 15 directivas. Sin ellas, es igual.
+- Consecuencia:
+  - La afirmación «el sitio commiteado es exactamente el que sale de `armarSitio`» es falsa en esta máquina.
+  - El guardián de deriva queda rojo en un checkout limpio. Q3-C1 pide suites verdes.
+  - El `/club` de producción y el turnero público pasan a correr el bundle inline en modo no estricto, un cambio que nadie pidió.
+- Arreglo: reempaquetar sobre un checkout LF (`node src/tenants/breakpoint/empaquetar.mjs`) y mostrar `motor-club.test.ts` verde en un export limpio.
+
+**F5 · media · plata/D-16 · Por la acción del servidor, quien no es dueño baja la firma de caja a 2.**
+- `guardarFotoDelClub` (`estado-actions.ts:104-127`) acepta la foto entera de cualquier usuario con `agenda:manage`. La red G8 (`src/lib/club/delicado.ts`) conserva usuarios, PIN y sal, pero **no** `config.caja.largoPinFirma`.
+- [VERIFICADO] Ataque B3:
+  1. Una foto de no-dueño con `config.caja.largoPinFirma = 2` pasa por `conservarLoDelicado` con `corregido = false` y queda guardada con 2.
+  2. Sobre lo guardado, `retiroCajaFuerte` de recepción con su PIN de 2 da `ok: true`.
+- La vuelta 4 dice «sólo lo cambia un dueño (permiso `configurar`)». Eso vale en el puesto, no en el servidor.
+- Contexto: el modo foto ya deja escribir cualquier movimiento (deuda G10, cabecera de `estado-actions.ts`). Pero esta clave es de la familia «PIN», que G8 sí protege, y un solo campo apaga D-16 para siempre.
+- Arreglo: en `conservarLoDelicado`, si guarda un no-OWNER, mantener `estado.config.caja.largoPinFirma` de la foto vigente, con un test en `delicado.test.ts`.
+
+### Lo que se probó y resistió
+
+| Ataque | Resultado |
+|---|---|
+| A1 · Correcciones encadenadas en cobros de cargos: dos pagos parciales iguales en el mismo minuto, cuenta a cargo de otra, ida y vuelta de medio | Caja por medio = pagos por medio después de cada paso. Total sin cambio. |
+| A2 · `corregirMedio` con el id de un movimiento de **otro** estado, inexistente, vacío o `__proto__` | Rechazado. La foto queda idéntica. |
+| A3 · Corregir en un turno **contado y sin firmar**, en uno firmado y en un día cerrado con el cierre viejo | Rechazado (`m.turno` se sella al contar). La foto queda idéntica. |
+| A4 · Débito, monedero, egreso, mismo medio, medio inventado | Rechazado, sin tocar nada. |
+| B1 · Reglas con recepción (con su PIN, sin PIN, con el PIN de un dueño) y re-aplicada por `correrComando` | Rechazado. La foto queda idéntica y la firma sigue en 4. |
+| C1 · 10 conteos inválidos: sin número o huella, otro número u otra huella, sin efectivo, cantidad distinta, día ajeno, billetes negativos o fraccionarios. Más un segundo conteo con uno pendiente de firma | Todos rechazados. **La foto queda idéntica byte a byte** en cada uno. |
+| F1′ · Turno contado a las 23:00, firmado al día siguiente a las 13:00, y cierre de ese día | Pasa. F1 sigue cerrada. |
+| F2′ · Recepción con PIN de 2 en egreso, cierre, retiro, egreso por categoría y cierre del día, directo y por `correrComando` (`VERSION_ESTADO` 1), también con el PIN rellenado (`" 33 "`, `"0033"`, NBSP) | Todo rechazado y la foto queda idéntica. F2 sigue cerrada. |
+
+### Observaciones bajas
+
+- **A5 · `corregirMedio` puede dejar el cajón en negativo.**
+  - Se cobran $X en efectivo, un dueño firma el retiro de $X y después recepción corrige ese cobro a MP: el efectivo esperado del cajón queda en −$X.
+  - `retiroCajaFuerte` impide exactamente eso. Caja = cobrado sigue valiendo, y el cierre lo muestra como diferencia con motivo y firma.
+  - Sugerencia: rechazar la corrección de efectivo a otro medio si deja el cajón por debajo de 0.
+- **B2 · Un dueño con el PIN viejo de 2 (`pinDesactualizado`) puede guardar «Reglas» y bajar la firma a 2.**
+  - `configura` no mira el PIN.
+  - Lo frena sólo la pantalla, que obliga a elegir un PIN nuevo antes de operar.
+- **[A VALIDAR] de la obs. 3 (otra persona firma la espera).**
+  - Por lectura de `CierreDeCaja.tsx:315-345` y `CajaDelClub.tsx:296-299`: la espera se manda con el operador del momento.
+  - Con `firmaId` vacío, el PIN de la persona anterior no coincide con la nueva: falla, y cuenta como PIN malo. No hay atajo.
+  - Con `firmaId` elegido, firma quien se eligió, con su propio PIN. Sólo puede quedar mal el «responsable».
+  - Es baja y se puede quedar en B9.
+- `cobrarDeuda` (`motor.mjs:1291`) guarda «Pago (Efectivo)» en el texto de la cuenta corriente. Una corrección de medio no lo actualiza. Es de antes de B4 y no mueve plata.
+
+### Juicio sobre los traspasos y las preguntas (`PLAN-REINGENIERIA-N2.md`, `origin/main` `da9b8f8`)
+
+- **Obs. 3 → B9-C4 / B9-C1.** Los IDs existen (líneas 967 y 970), pero ninguno de los dos criterios dice esto:
+  - B9-C4 habla de un corte parcial **en efectivo**.
+  - B9-C1 habla de la **cola** local. La espera con MP no está en la cola.
+  - El traspaso es aceptable si la PMO agrega a B9 el criterio que propone el ingeniero: la espera sobrevive a recargar y a bloquear, sin PIN.
+  - Ojo: B4-C7 («cerrar con MP se encola») sigue siendo de B4.
+- **Obs. 6 → Q3-C1.** El ID existe (línea 1060) y el criterio alcanza: `copia.test.ts` y `motor-club.test.ts` detectan la deriva (F4 lo prueba). §9.3 (línea 1205) no tiene ninguna regla sobre la copia del motor, así que citarlo no suma.
+- **Obs. 1 (pantalla vanilla `/club` con PIN de 2) → pregunta legítima. No es falla de B4.**
+  - Hoy permite mover plata en producción: `app.mjs:2592` y `:2594`, igual en `origin/main`.
+  - Pero es el sistema del club de hoy y el plan B del pase (`PASE-AL-ERP.md`, «Si algo falla: volver al club de hoy»).
+  - B4 no lo empeora, salvo F4. El plan le da a B4 el ERP (`config-usuarios.tsx`, archivos propios de B4) y no el vanilla.
+  - Es una **excepción legítima del plan B**, siempre que quede escrita.
+  - Como es una excepción a **D-16, que es decisión del dueño**, la PMO la tiene que llevar al dueño: no la cierra sola.
+  - Retirar el vanilla necesita un ID nuevo.
+- **Obs. 7 (e2e de caja) → no es una pregunta para la PMO.**
+  - [VERIFICADO] B4 sacó «Tendría que haber», que está en `origin/main` (`CajaDelClub.tsx:81`) y ya no en la rama, y `uat-paridad.e2e.ts` §8 (`:1276-1290`) y §10 (`:1418-1426`) dependen de ese texto.
+  - Reescribirlos es trabajo de B4, y se puede hacer en esta máquina.
+  - Lo único que necesita otra máquina es **correrlos**: eso es verificación pendiente, no una decisión de la PMO.
+
+### Corridas
+
+- `tsc --noEmit`: 406 errores. **0 en los 11 archivos `.ts`/`.tsx`/`.mts` tocados.** El resto viene de módulos que faltan en el `node_modules` compartido: `playwright` 99, `three` 3, `pdf-lib` 2, `qrcode` 2.
+- `src/app/admin/(dashboard)/club/*.test.ts`: 658 tests. 579 pasan, 0 fallan, 79 omitidos (Playwright).
+- `src/lib/club/*.test.ts` + `src/tenants/breakpoint/*.test.ts`: 188 tests. 178 pasan, 1 falla, 9 omitidos (Postgres).
+  - La falla es el empaquetado.
+  - En este checkout CRLF falla por el fin de línea.
+  - En un export LF limpio sigue fallando por F4, y en la base, no.
+- PGlite no hizo falta: ningún cambio toca la base. B3 se probó sobre `conservarLoDelicado`, que es puro.
+
+### Verificación pendiente (no se puede correr acá)
+
+- `test:club-paridad`, `test:club-pase` y `test:club-uat`, con §8 y §10 reescritos. Playwright no arranca en esta máquina.
+- Postgres real: RLS y dos puestos guardando a la vez. PGlite no lo prueba.
+- QA clic por clic en tablet del recorrido B4 del plan (línea 881).
+
+### Para la vuelta 5 (mirar sólo esto)
+
+1. F4: sitio reempaquetado y `motor-club.test.ts` verde en un export LF limpio.
+2. F5: `largoPinFirma` protegido en G8, con su test.
+3. Sugerido, no bloquea: la guarda de A5 y la reescritura de §8 y §10.
