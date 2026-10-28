@@ -74,6 +74,7 @@ import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
 import { leerImporte } from "@/lib/pos-peso";
 import { round2 } from "@/lib/round";
 import { tarjetaHabilitada } from "@/lib/caja-actions";
+import { arqueoCiegoDelNegocio, sinElEfectivoALaVista } from "@/lib/caja/arqueo-ciego";
 import { bordesDelMes, etiquetaDelMes } from "@/lib/libros/fecha-fiscal";
 import { mesesCongeladosQueReabririaElDia } from "@/lib/cierre-mes/lectura";
 
@@ -109,6 +110,13 @@ export type CierreDiarioData = {
   since: DayKey | null;
   /** El cierre con TODO sin declarar: sirve para mostrar el esperado por medio. */
   preview: CierreDiario;
+  /**
+   * A ciegas (interruptor «arqueo-ciego», cert F7): sin turno abierto, el efectivo del libro NO viaja
+   * a la pantalla Caja —ni como esperado ni como «al abrir + entró − salió»—. `preview` viene con la
+   * fila EFECTIVO y el total en cero (`sinElEfectivoALaVista`); la pantalla escribe «se ve al abrir
+   * el turno» en su lugar. Con `esperadoALaVista` (la pantalla del cierre) siempre es false.
+   */
+  efectivoACiegas: boolean;
   /** Las filas del período, para que la persona vea qué está cerrando. */
   movements: {
     id: string;
@@ -230,10 +238,15 @@ async function nombreDeActor(db: Pick<Prisma.TransactionClient, "user">, tenantI
  * misma función alimenta el resumen de /admin/caja, que no lo muestra; sin la opción, esa
  * pantalla pagaba la consulta de turnos (y la de cobros, si había abiertos) en cada carga
  * para tirarla.
+ *
+ * `esperadoALaVista`: la pantalla del cierre recibe el efectivo del libro aunque el negocio arquee a
+ * ciegas (cerrar el día es el arqueo de quien puede cerrar; `cerrarDia` compara en el servidor). Sin
+ * la opción —la pantalla Caja—, con el interruptor encendido y sin turno abierto, el efectivo se
+ * blanquea (`efectivoACiegas`). Si el cierre también debe ocultarlo para recepción lo decide el dueño.
  */
 export async function getCierreDiarioData(
   dayRaw?: string | null,
-  opciones: { conTurnosSinCerrar?: boolean } = {},
+  opciones: { conTurnosSinCerrar?: boolean; esperadoALaVista?: boolean } = {},
 ): Promise<CierreDiarioData> {
   await requireCapability("orders:read");
   const today = todayInBusinessTz();
@@ -246,6 +259,7 @@ export async function getCierreDiarioData(
       lastClosedDay: null,
       since: null,
       preview: buildCierreDiario({ day, previous: [], movements: [], declared: NADA_DECLARADO }),
+      efectivoACiegas: false,
       movements: [],
       yaCerrado: false,
       enElFuturo: compareDayKeys(day, today) > 0,
@@ -293,6 +307,7 @@ export async function getCierreDiarioData(
       lastClosedDay: cerradoHasta,
       since: null,
       preview: buildCierreDiario({ day, previous: [], movements: [], declared: NADA_DECLARADO }),
+      efectivoACiegas: false,
       movements: [],
       yaCerrado: true,
       enElFuturo: compareDayKeys(day, today) > 0,
@@ -314,7 +329,7 @@ export async function getCierreDiarioData(
   const start = since ? businessWallTimeToUtc(since, "00:00") : new Date(0);
   const end = endOfDayUtc(day);
 
-  const [rows, previousTotals, turnosSinCerrar, abierto, ultimoTurno, sinCobrar, repartoSinRendir] = await Promise.all([
+  const [rows, previousTotals, turnosSinCerrar, abierto, ultimoTurno, sinCobrar, repartoSinRendir, arqueaACiegas] = await Promise.all([
     prisma.cashMovement.findMany({
       where: { tenantId, occurredAt: { gte: start, lt: end } },
       orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
@@ -350,6 +365,9 @@ export async function getCierreDiarioData(
         })
       : Promise.resolve(null),
     opciones.conTurnosSinCerrar ? leerRepartoSinRendir(tenantId) : Promise.resolve(null),
+    // Cert F7: ¿el negocio arquea a ciegas? Sólo donde el efectivo se puede blanquear (la pantalla
+    // Caja); la pantalla del cierre no paga la consulta. A la vez que el resto.
+    opciones.esperadoALaVista ? Promise.resolve(false) : arqueoCiegoDelNegocio(tenantId),
   ]);
 
   const previous: LibroMovement[] = previousTotals.map((g, i) => ({
@@ -365,6 +383,10 @@ export async function getCierreDiarioData(
   const deSiempre = buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO });
   const columnas = columnasDelCierre({ tarjetaHabilitada: await tarjetaHabilitada(), tarjetaSeMovio: tarjetaSeMovioEn(deSiempre) });
   const preview = buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO, columnas });
+  // A CIEGAS (cert F7): mismo criterio que `getCajaData` (sin turno abierto y el interruptor
+  // encendido). El esperado del cajón no sale del servidor por esta vía: ni el saldo, ni las partes
+  // que lo reconstruyen, ni el conteo del último turno cerrado.
+  const efectivoACiegas = arqueaACiegas && !abierto;
 
   const hechos: HechosDelCierre | null = !sinCobrar || !repartoSinRendir ? null : {
     ventasSinCobrar: { cantidad: sinCobrar._count._all, monto: Number(sinCobrar._sum.total ?? 0) },
@@ -391,7 +413,8 @@ export async function getCierreDiarioData(
     today,
     lastClosedDay: cerradoHasta,
     since,
-    preview,
+    preview: efectivoACiegas ? sinElEfectivoALaVista(preview) : preview,
+    efectivoACiegas,
     movements: rows.map((r) => ({
       id: r.id,
       day: dateStrInBusinessTz(r.occurredAt),
@@ -408,7 +431,7 @@ export async function getCierreDiarioData(
     columnas,
     puedeCerrar,
     turnoAbierto: abierto ? { quien: await nombreDeActor(prisma, tenantId, abierto.openedBy), hora: fmtTime(abierto.openedAt) } : null,
-    conteoDelTurno: conteoDelTurnoParaElCierre({
+    conteoDelTurno: efectivoACiegas ? null : conteoDelTurnoParaElCierre({
       turno: ultimoTurno?.closedAt
         ? { contado: ultimoTurno.closingCounted, cerradoEl: ultimoTurno.closedAt, quien: await nombreDeActor(prisma, tenantId, ultimoTurno.closedBy) }
         : null,

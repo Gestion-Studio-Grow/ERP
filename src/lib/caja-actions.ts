@@ -49,8 +49,7 @@ import {
   type ConteoACiegas,
 } from "@/lib/caja/apertura-sugerida";
 import { tarjetaHabilitadaPor } from "@/lib/caja/medio-cobro";
-import { ARQUEO_CIEGO } from "@/cambios/interruptores";
-import { estadoDesdeFilas, filtroDeFilasValidas } from "@/cambios/interruptores-core";
+import { arqueoCiegoDelNegocio } from "@/lib/caja/arqueo-ciego";
 
 const CAJA_PATH = "/admin/caja";
 const VENDER_PATH = "/admin/vender";
@@ -94,24 +93,8 @@ function parseAmount(raw: FormDataEntryValue | null): number {
   return l.estado === "ok" ? l.valor : NaN;
 }
 
-/**
- * ¿El negocio abre la caja a ciegas? (interruptor «arqueo-ciego», N2 · M1-C3). La misma lectura
- * que `interruptoresDelNegocio` (sólo filas de la consola), acotada a este interruptor. Si la
- * lectura falla: apagado, la apertura de siempre.
- */
-async function arqueoCiegoDelNegocio(tenantId: string): Promise<boolean> {
-  try {
-    const filas = await prisma.auditLog.findMany({
-      where: { ...filtroDeFilasValidas(tenantId), entityId: ARQUEO_CIEGO },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 1,
-      select: { id: true, entity: true, entityId: true, action: true, actor: true, channel: true, createdAt: true },
-    });
-    return estadoDesdeFilas(filas)[ARQUEO_CIEGO]?.encendido === true;
-  } catch {
-    return false;
-  }
-}
+// ¿El negocio abre la caja a ciegas? → `arqueoCiegoDelNegocio` (caja/arqueo-ciego.ts): la misma
+// lectura la usa `getCierreDiarioData` para no pintar el efectivo al lado del formulario (cert F7).
 
 /** No se graba nada: la apertura necesita el motivo de la diferencia (vuelve como `pideMotivo`). */
 class PideMotivoDeApertura extends Error {

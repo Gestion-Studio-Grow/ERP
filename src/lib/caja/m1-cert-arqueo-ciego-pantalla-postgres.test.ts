@@ -2,6 +2,8 @@
 // se confirma — si cuadra no abre, si no cuadra queda escrito el conteo — y la pantalla Caja ya no
 // muestra ni manda el esperado). (1) lo que mandaba OpenCajaForm: esperado a la vista y confirmado;
 // (2) un esperado inventado en el primer envío revelaba el número sin dejar el conteo escrito.
+// (3) F7 (vuelta 3): el resumen del día de la MISMA pantalla (`getCierreDiarioData`, «Lo que hay ahora» /
+// «Queda») seguía mostrando el efectivo del libro al lado del formulario a ciegas.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio, type NegocioDePrueba, type UsuarioDePrueba } from "@/test/base-efimera";
@@ -17,7 +19,8 @@ test("a ciegas encendido: no se abre con el número del libro sin un conteo cieg
   Object.assign(process.env as Record<string, string | undefined>, { DB_CONNECTION_LIMIT: "4", DB_CONNECT_TIMEOUT_MS: "3000" });
   const duenio = await prismaComoDuenio(laBase);
   const { a, b } = laBase;
-  const { openCashSession } = await import("@/lib/caja-actions");
+  const { openCashSession, getCajaData } = await import("@/lib/caja-actions");
+  const { getCierreDiarioData } = await import("@/lib/cierre-diario-actions");
   const { CAMPO_ESPERADO_CONFIRMADO, esperadoParaElFormulario } = await import("@/lib/caja/esperado-del-cajon");
   const { businessWallTimeToUtc, dateStrInBusinessTz } = await import("@/lib/datetime");
   const form = (c: Record<string, string>) => { const fd = new FormData(); for (const [k, v] of Object.entries(c)) fd.set(k, v); return fd; };
@@ -55,5 +58,33 @@ test("a ciegas encendido: no se abre con el número del libro sin un conteo cieg
       openCashSession(null, form({ openingFloat: "12.000", [CAMPO_ESPERADO_CONFIRMADO]: esperadoParaElFormulario(12_000) })),
     );
     assert.ok(!r2?.ok || (await rastro(b.id)) > 0, `abrió con $12.000 sin motivo tras contar $10.000 a ciegas: ${JSON.stringify(r2)}`);
+  });
+
+  await t.test("(3) F7: el resumen del día de la pantalla Caja, a ciegas y sin turno, no entrega el efectivo del libro", async () => {
+    const caja = await como(a, a.recepcion, () => getCajaData());
+    assert.equal(caja.aperturaACiegas, true, "getCajaData no marcó la apertura a ciegas");
+    assert.equal(caja.esperadoEnElCajon, null, "getCajaData mandó el esperado");
+    // Lo que page.tsx (ResumenDelDia) y CajaRenglon (PorMedio) reciben en el mismo render que OpenCajaForm.
+    const dia = await como(a, a.recepcion, () => getCierreDiarioData());
+    assert.equal(dia.efectivoACiegas, true, "el loader no marcó el efectivo a ciegas");
+    const ef = dia.preview.porMedio.EFECTIVO;
+    assert.deepEqual(
+      { expected: ef.expected, opening: ef.opening, ingresos: ef.ingresos, egresos: ef.egresos },
+      { expected: 0, opening: 0, ingresos: 0, egresos: 0 },
+      "la fila EFECTIVO salió con números: «al abrir + entró − salió» reconstruye el esperado",
+    );
+    assert.equal(dia.preview.porColumna.EFECTIVO.expected, 0);
+    assert.equal(dia.preview.total.expected, 0, "el total incluye el efectivo");
+    assert.equal(dia.conteoDelTurno, null);
+    // Los otros medios siguen como siempre (van al banco; no se cuentan en el cajón).
+    assert.equal(dia.preview.porMedio.MP.expected, 0);
+    // El ataque de la cert: abrir con el número que muestra la pantalla. Ya no es el del libro: no abre.
+    const r = await como(a, a.recepcion, () => openCashSession(null, form({ openingFloat: String(ef.expected) })));
+    assert.ok(!r?.ok, `abrió con el número de la pantalla: ${JSON.stringify(r)}`);
+    assert.equal(await duenio.cashSession.count({ where: { tenantId: a.id } }), 0);
+    // La pantalla del cierre pide el esperado a la vista: ahí sigue (lo decide el dueño si cambia).
+    const cierre = await como(a, a.duenia, () => getCierreDiarioData(undefined, { esperadoALaVista: true }));
+    assert.equal(cierre.efectivoACiegas, false);
+    assert.equal(cierre.preview.porMedio.EFECTIVO.expected, 12_000);
   });
 });

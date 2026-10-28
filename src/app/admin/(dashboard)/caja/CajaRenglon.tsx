@@ -17,6 +17,7 @@ import Link from "next/link";
 import type { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import type { getCajaData } from "@/lib/caja-actions";
 import { esperadoDelCajon } from "@/lib/caja/esperado-del-cajon";
+import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego";
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { frozenDayMessage } from "@/lib/caja/cierre-diario";
 import { fmtShortDate, fmtTime } from "@/lib/datetime";
@@ -58,7 +59,10 @@ function PorMedio({ dia }: { dia: Dia }) {
     return x.ingresos !== 0 || x.egresos !== 0;
   };
   const cajon = preview.porMedio.EFECTIVO;
-  const hayCajon = cajon.opening !== 0 || seMovio("EFECTIVO");
+  // A CIEGAS (cert F7): el loader blanqueó la fila del efectivo y el total. Acá la fila existe
+  // igual —ni «sin movimientos» ni «$0»— y dice que el número se ve al abrir el turno.
+  const aCiegas = dia.efectivoACiegas;
+  const hayCajon = aCiegas || cajon.opening !== 0 || seMovio("EFECTIVO");
   const otros = CASH_METHODS.filter((m) => m !== "EFECTIVO" && seMovio(m));
   const quietos = CASH_METHODS.filter((m) => (m === "EFECTIVO" ? !hayCajon : !seMovio(m)));
   const periodo = !dia.since
@@ -93,7 +97,19 @@ function PorMedio({ dia }: { dia: Dia }) {
           </tr>
         </thead>
         <tbody aria-live="polite">
-          {hayCajon && (
+          {hayCajon && aCiegas && (
+            <tr className="border-b border-line">
+              <th scope="row" className="py-2.5 pr-3 text-left font-medium text-strong">
+                {CASH_METHOD_LABEL.EFECTIVO}
+                <span className="block text-[13px] font-normal text-muted">arqueo a ciegas: contá el cajón sin mirar</span>
+              </th>
+              <td colSpan={3} className="py-2.5 text-right text-muted max-sm:hidden">
+                <span aria-label="no se muestra hasta abrir el turno">—</span>
+              </td>
+              <td className="py-2.5 text-right text-sm font-medium text-muted">{EFECTIVO_SE_VE_AL_ABRIR}</td>
+            </tr>
+          )}
+          {hayCajon && !aCiegas && (
             <tr className="border-b border-line">
               <th scope="row" className="py-2.5 pr-3 text-left font-medium text-strong">
                 {CASH_METHOD_LABEL.EFECTIVO}
@@ -157,7 +173,8 @@ function PorMedio({ dia }: { dia: Dia }) {
             </tr>
           )}
         </tbody>
-        {filas > 1 && (
+        {/* El total incluye el efectivo: a ciegas no se suma a la vista. */}
+        {filas > 1 && !aCiegas && (
           <tfoot>
             <tr className="border-t-2 border-line-strong">
               <th scope="row" className="py-2.5 text-left font-semibold text-strong">

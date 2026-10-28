@@ -132,7 +132,9 @@ test("contra Postgres: caja y medios de M1 (a ciegas, Tarjeta en los dos estados
   assert.equal(cierreTurno?.ok, true);
 
   // ── C2 · C4 · C6 · lo que muestra la hoja ──────────────────────────────────
-  const hoja = await como(a, a.duenia, () => getCierreDiarioData(hoy, { conTurnosSinCerrar: true }));
+  // Lo mismo que pide cierre/page.tsx: con «arqueo-ciego» prendido y sin turno abierto, sin
+  // `esperadoALaVista` el efectivo vendría en blanco (cert F7; eso lo cubre el test «pantalla»).
+  const hoja = await como(a, a.duenia, () => getCierreDiarioData(hoy, { conTurnosSinCerrar: true, esperadoALaVista: true }));
   assert.deepEqual(hoja.columnas, ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"], "Tarjeta aparece: se movió plata por tarjeta en el libro");
   assert.deepEqual(
     hoja.columnas.map((c) => hoja.preview.porColumna[c].expected),
