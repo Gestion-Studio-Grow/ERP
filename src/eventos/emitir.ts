@@ -236,3 +236,112 @@ export async function emitirEvento<T extends TipoEvento, V extends VersionDe<T>>
   );
   return { escrito: true, id: filas[0].id, modo: "payload" };
 }
+
+// ── En lote (F7, CERT-P2 vuelta 5) ────────────────────────────────────────────
+//
+// Una operación masiva (aumento de precios de hasta 2000 productos, la planilla, la lista de la
+// marca, un recuento grande) emite un evento por fila. Uno por uno son tres viajes a la base por
+// evento (candado, dedupe, INSERT): con ~1300 productos la transacción pasaba el tope de 5 s de
+// Prisma y se deshacía entera. En lote son TRES sentencias en total, con el mismo contrato:
+//   · cada evento se valida, se redacta y se arma igual que en `emitirEvento` (`armarSobre`);
+//     si uno no cumple, TIRA antes de escribir nada y la transacción vuelve atrás;
+//   · el MISMO candado por (negocio, clave) que toma `emitirEvento`, uno por clave, en una
+//     sentencia y en orden del hash: una emisión suelta del mismo hecho se pone en fila igual,
+//     y dos lotes no se traban entre sí;
+//   · la misma dedupe (columna, o `payload->>'clave'` en las filas con `clave` NULL; sin
+//     columnas, por el sobre) con `unnest` de las claves: una sola pasada, no una por evento;
+//   · un INSERT … SELECT FROM unnest, con `ON CONFLICT DO NOTHING` si están las columnas.
+// Dentro del lote, una clave repetida sale una vez (la primera); las demás, `duplicado`.
+// Devuelve un resultado por evento, en el orden de entrada.
+
+/** Un evento cualquiera del catálogo (para el lote, que mezcla tipos). */
+export type EventoDelCatalogo = { [T in TipoEvento]: EventoAEmitir<T, VersionDe<T>> }[TipoEvento];
+
+export const SQL_CANDADOS_DEL_LOTE = `SELECT count(*)::int AS n FROM (
+    SELECT pg_advisory_xact_lock(h) AS l FROM (
+      SELECT DISTINCT hashtextextended(k, 0) AS h FROM unnest($1::text[]) AS k ORDER BY 1
+    ) AS orden
+  ) AS candados`;
+
+const LOTE_PEDIDO = `unnest($1::text[], $2::text[], $3::text[]) WITH ORDINALITY AS p("t", "ty", "c", "i")`;
+
+export const SQL_YA_ESTAN_DEL_LOTE = `SELECT p."i"::int AS i FROM ${LOTE_PEDIDO}
+  WHERE EXISTS (SELECT 1 FROM "OutboxEvent" o WHERE o."tenantId" = p."t" AND o."type" = p."ty" AND o."payload"->>'clave' = p."c")`;
+
+export const SQL_YA_ESTAN_DEL_LOTE_CON_COLUMNAS = `SELECT p."i"::int AS i FROM ${LOTE_PEDIDO}
+  WHERE EXISTS (SELECT 1 FROM "OutboxEvent" o WHERE o."tenantId" = p."t" AND o."type" = p."ty" AND o."clave" = p."c")
+     OR EXISTS (SELECT 1 FROM "OutboxEvent" o WHERE o."tenantId" = p."t" AND o."type" = p."ty" AND o."clave" IS NULL AND o."payload"->>'clave' = p."c")`;
+
+export const SQL_INSERTAR_LOTE_CON_COLUMNAS = `INSERT INTO "OutboxEvent" ("id", "tenantId", "type", "payload", "version", "clave")
+  SELECT f."id", f."t", f."ty", f."pl"::jsonb, f."v", f."c"
+  FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::int[], $6::text[]) AS f("id", "t", "ty", "pl", "v", "c")
+  ON CONFLICT ("tenantId", "clave") DO NOTHING
+  RETURNING "id"`;
+
+export const SQL_INSERTAR_LOTE_SIN_COLUMNAS = `INSERT INTO "OutboxEvent" ("id", "tenantId", "type", "payload")
+  SELECT f."id", f."t", f."ty", f."pl"::jsonb
+  FROM unnest($1::text[], $2::text[], $3::text[], $4::text[]) AS f("id", "t", "ty", "pl")
+  RETURNING "id"`;
+
+/**
+ * Emite varios eventos en el outbox, dentro de `tx`, en tres sentencias (candados, dedupe,
+ * INSERT). Mismo contrato que `emitirEvento` por evento; ver el bloque de arriba.
+ */
+export async function emitirEventosEnLote(tx: object, eventos: readonly EventoDelCatalogo[]): Promise<ResultadoEmision[]> {
+  // Primero se arman TODOS: uno que no cumple tira antes de escribir nada.
+  const sobres = eventos.map((ev) => armarSobre(ev as EventoAEmitir<TipoEvento, VersionDe<TipoEvento>>));
+  if (!tieneSql(tx)) return sobres.map(() => ({ escrito: false, motivo: "sin-sql" }) as const);
+  if (sobres.length === 0) return [];
+  const sql = tx;
+  const conColumnas = await outboxConColumnasN2(sql);
+  const modo = conColumnas ? "columnas" : "payload";
+  const duplicado: ResultadoEmision = { escrito: false, motivo: "duplicado", modo };
+  const salida: ResultadoEmision[] = sobres.map(() => duplicado);
+
+  // Una clave repetida en el lote: vale la primera (como dos `emitirEvento` seguidos).
+  const vistas = new Set<string>();
+  const unicos: number[] = [];
+  sobres.forEach((s, i) => {
+    const llave = `outbox:${eventos[i].tenantId}:${s.clave}`;
+    if (vistas.has(llave)) return;
+    vistas.add(llave);
+    unicos.push(i);
+  });
+
+  await sql.$queryRawUnsafe(SQL_CANDADOS_DEL_LOTE, [...vistas]);
+  const yaEstan = await sql.$queryRawUnsafe<{ i: number }[]>(
+    conColumnas ? SQL_YA_ESTAN_DEL_LOTE_CON_COLUMNAS : SQL_YA_ESTAN_DEL_LOTE,
+    unicos.map((i) => eventos[i].tenantId),
+    unicos.map((i) => sobres[i].type),
+    unicos.map((i) => sobres[i].clave),
+  );
+  const previos = new Set(yaEstan.map((f) => unicos[Number(f.i) - 1]));
+  const aEscribir = unicos.filter((i) => !previos.has(i));
+  if (aEscribir.length === 0) return salida;
+
+  const ids = aEscribir.map((i) => sobres[i].id);
+  const tenants = aEscribir.map((i) => eventos[i].tenantId);
+  const tipos = aEscribir.map((i) => sobres[i].type);
+  const filas = conColumnas
+    ? await sql.$queryRawUnsafe<{ id: string }[]>(
+        SQL_INSERTAR_LOTE_CON_COLUMNAS,
+        ids,
+        tenants,
+        tipos,
+        aEscribir.map((i) => JSON.stringify(sobres[i].payload)),
+        aEscribir.map((i) => eventos[i].version),
+        aEscribir.map((i) => sobres[i].clave),
+      )
+    : await sql.$queryRawUnsafe<{ id: string }[]>(
+        SQL_INSERTAR_LOTE_SIN_COLUMNAS,
+        ids,
+        tenants,
+        tipos,
+        aEscribir.map((i) => JSON.stringify({ ...sobres[i].payload, _clave: sobres[i].clave })),
+      );
+  const escritos = new Set(filas.map((f) => f.id));
+  for (const i of aEscribir) {
+    if (escritos.has(sobres[i].id)) salida[i] = { escrito: true, id: sobres[i].id, modo };
+  }
+  return salida;
+}
