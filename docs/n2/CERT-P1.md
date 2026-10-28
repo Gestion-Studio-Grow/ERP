@@ -1,4 +1,4 @@
-Veredicto final: **CON OBSERVACIONES** — sin fallas alta/media; 1 falla baja abierta.
+Veredicto final: **CERTIFICA** (vuelta 3, al pie) — sin fallas abiertas; queda la verificación con Postgres real. La vuelta 2 fue CON OBSERVACIONES (1 falla baja, corregida en `57a7176`).
 
 # Certificación · Tanda P1 — Conexiones y secretos por negocio
 
@@ -78,3 +78,147 @@ Commits: `57a7176` reconexión · `573fa1d` estado de MP · `e1cc40a` maxDuratio
 - **RLS**: PGlite corre todo como superusuario, que se saltea las políticas.
 - **El camino completo del reenvío** (insert → `P2002` → reclamo en otra transacción): después de un error dentro de una transacción, las respuestas de PGlite por socket se desfasan. El reclamo da `count` 1 dos veces y `findFirst` null. Por eso fallan acá `ADV-dedupe`, la dedupe de `conexiones-postgres` y P1-C5 en `webhooks-por-conexion`. Lo que sí se comprobó por separado en PGlite: el duplicado dispara `P2002`, y el reclamo por lease marca una sola vez (`count` 1 y después 0, `intentos` 2). `ADV-C2` pasa en 3 de 4 corridas por la misma inestabilidad.
 - Por eso los 9 adversariales y las suites de base tienen que volver a correr contra el Postgres del arnés (CI). En particular, las aserciones de `ADV-reconexion-misma-cuenta` posteriores al rechazo de B quedaron detrás de un error en PGlite.
+
+## Certificador — vuelta 3
+
+Veredicto final: CERTIFICA
+
+Se miró sólo lo corregido: `57a7176` · `573fa1d` · `e1cc40a` · `82fae3a` (y el texto de `b165306`). Sin `.env`, sin
+Neon, sin Mercado Pago ni Meta: base PGlite en memoria con el script del ingeniero.
+
+### Fallas reales
+Ninguna.
+
+### Cómo se intentó refutar cada cierre
+
+**Reconexión (`57a7176`)** — leído `crearConexion` (`src/integraciones/conexiones.server.ts:216-296`) y atacado con 5
+tests propios. Están en el scratchpad del certificador, no en el repo: `cert3-sin-errores.test.ts` y
+`cert3-robo.test.ts`. Corridos con `node scripts/qa/p1-pglite.mjs <archivo>`, salieron **5/5**.
+- **Robar una cuenta de otro negocio (CERT3-robo).** B pide a la vez la cuenta *desconectada* de A (X) y la *activa*
+  (Y). Resultado: `cuenta_en_uso` las dos veces. Las filas y los sobres de A quedan idénticos a la foto previa
+  (`rutaHash`, `estado`, `tokenVersion`, `sealed`). La conexión MP de B sigue `conectada`: el `updateMany` que
+  desconecta a las demás se revierte con el alta fallida. B no gana filas ni credenciales. El token vigente de A sigue
+  resolviendo. Por código: la búsqueda filtra por `tenantId` explícito (además del proxy y de RLS), así que no puede
+  devolver la fila de otro negocio aunque RLS no esté.
+- **Dos activas de la misma cuenta (CERT3-swap, CERT3-mezcla, CERT3-cred).**
+  - MP X → Y → X: siempre queda una sola activa, la reconectada. Mueren el token de Y y el viejo de X.
+    `conexionDelNegocio` devuelve X. `tokenVersion` pasa a 1.
+  - Reconectar X y dar de alta Z a la vez: una sola activa, sin errores.
+  - En WhatsApp (`url-de-app`), reconectar dos veces a la vez deja **una** fila por cuenta, y la otra WA de A sigue
+    activa. Además, `@@unique([conector, cuentaExterna])` hace imposible una segunda fila.
+- **Pisar credenciales de otra conexión (CERT3-cred, CERT3-conector, CERT3-swap).**
+  - Siguen byte a byte iguales las credenciales de la otra WA de A, las de la MP de B y las de la WA de A con la
+    *misma* `cuentaExterna` que la MP.
+  - Y, ya desconectada, conserva sus credenciales.
+  - La reconectada queda sólo con las suyas: 1 o 2 filas, sin restos.
+- **Dos reconexiones a la vez.**
+  - El candado `pg_advisory_xact_lock` ahora se toma para todo conector, antes de la búsqueda.
+  - `tenantTransaction` corre en READ COMMITTED (`src/lib/rls.ts:166-167`). La segunda reconexión lee la fila ya
+    confirmada por la primera: actualiza, no inserta.
+  - En PGlite la concurrencia está serializada, así que se probó el resultado, no la carrera.
+
+**`estadoIntegracionMP` (`573fa1d`).**
+- Único llamador: `estadoMercadoPagoAction`, que pasa el negocio actual.
+- `estadoCobrosMP` aplica la misma regla que `configCobrosDesde`: primero la conexión, y el global sólo con
+  `MP_MODO_LEGADO=1`.
+- El test de `pagos-dispatch.test.ts` pasa. Cerrado.
+
+**Lease y `maxDuration` (`e1cc40a`).**
+- Las únicas rutas que pasan por el reclamo de `EventoIntegracion` son esas tres: se buscó todo importador de
+  `entrada.server` y de `mercadopago-dispatch`.
+- `api/webhooks/whatsapp` no usa el lease: deduplica por `wamid`.
+- 120 s + 60 s ≤ 300 s, y lo vigila `entrada.test.ts`.
+- `vercel.json` no pisa `maxDuration`. Cerrado.
+
+**Arnés PGlite (`82fae3a`).**
+- Borra todo `*DATABASE_URL` del entorno hijo y apunta a 127.0.0.1. Correcto.
+- Resultado con el código final: certificación 5/6, conexiones 3/5, webhooks 3/5. Son los mismos números que
+  declaró el ingeniero.
+- **Contraprueba:** se exportó `origin/n2/p1-conexiones` (`eddd362`) a una carpeta temporal y se corrió el mismo
+  script. Fallan **exactamente los mismos casos**:
+  - ADV-dedupe;
+  - P1-C1/C2/C6;
+  - «handler que falla → reenvío»;
+  - los dos P1-C5 de webhooks.
+- La traza confirma el desfase de PGlite: Prisma recibe la fila de `set_config` en lugar de la de `findFirst`. Esta
+  vuelta no los trae.
+
+**tsc y suites sin base.**
+- `tsc --noEmit`: 403 errores en archivos ajenos a P1 (faltan playwright, three, pdf-lib en el `node_modules`
+  compartido). Hay **0** en la zona tocada (`src/app/api`, `src/integraciones`, `src/lib/pagos*`,
+  `src/lib/mercadopago*`, `src/lib/webhooks`, `src/plugins/{mercadopago,whatsapp,arca}`).
+- Suites de la zona: 242/244.
+- Las 2 fallas son guardias estáticas (`redaccion.test.ts`, `contrato.test.ts`) que en Windows arman la ruta
+  `C:\C:\…`. No corrieron sobre este diff. Se suplió a mano: el diff no agrega `console.*`, ni `verificarFirma`, ni
+  `normalizar`, ni `responder` fuera de `contrato.ts`.
+
+### Traspasos
+- **Firma por negocio → S2: el traspaso hoy no tiene dónde caer.** `origin/n2/s2-paquete-gate2` (`1485e30`, cerrada)
+  no tiene nada de esto: ni función `SECURITY DEFINER` ni ningún archivo de ruteo de integraciones. Ya se revisaron
+  `prisma/pending-gate2/` y su README.
+  - **No hace falta columna ni tabla.** Las columnas necesarias ya existen: `IntegracionConexion.conector`,
+    `cuentaExterna`, `estado`, `updatedAt` y `Tenant.modules`. Ya existe también el índice único
+    `(conector, cuentaExterna)`.
+  - **Falta una función.** Si se quiere en la misma ventana del día D, hay que sumar
+    `prisma/pending-gate2/N2_integraciones_ruteo.sql` como paso 6 bis, antes de la re-ejecución de `0001`:
+    - `gsg_conexion_por_cuenta(p_conector text, p_cuenta text) RETURNS TABLE("tenantId" text, id text)`;
+    - `gsg_conexiones_activas(p_conector text, p_tope int)` con `ORDER BY "updatedAt" DESC, id DESC LIMIT p_tope + 1`.
+  - **Cómo se escriben las dos:**
+    - `LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public`.
+    - El filtro es `estado IN ('conectada','con_problemas','requiere_reconectar')` y
+      `p_conector = ANY(t."modules")`.
+    - Se crean con dueño `neondb_owner`. Sirve porque `0001` no usa `FORCE ROW LEVEL SECURITY`.
+    - Llevan `REVOKE ALL … FROM PUBLIC` y `GRANT EXECUTE … TO app_rls`.
+    - No devuelven credenciales: el secreto de firma se sigue abriendo en la transacción de cada negocio candidato.
+    - La reversa al pie es `DROP FUNCTION IF EXISTS` de las dos.
+  - **Cambios en el paquete:**
+    - una fila nueva en el README;
+    - un caso nuevo en `paquete-gate2.test.ts` (existe, y `app_rls` ve sólo id y negocio);
+    - `hayFuncion` en `schema-probe`, para que el código caiga al recorrido por negocio sin la función.
+  - **Alternativa:** si no se reabre S2, el traspaso tiene que tener otro dueño, P5 o P6, que son las tandas que
+    consumen el ruteo, y su propio Gate. «S2» solo, como está escrito, no lo cierra nadie.
+  - **No bloquea el día D:** con el tope de 20 conexiones por conector el código actual alcanza para los negocios
+    de hoy.
+- **Propiedad del `phone_number_id` → P7-C2: existe y es el lugar correcto.**
+  - El texto del plan dice: «Conectar WhatsApp pide `phone_number_id`, token y app secret y valida con una llamada
+    de prueba».
+  - Hay que precisar el criterio en el plan. La llamada tiene que ser `GET /{phone_number_id}` con el token cargado,
+    y la conexión se crea sólo si responde 200 con ese mismo id.
+  - Esa validación tiene que vivir en el servicio, en `crearConexion` o en un paso obligatorio previo, y no sólo en
+    la pantalla. Si no, la CLI, la consola y el alta por OAuth la saltean.
+
+### Observaciones (no bloquean)
+1. **Las conexiones reusadas no son las más recientes.** Al reusar la fila, `createdAt` deja de significar «la más
+   reciente». Lo usan `conexionDelNegocio` y `conexionesDelConector` (`conexiones.server.ts:410,454`). Hoy no tiene
+   efecto: MP tiene una sola activa por negocio, y WA rutea por cuenta. Conviene ordenar por `updatedAt` cuando P6
+   pase WA a `url-por-conexion`.
+2. **Con dos reconexiones a la vez, el primer token ya nace muerto.** Igual que en la vuelta 2 para las altas, sólo
+   resuelve el token de la última. Además, la reconexión rota el token de la URL. Las preferencias en vuelo creadas
+   con el `notification_url` anterior pierden su aviso. No se pierde plata: el `conexionId` se conserva, así que
+   `external_reference` sigue valiendo, y «Sincronizar MP» concilia. P5-C2 tiene que decidir si en la reconexión de
+   la misma cuenta se conserva el token.
+3. **El estado puede decir «conectado» aunque el cobro falle.** `estadoCobrosMP` dice «conectado» con la conexión
+   presente aunque le falte el `access_token` o la KEK, y en ese caso el dispatch falla cerrado. Es sólo un texto de
+   pantalla, para P7-C1.
+4. **La reconexión reactiva una conexión `pausada`.** Hoy nadie la pausa. Que P7 decida si la pausa del operador
+   tiene que resistir la reconexión.
+5. **P6-C1 deja una sola WA por negocio.** Al pasar WA a `url-por-conexion`, el `unaPorNegocio` de `crearConexion`
+   desconectaría la otra WA del mismo negocio. P6 tiene que decidir si un negocio puede tener dos números.
+
+### Verificación pendiente con Postgres real (arnés con `ERP_TEST_PG_URL`, rol `app_rls`; nunca Neon)
+- `node --import tsx --test --test-concurrency=1 src/integraciones/certificacion-p1-postgres.test.ts`: 6/6. En
+  especial:
+  - **ADV-dedupe**;
+  - **ADV-C2**, que en PGlite falla 1 de cada 4 corridas;
+  - y las aserciones de **ADV-reconexion-misma-cuenta** posteriores al rechazo de B.
+- `node --import tsx --test --test-concurrency=1 src/integraciones/conexiones-postgres.test.ts`: 5/5. Ahí están el
+  reenvío → dedupe y el «handler que falla → reenvío lo reclama una vez».
+- `node --import tsx --test --test-concurrency=1 src/lib/webhooks/webhooks-por-conexion-postgres.test.ts`: 5/5. Son
+  los dos P1-C5 con doble envío.
+- **RLS:**
+  - repetir CERT3-robo como `app_rls`: B no ve ni toca la fila de A, y el alta da `cuenta_en_uso` por el índice
+    único, no por la búsqueda;
+  - `node prisma/rls/check-rls-live.mjs` sobre la base del arnés: las 3 tablas E3 con policy.
+- **Concurrencia real:** CERT3-cred y CERT3-mezcla contra Postgres de verdad (dos conexiones de pool). Tiene que
+  quedar una sola fila por cuenta y una sola activa en MP, sin `40P01`.
+- **Llevar al repo:** CERT3-robo y CERT3-cred como regresión en `certificacion-p1-postgres.test.ts`.
