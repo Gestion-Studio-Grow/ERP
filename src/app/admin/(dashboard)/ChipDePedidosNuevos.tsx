@@ -39,6 +39,7 @@ import {
   etiquetaVisibleDelChip,
   hrefDelChip,
   notificacionDelChip,
+  textoCortoDelChip,
   textoVisibleDelChip,
   tituloConPedidos,
   type ConteoDePedidosNuevos,
@@ -114,10 +115,20 @@ export function PedidosNuevos({
     const id = window.setInterval(() => void preguntar(true), REFRESCO_DEL_CHIP_MS);
     const alVolver = () => void preguntar(false);
     document.addEventListener("visibilitychange", alVolver);
+    // Quien toma o avanza un pedido (un formulario o una acción del servidor) no espera al próximo ciclo:
+    // se vuelve a preguntar al rato (una sola vez por tanda de envíos), así el chip y el «(N)» se van enseguida.
+    let tras: number | undefined;
+    const alEnviar = () => {
+      window.clearTimeout(tras);
+      tras = window.setTimeout(() => void preguntar(true), 1500);
+    };
+    document.addEventListener("submit", alEnviar, true);
     return () => {
       vivo = false;
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", alVolver);
+      document.removeEventListener("submit", alEnviar, true);
+      window.clearTimeout(tras);
     };
   }, [consultar, audio]);
 
@@ -177,7 +188,8 @@ export function ChipDePedidosNuevos({ lugar, arriba = "top-14" }: { lugar: "pc" 
         className={`inline-flex min-h-11 min-w-0 items-center gap-2 rounded-full ${tono} px-3.5 text-sm font-semibold tabular-nums hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus`}
       >
         <span aria-hidden className="size-2 shrink-0 rounded-full bg-current" />
-        <span className="truncate">{texto}</span>
+        <span className="truncate sm:hidden">{textoCortoDelChip(conteo, ahora)}</span>
+        <span className="hidden truncate sm:inline">{texto}</span>
       </Link>
       <button
         type="button"

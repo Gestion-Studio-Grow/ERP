@@ -621,6 +621,17 @@ export function textoVisibleDelChip(c: ConteoDePedidosNuevos, ahora: number): st
   return alertaDelChip(c, ahora)?.texto ?? textoDelChipDePedidosNuevos(c, ahora);
 }
 
+/**
+ * El texto corto para el celular (390 px), que no se corta: «1 nuevo · 25 min» o «3 nuevos · 25 min»
+ * (con alerta, la espera del más viejo; sin alerta, sólo la cantidad). El largo va en `sm:` y en el nombre. PURA.
+ */
+export function textoCortoDelChip(c: ConteoDePedidosNuevos, ahora: number): string | null {
+  if (!textoVisibleDelChip(c, ahora)) return null;
+  const cuantos = c.cantidad === 1 ? "1 nuevo" : `${c.cantidad} nuevos`;
+  const alerta = alertaDelChip(c, ahora);
+  return alerta ? `${cuantos} · ${duracionCorta(alerta.minutos)}` : cuantos;
+}
+
 /** El nombre para el lector, arrancando por lo que se VE (con la alerta, si la hay). PURA. */
 export function etiquetaVisibleDelChip(c: ConteoDePedidosNuevos, ahora: number): string | null {
   const texto = textoVisibleDelChip(c, ahora);

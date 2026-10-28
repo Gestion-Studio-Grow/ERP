@@ -30,6 +30,7 @@ import {
   hrefDelChip,
   notificacionDelChip,
   pedidosDeLaTiendaEsperando,
+  textoCortoDelChip,
   textoDelChipDePedidosNuevos,
   textoVisibleDelChip,
   tituloConPedidos,
@@ -102,6 +103,10 @@ test("B1 · pasados 15 min el chip pasa a alerta y dice «esperando hace 25 min�
   // Lo que se ve y con lo que arranca el nombre para el lector.
   assert.equal(textoVisibleDelChip(conteo(2, 12, 130), AHORA), "2 pedidos nuevos · el más viejo hace 12 min", "sin alerta, el texto de siempre");
   assert.equal(textoVisibleDelChip(conteo(1, 25, 128), AHORA), "1 pedido nuevo · esperando hace 25 min");
+  // A 390 px el largo se cortaba («esperando hac…»): el corto no se corta y conserva la espera.
+  assert.equal(textoCortoDelChip(conteo(1, 25, 128), AHORA), "1 nuevo · 25 min");
+  assert.equal(textoCortoDelChip(conteo(3, 95, 131), AHORA), "3 nuevos · 1 h 35 min");
+  assert.equal(textoCortoDelChip(conteo(2, 12, 130), AHORA), "2 nuevos", "sin alerta, sólo la cantidad");
   assert.equal(etiquetaVisibleDelChip(conteo(1, 25, 128), AHORA), "1 pedido nuevo · esperando hace 25 min. Pedidos de la tienda: abrir el #128");
   assert.equal(etiquetaVisibleDelChip(conteo(2, 12, 130), AHORA), etiquetaDelChipDePedidosNuevos(conteo(2, 12, 130), AHORA));
   assert.equal(textoVisibleDelChip(conteo(0, 0, null), AHORA), null);
