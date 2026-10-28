@@ -1,4 +1,4 @@
-Veredicto final: NO CERTIFICA (vuelta 6 del ingeniero arriba, pide CERTIFICA · vuelta 5: F7 media, un evento por fila tumba por tiempo el aumento de precios, la planilla y el recuento grandes; F6 cerrada; ver dictamen vuelta 5 al final)
+Veredicto final: CON OBSERVACIONES (vuelta 6: F7 cerrada, O-v5-1…5 cerradas; O-v6-1 baja, la dedupe del lote sin N2_hub lee el outbox de todos los negocios; ver dictamen vuelta 6 al final)
 
 # Dictamen de certificación — Tanda P2 (catálogo de eventos v1 y emisión desde el Core)
 
@@ -604,3 +604,171 @@ traer las líneas viejas de P2 (FK RESTRICT, TARJETA):
    dentro del tope de 5 s, después del arreglo.
 5. QA clic por clic en `magra`: avanzar, entregar, abrir y cerrar caja, cerrar el día, cambiar un precio, crear una
    ficha y ajustar stock. Tiene que quedar una fila por hecho en `OutboxEvent`.
+
+---
+
+# Vuelta 6 · certificador · f152f46..55ce45a (n2/p2-eventos)
+
+Alcance: sólo lo que pidió la vuelta 5. Es decir, F7 (`emitirEventosEnLote` y sus usos en `del-core.ts`, `ledger.ts` y
+`adjustment-insert.ts`) y O-v5-1…O-v5-5. Base: PGlite (nunca Neon, sin `.env`). Fecha 2026-10-28.
+Mis tests están en el scratchpad de la sesión (`…/scratchpad/cert-p2-v6/`) y no van al repo:
+- `v6-lote-postgres.test.ts`
+- `v6-redaccion.test.ts`
+- `dedupe-medida.mjs` (PGlite en el mismo proceso, sin Prisma)
+
+`git diff` quedó limpio: no se tocó código.
+
+## Verificación
+- `tsc --noEmit`: 403 errores, los mismos de antes. Ninguno está en los `.ts` tocados en `f152f46..HEAD`. [VERIFICADO]
+- Unitarios de `src/eventos`, `stock`, `caja`, `clientes`, `catalogo`, `supermercado`, `debts`, `multilocal`,
+  `settlement`, `cierre*` y `order*`: 998 tests, 993 pasan, 5 salteados, 0 fallan. Coincide con lo que dice el
+  ingeniero. [VERIFICADO]
+- PGlite del repo (`emitir`, `vuelta4`, `vuelta5` y `vuelta6-postgres`): 4 de 4 pasan. En `vuelta6`, el aumento de 2000
+  productos tardó 776 ms sin N2_hub y 704 ms con N2_hub. Antes de la corrección eran 5,0 s y la transacción vencía
+  (`expired transaction`). [VERIFICADO]
+- Regla vigente «un pedido cancelado no emite `pedido.cobrado`»: corrí de nuevo mi `v5-eventos-postgres` y pasa 1 de 1
+  en los dos modos. Después de anular el pedido:
+  - el fiado devuelve `entregado: false`;
+  - el cobro tira `CobroDePedidoAnulado`;
+  - el último evento del pedido es `pedido.cancelado@1`. [VERIFICADO]
+
+## Intentos de refutación (cerrados)
+- **El lote contra el camino uno por uno** (`v6-lote-postgres`, en los dos modos de la base). Probé los mismos 4 eventos
+  por los dos caminos: `producto.actualizado` ×2, `stock.ajustado` con teléfono y email en palabras dentro del motivo,
+  y `stock.bajo` con un sustituto suelto en el nombre.
+  - **Mismo sobre.** Sacando `id` y `ocurridoEn`, el sobre es igual por los dos caminos: los mismos tipos, `version`,
+    `clave` y `_clave` sin columnas, la misma redacción y el mismo saneo.
+  - **Mismo orden de entrada.** Cada resultado del lote lleva el `id` de la fila escrita para ese evento.
+  - **Sin duplicados.**
+    - Reemitir los 8 eventos (4 de cada camino) en un lote da 8 `duplicado` y ninguna fila nueva.
+    - Una emisión suelta después del lote también da `duplicado`.
+    - Un lote con el mismo evento 500 veces escribe 1 fila.
+  - **Dos negocios en el mismo lote** con la misma clave escriben una fila cada uno.
+  - **No queda nada a medias.**
+    - Si la transacción vuelve atrás después del lote, no queda ninguna fila.
+    - Si la base da un error después del lote (`1/0`), tampoco queda ninguna.
+  - **Lote vacío:** devuelve `[]`. [VERIFICADO]
+- **El orden entre filas no es un contrato en ninguno de los dos caminos.** Todas las filas de la transacción tienen el
+  mismo `createdAt` (`now()`), y el `id` es aleatorio. Con N2_hub, la posición física (`ctid`) del lote sale distinta de
+  la de entrada, porque reusa el espacio que liberó el backfill. Por eso no hay orden que perder.
+- **Ningún camino masivo sigue emitiendo por fila.** Revisé con `grep` todos los `emitir*` y `recordMovement` que están
+  dentro de un bucle:
+  - Aumento, planilla y lista de la marca: emiten **una vez** por llamada, por `emitirProductosActualizados` en lote.
+  - Recuento y merma (`ajustarEnTx`): juntan los eventos y los emiten en lote al final (`adjustment-insert.ts:227`).
+  - Compras (`COMPRA`) y la entrada del traslado (`REPOSICION`) no generan eventos ni consultas: el lote vacío vuelve
+    antes de tocar la base.
+  - Quedan por línea, pero acotados y no masivos:
+    - la anulación (`order-anulacion.ts:515`), una venta;
+    - el traslado (`MAX_LINEAS_TRASLADO` = 20);
+    - el despiece, el consumo de insumos de un turno, la venta y la devolución al proveedor. Éstos emiten sólo
+      `stock.bajo`, cuando la línea cruza el mínimo. [VERIFICADO]
+- **Tiempos.**
+  - El aumento de `MAX_FILAS` = 2000 productos en una transacción Serializable, con el tope por defecto, tardó 645 a
+    752 ms en los dos modos, con el outbox del negocio en 0, 20.000 y 50.000 filas. Repetir el mismo lote tardó 470 a
+    670 ms y no escribió ninguna fila nueva.
+  - 2000 candados en una sentencia: 11 a 19 ms.
+  - Medí la dedupe sola, en PGlite en el mismo proceso:
+
+    | Outbox | Lote (2000 claves) | Uno por uno |
+    |---|---|---|
+    | 200.000 filas del negocio, sin N2_hub | 350 ms | 74 ms por clave, ≈ 148 s en total |
+
+    [VERIFICADO]
+- **O-v5-3 cerrada.** Recorrí todo mínimo entre 0,001 y 20 contra ventas de 0,001 a 8,002, con el stock justo en el
+  mínimo, y no se repitió ningún aviso. El cruce real sigue avisando (de 5,1 a 4,9). [VERIFICADO]
+- **O-v5-4 cerrada.** `alta-producto.ts:78`, `order-anulacion.ts:519`, `traslado-core.ts:544` y
+  `despiece-registro.ts:93` son `AJUSTE`, como dice el `cuando`. El test P2-C7, que compara `eventos.md` con el
+  catálogo, pasa. [VERIFICADO]
+- **O-v5-5.** Queda como nota para la PMO, fuera de esta rama, que no toca `main`. Lo acepto.
+- **O-v5-1 y O-v5-2 cerradas** (`v6-redaccion`: 42 de 58; las 16 que fallan son las de la lista que sigue y la de un
+  error de mi test).
+  - Ahora se tapan:
+    - «1155667788,15hs», «1155667788.30», «1155667788.00» y «1155667788,5»;
+    - «DNI 30123456,12 cuotas» y «CUIT 20301234567,50»;
+    - «45678901,15hs» y «155667788,30»;
+    - «11 5566 7788,15hs» y «11-5566-7788,15hs»;
+    - «+5491155667788,15», «(011) 4567-8901,30» y «CUIL 20-30123456-7,50».
+  - Los importes siguen intactos, también «9999999,99», «1250000,00» y «$ 12500000,50».
+  - Los emails en palabras que pedía la vuelta 5 se tapan, con estas variantes:
+    - «[at]/[dot]», «(arroba)/(punto)», en mayúsculas, con «.com.ar» y con un punto real o «gmail. com»;
+    - «juan.perez@gmail punto com».
+  - «la arroba de la planilla» y «vendí 2 arroba y media» quedan como están.
+  - Las entradas armadas para trabar la regex nueva tardan menos de 200 ms.
+
+## Residuales (mi juicio: aceptables, no bloquean)
+- **«DNI 30.123.456,50» (residual declarado).** Lo acepto.
+  - Tiene la forma exacta de $ 30.123.456,50. Para taparlo habría que destapar importes reales, o mirar la palabra de
+    adelante.
+  - Además, sólo pasa con la coma y los centavos pegados, sin espacio, cosa improbable en un motivo.
+  - La misma clase cubre «DNI 7.123.456,50», «DNI 7123456,50» y «tel 4567890,15hs»: 7 dígitos entran en el tope del
+    importe. También «DNI 30,123,456,50» y «tel 1.155.667.788,15», que nadie escribe así.
+  - Mejora opcional, no exigida: si la tirada viene después de «DNI», «CUIT», «CUIL» o «tel», taparla siempre.
+- **Emails ofuscados que siguen en claro:**
+  - «juan.perez @ gmail punto com» (arroba real con espacios y «punto» en palabra);
+  - «juan.perez at gmail dot com» y «{at}/{dot}»;
+  - «juan.perez arroba gmail» y «juan.perez arroba gmail com», sin «punto»;
+  - tres o más espacios, guiones en lugar de espacios, «c o m» y «a r r o b a».
+
+  Son ofuscaciones deliberadas o formas a medias, no lo que escribe un empleado en un motivo. Lo acepto como residual.
+
+## Observación
+### O-v6-1 · baja · sin N2_hub (producción hoy), la dedupe del lote lee el outbox de TODOS los negocios
+- **Dónde.**
+  - `SQL_YA_ESTAN_DEL_LOTE` (`src/eventos/emitir.ts:268`) compara `o."tenantId" = p."t"` como columna del `unnest`, sin
+    ninguna constante.
+  - Desde unas ~50 claves, el planificador deja el índice de `tenantId` y hace un `Seq Scan on "OutboxEvent"` de la
+    tabla entera con Hash o Merge Semi Join.
+  - El outbox no tiene purga: no hay `deleteMany` fuera de `reset-golive-db.ts`. Así que el costo crece con lo que
+    emiten todos los negocios, no con lo del que opera.
+- **Repro.** `node …/cert-p2-v6/dedupe-medida.mjs 2000 500000`: el negocio A tiene 2000 filas y otros 50 negocios
+  suman 500.000.
+
+  | Lote | Plan | Tiempo |
+  |---|---|---|
+  | 1 a 10 claves | por índice | 3 a 8 ms |
+  | 50 claves | `Seq Scan` | 467 a 486 ms |
+  | 2000 claves | `Seq Scan` | 478 a 583 ms |
+
+  Con otros 100.000: 83 ms (lineal). Así, un recuento de 50 líneas de un negocio chico paga una lectura completa del
+  outbox ajeno. Uno por uno eran 50 × ~2 ms.
+- **Impacto.**
+  - Hoy no tumba nada: en Postgres nativo es varias veces más rápido que en WASM.
+  - Pero el costo de cada operación masiva crece sin techo con el uso de la plataforma, y así vuelve F7 por otro lado.
+  - Con RLS sigue leyendo todas las filas: la política filtra después.
+  - Con N2_hub el plan cambia, pero tampoco usa una constante de negocio. Con el outbox casi vacío, el `EXISTS` por
+    `clave` sale como *hashed SubPlan* con `Seq Scan` de la tabla entera. Con un outbox grande, el plan con N2_hub
+    queda [A VALIDAR] en Postgres real: en PGlite, aplicar N2_hub sobre 20.000 a 100.000 filas no terminó.
+- **Arreglo sugerido.**
+  - En la práctica, el lote siempre es de un negocio (lo arman `emitirProductosActualizados` y
+    `emitirEventosDeMovimientos`).
+  - Agrupar por `tenantId` y sumar a las dos consultas `AND o."tenantId" = $4`, o validar que el lote sea de un solo
+    negocio y pasarlo como escalar. Así el plan va por el índice de `tenantId`, o por el UNIQUE con N2_hub, y lee sólo
+    las filas de ese negocio, una vez.
+  - Fijarlo con un test: 2000 filas de A y 100.000 de otros; el lote de 50 no puede tener `Seq Scan`.
+
+## Fuera de alcance (lo declaró el ingeniero; no es falla de P2)
+- **Costo del recuento grande, anterior a P2.**
+  - Con los eventos ya en lote, `ajustarEnTx` tarda 2,0 a 2,3 s con 300 líneas. Con 1000 líneas pasa el tope:
+    «5004 ms passed since the start of the transaction», sin N2_hub, en PGlite.
+  - El lote de eventos pesa unos 75 ms de eso. El resto es `recordMovement`, unas 8 sentencias por línea, que ya estaba
+    antes de P2.
+  - No hay tope de líneas en `stock-adjustment-actions.ts`.
+  - Mi juicio: es un riesgo real para un supermercado que recuenta toda la góndola. Lo tiene que tomar la PMO como
+    tarea propia: un tope de líneas con aviso para partir en tandas, o un ledger en lote como el de los precios.
+  - Con la latencia de Neon, el corte llega bastante antes de las ~700 líneas de PGlite.
+- **Arnés.** En PGlite, una transacción de Prisma que vence por tiempo, o un archivo SQL grande aplicado por `pg`
+  (N2_hub con más de 20.000 filas en el outbox), deja el servidor de PGlite ocupado sin terminar. Por eso medí la
+  dedupe con PGlite en el mismo proceso. Las cifras con más de 50.000 filas pasando por Prisma quedan [A VALIDAR] en
+  Postgres real.
+
+## Lo que no pude verificar
+- RLS con `app_rls` (PGlite es superusuario).
+- Concurrencia real: dos lotes, o un lote y una emisión suelta a la vez, y el orden de los candados en carrera.
+- Varios lotes de 2000 candados en simultáneo contra `max_locks_per_transaction`.
+- El plan con N2_hub y un outbox grande.
+- Los tiempos contra Neon.
+
+Siguen abiertos todos los puntos de «Verificación pendiente con Postgres real» de la vuelta 5. Sumo el plan de la
+dedupe del lote con N2_hub y 1 millón de filas de otros negocios.
+
+Veredicto final: CON OBSERVACIONES — F7 cerrada (2000 productos en ≈0,7 s, el lote ≡ uno por uno en sobre, dedupe y rollback) y O-v5-1…O-v5-5 cerradas; queda O-v6-1 baja: sin N2_hub, la dedupe del lote lee el outbox de todos los negocios desde ~50 claves (`emitir.ts:268`; arreglo: filtrar por la constante del negocio). El recuento de más de ~700 líneas, anterior a P2, pasa a la PMO.
