@@ -340,7 +340,7 @@ function TurnoDeCajero({ caja }: { caja: Awaited<ReturnType<typeof getCajaData>>
         .
       </p>
 
-      {open ? <OpenSession session={open} esperadoDelLibro={caja.esperadoEnElCajon} /> : <ClosedState esperado={caja.esperadoEnElCajon} />}
+      {open ? <OpenSession session={open} esperadoDelLibro={caja.esperadoEnElCajon} /> : <ClosedState esperado={caja.esperadoEnElCajon} aCiegas={caja.aperturaACiegas} />}
 
       {recentClosed.length > 0 && (
         <div className="mt-8">
@@ -374,7 +374,7 @@ function TurnoDeCajero({ caja }: { caja: Awaited<ReturnType<typeof getCajaData>>
 }
 
 // --- Estado vacío: no hay caja abierta → apertura ---
-function ClosedState({ esperado }: { esperado: number | null }) {
+function ClosedState({ esperado, aCiegas }: { esperado: number | null; aCiegas: boolean }) {
   return (
     <Card>
       <CardHeader>
@@ -388,7 +388,7 @@ function ClosedState({ esperado }: { esperado: number | null }) {
           Caja cerrada
         </Badge>
       </CardHeader>
-      <OpenCajaForm esperado={esperado} />
+      <OpenCajaForm esperado={esperado} aCiegas={aCiegas} />
     </Card>
   );
 }

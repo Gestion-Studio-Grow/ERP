@@ -241,14 +241,14 @@ function MovimientosDeHoy({ dia }: { dia: Dia }) {
 }
 
 function TurnoDeCajero({ caja, className = "mt-8" }: { caja: Turno; className?: string }) {
-  const { open, recentClosed, esperadoEnElCajon } = caja;
+  const { open, recentClosed, esperadoEnElCajon, aperturaACiegas } = caja;
   let cuerpo: React.ReactNode;
   if (!open) {
     cuerpo = (
       <div className="pt-3">
         <p className="mb-3 text-sm text-muted">No hay un turno abierto. Abrilo con el efectivo con el que arranca el cajón.</p>
         <div className="max-w-sm">
-          <OpenCajaForm esperado={esperadoEnElCajon} />
+          <OpenCajaForm esperado={esperadoEnElCajon} aCiegas={aperturaACiegas} />
         </div>
       </div>
     );

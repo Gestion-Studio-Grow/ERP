@@ -89,6 +89,17 @@ export function aperturaPideMotivo(p: { diferencia: number; motivo: string | nul
   return p.exigido && p.diferencia !== 0 && !p.motivo;
 }
 
+/**
+ * El esperado que la persona VIO al abrir, el que viaja como `esperadoConfirmado` (cert F6). A
+ * ciegas, ninguno hasta que el servidor lo reveló (tras un conteo que no cuadró); sin interruptor,
+ * el que mostró la pantalla (0 en la demo, sin libro). PURA.
+ */
+export function esperadoVistoAlAbrir(p: { aCiegas: boolean; esperado: number | null; revelado: number | null }): number | null {
+  if (p.revelado !== null) return p.revelado;
+  if (p.aCiegas) return null;
+  return p.esperado ?? 0;
+}
+
 /** El texto que acompaña el pedido de motivo: lo contado, lo que dice el libro y la diferencia. PURA. */
 export function textoDelMotivoDeApertura(contado: number, esperado: number): string {
   const d = round2(contado - esperado);

@@ -100,6 +100,13 @@ export async function congelarMesAction(_prev: EstadoAccionCierre, formData: For
         // Se vuelve a mirar adentro de la transacción, con candado por negocio y mes: dos "Congelar"
         // simultáneos (doble clic, dos pestañas) no dejan dos congelados ni dos cierres de caja.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cierre-mes:${tenantId}:${mes}`}))`;
+        // Y el candado de la caja del día (el mismo que toman cerrarDia, reabrirDiaAction y la apertura),
+        // siempre DESPUÉS del del mes (nadie toma los dos en el otro orden: sin abrazo mortal). Congelar
+        // lee la frontera y reabrir el día la mueve: sin esto, las dos a la vez confirmaban y quedaba un
+        // mes congelado con la frontera antes de él (cert M1 F5). El candado sólo no alcanza: la
+        // transacción de reabrir saca su foto ANTES de esperarlo; por eso esto corre en Serializable y el
+        // ciclo lectura↔escritura aborta a una, que en el reintento ve a la otra ya confirmada.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cierre-dia:${tenantId}`}))`;
         if (estadoDesdeAuditoria(await leerAuditoriaCierre(tx, tenantId, mes)).congelado) throw new CambioDeEstadoError();
         // Días sin cerrar SIN movimientos (QA 26/09, vuelta 4): el congelado los cierra acá, en la misma
         // transacción, con la fila que ES la frontera de la caja (frontera-cierre.ts). Así un gasto con
@@ -143,7 +150,7 @@ export async function congelarMesAction(_prev: EstadoAccionCierre, formData: For
           },
         });
       },
-      { tenantId },
+      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
   } catch (e) {
     if (e instanceof CambioDeEstadoError) return { ok: false, error: `${mayuscula(etiquetaDelMes(mes))} ya estaba congelado. Actualizá la página.` };

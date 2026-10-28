@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cuandoFueElCierre, fondoParaElFormulario, tarjetaDeApertura } from "./apertura-sugerida";
+import { cuandoFueElCierre, esperadoVistoAlAbrir, fondoParaElFormulario, tarjetaDeApertura } from "./apertura-sugerida";
 import { leerImporte } from "@/lib/pos-peso";
 
 test("la tarjeta dice cuánto quedó y cuándo: ayer, el día de la semana o la fecha", () => {
@@ -27,4 +27,12 @@ test("el fondo viaja como lo lee el servidor (`leerImporte`: la coma es el decim
     assert.equal(l.estado, "ok");
     assert.equal(l.estado === "ok" ? l.valor : NaN, n);
   }
+});
+
+test("cert F6 · a ciegas la pantalla Caja no manda esperado hasta que el servidor lo reveló", () => {
+  assert.equal(esperadoVistoAlAbrir({ aCiegas: true, esperado: null, revelado: null }), null);
+  assert.equal(esperadoVistoAlAbrir({ aCiegas: true, esperado: 12_000, revelado: null }), null, "a ciegas, aunque llegue un número, no se manda");
+  assert.equal(esperadoVistoAlAbrir({ aCiegas: true, esperado: null, revelado: 12_000 }), 12_000);
+  assert.equal(esperadoVistoAlAbrir({ aCiegas: false, esperado: 12_000, revelado: null }), 12_000);
+  assert.equal(esperadoVistoAlAbrir({ aCiegas: false, esperado: null, revelado: null }), 0, "la demo, sin libro");
 });

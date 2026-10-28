@@ -132,6 +132,16 @@ class PideMotivoDeApertura extends Error {
 class DiaCerradoAlAbrir extends Error {}
 
 /**
+ * A ciegas (cert F6): llegó un esperado «confirmado» sin un conteo a ciegas escrito, y el fondo
+ * coincide con el libro. No se abre (no hubo conteo a ciegas) y el mensaje NO dice el número.
+ */
+class EsperadoVistoSinContarACiegas extends Error {
+  constructor() {
+    super("Con el arqueo a ciegas, la caja se abre contando sin ver lo que dice el sistema. No se abrió: recargá la página y volvé a contar el cajón.");
+  }
+}
+
+/**
  * El primer conteo a ciegas que no cuadró y todavía no terminó en una apertura (N2 · M1-C3): la
  * fila `caja.apertura-a-ciegas` posterior al último turno abierto del negocio. Adentro de la
  * transacción de la apertura. Sólo lectura.
@@ -173,7 +183,7 @@ export async function tarjetaHabilitada(): Promise<boolean> {
 // últimas sesiones cerradas para el histórico. Guard de lectura por `orders:read`.
 export async function getCajaData() {
   await requireCapability("orders:read");
-  if (isDemoSandbox()) return { ...getDemoCajaData(), esperadoEnElCajon: null };
+  if (isDemoSandbox()) return { ...getDemoCajaData(), esperadoEnElCajon: null, aperturaACiegas: false };
   const tenantId = await getCurrentTenantId();
   const [open, recentClosed] = await Promise.all([
     prisma.cashSession.findFirst({
@@ -192,11 +202,13 @@ export async function getCajaData() {
   // en el cajón» (`esperadoDelCajon`, esperado-del-cajon.ts) y el formulario lo devuelve al
   // grabar, así lo confirmado y lo asentado son el mismo número. Con o sin turno abierto: al
   // abrir también se cuenta contra él.
-  const esperadoEnElCajon: number | null = await tenantTransaction(
-    (tx) => saldoEfectivoDelLibro(tx, tenantId, finDelDiaDelNegocio(new Date())),
-    { tenantId },
-  );
-  return { open, recentClosed, esperadoEnElCajon };
+  // A CIEGAS (interruptor «arqueo-ciego», cert F6): sin turno abierto, la pantalla Caja abre
+  // contando sin ver el esperado. El número ni viaja a la pantalla: lo dice el servidor si no cuadra.
+  const aperturaACiegas = !open && (await arqueoCiegoDelNegocio(tenantId));
+  const esperadoEnElCajon: number | null = aperturaACiegas
+    ? null
+    : await tenantTransaction((tx) => saldoEfectivoDelLibro(tx, tenantId, finDelDiaDelNegocio(new Date())), { tenantId });
+  return { open, recentClosed, esperadoEnElCajon, aperturaACiegas };
 }
 
 // --- Abrir turno de caja ---
@@ -262,24 +274,31 @@ export async function openCashSession(
       // de las dos y el reintento vuelve a leer, así la diferencia nunca se calcula sobre un
       // saldo viejo.
       const saldoDelLibro = await saldoEfectivoDelLibro(tx, tenantId, finDelDiaDelNegocio(ahora));
-      // Lo que la cajera vio antes de confirmar tiene que ser lo que se asienta: si el libro se
-      // movió mientras contaba, no se abre y se le dice el número nuevo.
-      // A ciegas, el primer envío no trae esperado: no hay nada que confirmar todavía.
-      if (!sinVerElEsperado) {
-        const vigente = esperadoConfirmadoVigente(crudoConfirmado, saldoDelLibro);
-        if (!vigente.ok) throw new Error(vigente.error);
-      }
       const diferenciaContada = round2(openingFloat - saldoDelLibro);
       // Un conteo a ciegas anterior que no cuadró (ya escrito): el motivo se pide aunque éste cuadre,
       // y la apertura lleva los dos números (cert F3: «recontar» al número del libro no lo borra).
       const ciego = aCiegas ? await conteoACiegasPendiente(tx, tenantId) : null;
+      // A ciegas, el esperado sólo se pudo ver si el servidor lo dijo: después de un conteo a ciegas
+      // escrito. Uno que llega SIN ese conteo (una pantalla que lo mostró, un envío a mano, un número
+      // inventado) no se confirma (cert F6): si cuadra, no abre y no se dice nada; si no cuadra, es
+      // un conteo a ciegas más: queda escrito y recién ahí se dice el esperado y se pide el motivo.
+      const vioSinContarACiegas = aCiegas && !sinVerElEsperado && ciego === null;
+      if (vioSinContarACiegas && diferenciaContada === 0) throw new EsperadoVistoSinContarACiegas();
+      const fueACiegas = sinVerElEsperado || vioSinContarACiegas;
+      // Lo que la cajera vio antes de confirmar tiene que ser lo que se asienta: si el libro se
+      // movió mientras contaba, no se abre y se le dice el número nuevo.
+      // A ciegas, el primer envío no trae esperado: no hay nada que confirmar todavía.
+      if (!fueACiegas) {
+        const vigente = esperadoConfirmadoVigente(crudoConfirmado, saldoDelLibro);
+        if (!vigente.ok) throw new Error(vigente.error);
+      }
       if (recuentoACiegasPideMotivo({ ciego, motivo })) {
         // Un recuento que tampoco cuadra y tampoco vio el esperado (otra pestaña) también queda escrito.
-        throw new PideMotivoDeApertura(saldoDelLibro, diferenciaContada, openingFloat, ciego, sinVerElEsperado && diferenciaContada !== 0);
+        throw new PideMotivoDeApertura(saldoDelLibro, diferenciaContada, openingFloat, ciego, fueACiegas && diferenciaContada !== 0);
       }
       // Con diferencia: a ciegas sin haber visto el esperado, o sin motivo → no se graba nada.
-      if (diferenciaContada !== 0 && (sinVerElEsperado || aperturaPideMotivo({ diferencia: diferenciaContada, motivo, exigido: aCiegas }))) {
-        throw new PideMotivoDeApertura(saldoDelLibro, diferenciaContada, openingFloat, null, sinVerElEsperado);
+      if (diferenciaContada !== 0 && (fueACiegas || aperturaPideMotivo({ diferencia: diferenciaContada, motivo, exigido: aCiegas }))) {
+        throw new PideMotivoDeApertura(saldoDelLibro, diferenciaContada, openingFloat, null, fueACiegas);
       }
       const creada = await tx.cashSession.create({
         data: {
@@ -316,6 +335,7 @@ export async function openCashSession(
   } catch (err) {
     if (err instanceof Error && err.message === YA_HAY_CAJA_ABIERTA) return { ok: false, error: YA_HAY_CAJA_ABIERTA, yaAbierta: true };
     if (err instanceof DiaCerradoAlAbrir) return { ok: false, error: err.message };
+    if (err instanceof EsperadoVistoSinContarACiegas) return { ok: false, error: err.message };
     if (err instanceof PideMotivoDeApertura) {
       // A ciegas y sin cuadrar: el conteo queda escrito ANTES de revelar el esperado (cert F3). Es la
       // fila que después obliga al motivo y deja los dos números en la apertura.
