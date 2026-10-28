@@ -1,0 +1,221 @@
+-- ============================================================================
+-- N2_hub — Hub de automatizaciones: API keys, webhooks salientes, plantillas de WhatsApp
+--          y versión/clave del outbox (paso 3 de 7 del paquete Gate 2)
+-- PREPARADA, NO APLICADA · Gate 2 (toca Neon prod → decisión del dueño, D-01) · ADR-018
+-- ============================================================================
+--
+-- QUIÉN LA USA: P2 (OutboxEvent.version / OutboxEvent.clave: catálogo de eventos v1 con
+-- clave de deduplicación por negocio) · P3 (WebhookSuscripcion + EntregaWebhook: webhooks
+-- salientes firmados; índice del despachante) · P4 (ApiKey con alcances) · P6
+-- (PlantillaWhatsapp por conexión). Diseño: PLAN-REINGENIERIA-N2 §4.1.2–§4.1.6 y §4.3.
+--
+-- ADITIVA: crea 4 tablas y agrega 2 columnas al OutboxEvent (una con DEFAULT 1, otra
+-- NULLABLE) + 2 índices. No toca columnas existentes ni borra nada. Los eventos de ARCA de
+-- hoy siguen igual (version=1, clave=NULL; los NULL no chocan en el UNIQUE).
+-- IDEMPOTENTE: IF NOT EXISTS en tablas/columnas/índices y guardas DO para las FKs.
+-- Corre en UNA transacción (BEGIN/COMMIT): si algo falla no queda a medias.
+--
+-- TOLERANCIA DEL CÓDIGO (sin aplicar): src/lib/schema-probe → hayTabla("ApiKey") false =
+-- P4 sigue con la clave por variable de entorno; hayTabla("WebhookSuscripcion") false = el
+-- despachante sólo atiende conectores; hayTabla("PlantillaWhatsapp") false = catálogo en
+-- código; hayColumna("OutboxEvent","clave") false = sin dedupe por clave (como hoy).
+--
+-- Convención de nombres = la de Prisma (Modelo_col_idx / _key / _fkey) para que
+-- `prisma db pull` coincida con los modelos comentados de schema.prisma (marca `// N2:`).
+-- Plata: no hay montos en este archivo.
+-- ============================================================================
+
+BEGIN;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- §1 · ApiKey — claves de la API pública con alcances (P4, §4.1.4)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- `prefijo`: parte visible ("gsg_live_ab12cd"), ÚNICA en toda la base porque la búsqueda
+-- se hace ANTES de saber el negocio (como IntegracionConexion.rutaHash). `hash`: sha256 de
+-- la clave completa (la clave se muestra una sola vez y no se guarda). `alcances`:
+-- "pedidos:escribir", "turnos:leer"… Revocada = `revocadaEn` no nula.
+-- ⚠️ Para P4: con la app como `app_rls` la RLS esconde la fila hasta setear el negocio; la
+-- búsqueda por prefijo necesita el camino de resolución previo al contexto (ver cómo resuelve
+-- hoy `rutaHash`). Anotado como deuda de P4, no de este archivo.
+CREATE TABLE IF NOT EXISTS "ApiKey" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "nombre" TEXT NOT NULL,
+    "prefijo" TEXT NOT NULL,
+    "hash" TEXT NOT NULL,
+    "alcances" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "expiraEn" TIMESTAMP(3),
+    "ultimoUsoEn" TIMESTAMP(3),
+    "revocadaEn" TIMESTAMP(3),
+    "creadaPor" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ApiKey_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "ApiKey_prefijo_key" ON "ApiKey"("prefijo");
+CREATE UNIQUE INDEX IF NOT EXISTS "ApiKey_hash_key" ON "ApiKey"("hash");
+CREATE INDEX IF NOT EXISTS "ApiKey_tenantId_idx" ON "ApiKey"("tenantId");
+
+DO $$ BEGIN
+  ALTER TABLE "ApiKey" ADD CONSTRAINT "ApiKey_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- §2 · WebhookSuscripcion — a dónde manda el negocio sus eventos (P3, §4.1.6)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Cuelga de una IntegracionConexion (conector "webhook") DEL MISMO negocio: la FK compuesta
+-- (tenantId, conexionId) → IntegracionConexion(tenantId, id) impide apuntar a la conexión de
+-- otro. El secreto de firma vive en IntegracionCredencial(campo="webhook_secret"), no acá.
+-- `eventos`: patrones ("pedido.*", "turno.reservado@1"). 410 del destino → `pausadaEn`.
+CREATE TABLE IF NOT EXISTS "WebhookSuscripcion" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "conexionId" TEXT NOT NULL,
+    "url" TEXT NOT NULL,
+    "eventos" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "activa" BOOLEAN NOT NULL DEFAULT true,
+    "incluyeDatosPersonales" BOOLEAN NOT NULL DEFAULT false,
+    "pausadaEn" TIMESTAMP(3),
+    "motivoPausa" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "WebhookSuscripcion_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "WebhookSuscripcion_tenantId_id_key" ON "WebhookSuscripcion"("tenantId", "id");
+CREATE INDEX IF NOT EXISTS "WebhookSuscripcion_tenantId_idx" ON "WebhookSuscripcion"("tenantId");
+CREATE INDEX IF NOT EXISTS "WebhookSuscripcion_tenantId_activa_idx" ON "WebhookSuscripcion"("tenantId", "activa");
+
+DO $$ BEGIN
+  ALTER TABLE "WebhookSuscripcion" ADD CONSTRAINT "WebhookSuscripcion_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "WebhookSuscripcion" ADD CONSTRAINT "WebhookSuscripcion_tenantId_conexionId_fkey" FOREIGN KEY ("tenantId", "conexionId") REFERENCES "IntegracionConexion"("tenantId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- §3 · EntregaWebhook — un intento de entrega (P3-C5)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Una fila por intento: estado HTTP, duración, respuesta recortada/redactada. `outboxEventId`
+-- nulo = "probar envío" desde la pantalla. DOBLE ENVÍO: el UNIQUE (tenantId, suscripcionId,
+-- outboxEventId, intento) hace que dos workers que toman el mismo evento no registren dos
+-- veces el mismo intento (el segundo INSERT choca → ON CONFLICT DO NOTHING en P3).
+CREATE TABLE IF NOT EXISTS "EntregaWebhook" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "suscripcionId" TEXT NOT NULL,
+    "outboxEventId" TEXT,
+    "evento" TEXT NOT NULL,
+    "intento" INTEGER NOT NULL DEFAULT 1,
+    "estadoHttp" INTEGER,
+    "duracionMs" INTEGER,
+    "respuesta" TEXT,
+    "error" TEXT,
+    "entregadaEn" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "EntregaWebhook_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "EntregaWebhook_tenantId_suscripcionId_outboxEventId_intento_key" ON "EntregaWebhook"("tenantId", "suscripcionId", "outboxEventId", "intento");
+CREATE INDEX IF NOT EXISTS "EntregaWebhook_tenantId_idx" ON "EntregaWebhook"("tenantId");
+CREATE INDEX IF NOT EXISTS "EntregaWebhook_tenantId_suscripcionId_createdAt_idx" ON "EntregaWebhook"("tenantId", "suscripcionId", "createdAt");
+
+DO $$ BEGIN
+  ALTER TABLE "EntregaWebhook" ADD CONSTRAINT "EntregaWebhook_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "EntregaWebhook" ADD CONSTRAINT "EntregaWebhook_tenantId_suscripcionId_fkey" FOREIGN KEY ("tenantId", "suscripcionId") REFERENCES "WebhookSuscripcion"("tenantId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "EntregaWebhook" ADD CONSTRAINT "EntregaWebhook_tenantId_outboxEventId_fkey" FOREIGN KEY ("tenantId", "outboxEventId") REFERENCES "OutboxEvent"("tenantId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- §4 · PlantillaWhatsapp — plantillas aprobadas en Meta, por conexión (P6, §4.3)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- `clave`: nombre interno ("recordatorio_turno"); `nombreMeta`: el aprobado en Meta;
+-- `variables`: mapeo {{1}} → campo. `estado`: pendiente | aprobada | rechazada | pausada.
+CREATE TABLE IF NOT EXISTS "PlantillaWhatsapp" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "conexionId" TEXT NOT NULL,
+    "clave" TEXT NOT NULL,
+    "nombreMeta" TEXT NOT NULL,
+    "idioma" TEXT NOT NULL DEFAULT 'es_AR',
+    "categoria" TEXT NOT NULL DEFAULT 'utility',
+    "variables" JSONB,
+    "estado" TEXT NOT NULL DEFAULT 'pendiente',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PlantillaWhatsapp_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "PlantillaWhatsapp_tenantId_conexionId_clave_idioma_key" ON "PlantillaWhatsapp"("tenantId", "conexionId", "clave", "idioma");
+CREATE INDEX IF NOT EXISTS "PlantillaWhatsapp_tenantId_idx" ON "PlantillaWhatsapp"("tenantId");
+
+DO $$ BEGIN
+  ALTER TABLE "PlantillaWhatsapp" ADD CONSTRAINT "PlantillaWhatsapp_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "PlantillaWhatsapp" ADD CONSTRAINT "PlantillaWhatsapp_tenantId_conexionId_fkey" FOREIGN KEY ("tenantId", "conexionId") REFERENCES "IntegracionConexion"("tenantId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- §5 · OutboxEvent — versión del evento, clave de dedupe e índice del despachante (P2, P3)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- `version`: versión del contrato del evento (pedido.creado@1). DEFAULT 1 → las filas de hoy
+-- quedan en 1 sin reescribir la tabla (default constante: Postgres 11+ no la reescribe).
+-- `clave`: dedupe por negocio (`@@unique(tenantId, clave)`): emitir dos veces el mismo hecho
+-- (doble clic, reintento) deja UN evento. NULL = sin dedupe (los eventos de ARCA de hoy).
+-- Índice (tenantId, processedAt, proximoIntentoEn): la consulta del despachante por negocio.
+ALTER TABLE "OutboxEvent" ADD COLUMN IF NOT EXISTS "version" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "OutboxEvent" ADD COLUMN IF NOT EXISTS "clave" TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS "OutboxEvent_tenantId_clave_key" ON "OutboxEvent"("tenantId", "clave");
+CREATE INDEX IF NOT EXISTS "OutboxEvent_tenantId_processedAt_proximoIntentoEn_idx" ON "OutboxEvent"("tenantId", "processedAt", "proximoIntentoEn");
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- §6 · RLS de las 4 tablas nuevas (misma policy que prisma/rls/0001_enable_rls.sql)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Explícita para que aplicar este archivo PROTEJA las tablas en el mismo acto; el paso 7
+-- (re-ejecutar 0001) la vuelve a poner igual. Idempotente. Fail-closed sin contexto.
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['ApiKey','WebhookSuscripcion','EntregaWebhook','PlantillaWhatsapp']
+  LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', t);
+    EXECUTE format(
+      'CREATE POLICY tenant_isolation ON %I '
+      || 'USING ("tenantId" = current_setting(''app.current_tenant_id'', true)) '
+      || 'WITH CHECK ("tenantId" = current_setting(''app.current_tenant_id'', true))',
+      t
+    );
+  END LOOP;
+END $$;
+
+COMMIT;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- REVERSA (orden inverso; correr en una transacción). Borra los datos de estas tablas:
+-- sólo si el humo falló el mismo día D, antes de que el Hub cargue claves o suscripciones.
+--   BEGIN;
+--   DROP INDEX IF EXISTS "OutboxEvent_tenantId_processedAt_proximoIntentoEn_idx";
+--   DROP INDEX IF EXISTS "OutboxEvent_tenantId_clave_key";
+--   ALTER TABLE "OutboxEvent" DROP COLUMN IF EXISTS "clave";
+--   ALTER TABLE "OutboxEvent" DROP COLUMN IF EXISTS "version";
+--   DROP TABLE IF EXISTS "PlantillaWhatsapp";
+--   DROP TABLE IF EXISTS "EntregaWebhook";
+--   DROP TABLE IF EXISTS "WebhookSuscripcion";
+--   DROP TABLE IF EXISTS "ApiKey";
+--   COMMIT;
+-- Modelos para schema.prisma: bloques `// N2:` (N2_hub) de prisma/schema.prisma.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- — Elaborado por GSG

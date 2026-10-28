@@ -12,7 +12,43 @@ decisión del dueño.
 | `CarniceriaRubro.sql` | `Product.category` + `Product.cost` (nullable) · tabla `ProductBatch` (lotes/envasado al vacío: fecha envasado, vencimiento, peso variable, trazabilidad, FEFO) · tablas `ProcessingRun`/`ProcessingOutput` (despiece con rendimiento y merma) · enums `BatchStatus`/`ProcessingStatus` | Rubro carnicería MAGRA · `docs/preventa/magra/backoffice-carniceria-spec.md` | **Preparada, sin aplicar** · ⚠️ requiere sumar RLS de las 3 tablas de-tenant al aplicar |
 | `ArcaAuthTicket.sql` | Tabla `ArcaAuthTicket` — caché PERSISTENTE y CIFRADA del Ticket de Acceso (TA) de ARCA por tenant. Sin ella, en serverless cada emisión re-loguea contra WSAA y falla con `alreadyAuthenticated`. `token`+`sign` cifrados (envelope, `FISCAL_MASTER_KEY`); `expiration` en claro. Accedida con SQL crudo DEFENSIVO (no en `schema.prisma`) — si no existe, el store degrada a no-op y la emisión igual funciona (a lo sumo re-loguea). | Cierre del círculo fiscal — emisión por la app (ADR-022 §6 · ADR-066) | **Preparada, sin aplicar** · ⚠️ tiene `tenantId` → re-ejecutar `prisma/rls/0001_enable_rls.sql` al aplicar (le pone la policy `tenant_isolation`) |
 
-Mientras no se aplique, la consola de operador funciona con la idempotencia de la saga **en memoria**
+## Paquete del nivel 2 (tanda S2) — se aplica entero, en una ventana, con un solo backup
+
+Runbook: [`docs/runbooks/gate2-nivel2.md`](../../docs/runbooks/gate2-nivel2.md). Orden §4.5 del plan
+nivel 2. Cada archivo es aditivo, idempotente (`IF NOT EXISTS` + guardas `DO`), declara las tandas que
+lo usan y tiene la reversa al pie. Las tablas nuevas tienen FK a `Tenant`, índice por `tenantId` y
+policy `tenant_isolation` (en el archivo y otra vez en el paso 7).
+
+| # | Archivo | Qué agrega | Lo usan | Estado |
+|---|---|---|---|---|
+| 1 | `CarniceriaRubro.sql` (ya estaba) | ver fila de arriba | M3a, M3b | **Preparada, sin aplicar** |
+| 2 | `N2_enums.sql` | `PaymentMethod.TARJETA`, `UserRole.REPARTIDOR`, `UserRole.ENCARGADO` — cada `ADD VALUE` en su paso, sin `--single-transaction` | M1, M6 | **Preparada, sin aplicar** |
+| 3 | `N2_hub.sql` | `ApiKey`, `WebhookSuscripcion`, `EntregaWebhook`, `PlantillaWhatsapp`, `OutboxEvent.version` (default 1) + `.clave` + `@@unique(tenantId, clave)` + índice `(tenantId, processedAt, proximoIntentoEn)` | P2, P3, P4, P6 | **Preparada, sin aplicar** |
+| 4 | `N2_pagos.sql` | `PagoExterno` con `@@unique(tenantId, proveedor, idExterno)`, monto `Decimal(14,2)` ≥ 0. **Decisión S2-C4: `Payment` no se extiende** (atado a turno, Float, sin proveedor) — motivo escrito en el archivo | P5, M2, B3 | **Preparada, sin aplicar** |
+| 5 | `N2_retail.sql` | `Client.limiteCredito`, `Order.cobroVerificadoEn/Por` (nullables). `RegistroFrio` comentada hasta M-8 | M7, M2, M10 | **Preparada, sin aplicar** |
+| 6 | `N2_club_indice.sql` | `ClubReservaIndice` (proyección de la foto del club, droppable) | B1, B2, B8 | **Preparada, sin aplicar** |
+| 7 | `../rls/0001_enable_rls.sql` | re-ejecución: policy en toda tabla con `tenantId` | todas | se re-corre, no se edita |
+
+Modelos en `prisma/schema.prisma`: líneas con prefijo `// N2: ` (comentadas, como el criterio de
+`MustChangePassword`); los 3 valores de enum con `// N2-enum: ` (los encienden M1/M6 con su código:
+ampliar el enum rompe 4 tipos cerrados del dominio). El código pregunta con `src/lib/schema-probe` (`hayTabla`, `hayColumna`,
+`hayValorEnum`, caché por proceso) y cae al camino de hoy si falta algo.
+
+**Verificación (Postgres local efímero, nunca Neon):**
+`GATE2_PG_URL=postgresql://postgres@localhost:5433/postgres node --import tsx --test src/lib/schema-probe/paquete-gate2.test.ts`
+— crea una base, `migrate deploy`, probes en false; aplica 1–7, probes en true y `prisma migrate diff`
+contra el schema con `// N2:` y `// N2-enum:` descomentados = mismo diff que antes del paquete (no agrega diferencias);
+FK/índice/policy de cada tabla nueva y 0001 la repone; dos negocios + doble envío (un solo
+`PagoExterno`, un solo cobro aplicado, RLS); paquete otra vez (idempotente); reversa del pie de cada
+archivo; y de nuevo. Sin `GATE2_PG_URL` se saltea.
+
+Después del día D (tanda propia): descomentar `// N2:`, `prisma generate`, y pasar cada `.sql`
+aplicado a `prisma/migrations/<ts>_n2_*/migration.sql` + `prisma migrate resolve --applied <nombre>`
+para que el historial de Prisma lo conozca sin re-aplicarlo.
+
+## ProvisioningRun sin aplicar
+
+Mientras no se aplique `ProvisioningRun.sql`, la consola de operador funciona con la idempotencia de la saga **en memoria**
 (`src/lib/provisioning/runtime.ts` → `sharedIdempotencyStore`): sobrevive entre requests del mismo
 proceso, se pierde al reiniciar. Suficiente para evitar un doble-submit; no para reanudar entre procesos.
 
