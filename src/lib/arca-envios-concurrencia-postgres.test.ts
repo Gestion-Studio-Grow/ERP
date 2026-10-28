@@ -98,7 +98,7 @@ async function controlar(p: Preparado, tenantId: string, ids: string[], caeAntes
     numerosIgualesAArca: facturas.every((f) => f.cae !== null && porCae.get(f.cae)?.numero === f.numero),
     numerosDeLaBase: facturas.map((f) => f.numero ?? 0).sort((x, y) => x - y),
     numerosEsperados: Array.from({ length: ids.length }, (_, i) => caeAntes + i + 1),
-    enviosAbiertos: await p.duenio.outboxEvent.count({ where: { processedAt: null, tenantId } }),
+    enviosAbiertos: await p.duenio.outboxEvent.count({ where: { processedAt: null, tenantId, type: "InvoiceCreated" } }), // P2: los eventos de dominio (tipo@N) no son envíos a ARCA
   };
 }
 
@@ -245,7 +245,7 @@ test("ENG-019 · 50 de 50 iteraciones: dos ventas simultáneas de A y una de B c
       p.procesarEnviosDelNegocio(a, 20, p.deps),
     ]);
     // Lo que quedó (lo tenía otro despacho cuando éste miró) lo toma la corrida siguiente.
-    for (let resto = 0; resto < 5 && (await p.duenio.outboxEvent.count({ where: { processedAt: null } })) > 0; resto++) {
+    for (let resto = 0; resto < 5 && (await p.duenio.outboxEvent.count({ where: { processedAt: null, type: "InvoiceCreated" } })) > 0; resto++) {
       vueltas.push(await p.processArcaOutbox(20, p.deps));
     }
     const ca = await controlar(p, a, [a1, a2], caeAntes.a);

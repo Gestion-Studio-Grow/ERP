@@ -60,6 +60,7 @@ import { medioPrincipal } from "@/lib/supermercado/pago-mixto";
 import { registrarPromocionesDeLaVentaEnTx } from "@/lib/supermercado/promos-de-la-venta";
 import { CUADERNO_SOLO_VENTA_COBRADA } from "@/lib/cuaderno/hora-de-la-venta";
 import type { Prisma, ProductSaleUnit } from "@/generated/prisma/client";
+import { emitirPedidoCobrado, emitirPedidoCreado } from "@/eventos/del-core";
 
 export type OrderPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
 
@@ -742,6 +743,9 @@ export async function insertOrder(
         // Con pago mixto el libro ya quedó escrito medio por medio: el asiento único de la venta
         // (`imputarVentaEnTx`) sumaría el total entero otra vez en el medio principal.
         const cashSale = datos.pagosMixtos ? undefined : await imputarVentaEnTx(tx, datos, created);
+        // P2 · eventos de dominio, en ESTA transacción (src/eventos/del-core.ts): si fallan, no hay venta.
+        await emitirPedidoCreado(tx, { tenantId, pedidoId: created.id, codigo: created.code, channel: input.channel, fulfillment: input.fulfillment, total: datos.total, lineas: datos.lines, aMano: datos.aMano, clienteId: datos.clientId, claveIdempotencia: clave, ocurridoEn: datos.occurredAt });
+        if (!datos.aCuenta && input.paid) await emitirPedidoCobrado(tx, { tenantId, pedidoId: created.id, codigo: created.code, monto: datos.total, medio: input.paymentMethod, actor: datos.imputarCajaActor, cobradoEn: datos.occurredAt });
         return {
           id: created.id,
           code: created.code,
@@ -1288,6 +1292,7 @@ export async function cobrarPedidoEnTx(
     const problema = validarPagosContraElTotal(mixto, order.total);
     if (problema) throw new RechazoDeDominio(problema);
     await imputarPagosMixtosEnTx(tx, tenantId, { orderId: order.id, orderCode: order.code, asientos: mixto, actor: args.actor });
+    await emitirPedidoCobrado(tx, { tenantId, pedidoId: order.id, codigo: order.code, monto: order.total, medio: args.method, actor: args.actor }); // P2
     return { tipo: "cobrado", order: { id: order.id, code: order.code, total: order.total } };
   }
   await recordCashSaleMovementInTx(tx, tenantId, {
@@ -1298,6 +1303,7 @@ export async function cobrarPedidoEnTx(
     total: order.total,
     actor: args.actor,
   });
+  await emitirPedidoCobrado(tx, { tenantId, pedidoId: order.id, codigo: order.code, monto: order.total, medio: args.method, actor: args.actor }); // P2
   return { tipo: "cobrado", order: { id: order.id, code: order.code, total: order.total } };
 }
 

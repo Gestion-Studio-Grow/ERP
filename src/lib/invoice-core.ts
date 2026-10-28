@@ -23,6 +23,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { centavosDe, sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { buildInvoiceOriginLink, type InvoiceOriginType } from "@/lib/settlement/invoice-origin";
+import { emitirFacturaAutorizada, emitirFacturaRechazada } from "@/eventos/del-core";
 
 /** Cliente de transacción interactiva (mismo patrón que `LedgerTx` en stock/ledger.ts):
  *  `createInvoiceInTx` corre DENTRO de una tx ya abierta por el llamador → componible y
@@ -405,8 +406,8 @@ export async function registerFiscalDocument(
   input: RegisterFiscalDocumentInput,
   envioId: string,
 ): Promise<boolean> {
-  return escribirSiElEnvioSigueAbierto(input.tenantId, envioId, (tx) =>
-    tx.invoice.updateMany({
+  return escribirSiElEnvioSigueAbierto(input.tenantId, envioId, async (tx) => {
+    const r = await tx.invoice.updateMany({
       where: { id: input.invoiceId, tenantId: input.tenantId, status: "PENDING" },
       data: {
         status: "AUTHORIZED",
@@ -416,8 +417,11 @@ export async function registerFiscalDocument(
         tipoComprobante: input.tipoComprobante,
         authorizedAt: new Date(),
       },
-    }),
-  );
+    });
+    // P2 · factura.autorizada@1, además de InvoiceCreated (ARCA no cambia), en esta transacción.
+    if (r.count === 1) await emitirFacturaAutorizada(tx, { ...input });
+    return r;
+  });
 }
 
 /**
@@ -482,11 +486,15 @@ export async function markInvoiceRejected(
   return escribirSiElEnvioSigueAbierto(
     tenantId,
     envioId,
-    (tx) =>
-      tx.invoice.updateMany({
+    async (tx) => {
+      const r = await tx.invoice.updateMany({
         where: { id: invoiceId, tenantId, status: "PENDING" },
         data: { status: "REJECTED", rechazoMotivo: motivo },
-      }),
+      });
+      // P2 · factura.rechazada@1 en esta transacción.
+      if (r.count === 1) await emitirFacturaRechazada(tx, { tenantId, invoiceId, motivo, envioId });
+      return r;
+    },
     motivo,
   );
 }
