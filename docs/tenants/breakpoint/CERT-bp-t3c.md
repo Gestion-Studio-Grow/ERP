@@ -141,3 +141,49 @@ Adversariales A1–A12: 9 de 15 pasan.
 - v7 NO CERTIFICA: la devolución de fechas deja dos fijos en el hueco (Falla 1, MEDIA) y anuncia recuperaciones que no pasan (Falla 2, BAJA).
 
 Veredicto final: NO CERTIFICA
+
+## Respuesta del ingeniero — v8
+
+Base: HEAD `da7a9f69`. Commits: `7ec20279` (arreglo) y `29e76600` (tests). Se cambió sólo `devolverLiberadasPor` en `canchas-core.ts`, con su helper nuevo `quienOcupaElHueco`. El motor no se tocó: el diff contra la base no tiene nada en `src/lib` ni en `public`, así que `ORIGEN.json` y los sha256 siguen iguales. No se mueve plata: la devolución sólo cambia `excepciones` y `liberadasPor`, y baja turnos con `materializarFijos`.
+
+**Falla 1 (MEDIA): CERRADA.** Antes de devolver una fecha, `quienOcupaElHueco` mira quién ocupa el hueco de ese fijo ese día, sin contarlo a él:
+- otro fijo que juega esa fecha (`fijoJuegaEl`, esté o no bajado a la grilla);
+- un turno vivo de la grilla (de un fijo, suelto o vendido en el mostrador);
+- un bloqueo.
+
+Con eso:
+- **Lo ocupa otro fijo:** la entrada de `liberadasPor` se re-apunta a ése (`fijoId = otro.id`). La fecha sigue liberada, no se anuncia y vuelve cuando ése se vaya.
+- **Lo ocupa un turno suelto, una venta del mostrador o un bloqueo:** la fecha sigue liberada, la entrada sale (no hay a quién esperar) y no se anuncia.
+- **Hueco libre:** se devuelve. En la semana a la vista sólo se anuncia si el turno quedó de verdad en la grilla; si no se pudo bajar, la fecha vuelve a quedar liberada.
+
+**Regla de quién recupera (determinística): el fijo más antiguo.** Las entradas se recorren ordenadas por fecha. En la misma fecha manda el orden de `estado.fijos`, que es el orden de alta (`crearFijo` hace `push`; la baja sólo filtra), y el ordenamiento es estable. El primero recupera la fecha. Al siguiente el hueco ya le figura ocupado por ése, y su entrada se re-apunta al que recuperó: si ése se va después, la recupera él. Es la misma regla en la previa y en el comando, en cualquier puesto.
+
+**Falla 2 (BAJA): CERRADA** con el mismo chequeo. La fecha que el mostrador ya vendió no se asigna, así que tampoco se anuncia: no aparece en el mensaje, en `recuperan` de la previa ni en el WhatsApp.
+
+| Caso del dictamen | Test del repo (`canchas-core.test.ts`, bloque «Dictamen v7») | Antes (código v7) | Ahora |
+|---|---|---|---|
+| A11 (Ana se va y dos recuperan la misma fecha) | v8-1: Pedro recupera d(4) y d(5), Juan (el más antiguo) d(6)…d(8). A Pedro esas fechas le quedan liberadas, esperando a Juan; cuando Juan se va, las recupera Pedro | falla | pasa |
+| A10 (Ana a las 22:30 también juega) | v8-2: Juan no recupera ni se le avisa; la entrada pasa a Ana. Cuando Ana libera el d(5), Juan la recupera | falla | pasa |
+| A9b (el mostrador ya vendió) | v8-3: se anuncia y se asigna sólo el d(5); el d(4) queda de Walk In | falla | pasa |
+| A1b (aleatorio) | v8-4: 400 secuencias de 8 pasos (baja, pausa o liberar) sobre Juan pausado y Pedro y Ana heredados, con el tiempo avanzando. Además de los dobles, exige que la previa anuncie lo mismo que el comando, y que cada recuperación anunciada se juegue, que nadie más ocupe el hueco y que, en la semana a la vista, el turno esté en la grilla | **56 dobles nuevos** | **0 dobles, 0 anuncios falsos** |
+
+Para probar que el test detecta la falla, se corrió el bloque v8 contra el `canchas-core.ts` de `da7a9f69`: los 4 fallan y el aleatorio da los mismos 56 dobles del dictamen.
+
+**El archivo de adversariales del certificador** (`cert-v7/v7-fijos.test.ts`) se copió a `src/test/`, se corrió y se borró. Da 13/15: A1b, A9b, A10 y A11 pasan. Siguen fallando dos, ninguno de esta falla:
+- **A3b:** es la observación BAJA de la v7, sólo por comando, y no se tocó.
+- **A9:** se corta en la preparación, porque la guardia de la obs. 1 rechaza la pausa (el dictamen ya dice que el rechazo es correcto).
+
+**Verificación**
+- `npx tsc --noEmit`: 406 errores, los mismos archivos y las mismas cantidades que la línea de base de la v7. Ninguno está en `canchas-core.ts` ni en su test.
+- `canchas-core.test.ts`: 48/48 (el aleatorio tarda unos 26 s).
+- Club + motor (`club/*.test.ts` + `src/lib/club/*.test.ts`): 727 tests, 638 ok, 87 salteados (Playwright o Postgres no instalados) y 2 fallas ajenas. Son las mismas dos de CRLF de la v7: el sha de la copia y el fixture de `anonimizar`.
+- `fijos-postgres.test.ts` sobre PGlite en memoria, sin `.env` y sin `*DATABASE_URL`: 1/1, sin salteo.
+
+**No se tocó** (observaciones BAJA de la v7, fuera de este pedido):
+- la nota de `notaEn` en los botones «Avisar a … que recupera»;
+- el texto «volvería el X, pero el X»;
+- A3b, una pausa por comando con `desde` posterior.
+
+**Sin verificar:**
+- la pantalla «Hecho» en un navegador (Playwright no está instalado);
+- la baja contra un Postgres real con `app_rls` y concurrencia de verdad (PGlite serializa).
