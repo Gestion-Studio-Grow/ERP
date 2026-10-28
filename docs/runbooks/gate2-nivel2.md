@@ -52,11 +52,11 @@ nacen sin el módulo (presets): decisión del dueño pendiente (cert. F6).
 Control después del deploy (a los 10 minutos y al día siguiente), con el rol directo — tiene que dar 0:
 
 ```bash
-psql -X -d "$MIGRATE_DATABASE_URL" -c "SELECT count(*) FROM \"AuditLog\" WHERE entity = 'WebhookMercadoPago' AND action = 'rechazado' AND changes->>'motivo' = 'negocio-sin-mercadopago' AND \"createdAt\" > now() - interval '1 day'"
+psql -X -d "$MIGRATE_DATABASE_URL" -c "SELECT count(*) FROM \"AuditLog\" WHERE entity = 'WebhookMercadoPago' AND action = 'rechazado' AND changes->>'motivo' = 'negocio-sin-mercadopago' AND \"createdAt\" > '<hora del 0 bis, ej. 2026-11-02 08:00-03>'"
 ```
 
 (Con el rol directo dueño de la tabla y sin `0003_force_rls`, ve todos los negocios; si se aplicó
-FORCE, correrla con un rol BYPASSRLS o da 0 falso.) Si da más de 0: esos pagos no se acreditaron solos; reenviarlos desde el panel de MP o «Sincronizar MP»
+FORCE, correrla con un rol BYPASSRLS o da 0 falso.) Si da más de 0: esos pagos no se acreditaron solos; reenviarlos desde el panel de MP o con el botón de sincronizar de Mercado Pago en Facturación → Bancos (`MercadoPagoSync.tsx`)
 del negocio.
 
 ## 1. Respaldo (obligatorio, sin esto no se sigue)
