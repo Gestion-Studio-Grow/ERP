@@ -265,8 +265,13 @@ export function vueltaDelFijo(estado: EstadoClub, f: Fijo, desde: Fecha): { vuel
     if (!v.ok) {
       // Dictamen v8, C1: si lo que ocupa el hueco es el turno YA BAJADO de otro fijo, el choque es con ese fijo (como
       // el que todavía no se bajó): lleva su `fijoId`, para que la fecha se le libere al pausado y espere a ése.
-      const deFijo = ocupanteDeLaGrilla(estado, f, fecha)?.fijo;
-      chocan.push(deFijo ? { fecha, motivo: `se pisa con el fijo de ${deFijo.titular} (${hhmm(deFijo.inicio)})`, fijoId: deFijo.id } : { fecha, motivo: v.motivo ?? "el hueco ya está tomado" });
+      // Dictamen v9, obs. 1: si lo de la grilla es un bloqueo o un turno suelto, detrás puede haber otro fijo que juega
+      // esa fecha sin bajar: el choque es con él (lleva su `fijoId`), así la fecha se le libera al pausado y no figuran
+      // los dos. Obs. 2: la hora es la del turno de la grilla (puede estar movido), no la del fijo.
+      const oc = ocupanteDeLaGrilla(estado, f, fecha);
+      const deFijo = oc?.fijo ?? otroFijoQuePisa(estado, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion }, f.id);
+      const hora = oc?.fijo ? (oc.inicio ?? oc.fijo.inicio) : deFijo?.inicio ?? 0;
+      chocan.push(deFijo ? { fecha, motivo: `se pisa con el fijo de ${deFijo.titular} (${hhmm(hora)})`, fijoId: deFijo.id } : { fecha, motivo: v.motivo ?? "el hueco ya está tomado" });
       continue;
     }
     // Un fijo de otro que juega esa fecha y todavía no se bajó también la ocupa (Falla 1 del dictamen v4).
@@ -507,12 +512,20 @@ function correrBajaFijo(estado: EstadoClub, a: AccionBajaFijo, ahora: Ahora, aut
   // Dictamen v7, A3b (sólo por comando: la hoja pausa desde hoy): una pausa nueva REEMPLAZA a la anterior, así que si
   // arranca después que ella, las fechas del medio vuelven a jugar. Si alguna ya es de otro fijo (la recuperó al
   // pausarse éste, o la juega desde antes), se pisarían: es precondición del comando y se rechaza sin tocar nada.
+  // Dictamen v9, obs. 3: si la fecha del medio la ocupa un turno suelto o un bloqueo, no se rechaza: no vuelve y se dice
+  // (lo cerrado en la v3; la grilla nunca pisa). Se junta acá y va en `chocan` del mensaje.
+  const delMedio: ChoqueDeLaVuelta[] = [];
   if (a.tipo === "pausa" && f.pausa && a.desde > f.pausa.desde) {
     const sinPausa: Fijo = { ...f, pausa: undefined };
     const primera = f.pausa.desde > ahora.fecha ? f.pausa.desde : ahora.fecha;
     for (let fecha = primera; fecha < a.desde && fecha <= f.pausa.hasta; fecha = sumarDias(fecha, 1)) {
       if (!fijoJuegaEl(sinPausa, fecha)) continue;
-      const otro = quienOcupaElHueco(estado, f, fecha)?.fijo;
+      const ocupa = quienOcupaElHueco(estado, f, fecha);
+      if (ocupa && !ocupa.fijo && !fijoBajadoEl(estado, f, fecha)) {
+        const v = validarHueco(estado, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion });
+        delMedio.push({ fecha, motivo: (!v.ok && v.motivo) || "el hueco ya está tomado" });
+      }
+      const otro = ocupa?.fijo;
       if (otro)
         return { ok: false, mensaje: `${f.titular} está pausado desde el ${fechaCorta(f.pausa.desde)}. Si la pausa nueva arranca el ${fechaCorta(a.desde)}, volvería a jugar el ${fechaCorta(fecha)}, y ese día el hueco es del fijo de ${otro.titular} (${enPlural(otro.dia)} ${hhmm(otro.inicio)}): se pisarían. Pausalo desde el ${fechaCorta(primera)}.` };
     }
@@ -520,7 +533,10 @@ function correrBajaFijo(estado: EstadoClub, a: AccionBajaFijo, ahora: Ahora, aut
   // Dictamen v5, Falla 1: si al terminar la pausa el hueco es del fijo de otro y no hay ninguna fecha de vuelta, no se
   // le libera nada (cada repetición le sacaba 8 fechas más) ni se cambia la pausa: se avisa y el estado queda igual.
   // Se prueba sobre una copia sólo si hay otro fijo en ese hueco (lo común es que no haya).
-  if (a.tipo === "pausa" && estado.fijos.some((g) => g.id !== f.id && g.canchaId === f.canchaId && g.inicio < f.inicio + f.duracion && f.inicio < g.inicio + g.duracion)) {
+  // Dictamen v9, obs. 2: también si en la grilla hay un turno de otro fijo en este hueco (movido desde otro horario).
+  const turnoDeOtroFijo = () =>
+    estado.reservas.some((r) => r.estado === "reservada" && !!r.fijoId && r.fijoId !== f.id && r.canchaId === f.canchaId && r.fecha >= ahora.fecha && r.inicio < f.inicio + f.duracion && f.inicio < r.inicio + r.duracion);
+  if (a.tipo === "pausa" && (estado.fijos.some((g) => g.id !== f.id && seSolapan(f, g)) || turnoDeOtroFijo())) {
     const prueba = structuredClone(estado);
     if (darDeBajaFijo(prueba, f.id, opciones, ahora).ok) {
       const fp = prueba.fijos.find((x) => x.id === f.id)!;
@@ -564,7 +580,7 @@ function correrBajaFijo(estado: EstadoClub, a: AccionBajaFijo, ahora: Ahora, aut
     const grilla = vueltaDelFijo(estado, f, sumarDias(a.hasta, 1));
     // Las de la grilla ganan si dicen con qué fijo choca (C1); el motor sólo dice «se pisa con …».
     const chocan: ChoqueDeLaVuelta[] = (res.chocan ?? []).map((c) => grilla.chocan.find((x) => x.fecha === c.fecha && x.fijoId) ?? c);
-    for (const c of grilla.chocan) if (!chocan.some((x) => x.fecha === c.fecha)) chocan.push(c);
+    for (const c of [...grilla.chocan, ...delMedio]) if (!chocan.some((x) => x.fecha === c.fecha)) chocan.push(c);
     // La fecha que choca con el fijo de otro se le libera al pausado: si no, al bajar la ventana se la gana él por
     // orden de la lista y el otro (a quien se la prometieron) la pierde sin aviso. Dictamen v8, C1: también si el turno
     // de ese otro fijo YA está en la grilla (antes los dos figuraban jugando esa fecha, y si el otro la soltaba, éste
@@ -622,12 +638,12 @@ function seSolapan(g: Fijo, h: Fijo): boolean {
  * sigue en la lista; `{ fijo: null }` si es suelto o del mostrador) o un bloqueo (`{ fijo: null }`); `null` si está
  * libre. No mira el horario ni el mantenimiento (eso no es «otro ocupando»). PURA.
  */
-function ocupanteDeLaGrilla(estado: EstadoClub, g: Fijo, fecha: Fecha): { fijo: Fijo | null } | null {
+function ocupanteDeLaGrilla(estado: EstadoClub, g: Fijo, fecha: Fecha): { fijo: Fijo | null; inicio?: number } | null {
   const fin = g.inicio + g.duracion;
   const pisa = (inicio: number, hasta: number) => inicio < fin && g.inicio < hasta;
   const { reservas, bloqueos } = ocupantes(estado, fecha, g.canchaId);
   const turno = reservas.find((r) => r.fijoId !== g.id && pisa(r.inicio, r.inicio + r.duracion));
-  if (turno) return { fijo: (turno.fijoId && estado.fijos.find((h) => h.id === turno.fijoId)) || null };
+  if (turno) return { fijo: (turno.fijoId && estado.fijos.find((h) => h.id === turno.fijoId)) || null, inicio: turno.inicio };
   if (bloqueos.some((b) => pisa(b.desde, b.hasta))) return { fijo: null };
   return null;
 }

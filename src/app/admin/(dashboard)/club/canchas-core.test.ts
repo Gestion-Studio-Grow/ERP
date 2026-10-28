@@ -1325,4 +1325,71 @@ test("BP-101 (cert v4) nuevoFijo no deja pisar a otro fijo en pausa que vuelve m
     assert.ok(n.recuperaciones > 80 && n.c1 > 30 && n.c4 > 10 && n.a3b > 50 && n.grilla > 50, JSON.stringify(n));
     console.log(`v9-8: ${JSON.stringify(n)}`);
   });
+
+  // ── Dictamen v9: las tres BAJA (obs. 1 a 3). Respuesta v10. ──
+
+  test("v10-1 (cert v9 obs. 1, K6) el d(3) bloqueado por torneo y Pedro (heredado) lo juega sin bajar: al acortar Juan, esa fecha se le libera esperando a Pedro; levantado el bloqueo, es de Pedro", () => {
+    const { e, f, P, canchaId, acortar } = conPedro(d(3), { hasta: d(4) } as Partial<Fijo>);
+    const bl = M.bloquear(e, { canchaId, fecha: d(3), desde: 22 * 60, hasta: 23 * 60, motivo: "Torneo" }, AHORA);
+    assert.equal(bl.ok, true);
+    const a = { ...acortar, hasta: M.sumarDias(d(3), -1) };
+    const p = previaBajaFijo(e, a, AHORA);
+    assert.ok(p.ok, !p.ok ? p.mensaje : "");
+    if (!p.ok) return;
+    assert.deepEqual(p.chocan.map((c) => [c.fecha, c.fijoId]), [[d(3), P.id], [d(4), P.id]]);
+    const r = ejecutarBajaFijo(e, a, AHORA);
+    assert.equal(r.ok, true, r.mensaje);
+    assert.match(r.mensaje, /vuelve solo el [^.]*\. No vuelven el .* ni el .*: se pisan con el fijo de Pedro Nuevo \(22:00\)\./);
+    // Lo que se dice es lo que figura: Juan no juega el d(3) y la fecha espera a Pedro.
+    assert.deepEqual([M.fijoJuegaEl(f, d(3)), M.fijoJuegaEl(P, d(3))], [false, true]);
+    assert.ok(f.liberadasPor?.some((x) => x.fecha === d(3) && x.fijoId === P.id), JSON.stringify(f.liberadasPor));
+    // Se levanta el torneo y baja la ventana: el turno es de Pedro, no de Juan.
+    assert.equal(M.quitarBloqueo(e, (bl as { bloqueo?: { id: string } }).bloqueo?.id ?? e.bloqueos.find((b) => b.fecha === d(3))!.id, AHORA).ok, true);
+    M.materializarFijosHasta(e, M.sumarDias(d(3), -3), 14);
+    assert.deepEqual(vivosEn(e, canchaId, d(3)).map((x) => x.fijoId), [P.id]);
+    assert.deepEqual(doblesQueFiguran(e), []);
+  });
+
+  test("v10-2 (cert v9 obs. 2, K2) Juan acotado al d(0) y el turno de Pedro (fijo de las 21) MOVIDO a su hueco, sin fijos solapados: la pausa se rechaza (sin vuelta) y la hora dicha es la del turno movido", () => {
+    const { e, f, canchaId, dia } = base();
+    ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: d(10) }, AHORA);
+    f.hasta = d(0);
+    const otra = e.canchas.find((c) => M.validarHueco(e, { canchaId: c.id, fecha: d(0), inicio: 21 * 60, duracion: 60 }).ok)!.id;
+    const P = M.crearFijo(e, { clienteId: null, canchaId: otra, dia, inicio: 21 * 60, duracion: 60, titular: "Pedro Nuevo", desde: d(0) });
+    M.materializarFijosHasta(e, HOY, 14);
+    const rp = e.reservas.find((x) => x.fijoId === P.id && x.fecha === d(0) && x.estado === "reservada")!;
+    assert.equal(M.mover(e, rp.id, { canchaId, inicio: 22 * 60 }, AHORA).ok, true);
+    assert.deepEqual(vivosEn(e, canchaId, d(0)).map((x) => [x.fijoId, x.inicio]), [[P.id, 22 * 60]]);
+    // La hora es la del turno movido (22:00), no la del fijo de Pedro (21:00).
+    assert.match(vueltaDelFijo(e, { ...f, pausa: undefined }, d(0)).chocan[0]?.motivo ?? "", /^se pisa con el fijo de Pedro Nuevo \(22:00\)$/);
+    const a = { tipo: "pausa" as const, fijoId: f.id, desde: HOY, hasta: M.sumarDias(d(0), -1) };
+    const foto = JSON.stringify(e);
+    const p = previaBajaFijo(e, a, AHORA);
+    assert.ok(!p.ok, p.ok ? p.lineas.join(" | ") : "");
+    if (p.ok) return;
+    assert.match(p.mensaje, /^El hueco es del fijo de Pedro Nuevo desde el .*: Juan Fijo no tiene a qué volver\. Dalo de baja o liberá sólo las fechas que no viene\.$/);
+    const r = ejecutarBajaFijo(e, a, AHORA);
+    assert.equal(r.ok, false);
+    assert.equal(r.mensaje, p.mensaje);
+    assert.equal(JSON.stringify(e), foto, "el rechazo no toca nada");
+  });
+
+  test("v10-3 (cert v9 obs. 3, K3, por comando) A3b contra un turno suelto: la fecha del medio (fuera de la ventana) que vendió el mostrador no vuelve y se dice; las libres vuelven", () => {
+    const { e, f, canchaId } = base();
+    assert.equal(ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: d(5) }, AHORA).ok, true);
+    assert.equal(M.crearReserva(e, { canchaId, fecha: d(3), inicio: 22 * 60, duracion: 60, tipo: "turno", titular: "Walk In" }, AHORA).ok, true);
+    const a = { tipo: "pausa" as const, fijoId: f.id, desde: d(4), hasta: d(5) };
+    const p = previaBajaFijo(e, a, AHORA);
+    assert.ok(p.ok, !p.ok ? p.mensaje : "");
+    if (!p.ok) return;
+    assert.deepEqual(p.chocan.map((c) => [c.fecha, c.fijoId]), [[d(3), undefined]]);
+    assert.ok(p.lineas.some((l) => l.includes(fc(d(3))) && /no vuelve/i.test(l)), p.lineas.join(" | "));
+    const r = ejecutarBajaFijo(e, a, AHORA);
+    assert.equal(r.ok, true, r.mensaje);
+    assert.match(r.mensaje, new RegExp(`No vuelve el ${fc(d(3))}: se pisa con otro turno`));
+    // El mostrador conserva su venta y Juan no se baja encima; Juan juega el d(3) en los papeles pero no figura (lo cerrado en la v3); el d(0) (libre) vuelve a la grilla.
+    assert.deepEqual(vivosEn(e, canchaId, d(3)).map((x) => x.titular), ["Walk In"]);
+    assert.deepEqual(vivosEn(e, canchaId, d(0)).map((x) => x.fijoId), [f.id]);
+    assert.deepEqual(doblesQueFiguran(e), []);
+  });
 }
