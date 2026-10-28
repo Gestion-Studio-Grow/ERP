@@ -239,8 +239,10 @@ export const CATALOGO = {
   "stock.ajustado@1": def({
     tipo: "stock.ajustado", version: 1, familia: "retail", emision: "P2",
     cuando:
-      "recordMovement con tipo AJUSTE (recuento con diferencia, merma; src/lib/stock/ledger.ts), en la transacción del " +
-      "movimiento. El recuento que coincide con el sistema no ajusta nada y no emite",
+      "recordMovement con tipo AJUSTE (src/lib/stock/ledger.ts), en la transacción del movimiento: recuento con diferencia " +
+      "y merma (ajustarEnTx, en lote al final del ajuste), stock inicial del alta de producto (alta-producto.ts), devolución " +
+      "de stock de la anulación (order-anulacion.ts), traslado entre locales (traslado-core.ts) y despiece " +
+      "(despiece-registro.ts). El recuento que coincide con el sistema no ajusta nada y no emite",
     clave: "stock:movimiento:<movimientoId>",
     esquema: e.objeto({ productoId: e.id(), delta: e.numero(), motivo: e.textoLibre(), movimientoId: e.id() }),
     ejemplo: { productoId: "prd_01", delta: -0.8, motivo: "Merma por recorte", movimientoId: "smv_01" },

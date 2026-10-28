@@ -258,7 +258,7 @@ Total: **51 eventos** en el catálogo · **15 emitidos hoy** (P2) · el resto, p
 
 ### `stock.ajustado@1`
 
-- **Cuándo:** recordMovement con tipo AJUSTE (recuento con diferencia, merma; src/lib/stock/ledger.ts), en la transacción del movimiento. El recuento que coincide con el sistema no ajusta nada y no emite
+- **Cuándo:** recordMovement con tipo AJUSTE (src/lib/stock/ledger.ts), en la transacción del movimiento: recuento con diferencia y merma (ajustarEnTx, en lote al final del ajuste), stock inicial del alta de producto (alta-producto.ts), devolución de stock de la anulación (order-anulacion.ts), traslado entre locales (traslado-core.ts) y despiece (despiece-registro.ts). El recuento que coincide con el sistema no ajusta nada y no emite
 - **Emisión:** P2
 - **Clave:** `stock:movimiento:<movimientoId>`
 - **datos:** `{ productoId: id, delta: número, motivo: texto libre (se redacta), movimientoId: id }`
