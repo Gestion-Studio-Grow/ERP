@@ -1,4 +1,4 @@
-Veredicto final: NO CERTIFICA (vuelta 4: F6 media de alcance, P2-C2; sin fallas en el código de la vuelta 4 — ver dictamen vuelta 4 al final)
+Veredicto final: NO CERTIFICA (vuelta 4: F6 media de alcance, P2-C2) · vuelta 5 entregada (d6836e5..7685160), pendiente de recertificar — ver «Respuesta del ingeniero — vuelta 5»
 
 # Dictamen de certificación — Tanda P2 (catálogo de eventos v1 y emisión desde el Core)
 
@@ -18,6 +18,73 @@ Todo corrió en el Postgres 16 local efímero (localhost:5433). Ninguna migraci�
   - `src/lib/arca-envios-concurrencia-postgres.test.ts`: cuenta sólo `InvoiceCreated` como envío a ARCA.
 - Fallas abiertas (todas bajas, redacción de texto libre en P2-C6): soft hyphen U+00AD, separadores de 4+ caracteres,
   DNI con comas, recorte antes de redactar, sobre-enmascarado de números largos.
+
+---
+
+# Respuesta del ingeniero — vuelta 5 · d6836e5..7685160 (n2/p2-eventos)
+
+Pide: CERTIFICA. F6 cerrada instrumentando en P2 todo lo retail que el plan no da por ID y criterio a otra tanda; O-v4-1…O-v4-6 corregidas o fijadas con motivo.
+Base: PGlite (`scripts/qa/p2-pglite.mjs`, nunca Neon, sin `.env`). Fecha 2026-10-28. `prisma/pending-gate2/` sin tocar.
+
+## Commits
+- `2e3cb09` fix · redacción: importes, fechas, emails mal escritos, separadores raros, sustitutos sueltos (O-v4-1…4).
+- `cafe298` feat · ayudantes de emisión (`del-core.ts`, `del-stock.ts`) + regla cobrado/cancelado (O-v4-5).
+- `972571d` feat · `pedido.confirmado/listo/entregado` · `fd86907` feat · `stock.bajo/ajustado` · `c86be88` feat · `producto.actualizado`.
+- `4242bca` feat · `cliente.creado` · `67e6957` feat · `caja.abierta/turno.cerrada/cerrada`.
+- `71763f6` docs · catálogo reetiquetado + `eventos.md` regenerado · `001807f` + `7685160` test · `vuelta5-postgres.test.ts`.
+
+
+## Verificación
+- `tsc --noEmit`: 403 errores, los mismos preexistentes (paquetes que faltan). En los 20 archivos tocados en `d6836e5..HEAD`: 0. [VERIFICADO]
+- Unitarios de lo tocado (`src/eventos`, `stock`, `caja`, `clientes`, `catalogo`, `settlement`, `debts`, `supermercado`, `order*` y los 21 tests que leen el fuente de los archivos tocados): 1108 · 975 pasan · 133 salteados (de base, sin Postgres local) · 0 fallan. [VERIFICADO]
+- `redaccion-v5.test.ts` 31/31 (incluye los textos de `cert-p2-v4/v4-redaccion.test.ts`). El archivo del certificador da 35/40: los 5 que fallan son los residuales aceptados de abajo. [VERIFICADO]
+- PGlite: `vuelta5-postgres` 1/1 (sin y con N2_hub), `emitir-postgres` 1/1, `vuelta4-postgres` 1/1, `producto-de-otro-negocio-sin-rls-postgres` 1/1. `fiado-postgres` falla en «dos entregas a la vez» igual con y sin el cambio de `fiado.ts` (probado volviendo el archivo a HEAD): limitación de PGlite ya anotada en la vuelta 4. [VERIFICADO]
+- El test discrimina: sin la regla del cancelado, `vuelta5-postgres` falla en X1 con `pedido.cancelado@1,pedido.cobrado@1`. [VERIFICADO]
+- `guardia-bundle-cliente`: 19/21, las 2 fallas de Windows de siempre; el árbol real no suma violaciones (ledger.ts → del-stock.ts es puro). [VERIFICADO]
+
+## F6 · P2-C2, evento por evento (retail §7.3)
+| Evento | Destino | Dónde / criterio |
+|---|---|---|
+| `pedido.creado`, `pedido.cancelado`, `pedido.cobrado`, `factura.autorizada`, `factura.rechazada` | P2 (vueltas 1–4) | sin cambios |
+| `pedido.confirmado`, `pedido.listo`, `pedido.entregado` | **P2** | `moverPedidoConEventoEnTx` (CAS + evento en una tx) desde `advanceOrderStatus`, `entregarPedido`, la entrega al fiado (`fiado.ts`) y la venta que nace entregada (`createOrder`, caja con lector). Comercio pasa PENDING→PREPARING: eso es «confirmado» |
+| `stock.bajo`, `stock.ajustado` | **P2** | `recordMovement` (`stock/ledger.ts`, el único mutador; `inventario/*` sólo lee). `stock.bajo` sólo al CRUZAR el mínimo |
+| `producto.actualizado` | **P2** | `registrarCambiosDePrecio` (todos los cambios de precio; `aumento-core.ts` es puro) y `toggleProductActive` |
+| `cliente.creado` | **P2** | `crearFichaEnTx` (Clientes y Vender) |
+| `caja.abierta`, `caja.cerrada` | **P2** | `openCashSession`, `cerrarDia`. Ningún criterio de M1 los nombra. Cubre el QA de P2 «cerrar el día → `caja.cerrada@1`» |
+| `caja.turno.cerrada` (§4.1.2) | **P2** (retail) | `closeCashSession`; el del club queda en B1-C6 / B4-C8 |
+| `pago.acreditado` / `pago.devuelto` | traspaso **P5-C5 / P5-C6** | ingesta MP (archivos de P5) |
+| `deuda.vencida` | traspaso **M7-C6** | «`deuda.vencida@1` desde el barrido»; hoy no existe el barrido |
+| `balanza.lectura` | no se emite | opcional por §7.3; ningún criterio lo pide |
+
+Cada emisión nueva: en la transacción del hecho, clave por hecho, test de rollback y de dedupe en `vuelta5-postgres` (en los dos modos de la base).
+
+**Fuera de la lista de archivos de P2 (sólo líneas de emisión):** `order-actions.ts` (sólo los pasos; el alta pública es de M8), `supermercado/caja-actions.ts`, `clientes/fiado.ts`, `clientes/crear-ficha.ts`, `stock/ledger.ts`, `catalogo/precios-auditoria.ts`, `catalog-actions.ts`. Cambio de forma: cinco `updateMany` sueltos (avanzar, entregar, nace entregada ×2, activar/pausar producto) pasan a una `tenantTransaction` con su evento; el compare-and-set es el mismo.
+
+## Observaciones
+| Punto | Destino | Evidencia |
+|---|---|---|
+| O-v4-2 · la coma tapaba importes (regresión) | **Corregido.** Una tirada con forma de plata (dos decimales al final, o después de `$`) y una fecha quedan; un DNI con comas se tapa. | «1.250,50», «125.000,50», «12500.00», «$ 125.000», «28/10/2026» intactos; «30,123,456» → `******3456` |
+| O-v4-1 · emails mal escritos | **Corregido.** Sin TLD, «gmail. com», espacios alrededor de `@`, «(at)», «＠». Una `@` sin parte local pegada («@magra», «@ las 5») queda. | 11 casos + 5 de no sobre-enmascarar |
+| O-v4-1 · separadores | **Corregido:** `_ ' ’ ´ ~ \| \ • ．` y dígitos `\p{Nd}` (ancho completo, arábigos, matemáticos). **Residual aceptado:** `· * : ;` (separan números en texto común: «18:30», «2*1500») y superíndices. | test fija el residual |
+| O-v4-3 · sustituto suelto tumba la tx | **Corregido.** `bienFormado()` en la redacción y en TODO el sobre (ids, textos, clave). | X5: la anulación pasa y el motivo sale con U+FFFD |
+| O-v4-4 · corte parte la máscara | **Corregido.** | barrido de 480–499 caracteres |
+| O2 · lista «1042, 1043, 1044» | **Sigue aceptado:** tiene la misma forma que «5566, 7788». | test lo fija |
+| O-v4-5 · cobrado después de cancelado | **Regla:** un pedido CANCELLED no emite `pedido.cobrado`; la plata que entra después por su deuda es un cobro de la cuenta corriente (se registra igual). Va en el `cuando` del catálogo. El arreglo de dominio (que la anulación cierre el fiado sin cuentas corrientes) sigue fuera de P2. | X1 en los dos modos |
+| O-v4-6 · `cuando` con el camino ORDER | **Corregido el texto:** el camino vivo es la deuda (RECEIVABLE). | catálogo |
+
+## Paquete de S2 (`N2_hub.sql`)
+La vuelta 5 no cambia nada en `prisma/`. Sigue pendiente copiar al paquete de S2 lo de la vuelta 4: el `UPDATE … SET "clave" = "payload"->>'_clave'` antes del UNIQUE, el `CREATE INDEX "OutboxEvent_tenantId_payloadClave_sinClave_idx" … WHERE "clave" IS NULL`, el pie del PASO POSTERIOR, el `DROP INDEX` de la reversa, la fila 3 del README y el paso 3b del runbook. 🔴 Sin esto, D-01 deja el emisor sin backfill ni índice parcial.
+
+## Huecos del plan para la PMO (no son traspasos firmados)
+- Club: `turno.confirmado`, `clase.*`, `socio.*`, `credito.*` y `buffet.pedido.creado` → P2-C2 los manda a B1, pero ningún criterio de B1 los nombra.
+- `mensaje.recibido` → P6 recibe el webhook (P6-C1), pero ningún criterio nombra el evento.
+- `cliente.creado` desde turnos, reserva pública, pádel, taller, inmobiliaria y lista de espera: ningún criterio lo pide.
+- De la vuelta 4: el límite de texto y renglones de la API pública como criterio nuevo de P4; qué hace P3 con lo acumulado; «no prender P2 sin N2_hub» en la ficha de D-01.
+
+## Lo que NO se pudo verificar
+- **RLS** y **concurrencia real** (PGlite: superusuario, una consulta por vez). En particular, emitir dentro de las transacciones Serializable de la caja y del ledger suma lecturas al outbox: más chances de 40001 y reintento con ventas en paralelo. [A VALIDAR en CI con `app_rls`]
+- Las acciones de servidor no se corrieron de punta a punta (piden sesión): se probó la función del Core que cada una llama, más el test estático de `advanceOrderStatus`. Falta el QA clic por clic.
+- Los milisegundos de Neon.
 
 ---
 
