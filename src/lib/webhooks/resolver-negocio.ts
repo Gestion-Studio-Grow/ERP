@@ -205,20 +205,37 @@ export async function resolverNegocioDelPago(
 
 // ── WhatsApp: phone_number_id → slug ─────────────────────────────────────────
 
-/** `WHATSAPP_PHONE_NUMBERS` (JSON `{ "<phone_number_id>": "<slug>" }`). Roto → mapa vacío. PURA. */
-export function leerTelefonosWA(raw: string | null | undefined): Map<string, string> {
-  const mapa = new Map<string, string>();
-  if (!raw?.trim()) return mapa;
+export type MapaTelefonosWA =
+  | { tipo: "sin-cargar" }
+  | { tipo: "ilegible" }
+  | { tipo: "ok"; mapa: Map<string, string> };
+
+/**
+ * `WHATSAPP_PHONE_NUMBERS` (JSON `{ "<phone_number_id>": "<slug>" }`). PURA.
+ * Vacía o `{}` → `sin-cargar`; JSON roto, no-objeto o una entrada que no es texto → `ilegible`
+ * (el dueño quiso cargar un mapa y quedó mal: no es lo mismo que no cargarlo).
+ */
+export function leerMapaTelefonosWA(raw: string | null | undefined): MapaTelefonosWA {
+  if (!raw?.trim()) return { tipo: "sin-cargar" };
+  let obj: unknown;
   try {
-    const obj = JSON.parse(raw) as unknown;
-    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return mapa;
-    for (const [id, slug] of Object.entries(obj as Record<string, unknown>)) {
-      if (typeof slug === "string" && slug.trim() && id.trim()) mapa.set(id.trim(), slug.trim().toLowerCase());
-    }
+    obj = JSON.parse(raw);
   } catch {
-    return new Map();
+    return { tipo: "ilegible" };
   }
-  return mapa;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return { tipo: "ilegible" };
+  const mapa = new Map<string, string>();
+  for (const [id, slug] of Object.entries(obj as Record<string, unknown>)) {
+    if (typeof slug !== "string" || !slug.trim() || !id.trim()) return { tipo: "ilegible" };
+    mapa.set(id.trim(), slug.trim().toLowerCase());
+  }
+  return mapa.size ? { tipo: "ok", mapa } : { tipo: "sin-cargar" };
+}
+
+/** El mapa de `WHATSAPP_PHONE_NUMBERS`; sin cargar o ilegible → vacío. PURA. */
+export function leerTelefonosWA(raw: string | null | undefined): Map<string, string> {
+  const m = leerMapaTelefonosWA(raw);
+  return m.tipo === "ok" ? m.mapa : new Map();
 }
 
 /** El `phone_number_id` del primer cambio del cuerpo de Meta (`entry[].changes[].value.metadata`). PURA. */
@@ -243,21 +260,26 @@ export function slugDelMensajeWA(payload: unknown, env: Record<string, string | 
   return id ? (leerTelefonosWA(env.WHATSAPP_PHONE_NUMBERS).get(id) ?? null) : null;
 }
 
-type NegocioWA = Pick<NegocioDelWebhook, "id" | "slug">;
+type NegocioWA = Pick<NegocioDelWebhook, "id" | "slug" | "status">;
 export interface DepsNegocioWA {
   porSlug(slug: string): Promise<NegocioWA | null>;
   primerosDos(): Promise<NegocioWA[]>;
 }
 
+export type MotivoSinNegocioWA = "numero-sin-negocio" | "mapa-ilegible" | "negocio-suspendido";
+
 export type NegocioDelMensajeWA =
   | { ok: true; negocio: NegocioWA; via: "mapa" | "negocio-unico" }
-  | { ok: false; slug: string | null };
+  | { ok: false; slug: string | null; motivo: MotivoSinNegocioWA };
 
 /**
  * El negocio de un mensaje entrante de WhatsApp.
  *  - número en `WHATSAPP_PHONE_NUMBERS` → ese negocio;
- *  - variable SIN cargar (mapa vacío) y base con UN solo negocio → ese negocio (compatibilidad de
- *    despliegue de un solo cliente, como Mercado Pago); el llamador avisa al monitor;
+ *  - variable SIN cargar y base con UN solo negocio → ese negocio (compatibilidad de despliegue de
+ *    un solo cliente, como Mercado Pago); el llamador avisa al monitor;
+ *  - variable ILEGIBLE → sin negocio (`mapa-ilegible`), aun con un solo negocio: el llamador
+ *    contesta 503 para que Meta reintente cuando se corrija;
+ *  - negocio suspendido → sin negocio (`negocio-suspendido`), como Mercado Pago;
  *  - cualquier otro caso (número fuera de un mapa cargado, o dos o más negocios) → sin negocio.
  */
 export async function negocioDelMensajeWA(
@@ -265,14 +287,19 @@ export async function negocioDelMensajeWA(
   env: Record<string, string | undefined>,
   deps: DepsNegocioWA,
 ): Promise<NegocioDelMensajeWA> {
-  const slug = slugDelMensajeWA(payload, env);
-  if (slug) {
+  const m = leerMapaTelefonosWA(env.WHATSAPP_PHONE_NUMBERS);
+  if (m.tipo === "ilegible") return { ok: false, slug: null, motivo: "mapa-ilegible" };
+  const id = phoneNumberIdDe(payload);
+  const activo = (n: NegocioWA, via: "mapa" | "negocio-unico"): NegocioDelMensajeWA =>
+    n.status === "SUSPENDED" ? { ok: false, slug: n.slug, motivo: "negocio-suspendido" } : { ok: true, negocio: n, via };
+  if (m.tipo === "ok") {
+    const slug = id ? (m.mapa.get(id) ?? null) : null;
+    if (!slug) return { ok: false, slug: null, motivo: "numero-sin-negocio" };
     const n = await deps.porSlug(slug);
-    return n ? { ok: true, negocio: n, via: "mapa" } : { ok: false, slug };
+    return n ? activo(n, "mapa") : { ok: false, slug, motivo: "numero-sin-negocio" };
   }
-  if (leerTelefonosWA(env.WHATSAPP_PHONE_NUMBERS).size > 0) return { ok: false, slug: null };
   const todos = await deps.primerosDos();
-  return todos.length === 1 ? { ok: true, negocio: todos[0], via: "negocio-unico" } : { ok: false, slug: null };
+  return todos.length === 1 ? activo(todos[0], "negocio-unico") : { ok: false, slug: null, motivo: "numero-sin-negocio" };
 }
 
 // ── Rate limit de los webhooks ───────────────────────────────────────────────

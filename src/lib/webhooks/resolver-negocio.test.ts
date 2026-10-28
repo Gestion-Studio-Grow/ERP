@@ -17,6 +17,7 @@ import {
   resolverNegocioDelPago,
   slugDelMensajeWA,
   negocioDelMensajeWA,
+  leerMapaTelefonosWA,
   type DepsResolverNegocio,
   type NegocioDelWebhook,
 } from "./resolver-negocio";
@@ -118,13 +119,56 @@ test("WhatsApp: sin la variable y con un solo negocio → ese negocio; con dos o
   assert.ok(uno.ok);
   assert.equal(uno.negocio.id, "t-magra");
   assert.equal(uno.via, "negocio-unico");
-  assert.deepEqual(await negocioDelMensajeWA(payload, {}, deps([magra, breakpoint])), { ok: false, slug: null });
-  assert.deepEqual(await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: '{"999":"magra"}' }, deps([magra])), { ok: false, slug: null });
+  assert.deepEqual(await negocioDelMensajeWA(payload, {}, deps([magra, breakpoint])), { ok: false, slug: null, motivo: "numero-sin-negocio" });
+  assert.deepEqual(await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: '{"999":"magra"}' }, deps([magra])), {
+    ok: false,
+    slug: null,
+    motivo: "numero-sin-negocio",
+  });
   const mapa = await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: '{"100000000000001":"breakpoint"}' }, deps([magra, breakpoint]));
   assert.ok(mapa.ok);
   assert.equal(mapa.negocio.id, "t-bp");
   assert.equal(mapa.via, "mapa");
-  assert.deepEqual(await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: '{"100000000000001":"nadie"}' }, deps([magra])), { ok: false, slug: "nadie" });
+  assert.deepEqual(await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: '{"100000000000001":"nadie"}' }, deps([magra])), {
+    ok: false,
+    slug: "nadie",
+    motivo: "numero-sin-negocio",
+  });
+});
+
+// Vuelta 3 (observación de la vuelta 2): la variable ilegible no es «sin cargar».
+test("WhatsApp: WHATSAPP_PHONE_NUMBERS ilegible → mapa-ilegible, aun con un solo negocio (no cae al fallback)", async () => {
+  const payload = { entry: [{ changes: [{ value: { metadata: { phone_number_id: "100000000000001" } } }] }] };
+  for (const roto of ["{roto", "[1]", '"texto"', '{"100000000000001":5}', '{"100000000000001":""}']) {
+    assert.equal(leerMapaTelefonosWA(roto).tipo, "ilegible", roto);
+    assert.deepEqual(
+      await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: roto }, deps([magra])),
+      { ok: false, slug: null, motivo: "mapa-ilegible" },
+      roto,
+    );
+  }
+  // vacía o `{}` = sin cargar: con un solo negocio sigue el fallback
+  for (const vacia of ["", "  ", "{}"]) {
+    assert.equal(leerMapaTelefonosWA(vacia).tipo, "sin-cargar", JSON.stringify(vacia));
+    const r = await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: vacia }, deps([magra]));
+    assert.ok(r.ok && r.via === "negocio-unico", JSON.stringify(vacia));
+  }
+});
+
+// Vuelta 3 (observación de la vuelta 1: «WA no mira status»): un negocio suspendido no procesa, como MP.
+test("WhatsApp: negocio suspendido → negocio-suspendido, por el mapa y por el fallback de negocio único", async () => {
+  const payload = { entry: [{ changes: [{ value: { metadata: { phone_number_id: "100000000000001" } } }] }] };
+  const suspendido = { ...breakpoint, status: "SUSPENDED" };
+  const env = { WHATSAPP_PHONE_NUMBERS: '{"100000000000001":"breakpoint"}' };
+  assert.deepEqual(await negocioDelMensajeWA(payload, env, deps([magra, suspendido])), {
+    ok: false,
+    slug: "breakpoint",
+    motivo: "negocio-suspendido",
+  });
+  assert.deepEqual(await negocioDelMensajeWA(payload, {}, deps([suspendido])), { ok: false, slug: "breakpoint", motivo: "negocio-suspendido" });
+  // TRIAL y ACTIVE siguen procesando
+  const ok = await negocioDelMensajeWA(payload, env, deps([magra, breakpoint]));
+  assert.ok(ok.ok);
 });
 
 test("rate limit: 60 por minuto por IP, el 61 → espera", () => {
