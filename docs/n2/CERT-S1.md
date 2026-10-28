@@ -199,3 +199,105 @@ había corrido el cobro con la app como `app_rls` (`apuntarLaAppA`).
   Vercel. Sin acceso; quedan en PMO-1, PMO-2 y P-1/P-2.
 - QA en el navegador, clic por clic. El paso 1 se cubrió con la acción real en el arnés.
 - Los `adversarial-s1*.test.ts` del certificador. No están en el repo, así que no los corrí.
+
+---
+
+# Vuelta 3 del certificador — 217f1d5..a506d4e (sólo lo corregido y los traspasos)
+
+Veredicto final: CERTIFICA
+
+0 fallas alta/media. Cuatro observaciones bajas que no tocan plata ni aislamiento (abajo). Falta sólo lo que
+PGlite no puede probar: «Verificación pendiente con Postgres real».
+
+## Verificación ejecutada
+- `tsc --noEmit`: 399 errores, todos TS2307/TS7006/TS7031/TS18046/TS2769 fuera de lo tocado; 0 en
+  `src/lib/webhooks`, `src/app/api/webhooks`, `cobros-actions`, `order-core`, `link-de-pago`, `mercadopago*`.
+- Suites sin base (webhooks + plugin MP + cobros): 100 tests, 92 pass, 0 fail, 8 skip (los de Postgres).
+- `webhooks-por-negocio-postgres.test.ts` sobre PGlite en memoria por socket local (127.0.0.1, `sslmode=disable`;
+  nunca Neon, sin `.env`): 7/7.
+- Adversarial propio, en el scratchpad del certificador (`s1v3/`), correr desde `C:/n2s1`:
+  - `adversarial-s1-v3.test.ts` (sin base): 13/13;
+  - `adversarial-s1-v3-postgres.test.ts` (PGlite, con `pglite-runner.mjs`): 3/3.
+
+## Lo que se intentó romper (y no se rompió)
+| Ataque | Resultado | Evidencia |
+|---|---|---|
+| Link manual con `gsg:` en mayúsculas, con espacios o BOM delante | Rechazado (`/^gsg:/i` tras `trim`) | adv. sin base, test 1 |
+| Texto que pasa «tal cual» (`\u200Bgsg:…`, `x gsg:…`, `pedido:gsg:…`, `pedido:x:y`) | Nunca parsea como `gsg:` de otro negocio | adv. sin base, test 2 |
+| A arma un link manual con `pedido:<id de B>` | Sale `gsg:<A>:pedido:<idB>`; el aviso corre en A, `leerPedido` filtra `tenantId` → B intacto, 0 asientos | ADV-1 (PGlite) |
+| Turno en lugar de pedido (`gsg:<s>:turno:pedido`) | Va al handler como id pelado → turno; `leerTurno` filtra `tenantId` (invoice-from-appointment.ts:42-46) | adv. sin base, test 5 |
+| Slug prefijo de otro (`magra` / `magra-2` / `magra-`) | Sin cruce: el `:` delimita y el slug no lo admite | adv. sin base, test 4 |
+| Referencia vacía o malformada (14 variantes, incluido `\n` interno y slug en mayúsculas) | Rechazo con dos negocios; con uno, un `gsg:` malformado o de otro slug no cae al negocio único | adv. sin base, tests 6-7 |
+| Pago reenviado (3 veces) | Siempre el mismo negocio y la misma referencia; el asiento único lo garantiza el cobro (7/7 del ingeniero, serie y paralelo) | adv. sin base, test 11 |
+| Link manual de A con monto menor para saldar su pedido | `monto-distinto`: no cobra | ADV-3 (PGlite) |
+| WhatsApp 503 y 500 | Salen ANTES de `atenderMensaje`: nada escrito, el reintento es seguro. Además `PadelAviso @@unique([tenantId, idExterno])` frena un duplicado | whatsapp/route.ts:76-104; schema.prisma:2917 |
+
+## Cobros en vuelo al publicar
+- **Con un solo `Tenant` en la base:** `pedido:<id>` y el id de turno pelado siguen yendo a ese negocio. Sin riesgo.
+- **Con dos o más:** los links emitidos antes del push no se atribuyen. Contestan 200 sin efecto (ADV-2), con
+  log `referencia-ilegible` y AuditLog sólo si la URL nombra un negocio. **Ninguno se atribuye al negocio
+  equivocado.**
+  - Pedidos: antes de S1 el webhook tampoco los cobraba (comentario viejo de order-core), así que no hay
+    regresión.
+  - Turnos: pierden la factura automática. Antes de S1 la resolvía el host de la única URL de aviso de MP, que
+    es justamente el riesgo R-1.
+  - Es un efecto de una sola vez, documentado en el runbook.
+
+## Ruteo bajo RLS
+Confirmado con el código: la resolución lee sólo `Tenant` (mercadopago-dispatch.ts:185-189;
+whatsapp/route.ts:80-81, `basePrisma`). `Tenant` está excluida de RLS (0001_enable_rls.sql: «EXCLUIDA a
+propósito») y `app_rls` la puede leer (0002_app_role.sql: `GRANT SELECT … ON ALL TABLES`).
+`leerPago` usa `MP_ACCESS_TOKEN` del entorno, no la base (pagos-dispatch.ts:64-71). Todo lo demás corre ya con
+el negocio. S1 no necesita las funciones `SECURITY DEFINER`.
+
+## Traspasos (contra PLAN-REINGENIERIA-N2.md, igual en `da9b8f8` y `origin/main`)
+| Traspaso | Juicio |
+|---|---|
+| Pagos sin referencia → P5-C2/P5-C3 | Correcto: P5-C2 pide token, `notification_url` y referencia por conexión. |
+| Rechazo sin AuditLog → P1-C2/P5-C3 | Correcto: `EventoIntegracion` deduplicado (P1-C2) y `codigoError` (P5-C3). |
+| Rate limit → P7-C6 | Correcto para el store compartido (D-06). La lectura de XFF no está escrita en P7-C6; es menor (en Vercel la fija la plataforma). |
+| Módulo de WhatsApp → P6-C1 | **Débil:** P6-C1 no pide mirar `modules` ni `estado`. Hay que escribirlo en P6-C1 o en P1-C5 (la función propuesta ya lo filtra). Hoy no daña: el handler sólo toca pádel del propio negocio. |
+| Funciones de ruteo bajo RLS (PMO-3) | El plan no las asigna (no hay `SECURITY DEFINER` en el plan). Es un hueco real de P1, no de S1. |
+| Autorización del cobro público de pedidos | Existe: §3.2.5 «S1 → P5 → M2» (línea 105), S1-C5, QA S1 paso 1. |
+| `cobros-actions.ts` fuera de «Archivos propios» | No está en «No tocar». Se justifica por QA S1 paso 1. Lo decide la PMO. |
+
+## Preguntas a la PMO
+No son fallas del código, pero **PMO-1 y PMO-2 sí rompen algo si se publica sin cerrarlas**:
+- **PMO-1:** un negocio que cobra con MP sin `mercadopago` en `modules` pierde el cobro automático y la factura
+  del turno (`negocio-sin-mercadopago`).
+- **PMO-2:** con `PADEL_WHATSAPP=cloud`, dos o más `Tenant` y sin `WHATSAPP_PHONE_NUMBERS`, se descartan todos los
+  mensajes entrantes (200: Meta no reintenta).
+- **PMO-3:** no rompe nada al publicar.
+
+## Observaciones bajas (no bloquean)
+1. **El emisor no se protege de un slug que el lector no lee.**
+   - `isValidSlug` no tiene tope de largo (provisioning/slug.ts:10). El lector exige ≤ 63 y empezar con
+     `[a-z0-9]`.
+   - Con un slug de 64 caracteres o más, el link se emite igual y, con dos o más negocios, no se atribuye.
+   - Arreglo sugerido: en `referenciaDelLinkDePedido`/`referenciaDelLinkManual`, si `leerReferenciaDeNegocio(ref)`
+     es null, que el link no se genere.
+   - Mientras tanto, va como chequeo previo al push (ver abajo).
+2. **La ingesta lee mal el formato nuevo.**
+   - Lee la referencia cruda con `duenoDelCobro`, que no conoce el formato nuevo: `gsg:<s>:pedido:<id>` se marca
+     no facturable con el motivo del TURNO (ingest.ts:76).
+   - Sin efecto en plata ni en la factura; sólo el texto que ve el dueño.
+3. **«Pedido:<id>» con mayúscula pasa tal cual.** Con dos o más negocios no se atribuye.
+4. **El runbook no dice cómo resolver un turno en vuelo.**
+   - Para los links en vuelo dice «se marca a mano con Cobrar», que sirve para pedidos. Para un turno, el remedio
+     es facturarlo a mano.
+   - Esos avisos quedan sólo en los logs de Vercel, que se retienen poco tiempo: revisarlos en los primeros días
+     después del push.
+
+## Verificación pendiente con Postgres real
+- **RLS con `app_rls` real**, no con `SET LOCAL ROLE` sobre superusuario. Que las tres lecturas de `Tenant` y el
+  cobro en `tenantTransaction` funcionen con el rol de producción. [A VALIDAR] con P-1/P-2.
+- **Concurrencia real:** PGlite serializa. Que dos avisos simultáneos del mismo pago dejen un asiento (unique
+  `orderId`) y que dos mensajes de WhatsApp reintentados a la vez dejen una fila (`@@unique([tenantId, idExterno])`).
+- **Datos de producción, sólo lectura, los corre el dueño:**
+  - cuántos `Tenant` hay;
+  - `modules` (PMO-1);
+  - las variables de Vercel (PMO-2, D-10);
+  - que ningún slug quede fuera del lector: `SELECT slug FROM "Tenant" WHERE slug !~ '^[a-z0-9][a-z0-9-]{0,62}$';`
+    tiene que dar 0 filas.
+- **Reintentos de Meta ante 500/503** (plazo y frecuencia): [A VALIDAR] contra la documentación de Webhooks de
+  Meta. El código no duplica, pero un mapa ilegible por más tiempo que esa ventana pierde mensajes.
