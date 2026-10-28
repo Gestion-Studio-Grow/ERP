@@ -5,7 +5,7 @@ import * as M from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo } from "./almacen";
 import type { Fijo } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { DIAS_A_LA_VISTA, SE_DESHACE, bajaFijo, armarCanchas, armarEspera, armarFijos, bajarFijos, ejecutarBajaFijo, ejecutarCanchas, ejecutarEspera, fijosPorBajar, horasDelDia, nuevoFijo, otroFijoQuePisa, previaBajaFijo, textoAvisoBaja, vueltaDelFijo } from "./canchas-core";
+import { DIAS_A_LA_VISTA, SE_DESHACE, bajaFijo, armarCanchas, armarEspera, armarFijos, bajarFijos, ejecutarBajaFijo, ejecutarCanchas, ejecutarEspera, fijosPorBajar, horasDelDia, nuevoFijo, otroFijoQuePisa, otroFijoQueSigue, previaBajaFijo, textoAvisoBaja, textoAvisoRecupera, vueltaDelFijo } from "./canchas-core";
 import { armarAgenda } from "./agenda-core";
 import { reservar } from "./alta-core";
 import { avisosLluvia } from "./whatsapp-core";
@@ -471,18 +471,20 @@ test("BP-101 (cert v4) 2 fecha liberada por el titular: se salta sin choque", ()
   assert.deepEqual(r.chocan, []);
 });
 
-test("BP-101 (cert v4) 3 más de 8 fechas ocupadas: no anuncia vuelta falsa", () => {
+test("BP-101 (cert v4) 3 más de 8 fechas ocupadas: no anuncia vuelta falsa (v7: anuncia la verdadera, la primera libre)", () => {
   const { e, f, canchaId } = baseV4(14);
   for (let i = 3; i < 13; i++) assert.equal(M.crearReserva(e, { canchaId, fecha: dV4(i), inicio: 22 * 60, duracion: 60, tipo: "turno", titular: "Otro" }, AHORA).ok, true);
   const a = { tipo: "pausa" as const, fijoId: f.id, desde: HOY, hasta: dV4(2) };
   const p = previaBajaFijo(e, a, AHORA);
-  assert.equal(p.ok && p.vuelve, null);
+  // Dictamen v6, observación 2: la vuelta se busca tan lejos como el guardián (80 semanas), no en 8 fechas.
+  assert.equal(p.ok && p.vuelve, dV4(13));
   const r = ejecutarBajaFijo(e, a, AHORA);
-  assert.equal(r.vuelve, null);
-  assert.doesNotMatch(r.mensaje, /vuelve solo/);
-  assert.equal(r.chocan?.length, 8);
+  assert.equal(r.vuelve, dV4(13));
+  assert.ok(M.validarHueco(e, { canchaId, fecha: dV4(13), inicio: 22 * 60, duracion: 60 }).ok || e.reservas.some((x) => x.fijoId === f.id && x.fecha === dV4(13)), "la vuelta anunciada está libre");
+  assert.equal(r.chocan?.length, 10);
+  assert.match(r.mensaje, /No vuelven 10 fechas, del .* al .*: se pisan con otros turnos\./);
   const v = armarFijos(e, AHORA).fijos.find((x) => x.id === f.id)!;
-  assert.doesNotMatch(v.estado ?? "", /vuelve el/);
+  assert.match(v.estado ?? "", /vuelve el/);
 });
 
 test("BP-101 (cert v4) 4 deshacer (restaurar la foto) después de acortar: estado y vuelta coherentes", () => {
@@ -591,7 +593,8 @@ test("BP-101 (cert v4) nuevoFijo no deja pisar a otro fijo en pausa que vuelve m
     const r1 = ejecutarBajaFijo(e, acortar, AHORA);
     const r2 = ejecutarBajaFijo(e, acortar, AHORA);
     assert.equal(r1.ok, false);
-    assert.match(r1.mensaje, /El hueco es del fijo de Pedro Nuevo desde el .*: Juan Fijo no tiene a qué volver\. Elegí otra hora o dalo de baja\./);
+    // v7 (observación 2): lo que se ofrece se puede hacer desde esta misma hoja.
+    assert.match(r1.mensaje, /El hueco es del fijo de Pedro Nuevo desde el .*: Juan Fijo no tiene a qué volver\. Dalo de baja o liberá sólo las fechas que no viene\./);
     assert.equal(r2.mensaje, r1.mensaje);
     assert.equal(JSON.stringify(e), antes);
     assert.equal(f.excepciones.length, 0);
@@ -619,7 +622,8 @@ test("BP-101 (cert v4) nuevoFijo no deja pisar a otro fijo en pausa que vuelve m
   });
 
   test("v5-3 el otro fijo pausado en esa fecha no se la quita a Juan", () => {
-    const { e, f, P, acortar } = conPedro(d(4), { pausa: { desde: d(4), hasta: d(4) } } as Partial<Fijo>);
+    // v7: Pedro juega sólo d(4) (si siguiera después, la pausa se rechaza por la observación 1: ver «v7-1»).
+    const { e, f, P, acortar } = conPedro(d(4), { hasta: d(4), pausa: { desde: d(4), hasta: d(4) } } as Partial<Fijo>);
     const r = ejecutarBajaFijo(e, acortar, AHORA);
     assert.equal(r.vuelve, d(4));
     assert.equal(f.excepciones.includes(d(4)), false);
@@ -630,7 +634,15 @@ test("BP-101 (cert v4) nuevoFijo no deja pisar a otro fijo en pausa que vuelve m
     const a = conPedro(d(1), { hasta: d(3) } as Partial<Fijo>);
     assert.equal(ejecutarBajaFijo(a.e, a.acortar, AHORA).vuelve, d(4));
     const b = conPedro(d(5));
-    assert.equal(ejecutarBajaFijo(b.e, b.acortar, AHORA).vuelve, d(4));
+    // La vigencia se respeta (con la pausa acortada, Juan vuelve el d(4))…
+    const corto = { ...structuredClone(b.f), pausa: { desde: HOY, hasta: b.acortar.hasta } };
+    assert.equal(vueltaDelFijo(b.e, corto, d(4)).vuelve, d(4));
+    // …pero el d(5) jugarían los dos: v7 (observación 1) lo dice y no cambia nada.
+    const antes = JSON.stringify(b.e);
+    const rb = ejecutarBajaFijo(b.e, b.acortar, AHORA);
+    assert.equal(rb.ok, false);
+    assert.match(rb.mensaje, /se pisarían/);
+    assert.equal(JSON.stringify(b.e), antes);
   });
 
   test("v5-5 horario parcial (22:30) choca; otra cancha no", () => {
@@ -658,7 +670,9 @@ test("BP-101 (cert v4) nuevoFijo no deja pisar a otro fijo en pausa que vuelve m
       ejecutarBajaFijo(e, acortar, AHORA);
       if (orden === "juanPrimero") {
         const r = ejecutarBajaFijo(e, { tipo: "baja", fijoId: P.id, desde: HOY }, AHORA);
-        assert.match(r.mensaje, /Juan Fijo recuperan el .*, el /);
+        // v7 (observación 3): el plural va por titular, no por fecha.
+        assert.match(r.mensaje, /Juan Fijo recupera el .* y el /);
+        assert.doesNotMatch(r.mensaje, /recuperan/);
         assert.deepEqual(f.liberadasPor ?? [], []);
       }
       M.materializarFijosHasta(e, d(2), 14);
@@ -688,5 +702,118 @@ test("BP-101 (cert v4) nuevoFijo no deja pisar a otro fijo en pausa que vuelve m
     assert.ok(!e.fijos.includes(f) || (f.hasta! < d(0)));
     const r = nuevoFijo(e, { titular: "Pedro Nuevo", clienteId: null, canchaId, dia, inicio: 22 * 60, duracion: 60 }, AHORA);
     assert.equal(r.ok, true, r.mensaje);
+  });
+
+  // ── Dictamen v6: observaciones 1–5 (respuesta del ingeniero v7) ──
+
+  test("v7-1 (obs. 1, v6-3) Pedro permanente que liberó UNA fecha: la pausa no se acepta con «vuelve» y no cambia nada", () => {
+    const { e, f, P, acortar } = conPedro(d(4), {});
+    P.excepciones.push(d(6));
+    const antes = JSON.stringify(e);
+    const p = previaBajaFijo(e, acortar, AHORA);
+    assert.equal(p.ok, false);
+    const r1 = ejecutarBajaFijo(e, acortar, AHORA);
+    const r2 = ejecutarBajaFijo(e, acortar, AHORA);
+    assert.equal(r1.ok, false);
+    assert.match(r1.mensaje, /^Juan Fijo volvería el .*, pero el .* el hueco sigue siendo del fijo de Pedro Nuevo \(martes 22:00\): se pisarían\. Dalo de baja o liberá sólo las fechas que no viene\.$/);
+    assert.equal(r2.mensaje, r1.mensaje);
+    assert.equal(JSON.stringify(e), antes);
+    assert.equal(f.pausa?.hasta, d(10));
+    // El barrido nombra la primera fecha en que los dos jugarían después de la vuelta.
+    const prueba = structuredClone(e);
+    prueba.fijos.find((x) => x.id === f.id)!.pausa = { desde: HOY, hasta: acortar.hasta };
+    assert.equal(otroFijoQueSigue(prueba, prueba.fijos.find((x) => x.id === f.id)!, d(6))?.fecha, d(7));
+  });
+
+  test("v7-2 (obs. 2, v6-4) Pedro acotado pero largo (11 fechas): se acepta y dice la vuelta real", () => {
+    const { e, f, P, acortar } = conPedro(d(4), { hasta: d(14) } as Partial<Fijo>);
+    const p = previaBajaFijo(e, acortar, AHORA);
+    assert.equal(p.ok && p.vuelve, d(15));
+    const r = ejecutarBajaFijo(e, acortar, AHORA);
+    assert.equal(r.ok, true, r.mensaje);
+    assert.equal(r.vuelve, d(15));
+    assert.doesNotMatch(r.mensaje, /no tiene a qué volver/);
+    assert.match(r.mensaje, /vuelve solo el .*\. No vuelven 11 fechas, del .* al .*: se pisan con el fijo de Pedro Nuevo/);
+    assert.equal(f.liberadasPor?.length, 11);
+    assert.ok(p.ok && /Las 11 fechas, del .* no: ese horario ya está tomado/.test(textoAvisoBaja(e, f, acortar, p)));
+    // Nunca dos en el hueco: ningún día lo juegan los dos y la grilla tiene uno solo por fecha.
+    assert.deepEqual(solapes(e, f), []);
+    M.materializarFijosHasta(e, d(4), 7);
+    for (const i of [4, 5]) assert.equal(e.reservas.filter((x) => x.fecha === d(i) && x.estado === "reservada" && x.canchaId === f.canchaId && x.inicio === 22 * 60).map((x) => x.fijoId).join(), P.id);
+  });
+
+  test("v7-3 (obs. 3, v6-5) el plural va por titular y a cada uno que recupera se le arma su WhatsApp", () => {
+    const { e, f, P, canchaId, acortar } = conPedro();
+    ejecutarBajaFijo(e, acortar, AHORA);
+    // Otro fijo (Ana, otra cancha) al que también se le había liberado una fecha por Pedro: estado armado a mano.
+    const otra = e.canchas.find((c) => c.id !== canchaId)!.id;
+    const A = M.crearFijo(e, { clienteId: null, canchaId: otra, dia: f.dia, inicio: 20 * 60, duracion: 60, titular: "Ana Fija", desde: HOY });
+    A.excepciones.push(d(6));
+    A.liberadasPor = [{ fecha: d(6), fijoId: P.id }];
+    const a = { tipo: "baja" as const, fijoId: P.id, desde: HOY };
+    const p = previaBajaFijo(e, a, AHORA);
+    assert.ok(p.ok);
+    if (!p.ok) return;
+    assert.deepEqual(p.recuperan.map((x) => [x.titular, x.fechas.length, x.celular]), [["Juan Fijo", 2, ""], ["Ana Fija", 1, ""]]);
+    assert.ok(p.lineas.some((l) => /la recupera Juan Fijo/.test(l)) && p.lineas.some((l) => /20:00 · la recupera Ana Fija/.test(l)));
+    const r = ejecutarBajaFijo(e, a, AHORA);
+    assert.match(r.mensaje, /Juan Fijo recupera el .* y el .*; Ana Fija recupera el [^,;]*\.$/);
+    assert.doesNotMatch(r.mensaje, /recuperan/);
+    assert.match(textoAvisoRecupera(e, p.recuperan[0]), /^¡Hola Juan! Se liberó el horario y volvés a tener tu turno fijo de los martes a las 22:00 el mar .* y el mar .*\. ¡Te esperamos!/);
+    assert.equal(M.fijoJuegaEl(A, d(6)), true);
+  });
+
+  test("v7-4 (obs. 4, v6-7) si Pedro sólo se pausa o libera la fecha, Juan la recupera; nunca dos en el hueco", () => {
+    const { e, f, P, acortar } = conPedro();
+    ejecutarBajaFijo(e, acortar, AHORA);
+    assert.deepEqual([f.excepciones.includes(d(4)), f.excepciones.includes(d(5))], [true, true]);
+    // Pausa de Pedro que cubre d(4): Juan recupera d(4) (y sólo esa).
+    const pausa = { tipo: "pausa" as const, fijoId: P.id, desde: HOY, hasta: d(4) };
+    const antes = JSON.stringify(e);
+    const p = previaBajaFijo(e, pausa, AHORA);
+    assert.equal(JSON.stringify(e), antes, "la previa no toca nada");
+    assert.ok(p.ok && p.recuperan.length === 1 && p.recuperan[0].fechas.join() === d(4));
+    const r = ejecutarBajaFijo(e, pausa, AHORA);
+    assert.equal(r.ok, true, r.mensaje);
+    assert.match(r.mensaje, /Juan Fijo recupera el [^,;]*\.$/);
+    assert.deepEqual([M.fijoJuegaEl(f, d(4)), M.fijoJuegaEl(f, d(5))], [true, false]);
+    assert.deepEqual(f.liberadasPor?.map((x) => x.fecha), [d(5)]);
+    // Pedro acorta su pausa: d(4) ya es de Juan → a Pedro se le libera (choque acotado) y vuelve el d(5); no se pisan.
+    const r2 = ejecutarBajaFijo(e, { tipo: "pausa", fijoId: P.id, desde: HOY, hasta: d(3) }, AHORA);
+    assert.equal(r2.ok, true, r2.mensaje);
+    assert.equal(r2.vuelve, d(5));
+    assert.deepEqual(P.liberadasPor, [{ fecha: d(4), fijoId: f.id }]);
+    assert.deepEqual(solapes(e, f), []);
+    // Liberar la fecha d(5) de Pedro: Juan la recupera.
+    const lib = ejecutarBajaFijo(e, { tipo: "liberar", fijoId: P.id, fecha: d(5) }, AHORA);
+    assert.match(lib.mensaje, /Juan Fijo recupera el /);
+    assert.equal(M.fijoJuegaEl(f, d(5)), true);
+    assert.equal(f.liberadasPor, undefined);
+    // Repetir no devuelve dos veces ni cambia nada.
+    const foto = JSON.stringify(e);
+    assert.equal(ejecutarBajaFijo(e, { tipo: "liberar", fijoId: P.id, fecha: d(5) }, AHORA).ok, false);
+    assert.equal(JSON.stringify(e), foto);
+    assert.deepEqual(solapes(e, f), []);
+    M.materializarFijosHasta(e, d(4), 7);
+    for (const i of [4, 5]) {
+      const vivos = e.reservas.filter((x) => x.fecha === d(i) && x.estado === "reservada" && x.canchaId === f.canchaId && x.inicio === 22 * 60);
+      assert.equal(vivos.map((x) => x.fijoId).join(), f.id, `d(${i})`);
+    }
+  });
+
+  test("v7-5 (obs. 5) `liberadasPor` se poda: lo pasado sale al confirmar algo; lo rechazado no toca nada", () => {
+    const { e, f, acortar } = conPedro();
+    ejecutarBajaFijo(e, acortar, AHORA);
+    assert.deepEqual(f.liberadasPor?.map((x) => x.fecha), [d(4), d(5)]);
+    const despues = (x: string): Ahora => ({ fecha: M.sumarDias(x, 1), min: 0 });
+    // Rechazado (un día que ya pasó): no se poda.
+    assert.equal(ejecutarBajaFijo(e, { tipo: "liberar", fijoId: f.id, fecha: d(4) }, despues(d(4))).ok, false);
+    assert.equal(f.liberadasPor?.length, 2);
+    // Confirmado, pasado el d(4): queda sólo el d(5).
+    assert.equal(ejecutarBajaFijo(e, { tipo: "liberar", fijoId: f.id, fecha: d(8) }, despues(d(4))).ok, true);
+    assert.deepEqual(f.liberadasPor?.map((x) => x.fecha), [d(5)]);
+    // Pasado el d(5): el campo desaparece; otra vez no cambia la foto.
+    assert.equal(ejecutarBajaFijo(e, { tipo: "liberar", fijoId: f.id, fecha: d(9) }, despues(d(5))).ok, true);
+    assert.equal("liberadasPor" in f, false);
   });
 }
