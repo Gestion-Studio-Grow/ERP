@@ -271,7 +271,8 @@ test("traducción del Core al catálogo: canal, medio, pago externo; a cuenta/si
 
 test("P2-C7 · docs/integrations/eventos.md está al día con el catálogo y trae un ejemplo por evento", () => {
   const doc = generarDocEventos();
-  const enDisco = readFileSync(path.join(process.cwd(), "docs", "integrations", "eventos.md"), "utf8");
+  // Sin los CR que agrega un checkout de Windows con core.autocrlf (el índice de git guarda LF).
+  const enDisco = readFileSync(path.join(process.cwd(), "docs", "integrations", "eventos.md"), "utf8").replace(/\r\n/g, "\n");
   assert.equal(enDisco, doc, "Regenerar: npx tsx src/eventos/generar-doc.ts");
   for (const d of definiciones()) {
     const desde = doc.indexOf(`### \`${d.tipo}@${d.version}\``);

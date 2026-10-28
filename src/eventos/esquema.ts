@@ -51,12 +51,30 @@ export type InferirObjeto<S extends Record<string, Esquema<unknown>>> = Aplanar<
 // ── Redacción de texto libre ──────────────────────────────────────────────────
 
 const RE_EMAIL = /[^\s@<>()"',;:]{1,64}@[^\s@<>()"',;:]{1,255}\.[a-z]{2,24}/gi;
-// Tiradas de 6 o más dígitos, con hasta 3 separadores entre dígito y dígito (espacio, guion o
-// cualquier raya Unicode —«–» y «—» las pone el autocorrector del celular—, signo menos, punto,
-// barra, paréntesis) y un «+» adelante opcional: teléfonos («11 5566-7788», «11 - 5566 -
-// 7788», «(011) 5566-7788», «+54 9 11…»), DNI («30.123.456», «30  123  456»), CUIT
-// («20-30123456-7»). Las de 5 o menos (un código de pedido, un precio) quedan como están.
-const RE_DIGITOS = /\+?\d(?:[\s.\/()\p{Pd}\u2212]{0,3}\d){5,}/gu;
+
+// Lo que puede ir ENTRE los dígitos de un teléfono, DNI o CUIT sin cortar la tirada, en
+// cualquier cantidad: espacios de todo tipo (también el salto de línea, NBSP, el espacio fino),
+// punto, coma («30,123,456»), barra, paréntesis, cualquier raya Unicode (el guion, «–» y «—» del
+// autocorrector, el U+2011 de WhatsApp…), el signo menos y los caracteres invisibles de formato
+// (\p{Cf}: el guion blando U+00AD que pega Word, el espacio de ancho cero, las marcas de
+// dirección U+202A…U+202E). No entran letras, dígitos ni otros símbolos («$», «#», «·», «x»):
+// «pedido #1042 – $12500» queda como está. Sin tope de largo: «11  -  5566  -  7788» (cinco
+// caracteres entre grupos) es la misma tirada. La clase no comparte nada con \d, así que la
+// búsqueda es lineal (no hay retroceso explosivo).
+// Tiradas de 6 o más dígitos con un «+» adelante opcional: teléfonos («11 5566-7788»,
+// «+54 9 11…»), DNI («30.123.456»), CUIT («20-30123456-7»). Las de 5 o menos (un código de
+// pedido, un precio) quedan como están.
+const RE_DIGITOS = /\+?\d(?:[\s.,\/()\p{Pd}\u2212\p{Cf}]*\d){5,}/gu;
+
+/** Largo máximo de un texto libre en el sobre. */
+export const LARGO_TEXTO_LIBRE = 500;
+/**
+ * Hasta dónde se mira un texto libre larguísimo (un motivo de ARCA con 30 observaciones). Se
+ * redacta ANTES de recortar a 500: recortar primero puede partir un DNI y dejar «…30123» en
+ * claro, y una máscara («******7788») es más corta o más larga que el dato, así que el largo
+ * final sólo se sabe después de redactar.
+ */
+const LARGO_A_REDACTAR = 4000;
 
 /** Enmascara un dato personal dejando los últimos 4 dígitos: «11 5566-7788» → «******7788». */
 export function enmascararTelefono(valor: string | null | undefined): string | null {
@@ -65,12 +83,41 @@ export function enmascararTelefono(valor: string | null | undefined): string | n
   return `******${digitos.slice(-4)}`;
 }
 
-/** Lo que una persona escribió, sin emails ni números de teléfono/documento, recortado a 500. */
+/** Corta en `largo` sin partir un emoji (un par sustituto suelto no entra en un jsonb). */
+function cortarSinPartir(texto: string, largo: number): string {
+  if (texto.length <= largo) return texto;
+  const c = texto.charCodeAt(largo - 1);
+  return texto.slice(0, c >= 0xd800 && c <= 0xdbff ? largo - 1 : largo);
+}
+
+const ES_ESPACIO = /\s/u;
+/** Un carácter que puede ser parte de una tirada: dígito, «+» o separador (la clase de RE_DIGITOS). */
+const ES_DE_TIRADA = /^[\d+\s.,\/()\p{Pd}\u2212\p{Cf}]$/u;
+
+/**
+ * Un texto de más de LARGO_A_REDACTAR se mira hasta ahí, y la cola cortada se descarta: la
+ * última palabra (un email a medias) y la tirada de dígitos que quedó al final (un teléfono a
+ * medias). Así ningún dato partido por el corte llega sin redactar. Se recorre de atrás para
+ * adelante, sin expresiones con `$` (que sobre 4000 caracteres sin espacio serían cuadráticas).
+ */
+function aRedactar(texto: string): string {
+  if (texto.length <= LARGO_A_REDACTAR) return texto;
+  const t = cortarSinPartir(texto, LARGO_A_REDACTAR);
+  let fin = t.length;
+  while (fin > 0 && !ES_ESPACIO.test(t[fin - 1])) fin--;
+  while (fin > 0 && ES_DE_TIRADA.test(t[fin - 1])) fin--;
+  return t.slice(0, fin);
+}
+
+/**
+ * Lo que una persona escribió, sin emails ni números de teléfono/documento, de hasta 500
+ * caracteres. Primero se redacta y DESPUÉS se recorta (F5, CERT-P2 vuelta 2).
+ */
 export function redactarTextoLibre(texto: string): string {
-  return texto
-    .slice(0, 500)
+  const redactado = aRedactar(texto)
     .replace(RE_EMAIL, "[email]")
     .replace(RE_DIGITOS, (m) => enmascararTelefono(m) ?? "******");
+  return cortarSinPartir(redactado, LARGO_TEXTO_LIBRE);
 }
 
 const RE_MASCARA = /^\*{6}\d{0,4}$/;
