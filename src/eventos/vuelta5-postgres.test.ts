@@ -189,7 +189,7 @@ test("P2 vuelta 5 · pedido.confirmado/listo/entregado, stock.*, producto.actual
     const otra = await tx((x) => crearFichaEnTx(x, A, { name: "Otra", phone: tel, email: null, notes: null, birthDate: null }));
     assert.equal(otra.ok, false);
     await deshecho((x) => crearFichaEnTx(x, A, { name: "No queda", phone: `11 3${codigo}-0000`, email: null, notes: null, birthDate: null }));
-    assert.equal((await duenio.$queryRawUnsafe<{ n: bigint }[]>(`SELECT count(*) AS n FROM "OutboxEvent" WHERE "tenantId" = $1 AND "type" = 'cliente.creado@1' AND "payload"->'datos'->>'nombre' = 'No queda'`, A))[0].n, 0n);
+    assert.equal((await duenio.$queryRawUnsafe<{ n: bigint }[]>(`SELECT count(*) AS n FROM "OutboxEvent" WHERE "tenantId" = $1 AND "type" = 'cliente.creado@1' AND "payload"->'datos'->>'nombre' = 'No queda'`, A))[0].n.toString(), "0");
 
     // ── caja.abierta / caja.turno.cerrada / caja.cerrada (las líneas de openCashSession, closeCashSession, cerrarDia)
     const abierta = new Date();
