@@ -233,7 +233,7 @@ const FilaDeJugador = memo(function FilaDeJugador({
   reservaId: string;
   /** `quien`: el nombre, teléfono o ficha de un «Jugador N» (B4-C5); sin él, el cobro de siempre. */
   onCobrar: (idx: number, quien?: QuienPaga | null) => void;
-  onCobrarParte: (idx: number) => void;
+  onCobrarParte: (idx: number, quien?: QuienPaga | null) => void;
   /** Cobro de un toque con el medio de la fila. */
   onCobrarCon: (idx: number, medio: MedioCaja, quien?: QuienPaga | null) => void;
   /** Créditos + el resto con `medio`, por lo que se le mostró (`usa`). */
@@ -310,7 +310,7 @@ const FilaDeJugador = memo(function FilaDeJugador({
             {/* Pasar sus cargos a su cuenta corriente (o pedir el OK para fiar), al lado del cobro: un renglón menos. */}
             <CreditoDelJugador almacen={almacen} fila={fila} onAccion={onAccion} />
             {fila.soloCancha !== null && (
-              <Button variant="ghost" size="md" onClick={() => onCobrarParte(fila.idx)}>
+              <Button variant="ghost" size="md" onClick={() => onCobrarParte(fila.idx, pideQuien ? quien : null)}>
                 Sólo la cancha {pesos(fila.soloCancha)}
                 <span className="sr-only"> de {fila.nombre}</span>
               </Button>
@@ -700,7 +700,8 @@ export default function CuentaDelTurno({
     [medio, conMedio, pedirCreditos],
   );
   const onCobrarParte = useCallback(
-    (idx: number) => (medio === "monedero" ? pedirCreditos({ tipo: "cobrarParte", idx, medio }) : conMedio({ tipo: "cobrarParte", idx, medio })),
+    (idx: number, quien?: QuienPaga | null) =>
+      medio === "monedero" ? pedirCreditos({ tipo: "cobrarParte", idx, medio, ...conQuien(quien) }) : conMedio({ tipo: "cobrarParte", idx, medio, ...conQuien(quien) }),
     [medio, conMedio, pedirCreditos],
   );
   const onCobrarCancha = useCallback(

@@ -484,7 +484,8 @@ export type AccionCuenta =
   | { tipo: "cargo"; idx: number; productoId: string; cant: number; modo: "cuenta" | "cobrar"; medio: MedioCaja }
   | { tipo: "sumarJugador"; nombre: string; clienteId: string | null }
   | { tipo: "cobrarCancha"; monto: number; medio: MedioCobro }
-  | { tipo: "cobrarParte"; idx: number; medio: MedioCobro }
+  /** Sólo la parte de la cancha de un jugador. `quien`: como en `cobrarJugador`, para «Jugador N» (B4-C5). */
+  | { tipo: "cobrarParte"; idx: number; medio: MedioCobro; quien?: QuienPaga }
   | { tipo: "canchaACuenta" }
   | { tipo: "cargosACuentaDe"; cuentaId: string };
 
@@ -678,10 +679,19 @@ export function ejecutar(estado: EstadoClub, reservaId: string, accion: AccionCu
       return { ok: true, mensaje: `Cobrado ${pesos(monto)} de cancha${con}.${queda}${sena}` };
     }
     case "cobrarParte": {
+      // Tanda B4 (C5): «Jugador N» dice quién es también cuando paga sólo su parte de la cancha (si no, este botón
+      // esquivaba `config.caja.pedirNombreJugador`).
+      const q = prepararQuien(estado, reservaId, accion.idx, accion.quien);
+      if (!q.ok) return { ok: false, mensaje: q.motivo };
       const r = reservaDe(estado, reservaId);
       const quien = r?.jugadores[accion.idx]?.nombre ?? "el jugador";
+      const movsAntes = new Set(estado.caja.movimientos.map((m) => m.id));
       const res = cobrarParte(estado, reservaId, accion.idx, { medio: accion.medio, ...conAuth }, ahora);
-      if (!res.ok) return falla(res);
+      if (!res.ok) {
+        q.deshacer();
+        return falla(res);
+      }
+      q.guardar(movsAntes, ahora);
       const con = res.cubiertos.length ? ` (incluye la parte de ${res.cubiertos.join(", ")})` : "";
       const medio = accion.medio === "monedero" ? " con sus créditos" : "";
       return { ok: true, mensaje: `Cobrada la parte de la cancha de ${quien}${medio}: ${pesos(res.monto)}${con}. Sus cargos siguen en su cuenta.` };

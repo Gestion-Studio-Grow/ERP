@@ -964,3 +964,38 @@ test("B4-C5 · al cobrar a «Jugador 2» se pone nombre y teléfono: queda en la
   assert.equal(r.jugadores[3].nombre, "Lola");
   assert.equal(r.jugadores[3].clienteId ?? null, null, "con el nombre solo no se hace ficha (no se duplican)");
 });
+
+test("B4-C5 (vuelta 4) · «Sólo la cancha» de «Jugador N» también pide quién es: no esquiva `pedirNombreJugador` y el nombre queda en la caja", () => {
+  const e = demo();
+  const r = turnoDe42(e);
+  assert.equal(ejecutar(e, r.id, { tipo: "dividir", n: 4 }, AHORA).ok, true);
+  e.config.caja = { pedirNombreJugador: true };
+  const fichas = e.clientes.length;
+  const movs = e.caja.movimientos.length;
+  // Ataque: cobrar sólo la parte de la cancha, sin decir quién es, con el club pidiéndolo.
+  const sinQuien = ejecutar(e, r.id, { tipo: "cobrarParte", idx: 1, medio: "efectivo" }, AHORA);
+  assert.equal(sinQuien.ok, false, sinQuien.mensaje);
+  assert.match(sinQuien.mensaje, /¿Quién es Jugador 2\?/);
+  assert.equal(e.caja.movimientos.length, movs, "no entró plata a la caja");
+  assert.equal(r.jugadores[1].saldado ?? false, false);
+  // Si el cobro no pasa (con créditos, sin ficha no tiene), el jugador vuelve a ser «Jugador 2».
+  const mal = ejecutar(e, r.id, { tipo: "cobrarParte", idx: 1, medio: "monedero", quien: { nombre: "Pedro Paz", tel: "11 5555-1234" } }, AHORA);
+  assert.equal(mal.ok, false);
+  assert.equal(r.jugadores[1].nombre, "Jugador 2");
+  assert.equal(r.jugadores[1].clienteId ?? null, null);
+  assert.equal(e.clientes.length, fichas, "sin ficha nueva si no se cobró");
+  // Con nombre y teléfono: se cobra la parte, queda en el movimiento de la caja y en una ficha nueva.
+  const d = ejecutar(e, r.id, { tipo: "cobrarParte", idx: 1, medio: "efectivo", quien: { nombre: "Pedro Paz", tel: "11 5555-1234" } }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.match(d.mensaje, /de Pedro Paz/);
+  assert.equal(r.jugadores[1].nombre, "Pedro Paz");
+  assert.equal(e.clientes.length, fichas + 1);
+  assert.equal(r.jugadores[1].clienteId, e.clientes.at(-1)!.id);
+  const nuevos = e.caja.movimientos.slice(movs);
+  assert.equal(nuevos.length, 1);
+  assert.equal(nuevos[0].jugador, "Pedro Paz (11 5555-1234)");
+  // Sin el club pidiéndolo, «Sólo la cancha» sin nombre sigue como siempre.
+  e.config.caja = { pedirNombreJugador: false };
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarParte", idx: 2, medio: "efectivo" }, AHORA).ok, true);
+  assert.equal(r.jugadores[2].nombre, "Jugador 3");
+});
