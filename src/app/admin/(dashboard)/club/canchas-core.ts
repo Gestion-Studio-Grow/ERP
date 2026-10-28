@@ -30,6 +30,7 @@ import {
   liberarFijo,
   materializarFijos,
   minutosHasta,
+  ocupantes,
   pesos,
   planLluvia,
   quitarBloqueo,
@@ -561,25 +562,65 @@ function correrBajaFijo(estado: EstadoClub, a: AccionBajaFijo, ahora: Ahora, aut
 }
 
 /**
+ * Dictamen v7, Falla 1: ¿quién más ocupa el hueco de `g` esa fecha? Otro fijo que la juega (`fijoJuegaEl`, esté o no
+ * bajado a la grilla: si los dos la juegan, se pisan), un turno vivo de la grilla (de un fijo, suelto o vendido en el
+ * mostrador) o un bloqueo. `{ fijo }` si es de un fijo que sigue en la lista; `{ fijo: null }` si es de otra cosa;
+ * `null` si el hueco está libre. Sin contar a `g`. PURA.
+ */
+function quienOcupaElHueco(estado: EstadoClub, g: Fijo, fecha: Fecha): { fijo: Fijo | null } | null {
+  const fin = g.inicio + g.duracion;
+  const pisa = (inicio: number, hasta: number) => inicio < fin && g.inicio < hasta;
+  const otro = estado.fijos.find((h) => h.id !== g.id && h.canchaId === g.canchaId && pisa(h.inicio, h.inicio + h.duracion) && fijoJuegaEl(h, fecha));
+  if (otro) return { fijo: otro };
+  const { reservas, bloqueos } = ocupantes(estado, fecha, g.canchaId);
+  const turno = reservas.find((r) => r.fijoId !== g.id && pisa(r.inicio, r.inicio + r.duracion));
+  if (turno) return { fijo: (turno.fijoId && estado.fijos.find((h) => h.id === turno.fijoId)) || null };
+  if (bloqueos.some((b) => pisa(b.desde, b.hasta))) return { fijo: null };
+  return null;
+}
+
+/**
  * Observación v5-7 (baja) y v6-4 (pausa y liberar una fecha): cuando un fijo deja libres fechas suyas, las que se le
  * habían liberado a OTRO fijo por chocar con éste (`liberadasPor`) y caen en `cubre` vuelven a ese otro, y las de la
  * semana a la vista se bajan a la grilla. Idempotente: lo devuelto sale de `liberadasPor`.
+ *
+ * Dictamen v7 (Falla 1 y 2): cada fecha la recupera UN solo fijo, y sólo si el hueco de verdad quedó libre.
+ *   · Regla de quién recupera: se recorre por fecha y, en la misma fecha, por ANTIGÜEDAD del fijo (el orden de alta,
+ *     que es el de `estado.fijos`): el más antiguo la recupera; al siguiente, el hueco ya le figura ocupado.
+ *   · Si el hueco lo sigue ocupando otro fijo (heredado, o el que la acaba de recuperar), la entrada se re-apunta a ése
+ *     (`fijoId = otro.id`): la fecha sigue liberada y vuelve cuando ése se vaya. No se anuncia.
+ *   · Si lo ocupa un turno suelto, una venta del mostrador o un bloqueo, la fecha sigue liberada y la entrada sale (no
+ *     hay a quién esperar). No se anuncia.
+ *   · En la semana a la vista sólo se anuncia lo que de verdad se bajó a la grilla; si no se pudo bajar, la fecha
+ *     vuelve a quedar liberada.
  */
 function devolverLiberadasPor(estado: EstadoClub, deId: string, cubre: (fecha: Fecha) => boolean, ahora: Ahora): Recupera[] {
   const out: Recupera[] = [];
   const tope = sumarDias(ahora.fecha, DIAS_A_LA_VISTA);
-  for (const g of estado.fijos) {
-    const vuelven = (g.liberadasPor ?? []).filter((x) => x.fijoId === deId && cubre(x.fecha) && x.fecha >= ahora.fecha);
-    if (!vuelven.length) continue;
-    g.liberadasPor = g.liberadasPor!.filter((x) => !vuelven.includes(x));
+  const pendientes = estado.fijos.flatMap((g) => (g.liberadasPor ?? []).filter((x) => x.fijoId === deId && cubre(x.fecha) && x.fecha >= ahora.fecha).map((x) => ({ g, x })));
+  // `sort` es estable: en la misma fecha queda el orden de `estado.fijos` (antigüedad).
+  pendientes.sort((a, b) => a.x.fecha.localeCompare(b.x.fecha));
+  for (const { g, x } of pendientes) {
+    const ocupa = quienOcupaElHueco(estado, g, x.fecha);
+    if (ocupa?.fijo) {
+      const otroId = ocupa.fijo.id;
+      g.liberadasPor = g.liberadasPor!.map((y) => (y === x ? { fecha: x.fecha, fijoId: otroId } : y));
+      continue;
+    }
+    g.liberadasPor = g.liberadasPor!.filter((y) => y !== x);
     // Vacío, el campo se va (la foto queda igual a la de un fijo al que nunca se le liberó nada).
     if (!g.liberadasPor.length) delete g.liberadasPor;
-    g.excepciones = g.excepciones.filter((fecha) => !vuelven.some((x) => x.fecha === fecha));
-    for (const x of vuelven) {
-      if (!fijoJuegaEl(g, x.fecha)) continue;
-      if (x.fecha < tope) materializarFijos(estado, x.fecha);
-      out.push({ fijoId: g.id, titular: g.titular, fecha: x.fecha });
+    if (ocupa) continue;
+    g.excepciones = g.excepciones.filter((fecha) => fecha !== x.fecha);
+    if (!fijoJuegaEl(g, x.fecha)) continue;
+    if (x.fecha < tope) {
+      materializarFijos(estado, x.fecha);
+      if (!estado.reservas.some((r) => r.fijoId === g.id && r.fecha === x.fecha && r.estado !== "cancelada")) {
+        g.excepciones.push(x.fecha);
+        continue;
+      }
     }
+    out.push({ fijoId: g.id, titular: g.titular, fecha: x.fecha });
   }
   return out;
 }
