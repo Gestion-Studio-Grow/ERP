@@ -26,7 +26,17 @@ const PLAN_412 = [
   "reparto.salio", "reparto.rendido", "pedido.transferencia.verificada", "lote.por.vencer", "lote.vencido",
   "club.luz.cambio", "producto.balanza.sincronizada",
 ];
-const EMITIDOS_EN_P2 = ["pedido.creado", "pedido.cancelado", "pedido.cobrado", "factura.autorizada", "factura.rechazada"];
+const EMITIDOS_EN_P2 = [
+  "pedido.creado", "pedido.confirmado", "pedido.listo", "pedido.entregado", "pedido.cancelado", "pedido.cobrado",
+  "factura.autorizada", "factura.rechazada", "stock.bajo", "stock.ajustado", "producto.actualizado", "cliente.creado",
+  "caja.abierta", "caja.cerrada", "caja.turno.cerrada",
+];
+// Retail que P2 NO emite, con la tanda y el criterio del plan que lo toma (CERT-P2, F6).
+const RETAIL_TRASPASADO: Record<string, string> = {
+  "pago.acreditado": "pendiente · P5 (P5-C5)",
+  "pago.devuelto": "pendiente · P5 (P5-C6)",
+  "deuda.vencida": "pendiente · M7 (M7-C6)",
+};
 
 test("P2-C2 · el catálogo tiene los 18 de retail, los del club (§7.3) y los del plan (§4.1.2), todos @1", () => {
   const tipos = new Set(definiciones().map((d) => d.tipo));
@@ -36,10 +46,22 @@ test("P2-C2 · el catálogo tiene los 18 de retail, los del club (§7.3) y los d
   for (const [clave, d] of Object.entries(CATALOGO)) assert.equal(clave, `${d.tipo}@${d.version}`);
 });
 
-test("P2-C2 · emitidos en esta tanda: exactamente los 5 de los archivos del Core; el resto dice qué tanda lo emite", () => {
+test("P2-C2 · emitidos en esta tanda: 14 de los 18 de retail + caja.turno.cerrada; el resto dice tanda Y criterio", () => {
   const emitidos = definiciones().filter((d) => d.emision === "P2").map((d) => d.tipo).sort();
   assert.deepEqual(emitidos, [...EMITIDOS_EN_P2].sort());
-  for (const d of definiciones()) if (d.emision !== "P2") assert.match(d.emision, /^pendiente · /, d.tipo);
+  // Los 18 de retail: emitidos acá, traspasados por ID y criterio, o balanza.lectura (opcional por §7.3).
+  for (const t of RETAIL_73) {
+    const d = definiciones().find((x) => x.tipo === t)!;
+    if (EMITIDOS_EN_P2.includes(t)) continue;
+    if (t === "balanza.lectura") assert.match(d.emision, /^no se emite · opcional/);
+    else assert.equal(d.emision, RETAIL_TRASPASADO[t], t);
+  }
+  // Ningún «pendiente» sin tanda y criterio: «pendiente · <TANDA> (<CRITERIO o P2-C2 + hueco>)».
+  for (const d of definiciones()) {
+    if (d.emision === "P2" || d.emision.startsWith("no se emite · ")) continue;
+    assert.match(d.emision, /^pendiente · (?:[PMB]\d+a?) \((?:[PMB]\d+a?-C\d+)[;)\s]/, d.tipo);
+    if (!/^pendiente · (\w+) \(\1-C\d+\)$/.test(d.emision)) assert.match(d.emision, /hueco del plan/, `${d.tipo}: sin criterio propio y sin decirlo`);
+  }
 });
 
 test("P2-C1 · cada ejemplo cumple su esquema", () => {

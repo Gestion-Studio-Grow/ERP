@@ -17,8 +17,14 @@
 //      (`telefonoEnmascarado`, `remitenteEnmascarado`) y los textos que escribe una persona
 //      (`textoLibre`) se redactan al emitir. El catálogo.test.ts lo revisa campo por campo.
 //
-// `emision`: dónde se emite HOY. "P2" = cableado en esta tanda; "pendiente · <tanda>" = está en
-// el catálogo (los suscriptores ya pueden contar con su forma) pero lo emite esa tanda.
+// `emision`: dónde se emite HOY.
+//   · "P2" = cableado en esta tanda, en la transacción del hecho.
+//   · "pendiente · <TANDA> (<CRITERIO>)" = está en el catálogo (los suscriptores ya pueden contar
+//     con su forma) y lo emite esa tanda del PLAN-REINGENIERIA-N2, por ese criterio. Si el plan lo
+//     asigna a una tanda pero ningún criterio de ella lo nombra, la etiqueta lo dice («hueco del
+//     plan»): es un pendiente de la PMO, no un traspaso firmado.
+//   · "no se emite · …" = opcional por diseño (balanza.lectura, §7.3).
+// Ningún evento dice "pendiente" sin tanda y criterio reales (CERT-P2, F6).
 // ============================================================================
 
 import { e, type Esquema, type TipoDe } from "./esquema";
@@ -119,20 +125,28 @@ export const CATALOGO = {
     },
   }),
   "pedido.confirmado@1": def({
-    tipo: "pedido.confirmado", version: 1, familia: "retail", emision: "pendiente · tanda de avanzar-pedido",
-    cuando: "avance PENDING→CONFIRMED (avanzar-pedido)", clave: "pedido:<pedidoId>:confirmado",
+    tipo: "pedido.confirmado", version: 1, familia: "retail", emision: "P2",
+    cuando:
+      "el negocio acepta el pedido: paso de la bandeja PENDING→CONFIRMED (servicios) o PENDING→PREPARING (comercio, " +
+      "que se saltea Confirmado) en advanceOrderStatus (order-actions.ts → moverPedidoConEventoEnTx), en la transacción del paso. " +
+      "Un pedido que NACE confirmado (mostrador, API) no lo emite: su pedido.creado ya lo dice",
+    clave: "pedido:<pedidoId>:confirmado",
     esquema: e.objeto({ pedidoId: e.id(), codigo: e.entero(), listoEstimado: e.opcional(e.fecha()) }),
     ejemplo: { pedidoId: "ord_01", codigo: 1042, listoEstimado: "2026-10-28T13:30:00-03:00" },
   }),
   "pedido.listo@1": def({
-    tipo: "pedido.listo", version: 1, familia: "retail", emision: "pendiente · tanda de avanzar-pedido",
-    cuando: "avance →READY", clave: "pedido:<pedidoId>:listo",
+    tipo: "pedido.listo", version: 1, familia: "retail", emision: "P2",
+    cuando: "paso de la bandeja →READY (advanceOrderStatus → moverPedidoConEventoEnTx), en la transacción del paso",
+    clave: "pedido:<pedidoId>:listo",
     esquema: e.objeto({ pedidoId: e.id(), codigo: e.entero(), entrega: ENTREGA }),
     ejemplo: { pedidoId: "ord_01", codigo: 1042, entrega: "DELIVERY" },
   }),
   "pedido.entregado@1": def({
-    tipo: "pedido.entregado", version: 1, familia: "retail", emision: "pendiente · tanda de avanzar-pedido",
-    cuando: "avance →DELIVERED", clave: "pedido:<pedidoId>:entregado",
+    tipo: "pedido.entregado", version: 1, familia: "retail", emision: "P2",
+    cuando:
+      "paso READY→DELIVERED (entregarPedido; también la entrega al fiado, clientes/fiado.ts) y la venta de mostrador que " +
+      "nace entregada (createOrder y la caja con lector, supermercado/caja-actions.ts), en la transacción del paso",
+    clave: "pedido:<pedidoId>:entregado",
     esquema: e.objeto({ pedidoId: e.id(), codigo: e.entero(), entregadoEn: e.fecha() }),
     ejemplo: { pedidoId: "ord_01", codigo: 1042, entregadoEn: "2026-10-28T14:10:00-03:00" },
   }),
@@ -147,9 +161,11 @@ export const CATALOGO = {
     tipo: "pedido.cobrado", version: 1, familia: "retail", emision: "P2", plata: true,
     cuando:
       "botón «Cobrar» y aviso de pago de MP (cobrarPedidoEnTx, que usa cobros-actions vía cobrarPedidoPorAvisoDePago), " +
-      "venta de mostrador que nace cobrada (insertOrder) y cobro parcial que salda el pedido o la deuda de su fiado " +
-      "(applyCollectionInTx, src/lib/settlement/collection-repo.ts: monto = total del pedido, medio = el del cobro que cierra el saldo); " +
-      "en la transacción del cobro. Entregar al fiado (clientes/fiado.ts) y la venta a cuenta NO emiten: no entró plata",
+      "venta de mostrador que nace cobrada (insertOrder) y el cobro que salda la deuda del pedido —su fiado o su venta a cuenta— " +
+      "(applyCollectionInTx con origen RECEIVABLE, src/lib/settlement/collection-repo.ts: monto = total del pedido, medio = el del " +
+      "cobro que cierra el saldo; el origen ORDER sólo lo usa recordCollection, sin llamadores en producción); en la transacción del " +
+      "cobro. Entregar al fiado (clientes/fiado.ts) y la venta a cuenta NO emiten: no entró plata. REGLA (O-v4-5): un pedido " +
+      "CANCELADO no emite pedido.cobrado; la plata que entre después por su deuda es un cobro de la cuenta corriente, no del pedido",
     clave: "pedido:<pedidoId>:cobrado",
     esquema: e.objeto({
       pedidoId: e.id(),
@@ -162,7 +178,7 @@ export const CATALOGO = {
     ejemplo: { pedidoId: "ord_01", codigo: 1042, monto: 18900, medio: "MP", pagoExterno: "1325478890", cobradoEn: "2026-10-28T14:03:11-03:00" },
   }),
   "pago.acreditado@1": def({
-    tipo: "pago.acreditado", version: 1, familia: "compartido", emision: "pendiente · ingesta MP (P5)", plata: true,
+    tipo: "pago.acreditado", version: 1, familia: "compartido", emision: "pendiente · P5 (P5-C5)", plata: true,
     cuando: "ingesta de Mercado Pago (ingest.ts)", clave: "pago:<proveedor>:<pagoExterno>:acreditado",
     esquema: e.objeto({
       pagoExterno: e.id(),
@@ -174,8 +190,8 @@ export const CATALOGO = {
     ejemplo: { pagoExterno: "1325478890", proveedor: "mercadopago", monto: 18900, estado: "approved", referencia: { tipo: "pedido", id: "ord_01" } },
   }),
   "pago.devuelto@1": def({
-    tipo: "pago.devuelto", version: 1, familia: "compartido", emision: "pendiente · ingesta MP (P5)", plata: true,
-    cuando: "EstadoPago = refunded", clave: "pago:<proveedor>:<pagoExterno>:devuelto",
+    tipo: "pago.devuelto", version: 1, familia: "compartido", emision: "pendiente · P5 (P5-C6)", plata: true,
+    cuando: "EstadoPago = refunded / contracargo", clave: "pago:<proveedor>:<pagoExterno>:devuelto",
     esquema: e.objeto({ pagoExterno: e.id(), monto: e.monto() }),
     ejemplo: { pagoExterno: "1325478890", monto: 18900 },
   }),
@@ -209,40 +225,59 @@ export const CATALOGO = {
     ejemplo: { facturaId: "inv_01", motivo: "10015: el documento del receptor no es válido" },
   }),
   "stock.bajo@1": def({
-    tipo: "stock.bajo", version: 1, familia: "retail", emision: "pendiente · tanda de inventario",
-    cuando: "tras cada movimiento del ledger (src/lib/inventario) si disponible <= minimo", clave: "stock:<productoId>:bajo:<movimientoId>",
+    tipo: "stock.bajo", version: 1, familia: "retail", emision: "P2",
+    cuando:
+      "recordMovement (src/lib/stock/ledger.ts, el único mutador del stock) cuando ESE movimiento cruza el mínimo " +
+      "(antes > lowStockAt >= después) en un producto con trackStock, en la transacción del movimiento. Cada venta por " +
+      "debajo del mínimo no vuelve a avisar",
+    clave: "stock:<productoId>:bajo:<movimientoId>",
     esquema: e.objeto({
-      productoId: e.id(), sku: e.nulo(e.texto()), nombre: e.texto(), disponible: e.numero(), minimo: e.numero(), deposito: e.opcional(e.id()),
+      productoId: e.id(), sku: e.nulo(e.texto()), nombre: e.textoLibre(), disponible: e.numero(), minimo: e.numero(), deposito: e.opcional(e.id()),
     }),
     ejemplo: { productoId: "prd_01", sku: null, nombre: "Vacío", disponible: 2.5, minimo: 5 },
   }),
   "stock.ajustado@1": def({
-    tipo: "stock.ajustado", version: 1, familia: "retail", emision: "pendiente · tanda de inventario",
-    cuando: "stock-adjustment-actions.ts / mermas", clave: "stock:movimiento:<movimientoId>",
+    tipo: "stock.ajustado", version: 1, familia: "retail", emision: "P2",
+    cuando:
+      "recordMovement con tipo AJUSTE (recuento con diferencia, merma; src/lib/stock/ledger.ts), en la transacción del " +
+      "movimiento. El recuento que coincide con el sistema no ajusta nada y no emite",
+    clave: "stock:movimiento:<movimientoId>",
     esquema: e.objeto({ productoId: e.id(), delta: e.numero(), motivo: e.textoLibre(), movimientoId: e.id() }),
     ejemplo: { productoId: "prd_01", delta: -0.8, motivo: "Merma por recorte", movimientoId: "smv_01" },
   }),
   "producto.actualizado@1": def({
-    tipo: "producto.actualizado", version: 1, familia: "retail", emision: "pendiente · tanda de catálogo",
-    cuando: "catálogo: precio o estado (aumento-core.ts)", clave: "producto:<productoId>:<cambioId>",
+    tipo: "producto.actualizado", version: 1, familia: "retail", emision: "P2",
+    cuando:
+      "cambio de precio (registrarCambiosDePrecio, catalogo/precios-auditoria.ts: actualizar precios, planilla, ficha del " +
+      "producto, alta con precio, catálogo de la marca) o de estado (toggleProductActive, catalog-actions.ts), en la transacción " +
+      "que lo escribe. precio y activo = los de después; cambios = precio | alta | estado; una fila por producto",
+    clave: "producto:<productoId>:<cambio>:<loteId del cambio general | uno nuevo>",
     esquema: e.objeto({ productoId: e.id(), sku: e.nulo(e.texto()), precio: e.nulo(e.monto()), activo: e.bool(), cambios: e.lista(e.texto()) }),
     ejemplo: { productoId: "prd_01", sku: null, precio: 13200, activo: true, cambios: ["precio"] },
   }),
   "cliente.creado@1": def({
-    tipo: "cliente.creado", version: 1, familia: "compartido", emision: "pendiente · tanda de client-actions",
-    cuando: "client-actions.ts", clave: "cliente:<clienteId>:creado",
+    tipo: "cliente.creado", version: 1, familia: "compartido", emision: "P2",
+    cuando:
+      "alta de ficha (crearFichaEnTx, clientes/crear-ficha.ts: desde Clientes —client-actions.ts— y desde Vender), en su " +
+      "transacción; teléfono enmascarado. Las altas de ficha de turnos/reserva pública, pádel, taller, inmobiliaria y lista de " +
+      "espera no emiten en v1: ningún criterio del plan las pide (hueco del plan, a la PMO)",
+    clave: "cliente:<clienteId>:creado",
     esquema: e.objeto({ clienteId: e.id(), nombre: e.textoLibre(), telefonoEnmascarado: e.nulo(e.enmascarado()) }),
     ejemplo: { clienteId: "cli_01", nombre: "Marta G.", telefonoEnmascarado: "******7788" },
   }),
   "deuda.vencida@1": def({
-    tipo: "deuda.vencida", version: 1, familia: "retail", emision: "pendiente · tanda de debts (barrido)", plata: true,
-    cuando: "barrido diario de cuentas a cobrar (src/lib/debts)", clave: "deuda:<deudaId>:vencida:<AAAA-MM-DD>",
+    tipo: "deuda.vencida", version: 1, familia: "retail", emision: "pendiente · M7 (M7-C6)", plata: true,
+    cuando: "barrido diario de cuentas a cobrar (M7-C6: «deuda.vencida@1 desde el barrido»; hoy no hay barrido)", clave: "deuda:<deudaId>:vencida:<AAAA-MM-DD>",
     esquema: e.objeto({ clienteId: e.id(), deudaId: e.id(), monto: e.monto(), venciaEl: e.fecha(), diasVencida: e.entero() }),
     ejemplo: { clienteId: "cli_01", deudaId: "ar_01", monto: 32000, venciaEl: "2026-10-20", diasVencida: 8 },
   }),
   "caja.cerrada@1": def({
-    tipo: "caja.cerrada", version: 1, familia: "compartido", emision: "pendiente · M1 (cierre-diario)", plata: true,
-    cuando: "cierre del día (cierre-diario.ts)", clave: "caja:<cierreId>:cerrada",
+    tipo: "caja.cerrada", version: 1, familia: "compartido", emision: "P2", plata: true,
+    cuando:
+      "cierre del día (cerrarDia, cierre-diario-actions.ts), en su transacción Serializable. cierreId = id del registro del " +
+      "cierre (un día reabierto y vuelto a cerrar es otro cierre); esperado, contado, diferencia y porMedio (lo contado) son " +
+      "los de los medios DECLARADOS. El congelado del mes que cierra días sin movimientos no emite: no hubo arqueo",
+    clave: "caja:<cierreId>:cerrada",
     esquema: e.objeto({
       cierreId: e.id(), fecha: e.fecha(), esperado: e.monto(), contado: e.monto(), diferencia: e.monto(),
       porMedio: e.objeto({
@@ -252,13 +287,16 @@ export const CATALOGO = {
     ejemplo: { cierreId: "cie_01", fecha: "2026-10-28", esperado: 412300, contado: 412000, diferencia: -300, porMedio: { EFECTIVO: 210000, MP: 202000 } },
   }),
   "caja.abierta@1": def({
-    tipo: "caja.abierta", version: 1, familia: "retail", emision: "pendiente · M1 (caja)", plata: true,
-    cuando: "corte inicial", clave: "caja:<cierreId>:abierta",
+    tipo: "caja.abierta", version: 1, familia: "retail", emision: "P2", plata: true,
+    cuando:
+      "apertura de un turno de caja (openCashSession, caja-actions.ts), en su transacción Serializable. cierreId = id del " +
+      "turno (CashSession), el mismo que trae su caja.turno.cerrada; fecha = el instante de la apertura",
+    clave: "caja:<cierreId>:abierta",
     esquema: e.objeto({ cierreId: e.id(), fecha: e.fecha(), inicial: e.monto() }),
     ejemplo: { cierreId: "cie_01", fecha: "2026-10-28", inicial: 20000 },
   }),
   "balanza.lectura@1": def({
-    tipo: "balanza.lectura", version: 1, familia: "retail", emision: "pendiente · opcional (pos-peso.ts)", soloApiLocal: true,
+    tipo: "balanza.lectura", version: 1, familia: "retail", emision: "no se emite · opcional por §7.3 de plataforma-integraciones (sólo si el negocio lo pide); ningún criterio del plan lo pide", soloApiLocal: true,
     cuando: "sólo si el negocio lo pide (pos-peso.ts); nunca por webhook, sólo API local", clave: "balanza:<balanzaId>:<lecturaId>",
     esquema: e.objeto({ peso: e.numero(), unidad: e.uno(["kg", "g"] as const), productoId: e.opcional(e.id()) }),
     ejemplo: { peso: 1.234, unidad: "kg", productoId: "prd_01" },
@@ -266,7 +304,7 @@ export const CATALOGO = {
 
   // ── Club (§7.3) ──
   "turno.reservado@1": def({
-    tipo: "turno.reservado", version: 1, familia: "club", emision: "pendiente · B1 (booking-core)",
+    tipo: "turno.reservado", version: 1, familia: "club", emision: "pendiente · B1 (B1-C6)",
     cuando: "booking-core.ts (y createBooking del bot WA)", clave: "turno:<turnoId>:reservado",
     esquema: e.objeto({
       turnoId: e.id(), servicioId: e.id(), profesionalId: e.opcional(e.id()), recursoId: e.opcional(e.id()),
@@ -275,13 +313,13 @@ export const CATALOGO = {
     ejemplo: { turnoId: "trn_01", servicioId: "srv_01", recursoId: "cancha_2", inicio: "2026-10-28T19:00:00-03:00", fin: "2026-10-28T20:30:00-03:00", clienteId: "cli_01", canal: "WHATSAPP", sena: 6000 },
   }),
   "turno.confirmado@1": def({
-    tipo: "turno.confirmado", version: 1, familia: "club", emision: "pendiente · B1",
+    tipo: "turno.confirmado", version: 1, familia: "club", emision: "pendiente · B1 (P2-C2; B1-C6 no lo nombra: hueco del plan, a la PMO)",
     cuando: "confirmación por WhatsApp/panel", clave: "turno:<turnoId>:confirmado",
     esquema: e.objeto({ turnoId: e.id(), confirmadoEn: e.fecha(), canal: e.texto() }),
     ejemplo: { turnoId: "trn_01", confirmadoEn: "2026-10-28T12:00:00-03:00", canal: "WHATSAPP" },
   }),
   "turno.cancelado@1": def({
-    tipo: "turno.cancelado", version: 1, familia: "club", emision: "pendiente · B1",
+    tipo: "turno.cancelado", version: 1, familia: "club", emision: "pendiente · B1 (B1-C6)",
     cuando: "cancelación (panel o whatsapp/route.ts)", clave: "turno:<turnoId>:cancelado",
     esquema: e.objeto({
       turnoId: e.id(), motivo: e.textoLibre(), quien: e.uno(["CLIENTE", "NEGOCIO"] as const), fueraDeTermino: e.bool(), reintegroSena: e.opcional(e.monto()),
@@ -289,99 +327,99 @@ export const CATALOGO = {
     ejemplo: { turnoId: "trn_01", motivo: "Lluvia", quien: "NEGOCIO", fueraDeTermino: false, reintegroSena: 6000 },
   }),
   "turno.reprogramado@1": def({
-    tipo: "turno.reprogramado", version: 1, familia: "club", emision: "pendiente · B1",
+    tipo: "turno.reprogramado", version: 1, familia: "club", emision: "pendiente · B1 (B1-C6)",
     cuando: "reprogramación", clave: "turno:<turnoId>:reprogramado:<inicioNuevo>",
     esquema: e.objeto({ turnoId: e.id(), inicioAnterior: e.fecha(), inicioNuevo: e.fecha() }),
     ejemplo: { turnoId: "trn_01", inicioAnterior: "2026-10-28T19:00:00-03:00", inicioNuevo: "2026-10-29T19:00:00-03:00" },
   }),
   "turno.completado@1": def({
-    tipo: "turno.completado", version: 1, familia: "club", emision: "pendiente · B1",
+    tipo: "turno.completado", version: 1, familia: "club", emision: "pendiente · B1 (B1-C6)",
     cuando: "cierre del turno", clave: "turno:<turnoId>:completado",
     esquema: e.objeto({ turnoId: e.id(), montoCobrado: e.opcional(e.monto()) }),
     ejemplo: { turnoId: "trn_01", montoCobrado: 24000 },
   }),
   "turno.ausente@1": def({
-    tipo: "turno.ausente", version: 1, familia: "club", emision: "pendiente · B1",
+    tipo: "turno.ausente", version: 1, familia: "club", emision: "pendiente · B1 (B1-C6)",
     cuando: "no-show", clave: "turno:<turnoId>:ausente",
     esquema: e.objeto({ turnoId: e.id() }),
     ejemplo: { turnoId: "trn_01" },
   }),
   "turno.recordatorio.enviado@1": def({
-    tipo: "turno.recordatorio.enviado", version: 1, familia: "club", emision: "pendiente · B1",
+    tipo: "turno.recordatorio.enviado", version: 1, familia: "club", emision: "pendiente · B8 (B8-C1)",
     cuando: "cron/reminders (reminder-sweep.ts)", clave: "turno:<turnoId>:recordatorio:<plantilla>",
     esquema: e.objeto({ turnoId: e.id(), canal: e.texto(), plantilla: e.texto() }),
     ejemplo: { turnoId: "trn_01", canal: "WHATSAPP", plantilla: "recordatorio_turno" },
   }),
   "clase.pedida@1": def({
-    tipo: "clase.pedida", version: 1, familia: "club", emision: "pendiente · B1 (padel/core.ts)",
+    tipo: "clase.pedida", version: 1, familia: "club", emision: "pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)",
     cuando: "padel/core.ts (PadelClase)", clave: "clase:<claseId>:pedida", esquema: CLASE, ejemplo: ejClase,
   }),
   "clase.confirmada@1": def({
-    tipo: "clase.confirmada", version: 1, familia: "club", emision: "pendiente · B1 (padel/core.ts)",
+    tipo: "clase.confirmada", version: 1, familia: "club", emision: "pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)",
     cuando: "padel/core.ts (PadelClase)", clave: "clase:<claseId>:confirmada", esquema: CLASE, ejemplo: { ...ejClase, estado: "CONFIRMADA" },
   }),
   "clase.cancelada@1": def({
-    tipo: "clase.cancelada", version: 1, familia: "club", emision: "pendiente · B1 (padel/core.ts)",
+    tipo: "clase.cancelada", version: 1, familia: "club", emision: "pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)",
     cuando: "padel/core.ts (PadelClase)", clave: "clase:<claseId>:cancelada", esquema: CLASE, ejemplo: { ...ejClase, estado: "CANCELADA" },
   }),
   "clase.pagada@1": def({
-    tipo: "clase.pagada", version: 1, familia: "club", emision: "pendiente · B1 (padel/core.ts)", plata: true,
+    tipo: "clase.pagada", version: 1, familia: "club", emision: "pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)", plata: true,
     cuando: "cobro de la clase", clave: "clase:<claseId>:pagada",
     esquema: e.objeto({ claseId: e.id(), monto: e.monto(), medio: MEDIO }),
     ejemplo: { claseId: "cls_01", monto: 15000, medio: "TRANSFERENCIA" },
   }),
   "socio.alta@1": def({
-    tipo: "socio.alta", version: 1, familia: "club", emision: "pendiente · módulo club",
+    tipo: "socio.alta", version: 1, familia: "club", emision: "pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)",
     cuando: "alta de socio", clave: "socio:<socioId>:alta:<desde>", esquema: SOCIO,
     ejemplo: { socioId: "soc_01", categoria: "ACTIVO", desde: "2026-10-01" },
   }),
   "socio.baja@1": def({
-    tipo: "socio.baja", version: 1, familia: "club", emision: "pendiente · módulo club",
+    tipo: "socio.baja", version: 1, familia: "club", emision: "pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)",
     cuando: "baja de socio", clave: "socio:<socioId>:baja:<desde>", esquema: SOCIO,
     ejemplo: { socioId: "soc_01", categoria: "ACTIVO", desde: "2026-10-31" },
   }),
   "cuota.generada@1": def({
-    tipo: "cuota.generada", version: 1, familia: "club", emision: "pendiente · módulo club",
+    tipo: "cuota.generada", version: 1, familia: "club", emision: "pendiente · B10 (B10-C4)",
     cuando: "generación mensual", clave: "cuota:<cuotaId>:generada",
     esquema: e.objeto({ cuotaId: e.id(), socioId: e.id(), periodo: e.texto(), monto: e.monto(), vence: e.fecha() }),
     ejemplo: { cuotaId: "cuo_01", socioId: "soc_01", periodo: "2026-11", monto: 18000, vence: "2026-11-10" },
   }),
   "cuota.cobrada@1": def({
-    tipo: "cuota.cobrada", version: 1, familia: "club", emision: "pendiente · módulo club", plata: true,
+    tipo: "cuota.cobrada", version: 1, familia: "club", emision: "pendiente · B10 (B10-C4)", plata: true,
     cuando: "cobro de la cuota", clave: "cuota:<cuotaId>:cobrada",
     esquema: e.objeto({ cuotaId: e.id(), monto: e.monto(), medio: MEDIO, pagoExterno: e.opcional(e.id()) }),
     ejemplo: { cuotaId: "cuo_01", monto: 18000, medio: "MP", pagoExterno: "1325478891" },
   }),
   "cuota.vencida@1": def({
-    tipo: "cuota.vencida", version: 1, familia: "club", emision: "pendiente · módulo club (barrido)",
+    tipo: "cuota.vencida", version: 1, familia: "club", emision: "pendiente · B10 (B10-C4)",
     cuando: "barrido diario", clave: "cuota:<cuotaId>:vencida:<AAAA-MM-DD>",
     esquema: e.objeto({ cuotaId: e.id(), socioId: e.id(), diasVencida: e.entero(), monto: e.monto() }),
     ejemplo: { cuotaId: "cuo_01", socioId: "soc_01", diasVencida: 5, monto: 18000 },
   }),
   "credito.cargado@1": def({
-    tipo: "credito.cargado", version: 1, familia: "club", emision: "pendiente · módulo club (credito-core.ts)", plata: true,
+    tipo: "credito.cargado", version: 1, familia: "club", emision: "pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)", plata: true,
     cuando: "buffet / cuenta corriente (club/credito-core.ts)", clave: "credito:<movimientoId>", esquema: CREDITO,
     ejemplo: { socioId: "soc_01", monto: 10000, saldo: 25000, origen: "carga en mostrador" },
   }),
   "credito.consumido@1": def({
-    tipo: "credito.consumido", version: 1, familia: "club", emision: "pendiente · módulo club (credito-core.ts)", plata: true,
+    tipo: "credito.consumido", version: 1, familia: "club", emision: "pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)", plata: true,
     cuando: "buffet / cuenta corriente (club/credito-core.ts)", clave: "credito:<movimientoId>", esquema: CREDITO,
     ejemplo: { socioId: "soc_01", monto: 3500, saldo: 21500, origen: "buffet" },
   }),
   "buffet.pedido.creado@1": def({
-    tipo: "buffet.pedido.creado", version: 1, familia: "club", emision: "pendiente · módulo club (buffet-core.ts)",
+    tipo: "buffet.pedido.creado", version: 1, familia: "club", emision: "pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)",
     cuando: "club/buffet-core.ts", clave: "buffet:<pedidoId>:creado",
     esquema: e.objeto({ pedidoId: e.id(), socioId: e.opcional(e.id()), items: e.lista(ITEM_PEDIDO), total: e.monto() }),
     ejemplo: { pedidoId: "buf_01", socioId: "soc_01", items: [{ productoId: "prd_09", sku: null, nombre: "Gatorade", cantidad: 2, precioUnitario: 1750 }], total: 3500 },
   }),
   "mensaje.recibido@1": def({
-    tipo: "mensaje.recibido", version: 1, familia: "club", emision: "pendiente · P6 (webhook WhatsApp)",
+    tipo: "mensaje.recibido", version: 1, familia: "club", emision: "pendiente · P6 (P6-C1 recibe el webhook; ningún criterio nombra el evento: hueco del plan, a la PMO)",
     cuando: "webhook WhatsApp (ya canónico en E3)", clave: "mensaje:<idMensaje>:recibido",
     esquema: e.objeto({ conexionId: e.id(), remitenteEnmascarado: e.enmascarado(), clase: e.texto(), idMensaje: e.id() }),
     ejemplo: { conexionId: "con_01", remitenteEnmascarado: "******7788", clase: "texto", idMensaje: "wamid.HBg…" },
   }),
   "mensaje.estado@1": def({
-    tipo: "mensaje.estado", version: 1, familia: "club", emision: "pendiente · P6 (statuses de Meta)",
+    tipo: "mensaje.estado", version: 1, familia: "club", emision: "pendiente · P6 (P6-C3)",
     cuando: "statuses de Meta", clave: "mensaje:<idMensaje>:<estado>",
     esquema: e.objeto({ idMensaje: e.id(), estado: e.texto() }),
     ejemplo: { idMensaje: "wamid.HBg…", estado: "read" },
@@ -389,63 +427,67 @@ export const CATALOGO = {
 
   // ── Agregados por el plan N2 (§4.1.2) ──
   "turno.sena.pagada@1": def({
-    tipo: "turno.sena.pagada", version: 1, familia: "n2", emision: "pendiente · B1", plata: true,
+    tipo: "turno.sena.pagada", version: 1, familia: "n2", emision: "pendiente · B1 (B1-C6)", plata: true,
     cuando: "B1 al aplicar senaPagada", clave: "turno:<turnoId>:sena:<ref>",
     esquema: e.objeto({ turnoId: e.id(), ref: e.texto(), monto: e.monto(), medio: MEDIO, pagoExterno: e.opcional(e.id()) }),
     ejemplo: { turnoId: "trn_01", ref: "sena-trn_01", monto: 6000, medio: "MP", pagoExterno: "1325478892" },
   }),
   "turno.garantia.ejecutada@1": def({
-    tipo: "turno.garantia.ejecutada", version: 1, familia: "n2", emision: "pendiente · B7", plata: true,
+    tipo: "turno.garantia.ejecutada", version: 1, familia: "n2", emision: "pendiente · B7 (B7-C1)", plata: true,
     cuando: "B7", clave: "turno:<turnoId>:garantia",
     esquema: e.objeto({ fijoId: e.id(), turnoId: e.id(), monto: e.monto(), motivo: e.textoLibre() }),
     ejemplo: { fijoId: "fij_01", turnoId: "trn_01", monto: 12000, motivo: "Ausente sin aviso" },
   }),
   "espera.ofrecida@1": def({
-    tipo: "espera.ofrecida", version: 1, familia: "n2", emision: "pendiente · B8",
+    tipo: "espera.ofrecida", version: 1, familia: "n2", emision: "pendiente · B8 (B8-C3)",
     cuando: "B8", clave: "espera:<esperaId>:ofrecida:<turnoId>", esquema: ESPERA, ejemplo: ejEspera,
   }),
   "espera.asignada@1": def({
-    tipo: "espera.asignada", version: 1, familia: "n2", emision: "pendiente · B8",
+    tipo: "espera.asignada", version: 1, familia: "n2", emision: "pendiente · B8 (B8-C3)",
     cuando: "B8", clave: "espera:<esperaId>:asignada", esquema: ESPERA, ejemplo: ejEspera,
   }),
   "caja.turno.cerrada@1": def({
-    tipo: "caja.turno.cerrada", version: 1, familia: "n2", emision: "pendiente · B4 (club) y M1 (retail)", plata: true,
-    cuando: "B4 (club) y M1 (retail, cierre de turno)", clave: "caja:turno:<cierreId>:cerrada",
+    tipo: "caja.turno.cerrada", version: 1, familia: "n2", emision: "P2", plata: true,
+    cuando:
+      "cierre de un turno de caja con arqueo (closeCashSession, caja-actions.ts), en su transacción Serializable: cierreId = " +
+      "id del turno (CashSession), turno = la hora de su apertura, quien = el actor. El cierre de turno propio del club (motor " +
+      "del club) lo emite B1 (B1-C6) / B4 (B4-C8)",
+    clave: "caja:turno:<cierreId>:cerrada",
     esquema: e.objeto({
       cierreId: e.id(), turno: e.texto(), quien: e.id(), esperado: e.monto(), contado: e.monto(), diferencia: e.monto(), motivo: e.opcional(e.textoLibre()),
     }),
     ejemplo: { cierreId: "cie_01", turno: "mañana", quien: "usr_03", esperado: 120000, contado: 119500, diferencia: -500, motivo: "Faltó cambio" },
   }),
   "reparto.salio@1": def({
-    tipo: "reparto.salio", version: 1, familia: "n2", emision: "pendiente · M6", plata: true,
+    tipo: "reparto.salio", version: 1, familia: "n2", emision: "pendiente · M6 (M6-C5)", plata: true,
     cuando: "M6", clave: "reparto:<repartoId>:salio", esquema: REPARTO, ejemplo: ejReparto,
   }),
   "reparto.rendido@1": def({
-    tipo: "reparto.rendido", version: 1, familia: "n2", emision: "pendiente · M6", plata: true,
+    tipo: "reparto.rendido", version: 1, familia: "n2", emision: "pendiente · M6 (M6-C5)", plata: true,
     cuando: "M6", clave: "reparto:<repartoId>:rendido", esquema: REPARTO, ejemplo: ejReparto,
   }),
   "pedido.transferencia.verificada@1": def({
-    tipo: "pedido.transferencia.verificada", version: 1, familia: "n2", emision: "pendiente · M2", plata: true,
+    tipo: "pedido.transferencia.verificada", version: 1, familia: "n2", emision: "pendiente · M2 (M2-C6)", plata: true,
     cuando: "M2", clave: "pedido:<pedidoId>:transferencia-verificada",
     esquema: e.objeto({ pedidoId: e.id(), verificadoPor: e.id(), verificadoEn: e.fecha() }),
     ejemplo: { pedidoId: "ord_01", verificadoPor: "usr_03", verificadoEn: "2026-10-28T14:05:00-03:00" },
   }),
   "lote.por.vencer@1": def({
-    tipo: "lote.por.vencer", version: 1, familia: "n2", emision: "pendiente · M3a (barrido diario)",
+    tipo: "lote.por.vencer", version: 1, familia: "n2", emision: "pendiente · M3a (M3a-C6)",
     cuando: "M3a (barrido diario)", clave: "lote:<loteId>:por-vencer", esquema: LOTE, ejemplo: ejLote,
   }),
   "lote.vencido@1": def({
-    tipo: "lote.vencido", version: 1, familia: "n2", emision: "pendiente · M3a (barrido diario)",
+    tipo: "lote.vencido", version: 1, familia: "n2", emision: "pendiente · M3a (M3a-C6)",
     cuando: "M3a (barrido diario)", clave: "lote:<loteId>:vencido", esquema: LOTE, ejemplo: ejLote,
   }),
   "club.luz.cambio@1": def({
-    tipo: "club.luz.cambio", version: 1, familia: "n2", emision: "pendiente · B1 (comando luz)",
+    tipo: "club.luz.cambio", version: 1, familia: "n2", emision: "pendiente · B1 (B1-C6)",
     cuando: "B1 (comando luz)", clave: "luz:<canchaId>:<cambioId>",
     esquema: e.objeto({ canchaId: e.id(), encendida: e.bool(), turnoId: e.opcional(e.id()) }),
     ejemplo: { canchaId: "cancha_2", encendida: true, turnoId: "trn_01" },
   }),
   "producto.balanza.sincronizada@1": def({
-    tipo: "producto.balanza.sincronizada", version: 1, familia: "n2", emision: "pendiente · M5",
+    tipo: "producto.balanza.sincronizada", version: 1, familia: "n2", emision: "pendiente · M5 (M5-C3)",
     cuando: "M5", clave: "balanza:<balanzaId>:sync:<confirmadaEn>",
     esquema: e.objeto({ balanzaId: e.id(), productos: e.entero(), confirmadaEn: e.fecha() }),
     ejemplo: { balanzaId: "bal_01", productos: 184, confirmadaEn: "2026-10-28T07:00:00-03:00" },

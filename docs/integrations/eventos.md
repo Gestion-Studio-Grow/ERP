@@ -18,61 +18,61 @@ Reglas:
 6. Hasta la tanda P3 (despachante y webhooks) nadie entrega estos eventos: quedan en el outbox con `processedAt` NULL. El despacho de ARCA toma sólo `InvoiceCreated`. P3 decide qué hace con lo acumulado (una suscripción nueva no recibe eventos de antes de existir).
 7. `externalRef` es la referencia que manda el integrador por la API (`ext:<ref>`) y viaja tal cual, sin redactar: es para cruzar con su sistema. No lleva datos personales.
 
-Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pendiente de la tanda que se indica.
+Total: **51 eventos** en el catálogo · **15 emitidos hoy** (P2) · el resto, pendiente de la tanda que se indica.
 
 | Evento | Familia | Emisión | Plata |
 |---|---|---|---|
 | `pedido.creado@1` | retail | P2 |  |
-| `pedido.confirmado@1` | retail | pendiente · tanda de avanzar-pedido |  |
-| `pedido.listo@1` | retail | pendiente · tanda de avanzar-pedido |  |
-| `pedido.entregado@1` | retail | pendiente · tanda de avanzar-pedido |  |
+| `pedido.confirmado@1` | retail | P2 |  |
+| `pedido.listo@1` | retail | P2 |  |
+| `pedido.entregado@1` | retail | P2 |  |
 | `pedido.cancelado@1` | retail | P2 | sí |
 | `pedido.cobrado@1` | retail | P2 | sí |
-| `pago.acreditado@1` | compartido | pendiente · ingesta MP (P5) | sí |
-| `pago.devuelto@1` | compartido | pendiente · ingesta MP (P5) | sí |
+| `pago.acreditado@1` | compartido | pendiente · P5 (P5-C5) | sí |
+| `pago.devuelto@1` | compartido | pendiente · P5 (P5-C6) | sí |
 | `factura.autorizada@1` | compartido | P2 | sí |
 | `factura.rechazada@1` | compartido | P2 | sí |
-| `stock.bajo@1` | retail | pendiente · tanda de inventario |  |
-| `stock.ajustado@1` | retail | pendiente · tanda de inventario |  |
-| `producto.actualizado@1` | retail | pendiente · tanda de catálogo |  |
-| `cliente.creado@1` | compartido | pendiente · tanda de client-actions |  |
-| `deuda.vencida@1` | retail | pendiente · tanda de debts (barrido) | sí |
-| `caja.cerrada@1` | compartido | pendiente · M1 (cierre-diario) | sí |
-| `caja.abierta@1` | retail | pendiente · M1 (caja) | sí |
-| `balanza.lectura@1` | retail | pendiente · opcional (pos-peso.ts) |  |
-| `turno.reservado@1` | club | pendiente · B1 (booking-core) |  |
-| `turno.confirmado@1` | club | pendiente · B1 |  |
-| `turno.cancelado@1` | club | pendiente · B1 |  |
-| `turno.reprogramado@1` | club | pendiente · B1 |  |
-| `turno.completado@1` | club | pendiente · B1 |  |
-| `turno.ausente@1` | club | pendiente · B1 |  |
-| `turno.recordatorio.enviado@1` | club | pendiente · B1 |  |
-| `clase.pedida@1` | club | pendiente · B1 (padel/core.ts) |  |
-| `clase.confirmada@1` | club | pendiente · B1 (padel/core.ts) |  |
-| `clase.cancelada@1` | club | pendiente · B1 (padel/core.ts) |  |
-| `clase.pagada@1` | club | pendiente · B1 (padel/core.ts) | sí |
-| `socio.alta@1` | club | pendiente · módulo club |  |
-| `socio.baja@1` | club | pendiente · módulo club |  |
-| `cuota.generada@1` | club | pendiente · módulo club |  |
-| `cuota.cobrada@1` | club | pendiente · módulo club | sí |
-| `cuota.vencida@1` | club | pendiente · módulo club (barrido) |  |
-| `credito.cargado@1` | club | pendiente · módulo club (credito-core.ts) | sí |
-| `credito.consumido@1` | club | pendiente · módulo club (credito-core.ts) | sí |
-| `buffet.pedido.creado@1` | club | pendiente · módulo club (buffet-core.ts) |  |
-| `mensaje.recibido@1` | club | pendiente · P6 (webhook WhatsApp) |  |
-| `mensaje.estado@1` | club | pendiente · P6 (statuses de Meta) |  |
-| `turno.sena.pagada@1` | n2 | pendiente · B1 | sí |
-| `turno.garantia.ejecutada@1` | n2 | pendiente · B7 | sí |
-| `espera.ofrecida@1` | n2 | pendiente · B8 |  |
-| `espera.asignada@1` | n2 | pendiente · B8 |  |
-| `caja.turno.cerrada@1` | n2 | pendiente · B4 (club) y M1 (retail) | sí |
-| `reparto.salio@1` | n2 | pendiente · M6 | sí |
-| `reparto.rendido@1` | n2 | pendiente · M6 | sí |
-| `pedido.transferencia.verificada@1` | n2 | pendiente · M2 | sí |
-| `lote.por.vencer@1` | n2 | pendiente · M3a (barrido diario) |  |
-| `lote.vencido@1` | n2 | pendiente · M3a (barrido diario) |  |
-| `club.luz.cambio@1` | n2 | pendiente · B1 (comando luz) |  |
-| `producto.balanza.sincronizada@1` | n2 | pendiente · M5 |  |
+| `stock.bajo@1` | retail | P2 |  |
+| `stock.ajustado@1` | retail | P2 |  |
+| `producto.actualizado@1` | retail | P2 |  |
+| `cliente.creado@1` | compartido | P2 |  |
+| `deuda.vencida@1` | retail | pendiente · M7 (M7-C6) | sí |
+| `caja.cerrada@1` | compartido | P2 | sí |
+| `caja.abierta@1` | retail | P2 | sí |
+| `balanza.lectura@1` | retail | no se emite · opcional por §7.3 de plataforma-integraciones (sólo si el negocio lo pide); ningún criterio del plan lo pide |  |
+| `turno.reservado@1` | club | pendiente · B1 (B1-C6) |  |
+| `turno.confirmado@1` | club | pendiente · B1 (P2-C2; B1-C6 no lo nombra: hueco del plan, a la PMO) |  |
+| `turno.cancelado@1` | club | pendiente · B1 (B1-C6) |  |
+| `turno.reprogramado@1` | club | pendiente · B1 (B1-C6) |  |
+| `turno.completado@1` | club | pendiente · B1 (B1-C6) |  |
+| `turno.ausente@1` | club | pendiente · B1 (B1-C6) |  |
+| `turno.recordatorio.enviado@1` | club | pendiente · B8 (B8-C1) |  |
+| `clase.pedida@1` | club | pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO) |  |
+| `clase.confirmada@1` | club | pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO) |  |
+| `clase.cancelada@1` | club | pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO) |  |
+| `clase.pagada@1` | club | pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO) | sí |
+| `socio.alta@1` | club | pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO) |  |
+| `socio.baja@1` | club | pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO) |  |
+| `cuota.generada@1` | club | pendiente · B10 (B10-C4) |  |
+| `cuota.cobrada@1` | club | pendiente · B10 (B10-C4) | sí |
+| `cuota.vencida@1` | club | pendiente · B10 (B10-C4) |  |
+| `credito.cargado@1` | club | pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO) | sí |
+| `credito.consumido@1` | club | pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO) | sí |
+| `buffet.pedido.creado@1` | club | pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO) |  |
+| `mensaje.recibido@1` | club | pendiente · P6 (P6-C1 recibe el webhook; ningún criterio nombra el evento: hueco del plan, a la PMO) |  |
+| `mensaje.estado@1` | club | pendiente · P6 (P6-C3) |  |
+| `turno.sena.pagada@1` | n2 | pendiente · B1 (B1-C6) | sí |
+| `turno.garantia.ejecutada@1` | n2 | pendiente · B7 (B7-C1) | sí |
+| `espera.ofrecida@1` | n2 | pendiente · B8 (B8-C3) |  |
+| `espera.asignada@1` | n2 | pendiente · B8 (B8-C3) |  |
+| `caja.turno.cerrada@1` | n2 | P2 | sí |
+| `reparto.salio@1` | n2 | pendiente · M6 (M6-C5) | sí |
+| `reparto.rendido@1` | n2 | pendiente · M6 (M6-C5) | sí |
+| `pedido.transferencia.verificada@1` | n2 | pendiente · M2 (M2-C6) | sí |
+| `lote.por.vencer@1` | n2 | pendiente · M3a (M3a-C6) |  |
+| `lote.vencido@1` | n2 | pendiente · M3a (M3a-C6) |  |
+| `club.luz.cambio@1` | n2 | pendiente · B1 (B1-C6) |  |
+| `producto.balanza.sincronizada@1` | n2 | pendiente · M5 (M5-C3) |  |
 
 ## Retail (comercio, carnicería, perfumería, pádel-tienda, supermercado)
 
@@ -114,8 +114,8 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `pedido.confirmado@1`
 
-- **Cuándo:** avance PENDING→CONFIRMED (avanzar-pedido)
-- **Emisión:** pendiente · tanda de avanzar-pedido
+- **Cuándo:** el negocio acepta el pedido: paso de la bandeja PENDING→CONFIRMED (servicios) o PENDING→PREPARING (comercio, que se saltea Confirmado) en advanceOrderStatus (order-actions.ts → moverPedidoConEventoEnTx), en la transacción del paso. Un pedido que NACE confirmado (mostrador, API) no lo emite: su pedido.creado ya lo dice
+- **Emisión:** P2
 - **Clave:** `pedido:<pedidoId>:confirmado`
 - **datos:** `{ pedidoId: id, codigo: entero, listoEstimado?: fecha ISO 8601 }`
 
@@ -137,8 +137,8 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `pedido.listo@1`
 
-- **Cuándo:** avance →READY
-- **Emisión:** pendiente · tanda de avanzar-pedido
+- **Cuándo:** paso de la bandeja →READY (advanceOrderStatus → moverPedidoConEventoEnTx), en la transacción del paso
+- **Emisión:** P2
 - **Clave:** `pedido:<pedidoId>:listo`
 - **datos:** `{ pedidoId: id, codigo: entero, entrega: RETIRA | DELIVERY }`
 
@@ -160,8 +160,8 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `pedido.entregado@1`
 
-- **Cuándo:** avance →DELIVERED
-- **Emisión:** pendiente · tanda de avanzar-pedido
+- **Cuándo:** paso READY→DELIVERED (entregarPedido; también la entrega al fiado, clientes/fiado.ts) y la venta de mostrador que nace entregada (createOrder y la caja con lector, supermercado/caja-actions.ts), en la transacción del paso
+- **Emisión:** P2
 - **Clave:** `pedido:<pedidoId>:entregado`
 - **datos:** `{ pedidoId: id, codigo: entero, entregadoEn: fecha ISO 8601 }`
 
@@ -207,7 +207,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `pedido.cobrado@1`
 
-- **Cuándo:** botón «Cobrar» y aviso de pago de MP (cobrarPedidoEnTx, que usa cobros-actions vía cobrarPedidoPorAvisoDePago), venta de mostrador que nace cobrada (insertOrder) y cobro parcial que salda el pedido o la deuda de su fiado (applyCollectionInTx, src/lib/settlement/collection-repo.ts: monto = total del pedido, medio = el del cobro que cierra el saldo); en la transacción del cobro. Entregar al fiado (clientes/fiado.ts) y la venta a cuenta NO emiten: no entró plata
+- **Cuándo:** botón «Cobrar» y aviso de pago de MP (cobrarPedidoEnTx, que usa cobros-actions vía cobrarPedidoPorAvisoDePago), venta de mostrador que nace cobrada (insertOrder) y el cobro que salda la deuda del pedido —su fiado o su venta a cuenta— (applyCollectionInTx con origen RECEIVABLE, src/lib/settlement/collection-repo.ts: monto = total del pedido, medio = el del cobro que cierra el saldo; el origen ORDER sólo lo usa recordCollection, sin llamadores en producción); en la transacción del cobro. Entregar al fiado (clientes/fiado.ts) y la venta a cuenta NO emiten: no entró plata. REGLA (O-v4-5): un pedido CANCELADO no emite pedido.cobrado; la plata que entre después por su deuda es un cobro de la cuenta corriente, no del pedido
 - **Emisión:** P2 · evento de plata (dentro de la transacción)
 - **Clave:** `pedido:<pedidoId>:cobrado`
 - **datos:** `{ pedidoId: id, codigo: entero, monto: monto (ARS), medio: EFECTIVO | MP | TRANSFERENCIA | TARJETA, pagoExterno?: id, cobradoEn: fecha ISO 8601 }`
@@ -233,10 +233,10 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `stock.bajo@1`
 
-- **Cuándo:** tras cada movimiento del ledger (src/lib/inventario) si disponible <= minimo
-- **Emisión:** pendiente · tanda de inventario
+- **Cuándo:** recordMovement (src/lib/stock/ledger.ts, el único mutador del stock) cuando ESE movimiento cruza el mínimo (antes > lowStockAt >= después) en un producto con trackStock, en la transacción del movimiento. Cada venta por debajo del mínimo no vuelve a avisar
+- **Emisión:** P2
 - **Clave:** `stock:<productoId>:bajo:<movimientoId>`
-- **datos:** `{ productoId: id, sku: texto | null, nombre: texto, disponible: número, minimo: número, deposito?: id }`
+- **datos:** `{ productoId: id, sku: texto | null, nombre: texto libre (se redacta), disponible: número, minimo: número, deposito?: id }`
 
 ```json
 {
@@ -258,8 +258,8 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `stock.ajustado@1`
 
-- **Cuándo:** stock-adjustment-actions.ts / mermas
-- **Emisión:** pendiente · tanda de inventario
+- **Cuándo:** recordMovement con tipo AJUSTE (recuento con diferencia, merma; src/lib/stock/ledger.ts), en la transacción del movimiento. El recuento que coincide con el sistema no ajusta nada y no emite
+- **Emisión:** P2
 - **Clave:** `stock:movimiento:<movimientoId>`
 - **datos:** `{ productoId: id, delta: número, motivo: texto libre (se redacta), movimientoId: id }`
 
@@ -282,9 +282,9 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `producto.actualizado@1`
 
-- **Cuándo:** catálogo: precio o estado (aumento-core.ts)
-- **Emisión:** pendiente · tanda de catálogo
-- **Clave:** `producto:<productoId>:<cambioId>`
+- **Cuándo:** cambio de precio (registrarCambiosDePrecio, catalogo/precios-auditoria.ts: actualizar precios, planilla, ficha del producto, alta con precio, catálogo de la marca) o de estado (toggleProductActive, catalog-actions.ts), en la transacción que lo escribe. precio y activo = los de después; cambios = precio | alta | estado; una fila por producto
+- **Emisión:** P2
+- **Clave:** `producto:<productoId>:<cambio>:<loteId del cambio general | uno nuevo>`
 - **datos:** `{ productoId: id, sku: texto | null, precio: monto (ARS) | null, activo: sí/no, cambios: [texto] }`
 
 ```json
@@ -294,7 +294,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
   "version": 1,
   "negocio": "<tenantId>",
   "ocurridoEn": "2026-10-28T17:03:11.000Z",
-  "clave": "producto:<productoId>:<cambioId>",
+  "clave": "producto:<productoId>:<cambio>:<loteId",
   "datos": {
     "productoId": "prd_01",
     "sku": null,
@@ -309,8 +309,8 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `deuda.vencida@1`
 
-- **Cuándo:** barrido diario de cuentas a cobrar (src/lib/debts)
-- **Emisión:** pendiente · tanda de debts (barrido) · evento de plata (dentro de la transacción)
+- **Cuándo:** barrido diario de cuentas a cobrar (M7-C6: «deuda.vencida@1 desde el barrido»; hoy no hay barrido)
+- **Emisión:** pendiente · M7 (M7-C6) · evento de plata (dentro de la transacción)
 - **Clave:** `deuda:<deudaId>:vencida:<AAAA-MM-DD>`
 - **datos:** `{ clienteId: id, deudaId: id, monto: monto (ARS), venciaEl: fecha ISO 8601, diasVencida: entero }`
 
@@ -334,8 +334,8 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `caja.abierta@1`
 
-- **Cuándo:** corte inicial
-- **Emisión:** pendiente · M1 (caja) · evento de plata (dentro de la transacción)
+- **Cuándo:** apertura de un turno de caja (openCashSession, caja-actions.ts), en su transacción Serializable. cierreId = id del turno (CashSession), el mismo que trae su caja.turno.cerrada; fecha = el instante de la apertura
+- **Emisión:** P2 · evento de plata (dentro de la transacción)
 - **Clave:** `caja:<cierreId>:abierta`
 - **datos:** `{ cierreId: id, fecha: fecha ISO 8601, inicial: monto (ARS) }`
 
@@ -358,7 +358,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `balanza.lectura@1`
 
 - **Cuándo:** sólo si el negocio lo pide (pos-peso.ts); nunca por webhook, sólo API local
-- **Emisión:** pendiente · opcional (pos-peso.ts) · sólo API local, nunca por webhook
+- **Emisión:** no se emite · opcional por §7.3 de plataforma-integraciones (sólo si el negocio lo pide); ningún criterio del plan lo pide · sólo API local, nunca por webhook
 - **Clave:** `balanza:<balanzaId>:<lecturaId>`
 - **datos:** `{ peso: número, unidad: kg | g, productoId?: id }`
 
@@ -383,7 +383,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `pago.acreditado@1`
 
 - **Cuándo:** ingesta de Mercado Pago (ingest.ts)
-- **Emisión:** pendiente · ingesta MP (P5) · evento de plata (dentro de la transacción)
+- **Emisión:** pendiente · P5 (P5-C5) · evento de plata (dentro de la transacción)
 - **Clave:** `pago:<proveedor>:<pagoExterno>:acreditado`
 - **datos:** `{ pagoExterno: id, proveedor: texto, monto: monto (ARS), estado: texto, referencia: { tipo: texto, id: id } }`
 
@@ -410,8 +410,8 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `pago.devuelto@1`
 
-- **Cuándo:** EstadoPago = refunded
-- **Emisión:** pendiente · ingesta MP (P5) · evento de plata (dentro de la transacción)
+- **Cuándo:** EstadoPago = refunded / contracargo
+- **Emisión:** pendiente · P5 (P5-C6) · evento de plata (dentro de la transacción)
 - **Clave:** `pago:<proveedor>:<pagoExterno>:devuelto`
 - **datos:** `{ pagoExterno: id, monto: monto (ARS) }`
 
@@ -483,8 +483,8 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `cliente.creado@1`
 
-- **Cuándo:** client-actions.ts
-- **Emisión:** pendiente · tanda de client-actions
+- **Cuándo:** alta de ficha (crearFichaEnTx, clientes/crear-ficha.ts: desde Clientes —client-actions.ts— y desde Vender), en su transacción; teléfono enmascarado. Las altas de ficha de turnos/reserva pública, pádel, taller, inmobiliaria y lista de espera no emiten en v1: ningún criterio del plan las pide (hueco del plan, a la PMO)
+- **Emisión:** P2
 - **Clave:** `cliente:<clienteId>:creado`
 - **datos:** `{ clienteId: id, nombre: texto libre (se redacta), telefonoEnmascarado: enmascarado (******1234) | null }`
 
@@ -506,8 +506,8 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `caja.cerrada@1`
 
-- **Cuándo:** cierre del día (cierre-diario.ts)
-- **Emisión:** pendiente · M1 (cierre-diario) · evento de plata (dentro de la transacción)
+- **Cuándo:** cierre del día (cerrarDia, cierre-diario-actions.ts), en su transacción Serializable. cierreId = id del registro del cierre (un día reabierto y vuelto a cerrar es otro cierre); esperado, contado, diferencia y porMedio (lo contado) son los de los medios DECLARADOS. El congelado del mes que cierra días sin movimientos no emite: no hubo arqueo
+- **Emisión:** P2 · evento de plata (dentro de la transacción)
 - **Clave:** `caja:<cierreId>:cerrada`
 - **datos:** `{ cierreId: id, fecha: fecha ISO 8601, esperado: monto (ARS), contado: monto (ARS), diferencia: monto (ARS), porMedio: { EFECTIVO?: monto (ARS), MP?: monto (ARS), TRANSFERENCIA?: monto (ARS), TARJETA?: monto (ARS) } }`
 
@@ -538,7 +538,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `turno.reservado@1`
 
 - **Cuándo:** booking-core.ts (y createBooking del bot WA)
-- **Emisión:** pendiente · B1 (booking-core)
+- **Emisión:** pendiente · B1 (B1-C6)
 - **Clave:** `turno:<turnoId>:reservado`
 - **datos:** `{ turnoId: id, servicioId: id, profesionalId?: id, recursoId?: id, inicio: fecha ISO 8601, fin: fecha ISO 8601, clienteId: id, canal: texto, sena?: monto (ARS) }`
 
@@ -566,7 +566,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `turno.confirmado@1`
 
 - **Cuándo:** confirmación por WhatsApp/panel
-- **Emisión:** pendiente · B1
+- **Emisión:** pendiente · B1 (P2-C2; B1-C6 no lo nombra: hueco del plan, a la PMO)
 - **Clave:** `turno:<turnoId>:confirmado`
 - **datos:** `{ turnoId: id, confirmadoEn: fecha ISO 8601, canal: texto }`
 
@@ -589,7 +589,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `turno.cancelado@1`
 
 - **Cuándo:** cancelación (panel o whatsapp/route.ts)
-- **Emisión:** pendiente · B1
+- **Emisión:** pendiente · B1 (B1-C6)
 - **Clave:** `turno:<turnoId>:cancelado`
 - **datos:** `{ turnoId: id, motivo: texto libre (se redacta), quien: CLIENTE | NEGOCIO, fueraDeTermino: sí/no, reintegroSena?: monto (ARS) }`
 
@@ -614,7 +614,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `turno.reprogramado@1`
 
 - **Cuándo:** reprogramación
-- **Emisión:** pendiente · B1
+- **Emisión:** pendiente · B1 (B1-C6)
 - **Clave:** `turno:<turnoId>:reprogramado:<inicioNuevo>`
 - **datos:** `{ turnoId: id, inicioAnterior: fecha ISO 8601, inicioNuevo: fecha ISO 8601 }`
 
@@ -637,7 +637,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `turno.completado@1`
 
 - **Cuándo:** cierre del turno
-- **Emisión:** pendiente · B1
+- **Emisión:** pendiente · B1 (B1-C6)
 - **Clave:** `turno:<turnoId>:completado`
 - **datos:** `{ turnoId: id, montoCobrado?: monto (ARS) }`
 
@@ -659,7 +659,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `turno.ausente@1`
 
 - **Cuándo:** no-show
-- **Emisión:** pendiente · B1
+- **Emisión:** pendiente · B1 (B1-C6)
 - **Clave:** `turno:<turnoId>:ausente`
 - **datos:** `{ turnoId: id }`
 
@@ -680,7 +680,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `turno.recordatorio.enviado@1`
 
 - **Cuándo:** cron/reminders (reminder-sweep.ts)
-- **Emisión:** pendiente · B1
+- **Emisión:** pendiente · B8 (B8-C1)
 - **Clave:** `turno:<turnoId>:recordatorio:<plantilla>`
 - **datos:** `{ turnoId: id, canal: texto, plantilla: texto }`
 
@@ -703,7 +703,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `clase.pedida@1`
 
 - **Cuándo:** padel/core.ts (PadelClase)
-- **Emisión:** pendiente · B1 (padel/core.ts)
+- **Emisión:** pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)
 - **Clave:** `clase:<claseId>:pedida`
 - **datos:** `{ claseId: id, alumnoId: id, empiezaEn: fecha ISO 8601, estado: texto, pagoEstado: texto }`
 
@@ -728,7 +728,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `clase.confirmada@1`
 
 - **Cuándo:** padel/core.ts (PadelClase)
-- **Emisión:** pendiente · B1 (padel/core.ts)
+- **Emisión:** pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)
 - **Clave:** `clase:<claseId>:confirmada`
 - **datos:** `{ claseId: id, alumnoId: id, empiezaEn: fecha ISO 8601, estado: texto, pagoEstado: texto }`
 
@@ -753,7 +753,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `clase.cancelada@1`
 
 - **Cuándo:** padel/core.ts (PadelClase)
-- **Emisión:** pendiente · B1 (padel/core.ts)
+- **Emisión:** pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)
 - **Clave:** `clase:<claseId>:cancelada`
 - **datos:** `{ claseId: id, alumnoId: id, empiezaEn: fecha ISO 8601, estado: texto, pagoEstado: texto }`
 
@@ -778,7 +778,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `clase.pagada@1`
 
 - **Cuándo:** cobro de la clase
-- **Emisión:** pendiente · B1 (padel/core.ts) · evento de plata (dentro de la transacción)
+- **Emisión:** pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO) · evento de plata (dentro de la transacción)
 - **Clave:** `clase:<claseId>:pagada`
 - **datos:** `{ claseId: id, monto: monto (ARS), medio: EFECTIVO | MP | TRANSFERENCIA | TARJETA }`
 
@@ -801,7 +801,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `socio.alta@1`
 
 - **Cuándo:** alta de socio
-- **Emisión:** pendiente · módulo club
+- **Emisión:** pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)
 - **Clave:** `socio:<socioId>:alta:<desde>`
 - **datos:** `{ socioId: id, categoria: texto, desde: fecha ISO 8601 }`
 
@@ -824,7 +824,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `socio.baja@1`
 
 - **Cuándo:** baja de socio
-- **Emisión:** pendiente · módulo club
+- **Emisión:** pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)
 - **Clave:** `socio:<socioId>:baja:<desde>`
 - **datos:** `{ socioId: id, categoria: texto, desde: fecha ISO 8601 }`
 
@@ -847,7 +847,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `cuota.generada@1`
 
 - **Cuándo:** generación mensual
-- **Emisión:** pendiente · módulo club
+- **Emisión:** pendiente · B10 (B10-C4)
 - **Clave:** `cuota:<cuotaId>:generada`
 - **datos:** `{ cuotaId: id, socioId: id, periodo: texto, monto: monto (ARS), vence: fecha ISO 8601 }`
 
@@ -872,7 +872,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `cuota.cobrada@1`
 
 - **Cuándo:** cobro de la cuota
-- **Emisión:** pendiente · módulo club · evento de plata (dentro de la transacción)
+- **Emisión:** pendiente · B10 (B10-C4) · evento de plata (dentro de la transacción)
 - **Clave:** `cuota:<cuotaId>:cobrada`
 - **datos:** `{ cuotaId: id, monto: monto (ARS), medio: EFECTIVO | MP | TRANSFERENCIA | TARJETA, pagoExterno?: id }`
 
@@ -896,7 +896,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `cuota.vencida@1`
 
 - **Cuándo:** barrido diario
-- **Emisión:** pendiente · módulo club (barrido)
+- **Emisión:** pendiente · B10 (B10-C4)
 - **Clave:** `cuota:<cuotaId>:vencida:<AAAA-MM-DD>`
 - **datos:** `{ cuotaId: id, socioId: id, diasVencida: entero, monto: monto (ARS) }`
 
@@ -920,7 +920,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `credito.cargado@1`
 
 - **Cuándo:** buffet / cuenta corriente (club/credito-core.ts)
-- **Emisión:** pendiente · módulo club (credito-core.ts) · evento de plata (dentro de la transacción)
+- **Emisión:** pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO) · evento de plata (dentro de la transacción)
 - **Clave:** `credito:<movimientoId>`
 - **datos:** `{ socioId: id, monto: monto (ARS), saldo: monto (ARS), origen: texto }`
 
@@ -944,7 +944,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `credito.consumido@1`
 
 - **Cuándo:** buffet / cuenta corriente (club/credito-core.ts)
-- **Emisión:** pendiente · módulo club (credito-core.ts) · evento de plata (dentro de la transacción)
+- **Emisión:** pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO) · evento de plata (dentro de la transacción)
 - **Clave:** `credito:<movimientoId>`
 - **datos:** `{ socioId: id, monto: monto (ARS), saldo: monto (ARS), origen: texto }`
 
@@ -968,7 +968,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `buffet.pedido.creado@1`
 
 - **Cuándo:** club/buffet-core.ts
-- **Emisión:** pendiente · módulo club (buffet-core.ts)
+- **Emisión:** pendiente · B1 (P2-C2; ningún criterio de esa tanda lo nombra: hueco del plan, a la PMO)
 - **Clave:** `buffet:<pedidoId>:creado`
 - **datos:** `{ pedidoId: id, socioId?: id, items: [{ productoId: id | null, sku: texto | null, nombre: texto libre (se redacta), cantidad: número, precioUnitario: monto (ARS) }], total: monto (ARS) }`
 
@@ -1000,7 +1000,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `mensaje.recibido@1`
 
 - **Cuándo:** webhook WhatsApp (ya canónico en E3)
-- **Emisión:** pendiente · P6 (webhook WhatsApp)
+- **Emisión:** pendiente · P6 (P6-C1 recibe el webhook; ningún criterio nombra el evento: hueco del plan, a la PMO)
 - **Clave:** `mensaje:<idMensaje>:recibido`
 - **datos:** `{ conexionId: id, remitenteEnmascarado: enmascarado (******1234), clase: texto, idMensaje: id }`
 
@@ -1024,7 +1024,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `mensaje.estado@1`
 
 - **Cuándo:** statuses de Meta
-- **Emisión:** pendiente · P6 (statuses de Meta)
+- **Emisión:** pendiente · P6 (P6-C3)
 - **Clave:** `mensaje:<idMensaje>:<estado>`
 - **datos:** `{ idMensaje: id, estado: texto }`
 
@@ -1048,7 +1048,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `turno.sena.pagada@1`
 
 - **Cuándo:** B1 al aplicar senaPagada
-- **Emisión:** pendiente · B1 · evento de plata (dentro de la transacción)
+- **Emisión:** pendiente · B1 (B1-C6) · evento de plata (dentro de la transacción)
 - **Clave:** `turno:<turnoId>:sena:<ref>`
 - **datos:** `{ turnoId: id, ref: texto, monto: monto (ARS), medio: EFECTIVO | MP | TRANSFERENCIA | TARJETA, pagoExterno?: id }`
 
@@ -1073,7 +1073,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `turno.garantia.ejecutada@1`
 
 - **Cuándo:** B7
-- **Emisión:** pendiente · B7 · evento de plata (dentro de la transacción)
+- **Emisión:** pendiente · B7 (B7-C1) · evento de plata (dentro de la transacción)
 - **Clave:** `turno:<turnoId>:garantia`
 - **datos:** `{ fijoId: id, turnoId: id, monto: monto (ARS), motivo: texto libre (se redacta) }`
 
@@ -1097,7 +1097,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `espera.ofrecida@1`
 
 - **Cuándo:** B8
-- **Emisión:** pendiente · B8
+- **Emisión:** pendiente · B8 (B8-C3)
 - **Clave:** `espera:<esperaId>:ofrecida:<turnoId>`
 - **datos:** `{ esperaId: id, turnoId?: id, ofrecidoA: [id], venceEn: fecha ISO 8601 }`
 
@@ -1124,7 +1124,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `espera.asignada@1`
 
 - **Cuándo:** B8
-- **Emisión:** pendiente · B8
+- **Emisión:** pendiente · B8 (B8-C3)
 - **Clave:** `espera:<esperaId>:asignada`
 - **datos:** `{ esperaId: id, turnoId?: id, ofrecidoA: [id], venceEn: fecha ISO 8601 }`
 
@@ -1150,8 +1150,8 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 
 ### `caja.turno.cerrada@1`
 
-- **Cuándo:** B4 (club) y M1 (retail, cierre de turno)
-- **Emisión:** pendiente · B4 (club) y M1 (retail) · evento de plata (dentro de la transacción)
+- **Cuándo:** cierre de un turno de caja con arqueo (closeCashSession, caja-actions.ts), en su transacción Serializable: cierreId = id del turno (CashSession), turno = la hora de su apertura, quien = el actor. El cierre de turno propio del club (motor del club) lo emite B1 (B1-C6) / B4 (B4-C8)
+- **Emisión:** P2 · evento de plata (dentro de la transacción)
 - **Clave:** `caja:turno:<cierreId>:cerrada`
 - **datos:** `{ cierreId: id, turno: texto, quien: id, esperado: monto (ARS), contado: monto (ARS), diferencia: monto (ARS), motivo?: texto libre (se redacta) }`
 
@@ -1178,7 +1178,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `reparto.salio@1`
 
 - **Cuándo:** M6
-- **Emisión:** pendiente · M6 · evento de plata (dentro de la transacción)
+- **Emisión:** pendiente · M6 (M6-C5) · evento de plata (dentro de la transacción)
 - **Clave:** `reparto:<repartoId>:salio`
 - **datos:** `{ repartoId: id, cadeteId: id, envios: entero, efectivoEsperado: monto (ARS), efectivoEntregado: monto (ARS) }`
 
@@ -1203,7 +1203,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `reparto.rendido@1`
 
 - **Cuándo:** M6
-- **Emisión:** pendiente · M6 · evento de plata (dentro de la transacción)
+- **Emisión:** pendiente · M6 (M6-C5) · evento de plata (dentro de la transacción)
 - **Clave:** `reparto:<repartoId>:rendido`
 - **datos:** `{ repartoId: id, cadeteId: id, envios: entero, efectivoEsperado: monto (ARS), efectivoEntregado: monto (ARS) }`
 
@@ -1228,7 +1228,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `pedido.transferencia.verificada@1`
 
 - **Cuándo:** M2
-- **Emisión:** pendiente · M2 · evento de plata (dentro de la transacción)
+- **Emisión:** pendiente · M2 (M2-C6) · evento de plata (dentro de la transacción)
 - **Clave:** `pedido:<pedidoId>:transferencia-verificada`
 - **datos:** `{ pedidoId: id, verificadoPor: id, verificadoEn: fecha ISO 8601 }`
 
@@ -1251,7 +1251,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `lote.por.vencer@1`
 
 - **Cuándo:** M3a (barrido diario)
-- **Emisión:** pendiente · M3a (barrido diario)
+- **Emisión:** pendiente · M3a (M3a-C6)
 - **Clave:** `lote:<loteId>:por-vencer`
 - **datos:** `{ loteId: id, productoId: id, vence: fecha ISO 8601, kg: número }`
 
@@ -1275,7 +1275,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `lote.vencido@1`
 
 - **Cuándo:** M3a (barrido diario)
-- **Emisión:** pendiente · M3a (barrido diario)
+- **Emisión:** pendiente · M3a (M3a-C6)
 - **Clave:** `lote:<loteId>:vencido`
 - **datos:** `{ loteId: id, productoId: id, vence: fecha ISO 8601, kg: número }`
 
@@ -1299,7 +1299,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `club.luz.cambio@1`
 
 - **Cuándo:** B1 (comando luz)
-- **Emisión:** pendiente · B1 (comando luz)
+- **Emisión:** pendiente · B1 (B1-C6)
 - **Clave:** `luz:<canchaId>:<cambioId>`
 - **datos:** `{ canchaId: id, encendida: sí/no, turnoId?: id }`
 
@@ -1322,7 +1322,7 @@ Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pe
 ### `producto.balanza.sincronizada@1`
 
 - **Cuándo:** M5
-- **Emisión:** pendiente · M5
+- **Emisión:** pendiente · M5 (M5-C3)
 - **Clave:** `balanza:<balanzaId>:sync:<confirmadaEn>`
 - **datos:** `{ balanzaId: id, productos: entero, confirmadaEn: fecha ISO 8601 }`
 
