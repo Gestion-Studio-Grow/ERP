@@ -7,6 +7,7 @@ import type { Fijo } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { DIAS_A_LA_VISTA, SE_DESHACE, type AccionBajaFijo, bajaFijo, armarCanchas, armarEspera, armarFijos, bajarFijos, ejecutarBajaFijo, ejecutarCanchas, ejecutarEspera, fijosPorBajar, horasDelDia, nuevoFijo, otroFijoQuePisa, otroFijoQueSigue, previaBajaFijo, textoAvisoBaja, textoAvisoRecupera, vueltaDelFijo } from "./canchas-core";
 import { armarAgenda } from "./agenda-core";
+import { ejecutarCiclo } from "./ciclo-core";
 import { reservar } from "./alta-core";
 import { avisosLluvia } from "./whatsapp-core";
 
@@ -954,5 +955,374 @@ test("BP-101 (cert v4) nuevoFijo no deja pisar a otro fijo en pausa que vuelve m
     assert.deepEqual(nuevos.slice(0, 5), [], `${nuevos.length} dobles nuevos`);
     assert.deepEqual(malAnunciados.slice(0, 5), [], `${malAnunciados.length} recuperaciones anunciadas que no pasan`);
     assert.ok(recuperaciones > 50, `el azar tiene que ejercitar la devolución (${recuperaciones})`);
+  });
+
+  // ── Dictamen v8: la espera mira si el esperado de verdad juega (C4), la pausa no deja dos fijos figurando (C1) y las
+  // tres BAJA de la v7 (texto «volvería el X, pero el X», A3b por comando; la nota de los botones va en
+  // hecho-de-la-baja.test.ts). Respuesta v9. ──
+
+  const DIAS_CORTOS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+  const dm = (x: string) => `${Number(x.slice(8))}/${Number(x.slice(5, 7))}`;
+  /** «mar 20/10», como lo dicen los mensajes. */
+  const fc = (x: string) => `${DIAS_CORTOS[M.diaSemana(x)]} ${dm(x)}`;
+  /** Lo que un comando repetido no puede cambiar (el registro del club sí suma una línea). */
+  const fotoDeFijos = (e: EstadoClub) => JSON.stringify({ fijos: e.fijos, reservas: e.reservas });
+
+  /**
+   * Lo que FIGURA ocupando cada hueco y fecha: cada turno vivo de la grilla y cada fijo que juega esa fecha y todavía no
+   * se bajó (su turno cancelado por la pausa no cuenta como bajado: vuelve al bajar la ventana). Dos que se pisan = un
+   * doble visible, aunque la grilla tenga uno solo. Un fijo sin bajar contra un turno suelto o del mostrador no entra:
+   * es lo cerrado en la v3 («no vuelve», y `materializarFijos` nunca lo baja encima).
+   */
+  function doblesQueFiguran(e: EstadoClub, desde = HOY, semanas = 86): string[] {
+    const out: string[] = [];
+    const dias = new Set(e.fijos.map((f) => f.dia));
+    const canchas = new Set(e.fijos.map((f) => f.canchaId));
+    const porFecha = new Map<string, typeof e.reservas>();
+    for (const r of e.reservas) if (r.estado === "reservada" && r.fecha >= desde && canchas.has(r.canchaId)) porFecha.set(r.fecha, [...(porFecha.get(r.fecha) ?? []), r]);
+    type Item = { quien: string; canchaId: string; inicio: number; fin: number; fijoSinBajar: boolean; deFijo: boolean };
+    for (let i = 0; i < 7 * semanas; i++) {
+      const fecha = M.sumarDias(desde, i);
+      if (!dias.has(M.diaSemana(fecha))) continue;
+      const items: Item[] = (porFecha.get(fecha) ?? []).map((r) => ({ quien: `turno de ${r.titular}`, canchaId: r.canchaId, inicio: r.inicio, fin: r.inicio + r.duracion, fijoSinBajar: false, deFijo: !!r.fijoId }));
+      for (const f of e.fijos) if (M.fijoJuegaEl(f, fecha) && !M.fijoBajadoEl(e, f, fecha)) items.push({ quien: `fijo de ${f.titular}`, canchaId: f.canchaId, inicio: f.inicio, fin: f.inicio + f.duracion, fijoSinBajar: true, deFijo: true });
+      for (let a = 0; a < items.length; a++)
+        for (let b = a + 1; b < items.length; b++) {
+          const x = items[a], y = items[b];
+          if (x.canchaId !== y.canchaId || !(x.inicio < y.fin && y.inicio < x.fin)) continue;
+          if ((x.fijoSinBajar && !y.deFijo) || (y.fijoSinBajar && !x.deFijo)) continue;
+          out.push(`${fecha}:${x.quien}+${y.quien}`);
+        }
+    }
+    return out;
+  }
+
+  /** Entradas de `liberadasPor` que esperan a un fijo que esa fecha NO juega, con el hueco libre de todo (fecha retenida). */
+  function retenidas(e: EstadoClub, hoy = HOY): string[] {
+    const out: string[] = [];
+    for (const g of e.fijos)
+      for (const x of g.liberadasPor ?? []) {
+        if (x.fecha < hoy) continue;
+        const esperado = e.fijos.find((h) => h.id === x.fijoId);
+        if (esperado && M.fijoJuegaEl(esperado, x.fecha)) continue;
+        const pisa = (i: number, f: number) => i < g.inicio + g.duracion && g.inicio < f;
+        const otroFijo = e.fijos.some((h) => h.id !== g.id && h.canchaId === g.canchaId && pisa(h.inicio, h.inicio + h.duracion) && M.fijoJuegaEl(h, x.fecha));
+        const turno = vivosEn(e, g.canchaId, x.fecha).some((r) => r.fijoId !== g.id && pisa(r.inicio, r.inicio + r.duracion));
+        const bloqueo = e.bloqueos.some((b) => b.fecha === x.fecha && (b.canchaId === g.canchaId || b.canchaId === "*") && pisa(b.desde, b.hasta));
+        if (!otroFijo && !turno && !bloqueo) out.push(`${g.titular} ${x.fecha} espera a ${esperado?.titular ?? "uno que ya no está"}`);
+      }
+    return out;
+  }
+
+  /** C4: Juan (el más antiguo) espera a Pedro el d(4) y el d(5); Pedro se pausa y esas fechas se le liberan por Tomi. */
+  function trioC4() {
+    const { e, f, P, canchaId, dia } = conPedro(d(4), { hasta: d(6) } as Partial<Fijo>);
+    // Juan acorta: d(4)…d(6) se le liberan esperando a Pedro; vuelve el d(7).
+    assert.equal(ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: d(3) }, AHORA).ok, true);
+    assert.deepEqual(f.liberadasPor, [4, 5, 6].map((i) => ({ fecha: d(i), fijoId: P.id })));
+    const T = M.crearFijo(e, { clienteId: null, canchaId, dia, inicio: 22 * 60, duracion: 60, titular: "Tomi Heredado", desde: d(4) });
+    T.hasta = d(5);
+    return { e, f, P, T, canchaId, dia };
+  }
+
+  test("v9-1 (cert v8 C4) Pedro se pausa y sus fechas se le liberan por Tomi: Juan deja de esperarlo a él y, cuando Tomi se va, las recupera Juan (el más antiguo), no Pedro", () => {
+    const { e, f, P, T } = trioC4();
+    const pausa = { tipo: "pausa" as const, fijoId: P.id, desde: HOY, hasta: d(3) };
+    const pp = previaBajaFijo(e, pausa, AHORA);
+    const rp = ejecutarBajaFijo(e, pausa, AHORA);
+    assert.equal(rp.ok, true, rp.mensaje);
+    assert.ok(pp.ok && pp.recuperan.length === 0 && !rp.recuperan?.length, "nadie recupera: Tomi juega esas fechas");
+    assert.deepEqual(P.liberadasPor, [4, 5].map((i) => ({ fecha: d(i), fijoId: T.id })));
+    // Juan ya no espera a Pedro (que no juega el d(4) ni el d(5)): espera a Tomi, que es quien las juega.
+    assert.deepEqual(f.liberadasPor, [{ fecha: d(4), fijoId: T.id }, { fecha: d(5), fijoId: T.id }, { fecha: d(6), fijoId: P.id }]);
+    assert.deepEqual(doblesQueFiguran(e), []);
+    const baja = { tipo: "baja" as const, fijoId: T.id, desde: HOY };
+    const p = previaBajaFijo(e, baja, AHORA);
+    const r = ejecutarBajaFijo(e, baja, AHORA);
+    assert.equal(r.ok, true, r.mensaje);
+    assert.ok(p.ok);
+    if (!p.ok) return;
+    assert.deepEqual(p.recuperan.map((x) => [x.titular, x.fechas]), [["Juan Fijo", [d(4), d(5)]]]);
+    assert.deepEqual(r.recuperan?.map((x) => x.titular + x.fecha), [d(4), d(5)].map((x) => "Juan Fijo" + x));
+    assert.match(r.mensaje, /Juan Fijo recupera el .* y el [^;]*\.$/);
+    assert.doesNotMatch(r.mensaje, /Pedro Nuevo recupera/);
+    assert.deepEqual([M.fijoJuegaEl(f, d(4)), M.fijoJuegaEl(f, d(5)), M.fijoJuegaEl(P, d(4)), M.fijoJuegaEl(P, d(5))], [true, true, false, false]);
+    // Pedro queda esperando a Juan, el que las recuperó: si Juan se va, son de Pedro.
+    assert.deepEqual(P.liberadasPor, [4, 5].map((i) => ({ fecha: d(i), fijoId: f.id })));
+    assert.deepEqual(doblesQueFiguran(e), []);
+    assert.deepEqual(retenidas(e), []);
+    const rj = ejecutarBajaFijo(e, { tipo: "baja", fijoId: f.id, desde: d(4) }, AHORA);
+    assert.deepEqual(rj.recuperan?.map((x) => x.titular + x.fecha), [4, 5].map((i) => "Pedro Nuevo" + d(i)));
+    assert.deepEqual(doblesQueFiguran(e), []);
+  });
+
+  test("v9-2 (cert v8 C4) foto heredada: Juan quedó esperando a Pedro una fecha que Pedro ya no juega; la espera no le da prioridad a Pedro y la recupera el más antiguo", () => {
+    const { e, f, P, T } = trioC4();
+    // La foto que dejaba la v8: Pedro pausado con el d(4) liberado por Tomi, y Juan todavía esperando a Pedro.
+    assert.equal(ejecutarBajaFijo(e, { tipo: "pausa", fijoId: P.id, desde: HOY, hasta: d(3) }, AHORA).ok, true);
+    f.liberadasPor = [4, 5, 6].map((i) => ({ fecha: d(i), fijoId: P.id }));
+    const r = ejecutarBajaFijo(e, { tipo: "baja", fijoId: T.id, desde: HOY }, AHORA);
+    assert.equal(r.ok, true, r.mensaje);
+    assert.deepEqual(r.recuperan?.map((x) => x.titular + x.fecha), [d(4), d(5)].map((x) => "Juan Fijo" + x));
+    assert.deepEqual([M.fijoJuegaEl(P, d(4)), M.fijoJuegaEl(P, d(5))], [false, false]);
+    // El d(6) Pedro sí lo juega: ésa sigue esperándolo a él.
+    assert.deepEqual(f.liberadasPor, [{ fecha: d(6), fijoId: P.id }]);
+    assert.deepEqual(doblesQueFiguran(e), []);
+    assert.deepEqual(retenidas(e), []);
+  });
+
+  test("v9-3 (cert v8 C4) «Liberar el fijo» desde la grilla también suelta la fecha: la recupera el que la esperaba, se dice en el mensaje y queda en la grilla", () => {
+    // Juan espera a Pedro el d(0) (semana a la vista); Pedro tiene ese turno en la grilla y lo libera desde el ciclo.
+    const { e, f, P, canchaId } = conPedro(d(0), { hasta: d(1) } as Partial<Fijo>);
+    M.materializarFijosHasta(e, HOY, 14);
+    assert.equal(ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: M.sumarDias(d(0), -1) }, AHORA).ok, true);
+    assert.deepEqual(f.liberadasPor, [0, 1].map((i) => ({ fecha: d(i), fijoId: P.id })));
+    const turno = vivosEn(e, canchaId, d(0)).find((x) => x.fijoId === P.id)!;
+    const r = ejecutarCiclo(e, turno.id, { tipo: "liberarFijo" }, AHORA);
+    assert.equal(r.ok, true, r.mensaje);
+    assert.match(r.mensaje, /no viene esta semana: .* Juan Fijo recupera el [^,;]*\.$/);
+    assert.deepEqual(vivosEn(e, canchaId, d(0)).map((x) => x.fijoId), [f.id]);
+    assert.deepEqual(f.liberadasPor, [{ fecha: d(1), fijoId: P.id }]);
+    assert.deepEqual(doblesQueFiguran(e), []);
+    assert.deepEqual(retenidas(e), []);
+  });
+
+  /** C1: Juan pausado; Pedro (heredado) ya tiene en la grilla el d(0) y el d(1). Juan acorta la pausa hasta antes del d(0). */
+  function c1(extra: Partial<Fijo> = { hasta: d(1) } as Partial<Fijo>) {
+    const b = conPedro(d(0), extra);
+    M.materializarFijosHasta(b.e, HOY, 14);
+    assert.deepEqual([0, 1].map((i) => vivosEn(b.e, b.canchaId, d(i)).map((x) => x.titular).join()), ["Pedro Nuevo", "Pedro Nuevo"]);
+    return { ...b, acortar: { tipo: "pausa" as const, fijoId: b.f.id, desde: HOY, hasta: M.sumarDias(d(0), -1) } };
+  }
+
+  test("v9-4 (cert v8 C1) acortar la pausa contra el turno de otro fijo YA en la grilla: no se le devuelve esa fecha, la previa lo dice y la fecha espera a Pedro", () => {
+    const { e, f, P, canchaId, acortar } = c1();
+    const antes = doblesQueFiguran(e);
+    const p = previaBajaFijo(e, acortar, AHORA);
+    assert.ok(p.ok, !p.ok ? p.mensaje : "");
+    if (!p.ok) return;
+    assert.deepEqual(p.chocan.map((c) => [c.fecha, c.fijoId]), [[d(0), P.id], [d(1), P.id]]);
+    assert.ok([0, 1].every((i) => p.lineas.some((l) => l.includes(fc(d(i))) && /no vuelve: se pisa con el fijo de Pedro Nuevo/.test(l))), p.lineas.join(" | "));
+    assert.equal(p.vuelve, d(2));
+    const r = ejecutarBajaFijo(e, acortar, AHORA);
+    assert.equal(r.ok, true, r.mensaje);
+    assert.match(r.mensaje, /vuelve solo el [^.]*\. No vuelven el .* ni el .*: se pisan con el fijo de Pedro Nuevo \(22:00\)\./);
+    // Lo que se dice es lo que figura: Juan no juega el d(0) ni el d(1), y su tarjeta lo muestra liberado.
+    assert.deepEqual([M.fijoJuegaEl(f, d(0)), M.fijoJuegaEl(f, d(1))], [false, false]);
+    assert.deepEqual(f.liberadasPor, [0, 1].map((i) => ({ fecha: d(i), fijoId: P.id })));
+    const tarjeta = armarFijos(e, AHORA).fijos.find((x) => x.id === f.id)!;
+    assert.match(tarjeta.proximas, new RegExp(`${dm(d(0))} liberado`));
+    assert.doesNotMatch(tarjeta.proximas, /sin bajar/);
+    assert.deepEqual(antes, [], "antes de acortar no había dobles");
+    assert.deepEqual(doblesQueFiguran(e), []);
+    // Repetir el comando dice lo mismo y no cambia los fijos ni la grilla.
+    const foto = fotoDeFijos(e);
+    const r2 = ejecutarBajaFijo(e, acortar, AHORA);
+    assert.equal(r2.mensaje, r.mensaje);
+    assert.equal(fotoDeFijos(e), foto);
+    // Si Pedro libera el d(0), lo recupera Juan: con aviso y con su turno en la grilla (antes volvía sin aviso).
+    const lib = { tipo: "liberar" as const, fijoId: P.id, fecha: d(0) };
+    const pl = previaBajaFijo(e, lib, AHORA);
+    const rl = ejecutarBajaFijo(e, lib, AHORA);
+    assert.ok(pl.ok && pl.recuperan.length === 1 && pl.recuperan[0].fechas.join() === d(0));
+    assert.match(rl.mensaje, /Juan Fijo recupera el [^,;]*\.$/);
+    assert.deepEqual(vivosEn(e, canchaId, d(0)).map((x) => x.fijoId), [f.id]);
+    assert.deepEqual(doblesQueFiguran(e), []);
+  });
+
+  test("v9-5 (cert v8 C1) sin fecha de vuelta (Juan termina el d(1)) y los dos días ya son de Pedro en la grilla: la pausa se rechaza (Confirmar bloqueado) y no cambia nada", () => {
+    const { e, f, acortar } = c1();
+    f.hasta = d(1);
+    const foto = JSON.stringify(e);
+    const p = previaBajaFijo(e, acortar, AHORA);
+    assert.ok(!p.ok);
+    if (p.ok) return;
+    assert.match(p.mensaje, /^El hueco es del fijo de Pedro Nuevo desde el .*: Juan Fijo no tiene a qué volver\. Dalo de baja o liberá sólo las fechas que no viene\.$/);
+    const r = ejecutarBajaFijo(e, acortar, AHORA);
+    assert.equal(r.ok, false);
+    assert.equal(r.mensaje, p.mensaje);
+    assert.equal(JSON.stringify(e), foto, "el rechazo no toca nada");
+  });
+
+  test("v9-6 (cert v7, texto) la vuelta cae el mismo día que el otro fijo juega: no dice «volvería el X, pero el X» y ofrece pausar hasta el último día de Pedro, que funciona", () => {
+    // A9: Juan acorta y la pausa re-baja su turno del d(0) (Pedro, heredado, todavía no se bajó y juega d(0)…d(2)).
+    const { e, f, P, acortar } = conPedro(d(0), { hasta: d(2) } as Partial<Fijo>);
+    const foto = JSON.stringify(e);
+    const r = ejecutarBajaFijo(e, { ...acortar, hasta: M.sumarDias(d(0), -1) }, AHORA);
+    assert.equal(r.ok, false);
+    const x = fc(d(0));
+    assert.doesNotMatch(r.mensaje, new RegExp(`volvería el ${x}, pero el ${x}`));
+    assert.match(r.mensaje, new RegExp(`^Juan Fijo no puede volver el ${x}: ese día el hueco también es del fijo de Pedro Nuevo \\(martes 22:00\\) y se pisarían\\.`));
+    assert.match(r.mensaje, new RegExp(`Pausalo hasta el ${fc(d(2))} \\(el último día de Pedro Nuevo\\) y vuelve el ${fc(d(3))}, dalo de baja o liberá sólo las fechas que no viene\\.$`));
+    assert.equal(JSON.stringify(e), foto);
+    // Lo ofrecido se puede hacer desde la hoja y sale como se dijo.
+    const ok = ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: P.hasta! }, AHORA);
+    assert.equal(ok.ok, true, ok.mensaje);
+    assert.equal(ok.vuelve, d(3));
+    assert.deepEqual(doblesQueFiguran(e), []);
+  });
+
+  test("v9-7 (cert v7 A3b, por comando) una pausa nueva que arranca después que la anterior volvería a darle a Juan una fecha que ya recuperó Pedro: se rechaza sin tocar nada", () => {
+    const { e, f, canchaId, dia } = base();
+    // Pedro (heredado) esperaba a Juan el d(1); Juan se pausa desde hoy y Pedro la recupera.
+    const P = M.crearFijo(e, { clienteId: null, canchaId, dia, inicio: 22 * 60, duracion: 60, titular: "Pedro Nuevo", desde: d(1) });
+    Object.assign(P, { hasta: d(1), excepciones: [d(1)], liberadasPor: [{ fecha: d(1), fijoId: f.id }] });
+    const rp = ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: d(5) }, AHORA);
+    assert.match(rp.mensaje, /Pedro Nuevo recupera el /);
+    assert.deepEqual(doblesQueFiguran(e), []);
+    // El comando trae una pausa del d(2) al d(5): des-pausaría el d(0) y el d(1), y el d(1) es de Pedro.
+    const foto = JSON.stringify(e);
+    const a = { tipo: "pausa" as const, fijoId: f.id, desde: d(2), hasta: d(5) };
+    const p = previaBajaFijo(e, a, AHORA);
+    const r = ejecutarBajaFijo(e, a, AHORA);
+    assert.ok(!p.ok && !r.ok);
+    assert.equal(r.mensaje, `Juan Fijo está pausado desde el ${fc(HOY)}. Si la pausa nueva arranca el ${fc(d(2))}, volvería a jugar el ${fc(d(1))}, y ese día el hueco es del fijo de Pedro Nuevo (martes 22:00): se pisarían. Pausalo desde el ${fc(HOY)}.`);
+    assert.equal(JSON.stringify(e), foto);
+    assert.deepEqual(doblesQueFiguran(e), []);
+    // Sin nadie en esas fechas, el comando pasa (no se rechaza de más).
+    const libre = base();
+    assert.equal(ejecutarBajaFijo(libre.e, { tipo: "pausa", fijoId: libre.f.id, desde: HOY, hasta: d(5) }, AHORA).ok, true);
+    assert.equal(ejecutarBajaFijo(libre.e, { ...a, fijoId: libre.f.id }, AHORA).ok, true);
+    assert.equal(M.fijoJuegaEl(libre.f, d(1)), true);
+  });
+
+  test("v9-8 (cert v8 C1 y C4, aleatorio) 5 semillas × 60 secuencias de 10 pasos con 3 a 5 fijos (Juan pausado y heredados de antes del guardián, algunos ya en la grilla): 0 dobles que figuren, 0 anuncios falsos, 0 fechas retenidas", () => {
+    const SEMILLAS = [7, 20261028, 424242, 9001, 31337];
+    const nuevos: string[] = [];
+    const malAnunciados: string[] = [];
+    const cambiosEnRechazos: string[] = [];
+    const quedanRetenidas: string[] = [];
+    // c1: fechas que la pausa no le devolvió al pausado porque el turno de otro fijo ya estaba en la grilla.
+    // c4: esperas que dejaron de apuntar a un fijo que ya no juega esa fecha (re-apuntadas o recuperadas por antigüedad).
+    const n = { pasos: 0, recuperaciones: 0, c1: 0, c4: 0, a3b: 0, grilla: 0, rechazos: 0 };
+    const SEMANAS = 30; // las fechas en juego llegan al d(12) y la vuelta, unas semanas más
+    for (const semilla0 of SEMILLAS) {
+      let semilla = semilla0;
+      const azar = (k: number) => {
+        semilla ^= semilla << 13;
+        semilla ^= semilla >>> 17;
+        semilla ^= semilla << 5;
+        return (semilla >>> 0) % k;
+      };
+      for (let corrida = 0; corrida < 60; corrida++) {
+        const donde = `semilla ${semilla0} corrida ${corrida}`;
+        const hora = () => [21 * 60 + 30, 22 * 60, 22 * 60, 22 * 60 + 30][azar(4)];
+        // Heredados acotados y cortos (de 1 a 4 fechas), como los deja la UI vieja; de vez en cuando uno permanente.
+        const desdeP = azar(5);
+        const b = conPedro(d(desdeP), { hasta: d(desdeP + azar(4)), inicio: hora() } as Partial<Fijo>);
+        let e = b.e;
+        const { canchaId, dia } = b;
+        const ids = [b.f.id, b.P.id];
+        for (const titular of ["Ana Fija", "Tomi Heredado", "Lu Vieja"].slice(0, azar(3) + 1)) {
+          const desde = azar(6);
+          const g = M.crearFijo(e, { clienteId: null, canchaId, dia, inicio: hora(), duracion: 60, titular, desde: d(desde) });
+          if (azar(8)) g.hasta = d(desde + azar(4));
+          ids.push(g.id);
+        }
+        // Casi siempre los heredados ya están en la grilla con Juan en pausa (C1).
+        if (azar(4)) M.materializarFijosHasta(e, HOY, 14);
+        let ahora: Ahora = AHORA;
+        let previa: EstadoClub | null = null;
+        for (let paso = 0; paso < 10; paso++) {
+          const t = azar(14);
+          if (t === 12) {
+            // Avanzar de 1 a 9 días y bajar la ventana (entra y sale de la semana a la vista).
+            ahora = { fecha: M.sumarDias(ahora.fecha, 1 + azar(9)), min: AHORA.min };
+            M.materializarFijosHasta(e, ahora.fecha, 14);
+            continue;
+          }
+          if (t === 13) {
+            // Deshacer (la foto de antes, como el almacén) o serializar e hidratar.
+            if (previa && azar(2)) e = structuredClone(previa);
+            else e = JSON.parse(JSON.stringify(e));
+            continue;
+          }
+          // Para que la devolución se ejercite, la mitad de las veces actúa un fijo al que alguien espera (y sobre una
+          // fecha que le esperan); si no, Juan (el que acorta la pausa contra la grilla, C1) o cualquiera del hueco.
+          const esperados = e.fijos.flatMap((h) => (h.liberadasPor ?? []).filter((x) => x.fecha >= ahora.fecha));
+          const foco = esperados.length && azar(2) ? esperados[azar(esperados.length)] : null;
+          const g = e.fijos.find((x) => x.id === (foco ? foco.fijoId : azar(2) ? ids[0] : ids[azar(ids.length)]));
+          if (!g) continue;
+          const unaFecha = () => (foco && azar(2) ? foco.fecha : d(azar(9)));
+          const antes = new Set(doblesQueFiguran(e, ahora.fecha, SEMANAS));
+          const foto = JSON.stringify(e);
+          const esperas = new Map(e.fijos.flatMap((h) => (h.liberadasPor ?? []).map((x) => [`${h.id}|${x.fecha}`, x.fijoId] as const)));
+          previa = structuredClone(e);
+          n.pasos++;
+          let r: { ok: boolean; mensaje: string; recuperan?: { fijoId: string; titular: string; fecha: string }[]; chocan?: { fecha: string; fijoId?: string }[] };
+          let que: string;
+          if (t === 11) {
+            // «Liberar el fijo» desde la grilla (ciclo del turno).
+            const turnos = e.reservas.filter((x) => x.fijoId && ids.includes(x.fijoId) && x.estado === "reservada" && x.fecha >= ahora.fecha && M.minutosHasta(ahora, x.fecha, x.inicio) > 0);
+            if (!turnos.length) continue;
+            const turno = turnos[azar(turnos.length)];
+            que = `grilla ${turno.titular} ${turno.fecha}`;
+            r = ejecutarCiclo(e, turno.id, { tipo: "liberarFijo" }, ahora);
+            n.grilla++;
+          } else {
+            const a: AccionBajaFijo =
+              t <= 4
+                ? { tipo: "pausa", fijoId: g.id, desde: ahora.fecha, hasta: M.sumarDias(d(azar(6)), -1 - azar(2)) }
+                : t === 5
+                  ? { tipo: "pausa", fijoId: g.id, desde: d(azar(4)), hasta: d(azar(9)) } // A3b: sólo por comando
+                  : t <= 8
+                    ? { tipo: "liberar", fijoId: g.id, fecha: unaFecha() }
+                    : { tipo: "baja", fijoId: g.id, desde: foco && azar(2) ? foco.fecha : d(azar(12)) };
+            if (a.tipo === "pausa" && (a.hasta < a.desde || a.desde < ahora.fecha)) continue;
+            if (a.tipo === "pausa" && a.desde > ahora.fecha && g.pausa && a.desde > g.pausa.desde) n.a3b++;
+            que = JSON.stringify(a);
+            const p = previaBajaFijo(e, a, ahora);
+            r = ejecutarBajaFijo(e, a, ahora);
+            assert.equal(p.ok, r.ok, `${donde}: previa y comando dicen distinto: ${que} «${r.mensaje}»`);
+            if (p.ok) assert.deepEqual(p.recuperan.flatMap((x) => x.fechas.map((y) => y + x.fijoId)).sort(), (r.recuperan ?? []).map((x) => x.fecha + x.fijoId).sort(), `${donde}: ${que}`);
+            if (a.tipo === "pausa" && r.ok) n.c1 += (r.chocan ?? []).filter((c) => c.fijoId && vivosEn(e, canchaId, c.fecha).some((y) => y.fijoId === c.fijoId)).length;
+          }
+          if (!r.ok) {
+            n.rechazos++;
+            if (JSON.stringify(e) !== foto) cambiosEnRechazos.push(`${donde} paso ${paso}: ${que}`);
+          }
+          // C4: las esperas que apuntaban a un fijo que después de esto no juega esa fecha ya no lo esperan a él.
+          // (La pausa de `g` que le suelta por choque fechas de fuera de la pausa, o una espera vieja a uno que no juega.)
+          const fuera = (fecha: string) => !/"pausa"/.test(que) || fecha < (JSON.parse(que) as { desde: string }).desde || fecha > (JSON.parse(que) as { hasta: string }).hasta;
+          if (r.ok)
+            for (const [clave, esperado] of esperas) {
+              const [hId, fecha] = clave.split("|");
+              const ahoraEspera = e.fijos.find((h) => h.id === hId)?.liberadasPor?.find((x) => x.fecha === fecha)?.fijoId;
+              const ese = e.fijos.find((h) => h.id === esperado);
+              if (ahoraEspera !== esperado && (!ese || !M.fijoJuegaEl(ese, fecha)) && (esperado !== g.id || (t <= 5 && fuera(fecha)))) n.c4++;
+            }
+          for (const x of doblesQueFiguran(e, ahora.fecha, SEMANAS)) if (!antes.has(x)) nuevos.push(`${donde} paso ${paso} ${que} → ${x} «${r.mensaje}»`);
+          for (const x of retenidas(e, ahora.fecha)) quedanRetenidas.push(`${donde} paso ${paso} ${que} → ${x}`);
+          // Nunca un anuncio de algo que no se asignó: el que recupera juega esa fecha, nadie más la ocupa y, en la
+          // semana a la vista, tiene su turno en la grilla.
+          for (const x of r.recuperan ?? []) {
+            n.recuperaciones++;
+            const h = e.fijos.find((y) => y.id === x.fijoId)!;
+            const pisa = (i: number, f: number) => i < h.inicio + h.duracion && h.inicio < f;
+            const otro = e.fijos.find((y) => y.id !== h.id && y.canchaId === h.canchaId && pisa(y.inicio, y.inicio + y.duracion) && M.fijoJuegaEl(y, x.fecha));
+            const ajenos = vivosEn(e, h.canchaId, x.fecha).filter((y) => y.fijoId !== h.id && pisa(y.inicio, y.inicio + y.duracion));
+            const enGrilla = vivosEn(e, h.canchaId, x.fecha).some((y) => y.fijoId === h.id);
+            if (!M.fijoJuegaEl(h, x.fecha) || otro || ajenos.length || (x.fecha < M.sumarDias(ahora.fecha, DIAS_A_LA_VISTA) && !enGrilla)) malAnunciados.push(`${donde} paso ${paso}: ${x.titular} ${x.fecha}`);
+          }
+          // El ciclo no trae `recuperan`: lo que dice su mensaje se controla contra el fijo y la grilla.
+          if (t === 11 && /recupera/.test(r.mensaje)) {
+            n.recuperaciones++;
+            const fecha = que.slice(-10);
+            for (const h of e.fijos)
+              if (r.mensaje.includes(`${h.titular} recupera`)) {
+                const enGrilla = vivosEn(e, h.canchaId, fecha).some((y) => y.fijoId === h.id);
+                if (!M.fijoJuegaEl(h, fecha) || (fecha < M.sumarDias(ahora.fecha, DIAS_A_LA_VISTA) && !enGrilla)) malAnunciados.push(`${donde} paso ${paso}: ${r.mensaje}`);
+              }
+          }
+        }
+      }
+    }
+    assert.deepEqual(nuevos.slice(0, 5), [], `${nuevos.length} dobles nuevos que figuran`);
+    assert.deepEqual(malAnunciados.slice(0, 5), [], `${malAnunciados.length} anuncios de algo que no se asignó`);
+    assert.deepEqual(cambiosEnRechazos.slice(0, 5), [], `${cambiosEnRechazos.length} rechazos que cambiaron el estado`);
+    assert.deepEqual(quedanRetenidas.slice(0, 5), [], `${quedanRetenidas.length} fechas retenidas esperando a uno que no juega`);
+    // El azar tiene que ejercitar lo que se arregló.
+    assert.ok(n.recuperaciones > 80 && n.c1 > 30 && n.c4 > 10 && n.a3b > 50 && n.grilla > 50, JSON.stringify(n));
+    console.log(`v9-8: ${JSON.stringify(n)}`);
   });
 }
