@@ -15,6 +15,8 @@ Reglas:
 3. Los eventos de plata se emiten **dentro de la transacción** que produce el hecho: si el hecho vuelve atrás, el evento también.
 4. Datos personales: ids y montos. Nunca teléfono ni documento en claro; los campos `…Enmascarado` llevan `******1234` y los textos libres se redactan (emails y tiradas de 6+ dígitos enmascarados).
 5. Hasta que se aplique `N2_hub.sql` (Gate 2) la clave viaja en `payload._clave`; con la migración, en la columna `OutboxEvent.clave` (única por negocio).
+6. Hasta la tanda P3 (despachante y webhooks) nadie entrega estos eventos: quedan en el outbox con `processedAt` NULL. El despacho de ARCA toma sólo `InvoiceCreated`. P3 decide qué hace con lo acumulado (una suscripción nueva no recibe eventos de antes de existir).
+7. `externalRef` es la referencia que manda el integrador por la API (`ext:<ref>`) y viaja tal cual, sin redactar: es para cruzar con su sistema. No lleva datos personales.
 
 Total: **51 eventos** en el catálogo · **5 emitidos hoy** (P2) · el resto, pendiente de la tanda que se indica.
 
