@@ -39,11 +39,11 @@ export async function audit(entry: {
   changes?: unknown;
   channel?: "admin" | "public";
 }) {
-  // Los interruptores por negocio (src/cambios/interruptores.ts) guardan ESTADO en AuditLog, como
-  // el cierre de caja: una fila escrita desde acá podría prender algo en un negocio. Sólo los
-  // escribe la consola del operador; acá se rechazan y queda el rastro en el log.
+  // Los interruptores por negocio y las apps ocultas (src/cambios/interruptores.ts) guardan ESTADO en
+  // AuditLog, como el cierre de caja: una fila escrita desde acá podría prender u ocultar algo en un
+  // negocio. Sólo los escribe la consola del operador; acá se rechazan y queda el rastro en el log.
   if (entidadReservadaDeLaConsola(entry.entity)) {
-    logger.error("audit", "audit() no escribe interruptores: sólo la consola del operador", undefined, {
+    logger.error("audit", "audit() no escribe interruptores ni apps ocultas: sólo la consola del operador", undefined, {
       action: entry.action,
       entity: entry.entity,
       entityId: entry.entityId,

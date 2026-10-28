@@ -383,6 +383,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/lib/cartera-actions.ts#emitirAutomaticasClienteAction",
     "src/lib/cartera-actions.ts#monitorCarteraAction",
     "src/lib/cartera-actions.ts#setEstadoCarteraAction",
+    "src/lib/operador/interruptores-actions.ts#cambiarAppOculta",
     "src/lib/operador/interruptores-actions.ts#cambiarInterruptor",
     "src/lib/operador/plan-actions.ts#ajustarLimiteDelNegocio",
     "src/lib/operador/plan-actions.ts#aplicarPlanDelNegocio",

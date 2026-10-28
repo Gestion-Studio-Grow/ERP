@@ -155,12 +155,61 @@ export function interruptorPorId(id: InterruptorId): Interruptor {
   return INTERRUPTORES.find((i) => i.id === id) as Interruptor;
 }
 
+// ── Apps ocultas por negocio ────────────────────────────────────────────────────────────────
+//
+// GSG puede esconder, en UN negocio, una lista CERRADA de apps que ese negocio no usa (Magra no
+// recupera clientas por ciclo, no cambia colores, no da cupones). Mismo almacén que los
+// interruptores, sin tabla ni migración: una fila de AuditLog por cambio, con
+//   entity "AppOculta", entityId = id de la app (de APPS_OCULTABLES),
+//   action "app.ocultar" | "app.mostrar", actor "operator:<nombre>", channel "operador".
+// Manda la última fila válida de cada app. La escribe SÓLO la consola (mismo trinquete, misma
+// escritura condicional bajo el candado de las apps del negocio), `audit()` la tiene vedada y la
+// lectura ignora toda fila que no sea de un operador por su canal. Nunca en CH (beauty-spa): la
+// consola lo rechaza y el panel no lee ocultas de un negocio con candado del dueño.
+
+export const ENTIDAD_APP_OCULTA = "AppOculta";
+export const ACCION_OCULTAR = "app.ocultar";
+export const ACCION_MOSTRAR = "app.mostrar";
+
+export type AccionAppOculta = "ocultar" | "mostrar";
+
+export const ACCION_DE_OCULTA: Record<AccionAppOculta, string> = {
+  ocultar: ACCION_OCULTAR,
+  mostrar: ACCION_MOSTRAR,
+};
+
+/**
+ * Las ÚNICAS apps que se pueden ocultar, con su nombre del registro (src/apps/catalogo: lo fija
+ * interruptores-core.test.ts contra `appPorId`). Acá va el nombre y no el registro entero: este
+ * archivo lo importan el panel del navegador y audit-core, y el registro pesa.
+ */
+export const APPS_OCULTABLES = [
+  { id: "clientas-por-recuperar", nombre: "Clientes por recuperar" },
+  { id: "apariencia", nombre: "Apariencia" },
+  { id: "promociones", nombre: "Promociones y cupones" },
+] as const satisfies readonly { id: string; nombre: string }[];
+
+export type AppOcultableId = (typeof APPS_OCULTABLES)[number]["id"];
+
+export function esAppOcultable(id: unknown): id is AppOcultableId {
+  return typeof id === "string" && APPS_OCULTABLES.some((a) => a.id === id);
+}
+
+export function appOcultablePorId(id: AppOcultableId): { id: AppOcultableId; nombre: string } {
+  return APPS_OCULTABLES.find((a) => a.id === id) as { id: AppOcultableId; nombre: string };
+}
+
+/** Las entidades de AuditLog que guardan ESTADO de la consola (interruptores y apps ocultas). */
+const ENTIDADES_DE_LA_CONSOLA: ReadonlySet<string> = new Set(
+  [ENTIDAD_INTERRUPTOR, ENTIDAD_APP_OCULTA].map((e) => e.toLowerCase()),
+);
+
 /**
  * Entidades de AuditLog que `audit()` (la escritura de la app de un negocio) no puede escribir.
- * Normaliza mayúsculas y espacios: "interruptor " tampoco pasa.
+ * Normaliza mayúsculas y espacios: "interruptor " o "appoculta" tampoco pasan.
  */
 export function entidadReservadaDeLaConsola(entity: string): boolean {
-  return entity.trim().toLowerCase() === ENTIDAD_INTERRUPTOR.toLowerCase();
+  return ENTIDADES_DE_LA_CONSOLA.has(entity.trim().toLowerCase());
 }
 
 // ── Qué fila cuenta ─────────────────────────────────────────────────────────────────────────
@@ -190,6 +239,22 @@ export function esFilaDeInterruptorValida(f: FilaDeAuditoria): boolean {
   );
 }
 
+/**
+ * ¿Esta fila es un cambio de app oculta escrito por la consola? Las mismas exigencias que un
+ * interruptor: entidad, id de APPS_OCULTABLES, acción conocida, actor operador con nombre y canal
+ * "operador". Una fila de `audit()` o con un id fuera del catálogo no oculta nada.
+ */
+export function esFilaDeAppOcultaValida(f: FilaDeAuditoria): boolean {
+  return (
+    f.entity === ENTIDAD_APP_OCULTA &&
+    esAppOcultable(f.entityId) &&
+    (f.action === ACCION_OCULTAR || f.action === ACCION_MOSTRAR) &&
+    f.channel === CANAL_INTERRUPTOR &&
+    f.actor.startsWith(PREFIJO_ACTOR_OPERADOR) &&
+    f.actor.length > PREFIJO_ACTOR_OPERADOR.length
+  );
+}
+
 /** "operator:facu" → "facu"; cualquier otro actor → null. */
 export function operadorDeActor(actor: string): string | null {
   return actor.startsWith(PREFIJO_ACTOR_OPERADOR) && actor.length > PREFIJO_ACTOR_OPERADOR.length
@@ -198,11 +263,16 @@ export function operadorDeActor(actor: string): string | null {
 }
 
 /**
- * Lo que la Auditoría del NEGOCIO muestra de una fila de interruptor: un texto fijo, sin el nombre
+ * Lo que la Auditoría del NEGOCIO muestra de una fila de interruptor (o de app oculta): un texto fijo, sin el nombre
  * del operador, sin motivo y sin nada de otros negocios ("GSG activó el Inicio por apps"). `null`
  * si la fila no es un interruptor válido (se muestra como cualquier otra).
  */
 export function textoDeInterruptorEnAuditoria(f: FilaDeAuditoria): string | null {
+  // Las apps ocultas, con el mismo criterio: "GSG ocultó Apariencia" / "GSG volvió a mostrar …".
+  if (esFilaDeAppOcultaValida(f)) {
+    const app = appOcultablePorId(f.entityId as AppOcultableId);
+    return `GSG ${f.action === ACCION_OCULTAR ? "ocultó" : "volvió a mostrar"} ${app.nombre}`;
+  }
   if (!esFilaDeInterruptorValida(f)) return null;
   const i = interruptorPorId(f.entityId as InterruptorId);
   return `GSG ${f.action === ACCION_ENCENDER ? "activó" : "apagó"} ${i.enAuditoria}`;

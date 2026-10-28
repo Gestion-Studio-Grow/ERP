@@ -21,6 +21,16 @@ import {
 } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
 import {
   ACCION_DE,
+  ACCION_DE_OCULTA,
+  ACCION_OCULTAR,
+  ACCION_MOSTRAR,
+  APPS_OCULTABLES,
+  ENTIDAD_APP_OCULTA,
+  esAppOcultable,
+  esFilaDeAppOcultaValida,
+  appOcultablePorId,
+  type AccionAppOculta,
+  type AppOcultableId,
   CANAL_INTERRUPTOR,
   DISENO_NUEVO,
   AGENDA_PRACTICA,
@@ -120,7 +130,16 @@ export interface NuevaFilaDeInterruptor {
   entity: string;
   entityId: InterruptorId;
   channel: string;
-  changes: { antes: "encendido" | "apagado"; despues: "encendido" | "apagado"; gana: string[] };
+  changes: {
+    antes: "encendido" | "apagado";
+    despues: "encendido" | "apagado";
+    gana: string[];
+    /**
+     * Las apps (ids) que el operador aceptó a mano que el negocio pierde al prender "Trabaja por
+     * apps". Sólo está si aceptó alguna: una fila sin pérdidas queda como siempre.
+     */
+    pierdeAceptadas?: string[];
+  };
 }
 
 /**
@@ -135,7 +154,9 @@ export function filaDeInterruptor(p: {
   accion: AccionInterruptor;
   operador: string;
   gana?: readonly string[];
+  pierdeAceptadas?: readonly string[];
 }): NuevaFilaDeInterruptor {
+  const pierdeAceptadas = p.pierdeAceptadas && p.pierdeAceptadas.length > 0 ? [...p.pierdeAceptadas] : null;
   return {
     tenantId: p.tenantId,
     actor: `${PREFIJO_ACTOR_OPERADOR}${p.operador}`,
@@ -147,6 +168,7 @@ export function filaDeInterruptor(p: {
       antes: p.accion === "encender" ? "apagado" : "encendido",
       despues: p.accion === "encender" ? "encendido" : "apagado",
       gana: [...(p.gana ?? [])],
+      ...(pierdeAceptadas ? { pierdeAceptadas } : {}),
     },
   };
 }
@@ -170,6 +192,12 @@ export interface PedidoDeInterruptor {
   modulosVistos: readonly string[] | null;
   /** El slug tipeado para confirmar (sólo lo exige un negocio con candado del dueño, CH). */
   slugTipeado: string;
+  /**
+   * Los ids de las apps que el operador marcó, una por una, como aceptadas para perder al prender
+   * "Trabaja por apps". `null`/ausente/vacío = no aceptó nada (el rechazo de siempre). Tiene que ser
+   * EXACTAMENTE la lista que se pierde con la base fresca; nunca vale en un negocio con candado (CH).
+   */
+  perdidasAceptadas?: readonly string[] | null;
 }
 
 /** Quién pide el cambio: lo arma la sesión firmada (src/lib/operator-auth.ts), nunca el formulario. */
@@ -191,12 +219,32 @@ export interface ContextoFresco {
    * Apps del menú de siempre que perdería con el Inicio por apps (vista previa con la base fresca).
    * Sólo frena a un interruptor que cambia las apps (`cambiaLasApps`): el diseño nuevo no quita ninguna.
    */
-  appsPerdidas: readonly string[];
+  appsPerdidas: readonly { id: string; nombre: string }[];
 }
 
 export type DecisionDeInterruptor =
-  | { ok: true; interruptor: InterruptorId; accion: AccionInterruptor; sinCambios: boolean }
+  | {
+      ok: true;
+      interruptor: InterruptorId;
+      accion: AccionInterruptor;
+      sinCambios: boolean;
+      /** Las apps (ids) que pierde y el operador aceptó a mano; [] si no pierde ninguna. */
+      pierdeAceptadas: string[];
+    }
   | { ok: false; motivo: string };
+
+/** Lo que contesta un negocio con candado del dueño (CH) cuando se intenta aceptar pérdidas a mano. */
+export const MOTIVO_PERDIDAS_EN_CLIENTE_VIVO =
+  "Este negocio es un cliente vivo en producción: no se le aceptan apps perdidas a mano. No se guardó nada. " +
+  "Primero fijá la asignación actual.";
+
+/** La lista marcada no es la que se pierde hoy (le falta, le sobra o no son ids). */
+export function motivoPerdidasQueNoCoinciden(n: number): string {
+  return (
+    `Lo que marcaste no coincide con las ${n} ${n === 1 ? "app" : "apps"} que perdería con los datos de ahora. ` +
+    "No se guardó nada. Revisá la vista previa y marcá de nuevo una por una."
+  );
+}
 
 export function decidirCambioDeInterruptor(pedido: PedidoDeInterruptor, ctx: ContextoFresco): DecisionDeInterruptor {
   const { interruptor, accion, visto, modulosVistos } = pedido;
@@ -221,6 +269,8 @@ export function decidirCambioDeInterruptor(pedido: PedidoDeInterruptor, ctx: Con
     if (pedido.slugTipeado.trim().toLowerCase() !== (ctx.slug ?? "").trim().toLowerCase()) {
       return { ok: false, motivo: `Para confirmar, escribí exactamente el slug del negocio ("${ctx.slug}").` };
     }
+    // Ni el dueño acepta apps perdidas a mano en un cliente vivo: con una lista, no se escribe nada.
+    if ((pedido.perdidasAceptadas ?? []).length > 0) return { ok: false, motivo: MOTIVO_PERDIDAS_EN_CLIENTE_VIVO };
   }
 
   if ((visto === "encendido") !== ctx.encendido || !mismoConjunto(modulosVistos, ctx.modulosActuales)) {
@@ -228,20 +278,37 @@ export function decidirCambioDeInterruptor(pedido: PedidoDeInterruptor, ctx: Con
   }
 
   if ((accion === "encender") === ctx.encendido) {
-    return { ok: true, interruptor, accion, sinCambios: true };
+    return { ok: true, interruptor, accion, sinCambios: true, pierdeAceptadas: [] };
   }
 
-  if (accion === "encender" && interruptorPorId(interruptor).cambiaLasApps && ctx.appsPerdidas.length > 0) {
-    const n = ctx.appsPerdidas.length;
-    return {
-      ok: false,
-      motivo:
-        `Con “${interruptorPorId(interruptor).nombre}” perdería ${n} ${n === 1 ? "app" : "apps"} de su menú de siempre: ` +
-        `${ctx.appsPerdidas.join(", ")}. Primero fijá la asignación actual.`,
-    };
+  const pierde = accion === "encender" && interruptorPorId(interruptor).cambiaLasApps ? ctx.appsPerdidas : [];
+  const aceptadas = pedido.perdidasAceptadas ?? [];
+  // Una lista sin nada que perder (o para apagar) es una lista "de más": no corresponde a hoy.
+  if (pierde.length === 0 && aceptadas.length > 0) return { ok: false, motivo: motivoPerdidasQueNoCoinciden(0) };
+
+  if (pierde.length > 0) {
+    const n = pierde.length;
+    // Sin lista: el rechazo de siempre (fijar la asignación primero).
+    if (aceptadas.length === 0) {
+      return {
+        ok: false,
+        motivo:
+          `Con “${interruptorPorId(interruptor).nombre}” perdería ${n} ${n === 1 ? "app" : "apps"} de su menú de siempre: ` +
+          `${pierde.map((a) => a.nombre).join(", ")}. Primero fijá la asignación actual.`,
+      };
+    }
+    // Con lista, nunca en un cliente vivo (redundante con el candado de arriba, a propósito).
+    if (requiereOkDelDuenio(ctx.slug)) return { ok: false, motivo: MOTIVO_PERDIDAS_EN_CLIENTE_VIVO };
+    // La lista EXACTA por id: una de menos, una de más, un nombre en vez del id o un repetido
+    // (se marcó a mano dos veces lo mismo) es un pedido que no corresponde a lo que se pierde hoy.
+    const ids = pierde.map((a) => a.id);
+    if (new Set(aceptadas).size !== aceptadas.length || !mismoConjunto(aceptadas, ids)) {
+      return { ok: false, motivo: motivoPerdidasQueNoCoinciden(n) };
+    }
+    return { ok: true, interruptor, accion, sinCambios: false, pierdeAceptadas: [...ids].sort() };
   }
 
-  return { ok: true, interruptor, accion, sinCambios: false };
+  return { ok: true, interruptor, accion, sinCambios: false, pierdeAceptadas: [] };
 }
 
 // ── El recorrido de la action ────────────────────────────────────────────────
@@ -304,7 +371,7 @@ export async function cambiarInterruptorCon(
     slug: negocio.slug,
     modulosActuales: negocio.modules,
     encendido,
-    appsPerdidas: apps.conInicioFrenteAlMenu.pierde.map((a) => a.nombre),
+    appsPerdidas: apps.conInicioFrenteAlMenu.pierde.map((a) => ({ id: a.id, nombre: a.nombre })),
   });
   if (!decision.ok) return { tipo: "rechazado", motivo: decision.motivo };
   if (decision.sinCambios) return { tipo: "sin-cambios", interruptor: decision.interruptor, accion: decision.accion };
@@ -315,8 +382,161 @@ export async function cambiarInterruptorCon(
     accion: decision.accion,
     operador: operador.nombre,
     gana: cambiaLasApps && decision.accion === "encender" ? apps.conInicioFrenteAlMenu.gana.map((a) => a.id) : [],
+    pierdeAceptadas: decision.pierdeAceptadas,
   });
   const escrito = await deps.escribirSiSigueIgual(fila, { modules: negocio.modules, encendido });
   if (escrito !== true) return { tipo: "rechazado", motivo: escrito === false ? CAMBIO_MIENTRAS_MIRABAS : escrito.motivo };
   return { tipo: "hecho", interruptor: decision.interruptor, accion: decision.accion };
+}
+
+// ── Apps ocultas por negocio ─────────────────────────────────────────────────
+
+/**
+ * Las apps que GSG ocultó en el negocio: de cada app de APPS_OCULTABLES manda la última fila VÁLIDA
+ * (por `createdAt`, y a igual hora por id). Una fila forjada (otro canal, otro actor, un id fuera
+ * del catálogo) se descarta antes de elegir la última: no oculta nada.
+ */
+export function ocultasDesdeFilas(filas: readonly FilaLeida[]): ReadonlySet<AppOcultableId> {
+  const validas = filas
+    .filter(esFilaDeAppOcultaValida)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+  const vistos = new Set<string>();
+  const ocultas = new Set<AppOcultableId>();
+  for (const f of validas) {
+    if (vistos.has(f.entityId as string)) continue;
+    vistos.add(f.entityId as string);
+    if (f.action === ACCION_OCULTAR) ocultas.add(f.entityId as AppOcultableId);
+  }
+  return ocultas;
+}
+
+/**
+ * Lo que el PANEL del negocio usa como ocultas: nada en un negocio con candado del dueño (CH), ni
+ * sin el slug para probarlo. Aunque existiera una fila válida, el menú de CH queda como siempre.
+ */
+export function ocultasParaElPanel(
+  slug: string | null | undefined,
+  ocultas: ReadonlySet<string>,
+): ReadonlySet<string> {
+  return !slug || requiereOkDelDuenio(slug) ? SIN_OCULTAS : ocultas;
+}
+
+const SIN_OCULTAS: ReadonlySet<string> = new Set();
+
+/** El filtro de las filas de apps ocultas que cuentan (se vuelve a aplicar en `ocultasDesdeFilas`). */
+export function filtroDeFilasDeOcultas(tenantId: string) {
+  return {
+    tenantId,
+    entity: ENTIDAD_APP_OCULTA,
+    entityId: { in: APPS_OCULTABLES.map((a) => a.id) as string[] },
+    action: { in: [ACCION_OCULTAR, ACCION_MOSTRAR] },
+    channel: CANAL_INTERRUPTOR,
+    actor: { startsWith: PREFIJO_ACTOR_OPERADOR },
+  };
+}
+
+export interface NuevaFilaDeAppOculta {
+  tenantId: string;
+  actor: string;
+  action: string;
+  entity: string;
+  entityId: AppOcultableId;
+  channel: string;
+  changes: { antes: "oculta" | "visible"; despues: "oculta" | "visible" };
+}
+
+/** La fila de AuditLog de ocultar o mostrar una app. La escribe SÓLO la consola (trinquete). */
+export function filaDeAppOculta(p: {
+  tenantId: string;
+  app: AppOcultableId;
+  accion: AccionAppOculta;
+  operador: string;
+}): NuevaFilaDeAppOculta {
+  return {
+    tenantId: p.tenantId,
+    actor: `${PREFIJO_ACTOR_OPERADOR}${p.operador}`,
+    action: ACCION_DE_OCULTA[p.accion],
+    entity: ENTIDAD_APP_OCULTA,
+    entityId: p.app,
+    channel: CANAL_INTERRUPTOR,
+    changes: {
+      antes: p.accion === "ocultar" ? "visible" : "oculta",
+      despues: p.accion === "ocultar" ? "oculta" : "visible",
+    },
+  };
+}
+
+/** Lo que llega del formulario de «Apps ocultas» (todo texto: se valida acá). */
+export interface PedidoDeAppOculta {
+  tenantId: string;
+  app: string;
+  accion: string;
+  /** Lo que el operador vio: "oculta" | "visible". */
+  visto: string;
+}
+
+export const MOTIVO_OCULTAR_EN_CLIENTE_VIVO =
+  "Este negocio es un cliente vivo en producción: sus apps no se ocultan desde la consola. No se guardó nada.";
+
+export type DecisionDeAppOculta =
+  | { ok: true; app: AppOcultableId; accion: AccionAppOculta; sinCambios: boolean }
+  | { ok: false; motivo: string };
+
+export function decidirCambioDeAppOculta(
+  pedido: PedidoDeAppOculta,
+  ctx: { slug: string | null; oculta: boolean },
+): DecisionDeAppOculta {
+  const { app, accion, visto } = pedido;
+  if (!esAppOcultable(app) || (accion !== "ocultar" && accion !== "mostrar") || (visto !== "oculta" && visto !== "visible")) {
+    return { ok: false, motivo: PEDIDO_INCOMPLETO };
+  }
+  // Nunca en CH: ni el dueño. Va primero, como el candado de los interruptores.
+  if (requiereOkDelDuenio(ctx.slug)) return { ok: false, motivo: MOTIVO_OCULTAR_EN_CLIENTE_VIVO };
+  if ((visto === "oculta") !== ctx.oculta) return { ok: false, motivo: CAMBIO_MIENTRAS_MIRABAS };
+  if ((accion === "ocultar") === ctx.oculta) return { ok: true, app, accion, sinCambios: true };
+  return { ok: true, app, accion, sinCambios: false };
+}
+
+export interface DepsDeAppOculta {
+  leerNegocio(tenantId: string): Promise<{ slug: string | null } | null>;
+  /** Las apps ocultas del negocio, o null si no se pudo leer (entonces no se escribe nada). */
+  leerOcultas(tenantId: string): Promise<ReadonlySet<string> | null>;
+  /**
+   * Escribe la fila SÓLO si la app sigue como se leyó (oculta o no), bajo el candado de las apps
+   * del negocio. `false` = cambió en el medio; `{ motivo }` = candado ocupado o base caída.
+   */
+  escribirSiSigueIgual(fila: NuevaFilaDeAppOculta, condicion: { oculta: boolean }): Promise<boolean | { motivo: string }>;
+}
+
+export type ResultadoDeAppOculta =
+  | { tipo: "hecho"; app: AppOcultableId; accion: AccionAppOculta }
+  | { tipo: "sin-cambios"; app: AppOcultableId; accion: AccionAppOculta }
+  | { tipo: "rechazado"; motivo: string }
+  | { tipo: "no-existe" };
+
+/** Ocultar o mostrar una app en un negocio, como `operador` (de la sesión firmada, nunca del formulario). */
+export async function cambiarAppOcultaCon(
+  deps: DepsDeAppOculta,
+  operador: OperadorDelCambio,
+  pedido: PedidoDeAppOculta,
+): Promise<ResultadoDeAppOculta> {
+  const negocio = await deps.leerNegocio(pedido.tenantId);
+  if (!negocio) return { tipo: "no-existe" };
+  const ocultas = await deps.leerOcultas(pedido.tenantId);
+  if (!ocultas) {
+    return { tipo: "rechazado", motivo: "No se pudo leer qué apps están ocultas en este negocio. No se cambió nada." };
+  }
+  const oculta = esAppOcultable(pedido.app) && ocultas.has(pedido.app);
+  const decision = decidirCambioDeAppOculta(pedido, { slug: negocio.slug, oculta });
+  if (!decision.ok) return { tipo: "rechazado", motivo: decision.motivo };
+  if (decision.sinCambios) return { tipo: "sin-cambios", app: decision.app, accion: decision.accion };
+  const fila = filaDeAppOculta({ tenantId: pedido.tenantId, app: decision.app, accion: decision.accion, operador: operador.nombre });
+  const escrito = await deps.escribirSiSigueIgual(fila, { oculta });
+  if (escrito !== true) return { tipo: "rechazado", motivo: escrito === false ? CAMBIO_MIENTRAS_MIRABAS : escrito.motivo };
+  return { tipo: "hecho", app: decision.app, accion: decision.accion };
+}
+
+/** El nombre de una app ocultable, para los mensajes de la consola. */
+export function nombreDeAppOcultable(id: AppOcultableId): string {
+  return appOcultablePorId(id).nombre;
 }

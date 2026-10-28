@@ -61,9 +61,12 @@ function codigo(src: string): string {
 const ESCRIBE_AUDITORIA =
   /auditLog\s*\.\s*(create|createMany|createManyAndReturn|upsert|update|updateMany)\s*\(|INSERT\s+INTO\s+"?AuditLog"?|\$executeRaw|\b(audit|auditAdmin|auditPublic)\s*\(/i;
 
-/** Lo que identifica a la entidad o a la fila ya armada. */
+/**
+ * Lo que identifica a la entidad o a la fila ya armada. Incluye la entidad «AppOculta» (las apps
+ * que GSG oculta por negocio): guarda estado igual que un interruptor y tiene el mismo escritor.
+ */
 const NOMBRA_INTERRUPTOR =
-  /["'`]Interruptor["'`]|\bENTIDAD_INTERRUPTOR\b|\bfilaDeInterruptor\b|\bNuevaFilaDeInterruptor\b|\bDepsDeCambio\b|\bescribirSiSigueIgual\b/;
+  /["'`]Interruptor["'`]|\bENTIDAD_INTERRUPTOR\b|\bfilaDeInterruptor\b|\bNuevaFilaDeInterruptor\b|\bDepsDeCambio\b|\bescribirSiSigueIgual\b|["'`]AppOculta["'`]|\bENTIDAD_APP_OCULTA\b|\bfilaDeAppOculta\b|\bNuevaFilaDeAppOculta\b|\bDepsDeAppOculta\b/;
 
 export function escribeInterruptor(src: string): boolean {
   const c = codigo(src);
@@ -82,17 +85,21 @@ test("el detector del trinquete marca las escrituras de la entidad y no las dem�
     "await tx.$executeRaw`INSERT INTO \"AuditLog\" (entity) VALUES ('Interruptor')`;",
     `await tx.auditLog.create({ data: filaDeInterruptor({ tenantId, interruptor, accion, operador }) });`,
     `const d: DepsDeCambio = { escribirSiSigueIgual: (f) => tx.auditLog.create({ data: f }) };`,
+    `await prisma.auditLog.create({ data: { tenantId, entity: "AppOculta", entityId: "apariencia" } });`,
+    `await audit({ action: "app.ocultar", entity: ENTIDAD_APP_OCULTA, entityId: "promociones" });`,
+    `await tx.auditLog.createMany({ data: [filaDeAppOculta({ tenantId, app, accion, operador })] });`,
   ];
   for (const s of marcados) assert.equal(escribeInterruptor(s), true, s);
   const limpios = [
     `await prisma.auditLog.create({ data: { entity: "Tenant" } });`,
     `// await prisma.auditLog.create({ data: { entity: "Interruptor" } });`,
     `const e = await prisma.auditLog.findMany({ where: { entity: ENTIDAD_INTERRUPTOR } });`,
+    `const o = await prisma.auditLog.findMany({ where: { entity: ENTIDAD_APP_OCULTA } });`,
   ];
   for (const s of limpios) assert.equal(escribeInterruptor(s), false, s);
 });
 
-test("TRINQUETE: nadie fuera de la consola escribe entity 'Interruptor'", () => {
+test("TRINQUETE: nadie fuera de la consola escribe entity 'Interruptor' ni 'AppOculta'", () => {
   const escritores = TODOS.filter((f) => escribeInterruptor(f.src)).map((f) => f.archivo);
   const intrusos = escritores.filter((a) => !(a in ESCRITORES_PERMITIDOS));
   assert.deepEqual(intrusos, [], `escriben la entidad Interruptor fuera de la consola: ${intrusos.join(", ")}`);
@@ -108,17 +115,20 @@ test("TRINQUETE: la escritura real sólo la importa la action (detrás de la gua
   const action = TODOS.find((f) => f.archivo === "src/lib/operador/interruptores-actions.ts");
   assert.ok(action, "falta la action");
   assert.match(action.src, /^"use server";/);
-  // Un solo endpoint, y lo primero que espera es la sesión de operador con el candado de CH
-  // (el resto de las actions lo exige guardia-negocio.test.ts).
+  // Dos endpoints (interruptor y app oculta), y lo primero que espera cada uno es la sesión de
+  // operador con el candado de CH (el resto de las actions lo exige guardia-negocio.test.ts).
   const exportados = [...codigo(action.src).matchAll(/export\s+(?:async\s+)?(?:function|const)\s+(\w+)/g)].map((m) => m[1]);
-  assert.deepEqual(exportados, ["cambiarInterruptor"]);
-  const cuerpo = codigo(action.src).split("export async function cambiarInterruptor(formData: FormData) {")[1] ?? "";
-  assert.ok(cuerpo.indexOf("await") >= 0, "la action no espera nada");
-  assert.equal(
-    cuerpo.indexOf("await requireOperadorParaNegocio({ id: tenantId })"),
-    cuerpo.indexOf("await"),
-    "la primera espera tiene que ser la guardia del negocio",
-  );
+  assert.deepEqual(exportados, ["cambiarInterruptor", "cambiarAppOculta"]);
+  const partes = codigo(action.src).split(/export async function \w+\(formData: FormData\) \{/).slice(1);
+  assert.equal(partes.length, 2);
+  for (const cuerpo of partes) {
+    assert.ok(cuerpo.indexOf("await") >= 0, "la action no espera nada");
+    assert.equal(
+      cuerpo.indexOf("await requireOperadorParaNegocio({ id: tenantId })"),
+      cuerpo.indexOf("await"),
+      "la primera espera tiene que ser la guardia del negocio",
+    );
+  }
 });
 
 // ── 2. Contra Postgres ───────────────────────────────────────────────────────

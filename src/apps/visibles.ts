@@ -35,6 +35,7 @@ import type { AppDescriptor, NombreIcono } from "./contract";
 import { ordenDeEspacio, ordenDentroDelEspacio } from "./espacios";
 import { REGISTRO_APPS } from "./registro";
 import { appDeRuta } from "./rutas";
+import { esAppOcultable } from "@/cambios/interruptores";
 
 // ── Contexto del gate por módulo ─────────────────────────────────────────────
 
@@ -108,6 +109,11 @@ export interface NegocioApps {
   esMostrador: boolean;
   /** ¿Lotes y despiece listos: migración cárnica aplicada y rubro de perecederos? (`lotesYDespieceListos`). */
   carniceriaLista: boolean;
+  /**
+   * Las apps que GSG ocultó en este negocio desde la consola (sólo ids de APPS_OCULTABLES cuentan,
+   * src/cambios/interruptores.ts). Ausente o vacío = ninguna: idéntico a hoy. Tapa menú, buscador y ruta.
+   */
+  ocultas?: ReadonlySet<string>;
 }
 
 /**
@@ -118,8 +124,9 @@ export interface NegocioApps {
  *   modulo         → el negocio no la tiene activada: la activa GSG.
  *   rubro          → no aplica a este tipo de negocio (turnos en un mostrador, etc.).
  *   edicion        → es de la edición por perfiles y el negocio no la tiene.
+ *   oculta         → GSG la ocultó en este negocio (consola, «Apps ocultas»): se la vuelve a mostrar GSG.
  */
-export type MotivoNoDisponible = "rol" | "en-preparacion" | "modulo" | "rubro" | "edicion";
+export type MotivoNoDisponible = "rol" | "en-preparacion" | "modulo" | "rubro" | "edicion" | "oculta";
 
 /**
  * ¿El rol alcanza para entrar? `capability: null` = alcanza con la sesión. En un local de
@@ -198,6 +205,8 @@ function edicionPermite(app: AppDescriptor, n: NegocioApps): boolean {
 /** Por qué la persona no puede abrir la app, o `null` si puede. */
 export function motivoNoDisponible(app: AppDescriptor, n: NegocioApps): MotivoNoDisponible | null {
   if (!rolPuedeEntrar(app, n.role, n)) return "rol";
+  // Sólo un id del catálogo cerrado oculta algo: un Set armado a mano con otra app no la tapa.
+  if (n.ocultas?.has(app.id) && esAppOcultable(app.id)) return "oculta";
   if (app.estado !== "lista") return "en-preparacion";
   if (!moduloPermite(app, n)) return "modulo";
   if (!rubroPermite(app, n)) return "rubro";
@@ -396,6 +405,8 @@ export function explicarNoDisponible(
       return { titulo, porque: "Tu negocio no tiene esta app activada.", aQuien: pedido };
     case "edicion":
       return { titulo, porque: "Esta app no está incluida en lo que tiene tu negocio hoy.", aQuien: pedido };
+    case "oculta":
+      return { titulo, porque: "En tu negocio esta app está oculta: no la usan.", aQuien: pedido };
     case "rubro": {
       const porque =
         app.rubro === "servicios"

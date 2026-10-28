@@ -49,7 +49,7 @@ import {
   MOTIVO_OK_DEL_DUENIO_RED,
 } from "@/lib/multilocal/multilocal-core";
 import { catalogo } from "@/modules/catalog";
-import { INTERRUPTORES, interruptorPorId } from "@/cambios/interruptores";
+import { appOcultablePorId, INTERRUPTORES, interruptorPorId } from "@/cambios/interruptores";
 import { todosApagados } from "@/cambios/interruptores-core";
 import { operadorDuenio } from "@/lib/operator-auth";
 import { ResetOwnerPasswordCard } from "./ResetOwnerPasswordCard";
@@ -71,7 +71,8 @@ import {
   leerNegocioParaActivar,
   leerRedDeLaFicha,
 } from "./negocio.server";
-import { InterruptoresCard } from "./InterruptoresCard";
+import { AppsOcultasCard, InterruptoresCard } from "./InterruptoresCard";
+import { leerAppsOcultasDe } from "@/lib/operador/apps-ocultas.server";
 import { PaseARealCard } from "./PaseARealCard";
 import PlanDelNegocioCard from "./PlanDelNegocioCard";
 import { leerFichaDelPase } from "@/lib/operador/pase-a-real.server";
@@ -292,7 +293,7 @@ export default async function FichaDelNegocio({
     usuariosActivos,
     otrosDelCuit,
     negocio,
-    interruptores,
+    [interruptores, appsOcultas],
     historial,
     red,
     candidatosCasa,
@@ -344,7 +345,8 @@ export default async function FichaDelNegocio({
     leerNegocioParaActivar(t.id),
     // Los interruptores de este negocio, leídos de la base. Si no se pudo, la vista previa mira
     // como apagado y la ficha no ofrece cambiarlos.
-    leerInterruptoresDe(t.id),
+    // Con las apps que GSG ocultó en este negocio (misma regla: si no se pudo, no se ofrece cambiarlas).
+    Promise.all([leerInterruptoresDe(t.id), leerAppsOcultasDe(t.id)]),
     historialDeModulos(t.id),
     leerRedDeLaFicha(t.id),
     // Los que se le pueden sumar a una red: SÓLO del mismo CUIT que la casa (QA vuelta 6: se ofrecían
@@ -943,6 +945,8 @@ export default async function FichaDelNegocio({
         candado={conCandado ? { puedeTocar: sesion.esDuenio, duenio } : null}
       />
 
+      <AppsOcultasCard tenantId={t.id} ocultas={appsOcultas?.ocultas ?? null} clienteVivo={conCandado} />
+
       <AppsDelNegocioCard
         tenantId={t.id}
         vistos={negocio!.modules}
@@ -1060,6 +1064,13 @@ export default async function FichaDelNegocio({
       cuando: h.cuando,
       quien: h.quien,
       frase: `${h.encendio ? "Prendió" : "Apagó"} «${interruptorPorId(h.interruptor).nombre}»`,
+      detalle: null as string | null,
+    })),
+    ...(appsOcultas?.historial ?? []).map((h) => ({
+      id: `o-${h.id}`,
+      cuando: h.cuando,
+      quien: h.quien,
+      frase: `${h.oculto ? "Ocultó" : "Volvió a mostrar"} «${appOcultablePorId(h.app).nombre}»`,
       detalle: null as string | null,
     })),
     ...historial.map((h) => {

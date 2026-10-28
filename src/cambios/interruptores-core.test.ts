@@ -34,6 +34,25 @@ import {
   type PedidoDeInterruptor,
 } from "./interruptores-core";
 
+import { appPorId } from "@/apps/registro";
+import { motivoNoDisponible, type NegocioApps } from "@/apps/visibles";
+import { describirAccion } from "@/app/admin/(dashboard)/auditoria/frase";
+import { estadoDeApps } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
+import {
+  ACCION_OCULTAR,
+  APPS_OCULTABLES,
+  ENTIDAD_APP_OCULTA,
+} from "./interruptores";
+import {
+  cambiarAppOcultaCon,
+  filaDeAppOculta,
+  ocultasDesdeFilas,
+  ocultasParaElPanel,
+  MOTIVO_PERDIDAS_EN_CLIENTE_VIVO,
+  type DepsDeAppOculta,
+  type PedidoDeAppOculta,
+} from "./interruptores-core";
+
 const cat = catalogo();
 
 /** Las sesiones, como las arma el token firmado: un operador de OPERADORES y el dueño. */
@@ -65,7 +84,7 @@ const CH: NegocioParaActivar = {
   perfil: null,
 };
 
-type Fila = FilaLeida & { tenantId: string };
+type Fila = FilaLeida & { tenantId: string; changes?: unknown };
 
 /** Una base en memoria con la misma escritura condicional que la real. */
 function base(negocios: NegocioParaActivar[]) {
@@ -292,4 +311,198 @@ test("prendido en la carnicería fijada: ve las mismas apps que en su menú de s
   const antes = new Set(appsVisibles(n(false)).map((a) => a.id));
   const despues = new Set(appsVisibles(n(true)).map((a) => a.id));
   assert.deepEqual([...antes].filter((id) => !despues.has(id)), []);
+});
+
+// ── Aceptar a mano las apps que pierde (fuera de CH) ─────────────────────────
+
+/** Las apps que la carnicería sin fijar (Magra hoy) perdería con el Inicio por apps: 13. */
+const PERDIDAS = estadoDeApps(CARNICERIA_SIN_FIJAR, { registroGlobal: false, enInicioPorApps: false }, cat)
+  .conInicioFrenteAlMenu.pierde;
+
+test("A1 · 13 perdidas: sin lista, el rechazo de siempre; con la lista exacta, la fila guarda pierdeAceptadas", async () => {
+  assert.equal(PERDIDAS.length, 13);
+  const b = base([CARNICERIA_SIN_FIJAR]);
+  for (const perdidasAceptadas of [undefined, null, []]) {
+    const r = await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA_SIN_FIJAR, "encender", { perdidasAceptadas }));
+    assert.equal(r.tipo, "rechazado");
+    assert.match((r as { motivo: string }).motivo, /perdería 13 apps de su menú de siempre: .*Primero fijá la asignación actual\.$/);
+  }
+  assert.equal(b.escrituras(), 0);
+  // La lista exacta, en otro orden que la vista previa (las casillas no tienen por qué llegar igual).
+  const exacta = PERDIDAS.map((a) => a.id).reverse();
+  const r = await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA_SIN_FIJAR, "encender", { perdidasAceptadas: exacta }));
+  assert.deepEqual(r, { tipo: "hecho", interruptor: INICIO_POR_APPS, accion: "encender" });
+  assert.equal(b.escrituras(), 1);
+  const changes = b.filas[0].changes as { pierdeAceptadas?: string[] };
+  assert.equal(changes.pierdeAceptadas?.length, 13);
+  assert.deepEqual(changes.pierdeAceptadas, [...exacta].sort());
+  assert.equal(b.trabajaPorApps(CARNICERIA_SIN_FIJAR.id), true);
+});
+
+test("A1 · una fila sin pérdidas queda como siempre (sin pierdeAceptadas)", async () => {
+  const b = base([CARNICERIA]);
+  await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA, "encender"));
+  assert.equal("pierdeAceptadas" in (b.filas[0].changes as object), false);
+});
+
+test("A2 · lista incompleta, de más, por nombre o repetida → rechazo y 0 filas", async () => {
+  const ids = PERDIDAS.map((a) => a.id);
+  const b = base([CARNICERIA_SIN_FIJAR]);
+  const malas: (readonly string[])[] = [
+    ids.slice(1),
+    [...ids, "agenda"],
+    PERDIDAS.map((a) => a.nombre),
+    [...ids, ids[0]],
+  ];
+  for (const perdidasAceptadas of malas) {
+    const r = await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA_SIN_FIJAR, "encender", { perdidasAceptadas }));
+    assert.equal(r.tipo, "rechazado", perdidasAceptadas.join(","));
+    assert.match((r as { motivo: string }).motivo, /no coincide con las 13 apps/);
+  }
+  assert.equal(b.escrituras(), 0);
+  // Una lista cuando no pierde nada también es "de más" (la carnicería fijada tiene el mismo id: otra base).
+  const fijada = base([CARNICERIA]);
+  const r = await cambiarInterruptorCon(fijada.deps, FACU, pedido(CARNICERIA, "encender", { perdidasAceptadas: ["inventario"] }));
+  assert.equal(r.tipo, "rechazado");
+  assert.equal(fijada.escrituras(), 0);
+});
+
+test("A3 · beauty-spa: el dueño con el slug y una lista → rechazo «cliente vivo», 0 filas", async () => {
+  const b = base([CH]);
+  for (const perdidasAceptadas of [["inventario"], PERDIDAS.map((a) => a.id)]) {
+    const r = await cambiarInterruptorCon(b.deps, DUENIO, pedido(CH, "encender", { slugTipeado: "beauty-spa", perdidasAceptadas }));
+    assert.deepEqual(r, { tipo: "rechazado", motivo: MOTIVO_PERDIDAS_EN_CLIENTE_VIVO });
+    assert.match(MOTIVO_PERDIDAS_EN_CLIENTE_VIVO, /cliente vivo/);
+  }
+  assert.equal(b.escrituras(), 0);
+});
+
+// ── Apps ocultas ─────────────────────────────────────────────────────────────
+
+let reloj = Date.parse("2026-10-28T12:00:00Z");
+function filaOculta(over: Partial<FilaLeida> = {}): FilaLeida {
+  reloj += 60_000;
+  return {
+    id: `o${reloj}`,
+    createdAt: new Date(reloj),
+    entity: ENTIDAD_APP_OCULTA,
+    entityId: "apariencia",
+    action: ACCION_OCULTAR,
+    actor: "operator:facu",
+    channel: CANAL_INTERRUPTOR,
+    ...over,
+  };
+}
+
+const QA_MOSTRADOR: NegocioApps = {
+  role: "OWNER",
+  contexto: null,
+  modulosAsignados: [],
+  perfil: null,
+  esMostrador: true,
+  carniceriaLista: true,
+};
+
+test("APPS_OCULTABLES: ids reales del registro y el mismo nombre", () => {
+  assert.deepEqual(APPS_OCULTABLES.map((a) => a.id), ["clientas-por-recuperar", "apariencia", "promociones"]);
+  for (const a of APPS_OCULTABLES) assert.equal(appPorId(a.id as never).nombre, a.nombre, a.id);
+});
+
+test("A4 · ocultar Apariencia en QA: fuera de appsVisibles, motivo «oculta» y la Auditoría dice «GSG ocultó Apariencia»", () => {
+  const ocultas = ocultasParaElPanel("qa-carniceria", ocultasDesdeFilas([filaOculta()]));
+  assert.deepEqual([...ocultas], ["apariencia"]);
+  const n = { ...QA_MOSTRADOR, ocultas };
+  assert.ok(appsVisibles(QA_MOSTRADOR).some((a) => a.id === "apariencia"), "sin ocultar, la ve");
+  assert.ok(!appsVisibles(n).some((a) => a.id === "apariencia"));
+  // Es la regla de `requireApp` (src/lib/require-app.ts:52): motivo no nulo → /admin/no-disponible.
+  assert.equal(motivoNoDisponible(appPorId("apariencia"), n), "oculta");
+  // Lo demás, igual.
+  assert.deepEqual(
+    appsVisibles(n).map((a) => a.id),
+    appsVisibles(QA_MOSTRADOR).map((a) => a.id).filter((id) => id !== "apariencia"),
+  );
+  const fila = { ...filaOculta(), changes: { antes: "visible", despues: "oculta" } };
+  assert.deepEqual(describirAccion(fila as never), { frase: "GSG ocultó Apariencia", detalle: [], tecnico: false });
+  assert.equal(textoDeInterruptorEnAuditoria(filaOculta({ action: "app.mostrar" })), "GSG volvió a mostrar Apariencia");
+  // Mostrarla de nuevo: manda la última fila.
+  assert.equal(ocultasDesdeFilas([filaOculta(), filaOculta({ action: "app.mostrar" })]).size, 0);
+});
+
+test("A5 · un id fuera de la lista, una fila forjada por audit() o por el canal admin no ocultan nada", () => {
+  const forjadas = [
+    filaOculta({ entityId: "inventario" }),
+    filaOculta({ channel: "admin", actor: "user:recepcion" }),
+    filaOculta({ channel: "admin" }),
+    filaOculta({ actor: "user:recepcion" }),
+    filaOculta({ actor: "operator:" }),
+    filaOculta({ action: "app.borrar" }),
+    filaOculta({ entity: "appoculta" }),
+  ];
+  assert.equal(ocultasDesdeFilas(forjadas).size, 0);
+  // Una forjada MÁS NUEVA que una válida de "mostrar" no la vuelve a ocultar.
+  assert.equal(ocultasDesdeFilas([filaOculta({ action: "app.mostrar" }), filaOculta({ channel: "admin" })]).size, 0);
+  // Un Set armado con otra app (fuera de APPS_OCULTABLES) no tapa nada.
+  const n = { ...QA_MOSTRADOR, ocultas: new Set(["inventario", "vender"]) };
+  assert.deepEqual(appsVisibles(n).map((a) => a.id), appsVisibles(QA_MOSTRADOR).map((a) => a.id));
+  // audit() tiene vedada la entidad, con cualquier capitalización.
+  for (const e of ["AppOculta", " appoculta ", "APPOCULTA"]) assert.equal(entidadReservadaDeLaConsola(e), true, e);
+  assert.equal(textoDeInterruptorEnAuditoria(filaOculta({ channel: "admin" })), null);
+});
+
+test("CH: aunque haya una fila válida de la consola, el panel no oculta nada", () => {
+  const valida = ocultasDesdeFilas([filaOculta()]);
+  assert.equal(valida.size, 1);
+  for (const slug of ["beauty-spa", " Beauty-Spa ", null, undefined, ""]) assert.equal(ocultasParaElPanel(slug, valida).size, 0, String(slug));
+});
+
+/** La consola de apps ocultas, con una base en memoria y la misma escritura condicional. */
+function baseOcultas(negocios: NegocioParaActivar[]) {
+  const porId = new Map(negocios.map((n) => [n.id, n]));
+  const filas: (FilaLeida & { tenantId: string })[] = [];
+  const de = (id: string) => filas.filter((f) => f.tenantId === id);
+  const deps: DepsDeAppOculta = {
+    leerNegocio: async (id) => (porId.has(id) ? { slug: porId.get(id)!.slug } : null),
+    leerOcultas: async (id) => ocultasDesdeFilas(de(id)),
+    escribirSiSigueIgual: async (fila, condicion) => {
+      if (ocultasDesdeFilas(de(fila.tenantId)).has(fila.entityId) !== condicion.oculta) return false;
+      reloj += 60_000;
+      filas.push({ ...fila, id: `w${filas.length}`, createdAt: new Date(reloj) });
+      return true;
+    },
+  };
+  return { deps, filas, de };
+}
+
+const pedidoOculta = (n: NegocioParaActivar, over: Partial<PedidoDeAppOculta> = {}): PedidoDeAppOculta => ({
+  tenantId: n.id,
+  app: "apariencia",
+  accion: "ocultar",
+  visto: "visible",
+  ...over,
+});
+
+test("ocultar y mostrar desde la consola: fila del operador, sin cambios, vista vieja y CH", async () => {
+  const b = baseOcultas([CARNICERIA, CH]);
+  assert.deepEqual(await cambiarAppOcultaCon(b.deps, FACU, pedidoOculta(CARNICERIA)), { tipo: "hecho", app: "apariencia", accion: "ocultar" });
+  assert.deepEqual(b.filas[0], { ...filaDeAppOculta({ tenantId: CARNICERIA.id, app: "apariencia", accion: "ocultar", operador: "facu" }), id: "w0", createdAt: b.filas[0].createdAt });
+  assert.deepEqual([...ocultasDesdeFilas(b.de(CARNICERIA.id))], ["apariencia"]);
+  // Otra pestaña que vio «visible» manda ocultar: cambió mientras miraba.
+  assert.deepEqual(await cambiarAppOcultaCon(b.deps, FACU, pedidoOculta(CARNICERIA)), { tipo: "rechazado", motivo: CAMBIO_MIENTRAS_MIRABAS });
+  assert.equal((await cambiarAppOcultaCon(b.deps, FACU, pedidoOculta(CARNICERIA, { visto: "oculta" }))).tipo, "sin-cambios");
+  // Pedidos rotos: una app fuera de la lista no se escribe.
+  for (const over of [{ app: "inventario" }, { accion: "borrar" }, { visto: "" }]) {
+    assert.equal((await cambiarAppOcultaCon(b.deps, FACU, pedidoOculta(CARNICERIA, over))).tipo, "rechazado");
+  }
+  assert.deepEqual(await cambiarAppOcultaCon(b.deps, FACU, { ...pedidoOculta(CARNICERIA), tenantId: "nadie" }), { tipo: "no-existe" });
+  // CH: ni el dueño.
+  for (const op of [FACU, DUENIO]) {
+    const r = await cambiarAppOcultaCon(b.deps, op, pedidoOculta(CH));
+    assert.equal(r.tipo, "rechazado");
+    assert.match((r as { motivo: string }).motivo, /cliente vivo/);
+  }
+  assert.equal(b.de(CH.id).length, 0);
+  assert.equal(b.filas.length, 1);
+  // Y mostrarla de nuevo.
+  assert.equal((await cambiarAppOcultaCon(b.deps, FACU, pedidoOculta(CARNICERIA, { accion: "mostrar", visto: "oculta" }))).tipo, "hecho");
+  assert.equal(ocultasDesdeFilas(b.de(CARNICERIA.id)).size, 0);
 });

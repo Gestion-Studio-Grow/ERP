@@ -27,7 +27,8 @@ import { lotesYDespieceListos } from "@/lib/carniceria/schema-probe";
 import { resolveRubroId } from "@/blueprints/retail/rubros";
 import { catalogo } from "@/modules/catalog";
 import { moduleRegistryEnabled } from "@/modules/flags";
-import { enInicioPorAppsDelNegocio } from "@/cambios/interruptores.server";
+import { appsOcultasDelNegocio, enInicioPorAppsDelNegocio } from "@/cambios/interruptores.server";
+import { ocultasParaElPanel } from "@/cambios/interruptores-core";
 import {
   resolverContextoApps,
   type ContextoApps,
@@ -73,11 +74,12 @@ export const getContextoApps = cache(async (): Promise<ContextoApps | null> => {
 
 /** Todo lo que decide qué apps ve una persona con este `role` en el negocio actual. */
 export const getNegocioApps = cache(async (role: Role): Promise<NegocioApps> => {
-  const [t, contexto, perfil, carniceriaLista] = await Promise.all([
+  const [t, contexto, perfil, carniceriaLista, ocultas] = await Promise.all([
     leerTenant(),
     getContextoApps(),
     getActiveProfile(),
     lotesYDespieceListos(),
+    appsOcultasDelNegocio(),
   ]);
   return {
     role,
@@ -88,5 +90,9 @@ export const getNegocioApps = cache(async (role: Role): Promise<NegocioApps> => 
     // si no hay, el mapa por slug (los locales de MAGRA se llaman magra-<localidad>).
     esMostrador: t ? resolveRubroId({ slug: t.slug, blueprintId: t.blueprintId }) != null : false,
     carniceriaLista,
+    // Las apps que GSG ocultó en este negocio. Nunca en un negocio con candado del dueño (CH): aunque
+    // hubiera una fila, su menú queda como siempre (paridad-menu.test.ts). Sin la fila del negocio,
+    // tampoco: no hay contra qué slug probarlo.
+    ocultas: ocultasParaElPanel(t?.slug, ocultas),
   };
 });

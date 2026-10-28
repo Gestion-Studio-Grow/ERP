@@ -23,6 +23,7 @@ import { catalogo } from "@/modules/catalog";
 import type { Role } from "@/lib/capabilities";
 import type { Perfil } from "@/modules/perfil";
 import { REGISTRO_APPS } from "./registro";
+import { ocultasDesdeFilas, ocultasParaElPanel, type FilaLeida } from "@/cambios/interruptores-core";
 import {
   appsVisibles,
   proyectarMenuDeHoy,
@@ -254,4 +255,39 @@ test("diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el 
   );
   // Y con `cuentas-a-cobrar` asignado ve Fiado aunque el motor de perfiles esté apagado.
   assert.deepEqual(registro.filter((h) => !hoy.includes(h)), ["/admin/cuentas-a-cobrar"]);
+});
+
+// ── CH y las apps ocultas (consola, «Apps ocultas») ───────────────────────────
+//
+// Las apps ocultas se leen del AuditLog del negocio (src/cambios/interruptores.server.ts) y el panel
+// las pasa por `ocultasParaElPanel` (src/apps/contexto.server.ts). En CH (beauty-spa) su barra y su
+// buscador quedan byte a byte: con 0 filas, con una fila forjada desde la app y aun con una fila
+// válida de la consola (que la consola nunca escribe en CH, pero si existiera).
+
+test("CH con 0 filas, con fila forjada y con fila válida de apps ocultas: misma barra y mismas apps", () => {
+  const fila = (over: Partial<FilaLeida>): FilaLeida => ({
+    id: "f",
+    createdAt: new Date("2026-10-28T12:00:00Z"),
+    entity: "AppOculta",
+    entityId: "apariencia",
+    action: "app.ocultar",
+    actor: "operator:tomas",
+    channel: "operador",
+    ...over,
+  });
+  const escenarios: Record<string, FilaLeida[]> = {
+    "0 filas": [],
+    "forjada por audit() o el canal admin": [fila({ actor: "user:recepcion", channel: "admin" }), fila({ channel: "admin" })],
+    "válida de la consola": [fila({}), fila({ id: "g", entityId: "clientas-por-recuperar" }), fila({ id: "h", entityId: "promociones" })],
+  };
+  for (const role of ROLES) {
+    const ctx: MenuCtx = { role, activeModules: null, activeProfile: null, isRetail: false, carniceriaReady: false };
+    const sinOcultas = negocio(ctx);
+    const hoy = comparableHoy(menuItemsParaTenant(ctx));
+    for (const [nombre, filas] of Object.entries(escenarios)) {
+      const n: NegocioApps = { ...sinOcultas, ocultas: ocultasParaElPanel("beauty-spa", ocultasDesdeFilas(filas)) };
+      assert.deepEqual(appsVisibles(n), appsVisibles(sinOcultas), `${role} · ${nombre}`);
+      assert.deepEqual(comparableRegistro(proyectarMenuDeHoy(appsVisibles(n))), hoy, `${role} · ${nombre}`);
+    }
+  }
 });

@@ -465,7 +465,8 @@ export function describirAccion(f: FilaParaDescribir): Descripcion {
   const c = esObj(f.changes) ? f.changes : null;
   const hayTecnico = f.changes !== null && f.changes !== undefined;
 
-  // El interruptor de GSG: la frase ya existe y el detalle es interno, no se ofrece.
+  // El interruptor de GSG (o una app que GSG ocultó o volvió a mostrar): la frase ya existe y el
+  // detalle es interno, no se ofrece.
   const interruptor = textoDeInterruptorEnAuditoria(f);
   if (interruptor) return { frase: interruptor, detalle: [], tecnico: false };
 
