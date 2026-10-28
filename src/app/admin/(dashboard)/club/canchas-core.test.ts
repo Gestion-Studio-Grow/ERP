@@ -5,7 +5,7 @@ import * as M from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo } from "./almacen";
 import type { Fijo } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { DIAS_A_LA_VISTA, SE_DESHACE, bajaFijo, armarCanchas, armarEspera, armarFijos, bajarFijos, ejecutarBajaFijo, ejecutarCanchas, ejecutarEspera, fijosPorBajar, horasDelDia, nuevoFijo, otroFijoQuePisa, otroFijoQueSigue, previaBajaFijo, textoAvisoBaja, textoAvisoRecupera, vueltaDelFijo } from "./canchas-core";
+import { DIAS_A_LA_VISTA, SE_DESHACE, type AccionBajaFijo, bajaFijo, armarCanchas, armarEspera, armarFijos, bajarFijos, ejecutarBajaFijo, ejecutarCanchas, ejecutarEspera, fijosPorBajar, horasDelDia, nuevoFijo, otroFijoQuePisa, otroFijoQueSigue, previaBajaFijo, textoAvisoBaja, textoAvisoRecupera, vueltaDelFijo } from "./canchas-core";
 import { armarAgenda } from "./agenda-core";
 import { reservar } from "./alta-core";
 import { avisosLluvia } from "./whatsapp-core";
@@ -815,5 +815,144 @@ test("BP-101 (cert v4) nuevoFijo no deja pisar a otro fijo en pausa que vuelve m
     // Pasado el d(5): el campo desaparece; otra vez no cambia la foto.
     assert.equal(ejecutarBajaFijo(e, { tipo: "liberar", fijoId: f.id, fecha: d(9) }, despues(d(5))).ok, true);
     assert.equal("liberadasPor" in f, false);
+  });
+
+  // ── Dictamen v7: la devolución asigna cada fecha a UN solo fijo y sólo si el hueco quedó libre (respuesta v8) ──
+
+  /** TODOS los pares de fijos de la misma cancha que se pisan en hora y juegan la misma fecha (desde `desde`, 86 semanas). */
+  function dobles(e: EstadoClub, desde = HOY): string[] {
+    const out: string[] = [];
+    for (let i = 0; i < e.fijos.length; i++)
+      for (let j = i + 1; j < e.fijos.length; j++) {
+        const a = e.fijos[i], b = e.fijos[j];
+        if (a.canchaId !== b.canchaId || a.dia !== b.dia || !(a.inicio < b.inicio + b.duracion && b.inicio < a.inicio + a.duracion)) continue;
+        let fecha = desde;
+        while (M.diaSemana(fecha) !== a.dia) fecha = M.sumarDias(fecha, 1);
+        for (let n = 0; n < 86; n++, fecha = M.sumarDias(fecha, 7)) if (M.fijoJuegaEl(a, fecha) && M.fijoJuegaEl(b, fecha)) out.push(`${fecha}:${a.titular}+${b.titular}`);
+      }
+    return out;
+  }
+  const vivosEn = (e: EstadoClub, canchaId: string, fecha: string) => e.reservas.filter((x) => x.canchaId === canchaId && x.fecha === fecha && x.estado === "reservada");
+
+  test("v8-1 (cert v7 A11) Ana se va y Juan y Pedro tenían liberadas las mismas fechas por ella: las recupera sólo el más antiguo (Juan)", () => {
+    const { e, f, P, canchaId, dia } = conPedro(d(4), { hasta: d(9) } as Partial<Fijo>);
+    const A = M.crearFijo(e, { clienteId: null, canchaId, dia, inicio: 22 * 60, duracion: 60, titular: "Ana Fija", desde: d(2) });
+    A.hasta = d(8);
+    for (const a of [
+      { tipo: "pausa", fijoId: P.id, desde: HOY, hasta: d(0) }, // Pedro vuelve el d(9); d(4)…d(8) se le liberan por Ana
+      { tipo: "pausa", fijoId: A.id, desde: HOY, hasta: d(0) }, // Ana vuelve el d(2)
+      { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: d(5) }, // Juan vuelve; d(6)…d(8) por Ana, d(9) por Pedro
+    ] as AccionBajaFijo[])
+      assert.equal(ejecutarBajaFijo(e, a, AHORA).ok, true);
+    assert.deepEqual(dobles(e), []);
+    const baja = { tipo: "baja" as const, fijoId: A.id, desde: d(4) };
+    const p = previaBajaFijo(e, baja, AHORA);
+    assert.ok(p.ok);
+    if (!p.ok) return;
+    const r = ejecutarBajaFijo(e, baja, AHORA);
+    assert.equal(r.ok, true, r.mensaje);
+    assert.deepEqual(dobles(e), [], r.mensaje);
+    // Pedro recupera d(4) y d(5) (Juan está en pausa); d(6)…d(8) los recupera Juan (el más antiguo), una sola vez.
+    assert.deepEqual(p.recuperan.map((x) => [x.titular, x.fechas]), [["Pedro Nuevo", [d(4), d(5)]], ["Juan Fijo", [d(6), d(7), d(8)]]]);
+    assert.deepEqual(r.recuperan?.map((x) => x.fecha + x.titular), p.recuperan.flatMap((x) => x.fechas.map((y) => y + x.titular)).sort());
+    assert.match(r.mensaje, /Pedro Nuevo recupera el .* y el [^;]*; Juan Fijo recupera el /);
+    // A Pedro esas fechas le siguen liberadas, ahora esperando a Juan (el que la ocupa).
+    assert.deepEqual(P.liberadasPor, [6, 7, 8].map((i) => ({ fecha: d(i), fijoId: f.id })));
+    // Si Juan se va, Pedro las recupera; tampoco quedan dos.
+    const rj = ejecutarBajaFijo(e, { tipo: "baja", fijoId: f.id, desde: d(6) }, AHORA);
+    assert.equal(rj.ok, true, rj.mensaje);
+    assert.deepEqual(rj.recuperan?.map((x) => x.titular + x.fecha), [6, 7, 8].map((i) => "Pedro Nuevo" + d(i)));
+    assert.deepEqual(dobles(e), []);
+    assert.equal(P.liberadasPor, undefined);
+  });
+
+  test("v8-2 (cert v7 A10) Juan tenía liberada una fecha por Pedro, pero Ana (22:30) también la juega: no la recupera ni se le avisa; vuelve cuando Ana se va", () => {
+    const { e, f, P, canchaId, dia, acortar } = conPedro(d(4), { inicio: 21 * 60 + 30, hasta: d(5) } as Partial<Fijo>);
+    const A = M.crearFijo(e, { clienteId: null, canchaId, dia, inicio: 22 * 60 + 30, duracion: 60, titular: "Ana Fija", desde: d(4) });
+    A.hasta = d(5);
+    assert.equal(ejecutarBajaFijo(e, acortar, AHORA).ok, true);
+    assert.deepEqual(dobles(e), []);
+    const baja = { tipo: "baja" as const, fijoId: P.id, desde: HOY };
+    const p = previaBajaFijo(e, baja, AHORA);
+    assert.ok(p.ok && p.recuperan.length === 0, JSON.stringify(p.ok && p.recuperan));
+    const r = ejecutarBajaFijo(e, baja, AHORA);
+    assert.equal(r.ok, true, r.mensaje);
+    assert.doesNotMatch(r.mensaje, /recupera/);
+    assert.deepEqual(dobles(e), []);
+    assert.deepEqual(f.liberadasPor, [{ fecha: d(4), fijoId: A.id }, { fecha: d(5), fijoId: A.id }]);
+    // Ana libera el d(5): Juan lo recupera (y se le avisa); el d(4) sigue esperando a Ana.
+    const lib = ejecutarBajaFijo(e, { tipo: "liberar", fijoId: A.id, fecha: d(5) }, AHORA);
+    assert.match(lib.mensaje, /Juan Fijo recupera el [^,;]*\.$/);
+    assert.deepEqual([M.fijoJuegaEl(f, d(4)), M.fijoJuegaEl(f, d(5))], [false, true]);
+    assert.deepEqual(dobles(e), []);
+  });
+
+  test("v8-3 (cert v7 A9b, Falla 2) el mostrador ya vendió el hueco: no se le anuncia a Juan ni juega esa fecha; la que está libre, sí", () => {
+    const { e, f, P, canchaId, acortar } = conPedro();
+    assert.equal(ejecutarBajaFijo(e, acortar, AHORA).ok, true);
+    const luego: Ahora = { fecha: M.sumarDias(d(4), -3), min: 12 * 60 };
+    M.materializarFijosHasta(e, luego.fecha, 14);
+    const rp = e.reservas.find((x) => x.fijoId === P.id && x.fecha === d(4) && x.estado === "reservada")!;
+    assert.equal(M.cancelar(e, rp.id, {}, luego).ok, true);
+    assert.equal(M.crearReserva(e, { canchaId, fecha: d(4), inicio: 22 * 60, duracion: 60, tipo: "turno", titular: "Walk In" }, luego).ok, true);
+    const a = { tipo: "baja" as const, fijoId: P.id, desde: luego.fecha };
+    const p = previaBajaFijo(e, a, luego);
+    const r = ejecutarBajaFijo(e, a, luego);
+    assert.equal(r.ok, true, r.mensaje);
+    // Sólo el d(5) (libre) se anuncia, en la previa, en el mensaje y en el WhatsApp.
+    assert.ok(p.ok && p.recuperan.length === 1 && p.recuperan[0].fechas.join() === d(5), JSON.stringify(p.ok && p.recuperan));
+    assert.match(r.mensaje, /Juan Fijo recupera el [^,;]*\.$/);
+    assert.ok(p.ok);
+    if (!p.ok) return;
+    assert.match(textoAvisoRecupera(e, p.recuperan[0]), /volvés a tener tu turno fijo de los martes a las 22:00 el mar [\d/]+\. ¡Te esperamos!/);
+    assert.equal(M.fijoJuegaEl(f, d(4)), false, "el d(4) es de Walk In");
+    assert.equal(M.fijoJuegaEl(f, d(5)), true);
+    assert.equal(f.liberadasPor, undefined);
+    // El d(5) cae fuera de la semana a la vista: se baja con la ventana y es de Juan, solo.
+    M.materializarFijosHasta(e, luego.fecha, 14);
+    assert.deepEqual(vivosEn(e, canchaId, d(4)).map((x) => x.titular), ["Walk In"]);
+    assert.deepEqual(vivosEn(e, canchaId, d(5)).map((x) => x.fijoId), [f.id]);
+  });
+
+  test("v8-4 (cert v7 A1b) 400 secuencias al azar de baja / pausa / liberar sobre tres fijos heredados (de antes del guardián), con el tiempo avanzando: 0 dobles nuevos y sólo se anuncia lo que se asigna", () => {
+    let semilla = 7;
+    const azar = (n: number) => ((semilla = (semilla * 1103515245 + 12345) % 2 ** 31), semilla % n);
+    const nuevos: string[] = [];
+    const malAnunciados: string[] = [];
+    let recuperaciones = 0;
+    for (let corrida = 0; corrida < 400; corrida++) {
+      // Juan pausado; Pedro y Ana creados por fuera del guardián (estado heredado): los tres en el mismo hueco.
+      const { e, f, P, canchaId, dia } = conPedro(d(azar(3) + 3), { hasta: d(azar(6) + 5) } as Partial<Fijo>);
+      const A = M.crearFijo(e, { clienteId: null, canchaId, dia, inicio: 22 * 60 + 30 * azar(2), duracion: 60, titular: "Ana Fija", desde: d(azar(4) + 2) });
+      A.hasta = d(azar(6) + 6);
+      const fijos = [f.id, P.id, A.id];
+      let ahora: Ahora = AHORA;
+      for (let paso = 0; paso < 8; paso++) {
+        const antes = new Set(dobles(e, ahora.fecha));
+        const fijoId = fijos[azar(3)];
+        const t = azar(3);
+        const a: AccionBajaFijo = t === 0 ? { tipo: "pausa", fijoId, desde: ahora.fecha, hasta: d(azar(9)) } : t === 1 ? { tipo: "liberar", fijoId, fecha: d(azar(9)) } : { tipo: "baja", fijoId, desde: d(azar(12)) };
+        if (a.tipo === "pausa" && a.hasta < a.desde) continue;
+        const p = previaBajaFijo(e, a, ahora);
+        const r = ejecutarBajaFijo(e, a, ahora);
+        assert.equal(p.ok, r.ok, `previa y comando dicen distinto: ${JSON.stringify(a)} «${r.mensaje}»`);
+        for (const x of dobles(e, ahora.fecha)) if (!antes.has(x)) nuevos.push(`corrida ${corrida} paso ${paso} ${JSON.stringify(a)} → ${x} «${r.mensaje}»`);
+        // Lo que se anuncia es lo que pasa: el que recupera juega esa fecha, nadie más la ocupa y, en la semana a la
+        // vista, tiene su turno en la grilla. La previa anuncia lo mismo que el comando.
+        if (p.ok) assert.deepEqual(p.recuperan.flatMap((x) => x.fechas.map((y) => y + x.fijoId)).sort(), (r.recuperan ?? []).map((x) => x.fecha + x.fijoId).sort());
+        for (const x of r.recuperan ?? []) {
+          recuperaciones++;
+          const g = e.fijos.find((y) => y.id === x.fijoId)!;
+          const otro = e.fijos.find((y) => y.id !== g.id && y.canchaId === g.canchaId && y.inicio < g.inicio + g.duracion && g.inicio < y.inicio + y.duracion && M.fijoJuegaEl(y, x.fecha));
+          const ajenos = vivosEn(e, g.canchaId, x.fecha).filter((y) => y.fijoId !== g.id && y.inicio < g.inicio + g.duracion && g.inicio < y.inicio + y.duracion);
+          const enGrilla = vivosEn(e, g.canchaId, x.fecha).some((y) => y.fijoId === g.id);
+          if (!M.fijoJuegaEl(g, x.fecha) || otro || ajenos.length || (x.fecha < M.sumarDias(ahora.fecha, DIAS_A_LA_VISTA) && !enGrilla)) malAnunciados.push(`corrida ${corrida} paso ${paso}: ${x.titular} ${x.fecha}`);
+        }
+        if (azar(3) === 0) ahora = { fecha: M.sumarDias(ahora.fecha, 7 * azar(3)), min: AHORA.min };
+      }
+    }
+    assert.deepEqual(nuevos.slice(0, 5), [], `${nuevos.length} dobles nuevos`);
+    assert.deepEqual(malAnunciados.slice(0, 5), [], `${malAnunciados.length} recuperaciones anunciadas que no pasan`);
+    assert.ok(recuperaciones > 50, `el azar tiene que ejercitar la devolución (${recuperaciones})`);
   });
 }
