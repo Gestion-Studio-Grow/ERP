@@ -221,3 +221,46 @@ test("link manual: A no puede escribir una referencia gsg: de B; la suya sale co
   });
   assert.equal((fila.changes as { referenciaMP?: string }).referenciaMP, `gsg:${base.a.slug}:turno:apt_1`);
 });
+
+// ── Vuelta 3: ¿S1 encuentra el negocio con RLS? (pregunta del certificador de P1) ─────────────────
+// La resolución de S1 lee SÓLO `Tenant` (basePrisma: slug, subdominio, primerosDos), que está fuera
+// de RLS a propósito (prisma/rls/0001_enable_rls.sql: «EXCLUIDA a propósito: "Tenant"») y que
+// `app_rls` puede leer (0002_app_role.sql: GRANT SELECT … ON ALL TABLES). No necesita funciones
+// SECURITY DEFINER. La búsqueda por CONEXIÓN de P1 sí: sin el GUC del negocio, `app_rls` no ve
+// ninguna fila de `IntegracionConexion`. `SET LOCAL ROLE app_rls` hace que la prueba valga también
+// cuando el servidor de prueba conecta como superusuario (PGlite).
+
+test("RLS: como app_rls y SIN negocio en el GUC, S1 encuentra el Tenant por slug/subdominio; la conexión de P1 no se ve", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { base, duenio } = p;
+  await duenio.integracionConexion.create({ data: { tenantId: base.a.id, conector: "mercadopago", cuentaExterna: "999000111", estado: "conectada" } });
+  const pg = (await import("pg")).default;
+  const c = new pg.Client({ connectionString: base.urlApp });
+  await c.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SET LOCAL ROLE app_rls");
+    const quien = await c.query("SELECT current_user AS u, current_setting('app.current_tenant_id', true) AS guc");
+    assert.equal(quien.rows[0].u, "app_rls");
+    assert.ok(!quien.rows[0].guc, "sin negocio en el GUC");
+    // Las tres lecturas de depsResolverDesdeBase / del webhook de WhatsApp.
+    const porSlug = await c.query('SELECT id FROM "Tenant" WHERE slug = $1', [base.a.slug]);
+    assert.deepEqual(porSlug.rows, [{ id: base.a.id }]);
+    const porSub = await c.query('SELECT id FROM "Tenant" WHERE subdomain = $1', [base.b.slug]);
+    assert.deepEqual(porSub.rows, [{ id: base.b.id }]);
+    const dos = await c.query('SELECT id FROM "Tenant" ORDER BY "createdAt" ASC LIMIT 2');
+    assert.equal(dos.rows.length, 2);
+    // Lo que S1 NO hace y P1 sí: buscar la conexión por cuenta sin saber el negocio → 0 filas.
+    const conexion = await c.query('SELECT "tenantId" FROM "IntegracionConexion" WHERE conector = $1 AND "cuentaExterna" = $2', ["mercadopago", "999000111"]);
+    assert.equal(conexion.rows.length, 0, "app_rls sin GUC no ve IntegracionConexion");
+    // …y con el GUC del negocio dueño, sí (la policy filtra, no falta el permiso).
+    await c.query("SELECT set_config('app.current_tenant_id', $1, true)", [base.a.id]);
+    const conGuc = await c.query('SELECT "tenantId" FROM "IntegracionConexion" WHERE conector = $1 AND "cuentaExterna" = $2', ["mercadopago", "999000111"]);
+    assert.deepEqual(conGuc.rows, [{ tenantId: base.a.id }]);
+    await c.query("ROLLBACK");
+  } finally {
+    await c.end();
+    await duenio.integracionConexion.deleteMany({ where: { cuentaExterna: "999000111" } });
+  }
+});
