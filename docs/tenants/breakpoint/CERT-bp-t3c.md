@@ -408,3 +408,14 @@ Commit `6866f30e`. Se cierran las tres BAJA; la obs. 4 (`bloquear` del motor) qu
 - `canchas-core` + `ciclo-core` + `hecho-de-la-baja`: 78 pass / 0 fail. v9-8 sigue en 0 (c1=53, a3b=96).
 - `tsc` sin errores en los archivos tocados.
 - No verificado: la hoja en el navegador y el aleatorio del certificador (`cert-v9`) contra este commit.
+
+## Revisión del orquestador — v10 (vuelta 2b, sin certificador completo, 28/10/2026)
+
+Modo acotado por orden del dueño (sin plata en juego): un ingeniero corrigió (`6866f30e`) y el orquestador revisó el diff y corrió las pruebas.
+- **Diff leído** (`canchas-core.ts`, +30/−7): obs. 1 busca con `otroFijoQuePisa` el fijo que juega detrás de un bloqueo o turno suelto y lleva su `fijoId`; obs. 2 el control previo mira también un turno de otro fijo movido al hueco (`seSolapan` conserva la cancha) y la hora es la del turno; obs. 3 la fecha del medio ocupada por un turno suelto o bloqueo entra en `chocan` («no vuelve: se pisa con otro turno»), sin anotarse como liberada.
+- **Tests de la rama:** `canchas-core`, `ciclo-core`, `hecho-de-la-baja` 78/78; los tres nuevos (v10-1..3, casos K6, K2, K3) fallan sin el arreglo.
+- **Aleatorio y casos del certificador v9 contra este commit** (6 semillas, 4.200 secuencias, 58.800 pasos): casos 7/7; fuzz 6/6. Pares FF por la pausa (obs. 1): **37 → 0**. Pares FS/FB anunciados: 30 → 8. Sin aviso: 7 (antes 6), todos en fechas **posteriores a la vuelta**, la misma clase que la v9 dejó fuera del diff junto con la obs. 4. Bloqueo del motor sobre fijos sin bajar: 4.368 (igual, obs. 4). Cero en todo lo demás (anuncios falsos, previa ≠ comando, rechazos que cambian, hidratar, retenidas, liberar dos veces, dos turnos vivos).
+- **No verificado:** la hoja en el navegador; Postgres real con `app_rls` y concurrencia.
+- **Traspaso a la PMO (fuera de esta tanda):** obs. 4 — `bloquear` del motor bloquea encima de fijos sin bajar, y las fechas posteriores a la vuelta que `vueltaDelFijo` no recorre.
+
+Veredicto final: CERTIFICA — obs. 1, 2 y 3 de la v9 cerradas, sin regresiones en el aleatorio del certificador; la obs. 4 (motor) queda traspasada a la PMO.
