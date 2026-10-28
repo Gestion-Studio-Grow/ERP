@@ -6,6 +6,7 @@
 
 import { tenantTransaction } from "@/lib/rls";
 import { recordMovement, registrarConteoSinDiferencia, round3, type LedgerTx } from "@/lib/stock/ledger";
+import { emitirEventosDeMovimientos, type MovimientoParaEventos } from "@/eventos/del-stock";
 import { costosVigentesEnTx } from "@/lib/stock/costo";
 import {
   adjustmentDelta,
@@ -176,6 +177,8 @@ export async function ajustarEnTx(tx: LedgerTx, tenantId: string, input: Adjustm
   }
 
   const lineas: LineaAjustada[] = [];
+  // N2/P2: `stock.ajustado`/`stock.bajo` de todas las líneas, emitidos en lote al final (F7).
+  const eventos: MovimientoParaEventos[] = [];
   let applied = 0;
   for (const l of wanted) {
     const p = byId.get(l.productId)!;
@@ -209,6 +212,7 @@ export async function ajustarEnTx(tx: LedgerTx, tenantId: string, input: Adjustm
       createdBy: input.createdBy,
       label: p.name,
       allowNegative: mode === "COUNT",
+      eventos,
     });
     applied++;
   }
@@ -220,6 +224,7 @@ export async function ajustarEnTx(tx: LedgerTx, tenantId: string, input: Adjustm
   if (superaElTope(baja.pesos, input.topePesos ?? null)) {
     throw new TopeDeMermaSuperado(baja.pesos, input.topePesos as number, input.motivo);
   }
+  await emitirEventosDeMovimientos(tx, eventos);
 
   return { motivo: input.motivo, applied, lineas, pesosDeBaja: baja.pesos };
 }

@@ -15,7 +15,7 @@
 
 import { round2 } from "@/lib/round";
 import { esNotaDeCreditoRecibida, nombreDelTipo } from "@/lib/contador/recibidos-formato";
-import { EventoInvalido, emitirEvento, tieneSql, type ResultadoEmision } from "./emitir";
+import { EventoInvalido, emitirEvento, emitirEventosEnLote, tieneSql, type ResultadoEmision } from "./emitir";
 import { enmascararTelefono } from "./esquema";
 
 type Medio = "EFECTIVO" | "MP" | "TRANSFERENCIA" | "TARJETA";
@@ -506,23 +506,26 @@ export async function emitirProductosActualizados(
     select: { id: true, codigo: true, active: true, saleUnit: true, price: true, pricePerKg: true },
   });
   const cambioId = `${p.cambio}:${p.loteId ?? globalThis.crypto.randomUUID()}`;
-  let escritos = 0;
-  for (const f of filas) {
-    const precio = f.saleUnit === "WEIGHT" ? f.pricePerKg : f.price;
-    const r = await emitirEvento(tx, {
-      tenantId: p.tenantId,
-      tipo: "producto.actualizado",
-      version: 1,
-      clave: `producto:${f.id}:${cambioId}`,
-      datos: {
-        productoId: f.id,
-        sku: f.codigo || null,
-        precio: precio === null || precio === undefined ? null : round2(Number(precio)),
-        activo: f.active,
-        cambios: [p.cambio],
-      },
-    });
-    if (r.escrito) escritos++;
-  }
-  return escritos;
+  // En lote (F7, CERT-P2 vuelta 5): un aumento de 2000 productos son tres sentencias en el
+  // outbox, no tres por producto; uno por uno pasaba el tope de 5 s de la transacción.
+  const resultados = await emitirEventosEnLote(
+    tx,
+    filas.map((f) => {
+      const precio = f.saleUnit === "WEIGHT" ? f.pricePerKg : f.price;
+      return {
+        tenantId: p.tenantId,
+        tipo: "producto.actualizado" as const,
+        version: 1 as const,
+        clave: `producto:${f.id}:${cambioId}`,
+        datos: {
+          productoId: f.id,
+          sku: f.codigo || null,
+          precio: precio === null || precio === undefined ? null : round2(Number(precio)),
+          activo: f.active,
+          cambios: [p.cambio],
+        },
+      };
+    }),
+  );
+  return resultados.filter((r) => r.escrito).length;
 }
