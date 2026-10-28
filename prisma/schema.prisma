@@ -48,7 +48,10 @@ enum PaymentMethod {
   MERCADOPAGO
   EFECTIVO
   TRANSFERENCIA
-  // N2-enum: TARJETA // Gate 2 nivel 2 · prisma/pending-gate2/N2_enums.sql — lo enciende M1 junto con KpiAppointment (src/lib/actions.ts)
+  // D-C01 (28/10/2026): Débito y Crédito separados; el cierre de caja los suma en "Tarjeta".
+  // Encender y DESPLEGAR antes de escribir el primer valor (regla en N2_enums.sql).
+  // N2-enum: DEBITO // Gate 2 nivel 2 · prisma/pending-gate2/N2_enums.sql — lo enciende M1 junto con KpiAppointment (src/lib/actions.ts)
+  // N2-enum: CREDITO // Gate 2 nivel 2 · N2_enums.sql (M1)
 }
 
 enum PaymentStatus {
@@ -2957,7 +2960,8 @@ model PadelAviso {
 // (runbook docs/runbooks/gate2-nivel2.md). Mientras tanto el código pregunta con
 // src/lib/schema-probe (hayTabla / hayColumna / hayValorEnum) y accede por SQL crudo.
 // Se encienden quitando el prefijo `// N2: ` de todas las líneas de este archivo que lo
-// llevan (tsc limpio así, medido). Los valores de enum (`// N2-enum: `) los encienden M1/M6.
+// llevan (tsc limpio así, medido). Los valores de enum (`// N2-enum: `) los encienden M1/M6,
+// y DESPLIEGAN, antes de escribir el primer valor nuevo (regla en N2_enums.sql).
 // Verificado en Postgres local: con las 7 migraciones aplicadas, el schema con `// N2: ` y
 // `// N2-enum: ` descomentados no tiene diferencias con la base
 // (src/lib/schema-probe/paquete-gate2.test.ts).
