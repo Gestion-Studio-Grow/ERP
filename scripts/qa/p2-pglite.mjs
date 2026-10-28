@@ -28,7 +28,7 @@ import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 const PUERTO = Number(process.env.P2_PGLITE_PORT ?? 54333);
 const TESTS = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : ["src/eventos/emitir-postgres.test.ts", "src/eventos/vuelta4-postgres.test.ts"];
+  : ["src/eventos/emitir-postgres.test.ts", "src/eventos/vuelta4-postgres.test.ts", "src/eventos/vuelta5-postgres.test.ts"];
 
 let codigoFinal = 0;
 for (const test of TESTS) {
