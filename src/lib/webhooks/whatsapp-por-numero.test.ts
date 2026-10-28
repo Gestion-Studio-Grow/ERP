@@ -39,7 +39,7 @@ function mensaje(phoneNumberId: string, ip = "7.7.7.7"): Request {
 // Pase N2: con P1, un número fuera del mapa consulta su conexión antes de rendirse; con la base
 // cerrada de este archivo eso es «la base no contesta» → 500 (Meta reintenta). Lo que se sigue
 // probando: nunca se procesa por el host. El «200 sin efecto» con base viva está en
-// resolver-negocio.test.ts («orden combinado») y en webhooks-por-negocio-postgres.test.ts.
+// resolver-negocio.test.ts («orden combinado») y en whatsapp-ruta-postgres.test.ts.
 test("número sin mapeo en WHATSAPP_PHONE_NUMBERS → nunca por el host (sin base: 500, Meta reintenta)", async () => {
   Object.assign(process.env, {
     PADEL_WHATSAPP: "cloud",

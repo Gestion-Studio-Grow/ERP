@@ -255,7 +255,7 @@ test("WhatsApp (P1-C5): la conexión del número manda; sin conexión, el mapa d
   assert.deepEqual(await negocioDelMensajeWA(payload, env, { ...base, porConexion: async () => bp }), { ok: true, negocio: bp, via: "conexion" });
   assert.deepEqual(await negocioDelMensajeWA(payload, env, { ...base, porConexion: async () => null }), {
     ok: true,
-    negocio: { id: "t-magra", slug: "magra" },
+    negocio: magra,
     via: "mapa",
   });
   assert.deepEqual(await negocioDelMensajeWA(payload, env, { ...base, porConexion: async () => "demasiadas" }), {
