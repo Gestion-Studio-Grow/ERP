@@ -6,8 +6,9 @@
 // vinculada a UN negocio. Sus secretos se guardan sellados con `cerrarSecreto` (secretos.ts):
 // DEK propia por fila, AAD "tenantId|conexionId|campo", KEK `INTEGRACIONES_MASTER_KEY`.
 //
-//   · crearConexion: valida, sella TODO en memoria y recién después escribe conexión +
-//     credenciales en UNA transacción del negocio. Sin la KEK no se escribe nada.
+//   · crearConexion: valida y carga la KEK ANTES de escribir; conexión + credenciales selladas
+//     en UNA transacción del negocio. Sin la KEK no se escribe nada. La misma cuenta externa en
+//     el mismo negocio reconecta (reusa la fila); en otro negocio → "cuenta_en_uso".
 //   · rotarCredencial: sella el valor nuevo con DEK nueva y reemplaza la fila; la vieja no
 //     abre más (la DEK vieja se pierde con su sobre).
 //   · conexionPorToken: modo "url-por-conexion". El token de la URL es
@@ -172,15 +173,18 @@ export interface ConexionCreada {
   conector: string;
   /** Sólo en "url-por-conexion": el token de `/api/integraciones/c/{token}`. No se puede volver a leer. */
   token: string | null;
+  /** true si la misma cuenta externa ya era de este negocio y se reusó su conexión. */
+  reconectada: boolean;
   credenciales: Array<{ campo: string; ultimos4: string | null }>;
 }
 
 /**
- * Da de alta una conexión del negocio con sus credenciales selladas. Todo se valida y se sella
- * ANTES de abrir la transacción: sin `INTEGRACIONES_MASTER_KEY`, con un campo inválido o con
- * un conector desconocido, lanza `ConexionError` y no escribe nada. La misma cuenta externa
- * conectada a otro negocio choca con @@unique([conector, cuentaExterna]) → "cuenta_en_uso".
- * En "url-por-conexion" la conexión nueva DESCONECTA a las anteriores del mismo negocio y conector.
+ * Da de alta una conexión del negocio con sus credenciales selladas. Todo se valida ANTES de
+ * abrir la transacción: sin `INTEGRACIONES_MASTER_KEY`, con un campo inválido o con un conector
+ * desconocido, lanza `ConexionError` y no escribe nada. La misma cuenta externa conectada a OTRO
+ * negocio choca con @@unique([conector, cuentaExterna]) → "cuenta_en_uso". La misma cuenta en
+ * ESTE negocio es una reconexión: se reusa la conexión (reactivada, credenciales y token nuevos).
+ * En "url-por-conexion" la conexión queda como la ÚNICA activa del negocio y conector.
  */
 export async function crearConexion(
   tenantId: string,
@@ -202,41 +206,78 @@ export async function crearConexion(
   const clave = claveMaestra(deps.env ?? process.env);
   const quien = (datos.conectadaPor ?? "sistema").slice(0, 128) || "sistema";
 
-  const conexionId = randomUUID();
   const token = conector.entrada?.modo === "url-por-conexion" ? generarTokenDeRuta(tenantId) : null;
-  const sellados = credenciales.map(([campo, valor]) => ({
-    campo,
-    sobre: cerrarSecreto(valor, { tenantId, conexionId, campo }, clave),
-    ultimos4: ultimos4(valor),
-  }));
+  const sellar = (conexionId: string) =>
+    credenciales.map(([campo, valor]) => ({
+      campo,
+      sobre: cerrarSecreto(valor, { tenantId, conexionId, campo }, clave),
+      ultimos4: ultimos4(valor),
+    }));
 
   // "url-por-conexion" (Mercado Pago): UNA conexión activa por negocio y conector. La nueva
-  // reemplaza a la anterior en la misma transacción, con un candado por (negocio, conector) para
-  // que dos altas a la vez (dos puestos, doble clic) no dejen dos activas con el mismo secreto.
+  // reemplaza a la anterior en la misma transacción. El candado por (negocio, conector) hace que
+  // dos altas a la vez (dos puestos, doble clic) no dejen dos activas con el mismo secreto ni
+  // choquen al reconectar la misma cuenta.
   const unaPorNegocio = conector.entrada?.modo === "url-por-conexion";
 
+  let conexionId = "";
+  let reconectada = false;
+  let sellados: ReturnType<typeof sellar> = [];
   try {
     await tenantTransaction(
       async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`integracion-conexion:${tenantId}:${conector.id}`}))`;
+        // Reconexión idempotente: la MISMA cuenta externa ya es de ESTE negocio → se reusa su fila
+        // (credenciales y token nuevos; el token viejo deja de existir). Con RLS la búsqueda no ve
+        // las filas de otro negocio: si la cuenta es de otro, se intenta el alta y la base la
+        // rechaza por @@unique([conector, cuentaExterna]) → "cuenta_en_uso".
+        const existente =
+          cuentaExterna === null
+            ? null
+            : await tx.integracionConexion.findFirst({
+                where: { tenantId, conector: conector.id, cuentaExterna },
+                select: { id: true, tenantId: true },
+              });
+        reconectada = !!existente && existente.tenantId === tenantId;
+        conexionId = reconectada ? existente!.id : randomUUID();
+        // El AAD lleva el id de la conexión: se sella acá, ya sabido. La KEK se validó antes de
+        // abrir la transacción (sin ella no se escribe nada); sellar es sólo memoria.
+        sellados = sellar(conexionId);
         if (unaPorNegocio) {
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`integracion-conexion:${tenantId}:${conector.id}`}))`;
           await tx.integracionConexion.updateMany({
-            where: { tenantId, conector: conector.id, estado: { not: "desconectada" } },
+            where: { tenantId, conector: conector.id, estado: { not: "desconectada" }, id: { not: conexionId } },
             data: { estado: "desconectada" },
           });
         }
-        await tx.integracionConexion.create({
-          data: {
-            id: conexionId,
-            tenantId,
-            conector: conector.id,
-            cuentaExterna,
-            etiqueta: datos.etiqueta?.slice(0, 200) ?? null,
-            rutaHash: token ? hashDeRuta(token) : null,
-            estado: "conectada",
-            conectadaPor: quien,
-          },
-        });
+        if (reconectada) {
+          await tx.integracionConexion.updateMany({
+            where: { id: conexionId, tenantId },
+            data: {
+              ...(datos.etiqueta !== undefined ? { etiqueta: datos.etiqueta?.slice(0, 200) ?? null } : {}),
+              rutaHash: token ? hashDeRuta(token) : null,
+              estado: "conectada",
+              conectadaPor: quien,
+              fallosSeguidos: 0,
+              // Invalida un refresh OAuth en vuelo con las credenciales anteriores.
+              tokenVersion: { increment: 1 },
+            },
+          });
+          // Las credenciales anteriores se van con sus DEK: quedan sólo las de esta conexión.
+          await tx.integracionCredencial.deleteMany({ where: { tenantId, conexionId } });
+        } else {
+          await tx.integracionConexion.create({
+            data: {
+              id: conexionId,
+              tenantId,
+              conector: conector.id,
+              cuentaExterna,
+              etiqueta: datos.etiqueta?.slice(0, 200) ?? null,
+              rutaHash: token ? hashDeRuta(token) : null,
+              estado: "conectada",
+              conectadaPor: quien,
+            },
+          });
+        }
         await tx.integracionCredencial.createMany({
           data: sellados.map((s) => ({
             tenantId,
@@ -261,6 +302,7 @@ export async function crearConexion(
     tenantId,
     conector: conector.id,
     token,
+    reconectada,
     credenciales: sellados.map((s) => ({ campo: s.campo, ultimos4: s.ultimos4 })),
   };
 }

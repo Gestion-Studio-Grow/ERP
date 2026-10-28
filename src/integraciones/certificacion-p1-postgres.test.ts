@@ -2,7 +2,8 @@
 // RLS (negocios A y B). Cada caso reprodujo una falla del dictamen y queda como regresión:
 //   ADV-C2 ruta /c/{token} sin handler de MP · ADV-dedupe evento "recibido" abandonado (lease) ·
 //   ADV-concurrencia un solo asiento · ADV-tope el tope cuenta conexiones, no negocios ·
-//   ADV-reconexion una conexión activa por negocio en "url-por-conexion".
+//   ADV-reconexion una conexión activa por negocio en "url-por-conexion" ·
+//   ADV-reconexion-misma-cuenta la misma cuentaExterna en el mismo negocio reconecta (vuelta 3).
 // La KEK se genera en memoria; la red de MP se simula (fetch / leerPago), nada sale afuera.
 
 import { test } from "node:test";
@@ -230,4 +231,47 @@ test("ADV-reconexion: el negocio vuelve a conectar MP (misma app → mismo webho
     `conexiones de MP activas de B: ${await duenio.integracionConexion.count({ where: { tenantId: base.b.id, conector: "mercadopago" } })} ` +
       `(alta en paralelo: ${creadas} de 2); el aviso legítimo de B da ${r.status} ${JSON.stringify(r.body)} y el pago no se acredita`,
   );
+});
+
+test("ADV-reconexion-misma-cuenta: el negocio reconecta la MISMA cuenta de MP (misma cuentaExterna) → reconecta idempotente; otro negocio sigue rechazado", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { base, duenio, c } = s;
+  const m = await import("@/integraciones/conexiones.server");
+  // Dos puestos reconectan la misma cuenta a la vez (doble clic o alta por OAuth repetida).
+  const dos = await Promise.allSettled(
+    [1, 2].map((i) =>
+      m.crearConexion(base.a.id, "mercadopago", {
+        cuentaExterna: "mp-adv-a",
+        credenciales: { access_token: `APP_USR-a-nuevo-${i}`, webhook_secret: SECRETO_A },
+        conectadaPor: "puesto",
+      }),
+    ),
+  );
+  const rechazos = dos.filter((x): x is PromiseRejectedResult => x.status === "rejected").map((x) => String((x.reason as { motivo?: string })?.motivo ?? x.reason));
+  assert.deepEqual(rechazos, [], `reconectar la misma cuenta en el mismo negocio no puede fallar: ${rechazos.join(", ")}`);
+  const hechas = dos.map((x) => (x as PromiseFulfilledResult<Awaited<ReturnType<typeof m.crearConexion>>>).value);
+  assert.deepEqual(hechas.map((h) => [h.conexionId, h.reconectada]), [[c.a, true], [c.a, true]], "se reusa la conexión de A");
+
+  const filas = await duenio.integracionConexion.findMany({ where: { tenantId: base.a.id, conector: "mercadopago" }, select: { id: true, estado: true } });
+  assert.deepEqual(filas.filter((f) => f.estado !== "desconectada").map((f) => f.id), [c.a], "una sola activa");
+  assert.equal(await duenio.integracionCredencial.count({ where: { conexionId: c.a } }), 2, "sin credenciales viejas colgadas");
+
+  // El token viejo ya no entra; el último que se entregó, sí, con el token nuevo de la cuenta.
+  assert.equal(await m.conexionPorToken(c.tokenA), null, "el token anterior deja de existir");
+  const vigente = (await Promise.all(hechas.map(async (h) => ((await m.conexionPorToken(h.token!)) ? h : null)))).filter(Boolean);
+  assert.equal(vigente.length, 1, "sólo el token de la última reconexión resuelve");
+  const tokenNuevo = await m.leerCredencial(base.a.id, c.a, "access_token");
+  assert.ok(tokenNuevo?.startsWith("APP_USR-a-nuevo-"), "el access_token es el de la reconexión");
+
+  // La misma cuenta en OTRO negocio sigue rechazada, sin dejar nada a medias.
+  const antesB = await duenio.integracionConexion.count({ where: { tenantId: base.b.id } });
+  await assert.rejects(
+    m.crearConexion(base.b.id, "mercadopago", { cuentaExterna: "mp-adv-a", credenciales: { access_token: "APP_USR-x", webhook_secret: "whsec-x-0000" } }),
+    (e: unknown) => e instanceof m.ConexionError && e.motivo === "cuenta_en_uso",
+  );
+  assert.equal(await duenio.integracionConexion.count({ where: { tenantId: base.b.id } }), antesB);
+  const filaA = await duenio.integracionConexion.findUniqueOrThrow({ where: { id: c.a }, select: { tenantId: true, estado: true } });
+  assert.deepEqual([filaA.tenantId, filaA.estado], [base.a.id, "conectada"], "la conexión de A sigue de A");
+  c.tokenA = vigente[0]!.token!;
 });
