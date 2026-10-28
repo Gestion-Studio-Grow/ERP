@@ -27,6 +27,8 @@
 //   · «La mesa sigue · dividido»: cada jugador elige SU medio (nada viene elegido) y un toque cobra a cada uno y suelta la
 //     cancha; la mesa pasa a Buffet con sus comensales;
 //   · después de marcar la falta, la hoja no se cierra: queda «Avisar por WhatsApp» con lo que le quedó (BP-056).
+// Tanda B4 (C5): la fila «Jugador 2/3/4» sin ficha pide «Nombre o teléfono» (con sus fichas sugeridas) y lo manda en
+// su cobro (`quien`): queda en la caja y, con nombre y teléfono, en una ficha (`QuienEsElJugador`, cuenta-piezas.tsx).
 //
 // La vista sale de `armarCuenta` y cada toque va a `ejecutar` (cuenta-core.ts) por el almacén: la
 // pantalla no suma ni decide nada de plata.
@@ -57,10 +59,11 @@ import {
   type FilaJugador,
   type MedioCaja,
   type MedioCobro,
+  type QuienPaga,
   type VistaCuenta,
 } from "./cuenta-core";
 import { pedirFiado } from "./credito-core";
-import { CobroDeLaCancha, SumarJugador } from "./cuenta-piezas";
+import { CobroDeLaCancha, QuienEsElJugador, SumarJugador } from "./cuenta-piezas";
 import PedidoDelDuenio from "./pedido-del-duenio";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
 import CicloDelTurno, { AvisoDeLaFalta } from "./CicloDelTurno";
@@ -68,6 +71,9 @@ import { avisoDeLaFalta, type AccionCierre } from "./ciclo-core";
 import type { OfertaDeHueco } from "./bandeja-core";
 import { useSeleccion } from "./usar-almacen";
 import "./piel/cuenta.css";
+
+/** B4-C5: `quien` sólo viaja en el cobro si se dio (un «Jugador N» con nombre, teléfono o ficha). */
+const conQuien = (quien?: QuienPaga | null) => (quien ? { quien } : {});
 
 function SelectorACargo({
   id,
@@ -225,16 +231,20 @@ const FilaDeJugador = memo(function FilaDeJugador({
   almacen: Almacen;
   fila: FilaJugador;
   reservaId: string;
-  onCobrar: (idx: number) => void;
+  /** `quien`: el nombre, teléfono o ficha de un «Jugador N» (B4-C5); sin él, el cobro de siempre. */
+  onCobrar: (idx: number, quien?: QuienPaga | null) => void;
   onCobrarParte: (idx: number) => void;
   /** Cobro de un toque con el medio de la fila. */
-  onCobrarCon: (idx: number, medio: MedioCaja) => void;
+  onCobrarCon: (idx: number, medio: MedioCaja, quien?: QuienPaga | null) => void;
   /** Créditos + el resto con `medio`, por lo que se le mostró (`usa`). */
   onCreditosYResto: (idx: number, medio: MedioCaja, usa: number) => void;
-  onCreditos: (idx: number) => void;
+  onCreditos: (idx: number, quien?: QuienPaga | null) => void;
   onAccion: (a: AccionCuenta) => void;
 }) {
   const base = `${reservaId}-${fila.idx}`;
+  // B4-C5: quién es «Jugador N» (lo tipeado o la ficha elegida); va en su cobro. Cobrado, la fila ya tiene nombre.
+  const [quien, setQuien] = useState<QuienPaga | null>(null);
+  const pideQuien = !!fila.pideQuien && fila.aPagar > 0;
   const partido = fila.creditosYResto;
   const pagoOk = fila.aPagar === 0 && fila.pagoCon !== null && fila.situacion === "al día";
   return (
@@ -306,7 +316,7 @@ const FilaDeJugador = memo(function FilaDeJugador({
               </Button>
             )}
             {/* El cobro de siempre, con el medio de «Cómo paga» (más opciones); el de un toque es la fila de medios. */}
-            <Button variant="ghost" size="md" onClick={() => onCobrar(fila.idx)}>
+            <Button variant="ghost" size="md" onClick={() => onCobrar(fila.idx, pideQuien ? quien : null)}>
               Cobrar {pesos(fila.aPagar)}
               <span className="sr-only"> a {fila.nombre}</span>
             </Button>
@@ -324,12 +334,13 @@ const FilaDeJugador = memo(function FilaDeJugador({
           </div>
         )}
       </div>
+      {pideQuien && <QuienEsElJugador almacen={almacen} jugador={fila.nombre} valor={quien} onCambiar={setQuien} />}
       {fila.aPagar > 0 && (
         <MediosDeLaFila
           fila={fila}
-          onCobrarCon={onCobrarCon}
+          onCobrarCon={(idx, m) => onCobrarCon(idx, m, pideQuien ? quien : null)}
           onPartir={(idx, m) => partido && onCreditosYResto(idx, m, partido.usa)}
-          onCreditos={onCreditos}
+          onCreditos={(idx) => onCreditos(idx, pideQuien ? quien : null)}
         />
       )}
     </li>
@@ -684,7 +695,8 @@ export default function CuentaDelTurno({
     [onAccion],
   );
   const onCobrar = useCallback(
-    (idx: number) => (medio === "monedero" ? pedirCreditos({ tipo: "cobrarJugador", idx, medio }) : conMedio({ tipo: "cobrarJugador", idx, medio })),
+    (idx: number, quien?: QuienPaga | null) =>
+      medio === "monedero" ? pedirCreditos({ tipo: "cobrarJugador", idx, medio, ...conQuien(quien) }) : conMedio({ tipo: "cobrarJugador", idx, medio, ...conQuien(quien) }),
     [medio, conMedio, pedirCreditos],
   );
   const onCobrarParte = useCallback(
@@ -700,12 +712,12 @@ export default function CuentaDelTurno({
     [medio, conMedio, pedirCreditos],
   );
   // Cobro entre 4: cada fila con su medio, de un toque (la acción lleva el medio; la hoja no guarda ninguno).
-  const onCobrarCon = useCallback((idx: number, m: MedioCaja) => onAccion({ tipo: "cobrarJugador", idx, medio: m }), [onAccion]);
+  const onCobrarCon = useCallback((idx: number, m: MedioCaja, quien?: QuienPaga | null) => onAccion({ tipo: "cobrarJugador", idx, medio: m, ...conQuien(quien) }), [onAccion]);
   const onCreditosYResto = useCallback(
     (idx: number, m: MedioCaja, usa: number) => onAccion({ tipo: "cobrarJugador", idx, medio: "monedero", resto: m, usa }),
     [onAccion],
   );
-  const onCreditos = useCallback((idx: number) => pedirCreditos({ tipo: "cobrarJugador", idx, medio: "monedero" }), [pedirCreditos]);
+  const onCreditos = useCallback((idx: number, quien?: QuienPaga | null) => pedirCreditos({ tipo: "cobrarJugador", idx, medio: "monedero", ...conQuien(quien) }), [pedirCreditos]);
   // Los cierres de cancha que encadenan dos cosas (cerrar y abrir, la mesa sigue dividido): UN comando, o nada.
   const cierre = useCallback(
     (a: AccionCierre): Desenlace => {

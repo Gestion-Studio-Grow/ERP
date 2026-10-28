@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo } from "./almacen";
-import { MOVIMIENTOS_POR_PAGINA, PIN_VIEJO_CAJA, armarCaja, armarTurno, ejecutarCaja, firmantes, leerMonto, pinesDeEjemplo, puedeAjustarFondo } from "./caja-core";
+import { MOVIMIENTOS_POR_PAGINA, PIN_VIEJO_CAJA, armarCaja, armarTurno, ejecutarCaja, firmantes, leerMonto, movimientosALaVista, pinesDeEjemplo, puedeAjustarFondo, puedeFirmarCierres } from "./caja-core";
 import { ejecutar } from "./cuenta-core";
 import { ejecutarBuffet } from "./buffet-core";
 
@@ -449,4 +449,30 @@ test("F3 · el conteo re-aplicado sin internet no cae en OTRO turno aunque coinc
   assert.equal(ejecutarCaja(e, { ...accion, numero: otro.numero }, { fecha: HOY, min: 16 * 60 }, auth).ok, false);
   // Con lo que de verdad tiene el turno abierto, sí.
   assert.equal(ejecutarCaja(e, { ...accion, numero: otro.numero, huella: otro.huella }, { fecha: HOY, min: 16 * 60 }, auth).ok, true);
+});
+
+test("B4-C1 · arqueo a ciegas: a quien no firma cierres la lista del turno abierto le va sin importes; contado el turno, vuelven", () => {
+  const { e, auth } = demo();
+  const recepcion = operadorDeLaDemo(e, "RECEPTION")!.usuario.id;
+  const duenio = operadorDeLaDemo(e, "OWNER")!.usuario.id;
+  assert.equal(puedeFirmarCierres(e, recepcion), false, "recepción (PIN de 2) opera pero no firma");
+  assert.equal(puedeFirmarCierres(e, duenio), true);
+  assert.equal(puedeFirmarCierres(e, undefined), false);
+  const v = armarCaja(e, AHORA);
+  assert.ok(v.movimientos.length > 0 && v.movimientos.every((m) => m.delTurnoAbierto));
+  const ciega = movimientosALaVista(v.movimientos, puedeFirmarCierres(e, recepcion));
+  assert.ok(ciega.every((m) => m.monto === null), "ningún importe a la vista: no se puede sumar el esperado");
+  assert.ok(ciega.every((m, i) => m.concepto === v.movimientos[i].concepto && m.medio === v.movimientos[i].medio && m.hora === v.movimientos[i].hora), "concepto, medio y hora sí");
+  assert.deepEqual(movimientosALaVista(v.movimientos, true).map((m) => m.monto), v.movimientos.map((m) => m.monto), "quien firma ve todo");
+  // Con el largo de firma en 2 (configurable, D-16), recepción firma y ve los importes.
+  e.config.caja = { ...(e.config.caja ?? {}), largoPinFirma: 2 };
+  assert.equal(puedeFirmarCierres(e, recepcion), true);
+  delete (e.config.caja as { largoPinFirma?: number }).largoPinFirma;
+  // Contado el turno, sus movimientos ya no son del turno abierto: el esperado se vio al contar.
+  const t = armarTurno(e, AHORA);
+  const esperado = M.turnoDeCajaAbierto(e, t.dia).esperado;
+  const contado: Record<string, string> = Object.fromEntries(["mercadopago", "transferencia", "debito"].map((k) => [k, String(esperado[k as "debito"])]));
+  assert.equal(ejecutarCaja(e, { tipo: "contarTurno", dia: null, contado, billetes: { monedas: String(esperado.efectivo) }, movimientos: t.movimientos, medios: t.medios }, AHORA, auth).ok, true);
+  const despues = armarCaja(e, AHORA);
+  assert.ok(movimientosALaVista(despues.movimientos, false).every((m) => m.monto !== null), "los del turno contado van con importe");
 });

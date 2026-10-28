@@ -24,7 +24,7 @@
 
 import {
   pinDeEjemplo, MEDIOS, CATEGORIAS_EGRESO_CAJA, DENOMINACIONES, MEDIOS_CORREGIBLES, ajustarFondo, cajaAbierta, cajaCerrada, cajasConMovimientosSinCerrar, cerrarCaja, cerrarDiaCaja, cerrarTurnoCaja,
-  contarTurnoCaja, corregirMedio, diaDeCaja, egresoCaja, egresoPorCategoria, hhmm, largoFirmaCaja, pesos, pinDesactualizado, puede, resumenCaja, retiroCajaFuerte, turnoDeCajaAbierto,
+  contarTurnoCaja, corregirMedio, diaDeCaja, egresoCaja, egresoPorCategoria, hhmm, largoFirmaCaja, largoPin, pesos, pinDesactualizado, puede, resumenCaja, retiroCajaFuerte, turnoDeCajaAbierto,
   turnosDelDia, verificarFirma,
 } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub, EventoTurnoCerrado, Fecha, Sello } from "@/lib/club/motor.mjs";
@@ -53,6 +53,8 @@ export interface MovimientoVisto {
   corregible: boolean;
   /** El rastro de las correcciones: «Efectivo → Mercado Pago · Caro 19:40 · se equivocó de botón». */
   rastro: string[];
+  /** B4-C1: es del turno abierto (todavía no se contó): su importe va a ciegas para quien no firma (`movimientosALaVista`). */
+  delTurnoAbierto: boolean;
 }
 
 /** El cierre de la caja de hoy: se puede cerrar, ya se cerró, o se cierra la siguiente (lo cobrado después). */
@@ -126,6 +128,7 @@ export function armarCaja(estado: EstadoClub, ahora: Ahora, cuantos = MOVIMIENTO
         medioClave: m.medio,
         corregible: m.tipo === "ingreso" && !m.turno && !cajaCerrada(estado, dia) && (MEDIOS_CORREGIBLES as readonly string[]).includes(m.medio),
         rastro: (m.correcciones ?? []).map((c) => `${MEDIOS[c.de as keyof typeof MEDIOS] ?? c.de} → ${MEDIOS[c.a as keyof typeof MEDIOS] ?? c.a} · ${c.quien}${c.min != null ? ` ${hhmm(c.min)}` : ""} · ${c.motivo}`),
+        delTurnoAbierto: !m.turno && !cajaCerrada(estado, dia),
       })),
     totalMovimientos: r.movimientos,
     cierreDeHoy,
@@ -145,6 +148,28 @@ export function armarCaja(estado: EstadoClub, ahora: Ahora, cuantos = MOVIMIENTO
 /** ¿Quien opera puede ajustar el fondo? (El permiso `configurar`: los dueños.) */
 export function puedeAjustarFondo(estado: EstadoClub, usuarioId: string | undefined): boolean {
   return !!usuarioId && puede(estado, usuarioId, "configurar");
+}
+
+/**
+ * B4-C1, arqueo a ciegas: ¿quien opera puede FIRMAR el cierre de caja? Tiene el permiso `cerrarCaja` y su rol usa un PIN
+ * del largo de firma (D-16, `largoFirmaCaja`). Con el largo provisional de 4, recepción (PIN de 2) opera pero no firma.
+ */
+export function puedeFirmarCierres(estado: EstadoClub, usuarioId: string | undefined): boolean {
+  if (!usuarioId || !puede(estado, usuarioId, "cerrarCaja")) return false;
+  const u = estado.usuarios.find((x) => x.id === usuarioId);
+  return !!u && largoPin(u.rol) >= largoFirmaCaja(estado);
+}
+
+/** Un movimiento como se ve: `monto` null = a ciegas (se muestran hora, concepto y medio, nunca el importe). */
+export type MovimientoALaVista = Omit<MovimientoVisto, "monto"> & { monto: number | null };
+
+/**
+ * B4-C1: la lista de movimientos sin los importes del turno abierto para quien no firma cierres. Si no, sumando la lista
+ * se sacaría el esperado que la tarjeta ya le oculta. Los movimientos de turnos ya contados (o de una caja cerrada)
+ * van con su importe: ese esperado ya se vio al contar. PURA.
+ */
+export function movimientosALaVista(movimientos: readonly MovimientoVisto[], veImportes: boolean): MovimientoALaVista[] {
+  return movimientos.map((m) => (veImportes || !m.delTurnoAbierto ? m : { ...m, monto: null }));
 }
 
 /**

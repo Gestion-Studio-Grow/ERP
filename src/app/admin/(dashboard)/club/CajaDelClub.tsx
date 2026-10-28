@@ -29,7 +29,7 @@ import { cn } from "@/components/ui/cn";
 import { largoFirmaCaja, pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
-import { MOVIMIENTOS_POR_PAGINA, armarCaja, pinesDeEjemplo, puedeAjustarFondo, type AccionCaja, type CierreDeHoy, type VistaCaja } from "./caja-core";
+import { MOVIMIENTOS_POR_PAGINA, armarCaja, movimientosALaVista, pinesDeEjemplo, puedeAjustarFondo, puedeFirmarCierres, type AccionCaja, type CierreDeHoy, type VistaCaja } from "./caja-core";
 import { conTopeDePin, guardaDelPin } from "./tope-de-pin";
 import CierreDeCaja, { ConFirma, CorregirMedio } from "./CierreDeCaja";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
@@ -145,8 +145,14 @@ function FondoDeCaja({ almacen, fondo, hacer }: { almacen: Almacen; fondo: numbe
   );
 }
 
-function Movimientos({ v, onMas, hacer }: { v: VistaCaja; onMas: () => void; hacer: (a: AccionCaja) => boolean }) {
+/**
+ * Los movimientos de la caja. B4-C1: a quien no firma cierres (recepción con PIN de 2) los del turno abierto le van sin
+ * importe (hora, concepto y medio sí): sumando la lista sacaría el esperado del arqueo a ciegas.
+ */
+function Movimientos({ v, veImportes, onMas, hacer }: { v: VistaCaja; veImportes: boolean; onMas: () => void; hacer: (a: AccionCaja) => boolean }) {
   const faltan = v.totalMovimientos - v.movimientos.length;
+  const lista = movimientosALaVista(v.movimientos, veImportes);
+  const aCiegas = lista.some((m) => m.monto === null);
   return (
     <section aria-labelledby="club-caja-movs" data-caja="movimientos" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
       <h2 id="club-caja-movs" className="font-semibold text-strong">
@@ -155,46 +161,49 @@ function Movimientos({ v, onMas, hacer }: { v: VistaCaja; onMas: () => void; hac
       {v.totalMovimientos === 0 ? (
         <p className="text-sm text-muted">Todavía no entró ni salió nada en esta caja.</p>
       ) : (
-        <table className="w-full text-sm tabular-nums">
-          <thead>
-            <tr className="border-b border-line text-left text-xs text-muted">
-              <th scope="col" className="py-1.5 pr-2 font-medium">
-                Hora
-              </th>
-              <th scope="col" className="py-1.5 pr-2 font-medium">
-                Concepto
-              </th>
-              <th scope="col" className="py-1.5 pr-2 text-right font-medium">
-                Ingreso
-              </th>
-              <th scope="col" className="py-1.5 text-right font-medium">
-                Egreso
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {v.movimientos.map((m) => (
-              <tr key={m.id} className="border-b border-line align-top last:border-b-0">
-                <td className="py-1.5 pr-2 whitespace-nowrap text-muted">{m.hora}</td>
-                <td className="min-w-0 py-1.5 pr-2 break-words">
-                  <span className="text-strong">{m.concepto}</span>
-                  <span className="block text-xs text-muted">
-                    {m.medio}
-                    {m.quien ? ` · ${m.quien}` : ""}
-                  </span>
-                  {m.rastro.map((r) => (
-                    <span key={r} className="block text-xs text-warning">
-                      Corregido: {r}
-                    </span>
-                  ))}
-                  {m.corregible && <CorregirMedio movimientoId={m.id} medio={m.medioClave} hacer={hacer} />}
-                </td>
-                <td className="py-1.5 pr-2 text-right whitespace-nowrap text-strong">{m.tipo === "ingreso" ? pesos(m.monto) : ""}</td>
-                <td className="py-1.5 text-right whitespace-nowrap text-danger">{m.tipo === "egreso" ? pesos(m.monto) : ""}</td>
+        <>
+          {aCiegas && <p className="text-sm text-body">Los importes del turno abierto se ven al contar la caja: así el arqueo es a ciegas.</p>}
+          <table className="w-full text-sm tabular-nums">
+            <thead>
+              <tr className="border-b border-line text-left text-xs text-muted">
+                <th scope="col" className="py-1.5 pr-2 font-medium">
+                  Hora
+                </th>
+                <th scope="col" className="py-1.5 pr-2 font-medium">
+                  Concepto
+                </th>
+                <th scope="col" className="py-1.5 pr-2 text-right font-medium">
+                  Ingreso
+                </th>
+                <th scope="col" className="py-1.5 text-right font-medium">
+                  Egreso
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {lista.map((m) => (
+                <tr key={m.id} className="border-b border-line align-top last:border-b-0">
+                  <td className="py-1.5 pr-2 whitespace-nowrap text-muted">{m.hora}</td>
+                  <td className="min-w-0 py-1.5 pr-2 break-words">
+                    <span className="text-strong">{m.concepto}</span>
+                    <span className="block text-xs text-muted">
+                      {m.medio}
+                      {m.quien ? ` · ${m.quien}` : ""}
+                    </span>
+                    {m.rastro.map((r) => (
+                      <span key={r} className="block text-xs text-warning">
+                        Corregido: {r}
+                      </span>
+                    ))}
+                    {m.corregible && <CorregirMedio movimientoId={m.id} medio={m.medioClave} hacer={hacer} />}
+                  </td>
+                  <td className="py-1.5 pr-2 text-right whitespace-nowrap text-strong">{m.tipo === "ingreso" ? <Importe monto={m.monto} /> : ""}</td>
+                  <td className="py-1.5 text-right whitespace-nowrap text-danger">{m.tipo === "egreso" ? <Importe monto={m.monto} /> : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
       {faltan > 0 && (
         <Button variant="ghost" size="md" onClick={onMas}>
@@ -202,6 +211,17 @@ function Movimientos({ v, onMas, hacer }: { v: VistaCaja; onMas: () => void; hac
         </Button>
       )}
     </section>
+  );
+}
+
+/** Un importe de la lista, o «—» con su texto para el lector de pantalla si va a ciegas. */
+function Importe({ monto }: { monto: number | null }) {
+  if (monto !== null) return <>{pesos(monto)}</>;
+  return (
+    <span data-caja="a-ciegas" className="text-muted">
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">importe oculto hasta contar la caja</span>
+    </span>
   );
 }
 
@@ -268,6 +288,8 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
   // A ciegas (C1): quien no es dueño no ve lo esperado mientras el turno está abierto.
   const operador = useOperador(almacen);
   const veEsperado = puedeAjustarFondo(almacen.estado(), operador?.usuario.id);
+  // B4-C1: tampoco ve los importes de los movimientos del turno abierto quien no puede firmar el cierre.
+  const veImportes = veEsperado || puedeFirmarCierres(almacen.estado(), operador?.usuario.id);
   // Egreso, cierre y fondo NO se deshacen (como en vanilla: lo que pide PIN no tiene «Deshacer»).
   // El PIN de egreso y cierre pasa por el tope compartido del equipo: trabado, no se prueba (y el aviso dice cuánto
   // esperar). El fondo no lleva PIN: no se traba.
@@ -335,7 +357,7 @@ export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; ne
 
       <RemitoDesdeLaCaja almacen={almacen} />
 
-      <Movimientos v={v} hacer={hacer} onMas={() => setCuantos((n) => n + MOVIMIENTOS_POR_PAGINA)} />
+      <Movimientos v={v} veImportes={veImportes} hacer={hacer} onMas={() => setCuantos((n) => n + MOVIMIENTOS_POR_PAGINA)} />
 
       {v.cierres.length > 0 && (
         <section aria-labelledby="club-cierres" className="flex flex-col gap-1">
