@@ -24,6 +24,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
+import { emitirCajaCerrada } from "@/eventos/del-core";
 import { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { canCurrentUser, requireCapability } from "@/lib/authz";
@@ -480,7 +481,8 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
         // La fila de auditoría ES la frontera de congelamiento (ver frontera-cierre.ts),
         // así que va en la MISMA transacción que los ajustes: o quedan las dos cosas o
         // no queda ninguna.
-        await tx.auditLog.create({
+        const registro = await tx.auditLog.create({
+          select: { id: true },
           data: {
             tenantId,
             actor,
@@ -508,6 +510,9 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
             },
           },
         });
+
+        // N2/P2: `caja.cerrada@1` en la transacción del cierre (el id del registro es el del cierre).
+        await emitirCajaCerrada(tx, { tenantId, cierreId: registro.id, dia: day, porMedio: cierre.porMedio });
 
         return { ok: true as const, estado: cierre.estado, ajustes: filas.length };
       },

@@ -32,6 +32,7 @@ import { dateStrInBusinessTz } from "@/lib/datetime";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { tenantTransaction } from "@/lib/rls";
+import { emitirCajaAbierta, emitirCajaTurnoCerrada } from "@/eventos/del-core";
 import { Prisma } from "@/generated/prisma/client";
 import { isDemoSandbox, getDemoCajaData, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
 import { leerImporte } from "@/lib/pos-peso";
@@ -184,6 +185,8 @@ export async function openCashSession(
         await tx.cashMovement.create({ data: { tenantId, sessionId: null, occurredAt: ahora, ...diferencia } });
       }
       const conSigno = diferencia ? (diferencia.type === "INGRESO" ? diferencia.amount : -diferencia.amount) : 0;
+      // N2/P2: `caja.abierta@1` en la transacción de la apertura.
+      await emitirCajaAbierta(tx, { tenantId, sesionId: creada.id, abiertaEn: ahora, inicial: openingFloat });
       return { id: creada.id, saldoDelLibro, diferenciaDeApertura: conSigno };
     }, { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (err) {
@@ -347,6 +350,10 @@ export async function closeCashSession(
       if (ajuste) {
         await tx.cashMovement.create({ data: { tenantId, sessionId: session.id, ...ajuste } });
       }
+      // N2/P2: `caja.turno.cerrada@1` en la transacción del arqueo.
+      await emitirCajaTurnoCerrada(tx, {
+        tenantId, sesionId: session.id, quien: actor, esperado: arqueo.expected, contado: arqueo.counted, diferencia: arqueo.diff, motivo: note,
+      });
 
       return { id: session.id, ...arqueo };
     }, { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
