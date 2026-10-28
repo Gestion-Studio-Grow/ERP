@@ -251,3 +251,11 @@ test("Armar va detrás del interruptor y guarda lo que pidió la clienta antes d
   assert.match(ajuste, /guardar = updateOrderItems,/, "sin el interruptor, la acción de siempre");
   assert.match(ajuste, /\{conQuitar && \(/);
 });
+
+test("Armar de un número que no es un pedido del negocio: aviso en criollo con salida, no el 404 de Next", () => {
+  const pagina = leer("./[code]/armar/page.tsx");
+  assert.doesNotMatch(pagina, /notFound/, "el 404 en inglés era además la tarea larga de 520-740 ms al montar");
+  assert.equal(pagina.match(/return <PedidoQueNoEsta code=\{codeRaw\} \/>;/g)?.length, 2, "número inválido y pedido que no está");
+  assert.match(pagina, /No encontramos \{cual\}/);
+  assert.match(pagina, /href="\/admin\/pedidos"/);
+});

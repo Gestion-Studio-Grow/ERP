@@ -11,6 +11,10 @@
 //   · «Ya pagó» (sólo si figura cobrado) · «Lo dejó sin cobrar» (pasa a A cobrar) · «Volvió» (con
 //     motivo en chips; vuelve a Listos).
 // Un envío abierto a la vez: con guantes y apuro, el pie de cobro de uno no se confunde con el de otro.
+//
+// «Rindió todo como salió» (tanda práctica): la salida entera en dos toques (el botón y la
+// confirmación, que dice qué queda pago y qué queda a cobrar). No cobra nada: si el cadete cobró
+// alguno, ése se rinde antes uno por uno con «Cobró».
 
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -22,7 +26,8 @@ import type { OrderActionState } from "@/lib/order-actions";
 import { useToast } from "../../../ToastProvider";
 import { useCobroDelNegocio, ventaCobrada } from "../../CobroDelPedido";
 import { aFormData, esRedirectDeNext } from "../../formularios-del-pedido";
-import { rendirPedido } from "../acciones";
+import { rendirPedido, rendirTodoComoSalio, type ResultadoDeRendirTodo } from "../acciones";
+import { etiquetaDeConfirmar, planDeRendirTodo, textoDelPlan } from "./rendir-todo";
 import { MOTIVOS_DE_VUELTA, textoDelResumen, type ResultadoDeRendicion, type ResumenDeLaRendicion } from "../reparto-core";
 
 export type EnvioEnLaCalle = {
@@ -162,6 +167,73 @@ function TarjetaDelEnvio({ e, abierto, onAbrir, puedeOperar }: { e: EnvioEnLaCal
   );
 }
 
+function RendirTodaLaSalida({ s }: { s: SalidaEnLaCalle }) {
+  const router = useRouter();
+  const { showError, showSuccess } = useToast();
+  const [pending, startTransition] = useTransition();
+  const [confirmando, setConfirmando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const uid = useId();
+  const plan = planDeRendirTodo(s.envios);
+
+  async function rendirTodo(): Promise<void> {
+    let r: ResultadoDeRendirTodo;
+    try {
+      r = await rendirTodoComoSalio(aFormData([["reparto", s.reparto], ...s.envios.map((e): [string, string] => ["id", e.id])]));
+    } catch (err) {
+      if (esRedirectDeNext(err)) throw err;
+      const msg = "No se pudo rendir la salida. Revisá la conexión y volvé a intentar: lo que ya quedó rendido no se rinde dos veces.";
+      setError(msg);
+      showError(msg);
+      return;
+    }
+    if (!r.ok) {
+      setError(r.error);
+      showError(r.error);
+      router.refresh();
+      return;
+    }
+    setConfirmando(false);
+    if (r.fallaron.length) {
+      setError(r.mensaje);
+      showError(r.mensaje);
+    } else {
+      setError(null);
+      showSuccess(r.mensaje);
+    }
+    router.refresh();
+  }
+
+  return (
+    <div className="mb-3 flex flex-col gap-2 rounded-lg border border-line-strong bg-surface-raised p-3">
+      {confirmando ? (
+        <div role="group" aria-labelledby={`${uid}-q`} className="flex flex-col gap-2">
+          <p id={`${uid}-q`} className="text-sm text-strong">
+            <span className="font-semibold">¿El cadete volvió con todo como salió?</span> {textoDelPlan(plan)}. Si cobró alguno, rendilo antes con «Cobró».
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" disabled={pending} estado={pending ? "cargando" : undefined} onClick={() => startTransition(() => rendirTodo())}>
+              {etiquetaDeConfirmar(plan.envios)}
+            </Button>
+            <button type="button" className={TECLA} disabled={pending} onClick={() => setConfirmando(false)}>
+              No, rindo uno por uno
+            </button>
+          </div>
+        </div>
+      ) : (
+        <Button type="button" className="w-full sm:w-auto" onClick={() => setConfirmando(true)}>
+          Rindió todo como salió
+        </Button>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 const PALABRA: Record<ResultadoDeRendicion, string> = { cobrado: "Cobrado", "ya-pago": "Ya pagaba", "a-cobrar": "Quedó a cobrar" };
 
 export default function RendicionDelCadete({
@@ -191,6 +263,7 @@ export default function RendicionDelCadete({
               Salió {s.desde} · {s.franja}
               {s.cadete && ` · ${s.cadete}`} · {s.envios.length === 1 ? "1 envío" : `${s.envios.length} envíos`}
             </h2>
+            {puedeOperar && <RendirTodaLaSalida s={s} />}
             <ul className="flex flex-col gap-3">
               {s.envios.map((e) => (
                 <TarjetaDelEnvio key={e.id} e={e} abierto={abierto === e.id} onAbrir={setAbierto} puedeOperar={puedeOperar} />

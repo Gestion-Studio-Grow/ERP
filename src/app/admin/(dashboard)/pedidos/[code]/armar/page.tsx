@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -30,13 +30,34 @@ export const metadata = { title: "Armar pedido", generator: "Gestión Studio Gro
 
 const EN_CURSO: ReadonlySet<string> = new Set(ESTADOS_EN_CURSO);
 
+/**
+ * Un número que no es un pedido de este negocio (mal tipeado, de otro local, o un enlace viejo):
+ * se dice en criollo, adentro del backoffice y con la salida a la bandeja. Antes era el 404 de
+ * Next, en inglés y sin salida, y además la tarea larga de 520-740 ms al montar (TBT 736-1040 ms a
+ * 390 px con CPU 4x, medido en la tanda práctica): el Armar de un pedido real medía TBT 0.
+ */
+function PedidoQueNoEsta({ code }: { code: string }) {
+  const cual = /^\d{1,9}$/.test(code) ? `el pedido #${code}` : "ese pedido";
+  return (
+    <main data-ui="pagina" className="mx-auto w-full max-w-3xl px-4 py-6">
+      <Link href="/admin/pedidos" className="inline-flex min-h-11 items-center text-sm font-medium text-accent-ink underline underline-offset-4">
+        ← Pedidos
+      </Link>
+      <h1 className="mt-2 text-2xl font-bold text-strong">No encontramos {cual}</h1>
+      <p role="status" className="mt-6 rounded-lg border border-line bg-surface-raised p-4 text-body">
+        No está {cual} entre los pedidos de este negocio. Revisá el número o elegilo desde la bandeja.
+      </p>
+    </main>
+  );
+}
+
 export default async function ArmarPedidoPage({ params }: { params: Promise<{ code: string }> }) {
   const user = await requireApp("pedidos");
   const [{ code: codeRaw }, interruptores, identidad] = await Promise.all([params, interruptoresDelNegocio(), getTenantIdentity()]);
   if (!identidad.isRetail || !mostradorBoutiquePrendido(interruptores)) redirect("/admin/pedidos");
   if (!roleHasCapability(user.role, "orders:manage")) redirect("/admin/pedidos");
   const code = Number(codeRaw);
-  if (!Number.isInteger(code) || code <= 0) notFound();
+  if (!Number.isInteger(code) || code <= 0) return <PedidoQueNoEsta code={codeRaw} />;
 
   const tenantId = await getCurrentTenantId();
   const o = await prisma.order.findFirst({
@@ -59,7 +80,7 @@ export default async function ArmarPedidoPage({ params }: { params: Promise<{ co
       },
     },
   });
-  if (!o) notFound();
+  if (!o) return <PedidoQueNoEsta code={codeRaw} />;
 
   const entrega = entregaDelRubro(identidad.rubro);
   const horario = o.scheduledFor ? etiquetaDeHorario(o.scheduledFor, o.fulfillment, todayInBusinessTz(), entrega.corto) : null;

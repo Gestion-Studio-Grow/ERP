@@ -53,8 +53,7 @@ import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { mostradorBoutiquePrendido } from "@/cambios/interruptores";
 import { CobroDelNegocio } from "./CobroDelPedido";
 import { guardarArmado } from "./[code]/armar/acciones";
-import { ConDiseno } from "@/lib/diseno/ConDiseno";
-import { PIEL_RENGLON } from "@/lib/diseno/diseno";
+import { PielDeLaBandeja } from "./boutique/PielDeLaBandeja";
 import { fiadoAbreEnLaBandeja } from "@/lib/clientes/fiado.server";
 
 // TANDA PERF (P-2): el mostrador (VenderForm + PedidoDesdeWhatsApp, por MostradorDeVenta) y las
@@ -350,12 +349,9 @@ export default async function PedidosPage() {
       </main>
     );
     if (nuevo) return pagina;
-    // Sin «Diseño nuevo» (sólo el boutique): la piel acotada a esta pantalla.
-    return (
-      <div data-diseno={PIEL_RENGLON}>
-        <ConDiseno nuevo>{pagina}</ConDiseno>
-      </div>
-    );
+    // Sin «Diseño nuevo» (sólo el boutique): la piel acotada a esta pantalla, con los colores y la
+    // letra de Vender y sin scroll de costado a 390 px (boutique/PielDeLaBandeja.tsx).
+    return <PielDeLaBandeja>{pagina}</PielDeLaBandeja>;
   }
 
   // La bandeja de siempre también dice cuántos de la tienda esperan y cuántos listos no se
