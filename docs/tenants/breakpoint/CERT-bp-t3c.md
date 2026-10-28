@@ -80,3 +80,64 @@ Base: HEAD `9ea994b8`. Las 5 observaciones son de código que escribió la 3C (g
 **Sin verificar:** la pantalla «Hecho» con el botón nuevo en un navegador (Playwright no está instalado: `fijos-pantalla.test.ts` queda salteado).
 
 **Para la PMO:** el criterio B7-C2 de `PLAN-REINGENIERIA-N2.md` («Observaciones 1–5 de CERT-bp-t3c cerradas con test cada una») queda cubierto por esta v7 si se certifica. B7 conserva C1 (garantía) y C3 (+14).
+
+## Dictamen del certificador — v7
+
+Diff certificado: `9ea994b8..60e16f23` (7d834f0f, 98b3f299, 60e16f23). Todo se probó en memoria con el motor y el almacén reales y en PGlite; nada se corrió contra Neon (sin `.env` en el worktree).
+
+### Veredicto: NO CERTIFICA
+Las 5 observaciones de la v6 están cerradas tal como se pidieron, pero la devolución de fechas (`devolverLiberadasPor`), que la obs. 4 extendió a la pausa y a «liberar», deja **dos fijos jugando el mismo hueco** y les manda a los dos el WhatsApp de «volvés a tener tu turno».
+
+### Fallas
+1. **MEDIA: la devolución no mira quién más juega esa fecha** (`canchas-core.ts`, `devolverLiberadasPor`). Saca la fecha de `excepciones` sin preguntar si otro fijo sigue en el hueco. `liberadasPor` guarda un solo fijo por fecha, aunque la fecha la ocupaban varios o la cedieron varios.
+   - **A11 (determinista):** Pedro está acotado d(4)…d(9) y Ana acotada d(2)…d(8), los dos heredados, más Juan pausado. Pausan Pedro, Ana y Juan (la hoja acepta las tres pausas) y ahí `dobles = []`. Después «Dar de baja» a Ana desde d(4): Juan y Pedro recuperan los dos el 1/12, el 8/12 y el 15/12. Quedan 3 dobles nuevos, y la previa arma un WhatsApp para cada uno.
+   - **A10:** Pedro a las 21:30 y Ana a las 22:30 no se pisan entre sí, pero los dos pisan a Juan. Cuando Pedro se va, Juan recupera fechas que juega Ana.
+   - **Fuzz A1b** (400 secuencias al azar de baja, pausa y liberar sobre tres fijos heredados, con el tiempo avanzando): 56 dobles nuevos en 27 corridas. Por acción: 35 en la baja, 12 en la pausa y 9 en liberar. **Todos salen de la devolución.** Ni la guardia de la pausa ni la poda crearon dobles.
+   - En la grilla no hay dos turnos: `materializarFijos` valida y el segundo queda como conflicto. Pero los dos titulares quedan avisados de que juegan.
+   - En la baja, el defecto ya estaba en la v6: es el mismo filtro, según el diff. La v7 lo extiende a la pausa y a liberar, y le suma el aviso.
+   - **Arreglo sugerido:** antes de devolver una fecha a `g`, correr `otroFijoQuePisa(estado, hueco de g en esa fecha, g.id)` y, dentro de la ventana, `validarHueco`. Si alguien la sigue ocupando, la entrada se re-apunta a ese otro (`fijoId = otro.id`) y no se anuncia. Hay que recorrer en orden estable, para que la recupere uno solo. Cubrirlo con A10 y A11.
+2. **BAJA: se anuncia una recuperación que no pasa** (A9b). Pedro canceló aparte su turno del d(4) y el mostrador vendió ese hueco. Cuando Pedro se da de baja, Juan «recupera el mar 17/11», tanto en el mensaje como en el WhatsApp. `materializarFijos` falla en silencio y el fijo de Juan queda «jugando» una fecha que es de otro. Se arregla con el mismo cambio: validar el hueco y anunciar sólo lo que de verdad se bajó.
+
+### Observaciones (BAJA)
+- `FijosYEspera.tsx`, botones «Avisar a … que recupera»: el comentario dice que la nota (demo o sin celular) va con cada botón, pero no se pasa `notaEn` ni se muestra la nota.
+- El rechazo de la obs. 1 puede decir «volvería el 20/10, pero el 20/10 …». Pasa cuando la vuelta es un turno que la pausa re-bajó a la grilla y el otro fijo todavía sin bajar juega ese día (A9: el rechazo es correcto, el texto confunde). Además, la salida no ofrece lo que sí funciona con un fijo acotado: pausar hasta después de su último día.
+- A3b, sólo por comando: una pausa nueva con `desde` posterior reemplaza la anterior (`darDeBajaFijo`) y des-pausa fechas que otro ya recuperó; la guardia mira sólo después de `hasta`. Desde la hoja no se puede armar (`desde` = hoy), y tampoco re-aplicando (el comando lleva su `ahora`). Hay que dejarlo como precondición del comando.
+- Se tocaron 5 tests viejos, no 4, porque v5-7 también cambió.
+
+### Los tests viejos ajustados, antes y después
+Ninguno se aflojó:
+- **cert v4-3:** antes pedía `vuelve = null` y 8 choques. Ahora pide `vuelve = dV4(13)` y además **que esté libre** (lo verifica con `validarHueco` o con un turno propio), 10 choques y el texto.
+- **v5-2:** sólo cambia el texto de la salida.
+- **v5-3:** Pedro pasa de permanente a `hasta: d(4)`. El caso original, Pedro permanente con pausa en el d(4), ahora se rechaza sin cambiar nada (A12).
+- **v5-4b:** antes aceptaba `vuelve d(4)` y callaba que el d(5) lo jugaban los dos. Ahora la pausa se rechaza y la foto queda intacta. Es más estricto.
+- **v5-7:** el plural va por titular; el resto sigue igual.
+
+### Lo que pasó
+Adversariales A1–A12: 9 de 15 pasan.
+- Recuperación en cadena (A1).
+- Deshacer en el almacén real después de recuperar (A2): la foto vuelve exacta.
+- Pausa sobre pausa, más corta y más larga, idempotente (A3).
+- Liberar dos veces y desde dos puestos (A4).
+- Foto vieja sin el campo, que no agrega `[]` (A5).
+- Serializar e hidratar en el medio (A6).
+- La poda no borra lo de hoy ni lo de adelante, no toca nada en la previa ni en un rechazo (A7).
+- El WhatsApp de quien recupera lleva su celular, su nombre y su horario; al titular no se lo toca, y si Juan está pausado no se le avisa (A8).
+- El caso original de v5-3 (A12).
+
+### Verificación n/n
+- **Motor:** `ORIGEN.json` da 0c290a3d… y es igual al blob de `public/previews/breakpoint/club/motor.mjs` y de `src/lib/club/motor.mjs`, en HEAD y en la base. La copia de trabajo da 6ff259b1… por el CRLF. El diff no toca `src/lib` ni `public`.
+- **`npx tsc --noEmit`:** 406 errores, 0 en los 3 archivos tocados. Todos vienen de módulos que no están instalados: `playwright` (99 de tipo TS2307, más los TS7006/7031 y TS2769 que arrastra), `three`, `qrcode` y `pdf-lib`.
+- **Club + motor:** 723 tests, 634 ok, 87 salteados y 2 fallas, las dos por CRLF:
+  - la copia del sha;
+  - el fixture de `anonimizar`, que es igual al texto generado si se le saca el CR.
+- **`fijos-postgres.test.ts` sobre PGlite en memoria:** 1/1, sin salteo, con el lanzador del scratchpad copiado de `n2s2/scripts/qa/gate2-pglite.mjs` y `*DATABASE_URL` borradas del entorno.
+- **Adversariales:** `cert-v7/v7-fijos.test.ts`, en el scratchpad del certificador. Se copiaron a `src/test/`, se corrieron y se borraron; `git status` quedó limpio.
+
+### Verificación pendiente
+- La pantalla «Hecho» con los botones nuevos en un navegador (Playwright no está instalado).
+- La baja contra un Postgres real con `app_rls` y concurrencia de verdad (PGlite serializa).
+
+### Historia
+- v7 NO CERTIFICA: la devolución de fechas deja dos fijos en el hueco (Falla 1, MEDIA) y anuncia recuperaciones que no pasan (Falla 2, BAJA).
+
+Veredicto final: NO CERTIFICA
