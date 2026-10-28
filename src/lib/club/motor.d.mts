@@ -299,6 +299,8 @@ export interface MovimientoCaja extends Sello {
   correcciones?: ({ de: string; a: string; motivo: string; quien: string } & Sello)[];
   /** Tanda B4: el jugador que pagó, cuando era «Jugador 2/3/4» (nombre o teléfono). */
   jugador?: string;
+  /** Tanda B4: la cuenta de cargos que se cobró (así `corregirMedio` corrige también su pago). */
+  cuentaId?: string;
 }
 
 export interface CierreCaja extends Sello {

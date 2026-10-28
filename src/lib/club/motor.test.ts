@@ -1144,6 +1144,41 @@ test("B4-C2: corregir el medio de un cobro del turno abierto deja rastro; en un 
   assert.equal((cerrado as { turnoCerrado?: boolean }).turnoCerrado, true);
 });
 
+test("B4-C2 (vuelta 4): corregir el medio de un cobro de cargos corrige también el pago de SU cuenta, no el de otra igual", () => {
+  const e = club();
+  const ana = ok(M.abrirCuenta(e, { titular: "Ana" }, ahora(13))).cuenta;
+  const beto = ok(M.abrirCuenta(e, { titular: "Beto" }, ahora(13))).cuenta;
+  const caro = ok(M.abrirCuenta(e, { titular: "Caro" }, ahora(13))).cuenta;
+  for (const c of [ana, beto, caro]) ok(M.cargarEnCuenta(e, c.id, "k-pica", 1, ahora(13)));
+  // Ana y Beto pagan lo mismo, en efectivo, en el mismo minuto: dos movimientos indistinguibles salvo por su cuenta.
+  ok(M.pagarCuenta(e, ana.id, { medio: "efectivo" }, ahora(13, 10)));
+  ok(M.pagarCuenta(e, beto.id, { medio: "efectivo" }, ahora(13, 10)));
+  const [movAna, movBeto] = e.caja.movimientos;
+  assert.equal(movAna.cuentaId, ana.id);
+  assert.equal(movBeto.cuentaId, beto.id);
+  ok(M.corregirMedio(e, movBeto.id, { medio: "mercadopago", motivo: "Pagó con QR", usuarioId: "u-caro" }, ahora(13, 15)));
+  assert.equal(movBeto.medio, "mercadopago");
+  assert.deepEqual(beto.pagos.map((p) => p.medio), ["mercadopago"], "el pago de Beto acompaña la corrección");
+  assert.deepEqual(ana.pagos.map((p) => p.medio), ["efectivo"], "el de Ana (mismo monto y minuto) no se toca");
+  // Cobro de una cuenta con las de otro a su cargo: cada movimiento lleva SU cuenta y se corrige ahí.
+  const dani = ok(M.abrirCuenta(e, { titular: "Dani" }, ahora(13))).cuenta;
+  ok(M.cargarEnCuenta(e, dani.id, "k-pica", 1, ahora(13)));
+  ok(M.asignarCargoCargos(e, dani.id, caro.id, ahora(13, 20)));
+  const antes = e.caja.movimientos.length;
+  ok(M.cobrarCuentaYSusCargos(e, caro.id, { medio: "efectivo" }, ahora(13, 25)));
+  const nuevos = e.caja.movimientos.slice(antes);
+  assert.deepEqual(nuevos.map((m) => m.cuentaId).sort(), [caro.id, dani.id].sort());
+  const deDani = nuevos.find((m) => m.cuentaId === dani.id)!;
+  ok(M.corregirMedio(e, deDani.id, { medio: "transferencia", motivo: "Transfirió Caro", usuarioId: "u-caro" }, ahora(13, 30)));
+  assert.deepEqual(dani.pagos.map((p) => p.medio), ["transferencia"]);
+  assert.deepEqual(caro.pagos.map((p) => p.medio), ["efectivo"]);
+  // Un cobro de cargos de antes (sin `cuentaId`) se corrige sólo en la caja, como hasta ahora, sin romper.
+  delete (movAna as { cuentaId?: string }).cuentaId;
+  ok(M.corregirMedio(e, movAna.id, { medio: "mercadopago", motivo: "Viejo", usuarioId: "u-caro" }, ahora(13, 35)));
+  assert.deepEqual(ana.pagos.map((p) => p.medio), ["efectivo"]);
+  assert.equal(M.resumenCaja(e, HOY).ingresos, 4 * PICADA, "la plata no cambia, sólo el medio");
+});
+
 test("B4-C3/C4: retiro a caja fuerte y egreso por categoría, con comprobante opcional y firma de 4", () => {
   const e = club();
   e.caja.fondo = 5000;

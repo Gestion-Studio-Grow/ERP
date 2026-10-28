@@ -1492,7 +1492,8 @@ export function dividir(total, n) {
 }
 
 function movimientoCaja(estado, { tipo, medio, monto, concepto, reservaId = null, usuario: quien = null, extra = null }, ahora) {
-  // `extra` (Tanda B4): lo propio de un retiro o de un egreso por categoría (`categoria`, `comprobante`, `firma`).
+  // `extra` (Tanda B4): lo propio de un retiro o de un egreso por categoría (`categoria`, `comprobante`, `firma`), o la
+  // cuenta de cargos que se cobró (`cuentaId`: `corregirMedio` corrige también su pago).
   const mov = { id: nuevoId("m"), tipo, medio, monto, concepto, reservaId, usuario: quien, ...sello(ahora), ...(ahora && { caja: cajaAbierta(estado, ahora) }), ...(extra ?? {}) };
   estado.caja.movimientos.push(mov);
   return mov;
@@ -1679,7 +1680,7 @@ export function pagarCuenta(estado, cuentaId, { medio, monto }, ahora) {
     const c = cobrarConCreditos(estado, cta.clienteId, importe);
     if (!c.ok) return c;
   } else {
-    movimientoCaja(estado, { tipo: "ingreso", medio, monto: importe, concepto: `Buffet ${cta.titular}` }, ahora);
+    movimientoCaja(estado, { tipo: "ingreso", medio, monto: importe, concepto: `Buffet ${cta.titular}`, extra: { cuentaId: cta.id } }, ahora);
   }
   cta.pagos.push({ medio, monto: importe, ...sello(ahora) });
   registrar(estado, `Cobro de cargos ${pesos(importe)} (${MEDIOS[medio]}) — ${cta.titular}.`, ahora);
@@ -1958,7 +1959,7 @@ export function cobrarCuentaYSusCargos(estado, cuentaId, { medio, auth = null },
   for (const x of lista) {
     const monto = saldoCuenta(x);
     const paga = x.id === cta.id ? "" : ` (paga ${cta.titular})`;
-    if (medio !== "monedero") movimientoCaja(estado, { tipo: "ingreso", medio, monto, concepto: `Buffet ${x.titular}${paga}` }, ahora);
+    if (medio !== "monedero") movimientoCaja(estado, { tipo: "ingreso", medio, monto, concepto: `Buffet ${x.titular}${paga}`, extra: { cuentaId: x.id } }, ahora);
     x.pagos.push({ medio, monto, ...(x.id !== cta.id && { pagadoPor: cta.id }), ...sello(ahora) });
   }
   registrar(estado, `Cobro de cargos ${pesos(total)} (${MEDIOS[medio]}) — ${cta.titular}${lista.length > 1 ? `, con los de ${lista.filter((x) => x !== cta).map((x) => x.titular).join(", ")}` : ""}.`, ahora);
@@ -3047,6 +3048,11 @@ export function corregirMedio(estado, movimientoId, { medio, motivo, usuarioId }
   const r = m.reservaId ? estado.reservas.find((x) => x.id === m.reservaId) : null;
   const p = r?.pagos.find((x) => x.medio === de && x.monto === m.monto && x.fecha === m.fecha && x.min === m.min);
   if (p) p.medio = medio;
+  // Lo mismo con el pago de la cuenta de cargos que lo generó (en SU cuenta: `cuentaId`, desde la Tanda B4). Un cobro
+  // de cargos de antes no lo trae: se corrige sólo en la caja, como hasta ahora.
+  const cta = m.cuentaId ? cuenta(estado, m.cuentaId) : null;
+  const pc = cta?.pagos.find((x) => x.medio === de && x.monto === m.monto && x.fecha === m.fecha && x.min === m.min);
+  if (pc) pc.medio = medio;
   m.medio = medio;
   m.correcciones = [...(esLista(m.correcciones) ? m.correcciones : []), { de, a: medio, motivo: porque, quien: a.usuario.nombre, ...sello(ahora) }];
   registrar(estado, `Cobro ${pesos(m.monto)} (${m.concepto}) corregido de ${MEDIOS[de]} a ${MEDIOS[medio]} por ${a.usuario.nombre}: ${porque}.`, ahora);

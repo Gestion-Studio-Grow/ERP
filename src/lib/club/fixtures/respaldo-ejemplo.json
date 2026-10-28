@@ -7274,7 +7274,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 630,
-     "caja": "2026-10-16"
+     "caja": "2026-10-16",
+     "cuentaId": "cta14"
     },
     {
      "id": "m1b",
@@ -7286,7 +7287,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 630,
-     "caja": "2026-10-16"
+     "caja": "2026-10-16",
+     "cuentaId": "cta15"
     },
     {
      "id": "m1c",
@@ -7298,7 +7300,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 630,
-     "caja": "2026-10-16"
+     "caja": "2026-10-16",
+     "cuentaId": "cta13"
     },
     {
      "id": "m1f",
@@ -7322,7 +7325,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 630,
-     "caja": "2026-10-16"
+     "caja": "2026-10-16",
+     "cuentaId": "cta1e"
     },
     {
      "id": "m1h",
@@ -7346,7 +7350,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 630,
-     "caja": "2026-10-16"
+     "caja": "2026-10-16",
+     "cuentaId": "cta1d"
     },
     {
      "id": "m1j",
@@ -7418,7 +7423,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 660,
-     "caja": "2026-10-16"
+     "caja": "2026-10-16",
+     "cuentaId": "cta1l"
     },
     {
      "id": "m1r",
@@ -7430,7 +7436,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 660,
-     "caja": "2026-10-16"
+     "caja": "2026-10-16",
+     "cuentaId": "cta1k"
     },
     {
      "id": "m1t",
@@ -7490,7 +7497,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 630,
-     "caja": "2026-10-16"
+     "caja": "2026-10-16",
+     "cuentaId": "cta1s"
     },
     {
      "id": "m21",
@@ -7550,7 +7558,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 720,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta20"
     },
     {
      "id": "m26",
@@ -7562,7 +7571,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 720,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta1z"
     },
     {
      "id": "m27",
@@ -7574,7 +7584,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 720,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta1y"
     },
     {
      "id": "m2a",
@@ -7610,7 +7621,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 720,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta29"
     },
     {
      "id": "m2d",
@@ -7634,7 +7646,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 720,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta28"
     },
     {
      "id": "m2f",
@@ -7706,7 +7719,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 750,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta2g"
     },
     {
      "id": "m2o",
@@ -7766,7 +7780,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 720,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta2n"
     },
     {
      "id": "m2t",
@@ -7778,7 +7793,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 720,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta2m"
     },
     {
      "id": "m2w",
@@ -7838,7 +7854,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 810,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta2v"
     },
     {
      "id": "m31",
@@ -7850,7 +7867,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 810,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta2u"
     },
     {
      "id": "m35",
@@ -7874,7 +7892,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 810,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta32"
     },
     {
      "id": "m37",
@@ -7898,7 +7917,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 810,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta34"
     },
     {
      "id": "m39",
@@ -7934,7 +7954,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 810,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta33"
     },
     {
      "id": "m3f",
@@ -7994,7 +8015,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 840,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta3d"
     },
     {
      "id": "m3k",
@@ -8006,7 +8028,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 840,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta3c"
     },
     {
      "id": "m3l",
@@ -8018,7 +8041,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 840,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta3e"
     },
     {
      "id": "m3o",
@@ -8078,7 +8102,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 810,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta3m"
     },
     {
      "id": "m3t",
@@ -8090,7 +8115,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 810,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta3n"
     },
     {
      "id": "m3x",
@@ -8150,7 +8176,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 900,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta3u"
     },
     {
      "id": "m42",
@@ -8162,7 +8189,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 900,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta3w"
     },
     {
      "id": "m43",
@@ -8174,7 +8202,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 900,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta3v"
     },
     {
      "id": "m48",
@@ -8198,7 +8227,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 900,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta44"
     },
     {
      "id": "m4a",
@@ -8222,7 +8252,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 900,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta45"
     },
     {
      "id": "m4c",
@@ -8246,7 +8277,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 900,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta46"
     },
     {
      "id": "m4e",
@@ -8270,7 +8302,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 900,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta47"
     },
     {
      "id": "m4j",
@@ -8330,7 +8363,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 930,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta4h"
     },
     {
      "id": "m4o",
@@ -8342,7 +8376,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 930,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta4g"
     },
     {
      "id": "m4p",
@@ -8354,7 +8389,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 930,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta4i"
     },
     {
      "id": "m4s",
@@ -8414,7 +8450,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 900,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta4q"
     },
     {
      "id": "m4x",
@@ -8426,7 +8463,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 900,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta4r"
     },
     {
      "id": "m51",
@@ -8486,7 +8524,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 990,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta4z"
     },
     {
      "id": "m56",
@@ -8498,7 +8537,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 990,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta50"
     },
     {
      "id": "m57",
@@ -8510,7 +8550,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 990,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta4y"
     },
     {
      "id": "m59",
@@ -8534,7 +8575,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 990,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta58"
     },
     {
      "id": "m5b",
@@ -8630,7 +8672,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1020,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta5e"
     },
     {
      "id": "m5n",
@@ -8690,7 +8733,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 990,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta5m"
     },
     {
      "id": "m5s",
@@ -8702,7 +8746,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 990,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta5l"
     },
     {
      "id": "m5t",
@@ -8714,7 +8759,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 990,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta5k"
     },
     {
      "id": "m5w",
@@ -8774,7 +8820,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1080,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta5v"
     },
     {
      "id": "m61",
@@ -8786,7 +8833,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1080,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta5u"
     },
     {
      "id": "m64",
@@ -8822,7 +8870,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1080,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta62"
     },
     {
      "id": "m67",
@@ -8846,7 +8895,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1080,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta63"
     },
     {
      "id": "m69",
@@ -8918,7 +8968,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1110,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta6c"
     },
     {
      "id": "m6i",
@@ -8930,7 +8981,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1110,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta6b"
     },
     {
      "id": "m6j",
@@ -8942,7 +8994,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1110,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta6a"
     },
     {
      "id": "m6n",
@@ -9002,7 +9055,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1080,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta6k"
     },
     {
      "id": "m6s",
@@ -9014,7 +9068,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1080,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta6m"
     },
     {
      "id": "m6t",
@@ -9026,7 +9081,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1080,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta6l"
     },
     {
      "id": "m6w",
@@ -9086,7 +9142,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1170,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta6u"
     },
     {
      "id": "m71",
@@ -9098,7 +9155,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1170,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta6v"
     },
     {
      "id": "m76",
@@ -9122,7 +9180,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1170,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta72"
     },
     {
      "id": "m78",
@@ -9146,7 +9205,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1170,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta73"
     },
     {
      "id": "m7a",
@@ -9170,7 +9230,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1170,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta74"
     },
     {
      "id": "m7c",
@@ -9194,7 +9255,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1170,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta75"
     },
     {
      "id": "m7f",
@@ -9254,7 +9316,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1200,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta7e"
     },
     {
      "id": "m7m",
@@ -9314,7 +9377,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1170,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta7l"
     },
     {
      "id": "m7r",
@@ -9326,7 +9390,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1170,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta7k"
     },
     {
      "id": "m7u",
@@ -9374,7 +9439,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1260,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta7s"
     },
     {
      "id": "m7y",
@@ -9386,7 +9452,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1260,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta7t"
     },
     {
      "id": "m83",
@@ -9410,7 +9477,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1260,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta82"
     },
     {
      "id": "m85",
@@ -9434,7 +9502,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1260,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta80"
     },
     {
      "id": "m87",
@@ -9458,7 +9527,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1260,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta7z"
     },
     {
      "id": "m89",
@@ -9482,7 +9552,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1260,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta81"
     },
     {
      "id": "m8e",
@@ -9542,7 +9613,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1290,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta8b"
     },
     {
      "id": "m8j",
@@ -9554,7 +9626,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1290,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta8c"
     },
     {
      "id": "m8k",
@@ -9566,7 +9639,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1290,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta8d"
     },
     {
      "id": "m8m",
@@ -9626,7 +9700,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1260,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta8l"
     },
     {
      "id": "m8t",
@@ -9674,7 +9749,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1350,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta8r"
     },
     {
      "id": "m8x",
@@ -9686,7 +9762,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1350,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta8s"
     },
     {
      "id": "m90",
@@ -9722,7 +9799,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1350,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta8y"
     },
     {
      "id": "m93",
@@ -9746,7 +9824,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1350,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta8z"
     },
     {
      "id": "m95",
@@ -9818,7 +9897,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1380,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta96"
     },
     {
      "id": "m9e",
@@ -9830,7 +9910,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1380,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta98"
     },
     {
      "id": "m9f",
@@ -9842,7 +9923,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1380,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta97"
     },
     {
      "id": "m9i",
@@ -9854,7 +9936,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1020,
-     "caja": "2026-10-17"
+     "caja": "2026-10-17",
+     "cuentaId": "cta9h"
     },
     {
      "id": "m9j",
@@ -9878,7 +9961,8 @@
      "usuario": null,
      "fecha": "2026-10-17",
      "min": 1470,
-     "caja": "2026-10-18"
+     "caja": "2026-10-18",
+     "cuentaId": "cta9k"
     }
    ],
    "cierres": [
