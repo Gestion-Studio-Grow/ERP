@@ -410,6 +410,26 @@ test("F2 · recepción con su PIN de 2 no anota egresos por la vía vieja ni cie
   assert.equal(e.caja.cierres[0].responsable, d.nombre, "cierra a nombre de quien firma");
 });
 
+test("F2 · un firmaId inexistente o de baja no esquiva el largo de firma: ni egreso viejo ni cierre viejo con PIN de 2", () => {
+  const { e, auth } = demo();
+  const n = movs(e);
+  const baja = e.usuarios.find((u) => u.id !== auth.usuarioId)!;
+  baja.activo = false;
+  for (const firmaId of ["nadie", baja.id]) {
+    const eg = ejecutarCaja(e, { tipo: "egreso", monto: "5000", concepto: "Hielo", pin: auth.pin!, firmaId } as never, AHORA, auth);
+    assert.equal(eg.ok, false, eg.mensaje);
+    assert.equal(eg.pin, "bueno", "se evalúa el PIN de quien opera");
+    assert.equal(movs(e), n, "nada salió del cajón");
+  }
+  const despues: Ahora = { fecha: M.sumarDias(HOY, 1), min: 13 * 60 };
+  const atrasada = armarCaja(e, despues).atrasadas[0];
+  for (const firmaId of ["nadie", baja.id]) {
+    const c = ejecutarCaja(e, { tipo: "cerrar", contado: String(atrasada.efectivoEsperado), dia: atrasada.dia, pin: auth.pin!, firmaId }, despues, auth);
+    assert.equal(c.ok, false, c.mensaje);
+  }
+  assert.equal(e.caja.cierres.length, 0);
+});
+
 test("F3 · el conteo re-aplicado sin internet no cae en OTRO turno aunque coincidan la cantidad de movimientos y los medios", () => {
   const { e, auth } = demo();
   e.caja.movimientos = [];

@@ -367,7 +367,9 @@ export function ejecutarCaja(estado: EstadoClub, accion: AccionCaja, ahora: Ahor
     return { ok: false, mensaje: CON_FIRMA.has(accion.tipo) ? `Falta la firma: PIN de ${largoFirmaCaja(estado)} dígitos de quien firma ${que}.` : `Poné tu PIN: ${que} queda a tu nombre.`, pin: null };
   }
   // Sin quién opera (o sin acceso) no hay PIN que evaluar: lo dice el motor y no cuenta como intento.
-  const firmaId = "firmaId" in accion && accion.firmaId ? accion.firmaId : null;
+  // El egreso viejo no lleva firmaId: lo firma quien opera. Si llegara uno (petición armada a mano), se ignora, así no
+  // se esquiva el chequeo de largo de firma apuntando a alguien que no existe o está de baja (D-16, B4-C4).
+  const firmaId = accion.tipo !== "egreso" && "firmaId" in accion && accion.firmaId ? accion.firmaId : null;
   const quien = firmaId ?? auth.usuarioId ?? "";
   const activo = estado.usuarios.some((u) => u.id === quien && u.activo !== false);
   let resultado: DesenlaceConPin["pin"] = null;
@@ -383,6 +385,8 @@ export function ejecutarCaja(estado: EstadoClub, accion: AccionCaja, ahora: Ahor
   const firma = { usuarioId: auth.usuarioId, firmaId, pin };
   // El egreso viejo y el cierre de una caja sin turnos también los FIRMA un PIN de firma (D-16, B4-C4): con el de 2 de
   // recepción se opera pero no se firma. (Las demás firmas las valida el motor con `firmarCaja`.)
+  // Un firmaId que no es de alguien activo no firma: sin esto, el cierre viejo se salteaba el chequeo de largo.
+  if (accion.tipo === "cerrar" && firmaId && !activo) return fallo("Quien firma no está activo en el club: que firme un dueño.");
   if ((accion.tipo === "egreso" || accion.tipo === "cerrar") && activo && pin.length < largoFirmaCaja(estado))
     return fallo(`Esto lo firma un PIN de ${largoFirmaCaja(estado)} dígitos: con el PIN de ${pin.length} se opera pero no se firma. Que firme un dueño.`);
   switch (accion.tipo) {
