@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { CATALOGO, definiciones } from "./catalogo";
 import { e, enmascararTelefono, erroresDe, nombresDeCampos, redactarTextoLibre } from "./esquema";
-import { armarSobre, emitirEvento, EventoInvalido, olvidarColumnasDelOutbox, SQL_CANDADO, SQL_INSERTAR_CON_COLUMNAS, SQL_INSERTAR_SIN_COLUMNAS, SQL_YA_ESTA } from "./emitir";
+import { armarSobre, emitirEvento, EventoInvalido, olvidarColumnasDelOutbox, SQL_CANDADO, SQL_INSERTAR_CON_COLUMNAS, SQL_INSERTAR_SIN_COLUMNAS, SQL_YA_ESTA, SQL_YA_ESTA_CON_COLUMNAS } from "./emitir";
 import { canalYReferencia, emitirFacturaAutorizada, emitirFacturaRechazada, emitirPedidoCobrado, medioDelCatalogo, pagoExternoDelActor } from "./del-core";
 import { generarDocEventos } from "./doc";
 
@@ -195,7 +195,7 @@ function txFalso(conColumnas: boolean, yaEsta = false) {
     async $queryRawUnsafe(sql: string, ...params: unknown[]) {
       llamadas.push({ sql, params });
       if (sql.includes("pg_attribute")) return conColumnas ? [{ ok: 1 }] : [];
-      if (sql === SQL_YA_ESTA) return yaEsta ? [{ id: "previo" }] : [];
+      if (sql === SQL_YA_ESTA || sql === SQL_YA_ESTA_CON_COLUMNAS) return yaEsta ? [{ id: "previo" }] : [];
       if (sql === SQL_CANDADO) return [{ ok: 1 }];
       if (sql === SQL_INSERTAR_CON_COLUMNAS) return yaEsta ? [] : [{ id: params[0] }];
       if (sql === SQL_INSERTAR_SIN_COLUMNAS) return [{ id: params[0] }];
@@ -210,8 +210,10 @@ test("P2-C1/C4 · con las columnas de N2_hub: type tipo@N, version, clave y ON C
   const tx = txFalso(true);
   const r = await emitirEvento(tx, { tenantId: "t1", tipo: "pedido.cobrado", version: 1, clave: "pedido:o1:cobrado", datos: COBRO });
   assert.equal(r.escrito, true);
-  // También con columnas: candado y chequeo por payload->>'clave' (ve las filas escritas sin N2_hub).
-  assert.deepEqual(tx.llamadas.map((l) => l.sql).filter((s) => !s.includes("pg_attribute")), [SQL_CANDADO, SQL_YA_ESTA, SQL_INSERTAR_CON_COLUMNAS]);
+  // También con columnas: candado y chequeo por la columna O por payload->>'clave' en las filas con
+  // clave NULL (las escritas sin N2_hub), cada rama por su índice (v2-d).
+  assert.deepEqual(tx.llamadas.map((l) => l.sql).filter((s) => !s.includes("pg_attribute")), [SQL_CANDADO, SQL_YA_ESTA_CON_COLUMNAS, SQL_INSERTAR_CON_COLUMNAS]);
+  assert.ok(SQL_YA_ESTA_CON_COLUMNAS.includes(`("clave" = $3 OR ("clave" IS NULL AND "payload"->>'clave' = $3))`));
   assert.ok(SQL_YA_ESTA.includes(`"payload"->>'clave'`));
   const ins = tx.llamadas.find((l) => l.sql === SQL_INSERTAR_CON_COLUMNAS)!;
   assert.ok(ins.sql.includes(`ON CONFLICT ("tenantId", "clave") DO NOTHING`));

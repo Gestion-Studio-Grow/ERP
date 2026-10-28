@@ -16,9 +16,11 @@
 //        `ON CONFLICT ("tenantId","clave") DO NOTHING` sobre el UNIQUE de N2_hub → una fila por hecho.
 //      · SIN las columnas (hoy en Neon): la clave va además en `payload._clave`.
 //    En LOS DOS modos, antes de insertar se toma `pg_advisory_xact_lock` por (negocio, clave) y se
-//    mira si ya está por `payload->>'clave'`, que el sobre trae siempre. Así la dedupe aguanta la
-//    transición: una fila escrita sin N2_hub tiene `clave` NULL (el UNIQUE no la ve) y un proceso
-//    con el probe todavía en false no ve la columna. Dos emisiones a la vez del mismo hecho se
+//    mira si ya está. Sin columnas, por `payload->>'clave'`, que el sobre trae siempre. Con
+//    columnas, por la columna (índice UNIQUE) O por `payload->>'clave'` en las filas con `clave`
+//    NULL (índice parcial de N2_hub): así la dedupe aguanta la transición —una fila escrita sin
+//    N2_hub, o por un proceso con el probe todavía en false, tiene `clave` NULL y el UNIQUE no la
+//    ve— sin recorrer el outbox del negocio en cada venta (v2-d, CERT-P2). Dos emisiones a la vez del mismo hecho se
 //    ponen en fila: la segunda espera a que la primera confirme y la ve (READ COMMITTED: cada
 //    sentencia ve lo confirmado). En SERIALIZABLE la foto es la del comienzo y el chequeo no
 //    alcanza: ahí el que ataja es el UNIQUE de N2_hub (que el backfill de N2_hub completa).
@@ -119,10 +121,19 @@ export const SQL_INSERTAR_CON_COLUMNAS = `INSERT INTO "OutboxEvent" ("id", "tena
 
 export const SQL_CANDADO = `SELECT 1 AS ok FROM (SELECT pg_advisory_xact_lock(hashtextextended($1, 0))) AS candado`;
 
-// Por `payload->>'clave'` (el sobre), no por `_clave` ni por la columna: lo tienen las filas de
-// los dos modos.
+// SIN columnas (Neon hoy): por `payload->>'clave'` (el sobre), que tienen las filas de los dos
+// modos. Recorre las filas del negocio y de ese tipo por el índice de tenantId: sin N2_hub no hay
+// índice posible sobre la clave (costo medido en CERT-P2, vuelta 4).
 export const SQL_YA_ESTA = `SELECT "id" FROM "OutboxEvent"
   WHERE "tenantId" = $1 AND "type" = $2 AND "payload"->>'clave' = $3
+  LIMIT 1`;
+
+// CON columnas: la columna (UNIQUE tenantId+clave) o, en las filas con `clave` NULL (escritas
+// antes de N2_hub o por un proceso con el probe viejo), la del sobre por el índice parcial
+// `OutboxEvent_tenantId_payloadClave_sinClave_idx`. Dos ramas indexadas: no recorre el outbox.
+export const SQL_YA_ESTA_CON_COLUMNAS = `SELECT "id" FROM "OutboxEvent"
+  WHERE "tenantId" = $1 AND "type" = $2
+    AND ("clave" = $3 OR ("clave" IS NULL AND "payload"->>'clave' = $3))
   LIMIT 1`;
 
 export const SQL_INSERTAR_SIN_COLUMNAS = `INSERT INTO "OutboxEvent" ("id", "tenantId", "type", "payload")
@@ -185,7 +196,7 @@ export async function emitirEvento<T extends TipoEvento, V extends VersionDe<T>>
   const conColumnas = await outboxConColumnasN2(sql);
   const modo = conColumnas ? "columnas" : "payload";
   await sql.$queryRawUnsafe(SQL_CANDADO, `outbox:${ev.tenantId}:${sobre.clave}`);
-  const previas = await sql.$queryRawUnsafe<{ id: string }[]>(SQL_YA_ESTA, ev.tenantId, sobre.type, sobre.clave);
+  const previas = await sql.$queryRawUnsafe<{ id: string }[]>(conColumnas ? SQL_YA_ESTA_CON_COLUMNAS : SQL_YA_ESTA, ev.tenantId, sobre.type, sobre.clave);
   if (previas.length) return { escrito: false, motivo: "duplicado", modo };
 
   if (conColumnas) {
