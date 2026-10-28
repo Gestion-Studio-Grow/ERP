@@ -50,7 +50,8 @@ test("caja = cobrado: después de un día mezclado (seña, por jugador, todo, bu
 });
 
 test("egreso con concepto: sale del efectivo esperado; sin concepto o sin monto, no", () => {
-  const { e, auth } = demo();
+  const { e } = demo();
+  const auth = DUENIO(e); // el egreso viejo y el cierre los firma un PIN de 4 (D-16)
   const antes = armarCaja(e, AHORA);
   assert.equal(ejecutarCaja(e, { tipo: "egreso", monto: "5.000", concepto: "  ", pin: auth.pin! }, AHORA, auth).ok, false);
   assert.equal(ejecutarCaja(e, { tipo: "egreso", monto: "", concepto: "Hielo", pin: auth.pin! }, AHORA, auth).ok, false);
@@ -64,7 +65,8 @@ test("egreso con concepto: sale del efectivo esperado; sin concepto o sin monto,
 });
 
 test("cierre: contado contra esperado con la diferencia; una sola vez; lo cobrado después entra en la caja siguiente", () => {
-  const { e, auth } = demo();
+  const { e } = demo();
+  const auth = DUENIO(e); // el egreso viejo y el cierre los firma un PIN de 4 (D-16)
   const v = armarCaja(e, AHORA);
   assert.equal(ejecutarCaja(e, { tipo: "cerrar", contado: "", dia: null, pin: auth.pin! }, AHORA, auth).ok, false, "sin contar no se cierra");
   const d = ejecutarCaja(e, { tipo: "cerrar", contado: String(v.efectivoEsperado - 1000), dia: null, pin: auth.pin! }, AHORA, auth);
@@ -79,7 +81,8 @@ test("cierre: contado contra esperado con la diferencia; una sola vez; lo cobrad
 });
 
 test("aviso de cajas con movimientos sin cerrar, y se cierran con su día", () => {
-  const { e, auth } = demo();
+  const { e } = demo();
+  const auth = DUENIO(e); // el egreso viejo y el cierre los firma un PIN de 4 (D-16)
   const v = armarCaja(e, AHORA);
   const sinCerrar = M.cajasConMovimientosSinCerrar(e).filter((d) => d !== v.dia);
   assert.deepEqual(v.atrasadas.map((a) => a.dia), sinCerrar);
@@ -106,7 +109,8 @@ const DUENIO = (e: EstadoClub) => operadorDeLaDemo(e, "OWNER")!.auth;
 const movs = (e: EstadoClub) => e.caja.movimientos.length;
 
 test("caja = fondo + cobrado − egresos − devuelto en mano (el efectivo del cajón)", () => {
-  const { e, auth } = demo();
+  const { e } = demo();
+  const auth = DUENIO(e); // el egreso viejo y el cierre los firma un PIN de 4 (D-16)
   const antes = armarCaja(e, AHORA);
   const efectivo = (v: ReturnType<typeof armarCaja>) => v.porMedio.find((m) => m.medio === M.MEDIOS.efectivo)!.monto;
   // El dueño sube el fondo de caja.
@@ -135,23 +139,25 @@ test("caja = fondo + cobrado − egresos − devuelto en mano (el efectivo del c
 });
 
 test("egreso: sin PIN, con PIN ajeno o equivocado, o con monto inválido, no pasa y no mueve la caja", () => {
-  const { e, auth } = demo();
+  const { e } = demo();
+  const auth = DUENIO(e); // el egreso viejo y el cierre los firma un PIN de 4 (D-16)
   const n = movs(e);
   const intento = (monto: string, pin: string, a: Auth = auth) => ejecutarCaja(e, { tipo: "egreso", monto, concepto: "Hielo", pin }, AHORA, a);
   assert.match(intento("5000", "").mensaje, /Poné tu PIN/);
   assert.match(intento("5000", "  ").mensaje, /Poné tu PIN/);
   assert.equal(intento("5000", "99").mensaje, "PIN incorrecto.");
-  assert.equal(intento("5000", DUENIO(e).pin!).mensaje, "PIN incorrecto.", "el PIN de otro no vale para quien opera");
+  assert.equal(intento("5000", operadorDeLaDemo(e, "RECEPTION")!.auth.pin!).mensaje, "PIN incorrecto.", "el PIN de otro no vale para quien opera");
   assert.match(intento("5000", "33", {}).mensaje, /Elegí quién/, "sin operador no pasa");
   for (const monto of ["", "0", "-500", "doce"]) assert.equal(intento(monto, auth.pin!).ok, false, `monto «${monto}»`);
   assert.equal(movs(e), n, "nada entró ni salió");
   assert.equal(intento("5000", auth.pin!).ok, true);
   const v = armarCaja(e, AHORA);
-  assert.equal(v.movimientos[0].quien, operadorDeLaDemo(e, "RECEPTION")!.usuario.nombre, "el egreso queda a nombre de quien opera");
+  assert.equal(v.movimientos[0].quien, operadorDeLaDemo(e, "OWNER")!.usuario.nombre, "el egreso queda a nombre de quien opera");
 });
 
 test("cierre: no pasa sin el PIN de quien puede cerrar; con el PIN, una vez", () => {
-  const { e, auth } = demo();
+  const { e } = demo();
+  const auth = DUENIO(e); // el egreso viejo y el cierre los firma un PIN de 4 (D-16)
   const v = armarCaja(e, AHORA);
   const cerrar = (pin: string, a: Auth = auth) => ejecutarCaja(e, { tipo: "cerrar", contado: String(v.efectivoEsperado), dia: null, pin }, AHORA, a);
   assert.match(cerrar("").mensaje, /Poné tu PIN/);
@@ -170,7 +176,8 @@ test("cierre: no pasa sin el PIN de quien puede cerrar; con el PIN, una vez", ()
 });
 
 test("cierre de hoy: abierta → cerrada → lo cobrado después queda en la siguiente y se puede cerrar", () => {
-  const { e, auth } = demo();
+  const { e } = demo();
+  const auth = DUENIO(e); // el egreso viejo y el cierre los firma un PIN de 4 (D-16)
   assert.deepEqual(armarCaja(e, AHORA).cierreDeHoy, { tipo: "abierta" });
   const v = armarCaja(e, AHORA);
   assert.equal(ejecutarCaja(e, { tipo: "cerrar", contado: String(v.efectivoEsperado), dia: null, pin: auth.pin! }, AHORA, auth).ok, true);
@@ -209,7 +216,8 @@ test("los PIN de ejemplo de la demo, rotulados por nombre", () => {
 });
 
 test("movimientos completos: hora, concepto, quién, medio; los de la mañana con su fecha; paginados de a 40", (t) => {
-  const { e, auth } = demo();
+  const { e } = demo();
+  const auth = DUENIO(e); // el egreso viejo y el cierre los firma un PIN de 4 (D-16)
   for (let i = 0; i < 90; i++) assert.equal(ejecutarCaja(e, { tipo: "egreso", monto: String(100 + i), concepto: `Gasto ${i}`, pin: auth.pin! }, { fecha: HOY, min: 13 * 60 + i }, auth).ok, true);
   const v = armarCaja(e, AHORA);
   assert.equal(v.movimientos.length, MOVIMIENTOS_POR_PAGINA);
@@ -252,7 +260,7 @@ test("rendimiento: abrir la caja con un mes de movimientos (y un mes de cajas si
   assert.ok(sinCerrar < 250 && conCierres < 100, "abrir la caja no se traba");
 });
 
-test("un dueño con el PIN VIEJO (el de 2 del piloto) no hace egresos ni cierra la caja con él; recepción con el suyo de 2, sí", () => {
+test("un dueño con el PIN VIEJO (el de 2 del piloto) no hace egresos ni cierra la caja con él; recepción con el suyo de 2 tampoco (firma de 4, D-16)", () => {
   const e = M.generarDemo(HOY, AHORA.min);
   const duenio = e.usuarios.find((u) => u.rol === "duenio" && u.activo !== false)!;
   duenio.pin = "57";
@@ -264,7 +272,9 @@ test("un dueño con el PIN VIEJO (el de 2 del piloto) no hace egresos ni cierra 
   const recepcion = operadorDeLaDemo(e, "RECEPTION")!.auth;
   assert.equal(recepcion.pin!.length, 2, "recepción sigue con 2 dígitos");
   const d = ejecutarCaja(e, { tipo: "egreso", monto: "1000", concepto: "Hielo", pin: recepcion.pin! }, AHORA, recepcion);
-  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(d.ok, false, d.mensaje);
+  assert.match(d.mensaje, /PIN de 4 dígitos/);
+  assert.equal(armarCaja(e, AHORA).egresos, antes.egresos, "nada salió del cajón");
 });
 
 // ── Tanda B4: el turno de caja a ciegas, la firma de 4, corregir medio, retiro y egreso por categoría ──────────────
@@ -337,4 +347,86 @@ test("B4 · retiro a caja fuerte y egreso por categoría desde la caja: firma de
   assert.equal(g.ok, true, g.mensaje);
   assert.equal(armarCaja(e, AHORA).efectivoEsperado, antes - 7000);
   assert.equal(firmantes(e)[0].duenio, true, "primero los dueños");
+});
+
+// ── Certificación B4 (F1, F2, F3): el día por turnos atrasado, la firma del egreso viejo y del cierre, el conteo re-aplicado ──
+
+const duenioDe = (e: EstadoClub) => e.usuarios.find((u) => u.rol === "duenio" && u.activo !== false)!;
+const venderEfectivo = (e: EstadoClub, ahora: Ahora) => {
+  const p = e.productos.find((x) => x.precio > 0 && x.stock == null)!;
+  assert.ok(M.ventaMostrador(e, [{ productoId: p.id, cant: 1 }], "efectivo", ahora).ok);
+};
+/** Cuenta (con lo justo) y firma el turno abierto del día que muestra la pantalla (`dia`: el de una caja atrasada). */
+function contarYFirmarTurno(e: EstadoClub, auth: Auth, ahora: Ahora, dia: string | null = null) {
+  const v = armarTurno(e, ahora, dia);
+  const t = M.turnoDeCajaAbierto(e, v.dia);
+  const contado = Object.fromEntries(["mercadopago", "transferencia", "debito"].map((k) => [k, String(t.esperado[k as "debito"])]));
+  const c = ejecutarCaja(e, { tipo: "contarTurno", dia, contado, billetes: { monedas: String(t.esperado.efectivo) }, movimientos: v.movimientos, medios: v.medios, numero: v.numero, huella: v.huella }, ahora, auth);
+  assert.equal(c.ok, true, c.mensaje);
+  const f = armarTurno(e, ahora, dia).paraFirmar!;
+  const d = duenioDe(e);
+  const s = ejecutarCaja(e, { tipo: "cerrarTurno", turnoId: f.turnoId, motivo: "", firmaId: d.id, pin: M.pinDeEjemplo(d), medios: f.medios }, ahora, auth);
+  assert.equal(s.ok, true, s.mensaje);
+}
+
+test("F1 · un día por turnos que pasó el corte de las 12 se cierra desde «cajas atrasadas»: se cuenta su turno abierto y se consolida ese día", () => {
+  const { e, auth } = demo();
+  contarYFirmarTurno(e, auth, AHORA);
+  venderEfectivo(e, { fecha: HOY, min: 23 * 60 }); // turno 2 abierto del 17
+  const despues: Ahora = { fecha: M.sumarDias(HOY, 1), min: 13 * 60 };
+  const atrasada = armarCaja(e, despues).atrasadas.find((a) => a.dia === HOY)!;
+  assert.equal(atrasada.porTurnos, true, "la pantalla sabe que el 17 se cierra por turnos");
+  const v = armarTurno(e, despues, HOY);
+  assert.equal(v.dia, HOY, "el cierre por turnos mira el día elegido, no el 18");
+  assert.equal(v.numero, 2);
+  assert.equal(v.movimientos, 1);
+  contarYFirmarTurno(e, auth, despues, HOY);
+  assert.equal(armarTurno(e, despues, HOY).puedeCerrarDia, true);
+  const d = duenioDe(e);
+  const c = ejecutarCaja(e, { tipo: "cerrarDia", dia: HOY, firmaId: d.id, pin: M.pinDeEjemplo(d) }, despues, auth);
+  assert.equal(c.ok, true, c.mensaje);
+  assert.ok(M.cajaCerrada(e, HOY));
+  assert.ok(!armarCaja(e, despues).atrasadas.some((a) => a.dia === HOY));
+  assert.equal(armarTurno(e, despues, HOY).dia, M.cajaAbierta(e, despues), "un día ya cerrado no se vuelve a mirar");
+});
+
+test("F2 · recepción con su PIN de 2 no anota egresos por la vía vieja ni cierra una caja atrasada (D-16); con firma de 4, sí", () => {
+  const { e, auth } = demo();
+  assert.equal(String(auth.pin).length, 2);
+  const n = movs(e);
+  const eg = ejecutarCaja(e, { tipo: "egreso", monto: "1000", concepto: "Hielo", pin: auth.pin! }, AHORA, auth);
+  assert.equal(eg.ok, false, eg.mensaje);
+  assert.match(eg.mensaje, /PIN de 4 dígitos/);
+  assert.equal(eg.pin, "bueno", "el PIN era el suyo: no cuenta como intento malo");
+  assert.equal(movs(e), n, "nada salió del cajón");
+  const despues: Ahora = { fecha: M.sumarDias(HOY, 1), min: 13 * 60 };
+  const atrasada = armarCaja(e, despues).atrasadas[0];
+  const c = ejecutarCaja(e, { tipo: "cerrar", contado: String(atrasada.efectivoEsperado), dia: atrasada.dia, pin: auth.pin! }, despues, auth);
+  assert.equal(c.ok, false, c.mensaje);
+  assert.equal(e.caja.cierres.length, 0);
+  const d = duenioDe(e);
+  const firmada = ejecutarCaja(e, { tipo: "cerrar", contado: String(atrasada.efectivoEsperado), dia: atrasada.dia, pin: M.pinDeEjemplo(d), firmaId: d.id }, despues, auth);
+  assert.equal(firmada.ok, true, firmada.mensaje);
+  assert.equal(e.caja.cierres[0].responsable, d.nombre, "cierra a nombre de quien firma");
+});
+
+test("F3 · el conteo re-aplicado sin internet no cae en OTRO turno aunque coincidan la cantidad de movimientos y los medios", () => {
+  const { e, auth } = demo();
+  e.caja.movimientos = [];
+  venderEfectivo(e, { fecha: HOY, min: 13 * 60 });
+  venderEfectivo(e, { fecha: HOY, min: 13 * 60 + 5 });
+  const visto = armarTurno(e, AHORA); // lo que vio el puesto A sin internet
+  contarYFirmarTurno(e, auth, { fecha: HOY, min: 14 * 60 }); // el puesto B cuenta y firma el turno 1
+  venderEfectivo(e, { fecha: HOY, min: 15 * 60 });
+  venderEfectivo(e, { fecha: HOY, min: 15 * 60 + 5 });
+  const accion = { tipo: "contarTurno" as const, dia: null, contado: {}, billetes: { monedas: "999999" }, movimientos: visto.movimientos, medios: visto.medios, numero: visto.numero, huella: visto.huella };
+  const a = ejecutarCaja(e, accion, { fecha: HOY, min: 16 * 60 }, auth);
+  assert.equal(a.ok, false, a.mensaje);
+  assert.match(a.mensaje, /volvé a contar/);
+  assert.equal(M.turnosDelDia(e, HOY).length, 1, "no se selló el turno 2 con lo contado del 1");
+  // Mismo número, otros movimientos (misma cantidad y medios): tampoco.
+  const otro = armarTurno(e, AHORA);
+  assert.equal(ejecutarCaja(e, { ...accion, numero: otro.numero }, { fecha: HOY, min: 16 * 60 }, auth).ok, false);
+  // Con lo que de verdad tiene el turno abierto, sí.
+  assert.equal(ejecutarCaja(e, { ...accion, numero: otro.numero, huella: otro.huella }, { fecha: HOY, min: 16 * 60 }, auth).ok, true);
 });

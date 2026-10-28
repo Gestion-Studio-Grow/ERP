@@ -74,7 +74,7 @@ export interface VistaCaja {
   totalMovimientos: number;
   cierreDeHoy: CierreDeHoy;
   /** Cajas con movimientos que nadie cerró, distintas de la de hoy (para avisar en rojo y cerrarlas). */
-  atrasadas: { dia: Fecha; texto: string; efectivoEsperado: number }[];
+  atrasadas: { dia: Fecha; texto: string; efectivoEsperado: number; porTurnos: boolean }[];
   /** Cierres hechos, del más nuevo al más viejo. */
   cierres: { dia: Fecha; texto: string; diferencia: number }[];
   firma: string;
@@ -93,7 +93,8 @@ export function armarCaja(estado: EstadoClub, ahora: Ahora, cuantos = MOVIMIENTO
     .filter((d) => d !== dia)
     .map((d) => {
       const x = resumenCaja(estado, d);
-      return { dia: d, texto: `La caja del ${ddmm(d)} quedó sin cerrar (${x.movimientos} movimientos).`, efectivoEsperado: x.efectivoEsperado };
+      // Un día que ya se trabaja por turnos se cierra contando su turno abierto y consolidando (`armarTurno` con el día).
+      return { dia: d, texto: `La caja del ${ddmm(d)} quedó sin cerrar (${x.movimientos} movimientos).`, efectivoEsperado: x.efectivoEsperado, porTurnos: turnosDelDia(estado, d).length > 0 };
     });
   // Como el vanilla: si la de hoy ya se cerró y lo cobrado después quedó en la siguiente, esa se puede cerrar igual.
   const cierreDeHoy: CierreDeHoy = !cajaCerrada(estado, hoy)
@@ -198,6 +199,8 @@ export interface VistaTurno {
   desde: string;
   /** Cuántos movimientos tiene el turno abierto (NO cuánto suman: el conteo es a ciegas). */
   movimientos: number;
+  /** La huella de QUÉ movimientos tiene el turno abierto (sus ids): el conteo se aplica sólo a ese turno. */
+  huella: string;
   /** Los medios que tuvieron movimientos (para saber qué contar y si va sin internet). */
   medios: string[];
   /** El turno contado que espera la firma (lo esperado recién se ve acá). */
@@ -211,9 +214,22 @@ export interface VistaTurno {
   firma: string;
 }
 
-/** El turno de caja para la pantalla, A CIEGAS: del turno abierto no sale ningún importe esperado. */
-export function armarTurno(estado: EstadoClub, ahora: Ahora): VistaTurno {
-  const dia = cajaAbierta(estado, ahora);
+/** La huella de un conjunto de movimientos (FNV-1a de sus ids ordenados): corta, sin importes. */
+export function huellaDeMovimientos(ids: readonly string[]): string {
+  let h = 0x811c9dc5;
+  for (const ch of [...ids].sort().join("|")) {
+    h ^= ch.charCodeAt(0);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `${ids.length}-${h.toString(36)}`;
+}
+
+/**
+ * El turno de caja para la pantalla, A CIEGAS: del turno abierto no sale ningún importe esperado. `diaElegido`: el de
+ * una caja atrasada que se trabajó por turnos (si sigue abierta); si no, la caja abierta.
+ */
+export function armarTurno(estado: EstadoClub, ahora: Ahora, diaElegido: Fecha | null = null): VistaTurno {
+  const dia = diaElegido && !cajaCerrada(estado, diaElegido) ? diaElegido : cajaAbierta(estado, ahora);
   const t = turnoDeCajaAbierto(estado, dia);
   const delDia = turnosDelDia(estado, dia);
   const p = t.pendienteDeFirma;
@@ -235,6 +251,7 @@ export function armarTurno(estado: EstadoClub, ahora: Ahora): VistaTurno {
     numero: t.numero,
     desde: hora(t.desde, dia),
     movimientos: t.movimientos.length,
+    huella: huellaDeMovimientos(t.movimientos.map((m) => m.id)),
     medios: t.medios,
     paraFirmar,
     turnos: delDia.map((x) => ({
@@ -265,10 +282,11 @@ export function firmantes(estado: EstadoClub): { id: string; nombre: string; due
 
 export type AccionCaja =
   | { tipo: "egreso"; monto: string; concepto: string; pin: string }
-  | { tipo: "cerrar"; contado: string; dia: Fecha | null; pin: string }
+  /** Cierre de una caja SIN turnos (vieja o atrasada): firma de caja (D-16); `firmaId` vacío = quien opera. */
+  | { tipo: "cerrar"; contado: string; dia: Fecha | null; pin: string; firmaId?: string | null }
   | { tipo: "fondo"; monto: string }
   /** Paso 1 del cierre del turno, A CIEGAS (sin PIN de firma): lo contado por medio y los billetes por denominación. */
-  | { tipo: "contarTurno"; dia: Fecha | null; contado: Partial<Record<string, string>>; billetes: Record<string, string>; movimientos: number; medios: string[] }
+  | { tipo: "contarTurno"; dia: Fecha | null; contado: Partial<Record<string, string>>; billetes: Record<string, string>; movimientos: number; medios: string[]; numero?: number; huella?: string }
   /** Paso 2: firma (PIN de firma) y motivo si no cuadró. `medios`: los del turno (sin internet, sólo efectivo). */
   | { tipo: "cerrarTurno"; turnoId: string; motivo: string; firmaId: string | null; pin: string; medios: string[] }
   | { tipo: "corregirMedio"; movimientoId: string; medio: string; motivo: string }
@@ -304,6 +322,16 @@ const leerOpcional = (x: string) => (x.trim() === "" ? null : leerMonto(x));
 /** Las acciones del turno que no llevan PIN (contar y corregir medio): opera quien está en el puesto. */
 function sinFirma(estado: EstadoClub, accion: AccionCaja, ahora: Ahora, auth: Auth): DesenlaceCaja | null {
   if (accion.tipo === "contarTurno") {
+    // Lo contado es de UN turno: si al re-aplicarse (sin internet, otro puesto) el turno abierto ya es otro —otro número
+    // u otros movimientos, aunque sean la misma cantidad y los mismos medios—, se vuelve a contar.
+    if (accion.numero != null || accion.huella != null) {
+      const dia = accion.dia && !cajaCerrada(estado, accion.dia) ? accion.dia : accion.dia ? null : cajaAbierta(estado, ahora);
+      if (dia) {
+        const t = turnoDeCajaAbierto(estado, dia);
+        const otro = (accion.numero != null && accion.numero !== t.numero) || (accion.huella != null && accion.huella !== huellaDeMovimientos(t.movimientos.map((m) => m.id)));
+        if (otro && !t.pendienteDeFirma) return { ok: false, mensaje: "Mientras contabas cambió la caja (se cerró ese turno o entró otro cobro): volvé a contar.", pin: null };
+      }
+    }
     const contado = Object.fromEntries(Object.entries(accion.contado).map(([k, v]) => [k, v == null ? null : leerOpcional(v)]));
     const billetes = Object.fromEntries(Object.entries(accion.billetes).filter(([, v]) => String(v).trim() !== "").map(([k, v]) => [k, k === "monedas" ? leerMonto(String(v)) : Number(String(v).trim())]));
     const res = contarTurnoCaja(estado, { dia: accion.dia, contado, billetes, usuarioId: auth.usuarioId, esperados: { movimientos: accion.movimientos, medios: accion.medios as never } }, ahora);
@@ -353,6 +381,10 @@ export function ejecutarCaja(estado: EstadoClub, accion: AccionCaja, ahora: Ahor
   }
   const fallo = (motivo: string): DesenlaceCaja => ({ ok: false, mensaje: motivo, pin: resultado, duenio });
   const firma = { usuarioId: auth.usuarioId, firmaId, pin };
+  // El egreso viejo y el cierre de una caja sin turnos también los FIRMA un PIN de firma (D-16, B4-C4): con el de 2 de
+  // recepción se opera pero no se firma. (Las demás firmas las valida el motor con `firmarCaja`.)
+  if ((accion.tipo === "egreso" || accion.tipo === "cerrar") && activo && pin.length < largoFirmaCaja(estado))
+    return fallo(`Esto lo firma un PIN de ${largoFirmaCaja(estado)} dígitos: con el PIN de ${pin.length} se opera pero no se firma. Que firme un dueño.`);
   switch (accion.tipo) {
     case "egreso": {
       const monto = leerMonto(accion.monto);
@@ -361,7 +393,8 @@ export function ejecutarCaja(estado: EstadoClub, accion: AccionCaja, ahora: Ahor
     }
     case "cerrar": {
       const contado = accion.contado.trim() === "" ? null : leerMonto(accion.contado);
-      const res = cerrarCaja(estado, { contado, usuarioId: auth.usuarioId, pin, dia: accion.dia }, ahora);
+      // Firma quien firma (`firmaId`) o quien opera: el motor le valida permiso y PIN, y queda como responsable.
+      const res = cerrarCaja(estado, { contado, usuarioId: quien || auth.usuarioId, pin, dia: accion.dia }, ahora);
       if (!res.ok) return fallo(res.motivo);
       const d = res.cierre.diferencia;
       const dif = d === 0 ? "la caja cuadra" : d > 0 ? `sobran ${pesos(d)}` : `faltan ${pesos(-d)}`;

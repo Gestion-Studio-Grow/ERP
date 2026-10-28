@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Select, Textarea } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
 import { MEDIOS, pesos } from "@/lib/club/motor.mjs";
+import type { Ahora, EstadoClub, Fecha } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { BILLETES, CATEGORIAS_EGRESO, MEDIOS_DEL_TURNO, armarTurno, cajaVaSinInternet, firmantes, leerMonto, type AccionCaja, type VistaTurno } from "./caja-core";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
@@ -65,7 +66,7 @@ function Firma({ almacen, largo, firmaId, setFirmaId, pin, setPin }: { almacen: 
 }
 
 /** Paso 1: el conteo a ciegas (billetes por denominación, monedas y los otros medios). */
-function ContarTurno({ v, hacer }: { v: VistaTurno; hacer: Hacer }) {
+function ContarTurno({ v, dia, hacer }: { v: VistaTurno; dia: Fecha | null; hacer: Hacer }) {
   const [billetes, setBilletes] = useState<Record<string, string>>({});
   const [otros, setOtros] = useState<Record<string, string>>({});
   const id = useId();
@@ -77,7 +78,7 @@ function ContarTurno({ v, hacer }: { v: VistaTurno; hacer: Hacer }) {
       onSubmit={(e) => {
         e.preventDefault();
         const contado = Object.fromEntries(MEDIOS_DEL_TURNO.filter((k) => k !== "efectivo").map((k) => [k, otros[k] ?? ""]));
-        if (hacer({ tipo: "contarTurno", dia: null, contado, billetes, movimientos: v.movimientos, medios: v.medios })) {
+        if (hacer({ tipo: "contarTurno", dia, contado, billetes, movimientos: v.movimientos, medios: v.medios, numero: v.numero, huella: v.huella })) {
           setBilletes({});
           setOtros({});
         }
@@ -173,7 +174,7 @@ function FirmarTurno({ almacen, v, hacer }: { almacen: Almacen; v: VistaTurno; h
 }
 
 /** Formulario chico con firma: retiro a caja fuerte, egreso por categoría, cierre del día. */
-function ConFirma({ almacen, largo, titulo, boton, children, alMandar }: { almacen: Almacen; largo: number; titulo: string; boton: string; children?: React.ReactNode; alMandar: (firmaId: string | null, pin: string) => boolean }) {
+export function ConFirma({ almacen, largo, titulo, boton, children, alMandar }: { almacen: Almacen; largo: number; titulo: string; boton: string; children?: React.ReactNode; alMandar: (firmaId: string | null, pin: string) => boolean }) {
   const [firmaId, setFirmaId] = useState("");
   const [pin, setPin] = useState("");
   const id = useId();
@@ -302,8 +303,13 @@ function useSinInternet(almacen: Almacen): boolean {
   return estaSinInternet(almacen);
 }
 
-export default function CierreDeCaja({ almacen, hacer }: { almacen: Almacen; hacer: Hacer }) {
-  const v = useSeleccion(almacen, armarTurno, porFirma);
+/**
+ * `dia`: el de una caja ATRASADA que se trabajó por turnos (CajasAtrasadas): se cuenta su turno abierto y se cierra ese
+ * día. Sin `dia`, la caja abierta, con retiro y egreso.
+ */
+export default function CierreDeCaja({ almacen, hacer, dia = null }: { almacen: Almacen; hacer: Hacer; dia?: Fecha | null }) {
+  const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarTurno(e, a, dia), [dia]);
+  const v = useSeleccion(almacen, seleccionar, porFirma);
   const sinInternet = useSinInternet(almacen);
   // C7: lo que sin internet no va (un turno con MP, transferencia o débito) queda EN ESPERA acá y se manda al volver.
   const espera = useRef<AccionCaja | null>(null);
@@ -343,7 +349,7 @@ export default function CierreDeCaja({ almacen, hacer }: { almacen: Almacen; hac
   return (
     <section aria-labelledby={`${id}-t`} data-caja="turno" className="flex flex-col gap-4">
       <h2 id={`${id}-t`} className="font-semibold text-strong">
-        Cierre del turno
+        {dia ? `Cierre de la caja del ${Number(dia.slice(8))}/${Number(dia.slice(5, 7))} (por turnos)` : "Cierre del turno"}
       </h2>
       {enEspera && (
         <div role="status" data-caja="en-espera" className="flex flex-col gap-2 rounded-lg border border-warning bg-warning-soft p-3 text-sm text-strong sm:flex-row sm:items-center sm:justify-between">
@@ -354,7 +360,7 @@ export default function CierreDeCaja({ almacen, hacer }: { almacen: Almacen; hac
         </div>
       )}
       <div className="rounded-lg border border-line bg-surface-raised p-4">
-        {v.paraFirmar ? <FirmarTurno key={v.paraFirmar.turnoId} almacen={almacen} v={v} hacer={mandar} /> : <ContarTurno v={v} hacer={mandar} />}
+        {v.paraFirmar ? <FirmarTurno key={v.paraFirmar.turnoId} almacen={almacen} v={v} hacer={mandar} /> : <ContarTurno v={v} dia={dia} hacer={mandar} />}
       </div>
       {v.turnos.length > 0 && (
         <div className="flex flex-col gap-2">
@@ -370,14 +376,16 @@ export default function CierreDeCaja({ almacen, hacer }: { almacen: Almacen; hac
             ))}
           </ul>
           {v.puedeCerrarDia && (
-            <ConFirma almacen={almacen} largo={v.largoFirma} titulo={`Cerrar el día (consolida ${v.turnos.length} ${v.turnos.length === 1 ? "turno" : "turnos"})`} boton="Cerrar el día" alMandar={(firmaId, pin) => hacer({ tipo: "cerrarDia", dia: null, firmaId, pin })} />
+            <ConFirma almacen={almacen} largo={v.largoFirma} titulo={`Cerrar el día (consolida ${v.turnos.length} ${v.turnos.length === 1 ? "turno" : "turnos"})`} boton="Cerrar el día" alMandar={(firmaId, pin) => hacer({ tipo: "cerrarDia", dia, firmaId, pin })} />
           )}
         </div>
       )}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Retiro almacen={almacen} largo={v.largoFirma} hacer={hacer} />
-        <EgresoPorCategoria almacen={almacen} largo={v.largoFirma} hacer={hacer} />
-      </div>
+      {!dia && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Retiro almacen={almacen} largo={v.largoFirma} hacer={hacer} />
+          <EgresoPorCategoria almacen={almacen} largo={v.largoFirma} hacer={hacer} />
+        </div>
+      )}
     </section>
   );
 }

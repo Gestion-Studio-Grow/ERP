@@ -26,12 +26,12 @@ import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
-import { pesos } from "@/lib/club/motor.mjs";
+import { largoFirmaCaja, pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { MOVIMIENTOS_POR_PAGINA, armarCaja, pinesDeEjemplo, puedeAjustarFondo, type AccionCaja, type CierreDeHoy, type VistaCaja } from "./caja-core";
 import { conTopeDePin, guardaDelPin } from "./tope-de-pin";
-import CierreDeCaja, { CorregirMedio } from "./CierreDeCaja";
+import CierreDeCaja, { ConFirma, CorregirMedio } from "./CierreDeCaja";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 import { operadorActual } from "./operador-del-club";
 import { permisosProveedores } from "./proveedores-core";
@@ -41,63 +41,17 @@ import "./piel/caja.css";
 
 const ddmm = (d: string) => `${Number(d.slice(8))}/${Number(d.slice(5, 7))}`;
 
-/** El PIN: numérico, sin mostrarse, sin autocompletar. */
-function CampoPin({ id, quien, value, onChange }: { id: string; quien: string | null; value: string; onChange: (pin: string) => void }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium text-strong">
-        {quien ? `PIN de ${quien}` : "Tu PIN"}
-      </label>
-      <Input id={id} type="password" inputMode="numeric" autoComplete="off" maxLength={4} value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} className="sm:w-28" />
-    </div>
-  );
-}
-
-/** El nombre de pila de quien opera (para «PIN de Lu»), por su propio canal. */
-function useQuienOpera(almacen: Almacen): string | null {
-  const operador = useOperador(almacen);
-  return operador ? operador.usuario.nombre.split(" ")[0] : null;
-}
-
-function CerrarCaja({ almacen, etiqueta, boton, esperado, onCerrar }: { almacen: Almacen; etiqueta: string; boton: string; esperado: number; onCerrar: (contado: string, pin: string) => boolean }) {
-  const [contado, setContado] = useState("");
-  const [pin, setPin] = useState("");
-  const quien = useQuienOpera(almacen);
-  const ids = { contado: useId(), pin: useId(), ayuda: useId() };
-  return (
-    <form
-      className="flex flex-col gap-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (onCerrar(contado, pin)) setContado("");
-        setPin("");
-      }}
-    >
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={ids.contado} className="text-sm font-medium text-strong">
-            {etiqueta}
-          </label>
-          <Input id={ids.contado} inputMode="numeric" importe value={contado} autoComplete="off" aria-describedby={ids.ayuda} onChange={(e) => setContado(e.target.value)} />
-        </div>
-        <CampoPin id={ids.pin} quien={quien} value={pin} onChange={setPin} />
-      </div>
-      {/* text-body: este formulario va también sobre fondos de aviso, donde text-muted no llega a 4,5:1. */}
-      <p id={ids.ayuda} className="text-sm text-body">
-        Tendría que haber {pesos(esperado)} en efectivo (con el fondo).
-      </p>
-      <Button type="submit" variant="solid" size="md">
-        {boton}
-      </Button>
-    </form>
-  );
-}
-
-/** Las cajas que quedaron con movimientos sin cerrar: el aviso en rojo y UN formulario para cerrar la que se elija. */
+/**
+ * Las cajas que quedaron con movimientos sin cerrar: el aviso en rojo y cómo cerrar la que se elija. Un día trabajado por
+ * turnos se cierra contando su turno abierto y consolidando (CierreDeCaja con ese día); uno sin turnos, contando el
+ * efectivo A CIEGAS y con la firma de caja (D-16): con el PIN de 2 de recepción no se cierra.
+ */
 function CajasAtrasadas({ almacen, atrasadas, hacer }: { almacen: Almacen; atrasadas: VistaCaja["atrasadas"]; hacer: (a: AccionCaja) => boolean }) {
   const [dia, setDia] = useState(atrasadas[0].dia);
+  const [contado, setContado] = useState("");
   const id = useId();
   const elegida = atrasadas.find((a) => a.dia === dia) ?? atrasadas[0];
+  const largo = largoFirmaCaja(almacen.estado());
   return (
     <section aria-labelledby={`${id}-t`} className="flex flex-col gap-3 rounded-lg border border-danger/40 bg-danger-soft p-3">
       <h2 id={`${id}-t`} role="alert" className="font-semibold text-danger">
@@ -107,22 +61,36 @@ function CajasAtrasadas({ almacen, atrasadas, hacer }: { almacen: Almacen; atras
         <label htmlFor={id} className="text-sm font-medium text-strong">
           Caja para cerrar
         </label>
-        <Select id={id} value={elegida.dia} onChange={(e) => setDia(e.target.value)}>
+        <Select id={id} value={elegida.dia} onChange={(e) => { setDia(e.target.value); setContado(""); }}>
           {atrasadas.map((a) => (
             <option key={a.dia} value={a.dia}>
-              Caja del {ddmm(a.dia)} · tendría que haber {pesos(a.efectivoEsperado)} en efectivo
+              Caja del {ddmm(a.dia)}
+              {a.porTurnos ? " · por turnos" : ""}
             </option>
           ))}
         </Select>
       </div>
-      <CerrarCaja
-        key={elegida.dia}
-        almacen={almacen}
-        etiqueta={`Efectivo contado de la caja del ${ddmm(elegida.dia)}`}
-        boton="Cerrar esa caja"
-        esperado={elegida.efectivoEsperado}
-        onCerrar={(contado, pin) => hacer({ tipo: "cerrar", contado, dia: elegida.dia, pin })}
-      />
+      {elegida.porTurnos ? (
+        <CierreDeCaja key={elegida.dia} almacen={almacen} hacer={hacer} dia={elegida.dia} />
+      ) : (
+        <ConFirma
+          key={elegida.dia}
+          almacen={almacen}
+          largo={largo}
+          titulo={`Cerrar la caja del ${ddmm(elegida.dia)}`}
+          boton="Cerrar esa caja"
+          alMandar={(firmaId, pin) => {
+            const ok = hacer({ tipo: "cerrar", contado, dia: elegida.dia, pin, firmaId });
+            if (ok) setContado("");
+            return ok;
+          }}
+        >
+          <label className="flex flex-col gap-1 text-sm font-medium text-strong">
+            Efectivo contado (con el fondo). Lo que tendría que haber se ve al cerrar.
+            <Input inputMode="numeric" importe autoComplete="off" value={contado} onChange={(e) => setContado(e.target.value)} />
+          </label>
+        </ConFirma>
+      )}
     </section>
   );
 }

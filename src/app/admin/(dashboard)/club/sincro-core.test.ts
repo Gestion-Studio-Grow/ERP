@@ -787,7 +787,8 @@ test("Tanda 2 · la cola guardada en el equipo (sin internet) no tiene ningún P
   const cuenta = tablet.a.estado().cuentas.find((c) => c.estado === "abierta")!;
   const hechos = [
     tablet.a.comando("mesa", [{ tipo: "cargoManual", cuentaId: cuenta.id, concepto: "Cortesía", monto: 1000, descuento: true, pin: "1111" }]),
-    tablet.a.comando("caja", [{ tipo: "egreso", monto: "500", concepto: "Hielo", pin: LU.pin }]),
+    // El egreso lo firma un PIN de 4 (D-16): Lu opera y firma Rober.
+    tablet.a.comando("caja", [{ tipo: "egresoCategoria", monto: "500", categoria: "insumos", concepto: "Hielo", comprobante: "", firmaId: "u-rober", pin: "1111" }]),
     tablet.a.comando("config", [{ tipo: "cambiarMiPin", actual: LU.pin, nuevo: "57", repetido: "57" }]),
   ];
   for (const d of hechos) assert.equal(d.ok, true, d.mensaje);
