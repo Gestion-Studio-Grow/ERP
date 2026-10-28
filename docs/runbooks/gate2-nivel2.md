@@ -41,10 +41,13 @@ $P -f N2_hub.sql              # 3 · ApiKey, WebhookSuscripcion, EntregaWebhook,
 $P -f N2_pagos.sql            # 4 · PagoExterno (decisión: Payment no se extiende; ver el archivo)
 $P -f N2_retail.sql           # 5 · Client.limiteCredito, Order.cobroVerificadoEn/Por
 $P -f N2_club_indice.sql      # 6 · ClubReservaIndice
+$P -f N2_integraciones_ruteo.sql  # 6 bis · gsg_conexion_por_cuenta / gsg_conexiones_activas (pase N2; si sale un WARNING de FORCE RLS, anotarlo: no frena)
 $P -f ../rls/0001_enable_rls.sql   # 7 · re-ejecución: policy tenant_isolation en TODA tabla con tenantId
 ```
 
-- Los 1 y 3–6 tienen `BEGIN … COMMIT` adentro: si uno falla, ese archivo no deja nada a medias.
+- El paso **0 bis** (`N2_modulo_mercadopago.sql`) NO va en este bloque: se corre **antes del push a main**
+  (ver `Factory-GSG/00-ESTADO/reingenieria-2026-10/PASE-N2.md`, runbook del día D).
+- Los 1, 3–6 y 6 bis tienen `BEGIN … COMMIT` adentro: si uno falla, ese archivo no deja nada a medias.
 - Todos son idempotentes: si se corta la luz a mitad, se vuelve a correr **desde el archivo que
   falló** (o desde el 1; no rompe nada).
 - `ON_ERROR_STOP=1`: ante el primer error, psql frena. **No seguir con el siguiente archivo**: ir a §5.
@@ -75,6 +78,13 @@ Tiene que salir con código 0 y listar `tenant_isolation` en: `ProductBatch`, `P
 `PagoExterno`, `ClubReservaIndice` (además de las de siempre). Si sale 1: re-correr el paso 7 y
 repetir; si sigue en 1, §5.
 
+Funciones de ruteo (6 bis), con la conexión de la APP (`DATABASE_URL` de Vercel, rol `app_rls`; no
+el rol directo, que no necesariamente puede `SET ROLE app_rls`). Tiene que devolver filas si hay
+conexiones de MP activas:
+`psql "$APP_DATABASE_URL" -c "SELECT count(*) FROM gsg_conexiones_activas('mercadopago', 20)"`
+Si da 0 y `SELECT count(*) FROM "IntegracionConexion" WHERE conector='mercadopago' AND estado='conectada'` (como dueño) da más:
+FORCE RLS sin BYPASSRLS — no rompe nada hoy (ningún código las llama), anotarlo para P5/P6.
+
 Chequeo rápido de enums (opcional):
 `SELECT t.typname, e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid WHERE t.typname IN ('PaymentMethod','UserRole');`
 
@@ -104,11 +114,13 @@ copiada tal cual a psql (probadas en local):
 | Paso | Archivo | Reversa | Pierde datos |
 |---|---|---|---|
 | 7 | `0001_enable_rls.sql` | no se revierte (sólo pone policies; `prisma/rls/0001_rollback.sql` existe pero apaga TODA la RLS — no usar) | no |
+| 6 bis | `N2_integraciones_ruteo.sql` | `DROP FUNCTION` de las dos (pie del archivo) | no (no guardan datos) |
 | 6 | `N2_club_indice.sql` | `DROP TABLE "ClubReservaIndice"` | no (es proyección de la foto) |
 | 5 | `N2_retail.sql` | `DROP COLUMN` de las 3 columnas | límites de fiado y verificaciones cargadas |
 | 4 | `N2_pagos.sql` | `DROP TABLE "PagoExterno"` | conciliación: exportar antes si hay filas |
 | 3 | `N2_hub.sql` | 4 `DROP TABLE` + 2 `DROP COLUMN` + 3 `DROP INDEX` en OutboxEvent (incluye el parcial de P2) | claves, suscripciones y plantillas cargadas |
 | 2 | `N2_enums.sql` | 🔴 **irreversible: no hay `DROP VALUE`**. Se dejan (inocuos si nadie los usa); recrear el tipo es el procedimiento manual al pie (otro Gate 2) | no |
+| 0 bis | `N2_modulo_mercadopago.sql` | `array_remove` SÓLO para los slugs que listó su primer SELECT (pie del archivo) | no |
 | 1 | `CarniceriaRubro.sql` | bloque `ROLLBACK` al pie (tablas, enums y 2 columnas de Product) | lotes y despieces cargados |
 
 Después de una reversa: *Redeploy* en Vercel (los procesos vivos cachean el «sí está» del probe

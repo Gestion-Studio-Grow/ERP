@@ -21,12 +21,14 @@ policy `tenant_isolation` (en el archivo y otra vez en el paso 7).
 
 | # | Archivo | Qué agrega | Lo usan | Estado |
 |---|---|---|---|---|
+| 0 bis | `N2_modulo_mercadopago.sql` | **Dato, no schema**: agrega `mercadopago` a `Tenant.modules` de los negocios que no lo tienen (decisión del dueño 28/10: todos cobran con MP). Con S1/P1, un negocio sin el módulo deja de procesar sus avisos de MP. Se corre **antes del push a main** | S1, P1 | **Preparada, sin aplicar** · pase N2 |
 | 1 | `CarniceriaRubro.sql` (ya estaba) | ver fila de arriba | M3a, M3b | **Preparada, sin aplicar** |
 | 2 | `N2_enums.sql` | `PaymentMethod.DEBITO` y `PaymentMethod.CREDITO` (D-C01: separados; el cierre los suma en «Tarjeta»), `UserRole.REPARTIDOR`, `UserRole.ENCARGADO` — cada `ADD VALUE` en su paso, sin `--single-transaction`. 🔴 Irreversible (no hay `DROP VALUE`) | M1, M6 | **Preparada, sin aplicar** |
 | 3 | `N2_hub.sql` | `ApiKey`, `WebhookSuscripcion`, `EntregaWebhook`, `PlantillaWhatsapp`, `OutboxEvent.version` (default 1) + `.clave` + `@@unique(tenantId, clave)` + índice `(tenantId, processedAt, proximoIntentoEn)` + índice parcial `(tenantId, payload->>'clave') WHERE clave IS NULL` (dedupe de P2) · **paso posterior**: re-correr el backfill de `clave` a los 2 minutos (ver el pie del archivo) | P2, P3, P4, P6 | **Preparada, sin aplicar** |
 | 4 | `N2_pagos.sql` | `PagoExterno` con `@@unique(tenantId, proveedor, idExterno)`, monto `Decimal(14,2)` ≥ 0. **Decisión S2-C4: `Payment` no se extiende** (atado a turno, Float, sin proveedor) — motivo escrito en el archivo | P5, M2, B3 | **Preparada, sin aplicar** |
 | 5 | `N2_retail.sql` | `Client.limiteCredito`, `Order.cobroVerificadoEn/Por` (nullables). `RegistroFrio` comentada hasta M-8 | M7, M2, M10 | **Preparada, sin aplicar** |
 | 6 | `N2_club_indice.sql` | `ClubReservaIndice` (proyección de la foto del club, droppable) | B1, B2, B8 | **Preparada, sin aplicar** |
+| 6 bis | `N2_integraciones_ruteo.sql` | Funciones `gsg_conexion_por_cuenta(conector, cuenta)` y `gsg_conexiones_activas(conector, tope)`: `SECURITY DEFINER`, devuelven sólo `(tenantId, id)` de conexiones que reciben y de negocios con el conector en `modules`; `EXECUTE` sólo para `app_rls`. **Hoy ningún código las llama** (el recorrido por negocio sigue; pasarlo es de P5/P6). ⚠️ Con `0003_force_rls` devolverían 0 filas (el archivo avisa) | P1-C5, P5-C3, P6-C1 | **Preparada, sin aplicar** · pase N2 |
 | 7 | `../rls/0001_enable_rls.sql` | re-ejecución: policy en toda tabla con `tenantId` | todas | se re-corre, no se edita |
 
 Modelos en `prisma/schema.prisma`: líneas con prefijo `// N2: ` (comentadas, como el criterio de
