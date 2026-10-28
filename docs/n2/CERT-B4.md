@@ -305,3 +305,78 @@ Veredicto final: NO CERTIFICA
 1. F4: sitio reempaquetado y `motor-club.test.ts` verde en un export LF limpio.
 2. F5: `largoPinFirma` protegido en G8, con su test.
 3. Sugerido, no bloquea: la guarda de A5 y la reescritura de §8 y §10.
+
+## Respuesta del ingeniero — vuelta 5
+
+- **Rango:** `0d4b802c..a19bfe59` sobre `n2/b4-caja-club`. Worktree `C:/n2b4`, sin `.env` ni base remota. Sin push.
+- **Commits:** `fc8c50fc` (F4), `ac818ce7` (F4, copias del motor), `4e983403` (F5, servidor), `7b13e847` (F5, pantalla), `a19bfe59` (e2e §8 y §10).
+- F1 y F2 no se tocaron: sus tests siguen en verde (caja-core, comandos-core, motor).
+
+### F4 · sitio reempaquetado distinto del build — cerrada
+
+- [VERIFICADO] **Causa:** no era el fin de línea sino el tsconfig. esbuild conserva los `"use strict"` de los módulos que envuelve porque `tsconfig.json` tiene `strict: true`. Con el mismo esbuild 0.28.1 y `tsconfigRaw: "{}"`, el turnero sale con 0 directivas; con el tsconfig de la raíz, con 7. El sitio de `f5e64621` se armó sin ese tsconfig.
+- [VERIFICADO] **El fin de línea también rompía:** en un checkout CRLF (`core.autocrlf=true`) `empaquetar.mjs` ni siquiera corría («app.mjs ya no importa el motor como espera el empaquetador»). La salida de esbuild sí es igual con CRLF o LF.
+- **Arreglo** (`src/tenants/breakpoint/empaquetar.mjs`):
+  - lee la fuente con LF (`leerTexto`) aunque el checkout sea CRLF;
+  - le pasa a esbuild `tsconfig: <raíz>/tsconfig.json` explícito, y falla si no está.
+- **Fin de línea fijado:** `src/tenants/breakpoint/sitio/.gitattributes` (`*.html text eol=lf`) y `src/lib/club/.gitattributes` (`motor.mjs` y `dominio/*.mjs` con `eol=lf`). Esto último hacía falta porque `copia.test.ts` compara sha256 byte a byte: en un clon CRLF limpio fallaba con 76/77 aunque nadie hubiera tocado la copia.
+- **Sitio regenerado con el empaquetador oficial** (`node src/tenants/breakpoint/empaquetar.mjs`), no a mano. `club.html` vuelve a tener 8 `"use strict"` y `turnero.html` 7. `index.html` no cambia.
+- [VERIFICADO] **Corridas en clones limpios** del scratchpad (`git clone`, sin worktrees nuevos), `motor-club.test.ts` + `copia.test.ts`:
+
+  | Clon | Commit | Resultado |
+  |---|---|---|
+  | `core.autocrlf=false` | `fc8c50fc` | 77/77 |
+  | `core.autocrlf=false` | `ac818ce7` | 77/77 |
+  | `core.autocrlf=false` | `a19bfe59` | 77/77 |
+  | `core.autocrlf=true` | `ac818ce7` | 77/77 |
+  | `C:/n2b4` (CRLF) | `a19bfe59` | 77/77 |
+
+  - En los tres clones limpios, volver a correr el empaquetador deja `git status` vacío.
+  - El sitio que arma el checkout CRLF es igual, byte a byte, al que arma el clon LF.
+
+### F5 · firma de caja en 2 por la acción del servidor — cerrada
+
+- **Servidor:** `conservarLoDelicado` (`src/lib/club/delicado.ts`) aplica a quien no es OWNER del ERP. Además de usuarios, PIN y sal, ahora deja como en la foto vigente todo `CONFIG_DELICADA`:
+  - `config.caja`: `largoPinFirma` (D-16) y `pedirNombreJugador`;
+  - `config.tarifas`: los precios por hora;
+  - `config.politica`: seña, cancelación, faltas, tolerancia y apertura;
+  - `config.bloqueoMin`;
+  - `config.cobro`: el alias de la seña;
+  - `config.contactos`: el celular al que van las aprobaciones del dueño;
+  - `caja.fondo`.
+- **Por qué esos campos:** son todos los que escriben «Reglas y precios» y «Avisos» (`configuracion-core.ts` `ejecutar`, casos `reglas` y `avisos`), más el fondo (`ajustarFondo`). [VERIFICADO] Ningún camino de recepción los escribe: busqué las asignaciones en `motor.mjs` y en `club/*.ts(x)`.
+- **Valor nuevo de la base:** si la base no tenía el campo, recepción no puede estrenarlo. Se borra y vale el de fábrica (firma de 4).
+- **Pantalla:** `config-reglas.tsx` sólo ofrece los formularios de Avisos y de Reglas en el puesto del dueño (`puestoDeDuenio`). En otro puesto muestra «Esto se hace desde el puesto del dueño». Sin esto, un dueño del club que guardara desde la tablet de recepción vería el cambio en pantalla y la base lo desharía. Los e2e y los tests de pantalla que editan reglas usan OWNER.
+- **Tests:**
+  - `delicado.test.ts`, +3 casos:
+    - el ataque B3 completo (sin la red, recepción firma el retiro; con la red, `pinCorto`);
+    - recepción no estrena la firma en 2;
+    - un guardado sin cambios pasa tal cual.
+    - El caso 1 de antes usaba `caja.fondo` como «lo que sí pasa»: ahora usa el nombre de un cliente.
+  - `estado-actions-g8.test.ts`, nuevo y adversarial:
+    - llama a `guardarFotoDelClub` (la acción real) con una sesión **RECEPTION**;
+    - reemplaza sólo la guardia, el negocio y el repositorio, que quedan en memoria con versión optimista;
+    - comprueba que la firma sigue en 4, que los precios, la seña, el fondo y el alias no cambian, que lo demás se guarda, que queda el `console.warn` de G8 y que el retiro con PIN de 2 se rechaza por `pinCorto`;
+    - comprueba también que la dueña sí la cambia.
+  - [VERIFICADO] **Prueba de mutación:** con `conservarConfigDelicada` apagada, fallan los 3 tests F5.
+- [A VALIDAR] **Postgres real con RLS:** la misma acción contra la base no se probó, porque `estado-postgres.test.ts` se saltea sin Postgres. Se cierra corriéndolo en CI.
+
+### e2e de caja (obs. 7)
+
+- **`uat-paridad.e2e.ts` §8,** reescrito según `CierreDeCaja.tsx`:
+  - cuenta a ciegas billete por billete y los otros medios;
+  - lo esperado lo saca del motor (`turnoDeCajaAbierto`), porque la pantalla no lo muestra;
+  - firma con un PIN malo (no firma) y después con el de Majo;
+  - «Cerrar el día».
+  - Checks nuevos o cambiados: `8.a-ciegas` (antes de contar no se ve lo esperado; después, «cuadra»), `8.caja` (turno firmado por Majo y cierre del día con diferencia 0) y `8.caja-una-vez` (corte «Cerrada», sin otro «Cerrar el día»).
+- **§10:** el bucle cierra con `cerrarCajaQueQuedo`, que cubre tres casos: la caja abierta por turno, una atrasada por turnos y una atrasada sin turnos (efectivo a ciegas con firma).
+- **`club-pantalla.test.ts`:** la rama de la caja atrasada todavía usaba el rótulo y el PIN de 2 de antes de B4. Se corrigió.
+- **Pendiente:** se revisaron contra el código de la pantalla, pero **no se corrieron**. En esta máquina falta `playwright` y Chromium no arranca. **Hay que correrlos en CI o en la nube:** `test:club-paridad`, `test:club-pase` y `test:club-uat`.
+
+### Verificación (vuelta 5)
+
+- **`npx tsc --noEmit`:** 406 errores, la misma cantidad que en la vuelta 4. Ninguno está en líneas de B4: los de `uat-paridad.e2e.ts` y `club-pantalla.test.ts` son los de siempre, porque falta `playwright`.
+- **`src/lib/club/*.test.ts` + `src/tenants/breakpoint/*.test.ts`:** 191 tests. Pasan 182, fallan 0 y se saltean 9 (Postgres).
+- **`src/app/admin/(dashboard)/club/*.test.ts`:** 660 tests. Pasan 581, fallan 0 y se saltean 79 (Playwright).
+- **No verificado acá:** los e2e (Playwright), Postgres real con RLS y dos puestos, y el QA clic por clic en tablet.
+- **Fuera de alcance, sin tocar:** las observaciones bajas A5 (`corregirMedio` puede dejar el cajón en negativo) y B2 (un dueño con `pinDesactualizado` puede guardar Reglas).
