@@ -131,6 +131,19 @@ test("P2-C6 · separadores dobles o con espacios alrededor del guion no dejan el
   assert.equal(redactarTextoLibre("pedido #1042 de $12500 · 3 u"), "pedido #1042 de $12500 · 3 u", "lo corto queda");
 });
 
+test("P2-C6 · la raya del autocorrector («–», «—») y el signo menos también son separadores", () => {
+  const cancelado = armarSobre({
+    tenantId: "t1", tipo: "pedido.cancelado", version: 1, clave: "pedido:o1:cancelado",
+    datos: { pedidoId: "o1", codigo: 1, motivo: "Llamar al 11 – 5566 – 7788 para coordinar" },
+  });
+  assert.ok(!JSON.stringify(cancelado.payload).includes("5566"), JSON.stringify(cancelado.payload));
+  assert.equal(redactarTextoLibre("tel 11 5566 – 7788"), "tel ******7788");
+  assert.equal(redactarTextoLibre("tel 11—5566—7788"), "tel ******7788");
+  assert.equal(redactarTextoLibre("CUIT 20\u201130123456\u20117"), "CUIT ******4567");
+  assert.equal(redactarTextoLibre("tel 11 5566 \u2212 7788"), "tel ******7788");
+  assert.equal(redactarTextoLibre("pedido #1042 – $12500 · 3 u"), "pedido #1042 – $12500 · 3 u", "lo corto queda");
+});
+
 // 30 observaciones concatenadas, como arca-dispatch.ts las arma para el motivo del rechazo.
 const MOTIVO_ARCA_LARGO = Array.from({ length: 30 }, (_, i) => `${10000 + i}: el campo informado no corresponde con el valor esperado para el receptor (DocNro 20301234567)`).join("; ");
 

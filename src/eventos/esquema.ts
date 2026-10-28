@@ -51,11 +51,12 @@ export type InferirObjeto<S extends Record<string, Esquema<unknown>>> = Aplanar<
 // ── Redacción de texto libre ──────────────────────────────────────────────────
 
 const RE_EMAIL = /[^\s@<>()"',;:]{1,64}@[^\s@<>()"',;:]{1,255}\.[a-z]{2,24}/gi;
-// Tiradas de 6 o más dígitos, con hasta 3 separadores entre dígito y dígito (espacio, guion,
-// punto, barra, paréntesis) y un «+» adelante opcional: teléfonos («11 5566-7788», «11 - 5566 -
+// Tiradas de 6 o más dígitos, con hasta 3 separadores entre dígito y dígito (espacio, guion o
+// cualquier raya Unicode —«–» y «—» las pone el autocorrector del celular—, signo menos, punto,
+// barra, paréntesis) y un «+» adelante opcional: teléfonos («11 5566-7788», «11 - 5566 -
 // 7788», «(011) 5566-7788», «+54 9 11…»), DNI («30.123.456», «30  123  456»), CUIT
 // («20-30123456-7»). Las de 5 o menos (un código de pedido, un precio) quedan como están.
-const RE_DIGITOS = /\+?\d(?:[\s.\-/()]{0,3}\d){5,}/g;
+const RE_DIGITOS = /\+?\d(?:[\s.\/()\p{Pd}\u2212]{0,3}\d){5,}/gu;
 
 /** Enmascara un dato personal dejando los últimos 4 dígitos: «11 5566-7788» → «******7788». */
 export function enmascararTelefono(valor: string | null | undefined): string | null {
