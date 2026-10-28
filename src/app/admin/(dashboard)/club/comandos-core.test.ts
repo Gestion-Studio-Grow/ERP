@@ -8,6 +8,7 @@ import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo, textoDelEstado } from "./almacen";
 import { horariosLibres } from "./alta-core";
 import { comandoSinPin, correrComando, describirComando, FALTA_CODIGO, rebasar, rechazoSinInternet, REGISTRO, SIN_INTERNET_SOLO_EFECTIVO, vaSinInternet, type ArgsDe, type Comando, type NombreDeComando } from "./comandos-core";
+import { huellaDeMovimientos } from "./caja-core";
 import { codigoDeLaDemo } from "./credito-core";
 import { altaEquivalente } from "./sincro-core";
 import { ejecutarConfiguracion, huellaDelElegido, respaldoAntesDeLimpiar, valoresDeReglas } from "./configuracion-core";
@@ -631,7 +632,7 @@ const pinDe = (e: EstadoClub, id: string) => M.pinDeEjemplo(e.usuarios.find((u) 
 
 function cerrarTurnoEnElMostrador(e: EstadoClub) {
   const v = M.turnoDeCajaAbierto(e, M.cajaAbierta(e, AHORA));
-  const contar = enElMostrador(e, "caja", [{ tipo: "contarTurno", dia: null, contado: { mercadopago: "", transferencia: "", debito: "" }, billetes: { monedas: String(v.esperado.efectivo - 500) }, movimientos: v.movimientos.length, medios: v.medios }]);
+  const contar = enElMostrador(e, "caja", [{ tipo: "contarTurno", dia: null, contado: { mercadopago: "", transferencia: "", debito: "" }, billetes: { monedas: String(v.esperado.efectivo - 500) }, movimientos: v.movimientos.length, medios: v.medios, numero: v.numero, huella: huellaDeMovimientos(v.movimientos.map((m) => m.id)) }]);
   const turnoId = M.turnosDelDia(e, v.dia).at(-1)!.id;
   const firmar = enElMostrador(e, "caja", [{ tipo: "cerrarTurno", turnoId, motivo: "faltó un vuelto", firmaId: "u-rober", pin: pinDe(e, "u-rober"), medios: v.medios }]);
   return { contar, firmar, turnoId, dia: v.dia };
@@ -669,7 +670,7 @@ test("B4 (C7) · sin internet: contar y firmar un turno en efectivo va y se re-a
 });
 
 test("B4 (C7) · un turno con Mercado Pago no se cierra sin internet (la pantalla lo deja en espera); si en la base entró otro cobro, se vuelve a contar", () => {
-  const contarMp = [{ tipo: "contarTurno", dia: null, contado: { mercadopago: "5000" }, billetes: {}, movimientos: 2, medios: ["efectivo", "mercadopago"] }] as ArgsDe<"caja">;
+  const contarMp = [{ tipo: "contarTurno", dia: null, contado: { mercadopago: "5000" }, billetes: {}, movimientos: 2, medios: ["efectivo", "mercadopago"], numero: 1, huella: "x" }] as ArgsDe<"caja">;
   assert.equal(vaSinInternet("caja", contarMp), false);
   assert.equal(rechazoSinInternet("caja", contarMp), SIN_INTERNET_SOLO_EFECTIVO);
   const firmarMp = [{ tipo: "cerrarTurno", turnoId: "t", motivo: "", firmaId: null, pin: "1111", medios: ["mercadopago"] }] as ArgsDe<"caja">;

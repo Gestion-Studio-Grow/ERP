@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo } from "./almacen";
-import { MOVIMIENTOS_POR_PAGINA, PIN_VIEJO_CAJA, armarCaja, armarTurno, ejecutarCaja, firmantes, leerMonto, movimientosALaVista, pinesDeEjemplo, puedeAjustarFondo, puedeFirmarCierres } from "./caja-core";
+import { MOVIMIENTOS_POR_PAGINA, PIN_VIEJO_CAJA, type AccionCaja, armarCaja, armarTurno, ejecutarCaja, firmantes, leerMonto, movimientosALaVista, pinesDeEjemplo, puedeAjustarFondo, puedeFirmarCierres } from "./caja-core";
 import { ejecutar } from "./cuenta-core";
 import { ejecutarBuffet } from "./buffet-core";
 
@@ -286,11 +286,11 @@ test("B4 · el turno a ciegas: la vista del turno abierto no trae ningún import
   assert.equal(v.paraFirmar, null);
   // Nada de lo esperado: ni efectivo ni medios (el texto de la vista no trae el efectivo esperado).
   assert.ok(!v.firma.includes(String(armarCaja(e, AHORA).efectivoEsperado)), "lo esperado no está en la vista del turno");
-  const sinContar = ejecutarCaja(e, { tipo: "contarTurno", dia: null, contado: {}, billetes: {}, movimientos: v.movimientos, medios: v.medios }, AHORA, auth);
+  const sinContar = ejecutarCaja(e, { tipo: "contarTurno", dia: null, contado: {}, billetes: {}, movimientos: v.movimientos, medios: v.medios, numero: v.numero, huella: v.huella }, AHORA, auth);
   assert.equal(sinContar.ok, false, "sin efectivo contado no");
   const t = M.turnoDeCajaAbierto(e, v.dia);
   const contado: Record<string, string> = Object.fromEntries(["mercadopago", "transferencia", "debito"].map((k) => [k, String(t.esperado[k as "debito"])]));
-  const d = ejecutarCaja(e, { tipo: "contarTurno", dia: null, contado, billetes: { monedas: String(t.esperado.efectivo - 500) }, movimientos: v.movimientos, medios: v.medios }, AHORA, auth);
+  const d = ejecutarCaja(e, { tipo: "contarTurno", dia: null, contado, billetes: { monedas: String(t.esperado.efectivo - 500) }, movimientos: v.movimientos, medios: v.medios, numero: v.numero, huella: v.huella }, AHORA, auth);
   assert.equal(d.ok, true, d.mensaje);
   assert.equal(d.pin, null, "contar no lleva PIN");
   assert.match(d.mensaje, /Faltan \$ 500/);
@@ -451,6 +451,38 @@ test("F3 · el conteo re-aplicado sin internet no cae en OTRO turno aunque coinc
   assert.equal(ejecutarCaja(e, { ...accion, numero: otro.numero, huella: otro.huella }, { fecha: HOY, min: 16 * 60 }, auth).ok, true);
 });
 
+test("F3 (vuelta 4) · un conteo SIN número ni huella no cae con la regla vieja (cantidad + medios) en otro turno: se vuelve a contar", () => {
+  const { e, auth } = demo();
+  e.caja.movimientos = [];
+  venderEfectivo(e, { fecha: HOY, min: 13 * 60 });
+  venderEfectivo(e, { fecha: HOY, min: 13 * 60 + 5 });
+  const visto = armarTurno(e, AHORA);
+  contarYFirmarTurno(e, auth, { fecha: HOY, min: 14 * 60 });
+  venderEfectivo(e, { fecha: HOY, min: 15 * 60 });
+  venderEfectivo(e, { fecha: HOY, min: 15 * 60 + 5 });
+  const ahora = { fecha: HOY, min: 16 * 60 };
+  // Misma cantidad (2) y mismos medios (efectivo) que el turno 2: con la regla vieja se aplicaba al turno equivocado.
+  const base = { tipo: "contarTurno" as const, dia: null, contado: {}, billetes: { monedas: "999999" }, movimientos: visto.movimientos, medios: visto.medios };
+  const ataques = [
+    base,
+    { ...base, numero: visto.numero },
+    { ...base, huella: visto.huella },
+    { ...base, numero: "2", huella: visto.huella },
+    { ...base, numero: 2, huella: "" },
+    { ...base, numero: Number.NaN, huella: visto.huella },
+  ];
+  for (const a of ataques) {
+    const r = ejecutarCaja(e, a as unknown as AccionCaja, ahora, auth);
+    assert.equal(r.ok, false, `${JSON.stringify(a)} → ${r.mensaje}`);
+    assert.match(r.mensaje, /volvé a contar/);
+  }
+  assert.equal(M.turnosDelDia(e, HOY).length, 1, "ningún conteo selló el turno 2");
+  assert.ok(e.caja.movimientos.filter((m) => !m.turno).length === 2, "los dos cobros del turno 2 siguen sin turno");
+  // El conteo de la pantalla (con número y huella del turno abierto) sigue andando: F3 no se reabre y nada se trabó.
+  const actual = armarTurno(e, ahora);
+  assert.equal(ejecutarCaja(e, { ...base, numero: actual.numero, huella: actual.huella }, ahora, auth).ok, true);
+});
+
 test("B4-C1 · arqueo a ciegas: a quien no firma cierres la lista del turno abierto le va sin importes; contado el turno, vuelven", () => {
   const { e, auth } = demo();
   const recepcion = operadorDeLaDemo(e, "RECEPTION")!.usuario.id;
@@ -472,7 +504,7 @@ test("B4-C1 · arqueo a ciegas: a quien no firma cierres la lista del turno abie
   const t = armarTurno(e, AHORA);
   const esperado = M.turnoDeCajaAbierto(e, t.dia).esperado;
   const contado: Record<string, string> = Object.fromEntries(["mercadopago", "transferencia", "debito"].map((k) => [k, String(esperado[k as "debito"])]));
-  assert.equal(ejecutarCaja(e, { tipo: "contarTurno", dia: null, contado, billetes: { monedas: String(esperado.efectivo) }, movimientos: t.movimientos, medios: t.medios }, AHORA, auth).ok, true);
+  assert.equal(ejecutarCaja(e, { tipo: "contarTurno", dia: null, contado, billetes: { monedas: String(esperado.efectivo) }, movimientos: t.movimientos, medios: t.medios, numero: t.numero, huella: t.huella }, AHORA, auth).ok, true);
   const despues = armarCaja(e, AHORA);
   assert.ok(movimientosALaVista(despues.movimientos, false).every((m) => m.monto !== null), "los del turno contado van con importe");
 });

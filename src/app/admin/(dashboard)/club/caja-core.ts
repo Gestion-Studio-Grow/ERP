@@ -311,7 +311,7 @@ export type AccionCaja =
   | { tipo: "cerrar"; contado: string; dia: Fecha | null; pin: string; firmaId?: string | null }
   | { tipo: "fondo"; monto: string }
   /** Paso 1 del cierre del turno, A CIEGAS (sin PIN de firma): lo contado por medio y los billetes por denominación. */
-  | { tipo: "contarTurno"; dia: Fecha | null; contado: Partial<Record<string, string>>; billetes: Record<string, string>; movimientos: number; medios: string[]; numero?: number; huella?: string }
+  | { tipo: "contarTurno"; dia: Fecha | null; contado: Partial<Record<string, string>>; billetes: Record<string, string>; movimientos: number; medios: string[]; numero: number; huella: string }
   /** Paso 2: firma (PIN de firma) y motivo si no cuadró. `medios`: los del turno (sin internet, sólo efectivo). */
   | { tipo: "cerrarTurno"; turnoId: string; motivo: string; firmaId: string | null; pin: string; medios: string[] }
   | { tipo: "corregirMedio"; movimientoId: string; medio: string; motivo: string }
@@ -349,13 +349,16 @@ function sinFirma(estado: EstadoClub, accion: AccionCaja, ahora: Ahora, auth: Au
   if (accion.tipo === "contarTurno") {
     // Lo contado es de UN turno: si al re-aplicarse (sin internet, otro puesto) el turno abierto ya es otro —otro número
     // u otros movimientos, aunque sean la misma cantidad y los mismos medios—, se vuelve a contar.
-    if (accion.numero != null || accion.huella != null) {
-      const dia = accion.dia && !cajaCerrada(estado, accion.dia) ? accion.dia : accion.dia ? null : cajaAbierta(estado, ahora);
-      if (dia) {
-        const t = turnoDeCajaAbierto(estado, dia);
-        const otro = (accion.numero != null && accion.numero !== t.numero) || (accion.huella != null && accion.huella !== huellaDeMovimientos(t.movimientos.map((m) => m.id)));
-        if (otro && !t.pendienteDeFirma) return { ok: false, mensaje: "Mientras contabas cambió la caja (se cerró ese turno o entró otro cobro): volvé a contar.", pin: null };
-      }
+    // Sin número ni huella (un comando armado a mano o de antes del arreglo de F3) no hay cómo saber de qué turno es:
+    // no se aplica con la regla vieja (cantidad + medios), se vuelve a contar. Ningún puesto en producción mandó nunca
+    // un `contarTurno` sin ellos: la caja por turnos todavía no llegó a `main`.
+    if (!Number.isInteger(accion.numero) || typeof accion.huella !== "string" || !accion.huella)
+      return { ok: false, mensaje: "Este conteo no dice de qué turno es: volvé a contar.", pin: null };
+    const diaDelConteo = accion.dia && !cajaCerrada(estado, accion.dia) ? accion.dia : accion.dia ? null : cajaAbierta(estado, ahora);
+    if (diaDelConteo) {
+      const t = turnoDeCajaAbierto(estado, diaDelConteo);
+      const otro = accion.numero !== t.numero || accion.huella !== huellaDeMovimientos(t.movimientos.map((m) => m.id));
+      if (otro && !t.pendienteDeFirma) return { ok: false, mensaje: "Mientras contabas cambió la caja (se cerró ese turno o entró otro cobro): volvé a contar.", pin: null };
     }
     const contado = Object.fromEntries(Object.entries(accion.contado).map(([k, v]) => [k, v == null ? null : leerOpcional(v)]));
     const billetes = Object.fromEntries(Object.entries(accion.billetes).filter(([, v]) => String(v).trim() !== "").map(([k, v]) => [k, k === "monedas" ? leerMonto(String(v)) : Number(String(v).trim())]));
