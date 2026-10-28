@@ -1,0 +1,4 @@
+# Copias controladas del motor del club (ORIGEN.json): copia.test.ts compara su sha256 byte a byte, y la copia
+# se escribe con LF (scripts/club-resync.mjs). Con LF también en Windows (core.autocrlf=true). CERT-B4 vuelta 5.
+motor.mjs text eol=lf
+dominio/*.mjs text eol=lf
