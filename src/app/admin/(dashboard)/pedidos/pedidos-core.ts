@@ -595,6 +595,62 @@ export function anuncioDelChip(actual: ConteoDePedidosNuevos): string {
   return `Entró un pedido nuevo de la tienda${numero}.${resto}`;
 }
 
+/** A dónde lleva el toque del chip (y el de la notificación): el cajón del más viejo. PURA. */
+export function hrefDelChip(c: ConteoDePedidosNuevos): string {
+  return c.masViejo ? `/admin/pedidos?pedido=${encodeURIComponent(c.masViejo.id)}` : "/admin/pedidos";
+}
+
+/**
+ * ¿El más viejo ya espera demasiado? Pasados `ESPERA_DE_LA_TIENDA_MIN` (15, provisional a confirmar
+ * con Magra: el MISMO umbral que la línea de estado del tablero) el chip pasa al tono de alerta y
+ * dice «esperando hace 25 min». null si no hay pedidos o si todavía no llegó al umbral. PURA.
+ */
+export function alertaDelChip(c: ConteoDePedidosNuevos, ahora: number): { minutos: number; texto: string } | null {
+  if (c.cantidad <= 0 || !c.masViejo) return null;
+  const minutos = minutosDesde(c.masViejo.creado, ahora);
+  if (minutos < ESPERA_DE_LA_TIENDA_MIN) return null;
+  const esperando = `esperando hace ${duracionCorta(minutos)}`;
+  return {
+    minutos,
+    texto: c.cantidad === 1 ? `1 pedido nuevo · ${esperando}` : `${c.cantidad} pedidos nuevos · el más viejo ${esperando}`,
+  };
+}
+
+/** Lo que dice el chip, con la alerta si corresponde: es lo que se ve y con lo que arranca el nombre. PURA. */
+export function textoVisibleDelChip(c: ConteoDePedidosNuevos, ahora: number): string | null {
+  return alertaDelChip(c, ahora)?.texto ?? textoDelChipDePedidosNuevos(c, ahora);
+}
+
+/** El nombre para el lector, arrancando por lo que se VE (con la alerta, si la hay). PURA. */
+export function etiquetaVisibleDelChip(c: ConteoDePedidosNuevos, ahora: number): string | null {
+  const texto = textoVisibleDelChip(c, ahora);
+  if (!texto || !c.masViejo) return texto;
+  return `${texto}. Pedidos de la tienda: abrir el #${c.masViejo.code}`;
+}
+
+/** El «(2) » que se le pone adelante al título de la pestaña. */
+const PREFIJO_DEL_TITULO = /^\(\d+\)\s/;
+
+/**
+ * El título de la pestaña con los pedidos que esperan: «(2) Vender · Magra»; con 0, el título tal
+ * cual. Si ya traía un «(N) » (de la vuelta anterior) se reemplaza, nunca se apila. PURA.
+ */
+export function tituloConPedidos(titulo: string, cantidad: number): string {
+  const base = titulo.replace(PREFIJO_DEL_TITULO, "");
+  return cantidad > 0 ? `(${cantidad}) ${base}` : base;
+}
+
+/** La notificación del navegador para el pedido que entró (opt-in). `tag` evita repetirla. PURA. */
+export function notificacionDelChip(c: ConteoDePedidosNuevos): { titulo: string; cuerpo: string; href: string; tag: string } | null {
+  if (c.ultimoCode === null || c.cantidad <= 0) return null;
+  return {
+    titulo: "Pedido nuevo de la tienda",
+    cuerpo: anuncioDelChip(c),
+    href: hrefDelChip(c),
+    tag: `pedido-nuevo-${c.ultimoCode}`,
+  };
+}
+
 // ── LA BANDEJA EN COLUMNAS (reingeniería Magra, tanda 2 · 2C; magra-DISENO.md §2.2) ─────────────
 // Con el mostrador boutique prendido, la bandeja deja de ser una tabla con filtros y pasa a ser el
 // tablero físico del local: cinco columnas, de izquierda a derecha el camino del pedido, y en cada

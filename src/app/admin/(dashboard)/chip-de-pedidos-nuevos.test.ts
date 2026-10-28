@@ -20,12 +20,19 @@ import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "playwright";
 import {
   CRITERIO_PEDIDO_NUEVO,
+  ESPERA_DE_LA_TIENDA_MIN,
   REFRESCO_DEL_CHIP_MS,
+  alertaDelChip,
   anuncioDelChip,
   entroUnPedidoNuevo,
   etiquetaDelChipDePedidosNuevos,
+  etiquetaVisibleDelChip,
+  hrefDelChip,
+  notificacionDelChip,
   pedidosDeLaTiendaEsperando,
   textoDelChipDePedidosNuevos,
+  textoVisibleDelChip,
+  tituloConPedidos,
   type ConteoDePedidosNuevos,
 } from "./pedidos/pedidos-core";
 
@@ -83,6 +90,40 @@ test("«nuevo» es lo MISMO que la línea de estado del tablero: ONLINE y en PEN
   ];
   const filtrados = pedidos.filter((p) => p.canal === CRITERIO_PEDIDO_NUEVO.channel && p.status === CRITERIO_PEDIDO_NUEVO.status);
   assert.equal(pedidosDeLaTiendaEsperando(pedidos, ahora)?.esperando, filtrados.length);
+});
+
+test("B1 · pasados 15 min el chip pasa a alerta y dice «esperando hace 25 min» (el mismo umbral que el tablero)", () => {
+  assert.equal(ESPERA_DE_LA_TIENDA_MIN, 15, "provisional a confirmar con Magra");
+  assert.equal(alertaDelChip(conteo(1, 14, 128), AHORA), null, "a los 14 min, todavía no");
+  assert.equal(alertaDelChip(conteo(0, 0, null), AHORA), null, "sin pedidos, nada");
+  assert.deepEqual(alertaDelChip(conteo(1, 15, 128), AHORA), { minutos: 15, texto: "1 pedido nuevo · esperando hace 15 min" });
+  assert.deepEqual(alertaDelChip(conteo(1, 25, 128), AHORA), { minutos: 25, texto: "1 pedido nuevo · esperando hace 25 min" });
+  assert.equal(alertaDelChip(conteo(3, 95, 131), AHORA)?.texto, "3 pedidos nuevos · el más viejo esperando hace 1 h 35 min");
+  // Lo que se ve y con lo que arranca el nombre para el lector.
+  assert.equal(textoVisibleDelChip(conteo(2, 12, 130), AHORA), "2 pedidos nuevos · el más viejo hace 12 min", "sin alerta, el texto de siempre");
+  assert.equal(textoVisibleDelChip(conteo(1, 25, 128), AHORA), "1 pedido nuevo · esperando hace 25 min");
+  assert.equal(etiquetaVisibleDelChip(conteo(1, 25, 128), AHORA), "1 pedido nuevo · esperando hace 25 min. Pedidos de la tienda: abrir el #128");
+  assert.equal(etiquetaVisibleDelChip(conteo(2, 12, 130), AHORA), etiquetaDelChipDePedidosNuevos(conteo(2, 12, 130), AHORA));
+  assert.equal(textoVisibleDelChip(conteo(0, 0, null), AHORA), null);
+});
+
+test("B2 · el título de la pestaña: «(N) <título>» con pedidos, sin apilar, y el de siempre con 0", () => {
+  assert.equal(tituloConPedidos("Vender · Magra", 2), "(2) Vender · Magra");
+  assert.equal(tituloConPedidos("(2) Vender · Magra", 3), "(3) Vender · Magra", "se reemplaza, no se apila");
+  assert.equal(tituloConPedidos("(3) Vender · Magra", 0), "Vender · Magra", "con 0 vuelve el de siempre");
+  assert.equal(tituloConPedidos("Vender · Magra", 0), "Vender · Magra");
+  assert.equal(tituloConPedidos("Pedidos (web)", 1), "(1) Pedidos (web)", "un paréntesis en el medio no se toca");
+});
+
+test("B3 · la notificación del pedido que entró: dice cuál, abre el más viejo y no se repite (tag por número)", () => {
+  assert.equal(notificacionDelChip(conteo(0, 0, null)), null);
+  assert.deepEqual(notificacionDelChip(conteo(2, 5, 130)), {
+    titulo: "Pedido nuevo de la tienda",
+    cuerpo: "Entró un pedido nuevo de la tienda (#130). Hay 2 esperando.",
+    href: "/admin/pedidos?pedido=p128",
+    tag: "pedido-nuevo-130",
+  });
+  assert.equal(hrefDelChip(conteo(0, 0, null)), "/admin/pedidos");
 });
 
 // ── La forma ─────────────────────────────────────────────────────────────────────────────────
@@ -144,6 +185,23 @@ let visible = true;
 Object.defineProperty(document, "visibilityState", { configurable: true, get: () => (visible ? "visible" : "hidden") });
 window.__pestana = (v) => { visible = v; document.dispatchEvent(new Event("visibilitychange")); };
 `;
+// La Notification del navegador, reemplazada: el permiso lo fija el test y las que se abren quedan en `__notifs`.
+type Permiso = "no-soportado" | "default" | "granted" | "denied";
+const notificacionFalsa = (permiso: Permiso) => `
+window.__notifs = [];
+window.__pedidos = 0;
+if (${JSON.stringify(permiso)} === "no-soportado") {
+  delete window.Notification;
+} else {
+  class N {
+    constructor(titulo, o) { this.titulo = titulo; this.cuerpo = o.body; this.tag = o.tag; this.onclick = null; window.__notifs.push(this); }
+    close() { this.cerrada = true; }
+  }
+  N.permission = ${JSON.stringify(permiso)};
+  N.requestPermission = () => { window.__pedidos++; N.permission = "granted"; return Promise.resolve("granted"); };
+  window.Notification = N;
+}
+`;
 
 function rutaDeChromium(porDefecto: () => string): string | null {
   try {
@@ -164,7 +222,15 @@ function rutaDeChromium(porDefecto: () => string): string | null {
   return null;
 }
 
-type Ventana = { __montar: () => void; __conteo: ConteoDePedidosNuevos; __consultas: number; __bips: number; __pestana: (v: boolean) => void };
+type Ventana = {
+  __montar: () => void;
+  __conteo: ConteoDePedidosNuevos;
+  __consultas: number;
+  __bips: number;
+  __pestana: (v: boolean) => void;
+  __notifs: { titulo: string; cuerpo: string; tag: string; onclick: (() => void) | null }[];
+  __pedidos: number;
+};
 
 describe("El chip de pedidos nuevos en el navegador", { timeout: 120_000 }, () => {
   let browser: Browser | null = null;
@@ -219,7 +285,7 @@ describe("El chip de pedidos nuevos en el navegador", { timeout: 120_000 }, () =
   });
 
   const ORIGEN = "http://localhost:3996/admin/vender";
-  async function montar(inicial: ConteoDePedidosNuevos, ancho = 1280): Promise<{ page: Page; errores: string[] }> {
+  async function montar(inicial: ConteoDePedidosNuevos, ancho = 1280, permiso: Permiso = "no-soportado"): Promise<{ page: Page; errores: string[] }> {
     const page = await browser!.newPage({ viewport: { width: ancho, height: 800 }, locale: "es-AR" });
     const errores: string[] = [];
     page.on("pageerror", (e) => errores.push(e.message));
@@ -228,10 +294,16 @@ describe("El chip de pedidos nuevos en el navegador", { timeout: 120_000 }, () =
     });
     await page.clock.install({ time: AHORA });
     await page.route(ORIGEN, (r) =>
-      r.fulfill({ contentType: "text/html; charset=utf-8", body: '<!doctype html><html lang="es"><body><div id="root"></div></body></html>' }),
+      r.fulfill({
+        contentType: "text/html; charset=utf-8",
+        body: '<!doctype html><html lang="es"><head><title>Vender · Magra</title></head><body><div id="root"></div></body></html>',
+      }),
     );
+    // A donde lleva el toque de la notificación.
+    await page.route(/\/admin\/pedidos/, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: "<!doctype html><title>Pedidos</title>" }));
     await page.goto(ORIGEN);
     await page.addScriptTag({ content: AUDIO_FALSO });
+    await page.addScriptTag({ content: notificacionFalsa(permiso) });
     await page.evaluate((c) => ((window as unknown as Ventana).__conteo = c), inicial);
     await page.addScriptTag({ content: bundle });
     await page.evaluate(() => (window as unknown as Ventana).__montar());
@@ -302,6 +374,77 @@ describe("El chip de pedidos nuevos en el navegador", { timeout: 120_000 }, () =
     assert.equal(await ventana(page, "__bips"), 0, "apagado, no suena");
     await page.getByRole("status").filter({ hasText: "(#129)" }).waitFor({ state: "attached" });
     assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("B1 · a los 12 min el chip es el de siempre; cuando el más viejo pasa los 15 min, tono de alerta y «esperando hace …»", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar(conteo(1, 12, 128));
+    const pc = page.locator("#pc [data-ui='chip-pedidos-nuevos']");
+    await pc.getByText("1 pedido nuevo · hace 12 min").waitFor();
+    assert.equal(await pc.getAttribute("data-tono"), null, "sin alerta todavía");
+    await poner(page, conteo(1, 25, 128));
+    await page.clock.runFor(REFRESCO_DEL_CHIP_MS);
+    await pc.getByText("1 pedido nuevo · esperando hace 25 min").waitFor();
+    assert.equal(await pc.getAttribute("data-tono"), "alerta");
+    assert.match((await pc.getByRole("link").getAttribute("class")) ?? "", /bg-danger-soft text-danger/, "el token de alerta del kit");
+    await pc.getByRole("link", { name: "1 pedido nuevo · esperando hace 25 min. Pedidos de la tienda: abrir el #128" }).waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("B2 · el título de la pestaña lleva «(N) » mientras haya pedidos, sobrevive a la navegación y vuelve con 0", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar(conteo(2, 3, 130));
+    await page.waitForFunction(() => document.title === "(2) Vender · Magra");
+    // Next pone el título de la página nueva al navegar: se le vuelve a poner el número.
+    await page.evaluate(() => (document.title = "Pedidos · Magra"));
+    await page.waitForFunction(() => document.title === "(2) Pedidos · Magra");
+    await poner(page, conteo(0, 0, null));
+    await page.clock.runFor(REFRESCO_DEL_CHIP_MS);
+    await page.waitForFunction(() => document.title === "Pedidos · Magra");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  for (const permiso of ["denied", "no-soportado"] as const) {
+    test(`B3 · notificación ${permiso === "denied" ? "denegada" : "sin soporte"}: ni la tecla ni un error, y el pedido que entra no la intenta`, async (t) => {
+      if (sinNavegador) return t.skip(sinNavegador);
+      const { page, errores } = await montar(conteo(1, 2, 127, 127), 1280, permiso);
+      await page.locator("#pc").getByText("1 pedido nuevo · hace 2 min").waitFor();
+      assert.equal(await page.locator("[data-ui='pedir-notificacion']").count(), 0, "ni un nodo");
+      await poner(page, conteo(2, 3, 128, 127));
+      await page.clock.runFor(REFRESCO_DEL_CHIP_MS);
+      await page.locator("#pc").getByText("2 pedidos nuevos · el más viejo hace 3 min").waitFor();
+      assert.equal(await ventana(page, "__notifs").then((n) => n.length), 0);
+      assert.deepEqual(errores, []);
+      await page.close();
+    });
+  }
+
+  test("B3 · con el permiso concedido: una notificación por pedido que entra, y el toque abre el pedido", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar(conteo(1, 2, 127, 127), 1280, "default");
+    const tecla = page.locator("#pc").getByRole("button", { name: "Avisarme aunque esté en otra ventana" });
+    await tecla.click();
+    await tecla.waitFor({ state: "detached" });
+    assert.equal(await ventana(page, "__pedidos"), 1, "se pidió el permiso una vez");
+    assert.equal(await ventana(page, "__notifs").then((n) => n.length), 0, "lo que ya estaba no notifica");
+
+    await poner(page, conteo(2, 3, 128, 127));
+    await page.clock.runFor(REFRESCO_DEL_CHIP_MS);
+    await page.waitForFunction(() => (window as unknown as Ventana).__notifs.length === 1);
+    const [n] = await ventana(page, "__notifs");
+    assert.equal(n.titulo, "Pedido nuevo de la tienda");
+    assert.equal(n.cuerpo, "Entró un pedido nuevo de la tienda (#128). Hay 2 esperando.");
+    assert.equal(n.tag, "pedido-nuevo-128");
+    // La vuelta siguiente sin novedades no repite.
+    await page.clock.runFor(REFRESCO_DEL_CHIP_MS);
+    assert.equal(await ventana(page, "__notifs").then((x) => x.length), 1);
+    assert.deepEqual(errores, []);
+
+    await page.evaluate(() => (window as unknown as Ventana).__notifs[0].onclick?.());
+    await page.waitForURL("http://localhost:3996/admin/pedidos?pedido=p127");
     await page.close();
   });
 });

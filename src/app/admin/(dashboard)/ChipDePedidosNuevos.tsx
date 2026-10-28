@@ -21,6 +21,11 @@
 //     nada: ni un nodo de más en el HTML.
 //
 // Si la consulta falla (sin señal), queda lo último que se supo: no se inventa ni se borra nada.
+//
+// Tanda «Consola y aviso» (frente B): pasados 15 min (provisional a confirmar con Magra) el chip pasa
+// al tono de alerta y dice «esperando hace 25 min»; el título de la pestaña lleva «(N) » mientras haya
+// pedidos esperando; y quien quiera se suscribe a la notificación del navegador (opt-in, sin servidor
+// de push). Sin `PedidosNuevos` arriba (CH) nada de esto corre.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -28,23 +33,36 @@ import { contarPedidosNuevos } from "./pedidos-nuevos";
 import {
   PAUSA_MINIMA_DEL_CHIP_MS,
   REFRESCO_DEL_CHIP_MS,
+  alertaDelChip,
   anuncioDelChip,
   entroUnPedidoNuevo,
-  etiquetaDelChipDePedidosNuevos,
-  textoDelChipDePedidosNuevos,
+  etiquetaVisibleDelChip,
+  hrefDelChip,
+  notificacionDelChip,
+  textoVisibleDelChip,
+  tituloConPedidos,
   type ConteoDePedidosNuevos,
 } from "./pedidos/pedidos-core";
 import {
   ChipQueSuena,
   bip,
   guardarPreferenciaDeSonido,
+  notificar,
+  pedirPermisoDeNotificacion,
   useAudioDelAviso,
+  usePermisoDeNotificacion,
   useSonidoDelAviso,
+  type PermisoDeNotificacion,
 } from "./pedidos/sonido-del-aviso";
 
 type Lectura = { conteo: ConteoDePedidosNuevos; ahora: number };
 
-const Contexto = createContext<{ lectura: Lectura | null; sonido: boolean; cambiarSonido: () => void } | null>(null);
+const Contexto = createContext<{
+  lectura: Lectura | null;
+  sonido: boolean;
+  cambiarSonido: () => void;
+  permiso: PermisoDeNotificacion;
+} | null>(null);
 
 /** Quién pregunta, suena y anuncia: uno solo por panel. `consultar` se inyecta en los tests. */
 export function PedidosNuevos({
@@ -81,6 +99,8 @@ export function PedidosNuevos({
         if (entroUnPedidoNuevo(anterior.current, conteo)) {
           setAnuncio(anuncioDelChip(conteo));
           if (sonidoActual.current) bip(audio.current);
+          // Opt-in: sólo con el permiso concedido; una por pedido que entra (el `tag` no la repite).
+          notificar(notificacionDelChip(conteo));
         }
         anterior.current = conteo;
         setLectura({ conteo, ahora: Date.now() });
@@ -102,9 +122,28 @@ export function PedidosNuevos({
   }, [consultar, audio]);
 
   const cambiarSonido = useCallback(() => guardarPreferenciaDeSonido(!sonidoActual.current), []);
+  const permiso = usePermisoDeNotificacion();
+
+  // El título de la pestaña: «(2) Vender · …» mientras haya pedidos esperando; con 0, el de siempre.
+  // Al navegar, Next pone el título de la página nueva: el observador le vuelve a poner el número.
+  const cantidad = lectura?.conteo.cantidad ?? 0;
+  useEffect(() => {
+    const poner = () => {
+      const nuevo = tituloConPedidos(document.title, cantidad);
+      if (document.title !== nuevo) document.title = nuevo;
+    };
+    poner();
+    const observador = new MutationObserver(poner);
+    observador.observe(document.head, { childList: true, subtree: true, characterData: true });
+    return () => {
+      observador.disconnect();
+      const limpio = tituloConPedidos(document.title, 0);
+      if (document.title !== limpio) document.title = limpio;
+    };
+  }, [cantidad]);
 
   return (
-    <Contexto.Provider value={{ lectura, sonido, cambiarSonido }}>
+    <Contexto.Provider value={{ lectura, sonido, cambiarSonido, permiso }}>
       <ChipQueSuena.Provider value={true}>
         {children}
         {/* Un solo anuncio para el lector de pantalla, aunque el chip se vea en dos lugares. */}
@@ -125,15 +164,17 @@ export function ChipDePedidosNuevos({ lugar, arriba = "top-14" }: { lugar: "pc" 
   const c = useContext(Contexto);
   if (!c?.lectura) return null;
   const { conteo, ahora } = c.lectura;
-  const texto = textoDelChipDePedidosNuevos(conteo, ahora);
+  const texto = textoVisibleDelChip(conteo, ahora);
   if (!texto) return null;
-  const href = conteo.masViejo ? `/admin/pedidos?pedido=${encodeURIComponent(conteo.masViejo.id)}` : "/admin/pedidos";
+  // Pasados los 15 min (provisional a confirmar con Magra) el chip pasa al tono de alerta.
+  const alerta = alertaDelChip(conteo, ahora) !== null;
+  const tono = alerta ? "bg-danger-soft text-danger ring-1 ring-inset ring-danger" : "bg-accent text-on-accent";
   const chip = (
-    <span data-ui="chip-pedidos-nuevos" className="inline-flex min-w-0 items-center gap-1">
+    <span data-ui="chip-pedidos-nuevos" data-tono={alerta ? "alerta" : undefined} className="inline-flex min-w-0 items-center gap-1">
       <Link
-        href={href}
-        aria-label={etiquetaDelChipDePedidosNuevos(conteo, ahora) ?? texto}
-        className="inline-flex min-h-11 min-w-0 items-center gap-2 rounded-full bg-accent px-3.5 text-sm font-semibold text-on-accent tabular-nums hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        href={hrefDelChip(conteo)}
+        aria-label={etiquetaVisibleDelChip(conteo, ahora) ?? texto}
+        className={`inline-flex min-h-11 min-w-0 items-center gap-2 rounded-full ${tono} px-3.5 text-sm font-semibold tabular-nums hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus`}
       >
         <span aria-hidden className="size-2 shrink-0 rounded-full bg-current" />
         <span className="truncate">{texto}</span>
@@ -148,6 +189,19 @@ export function ChipDePedidosNuevos({ lugar, arriba = "top-14" }: { lugar: "pc" 
       >
         <IconoSonido prendido={c.sonido} />
       </button>
+      {/* Opt-in de la notificación del navegador: sólo si se puede pedir (ni denegada ni sin soporte). */}
+      {c.permiso === "default" && (
+        <button
+          type="button"
+          onClick={() => void pedirPermisoDeNotificacion()}
+          aria-label="Avisarme aunque esté en otra ventana"
+          title="Avisarme aunque esté en otra ventana"
+          data-ui="pedir-notificacion"
+          className="grid size-11 shrink-0 place-items-center rounded-full text-muted hover:bg-surface-sunken hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          <IconoVentana />
+        </button>
+      )}
     </span>
   );
   if (lugar === "pc") return <span className="hidden min-w-0 lg:inline-flex">{chip}</span>;
@@ -162,6 +216,17 @@ function IconoSonido({ prendido }: { prendido: boolean }) {
       <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
       <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
       {!prendido && <path d="M3 3l18 18" />}
+    </svg>
+  );
+}
+
+/** Una ventana con un punto: «avisame afuera de esta pantalla». */
+function IconoVentana() {
+  return (
+    <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="5" width="15" height="14" rx="2" />
+      <path d="M3 9h15" />
+      <circle cx="19" cy="5" r="3" fill="currentColor" />
     </svg>
   );
 }

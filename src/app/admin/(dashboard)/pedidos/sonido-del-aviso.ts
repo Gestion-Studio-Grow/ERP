@@ -91,6 +91,74 @@ export function useAudioDelAviso(): RefObject<AudioContext | null> {
   return audio;
 }
 
+// ── La notificación del navegador (opt-in, gratis, sin servidor de push) ─────────────────────────
+// La pide la persona con su tecla («Avisarme aunque esté en otra ventana»). El permiso es del
+// navegador: «no-soportado» o «denied» → no se dibuja nada ni se intenta nada; «default» → se ofrece
+// la tecla; «granted» → cada pedido que ENTRA (el mismo criterio del bip) abre una notificación.
+// Ojo: con la pestaña escondida el chip NO consulta (Neon, plan gratuito), así que la notificación
+// sirve cuando el panel está a la vista pero detrás de otra ventana (WhatsApp, el mail), no en otra
+// pestaña del mismo navegador.
+
+export type PermisoDeNotificacion = "no-soportado" | "default" | "granted" | "denied";
+
+const oyentesDelPermiso = new Set<() => void>();
+
+function leerPermiso(): PermisoDeNotificacion {
+  try {
+    if (typeof window === "undefined" || !("Notification" in window)) return "no-soportado";
+    const p = window.Notification.permission;
+    return p === "granted" || p === "denied" ? p : "default";
+  } catch {
+    return "no-soportado";
+  }
+}
+
+function suscribirPermiso(o: () => void) {
+  oyentesDelPermiso.add(o);
+  return () => {
+    oyentesDelPermiso.delete(o);
+  };
+}
+
+/** El permiso de notificaciones de este navegador. En el servidor, «no-soportado» (no se dibuja nada). */
+export function usePermisoDeNotificacion(): PermisoDeNotificacion {
+  return useSyncExternalStore(suscribirPermiso, leerPermiso, () => "no-soportado");
+}
+
+/** La tecla: pide el permiso. Si el navegador no lo soporta o falla, no pasa nada. */
+export async function pedirPermisoDeNotificacion(): Promise<void> {
+  try {
+    if (leerPermiso() !== "default") return;
+    await window.Notification.requestPermission();
+  } catch {
+    // navegador viejo o bloqueado: queda el chip y el bip
+  } finally {
+    for (const o of oyentesDelPermiso) o();
+  }
+}
+
+/**
+ * Muestra la notificación del pedido que entró, sólo con el permiso concedido. El toque trae la
+ * pestaña al frente y abre el pedido. Cualquier falla se traga: el chip ya lo muestra.
+ */
+export function notificar(n: { titulo: string; cuerpo: string; href: string; tag: string } | null): void {
+  if (!n || leerPermiso() !== "granted") return;
+  try {
+    const aviso = new window.Notification(n.titulo, { body: n.cuerpo, tag: n.tag, lang: "es-AR" });
+    aviso.onclick = () => {
+      try {
+        window.focus();
+      } catch {
+        // sin foco: igual se abre
+      }
+      window.location.assign(n.href);
+      aviso.close();
+    };
+  } catch {
+    // Android Chrome no deja `new Notification` sin service worker: queda el chip y el bip
+  }
+}
+
 /** Un «bip» corto (0,2 s, el de siempre). Si el navegador no lo deja, no pasa nada: el aviso ya está a la vista. */
 export function bip(ctx: AudioContext | null) {
   try {
