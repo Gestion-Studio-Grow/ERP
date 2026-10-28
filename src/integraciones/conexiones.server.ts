@@ -341,6 +341,26 @@ export async function conexionPorToken(token: string): Promise<ConexionResuelta 
   return { tenantId, conexionId: fila.id, conector: fila.conector, cuentaExterna: fila.cuentaExterna };
 }
 
+/**
+ * La conexión activa de un conector en UN negocio (la más reciente si hubiera varias), o null.
+ * La usa el dispatch de cobros para leer el `access_token` de Mercado Pago del negocio (P1-C4).
+ * Negocio inválido → `ConexionError("datos_invalidos")`.
+ */
+export async function conexionDelNegocio(tenantId: string, conectorId: string): Promise<ConexionResuelta | null> {
+  exigirTenant(tenantId);
+  const fila = await tenantTransaction(
+    (tx) =>
+      tx.integracionConexion.findFirst({
+        where: { tenantId, conector: conectorId, estado: { in: [...ESTADOS_QUE_RECIBEN] } },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, tenantId: true, conector: true, cuentaExterna: true },
+      }),
+    { tenantId },
+  );
+  if (!fila || fila.tenantId !== tenantId) return null;
+  return { tenantId, conexionId: fila.id, conector: fila.conector, cuentaExterna: fila.cuentaExterna };
+}
+
 /** Tope de conexiones que se prueban por firma o por cuenta en un aviso (P1-C5). */
 export const TOPE_CONEXIONES_POR_FIRMA = 20;
 

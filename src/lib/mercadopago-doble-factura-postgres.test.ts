@@ -39,6 +39,8 @@ async function preparar(t: import("node:test").TestContext, cual: "a" | "b") {
   Object.assign(env, { DB_CONNECTION_LIMIT: "2", DB_CONNECT_TIMEOUT_MS: "3000", ARCA_INVOICING_ENABLED: "true" });
   delete env.ARCA_MODO; // stub: nada sale a la red
   delete env.MP_ACCESS_TOKEN;
+  // Tanda P1: sin conexión MP, el dispatch de cobros sólo cae al stub del despliegue en modo legado.
+  env.MP_MODO_LEGADO = "1";
   const duenio = await prismaComoDuenio(base);
   const a = base[cual];
   const tenant = await duenio.tenant.findUniqueOrThrow({ where: { id: a.id }, select: { modules: true } });

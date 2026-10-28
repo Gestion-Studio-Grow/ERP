@@ -1,6 +1,11 @@
 // Webhook de Mercado Pago (ADR-024 §2.d). Recibe la notificación de pago, la verifica y la
 // atribuye a SU negocio por la conexión, nunca por el host (Tanda S1).
 //
+// Tanda P1 (P1-C5): primero la CONEXIÓN cuyo `webhook_secret` valida la firma (tope 20, tiempo
+// constante) → servicio nuevo de integraciones (EventoIntegracion deduplicado + handler en el
+// negocio de la conexión). Ninguna firma valida → 401/503 sin mirar el host. Lo de abajo (S1)
+// corre SÓLO con MP_MODO_LEGADO=1.
+//
 // Todo el aviso vive en `atenderAvisoMP` (src/lib/mercadopago-dispatch.ts), testeable sin Next:
 //   rate limit → secretos (503 sin ninguno) → firma y `ts` ±5 min (401) → tipo → pago leído en MP
 //   con el `data.id` firmado → negocio por `external_reference` `gsg:<slug>:<tipo>:<id>`

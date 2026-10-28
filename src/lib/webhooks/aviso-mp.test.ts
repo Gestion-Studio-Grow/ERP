@@ -2,6 +2,9 @@
 // guardas, secretos por negocio, ventana de `ts`, rechazos con 200 + auditoría, y que el cobro
 // no depende del flag de facturación. La versión contra Postgres con dos negocios:
 // webhooks-por-negocio-postgres.test.ts.
+//
+// Tanda P1: esto es el CAMINO LEGADO de S1 (ninguna conexión firma y MP_MODO_LEGADO=1); las
+// exigencias son las mismas. El camino por conexión: aviso-mp-conexion.test.ts.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
@@ -32,9 +35,16 @@ function armar(over: Partial<DepsAvisoMP> = {}, pago: Partial<PagoMP> = {}) {
   const manejados: { tenantId: string; opts: OpcionesNotificacion }[] = [];
   const leidos: string[] = [];
   const negocios = [magra, breakpoint];
+  const despachados: string[] = [];
   const deps: DepsAvisoMP = {
     env: { MP_WEBHOOK_SECRETS: JSON.stringify({ magra: "sec-magra", breakpoint: "sec-bp" }) },
     ahoraMs: () => AHORA,
+    // Ninguna conexión firma: el aviso sigue por el camino legado (con el flag).
+    porFirma: async () => ({ ok: false, motivo: "sin_secreto" }),
+    despachar: async (c) => {
+      despachados.push(c.tenantId);
+      return { status: 200, cuerpo: { ok: true } };
+    },
     leerPago: async (id) => {
       leidos.push(id);
       return { id, estado: "approved", monto: 5000, externalReference: "gsg:magra:pedido:ped_1", ...pago } as PagoMP;
@@ -54,7 +64,8 @@ function armar(over: Partial<DepsAvisoMP> = {}, pago: Partial<PagoMP> = {}) {
     limitar: () => null,
     ...over,
   };
-  return { deps, auditado, manejados, leidos };
+  deps.env = { MP_MODO_LEGADO: "1", ...deps.env };
+  return { deps, auditado, manejados, leidos, despachados };
 }
 
 const atender = async (req: Request, deps: DepsAvisoMP) => {
@@ -62,6 +73,17 @@ const atender = async (req: Request, deps: DepsAvisoMP) => {
   const r = await atenderAvisoMP(req, deps);
   return { status: r.status, body: (await r.json()) as Record<string, unknown> };
 };
+
+test("legado: sin MP_MODO_LEGADO=1 el camino de S1 no corre (sin conexión → 503, nada leído)", async () => {
+  const p = armar();
+  const { MP_MODO_LEGADO: _flag, ...sinFlag } = p.deps.env;
+  const r = await atender(aviso(), { ...p.deps, env: sinFlag });
+  assert.equal(r.status, 503);
+  assert.equal(r.body.error, "sin-conexion");
+  assert.equal(p.leidos.length, 0);
+  assert.equal(p.manejados.length, 0);
+  assert.equal(p.despachados.length, 0);
+});
 
 test("aviso de magra firmado con su secreto → se maneja en magra, con la referencia del handler", async () => {
   const p = armar();

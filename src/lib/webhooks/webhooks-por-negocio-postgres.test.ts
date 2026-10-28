@@ -57,7 +57,8 @@ async function enviar(base: BaseEfimera, req: Request, pagos: Record<string, Pag
   const { atenderAvisoMP, DEPS_AVISO_MP } = await import("@/lib/mercadopago-dispatch");
   const r = await atenderAvisoMP(req, {
     ...DEPS_AVISO_MP,
-    env: { ...process.env, MP_WEBHOOK_SECRETS: JSON.stringify(secretos(base)) },
+    // Tanda P1: sin conexiones en la base, lo de S1 corre como camino legado (con el flag).
+    env: { ...process.env, MP_MODO_LEGADO: "1", MP_WEBHOOK_SECRETS: JSON.stringify(secretos(base)) },
     leerPago: async (id) => {
       const p = pagos[id];
       if (!p) throw new Error(`pago ${id} inexistente`);

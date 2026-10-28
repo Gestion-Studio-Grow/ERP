@@ -14,6 +14,14 @@
 //
 // Formato de las variables y ejemplo: docs/runbooks/webhooks-por-negocio.md.
 //
+// Tanda P1 (P1-C5): el negocio sale primero de la CONEXIÓN (src/integraciones/conexiones.server.ts):
+//  · Mercado Pago: la conexión cuyo `webhook_secret` valida la firma (tope 20, tiempo constante);
+//    con la conexión, la referencia vieja (`pedido:<id>`) vale y una `gsg:` de otro negocio se
+//    rechaza (`referenciaDeLaConexion`). Sin conexión que firme, lo de S1 corre sólo con
+//    `MP_MODO_LEGADO=1` (src/lib/mercadopago-dispatch.ts).
+//  · WhatsApp: el `phone_number_id` firmado → la conexión de esa cuenta; si el número no tiene
+//    conexión, el mapa de S1.
+//
 // La parte de decisión es PURA (se testea sin base); las lecturas de `Tenant` entran por `deps`.
 
 import { createRateLimiter, clientIpFromRequest, type RateLimitRule, type RateLimiter } from "@/lib/rate-limit";
@@ -42,6 +50,27 @@ export function leerReferenciaDeNegocio(ref: string | null | undefined): Referen
  */
 export function referenciaParaElHandler(r: ReferenciaDeNegocio): string {
   return r.tipo === "pedido" ? `pedido:${r.id}` : r.id;
+}
+
+export type ReferenciaDeConexion =
+  | { ok: true; referencia: string | null }
+  | { ok: false; motivo: "referencia-de-otro-negocio" | "referencia-ilegible" };
+
+/**
+ * La referencia de un pago que llegó por la CONEXIÓN de un negocio (el negocio ya está probado
+ * por la firma de su secreto). PURA.
+ *  - `gsg:<slug>:…` del MISMO negocio → la del handler; de OTRO negocio → rechazo (no se cruza);
+ *  - `gsg:` mal formada → rechazo;
+ *  - la vieja (`pedido:<id>`, id de turno) o ninguna → tal cual: el pedido/turno se busca
+ *    siempre con el tenantId de la conexión.
+ */
+export function referenciaDeLaConexion(externalReference: string | null | undefined, slugDelNegocio: string): ReferenciaDeConexion {
+  const crudo = String(externalReference ?? "").trim();
+  if (!crudo) return { ok: true, referencia: null };
+  const ref = leerReferenciaDeNegocio(crudo);
+  if (ref) return ref.slug === slugDelNegocio ? { ok: true, referencia: referenciaParaElHandler(ref) } : { ok: false, motivo: "referencia-de-otro-negocio" };
+  if (crudo.startsWith("gsg:")) return { ok: false, motivo: "referencia-ilegible" };
+  return { ok: true, referencia: crudo };
 }
 
 // ── Los secretos de Mercado Pago ─────────────────────────────────────────────
@@ -207,14 +236,21 @@ type NegocioWA = Pick<NegocioDelWebhook, "id" | "slug">;
 export interface DepsNegocioWA {
   porSlug(slug: string): Promise<NegocioWA | null>;
   primerosDos(): Promise<NegocioWA[]>;
+  /**
+   * El negocio de la conexión WhatsApp de ese `phone_number_id` (P1-C5), null si el número no
+   * tiene conexión, "demasiadas" si hay más conexiones que el tope (no se elige entre un montón).
+   */
+  porConexion?(phoneNumberId: string): Promise<NegocioWA | null | "demasiadas">;
 }
 
 export type NegocioDelMensajeWA =
-  | { ok: true; negocio: NegocioWA; via: "mapa" | "negocio-unico" }
-  | { ok: false; slug: string | null };
+  | { ok: true; negocio: NegocioWA; via: "conexion" | "mapa" | "negocio-unico" }
+  | { ok: false; slug: string | null; motivo?: "demasiadas-conexiones" };
 
 /**
  * El negocio de un mensaje entrante de WhatsApp.
+ *  - número con conexión (IntegracionConexion "whatsapp", cuentaExterna = phone_number_id) → el
+ *    negocio de la conexión; más conexiones que el tope → sin negocio (fail-closed);
  *  - número en `WHATSAPP_PHONE_NUMBERS` → ese negocio;
  *  - variable SIN cargar (mapa vacío) y base con UN solo negocio → ese negocio (compatibilidad de
  *    despliegue de un solo cliente, como Mercado Pago); el llamador avisa al monitor;
@@ -225,6 +261,12 @@ export async function negocioDelMensajeWA(
   env: Record<string, string | undefined>,
   deps: DepsNegocioWA,
 ): Promise<NegocioDelMensajeWA> {
+  const id = phoneNumberIdDe(payload);
+  if (id && deps.porConexion) {
+    const c = await deps.porConexion(id);
+    if (c === "demasiadas") return { ok: false, slug: null, motivo: "demasiadas-conexiones" };
+    if (c) return { ok: true, negocio: c, via: "conexion" };
+  }
   const slug = slugDelMensajeWA(payload, env);
   if (slug) {
     const n = await deps.porSlug(slug);
