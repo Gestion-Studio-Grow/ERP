@@ -53,6 +53,7 @@ import {
 import type { Ahora, Auth, EstadoClub, Fecha, Reserva } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
 import { ETIQUETA_MEDIO, MEDIOS_CAJA, type MedioCaja } from "./cuenta-core";
+import { devolverAlLiberarDesdeLaGrilla } from "./canchas-core";
 import { operadorDesdeAuth } from "./operador-del-club";
 
 /** Los destinos posibles para mover el turno: cada cancha con sus horas libres (misma duración, sin pisarse). */
@@ -178,7 +179,10 @@ export function ejecutarCiclo(estado: EstadoClub, reservaId: string, accion: Acc
     case "liberarFijo": {
       if (!r.fijoId) return { ok: false, mensaje: "Ese turno no es fijo." };
       const res = liberarFijo(estado, r.fijoId, r.fecha, ahora);
-      return res.ok ? { ok: true, mensaje: `${nombre} no viene esta semana: el hueco queda libre y el fijo sigue.` } : { ok: false, mensaje: res.motivo };
+      if (!res.ok) return { ok: false, mensaje: res.motivo };
+      // Dictamen v8, C4: si otro fijo esperaba esa fecha a éste, se le devuelve con la regla de la hoja (la antigüedad).
+      const recuperan = devolverAlLiberarDesdeLaGrilla(estado, r.fijoId, r.fecha, ahora);
+      return { ok: true, mensaje: `${nombre} no viene esta semana: el hueco queda libre y el fijo sigue.${recuperan}` };
     }
     case "devolver": {
       const res = marcarDevuelto(estado, reservaId, accion.medio, ahora);
