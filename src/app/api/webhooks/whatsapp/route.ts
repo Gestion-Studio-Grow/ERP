@@ -17,10 +17,11 @@
 // (firmado por Meta con el secreto de la app) → la IntegracionConexion "whatsapp" de esa cuenta
 // (src/integraciones/conexiones.server.ts, tope 20 conexiones; más → sin negocio y alerta). Si el
 // número no tiene conexión, lo de S1: se mapea a un slug con `WHATSAPP_PHONE_NUMBERS` (JSON
-// `{ "<phone_number_id>": "<slug>" }`, docs/runbooks/webhooks-por-negocio.md). Sin mapeo → 200 sin
-// efecto y aviso en el log. El trabajo corre en `runInTenantContext(negocio)`. Antes de todo, rate
-// limit por IP. Meta reintenta si no recibe 200: por eso los errores de negocio contestan 200 y
-// quedan en el log.
+// `{ "<phone_number_id>": "<slug>" }`, docs/runbooks/webhooks-por-negocio.md). Sin mapeo o negocio
+// suspendido → 200 sin efecto y aviso en el log; variable ilegible → 503 (como MP_WEBHOOK_SECRETS);
+// la base no contesta al resolver → 500. El trabajo corre en `runInTenantContext(negocio)`. Antes de
+// todo, rate limit por IP. Meta reintenta si no recibe 200: por eso los errores de negocio contestan
+// 200 y quedan en el log, y los de configuración o de base no.
 //
 // Paso a paso para conectarlo: docs/tenants/matiasconsoli/whatsapp-business-paso-a-paso.md
 
@@ -75,16 +76,31 @@ export async function POST(request: Request) {
 
   // El negocio, por el número de WhatsApp Business que recibió el mensaje.
   // Sin WHATSAPP_PHONE_NUMBERS y con UN solo negocio en la base → ese negocio (con aviso al monitor).
-  const SELECT_NEGOCIO_WA = { id: true, slug: true } as const;
-  const r = await negocioDelMensajeWA(payload, process.env, {
-    porSlug: (s) => basePrisma.tenant.findUnique({ where: { slug: s }, select: SELECT_NEGOCIO_WA }),
-    primerosDos: () => basePrisma.tenant.findMany({ take: 2, orderBy: { createdAt: "asc" }, select: SELECT_NEGOCIO_WA }),
-    porConexion: async (phoneNumberId) => {
-      const c = await conexionPorCuenta("whatsapp", phoneNumberId);
-      if (c === "demasiadas" || !c) return c;
-      return basePrisma.tenant.findUnique({ where: { id: c.tenantId }, select: SELECT_NEGOCIO_WA });
-    },
-  }).catch((): { ok: false; slug: null; motivo?: "demasiadas-conexiones" } => ({ ok: false, slug: null }));
+  const SELECT_NEGOCIO_WA = { id: true, slug: true, status: true } as const;
+  let r: Awaited<ReturnType<typeof negocioDelMensajeWA>>;
+  try {
+    r = await negocioDelMensajeWA(payload, process.env, {
+      porSlug: (s) => basePrisma.tenant.findUnique({ where: { slug: s }, select: SELECT_NEGOCIO_WA }),
+      primerosDos: () => basePrisma.tenant.findMany({ take: 2, orderBy: { createdAt: "asc" }, select: SELECT_NEGOCIO_WA }),
+      porConexion: async (phoneNumberId) => {
+        const c = await conexionPorCuenta("whatsapp", phoneNumberId);
+        if (c === "demasiadas" || !c) return c;
+        return basePrisma.tenant.findUnique({ where: { id: c.tenantId }, select: SELECT_NEGOCIO_WA });
+      },
+    });
+  } catch (e) {
+    // La base no contestó: transitorio. 500 para que Meta reintente; con 200 el mensaje se perdía.
+    logger.error("padel.whatsapp", "no se pudo resolver el negocio del mensaje entrante", e, { messageId: msg.messageId });
+    return Response.json({ ok: false, error: "base-no-disponible" }, { status: 500 });
+  }
+  if (!r.ok && r.motivo === "mapa-ilegible") {
+    // Fail-closed como MP_WEBHOOK_SECRETS roto: 503 a todo hasta corregir la variable, y Meta reintenta.
+    logger.error("monitor", "WHATSAPP_PHONE_NUMBERS ilegible: los mensajes entrantes se rechazan con 503 hasta corregirla", undefined, {
+      aviso: "wa-mapa-ilegible",
+      messageId: msg.messageId,
+    });
+    return Response.json({ ok: false, error: "whatsapp-phone-numbers-invalid" }, { status: 503 });
+  }
   if (!r.ok && r.motivo === "demasiadas-conexiones") {
     logger.error("monitor", "WhatsApp: más conexiones que el tope para resolver el número: no se procesa", undefined, {
       aviso: "wa-demasiadas-conexiones",
@@ -93,13 +109,13 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, ignorado: "sin-resolver" });
   }
   if (!r.ok) {
-    logger.warn("padel.whatsapp", "mensaje entrante de un número sin negocio: no se procesa", {
-      aviso: "wa-numero-sin-negocio",
+    logger.warn("padel.whatsapp", "mensaje entrante sin negocio activo: no se procesa", {
+      aviso: r.motivo === "negocio-suspendido" ? "wa-negocio-suspendido" : "wa-numero-sin-negocio",
       phoneNumberId: phoneNumberIdDe(payload),
       slug: r.slug,
       messageId: msg.messageId,
     });
-    return Response.json({ ok: true, ignorado: "numero-sin-negocio" });
+    return Response.json({ ok: true, ignorado: r.motivo });
   }
   if (r.via === "negocio-unico") {
     logger.warn("monitor", "WhatsApp sin WHATSAPP_PHONE_NUMBERS: mensaje asignado al único negocio de la base", {

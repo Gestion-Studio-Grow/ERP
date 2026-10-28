@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRateLimiter } from "@/lib/rate-limit";
+import { duenoDelCobro } from "@/plugins/mercadopago/core-contract";
+import { referenciaDelLinkDePedido, referenciaDelLinkManual } from "./resolver-negocio";
 import {
   CLAVE_GLOBAL,
   candidatosDeFirma,
@@ -15,6 +17,7 @@ import {
   resolverNegocioDelPago,
   slugDelMensajeWA,
   negocioDelMensajeWA,
+  leerMapaTelefonosWA,
   type DepsResolverNegocio,
   type NegocioDelWebhook,
 } from "./resolver-negocio";
@@ -116,13 +119,88 @@ test("WhatsApp: sin la variable y con un solo negocio → ese negocio; con dos o
   assert.ok(uno.ok);
   assert.equal(uno.negocio.id, "t-magra");
   assert.equal(uno.via, "negocio-unico");
-  assert.deepEqual(await negocioDelMensajeWA(payload, {}, deps([magra, breakpoint])), { ok: false, slug: null });
-  assert.deepEqual(await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: '{"999":"magra"}' }, deps([magra])), { ok: false, slug: null });
+  assert.deepEqual(await negocioDelMensajeWA(payload, {}, deps([magra, breakpoint])), { ok: false, slug: null, motivo: "numero-sin-negocio" });
+  assert.deepEqual(await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: '{"999":"magra"}' }, deps([magra])), {
+    ok: false,
+    slug: null,
+    motivo: "numero-sin-negocio",
+  });
   const mapa = await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: '{"100000000000001":"breakpoint"}' }, deps([magra, breakpoint]));
   assert.ok(mapa.ok);
   assert.equal(mapa.negocio.id, "t-bp");
   assert.equal(mapa.via, "mapa");
-  assert.deepEqual(await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: '{"100000000000001":"nadie"}' }, deps([magra])), { ok: false, slug: "nadie" });
+  assert.deepEqual(await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: '{"100000000000001":"nadie"}' }, deps([magra])), {
+    ok: false,
+    slug: "nadie",
+    motivo: "numero-sin-negocio",
+  });
+});
+
+// Vuelta 3 (observación de la vuelta 2): la variable ilegible no es «sin cargar».
+test("WhatsApp: WHATSAPP_PHONE_NUMBERS ilegible → mapa-ilegible, aun con un solo negocio (no cae al fallback)", async () => {
+  const payload = { entry: [{ changes: [{ value: { metadata: { phone_number_id: "100000000000001" } } }] }] };
+  for (const roto of ["{roto", "[1]", '"texto"', '{"100000000000001":5}', '{"100000000000001":""}']) {
+    assert.equal(leerMapaTelefonosWA(roto).tipo, "ilegible", roto);
+    assert.deepEqual(
+      await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: roto }, deps([magra])),
+      { ok: false, slug: null, motivo: "mapa-ilegible" },
+      roto,
+    );
+  }
+  // vacía o `{}` = sin cargar: con un solo negocio sigue el fallback
+  for (const vacia of ["", "  ", "{}"]) {
+    assert.equal(leerMapaTelefonosWA(vacia).tipo, "sin-cargar", JSON.stringify(vacia));
+    const r = await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: vacia }, deps([magra]));
+    assert.ok(r.ok && r.via === "negocio-unico", JSON.stringify(vacia));
+  }
+});
+
+// Vuelta 3 (observación de la vuelta 1: «WA no mira status»): un negocio suspendido no procesa, como MP.
+test("WhatsApp: negocio suspendido → negocio-suspendido, por el mapa y por el fallback de negocio único", async () => {
+  const payload = { entry: [{ changes: [{ value: { metadata: { phone_number_id: "100000000000001" } } }] }] };
+  const suspendido = { ...breakpoint, status: "SUSPENDED" };
+  const env = { WHATSAPP_PHONE_NUMBERS: '{"100000000000001":"breakpoint"}' };
+  assert.deepEqual(await negocioDelMensajeWA(payload, env, deps([magra, suspendido])), {
+    ok: false,
+    slug: "breakpoint",
+    motivo: "negocio-suspendido",
+  });
+  assert.deepEqual(await negocioDelMensajeWA(payload, {}, deps([suspendido])), { ok: false, slug: "breakpoint", motivo: "negocio-suspendido" });
+  // TRIAL y ACTIVE siguen procesando
+  const ok = await negocioDelMensajeWA(payload, env, deps([magra, breakpoint]));
+  assert.ok(ok.ok);
+});
+
+// Pase N2 (S1 + P1): ilegible antes que todo (sin consultar la conexión); la conexión manda sobre
+// el mapa; suspendido también por la conexión; sin conexión cae al mapa y al negocio único.
+test("WhatsApp: orden combinado — ilegible, conexión, mapa, negocio único", async () => {
+  const payload = { entry: [{ changes: [{ value: { metadata: { phone_number_id: "100000000000001" } } }] }] };
+  let consultas = 0;
+  const con = (r: NegocioDelWebhook | null | "demasiadas") => ({
+    ...deps([magra, breakpoint]),
+    porConexion: async () => {
+      consultas++;
+      return r;
+    },
+  });
+  assert.deepEqual(await negocioDelMensajeWA(payload, { WHATSAPP_PHONE_NUMBERS: "{roto" }, con(magra)), {
+    ok: false,
+    slug: null,
+    motivo: "mapa-ilegible",
+  });
+  assert.equal(consultas, 0);
+  const mapaBp = { WHATSAPP_PHONE_NUMBERS: '{"100000000000001":"breakpoint"}' };
+  const porConexion = await negocioDelMensajeWA(payload, mapaBp, con(magra));
+  assert.ok(porConexion.ok && porConexion.via === "conexion" && porConexion.negocio.id === "t-magra");
+  assert.deepEqual(await negocioDelMensajeWA(payload, mapaBp, con("demasiadas")), { ok: false, slug: null, motivo: "demasiadas-conexiones" });
+  assert.deepEqual(await negocioDelMensajeWA(payload, {}, con({ ...magra, status: "SUSPENDED" })), {
+    ok: false,
+    slug: "magra",
+    motivo: "negocio-suspendido",
+  });
+  const sinConexion = await negocioDelMensajeWA(payload, mapaBp, con(null));
+  assert.ok(sinConexion.ok && sinConexion.via === "mapa" && sinConexion.negocio.id === "t-bp");
+  assert.deepEqual(await negocioDelMensajeWA(payload, {}, con(null)), { ok: false, slug: null, motivo: "numero-sin-negocio" });
 });
 
 test("rate limit: 60 por minuto por IP, el 61 → espera", () => {
@@ -135,4 +213,46 @@ test("rate limit: 60 por minuto por IP, el 61 → espera", () => {
   assert.equal(limitarWebhook("mercadopago", otraIp, l), null);
   t = 61_000;
   assert.equal(limitarWebhook("mercadopago", req, l), null);
+});
+
+// Vuelta 3 (observación de la vuelta 1: «el emisor sigue escribiendo pedido:<id>»).
+test("link de un PEDIDO: emite gsg:<slug>:pedido:<id> y el aviso lo atribuye a su negocio con dos negocios", async () => {
+  const ref = referenciaDelLinkDePedido("magra", "ped_77");
+  assert.equal(ref, "gsg:magra:pedido:ped_77");
+  const r = await resolverNegocioDelPago({ externalReference: ref, subdominioDelHost: null }, deps([magra, breakpoint]));
+  assert.ok(r.ok);
+  assert.equal(r.negocio.id, "t-magra");
+  // lo que le llega al handler lo lee `duenoDelCobro` como el pedido (no como un turno)
+  assert.deepEqual(duenoDelCobro(r.referencia), { tipo: "pedido", id: "ped_77" });
+  // la de B no cae en A aunque llegue por la URL de A
+  const deB = await resolverNegocioDelPago(
+    { externalReference: referenciaDelLinkDePedido("breakpoint", "ped_1"), subdominioDelHost: "magra" },
+    deps([magra, breakpoint]),
+  );
+  assert.deepEqual(deB, { ok: false, motivo: "host-de-otro-negocio", auditarEn: breakpoint });
+});
+
+// Vuelta 3 (observación de la vuelta 1: «lo mismo para turnos que antes resolvía el host»).
+test("link manual: turno y pedido con el negocio adelante; gsg: escrito a mano se rechaza (cobro en otro negocio)", async () => {
+  assert.deepEqual(referenciaDelLinkManual("magra", ""), { ok: true, referencia: undefined });
+  assert.deepEqual(referenciaDelLinkManual("magra", null), { ok: true, referencia: undefined });
+  assert.deepEqual(referenciaDelLinkManual("magra", " apt_9 "), { ok: true, referencia: "gsg:magra:turno:apt_9" });
+  assert.deepEqual(referenciaDelLinkManual("magra", "pedido:p1"), { ok: true, referencia: "gsg:magra:pedido:p1" });
+  // texto libre: tal cual, como antes (no nombra pedido ni turno)
+  assert.deepEqual(referenciaDelLinkManual("magra", "Seña de Ana"), { ok: true, referencia: "Seña de Ana" });
+  assert.deepEqual(referenciaDelLinkManual("magra", "pedido:a;b"), { ok: true, referencia: "pedido:a;b" });
+  for (const spoof of ["gsg:breakpoint:pedido:p1", "GSG:breakpoint:pedido:p1", "gsg:magra:turno:a1", "gsg:"]) {
+    assert.equal(referenciaDelLinkManual("magra", spoof).ok, false, spoof);
+  }
+  // ida y vuelta con el aviso: el turno de magra va a magra y el handler recibe el id pelado
+  const d = deps([magra, breakpoint]);
+  const t = referenciaDelLinkManual("magra", "apt_9");
+  assert.ok(t.ok);
+  const r = await resolverNegocioDelPago({ externalReference: t.referencia, subdominioDelHost: null }, d);
+  assert.ok(r.ok);
+  assert.equal(r.negocio.id, "t-magra");
+  assert.deepEqual(duenoDelCobro(r.referencia), { tipo: "turno", id: "apt_9" });
+  // el texto libre, con dos negocios, no se atribuye a nadie
+  const libre = await resolverNegocioDelPago({ externalReference: "Seña de Ana", subdominioDelHost: null }, d);
+  assert.equal(libre.ok, false);
 });

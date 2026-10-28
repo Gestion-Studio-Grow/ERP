@@ -4,16 +4,16 @@
 //
 // Desde la bandeja se genera un link de Mercado Pago atado al pedido: el MONTO sale de la base
 // (`Order.total`), nunca de la pantalla, y la referencia del link es el pedido
-// (`referenciaDePedido`, plugin de Mercado Pago).
+// con el negocio adelante: `gsg:<slug>:pedido:<id>` (`referenciaDelLinkDePedido`,
+// src/lib/webhooks/resolver-negocio.ts, Tanda S1).
 //
-// QUÉ PASA CUANDO EL CLIENTE PAGA. El Core sabe cobrar el pedido con el aviso de pago
-// (`cobrarPedidoPorAvisoDePago`, order-core.ts: el mismo cobro del botón «Cobrar», un solo
-// asiento aunque el aviso se repita), y el handler del plugin reconoce la referencia `pedido:`.
-// Pero el webhook de producción TODAVÍA NO LE PASA ese cobro al handler
-// (src/lib/mercadopago-dispatch.ts no conecta `cobrarPedido`, y
-// src/app/api/webhooks/mercadopago/route.ts descarta el aviso si la facturación está apagada).
-// Hasta que se conecte, un pedido pagado con el link se marca a mano con «Cobrar». Lo único
-// que hoy recorre el cobro automático es el SIMULADOR (abajo).
+// QUÉ PASA CUANDO EL CLIENTE PAGA. El webhook de Mercado Pago (`atenderAvisoMP`,
+// src/lib/mercadopago-dispatch.ts) lee el pago con el id firmado, saca el negocio de esa
+// referencia —nunca del host— y cobra el pedido con `cobrarPedidoPorAvisoDePago` (order-core.ts:
+// el mismo cobro del botón «Cobrar», un solo asiento aunque el aviso se repita), con la
+// facturación prendida o apagada. Un link generado ANTES de la Tanda S1 (`pedido:<id>`, sin
+// negocio) sólo se atribuye en una base de un solo negocio; con dos o más, se marca a mano con
+// «Cobrar» (docs/runbooks/webhooks-por-negocio.md). El SIMULADOR (abajo) recorre el mismo cobro.
 //
 // CUÁNDO SE OFRECE. Sólo en un negocio que tiene contratado el módulo de Mercado Pago
 // (`Tenant.modules`, leído directo, como las apps de varios locales: el token de Mercado Pago es

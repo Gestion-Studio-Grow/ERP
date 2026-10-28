@@ -44,6 +44,46 @@ export function leerReferenciaDeNegocio(ref: string | null | undefined): Referen
   return m ? { slug: m[1], tipo: m[2] as TipoReferencia, id: m[3] } : null;
 }
 
+const ID_DE_REFERENCIA = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * La `external_reference` del link de pago de un PEDIDO (bandeja de Pedidos, cobros-actions.ts):
+ * `gsg:<slug>:pedido:<id>`, con el slug del negocio que genera el link. Es lo que el aviso lee para
+ * saber de quién es el pago, con uno o con varios negocios en la base. PURA.
+ */
+export function referenciaDelLinkDePedido(slug: string, orderId: string): string {
+  return referenciaDeNegocio(slug, "pedido", orderId);
+}
+
+export type ReferenciaDelLinkManual = { ok: true; referencia: string | undefined } | { ok: false; error: string };
+
+/**
+ * La `external_reference` de un link de cobro escrito a mano (Facturación → «Cobrar con link»),
+ * siempre con el slug del negocio que lo genera. PURA.
+ *  - vacía → sin referencia (venta suelta; con dos o más negocios el aviso no la puede atribuir:
+ *    la conexión por negocio de P5 lo resuelve);
+ *  - `pedido:<id>` → `gsg:<slug>:pedido:<id>`;
+ *  - un id (letras, números, `-`, `_`; el de un turno) → `gsg:<slug>:turno:<id>`;
+ *  - empieza con `gsg:` → RECHAZO: es la marca que dice de qué negocio es el pago; escrita a mano,
+ *    un negocio podría hacer que el aviso cobre un pedido de OTRO;
+ *  - cualquier otro texto → tal cual (como antes: no nombra un pedido ni un turno, y con dos o
+ *    más negocios el aviso lo rechaza sin efecto).
+ */
+export function referenciaDelLinkManual(slug: string, escrita: string | null | undefined): ReferenciaDelLinkManual {
+  const r = String(escrita ?? "").trim();
+  if (!r) return { ok: true, referencia: undefined };
+  if (/^gsg:/i.test(r)) {
+    return { ok: false, error: "La referencia no puede empezar con «gsg:»: esa marca la pone el sistema. Escribí sólo el número de turno o de pedido." };
+  }
+  if (r.startsWith("pedido:")) {
+    const id = r.slice("pedido:".length).trim();
+    if (ID_DE_REFERENCIA.test(id)) return { ok: true, referencia: referenciaDeNegocio(slug, "pedido", id) };
+    return { ok: true, referencia: r };
+  }
+  if (ID_DE_REFERENCIA.test(r)) return { ok: true, referencia: referenciaDeNegocio(slug, "turno", r) };
+  return { ok: true, referencia: r };
+}
+
 /**
  * La referencia en el formato que entiende el handler del plugin (`duenoDelCobro`):
  * pedido → `pedido:<id>`, turno → el id pelado. PURA.
@@ -194,20 +234,37 @@ export async function resolverNegocioDelPago(
 
 // ── WhatsApp: phone_number_id → slug ─────────────────────────────────────────
 
-/** `WHATSAPP_PHONE_NUMBERS` (JSON `{ "<phone_number_id>": "<slug>" }`). Roto → mapa vacío. PURA. */
-export function leerTelefonosWA(raw: string | null | undefined): Map<string, string> {
-  const mapa = new Map<string, string>();
-  if (!raw?.trim()) return mapa;
+export type MapaTelefonosWA =
+  | { tipo: "sin-cargar" }
+  | { tipo: "ilegible" }
+  | { tipo: "ok"; mapa: Map<string, string> };
+
+/**
+ * `WHATSAPP_PHONE_NUMBERS` (JSON `{ "<phone_number_id>": "<slug>" }`). PURA.
+ * Vacía o `{}` → `sin-cargar`; JSON roto, no-objeto o una entrada que no es texto → `ilegible`
+ * (el dueño quiso cargar un mapa y quedó mal: no es lo mismo que no cargarlo).
+ */
+export function leerMapaTelefonosWA(raw: string | null | undefined): MapaTelefonosWA {
+  if (!raw?.trim()) return { tipo: "sin-cargar" };
+  let obj: unknown;
   try {
-    const obj = JSON.parse(raw) as unknown;
-    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return mapa;
-    for (const [id, slug] of Object.entries(obj as Record<string, unknown>)) {
-      if (typeof slug === "string" && slug.trim() && id.trim()) mapa.set(id.trim(), slug.trim().toLowerCase());
-    }
+    obj = JSON.parse(raw);
   } catch {
-    return new Map();
+    return { tipo: "ilegible" };
   }
-  return mapa;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return { tipo: "ilegible" };
+  const mapa = new Map<string, string>();
+  for (const [id, slug] of Object.entries(obj as Record<string, unknown>)) {
+    if (typeof slug !== "string" || !slug.trim() || !id.trim()) return { tipo: "ilegible" };
+    mapa.set(id.trim(), slug.trim().toLowerCase());
+  }
+  return mapa.size ? { tipo: "ok", mapa } : { tipo: "sin-cargar" };
+}
+
+/** El mapa de `WHATSAPP_PHONE_NUMBERS`; sin cargar o ilegible → vacío. PURA. */
+export function leerTelefonosWA(raw: string | null | undefined): Map<string, string> {
+  const m = leerMapaTelefonosWA(raw);
+  return m.tipo === "ok" ? m.mapa : new Map();
 }
 
 /** El `phone_number_id` del primer cambio del cuerpo de Meta (`entry[].changes[].value.metadata`). PURA. */
@@ -232,7 +289,7 @@ export function slugDelMensajeWA(payload: unknown, env: Record<string, string | 
   return id ? (leerTelefonosWA(env.WHATSAPP_PHONE_NUMBERS).get(id) ?? null) : null;
 }
 
-type NegocioWA = Pick<NegocioDelWebhook, "id" | "slug">;
+type NegocioWA = Pick<NegocioDelWebhook, "id" | "slug" | "status">;
 export interface DepsNegocioWA {
   porSlug(slug: string): Promise<NegocioWA | null>;
   primerosDos(): Promise<NegocioWA[]>;
@@ -243,17 +300,23 @@ export interface DepsNegocioWA {
   porConexion?(phoneNumberId: string): Promise<NegocioWA | null | "demasiadas">;
 }
 
+export type MotivoSinNegocioWA = "numero-sin-negocio" | "mapa-ilegible" | "negocio-suspendido" | "demasiadas-conexiones";
+
 export type NegocioDelMensajeWA =
   | { ok: true; negocio: NegocioWA; via: "conexion" | "mapa" | "negocio-unico" }
-  | { ok: false; slug: string | null; motivo?: "demasiadas-conexiones" };
+  | { ok: false; slug: string | null; motivo: MotivoSinNegocioWA };
 
 /**
  * El negocio de un mensaje entrante de WhatsApp.
+ *  - variable ILEGIBLE → sin negocio (`mapa-ilegible`) antes de consultar nada (ver abajo);
  *  - número con conexión (IntegracionConexion "whatsapp", cuentaExterna = phone_number_id) → el
  *    negocio de la conexión; más conexiones que el tope → sin negocio (fail-closed);
  *  - número en `WHATSAPP_PHONE_NUMBERS` → ese negocio;
- *  - variable SIN cargar (mapa vacío) y base con UN solo negocio → ese negocio (compatibilidad de
- *    despliegue de un solo cliente, como Mercado Pago); el llamador avisa al monitor;
+ *  - variable SIN cargar y base con UN solo negocio → ese negocio (compatibilidad de despliegue de
+ *    un solo cliente, como Mercado Pago); el llamador avisa al monitor;
+ *  - variable ILEGIBLE → sin negocio (`mapa-ilegible`), aun con un solo negocio: el llamador
+ *    contesta 503 para que Meta reintente cuando se corrija;
+ *  - negocio suspendido → sin negocio (`negocio-suspendido`), como Mercado Pago;
  *  - cualquier otro caso (número fuera de un mapa cargado, o dos o más negocios) → sin negocio.
  */
 export async function negocioDelMensajeWA(
@@ -261,20 +324,26 @@ export async function negocioDelMensajeWA(
   env: Record<string, string | undefined>,
   deps: DepsNegocioWA,
 ): Promise<NegocioDelMensajeWA> {
+  // Orden del pase N2 (S1 + P1): variable ilegible → 503 sin tocar la base (S1); después la
+  // conexión, que manda sobre el mapa (P1-C5); después el mapa y el negocio único.
+  const m = leerMapaTelefonosWA(env.WHATSAPP_PHONE_NUMBERS);
+  if (m.tipo === "ilegible") return { ok: false, slug: null, motivo: "mapa-ilegible" };
   const id = phoneNumberIdDe(payload);
+  const activo = (n: NegocioWA, via: "conexion" | "mapa" | "negocio-unico"): NegocioDelMensajeWA =>
+    n.status === "SUSPENDED" ? { ok: false, slug: n.slug, motivo: "negocio-suspendido" } : { ok: true, negocio: n, via };
   if (id && deps.porConexion) {
     const c = await deps.porConexion(id);
     if (c === "demasiadas") return { ok: false, slug: null, motivo: "demasiadas-conexiones" };
-    if (c) return { ok: true, negocio: c, via: "conexion" };
+    if (c) return activo(c, "conexion");
   }
-  const slug = slugDelMensajeWA(payload, env);
-  if (slug) {
+  if (m.tipo === "ok") {
+    const slug = id ? (m.mapa.get(id) ?? null) : null;
+    if (!slug) return { ok: false, slug: null, motivo: "numero-sin-negocio" };
     const n = await deps.porSlug(slug);
-    return n ? { ok: true, negocio: n, via: "mapa" } : { ok: false, slug };
+    return n ? activo(n, "mapa") : { ok: false, slug, motivo: "numero-sin-negocio" };
   }
-  if (leerTelefonosWA(env.WHATSAPP_PHONE_NUMBERS).size > 0) return { ok: false, slug: null };
   const todos = await deps.primerosDos();
-  return todos.length === 1 ? { ok: true, negocio: todos[0], via: "negocio-unico" } : { ok: false, slug: null };
+  return todos.length === 1 ? activo(todos[0], "negocio-unico") : { ok: false, slug: null, motivo: "numero-sin-negocio" };
 }
 
 // ── Rate limit de los webhooks ───────────────────────────────────────────────

@@ -159,3 +159,109 @@ test("sin external_reference con dos negocios → 200 sin efecto", async (t) => 
   assert.equal(r.body.rechazado, "referencia-ausente");
   assert.equal(await duenio.cashMovement.count(), movAntes);
 });
+
+// ── Vuelta 3: el EMISOR. El link que genera la pantalla lleva el negocio (QA de S1, paso 1) ──────
+
+test("QA S1 paso 1: el link real de un pedido de A lleva gsg:<A>:pedido:<id> y su aviso lo cobra en A; B no cambia", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { base, duenio } = p;
+  const env = process.env as Record<string, string | undefined>;
+  delete env.MP_MODO; // stub
+  env.MP_SIMULAR_AVISOS = "1"; // en stub, el link de un pedido sólo se ofrece con el simulador
+  const { ejecutarAccion } = await import("@/test/accion-de-servidor");
+  const { generarLinkDePagoDePedido } = await import("@/lib/cobros-actions");
+  const { ACCION_LINK_DE_PAGO } = await import("@/app/admin/(dashboard)/pedidos/link-de-pago");
+  const pedidoA = base.a.pedidos[2];
+  const fd = new FormData();
+  fd.set("id", pedidoA);
+  const salida = await ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () => generarLinkDePagoDePedido(null, fd));
+  assert.equal(salida.tipo, "respuesta");
+  assert.ok(salida.tipo === "respuesta" && salida.valor?.ok, JSON.stringify(salida));
+  const fila = await duenio.auditLog.findFirstOrThrow({
+    where: { tenantId: base.a.id, entity: "Order", entityId: pedidoA, action: ACCION_LINK_DE_PAGO },
+    select: { changes: true },
+  });
+  const ref = (fila.changes as { referenciaMP?: string } | null)?.referenciaMP;
+  assert.equal(ref, `gsg:${base.a.slug}:pedido:${pedidoA}`);
+
+  const antesB = await fotoDeB(duenio, base);
+  const pagoId = "880005";
+  const pagos: Record<string, PagoMP> = { [pagoId]: { id: pagoId, estado: "approved", monto: TOTAL, externalReference: ref } as PagoMP };
+  const r = await enviar(base, aviso(pagoId, "sec-a", "erp-ch.vercel.app"), pagos);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal((await duenio.order.findUniqueOrThrow({ where: { id: pedidoA }, select: { paid: true } })).paid, true);
+  assert.equal(await duenio.cashMovement.count({ where: { tenantId: base.a.id, orderId: pedidoA } }), 1);
+  assert.deepEqual(await fotoDeB(duenio, base), antesB);
+});
+
+test("link manual: A no puede escribir una referencia gsg: de B; la suya sale con su negocio", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { base, duenio } = p;
+  delete (process.env as Record<string, string | undefined>).MP_MODO; // stub
+  const { ejecutarAccion } = await import("@/test/accion-de-servidor");
+  const { generarCobro } = await import("@/lib/cobros-actions");
+  const conRef = (referencia: string) => {
+    const fd = new FormData();
+    fd.set("concepto", "Seña");
+    fd.set("monto", "1000");
+    fd.set("referenciaExterna", referencia);
+    return ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () => generarCobro(fd));
+  };
+  const spoof = await conRef(`gsg:${base.b.slug}:pedido:${base.b.pedidos[0]}`);
+  assert.ok(spoof.tipo === "respuesta" && spoof.valor.ok === false, JSON.stringify(spoof));
+  assert.equal(await duenio.auditLog.count({ where: { entity: "PaymentLink", changes: { path: ["referenciaExterna"], string_contains: "gsg:" } } }), 0);
+
+  const turno = await conRef("apt_1");
+  assert.ok(turno.tipo === "respuesta" && turno.valor.ok, JSON.stringify(turno));
+  const fila = await duenio.auditLog.findFirstOrThrow({
+    where: { tenantId: base.a.id, entity: "PaymentLink", action: "create" },
+    orderBy: { createdAt: "desc" },
+    select: { changes: true },
+  });
+  assert.equal((fila.changes as { referenciaMP?: string }).referenciaMP, `gsg:${base.a.slug}:turno:apt_1`);
+});
+
+// ── Vuelta 3: ¿S1 encuentra el negocio con RLS? (pregunta del certificador de P1) ─────────────────
+// La resolución de S1 lee SÓLO `Tenant` (basePrisma: slug, subdominio, primerosDos), que está fuera
+// de RLS a propósito (prisma/rls/0001_enable_rls.sql: «EXCLUIDA a propósito: "Tenant"») y que
+// `app_rls` puede leer (0002_app_role.sql: GRANT SELECT … ON ALL TABLES). No necesita funciones
+// SECURITY DEFINER. La búsqueda por CONEXIÓN de P1 sí: sin el GUC del negocio, `app_rls` no ve
+// ninguna fila de `IntegracionConexion`. `SET LOCAL ROLE app_rls` hace que la prueba valga también
+// cuando el servidor de prueba conecta como superusuario (PGlite).
+
+test("RLS: como app_rls y SIN negocio en el GUC, S1 encuentra el Tenant por slug/subdominio; la conexión de P1 no se ve", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { base, duenio } = p;
+  await duenio.integracionConexion.create({ data: { tenantId: base.a.id, conector: "mercadopago", cuentaExterna: "999000111", estado: "conectada" } });
+  const pg = (await import("pg")).default;
+  const c = new pg.Client({ connectionString: base.urlApp });
+  await c.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SET LOCAL ROLE app_rls");
+    const quien = await c.query("SELECT current_user AS u, current_setting('app.current_tenant_id', true) AS guc");
+    assert.equal(quien.rows[0].u, "app_rls");
+    assert.ok(!quien.rows[0].guc, "sin negocio en el GUC");
+    // Las tres lecturas de depsResolverDesdeBase / del webhook de WhatsApp.
+    const porSlug = await c.query('SELECT id FROM "Tenant" WHERE slug = $1', [base.a.slug]);
+    assert.deepEqual(porSlug.rows, [{ id: base.a.id }]);
+    const porSub = await c.query('SELECT id FROM "Tenant" WHERE subdomain = $1', [base.b.slug]);
+    assert.deepEqual(porSub.rows, [{ id: base.b.id }]);
+    const dos = await c.query('SELECT id FROM "Tenant" ORDER BY "createdAt" ASC LIMIT 2');
+    assert.equal(dos.rows.length, 2);
+    // Lo que S1 NO hace y P1 sí: buscar la conexión por cuenta sin saber el negocio → 0 filas.
+    const conexion = await c.query('SELECT "tenantId" FROM "IntegracionConexion" WHERE conector = $1 AND "cuentaExterna" = $2', ["mercadopago", "999000111"]);
+    assert.equal(conexion.rows.length, 0, "app_rls sin GUC no ve IntegracionConexion");
+    // …y con el GUC del negocio dueño, sí (la policy filtra, no falta el permiso).
+    await c.query("SELECT set_config('app.current_tenant_id', $1, true)", [base.a.id]);
+    const conGuc = await c.query('SELECT "tenantId" FROM "IntegracionConexion" WHERE conector = $1 AND "cuentaExterna" = $2', ["mercadopago", "999000111"]);
+    assert.deepEqual(conGuc.rows, [{ tenantId: base.a.id }]);
+    await c.query("ROLLBACK");
+  } finally {
+    await c.end();
+    await duenio.integracionConexion.deleteMany({ where: { cuentaExterna: "999000111" } });
+  }
+});

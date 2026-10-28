@@ -43,11 +43,26 @@ Ejemplo: `gsg:magra:pedido:ped_FALSO123`.
   (`channel: webhook`, `action: rechazado`, `entity: WebhookMercadoPago`) del negocio que se pueda nombrar.
 - Con **un solo** negocio en la base: la referencia vieja (`pedido:<id>`, id de turno, o ninguna) sigue yendo a
   ese negocio (compatibilidad con el despliegue de un cliente).
-- PENDIENTE (fuera de S1): que el link de pago (`src/lib/cobros-actions.ts`, `referenciaDePedido`) emita el
-  formato nuevo. Hasta entonces, con dos negocios, un pedido pagado por link se marca a mano con «Cobrar».
+- Quién lo escribe (vuelta 3 de la certificación):
+  - el link de un pedido (bandeja de Pedidos, `generarLinkDePagoDePedido`) → `gsg:<slug>:pedido:<id>`
+    (`referenciaDelLinkDePedido`);
+  - el link manual («Cobrar con link», `generarCobro`, `referenciaDelLinkManual`): un id de turno →
+    `gsg:<slug>:turno:<id>`; `pedido:<id>` → `gsg:<slug>:pedido:<id>`; vacía → sin referencia (venta suelta);
+    otro texto → tal cual (no nombra pedido ni turno). **Una referencia que empieza con `gsg:` se rechaza**:
+    escrita a mano, un negocio podría hacer que el aviso cobre un pedido de otro.
+  - En las dos, el AuditLog del link guarda `referenciaMP` (lo que viajó a Mercado Pago).
+- Con dos o más negocios **no se atribuyen** (200 sin efecto + log; AuditLog sólo si la URL nombra un negocio):
+  - los links generados ANTES del push de S1 (`pedido:<id>`, id de turno pelado): el pedido pagado se marca a
+    mano con «Cobrar». Para encontrarlos: log `mercadopago.webhook` «aviso rechazado sin efecto» con
+    `motivo: referencia-ilegible` (trae `paymentId` y `externalReference`);
+  - los pagos sin referencia (link manual sin referencia, QR, transferencias a la cuenta): con una sola cuenta
+    de Mercado Pago por despliegue no hay de dónde sacar el negocio. Lo resuelve la cuenta por negocio de P5
+    (P5-C2/P5-C3); hasta entonces los procesa la sincronización manual del negocio (Facturación → Bancos,
+    `sincronizarMercadoPagoAction`), como hoy.
 
 Otros: 60 POST/min por IP (429 con `Retry-After`) antes de verificar nada. Un pago que la cuenta no tiene
-(4xx de MP) → 200 sin efecto. MP caído o error de base → 500 (MP reintenta con espera).
+(404/400 de MP) → 200 sin efecto; token rechazado (401/403) → 503 + alerta
+`monitor`; 429/408/409/5xx o red → 500. MP caído o error de base → 500 (MP reintenta con espera).
 
 ## WhatsApp
 
@@ -58,14 +73,46 @@ Otros: 60 POST/min por IP (429 con `Retry-After`) antes de verificar nada. Un pa
 ```
 
 - Clave: el «Identificador del número de teléfono» de WhatsApp Manager (no el número en sí). Valor: `Tenant.slug`.
+- JSON roto (o una entrada que no es texto) → **503 a todo** con alerta `monitor` (`aviso: wa-mapa-ilegible`), aun
+  con un solo negocio: Meta reintenta y los mensajes llegan cuando se corrige. Vacía o `{}` = sin cargar.
 - **Requisito previo al push con dos o más negocios:** cargar la variable en Vercel. Sin ella:
   - base con UN solo negocio → el mensaje va a ese negocio (compatibilidad, como Mercado Pago) con aviso al
     monitor (`aviso: wa-sin-mapa-negocio-unico`);
   - base con dos o más → **200 sin efecto** (`aviso: wa-numero-sin-negocio`) y Meta no reintenta.
-  (Un JSON roto cuenta como variable sin cargar.)
 - Con la variable cargada, un número que no está en el mapa → **200 sin efecto** y aviso en el log (`aviso: wa-numero-sin-negocio`). Meta no reintenta.
+- Negocio `SUSPENDED` (por el mapa o por el negocio único) → **200 sin efecto** (`aviso: wa-negocio-suspendido`).
+- La base no contesta al buscar el negocio → **500** (Meta reintenta).
 - Sigue valiendo todo lo anterior: `PADEL_WHATSAPP=cloud`, `WHATSAPP_APP_SECRET` (503 sin él, 401 firma mala),
   60 POST/min por IP.
+
+## Antes del push (lo hace el dueño; sólo lecturas)
+
+1. `MP_WEBHOOK_SECRETS` en Vercel (D-10) o, como mínimo, `MP_WEBHOOK_SECRET`.
+2. Si `PADEL_WHATSAPP=cloud` y producción tiene dos o más `Tenant` (contando demos y suspendidos):
+   `WHATSAPP_PHONE_NUMBERS` cargada. Sin ella, los mensajes entrantes se descartan.
+3. Todo negocio que hoy cobra con Mercado Pago tiene `mercadopago` en `Tenant.modules`; si no, sus avisos se
+   rechazan (`negocio-sin-mercadopago`) y se pierde el cobro o la factura automática del turno. Consulta de
+   sólo lectura en Neon:
+
+   ```sql
+   SELECT t.slug, t.status, 'mercadopago' = ANY (t.modules) AS con_modulo,
+          count(a.id) FILTER (WHERE a."createdAt" > now() - interval '90 days') AS links_90_dias
+   FROM "Tenant" t
+   LEFT JOIN "AuditLog" a ON a."tenantId" = t.id
+    AND ((a.entity = 'PaymentLink' AND a.action = 'create') OR (a.entity = 'Order' AND a.action = 'link-de-pago'))
+   GROUP BY t.id, t.slug, t.status, t.modules
+   ORDER BY links_90_dias DESC, t.slug;
+   ```
+
+   Una fila con `links_90_dias > 0` y `con_modulo = false` hay que corregirla (consola de operador) antes del push.
+
+## Con RLS (`app_rls`)
+
+La resolución del negocio de S1 lee **sólo** `Tenant` (`basePrisma`: por slug, por subdominio y los dos
+primeros), que está fuera de RLS a propósito (`prisma/rls/0001_enable_rls.sql`, «EXCLUIDA a propósito») y que
+`app_rls` puede leer (`0002_app_role.sql`). No necesita funciones `SECURITY DEFINER`. Todo lo demás (cobro,
+auditoría, WhatsApp) corre con el negocio ya resuelto: `tenantTransaction({ tenantId })` o
+`runInTenantContext`. Lo prueba `webhooks-por-negocio-postgres.test.ts` («RLS: como app_rls…»).
 
 ## QA clic por clic (local, dos negocios)
 
@@ -76,5 +123,5 @@ Otros: 60 POST/min por IP (429 con `Retry-After`) antes de verificar nada. Un pa
 4. Aviso con `ts` viejo → 401.
 5. 100 POST forjados → 429 a partir del 61.
 
-Los puntos 2 a 5 los cubre `src/lib/webhooks/webhooks-por-negocio-postgres.test.ts` y
-`src/lib/webhooks/aviso-mp.test.ts`.
+El punto 1 (con el link generado por la acción real) y los puntos 2 a 5 los cubren
+`src/lib/webhooks/webhooks-por-negocio-postgres.test.ts` y `src/lib/webhooks/aviso-mp.test.ts`.
