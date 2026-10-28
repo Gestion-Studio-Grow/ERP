@@ -79,6 +79,17 @@ const RE_EMAIL_ESPACIADO = new RegExp(
   String.raw`${LOCAL}(?:\s{1,2}${ARROBA}\s{0,2}|${ARROBA}\s{1,2}|\s?[(\[]\s?at\s?[)\]]\s?)${DOMINIO_CON_PUNTO}`,
   "giu",
 );
+// Email escrito con palabras (O-v5-2, CERT-P2 vuelta 5): «juan.perez arroba gmail punto com»,
+// «juan.perez [at] gmail [dot] com», «juan (arroba) gmail (punto) com». Exige la arroba en
+// palabra («arroba», «[at]», «(at)», «(arroba)») y un dominio con al menos un «punto»/«dot»/«.»
+// y un TLD de letras: «la arroba de la planilla» queda como está. Repeticiones con tope: lineal.
+const PALABRA_SUELTA = String.raw`(?<![\p{L}\p{N}])`;
+const ARROBA_EN_PALABRA = String.raw`\s{1,2}(?:${PALABRA_SUELTA}arroba(?![\p{L}\p{N}])|[(\[]\s?(?:at|arroba)\s?[)\]])\s{1,2}`;
+const PUNTO_EN_PALABRA = String.raw`(?:\s{0,2}\.\s{0,2}|\s{1,2}(?:${PALABRA_SUELTA}(?:punto|dot)(?![\p{L}\p{N}])|[(\[]\s?(?:dot|punto)\s?[)\]])\s{1,2})`;
+const RE_EMAIL_EN_PALABRAS = new RegExp(
+  String.raw`${LOCAL}${ARROBA_EN_PALABRA}[\p{L}\p{N}-]{1,63}(?:${PUNTO_EN_PALABRA}[\p{L}\p{N}-]{1,63}){0,4}${PUNTO_EN_PALABRA}\p{L}{2,24}(?![\p{L}\p{N}])`,
+  "giu",
+);
 
 // Lo que puede ir ENTRE los dígitos de un teléfono, DNI o CUIT sin cortar la tirada, en
 // cualquier cantidad: espacios de todo tipo (también el salto de línea, NBSP, el espacio fino),
@@ -109,7 +120,13 @@ const RE_DIGITOS = new RegExp(String.raw`\+?\p{Nd}(?:${SEPARADOR}*\p{Nd}){5,}`, 
 // Un DNI («30.123.456», «30,123,456») no termina en dos decimales y no va después de «$»: se
 // tapa. Un teléfono tiene grupos de 4 o espacios y tampoco calza. Sólo dígitos 0-9: con otro
 // sistema de dígitos no hay forma de plata y se tapa.
-const RE_IMPORTE_CON_CENTAVOS = /^(?:\d{1,3}(?:[.,]\d{3})+|\d+)[.,]\d{2}$/;
+// Sin separador de miles, la parte entera tiene 7 dígitos como máximo (hasta $ 9.999.999,99):
+// una tirada más larga pegada a «,NN» o «.NN» es un teléfono, un DNI o un CUIT con algo atrás
+// («llamar al 1155667788,15hs», «DNI 30123456,12 cuotas», «CUIT 20301234567,50») y se tapa
+// (O-v5-1, CERT-P2 vuelta 5). Después de un «$» vale cualquier largo (RE_IMPORTE).
+// Residual escrito: un DNI con puntos de miles y «,NN» pegado («DNI 30.123.456,50») tiene la
+// forma exacta de un importe de treinta millones y queda en claro (redaccion-v5.test.ts).
+const RE_IMPORTE_CON_CENTAVOS = /^(?:\d{1,3}(?:[.,]\d{3})+|\d{1,7})[.,]\d{2}$/;
 const RE_IMPORTE = /^(?:\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,]\d{1,2})?$/;
 const RE_PESOS_ANTES = /\$\s{0,2}$/;
 // Una fecha («28/10/2026», «28-10-26», «1.11.2026») tampoco es un teléfono ni un documento.
@@ -186,6 +203,7 @@ function recortar(redactado: string): string {
  */
 export function redactarTextoLibre(texto: string): string {
   const redactado = aRedactar(bienFormado(texto))
+    .replace(RE_EMAIL_EN_PALABRAS, "[email]")
     .replace(RE_EMAIL_ESPACIADO, "[email]")
     // El punto final de la oración («escribime a juan@mail.com.») no es del email: queda.
     .replace(RE_EMAIL, (m: string) => `[email]${/\.+$/.exec(m)?.[0] ?? ""}`)

@@ -198,3 +198,52 @@ test("costo · los emails mal escritos y la forma de plata no hacen cuadrática 
     assert.ok(performance.now() - t0 < 200, `${h.slice(0, 8)}…: ${(performance.now() - t0).toFixed(0)} ms`);
   }
 });
+
+// ── Vuelta 6 · O-v5-1 y O-v5-2 del dictamen vuelta 5 ─────────────────────────
+
+test("O-v5-1 · un teléfono, DNI o CUIT pegado a «,NN»/«.NN» se tapa igual que suelto", () => {
+  for (const [texto, dato] of [
+    ["llamar al 1155667788,15hs", "1155667788"],
+    ["tel 1155667788.30 min antes", "1155667788"],
+    ["DNI 30123456,12 cuotas", "30123456"],
+    ["CUIT 20301234567,50", "20301234567"],
+    ["llamar al 1155667788,15 hs", "1155667788"],
+  ]) {
+    noFiltra(texto, dato);
+    assert.ok(R(texto).includes("******"), `${texto} → ${R(texto)}`);
+  }
+  // Igual que suelto: tapado, con la máscara de siempre.
+  assert.equal(R("llamar al 1155667788"), "llamar al ******7788");
+  assert.match(R("llamar al 1155667788,15hs"), /^llamar al \*{6}\d{4}hs$/);
+  // La plata con centavos sigue intacta: hasta 7 dígitos enteros sin miles, o cualquier largo
+  // con miles o después de «$».
+  for (const t of ["precio 1234567,89", "importe 12500.00 difiere", "Total $ 1155667788,15", "cobrado 1.250.000,00"]) assert.equal(R(t), t);
+});
+
+test("O-v5-1 · residual escrito: un DNI con puntos de miles y «,NN» tiene la forma de un importe", () => {
+  // «30.123.456,50» es también $ 30.123.456,50: no hay forma de separarlos sin tapar precios.
+  assert.equal(R("DNI 30.123.456,50"), "DNI 30.123.456,50");
+});
+
+test("O-v5-2 · un email escrito con palabras se tapa", () => {
+  for (const t of [
+    "juan.perez arroba gmail punto com",
+    "juan.perez [at] gmail [dot] com",
+    "juan.perez (arroba) gmail (punto) com punto ar",
+    "escribile a juan.perez ARROBA gmail PUNTO com, gracias",
+    "juan.perez arroba gmail.com",
+  ]) {
+    const out = R(t);
+    assert.ok(out.includes("[email]") && !/juan\.perez|gmail/i.test(out), `${t} → ${out}`);
+  }
+  // Sin dominio con punto y TLD, «arroba» es una palabra más.
+  for (const t of ["la arroba de la planilla", "2 arroba de papa punto", "una arroba (11,5 kg) de papa"]) assert.equal(R(t), t);
+});
+
+test("O-v5-2 · costo: «arroba» y «punto» repetidos no hacen cuadrática la redacción", () => {
+  for (const h of ["a arroba ".repeat(20_000), "x arroba " + "a punto ".repeat(20_000), "aaaa arroba bbbb punto ".repeat(8_000)]) {
+    const t0 = performance.now();
+    R(h);
+    assert.ok(performance.now() - t0 < 200, `${h.slice(0, 12)}…: ${(performance.now() - t0).toFixed(0)} ms`);
+  }
+});
