@@ -1,4 +1,4 @@
-Veredicto final: NO CERTIFICA (vuelta 5: F7 media, un evento por fila tumba por tiempo el aumento de precios, la planilla y el recuento grandes; F6 cerrada; ver dictamen vuelta 5 al final)
+Veredicto final: NO CERTIFICA (vuelta 6 del ingeniero arriba, pide CERTIFICA · vuelta 5: F7 media, un evento por fila tumba por tiempo el aumento de precios, la planilla y el recuento grandes; F6 cerrada; ver dictamen vuelta 5 al final)
 
 # Dictamen de certificación — Tanda P2 (catálogo de eventos v1 y emisión desde el Core)
 
@@ -18,6 +18,53 @@ Todo corrió en el Postgres 16 local efímero (localhost:5433). Ninguna migraci�
   - `src/lib/arca-envios-concurrencia-postgres.test.ts`: cuenta sólo `InvoiceCreated` como envío a ARCA.
 - Fallas abiertas (todas bajas, redacción de texto libre en P2-C6): soft hyphen U+00AD, separadores de 4+ caracteres,
   DNI con comas, recorte antes de redactar, sobre-enmascarado de números largos.
+
+---
+
+# Respuesta del ingeniero — vuelta 6 · f152f46..eeceff7 (n2/p2-eventos)
+
+Pide: CERTIFICA. F7 cerrada (eventos en lote en las operaciones masivas); O-v5-1…O-v5-4 corregidas; O-v5-5 queda
+como nota para la PMO (el plan vive en `main`, que esta tanda no toca).
+Base: PGlite (`scripts/qa/p2-pglite.mjs`, nunca Neon, sin `.env`). Fecha 2026-10-28. `prisma/pending-gate2/` y el
+runbook **sin tocar**: lo pendiente para S2 sigue siendo lo de la vuelta 4 (ver dictamen vuelta 5).
+
+## Commits
+- `8d06014` feat · `emitirEventosEnLote` (`src/eventos/emitir.ts:290`): valida y redacta todo antes de escribir; un
+  candado por clave distinta (el mismo `outbox:<negocio>:<clave>` de `emitirEvento`, en una sentencia y en orden del
+  hash); dedupe del lote con `unnest` en los dos modos (también la fila con `clave` NULL); `INSERT … SELECT FROM unnest`
+  con `ON CONFLICT` si hay columnas. Tres sentencias por lote. El sobre y el catálogo no cambian.
+- `1ce74ec` fix · F7: `emitirProductosActualizados` en lote (`del-core.ts:511`: aumento, planilla, lista de la marca);
+  `recordMovement` acepta `args.eventos` (`ledger.ts:113`, `:222`) y `ajustarEnTx` emite los `stock.*` del recuento en
+  lote al final (`adjustment-insert.ts:227`). O-v5-3: `cruzaElMinimo` redondea `antes` al milésimo (`del-stock.ts:49`).
+- `a47d822` fix · O-v5-1: importe con centavos sin miles = hasta 7 dígitos enteros (`esquema.ts:129`); después de «$»,
+  cualquier largo. O-v5-2: email escrito con palabras («arroba», «[at]», «punto», «[dot]») → `[email]` (`esquema.ts:89`).
+- `eeceff7` docs · O-v5-4: el `cuando` de `stock.ajustado` nombra alta, anulación, traslado y despiece; `eventos.md` regenerado.
+
+## Verificación
+- F7 (`vuelta6-postgres.test.ts`, PGlite, máquina sin otra carga): «Actualizar precios» de `MAX_FILAS` = 2000 productos,
+  Serializable y con el tope por defecto: **724 ms sin N2_hub · 783 ms con N2_hub** (tope del test 1,5 s), 2000 eventos;
+  el mismo lote otra vez 513/624 ms y 0 nuevos. El repro del certificador (`v5-precios-masivos`, 2000): 702/678 ms
+  (antes 5,0 s y `expired transaction`). Más: rollback sin filas, clave repetida = 1 fila, suelta↔lote se atajan,
+  evento inválido tira sin escribir, 3 candados para 3 claves, B con la clave de A escribe, fila con `clave` NULL ataja.
+- Recuento: la emisión en lote de 499 `stock.ajustado` cuesta ~75 ms. Pero el ledger solo (`recordMovement`, ~8
+  sentencias por línea, anterior a P2) lleva 500 líneas a ~4,2 s en PGlite: el test usa 300 (2,4/2,7 s). **No es de P2**
+  y no lo toqué; con la latencia de Neon un recuento de cientos de líneas puede pasar el tope igual. A la PMO.
+- PGlite `emitir-postgres`, `vuelta4-postgres`, `vuelta5-postgres`, `vuelta6-postgres`: 4/4. (`vuelta4` compara
+  milisegundos y falla si la máquina está cargada: corrido solo, pasa.)
+- Unitarios (`src/eventos`, `stock`, `caja`, `clientes`, `catalogo`, `supermercado`, `debts`, `multilocal`, `settlement`,
+  `cierre*`, `order*`): 998 · 993 pasan · 5 salteados · 0 fallan. `tsc --noEmit`: 403, los mismos; 0 en los tocados.
+
+## O-v5-5 (nota para la PMO, no se toca `main`)
+- `order-actions.ts` (M8) y `clientes/fiado.ts` (M7) llevan líneas de emisión de P2: anotarlo para la consolidación.
+- `caja.turno.cerrada` retail lo emite P2 desde `closeCashSession`; M1 no lo tiene que volver a emitir (si lo hace con
+  `caja:turno:<id>:cerrada`, la dedupe lo ataja).
+- La venta que nace entregada sigue con el paso a DELIVERED en una segunda transacción (de antes de P2).
+
+## Lo que no se pudo verificar
+- RLS con un rol sin BYPASSRLS (PGlite es superusuario), concurrencia real (dos lotes o lote + suelta a la vez; el
+  orden de los candados está escrito, no probado en carrera), y los tiempos contra Neon (punto 4 de la verificación pendiente).
+- Un lote de 2000 toma 2000 candados de aviso en la transacción: entra en la tabla de candados por defecto
+  (`max_locks_per_transaction` 64 × conexiones), pero varios lotes de 2000 a la vez no se probaron.
 
 ---
 
