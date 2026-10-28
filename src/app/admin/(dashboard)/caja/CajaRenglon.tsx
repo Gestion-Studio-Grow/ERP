@@ -17,7 +17,7 @@ import Link from "next/link";
 import type { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import type { getCajaData } from "@/lib/caja-actions";
 import { esperadoDelCajon } from "@/lib/caja/esperado-del-cajon";
-import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego";
+import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego-core";
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { frozenDayMessage } from "@/lib/caja/cierre-diario";
 import { fmtShortDate, fmtTime } from "@/lib/datetime";
@@ -207,6 +207,12 @@ function PorMedio({ dia }: { dia: Dia }) {
   );
 }
 
+// `null` = a ciegas: el servidor (`diaALaVista`) blanqueó el monto de un movimiento en efectivo.
+// La pantalla no decide qué se oculta; sólo dice por qué no está el número.
+function MontoDelLibro({ valor }: { valor: number | null }) {
+  return valor === null ? <span className="text-sm text-muted">{EFECTIVO_SE_VE_AL_ABRIR.toLowerCase()}</span> : <Plata valor={valor} />;
+}
+
 function MovimientosDeHoy({ dia }: { dia: Dia }) {
   const deHoy = dia.movements.filter((m) => m.day === dia.day);
   return (
@@ -239,7 +245,7 @@ function MovimientosDeHoy({ dia }: { dia: Dia }) {
             }
             plata={
               <span className="text-muted">
-                <Plata valor={m.amount} />
+                <MontoDelLibro valor={m.amount} />
               </span>
             }
           />
@@ -249,7 +255,7 @@ function MovimientosDeHoy({ dia }: { dia: Dia }) {
             folio={TIPO[m.type] ?? m.type}
             titulo={<span className="font-normal">{m.detail || ORIGEN[m.origin]}</span>}
             detalle={`${CASH_METHOD_LABEL[m.method]} · ${ORIGEN[m.origin]}`}
-            plata={<Plata valor={entra(m.type) ? m.amount : -m.amount} />}
+            plata={<MontoDelLibro valor={m.amount === null ? null : entra(m.type) ? m.amount : -m.amount} />}
           />
         ),
       )}

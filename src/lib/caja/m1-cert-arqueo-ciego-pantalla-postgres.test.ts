@@ -19,7 +19,7 @@ test("a ciegas encendido: no se abre con el número del libro sin un conteo cieg
   Object.assign(process.env as Record<string, string | undefined>, { DB_CONNECTION_LIMIT: "4", DB_CONNECT_TIMEOUT_MS: "3000" });
   const duenio = await prismaComoDuenio(laBase);
   const { a, b } = laBase;
-  const { openCashSession, getCajaData } = await import("@/lib/caja-actions");
+  const { openCashSession, closeCashSession, getCajaData } = await import("@/lib/caja-actions");
   const { getCierreDiarioData } = await import("@/lib/cierre-diario-actions");
   const { CAMPO_ESPERADO_CONFIRMADO, esperadoParaElFormulario } = await import("@/lib/caja/esperado-del-cajon");
   const { businessWallTimeToUtc, dateStrInBusinessTz } = await import("@/lib/datetime");
@@ -86,5 +86,35 @@ test("a ciegas encendido: no se abre con el número del libro sin un conteo cieg
     const cierre = await como(a, a.duenia, () => getCierreDiarioData(undefined, { esperadoALaVista: true }));
     assert.equal(cierre.efectivoACiegas, false);
     assert.equal(cierre.preview.porMedio.EFECTIVO.expected, 12_000);
+  });
+
+  await t.test("(4) F8: segundo turno del día, a ciegas y sin turno: lo serializado no trae el esperado ni sus sumandos", async () => {
+    // Turno mañana: cuenta 12.000 a ciegas (cuadra), vende 3.000 en efectivo, cierra contando 15.000.
+    // (En (3) ya contó $0 a ciegas: ahora cuadra, pero queda pedido el motivo de aquel conteo.)
+    const ab = await como(a, a.recepcion, () =>
+      openCashSession(null, form({ openingFloat: "12.000", motivo: "recontado", [CAMPO_ESPERADO_CONFIRMADO]: esperadoParaElFormulario(12_000) })),
+    );
+    assert.equal(ab?.ok, true, `no abrió el turno mañana: ${JSON.stringify(ab)}`);
+    await duenio.cashMovement.create({
+      data: { tenantId: a.id, type: "VENTA", method: "EFECTIVO", amount: 3_000, occurredAt: new Date(), createdBy: "seed" },
+    });
+    const ce = await como(a, a.recepcion, () => closeCashSession(null as never, form({ counted: "15.000", [CAMPO_ESPERADO_CONFIRMADO]: esperadoParaElFormulario(15_000) })));
+    assert.equal(ce?.ok, true, `no cerró el turno mañana: ${JSON.stringify(ce)}`);
+    // Lo que la pantalla Caja recibe en el mismo render que OpenCajaForm, tal como viaja (serializado).
+    const numeros = (x: unknown): number[] => JSON.stringify(x, (_k, v) => v).match(/-?\d+(?:\.\d+)?(?=[,}\]])/g)?.map(Number) ?? [];
+    const pantalla = { dia: await como(a, a.recepcion, () => getCierreDiarioData()), caja: await como(a, a.recepcion, () => getCajaData()) };
+    assert.equal(pantalla.dia.efectivoACiegas, true);
+    const salen = numeros(pantalla);
+    for (const n of [15_000, 12_000, 3_000, -3_000]) assert.ok(!salen.includes(n), `a ciegas, a la pantalla Caja llegó ${n} (esperado del libro o un sumando)`);
+    // Con el turno abierto, todo como siempre: montos y esperado a la vista.
+    const ab2 = await como(a, a.recepcion, () => openCashSession(null, form({ openingFloat: "15.000" })));
+    assert.equal(ab2?.ok, true, `no abrió el turno tarde contando lo que había: ${JSON.stringify(ab2)}`);
+    const conTurno = await como(a, a.recepcion, () => getCierreDiarioData());
+    assert.equal(conTurno.efectivoACiegas, false);
+    assert.equal(conTurno.preview.porMedio.EFECTIVO.expected, 15_000);
+    assert.ok(conTurno.movements.some((m) => m.method === "EFECTIVO" && m.amount === 3_000));
+    const cajaConTurno = await como(a, a.recepcion, () => getCajaData());
+    assert.equal(cajaConTurno.esperadoEnElCajon, 15_000);
+    assert.ok(cajaConTurno.recentClosed.length > 0, "con turno abierto, los turnos cerrados se ven como siempre");
   });
 });

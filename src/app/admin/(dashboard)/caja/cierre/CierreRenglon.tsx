@@ -19,6 +19,7 @@
 import Link from "next/link";
 import type { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import { CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
+import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego-core";
 import { formatDayLabel, nextDayKey, CERRAR_DIA_SIN_PERMISO, ETIQUETA_DE_COLUMNA, type ColumnaDelCierre } from "@/lib/caja/cierre-diario";
 import { movementSign } from "@/lib/caja/cash-register";
 import { causasProbables, textoDeAperturaQueNoSuma } from "./revisar-cierre";
@@ -228,8 +229,11 @@ function ComoSeLlega({ d }: { d: Datos }) {
                   key={m.id}
                   folio={diaMes(m.day)}
                   titulo={<span className="font-normal">{m.detail || "(sin detalle)"}</span>}
-                  detalle={`${CASH_METHOD_LABEL[m.method]} · ${ORIGEN[m.origin] ?? m.origin}${signo === 0 ? ` · ${textoDeAperturaQueNoSuma(m.amount)}` : ""}`}
-                  plata={signo === 0 ? null : <Plata valor={signo * m.amount} />}
+                  detalle={`${CASH_METHOD_LABEL[m.method]} · ${ORIGEN[m.origin] ?? m.origin}${signo === 0 && m.amount !== null ? ` · ${textoDeAperturaQueNoSuma(m.amount)}` : ""}`}
+                  plata={
+                    // null sólo llega a ciegas (`diaALaVista`); esta pantalla pide el esperado a la vista.
+                    m.amount === null ? <span className="text-sm text-muted">{EFECTIVO_SE_VE_AL_ABRIR.toLowerCase()}</span> : signo === 0 ? null : <Plata valor={signo * m.amount} />
+                  }
                 />
               );
             })}

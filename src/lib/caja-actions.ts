@@ -50,6 +50,7 @@ import {
 } from "@/lib/caja/apertura-sugerida";
 import { tarjetaHabilitadaPor } from "@/lib/caja/medio-cobro";
 import { arqueoCiegoDelNegocio } from "@/lib/caja/arqueo-ciego";
+import { cajaALaVista } from "@/lib/caja/arqueo-ciego-core";
 
 const CAJA_PATH = "/admin/caja";
 const VENDER_PATH = "/admin/vender";
@@ -187,11 +188,14 @@ export async function getCajaData() {
   // abrir también se cuenta contra él.
   // A CIEGAS (interruptor «arqueo-ciego», cert F6): sin turno abierto, la pantalla Caja abre
   // contando sin ver el esperado. El número ni viaja a la pantalla: lo dice el servidor si no cuadra.
+  // EL BORDE (cert F8): la salida pasa por `cajaALaVista`, que además saca los turnos cerrados
+  // («contó X sobre Y»: lo esperado al cerrar el último turno es el libro al abrir el siguiente).
+  // A ciegas no se paga la consulta del saldo, que igual se blanquearía.
   const aperturaACiegas = !open && (await arqueoCiegoDelNegocio(tenantId));
   const esperadoEnElCajon: number | null = aperturaACiegas
     ? null
     : await tenantTransaction((tx) => saldoEfectivoDelLibro(tx, tenantId, finDelDiaDelNegocio(new Date())), { tenantId });
-  return { open, recentClosed, esperadoEnElCajon, aperturaACiegas };
+  return cajaALaVista({ open, recentClosed, esperadoEnElCajon, aperturaACiegas });
 }
 
 // --- Abrir turno de caja ---

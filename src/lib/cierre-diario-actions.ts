@@ -74,7 +74,8 @@ import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
 import { leerImporte } from "@/lib/pos-peso";
 import { round2 } from "@/lib/round";
 import { tarjetaHabilitada } from "@/lib/caja-actions";
-import { arqueoCiegoDelNegocio, sinElEfectivoALaVista } from "@/lib/caja/arqueo-ciego";
+import { arqueoCiegoDelNegocio } from "@/lib/caja/arqueo-ciego";
+import { diaALaVista } from "@/lib/caja/arqueo-ciego-core";
 import { bordesDelMes, etiquetaDelMes } from "@/lib/libros/fecha-fiscal";
 import { mesesCongeladosQueReabririaElDia } from "@/lib/cierre-mes/lectura";
 
@@ -111,10 +112,11 @@ export type CierreDiarioData = {
   /** El cierre con TODO sin declarar: sirve para mostrar el esperado por medio. */
   preview: CierreDiario;
   /**
-   * A ciegas (interruptor «arqueo-ciego», cert F7): sin turno abierto, el efectivo del libro NO viaja
-   * a la pantalla Caja —ni como esperado ni como «al abrir + entró − salió»—. `preview` viene con la
-   * fila EFECTIVO y el total en cero (`sinElEfectivoALaVista`); la pantalla escribe «se ve al abrir
-   * el turno» en su lugar. Con `esperadoALaVista` (la pantalla del cierre) siempre es false.
+   * A ciegas (interruptor «arqueo-ciego», cert F7/F8): sin turno abierto, el efectivo del libro NO
+   * viaja a la pantalla Caja. TODO lo que sale de `getCierreDiarioData` pasa por `diaALaVista`
+   * (caja/arqueo-ciego-core.ts), que blanquea el resumen, los montos de los movimientos en efectivo
+   * y los conteos; la pantalla escribe «se ve al abrir el turno» donde llega el blanco. Con
+   * `esperadoALaVista` (la pantalla del cierre) siempre es false.
    */
   efectivoACiegas: boolean;
   /** Las filas del período, para que la persona vea qué está cerrando. */
@@ -123,7 +125,8 @@ export type CierreDiarioData = {
     day: DayKey;
     type: CashMovementType;
     method: CashMethod;
-    amount: number;
+    /** `null` = a ciegas (`efectivoACiegas`), un movimiento en EFECTIVO: la fila se ve, el monto no. */
+    amount: number | null;
     detail: string;
     origin: "manual" | "pos" | "turno";
   }[];
@@ -248,6 +251,15 @@ export async function getCierreDiarioData(
   dayRaw?: string | null,
   opciones: { conTurnosSinCerrar?: boolean; esperadoALaVista?: boolean } = {},
 ): Promise<CierreDiarioData> {
+  // EL BORDE (cert F8): una sola salida, y por ella pasa todo. Con `efectivoACiegas` la redacción
+  // blanquea cada monto del libro de efectivo antes de que llegue a la pantalla; nada se tapa abajo.
+  return diaALaVista(await leerCierreDiario(dayRaw, opciones));
+}
+
+async function leerCierreDiario(
+  dayRaw: string | null | undefined,
+  opciones: { conTurnosSinCerrar?: boolean; esperadoALaVista?: boolean },
+): Promise<CierreDiarioData> {
   await requireCapability("orders:read");
   const today = todayInBusinessTz();
   const day = isDayKey(dayRaw) ? dayRaw : today;
@@ -307,6 +319,8 @@ export async function getCierreDiarioData(
       lastClosedDay: cerradoHasta,
       since: null,
       preview: buildCierreDiario({ day, previous: [], movements: [], declared: NADA_DECLARADO }),
+      // Con el día cerrado no se abre turno (`rechazarSiElDiaEstaCerrado`): no hay apertura a ciegas
+      // al lado de este comprobante, así que el conteo del cierre se muestra como siempre.
       efectivoACiegas: false,
       movements: [],
       yaCerrado: true,
@@ -383,9 +397,8 @@ export async function getCierreDiarioData(
   const deSiempre = buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO });
   const columnas = columnasDelCierre({ tarjetaHabilitada: await tarjetaHabilitada(), tarjetaSeMovio: tarjetaSeMovioEn(deSiempre) });
   const preview = buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO, columnas });
-  // A CIEGAS (cert F7): mismo criterio que `getCajaData` (sin turno abierto y el interruptor
-  // encendido). El esperado del cajón no sale del servidor por esta vía: ni el saldo, ni las partes
-  // que lo reconstruyen, ni el conteo del último turno cerrado.
+  // A CIEGAS (cert F7/F8): mismo criterio que `getCajaData` (sin turno abierto y el interruptor
+  // encendido). Acá sólo se marca; lo blanquea `diaALaVista` a la salida de `getCierreDiarioData`.
   const efectivoACiegas = arqueaACiegas && !abierto;
 
   const hechos: HechosDelCierre | null = !sinCobrar || !repartoSinRendir ? null : {
@@ -413,7 +426,7 @@ export async function getCierreDiarioData(
     today,
     lastClosedDay: cerradoHasta,
     since,
-    preview: efectivoACiegas ? sinElEfectivoALaVista(preview) : preview,
+    preview,
     efectivoACiegas,
     movements: rows.map((r) => ({
       id: r.id,
@@ -431,7 +444,7 @@ export async function getCierreDiarioData(
     columnas,
     puedeCerrar,
     turnoAbierto: abierto ? { quien: await nombreDeActor(prisma, tenantId, abierto.openedBy), hora: fmtTime(abierto.openedAt) } : null,
-    conteoDelTurno: efectivoACiegas ? null : conteoDelTurnoParaElCierre({
+    conteoDelTurno: conteoDelTurnoParaElCierre({
       turno: ultimoTurno?.closedAt
         ? { contado: ultimoTurno.closingCounted, cerradoEl: ultimoTurno.closedAt, quien: await nombreDeActor(prisma, tenantId, ultimoTurno.closedBy) }
         : null,

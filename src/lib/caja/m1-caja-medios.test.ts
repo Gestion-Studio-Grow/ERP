@@ -228,3 +228,40 @@ test("reabrir: sólo la dueña, con motivo, el último día cerrado, nunca el co
   assert.deepEqual(validarReabrirDia({ ...base, mesCongeladoQueCubre: null }), { ok: true });
   assert.match(error({ day: "20-10-2026" }), /No se entendió/);
 });
+
+// Cert F8 (causa raíz de F6/F7/F8): UNA redacción en el borde del servidor. A ciegas, lo que sale
+// hacia la pantalla no trae ningún monto del libro de efectivo; sin ciegas, sale idéntico.
+test("a ciegas, diaALaVista/cajaALaVista blanquean todo monto del efectivo del libro; sin ciegas, nada cambia", async () => {
+  const { diaALaVista, cajaALaVista } = await import("@/lib/caja/arqueo-ciego-core");
+  type Dia = Parameters<typeof diaALaVista>[0];
+  const day = "2026-10-28";
+  const at = new Date("2026-10-28T15:00:00Z");
+  const fila = (id: string, type: CierreMovement["type"], method: CierreMovement["method"], amount: number): CierreMovement => ({ id, occurredAt: at, type, method, amount, detail: "" });
+  // Segundo turno del día (el caso de la cert): fondo 12.000 + venta 3.000 en efectivo, y 4.321 por MP.
+  const movs = [fila("ap", "APERTURA", "EFECTIVO", 12_345), fila("v1", "VENTA", "EFECTIVO", 3_017), fila("v2", "VENTA", "MP", 4_321)];
+  const preview = buildCierreDiario({ day, since: null, previous: [fila("p", "VENTA", "EFECTIVO", 12_345)], movements: movs, declared: { EFECTIVO: null, MP: null, TARJETA: null } });
+  const esperado = preview.porMedio.EFECTIVO.expected;
+  assert.equal(esperado, 15_362);
+  const dia = (efectivoACiegas: boolean): Dia => ({
+    day, today: day, lastClosedDay: null, since: null, preview, efectivoACiegas,
+    movements: movs.map((m) => ({ id: m.id, day, type: m.type, method: m.method, amount: m.amount, detail: "", origin: "pos" as const })),
+    yaCerrado: false, enElFuturo: false, registro: null, turnosSinCerrar: null, columnas: preview.columnas, puedeCerrar: false, turnoAbierto: null,
+    conteoDelTurno: { contado: esperado, quien: "Ana", cerradoEl: at, vigente: true },
+    hechos: { ventasSinCobrar: { cantidad: 0, monto: 0 }, repartoSinRendir: { cantidad: 0, monto: 0 }, pagadosDeMas: [], cuadernoConFechaVieja: { cantidad: 1, monto: 3_017 } } as unknown as Dia["hechos"],
+    reabrir: null,
+  });
+  const serializado = JSON.stringify(diaALaVista(dia(true)));
+  for (const n of [esperado, 12_345, 3_017, 15_362 - 12_345]) assert.ok(!serializado.includes(String(n)), `a ciegas salió ${n}: ${serializado}`);
+  assert.ok(serializado.includes("4321"), "el MP no se blanquea: va al banco, no al cajón");
+  const ciega = diaALaVista(dia(true));
+  assert.deepEqual(ciega.movements.map((m) => m.amount), [null, null, 4_321], "la fila en efectivo se ve, el monto no");
+  assert.equal(ciega.conteoDelTurno, null);
+  // Sin ciegas (turno abierto o interruptor apagado): el mismo objeto, nada se toca.
+  const vista = dia(false);
+  assert.equal(diaALaVista(vista), vista);
+  // El turno de cajero: sin el esperado y sin «contó X sobre Y» de los turnos cerrados.
+  const turnos = [{ id: "s1", closingCounted: 15_362, closingExpected: 15_362, closingDiff: 0 }];
+  assert.deepEqual(cajaALaVista({ open: null, recentClosed: turnos, esperadoEnElCajon: 15_362, aperturaACiegas: true }), { open: null, recentClosed: [], esperadoEnElCajon: null, aperturaACiegas: true });
+  const abierta = { open: null, recentClosed: turnos, esperadoEnElCajon: 15_362, aperturaACiegas: false };
+  assert.equal(cajaALaVista(abierta), abierta);
+});

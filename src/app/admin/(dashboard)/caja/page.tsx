@@ -8,7 +8,7 @@ import { isDemoSandbox } from "@/lib/demo-flag";
 import { fmtShortDate } from "@/lib/datetime";
 import type { CashMethod } from "@/lib/caja/cash-register";
 import { esperadoDelCajon } from "@/lib/caja/esperado-del-cajon";
-import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego";
+import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego-core";
 import { Card, CardHeader, CardTitle, CardDescription, Badge, fmtMoneyARS, type BadgeProps } from "@/components/ui";
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { frozenDayMessage } from "@/lib/caja/cierre-diario";
@@ -231,8 +231,15 @@ function ResumenDelDia({ dia }: { dia: Awaited<ReturnType<typeof getCierreDiario
                   <span
                     className={`shrink-0 tabular-nums ${sign === "+" ? "text-success" : sign === "−" ? "text-danger" : "text-body"}`}
                   >
-                    {sign && `${sign} `}
-                    {fmtMoneyARS(m.amount)}
+                    {/* null = a ciegas (lo blanqueó el servidor, `diaALaVista`): la fila sí, el monto no. */}
+                    {m.amount === null ? (
+                      <span className="text-muted">{EFECTIVO_SE_VE_AL_ABRIR.toLowerCase()}</span>
+                    ) : (
+                      <>
+                        {sign && `${sign} `}
+                        {fmtMoneyARS(m.amount)}
+                      </>
+                    )}
                   </span>
                 </li>
               );

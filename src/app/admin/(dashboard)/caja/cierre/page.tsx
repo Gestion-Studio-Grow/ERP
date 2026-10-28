@@ -346,7 +346,8 @@ export default async function CierreCajaPage({
                             {m.origin === "turno" ? "Turno cobrado" : "Venta del mostrador"}
                           </Badge>
                         )}
-                        {signo === 0 && (
+                        {/* `amount` null sólo a ciegas (`diaALaVista`); esta pantalla pide el esperado a la vista. */}
+                        {signo === 0 && m.amount !== null && (
                           <Badge className="ml-2" tone="neutral">
                             {textoDeAperturaQueNoSuma(m.amount)}
                           </Badge>
