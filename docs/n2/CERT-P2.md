@@ -1,4 +1,4 @@
-Veredicto final: CON OBSERVACIONES (sin fallas alta/media)
+Veredicto final: NO CERTIFICA (vuelta 4: F6 media de alcance, P2-C2; sin fallas en el código de la vuelta 4 — ver dictamen vuelta 4 al final)
 
 # Dictamen de certificación — Tanda P2 (catálogo de eventos v1 y emisión desde el Core)
 
@@ -190,3 +190,105 @@ Veredicto: NO CERTIFICA (3 fallas media). Riesgos atacados: datos y plata.
 
 ---
 
+
+# Dictamen · vuelta 4 · P2 eventos · e661a65..827a55d (n2/p2-eventos)
+
+Veredicto final: NO CERTIFICA
+
+Una falla media, de alcance (P2-C2). El código de la vuelta 4 está bien: no encontré fallas de plata, de datos ni de concurrencia
+que se puedan reproducir con PGlite. Cuando la PMO decida qué pasa con P2-C2, la vuelta 5 sólo tiene que revisar eso y la
+verificación con Postgres real de abajo.
+Base: PGlite (nunca Neon, sin `.env`). Fecha 2026-10-28. Tests del certificador en el scratchpad de la sesión (no van al repo):
+`…/scratchpad/cert-p2-v4/v4-redaccion.test.ts` y `…/scratchpad/cert-p2-v4/v4-cobrado-postgres.test.ts`.
+
+## Verificación
+- `tsc --noEmit`: 403 errores, ninguno en los 15 archivos `.ts` tocados en `5aed9fd..HEAD`. Son 103 TS2307 (faltan `playwright`, `three`, `qrcode` y `pdf-lib`) y los TS7006/TS7031 que salen de esos mismos paquetes. [VERIFICADO]
+- `catalogo.test.ts` + `redaccion-adversarial.test.ts`: 26/26. Con PGlite, `emitir-postgres` dio 1/1 y `vuelta4-postgres` 1/1. [VERIFICADO]
+- **Integración con S2.** Uní P2 a la punta de S2 (`1485e30`) en un worktree descartable, que ya borré.
+  - `N2_hub.sql` y `schema.prisma` se unen solos. `README.md` choca sólo en la tabla del paquete: la fila 2 se queda con la de S2 (DEBITO/CREDITO) y la fila 3 con la de P2.
+  - Sobre el árbol unido: el estático de S2 + probe + catálogo dieron 41/41, el paquete Gate 2 en PGlite (`gate2-pglite.mjs`) 14/14 y los dos tests de base de P2 1/1 y 1/1. El plan nuevo de la dedupe es BitmapOr (UNIQUE + parcial) y no recorre la tabla. [VERIFICADO]
+
+## Intentos de refutación
+**Redacción (F4/F5/O1).** Cerradas.
+- Corrí un barrido de 3000 textos al azar (de 450 a 4650 caracteres, con teléfonos, DNI, emails, emojis, ZWJ y guion blando).
+- Ningún resultado pasa de 500 caracteres ni deja un sustituto suelto, y ningún teléfono ni DNI queda con 6 dígitos seguidos en claro. [VERIFICADO]
+
+Lo que quedó (bajas, no bloquean):
+- **O-v4-1 · fugas residuales en el texto libre.**
+  - Separadores que no están en la clase: `_ * : ; | ~ \ • ’ '` y `·`. Lo de `·` es por diseño. Ejemplo: «11_5566_7788» y «30'123'456» salen enteros.
+  - Dígitos que no son ASCII: el `\d` de JS sin la bandera `v` sólo toma 0-9, así que «１１５５６６７７８８» sale entero.
+  - Emails que no tienen la forma completa: «juan.perez@gmail. com» (el espacio que mete el autocorrector), «juan.perez @ gmail.com» y «juan.perez@hotmail» (sin TLD) salen enteros.
+  - Ninguno es el formato habitual; el de email es el más probable.
+  - Arreglo sugerido: para las tiradas, separador = `[^\p{L}\p{N}\n]` y `\p{Nd}` con normalización NFKC antes de redactar; para el email, enmascarar la parte local antes de una `@` aunque no haya TLD.
+- **O-v4-2 · sobre-enmascarado nuevo por la coma.** Lo agregó F4.
+  - Un precio con centavos en formato argentino ahora se pierde: «reintegro de $ 1.250,50» sale «$ ******5050» (en v3 salía intacto) y «se cobró 1.500,75 de más» sale «******0075».
+  - Una lista de códigos también: «pedido 1042, 1043, 1044 y 1045» sale «pedido ******1044 y 1045».
+  - No filtra nada, pero el `motivo` de `pedido.cancelado` pierde montos. Es el mismo criterio que O2, aceptado por diseño, ahora más amplio.
+  - Para pensar: la coma separa sólo si después vienen exactamente 3 dígitos.
+- **O-v4-3 · un sustituto suelto en la ENTRADA sigue tumbando la transacción.**
+  - `redactarTextoLibre("cliente \ud83d se fue")` lo devuelve igual.
+  - En la base, la emisión de `pedido.cancelado` falla con `22P02` (jsonb) en los dos modos y la anulación vuelve atrás.
+  - El arreglo de la vuelta 4 cubre el corte, no la entrada.
+  - Arreglo: `.toWellFormed()` en `redactarTextoLibre` y en `e.texto()`/`e.id()` antes de serializar.
+  - Repro: `v4-cobrado-postgres` › X5.
+- **O-v4-4 · el corte parte una máscara o un `[email]`.** «… ****», «… [em». Es cosmético: no filtra.
+
+**`pedido.cobrado`.** Cerrado.
+- Sale una vez, en la transacción del cobro y junto con su asiento cuando hay libro (X4: 1 evento y 1 asiento).
+- No se duplica por dos caminos:
+  - botón + cobranza;
+  - cobranza + botón;
+  - venta a cuenta saldada y después el botón («ya-cobrado»), en X2;
+  - sobrepago sobre una deuda ya saldada, en X3.
+- La decisión del fiado es coherente con el catálogo. Entregar al fiado y la venta a cuenta no emiten; el cobro que salda la deuda del pedido sí (X2 y vuelta4 f). [VERIFICADO con PGlite, sin carreras]
+- **O-v4-5 · fiado → anulación → pago de la deuda: `pedido.cancelado@1` y DESPUÉS `pedido.cobrado@1`.** Repro: X1, en los dos modos.
+  - La causa es anterior a P2: `anularVentaInTx` no anula la `AccountReceivable` del fiado (queda OPEN y se puede cobrar). P2 sólo lo hace visible hacia afuera.
+  - Arreglo de dominio (fuera de P2): que la anulación cierre la deuda del fiado. Si no se hace, `emitirPedidoCobradoAlSaldarFiado` no debería emitir para un pedido CANCELLED.
+- **O-v4-6 · el `cuando` del catálogo nombra un camino que en producción no se usa.** «Cobro parcial que salda el pedido» por `applyCollectionInTx` con origen ORDER. `recordCollection` no tiene llamadores fuera de los tests, y el pago mixto escribe el `Collection` directo. El camino vivo es la deuda (RECEIVABLE), así que es un tema de texto.
+
+**`factura.autorizada.clase`.** Bien: probé 44 tipos de ARCA y salen 1/6/11/51/201 → FACTURA, 2/7/12/52/202 → NOTA_DEBITO y 3/8/13/53/203 → NOTA_CREDITO. Dos menores: los tiques 83 y 109 salen OTRO, y el ERP no los emite. Pasar el comprobante asociado a M4 está bien (M4-C6), y es un campo opcional: no sube la versión.
+
+## Índice parcial y paquete de S2
+- **Dónde quedó.** En `prisma/pending-gate2/N2_hub.sql` de la rama P2, y el README y el comentario de `schema.prisma` lo acompañan. Además del índice, P2 sumó el backfill de `clave`, el PASO POSTERIOR y la línea de la reversa.
+- **Sí, P2 divergió el paquete, por dos lados:**
+  - P2 parte de S2 en `ab84360` (vuelta 1 de S2), así que le faltan 9 commits de S2: FK CASCADE, D-C01 DEBITO/CREDITO, arreglos del probe y el test estático. Esa parte se resuelve sola al unir: git toma la versión de S2.
+  - El paquete de S2 que va al día D **no tiene** lo de P2. Si D-01 se aplica desde `n2/s2-paquete-gate2` tal como está:
+    - sin backfill, vuelve F2 (los eventos emitidos antes de la migración se duplican después);
+    - sin el índice parcial, vuelve v2-d (la rama `clave IS NULL` del OR recorre la tabla en cada venta).
+- **Qué hacer.** No es una migración propia de P2 sino cambios al mismo archivo, así que se **copian al paquete de S2** antes del día D:
+  - En `N2_hub.sql`: el `UPDATE … SET "clave" = "payload"->>'_clave'` antes del UNIQUE, el `CREATE INDEX … "OutboxEvent_tenantId_payloadClave_sinClave_idx" … WHERE "clave" IS NULL`, el pie del PASO POSTERIOR y el `DROP INDEX` de la reversa.
+  - En el README, la fila 3.
+  - En `docs/runbooks/gate2-nivel2.md`, dos cosas que hoy no están: el paso 3b (re-backfill a los 2 minutos, que depende de `TTL_NEGATIVO_MS` = 60 s, igual en las dos ramas) y la tabla de reversa, que pasa a «3 `DROP INDEX`».
+  - Después, volver a correr `gate2-pglite.mjs` y el estático de S2.
+  - El resultado de la unión, ya probado, quedó en `…/scratchpad/cert-p2-v4/integ-s2+p2/` (N2_hub.sql y README.md).
+  - 🔴 Sin esto, D-01 deja el emisor de P2 sin las dos protecciones que se le pidieron.
+
+## Traspasos (contra PLAN-REINGENIERIA-N2.md)
+- **v2-d sin N2_hub → Q3 / D-01:** válido sólo como condición escrita. El plan publica la fase 1 «en modo tolerante hasta D-01» (§9, fila 5), y «no prender P2 sin N2_hub» contradice ese orden. Es una decisión del dueño (D-01/D-02), así que tiene que entrar en la ficha de D-01 o de Q3-C2, no quedar sólo en este dictamen.
+- **`processedAt` NULL → P3:** correcto (§4.1.3, P3 es el despachante). Falta que P3 lo reciba: hoy ninguno de P3-C1…C7 dice qué hacer con lo acumulado.
+- **Límites de texto y de renglones → P4:** el destino está bien, porque `src/app/api/public/v1/**` es de P4. La cita está mal: P4-C3 es `Idempotency-Key`, no validar la entrada. Hay que sumarlo como criterio de P4.
+- **Comprobante asociado de la NC → M4:** correcto (M4-C6).
+
+## Falla
+### F6 · media · alcance · P2-C2 no se cumple y lo pendiente no tiene destino en el plan
+- **Qué pide P2-C2:** «Están instrumentados los 18 eventos retail … (los del club se emiten en B1)». No pide un ID, pide instrumentarlos. Un «pendiente» sólo vale como traspaso a una tanda que exista.
+- **Lo que hay:** se emiten 5 de los 18. `pago.*` → P5 está respaldado (P5-C5) y `balanza.lectura` es opcional en §7.3. Quedan **10 eventos retail**, y los archivos de 9 de ellos están en la lista propia de P2:
+  - `pedido.confirmado`, `pedido.listo`, `pedido.entregado` → «tanda de avanzar-pedido». No existe. Además, el punto de emisión (`order-actions.ts`) no está en la lista de P2.
+  - `stock.bajo` y `stock.ajustado` → «tanda de inventario». No existe, y `src/lib/inventario/*` es de P2.
+  - `producto.actualizado` → «tanda de catálogo». No existe, y el plan lo pone en **P2** (§2, fila 15).
+  - `cliente.creado` → «tanda de client-actions». No existe, y `client-actions.ts` es de P2.
+  - `deuda.vencida` → «tanda de debts». No existe. El plan lo nombra en M7-C6.
+  - `caja.cerrada` y `caja.abierta` → «M1». Ningún criterio de M1 los nombra, y el QA de P2 pide «cerrar el día → `caja.cerrada@1`».
+- **Club:** `socio.*`, `cuota.*`, `credito.*` y `buffet.pedido.creado` dicen «módulo club». P2-C2 los manda a B1, pero B1-C6 no los incluye. Es un hueco del plan; hay que anotarlo.
+- **Impacto:** P8-C1 (n8n: stock bajo, deuda vencida, caja cerrada) depende de eventos que hoy ninguna tanda tiene que emitir.
+- **Cierre, una de dos:**
+  - (a) instrumentarlos en P2: son líneas de emisión en archivos de P2, cada una con su test;
+  - (b) que la PMO firme el traspaso evento por evento a tandas con ID y criterio. Por ejemplo, `deuda.vencida` → M7-C6, `caja.*` → un criterio nuevo en M1 que también corrija el QA de P2, y `pedido.confirmado/listo/entregado` → la tanda que tenga `order-actions.ts`. Después, el catálogo se re-rotula con esos IDs.
+
+## Verificación pendiente con Postgres real (CI o arnés en localhost:5433, rol `app_rls` sin BYPASSRLS)
+1. `node --import tsx --test src/eventos/emitir-postgres.test.ts`: aislamiento por RLS entre A y B, con y sin N2_hub. PGlite lo saltea.
+2. `node --import tsx --test src/eventos/vuelta4-postgres.test.ts`, con `psql -f N2_hub.sql`.
+3. Concurrencia (test nuevo): dos `cobrarFiadoInTx` en paralelo sobre la misma deuda, cada uno por el saldo entero, en Serializable. Esperado: un cobro, un `pedido.cobrado@1` y el otro con 40001 o rechazo de saldo.
+4. Concurrencia sin N2_hub (test nuevo): `cobrarFiadoInTx` (Serializable) que salda la deuda, en paralelo con `emitirPedidoCobradoAlSaldar` en READ COMMITTED sobre el mismo pedido. Esperado: 1 fila. Es el caso que `emitir.ts` admite que el chequeo no cubre con aislamientos mezclados.
+5. `src/lib/schema-probe/paquete-gate2.test.ts` (S2) con los cambios de P2 ya copiados, más el PASO POSTERIOR. Una fila escrita con el probe viejo después de N2_hub tiene que quedar con clave, y un duplicado tardío tiene que quedar en NULL sin abortar.
+6. `node scripts/qa/p2-costo-dedupe-pglite.mjs` repetido contra Postgres real (200k filas): los milisegundos de Neon para la ficha de D-01.
