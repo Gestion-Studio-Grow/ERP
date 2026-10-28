@@ -82,3 +82,24 @@ test("rate limit antes de la firma: el 61.º POST de la misma IP → 429", async
   assert.ok(estados.slice(0, 60).every((s) => s === 401));
   assert.equal(estados[60], 429);
 });
+
+// Pase N2 (WhatsApp se configura al final): sin PADEL_WHATSAPP=cloud ni WHATSAPP_PHONE_NUMBERS la
+// ruta contesta lo mismo que en main (`skipped: whatsapp-apagado`) antes de leer la firma, el mapa,
+// la conexión o la base: firmado o no, de cualquier número.
+test("WhatsApp apagado y sin WHATSAPP_PHONE_NUMBERS → 200 whatsapp-apagado, igual que hoy, sin tocar nada", async () => {
+  const { POST } = await import("@/app/api/webhooks/whatsapp/route");
+  const antes = { modo: process.env.PADEL_WHATSAPP, mapa: process.env.WHATSAPP_PHONE_NUMBERS };
+  delete process.env.PADEL_WHATSAPP;
+  delete process.env.WHATSAPP_PHONE_NUMBERS;
+  try {
+    for (const r of [await POST(mensaje("100000000000001", "7.7.8.1")), await POST(mensaje("999999999999999", "7.7.8.2"))]) {
+      assert.equal(r.status, 200);
+      assert.deepEqual(await r.json(), { ok: true, skipped: "whatsapp-apagado" });
+    }
+  } finally {
+    if (antes.modo === undefined) delete process.env.PADEL_WHATSAPP;
+    else process.env.PADEL_WHATSAPP = antes.modo;
+    if (antes.mapa === undefined) delete process.env.WHATSAPP_PHONE_NUMBERS;
+    else process.env.WHATSAPP_PHONE_NUMBERS = antes.mapa;
+  }
+});
