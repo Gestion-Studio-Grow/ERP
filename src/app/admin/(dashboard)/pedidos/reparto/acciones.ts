@@ -42,7 +42,7 @@ import {
   type MarcaDeReparto,
   type ResultadoDeRendicion,
 } from "./reparto-core";
-import { ultimaMarcaConFecha, ultimaMarcaDelPedido, ventasDelLibro } from "./datos.server";
+import { consultaDeVentasDelLibro, ultimaMarcaConFecha, ultimaMarcaDelPedido, ventasDeLasFilas, ventasDelLibro } from "./datos.server";
 import { mensajeDeRendirTodo, type EnvioRendidoDeUnaVez } from "./rendicion/rendir-todo";
 
 const RUTAS = ["/admin/pedidos", "/admin/pedidos/reparto", "/admin/pedidos/reparto/rendicion"];
@@ -133,8 +133,20 @@ type MarcaRendido = Extract<MarcaDeReparto, { tipo: "rendido" }>;
  * «rendido», no se escribe otra. La segunda espera a que la primera termine y la ve. El candado
  * se suelta solo al cerrar la transacción (xact), así que con el pooler no queda colgado.
  * Como la auditoría de siempre, no lanza: la plata ya quedó en su lugar con sus propias reglas.
+ *
+ * CERT-magra-tpractica (carrera de dos puestos): «a cobrar» se decidió con el pedido leído FUERA
+ * del candado; si el otro puesto lo cobró mientras tanto («Cobró» efectivo), la marca mentiría
+ * (efectivo 0 y «a cobrar» en el resumen). Por eso, dentro del candado y con la fila del pedido
+ * tomada (espera a un cobro en vuelo), se relee el pedido y el libro: cobrado → se graba lo que
+ * dice el libro (`rendicionDelYaPago`, «cobrado» con sus pagos). Y si el cobro llega DESPUÉS de un
+ * «rendido a cobrar» (no al fiado), su «cobrado» con pagos lo reemplaza: manda la última marca.
  */
-async function marcarRendidoUnaVez(tenantId: string, orderId: string, marca: MarcaRendido): Promise<"grabada" | "ya-estaba" | "fallo"> {
+async function marcarRendidoUnaVez(
+  tenantId: string,
+  orderId: string,
+  marca: MarcaRendido,
+  salio: Date | null,
+): Promise<{ estado: "grabada"; marca: MarcaRendido } | { estado: "ya-estaba" } | { estado: "fallo" }> {
   const user = await getCurrentUser();
   const actor = user ? `user:${user.id}` : "admin";
   try {
@@ -142,22 +154,40 @@ async function marcarRendidoUnaVez(tenantId: string, orderId: string, marca: Mar
       async (tx) => {
         await tx.$executeRaw`SELECT set_config('lock_timeout', '5000', true)`;
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`reparto-rendido:${tenantId}:${orderId}`}))`;
+        let aGrabar = marca;
+        if (marca.resultado === "a-cobrar" && !marca.aCuenta) {
+          // La fila del pedido: si hay un cobro en vuelo, se espera a que cierre y se lo ve.
+          await tx.$queryRaw`SELECT 1 FROM "Order" WHERE id = ${orderId} AND "tenantId" = ${tenantId} FOR UPDATE`;
+          const ahora = await tx.order.findFirst({ where: { id: orderId, tenantId }, select: { paid: true, paymentMethod: true } });
+          if (ahora?.paid) {
+            const filas = await tx.cashMovement.findMany(consultaDeVentasDelLibro(tenantId, orderId));
+            const libro = cobroDelLibro(ventasDeLasFilas(filas), ahora.paymentMethod);
+            if (libro.pagos.length > 0) {
+              const d = rendicionDelYaPago({ paid: true, salio, libro });
+              aGrabar = { tipo: "rendido", reparto: marca.reparto, resultado: d.resultado, code: marca.code, cliente: marca.cliente, total: marca.total, pagos: d.pagos };
+            }
+          }
+        }
         const ultima = await tx.auditLog.findFirst({
           where: { tenantId, entity: "Order", action: ACCION_REPARTO, entityId: orderId },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           select: { changes: true },
         });
-        if (leerMarcaDeReparto(ultima?.changes)?.tipo === "rendido") return "ya-estaba" as const;
+        const previa = leerMarcaDeReparto(ultima?.changes);
+        if (previa?.tipo === "rendido") {
+          const reemplaza = previa.resultado === "a-cobrar" && !previa.aCuenta && aGrabar.resultado === "cobrado" && aGrabar.pagos.length > 0;
+          if (!reemplaza) return { estado: "ya-estaba" as const };
+        }
         await tx.auditLog.create({
-          data: { tenantId, actor, action: ACCION_REPARTO, entity: "Order", entityId: orderId, changes: JSON.parse(JSON.stringify(marca)), channel: "admin" },
+          data: { tenantId, actor, action: ACCION_REPARTO, entity: "Order", entityId: orderId, changes: JSON.parse(JSON.stringify(aGrabar)), channel: "admin" },
         });
-        return "grabada" as const;
+        return { estado: "grabada" as const, marca: aGrabar };
       },
       { tenantId },
     );
   } catch (err) {
     logger.error("reparto", "no se pudo grabar la marca de lo rendido", err, { entity: "Order", entityId: orderId });
-    return "fallo";
+    return { estado: "fallo" };
   }
 }
 
@@ -201,7 +231,13 @@ async function rendirUnEnvio(tenantId: string, id: string, pedido: ComoSeRinde, 
     r: ResultadoDeRendicion,
     pagos: { medio: "EFECTIVO" | "MERCADOPAGO" | "TRANSFERENCIA"; monto: number }[],
     aCuenta = false,
-  ) => marcarRendidoUnaVez(tenantId, id, { tipo: "rendido", reparto, resultado: r, code: o.code, cliente: o.customerName, total, pagos, ...(aCuenta ? { aCuenta: true as const } : {}) });
+  ) =>
+    marcarRendidoUnaVez(
+      tenantId,
+      id,
+      { tipo: "rendido", reparto, resultado: r, code: o.code, cliente: o.customerName, total, pagos, ...(aCuenta ? { aCuenta: true as const } : {}) },
+      conFecha?.en ?? null,
+    );
 
   if (resultado === "volvio") {
     const motivo = texto(formData.get("motivo")) ?? "Volvió sin entregar";
@@ -222,7 +258,7 @@ async function rendirUnEnvio(tenantId: string, id: string, pedido: ComoSeRinde, 
     });
     const r = await entregarPedido(null, soloId);
     if (!r?.ok) return { r };
-    if ((await rendido(yaPagoDe.resultado, yaPagoDe.pagos)) === "ya-estaba") return yaRendido();
+    if ((await rendido(yaPagoDe.resultado, yaPagoDe.pagos)).estado === "ya-estaba") return yaRendido();
     revalidar();
     return {
       r: {
@@ -246,7 +282,24 @@ async function rendirUnEnvio(tenantId: string, id: string, pedido: ComoSeRinde, 
     if (!r?.ok) return { r };
     const quedo = await prisma.order.findFirst({ where: { id, tenantId }, select: { paid: true, paymentMethod: true } });
     const alFiado = Boolean(quedo?.paid && !quedo.paymentMethod);
-    if ((await rendido("a-cobrar", [], alFiado)) === "ya-estaba") return yaRendido();
+    const grabado = await rendido("a-cobrar", [], alFiado);
+    if (grabado.estado === "ya-estaba") return yaRendido();
+    // La carrera: el otro puesto lo cobró mientras se entregaba; la marca dice lo del libro.
+    if (grabado.estado === "grabada" && grabado.marca.resultado !== "a-cobrar") {
+      revalidar();
+      const como = grabado.marca.resultado;
+      return {
+        r: {
+          ok: true,
+          mensaje:
+            como === "cobrado"
+              ? `Pedido #${o.code} entregado: otro puesto lo cobró en este reparto (${textoPlata(grabado.marca.pagos.reduce((s, p) => s + p.monto, 0))}), va en la rendición.`
+              : `Pedido #${o.code} entregado (ya estaba pago).`,
+        },
+        como,
+        total,
+      };
+    }
     // O-2: sin fiado, por qué (con las cuentas corrientes prendidas y sin la app, se avisa).
     const decision = alFiado ? null : await decidirFiadoDeLaEntrega(tenantId, id);
     revalidar();
@@ -302,7 +355,7 @@ async function rendirUnEnvio(tenantId: string, id: string, pedido: ComoSeRinde, 
         await ventasDelLibro(tenantId, id),
         (await prisma.order.findFirst({ where: { id, tenantId }, select: { paymentMethod: true } }))?.paymentMethod ?? null,
       );
-  if ((await rendido(yaPago ? "ya-pago" : "cobrado", yaPago ? [] : libro && libro.pagos.length ? libro.pagos : delFormulario)) === "ya-estaba") {
+  if ((await rendido(yaPago ? "ya-pago" : "cobrado", yaPago ? [] : libro && libro.pagos.length ? libro.pagos : delFormulario)).estado === "ya-estaba") {
     return yaRendido();
   }
   revalidar();

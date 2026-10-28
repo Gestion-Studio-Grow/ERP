@@ -134,11 +134,24 @@ export async function ultimaMarcaConFecha(tenantId: string, orderId: string): Pr
  * mixto (cuelgan del cobro, `Collection.orderId`). Acotado por el `tenantId` de la sesión.
  */
 export async function ventasDelLibro(tenantId: string, orderId: string): Promise<VentaDelLibro[]> {
-  const filas = await prisma.cashMovement.findMany({
-    where: { tenantId, type: "VENTA", OR: [{ orderId }, { collection: { tenantId, orderId } }] },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  return ventasDeLasFilas(await prisma.cashMovement.findMany(consultaDeVentasDelLibro(tenantId, orderId)));
+}
+
+/**
+ * La misma consulta, para leerla con la transacción que tiene el candado del pedido
+ * (`marcarRendidoUnaVez`): el cliente global, desde adentro de esa transacción, no ve el libro.
+ */
+export function consultaDeVentasDelLibro(tenantId: string, orderId: string) {
+  return {
+    where: { tenantId, type: "VENTA" as const, OR: [{ orderId }, { collection: { tenantId, orderId } }] },
+    orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
     take: 10,
     select: { createdAt: true, amount: true, method: true, collection: { select: { method: true } } },
-  });
+  };
+}
+
+export function ventasDeLasFilas(
+  filas: readonly { createdAt: Date; amount: unknown; method: string; collection: { method: string } | null }[],
+): VentaDelLibro[] {
   return filas.map((f) => ({ en: f.createdAt, monto: Number(f.amount), columna: f.method, medioDelCobro: f.collection?.method ?? null }));
 }
