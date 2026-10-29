@@ -106,6 +106,11 @@ ALTER TYPE "CashMethod" ADD VALUE IF NOT EXISTS 'TRANSFERENCIA';
 --        ALTER TABLE "CashMovement" ALTER COLUMN method TYPE "CashMethod" USING method::text::"CashMethod";
 --        ALTER TABLE "CashMovement" ALTER COLUMN method SET DEFAULT 'EFECTIVO';
 --        DROP TYPE "CashMethod_old";
+-- 🔴 Recrear el tipo con la app viva (cert. M1 v6 F3): cada proceso guarda para siempre el «sí
+--    está» de CashMethod.TRANSFERENCIA (`transferenciaEnElLibroTx`) y del probe de los enums. Entre
+--    el CREATE TYPE y un proceso nuevo, toda venta por transferencia intenta escribir el valor que
+--    ya no existe y FALLA. Hacerlo sólo en ventana (sin ventas) y *Redeploy* en Vercel ANTES de
+--    reabrir; el proceso nuevo vuelve a preguntar y asienta en `MP`, como antes del paquete.
 -- Sin el paso 2, los valores quedan y no molestan: es la opción de la reversa del runbook.
 -- ─────────────────────────────────────────────────────────────────────────────
 

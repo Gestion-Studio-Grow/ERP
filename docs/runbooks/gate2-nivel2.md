@@ -176,7 +176,10 @@ copiada tal cual a psql (probadas en local):
 | 1 | `CarniceriaRubro.sql` | bloque `ROLLBACK` al pie (tablas, enums y 2 columnas de Product) | lotes y despieces cargados |
 
 Después de una reversa: *Redeploy* en Vercel (los procesos vivos cachean el «sí está» del probe
-para siempre; un proceso nuevo vuelve a preguntar) y repetir el humo §4.
+para siempre; un proceso nuevo vuelve a preguntar) y repetir el humo §4. Si se recreó un tipo del
+paso 2 (procedimiento manual al pie de `N2_enums.sql`), hacerlo **en ventana, sin ventas, y con el
+redeploy antes de reabrir**: un proceso vivo que ya vio `CashMethod.TRANSFERENCIA` sigue
+escribiéndolo y cada venta por transferencia falla hasta que se reinicia (cert. M1 v6 F3).
 
 ## 6. Cierre
 
