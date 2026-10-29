@@ -224,7 +224,7 @@ export default function CargarCuaderno({
 
       <p className="text-xs text-muted">
         {conTarjeta
-          ? "Medios: efectivo, Mercado Pago o transferencia (sólo si viste la plata acreditada). Lo cobrado con el posnet, con Tarjeta."
+          ? "Medios: efectivo, Mercado Pago o transferencia (sólo si viste la plata acreditada). Lo cobrado con el posnet, con Débito o Crédito (lo que anotaste)."
           : "Medios: efectivo, Mercado Pago o transferencia (sólo si viste la plata acreditada). Lo cobrado con el posnet, con el medio en que te acredita (provisional a confirmar con el dueño)."}
       </p>
 
