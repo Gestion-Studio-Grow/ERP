@@ -71,6 +71,37 @@ Negocios de prueba sembrados en una base local: `facturita-demo` (monotributo), 
 
 Para cerrarlos hace falta un Postgres 16 real: el de la otra máquina (puerto 5434), uno portable bajado con OK del dueño, o el job `tests` del CI (necesita push de la rama, que hoy no está autorizado).
 
+## X0 bis (29/10/2026) — sobre `origin/main` `e57651d2` (pase N2 en producción)
+
+- **Merge `b5af86b2`.** Tres conflictos, resueltos sumando los dos lados:
+  - `invoice-core.ts`: importaciones.
+  - `mercadopago-auto.ts`: `configCobrosPorDefecto` + `estadoCobrosMP`.
+  - `mercadopago-dispatch.ts`: el gateway con el pago ya leído y la facturación apagable de `main`, más R1 de la rama: con el pago, se factura ese cobro del turno.
+- **H-1 cerrado (`768d2a5e`).** El aviso `REGIMEN_A_A_CONFIRMAR` ahora manda a «pedile a Soporte GSG que lo cargue». Sólo cambia el texto; código y gravedad del motivo siguen iguales.
+- **Test de R1 adaptado (`77df04c8`).** Desde P1-C4, Mercado Pago es una conexión del negocio. El test la crea con `crearConexion`; en PGlite da 5/5.
+- **Verificación:**
+  - `tsc` 0 errores; build verde con 18 rutas del frente.
+  - Suite: 7219 tests, 6614 pasan, 33 fallan, 273 cancelados, 299 salteados. Los 53 archivos con fallas también fallan en la línea de base de `main` del 28/10 (`d4798012`); no se volvió a medir `e57651d2`.
+  - Tests de la zona MP y motor con `CI=1`: 195/195.
+  - PGlite: `mercadopago-doble-factura` 2/2 y `facturita-emision` 5/5.
+- **Recorrido de punta a punta con `next start`** (PGlite, ARCA simulado, 360 px):
+  - Factura B 00003-00000002 autorizada: neto 20.000 + IVA 4.200 = 24.200, numeración correlativa.
+  - La Factura A sin régimen muestra el texto nuevo.
+  - «Mis facturas» mide 368 px (antes 648-660).
+- **H-2:** sigue [A VALIDAR]. Deja de importar si las 3 migraciones se aplican antes del deploy, que es lo que exige `vercel-build.mjs:173-181`.
+
+### Certificación completa de la resolución de Mercado Pago (refutador, 29/10)
+
+La resolución del merge **se sostiene**: no hay doble factura nueva y los eventos del Core salen en los mismos lugares que en `main`. Lo que encontró en el código de R1 y en la convivencia con N2:
+
+| # | Gravedad | Hallazgo | Estado |
+|---|---|---|---|
+| C-1 | **media-alta · fiscal** | Carrera seña/cierre: si el aviso de MP de la seña y el cierre del turno corren a la vez, la seña se factura dos veces. `facturarCobroMPDelTurno` mira si el turno ya tiene factura en una transacción y factura en otra (`invoice-from-appointment.ts:208-217`). `facturarAppointment` lee lo facturado por MP fuera de su transacción (`:127-135`). Las claves son distintas (`mp:` y `turno:`) y el índice único no los frena. Viene de R1, no del merge. | **Abierto.** El arreglo es bloquear la fila del turno en los dos caminos y volver a leer dentro de la transacción. Se certifica sólo con concurrencia real (Postgres). |
+| C-2 | baja | Con N2, la configuración de MP no trae `collectorId`: las «cuentas propias» de R1 quedan vacías y una transferencia del propio dueño va a revisión (no se factura) (`mercadopago-auto.ts:324`). | Deuda: definir de dónde sale `collectorId` en la conexión. |
+| C-3 | baja | `crearEntornoReal` lee la configuración dos veces; en modo legado deja dos AuditLog `mp-modo-legado` (`mercadopago-auto.ts:291,301`). | Deuda. |
+| C-4 | baja | Ningún test recorre `manejarNotificacionMP` con la resolución nueva (el de R1 copia la función, `una-factura-por-cobro-postgres.test.ts:112`), y el comentario de `mercadopago-doble-factura-postgres.test.ts:132-134` quedó viejo. | Deuda. |
+| C-5 | baja | Un pago de MP que llega con el turno ya facturado se anota contra esa factura y no se emite otra, aunque sea un saldo (`invoice-from-appointment.ts:216-217`). `main` tenía el mismo hueco por otro camino. | Deuda. |
+
 ## D-02 (dónde viven las migraciones)
 
 Se aplica la recomendación (a): las tres quedan en `prisma/migrations/`, fuera de `prisma/lote-deploy.txt`. **No se tocó** `prisma/pending-gate2/README.md` porque lo edita la rama `n2/s2-paquete-gate2`. Cuando S2 cierre, su README y el anexo del runbook tienen que listar:
