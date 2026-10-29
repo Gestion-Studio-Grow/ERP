@@ -1,12 +1,13 @@
 import { cn } from "./cn";
 
 // Controles de formulario del design system. Foco de marca, borde de línea,
-// superficie elevada, altura táctil (44px). Unifican los inputs inline con
-// estilos dispares entre /admin y el sitio.
+// superficie elevada, altura táctil. Unifican los inputs inline con estilos
+// dispares entre /admin y el sitio. Escala nivel 5 (29/10/2026): 48 px de alto y
+// letra de 16 px o más (`text-base`): el iPhone no hace zoom al tocar el campo.
 
 const control =
-  "w-full h-11 rounded-md border border-line-strong bg-surface-raised px-3 " +
-  "text-sm text-strong placeholder:text-faint " +
+  "w-full h-12 rounded-md border border-line-strong bg-surface-raised px-3.5 " +
+  "text-base text-strong placeholder:text-faint hover:border-[color-mix(in_srgb,var(--text-strong)_30%,transparent)] " +
   "transition-colors focus:border-accent focus-visible:outline-2 " +
   "focus-visible:outline-offset-2 focus-visible:outline-focus " +
   "aria-invalid:border-danger " +
@@ -51,16 +52,23 @@ export function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div data-ui="field" className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={htmlFor} data-parte="etiqueta" className="text-sm font-medium text-strong">
+    <div data-ui="field" className={cn("flex flex-col gap-2", className)}>
+      <label htmlFor={htmlFor} data-parte="etiqueta" className="text-sm font-semibold text-strong">
         {label}
         {required && <span className="text-danger ml-0.5" aria-hidden>*</span>}
       </label>
       {children}
       {error ? (
-        <p data-parte="error" className="text-xs text-danger" role="alert">{error}</p>
+        <p data-parte="error" className="flex items-start gap-1.5 text-sm font-medium text-danger" role="alert">
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false" className="mt-[3px] shrink-0">
+            <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M8 4.5v4.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            <circle cx="8" cy="11.2" r=".95" fill="currentColor" />
+          </svg>
+          <span>{error}</span>
+        </p>
       ) : hint ? (
-        <p data-parte="ayuda" className="text-xs text-muted">{hint}</p>
+        <p data-parte="ayuda" className="text-sm text-muted">{hint}</p>
       ) : null}
     </div>
   );
