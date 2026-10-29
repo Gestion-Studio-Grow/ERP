@@ -48,19 +48,24 @@ test("Tarjeta se habilita sólo con el valor en la base Y en el cliente de Prism
   assert.equal(tarjetaHabilitadaPor({ enLaBase: true, enElCliente: true }), true);
 });
 
-test("sin Tarjeta habilitada, los medios son los de siempre y TARJETA se sigue rechazando", () => {
+test("sin Tarjeta habilitada, los medios son los de siempre y DEBITO/CREDITO se siguen rechazando", () => {
   assert.deepEqual(mediosDeCobroDisponibles(false).map((m) => m.valor), ["EFECTIVO", "MERCADOPAGO", "TRANSFERENCIA"]);
-  assert.deepEqual(mediosDeCobroDisponibles(true).map((m) => m.valor), ["EFECTIVO", "MERCADOPAGO", "TRANSFERENCIA", "TARJETA"]);
-  assert.equal(leerMedioDeCobroConTarjeta("TARJETA", false), null);
-  assert.equal(leerMedioDeCobroConTarjeta("TARJETA", true), "TARJETA");
+  assert.deepEqual(mediosDeCobroDisponibles(true).map((m) => m.valor), ["EFECTIVO", "MERCADOPAGO", "TRANSFERENCIA", "DEBITO", "CREDITO"]);
+  for (const t of ["DEBITO", "CREDITO"] as const) {
+    assert.equal(leerMedioDeCobroConTarjeta(t, false), null);
+    assert.equal(leerMedioDeCobroConTarjeta(t, true), t);
+    assert.equal(leerMedioDeCobro(t), null, "el camino de siempre no cambia");
+  }
+  // D-C01: no hay un medio «TARJETA»; ni habilitada se acepta.
+  assert.equal(leerMedioDeCobroConTarjeta("TARJETA", true), null);
   assert.equal(leerMedioDeCobroConTarjeta("MERCADOPAGO", false), "MERCADOPAGO");
-  assert.equal(leerMedioDeCobro("TARJETA"), null, "el camino de siempre no cambia");
-  assert.equal(etiquetaDeMedio("TARJETA"), "Tarjeta");
+  assert.equal(etiquetaDeMedio("DEBITO"), "Tarjeta de débito");
+  assert.equal(etiquetaDeMedio("CREDITO"), "Tarjeta de crédito");
 });
 
 test("el protocolo sin señal dice cómo anotar el posnet, con y sin Tarjeta", () => {
-  assert.equal(textoDelPosnet(false), "posnet: anotá en el cuaderno como TARJETA.");
-  assert.match(textoDelPosnet(true), /anotá en el cuaderno como TARJETA y, al cargarla, elegí Tarjeta/);
+  assert.equal(textoDelPosnet(false), "posnet: anotá en el cuaderno como TARJETA (débito o crédito).");
+  assert.match(textoDelPosnet(true), /anotá en el cuaderno DÉBITO o CRÉDITO y, al cargarla, elegí Débito o Crédito/);
 });
 
 // ── C2 · columnas ────────────────────────────────────────────────────────────

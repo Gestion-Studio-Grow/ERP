@@ -116,9 +116,11 @@ export function cashMethodFromPaymentMethod(paymentMethod: string): CashMethod |
     case "MERCADOPAGO":
     case "TRANSFERENCIA":
       return "MP";
-    // N2 · M1: Tarjeta (posnet) tiene su columna en el libro desde siempre. En `PaymentMethod`
-    // existe sólo con N2_enums.sql aplicada; mientras tanto ningún cobro llega con este valor.
-    case "TARJETA":
+    // N2 · M1 (D-C01): Débito y Crédito van separados en `PaymentMethod` y juntos en la columna
+    // Tarjeta del libro, que existe desde siempre. En `PaymentMethod` existen sólo con N2_enums.sql
+    // aplicada; mientras tanto ningún cobro llega con estos valores.
+    case "DEBITO":
+    case "CREDITO":
       return "TARJETA";
     default:
       return null;

@@ -24,7 +24,7 @@ test("contra Postgres: caja y medios de M1 (a ciegas, Tarjeta en los dos estados
   if (!laBase) return;
   apuntarLaAppA(laBase);
   prepararAccionesDeServidor();
-  Object.assign(process.env as Record<string, string | undefined>, { DB_CONNECTION_LIMIT: "4", DB_CONNECT_TIMEOUT_MS: "3000" });
+  Object.assign(process.env as Record<string, string | undefined>, { DB_CONNECTION_LIMIT: process.env.ERP_TEST_DB_CONNECTION_LIMIT ?? "4", DB_CONNECT_TIMEOUT_MS: "3000" });
   const duenio = await prismaComoDuenio(laBase);
   const { a, b } = laBase;
 
@@ -71,7 +71,7 @@ test("contra Postgres: caja y medios de M1 (a ciegas, Tarjeta en los dos estados
 
   // ── C1 · Tarjeta SIN el valor en el enum ───────────────────────────────────
   olvidarSchemaProbe();
-  assert.equal(await hayValorEnum("PaymentMethod", "TARJETA"), false, "la base nace sin TARJETA en PaymentMethod");
+  assert.equal(await hayValorEnum("PaymentMethod", "DEBITO"), false, "la base nace sin DEBITO en PaymentMethod");
   assert.equal(await como(a, a.duenia, () => tarjetaHabilitada()), false, "sin el valor, Tarjeta no se ofrece");
   const deBSinEnum = await como(b, b.duenia, () => getCierreDiarioData(hoy));
   assert.deepEqual(deBSinEnum.columnas, ["EFECTIVO", "MP", "TRANSFERENCIA"], "sin Tarjeta habilitada y sin plata por tarjeta, la columna no aparece");
@@ -226,15 +226,16 @@ test("contra Postgres: caja y medios de M1 (a ciegas, Tarjeta en los dos estados
   // ── C1 · Tarjeta CON el valor en el enum (N2_enums.sql, sólo en esta base efímera) ──
   const sql = readFileSync(path.join(process.cwd(), "prisma/pending-gate2/N2_enums.sql"), "utf8");
   const pasos = sql.split("\n").filter((l) => /^ALTER TYPE/.test(l.trim()));
-  assert.equal(pasos.length, 3, "los tres ADD VALUE del paquete, cada uno en su paso");
+  assert.equal(pasos.length, 4, "los ADD VALUE del paquete, cada uno en su paso");
   for (const paso of pasos) await duenio.$executeRawUnsafe(paso);
   olvidarSchemaProbe();
-  assert.equal(await hayValorEnum("PaymentMethod", "TARJETA"), true, "aplicada: el probe lo ve");
-  const clienteConoce = (Object.values(PaymentMethod) as string[]).includes("TARJETA");
+  assert.equal(await hayValorEnum("PaymentMethod", "DEBITO"), true, "aplicada: el probe lo ve");
+  assert.equal(await hayValorEnum("PaymentMethod", "CREDITO"), true, "aplicada: el probe lo ve");
+  const clienteConoce = ["DEBITO", "CREDITO"].every((v) => (Object.values(PaymentMethod) as string[]).includes(v));
   assert.equal(
     await como(a, a.duenia, () => tarjetaHabilitada()),
     clienteConoce,
-    "con el valor en la base, Tarjeta se habilita SÓLO si el cliente de Prisma también lo conoce (schema.prisma `// N2-enum: TARJETA`)",
+    "con el valor en la base, Tarjeta se habilita SÓLO si el cliente de Prisma también lo conoce (schema.prisma `DEBITO`/`CREDITO // N2-enum-encendido:`)",
   );
   // Nada se rompe con el valor aplicado: los pedidos se leen y la hoja de B sigue sin Tarjeta si no hay cómo cobrarla.
   assert.equal((await duenio.order.findMany({ where: { tenantId: a.id }, select: { paymentMethod: true } })).length, 3);

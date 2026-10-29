@@ -24,9 +24,10 @@ test("C1 · algún llamador de PieDeCobro le pasa conTarjeta", () => {
   assert.ok(conTarjeta.some((f) => !f.endsWith("PieDeCobro.tsx") && !f.endsWith("ProtocoloSinSenal.tsx")), `nadie enciende la tecla Tarjeta (llamadores: ${llamadores.join(", ")})`);
 });
 
-test("C1 · alguna server action de cobro acepta TARJETA (leerMedioDeCobroConTarjeta)", () => {
-  const usos = rg("leerMedioDeCobroConTarjeta\\(").filter((f) => !f.endsWith("medio-cobro.ts"));
-  assert.ok(usos.length > 0, "el servidor rechaza TARJETA en todo cobro: la tecla, si se mostrara, fallaría");
+test("C1 · alguna server action de cobro acepta Débito/Crédito (leerMedioDeCobroConTarjeta)", () => {
+  // `[(]` y no `\\(`: el grep de Git para Windows rechaza `\(` en -E («Unmatched ( or \(»).
+  const usos = rg("leerMedioDeCobroConTarjeta[(]").filter((f) => !f.endsWith("medio-cobro.ts"));
+  assert.ok(usos.length > 0, "el servidor rechaza DEBITO/CREDITO en todo cobro: la tecla, si se mostrara, fallaría");
 });
 
 test("C1 · el protocolo sin señal recibe conTarjeta de tarjetaHabilitada()", () => {

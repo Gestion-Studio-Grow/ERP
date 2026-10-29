@@ -31,7 +31,7 @@ import {
   type CobroDePedido,
   type OrderPaymentMethod,
 } from "@/lib/order-core";
-import { TARJETA, leerMedioDeCobroConTarjeta, medioDeCobroRequerido, mensajeYaCobrado } from "@/lib/caja/medio-cobro";
+import { esMedioDeTarjeta, leerMedioDeCobroConTarjeta, medioDeCobroRequerido, mensajeYaCobrado } from "@/lib/caja/medio-cobro";
 import { tarjetaHabilitada } from "@/lib/caja-actions";
 import { leerPagos, vueltoDelCobro } from "@/lib/cobro/leer-pagos";
 import type { AsientoDePago } from "@/lib/supermercado/pago-mixto";
@@ -335,11 +335,11 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // datos); acá sólo se usa el medio que ella devuelve. No va en `insertOrder`: la vidriera y
   // la ingesta externa no la heredan.
   //
-  // TARJETA (N2 · M1-C1): la tecla del pie la manda sola (no entra en un pago dividido). Se acepta
-  // SÓLO si `tarjetaHabilitada()` (el valor en la base, N2_enums.sql, y en el cliente de Prisma): sin
-  // el paquete, Postgres rechazaría el alta. Si no, TARJETA sigue el camino de siempre y se rechaza
-  // con el mensaje de elegir el medio. El probe se pregunta sólo cuando llega TARJETA.
-  const conTarjeta = paid && !asientos && leerMedioDeCobroConTarjeta(pagos.medio, true) === TARJETA ? await tarjetaHabilitada() : false;
+  // DEBITO/CREDITO (N2 · M1-C1, D-C01): las teclas del pie los mandan solos (no entran en un pago
+  // dividido). Se aceptan SÓLO si `tarjetaHabilitada()` (los valores en la base, N2_enums.sql, y en el
+  // cliente de Prisma): sin el paquete, Postgres rechazaría el alta. Si no, siguen el camino de siempre
+  // y se rechazan con el mensaje de elegir el medio. El probe se pregunta sólo cuando llega uno de los dos.
+  const conTarjeta = paid && !asientos && esMedioDeTarjeta(leerMedioDeCobroConTarjeta(pagos.medio, true)) ? await tarjetaHabilitada() : false;
   const medio = medioDeCobroRequerido({ channel, paid, paymentMethod: pagos.medio, conTarjeta });
   if (!medio.ok) return { ok: false, error: medio.error };
   const paymentMethod: PaymentMethod | null = medio.paymentMethod;

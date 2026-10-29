@@ -40,8 +40,10 @@ test("leerVentasDelCuaderno: forma estricta, sin confiar en el navegador", () =>
   assert.equal(ok.ventas[1].cliente, "Ana");
   assert.equal(ok.ventas[0].medio, "EFECTIVO");
   // Tarjeta (N2 · M1-C1) se lee: la acepta o la rechaza `createOrder`, con `tarjetaHabilitada()`.
-  const conTarjeta = leerVentasDelCuaderno([{ ...VENTA, medio: "TARJETA" }]);
-  assert.ok(conTarjeta.ok && conTarjeta.ventas[0].medio === "TARJETA");
+  const conTarjeta = leerVentasDelCuaderno([{ ...VENTA, medio: "DEBITO" }, { ...VENTA, clave: "otra-clave-456", medio: "CREDITO" }]);
+  assert.ok(conTarjeta.ok && conTarjeta.ventas[0].medio === "DEBITO" && conTarjeta.ventas[1].medio === "CREDITO");
+  // El TARJETA de antes de D-C01 ya no es un medio: se rechaza como cualquier otro.
+  assert.equal(leerVentasDelCuaderno([{ ...VENTA, medio: "TARJETA" }]).ok, false);
   const malas: unknown[] = [
     null,
     [],

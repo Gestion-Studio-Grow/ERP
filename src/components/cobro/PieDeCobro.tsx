@@ -26,7 +26,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { cn } from "@/components/ui/cn";
-import { MEDIOS_DE_COBRO, MEDIO_TARJETA, etiquetaDeMedio, type MedioConTarjeta, type MedioDeCobro } from "@/lib/caja/medio-cobro";
+import { MEDIOS_DE_COBRO, MEDIOS_DE_TARJETA, MEDIO_TARJETA, etiquetaDeMedio, type MedioConTarjeta, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import {
   billetesSugeridos,
   camposDelPie,
@@ -64,13 +64,16 @@ export interface PieDeCobroProps {
 }
 
 /**
- * Tarjeta viaja por el mismo camino que los demás medios (`camposDelPie` → `paymentMethod`), pero
- * `MedioDeCobro` (20 archivos con tipos cerrados) todavía no la incluye: va con este molde. La enciende
- * Vender (boutique) con `tarjetaHabilitada()` y la acepta `createOrder` con la misma pregunta
- * (`leerMedioDeCobroConTarjeta`); sin el valor en la base, la tecla no se muestra y el servidor la
- * rechaza con su mensaje de siempre.
+ * Débito y Crédito (D-C01) viajan por el mismo camino que los demás medios (`camposDelPie` →
+ * `paymentMethod`), pero `MedioDeCobro` (20 archivos con tipos cerrados) todavía no los incluye: van
+ * con este molde. Los enciende Vender (boutique) con `tarjetaHabilitada()` y los acepta `createOrder`
+ * con la misma pregunta (`leerMedioDeCobroConTarjeta`); sin los valores en la base, las teclas no se
+ * muestran y el servidor los rechaza con su mensaje de siempre.
  */
-const MEDIO_TARJETA_DEL_PIE = MEDIO_TARJETA.valor as MedioConTarjeta as MedioDeCobro;
+const MEDIOS_DE_TARJETA_DEL_PIE = MEDIOS_DE_TARJETA.map((m) => ({ ...m, medio: m.valor as MedioConTarjeta as MedioDeCobro }));
+
+/** Columnas de las teclas en pantalla ancha: 3 medios de siempre + 2 de tarjeta + dividir. */
+const COLUMNAS_DE_TECLAS: Record<number, string> = { 3: "sm:grid-cols-3", 4: "sm:grid-cols-4", 5: "sm:grid-cols-5", 6: "sm:grid-cols-6" };
 
 type Vista =
   | { tipo: "medios" }
@@ -331,7 +334,7 @@ export function PieDeCobro({ total, deshabilitado, textoBoton = "Cobrar", permit
     );
   } else {
     cuerpo = (
-      <div className={cn("grid grid-cols-2 gap-2", (permitirDividir ? 1 : 0) + (conTarjeta ? 1 : 0) === 2 ? "sm:grid-cols-5" : permitirDividir || conTarjeta ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
+      <div className={cn("grid grid-cols-2 gap-2", COLUMNAS_DE_TECLAS[3 + (conTarjeta ? 2 : 0) + (permitirDividir ? 1 : 0)])}>
         <button
           type="button"
           className={TECLA}
@@ -355,19 +358,21 @@ export function PieDeCobro({ total, deshabilitado, textoBoton = "Cobrar", permit
             <span className="tabular-nums text-muted">{textoPlata(total)}</span>
           </button>
         ))}
-        {conTarjeta && (
-          <button
-            type="button"
-            className={TECLA}
-            disabled={bloqueado}
-            aria-label={`${etiquetaCobrar} con tarjeta, ${MEDIO_TARJETA.nota}`}
-            onClick={() => cobrar({ modo: "simple", medio: MEDIO_TARJETA_DEL_PIE })}
-          >
-            <span>{MEDIO_TARJETA.etiqueta}</span>
-            <span className="text-xs font-normal text-muted">{MEDIO_TARJETA.nota}</span>
-            <span className="tabular-nums text-muted">{textoPlata(total)}</span>
-          </button>
-        )}
+        {conTarjeta &&
+          MEDIOS_DE_TARJETA_DEL_PIE.map((t) => (
+            <button
+              key={t.valor}
+              type="button"
+              className={TECLA}
+              disabled={bloqueado}
+              aria-label={`${etiquetaCobrar} con tarjeta de ${t.etiqueta.toLowerCase()}`}
+              onClick={() => cobrar({ modo: "simple", medio: t.medio })}
+            >
+              <span>{t.etiqueta}</span>
+              <span className="text-xs font-normal text-muted">{MEDIO_TARJETA.etiqueta}</span>
+              <span className="tabular-nums text-muted">{textoPlata(total)}</span>
+            </button>
+          ))}
         {permitirDividir && (
           <button
             type="button"

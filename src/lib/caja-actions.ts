@@ -148,18 +148,20 @@ async function conteoACiegasPendiente(tx: Prisma.TransactionClient, tenantId: st
 }
 
 /**
- * ¿Se puede cobrar con Tarjeta en este negocio? (N2 · M1-C1). Hacen falta las dos cosas: el valor
- * `TARJETA` en el enum `PaymentMethod` de la base (N2_enums.sql, probe con caché por proceso) y en
- * el cliente de Prisma generado (prisma/schema.prisma, `// N2-enum: TARJETA`). Con una sola, Prisma
- * rechaza el alta o rompe la lectura de pedidos (ver medio-cobro.ts). Sólo lectura.
+ * ¿Se puede cobrar con Tarjeta (Débito y Crédito) en este negocio? (N2 · M1-C1, D-C01). Hacen falta
+ * las dos cosas, para LOS DOS valores: `DEBITO` y `CREDITO` en el enum `PaymentMethod` de la base
+ * (N2_enums.sql, probe con caché por proceso) y en el cliente de Prisma generado
+ * (prisma/schema.prisma, `// N2-enum-encendido:`). Con una sola, Prisma rechaza el alta o rompe la
+ * lectura de pedidos (ver medio-cobro.ts). Sólo lectura.
  */
 export async function tarjetaHabilitada(): Promise<boolean> {
   await requireCapability("orders:read");
-  const { PaymentMethod } = await import("@/generated/prisma/enums");
-  const enElCliente = (Object.values(PaymentMethod) as string[]).includes("TARJETA");
-  if (!enElCliente) return false;
-  const { hayValorEnum } = await import("@/lib/schema-probe");
-  return tarjetaHabilitadaPor({ enLaBase: await hayValorEnum("PaymentMethod", "TARJETA"), enElCliente });
+  const { sePuedeEscribirValorEnum } = await import("@/lib/schema-probe");
+  const [debito, credito] = await Promise.all([
+    sePuedeEscribirValorEnum("PaymentMethod", "DEBITO"),
+    sePuedeEscribirValorEnum("PaymentMethod", "CREDITO"),
+  ]);
+  return tarjetaHabilitadaPor({ enLaBase: debito && credito, enElCliente: debito && credito });
 }
 
 // --- Loader de la pantalla de caja ---

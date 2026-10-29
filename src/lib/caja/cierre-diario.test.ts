@@ -409,8 +409,11 @@ test("la traducción PaymentMethod → CashMethod es una sola y frena ante lo de
   assert.equal(cashMethodFromPaymentMethod("EFECTIVO"), "EFECTIVO");
   assert.equal(cashMethodFromPaymentMethod("MERCADOPAGO"), "MP");
   assert.equal(cashMethodFromPaymentMethod("TRANSFERENCIA"), "MP");
-  // N2 · M1: Tarjeta va a su columna del libro. En PaymentMethod existe sólo con N2_enums.sql.
-  assert.equal(cashMethodFromPaymentMethod("TARJETA"), "TARJETA");
+  // N2 · M1 (D-C01): Débito y Crédito van a la columna Tarjeta del libro. En PaymentMethod existen
+  // sólo con N2_enums.sql; el TARJETA de antes de D-C01 no es un medio de pago.
+  assert.equal(cashMethodFromPaymentMethod("DEBITO"), "TARJETA");
+  assert.equal(cashMethodFromPaymentMethod("CREDITO"), "TARJETA");
+  assert.equal(cashMethodFromPaymentMethod("TARJETA"), null);
   assert.equal(cashMethodFromPaymentMethod("CHEQUE"), null);
   assert.equal(cashMethodFromPaymentMethod(""), null);
 });

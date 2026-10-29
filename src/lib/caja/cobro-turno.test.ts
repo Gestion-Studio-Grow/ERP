@@ -62,7 +62,7 @@ test("medio desconocido o vacío → no se adivina la columna", () => {
     eligible: false,
     reason: "unsupported-method",
   });
-  // N2 · M1: TARJETA ya tiene columna (cashMethodFromPaymentMethod); un medio que no existe, no.
+  // N2 · M1: DEBITO/CREDITO ya tienen columna (cashMethodFromPaymentMethod); un medio que no existe, no.
   assert.deepEqual(cobroTurnoEligibility({ status: "APPROVED", paymentMethod: "CHEQUE", amount: 15000 }), {
     eligible: false,
     reason: "unsupported-method",

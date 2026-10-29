@@ -23,9 +23,9 @@ export type KpiAppointmentStatus =
   | "COMPLETED"
   | "NO_SHOW";
 
-// TARJETA (N2 · M1-C1): existe en `PaymentMethod` desde que M1 encendió el valor en el schema; en la base,
-// sólo con N2_enums.sql. El mix de medios la cuenta como un medio más.
-export type KpiPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA" | "TARJETA";
+// DEBITO/CREDITO (N2 · M1-C1, D-C01): existen en `PaymentMethod` desde que M1 encendió los valores en el
+// schema; en la base, sólo con N2_enums.sql. El mix de medios los cuenta separados, como dos medios más.
+export type KpiPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA" | "DEBITO" | "CREDITO";
 
 // Forma mínima de turno que necesitan los KPIs. La Server Action mapea las filas
 // de Prisma a esto (con `select` acotado), así el cálculo no depende del shape del
