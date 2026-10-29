@@ -21,7 +21,7 @@ import {
 } from "./libro-caja";
 
 const deps = {
-  methodLabel: (m: "EFECTIVO" | "MP" | "TARJETA") => CASH_METHOD_LABEL[m],
+  methodLabel: (m: keyof typeof CASH_METHOD_LABEL) => CASH_METHOD_LABEL[m],
   monthLabel: "septiembre 2026",
   totalOf,
 };
@@ -210,12 +210,12 @@ test("el RESUMEN abre los egresos por origen y por medio, y suman lo mismo que '
     const [rotulo, ...resto] = lineas[i].split(";");
     bloque.set(rotulo, resto);
   }
-  // Efectivo; MP; Tarjeta; Total
-  assert.deepEqual(bloque.get("Compra a proveedor"), ["5000,00", "0,00", "0,00", "5000,00"]);
-  assert.deepEqual(bloque.get("Comisión"), ["3000,00", "0,00", "0,00", "3000,00"]);
-  assert.deepEqual(bloque.get("Anulación"), ["0,00", "2000,00", "1500,00", "3500,00"]);
-  assert.deepEqual(bloque.get("Diferencia de caja"), ["100,00", "0,00", "0,00", "100,00"]);
-  assert.deepEqual(bloque.get("Egreso manual"), ["700,00", "0,00", "0,00", "700,00"]);
+  // Efectivo; MP; Transferencia; Tarjeta; Total
+  assert.deepEqual(bloque.get("Compra a proveedor"), ["5000,00", "0,00", "0,00", "0,00", "5000,00"]);
+  assert.deepEqual(bloque.get("Comisión"), ["3000,00", "0,00", "0,00", "0,00", "3000,00"]);
+  assert.deepEqual(bloque.get("Anulación"), ["0,00", "2000,00", "0,00", "1500,00", "3500,00"]);
+  assert.deepEqual(bloque.get("Diferencia de caja"), ["100,00", "0,00", "0,00", "0,00", "100,00"]);
+  assert.deepEqual(bloque.get("Egreso manual"), ["700,00", "0,00", "0,00", "0,00", "700,00"]);
   // Los orígenes que sólo ingresan no aparecen en un subtotal de EGRESOS.
   assert.equal(bloque.has("Venta mostrador"), false);
   assert.equal(bloque.has("Corte/Importación"), false);

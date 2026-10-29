@@ -176,6 +176,8 @@ enum CashMethod {
   EFECTIVO
   MP
   TARJETA
+  // M1-C2 (orden del dueño 29/10/2026): la transferencia deja de ir junto con Mercado Pago en `MP`.
+  TRANSFERENCIA // N2-enum-encendido: M1 (Gate 2 nivel 2 · prisma/pending-gate2/N2_enums.sql). El cliente lo conoce; la base, sólo con el paquete. Se escribe sólo con sePuedeEscribirValorEnum en true (transferenciaEnElLibro)
 }
 
 // Tenant (negocio) — raíz del aislamiento multi-tenant (ADR-001). Cada tabla de

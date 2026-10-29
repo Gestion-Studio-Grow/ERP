@@ -17,7 +17,6 @@ import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
 import { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import {
-  CASH_METHODS,
   CASH_METHOD_LABEL,
   totalOf,
 } from "@/lib/caja/libro-caja";
@@ -216,7 +215,7 @@ export default async function CierreCajaPage({
             <thead className="hidden sm:table-header-group">
               <tr className="border-b border-line text-muted">
                 <th scope="col" className="px-4 py-2 text-left font-medium">Concepto</th>
-                {CASH_METHODS.map((m) => (
+                {preview.columnas.map((m) => (
                   <th key={m} scope="col" className="px-4 py-2 text-right font-medium">
                     {CASH_METHOD_LABEL[m]}
                   </th>
@@ -237,7 +236,7 @@ export default async function CierreCajaPage({
                   >
                     {rotulo}
                   </th>
-                  {CASH_METHODS.map((m) => (
+                  {preview.columnas.map((m) => (
                     <td key={m} className={`${CELDA_TARJETA} tabular-nums text-body sm:px-4 sm:text-right`}>
                       <span className={ROTULO_MOVIL}>{CASH_METHOD_LABEL[m]}</span>
                       {fmtMoneyARS(preview.porMedio[m][key])}
@@ -256,7 +255,7 @@ export default async function CierreCajaPage({
                 >
                   Debería haber
                 </th>
-                {CASH_METHODS.map((m) => (
+                {preview.columnas.map((m) => (
                   <td key={m} className={`${CELDA_TARJETA} font-medium tabular-nums text-strong sm:px-4 sm:py-3 sm:text-right`}>
                     <span className={ROTULO_MOVIL}>{CASH_METHOD_LABEL[m]}</span>
                     {fmtMoneyARS(preview.porMedio[m].expected)}
@@ -276,6 +275,7 @@ export default async function CierreCajaPage({
             ({fmtMoneyARS(totalOf({
               EFECTIVO: preview.porMedio.EFECTIVO.cobrosCartera,
               MP: preview.porMedio.MP.cobrosCartera,
+              TRANSFERENCIA: preview.porMedio.TRANSFERENCIA.cobrosCartera,
               TARJETA: preview.porMedio.TARJETA.cobrosCartera,
             }))}). Ya están contados una sola vez acá arriba.
           </p>
@@ -296,9 +296,11 @@ export default async function CierreCajaPage({
           key={day}
           day={day}
           diaLabel={formatDayLabel(day)}
+          medios={preview.columnas}
           esperado={{
             EFECTIVO: preview.porMedio.EFECTIVO.expected,
             MP: preview.porMedio.MP.expected,
+            TRANSFERENCIA: preview.porMedio.TRANSFERENCIA.expected,
             TARJETA: preview.porMedio.TARJETA.expected,
           }}
         />

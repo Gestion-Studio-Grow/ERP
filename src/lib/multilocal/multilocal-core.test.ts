@@ -190,8 +190,8 @@ test("ventas: cuenta VENTA, resta sólo las anulaciones; compras y retiros no so
     fila(HOY, "RETIRO", "EFECTIVO", 200),
     fila(HOY, "INGRESO", "EFECTIVO", 50),
   ]);
-  assert.deepEqual(v.ventas, { EFECTIVO: 1000, MP: 500, TARJETA: 0 });
-  assert.deepEqual(v.anulado, { EFECTIVO: 1000, MP: 0, TARJETA: 0 });
+  assert.deepEqual(v.ventas, { EFECTIVO: 1000, MP: 500, TRANSFERENCIA: 0, TARJETA: 0 });
+  assert.deepEqual(v.anulado, { EFECTIVO: 1000, MP: 0, TRANSFERENCIA: 0, TARJETA: 0 });
   assert.equal(v.neto, 500);
   assert.equal(v.cantidad, 2);
 });
@@ -344,7 +344,7 @@ function pasada(over: Partial<PasadaLocal>): PasadaLocal {
   return {
     hoy: ventasDe([]),
     semana: { actual: 0, anterior: 0 },
-    caja: { estado: "abierta", cerradoHasta: "2026-09-22", desde: HOY, pendienteDesde: null, porMedio: { EFECTIVO: { ingresos: 0, egresos: 0, hay: 0 }, MP: { ingresos: 0, egresos: 0, hay: 0 }, TARJETA: { ingresos: 0, egresos: 0, hay: 0 } }, total: 0 },
+    caja: { estado: "abierta", cerradoHasta: "2026-09-22", desde: HOY, pendienteDesde: null, porMedio: { EFECTIVO: { ingresos: 0, egresos: 0, hay: 0 }, MP: { ingresos: 0, egresos: 0, hay: 0 }, TRANSFERENCIA: { ingresos: 0, egresos: 0, hay: 0 }, TARJETA: { ingresos: 0, egresos: 0, hay: 0 } }, total: 0 },
     cierres: [],
     stock: [],
     ...over,
@@ -481,10 +481,10 @@ test("el CSV: resumen por local, consolidado por CUIT si comparten, y detalle po
   assert.deepEqual(porCuit.map((g) => [g.cuit, g.locales, g.total.neto]), [["20304050607", ["Canning", "Lomas"], 1344.5]]);
   const csv = csvVentasDeLaRed({ casa: "MAGRA", rango: { desde: "2026-09-21", hasta: HOY, dias: 3 }, locales, porCuit });
   const lineas = csv.split("\r\n");
-  assert.ok(lineas.includes("Canning;20304050607;3;1.234,50;100,00;0,00;0,00;1.334,50;2"));
+  assert.ok(lineas.includes("Canning;20304050607;3;1.234,50;100,00;0,00;0,00;0,00;1.334,50;2"));
   assert.ok(lineas.includes("CONSOLIDADO POR CUIT"));
   assert.ok(lineas.includes("2026-09-21;Canning;20304050607;Efectivo;1.234,50;0,00;1.234,50"));
-  assert.ok(lineas.includes("TOTAL;;;1.234,50;100,00;10,00;0,00;1.344,50;3"));
+  assert.ok(lineas.includes("TOTAL;;;1.234,50;100,00;0,00;10,00;0,00;1.344,50;3"));
   // Un alias con ";" no rompe las columnas.
   const raro = csvVentasDeLaRed({ casa: "A;B", rango: { desde: HOY, hasta: HOY, dias: 1 }, locales: [], porCuit: [] });
   assert.ok(raro.startsWith('Ventas por local;"A;B"'));

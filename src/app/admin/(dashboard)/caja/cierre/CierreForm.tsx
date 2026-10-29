@@ -31,6 +31,7 @@ type Esperado = Record<CashMethod, number>;
 const AYUDA: Record<CashMethod, string> = {
   EFECTIVO: "Contá el cajón. Obligatorio, aunque sea 0.",
   MP: "Mirá el saldo de la app. Es por donde entra y sale la mayor parte de la plata.",
+  TRANSFERENCIA: "Mirá el saldo del banco: lo que entró y salió por transferencia.",
   TARJETA: "Opcional: se liquida a los días. Dejalo vacío si no lo conciliás hoy.",
 };
 
@@ -50,12 +51,24 @@ function isNextRedirect(e: unknown): boolean {
 
 const idDelCampo = (c: CampoDelCierre) => (c === "nota" ? "cierre-note" : `declarado-${c}`);
 
-export function CerrarDiaForm({ day, diaLabel, esperado }: { day: string; diaLabel: string; esperado: Esperado }) {
+export function CerrarDiaForm({
+  day,
+  diaLabel,
+  esperado,
+  medios = CASH_METHODS.filter((m) => m !== "TRANSFERENCIA"),
+}: {
+  day: string;
+  diaLabel: string;
+  esperado: Esperado;
+  /** Los medios que se cuentan (las columnas del cierre). Transferencia, sólo si el libro la tiene. */
+  medios?: readonly CashMethod[];
+}) {
   const router = useRouter();
   const { showSuccess } = useToast();
   const [declarado, setDeclarado] = useState<Record<CashMethod, string>>({
     EFECTIVO: "",
     MP: "",
+    TRANSFERENCIA: "",
     TARJETA: "",
   });
   const [note, setNote] = useState("");
@@ -81,8 +94,8 @@ export function CerrarDiaForm({ day, diaLabel, esperado }: { day: string; diaLab
     setVolverFoco((n) => n + 1);
   }
 
-  const diffs = useMemo(() => diferenciasDelCierre(declarado, esperado), [declarado, esperado]);
-  const hayDiferencia = CASH_METHODS.some((m) => diffs[m] !== null && diffs[m] !== 0);
+  const diffs = useMemo(() => diferenciasDelCierre(declarado, esperado, medios), [declarado, esperado, medios]);
+  const hayDiferencia = medios.some((m) => diffs[m] !== null && diffs[m] !== 0);
   const faltaEfectivo = parseInput(declarado.EFECTIVO) === null;
   // MP mueve ~7 de cada 10 pesos del negocio: cerrar sin mirarlo es cerrar a medias.
   // Es un aviso, no un bloqueo — el sistema sirve a varios negocios y no todos lo usan.
@@ -90,7 +103,7 @@ export function CerrarDiaForm({ day, diaLabel, esperado }: { day: string; diaLab
 
   function revisar() {
     setState(null);
-    const r = revisarCierre({ declarado, esperado, nota: note, etiquetas: CASH_METHOD_LABEL });
+    const r = revisarCierre({ declarado, esperado, nota: note, etiquetas: CASH_METHOD_LABEL, medios });
     if (!r.listo) {
       setFalta({ campo: r.campo, error: r.error });
       document.getElementById(idDelCampo(r.campo))?.focus();
@@ -109,7 +122,7 @@ export function CerrarDiaForm({ day, diaLabel, esperado }: { day: string; diaLab
     setState(null);
     const fd = new FormData();
     fd.set("day", day);
-    for (const m of CASH_METHODS) fd.set(`declarado_${m}`, declarado[m]);
+    for (const m of medios) fd.set(`declarado_${m}`, declarado[m]);
     fd.set("note", note);
     startTransition(async () => {
       let r: CierreActionState;
@@ -166,7 +179,7 @@ export function CerrarDiaForm({ day, diaLabel, esperado }: { day: string; diaLab
         }}
       >
         <div className="grid gap-4 px-4 pb-4 sm:grid-cols-3">
-          {CASH_METHODS.map((m) => {
+          {medios.map((m) => {
             const d = diffs[m];
             const errorAca = falta && falta.campo === m ? falta.error : null;
             return (

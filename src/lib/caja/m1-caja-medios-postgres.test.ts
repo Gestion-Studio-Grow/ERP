@@ -226,7 +226,7 @@ test("contra Postgres: caja y medios de M1 (a ciegas, Tarjeta en los dos estados
   // ── C1 · Tarjeta CON el valor en el enum (N2_enums.sql, sólo en esta base efímera) ──
   const sql = readFileSync(path.join(process.cwd(), "prisma/pending-gate2/N2_enums.sql"), "utf8");
   const pasos = sql.split("\n").filter((l) => /^ALTER TYPE/.test(l.trim()));
-  assert.equal(pasos.length, 4, "los ADD VALUE del paquete, cada uno en su paso");
+  assert.equal(pasos.length, 5, "los ADD VALUE del paquete, cada uno en su paso");
   for (const paso of pasos) await duenio.$executeRawUnsafe(paso);
   olvidarSchemaProbe();
   assert.equal(await hayValorEnum("PaymentMethod", "DEBITO"), true, "aplicada: el probe lo ve");

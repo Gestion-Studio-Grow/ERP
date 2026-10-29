@@ -93,8 +93,14 @@ function parseArgs(argv: string[]): Args {
   const rollback = argv.includes("--rollback");
   // En rollback los montos y la nota no hacen falta.
   const arqueo: ArqueoInicial = rollback
-    ? { EFECTIVO: 0, MP: 0, TARJETA: 0 }
-    : { EFECTIVO: parseMonto("--efectivo", val("--efectivo")), MP: parseMonto("--mp", val("--mp")), TARJETA: parseMonto("--tarjeta", val("--tarjeta")) };
+    ? { EFECTIVO: 0, MP: 0, TRANSFERENCIA: 0, TARJETA: 0 }
+    : {
+        EFECTIVO: parseMonto("--efectivo", val("--efectivo")),
+        MP: parseMonto("--mp", val("--mp")),
+        // El corte inicial es de antes del paquete: la transferencia está dentro de --mp.
+        TRANSFERENCIA: 0,
+        TARJETA: parseMonto("--tarjeta", val("--tarjeta")),
+      };
   return {
     tenant,
     dia,

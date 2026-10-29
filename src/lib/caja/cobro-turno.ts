@@ -35,6 +35,7 @@
 
 import { isColumnMissing, isUniqueViolation } from "@/lib/prisma-errors";
 import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
+import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { CashMethod } from "@/lib/caja/cash-register";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -55,15 +56,16 @@ export type CobroTurnoEligibility =
 
 // ¿Este cobro de turno debería asentarse en el libro, y en qué columna? Pura.
 // La traducción PaymentMethod → CashMethod es la ÚNICA del sistema
-// (`cashMethodFromPaymentMethod`): MERCADOPAGO y TRANSFERENCIA caen juntas en MP,
-// que es como el negocio lleva la columna.
+// (`cashMethodFromPaymentMethod`): MERCADOPAGO cae en MP; TRANSFERENCIA también hasta el
+// paquete Gate 2, y en su propia columna desde entonces (`transferenciaEnElLibro`).
 export function cobroTurnoEligibility(input: {
   status: string;
   paymentMethod: string | null;
   amount: number;
+  transferenciaEnElLibro?: boolean;
 }): CobroTurnoEligibility {
   if (input.status !== "APPROVED") return { eligible: false, reason: "not-approved" };
-  const method = input.paymentMethod ? cashMethodFromPaymentMethod(input.paymentMethod) : null;
+  const method = input.paymentMethod ? cashMethodFromPaymentMethod(input.paymentMethod, input.transferenciaEnElLibro) : null;
   if (!method) return { eligible: false, reason: "unsupported-method" };
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     return { eligible: false, reason: "invalid-amount" };
@@ -113,7 +115,8 @@ export async function recordCobroTurnoInTx(
   tenantId: string,
   input: CobroTurnoInput,
 ): Promise<RecordCobroTurnoResult> {
-  const elig = cobroTurnoEligibility(input);
+  const transferenciaEnElLibro = input.status === "APPROVED" && input.paymentMethod === "TRANSFERENCIA" && (await transferenciaEnElLibroTx(tx));
+  const elig = cobroTurnoEligibility({ ...input, transferenciaEnElLibro });
   if (!elig.eligible) return { recorded: false, reason: elig.reason };
 
   // La clave del asiento: el cobro parcial si lo hay; si no, el Payment 1:1 (camino previo).

@@ -77,7 +77,7 @@ exporta en la terminal del dueño.
 cd prisma/pending-gate2
 P="psql -X -v ON_ERROR_STOP=1 -d $MIGRATE_DATABASE_URL"
 $P -f CarniceriaRubro.sql     # 1 · Product.category/cost, lotes, despiece (M3a, M3b)
-$P -f N2_enums.sql            # 2 · DEBITO, CREDITO (D-C01), REPARTIDOR, ENCARGADO — SIN --single-transaction:
+$P -f N2_enums.sql            # 2 · DEBITO, CREDITO (D-C01), REPARTIDOR, ENCARGADO, CashMethod.TRANSFERENCIA (M1-C2) — SIN --single-transaction:
                               #     cada ADD VALUE es su propio paso (no usable en la misma tx)
                               #     🔴 IRREVERSIBLE: Postgres no tiene DROP VALUE (ver §5)
 $P -f N2_hub.sql              # 3 · ApiKey, WebhookSuscripcion, EntregaWebhook, PlantillaWhatsapp, OutboxEvent.version/clave

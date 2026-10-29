@@ -3,7 +3,8 @@
 -- PREPARADA, NO APLICADA · Gate 2 (toca Neon prod → decisión del dueño, D-01)
 -- ============================================================================
 --
--- QUIÉN LA USA: M1 (Débito y Crédito en caja: PaymentMethod.DEBITO / PaymentMethod.CREDITO) ·
+-- QUIÉN LA USA: M1 (Débito y Crédito en caja: PaymentMethod.DEBITO / PaymentMethod.CREDITO; la
+-- transferencia con su propia columna en el libro: CashMethod.TRANSFERENCIA, orden del dueño 29/10) ·
 -- M6 (roles Repartidor y Encargado: UserRole.REPARTIDOR / UserRole.ENCARGADO).
 -- Runbook: docs/runbooks/gate2-nivel2.md · Paquete: prisma/pending-gate2/README.md.
 --
@@ -62,9 +63,16 @@ ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'REPARTIDOR';
 -- Paso 2.d · Rol ENCARGADO (autoriza fiado sobre el límite, reabre el día: M6, M7, M1).
 ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'ENCARGADO';
 
+-- Paso 2.e · Medio del libro TRANSFERENCIA (M1-C2, orden del dueño 29/10/2026). Hasta acá el libro
+-- junta la transferencia con Mercado Pago en `MP`; desde acá cada asiento NUEVO de una
+-- transferencia va a su columna (`transferenciaEnElLibroTx`, src/lib/caja). Los de antes quedan
+-- en `MP` y el cierre los separa por el medio de origen. M1 ya lo encendió en el cliente
+-- (`TRANSFERENCIA // N2-enum-encendido:` en `enum CashMethod`).
+ALTER TYPE "CashMethod" ADD VALUE IF NOT EXISTS 'TRANSFERENCIA';
+
 -- Post-check (aparte):
 --   SELECT t.typname, e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
---   WHERE t.typname IN ('PaymentMethod','UserRole') ORDER BY t.typname, e.enumsortorder;
+--   WHERE t.typname IN ('PaymentMethod','UserRole','CashMethod') ORDER BY t.typname, e.enumsortorder;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- REVERSA (leer antes de usar) — 🔴 no hay reversa automática
@@ -77,6 +85,7 @@ ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'ENCARGADO';
 --        SELECT count(*) FROM "Order"        WHERE "paymentMethod"::text IN ('DEBITO','CREDITO');
 --        SELECT count(*) FROM "Collection"   WHERE method::text IN ('DEBITO','CREDITO');
 --        SELECT count(*) FROM "User"         WHERE role::text IN ('REPARTIDOR','ENCARGADO');
+--        SELECT count(*) FROM "CashMovement" WHERE method::text IN ('TRANSFERENCIA');
 --   2. Recrear el tipo sin los valores (por cada enum):
 --        ALTER TYPE "UserRole" RENAME TO "UserRole_old";
 --        CREATE TYPE "UserRole" AS ENUM ('OWNER','RECEPTION','PROFESSIONAL');
@@ -90,6 +99,13 @@ ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'ENCARGADO';
 --        ALTER TABLE "Order"      ALTER COLUMN "paymentMethod" TYPE "PaymentMethod" USING "paymentMethod"::text::"PaymentMethod";
 --        ALTER TABLE "Collection" ALTER COLUMN method TYPE "PaymentMethod" USING method::text::"PaymentMethod";
 --        DROP TYPE "PaymentMethod_old";
+--        ALTER TYPE "CashMethod" RENAME TO "CashMethod_old";
+--        CREATE TYPE "CashMethod" AS ENUM ('EFECTIVO','MP','TARJETA');
+--        -- CashMovement.method tiene DEFAULT 'EFECTIVO': se saca antes y se repone después.
+--        ALTER TABLE "CashMovement" ALTER COLUMN method DROP DEFAULT;
+--        ALTER TABLE "CashMovement" ALTER COLUMN method TYPE "CashMethod" USING method::text::"CashMethod";
+--        ALTER TABLE "CashMovement" ALTER COLUMN method SET DEFAULT 'EFECTIVO';
+--        DROP TYPE "CashMethod_old";
 -- Sin el paso 2, los valores quedan y no molestan: es la opción de la reversa del runbook.
 -- ─────────────────────────────────────────────────────────────────────────────
 

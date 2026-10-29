@@ -75,6 +75,7 @@ import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
 import { leerImporte } from "@/lib/pos-peso";
 import { round2 } from "@/lib/round";
 import { tarjetaHabilitada } from "@/lib/caja-actions";
+import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import { arqueoCiegoDelNegocio } from "@/lib/caja/arqueo-ciego";
 import { diaALaVista } from "@/lib/caja/arqueo-ciego-core";
 import { bordesDelMes, etiquetaDelMes } from "@/lib/libros/fecha-fiscal";
@@ -395,9 +396,11 @@ async function leerCierreDiario(
   }));
 
   const movements: CierreMovement[] = rows.map(movimientoDelPeriodo);
-  const deSiempre = buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO });
+  const { sePuedeEscribirValorEnum } = await import("@/lib/schema-probe");
+  const transferenciaEnElLibro = await sePuedeEscribirValorEnum("CashMethod", "TRANSFERENCIA");
+  const deSiempre = buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO, transferenciaEnElLibro });
   const columnas = columnasDelCierre({ tarjetaHabilitada: await tarjetaHabilitada(), tarjetaSeMovio: tarjetaSeMovioEn(deSiempre) });
-  const preview = buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO, columnas });
+  const preview = buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO, columnas, transferenciaEnElLibro });
   // A CIEGAS (cert F7/F8): mismo criterio que `getCajaData` (sin turno abierto y el interruptor
   // encendido). Acá sólo se marca; lo blanquea `diaALaVista` a la salida de `getCierreDiarioData`.
   const efectivoACiegas = arqueaACiegas && !abierto;
@@ -696,14 +699,16 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
           detail: "",
         }));
         const movements = rows.map(movimientoDelPeriodo);
+        // M1-C2: la diferencia de Transferencia se asienta en `TRANSFERENCIA` sólo si la base la tiene.
+        const transferenciaEnElLibro = await transferenciaEnElLibroTx(tx);
         const columnas = separaColumnas
           ? columnasDelCierre({
               tarjetaHabilitada: conTarjeta,
-              tarjetaSeMovio: tarjetaSeMovioEn(buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO })),
+              tarjetaSeMovio: tarjetaSeMovioEn(buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO, transferenciaEnElLibro })),
             })
           : undefined;
         const declared = parseDeclared(formData, columnas);
-        const cierre = buildCierreDiario({ day, since, previous, movements, declared, columnas });
+        const cierre = buildCierreDiario({ day, since, previous, movements, declared, columnas, transferenciaEnElLibro });
 
         const v = validateCierre(cierre, { note, today, lastClosedDay: cerradoHasta });
         if (!v.ok) return { ok: false as const, errors: v.errors };
@@ -744,8 +749,10 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
               since,
               estado: cierre.estado,
               note,
+              // TRANSFERENCIA (M1-C2) sólo si el libro la movió o se contó: antes del paquete es
+              // siempre 0 y no se concilia, y el comprobante no tiene por qué mostrarla.
               porMedio: Object.fromEntries(
-                CASH_METHODS.map((k) => [
+                CASH_METHODS.filter((k) => k !== "TRANSFERENCIA" || cierre.porMedio[k].expected !== 0 || cierre.porMedio[k].declared !== null).map((k) => [
                   k,
                   {
                     esperado: cierre.porMedio[k].expected,

@@ -244,6 +244,7 @@ async function probes() {
       debito: await p.hayValorEnum("PaymentMethod", "DEBITO"),
       credito: await p.hayValorEnum("PaymentMethod", "CREDITO"),
       encargado: await p.hayValorEnum("UserRole", "ENCARGADO"),
+      transferenciaEnLibro: await p.hayValorEnum("CashMethod", "TRANSFERENCIA"),
       pago: await p.hayTabla("PagoExterno"),
       indice: await p.hayTabla("ClubReservaIndice"),
       limite: await p.hayColumna("Client", "limiteCredito"),
@@ -334,7 +335,7 @@ test("paquete Gate 2 nivel 2 en Postgres local", { skip: motivoSalto }, async (t
       const p = await probes();
       assert.deepEqual(
         { ...p },
-        { apiKey: false, clave: false, debito: false, credito: false, encargado: false, pago: false, indice: false, limite: false, outbox: true, efectivo: true },
+        { apiKey: false, clave: false, debito: false, credito: false, encargado: false, transferenciaEnLibro: false, pago: false, indice: false, limite: false, outbox: true, efectivo: true },
       );
       diffDeHoy = diffContra(schemaHoy);
       // Dos negocios y un evento del outbox de ANTES del paquete (como los de ARCA de hoy).
@@ -493,7 +494,7 @@ test("paquete Gate 2 nivel 2 en Postgres local", { skip: motivoSalto }, async (t
       });
     });
 
-    await t.test("la reversa de N2_enums nombra TODAS las columnas de PaymentMethod/UserRole (pg_attribute)", async () => {
+    await t.test("la reversa de N2_enums nombra TODAS las columnas de PaymentMethod/UserRole/CashMethod (pg_attribute)", async () => {
       const texto = readFileSync(path.join(PENDIENTES, "N2_enums.sql"), "utf8");
       const cols = await conCliente((c) =>
         c.query(`SELECT c.relname AS tabla, a.attname AS col, t.typname AS tipo
@@ -501,10 +502,10 @@ test("paquete Gate 2 nivel 2 en Postgres local", { skip: motivoSalto }, async (t
                  JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_type t ON t.oid = a.atttypid
                  WHERE n.nspname = current_schema() AND c.relkind IN ('r','p') AND a.attnum > 0
                    AND NOT a.attisdropped
-                   AND t.typname IN ('PaymentMethod','UserRole','_PaymentMethod','_UserRole')
+                   AND t.typname IN ('PaymentMethod','UserRole','CashMethod','_PaymentMethod','_UserRole','_CashMethod')
                  ORDER BY 1, 2`),
       );
-      assert.ok(cols.rowCount && cols.rowCount >= 4, "hay columnas de esos tipos");
+      assert.ok(cols.rowCount && cols.rowCount >= 5, "hay columnas de esos tipos");
       for (const { tabla, col, tipo } of cols.rows as Array<{ tabla: string; col: string; tipo: string }>) {
         assert.ok(!tipo.startsWith("_"), `${tabla}.${col}: columna ARRAY de ${tipo}, la reversa no la contempla`);
         const c = /^[a-z_]+$/.test(col) ? `(?:"${col}"|${col})` : `"${col}"`;
@@ -512,7 +513,7 @@ test("paquete Gate 2 nivel 2 en Postgres local", { skip: motivoSalto }, async (t
         assert.match(texto, new RegExp(`ALTER TABLE "${tabla}"\\s+ALTER COLUMN ${c} TYPE "${tipo}"`), `${tabla}.${col}: falta en la recreación`);
       }
       // El tipo que recrea la reversa = los valores de hoy, en su orden (sin los del paquete).
-      for (const [tipo, nuevos] of [["PaymentMethod", ["DEBITO", "CREDITO"]], ["UserRole", ["REPARTIDOR", "ENCARGADO"]]] as const) {
+      for (const [tipo, nuevos] of [["PaymentMethod", ["DEBITO", "CREDITO"]], ["UserRole", ["REPARTIDOR", "ENCARGADO"]], ["CashMethod", ["TRANSFERENCIA"]]] as const) {
         const r = await conCliente((c) =>
           c.query(`SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = $1 ORDER BY e.enumsortorder`, [tipo]),
         );

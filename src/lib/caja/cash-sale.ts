@@ -29,6 +29,7 @@
 import { tenantTransaction } from "@/lib/rls";
 import { isUniqueViolation } from "@/lib/prisma-errors";
 import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
+import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { CashMethod } from "@/lib/caja/cash-register";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -59,16 +60,17 @@ export type CashSaleEligibility =
 // Pura: misma entrada → misma salida, sin efectos.
 //
 // La traducción PaymentMethod → CashMethod es la ÚNICA del sistema
-// (`cashMethodFromPaymentMethod`): EFECTIVO → EFECTIVO; MERCADOPAGO y TRANSFERENCIA →
-// MP, porque el negocio lleva Mercado Pago y transferencia en una sola columna. Un
+// (`cashMethodFromPaymentMethod`): EFECTIVO → EFECTIVO; MERCADOPAGO → MP; TRANSFERENCIA →
+// MP hasta el paquete Gate 2 y TRANSFERENCIA desde entonces (`transferenciaEnElLibro`). Un
 // medio que no traduce (null, o uno futuro) no se adivina: se informa y no se asienta.
 export function cashSaleEligibility(input: {
   paid: boolean;
   paymentMethod: string | null;
   total: number;
+  transferenciaEnElLibro?: boolean;
 }): CashSaleEligibility {
   if (!input.paid) return { eligible: false, reason: "not-paid" };
-  const method = input.paymentMethod ? cashMethodFromPaymentMethod(input.paymentMethod) : null;
+  const method = input.paymentMethod ? cashMethodFromPaymentMethod(input.paymentMethod, input.transferenciaEnElLibro) : null;
   if (!method) return { eligible: false, reason: "unsupported-method" };
   if (!Number.isFinite(input.total) || input.total <= 0) {
     return { eligible: false, reason: "invalid-amount" };
@@ -128,7 +130,8 @@ export async function recordCashSaleMovementInTx(
   tenantId: string,
   input: CashSaleInput,
 ): Promise<RecordCashSaleResult> {
-  const elig = cashSaleEligibility(input);
+  const transferenciaEnElLibro = input.paid && input.paymentMethod === "TRANSFERENCIA" && (await transferenciaEnElLibroTx(tx));
+  const elig = cashSaleEligibility({ ...input, transferenciaEnElLibro });
   if (!elig.eligible) return { recorded: false, reason: elig.reason };
 
   const session = await tx.cashSession.findFirst({

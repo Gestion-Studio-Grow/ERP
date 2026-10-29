@@ -36,11 +36,16 @@ import { CUENTA_CORRIENTE_ACTOR_PREFIX, esAsientoDeCuentaCorriente } from "@/lib
 // Orden CANÓNICO de los medios: es el orden de las columnas de la planilla y el de
 // las columnas de la pantalla. Un solo lugar para que tabla y resumen no se
 // desincronicen.
-export const CASH_METHODS = ["EFECTIVO", "MP", "TARJETA"] as const;
+//
+// TRANSFERENCIA (M1-C2): entra en las cuentas de todo el libro aunque la base todavía no la tenga
+// (prisma/pending-gate2/N2_enums.sql): una fila con el valor nunca puede quedar afuera de un
+// total. `MP` sigue diciendo «MP / Transf.»: los asientos de antes del paquete la llevan ahí.
+export const CASH_METHODS = ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"] as const;
 
 export const CASH_METHOD_LABEL: Record<CashMethod, string> = {
   EFECTIVO: "Efectivo",
   MP: "MP / Transf.",
+  TRANSFERENCIA: "Transferencia",
   TARJETA: "Tarjeta",
 };
 
@@ -455,12 +460,12 @@ export type Libro = {
 };
 
 export function zeroAmounts(): MethodAmounts {
-  return { EFECTIVO: 0, MP: 0, TARJETA: 0 };
+  return { EFECTIVO: 0, MP: 0, TRANSFERENCIA: 0, TARJETA: 0 };
 }
 
 // Total de un desglose. Única forma de obtener el total en todo el módulo.
 export function totalOf(a: MethodAmounts): number {
-  return round2(a.EFECTIVO + a.MP + a.TARJETA);
+  return round2(a.EFECTIVO + a.MP + a.TRANSFERENCIA + a.TARJETA);
 }
 
 // Solo montos positivos y finitos cuentan (mismo blindaje que el arqueo: un dato

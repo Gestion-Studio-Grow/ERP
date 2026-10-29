@@ -270,3 +270,64 @@ test("a ciegas, diaALaVista/cajaALaVista blanquean todo monto del efectivo del l
   const abierta = { open: null, recentClosed: turnos, esperadoEnElCajon: 15_362, aperturaACiegas: false };
   assert.equal(cajaALaVista(abierta), abierta);
 });
+
+// ── C2 · CashMethod.TRANSFERENCIA (orden del dueño 29/10/2026) ─────────────────
+
+test("TRANSFERENCIA en el libro: sólo con el paquete; sin el dato, como siempre a MP", async () => {
+  const { cashMethodFromPaymentMethod } = await import("@/lib/caja/cierre-diario");
+  assert.equal(cashMethodFromPaymentMethod("TRANSFERENCIA"), "MP");
+  assert.equal(cashMethodFromPaymentMethod("TRANSFERENCIA", false), "MP");
+  assert.equal(cashMethodFromPaymentMethod("TRANSFERENCIA", true), "TRANSFERENCIA");
+  // El resto no cambia con el dato.
+  assert.equal(cashMethodFromPaymentMethod("MERCADOPAGO", true), "MP");
+  assert.equal(cashMethodFromPaymentMethod("DEBITO", true), "TARJETA");
+});
+
+test("cierre con TRANSFERENCIA en el libro: su columna = su saldo + lo viejo guardado en MP; la diferencia va a TRANSFERENCIA y el arrastre cierra", () => {
+  const previous = [
+    mov({ method: "MP", amount: 10_000, occurredAt: en("2026-10-19") }),
+    mov({ method: "TRANSFERENCIA", amount: 6_000, occurredAt: en("2026-10-19") }),
+  ];
+  const movements = [
+    mov({ method: "MP", amount: 4_000, medioDeOrigen: "MERCADOPAGO" }),
+    // Un asiento de antes del paquete, del mismo período: transferencia guardada en MP.
+    mov({ method: "MP", amount: 3_000, medioDeOrigen: "TRANSFERENCIA" }),
+    mov({ method: "TRANSFERENCIA", amount: 2_000, medioDeOrigen: "TRANSFERENCIA" }),
+    mov({ method: "TRANSFERENCIA", amount: 500, type: "EGRESO" }),
+  ];
+  const c = buildCierreDiario({
+    day: "2026-10-20",
+    previous,
+    movements,
+    columnas: columnasDelCierre({ tarjetaHabilitada: false, tarjetaSeMovio: false }),
+    transferenciaEnElLibro: true,
+    declared: { EFECTIVO: 0, MP: 14_000, TRANSFERENCIA: 10_000, TARJETA: null },
+  });
+  assert.equal(c.porColumna.MP.expected, 14_000, "saldo anterior de MP + Mercado Pago (sin lo de transferencia)");
+  assert.equal(c.porColumna.TRANSFERENCIA.opening, 6_000, "el saldo propio de TRANSFERENCIA se arrastra");
+  assert.equal(c.porColumna.TRANSFERENCIA.expected, 10_500, "6.000 + 2.000 − 500 del libro + 3.000 guardados en MP");
+  assert.equal(c.porColumna.MP.expected + c.porColumna.TRANSFERENCIA.expected, c.porMedio.MP.expected + c.porMedio.TRANSFERENCIA.expected);
+  assert.deepEqual(c.ajustes, [{ type: "EGRESO", method: "TRANSFERENCIA", amount: 500, detail: "Diferencia de caja 20/10/2026: faltante en Transferencia" }]);
+  const despues = openingFromHistory([...previous, ...movements, ...ajustesAsMovements(c, en("2026-10-20"))]);
+  assert.deepEqual(despues, openingAfterCierre(c));
+  assert.equal(despues.TRANSFERENCIA, 7_000, "8.000 del libro − 500 de la diferencia");
+  assert.equal(despues.MP, 17_000, "lo viejo sigue en MP: el ajuste no lo mueve");
+});
+
+test("cierre de siempre (sin columnas): TRANSFERENCIA aparece sólo si el libro la tiene o se movió", () => {
+  const sinNada = buildCierreDiario({ day: "2026-10-20", previous: [], movements: [], declared: { EFECTIVO: 0, MP: null, TARJETA: null } });
+  assert.deepEqual(sinNada.columnas, ["EFECTIVO", "MP", "TARJETA"], "antes del paquete, nada cambia");
+  const conPaquete = buildCierreDiario({ day: "2026-10-20", previous: [], movements: [], transferenciaEnElLibro: true, declared: { EFECTIVO: 0, MP: null, TARJETA: null } });
+  assert.deepEqual(conPaquete.columnas, ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"]);
+  // Plata en TRANSFERENCIA sin el dato (no debería pasar): la columna no se esconde y la
+  // diferencia se asienta en TRANSFERENCIA, nunca en MP.
+  const conPlata = buildCierreDiario({
+    day: "2026-10-20",
+    previous: [],
+    movements: [mov({ method: "TRANSFERENCIA", amount: 1_000 })],
+    declared: { EFECTIVO: 0, MP: null, TRANSFERENCIA: 900, TARJETA: null },
+  });
+  assert.ok(conPlata.columnas.includes("TRANSFERENCIA"));
+  assert.equal(conPlata.ajustes[0].method, "TRANSFERENCIA");
+  assert.equal(conPlata.total.expected, 1_000, "el total del libro la cuenta");
+});
