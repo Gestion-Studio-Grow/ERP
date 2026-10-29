@@ -229,7 +229,7 @@ describe("El turnero y Pagar en el navegador", { timeout: 240_000 }, () => {
     await hoja.getByRole("button", { name: "Pedir hoy · 18:00 · $ 25.000" }).click();
     await page.getByRole("heading", { name: "¡Listo! Pediste tu clase" }).waitFor();
     await page.getByText("Viernes 23/10 a las 18:00").waitFor();
-    await page.getByText("· falta que Matías la confirme.").waitFor();
+    await page.getByText("Falta que Matías la confirme").waitFor(); // el estado como ficha (DISENO agendaprofe §5.4)
     // M-092: sin celular del profe, nada de WhatsApp roto.
     assert.equal(await page.locator('[data-qa="avisar-profe"]').count(), 0);
     await page.getByText("Matías ya lo ve en su agenda; te confirma por WhatsApp.").waitFor();

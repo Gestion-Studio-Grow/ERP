@@ -33,6 +33,15 @@ test("un color mal cargado cae a la paleta neutra (no se inyecta cualquier cosa 
 });
 
 test("sin fila propia, el profe sale con la paleta neutra", () => {
-  assert.deepEqual(marcaProfe("matiasconsoli"), marcaProfe(null));
+  assert.deepEqual(marcaProfe("otro-profe"), marcaProfe(null));
   assert.equal(marcaProfe(null).logo, null);
+  assert.equal(marcaProfe(null).provisional, undefined, "la neutra no dice «identidad provisoria»");
+});
+
+test("Matías: identidad provisional a confirmar, dicha como tal, con todos los colores como hex válidos", () => {
+  const m = marcaProfe("matiasconsoli");
+  assert.equal(m.provisional, true, "fronts/agendaprofe/DISENO.md §3: el pie lo avisa hasta que Matías confirme");
+  assert.notDeepEqual(m, marcaProfe(null));
+  const vars = varsCss(m);
+  for (const [clave, v] of Object.entries(VARS_PADEL)) assert.equal(vars[v], m[clave as keyof typeof VARS_PADEL], `${clave} no pasó tal cual`);
 });
