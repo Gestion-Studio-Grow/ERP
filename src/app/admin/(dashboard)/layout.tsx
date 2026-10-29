@@ -277,6 +277,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div
       data-skin="fable"
+      // Escala nivel 5 (29/10/2026): letra y radios más generosos, sólo en el panel (globals.css).
+      data-escala="nivel-5"
       // DISEÑO NUEVO (interruptor "Diseño nuevo" del negocio): la piel «Renglón» se acota bajo
       // este atributo. Apagado es `undefined` y React no lo escribe: la raíz de siempre, byte a
       // byte. `data-skin="fable"` NO se toca: ThemeToggle, AparienciaControls y theme-client lo buscan.

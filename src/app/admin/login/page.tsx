@@ -70,6 +70,7 @@ export default async function LoginPage({
   return (
     <main
       data-skin="fable"
+      data-escala="nivel-5"
       // Diseño nuevo: apagado es `undefined` y la raíz queda como siempre (raices-ch.test.ts).
       data-diseno={nuevo ? PIEL_RENGLON : undefined}
       data-theme="light"

@@ -415,20 +415,9 @@
      Card usa rounded-lg y KpiTile/DataTable rounded-xl, y en el mockup todas las
      cards son 12px — se igualan. sm/md derivados (nav 8px / botones 10px). */
   --radius-sm: 0.5rem;
-  --radius: 0.75rem;   /* escala nivel 5 (29/10/2026): .625 → .75 */
-  --radius-lg: 1rem;   /* .75 → 1 */
-  --radius-xl: 1rem;   /* .75 → 1 */
-
-  /* ESCALA NIVEL 5 (orden del dueño, 29/10/2026: «escala más grande»). Las utilidades de Tailwind leen estas
-     variables en el punto de uso (`.text-sm{font-size:var(--text-sm)}`), así que redefinirlas acá agranda TODO el
-     panel —y sólo el panel: la vidriera no lleva data-skin— sin tocar pantallas. 12/14/16/18/20/24 → 13/15/17/19/22/28.
-     Las cuatro estéticas de cliente cuelgan del mismo data-skin y heredan la escala. */
-  --text-xs: 0.8125rem;  --text-xs--line-height: 1.45;
-  --text-sm: 0.9375rem;  --text-sm--line-height: 1.5;
-  --text-base: 1.0625rem; --text-base--line-height: 1.55;
-  --text-lg: 1.1875rem;  --text-lg--line-height: 1.45;
-  --text-xl: 1.375rem;   --text-xl--line-height: 1.35;
-  --text-2xl: 1.75rem;   --text-2xl--line-height: 1.25;
+  --radius: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 0.75rem;
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);   /* --shadow-1 */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);   /* --shadow-1 (cards en reposo) */
@@ -440,6 +429,24 @@
      resuelve y cae a Geist — mismo carácter. Los headings con clase explícita
      (font-display de un theme pack) no se pisan: esto solo cambia lo heredado. */
   font-family: -apple-system, BlinkMacSystemFont, var(--font-geist-sans), "Inter", sans-serif;
+}
+
+/* ESCALA NIVEL 5 (orden del dueño, 29/10/2026: «escala más grande»), SÓLO en el panel de cada negocio y su ingreso
+   (`data-escala="nivel-5"` en src/app/admin/(dashboard)/layout.tsx y admin/login): la consola del operador, el
+   contador, Facturita y el 404 también usan el skin y no se tocan desde acá. Las utilidades de Tailwind leen estas
+   variables en el punto de uso (`.text-sm{font-size:var(--text-sm)}`), así que redefinirlas agranda todas las
+   pantallas del panel sin tocarlas. 12/14/16/18/20/24 → 13/15/17/19/22/28; radios .625/.75 → .75/1. Las cuatro
+   estéticas de cliente cuelgan del mismo data-skin y heredan la escala. */
+[data-skin="fable"][data-escala="nivel-5"] {
+  --radius: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1rem;
+  --text-xs: 0.8125rem;  --text-xs--line-height: 1.45;
+  --text-sm: 0.9375rem;  --text-sm--line-height: 1.5;
+  --text-base: 1.0625rem; --text-base--line-height: 1.55;
+  --text-lg: 1.1875rem;  --text-lg--line-height: 1.45;
+  --text-xl: 1.375rem;   --text-xl--line-height: 1.35;
+  --text-2xl: 1.75rem;   --text-2xl--line-height: 1.25;
 }
 
 /* Escala nivel 5 (29/10/2026): foco con doble anillo en controles y botones del panel — el contorno de siempre más
