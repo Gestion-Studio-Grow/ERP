@@ -15,7 +15,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { runInTenantContext } from "@/lib/tenant-context";
@@ -35,8 +35,13 @@ async function preparar(t: import("node:test").TestContext, cual: "a" | "b") {
   Object.assign(env, { DB_CONNECTION_LIMIT: "3", DB_CONNECT_TIMEOUT_MS: "3000", ARCA_INVOICING_ENABLED: "true" });
   delete env.ARCA_MODO; // stub: nada sale a la red
   delete env.MP_ACCESS_TOKEN;
+  delete env.MP_MODO_LEGADO;
+  env.INTEGRACIONES_MASTER_KEY ??= randomBytes(32).toString("base64");
   const duenio = await prismaComoDuenio(base);
   const n = base[cual];
+  // Desde el pase N2 (P1-C4) Mercado Pago es una conexión del negocio, no una variable del despliegue.
+  const { crearConexion } = await import("@/integraciones/conexiones.server");
+  await crearConexion(n.id, "mercadopago", { cuentaExterna: `mp-r1-${cual}`, credenciales: { access_token: `APP_USR-r1-${cual}`, webhook_secret: `secreto-r1-${cual}` }, conectadaPor: "cli" });
   const tenant = await duenio.tenant.findUniqueOrThrow({ where: { id: n.id }, select: { modules: true } });
   await duenio.tenant.update({
     where: { id: n.id },
