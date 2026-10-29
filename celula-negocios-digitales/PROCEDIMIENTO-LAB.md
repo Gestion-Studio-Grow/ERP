@@ -73,6 +73,13 @@ Cuando el dueño pide **"status"** (o `/status`): parte **reconstruido del repo*
 demos funcionales completas — muestra solo lo que existe de verdad); (c) sigue este procedimiento. Detalle del
 disparo del artifact en `.claude/commands/lab.md`.
 
+**Artifacts publicados (2026-10-29) — se redeployan a ESTAS URLs, no se crean otros:**
+- Centro de Rendimiento (el panel de la célula, 21 negocios): fuente `panel/panel.html` →
+  https://claude.ai/artifact/SbaF96N8TWZ4aiwKtmrWwf
+- Hub de demos (lo que tiene código, con las salidas reales de los motores): fuente `panel/hub-lab.html` →
+  https://claude.ai/artifact/LDh7k9nqpKUoATEJsdq7qC
+Ambos privados; compartir lo decide el dueño desde el menú Share.
+
 ---
 
 ## Invariantes (resumen para no perderse)

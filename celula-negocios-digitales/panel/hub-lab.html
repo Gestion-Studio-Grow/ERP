@@ -1,0 +1,444 @@
+<title>GSG Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="generator" content="Gestión Studio Grow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Hanken+Grotesk:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: banco de laboratorio — cabecera con la tesis, estante de 6 tarjetas, mesa de pruebas (una demo por vez), cola de ideas al pie. Paleta de la identidad GSG (DESIGN.md). */
+:root{
+  --bg:#f6f3ec; --raised:#ffffff; --sunken:#ece7db; --line:#e6dfd0; --line-strong:#d2c9b5;
+  --ink:#1b1a14; --text:#35342c; --muted:#6f6a5c;
+  --accent:#2c6e77; --accent-soft:#dcebec; --accent-ink:#1f5259;
+  --ok:#4e6b4a; --ok-soft:#e7eee4; --warn:#8a6a1f; --warn-soft:#f5ebd7; --info:#3c5a8a; --info-soft:#e2e8f3; --bad:#b23b2b; --bad-soft:#f6e3de;
+  --bubble-in:#ffffff; --bubble-out:#dcebec;
+  --f-display:"Fraunces", Georgia, "Times New Roman", serif;
+  --f-body:"Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r-sm:6px; --r:10px; --r-lg:16px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#15140f; --raised:#201e17; --sunken:#100f0b; --line:#2f2c22; --line-strong:#423e31;
+  --ink:#f0ebde; --text:#c9c3b4; --muted:#928b7b;
+  --accent:#5fb0bc; --accent-soft:#1d3336; --accent-ink:#8fd0d9;
+  --ok:#8fb487; --ok-soft:#1f2a1d; --warn:#d6b25f; --warn-soft:#2e2615; --info:#8fa9d6; --info-soft:#1c2433; --bad:#e08a7c; --bad-soft:#331c18;
+  --bubble-in:#2a2720; --bubble-out:#1d3336; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#15140f; --raised:#201e17; --sunken:#100f0b; --line:#2f2c22; --line-strong:#423e31;
+  --ink:#f0ebde; --text:#c9c3b4; --muted:#928b7b;
+  --accent:#5fb0bc; --accent-soft:#1d3336; --accent-ink:#8fd0d9;
+  --ok:#8fb487; --ok-soft:#1f2a1d; --warn:#d6b25f; --warn-soft:#2e2615; --info:#8fa9d6; --info-soft:#1c2433; --bad:#e08a7c; --bad-soft:#331c18;
+  --bubble-in:#2a2720; --bubble-out:#1d3336; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--f-body);font-size:15px;line-height:1.55;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+.wrap{max-width:1120px;margin:0 auto;padding-block:40px 56px;display:grid;gap:48px}
+h1,h2,h3{font-family:var(--f-display);color:var(--ink);font-weight:500;text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:clamp(2rem,5vw,3.2rem);line-height:1.05}
+h2{font-size:1.6rem;line-height:1.15}
+h3{font-size:1.25rem;line-height:1.2}
+p{margin:0}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-ink)}
+.lead{font-size:1.1rem;max-width:62ch;color:var(--text)}
+.muted{color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+a{color:var(--accent-ink)}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Cabecera */
+header{display:grid;gap:18px}
+.facts{display:flex;flex-wrap:wrap;gap:8px 28px;font-size:14px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+.facts b{font-family:var(--f-display);font-weight:600;font-size:1.35rem;color:var(--ink);margin-right:6px}
+.legend{display:flex;flex-wrap:wrap;gap:8px}
+
+/* Badges de estado */
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:3px 10px 3px 8px;border-radius:999px;white-space:nowrap}
+.badge::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.b-ok{background:var(--ok-soft);color:var(--ok)}
+.b-warn{background:var(--warn-soft);color:var(--warn)}
+.b-info{background:var(--info-soft);color:var(--info)}
+.b-bad{background:var(--bad-soft);color:var(--bad)}
+
+/* Estante de tarjetas */
+.shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.card{background:var(--raised);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px;display:grid;gap:12px;grid-template-rows:auto auto 1fr auto auto;min-width:0}
+.card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.card .what{font-size:14.5px}
+.card .now{font-size:13.5px;color:var(--muted);border-left:2px solid var(--line-strong);padding-left:10px}
+.kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.kv div{display:grid;gap:2px;min-width:0}
+.kv span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.kv strong{font-size:14px;color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.open{justify-self:start;border:1px solid var(--accent);background:transparent;color:var(--accent-ink);border-radius:var(--r);padding:8px 14px;font-weight:600;font-size:14px}
+.open:hover{background:var(--accent-soft)}
+.card[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.card.pending .open{border-color:var(--line-strong);color:var(--muted)}
+
+/* Mesa de pruebas */
+.bench{background:var(--raised);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+.tabs{display:flex;gap:2px;overflow-x:auto;background:var(--sunken);padding:6px;border-bottom:1px solid var(--line)}
+.tab{border:0;background:transparent;color:var(--muted);padding:8px 14px;border-radius:var(--r-sm);font-weight:600;font-size:14px;white-space:nowrap}
+.tab[aria-selected="true"]{background:var(--raised);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.panel{padding:24px;display:grid;gap:20px}
+.panel-head{display:grid;gap:6px}
+.note{font-size:13px;color:var(--muted);background:var(--sunken);border-radius:var(--r);padding:10px 12px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:20px}
+@media (max-width:780px){.two{grid-template-columns:1fr}.kv{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Kudos */
+.reviews{display:grid;gap:8px}
+.rev{text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:var(--r);padding:10px 12px;color:var(--text);display:grid;gap:4px}
+.rev[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.stars{font-family:var(--f-mono);color:var(--warn);font-size:13px;letter-spacing:1px}
+.rev small{color:var(--muted)}
+.verdict{border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:10px;align-content:start}
+.verdict .route{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.reply{font-size:15px;background:var(--bg);border-radius:var(--r);padding:12px;border-left:3px solid var(--accent)}
+.reply.none{border-left-color:var(--bad);color:var(--muted);font-style:italic}
+
+/* Fantasma */
+.chat{background:var(--sunken);border-radius:var(--r);padding:14px;display:grid;gap:8px;align-content:start}
+.msg{max-width:88%;padding:8px 12px;border-radius:12px;font-size:14px}
+.msg.in{background:var(--bubble-in);justify-self:start;border-top-left-radius:4px}
+.msg.out{background:var(--bubble-out);justify-self:end;border-top-right-radius:4px}
+.msg .who{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:2px}
+.ticket{font-family:var(--f-mono);font-size:12.5px;background:var(--raised);border:1px dashed var(--line-strong);border-radius:var(--r-sm);padding:10px 12px;display:grid;gap:3px;overflow-wrap:anywhere}
+.calc{display:grid;gap:14px;align-content:start}
+.field{display:grid;gap:6px}
+.field label{font-size:13px;font-weight:600;color:var(--ink)}
+select,input[type="range"]{width:100%}
+select{font:inherit;padding:8px 10px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--raised);color:var(--ink)}
+input[type="range"]{accent-color:var(--accent)}
+.out-table{width:100%;border-collapse:collapse;font-size:14px}
+.out-table td{padding:7px 0;border-bottom:1px solid var(--line)}
+.out-table td:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600}
+.bar{height:10px;border-radius:999px;background:var(--sunken);overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.bar .c{background:var(--bad)}
+.bar .m{background:var(--ok)}
+
+/* Testigo */
+.transcript{font-size:14px;background:var(--sunken);border-radius:var(--r);padding:12px;display:grid;gap:8px}
+.transcript .audio{display:flex;gap:8px;align-items:center;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.photos{display:grid;gap:6px;font-size:13px}
+.photos li{list-style:none}
+.photos{padding:0;margin:0}
+.parte{background:#fff;color:#222;border:1px solid var(--line-strong);border-radius:var(--r-sm);padding:18px;font-family:"Segoe UI",Arial,sans-serif;font-size:12.5px;display:grid;gap:10px;min-width:0}
+.parte header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:3px solid #2f8f6b;padding-bottom:8px}
+.parte .emp{font-size:15px;font-weight:700;color:#1f3a2e}
+.parte h4{margin:0;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:#2f8f6b;border-bottom:1px solid #ddd;padding-bottom:2px}
+.parte .g{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:3px 18px}
+.parte .tw{overflow-x:auto}
+.parte table{width:100%;border-collapse:collapse;min-width:460px}
+.parte th,.parte td{border:1px solid #ccc;padding:4px 6px;text-align:left;font-size:11.5px}
+.parte th{background:#1f3a2e;color:#fff}
+.pend{color:#b00;font-weight:700}
+.filled{background:#e7f4ee;color:#1f3a2e;font-weight:700}
+.ask{display:grid;gap:8px;border:1px solid var(--warn);background:var(--warn-soft);border-radius:var(--r);padding:12px;font-size:14px}
+.ask button{justify-self:start;border:0;background:var(--warn);color:var(--raised);border-radius:var(--r-sm);padding:7px 12px;font-weight:600}
+
+/* Plantillería */
+.cat{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.tpl{border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:6px;background:var(--bg)}
+.tpl .price{font-family:var(--f-display);font-size:1.35rem;color:var(--ink)}
+.tpl.pack{border-color:var(--accent);background:var(--accent-soft)}
+.state{font-size:12px;font-weight:600}
+
+/* Buscatufoto */
+.steps{display:grid;gap:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.steps div{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:12px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:14px}
+.steps div:last-child{border-bottom:0}
+.steps div:nth-child(odd){background:var(--bg)}
+.steps em{font-style:normal;color:var(--ok);font-weight:600}
+.cta{display:inline-flex;gap:8px;align-items:center;background:var(--accent);color:var(--raised);text-decoration:none;font-weight:600;padding:10px 16px;border-radius:var(--r);justify-self:start}
+.cta:hover{background:var(--accent-ink)}
+
+/* Cola */
+.queue{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0 24px}
+.queue div{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.queue b{color:var(--ink)}
+.queue span.sc{font-family:var(--f-mono);font-size:12px;color:var(--muted);grid-row:span 2}
+.queue small{grid-column:2;color:var(--muted)}
+
+footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}
+
+@media (prefers-reduced-motion: no-preference){
+  .panel{animation:in .32s cubic-bezier(.2,.8,.2,1)}
+  @keyframes in{from{opacity:.4;transform:translateY(6px)}to{opacity:1;transform:none}}
+}
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Gestión Studio Grow · Laboratorio de negocios digitales</p>
+  <h1>Seis negocios con algo andando, de 83 que investigamos</h1>
+  <p class="lead">El laboratorio inventa negocios digitales para Argentina, los costea con datos reales de mercado y los hace pasar por un equipo que intenta voltearlos. Acá están los que sobrevivieron y ya tienen código, cada uno con su demo para probar.</p>
+  <div class="facts">
+    <span><b class="num">83</b>negocios evaluados</span>
+    <span><b class="num">~15</b>descartados antes de escribir código</span>
+    <span><b class="num">5</b>con el motor programado</span>
+    <span><b class="num">0</b>cobrando todavía</span>
+  </div>
+  <div class="legend" aria-label="Qué significa cada estado">
+    <span class="badge b-ok">Demo completa</span>
+    <span class="badge b-warn">Motor andando, falta conectar</span>
+    <span class="badge b-info">Elegido, sin construir</span>
+    <span class="badge b-bad">Espera el OK del dueño</span>
+  </div>
+</header>
+
+<section aria-labelledby="t-shelf" style="display:grid;gap:16px">
+  <h2 id="t-shelf">El estante</h2>
+  <div class="shelf" id="shelf"></div>
+</section>
+
+<section aria-labelledby="t-bench" style="display:grid;gap:16px" id="mesa">
+  <div style="display:grid;gap:4px">
+    <h2 id="t-bench">Mesa de pruebas</h2>
+    <p class="muted">Las respuestas que ves son las que devolvieron los motores reales cuando los corrimos hoy, sin inteligencia artificial conectada (usan un modelo de prueba). Nada de esto toca clientes reales.</p>
+  </div>
+  <div class="bench">
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div id="panels"></div>
+  </div>
+</section>
+
+<section aria-labelledby="t-queue" style="display:grid;gap:16px">
+  <div style="display:grid;gap:4px">
+    <h2 id="t-queue">En la cola</h2>
+    <p class="muted">Investigados con fuentes y puntaje del analista. Todavía sin construir: esperan que el dueño los elija.</p>
+  </div>
+  <div class="queue">
+    <div><span class="sc">9</span><b>Recepcionista IA</b><small>Voz, WhatsApp y agenda para clínicas y estéticas</small></div>
+    <div><span class="sc">8.5</span><b>Directorio de un rubro</b><small>Guía con datos propios que vende contactos de clientes</small></div>
+    <div><span class="sc">8</span><b>VetVoz</b><small>La historia clínica de la veterinaria, dictada por voz</small></div>
+    <div><span class="sc">8</span><b>Vitrina</b><small>Fotos y ficha de producto listas para vender online</small></div>
+    <div><span class="sc">8</span><b>Calificador de WhatsApp</b><small>Filtra consultas en rubros de ticket alto</small></div>
+    <div><span class="sc">7</span><b>GremioPro</b><small>Presupuesto, agenda y cobro para oficios</small></div>
+  </div>
+</section>
+
+<footer>
+  <span>Números de referencia de la investigación del laboratorio (julio 2026), no ventas reales. Precios en dólares, provisionales.</span>
+  <span>Elaborado por Gestión Studio Grow</span>
+</footer>
+</div>
+
+<script>
+const P = [
+  { id:"buscatufoto", name:"buscatufoto", badge:["b-ok","Demo completa"],
+    what:"Los fotógrafos de carreras, torneos y fiestas suben sus fotos; cada corredor se encuentra por su número de dorsal, paga y descarga el original.",
+    now:"Recorrido completo probado en computadora y celular el 8/10. Pago simulado; falta el cobro real.",
+    kv:[["Cobra","comisión por venta"],["Comisión","9 % (provisional)"],["Costo","casi cero"]] },
+  { id:"kudos", name:"Kudos", badge:["b-warn","Motor andando"],
+    what:"Le consigue reseñas de cinco estrellas a un comercio y responde todas por él, con la voz de su marca. Las malas pasan antes por una persona.",
+    now:"Falta conectar Google Business y la IA real, y probar con 50 reseñas de verdad.",
+    kv:[["Precio","US$99–149/mes"],["Margen","90–95 %"],["US$5k/mes","34–50 locales"]] },
+  { id:"fantasma", name:"Fantasma", badge:["b-warn","Motor andando"],
+    what:"El turno noche del WhatsApp: atiende fuera de horario, cotiza, reserva con seña de Mercado Pago y deja todo anotado para la mañana.",
+    now:"Falta conectar WhatsApp y la IA real, y medir el costo con 20 conversaciones de una barbería.",
+    kv:[["Precio","US$120–399/mes"],["Margen","80–85 %"],["US$5k/mes","~25 clientes"]] },
+  { id:"testigo", name:"Testigo", badge:["b-warn","Motor andando"],
+    what:"El fumigador manda una foto y un audio por WhatsApp y recibe el parte de trabajo prolijo, en PDF, listo para bromatología.",
+    now:"Falta conectar WhatsApp, pasar el audio a texto y generar el PDF real.",
+    kv:[["Precio","US$15–30/operario"],["Margen","~90 %"],["US$5k/mes","35–50 cuadrillas"]] },
+  { id:"plantilleria", name:"Plantillería", badge:["b-warn","Tienda armada"],
+    what:"Planillas hechas para la realidad argentina: monotributo, sueldos, kiosco, presupuestos de oficio. Se hacen una vez y se venden infinitas veces.",
+    now:"Falta armar el archivo de cada planilla y abrir la cuenta de cobro (decisión del dueño).",
+    kv:[["Precio","US$25–45 c/u"],["Margen","90–95 %"],["US$1k/mes","~37 ventas"]] },
+  { id:"postora", name:"Postora", badge:["b-info","Elegido, sin construir"], pending:true,
+    what:"Un community manager con IA para comercios de barrio: le arma el contenido del mes con diseño cuidado.",
+    now:"Fue la punta de lanza que recomendó el laboratorio. Todavía no tiene código.",
+    kv:[["Precio","US$29–59/mes"],["Cobro","Mercado Pago"],["Puntaje","9 de 10"]] }
+];
+
+const shelf = document.getElementById("shelf");
+const tabs = document.getElementById("tabs");
+const panels = document.getElementById("panels");
+
+shelf.innerHTML = P.map(p => `
+  <article class="card${p.pending?" pending":""}" id="card-${p.id}">
+    <div class="top"><h3>${p.name}</h3><span class="badge ${p.badge[0]}">${p.badge[1]}</span></div>
+    <p class="what">${p.what}</p>
+    <p class="now">${p.now}</p>
+    <div class="kv">${p.kv.map(([k,v])=>`<div><span>${k}</span><strong>${v}</strong></div>`).join("")}</div>
+    <button class="open" data-go="${p.id}">${p.pending?"Ver por qué":"Probar la demo"}</button>
+  </article>`).join("");
+
+tabs.innerHTML = P.map(p => `<button class="tab" role="tab" id="tab-${p.id}" aria-controls="panel" data-go="${p.id}">${p.name}</button>`).join("");
+
+/* ---------- Paneles ---------- */
+const KUDOS = [
+  {s:5,who:"Marcela",t:"¡La mejor muzza del barrio! Atención de diez y la masa espectacular. Volvemos seguro.",st:"Se publica sola",cls:"b-ok",why:"Reseña positiva: agradecimiento cálido con la voz de la marca.",r:"¡Gracias por tu reseña, Marcela! 🙌 Nos alegra un montón que la hayas pasado bien. Te esperamos pronto de nuevo. El equipo de Don Ciro 🍕"},
+  {s:3,who:"Diego",t:"Rica la pizza pero tardó bastante el delivery. La próxima ojalá más rápido.",st:"Se publica sola",cls:"b-ok",why:"Reseña neutra: agradece y muestra voluntad de mejorar.",r:"Gracias por tu comentario, Diego. Tomamos nota de lo que marcás para seguir mejorando. Ojalá la próxima te lleves una mejor experiencia. El equipo de Don Ciro 🍕"},
+  {s:1,who:"Sofía",t:"Muy fría llegó la pizza y encima faltaba una. Un desastre, no vuelvo más.",st:"La revisa una persona",cls:"b-warn",why:"Reseña negativa: arma un borrador empático, pero no sale sin el OK del dueño del local.",r:"Lamentamos que tu experiencia no haya sido la esperada, Sofía. Queremos entender qué pasó y ayudarte: escribinos a hola@donciro.com así lo resolvemos como corresponde. El equipo de Don Ciro 🍕"},
+  {s:1,who:"Roberto",t:"Me intoxiqué después de comer acá, terminé en el hospital. Voy a hacer la denuncia con mi abogado.",st:"Alerta al equipo",cls:"b-bad",why:"Detecta un tema legal: no se publica nada y se avisa al comercio.",r:null},
+  {s:5,who:"Ana",t:"Todo perfecto, aunque me pareció que me cobraron de más en el total. ¿Pueden revisar?",st:"Alerta al equipo",cls:"b-bad",why:"Aunque son cinco estrellas, menciona un posible cobro de más: va a una persona.",r:null}
+];
+const PLANES = { basica:{n:"Guardia Básica",p:120,inc:100,ex:1.0}, pro:{n:"Guardia Pro",p:249,inc:250,ex:0.8}, full:{n:"Guardia Full",p:399,inc:500,ex:0.65} };
+
+const PANEL = {
+buscatufoto: () => `
+  <div class="panel-head"><span class="badge b-ok" style="justify-self:start">Demo completa</span>
+  <h3>buscatufoto: el corredor se encuentra por su dorsal y compra la foto</h3>
+  <p class="muted">Funciona entero en el navegador: el fotógrafo crea el álbum, sube las fotos, salen con marca de agua y el número de dorsal se lee del nombre del archivo. El comprador busca su número, arma el carrito, paga (simulado) y descarga el original.</p></div>
+  <div class="steps" aria-label="Recorrido probado el 8 de octubre">
+    <div><span>Crear álbum «Torneo QA 2026» a $ 2.000 la foto</span><em>funciona</em></div>
+    <div><span>Subir 5 fotos y 1 video; leer los dorsales del nombre</span><em>512 y 88 detectados</em></div>
+    <div><span>Cupón QA10, 10 % de descuento, un solo uso</span><em>funciona</em></div>
+    <div><span>Buscar el 512 en el álbum público</span><em>3 fotos y 1 video</em></div>
+    <div><span>Carrito con cupón</span><em class="num">$ 8.000 − $ 800 = $ 7.200</em></div>
+    <div><span>Pago simulado y descarga del original</span><em>mismo archivo que se subió</em></div>
+    <div><span>Usar el mismo cupón otra vez</span><em>lo rechaza</em></div>
+    <div><span>Venta en el panel del fotógrafo</span><em class="num">neto $ 6.552</em></div>
+  </div>
+  <a class="cta" href="https://buscatufoto.gsgapp.com.ar" target="_blank" rel="noopener">Abrir buscatufoto ↗</a>
+  <p class="note">El original nunca se muestra antes de pagar: el comprador sólo ve una vista previa chica y marcada. Los pagos están en modo demostración, y la búsqueda por selfie figura como «próximamente» porque no se simulan resultados. Si el enlace no abre, avisanos: no lo pudimos comprobar desde acá.</p>`,
+
+kudos: () => `
+  <div class="panel-head"><h3>Kudos: elegí una reseña y mirá qué hace</h3>
+  <p class="muted">Pizzería de ejemplo, Don Ciro. El motor decide sola qué se publica, qué revisa una persona y qué no se toca.</p></div>
+  <div class="two">
+    <div class="reviews" id="rv">${KUDOS.map((k,i)=>`<button class="rev" data-i="${i}" aria-pressed="${i===0}"><span class="stars">${"★".repeat(k.s)}${"☆".repeat(5-k.s)}</span><span>«${k.t}»</span><small>${k.who}</small></button>`).join("")}</div>
+    <div class="verdict" id="vd" aria-live="polite"></div>
+  </div>
+  <p class="note">Regla de Google respetada: se le pide reseña a todos los clientes, no sólo a los contentos. Eso evita que Google castigue al local.</p>`,
+
+fantasma: () => `
+  <div class="panel-head"><h3>Fantasma: un viernes a la noche en la Barbería Lo de Tito</h3>
+  <p class="muted">La conversación es la que generó el motor con el modelo de prueba; con la IA conectada las respuestas salen más naturales. A la derecha, cuánto deja cada plan según el volumen.</p></div>
+  <div class="two">
+    <div class="chat">
+      <div class="msg in"><span class="who">Cliente</span>Hola, buenas! están?</div>
+      <div class="msg out"><span class="who">Fantasma</span>¡Hola! Soy la atención de Barbería Lo de Tito 🌙 Estamos fuera de horario, pero te ayudo igual: puedo pasarte precios, reservarte un turno o dejar tu consulta para la mañana. ¿Qué estás buscando?</div>
+      <div class="msg in"><span class="who">Cliente</span>cuánto sale un combo corte + barba?</div>
+      <div class="msg out"><span class="who">Fantasma</span>Corte de pelo sale $8000. ¿Querés que te reserve un turno para retirarlo o coordinamos envío?</div>
+      <div class="msg in"><span class="who">Cliente</span>joya. tenés turno para esta semana?</div>
+      <div class="msg out"><span class="who">Fantasma</span>Tengo un turno el 2026-07-08 a las 10:00. Para reservarlo pedimos una seña de $3000. ¿Te lo reservo y te paso el link de pago?</div>
+      <div class="msg in"><span class="who">Cliente</span>dale, pago la seña y reservo</div>
+      <div class="msg out"><span class="who">Fantasma</span>¡Genial! Te paso el link para la seña y con eso te dejo el turno reservado. Mañana el equipo te confirma todo. ¡Gracias por escribir!</div>
+      <div class="ticket"><span>Cotización registrada: $ 8.000</span><span>Turno propuesto: 08/07 10:00 · seña $ 3.000</span><span>Link de seña de Mercado Pago generado</span><span>Estado: resuelta · costo de la charla US$ 0,016</span></div>
+    </div>
+    <div class="calc">
+      <div class="field"><label for="f-plan">Plan</label>
+        <select id="f-plan"><option value="basica">Guardia Básica · US$ 120 · 100 charlas</option><option value="pro" selected>Guardia Pro · US$ 249 · 250 charlas</option><option value="full">Guardia Full · US$ 399 · 500 charlas</option></select></div>
+      <div class="field"><label for="f-conv">Charlas fuera de horario en el mes: <span id="f-conv-v" class="num"></span></label>
+        <input id="f-conv" type="range" min="20" max="800" step="10" value="380"></div>
+      <table class="out-table"><tbody id="f-out"></tbody></table>
+      <div class="bar" aria-hidden="true"><i class="c" id="bar-c"></i><i class="m" id="bar-m"></i></div>
+      <p class="note">Se cobra por uso: cada charla de más vale más de lo que cuesta atenderla, aun en el peor caso (US$ 0,30). Así una tarifa plana nunca se come la ganancia. Costo típico por charla: US$ 0,18.</p>
+    </div>
+  </div>`,
+
+testigo: () => `
+  <div class="panel-head"><h3>Testigo: del audio del fumigador al parte de bromatología</h3>
+  <p class="muted">Empresa y datos de ejemplo. El operario no dijo el número de registro del producto: Testigo no lo inventa, lo deja pendiente y le pregunta.</p></div>
+  <div class="two">
+    <div style="display:grid;gap:12px;align-content:start">
+      <div class="transcript">
+        <span class="audio">▶ audio de WhatsApp · 0:38</span>
+        <p>«Che, terminé la desratización del subsuelo del restaurante. Puse cebo en las cuatro estaciones que están en el fondo, cerca del depósito había bastante caca de rata así que reforcé esa zona. Usé Klerat en bloque. Les dije a los del restaurante que no bajen al subsuelo por 24 horas. Revisé también los desagües de la cocina, estaban bien, sin actividad. Que arranquen con el control mensual, les dejé fecha para dentro de un mes.»</p>
+      </div>
+      <ul class="photos">
+        <li>📷 <b>Antes:</b> heces de roedor junto a la pared del depósito</li>
+        <li>📷 <b>Durante:</b> estación de cebo cerrada contra el zócalo</li>
+        <li>📷 <b>Después:</b> el mismo rincón limpio, con la estación instalada</li>
+      </ul>
+      <div class="ask" id="ask"><span><b>Testigo pregunta por WhatsApp:</b> «¿Me pasás el número de registro SENASA del Klerat que usaste? Sin ese dato el parte no sirve para bromatología.»</span>
+        <button id="ask-btn">Responder: «SENASA 12.345»</button></div>
+    </div>
+    <div class="parte" aria-live="polite">
+      <header><div><div class="emp">Fumigadora de Ejemplo S.R.L.</div><div style="color:#666">Control de plagas · Matrícula de ejemplo</div></div><div style="text-align:right;color:#666"><b>Parte N° 2026-000342</b><br>Técnico: R. Sosa</div></header>
+      <h4>Datos del servicio</h4>
+      <div class="g"><span><b>Cliente:</b> restaurante (ejemplo)</span><span><b>Modalidad:</b> correctivo</span><span><b>Servicio:</b> desratización</span><span><b>Plaga:</b> roedores</span><span><b>Áreas:</b> subsuelo, depósito, desagües de cocina</span><span><b>Infestación:</b> media</span></div>
+      <h4>Productos aplicados</h4>
+      <div class="tw"><table><thead><tr><th>Producto</th><th>Principio activo</th><th>N° registro</th><th>Dosis</th></tr></thead>
+      <tbody><tr><td>Klerat</td><td>Brodifacoum 0,005 %</td><td id="reg" class="pend">PENDIENTE: se le preguntó al operario</td><td>1 bloque de 100 g por estación</td></tr></tbody></table></div>
+      <h4>Trabajo realizado</h4>
+      <p>Desratización correctiva en el subsuelo. Cuatro estaciones de cebado en el sector posterior, con refuerzo junto al depósito, donde había más actividad. Desagües de cocina inspeccionados sin evidencia de roedores.</p>
+      <h4>Seguridad</h4>
+      <p><b>Reingreso:</b> 24 horas. No manipular ni retirar las estaciones. <b>Próximo servicio:</b> en un mes (control mensual).</p>
+      <p style="color:#666;font-size:11px">Firma del técnico · Conformidad del cliente · Conserve este comprobante para controles de bromatología.</p>
+    </div>
+  </div>`,
+
+plantilleria: () => `
+  <div class="panel-head"><h3>Plantillería: el catálogo de lanzamiento</h3>
+  <p class="muted">La tienda (portada, ficha de cada planilla, compra y página de entrega) está programada. La planilla estrella es la de monotributo: muestra cuánto facturaste en los últimos doce meses, cuánto del tope de tu categoría usaste, con un semáforo, y cuánto pagás este mes.</p></div>
+  <div class="cat">
+    <div class="tpl"><span class="state" style="color:var(--warn)">Especificada · falta armar el archivo</span><b>Control de Monotributo AR</b><span class="muted">Semáforo para no pasarte de categoría sin darte cuenta.</span><span class="price num">US$ 29</span></div>
+    <div class="tpl"><span class="state muted">Por especificar</span><b>Presupuestador para Oficios</b><span class="muted">Cotizá en 5 minutos con materiales, mano de obra y un margen que la inflación no se coma.</span><span class="price num">US$ 39</span></div>
+    <div class="tpl"><span class="state muted">Por especificar</span><b>Caja y Stock para Kiosco</b><span class="muted">La caja del día y lo que queda en la estantería.</span><span class="price num">US$ 35</span></div>
+    <div class="tpl"><span class="state muted">Por especificar</span><b>Liquidación de Sueldos Simple</b><span class="muted">Recibos de un comercio chico sin pagar un sistema.</span><span class="price num">US$ 45</span></div>
+    <div class="tpl"><span class="state muted">Por especificar</span><b>Finanzas Personales AR</b><span class="muted">Pesos que se devalúan, dólares y plazo fijo, en una sola planilla.</span><span class="price num">US$ 25</span></div>
+    <div class="tpl pack"><span class="state" style="color:var(--accent-ink)">Paquete</span><b>Las cinco juntas</b><span class="muted">Descuento por llevar el catálogo entero.</span><span class="price num">US$ 89</span></div>
+  </div>
+  <p class="note">El trabajo fuerte de este negocio no es programar sino hacer que la gente encuentre las planillas: el plan de difusión es el 60 % del esfuerzo. Los topes y escalas se verifican contra ARCA el día que se arma cada archivo.</p>`,
+
+postora: () => `
+  <div class="panel-head"><span class="badge b-info" style="justify-self:start">Elegido, sin construir</span>
+  <h3>Postora todavía no tiene demo</h3>
+  <p class="muted" style="max-width:62ch">Fue la recomendación del laboratorio para arrancar: aprovecha lo que mejor hace el estudio, que es diseño y marketing, y se cobra con una suscripción de Mercado Pago en pesos, sin venta uno a uno. El primer paso sería un rubro (gastronomía o estética de barrio) y los primeros 5 a 10 comercios pagando.</p></div>
+  <p class="note">No mostramos pantallas inventadas: cuando haya código, la demo aparece acá.</p>`
+};
+
+function wireKudos(){
+  const vd = document.getElementById("vd");
+  const show = i => {
+    const k = KUDOS[i];
+    document.querySelectorAll("#rv .rev").forEach((b,j)=>b.setAttribute("aria-pressed", j===i));
+    vd.innerHTML = `<div class="route"><span class="badge ${k.cls}">${k.st}</span></div><p>${k.why}</p>
+      ${k.r ? `<div class="reply">${k.r}</div>` : `<div class="reply none">No se responde nada en público: le llega un aviso al dueño del local para que lo maneje una persona.</div>`}`;
+  };
+  document.getElementById("rv").addEventListener("click", e => { const b = e.target.closest(".rev"); if (b) show(+b.dataset.i); });
+  show(0);
+}
+function wireFantasma(){
+  const plan = document.getElementById("f-plan"), conv = document.getElementById("f-conv");
+  const usd = n => "US$ " + n.toLocaleString("es-AR",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const draw = () => {
+    const d = PLANES[plan.value], c = +conv.value;
+    document.getElementById("f-conv-v").textContent = c;
+    const extra = Math.max(0, c - d.inc), fact = d.p + extra * d.ex, cogs = c * 0.18, worst = c * 0.30;
+    document.getElementById("f-out").innerHTML = `
+      <tr><td>Abono del plan</td><td>${usd(d.p)}</td></tr>
+      <tr><td>${extra} charlas de más × ${usd(d.ex)}</td><td>${usd(extra*d.ex)}</td></tr>
+      <tr><td>Se factura</td><td>${usd(fact)}</td></tr>
+      <tr><td>Cuesta atender (típico)</td><td>${usd(cogs)}</td></tr>
+      <tr><td>Queda de margen</td><td>${usd(fact-cogs)} · ${Math.round((fact-cogs)/fact*100)} %</td></tr>
+      <tr><td>Margen en el peor caso</td><td>${Math.round((fact-worst)/fact*100)} %</td></tr>`;
+    const pc = Math.min(100, cogs/fact*100);
+    document.getElementById("bar-c").style.width = pc + "%";
+    document.getElementById("bar-m").style.width = (100-pc) + "%";
+  };
+  plan.addEventListener("change", draw); conv.addEventListener("input", draw); draw();
+}
+function wireTestigo(){
+  document.getElementById("ask-btn").addEventListener("click", () => {
+    const reg = document.getElementById("reg");
+    reg.textContent = "SENASA 12.345 (ejemplo)"; reg.className = "filled";
+    document.getElementById("ask").innerHTML = "<span><b>Listo.</b> El operario respondió y el parte quedó completo. En la versión real sale como PDF por WhatsApp.</span>";
+  });
+}
+const WIRE = { kudos:wireKudos, fantasma:wireFantasma, testigo:wireTestigo };
+
+function select(id, scroll){
+  if (!PANEL[id]) id = "buscatufoto";
+  panels.innerHTML = `<div class="panel" id="panel" role="tabpanel" aria-labelledby="tab-${id}">${PANEL[id]()}</div>`;
+  (WIRE[id]||(()=>{}))();
+  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.go === id));
+  document.querySelectorAll(".card").forEach(c => c.setAttribute("aria-current", c.id === "card-" + id));
+  if (scroll) document.getElementById("mesa").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start"});
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-go]"); if (!b) return;
+  const id = b.dataset.go;
+  if (location.hash !== "#" + id) history.replaceState(null, "", "#" + id);
+  select(id, b.classList.contains("open"));
+});
+window.addEventListener("hashchange", () => select(location.hash.slice(1), true));
+select(location.hash.slice(1) || "buscatufoto", false);
+</script>
