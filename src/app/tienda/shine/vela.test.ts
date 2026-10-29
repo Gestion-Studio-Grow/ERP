@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { getStorefrontCopy } from "@/tenants/storefront";
+import { TODOS_LOS_AROMAS } from "./catalogo";
 import {
   ajustesDelPaso,
   avisoDelEstado,
@@ -57,6 +58,13 @@ describe("la cera sigue al aroma elegido", () => {
     assert.equal(new Set(aromas.map(tinteDeAroma)).size, aromas.length);
   });
 
+  test("los 15 aromas del catálogo (9 de velas y 6 de difusores, 13 distintos) tienen su tono, todos distintos", () => {
+    assert.equal(TODOS_LOS_AROMAS.length, 13);
+    for (const a of TODOS_LOS_AROMAS) assert.ok(TINTE_POR_AROMA[claveDeAroma(a)], `falta el tono de «${a}»`);
+    assert.equal(new Set(TODOS_LOS_AROMAS.map(tinteDeAroma)).size, 13);
+    assert.equal(Object.keys(TINTE_POR_AROMA).length, 13, "ni un aroma de más: nada inventado");
+  });
+
   test("sin aroma, o con uno desconocido, la cera es la miel de las fotos del catálogo", () => {
     assert.equal(tinteDeAroma(null), CERA_DEL_CATALOGO);
     assert.equal(tinteDeAroma(""), CERA_DEL_CATALOGO);
@@ -65,7 +73,8 @@ describe("la cera sigue al aroma elegido", () => {
 
   test("el nombre se compara sin tildes, mayúsculas ni espacios de más", () => {
     assert.equal(claveDeAroma("  Sándalo "), "sandalo");
-    assert.equal(tinteDeAroma("CEDRO   Y ÁMBAR"), tinteDeAroma("cedro y ambar"));
+    assert.equal(tinteDeAroma("LIMÓN   &  JENGIBRE"), tinteDeAroma("limon & jengibre"));
+    assert.notEqual(tinteDeAroma("Limón & Jengibre"), CERA_DEL_CATALOGO);
   });
 });
 
@@ -187,7 +196,7 @@ describe("la escena sólo se carga en Shine; el resto del ERP no importa three.j
       .filter((f) => /<VelaDiferida\b/.test(readFileSync(f, "utf8")))
       .map((f) => path.relative(SRC, f).split(path.sep).join("/"))
       .sort();
-    assert.deepEqual(conVela, ["app/tienda/ShineFront.tsx", "app/tienda/vidriera/TiendaNueva.tsx"]);
+    assert.deepEqual(conVela, ["app/tienda/shine/ShineFront.tsx", "app/tienda/vidriera/TiendaNueva.tsx"]);
 
     // En la tienda nueva, sólo dentro de PortadaShine (MAGRA, A Dos Manos y la genérica no la tienen).
     const nueva = leer("app/tienda/vidriera/TiendaNueva.tsx");

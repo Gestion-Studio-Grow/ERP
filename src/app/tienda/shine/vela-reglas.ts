@@ -15,20 +15,26 @@
 export const CERA_DEL_CATALOGO = "#e3a24e";
 
 /**
- * Tono de la cera por aroma de temporada (los de storefront.ts → gourmetItems).
- * [A VALIDAR con Shine] Las fotos del catálogo muestran cera miel y cera crema, no un color por
- * aroma: estos tonos son ILUSTRATIVOS, derivados de la paleta de la soja (miel, crema, arena,
- * ámbar) con un matiz del aroma. La pantalla lo dice ("color ilustrativo"). Si Shine confirma los
- * colores reales, se cambian acá y en ningún otro lado.
+ * Tono de la cera por aroma: los 9 de velas y los 6 de difusores y home spray del catálogo oficial
+ * (docs/diseno/catalogo-shine-2026.md, «Aromas»; los mismos de shine/catalogo.ts).
+ * [A VALIDAR con Shine] Las fotos del catálogo muestran cera crema y miel, no un color por aroma:
+ * estos tonos son ILUSTRATIVOS (la paleta de la soja con un matiz del aroma) y la pantalla lo dice
+ * («color ilustrativo»). Si Shine confirma los colores reales, se cambian acá y en ningún otro lado.
  */
 export const TINTE_POR_AROMA: Readonly<Record<string, string>> = {
-  "vainilla y canela": "#dfa257",
-  "flor de naranjo": "#f0c48a",
-  sandalo: "#caa27a",
+  "vainilla & caramelo": "#dfa45c",
+  rosas: "#e7b3b9",
   lavanda: "#c8b2d4",
-  "coco y vainilla": "#efe3cb",
-  jazmin: "#f2ebdc",
-  "cedro y ambar": "#c47f30",
+  "frutos rojos": "#c9707e",
+  bebe: "#f3dde4",
+  "coco & lima": "#e3e9c4",
+  "limon & jengibre": "#efd98a",
+  "flores blancas": "#f5efe3",
+  "mango & maracuya": "#f0ae5a",
+  "peras & flores": "#dbe2ad",
+  "naranja & jengibre": "#eea064",
+  "vaini & coco": "#efe2c8",
+  tilo: "#c9d8ab",
 };
 
 /** "Sándalo" → "sandalo" (sin tildes ni mayúsculas ni espacios de más). */
