@@ -834,7 +834,8 @@ export function decidirComprobante(
         campo: "emisor.regimenFacturaA",
         norma: "RG 1575",
         mensaje:
-          "Falta cargar qué Factura A te asignó ARCA (A común, A con leyenda o M). Consultalo en ARCA o con tu contador y cargalo en tus datos fiscales; " +
+          // Lo carga Soporte GSG (regimen-factura-a.ts: sólo cuenta la fila de un operador); el negocio no tiene dónde.
+          "Falta cargar qué Factura A te asignó ARCA (A común, A con leyenda o M). Consultalo en ARCA o con tu contador y pedile a Soporte GSG que lo cargue; " +
           "hasta entonces, cada Factura A pasa por revisión.",
       });
     }
