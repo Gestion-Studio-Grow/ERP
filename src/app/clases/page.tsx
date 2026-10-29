@@ -9,7 +9,7 @@ import { reglaDeCancelacion, urlMaps } from "@/app/alumno/_vista/estado";
 import Turnero from "./Turnero";
 import { Piel } from "./_piel";
 import { CabeceraPublica } from "./_cabecera";
-import { PlacaProfe } from "./_placa";
+import { DetallesProfe, PresentacionProfe } from "./_placa";
 import { Logotipo, iniciales, nombreDelProfe } from "./_logotipo";
 import { IconoInstagram, IconoReloj, IconoTilde } from "./_iconos";
 import { botonBorde, foco } from "./_estilos";
@@ -131,21 +131,26 @@ export default async function ClasesPage({ searchParams }: { searchParams: Promi
           </section>
         )}
 
-        <div className="grid grid-cols-1 gap-[clamp(2rem,5vw,4rem)] lg:grid-cols-12 lg:gap-8">
-          <div className="lg:sticky lg:top-6 lg:col-span-5 lg:self-start">
-            <PlacaProfe
-              nombre={nombre}
-              lema={m.lema}
-              duracionMin={config.duracionMin}
-              precio={config.precioIndividual > 0 ? pesos(config.precioIndividual) : null}
-              lugar={negocio.lugar}
-              maps={maps}
-              regla={regla}
-              monograma={iniciales(nombre)}
-              conHorarios={dias.length > 0}
-            />
+        {/* Celular: presentación compacta → turnero (el primer horario en la primera pantalla) → detalles.
+            Compu: placa entera a la izquierda (quieta) y turnero a la derecha, en el orden del diseño. El
+            envoltorio de la placa es `contents` en el celular para que sus dos piezas se ordenen sueltas. */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
+          <div className="contents lg:sticky lg:top-6 lg:col-span-5 lg:grid lg:gap-6 lg:self-start">
+            <div className="order-1 lg:order-none">
+              <PresentacionProfe nombre={nombre} lema={m.lema} />
+            </div>
+            <div className="order-3 mt-4 lg:order-none lg:mt-0">
+              <DetallesProfe
+                duracionMin={config.duracionMin}
+                precio={config.precioIndividual > 0 ? pesos(config.precioIndividual) : null}
+                lugar={negocio.lugar}
+                maps={maps}
+                regla={regla}
+                monograma={iniciales(nombre)}
+              />
+            </div>
           </div>
-          <div className="min-w-0 lg:col-span-7">
+          <div className="order-2 min-w-0 lg:order-none lg:col-span-7">
             <Turnero
               dias={dias}
               sinHorarios={sinHorarios}

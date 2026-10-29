@@ -14,8 +14,9 @@
 // teléfono es otro: «Te confirmamos por WhatsApp» (sin link).
 // Si la hora se ocupó en el medio: el chip se apaga y se sugieren las 2 más cercanas (M-097).
 //
-// Piel de la placa de horarios (fronts/agendaprofe/DISENO.md §5.1): tipo de clase en dos tarjetas
-// grandes, cinta alta, horas de 56 px, barra fija de 64 px (en la compu, pegada al pie de la columna).
+// Piel de la placa de horarios (fronts/agendaprofe/DISENO.md §5.1): la cinta PRIMERO (en el celular,
+// el primer horario entra en la primera pantalla; en la compu el tipo de clase sube arriba con
+// `lg:order-first`, como en el diseño), tipo de clase en dos tarjetas grandes, cinta alta, horas de 56 px, barra fija de 64 px (en la compu, pegada al pie de la columna).
 // Sin horarios publicados, la columna es la placa de presentación (qué clases da, cómo pedir un turno
 // por mensaje y cuándo vuelven los horarios) y la barra dice «Pedir un turno por mensaje». La lógica
 // de pedir, los `data-qa` y los textos que fijan los tests no cambian.
@@ -288,45 +289,6 @@ export default function Turnero({
   return (
     <>
       <div className="grid grid-cols-1 gap-[clamp(1.5rem,3vw,2rem)]">
-        {hayGrupal && (
-          <section aria-labelledby="t-tipo">
-            <h2 id="t-tipo" className={cn(tituloSeccion, "mb-3")}>
-              ¿Cómo querés la clase?
-            </h2>
-            <div role="group" aria-labelledby="t-tipo" className="grid grid-cols-2 gap-3">
-              <button type="button" aria-pressed={tipo === "INDIVIDUAL"} className={tarjetaTipo(tipo === "INDIVIDUAL")} onClick={() => setTipo("INDIVIDUAL")} data-qa="tipo-individual">
-                <span className="text-[1.0625rem] font-semibold">Individual</span>
-                {precioIndividual > 0 && <span className="pz-display pz-num text-[clamp(1.75rem,3vw,2.75rem)] font-bold leading-none">{plata(precioIndividual)}</span>}
-              </button>
-              <button type="button" aria-pressed={tipo === "GRUPAL"} className={tarjetaTipo(tipo === "GRUPAL")} onClick={() => setTipo("GRUPAL")} data-qa="tipo-grupal">
-                <span className="text-[1.0625rem] font-semibold">Con amigos</span>
-                <span className="pz-display pz-num text-[clamp(1.75rem,3vw,2.75rem)] font-bold leading-none">
-                  {plata(precioGrupal)}
-                  <span className="ml-1 text-[0.55em]">c/u</span>
-                </span>
-              </button>
-            </div>
-            {tipo === "GRUPAL" && (
-              <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="¿Cuántos son?">
-                <span className="text-[1.0625rem] font-semibold">Somos</span>
-                {[2, 3, 4].map((n) => (
-                  <button key={n} type="button" aria-pressed={personas === n} className={cn(chip(personas === n), "min-w-14")} onClick={() => setPersonas(n)} data-qa="personas" data-n={n}>
-                    {n}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="mt-2 flex min-h-12 flex-wrap items-center justify-between gap-x-4">
-              {textoPrecio(tipo, personas, precioIndividual, precioGrupal) && (
-                <p className="pz-num text-[1.0625rem] font-semibold" data-qa="precio">
-                  {textoPrecio(tipo, personas, precioIndividual, precioGrupal)}
-                </p>
-              )}
-              {info && <FichaClase info={info} conHorarios />}
-            </div>
-          </section>
-        )}
-
         <section id="cinta" className={cn(caja, "pz-ancla")} aria-label="Día y hora" aria-busy={pendiente}>
           {/* Pidiendo…: los chips quedan quietos (no se cambia la hora a mitad del pedido). */}
           <div className={pendiente ? "pointer-events-none opacity-60" : undefined}>
@@ -375,6 +337,45 @@ export default function Turnero({
             </div>
           )}
         </section>
+
+        {hayGrupal && (
+          <section aria-labelledby="t-tipo" className="lg:order-first">
+            <h2 id="t-tipo" className={cn(tituloSeccion, "mb-3")}>
+              ¿Cómo querés la clase?
+            </h2>
+            <div role="group" aria-labelledby="t-tipo" className="grid grid-cols-2 gap-3">
+              <button type="button" aria-pressed={tipo === "INDIVIDUAL"} className={tarjetaTipo(tipo === "INDIVIDUAL")} onClick={() => setTipo("INDIVIDUAL")} data-qa="tipo-individual">
+                <span className="text-[1.0625rem] font-semibold">Individual</span>
+                {precioIndividual > 0 && <span className="pz-display pz-num text-[clamp(1.75rem,3vw,2.75rem)] font-bold leading-none">{plata(precioIndividual)}</span>}
+              </button>
+              <button type="button" aria-pressed={tipo === "GRUPAL"} className={tarjetaTipo(tipo === "GRUPAL")} onClick={() => setTipo("GRUPAL")} data-qa="tipo-grupal">
+                <span className="text-[1.0625rem] font-semibold">Con amigos</span>
+                <span className="pz-display pz-num text-[clamp(1.75rem,3vw,2.75rem)] font-bold leading-none">
+                  {plata(precioGrupal)}
+                  <span className="ml-1 text-[0.55em]">c/u</span>
+                </span>
+              </button>
+            </div>
+            {tipo === "GRUPAL" && (
+              <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="¿Cuántos son?">
+                <span className="text-[1.0625rem] font-semibold">Somos</span>
+                {[2, 3, 4].map((n) => (
+                  <button key={n} type="button" aria-pressed={personas === n} className={cn(chip(personas === n), "min-w-14")} onClick={() => setPersonas(n)} data-qa="personas" data-n={n}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="mt-2 flex min-h-12 flex-wrap items-center justify-between gap-x-4">
+              {textoPrecio(tipo, personas, precioIndividual, precioGrupal) && (
+                <p className="pz-num text-[1.0625rem] font-semibold" data-qa="precio">
+                  {textoPrecio(tipo, personas, precioIndividual, precioGrupal)}
+                </p>
+              )}
+              {info && <FichaClase info={info} conHorarios />}
+            </div>
+          </section>
+        )}
 
         <section>
           <label htmlFor="t-nota" className={etiqueta}>
