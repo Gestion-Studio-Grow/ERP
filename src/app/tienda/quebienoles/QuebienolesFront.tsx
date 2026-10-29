@@ -63,7 +63,7 @@ function Respaldo() {
         width={560}
         height={700}
         priority
-        sizes="(max-width: 899px) 300px, 440px"
+        sizes="(max-width: 899px) 66vw, 440px"
       />
     </div>
   );
@@ -376,7 +376,7 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
                   </span>
                   <span className="qb-puerta-abanico" aria-hidden="true">
                     {muestra.map((p, k) => (
-                      <FotoDeFrasco key={p.id} src={p.foto!} nombre={p.nombre} casa={p.casa} style={{ "--k": k } as CSSProperties} />
+                      <FotoDeFrasco key={p.id} src={p.foto!} nombre={p.nombre} casa={p.casa} sizes="(max-width: 899px) 96px, 128px" style={{ "--k": k } as CSSProperties} />
                     ))}
                   </span>
                 </button>

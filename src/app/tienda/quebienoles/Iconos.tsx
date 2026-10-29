@@ -115,14 +115,18 @@ export function FotoDeFrasco({
   casa,
   className,
   style,
+  sizes,
 }: {
   src: string;
   nombre: string;
   casa: string | null;
   className?: string;
   style?: CSSProperties;
+  /** Sólo para fotos que se ven mucho más chicas (el abanico de las puertas): medido, compartir la URL
+   *  con la tarjeta sumaba 66 KB a la carga inicial del teléfono sin ahorrar nada después. */
+  sizes?: string;
 }) {
-  return <Image src={src} alt={altDeFrasco(nombre, casa)} width={480} height={600} sizes={SIZES_FRASCO} className={className} style={style} />;
+  return <Image src={src} alt={altDeFrasco(nombre, casa)} width={480} height={600} sizes={sizes ?? SIZES_FRASCO} className={className} style={style} />;
 }
 
 /**

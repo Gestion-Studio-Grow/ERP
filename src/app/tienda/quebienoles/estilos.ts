@@ -587,6 +587,7 @@ export const CSS =
   .qb .qb-ficha-texto{overflow:visible;padding:30px var(--margen) calc(120px + env(safe-area-inset-bottom))}
   .qb .qb-ficha-barra{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:4;display:flex;flex-wrap:nowrap;gap:10px;margin:0;padding:12px 14px calc(12px + env(safe-area-inset-bottom));background:#0c0a08;border-top:1px solid rgba(216,179,106,.55);box-shadow:0 -18px 30px -18px rgba(0,0,0,.9)}
   .qb .qb-ficha-barra>*{flex:1 1 auto}
+  .qb .qb-ficha-barra .qb-boton{padding:0 14px;letter-spacing:.14em;white-space:nowrap}
   .qb .qb-ficha-barra .qb-ficha-consultar{flex:0 0 56px;padding:0}
   .qb .qb-ficha-consultar-texto{display:none}
   .qb .qb-tiempo-nombre{font-size:18px}
