@@ -8,7 +8,7 @@
 import { useRef, useState, useTransition } from "react";
 import { pedirMiLink } from "@/lib/padel/acciones-alumno";
 import { HojaPublica } from "./_hoja";
-import { alerta, botonPrincipal, botonTexto, campo, etiqueta, listo } from "./_estilos";
+import { alerta, ayuda, botonPrincipal, botonTexto, campo, etiqueta, listo } from "./_estilos";
 
 function FormLink({ idCampo }: { idCampo: string }) {
   const tel = useRef<HTMLInputElement>(null);
@@ -28,7 +28,10 @@ function FormLink({ idCampo }: { idCampo: string }) {
         <label htmlFor={idCampo} className={etiqueta}>
           Celular (WhatsApp)
         </label>
-        <input ref={tel} id={idCampo} type="tel" inputMode="tel" autoComplete="tel" placeholder="11 5555-1234" className={campo} />
+        <input ref={tel} id={idCampo} type="tel" inputMode="tel" autoComplete="tel" aria-describedby={`${idCampo}-ayuda`} className={campo} />
+        <p id={`${idCampo}-ayuda`} className={ayuda}>
+          El que usás en WhatsApp, con característica.
+        </p>
       </div>
       <button type="submit" disabled={pendiente} className={botonPrincipal} data-qa="pedir-link">
         {pendiente ? "Mandando…" : "Mandarme mi link"}

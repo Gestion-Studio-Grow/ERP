@@ -5,6 +5,8 @@
 // (foco adentro, Escape cierra, lo de atrás inerte, el lector la anuncia como diálogo), pero pinta
 // con la piel del profe (`--padel-*`) y no carga los íconos ni el arrastre del backoffice: en la
 // vidriera pública cada kilobyte de JS cuenta (LCP < 2,5 s). Controlada: `abierta` + `onCerrar`.
+// En el celular sube desde abajo (radio 28 arriba); en la compu se centra (radio 20, 32 rem).
+// Entra con transform (la clase `pz-hoja`, de la piel); con `prefers-reduced-motion`, quieta.
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { foco } from "./_estilos";
@@ -53,13 +55,13 @@ export function HojaPublica({
         // Un toque en el fondo (fuera de la caja) llega con el propio <dialog> como destino.
         if (e.target === e.currentTarget) onCerrar();
       }}
-      className="m-auto mb-0 w-full max-w-[35rem] rounded-t-[var(--radius-xl,1.5rem)] bg-[var(--padel-superficie)] p-0 text-[var(--padel-texto)] shadow-overlay backdrop:bg-black/50"
+      className="m-auto mb-0 w-full max-w-[35rem] overflow-hidden rounded-t-[1.75rem] bg-[var(--padel-superficie)] p-0 text-[var(--padel-texto)] shadow-overlay backdrop:bg-black/55 lg:mb-auto lg:max-w-[32rem] lg:rounded-[1.25rem]"
     >
-      <div className="flex max-h-[88dvh] flex-col">
-        <span aria-hidden className="mx-auto mt-2.5 block h-1.5 w-10 rounded-full bg-[var(--padel-linea)]" />
+      <div className="pz-hoja flex max-h-[88dvh] flex-col">
+        <span aria-hidden className="mx-auto mt-2.5 block h-1.5 w-10 rounded-full bg-[var(--padel-linea)] lg:hidden" />
         <header className="flex items-start gap-3 px-5 pb-2 pt-2">
           <div className="min-w-0 flex-1 pt-1.5">
-            <h2 id={idTitulo} className="text-lg font-bold">
+            <h2 id={idTitulo} className="pz-display text-[1.75rem] font-bold leading-[1.05]">
               {titulo}
             </h2>
             {descripcion && (

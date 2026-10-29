@@ -3,10 +3,10 @@
 // «¿Quién sos?» (F7): la PRIMERA vez que el alumno toca «Pedir» sube esta hoja con nombre y
 // celular, y adentro el «Pedir». Después este teléfono los recuerda (localStorage: sólo nombre y
 // celular, nunca el link) y no se pide nada. El celular se acepta como venga (+54 9 11…, 011 15…,
-// 11…, M-093): lo normaliza el servidor.
+// 11…, M-093): lo normaliza el servidor. Sin número de ejemplo como placeholder: ayuda en texto (§10).
 
 import { HojaPublica } from "./_hoja";
-import { alerta, botonPrincipal, campo, etiqueta } from "./_estilos";
+import { alerta, ayuda, botonPrincipal, campo, etiqueta } from "./_estilos";
 
 export function HojaQuien({
   abierta,
@@ -60,7 +60,10 @@ export function HojaQuien({
           <label htmlFor="t-tel" className={etiqueta}>
             Celular (WhatsApp)
           </label>
-          <input id="t-tel" name="telefono" type="tel" inputMode="tel" autoComplete="tel" placeholder="11 5555-1234" defaultValue={inicial?.telefono ?? ""} className={campo} />
+          <input id="t-tel" name="telefono" type="tel" inputMode="tel" autoComplete="tel" aria-describedby="t-tel-ayuda" defaultValue={inicial?.telefono ?? ""} className={campo} />
+          <p id="t-tel-ayuda" className={ayuda}>
+            El que usás en WhatsApp, con característica.
+          </p>
         </div>
         {error && (
           <p role="alert" className={alerta} data-qa="error-quien">
