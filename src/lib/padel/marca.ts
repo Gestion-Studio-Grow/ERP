@@ -30,8 +30,6 @@ export interface MarcaProfe {
    * al pie («Identidad provisoria · …»). No se simula que es la marca real.
    */
   provisional?: boolean;
-  /** Carpeta de las fuentes auto-hospedadas (`barlow-condensed-700.woff2`, …). Sin carpeta, los respaldos del sistema. */
-  fuentes?: string;
   /** Ícono (favicon) y placa para compartir (og:image), si el profe los tiene. */
   icono?: string;
   og?: string;
@@ -71,8 +69,6 @@ const POR_SLUG: Record<string, MarcaProfe> = {
     sobreCancha: "#ffffff",
     lema: "Clases individuales y con amigos. Elegí día y hora; te confirmo por WhatsApp.",
     provisional: true,
-    // Las Barlow (OFL) todavía no están en public/tenants/matiasconsoli/fuentes/: con los .woff2 ahí,
-    // se activa con `fuentes: "/tenants/matiasconsoli/fuentes"`. Mientras, respaldos condensados del sistema.
     icono: "/tenants/matiasconsoli/marca/monograma.svg",
     og: "/tenants/matiasconsoli/marca/og.webp",
   },
