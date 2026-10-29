@@ -5,11 +5,58 @@
 //   · Magra       → MA·G·RA en Bebas con la G de oro, como su tienda (MagraFront.tsx «mf-logo», magra-content.ts).
 //   · Matías      → no tiene logo todavía: una cancha de pádel vista de arriba con la pelota, en su verde. PROVISIONAL
 //                   hasta que pase el suyo (docs/tenants/matiasconsoli/README.md, marca autorizada).
+//   · Shine, Taller AGR, Qué Bien Olés → su logo real, el mismo archivo que usa su front (LOGO_REAL, abajo).
+//   · El resto → LOGO TIPOGRÁFICO (co-marca, 29/10/2026): la loseta con sus iniciales en el acento del negocio y su
+//     nombre, marcado «Logo provisional · a confirmar» hasta que el cliente pase el suyo. Nunca el de otro negocio.
 // Los colores van por tokens y por `data-logo` en globals.css; el nombre es texto real (el dibujo, aria-hidden).
 
 import type { EsteticaBackoffice } from "@/lib/estetica-backoffice";
 
-export default function LogoDelNegocio({ estetica, nombre }: { estetica: EsteticaBackoffice | null; nombre: string }) {
+// Logos reales que ya están en public/tenants (los mismos del front de cada negocio). Por slug; un local `x-*` hereda
+// el de su marca. PDC no figura: la inmobiliaria no se toca (orden del dueño, 29/10). Medidas = las del archivo, para
+// reservar el lugar (CLS 0); se muestran a 40 px de alto como máximo.
+const LOGO_REAL: Readonly<Record<string, { src: string; ancho: number; alto: number; conNombre?: boolean }>> = {
+  shinevelas: { src: "/tenants/shinevelas/brand/logo.webp", ancho: 480, alto: 148 },
+  "taller-agr": { src: "/tenants/taller-agr/marca/logo.webp", ancho: 498, alto: 247 },
+  agr: { src: "/tenants/taller-agr/marca/logo.webp", ancho: 498, alto: 247 },
+  // Su marca es la placa con la Q didona; el nombre va al lado, en texto.
+  quebienoles: { src: "/tenants/quebienoles/marca/favicon.svg", ancho: 64, alto: 64, conNombre: true },
+};
+
+/** El logo real de este negocio, si hay uno cargado. PURA. */
+export function logoRealDe(slug: string | null | undefined) {
+  if (!slug) return null;
+  return LOGO_REAL[slug] ?? null;
+}
+
+export default function LogoDelNegocio({
+  estetica,
+  nombre,
+  slug = null,
+  monograma = "",
+}: {
+  estetica: EsteticaBackoffice | null;
+  nombre: string;
+  slug?: string | null;
+  monograma?: string;
+}) {
+  const real = estetica ? null : logoRealDe(slug);
+  if (real) {
+    return (
+      <span data-logo="real" className="flex min-w-0 items-center gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element -- archivo chico ya optimizado (webp/svg), sin next/image */}
+        <img
+          src={real.src}
+          width={real.ancho}
+          height={real.alto}
+          alt={real.conNombre ? "" : nombre}
+          decoding="async"
+          className={real.conNombre ? "size-10 shrink-0 rounded-[10px]" : "h-10 w-auto max-w-[200px] object-contain object-left"}
+        />
+        {real.conNombre && <span data-logo-parte="nombre" className="truncate">{nombre}</span>}
+      </span>
+    );
+  }
   switch (estetica) {
     case "breakpoint":
       return (
@@ -68,10 +115,41 @@ export default function LogoDelNegocio({ estetica, nombre }: { estetica: Estetic
           <span className="flex min-w-0 flex-col leading-tight">
             <span data-logo-parte="nombre" className="truncate">{nombre}</span>
             <span data-logo-parte="bajada">Clases de pádel</span>
+            <span data-logo-parte="provisional" className="mt-0.5 whitespace-nowrap text-[11px] font-medium tracking-[.03em] text-faint">
+              Logo provisional · a confirmar
+            </span>
           </span>
         </span>
       );
     default:
-      return null;
+      return <LogoTipografico nombre={nombre} monograma={monograma} />;
   }
+}
+
+/**
+ * LOGO TIPOGRÁFICO PROVISIONAL: el negocio todavía no pasó su logo. Loseta con las iniciales en el acento del negocio
+ * (par AA accent/on-accent del preset) + el nombre entero, y la aclaración «Logo provisional · a confirmar» (sólo en
+ * la barra y el cajón; en la cabecera del celular va la loseta sola). `data-logo="provisional"` lo deja medible.
+ */
+export function LogoTipografico({ nombre, monograma }: { nombre: string; monograma: string }) {
+  const iniciales = (monograma || "").trim() || nombre.trim().slice(0, 1).toUpperCase() || "•";
+  return (
+    <span data-logo="provisional" className="flex min-w-0 items-center gap-3" title="Logo provisional, a confirmar con GSG">
+      <span
+        aria-hidden="true"
+        data-logo-parte="loseta"
+        className="grid size-10 shrink-0 place-items-center rounded-[11px] bg-accent text-[15px] font-bold tracking-[-0.02em] text-on-accent shadow-xs"
+      >
+        {iniciales.slice(0, 3)}
+      </span>
+      <span className="flex min-w-0 flex-col">
+        <span data-logo-parte="nombre" className="line-clamp-2 text-[17px] font-[650] leading-[1.15] tracking-[-0.02em] text-strong [text-wrap:balance]">
+          {nombre}
+        </span>
+        <span data-logo-parte="provisional" className="mt-0.5 whitespace-nowrap text-[11px] font-medium tracking-[.03em] text-faint">
+          Logo provisional · a confirmar
+        </span>
+      </span>
+    </span>
+  );
 }
