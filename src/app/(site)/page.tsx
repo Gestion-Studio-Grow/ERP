@@ -7,6 +7,8 @@ import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { getBrandSheet } from "@/lib/brand-sheet";
 import { tenantBrandSheetEnabled } from "@/lib/identity";
 import { getProductoActual } from "@/lib/producto";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { direccionConNegocio } from "@/lib/tenant";
 import ReserveButton from "./_ch/ReserveButton";
 import Reveal from "./_ch/Reveal";
 import PhotoPlaceholder from "./_ch/PhotoPlaceholder";
@@ -51,6 +53,9 @@ const TEAM_PHOTOS: Record<string, { src: string; rotate?: number }> = {
 };
 
 export default async function Home() {
+  // Sin negocio, el layout ya muestra la página neutra de GSG y no pinta esta: se corta acá para no leer ni redirigir
+  // nada de un negocio que no existe (misma resolución, cacheada por pedido).
+  if (await direccionConNegocio().then((ok) => !ok, () => false)) return null;
   const nuevoP = disenoNuevo(); // «diseño nuevo»: arranca ya, en paralelo con todo lo de abajo
   // ENTRADA POR PRODUCTO (frente identidad-por-producto): los productos de facturación NO
   // tienen vidriera pública — su raíz no debe mostrar la landing de estética de CH (que estaba
@@ -87,7 +92,12 @@ export default async function Home() {
   // FICHA DE MARCA (RFC-004-D, frente A), detrás de `TENANT_BRAND_SHEET_ENABLED`: con el flag
   // ON, los textos de la landing salen del nombre del tenant en vez de decir "CH". Flag OFF →
   // copy legado de CH (idéntico).
-  const sheet = tenantBrandSheetEnabled() ? await getBrandSheet() : null;
+  //
+  // FUGA DE MARCA (E1, 29/10/2026): el copy y la foto de CH («Atienden Carolina, Macarena y Romina», la cabina del
+  // spa) son de CH y de nadie más. Cualquier otro negocio que cae en esta landing (sin rubro de mostrador: «Estética
+  // DEMO», un negocio de servicios recién dado de alta) se presenta con SU nombre, como con la ficha prendida.
+  const esCH = (await getCurrentTenantSlug()) === "beauty-spa";
+  const sheet = tenantBrandSheetEnabled() || !esCH ? await getBrandSheet() : null;
 
   // `professionals` sale de getPublicBookingData() (loader PÚBLICO, ya filtra
   // active/deletedAt server-side) — antes se pisaba con getCatalog(), un loader
@@ -191,25 +201,28 @@ export default async function Home() {
             )}
           </div>
         </div>
-        <div style={{ flex: "1 1 360px", minWidth: 280 }}>
-          {/* Foto real de la cabina (asset del proyecto en /public). El marco
-              art-directed (radio + sombra + viñeta) se conserva del lenguaje CH;
-              acá ya va la imagen, no el placeholder. */}
-          <div style={{ position: "relative", aspectRatio: "4 / 5", borderRadius: 4, overflow: "hidden", boxShadow: "var(--shadow-md)" }}>
-            <Image
-              src="/tenants/ch-hero-spa.jpg"
-              alt="Cabina de spa de CH Estética: lino color crema sobre la camilla, plantas naturales y luz cálida de tarde entrando por la ventana"
-              fill
-              priority
-              sizes="(max-width: 800px) 100vw, 400px"
-              style={{ objectFit: "cover" }}
-            />
-            <div
-              aria-hidden
-              style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(120% 100% at 50% 30%, transparent 60%, rgba(20,16,12,.16) 100%)" }}
-            />
+        {/* La foto es de la cabina de CH: sólo en su landing (E1). */}
+        {esCH && (
+          <div style={{ flex: "1 1 360px", minWidth: 280 }}>
+            {/* Foto real de la cabina (asset del proyecto en /public). El marco
+                art-directed (radio + sombra + viñeta) se conserva del lenguaje CH;
+                acá ya va la imagen, no el placeholder. */}
+            <div style={{ position: "relative", aspectRatio: "4 / 5", borderRadius: 4, overflow: "hidden", boxShadow: "var(--shadow-md)" }}>
+              <Image
+                src="/tenants/ch-hero-spa.jpg"
+                alt="Cabina de spa de CH Estética: lino color crema sobre la camilla, plantas naturales y luz cálida de tarde entrando por la ventana"
+                fill
+                priority
+                sizes="(max-width: 800px) 100vw, 400px"
+                style={{ objectFit: "cover" }}
+              />
+              <div
+                aria-hidden
+                style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(120% 100% at 50% 30%, transparent 60%, rgba(20,16,12,.16) 100%)" }}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       {/* NOVEDADES — lo que el cliente habitual viene a chequear: horarios

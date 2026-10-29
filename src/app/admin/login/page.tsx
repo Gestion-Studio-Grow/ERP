@@ -13,6 +13,8 @@ import { avisoDeIngreso, folioDelDia } from "./login-core";
 import type { CSSProperties } from "react";
 import { direccionConNegocio } from "@/lib/tenant";
 import DireccionNoHabilitada from "./DireccionNoHabilitada";
+import { getBrandSheet } from "@/lib/brand-sheet";
+import { pestanaDelPedido } from "@/lib/pestana";
 
 // Título neutro + sin indexar, igual que el resto de /admin — esta pantalla vive
 // FUERA de (dashboard) (proxy.ts la deja pasar sin sesión) así que no hereda su
@@ -20,11 +22,14 @@ import DireccionNoHabilitada from "./DireccionNoHabilitada";
 // filtrando la marca de CH a la pestaña del login de CUALQUIER tenant (J-2).
 // Sello GSG: el login es la primera impresión del producto — GSG firma como
 // generador (discreto, en metadata + pie), el tenant conserva SU marca visible.
-export const metadata: Metadata = {
-  title: "Ingresá a tu panel",
-  robots: { index: false, follow: false },
-  generator: "Gestión Studio Grow",
-};
+// Pestaña POR NEGOCIO (E1, 29/10/2026): «Ingresá · Magra»; una dirección sin negocio no nombra a nadie.
+export async function generateMetadata(): Promise<Metadata> {
+  const base = { robots: { index: false, follow: false }, generator: "Gestión Studio Grow" } satisfies Metadata;
+  if (!(await direccionConNegocio().catch(() => false))) return { ...base, title: "Ingresá a tu panel" };
+  const brand = await getTenantBrand();
+  const { titulo } = pestanaDelPedido({ sinNegocio: false, brand, nombreDelTenant: brand.propia ? null : (await getBrandSheet()).name });
+  return { ...base, title: titulo === "Panel de gestión" ? "Ingresá a tu panel" : `Ingresá · ${titulo}` };
+}
 
 export default async function LoginPage({
   searchParams,
