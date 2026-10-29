@@ -80,7 +80,10 @@ export default async function CierreCajaPage({
   const { dia } = await searchParams;
   // «Diseño nuevo»: la lectura de interruptores del layout (cacheada), a la par de los datos.
   const [data, nuevo, practica] = await Promise.all([
-    getCierreDiarioData(dia, { conTurnosSinCerrar: true }),
+    // `esperadoALaVista`: el cierre del día es el arqueo de quien puede cerrar y recibe el efectivo
+    // del libro aunque el negocio arquee a ciegas (cert F7). Si recepción tampoco debe verlo acá,
+    // lo decide el dueño (observación del dictamen M1 v3).
+    getCierreDiarioData(dia, { conTurnosSinCerrar: true, esperadoALaVista: true }),
     disenoNuevo(),
     agendaPractica(),
   ]);
@@ -343,7 +346,8 @@ export default async function CierreCajaPage({
                             {m.origin === "turno" ? "Turno cobrado" : "Venta del mostrador"}
                           </Badge>
                         )}
-                        {signo === 0 && (
+                        {/* `amount` null sólo a ciegas (`diaALaVista`); esta pantalla pide el esperado a la vista. */}
+                        {signo === 0 && m.amount !== null && (
                           <Badge className="ml-2" tone="neutral">
                             {textoDeAperturaQueNoSuma(m.amount)}
                           </Badge>

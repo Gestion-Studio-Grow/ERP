@@ -76,6 +76,24 @@ export async function lastClosedDayTx(
   return fronteraDesde(corte, cierre, todayInBusinessTz());
 }
 
+/**
+ * La frontera que quedaría si se reabre el cierre de `day` (N2 · M1-C7): la misma regla que
+ * `lastClosedDayTx`, sin contar los cierres de ese día ni de después. Es desde dónde vuelve a
+ * quedar abierto el libro; reabrir el día no puede dejarla adentro de un mes congelado.
+ */
+export async function fronteraAnteriorAlDiaTx(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  day: DayKey,
+): Promise<DayKey | null> {
+  const cierre = consultaCierre(tenantId);
+  const [corte, anterior] = await Promise.all([
+    tx.cashMovement.findFirst(consultaCorte(tenantId)),
+    tx.auditLog.findFirst({ ...cierre, where: { ...cierre.where, entityId: { lt: day } } }),
+  ]);
+  return fronteraDesde(corte, anterior, todayInBusinessTz());
+}
+
 /** El último ajuste del corte inicial: su marca trae el día cortado. */
 function consultaCorte(tenantId: string) {
   return {

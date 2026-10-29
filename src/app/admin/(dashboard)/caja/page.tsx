@@ -8,6 +8,7 @@ import { isDemoSandbox } from "@/lib/demo-flag";
 import { fmtShortDate } from "@/lib/datetime";
 import type { CashMethod } from "@/lib/caja/cash-register";
 import { esperadoDelCajon } from "@/lib/caja/esperado-del-cajon";
+import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego-core";
 import { Card, CardHeader, CardTitle, CardDescription, Badge, fmtMoneyARS, type BadgeProps } from "@/components/ui";
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { frozenDayMessage } from "@/lib/caja/cierre-diario";
@@ -122,7 +123,9 @@ function ResumenDelDia({ dia }: { dia: Awaited<ReturnType<typeof getCierreDiario
   // falsas, encontradas en el recorrido. Va el comprobante en su lugar.
   if (dia.yaCerrado) return <DiaCerrado dia={dia} />;
 
-  const { preview, movements, day, since, lastClosedDay } = dia;
+  // A CIEGAS (cert F7): el loader ya blanqueó el efectivo y el total; acá se dice por qué no está.
+  // Si se pintara el cero, la cajera leería «$0» al lado del formulario a ciegas: otro número falso.
+  const { preview, movements, day, since, lastClosedDay, efectivoACiegas } = dia;
   const deHoy = movements.filter((m) => m.day === day);
   const periodo = !since
     ? "Desde el origen: todavía no hubo ningún cierre"
@@ -152,6 +155,15 @@ function ResumenDelDia({ dia }: { dia: Awaited<ReturnType<typeof getCierreDiario
         >
           {CASH_METHODS.map((m) => {
             const med = preview.porMedio[m];
+            if (m === "EFECTIVO" && efectivoACiegas) {
+              return (
+                <div key={m} className="rounded-lg border border-line px-3 py-2.5">
+                  <p className="text-xs text-muted">{CASH_METHOD_LABEL[m]}</p>
+                  <p className="text-sm font-medium text-muted">{EFECTIVO_SE_VE_AL_ABRIR}</p>
+                  <p className="mt-1 text-xs text-faint">Arqueo a ciegas: contá el cajón sin mirar.</p>
+                </div>
+              );
+            }
             return (
               <div key={m} className="rounded-lg border border-line px-3 py-2.5">
                 <p className="text-xs text-muted">{CASH_METHOD_LABEL[m]}</p>
@@ -171,9 +183,11 @@ function ResumenDelDia({ dia }: { dia: Awaited<ReturnType<typeof getCierreDiario
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-sm">
           <span className="text-muted">
             Total{" "}
-            <span className="font-medium tabular-nums text-strong">
-              {fmtMoneyARS(preview.total.expected)}
-            </span>
+            {efectivoACiegas ? (
+              <span className="font-medium">{EFECTIVO_SE_VE_AL_ABRIR.toLowerCase()}</span>
+            ) : (
+              <span className="font-medium tabular-nums text-strong">{fmtMoneyARS(preview.total.expected)}</span>
+            )}
           </span>
           <span className="flex flex-wrap gap-x-4 gap-y-1">
             <Link href="/admin/caja/libro" className="underline underline-offset-4 hover:text-strong">
@@ -217,8 +231,15 @@ function ResumenDelDia({ dia }: { dia: Awaited<ReturnType<typeof getCierreDiario
                   <span
                     className={`shrink-0 tabular-nums ${sign === "+" ? "text-success" : sign === "−" ? "text-danger" : "text-body"}`}
                   >
-                    {sign && `${sign} `}
-                    {fmtMoneyARS(m.amount)}
+                    {/* null = a ciegas (lo blanqueó el servidor, `diaALaVista`): la fila sí, el monto no. */}
+                    {m.amount === null ? (
+                      <span className="text-muted">{EFECTIVO_SE_VE_AL_ABRIR.toLowerCase()}</span>
+                    ) : (
+                      <>
+                        {sign && `${sign} `}
+                        {fmtMoneyARS(m.amount)}
+                      </>
+                    )}
                   </span>
                 </li>
               );
@@ -340,7 +361,7 @@ function TurnoDeCajero({ caja }: { caja: Awaited<ReturnType<typeof getCajaData>>
         .
       </p>
 
-      {open ? <OpenSession session={open} esperadoDelLibro={caja.esperadoEnElCajon} /> : <ClosedState esperado={caja.esperadoEnElCajon} />}
+      {open ? <OpenSession session={open} esperadoDelLibro={caja.esperadoEnElCajon} /> : <ClosedState esperado={caja.esperadoEnElCajon} aCiegas={caja.aperturaACiegas} />}
 
       {recentClosed.length > 0 && (
         <div className="mt-8">
@@ -374,7 +395,7 @@ function TurnoDeCajero({ caja }: { caja: Awaited<ReturnType<typeof getCajaData>>
 }
 
 // --- Estado vacío: no hay caja abierta → apertura ---
-function ClosedState({ esperado }: { esperado: number | null }) {
+function ClosedState({ esperado, aCiegas }: { esperado: number | null; aCiegas: boolean }) {
   return (
     <Card>
       <CardHeader>
@@ -388,7 +409,7 @@ function ClosedState({ esperado }: { esperado: number | null }) {
           Caja cerrada
         </Badge>
       </CardHeader>
-      <OpenCajaForm esperado={esperado} />
+      <OpenCajaForm esperado={esperado} aCiegas={aCiegas} />
     </Card>
   );
 }

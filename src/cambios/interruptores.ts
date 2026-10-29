@@ -117,6 +117,18 @@ export const INTERRUPTORES = [
     enAuditoria: "el fiado y las cuentas corrientes",
     cambiaLasApps: false,
   },
+  {
+    // Arqueo a ciegas al abrir la caja (N2 · M1-C3): el cajero cuenta el cajón antes de ver lo que
+    // dice el libro, y una diferencia exige el motivo (caja-actions.ts, `openCashSession`). Apagado,
+    // la apertura de siempre: se ve el efectivo esperado y el motivo es opcional. Lo prende GSG
+    // cuando el dueño lo pide; ningún negocio cambia el día que esto se publica.
+    id: "arqueo-ciego",
+    nombre: "Arqueo a ciegas",
+    queCambia:
+      "Al abrir la caja, el cajero cuenta el cajón antes de ver cuánto dice el libro; si no coincide, tiene que anotar el motivo y la diferencia queda asentada una sola vez. Apagado, la caja muestra el efectivo esperado antes de contar.",
+    enAuditoria: "el arqueo a ciegas",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -134,6 +146,9 @@ export const MOSTRADOR_BOUTIQUE: InterruptorId = "mostrador-boutique";
 
 /** Fiado y cuentas corrientes por negocio (reemplaza CUENTAS_CORRIENTES_ENABLED; tri-estado). */
 export const CUENTAS_CORRIENTES: InterruptorId = "cuentas-corrientes";
+
+/** Arqueo a ciegas al abrir la caja (N2 · M1-C3; lo lee `openCashSession`). */
+export const ARQUEO_CIEGO: InterruptorId = "arqueo-ciego";
 
 /**
  * ¿Este negocio trabaja con el mostrador boutique? Recibe el estado que arma

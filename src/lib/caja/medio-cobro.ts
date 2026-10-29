@@ -55,7 +55,55 @@ export function leerMedioDeCobro(raw: unknown): MedioDeCobro | null {
 }
 
 export function etiquetaDeMedio(medio: string | null | undefined): string {
+  if (medio === TARJETA) return MEDIO_TARJETA.etiqueta;
   return MEDIOS_DE_COBRO.find((m) => m.valor === medio)?.etiqueta ?? "un medio sin identificar";
+}
+
+// ── Tarjeta (N2 · M1-C1) ────────────────────────────────────────────────────
+//
+// Débito o crédito con el posnet. En el libro tiene columna desde siempre (`CashMethod.TARJETA`);
+// en `PaymentMethod` (el medio del pedido y del cobro) recién existe con el paquete Gate 2
+// (prisma/pending-gate2/N2_enums.sql) Y con el cliente de Prisma generado con el valor
+// (prisma/schema.prisma, línea `// N2-enum: TARJETA`). Hacen falta LAS DOS cosas: con el valor en
+// la base y un cliente que no lo conoce, Prisma rechaza el alta («Expected PaymentMethod») y, peor,
+// un pedido con TARJETA escrito por otro lado rompe toda lectura de pedidos («Value 'TARJETA' not
+// found in enum»). Medido contra Postgres (medio-cobro-tarjeta-postgres.test.ts).
+//
+// Por eso Tarjeta NO entra en `MEDIOS_DE_COBRO` ni en `MedioDeCobro` (lo usan 20 archivos con
+// tipos cerrados: ampliarlo es el paso de M10/encendido): se ofrece aparte, sólo con
+// `tarjetaHabilitadaPor(...)` en true, y `leerMedioDeCobro` la sigue rechazando con su mensaje de
+// siempre. Lo decide el servidor (`tarjetaHabilitada`, caja-actions.ts). M1 encendió el valor en el
+// cliente (schema.prisma `// N2-enum-encendido:`): con N2_enums.sql aplicada, Vender (boutique) y el
+// cuaderno ofrecen la tecla y `createOrder` la acepta con `leerMedioDeCobroConTarjeta`.
+
+export const TARJETA = "TARJETA" as const;
+export type MedioConTarjeta = MedioDeCobro | typeof TARJETA;
+
+/** La tecla de Tarjeta: el tipo (débito o crédito) es una nota, no dos medios. */
+export const MEDIO_TARJETA = { valor: TARJETA, etiqueta: "Tarjeta", nota: "débito o crédito" } as const;
+
+/** ¿Se puede cobrar con Tarjeta? Valor en la base (probe) Y en el cliente de Prisma. PURA. */
+export function tarjetaHabilitadaPor(p: { enLaBase: boolean; enElCliente: boolean }): boolean {
+  return p.enLaBase === true && p.enElCliente === true;
+}
+
+/** Los medios que ofrece el cobro: los de siempre, más Tarjeta si está habilitada. PURA. */
+export function mediosDeCobroDisponibles(conTarjeta: boolean): readonly { valor: MedioConTarjeta; etiqueta: string }[] {
+  return conTarjeta ? [...MEDIOS_DE_COBRO, { valor: TARJETA, etiqueta: MEDIO_TARJETA.etiqueta }] : MEDIOS_DE_COBRO;
+}
+
+/** `leerMedioDeCobro` con Tarjeta: sólo la acepta si está habilitada; si no, `null` como siempre. PURA. */
+export function leerMedioDeCobroConTarjeta(raw: unknown, conTarjeta: boolean): MedioConTarjeta | null {
+  const s = typeof raw === "string" ? raw.trim() : "";
+  if (s === TARJETA) return conTarjeta ? TARJETA : null;
+  return leerMedioDeCobro(s);
+}
+
+/** Lo que dice el protocolo sin señal del posnet, según se pueda cargar Tarjeta o no. PURA. */
+export function textoDelPosnet(conTarjeta: boolean): string {
+  return conTarjeta
+    ? "posnet: anotá en el cuaderno como TARJETA y, al cargarla, elegí Tarjeta."
+    : "posnet: anotá en el cuaderno como TARJETA.";
 }
 
 /** Desde dónde se cobra: cambia la SALIDA que ofrece el mensaje, no la regla. */
@@ -82,9 +130,14 @@ export function medioDeCobroRequerido(input: {
   paid: boolean;
   paymentMethod: unknown;
   contexto?: ContextoDeMedio;
-}): { ok: true; paymentMethod: MedioDeCobro | null } | { ok: false; error: string } {
+  /**
+   * N2 · M1-C1: ¿se acepta TARJETA? Sólo con `tarjetaHabilitada()` en true (lo pregunta el llamador,
+   * `createOrder`). Sin esto, TARJETA se rechaza como cualquier medio desconocido.
+   */
+  conTarjeta?: boolean;
+}): { ok: true; paymentMethod: MedioConTarjeta | null } | { ok: false; error: string } {
   if (!input.paid) return { ok: true, paymentMethod: null };
-  const medio = leerMedioDeCobro(input.paymentMethod);
+  const medio = leerMedioDeCobroConTarjeta(input.paymentMethod, input.conTarjeta === true);
   if (medio) return { ok: true, paymentMethod: medio };
   if (input.contexto === "cobro") return { ok: false, error: MENSAJE_FALTA_MEDIO_BANDEJA };
   return {
@@ -105,7 +158,7 @@ export function medioDeCobroRequerido(input: {
 export function mensajeYaCobrado(input: {
   code: number;
   medioRegistrado: string | null;
-  medioElegido: MedioDeCobro;
+  medioElegido: MedioConTarjeta;
 }): { ok: true; mensaje: string } | { ok: false; error: string } {
   const registrado = etiquetaDeMedio(input.medioRegistrado);
   if (input.medioRegistrado === input.medioElegido) {

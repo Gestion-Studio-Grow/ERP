@@ -33,9 +33,11 @@ policy `tenant_isolation` (en el archivo y otra vez en el paso 7).
 | 7 | `../rls/0001_enable_rls.sql` | re-ejecución: policy en toda tabla con `tenantId` | todas | se re-corre, no se edita |
 
 Modelos en `prisma/schema.prisma`: líneas con prefijo `// N2: ` (comentadas, como el criterio de
-`MustChangePassword`); los 4 valores de enum con `// N2-enum: ` (los encienden M1/M6 con su código:
-ampliar el enum rompe 4 tipos cerrados del dominio) y **se despliegan antes de escribir el primer
-valor** (regla y chequeos automáticos en `N2_enums.sql` y en el runbook §6). El código pregunta con `src/lib/schema-probe` (`hayTabla`, `hayColumna`,
+`MustChangePassword`); los 5 valores de enum del paso 2. M1 ya encendió los suyos (`PaymentMethod.DEBITO`,
+`PaymentMethod.CREDITO`, `CashMethod.TRANSFERENCIA`): quedan `VALOR // N2-enum-encendido: …`, el cliente los
+conoce y se escriben sólo con `sePuedeEscribirValorEnum` en true; el test del paquete los vuelve a comentar para
+medir la base de hoy. Los de M6 (`UserRole.REPARTIDOR/ENCARGADO`) siguen con `// N2-enum: ` y **se despliegan
+antes de escribir el primer valor** (regla y chequeos automáticos en `N2_enums.sql` y en el runbook §6). El código pregunta con `src/lib/schema-probe` (`hayTabla`, `hayColumna`,
 `hayValorEnum`, caché por proceso) y cae al camino de hoy si falta algo.
 
 **Verificación (Postgres local efímero, nunca Neon):**

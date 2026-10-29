@@ -222,6 +222,7 @@ const SCHEMA_HOY = path.join(RAIZ, "prisma/schema.prisma");
 let schemaN2 = "";
 /** Schema de hoy + sólo los valores de enum de N2 (lo que queda tras la reversa). */
 let schemaSoloEnums = "";
+let schemaHoy = "";
 
 async function conCliente<T>(fn: (c: pg.Client) => Promise<T>, url = urlBase()): Promise<T> {
   const c = new pg.Client({ connectionString: url });
@@ -316,7 +317,11 @@ let diffDeHoy = "";
 test("paquete Gate 2 nivel 2 en Postgres local", { skip: motivoSalto }, async (t) => {
   tmp = mkdtempSync(path.join(tmpdir(), "s2-gate2-"));
   schemaN2 = path.join(tmp, "schema.n2.prisma");
-  const hoy = readFileSync(SCHEMA_HOY, "utf8");
+  // Los valores de enum que una tanda ya encendió (`// N2-enum-encendido:`, M1 encendió TARJETA) se
+  // vuelven a comentar: la «base de hoy» del paquete es el schema sin ningún valor del paquete.
+  const hoy = readFileSync(SCHEMA_HOY, "utf8").replace(/^(\s*)(\w+) \/\/ N2-enum-encendido: .*$/gm, "$1// N2-enum: $2");
+  schemaHoy = path.join(tmp, "schema.hoy.prisma");
+  writeFileSync(schemaHoy, hoy);
   writeFileSync(schemaN2, hoy.replace(/^(\s*)\/\/ N2(-enum)?: ?/gm, "$1"));
   schemaSoloEnums = path.join(tmp, "schema.enums.prisma");
   writeFileSync(schemaSoloEnums, hoy.replace(/^(\s*)\/\/ N2-enum: /gm, "$1"));
@@ -331,7 +336,7 @@ test("paquete Gate 2 nivel 2 en Postgres local", { skip: motivoSalto }, async (t
         { ...p },
         { apiKey: false, clave: false, debito: false, credito: false, encargado: false, pago: false, indice: false, limite: false, outbox: true, efectivo: true },
       );
-      diffDeHoy = diffContra(SCHEMA_HOY);
+      diffDeHoy = diffContra(schemaHoy);
       // Dos negocios y un evento del outbox de ANTES del paquete (como los de ARCA de hoy).
       await conCliente(async (c) => {
         await c.query(`INSERT INTO "Tenant"(id, name, slug, "updatedAt") VALUES
@@ -342,7 +347,7 @@ test("paquete Gate 2 nivel 2 en Postgres local", { skip: motivoSalto }, async (t
 
     await t.test("línea de base: sólo el paso 1 (CarniceriaRubro, fuera de schema.prisma)", async () => {
       await psqlArchivo(path.join(PENDIENTES, "CarniceriaRubro.sql"));
-      lineaDeBase = diffContra(SCHEMA_HOY);
+      lineaDeBase = diffContra(schemaHoy);
     });
 
     await t.test("CON el paquete: probes en true y el schema descomentado no agrega diferencias (C5, C7)", async () => {

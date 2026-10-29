@@ -474,6 +474,16 @@ export function describirAccion(f: FilaParaDescribir): Descripcion {
   if (f.entity === "CierreDiario") {
     const r = c ? resumenCierre(c) : null;
     const del = f.entityId && /^\d{4}-\d{2}-\d{2}$/.test(f.entityId) ? ` del ${dia(f.entityId)}` : "";
+    // Reabrir el día (N2 · M1-C7, cierre-mes/acciones.ts): quién, el motivo y los ajustes quitados.
+    if (f.action === "caja.reabrir-dia") {
+      const motivo = c && typeof c.motivo === "string" && c.motivo.trim() ? [`«${c.motivo.trim()}»`] : [];
+      const quitados = c && Array.isArray(c.ajustesQuitados) ? c.ajustesQuitados.length : 0;
+      return {
+        frase: `Reabrió la caja${del}`,
+        detalle: [...motivo, ...(quitados > 0 ? [quitados === 1 ? "Quitó el ajuste de ese cierre" : `Quitó los ${quitados} ajustes de ese cierre`] : [])],
+        tecnico: hayTecnico,
+      };
+    }
     const verbo = f.action === "caja.corte-inicial" ? "Hizo el corte inicial de la caja" : "Cerró la caja";
     if (!r) return { frase: `${verbo}${del}`, detalle: [], tecnico: hayTecnico };
     return {

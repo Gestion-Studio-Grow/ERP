@@ -16,6 +16,7 @@ import type { ProductoDelCuaderno } from "./cuaderno-core";
 import CargarCuaderno from "./CargarCuaderno";
 import AccesoDelCelular from "./AccesoDelCelular";
 import { cargarVentasDelCuaderno } from "./acciones";
+import { tarjetaHabilitada } from "@/lib/caja-actions";
 
 // ============================================================================
 // CARGAR VENTAS DEL CUADERNO — /admin/vender/cuaderno (Magra, tanda 2 · 2E; E19/E20, MG-060).
@@ -37,13 +38,15 @@ export default async function CuadernoPage() {
 
   const tenantId = await getCurrentTenantId();
   const hoy = todayInBusinessTz();
-  const [filas, cerradoHasta] = await Promise.all([
+  // Tarjeta (N2 · M1-C1): la tecla y el protocolo, sólo con `tarjetaHabilitada()`; `createOrder` lo vuelve a exigir.
+  const [filas, cerradoHasta, conTarjeta] = await Promise.all([
     prisma.product.findMany({
       where: { tenantId, deletedAt: null, active: true, OR: [{ price: { not: null } }, { pricePerKg: { not: null } }] },
       orderBy: { name: "asc" },
       select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true },
     }),
     lastClosedDay(tenantId),
+    tarjetaHabilitada(),
   ]);
   const productos: ProductoDelCuaderno[] = filas.map((p) => ({
     id: p.id,
@@ -75,8 +78,9 @@ export default async function CuadernoPage() {
         negocioId={tenantId}
         usuarioId={user.id}
         cargar={cargarVentasDelCuaderno}
+        conTarjeta={conTarjeta}
       />
-      <ProtocoloSinSenal negocioId={tenantId} siempre />
+      <ProtocoloSinSenal negocioId={tenantId} siempre conTarjeta={conTarjeta} />
       <AccesoDelCelular />
     </main>
   );

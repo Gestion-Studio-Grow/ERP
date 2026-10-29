@@ -9,21 +9,26 @@
 //   · cerrado: el COMPROBANTE (quién, cuándo, cuánto contó por medio) y los dos archivos del día;
 //   · un día absorbido por un cierre posterior o que todavía no pasó lo dice en una franja.
 //
-// El arqueo a ciegas (no ver «Debería haber» hasta cargar lo contado) NO está: es una decisión del
-// dueño y no hay interruptor para eso. Esta pantalla no finge tenerlo.
+// El arqueo a ciegas del CIERRE (no ver «Debería haber» hasta cargar lo contado) NO está: el
+// interruptor «arqueo-ciego» (N2 · M1-C3) es de la APERTURA de la caja. Esta pantalla no finge tenerlo.
+//
+// N2 · M1: columnas EFECTIVO · MP · TRANSFERENCIA (· TARJETA si se puede cobrar con tarjeta); el
+// efectivo reusa lo contado al cerrar el turno; con un turno abierto, o para recepción, no se
+// ofrece cerrar (lo dice y por qué); en un día cerrado, la dueña puede reabrirlo.
 
 import Link from "next/link";
 import type { getCierreDiarioData } from "@/lib/cierre-diario-actions";
-import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
-import { formatDayLabel, nextDayKey } from "@/lib/caja/cierre-diario";
-import { movementSign, type CashMethod } from "@/lib/caja/cash-register";
-import { textoDeAperturaQueNoSuma } from "./revisar-cierre";
+import { CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
+import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego-core";
+import { formatDayLabel, nextDayKey, CERRAR_DIA_SIN_PERMISO, ETIQUETA_DE_COLUMNA, type ColumnaDelCierre } from "@/lib/caja/cierre-diario";
+import { movementSign } from "@/lib/caja/cash-register";
+import { causasProbables, textoDeAperturaQueNoSuma } from "./revisar-cierre";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import { DosColumnas, Franja, LineaDeEstado, Marca, Plata, Renglon, Rotulo, atributosBoton, fmtMoneyARS } from "@/components/ui";
 import { LineaDeCuenta } from "@/components/ui/LineaDeCuenta";
 import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
 import { diaAnterior, diaLargo, diaMes, diasEntre, nombreMes } from "../_renglon/fechas";
-import ContarYCerrar, { type MedioAContar } from "./ContarYCerrar";
+import ContarYCerrar, { ReabrirElDia, type MedioAContar } from "./ContarYCerrar";
 import { diferenciaDelComprobante, type MedioDelComprobante } from "./comprobante";
 import { leerMediosDelComprobante } from "./comprobante.server";
 
@@ -31,10 +36,11 @@ type Datos = Awaited<ReturnType<typeof getCierreDiarioData>>;
 
 const RUTA = "/admin/caja/cierre";
 
-const AYUDA: Record<CashMethod, string> = {
+const AYUDA: Record<ColumnaDelCierre, string> = {
   EFECTIVO: "El cajón. Obligatorio, aunque sea 0.",
-  MP: "El saldo de la app y lo acreditado hoy.",
-  TARJETA: "Opcional: se liquida a los días.",
+  MP: "El saldo de la app de Mercado Pago.",
+  TRANSFERENCIA: "Lo que entró hoy por transferencia a la cuenta del banco.",
+  TARJETA: "Opcional: el cierre del posnet; se liquida a los días.",
 };
 
 const ORIGEN: Record<string, string> = { pos: "venta del mostrador", turno: "turno cobrado", manual: "cargado a mano" };
@@ -145,8 +151,16 @@ function Comprobante({ d, medios }: { d: Datos; medios: MedioDelComprobante[] | 
       )}
       {resumen.nota && <Renglon folio="Nota" titulo={<span className="font-normal">“{resumen.nota}”</span>} />}
       <p className="mt-3 text-sm text-muted">
-        Un cierre no se rehace: si apareció algo, cargalo con fecha {formatDayLabel(nextDayKey(d.lastClosedDay!))} y aclaralo en el detalle.
+        {d.reabrir?.puede
+          ? "Si apareció algo de este día (una venta del cuaderno, una rendición), podés reabrirlo, cargarlo y cerrarlo de nuevo."
+          : `Un cierre no se rehace: si apareció algo, cargalo con fecha ${formatDayLabel(nextDayKey(d.lastClosedDay!))} y aclaralo en el detalle.`}
       </p>
+      {d.reabrir?.puede && (
+        <div className="mt-3">
+          <ReabrirElDia day={d.day} diaNombre={diaLargo(d.day).toLowerCase().split(" de ")[0]} />
+        </div>
+      )}
+      {d.reabrir && !d.reabrir.puede && <p className="mt-2 text-sm text-muted">{d.reabrir.porque}</p>}
       {/* Celular: las tres teclas a lo ancho, una debajo de la otra. PC: en una línea. */}
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {/* <a> y no <Link>: son archivos, no pantallas (Link los precargaría). */}
@@ -167,8 +181,8 @@ function Comprobante({ d, medios }: { d: Datos; medios: MedioDelComprobante[] | 
 /** «Cómo se llega a este número»: medio por medio, sin los renglones en cero. */
 function ComoSeLlega({ d }: { d: Datos }) {
   const { preview } = d;
-  const medios = CASH_METHODS.filter((m) => {
-    const x = preview.porMedio[m];
+  const medios = d.columnas.filter((m) => {
+    const x = preview.porColumna[m];
     return x.opening !== 0 || x.ingresos !== 0 || x.egresos !== 0;
   });
   return (
@@ -181,10 +195,10 @@ function ComoSeLlega({ d }: { d: Datos }) {
       </div>
       {medios.length === 0 && <p className="py-3 text-sm text-muted">No se movió plata en el período: el cierre confirma que no hay nada.</p>}
       {medios.map((m) => {
-        const x = preview.porMedio[m];
+        const x = preview.porColumna[m];
         return (
           <div key={m} className="mt-3">
-            <Rotulo className="pb-1">{CASH_METHOD_LABEL[m]}</Rotulo>
+            <Rotulo className="pb-1">{ETIQUETA_DE_COLUMNA[m]}</Rotulo>
             {x.opening !== 0 && <LineaDeCuenta concepto="Saldo al abrir" importe={<Plata valor={x.opening} />} />}
             {x.ingresos !== 0 && (
               <LineaDeCuenta
@@ -215,8 +229,11 @@ function ComoSeLlega({ d }: { d: Datos }) {
                   key={m.id}
                   folio={diaMes(m.day)}
                   titulo={<span className="font-normal">{m.detail || "(sin detalle)"}</span>}
-                  detalle={`${CASH_METHOD_LABEL[m.method]} · ${ORIGEN[m.origin] ?? m.origin}${signo === 0 ? ` · ${textoDeAperturaQueNoSuma(m.amount)}` : ""}`}
-                  plata={signo === 0 ? null : <Plata valor={signo * m.amount} />}
+                  detalle={`${CASH_METHOD_LABEL[m.method]} · ${ORIGEN[m.origin] ?? m.origin}${signo === 0 && m.amount !== null ? ` · ${textoDeAperturaQueNoSuma(m.amount)}` : ""}`}
+                  plata={
+                    // null sólo llega a ciegas (`diaALaVista`); esta pantalla pide el esperado a la vista.
+                    m.amount === null ? <span className="text-sm text-muted">{EFECTIVO_SE_VE_AL_ABRIR.toLowerCase()}</span> : signo === 0 ? null : <Plata valor={signo * m.amount} />
+                  }
                 />
               );
             })}
@@ -261,11 +278,11 @@ function TurnosSinCerrar({ d }: { d: Datos }) {
 
 export default async function CierreRenglon({ d, regla = null }: { d: Datos; regla?: string | null }) {
   const { day, yaCerrado, enElFuturo, registro, lastClosedDay, preview } = d;
-  const medios: MedioAContar[] = CASH_METHODS.map((m) => {
-    const x = preview.porMedio[m];
+  const medios: MedioAContar[] = d.columnas.map((m) => {
+    const x = preview.porColumna[m];
     return {
       medio: m,
-      etiqueta: m === "MP" ? "Mercado Pago y transferencias" : CASH_METHOD_LABEL[m],
+      etiqueta: ETIQUETA_DE_COLUMNA[m],
       ayuda: AYUDA[m],
       esperado: x.expected,
       seMovio: x.opening !== 0 || x.ingresos !== 0 || x.egresos !== 0,
@@ -291,7 +308,27 @@ export default async function CierreRenglon({ d, regla = null }: { d: Datos; reg
         <DosColumnas>
           <div className="min-w-0">
             <TurnosSinCerrar d={d} />
-            <ContarYCerrar key={day} day={day} diaLabel={formatDayLabel(day)} diaNombre={nombre} medios={medios} />
+            {!d.puedeCerrar ? (
+              <Franja tono="info">{CERRAR_DIA_SIN_PERMISO}</Franja>
+            ) : d.turnoAbierto ? (
+              <Franja tono="atencion">
+                Hay un turno de caja abierto: lo abrió {d.turnoAbierto.quien} a las {d.turnoAbierto.hora}. El día se cierra después de
+                cerrar ese turno, con su conteo.{" "}
+                <Link href="/admin/caja" className="font-semibold underline">
+                  Ir a Caja
+                </Link>
+              </Franja>
+            ) : (
+              <ContarYCerrar
+                key={day}
+                day={day}
+                diaLabel={formatDayLabel(day)}
+                diaNombre={nombre}
+                medios={medios}
+                conteoDelTurno={d.conteoDelTurno}
+                causas={causasProbables(d.hechos)}
+              />
+            )}
           </div>
           <aside className="min-w-0" aria-label="De dónde sale lo que debería haber">
             <ComoSeLlega d={d} />

@@ -17,20 +17,37 @@
 // La deslizadora queda apagada mientras falte algo, y lo que falta está escrito al lado (no un
 // botón gris mudo). Enter en un importe revisa y lleva el foco a lo que falta; con todo cargado, el
 // foco va a la deslizadora (con el teclado: Fin la lleva hasta el final y confirma).
+//
+// N2 · M1: las columnas las manda el servidor (EFECTIVO · MP · TRANSFERENCIA y Tarjeta sólo si se
+// puede cobrar con tarjeta); el efectivo llega YA CONTADO si el último turno se cerró y desde
+// entonces no se movió (un solo conteo: se confirma o se corrige); al lado de una diferencia, las
+// causas probables. Y `ReabrirElDia`, abajo: la tecla de la dueña en un día cerrado.
 
-import { useId, useRef, useState, useTransition } from "react";
+import { useActionState, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cerrarDia, type CierreActionState } from "@/lib/cierre-diario-actions";
-import type { CashMethod } from "@/lib/caja/cash-register";
+import { reabrirDiaAction, type EstadoAccionCierre } from "@/lib/cierre-mes/acciones";
+import type { ColumnaDelCierre } from "@/lib/caja/cierre-diario";
 import { leerImporte } from "@/lib/pos-peso";
 import { DeslizarParaConfirmar } from "@/components/ui/Deslizar";
 import { Button, Field, Plata, Rotulo } from "@/components/ui";
 import { fmtMoneyARS } from "@/components/ui/format";
+import { fmtTime } from "@/lib/datetime";
 import { useToast } from "../../ToastProvider";
-import { diferenciasDelCierre, revisarCierre, MEDIOS_DEL_CIERRE } from "./revisar-cierre";
+import { diferenciasDelCierre, revisarCierre, type CausaProbable } from "./revisar-cierre";
+
+type CashMethod = ColumnaDelCierre;
+
+/** Lo contado al cerrar el último turno (`CierreDiarioData.conteoDelTurno`). */
+export type ConteoDelTurno = { contado: number; quien: string; cerradoEl: Date; vigente: boolean };
+
+/** El importe como se escribe acá: 15000 → "15.000", 15000.5 → "15.000,50". */
+function importeParaElCampo(n: number): string {
+  return n.toLocaleString("es-AR", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
+}
 
 export type MedioAContar = {
-  medio: CashMethod;
+  medio: ColumnaDelCierre;
   etiqueta: string;
   /** Qué hay que mirar para contarlo («el cajón», «la app de Mercado Pago»). */
   ayuda: string;
@@ -51,6 +68,8 @@ export default function ContarYCerrar({
   diaLabel,
   diaNombre,
   medios,
+  conteoDelTurno = null,
+  causas = [],
 }: {
   day: string;
   /** «24/09/2026», como lo dice el servidor en sus mensajes. */
@@ -58,11 +77,22 @@ export default function ContarYCerrar({
   /** «jueves 24». */
   diaNombre: string;
   medios: MedioAContar[];
+  /** M1-C4: lo contado al cerrar el último turno; si sigue valiendo, el efectivo arranca cargado. */
+  conteoDelTurno?: ConteoDelTurno | null;
+  /** M1-C6: lo que suele explicar una diferencia (se muestra sólo si hay diferencia). */
+  causas?: CausaProbable[];
 }) {
   const router = useRouter();
   const { showSuccess } = useToast();
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
-  const [declarado, setDeclarado] = useState<Record<CashMethod, string>>({ EFECTIVO: "", MP: "", TARJETA: "" });
+  const columnas = medios.map((m) => m.medio);
+  const reusaElTurno = conteoDelTurno?.vigente === true;
+  const [declarado, setDeclarado] = useState<Record<CashMethod, string>>(() => ({
+    EFECTIVO: reusaElTurno ? importeParaElCampo(conteoDelTurno!.contado) : "",
+    MP: "",
+    TRANSFERENCIA: "",
+    TARJETA: "",
+  }));
   const [nota, setNota] = useState("");
   const [mostrar, setMostrar] = useState<Set<CashMethod>>(() => new Set(medios.filter((m) => m.seMovio || m.medio === "EFECTIVO").map((m) => m.medio)));
   const [falta, setFalta] = useState<{ campo: CashMethod | "nota"; error: string } | null>(null);
@@ -71,11 +101,11 @@ export default function ContarYCerrar({
   const [pending, startTransition] = useTransition();
   const deslizadora = useRef<HTMLDivElement>(null);
 
-  const esperado = Object.fromEntries(MEDIOS_DEL_CIERRE.map((m) => [m, medios.find((x) => x.medio === m)?.esperado ?? 0])) as Record<CashMethod, number>;
-  const etiquetas = Object.fromEntries(MEDIOS_DEL_CIERRE.map((m) => [m, medios.find((x) => x.medio === m)?.etiqueta ?? m])) as Record<CashMethod, string>;
-  const diffs = diferenciasDelCierre(declarado, esperado);
-  const revision = revisarCierre({ declarado, esperado, nota, etiquetas });
-  const contados = MEDIOS_DEL_CIERRE.filter((m) => diffs[m] !== null);
+  const esperado = Object.fromEntries(columnas.map((m) => [m, medios.find((x) => x.medio === m)?.esperado ?? 0])) as Record<CashMethod, number>;
+  const etiquetas = Object.fromEntries(columnas.map((m) => [m, medios.find((x) => x.medio === m)?.etiqueta ?? m])) as Record<CashMethod, string>;
+  const diffs = diferenciasDelCierre(declarado, esperado, columnas);
+  const revision = revisarCierre({ declarado, esperado, nota, etiquetas, medios: columnas });
+  const contados = columnas.filter((m) => diffs[m] !== null);
   const diferencia = Math.round(contados.reduce((s, m) => s + (diffs[m] ?? 0), 0) * 100) / 100;
   const hayDiferencia = contados.some((m) => diffs[m] !== 0);
   const efectivo = leerImporte(declarado.EFECTIVO);
@@ -98,7 +128,9 @@ export default function ContarYCerrar({
     setErrores([]);
     const fd = new FormData();
     fd.set("day", day);
-    for (const m of MEDIOS_DEL_CIERRE) fd.set(`declarado_${m}`, declarado[m]);
+    for (const m of columnas) fd.set(`declarado_${m}`, declarado[m]);
+    // La hoja nueva: Transferencia separada. Qué columnas son lo vuelve a decidir el servidor.
+    fd.set("columnas", columnas.join(","));
     fd.set("note", nota);
     startTransition(async () => {
       let r: CierreActionState;
@@ -181,7 +213,13 @@ export default function ContarYCerrar({
             >
               <label htmlFor={idCampo} className="min-w-0">
                 <span className="block font-medium text-strong">{m.etiqueta}</span>
-                <span className="block text-[13px] text-muted">{m.ayuda}</span>
+                <span className="block text-[13px] text-muted">
+                  {m.medio === "EFECTIVO" && reusaElTurno
+                    ? `Lo contaste al cerrar el turno (${conteoDelTurno!.quien}, ${fmtTime(conteoDelTurno!.cerradoEl)}): confirmalo o corregilo, no hace falta recontar.`
+                    : m.medio === "EFECTIVO" && conteoDelTurno && !conteoDelTurno.vigente
+                      ? `Al cerrar el turno se contaron ${fmtMoneyARS(conteoDelTurno.contado)}, pero después se movió efectivo: contá de nuevo.`
+                      : m.ayuda}
+                </span>
               </label>
               {/* En el celular: el esperado arriba a la derecha, el campo abajo a todo el ancho. */}
               <span className="text-right sm:order-3">
@@ -248,6 +286,16 @@ export default function ContarYCerrar({
         {contados.length > 0 && (
           <Plata valor={diferencia} tamano="grande" tono={diferencia < 0 ? "peligro" : diferencia > 0 ? "cobrado" : undefined} />
         )}
+        {hayDiferencia && causas.length > 0 && (
+          <div className="w-full" data-cierre="causas">
+            <Rotulo as="span">Fijate si fue esto</Rotulo>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-body">
+              {causas.map((c) => (
+                <li key={c.id}>{c.texto}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       <Field
@@ -312,6 +360,63 @@ export default function ContarYCerrar({
       <button type="submit" className="sr-only">
         Revisar lo contado
       </button>
+    </form>
+  );
+}
+
+/**
+ * «Reabrir el día» (N2 · M1-C7): sólo la dueña o el dueño, en el último día cerrado de un mes sin
+ * congelar (lo decide `getCierreDiarioData.reabrir` y lo vuelve a decidir `reabrirDiaAction`). Pide
+ * el motivo, que queda en la Auditoría con su nombre. Al cerrar de nuevo, el día vuelve a congelarse.
+ */
+export function ReabrirElDia({ day, diaNombre }: { day: string; diaNombre: string }) {
+  const router = useRouter();
+  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const [abierto, setAbierto] = useState(false);
+  const [estado, accion, pending] = useActionState(async (prev: EstadoAccionCierre, fd: FormData) => {
+    const r = await reabrirDiaAction(prev, fd);
+    if (r?.ok) router.refresh();
+    return r;
+  }, null);
+  if (!abierto) {
+    return (
+      <Button variant="outline" onClick={() => setAbierto(true)}>
+        Reabrir el {diaNombre}
+      </Button>
+    );
+  }
+  return (
+    <form action={accion} className="flex max-w-xl flex-col gap-3 rounded-md border border-line bg-surface-sunken p-3">
+      <input type="hidden" name="day" value={day} />
+      <p className="text-sm text-body">
+        Reabrir deja cargar lo que faltó en el {diaNombre} (la venta del cuaderno, la rendición del cadete). Se quitan los ajustes de
+        este cierre y, al cerrarlo de nuevo, se vuelve a contar. Un mes congelado no se reabre desde acá.
+      </p>
+      <Field label="Por qué lo reabrís (obligatorio)" htmlFor={`${uid}-motivo`} error={estado && !estado.ok ? estado.error : undefined}>
+        <textarea
+          id={`${uid}-motivo`}
+          name="motivo"
+          data-ui="textarea"
+          rows={2}
+          required
+          minLength={10}
+          placeholder="faltó cargar una venta del cuaderno"
+          className="w-full rounded border border-line-strong bg-surface-raised px-3 py-2 text-sm"
+        />
+      </Field>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button type="submit" disabled={pending}>
+          {pending ? "Reabriendo…" : `Sí, reabrir el ${diaNombre}`}
+        </Button>
+        <Button type="button" variant="ghost" onClick={() => setAbierto(false)} disabled={pending}>
+          Volver
+        </Button>
+      </div>
+      {estado?.ok && (
+        <p role="status" className="text-sm text-success">
+          {estado.mensaje}
+        </p>
+      )}
     </form>
   );
 }
