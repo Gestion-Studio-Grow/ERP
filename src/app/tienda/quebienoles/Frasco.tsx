@@ -22,6 +22,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import type { Frasco as Escena } from "./frasco-escena";
 import type { AlWorker, DelWorker } from "./frasco-worker";
 import { ARCHIVO_DIDONA } from "./tokens";
+import { IconoGota } from "./Iconos";
 
 type Props = {
   color: string;
@@ -270,9 +271,13 @@ export default function Frasco({ color, fondo, letra, movimiento, portal }: Prop
           if (e.key === " " || e.key === "Enter") rociar(false);
         }}
         onBlur={() => rociar(false)}
+        aria-label="Mantené apretado el frasco para rociarlo"
       >
+        {/* Compu: el cuarto ítem de la barra de hechos (punto que late + texto). Teléfono: pastilla de 40 px
+            dentro del escenario, sólo la gota (el texto largo tapaba el frasco). */}
         <span className="qb-rociar-punto" aria-hidden="true" />
-        Mantené apretado para rociar
+        <IconoGota className="qb-rociar-gota" />
+        <span className="qb-rociar-texto">Mantené apretado el frasco</span>
       </button>
     </div>
   );

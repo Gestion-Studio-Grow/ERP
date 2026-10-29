@@ -9,11 +9,13 @@
 // que una placa de Instagram no puede hacer:
 //
 //   · el FRASCO DE LA CASA en 3D (frasco-escena.ts): vidrio real que refracta la Q de la marca, cambia
-//     de color con la familia y se ROCÍA manteniendo apretado;
+//     de color con la familia y se ROCÍA manteniendo apretado (el único momento protagonista);
+//   · la TIRITA (rediseño 29/10): en una perfumería no comprás mirando una placa, el vendedor rocía una
+//     tira de papel y te la da. Cada perfume de la vitrina es una tirita apoyada sobre el mármol, con el
+//     nombre escrito a mano y una línea de «a qué huele»; en la ficha se huele en el tiempo y se compara;
 //   · la ESTELA (Estela.tsx): el rastro dorado que deja el puntero, como la estela de un perfume;
 //   · las CUATRO PUERTAS de su portada (dulces, frescos, versátiles, femeninos) como entrada al catálogo;
-//   · el «¿NO SABÉS CUÁL ELEGIR?» (recomendador.ts): su frase, convertida en tres preguntas;
-//   · la FICHA OLFATIVA de cada perfume (salida, corazón y fondo), con la fuente a la vista.
+//   · el «¿NO SABÉS CUÁL ELEGIR?» (recomendador.ts): su frase, convertida en tres preguntas.
 //
 // Detrás, el pedido es el del ERP: `useVidriera` (la misma bolsa, clave anti-duplicado y alta que la
 // vidriera nueva) → `placeOnlineOrder` → bandeja del backoffice. Nada de cobro acá: la marca coordina
@@ -30,10 +32,10 @@ import { usePrefersReducedMotion } from "@/lib/use-reduced-motion";
 import { useVidriera } from "../vidriera/useVidriera";
 import { plata, responde, type ProductoVidriera } from "../vidriera/catalogo-core";
 import { etiquetaDeDisponibilidad } from "../reglas-tienda";
-import { FAMILIAS, FAMILIA_POR_ID, PERFUMES, type FamiliaId } from "./perfumes";
+import { FAMILIAS, FAMILIA_POR_ID, PERFUMES, aQueHuele, type FamiliaId } from "./perfumes";
 import { aPiezas, estantes, mensajeDirecto, usuarioDeInstagram, type Pieza } from "./vitrina";
 import { recomendar, type Respuestas } from "./recomendador";
-import { IconoBolsa, IconoFamilia, IconoInstagram, Corona } from "./Iconos";
+import { IconoBolsa, IconoFamilia, IconoInstagram, Corona, FotoDeFrasco, Tirita } from "./Iconos";
 import Estela from "./Estela";
 import Ficha from "./Ficha";
 import Bolsa from "./Bolsa";
@@ -44,6 +46,9 @@ import { CARPETA_FUENTES, FONDO, LETRA_DIDONA, ORO } from "./tokens";
 // three.js sólo se pide en el navegador y después de pintar: el titular nunca espera al 3D.
 const Frasco = dynamic(() => import("./Frasco"), { ssr: false, loading: () => <div className="qb-frasco" data-estado="cargando" /> });
 
+/** El ancho a partir del cual manda la cabecera; por debajo, la barra fija de abajo (estilos: 899px). */
+const CELULAR = "(max-width: 899px)";
+
 /**
  * La caja con la Q de su portada, debajo del lienzo 3D: lo que se ve mientras three.js baja y compila
  * (y lo único que se ve sin WebGL). Va en el HTML del servidor con prioridad, así el navegador la pide
@@ -51,8 +56,15 @@ const Frasco = dynamic(() => import("./Frasco"), { ssr: false, loading: () => <d
  */
 function Respaldo() {
   return (
-    <div className="qb-frasco-respaldo" aria-hidden="true">
-      <Image src="/tenants/quebienoles/perfumes/marca-caja-q.jpg" alt="" width={560} height={700} priority sizes="(max-width: 899px) 62vw, 440px" />
+    <div className="qb-frasco-respaldo">
+      <Image
+        src="/tenants/quebienoles/perfumes/marca-caja-q.jpg"
+        alt="Caja de Qué Bien Olés con la Q y la corona"
+        width={560}
+        height={700}
+        priority
+        sizes="(max-width: 899px) 300px, 440px"
+      />
     </div>
   );
 }
@@ -106,6 +118,8 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
   const raiz = useRef<HTMLDivElement>(null);
   const portal = useRef<HTMLElement>(null);
   const botonBolsa = useRef<HTMLButtonElement>(null);
+  // En el teléfono la bolsa vive en la barra de abajo: el frasco que se suma vuela hasta ahí.
+  const iconoBarra = useRef<HTMLSpanElement>(null);
   // La bolsa de este render, para que los manejadores estables (tarjetas memorizadas) usen siempre la última.
   const vRef = useRef(v);
   useEffect(() => {
@@ -142,9 +156,16 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
   // ── abrir la ficha con transición de vista: el frasco de la tarjeta "vuela" a la ficha ─────────
   const transicion = useCallback(
     (cambio: () => void) => {
-      const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+      type Transicion = { ready: Promise<void>; finished: Promise<void>; updateCallbackDone: Promise<void> };
+      const doc = document as Document & { startViewTransition?: (cb: () => void) => Transicion };
       if (reduce || !doc.startViewTransition) return cambio();
-      doc.startViewTransition(() => flushSync(cambio));
+      const t = doc.startViewTransition(() => flushSync(cambio));
+      // Si el navegador la aborta (pestaña en segundo plano, otra transición encima), el cambio igual se
+      // aplica; sólo se pierde la animación. Sin esto, la promesa rechazada ensucia la consola.
+      const nada = () => undefined;
+      t.ready.catch(nada);
+      t.finished.catch(nada);
+      t.updateCallbackDone.catch(nada);
     },
     [reduce],
   );
@@ -157,7 +178,7 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
   );
   const cerrarFicha = useCallback(() => transicion(() => setFichaId(null)), [transicion]);
 
-  // ── sumar a la bolsa: el frasco vuela hasta la bolsa de la cabecera ──────────────────────────
+  // ── sumar a la bolsa: el frasco vuela hasta la bolsa (cabecera en compu, barra de abajo en el teléfono) ──
   // Estables (leen la bolsa por vRef): así las tarjetas memorizadas no se vuelven a dibujar todas
   // cada vez que cambia una cantidad, se abre una ficha o late la bolsa.
   const sacar = useCallback((p: Pieza) => vRef.current.mover(p, -1), []);
@@ -165,13 +186,14 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
     (p: Pieza, desde?: HTMLElement | null) => {
       vRef.current.mover(p, 1);
       setLatido((n) => n + 1);
-      const destino = botonBolsa.current;
+      const destino = window.matchMedia(CELULAR).matches ? iconoBarra.current : botonBolsa.current;
       const img = desde?.querySelector("img") ?? null;
       if (reduce || !img || !destino) return;
       const a = img.getBoundingClientRect();
       const b = destino.getBoundingClientRect();
       const vuelo = img.cloneNode(true) as HTMLImageElement;
       vuelo.className = "qb-vuelo";
+      vuelo.removeAttribute("style");
       Object.assign(vuelo.style, { left: `${a.left}px`, top: `${a.top}px`, width: `${a.width}px`, height: `${a.height}px` });
       raiz.current?.appendChild(vuelo);
       const dx = b.left + b.width / 2 - (a.left + a.width / 2);
@@ -232,6 +254,10 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
   };
 
   const ficha = fichaId ? porId.get(fichaId) ?? null : null;
+  const ciudad = branding?.city || "Ezeiza";
+  const resumenBolsa = v.piezas
+    ? `Tu bolsa: ${v.piezas} ${v.piezas === 1 ? "perfume" : "perfumes"}, ${plata(v.subtotal)}`
+    : "Tu bolsa está vacía";
 
   return (
     <div
@@ -258,13 +284,14 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
           <a href="#regalo">Para regalar</a>
           <a href="#como">Cómo comprar</a>
         </nav>
+        {/* En el teléfono no se ve: la reemplaza la barra fija de abajo. */}
         <button
           ref={botonBolsa}
           type="button"
           className="qb-boton-bolsa"
           data-latido={latido ? latido % 2 : undefined}
           onClick={() => setBolsaAbierta(true)}
-          aria-label={v.piezas ? `Tu bolsa: ${v.piezas} ${v.piezas === 1 ? "perfume" : "perfumes"}, ${plata(v.subtotal)}` : "Tu bolsa está vacía"}
+          aria-label={resumenBolsa}
         >
           <IconoBolsa className="qb-icono-bolsa" />
           <span className="qb-bolsa-texto">Bolsa</span>
@@ -274,35 +301,41 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
 
       <main id="arriba">
         {/* ── EL PORTAL ─────────────────────────────────────────────────────────── */}
+        {/* Compu: texto a la izquierda (7/12) y el frasco a la derecha. Teléfono: tres filas — titular,
+            frasco entero, bajada y botones (el texto se parte en dos bloques y el escenario va en medio). */}
         <section ref={portal} className="qb-portal" aria-labelledby="qb-titular">
           <div className="qb-portal-texto">
-            <p className="qb-antetitulo">
-              <Corona className="qb-corona" /> Perfumería · {branding?.city || "Ezeiza"}
-            </p>
-            <h1 id="qb-titular" className="qb-titular">
-              <span className="qb-t-que">Qué</span>
-              <span className="qb-t-bien qb-oro">Bien</span>
-              <span className="qb-t-oles">Olés</span>
-            </h1>
-            <p className="qb-bajada">
-              <strong>Volvimos.</strong> Y esta vez, vinimos a hacerte <em className="qb-oro">oler muy bien.</em>
-            </p>
-            <p className="qb-sub">{copy.pitch} Envío o punto de encuentro en {branding?.city || "Ezeiza"}.</p>
-            <div className="qb-acciones">
-              <a className="qb-boton qb-boton-oro" href="#familias">
-                Encontrá el tuyo
-              </a>
-              <a className="qb-boton qb-boton-linea" href="#vitrina">
-                Ver los {piezas.length} perfumes
-              </a>
+            <div className="qb-portal-cabeza">
+              <p className="qb-antetitulo">
+                <Corona className="qb-corona" /> Perfumería · {ciudad}
+              </p>
+              <h1 id="qb-titular" className="qb-titular">
+                <span className="qb-t-que">Qué</span>
+                <span className="qb-t-bien qb-oro">Bien</span>
+                <span className="qb-t-oles">Olés</span>
+              </h1>
+            </div>
+            <div className="qb-portal-pie">
+              <p className="qb-bajada">
+                <strong>Volvimos.</strong> Y esta vez, vinimos a hacerte <em className="qb-oro">oler muy bien.</em>
+              </p>
+              <p className="qb-sub">{copy.pitch} Envío o punto de encuentro en {ciudad}.</p>
+              <div className="qb-acciones">
+                <a className="qb-boton qb-boton-oro" href="#familias">
+                  Encontrá el tuyo
+                </a>
+                <a className="qb-boton qb-boton-linea qb-acciones-ver" href="#vitrina">
+                  Ver los {piezas.length} perfumes
+                </a>
+              </div>
             </div>
           </div>
-          {/* Después del texto en el DOM: en el teléfono el titular va primero (y el orden de tabulación
-              coincide con el visual); en pantalla ancha el escenario va detrás, posicionado. */}
           <div className="qb-escenario">
             <Respaldo />
             <Frasco color={colorFamilia} fondo={FONDO} letra={LETRA_DIDONA} movimiento={!reduce} portal={portal} />
           </div>
+          {/* El cuarto hecho, «Mantené apretado el frasco», es el botón de rociar (Frasco.tsx): en compu
+              se ubica al final de esta barra; en el teléfono, como pastilla dentro del escenario. */}
           <ul className="qb-hechos" aria-label="Cómo trabajamos">
             <li>Stock disponible</li>
             <li>Envío o punto de encuentro</li>
@@ -343,7 +376,7 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
                   </span>
                   <span className="qb-puerta-abanico" aria-hidden="true">
                     {muestra.map((p, k) => (
-                      <Image key={p.id} src={p.foto!} alt="" width={240} height={300} sizes="120px" style={{ "--k": k } as CSSProperties} />
+                      <FotoDeFrasco key={p.id} src={p.foto!} nombre={p.nombre} casa={p.casa} style={{ "--k": k } as CSSProperties} />
                     ))}
                   </span>
                 </button>
@@ -432,9 +465,17 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
                   <p>{g.familia ? g.familia.bajada : "Lo último que llegó."}</p>
                 </header>
                 <ul className="qb-piezas qb-carrusel">
-                  {g.items.map((p) => (
+                  {g.items.map((p, i) => (
                     <li key={p.id}>
-                      <Tarjeta p={p} cantidad={v.cantidadDe(p.id)} transicion={origen === p.id && fichaId === null} alVer={abrirFicha} alSumar={sumar} alSacar={sacar} />
+                      <Tarjeta
+                        p={p}
+                        par={i % 2 === 1}
+                        cantidad={v.cantidadDe(p.id)}
+                        transicion={origen === p.id && fichaId === null}
+                        alVer={abrirFicha}
+                        alSumar={sumar}
+                        alSacar={sacar}
+                      />
                     </li>
                   ))}
                 </ul>
@@ -468,10 +509,7 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
             <li className="qb-revela">
               <span className="qb-paso-num">III</span>
               <h3>Coordinamos</h3>
-              <p>
-                Te escribimos para el envío o el punto de encuentro en {branding?.city || "Ezeiza"}, y te pasamos los medios de
-                pago.
-              </p>
+              <p>Te escribimos para el envío o el punto de encuentro en {ciudad}, y te pasamos los medios de pago.</p>
             </li>
           </ol>
           <p className="qb-como-pie">
@@ -495,7 +533,7 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
           Perfumes que dejan huella <span aria-hidden="true">·</span> Fragancias que enamoran
         </p>
         <ul className="qb-pie-datos">
-          <li>{branding?.city || "Ezeiza"}, Buenos Aires</li>
+          <li>{ciudad}, Buenos Aires</li>
           <li>Envío o punto de encuentro</li>
           <li>
             <a href={`https://www.instagram.com/${instagram}/`} target="_blank" rel="noopener noreferrer" className="qb-pie-ig">
@@ -506,6 +544,32 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
         <p className="qb-pie-casas">{copy.providers.join(" · ")}</p>
       </footer>
 
+      {/* ── LA BARRA DE ABAJO (sólo teléfono): la bolsa siempre a un toque ─────── */}
+      <div className="qb-barra" role="region" aria-label="Tu bolsa">
+        <button type="button" className="qb-barra-resumen" data-latido={latido ? latido % 2 : undefined} onClick={() => setBolsaAbierta(true)} aria-label={resumenBolsa}>
+          <span ref={iconoBarra} className="qb-barra-icono">
+            <IconoBolsa className="qb-icono-bolsa" />
+            {v.piezas > 0 && <span className="qb-bolsa-cuenta">{v.piezas}</span>}
+          </span>
+          {v.piezas > 0 ? (
+            <span className="qb-barra-texto">
+              <strong>Bolsa</strong> · {v.piezas} {v.piezas === 1 ? "perfume" : "perfumes"} · <span className="qb-num">{plata(v.subtotal)}</span>
+            </span>
+          ) : (
+            <span className="qb-barra-texto">Tu bolsa está vacía</span>
+          )}
+        </button>
+        {v.piezas > 0 ? (
+          <button type="button" className="qb-boton qb-boton-oro qb-barra-accion" onClick={() => setBolsaAbierta(true)}>
+            Pedir
+          </button>
+        ) : (
+          <a className="qb-boton qb-boton-oro qb-barra-accion" href="#vitrina">
+            Ver la vitrina
+          </a>
+        )}
+      </div>
+
       {ficha && (
         <Ficha
           p={ficha}
@@ -514,6 +578,7 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
           instagram={instagram}
           alCerrar={cerrarFicha}
           alSumar={(el) => sumar(ficha, el)}
+          alSumarOtra={(otra) => sumar(otra)}
           alSacar={() => sacar(ficha)}
           alVer={(id) =>
             transicion(() => {
@@ -529,7 +594,7 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
         v={v}
         porId={porId}
         instagram={instagram}
-        ciudad={branding?.city || "Ezeiza"}
+        ciudad={ciudad}
         notasPlaceholder="ej: es para regalo, horario para coordinar la entrega, aclaraciones"
         hayWhatsApp={Boolean(branding?.whatsapp)}
       />
@@ -540,12 +605,15 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey, 
   );
 }
 
-// ── LA TARJETA DE UN PERFUME ──────────────────────────────────────────────────
+// ── LA TARJETA-TIRITA DE UN PERFUME ───────────────────────────────────────────
+// Sobre la mesa de mármol, el frasco apoyado y la tirita de papel que sale por detrás con el nombre
+// escrito a mano. Abajo, a qué huele en una línea, el precio y el botón.
 // Memorizada: con 25 en pantalla, cada cambio de la vidriera (una cantidad, la ficha, la bolsa) volvía a
 // dibujar las 25. Los manejadores llegan estables del padre y reciben la pieza, no un cierre por tarjeta.
 
 const Tarjeta = memo(function Tarjeta({
   p,
+  par,
   cantidad,
   transicion,
   alVer,
@@ -553,6 +621,7 @@ const Tarjeta = memo(function Tarjeta({
   alSacar,
 }: {
   p: Pieza;
+  par: boolean;
   cantidad: number;
   transicion: boolean;
   alVer: (id: string) => void;
@@ -562,52 +631,42 @@ const Tarjeta = memo(function Tarjeta({
   const foto = useRef<HTMLButtonElement>(null);
   const sinStock = p.disponibilidad === "sin-stock";
   const etiqueta = etiquetaDeDisponibilidad(p.disponibilidad ?? null);
+  const huele = p.perfume ? aQueHuele(p.perfume) : null;
   return (
     <article
       className="qb-pieza"
       data-familia={p.familia ?? "otras"}
       style={{ "--color-puerta": p.familia ? FAMILIA_POR_ID[p.familia].color : ORO } as CSSProperties}
-      onPointerMove={(e) => {
-        if (e.pointerType !== "mouse") return;
-        const r = e.currentTarget.getBoundingClientRect();
-        const x = (e.clientX - r.left) / r.width;
-        const y = (e.clientY - r.top) / r.height;
-        // Posición del brillo e inclinación: el CSS acepta los decimales tal cual (no es plata, no se redondea).
-        e.currentTarget.style.setProperty("--mx", `${x * 100}%`);
-        e.currentTarget.style.setProperty("--my", `${y * 100}%`);
-        e.currentTarget.style.setProperty("--ry", `${(x - 0.5) * 14}deg`);
-        e.currentTarget.style.setProperty("--rx", `${(0.5 - y) * 10}deg`);
-      }}
-      onPointerLeave={(e) => {
-        e.currentTarget.style.setProperty("--ry", "0deg");
-        e.currentTarget.style.setProperty("--rx", "0deg");
-      }}
     >
-      <button ref={foto} type="button" className="qb-pieza-foto" onClick={() => alVer(p.id)} aria-label={`Ver la ficha de ${p.nombre}`}>
-        {p.foto ? (
-          <Image
-            src={p.foto}
-            alt=""
-            width={480}
-            height={600}
-            sizes="(max-width: 720px) 62vw, (max-width: 1180px) 30vw, 250px"
-            style={transicion ? ({ viewTransitionName: "qb-frasco-activo" } as CSSProperties) : undefined}
-          />
-        ) : (
-          <span className="qb-pieza-sinfoto" aria-hidden="true">
-            {p.nombre.charAt(0)}
-          </span>
-        )}
-      </button>
-      <div className="qb-pieza-texto">
-        <p className="qb-pieza-casa">{p.casa ?? " "}</p>
-        <h4 className="qb-pieza-nombre">
-          <button type="button" onClick={() => alVer(p.id)}>
-            {p.nombre}
-          </button>
-        </h4>
+      <div className="qb-mesa qb-pieza-mesa">
+        <Tirita como="div" sinFoto={!p.foto} apagada={sinStock} giro={par ? 1 : -1.5}>
+          <div className="qb-tirita-rotulo">
+            <h4 className="qb-tirita-nombre">{p.nombre}</h4>
+            {p.casa && <p className="qb-tirita-casa">{p.casa}</p>}
+          </div>
+        </Tirita>
+        {/* La capa que se toca: cubre la mesa entera y se funde con ella (lighten), así el fondo oscuro de
+            la foto desaparece y el frasco queda apoyado sobre el mármol, delante de la tirita. */}
+        <button ref={foto} type="button" className="qb-mesa-capa qb-pieza-foto" onClick={() => alVer(p.id)} aria-label={`Ver la ficha de ${p.nombre}`}>
+          {p.foto && (
+            <FotoDeFrasco
+              src={p.foto}
+              nombre={p.nombre}
+              casa={p.casa}
+              className="qb-mesa-frasco"
+              style={transicion ? ({ viewTransitionName: "qb-frasco-activo" } as CSSProperties) : undefined}
+            />
+          )}
+        </button>
+      </div>
+      <p className="qb-pieza-huele">{huele ? `Huele a ${huele}` : "Pedinos la ficha"}</p>
+      <div className="qb-pieza-pie">
         <p className="qb-pieza-precio">{p.price ? plata(p.price) : "Consultanos"}</p>
-        {etiqueta && <p className="qb-pieza-dispo">{etiqueta}</p>}
+        {etiqueta && (
+          <p className="qb-pieza-dispo" data-dispo={p.disponibilidad}>
+            {etiqueta}
+          </p>
+        )}
       </div>
       {cantidad > 0 ? (
         <div className="qb-cantidad" role="group" aria-label={`${p.nombre} en tu bolsa`}>
@@ -621,7 +680,7 @@ const Tarjeta = memo(function Tarjeta({
         </div>
       ) : (
         <button type="button" className="qb-sumar" onClick={() => alSumar(p, foto.current)} disabled={sinStock || !p.price}>
-          {sinStock ? "Sin stock" : "Sumar a la bolsa"}
+          {sinStock ? "Sin stock" : p.price ? "Sumar a la bolsa" : "Consultanos"}
         </button>
       )}
     </article>
@@ -723,12 +782,23 @@ function Regalo({ regalos, alVer }: { regalos: { pieza: Pieza; para: string; por
         <p className="qb-regalo-nota">Mandale esta página al que necesite entender la indirecta 😬</p>
       </div>
       <ul className="qb-regalo-lista qb-carrusel">
-        {regalos.map(({ pieza, para, porque }) => (
-          <li key={pieza.id} className="qb-revela">
+        {regalos.map(({ pieza, para, porque }, i) => (
+          <li key={pieza.id} className="qb-revela" style={{ "--color-puerta": pieza.familia ? FAMILIA_POR_ID[pieza.familia].color : ORO } as CSSProperties}>
             <button type="button" className="qb-regalo-item" onClick={() => alVer(pieza.id)}>
               <span className="qb-regalo-para">{para}</span>
-              {pieza.foto && <Image src={pieza.foto} alt="" width={360} height={450} sizes="(max-width: 720px) 40vw, 200px" />}
-              <span className="qb-regalo-nombre">{pieza.nombre}</span>
+              <span className="qb-mesa qb-mesa-chica">
+                <Tirita sinFoto={!pieza.foto} giro={i % 2 ? 1 : -1.5}>
+                  <span className="qb-tirita-rotulo">
+                    <span className="qb-tirita-nombre">{pieza.nombre}</span>
+                    {pieza.casa && <span className="qb-tirita-casa">{pieza.casa}</span>}
+                  </span>
+                </Tirita>
+                {pieza.foto && (
+                  <span className="qb-mesa-capa">
+                    <FotoDeFrasco src={pieza.foto} nombre={pieza.nombre} casa={pieza.casa} className="qb-mesa-frasco" />
+                  </span>
+                )}
+              </span>
               <span className="qb-regalo-porque">{porque}</span>
               <span className="qb-regalo-precio">{pieza.price ? plata(pieza.price) : "Consultanos"}</span>
             </button>
