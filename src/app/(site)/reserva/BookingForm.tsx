@@ -6,6 +6,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import type { AgendaBookingCopy } from "@/blueprints/agenda";
+import { useNegocioDelSitio } from "../_ch/negocio-del-sitio";
 
 type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null };
 type Professional = {
@@ -49,6 +50,7 @@ export default function BookingForm({
   professionals: Professional[];
   copy: AgendaBookingCopy;
 }) {
+  const { esCH } = useNegocioDelSitio();
   const [professionalId, setProfessionalId] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [date, setDate] = useState("");
@@ -296,7 +298,7 @@ export default function BookingForm({
                   checked={isResident}
                   onChange={(e) => setIsResident(e.target.checked)}
                 />
-                Soy vecino/a de La Alameda
+                {esCH ? "Soy vecino/a de La Alameda" : "Soy vecino/a"}
               </label>
             )}
             <input

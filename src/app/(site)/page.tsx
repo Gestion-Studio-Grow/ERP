@@ -147,7 +147,7 @@ export default async function Home() {
   // «diseño nuevo»: desde acá — con el interruptor de CH prendido, la home nueva (_ch/InicioCH.tsx).
   // Apagado (CH en producción hoy), no se toca nada: todo lo de abajo es el código de siempre.
   if (await nuevoP) {
-    return (
+    if (esCH) return (
       <InicioCH
         groups={groups}
         professionals={professionals}
@@ -273,7 +273,7 @@ export default async function Home() {
         ) : (
           <>
             <p style={{ margin: "0 0 40px", fontSize: "1.0625rem", color: "var(--text-muted)", maxWidth: "32rem", lineHeight: 1.72 }}>
-              Lo que más se elige en CH, con el precio exacto. La carta completa está a un clic.
+              {sheet ? `Lo que más se elige en ${sheet.name}` : "Lo que más se elige en CH"}, con el precio exacto. La carta completa está a un clic.
             </p>
             <FeaturedTreatments services={destacados} />
           </>
@@ -370,14 +370,16 @@ export default async function Home() {
               ))}
             </div>
             <div style={{ marginTop: 32 }}>
-              <a
-                href={location.mapsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ background: "var(--surface-inverted)", color: "var(--text-on-accent)", padding: "12px 24px", textDecoration: "none", fontSize: 15 }}
-              >
-                Cómo llegar
-              </a>
+              {location.mapsUrl && (
+                <a
+                  href={location.mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ background: "var(--surface-inverted)", color: "var(--text-on-accent)", padding: "12px 24px", textDecoration: "none", fontSize: 15 }}
+                >
+                  Cómo llegar
+                </a>
+              )}
             </div>
           </Reveal>
           <div style={{ flex: "1 1 340px", minWidth: 280 }}>

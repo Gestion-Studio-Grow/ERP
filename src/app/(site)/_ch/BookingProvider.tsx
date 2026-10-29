@@ -1,5 +1,6 @@
 "use client";
 
+import { ProveedorNegocioDelSitio, type NegocioDelSitio } from "./negocio-del-sitio";
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { getBookingDataPublic } from "@/lib/client-actions";
@@ -26,7 +27,7 @@ export function useBooking() {
   return ctx;
 }
 
-export default function BookingProvider({ children }: { children: React.ReactNode }) {
+export default function BookingProvider({ children, negocio }: { children: React.ReactNode; negocio: NegocioDelSitio }) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<BookingData | null>(null);
   // La promesa en curso, para que dos botones (o el hover y el clic) no disparen
@@ -51,6 +52,7 @@ export default function BookingProvider({ children }: { children: React.ReactNod
   const closeBooking = useCallback(() => setOpen(false), []);
 
   return (
+    <ProveedorNegocioDelSitio value={negocio}>
     <BookingContext.Provider value={{ open: openBooking, precargar: traerDatos }}>
       {children}
       {open &&
@@ -86,5 +88,6 @@ export default function BookingProvider({ children }: { children: React.ReactNod
           </div>
         ))}
     </BookingContext.Provider>
+    </ProveedorNegocioDelSitio>
   );
 }

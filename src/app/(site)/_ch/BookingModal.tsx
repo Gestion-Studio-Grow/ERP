@@ -7,6 +7,7 @@ import { checkCoupon } from "@/lib/coupon-actions";
 import { isValidEmail, isValidArgentinePhone } from "@/lib/contact-validation";
 import { fmtTime, wallHourMinuteInBusinessTz } from "@/lib/datetime";
 import { useWhatsAppCta } from "@/components/whatsapp-cta";
+import { useNegocioDelSitio } from "./negocio-del-sitio";
 import type { BookingData, BookingGroup, BookingProfessional, BookingService } from "./types";
 
 const STEP_LABELS = ["", "Servicio", "Profesional", "Día y hora", "Datos", "Confirmación"];
@@ -21,6 +22,7 @@ export default function BookingModal({
   onClose: () => void;
 }) {
   const { requestWhatsApp } = useWhatsAppCta();
+  const negocio = useNegocioDelSitio();
   const [step, setStep] = useState(1);
   const [svc, setSvc] = useState<SelectedService | null>(null);
   const [pro, setPro] = useState<BookingProfessional | null>(null);
@@ -301,30 +303,35 @@ export default function BookingModal({
     const ics = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//CH Estetica//ES",
+      negocio.esCH ? "PRODID:-//CH Estetica//ES" : "PRODID:-//Gestion Studio Grow//ES",
       "BEGIN:VEVENT",
       // UID y DTSTAMP salen del PROPIO turno, no del reloj: llamar a `Date.now()`
       // durante el render es impuro (y React 19 lo marca). De paso el archivo queda
       // estable — si el cliente lo agrega dos veces, el calendario reconoce el mismo
       // evento en vez de duplicarle el turno.
-      `UID:${confirmedStartsAt}@ch-estetica`,
+      `UID:${confirmedStartsAt}@${negocio.esCH ? "ch-estetica" : "gsgapp"}`,
       `DTSTAMP:${z(start)}`,
       `DTSTART:${z(start)}`,
       `DTEND:${z(end)}`,
-      `SUMMARY:CH Estética — ${svc.name}`,
+      `SUMMARY:${negocio.nombre ? negocio.nombre + " — " : ""}${svc.name}`,
       `DESCRIPTION:${pro ? "Profesional: " + pro.name : "Turno confirmado"}`,
-      "LOCATION:Barrio La Alameda\\, Canning\\, Buenos Aires",
+      // La dirección de CH sólo en el turno de CH; otro negocio, la suya (si la cargó) o ninguna.
+      ...(negocio.esCH
+        ? ["LOCATION:Barrio La Alameda\\, Canning\\, Buenos Aires"]
+        : negocio.direccion
+          ? [`LOCATION:${negocio.direccion.replace(/[,;\\]/g, (c) => "\\" + c)}`]
+          : []),
       "END:VEVENT",
       "END:VCALENDAR",
     ].join("\r\n");
     return "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
-  }, [confirmedStartsAt, svc, pro]);
+  }, [confirmedStartsAt, svc, pro, negocio]);
 
   // El CTA nunca abre a un número hardcodeado (ver WhatsAppCtaProvider en el
   // layout): si `data.whatsapp` no tiene un real configurado, el primer clic
   // pide el número ahí mismo antes de abrir WhatsApp.
   const waMessage = svc
-    ? `Hola! Confirmo mi turno en CH Estética: ${svc.name}${whenLabel ? " — " + whenLabel : ""}${pro ? " con " + pro.name : ""}`
+    ? `Hola! Confirmo mi turno${negocio.nombre ? " en " + negocio.nombre : ""}: ${svc.name}${whenLabel ? " — " + whenLabel : ""}${pro ? " con " + pro.name : ""}`
     : null;
 
   return (
@@ -633,7 +640,7 @@ export default function BookingModal({
 
           {step === 5 && (
             <>
-              <StepTitle>Listo. Te esperamos en La Alameda.</StepTitle>
+              <StepTitle>{negocio.esCH ? "Listo. Te esperamos en La Alameda." : "Listo. Te esperamos."}</StepTitle>
               <div style={{ marginTop: 16, background: "var(--surface-sunken)", padding: 20, borderRadius: 2, fontSize: 14, display: "flex", flexDirection: "column", gap: 4 }}>
                 <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Reserva</span> · Nº {code}</p>
                 <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Servicio</span> · {svc?.name} · {svc?.categoria}, {svc?.durationMin} min</p>
@@ -717,6 +724,7 @@ function ResidentToggle({
   value: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const negocio = useNegocioDelSitio();
   return (
     <div
       style={{
@@ -731,7 +739,11 @@ function ResidentToggle({
       }}
     >
       <span style={{ fontSize: 13, color: "var(--text-strong)" }}>
-        ¿Sos vecino/a de <strong>La Alameda</strong>? Tenés precio especial en algunos servicios.
+        {negocio.esCH ? (
+          <>¿Sos vecino/a de <strong>La Alameda</strong>? Tenés precio especial en algunos servicios.</>
+        ) : (
+          <>¿Sos vecino/a? Tenés precio especial en algunos servicios.</>
+        )}
       </span>
       <div style={{ display: "flex", border: "1px solid var(--line-strong)", borderRadius: 2, flexShrink: 0 }}>
         {[

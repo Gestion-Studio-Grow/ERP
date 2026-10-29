@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getPublicBookingData } from "@/lib/actions";
 import { getBrandSheet } from "@/lib/brand-sheet";
 import { tenantBrandSheetEnabled } from "@/lib/identity";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import ReserveButton from "../_ch/ReserveButton";
 import ServicesAccordion from "../_ch/ServicesAccordion";
 
@@ -22,7 +23,9 @@ import ServicesAccordion from "../_ch/ServicesAccordion";
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const sheet = tenantBrandSheetEnabled() ? await getBrandSheet() : null;
+  // Sólo CH se llama CH (E1): cualquier otro negocio, con el nombre de su fila Tenant.
+  const esCH = (await getCurrentTenantSlug()) === "beauty-spa";
+  const sheet = tenantBrandSheetEnabled() || !esCH ? await getBrandSheet() : null;
   const nombre = sheet?.name ?? "CH Estética";
   return {
     title: `Servicios y precios — ${nombre}`,
@@ -40,10 +43,9 @@ const versalitas: React.CSSProperties = {
 };
 
 export default async function ServiciosPage() {
-  const [{ groups }, sheet] = await Promise.all([
-    getPublicBookingData(),
-    tenantBrandSheetEnabled() ? getBrandSheet() : Promise.resolve(null),
-  ]);
+  // El precio de vecino/a de La Alameda es de CH: otro negocio no lo ve (E1).
+  const [{ groups }, esCH] = await Promise.all([getPublicBookingData(), getCurrentTenantSlug().then((s) => s === "beauty-spa")]);
+  const sheet = tenantBrandSheetEnabled() || !esCH ? await getBrandSheet() : null;
 
   return (
     <main style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(32px,6vw,64px) 24px clamp(56px,8vw,96px)" }}>

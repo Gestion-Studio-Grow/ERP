@@ -12,6 +12,7 @@ import { WhatsAppCtaProvider } from "@/components/whatsapp-cta";
 import BookingProvider from "./_ch/BookingProvider";
 import Header from "./_ch/Header";
 import AnnouncementBar from "./_ch/AnnouncementBar";
+import { frauncesSitio, hankenSitio } from "./fuentes";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,10 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const { accent, onAccent } = sheet
     ? brandSheetAccent(sheet, frontTheme)
     : resolveAccent(brand.preset, brand.frontTheme);
+  // E3: --font-display/--font-body se resuelven en :root con las familias de la raíz (sin precarga). Redeclararlas acá
+  // las ata a las de ./fuentes (precargadas): si no, el título usaría la de la raíz y la letra se bajaría dos veces.
+  // Con la ficha de marca prendida manda su theme pack (data-brand), que define su propia letra.
+  const letraDelSitio: Record<string, string> = dataBrand ? {} : { "--font-display": "var(--font-fraunces)", "--font-body": "var(--font-hanken)" };
   // WhatsApp del negocio (módulo Localización): ya viene normalizado a dígitos.
   const whatsapp = location.whatsapp;
   const latestNews = news[0] ?? null;
@@ -52,10 +57,10 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
     <WhatsAppCtaProvider tenantKey={slug ?? "ch-default"} configuredNumber={whatsapp}>
       {/* Sin `data`: los ~70 servicios ya no viajan en el HTML de cada página.
           El provider los pide cuando alguien va a reservar (ver client-actions). */}
-      <BookingProvider>
+      <BookingProvider negocio={{ nombre: brandName, direccion: location.mapsUrl ? [location.addressLine, location.city].filter(Boolean).join(", ") : "", esCH: slug === "beauty-spa" }}>
       {/* Acento + tema del front por tenant, disponibles también en el sitio para
           cuando sus pantallas migren a los tokens de la base Nocturne. */}
-      <div data-theme={frontTheme} data-brand={dataBrand} style={{ background: "var(--surface)", color: "var(--text-strong)", fontFamily: "var(--font-body), system-ui, sans-serif", "--accent": accent, "--text-on-accent": onAccent } as CSSProperties}>
+      <div data-theme={frontTheme} data-brand={dataBrand} className={`${frauncesSitio.variable} ${hankenSitio.variable}`} style={{ background: "var(--surface)", color: "var(--text-strong)", fontFamily: "var(--font-body), system-ui, sans-serif", "--accent": accent, "--text-on-accent": onAccent, ...letraDelSitio } as CSSProperties}>
         {/* Franja arriba de todo el sitio (no solo home): la novedad se
             "adopta" con menos fricción que esperando que el cliente llegue
             a la sección más abajo en la página. */}
@@ -69,7 +74,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
               <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
                 <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 24, color: "var(--accent)" }}>{brandName}</span>
               </div>
-              <p style={{ margin: 0 }}>{location.addressLine} · {location.city}</p>
+              <p style={{ margin: 0 }}>{[location.addressLine, location.city].filter(Boolean).join(" · ")}</p>
             </div>
             <div>
               <p style={{ color: "var(--text-on-accent)", margin: "0 0 4px" }}>Horarios</p>
