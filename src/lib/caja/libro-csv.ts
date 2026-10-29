@@ -14,7 +14,6 @@ import { csvField } from "@/lib/report-csv";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import type { CashMethod } from "@/lib/caja/cash-register";
 import {
-  CASH_METHODS,
   ORIGEN_CONTABLE_LABEL,
   egresosPorOrigen,
   mediosALaVista,
