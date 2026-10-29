@@ -3,7 +3,7 @@ import { requireApp } from "@/lib/require-app";
 import { exigirCasa } from "@/lib/multilocal/casa.server";
 import { ventasDeLaRedAction } from "@/lib/multilocal/multilocal-actions";
 import { elegirLocal, sumarVentas, type Ventas, type VentasDeUnLocal } from "@/lib/multilocal/multilocal-core";
-import { CASH_METHODS, CASH_METHOD_LABEL, totalOf } from "@/lib/caja/libro-caja";
+import { CASH_METHOD_LABEL, mediosALaVista, totalOf } from "@/lib/caja/libro-caja";
 import {
   AvisoError,
   Badge,
@@ -206,7 +206,7 @@ function PorMedio({ v }: { v: Ventas }) {
   const anulado = totalOf(v.anulado);
   return (
     <p className="mt-1 text-xs text-muted tabular-nums">
-      {CASH_METHODS.map((k, i) => `${i > 0 ? " · " : ""}${CASH_METHOD_LABEL[k]} ${fmtMoneyARS(v.ventas[k])}`)}
+      {mediosALaVista(v.ventas, v.anulado).map((k, i) => `${i > 0 ? " · " : ""}${CASH_METHOD_LABEL[k]} ${fmtMoneyARS(v.ventas[k])}`)}
       {anulado > 0 ? ` · anulado ${fmtMoneyARS(anulado)}` : ""}
     </p>
   );

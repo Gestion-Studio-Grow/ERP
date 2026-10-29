@@ -52,6 +52,9 @@ test("contra Postgres: venta por transferencia, sin y con CashMethod.TRANSFERENC
   const hoy = todayInBusinessTz();
   const hojaSin = await como(a, a.duenia, () => getCierreDiarioData(hoy));
   assert.equal(hojaSin.preview.porColumna.TRANSFERENCIA.expected, 5_000, "la hoja la separa por el medio de origen");
+  // Cert. M1 v6 F1: el cierre de siempre NO ofrece Transferencia sin el paquete (lo contado ahí se
+  // descartaba y MP asentaba un faltante falso): cuenta «MP / Transf.» junto, como siempre.
+  assert.deepEqual(hojaSin.mediosDelLibro, ["EFECTIVO", "MP", "TARJETA"]);
 
   // ── CON N2_enums.sql aplicada ──────────────────────────────────────────────
   const sql = readFileSync(path.join(process.cwd(), "prisma/pending-gate2/N2_enums.sql"), "utf8");
@@ -75,6 +78,7 @@ test("contra Postgres: venta por transferencia, sin y con CashMethod.TRANSFERENC
   assert.equal(hojaCon.preview.porColumna.TRANSFERENCIA.expected, 10_000, "la del libro + la vieja guardada en MP");
   assert.equal(hojaCon.preview.porColumna.MP.expected, 0);
   assert.equal(hojaCon.preview.total.expected, 10_000, "el total del libro no cambia");
+  assert.deepEqual(hojaCon.mediosDelLibro, ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"], "con el paquete, el de siempre la cuenta aparte");
 
   // ── B no se mezcló ─────────────────────────────────────────────────────────
   assert.deepEqual(await libro(b.id), libroDeB, "el libro de B no cambió");

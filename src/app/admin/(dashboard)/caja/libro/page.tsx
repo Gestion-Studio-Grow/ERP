@@ -13,7 +13,7 @@ import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { getLibroCajaData } from "@/lib/libro-caja-actions";
 import {
-  CASH_METHODS,
+  mediosALaVista,
   CASH_METHOD_LABEL,
   LIBRO_ORIGIN_LABEL,
   totalOf,
@@ -318,7 +318,7 @@ function ResumenCard({ summary, label }: { summary: { opening: MethodAmounts; in
         <thead className="hidden sm:table-header-group">
           <tr className="border-b border-line text-xs uppercase tracking-wide text-faint">
             <th scope="col" className="px-4 py-2 text-left font-medium">Concepto</th>
-            {CASH_METHODS.map((m) => (
+            {mediosALaVista(summary.opening, summary.ingresos, summary.egresos).map((m) => (
               <th key={m} scope="col" className="px-4 py-2 text-right font-medium">
                 {CASH_METHOD_LABEL[m]}
               </th>
@@ -335,7 +335,7 @@ function ResumenCard({ summary, label }: { summary: { opening: MethodAmounts; in
               >
                 {f.rotulo}
               </th>
-              {CASH_METHODS.map((m) => (
+              {mediosALaVista(summary.opening, summary.ingresos, summary.egresos).map((m) => (
                 <td
                   key={m}
                   className={`${CELDA_MOVIMIENTO} tabular-nums sm:px-4 sm:text-right ${f.tono || "text-body"}`}
@@ -360,7 +360,7 @@ function ResumenCard({ summary, label }: { summary: { opening: MethodAmounts; in
             >
               Saldo actual
             </th>
-            {CASH_METHODS.map((m) => (
+            {mediosALaVista(summary.opening, summary.ingresos, summary.egresos).map((m) => (
               <td
                 key={m}
                 className={`${CELDA_MOVIMIENTO} font-medium tabular-nums text-strong sm:px-4 sm:py-3 sm:text-right`}

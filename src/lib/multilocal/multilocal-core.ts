@@ -28,6 +28,7 @@ import { round2 } from "@/lib/round";
 import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
 import {
   CASH_METHODS,
+  mediosALaVista,
   clasificarOrigen,
   splitByMethod,
   totalOf,
@@ -913,28 +914,30 @@ export function csvVentasDeLaRed(input: {
   lineas.push(fila("Ventas cobradas según la caja de cada local, menos las anulaciones del mismo período."));
   lineas.push("");
   lineas.push(fila("RESUMEN POR LOCAL"));
-  lineas.push(fila("Local", "CUIT", "Punto de venta", ...CASH_METHODS.map((k) => ETIQUETA_MEDIO[k]), "Anulado", "Neto", "Cobros"));
+  // Transferencia (M1-C2) sólo si se movió en el período: el archivo de la contadora no cambia antes.
+  const total = sumarVentas(input.locales.map((l) => l.total));
+  const medios = mediosALaVista(total.ventas, total.anulado);
+  lineas.push(fila("Local", "CUIT", "Punto de venta", ...medios.map((k) => ETIQUETA_MEDIO[k]), "Anulado", "Neto", "Cobros"));
   for (const l of input.locales) {
     lineas.push(
       fila(
         l.local.alias,
         l.local.arcaCuit ?? "",
         l.local.arcaPuntoVenta ?? "",
-        ...CASH_METHODS.map((k) => importe(l.total.ventas[k])),
+        ...medios.map((k) => importe(l.total.ventas[k])),
         importe(totalOf(l.total.anulado)),
         importe(l.total.neto),
         l.total.cantidad,
       ),
     );
   }
-  const total = sumarVentas(input.locales.map((l) => l.total));
-  lineas.push(fila("TOTAL", "", "", ...CASH_METHODS.map((k) => importe(total.ventas[k])), importe(totalOf(total.anulado)), importe(total.neto), total.cantidad));
+  lineas.push(fila("TOTAL", "", "", ...medios.map((k) => importe(total.ventas[k])), importe(totalOf(total.anulado)), importe(total.neto), total.cantidad));
   if (input.porCuit.length > 0) {
     lineas.push("");
     lineas.push(fila("CONSOLIDADO POR CUIT"));
-    lineas.push(fila("CUIT", "Locales", ...CASH_METHODS.map((k) => ETIQUETA_MEDIO[k]), "Anulado", "Neto"));
+    lineas.push(fila("CUIT", "Locales", ...medios.map((k) => ETIQUETA_MEDIO[k]), "Anulado", "Neto"));
     for (const g of input.porCuit) {
-      lineas.push(fila(g.cuit, g.locales.join(", "), ...CASH_METHODS.map((k) => importe(g.total.ventas[k])), importe(totalOf(g.total.anulado)), importe(g.total.neto)));
+      lineas.push(fila(g.cuit, g.locales.join(", "), ...medios.map((k) => importe(g.total.ventas[k])), importe(totalOf(g.total.anulado)), importe(g.total.neto)));
     }
   }
   lineas.push("");

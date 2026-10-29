@@ -152,6 +152,12 @@ export type CierreDiarioData = {
   turnosSinCerrar: TurnoSinCerrar[] | null;
   /** Las columnas que cuenta la hoja (N2 · M1-C2): EFECTIVO · MP · TRANSFERENCIA · (TARJETA). */
   columnas: ColumnaDelCierre[];
+  /**
+   * Los medios del cierre de SIEMPRE (CierreForm, diseño de siempre): los del libro, MP junto con la
+   * transferencia hasta el paquete. Transferencia sólo si el libro la tiene (cert. M1 v6, F1: la
+   * clásica no separa por el medio de origen y lo contado ahí se descartaba).
+   */
+  mediosDelLibro: ColumnaDelCierre[];
   /** ¿Quien mira puede cerrar el día? (M1-C8: dueña/dueño o encargado; recepción, no). */
   puedeCerrar: boolean;
   /** Un turno de caja abierto: con él no se cierra el día (M1-C5). */
@@ -280,6 +286,7 @@ async function leerCierreDiario(
       registro: null,
       turnosSinCerrar: [],
       columnas: columnasDelCierre({ tarjetaHabilitada: false, tarjetaSeMovio: false }),
+      mediosDelLibro: CASH_METHODS.filter((m) => m !== "TRANSFERENCIA"),
       puedeCerrar: false,
       turnoAbierto: null,
       conteoDelTurno: null,
@@ -330,6 +337,7 @@ async function leerCierreDiario(
       registro,
       turnosSinCerrar,
       columnas: columnasDelCierre({ tarjetaHabilitada: false, tarjetaSeMovio: false }),
+      mediosDelLibro: CASH_METHODS.filter((m) => m !== "TRANSFERENCIA"),
       puedeCerrar,
       turnoAbierto: null,
       conteoDelTurno: null,
@@ -446,6 +454,7 @@ async function leerCierreDiario(
     registro: null,
     turnosSinCerrar,
     columnas,
+    mediosDelLibro: deSiempre.columnas,
     puedeCerrar,
     turnoAbierto: abierto ? { quien: await nombreDeActor(prisma, tenantId, abierto.openedBy), hora: fmtTime(abierto.openedAt) } : null,
     conteoDelTurno: conteoDelTurnoParaElCierre({

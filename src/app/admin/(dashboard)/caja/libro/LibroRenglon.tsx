@@ -19,7 +19,7 @@
 
 import Link from "next/link";
 import type { getLibroCajaData } from "@/lib/libro-caja-actions";
-import { CASH_METHODS, CASH_METHOD_LABEL, LIBRO_ORIGIN_LABEL, totalOf } from "@/lib/caja/libro-caja";
+import { CASH_METHODS, CASH_METHOD_LABEL, LIBRO_ORIGIN_LABEL, mediosALaVista, totalOf } from "@/lib/caja/libro-caja";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { LineaDeEstado, Marca, Plata, Rotulo, atributosBoton, buttonClasses } from "@/components/ui";
 import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
@@ -75,7 +75,7 @@ function Resumen({ d }: { d: Datos }) {
               <th scope="col" className="py-1.5 text-left">
                 <span className="sr-only">Concepto</span>
               </th>
-              {CASH_METHODS.map((m) => (
+              {mediosALaVista(summary.opening, summary.ingresos, summary.egresos).map((m) => (
                 <th key={m} scope="col" className="py-1.5 text-right">
                   <Rotulo as="span">{CASH_METHOD_LABEL[m]}</Rotulo>
                 </th>
@@ -91,7 +91,7 @@ function Resumen({ d }: { d: Datos }) {
                 <th scope="row" className="py-2 pr-3 text-left font-normal text-body">
                   {f.rotulo}
                 </th>
-                {CASH_METHODS.map((m) => (
+                {mediosALaVista(summary.opening, summary.ingresos, summary.egresos).map((m) => (
                   <td key={m} className="py-2 text-right">
                     <Plata valor={"resta" in f && f.v[m] !== 0 ? -f.v[m] : f.v[m]} />
                   </td>
@@ -107,7 +107,7 @@ function Resumen({ d }: { d: Datos }) {
               <th scope="row" className="py-2.5 text-left font-semibold text-strong">
                 Saldo actual
               </th>
-              {CASH_METHODS.map((m) => (
+              {mediosALaVista(summary.opening, summary.ingresos, summary.egresos).map((m) => (
                 <td key={m} className="py-2.5 text-right font-semibold">
                   <Plata valor={summary.saldo[m]} />
                 </td>

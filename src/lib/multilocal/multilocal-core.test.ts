@@ -481,10 +481,10 @@ test("el CSV: resumen por local, consolidado por CUIT si comparten, y detalle po
   assert.deepEqual(porCuit.map((g) => [g.cuit, g.locales, g.total.neto]), [["20304050607", ["Canning", "Lomas"], 1344.5]]);
   const csv = csvVentasDeLaRed({ casa: "MAGRA", rango: { desde: "2026-09-21", hasta: HOY, dias: 3 }, locales, porCuit });
   const lineas = csv.split("\r\n");
-  assert.ok(lineas.includes("Canning;20304050607;3;1.234,50;100,00;0,00;0,00;0,00;1.334,50;2"));
+  assert.ok(lineas.includes("Canning;20304050607;3;1.234,50;100,00;0,00;0,00;1.334,50;2"));
   assert.ok(lineas.includes("CONSOLIDADO POR CUIT"));
   assert.ok(lineas.includes("2026-09-21;Canning;20304050607;Efectivo;1.234,50;0,00;1.234,50"));
-  assert.ok(lineas.includes("TOTAL;;;1.234,50;100,00;0,00;10,00;0,00;1.344,50;3"));
+  assert.ok(lineas.includes("TOTAL;;;1.234,50;100,00;10,00;0,00;1.344,50;3"));
   // Un alias con ";" no rompe las columnas.
   const raro = csvVentasDeLaRed({ casa: "A;B", rango: { desde: HOY, hasta: HOY, dias: 1 }, locales: [], porCuit: [] });
   assert.ok(raro.startsWith('Ventas por local;"A;B"'));

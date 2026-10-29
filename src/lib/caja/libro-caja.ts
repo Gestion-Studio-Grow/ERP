@@ -42,6 +42,16 @@ import { CUENTA_CORRIENTE_ACTOR_PREFIX, esAsientoDeCuentaCorriente } from "@/lib
 // total. `MP` sigue diciendo «MP / Transf.»: los asientos de antes del paquete la llevan ahí.
 export const CASH_METHODS = ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"] as const;
 
+/**
+ * Los medios que se MUESTRAN (columnas de pantallas y planillas): todos, menos TRANSFERENCIA
+ * cuando no se movió plata en ella. Antes del paquete Gate 2 es siempre 0 (la transferencia vive
+ * en `MP`) y una columna en cero confunde a quien cuenta. Las CUENTAS usan siempre `CASH_METHODS`.
+ */
+export function mediosALaVista(...desgloses: readonly Partial<Record<CashMethod, number>>[]): CashMethod[] {
+  const transferencia = desgloses.some((a) => (a.TRANSFERENCIA ?? 0) !== 0);
+  return CASH_METHODS.filter((m) => m !== "TRANSFERENCIA" || transferencia);
+}
+
 export const CASH_METHOD_LABEL: Record<CashMethod, string> = {
   EFECTIVO: "Efectivo",
   MP: "MP / Transf.",

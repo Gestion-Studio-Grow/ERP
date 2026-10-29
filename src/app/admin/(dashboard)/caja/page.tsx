@@ -10,7 +10,7 @@ import type { CashMethod } from "@/lib/caja/cash-register";
 import { esperadoDelCajon } from "@/lib/caja/esperado-del-cajon";
 import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego-core";
 import { Card, CardHeader, CardTitle, CardDescription, Badge, fmtMoneyARS, type BadgeProps } from "@/components/ui";
-import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
+import { CASH_METHOD_LABEL, mediosALaVista } from "@/lib/caja/libro-caja";
 import { frozenDayMessage } from "@/lib/caja/cierre-diario";
 import { OpenCajaForm, CloseCajaForm } from "./CajaForms";
 import { AddLibroEntryForm } from "./libro/LibroForms";
@@ -153,7 +153,11 @@ function ResumenDelDia({ dia }: { dia: Awaited<ReturnType<typeof getCierreDiario
           aria-live="polite"
           aria-atomic="true"
         >
-          {CASH_METHODS.map((m) => {
+          {mediosALaVista(
+            { TRANSFERENCIA: preview.porMedio.TRANSFERENCIA.opening },
+            { TRANSFERENCIA: preview.porMedio.TRANSFERENCIA.ingresos },
+            { TRANSFERENCIA: preview.porMedio.TRANSFERENCIA.egresos },
+          ).map((m) => {
             const med = preview.porMedio[m];
             if (m === "EFECTIVO" && efectivoACiegas) {
               return (

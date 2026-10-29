@@ -17,6 +17,7 @@ import {
   CASH_METHODS,
   ORIGEN_CONTABLE_LABEL,
   egresosPorOrigen,
+  mediosALaVista,
   origenDeFila,
   type Libro,
   type MethodAmounts,
@@ -71,9 +72,12 @@ export function buildLibroCsv(libro: Libro, deps: LibroCsvDeps): string {
   L.push("");
 
   // ── Resumen, igual que la pantalla ──
-  L.push(row("RESUMEN", ...CASH_METHODS.map(methodLabel), "Total"));
+  // Transferencia (M1-C2) sólo si se movió en el mes: antes del paquete la planilla de la
+  // contadora sigue con sus columnas de siempre.
+  const medios = mediosALaVista(libro.summary.opening, libro.summary.ingresos, libro.summary.egresos);
+  L.push(row("RESUMEN", ...medios.map(methodLabel), "Total"));
   const linea = (rotulo: string, a: MethodAmounts) =>
-    row(rotulo, ...CASH_METHODS.map((m) => money(a[m])), money(totalOf(a)));
+    row(rotulo, ...medios.map((m) => money(a[m])), money(totalOf(a)));
   L.push(linea("Saldo inicial", libro.summary.opening));
   L.push(linea("Ingresos (+)", libro.summary.ingresos));
   L.push(linea("Egresos (-)", libro.summary.egresos));
@@ -85,7 +89,7 @@ export function buildLibroCsv(libro: Libro, deps: LibroCsvDeps): string {
   // anulaciones, diferencias de cierre) de lo tipeado a mano, que es lo que tiene que
   // respaldar con comprobante. Sale de las MISMAS filas del archivo: en el export de un
   // día es el subtotal de ese día, aunque el RESUMEN de arriba sea el del mes.
-  L.push(row("EGRESOS POR ORIGEN (de los movimientos de abajo)", ...CASH_METHODS.map(methodLabel), "Total"));
+  L.push(row("EGRESOS POR ORIGEN (de los movimientos de abajo)", ...medios.map(methodLabel), "Total"));
   const porOrigen = egresosPorOrigen(libro.rows);
   for (const { origen, egresos } of porOrigen) L.push(linea(ORIGEN_CONTABLE_LABEL[origen], egresos));
   if (porOrigen.length === 0) L.push(row("(sin egresos)"));

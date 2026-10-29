@@ -215,7 +215,7 @@ export default async function CierreCajaPage({
             <thead className="hidden sm:table-header-group">
               <tr className="border-b border-line text-muted">
                 <th scope="col" className="px-4 py-2 text-left font-medium">Concepto</th>
-                {preview.columnas.map((m) => (
+                {data.mediosDelLibro.map((m) => (
                   <th key={m} scope="col" className="px-4 py-2 text-right font-medium">
                     {CASH_METHOD_LABEL[m]}
                   </th>
@@ -236,7 +236,7 @@ export default async function CierreCajaPage({
                   >
                     {rotulo}
                   </th>
-                  {preview.columnas.map((m) => (
+                  {data.mediosDelLibro.map((m) => (
                     <td key={m} className={`${CELDA_TARJETA} tabular-nums text-body sm:px-4 sm:text-right`}>
                       <span className={ROTULO_MOVIL}>{CASH_METHOD_LABEL[m]}</span>
                       {fmtMoneyARS(preview.porMedio[m][key])}
@@ -255,7 +255,7 @@ export default async function CierreCajaPage({
                 >
                   Debería haber
                 </th>
-                {preview.columnas.map((m) => (
+                {data.mediosDelLibro.map((m) => (
                   <td key={m} className={`${CELDA_TARJETA} font-medium tabular-nums text-strong sm:px-4 sm:py-3 sm:text-right`}>
                     <span className={ROTULO_MOVIL}>{CASH_METHOD_LABEL[m]}</span>
                     {fmtMoneyARS(preview.porMedio[m].expected)}
@@ -296,7 +296,7 @@ export default async function CierreCajaPage({
           key={day}
           day={day}
           diaLabel={formatDayLabel(day)}
-          medios={preview.columnas}
+          medios={data.mediosDelLibro}
           esperado={{
             EFECTIVO: preview.porMedio.EFECTIVO.expected,
             MP: preview.porMedio.MP.expected,

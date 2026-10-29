@@ -250,7 +250,7 @@ test("a ciegas, diaALaVista/cajaALaVista blanquean todo monto del efectivo del l
   const dia = (efectivoACiegas: boolean): Dia => ({
     day, today: day, lastClosedDay: null, since: null, preview, efectivoACiegas,
     movements: movs.map((m) => ({ id: m.id, day, type: m.type, method: m.method, amount: m.amount, detail: "", origin: "pos" as const })),
-    yaCerrado: false, enElFuturo: false, registro: null, turnosSinCerrar: null, columnas: preview.columnas, puedeCerrar: false, turnoAbierto: null,
+    yaCerrado: false, enElFuturo: false, registro: null, turnosSinCerrar: null, columnas: preview.columnas, mediosDelLibro: preview.columnas, puedeCerrar: false, turnoAbierto: null,
     conteoDelTurno: { contado: esperado, quien: "Ana", cerradoEl: at, vigente: true },
     hechos: { ventasSinCobrar: { cantidad: 0, monto: 0 }, repartoSinRendir: { cantidad: 0, monto: 0 }, pagadosDeMas: [], cuadernoConFechaVieja: { cantidad: 1, monto: 3_017 } } as unknown as Dia["hechos"],
     reabrir: null,
