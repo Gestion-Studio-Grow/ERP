@@ -13,7 +13,7 @@ import { plata, textoDelEnvio } from "../vidriera/catalogo-core";
 import type { EstadoVidriera } from "../vidriera/useVidriera";
 import { MENSAJE_NO_SE_PUDO } from "../reglas-tienda";
 import { mensajeDirecto, type Pieza } from "./vitrina";
-import { IconoBolsa, IconoCerrar } from "./Iconos";
+import { IconoBolsa, IconoCerrar, QConCorona, altDeFrasco } from "./Iconos";
 import { CamposDeEntrega, FrenoDeEntrega, type AparienciaDeEntrega } from "../EntregaDeLaTienda";
 
 // La piel de Qué Bien Olés para la zona, el día, la franja y el freno, si el negocio carga Envíos
@@ -24,7 +24,7 @@ const APARIENCIA_ENTREGA: AparienciaDeEntrega = {
   campo: { className: "qb-campo" },
   rotulo: { style: ROTULO },
   control: {
-    style: { height: 52, padding: "0 14px", border: "1px solid var(--linea-2)", borderRadius: 0, background: "transparent", color: "var(--hueso)", font: "400 16px var(--palo)" },
+    style: { height: 52, padding: "0 14px", border: "1px solid var(--linea-2)", borderRadius: 0, background: "transparent", color: "var(--hueso)", font: "400 17px var(--palo)" },
   },
   grupo: { className: "qb-entrega" },
   nota: { className: "qb-tenue", style: { margin: 0 } },
@@ -114,7 +114,7 @@ export default function Bolsa({
       >
         <div className="qb-bolsa-cabeza">
           <h2 id="qb-bolsa-titulo" ref={titulo} tabIndex={-1}>
-            {pasoVisible === "bolsa" ? "Tu bolsa" : "Tus datos"}
+            {!hay ? "Tu bolsa" : pasoVisible === "bolsa" ? "Las que te llevás" : "Tus datos"}
           </h2>
           <span className="qb-bolsa-cuantos">
             {hay ? `${v.piezas} ${v.piezas === 1 ? "perfume" : "perfumes"}` : "Vacía"}
@@ -157,8 +157,14 @@ export default function Bolsa({
                 const aviso = pedido.avisoDe(l.p.id);
                 return (
                   <li key={l.p.id} className="qb-linea">
-                    <div className="qb-linea-foto" aria-hidden="true">
-                      {p?.foto ? <Image src={p.foto} alt="" width={120} height={150} sizes="64px" /> : <span>{(p?.nombre ?? l.p.name).charAt(0)}</span>}
+                    {/* La tirita de ese perfume, chiquita, detrás del frasco: las que te llevás, apiladas. */}
+                    <div className="qb-linea-foto">
+                      <span className="qb-linea-tirita" aria-hidden="true" />
+                      {p?.foto ? (
+                        <Image src={p.foto} alt={altDeFrasco(p.nombre, p.casa)} width={240} height={300} sizes="88px" />
+                      ) : (
+                        <QConCorona className="qb-linea-q" />
+                      )}
                     </div>
                     <div className="qb-linea-texto">
                       <p className="qb-linea-nombre">{p?.nombre ?? l.p.name}</p>

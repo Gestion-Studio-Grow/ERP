@@ -16,18 +16,19 @@ const CSS_GRACIAS = `
   radial-gradient(30% 24% at 55% 20%,rgba(111,199,184,.06),transparent 70%);
   animation:qb-niebla 16s ease-in-out infinite alternate}
 @keyframes qb-niebla{to{transform:translate3d(4%,-3%,0) scale(1.08)}}
-.qb-gracias-caja{position:relative;max-width:620px}
-.qb-gracias-sello{width:88px;height:88px;margin:0 auto 22px;color:var(--oro);animation:qb-sello 1.2s cubic-bezier(.2,.8,.2,1) both}
+.qb-gracias-caja{position:relative;max-width:760px}
+.qb-gracias-sello{width:104px;height:104px;margin:0 auto 26px;color:var(--oro);animation:qb-sello 1.2s cubic-bezier(.2,.8,.2,1) both}
 @keyframes qb-sello{from{opacity:0;transform:scale(.7) rotate(-12deg)}}
-.qb-gracias h1{margin:0;font:400 clamp(58px,10vw,104px)/.95 var(--caligrafia);text-wrap:balance;padding:0 .1em;animation:qb-sube 1.2s cubic-bezier(.2,.8,.2,1) .15s both}
+.qb-gracias h1{margin:0;font:400 clamp(68px,11vw,136px)/.95 var(--caligrafia);text-wrap:balance;padding:0 .1em;animation:qb-sube 1.2s cubic-bezier(.2,.8,.2,1) .15s both}
 /* «Tu pedido» entre dos filetes dorados, como el antetítulo del portal; el número en cifras alineadas. */
-.qb-gracias-numero{display:flex;flex-direction:column;align-items:center;margin:30px 0 0;font:500 12px/1 var(--palo);letter-spacing:.34em;text-transform:uppercase;color:var(--hueso-2);animation:qb-sube 1.2s cubic-bezier(.2,.8,.2,1) .3s both}
+.qb-gracias-numero{display:flex;flex-direction:column;align-items:center;margin:34px 0 0;font:500 12.5px/1 var(--palo);letter-spacing:.3em;text-transform:uppercase;color:var(--hueso-2);animation:qb-sube 1.2s cubic-bezier(.2,.8,.2,1) .3s both}
 .qb-gracias-numero::before,.qb-gracias-numero::after{content:"";width:64px;height:1px;background:linear-gradient(90deg,transparent,var(--oro),transparent);margin:0 auto 16px}
 .qb-gracias-numero::after{margin:18px auto 0}
-.qb-gracias-numero strong{display:block;margin-top:12px;font:400 clamp(44px,7vw,72px)/1 var(--didona);letter-spacing:0;color:var(--hueso);font-variant-numeric:lining-nums tabular-nums}
-.qb-gracias-texto{margin:28px auto 0;max-width:46ch;color:var(--hueso-2);font-size:17px;animation:qb-sube 1.2s cubic-bezier(.2,.8,.2,1) .45s both}
-.qb-gracias-acciones{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:34px;animation:qb-sube 1.2s cubic-bezier(.2,.8,.2,1) .6s both}
-.qb-gracias-nota{margin:18px 0 0;color:var(--hueso-3);font-size:14px}
+.qb-gracias-numero strong{display:block;margin-top:14px;font:400 clamp(52px,7.6vw,88px)/1 var(--didona);letter-spacing:0;color:var(--hueso);font-variant-numeric:lining-nums tabular-nums}
+.qb-gracias-texto{margin:30px auto 0;max-width:46ch;color:var(--hueso-2);font-size:clamp(18px,1.4vw,22px);animation:qb-sube 1.2s cubic-bezier(.2,.8,.2,1) .45s both}
+.qb-gracias-acciones{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin-top:40px;animation:qb-sube 1.2s cubic-bezier(.2,.8,.2,1) .6s both}
+.qb-gracias-acciones .qb-boton-oro{min-width:min(100%,340px)}
+.qb-gracias-nota{margin:20px 0 0;color:var(--hueso-3);font-size:16px}
 @keyframes qb-sube{from{opacity:0;transform:translateY(18px);filter:blur(6px)}}
 `;
 
