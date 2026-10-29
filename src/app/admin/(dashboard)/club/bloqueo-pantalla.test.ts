@@ -734,7 +734,12 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await bloqueo(p2).getByRole("button", { name: "Entendido (queda bloqueada)" }).click();
     await bloqueo(p2).getByRole("heading", { name: "Pantalla bloqueada" }).waitFor();
     assert.equal(await p2.getByText(/Tu PIN nuevo quedó guardado/).count(), 0);
-    assert.equal(await p2.evaluate((k) => (JSON.parse(localStorage.getItem(k) ?? "{}") as { estado?: { usuarios?: { id: string; pin: string }[] } }).estado?.usuarios?.find((u) => u.id === "u-rober")?.pin ?? "11", claveDeLaJornada("demo-club")), "11", "el PIN de Rober no cambió");
+    // En la foto el PIN va con hash (`h1:`, PBKDF2 con la sal del club): «no cambió» = sigue siendo el de «11».
+    const rober = await p2.evaluate((k) => {
+      const e = (JSON.parse(localStorage.getItem(k) ?? "{}") as { estado?: { salPin?: string; usuarios?: { id: string; pin: string }[] } }).estado;
+      return { pin: e?.usuarios?.find((u) => u.id === "u-rober")?.pin ?? "11", sal: e?.salPin ?? null };
+    }, claveDeLaJornada("demo-club"));
+    assert.equal(rober.pin, rober.sal ? M.hashPin("11", rober.sal) : "11", "el PIN de Rober no cambió");
     assert.deepEqual(errores2, []);
     await otro.close();
   });
