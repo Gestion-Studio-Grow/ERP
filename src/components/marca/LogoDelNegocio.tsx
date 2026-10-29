@@ -12,8 +12,8 @@
 
 import type { EsteticaBackoffice } from "@/lib/estetica-backoffice";
 
-// Logos reales que ya están en public/tenants (los mismos del front de cada negocio). Por slug; un local `x-*` hereda
-// el de su marca. PDC no figura: la inmobiliaria no se toca (orden del dueño, 29/10). Medidas = las del archivo, para
+// Logos reales que ya están en public/tenants (los mismos del front de cada negocio). Por slug exacto: un local con otro slug
+// cae al logo tipográfico hasta que se lo agregue acá. PDC no figura: la inmobiliaria no se toca (orden del dueño, 29/10). Medidas = las del archivo, para
 // reservar el lugar (CLS 0); se muestran a 40 px de alto como máximo.
 const LOGO_REAL: Readonly<Record<string, { src: string; ancho: number; alto: number; conNombre?: boolean }>> = {
   shinevelas: { src: "/tenants/shinevelas/brand/logo.webp", ancho: 480, alto: 148 },
