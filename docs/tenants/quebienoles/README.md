@@ -63,6 +63,25 @@ El mail del OWNER es **provisional** (`dueno@quebienoles.com.ar`): cambiarlo por
 | 3 · Arquitectura | Tenant + rubro reusable, sin schema nuevo; host en código con la variable ganando (MT-6); three.js en chunk propio por import dinámico (ninguna ruta lo referencia de entrada); carga de catálogo filtrada por `tenantId`, con GUC de RLS, simulación por defecto y sin borrados. |
 | 4 · Confiabilidad | `tsc` 0 · eslint 0 en lo tocado · `next build` OK · tests: 0 fallas nuevas (las 19 que quedan fallan idénticas en `origin/main` dfb99bb) · sin migraciones · regresión en producción: CH, MAGRA y Shine OK después del deploy. |
 
+## Rediseño «la tirita de papel» (29/10/2026, rama `estetica/f-quebienoles`)
+
+Diseño: `Factory-GSG/00-ESTADO/estetica-2026-10/fronts/quebienoles/DISENO.md`. Sube la vara sin tocar datos ni
+motor: `perfumes.ts`, `vitrina.ts`, `recomendador.ts`, `storefront.ts`, `tienda/page.tsx` y el motor de pedidos
+quedan igual.
+
+- **La idea:** en una perfumería el vendedor rocía una tira de papel y te la da. Cada perfume es una tirita
+  sobre la mesa de mármol (`Iconos.tsx` → `Tirita`, `FotoDeFrasco`), con el nombre escrito a mano y «Huele a …»
+  (`aQueHuele`). El frasco 3D del portal sigue siendo el único protagonista.
+- **Ficha:** «Olelo en el tiempo» (salida/corazón/fondo como *recién rociado / a los 20 minutos / horas
+  después*, pestañas con teclado y regla de tiempo) y «Ponelo al lado» (comparación de dos, «Sumar las dos»).
+  Acciones pegajosas en compu; barra fija al pie de la hoja en el teléfono; se cierra arrastrando la foto.
+- **Teléfono:** portal en tres filas con el frasco entero en la primera pantalla; pastilla de rociar con gota
+  dentro del escenario; barra fija de la bolsa abajo (`.qb-barra`, ≤ 899 px), el frasco vuela hasta ahí.
+- **Imágenes:** todas con `alt` real («Frasco de Khamrah, de Lattafa») y un solo `sizes` para las fotos chicas
+  (`tokens.ts` → `SIZES_FRASCO`); las fotos de Instagram nunca se muestran más grandes que su tamaño real.
+- **Escala:** H1 `clamp(96px,13.5vw,232px)` (cel. 72-124 px), cuerpo 17-20 px, botones 60 px (cel. 56 px),
+  contenedor de 1520 px, 4 tarjetas por fila a 1440.
+
 ## Pendientes
 
 Ver `docs/preventa/analisis-redes-quebienoles.md` §6 (presentación de dos perfumes, Bharara Bleu, ml, stock,
