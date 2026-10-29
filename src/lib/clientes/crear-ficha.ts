@@ -34,6 +34,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { normalizarTelefono } from "./telefono";
+import { emitirClienteCreado } from "@/eventos/del-core";
 
 /** Cuántos dígitos del final se comparan en SQL. Ver la cabecera: no puede ser más de 6. */
 export const DIGITOS_DEL_FILTRO = 6;
@@ -105,5 +106,7 @@ export async function crearFichaEnTx(
   if (pedidos.length > 0) {
     await tx.order.updateMany({ where: { tenantId, id: { in: pedidos }, clientId: null }, data: { clientId: creada.id } });
   }
+  // N2/P2: `cliente.creado@1` en la transacción del alta (teléfono enmascarado).
+  await emitirClienteCreado(tx, { tenantId, clienteId: creada.id, nombre: d.name, telefono: d.phone });
   return { ok: true, id: creada.id, pedidos };
 }

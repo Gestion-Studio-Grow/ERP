@@ -221,6 +221,12 @@ export function hidratarEstado(foto) {
     const estado = structuredClone(e);
     for (const k of ["proveedores", "solicitudesAcceso", "novedades", "pedidos", "difusiones", "fijos", "bloqueos", "espera", "remitos", "pagosProveedor", "contenido", "log"]) if (!esLista(estado[k])) estado[k] = [];
     estado.caja.cierres = esLista(estado.caja.cierres) ? estado.caja.cierres : [];
+    // `caja.turnos` (Tanda B4) es opcional: aparece con el primer turno contado. Sólo queda lo que se entiende.
+    if ("turnos" in estado.caja) {
+      const sanos = esLista(estado.caja.turnos) ? estado.caja.turnos.filter((t) => esObjeto(t) && /^[\w-]{1,60}$/.test(String(t.id ?? "")) && esFecha(t.dia) && esObjeto(t.contado) && esObjeto(t.esperado) && esObjeto(t.diferencias)) : [];
+      if (sanos.length) estado.caja.turnos = sanos;
+      else delete estado.caja.turnos;
+    }
     estado.luces = esObjeto(estado.luces) ? estado.luces : Object.fromEntries(estado.canchas.map((c) => [c.id, false]));
     estado.clima = esObjeto(estado.clima) ? estado.clima : { lluvia: null };
     for (const k of ["pedidos", "novedades", "difusiones", "solicitudesAcceso", "contenido"]) estado[k] = estado[k].filter((x) => esObjeto(x) && /^[\w-]{1,60}$/.test(String(x.id ?? "")));
@@ -254,6 +260,19 @@ function normalizarConfig(config) {
   if (typeof config.politica.senaNuevos !== "boolean") config.politica.senaNuevos = CONFIG_DEMO.politica.senaNuevos;
   if (!(Number.isInteger(config.politica.turnosConfianza) && config.politica.turnosConfianza >= 0)) config.politica.turnosConfianza = CONFIG_DEMO.politica.turnosConfianza;
   if (!(Number.isInteger(config.diasAdelante) && config.diasAdelante >= 1 && config.diasAdelante <= DIAS_ADELANTE_MAX)) config.diasAdelante = CONFIG_DEMO.diasAdelante;
+  // Tanda 3 (3D): feriados, fin de semana y horario de un día. Opcionales: sólo queda lo que se entiende (nunca se
+  // agregan si la foto no los trae; sin ellos el club cobra y abre como siempre).
+  if ("feriados" in config) config.feriados = validarFeriados(config.feriados).feriados ?? [];
+  if ("finde" in config) {
+    const f = validarReglaFinde(config.finde, config.paso);
+    if (f.ok) config.finde = f.valor;
+    else delete config.finde;
+  }
+  if ("horarioExcepciones" in config) {
+    const sanas = Object.entries(esObjeto(config.horarioExcepciones) ? config.horarioExcepciones : {}).filter(([fecha, h]) => esFechaReal(fecha) && validarRangoHorario(h, config.paso).ok);
+    if (sanas.length) config.horarioExcepciones = Object.fromEntries(sanas.map(([fecha, h]) => [fecha, { abre: Math.round(h.abre), cierra: Math.round(h.cierra) }]));
+    else delete config.horarioExcepciones;
+  }
 }
 
 const esFecha = (x) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
@@ -265,8 +284,26 @@ const entero = (x) => (Number.isFinite(x) ? Math.round(x) : 0);
  * que no son números quedan en 0. Así un `archivo` tocado a mano no rompe la Configuración ni la seña web.
  */
 function normalizarArchivo(a) {
+  // Los números del día quedan números; el desglose por medio × rubro y los egresos por categoría (Tanda 3, para
+  // «Números por período»), sólo lo que se entiende. Un día archivado antes de ese cambio no trae el desglose y sigue
+  // sin traerlo (así «Números» sabe que de ese día sólo están los totales).
+  const numeros = (o) => Object.fromEntries(Object.entries(esObjeto(o) ? o : {}).filter(([k, n]) => /^[\w-]{1,40}$/.test(k) && Number.isFinite(n)).map(([k, n]) => [k, Math.round(n)]));
+  const desglose = (f) => ({
+    ...("porMedioRubro" in f ? { porMedioRubro: Object.fromEntries(Object.entries(esObjeto(f.porMedioRubro) ? f.porMedioRubro : {}).filter(([m, x]) => /^[\w-]{1,40}$/.test(m) && esObjeto(x)).map(([m, x]) => [m, numeros(x)])) } : {}),
+    ...("egresosPorCategoria" in f ? { egresosPorCategoria: numeros(f.egresosPorCategoria) } : {}),
+    // Tanda B4: los turnos de caja del día (resumen chico). Sólo los renglones que se entienden.
+    ...(esLista(f.turnosCaja) && f.turnosCaja.some(esObjeto)
+      ? { turnosCaja: f.turnosCaja.filter(esObjeto).slice(0, 12).map((t) => ({
+          numero: entero(t.numero), estado: t.estado === "cerrado" ? "cerrado" : "contado",
+          responsable: String(t.responsable ?? "").slice(0, 60), firma: typeof t.firma === "string" ? t.firma.slice(0, 60) : null,
+          desde: esObjeto(t.desde) ? { fecha: fechaONull(t.desde.fecha), min: Number.isFinite(t.desde.min) ? t.desde.min : null } : null,
+          hasta: esObjeto(t.hasta) ? { fecha: fechaONull(t.hasta.fecha), min: Number.isFinite(t.hasta.min) ? t.hasta.min : null } : null,
+          esperado: numeros(t.esperado), contado: numeros(t.contado), diferencia: entero(t.diferencia), motivo: String(t.motivo ?? "").slice(0, 200),
+        })) }
+      : {}),
+  });
   const dias = (esLista(a.dias) ? a.dias : []).filter((f) => esObjeto(f) && esFecha(f.dia))
-    .map((f) => ({ ...fila0(f.dia), ...Object.fromEntries(Object.keys(fila0(f.dia)).filter((k) => k !== "dia").map((k) => [k, entero(f[k])])) }));
+    .map((f) => ({ ...filaNumerica0(f.dia), ...Object.fromEntries(Object.keys(filaNumerica0(f.dia)).filter((k) => k !== "dia").map((k) => [k, entero(f[k])])), ...desglose(f) }));
   const clientes = Object.fromEntries(Object.entries(esObjeto(a.clientes) ? a.clientes : {})
     .filter(([id, x]) => /^[\w-]{1,60}$/.test(id) && esObjeto(x))
     .map(([id, x]) => [id, { jugados: Math.max(0, entero(x.jugados)), ultima: esFecha(x.ultima) ? x.ultima : "" }]));
@@ -729,10 +766,57 @@ export function terminarConfiguracion(estado, ahora) {
 
 // ───────────────────────── horarios por día ─────────────────────────
 
-/** Horario del club para esa fecha (cada día de la semana tiene el suyo). */
+/**
+ * Horario del club para esa fecha: el de ESE día si el dueño lo cambió «sólo este día» (`config.horarioExcepciones`),
+ * si no el de su día de la semana.
+ */
 export function horarioDe(estado, fecha) {
+  const solo = estado.config.horarioExcepciones?.[fecha];
+  if (solo) return { abre: solo.abre, cierra: solo.cierra };
   const h = estado.config.horarios?.[diaSemana(fecha)];
   return h ?? { abre: estado.config.apertura, cierra: estado.config.cierre };
+}
+
+/** ¿Es una fecha AAAA-MM-DD que existe en el calendario? (El 31/02 no.) */
+export function esFechaReal(x) {
+  if (!esFecha(x)) return false;
+  const d = new Date(`${x}T12:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === x;
+}
+
+/** Un rango abre/cierra que sirve (cierre después de la apertura, hasta las 02:00, cada `paso` minutos). PURA. */
+function validarRangoHorario(h, paso = 30) {
+  const A = Math.round(Number(h?.abre)), C = Math.round(Number(h?.cierra));
+  if (!Number.isFinite(A) || !Number.isFinite(C) || A < 0 || C > 26 * 60 || A >= C) return { ok: false, motivo: "El horario de cierre tiene que ser después del de apertura (hasta las 02:00)." };
+  if (A % paso || C % paso) return { ok: false, motivo: `Los horarios van cada ${paso} minutos.` };
+  return { ok: true, abre: A, cierra: C };
+}
+
+/**
+ * «Sólo este día» (3D): el dueño cambia el horario de UNA fecha («el viernes 24 cerramos a las 20») sin tocar los
+ * otros viernes. `horario: null` lo vuelve al de siempre. Avisa qué turnos de ese día quedan afuera (no los mueve).
+ */
+export function ajustarHorarioDelDia(estado, fecha, horario, auth, ahora) {
+  const a = autorizar(estado, auth, "configurar", false);
+  if (!a.ok) return a;
+  if (!esFechaReal(fecha)) return { ok: false, motivo: "Elegí el día." };
+  if (ahora?.fecha && fecha < ahora.fecha) return { ok: false, motivo: "Ese día ya pasó." };
+  const quien = a.usuario.nombre;
+  const dd = `${Number(fecha.slice(8))}/${Number(fecha.slice(5, 7))}`;
+  if (horario == null) {
+    if (estado.config.horarioExcepciones?.[fecha]) {
+      delete estado.config.horarioExcepciones[fecha];
+      if (!Object.keys(estado.config.horarioExcepciones).length) delete estado.config.horarioExcepciones;
+      registrar(estado, `${quien} volvió el ${dd} al horario de siempre.`, ahora);
+    }
+    return { ok: true, afuera: [] };
+  }
+  const v = validarRangoHorario(horario, estado.config.paso);
+  if (!v.ok) return v;
+  estado.config.horarioExcepciones = { ...(estado.config.horarioExcepciones ?? {}), [fecha]: { abre: v.abre, cierra: v.cierra } };
+  const afuera = estado.reservas.filter((r) => r.estado === "reservada" && r.fecha === fecha && (r.inicio < v.abre || r.inicio + r.duracion > v.cierra));
+  registrar(estado, `${quien} cambió el horario sólo del ${dd}: ${hhmm(v.abre)} a ${hhmm(v.cierra)}.`, ahora);
+  return { ok: true, afuera };
 }
 
 /** El dueño cambia el rango horario de un día de la semana. Avisa qué turnos ya reservados quedan afuera. */
@@ -758,13 +842,13 @@ export function ajustarHorario(estado, dia, { abre, cierra }, auth, ahora) {
  * (Sin descuentos de socio: en Break Point son todos clientes.)
  */
 export function precioTurno(estado, { fecha, inicio, duracion, canchaId }) {
-  const { tarifas, feriados = [] } = estado.config;
-  const findeOFeriado = [0, 6].includes(diaSemana(fecha)) || feriados.includes(fecha);
+  const { tarifas } = estado.config;
   const pico = tarifas.find((t) => t.pico) ?? tarifas[tarifas.length - 1];
+  const regla = reglaDelDia(estado, fecha);
   const c = cancha(estado, canchaId);
   let total = 0;
   for (let m = inicio; m < inicio + duracion; m++) {
-    const franja = findeOFeriado ? pico : tarifas.find((t) => m >= t.desde && m < t.hasta) ?? pico;
+    const franja = tarifaDelMinuto(estado, regla, m) ?? pico;
     total += franja.precioHora / 60;
   }
   if (c?.recargoPct) total *= 1 + c.recargoPct / 100;
@@ -772,10 +856,109 @@ export function precioTurno(estado, { fecha, inicio, duracion, canchaId }) {
 }
 
 export function franjaDe(estado, fecha, min) {
-  const findeOFeriado = [0, 6].includes(diaSemana(fecha)) || (estado.config.feriados ?? []).includes(fecha);
-  if (findeOFeriado) return "pico";
-  const f = estado.config.tarifas.find((t) => min >= t.desde && min < t.hasta);
+  const f = tarifaDelMinuto(estado, reglaDelDia(estado, fecha), min);
   return f?.pico ? "pico" : "valle";
+}
+
+// ── fin de semana y feriados (3D) ──
+//
+// `config.finde` (opcional; sin él, como siempre: sábado y domingo todo pico):
+//   "pico"                         todo el día pico
+//   "semana"                       las mismas franjas que la semana
+//   { valleHasta: 14 * 60 }        valle hasta esa hora, pico después
+//   { sabado: <regla>, domingo: <regla> }   una regla para cada día
+// Los feriados (`config.feriados`) son siempre todo pico. Los turnos ya reservados conservan su precio (`reserva.precio`).
+
+/** Lo que se cobra ese día: "semana" (las franjas), "pico" (todo pico) o `{ valleHasta }`. PURA. */
+export function reglaDelDia(estado, fecha) {
+  if (esFeriado(estado, fecha)) return "pico";
+  const dia = diaSemana(fecha);
+  if (dia !== 0 && dia !== 6) return "semana";
+  return reglaFinde(estado, dia === 6 ? "sabado" : "domingo");
+}
+
+/** La regla de ese día del fin de semana según `config.finde` (de fábrica, "pico"). PURA. */
+export function reglaFinde(estado, cual) {
+  const f = estado.config.finde;
+  if (f == null) return "pico";
+  if (esObjeto(f) && ("sabado" in f || "domingo" in f)) return f[cual] ?? "pico";
+  return f;
+}
+
+/** ¿Esa fecha es feriado para el club? PURA. */
+export const esFeriado = (estado, fecha) => (estado.config.feriados ?? []).includes(fecha);
+
+/** La tarifa del minuto `m` con la regla del día; undefined si ninguna franja lo cubre (cada uno decide qué hacer). */
+function tarifaDelMinuto(estado, regla, m) {
+  const { tarifas } = estado.config;
+  const pico = tarifas.find((t) => t.pico) ?? tarifas[tarifas.length - 1];
+  if (regla === "pico") return pico;
+  if (esObjeto(regla)) return m < regla.valleHasta ? (tarifas.find((t) => !t.pico) ?? pico) : pico;
+  return tarifas.find((t) => m >= t.desde && m < t.hasta);
+}
+
+const REGLAS_FINDE = ["pico", "semana"];
+/**
+ * ¿Sirve esta regla de fin de semana? Devuelve la regla limpia (`valor`) o el motivo en criollo. `valleHasta` va cada
+ * `paso` minutos, entre la apertura más temprana posible y las 02:00. PURA.
+ */
+export function validarReglaFinde(regla, paso = 30) {
+  const una = (r, cual) => {
+    if (REGLAS_FINDE.includes(r)) return { ok: true, valor: r };
+    if (esObjeto(r) && Object.keys(r).length === 1 && "valleHasta" in r) {
+      const v = Math.round(Number(r.valleHasta));
+      if (!Number.isFinite(v) || v <= 0 || v >= 26 * 60) return { ok: false, motivo: `${cual}: la hora del valle tiene que estar dentro del día.` };
+      if (v % paso) return { ok: false, motivo: `${cual}: los horarios van cada ${paso} minutos.` };
+      return { ok: true, valor: { valleHasta: v } };
+    }
+    return { ok: false, motivo: `${cual}: elegí «todo pico», «como la semana» o «valle hasta las …».` };
+  };
+  if (esObjeto(regla) && ("sabado" in regla || "domingo" in regla)) {
+    if (Object.keys(regla).some((k) => k !== "sabado" && k !== "domingo")) return { ok: false, motivo: "Fin de semana: sólo sábado y domingo." };
+    const s = una(regla.sabado ?? "pico", "Sábado");
+    if (!s.ok) return s;
+    const d = una(regla.domingo ?? "pico", "Domingo");
+    if (!d.ok) return d;
+    return { ok: true, valor: { sabado: s.valor, domingo: d.valor } };
+  }
+  return una(regla, "Fin de semana");
+}
+
+/** El dueño elige cómo se cobra el fin de semana (`validarReglaFinde`). Lo ya reservado conserva su precio. */
+export function ajustarFinde(estado, regla, auth, ahora) {
+  const a = autorizar(estado, auth, "configurar", false);
+  if (!a.ok) return a;
+  const v = validarReglaFinde(regla, estado.config.paso);
+  if (!v.ok) return v;
+  estado.config.finde = v.valor;
+  registrar(estado, `${a.usuario.nombre} cambió cómo se cobra el fin de semana.`, ahora);
+  return { ok: true, finde: v.valor };
+}
+
+/** Tope de feriados cargados (los de dos años sobran). */
+export const FERIADOS_MAX = 60;
+/**
+ * ¿Sirve esta lista de feriados? Cada uno una fecha real (AAAA-MM-DD), sin repetidos, ordenados. Devuelve la lista
+ * limpia (`feriados`) o el motivo nombrando la que no sirve. PURA.
+ */
+export function validarFeriados(fechas) {
+  if (!esLista(fechas)) return { ok: false, motivo: "Los feriados van en una lista de fechas.", feriados: [] };
+  const malas = fechas.filter((f) => !esFechaReal(f));
+  const buenas = [...new Set(fechas.filter(esFechaReal))].sort();
+  if (malas.length) return { ok: false, motivo: `Esa fecha no existe: «${String(malas[0]).slice(0, 20)}». Usá día, mes y año.`, feriados: buenas.slice(0, FERIADOS_MAX) };
+  if (buenas.length > FERIADOS_MAX) return { ok: false, motivo: `Son demasiados feriados (hasta ${FERIADOS_MAX}).`, feriados: buenas.slice(0, FERIADOS_MAX) };
+  return { ok: true, feriados: buenas };
+}
+
+/** El dueño carga los feriados (todo pico ese día). Lo ya reservado conserva su precio. */
+export function ajustarFeriados(estado, fechas, auth, ahora) {
+  const a = autorizar(estado, auth, "configurar", false);
+  if (!a.ok) return a;
+  const v = validarFeriados(fechas);
+  if (!v.ok) return { ok: false, motivo: v.motivo };
+  estado.config.feriados = v.feriados;
+  registrar(estado, `${a.usuario.nombre} dejó ${v.feriados.length} feriado${v.feriados.length === 1 ? "" : "s"} cargado${v.feriados.length === 1 ? "" : "s"}.`, ahora);
+  return { ok: true, feriados: v.feriados };
 }
 
 // ───────────────────────── disponibilidad ─────────────────────────
@@ -981,6 +1164,42 @@ export function resolverCredito(estado, novedadId, { aprobar, monto, limite }, a
 
 export function resolverCC(estado, novedadId, { aprobar, limite }, auth, ahora) {
   return resolverCredito(estado, novedadId, { aprobar, monto: limite }, auth, ahora);
+}
+
+/**
+ * La resolución del dueño que llegó desde SU celular (Tanda 3A: el aprobador real). El PIN ya lo verificó el servidor
+ * contra los dueños de la foto vigente; acá se APLICA en el puesto, sin código y sin PIN: `aprobo` es el dueño que
+ * firmó (su id o su nombre; tiene que ser un dueño activo del club), `decision` "aprobado" o "rechazado" y `monto` lo
+ * que aprobó (puede ser otro que el pedido). Aprobar hace lo mismo que aprobar en el sistema (`aplicarCredito`:
+ * el fiado o la cuenta corriente, y si el cliente se fue, la cuenta se cierra sola); rechazar deja la cuenta abierta.
+ * IDEMPOTENTE: la misma resolución dos veces (el latido de dos puestos, re-aplicar) no hace nada la segunda
+ * (`yaEstaba: true`); una resolución distinta sobre un pedido ya resuelto, no entra.
+ * OJO: no verifica nada de quien la trae. Sólo la llama el comando que aplica lo que la BASE dice que resolvió el dueño.
+ */
+export function autorizarNovedad(estado, novedadId, { aprobo, monto, decision } = {}, ahora) {
+  const n = estado.novedades.find((x) => x.id === novedadId);
+  if (!n) return { ok: false, motivo: "No encuentro ese pedido." };
+  if (decision !== "aprobado" && decision !== "rechazado") return { ok: false, motivo: "Falta qué decidió el dueño." };
+  const quien = String(aprobo ?? "").trim();
+  const duenio = estado.usuarios.find((u) => u.rol === "duenio" && u.activo !== false && (u.id === quien || u.nombre === quien));
+  if (!duenio) return { ok: false, motivo: "Ese pedido lo tiene que resolver un dueño del club." };
+  const aprobar = decision === "aprobado";
+  const importe = Math.round(Number(monto ?? n.monto ?? n.limite));
+  if (aprobar && !(importe > 0)) return { ok: false, motivo: "Falta el monto que aprobó el dueño." };
+  if (n.estado !== "pendiente") {
+    const igual = n.estado === (aprobar ? "aprobada" : "rechazada") && n.resolvio === duenio.nombre && (!aprobar || n.limiteAprobado === importe);
+    return igual ? { ok: true, yaEstaba: true, aprobo: duenio.nombre, decision, monto: aprobar ? importe : 0 } : { ok: false, motivo: `Ese pedido ya se resolvió (${n.estado === "aprobada" ? "aprobado" : "rechazado"} por ${n.resolvio ?? "otro"}).` };
+  }
+  const c = cliente(estado, n.clienteId);
+  if (!c) return { ok: false, motivo: "No encuentro al cliente." };
+  if (aprobar) aplicarCredito(estado, n, c, importe, duenio.nombre, ahora);
+  else {
+    n.estado = "rechazada";
+    n.resolvio = duenio.nombre;
+    registrar(estado, `${duenio.nombre} rechazó el ${n.tipo === "fiado" ? "fiado" : "crédito"} de ${c.nombre} (desde su celular).`, ahora);
+  }
+  n.desdeElCelular = true;
+  return { ok: true, yaEstaba: false, aprobo: duenio.nombre, decision, monto: aprobar ? importe : 0 };
 }
 
 /** FNV-1a de 32 bits: chico, sin dependencias y igual en cualquier navegador. */
@@ -1272,8 +1491,10 @@ export function dividir(total, n) {
   return out;
 }
 
-function movimientoCaja(estado, { tipo, medio, monto, concepto, reservaId = null, usuario: quien = null }, ahora) {
-  const mov = { id: nuevoId("m"), tipo, medio, monto, concepto, reservaId, usuario: quien, ...sello(ahora), ...(ahora && { caja: cajaAbierta(estado, ahora) }) };
+function movimientoCaja(estado, { tipo, medio, monto, concepto, reservaId = null, usuario: quien = null, extra = null }, ahora) {
+  // `extra` (Tanda B4): lo propio de un retiro o de un egreso por categoría (`categoria`, `comprobante`, `firma`), o la
+  // cuenta de cargos que se cobró (`cuentaId`: `corregirMedio` corrige también su pago).
+  const mov = { id: nuevoId("m"), tipo, medio, monto, concepto, reservaId, usuario: quien, ...sello(ahora), ...(ahora && { caja: cajaAbierta(estado, ahora) }), ...(extra ?? {}) };
   estado.caja.movimientos.push(mov);
   return mov;
 }
@@ -1459,7 +1680,7 @@ export function pagarCuenta(estado, cuentaId, { medio, monto }, ahora) {
     const c = cobrarConCreditos(estado, cta.clienteId, importe);
     if (!c.ok) return c;
   } else {
-    movimientoCaja(estado, { tipo: "ingreso", medio, monto: importe, concepto: `Buffet ${cta.titular}` }, ahora);
+    movimientoCaja(estado, { tipo: "ingreso", medio, monto: importe, concepto: `Buffet ${cta.titular}`, extra: { cuentaId: cta.id } }, ahora);
   }
   cta.pagos.push({ medio, monto: importe, ...sello(ahora) });
   registrar(estado, `Cobro de cargos ${pesos(importe)} (${MEDIOS[medio]}) — ${cta.titular}.`, ahora);
@@ -1738,7 +1959,7 @@ export function cobrarCuentaYSusCargos(estado, cuentaId, { medio, auth = null },
   for (const x of lista) {
     const monto = saldoCuenta(x);
     const paga = x.id === cta.id ? "" : ` (paga ${cta.titular})`;
-    if (medio !== "monedero") movimientoCaja(estado, { tipo: "ingreso", medio, monto, concepto: `Buffet ${x.titular}${paga}` }, ahora);
+    if (medio !== "monedero") movimientoCaja(estado, { tipo: "ingreso", medio, monto, concepto: `Buffet ${x.titular}${paga}`, extra: { cuentaId: x.id } }, ahora);
     x.pagos.push({ medio, monto, ...(x.id !== cta.id && { pagadoPor: cta.id }), ...sello(ahora) });
   }
   registrar(estado, `Cobro de cargos ${pesos(total)} (${MEDIOS[medio]}) — ${cta.titular}${lista.length > 1 ? `, con los de ${lista.filter((x) => x !== cta).map((x) => x.titular).join(", ")}` : ""}.`, ahora);
@@ -2345,19 +2566,46 @@ export function quitarBloqueo(estado, bloqueoId, ahora) {
 
 // ───────────────────────── turnos fijos ─────────────────────────
 
-export function crearFijo(estado, { clienteId, canchaId, dia, inicio, duracion = estado.config.duracionTurno, titular }) {
-  const f = { id: nuevoId("f"), clienteId, canchaId, dia, inicio, duracion, titular: titular ?? cliente(estado, clienteId)?.nombre, excepciones: [] };
+/**
+ * Crea el fijo. `desde` (opcional): la primera fecha que juega (el fijo que nace en el alta de un turno de dentro de
+ * 10 días no se baja antes).
+ */
+export function crearFijo(estado, { clienteId, canchaId, dia, inicio, duracion = estado.config.duracionTurno, titular, desde = null }) {
+  const f = { id: nuevoId("f"), clienteId, canchaId, dia, inicio, duracion, titular: titular ?? cliente(estado, clienteId)?.nombre, excepciones: [], ...(esFecha(desde) ? { desde } : {}) };
   estado.fijos.push(f);
   return f;
 }
 
+/**
+ * ¿Ese fijo juega esa fecha? Su día de la semana, no liberada («esta semana no vienen»), dentro de su vigencia
+ * (`desde` … `hasta`, inclusive) y fuera de la pausa (`pausa.desde` … `pausa.hasta`, inclusive). PURA.
+ */
+export function fijoJuegaEl(f, fecha) {
+  if (!f || f.dia !== diaSemana(fecha) || (f.excepciones ?? []).includes(fecha)) return false;
+  if (f.desde && fecha < f.desde) return false;
+  if (f.hasta && fecha > f.hasta) return false;
+  if (f.pausa && fecha >= f.pausa.desde && fecha <= f.pausa.hasta) return false;
+  return true;
+}
+
+/** Motivo con el que `darDeBajaFijo` cancela los turnos de una pausa (marca: esa fecha NO quedó bajada para siempre). */
+export const MOTIVO_PAUSA_FIJO = "Pausa del turno fijo";
+
+/**
+ * ¿Ese fijo ya está bajado esa fecha? Cuenta cualquier turno suyo de ese día (vivo o cancelado por el cliente, la
+ * baja o «liberar»), salvo los cancelados por una PAUSA: si la pausa se reemplaza por otra más corta y la fecha
+ * vuelve a jugar (`fijoJuegaEl`), el turno tiene que volver a la grilla (BP-101 «vuelve solo»). PURA.
+ */
+export function fijoBajadoEl(estado, f, fecha) {
+  return estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha && !(r.estado === "cancelada" && r.motivoCancelacion === MOTIVO_PAUSA_FIJO));
+}
+
 /** Baja a la grilla los turnos fijos del día (idempotente). Un fijo que choca no pisa: avisa. */
 export function materializarFijos(estado, fecha) {
-  const dia = diaSemana(fecha);
   const conflictos = [];
   for (const f of estado.fijos) {
-    if (f.dia !== dia || f.excepciones.includes(fecha)) continue;
-    if (estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha)) continue;
+    if (!fijoJuegaEl(f, fecha)) continue;
+    if (fijoBajadoEl(estado, f, fecha)) continue;
     const res = crearReserva(estado, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion, tipo: "fijo", clienteId: f.clienteId, titular: f.titular, fijoId: f.id, origen: "fijo" });
     if (!res.ok) conflictos.push({ fijo: f, motivo: res.motivo });
   }
@@ -2386,6 +2634,72 @@ export function liberarFijo(estado, fijoId, fecha, ahora) {
   const r = estado.reservas.find((x) => x.fijoId === fijoId && x.fecha === fecha && x.estado === "reservada");
   if (r) return cancelar(estado, r.id, { motivo: "Libera el turno fijo de esta semana" }, ahora);
   return { ok: true };
+}
+
+/** Lo más largo que se pausa un fijo (un año). */
+export const PAUSA_FIJO_MAX_DIAS = 366;
+
+/**
+ * «Dar de baja» un fijo (Tanda 3C, bp-DISENO §3.10) o pausarlo:
+ *   · baja `{ desde }`: deja de jugar desde esa fecha (inclusive). Si ya no le queda ninguna fecha por jugar, sale de la
+ *     lista; si no, queda con `hasta` = el día anterior (sigue hasta entonces).
+ *   · pausa `{ desde, pausaHasta }`: no juega de `desde` a `pausaHasta` (inclusive) y después VUELVE SOLO (los turnos
+ *     de después se bajan como siempre, `materializarFijos`). Una pausa nueva reemplaza a la anterior.
+ * En los dos casos se cancelan SUS turnos que ya estaban en la grilla en ese rango y no empezaron: con un dueño
+ * (`auth` de un dueño) como «cancela el club» (lo pagado vuelve siempre: crédito o, sin ficha, para devolver en mano);
+ * si no, con la regla de siempre (a tiempo, crédito; tarde, la seña queda en suspenso). Devuelve cada turno con su
+ * plata: la previa corre esto sobre una COPIA y lo que anuncia es lo que va a pasar.
+ * No es idempotente a propósito: re-aplicada sobre un fijo que otro puesto ya dio de baja, dice que no (sin tocar plata).
+ */
+export function darDeBajaFijo(estado, fijoId, { desde, pausaHasta = null, auth = null } = {}, ahora) {
+  const f = estado.fijos.find((x) => x.id === fijoId);
+  if (!f) return { ok: false, motivo: "Ese turno fijo ya no está (¿lo dio de baja otro puesto?)." };
+  if (!esFechaReal(desde)) return { ok: false, motivo: "Elegí desde cuándo." };
+  const hoy = ahora?.fecha ?? null;
+  if (hoy && desde < hoy) return { ok: false, motivo: "«Desde» no puede ser un día que ya pasó." };
+  const pausa = pausaHasta != null;
+  if (pausa) {
+    if (!esFechaReal(pausaHasta)) return { ok: false, motivo: "Elegí hasta cuándo se pausa." };
+    if (pausaHasta < desde) return { ok: false, motivo: "La pausa tiene que terminar después de que empieza." };
+    if (pausaHasta > sumarDias(desde, PAUSA_FIJO_MAX_DIAS)) return { ok: false, motivo: "La pausa puede ser de hasta un año. Si no vuelve, dalo de baja." };
+  }
+  if (f.hasta && desde > f.hasta) return { ok: false, motivo: `Ese fijo ya termina el ${Number(f.hasta.slice(8))}/${Number(f.hasta.slice(5, 7))}.` };
+  const porClub = !!auth?.usuarioId && puede(estado, auth.usuarioId, "autorizarCC");
+  const enRango = (r) => r.fijoId === f.id && r.estado === "reservada" && r.fecha >= desde && (!pausa || r.fecha <= pausaHasta) && (!ahora || minutosHasta(ahora, r.fecha, r.inicio) > 0);
+  const afectadas = estado.reservas.filter(enRango).sort((a, b) => (a.fecha + String(a.inicio).padStart(5, "0")).localeCompare(b.fecha + String(b.inicio).padStart(5, "0")));
+  const motivo = pausa ? MOTIVO_PAUSA_FIJO : "Baja del turno fijo";
+  const turnos = [];
+  for (const r of afectadas) {
+    const pagado = cobrado(r);
+    const res = cancelar(estado, r.id, { porClub, motivo }, ahora);
+    if (res.ok) turnos.push({ reservaId: r.id, fecha: r.fecha, inicio: r.inicio, canchaId: r.canchaId, pagado, devuelto: res.devuelto, devolverEnMano: res.devolverEnMano, enSuspenso: !!res.enSuspenso });
+  }
+  let quitado = false;
+  const vuelven = [];
+  const chocan = [];
+  const ddmm = (x) => `${Number(x.slice(8))}/${Number(x.slice(5, 7))}`;
+  if (pausa) {
+    f.pausa = { desde, hasta: pausaHasta };
+    // BP-101 «vuelve solo»: si la pausa nueva es más corta, las fechas que la anterior había bajado y ahora juegan
+    // vuelven a la grilla YA (no recién al próximo arranque), para que nadie venda ese hueco. Sólo las que no empezaron.
+    const fechasQueVuelven = [...new Set(estado.reservas.filter((r) => r.fijoId === f.id && r.estado === "cancelada" && r.motivoCancelacion === MOTIVO_PAUSA_FIJO && (!ahora || minutosHasta(ahora, r.fecha, f.inicio) > 0)).map((r) => r.fecha))].sort();
+    for (const fecha of fechasQueVuelven) {
+      if (!fijoJuegaEl(f, fecha) || fijoBajadoEl(estado, f, fecha)) continue;
+      const res = crearReserva(estado, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion, tipo: "fijo", clienteId: f.clienteId, titular: f.titular, fijoId: f.id, origen: "fijo" });
+      if (res.ok) vuelven.push(fecha);
+      else chocan.push({ fecha, motivo: res.motivo });
+    }
+    registrar(estado, `Se pausó el turno fijo de ${f.titular} del ${ddmm(desde)} al ${ddmm(pausaHasta)}${turnos.length ? ` (${turnos.length} turno${turnos.length > 1 ? "s" : ""} liberado${turnos.length > 1 ? "s" : ""})` : ""}.`, ahora);
+  } else {
+    const hasta = sumarDias(desde, -1);
+    // Si no le queda ninguna fecha por jugar (empieza después de `hasta`, o `hasta` ya pasó), sale de la lista.
+    quitado = (!!f.desde && hasta < f.desde) || (!!hoy && hasta < hoy);
+    if (quitado) estado.fijos = estado.fijos.filter((x) => x.id !== f.id);
+    else f.hasta = hasta;
+    registrar(estado, `Se dio de baja el turno fijo de ${f.titular}${quitado ? "" : ` desde el ${ddmm(desde)}`}${turnos.length ? ` (${turnos.length} turno${turnos.length > 1 ? "s" : ""} liberado${turnos.length > 1 ? "s" : ""})` : ""}.`, ahora);
+  }
+  const suma = (k) => turnos.reduce((s, t) => s + (t[k] ?? 0), 0);
+  return { ok: true, modo: pausa ? "pausa" : "baja", quitado, porClub, turnos, vuelven, chocan, devuelto: suma("devuelto"), devolverEnMano: suma("devolverEnMano"), enSuspenso: turnos.filter((t) => t.enSuspenso).length, retenido: turnos.reduce((s, t) => s + (t.enSuspenso ? t.pagado : 0), 0) };
 }
 
 // ───────────────────────── lista de espera ─────────────────────────
@@ -2478,6 +2792,8 @@ export function cerrarCaja(estado, { contado, usuarioId, pin, dia: diaPedido = n
     if (!cajasConMovimientosSinCerrar(estado).includes(diaPedido)) return { ok: false, motivo: "Esa caja ya está cerrada o no tiene movimientos." };
     dia = diaPedido;
   } else if (dia !== diaDeCaja(estado, ahora.fecha, ahora.min)) return { ok: false, motivo: "Esta caja ya está cerrada. Lo que se cobre desde ahora entra en la caja siguiente." };
+  // Un día que ya se trabaja por turnos (Tanda B4) se cierra consolidándolos (`cerrarDiaCaja`), con firma de caja.
+  if (turnosDeCaja(estado).some((t) => t.dia === dia)) return { ok: false, motivo: "Esta caja se trabaja por turnos: cerrala con «Cerrar el día», que consolida los turnos." };
   const r = resumenCaja(estado, dia);
   const n = Math.round(Number(contado));
   if (contado === "" || contado == null || !(n >= 0)) return { ok: false, motivo: "Contá el efectivo del cajón y cargalo." };
@@ -2485,6 +2801,301 @@ export function cerrarCaja(estado, { contado, usuarioId, pin, dia: diaPedido = n
   estado.caja.cierres.push(cierre);
   registrar(estado, `Cierre de caja del ${dia.slice(8)}/${dia.slice(5, 7)} por ${a.usuario.nombre}: diferencia ${pesos(cierre.diferencia)}.`, ahora);
   return { ok: true, cierre };
+}
+
+// ───────────────────────── turnos de caja (Tanda B4: cierre a ciegas, firmas, retiro, egreso por categoría) ─────────────────────────
+//
+// Cada turno (mañana / tarde / noche) cierra SU parte de la caja del día en dos pasos:
+//   1. `contarTurnoCaja`: quien opera (recepción, con su PIN de 2 alcanza) cuenta A CIEGAS —billetes por denominación y
+//      lo de cada medio— sin ver lo esperado. El conteo sella el turno: sus movimientos quedan con `turno` y lo que se
+//      cobre después entra en el turno siguiente. Recién ahí se muestra lo esperado y la diferencia.
+//   2. `cerrarTurnoCaja`: la FIRMA (PIN de 4, D-16) y, si hay diferencia, el motivo (obligatorio).
+// El cierre del día (12 → 12) consolida los turnos firmados (`cerrarDiaCaja`). Todo vive en la foto (`caja.turnos`, se
+// crea con el primer turno): sin migraciones.
+// El efectivo de un turno arranca con lo CONTADO al cerrar el anterior (el primero, con el fondo): una diferencia no se
+// arrastra; la del día es la suma de las de sus turnos.
+
+/** Billetes y monedas que se cuentan en el cajón (pesos). Lo que no es billete va en «monedas» (un importe). */
+export const DENOMINACIONES = Object.freeze([20000, 10000, 2000, 1000, 500, 200, 100, 50, 20, 10]);
+/** Las categorías del egreso del mostrador (`egresoPorCategoria`). */
+export const CATEGORIAS_EGRESO_CAJA = Object.freeze({ luz: "Luz", insumos: "Insumos", sueldos: "Sueldos", otros: "Otros" });
+/** Entre qué medios se corrige un cobro del turno abierto (`corregirMedio`). */
+export const MEDIOS_CORREGIBLES = Object.freeze(["efectivo", "mercadopago", "transferencia"]);
+/**
+ * Largo del PIN que FIRMA cierres, retiros y egresos (D-16). Valor PROVISIONAL, a confirmar con el dueño; configurable
+ * en `config.caja.largoPinFirma` (2 a 8). Con 4, recepción (PIN de 2) opera pero no firma.
+ */
+export const LARGO_PIN_FIRMA_CAJA = 4;
+/** El evento que deja armado el cierre de un turno (canal de eventos B1: todavía no existe en src/lib). */
+export const EVENTO_TURNO_CERRADO = "caja.turno.cerrada@1";
+
+export function largoFirmaCaja(estado) {
+  const n = estado?.config?.caja?.largoPinFirma;
+  return Number.isInteger(n) && n >= 2 && n <= 8 ? n : LARGO_PIN_FIRMA_CAJA;
+}
+
+const turnosDeCaja = (estado) => (esLista(estado.caja.turnos) ? estado.caja.turnos : []);
+const textoCorto = (x, max) => String(x ?? "").trim().slice(0, max);
+
+/**
+ * La firma de caja: quien firma (`firmaId`, o quien opera si no se eligió otro) tiene permiso, su PIN FIRMA
+ * (`verificarFirma`) y tiene el largo de firma (D-16). Quien opera (`usuarioId`) queda como responsable.
+ */
+function firmarCaja(estado, { usuarioId, firmaId = null, pin }, accion) {
+  const resp = autorizar(estado, { usuarioId }, accion, false);
+  if (!resp.ok) return resp;
+  const quien = firmaId || usuarioId;
+  const f = autorizar(estado, { usuarioId: quien, pin }, accion, true);
+  if (!f.ok) return f;
+  const largo = largoFirmaCaja(estado);
+  // Firma por ROL, no por el PIN que llega (CERT-B4 v5, F6): el largo de un PIN con hash lo declara el navegador, así
+  // que recepción con un PIN propio de 4 no firma. Mismo criterio que la pantalla (`puedeFirmarCierres`).
+  if (largoPin(f.usuario.rol) < largo)
+    return { ok: false, motivo: `Esto lo firma un PIN de ${largo} dígitos y ${f.usuario.nombre} opera con el de ${largoPin(f.usuario.rol)}: se opera pero no se firma. Que firme un dueño.`, pinCorto: true };
+  if (String(pin ?? "").trim().length < largo)
+    return { ok: false, motivo: `Esto lo firma un PIN de ${largo} dígitos: con el PIN de ${String(pin ?? "").trim().length} se opera pero no se firma. Que firme un dueño.`, pinCorto: true };
+  return { ok: true, responsable: resp.usuario, firma: f.usuario };
+}
+
+/** El día de caja de un turno: el pedido (si tiene movimientos sin cerrar) o la caja abierta. */
+function diaDelTurno(estado, diaPedido, ahora) {
+  if (!diaPedido) return { ok: true, dia: cajaAbierta(estado, ahora) };
+  if (cajaCerrada(estado, diaPedido)) return { ok: false, motivo: "Esa caja ya está cerrada." };
+  return { ok: true, dia: diaPedido };
+}
+
+/**
+ * El turno ABIERTO de un día de caja: los movimientos que todavía no se contaron, desde cuándo y lo que tendría que
+ * haber por medio (el efectivo, con lo que dejó contado el turno anterior o el fondo). PURA.
+ */
+export function turnoDeCajaAbierto(estado, dia) {
+  const delDia = turnosDeCaja(estado).filter((t) => t.dia === dia);
+  const anterior = delDia[delDia.length - 1] ?? null;
+  const corte = estado.config.corteCaja ?? 0;
+  const movimientos = estado.caja.movimientos.filter((m) => !m.turno && (m.caja ?? (m.fecha && diaDeCaja(estado, m.fecha, m.min ?? 0))) === dia);
+  const inicioEfectivo = anterior ? anterior.contado.efectivo : estado.caja.fondo;
+  const esperado = Object.fromEntries(MEDIOS_DE_CAJA.map((k) => [k, 0]));
+  let ingresos = 0, egresos = 0;
+  for (const m of movimientos) {
+    const s = m.tipo === "ingreso" ? 1 : -1;
+    esperado[m.medio] = (esperado[m.medio] ?? 0) + s * m.monto;
+    if (s > 0) ingresos += m.monto; else egresos += m.monto;
+  }
+  esperado.efectivo += inicioEfectivo;
+  const medios = MEDIOS_DE_CAJA.filter((k) => movimientos.some((m) => m.medio === k));
+  return {
+    dia, numero: delDia.length + 1, desde: anterior ? { ...anterior.hasta } : { fecha: dia, min: corte },
+    movimientos, inicioEfectivo, esperado, ingresos, egresos, medios,
+    pendienteDeFirma: delDia.find((t) => t.estado === "contado") ?? null,
+  };
+}
+
+/** Lo contado: billetes por denominación (+ «monedas») o el efectivo a mano; los demás medios, vacío = 0. */
+function leerConteo(contado, billetes) {
+  const out = {};
+  let desdeBilletes = null;
+  if (billetes && typeof billetes === "object") {
+    let suma = 0;
+    const limpio = {};
+    for (const [k, v] of Object.entries(billetes)) {
+      if (v === "" || v == null) continue;
+      const n = Number(v);
+      if (k === "monedas") {
+        if (!(Number.isFinite(n) && n >= 0)) return { ok: false, motivo: "Las monedas tienen que ser un importe (0 o más)." };
+        limpio.monedas = Math.round(n);
+        suma += Math.round(n);
+        continue;
+      }
+      if (!DENOMINACIONES.includes(Number(k))) return { ok: false, motivo: `No hay billetes de ${pesos(Number(k))}.` };
+      if (!(Number.isInteger(n) && n >= 0)) return { ok: false, motivo: `Poné cuántos billetes de ${pesos(Number(k))} hay (un número entero).` };
+      if (n > 0) limpio[k] = n;
+      suma += Number(k) * n;
+    }
+    if (Object.keys(limpio).length) { out.billetes = limpio; desdeBilletes = suma; }
+  }
+  const e = contado?.efectivo;
+  const aMano = e === "" || e == null ? null : Math.round(Number(e));
+  if (aMano != null && !(aMano >= 0)) return { ok: false, motivo: "Contá el efectivo del cajón y cargalo." };
+  if (desdeBilletes != null && aMano != null && aMano !== desdeBilletes)
+    return { ok: false, motivo: `Los billetes suman ${pesos(desdeBilletes)} y cargaste ${pesos(aMano)} de efectivo: revisá el conteo.` };
+  const efectivo = desdeBilletes ?? aMano;
+  if (efectivo == null) return { ok: false, motivo: "Contá el efectivo del cajón (billete por billete) y cargalo." };
+  out.contado = { efectivo };
+  for (const k of MEDIOS_DE_CAJA.filter((x) => x !== "efectivo")) {
+    const v = contado?.[k];
+    const n = v === "" || v == null ? 0 : Math.round(Number(v));
+    if (!(n >= 0)) return { ok: false, motivo: `Lo de ${MEDIOS[k]} tiene que ser un importe (0 o más).` };
+    out.contado[k] = n;
+  }
+  return { ok: true, ...out };
+}
+
+/**
+ * Paso 1 del cierre del turno: el conteo A CIEGAS. Opera recepción (permiso `cerrarCaja`, sin PIN de firma). Si se pasa
+ * `esperados` (lo que la pantalla tenía cuando se contó: cuántos movimientos y con qué medios), tiene que coincidir con
+ * el turno: si entró otro cobro mientras se contaba (o al re-aplicar sin internet), se vuelve a contar.
+ */
+export function contarTurnoCaja(estado, { dia: diaPedido = null, contado, billetes = null, usuarioId, esperados = null } = {}, ahora) {
+  const a = autorizar(estado, { usuarioId }, "cerrarCaja", false);
+  if (!a.ok) return a;
+  const d = diaDelTurno(estado, diaPedido, ahora);
+  if (!d.ok) return d;
+  const t = turnoDeCajaAbierto(estado, d.dia);
+  if (t.pendienteDeFirma) return { ok: false, motivo: `Falta firmar el turno ${t.pendienteDeFirma.numero} (${t.pendienteDeFirma.responsable}) antes de contar otro.` };
+  if (esperados) {
+    const mismos = esperados.movimientos === t.movimientos.length && [...(esperados.medios ?? [])].sort().join() === [...t.medios].sort().join();
+    if (!mismos) return { ok: false, motivo: "Mientras contabas cambió la caja (entró o se corrigió un cobro): volvé a contar.", cambio: true };
+  }
+  const c = leerConteo(contado, billetes);
+  if (!c.ok) return c;
+  const diferencias = Object.fromEntries(MEDIOS_DE_CAJA.map((k) => [k, c.contado[k] - t.esperado[k]]));
+  const turno = {
+    id: nuevoId("tc"), dia: d.dia, numero: t.numero, estado: "contado",
+    responsable: a.usuario.nombre, responsableId: a.usuario.id,
+    desde: t.desde, hasta: sello(ahora),
+    inicioEfectivo: t.inicioEfectivo, esperado: t.esperado, contado: c.contado, ...(c.billetes ? { billetes: c.billetes } : {}),
+    diferencias, diferencia: Object.values(diferencias).reduce((s, x) => s + x, 0),
+    ingresos: t.ingresos, egresos: t.egresos, movimientos: t.movimientos.length,
+  };
+  for (const m of t.movimientos) m.turno = turno.id;
+  if (!esLista(estado.caja.turnos)) estado.caja.turnos = [];
+  estado.caja.turnos.push(turno);
+  registrar(estado, `Turno ${turno.numero} de la caja del ${d.dia.slice(8)}/${d.dia.slice(5, 7)} contado a ciegas por ${a.usuario.nombre}.`, ahora);
+  return { ok: true, turno };
+}
+
+/**
+ * Paso 2: la firma del turno contado (PIN de firma, D-16) y el motivo si no cuadró. Firmar dos veces el mismo turno no
+ * hace nada (doble envío): dice que ya está cerrado. Deja armado el evento `caja.turno.cerrada@1` en el resultado.
+ */
+export function cerrarTurnoCaja(estado, { turnoId, motivo = "", usuarioId, firmaId = null, pin } = {}, ahora) {
+  const turno = turnosDeCaja(estado).find((t) => t.id === turnoId);
+  if (!turno) return { ok: false, motivo: "No encuentro ese turno de caja: contalo de nuevo." };
+  if (turno.estado === "cerrado") return { ok: false, motivo: `El turno ${turno.numero} ya está cerrado (lo firmó ${turno.firma}).`, yaCerrado: true };
+  const f = firmarCaja(estado, { usuarioId, firmaId, pin }, "cerrarCaja");
+  if (!f.ok) return f;
+  const porque = textoCorto(motivo, 200);
+  if (Object.values(turno.diferencias).some((x) => x !== 0) && !porque) return { ok: false, motivo: "No cuadra: escribí el motivo de la diferencia (queda en el cierre).", pideMotivo: true };
+  Object.assign(turno, { estado: "cerrado", motivo: porque, firma: f.firma.nombre, firmaId: f.firma.id, cerrado: sello(ahora) });
+  registrar(estado, `Turno ${turno.numero} de caja cerrado: ${turno.responsable}, firmó ${f.firma.nombre}, diferencia ${pesos(turno.diferencia)}${porque ? ` (${porque})` : ""}.`, ahora);
+  const evento = {
+    tipo: "caja.turno.cerrada", version: 1, clave: `caja.turno.cerrada@1:${turno.id}`,
+    datos: { turnoId: turno.id, dia: turno.dia, numero: turno.numero, responsable: turno.responsable, firma: turno.firma, desde: turno.desde, hasta: turno.hasta, esperado: turno.esperado, contado: turno.contado, diferencia: turno.diferencia, motivo: porque },
+  };
+  return { ok: true, turno, evento };
+}
+
+/** Lo que queda de un turno en el renglón del día archivado (insumo de «Números»): chico, sin billetes. */
+function resumenDeTurno(t) {
+  return {
+    numero: t.numero, estado: t.estado, responsable: t.responsable, firma: t.firma ?? null,
+    desde: t.desde, hasta: t.hasta, esperado: t.esperado, contado: t.contado, diferencia: t.diferencia, motivo: t.motivo ?? "",
+  };
+}
+
+/** Los turnos de un día de caja, en orden. */
+export const turnosDelDia = (estado, dia) => turnosDeCaja(estado).filter((t) => t.dia === dia);
+
+/**
+ * El cierre del día (12 → 12) con turnos: consolida los turnos firmados (lo contado del último es el cajón; la
+ * diferencia del día es la suma de las de sus turnos). Pide que no quede un turno abierto con movimientos ni uno sin
+ * firmar, y la firma de caja. El día sin turnos sigue con `cerrarCaja`.
+ */
+export function cerrarDiaCaja(estado, { usuarioId, firmaId = null, pin, dia: diaPedido = null } = {}, ahora) {
+  const f = firmarCaja(estado, { usuarioId, firmaId, pin }, "cerrarCaja");
+  if (!f.ok) return f;
+  let dia = cajaAbierta(estado, ahora);
+  if (diaPedido) {
+    if (!cajasConMovimientosSinCerrar(estado).includes(diaPedido)) return { ok: false, motivo: "Esa caja ya está cerrada o no tiene movimientos." };
+    dia = diaPedido;
+  }
+  const turnos = turnosDelDia(estado, dia);
+  if (!turnos.length) return { ok: false, motivo: "Ese día no tiene turnos de caja: cerrá el turno primero." };
+  const sinFirma = turnos.find((t) => t.estado !== "cerrado");
+  if (sinFirma) return { ok: false, motivo: `Falta firmar el turno ${sinFirma.numero} (${sinFirma.responsable}).` };
+  const abierto = turnoDeCajaAbierto(estado, dia);
+  if (abierto.movimientos.length) return { ok: false, motivo: `Quedan ${abierto.movimientos.length} movimientos sin turno: cerrá el turno abierto antes del día.` };
+  const r = resumenCaja(estado, dia);
+  const ultimo = turnos[turnos.length - 1];
+  const suma = (campo) => Object.fromEntries(MEDIOS_DE_CAJA.map((k) => [k, turnos.reduce((s, t) => s + (k === "efectivo" ? 0 : t[campo][k]), 0)]));
+  const esperadoPorMedio = { ...suma("esperado"), efectivo: r.efectivoEsperado };
+  const contadoPorMedio = { ...suma("contado"), efectivo: ultimo.contado.efectivo };
+  const cierre = {
+    dia, responsable: f.responsable.nombre, firma: f.firma.nombre, ...sello(ahora),
+    esperado: r.efectivoEsperado, contado: ultimo.contado.efectivo, diferencia: ultimo.contado.efectivo - r.efectivoEsperado,
+    ingresos: r.ingresos, egresos: r.egresos, esperadoPorMedio, contadoPorMedio,
+    turnos: turnos.map((t) => ({ id: t.id, numero: t.numero, responsable: t.responsable, firma: t.firma, diferencia: t.diferencia, motivo: t.motivo })),
+  };
+  estado.caja.cierres.push(cierre);
+  registrar(estado, `Cierre de caja del ${dia.slice(8)}/${dia.slice(5, 7)} (${turnos.length} turnos) firmado por ${f.firma.nombre}: diferencia ${pesos(cierre.diferencia)}.`, ahora);
+  return { ok: true, cierre };
+}
+
+/**
+ * Corrige el medio de un cobro del turno ABIERTO (efectivo ↔ Mercado Pago ↔ transferencia), con motivo y rastro (quién,
+ * cuándo, de qué a qué). En un turno ya contado o cerrado, o en una caja cerrada, no: eso se arregla con el motivo del cierre.
+ */
+export function corregirMedio(estado, movimientoId, { medio, motivo, usuarioId } = {}, ahora) {
+  const a = autorizar(estado, { usuarioId }, "cobrar", false);
+  if (!a.ok) return a;
+  const m = estado.caja.movimientos.find((x) => x.id === movimientoId);
+  if (!m) return { ok: false, motivo: "No encuentro ese cobro." };
+  if (m.tipo !== "ingreso") return { ok: false, motivo: "Sólo se corrige el medio de un cobro." };
+  const diaMov = m.caja ?? (m.fecha && diaDeCaja(estado, m.fecha, m.min ?? 0));
+  if (m.turno || cajaCerrada(estado, diaMov)) return { ok: false, motivo: "Ese cobro es de un turno ya cerrado: no se corrige. Anotalo en el motivo del cierre.", turnoCerrado: true };
+  if (!MEDIOS_CORREGIBLES.includes(m.medio) || !MEDIOS_CORREGIBLES.includes(medio)) return { ok: false, motivo: "Se corrige entre efectivo, Mercado Pago y transferencia." };
+  if (medio === m.medio) return { ok: false, motivo: `Ese cobro ya está en ${MEDIOS[medio]}.` };
+  const porque = textoCorto(motivo, 200);
+  if (!porque) return { ok: false, motivo: "Escribí por qué se corrige (queda en el rastro)." };
+  const de = m.medio;
+  // El pago del turno que generó este movimiento (mismo turno, medio, monto y minuto) acompaña el cambio.
+  const r = m.reservaId ? estado.reservas.find((x) => x.id === m.reservaId) : null;
+  const p = r?.pagos.find((x) => x.medio === de && x.monto === m.monto && x.fecha === m.fecha && x.min === m.min);
+  if (p) p.medio = medio;
+  // Lo mismo con el pago de la cuenta de cargos que lo generó (en SU cuenta: `cuentaId`, desde la Tanda B4). Un cobro
+  // de cargos de antes no lo trae: se corrige sólo en la caja, como hasta ahora.
+  const cta = m.cuentaId ? cuenta(estado, m.cuentaId) : null;
+  const pc = cta?.pagos.find((x) => x.medio === de && x.monto === m.monto && x.fecha === m.fecha && x.min === m.min);
+  if (pc) pc.medio = medio;
+  m.medio = medio;
+  m.correcciones = [...(esLista(m.correcciones) ? m.correcciones : []), { de, a: medio, motivo: porque, quien: a.usuario.nombre, ...sello(ahora) }];
+  registrar(estado, `Cobro ${pesos(m.monto)} (${m.concepto}) corregido de ${MEDIOS[de]} a ${MEDIOS[medio]} por ${a.usuario.nombre}: ${porque}.`, ahora);
+  return { ok: true, movimiento: m };
+}
+
+/** El efectivo que tendría que haber ahora en el cajón del turno abierto. */
+const efectivoDelCajon = (estado, ahora) => turnoDeCajaAbierto(estado, cajaAbierta(estado, ahora)).esperado.efectivo;
+
+/** Retiro del cajón a la caja fuerte: firma de caja, nunca más que el efectivo del cajón. Es un traslado, no un gasto. */
+export function retiroCajaFuerte(estado, { monto, comprobante = "", usuarioId, firmaId = null, pin } = {}, ahora) {
+  const f = firmarCaja(estado, { usuarioId, firmaId, pin }, "egreso");
+  if (!f.ok) return f;
+  const importe = Math.round(Number(monto));
+  if (!(importe > 0)) return { ok: false, motivo: "El monto tiene que ser mayor a cero." };
+  const hay = efectivoDelCajon(estado, ahora);
+  if (importe > hay) return { ok: false, motivo: `En el cajón tendría que haber ${pesos(hay)}: no se puede retirar más.` };
+  const comp = textoCorto(comprobante, 120);
+  const mov = movimientoCaja(estado, { tipo: "egreso", medio: "efectivo", monto: importe, concepto: "Retiro a caja fuerte", usuario: f.responsable.nombre, extra: { categoria: "cajaFuerte", firma: f.firma.nombre, ...(comp ? { comprobante: comp } : {}) } }, ahora);
+  registrar(estado, `Retiro a caja fuerte ${pesos(importe)} — ${f.responsable.nombre}, firmó ${f.firma.nombre}.`, ahora);
+  return { ok: true, movimiento: mov };
+}
+
+/** Egreso en efectivo por categoría (luz, insumos, sueldos, otros), con comprobante opcional y firma de caja. */
+export function egresoPorCategoria(estado, { monto, categoria, concepto = "", comprobante = "", usuarioId, firmaId = null, pin } = {}, ahora) {
+  const f = firmarCaja(estado, { usuarioId, firmaId, pin }, "egreso");
+  if (!f.ok) return f;
+  if (!Object.hasOwn(CATEGORIAS_EGRESO_CAJA, categoria)) return { ok: false, motivo: "Elegí la categoría del egreso (luz, insumos, sueldos u otros)." };
+  const importe = Math.round(Number(monto));
+  if (!(importe > 0)) return { ok: false, motivo: "El monto tiene que ser mayor a cero." };
+  const detalle = textoCorto(concepto, 120);
+  if (categoria === "otros" && !detalle) return { ok: false, motivo: "En «Otros», poné el concepto del egreso." };
+  const hay = efectivoDelCajon(estado, ahora);
+  if (importe > hay) return { ok: false, motivo: `En el cajón tendría que haber ${pesos(hay)}: no alcanza para este egreso.` };
+  const comp = textoCorto(comprobante, 120);
+  const texto = detalle ? `${CATEGORIAS_EGRESO_CAJA[categoria]}: ${detalle}` : CATEGORIAS_EGRESO_CAJA[categoria];
+  const mov = movimientoCaja(estado, { tipo: "egreso", medio: "efectivo", monto: importe, concepto: texto, usuario: f.responsable.nombre, extra: { categoria, firma: f.firma.nombre, ...(comp ? { comprobante: comp } : {}) } }, ahora);
+  registrar(estado, `Egreso ${pesos(importe)} (${texto}) — ${f.responsable.nombre}, firmó ${f.firma.nombre}.`, ahora);
+  return { ok: true, movimiento: mov };
 }
 
 // ───────────────────────── archivo de días cerrados (la jornada real no se llena) ─────────────────────────
@@ -2503,7 +3114,64 @@ export function diaParaArchivar(estado, ahora, dias = DIAS_SIN_ARCHIVAR) {
   return sumarDias(diaDeCaja(estado, ahora.fecha, ahora.min), -n);
 }
 
-const fila0 = (dia) => ({ dia, turnos: 0, faltas: 0, cancelados: 0, vendidoCanchas: 0, cobradoCanchas: 0, cobradoCuentas: 0, monedero: 0, ingresosCaja: 0, egresosCaja: 0, movimientos: 0, cuentas: 0, pedidos: 0 });
+const filaNumerica0 = (dia) => ({ dia, turnos: 0, faltas: 0, cancelados: 0, vendidoCanchas: 0, cobradoCanchas: 0, cobradoCuentas: 0, monedero: 0, ingresosCaja: 0, egresosCaja: 0, movimientos: 0, cuentas: 0, pedidos: 0 });
+/** El renglón de un día: los números y (Tanda 3, para «Números por período») lo que entró por medio × rubro y lo que salió por categoría. */
+const fila0 = (dia) => ({ ...filaNumerica0(dia), porMedioRubro: {}, egresosPorCategoria: {} });
+
+/** Los rubros de lo que entra a la caja (para «Números por período»): de dónde vino cada ingreso. */
+export const RUBROS_CAJA = Object.freeze({ canchas: "Canchas", senas: "Señas", faltas: "Faltas", buffet: "Buffet", tienda: "Tienda", cuentaCorriente: "Cuenta corriente", otros: "Otros" });
+/** Las categorías de lo que sale de la caja. `categoria` en el movimiento (4B) manda; si no está, se deduce. */
+export const CATEGORIAS_EGRESO = Object.freeze({
+  proveedores: "Proveedores", devoluciones: "Devoluciones", gastos: "Gastos del club",
+  // Tanda B4: el egreso por categoría del mostrador y el retiro a la caja fuerte (traslado, no gasto).
+  luz: "Luz", insumos: "Insumos", sueldos: "Sueldos", otros: "Otros", cajaFuerte: "Retiro a caja fuerte",
+});
+
+/**
+ * De qué rubro es un INGRESO de caja. Lo dice el movimiento (`rubro`) si lo trae; si no, se deduce de cómo lo deja el
+ * motor (`concepto` y `reservaId`): «Seña …», «Falta de …», «Cancha …» (con turno), «Buffet Tienda T-…» (pedido de la
+ * tienda), «Buffet …» (cuentas y mostrador), «Cuenta corriente de …». Lo que no se reconoce, «otros». PURA.
+ */
+export function rubroDeMovimiento(m) {
+  if (typeof m?.rubro === "string" && m.rubro in RUBROS_CAJA) return m.rubro;
+  const c = String(m?.concepto ?? "");
+  if (/^Seña\b/.test(c)) return "senas";
+  if (/^Falta de\b/.test(c)) return "faltas";
+  if (/^Buffet Tienda\b/.test(c)) return "tienda";
+  if (/^Buffet\b/.test(c)) return "buffet";
+  if (/^Cuenta corriente de\b/.test(c)) return "cuentaCorriente";
+  if (m?.reservaId || /^Cancha\b/.test(c)) return "canchas";
+  return "otros";
+}
+
+/** De qué categoría es un EGRESO de caja: la suya (`categoria`, 4B) o la deducida («Pago a …», «Devolución a …», el resto gastos). PURA. */
+export function categoriaDeEgreso(m) {
+  if (typeof m?.categoria === "string" && /^[\w-]{1,40}$/.test(m.categoria)) return m.categoria;
+  const c = String(m?.concepto ?? "");
+  if (/^Pago a\b/.test(c)) return "proveedores";
+  if (/^Devolución a\b/.test(c)) return "devoluciones";
+  return "gastos";
+}
+
+/** Suma `de` en `a` (renglones de un día): los números se suman y el desglose por medio × rubro y categoría también. */
+function sumarFila(a, de) {
+  for (const [k, v] of Object.entries(de)) {
+    if (k === "dia") continue;
+    if (k === "porMedioRubro") {
+      a.porMedioRubro = a.porMedioRubro ?? {};
+      for (const [medio, rubros] of Object.entries(v ?? {})) {
+        const x = (a.porMedioRubro[medio] = a.porMedioRubro[medio] ?? {});
+        for (const [r, n] of Object.entries(rubros ?? {})) x[r] = (x[r] ?? 0) + n;
+      }
+    } else if (k === "turnosCaja") {
+      a.turnosCaja = [...(esLista(a.turnosCaja) ? a.turnosCaja : []), ...(esLista(v) ? v : [])];
+    } else if (k === "egresosPorCategoria") {
+      a.egresosPorCategoria = a.egresosPorCategoria ?? {};
+      for (const [cat, n] of Object.entries(v ?? {})) a.egresosPorCategoria[cat] = (a.egresosPorCategoria[cat] ?? 0) + n;
+    } else a[k] = (a[k] ?? 0) + v;
+  }
+  return a;
+}
 
 /**
  * Suma al resumen por día lo de estas listas (las del estado o las de un anexo). Los turnos van por su fecha; lo
@@ -2527,7 +3195,16 @@ function sumarAlResumen(dias, { reservas = [], cuentas = [], movimientos = [], p
   for (const m of movimientos) {
     const x = fila(m.caja ?? dia(m));
     x.movimientos++;
-    if (m.tipo === "ingreso") x.ingresosCaja += m.monto; else x.egresosCaja += m.monto;
+    if (m.tipo === "ingreso") {
+      x.ingresosCaja += m.monto;
+      const porRubro = (x.porMedioRubro[m.medio] = x.porMedioRubro[m.medio] ?? {});
+      const r = rubroDeMovimiento(m);
+      porRubro[r] = (porRubro[r] ?? 0) + m.monto;
+    } else {
+      x.egresosCaja += m.monto;
+      const cat = categoriaDeEgreso(m);
+      x.egresosPorCategoria[cat] = (x.egresosPorCategoria[cat] ?? 0) + m.monto;
+    }
   }
   for (const pd of pedidos) fila(dia(pd.cobrado ?? pd)).pedidos++;
   return dias;
@@ -2543,6 +3220,18 @@ export function plataPorDia(datos) {
   const movimientos = datos?.caja?.movimientos ?? datos?.movimientos ?? [];
   const dias = sumarAlResumen(new Map(), { reservas: datos?.reservas ?? [], cuentas: datos?.cuentas ?? [], movimientos }, corte);
   return Object.fromEntries([...dias.values()].sort((a, b) => a.dia.localeCompare(b.dia)).map((f) => [f.dia, { canchas: f.cobradoCanchas, cuentas: f.cobradoCuentas, monedero: f.monedero, ingresos: f.ingresosCaja, egresos: f.egresosCaja }]));
+}
+
+/**
+ * Lo que entró a la caja por medio × rubro y lo que salió por categoría, día de caja por día de caja (Tanda 3, para
+ * «Números por período»): lo vivo con la MISMA cuenta que queda en el archivo (`archivo.dias[].porMedioRubro`).
+ * Recibe el estado o un anexo. PURA.
+ */
+export function desglosePorDia(datos) {
+  const corte = datos?.config?.corteCaja ?? datos?.corteCaja ?? 0;
+  const movimientos = datos?.caja?.movimientos ?? datos?.movimientos ?? [];
+  const dias = sumarAlResumen(new Map(), { movimientos }, corte);
+  return Object.fromEntries([...dias.values()].sort((a, b) => a.dia.localeCompare(b.dia)).map((f) => [f.dia, { porMedioRubro: f.porMedioRubro, egresosPorCategoria: f.egresosPorCategoria }]));
 }
 
 /** ¿Ese código de pedido (T-XXXX) o de seña (BP-XXXX) ya salió en un archivo? */
@@ -2729,6 +3418,12 @@ export function archivarDiasCerrados(estado, hastaDia, { ahora = null, por = nul
   const vacio = Object.values(conteos).every((n) => n === 0);
 
   const resumen = [...sumarAlResumen(new Map(), { reservas, cuentas, movimientos, pedidos }, corte).values()].filter((f) => f.dia !== "sin-fecha").sort((a, b) => a.dia.localeCompare(b.dia));
+  // Los turnos de caja (Tanda B4) de los días que salen: enteros al anexo y, en el renglón del día, su resumen.
+  const [turnosCaja, turnosQuedan] = partir(turnosDeCaja(e), (t) => cerradaHasta(t.dia));
+  for (const t of turnosCaja) {
+    const f = resumen.find((x) => x.dia === t.dia);
+    if (f) f.turnosCaja = [...(f.turnosCaja ?? []), resumenDeTurno(t)];
+  }
   const desde = [resumen[0]?.dia, ...[...Object.values(listas).flat(), ...movCC.flatMap((x) => x.movimientos)].map((x) => x.fecha).filter(Boolean)].filter(Boolean).sort()[0] ?? null;
   const idsClientes = new Set([...reservas.flatMap((r) => [r.clienteId, ...(r.jugadores ?? []).map((j) => j.clienteId)]), ...cuentas.map((c) => c.clienteId), ...novedades.map((n) => n.clienteId), ...movCC.map((x) => x.clienteId), ...fiados.map((x) => x.clienteId)].filter(Boolean));
   const anexo = {
@@ -2738,6 +3433,7 @@ export function archivarDiasCerrados(estado, hastaDia, { ahora = null, por = nul
     clientes: e.clientes.filter((c) => idsClientes.has(c.id)).map((c) => ({ id: c.id, nombre: c.nombre })),
     canchas: e.canchas.map((c) => ({ id: c.id, nombre: c.nombre })),
     ...listas, movCC, fiados,
+    ...(turnosCaja.length ? { turnosCaja } : {}),
   };
   if (vacio) return { ok: true, vacio: true, estado: e, anexo, conteos };
 
@@ -2751,14 +3447,20 @@ export function archivarDiasCerrados(estado, hastaDia, { ahora = null, por = nul
   e.espera = esperaQueda;
   e.bloqueos = bloqueosQuedan;
   e.log = logQueda;
+  if (turnosQuedan.length) e.caja.turnos = turnosQuedan;
+  else delete e.caja.turnos;
 
   // El resumen que queda en el estado: por día (se suma si un día ya tenía algo archivado) y por cliente.
   const previo = esObjeto(e.archivo) ? e.archivo : {};
-  const dias = new Map((esLista(previo.dias) ? previo.dias : []).map((f) => [f.dia, { ...fila0(f.dia), ...f }]));
+  // Un día que ya tenía algo archivado SIN desglose (de antes de la Tanda 3) sigue sin él: sumarle sólo lo nuevo
+  // dejaría un desglose que no cuadra con los totales.
+  const dias = new Map((esLista(previo.dias) ? previo.dias : []).map((f) => [f.dia, structuredClone(f)]));
   for (const f of resumen) {
-    const x = dias.get(f.dia) ?? fila0(f.dia);
-    for (const k of Object.keys(f)) if (k !== "dia") x[k] = (x[k] ?? 0) + f[k];
-    dias.set(f.dia, x);
+    const previa = dias.get(f.dia);
+    if (!previa) { dias.set(f.dia, structuredClone(f)); continue; }
+    const sinDesglose = !("porMedioRubro" in previa);
+    sumarFila(previa, f);
+    if (sinDesglose) { delete previa.porMedioRubro; delete previa.egresosPorCategoria; }
   }
   const clientes = { ...(esObjeto(previo.clientes) ? previo.clientes : {}) };
   for (const r of reservas) {

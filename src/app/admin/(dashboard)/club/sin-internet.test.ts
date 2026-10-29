@@ -259,6 +259,15 @@ const TABLA: Record<keyof typeof REGISTRO, { va: unknown[][]; no: [unknown[], st
       [[{ tipo: "mesaSigue", reservaId: "r", porJugador: { 0: "efectivo", 1: "transferencia" } }], SIN_INTERNET_SOLO_EFECTIVO],
     ],
   },
+  // 3C: dar de baja, pausar o liberar un fijo cancela turnos y puede devolver plata: con internet.
+  bajaDeFijo: {
+    va: [],
+    no: [
+      [[{ tipo: "baja", fijoId: "f", desde: "2026-10-20" }], SIN_INTERNET_NECESITA],
+      [[{ tipo: "pausa", fijoId: "f", desde: "2026-10-20", hasta: "2027-01-31" }], SIN_INTERNET_NECESITA],
+      [[{ tipo: "liberar", fijoId: "f", fecha: "2026-11-10" }], SIN_INTERNET_NECESITA],
+    ],
+  },
 };
 
 const TEXTOS = new Set([SIN_INTERNET_SOLO_EFECTIVO, SIN_INTERNET_NECESITA]);

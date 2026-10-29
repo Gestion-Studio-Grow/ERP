@@ -22,7 +22,7 @@
 import { tenantTransaction } from "@/lib/rls";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { logger } from "@/lib/logger";
-import { configCobrosPorDefecto, gatewayCobrosPara } from "@/lib/pagos-dispatch";
+import { configCobrosPorDefecto, estadoCobrosMP, gatewayCobrosPara } from "@/lib/pagos-dispatch";
 import { facturarPagoMP } from "@/lib/invoice-from-mp";
 import {
   ClasificadorPorReglas,
@@ -374,8 +374,12 @@ export async function sincronizarMercadoPago(
   return sincronizarPagos(depsConCache, criterio);
 }
 
-/** ¿La integración de Mercado Pago está con credenciales reales o en modo prueba? */
-export function estadoIntegracionMP(): { conectado: boolean; modo: "real" | "prueba" } {
-  const conectado = Boolean(process.env.MP_ACCESS_TOKEN);
-  return { conectado, modo: conectado ? "real" : "prueba" };
+/**
+ * ¿La integración de Mercado Pago DEL NEGOCIO está con credenciales reales o en modo prueba?
+ * Misma regla que el dispatch (P1-C4): la conexión del negocio; el token global sólo con
+ * `MP_MODO_LEGADO=1`.
+ */
+export async function estadoIntegracionMP(tenantId: string): Promise<{ conectado: boolean; modo: "real" | "prueba" }> {
+  const { conectado, modo } = await estadoCobrosMP(tenantId);
+  return { conectado, modo };
 }

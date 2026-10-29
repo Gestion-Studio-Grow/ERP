@@ -48,6 +48,10 @@ enum PaymentMethod {
   MERCADOPAGO
   EFECTIVO
   TRANSFERENCIA
+  // D-C01 (28/10/2026): Débito y Crédito separados; el cierre de caja los suma en "Tarjeta".
+  // Encender y DESPLEGAR antes de escribir el primer valor (regla en N2_enums.sql).
+  // N2-enum: DEBITO // Gate 2 nivel 2 · prisma/pending-gate2/N2_enums.sql — lo enciende M1 junto con KpiAppointment (src/lib/actions.ts)
+  // N2-enum: CREDITO // Gate 2 nivel 2 · N2_enums.sql (M1)
 }
 
 enum PaymentStatus {
@@ -89,6 +93,8 @@ enum UserRole {
   OWNER
   RECEPTION
   PROFESSIONAL
+  // N2-enum: REPARTIDOR // Gate 2 nivel 2 · N2_enums.sql — lo enciende M6 junto con SessionUser.role y Usuario.role
+  // N2-enum: ENCARGADO // Gate 2 nivel 2 · N2_enums.sql (M6)
 }
 
 // --- Capability POS / Orden (ADR-003 "Orden/Venta" + Fase 2 POS) ---
@@ -332,6 +338,20 @@ model Tenant {
   // así ningún negocio cambia hasta que alguien la prenda o la apague para él.
   cuentasCorrientes Boolean?
   perfiles          Boolean?
+
+  // --- Gate 2 nivel 2 (prisma/pending-gate2/N2_*.sql) — COMENTADO hasta aplicar el paquete.
+  // Mismo criterio que MustChangePassword/CarniceriaRubro: si estos campos estuvieran vivos,
+  // el cliente Prisma los seleccionaría y prod se caería hasta migrar (schema-ahead de CH).
+  // Para encenderlos: quitar el prefijo `// N2: ` de TODAS las líneas que lo tienen en este
+  // archivo (runbook docs/runbooks/gate2-nivel2.md §6), recién con el paquete aplicado. Los
+  // valores de enum llevan `// N2-enum: ` aparte: ampliarlos rompe tipos cerrados del dominio
+  // (4 errores de tsc medidos), así que los enciende M1/M6 con su código, no este paso.
+  // N2: apiKeys              ApiKey[]
+  // N2: webhookSuscripciones WebhookSuscripcion[]
+  // N2: entregasWebhook      EntregaWebhook[]
+  // N2: plantillasWhatsapp   PlantillaWhatsapp[]
+  // N2: pagosExternos        PagoExterno[]
+  // N2: clubReservasIndice   ClubReservaIndice[]
 }
 
 // Estado de un tenant en la plataforma (control-plane, ADR-021). TRIAL = en
@@ -694,6 +714,8 @@ model Client {
   razonSocial  String?
   condicionIva String? // mismos valores que Tenant.arcaCondicionIva
   domicilio    String?
+
+  // N2: limiteCredito Decimal? @db.Decimal(14, 2) // N2_retail.sql (M7): tope de fiado; NULL = sin límite
 
   @@index([tenantId])
   @@index([tenantId, docNro])
@@ -1146,10 +1168,18 @@ model OutboxEvent {
 
   eventosIntegracion EventoIntegracion[]
 
+  // N2: version Int @default(1) // N2_hub.sql (P2): versión del contrato del evento
+  // N2: clave   String? // N2_hub.sql (P2): dedupe por negocio; NULL = sin dedupe (ARCA de hoy)
+  // N2: entregasWebhook EntregaWebhook[]
+
   @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
+  // N2: @@unique([tenantId, clave])
   @@index([tenantId])
   @@index([processedAt])
   @@index([processedAt, proximoIntentoEn])
+  // N2: @@index([tenantId, processedAt, proximoIntentoEn])
+  // N2_hub.sql también crea "OutboxEvent_tenantId_payloadClave_sinClave_idx" (tenantId, payload->>'clave') WHERE clave IS NULL:
+  // índice PARCIAL y de expresión, que Prisma no sabe declarar. Vive sólo en el SQL (dedupe del emisor de eventos, P2).
 }
 
 // --- Módulo BANCOS (plugin src/plugins/bancos + glue src/lib/bancos-*) ---
@@ -1342,6 +1372,9 @@ model Order {
   invoices      Invoice[] // D10 — facturas cuyo origen es este pedido
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+
+  // N2: cobroVerificadoEn  DateTime? // N2_retail.sql (M2): transferencia vista en la cuenta
+  // N2: cobroVerificadoPor String? // id del User que la verificó
 
   @@unique([tenantId, code])
   @@unique([tenantId, idempotencyKey]) // A-1 — idempotencia del alta de vidriera (NULLs no colisionan)
@@ -2032,6 +2065,9 @@ model IntegracionConexion {
   eventos      EventoIntegracion[]
   usos         IntegracionUso[]
   outbox       OutboxEvent[]
+  // N2: webhookSuscripciones WebhookSuscripcion[] // N2_hub.sql
+  // N2: plantillasWhatsapp   PlantillaWhatsapp[] // N2_hub.sql
+  // N2: pagosExternos        PagoExterno[] // N2_pagos.sql
 
   // Una cuenta externa pertenece a UN negocio. Sin tenantId a propósito: Postgres verifica la
   // unicidad aunque el negocio no pueda LEER la fila del otro (RLS). Los NULL no chocan. Como
@@ -2997,3 +3033,145 @@ model PadelAviso {
   @@index([tenantId, destino, leidoEl])
   @@index([tenantId, createdAt])
 }
+
+// ============================================================================
+// GATE 2 NIVEL 2 — modelos nuevos COMENTADOS (prisma/pending-gate2/N2_*.sql, tanda S2)
+// ============================================================================
+// NO están vivos: las tablas no existen en Neon hasta que el dueño aplique el paquete
+// (runbook docs/runbooks/gate2-nivel2.md). Mientras tanto el código pregunta con
+// src/lib/schema-probe (hayTabla / hayColumna / hayValorEnum) y accede por SQL crudo.
+// Se encienden quitando el prefijo `// N2: ` de todas las líneas de este archivo que lo
+// llevan (tsc limpio así, medido). Los valores de enum (`// N2-enum: `) los encienden M1/M6,
+// y DESPLIEGAN, antes de escribir el primer valor nuevo (regla en N2_enums.sql).
+// Verificado en Postgres local: con las 7 migraciones aplicadas, el schema con `// N2: ` y
+// `// N2-enum: ` descomentados no tiene diferencias con la base
+// (src/lib/schema-probe/paquete-gate2.test.ts).
+
+// --- N2_hub.sql (P4) ---
+// N2: model ApiKey {
+// N2:   id          String    @id @default(cuid())
+// N2:   tenant      Tenant    @relation(fields: [tenantId], references: [id])
+// N2:   tenantId    String
+// N2:   nombre      String
+// N2:   prefijo     String    @unique // visible; se busca antes de saber el negocio
+// N2:   hash        String    @unique // sha256 de la clave completa
+// N2:   alcances    String[]  @default([])
+// N2:   expiraEn    DateTime?
+// N2:   ultimoUsoEn DateTime?
+// N2:   revocadaEn  DateTime?
+// N2:   creadaPor   String?
+// N2:   createdAt   DateTime  @default(now())
+// N2:   updatedAt   DateTime  @default(now()) @updatedAt
+// N2:
+// N2:   @@index([tenantId])
+// N2: }
+
+// --- N2_hub.sql (P3) ---
+// N2: model WebhookSuscripcion {
+// N2:   id                     String              @id @default(cuid())
+// N2:   tenant                 Tenant              @relation(fields: [tenantId], references: [id])
+// N2:   tenantId               String
+// N2:   conexionId             String
+// N2:   conexion               IntegracionConexion @relation(fields: [tenantId, conexionId], references: [tenantId, id], onDelete: Restrict)
+// N2:   url                    String
+// N2:   eventos                String[]            @default([])
+// N2:   activa                 Boolean             @default(true)
+// N2:   incluyeDatosPersonales Boolean             @default(false)
+// N2:   pausadaEn              DateTime?
+// N2:   motivoPausa            String?
+// N2:   createdAt              DateTime            @default(now())
+// N2:   updatedAt              DateTime            @default(now()) @updatedAt
+// N2:
+// N2:   entregas EntregaWebhook[]
+// N2:
+// N2:   @@unique([tenantId, id])
+// N2:   @@index([tenantId])
+// N2:   @@index([tenantId, activa])
+// N2: }
+
+// N2: model EntregaWebhook {
+// N2:   id            String             @id @default(cuid())
+// N2:   tenant        Tenant             @relation(fields: [tenantId], references: [id])
+// N2:   tenantId      String
+// N2:   suscripcionId String
+// N2:   suscripcion   WebhookSuscripcion @relation(fields: [tenantId, suscripcionId], references: [tenantId, id], onDelete: Cascade)
+// N2:   outboxEventId String? // nulo = "probar envío"
+// N2:   outboxEvent   OutboxEvent?       @relation(fields: [tenantId, outboxEventId], references: [tenantId, id], onDelete: Cascade) // purgar/resetear el outbox se lleva sus intentos
+// N2:   evento        String
+// N2:   intento       Int                @default(1)
+// N2:   estadoHttp    Int?
+// N2:   duracionMs    Int?
+// N2:   respuesta     String? // recortada y redactada
+// N2:   error         String?
+// N2:   entregadaEn   DateTime?
+// N2:   createdAt     DateTime           @default(now())
+// N2:
+// N2:   @@unique([tenantId, suscripcionId, outboxEventId, intento]) // doble envío = un registro
+// N2:   @@index([tenantId])
+// N2:   @@index([tenantId, suscripcionId, createdAt])
+// N2: }
+
+// --- N2_hub.sql (P6) ---
+// N2: model PlantillaWhatsapp {
+// N2:   id         String              @id @default(cuid())
+// N2:   tenant     Tenant              @relation(fields: [tenantId], references: [id])
+// N2:   tenantId   String
+// N2:   conexionId String
+// N2:   conexion   IntegracionConexion @relation(fields: [tenantId, conexionId], references: [tenantId, id], onDelete: Restrict)
+// N2:   clave      String // nombre interno ("recordatorio_turno")
+// N2:   nombreMeta String // nombre aprobado en Meta
+// N2:   idioma     String              @default("es_AR")
+// N2:   categoria  String              @default("utility")
+// N2:   variables  Json?
+// N2:   estado     String              @default("pendiente")
+// N2:   createdAt  DateTime            @default(now())
+// N2:   updatedAt  DateTime            @default(now()) @updatedAt
+// N2:
+// N2:   @@unique([tenantId, conexionId, clave, idioma])
+// N2:   @@index([tenantId])
+// N2: }
+
+// --- N2_pagos.sql (P5, M2, B3) — decisión S2-C4: PagoExterno, Payment no se extiende ---
+// N2: model PagoExterno {
+// N2:   id         String               @id @default(cuid())
+// N2:   tenant     Tenant               @relation(fields: [tenantId], references: [id])
+// N2:   tenantId   String
+// N2:   conexionId String?
+// N2:   conexion   IntegracionConexion? @relation(fields: [tenantId, conexionId], references: [tenantId, id], onDelete: Restrict)
+// N2:   proveedor  String // "mercadopago"
+// N2:   idExterno  String // payment_id
+// N2:   estado     String
+// N2:   monto      Decimal              @db.Decimal(14, 2) // CHECK monto >= 0 en la base
+// N2:   moneda     String               @default("ARS")
+// N2:   referencia String?
+// N2:   aplicadoEn DateTime? // el Core aplicó el cobro (una sola vez)
+// N2:   devueltoEn DateTime?
+// N2:   createdAt  DateTime             @default(now())
+// N2:   updatedAt  DateTime             @default(now()) @updatedAt
+// N2:
+// N2:   @@unique([tenantId, proveedor, idExterno]) // idempotencia por payment_id (R-5)
+// N2:   @@index([tenantId])
+// N2:   @@index([tenantId, referencia])
+// N2: }
+
+// --- N2_club_indice.sql (B1, B2, B8) — proyección de lectura de la foto del club ---
+// N2: model ClubReservaIndice {
+// N2:   id             String    @id @default(cuid())
+// N2:   tenant         Tenant    @relation(fields: [tenantId], references: [id])
+// N2:   tenantId       String
+// N2:   reservaId      String // id dentro de la foto del club (sin FK)
+// N2:   canchaId       String
+// N2:   inicio         DateTime
+// N2:   fin            DateTime
+// N2:   estado         String
+// N2:   ref            String?
+// N2:   senaEstado     String?
+// N2:   clienteTelHash String?
+// N2:   recordadoEn    DateTime?
+// N2:   actualizadoEn  DateTime  @default(now())
+// N2:
+// N2:   @@unique([tenantId, reservaId])
+// N2:   @@index([tenantId])
+// N2:   @@index([tenantId, canchaId, inicio])
+// N2:   @@index([tenantId, inicio])
+// N2: }

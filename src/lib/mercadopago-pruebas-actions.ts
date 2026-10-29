@@ -10,6 +10,7 @@ import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { logger } from "@/lib/logger";
 import {
+  CobrosSinConexionError,
   crearPasarelaCobrosPara,
   modoCobrosDesdeEnv,
   type ModoCobros,
@@ -41,7 +42,14 @@ export async function generarCobroDePruebaAction(): Promise<ResultadoBancoPrueba
 
   logger.info("mercadopago.prueba", "Generando cobro de prueba", { tenantId, modo });
 
-  const pasarela = crearPasarelaCobrosPara(tenantId);
+  let pasarela: Awaited<ReturnType<typeof crearPasarelaCobrosPara>>;
+  try {
+    pasarela = await crearPasarelaCobrosPara(tenantId);
+  } catch (e) {
+    // Sin conexión de Mercado Pago (y sin MP_MODO_LEGADO=1): falla cerrada, con qué hacer.
+    if (e instanceof CobrosSinConexionError) return { ok: false, modo, error: e.message };
+    throw e;
+  }
   const resultado = await generarCobroDePrueba(pasarela);
 
   if (resultado.ok) {

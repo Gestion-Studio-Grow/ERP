@@ -27,6 +27,7 @@ import { decidirComprobante } from "@/lib/fiscal/decidir-comprobante";
 import { normalizarFecha } from "@/lib/fiscal/vigencias";
 import { leerRegimenFacturaAEnTx } from "@/lib/fiscal/regimen-factura-a.server";
 import { montosDeLaNota, saldoPorAnular } from "@/lib/facturacion/nota-credito-core";
+import { emitirFacturaAutorizada, emitirFacturaRechazada } from "@/eventos/del-core";
 
 /** Cliente de transacción interactiva (mismo patrón que `LedgerTx` en stock/ledger.ts):
  *  `createInvoiceInTx` corre DENTRO de una tx ya abierta por el llamador → componible y
@@ -491,8 +492,8 @@ export async function registerFiscalDocument(
   input: RegisterFiscalDocumentInput,
   envioId: string,
 ): Promise<boolean> {
-  return escribirSiElEnvioSigueAbierto(input.tenantId, envioId, (tx) =>
-    tx.invoice.updateMany({
+  return escribirSiElEnvioSigueAbierto(input.tenantId, envioId, async (tx) => {
+    const r = await tx.invoice.updateMany({
       where: { id: input.invoiceId, tenantId: input.tenantId, status: "PENDING" },
       data: {
         status: "AUTHORIZED",
@@ -502,8 +503,11 @@ export async function registerFiscalDocument(
         tipoComprobante: input.tipoComprobante,
         authorizedAt: new Date(),
       },
-    }),
-  );
+    });
+    // P2 · factura.autorizada@1, además de InvoiceCreated (ARCA no cambia), en esta transacción.
+    if (r.count === 1) await emitirFacturaAutorizada(tx, { ...input });
+    return r;
+  });
 }
 
 /**
@@ -568,11 +572,15 @@ export async function markInvoiceRejected(
   return escribirSiElEnvioSigueAbierto(
     tenantId,
     envioId,
-    (tx) =>
-      tx.invoice.updateMany({
+    async (tx) => {
+      const r = await tx.invoice.updateMany({
         where: { id: invoiceId, tenantId, status: "PENDING" },
         data: { status: "REJECTED", rechazoMotivo: motivo },
-      }),
+      });
+      // P2 · factura.rechazada@1 en esta transacción.
+      if (r.count === 1) await emitirFacturaRechazada(tx, { tenantId, invoiceId, motivo, envioId });
+      return r;
+    },
     motivo,
   );
 }

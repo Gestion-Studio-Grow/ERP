@@ -83,6 +83,11 @@ test("advanceOrderStatus usa esta decisión, con el negocio en la lectura y en l
   const cuerpo = src.slice(i, src.indexOf("\n}\n", i));
   assert.match(cuerpo, /avanzarPedidoGuarded\(/);
   assert.match(cuerpo, /findFirst\(\{ where: \{ id, tenantId \}/);
-  assert.match(cuerpo, /updateMany\(\{\s*where: \{ id, tenantId, status: from \}/);
+  // N2/P2: la escritura (compare-and-set) y su evento van juntos en `moverPedidoConEventoEnTx`,
+  // dentro de una transacción con el negocio; el «sólo si sigue en `from`» es el mismo.
+  assert.match(cuerpo, /tenantTransaction\(\(tx\) => moverPedidoConEventoEnTx\(tx, \{ tenantId, pedidoId: id, de: from, a: to \}\), \{ tenantId \}\)/);
+  const delCore = readFileSync(new URL("../eventos/del-core.ts", import.meta.url), "utf8");
+  const mover = delCore.slice(delCore.indexOf("export async function moverPedidoConEventoEnTx("));
+  assert.match(mover, /updateMany\(\{\s*where: \{ id: p\.pedidoId, tenantId: p\.tenantId, status: p\.de \}/);
   assert.ok(!/cambiado de estado/.test(cuerpo), "el texto sale de la decisión, no de la action");
 });

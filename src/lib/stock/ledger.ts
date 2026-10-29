@@ -17,6 +17,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { costoVigenteEnTx } from "@/lib/stock/costo";
+import { emitirEventosDelMovimiento, type MovimientoParaEventos } from "@/eventos/del-stock";
 
 // Cliente de transacción interactiva: lo que recibe el callback de
 // `tenantTransaction`/`$transaction`. `recordMovement` corre SIEMPRE dentro de una tx
@@ -104,6 +105,12 @@ export type RecordMovementArgs = {
   // señal y se carga a las 15:00). Va a `createdAt` para que la venta caiga en su día y su mes.
   // `balanceAfter` sigue siendo el saldo al momento de cargarla: por eso la fila lleva su `reason`.
   at?: Date | null;
+  /**
+   * N2/P2 (F7, CERT-P2 vuelta 5): si viene, los eventos del movimiento NO se emiten acá: se juntan
+   * en esta lista y el llamador los emite en lote (`emitirEventosDeMovimientos`) ANTES de cerrar
+   * su transacción. Para las operaciones de muchas líneas (el recuento: `ajustarEnTx`).
+   */
+  eventos?: MovimientoParaEventos[];
 };
 
 // ¿Esta fila del ledger lleva el costo vigente estampado? Toda SALIDA que llega sin costo:
@@ -173,7 +180,8 @@ export async function recordMovement(tx: LedgerTx, args: RecordMovementArgs): Pr
 
   const after = await tx.product.findUnique({
     where: { id: args.productId },
-    select: { stock: true },
+    // N2/P2: el mínimo y si controla stock, para `stock.bajo@1` (src/eventos/del-stock.ts).
+    select: { stock: true, lowStockAt: true, trackStock: true },
   });
   const balanceAfter = round3(after?.stock ?? 0);
   const corregido = after ? stockARedondear(after.stock) : null;
@@ -188,7 +196,7 @@ export async function recordMovement(tx: LedgerTx, args: RecordMovementArgs): Pr
     ? await costoVigenteEnTx(tx, args.tenantId, args.productId)
     : (args.unitCost ?? null);
 
-  await tx.stockMovement.create({
+  const movimiento = await tx.stockMovement.create({
     data: {
       tenantId: args.tenantId,
       productId: args.productId,
@@ -203,7 +211,16 @@ export async function recordMovement(tx: LedgerTx, args: RecordMovementArgs): Pr
       createdBy: args.createdBy,
       ...(args.at ? { createdAt: args.at } : {}),
     },
+    select: { id: true },
   });
+
+  // N2/P2: `stock.ajustado@1` y `stock.bajo@1`, en la transacción del movimiento.
+  const paraEventos: MovimientoParaEventos = {
+    tenantId: args.tenantId, productId: args.productId, movimientoId: movimiento?.id ?? "", tipo: args.type, delta,
+    saldo: balanceAfter, motivo: args.reason ?? null, minimo: after?.lowStockAt, controlaStock: after?.trackStock,
+  };
+  if (args.eventos) args.eventos.push(paraEventos);
+  else await emitirEventosDelMovimiento(tx, paraEventos);
 
   return balanceAfter;
 }

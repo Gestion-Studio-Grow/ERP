@@ -68,3 +68,51 @@ export function verifyMercadoPagoSignature(input: {
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
 }
+
+// ── Ventana de tiempo y varios secretos (S1, webhooks por negocio) ───────────
+
+/** Tolerancia del `ts` firmado contra el reloj del servidor: ±5 minutos. */
+export const TOLERANCIA_TS_MS = 5 * 60 * 1000;
+
+/**
+ * ¿El `ts` firmado está dentro de la ventana? PURA. MP manda segundos unix; si viniera en
+ * milisegundos (más de 11 cifras) se lo toma como tal. Ilegible → false (fail-closed). Sin
+ * ventana, una notificación firmada capturada se podría reenviar para siempre.
+ */
+export function tsDentroDeVentana(ts: string, ahoraMs: number, toleranciaMs: number = TOLERANCIA_TS_MS): boolean {
+  if (!/^\d{1,16}$/.test(ts)) return false;
+  const n = Number(ts);
+  const ms = n > 1e11 ? n : n * 1000;
+  return Math.abs(ahoraMs - ms) <= toleranciaMs;
+}
+
+export type ResultadoFirma =
+  | { ok: true; firmantes: string[] }
+  | { ok: false; motivo: "sin-firma" | "ts-fuera-de-ventana" | "firma-invalida" };
+
+/**
+ * Verifica la firma contra VARIOS secretos candidatos (uno por negocio + el global) y devuelve
+ * qué claves la validan. PURA. Primero el `ts` (fuera de ±5 min → rechazo, aunque la firma sea
+ * buena), después el HMAC de cada candidato en tiempo constante. Cuál de los firmantes es el
+ * dueño de la notificación lo decide quien conoce el negocio (src/lib/webhooks/resolver-negocio.ts).
+ */
+export function verificarFirmaMP(input: {
+  xSignature: string | null | undefined;
+  xRequestId: string | null | undefined;
+  dataId: string;
+  candidatos: ReadonlyArray<{ clave: string; secreto: string }>;
+  ahoraMs: number;
+  toleranciaMs?: number;
+}): ResultadoFirma {
+  const parts = parseXSignature(input.xSignature);
+  if (!parts || !input.dataId) return { ok: false, motivo: "sin-firma" };
+  if (!tsDentroDeVentana(parts.ts, input.ahoraMs, input.toleranciaMs)) return { ok: false, motivo: "ts-fuera-de-ventana" };
+  const firmantes = input.candidatos
+    .filter(
+      (c) =>
+        c.secreto &&
+        verifyMercadoPagoSignature({ xSignature: input.xSignature, xRequestId: input.xRequestId, dataId: input.dataId, secret: c.secreto }),
+    )
+    .map((c) => c.clave);
+  return firmantes.length > 0 ? { ok: true, firmantes } : { ok: false, motivo: "firma-invalida" };
+}

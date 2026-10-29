@@ -60,6 +60,7 @@ import { medioPrincipal } from "@/lib/supermercado/pago-mixto";
 import { registrarPromocionesDeLaVentaEnTx } from "@/lib/supermercado/promos-de-la-venta";
 import { CUADERNO_SOLO_VENTA_COBRADA } from "@/lib/cuaderno/hora-de-la-venta";
 import type { Prisma, ProductSaleUnit } from "@/generated/prisma/client";
+import { emitirPedidoCobrado, emitirPedidoCreado } from "@/eventos/del-core";
 
 export type OrderPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
 
@@ -742,6 +743,9 @@ export async function insertOrder(
         // Con pago mixto el libro ya quedó escrito medio por medio: el asiento único de la venta
         // (`imputarVentaEnTx`) sumaría el total entero otra vez en el medio principal.
         const cashSale = datos.pagosMixtos ? undefined : await imputarVentaEnTx(tx, datos, created);
+        // P2 · eventos de dominio, en ESTA transacción (src/eventos/del-core.ts): si fallan, no hay venta.
+        await emitirPedidoCreado(tx, { tenantId, pedidoId: created.id, codigo: created.code, channel: input.channel, fulfillment: input.fulfillment, total: datos.total, lineas: datos.lines, aMano: datos.aMano, clienteId: datos.clientId, claveIdempotencia: clave, ocurridoEn: datos.occurredAt });
+        if (!datos.aCuenta && input.paid) await emitirPedidoCobrado(tx, { tenantId, pedidoId: created.id, codigo: created.code, monto: datos.total, medio: input.paymentMethod, actor: datos.imputarCajaActor, cobradoEn: datos.occurredAt });
         return {
           id: created.id,
           code: created.code,
@@ -1288,6 +1292,7 @@ export async function cobrarPedidoEnTx(
     const problema = validarPagosContraElTotal(mixto, order.total);
     if (problema) throw new RechazoDeDominio(problema);
     await imputarPagosMixtosEnTx(tx, tenantId, { orderId: order.id, orderCode: order.code, asientos: mixto, actor: args.actor });
+    await emitirPedidoCobrado(tx, { tenantId, pedidoId: order.id, codigo: order.code, monto: order.total, medio: args.method, actor: args.actor }); // P2
     return { tipo: "cobrado", order: { id: order.id, code: order.code, total: order.total } };
   }
   await recordCashSaleMovementInTx(tx, tenantId, {
@@ -1298,6 +1303,7 @@ export async function cobrarPedidoEnTx(
     total: order.total,
     actor: args.actor,
   });
+  await emitirPedidoCobrado(tx, { tenantId, pedidoId: order.id, codigo: order.code, monto: order.total, medio: args.method, actor: args.actor }); // P2
   return { tipo: "cobrado", order: { id: order.id, code: order.code, total: order.total } };
 }
 
@@ -1379,10 +1385,11 @@ const DEPS_AVISO: DepsAvisoDePedido = {
  * pedido queda a cobrar (la bandeja lo muestra) y el aviso lo dice. Nunca tira por una regla de
  * negocio: devuelve el motivo. Un error de base sí sube, para que Mercado Pago reintente.
  *
- * QUIÉN LA LLAMA HOY: el simulador de avisos (cobros-actions.ts, sólo en modo de prueba). El
- * webhook de producción todavía no (src/lib/mercadopago-dispatch.ts no le pasa `cobrarPedido`
- * al handler, y la ruta descarta los avisos con la facturación apagada): conectarlo es una
- * decisión del dueño, porque abre el endpoint público al cobro de pedidos.
+ * QUIÉN LA LLAMA: el webhook de Mercado Pago (src/lib/mercadopago-dispatch.ts, `atenderAvisoMP`,
+ * con el negocio resuelto por la `external_reference` firmada y no por el host) y el simulador de
+ * avisos (cobros-actions.ts, sólo en modo de prueba). Conectar el webhook al cobro de pedidos lo
+ * decidió el dueño al aprobar el plan del nivel 2 (Tanda S1: criterio S1-C5 y QA paso 1,
+ * PLAN-REINGENIERIA-N2.md, Factory-GSG da9b8f8).
  */
 export async function cobrarPedidoPorAvisoDePago(
   aviso: AvisoDePagoDePedido,

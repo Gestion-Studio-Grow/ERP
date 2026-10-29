@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "./motor.mjs";
-import { conservarLoDelicado } from "./delicado";
+import { CONFIG_DELICADA, conservarLoDelicado } from "./delicado";
 
 const HOY = "2026-10-17";
 const sobre = (e: M.EstadoClub) => JSON.stringify({ v: 1, estado: e, secuencia: M.secuenciaIds(), guardado: 1 });
@@ -16,11 +16,11 @@ test("recepción guarda con los PIN cambiados, borrados o con un usuario nuevo: 
   duenio.pin = "0000"; // le pisa el PIN a un dueño
   tocado.usuarios = tocado.usuarios.filter((u) => u.rol === "duenio" || u.id !== tocado.usuarios.find((x) => x.rol === "recepcion")!.id); // borra a uno
   tocado.usuarios.push({ id: "u-intruso", nombre: "Intruso", rol: "duenio", pin: "4321", activo: true }); // se suma de dueño
-  tocado.caja.fondo = 12345; // lo demás sí pasa
+  tocado.clientes[0].nombre = "Ana Editada"; // lo demás sí pasa
   const r = conservarLoDelicado(sobre(vigente), sobre(tocado));
   assert.equal(r.corregido, true);
   assert.deepEqual(usuarios(r.texto), vigente.usuarios, "los usuarios y los PIN quedan como en la base");
-  assert.equal((JSON.parse(r.texto) as { estado: M.EstadoClub }).estado.caja.fondo, 12345, "el resto del club se guarda");
+  assert.equal((JSON.parse(r.texto) as { estado: M.EstadoClub }).estado.clientes[0].nombre, "Ana Editada", "el resto del club se guarda");
 });
 
 test("el PIN propio de recepción sí pasa (válido para su rol); el de un dueño, nunca desde recepción; tampoco un cambio de rol", () => {
@@ -104,4 +104,64 @@ test("una sal que no es texto en hex no se estrena desde recepción, y un PIN vi
   const pasado = structuredClone(conEspacio);
   M.pasarPinesAHash(pasado);
   assert.equal(conservarLoDelicado(sobre(conEspacio), sobre(pasado)).corregido, false);
+});
+
+// ───── F5 (CERT-B4 vuelta 4): «Reglas y precios» y «Avisos» que mueven plata o permisos ─────
+
+const estadoDe = (texto: string) => (JSON.parse(texto) as { estado: M.EstadoClub }).estado;
+const RETIRO_LU = { monto: 1000, usuarioId: "u-lu", pin: "33" };
+const ALAS_19 = { fecha: HOY, min: 19 * 60 + 15 };
+
+test("F5: recepción baja la firma de caja a 2 y toca precios, seña, fondo, alias y avisos: queda todo como en la base y su PIN de 2 no firma un retiro", () => {
+  const vigente = M.generarDemo(HOY, 19 * 60);
+  vigente.config.caja = { largoPinFirma: 4, pedirNombreJugador: false };
+  const tocado = structuredClone(vigente);
+  tocado.config.caja = { largoPinFirma: 2, pedirNombreJugador: true };
+  tocado.config.tarifas[0].precioHora = 1;
+  tocado.config.politica.senaPct = 0;
+  tocado.config.politica.horasCancelacionLibre = 0;
+  tocado.config.bloqueoMin = 60;
+  tocado.config.cobro = { alias: "alias.de.recepcion" };
+  (tocado.config as { contactos?: Record<string, string> }).contactos = { "u-rober": "5491199999999" };
+  tocado.caja.fondo = 999999;
+  tocado.clientes[0].nombre = "Ana Editada"; // lo que recepción sí puede cambiar
+  // Sin la red, el ataque funciona: con la firma en 2, recepción firma el retiro con su PIN.
+  const sinRed = M.hidratarEstado(JSON.parse(sobre(tocado)));
+  assert.ok(sinRed.ok);
+  assert.equal(M.retiroCajaFuerte(sinRed.estado, RETIRO_LU, ALAS_19).ok, true, "el ataque tiene dientes sin la red");
+
+  const r = conservarLoDelicado(sobre(vigente), sobre(tocado));
+  assert.equal(r.corregido, true);
+  const quedo = estadoDe(r.texto);
+  for (const [objeto, clave] of CONFIG_DELICADA)
+    assert.deepEqual((quedo[objeto] as unknown as Record<string, unknown>)[clave], (vigente[objeto] as unknown as Record<string, unknown>)[clave], `${objeto}.${clave} queda como en la base`);
+  assert.equal(quedo.clientes[0].nombre, "Ana Editada", "lo demás se guarda");
+  const conRed = M.hidratarEstado(JSON.parse(r.texto));
+  assert.ok(conRed.ok);
+  assert.equal(M.largoFirmaCaja(conRed.estado), 4);
+  const intento = M.retiroCajaFuerte(conRed.estado, RETIRO_LU, ALAS_19);
+  assert.equal(intento.ok, false, "recepción con PIN de 2 no firma el retiro");
+  assert.equal((intento as { pinCorto?: boolean }).pinCorto, true, "lo frena el largo de la firma");
+});
+
+test("F5: si la base no tenía firma configurada, recepción no la estrena en 2 (vale la de fábrica, 4)", () => {
+  const vigente = M.generarDemo(HOY, 19 * 60);
+  delete (vigente.config as { caja?: unknown }).caja;
+  const tocado = structuredClone(vigente);
+  tocado.config.caja = { largoPinFirma: 2 };
+  const r = conservarLoDelicado(sobre(vigente), sobre(tocado));
+  assert.equal(r.corregido, true);
+  assert.equal("caja" in estadoDe(r.texto).config, false, "no queda la firma de recepción");
+  const h = M.hidratarEstado(JSON.parse(r.texto));
+  assert.ok(h.ok);
+  assert.equal(M.largoFirmaCaja(h.estado), 4);
+});
+
+test("F5: un guardado de recepción con la configuración igual a la base pasa tal cual (sin corregir ni re-serializar)", () => {
+  const vigente = M.generarDemo(HOY, 19 * 60);
+  vigente.config.caja = { largoPinFirma: 4 };
+  const tocado = structuredClone(vigente);
+  tocado.clientes[0].nombre = "Ana Editada";
+  const t = sobre(tocado);
+  assert.deepEqual(conservarLoDelicado(sobre(vigente), t), { texto: t, corregido: false });
 });

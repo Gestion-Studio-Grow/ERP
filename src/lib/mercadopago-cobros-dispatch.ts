@@ -15,11 +15,9 @@
  * store y prenda el modo correspondiente. NUNCA hay secretos en el repo ni se piden
  * por chat.
  *
- * NOTA multi-tenant: hoy el token se lee de `MP_ACCESS_TOKEN` a nivel entorno (el
- * despliegue es un sitio por tenant, Opción A / `FORCE_TENANT_SLUG`). Cuando haya
- * varios tenants por despliegue, el token por tenant sale de un secret store keyeado
- * por `tenantId` (o del `CredencialesPort` OAuth de MP) — el seam ya está listo; se
- * cambia solo la resolución del token, no el resto.
+ * Multi-tenant (Tanda P1, P1-C4): el token sale de la CONEXIÓN de Mercado Pago del negocio
+ * (`configCobrosPorDefecto` de pagos-dispatch, la misma que lee los pagos). `MP_ACCESS_TOKEN`
+ * global sólo con `MP_MODO_LEGADO=1` y auditado; sin conexión ni flag, falla cerrada.
  */
 
 import {
@@ -29,6 +27,14 @@ import {
 } from "@/plugins/mercadopago/cobros";
 import { tokenFijo } from "@/plugins/mercadopago/http";
 import { logger } from "@/lib/logger";
+import {
+  configCobrosDesde,
+  depsConfigCobrosDeLaBase,
+  type ConfigCobros,
+  type ConfigCobrosPort,
+} from "@/lib/pagos-dispatch";
+
+export { CobrosSinConexionError } from "@/lib/pagos-dispatch";
 
 export type ModoCobros = "stub" | "test" | "real";
 
@@ -52,22 +58,33 @@ export function pareceTokenDePrueba(accessToken: string): boolean {
   return accessToken.trim().toUpperCase().startsWith("TEST-");
 }
 
+/** El `accessToken` de una config de cobros de MP, o "" si no lo trae (legado sin token). PURA. */
+function tokenDeLaConfig(cfg: ConfigCobros): string {
+  const c = cfg.config as { credenciales?: { accessToken?: unknown } } | undefined;
+  const t = c?.credenciales?.accessToken;
+  return typeof t === "string" ? t.trim() : "";
+}
+
 /**
  * Construye la `PasarelaCobros` de un tenant. En modo stub (default) devuelve el
- * sandbox en memoria; en modo test/real, el adapter HTTP con el token del
- * entorno (misma API de MP para ambos — homologación es cuestión de credencial,
- * no de endpoint). `tenantId` se recibe para la futura resolución por-tenant
- * (ver nota de multi-tenant arriba).
+ * sandbox en memoria (no cobra en ninguna cuenta); en modo test/real, el adapter HTTP con el
+ * token de la CONEXIÓN de Mercado Pago del negocio (P1-C4, misma resolución que la lectura de
+ * pagos: `configCobrosPorDefecto`). Sin conexión y sin `MP_MODO_LEGADO=1` → lanza
+ * `CobrosSinConexionError` (falla cerrada: nunca un link que cobra en la cuenta de otro). Con el
+ * flag y sin conexión → el token global del despliegue, auditado en el negocio.
+ *
+ * `configPort` es inyectable para tests; por defecto, la base + el `env` recibido.
  */
-export function crearPasarelaCobrosPara(
-  _tenantId: string,
+export async function crearPasarelaCobrosPara(
+  tenantId: string,
   env: Record<string, string | undefined> = process.env,
-): PasarelaCobros {
+  configPort: ConfigCobrosPort = configCobrosDesde({ ...depsConfigCobrosDeLaBase, env }),
+): Promise<PasarelaCobros> {
   const modo = modoCobrosDesdeEnv(env);
   if (modo === "real" || modo === "test") {
-    // Token del entorno/secret store. Si falta, `tokenFijo` lanzará al usarse
-    // (credencial requerida) — nunca se inventa.
-    const accessToken = env.MP_ACCESS_TOKEN?.trim() ?? "";
+    // Token de la conexión del negocio (o del legado auditado). Si falta, `tokenFijo` lanzará al
+    // usarse (credencial requerida) — nunca se inventa.
+    const accessToken = tokenDeLaConfig(await configPort.configDe(tenantId));
     if (accessToken) {
       const esDePrueba = pareceTokenDePrueba(accessToken);
       if (modo === "test" && !esDePrueba) {

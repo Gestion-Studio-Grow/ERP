@@ -4,11 +4,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
+import type { Fijo } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, Reserva } from "@/lib/club/motor.mjs";
 import { readFileSync } from "node:fs";
 import { operadorDeLaDemo } from "./almacen";
+import { ejecutarBajaFijo, otroFijoQuePisa } from "./canchas-core";
 import { aprobarConCodigo, codigoDeLaDemo, pedidosPendientes, pedirFiado } from "./credito-core";
-import { armarCuenta, canchaOcupada, confirmarCreditos, DESHACIBLE, EN_EL_VANILLA, ejecutar, fichasParaSumar, partirConCreditos, revisarConfirmacion, textoCierre, type VistaCuenta } from "./cuenta-core";
+import { armarCuenta, canchaOcupada, confirmarCreditos, DESHACIBLE, EN_EL_VANILLA, ejecutar, fichasParaSumar, partirConCreditos, revisarConfirmacion, sugerirFichas, textoCierre, type VistaCuenta } from "./cuenta-core";
 
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -868,4 +870,132 @@ test("BP-006: «Cobrar la seña y abrir» con transferencia — en cancha, luz p
   assert.equal(M.resumenCaja(e).ingresos - ing0, r.sena.monto, "una sola vez");
   // Con créditos no va por acá (se cobra la seña sola, con su paso previo).
   assert.equal(ejecutar(demo(), r.id, { tipo: "cobrarSenaYAbrir", medio: "monedero" as never }, A_LAS_2055).ok, false);
+});
+
+// ── Dictamen v5 (BP-101): idempotencia de la pausa, un solo guardián del fijo nuevo, baja que devuelve lo liberado ──
+{
+  const HOY = "2026-10-17";
+  const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
+  const k = 3;
+  const d = (i: number) => M.sumarDias(HOY, k + 7 * i);
+  function base(semanas = 14) {
+    const e = M.generarDemo(HOY, AHORA.min) as EstadoClub;
+    const dia = M.diaSemana(d(0));
+    const canchaId = e.canchas.find((c) => Array.from({ length: semanas }, (_, i) => i).every((i) => M.validarHueco(e, { canchaId: c.id, fecha: d(i), inicio: 22 * 60, duracion: 60 }).ok))!.id;
+    const f = M.crearFijo(e, { clienteId: null, canchaId, dia, inicio: 22 * 60, duracion: 60, titular: "Juan Fijo", desde: HOY });
+    M.materializarFijosHasta(e, HOY, 14);
+    return { e, f, canchaId, dia };
+  }
+  /** Estado heredado (fijo de Pedro dentro de la pausa de Juan) como lo deja la UI vieja o una réplica. Por defecto
+   * Pedro juega sólo d(4) y d(5) (choque acotado: Juan vuelve el d(6)); `{}` = Pedro permanente. */
+  function conPedro(desde = d(4), extra: Partial<Fijo> = { hasta: d(5) } as Partial<Fijo>) {
+    const b = base();
+    ejecutarBajaFijo(b.e, { tipo: "pausa", fijoId: b.f.id, desde: HOY, hasta: d(10) }, AHORA);
+    const P = M.crearFijo(b.e, { clienteId: null, canchaId: b.canchaId, dia: b.dia, inicio: 22 * 60, duracion: 60, titular: "Pedro Nuevo", desde });
+    Object.assign(P, extra);
+    return { ...b, P, acortar: { tipo: "pausa" as const, fijoId: b.f.id, desde: HOY, hasta: M.sumarDias(d(4), -1) } };
+  }
+  /** Pares de fijos permanentes que juegan la misma fecha en el mismo hueco (próximas 80 semanas). */
+  function solapes(e: EstadoClub, f: Fijo) {
+    const out: string[] = [];
+    for (let i = 0; i < 80; i++) {
+      const fecha = M.sumarDias(HOY, k + 7 * i);
+      if (!M.fijoJuegaEl(f, fecha)) continue;
+      const o = otroFijoQuePisa({ ...e, reservas: [] } as EstadoClub, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion }, f.id);
+      if (o) out.push(`${fecha}:${o.titular}`);
+    }
+    return out;
+  }
+
+  const GUARDIAN = /^Ese horario ya es del fijo de Juan Fijo \(martes 22:00; lo juega el .*\)\. Elegí otro día, hora o cancha\./;
+
+  test("v5-10 «Hacer fijo» un turno suelto en el hueco de Juan pausado: el guardián lo frena", () => {
+    const { e, f, canchaId } = base();
+    ejecutarBajaFijo(e, { tipo: "pausa", fijoId: f.id, desde: HOY, hasta: d(10) }, AHORA);
+    const t = M.crearReserva(e, { canchaId, fecha: d(0), inicio: 22 * 60, duracion: 60, tipo: "turno", titular: "Pedro Suelto" }, AHORA);
+    assert.equal(t.ok, true);
+    const antes = JSON.stringify(e);
+    const r = ejecutar(e, (t as { reserva: { id: string } }).reserva.id, { tipo: "hacerFijo" }, AHORA);
+    assert.equal(r.ok, false);
+    assert.match(r.mensaje, GUARDIAN);
+    assert.equal(JSON.stringify(e), antes);
+    assert.equal(e.fijos.some((x) => x.titular === "Pedro Suelto"), false);
+  });
+}
+
+// ── Tanda B4 (C5): «Jugador 2/3/4» dice quién es al cobrar; queda en la caja y en la ficha ──────────────────────────
+
+test("B4-C5 · al cobrar a «Jugador 2» se pone nombre y teléfono: queda en la fila, en el movimiento de la caja y en una ficha nueva", () => {
+  const e = demo();
+  const r = turnoDe42(e);
+  assert.equal(ejecutar(e, r.id, { tipo: "dividir", n: 4 }, AHORA).ok, true);
+  const v = cuenta(e, r.id);
+  assert.equal(v.jugadores[1].pideQuien, true);
+  assert.equal(v.jugadores[0].pideQuien, false);
+  const fichas = e.clientes.length;
+  const movs = e.caja.movimientos.length;
+  // Con créditos (sin ficha no tiene): el cobro no pasa y el jugador vuelve a llamarse «Jugador 2».
+  const mal = ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 1, medio: "monedero", quien: { nombre: "Pedro Paz", tel: "11 5555-1234" } }, AHORA);
+  assert.equal(mal.ok, false);
+  assert.equal(r.jugadores[1].nombre, "Jugador 2");
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 1, medio: "efectivo", quien: { tel: "123" } }, AHORA).ok, false, "teléfono corto");
+  const d = ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 1, medio: "efectivo", quien: { nombre: "Pedro Paz", tel: "11 5555-1234" } }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.match(d.mensaje, /a Pedro Paz/);
+  assert.equal(r.jugadores[1].nombre, "Pedro Paz");
+  assert.equal(e.clientes.length, fichas + 1, "ficha nueva");
+  assert.equal(r.jugadores[1].clienteId, e.clientes.at(-1)!.id);
+  assert.ok(e.caja.movimientos.length > movs);
+  assert.ok(e.caja.movimientos.slice(movs).every((m) => m.jugador === "Pedro Paz (11 5555-1234)"));
+  // «Jugador 3» con una ficha que ya existe (sugerida por el teléfono): se vincula, sin ficha nueva.
+  const existente = e.clientes.find((c) => c.activo !== false && c.tel && !r.jugadores.some((j) => j.clienteId === c.id))!;
+  const sug = sugerirFichas(e, existente.tel.slice(-6));
+  assert.ok(sug.some((x) => x.id === existente.id), "la ficha se sugiere por el teléfono");
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 2, medio: "efectivo", quien: { tel: existente.tel } }, AHORA).ok, true);
+  assert.equal(r.jugadores[2].clienteId, existente.id);
+  assert.equal(r.jugadores[2].nombre, existente.nombre);
+  assert.equal(e.clientes.length, fichas + 1);
+  // Con el club pidiéndolo (`config.caja.pedirNombreJugador`), «Jugador 4» sin nombre no se cobra.
+  e.config.caja = { pedirNombreJugador: true };
+  const sinQuien = ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 3, medio: "efectivo" }, AHORA);
+  assert.equal(sinQuien.ok, false);
+  assert.match(sinQuien.mensaje, /¿Quién es Jugador 4\?/);
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 3, medio: "efectivo", quien: { nombre: "Lola" } }, AHORA).ok, true);
+  assert.equal(r.jugadores[3].nombre, "Lola");
+  assert.equal(r.jugadores[3].clienteId ?? null, null, "con el nombre solo no se hace ficha (no se duplican)");
+});
+
+test("B4-C5 (vuelta 4) · «Sólo la cancha» de «Jugador N» también pide quién es: no esquiva `pedirNombreJugador` y el nombre queda en la caja", () => {
+  const e = demo();
+  const r = turnoDe42(e);
+  assert.equal(ejecutar(e, r.id, { tipo: "dividir", n: 4 }, AHORA).ok, true);
+  e.config.caja = { pedirNombreJugador: true };
+  const fichas = e.clientes.length;
+  const movs = e.caja.movimientos.length;
+  // Ataque: cobrar sólo la parte de la cancha, sin decir quién es, con el club pidiéndolo.
+  const sinQuien = ejecutar(e, r.id, { tipo: "cobrarParte", idx: 1, medio: "efectivo" }, AHORA);
+  assert.equal(sinQuien.ok, false, sinQuien.mensaje);
+  assert.match(sinQuien.mensaje, /¿Quién es Jugador 2\?/);
+  assert.equal(e.caja.movimientos.length, movs, "no entró plata a la caja");
+  assert.equal(r.jugadores[1].saldado ?? false, false);
+  // Si el cobro no pasa (con créditos, sin ficha no tiene), el jugador vuelve a ser «Jugador 2».
+  const mal = ejecutar(e, r.id, { tipo: "cobrarParte", idx: 1, medio: "monedero", quien: { nombre: "Pedro Paz", tel: "11 5555-1234" } }, AHORA);
+  assert.equal(mal.ok, false);
+  assert.equal(r.jugadores[1].nombre, "Jugador 2");
+  assert.equal(r.jugadores[1].clienteId ?? null, null);
+  assert.equal(e.clientes.length, fichas, "sin ficha nueva si no se cobró");
+  // Con nombre y teléfono: se cobra la parte, queda en el movimiento de la caja y en una ficha nueva.
+  const d = ejecutar(e, r.id, { tipo: "cobrarParte", idx: 1, medio: "efectivo", quien: { nombre: "Pedro Paz", tel: "11 5555-1234" } }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.match(d.mensaje, /de Pedro Paz/);
+  assert.equal(r.jugadores[1].nombre, "Pedro Paz");
+  assert.equal(e.clientes.length, fichas + 1);
+  assert.equal(r.jugadores[1].clienteId, e.clientes.at(-1)!.id);
+  const nuevos = e.caja.movimientos.slice(movs);
+  assert.equal(nuevos.length, 1);
+  assert.equal(nuevos[0].jugador, "Pedro Paz (11 5555-1234)");
+  // Sin el club pidiéndolo, «Sólo la cancha» sin nombre sigue como siempre.
+  e.config.caja = { pedirNombreJugador: false };
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarParte", idx: 2, medio: "efectivo" }, AHORA).ok, true);
+  assert.equal(r.jugadores[2].nombre, "Jugador 3");
 });

@@ -697,46 +697,57 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     assert.equal(await page.getByRole("article", { name: "Federico Luna" }).count(), 0);
 
     await irASolapa(page, "Caja");
-    const efectivo = async () => (await page.getByText("Efectivo en el cajón").locator("xpath=following-sibling::dd").textContent())!;
-    const antes = await efectivo();
-    // El egreso pide el PIN de quien opera (Lu, recepción, en la demo): sin PIN o con uno equivocado no pasa.
-    const egreso = page.getByRole("region", { name: "Anotar un egreso en efectivo" });
-    const pinEgreso = egreso.getByLabel("PIN de Lu");
+    // Tanda B4: Lu (recepción) no ve lo esperado del cajón (el cierre es a ciegas).
+    await page.getByText("Efectivo en el cajón").locator("xpath=following-sibling::dd").filter({ hasText: "Se ve al cerrar el turno" }).waitFor();
+    // El egreso es por categoría y lo firma un PIN de 4 (D-16): sin PIN no, con uno equivocado suma al tope, con el de
+    // 2 de recepción no firma; firma un dueño.
+    const egreso = page.getByRole("form", { name: "Egreso en efectivo" });
+    const pinEgreso = egreso.getByLabel("PIN de 4 dígitos");
     assert.equal(await pinEgreso.getAttribute("type"), "password");
     assert.equal(await pinEgreso.getAttribute("inputmode"), "numeric");
     assert.equal(await pinEgreso.getAttribute("autocomplete"), "off");
     await egreso.getByLabel("Monto").fill("2500");
     await egreso.getByLabel(/^Concepto/).fill("Hielo");
     await egreso.getByRole("button", { name: "Anotar el egreso" }).click();
-    await page.getByRole("alert").filter({ hasText: /^Poné tu PIN/ }).waitFor();
+    await page.getByRole("alert").filter({ hasText: /^Falta la firma/ }).waitFor();
     await pinEgreso.fill("99");
     await egreso.getByRole("button", { name: "Anotar el egreso" }).click();
     // Suma al tope compartido de todo PIN del equipo (el del bloqueo): el aviso dice cuántos van.
     await page.getByRole("alert").filter({ hasText: "PIN incorrecto (1 de 5)." }).waitFor();
     assert.equal(await pinEgreso.inputValue(), "", "el PIN se borra después de cada intento");
-    assert.equal(await efectivo(), antes, "sin el PIN no salió nada del cajón");
     await pinEgreso.fill("33");
     await egreso.getByRole("button", { name: "Anotar el egreso" }).click();
-    await page.getByRole("status").filter({ hasText: "Egreso de $ 2.500 (Hielo) anotado" }).waitFor();
-    const numero = (x: string) => Number(x.replace(/\D/g, ""));
-    assert.equal(numero(await efectivo()), numero(antes) - 2500);
-    // El cierre también pide el PIN: sin él no cierra.
-    const cierre = page.getByRole("region", { name: "Cerrar la caja" });
-    await cierre.getByLabel("Efectivo contado", { exact: true }).fill(String(numero(await efectivo()) + 500));
-    // La demo ya trae cerradas las cajas de los días pasados (Tanda 2B): se cuenta que no se sume ninguna.
-    const cierresAntes = await page.locator('section[aria-labelledby="club-cierres"] li').count();
-    await cierre.getByRole("button", { name: "Cerrar la caja" }).click();
-    await page.getByRole("alert").filter({ hasText: /^Poné tu PIN/ }).waitFor();
-    assert.equal(await page.locator('section[aria-labelledby="club-cierres"] li').count(), cierresAntes, "sin PIN no quedó ningún cierre");
-    await cierre.getByLabel("PIN de Lu").fill("33");
-    await cierre.getByRole("button", { name: "Cerrar la caja" }).click();
-    await page.getByRole("status").filter({ hasText: /^Caja del .* cerrada: sobran \$ 500\./ }).waitFor();
+    await page.getByRole("alert").filter({ hasText: /PIN de 4 dígitos/ }).waitFor();
+    await egreso.getByLabel("Firma").selectOption({ label: "Rober (dueño/a)" });
+    await pinEgreso.fill("1111");
+    await egreso.getByRole("button", { name: "Anotar el egreso" }).click();
+    await page.getByRole("status").filter({ hasText: "Egreso de $ 2.500 (Insumos: Hielo) anotado" }).waitFor();
+    // Cierre del turno a ciegas: Lu cuenta (sin ver lo esperado), confirma, y recién ahí ve la diferencia.
+    const contar = page.getByRole("form", { name: /^Turno \d+ · desde/ });
+    await contar.getByLabel("Monedas ($)").fill("1000");
+    await contar.getByRole("button", { name: "Confirmar el conteo" }).click();
+    await page.getByRole("status").filter({ hasText: /^Turno \d+ contado/ }).waitFor();
+    const firmar = page.getByRole("form", { name: /^Turno \d+ de Lu/ });
+    await firmar.getByRole("columnheader", { name: "Esperado" }).waitFor();
+    await firmar.getByLabel("Motivo de la diferencia (obligatorio)").fill("Prueba del cierre");
+    await firmar.getByLabel("Firma").selectOption({ label: "Rober (dueño/a)" });
+    await firmar.getByLabel("PIN de 4 dígitos").fill("1111");
+    await firmar.getByRole("button", { name: "Firmar y cerrar el turno" }).click();
+    await page.getByRole("status").filter({ hasText: /^Turno \d+ cerrado por Lu .*, firmó Rober/ }).waitFor();
+    // El día se cierra consolidando los turnos (con firma).
+    const dia = page.getByRole("form", { name: /^Cerrar el día/ });
+    await dia.getByLabel("Firma").selectOption({ label: "Rober (dueño/a)" });
+    await dia.getByLabel("PIN de 4 dígitos").fill("1111");
+    await dia.getByRole("button", { name: "Cerrar el día" }).click();
+    await page.getByRole("status").filter({ hasText: /^Caja del .* cerrada con 1 turnos/ }).waitFor();
     // Las de días anteriores que quedaron sin cerrar se avisan en rojo y se cierran eligiendo el día.
     const aviso = page.getByRole("alert").filter({ hasText: /cajas? sin cerrar/ });
     if (await aviso.count()) {
-      const atrasada = page.getByRole("region", { name: /cajas? sin cerrar/ });
-      await atrasada.getByLabel(/^Efectivo contado de la caja del/).fill("0");
-      await atrasada.getByLabel("PIN de Lu").fill("33");
+      // Una de antes de B4 (sin turnos): el efectivo a ciegas y la firma de caja (D-16: con el PIN de 2 de Lu no se cierra).
+      const atrasada = page.getByRole("region", { name: /sin cerrar/ });
+      await atrasada.getByLabel(/^Efectivo contado \(con el fondo\)/).fill("0");
+      await atrasada.getByLabel("Firma").selectOption({ label: "Rober (dueño/a)" });
+      await atrasada.getByLabel("PIN de 4 dígitos").fill("1111");
       await atrasada.getByRole("button", { name: "Cerrar esa caja" }).click();
       await page.getByRole("status").filter({ hasText: /^Caja del .* cerrada/ }).waitFor();
     }

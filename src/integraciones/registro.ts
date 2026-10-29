@@ -37,8 +37,12 @@ import {
   type SimuladorConector,
 } from "./contrato";
 
-/** La lista de conectores del producto. Vacía hasta que entre el primero (R1-F2: WhatsApp). */
-export const CONECTORES: readonly ConectorDescriptor[] = [];
+import { conectorMercadoPago } from "@/plugins/mercadopago/conector";
+import { conectorWhatsApp } from "@/plugins/whatsapp/conector";
+import { conectorArca } from "@/plugins/arca/conector";
+
+/** La lista de conectores del producto (Tanda P1: Mercado Pago, WhatsApp y ARCA). */
+export const CONECTORES: readonly ConectorDescriptor[] = [conectorMercadoPago, conectorWhatsApp, conectorArca];
 
 export interface OpcionesRegistro {
   /**

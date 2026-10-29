@@ -35,6 +35,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { dayOfWeekForDate } from "@/lib/datetime";
+import { emitirPasoDelPedido } from "@/eventos/del-core";
 
 type Tx = Prisma.TransactionClient;
 
@@ -166,6 +167,8 @@ export async function entregarAlFiadoEnTx(
     data: { status: "DELIVERED" },
   });
   if (r.count !== 1) return { entregado: false, fiado: null };
+  // N2/P2: `pedido.entregado@1` en la transacción de la entrega (no es un cobro: no emite cobrado).
+  await emitirPasoDelPedido(tx, { tenantId, pedidoId: args.orderId, de: "READY", a: "DELIVERED" });
   return { entregado: true, fiado: await registrarFiadoDelPedidoEnTx(tx, tenantId, args) };
 }
 

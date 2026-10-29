@@ -15,6 +15,7 @@ import { round2 } from "@/lib/round";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { cobrarPedidoPorAvisoDePago } from "@/lib/order-core";
 import {
+  CobrosSinConexionError,
   crearPasarelaCobrosPara,
   modoCobrosDesdeEnv,
   type ModoCobros,
@@ -26,6 +27,7 @@ import {
 import { MercadoPagoApiError } from "@/plugins/mercadopago/http";
 import { procesarNotificacionPago } from "@/plugins/mercadopago/handler";
 import { referenciaDePedido } from "@/plugins/mercadopago/core-contract";
+import { referenciaDelLinkDePedido, referenciaDelLinkManual } from "@/lib/webhooks/resolver-negocio";
 import { StubMercadoPagoClient } from "@/plugins/mercadopago/stub";
 import { importeONaN } from "@/lib/dinero/leer";
 import { leerFiltrosLinks, type FiltrosLinks, type PaginaDeLinks } from "@/lib/cobros/links-core";
@@ -67,16 +69,23 @@ export async function generarCobro(formData: FormData): Promise<GenerarCobroResu
   const referenciaExterna = String(formData.get("referenciaExterna") || "").trim() || undefined;
   const emailPagador = String(formData.get("emailPagador") || "").trim() || undefined;
 
-  const solicitud: SolicitudCobro = { concepto, monto, referenciaExterna, emailPagador };
+  // La referencia que viaja a Mercado Pago lleva el negocio (Tanda S1): el aviso del pago sale de
+  // ahí, nunca del host. Una referencia escrita con `gsg:` se rechaza (cobraría en otro negocio).
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
+  if (!tenant) return { ok: false, error: "No se encontró el negocio." };
+  const ref = referenciaDelLinkManual(tenant.slug, referenciaExterna);
+  if (!ref.ok) return { ok: false, error: ref.error };
+
+  const solicitud: SolicitudCobro = { concepto, monto, referenciaExterna: ref.referencia, emailPagador };
 
   try {
-    const pasarela = crearPasarelaCobrosPara(tenantId);
+    const pasarela = await crearPasarelaCobrosPara(tenantId);
     const link = await pasarela.crearLinkDePago(solicitud);
     await auditAdmin({
       action: "create",
       entity: "PaymentLink",
       entityId: link.preferenceId,
-      changes: { concepto, monto, referenciaExterna },
+      changes: { concepto, monto, referenciaExterna, referenciaMP: ref.referencia ?? null },
     });
     return {
       ok: true,
@@ -89,6 +98,7 @@ export async function generarCobro(formData: FormData): Promise<GenerarCobroResu
     if (e instanceof SolicitudCobroInvalidaError) {
       return { ok: false, error: e.errores.map((x) => x.mensaje).join(" ") };
     }
+    if (e instanceof CobrosSinConexionError) return { ok: false, error: e.message };
     if (e instanceof MercadoPagoApiError) {
       // No filtrar detalles crudos del proveedor al operador: mensaje claro + código.
       return {
@@ -134,14 +144,14 @@ export async function estadoCobros(): Promise<{ modo: ModoCobros }> {
 // Recepción no elige cuánto se cobra; sólo manda el link del total que ya está.
 //
 // Y sólo en un negocio con el módulo de Mercado Pago contratado (`tieneMercadoPago`, sobre
-// `Tenant.modules` leído acá mismo, no sobre el menú): el token de Mercado Pago es uno por
-// despliegue (mercadopago-cobros-dispatch.ts), así que sin este candado recepción de cualquier
-// comercio del despliegue generaría links que cobran en esa cuenta. La pantalla usa la misma
+// `Tenant.modules` leído acá mismo, no sobre el menú). Además el token sale de la CONEXIÓN de
+// Mercado Pago del negocio (mercadopago-cobros-dispatch.ts, P1-C4): sin conexión (y sin
+// MP_MODO_LEGADO=1) no se arma el link (`CobrosSinConexionError`). La pantalla usa la misma
 // regla (`linkDePagoDisponible`) para mostrar el botón.
 //
-// Lo que el link NO hace todavía: cobrar solo el pedido cuando el cliente paga. Eso lo resuelve
-// `cobrarPedidoPorAvisoDePago`, pero el webhook de producción no se lo pasa al handler (ver
-// pedidos/link-de-pago.ts). Hoy el pedido pagado se marca con «Cobrar».
+// Cuando el cliente paga, el webhook cobra el pedido solo (`cobrarPedidoPorAvisoDePago`): la
+// referencia del link lleva el negocio (`gsg:<slug>:pedido:<id>`, Tanda S1) y el aviso lo saca de
+// ahí, nunca del host (ver pedidos/link-de-pago.ts).
 
 export type EstadoLinkDePago =
   | null
@@ -162,7 +172,7 @@ export async function generarLinkDePagoDePedido(
       where: { id, tenantId },
       select: { id: true, code: true, total: true, paid: true, status: true, customerPhone: true },
     }),
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, modules: true } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true, modules: true } }),
   ]);
   if (
     !linkDePagoDisponible({
@@ -173,27 +183,29 @@ export async function generarLinkDePagoDePedido(
   ) {
     return { ok: false, error: SIN_MERCADO_PAGO };
   }
-  if (!o) return { ok: false, error: "No se encontró el pedido." };
+  if (!o || !tenant) return { ok: false, error: "No se encontró el pedido." };
   if (o.status === "CANCELLED") return { ok: false, error: `El pedido #${o.code} está anulado: no se cobra.` };
   if (o.paid) return { ok: false, error: `El pedido #${o.code} ya está cobrado.` };
   const monto = round2(o.total);
   if (!(monto > 0)) return { ok: false, error: `El pedido #${o.code} no tiene importe para cobrar.` };
-  const negocio = tenant?.name ?? "el local";
+  const negocio = tenant.name || "el local";
 
+  // `gsg:<slug>:pedido:<id>`: el aviso de pago saca el negocio de acá, nunca del host (Tanda S1).
+  const referenciaMP = referenciaDelLinkDePedido(tenant.slug, o.id);
   const solicitud: SolicitudCobro = {
     concepto: `Pedido #${o.code} · ${negocio}`,
     monto,
-    referenciaExterna: referenciaDePedido(o.id),
+    referenciaExterna: referenciaMP,
   };
   try {
-    const link = await crearPasarelaCobrosPara(tenantId).crearLinkDePago(solicitud);
+    const link = await (await crearPasarelaCobrosPara(tenantId)).crearLinkDePago(solicitud);
     // Con credenciales de prueba se paga en el sandbox de Mercado Pago; con las reales, el link real.
     const url = modo === "real" ? link.initPoint : (link.sandboxInitPoint ?? link.initPoint);
     await auditAdmin({
       action: ACCION_LINK_DE_PAGO,
       entity: "Order",
       entityId: o.id,
-      changes: { code: o.code, monto, preferenceId: link.preferenceId, modo, url },
+      changes: { code: o.code, monto, preferenceId: link.preferenceId, modo, url, referenciaMP },
     });
     revalidatePath("/admin/pedidos");
     return {
@@ -208,6 +220,7 @@ export async function generarLinkDePagoDePedido(
     if (e instanceof SolicitudCobroInvalidaError) {
       return { ok: false, error: e.errores.map((x) => x.mensaje).join(" ") };
     }
+    if (e instanceof CobrosSinConexionError) return { ok: false, error: SIN_MERCADO_PAGO };
     if (e instanceof MercadoPagoApiError) {
       return {
         ok: false,
@@ -224,9 +237,9 @@ export type EstadoSimulacionDePago = null | { ok: true; mensaje: string } | { ok
  * SÓLO PARA PROBAR (modo `stub` con `MP_SIMULAR_AVISOS`): hace llegar el aviso de pago del link
  * como si el cliente hubiera pagado, con el monto del último link generado. Corre el handler del
  * plugin (`procesarNotificacionPago`) con `cobrarPedidoPorAvisoDePago` conectado: el mismo
- * handler y el mismo cobro que va a usar el aviso real CUANDO el webhook los conecte (hoy no:
- * ver pedidos/link-de-pago.ts). Lo que el simulador NO recorre es la ruta del webhook, su firma
- * y su despacho. El id del pago es fijo por pedido: tocarlo dos veces es el mismo aviso
+ * handler y el mismo cobro que usa el aviso real (`atenderAvisoMP`, mercadopago-dispatch.ts). Lo
+ * que el simulador NO recorre es la ruta del webhook: su firma y la resolución del negocio por la
+ * referencia (por eso le pasa al handler la referencia ya traducida, `pedido:<id>`). El id del pago es fijo por pedido: tocarlo dos veces es el mismo aviso
  * repetido, y tiene que dejar un solo asiento en el libro.
  */
 export async function simularPagoDePedido(

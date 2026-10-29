@@ -64,6 +64,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { aplicarPromociones, type ContextoDePromo, type Promocion } from "@/lib/supermercado/promociones";
 import { reemplazarPromocionesDeLaVentaEnTx } from "@/lib/supermercado/promos-de-la-venta";
 import type { PromosDeLaVenta } from "@/lib/order-core";
+import { emitirPedidoCancelado } from "@/eventos/del-core";
 
 export type AnulacionVentaTx = Prisma.TransactionClient;
 
@@ -532,6 +533,9 @@ export async function anularVentaInTx(
   // (4) El uso del cupón vuelve. Va DESPUÉS del compare-and-set a propósito: sólo la anulación
   // que ganó la fila llega acá, así que anular dos veces no devuelve dos usos.
   const cuponDevuelto = await devolverCuponDelPedidoEnTx(tx, tenantId, args.orderId, order!.createdAt);
+
+  // P2 · pedido.cancelado@1 en ESTA transacción: si no se puede emitir, la anulación vuelve atrás.
+  await emitirPedidoCancelado(tx, { tenantId, pedidoId: args.orderId, codigo: order!.code, motivo: args.motivo, reintegro: montoRevertido });
 
   return { applied: true, code: order!.code, montoRevertido, stockDevuelto, reversaId, cuponDevuelto };
 }

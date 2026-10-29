@@ -70,6 +70,7 @@ import {
 } from "@/app/admin/(dashboard)/ventas/factura";
 import { permiteVenderSinStock, productosQuePuedenQuedarNegativos } from "@/lib/stock/pos-stock-rules";
 import { tenantTransaction } from "@/lib/rls";
+import { moverPedidoConEventoEnTx } from "@/eventos/del-core";
 import { negocioConOfertas, promosParaUnaVenta } from "@/lib/supermercado/promos-del-negocio";
 import { leerDatosFiscalesDeVenta, type DatosFiscalesDeVenta } from "@/lib/fiscal/datos-fiscales-de-venta";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
@@ -579,10 +580,11 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   const naceEntregada =
     isRetail && channel === "COUNTER" && fulfillment === "PICKUP" && ((paid && paymentMethod != null) || aCuenta);
   if (naceEntregada) {
-    await prisma.order.updateMany({
-      where: { id: result.id, tenantId, status: "CONFIRMED" },
-      data: { status: "DELIVERED" },
-    });
+    // N2/P2: el paso a Entregado y `pedido.entregado@1` en una transacción.
+    await tenantTransaction(
+      (tx) => moverPedidoConEventoEnTx(tx, { tenantId, pedidoId: result.id, de: "CONFIRMED", a: "DELIVERED" }),
+      { tenantId },
+    );
   }
 
   // Lo nuevo (descuento, precio a mano, ficha) va en el rastro sólo cuando existe: la venta de
@@ -941,13 +943,9 @@ export async function advanceOrderStatus(formData: FormData): Promise<OrderActio
   const r = await avanzarPedidoGuarded({
     comercio: isRetail,
     leer: () => prisma.order.findFirst({ where: { id, tenantId }, select: { status: true } }),
-    escribir: async (from, to) => {
-      const res = await prisma.order.updateMany({
-        where: { id, tenantId, status: from },
-        data: { status: to },
-      });
-      return res.count > 0;
-    },
+    // N2/P2: el paso y su evento (`pedido.confirmado/listo@1`) en una transacción.
+    escribir: (from, to) =>
+      tenantTransaction((tx) => moverPedidoConEventoEnTx(tx, { tenantId, pedidoId: id, de: from, a: to }), { tenantId }),
   });
   // Salió o no, la bandeja se redibuja con el estado real.
   revalidarMostrador();
@@ -1143,13 +1141,10 @@ export async function entregarPedido(
         alFiado = e.fiado;
         return e.entregado;
       }
-      return (
-        (
-          await prisma.order.updateMany({
-            where: { id, tenantId, status: "READY" },
-            data: { status: "DELIVERED" },
-          })
-        ).count === 1
+      // N2/P2: la entrega y `pedido.entregado@1` en una transacción.
+      return tenantTransaction(
+        (tx) => moverPedidoConEventoEnTx(tx, { tenantId, pedidoId: id, de: "READY", a: "DELIVERED" }),
+        { tenantId },
       );
     },
   });

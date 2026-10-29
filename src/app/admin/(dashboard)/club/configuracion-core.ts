@@ -69,6 +69,8 @@ import { pinCoincide,
   usuario as usuarioDe,
   verificarFirma,
   largoPin,
+  largoFirmaCaja,
+  LARGO_PIN,
   pinAceptadoPara,
   pinValidoPara,
 } from "@/lib/club/motor.mjs";
@@ -496,7 +498,20 @@ export interface ValoresReglas {
   /** El precio por hora de cada tarifa, en el orden de `config.tarifas`. */
   tarifas: string[];
   fondo: string;
+  /**
+   * B4-C4 (D-16): largo del PIN que FIRMA cierres, retiros y egresos (`config.caja.largoPinFirma`), uno de
+   * `LARGOS_DE_FIRMA`. Opcional: una acción sin él (de antes) no lo cambia.
+   */
+  largoPinFirma?: string;
+  /** B4-C5: al cobrar a «Jugador 2/3/4», pedir nombre o teléfono (`config.caja.pedirNombreJugador`). Sin él, no cambia. */
+  pedirNombreJugador?: boolean;
 }
+
+/**
+ * Los largos de firma que se pueden elegir: los de los PIN que existen (recepción 2, dueño 4). Uno más largo que el
+ * PIN de dueño dejaría la caja sin nadie que firme.
+ */
+export const LARGOS_DE_FIRMA: readonly number[] = [...new Set(Object.values(LARGO_PIN))].sort((a, b) => a - b);
 
 /** Lo que muestra el formulario de reglas (como texto, para editar). */
 export function valoresDeReglas(estado: EstadoClub): ValoresReglas {
@@ -506,6 +521,8 @@ export function valoresDeReglas(estado: EstadoClub): ValoresReglas {
     bloqueoMin: String(estado.config.bloqueoMin ?? 5),
     tarifas: estado.config.tarifas.map((t) => String(t.precioHora)),
     fondo: String(estado.caja.fondo ?? 0),
+    largoPinFirma: String(largoFirmaCaja(estado)),
+    pedirNombreJugador: !!estado.config.caja?.pedirNombreJugador,
   };
 }
 
@@ -901,6 +918,13 @@ function ejecutar(estado: EstadoClub, accion: AccionConfig, ahora: Ahora, auth: 
       for (let i = 0; i < tarifas.length; i++) if (!(precios[i] >= 0)) return no(`Poné el precio por hora ${tarifas[i].nombre.toLowerCase()} (0 o más).`);
       const fondo = leerMonto(accion.fondo);
       if (!(fondo >= 0)) return no("Poné cuánto cambio queda en el cajón (0 o más).");
+      // B4-C4/C5: la firma de caja y el nombre del jugador (sólo si vinieron: una acción de antes no los cambia).
+      let largoFirma: number | null = null;
+      if (accion.largoPinFirma != null) {
+        largoFirma = Number(String(accion.largoPinFirma).trim());
+        if (!LARGOS_DE_FIRMA.includes(largoFirma)) return no(`«PIN que firma la caja»: de ${LARGOS_DE_FIRMA.join(" o de ")} dígitos.`);
+      }
+      if (accion.pedirNombreJugador != null && typeof accion.pedirNombreJugador !== "boolean") return no("«Pedir el nombre de Jugador 2, 3 y 4»: sí o no.");
       for (const r of REGLAS) {
         const res = ajustarPolitica(estado, r.clave, accion.politica[r.clave].trim());
         if (!res.ok) return no(res.motivo);
@@ -911,6 +935,13 @@ function ejecutar(estado: EstadoClub, accion: AccionConfig, ahora: Ahora, auth: 
       if (fondo !== estado.caja.fondo) {
         const f = ajustarFondo(estado, fondo, auth, ahora);
         if (!f.ok) return no(f.motivo);
+      }
+      if (largoFirma != null || accion.pedirNombreJugador != null) {
+        estado.config.caja = {
+          ...(estado.config.caja ?? {}),
+          ...(largoFirma != null && { largoPinFirma: largoFirma }),
+          ...(accion.pedirNombreJugador != null && { pedirNombreJugador: accion.pedirNombreJugador }),
+        };
       }
       return { ok: true, mensaje: "Reglas y precios guardados. Los precios valen para los turnos nuevos." };
     }
