@@ -6,14 +6,14 @@ import ReserveButton from "./ReserveButton";
 
 const navLink: React.CSSProperties = { color: "var(--text-strong)", textDecoration: "none", transition: "color var(--ch-transicion)", fontSize: 14 };
 
-// `brandName` viene del tenant (ficha de marca, RFC-004-D). Ausente → "CH Estética"
-// (compat con la prod de CH). Un tenant no-CH ya no muestra el logo de CH.
+// `brandName` viene del tenant (ficha de marca, RFC-004-D; el layout siempre lo pasa). Ausente → nombre neutro: el
+// nombre de CH no es el de cualquier negocio (P0 ronda 2, fail-open).
 //
 // `nuevo` lo pone el layout SÓLO para CH con el interruptor «Diseño nuevo» prendido (DISENO.md §5.1 y §6):
 // marca de palabra, nav grande y «Reservar» petróleo de 52 px (en el celular, 56 px de alto y «Reservar» con
 // borde: el acceso principal es la barra fija de abajo). Sin `nuevo`, el encabezado de siempre, igual.
 export default function Header({ hasNews, brandName, nuevo }: { hasNews?: boolean; brandName?: string; nuevo?: boolean }) {
-  const label = brandName?.trim() || "CH Estética";
+  const label = brandName?.trim() || "Reservas";
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);

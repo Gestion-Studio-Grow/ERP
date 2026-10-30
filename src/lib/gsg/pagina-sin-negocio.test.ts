@@ -29,3 +29,18 @@ test("WhatsApp de GSG sólo si está cargado: no se inventa contacto", () => {
   assert.ok(!htmlSinNegocio({ host: null, whatsappGsg: null }).includes("wa.me"));
   assert.ok(htmlSinNegocio({ host: null, whatsappGsg: "5491122223333" }).includes("Escribinos por WhatsApp"));
 });
+
+// P0 ronda 2 (fail-open): con la base caída, cualquier host veía la landing de CH. Ahora ve esta página.
+test("servicio caído: neutra, sin nada de CH, sin indexar y con salida", async () => {
+  const { htmlSinServicio } = await import("./pagina-sin-negocio");
+  const html = htmlSinServicio({ host: "chestetica.gsgapp.com.ar" });
+  for (const fuga of ["Carolina", "Macarena", "Romina", "Alameda", "CH Estética", "Haponiuk", "Panel de gestión"]) assert.ok(!html.includes(fuga), fuga);
+  assert.match(html, /Volvemos en un rato\./);
+  assert.match(html, /<meta name="robots" content="noindex, nofollow">/);
+  assert.match(html, /href="\/">Probar de nuevo</);
+  assert.ok(!/<script/i.test(html));
+});
+
+test("el apex tampoco se indexa (SEO ronda 2)", () => {
+  assert.match(htmlSinNegocio({ host: "www.gsgapp.com.ar", whatsappGsg: null }), /<meta name="robots" content="noindex, nofollow">/);
+});

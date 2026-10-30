@@ -3,7 +3,7 @@ import { Geist, Geist_Mono, Playfair_Display, Fraunces, Hanken_Grotesk, Bebas_Ne
 import { getTenantBrand, resolveAccent, tenantFaviconDataUri } from "@/lib/branding";
 import { gsgIdentityEnabled, identityAttr, tenantBrandSheetEnabled } from "@/lib/identity";
 import { getBrandSheet } from "@/lib/brand-sheet";
-import { direccionConNegocio } from "@/lib/tenant";
+import { estadoDeLaDireccion } from "@/lib/tenant";
 import { faviconGsg, NOMBRE_GSG, pestanaDelPedido } from "@/lib/pestana";
 import "./globals.css";
 
@@ -128,8 +128,13 @@ export async function generateMetadata(): Promise<Metadata> {
   // FICHA DE MARCA (RFC-004-D): con `TENANT_BRAND_SHEET_ENABLED` ON manda el nombre de la ficha, como siempre.
   const sheet = tenantBrandSheetEnabled() ? await getBrandSheet() : null;
   if (sheet) return { title: sheet.name, description: "Gestión del negocio y reservas online.", icons: { icon: tenantFaviconDataUri(brand.monogram, accent) } };
-  // Una base caída no se disfraza de «dirección sin negocio»: ante la duda, se sigue como negocio.
-  const sinNegocio = await direccionConNegocio().then((ok) => !ok, () => false);
+  // Una base caída no se disfraza de «dirección sin negocio», pero tampoco de negocio (P0 ronda 2): pestaña neutra de
+  // GSG y sin indexar. El cuerpo lo resuelve el layout del sitio (redirige a /sin-servicio).
+  const estado = await estadoDeLaDireccion();
+  if (estado === "sin-servicio") {
+    return { title: NOMBRE_GSG, icons: { icon: faviconGsg() }, robots: { index: false, follow: false } };
+  }
+  const sinNegocio = estado === "sin-negocio";
   const nombreDelTenant = sinNegocio || brand.propia ? null : (await getBrandSheet()).name;
   const pestana = pestanaDelPedido({ sinNegocio, brand, nombreDelTenant });
   if (pestana.tipo === "gsg") {

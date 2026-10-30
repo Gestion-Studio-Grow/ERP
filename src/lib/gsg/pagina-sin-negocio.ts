@@ -20,18 +20,20 @@ export function hostVisible(host: string | null | undefined): string | null {
   return /^[a-z0-9.-]{1,253}$/.test(h) ? h : null;
 }
 
-export function htmlSinNegocio({ host, whatsappGsg }: { host: string | null; whatsappGsg: string | null }): string {
-  const visible = hostVisible(host);
-  const wa = whatsappGsg
-    ? buildWhatsAppHref(whatsappGsg, `Hola, entré a ${visible ?? "una dirección de gsgapp"} y dice que todavía no hay un negocio publicado.`)
-    : null;
+/**
+ * La cáscara común de las páginas neutras de GSG (sin negocio, servicio caído): `<head>` con la letra de GSG, la paleta
+ * neutra y el ícono. PURA. `indexable: false` agrega `<meta name="robots" content="noindex">` (además del header que
+ * manda cada ruta: un HTML guardado o servido por un CDN sigue diciendo lo mismo).
+ */
+function cabezaGsg({ titulo, descripcion, indexable }: { titulo: string; descripcion: string; indexable: boolean }): string {
   return `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GSG — Gestión Studio Grow</title>
-<meta name="description" content="Esta dirección es de GSG, la plataforma de gestión de Gestión Studio Grow. Todavía no hay un negocio publicado acá.">
+<title>${esc(titulo)}</title>
+<meta name="description" content="${esc(descripcion)}">${indexable ? "" : `
+<meta name="robots" content="noindex, nofollow">`}
 <meta name="theme-color" content="#f4f5f4">
 <link rel="icon" href="data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='#191b1c'/><g transform='translate(12 13) scale(1.1)' color='#f4f5f4'>${ISOTIPO_GSG_PATHS.replace(/"/g, "'")}</g></svg>`)}">
 <link rel="preload" href="/gsg/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -80,7 +82,15 @@ footer .marco{border-top:1px solid var(--linea);padding-top:24px;padding-bottom:
 @media (prefers-reduced-motion:reduce){.btn{transition:none}.btn-solido:hover{transform:none}}
 </style>
 </head>
-<body>
+`;
+}
+
+export function htmlSinNegocio({ host, whatsappGsg, indexable = false }: { host: string | null; whatsappGsg: string | null; indexable?: boolean }): string {
+  const visible = hostVisible(host);
+  const wa = whatsappGsg
+    ? buildWhatsAppHref(whatsappGsg, `Hola, entré a ${visible ?? "una dirección de gsgapp"} y dice que todavía no hay un negocio publicado.`)
+    : null;
+  return `${cabezaGsg({ titulo: "GSG — Gestión Studio Grow", descripcion: "Esta dirección es de GSG, la plataforma de gestión de Gestión Studio Grow. Todavía no hay un negocio publicado acá.", indexable })}<body>
 <header><div class="marco">
 <a class="logo" href="https://gsgapp.com.ar/" aria-label="GSG — Gestión Studio Grow">${logoGsgSvg({ alto: 32 })}</a>
 <a class="entrar" href="/admin/login">Entrar a tu panel</a>
@@ -103,6 +113,33 @@ ${wa ? `<div class="acciones"><a class="btn btn-linea" href="${esc(wa)}" target=
 </section>
 </div></div></main>
 <footer><div class="marco"><span>© 2026 Gestión Studio Grow</span><span>powered by GSG</span></div></footer>
+</body>
+</html>`;
+}
+
+/**
+ * La página de una dirección CON negocio cuando la base no responde (P0 ronda 2, 30/10/2026). Antes, «no sé si hay
+ * negocio» se trataba como «hay negocio» y cualquier host pintaba la landing de CH con su copy. Ahora: una página de
+ * GSG, sin marca de ningún cliente, que dice lo que pasa y ofrece reintentar. No lee nada (la base está caída): sólo el
+ * host del pedido para mostrarlo. Siempre `noindex`: un buscador no debe guardar una caída.
+ */
+export function htmlSinServicio({ host }: { host: string | null }): string {
+  const visible = hostVisible(host);
+  return `${cabezaGsg({ titulo: "Volvemos en un rato · GSG", descripcion: "El sitio no está disponible en este momento. Probá de nuevo en unos minutos.", indexable: false })}<body>
+<header><div class="marco">
+<span class="logo" aria-label="GSG — Gestión Studio Grow">${logoGsgSvg({ alto: 32 })}</span>
+</div></header>
+<main><div class="marco"><div class="col">
+${visible ? `<p class="host">${esc(visible)}</p>` : ""}
+<h1>Volvemos en un rato.</h1>
+<p class="bajada">El sitio no está disponible en este momento: es un problema nuestro, no de tu conexión. Probá de nuevo en unos minutos.</p>
+<div class="tarjetas" style="grid-template-columns:1fr;max-width:28rem"><section class="tarjeta" aria-labelledby="t-reintentar">
+<h2 id="t-reintentar">¿Ibas a reservar o a comprar?</h2>
+<p>No se perdió nada: cuando vuelva, empezás de nuevo desde el inicio.</p>
+<div class="acciones"><a class="btn btn-solido" href="/">Probar de nuevo</a></div>
+</section></div>
+</div></div></main>
+<footer><div class="marco"><span>© ${new Date().getFullYear()} Gestión Studio Grow</span><span>powered by GSG</span></div></footer>
 </body>
 </html>`;
 }

@@ -6,7 +6,7 @@ import { getTenantBrand, resolveAccent } from "@/lib/branding";
 import { getBrandSheet, brandSheetAccent } from "@/lib/brand-sheet";
 import { tenantBrandSheetEnabled } from "@/lib/identity";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
-import { direccionConNegocio } from "@/lib/tenant";
+import { estadoDeLaDireccion } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { WhatsAppCtaProvider } from "@/components/whatsapp-cta";
 import BookingProvider from "./_ch/BookingProvider";
@@ -23,9 +23,12 @@ export const dynamic = "force-dynamic";
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   // FUGA DE MARCA (E1, 29/10/2026): una dirección que no lleva a ningún negocio (el apex, un subdominio inventado o
   // mal escrito) mostraba la landing de CH con los nombres de su equipo. Ahora ve la página neutra de Gestión Studio
-  // Grow (src/app/sin-negocio), en todo el sitio (portada, /servicios, /reserva). Una base caída no se disfraza de
-  // «sin negocio»: ante la duda, el camino de siempre (fail-open, como el resto de los loaders del sitio).
-  if (await direccionConNegocio().then((ok) => !ok, () => false)) redirect("/sin-negocio");
+  // Grow (src/app/sin-negocio), en todo el sitio (portada, /servicios, /reserva). Una base caída tampoco pinta un negocio
+  // (P0 ronda 2): antes «no sé» se trataba como «sí» y cualquier host veía la landing de CH; ahora ve «Volvemos en un
+  // rato», neutra y 503 (src/app/sin-servicio). No se disfraza de «sin negocio»: son dos páginas distintas.
+  const estado = await estadoDeLaDireccion();
+  if (estado === "sin-negocio") redirect("/sin-negocio");
+  if (estado === "sin-servicio") redirect("/sin-servicio");
   // Los servicios y el equipo ya no se leen acá: no viajan en el HTML de cada página (ver
   // BookingProvider) y la lectura quedaba sin usar en /reserva y /reserva/turno.
   const [news, location, brand, slug, chNuevo] = await Promise.all([
