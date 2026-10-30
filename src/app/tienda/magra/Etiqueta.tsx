@@ -93,7 +93,11 @@ export const Etiqueta = memo(function Etiqueta({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={pack.src} width={pack.width} height={pack.height} alt={altDelPack(p)} loading="lazy" decoding="async" />
           ) : (
-            <EtiquetaDePack nombre={nombre} animal={animal} region={region} />
+            <>
+              <EtiquetaDePack nombre={nombre} animal={animal} region={region} />
+              {/* Sin foto del corte todavía (QA Magra v2): el placeholder lo dice, no se inventa una foto. */}
+              <span className="mg-pendiente">Foto: material real pendiente</span>
+            </>
           )}
         </div>
       )}

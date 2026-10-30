@@ -135,7 +135,9 @@ export const CSS_VIDRIERA = `
 .magra .mg-eti:hover{border-color:rgba(197,174,134,.55)}
 .magra .mg-eti:has(.mg-eti-abrir:active){transform:scale(.98)}
 .magra .mg-eti.on{border-color:var(--oro)}
-.magra .mg-eti-vis{aspect-ratio:4/5;background:var(--negro);display:grid;place-items:center;overflow:hidden}
+.magra .mg-eti-vis{aspect-ratio:4/5;background:var(--negro);display:grid;place-items:center;overflow:hidden;position:relative}
+.magra .mg-ficha-vis{position:relative}
+.magra .mg-pendiente{position:absolute;left:8px;bottom:8px;max-width:calc(100% - 16px);padding:3px 8px;border-radius:3px;background:rgba(13,13,12,.86);color:var(--crema);font:600 11px/1.3 var(--f-c);letter-spacing:.03em}
 .magra .mg-eti-vis img{display:block;width:100%;height:100%;object-fit:cover}
 .magra .mg-eti.off .mg-eti-vis{filter:grayscale(1) brightness(.55)}
 .magra .mg-mini{display:block;width:100%;height:100%}

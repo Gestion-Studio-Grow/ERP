@@ -70,7 +70,10 @@ export function FichaContenido({
           <img src={pack.src} width={pack.width} height={pack.height} alt={altDelPack(p)} decoding="async" />
         ) : (
           // Sin foto real: la etiqueta del pack, sin sello (el «De dónde sale» de abajo ya lo dibuja).
-          <EtiquetaDePack nombre={nombre} animal={animal} region={regionId} sello={false} />
+          <>
+            <EtiquetaDePack nombre={nombre} animal={animal} region={regionId} sello={false} />
+            <span className="mg-pendiente">Foto del corte: material real pendiente</span>
+          </>
         )}
       </div>
       <div className="mg-ficha-txt">
