@@ -51,7 +51,7 @@ export const sitioDelPedido = cache(async (): Promise<SitioDelPedido> => {
   });
   // Del sitio estático se publican sus PÁGINAS (html), no adjuntos ni imágenes.
   const paginasEstaticas = estatico
-    ? Object.entries(estatico.archivos).filter(([, a]) => a.tipo.startsWith("text/html")).map(([ruta]) => `/${ruta}`)
+    ? Object.entries(estatico.archivos).filter(([, a]) => a.tipo.startsWith("text/html") && a.indexable !== false).map(([ruta]) => `/${ruta}`)
     : [];
   return { tipo, slug: identity?.slug ?? null, vidriera, paginasEstaticas };
 });
