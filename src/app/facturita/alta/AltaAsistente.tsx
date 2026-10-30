@@ -1,11 +1,13 @@
 "use client";
 
 // Asistente de alta de Facturita: cinco pasos, uno por pantalla. Toda la validación es la de
-// src/lib/facturita-onboarding.ts (pura, testeada). Lo que se tipea queda en memoria de esta
-// pestaña: no se manda a ningún servidor ni se guarda en el navegador. El último paso arma el
-// mensaje para que GSG active la cuenta (alta operada, ver page.tsx).
+// src/lib/facturita-onboarding.ts (pura, testeada). Lo que se tipea no se manda a ningún servidor:
+// queda en esta pestaña (sessionStorage, se borra al cerrarla) para que «volver» del navegador o
+// una recarga no lo borren, y el paso va en la URL (?paso=2) con su entrada en el historial (QA
+// 29/10). Nunca van datos en la URL: sólo el número de paso. El último paso arma el mensaje para
+// que GSG active la cuenta (alta operada, ver page.tsx) y lo manda por el canal de ../contacto.ts.
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   ALTA_VACIA,
   CONDICIONES_IVA,
@@ -22,6 +24,7 @@ import {
   type ErroresAlta,
 } from "@/lib/facturita-onboarding";
 import { BOTON_PRINCIPAL, BOTON_SECUNDARIO, FOCO } from "../estilos";
+import { CASILLA_GSG as CASILLA, linkCanal, type CanalGsg } from "../contacto";
 
 // Rediseño 29/10/2026 (fronts/facturita/DISENO.md §5.3): sólo cambian clases y estructura visual
 // (la tarjeta pasa a hoja del talonario, campos h 56, barra fija con el botón del paso en el
@@ -30,6 +33,41 @@ import { BOTON_PRINCIPAL, BOTON_SECUNDARIO, FOCO } from "../estilos";
 const PASOS = ["Tus datos", "Cómo estás inscripto", "Punto de venta", "Permiso en ARCA", "Listo"] as const;
 
 const INPUT = "fx-alta-input";
+
+/** Lo que esta pestaña recuerda del alta: los datos y hasta qué paso llegó (validado). */
+const GUARDADO = "facturita-alta";
+type Guardado = { datos: DatosAlta; alcanzado: number };
+
+function leerGuardado(): Guardado | null {
+  try {
+    const g = JSON.parse(sessionStorage.getItem(GUARDADO) ?? "null") as Guardado | null;
+    if (!g || typeof g !== "object" || !g.datos || typeof g.alcanzado !== "number") return null;
+    return { datos: { ...ALTA_VACIA, ...g.datos }, alcanzado: Math.max(0, Math.min(g.alcanzado, PASOS.length - 1)) };
+  } catch {
+    return null;
+  }
+}
+
+function guardar(g: Guardado) {
+  try {
+    sessionStorage.setItem(GUARDADO, JSON.stringify(g));
+  } catch {
+    // sin almacenamiento (modo privado estricto): el alta anda igual, sólo no sobrevive a «volver»
+  }
+}
+
+/** El paso de la URL (?paso=2 → índice 1), o null. */
+function pasoDeLaUrl(): number | null {
+  const n = Number(new URLSearchParams(window.location.search).get("paso"));
+  return Number.isInteger(n) && n >= 1 && n <= PASOS.length ? n - 1 : null;
+}
+
+function urlDelPaso(p: number): string {
+  const u = new URL(window.location.href);
+  if (p > 0) u.searchParams.set("paso", String(p + 1));
+  else u.searchParams.delete("paso");
+  return `${u.pathname}${u.search}${u.hash}`;
+}
 
 function MensajeError({ id, texto }: { id: string; texto?: string }) {
   if (!texto) return null;
@@ -40,14 +78,65 @@ function MensajeError({ id, texto }: { id: string; texto?: string }) {
   );
 }
 
-export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string | null }) {
+export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
   const [paso, setPaso] = useState(0);
   const [datos, setDatos] = useState<DatosAlta>(ALTA_VACIA);
   const [errores, setErrores] = useState<ErroresAlta>({});
-  const [copiado, setCopiado] = useState(false);
+  // «ok»: se copió (aviso visible); «fallo»: el portapapeles no anduvo → el resumen a la vista, seleccionable.
+  const [copia, setCopia] = useState<"nada" | "ok" | "fallo">("nada");
+  const [alcanzado, setAlcanzado] = useState(0);
   const titulo = useRef<HTMLHeadingElement>(null);
   const primerMontaje = useRef(true);
+  const textoManual = useRef<HTMLTextAreaElement>(null);
+  const aviso = useRef<HTMLParagraphElement>(null);
   const uid = useId();
+  const baseWhatsApp = canal.tipo === "whatsapp" ? canal.base : null;
+
+  /** Muestra el paso de la URL, sin pasar nunca de lo que esta pestaña ya validó. */
+  const irAlPasoDeLaUrl = useCallback((hasta: number) => {
+    setPaso(Math.min(pasoDeLaUrl() ?? 0, hasta));
+    setCopia("nada");
+  }, []);
+
+  // Al volver a la página (recarga, «volver» o «adelante» del navegador): los datos y el paso de esta
+  // pestaña. El HTML estático es el del paso 1; esto corre después de hidratar.
+  useEffect(() => {
+    const g = leerGuardado();
+    const hasta = g?.alcanzado ?? 0;
+    // Si la URL pedía un paso que esta pestaña no validó, se corrige sin sumar historial.
+    const p = pasoDeLaUrl();
+    if (p !== null && p > hasta) window.history.replaceState(window.history.state, "", urlDelPaso(hasta));
+    if (!g && p === null) return;
+    queueMicrotask(() => {
+      if (g) {
+        setDatos(g.datos);
+        setAlcanzado(hasta);
+      }
+      irAlPasoDeLaUrl(hasta);
+    });
+  }, [irAlPasoDeLaUrl]);
+
+  useEffect(() => {
+    const alVolver = () => irAlPasoDeLaUrl(leerGuardado()?.alcanzado ?? 0);
+    window.addEventListener("popstate", alVolver);
+    return () => window.removeEventListener("popstate", alVolver);
+  }, [irAlPasoDeLaUrl]);
+
+  /** Avanza un paso con su entrada en el historial: «volver» del navegador vuelve al paso anterior. */
+  const avanzar = () => {
+    const p = Math.min(paso + 1, PASOS.length - 1);
+    const hasta = Math.max(alcanzado, p);
+    setAlcanzado(hasta);
+    guardar({ datos, alcanzado: hasta });
+    window.history.pushState(window.history.state, "", urlDelPaso(p));
+    setPaso(p);
+    setCopia("nada");
+  };
+  /** «Volver» de la pantalla = «volver» del navegador (el historial y la pantalla no se desfasan). */
+  const retroceder = () => {
+    if (pasoDeLaUrl() !== null) window.history.back();
+    else setPaso((p) => Math.max(0, p - 1));
+  };
 
   // Al cambiar de paso, el foco va al título del paso nuevo (lector de pantalla y teclado).
   useEffect(() => {
@@ -59,7 +148,12 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
   }, [paso]);
 
   const cambiar = <K extends keyof DatosAlta>(campo: K, valor: DatosAlta[K]) => {
-    setDatos((d) => ({ ...d, [campo]: valor }));
+    setDatos((d) => {
+      const nuevos = { ...d, [campo]: valor };
+      // Lo tipeado queda en esta pestaña (no viaja a ningún lado).
+      guardar({ datos: nuevos, alcanzado });
+      return nuevos;
+    });
     setErrores((e) => ({ ...e, [campo]: undefined }));
   };
 
@@ -78,7 +172,7 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
       if (!pv.ok) e.puntoVenta = pv.error;
     }
     setErrores(e);
-    if (Object.keys(e).length === 0) setPaso((p) => Math.min(p + 1, PASOS.length - 1));
+    if (Object.keys(e).length === 0) avanzar();
   };
 
   const cuit = validarCuitEmisor(datos.cuit);
@@ -87,12 +181,22 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
 
   const copiar = async () => {
     try {
+      if (!navigator.clipboard?.writeText) throw new Error("sin portapapeles");
       await navigator.clipboard.writeText(mensaje);
-      setCopiado(true);
+      setCopia("ok");
     } catch {
-      setCopiado(false);
+      // El portapapeles no anduvo (permiso, navegador viejo): el resumen queda a la vista, seleccionado.
+      setCopia("fallo");
+      requestAnimationFrame(() => {
+        textoManual.current?.focus();
+        textoManual.current?.select();
+      });
     }
+    // En el celular el botón está en la barra fija: el aviso se trae a la vista.
+    requestAnimationFrame(() => aviso.current?.scrollIntoView({ block: "nearest" }));
   };
+  const linkMandar = linkCanal(canal, "Alta en Facturita", mensaje);
+  const textoCopiar = copia === "ok" ? "Copiado" : "Copiar el resumen";
   const id = (campo: string) => `${uid}-${campo}`;
 
   return (
@@ -117,7 +221,7 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
       >
         {/* Celular: «Volver» arriba a la izquierda, como enlace; el botón del paso va en la barra fija. */}
         {paso > 0 && (
-          <button type="button" onClick={() => setPaso((p) => p - 1)} className="fx-volver fx-solo-celu">
+          <button type="button" onClick={retroceder} className="fx-volver fx-solo-celu">
             <span aria-hidden="true">←</span> Volver
           </button>
         )}
@@ -271,7 +375,7 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
                 checked={datos.delegacionHecha}
                 onChange={(e) => cambiar("delegacionHecha", e.target.checked)}
               />
-              Ya lo hice. (Si no te sale, seguí igual: te ayudamos por WhatsApp.)
+              Ya lo hice. (Si no te sale, seguí igual: te ayudamos {baseWhatsApp ? "por WhatsApp" : "cuando te activamos"}.)
             </label>
           </div>
         )}
@@ -307,9 +411,16 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
               </div>
             </dl>
 
-            <p className="mt-6 text-base text-[var(--fx-tenue)]">
-              Mandanos este resumen y te escribimos para activar la cuenta. Todavía no guardamos nada: estos datos quedan
-              sólo en tu pantalla hasta que los mandes.
+            <p className="mt-6 text-base text-[var(--fx-tenue)]" data-qa="adonde-mandarlo">
+              {baseWhatsApp ? (
+                <>Mandanos este resumen por WhatsApp y te escribimos para activar la cuenta.</>
+              ) : (
+                <>
+                  Mandanos este resumen por mail a <strong className="text-strong">{CASILLA}</strong> y te escribimos para
+                  activar la cuenta. Si preferís, copialo y pegalo en el mail.
+                </>
+              )}{" "}
+              Todavía no guardamos nada: estos datos quedan sólo en tu pantalla hasta que los mandes.
             </p>
             <p className="mt-3 text-[0.9375rem] leading-relaxed text-[var(--fx-tenue)]">
               Al mandarlo aceptás los{" "}
@@ -320,29 +431,38 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
             </p>
 
             {completa ? (
-              baseWhatsApp ? (
-                // Con WhatsApp, «Copiar» queda como alternativa: en compu va en la fila de abajo; en el
-                // celular, acá (la barra fija lleva sólo el botón principal).
-                <div className="mt-6 fx-solo-celu">
-                  <button type="button" className={BOTON_SECUNDARIO} style={{ width: "100%" }} onClick={copiar}>
-                    Copiar el resumen
-                  </button>
-                </div>
-              ) : null
+              // «Copiar» queda como alternativa a «Mandar»: en compu va en la fila de abajo; en el celular,
+              // acá (la barra fija lleva sólo el botón principal).
+              <div className="mt-6 fx-solo-celu">
+                <button type="button" className={BOTON_SECUNDARIO} style={{ width: "100%" }} onClick={copiar}>
+                  {textoCopiar}
+                </button>
+              </div>
             ) : (
               <p role="alert" className="mt-5 text-base font-medium text-danger">
                 Falta algún dato: volvé a los pasos anteriores y revisalos.
               </p>
             )}
-            <p aria-live="polite" className="mt-3 text-base text-success">
-              {copiado ? "Copiado. Pegalo en el chat con nosotros." : ""}
+            <p ref={aviso} role="status" aria-live="polite" className="mt-3 text-base font-medium text-success" data-qa="aviso-copia">
+              {copia === "ok" ? (baseWhatsApp ? "Copiado: pegalo en el chat de WhatsApp con nosotros." : `Copiado: pegalo en un mail a ${CASILLA}.`) : ""}
             </p>
+            {copia === "fallo" && (
+              <div className="mt-3">
+                <p role="alert" className="text-base font-medium text-danger">
+                  No pudimos copiarlo solo: seleccioná el texto de abajo y copialo.
+                </p>
+                <label htmlFor={id("resumen-texto")} className="fx-alta-label mt-3 block">
+                  Tu resumen
+                </label>
+                <textarea id={id("resumen-texto")} ref={textoManual} readOnly rows={7} value={mensaje} className={`${INPUT} fx-alta-texto`} />
+              </div>
+            )}
           </div>
         )}
 
         <div className="fx-alta-acciones" data-vacia={paso === PASOS.length - 1 && !completa ? "" : undefined}>
           {paso > 0 ? (
-            <button type="button" onClick={() => setPaso((p) => p - 1)} className={`${BOTON_SECUNDARIO} fx-solo-compu`}>
+            <button type="button" onClick={retroceder} className={`${BOTON_SECUNDARIO} fx-solo-compu`}>
               Volver
             </button>
           ) : (
@@ -355,22 +475,11 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
           )}
           {paso === PASOS.length - 1 && completa && (
             <div className="fx-alta-grupo">
-              {baseWhatsApp ? (
-                <a
-                  href={`${baseWhatsApp}${encodeURIComponent(mensaje)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={BOTON_PRINCIPAL}
-                >
-                  Mandar por WhatsApp
-                </a>
-              ) : null}
-              <button
-                type="button"
-                className={baseWhatsApp ? `${BOTON_SECUNDARIO} fx-solo-compu` : BOTON_PRINCIPAL}
-                onClick={copiar}
-              >
-                Copiar el resumen
+              <a href={linkMandar} target="_blank" rel="noopener noreferrer" className={BOTON_PRINCIPAL} data-qa="mandar-resumen">
+                {baseWhatsApp ? "Mandar por WhatsApp" : "Mandar por mail"}
+              </a>
+              <button type="button" className={`${BOTON_SECUNDARIO} fx-solo-compu`} onClick={copiar}>
+                {textoCopiar}
               </button>
             </div>
           )}
