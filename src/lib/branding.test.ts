@@ -131,10 +131,11 @@ test("resolveSectionOrder: completa las claves faltantes (nunca pierde secciones
   assert.deepEqual(resolveSectionOrder(null), DEFAULT_SECTION_ORDER);
 });
 
-test("FONT_VAR: cada clave mapea a una CSS var cargada por el layout raíz", () => {
-  assert.equal(FONT_VAR.playfair, "var(--font-spa-serif)");
+test("FONT_VAR: cada clave mapea a una CSS var de letra (con respaldo de CH cuando la superficie no la declara)", () => {
+  // Ronda 2 (fuentes por superficie): Playfair ya no cuelga de la raíz; donde no está declarada cae a Fraunces.
+  assert.equal(FONT_VAR.playfair, "var(--font-spa-serif, var(--font-fraunces))");
   assert.equal(FONT_VAR.hanken, "var(--font-hanken)");
-  assert.ok(Object.values(FONT_VAR).every((v) => /^var\(--font-[a-z-]+\)$/.test(v)));
+  assert.ok(Object.values(FONT_VAR).every((v) => /^var\(--font-[a-z-]+(, var\(--font-[a-z-]+\))?\)$/.test(v)));
 });
 
 test("marcaDelNegocio: un negocio con ficha propia entra con SU nombre aunque su producto sea Comerciante", () => {
