@@ -68,6 +68,11 @@ ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'ENCARGADO';
 -- transferencia va a su columna (`transferenciaEnElLibroTx`, src/lib/caja). Los de antes quedan
 -- en `MP` y el cierre los separa por el medio de origen. M1 ya lo encendió en el cliente
 -- (`TRANSFERENCIA // N2-enum-encendido:` en `enum CashMethod`).
+-- F2 (decisión del dueño, 29/10/2026): en el cierre del día la Transferencia es lo que ENTRÓ en el
+-- período (neto), no un saldo: abre en 0 y no hay corte único. Este paso no reclasifica nada: lo
+-- viejo queda en `MP` y la hoja nueva lo descuenta de la apertura de Mercado Pago
+-- (`transferenciaGuardadaEnMp`, src/lib/cierre-diario-actions.ts). Se aplica contra Neon SÓLO en el
+-- pase, con orden aparte del dueño.
 ALTER TYPE "CashMethod" ADD VALUE IF NOT EXISTS 'TRANSFERENCIA';
 
 -- Post-check (aparte):

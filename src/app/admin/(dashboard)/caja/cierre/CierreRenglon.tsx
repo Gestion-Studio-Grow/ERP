@@ -39,7 +39,7 @@ const RUTA = "/admin/caja/cierre";
 const AYUDA: Record<ColumnaDelCierre, string> = {
   EFECTIVO: "El cajón. Obligatorio, aunque sea 0.",
   MP: "El saldo de la app de Mercado Pago.",
-  TRANSFERENCIA: "Lo que entró hoy por transferencia a la cuenta del banco.",
+  TRANSFERENCIA: "Lo que entró por transferencia al banco desde el último cierre (no el saldo).",
   TARJETA: "Opcional: el cierre del posnet; se liquida a los días.",
 };
 

@@ -49,6 +49,7 @@ import {
   formatDayLabel,
   columnasDelCierre,
   conteoDelTurnoParaElCierre,
+  SUFIJOS_AJUSTE_TRANSFERENCIA,
   mensajeTurnoAbierto,
   pagadosDeMasDelPeriodo,
   puedeCerrarElDia,
@@ -68,10 +69,10 @@ import {
   CIERRE_DIARIO_ACTION,
   CIERRE_DIARIO_ENTITY,
 } from "@/lib/caja/frontera-cierre";
-import { cierreMarker } from "@/lib/caja/cierre-marca";
+import { cierreMarker, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
 import { resumenCierre } from "@/lib/caja/cierre-resumen";
 import { CASH_METHODS, libroOrigin, type LibroMovement } from "@/lib/caja/libro-caja";
-import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
+import { movementSign, type CashMethod, type CashMovementType } from "@/lib/caja/cash-register";
 import { leerImporte } from "@/lib/pos-peso";
 import { round2 } from "@/lib/round";
 import { tarjetaHabilitada } from "@/lib/caja-actions";
@@ -231,6 +232,34 @@ function movimientoDelPeriodo(r: FilaDelPeriodo): CierreMovement {
 function tarjetaSeMovioEn(c: CierreDiario): boolean {
   const t = c.porMedio.TARJETA;
   return t.opening !== 0 || t.ingresos !== 0 || t.egresos !== 0;
+}
+
+/**
+ * F2: lo que hay en `MP` antes de `start` que es plata de transferencia, neto. Son los asientos de
+ * antes del paquete cobrados por transferencia (mismo criterio que `medioDeOrigen`: el medio del
+ * cobro si salió de uno, si no el del pedido) y los ajustes de la columna Transferencia, que sin
+ * el paquete se asientan en `MP` (`esAjusteDeTransferencia`). Un groupBy por tipo: no crece con
+ * el histórico más que el de la apertura.
+ */
+async function transferenciaGuardadaEnMp(db: Pick<Prisma.TransactionClient, "cashMovement">, tenantId: string, start: Date): Promise<number> {
+  const grupos = await db.cashMovement.groupBy({
+    by: ["type"],
+    where: {
+      tenantId,
+      method: "MP",
+      occurredAt: { lt: start },
+      OR: [
+        { collection: { is: { method: "TRANSFERENCIA" } } },
+        { collectionId: null, order: { is: { paymentMethod: "TRANSFERENCIA" } } },
+        {
+          createdBy: { startsWith: CIERRE_DIARIO_ACTOR_PREFIX },
+          OR: SUFIJOS_AJUSTE_TRANSFERENCIA.map((s) => ({ reason: { endsWith: s } })),
+        },
+      ],
+    },
+    _sum: { amount: true },
+  });
+  return round2(grupos.reduce((s, g) => s + movementSign(g.type as CashMovementType) * (g._sum.amount ?? 0), 0));
 }
 
 /** "user:<id>" → el nombre de esa persona en ESTE negocio; si no, lo que haya. */
@@ -408,7 +437,8 @@ async function leerCierreDiario(
   const transferenciaEnElLibro = await sePuedeEscribirValorEnum("CashMethod", "TRANSFERENCIA");
   const deSiempre = buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO, transferenciaEnElLibro });
   const columnas = columnasDelCierre({ tarjetaHabilitada: await tarjetaHabilitada(), tarjetaSeMovio: tarjetaSeMovioEn(deSiempre) });
-  const preview = buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO, columnas, transferenciaEnElLibro });
+  const guardada = await transferenciaGuardadaEnMp(prisma, tenantId, start);
+  const preview = buildCierreDiario({ day, since, previous, movements, declared: NADA_DECLARADO, columnas, transferenciaEnElLibro, transferenciaGuardadaEnMp: guardada });
   // A CIEGAS (cert F7/F8): mismo criterio que `getCajaData` (sin turno abierto y el interruptor
   // encendido). Acá sólo se marca; lo blanquea `diaALaVista` a la salida de `getCierreDiarioData`.
   const efectivoACiegas = arqueaACiegas && !abierto;
@@ -717,7 +747,8 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
             })
           : undefined;
         const declared = parseDeclared(formData, columnas);
-        const cierre = buildCierreDiario({ day, since, previous, movements, declared, columnas, transferenciaEnElLibro });
+        const transferenciaGuardada = columnas ? await transferenciaGuardadaEnMp(tx, tenantId, start) : 0;
+        const cierre = buildCierreDiario({ day, since, previous, movements, declared, columnas, transferenciaEnElLibro, transferenciaGuardadaEnMp: transferenciaGuardada });
 
         const v = validateCierre(cierre, { note, today, lastClosedDay: cerradoHasta });
         if (!v.ok) return { ok: false as const, errors: v.errors };

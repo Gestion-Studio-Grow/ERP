@@ -31,7 +31,7 @@ type Esperado = Record<CashMethod, number>;
 const AYUDA: Record<CashMethod, string> = {
   EFECTIVO: "Contá el cajón. Obligatorio, aunque sea 0.",
   MP: "Mirá el saldo de la app. Es por donde entra y sale la mayor parte de la plata.",
-  TRANSFERENCIA: "Mirá el saldo del banco: lo que entró y salió por transferencia.",
+  TRANSFERENCIA: "Mirá en el banco lo que entró (menos lo que salió) por transferencia desde el último cierre. No el saldo.",
   TARJETA: "Opcional: se liquida a los días. Dejalo vacío si no lo conciliás hoy.",
 };
 

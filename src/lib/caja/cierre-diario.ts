@@ -171,6 +171,18 @@ export type CierreMovement = LibroMovement & {
 //
 // Sin `columnas` (los llamadores de siempre) el cierre es el de antes —MP junto, sin separar por
 // el origen—, con la columna TRANSFERENCIA sólo si el libro la tiene o se movió plata en ella.
+//
+// F2 (decisión del dueño, 29/10): la Transferencia se cuenta como INGRESO DEL PERÍODO, no como
+// saldo. Lo que se compara es lo que entró (neto de lo que salió) por transferencia desde el
+// último cierre contra lo que dice el banco de ese mismo lapso; la columna no arrastra saldo
+// (abre en 0) y no hay corte único al aplicar el paquete. El LIBRO no cambia: `TRANSFERENCIA`
+// sigue acumulando como cualquier medio y la diferencia se asienta igual, así el arrastre
+// (`porMedio`, `openingAfterCierre`) es el de siempre. Con la columna separada, la hoja ya no
+// suma el libro: le falta lo que entró por transferencia antes del período, que no se cuenta.
+//   · En la hoja nueva, Mercado Pago abre SIN las transferencias guardadas en `MP` antes del
+//     período (`transferenciaGuardadaEnMp`, ver `esAjusteDeTransferencia`): si no, su saldo
+//     arrastraría plata del banco y daría un faltante falso todos los días.
+//   · En la de siempre, «MP / Transf.» sigue siendo el saldo junto (su etiqueta lo dice).
 export type ColumnaDelCierre = CashMethod;
 
 /** El orden de la hoja nueva: EFECTIVO · MP · TRANSFERENCIA · TARJETA. */
@@ -186,6 +198,17 @@ export const ETIQUETA_DE_COLUMNA: Record<ColumnaDelCierre, string> = {
 /** En qué medio del libro se asienta la diferencia de una columna. */
 export function metodoDeColumna(c: ColumnaDelCierre, transferenciaEnElLibro = false): CashMethod {
   return c === "TRANSFERENCIA" && !transferenciaEnElLibro ? "MP" : c;
+}
+
+/**
+ * ¿Este detalle es el del ajuste de la columna Transferencia? Antes del paquete ese ajuste se
+ * asienta en `MP` (`metodoDeColumna`) y es plata del banco, no de la app: la apertura de Mercado
+ * Pago lo descuenta junto con las transferencias guardadas en `MP` (F2). PURA.
+ */
+export const SUFIJOS_AJUSTE_TRANSFERENCIA = [": sobrante en Transferencia", ": faltante en Transferencia"] as const;
+export function esAjusteDeTransferencia(detail: string | null | undefined): boolean {
+  const d = String(detail ?? "");
+  return d.startsWith("Diferencia de caja ") && SUFIJOS_AJUSTE_TRANSFERENCIA.some((s) => d.endsWith(s));
 }
 
 /** La columna de un movimiento: su medio del libro, salvo `MP` cobrado por transferencia. PURA. */
@@ -210,7 +233,7 @@ export function columnasDelCierre(p: { tarjetaHabilitada: boolean; tarjetaSeMovi
 export type DeclaredAmounts = Record<Exclude<CashMethod, "TRANSFERENCIA">, number | null> & { TRANSFERENCIA?: number | null };
 
 export type CierreMedio = {
-  opening: number; // saldo al arrancar el período (lo que quedó del cierre anterior)
+  opening: number; // saldo al arrancar el período (lo que quedó del cierre anterior); Transferencia: 0 (F2)
   ingresos: number;
   egresos: number;
   expected: number; // opening + ingresos − egresos: lo que el libro dice que hay
@@ -326,6 +349,12 @@ export function buildCierreDiario(input: {
   columnas?: readonly ColumnaDelCierre[];
   /** ¿`CashMethod.TRANSFERENCIA` está en la base y en el cliente? (`transferenciaEnElLibroTx`). */
   transferenciaEnElLibro?: boolean;
+  /**
+   * F2: lo que hay en `MP` ANTES del período que es plata de transferencia (neto: cobros por
+   * transferencia guardados en `MP` y ajustes de la columna Transferencia asentados en `MP`). Sólo
+   * lo usa la hoja nueva, para que Mercado Pago abra con lo de la app. Sin esto: 0.
+   */
+  transferenciaGuardadaEnMp?: number;
 }): CierreDiario {
   const opening = openingFromHistory(input.previous);
   const { summary } = buildLibro(opening, input.movements);
@@ -380,23 +409,29 @@ export function buildCierreDiario(input: {
   }
   if (separaDeMp) {
     const delLibro = porColumna.TRANSFERENCIA;
-    const t: CierreMedio = {
+    porColumna.TRANSFERENCIA = {
       ...delLibro,
       ingresos: round2(delLibro.ingresos + transf.ingresos),
       egresos: round2(delLibro.egresos + transf.egresos),
-      expected: round2(delLibro.expected + transf.ingresos - transf.egresos),
       cobrosCartera: round2(delLibro.cobrosCartera + transf.cobrosCartera),
     };
     const mp = porColumna.MP;
-    porColumna.TRANSFERENCIA = t;
+    // Lo de transferencia que ya estaba en `MP` al abrir (F2): no es de la app, no se arrastra.
+    const guardada = round2(input.transferenciaGuardadaEnMp ?? 0);
     porColumna.MP = {
       ...mp,
+      opening: round2(mp.opening - guardada),
       // Sólo lo que salió de MP (lo de antes del paquete), no lo que ya era TRANSFERENCIA.
       ingresos: round2(mp.ingresos - transf.ingresos),
       egresos: round2(mp.egresos - transf.egresos),
-      expected: round2(mp.expected - (transf.ingresos - transf.egresos)),
+      expected: round2(mp.expected - guardada - (transf.ingresos - transf.egresos)),
       cobrosCartera: round2(mp.cobrosCartera - transf.cobrosCartera),
     };
+  }
+  // F2: Transferencia es lo que entró en el período, no un saldo. Abre en 0 en las dos hojas.
+  if (separaTransferencia) {
+    const t = porColumna.TRANSFERENCIA;
+    porColumna.TRANSFERENCIA = { ...t, opening: 0, expected: round2(t.ingresos - t.egresos) };
   }
 
   const ajustes: AjusteCierre[] = [];

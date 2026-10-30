@@ -148,7 +148,9 @@ del último deploy en Vercel (sin push).
 1. **Login**: entrar a `/admin` de MAGRA y de Break Point con OWNER. Carga el inicio sin error.
 2. **Vender (MAGRA)**: mostrador → un corte por peso → cobrar en Efectivo → aparece en la caja del
    día. Si M1 ya está integrada, ver que aparezcan **Débito** y **Crédito** como medios separados
-   y que el cierre de caja los sume en la columna **Tarjeta** (D-C01).
+   y que el cierre de caja los sume en la columna **Tarjeta** (D-C01). Con el paso 2.e, vender por
+   **Transferencia** y ver en el cierre la columna Transferencia **sin saldo al abrir** y con lo
+   vendido hoy como esperado (F2: se cuenta lo que entró en el período, no el saldo del banco).
 3. **Agenda del club (Break Point)**: abrir la agenda del día, crear una reserva de prueba en una
    cancha libre, verla en la grilla, cancelarla. Con B1 integrada, la disponibilidad pública del
    turnero muestra el hueco de nuevo.
@@ -221,6 +223,7 @@ escribiéndolo y cada venta por transferencia falla hasta que se reinicia (cert.
 | Inicio | Quien aplica | Dueño GSG | WhatsApp | «Backup hecho: <branch>. Empiezo.» |
 | Falla en §2/§3 | Quien aplica | Dueño GSG | llamada | archivo que falló + error (sin secretos); el dueño decide reintentar o revertir |
 | Fin OK | Dueño GSG | Encargados de MAGRA y Break Point | WhatsApp | «Listo, ya pueden usar el sistema normal.» + qué hay de nuevo si aplica |
+| Fin OK, con el paso 2.e | Dueño GSG | Contadora de cada negocio | WhatsApp / mail | «Desde hoy el libro de caja separa Transferencia de Mercado Pago: el CSV del libro suma una columna Transferencia en los meses que la tengan. En el cierre del día, Transferencia es lo que entró ese día, no el saldo del banco.» |
 | Reversa | Dueño GSG | Encargados | WhatsApp | «Volvimos a la versión anterior.» Si se restauró el branch del §1, lo cargado durante la ventana se perdió: recargarlo desde el papel |
 
 Contactos: provisional a confirmar (los carga el dueño; no van en el repo).

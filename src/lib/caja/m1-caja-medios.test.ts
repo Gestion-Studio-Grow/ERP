@@ -283,7 +283,7 @@ test("TRANSFERENCIA en el libro: sólo con el paquete; sin el dato, como siempre
   assert.equal(cashMethodFromPaymentMethod("DEBITO", true), "TARJETA");
 });
 
-test("cierre con TRANSFERENCIA en el libro: su columna = su saldo + lo viejo guardado en MP; la diferencia va a TRANSFERENCIA y el arrastre cierra", () => {
+test("cierre con TRANSFERENCIA en el libro (F2): su columna = lo que entró en el período, sin saldo; la diferencia va a TRANSFERENCIA y el arrastre cierra", () => {
   const previous = [
     mov({ method: "MP", amount: 10_000, occurredAt: en("2026-10-19") }),
     mov({ method: "TRANSFERENCIA", amount: 6_000, occurredAt: en("2026-10-19") }),
@@ -301,17 +301,87 @@ test("cierre con TRANSFERENCIA en el libro: su columna = su saldo + lo viejo gua
     movements,
     columnas: columnasDelCierre({ tarjetaHabilitada: false, tarjetaSeMovio: false }),
     transferenciaEnElLibro: true,
-    declared: { EFECTIVO: 0, MP: 14_000, TRANSFERENCIA: 10_000, TARJETA: null },
+    declared: { EFECTIVO: 0, MP: 14_000, TRANSFERENCIA: 4_000, TARJETA: null },
   });
   assert.equal(c.porColumna.MP.expected, 14_000, "saldo anterior de MP + Mercado Pago (sin lo de transferencia)");
-  assert.equal(c.porColumna.TRANSFERENCIA.opening, 6_000, "el saldo propio de TRANSFERENCIA se arrastra");
-  assert.equal(c.porColumna.TRANSFERENCIA.expected, 10_500, "6.000 + 2.000 − 500 del libro + 3.000 guardados en MP");
-  assert.equal(c.porColumna.MP.expected + c.porColumna.TRANSFERENCIA.expected, c.porMedio.MP.expected + c.porMedio.TRANSFERENCIA.expected);
+  assert.equal(c.porColumna.TRANSFERENCIA.opening, 0, "F2: Transferencia no arrastra saldo");
+  assert.equal(c.porColumna.TRANSFERENCIA.expected, 4_500, "2.000 − 500 del libro + 3.000 guardados en MP: lo que entró en el período");
+  assert.equal(c.porMedio.TRANSFERENCIA.expected, 7_500, "el libro sí acumula: 6.000 + 2.000 − 500");
   assert.deepEqual(c.ajustes, [{ type: "EGRESO", method: "TRANSFERENCIA", amount: 500, detail: "Diferencia de caja 20/10/2026: faltante en Transferencia" }]);
   const despues = openingFromHistory([...previous, ...movements, ...ajustesAsMovements(c, en("2026-10-20"))]);
   assert.deepEqual(despues, openingAfterCierre(c));
-  assert.equal(despues.TRANSFERENCIA, 7_000, "8.000 del libro − 500 de la diferencia");
+  assert.equal(despues.TRANSFERENCIA, 7_000, "7.500 del libro − 500 de la diferencia");
   assert.equal(despues.MP, 17_000, "lo viejo sigue en MP: el ajuste no lo mueve");
+});
+
+// F2 (decisión del dueño 29/10): dos días seguidos con transferencias, sin y con el paquete. Lo que
+// la persona declara es lo que ve: el saldo de la app de MP y lo que entró al banco ESE día. El
+// día 2 no puede dar diferencia en ninguna columna. `guardadaEnMp` hace lo que hace la consulta de
+// `transferenciaGuardadaEnMp` (cierre-diario-actions.ts) sobre lo anterior al período.
+test("F2 · dos días con transferencias: el día 2 cuadra en MP y en Transferencia, sin y con el paquete", async () => {
+  const { esAjusteDeTransferencia } = await import("@/lib/caja/cierre-diario");
+  const guardadaEnMp = (prev: readonly CierreMovement[]) =>
+    prev
+      .filter((m) => m.method === "MP" && (m.medioDeOrigen === "TRANSFERENCIA" || esAjusteDeTransferencia(m.detail)))
+      .reduce((s, m) => s + (m.type === "EGRESO" ? -m.amount : m.amount), 0);
+  const columnas = columnasDelCierre({ tarjetaHabilitada: false, tarjetaSeMovio: false });
+  for (const conPaquete of [false, true]) {
+    const metodoT = conPaquete ? "TRANSFERENCIA" : "MP";
+    const aMov = (l: ReturnType<typeof ajustesAsMovements>): CierreMovement[] => l;
+    const d1 = [mov({ method: "MP", amount: 1_000, medioDeOrigen: "MERCADOPAGO" }), mov({ method: metodoT, amount: 500, medioDeOrigen: "TRANSFERENCIA" })];
+    // Día 1: la app dice 1.000; al banco llegaron 450 (faltan 50 de una transferencia anotada).
+    const c1 = buildCierreDiario({ day: "2026-10-20", previous: [], movements: d1, columnas, transferenciaEnElLibro: conPaquete, declared: { EFECTIVO: 0, MP: 1_000, TRANSFERENCIA: 450, TARJETA: null } });
+    assert.deepEqual(c1.ajustes.map((a) => [a.method, a.type, a.amount]), [[metodoT, "EGRESO", 50]], `paquete=${conPaquete}: la diferencia del banco va a su medio`);
+    assert.ok(esAjusteDeTransferencia(c1.ajustes[0].detail));
+    const prev2 = [...d1, ...aMov(ajustesAsMovements(c1, en("2026-10-20")))];
+    const d2 = [
+      mov({ method: "MP", amount: 200, medioDeOrigen: "MERCADOPAGO", occurredAt: en("2026-10-21") }),
+      mov({ method: metodoT, amount: 300, medioDeOrigen: "TRANSFERENCIA", occurredAt: en("2026-10-21") }),
+    ];
+    // Día 2: la app dice 1.200 (su saldo); al banco llegaron 300 HOY.
+    const c2 = buildCierreDiario({
+      day: "2026-10-21",
+      previous: prev2,
+      movements: d2,
+      columnas,
+      transferenciaEnElLibro: conPaquete,
+      transferenciaGuardadaEnMp: guardadaEnMp(prev2),
+      declared: { EFECTIVO: 0, MP: 1_200, TRANSFERENCIA: 300, TARJETA: null },
+    });
+    assert.equal(c2.porColumna.MP.opening, 1_000, `paquete=${conPaquete}: MP abre con lo de la app`);
+    assert.equal(c2.porColumna.TRANSFERENCIA.opening, 0);
+    assert.equal(c2.porColumna.TRANSFERENCIA.expected, 300);
+    assert.deepEqual(c2.ajustes, [], `paquete=${conPaquete}: el día 2 cuadra`);
+    assert.equal(c2.estado, "CUADRA");
+    // El arrastre del libro no cambia con F2.
+    assert.deepEqual(openingFromHistory([...prev2, ...d2, ...aMov(ajustesAsMovements(c2, en("2026-10-21")))]), openingAfterCierre(c2));
+  }
+});
+
+test("F2 · cierre de siempre con el paquete: Transferencia también es lo del período; «MP / Transf.» sigue siendo el saldo junto", () => {
+  const c = buildCierreDiario({
+    day: "2026-10-21",
+    previous: [mov({ method: "TRANSFERENCIA", amount: 6_000, occurredAt: en("2026-10-19") }), mov({ method: "MP", amount: 2_000, medioDeOrigen: "TRANSFERENCIA", occurredAt: en("2026-10-19") })],
+    movements: [mov({ method: "TRANSFERENCIA", amount: 700 }), mov({ method: "MP", amount: 100 })],
+    transferenciaEnElLibro: true,
+    transferenciaGuardadaEnMp: 2_000,
+    declared: { EFECTIVO: 0, MP: 2_100, TRANSFERENCIA: 700, TARJETA: null },
+  });
+  assert.deepEqual(c.columnas, ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"]);
+  assert.equal(c.porColumna.TRANSFERENCIA.opening, 0);
+  assert.equal(c.porColumna.TRANSFERENCIA.expected, 700);
+  assert.equal(c.porColumna.MP.expected, 2_100, "sin la hoja nueva no se separa: lo viejo sigue junto en MP");
+  assert.deepEqual(c.ajustes, []);
+});
+
+test("F2 · esAjusteDeTransferencia: sólo el detalle del ajuste de la columna Transferencia", async () => {
+  const { esAjusteDeTransferencia } = await import("@/lib/caja/cierre-diario");
+  assert.ok(esAjusteDeTransferencia("Diferencia de caja 20/10/2026: faltante en Transferencia"));
+  assert.ok(esAjusteDeTransferencia("Diferencia de caja 20/10/2026: sobrante en Transferencia"));
+  assert.ok(!esAjusteDeTransferencia("Diferencia de caja 20/10/2026: faltante en MP / Transf."));
+  assert.ok(!esAjusteDeTransferencia("Diferencia de caja 20/10/2026: faltante en Mercado Pago"));
+  assert.ok(!esAjusteDeTransferencia("Pago al proveedor en Transferencia"));
+  assert.ok(!esAjusteDeTransferencia(null));
 });
 
 test("cierre de siempre (sin columnas): TRANSFERENCIA aparece sólo si el libro la tiene o se movió", () => {
