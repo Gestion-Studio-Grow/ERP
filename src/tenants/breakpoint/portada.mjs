@@ -173,6 +173,7 @@ h1 .caja{width:fit-content;margin-top:.08em;padding:.04em .2em .06em .12em;backg
 .pie .marca{font:400 italic 32px/1 var(--display);text-transform:uppercase}
 .pie p{margin:0}
 .pie .enlace{font-size:17px}
+.pie .aviso{flex-basis:100%;font-size:14px;opacity:.75}
 /* barra fija del celular: siempre a un toque */
 .barra{position:fixed;inset:auto 0 0;z-index:20;display:flex;gap:10px;padding:8px var(--g) calc(8px + env(safe-area-inset-bottom));background:var(--azul);border-top:3px solid var(--pelota);box-shadow:0 -12px 28px -14px rgba(16,20,24,.6)}
 .barra .btn{flex:1;min-height:60px}
@@ -294,6 +295,7 @@ export function portada(publico = {}) {
   <div class="cont">
     <p class="marca">Break Point Pádel</p>
     <p><a class="enlace" href="https://www.instagram.com/breakpointpadel_/" target="_blank" rel="noopener">@breakpointpadel_</a>${wa ? ` · <a class="enlace" href="${esc(linkWa("Hola Break Point"))}" target="_blank" rel="noopener">WhatsApp</a>` : ""}</p>
+    <p class="aviso">Logo, letras y plano de canchas provisionales, a confirmar con el club.</p>
   </div>
 </footer>
 <nav class="barra" aria-label="Reservar">
