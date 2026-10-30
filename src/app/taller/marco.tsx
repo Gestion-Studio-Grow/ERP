@@ -7,6 +7,7 @@ import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { configTaller, datosDelNegocio } from "@/lib/taller/datos.server";
 import { mostrarPatente, waLink } from "@/lib/taller/core";
 import { marcaTaller, type MarcaTaller } from "@/lib/taller/marca";
+import EnlaceTurno from "./EnlaceTurno";
 
 // Logo chico para la barra (177×88, generado del original 498×247 con sharp). El grande queda para og:image.
 const LOGO_BARRA_AGR = "/tenants/taller-agr/marca/logo-88.webp";
@@ -80,7 +81,11 @@ export function Barra({ t, inicio = false, turno = "/taller/turno" }: { t: Talle
           <a href={inicio ? "#trabajamos" : "/taller#trabajamos"}>Así trabajamos</a>
           <a href={inicio ? "#donde" : "/taller#donde"}>Dónde estamos</a>
         </nav>
-        <a href={turno} className="agr-btn agr-btn--chico agr-barra__cta">Sacar turno</a>
+        {turno === "/taller/turno" ? (
+          <EnlaceTurno className="agr-btn agr-btn--chico agr-barra__cta">Sacar turno</EnlaceTurno>
+        ) : (
+          <a href={turno} className="agr-btn agr-btn--chico agr-barra__cta">Sacar turno</a>
+        )}
       </div>
     </header>
   );
@@ -120,7 +125,7 @@ export function BarraFija({ t }: { t: Taller }) {
   const wa = t.wa();
   return (
     <div className="agr-fija">
-      <a href="/taller/turno" className="agr-btn">Sacar turno</a>
+      <EnlaceTurno className="agr-btn">Sacar turno</EnlaceTurno>
       {wa && (
         <a href={wa} target="_blank" rel="noopener noreferrer" className="agr-fija__wa" aria-label="Escribinos por WhatsApp">
           <IconoWhatsApp />

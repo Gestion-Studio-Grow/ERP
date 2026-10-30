@@ -7,6 +7,7 @@ import { mostrarPatente } from "@/lib/taller/core";
 import { autoDeLaNota, avisoPatente, notaDelAuto, patenteEnVivo, puedeSerPatente } from "./patente";
 import { desde, esTrabajoPublicable } from "./reglas";
 import { CSS_TALLER, ROJO_AGR } from "./estilos";
+import { rutaDelTurno } from "./EnlaceTurno";
 
 const RAIZ = process.cwd();
 const AQUI = path.join(RAIZ, "src", "app", "taller");
@@ -107,4 +108,13 @@ test("la confirmación y «ver mi turno» del taller van a su página propia; lo
   assert.match(pagina, /<dt>Puesto<\/dt>/);
   assert.doesNotMatch(pagina, />Box<|Pendiente de pago<|href="\/servicios"/);
   assert.match(pagina, /<Barra t=\{t\} \/>/);
+});
+
+test("la barra fija y la de arriba llevan la patente escrita en la chapa (?patente=)", () => {
+  assert.equal(rutaDelTurno(""), "/taller/turno");
+  assert.equal(rutaDelTurno("AC456GH"), "/taller/turno?patente=AC456GH");
+  assert.equal(rutaDelTurno("AC456GHXX"), "/taller/turno?patente=AC456GH");
+  const marco = readFileSync(path.join(AQUI, "marco.tsx"), "utf8");
+  assert.doesNotMatch(marco, /<a href="\/taller\/turno" className="agr-btn">/, "la barra fija no puede ser un enlace fijo sin patente");
+  assert.match(readFileSync(path.join(AQUI, "Chapa.tsx"), "utf8"), /publicarPatente\(normalizarPatente\(nuevo\)\)/);
 });

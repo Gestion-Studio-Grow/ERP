@@ -5,6 +5,7 @@
 import { useRef, useState, useSyncExternalStore } from "react";
 import { formatoPatente, mostrarPatente, normalizarPatente } from "@/lib/taller/core";
 import { avisoPatente, patenteEnVivo } from "./patente";
+import { publicarPatente } from "./EnlaceTurno";
 
 const nada = () => () => {};
 
@@ -37,6 +38,8 @@ export default function Chapa() {
               setMarca(tic.current);
             }
             setValor(nuevo);
+            // La barra fija del celular y la de arriba llevan la misma patente (EnlaceTurno.tsx).
+            publicarPatente(normalizarPatente(nuevo));
           }}
           data-tic={marca}
           placeholder="AB 123 CD"
