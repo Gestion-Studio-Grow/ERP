@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { mostrarPatente } from "@/lib/taller/core";
-import { avisoPatente, patenteEnVivo, puedeSerPatente } from "./patente";
+import { autoDeLaNota, avisoPatente, notaDelAuto, patenteEnVivo, puedeSerPatente } from "./patente";
 import { desde, esTrabajoPublicable } from "./reglas";
 import { CSS_TALLER, ROJO_AGR } from "./estilos";
 
@@ -78,4 +78,33 @@ test("piel: rojo del logo, foco visible y nada se anima desde opacidad 0", () =>
   assert.match(CSS_TALLER, /prefers-reduced-motion:reduce/);
   assert.doesNotMatch(CSS_TALLER, /opacity\s*:\s*0[;}]/);
   assert.match(CSS_TALLER, /env\(safe-area-inset-bottom\)/);
+});
+
+test("la nota del turno: se arma con la patente y el modelo, y la página pública lee sólo esos dos datos", () => {
+  assert.equal(notaDelAuto("AB 123 CD", " VW Gol Trend 2015 "), "Patente: AB 123 CD · Auto: VW Gol Trend 2015");
+  assert.equal(notaDelAuto("", "Fiat Uno"), "Auto: Fiat Uno");
+  assert.equal(notaDelAuto("", "  "), "");
+  assert.deepEqual(autoDeLaNota(notaDelAuto("AC 456 GH", "Peugeot 208")), { patente: "AC 456 GH", auto: "Peugeot 208" });
+  assert.deepEqual(autoDeLaNota(null), { patente: null, auto: null });
+  // Lo que el panel le sume a la nota (interno) no sale en la página pública del turno.
+  assert.deepEqual(autoDeLaNota("Patente: AB 123 CD · debe la seña del service anterior"), { patente: "AB 123 CD", auto: null });
+  assert.deepEqual(autoDeLaNota("Cliente difícil, cobrar antes"), { patente: null, auto: null });
+});
+
+test("la confirmación y «ver mi turno» del taller van a su página propia; los demás negocios, como siempre", () => {
+  for (const [ruta, destino] of [
+    ["src/app/(site)/reserva/confirmacion/[id]/page.tsx", "`/taller/turno/${id}?nuevo=1`"],
+    ["src/app/(site)/reserva/turno/[id]/page.tsx", "`/taller/turno/${id}`"],
+  ] as const) {
+    const fuente = readFileSync(path.join(RAIZ, ruta), "utf8");
+    assert.ok(
+      fuente.includes(`if (resolveAgendaRubroIdBySlug(await getCurrentTenantSlug()) === "taller") redirect(${destino});`),
+      `${ruta}: el desvío tiene que depender sólo del rubro taller`,
+    );
+  }
+  const pagina = readFileSync(path.join(AQUI, "turno", "[id]", "page.tsx"), "utf8");
+  // Vocabulario del taller: puesto, no box; sin «Pendiente de pago»; el menú del taller (Barra) y no el del sitio.
+  assert.match(pagina, /<dt>Puesto<\/dt>/);
+  assert.doesNotMatch(pagina, />Box<|Pendiente de pago<|href="\/servicios"/);
+  assert.match(pagina, /<Barra t=\{t\} \/>/);
 });

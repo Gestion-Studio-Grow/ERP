@@ -1,5 +1,5 @@
 import { getMyAppointment } from "@/lib/client-actions";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import CancelButton from "./CancelButton";
 import RescheduleButton from "./RescheduleButton";
@@ -8,6 +8,8 @@ import { fmtDateTime } from "@/lib/datetime";
 import { isAppointmentModifiable } from "@/lib/booking-core";
 import { cambioOnlineDelTurno } from "@/lib/turnos/practica.server";
 import { chConDisenoNuevo } from "../../../_ch/diseno-ch.server";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { resolveAgendaRubroIdBySlug } from "@/blueprints/agenda/rubros";
 
 const statusLabel: Record<string, string> = {
   PENDING: "Pendiente de pago",
@@ -31,6 +33,8 @@ export default async function MyAppointmentPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  // El taller tiene su propia página del turno (piel, puesto, patente; sin «Pendiente de pago»): QA AGR 29/10.
+  if (resolveAgendaRubroIdBySlug(await getCurrentTenantSlug()) === "taller") redirect(`/taller/turno/${id}`);
   const appointment = await getMyAppointment(id);
   if (!appointment) notFound();
 

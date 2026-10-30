@@ -11,7 +11,7 @@ import { useFormStatus } from "react-dom";
 import { createAppointment, getAvailableSlotsRange } from "@/lib/actions";
 import { fmtCalendarDateLabel, fmtTime } from "@/lib/datetime";
 import { formatoPatente, mostrarPatente, normalizarPatente, waLink } from "@/lib/taller/core";
-import { avisoPatente, patenteEnVivo } from "../patente";
+import { avisoPatente, notaDelAuto, patenteEnVivo } from "../patente";
 import { desde } from "../reglas";
 
 export type Trabajo = { id: string; nombre: string; minutos: number; precio: number };
@@ -160,7 +160,7 @@ export default function TurnoForm({
   }
 
   const aviso = avisoPatente(norm);
-  const notas = [norm && `Patente: ${patenteLinda}`, modelo.trim() && `Auto: ${modelo.trim()}`].filter(Boolean).join(" · ");
+  const notas = notaDelAuto(patenteLinda, modelo);
   const wa = waLink(
     whatsapp,
     `Hola ${nombreCorto}! Quiero consultar por mi auto${patenteLinda ? ` ${patenteLinda}` : ""}${modelo.trim() ? ` (${modelo.trim()})` : ""}.`,
