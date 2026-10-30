@@ -192,11 +192,29 @@ export const GENERIC_AGENDA_WORDING: AgendaWording = {
   bookCta: "Reservar turno",
 };
 
-// Mapa slug de tenant → rubro de agenda (mismo patrón que retail `RUBRO_BY_SLUG`).
-// Sirve para que la vidriera resuelva el wording del rubro por el slug del tenant
-// actual sin depender de la DB. Hoy sin mapeos (los rubros de agenda usan el wording
-// histórico); infra lista para cuando un rubro de agenda quiera voz propia por slug.
-const RUBRO_BY_SLUG: Record<string, string> = {};
+// Voz del turno para rubros que NO son de agenda pero usan su motor de reservas (el taller es del blueprint
+// oficios: src/blueprints/oficios/rubros.ts, `providerNoun: "mecánico"`). Sólo copy: no entran a AGENDA_RUBROS,
+// así que no aparecen en el alta ni en las pistas de rubro.
+const WORDING_DE_OTROS_RUBROS: Record<string, AgendaWording> = {
+  taller: {
+    catalogHeading: "Qué hacemos",
+    providerNoun: "mecánico",
+    heroTagline: "Te decimos qué tiene, cuánto sale y cuándo está.",
+    bookCta: "Sacar turno",
+    serviceNoun: "trabajo",
+    bookingTitle: "Sacá turno",
+    bookingSubtitle: "Elegí el trabajo, el mecánico y el horario. Te confirmamos por WhatsApp.",
+    confirmCta: "Confirmar turno",
+  },
+};
+
+// Mapa slug de tenant → rubro (mismo patrón que retail `RUBRO_BY_SLUG`). Sirve para que la vidriera resuelva
+// el wording del rubro por el slug del tenant actual sin depender de la DB. Los tenants sin fila siguen con el
+// wording histórico. Taller Mecánico AGR: `agr` en producción (y en la demo local), `taller-agr` en su seed.
+const RUBRO_BY_SLUG: Record<string, string> = {
+  agr: "taller",
+  "taller-agr": "taller",
+};
 
 export function resolveAgendaRubroIdBySlug(slug: string | null | undefined): string | null {
   if (!slug) return null;
@@ -221,7 +239,7 @@ export interface AgendaBookingCopy {
 
 export function agendaBookingCopyFor(rubroId: string | null | undefined): AgendaBookingCopy {
   const rubro = rubroId ? getAgendaRubro(rubroId) : null;
-  const w = rubro?.wording ?? GENERIC_AGENDA_WORDING;
+  const w = rubro?.wording ?? (rubroId ? WORDING_DE_OTROS_RUBROS[rubroId] : undefined) ?? GENERIC_AGENDA_WORDING;
   const providerNoun = w.providerNoun; // "profesional" | "cancha" | …
   const serviceNoun = w.serviceNoun ?? "servicio";
   const providerCap = mayuscula(providerNoun);
