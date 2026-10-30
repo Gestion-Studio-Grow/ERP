@@ -39,7 +39,8 @@ import { CUENTA_CORRIENTE_ACTOR_PREFIX, esAsientoDeCuentaCorriente } from "@/lib
 //
 // TRANSFERENCIA (M1-C2): entra en las cuentas de todo el libro aunque la base todavía no la tenga
 // (prisma/pending-gate2/N2_enums.sql): una fila con el valor nunca puede quedar afuera de un
-// total. `MP` sigue diciendo «MP / Transf.»: los asientos de antes del paquete la llevan ahí.
+// total. `MP` dice «Mercado Pago» desde el UAT de M1 (orden del dueño 30/10/2026): la transferencia
+// tiene su columna, y en producción no quedó ninguna guardada en `MP` (consulta H3 del pase).
 export const CASH_METHODS = ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"] as const;
 
 /**
@@ -54,7 +55,7 @@ export function mediosALaVista(...desgloses: readonly Partial<Record<CashMethod,
 
 export const CASH_METHOD_LABEL: Record<CashMethod, string> = {
   EFECTIVO: "Efectivo",
-  MP: "MP / Transf.",
+  MP: "Mercado Pago",
   TRANSFERENCIA: "Transferencia",
   TARJETA: "Tarjeta",
 };

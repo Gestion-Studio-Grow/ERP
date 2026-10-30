@@ -183,7 +183,8 @@ export type CierreMovement = LibroMovement & {
 //   · En la hoja nueva, Mercado Pago abre SIN las transferencias guardadas en `MP` antes del
 //     período (`transferenciaGuardadaEnMp`, ver `esAjusteDeTransferencia`): si no, su saldo
 //     arrastraría plata del banco y daría un faltante falso todos los días.
-//   · En la de siempre, «MP / Transf.» sigue siendo el saldo junto (su etiqueta lo dice).
+//   · En la de siempre, «Mercado Pago» es el saldo del libro en `MP` (con lo de transferencia que se
+//     haya guardado ahí antes del pase; en producción, nada: consulta H3 del 30/10/2026).
 export type ColumnaDelCierre = CashMethod;
 
 /** El orden de la hoja nueva: EFECTIVO · MP · TRANSFERENCIA · TARJETA. */

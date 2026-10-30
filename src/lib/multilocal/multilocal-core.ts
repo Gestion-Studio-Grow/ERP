@@ -895,7 +895,7 @@ const SEP = ";";
 const fila = (...campos: (string | number)[]) => campos.map(csvField).join(SEP);
 /** Importe con coma decimal (Excel en español), igual que el export de Reportes. */
 const importe = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const ETIQUETA_MEDIO: Record<CashMethod, string> = { EFECTIVO: "Efectivo", MP: "MP / Transf.", TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta" };
+const ETIQUETA_MEDIO: Record<CashMethod, string> = { EFECTIVO: "Efectivo", MP: "Mercado Pago", TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta" };
 
 /**
  * El archivo para la contadora: un resumen por local, el consolidado por CUIT si lo hay y el

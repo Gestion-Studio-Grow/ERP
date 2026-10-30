@@ -120,7 +120,7 @@ test("sin `columnas`, el cierre es el de siempre: tres medios, MP junto", () => 
   assert.deepEqual(c.columnas, ["EFECTIVO", "MP", "TARJETA"]);
   assert.equal(c.porColumna.MP.expected, 3_000);
   assert.equal(c.porColumna.TRANSFERENCIA.expected, 0);
-  assert.equal(c.ajustes[0].detail, "Diferencia de caja 20/10/2026: faltante en MP / Transf.");
+  assert.equal(c.ajustes[0].detail, "Diferencia de caja 20/10/2026: faltante en Mercado Pago");
   assert.equal(validateCierre(c, { note: "x", today: "2026-10-20", lastClosedDay: null }).ok, true);
 });
 
@@ -358,7 +358,7 @@ test("F2 · dos días con transferencias: el día 2 cuadra en MP y en Transferen
   }
 });
 
-test("F2 · cierre de siempre con el paquete: Transferencia también es lo del período; «MP / Transf.» sigue siendo el saldo junto", () => {
+test("F2 · cierre de siempre con el paquete: Transferencia también es lo del período; «Mercado Pago» sigue siendo el saldo del libro en MP", () => {
   const c = buildCierreDiario({
     day: "2026-10-21",
     previous: [mov({ method: "TRANSFERENCIA", amount: 6_000, occurredAt: en("2026-10-19") }), mov({ method: "MP", amount: 2_000, medioDeOrigen: "TRANSFERENCIA", occurredAt: en("2026-10-19") })],

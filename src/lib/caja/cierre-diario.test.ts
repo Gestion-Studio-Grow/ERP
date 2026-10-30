@@ -234,7 +234,7 @@ test("un día con los tres medios separa ingresos y egresos por medio y el total
   // validación lo frena aunque cuadre.
   const v = validateCierre(cierre, { note: "", today: "2026-09-06", lastClosedDay: null });
   assert.equal(v.ok, false);
-  assert.ok(!v.ok && v.errors.some((e) => e.includes("MP / Transf.") && e.includes("negativo")));
+  assert.ok(!v.ok && v.errors.some((e) => e.includes("Mercado Pago") && e.includes("negativo")));
 });
 
 // ── Diferencia positiva y negativa ──────────────────────────────────────────

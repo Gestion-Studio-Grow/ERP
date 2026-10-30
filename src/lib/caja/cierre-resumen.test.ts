@@ -20,7 +20,7 @@ test("cuenta el arqueo en castellano, medio por medio", () => {
   assert.ok(r.titulo.includes("faltó plata"));
   assert.equal(r.medios.length, 3);
   assert.match(r.medios[0], /Efectivo: contó .*38\.400.* sobre .*39\.400.* · faltan .*1\.000/);
-  assert.match(r.medios[1], /MP.*cuadra/);
+  assert.match(r.medios[1], /Mercado Pago.*cuadra/);
   assert.match(r.medios[2], /Tarjeta: sin conciliar/);
   assert.equal(r.nota, "Cajón contado 20:10. Falta un billete de $1.000.");
 });
@@ -59,7 +59,7 @@ test("un changes que no es un cierre devuelve null (la pantalla cae al volcado)"
 
 // Cert. M1 v9 O1: la fila trae la hoja (`porColumna`) y el libro (`porMedio`); manda la hoja, con
 // las etiquetas de la hoja que se usó.
-test("con porColumna manda la hoja; «hoja: siempre» conserva «MP / Transf.»", async () => {
+test("con porColumna manda la hoja; «hoja: siempre» usa las etiquetas del libro («Mercado Pago» desde el UAT)", async () => {
   const { resumenCierre } = await import("./cierre-resumen");
   const fila = (hoja?: string) => ({
     estado: "CUADRA",
@@ -73,7 +73,7 @@ test("con porColumna manda la hoja; «hoja: siempre» conserva «MP / Transf.»"
     `Transferencia: contó ${money(2_600)} sobre ${money(2_600)} · cuadra`,
   ]);
   assert.deepEqual(resumenCierre(fila("siempre"))?.medios, [
-    `MP / Transf.: contó ${money(2_300)} sobre ${money(2_300)} · cuadra`,
+    `Mercado Pago: contó ${money(2_300)} sobre ${money(2_300)} · cuadra`,
     `Transferencia: contó ${money(2_600)} sobre ${money(2_600)} · cuadra`,
   ]);
 });

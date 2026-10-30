@@ -17,8 +17,9 @@ import type { CashMethod } from "@/lib/caja/cash-register";
  * De dónde se lee el arqueo de una fila del cierre. `porColumna` es la hoja que se contó (lo que se
  * vio y se tipeó); `porMedio`, el libro. Con F2 no coinciden (Transferencia abre en 0; la hoja
  * nueva abre MP sin lo de transferencia), así que manda `porColumna` cuando está (cert. M1 v9 O1).
- * Las filas viejas sólo traen `porMedio`. Las etiquetas son las de la hoja: «Mercado Pago» en la
- * nueva, «MP / Transf.» en la de siempre (`hoja: "siempre"`) y en las filas viejas. PURA.
+ * Las filas viejas sólo traen `porMedio`. Las etiquetas son las de la hoja: las de la columna
+ * en la nueva, las del libro (`CASH_METHOD_LABEL`) en la de siempre (`hoja: "siempre"`) y en las filas
+ * viejas. Desde el UAT de M1 las dos dicen «Mercado Pago». PURA.
  */
 export function arqueoDeLaFila(changes: unknown): { fuente: Record<string, unknown>; etiquetas: Record<CashMethod, string> } | null {
   if (typeof changes !== "object" || changes === null) return null;
