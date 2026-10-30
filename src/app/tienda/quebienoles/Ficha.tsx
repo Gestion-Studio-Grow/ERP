@@ -12,6 +12,7 @@
 //     capa por capa; desde ahí se pasa a esa ficha o se suman las dos.
 // Sin pirámide no se inventa: se ofrece preguntar por Instagram (y no hay tiempo ni comparación).
 
+import { useHoja } from "@/components/vidriera/useHoja";
 import Image from "next/image";
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { parecidosPorPrecio, plata } from "../vidriera/catalogo-core";
@@ -71,10 +72,8 @@ export default function Ficha({
     setSumadas(false);
   }
 
-  useLayoutEffect(() => {
-    const d = dialogo.current;
-    if (d && !d.open) d.showModal();
-  }, []);
+  // La hoja compartida (ronda 2): abre al montar y «atrás» la cierra (antes sacaba de la tienda).
+  useHoja(dialogo, true, alCerrar);
 
   const familia = p.familia ? FAMILIA_POR_ID[p.familia] : null;
   const perfume = p.perfume;

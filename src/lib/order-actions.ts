@@ -747,7 +747,7 @@ export async function placeOnlineOrder(
   // (`claveDeLaVidriera`); si no, el pedido se toma igual, sin clave.
   const idempotencyKey = claveDeLaVidriera(formData.get("idempotencyKey"));
 
-  // El precio que la vidriera mostró en cada línea (sólo MAGRA lo manda): se empareja ANTES de
+  // El precio que la vidriera mostró en cada línea (lo mandan las cuatro tiendas desde la ronda 2, src/components/vidriera): se empareja ANTES de
   // filtrar, porque viaja en el mismo orden que `productId`. Sólo sirve para avisar; el alta
   // cobra siempre el precio de la base.
   const crudas = parseItems(formData);

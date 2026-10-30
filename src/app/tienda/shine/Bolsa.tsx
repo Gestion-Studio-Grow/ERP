@@ -8,6 +8,8 @@
 // `usePedidoOnline` → `placeOnlineOrder`. Lo único nuevo viaja en `notes`: el aroma de cada renglón
 // (catalogo.ts → notaConAromas), con la nota libre de la clienta después.
 
+import CamposDelPedido from "@/components/vidriera/CamposDelPedido";
+import { useHoja } from "@/components/vidriera/useHoja";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { CamposDeEntrega, FrenoDeEntrega, useEntregaDeLaTienda, type AparienciaDeEntrega } from "../EntregaDeLaTienda";
@@ -53,6 +55,7 @@ export default function Bolsa({
   entrega,
   setFulfillment,
   claveDePedido,
+  alEnviar,
   hayWhatsApp,
   nota,
   notaLibre,
@@ -75,6 +78,7 @@ export default function Bolsa({
   entrega: ReturnType<typeof useEntregaDeLaTienda>;
   setFulfillment: (f: "PICKUP" | "DELIVERY") => void;
   claveDePedido: string;
+  alEnviar?: (via: string | null) => void;
   hayWhatsApp: boolean;
   nota: string;
   notaLibre: string;
@@ -98,25 +102,15 @@ export default function Bolsa({
   }, [rechazoDeCupon]);
   // Una línea por producto para el servidor (dos aromas del mismo producto suman su cantidad).
   const porProducto = new Map<string, number>();
-  for (const r of renglones) porProducto.set(r.id, (porProducto.get(r.id) ?? 0) + r.q);
+  const precioVisto = new Map<string, number>();
+  for (const r of renglones) {
+    porProducto.set(r.id, (porProducto.get(r.id) ?? 0) + r.q);
+    precioVisto.set(r.id, r.precio);
+  }
 
   // En la compu el diálogo queda abierto como riel (no modal); en el celular, modal sólo cuando se pide.
-  useEffect(() => {
-    const el = d.current;
-    if (!el) return;
-    const escritorio = window.matchMedia(ESCRITORIO).matches;
-    const modal = el.matches(":modal");
-    if (abierta && !escritorio) {
-      if (!modal) {
-        if (el.open) el.close();
-        el.showModal();
-        titulo.current?.focus();
-      }
-    } else {
-      if (modal) el.close();
-      if (!el.open) el.show();
-    }
-  }, [abierta]);
+  // La hoja compartida (ronda 2): en el celular, modal y con «atrás» que la cierra (antes sacaba de la tienda).
+  useHoja(d, abierta, alCerrar, { foco: titulo, modalSi: () => !window.matchMedia(ESCRITORIO).matches, cerradaVisible: true });
 
   return (
     <dialog
@@ -133,7 +127,15 @@ export default function Bolsa({
         if (e.target === e.currentTarget) alCerrar();
       }}
     >
-      <form className="shb-caja" onSubmit={pedido.onSubmit} aria-busy={pedido.enviando || undefined}>
+      <form
+        className="shb-caja"
+        onSubmit={(e) => {
+          // Por «Enviar pedido» el alta redirige a gracias: se anota qué bolsa salió para olvidarla allá (ronda 2).
+          alEnviar?.(((e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.value ?? null);
+          pedido.onSubmit(e);
+        }}
+        aria-busy={pedido.enviando || undefined}
+      >
         <div className="shb-cab">
           <h2 id="shb-titulo" ref={titulo} tabIndex={-1} className="sh-h3">
             Tu bolsa · <span className="sh-num">{cantidad}</span>
@@ -205,16 +207,11 @@ export default function Bolsa({
               ))}
             </ul>
           )}
-          {[...porProducto].map(([id, q]) => (
-            <span key={id} hidden>
-              <input type="hidden" name="productId" value={id} />
-              <input type="hidden" name="quantity" value={q} />
-            </span>
-          ))}
+          {/* Con el precio que la vidriera MOSTRÓ (ronda 2): si cambió, el servidor avisa en vez de cobrar distinto. */}
+          <CamposDelPedido renglones={[...porProducto].map(([id, q]) => ({ productId: id, quantity: q, unitPrice: precioVisto.get(id) ?? null }))} clave={claveDePedido} />
 
           {hay && (
             <div className="shb-datos">
-              <input type="hidden" name="idempotencyKey" value={claveDePedido} />
               <input type="hidden" name="notes" value={nota} />
               <label className="sh-campo">
                 <span>Nombre y apellido *</span>

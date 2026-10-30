@@ -16,6 +16,8 @@
 // zapatilla (catalogo.ts → notaConTalles), porque el motor no tiene variantes.
 // La piel (estilos.ts) la escribe el servidor (AdosmanosVidriera.tsx): no viaja en este JS.
 
+import { useBolsaGuardada } from "@/components/vidriera/useBolsaGuardada";
+import { useHoja } from "@/components/vidriera/useHoja";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
@@ -67,19 +69,20 @@ export default function AdosmanosFront({ branding, tenantKey, ...resto }: PropsA
   const numero = branding?.whatsapp ?? null;
   return (
     <WhatsAppCtaProvider tenantKey={tenantKey} configuredNumber={numero}>
-      <Vidriera {...resto} branding={branding} hayWhatsApp={Boolean(numero?.replace(/\D/g, ""))} />
+      <Vidriera tenantKey={tenantKey} {...resto} branding={branding} hayWhatsApp={Boolean(numero?.replace(/\D/g, ""))} />
     </WhatsAppCtaProvider>
   );
 }
 
 function Vidriera({
+  tenantKey,
   products,
   copy,
   branding,
   entrega: configEnvios = null,
   hoy = null,
   hayWhatsApp,
-}: Omit<PropsAdosmanos, "tenantKey"> & { hayWhatsApp: boolean }) {
+}: PropsAdosmanos & { hayWhatsApp: boolean }) {
   const { requestWhatsApp } = useWhatsAppCta();
   const raiz = useRef<HTMLDivElement>(null);
   const hidratado = useSyncExternalStore(nada, () => true, () => false);
@@ -93,7 +96,8 @@ function Vidriera({
   const palas = useMemo(() => items.filter((p) => p.vista.seccion === "palas"), [items]);
   const marcasConProductos = useMemo(() => marcas.filter((m) => items.some((p) => p.vista.marca === m)), [marcas, items]);
 
-  const [bolsa, setBolsa] = useState<Record<string, number>>({});
+  // La bolsa guardada en el navegador (ronda 2): recargar o volver de WhatsApp ya no la vacía.
+  const { bolsa, setBolsa, marcarEnvio } = useBolsaGuardada(tenantKey, products.map((p) => p.id));
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
   const [claveDePedido, setClaveDePedido] = useState(nuevaClaveDePedido);
   const [notaLibre, setNotaLibre] = useState("");
@@ -463,6 +467,7 @@ function Vidriera({
       </footer>
 
       <Bolsa
+        alEnviar={marcarEnvio}
         abierta={bolsaAbierta}
         alCerrar={() => setBolsaAbierta(false)}
         renglones={renglones}
@@ -600,10 +605,8 @@ function Controles({
 
 function HojaFiltros({ marcas, filtros, alCambiar, alCerrar }: { marcas: readonly string[]; filtros: Filtros; alCambiar: (f: Filtros) => void; alCerrar: () => void }) {
   const d = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const el = d.current;
-    if (el && !el.open) el.showModal();
-  }, []);
+  // La hoja compartida (ronda 2): «atrás» del celular cierra los filtros.
+  useHoja(d, true, alCerrar);
   return (
     <dialog
       ref={d}

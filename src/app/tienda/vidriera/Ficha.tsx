@@ -12,6 +12,7 @@
 // `<dialog>` nativo: foco atrapado y devuelto por el navegador, Esc cierra, «atrás» también (la
 // ficha vive en `?producto=`, ver Vidriera.tsx).
 
+import { useHoja } from "@/components/vidriera/useHoja";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import s from "./vidriera.module.css";
@@ -56,10 +57,8 @@ export function Ficha({
   const [q, setQ] = useState(enBolsa > 0 ? enBolsa : peso ? 1 : 1);
   const disp = etiquetaDeDisponibilidad(p.disponibilidad ?? null);
 
-  useEffect(() => {
-    const d = ref.current;
-    if (d && !d.open) d.showModal();
-  }, []);
+  // La hoja compartida (ronda 2). La vidriera ya escribe la URL de la ficha y maneja «atrás»: sin historial propio.
+  useHoja(ref, true, onCerrar, { historial: false });
 
   const importe = Math.round(q * precioDe(p) * 100) / 100;
   const mover = (dir: 1 | -1) => setQ((x) => Math.max(pasoDe(p), Math.round((x + dir * pasoDe(p)) * 1000) / 1000));

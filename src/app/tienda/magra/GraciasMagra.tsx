@@ -3,6 +3,7 @@
 // (la página es pública y el número es correlativo). Los pasos son los mismos que dice la vidriera
 // nueva para MAGRA (vidriera/GraciasNueva.tsx); el WhatsApp, sólo si el local cargó uno de verdad.
 
+import { OlvidarBolsa } from "../vidriera/OlvidarBolsa";
 import Link from "next/link";
 import { MAGRA } from "@/tenants/magra-content";
 import { buildWhatsAppHref } from "@/lib/whatsapp-cta";
@@ -31,7 +32,10 @@ export default function GraciasMagra({
   pedido,
   whatsapp,
   pago,
+  tenantKey = "magra",
 }: {
+  /** El negocio (slug): con él se olvida la bolsa guardada si el pedido salió por «Enviar pedido» (ronda 2). */
+  tenantKey?: string;
   /** El número que vino en la dirección, sólo si son dígitos. */
   pedido: string | null;
   /** Sólo dígitos y ya validado (resolveMagraLocal); "" sin WhatsApp de verdad. */
@@ -48,6 +52,7 @@ export default function GraciasMagra({
   return (
     <div className={magraFuentes}>
       <style>{CSS_BASE + CSS_GRACIAS}</style>
+      {pedido && <OlvidarBolsa tenantKey={tenantKey} />}
       <div className="magra">
         <main className="mg-gr">
           <div className="mg-gr-caja">

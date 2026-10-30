@@ -7,6 +7,7 @@
 // Lo que dice sale del catálogo oficial (catalogo.ts) y del ERP (nombre, precio, stock). Sin carta de
 // aromas en el catálogo, no se inventa una: se invita a consultar.
 
+import { useHoja } from "@/components/vidriera/useHoja";
 import Image from "next/image";
 import { useLayoutEffect, useRef, useState } from "react";
 import { etiquetaDeDisponibilidad, type Disponibilidad } from "../reglas-tienda";
@@ -46,9 +47,9 @@ export default function Ficha({
   const etiqueta = etiquetaDeDisponibilidad(p.disponibilidad ?? null);
   const faltaAroma = v.aromas.length > 0 && !aroma;
 
+  // La hoja compartida (ronda 2). La ficha ya escribe su URL (?p=) y ShineFront maneja «atrás»: sin historial propio.
+  useHoja(dialogo, true, alCerrar, { historial: false });
   useLayoutEffect(() => {
-    const d = dialogo.current;
-    if (d && !d.open) d.showModal();
     if (focoEnAromas) chips.current?.querySelector<HTMLButtonElement>("button")?.focus();
   }, [focoEnAromas]);
 

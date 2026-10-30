@@ -7,6 +7,7 @@
 // usePedidoOnline → placeOnlineOrder (bandeja, POS, stock), la entrega del negocio y el cupón.
 // La piel (estilos.ts) la escribe el servidor (ShineVidriera.tsx): no viaja en este JS.
 
+import { useBolsaGuardada } from "@/components/vidriera/useBolsaGuardada";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
@@ -60,17 +61,18 @@ export default function ShineFront({ branding, tenantKey, ...resto }: PropsShine
   const numero = branding?.whatsapp ?? null;
   return (
     <WhatsAppCtaProvider tenantKey={tenantKey} configuredNumber={numero}>
-      <Vidriera {...resto} hayWhatsApp={Boolean(numero?.replace(/\D/g, ""))} />
+      <Vidriera tenantKey={tenantKey} {...resto} hayWhatsApp={Boolean(numero?.replace(/\D/g, ""))} />
     </WhatsAppCtaProvider>
   );
 }
 
-function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, hayWhatsApp }: Omit<PropsShine, "branding" | "tenantKey"> & { hayWhatsApp: boolean }) {
+function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, hayWhatsApp, tenantKey }: Omit<PropsShine, "branding"> & { hayWhatsApp: boolean }) {
   const { requestWhatsApp } = useWhatsAppCta();
   const raiz = useRef<HTMLDivElement>(null);
   const aroma = useAromaElegido();
   const hidratado = useSyncExternalStore(nada, () => true, () => false);
-  const [bolsa, setBolsa] = useState<Record<string, number>>({});
+  // La bolsa guardada en el navegador (ronda 2): recargar o volver de WhatsApp ya no la vacía.
+  const { bolsa, setBolsa, marcarEnvio } = useBolsaGuardada(tenantKey, products.map((p) => p.id));
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
   const [claveDePedido, setClaveDePedido] = useState(nuevaClaveDePedido);
   const [notaLibre, setNotaLibre] = useState("");
@@ -441,6 +443,7 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
       </main>
 
       <Bolsa
+        alEnviar={marcarEnvio}
         abierta={bolsaAbierta}
         alCerrar={() => setBolsaAbierta(false)}
         renglones={renglones}

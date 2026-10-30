@@ -7,6 +7,9 @@
 // Lo que NO dice, porque la marca no lo publicó: tarifa de envío, zonas ni medios de pago. Dice lo que
 // es cierto: el envío o el punto de encuentro en Ezeiza y el pago se coordinan por mensaje.
 
+import CamposDelPedido from "@/components/vidriera/CamposDelPedido";
+import { useHoja } from "@/components/vidriera/useHoja";
+import { precioDe } from "../vidriera/catalogo-core";
 import Image from "next/image";
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { plata, textoDelEnvio } from "../vidriera/catalogo-core";
@@ -62,14 +65,8 @@ export default function Bolsa({
   const { pedido, cupon, entrega } = v;
   const hay = v.lineas.length > 0;
 
-  useEffect(() => {
-    const d = dialogo.current;
-    if (!d) return;
-    if (abierta && !d.open) {
-      d.showModal();
-      titulo.current?.focus();
-    } else if (!abierta && d.open) d.close();
-  }, [abierta]);
+  // La hoja compartida (ronda 2): «atrás» del celular cierra la bolsa en vez de sacar de la tienda.
+  useHoja(dialogo, abierta, alCerrar, { foco: titulo });
 
   // Si la bolsa se vacía estando en «tus datos», se vuelve al primer paso (no hay nada que pedir).
   const pasoVisible = hay ? paso : "bolsa";
@@ -140,13 +137,8 @@ export default function Bolsa({
         </div>
 
         {/* Lo que viaja al servidor: siempre adentro del formulario, en los dos pasos. */}
-        {v.lineas.map((l) => (
-          <span key={l.p.id} hidden>
-            <input type="hidden" name="productId" value={l.p.id} />
-            <input type="hidden" name="quantity" value={l.q} />
-          </span>
-        ))}
-        <input type="hidden" name="idempotencyKey" value={v.clave} />
+        {/* Con el precio que la vidriera MOSTRÓ (ronda 2): si cambió, el servidor avisa en vez de cobrar distinto. */}
+        <CamposDelPedido renglones={v.lineas.map((l) => ({ productId: l.p.id, quantity: l.q, unitPrice: precioDe(l.p) || null }))} clave={v.clave} />
 
         {!hay ? (
           <div className="qb-bolsa-vacia">

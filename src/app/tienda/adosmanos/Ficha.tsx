@@ -9,6 +9,7 @@
 // no cierra; sin ficha, «Ficha técnica a confirmar». Zapatilla: los talles en chips; el elegido viaja en
 // la nota del pedido (el motor no tiene variantes). Al cerrar, el foco vuelve a quien la abrió.
 
+import { useHoja } from "@/components/vidriera/useHoja";
 import { useLayoutEffect, useRef, useState } from "react";
 import { plata } from "../vidriera/catalogo-core";
 import type { Item } from "./catalogo";
@@ -56,8 +57,7 @@ export default function Ficha({
   useLayoutEffect(() => {
     const d = dialogo.current;
     if (!origen.current) origen.current = document.activeElement;
-    if (d && !d.open) d.showModal();
-    if (focoEnTalles) talles.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    void d; // abrir y «atrás»: la hoja compartida (abajo, después de anotar el origen del foco)
     const volver = origen.current;
     return () => {
       // Devolver el foco a la tarjeta (o lo que la abrió) cuando la ficha se desmonta. En el cuadro siguiente:
@@ -66,6 +66,12 @@ export default function Ficha({
         if (volver instanceof HTMLElement && volver.isConnected) volver.focus({ preventScroll: true });
       }, 0);
     };
+  }, [focoEnTalles]);
+  // La hoja compartida (ronda 2): abre al montar y «atrás» del celular la cierra.
+  useHoja(dialogo, true, alCerrar);
+  // Con la hoja ya abierta (el foco no entra en un <dialog> cerrado): directo a los talles si se pidió.
+  useLayoutEffect(() => {
+    if (focoEnTalles) talles.current?.querySelector<HTMLButtonElement>("button")?.focus();
   }, [focoEnTalles]);
 
   return (

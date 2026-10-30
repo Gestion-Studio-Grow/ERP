@@ -16,6 +16,8 @@
 // editorial es TEXTUAL de magra-content.ts (autorizado por el dueño); los datos del local salen de
 // `BusinessSettings` (resolveMagraLocal).
 
+import { useBolsaGuardada } from "@/components/vidriera/useBolsaGuardada";
+import { useHoja } from "@/components/vidriera/useHoja";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { formatearCantidad } from "@/lib/pos-peso";
@@ -98,7 +100,7 @@ export default function MagraTienda({
   const local = resolveMagraLocal(branding);
   return (
     <WhatsAppCtaProvider tenantKey={tenantKey} configuredNumber={local.whatsapp}>
-      <Vidriera
+      <Vidriera tenantKey={tenantKey}
         products={products}
         content={content}
         local={local}
@@ -113,6 +115,7 @@ export default function MagraTienda({
 }
 
 function Vidriera({
+  tenantKey,
   products,
   content: c,
   local,
@@ -122,6 +125,7 @@ function Vidriera({
   entrega,
   hoy,
 }: {
+  tenantKey: string;
   products: MagraProducto[];
   content: MagraContent;
   local: MagraLocal;
@@ -132,7 +136,8 @@ function Vidriera({
   hoy: string | null;
 }) {
   const { requestWhatsApp } = useWhatsAppCta();
-  const [cart, setCart] = useState<Record<string, number>>({});
+  // La bolsa guardada en el navegador (ronda 2): recargar o volver de WhatsApp ya no la vacía.
+  const { bolsa: cart, setBolsa: setCart, marcarEnvio } = useBolsaGuardada(tenantKey, products.map((p) => p.id));
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
   // Clave anti-duplicado del pedido (la lee `placeOnlineOrder`): el doble toque manda la MISMA y
   // el servidor devuelve el mismo pedido. Se renueva cuando cambia la bolsa (reglas-tienda.ts).
@@ -262,6 +267,8 @@ function Vidriera({
   const enviarPedido = (e: FormEvent<HTMLFormElement>) => {
     const boton = (e.nativeEvent as SubmitEvent).submitter;
     const porWhatsApp = boton instanceof HTMLButtonElement && boton.value === "whatsapp" && Boolean(local.whatsapp);
+    // Por «Enviar pedido» el alta redirige a gracias: se anota qué bolsa salió para olvidarla allá (ronda 2).
+    marcarEnvio(boton instanceof HTMLButtonElement ? boton.value : null);
     const ventana = porWhatsApp ? window.open("about:blank", "_blank") : null;
     ventanaDelChat.current = ventana ? { ventana, enviando: false } : null;
     pedido.onSubmit(e);
@@ -288,25 +295,22 @@ function Vidriera({
   const fichaRef = useRef<HTMLDialogElement>(null);
   const [fichaId, setFichaId] = useState<string | null>(null);
   const enFicha = fichaId ? (byId.get(fichaId) ?? null) : null;
-  const abrirFicha = useCallback((id: string) => {
-    setFichaId(id);
-    const d = fichaRef.current;
-    if (d && !d.open) d.showModal();
-  }, []);
-  const cerrarFicha = () => fichaRef.current?.close();
+  const abrirFicha = useCallback((id: string) => setFichaId(id), []);
+  const cerrarFicha = () => setFichaId(null);
+  // La hoja compartida (ronda 2): abre con la ficha elegida y «atrás» del celular la cierra (antes sacaba de la tienda).
+  useHoja(fichaRef, fichaId != null, cerrarFicha);
 
   // ── La bolsa en el celular: el mismo formulario, como hoja inferior modal ──
   const bolsaRef = useRef<HTMLDialogElement>(null);
-  const abrirBolsa = () => {
-    const d = bolsaRef.current;
-    if (d && !d.open) d.showModal();
-  };
-  const cerrarBolsa = () => bolsaRef.current?.close();
+  const [bolsaAbierta, setBolsaAbierta] = useState(false);
+  const abrirBolsa = () => setBolsaAbierta(true);
+  const cerrarBolsa = () => setBolsaAbierta(false);
+  useHoja(bolsaRef, bolsaAbierta, cerrarBolsa);
   useEffect(() => {
     // Si la pantalla pasa a compu con la hoja abierta, se cierra: ahí la bolsa es el riel.
     const mq = window.matchMedia("(min-width: 1081px)");
     const alCambiar = () => {
-      if (mq.matches && bolsaRef.current?.open) bolsaRef.current.close();
+      if (mq.matches) setBolsaAbierta(false);
     };
     mq.addEventListener("change", alCambiar);
     return () => mq.removeEventListener("change", alCambiar);
@@ -647,7 +651,7 @@ function Vidriera({
           </div>
 
           {/* ── LA BOLSA: riel en la compu, hoja inferior en el celular (mismo formulario) ── */}
-          <dialog ref={bolsaRef} className="mg-bolsa" id="pedido" aria-labelledby="mg-bolsa-t" onClick={cerrarAlTocarAfuera}>
+          <dialog ref={bolsaRef} className="mg-bolsa" id="pedido" aria-labelledby="mg-bolsa-t" onClose={cerrarBolsa} onClick={cerrarAlTocarAfuera}>
             <div className="mg-bolsa-cab">
               <span className="mg-eyebrow">Tu pedido</span>
               <h2 id="mg-bolsa-t" className="mg-bolsa-t">

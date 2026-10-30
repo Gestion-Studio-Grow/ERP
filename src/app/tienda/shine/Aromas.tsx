@@ -9,6 +9,7 @@
 //   (con try/catch: en una ventana privada o con el almacenamiento bloqueado, simplemente no recuerda).
 // · Los chips son botones con `aria-pressed`; el color es ilustrativo y lo dice.
 
+import { useHoja } from "@/components/vidriera/useHoja";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { AROMAS_DIFUSOR, AROMAS_VELA, TODOS_LOS_AROMAS } from "./catalogo";
 import { tinteDeAroma } from "./vela-reglas";
@@ -139,12 +140,8 @@ export function CartaDeAromas({ elegido }: { elegido: string | null }) {
 /** La carta en una hoja (celular): se abre desde el chip «Tu aroma» de la barra de abajo. */
 export function HojaDeAroma({ abierta, elegido, alCerrar }: { abierta: boolean; elegido: string | null; alCerrar: () => void }) {
   const d = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const el = d.current;
-    if (!el) return;
-    if (abierta && !el.open) el.showModal();
-    else if (!abierta && el.open) el.close();
-  }, [abierta]);
+  // La hoja compartida (ronda 2): «atrás» del celular la cierra.
+  useHoja(d, abierta, alCerrar);
   return (
     <dialog
       ref={d}

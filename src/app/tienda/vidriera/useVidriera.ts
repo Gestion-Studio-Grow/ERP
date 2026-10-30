@@ -25,10 +25,9 @@ import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
 import { useEntregaDeLaTienda } from "../EntregaDeLaTienda";
 
-/** Dónde se guarda la bolsa de cada negocio en el navegador. */
-export const CLAVE_BOLSA = (tenantKey: string) => `gsg:bolsa:${tenantKey}`;
-/** La bolsa que esta pestaña acaba de mandar por «Enviar pedido» (la lee OlvidarBolsa). */
-export const CLAVE_ENVIO = (tenantKey: string) => `gsg:bolsa-enviada:${tenantKey}`;
+// Las claves del navegador viven en la vidriera compartida (ronda 2): las usan también Shine, A Dos Manos y Magra.
+import { CLAVE_BOLSA, CLAVE_ENVIO } from "@/components/vidriera/claves";
+export { CLAVE_BOLSA, CLAVE_ENVIO };
 
 export function useVidriera(opts: {
   tenantKey: string;

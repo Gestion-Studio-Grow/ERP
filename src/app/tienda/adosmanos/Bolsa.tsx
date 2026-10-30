@@ -9,7 +9,9 @@
 // Lo único nuevo viaja en `notes`: el talle de cada zapatilla (catalogo.ts → notaConTalles), con la nota
 // libre después. Sin tarifa de envío cargada, el envío «se cotiza al confirmar» (nunca «gratis»).
 
-import { useEffect, useRef } from "react";
+import CamposDelPedido from "@/components/vidriera/CamposDelPedido";
+import { useHoja } from "@/components/vidriera/useHoja";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { CamposDeEntrega, FrenoDeEntrega, type AparienciaDeEntrega, type EstadoDeEntrega } from "../EntregaDeLaTienda";
 import type { CuponDePedido, PedidoOnline } from "../pedido-online";
 import { plata, textoDelEnvio } from "../vidriera/catalogo-core";
@@ -43,6 +45,7 @@ export default function Bolsa({
   setFulfillment,
   conTarifa,
   claveDePedido,
+  alEnviar,
   hayWhatsApp,
   nota,
   notaLibre,
@@ -62,6 +65,7 @@ export default function Bolsa({
   setFulfillment: (f: "PICKUP" | "DELIVERY") => void;
   conTarifa: boolean;
   claveDePedido: string;
+  alEnviar?: (via: string | null) => void;
   hayWhatsApp: boolean;
   nota: string;
   notaLibre: string;
@@ -76,25 +80,27 @@ export default function Bolsa({
   const errorDeCupon = pedido.error?.campo === "cupon" ? pedido.error.texto : cupon.error;
   // Una línea por producto para el servidor (dos talles de la misma zapatilla suman su cantidad).
   const porProducto = new Map<string, number>();
-  for (const r of renglones) porProducto.set(r.id, (porProducto.get(r.id) ?? 0) + r.q);
+  const precioVisto = new Map<string, number>();
+  for (const r of renglones) {
+    porProducto.set(r.id, (porProducto.get(r.id) ?? 0) + r.q);
+    precioVisto.set(r.id, r.precio);
+  }
   const envio = textoDelEnvio({ fulfillment: entrega.fulfillment, costo: entrega.costoEnvio, hayTarifa: conTarifa, sinTarifa: "a-coordinar", hayProductos: hay });
   const totalTransferencia = precioTransferencia(subtotal - cupon.descuento);
 
-  useEffect(() => {
-    const el = d.current;
-    if (!el) return;
-    if (abierta && !el.open) {
-      origen.current = document.activeElement;
-      el.showModal();
-      titulo.current?.focus();
-    } else if (!abierta && el.open) {
-      el.close();
+  // Lo que tenía el foco antes de abrir: se captura ANTES de que la hoja lo lleve al título (efecto de layout declarado
+  // primero) y se le devuelve al cerrar.
+  useLayoutEffect(() => {
+    if (abierta) origen.current = document.activeElement;
+    else if (origen.current) {
       const o = origen.current;
       window.setTimeout(() => {
         if (o instanceof HTMLElement && o.isConnected) o.focus({ preventScroll: true });
       }, 0);
     }
   }, [abierta]);
+  // La hoja compartida (ronda 2): showModal, foco al título y «atrás» del celular que cierra la bolsa.
+  useHoja(d, abierta, alCerrar, { foco: titulo });
 
   return (
     <dialog
@@ -110,7 +116,15 @@ export default function Bolsa({
         if (e.target === e.currentTarget) alCerrar();
       }}
     >
-      <form className="am-b-caja" onSubmit={pedido.onSubmit} aria-busy={pedido.enviando || undefined}>
+      <form
+        className="am-b-caja"
+        onSubmit={(e) => {
+          // Por «Enviar pedido» el alta redirige a gracias: se anota qué bolsa salió para olvidarla allá (ronda 2).
+          alEnviar?.(((e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.value ?? null);
+          pedido.onSubmit(e);
+        }}
+        aria-busy={pedido.enviando || undefined}
+      >
         <div className="am-b-cab">
           <h2 id="am-bolsa-t" ref={titulo} tabIndex={-1} className="am-h3">
             Tu bolsa · <span className="am-num">{cantidad}</span>
@@ -159,16 +173,11 @@ export default function Bolsa({
               ))}
             </ul>
           )}
-          {[...porProducto].map(([id, q]) => (
-            <span key={id} hidden>
-              <input type="hidden" name="productId" value={id} />
-              <input type="hidden" name="quantity" value={q} />
-            </span>
-          ))}
+          {/* Con el precio que la vidriera MOSTRÓ (ronda 2): si cambió, el servidor avisa en vez de cobrar distinto. */}
+          <CamposDelPedido renglones={[...porProducto].map(([id, q]) => ({ productId: id, quantity: q, unitPrice: precioVisto.get(id) ?? null }))} clave={claveDePedido} />
 
           {hay && (
             <div className="am-b-datos">
-              <input type="hidden" name="idempotencyKey" value={claveDePedido} />
               <input type="hidden" name="notes" value={nota} />
               <p className="am-sub">Tus datos</p>
               <label className="am-campo">
