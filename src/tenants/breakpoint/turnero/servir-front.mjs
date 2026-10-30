@@ -15,7 +15,9 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../public/previews/breakpoint");
-const TIPOS = { ".html": "text/html; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".json": "application/json", ".webp": "image/webp", ".ico": "image/x-icon" };
+// Las fuentes y las imágenes propias del club viven en public/tenants/breakpoint (como las sirve Next en el sitio).
+const PUBLICO = path.resolve(RAIZ, "../..");
+const TIPOS = { ".html": "text/html; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".json": "application/json", ".webp": "image/webp", ".ico": "image/x-icon", ".woff2": "font/woff2" };
 
 export function crearFront({ api = "http://localhost:8787" } = {}) {
   const cache = new Map();
@@ -23,7 +25,7 @@ export function crearFront({ api = "http://localhost:8787" } = {}) {
   // CSP: sólo nuestro origen, el back y Google (fuentes y Sign-In). Sin scripts inline; estilos inline sí (el diseño).
   const csp = [
     "default-src 'self'", `connect-src 'self' ${[...new Set([api, api.replace("//localhost", "//127.0.0.1"), api.replace("//127.0.0.1", "//localhost")])].join(" ")}`, "img-src 'self' data:",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com", "font-src https://fonts.gstatic.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com", "font-src 'self' https://fonts.gstatic.com",
     "script-src 'self' https://accounts.google.com", "frame-src https://accounts.google.com", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'",
   ].join("; ");
   // El backoffice del club trae un <script> inline propio (tema y fuentes): su CSP lo permite; la del turnero no.
@@ -34,8 +36,9 @@ export function crearFront({ api = "http://localhost:8787" } = {}) {
       let rel = decodeURIComponent(url.pathname);
       if (rel === "/") { res.writeHead(302, { Location: "/turnero/" }); return res.end(); }
       if (rel.endsWith("/")) rel += "index.html";
-      const archivo = path.join(RAIZ, path.normalize(rel));
-      if (!archivo.startsWith(RAIZ + path.sep)) { res.writeHead(403); return res.end(); }
+      const base = rel.startsWith("/tenants/breakpoint/") ? PUBLICO : RAIZ;
+      const archivo = path.join(base, path.normalize(rel));
+      if (!archivo.startsWith(base + path.sep)) { res.writeHead(403); return res.end(); }
       const st = await stat(archivo).catch(() => null);
       if (!st?.isFile()) { res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" }); return res.end("No existe."); }
       const clave = `${archivo}:${st.mtimeMs}`;

@@ -33,6 +33,12 @@ const check = (cond, msj) => { if (!cond) { fallas.push(msj); console.error(`  â
 const srv = createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   if (url.pathname.length > 1 && url.pathname.endsWith("/")) { res.writeHead(308, { Location: url.pathname.slice(0, -1) }); return res.end(); }
+  // Las fuentes y la placa del club (public/tenants/breakpoint/â€¦) las sirve Next desde public/, fuera del manejador.
+  if (url.pathname.startsWith("/tenants/breakpoint/") && !url.pathname.includes("..")) {
+    const b = await readFile(path.join(RAIZ, "public", url.pathname)).catch(() => null);
+    res.writeHead(b ? 200 : 404, { "Content-Type": { ".woff2": "font/woff2", ".webp": "image/webp" }[path.extname(url.pathname)] ?? "application/octet-stream" });
+    return res.end(b ?? undefined);
+  }
   const segmentos = url.pathname.split("/").filter(Boolean);
   const r = await responderSitioEstatico("breakpoint", segmentos, async (rel) => new Uint8Array(await readFile(path.join(RAIZ, rel))));
   res.writeHead(r.status, Object.fromEntries(r.headers));
