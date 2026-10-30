@@ -17,7 +17,10 @@ import { desde } from "../../reglas";
 // Cancelar y reprogramar son los botones de siempre (los de /reserva/turno), con las mismas reglas.
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Tu turno", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await cargarTaller();
+  return { title: `Tu turno — ${t.negocio.nombre}`, robots: { index: false } };
+}
 
 // El estado en palabras del taller. «Pendiente de pago» no: acá no se cobra nada al pedir el turno.
 const ESTADO: Record<string, string> = {
