@@ -15,9 +15,11 @@ import type { Silueta as TipoSilueta } from "./catalogo";
 import type { Forma } from "./palas";
 
 const CABEZA: Record<Forma, string> = {
-  redonda: "M50 4C80 4 96 26 96 62C96 98 80 122 58 130H42C20 122 4 98 4 62C4 26 20 4 50 4Z",
-  lagrima: "M50 4C78 4 95 22 95 52C95 88 76 114 58 130H42C24 114 5 88 5 52C5 22 22 4 50 4Z",
-  diamante: "M50 4C70 4 86 12 93 30C97 42 95 58 88 76C80 98 68 116 58 130H42C32 116 20 98 12 76C5 58 3 42 7 30C14 12 30 4 50 4Z",
+  // Redonda: la más ancha abajo, casi un círculo. Lágrima: lo ancho a media altura. Diamante: hombros
+  // altos y la punta arriba, se angosta en línea recta hacia el cuello.
+  redonda: "M50 6C80 6 97 32 97 68C97 102 80 124 59 130H41C20 124 3 102 3 68C3 32 20 6 50 6Z",
+  lagrima: "M50 4C77 4 94 22 94 52C94 86 76 112 58 130H42C24 112 6 86 6 52C6 22 23 4 50 4Z",
+  diamante: "M50 2C60 2 76 10 88 24C95 32 97 42 94 52L59 130H41L6 52C3 42 5 32 12 24C24 10 40 2 50 2Z",
 };
 
 /** El patrón de agujeros de la cara y el corte del corazón: una sola vez por página. */
@@ -60,16 +62,19 @@ export function Pala({ forma, marca, className }: { forma: Forma; marca?: string
 }
 
 export function Zapatilla({ className }: { className?: string }) {
+  // De perfil, la punta a la derecha: talón alto con su lengüeta, cordones bajando al empeine, puntera
+  // redonda, mediasuela clara y la suela de espiga (la de pádel) abajo.
   return (
     <svg viewBox="0 0 200 110" className={`am-sil am-sil-zapa ${className ?? ""}`} aria-hidden="true" focusable="false">
       <path
-        d="M10 74C10 62 16 56 28 54l44-6c13-14 27-26 45-28 12-1 18 6 24 14l9 14c17 2 34 8 42 18 4 6 4 14-2 18H16c-4-2-6-6-6-10Z"
+        d="M12 84C9 66 9 46 13 34c3-8 10-11 18-9l14 6c6-7 12-11 19-11 18 8 38 17 60 25 24 6 47 10 61 18 8 5 10 13 7 21Z"
         className="am-sil-cuerpo"
       />
-      <path d="M62 52c10 10 26 14 44 12" className="am-sil-franja-linea" strokeWidth="7" fill="none" strokeLinecap="round" />
-      <path d="M84 36l10 8M92 30l10 8M100 25l10 8" className="am-sil-vendas" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-      <path d="M6 84h190c0 9-6 14-15 14H20c-9 0-14-5-14-14Z" className="am-sil-suela" />
-      <path d="M20 92h8M36 92h8M52 92h8M68 92h8M84 92h8M100 92h8M116 92h8M132 92h8M148 92h8M164 92h8" className="am-sil-vendas" strokeWidth="2" />
+      <path d="M34 66c34 4 76 0 118-10" className="am-sil-franja-linea" strokeWidth="7" fill="none" strokeLinecap="round" />
+      <path d="M72 30l-5 9M85 35l-5 9M98 40l-5 9M111 45l-5 9" className="am-sil-vendas" strokeWidth="2.6" fill="none" strokeLinecap="round" />
+      <path d="M6 82h190c1 8-4 13-12 13H18C10 95 5 90 6 82Z" className="am-sil-suela" />
+      <path d="M14 99h170" className="am-sil-canto" strokeWidth="3" strokeLinecap="round" />
+      <path d="M24 88l4 4 4-4M44 88l4 4 4-4M64 88l4 4 4-4M84 88l4 4 4-4M104 88l4 4 4-4M124 88l4 4 4-4M144 88l4 4 4-4M164 88l4 4 4-4" className="am-sil-vendas" strokeWidth="1.6" fill="none" />
     </svg>
   );
 }

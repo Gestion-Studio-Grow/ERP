@@ -98,8 +98,8 @@ export default function Enfrentadas({
 
       <div className="am-vs-tabla" role="table" aria-label="Comparación de dos palas">
         <div className="am-vs-fila am-vs-cabeza" role="row">
-          <span role="columnheader" className="am-sr">
-            Dato
+          <span role="columnheader">
+            <span className="am-sr">Dato</span>
           </span>
           {columnas.map((p, lado) => (
             <div key={lado} role="columnheader" className="am-vs-col">
@@ -145,8 +145,8 @@ export default function Enfrentadas({
         })}
 
         <div className="am-vs-fila am-vs-acciones" role="row">
-          <span role="cell" className="am-sr">
-            Sumar
+          <span role="cell">
+            <span className="am-sr">Sumar</span>
           </span>
           {columnas.map((p, lado) => (
             <span key={lado} role="cell">

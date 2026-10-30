@@ -90,7 +90,9 @@ export default function Bolsa({
     } else if (!abierta && el.open) {
       el.close();
       const o = origen.current;
-      if (o instanceof HTMLElement && o.isConnected) o.focus({ preventScroll: true });
+      window.setTimeout(() => {
+        if (o instanceof HTMLElement && o.isConnected) o.focus({ preventScroll: true });
+      }, 0);
     }
   }, [abierta]);
 

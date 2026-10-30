@@ -60,8 +60,11 @@ export default function Ficha({
     if (focoEnTalles) talles.current?.querySelector<HTMLButtonElement>("button")?.focus();
     const volver = origen.current;
     return () => {
-      // Devolver el foco a la tarjeta (o lo que la abrió) cuando la ficha se desmonta.
-      if (volver instanceof HTMLElement && volver.isConnected) volver.focus({ preventScroll: true });
+      // Devolver el foco a la tarjeta (o lo que la abrió) cuando la ficha se desmonta. En el cuadro siguiente:
+      // si se hace mientras el <dialog> modal sigue en el DOM, el navegador lo vuelve a mandar al <body>.
+      window.setTimeout(() => {
+        if (volver instanceof HTMLElement && volver.isConnected) volver.focus({ preventScroll: true });
+      }, 0);
     };
   }, [focoEnTalles]);
 

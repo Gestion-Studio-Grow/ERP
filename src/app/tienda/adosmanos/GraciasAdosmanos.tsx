@@ -20,7 +20,7 @@ const CSS_GRACIAS = `
 .am-gracias-dupla .am-sil-zapa{width:170px;height:auto}
 .am-gracias h1{margin:0}
 .am-gracias-numero{margin:28px 0 0;font:600 12px/1 var(--cuerpo);letter-spacing:.28em;text-transform:uppercase;color:var(--gris)}
-.am-gracias-numero strong{display:block;margin-top:12px;font-family:var(--titular);font-weight:800;font-variation-settings:"wdth" 85;font-size:clamp(56px,8vw,96px);line-height:1;letter-spacing:0;color:var(--cancha)}
+.am-gracias-numero strong{display:block;margin-top:12px;font-family:var(--titular);font-weight:800;font-size:clamp(56px,8vw,96px);line-height:1;letter-spacing:0;color:var(--cancha)}
 .am-gracias-pasos{list-style:none;margin:32px auto 0;padding:0;max-width:52ch;text-align:left;display:grid;gap:12px;counter-reset:paso}
 .am-gracias-pasos li{display:grid;grid-template-columns:36px 1fr;gap:12px;align-items:baseline;font-size:clamp(17px,1.25vw,19px);line-height:1.5}
 .am-gracias-pasos li::before{counter-increment:paso;content:counter(paso);display:grid;place-items:center;width:32px;height:32px;border-radius:999px;background:var(--pelota);color:var(--carbon);font:800 15px/1 var(--titular)}
@@ -76,7 +76,7 @@ export default function GraciasAdosmanos({ pedido, whatsapp, tenantKey }: { pedi
               Volver a la tienda
             </Link>
           </div>
-          {pedido && <p className="am-nota">Si nos escribís, pasanos el número de pedido y lo encontramos al toque.</p>}
+          {pedido && whatsapp && <p className="am-nota">Si nos escribís, pasanos el número de pedido y lo encontramos al toque.</p>}
           {MARCA_PROVISIONAL && <p className="am-gracias-prov">Identidad provisional, a confirmar por el dueño.</p>}
         </div>
       </main>
