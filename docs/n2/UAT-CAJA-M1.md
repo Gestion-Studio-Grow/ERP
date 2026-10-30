@@ -7,7 +7,7 @@ M1 está en producción en `cfb4810c`. Este UAT se corrió en **local**, nunca c
 - **Recorrido:** clic por clic con Playwright (Chromium), en compu (1440 px) y celular (390 px). El script está en `.m1/uat/uat-caja.mjs`, fuera de git.
 - **Capturas:** `Factory-GSG\00-ESTADO\uat-2026-10\caja-m1\` (el nombre del archivo termina en el ancho).
 
-**Mejoras:** rama `n2/m1-uat-mejoras`, desde `cfb4810c`, sin push. Commits `363dc228`, `c08b6a11` y `0a5f0364`.
+**Mejoras:** rama `n2/m1-uat-mejoras`, desde `cfb4810c`, sin push. Commits `363dc228`, `c08b6a11`, `0a5f0364` y `630a77f7` (este último, por la certificación: sin re-prueba en pantalla).
 
 ## Cómo se armó el recorrido
 
