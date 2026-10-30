@@ -112,7 +112,7 @@ test("precio viejo: los precios del formulario se emparejan con las líneas sól
 });
 
 test("la vidriera de MAGRA manda el precio que mostró en cada línea", () => {
-  const front = readFileSync(new URL("./MagraFront.tsx", import.meta.url), "utf8");
+  const front = readFileSync(new URL("./magra/MagraTienda.tsx", import.meta.url), "utf8");
   assert.match(front, /name="unitPrice" value=\{unitPrice\(l\.p\)\}/);
 });
 
@@ -430,7 +430,7 @@ test("M2: todas las vidrieras generan la clave con nuevaClaveDePedido, y el serv
   // La forma VIEJA de SiteReplica (con el punto de Math.random()), de pestañas abiertas antes del cambio.
   assert.equal(claveDeLaVidriera("1790250166194-0.0180339349025187"), "web:1790250166194-0.0180339349025187");
   // TRINQUETE: ninguna vidriera arma su propia clave.
-  for (const f of ["Storefront.tsx", "MagraFront.tsx", "shine/ShineFront.tsx", "SiteReplica.tsx"]) {
+  for (const f of ["Storefront.tsx", "magra/MagraTienda.tsx", "shine/ShineFront.tsx", "SiteReplica.tsx"]) {
     const src = readFileSync(new URL(`./${f}`, import.meta.url), "utf8");
     assert.match(src, /nuevaClaveDePedido\(\)/, f);
     assert.doesNotMatch(src, /Math\.random\(\)|randomUUID\(\)/, `${f} arma su propia clave`);
