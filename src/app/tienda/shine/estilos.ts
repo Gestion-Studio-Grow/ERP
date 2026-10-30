@@ -200,7 +200,7 @@ html:has(.shine),body:has(.shine){background:#f3ebe1}
 .shine .sh-abajo{position:fixed;left:0;right:0;bottom:0;z-index:45;display:flex;align-items:center;gap:10px;min-height:calc(64px + env(safe-area-inset-bottom));padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:var(--vino);color:var(--papel);box-shadow:0 -12px 30px -18px rgba(58,36,41,.5)}
 .shine .sh-abajo button{min-height:48px;border-radius:999px;cursor:pointer;font-size:15px;white-space:nowrap}
 .shine .sh-abajo-aroma{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;padding:0 16px;border:1px solid rgba(253,248,242,.5);background:transparent;color:var(--papel);text-align:left}
-.shine .sh-abajo-bolsa{flex:none;padding:0 18px;border:0;background:var(--papel);color:var(--vino);font-weight:600}
+.shine .sh-abajo-bolsa{flex:none;display:inline-flex;align-items:center;gap:2px;padding:0 18px;border:0;background:var(--papel);color:var(--vino);font-weight:600}
 .shine .sh-abajo :focus-visible{outline-color:var(--papel)}
 @media(prefers-reduced-motion:no-preference){.shine .sh-abajo-total{display:inline-block;animation:sh-sube-poco .2s var(--curva)}}
 @keyframes sh-sube-poco{from{transform:translateY(-2px)}to{transform:none}}
