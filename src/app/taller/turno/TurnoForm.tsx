@@ -437,7 +437,7 @@ export default function TurnoForm({
                     )}
                   </div>
                 )}
-                <p className="agr-letra-chica">Te escribimos por WhatsApp para confirmar. No se cobra nada ahora.</p>
+                <p className="agr-letra-chica">{whatsapp ? "Te escribimos por WhatsApp para confirmar." : "Te contactamos para confirmar."} No se cobra nada ahora.</p>
                 {norm && wa && (
                   <p className="agr-letra-chica">
                     ¿Querés adelantarnos qué le pasa al {patenteLinda}?{" "}

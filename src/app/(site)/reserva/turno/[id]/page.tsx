@@ -1,4 +1,5 @@
 import { getMyAppointment } from "@/lib/client-actions";
+import { destinoPropio, estadoPublicoDelTurno, rubroDelTurno } from "@/lib/turnos/rubro-del-turno";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import CancelButton from "./CancelButton";
@@ -8,8 +9,6 @@ import { fmtDateTime } from "@/lib/datetime";
 import { isAppointmentModifiable } from "@/lib/booking-core";
 import { cambioOnlineDelTurno } from "@/lib/turnos/practica.server";
 import { chConDisenoNuevo } from "../../../_ch/diseno-ch.server";
-import { getCurrentTenantSlug } from "@/lib/tenant-site";
-import { resolveAgendaRubroIdBySlug } from "@/blueprints/agenda/rubros";
 
 const statusLabel: Record<string, string> = {
   PENDING: "Pendiente de pago",
@@ -34,9 +33,14 @@ export default async function MyAppointmentPage({
 }) {
   const { id } = await params;
   // El taller tiene su propia página del turno (piel, puesto, patente; sin «Pendiente de pago»): QA AGR 29/10.
-  if (resolveAgendaRubroIdBySlug(await getCurrentTenantSlug()) === "taller") redirect(`/taller/turno/${id}`);
+  // Ronda 2: por el rubro del alta (blueprint), no sólo por el slug; el profe va a su turnero.
+  const propio = destinoPropio(await rubroDelTurno(), "turno", id);
+  if (propio) redirect(propio);
   const appointment = await getMyAppointment(id);
   if (!appointment) notFound();
+  // «Pendiente de pago» sólo si el servicio pide seña (ronda 2); sin seña, el turno está «A confirmar».
+  const etiquetaDelEstado =
+    appointment.status === "PENDING" ? estadoPublicoDelTurno(appointment.service.depositAmount).texto : (statusLabel[appointment.status] ?? appointment.status);
 
   // Un turno vivo y futuro se puede tanto cancelar como reprogramar (política pura
   // y testeable en booking-core; no llamamos Date.now en el render del RSC).
@@ -82,7 +86,7 @@ export default async function MyAppointmentPage({
           <div>
             <dt>Estado</dt>
             <dd>
-              <span className="chr-estado">{statusLabel[appointment.status] ?? appointment.status}</span>
+              <span className="chr-estado">{etiquetaDelEstado}</span>
             </dd>
           </div>
         </dl>
@@ -100,7 +104,7 @@ export default async function MyAppointmentPage({
         </p>
         <p className="pt-1">
           <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusStyles[appointment.status]}`}>
-            {statusLabel[appointment.status] ?? appointment.status}
+            {etiquetaDelEstado}
           </span>
         </p>
       </div>

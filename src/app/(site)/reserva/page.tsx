@@ -1,4 +1,6 @@
 import { getProfessionalsWithServices } from "@/lib/actions";
+import { redirect } from "next/navigation";
+import { destinoPropio, rubroDelTurno } from "@/lib/turnos/rubro-del-turno";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { agendaBookingCopyForSlug } from "@/blueprints/agenda";
 import BookingForm from "./BookingForm";
@@ -10,6 +12,9 @@ import { getLocation } from "@/lib/settings";
 export const dynamic = "force-dynamic";
 
 export default async function ReservaPage() {
+  // Identidad por rubro (ronda 2, P0): el taller reserva en su formulario y el profe en su turnero, con su piel y su voz.
+  const propio = destinoPropio(await rubroDelTurno(), "reserva");
+  if (propio) redirect(propio);
   const [professionals, slug, regla, nuevo] = await Promise.all([
     getProfessionalsWithServices(),
     getCurrentTenantSlug(),
@@ -21,8 +26,8 @@ export default async function ReservaPage() {
   // Copy rubro-aware: un club de pádel dice "cancha", una estética "profesional".
   // Cae al wording histórico para los tenants que no definen su propia voz.
   const copy = agendaBookingCopyForSlug(slug);
-  // Diseño nuevo de CH sin WhatsApp cargado: la bajada no promete WhatsApp (contacto-ch.ts). Apagado, la de siempre.
-  const bajada = nuevo ? sinPromesaDeWhatsApp(copy.subtitle, (await getLocation()).whatsapp) : copy.subtitle;
+  // Sin WhatsApp cargado, la bajada no promete WhatsApp (contacto-ch.ts), con o sin el diseño nuevo (ronda 2).
+  const bajada = sinPromesaDeWhatsApp(copy.subtitle, (await getLocation()).whatsapp);
 
   return (
     <div className={nuevo ? "chr mx-auto max-w-2xl px-6 py-14" : "mx-auto max-w-2xl px-6 py-14"}>

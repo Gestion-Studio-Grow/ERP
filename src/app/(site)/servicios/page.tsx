@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { destinoPropio, rubroDelTurno } from "@/lib/turnos/rubro-del-turno";
 import Link from "next/link";
 import { getPublicBookingData } from "@/lib/actions";
 import { getBrandSheet } from "@/lib/brand-sheet";
@@ -46,6 +48,9 @@ const versalitas: React.CSSProperties = {
 };
 
 export default async function ServiciosPage() {
+  // Identidad por rubro (ronda 2, P0): la carta del taller es /taller#que-hacemos («trabajos», no «tratamientos»).
+  const propio = destinoPropio(await rubroDelTurno(), "servicios");
+  if (propio) redirect(propio);
   // El precio de vecino/a de La Alameda es de CH: otro negocio no lo ve (E1).
   const [{ groups }, esCH] = await Promise.all([getPublicBookingData(), getCurrentTenantSlug().then((s) => s === "beauty-spa")]);
   const sheet = tenantBrandSheetEnabled() || !esCH ? await getBrandSheet() : null;

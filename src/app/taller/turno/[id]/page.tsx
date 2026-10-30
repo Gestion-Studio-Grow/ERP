@@ -76,8 +76,8 @@ export default async function TurnoDelTaller({
             {nuevo ? (
               <p className="agr-turno__bajada">
                 {sena > 0
-                  ? `Te escribimos por WhatsApp para coordinar la seña de ${desde(sena)} y confirmarlo.`
-                  : "Te escribimos por WhatsApp para confirmarlo. No se cobra nada ahora."}
+                  ? `${t.negocio.whatsapp ? "Te escribimos por WhatsApp" : "Te contactamos"} para coordinar la seña de ${desde(sena)} y confirmarlo.`
+                  : `${t.negocio.whatsapp ? "Te escribimos por WhatsApp" : "Te contactamos"} para confirmarlo. No se cobra nada ahora.`}
               </p>
             ) : (
               <p className="agr-turno__bajada">Acá está el detalle de tu turno.</p>

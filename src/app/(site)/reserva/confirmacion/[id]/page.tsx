@@ -1,13 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import { comoSigueElTurno, destinoPropio, estadoPublicoDelTurno, nombrePublico, rubroDelTurno } from "@/lib/turnos/rubro-del-turno";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/datetime";
 import { reglaVigenteParaLaClienta } from "@/lib/turnos/practica.server";
 import { chConDisenoNuevo } from "../../../_ch/diseno-ch.server";
-import { sinPromesaDeWhatsApp } from "../../../_ch/contacto-ch";
 import { getLocation } from "@/lib/settings";
-import { getCurrentTenantSlug } from "@/lib/tenant-site";
-import { resolveAgendaRubroIdBySlug } from "@/blueprints/agenda/rubros";
 
 export default async function ConfirmacionPage({
   params,
@@ -16,20 +14,26 @@ export default async function ConfirmacionPage({
 }) {
   const { id } = await params;
   // El taller tiene su propia página del turno (piel, puesto, patente; sin «Pendiente de pago»): QA AGR 29/10.
-  if (resolveAgendaRubroIdBySlug(await getCurrentTenantSlug()) === "taller") redirect(`/taller/turno/${id}?nuevo=1`);
+  // Ronda 2: por el rubro del alta (blueprint), no sólo por el slug; el profe va a su turnero.
+  const propio = destinoPropio(await rubroDelTurno(), "confirmacion", id);
+  if (propio) redirect(propio);
   const appointment = await prisma.appointment.findUnique({
     where: { id },
     include: { professional: true, service: true, box: true },
   });
 
   if (!appointment) notFound();
-  const [regla, nuevo] = await Promise.all([reglaVigenteParaLaClienta(), chConDisenoNuevo()]);
+  const [regla, nuevo, { whatsapp }] = await Promise.all([reglaVigenteParaLaClienta(), chConDisenoNuevo(), getLocation()]);
+  // Lo que es cierto de ESTE turno (ronda 2): «Pendiente de pago» sólo si el servicio pide seña; WhatsApp sólo si el
+  // negocio lo cargó; el box sólo si tiene nombre propio (no el «Box de ejemplo (editable)» del alta).
+  const estado = estadoPublicoDelTurno(appointment.service.depositAmount);
+  const comoSigue = comoSigueElTurno({ conSena: estado.conSena, hayWhatsApp: Boolean(whatsapp) });
+  const box = nombrePublico(appointment.box?.name);
+  const profesional = nombrePublico(appointment.professional?.name);
 
   // Diseño nuevo de CH (sólo con su interruptor prendido): la tarjeta del turno en tipografía, sin el «✓» en
   // círculo verde. Mismos datos y mismos textos que la de siempre; ningún texto de CH (página compartida).
   if (nuevo) {
-    // Sin WhatsApp cargado no se promete WhatsApp (contacto-ch.ts); sólo en el diseño nuevo.
-    const { whatsapp } = await getLocation();
     return (
       <div className="chr mx-auto px-6 py-16">
         <p className="chf-kicker">Turno {appointment.id.slice(-6).toUpperCase()}</p>
@@ -42,14 +46,18 @@ export default async function ConfirmacionPage({
             <dt>Servicio</dt>
             <dd>{appointment.service.name}</dd>
           </div>
-          <div>
-            <dt>Profesional</dt>
-            <dd>{appointment.professional.name}</dd>
-          </div>
-          <div>
-            <dt>Box</dt>
-            <dd>{appointment.box.name}</dd>
-          </div>
+          {profesional && (
+            <div>
+              <dt>Profesional</dt>
+              <dd>{profesional}</dd>
+            </div>
+          )}
+          {box && (
+            <div>
+              <dt>Box</dt>
+              <dd>{box}</dd>
+            </div>
+          )}
           <div>
             <dt>Fecha y hora</dt>
             <dd>{fmtDateTime(appointment.startsAt)}</dd>
@@ -57,12 +65,12 @@ export default async function ConfirmacionPage({
           <div>
             <dt>Estado</dt>
             <dd>
-              <span className="chr-estado">Pendiente de pago</span>
+              <span className="chr-estado">{estado.texto}</span>
             </dd>
           </div>
         </dl>
         <p style={{ color: "var(--text-muted)", margin: "24px 0 0" }}>
-          {sinPromesaDeWhatsApp("Te vamos a escribir por WhatsApp para coordinar el pago y confirmar tu turno.", whatsapp)}
+          {comoSigue}
         </p>
         <p style={{ color: "var(--text-muted)", margin: "8px 0 0" }}>
           {regla ? regla : "Guardá el enlace de tu turno para verlo o cancelarlo cuando quieras."}
@@ -96,8 +104,8 @@ export default async function ConfirmacionPage({
         style={{ background: "var(--surface-sunken)", color: "var(--text-strong)" }}
       >
         <p><span style={{ color: "var(--text-muted)" }}>Servicio:</span> {appointment.service.name}</p>
-        <p><span style={{ color: "var(--text-muted)" }}>Profesional:</span> {appointment.professional.name}</p>
-        <p><span style={{ color: "var(--text-muted)" }}>Box:</span> {appointment.box.name}</p>
+        {profesional && <p><span style={{ color: "var(--text-muted)" }}>Profesional:</span> {profesional}</p>}
+        {box && <p><span style={{ color: "var(--text-muted)" }}>Box:</span> {box}</p>}
         <p>
           <span style={{ color: "var(--text-muted)" }}>Fecha y hora:</span>{" "}
           {fmtDateTime(appointment.startsAt)}
@@ -107,12 +115,12 @@ export default async function ConfirmacionPage({
             className="inline-block rounded-full px-2.5 py-0.5 text-xs font-medium"
             style={{ background: "var(--warning-soft)", color: "var(--warning)" }}
           >
-            Pendiente de pago
+            {estado.texto}
           </span>
         </p>
       </div>
       <p className="text-sm mb-2" style={{ color: "var(--text-muted)" }}>
-        Te vamos a escribir por WhatsApp para coordinar el pago y confirmar tu turno.
+        {comoSigue}
       </p>
       <p className="text-sm mb-8" style={{ color: "var(--text-muted)" }}>
         {regla ? `${regla} Guardá este link para verlo:` : "Guardá este link para ver o cancelar tu turno cuando quieras:"}{" "}

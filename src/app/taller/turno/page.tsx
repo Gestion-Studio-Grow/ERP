@@ -53,7 +53,7 @@ export default async function TurnoTaller({ searchParams }: { searchParams: Prom
           <div className="agr-turno__cab">
             <p className="agr-etiqueta">Turno online</p>
             <h1 className="agr-h1">Sacá turno</h1>
-            <p className="agr-turno__bajada">Elegís qué necesita el auto y cuándo lo traés. Te confirmamos por WhatsApp.</p>
+            <p className="agr-turno__bajada">Elegís qué necesita el auto y cuándo lo traés. {t.negocio.whatsapp ? "Te confirmamos por WhatsApp." : "Te contactamos para confirmar."}</p>
             {regla && <p className="agr-turno__regla">{regla}</p>}
           </div>
           <TurnoForm

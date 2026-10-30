@@ -6,10 +6,11 @@
 // 404, como hoy. Datos: el servicio sale de `getPublicBookingData()` (el mismo loader público de la carta:
 // sólo servicios activos); si no está, 404. No hay descripción en el modelo: no se inventa texto.
 
+import { destinoPropio, rubroDelTurno } from "@/lib/turnos/rubro-del-turno";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getPublicBookingData } from "@/lib/actions";
 import { nextBusinessDays } from "@/lib/datetime";
 import { reglaVigenteParaLaClienta } from "@/lib/turnos/practica.server";
@@ -61,6 +62,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function FichaServicio({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const propio = destinoPropio(await rubroDelTurno(), "servicio", id);
+  if (propio) redirect(propio);
   const hallado = await buscar(id);
   if (!hallado) notFound();
   const { s, familia, groups, professionals } = hallado;
