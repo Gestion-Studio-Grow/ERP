@@ -35,7 +35,8 @@ test("ningún campo de plata de la caja es type=number", () => {
 test("las acciones de caja leen la plata con leerImporte, no con Number(replace)", () => {
   for (const f of ACCIONES) {
     const src = leer(f);
-    assert.match(src, /leerImporte\(/, `${f} no usa leerImporte`);
+    // `leerContado` (cierre-diario.ts) es `leerImporte` con el signo de la columna Transferencia (O2).
+    assert.match(src, /leerImporte\(|leerContado\(/, `${f} no usa leerImporte`);
     assert.doesNotMatch(src, /Number\([^)]*replace\(",", "\."\)/, `${f} conserva el parseo viejo`);
   }
 });

@@ -54,6 +54,7 @@ import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { COMPRA_ACTOR_PREFIX, esEgresoDeCompra } from "@/lib/stock/purchase-egreso";
 import { COMISION_ACTOR_PREFIX, esEgresoDeComision } from "@/lib/comision-liquidacion";
 import { leerImporte } from "@/lib/pos-peso";
+import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 
 const LIBRO_PATH = "/admin/caja/libro";
 // El mismo formulario de alta se monta en la Caja (es el único camino de escritura manual),
@@ -89,7 +90,10 @@ function toActionError(err: unknown): { ok: false; error: string } {
 // crea el POS y el arqueo respectivamente, y dejar tipearlas abriría la puerta a
 // duplicar una venta que el sistema ya registró.
 const LIBRO_TYPES = ["INGRESO", "EGRESO"] as const;
-const LIBRO_METHODS = ["EFECTIVO", "MP", "TARJETA"] as const;
+// TRANSFERENCIA (UAT M1, 30/10/2026): una devolución o un pago por transferencia va a su columna;
+// cargado en «MP» ensuciaba Mercado Pago en la hoja nueva y Transferencia nunca tenía egresos.
+// Se escribe sólo con el valor en la base (`transferenciaEnElLibroTx`), como las ventas.
+const LIBRO_METHODS = ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"] as const;
 
 function parseAmount(raw: FormDataEntryValue | null): number {
   // Plata escrita como se escribe acá: "12.500" son doce mil quinientos y "12,5" doce con
@@ -271,7 +275,10 @@ export async function addLibroEntry(
   const method = (LIBRO_METHODS as readonly string[]).includes(methodRaw)
     ? (methodRaw as CashMethod)
     : null;
-  if (!method) return { ok: false, error: "Elegí el medio: efectivo, MP/transferencia o tarjeta." };
+  if (!method) return { ok: false, error: "Elegí el medio: efectivo, Mercado Pago, transferencia o tarjeta." };
+  if (method === "TRANSFERENCIA" && !(await transferenciaEnElLibroTx(prisma))) {
+    return { ok: false, error: "Este negocio todavía no separa la transferencia en el libro: cargalo en Mercado Pago." };
+  }
 
   const amount = parseAmount(formData.get("amount"));
   if (!Number.isFinite(amount) || amount <= 0) {
