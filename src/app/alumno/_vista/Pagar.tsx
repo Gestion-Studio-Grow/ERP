@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { subirComprobanteVarias } from "@/lib/padel/acciones-alumno";
 import { alerta, botonBorde, botonPrincipal, foco, listo } from "@/app/clases/_estilos";
 import { plata } from "@/app/clases/cinta";
+import { IconoWhatsApp } from "@/app/clases/_iconos";
 import { esPdf, seleccionInicial, type ItemPago } from "./puro";
 
 export type { ItemPago };
@@ -102,7 +103,7 @@ export function Pagar({ token, items, alias, titular, profe, waAlias }: { token:
           <p className="text-base">{profe} te pasa el alias por WhatsApp. También le podés pagar en efectivo.</p>
           {waAlias && (
             <a href={waAlias} target="_blank" rel="noopener noreferrer" className={`${botonBorde} w-full`}>
-              <span aria-hidden>💬</span> Pedirle el alias a {profe}
+              <IconoWhatsApp className="size-6 shrink-0" /> Pedirle el alias a {profe}
             </a>
           )}
         </div>

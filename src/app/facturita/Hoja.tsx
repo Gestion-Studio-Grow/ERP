@@ -135,6 +135,8 @@ export default function Hoja({
         <span className="fx-tenue">Total</span>
         <strong>{plata(total)}</strong>
       </div>
+      {/* QA 29/10: «Sin validez fiscal» va pegado al sello, en la misma fila: donde se lee «Autorizada · CAE»
+          se lee que es un ejemplo (en el celular la barra fija puede tapar el descargo de abajo). */}
       <div className="fx-hoja-pie">
         {emitida ? (
           <Marca n={4} marcas={marcas}>
@@ -146,8 +148,10 @@ export default function Hoja({
         ) : (
           <span className="fx-sello fx-sello--borrador">Sin emitir</span>
         )}
-        <span className="fx-pdf">PDF para tu cliente</span>
+        <span className="fx-sin-validez">Sin validez fiscal</span>
       </div>
+      {/* Lo que pasa después en la app, dicho como texto: no es un botón (QA 29/10). */}
+      <p className="fx-pdf">Sale en PDF para tu cliente</p>
       {conQr && (
         <div className="fx-qr" style={{ marginTop: grande ? 20 : 14 }}>
           <Marca n={5} marcas={marcas}>

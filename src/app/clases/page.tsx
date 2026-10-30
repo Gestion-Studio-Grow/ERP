@@ -37,10 +37,14 @@ async function baseDelRequest(): Promise<URL | null> {
 export async function generateMetadata(): Promise<Metadata> {
   const base: Metadata = { manifest: "/mis-clases/app.webmanifest", generator: "Gestión Studio Grow" };
   try {
-    const n = await datosDelNegocio(await getCurrentTenantId());
+    const tenantId = await getCurrentTenantId();
+    const [n, grilla] = await Promise.all([datosDelNegocio(tenantId), franjas(tenantId)]);
     const m = marcaProfe(n.slug);
     const title = `${n.nombre} · Pedí tu clase`;
-    const description = `Elegí día y hora para tu clase de pádel con ${n.profe}. Te confirma por WhatsApp.`;
+    // Sin horarios publicados no se promete «elegí día y hora»: el turno se pide por mensaje.
+    const description = grilla.some((f) => f.tipo === "DA")
+      ? `Elegí día y hora para tu clase de pádel con ${n.profe}. Te confirma por WhatsApp.`
+      : `Clases de pádel con ${n.profe}. Pedile un turno por mensaje y te contesta por WhatsApp.`;
     const metadataBase = m.og ? await baseDelRequest() : null;
     return {
       ...base,
@@ -80,6 +84,12 @@ export default async function ClasesPage({ searchParams }: { searchParams: Promi
   const nombreApp = profe && profe !== "profe" ? `Clases con ${profe}` : "Mis clases";
   const proxima = saludo?.miProxima ?? null;
   const regla = reglaDeCancelacion(config.anticipacionMin);
+  // QA 29/10: sin horarios publicados, ni el lema ni los pasos dicen «Elegí día y hora» (no hay qué
+  // elegir): el turno se pide por mensaje, que es lo que ofrece la barra fija.
+  const lema = sinHorarios ? `${config.precioGrupal > 0 ? "Clases individuales y con amigos. " : ""}Pedime un turno por mensaje y te contesto por WhatsApp.` : m.lema;
+  const pasos = sinHorarios
+    ? ["Me pedís un turno por mensaje", "Te confirmo por WhatsApp", "Pagás por alias o en efectivo"]
+    : ["Elegís día y hora", "Te confirmo por WhatsApp", "Pagás por alias o en efectivo"];
   const enlaceCabecera = `inline-flex min-h-12 items-center rounded-[0.875rem] px-2 text-[0.9375rem] font-semibold text-[var(--padel-sobre-tinta)] underline underline-offset-4 ${foco}`;
 
   return (
@@ -137,12 +147,13 @@ export default async function ClasesPage({ searchParams }: { searchParams: Promi
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
           <div className="contents lg:sticky lg:top-6 lg:col-span-5 lg:grid lg:gap-6 lg:self-start">
             <div className="order-1 lg:order-none">
-              <PresentacionProfe nombre={nombre} lema={m.lema} />
+              <PresentacionProfe nombre={nombre} lema={lema} />
             </div>
             <div className="order-3 mt-4 lg:order-none lg:mt-0">
               <DetallesProfe
                 duracionMin={config.duracionMin}
                 precio={config.precioIndividual > 0 ? pesos(config.precioIndividual) : null}
+                precioGrupal={config.precioGrupal > 0 ? pesos(config.precioGrupal) : null}
                 lugar={negocio.lugar}
                 maps={maps}
                 regla={regla}
@@ -174,7 +185,7 @@ export default async function ClasesPage({ searchParams }: { searchParams: Promi
             ¿Cómo funciona?
           </h2>
           <ol className="mt-5 grid gap-5 md:grid-cols-3 md:gap-8">
-            {["Elegís día y hora", "Te confirmo por WhatsApp", "Pagás por alias o en efectivo"].map((paso, i) => (
+            {pasos.map((paso, i) => (
               <li key={paso} className="flex items-start gap-4">
                 <span aria-hidden className="pz-display pz-num text-[clamp(3rem,5vw,4.5rem)] font-extrabold leading-[0.8] text-[var(--padel-vivo)]">
                   {i + 1}

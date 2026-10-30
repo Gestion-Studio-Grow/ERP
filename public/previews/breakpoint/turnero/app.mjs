@@ -44,7 +44,14 @@ const HAY_TIENDA = !MODO_PEDIDO || !!CATALOGO;
 // Sin las tarifas del club no se muestran precios (nada de precios de ejemplo a un cliente real).
 const SIN_PRECIOS = MODO_PEDIDO && !TARIFAS;
 const linkWa = (texto) => `https://wa.me/${WA}?text=${encodeURIComponent(texto)}`;
+// Sin el WhatsApp del club publicado, el pedido va por un canal REAL del club: su Instagram (el mismo que publica la
+// portada). Nunca un wa.me sin número (QA 29/10: «elegí el chat del club» deja sin destinatario a quien no lo tiene).
+const IG_CLUB = "breakpointpadel_";
+const LINK_IG = `https://ig.me/m/${IG_CLUB}`;
+const POR_IG = MODO_PEDIDO && !WA;
+const CAMARA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r=".6" fill="currentColor"/></svg>`;
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+const DIAS_LARGOS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const pesos = (n) => `$${Math.round(n).toLocaleString("es-AR")}`;
@@ -104,10 +111,30 @@ function pintarDias() {
 
 function elegirDia(fecha) {
   S.fecha = fecha;
+  $("#t-dias").textContent = "Elegí el día";
   for (const b of document.querySelectorAll("#dias .dia")) b.setAttribute("aria-pressed", String(b.dataset.fecha === fecha));
   $(`#dias .dia[data-fecha="${fecha}"]`)?.scrollIntoView({ block: "nearest", inline: "center", behavior: quieto() ? "auto" : "smooth" });
-  cargarSlots();
+  // La franja que vino de la portada (#manana/#tarde/#noche) se conserva al cambiar de día (QA 29/10).
+  const k = clave();
+  cargarSlots().then(() => { if (k === clave() && esAnclaFranja()) aplicarAncla(); });
 }
+
+/** Ahora en Argentina (UTC−3, sin horario de verano): fecha AAAA-MM-DD y minutos desde la medianoche. */
+function ahoraAR() {
+  const d = new Date(Date.now() - 3 * 3600000);
+  return { fecha: d.toISOString().slice(0, 10), min: d.getUTCHours() * 60 + d.getUTCMinutes() };
+}
+/**
+ * ¿Ya no queda ningún turno de hoy? Después del último inicio posible (cierre − duración, con los 15 min de margen
+ * del núcleo), «hoy» sólo muestra «No vemos canchas libres»: el turnero arranca solo en mañana (QA 29/10).
+ */
+function hoyYaCerro(cfg, duracion) {
+  const hoy = cfg.dias?.[0];
+  if (!hoy || !cfg.dias[1]) return false;
+  const a = ahoraAR();
+  return a.fecha === hoy.fecha && a.min + 15 > hoy.cierra - duracion;
+}
+const esAnclaFranja = () => FRANJAS.some(([id]) => `#${id}` === location.hash);
 
 // ───────────── grilla ─────────────
 // «Techada» sólo dice algo si el club tiene techadas y descubiertas (Break Point: las 4 techadas). Sin la lista, se muestra.
@@ -415,7 +442,7 @@ function conectarVivo() {
   fuente?.close();
   const ev = LOCAL ? LOCAL.fuente("/api/turnero/eventos") : new EventSource(`${API}/api/turnero/eventos`, { withCredentials: true });
   fuente = ev;
-  const estado = (on) => { const el = $("#en-vivo"); el.classList.toggle("on", on); el.classList.toggle("off", !on); el.textContent = on ? "En vivo" : "Reconectando…"; };
+  const estado = (on) => { const el = $("#en-vivo"); el.classList.remove("pedido"); el.classList.toggle("on", on); el.classList.toggle("off", !on); el.textContent = on ? "En vivo" : "Reconectando…"; };
   // Si se cortó (túnel, 4G que va y viene), al volver se re-pide todo: lo que pasó en el medio no se pierde.
   let caido = false;
   ev.onopen = () => { estado(true); if (caido) { caido = false; S.cache.clear(); cargarSlots({ animar: true, forzar: true }); cargarReservas(); } };
@@ -511,7 +538,7 @@ function cablear() {
   $("#btn-espera").addEventListener("click", () => (MODO_PEDIDO ? preguntarPorWhatsApp() : anotarEspera()));
   $("#ped-cancha").addEventListener("change", () => armarPedido());
   $("#ped-nombre").addEventListener("input", armarPedido);
-  $("#ped-wa").addEventListener("click", (e) => { if (!armarPedido({ validar: true })) e.preventDefault(); });
+  $("#ped-wa").addEventListener("click", (e) => { if (!armarPedido({ validar: true })) e.preventDefault(); else if (POR_IG) mandarPorInstagram(e); });
   $("#form-pedido").addEventListener("submit", (e) => { e.preventDefault(); if (armarPedido({ validar: true })) $("#ped-wa").click(); });
   // Tienda: se descarga recién cuando se abre (/turnero#tienda o el botón del encabezado).
   addEventListener("hashchange", () => { if (location.hash === "#tienda") abrirTienda(); else if (S.config) aplicarAncla(); });
@@ -561,8 +588,11 @@ function pedirCelular() {
  */
 function porHorario(slots) {
   if (slots.some((s) => s.opciones)) return slots; // ya agrupados (repintado después de una animación)
+  // Con una cancha elegida desde la portada (chip «Cancha 2»), se ven sólo sus horarios y la ficha dice su nombre,
+  // no «4 canchas» (QA 29/10).
+  const base = S.cancha ? slots.filter((s) => s.canchaId === S.cancha) : slots;
   const grupos = new Map();
-  for (const s of slots) (grupos.get(s.inicio) ?? grupos.set(s.inicio, []).get(s.inicio)).push(s);
+  for (const s of base) (grupos.get(s.inicio) ?? grupos.set(s.inicio, []).get(s.inicio)).push(s);
   return [...grupos.values()].map((ops) => {
     const min = Math.min(...ops.map((x) => x.precio));
     return { ...ops[0], cancha: ops.length === 1 ? ops[0].cancha : `${ops.length} canchas`, techada: ops.some((x) => x.techada), pico: ops.some((x) => x.pico), precio: min, desde: ops.some((x) => x.precio !== min), opciones: ops };
@@ -576,6 +606,11 @@ function abrirPedido(slot) {
   $("#ped-error").textContent = "";
   $("#ped-nombre").removeAttribute("aria-invalid");
   $("#ped-sin-wa").hidden = Boolean(WA);
+  // Cada turno arranca sin el «Copiado» ni el texto a mano del anterior.
+  S.igListo = false;
+  $("#ped-copiado").textContent = "";
+  $("#ped-manual").hidden = true;
+  if (POR_IG) $("#ped-wa-txt").textContent = "Mandalo por Instagram";
   // Cancha elegida desde la portada (/turnero#cancha-N): queda preseleccionada si está libre en ese horario.
   if (S.cancha && ops.some((o) => o.canchaId === S.cancha)) $("#ped-cancha").value = S.cancha;
   armarPedido();
@@ -596,12 +631,62 @@ function armarPedido({ validar = false } = {}) {
   $("#ped-resumen").innerHTML = `<span class="res-cuando">${fechaLarga(S.fecha)} · ${hhmm(s.inicio)}</span><strong>${elegida ? esc(elegida.cancha) : "Cualquier cancha"}</strong>${conTecho(elegida) ? " · techada" : ""} · hasta las ${hhmm(s.fin)} (${durTexto(S.duracion)})`;
   $("#ped-precio").textContent = precio;
   const nombre = $("#ped-nombre").value.trim();
-  $("#ped-wa").href = linkWa(`Hola Break Point, quiero el turno del ${fechaLarga(S.fecha)} a las ${hhmm(s.inicio)} (${durTexto(S.duracion)}) en ${cancha}.${SIN_PRECIOS ? "" : ` Precio de referencia: ${precio}.`}${nombre ? ` Soy ${nombre}.` : ""}`);
+  const mensaje = `Hola Break Point, quiero el turno del ${fechaLarga(S.fecha)} a las ${hhmm(s.inicio)} (${durTexto(S.duracion)}) en ${cancha}.${SIN_PRECIOS ? "" : ` Precio de referencia: ${precio}.`}${nombre ? ` Soy ${nombre}.` : ""}`;
+  // Si cambió el pedido (p. ej. el nombre) después de copiarlo, hay que copiarlo de nuevo.
+  if (POR_IG && S.igListo && $("#ped-texto").value !== mensaje) { S.igListo = false; $("#ped-wa-txt").textContent = "Mandalo por Instagram"; $("#ped-copiado").textContent = ""; }
+  $("#ped-texto").value = mensaje;
+  $("#ped-wa").href = POR_IG ? LINK_IG : linkWa(mensaje);
   if (!validar) return true;
   const falta = !nombre;
   $("#ped-error").textContent = falta ? "Poné tu nombre así el club sabe quién pide." : "";
   if (falta) { $("#ped-nombre").setAttribute("aria-invalid", "true"); $("#ped-nombre").focus(); } else $("#ped-nombre").removeAttribute("aria-invalid");
   return !falta;
+}
+
+/** Copia en el mismo toque (el navegador deja abrir el chat después). true si se pudo. */
+function copiarEnElToque(texto) {
+  const t = document.createElement("textarea");
+  t.value = texto;
+  t.setAttribute("readonly", "");
+  t.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none";
+  // Adentro del diálogo: con un <dialog> modal abierto, lo de afuera es inerte y no se puede seleccionar.
+  $("#dlg-pedido").append(t);
+  t.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch { ok = false; }
+  t.remove();
+  $("#ped-wa").focus({ preventScroll: true });
+  return ok;
+}
+
+/**
+ * «Mandalo por Instagram»: copia el pedido y abre el chat del club (ig.me). Si el portapapeles falla, el pedido queda
+ * a la vista, seleccionable, y el botón pasa a «Abrir el chat de Instagram» (el toque siguiente sólo abre el chat).
+ */
+function mandarPorInstagram(e) {
+  if (S.igListo) return; // ya copiado o a la vista: este toque abre el chat
+  const texto = $("#ped-texto").value;
+  const listo = (copiado) => {
+    S.igListo = true;
+    $("#ped-wa-txt").textContent = "Abrir el chat de Instagram";
+    if (copiado) return;
+    $("#ped-copiado").textContent = "No pudimos copiarlo: seleccioná el pedido, copialo y pegalo en el chat.";
+    $("#ped-manual").hidden = false;
+    $("#ped-texto").focus();
+    $("#ped-texto").select();
+  };
+  if (copiarEnElToque(texto)) {
+    $("#ped-copiado").textContent = "Copiado: pegalo en el chat";
+    aviso("Copiado: pegalo en el chat");
+    S.igListo = true;
+    $("#ped-wa-txt").textContent = "Abrir el chat de Instagram";
+    return; // el link sigue y abre el chat del club
+  }
+  // Sin copia en el toque: se intenta con el portapapeles moderno; el chat se abre con el toque siguiente.
+  e.preventDefault();
+  const api = navigator.clipboard?.writeText?.bind(navigator.clipboard);
+  if (!api) return listo(false);
+  api(texto).then(() => { $("#ped-copiado").textContent = "Copiado: pegalo en el chat"; listo(true); }, () => listo(false));
 }
 
 /** Sin horarios libres con esos filtros: en vez de una lista de espera que acá no existe, se le pregunta al club. */
@@ -615,12 +700,19 @@ function prepararModoPedido() {
   const vivo = $("#en-vivo");
   vivo.classList.remove("on", "off");
   vivo.classList.add("pedido");
-  vivo.textContent = "Pedido por WhatsApp";
+  vivo.textContent = WA ? "Pedido por WhatsApp" : "Pedido por mensaje";
   const que = SIN_PRECIOS ? "Horarios de referencia" : "Horarios y precios de referencia";
-  $("#cinta").textContent = `${que}: el club te confirma por WhatsApp`;
+  $("#cinta").textContent = `${que}: el club te confirma ${WA ? "por WhatsApp" : "por mensaje"}`;
   $("#subtitulo").textContent = `${que} · la disponibilidad te la confirma el club.`;
   for (const el of [$("#btn-ingresar"), $("#usuario"), $("#mis-reservas"), $(".saltar"), $("#btn-google"), $("#btn-simular"), ...(HAY_TIENDA ? [] : [$("#btn-tienda")])]) if (el) el.hidden = true;
-  $("#como-pasos").innerHTML = "<li><b>Elegí</b> el día, el horario y la duración.</li><li><b>Pedilo por WhatsApp</b> con tu nombre: el mensaje sale armado.</li><li><b>El club te confirma</b> y te pasa el alias para la seña.</li>";
+  $("#como-pasos").innerHTML = WA
+    ? "<li><b>Elegí</b> el día, el horario y la duración.</li><li><b>Pedilo por WhatsApp</b> con tu nombre: el mensaje sale armado.</li><li><b>El club te confirma</b> y te pasa el alias para la seña.</li>"
+    : "<li><b>Elegí</b> el día, el horario y la duración.</li><li><b>Mandalo por Instagram</b> con tu nombre: el pedido sale armado y lo pegás en el chat del club.</li><li><b>El club te confirma</b> y te pasa el alias para la seña.</li>";
+  if (POR_IG) {
+    $("#ped-wa").innerHTML = `${CAMARA}<span id="ped-wa-txt">Mandalo por Instagram</span>`;
+    $("#ped-ayuda").textContent = "Copiamos tu pedido y se abre el chat de Instagram del club: pegalo y mandalo. El club te confirma por ahí y te pasa el alias para la seña.";
+    $("#ped-sin-wa").textContent = "Si no se abre el chat, buscá @breakpointpadel_ en Instagram.";
+  }
   // Sin el WhatsApp del club, «Preguntar» abriría WhatsApp sin destinatario: no se ofrece (DISENO §5.2).
   $("#espera p").textContent = WA ? "Preguntale al club: a veces se libera algo." : "Probá otro día u otra duración.";
   $("#btn-espera").textContent = "Preguntar por WhatsApp";
@@ -647,9 +739,12 @@ function aplicarAncla() {
 }
 function elegirCancha(id) {
   const c = S.config?.canchas?.find?.((x) => x.id === id);
+  const antes = S.cancha;
   S.cancha = c ? id : null;
   $("#chip-cancha").hidden = !c;
   if (c) $("#chip-cancha-txt").textContent = c.nombre ?? `Cancha ${id.slice(1)}`;
+  // El chip filtra la grilla: al ponerlo o sacarlo, se repinta con lo que ya está en memoria.
+  if (MODO_PEDIDO && antes !== S.cancha && S.cache.has(clave())) pintarGrilla(S.cache.get(clave()), { foco: null });
 }
 
 // ───────────── tienda (módulo aparte, carga diferida) ─────────────
@@ -672,6 +767,8 @@ async function iniciar() {
     $("#grilla").setAttribute("aria-busy", "false");
     return;
   }
+  // La cinta de la demo para prospectos (el HTML trae la del ambiente real, que es la que se ve sin JS).
+  if (!MODO_PEDIDO && MODO_DEMO) $("#cinta").textContent = "Demo: los datos son de ejemplo y no se guardan";
   if (MODO_PEDIDO) { prepararModoPedido(); LOCAL = (await import("./local.mjs")).crearLocalPedido({ tarifas: TARIFAS, catalogo: CATALOGO }); }
   else if (API === "local") LOCAL = await (await import("./local.mjs")).crearLocal();
   const [cfg, yo] = await Promise.all([api("/api/turnero/config"), api("/api/auth/yo")]);
@@ -687,8 +784,14 @@ async function iniciar() {
   // Sin descubiertas, «Sólo techadas» no filtra nada: no se muestra (la lógica queda para otro club).
   $("#techadas").closest("label").hidden = !techoMixto();
   S.usuario = yo.usuario ?? null;
-  S.fecha = qs.get("fecha") && cfg.dias.some((d) => d.fecha === qs.get("fecha")) ? qs.get("fecha") : cfg.dias[0].fecha;
   S.duracion = Number($('#duracion input:checked')?.value ?? 90);
+  const pedida = qs.get("fecha") && cfg.dias.some((d) => d.fecha === qs.get("fecha")) ? qs.get("fecha") : null;
+  // Después del último turno de hoy, arranca solo en mañana («Mañana, viernes 30 · hoy ya cerró»).
+  const saltaAManiana = !pedida && hoyYaCerro(cfg, S.duracion);
+  S.fecha = pedida ?? (saltaAManiana ? cfg.dias[1].fecha : cfg.dias[0].fecha);
+  if (saltaAManiana) {
+    $("#t-dias").textContent = `Mañana, ${DIAS_LARGOS[cfg.dias[1].dia]} ${Number(S.fecha.slice(8))} · hoy ya no quedan turnos`;
+  }
   pintarDias();
   pintarUsuario();
   await cargarSlots();

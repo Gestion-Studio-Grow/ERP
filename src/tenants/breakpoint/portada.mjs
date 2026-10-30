@@ -7,8 +7,13 @@
 //
 // Restricciones (e2e src/tenants/breakpoint/turnero/e2e/sitio.e2e.mjs): exactamente UN a[href="/turnero"] (el CTA del
 // héroe; franjas, canchas, encabezado y barra usan /turnero#…), ningún a[href="/club"] y la palabra «d-e-m-o» no
-// aparece en el body (tampoco en el script inline). Sin datos inventados: sin WhatsApp no hay botón ni wa.me pelado;
+// aparece en el body (tampoco en el script inline). Sin datos inventados: sin WhatsApp no hay botón ni wa.me pelado,
+// y la portada dice «pedilo por mensaje» (el turnero lo manda por el Instagram del club, QA 29/10);
 // sin tarifas no hay precios; sin ubicación no hay dirección ni mapa.
+
+// Horario del club por día de la semana (el mismo que usa el turnero: CONFIG_DEMO del motor, provisional a confirmar).
+// La portada lo usa sólo para saber si «hoy» ya terminó y pasar a «Mañana, viernes 30» (QA 29/10).
+import { CONFIG_DEMO } from "../../../public/previews/breakpoint/club/motor.mjs";
 
 // Logo provisional a confirmar: trazos derivados del SVG del club (ccr-63ed11dc-brcdpp) para que no dependa de una
 // fuente instalada (antes era <text> en Montserrat, que no se cargaba y cambiaba de forma según la máquina). Cuando
@@ -136,7 +141,7 @@ h1 .caja{width:fit-content;margin-top:.08em;padding:.04em .2em .06em .12em;backg
 .franja{flex-direction:column;align-items:flex-start;justify-content:center;gap:8px;min-height:96px}}
 @media (max-width:899px){.plano{grid-row:3}.rotulo{grid-row:1}h1{grid-row:2}}
 /* secciones */
-.sec{padding:var(--sec) 0 0}
+.sec{padding-top:var(--sec)}
 .sec h2{margin-bottom:clamp(24px,3vw,44px)}
 .pasos{display:grid;gap:clamp(16px,2vw,32px);margin:0;padding:0;list-style:none;counter-reset:paso}
 .pasos li{display:grid;grid-template-columns:auto 1fr;align-items:start;gap:16px;padding-top:16px;border-top:2px solid var(--tinta);counter-increment:paso}
@@ -182,8 +187,10 @@ h1 .caja{width:fit-content;margin-top:.08em;padding:.04em .2em .06em .12em;backg
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:1ms!important;animation-delay:0s!important;transition-duration:1ms!important}}
 `;
 
-// Nombre del día en hora argentina («Hoy, jueves 29»). Sin JS queda «Hoy» y la portada está completa igual.
-const JS = `(()=>{const e=document.getElementById("hoy-dia");if(!e)return;try{const t=new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",timeZone:"America/Argentina/Buenos_Aires"}).format(new Date()).replace(",","");e.textContent="Hoy, "+t;}catch{}})();`;
+// Nombre del día en hora argentina («Hoy, jueves 29»). Después del último turno de hoy (cierre − duración del turno,
+// con los 15 min de margen del turnero) pasa a «Mañana, viernes 30», igual que el turnero. Sin JS queda «Hoy».
+const HORARIOS = JSON.stringify(CONFIG_DEMO.horarios.map((h) => [h.abre, h.cierra]));
+const JS = `(()=>{const e=document.getElementById("hoy-dia");if(!e)return;try{const H=${HORARIOS},D=${Number(CONFIG_DEMO.duracionTurno) || 90},P=${Number(CONFIG_DEMO.paso) || 30};const a=new Date(Date.now()-108e5),m=a.getUTCHours()*60+a.getUTCMinutes(),[ab,ci]=H[a.getUTCDay()],u=ab+Math.floor((ci-D-ab)/P)*P,man=m+15>u,f=new Date(a.getTime()+(man?864e5:0)),t=new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",timeZone:"UTC"}).format(f).replace(",","");e.textContent=(man?"Mañana, ":"Hoy, ")+t;}catch{}})();`;
 
 /** El HTML de la portada (estático; un script inline mínimo sólo para el nombre del día). PURA. */
 export function portada(publico = {}) {
@@ -192,10 +199,12 @@ export function portada(publico = {}) {
   const hayTienda = Boolean(String(publico.catalogo ?? "").trim());
   const ubicacion = String(publico.ubicacion ?? "").trim();
   const techadas = Array.isArray(publico.techadas) ? publico.techadas.map(Number).filter((x) => Number.isInteger(x) && x > 0) : [];
+  // Sin WhatsApp publicado el pedido sale por mensaje al Instagram del club (el turnero lo copia y abre el chat).
+  const canal = wa ? "por WhatsApp" : "por mensaje";
   const linkWa = (texto) => `https://wa.me/${wa}?text=${encodeURIComponent(texto)}`;
   const globo = (clase = "globo") => (wa ? `<a class="${clase}" href="${esc(linkWa("Hola Break Point, quería consultar por un turno."))}" target="_blank" rel="noopener" aria-label="Escribirle al club por WhatsApp">${GLOBO}</a>` : "");
   const seccionTarifas = tarifas.length
-    ? `<section class="sec cont" aria-labelledby="t-tarifas"><h2 id="t-tarifas">Tarifas</h2><div class="tarifas">${tarifas.map((t) => `<div class="placa${t.nombre === "Pico" ? " pico" : ""}"><h3>${t.nombre}</h3><p class="precio">${pesos(t.precioHora)} <small>por hora</small></p><p>De ${hhmm(t.desde)} a ${hhmm(t.hasta)}</p></div>`).join("")}</div><p class="nota">Seña por transferencia, con el código en el concepto. Precios de referencia: el club te los confirma por WhatsApp.</p></section>`
+    ? `<section class="sec cont" aria-labelledby="t-tarifas"><h2 id="t-tarifas">Tarifas</h2><div class="tarifas">${tarifas.map((t) => `<div class="placa${t.nombre === "Pico" ? " pico" : ""}"><h3>${t.nombre}</h3><p class="precio">${pesos(t.precioHora)} <small>por hora</small></p><p>De ${hhmm(t.desde)} a ${hhmm(t.hasta)}</p></div>`).join("")}</div><p class="nota">Seña por transferencia, con el código en el concepto. Precios de referencia: el club te los confirma ${canal}.</p></section>`
     : "";
   return `<!doctype html>
 <html lang="es-AR">
@@ -203,7 +212,7 @@ export function portada(publico = {}) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Break Point Pádel · reservá tu cancha</title>
-<meta name="description" content="Break Point Pádel${ubicacion ? ` (${esc(ubicacion)})` : ""}: elegí día y horario, pedí tu cancha por WhatsApp y el club te confirma. Escuelita, torneos y el bodegón del club.">
+<meta name="description" content="Break Point Pádel${ubicacion ? ` (${esc(ubicacion)})` : ""}: elegí día y horario, pedí tu cancha ${canal} y el club te confirma. Escuelita, torneos y el bodegón del club.">
 <meta name="generator" content="Gestión Studio Grow">
 <meta name="theme-color" content="#035BA8">
 <meta name="color-scheme" content="light dark">
@@ -227,7 +236,7 @@ export function portada(publico = {}) {
     <div class="cont">
       <p class="rotulo">Club de pádel${ubicacion ? ` · ${esc(ubicacion)}` : ""}</p>
       <h1 id="titulo"><span>Reservá</span> <span class="caja">tu cancha</span></h1>
-      <p class="bajada">Elegí el día y el horario, pedilo por WhatsApp y el club te confirma.</p>
+      <p class="bajada">Elegí el día y el horario, pedilo ${canal} y el club te confirma.</p>
       <a class="btn btn-blanco cta" href="/turnero">Elegí tu horario</a>
       <p class="hoy" id="hoy-dia">Hoy</p>
       <ul class="franjas" aria-label="Franjas del día: ver horarios">
@@ -243,7 +252,7 @@ export function portada(publico = {}) {
     <h2 id="t-como">Cómo se reserva</h2>
     <ol class="pasos">
       <li><p><b>Elegí el día y el horario.</b></p></li>
-      <li><p><b>Pedilo por WhatsApp:</b> el mensaje sale armado con tu nombre.</p></li>
+      <li><p>${wa ? "<b>Pedilo por WhatsApp:</b> el mensaje sale armado con tu nombre." : "<b>Pedilo por mensaje:</b> sale armado con tu nombre y lo mandás al Instagram del club."}</p></li>
       <li><p><b>El club te confirma</b> y te pasa el alias para la seña.</p></li>
     </ol>
   </section>

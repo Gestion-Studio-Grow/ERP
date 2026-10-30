@@ -46,8 +46,16 @@ export function HojaQuien({
         className="grid gap-3"
         onSubmit={(e) => {
           e.preventDefault();
+          if (pendiente) return;
           const f = new FormData(e.currentTarget);
           onPedir({ nombre: String(f.get("nombre") ?? ""), telefono: String(f.get("telefono") ?? "") });
+        }}
+        // Enter en cualquiera de los dos campos pide (QA 29/10): el botón vive en el pie de la hoja,
+        // fuera del <form>, y no todos los navegadores lo toman como el botón por defecto.
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" || e.nativeEvent.isComposing || !(e.target instanceof HTMLInputElement)) return;
+          e.preventDefault();
+          e.currentTarget.requestSubmit();
         }}
       >
         <div>

@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { botonBorde, caja } from "@/app/clases/_estilos";
+import { IconoCelular } from "@/app/clases/_iconos";
 import { esIosSinInstalar } from "./puro";
 
 type AvisoInstalar = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
@@ -58,7 +59,7 @@ export function Instalar({ nombreApp }: { nombreApp: string }) {
           setAviso(null);
         }}
       >
-        <span aria-hidden>📲</span> Guardá «{nombreApp}» en tu inicio
+        <IconoCelular className="size-6 shrink-0" /> Guardá «{nombreApp}» en tu inicio
       </button>
     );
   }
@@ -66,7 +67,7 @@ export function Instalar({ nombreApp }: { nombreApp: string }) {
   return (
     <section className={caja} aria-label="Guardar en el inicio" data-qa="instalar-ios">
       <button type="button" className={`${botonBorde} w-full`} aria-expanded={pasos} onClick={() => setPasos((v) => !v)}>
-        <span aria-hidden>📲</span> Guardá «{nombreApp}» en tu inicio
+        <IconoCelular className="size-6 shrink-0" /> Guardá «{nombreApp}» en tu inicio
       </button>
       {pasos && (
         <ol className="mt-3 grid gap-3 text-base">

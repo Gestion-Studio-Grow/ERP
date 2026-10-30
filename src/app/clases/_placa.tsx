@@ -34,6 +34,7 @@ export function PresentacionProfe({ nombre, lema }: { nombre: string; lema: stri
 export function DetallesProfe({
   duracionMin,
   precio,
+  precioGrupal = null,
   lugar,
   maps,
   regla,
@@ -42,6 +43,8 @@ export function DetallesProfe({
   duracionMin: number;
   /** El precio de la clase individual (null: no se muestra). */
   precio: string | null;
+  /** El precio por persona de la clase con amigos (null: no se muestra). */
+  precioGrupal?: string | null;
   lugar: string;
   maps: string | null;
   regla: string;
@@ -49,7 +52,19 @@ export function DetallesProfe({
 }) {
   const datos: { t: string; v: ReactNode; ancho?: boolean }[] = [];
   if (duracionMin > 0) datos.push({ t: "Duración", v: <span className={valor}>{duracionMin} min</span> });
-  if (precio) datos.push({ t: "La clase", v: <span className={valor}>{precio}</span> });
+  // Con clase con amigos, los dos precios con su nombre (QA 29/10: «La clase $ 25.000» se leía como el
+  // precio de cualquier modalidad, también de «con amigos»).
+  if (precio) datos.push({ t: precioGrupal ? "Individual" : "La clase", v: <span className={valor}>{precio}</span> });
+  if (precioGrupal)
+    datos.push({
+      t: "Con amigos",
+      v: (
+        <span className={valor}>
+          {precioGrupal}
+          <span className="ml-1 text-[0.55em]">c/u</span>
+        </span>
+      ),
+    });
   if (lugar)
     datos.push({
       t: "Dónde",

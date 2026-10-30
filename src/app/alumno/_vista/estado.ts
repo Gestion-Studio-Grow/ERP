@@ -1,6 +1,7 @@
-// Lo puro de «Mis clases»: qué chip lleva cada clase (⏳ esperando / ✓ confirmada / ✕ no va), la
-// hora relativa («en 20 h»), hasta cuándo se cancela gratis, cuánto se ve una clase que ya no va
-// (48 h, tachada, con su salida) y la línea de la cuenta («Debés…» / «Estás al día ✓» / «a favor»).
+// Lo puro de «Mis clases»: qué chip lleva cada clase (reloj esperando / tilde confirmada / cruz no va),
+// la hora relativa («en 20 h»), hasta cuándo se cancela gratis, cuánto se ve una clase que ya no va
+// (48 h, tachada, con su salida) y la línea de la cuenta («Debés…» / «Estás al día» / «a favor»).
+// Los íconos son NOMBRES (la vista los dibuja en SVG con la piel): nada de emojis (QA 29/10).
 // Corre en el servidor (VistaAlumno): la fecha de «ahora» se inyecta, así las pruebas fijan el día.
 
 import { MOTIVO_OTRO_CAMBIO_CONFIRMADO, PAGO_LABEL, MEDIO_LABEL, esMedioCobro, horaHumana, pesos, puedeCancelarAlumno, type EstadoClase, type EstadoPago } from "@/lib/padel/core";
@@ -23,6 +24,8 @@ export interface ClaseVista {
 }
 
 export type Tono = "espera" | "ok" | "fin" | "neutro";
+/** El ícono del chip, por nombre: VistaAlumno lo dibuja con los SVG de la piel (`clases/_iconos`). */
+export type IconoEstado = "reloj" | "tilde" | "cruz" | "punto" | "flecha";
 
 /** «en 45 min», «en 20 h», «en 3 días», «ya empezó». */
 export function enCuanto(empiezaEn: Date, ahora: Date): string {
@@ -37,25 +40,25 @@ export function enCuanto(empiezaEn: Date, ahora: Date): string {
 }
 
 /** El chip de estado: ícono distinto para lo que espera y lo confirmado (M-099), nunca sólo color. */
-export function chipEstado(estado: EstadoClase, profe: string, motivoCancel?: string | null): { icono: string; texto: string; tono: Tono } {
+export function chipEstado(estado: EstadoClase, profe: string, motivoCancel?: string | null): { icono: IconoEstado; texto: string; tono: Tono } {
   // O-5c: un pedido de cambio que se cayó porque quedó el otro no es «el profe no puede».
-  if (estado === "RECHAZADA" && motivoCancel === MOTIVO_OTRO_CAMBIO_CONFIRMADO) return { icono: "↪", texto: "Quedó el otro horario", tono: "neutro" };
+  if (estado === "RECHAZADA" && motivoCancel === MOTIVO_OTRO_CAMBIO_CONFIRMADO) return { icono: "flecha", texto: "Quedó el otro horario", tono: "neutro" };
   switch (estado) {
     case "PEDIDA":
-      return { icono: "⏳", texto: `Esperando a ${profe}`, tono: "espera" };
+      return { icono: "reloj", texto: `Esperando a ${profe}`, tono: "espera" };
     case "CONFIRMADA":
-      return { icono: "✓", texto: "Confirmada", tono: "ok" };
+      return { icono: "tilde", texto: "Confirmada", tono: "ok" };
     case "DADA":
-      return { icono: "✓", texto: "Dada", tono: "neutro" };
+      return { icono: "tilde", texto: "Dada", tono: "neutro" };
     case "AUSENTE":
-      return { icono: "•", texto: "No fuiste", tono: "neutro" };
+      return { icono: "punto", texto: "No fuiste", tono: "neutro" };
     case "RECHAZADA":
-      return { icono: "✕", texto: `${profe} no puede ese horario`, tono: "fin" };
+      return { icono: "cruz", texto: `${profe} no puede ese horario`, tono: "fin" };
     case "SIN_RESPUESTA":
-      return { icono: "✕", texto: `${profe} no llegó a confirmarte`, tono: "fin" };
+      return { icono: "cruz", texto: `${profe} no llegó a confirmarte`, tono: "fin" };
     case "CANCELADA":
     default:
-      return { icono: "✕", texto: "Cancelada", tono: "fin" };
+      return { icono: "cruz", texto: "Cancelada", tono: "fin" };
   }
 }
 
@@ -138,7 +141,7 @@ export function etiquetaPago(c: Pick<ClaseVista, "pagoEstado" | "pagoMedio" | "p
 export function lineaDeCuenta(p: { debe: number; clasesQueDebe: number; saldoAFavor: number }): { titulo: string; tono: "debe" | "favor" | "al-dia" } {
   if (p.debe > 0) return { titulo: `Debés ${pesos(p.debe)} · ${p.clasesQueDebe} clase${p.clasesQueDebe === 1 ? "" : "s"}`, tono: "debe" };
   if (p.saldoAFavor > 0) return { titulo: `Tenés ${pesos(p.saldoAFavor)} a favor`, tono: "favor" };
-  return { titulo: "Estás al día ✓", tono: "al-dia" };
+  return { titulo: "Estás al día", tono: "al-dia" };
 }
 
 /** «Cómo llegar»: Google Maps con la dirección que cargó el profe (null si no cargó ninguna). */

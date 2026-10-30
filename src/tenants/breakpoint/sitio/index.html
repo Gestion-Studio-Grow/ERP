@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Break Point Pádel · reservá tu cancha</title>
-<meta name="description" content="Break Point Pádel: elegí día y horario, pedí tu cancha por WhatsApp y el club te confirma. Escuelita, torneos y el bodegón del club.">
+<meta name="description" content="Break Point Pádel: elegí día y horario, pedí tu cancha por mensaje y el club te confirma. Escuelita, torneos y el bodegón del club.">
 <meta name="generator" content="Gestión Studio Grow">
 <meta name="theme-color" content="#035BA8">
 <meta name="color-scheme" content="light dark">
@@ -94,7 +94,7 @@ h1 .caja{width:fit-content;margin-top:.08em;padding:.04em .2em .06em .12em;backg
 .franja{flex-direction:column;align-items:flex-start;justify-content:center;gap:8px;min-height:96px}}
 @media (max-width:899px){.plano{grid-row:3}.rotulo{grid-row:1}h1{grid-row:2}}
 /* secciones */
-.sec{padding:var(--sec) 0 0}
+.sec{padding-top:var(--sec)}
 .sec h2{margin-bottom:clamp(24px,3vw,44px)}
 .pasos{display:grid;gap:clamp(16px,2vw,32px);margin:0;padding:0;list-style:none;counter-reset:paso}
 .pasos li{display:grid;grid-template-columns:auto 1fr;align-items:start;gap:16px;padding-top:16px;border-top:2px solid var(--tinta);counter-increment:paso}
@@ -155,7 +155,7 @@ h1 .caja{width:fit-content;margin-top:.08em;padding:.04em .2em .06em .12em;backg
     <div class="cont">
       <p class="rotulo">Club de pádel</p>
       <h1 id="titulo"><span>Reservá</span> <span class="caja">tu cancha</span></h1>
-      <p class="bajada">Elegí el día y el horario, pedilo por WhatsApp y el club te confirma.</p>
+      <p class="bajada">Elegí el día y el horario, pedilo por mensaje y el club te confirma.</p>
       <a class="btn btn-blanco cta" href="/turnero">Elegí tu horario</a>
       <p class="hoy" id="hoy-dia">Hoy</p>
       <ul class="franjas" aria-label="Franjas del día: ver horarios">
@@ -171,7 +171,7 @@ h1 .caja{width:fit-content;margin-top:.08em;padding:.04em .2em .06em .12em;backg
     <h2 id="t-como">Cómo se reserva</h2>
     <ol class="pasos">
       <li><p><b>Elegí el día y el horario.</b></p></li>
-      <li><p><b>Pedilo por WhatsApp:</b> el mensaje sale armado con tu nombre.</p></li>
+      <li><p><b>Pedilo por mensaje:</b> sale armado con tu nombre y lo mandás al Instagram del club.</p></li>
       <li><p><b>El club te confirma</b> y te pasa el alias para la seña.</p></li>
     </ol>
   </section>
@@ -224,6 +224,6 @@ h1 .caja{width:fit-content;margin-top:.08em;padding:.04em .2em .06em .12em;backg
   <a class="btn btn-blanco" href="/turnero#hoy">Reservá tu cancha</a>
   
 </nav>
-<script>(()=>{const e=document.getElementById("hoy-dia");if(!e)return;try{const t=new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",timeZone:"America/Argentina/Buenos_Aires"}).format(new Date()).replace(",","");e.textContent="Hoy, "+t;}catch{}})();</script>
+<script>(()=>{const e=document.getElementById("hoy-dia");if(!e)return;try{const H=[[540,1380],[480,1500],[480,1500],[480,1500],[480,1500],[480,1500],[540,1500]],D=90,P=30;const a=new Date(Date.now()-108e5),m=a.getUTCHours()*60+a.getUTCMinutes(),[ab,ci]=H[a.getUTCDay()],u=ab+Math.floor((ci-D-ab)/P)*P,man=m+15>u,f=new Date(a.getTime()+(man?864e5:0)),t=new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",timeZone:"UTC"}).format(f).replace(",","");e.textContent=(man?"Mañana, ":"Hoy, ")+t;}catch{}})();</script>
 </body>
 </html>
