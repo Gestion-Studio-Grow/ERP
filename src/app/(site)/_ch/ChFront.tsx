@@ -20,7 +20,7 @@ import ReserveButton from "./ReserveButton";
 import ProximoHueco from "./ProximoHueco";
 import CartaDestacada from "./CartaDestacada";
 import BarraReservar from "./BarraReservar";
-import { enumerar, fichasDeHueco, fotoDe, iniciales, nombreDePila } from "./equipo";
+import { enumerar, fichasDeHueco, fotoChicaDe, fotoDe, iniciales, nombreDePila } from "./equipo";
 import type { FeaturedService } from "./FeaturedTreatments";
 import type { BookingGroup, BookingProfessional } from "./types";
 
@@ -58,6 +58,7 @@ export default async function ChFront({
   const total = groups.reduce((n, g) => n + g.services.length, 0);
   const servicios = groups.flatMap((g) => g.services);
   const nombresEquipo = professionals.map((p) => nombreDePila(p.name));
+  const conFoto = professionals.filter((p) => fotoDe(p.name));
   const fichas = fichasDeHueco(professionals, groups, destacados.map((d) => d.id));
   // Hoy y mañana en la zona del negocio: los calcula el servidor (el reloj del teléfono puede estar en otra).
   const dias = nextBusinessDays(2);
@@ -75,15 +76,36 @@ export default async function ChFront({
   return (
     <div className="chf">
       <section className="chf-env chf-hero" aria-labelledby="chf-titulo">
-        <div className="chf-hero-tit">
+        {/* Entrada sutil: sólo transform (el H1 es el LCP: nunca su opacidad). Orden en el celular: título, bajada,
+            agenda viva (en la primera pantalla) y después las teclas y los datos. */}
+        <div className="chf-hero-tit chf-entra">
           <p className="chf-kicker">{location.shortLabel}</p>
           <h1 id="chf-titulo" className="chf-h1">
             Estética y spa en La Alameda.
           </h1>
         </div>
-        <div className="chf-hero-txt">
+        <div className="chf-hero-a chf-entra" style={{ "--d": "90ms" } as React.CSSProperties}>
           <p className="chf-lede">Precio exacto, horario libre y quién te atiende. Reservás en un minuto.</p>
-          {nombresEquipo.length > 0 && <p className="chf-atienden">Atienden {enumerar(nombresEquipo)}.</p>}
+          {nombresEquipo.length > 0 && (
+            <p className="chf-atienden">
+              {conFoto.length > 0 && (
+                <span className="chf-caras" aria-hidden>
+                  {conFoto.map((p) => (
+                    // eslint-disable-next-line @next/next/no-img-element -- WebP propio de 320 px, ya optimizado
+                    <img key={p.id} src={fotoChicaDe(p.name)!} alt="" width={40} height={40} decoding="async" />
+                  ))}
+                </span>
+              )}
+              Atienden {enumerar(nombresEquipo)}.
+            </p>
+          )}
+        </div>
+        {fichas.length > 0 && (
+          <div className="chf-agenda">
+            <ProximoHueco fichas={fichas} dias={dias} />
+          </div>
+        )}
+        <div className="chf-hero-b chf-entra" style={{ "--d": "160ms" } as React.CSSProperties}>
           <div className="chf-acc">
             <ReserveButton clase="chf-btn">Reservar turno</ReserveButton>
             <Link href="/servicios" className="chf-btn-borde">
@@ -101,11 +123,6 @@ export default async function ChFront({
             </div>
           </dl>
         </div>
-        {fichas.length > 0 && (
-          <div className="chf-agenda">
-            <ProximoHueco fichas={fichas} dias={dias} />
-          </div>
-        )}
       </section>
 
       <section id="servicios" className="chf-env chf-bloque" aria-labelledby="chf-servicios">
@@ -128,10 +145,19 @@ export default async function ChFront({
               const foto = fotoDe(p.name);
               return (
                 <li key={p.id}>
-                  <span className="chf-foto160" aria-hidden={!foto}>
+                  <span className="chf-foto-eq" aria-hidden={!foto}>
                     {foto ? (
                       // eslint-disable-next-line @next/next/no-img-element -- WebP propio de 320 px, ya optimizado
-                      <img src={foto} alt={p.name} width={160} height={160} loading="lazy" decoding="async" />
+                      <img
+                        src={foto}
+                        srcSet={`${fotoChicaDe(p.name)} 192w, ${foto} 320w`}
+                        sizes="(max-width: 800px) 96px, 200px"
+                        alt={p.name}
+                        width={200}
+                        height={200}
+                        loading="lazy"
+                        decoding="async"
+                      />
                     ) : (
                       iniciales(p.name)
                     )}
@@ -148,16 +174,20 @@ export default async function ChFront({
       )}
 
       {antes.length > 0 && (
-        <section className="chf-env chf-bloque" aria-labelledby="chf-antes">
-          <p className="chf-kicker">Antes de venir</p>
-          <h2 id="chf-antes" className="chf-h2">
-            Lo que conviene saber
-          </h2>
-          <ul className="chf-lista">
-            {antes.map((t) => (
-              <li key={t}>{t}</li>
-            ))}
-          </ul>
+        <section className="chf-banda" aria-labelledby="chf-antes">
+          <div className="chf-env chf-banda-env">
+            <div>
+              <p className="chf-kicker">Antes de venir</p>
+              <h2 id="chf-antes" className="chf-h2">
+                Lo que conviene saber
+              </h2>
+            </div>
+            <ul className="chf-lista">
+              {antes.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          </div>
         </section>
       )}
 

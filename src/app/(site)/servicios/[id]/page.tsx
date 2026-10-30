@@ -18,7 +18,7 @@ import ProximoHueco from "../../_ch/ProximoHueco";
 import BarraReservar from "../../_ch/BarraReservar";
 import Compartir from "../../_ch/Compartir";
 import { chConDisenoNuevo } from "../../_ch/diseno-ch.server";
-import { fichasDeHueco, fotoDe, ilustracionDeFamilia, iniciales, enumerar, nombreDePila, pesos } from "../../_ch/equipo";
+import { fichasDeHueco, fotoChicaDe, ilustracionDeFamilia, iniciales, enumerar, nombreDePila, pesos } from "../../_ch/equipo";
 
 export const dynamic = "force-dynamic";
 
@@ -107,7 +107,7 @@ export default async function FichaServicio({ params }: { params: Promise<{ id: 
             <div className="chf-lohacen">
               <ul aria-hidden>
                 {quienes.map((p) => {
-                  const foto = fotoDe(p.name);
+                  const foto = fotoChicaDe(p.name);
                   return (
                     <li key={p.id} className="chf-cara">
                       {/* eslint-disable-next-line @next/next/no-img-element -- WebP propio de 320 px, ya optimizado */}

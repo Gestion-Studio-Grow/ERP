@@ -8,10 +8,13 @@
 // (`requestIdleCallback`) y recién ahí le pregunta al motor de siempre (`getAvailableSlotsRange`, la misma
 // lectura que usa el calendario del modal) por hoy y mañana, una llamada por profesional. No escribe nada.
 //
-// CLS 0: el nombre y la foto llegan en el HTML; sólo la línea de la hora espera, y su lugar ya tiene el alto
-// final (esqueleto de alto fijo). Estados: cargando (esqueleto) · hora («Hoy 16:30», abre el modal en «Datos»
-// con todo elegido) · sin lugar en 2 días («Mirá la semana», abre el modal en el paso 1) · error de red (queda
-// el nombre y «Reservar»: nunca una ficha rota ni en blanco).
+// Va sobre un plano petróleo (el color de la marca) con la foto real de quien atiende: es el material más
+// fuerte que tiene CH. Sin foto, iniciales.
+//
+// CLS 0: la foto, el nombre y el servicio llegan en el HTML; sólo la línea de la hora espera, y su lugar ya
+// tiene el alto final (esqueleto de alto fijo). Estados: cargando (esqueleto) · hora («Mañana 09:00», abre el
+// modal en «Datos» con todo elegido) · sin lugar en 2 días («Mirá la semana», abre el modal en el paso 1) ·
+// error de red (queda la ficha con «Reservar»: nunca una ficha rota ni en blanco).
 
 import { useEffect, useState } from "react";
 import { getAvailableSlotsRange } from "@/lib/actions";
@@ -87,27 +90,28 @@ export default function ProximoHueco({
   const cuando = (day: string) => (day === dias[0]?.value ? "Hoy" : day === dias[1]?.value ? "Mañana" : (dias.find((d) => d.value === day)?.label ?? ""));
 
   return (
-    <div>
+    <div className="chf-panel">
       <p className="chf-kicker chf-hueco-tit">
         <span>{titulo}</span>
+        <span>Hoy y mañana</span>
       </p>
       <ul className="chf-huecos">
-        {fichas.map((f) => {
+        {fichas.map((f, i) => {
           const e = estados[f.proId] ?? CARGANDO;
           const pila = f.nombre.split(" ")[0];
           return (
-            <li key={f.proId} className="chf-hueco" aria-busy={e.tipo === "cargando"}>
-              <span className="chf-cara" aria-hidden={!f.foto}>
+            <li key={f.proId} className="chf-hueco" aria-busy={e.tipo === "cargando"} style={{ "--i": i } as React.CSSProperties}>
+              <span className="chf-foto-hueco" aria-hidden={!f.foto}>
                 {f.foto ? (
                   // eslint-disable-next-line @next/next/no-img-element -- WebP propio de 320 px, ya optimizado
-                  <img src={f.foto} alt={f.nombre} width={56} height={56} loading="lazy" decoding="async" />
+                  <img src={f.foto} alt={f.nombre} width={96} height={96} decoding="async" />
                 ) : (
                   f.iniciales
                 )}
               </span>
               <span className="chf-hueco-nom">
                 <b>{pila}</b>
-                <span>{e.tipo === "error" ? " " : f.svcNombre}</span>
+                <span>{f.svcNombre}</span>
               </span>
               <span className="chf-hueco-hora">
                 {e.tipo === "cargando" && (
@@ -136,25 +140,32 @@ export default function ProximoHueco({
                     </button>
                   </span>
                 )}
+                {e.tipo === "error" && (
+                  <button
+                    type="button"
+                    className="chf-btn-claro chf-btn-chico"
+                    onPointerEnter={precargar}
+                    onFocus={precargar}
+                    onClick={() => open({ serviceId: f.svcId, professionalId: f.proId })}
+                  >
+                    Reservar
+                  </button>
+                )}
               </span>
-              <span className="chf-hueco-acc">
-                <button
-                  type="button"
-                  className="chf-btn-borde chf-btn-chico"
-                  onPointerEnter={precargar}
-                  onFocus={precargar}
-                  onClick={() => open({ serviceId: f.svcId, professionalId: f.proId })}
-                  aria-label={e.tipo === "error" ? undefined : `Reservar con ${pila}`}
-                >
-                  {e.tipo === "error" ? (
-                    "Reservar"
-                  ) : (
-                    <>
-                      Reservar<span className="chf-solo-compu">con {pila}</span>
-                    </>
-                  )}
-                </button>
-              </span>
+              {e.tipo !== "error" && (
+                <span className="chf-hueco-acc">
+                  <button
+                    type="button"
+                    className="chf-btn-claro chf-btn-chico"
+                    onPointerEnter={precargar}
+                    onFocus={precargar}
+                    onClick={() => open({ serviceId: f.svcId, professionalId: f.proId })}
+                    aria-label={`Reservar con ${pila}`}
+                  >
+                    Reservar
+                  </button>
+                </span>
+              )}
             </li>
           );
         })}

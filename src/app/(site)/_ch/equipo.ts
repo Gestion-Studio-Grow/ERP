@@ -15,6 +15,11 @@ export function fotoDe(nombre: string): string | null {
   return FOTOS[nombre] ?? null;
 }
 
+/** La misma foto en 192 px (≈ 5 KB): para la agenda viva y las caritas del hero, que se ven a 96 px o menos. */
+export function fotoChicaDe(nombre: string): string | null {
+  return FOTOS[nombre]?.replace(/\.webp$/, "-192.webp") ?? null;
+}
+
 export function iniciales(nombre: string): string {
   const p = nombre.trim().split(/\s+/);
   return ((p[0]?.[0] ?? "") + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase();
@@ -69,7 +74,7 @@ export function fichasDeHueco(
         : undefined
       : (preferidos.find((id) => propios.includes(id)) ?? propios[0]);
     if (!svcId) continue;
-    fichas.push({ proId: p.id, nombre: p.name, foto: fotoDe(p.name), iniciales: iniciales(p.name), svcId, svcNombre: nombres.get(svcId)! });
+    fichas.push({ proId: p.id, nombre: p.name, foto: fotoChicaDe(p.name), iniciales: iniciales(p.name), svcId, svcNombre: nombres.get(svcId)! });
   }
   return fichas;
 }

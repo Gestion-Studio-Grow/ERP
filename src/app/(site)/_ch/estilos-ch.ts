@@ -23,6 +23,7 @@ export const CSS_CH = `
   --chf-nombre:clamp(1.375rem,1.1rem + 1vw,1.875rem);
   --chf-h2:clamp(2.25rem,1.5rem + 3.2vw,4.25rem);
   --chf-boton:52px;
+  --chf-ritmo:clamp(96px,7vw + 48px,168px);
 }
 .chf *,.chf-cab *,.chf-barra *,.chm-fondo *{box-sizing:border-box}
 .chf :where(h1,h2,h3,p,ul,ol,dl,dd,blockquote,figure){margin:0}
@@ -30,8 +31,8 @@ export const CSS_CH = `
 .chf{font-size:var(--chf-cuerpo);line-height:1.55;color:var(--text-strong)}
 .chf [id]{scroll-margin-top:88px}
 .chf-env{max-width:1280px;margin:0 auto;padding-inline:var(--chf-margen)}
-.chf-bloque{padding-block:clamp(72px,6vw + 40px,144px) 0}
-.chf-bloque:last-of-type{padding-bottom:clamp(72px,6vw + 40px,144px)}
+.chf-bloque{padding-block:var(--chf-ritmo) 0}
+.chf-bloque:last-of-type{padding-bottom:var(--chf-ritmo)}
 .chf-kicker{font-family:var(--font-body),system-ui,sans-serif;text-transform:uppercase;letter-spacing:.2em;font-weight:600;font-size:var(--chf-kicker);color:var(--text-muted)}
 .chf-h1{font-family:var(--font-display),Georgia,serif;font-weight:400;font-size:clamp(3rem,2rem + 5.5vw,7rem);line-height:.98;letter-spacing:-.015em;margin-top:16px;text-wrap:balance;color:var(--text-strong)}
 .chf-h2{font-family:var(--font-display),Georgia,serif;font-weight:400;font-size:var(--chf-h2);line-height:1.04;letter-spacing:-.01em;margin-top:16px;text-wrap:balance}
@@ -61,35 +62,56 @@ export const CSS_CH = `
 .chf-nav a:hover{color:var(--chf-tinta)}
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
+/* El H1 a lo ancho (dos renglones a 112 px en 1440). Abajo: la bajada y las teclas a la izquierda y, a la
+   derecha, la agenda viva sobre un plano petróleo que sube hasta el segundo renglón del título. */
 .chf-hero{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:clamp(16px,2vw,32px);align-items:start;padding-block:clamp(28px,4vw,64px) 0}
-/* El H1 a lo ancho (dos renglones a 112 px en 1440); abajo, el texto a la izquierda y la agenda viva a la derecha. */
-.chf-hero-tit{grid-column:1 / -1}
-.chf-hero-txt{grid-column:1 / span 6}
-.chf-agenda{grid-column:8 / span 5;padding-top:24px}
-.chf-atienden{margin-top:12px;color:var(--text-muted)}
+.chf-hero-tit{grid-column:1 / -1;grid-row:1}
+.chf-hero-a{grid-column:1 / span 5;grid-row:2}
+.chf-hero-b{grid-column:1 / span 5;grid-row:3}
+.chf-agenda{grid-column:7 / -1;grid-row:2 / span 2}
+.chf-atienden{display:flex;align-items:center;gap:14px;margin-top:24px;color:var(--text-muted)}
+.chf-caras{display:inline-flex;flex-shrink:0}
+.chf-caras img{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--surface);margin-left:-12px;background:var(--surface-sunken)}
+.chf-caras img:first-child{margin-left:0}
 .chf-datos{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 20px;margin-top:40px;padding-top:20px;border-top:1px solid var(--line);max-width:36rem}
 .chf-datos div{display:contents}
 .chf-datos dt{color:var(--text-muted)}
+@media (min-width:1001px){
+  .chf-h1{text-wrap:wrap}
+  .chf-agenda{margin-top:calc(-.98 * clamp(3rem,2rem + 5.5vw,7rem) + 10px)}
+}
 
-/* ── La agenda viva ────────────────────────────────────────────────────── */
-.chf-hueco-tit{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--line-strong)}
+/* Entrada: sólo transform y clip-path (el H1 es el LCP: nunca su opacidad). */
+.chf-entra{animation:chf-sube 760ms var(--ch-transicion-curva) both;animation-delay:var(--d,0ms)}
+@keyframes chf-sube{from{transform:translateY(20px)}to{transform:none}}
+@keyframes chf-telon{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0)}}
+@keyframes chf-acerca{from{transform:scale(1.14)}to{transform:none}}
+
+/* ── La agenda viva: plano petróleo con las fotos del equipo ───────────── */
+.chf-panel{--chf-claro:color-mix(in srgb,var(--text-on-accent) 88%,var(--accent));background:var(--accent);color:var(--text-on-accent);padding:clamp(20px,2.2vw,36px);border-radius:2px;animation:chf-telon 820ms var(--ch-transicion-curva) 80ms both}
+.chf-panel .chf-kicker{color:var(--chf-claro)}
+.chf-panel :focus-visible{outline-color:var(--text-on-accent)}
+.chf-hueco-tit{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding-bottom:14px;border-bottom:1px solid color-mix(in srgb,var(--text-on-accent) 35%,transparent)}
 .chf-huecos{display:grid}
-.chf-hueco{display:grid;grid-template-columns:56px minmax(0,1fr) auto;grid-template-areas:"cara nom acc" "hora hora hora";column-gap:16px;row-gap:8px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line);min-height:150px}
-.chf-hueco .chf-cara{grid-area:cara}
-.chf-hueco-nom{grid-area:nom;display:grid;line-height:1.25}
-.chf-hueco-nom b{font-family:var(--font-display),Georgia,serif;font-weight:400;font-size:1.375rem}
-.chf-hueco-nom span{font-size:.9375rem;color:var(--text-muted)}
-.chf-hueco-hora{grid-area:hora;height:64px;display:flex;align-items:center}
-.chf-hueco-acc{grid-area:acc;min-height:44px;display:flex;align-items:center;justify-content:flex-end}
-.chf-hora{appearance:none;border:0;background:none;padding:0;cursor:pointer;color:var(--text-strong);font-family:var(--font-display),Georgia,serif;font-weight:400;font-size:clamp(1.75rem,1.4rem + 1.6vw,2.75rem);line-height:1;font-variant-numeric:tabular-nums;text-align:left;display:inline-flex;align-items:baseline;gap:.35em;text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:8px;text-decoration-thickness:1px;transition:text-decoration-color var(--ch-transicion)}
-.chf-hora:hover{text-decoration-color:var(--chf-tinta)}
-.chf-hora small{font-family:var(--font-body),system-ui,sans-serif;font-size:.95rem;font-weight:600;color:var(--chf-tinta);text-decoration:none}
+.chf-hueco{display:grid;grid-template-columns:96px minmax(0,1fr) auto;grid-template-areas:"foto nom nom" "foto hora acc";column-gap:20px;row-gap:4px;align-items:center;padding:18px 0;border-bottom:1px solid color-mix(in srgb,var(--text-on-accent) 22%,transparent);animation:chf-sube 640ms var(--ch-transicion-curva) both;animation-delay:calc(260ms + var(--i,0) * 110ms)}
+.chf-hueco:last-child{border-bottom:0;padding-bottom:0}
+.chf-foto-hueco{grid-area:foto;width:96px;height:96px;border-radius:2px;overflow:hidden;display:grid;place-items:center;background:color-mix(in srgb,var(--text-on-accent) 14%,var(--accent));font-family:var(--font-display),Georgia,serif;font-size:1.75rem;color:var(--text-on-accent)}
+.chf-foto-hueco img{width:100%;height:100%;object-fit:cover;display:block;animation:chf-acerca 1100ms var(--ch-transicion-curva) both;animation-delay:calc(260ms + var(--i,0) * 110ms)}
+.chf-hueco-nom{grid-area:nom;display:grid;line-height:1.2;align-self:end;min-width:0}
+.chf-hueco-nom b{font-family:var(--font-display),Georgia,serif;font-weight:400;font-size:1.625rem}
+.chf-hueco-nom span{font-size:.9375rem;color:var(--chf-claro)}
+.chf-hueco-hora{grid-area:hora;height:56px;display:flex;align-items:center;align-self:start}
+.chf-hueco-acc{grid-area:acc;align-self:start;height:56px;display:flex;align-items:center;justify-content:flex-end}
+.chf-hora{appearance:none;border:0;background:none;padding:0;cursor:pointer;color:var(--text-on-accent);font-family:var(--font-display),Georgia,serif;font-weight:400;font-size:clamp(1.75rem,1.3rem + 1vw,2.25rem);line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:left;text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--text-on-accent) 45%,transparent);text-underline-offset:8px;text-decoration-thickness:1px;transition:text-decoration-color var(--ch-transicion)}
+.chf-hora:hover{text-decoration-color:var(--text-on-accent)}
 .chf-llega{animation:chf-llega var(--ch-transicion) both}
 @keyframes chf-llega{from{transform:translateY(12px);clip-path:inset(0 0 100% 0)}to{transform:none;clip-path:inset(0)}}
-.chf-esqueleto{display:block;width:min(220px,70%);height:40px;border-radius:2px;background:linear-gradient(90deg,var(--surface-sunken),color-mix(in srgb,var(--surface-sunken) 55%,var(--surface)),var(--surface-sunken));background-size:200% 100%;animation:chf-brillo 1.4s linear infinite}
+.chf-esqueleto{display:block;width:min(220px,70%);height:36px;border-radius:2px;background:linear-gradient(90deg,color-mix(in srgb,var(--text-on-accent) 14%,transparent),color-mix(in srgb,var(--text-on-accent) 28%,transparent),color-mix(in srgb,var(--text-on-accent) 14%,transparent));background-size:200% 100%;animation:chf-brillo 1.4s linear infinite}
 @keyframes chf-brillo{to{background-position:-200% 0}}
-.chf-sinlugar{display:grid;gap:0;color:var(--text-muted);line-height:1.3}
-.chf-sinlugar button{appearance:none;border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--chf-tinta);text-decoration:underline;text-underline-offset:5px;cursor:pointer;text-align:left;min-height:32px;line-height:1.2}
+.chf-sinlugar{display:grid;gap:0;color:var(--chf-claro);line-height:1.3}
+.chf-sinlugar button{appearance:none;border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--text-on-accent);text-decoration:underline;text-underline-offset:5px;cursor:pointer;text-align:left;min-height:32px;line-height:1.2}
+.chf-btn-claro{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;min-height:44px;padding:0 18px;border-radius:2px;font:600 .9375rem/1.2 var(--font-body),system-ui,sans-serif;cursor:pointer;background:var(--text-on-accent);color:var(--chf-tinta);border:1px solid var(--text-on-accent);transition:transform var(--ch-transicion),background-color var(--ch-transicion),color var(--ch-transicion)}
+.chf-btn-claro:hover{background:transparent;color:var(--text-on-accent);transform:translateY(-1px)}
 .chf-cara{width:56px;height:56px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:var(--surface-sunken);font-family:var(--font-display),Georgia,serif;font-size:1.25rem;color:var(--chf-tinta);flex-shrink:0}
 .chf-cara img{width:100%;height:100%;object-fit:cover;display:block}
 
@@ -108,11 +130,18 @@ a.chf-serv-nom:hover{text-decoration:underline;text-decoration-thickness:1px;tex
 .chf-mas{margin-top:24px}
 
 /* ── Equipo ─────────────────────────────────────────────────────────────── */
-.chf-equipo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(32px,4vw,64px) clamp(16px,2vw,32px);margin-top:48px}
-.chf-equipo li{display:grid;justify-items:start;gap:10px}
-.chf-foto160{width:160px;height:160px;border-radius:50%;overflow:hidden;background:var(--surface-sunken);display:grid;place-items:center;font-family:var(--font-display),Georgia,serif;font-size:3rem;color:var(--chf-tinta);margin-bottom:12px}
-.chf-foto160 img{width:100%;height:100%;object-fit:cover;display:block}
+.chf-equipo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(32px,4vw,64px) clamp(16px,2vw,32px);margin-top:56px}
+.chf-equipo li{display:grid;justify-items:start;align-content:start;gap:10px}
+.chf-foto-eq{width:200px;height:200px;border-radius:50%;overflow:hidden;background:var(--surface-sunken);display:grid;place-items:center;font-family:var(--font-display),Georgia,serif;font-size:3.5rem;color:var(--chf-tinta);margin-bottom:14px}
+.chf-foto-eq img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 600ms var(--ch-transicion-curva)}
+.chf-equipo li:hover .chf-foto-eq img{transform:scale(1.04)}
 .chf-eq-nom{font-family:var(--font-display),Georgia,serif;font-weight:400;font-size:var(--chf-nombre);line-height:1.15}
+
+/* Banda «Antes de venir»: un plano hundido a todo el ancho corta el ritmo de renglones. */
+.chf-banda{margin-top:var(--chf-ritmo);padding-block:clamp(64px,6vw + 32px,128px);background:var(--surface-sunken)}
+.chf-banda-env{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:clamp(16px,2vw,32px);align-items:start}
+.chf-banda-env > div{grid-column:1 / span 5}
+.chf-banda-env .chf-lista{grid-column:7 / -1;margin-top:8px}
 
 /* ── Antes de venir, novedades, reseñas ─────────────────────────────────── */
 .chf-lista{margin-top:40px;border-top:1px solid var(--line-strong);max-width:52rem}
@@ -164,9 +193,10 @@ a.chf-serv-nom:hover{text-decoration:underline;text-decoration-thickness:1px;tex
 .chf-barra[hidden]{display:none!important}
 
 @media (max-width:1000px){
-  .chf-hero-txt{grid-column:1 / -1}
-  .chf-agenda{grid-column:1 / -1;padding-top:40px}
-  .chf-huecos{grid-template-columns:repeat(auto-fit,minmax(260px,1fr));column-gap:24px}
+  .chf-hero-tit,.chf-hero-a,.chf-hero-b,.chf-agenda{grid-column:1 / -1;grid-row:auto}
+  .chf-agenda{margin-top:32px;max-width:640px}
+  .chf-banda-env > div,.chf-banda-env .chf-lista{grid-column:1 / -1}
+  .chf-banda-env .chf-lista{margin-top:32px}
   .chf-donde-txt{grid-column:1 / span 7}
   .chf-donde-foto{grid-column:8 / span 5}
   .chf-ficha-txt{grid-column:1 / span 9}
@@ -178,13 +208,22 @@ a.chf-serv-nom:hover{text-decoration:underline;text-decoration-thickness:1px;tex
   .chf-cab .chf-btn{min-height:44px;padding:0 16px;font-size:.9375rem;background:transparent;color:var(--text-strong);border-color:var(--line-strong)}
   .chf-hero{padding-top:28px}
   .chf-acc .chf-btn{flex:1 1 auto}
-  .chf-huecos{grid-template-columns:1fr}
-  .chf-hueco{grid-template-areas:"cara nom nom" "hora hora acc";min-height:136px}
-  .chf-solo-compu{display:none}
+  .chf-lede{margin-top:16px}
+  .chf-agenda{margin-top:24px}
+  .chf-panel{padding:16px 18px 18px;margin-inline:calc(-1 * min(var(--chf-margen),18px))}
+  .chf-hueco{grid-template-columns:72px minmax(0,1fr);grid-template-areas:"foto nom" "foto hora";column-gap:16px;padding:14px 0}
+  .chf-foto-hueco{width:72px;height:72px;font-size:1.375rem}
+  .chf-hueco-nom b{font-size:1.375rem}
+  .chf-hueco-hora{height:44px}
+  .chf-hora{font-size:1.75rem}
+  .chf-hueco-acc{display:none}
   .chf-serv{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"txt plata" "dur boton";gap:10px 16px}
   .chf-serv-txt{grid-area:txt}.chf-plata{grid-area:plata;align-self:start}.chf-dur{grid-area:dur;text-align:left}
   .chf-serv > :last-child{grid-area:boton;justify-self:end}
-  .chf-equipo{grid-template-columns:1fr;gap:40px}
+  .chf-equipo{grid-template-columns:repeat(3,minmax(0,1fr));gap:28px 12px;margin-top:36px}
+  .chf-foto-eq{width:96px;height:96px;font-size:1.75rem;margin-bottom:4px}
+  .chf-eq-nom{font-size:1.125rem}
+  .chf-equipo .chf-serv-meta{font-size:.8125rem;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   .chf-donde-txt,.chf-donde-foto{grid-column:1 / -1}
   .chf-tabla div{grid-template-columns:110px minmax(0,1fr)}
   .chf-carta{grid-template-columns:1fr;margin-top:24px}
