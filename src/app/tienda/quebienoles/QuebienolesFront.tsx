@@ -85,9 +85,11 @@ export type PropsFront = {
   hoy?: string | null;
 };
 
-// Las cuatro letras del portal, incluida la itálica (la bajada «oler muy bien.» está arriba de todo):
-// sin su preload llegaba última y el titular cambiaba de letra dos veces.
-const FUENTES = [`${CARPETA_FUENTES}/bodoni-moda.woff2`, `${CARPETA_FUENTES}/bodoni-moda-italic.woff2`, `${CARPETA_FUENTES}/jost.woff2`, `${CARPETA_FUENTES}/pinyon-script.woff2`];
+// Presupuesto de peso (ronda 2, P0-1): se precargan SÓLO las dos letras que pinta el primer frame en todo el texto —
+// Bodoni (titular) y Jost (cuerpo y botones). La itálica y la caligráfica se bajan cuando se pintan (font-display:
+// swap, con respaldo de métricas ajustadas en estilos.ts: el cambio no mueve nada). Antes se precargaban las cuatro
+// (165 KB) y competían con el titular por el ancho de banda del celular.
+const FUENTES = [`${CARPETA_FUENTES}/bodoni-moda.woff2`, `${CARPETA_FUENTES}/jost.woff2`];
 
 // La piel (estilos.ts) NO se importa acá: la escribe QuebienolesVidriera.tsx (servidor) en el HTML.
 export default function QuebienolesFront({ products, branding, copy, tenantKey, entrega = null, hoy = null }: PropsFront) {

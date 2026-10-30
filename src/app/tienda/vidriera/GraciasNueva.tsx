@@ -8,6 +8,7 @@
 // pasó (lo recibimos) y los pasos que siguen, dichos como pasos y no como estados. El seguimiento
 // en vivo necesita una lectura del servidor con el teléfono del cliente como prueba: está anotado.
 
+import { FUENTES_VIDRIERA } from "./fuentes";
 import Image from "next/image";
 import Link from "next/link";
 import s from "./vidriera.module.css";
@@ -55,7 +56,7 @@ export default function GraciasNueva({
     { t: "Te llega o lo retirás", d: pago },
   ];
   return (
-    <div className={s.v} data-marca={marca}>
+    <div className={`${s.v} ${FUENTES_VIDRIERA}`} data-marca={marca}>
       {pedido && <OlvidarBolsa tenantKey={tenantKey} />}
       <header className={s.cab}>
         <div className={s.cabIn}>

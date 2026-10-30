@@ -13,7 +13,7 @@ export const bebas = Bebas_Neue({
   subsets: ["latin"],
   weight: "400",
   display: "swap",
-  preload: true,
+  preload: false, // ronda 2: /tienda la comparten 4 marcas; precargada, la bajaban las otras 3
   variable: "--mg-f-display",
   fallback: ["Impact", "Arial Narrow", "sans-serif"],
 });

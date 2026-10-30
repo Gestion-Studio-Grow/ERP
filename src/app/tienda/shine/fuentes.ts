@@ -15,7 +15,7 @@ export const cormorant = Cormorant({
   weight: ["300", "400", "500"],
   style: ["normal"],
   display: "swap",
-  preload: true,
+  preload: false, // ronda 2: /tienda la comparten 4 marcas; precargada, la bajaban las otras 3
   variable: "--sh-cormorant",
 });
 

@@ -208,6 +208,11 @@
   --line-strong: rgba(255, 255, 255, 0.16);
 }
 
+/* Letra del panel (ronda 2, fuentes por superficie): el cuerpo por defecto de la app pasó a Geist; el panel conserva
+   Hanken en `.font-body` y en lo que lee `var(--font-body)`. Va ANTES de los theme packs y de las pieles por negocio
+   (mismo o mayor peso): ellos siguen mandando cuando están. */
+[data-skin="fable"] { --font-cuerpo: var(--font-hanken); --font-body: var(--font-hanken); }
+
 /* ═════════ THEME PACKS por tenant (RFC-004-D, frente B) ═════════
    La PIEL curada por tenant: cada `[data-brand="…"]` redefine neutros + tipografía +
    densidad + radios (NO solo el acento). El layout (front y back) pone `data-brand`
@@ -788,9 +793,12 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-serif: var(--font-spa-serif);
+  /* Fuentes por superficie (ronda 2): el cuerpo por defecto es Geist, ya no Hanken (antes `body` bajaba Hanken en todo
+     tenant). El panel conserva su letra con `--font-cuerpo` (regla `[data-skin="fable"]` de arriba). La serif cae a la
+     de CH cuando la superficie no declara Playfair (sólo la declara el panel). */
+  --font-serif: var(--font-spa-serif, var(--font-fraunces));
   --font-display: var(--font-fraunces);
-  --font-body: var(--font-hanken);
+  --font-body: var(--font-cuerpo, var(--font-geist-sans));
 
   /* Paleta de marca CH expuesta como utilidades: bg-ch-petrol, text-ch-mocha,
      border-ch-clay, etc. Fin de los estilos inline con var(--ch-*). */

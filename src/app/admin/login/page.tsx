@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { FUENTES_PANEL } from "@/design/fuentes-panel";
 import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import { getProductoContexto } from "@/lib/producto";
@@ -87,8 +88,8 @@ export default async function LoginPage({
       // Apagado, la misma clase de siempre.
       className={
         nuevo
-          ? RAIZ_HOJA_DE_INGRESO
-          : "min-h-screen flex flex-col items-center justify-center bg-surface text-body px-4 py-10 sm:px-6"
+          ? `${RAIZ_HOJA_DE_INGRESO} ${FUENTES_PANEL}`
+          : `min-h-screen flex flex-col items-center justify-center bg-surface text-body px-4 py-10 sm:px-6 ${FUENTES_PANEL}`
       }
     >
       {/* Corrige el data-theme ANTES del primer paint (sistema/localStorage). */}

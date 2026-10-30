@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { FUENTES_PANEL } from "@/design/fuentes-panel";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import AdminShell from "./AdminShell";
@@ -308,6 +309,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       className={cn(
         "min-h-screen bg-surface text-body",
         modoApps && "[--alto-barra-inferior:calc(3.5rem_+_1px_+_env(safe-area-inset-bottom))] lg:[--alto-barra-inferior:0px]",
+        // Letras de las pieles del panel (ronda 2: ya no cuelgan de la raíz de la app).
+        FUENTES_PANEL,
         claseDeFuentes(estetica),
       )}
     >

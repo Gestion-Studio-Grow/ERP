@@ -14,7 +14,7 @@ import { Archivo, Instrument_Sans } from "next/font/google";
 export const archivo = Archivo({
   subsets: ["latin"],
   display: "swap",
-  preload: true,
+  preload: false, // ronda 2: /tienda la comparten 4 marcas; precargada, la bajaban las otras 3
   variable: "--am-archivo",
 });
 

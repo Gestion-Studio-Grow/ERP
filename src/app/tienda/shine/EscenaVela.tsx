@@ -302,16 +302,16 @@ const ESTILOS = `
 .shv[data-estado="listo"] .shv-lienzo{opacity:1;transform:none;filter:none}
 @media(prefers-reduced-motion:reduce){.shv-lienzo{transition:none}}
 .shv-mandos{position:absolute;z-index:6;left:12px;right:12px;bottom:12px;display:flex;align-items:center;gap:8px;min-width:0}
-.shv-boton{flex:none;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px 0 12px;border-radius:999px;border:1px solid rgba(253,248,242,.38);background:rgba(36,20,14,.8);color:#fdf8f2;font:600 13px/1 var(--font-kumbh),system-ui,sans-serif;letter-spacing:.02em;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.shv-boton{flex:none;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px 0 12px;border-radius:999px;border:1px solid rgba(253,248,242,.38);background:rgba(36,20,14,.8);color:#fdf8f2;font:600 13px/1 var(--sh-kumbh),system-ui,sans-serif;letter-spacing:.02em;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .shv-boton:hover{background:rgba(103,17,40,.78)}
 .shv-boton:focus-visible,.shv-aroma:focus-visible{outline:2px solid #fdf8f2;outline-offset:2px}
 .shv-boton-llama{width:10px;height:16px;border-radius:50% 50% 50% 50%/62% 62% 38% 38%;background:radial-gradient(60% 70% at 50% 70%,#fff6d8,#ffb347 55%,#e8661a);box-shadow:0 0 10px 2px rgba(255,170,70,.55);transition:opacity .3s}
 .shv[data-encendida="no"] .shv-boton-llama{background:#3a2a22;box-shadow:none;border:1px solid rgba(253,248,242,.5)}
 .shv-aromas{display:flex;align-items:center;gap:6px;min-width:0;overflow-x:auto;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent);padding-right:24px}
 .shv-aromas::-webkit-scrollbar{display:none}
-.shv-aromas-rotulo{flex:none;color:#fdf8f2;font:600 11px/1.2 var(--font-kumbh),system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;text-shadow:0 1px 8px rgba(0,0,0,.6);padding:0 4px}
+.shv-aromas-rotulo{flex:none;color:#fdf8f2;font:600 11px/1.2 var(--sh-kumbh),system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;text-shadow:0 1px 8px rgba(0,0,0,.6);padding:0 4px}
 .shv-aromas-rotulo small{font-weight:500;letter-spacing:.04em;text-transform:none;opacity:.85}
-.shv-aroma{flex:none;display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid rgba(253,248,242,.34);background:rgba(36,20,14,.78);color:#fdf8f2;font:500 13px/1 var(--font-kumbh),system-ui,sans-serif;white-space:nowrap;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.shv-aroma{flex:none;display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid rgba(253,248,242,.34);background:rgba(36,20,14,.78);color:#fdf8f2;font:500 13px/1 var(--sh-kumbh),system-ui,sans-serif;white-space:nowrap;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .shv-aroma[aria-pressed="true"]{background:#fdf8f2;color:#671128;border-color:#fdf8f2}
 /* La piel de la tienda (estilos.ts: \`.shine button{color:inherit}\`, especificidad 0,1,1) le ganaba a .shv-boton y
    .shv-aroma (0,1,0): tinta oscura sobre la píldora oscura, ≈1,2:1 (QA Shine 29/10, ALTA-1). El color de los mandos
