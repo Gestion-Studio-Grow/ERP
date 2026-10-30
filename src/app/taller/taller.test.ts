@@ -64,6 +64,8 @@ test("la chapa del hero: los ejemplos del diseño", () => {
 test("precios: «desde $ 25.000», y sin precio o «de ejemplo» no se publica", () => {
   assert.equal(desde(25000), "$ 25.000");
   assert.equal(desde(180000.4), "$ 180.000");
+  assert.equal(desde(1250000), "$ 1.250.000");
+  assert.equal(desde(950), "$ 950");
   assert.ok(esTrabajoPublicable({ name: "Cambio de aceite y filtro", price: 60000 }));
   assert.ok(!esTrabajoPublicable({ name: "Service completo", price: 0 }));
   assert.ok(!esTrabajoPublicable({ name: "Servicio de ejemplo", price: 1000 }));
