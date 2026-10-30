@@ -6,8 +6,7 @@ import { memo } from "react";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { etiquetaDeDisponibilidad, type Disponibilidad } from "../reglas-tienda";
 import { packDeCorte, partesDelNombre, type MagraAnimal } from "@/tenants/magra-content";
-import { MiniDespiece } from "./Despiece";
-import { regionDe } from "./despiece-datos";
+import { EtiquetaDePack } from "./EtiquetaDePack";
 
 export type MagraProducto = {
   id: string;
@@ -86,7 +85,6 @@ export const Etiqueta = memo(function Etiqueta({
   const { nombre, proveedor, detalle } = partesDelNombre(p.name);
   const pack = conImagen ? packDeCorte(p.name) : null;
   const agotado = p.disponibilidad === "sin-stock";
-  const r = animal ? regionDe(animal, region) : null;
   return (
     <article className={`mg-eti${q > 0 ? " on" : ""}${agotado ? " off" : ""}${conImagen ? "" : " lista"}`}>
       {conImagen && (
@@ -94,9 +92,9 @@ export const Etiqueta = memo(function Etiqueta({
           {pack ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={pack.src} width={pack.width} height={pack.height} alt={altDelPack(p)} loading="lazy" decoding="async" />
-          ) : animal ? (
-            <MiniDespiece animal={animal} region={region} titulo={r ? `De dónde sale: ${r.nombre.toLowerCase()}` : undefined} />
-          ) : null}
+          ) : (
+            <EtiquetaDePack nombre={nombre} animal={animal} region={region} />
+          )}
         </div>
       )}
       <div className="mg-eti-rot">

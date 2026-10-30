@@ -141,6 +141,16 @@ export const CSS_VIDRIERA = `
 .magra .mg-mini{display:block;width:100%;height:100%}
 .magra .mg-mini use{fill:none;stroke:var(--oro);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
 .magra .mg-mini use.on{fill:var(--oro);fill-opacity:.85}
+/* LA ETIQUETA DE PACK (cortes sin foto real): medida en unidades del contenedor, caja fija. */
+.magra .mg-pack{container-type:size;width:100%;height:100%;display:grid;place-items:center;overflow:hidden;background:linear-gradient(135deg,rgba(242,230,215,.07) 0%,transparent 38%,rgba(242,230,215,.035) 62%,transparent 78%),#0d0d0c}
+.magra .mg-pack-et{display:flex;flex-direction:column;gap:3.4cqmin;width:min(76cqw,60cqh);padding:5cqmin 4.6cqmin 4.2cqmin;border:max(1px,.8cqmin) solid var(--oro);border-radius:4.5cqmin;background:var(--negro);box-shadow:inset 0 0 0 max(1px,.5cqmin) rgba(197,174,134,.22);transform:rotate(-1.5deg)}
+.magra .mg-pack-marca{font:400 9cqmin/1 var(--f-d);letter-spacing:.14em;text-align:center;color:var(--crema)}
+.magra .mg-pack-marca b{color:var(--oro);font-weight:400}
+.magra .mg-pack-nom{display:grid;place-items:center;min-height:24cqmin;padding:3cqmin 2.6cqmin;border-radius:1.4cqmin;background:var(--crema);color:var(--carbon);font:400 12cqmin/.92 var(--f-d);letter-spacing:.02em;text-transform:uppercase;text-align:center;text-wrap:balance;overflow-wrap:anywhere}
+.magra .mg-pack-pie{display:flex;align-items:center;justify-content:space-between;gap:2.4cqmin;min-height:13cqmin;font:700 3.6cqmin/1.15 var(--f-c);letter-spacing:.14em;text-transform:uppercase;color:var(--oro)}
+.magra .mg-pack-sello{flex:none;display:grid;place-items:center;width:15cqmin;height:15cqmin;padding:1.6cqmin;border-radius:50%;border:max(1px,.45cqmin) solid var(--oro)}
+.magra .mg-pack-sello .mg-mini{width:100%;height:auto;aspect-ratio:880/470}
+@container (max-width:200px){.magra .mg-pack-pie>span:first-child{display:none}.magra .mg-pack-pie{justify-content:center}}
 .magra .mg-eti-rot{flex:1;display:flex;flex-direction:column;gap:10px;margin:12px;padding:16px 18px 18px;border:1px solid rgba(197,174,134,.55);border-radius:4px}
 .magra .mg-eti-prov{font:700 12px/1.2 var(--f-c);letter-spacing:.22em;text-transform:uppercase;color:var(--oro)}
 .magra .mg-eti-nom{margin:0;font:400 clamp(30px,2.4vw,40px)/.95 var(--f-d);letter-spacing:.02em;text-transform:uppercase}
@@ -240,9 +250,6 @@ export const CSS_VIDRIERA = `
 .magra .mg-ficha-in{position:relative;display:grid;grid-template-columns:5fr 7fr;grid-template-rows:minmax(0,1fr) auto;height:min(760px,calc(100svh - 50px))}
 .magra .mg-ficha-vis{grid-row:1/3;min-height:0;display:grid;place-items:center;background:var(--negro)}
 .magra .mg-ficha-vis img{display:block;width:100%;height:100%;object-fit:cover}
-.magra .mg-ficha-vis .mg-mini{aspect-ratio:4/5;height:auto}
-.magra .mg-ficha-sello{font:400 72px/1 var(--f-d);letter-spacing:.08em}
-.magra .mg-ficha-sello b{color:var(--oro);font-weight:400}
 .magra .mg-ficha-txt{min-height:0;overflow-y:auto;padding:48px 48px 24px}
 .magra .mg-ficha-h{margin:10px 0 24px;padding-right:56px;font:400 clamp(48px,6vw,96px)/.88 var(--f-d);letter-spacing:.01em;text-transform:uppercase;text-wrap:balance}
 .magra .mg-ficha-sale{display:flex;align-items:center;gap:16px;padding:16px 0;border-block:1px solid var(--filete)}
@@ -309,7 +316,6 @@ export const CSS_VIDRIERA = `
   .magra .mg-ficha-in{display:block;height:100%;max-height:none;overflow-y:auto;overscroll-behavior:contain}
   .magra .mg-ficha-vis{height:min(44svh,320px);overflow:hidden}
   .magra .mg-ficha-vis img{object-fit:contain}
-  .magra .mg-ficha-vis .mg-mini{aspect-ratio:auto;height:100%}
   .magra .mg-ficha-txt{overflow:visible;padding:24px 20px 16px}
   .magra .mg-ficha-pie{position:sticky;bottom:0;z-index:2;padding:12px 20px calc(12px + env(safe-area-inset-bottom))}
   .magra .mg-step{height:56px}
