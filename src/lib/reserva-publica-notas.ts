@@ -19,7 +19,8 @@ const SEPARADOR = " · ";
 
 export function notaDeReservaPublica(valor: FormDataEntryValue | null | undefined): string | null {
   if (typeof valor !== "string") return null;
-  const nota = valor.trim().slice(0, LARGO_MAXIMO_NOTA_PUBLICA).trim();
+  // Sin saltos de línea ni caracteres de control: la nota del cliente es una sola línea.
+  const nota = valor.replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, LARGO_MAXIMO_NOTA_PUBLICA).trim();
   const delCliente = nota
     .split(SEPARADOR)
     .map((t) => t.trim())

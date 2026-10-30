@@ -65,6 +65,7 @@ import CobrarTurno from "./CobrarTurno";
 import TerminarTurno from "./TerminarTurno";
 import MoverTurno from "./MoverTurno";
 import LlegoLaSenia from "./LlegoLaSenia";
+import { separarNota } from "@/lib/reserva-publica-notas";
 
 /**
  * «Recordar la seña»: abre WhatsApp con el pedido armado (es un enlace: el navegador no lo bloquea) y
@@ -355,14 +356,18 @@ export default function TurnoCajon({
               ) : undefined
             }
           />
-          {t.notas && (
+          {/* G1: lo que mandó el cliente desde la reserva pública (patente y auto) va aparte del
+              renglón del equipo, para que nadie lea un texto del cliente como nota interna. */}
+          {separarNota(t.notas).delCliente && (
             <Renglon
-              folio="Notas"
-              titulo={
-                <span className="whitespace-pre-line font-normal">
-                  {t.notas}
-                </span>
-              }
+              folio="Del cliente"
+              titulo={<span className="whitespace-pre-line font-normal">{separarNota(t.notas).delCliente}</span>}
+            />
+          )}
+          {separarNota(t.notas).delEquipo && (
+            <Renglon
+              folio="Nota del equipo"
+              titulo={<span className="whitespace-pre-line font-normal">{separarNota(t.notas).delEquipo}</span>}
             />
           )}
         </Seccion>

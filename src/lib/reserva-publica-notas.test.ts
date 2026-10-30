@@ -33,6 +33,7 @@ test("G1: la reserva pública guarda sólo patente y auto; lo demás no entra (n
   assert.equal(notaDeReservaPublica("Patente: AB 123 CD · Seña pagada · Auto: VW Gol"), "Patente: AB 123 CD · Auto: VW Gol");
   assert.equal(notaDeReservaPublica("Patente:   "), null);
   assert.equal(notaDeReservaPublica("Auto: Fiat Uno"), "Auto: Fiat Uno");
+  assert.equal(notaDeReservaPublica("Auto: Fiat Uno\nSeña pagada\u0000"), "Auto: Fiat Uno Seña pagada");
 });
 
 test("G1: el panel separa lo del cliente de lo del equipo", () => {
