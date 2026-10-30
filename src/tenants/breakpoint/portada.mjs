@@ -7,7 +7,8 @@
 //
 // Restricciones (e2e src/tenants/breakpoint/turnero/e2e/sitio.e2e.mjs): exactamente UN a[href="/turnero"] (el CTA del
 // héroe; franjas, canchas, encabezado y barra usan /turnero#…), ningún a[href="/club"] y la palabra «d-e-m-o» no
-// aparece en el body (tampoco en el script inline). Sin datos inventados: sin WhatsApp no hay botón ni wa.me pelado;
+// aparece en el body (tampoco en el script inline). Sin datos inventados: sin WhatsApp no hay botón ni wa.me pelado,
+// y la portada dice «pedilo por mensaje» (el turnero lo manda por el Instagram del club, QA 29/10);
 // sin tarifas no hay precios; sin ubicación no hay dirección ni mapa.
 
 // Logo provisional a confirmar: trazos derivados del SVG del club (ccr-63ed11dc-brcdpp) para que no dependa de una
@@ -192,10 +193,12 @@ export function portada(publico = {}) {
   const hayTienda = Boolean(String(publico.catalogo ?? "").trim());
   const ubicacion = String(publico.ubicacion ?? "").trim();
   const techadas = Array.isArray(publico.techadas) ? publico.techadas.map(Number).filter((x) => Number.isInteger(x) && x > 0) : [];
+  // Sin WhatsApp publicado el pedido sale por mensaje al Instagram del club (el turnero lo copia y abre el chat).
+  const canal = wa ? "por WhatsApp" : "por mensaje";
   const linkWa = (texto) => `https://wa.me/${wa}?text=${encodeURIComponent(texto)}`;
   const globo = (clase = "globo") => (wa ? `<a class="${clase}" href="${esc(linkWa("Hola Break Point, quería consultar por un turno."))}" target="_blank" rel="noopener" aria-label="Escribirle al club por WhatsApp">${GLOBO}</a>` : "");
   const seccionTarifas = tarifas.length
-    ? `<section class="sec cont" aria-labelledby="t-tarifas"><h2 id="t-tarifas">Tarifas</h2><div class="tarifas">${tarifas.map((t) => `<div class="placa${t.nombre === "Pico" ? " pico" : ""}"><h3>${t.nombre}</h3><p class="precio">${pesos(t.precioHora)} <small>por hora</small></p><p>De ${hhmm(t.desde)} a ${hhmm(t.hasta)}</p></div>`).join("")}</div><p class="nota">Seña por transferencia, con el código en el concepto. Precios de referencia: el club te los confirma por WhatsApp.</p></section>`
+    ? `<section class="sec cont" aria-labelledby="t-tarifas"><h2 id="t-tarifas">Tarifas</h2><div class="tarifas">${tarifas.map((t) => `<div class="placa${t.nombre === "Pico" ? " pico" : ""}"><h3>${t.nombre}</h3><p class="precio">${pesos(t.precioHora)} <small>por hora</small></p><p>De ${hhmm(t.desde)} a ${hhmm(t.hasta)}</p></div>`).join("")}</div><p class="nota">Seña por transferencia, con el código en el concepto. Precios de referencia: el club te los confirma ${canal}.</p></section>`
     : "";
   return `<!doctype html>
 <html lang="es-AR">
@@ -203,7 +206,7 @@ export function portada(publico = {}) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Break Point Pádel · reservá tu cancha</title>
-<meta name="description" content="Break Point Pádel${ubicacion ? ` (${esc(ubicacion)})` : ""}: elegí día y horario, pedí tu cancha por WhatsApp y el club te confirma. Escuelita, torneos y el bodegón del club.">
+<meta name="description" content="Break Point Pádel${ubicacion ? ` (${esc(ubicacion)})` : ""}: elegí día y horario, pedí tu cancha ${canal} y el club te confirma. Escuelita, torneos y el bodegón del club.">
 <meta name="generator" content="Gestión Studio Grow">
 <meta name="theme-color" content="#035BA8">
 <meta name="color-scheme" content="light dark">
@@ -227,7 +230,7 @@ export function portada(publico = {}) {
     <div class="cont">
       <p class="rotulo">Club de pádel${ubicacion ? ` · ${esc(ubicacion)}` : ""}</p>
       <h1 id="titulo"><span>Reservá</span> <span class="caja">tu cancha</span></h1>
-      <p class="bajada">Elegí el día y el horario, pedilo por WhatsApp y el club te confirma.</p>
+      <p class="bajada">Elegí el día y el horario, pedilo ${canal} y el club te confirma.</p>
       <a class="btn btn-blanco cta" href="/turnero">Elegí tu horario</a>
       <p class="hoy" id="hoy-dia">Hoy</p>
       <ul class="franjas" aria-label="Franjas del día: ver horarios">
@@ -243,7 +246,7 @@ export function portada(publico = {}) {
     <h2 id="t-como">Cómo se reserva</h2>
     <ol class="pasos">
       <li><p><b>Elegí el día y el horario.</b></p></li>
-      <li><p><b>Pedilo por WhatsApp:</b> el mensaje sale armado con tu nombre.</p></li>
+      <li><p>${wa ? "<b>Pedilo por WhatsApp:</b> el mensaje sale armado con tu nombre." : "<b>Pedilo por mensaje:</b> sale armado con tu nombre y lo mandás al Instagram del club."}</p></li>
       <li><p><b>El club te confirma</b> y te pasa el alias para la seña.</p></li>
     </ol>
   </section>

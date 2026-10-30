@@ -222,9 +222,15 @@
         <input id="ped-nombre" name="nombre" type="text" autocomplete="name" maxlength="60" required aria-describedby="ped-error">
       </div>
       <p id="ped-error" class="error" role="alert"></p>
-      <a id="ped-wa" class="btn btn-pri btn-block btn-pedir" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 18.8z"/></svg>Pedir este turno por WhatsApp</a>
-      <p class="hint">El club te confirma por WhatsApp y te pasa el alias para la seña.</p>
-      <p id="ped-sin-wa" class="hint" hidden>Se abre WhatsApp: elegí el chat del club y mandá el mensaje.</p>
+      <a id="ped-wa" class="btn btn-pri btn-block btn-pedir" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 18.8z"/></svg><span id="ped-wa-txt">Pedir este turno por WhatsApp</span></a>
+      <!-- Sin el WhatsApp del club publicado, el pedido va por el Instagram del club: se copia y se abre el chat. -->
+      <p id="ped-copiado" class="copiado" role="status" aria-live="polite"></p>
+      <div id="ped-manual" class="campo" hidden>
+        <label for="ped-texto">Tu pedido: copialo y pegalo en el chat</label>
+        <textarea id="ped-texto" readonly rows="5"></textarea>
+      </div>
+      <p id="ped-ayuda" class="hint">El club te confirma por WhatsApp y te pasa el alias para la seña.</p>
+      <p id="ped-sin-wa" class="hint" hidden>Se abre el chat de Instagram del club (@breakpointpadel_): pegá el pedido y mandalo.</p>
     </form>
   </div>
 </dialog>

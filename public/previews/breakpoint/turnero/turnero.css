@@ -368,3 +368,7 @@ dialog[open]{transform:none}
 .como ol{font:500 18px/1.4 var(--ui);gap:10px}
 .pie{font:500 16px/1.4 var(--ui)}
 .pie b{font:400 italic 22px/1 var(--display);text-transform:uppercase}
+/* pedido por Instagram (sin WhatsApp del club publicado): aviso «Copiado» y, si el portapapeles falla, el texto */
+.copiado{margin:0;padding:10px 12px;border-left:4px solid var(--nar-ui);border-radius:var(--r1);background:var(--nar-s);color:var(--nar-t);font:700 16px/1.35 var(--ui)}
+.copiado:empty{display:none}
+#ped-texto{width:100%;min-height:120px;padding:10px 12px;border:2px solid var(--nar-ui);border-radius:var(--r1);background:var(--panel);color:inherit;font:500 16px/1.4 var(--ui);resize:vertical;user-select:all}

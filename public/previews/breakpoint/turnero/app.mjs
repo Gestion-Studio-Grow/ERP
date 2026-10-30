@@ -44,6 +44,12 @@ const HAY_TIENDA = !MODO_PEDIDO || !!CATALOGO;
 // Sin las tarifas del club no se muestran precios (nada de precios de ejemplo a un cliente real).
 const SIN_PRECIOS = MODO_PEDIDO && !TARIFAS;
 const linkWa = (texto) => `https://wa.me/${WA}?text=${encodeURIComponent(texto)}`;
+// Sin el WhatsApp del club publicado, el pedido va por un canal REAL del club: su Instagram (el mismo que publica la
+// portada). Nunca un wa.me sin número (QA 29/10: «elegí el chat del club» deja sin destinatario a quien no lo tiene).
+const IG_CLUB = "breakpointpadel_";
+const LINK_IG = `https://ig.me/m/${IG_CLUB}`;
+const POR_IG = MODO_PEDIDO && !WA;
+const CAMARA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r=".6" fill="currentColor"/></svg>`;
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -511,7 +517,7 @@ function cablear() {
   $("#btn-espera").addEventListener("click", () => (MODO_PEDIDO ? preguntarPorWhatsApp() : anotarEspera()));
   $("#ped-cancha").addEventListener("change", () => armarPedido());
   $("#ped-nombre").addEventListener("input", armarPedido);
-  $("#ped-wa").addEventListener("click", (e) => { if (!armarPedido({ validar: true })) e.preventDefault(); });
+  $("#ped-wa").addEventListener("click", (e) => { if (!armarPedido({ validar: true })) e.preventDefault(); else if (POR_IG) mandarPorInstagram(e); });
   $("#form-pedido").addEventListener("submit", (e) => { e.preventDefault(); if (armarPedido({ validar: true })) $("#ped-wa").click(); });
   // Tienda: se descarga recién cuando se abre (/turnero#tienda o el botón del encabezado).
   addEventListener("hashchange", () => { if (location.hash === "#tienda") abrirTienda(); else if (S.config) aplicarAncla(); });
@@ -576,6 +582,11 @@ function abrirPedido(slot) {
   $("#ped-error").textContent = "";
   $("#ped-nombre").removeAttribute("aria-invalid");
   $("#ped-sin-wa").hidden = Boolean(WA);
+  // Cada turno arranca sin el «Copiado» ni el texto a mano del anterior.
+  S.igListo = false;
+  $("#ped-copiado").textContent = "";
+  $("#ped-manual").hidden = true;
+  if (POR_IG) $("#ped-wa-txt").textContent = "Mandalo por Instagram";
   // Cancha elegida desde la portada (/turnero#cancha-N): queda preseleccionada si está libre en ese horario.
   if (S.cancha && ops.some((o) => o.canchaId === S.cancha)) $("#ped-cancha").value = S.cancha;
   armarPedido();
@@ -596,12 +607,62 @@ function armarPedido({ validar = false } = {}) {
   $("#ped-resumen").innerHTML = `<span class="res-cuando">${fechaLarga(S.fecha)} · ${hhmm(s.inicio)}</span><strong>${elegida ? esc(elegida.cancha) : "Cualquier cancha"}</strong>${conTecho(elegida) ? " · techada" : ""} · hasta las ${hhmm(s.fin)} (${durTexto(S.duracion)})`;
   $("#ped-precio").textContent = precio;
   const nombre = $("#ped-nombre").value.trim();
-  $("#ped-wa").href = linkWa(`Hola Break Point, quiero el turno del ${fechaLarga(S.fecha)} a las ${hhmm(s.inicio)} (${durTexto(S.duracion)}) en ${cancha}.${SIN_PRECIOS ? "" : ` Precio de referencia: ${precio}.`}${nombre ? ` Soy ${nombre}.` : ""}`);
+  const mensaje = `Hola Break Point, quiero el turno del ${fechaLarga(S.fecha)} a las ${hhmm(s.inicio)} (${durTexto(S.duracion)}) en ${cancha}.${SIN_PRECIOS ? "" : ` Precio de referencia: ${precio}.`}${nombre ? ` Soy ${nombre}.` : ""}`;
+  // Si cambió el pedido (p. ej. el nombre) después de copiarlo, hay que copiarlo de nuevo.
+  if (POR_IG && S.igListo && $("#ped-texto").value !== mensaje) { S.igListo = false; $("#ped-wa-txt").textContent = "Mandalo por Instagram"; $("#ped-copiado").textContent = ""; }
+  $("#ped-texto").value = mensaje;
+  $("#ped-wa").href = POR_IG ? LINK_IG : linkWa(mensaje);
   if (!validar) return true;
   const falta = !nombre;
   $("#ped-error").textContent = falta ? "Poné tu nombre así el club sabe quién pide." : "";
   if (falta) { $("#ped-nombre").setAttribute("aria-invalid", "true"); $("#ped-nombre").focus(); } else $("#ped-nombre").removeAttribute("aria-invalid");
   return !falta;
+}
+
+/** Copia en el mismo toque (el navegador deja abrir el chat después). true si se pudo. */
+function copiarEnElToque(texto) {
+  const t = document.createElement("textarea");
+  t.value = texto;
+  t.setAttribute("readonly", "");
+  t.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none";
+  // Adentro del diálogo: con un <dialog> modal abierto, lo de afuera es inerte y no se puede seleccionar.
+  $("#dlg-pedido").append(t);
+  t.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch { ok = false; }
+  t.remove();
+  $("#ped-wa").focus({ preventScroll: true });
+  return ok;
+}
+
+/**
+ * «Mandalo por Instagram»: copia el pedido y abre el chat del club (ig.me). Si el portapapeles falla, el pedido queda
+ * a la vista, seleccionable, y el botón pasa a «Abrir el chat de Instagram» (el toque siguiente sólo abre el chat).
+ */
+function mandarPorInstagram(e) {
+  if (S.igListo) return; // ya copiado o a la vista: este toque abre el chat
+  const texto = $("#ped-texto").value;
+  const listo = (copiado) => {
+    S.igListo = true;
+    $("#ped-wa-txt").textContent = "Abrir el chat de Instagram";
+    if (copiado) return;
+    $("#ped-copiado").textContent = "No pudimos copiarlo: seleccioná el pedido, copialo y pegalo en el chat.";
+    $("#ped-manual").hidden = false;
+    $("#ped-texto").focus();
+    $("#ped-texto").select();
+  };
+  if (copiarEnElToque(texto)) {
+    $("#ped-copiado").textContent = "Copiado: pegalo en el chat";
+    aviso("Copiado: pegalo en el chat");
+    S.igListo = true;
+    $("#ped-wa-txt").textContent = "Abrir el chat de Instagram";
+    return; // el link sigue y abre el chat del club
+  }
+  // Sin copia en el toque: se intenta con el portapapeles moderno; el chat se abre con el toque siguiente.
+  e.preventDefault();
+  const api = navigator.clipboard?.writeText?.bind(navigator.clipboard);
+  if (!api) return listo(false);
+  api(texto).then(() => { $("#ped-copiado").textContent = "Copiado: pegalo en el chat"; listo(true); }, () => listo(false));
 }
 
 /** Sin horarios libres con esos filtros: en vez de una lista de espera que acá no existe, se le pregunta al club. */
@@ -615,12 +676,19 @@ function prepararModoPedido() {
   const vivo = $("#en-vivo");
   vivo.classList.remove("on", "off");
   vivo.classList.add("pedido");
-  vivo.textContent = "Pedido por WhatsApp";
+  vivo.textContent = WA ? "Pedido por WhatsApp" : "Pedido por mensaje";
   const que = SIN_PRECIOS ? "Horarios de referencia" : "Horarios y precios de referencia";
-  $("#cinta").textContent = `${que}: el club te confirma por WhatsApp`;
+  $("#cinta").textContent = `${que}: el club te confirma ${WA ? "por WhatsApp" : "por mensaje"}`;
   $("#subtitulo").textContent = `${que} · la disponibilidad te la confirma el club.`;
   for (const el of [$("#btn-ingresar"), $("#usuario"), $("#mis-reservas"), $(".saltar"), $("#btn-google"), $("#btn-simular"), ...(HAY_TIENDA ? [] : [$("#btn-tienda")])]) if (el) el.hidden = true;
-  $("#como-pasos").innerHTML = "<li><b>Elegí</b> el día, el horario y la duración.</li><li><b>Pedilo por WhatsApp</b> con tu nombre: el mensaje sale armado.</li><li><b>El club te confirma</b> y te pasa el alias para la seña.</li>";
+  $("#como-pasos").innerHTML = WA
+    ? "<li><b>Elegí</b> el día, el horario y la duración.</li><li><b>Pedilo por WhatsApp</b> con tu nombre: el mensaje sale armado.</li><li><b>El club te confirma</b> y te pasa el alias para la seña.</li>"
+    : "<li><b>Elegí</b> el día, el horario y la duración.</li><li><b>Mandalo por Instagram</b> con tu nombre: el pedido sale armado y lo pegás en el chat del club.</li><li><b>El club te confirma</b> y te pasa el alias para la seña.</li>";
+  if (POR_IG) {
+    $("#ped-wa").innerHTML = `${CAMARA}<span id="ped-wa-txt">Mandalo por Instagram</span>`;
+    $("#ped-ayuda").textContent = "Copiamos tu pedido y se abre el chat de Instagram del club: pegalo y mandalo. El club te confirma por ahí y te pasa el alias para la seña.";
+    $("#ped-sin-wa").textContent = "Si no se abre el chat, buscá @breakpointpadel_ en Instagram.";
+  }
   // Sin el WhatsApp del club, «Preguntar» abriría WhatsApp sin destinatario: no se ofrece (DISENO §5.2).
   $("#espera p").textContent = WA ? "Preguntale al club: a veces se libera algo." : "Probá otro día u otra duración.";
   $("#btn-espera").textContent = "Preguntar por WhatsApp";
