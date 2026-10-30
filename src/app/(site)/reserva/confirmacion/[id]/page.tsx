@@ -4,6 +4,8 @@ import Link from "next/link";
 import { fmtDateTime } from "@/lib/datetime";
 import { reglaVigenteParaLaClienta } from "@/lib/turnos/practica.server";
 import { chConDisenoNuevo } from "../../../_ch/diseno-ch.server";
+import { sinPromesaDeWhatsApp } from "../../../_ch/contacto-ch";
+import { getLocation } from "@/lib/settings";
 
 export default async function ConfirmacionPage({
   params,
@@ -22,6 +24,8 @@ export default async function ConfirmacionPage({
   // Diseño nuevo de CH (sólo con su interruptor prendido): la tarjeta del turno en tipografía, sin el «✓» en
   // círculo verde. Mismos datos y mismos textos que la de siempre; ningún texto de CH (página compartida).
   if (nuevo) {
+    // Sin WhatsApp cargado no se promete WhatsApp (contacto-ch.ts); sólo en el diseño nuevo.
+    const { whatsapp } = await getLocation();
     return (
       <div className="chr mx-auto px-6 py-16">
         <p className="chf-kicker">Turno {appointment.id.slice(-6).toUpperCase()}</p>
@@ -54,7 +58,7 @@ export default async function ConfirmacionPage({
           </div>
         </dl>
         <p style={{ color: "var(--text-muted)", margin: "24px 0 0" }}>
-          Te vamos a escribir por WhatsApp para coordinar el pago y confirmar tu turno.
+          {sinPromesaDeWhatsApp("Te vamos a escribir por WhatsApp para coordinar el pago y confirmar tu turno.", whatsapp)}
         </p>
         <p style={{ color: "var(--text-muted)", margin: "8px 0 0" }}>
           {regla ? regla : "Guardá el enlace de tu turno para verlo o cancelarlo cuando quieras."}
