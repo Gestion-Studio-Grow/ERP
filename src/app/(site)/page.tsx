@@ -13,7 +13,7 @@ import ReserveButton from "./_ch/ReserveButton";
 import Reveal from "./_ch/Reveal";
 import PhotoPlaceholder from "./_ch/PhotoPlaceholder";
 import FeaturedTreatments, { type FeaturedService } from "./_ch/FeaturedTreatments";
-import InicioCH from "./_ch/InicioCH"; // «diseño nuevo»
+import ChFront from "./_ch/ChFront"; // «diseño nuevo»
 import { disenoNuevo } from "@/lib/diseno/diseno.server"; // «diseño nuevo»
 
 export const dynamic = "force-dynamic";
@@ -144,11 +144,11 @@ export default async function Home() {
   // aplicados, mapsUrl derivado). Si la dueña no cargó nada, caen a los textos de
   // siempre — la sección nunca queda vacía. Se agrega el email como fila solo si
   // está cargado.
-  // «diseño nuevo»: desde acá — con el interruptor de CH prendido, la home nueva (_ch/InicioCH.tsx).
+  // «diseño nuevo»: desde acá — con el interruptor de CH prendido, la home nueva (_ch/ChFront.tsx, DISENO.md de CH).
   // Apagado (CH en producción hoy), no se toca nada: todo lo de abajo es el código de siempre.
   if (await nuevoP) {
     if (esCH) return (
-      <InicioCH
+      <ChFront
         groups={groups}
         professionals={professionals}
         news={news}
