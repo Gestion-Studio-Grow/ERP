@@ -8,6 +8,7 @@
 // tanto en la tarjeta de 120 px del celular como en la ficha. El peso aproximado por pack no
 // existe como dato (DISENO.md §13.5): cuando el dueño lo pase, va en la línea de abajo.
 
+import type { CSSProperties } from "react";
 import type { MagraAnimal } from "@/tenants/magra-content";
 import { MiniDespiece } from "./Despiece";
 import { regionDe } from "./despiece-datos";
@@ -25,6 +26,8 @@ export function EtiquetaDePack({
   sello?: boolean;
 }) {
   const r = animal ? regionDe(animal, region) : null;
+  // La palabra más larga decide el cuerpo del nombre (CSS --n): ninguna se corta a la mitad.
+  const n = Math.max(6, ...nombre.split(/\s+/).map((w) => w.length));
   const alt = `Etiqueta del pack de ${nombre.toLowerCase()} envasado al vacío${r ? `; sale de ${r.nombre.toLowerCase()}` : ""}`;
   return (
     <div className="mg-pack" role="img" aria-label={alt}>
@@ -32,7 +35,9 @@ export function EtiquetaDePack({
         <span className="mg-pack-marca">
           MA<b>G</b>RA
         </span>
-        <span className="mg-pack-nom">{nombre}</span>
+        <span className="mg-pack-nom" style={{ "--n": n } as CSSProperties}>
+          {nombre}
+        </span>
         <span className="mg-pack-pie">
           <span>Envasado al vacío</span>
           {sello && animal && (
