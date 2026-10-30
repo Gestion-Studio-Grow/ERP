@@ -57,7 +57,7 @@ const durTexto = (m) => ({ 60: "1 h", 90: "1 h 30", 120: "2 h" })[m] ?? `${m} mi
 const TEXTO_TARDE = "la seña queda retenida y vuelve como crédito sólo si alguien toma el turno";
 const quieto = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-const S = { config: null, fecha: null, duracion: 90, techadas: false, usuario: null, reservas: [], slots: [], cache: new Map(), pendiente: null, elegido: null, pagoId: null, timer: null };
+const S = { cancha: null, config: null, fecha: null, duracion: 90, techadas: false, usuario: null, reservas: [], slots: [], cache: new Map(), pendiente: null, elegido: null, pagoId: null, timer: null };
 
 // ───────────── API ─────────────
 async function api(ruta, { metodo = "GET", cuerpo, idem } = {}) {
@@ -156,7 +156,9 @@ function pintarGrilla(slots, { animar = false, foco = slotEnfocado() } = {}) {
   S.slots = slots;
   g.setAttribute("aria-busy", "false");
   if (!slots.length) {
-    g.innerHTML = `<p class="vacio">No quedan canchas libres ${S.techadas ? "techadas " : ""}para ese día y duración. Probá otro día u otra duración, o anotate y te avisamos.</p>`;
+    g.innerHTML = MODO_PEDIDO
+      ? `<p class="vacio">No vemos canchas libres ${S.techadas ? "techadas " : ""}con estos filtros.</p>`
+      : `<p class="vacio">No quedan canchas libres ${S.techadas ? "techadas " : ""}para ese día y duración. Probá otro día u otra duración, o anotate y te avisamos.</p>`;
     $("#espera").hidden = false;
     if (foco) $("#btn-espera").focus();
     return;
@@ -512,7 +514,8 @@ function cablear() {
   $("#ped-wa").addEventListener("click", (e) => { if (!armarPedido({ validar: true })) e.preventDefault(); });
   $("#form-pedido").addEventListener("submit", (e) => { e.preventDefault(); if (armarPedido({ validar: true })) $("#ped-wa").click(); });
   // Tienda: se descarga recién cuando se abre (/turnero#tienda o el botón del encabezado).
-  addEventListener("hashchange", () => { if (location.hash === "#tienda") abrirTienda(); });
+  addEventListener("hashchange", () => { if (location.hash === "#tienda") abrirTienda(); else if (S.config) aplicarAncla(); });
+  $("#chip-cancha-x").addEventListener("click", () => { elegirCancha(null); if (/^#cancha-/.test(location.hash)) history.replaceState(null, "", location.pathname + location.search); $("#t-dias").focus?.(); });
   $("#btn-tienda").addEventListener("click", (e) => { e.preventDefault(); if (location.hash !== "#tienda") history.replaceState(null, "", "#tienda"); abrirTienda(); });
   // Volver a la pestaña después de transferir desde la app del banco: refresco inmediato.
   document.addEventListener("visibilitychange", () => { if (!document.hidden && S.config) { cargarSlots({ animar: true, forzar: true }); cargarReservas(); } });
@@ -569,10 +572,12 @@ function porHorario(slots) {
 function abrirPedido(slot) {
   S.elegido = slot;
   const ops = slot.opciones ?? [slot];
-  $("#ped-cancha").innerHTML = (ops.length > 1 ? `<option value="">Cualquier cancha</option>` : "") + ops.map((o) => `<option value="${esc(o.canchaId)}">${esc(o.cancha)}${conTecho(o) ? " · techada" : ""} · ${pesos(o.precio)}</option>`).join("");
+  $("#ped-cancha").innerHTML = (ops.length > 1 ? `<option value="">Cualquier cancha</option>` : "") + ops.map((o) => `<option value="${esc(o.canchaId)}">${esc(o.cancha)}${conTecho(o) ? " · techada" : ""}${SIN_PRECIOS ? "" : ` · ${pesos(o.precio)}`}</option>`).join("");
   $("#ped-error").textContent = "";
   $("#ped-nombre").removeAttribute("aria-invalid");
   $("#ped-sin-wa").hidden = Boolean(WA);
+  // Cancha elegida desde la portada (/turnero#cancha-N): queda preseleccionada si está libre en ese horario.
+  if (S.cancha && ops.some((o) => o.canchaId === S.cancha)) $("#ped-cancha").value = S.cancha;
   armarPedido();
   abrir("#dlg-pedido");
 }
@@ -588,7 +593,7 @@ function armarPedido({ validar = false } = {}) {
   const min = Math.min(...precios), max = Math.max(...precios);
   const precio = SIN_PRECIOS ? "te lo confirma el club" : min === max ? pesos(min) : `${pesos(min)} a ${pesos(max)}`;
   const cancha = elegida ? `la ${elegida.cancha}${conTecho(elegida) ? " (techada)" : ""}` : "cualquier cancha";
-  $("#ped-resumen").innerHTML = `<strong>${elegida ? esc(elegida.cancha) : "Cualquier cancha"}</strong>${conTecho(elegida) ? " · techada" : ""}<br>${fechaLarga(S.fecha)} · ${hhmm(s.inicio)} a ${hhmm(s.fin)} (${durTexto(S.duracion)})`;
+  $("#ped-resumen").innerHTML = `<span class="res-cuando">${fechaLarga(S.fecha)} · ${hhmm(s.inicio)}</span><strong>${elegida ? esc(elegida.cancha) : "Cualquier cancha"}</strong>${conTecho(elegida) ? " · techada" : ""} · hasta las ${hhmm(s.fin)} (${durTexto(S.duracion)})`;
   $("#ped-precio").textContent = precio;
   const nombre = $("#ped-nombre").value.trim();
   $("#ped-wa").href = linkWa(`Hola Break Point, quiero el turno del ${fechaLarga(S.fecha)} a las ${hhmm(s.inicio)} (${durTexto(S.duracion)}) en ${cancha}.${SIN_PRECIOS ? "" : ` Precio de referencia: ${precio}.`}${nombre ? ` Soy ${nombre}.` : ""}`);
@@ -616,8 +621,35 @@ function prepararModoPedido() {
   $("#subtitulo").textContent = `${que} · la disponibilidad te la confirma el club.`;
   for (const el of [$("#btn-ingresar"), $("#usuario"), $("#mis-reservas"), $(".saltar"), $("#btn-google"), $("#btn-simular"), ...(HAY_TIENDA ? [] : [$("#btn-tienda")])]) if (el) el.hidden = true;
   $("#como-pasos").innerHTML = "<li><b>Elegí</b> el día, el horario y la duración.</li><li><b>Pedilo por WhatsApp</b> con tu nombre: el mensaje sale armado.</li><li><b>El club te confirma</b> y te pasa el alias para la seña.</li>";
-  $("#espera p").textContent = "No vemos canchas libres con estos filtros. Preguntale al club por WhatsApp: a veces se libera algo.";
+  // Sin el WhatsApp del club, «Preguntar» abriría WhatsApp sin destinatario: no se ofrece (DISENO §5.2).
+  $("#espera p").textContent = WA ? "Preguntale al club: a veces se libera algo." : "Probá otro día u otra duración.";
   $("#btn-espera").textContent = "Preguntar por WhatsApp";
+  $("#btn-espera").hidden = !WA;
+}
+
+// ───────────── anclas desde la portada (/turnero#manana|#tarde|#noche|#cancha-N) ─────────────
+/** Lleva a la franja pedida y la resalta 1,2 s, o deja elegida la cancha. Las anclas desconocidas se ignoran. */
+function aplicarAncla() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  const franja = FRANJAS.find(([id]) => id === h);
+  if (franja) {
+    const sec = $(`#grilla .franja[data-franja="${franja[0]}"]`);
+    if (!sec) { aviso(`Este día no quedan horarios de ${franja[1].toLowerCase()}: probá otro día.`); return; }
+    sec.scrollIntoView({ block: "start", behavior: quieto() ? "auto" : "smooth" });
+    sec.classList.remove("is-ancla");
+    void sec.offsetWidth; // reinicia el resalte si se vuelve a tocar la misma franja
+    sec.classList.add("is-ancla");
+    setTimeout(() => sec.classList.remove("is-ancla"), 1200);
+    return;
+  }
+  const m = /^cancha-(\d{1,2})$/.exec(h);
+  if (m && MODO_PEDIDO) elegirCancha(`c${Number(m[1])}`);
+}
+function elegirCancha(id) {
+  const c = S.config?.canchas?.find?.((x) => x.id === id);
+  S.cancha = c ? id : null;
+  $("#chip-cancha").hidden = !c;
+  if (c) $("#chip-cancha-txt").textContent = c.nombre ?? `Cancha ${id.slice(1)}`;
 }
 
 // ───────────── tienda (módulo aparte, carga diferida) ─────────────
@@ -631,16 +663,7 @@ async function abrirTienda() {
 }
 
 // ───────────── arranque ─────────────
-/** Fuentes de la marca sin bloquear el render (y sin manejadores inline: la CSP no permite scripts inline). */
-function cargarFuentes() {
-  for (const href of [
-    "https://fonts.googleapis.com/css2?family=Anton&display=swap&text=ABCDEFGHIJKLMNOPQRSTUVWXYZ%C3%81%C3%89%C3%8D%C3%93%C3%9A%C3%91%C3%9C0123456789%C2%A1!%C2%BF%3F%24.%2C%3A-%20",
-    "https://fonts.googleapis.com/css2?family=Montserrat:wght@500&display=swap&text=BREAKPOINTDL",
-  ]) { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; document.head.append(l); }
-}
-
 async function iniciar() {
-  cargarFuentes();
   cablear();
   if (!API) {
     document.body.dataset.estado = "sin-conexion";
@@ -670,6 +693,7 @@ async function iniciar() {
   pintarUsuario();
   await cargarSlots();
   document.body.dataset.estado = "listo";
+  aplicarAncla();
   if (!MODO_PEDIDO) { conectarVivo(); cargarReservas(); }
   precargar();
 }

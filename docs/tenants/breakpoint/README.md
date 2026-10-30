@@ -1,7 +1,7 @@
 # Break Point Pádel — un negocio más del ERP, con su sitio en breakpointpadel.gsgapp.com.ar
 
 **URL:** **https://breakpointpadel.gsgapp.com.ar/**
-- `/` es la portada con la marca.
+- `/` es la portada con la marca. Desde el 29/10/2026: «la cancha desde arriba» (plano SVG de las canchas, franjas, cómo se reserva, el club; diseño en `Factory-GSG/00-ESTADO/estetica-2026-10/fronts/breakpoint/DISENO.md`), con Anton y Barlow Semi Condensed propias en `public/tenants/breakpoint/fuentes/` (OFL, sin Google Fonts) y anclas al turnero (`/turnero#manana|#tarde|#noche|#cancha-N`).
 - `/turnero` es el turnero para los jugadores.
 - `/club` es la gestión del club.
 
