@@ -137,7 +137,7 @@ export default function Ficha({
                     fuente
                   </a>
                   ). Confirmá la versión con nosotros antes de pedirla.
-                  {f.nota ? ` ${f.nota.replace(/\[CONTRADICTORIO\]/g, "").replace(/\s+/g, " ").trim()}` : ""}
+                  {f.nota ? ` ${f.nota.replace(/\s*\[CONTRADICTORIO\]/g, "").replace(/\s+/g, " ").trim()}` : ""}
                 </p>
               </>
             ) : (

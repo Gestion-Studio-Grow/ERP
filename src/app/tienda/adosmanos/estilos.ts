@@ -93,7 +93,7 @@ html:has(.adm){scroll-padding-top:88px;scroll-behavior:smooth}
 .adm .am-cab{position:fixed;top:0;left:0;right:0;z-index:40;height:72px;display:flex;align-items:center;gap:24px;padding:0 var(--gutter);background:var(--cal);border-bottom:1px solid transparent;transition:border-color .2s}
 .adm .am-cab.pegada{border-bottom-color:var(--linea)}
 @media (min-width:900px){.adm .am-cab.pegada{background:rgba(243,242,236,.92);-webkit-backdrop-filter:saturate(1.2) blur(8px);backdrop-filter:saturate(1.2) blur(8px)}}
-.adm .am-cab-marca{display:inline-flex;text-decoration:none;width:148px}
+.adm .am-cab-marca{display:inline-flex;align-items:center;min-height:48px;text-decoration:none;width:148px}
 .adm .am-nav{display:none;gap:clamp(16px,2vw,32px);margin-left:auto}
 .adm .am-nav a{font:600 14px/1 var(--cuerpo);letter-spacing:.08em;text-transform:uppercase;text-decoration:none;padding:12px 0;background:linear-gradient(var(--pelota),var(--pelota)) left bottom/0 3px no-repeat;transition:background-size .25s var(--curva)}
 .adm .am-nav a:hover{background-size:100% 3px}
@@ -109,7 +109,9 @@ html:has(.adm){scroll-padding-top:88px;scroll-behavior:smooth}
 .adm .am-h1{font-size:min(clamp(46px,7.6vw,128px),14.5cqi)}
 .adm .am-h1>span{display:block}
 @media (prefers-reduced-motion:no-preference){.adm .am-h1{animation:am-revela 700ms var(--curva) both}}
-@keyframes am-revela{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 -10% 0)}}
+/* Sólo transform: con clip-path el H1 quedaba oculto en una pestaña de fondo (las animaciones no corren)
+   y el LCP pasaba a la bajada. Así se pinta entero desde el primer cuadro y apenas se acomoda. */
+@keyframes am-revela{from{transform:translateY(.14em)}}
 .adm .am-lead{margin-top:clamp(18px,2vw,28px);max-width:40ch;font-size:clamp(20px,1.9vw,27px);line-height:1.35;color:#2b3036}
 .adm .am-ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:clamp(24px,3vw,36px)}
 
@@ -188,7 +190,7 @@ html:has(.adm){scroll-padding-top:88px;scroll-behavior:smooth}
 .adm .am-paso span{min-width:20px;text-align:center;font:700 17px/1 var(--titular)}
 .adm .am-t-marca{margin-top:6px;font:600 12px/1.2 var(--cuerpo);letter-spacing:.28em;text-transform:uppercase;color:var(--gris)}
 .adm .am-t-nombre{font-family:var(--titular);font-weight:700;font-size:clamp(19px,1.5vw,23px);line-height:1.08;text-transform:uppercase}
-.adm .am-t-nombre button{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;padding:0;border:0;background:none;text-align:left;font:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer}
+.adm .am-t-nombre button{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;padding:12px 0;margin:-12px 0;border:0;background:none;text-align:left;font:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer}
 .adm .am-t-chips{display:flex;flex-wrap:wrap;gap:6px;min-height:26px;position:relative;z-index:1}
 .adm .am-tag{display:inline-flex;align-items:center;min-height:26px;padding:0 10px;border-radius:999px;border:1px solid var(--linea);font-size:13px;line-height:1;color:#2b3036;background:var(--blanco)}
 .adm .am-tag-en{background:var(--pelota);border-color:var(--pelota);color:var(--carbon)}
@@ -283,8 +285,8 @@ html:has(.adm){scroll-padding-top:88px;scroll-behavior:smooth}
 .adm .am-logo-pie .am-logo-padel{font-size:12px}
 .adm .am-pie-linea{margin-top:16px;font-size:16px;color:#c9cdc5}
 .adm .am-pie-t{margin-bottom:12px;font:600 12px/1 var(--cuerpo);letter-spacing:.24em;text-transform:uppercase;color:#a9b0b7}
-.adm .am-pie-lista{display:grid;gap:6px;font-size:16px}
-.adm .am-pie-lista a{display:inline-block;padding:6px 0;text-decoration:none}
+.adm .am-pie-lista{display:grid;gap:0;font-size:16px}
+.adm .am-pie-lista a{display:inline-flex;align-items:center;min-height:44px;text-decoration:none}
 .adm .am-pie-lista a:hover{text-decoration:underline;text-decoration-color:var(--pelota)}
 .adm .am-pie-provisional{max-width:var(--max);margin:36px auto 0;padding-top:20px;border-top:1px solid #2a2f35;font-size:13px;color:#a9b0b7}
 
