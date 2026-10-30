@@ -120,7 +120,8 @@ export default function FacturitaPlanesPage() {
           ))}
         </div>
         <p className="fx-chico" style={{ margin: "28px 0 0" }}>
-          {ACLARACION_IVA}. {ORIGEN_LISTA}.
+          {ACLARACION_IVA}. {/* sin la referencia interna al ADR en público */}
+          {ORIGEN_LISTA.replace(/\s*\(ADR-\d+\)/, "")}.
         </p>
         <div style={{ marginTop: 40 }}>
           <Link href="/facturita" className={BOTON_SECUNDARIO}>
