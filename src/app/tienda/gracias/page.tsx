@@ -14,6 +14,7 @@ import { sanitizePhone } from "@/lib/whatsapp-cta";
 import GraciasNueva from "../vidriera/GraciasNueva";
 import GraciasQuebienoles from "../quebienoles/GraciasQuebienoles";
 import GraciasMagra from "../magra/GraciasMagra";
+import GraciasAdosmanos from "../adosmanos/GraciasAdosmanos";
 import { marcaDeLaVidriera, usaVidrieraNueva } from "../vidriera/marcas";
 import { textoDeMediosDePago } from "../reglas-tienda";
 
@@ -96,6 +97,18 @@ export default async function GraciasPage({
         instagram={tienda.branding?.instagram ?? null}
         whatsapp={sanitizePhone(tienda.branding?.whatsapp)}
         tenantKey={identity.slug ?? "quebienoles"}
+      />
+    );
+  }
+
+  // A DOS MANOS: la confirmación con su marca (provisional) y cómo sigue; WhatsApp sólo si lo publicó.
+  if (front === "adosmanos") {
+    const tienda = await leerTienda();
+    return (
+      <GraciasAdosmanos
+        pedido={pedido && /^\d{1,9}$/.test(pedido) ? pedido : null}
+        whatsapp={sanitizePhone(tienda.branding?.whatsapp) || null}
+        tenantKey={identity.slug ?? "adosmanos"}
       />
     );
   }
