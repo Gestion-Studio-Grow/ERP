@@ -61,7 +61,7 @@ export default async function ParaContactarHoyPage() {
         diasParaCumple: f.diasParaCumple,
         linkResena:
           f.appointmentId && sitio
-            ? `${sitio}/reserva/turno/${f.appointmentId}`
+            ? `${sitio}/reserva/turno/${f.appointmentId}?resena=1` // con ?resena=1 la página no redirige al rubro (ronda 2)
             : null,
       },
       c.rubro,

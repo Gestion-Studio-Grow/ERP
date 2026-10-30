@@ -32,14 +32,24 @@ export const rubroDelTurno = cache(async (): Promise<RubroDelTurno> => {
  * PURA: a dónde va una ruta del motor compartido en un rubro con páginas propias, o `null` si se queda. El taller
  * tiene su formulario (`/taller/turno`), su carta (`/taller#que-hacemos`) y su página del turno; el profe, su turnero.
  */
-export function destinoPropio(rubro: RubroDelTurno, ruta: "reserva" | "servicios" | "servicio" | "turno" | "confirmacion", id?: string): string | null {
+export function destinoPropio(
+  rubro: RubroDelTurno,
+  ruta: "reserva" | "servicios" | "servicio" | "turno" | "confirmacion",
+  id?: string,
+  opciones: { resena?: boolean } = {},
+): string | null {
+  // La página del turno con `?resena=1` (el link de reseña de «Para contactar hoy») se queda: es la única con el
+  // formulario de reseña (certificador R2, MEDIA-4).
+  if (ruta === "turno" && opciones.resena) return null;
   if (rubro === "taller") {
     if (ruta === "reserva") return "/taller/turno";
     if (ruta === "servicios" || ruta === "servicio") return "/taller#que-hacemos";
     if (ruta === "turno" && id) return `/taller/turno/${encodeURIComponent(id)}`;
     if (ruta === "confirmacion" && id) return `/taller/turno/${encodeURIComponent(id)}?nuevo=1`;
   }
-  if (rubro === "clases") return "/clases";
+  // El turnero del profe todavía no tiene la vista de UN turno: la confirmación y «ver mi turno» se quedan en las
+  // compartidas (que ya dicen sólo lo cierto: estado por seña, sin «Box de ejemplo»).
+  if (rubro === "clases") return ruta === "turno" || ruta === "confirmacion" ? null : "/clases";
   return null;
 }
 

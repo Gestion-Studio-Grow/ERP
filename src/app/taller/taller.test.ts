@@ -93,15 +93,15 @@ test("la nota del turno: se arma con la patente y el modelo, y la página públi
 });
 
 test("la confirmación y «ver mi turno» del taller van a su página propia; los demás negocios, como siempre", () => {
-  for (const [ruta, destino] of [
-    ["src/app/(site)/reserva/confirmacion/[id]/page.tsx", "`/taller/turno/${id}?nuevo=1`"],
-    ["src/app/(site)/reserva/turno/[id]/page.tsx", "`/taller/turno/${id}`"],
+  // Ronda 2: el desvío lo decide `destinoPropio` por el rubro del alta (blueprint o slug); los destinos se prueban en
+  // src/lib/turnos/rubro-del-turno.test.ts. Acá: que las dos páginas lo pidan con su ruta, antes de leer el turno.
+  for (const [ruta, llamada] of [
+    ["src/app/(site)/reserva/confirmacion/[id]/page.tsx", 'destinoPropio(await rubroDelTurno(), "confirmacion", id)'],
+    ["src/app/(site)/reserva/turno/[id]/page.tsx", 'destinoPropio(await rubroDelTurno(), "turno", id, { resena })'],
   ] as const) {
     const fuente = readFileSync(path.join(RAIZ, ruta), "utf8");
-    assert.ok(
-      fuente.includes(`if (resolveAgendaRubroIdBySlug(await getCurrentTenantSlug()) === "taller") redirect(${destino});`),
-      `${ruta}: el desvío tiene que depender sólo del rubro taller`,
-    );
+    assert.ok(fuente.includes(llamada), `${ruta}: el desvío tiene que salir de destinoPropio`);
+    assert.ok(fuente.indexOf(llamada) < fuente.search(/getMyAppointment\(|appointment\.findUnique\(/), `${ruta}: antes de leer el turno`);
   }
   const pagina = readFileSync(path.join(AQUI, "turno", "[id]", "page.tsx"), "utf8");
   // Vocabulario del taller: puesto, no box; sin «Pendiente de pago»; el menú del taller (Barra) y no el del sitio.

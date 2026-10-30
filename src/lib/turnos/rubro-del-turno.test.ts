@@ -17,6 +17,12 @@ test("el taller y el profe van a sus páginas; la estética se queda en las comp
   assert.equal(destinoPropio("taller", "turno", "abc"), "/taller/turno/abc");
   assert.equal(destinoPropio("taller", "confirmacion", "abc"), "/taller/turno/abc?nuevo=1");
   assert.equal(destinoPropio("clases", "reserva"), "/clases");
+  // MEDIA-4 del certificador: el turno y la confirmación del profe se quedan (el turnero no tiene la vista de un turno)
+  // y el link de reseña (?resena=1) nunca redirige, en ningún rubro.
+  assert.equal(destinoPropio("clases", "turno", "abc"), null);
+  assert.equal(destinoPropio("clases", "confirmacion", "abc"), null);
+  assert.equal(destinoPropio("taller", "turno", "abc", { resena: true }), null);
+  assert.equal(destinoPropio("taller", "confirmacion", "abc", { resena: true }), "/taller/turno/abc?nuevo=1");
   for (const r of ["reserva", "servicios", "servicio", "turno", "confirmacion"] as const) assert.equal(destinoPropio("agenda", r, "x"), null);
 });
 

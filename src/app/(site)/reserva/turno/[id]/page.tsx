@@ -28,13 +28,16 @@ const statusStyles: Record<string, string> = {
 
 export default async function MyAppointmentPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ resena?: string | string[] }>;
 }) {
   const { id } = await params;
+  const resena = (await searchParams).resena === "1";
   // El taller tiene su propia página del turno (piel, puesto, patente; sin «Pendiente de pago»): QA AGR 29/10.
   // Ronda 2: por el rubro del alta (blueprint), no sólo por el slug; el profe va a su turnero.
-  const propio = destinoPropio(await rubroDelTurno(), "turno", id);
+  const propio = destinoPropio(await rubroDelTurno(), "turno", id, { resena });
   if (propio) redirect(propio);
   const appointment = await getMyAppointment(id);
   if (!appointment) notFound();
