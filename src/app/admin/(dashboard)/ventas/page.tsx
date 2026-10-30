@@ -8,6 +8,7 @@ import { alcanceDeAnulacion, roleHasCapability } from "@/lib/capabilities";
 import { businessWallTimeToUtc, fmtShortDate, fmtTime, todayInBusinessTz } from "@/lib/datetime";
 import { nextDayKey } from "@/lib/caja/cierre-diario";
 import { MEDIOS_DE_COBRO } from "@/lib/caja/medio-cobro";
+import { tarjetaHabilitada } from "@/lib/caja-actions";
 import { ACCION_PROMOS_DE_LA_VENTA } from "@/lib/supermercado/marcas";
 import {
   whereVentasCobradas,
@@ -18,10 +19,12 @@ import {
 } from "@/lib/order-anulacion";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { EmptyState, PageContainer, PageHeader, Select, buttonClasses } from "@/components/ui";
-import type { Prisma } from "@/generated/prisma/client";
+import type { $Enums, Prisma } from "@/generated/prisma/client";
 import FilaVenta from "./FilaVenta";
 import {
   leerFiltros,
+  MEDIOS_DEL_FILTRO,
+  mediosDelPedido,
   notaDeCupon,
   notaDeDescuento,
   resumenACuenta,
@@ -92,7 +95,9 @@ export default async function VentasPage({
   // y billing:manage). Sin ella, la fila no muestra nada de facturas: como hasta hoy.
   // El ticket sale en el ancho de ESTE equipo sólo si el negocio tiene el módulo `terminal`
   // (terminal.server.ts); sin el módulo, `null` = 58 mm, como siempre.
-  const [puedeFacturar, nuevo, terminal] = await Promise.all([puedeAbrirApp("facturacion"), disenoNuevo(), terminalDelEquipo(user)]);
+  const [puedeFacturar, nuevo, terminal, conTarjeta] = await Promise.all([puedeAbrirApp("facturacion"), disenoNuevo(), terminalDelEquipo(user), tarjetaHabilitada()]);
+  // «Tarjeta» (Débito + Crédito) sólo donde existen en la base y en el cliente (`tarjetaHabilitada`).
+  const mediosDelFiltro = conTarjeta ? MEDIOS_DEL_FILTRO : MEDIOS_DE_COBRO;
   const esHoy = filtros.dia === hoy;
 
   // Hoy: desde las 00:00 sin tope (el mismo corte que el número del Inicio). Otro día: ese día.
@@ -100,7 +105,7 @@ export default async function VentasPage({
   const desde = businessWallTimeToUtc(filtros.dia, "00:00");
   const hasta = esHoy ? null : businessWallTimeToUtc(nextDayKey(filtros.dia), "00:00");
   const extra: Prisma.OrderWhereInput = {
-    ...(filtros.medio ? { paymentMethod: filtros.medio } : {}),
+    ...(filtros.medio ? { paymentMethod: { in: mediosDelPedido(filtros.medio) as $Enums.PaymentMethod[] } } : {}),
     ...(filtros.canal ? { channel: filtros.canal } : {}),
   };
 
@@ -302,7 +307,7 @@ export default async function VentasPage({
 
         <nav data-ui="filtros" aria-label="Filtrar las ventas">
           <span className="flex flex-wrap gap-1.5" role="group" aria-label="Medio">
-            {[{ valor: null, etiqueta: "Todos los medios" }, ...MEDIOS_DE_COBRO].map((m) => (
+            {[{ valor: null, etiqueta: "Todos los medios" }, ...mediosDelFiltro].map((m) => (
               <Link key={m.etiqueta} href={filtroHref({ medio: m.valor })} scroll={false} {...chipLinkAtributos((filtros.medio ?? null) === m.valor)}>
                 {m.etiqueta}
               </Link>
@@ -378,7 +383,7 @@ export default async function VentasPage({
           <span className="mb-1 block text-muted">Medio</span>
           <Select name="medio" defaultValue={filtros.medio ?? ""} className="w-44">
             <option value="">Todos</option>
-            {MEDIOS_DE_COBRO.map((m) => (
+            {mediosDelFiltro.map((m) => (
               <option key={m.valor} value={m.valor}>
                 {m.etiqueta}
               </option>
