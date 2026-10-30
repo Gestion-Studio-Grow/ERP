@@ -15,7 +15,8 @@ import { avisoPatente, notaDelAuto, patenteEnVivo } from "../patente";
 import { desde } from "../reglas";
 
 export type Trabajo = { id: string; nombre: string; minutos: number; precio: number };
-export type Mecanico = { id: string; nombre: string; puesto: string | null; trabajos: string[] };
+/** `real: false` = el nombre que sembró el alta («Mecánico de ejemplo (editable)»): se elige, pero no se nombra. */
+export type Mecanico = { id: string; nombre: string; puesto: string | null; trabajos: string[]; real?: boolean };
 type Dia = { fecha: string; semana: string; numero: string };
 type Paso = 1 | 2 | 3 | 4 | 5;
 
@@ -232,7 +233,7 @@ export default function TurnoForm({
               <dd className="agr-mono">desde {desde(trabajo.precio)}</dd>
             </>
           )}
-          {elMecanico && conPaso3 && (
+          {elMecanico && conPaso3 && elMecanico.real !== false && (
             <>
               <dt>Mecánico</dt>
               <dd>{elMecanico.nombre}</dd>

@@ -141,3 +141,12 @@ test("«Seguir» de la barra fija avanza del paso 1 al 2", () => {
   assert.match(form, /irA\(paso === 1 \? 2 : paso\)/);
   assert.doesNotMatch(form, /en 5 pasos/);
 });
+
+test("QA AGR (ronda 2): el mecánico y el puesto de relleno del alta no se le muestran al cliente", () => {
+  const pagina = readFileSync(path.join(AQUI, "turno", "[id]", "page.tsx"), "utf8");
+  assert.match(pagina, /nombrePublico\(turno\.professional\.name\) && \(/);
+  assert.match(pagina, /nombrePublico\(turno\.box\.name\) && \(/);
+  const alta = readFileSync(path.join(AQUI, "turno", "page.tsx"), "utf8");
+  assert.match(alta, /real: nombre !== null/);
+  assert.match(readFileSync(path.join(AQUI, "turno", "TurnoForm.tsx"), "utf8"), /elMecanico\.real !== false/);
+});

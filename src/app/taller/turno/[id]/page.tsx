@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { nombrePublico } from "@/lib/turnos/rubro-del-turno";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -114,10 +115,19 @@ export default async function TurnoDelTaller({
                   <dd className="agr-mono">desde {desde(turno.priceAtBooking)}</dd>
                 </>
               )}
-              <dt>Mecánico</dt>
-              <dd>{turno.professional.name}</dd>
-              <dt>Puesto</dt>
-              <dd>{turno.box.name}</dd>
+              {/* Ronda 2 (QA AGR): sin nombre real (el relleno del alta), la línea no se muestra. */}
+              {nombrePublico(turno.professional.name) && (
+                <>
+                  <dt>Mecánico</dt>
+                  <dd>{nombrePublico(turno.professional.name)}</dd>
+                </>
+              )}
+              {nombrePublico(turno.box.name) && (
+                <>
+                  <dt>Puesto</dt>
+                  <dd>{nombrePublico(turno.box.name)}</dd>
+                </>
+              )}
               <dt>Día y hora</dt>
               <dd>{fmtDateTime(turno.startsAt)}</dd>
               <dt>Estado</dt>

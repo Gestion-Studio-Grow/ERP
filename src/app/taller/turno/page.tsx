@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { nombrePublico } from "@/lib/turnos/rubro-del-turno";
 import { getProfessionalsWithServices } from "@/lib/actions";
 import { reglaVigenteParaLaClienta } from "@/lib/turnos/practica.server";
 import { nextBusinessDays } from "@/lib/datetime";
@@ -34,7 +35,9 @@ export default async function TurnoTaller({ searchParams }: { searchParams: Prom
   const mecanicos: Mecanico[] = profesionales.map((p) => {
     const suyos = p.services.filter(esTrabajoPublicable);
     for (const s of suyos) if (!porId.has(s.id)) porId.set(s.id, { id: s.id, nombre: s.name, minutos: s.durationMin, precio: s.price });
-    return { id: p.id, nombre: p.name, puesto: p.box?.name ?? null, trabajos: suyos.map((s) => s.id) };
+    // Ronda 2 (QA AGR): el relleno del alta no se le muestra al cliente; sin nombre real, «Mecánico del taller».
+    const nombre = nombrePublico(p.name);
+    return { id: p.id, nombre: nombre ?? "Mecánico del taller", real: nombre !== null, puesto: nombrePublico(p.box?.name), trabajos: suyos.map((s) => s.id) };
   });
   const trabajos = [...porId.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
