@@ -35,7 +35,8 @@ window.__montar = (marca, extra) => {
   createRoot(document.getElementById("root")).render(
     createElement(TiendaNueva, {
       nombre: magra ? "MAGRA" : "Almacén Prueba",
-      branding: { shortLabel: null, city: "Canning", addressLine: "Av. Ficticia 1234", hoursLabel: "Lun a Sáb 9–20h", whatsapp: "5491100000000", instagram: null, email: null, contactNote: null },
+      // WhatsApp de verdad (el relevado de Canning): el de relleno «0000 0000» ya no se ofrece (resolveMagraLocal).
+      branding: { shortLabel: null, city: "Canning", addressLine: "Av. Ficticia 1234", hoursLabel: "Lun a Sáb 9–20h", whatsapp: "5491161354042", instagram: null, email: null, contactNote: null },
       wording: rubro.wording,
       copy: magra ? getStorefrontCopy("magra") : null,
       productos: window.__productos,

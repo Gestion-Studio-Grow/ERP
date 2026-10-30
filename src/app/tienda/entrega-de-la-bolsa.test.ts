@@ -113,8 +113,8 @@ test("sin retiro habilitado, la entrega es envío aunque la pantalla tuviera «r
 const leer = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
 
 test("cada vidriera que pasa por placeOnlineOrder ofrece la entrega del negocio y frena el botón con lo que falta", () => {
-  // Las que llevan su bolsa propia: la entrega con el hook compartido (MagraFront incluida: una sola regla).
-  for (const f of ["./MagraFront.tsx", "./ShineFront.tsx", "./Storefront.tsx", "./SiteReplica.tsx"]) {
+  // Las que llevan su bolsa propia: la entrega con el hook compartido (MAGRA incluida, en magra/MagraTienda.tsx: una sola regla).
+  for (const f of ["./magra/MagraTienda.tsx", "./ShineFront.tsx", "./Storefront.tsx", "./SiteReplica.tsx"]) {
     const src = leer(f);
     assert.match(src, /usePedidoOnline\(/, `${f} manda a placeOnlineOrder`);
     assert.match(src, /useEntregaDeLaTienda\(/, `${f} usa la entrega compartida`);

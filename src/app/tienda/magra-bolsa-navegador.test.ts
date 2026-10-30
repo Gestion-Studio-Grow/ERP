@@ -2,14 +2,16 @@
 // LA BOLSA DE MAGRA EN UN NAVEGADOR DE VERDAD (UAT MAGRA 16/10)
 // ============================================================================
 //
-// La vidriera REAL (MagraFront.tsx) armada con esbuild y montada en Chromium, con su CSS propio
-// (va adentro del componente). Las Server Actions se reemplazan por dobles: lo que se prueba es
-// la pantalla después de tocar «+», que en el HTML del servidor no existe (la bolsa es estado del
-// navegador). A 390 px (el celular del reporte) y a 1440 px:
+// La vidriera REAL (magra/MagraPiel.tsx: el CSS y la parte del navegador que sirve MagraFront.tsx,
+// sin las letras de next/font) armada con esbuild y montada en Chromium. Las Server Actions se
+// reemplazan por dobles: lo que se prueba es la pantalla después de tocar «+», que en el HTML del
+// servidor no existe (la bolsa es estado del navegador). A 390 px (el celular del reporte) y a 1440 px:
 //
-//   · la mini-barra fija ya no tapa «Pedir por WhatsApp», el último botón de la página;
+//   · la barra de la bolsa está siempre abajo y abre la hoja con el pedido; nada queda tapado;
 //   · con un corte por kilo, el total dice «Total estimado» y la aclaración del rubro;
-//   · la grilla dice la cantidad con unidad y coma («0,25 kg»), no «0.25».
+//   · la carta dice la cantidad con unidad y coma («0,25 kg»), no «0.25»;
+//   · «¿Para cuántos comen?» carga los kilos de la estimación de la casa;
+//   · un WhatsApp de relleno («0000 0000») no se ofrece en ningún lado.
 
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -27,7 +29,7 @@ const NOTA = getRetailRubro("carniceria")?.wording.weightNote ?? "";
 const ENTRADA = `
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
-import MagraFront from "@/app/tienda/MagraFront";
+import MagraFront from "@/app/tienda/magra/MagraPiel";
 window.__montar = (props) => createRoot(document.getElementById("root")).render(createElement(MagraFront, props));
 `;
 const ACCIONES_FALSAS = `export async function placeOnlineOrder() { return { ok: false, error: "" }; }`;
@@ -63,7 +65,10 @@ const CORTES = [
   { id: "c3", name: "Entraña", saleUnit: "WEIGHT", price: null, pricePerKg: 27900, unit: "kg" },
   { id: "c4", name: "Chorizo (paquete)", saleUnit: "UNIT", price: 6900, pricePerKg: null, unit: "u" },
 ];
-const LOCAL = { addressLine: "Av. Ficticia 1234", city: "Canning", hoursLabel: "Lun a Sáb 9–20h", whatsapp: "5491100000000", instagram: null, email: null };
+// El WhatsApp relevado de Canning (magra-content.ts, MAGRA_CANNING_LOCALIZACION): uno de verdad, para
+// que la vía «whatsapp» exista. El de relleno («0000 0000») se prueba aparte: no se ofrece.
+const LOCAL = { addressLine: "Av. Ficticia 1234", city: "Canning", hoursLabel: "Lun a Sáb 9–20h", whatsapp: "5491161354042", instagram: null, email: null };
+const RELLENO = "5491100000000";
 
 describe("La bolsa de MAGRA en el navegador", { timeout: 120_000 }, () => {
   let browser: Browser | null = null;
@@ -118,7 +123,12 @@ describe("La bolsa de MAGRA en el navegador", { timeout: 120_000 }, () => {
     await browser?.close();
   });
 
-  async function montar(ancho: number, notaDePeso: string | null = NOTA, extra: Record<string, unknown> = {}): Promise<{ page: Page; errores: string[] }> {
+  async function montar(
+    ancho: number,
+    notaDePeso: string | null = NOTA,
+    extra: Record<string, unknown> = {},
+    local: Record<string, unknown> = LOCAL,
+  ): Promise<{ page: Page; errores: string[] }> {
     const page = await browser!.newPage({ viewport: { width: ancho, height: ancho < 600 ? 844 : 900 }, locale: "es-AR" });
     const errores: string[] = [];
     page.on("pageerror", (e) => errores.push(e.message));
@@ -135,26 +145,37 @@ describe("La bolsa de MAGRA en el navegador", { timeout: 120_000 }, () => {
     await page.evaluate(
       ([products, branding, nota, mas]) =>
         (window as unknown as { __montar: (p: unknown) => void }).__montar({ products, branding, tenantKey: "magra", notaDePeso: nota, ...mas }),
-      [CORTES, LOCAL, notaDePeso, extra] as const,
+      [CORTES, local, notaDePeso, extra] as const,
     );
     await page.getByRole("button", { name: "Agregar Entraña" }).first().waitFor();
     return { page, errores };
   }
 
-  test("390 px: con la bolsa llena, la mini-barra no tapa «Pedir por WhatsApp» al final de la página", async (t) => {
+  test("390 px: la barra de la bolsa está siempre, abre la hoja con el pedido y no tapa el pie", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar(390);
+    const barra = page.locator(".mg-barra");
+    await barra.getByText("Mi bolsa · 0").waitFor();
+    assert.equal(await page.locator("#pedido").isVisible(), false, "en el celular la bolsa no se apila debajo del pie");
     await page.getByRole("button", { name: "Agregar Entraña" }).first().click();
-    const barra = page.locator(".mf-minibar");
-    await barra.waitFor();
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    const wa = page.locator(".mf-rail-wa");
-    const [b, w] = await Promise.all([barra.boundingBox(), wa.boundingBox()]);
-    assert.ok(b && w);
-    assert.ok(w.y + w.height <= b.y, `«Pedir por WhatsApp» termina en ${w.y + w.height} y la barra empieza en ${b.y}: lo tapa`);
-    // Y se puede tocar: el centro del botón es el botón, no la barra.
-    const arriba = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest(".mf-rail-wa") !== null, [w.x + w.width / 2, w.y + w.height / 2]);
+    await barra.getByText("1 corte").waitFor();
+    // Un toque en la barra: la hoja con el formulario, por encima de todo (top layer).
+    await barra.getByRole("button").click();
+    const hoja = page.locator("#pedido");
+    await hoja.waitFor();
+    assert.equal(await hoja.evaluate((d) => d.matches(":modal")), true, "la hoja es un <dialog> modal");
+    const wa = hoja.getByRole("button", { name: "Pedir por WhatsApp" });
+    await wa.scrollIntoViewIfNeeded();
+    const w = await wa.boundingBox();
+    assert.ok(w);
+    const arriba = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest(".mg-bolsa-wa") !== null, [w.x + w.width / 2, w.y + w.height / 2]);
     assert.equal(arriba, true, "el toque en el centro de «Pedir por WhatsApp» cae en el botón");
+    await hoja.getByRole("button", { name: "Cerrar mi bolsa" }).click();
+    // Al final de la página, el pie («Acceso administrador») termina por encima de la barra.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const [b, admin] = await Promise.all([barra.boundingBox(), page.getByRole("link", { name: "Acceso administrador" }).boundingBox()]);
+    assert.ok(b && admin);
+    assert.ok(admin.y + admin.height <= b.y, `«Acceso administrador» termina en ${admin.y + admin.height} y la barra empieza en ${b.y}: lo tapa`);
     assert.deepEqual(errores, []);
     await page.close();
   });
@@ -170,17 +191,17 @@ describe("La bolsa de MAGRA en el navegador", { timeout: 120_000 }, () => {
     await page.getByRole("button", { name: "Agregar Entraña" }).first().click();
     await rail.getByText("Total estimado", { exact: true }).waitFor();
     await rail.getByText(NOTA).waitFor();
-    assert.equal(await page.locator(".mf-minibar").isVisible(), false, "en la PC no hay mini-barra");
+    assert.equal(await page.locator(".mg-barra").isVisible(), false, "en la PC no hay barra: la bolsa es el riel");
     assert.deepEqual(errores, []);
     await page.close();
   });
 
-  test("la grilla dice la cantidad con unidad y coma: «0,25 kg» por kilo, «1 u» por unidad", async (t) => {
+  test("la carta dice la cantidad con unidad y coma: «0,25 kg» por kilo, «1 u» por unidad", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar(390);
     await page.getByRole("group", { name: "Cantidad de Entraña" }).first().getByRole("button", { name: "Agregar Entraña" }).click();
     await page.getByRole("group", { name: "Cantidad de Chorizo (paquete)" }).first().getByRole("button", { name: "Agregar Chorizo (paquete)" }).click();
-    const grilla = page.locator(".mf-grid");
+    const grilla = page.locator(".mg-carta");
     await grilla.getByText("0,25 kg", { exact: true }).waitFor();
     await grilla.getByText("1 u", { exact: true }).waitFor();
     assert.equal(await grilla.getByText("0.25").count(), 0);
@@ -220,6 +241,7 @@ describe("La bolsa de MAGRA en el navegador", { timeout: 120_000 }, () => {
     const { page, errores } = await montar(390, NOTA, CON_ENVIOS);
     const rail = page.locator("#pedido");
     await page.getByRole("button", { name: "Agregar Chorizo (paquete)" }).first().click(); // $6.900
+    await page.locator(".mg-barra").getByRole("button").click(); // en el celular, la bolsa es la hoja
     await rail.getByLabel("Zona *").selectOption("barrios");
     await rail.getByText(/El envío es para pedidos desde \$20\.000: te faltan \$13\.100/).waitFor();
     await rail.getByRole("button", { name: "Retiro en el local" }).click();
@@ -239,6 +261,36 @@ describe("La bolsa de MAGRA en el navegador", { timeout: 120_000 }, () => {
     const rail = page.locator("#pedido");
     assert.equal(await rail.getByRole("button", { name: "Enviar pedido" }).isDisabled(), true);
     assert.equal(await rail.getByRole("button", { name: "Pedir por WhatsApp" }).isDisabled(), true);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("ficha: «¿Para cuántos comen?» 4 → 1,5 kg, y «Agregar a mi bolsa» lo deja en el riel con el total estimado", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar(1440);
+    await page.locator(".mg-eti-abrir", { hasText: "Ojo de bife" }).click();
+    const ficha = page.locator("dialog.mg-ficha");
+    await ficha.getByRole("heading", { name: "Ojo de bife" }).waitFor();
+    await ficha.getByText("¿Para cuántos comen?").waitFor();
+    await ficha.getByLabel("4", { exact: true }).check();
+    await ficha.getByText("1,5 kg", { exact: true }).waitFor();
+    await ficha.getByRole("button", { name: "Agregar a mi bolsa" }).click();
+    await page.waitForFunction(() => !(document.querySelector("dialog.mg-ficha") as HTMLDialogElement).open);
+    const rail = page.locator("#pedido");
+    await rail.getByText("Total estimado", { exact: true }).waitFor();
+    await rail.getByText(/\$\s?47\.850,00/).first().waitFor(); // 1,5 kg × $31.900
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("con el WhatsApp de relleno («0000 0000») no hay botón ni línea de WhatsApp: el pedido sólo va por la tienda", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar(1440, NOTA, {}, { ...LOCAL, whatsapp: RELLENO });
+    await page.getByRole("button", { name: "Agregar Entraña" }).first().click();
+    await page.locator("#pedido").getByRole("button", { name: "Enviar pedido" }).waitFor();
+    assert.equal(await page.getByText(/WhatsApp\s*\+?54/).count(), 0, "ningún número a la vista");
+    assert.equal(await page.getByRole("button", { name: /Pedir por WhatsApp/ }).count(), 0, "ningún botón de WhatsApp");
+    assert.equal(await page.locator('a[href^="https://wa.me/"]').count(), 0, "ningún link a wa.me");
     assert.deepEqual(errores, []);
     await page.close();
   });
