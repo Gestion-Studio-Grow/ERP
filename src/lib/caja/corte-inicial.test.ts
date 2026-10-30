@@ -52,7 +52,7 @@ function mov(over: Partial<CorteMovement> & { amount: number; day?: string }): C
 }
 
 function arqueo(e: number, m: number, t: number): ArqueoInicial {
-  return { EFECTIVO: e, MP: m, TARJETA: t };
+  return { EFECTIVO: e, MP: m, TRANSFERENCIA: 0, TARJETA: t };
 }
 
 // La hoja "agosto" de la planilla no termina el 31/08: corre del 16/08 al 06/09 (el
@@ -100,12 +100,12 @@ test("caso real CH: el histórico decía X, se cuenta Y, la diferencia queda ase
   const corte = buildCorteInicial({ day: DIA_CORTE_FIXTURE, all: historico, arqueo: Y, dayOf });
 
   // Lo que decía el histórico es exactamente el saldo del libro.
-  assert.deepEqual(corte.historico, { EFECTIVO: X.EFECTIVO, MP: X.MP, TARJETA: X.TARJETA });
+  assert.deepEqual(corte.historico, { EFECTIVO: X.EFECTIVO, MP: X.MP, TRANSFERENCIA: 0, TARJETA: X.TARJETA });
   assert.equal(corte.historicoCount, HOJA_AGOSTO_2026.length);
   assert.equal(corte.posterioresAlCorte, 0);
 
   // El desvío queda medido y asentado: dos ajustes (efectivo y MP), ninguno en tarjeta.
-  assert.deepEqual(corte.desvio, { EFECTIVO: 69190, MP: 16723, TARJETA: 0 });
+  assert.deepEqual(corte.desvio, { EFECTIVO: 69190, MP: 16723, TRANSFERENCIA: 0, TARJETA: 0 });
   assert.equal(corte.ajustes.length, 2);
   const porMedio = Object.fromEntries(corte.ajustes.map((a) => [a.method, a]));
   assert.equal(porMedio.EFECTIVO.type, "INGRESO");
@@ -164,7 +164,7 @@ test("el saldo operativo después del corte es EXACTAMENTE el declarado, diga lo
 test("un tenant sin histórico arranca de lo contado: el ajuste es un INGRESO por todo el arqueo", () => {
   const corte = buildCorteInicial({ day: "2026-08-31", all: [], arqueo: arqueo(50000, 120000, 0), dayOf });
   assert.deepEqual(corte.historico, zeroAmounts());
-  assert.deepEqual(corte.desvio, { EFECTIVO: 50000, MP: 120000, TARJETA: 0 });
+  assert.deepEqual(corte.desvio, { EFECTIVO: 50000, MP: 120000, TRANSFERENCIA: 0, TARJETA: 0 });
   assert.deepEqual(corte.ajustes.map((a) => [a.type, a.method, a.amount]), [
     ["INGRESO", "EFECTIVO", 50000],
     ["INGRESO", "MP", 120000],
@@ -215,7 +215,7 @@ test("la diferencia contra el histórico se asienta como fila del libro, con el 
   assert.match(ef.detail, new RegExp(`^${CORTE_INICIAL_PREFIX} 30/06/2026 — Efectivo: el histórico decía \\$602\\.534,00, se contaron \\$448\\.034,00 \\(faltante \\$154\\.500,00\\)$`));
   assert.match(mp.detail, /MP \/ Transf\.: el histórico decía -\$8\.933,99, se contaron \$40\.000,00 \(sobrante \$48\.933,99\)/);
   // El saldo del mes cierra en lo declarado.
-  assert.deepEqual(summary.saldo, { EFECTIVO: 448034, MP: 40000, TARJETA: 0 });
+  assert.deepEqual(summary.saldo, { EFECTIVO: 448034, MP: 40000, TRANSFERENCIA: 0, TARJETA: 0 });
 });
 
 test("los ajustes del corte son filas válidas del libro con ids estables y fechadas al final del día de corte", () => {
@@ -357,7 +357,7 @@ test("los tres medios se declaran; tarjeta en 0 con histórico en 0 no produce a
   assert.equal(corte.historico.TARJETA, 0);
   assert.equal(corte.desvio.TARJETA, 0);
   assert.ok(!corte.ajustes.some((a) => a.method === "TARJETA"));
-  assert.deepEqual(saldoOperativoInicial(corte), { EFECTIVO: 700000, MP: 1000000, TARJETA: 0 });
+  assert.deepEqual(saldoOperativoInicial(corte), { EFECTIVO: 700000, MP: 1000000, TRANSFERENCIA: 0, TARJETA: 0 });
   const v = validateCorteInicial(corte, { nota: "Cajón contado 20:10; MP según app 20:15.", today: DIA_CORTE_FIXTURE, lastClosedDay: null });
   assert.deepEqual(v, { ok: true });
 });
@@ -377,7 +377,7 @@ test("tarjeta en 0 con histórico en tarjeta ≠ 0 → se asienta el EGRESO que 
 });
 
 test("un medio sin declarar (NaN) no inventa un número y la validación lo rechaza", () => {
-  const corte = buildCorteInicial({ day: "2026-08-31", all: historicoSintetico(), arqueo: { EFECTIVO: 1, MP: 1, TARJETA: NaN }, dayOf });
+  const corte = buildCorteInicial({ day: "2026-08-31", all: historicoSintetico(), arqueo: { EFECTIVO: 1, MP: 1, TRANSFERENCIA: 0, TARJETA: NaN }, dayOf });
   assert.equal(corte.cierre.porMedio.TARJETA.declared, null);
   assert.equal(corte.declarado.TARJETA, corte.historico.TARJETA); // arrastra, no inventa
   const v = validateCorteInicial(corte, { nota: "ok", today: "2026-09-01", lastClosedDay: null });
@@ -408,7 +408,7 @@ test("validateCorteInicial: no puede haber un cierre anterior — el corte es el
 });
 
 test("validateCorteInicial: hereda las reglas del cierre (fecha futura, negativo, efectivo) y las devuelve todas juntas", () => {
-  const corte = buildCorteInicial({ day: "2026-09-30", all: [], arqueo: { EFECTIVO: NaN, MP: -5, TARJETA: 0 }, dayOf });
+  const corte = buildCorteInicial({ day: "2026-09-30", all: [], arqueo: { EFECTIVO: NaN, MP: -5, TRANSFERENCIA: 0, TARJETA: 0 }, dayOf });
   const v = validateCorteInicial(corte, { nota: "", today: "2026-09-06", lastClosedDay: null });
   assert.equal(v.ok, false);
   if (!v.ok) {
@@ -439,7 +439,7 @@ test("resumenCorte arma la tabla por medio y el total con la misma aritmética",
   const r = resumenCorte(corte);
   assert.equal(r.dayLabel, "30/06/2026");
   assert.equal(r.historicoCount, 7);
-  assert.deepEqual(r.porMedio.map((p) => p.method), ["EFECTIVO", "MP", "TARJETA"]);
+  assert.deepEqual(r.porMedio.map((p) => p.method), ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"]);
   assert.equal(r.total.historico, totalOf(corte.historico));
   assert.equal(r.total.declarado, 488034);
   assert.equal(r.total.desvio, -105566.01);

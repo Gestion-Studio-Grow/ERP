@@ -3,7 +3,7 @@
 
 import { round2 } from "@/lib/round";
 import { esVentaACuenta } from "@/lib/venta-reglas";
-import { leerMedioDeCobro, type MedioDeCobro } from "@/lib/caja/medio-cobro";
+import { leerMedioDeCobro, MEDIOS_DE_COBRO, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import { fmtMoneyARS } from "@/components/ui/format";
 
 export type CanalDeVenta = "COUNTER" | "ONLINE";
@@ -11,9 +11,24 @@ export type CanalDeVenta = "COUNTER" | "ONLINE";
 export type FiltrosDeVentas = {
   /** Día del negocio (AAAA-MM-DD). */
   dia: string;
-  medio: MedioDeCobro | null;
+  medio: MedioDelFiltro | null;
   canal: CanalDeVenta | null;
 };
+
+/**
+ * «Tarjeta» junta Débito y Crédito (D-C01: el pedido los guarda separados, el libro y el cierre los
+ * juntan). Sin esto, en Ventas se veía «Tarjeta de débito» en la fila y no había cómo filtrarla
+ * (UAT M1, 30/10/2026).
+ */
+export type MedioDelFiltro = MedioDeCobro | "TARJETA";
+export const MEDIOS_DEL_FILTRO: readonly { valor: MedioDelFiltro; etiqueta: string }[] = [
+  ...MEDIOS_DE_COBRO,
+  { valor: "TARJETA", etiqueta: "Tarjeta" },
+];
+/** Los `PaymentMethod` que trae cada opción del filtro. PURA. */
+export function mediosDelPedido(medio: MedioDelFiltro): readonly string[] {
+  return medio === "TARJETA" ? ["DEBITO", "CREDITO"] : [medio];
+}
 
 const RE_DIA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -41,7 +56,7 @@ export function leerFiltros(
   const canalTxt = uno(sp.canal).trim();
   return {
     dia,
-    medio: leerMedioDeCobro(uno(sp.medio)),
+    medio: uno(sp.medio).trim() === "TARJETA" ? "TARJETA" : leerMedioDeCobro(uno(sp.medio)),
     canal: canalTxt === "COUNTER" || canalTxt === "ONLINE" ? canalTxt : null,
   };
 }

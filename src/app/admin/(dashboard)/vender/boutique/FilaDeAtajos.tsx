@@ -28,7 +28,7 @@ const AbrirCajaEnLinea = dynamic(() => import("../AbrirCajaEnLinea"), {
 });
 
 /** Lo que muestra la tarjeta «Abrí la caja» (getAperturaEnVender). */
-export type DatosDeLaCaja = { esperado: number; ultimoCierre: string | null; hoy: string };
+export type DatosDeLaCaja = { esperado: number; ultimoCierre: string | null; hoy: string; aCiegas?: boolean };
 
 const CHIP =
   "inline-flex min-h-11 items-center justify-center gap-1 rounded-full border border-line-strong bg-surface-raised px-4 " +
@@ -88,7 +88,7 @@ export default function FilaDeAtajos({
       </div>
       {caja && abierto === "caja" && (
         <div id="atajo-caja">
-          <AbrirCajaEnLinea esperado={caja.esperado} ultimoCierre={caja.ultimoCierre} hoy={caja.hoy} />
+          <AbrirCajaEnLinea esperado={caja.esperado} ultimoCierre={caja.ultimoCierre} hoy={caja.hoy} aCiegas={caja.aCiegas} />
         </div>
       )}
       {whatsapp && conWhatsApp && (

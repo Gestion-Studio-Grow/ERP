@@ -23,7 +23,7 @@ policy `tenant_isolation` (en el archivo y otra vez en el paso 7).
 |---|---|---|---|---|
 | 0 bis | `N2_modulo_mercadopago.sql` | **Dato, no schema**: agrega `mercadopago` a `Tenant.modules` de los negocios que no lo tienen (decisión del dueño 28/10: todos cobran con MP). Con S1/P1, un negocio sin el módulo deja de procesar sus avisos de MP. Se corre **apenas el deploy de main está Ready**, con la precondición de `MP_MODO` (runbook §0 bis; cert. del pase F1) | S1, P1 | **Preparada, sin aplicar** · pase N2 |
 | 1 | `CarniceriaRubro.sql` (ya estaba) | ver fila de arriba | M3a, M3b | **Preparada, sin aplicar** |
-| 2 | `N2_enums.sql` | `PaymentMethod.DEBITO` y `PaymentMethod.CREDITO` (D-C01: separados; el cierre los suma en «Tarjeta»), `UserRole.REPARTIDOR`, `UserRole.ENCARGADO` — cada `ADD VALUE` en su paso, sin `--single-transaction`. 🔴 Irreversible (no hay `DROP VALUE`) | M1, M6 | **Preparada, sin aplicar** |
+| 2 | `N2_enums.sql` | `PaymentMethod.DEBITO` y `PaymentMethod.CREDITO` (D-C01: separados; el cierre los suma en «Tarjeta»), `UserRole.REPARTIDOR`, `UserRole.ENCARGADO`, `CashMethod.TRANSFERENCIA` (M1-C2: la transferencia con su columna en el libro) — cada `ADD VALUE` en su paso, sin `--single-transaction`. 🔴 Irreversible (no hay `DROP VALUE`) | M1, M6 | **Preparada, sin aplicar** |
 | 3 | `N2_hub.sql` | `ApiKey`, `WebhookSuscripcion`, `EntregaWebhook`, `PlantillaWhatsapp`, `OutboxEvent.version` (default 1) + `.clave` + `@@unique(tenantId, clave)` + índice `(tenantId, processedAt, proximoIntentoEn)` + índice parcial `(tenantId, payload->>'clave') WHERE clave IS NULL` (dedupe de P2) · **paso posterior**: re-correr el backfill de `clave` a los 2 minutos (ver el pie del archivo) | P2, P3, P4, P6 | **Preparada, sin aplicar** |
 | 3b | `N2_hub_posterior.sql` | Re-backfill de `OutboxEvent.clave` dos minutos después del paso 3 (el «PASO POSTERIOR» del pie de `N2_hub.sql`, en archivo propio). De dos filas tardías del mismo hecho completa una y lista la otra | P2 | **Preparada, sin aplicar** · pase N2 |
 | 4 | `N2_pagos.sql` | `PagoExterno` con `@@unique(tenantId, proveedor, idExterno)`, monto `Decimal(14,2)` ≥ 0. **Decisión S2-C4: `Payment` no se extiende** (atado a turno, Float, sin proveedor) — motivo escrito en el archivo | P5, M2, B3 | **Preparada, sin aplicar** |
@@ -33,9 +33,11 @@ policy `tenant_isolation` (en el archivo y otra vez en el paso 7).
 | 7 | `../rls/0001_enable_rls.sql` | re-ejecución: policy en toda tabla con `tenantId` | todas | se re-corre, no se edita |
 
 Modelos en `prisma/schema.prisma`: líneas con prefijo `// N2: ` (comentadas, como el criterio de
-`MustChangePassword`); los 4 valores de enum con `// N2-enum: ` (los encienden M1/M6 con su código:
-ampliar el enum rompe 4 tipos cerrados del dominio) y **se despliegan antes de escribir el primer
-valor** (regla y chequeos automáticos en `N2_enums.sql` y en el runbook §6). El código pregunta con `src/lib/schema-probe` (`hayTabla`, `hayColumna`,
+`MustChangePassword`); los 5 valores de enum del paso 2. M1 ya encendió los suyos (`PaymentMethod.DEBITO`,
+`PaymentMethod.CREDITO`, `CashMethod.TRANSFERENCIA`): quedan `VALOR // N2-enum-encendido: …`, el cliente los
+conoce y se escriben sólo con `sePuedeEscribirValorEnum` en true; el test del paquete los vuelve a comentar para
+medir la base de hoy. Los de M6 (`UserRole.REPARTIDOR/ENCARGADO`) siguen con `// N2-enum: ` y **se despliegan
+antes de escribir el primer valor** (regla y chequeos automáticos en `N2_enums.sql` y en el runbook §6). El código pregunta con `src/lib/schema-probe` (`hayTabla`, `hayColumna`,
 `hayValorEnum`, caché por proceso) y cae al camino de hoy si falta algo.
 
 **Verificación (Postgres local efímero, nunca Neon):**

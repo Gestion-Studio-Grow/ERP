@@ -27,6 +27,7 @@ import { openCashSession, closeCashSession, type CajaActionState } from "@/lib/c
 import { round2 } from "@/lib/round";
 import { leerImporte } from "@/lib/pos-peso";
 import { CAMPO_ESPERADO_CONFIRMADO, esperadoParaElFormulario } from "@/lib/caja/esperado-del-cajon";
+import { esperadoVistoAlAbrir, textoDelMotivoDeApertura, textoDelRecuentoACiegas } from "@/lib/caja/apertura-sugerida";
 import { notaFaltanteDelArqueo } from "@/lib/caja/cierre-diario";
 import { Field, Input, buttonClasses, fmtMoneyARS } from "@/components/ui";
 
@@ -67,18 +68,34 @@ async function correr(
 
 // --- Apertura de turno (estado sin caja abierta) ---
 // `esperado`: lo que el libro dice que hay en el cajón (`getCajaData().esperadoEnElCajon`).
-// `null` sólo en la demo.
-export function OpenCajaForm({ esperado }: { esperado: number | null }) {
+// `null` en la demo y a ciegas.
+//
+// A CIEGAS (`aCiegas`, interruptor «arqueo-ciego», cert F6): el mismo flujo que «Abrí la caja» de
+// Vender (AbrirCajaEnLinea.tsx). Sin número a la vista ni esperado en el envío: si lo contado
+// cuadra con el libro, abre; si no, el servidor deja escrito el conteo y RECIÉN AHÍ dice cuánto
+// esperaba y pide el motivo; con el motivo, abre con ese esperado (el que se vio).
+export function OpenCajaForm({ esperado, aCiegas = false }: { esperado: number | null; aCiegas?: boolean }) {
   const router = useRouter();
-  const [fondo, setFondo] = useState("0");
+  const [fondo, setFondo] = useState(aCiegas ? "" : "0");
   const [error, setError] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
+  // El servidor pidió el motivo: trae el esperado (recién ahora se ve) y, si hubo, el primer conteo a ciegas.
+  const [pideMotivo, setPideMotivo] = useState<{ esperado: number; diferencia: number; primerConteo?: number } | null>(null);
+  const [motivo, setMotivo] = useState("");
   const [pending, startTransition] = useTransition();
-  const diferencia = esperado === null ? null : previewArqueo(fondo, esperado);
+  const campoMotivo = useRef<HTMLTextAreaElement>(null);
+  const diferencia = esperado === null || aCiegas ? null : previewArqueo(fondo, esperado);
+  const lectura = leerImporte(fondo);
+  const contado = lectura.estado === "ok" ? lectura.valor : null;
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (pending) return;
+    if (pideMotivo && !motivo.trim()) {
+      setError("Anotá el motivo de la diferencia para abrir (vale «sin explicación por ahora»).");
+      campoMotivo.current?.focus();
+      return;
+    }
     // Un fondo que no coincide con el libro deja asentada la diferencia: primero se muestra.
     if (!confirmando && diferencia && diferencia.diff !== 0) {
       setConfirmando(true);
@@ -90,15 +107,26 @@ export function OpenCajaForm({ esperado }: { esperado: number | null }) {
   function abrir() {
     const fd = new FormData();
     fd.set("openingFloat", fondo);
-    fd.set(CAMPO_ESPERADO_CONFIRMADO, esperadoParaElFormulario(esperado ?? 0));
+    // El esperado que la persona VIO: a ciegas, ninguno hasta que el servidor lo dijo.
+    const visto = esperadoVistoAlAbrir({ aCiegas, esperado, revelado: pideMotivo?.esperado ?? null });
+    if (visto !== null) fd.set(CAMPO_ESPERADO_CONFIRMADO, esperadoParaElFormulario(visto));
+    if (motivo.trim()) fd.set("motivo", motivo.trim());
     startTransition(async () => {
-      const err = await correr(
-        openCashSession,
-        fd,
-        "No se pudo abrir la caja: revisá la conexión y volvé a intentar. Si al recargar la caja aparece abierta, ya se abrió.",
-      );
-      setError(err);
+      let r: CajaActionState = null;
+      try {
+        r = await openCashSession(null, fd);
+      } catch (e) {
+        if (isNextRedirect(e)) throw e;
+        r = { ok: false, error: "No se pudo abrir la caja: revisá la conexión y volvé a intentar. Si al recargar la caja aparece abierta, ya se abrió." };
+      }
       setConfirmando(false);
+      if (r && !r.ok && r.pideMotivo) {
+        setPideMotivo(r.pideMotivo);
+        setError(motivo.trim() ? r.error : null);
+        requestAnimationFrame(() => campoMotivo.current?.focus());
+        return;
+      }
+      setError(r && !r.ok ? r.error : null);
       router.refresh();
     });
   }
@@ -110,9 +138,11 @@ export function OpenCajaForm({ esperado }: { esperado: number | null }) {
         htmlFor="openingFloat"
         required
         hint={
-          esperado === null
-            ? "Efectivo con el que arranca el cajón."
-            : `Contá el efectivo del cajón. Según el libro tendría que haber ${fmtMoneyARS(esperado)}.`
+          aCiegas
+            ? "Contá el efectivo del cajón y escribilo. Si no coincide con el libro, te decimos cuánto esperaba y te pedimos el motivo."
+            : esperado === null
+              ? "Efectivo con el que arranca el cajón."
+              : `Contá el efectivo del cajón. Según el libro tendría que haber ${fmtMoneyARS(esperado)}.`
         }
       >
         <Input
@@ -127,6 +157,7 @@ export function OpenCajaForm({ esperado }: { esperado: number | null }) {
             setFondo(e.target.value);
             setError(null);
             setConfirmando(false);
+            setPideMotivo(null);
           }}
           required
           inputMode="decimal"
@@ -134,6 +165,30 @@ export function OpenCajaForm({ esperado }: { esperado: number | null }) {
           className="w-44 text-right tabular-nums"
         />
       </Field>
+      {pideMotivo && contado !== null ? (
+        <div role="group" aria-labelledby="abrir-caja-motivo" className="space-y-3 rounded-md border border-line bg-surface-sunken p-3">
+          <p id="abrir-caja-motivo" className="text-sm font-medium text-strong">
+            {pideMotivo.primerConteo !== undefined
+              ? textoDelRecuentoACiegas({ contado: pideMotivo.primerConteo, esperado: pideMotivo.esperado }, contado, pideMotivo.esperado)
+              : textoDelMotivoDeApertura(contado, pideMotivo.esperado)}
+          </p>
+          <Field label="Motivo" htmlFor="motivo-apertura-caja" required>
+            <textarea
+              ref={campoMotivo}
+              id="motivo-apertura-caja"
+              name="motivo"
+              rows={2}
+              value={motivo}
+              placeholder="ayer se pagó el flete con el cajón"
+              onChange={(e) => {
+                setMotivo(e.target.value);
+                setError(null);
+              }}
+              className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            />
+          </Field>
+        </div>
+      ) : null}
       <FormError error={error} />
       {confirmando && diferencia && esperado !== null ? (
         <div

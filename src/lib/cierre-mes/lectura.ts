@@ -14,7 +14,7 @@
 
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
-import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
+import { fronteraAnteriorAlDiaTx, lastClosedDayTx } from "@/lib/caja/frontera-cierre";
 import { nextDayKey } from "@/lib/caja/cierre-diario";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 import { isPrismaError } from "@/lib/prisma-errors";
@@ -22,7 +22,16 @@ import { whereAnuladasConFactura } from "@/lib/libros/libro-iva";
 import { bordesDelMes, type MesKey } from "@/lib/libros/fecha-fiscal";
 import { tenantTransaction } from "@/lib/rls";
 import { localesDelCuitDeLaCasa } from "@/lib/libros/libro-iva-red";
-import { consultaAuditoriaCierre, type HechosCierreMes, type LocalDelCierre, type RegistroCierre } from "./cierre-mes";
+import {
+  ACCION_CONGELAR,
+  ACCION_REABRIR,
+  CIERRE_MES_ENTITY,
+  consultaAuditoriaCierre,
+  estadoDesdeAuditoria,
+  type HechosCierreMes,
+  type LocalDelCierre,
+  type RegistroCierre,
+} from "./cierre-mes";
 import { contarComisionesDelMes } from "./comisiones";
 // El AJUSTE de un recuento se reconoce por el motivo que le pone la app de Recuento: la misma
 // constante que usan la planilla y el botón de Recuento (no hay columna para distinguirlo).
@@ -35,6 +44,39 @@ export type DbCierre = Prisma.TransactionClient;
 /** Las filas de auditoría del cierre de un mes. Sólo las acciones del cierre: nada forjado. */
 export async function leerAuditoriaCierre(db: DbCierre, tenantId: string, mes: MesKey): Promise<RegistroCierre[]> {
   return db.auditLog.findMany(consultaAuditoriaCierre(tenantId, mes));
+}
+
+/**
+ * Los meses CONGELADOS que quedarían con días abiertos si se reabre el cierre del día `day`
+ * (N2 · M1-C7), en orden. Reabrir un cierre devuelve la frontera a la anterior: todo lo que ese
+ * cierre cubría (desde el día siguiente a la frontera anterior, o desde siempre si fue el primero,
+ * hasta `day`) vuelve a aceptar movimientos. Si algún mes de ese tramo está congelado, reabrir lo
+ * descongelaría por la puerta de atrás. Incluye el mes de `day`. Sólo filas del cierre del mes.
+ */
+export async function mesesCongeladosQueReabririaElDia(db: DbCierre, tenantId: string, day: string): Promise<MesKey[]> {
+  const anterior = await fronteraAnteriorAlDiaTx(db, tenantId, day);
+  const desdeMes = anterior ? nextDayKey(anterior).slice(0, 7) : null;
+  const filas = await db.auditLog.findMany({
+    where: {
+      tenantId,
+      entity: CIERRE_MES_ENTITY,
+      action: { in: [ACCION_CONGELAR, ACCION_REABRIR] },
+      entityId: { ...(desdeMes ? { gte: desdeMes } : {}), lte: day.slice(0, 7) },
+    },
+    orderBy: { createdAt: "asc" },
+    select: { entityId: true, action: true, createdAt: true, changes: true },
+  });
+  const porMes = new Map<string, RegistroCierre[]>();
+  for (const f of filas) {
+    if (!f.entityId) continue;
+    const lista = porMes.get(f.entityId) ?? [];
+    lista.push({ action: f.action, createdAt: f.createdAt, changes: f.changes });
+    porMes.set(f.entityId, lista);
+  }
+  return [...porMes.entries()]
+    .filter(([, registros]) => estadoDesdeAuditoria(registros).congelado)
+    .map(([mes]) => mes as MesKey)
+    .sort();
 }
 
 /** Lee con tolerancia a "la tabla no existe en esta base": devuelve `null` en ese caso. */

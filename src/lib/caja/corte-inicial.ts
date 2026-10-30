@@ -252,8 +252,9 @@ export function validateCorteInicial(
   const base = validateCierre(corte.cierre, { note: "corte inicial", today: ctx.today, lastClosedDay: null });
   if (!base.ok) errors.push(...base.errors);
 
-  // Los tres medios, sin excepción. `validateCierre` sólo exige el efectivo.
-  for (const k of CASH_METHODS) {
+  // Los medios del corte, sin excepción. `validateCierre` sólo exige el efectivo. Transferencia
+  // (M1-C2) es medio del corte sólo si el libro ya la tiene: antes del paquete va dentro de MP.
+  for (const k of corte.cierre.columnas) {
     if (k === "EFECTIVO") continue; // ya lo pidió el cierre
     if (corte.cierre.porMedio[k].declared === null) {
       errors.push(

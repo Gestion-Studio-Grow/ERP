@@ -9,7 +9,7 @@ import { useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 import Link from "next/link";
 import { Input, Select, buttonClasses, cn, fmtMoneyARS } from "@/components/ui";
-import { leerMedioDeCobro } from "@/lib/caja/medio-cobro";
+import { leerMedioDeCobroConTarjeta, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import { cantidadParaFormulario, formatearCantidad, importeOCero, leerImporte } from "@/lib/pos-peso";
 import { COBRAR_EL_DE_LA_ETIQUETA, etiquetaDistinta, lineaAManoDeLaEtiqueta, puedeCobrarElDeLaEtiqueta, textoEtiquetaDistinta } from "../etiqueta-de-balanza";
 import { ClienteDeLaVentaDiferido as ClienteDeLaVenta, TeclasMemorizadas } from "./perezosos";
@@ -211,7 +211,10 @@ function FormularioBoutique(props: PropsDeVender & { enNavegador: boolean }) {
     const antes = { paid, medio, aCuenta };
     cobroFrenadoPorPrecioRef.current = false;
     const campos = camposDelPie(totalACobrar, r);
-    const principal = leerMedioDeCobro(campos.find(([n]) => n === "paymentMethod")?.[1] ?? "") ?? "";
+    // Tarjeta (N2 · M1-C1) viaja como un medio más (el pie la manda igual que `PieDeCobro`, con el mismo
+    // molde): sólo si la página la ofreció; el servidor la vuelve a exigir con `tarjetaHabilitada()`.
+    const principal = (leerMedioDeCobroConTarjeta(campos.find(([n]) => n === "paymentMethod")?.[1] ?? "", props.boutique?.conTarjeta === true) ??
+      "") as MedioDeCobro | "";
     camposDelUltimoPieRef.current = campos;
     // «Pagó con $X · Vuelto $Y» en el ticket (O-3): lo que entregó en efectivo, también en un pago
     // dividido (el vuelto se cuenta contra el renglón de efectivo, `vueltoDelTicket`).
@@ -875,6 +878,7 @@ function FormularioBoutique(props: PropsDeVender & { enNavegador: boolean }) {
                   rotuloTotal={isOrder ? "Total del pedido" : "Total"}
                   deshabilitado={motivoDelPie ? { motivo: motivoDelPie } : undefined}
                   textoBoton={cobrarEnPedido ? "Registrar y cobrar" : "Cobrar"}
+                  conTarjeta={b.conTarjeta === true}
                   onCobrar={cobrarConElPie}
                   alLado={
                     !isOrder && !diaCerrado ? (

@@ -21,7 +21,7 @@ import {
 } from "./libro-caja";
 
 const deps = {
-  methodLabel: (m: "EFECTIVO" | "MP" | "TARJETA") => CASH_METHOD_LABEL[m],
+  methodLabel: (m: keyof typeof CASH_METHOD_LABEL) => CASH_METHOD_LABEL[m],
   monthLabel: "septiembre 2026",
   totalOf,
 };
@@ -210,7 +210,7 @@ test("el RESUMEN abre los egresos por origen y por medio, y suman lo mismo que '
     const [rotulo, ...resto] = lineas[i].split(";");
     bloque.set(rotulo, resto);
   }
-  // Efectivo; MP; Tarjeta; Total
+  // Efectivo; MP; Tarjeta; Total (Transferencia no se movió: no es columna)
   assert.deepEqual(bloque.get("Compra a proveedor"), ["5000,00", "0,00", "0,00", "5000,00"]);
   assert.deepEqual(bloque.get("Comisión"), ["3000,00", "0,00", "0,00", "3000,00"]);
   assert.deepEqual(bloque.get("Anulación"), ["0,00", "2000,00", "1500,00", "3500,00"]);

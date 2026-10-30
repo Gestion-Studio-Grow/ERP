@@ -45,6 +45,7 @@ import { round2 } from "@/lib/round";
 import type { Prisma } from "@/generated/prisma/client";
 import { estadoCobroTurno, type CobroTurno, type PagoLegado } from "./cobros";
 import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
+import type { CashMethod } from "@/lib/caja/cash-register";
 import { facturaDeLaVenta, mensajeFacturaViva, type FacturaDeLaVenta } from "@/lib/factura-viva";
 
 export type AnulacionTx = Prisma.TransactionClient;
@@ -390,11 +391,11 @@ export async function anularCobroTurnoInTx(
   // El asiento original se busca ANTES de decidir, porque su `occurredAt` —no el `createdAt`
   // del cobro— es la FECHA CONTABLE que decide si el día está cerrado. El libro se carga en
   // diferido y esas dos fechas pueden no ser el mismo día.
-  let asientoOriginal: { id: string; occurredAt: Date; sessionId: string | null; reason: string | null } | null = null;
+  let asientoOriginal: { id: string; occurredAt: Date; sessionId: string | null; reason: string | null; method: string } | null = null;
   if (args.withSchema) {
     asientoOriginal = await tx.cashMovement.findFirst({
       where: { tenantId, collectionId: args.collectionId, type: "VENTA" },
-      select: { id: true, occurredAt: true, sessionId: true, reason: true },
+      select: { id: true, occurredAt: true, sessionId: true, reason: true, method: true },
     });
   }
 
@@ -479,7 +480,7 @@ async function asentarReversaInTx(
   tenantId: string,
   input: {
     collectionId: string;
-    asientoOriginal: { id: string; occurredAt: Date; sessionId: string | null; reason: string | null } | null;
+    asientoOriginal: { id: string; occurredAt: Date; sessionId: string | null; reason: string | null; method?: string } | null;
     method: string;
     monto: number;
     motivo: string;
@@ -502,8 +503,12 @@ async function asentarReversaInTx(
   // cuando la reversa no se asienta: "no había asiento que revertir" y "el medio del cobro no
   // se traduce a un medio de caja" se investigan de maneras opuestas. Leer un `sin-asiento-original`
   // que en realidad era un medio raro manda a buscar al lugar equivocado.
-  const method = cashMethodFromPaymentMethod(input.method);
-  if (!method) return { asentada: false, reason: "medio-no-traducible" };
+  // La reversa sale de la MISMA columna que el asiento que revierte (M1-C2: una transferencia
+  // asentada en `MP` antes del paquete no se revierte en `TRANSFERENCIA` después). Sin el dato,
+  // la traducción de siempre.
+  const traducido = cashMethodFromPaymentMethod(input.method);
+  if (!traducido) return { asentada: false, reason: "medio-no-traducible" };
+  const method = (input.asientoOriginal.method as CashMethod | undefined) ?? traducido;
 
   const mov = await tx.cashMovement.create({
     data: {

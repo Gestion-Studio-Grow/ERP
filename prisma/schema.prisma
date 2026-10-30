@@ -49,9 +49,8 @@ enum PaymentMethod {
   EFECTIVO
   TRANSFERENCIA
   // D-C01 (28/10/2026): Débito y Crédito separados; el cierre de caja los suma en "Tarjeta".
-  // Encender y DESPLEGAR antes de escribir el primer valor (regla en N2_enums.sql).
-  // N2-enum: DEBITO // Gate 2 nivel 2 · prisma/pending-gate2/N2_enums.sql — lo enciende M1 junto con KpiAppointment (src/lib/actions.ts)
-  // N2-enum: CREDITO // Gate 2 nivel 2 · N2_enums.sql (M1)
+  DEBITO // N2-enum-encendido: M1 (Gate 2 nivel 2 · prisma/pending-gate2/N2_enums.sql). El cliente lo conoce; la base, sólo con el paquete. Se escribe sólo con sePuedeEscribirValorEnum en true (tarjetaHabilitada)
+  CREDITO // N2-enum-encendido: M1 (N2_enums.sql). Igual que DEBITO
 }
 
 enum PaymentStatus {
@@ -177,6 +176,8 @@ enum CashMethod {
   EFECTIVO
   MP
   TARJETA
+  // M1-C2 (orden del dueño 29/10/2026): la transferencia deja de ir junto con Mercado Pago en `MP`.
+  TRANSFERENCIA // N2-enum-encendido: M1 (Gate 2 nivel 2 · prisma/pending-gate2/N2_enums.sql). El cliente lo conoce; la base, sólo con el paquete. Se escribe sólo con sePuedeEscribirValorEnum en true (transferenciaEnElLibro)
 }
 
 // Tenant (negocio) — raíz del aislamiento multi-tenant (ADR-001). Cada tabla de

@@ -26,7 +26,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { cn } from "@/components/ui/cn";
-import { MEDIOS_DE_COBRO, etiquetaDeMedio, type MedioDeCobro } from "@/lib/caja/medio-cobro";
+import { MEDIOS_DE_COBRO, MEDIOS_DE_TARJETA, MEDIO_TARJETA, etiquetaDeMedio, type MedioConTarjeta, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import {
   billetesSugeridos,
   camposDelPie,
@@ -53,8 +53,27 @@ export interface PieDeCobroProps {
   textoBoton?: string;
   /** Default true. */
   permitirDividir?: boolean;
+  /**
+   * Ofrecer Tarjeta (débito/crédito, con el posnet). Sólo con `tarjetaHabilitada()` en true
+   * (caja-actions.ts: el valor en el enum de la base Y en el cliente de Prisma). Default false: sin
+   * el valor, la tecla no existe. Al dividir, Tarjeta todavía no entra (los medios del reparto son
+   * los de siempre, pie-de-cobro-core.ts).
+   */
+  conTarjeta?: boolean;
   onCobrar(r: ResultadoDelPie): void | Promise<void>;
 }
+
+/**
+ * Débito y Crédito (D-C01) viajan por el mismo camino que los demás medios (`camposDelPie` →
+ * `paymentMethod`), pero `MedioDeCobro` (20 archivos con tipos cerrados) todavía no los incluye: van
+ * con este molde. Los enciende Vender (boutique) con `tarjetaHabilitada()` y los acepta `createOrder`
+ * con la misma pregunta (`leerMedioDeCobroConTarjeta`); sin los valores en la base, las teclas no se
+ * muestran y el servidor los rechaza con su mensaje de siempre.
+ */
+const MEDIOS_DE_TARJETA_DEL_PIE = MEDIOS_DE_TARJETA.map((m) => ({ ...m, medio: m.valor as MedioConTarjeta as MedioDeCobro }));
+
+/** Columnas de las teclas en pantalla ancha: 3 medios de siempre + 2 de tarjeta + dividir. */
+const COLUMNAS_DE_TECLAS: Record<number, string> = { 3: "sm:grid-cols-3", 4: "sm:grid-cols-4", 5: "sm:grid-cols-5", 6: "sm:grid-cols-6" };
 
 type Vista =
   | { tipo: "medios" }
@@ -99,7 +118,7 @@ function CifraGrande({ rotulo, valor, tono }: { rotulo: string; valor: number; t
   );
 }
 
-export function PieDeCobro({ total, deshabilitado, textoBoton = "Cobrar", permitirDividir = true, onCobrar }: PieDeCobroProps) {
+export function PieDeCobro({ total, deshabilitado, textoBoton = "Cobrar", permitirDividir = true, conTarjeta = false, onCobrar }: PieDeCobroProps) {
   const [vista, setVista] = useState<Vista>({ tipo: "medios" });
   const [campos, setCampos] = useState<[string, string][]>([]);
   const [enviando, setEnviando] = useState(false);
@@ -315,7 +334,7 @@ export function PieDeCobro({ total, deshabilitado, textoBoton = "Cobrar", permit
     );
   } else {
     cuerpo = (
-      <div className={cn("grid grid-cols-2 gap-2", permitirDividir ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
+      <div className={cn("grid grid-cols-2 gap-2", COLUMNAS_DE_TECLAS[3 + (conTarjeta ? 2 : 0) + (permitirDividir ? 1 : 0)])}>
         <button
           type="button"
           className={TECLA}
@@ -339,6 +358,21 @@ export function PieDeCobro({ total, deshabilitado, textoBoton = "Cobrar", permit
             <span className="tabular-nums text-muted">{textoPlata(total)}</span>
           </button>
         ))}
+        {conTarjeta &&
+          MEDIOS_DE_TARJETA_DEL_PIE.map((t) => (
+            <button
+              key={t.valor}
+              type="button"
+              className={TECLA}
+              disabled={bloqueado}
+              aria-label={`${etiquetaCobrar} con tarjeta de ${t.etiqueta.toLowerCase()}`}
+              onClick={() => cobrar({ modo: "simple", medio: t.medio })}
+            >
+              <span>{t.etiqueta}</span>
+              <span className="text-xs font-normal text-muted">{MEDIO_TARJETA.etiqueta}</span>
+              <span className="tabular-nums text-muted">{textoPlata(total)}</span>
+            </button>
+          ))}
         {permitirDividir && (
           <button
             type="button"

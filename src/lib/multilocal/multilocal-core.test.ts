@@ -190,8 +190,8 @@ test("ventas: cuenta VENTA, resta sólo las anulaciones; compras y retiros no so
     fila(HOY, "RETIRO", "EFECTIVO", 200),
     fila(HOY, "INGRESO", "EFECTIVO", 50),
   ]);
-  assert.deepEqual(v.ventas, { EFECTIVO: 1000, MP: 500, TARJETA: 0 });
-  assert.deepEqual(v.anulado, { EFECTIVO: 1000, MP: 0, TARJETA: 0 });
+  assert.deepEqual(v.ventas, { EFECTIVO: 1000, MP: 500, TRANSFERENCIA: 0, TARJETA: 0 });
+  assert.deepEqual(v.anulado, { EFECTIVO: 1000, MP: 0, TRANSFERENCIA: 0, TARJETA: 0 });
   assert.equal(v.neto, 500);
   assert.equal(v.cantidad, 2);
 });
@@ -344,7 +344,7 @@ function pasada(over: Partial<PasadaLocal>): PasadaLocal {
   return {
     hoy: ventasDe([]),
     semana: { actual: 0, anterior: 0 },
-    caja: { estado: "abierta", cerradoHasta: "2026-09-22", desde: HOY, pendienteDesde: null, porMedio: { EFECTIVO: { ingresos: 0, egresos: 0, hay: 0 }, MP: { ingresos: 0, egresos: 0, hay: 0 }, TARJETA: { ingresos: 0, egresos: 0, hay: 0 } }, total: 0 },
+    caja: { estado: "abierta", cerradoHasta: "2026-09-22", desde: HOY, pendienteDesde: null, porMedio: { EFECTIVO: { ingresos: 0, egresos: 0, hay: 0 }, MP: { ingresos: 0, egresos: 0, hay: 0 }, TRANSFERENCIA: { ingresos: 0, egresos: 0, hay: 0 }, TARJETA: { ingresos: 0, egresos: 0, hay: 0 } }, total: 0 },
     cierres: [],
     stock: [],
     ...over,

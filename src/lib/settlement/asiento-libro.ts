@@ -114,8 +114,10 @@ export function decidirAsiento(input: {
   hoy: DayKey;
   /** Hasta qué día está cerrada la caja (`lastClosedDayTx`), o `null`. */
   cerradoHasta: DayKey | null;
+  /** ¿La transferencia tiene su columna en el libro? (`transferenciaEnElLibroTx`, M1-C2). */
+  transferenciaEnElLibro?: boolean;
 }): DecisionAsiento {
-  const method = input.medio ? cashMethodFromPaymentMethod(input.medio) : null;
+  const method = input.medio ? cashMethodFromPaymentMethod(input.medio, input.transferenciaEnElLibro) : null;
   if (!method) return { ok: false, error: MEDIO_OBLIGATORIO };
   if (!Number.isFinite(input.monto) || input.monto <= 0) {
     return { ok: false, error: "El monto tiene que ser mayor a cero." };

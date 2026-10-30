@@ -20,6 +20,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
+import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import {
   computeSettlement,
@@ -169,6 +170,7 @@ export async function aplicarConAsientoInTx(
     detalle: args.detalle,
     hoy: dateStrInBusinessTz(args.ahora),
     cerradoHasta,
+    transferenciaEnElLibro: args.method === "TRANSFERENCIA" && (await transferenciaEnElLibroTx(tx)),
   });
   if (!decision.ok) throw new AsientoRechazadoError(decision.error);
 

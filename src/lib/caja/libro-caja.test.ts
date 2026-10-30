@@ -84,7 +84,7 @@ test("hoja \"Agosto 2026\" real: el saldo corrido de la última fila cierra cont
 
 test("el saldo corrido arranca en el total del saldo inicial y acumula fila a fila", () => {
   const { rows } = buildLibro(
-    { EFECTIVO: 1000, MP: 500, TARJETA: 0 },
+    { EFECTIVO: 1000, MP: 500, TRANSFERENCIA: 0, TARJETA: 0 },
     [
       mov({ id: "b", amount: 300, type: "INGRESO", method: "MP", occurredAt: new Date("2026-08-02T12:00:00Z") }),
       mov({ id: "a", amount: 200, type: "EGRESO", method: "EFECTIVO", occurredAt: new Date("2026-08-01T12:00:00Z") }),
@@ -123,7 +123,7 @@ test("el monto con signo es + para ingreso y − para egreso", () => {
 
 test("la APERTURA no cuenta como ingreso del período (si no, el arrastre se duplica)", () => {
   const { summary } = buildLibro(
-    { EFECTIVO: 5000, MP: 0, TARJETA: 0 },
+    { EFECTIVO: 5000, MP: 0, TRANSFERENCIA: 0, TARJETA: 0 },
     [mov({ id: "ap", amount: 5000, type: "APERTURA" })],
   );
   assert.equal(summary.ingresos.EFECTIVO, 0);
@@ -139,7 +139,7 @@ test("el saldo inicial se deriva del historial anterior, por medio", () => {
     mov({ id: "4", amount: 300, type: "RETIRO", method: "MP" }),
     mov({ id: "5", amount: 9999, type: "APERTURA", method: "TARJETA" }), // signo 0
   ]);
-  assert.deepEqual(opening, { EFECTIVO: 750, MP: 500, TARJETA: 0 });
+  assert.deepEqual(opening, { EFECTIVO: 750, MP: 500, TRANSFERENCIA: 0, TARJETA: 0 });
 });
 
 test("el saldo de arrastre puede ser negativo (se gastó más de lo que entró por ese medio)", () => {
@@ -150,7 +150,7 @@ test("el saldo de arrastre puede ser negativo (se gastó más de lo que entró p
 });
 
 test("el libro de un mes sin movimientos deja el saldo inicial intacto", () => {
-  const opening = { EFECTIVO: 700200, MP: 1414230, TARJETA: 0 };
+  const opening = { EFECTIVO: 700200, MP: 1414230, TRANSFERENCIA: 0, TARJETA: 0 };
   const { rows, summary } = buildLibro(opening, []);
   assert.equal(rows.length, 0);
   assert.deepEqual(summary.saldo, opening);
@@ -178,8 +178,8 @@ test("splitByMethod separa entradas de salidas sin mezclar medios", () => {
     mov({ id: "3", amount: 30, type: "EGRESO", method: "MP" }),
     mov({ id: "4", amount: 50, type: "EGRESO", method: "TARJETA" }),
   ]);
-  assert.deepEqual(ingresos, { EFECTIVO: 100, MP: 200, TARJETA: 0 });
-  assert.deepEqual(egresos, { EFECTIVO: 0, MP: 30, TARJETA: 50 });
+  assert.deepEqual(ingresos, { EFECTIVO: 100, MP: 200, TRANSFERENCIA: 0, TARJETA: 0 });
+  assert.deepEqual(egresos, { EFECTIVO: 0, MP: 30, TRANSFERENCIA: 0, TARJETA: 50 });
 });
 
 test("los decimales se redondean a 2 y no arrastran error binario", () => {

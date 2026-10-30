@@ -37,7 +37,8 @@ function clase(rel: string, patron: RegExp): string {
   return m[1];
 }
 
-const RAIZ_POR_APPS = clase("src/app/admin/(dashboard)/layout.tsx", /"(min-h-screen bg-surface text-body \[--alto-barra-inferior:[^"]+)"/);
+// La raíz arma su clase con `cn(...)`: la de siempre más, si trabaja por apps, la del alto de la barra.
+const RAIZ_POR_APPS = `min-h-screen bg-surface text-body ${clase("src/app/admin/(dashboard)/layout.tsx", /modoApps && "(\[--alto-barra-inferior:[^"]+)"/)}`;
 const BARRA = clase("src/app/admin/(dashboard)/inicio/BarraInferior.tsx", /className="(fixed inset-x-0 bottom-0 z-40[^"]+)"/);
 const PIES = {
   // El pie DE SIEMPRE (diseño apagado): el de `-mx-3 -mb-3`. El pie de Renglón (diseño nuevo) es
@@ -110,7 +111,8 @@ describe("Pies pegados en el iPhone: la zona segura una sola vez", { timeout: 12
       `<!doctype html><html lang="es"><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style></head><body class="bg-surface">` +
         `<div class="${raiz}"><div id="contenido" class="flex-1 pb-[var(--alto-barra-inferior,0px)]"><main class="px-4">` +
         `<div style="height:2000px">el ticket largo</div>` +
-        `<div id="pie" class="${pie}"><button style="height:44px;width:100%">Cobrar</button></div>` +
+        // `data-fijo`: el pie de Vender se pega sólo con el ticket lleno (`not-data-fijo:static`).
+        `<div id="pie" data-fijo class="${pie}"><button style="height:44px;width:100%">Cobrar</button></div>` +
         `</main></div>` +
         (conBarra ? `<nav id="barra" class="${BARRA}"><div style="height:3.5rem">espacios</div></nav>` : "") +
         `</div></body></html>`,

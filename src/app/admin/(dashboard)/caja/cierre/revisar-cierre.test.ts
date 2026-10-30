@@ -7,8 +7,8 @@ import assert from "node:assert/strict";
 import { CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { diferenciasDelCierre, revisarCierre } from "./revisar-cierre";
 
-const ESPERADO = { EFECTIVO: 48_500, MP: 212_300, TARJETA: 0 };
-const vacio = { EFECTIVO: "", MP: "", TARJETA: "" };
+const ESPERADO = { EFECTIVO: 48_500, MP: 212_300, TRANSFERENCIA: 0, TARJETA: 0 };
+const vacio = { EFECTIVO: "", MP: "", TRANSFERENCIA: "", TARJETA: "" };
 const revisar = (declarado: Partial<typeof vacio>, nota = "") =>
   revisarCierre({ declarado: { ...vacio, ...declarado }, esperado: ESPERADO, nota, etiquetas: CASH_METHOD_LABEL });
 
@@ -54,7 +54,7 @@ test("cuadra justo: se cierra sin nota", () => {
 });
 
 test("las diferencias se redondean como el servidor y lo vacío es 'sin contar'", () => {
-  const d = diferenciasDelCierre({ EFECTIVO: "48.500,10", MP: "", TARJETA: "0" }, ESPERADO);
+  const d = diferenciasDelCierre({ EFECTIVO: "48.500,10", MP: "", TRANSFERENCIA: "", TARJETA: "0" }, ESPERADO);
   assert.equal(d.EFECTIVO, 0.1);
   assert.equal(d.MP, null);
   assert.equal(d.TARJETA, 0);

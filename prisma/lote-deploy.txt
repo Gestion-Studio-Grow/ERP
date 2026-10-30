@@ -34,4 +34,8 @@
 # 2026-10-17: módulo PADEL-CLASES (profe Matías Consoli), con OK explícito del dueño para crear las tablas en
 # Neon y publicar. Aditiva: cinco tablas nuevas con RLS adentro (tenant_isolation) y claves foráneas a "Tenant"
 # y "Client". No agrega ni cambia columnas de ninguna tabla existente.
+#
+# 2026-10-30: pase de M1 (orden del dueño). 20261030120000_m1_enums_caja (tres ADD VALUE de enum,
+# irreversibles) se aplica a mano con `prisma migrate deploy` ANTES del push (camino B): no entra
+# en la lista. Vuelta atrás del código: docs/runbooks/gate2-nivel2.md §5 bis.
 20261015120000_modulo_padel_clases

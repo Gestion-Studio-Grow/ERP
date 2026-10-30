@@ -15,8 +15,10 @@ import { round2 } from "@/lib/round";
 
 export type CashMovementType = "APERTURA" | "VENTA" | "INGRESO" | "EGRESO" | "RETIRO";
 
-// Medio por el que se movió la plata. Espeja el enum `CashMethod` de Prisma.
-export type CashMethod = "EFECTIVO" | "MP" | "TARJETA";
+// Medio por el que se movió la plata. Espeja el enum `CashMethod` de Prisma. TRANSFERENCIA
+// (M1-C2): existe en la base sólo con prisma/pending-gate2/N2_enums.sql; hasta entonces ningún
+// asiento lo lleva y la transferencia sigue yendo a `MP` (`transferenciaEnElLibro`).
+export type CashMethod = "EFECTIVO" | "MP" | "TRANSFERENCIA" | "TARJETA";
 
 // Movimiento visto por la aritmética: tipo + monto (>0) + medio. La APERTURA no entra
 // como movimiento en el cálculo del esperado —ese fondo lo aporta `openingFloat`—;

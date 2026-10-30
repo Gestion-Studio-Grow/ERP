@@ -143,7 +143,7 @@ test("agosto 2026 real: cerrar el mes con los sobrantes de la dueña asienta 69.
 
   // El 01/09 abre con lo que se declaró el 31/08, por medio.
   assert.deepEqual(
-    { EFECTIVO: c2.porMedio.EFECTIVO.opening, MP: c2.porMedio.MP.opening, TARJETA: c2.porMedio.TARJETA.opening },
+    { EFECTIVO: c2.porMedio.EFECTIVO.opening, MP: c2.porMedio.MP.opening, TRANSFERENCIA: c2.porMedio.TRANSFERENCIA.opening, TARJETA: c2.porMedio.TARJETA.opening },
     openingAfterCierre(c1),
   );
   // Y el saldo final del período es el RESUMEN real de la planilla + los dos sobrantes.
@@ -234,7 +234,7 @@ test("un día con los tres medios separa ingresos y egresos por medio y el total
   // validación lo frena aunque cuadre.
   const v = validateCierre(cierre, { note: "", today: "2026-09-06", lastClosedDay: null });
   assert.equal(v.ok, false);
-  assert.ok(!v.ok && v.errors.some((e) => e.includes("MP / Transf.") && e.includes("negativo")));
+  assert.ok(!v.ok && v.errors.some((e) => e.includes("Mercado Pago") && e.includes("negativo")));
 });
 
 // ── Diferencia positiva y negativa ──────────────────────────────────────────
@@ -409,7 +409,12 @@ test("la traducción PaymentMethod → CashMethod es una sola y frena ante lo de
   assert.equal(cashMethodFromPaymentMethod("EFECTIVO"), "EFECTIVO");
   assert.equal(cashMethodFromPaymentMethod("MERCADOPAGO"), "MP");
   assert.equal(cashMethodFromPaymentMethod("TRANSFERENCIA"), "MP");
-  assert.equal(cashMethodFromPaymentMethod("TARJETA"), null); // no existe en PaymentMethod hoy
+  // N2 · M1 (D-C01): Débito y Crédito van a la columna Tarjeta del libro. En PaymentMethod existen
+  // sólo con N2_enums.sql; el TARJETA de antes de D-C01 no es un medio de pago.
+  assert.equal(cashMethodFromPaymentMethod("DEBITO"), "TARJETA");
+  assert.equal(cashMethodFromPaymentMethod("CREDITO"), "TARJETA");
+  assert.equal(cashMethodFromPaymentMethod("TARJETA"), null);
+  assert.equal(cashMethodFromPaymentMethod("CHEQUE"), null);
   assert.equal(cashMethodFromPaymentMethod(""), null);
 });
 
@@ -435,7 +440,7 @@ test("el arrastre entre días cierra: la apertura del día N+1 es exactamente lo
   // Apertura del 05 = lo DECLARADO el 04 (no lo que decía el libro antes del ajuste).
   assert.equal(c5.porMedio.EFECTIVO.opening, 43500);
   assert.equal(c5.porMedio.MP.opening, 80000);
-  assert.deepEqual(openingAfterCierre(c4), { EFECTIVO: 43500, MP: 80000, TARJETA: 0 });
+  assert.deepEqual(openingAfterCierre(c4), { EFECTIVO: 43500, MP: 80000, TRANSFERENCIA: 0, TARJETA: 0 });
   assert.equal(c5.porMedio.EFECTIVO.expected, 53500);
   assert.equal(c5.estado, "CUADRA");
   assert.equal(c5.since, "2026-09-05");
@@ -462,7 +467,7 @@ test("la apertura derivada del historial coincide con openingAfterCierre aunque 
   const previous = [mov({ id: "t", amount: 55000, method: "TARJETA", day: "2026-09-01" })];
   const c = buildCierreDiario({ day: "2026-09-06", previous, movements: [], declared: declared(0, 0) });
   // Tarjeta no declarada → arrastra el esperado, no 0.
-  assert.deepEqual(openingAfterCierre(c), { EFECTIVO: 0, MP: 0, TARJETA: 55000 });
+  assert.deepEqual(openingAfterCierre(c), { EFECTIVO: 0, MP: 0, TRANSFERENCIA: 0, TARJETA: 55000 });
   const derivado = openingFromHistory([...previous, ...ajustesAsMovements(c, new Date("2026-09-06T23:59:00.000Z"))]);
   assert.deepEqual(derivado, openingAfterCierre(c));
   assert.equal(totalOf(derivado), 55000);

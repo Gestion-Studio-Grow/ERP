@@ -179,7 +179,8 @@ export function AddLibroEntryForm({
             onChange={(e) => setMethod(e.target.value)}
           >
             <option value="EFECTIVO">Efectivo</option>
-            <option value="MP">MP / Transf.</option>
+            <option value="MP">Mercado Pago</option>
+            <option value="TRANSFERENCIA">Transferencia</option>
             <option value="TARJETA">Tarjeta</option>
           </Select>
         </Field>

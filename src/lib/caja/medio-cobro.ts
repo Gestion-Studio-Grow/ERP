@@ -55,7 +55,70 @@ export function leerMedioDeCobro(raw: unknown): MedioDeCobro | null {
 }
 
 export function etiquetaDeMedio(medio: string | null | undefined): string {
+  const deTarjeta = MEDIOS_DE_TARJETA.find((m) => m.valor === medio);
+  if (deTarjeta) return `${MEDIO_TARJETA.etiqueta} de ${deTarjeta.etiqueta.toLowerCase()}`;
   return MEDIOS_DE_COBRO.find((m) => m.valor === medio)?.etiqueta ?? "un medio sin identificar";
+}
+
+// ── Tarjeta: Débito y Crédito (N2 · M1-C1, decisión D-C01 del dueño) ─────────
+//
+// Con el posnet. D-C01 (28/10/2026): en `PaymentMethod` (el medio del pedido y del cobro) van
+// SEPARADOS, `DEBITO` y `CREDITO`; el libro los junta en su columna de siempre
+// (`CashMethod.TARJETA`, `cashMethodFromPaymentMethod`) y el cierre la muestra como «Tarjeta».
+// En la base existen sólo con el paquete Gate 2 (prisma/pending-gate2/N2_enums.sql) Y en el
+// cliente de Prisma generado con los valores (prisma/schema.prisma, `// N2-enum-encendido:`).
+// Hacen falta LAS DOS cosas: con el valor en la base y un cliente que no lo conoce, Prisma
+// rechaza el alta («Expected PaymentMethod») y, peor, un pedido con DEBITO escrito por otro lado
+// rompe toda lectura de pedidos («Value 'DEBITO' not found in enum»).
+//
+// Por eso Débito y Crédito NO entran en `MEDIOS_DE_COBRO` ni en `MedioDeCobro` (lo usan 20
+// archivos con tipos cerrados: ampliarlo es el paso de M10/encendido): se ofrecen aparte, sólo con
+// `tarjetaHabilitadaPor(...)` en true, y `leerMedioDeCobro` los sigue rechazando con su mensaje de
+// siempre. Lo decide el servidor (`tarjetaHabilitada`, caja-actions.ts): con N2_enums.sql
+// aplicada, Vender (boutique) y el cuaderno ofrecen las dos teclas y `createOrder` las acepta con
+// `leerMedioDeCobroConTarjeta`.
+
+export const DEBITO = "DEBITO" as const;
+export const CREDITO = "CREDITO" as const;
+export type MedioDeTarjeta = typeof DEBITO | typeof CREDITO;
+export type MedioConTarjeta = MedioDeCobro | MedioDeTarjeta;
+
+/** Las dos teclas de Tarjeta, en el orden del posnet. */
+export const MEDIOS_DE_TARJETA: readonly { valor: MedioDeTarjeta; etiqueta: string }[] = [
+  { valor: DEBITO, etiqueta: "Débito" },
+  { valor: CREDITO, etiqueta: "Crédito" },
+];
+
+/** El grupo que ve la persona: «Tarjeta», con débito o crédito adentro. */
+export const MEDIO_TARJETA = { etiqueta: "Tarjeta", nota: "débito o crédito" } as const;
+
+/** ¿Es Débito o Crédito? PURA. */
+export function esMedioDeTarjeta(medio: unknown): medio is MedioDeTarjeta {
+  return medio === DEBITO || medio === CREDITO;
+}
+
+/** ¿Se puede cobrar con Tarjeta? Valor en la base (probe) Y en el cliente de Prisma. PURA. */
+export function tarjetaHabilitadaPor(p: { enLaBase: boolean; enElCliente: boolean }): boolean {
+  return p.enLaBase === true && p.enElCliente === true;
+}
+
+/** Los medios que ofrece el cobro: los de siempre, más Débito y Crédito si está habilitada. PURA. */
+export function mediosDeCobroDisponibles(conTarjeta: boolean): readonly { valor: MedioConTarjeta; etiqueta: string }[] {
+  return conTarjeta ? [...MEDIOS_DE_COBRO, ...MEDIOS_DE_TARJETA] : MEDIOS_DE_COBRO;
+}
+
+/** `leerMedioDeCobro` con Tarjeta: Débito/Crédito sólo si está habilitada; si no, `null` como siempre. PURA. */
+export function leerMedioDeCobroConTarjeta(raw: unknown, conTarjeta: boolean): MedioConTarjeta | null {
+  const s = typeof raw === "string" ? raw.trim() : "";
+  if (esMedioDeTarjeta(s)) return conTarjeta ? s : null;
+  return leerMedioDeCobro(s);
+}
+
+/** Lo que dice el protocolo sin señal del posnet, según se pueda cargar Tarjeta o no. PURA. */
+export function textoDelPosnet(conTarjeta: boolean): string {
+  return conTarjeta
+    ? "posnet: anotá en el cuaderno DÉBITO o CRÉDITO y, al cargarla, elegí Débito o Crédito."
+    : "posnet: anotá en el cuaderno como TARJETA (débito o crédito).";
 }
 
 /** Desde dónde se cobra: cambia la SALIDA que ofrece el mensaje, no la regla. */
@@ -82,9 +145,14 @@ export function medioDeCobroRequerido(input: {
   paid: boolean;
   paymentMethod: unknown;
   contexto?: ContextoDeMedio;
-}): { ok: true; paymentMethod: MedioDeCobro | null } | { ok: false; error: string } {
+  /**
+   * N2 · M1-C1: ¿se aceptan DEBITO y CREDITO? Sólo con `tarjetaHabilitada()` en true (lo pregunta el
+   * llamador, `createOrder`). Sin esto, se rechazan como cualquier medio desconocido.
+   */
+  conTarjeta?: boolean;
+}): { ok: true; paymentMethod: MedioConTarjeta | null } | { ok: false; error: string } {
   if (!input.paid) return { ok: true, paymentMethod: null };
-  const medio = leerMedioDeCobro(input.paymentMethod);
+  const medio = leerMedioDeCobroConTarjeta(input.paymentMethod, input.conTarjeta === true);
   if (medio) return { ok: true, paymentMethod: medio };
   if (input.contexto === "cobro") return { ok: false, error: MENSAJE_FALTA_MEDIO_BANDEJA };
   return {
@@ -105,7 +173,7 @@ export function medioDeCobroRequerido(input: {
 export function mensajeYaCobrado(input: {
   code: number;
   medioRegistrado: string | null;
-  medioElegido: MedioDeCobro;
+  medioElegido: MedioConTarjeta;
 }): { ok: true; mensaje: string } | { ok: false; error: string } {
   const registrado = etiquetaDeMedio(input.medioRegistrado);
   if (input.medioRegistrado === input.medioElegido) {

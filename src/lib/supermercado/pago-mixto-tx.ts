@@ -18,6 +18,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
+import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import { etiquetaDeMedio, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { PAGO_MIXTO_ACTOR_PREFIX } from "./marcas";
@@ -52,7 +53,7 @@ export async function imputarPagosMixtosEnTx(
   const turno = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
   const collectionIds: string[] = [];
   for (const a of v.asientos) {
-    const metodo = cashMethodFromPaymentMethod(a.medio);
+    const metodo = cashMethodFromPaymentMethod(a.medio, a.medio === "TRANSFERENCIA" && (await transferenciaEnElLibroTx(tx)));
     if (!metodo) throw new Error(`Medio sin columna en el libro: ${a.medio}`);
     const cobro = await tx.collection.create({
       data: {

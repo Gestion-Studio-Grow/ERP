@@ -17,11 +17,10 @@ import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
 import { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import {
-  CASH_METHODS,
   CASH_METHOD_LABEL,
   totalOf,
 } from "@/lib/caja/libro-caja";
-import { formatDayLabel, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
+import { formatDayLabel, medioDeLaClasica, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
 import { movementSign } from "@/lib/caja/cash-register";
 import { textoDeAperturaQueNoSuma } from "./revisar-cierre";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
@@ -80,7 +79,10 @@ export default async function CierreCajaPage({
   const { dia } = await searchParams;
   // «Diseño nuevo»: la lectura de interruptores del layout (cacheada), a la par de los datos.
   const [data, nuevo, practica] = await Promise.all([
-    getCierreDiarioData(dia, { conTurnosSinCerrar: true }),
+    // `esperadoALaVista`: el cierre del día es el arqueo de quien puede cerrar y recibe el efectivo
+    // del libro aunque el negocio arquee a ciegas (cert F7). Si recepción tampoco debe verlo acá,
+    // lo decide el dueño (observación del dictamen M1 v3).
+    getCierreDiarioData(dia, { conTurnosSinCerrar: true, esperadoALaVista: true }),
     disenoNuevo(),
     agendaPractica(),
   ]);
@@ -92,7 +94,12 @@ export default async function CierreCajaPage({
   }
   const { preview, day, today, lastClosedDay, since, movements, yaCerrado, enElFuturo, registro, turnosSinCerrar } = data;
 
-  const esperadoTotal = preview.total.expected;
+  // La hoja de siempre muestra lo que cuenta `cerrarDia` sin columnas: Transferencia como lo que
+  // entró en el período (F2, cert. M1 v8 H1). El total es la suma de lo que se muestra.
+  const clasica = (m: (typeof data.mediosDelLibro)[number]) => medioDeLaClasica(preview.porMedio, m);
+  const totalClasica = (key: "opening" | "ingresos" | "egresos" | "expected") =>
+    data.mediosDelLibro.reduce((s, m) => s + clasica(m)[key], 0);
+  const esperadoTotal = totalClasica("expected");
   const puedeCerrar = !yaCerrado && !enElFuturo;
 
   return (
@@ -213,7 +220,7 @@ export default async function CierreCajaPage({
             <thead className="hidden sm:table-header-group">
               <tr className="border-b border-line text-muted">
                 <th scope="col" className="px-4 py-2 text-left font-medium">Concepto</th>
-                {CASH_METHODS.map((m) => (
+                {data.mediosDelLibro.map((m) => (
                   <th key={m} scope="col" className="px-4 py-2 text-right font-medium">
                     {CASH_METHOD_LABEL[m]}
                   </th>
@@ -234,15 +241,15 @@ export default async function CierreCajaPage({
                   >
                     {rotulo}
                   </th>
-                  {CASH_METHODS.map((m) => (
+                  {data.mediosDelLibro.map((m) => (
                     <td key={m} className={`${CELDA_TARJETA} tabular-nums text-body sm:px-4 sm:text-right`}>
                       <span className={ROTULO_MOVIL}>{CASH_METHOD_LABEL[m]}</span>
-                      {fmtMoneyARS(preview.porMedio[m][key])}
+                      {fmtMoneyARS(clasica(m)[key])}
                     </td>
                   ))}
                   <td className={`${CELDA_TARJETA} font-medium tabular-nums text-body sm:px-4 sm:font-normal sm:text-right`}>
                     <span className={ROTULO_MOVIL}>Total</span>
-                    {fmtMoneyARS(preview.total[key])}
+                    {fmtMoneyARS(totalClasica(key))}
                   </td>
                 </tr>
               ))}
@@ -253,10 +260,10 @@ export default async function CierreCajaPage({
                 >
                   Debería haber
                 </th>
-                {CASH_METHODS.map((m) => (
+                {data.mediosDelLibro.map((m) => (
                   <td key={m} className={`${CELDA_TARJETA} font-medium tabular-nums text-strong sm:px-4 sm:py-3 sm:text-right`}>
                     <span className={ROTULO_MOVIL}>{CASH_METHOD_LABEL[m]}</span>
-                    {fmtMoneyARS(preview.porMedio[m].expected)}
+                    {fmtMoneyARS(clasica(m).expected)}
                   </td>
                 ))}
                 <td className={`${CELDA_TARJETA} font-medium tabular-nums text-strong sm:px-4 sm:py-3 sm:text-right`}>
@@ -273,6 +280,7 @@ export default async function CierreCajaPage({
             ({fmtMoneyARS(totalOf({
               EFECTIVO: preview.porMedio.EFECTIVO.cobrosCartera,
               MP: preview.porMedio.MP.cobrosCartera,
+              TRANSFERENCIA: preview.porMedio.TRANSFERENCIA.cobrosCartera,
               TARJETA: preview.porMedio.TARJETA.cobrosCartera,
             }))}). Ya están contados una sola vez acá arriba.
           </p>
@@ -293,10 +301,12 @@ export default async function CierreCajaPage({
           key={day}
           day={day}
           diaLabel={formatDayLabel(day)}
+          medios={data.mediosDelLibro}
           esperado={{
-            EFECTIVO: preview.porMedio.EFECTIVO.expected,
-            MP: preview.porMedio.MP.expected,
-            TARJETA: preview.porMedio.TARJETA.expected,
+            EFECTIVO: clasica("EFECTIVO").expected,
+            MP: clasica("MP").expected,
+            TRANSFERENCIA: clasica("TRANSFERENCIA").expected,
+            TARJETA: clasica("TARJETA").expected,
           }}
         />
       )}
@@ -343,7 +353,8 @@ export default async function CierreCajaPage({
                             {m.origin === "turno" ? "Turno cobrado" : "Venta del mostrador"}
                           </Badge>
                         )}
-                        {signo === 0 && (
+                        {/* `amount` null sólo a ciegas (`diaALaVista`); esta pantalla pide el esperado a la vista. */}
+                        {signo === 0 && m.amount !== null && (
                           <Badge className="ml-2" tone="neutral">
                             {textoDeAperturaQueNoSuma(m.amount)}
                           </Badge>

@@ -9,7 +9,7 @@ import {
   type LocalConPasada,
   type ResumenRed,
 } from "@/lib/multilocal/multilocal-core";
-import { CASH_METHODS, CASH_METHOD_LABEL, totalOf } from "@/lib/caja/libro-caja";
+import { CASH_METHODS, CASH_METHOD_LABEL, mediosALaVista, totalOf } from "@/lib/caja/libro-caja";
 import { Badge, Card, KpiTile, PageContainer, PageHeader, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
 import { appPorId } from "@/apps/registro";
 import { appPermitida } from "@/apps/visibles";
@@ -168,6 +168,14 @@ function TarjetaLocal({ x, hoy, url }: { x: LocalConPasada; hoy: string; url: st
   const bajos = contarStock([dato.stock]);
   const anulado = totalOf(dato.hoy.anulado);
   const caja = dato.caja;
+  const mediosDeLaCaja =
+    caja.estado === "abierta"
+      ? mediosALaVista(
+          { TRANSFERENCIA: caja.porMedio.TRANSFERENCIA.hay },
+          { TRANSFERENCIA: caja.porMedio.TRANSFERENCIA.ingresos },
+          { TRANSFERENCIA: caja.porMedio.TRANSFERENCIA.egresos },
+        )
+      : [];
   const periodo =
     caja.estado !== "abierta"
       ? null
@@ -211,9 +219,11 @@ function TarjetaLocal({ x, hoy, url }: { x: LocalConPasada; hoy: string; url: st
           <>
             <p className="text-xs text-muted">{periodo}</p>
             {/* En el celular, una fila por medio con el monto a la derecha (5 locales se leen de
-                corrido); en la PC, las tres cajitas de siempre. */}
-            <dl className="mt-2 divide-y divide-line rounded-lg border border-line sm:grid sm:grid-cols-3 sm:gap-2 sm:divide-y-0 sm:rounded-none sm:border-0">
-              {CASH_METHODS.map((k) => (
+                corrido); en la PC, una cajita por medio (Transferencia sólo si se movió). */}
+            <dl
+              className={`mt-2 divide-y divide-line rounded-lg border border-line sm:grid ${mediosDeLaCaja.length > 3 ? "sm:grid-cols-4" : "sm:grid-cols-3"} sm:gap-2 sm:divide-y-0 sm:rounded-none sm:border-0`}
+            >
+              {mediosDeLaCaja.map((k) => (
                 <div
                   key={k}
                   className="flex flex-wrap items-baseline justify-between gap-x-3 px-3 py-2 sm:block sm:rounded-lg sm:border sm:border-line"

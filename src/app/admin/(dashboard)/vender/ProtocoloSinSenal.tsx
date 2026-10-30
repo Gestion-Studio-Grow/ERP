@@ -21,6 +21,7 @@
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { almacenDeSesion, hayCobroSinConfirmar, hayConexion, suscribirseALaSenal } from "./cobro-sin-conexion";
+import { textoDelPosnet } from "@/lib/caja/medio-cobro";
 
 /** Dónde se cargan las ventas anotadas. */
 export const RUTA_DEL_CUADERNO = "/admin/vender/cuaderno";
@@ -30,10 +31,15 @@ export type ProtocoloSinSenalProps = {
   negocioId: string;
   /** Mostrar el protocolo siempre (la pantalla del cuaderno). En Vender, apagado. */
   siempre?: boolean;
+  /**
+   * ¿Se puede cargar la venta con Tarjeta? (N2 · M1-C1, `tarjetaHabilitada`). Sin el valor en el enum
+   * (o sin decirlo), la venta con posnet se anota igual en el cuaderno como TARJETA: no se rompe nada.
+   */
+  conTarjeta?: boolean;
   className?: string;
 };
 
-export default function ProtocoloSinSenal({ negocioId, siempre = false, className }: ProtocoloSinSenalProps) {
+export default function ProtocoloSinSenal({ negocioId, siempre = false, conTarjeta = false, className }: ProtocoloSinSenalProps) {
   const enLinea = useSyncExternalStore(suscribirseALaSenal, hayConexion, () => true);
   const [cobroEnDuda, setCobroEnDuda] = useState(false);
   // ¿Hubo un corte mientras esta pantalla estaba abierta? (para el aviso de «volvió la señal»). Se
@@ -107,7 +113,7 @@ export default function ProtocoloSinSenal({ negocioId, siempre = false, classNam
         </li>
         <li>
           <strong className="text-strong">Cobrá en efectivo o con el posnet</strong> (si anda con su propio chip) y guardá el comprobante.
-          Los precios, de la lista impresa.
+          Los precios, de la lista impresa. Con el <span data-protocolo="posnet">{textoDelPosnet(conTarjeta)}</span>
         </li>
         <li>
           <strong className="text-strong">No prometas Mercado Pago ni transferencia</strong>: sin señal no podés ver si la plata entró. Si

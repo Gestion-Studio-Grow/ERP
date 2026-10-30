@@ -31,7 +31,8 @@ import {
   type CobroDePedido,
   type OrderPaymentMethod,
 } from "@/lib/order-core";
-import { medioDeCobroRequerido, mensajeYaCobrado } from "@/lib/caja/medio-cobro";
+import { esMedioDeTarjeta, leerMedioDeCobroConTarjeta, medioDeCobroRequerido, mensajeYaCobrado } from "@/lib/caja/medio-cobro";
+import { tarjetaHabilitada } from "@/lib/caja-actions";
 import { leerPagos, vueltoDelCobro } from "@/lib/cobro/leer-pagos";
 import type { AsientoDePago } from "@/lib/supermercado/pago-mixto";
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
@@ -113,6 +114,7 @@ import {
   avanzarPedidoGuarded,
   horarioDelFormulario,
 } from "@/lib/order-anulacion";
+import { avisoAnulacionConDevolucion, devolucionManualDeLaVenta } from "@/lib/caja/doble-salida";
 import {
   descuentoDelFormulario,
   lineasAManoDelFormulario,
@@ -333,7 +335,13 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // La decisión entera vive en `medioDeCobroRequerido` (caja/medio-cobro.ts, probada con
   // datos); acá sólo se usa el medio que ella devuelve. No va en `insertOrder`: la vidriera y
   // la ingesta externa no la heredan.
-  const medio = medioDeCobroRequerido({ channel, paid, paymentMethod: pagos.medio });
+  //
+  // DEBITO/CREDITO (N2 · M1-C1, D-C01): las teclas del pie los mandan solos (no entran en un pago
+  // dividido). Se aceptan SÓLO si `tarjetaHabilitada()` (los valores en la base, N2_enums.sql, y en el
+  // cliente de Prisma): sin el paquete, Postgres rechazaría el alta. Si no, siguen el camino de siempre
+  // y se rechazan con el mensaje de elegir el medio. El probe se pregunta sólo cuando llega uno de los dos.
+  const conTarjeta = paid && !asientos && esMedioDeTarjeta(leerMedioDeCobroConTarjeta(pagos.medio, true)) ? await tarjetaHabilitada() : false;
+  const medio = medioDeCobroRequerido({ channel, paid, paymentMethod: pagos.medio, conTarjeta });
   if (!medio.ok) return { ok: false, error: medio.error };
   const paymentMethod: PaymentMethod | null = medio.paymentMethod;
 
@@ -1206,6 +1214,7 @@ async function anularVentaCore(
   orderId: string,
   motivoRaw: string,
   devuelveStock: boolean,
+  confirmado = false,
 ): Promise<OrderActionState> {
   const user = await requireCapability("orders:void");
   const tenantId = await getCurrentTenantId();
@@ -1218,6 +1227,13 @@ async function anularVentaCore(
   });
   if (!reglas.ok) return { ok: false, error: reglas.error };
   const motivo = reglas.motivo;
+
+  // Doble salida (src/lib/caja/doble-salida.ts): si ya se cargó a mano un egreso por lo que entró
+  // de esta venta, avisar antes de anular. Sólo lectura; confirmado, se anula como siempre.
+  if (!confirmado) {
+    const devolucion = await devolucionManualDeLaVenta(prisma, tenantId, orderId);
+    if (devolucion) return { ok: false, tipo: "sin-confirmar", error: avisoAnulacionConDevolucion(devolucion) };
+  }
 
   // La frontera se lee ANTES de abrir la transacción (no depende de nada que la tx cambie),
   // igual que en el libro y en el cierre diario.
@@ -1328,6 +1344,7 @@ export async function anularVenta(
     String(formData.get("id") || "").trim(),
     String(formData.get("motivo") || ""),
     devuelveStock,
+    String(formData.get("confirmar") || "") === "1",
   );
 }
 

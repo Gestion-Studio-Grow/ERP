@@ -36,7 +36,9 @@ export type TarjetaDeApertura = {
 };
 
 /** Lo que dice la tarjeta. PURA. */
-export function tarjetaDeApertura(p: { esperado: number; ultimoCierre: string | null; hoy: string }): TarjetaDeApertura {
+export function tarjetaDeApertura(p: { esperado: number; ultimoCierre: string | null; hoy: string; aCiegas?: boolean }): TarjetaDeApertura {
+  // A ciegas (interruptor «arqueo-ciego»): ni el número ni «Abrir con $X». Se cuenta primero.
+  if (p.aCiegas) return { titulo: "Abrí la caja: contá lo que hay en el cajón", conSugerido: false, sugerido: 0 };
   const esperado = Number.isFinite(p.esperado) ? round2(p.esperado) : 0;
   if (esperado < 0) {
     return {
@@ -60,4 +62,93 @@ export function tarjetaDeApertura(p: { esperado: number; ultimoCierre: string | 
  */
 export function fondoParaElFormulario(n: number): string {
   return String(round2(n)).replace(".", ",");
+}
+
+// ── Apertura a ciegas y motivo de la diferencia (N2 · M1-C3) ─────────────────
+//
+// Con el interruptor «arqueo-ciego» el cajero cuenta ANTES de ver el esperado: el primer envío va
+// sin `esperadoConfirmado`. Si cuadra, abre. Si no, `openCashSession` no graba nada y contesta con
+// el esperado (recién ahí se ve) y pide el motivo, como el cierre del turno: un faltante sin porqué
+// es lo que después nadie explica. El segundo envío trae el esperado visto y el motivo, y la
+// diferencia se asienta UNA vez (transacción Serializable + «ya hay una caja abierta»).
+
+/** Lo más largo que se guarda del motivo (va en el detalle del asiento). */
+export const MOTIVO_APERTURA_MAX = 300;
+
+/** El motivo tal como se guarda: sin espacios de más, recortado. `null` si no hay. PURA. */
+export function leerMotivoDeApertura(raw: unknown): string | null {
+  const s = typeof raw === "string" ? raw.replace(/\s+/g, " ").trim().slice(0, MOTIVO_APERTURA_MAX) : "";
+  return s || null;
+}
+
+/**
+ * ¿Hay que pedir el motivo antes de abrir? Con diferencia y sin motivo, cuando la regla lo exige
+ * (a ciegas). PURA. `diferencia` = contado − libro, ya redondeada.
+ */
+export function aperturaPideMotivo(p: { diferencia: number; motivo: string | null; exigido: boolean }): boolean {
+  return p.exigido && p.diferencia !== 0 && !p.motivo;
+}
+
+/**
+ * El esperado que la persona VIO al abrir, el que viaja como `esperadoConfirmado` (cert F6). A
+ * ciegas, ninguno hasta que el servidor lo reveló (tras un conteo que no cuadró); sin interruptor,
+ * el que mostró la pantalla (0 en la demo, sin libro). PURA.
+ */
+export function esperadoVistoAlAbrir(p: { aCiegas: boolean; esperado: number | null; revelado: number | null }): number | null {
+  if (p.revelado !== null) return p.revelado;
+  if (p.aCiegas) return null;
+  return p.esperado ?? 0;
+}
+
+/** El texto que acompaña el pedido de motivo: lo contado, lo que dice el libro y la diferencia. PURA. */
+export function textoDelMotivoDeApertura(contado: number, esperado: number): string {
+  const d = round2(contado - esperado);
+  const que = d < 0 ? `faltan ${textoPlata(-d)}` : `sobran ${textoPlata(d)}`;
+  return `Contaste ${textoPlata(contado)} y el libro dice ${textoPlata(esperado)}: ${que}. Anotá por qué para abrir; la diferencia queda asentada una vez, con tu nombre.`;
+}
+
+/** El detalle del asiento de la diferencia, con el motivo si lo hay. PURA. */
+export function detalleConMotivo(detalle: string, motivo: string | null): string {
+  return motivo ? `${detalle}. Motivo: ${motivo}` : detalle;
+}
+
+// ── El conteo a ciegas queda escrito (N2 · M1-C3, certificación F3) ─────────
+//
+// El primer conteo a ciegas que NO cuadró se guarda en la Auditoría (`caja.apertura-a-ciegas`, con
+// lo contado y lo que decía el libro) en el mismo envío que revela el esperado. Desde ahí, mientras
+// no se abra un turno, toda apertura pide motivo aunque el recuento cuadre, y el asiento de la
+// apertura lleva los dos números: «recontar» al número del libro ya no borra el primer conteo.
+
+/** Acción de la fila de Auditoría del conteo a ciegas que no cuadró (entity "CashSession"). */
+export const APERTURA_A_CIEGAS_ACTION = "caja.apertura-a-ciegas";
+
+export type ConteoACiegas = { contado: number; esperado: number };
+
+/** Lee lo contado y lo esperado de la fila del conteo a ciegas. `null` si no se entiende. PURA. */
+export function leerConteoACiegas(changes: unknown): ConteoACiegas | null {
+  const c = (changes ?? {}) as Record<string, unknown>;
+  const contado = c.contadoACiegas;
+  const esperado = c.esperado;
+  if (typeof contado !== "number" || !Number.isFinite(contado) || typeof esperado !== "number" || !Number.isFinite(esperado)) return null;
+  return { contado: round2(contado), esperado: round2(esperado) };
+}
+
+/** Tras un conteo a ciegas que no cuadró, la apertura pide motivo SIEMPRE (aunque el recuento cuadre). PURA. */
+export function recuentoACiegasPideMotivo(p: { ciego: ConteoACiegas | null; motivo: string | null }): boolean {
+  return p.ciego !== null && !p.motivo;
+}
+
+/** El texto del pedido de motivo tras recontar: los dos conteos y el libro. PURA. */
+export function textoDelRecuentoACiegas(ciego: ConteoACiegas, contado: number, esperado: number): string {
+  const d = round2(contado - esperado);
+  const ahora = d === 0 ? "ahora cuadra" : d < 0 ? `ahora faltan ${textoPlata(-d)}` : `ahora sobran ${textoPlata(d)}`;
+  return `A ciegas contaste ${textoPlata(ciego.contado)} y el libro dice ${textoPlata(esperado)}; ahora contaste ${textoPlata(contado)} (${ahora}). Anotá por qué para abrir: los dos conteos quedan asentados, con tu nombre.`;
+}
+
+/** El detalle del APERTURA cuando hubo un conteo a ciegas antes: los dos números y el motivo. PURA. */
+export function detalleDeAperturaTrasConteoCiego(ciego: ConteoACiegas, contado: number, motivo: string | null): string {
+  return detalleConMotivo(
+    `Fondo inicial de caja. A ciegas se contó ${textoPlata(ciego.contado)} (el libro decía ${textoPlata(ciego.esperado)}); al abrir, ${textoPlata(contado)}`,
+    motivo,
+  );
 }

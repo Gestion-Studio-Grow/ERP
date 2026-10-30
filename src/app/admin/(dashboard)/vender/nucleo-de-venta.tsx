@@ -147,6 +147,11 @@ export type BoutiqueDeVender = {
    * MostradorBoutique; va debajo del buscador y las teclas.
    */
   atajos?: ReactNode;
+  /**
+   * N2 · M1-C1: ¿el pie ofrece Tarjeta (posnet)? Lo decide la página con `tarjetaHabilitada()` (el
+   * valor en la base y en el cliente de Prisma); `createOrder` lo vuelve a decidir. Sin esto, no.
+   */
+  conTarjeta?: boolean;
 };
 
 /** Una línea con precio a mano: nombre, importe tipeado y motivo. */

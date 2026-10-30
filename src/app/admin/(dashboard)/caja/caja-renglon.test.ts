@@ -245,7 +245,7 @@ describe("Caja del día abierta, en el navegador", { timeout: 180_000 }, () => {
     const filas = await page
       .locator('section[aria-labelledby="hay-ahora"] tbody th[scope="row"]')
       .evaluateAll((ths) => ths.map((th) => th.firstChild?.textContent?.trim()));
-    assert.deepEqual(filas, ["Efectivo", "MP / Transf."]);
+    assert.deepEqual(filas, ["Efectivo", "Mercado Pago"]);
     assert.match(await page.locator('section[aria-labelledby="hay-ahora"]').innerText(), /Tarjeta: sin movimientos\./);
     const seccion = (await page.locator('section[aria-labelledby="hay-ahora"]').innerText()).replace(/\s+/g, " ");
     // El saldo acumulado de MP no se suma al cajón ni se muestra como «lo que hay»: va al Libro.
@@ -260,7 +260,7 @@ describe("Caja del día abierta, en el navegador", { timeout: 180_000 }, () => {
     // Lo que se movió hoy: un renglón por movimiento, con su medio y su origen.
     const movs = await page.locator('section[aria-labelledby="movimientos-hoy"] [data-ui="renglon"]').allInnerTexts();
     assert.equal(movs.length, 4);
-    assert.match(movs[2].replace(/\s+/g, " "), /Venta #823.*MP \/ Transf\. · venta del mostrador/);
+    assert.match(movs[2].replace(/\s+/g, " "), /Venta #823.*Mercado Pago · venta del mostrador/);
     assert.match(movs[0].replace(/\s+/g, " "), /Fondo inicial de caja.*no suma: ya estaba en el cajón/, "el fondo no se lee como un ingreso");
     assert.doesNotMatch(movs[0], /−/);
     // Las dos teclas del día.

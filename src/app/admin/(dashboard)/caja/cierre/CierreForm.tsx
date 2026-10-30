@@ -21,7 +21,7 @@ import { cerrarDia, type CierreActionState } from "@/lib/cierre-diario-actions";
 import { Card, CardHeader, CardTitle, CardDescription, Field, Input, Textarea, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import type { CashMethod } from "@/lib/caja/cash-register";
-import { leerImporte } from "@/lib/pos-peso";
+import { leerContado, TEXTO_NETO_NEGATIVO } from "@/lib/caja/cierre-diario";
 import { useToast } from "../../ToastProvider";
 import { diferenciasDelCierre, revisarCierre, type CampoDelCierre } from "./revisar-cierre";
 
@@ -31,14 +31,18 @@ type Esperado = Record<CashMethod, number>;
 const AYUDA: Record<CashMethod, string> = {
   EFECTIVO: "Contá el cajón. Obligatorio, aunque sea 0.",
   MP: "Mirá el saldo de la app. Es por donde entra y sale la mayor parte de la plata.",
+  TRANSFERENCIA: "Mirá en el banco lo que entró (menos lo que salió) por transferencia desde el último cierre. No el saldo.",
   TARJETA: "Opcional: se liquida a los días. Dejalo vacío si no lo conciliás hoy.",
 };
+
+// Cert. M1 v9 O2: Transferencia es un neto y puede dar negativo.
+const AYUDA_NETO_NEGATIVO = `El libro da un ${TEXTO_NETO_NEGATIVO}. Escribí el neto del banco con un menos adelante (-400).`;
 
 // Mismo lector que el servidor: "12.500" son doce mil quinientos. El campo es de TEXTO a
 // propósito: un `type="number"` de Chromium tira la coma al tipear ("12,5" → 125) y lee
 // "12.500" como 12,5 (medido, Chromium 141, teclado físico y virtual).
-function parseInput(raw: string): number | null {
-  const l = leerImporte(raw);
+function parseInput(raw: string, m: CashMethod = "EFECTIVO"): number | null {
+  const l = leerContado(raw, m);
   return l.estado === "ok" ? l.valor : null;
 }
 
@@ -50,12 +54,24 @@ function isNextRedirect(e: unknown): boolean {
 
 const idDelCampo = (c: CampoDelCierre) => (c === "nota" ? "cierre-note" : `declarado-${c}`);
 
-export function CerrarDiaForm({ day, diaLabel, esperado }: { day: string; diaLabel: string; esperado: Esperado }) {
+export function CerrarDiaForm({
+  day,
+  diaLabel,
+  esperado,
+  medios = CASH_METHODS.filter((m) => m !== "TRANSFERENCIA"),
+}: {
+  day: string;
+  diaLabel: string;
+  esperado: Esperado;
+  /** Los medios que se cuentan (las columnas del cierre). Transferencia, sólo si el libro la tiene. */
+  medios?: readonly CashMethod[];
+}) {
   const router = useRouter();
   const { showSuccess } = useToast();
   const [declarado, setDeclarado] = useState<Record<CashMethod, string>>({
     EFECTIVO: "",
     MP: "",
+    TRANSFERENCIA: "",
     TARJETA: "",
   });
   const [note, setNote] = useState("");
@@ -81,16 +97,16 @@ export function CerrarDiaForm({ day, diaLabel, esperado }: { day: string; diaLab
     setVolverFoco((n) => n + 1);
   }
 
-  const diffs = useMemo(() => diferenciasDelCierre(declarado, esperado), [declarado, esperado]);
-  const hayDiferencia = CASH_METHODS.some((m) => diffs[m] !== null && diffs[m] !== 0);
+  const diffs = useMemo(() => diferenciasDelCierre(declarado, esperado, medios), [declarado, esperado, medios]);
+  const hayDiferencia = medios.some((m) => diffs[m] !== null && diffs[m] !== 0);
   const faltaEfectivo = parseInput(declarado.EFECTIVO) === null;
   // MP mueve ~7 de cada 10 pesos del negocio: cerrar sin mirarlo es cerrar a medias.
   // Es un aviso, no un bloqueo — el sistema sirve a varios negocios y no todos lo usan.
-  const sinMp = parseInput(declarado.MP) === null;
+  const sinMp = parseInput(declarado.MP, "MP") === null;
 
   function revisar() {
     setState(null);
-    const r = revisarCierre({ declarado, esperado, nota: note, etiquetas: CASH_METHOD_LABEL });
+    const r = revisarCierre({ declarado, esperado, nota: note, etiquetas: CASH_METHOD_LABEL, medios });
     if (!r.listo) {
       setFalta({ campo: r.campo, error: r.error });
       document.getElementById(idDelCampo(r.campo))?.focus();
@@ -109,7 +125,7 @@ export function CerrarDiaForm({ day, diaLabel, esperado }: { day: string; diaLab
     setState(null);
     const fd = new FormData();
     fd.set("day", day);
-    for (const m of CASH_METHODS) fd.set(`declarado_${m}`, declarado[m]);
+    for (const m of medios) fd.set(`declarado_${m}`, declarado[m]);
     fd.set("note", note);
     startTransition(async () => {
       let r: CierreActionState;
@@ -166,19 +182,20 @@ export function CerrarDiaForm({ day, diaLabel, esperado }: { day: string; diaLab
         }}
       >
         <div className="grid gap-4 px-4 pb-4 sm:grid-cols-3">
-          {CASH_METHODS.map((m) => {
+          {medios.map((m) => {
             const d = diffs[m];
             const errorAca = falta && falta.campo === m ? falta.error : null;
             return (
-              <Field key={m} label={CASH_METHOD_LABEL[m]} htmlFor={`declarado-${m}`} hint={AYUDA[m]}>
+              <Field key={m} label={CASH_METHOD_LABEL[m]} htmlFor={`declarado-${m}`} hint={m === "TRANSFERENCIA" && esperado[m] < 0 ? AYUDA_NETO_NEGATIVO : AYUDA[m]}>
                 <Input
                   id={`declarado-${m}`}
                   name={`declarado_${m}`}
                   type="text"
-                  inputMode="decimal"
+                  // Con un neto negativo hace falta el «-», que el teclado decimal del celular no trae.
+                  inputMode={m === "TRANSFERENCIA" && esperado[m] < 0 ? "text" : "decimal"}
                   autoComplete="off"
                   enterKeyHint="done"
-                  aria-invalid={errorAca !== null || (declarado[m].trim() !== "" && parseInput(declarado[m]) === null)}
+                  aria-invalid={errorAca !== null || (declarado[m].trim() !== "" && parseInput(declarado[m], m) === null)}
                   aria-describedby={errorAca ? `declarado-${m}-error` : undefined}
                   // NUNCA el esperado como placeholder: le sopla la respuesta a quien tiene
                   // que contar, y en gris tenue parece un campo ya completado. El número

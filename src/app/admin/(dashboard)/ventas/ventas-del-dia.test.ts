@@ -21,7 +21,7 @@ import {
 import { LOADERS_MOSTRADOR, whereVentasDeHoy, resumirPedidos } from "@/apps/kpis/mostrador.server";
 import { cargarKpiCon, type ContextoLoader, type DbKpi } from "@/apps/kpis/nucleo.server";
 import { appPorId } from "@/apps/registro";
-import { leerFiltros, notaDeDescuento, resumenACuenta, resumenDeVentas, vacioDeVentas, ventasCobradasDeVerdad } from "./filtros";
+import { leerFiltros, mediosDelPedido, notaDeDescuento, resumenACuenta, resumenDeVentas, vacioDeVentas, ventasCobradasDeVerdad } from "./filtros";
 
 const HOY = "2026-09-23";
 const DESDE = businessWallTimeToUtc(HOY, "00:00");
@@ -166,7 +166,11 @@ test("recepción ve sólo hoy aunque teclee otro día en la URL; la dueña, cual
   assert.equal(leerFiltros({ dia: "2026-09-01" }, duenia).dia, "2026-09-01");
   assert.equal(leerFiltros({ dia: "2026-10-01" }, duenia).dia, HOY, "un día futuro cae a hoy");
   assert.equal(leerFiltros({ dia: "2026-02-30" }, duenia).dia, HOY, "una fecha que no existe cae a hoy");
-  assert.deepEqual(leerFiltros({ medio: "TARJETA", canal: "PUERTA" }, duenia), { dia: HOY, medio: null, canal: null });
+  assert.deepEqual(leerFiltros({ medio: "CHEQUE", canal: "PUERTA" }, duenia), { dia: HOY, medio: null, canal: null });
+  // «Tarjeta» junta Débito y Crédito (UAT M1): es un medio del filtro, no uno desconocido.
+  assert.deepEqual(leerFiltros({ medio: "TARJETA" }, duenia), { dia: HOY, medio: "TARJETA", canal: null });
+  assert.deepEqual(mediosDelPedido("TARJETA"), ["DEBITO", "CREDITO"]);
+  assert.deepEqual(mediosDelPedido("TRANSFERENCIA"), ["TRANSFERENCIA"]);
   assert.deepEqual(leerFiltros({ dia: ["2026-09-02", "x"] }, duenia).dia, "2026-09-02");
 });
 

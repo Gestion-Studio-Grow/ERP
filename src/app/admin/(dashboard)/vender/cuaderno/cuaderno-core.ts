@@ -18,7 +18,7 @@
 
 import { leerCantidad } from "@/lib/pos-peso";
 import { round2 } from "@/lib/round";
-import { leerMedioDeCobro, type MedioDeCobro } from "@/lib/caja/medio-cobro";
+import { leerMedioDeCobroConTarjeta, type MedioConTarjeta } from "@/lib/caja/medio-cobro";
 import { fmtMoneyARS } from "@/components/ui/format";
 import type { OrderActionState } from "@/lib/order-actions";
 import { CAMPO_HORA_DEL_CUADERNO, horaDelCuaderno } from "@/lib/cuaderno/hora-de-la-venta";
@@ -41,7 +41,8 @@ export type VentaDelCuaderno = {
   dia: string;
   /** "11:20". */
   hora: string;
-  medio: MedioDeCobro;
+  /** Tarjeta (M1-C1) se lee siempre; la acepta o la rechaza `createOrder` (`tarjetaHabilitada`). */
+  medio: MedioConTarjeta;
   renglones: RenglonDelCuaderno[];
   /** Nombre del cliente si se anotó (opcional). */
   cliente?: string;
@@ -92,7 +93,7 @@ export function leerVentasDelCuaderno(crudo: unknown): { ok: true; ventas: Venta
     const clave = typeof v.clave === "string" ? v.clave : "";
     const dia = typeof v.dia === "string" ? v.dia : "";
     const hora = typeof v.hora === "string" ? leerHora(v.hora) : null;
-    const medio = leerMedioDeCobro(v.medio);
+    const medio = leerMedioDeCobroConTarjeta(v.medio, true);
     const renglones = Array.isArray(v.renglones) ? (v.renglones as unknown[]) : [];
     if (!CLAVE_VALIDA.test(clave) || claves.has(clave) || !DIA_VALIDO.test(dia) || !hora || !medio) {
       return { ok: false, error: "Una de las ventas llegó incompleta: recargá la pantalla y volvé a tocar «Cargar»." };
@@ -182,7 +183,7 @@ export type ProductoDelCuaderno = {
 export type FilaDelCuaderno = {
   clave: string;
   hora: string;
-  medio: MedioDeCobro | "";
+  medio: MedioConTarjeta | "";
   renglones: RenglonDelCuaderno[];
   cliente: string;
   /** Cómo quedó la última vez que se mandó (sin mandar: ausente). */
@@ -293,7 +294,7 @@ export function leerBorrador(crudo: string | null): BorradorDelCuaderno | null {
         Array.isArray(f.renglones) &&
         f.renglones.every((r) => r && typeof r.productId === "string" && typeof r.cantidad === "string"),
     );
-    return { v: 1, dia: x.dia, filas: filas.map((f) => ({ ...f, medio: leerMedioDeCobro(f.medio) ?? "" })) };
+    return { v: 1, dia: x.dia, filas: filas.map((f) => ({ ...f, medio: leerMedioDeCobroConTarjeta(f.medio, true) ?? "" })) };
   } catch {
     return null;
   }

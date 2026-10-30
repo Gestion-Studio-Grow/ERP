@@ -62,7 +62,9 @@ import { CUADERNO_SOLO_VENTA_COBRADA } from "@/lib/cuaderno/hora-de-la-venta";
 import type { Prisma, ProductSaleUnit } from "@/generated/prisma/client";
 import { emitirPedidoCobrado, emitirPedidoCreado } from "@/eventos/del-core";
 
-export type OrderPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
+// DEBITO/CREDITO (N2 · M1-C1, D-C01): sólo el mostrador los escribe, y sólo con `tarjetaHabilitada()` en
+// true (los valores en la base, N2_enums.sql). La vidriera y la ingesta externa siguen con los tres de siempre.
+export type OrderPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA" | "DEBITO" | "CREDITO";
 
 export type OrderInput = {
   channel: "COUNTER" | "ONLINE";

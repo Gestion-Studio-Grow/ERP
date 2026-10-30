@@ -77,7 +77,7 @@ exporta en la terminal del dueño.
 cd prisma/pending-gate2
 P="psql -X -v ON_ERROR_STOP=1 -d $MIGRATE_DATABASE_URL"
 $P -f CarniceriaRubro.sql     # 1 · Product.category/cost, lotes, despiece (M3a, M3b)
-$P -f N2_enums.sql            # 2 · DEBITO, CREDITO (D-C01), REPARTIDOR, ENCARGADO — SIN --single-transaction:
+$P -f N2_enums.sql            # 2 · DEBITO, CREDITO (D-C01), REPARTIDOR, ENCARGADO, CashMethod.TRANSFERENCIA (M1-C2) — SIN --single-transaction:
                               #     cada ADD VALUE es su propio paso (no usable en la misma tx)
                               #     🔴 IRREVERSIBLE: Postgres no tiene DROP VALUE (ver §5)
 $P -f N2_hub.sql              # 3 · ApiKey, WebhookSuscripcion, EntregaWebhook, PlantillaWhatsapp, OutboxEvent.version/clave
@@ -148,7 +148,9 @@ del último deploy en Vercel (sin push).
 1. **Login**: entrar a `/admin` de MAGRA y de Break Point con OWNER. Carga el inicio sin error.
 2. **Vender (MAGRA)**: mostrador → un corte por peso → cobrar en Efectivo → aparece en la caja del
    día. Si M1 ya está integrada, ver que aparezcan **Débito** y **Crédito** como medios separados
-   y que el cierre de caja los sume en la columna **Tarjeta** (D-C01).
+   y que el cierre de caja los sume en la columna **Tarjeta** (D-C01). Con el paso 2.e, vender por
+   **Transferencia** y ver en el cierre la columna Transferencia **sin saldo al abrir** y con lo
+   vendido hoy como esperado (F2: se cuenta lo que entró en el período, no el saldo del banco).
 3. **Agenda del club (Break Point)**: abrir la agenda del día, crear una reserva de prueba en una
    cancha libre, verla en la grilla, cancelarla. Con B1 integrada, la disponibilidad pública del
    turnero muestra el hueco de nuevo.
@@ -176,7 +178,35 @@ copiada tal cual a psql (probadas en local):
 | 1 | `CarniceriaRubro.sql` | bloque `ROLLBACK` al pie (tablas, enums y 2 columnas de Product) | lotes y despieces cargados |
 
 Después de una reversa: *Redeploy* en Vercel (los procesos vivos cachean el «sí está» del probe
-para siempre; un proceso nuevo vuelve a preguntar) y repetir el humo §4.
+para siempre; un proceso nuevo vuelve a preguntar) y repetir el humo §4. Si se recreó un tipo del
+paso 2 (procedimiento manual al pie de `N2_enums.sql`), hacerlo **en ventana, sin ventas, y con el
+redeploy antes de reabrir**: un proceso vivo que ya vio `CashMethod.TRANSFERENCIA` sigue
+escribiéndolo y cada venta por transferencia falla hasta que se reinicia (cert. M1 v6 F3).
+
+### 5 bis. Vuelta atrás del código de M1 (pase del 30/10/2026)
+
+M1 salió antes que el resto del paquete: sus tres valores (`PaymentMethod.DEBITO`,
+`PaymentMethod.CREDITO`, `CashMethod.TRANSFERENCIA`) se aplicaron con la migración
+`20261030120000_m1_enums_caja` (`prisma migrate deploy`). No se pueden borrar. El código de antes
+(`e2976802`) no los conoce: su cliente de Prisma falla al LEER cualquier fila que los use, y eso
+rompe caja, ventas y KPIs.
+
+**Regla (decisión del dueño, 30/10):** antes de revertir, correr esta consulta (sólo lectura):
+
+```sql
+SELECT
+  (SELECT count(*) FROM "Order"         WHERE "paymentMethod"::text IN ('DEBITO','CREDITO')) AS pedidos,
+  (SELECT count(*) FROM "Collection"    WHERE method::text          IN ('DEBITO','CREDITO')) AS cobros,
+  (SELECT count(*) FROM "CashMovement"  WHERE method::text          = 'TRANSFERENCIA')       AS libro;
+```
+
+- **Las tres en 0:** se puede revertir el código a `e2976802` (los valores quedan en el tipo, sin
+  filas que los usen, y el código viejo los tolera). Redeploy y humo §4.
+- **Alguna mayor que 0:** NO se revierte. Se arregla hacia adelante sobre M1 (rama
+  `n2/m1-caja-medios-dc01`, certificada v10).
+
+Otras tablas con `PaymentMethod` (pagos, deudas, turnos) entran en la misma regla si la consulta
+se amplía; las de arriba son las que escribe M1.
 
 ## 6. Cierre
 
@@ -218,6 +248,7 @@ para siempre; un proceso nuevo vuelve a preguntar) y repetir el humo §4.
 | Inicio | Quien aplica | Dueño GSG | WhatsApp | «Backup hecho: <branch>. Empiezo.» |
 | Falla en §2/§3 | Quien aplica | Dueño GSG | llamada | archivo que falló + error (sin secretos); el dueño decide reintentar o revertir |
 | Fin OK | Dueño GSG | Encargados de MAGRA y Break Point | WhatsApp | «Listo, ya pueden usar el sistema normal.» + qué hay de nuevo si aplica |
+| Fin OK, con el paso 2.e | Dueño GSG | Contadora de cada negocio | WhatsApp / mail | «Desde hoy el libro de caja separa Transferencia de Mercado Pago: el CSV del libro suma una columna Transferencia en los meses que la tengan. En el cierre del día, Transferencia es lo que entró ese día, no el saldo del banco.» |
 | Reversa | Dueño GSG | Encargados | WhatsApp | «Volvimos a la versión anterior.» Si se restauró el branch del §1, lo cargado durante la ventana se perdió: recargarlo desde el papel |
 
 Contactos: provisional a confirmar (los carga el dueño; no van en el repo).

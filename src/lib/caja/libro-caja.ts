@@ -36,11 +36,27 @@ import { CUENTA_CORRIENTE_ACTOR_PREFIX, esAsientoDeCuentaCorriente } from "@/lib
 // Orden CANÓNICO de los medios: es el orden de las columnas de la planilla y el de
 // las columnas de la pantalla. Un solo lugar para que tabla y resumen no se
 // desincronicen.
-export const CASH_METHODS = ["EFECTIVO", "MP", "TARJETA"] as const;
+//
+// TRANSFERENCIA (M1-C2): entra en las cuentas de todo el libro aunque la base todavía no la tenga
+// (prisma/pending-gate2/N2_enums.sql): una fila con el valor nunca puede quedar afuera de un
+// total. `MP` dice «Mercado Pago» desde el UAT de M1 (orden del dueño 30/10/2026): la transferencia
+// tiene su columna, y en producción no quedó ninguna guardada en `MP` (consulta H3 del pase).
+export const CASH_METHODS = ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"] as const;
+
+/**
+ * Los medios que se MUESTRAN (columnas de pantallas y planillas): todos, menos TRANSFERENCIA
+ * cuando no se movió plata en ella. Antes del paquete Gate 2 es siempre 0 (la transferencia vive
+ * en `MP`) y una columna en cero confunde a quien cuenta. Las CUENTAS usan siempre `CASH_METHODS`.
+ */
+export function mediosALaVista(...desgloses: readonly Partial<Record<CashMethod, number>>[]): CashMethod[] {
+  const transferencia = desgloses.some((a) => (a.TRANSFERENCIA ?? 0) !== 0);
+  return CASH_METHODS.filter((m) => m !== "TRANSFERENCIA" || transferencia);
+}
 
 export const CASH_METHOD_LABEL: Record<CashMethod, string> = {
   EFECTIVO: "Efectivo",
-  MP: "MP / Transf.",
+  MP: "Mercado Pago",
+  TRANSFERENCIA: "Transferencia",
   TARJETA: "Tarjeta",
 };
 
@@ -455,12 +471,12 @@ export type Libro = {
 };
 
 export function zeroAmounts(): MethodAmounts {
-  return { EFECTIVO: 0, MP: 0, TARJETA: 0 };
+  return { EFECTIVO: 0, MP: 0, TRANSFERENCIA: 0, TARJETA: 0 };
 }
 
 // Total de un desglose. Única forma de obtener el total en todo el módulo.
 export function totalOf(a: MethodAmounts): number {
-  return round2(a.EFECTIVO + a.MP + a.TARJETA);
+  return round2(a.EFECTIVO + a.MP + a.TRANSFERENCIA + a.TARJETA);
 }
 
 // Solo montos positivos y finitos cuentan (mismo blindaje que el arqueo: un dato
