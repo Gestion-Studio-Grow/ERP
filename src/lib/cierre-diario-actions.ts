@@ -801,17 +801,16 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
                   },
                 ]),
               ),
-              // Por columna de la hoja (con Transferencia separada): el detalle de lo contado.
-              ...(columnas
-                ? {
-                    porColumna: Object.fromEntries(
-                      cierre.columnas.map((c) => [
-                        c,
-                        { esperado: cierre.porColumna[c].expected, declarado: cierre.porColumna[c].declared, diferencia: cierre.porColumna[c].diff },
-                      ]),
-                    ),
-                  }
-                : {}),
+              // Por columna de la hoja: lo que la persona vio y tipeó. Con F2 no es `porMedio` (el
+              // libro): Transferencia abre en 0 y, en la hoja nueva, MP abre sin lo de transferencia.
+              // El comprobante se lee de acá (`arqueoDeLaFila`, cert. M1 v9 O1); `hoja` dice cuál.
+              hoja: columnas ? "nueva" : "siempre",
+              porColumna: Object.fromEntries(
+                cierre.columnas.map((c) => [
+                  c,
+                  { esperado: cierre.porColumna[c].expected, declarado: cierre.porColumna[c].declared, diferencia: cierre.porColumna[c].diff },
+                ]),
+              ),
               movimientos: cierre.movementCount,
               ajustes: filas.length,
             },

@@ -56,3 +56,24 @@ test("un changes que no es un cierre devuelve null (la pantalla cae al volcado)"
   assert.equal(resumenCierre({ porMedio: {} }), null);
   assert.equal(resumenCierre({ porMedio: { EFECTIVO: { esperado: "mal" } } }), null);
 });
+
+// Cert. M1 v9 O1: la fila trae la hoja (`porColumna`) y el libro (`porMedio`); manda la hoja, con
+// las etiquetas de la hoja que se usó.
+test("con porColumna manda la hoja; «hoja: siempre» conserva «MP / Transf.»", async () => {
+  const { resumenCierre } = await import("./cierre-resumen");
+  const fila = (hoja?: string) => ({
+    estado: "CUADRA",
+    ...(hoja ? { hoja } : {}),
+    porMedio: { MP: { esperado: 7_400, declarado: 7_400, diferencia: 0 }, TRANSFERENCIA: { esperado: 7_400, declarado: 7_400, diferencia: 0 } },
+    porColumna: { MP: { esperado: 2_300, declarado: 2_300, diferencia: 0 }, TRANSFERENCIA: { esperado: 2_600, declarado: 2_600, diferencia: 0 } },
+  });
+  const money = (n: number) => n.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+  assert.deepEqual(resumenCierre(fila("nueva"))?.medios, [
+    `Mercado Pago: contó ${money(2_300)} sobre ${money(2_300)} · cuadra`,
+    `Transferencia: contó ${money(2_600)} sobre ${money(2_600)} · cuadra`,
+  ]);
+  assert.deepEqual(resumenCierre(fila("siempre"))?.medios, [
+    `MP / Transf.: contó ${money(2_300)} sobre ${money(2_300)} · cuadra`,
+    `Transferencia: contó ${money(2_600)} sobre ${money(2_600)} · cuadra`,
+  ]);
+});

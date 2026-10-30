@@ -107,7 +107,7 @@ function Comprobante({ d, medios }: { d: Datos; medios: MedioDelComprobante[] | 
                 key={m.medio}
                 className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-0.5 border-b border-line py-2.5 sm:grid-cols-[minmax(0,1fr)_8rem_8rem_8rem]"
               >
-                <dt className="font-medium text-strong">{CASH_METHOD_LABEL[m.medio]}</dt>
+                <dt className="font-medium text-strong">{m.etiqueta}</dt>
                 <dd className="text-right">
                   <span className="mr-1 text-[13px] text-muted sm:hidden">contó</span>
                   {m.declarado === null ? <span className="text-sm text-muted">sin conciliar</span> : <Plata valor={m.declarado} />}

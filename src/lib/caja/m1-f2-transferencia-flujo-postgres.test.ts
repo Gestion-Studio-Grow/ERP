@@ -91,6 +91,15 @@ test("contra Postgres: F2 · dos días con transferencias guardadas en MP, el d�
   const c2 = await como(a, a.duenia, () => cerrarDia(form({ day: hoy, columnas: "x", declarado_EFECTIVO: "0", declarado_MP: "10.000", declarado_TRANSFERENCIA: "5.000" })));
   assert.ok(c2 && c2.ok, JSON.stringify(c2));
   assert.equal(await duenio.cashMovement.count({ where: { tenantId: a.id, createdBy: cierreMarker(hoy) } }), 0, "el día 2 cuadra: sin ajuste");
+  // Cert. M1 v9 O1: el comprobante dice lo que se vio y se tipeó (la hoja), no el saldo del libro.
+  const { resumenCierre } = await import("@/lib/caja/cierre-resumen");
+  const fila = await duenio.auditLog.findFirst({ where: { tenantId: a.id, action: "caja.cierre-diario", entityId: hoy }, orderBy: { createdAt: "desc" } });
+  const plata = (n: number) => n.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+  assert.deepEqual(resumenCierre(fila?.changes)?.medios.filter((m) => !m.startsWith("Tarjeta")), [
+    `Efectivo: contó ${plata(0)} sobre ${plata(0)} · cuadra`,
+    `Mercado Pago: contó ${plata(10_000)} sobre ${plata(10_000)} · cuadra`,
+    `Transferencia: contó ${plata(5_000)} sobre ${plata(5_000)} · cuadra`,
+  ]);
 
   // ── B no se mezcló ─────────────────────────────────────────────────────────
   assert.deepEqual(await duenio.cashMovement.findMany({ where: { tenantId: b.id }, orderBy: { createdAt: "asc" } }), libroDeB, "el libro de B no cambió");

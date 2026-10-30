@@ -8,12 +8,18 @@
 // hoja de arqueo con la que se contó (medio · contó · debería haber · diferencia), la plata en su
 // columna. Esto sólo LEE esa fila: tolera una fila rara devolviendo null (y la pantalla vuelve a
 // las frases), nunca inventa un número.
+//
+// Si la fila trae `porColumna`, el comprobante es ESA hoja: lo que se tipeó por columna contra lo
+// que la columna esperaba (`arqueoDeLaFila`). `porMedio` es el libro: con F2 no es lo que se contó.
 
 import { CASH_METHODS } from "@/lib/caja/libro-caja";
+import { arqueoDeLaFila } from "@/lib/caja/cierre-resumen";
 import type { CashMethod } from "@/lib/caja/cash-register";
 
 export type MedioDelComprobante = {
   medio: CashMethod;
+  /** Cómo se llama en el comprobante: la columna de la hoja nueva o el medio del libro. */
+  etiqueta: string;
   esperado: number;
   /** null = ese medio no se concilió. */
   declarado: number | null;
@@ -23,18 +29,18 @@ export type MedioDelComprobante = {
 const esNumero = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
 export function mediosDelComprobante(changes: unknown): MedioDelComprobante[] | null {
-  if (typeof changes !== "object" || changes === null) return null;
-  const porMedio = (changes as Record<string, unknown>).porMedio;
-  if (typeof porMedio !== "object" || porMedio === null) return null;
+  const arqueo = arqueoDeLaFila(changes);
+  if (!arqueo) return null;
   const out: MedioDelComprobante[] = [];
   for (const medio of CASH_METHODS) {
-    const m = (porMedio as Record<string, unknown>)[medio];
+    const m = arqueo.fuente[medio];
     if (typeof m !== "object" || m === null) continue;
     const { esperado, declarado, diferencia } = m as Record<string, unknown>;
     if (!esNumero(esperado)) continue;
     const dec = esNumero(declarado) ? declarado : null;
     out.push({
       medio,
+      etiqueta: arqueo.etiquetas[medio],
       esperado,
       declarado: dec,
       diferencia: dec === null ? null : esNumero(diferencia) ? diferencia : Math.round((dec - esperado) * 100) / 100,

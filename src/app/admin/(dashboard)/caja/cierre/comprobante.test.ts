@@ -21,8 +21,8 @@ test("lee los tres medios en el orden de la caja, con lo no conciliado en null",
     m.map((x) => x.medio),
     ["EFECTIVO", "MP", "TARJETA"],
   );
-  assert.deepEqual(m[0], { medio: "EFECTIVO", esperado: 202828.65, declarado: 196578.25, diferencia: -6250.4 });
-  assert.deepEqual(m[2], { medio: "TARJETA", esperado: 0, declarado: null, diferencia: null });
+  assert.deepEqual(m[0], { medio: "EFECTIVO", etiqueta: "Efectivo", esperado: 202828.65, declarado: 196578.25, diferencia: -6250.4 });
+  assert.deepEqual(m[2], { medio: "TARJETA", etiqueta: "Tarjeta", esperado: 0, declarado: null, diferencia: null });
 });
 
 test("la diferencia del día suma sólo lo conciliado", () => {
@@ -38,4 +38,25 @@ test("una fila rara no inventa números: null", () => {
 test("sin diferencia guardada, se calcula contado menos esperado", () => {
   const m = mediosDelComprobante({ porMedio: { EFECTIVO: { esperado: 1000, declarado: 700.5 } } })!;
   assert.equal(m[0].diferencia, -299.5);
+});
+
+// F2 (QA del 30/10): la hoja nueva escribe `porColumna` (lo tipeado contra lo que la columna
+// esperaba). El comprobante muestra ESO, no `porMedio` (los saldos del libro).
+test("con porColumna, el comprobante es la hoja que se contó, con sus etiquetas", () => {
+  const m = mediosDelComprobante({
+    porMedio: {
+      EFECTIVO: { esperado: 15900, declarado: 15900, diferencia: 0 },
+      MP: { esperado: 63200, declarado: 63200, diferencia: 0 },
+      TRANSFERENCIA: { esperado: 30400, declarado: 30400, diferencia: 0 },
+    },
+    porColumna: {
+      EFECTIVO: { esperado: 15900, declarado: 15900, diferencia: 0 },
+      MP: { esperado: 29400, declarado: 29400, diferencia: 0 },
+      TRANSFERENCIA: { esperado: 18900, declarado: 18900, diferencia: 0 },
+    },
+  })!;
+  assert.deepEqual(
+    m.map((x) => [x.etiqueta, x.declarado, x.esperado]),
+    [["Efectivo", 15900, 15900], ["Mercado Pago", 29400, 29400], ["Transferencia", 18900, 18900]],
+  );
 });

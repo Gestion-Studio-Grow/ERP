@@ -89,3 +89,7 @@ como intermitentes.
   («no hay tenant para el subdominio "negocio-a"») antes de llegar al cierre. Falla igual con el
   código anterior a F2 (`ba71f668`): no la causa F2. `[A VALIDAR]`: no pude establecer la causa (la
   resolución del negocio de prueba falla sólo en este test); correrla en CI antes de clasificarla.
+- `src/lib/caja/m1-caja-medios-postgres.test.ts` — pasó a las 23:48 y falla a las 00:17 del 30/10
+  (`ventasSinCobrar` da 0 en vez de 2), también con el arreglo O1 revertido: depende de la hora en
+  que corre (de 00:00 a 03:00, el día UTC de los pedidos sembrados con `now()` y el día del negocio
+  no son el mismo). `[A VALIDAR]`: correrlo fuera de esa franja o en CI.
