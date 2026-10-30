@@ -90,7 +90,7 @@ export default async function VentasPage({
   const verPlata = roleHasCapability(user.role, "reports:read");
   const alcance = alcanceDeAnulacion(user.role);
   const puedeVender = roleHasCapability(user.role, "orders:manage");
-  const filtros = leerFiltros(await searchParams, { hoy, otrosDias: verPlata });
+  const filtrosPedidos = leerFiltros(await searchParams, { hoy, otrosDias: verPlata });
   // «Facturar» en cada fila: con la MISMA regla que exige su action (app Facturación: módulo arca
   // y billing:manage). Sin ella, la fila no muestra nada de facturas: como hasta hoy.
   // El ticket sale en el ancho de ESTE equipo sólo si el negocio tiene el módulo `terminal`
@@ -98,6 +98,9 @@ export default async function VentasPage({
   const [puedeFacturar, nuevo, terminal, conTarjeta] = await Promise.all([puedeAbrirApp("facturacion"), disenoNuevo(), terminalDelEquipo(user), tarjetaHabilitada()]);
   // «Tarjeta» (Débito + Crédito) sólo donde existen en la base y en el cliente (`tarjetaHabilitada`).
   const mediosDelFiltro = conTarjeta ? MEDIOS_DEL_FILTRO : MEDIOS_DE_COBRO;
+  // `?medio=TARJETA` escrito a mano donde no hay tarjeta: sin filtro (con DEBITO/CREDITO fuera de la
+  // base, la consulta daría 500). Cert. M1 v11 B1.
+  const filtros = filtrosPedidos.medio === "TARJETA" && !conTarjeta ? { ...filtrosPedidos, medio: null } : filtrosPedidos;
   const esHoy = filtros.dia === hoy;
 
   // Hoy: desde las 00:00 sin tope (el mismo corte que el número del Inicio). Otro día: ese día.
