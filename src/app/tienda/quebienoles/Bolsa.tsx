@@ -93,7 +93,8 @@ export default function Bolsa({
     const c = campoCupon.current;
     if (!c) return;
     c.focus({ preventScroll: true });
-    c.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    // Salto directo, sin animación: un scroll suave se cortaba a mitad de camino y el campo quedaba bajo el pie.
+    c.scrollIntoView({ block: "center" });
   }, [cuponFrenaElPedido, pedido.error]);
   const envio = textoDelEnvio({
     fulfillment: v.fulfillment,
@@ -357,7 +358,7 @@ export default function Bolsa({
                 </p>
               )}
               {/* Sin role: el aviso del campo ya se anuncia y el foco va ahí. Esto es para el que mira el botón. */}
-              {cuponFrenaElPedido && <p className="qb-error">{cuponFrenaElPedido.replace(/\.$/, "")}. Corregí el cupón o borralo para hacer el pedido.</p>}
+              {cuponFrenaElPedido && <p className="qb-error">El cupón no se pudo aplicar: corregilo o borralo para hacer el pedido.</p>}
               <button
                 type="submit"
                 name="via"

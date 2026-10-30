@@ -122,7 +122,7 @@ test("«Hacer pedido» con un cupón que no sirve lleva el foco y la vista al cu
   const fuente = readFileSync(new URL("./Bolsa.tsx", import.meta.url), "utf8");
   assert.match(fuente, /const cuponFrenaElPedido = pedido\.error\?\.campo === "cupon"/);
   assert.match(fuente, /cajaCupon\.current\.open = true/, "abre el cupón si estaba cerrado");
-  assert.match(fuente, /c\.focus\(\{ preventScroll: true \}\);\s*c\.scrollIntoView\(/, "foco y scroll al campo");
+  assert.match(fuente, /c\.focus\(\{ preventScroll: true \}\);[\s\S]{0,200}c\.scrollIntoView\(\{ block: "center" \}\)/, "foco y salto directo al campo");
   assert.match(fuente, /\{cuponFrenaElPedido && <p className="qb-error">/, "aviso a la vista junto al botón");
   assert.match(fuente, /aria-describedby=\{errorDeCupon \? `\$\{id\}-cupon-error` : undefined\}/);
 });
