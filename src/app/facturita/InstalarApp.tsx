@@ -3,7 +3,7 @@
 // Botón «Instalar Facturita» — aparece SÓLO cuando el navegador ofrece instalar (Chrome/Edge en
 // Android y en la compu disparan `beforeinstallprompt`). En iPhone ese evento no existe: ahí
 // quedan los pasos escritos de la vidriera (Compartir → Agregar a inicio). Si la app ya está
-// abierta como instalada, no muestra nada.
+// abierta como instalada, no muestra nada. Botón a la escala de la vidriera (clases `fx-btn` de piel.ts).
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 
@@ -49,7 +49,7 @@ export default function InstalarApp() {
 
   if (instalada) {
     return (
-      <p role="status" className="text-sm font-medium text-success">
+      <p role="status" className="text-base font-medium text-success">
         Ya la tenés instalada en este equipo.
       </p>
     );
@@ -65,7 +65,7 @@ export default function InstalarApp() {
         if (outcome === "accepted") setInstalada(true);
         setEvento(null);
       }}
-      className="inline-flex h-11 items-center gap-2 rounded-lg border border-line bg-surface-raised px-5 text-sm font-semibold text-strong transition-colors hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="fx-btn fx-btn--2"
     >
       Instalar Facturita en este equipo
     </button>
