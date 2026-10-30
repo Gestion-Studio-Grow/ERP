@@ -53,6 +53,8 @@ const precioDe = (p: Product) => (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.pri
 const ICONOS = ["candle", "hand", "sparkle", "star", "sun"];
 const nada = () => () => {};
 const ORDEN_FAMILIA: Record<string, number> = Object.fromEntries(FAMILIAS.map((f, i) => [f.id, i]));
+const ESTADO_FICHA = { shineFicha: true } as const;
+const esFichaDelHistorial = (estado: unknown) => Boolean(estado && typeof estado === "object" && "shineFicha" in estado);
 
 export default function ShineFront({ branding, tenantKey, ...resto }: PropsShine) {
   const numero = branding?.whatsapp ?? null;
@@ -109,7 +111,8 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
   // Envío gratis desde $25.000 y tarifa $3.500: del copy, provisional a confirmar con la dueña (storefront.ts);
   // con zonas cargadas en Envíos manda la zona y el umbral no se muestra.
   const umbral = entrega.conZonas ? 0 : (copy.shipping?.freeThreshold ?? 0);
-  const faltaParaGratis = umbral > 0 && subtotal > 0 && subtotal < umbral ? umbral - subtotal : 0;
+  // Con «Retiro» no hay envío: ni «te faltan $X para el envío gratis» (QA 29/10, MEDIA-1).
+  const faltaParaGratis = entrega.modo === "envio" && umbral > 0 && subtotal > 0 && subtotal < umbral ? umbral - subtotal : 0;
   const cupon = useCuponDePedido(subtotal);
   const total = subtotal - cupon.descuento + entrega.costoEnvio;
   const pedido = usePedidoOnline({
@@ -147,15 +150,20 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
     setAviso(`Sumaste ${p.name}${a ? ` · ${a}` : ""}.`);
   }
 
-  // La ficha se comparte con ?p=<clave> (replaceState: sin entradas nuevas en el historial).
+  // La ficha se comparte con ?p=<clave> y es una entrada del historial: el «atrás» del celular la cierra en vez
+  // de sacar a la clienta de la tienda (QA 29/10, MEDIA-3). Cerrarla con el botón vuelve esa misma entrada.
   function abrirFicha(id: string, foco: boolean) {
     setFicha({ id, foco });
     const p = porId.get(id);
-    if (p) window.history.replaceState(null, "", `?p=${encodeURIComponent(p.vista.clave)}`);
+    if (!p) return;
+    const url = `?p=${encodeURIComponent(p.vista.clave)}`;
+    if (esFichaDelHistorial(window.history.state)) window.history.replaceState(ESTADO_FICHA, "", url);
+    else window.history.pushState(ESTADO_FICHA, "", url);
   }
   function cerrarFicha() {
     setFicha(null);
-    window.history.replaceState(null, "", window.location.pathname);
+    if (esFichaDelHistorial(window.history.state)) window.history.back();
+    else window.history.replaceState(null, "", window.location.pathname);
   }
   function mas(p: (typeof items)[number]) {
     const sirve = p.vista.aromas.length === 0 ? null : aroma && p.vista.aromas.includes(aroma) ? aroma : undefined;
@@ -168,9 +176,14 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
   }
 
   useEffect(() => {
-    // ?p= al llegar: abre esa ficha (después de hidratar, en un cuadro aparte).
+    // ?p= al llegar: abre esa ficha (después de hidratar, en un cuadro aparte). La entrada de la tienda queda
+    // debajo, así el «atrás» cierra la ficha también cuando se llegó por un enlace compartido.
     const clave = new URLSearchParams(window.location.search).get("p");
     const p = clave ? (porClave.get(clave) ?? null) : null;
+    if (p && !esFichaDelHistorial(window.history.state)) {
+      window.history.replaceState(null, "", window.location.pathname);
+      window.history.pushState(ESTADO_FICHA, "", `?p=${encodeURIComponent(p.vista.clave)}`);
+    }
     const id = p ? window.setTimeout(() => setFicha({ id: p.id, foco: false }), 0) : 0;
     // Aparición al scroll: sólo transform (nunca opacidad), y sólo lo que está debajo del pliegue.
     const r = raiz.current;
@@ -197,6 +210,17 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
     };
   }, [porClave]);
 
+  // «Atrás» / «adelante» del navegador: la ficha sigue a la dirección (?p=).
+  useEffect(() => {
+    const alVolver = () => {
+      const clave = new URLSearchParams(window.location.search).get("p");
+      const p = clave ? (porClave.get(clave) ?? null) : null;
+      setFicha(p ? { id: p.id, foco: false } : null);
+    };
+    window.addEventListener("popstate", alVolver);
+    return () => window.removeEventListener("popstate", alVolver);
+  }, [porClave]);
+
   // Si la pantalla pasa a compu con la bolsa abierta como hoja, queda como riel.
   useEffect(() => {
     const mq = window.matchMedia(ESCRITORIO);
@@ -206,6 +230,9 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
   }, []);
 
   const pFicha = ficha ? (porId.get(ficha.id) ?? null) : null;
+  // «Para regalar»: la pieza que está en la tienda se suma; la que no, se consulta por WhatsApp. Sin WhatsApp, la
+  // que no se puede sumar no se muestra (era un callejón: foto sin precio ni botón). Sin ninguna, no hay sección.
+  const regalos = REGALOS.map((g) => ({ g, p: g.clave ? porClave.get(g.clave) : undefined })).filter(({ p }) => p || hayWhatsApp);
   const wa = (m: string) => requestWhatsApp(m);
 
   return (
@@ -220,8 +247,9 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
         <nav className="sh-nav" aria-label="Secciones">
           <a href="#aromas">Aromas</a>
           <a href="#coleccion">Colección</a>
-          <a href="#regalar">Regalar</a>
-          <a href="#contacto">Consultanos</a>
+          {regalos.length > 0 && <a href="#regalar">Regalar</a>}
+          {/* Sin WhatsApp cargado no hay a quién consultar: el enlace no se muestra (QA 29/10, MEDIA-4). */}
+          {hayWhatsApp && <a href="#contacto">Consultanos</a>}
         </nav>
         <div className="sh-barra-der">
           <a href="#aromas" className="sh-chip-aroma">
@@ -366,6 +394,7 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
           )}
         </section>
 
+        {regalos.length > 0 && (
         <section className="sh-sec sh-regalar" id="regalar" aria-labelledby="shr-titulo">
           <div className="sh-cab">
             <p className="sh-eyebrow">Para regalar</p>
@@ -374,8 +403,7 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
             </h2>
           </div>
           <ul className="shr-grilla">
-            {REGALOS.map((g) => {
-              const p = g.clave ? porClave.get(g.clave) : undefined;
+            {regalos.map(({ g, p }) => {
               return (
                 <li key={g.titulo} className="shr" data-revelar>
                   <div className="shr-foto">
@@ -400,6 +428,7 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
             })}
           </ul>
         </section>
+        )}
 
         <section className="sh-manifiesto" aria-label="Manifiesto">
           <blockquote>

@@ -215,3 +215,23 @@ test("los mandos sobre la vela se leen: el color le gana a `.shine button` y el 
   }
   assert.ok(contraste([103, 17, 40], [253, 248, 242]) >= 4.5, "burdeos sobre crema (aroma elegido)");
 });
+
+test("retiro, cupón, contacto y «atrás» sin callejones (QA 29/10, MEDIA-1 a 4; lectura del código)", () => {
+  const leer = (f: string) => readFileSync(path.join(process.cwd(), "src", "app", "tienda", "shine", f), "utf8");
+  const front = leer("ShineFront.tsx");
+  const bolsa = leer("Bolsa.tsx");
+  const pie = leer("Pie.tsx");
+  // Con «Retiro»: ni «te faltan $X para el envío gratis» ni «Envío: Gratis».
+  assert.match(front, /const faltaParaGratis = entrega\.modo === "envio" && /);
+  assert.match(bolsa, /entrega\.modo === "retiro" && \([\s\S]*?<dt>Retiro<\/dt>[\s\S]*?<dd>Sin cargo<\/dd>/);
+  // Cupón rechazado al enviar: señal junto al botón y foco al cupón.
+  assert.match(bolsa, /No enviamos el pedido: revisá el cupón\./);
+  assert.match(bolsa, /if \(rechazoDeCupon\) irAlCupon\(\)/);
+  // Sin WhatsApp: «Consultanos» y el cierre «¡consultanos!» no se muestran; «Para regalar» sólo con algo que sumar.
+  assert.match(front, /\{hayWhatsApp && <a href="#contacto">Consultanos<\/a>\}/);
+  assert.match(front, /\.filter\(\(\{ p \}\) => p \|\| hayWhatsApp\)/);
+  assert.match(pie, /\{hayWhatsApp && <p className="sh-pie-cierre">\{CIERRE\}<\/p>\}/);
+  // La ficha es una entrada del historial y «atrás» la cierra.
+  assert.match(front, /window\.history\.pushState\(ESTADO_FICHA/);
+  assert.match(front, /addEventListener\("popstate"/);
+});

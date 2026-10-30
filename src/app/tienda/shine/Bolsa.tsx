@@ -31,6 +31,13 @@ const APARIENCIA_ENTREGA: AparienciaDeEntrega = {
   boton: { className: "sh-btn sh-btn-ghost" },
 };
 
+function irAlCupon() {
+  const campo = document.getElementById("shb-cupon");
+  const quieto = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  campo?.scrollIntoView({ block: "center", behavior: quieto ? "auto" : "smooth" });
+  campo?.focus({ preventScroll: true });
+}
+
 export default function Bolsa({
   abierta,
   alCerrar,
@@ -81,6 +88,14 @@ export default function Bolsa({
   const [editando, setEditando] = useState<string | null>(null);
   const hay = renglones.length > 0;
   const errorDeCupon = pedido.error?.campo === "cupon" ? pedido.error.texto : cupon.error;
+  // El rechazo por cupón llega al tocar «Enviar pedido», abajo; el cupón queda arriba, fuera de vista en el riel
+  // (QA 29/10, MEDIA-2). Se lleva el foco y la vista al cupón, donde está el motivo.
+  // Booleano: `pedido.error` es un objeto nuevo en cada render; el efecto corre cuando llega el rechazo (mientras se
+  // envía no hay error, así que un segundo rechazo igual vuelve a llevar al cupón).
+  const rechazoDeCupon = pedido.error?.campo === "cupon";
+  useEffect(() => {
+    if (rechazoDeCupon) irAlCupon();
+  }, [rechazoDeCupon]);
   // Una línea por producto para el servidor (dos aromas del mismo producto suman su cantidad).
   const porProducto = new Map<string, number>();
   for (const r of renglones) porProducto.set(r.id, (porProducto.get(r.id) ?? 0) + r.q);
@@ -271,7 +286,14 @@ export default function Bolsa({
                 <dd className="sh-num">−{money.format(cupon.descuento)}</dd>
               </div>
             )}
-            {conTarifa && (
+            {conTarifa && entrega.modo === "retiro" && (
+              // Con «Retiro» no hay envío que sea «Gratis» (QA 29/10, MEDIA-1).
+              <div>
+                <dt>Retiro</dt>
+                <dd>Sin cargo</dd>
+              </div>
+            )}
+            {conTarifa && entrega.modo !== "retiro" && (
               <div>
                 <dt>{entrega.zona ? `Envío · ${entrega.zona.nombre}` : "Envío"}</dt>
                 <dd className="sh-num">
@@ -290,6 +312,15 @@ export default function Bolsa({
           {pedido.error && pedido.error.campo !== "cupon" && (
             <p role="alert" className="sh-error">
               {pedido.error.texto}
+            </p>
+          )}
+          {/* El servidor rechazó el pedido por el cupón: la señal también va junto al botón, y el foco al cupón. */}
+          {rechazoDeCupon && (
+            <p className="sh-error">
+              No enviamos el pedido: revisá el cupón.{" "}
+              <button type="button" className="sh-link" onClick={irAlCupon}>
+                Ir al cupón
+              </button>
             </p>
           )}
           {pedido.confirmado && (
