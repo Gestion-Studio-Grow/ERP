@@ -539,6 +539,7 @@ function cablear() {
   $("#ped-cancha").addEventListener("change", () => armarPedido());
   $("#ped-nombre").addEventListener("input", armarPedido);
   $("#ped-wa").addEventListener("click", (e) => { if (!armarPedido({ validar: true })) e.preventDefault(); else if (POR_IG) mandarPorInstagram(e); });
+  $("#ped-copiar").addEventListener("click", copiarPedido);
   $("#form-pedido").addEventListener("submit", (e) => { e.preventDefault(); if (armarPedido({ validar: true })) $("#ped-wa").click(); });
   // Tienda: se descarga recién cuando se abre (/turnero#tienda o el botón del encabezado).
   addEventListener("hashchange", () => { if (location.hash === "#tienda") abrirTienda(); else if (S.config) aplicarAncla(); });
@@ -610,6 +611,7 @@ function abrirPedido(slot) {
   S.igListo = false;
   $("#ped-copiado").textContent = "";
   $("#ped-manual").hidden = true;
+  $("#ped-copiar").hidden = !POR_IG;
   if (POR_IG) $("#ped-wa-txt").textContent = "Mandalo por Instagram";
   // Cancha elegida desde la portada (/turnero#cancha-N): queda preseleccionada si está libre en ese horario.
   if (S.cancha && ops.some((o) => o.canchaId === S.cancha)) $("#ped-cancha").value = S.cancha;
@@ -689,6 +691,26 @@ function mandarPorInstagram(e) {
   api(texto).then(() => { $("#ped-copiado").textContent = "Copiado: pegalo en el chat"; listo(true); }, () => listo(false));
 }
 
+/**
+ * «Copiar pedido» (QA r2, segunda salida mientras el club no publique su WhatsApp): copia el pedido SIN abrir nada y lo
+ * deja a la vista con lo que hay que hacer. Si el portapapeles falla, el texto queda seleccionado para copiarlo a mano.
+ */
+function copiarPedido() {
+  if (!armarPedido({ validar: true })) return;
+  const texto = $("#ped-texto").value;
+  const instrucciones = "Mandáselo al club por mensaje directo a @breakpointpadel_ en Instagram, o por el chat que ya uses con ellos. El club te confirma y te pasa el alias para la seña.";
+  $("#ped-manual").hidden = false;
+  const listo = (copiado) => {
+    $("#ped-copiado").textContent = copiado ? `Pedido copiado. ${instrucciones}` : `No pudimos copiarlo: seleccioná el texto y copialo. ${instrucciones}`;
+    if (copiado) aviso("Pedido copiado");
+    else { $("#ped-texto").focus(); $("#ped-texto").select(); }
+  };
+  if (copiarEnElToque(texto)) { $("#ped-copiar").focus({ preventScroll: true }); return listo(true); }
+  const api = navigator.clipboard?.writeText?.bind(navigator.clipboard);
+  if (!api) return listo(false);
+  api(texto).then(() => listo(true), () => listo(false));
+}
+
 /** Sin horarios libres con esos filtros: en vez de una lista de espera que acá no existe, se le pregunta al club. */
 function preguntarPorWhatsApp() {
   window.open(linkWa(`Hola Break Point, ¿tienen algún turno el ${fechaLarga(S.fecha)} (${durTexto(S.duracion)})${S.techadas ? " en cancha techada" : ""}?`), "_blank", "noopener");
@@ -711,7 +733,7 @@ function prepararModoPedido() {
   if (POR_IG) {
     $("#ped-wa").innerHTML = `${CAMARA}<span id="ped-wa-txt">Mandalo por Instagram</span>`;
     $("#ped-ayuda").textContent = "Copiamos tu pedido y se abre el chat de Instagram del club: pegalo y mandalo. El club te confirma por ahí y te pasa el alias para la seña.";
-    $("#ped-sin-wa").textContent = "Si no se abre el chat, buscá @breakpointpadel_ en Instagram.";
+    $("#ped-sin-wa").textContent = "Si no se abre el chat, buscá @breakpointpadel_ en Instagram o tocá «Copiar pedido» y mandalo por donde hables con el club.";
   }
   // Sin el WhatsApp del club, «Preguntar» abriría WhatsApp sin destinatario: no se ofrece (DISENO §5.2).
   $("#espera p").textContent = WA ? "Preguntale al club: a veces se libera algo." : "Probá otro día u otra duración.";

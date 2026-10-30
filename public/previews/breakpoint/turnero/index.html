@@ -224,7 +224,10 @@
       </div>
       <p id="ped-error" class="error" role="alert"></p>
       <a id="ped-wa" class="btn btn-pri btn-block btn-pedir" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 18.8z"/></svg><span id="ped-wa-txt">Pedir este turno por WhatsApp</span></a>
-      <!-- Sin el WhatsApp del club publicado, el pedido va por el Instagram del club: se copia y se abre el chat. -->
+      <!-- Sin el WhatsApp del club publicado, el pedido va por el Instagram del club: se copia y se abre el chat.
+           Segunda salida (QA r2): «Copiar pedido» sólo copia y deja el texto a la vista, con instrucciones, para quien
+           no usa Instagram o prefiere mandarlo por otro lado. -->
+      <button id="ped-copiar" type="button" class="btn btn-block" hidden>Copiar pedido</button>
       <p id="ped-copiado" class="copiado" role="status" aria-live="polite"></p>
       <div id="ped-manual" class="campo" hidden>
         <label for="ped-texto">Tu pedido: copialo y pegalo en el chat</label>
