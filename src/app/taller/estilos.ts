@@ -145,7 +145,7 @@ html:has(.agr),body:has(.agr){background:#000}
 /* Así trabajamos: la misma barra de etapas que ve el cliente en su link */
 .agr .agr-etapas{position:relative;list-style:none;margin:0;padding:0;display:grid;gap:40px}
 .agr .agr-etapas__linea{position:absolute;background:var(--rojo);left:26px;top:28px;bottom:28px;width:4px;transition:clip-path 700ms ease-out}
-.agr .agr-etapa{position:relative;display:grid;grid-template-columns:56px 1fr;gap:20px;align-items:start}
+.agr .agr-etapa{position:relative;display:grid;grid-template-columns:56px 1fr;gap:20px;align-items:start;align-content:start}
 .agr .agr-etapa__n{display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:var(--tinta);color:#fff;border:4px solid var(--gris);font:600 1.125rem/1 var(--mono);transition:transform 400ms var(--curva)}
 .agr .agr-etapa p{margin:8px 0 0;color:var(--texto-2)}
 @media (min-width:900px){

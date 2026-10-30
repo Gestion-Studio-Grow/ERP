@@ -23,6 +23,8 @@ type Paso = 1 | 2 | 3 | 4 | 5;
 const TITULOS: Record<Paso, string> = { 1: "Tu auto", 2: "Qué necesita", 3: "Quién lo revisa", 4: "Cuándo", 5: "Tus datos" };
 const BOTON_FIJO: Record<Paso, string> = { 1: "Seguir", 2: "Elegir trabajo", 3: "Elegir mecánico", 4: "Elegir horario", 5: "Confirmar turno" };
 
+const cuantos = (n: number) => `${n} ${n === 1 ? "horario" : "horarios"}`;
+
 function Confirmar() {
   const { pending } = useFormStatus();
   return (
@@ -343,7 +345,7 @@ export default function TurnoForm({
                         className="agr-dia"
                         disabled={!horarios || n === 0}
                         aria-pressed={d.fecha === dia}
-                        aria-label={`${fmtCalendarDateLabel(d.fecha)}: ${horarios ? (n ? `${n} horarios` : "sin horarios") : "buscando"}`}
+                        aria-label={`${fmtCalendarDateLabel(d.fecha)}: ${horarios ? (n ? cuantos(n) : "sin horarios") : "buscando"}`}
                         onClick={() => {
                           setDia(d.fecha);
                           setHora("");
@@ -362,7 +364,7 @@ export default function TurnoForm({
                     : horarios && !Object.values(horarios).some((h) => h.length)
                       ? "No hay horarios en los próximos 14 días. Escribinos y lo coordinamos."
                       : dia
-                        ? `${fmtCalendarDateLabel(dia)}: ${horarios?.[dia]?.length ?? 0} horarios. Elegí uno.`
+                        ? `${fmtCalendarDateLabel(dia)}: ${cuantos(horarios?.[dia]?.length ?? 0)}. Elegí uno.`
                         : ""}
                 </p>
                 {dia && horarios && (
