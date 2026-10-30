@@ -13,6 +13,9 @@ import BookingProvider from "./_ch/BookingProvider";
 import Header from "./_ch/Header";
 import AnnouncementBar from "./_ch/AnnouncementBar";
 import { frauncesSitio, hankenSitio } from "./fuentes";
+import { DisenoProvider } from "@/lib/diseno/DisenoProvider";
+import { chConDisenoNuevo } from "./_ch/diseno-ch.server";
+import PielCH from "./_ch/PielCH";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +27,13 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   if (await direccionConNegocio().then((ok) => !ok, () => false)) redirect("/sin-negocio");
   // Los servicios y el equipo ya no se leen acá: no viajan en el HTML de cada página (ver
   // BookingProvider) y la lectura quedaba sin usar en /reserva y /reserva/turno.
-  const [news, location, brand, slug] = await Promise.all([
+  const [news, location, brand, slug, chNuevo] = await Promise.all([
     getPublicNews(),
     getLocation(),
     getTenantBrand(),
     getCurrentTenantSlug(),
+    // «Diseño nuevo» de CH (DISENO.md de CH): sólo beauty-spa lo lee; apagado, el sitio de siempre tal cual.
+    chConDisenoNuevo(),
   ]);
   // REGLA front/back: el FRONT (vidriera) usa el tema declarado del tenant; el
   // acento va afinado a ese tema (--accent + on-accent). `data-theme` deja los
@@ -53,7 +58,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const whatsapp = location.whatsapp;
   const latestNews = news[0] ?? null;
 
-  return (
+  const sitio = (
     <WhatsAppCtaProvider tenantKey={slug ?? "ch-default"} configuredNumber={whatsapp}>
       {/* Sin `data`: los ~70 servicios ya no viajan en el HTML de cada página.
           El provider los pide cuando alguien va a reservar (ver client-actions). */}
@@ -65,7 +70,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
             "adopta" con menos fricción que esperando que el cliente llegue
             a la sección más abajo en la página. */}
         {latestNews && <AnnouncementBar id={latestNews.id} message={latestNews.message} />}
-        <Header hasNews={!!latestNews} brandName={brandName} />
+        <Header hasNews={!!latestNews} brandName={brandName} {...(chNuevo ? { nuevo: true } : {})} />
         <main id="top">{children}</main>
 
         <footer style={{ background: "var(--surface-inverted)", color: "var(--text-on-accent)" }}>
@@ -106,5 +111,14 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       </div>
       </BookingProvider>
     </WhatsAppCtaProvider>
+  );
+  // Apagado (o cualquier negocio que no es CH): el mismo árbol de siempre, sin un nodo de más. Prendido: la hoja
+  // del diseño nuevo (una vez por página) y `useDiseno()` para el encabezado, la barra y la piel de la reserva.
+  if (!chNuevo) return sitio;
+  return (
+    <DisenoProvider nuevo>
+      <PielCH />
+      {sitio}
+    </DisenoProvider>
   );
 }
