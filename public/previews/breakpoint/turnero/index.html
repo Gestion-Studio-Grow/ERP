@@ -21,14 +21,15 @@
 <body data-estado="cargando">
 <a class="saltar" href="#mis-reservas">Saltar a Mis turnos</a>
 
-<p id="cinta" class="cinta" role="note">Demo: los datos son de ejemplo y no se guardan</p>
+<!-- Sin JS se ve lo del ambiente real (QA 29/10): ni «Demo: …» ni «Conectando…». app.mjs pone lo de la demo. -->
+<p id="cinta" class="cinta" role="note">Horarios de referencia: el club te confirma por mensaje</p>
 
 <header class="top">
   <div class="top-in">
     <!-- Logo provisional a confirmar: trazos derivados del SVG del club (ccr-63ed11dc-brcdpp), sin depender de una fuente
          instalada. Lleva a la portada del club. Reemplazar por el vector oficial cuando llegue. -->
     <a class="logo-link" href="/" aria-label="Break Point Pádel: inicio"><svg id="logo" viewBox="0 0 120 120" aria-hidden="true" focusable="false"><rect width="120" height="120" fill="#035BA8"/><g transform="translate(8 20)"><rect x="0.5" y="3.5" width="3.6" height="73" fill="#fff"/><path fill="none" stroke="#fff" stroke-width="2.6" d="M10.8 15.17H18.86A3.94 3.94 0 0 0 18.86 7.3H10.8V23.7H18.94A4.26 4.26 0 0 0 18.94 15.17ZM28.8 23.7V7.3H38.26A3.94 3.94 0 0 1 38.26 15.17H28.8M37.06 15.17L42.4 23.7M58.2 7.3H47.8V23.7H58.2M47.8 15.17H56.8M63.4 25L72 7.1L80.6 25M66.1 19.4H77.9M85.8 7.3V23.7M100.6 6.9L86.4 17.37M90.2 14.57L100.6 24.1M10.8 49.7V33.3H17.96A4.24 4.24 0 0 1 17.96 41.78H10.8M50.1 33.3V49.7M56.3 51V33.3L72.7 49.7V32M77.5 33.3H101.5M89.5 33.3V51M10.8 75.7V59.3H17.97A4.23 4.23 0 0 1 17.97 67.76H10.8M28.15 77L36.75 59.1L45.35 77M30.85 71.4H42.65M51.3 59.3V75.7H57.14A8.56 8.2 0 0 0 57.14 59.3ZM82.45 59.3H72.05V75.7H82.45M72.05 67.17H81.05M88.8 59.3V75.7H100.2"/><g fill="none" stroke="#DC6E22" stroke-width="3.3" stroke-linecap="round"><circle cx="35" cy="42.4" r="8.1"/><path d="M34.2 35.6a7.6 7.6 0 0 0 0 13.6"/></g></g></svg></a>
-    <span id="en-vivo" class="vivo off" role="status">Conectando…</span>
+    <span id="en-vivo" class="vivo pedido" role="status">Pedido por mensaje</span>
     <a id="btn-tienda" class="btn-head btn-tienda" href="#tienda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><span class="t-txt">Tienda</span></a>
     <button id="btn-ingresar" class="btn-head" type="button">Ingresar</button>
     <div id="usuario" class="usuario" hidden></div>

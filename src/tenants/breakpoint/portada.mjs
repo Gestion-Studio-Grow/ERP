@@ -141,7 +141,7 @@ h1 .caja{width:fit-content;margin-top:.08em;padding:.04em .2em .06em .12em;backg
 .franja{flex-direction:column;align-items:flex-start;justify-content:center;gap:8px;min-height:96px}}
 @media (max-width:899px){.plano{grid-row:3}.rotulo{grid-row:1}h1{grid-row:2}}
 /* secciones */
-.sec{padding:var(--sec) 0 0}
+.sec{padding-top:var(--sec)}
 .sec h2{margin-bottom:clamp(24px,3vw,44px)}
 .pasos{display:grid;gap:clamp(16px,2vw,32px);margin:0;padding:0;list-style:none;counter-reset:paso}
 .pasos li{display:grid;grid-template-columns:auto 1fr;align-items:start;gap:16px;padding-top:16px;border-top:2px solid var(--tinta);counter-increment:paso}

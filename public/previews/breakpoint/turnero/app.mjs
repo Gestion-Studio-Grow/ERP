@@ -442,7 +442,7 @@ function conectarVivo() {
   fuente?.close();
   const ev = LOCAL ? LOCAL.fuente("/api/turnero/eventos") : new EventSource(`${API}/api/turnero/eventos`, { withCredentials: true });
   fuente = ev;
-  const estado = (on) => { const el = $("#en-vivo"); el.classList.toggle("on", on); el.classList.toggle("off", !on); el.textContent = on ? "En vivo" : "Reconectando…"; };
+  const estado = (on) => { const el = $("#en-vivo"); el.classList.remove("pedido"); el.classList.toggle("on", on); el.classList.toggle("off", !on); el.textContent = on ? "En vivo" : "Reconectando…"; };
   // Si se cortó (túnel, 4G que va y viene), al volver se re-pide todo: lo que pasó en el medio no se pierde.
   let caido = false;
   ev.onopen = () => { estado(true); if (caido) { caido = false; S.cache.clear(); cargarSlots({ animar: true, forzar: true }); cargarReservas(); } };
@@ -588,8 +588,11 @@ function pedirCelular() {
  */
 function porHorario(slots) {
   if (slots.some((s) => s.opciones)) return slots; // ya agrupados (repintado después de una animación)
+  // Con una cancha elegida desde la portada (chip «Cancha 2»), se ven sólo sus horarios y la ficha dice su nombre,
+  // no «4 canchas» (QA 29/10).
+  const base = S.cancha ? slots.filter((s) => s.canchaId === S.cancha) : slots;
   const grupos = new Map();
-  for (const s of slots) (grupos.get(s.inicio) ?? grupos.set(s.inicio, []).get(s.inicio)).push(s);
+  for (const s of base) (grupos.get(s.inicio) ?? grupos.set(s.inicio, []).get(s.inicio)).push(s);
   return [...grupos.values()].map((ops) => {
     const min = Math.min(...ops.map((x) => x.precio));
     return { ...ops[0], cancha: ops.length === 1 ? ops[0].cancha : `${ops.length} canchas`, techada: ops.some((x) => x.techada), pico: ops.some((x) => x.pico), precio: min, desde: ops.some((x) => x.precio !== min), opciones: ops };
@@ -736,9 +739,12 @@ function aplicarAncla() {
 }
 function elegirCancha(id) {
   const c = S.config?.canchas?.find?.((x) => x.id === id);
+  const antes = S.cancha;
   S.cancha = c ? id : null;
   $("#chip-cancha").hidden = !c;
   if (c) $("#chip-cancha-txt").textContent = c.nombre ?? `Cancha ${id.slice(1)}`;
+  // El chip filtra la grilla: al ponerlo o sacarlo, se repinta con lo que ya está en memoria.
+  if (MODO_PEDIDO && antes !== S.cancha && S.cache.has(clave())) pintarGrilla(S.cache.get(clave()), { foco: null });
 }
 
 // ───────────── tienda (módulo aparte, carga diferida) ─────────────
@@ -761,6 +767,8 @@ async function iniciar() {
     $("#grilla").setAttribute("aria-busy", "false");
     return;
   }
+  // La cinta de la demo para prospectos (el HTML trae la del ambiente real, que es la que se ve sin JS).
+  if (!MODO_PEDIDO && MODO_DEMO) $("#cinta").textContent = "Demo: los datos son de ejemplo y no se guardan";
   if (MODO_PEDIDO) { prepararModoPedido(); LOCAL = (await import("./local.mjs")).crearLocalPedido({ tarifas: TARIFAS, catalogo: CATALOGO }); }
   else if (API === "local") LOCAL = await (await import("./local.mjs")).crearLocal();
   const [cfg, yo] = await Promise.all([api("/api/turnero/config"), api("/api/auth/yo")]);
