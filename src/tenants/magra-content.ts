@@ -21,7 +21,7 @@
 // "Vidriera editorial con riel de pedido") — el mockup docs/estrategia/diseno/assets/
 // mockup-magra-vidriera.html, llevado a producto real (catálogo + carrito del ERP).
 
-import { numeroWhatsApp } from "@/lib/whatsapp-cta";
+import { leerWhatsApp } from "@/lib/whatsapp-cta";
 
 const GEN = "/tenants/magra/gen";
 
@@ -110,7 +110,7 @@ export interface MagraLocal {
   addressLine: string | null;
   city: string | null;
   hours: string | null;
-  /** Listo para wa.me (`numeroWhatsApp`). "" = el local no cargó un número usable. */
+  /** Celular argentino listo para wa.me (549 + área + número). "" = el local no cargó uno usable. */
   whatsapp: string;
   /** Etiqueta visible, DERIVADA de `whatsapp`. No es un campo aparte: ver abajo. */
   whatsappLabel: string | null;
@@ -189,8 +189,11 @@ function localidadDe(addressLine: string | null | undefined, city: string | null
 }
 
 export function resolveMagraLocal(row: MagraBrandingRow | null | undefined): MagraLocal {
-  // 549 + área + número (`numeroWhatsApp`): con los dígitos crudos, «11-6677-8890» era EE. UU.
-  const wa = numeroWhatsApp(row?.whatsapp);
+  // 549 + área + número (`leerWhatsApp`): con los dígitos crudos, «11-6677-8890» era EE. UU. Sólo
+  // argentinos: MAGRA es un local de acá y estos dígitos se vuelven a leer (CTA, `wa.me/` directo), y
+  // un número de otro país sin el "+" podría pasar por argentino.
+  const lectura = leerWhatsApp(row?.whatsapp);
+  const wa = lectura.tipo === "argentino" ? lectura.numero : "";
   const ig = resolveInstagram(row?.instagram ?? null);
   return {
     addressLine: text(row?.addressLine),

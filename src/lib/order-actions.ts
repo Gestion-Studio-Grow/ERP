@@ -41,7 +41,7 @@ import { decidirFiadoDeLaEntrega } from "@/lib/clientes/fiado.server";
 import { facturarOrden } from "@/lib/invoice-from-order";
 import { VentaAnuladaError } from "@/lib/invoice-core";
 import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
-import { buildWhatsAppHref, numeroWhatsApp } from "@/lib/whatsapp-cta";
+import { buildWhatsAppHref, whatsappCanonico } from "@/lib/whatsapp-cta";
 import { logger } from "@/lib/logger";
 import { normalizarCodigoDeCupon, topeDePrecioAMano, CUPON_NO_VALE } from "@/lib/venta-reglas";
 import type { VentaYaGrabada } from "@/lib/reintento-de-venta";
@@ -900,8 +900,9 @@ async function chatDelPedido(tenantId: string, orderId: string, negocio: string)
     }),
     prisma.businessSettings.findUnique({ where: { tenantId }, select: { whatsapp: true } }).catch(() => null),
   ]);
-  // 549 + área + número: el «11-6677-8890» del panel, tal cual, abría un chat en EE. UU.
-  const numero = numeroWhatsApp(bs?.whatsapp);
+  // 549 + área + número: el «11-6677-8890» del panel, tal cual, abría un chat en EE. UU. Con el "+"
+  // (`whatsappCanonico`) porque buildWhatsAppHref lo vuelve a leer: sin él, uno de otro país pasa por argentino.
+  const numero = whatsappCanonico(bs?.whatsapp);
   if (!o || !numero) return null;
   return buildWhatsAppHref(
     numero,

@@ -76,9 +76,24 @@ export function leerWhatsApp(raw: string | null | undefined): LecturaWhatsApp {
   return { tipo: "invalido", numero: "", motivo: clave.length === 10 ? "faltaArea" : "largo" };
 }
 
-/** El número listo para `wa.me/<numero>`, o "" si no hay uno usable (ver `leerWhatsApp`). */
+/**
+ * El número listo para `wa.me/<numero>`, o "" si no hay uno usable (ver `leerWhatsApp`). Es el
+ * ÚLTIMO paso, el que arma la URL: sin el "+", un número de otro país vuelto a leer puede pasar
+ * por argentino («351915123456», Portugal, se lee 351 15 912-3456, Córdoba). Para pasar el número
+ * entre capas, `whatsappCanonico`.
+ */
 export function numeroWhatsApp(raw: string | null | undefined): string {
   return leerWhatsApp(raw).numero;
+}
+
+/**
+ * El número con "+" adelante («+5491166778890», «+351915123456»), o "". Es la forma que viaja
+ * entre capas (settings, props, el CTA): se puede volver a leer las veces que haga falta y da lo
+ * mismo, porque el "+" dice sin dudas de qué país es.
+ */
+export function whatsappCanonico(raw: string | null | undefined): string {
+  const numero = numeroWhatsApp(raw);
+  return numero ? `+${numero}` : "";
 }
 
 /**

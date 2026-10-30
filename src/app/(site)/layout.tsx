@@ -36,7 +36,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const { accent, onAccent } = sheet
     ? brandSheetAccent(sheet, frontTheme)
     : resolveAccent(brand.preset, brand.frontTheme);
-  // WhatsApp del negocio (módulo Localización): ya viene listo para wa.me (`resolveLocation`).
+  // WhatsApp del negocio (módulo Localización): ya viene canónico, con "+" (`resolveLocation`).
   const whatsapp = location.whatsapp;
   const latestNews = news[0] ?? null;
 

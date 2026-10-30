@@ -10,7 +10,7 @@ import { getStorefront } from "@/lib/order-actions";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { editorialFrontFor, getTenantIdentity } from "@/lib/identidad-rubro";
 import { resolveMagraLocal } from "@/tenants/magra-content";
-import { numeroWhatsApp } from "@/lib/whatsapp-cta";
+import { whatsappCanonico } from "@/lib/whatsapp-cta";
 import GraciasNueva from "../vidriera/GraciasNueva";
 import GraciasQuebienoles from "../quebienoles/GraciasQuebienoles";
 import { marcaDeLaVidriera, usaVidrieraNueva } from "../vidriera/marcas";
@@ -51,7 +51,7 @@ export default async function GraciasPage({
   if (usaVidrieraNueva(nuevo || (!front && identity.rubro?.vidriera != null), identity, front)) {
     const tienda = await leerTienda();
     const marca = marcaDeLaVidriera(front, identity.brandId);
-    const whatsapp = marca === "magra" ? resolveMagraLocal(tienda.branding).whatsapp : numeroWhatsApp(tienda.branding?.whatsapp);
+    const whatsapp = marca === "magra" ? resolveMagraLocal(tienda.branding).whatsapp : whatsappCanonico(tienda.branding?.whatsapp);
     const medios = textoDeMediosDePago(tienda.copy?.paymentMethods ?? []);
     const pago =
       marca === "magra"
@@ -79,7 +79,7 @@ export default async function GraciasPage({
       <GraciasQuebienoles
         pedido={pedido && /^\d{1,9}$/.test(pedido) ? pedido : null}
         instagram={tienda.branding?.instagram ?? null}
-        whatsapp={numeroWhatsApp(tienda.branding?.whatsapp)}
+        whatsapp={whatsappCanonico(tienda.branding?.whatsapp)}
         tenantKey={identity.slug ?? "quebienoles"}
       />
     );

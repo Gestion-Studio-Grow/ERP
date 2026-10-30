@@ -24,7 +24,7 @@
 // /admin/localizacion, y el checklist de apertura de la consola lo pide antes de abrir.
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import { buildWhatsAppHref, numeroWhatsApp } from "@/lib/whatsapp-cta";
+import { buildWhatsAppHref, whatsappCanonico } from "@/lib/whatsapp-cta";
 
 type WhatsAppCtaContextValue = {
   /** Dispara el CTA: abre directo si ya hay número, si no pide el prompt. */
@@ -53,7 +53,7 @@ export function WhatsAppCtaProvider({
   children: ReactNode;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
-  const configured = numeroWhatsApp(configuredNumber);
+  const configured = whatsappCanonico(configuredNumber);
 
   const requestWhatsApp = useCallback(
     (message: string) => {

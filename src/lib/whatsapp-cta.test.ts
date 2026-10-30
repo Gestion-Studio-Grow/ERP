@@ -7,6 +7,7 @@ import {
   whatsappStorageKey,
   leerWhatsApp,
   numeroWhatsApp,
+  whatsappCanonico,
   etiquetaWhatsApp,
   waLinkClienta,
   avisoWhatsAppDelNegocio,
@@ -47,6 +48,8 @@ const CASOS: [string, string][] = [
   ["+1 305 555 1234", "13055551234"],
   ["+34 612 345 678", "34612345678"],
   ["+598 99 123 456", "59899123456"],
+  // Portugal: sin el "+" se leería 351 15 912-3456 (Córdoba). Ver el test de whatsappCanonico.
+  ["+351 915 123 456", "351915123456"],
   ["+55 11 98765-4321", "5511987654321"],
   ["0034 612 345 678", "34612345678"],
   // Otro país guardado sin "+" (el panel guardaba sólo los dígitos).
@@ -70,11 +73,23 @@ for (const [entrada, esperado] of CASOS) {
   });
 }
 
-test("numeroWhatsApp es idempotente: pasarlo dos veces no cambia el número", () => {
-  for (const [entrada] of CASOS) {
-    const una = numeroWhatsApp(entrada);
-    assert.equal(numeroWhatsApp(una), una, entrada);
+test("whatsappCanonico es idempotente y, leído otra vez, da el mismo número para wa.me", () => {
+  for (const [entrada, esperado] of CASOS) {
+    const canonico = whatsappCanonico(entrada);
+    assert.equal(canonico, esperado ? `+${esperado}` : "", entrada);
+    assert.equal(whatsappCanonico(canonico), canonico, entrada);
+    assert.equal(numeroWhatsApp(canonico), esperado, entrada);
   }
+});
+
+test("un número de otro país no cambia de país al pasar por las capas (el bug del certificador)", () => {
+  // El panel lo carga con "+", settings lo pasa canónico, el CTA y el pedido arman el link.
+  const canonico = whatsappCanonico("+351 915 123 456");
+  assert.equal(buildWhatsAppHref(canonico, "hola"), "https://wa.me/351915123456?text=hola");
+  assert.equal(buildWhatsAppHref(whatsappCanonico(canonico), "hola"), "https://wa.me/351915123456?text=hola");
+  // Sólo dígitos es ambiguo de verdad (351 15 912-3456 es un celular de Córdoba bien escrito):
+  // por eso el número no viaja nunca sin el "+".
+  assert.equal(numeroWhatsApp("351915123456"), "5493519123456");
 });
 
 test("numeroWhatsApp de null/undefined da string vacío", () => {
