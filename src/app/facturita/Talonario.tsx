@@ -48,6 +48,8 @@ export default function Talonario() {
   const [total, setTotal] = useState(EJEMPLO.total);
   const [destinatario, setDestinatario] = useState<Destinatario>(EJEMPLO.destinatario);
   const [aviso, setAviso] = useState("");
+  // QA 29/10: el simulador no «emite» una factura sin detalle («Detalle —») ni por $0.
+  const [falta, setFalta] = useState<{ detalle?: string; total?: string }>({});
   const escena = useRef<HTMLDivElement>(null);
   const foco = useRef<HTMLElement | null>(null);
 
@@ -81,7 +83,28 @@ export default function Talonario() {
     setPaso(p);
   };
 
+  /** Lo que falta para emitir: sin detalle o sin total no hay factura (ni de ejemplo). */
+  const faltantes = () => {
+    const f: { detalle?: string; total?: string } = {};
+    if (!detalle.trim()) f.detalle = "Escribí qué vendiste.";
+    if (!(Number(total.replace(",", ".")) > 0)) f.total = "Poné el total.";
+    return f;
+  };
+  /** Si falta algo, vuelve a «¿Qué vendiste?» con el error al lado del campo. true si se puede seguir. */
+  const completo = () => {
+    const f = faltantes();
+    setFalta(f);
+    if (!f.detalle && !f.total) return true;
+    setAviso("");
+    if (estado !== "borrador") setEstado("borrador");
+    foco.current = document.getElementById(f.detalle ? "fx-detalle" : "fx-total");
+    if (paso === 0) foco.current?.focus({ preventScroll: true });
+    setPaso(0);
+    return false;
+  };
+
   const emitir = () => {
+    if (!completo()) return;
     // Un cuadro pegada (recortada, sin transición) y al siguiente, suelta: la hoja se arranca.
     setEstado("pegada");
     requestAnimationFrame(() => requestAnimationFrame(() => setEstado("suelta")));
@@ -96,6 +119,7 @@ export default function Talonario() {
 
   const seguir = (e: FormEvent) => {
     e.preventDefault();
+    if (paso === 0 && !completo()) return;
     ir(paso + 1);
   };
 
@@ -137,23 +161,45 @@ export default function Talonario() {
               <label className="fx-etiqueta">
                 Detalle
                 <input
+                  id="fx-detalle"
                   className="fx-campo"
                   value={detalle}
                   maxLength={40}
-                  onChange={(e) => setDetalle(e.target.value)}
+                  onChange={(e) => {
+                    setDetalle(e.target.value);
+                    setFalta((f) => ({ ...f, detalle: undefined }));
+                  }}
                   autoComplete="off"
+                  aria-invalid={Boolean(falta.detalle)}
+                  aria-describedby={falta.detalle ? "fx-detalle-error" : undefined}
                 />
               </label>
+              {falta.detalle && (
+                <p id="fx-detalle-error" role="alert" className="fx-sim-error">
+                  {falta.detalle}
+                </p>
+              )}
               <label className="fx-etiqueta">
                 Total en pesos
                 <input
+                  id="fx-total"
                   className="fx-campo fx-cifras"
                   value={total}
                   inputMode="decimal"
-                  onChange={(e) => setTotal(limpiarTotal(e.target.value))}
+                  onChange={(e) => {
+                    setTotal(limpiarTotal(e.target.value));
+                    setFalta((f) => ({ ...f, total: undefined }));
+                  }}
                   autoComplete="off"
+                  aria-invalid={Boolean(falta.total)}
+                  aria-describedby={falta.total ? "fx-total-error" : undefined}
                 />
               </label>
+              {falta.total && (
+                <p id="fx-total-error" role="alert" className="fx-sim-error">
+                  {falta.total}
+                </p>
+              )}
               <button type="submit" className="fx-btn">
                 Seguir
               </button>

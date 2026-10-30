@@ -155,7 +155,10 @@ export const PIEL_FACTURITA = `
 .fx .fx-hoja-pie{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;flex-wrap:wrap}
 .fx .fx-sello{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:var(--fx-ok-suave);color:var(--fx-ok);font-weight:700;font-size:.875rem;white-space:nowrap}
 .fx .fx-sello--borrador{background:var(--fx-papel-2);color:var(--fx-tenue)}
-.fx .fx-pdf{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border-radius:10px;background:#fff;box-shadow:inset 0 0 0 1px var(--fx-borde);font-weight:600;font-size:.875rem}
+.fx .fx-sin-validez{font-weight:700;font-size:.8125rem;letter-spacing:.04em;text-transform:uppercase;color:var(--fx-tinta)}
+.fx .fx-pdf{margin:8px 0 0;font-size:.8125rem;color:var(--fx-tenue)}
+.fx .fx-sim-error{margin:-4px 0 0;font-size:.8125rem;font-weight:600;color:var(--danger)}
+.fx .fx-campo[aria-invalid="true"]{border-color:var(--danger)}
 .fx .fx-descargo{margin:14px -6px 0;padding:10px 6px 0;border-top:1px dashed var(--fx-borde);font-size:.8125rem;line-height:1.45;color:var(--fx-tenue)}
 .fx .fx-descargo strong{color:var(--fx-tinta)}
 .fx .fx-qr{display:flex;align-items:center;gap:12px}
@@ -254,6 +257,7 @@ export const PIEL_FACTURITA = `
 .fx .fx-alta-input[aria-invalid="true"]{border-color:var(--danger)}
 .fx .fx-alta-input:disabled{background:var(--fx-papel-2);color:var(--fx-tenue)}
 .fx .fx-alta-input::placeholder{color:#8a7f6e}
+.fx .fx-alta-texto{height:auto;min-height:10rem;padding-block:12px;line-height:1.45;white-space:pre-wrap;resize:vertical}
 .fx .fx-condicion{display:flex;gap:14px;min-height:72px;padding:16px 18px;border-radius:16px;border:1.5px solid var(--fx-borde);background:#fff;cursor:pointer}
 .fx .fx-condicion:has(:checked){border-color:var(--fx-ambar);background:#fff7e8;box-shadow:inset 0 0 0 1px var(--fx-ambar)}
 .fx .fx-condicion:has(:focus-visible){outline:3px solid var(--fx-ambar-tinta);outline-offset:3px}

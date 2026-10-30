@@ -18,6 +18,7 @@ import {
 } from "@/lib/facturita-planes";
 import VidrieraMarco from "../VidrieraMarco";
 import { BOTON_PRINCIPAL, BOTON_SECUNDARIO } from "../estilos";
+import { canalGsg, linkCanal, type CanalGsg } from "../contacto";
 
 export const dynamic = "force-static";
 
@@ -31,7 +32,22 @@ export const metadata: Metadata = {
 const PRECIOS_DE_REFERENCIA =
   "Facturita es gratis. Lo demás es Comerciante, con precios de referencia que confirmamos antes de cobrarte.";
 
-function HojaPlan({ plan, grande = false }: { plan: Plan; grande?: boolean }) {
+/**
+ * QA 29/10: los planes pagos no tenían ninguna acción. No hay cobro online ni el alta elige plan:
+ * «Consultanos» abre el canal de GSG (WhatsApp si está cargado; si no, mail) con el plan escrito.
+ */
+function Consultar({ plan, canal }: { plan: Plan; canal: CanalGsg }) {
+  const texto = `¡Hola! Quiero consultar por el plan ${plan.nombre} de Facturita (${precioTexto(plan.precioMensual)} por mes).`;
+  return (
+    <div style={{ marginTop: "auto", paddingTop: 24 }}>
+      <a href={linkCanal(canal, `Plan ${plan.nombre} de Facturita`, texto)} target="_blank" rel="noopener noreferrer" className={BOTON_SECUNDARIO} style={{ width: "100%" }} data-qa="consultar-plan">
+        Consultanos{canal.tipo === "whatsapp" ? " por WhatsApp" : " por mail"}
+      </a>
+    </div>
+  );
+}
+
+function HojaPlan({ plan, grande = false, canal }: { plan: Plan; grande?: boolean; canal?: CanalGsg }) {
   const titulo = `plan-${plan.id}`;
   return (
     <article aria-labelledby={titulo} className={`fx-hoja-plan${grande ? "" : " fx-hoja-plan--quieta"}`}>
@@ -76,11 +92,13 @@ function HojaPlan({ plan, grande = false }: { plan: Plan; grande?: boolean }) {
           </ul>
         </>
       )}
+      {canal && plan.precioMensual > 0 && <Consultar plan={plan} canal={canal} />}
     </article>
   );
 }
 
 export default function FacturitaPlanesPage() {
+  const canal = canalGsg();
   return (
     <VidrieraMarco barraFija="siempre">
       <div className="fx-caja" style={{ paddingBlock: "clamp(40px, 3rem + 3vw, 112px) var(--fx-seccion)" }}>
@@ -116,7 +134,7 @@ export default function FacturitaPlanesPage() {
         <p className="fx-bajada">La misma cuenta, con más músculo. Elegís por el tamaño de tu negocio.</p>
         <div className="fx-planes-4">
           {PLANES_COMERCIANTE.map((p) => (
-            <HojaPlan key={p.id} plan={p} />
+            <HojaPlan key={p.id} plan={p} canal={canal} />
           ))}
         </div>
         <p className="fx-chico" style={{ margin: "28px 0 0" }}>
