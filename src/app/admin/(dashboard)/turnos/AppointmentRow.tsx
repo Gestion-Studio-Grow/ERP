@@ -18,6 +18,7 @@ import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
+import { separarNota } from "@/lib/reserva-publica-notas";
 import {
   cobroSugerido,
   esCuentaACobrar,
@@ -455,6 +456,7 @@ export default function AppointmentRow({
   // Cobrado y condonado se muestran SEPARADOS: sumarlos diría que entraron $20.000 cuando
   // entraron $17.000, que es justo la mentira que obligaba a inventar asientos en la caja.
   const desglose = desglosarCobros(cobros);
+  const nota = separarNota(appointment.notes);
   // "Ya ocurrió" es sólo una pista visual (el server es la autoridad: `puedeCompletarse`);
   // el reloj se toma una vez al montar para no leer `Date.now()` en el render.
   const [ahora] = useState(() => Date.now());
@@ -540,9 +542,18 @@ export default function AppointmentRow({
               </span>
             )}
           </div>
-          {appointment.notes && (
-            <p className="text-sm text-body mt-2 rounded-md bg-warning-soft px-2 py-1">
-              {appointment.notes}
+          {/* G1: lo que mandó el cliente (patente y auto, desde la reserva pública) va aparte y
+              rotulado; el recuadro amarillo queda sólo para lo que escribió el equipo. */}
+          {nota.delCliente && (
+            <p className="text-sm text-body mt-2 rounded-md border border-line px-2 py-1" data-qa="nota-del-cliente">
+              <span className="font-medium text-muted">Del cliente: </span>
+              {nota.delCliente}
+            </p>
+          )}
+          {nota.delEquipo && (
+            <p className="text-sm text-body mt-2 rounded-md bg-warning-soft px-2 py-1" data-qa="nota-del-equipo">
+              <span className="font-medium">Nota del equipo: </span>
+              {nota.delEquipo}
             </p>
           )}
         </div>
