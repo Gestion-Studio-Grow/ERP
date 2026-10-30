@@ -567,6 +567,26 @@ export function promesaDeReparto(
   return null;
 }
 
+/**
+ * Las propuestas de valor sin prometer un canal que el local no tiene. «Atención personalizada»
+ * dice «¡escribinos por WhatsApp!» (textual del sitio): con el WhatsApp cargado queda igual;
+ * sin él, la QA vio la promesa sin botón. Entonces: con Instagram, «¡escribinos por Instagram!»
+ * (mismo tono, canal real); sin ninguno, se manda a la nota del pedido, que sí existe en la bolsa.
+ */
+export function propuestasSegunContacto<T extends { text: string }>(
+  propuestas: readonly T[],
+  local: Pick<MagraLocal, "whatsapp" | "instagramUrl">,
+): T[] {
+  if (local.whatsapp) return [...propuestas];
+  return propuestas.map((v) => {
+    if (!/por whatsapp/i.test(v.text)) return v;
+    const text = local.instagramUrl
+      ? v.text.replace(/por whatsapp/i, "por Instagram")
+      : "Dudas o antojos: dejalos en la nota de tu pedido.";
+    return { ...v, text };
+  });
+}
+
 /** El "quiénes somos", con el cierre de reparto atado al local en vez de a Canning. */
 export function textoAbout(
   local: Pick<MagraLocal, "zoneLabel">,

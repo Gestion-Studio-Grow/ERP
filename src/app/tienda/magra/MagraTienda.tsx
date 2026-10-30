@@ -35,6 +35,7 @@ import {
   coccionesDe,
   esElLocalDelCopy,
   promesaDeReparto,
+  propuestasSegunContacto,
   regionDeCorte,
   resolveMagraLocal,
   textoAbout,
@@ -322,7 +323,7 @@ function Vidriera({
     contadorPrevio.current = count;
   }, [count]);
 
-  const propuestas = propuestasConMediosDeLaMarca(c.valueProps, mediosDePago);
+  const propuestas = propuestasSegunContacto(propuestasConMediosDeLaMarca(c.valueProps, mediosDePago), local);
   const promesa = promesaDeReparto(local, c);
   const [h1a, h1b] = partirTitulo(c.heroTitle);
 

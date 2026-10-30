@@ -18,6 +18,7 @@ import {
   packDeCorte,
   partesDelNombre,
   porcionesAKilos,
+  propuestasSegunContacto,
   regionDeCorte,
   resolveMagraLocal,
   whatsappInternacionalAR,
@@ -233,4 +234,18 @@ test("WhatsApp: el chat del pedido va al número del local normalizado, con el t
   );
   assert.equal(chatConElNumeroDelLocal(delServidor, ""), null, "sin número del local no hay chat");
   assert.equal(chatConElNumeroDelLocal(null, "5491166778890"), null);
+});
+
+test("sin WhatsApp, «Atención personalizada» no promete un chat que no existe", () => {
+  const conWa = propuestasSegunContacto(MAGRA.valueProps, { whatsapp: "5491166778890", instagramUrl: null });
+  assert.deepEqual(conWa, MAGRA.valueProps, "con WhatsApp, el copy textual queda igual");
+  const textoDe = (ps: { title: string; text: string }[]) => ps.find((p) => p.title === "Atención personalizada")!.text;
+  const conIg = propuestasSegunContacto(MAGRA.valueProps, { whatsapp: "", instagramUrl: "https://www.instagram.com/tiendamagra" });
+  assert.equal(textoDe(conIg), "Dudas, pedidos o antojos: ¡escribinos por Instagram!");
+  const sinNada = propuestasSegunContacto(MAGRA.valueProps, { whatsapp: "", instagramUrl: null });
+  assert.equal(textoDe(sinNada), "Dudas o antojos: dejalos en la nota de tu pedido.");
+  for (const ps of [conIg, sinNada]) {
+    assert.equal(ps.length, MAGRA.valueProps.length, "las cuatro propuestas siguen");
+    assert.ok(ps.every((p) => !/whatsapp/i.test(p.text)), "ningún texto promete WhatsApp");
+  }
 });
