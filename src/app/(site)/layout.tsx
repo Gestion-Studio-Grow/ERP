@@ -16,6 +16,7 @@ import { frauncesSitio, hankenSitio } from "./fuentes";
 import { DisenoProvider } from "@/lib/diseno/DisenoProvider";
 import { chConDisenoNuevo } from "./_ch/diseno-ch.server";
 import PielCH from "./_ch/PielCH";
+import { notaDeContactoSinPromesa } from "./_ch/contacto-ch";
 
 export const dynamic = "force-dynamic";
 
@@ -87,7 +88,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
             </div>
             <div>
               <p style={{ color: "var(--text-on-accent)", margin: "0 0 4px" }}>Contacto</p>
-              <p style={{ margin: 0 }}>{location.contactNote}</p>
+              <p style={{ margin: 0 }}>{chNuevo ? notaDeContactoSinPromesa(location.contactNote, whatsapp) : location.contactNote}</p>
               {location.instagramUrl && (
                 <p style={{ margin: "4px 0 0" }}>
                   <a href={location.instagramUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--text-on-accent)", textDecoration: "underline", textUnderlineOffset: 4 }}>

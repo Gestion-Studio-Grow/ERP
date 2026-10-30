@@ -14,6 +14,7 @@ import {
   type MagraAnimal,
 } from "@/tenants/magra-content";
 import { MiniDespiece } from "./Despiece";
+import { EtiquetaDePack } from "./EtiquetaDePack";
 import { regionDe } from "./despiece-datos";
 import { altDelPack, Disponible, money, Stepper, unitLabel, unitPrice, type MagraProducto } from "./Etiqueta";
 
@@ -67,12 +68,9 @@ export function FichaContenido({
         {pack ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={pack.src} width={pack.width} height={pack.height} alt={altDelPack(p)} decoding="async" />
-        ) : animal ? (
-          <MiniDespiece animal={animal} region={regionId} titulo={region ? `De dónde sale: ${region.nombre.toLowerCase()}` : undefined} />
         ) : (
-          <span className="mg-ficha-sello" aria-hidden="true">
-            MA<b>G</b>RA
-          </span>
+          // Sin foto real: la etiqueta del pack, sin sello (el «De dónde sale» de abajo ya lo dibuja).
+          <EtiquetaDePack nombre={nombre} animal={animal} region={regionId} sello={false} />
         )}
       </div>
       <div className="mg-ficha-txt">

@@ -100,6 +100,7 @@ export const CSS_CH = `
 .chf-hueco-nom{grid-area:nom;display:grid;line-height:1.2;align-self:end;min-width:0}
 .chf-hueco-nom b{font-family:var(--font-display),Georgia,serif;font-weight:400;font-size:1.625rem}
 .chf-hueco-nom span{font-size:.9375rem;color:var(--chf-claro)}
+.chf-hueco-nom .chf-ocupada{font-weight:600;color:var(--text-on-accent)}
 .chf-hueco-hora{grid-area:hora;height:56px;display:flex;align-items:center;align-self:start}
 .chf-hueco-acc{grid-area:acc;align-self:start;height:56px;display:flex;align-items:center;justify-content:flex-end}
 .chf-hora{appearance:none;border:0;background:none;padding:0;cursor:pointer;color:var(--text-on-accent);font-family:var(--font-display),Georgia,serif;font-weight:400;font-size:clamp(1.75rem,1.3rem + 1vw,2.25rem);line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:left;text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--text-on-accent) 45%,transparent);text-underline-offset:8px;text-decoration-thickness:1px;transition:text-decoration-color var(--ch-transicion)}

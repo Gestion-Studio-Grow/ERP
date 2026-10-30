@@ -20,6 +20,7 @@ import ReserveButton from "./ReserveButton";
 import ProximoHueco from "./ProximoHueco";
 import CartaDestacada from "./CartaDestacada";
 import BarraReservar from "./BarraReservar";
+import { comoConfirmamos } from "./contacto-ch";
 import { enumerar, fichasDeHueco, fotoChicaDe, fotoDe, iniciales, nombreDePila } from "./equipo";
 import type { FeaturedService } from "./FeaturedTreatments";
 import type { BookingGroup, BookingProfessional } from "./types";
@@ -34,6 +35,8 @@ type Lugar = {
   email: string | null;
   mapsUrl: string;
   contactNote: string;
+  /** Sólo dígitos; "" si el negocio no cargó WhatsApp (entonces no se promete). */
+  whatsapp: string;
 };
 
 const fecha = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "long", timeZone: "America/Argentina/Buenos_Aires" });
@@ -65,7 +68,7 @@ export default async function ChFront({
 
   // «Antes de venir»: sólo lo que es real para este negocio. Si nada aplica, la sección no existe.
   const antes: string[] = [];
-  antes.push("Te confirmamos por WhatsApp con el turno tomado.");
+  antes.push(comoConfirmamos(location.whatsapp));
   if (regla) antes.push(regla);
   if (servicios.some((s) => s.depositAmount != null)) antes.push("Algunos tratamientos piden seña: te la mostramos antes de confirmar.");
   if (servicios.some((s) => s.residentPrice != null && s.residentPrice < s.price))

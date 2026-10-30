@@ -15,11 +15,17 @@
 // tiene el alto final (esqueleto de alto fijo). Estados: cargando (esqueleto) · hora («Mañana 09:00», abre el
 // modal en «Datos» con todo elegido) · sin lugar en 2 días («Mirá la semana», abre el modal en el paso 1) ·
 // error de red (queda la ficha con «Reservar»: nunca una ficha rota ni en blanco).
+//
+// La hora no queda vieja (QA 29/10: después de reservar seguía ofreciendo la hora ya tomada). Se vuelve a pedir
+// al cerrar el modal, al volver a la pestaña (foco/visibilidad) y, al tocar una hora, se confirma que sigue libre
+// ANTES de abrir el modal: si se ocupó, la ficha pasa sola al hueco siguiente y lo dice, en vez de dejar llegar a
+// «Confirmar» para fallar ahí. Siguen siendo sólo lecturas del motor de siempre.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getAvailableSlotsRange } from "@/lib/actions";
 import { fmtTime } from "@/lib/datetime";
 import { useBooking } from "./BookingProvider";
+import { primerHueco, sigueLibre } from "./huecos";
 
 export type FichaHueco = {
   proId: string;
@@ -44,8 +50,29 @@ export default function ProximoHueco({
   dias: { value: string; label: string }[];
   titulo?: string;
 }) {
-  const { open, precargar } = useBooking();
+  const { open, precargar, abierto } = useBooking();
   const [estados, setEstados] = useState<Record<string, Estado>>({});
+  // Cada vuelta (cerrar el modal, volver a la pestaña) pide las horas de nuevo, sin esperar el `load`.
+  const [vuelta, setVuelta] = useState(0);
+  const estabaAbierto = useRef(abierto);
+  useEffect(() => {
+    if (estabaAbierto.current && !abierto) setVuelta((n) => n + 1);
+    estabaAbierto.current = abierto;
+  }, [abierto]);
+  useEffect(() => {
+    const otraVez = () => {
+      if (document.visibilityState === "visible") setVuelta((n) => n + 1);
+    };
+    window.addEventListener("focus", otraVez);
+    document.addEventListener("visibilitychange", otraVez);
+    return () => {
+      window.removeEventListener("focus", otraVez);
+      document.removeEventListener("visibilitychange", otraVez);
+    };
+  }, []);
+  // La hora que se está confirmando al tocar (una a la vez) y el aviso de «se ocupó».
+  const [verificando, setVerificando] = useState<string | null>(null);
+  const [ocupada, setOcupada] = useState<Record<string, string>>({});
   const clave = fichas.map((f) => `${f.proId}:${f.svcId}`).join("|") + "@" + dias.map((d) => d.value).join(",");
 
   useEffect(() => {
@@ -60,20 +87,21 @@ export default function ProximoHueco({
       for (const f of fichas) {
         getAvailableSlotsRange(f.proId, f.svcId, fechas)
           .then((map) => {
-            for (const day of fechas) {
-              const slot = map[day]?.[0];
-              if (slot) return poner(f.proId, { tipo: "hora", day, slot });
-            }
-            poner(f.proId, { tipo: "vacio" });
+            const h = primerHueco(map, fechas);
+            poner(f.proId, h ? { tipo: "hora", ...h } : { tipo: "vacio" });
           })
-          .catch(() => poner(f.proId, { tipo: "error" }));
+          // En una vuelta, un error de red no borra la hora que ya se mostraba (el motor valida igual al confirmar).
+          .catch(() => {
+            if (vuelta === 0) poner(f.proId, { tipo: "error" });
+          });
       }
     };
     const arrancar = () => {
       if (typeof window.requestIdleCallback === "function") ocioso = window.requestIdleCallback(correr, { timeout: 2000 });
       else reloj = setTimeout(correr, 200);
     };
-    if (document.readyState === "complete") arrancar();
+    if (vuelta > 0) correr();
+    else if (document.readyState === "complete") arrancar();
     else window.addEventListener("load", arrancar, { once: true });
     return () => {
       vivo = false;
@@ -83,9 +111,32 @@ export default function ProximoHueco({
     };
     // `clave` resume fichas y días: los objetos llegan nuevos en cada render del padre, la consulta no.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clave]);
+  }, [clave, vuelta]);
 
   if (fichas.length === 0) return null;
+
+  // Tocar una hora: se confirma que sigue libre y recién ahí se abre el modal en «Datos». Si se ocupó, la ficha
+  // pasa al hueco siguiente (o a «Sin lugar») y avisa; la clienta elige de nuevo con la hora cierta a la vista.
+  const tocarHora = async (f: FichaHueco, day: string, slot: string) => {
+    if (verificando) return;
+    setVerificando(f.proId);
+    const fechas = dias.map((d) => d.value);
+    let map: Record<string, string[]> | null = null;
+    try {
+      map = await getAvailableSlotsRange(f.proId, f.svcId, fechas);
+    } catch {
+      map = null; // sin red para confirmar: se abre igual y el motor decide al confirmar, como siempre
+    }
+    setVerificando(null);
+    if (!map || sigueLibre(map, day, slot)) {
+      setOcupada((o) => ({ ...o, [f.proId]: "" }));
+      open({ serviceId: f.svcId, professionalId: f.proId, day, slot });
+      return;
+    }
+    const h = primerHueco(map, fechas);
+    setEstados((prev) => ({ ...prev, [f.proId]: h ? { tipo: "hora", ...h } : { tipo: "vacio" } }));
+    setOcupada((o) => ({ ...o, [f.proId]: `Las ${fmtTime(slot)} se acaban de ocupar.` }));
+  };
 
   const cuando = (day: string) => (day === dias[0]?.value ? "Hoy" : day === dias[1]?.value ? "Mañana" : (dias.find((d) => d.value === day)?.label ?? ""));
 
@@ -112,6 +163,10 @@ export default function ProximoHueco({
               <span className="chf-hueco-nom">
                 <b>{pila}</b>
                 <span>{f.svcNombre}</span>
+                {/* Vacío hasta que una hora tocada resulta ocupada: entonces lo dice (y lo anuncia). */}
+                <span role="status" className="chf-ocupada">
+                  {ocupada[f.proId] ? `${ocupada[f.proId]} ${estados[f.proId]?.tipo === "hora" ? "Te pasamos al siguiente." : "No queda otro hoy ni mañana."}` : ""}
+                </span>
               </span>
               <span className="chf-hueco-hora">
                 {e.tipo === "cargando" && (
@@ -122,11 +177,13 @@ export default function ProximoHueco({
                 )}
                 {e.tipo === "hora" && (
                   <button
+                    key={e.slot}
                     type="button"
                     className="chf-hora chf-llega"
                     onPointerEnter={precargar}
                     onFocus={precargar}
-                    onClick={() => open({ serviceId: f.svcId, professionalId: f.proId, day: e.day, slot: e.slot })}
+                    onClick={() => void tocarHora(f, e.day, e.slot)}
+                    aria-busy={verificando === f.proId || undefined}
                     aria-label={`Reservar ${cuando(e.day).toLowerCase()} a las ${fmtTime(e.slot)} con ${pila}: ${f.svcNombre}`}
                   >
                     {cuando(e.day)} {fmtTime(e.slot)}

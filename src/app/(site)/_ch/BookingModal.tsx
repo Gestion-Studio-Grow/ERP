@@ -703,8 +703,14 @@ export default function BookingModal({
                   </div>
                   {svc.depositAmount != null && (
                     <p style={{ marginTop: 10, fontSize: 12.5, color: "var(--warning)", lineHeight: 1.5 }}>
+                      {nuevo && !data.whatsapp ? (
+                        <>Seña obligatoria para confirmar: ${svc.depositAmount.toLocaleString("es-AR")}. Te contactamos para coordinar el pago.</>
+                      ) : (
+                        <>
                       Seña obligatoria para confirmar: ${svc.depositAmount.toLocaleString("es-AR")}. Te
                       contactamos por WhatsApp para coordinar el pago.
+                        </>
+                      )}
                     </p>
                   )}
                 </div>
@@ -730,7 +736,10 @@ export default function BookingModal({
                 <p style={{ margin: 0, textTransform: "capitalize" }}><span style={{ color: "var(--text-muted)", textTransform: "none" }}>Cuándo</span> · {whenLabel} h</p>
               </div>
               <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
-                Te confirmamos por WhatsApp o email. Podés reprogramar o cancelar hasta 24 hs antes.
+                {/* Diseño nuevo sin WhatsApp cargado: no se promete un canal que no existe (contacto-ch.ts). */}
+                {nuevo && !data.whatsapp
+                  ? "Te confirmamos el turno por mensaje o llamado. Podés reprogramar o cancelar hasta 24 hs antes."
+                  : "Te confirmamos por WhatsApp o email. Podés reprogramar o cancelar hasta 24 hs antes."}
                 {svc?.depositAmount != null && (
                   <> Recordá que para confirmar el turno hay una seña de ${svc.depositAmount.toLocaleString("es-AR")} — te escribimos para coordinarla.</>
                 )}
@@ -741,7 +750,9 @@ export default function BookingModal({
                     Agregar a mi calendario
                   </a>
                 )}
-                {waMessage && (
+                {/* Sin WhatsApp del negocio, el diseño nuevo no ofrece el botón: el aviso compartido mandaba a «otros
+                    medios más abajo» que en CH no existen. Apagado, como siempre. */}
+                {waMessage && (!nuevo || data.whatsapp) && (
                   <button
                     type="button"
                     onClick={() => requestWhatsApp(waMessage)}
