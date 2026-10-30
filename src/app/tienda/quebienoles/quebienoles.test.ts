@@ -116,3 +116,13 @@ test("recomendar: no recomienda lo que no se puede pedir ni lo que no tiene fich
   assert.ok(!recomendar(sinFicha, r).some((x) => x.id === "x"));
   assert.ok(!TODAS.some((q) => recomendar(candidatos, q).some((x) => x.id === "ver-bharara-bleu")));
 });
+
+test("«Hacer pedido» con un cupón que no sirve lleva el foco y la vista al cupón y lo dice junto al botón", async () => {
+  const { readFileSync } = await import("node:fs");
+  const fuente = readFileSync(new URL("./Bolsa.tsx", import.meta.url), "utf8");
+  assert.match(fuente, /const cuponFrenaElPedido = pedido\.error\?\.campo === "cupon"/);
+  assert.match(fuente, /cajaCupon\.current\.open = true/, "abre el cupón si estaba cerrado");
+  assert.match(fuente, /c\.focus\(\{ preventScroll: true \}\);\s*c\.scrollIntoView\(/, "foco y scroll al campo");
+  assert.match(fuente, /\{cuponFrenaElPedido && <p className="qb-error">/, "aviso a la vista junto al botón");
+  assert.match(fuente, /aria-describedby=\{errorDeCupon \? `\$\{id\}-cupon-error` : undefined\}/);
+});

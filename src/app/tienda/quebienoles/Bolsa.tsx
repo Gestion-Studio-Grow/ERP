@@ -81,6 +81,20 @@ export default function Bolsa({
         : pedido.error.texto
       : null;
   const errorDeCupon = pedido.error?.campo === "cupon" ? pedido.error.texto : cupon.error;
+  // «Hacer pedido» con un cupón que no sirve: el aviso quedaba abajo del cupón, fuera de la vista bajo el pie fijo,
+  // y parecía que el botón no andaba (QA 29/10). Se abre el cupón, se lleva el foco y la vista al campo, y junto al
+  // botón queda una línea que dice qué pasó.
+  const cajaCupon = useRef<HTMLDetailsElement>(null);
+  const campoCupon = useRef<HTMLInputElement>(null);
+  const cuponFrenaElPedido = pedido.error?.campo === "cupon" ? pedido.error.texto : null;
+  useEffect(() => {
+    if (!cuponFrenaElPedido) return;
+    if (cajaCupon.current) cajaCupon.current.open = true;
+    const c = campoCupon.current;
+    if (!c) return;
+    c.focus({ preventScroll: true });
+    c.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [cuponFrenaElPedido, pedido.error]);
   const envio = textoDelEnvio({
     fulfillment: v.fulfillment,
     costo: v.costoEnvio,
@@ -285,7 +299,7 @@ export default function Bolsa({
                 </label>
                 <input id={`${id}-nota`} name="notes" maxLength={500} placeholder={notasPlaceholder} />
               </div>
-              <details className="qb-cupon" open={Boolean(cupon.aplicado) || undefined}>
+              <details ref={cajaCupon} className="qb-cupon" open={Boolean(cupon.aplicado) || undefined}>
                 <summary>Tengo un cupón</summary>
                 <div className="qb-cupon-fila">
                   <div className="qb-campo">
@@ -300,6 +314,8 @@ export default function Bolsa({
                       autoComplete="off"
                       placeholder="CÓDIGO"
                       aria-invalid={Boolean(errorDeCupon)}
+                      aria-describedby={errorDeCupon ? `${id}-cupon-error` : undefined}
+                      ref={campoCupon}
                     />
                   </div>
                   <button type="button" className="qb-boton qb-boton-linea" onClick={() => void cupon.aplicar()} disabled={cupon.probando}>
@@ -307,7 +323,7 @@ export default function Bolsa({
                   </button>
                 </div>
                 {errorDeCupon && (
-                  <p className="qb-error-linea" role="alert">
+                  <p className="qb-error-linea" role="alert" id={`${id}-cupon-error`}>
                     {errorDeCupon}
                   </p>
                 )}
@@ -340,6 +356,8 @@ export default function Bolsa({
                   {error}
                 </p>
               )}
+              {/* Sin role: el aviso del campo ya se anuncia y el foco va ahí. Esto es para el que mira el botón. */}
+              {cuponFrenaElPedido && <p className="qb-error">{cuponFrenaElPedido.replace(/\.$/, "")}. Corregí el cupón o borralo para hacer el pedido.</p>}
               <button
                 type="submit"
                 name="via"
