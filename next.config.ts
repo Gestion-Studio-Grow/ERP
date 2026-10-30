@@ -34,6 +34,10 @@ const nextConfig: NextConfig = {
       source: "/tenants/:ruta*",
       headers: [{ key: "Cache-Control", value: "public, max-age=604800, s-maxage=31536000, stale-while-revalidate=86400" }],
     }, {
+      // Las fotos del equipo de CH (public/team), con la misma regla que las de /tenants.
+      source: "/team/:ruta*",
+      headers: [{ key: "Cache-Control", value: "public, max-age=604800, s-maxage=31536000, stale-while-revalidate=86400" }],
+    }, {
       source: "/facturita/sw.js",
       headers: [
         { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
