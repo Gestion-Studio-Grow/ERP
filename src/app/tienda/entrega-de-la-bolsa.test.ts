@@ -114,7 +114,7 @@ const leer = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
 
 test("cada vidriera que pasa por placeOnlineOrder ofrece la entrega del negocio y frena el botón con lo que falta", () => {
   // Las que llevan su bolsa propia: la entrega con el hook compartido (MAGRA incluida, en magra/MagraTienda.tsx: una sola regla).
-  for (const f of ["./magra/MagraTienda.tsx", "./shine/ShineFront.tsx", "./Storefront.tsx", "./SiteReplica.tsx"]) {
+  for (const f of ["./magra/MagraTienda.tsx", "./shine/ShineFront.tsx", "./adosmanos/AdosmanosFront.tsx", "./Storefront.tsx", "./SiteReplica.tsx"]) {
     const src = leer(f);
     assert.match(src, /usePedidoOnline\(/, `${f} manda a placeOnlineOrder`);
     assert.match(src, /useEntregaDeLaTienda\(/, `${f} usa la entrega compartida`);
@@ -122,15 +122,15 @@ test("cada vidriera que pasa por placeOnlineOrder ofrece la entrega del negocio 
   }
   // Las de la vidriera nueva (TiendaNueva) y Qué Bien Olés: la entrega viene de useVidriera.
   assert.match(leer("./vidriera/useVidriera.ts"), /useEntregaDeLaTienda\(/);
-  for (const f of ["./vidriera/BolsaPanel.tsx", "./quebienoles/Bolsa.tsx", "./shine/Bolsa.tsx", "./Storefront.tsx", "./SiteReplica.tsx"]) {
+  for (const f of ["./vidriera/BolsaPanel.tsx", "./quebienoles/Bolsa.tsx", "./shine/Bolsa.tsx", "./adosmanos/Bolsa.tsx", "./Storefront.tsx", "./SiteReplica.tsx"]) {
     const src = leer(f);
     assert.match(src, /<CamposDeEntrega /, `${f} dibuja zona, día y franja`);
     assert.match(src, /<FrenoDeEntrega /, `${f} dice lo que frena`);
     assert.match(src, /entrega\.freno/, `${f} frena el botón`);
   }
-  // La página le pasa la configuración (y hoy) a TODAS: magra, la nueva, Shine, Qué Bien Olés, réplica y genérica.
+  // La página le pasa la configuración (y hoy) a TODAS: magra, la nueva, Shine, Qué Bien Olés, A Dos Manos, réplica y genérica.
   const pagina = leer("./page.tsx");
-  assert.equal((pagina.match(/entrega=\{entrega\}/g) ?? []).length, 6);
-  assert.equal((pagina.match(/hoy=\{hoy\}/g) ?? []).length, 6);
+  assert.equal((pagina.match(/entrega=\{entrega\}/g) ?? []).length, 7);
+  assert.equal((pagina.match(/hoy=\{hoy\}/g) ?? []).length, 7);
   assert.match(pagina, /return version === null \? null : config;/, "un negocio que nunca guardó Envíos queda como siempre");
 });
