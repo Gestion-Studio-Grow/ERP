@@ -5,12 +5,15 @@
 
 import AdosmanosFront, { type PropsAdosmanos } from "./AdosmanosFront";
 import { CSS } from "./estilos";
+import { PROMESAS } from "./tokens";
+import { copySinPromesasApagadas } from "./promesas";
 
 export default function AdosmanosVidriera(props: PropsAdosmanos) {
   return (
     <>
       <style>{CSS}</style>
-      <AdosmanosFront {...props} />
+      {/* Las promesas apagadas no viajan al navegador (ronda 2): se filtran acá, en el servidor. */}
+      <AdosmanosFront {...props} copy={copySinPromesasApagadas(props.copy, PROMESAS)} />
     </>
   );
 }

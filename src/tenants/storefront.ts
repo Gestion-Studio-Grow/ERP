@@ -192,7 +192,10 @@ const shinevelas: StorefrontCopy = {
   },
   deliveryZones: ["CABA", "GBA"],
   paymentMethods: ["Efectivo", "Transferencia", "Débito", "Crédito", "Mercado Pago"],
-  shipping: { flatRate: 3500, freeThreshold: 25000 }, // provisional a confirmar (sin fuente)
+  // SIN TARIFA hasta que la dueña cargue sus zonas en Envíos (ronda 2, P0: nada se cobra sin fuente). La tarifa fija de
+  // $3.500 y el «gratis desde $25.000» eran provisionales sin fuente [CONTRADICTORIO en el relevamiento] y se SUMABAN al
+  // total del pedido. Sin tarifa, la bolsa dice «Envío a coordinar» y el alta no suma envío.
+  shipping: undefined,
 };
 
 // --- A DOS MANOS Pádel (`adosmanos`, rubro `padel`) — voz de @adosmanospadel ---

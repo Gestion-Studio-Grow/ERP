@@ -25,7 +25,7 @@ import type { ShippingConfig } from "@/lib/storefront-shipping";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 import { usePedidoOnline, useCuponDePedido } from "../pedido-online";
-import { nuevaClaveDePedido, propuestasConMediosDeLaMarca } from "../reglas-tienda";
+import { nuevaClaveDePedido, propuestasConMediosDeLaMarca, textoDeMediosDePago } from "../reglas-tienda";
 import { useEntregaDeLaTienda } from "../EntregaDeLaTienda";
 import { CONFIG, seccionMagra } from "../vidriera/marcas";
 import {
@@ -242,6 +242,11 @@ function Vidriera({
   } = useEntregaDeLaTienda({ entrega, hoy, subtotal, hayProductos: hasItems, envio, fulfillment, setFulfillment });
   const cupon = useCuponDePedido(subtotal);
   const total = subtotal - cupon.descuento + costoEnvio;
+  // ¿Hay una tarifa con fuente (zonas en Envíos o la del local)? Sin ella, un envío de $0 NO es «Gratis»: es «A
+  // coordinar» (ronda 2, P0: nada se promete sin fuente).
+  const hayTarifa = conZonas || Boolean(envio);
+  // Los medios de pago del local (BusinessSettings), nunca una lista escrita a mano (ronda 2, P0).
+  const medios = textoDeMediosDePago(mediosDePago ?? []);
 
   // El pedido: el envío, el rechazo con su motivo (sin perder la bolsa) y el de WhatsApp, que se
   // registra ANTES de abrir el chat (pedido-online.tsx).
@@ -791,7 +796,7 @@ function Vidriera({
                   ) : costoEnvio > 0 ? (
                     <span className="mg-num">{money2.format(costoEnvio)}</span>
                   ) : (
-                    <span className="mg-gratis">{modo === "retiro" ? "Sin cargo" : "Gratis"}</span>
+                    <span className="mg-gratis">{modo === "retiro" ? "Sin cargo" : hayTarifa ? "Gratis" : "A coordinar"}</span>
                   )}
                 </div>
                 {faltaParaGratis > 0 && (
@@ -849,8 +854,8 @@ function Vidriera({
                   </div>
                 )}
 
-                {/* Sin débito ni crédito hasta que el local cobre con tarjeta. */}
-                <p className="mg-pago">Pagás al recibir: efectivo, transferencia o Mercado Pago.</p>
+                {/* Los medios que cargó el local; sin medios cargados, no se nombra ninguno (ronda 2, P0). */}
+                <p className="mg-pago">{medios ? `Pagás al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}` : "El medio de pago te lo confirmamos antes de cobrar."}</p>
 
                 {hasItems && frenoDeEntrega && (
                   <div className="mg-freno" role="status">
@@ -902,11 +907,7 @@ function Vidriera({
                   >
                     <WaIcon /> Pedir por WhatsApp
                   </button>
-                ) : local.whatsapp ? (
-                  <button type="button" className="mg-btn mg-btn-wa mg-bolsa-wa" onClick={() => requestWhatsApp("¡Hola MAGRA! Quiero hacer un pedido.")}>
-                    <WaIcon /> Pedir por WhatsApp
-                  </button>
-                ) : null}
+                ) : null /* Con la bolsa vacía no hay pedido que mandar por WhatsApp (ronda 2): el canal sigue en el pie. */}
               </div>
             </form>
           </dialog>

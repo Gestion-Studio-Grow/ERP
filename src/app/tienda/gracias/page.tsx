@@ -58,8 +58,10 @@ export default async function GraciasPage({
     const medios = textoDeMediosDePago(tienda.copy?.paymentMethods ?? []);
     const pago =
       marca === "magra"
-        ? `Te lo llevamos o lo retirás. Pagás al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}`
-        : marca === "shinevelas"
+        ? medios
+          ? `Te lo llevamos o lo retirás. Pagás al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}`
+          : "Te lo llevamos o lo retirás. El medio de pago te lo confirmamos antes de cobrar."
+        : marca === "shinevelas" && medios
           ? `Te lo mandamos o lo retirás. El pago se coordina al confirmar: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}`
           : "Te lo mandamos o lo retirás. El medio de pago y el envío te los confirmamos antes de cobrar.";
     return (
@@ -84,7 +86,7 @@ export default async function GraciasPage({
         tenantKey={identity.slug ?? "magra"}
         pedido={pedido && /^\d{1,9}$/.test(pedido) ? pedido : null}
         whatsapp={resolveMagraLocal(tienda.branding).whatsapp}
-        pago={`Te lo llevamos o lo retirás. Pagás al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}`}
+        pago={medios ? `Te lo llevamos o lo retirás. Pagás al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}` : "Te lo llevamos o lo retirás. El medio de pago te lo confirmamos antes de cobrar."}
       />
     );
   }

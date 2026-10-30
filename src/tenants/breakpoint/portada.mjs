@@ -40,9 +40,20 @@ export function leerWhatsapp(texto) {
   return /^\d{8,15}$/.test(n) ? n : "";
 }
 
+/** El plano sin datos del club: tres canchas dibujadas, sin número, todo el plano lleva al turnero. PURA. */
+function planoSinDatos() {
+  const W = 120, H = 240, gap = 28, n = 3, x0 = (640 - (n * W + (n - 1) * gap)) / 2, y0 = 150, s = Math.round(H * (6.95 / 20));
+  const canchas = Array.from({ length: n }, (_, i) => `<g transform="translate(${Math.round(x0 + i * (W + gap))} ${y0})"><rect class="cesped" width="${W}" height="${H}"/><path class="lineas" d="M${W / 2} ${H / 2 - s}V${H / 2 + s}M0 ${H / 2 - s}H${W}M0 ${H / 2 + s}H${W}"/><rect class="borde" width="${W}" height="${H}"/><path class="cristal" d="M0 48V0H${W}V48M0 ${H - 48}V${H}H${W}V${H - 48}"/><path class="red" d="M-6 ${H / 2}H${W + 6}"/></g>`).join("");
+  return `<a href="/turnero" aria-label="Ver los horarios en el turnero"><svg class="plano-svg" viewBox="0 0 640 520" role="img" aria-label="Ilustración de canchas de pádel; la cantidad de canchas está a confirmar"><text class="pizarron" x="320" y="58" text-anchor="middle">Canchas a confirmar</text>${canchas}</svg></a>`;
+}
+
 /** El plano de las canchas desde arriba (viewBox 640 × 520). Cada cancha 10 × 20 m es un link al turnero. PURA. */
 function plano(cantidad, techadas) {
-  const n = Math.min(Math.max(Math.round(Number(cantidad) || 4), 1), 6);
+  // Sin cantidad confirmada por el club (ronda 2, P0: nada provisional como hecho), el plano es una ilustración sin
+  // números ni «techadas», y el pizarrón dice «Canchas a confirmar».
+  const confirmada = Number.isInteger(cantidad) && cantidad > 0;
+  if (!confirmada) return planoSinDatos();
+  const n = Math.min(Math.max(Math.round(Number(cantidad)), 1), 6);
   const W = 120, H = 240, gap = Math.min(28, (600 - n * W) / Math.max(n - 1, 1));
   const x0 = (640 - (n * W + (n - 1) * gap)) / 2, y0 = 150;
   // «Techada» sólo dice algo si hay techadas y descubiertas; si son todas, va una sola leyenda debajo.

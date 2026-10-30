@@ -110,8 +110,8 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
   const nota = notaConAromas(renglones.map((r) => ({ nombre: r.nombre, cantidad: r.q, aroma: r.aroma })), notaLibre);
 
   const entrega = useEntregaDeLaTienda({ entrega: configEnvios, hoy, subtotal, hayProductos: renglones.length > 0, envio: copy.shipping ?? null, fulfillment, setFulfillment });
-  // Envío gratis desde $25.000 y tarifa $3.500: del copy, provisional a confirmar con la dueña (storefront.ts);
-  // con zonas cargadas en Envíos manda la zona y el umbral no se muestra.
+  // «Te faltan $X para el envío gratis» sólo con una tarifa REAL (ronda 2): la del copy ya no existe (storefront.ts) y,
+  // con zonas cargadas en Envíos, manda la zona y el umbral no se muestra.
   const umbral = entrega.conZonas ? 0 : (copy.shipping?.freeThreshold ?? 0);
   // Con «Retiro» no hay envío: ni «te faltan $X para el envío gratis» (QA 29/10, MEDIA-1).
   const faltaParaGratis = entrega.modo === "envio" && umbral > 0 && subtotal > 0 && subtotal < umbral ? umbral - subtotal : 0;

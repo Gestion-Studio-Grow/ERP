@@ -176,7 +176,8 @@ test("las letras de Shine (next/font) se declaran en su módulo y sólo las impo
     }
   };
   recorrer(path.join(RAIZ, "src"));
-  assert.deepEqual(quienes, ["src/app/tienda/shine/ShineFront.tsx"]);
+  // La confirmación del pedido (ronda 2) también pinta con la letra de Shine: es parte de su vidriera.
+  assert.deepEqual(quienes.sort(), ["src/app/tienda/gracias/page.tsx", "src/app/tienda/shine/ShineFront.tsx"]);
 });
 
 test("la vidriera no usa las fotos de ambiente sin confirmar", () => {

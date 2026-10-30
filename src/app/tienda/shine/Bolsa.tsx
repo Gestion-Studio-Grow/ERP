@@ -290,6 +290,13 @@ export default function Bolsa({
                 <dd>Sin cargo</dd>
               </div>
             )}
+            {!conTarifa && hay && entrega.modo !== "retiro" && (
+              // Sin tarifa cargada (ronda 2): el envío no se cobra ni se promete gratis; se coordina antes de cobrar.
+              <div>
+                <dt>Envío</dt>
+                <dd>A coordinar</dd>
+              </div>
+            )}
             {conTarifa && entrega.modo !== "retiro" && (
               <div>
                 <dt>{entrega.zona ? `Envío · ${entrega.zona.nombre}` : "Envío"}</dt>

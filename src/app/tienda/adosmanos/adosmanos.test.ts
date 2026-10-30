@@ -179,3 +179,18 @@ test("el porqué de la pala sale de SU ficha en las 18 combinaciones (QA 29/10, 
   const r = recomendar(items, { nivel: "empiezo", juego: "potencia", tope: "hasta" });
   if (!/alto/i.test(r.pala!.vista.ficha!.balance)) assert.ok(!r.porquePala.includes("peso arriba"));
 });
+
+// Ronda 2, P0-2: las promesas apagadas no viajan en el HTML (se filtran en el servidor).
+test("promesas apagadas: fuera del copy que se serializa", async () => {
+  const { copySinPromesasApagadas } = await import("./promesas");
+  const { getStorefrontCopy } = await import("@/tenants/storefront");
+  const { PROMESAS } = await import("./tokens");
+  const copy = getStorefrontCopy("adosmanos")!;
+  const limpio = copySinPromesasApagadas(copy, PROMESAS);
+  const json = JSON.stringify(limpio);
+  for (const prohibido of ["28%", "sin interés", "30 días", "Envío gratis"]) assert.ok(!json.includes(prohibido), prohibido);
+  assert.ok(limpio.valueProps.some((v) => v.title === "Elegidas a mano"), "lo que no promete nada queda");
+  assert.ok(limpio.paymentMethods.includes("Transferencia"), "el medio queda, sin el descuento");
+  const prendido = copySinPromesasApagadas(copy, { transferencia: true, cuotas: true, envios: true, cambios: true });
+  assert.ok(JSON.stringify(prendido).includes("28%"));
+});

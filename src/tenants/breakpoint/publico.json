@@ -1,9 +1,9 @@
 {
-  "_que_es": "Lo que el sitio del club (front público) muestra fijo a los clientes. whatsapp/tarifas/catalogo se copian del «Link para clientes» de Configuración en la compu del club: wa=…, tar=…, cat=…. Vacío = sin botón de WhatsApp (el turnero abre WhatsApp para elegir el chat), sin precios y sin tienda. canchas/techadas dibujan el plano de la portada: PROVISIONAL A CONFIRMAR con el club (hoy salen de CANCHAS_DEMO de public/previews/breakpoint/club/motor.mjs: 4 canchas, todas cubiertas); techadas = números de cancha (vacío hasta que el club confirme cuáles son techadas: sin leyenda). ubicacion: vacío = no se muestra dirección ni zona (Ezeiza está sin confirmar).",
+  "_que_es": "Lo que el sitio del club (front público) muestra fijo a los clientes. whatsapp/tarifas/catalogo se copian del «Link para clientes» de Configuración en la compu del club: wa=…, tar=…, cat=…. Vacío = sin botón de WhatsApp (el turnero abre WhatsApp para elegir el chat), sin precios y sin tienda. canchas/techadas dibujan el plano de la portada: canchas = null hasta que el club confirme cuántas son (ronda 2: el plano se dibuja sin números y dice «Canchas a confirmar»; antes publicaba 4 del demo como dato); techadas = números de cancha (vacío hasta que el club confirme cuáles son techadas: sin leyenda). ubicacion: vacío = no se muestra dirección ni zona (Ezeiza está sin confirmar).",
   "whatsapp": "",
   "tarifas": "",
   "catalogo": "",
-  "canchas": 4,
+  "canchas": null,
   "techadas": [],
   "ubicacion": ""
 }
