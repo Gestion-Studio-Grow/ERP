@@ -86,12 +86,26 @@ export type RenglonDeNota = { nombre: string; cantidad: number; talle: string | 
 
 /**
  * «Zapatillas Asics Gel-Padel Pro, talle 42 (x1)» por cada zapatilla con talle, y la nota de la persona
- * después. Nunca pasa el tope: si no entra, se corta la nota libre, no los talles.
+ * después. Nunca pasa el tope ni corta un talle a la mitad: entran los renglones que caben y, si sobra
+ * alguno, la nota lo dice («+N más: confirmar por WhatsApp») para que el local no se quede sin el dato.
+ * La nota libre va al final, con el lugar que quede.
  */
 export function notaConTalles(renglones: readonly RenglonDeNota[], notaLibre: string): string {
   const talles = renglones.filter((r) => r.talle).map((r) => `${r.nombre}, talle ${r.talle} (x${r.cantidad})`);
-  const cabeza = talles.length ? `Talles: ${talles.join("; ")}.` : "";
+  const cabeza = armarCabeza("Talles: ", talles, "; ", ".");
   const libre = notaLibre.trim();
-  const junta = [cabeza, libre].filter(Boolean).join(" ");
-  return junta.slice(0, TOPE_NOTA);
+  if (!cabeza) return libre.slice(0, TOPE_NOTA);
+  const lugar = TOPE_NOTA - cabeza.length - 1;
+  return libre && lugar > 0 ? `${cabeza} ${libre.slice(0, lugar)}` : cabeza;
+}
+
+/** Junta los renglones que entran en el tope y avisa cuántos quedaron afuera. Sin renglones, "". */
+function armarCabeza(prefijo: string, items: readonly string[], sep: string, cierre: string): string {
+  if (!items.length) return "";
+  for (let n = items.length; n > 0; n--) {
+    const faltan = items.length - n;
+    const texto = `${prefijo}${items.slice(0, n).join(sep)}${faltan ? `${sep}+${faltan} más: confirmar por WhatsApp` : ""}${cierre}`;
+    if (texto.length <= TOPE_NOTA) return texto;
+  }
+  return `${prefijo}${items.length} con talle: confirmar por WhatsApp${cierre}`.slice(0, TOPE_NOTA);
 }

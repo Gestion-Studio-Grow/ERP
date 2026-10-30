@@ -238,13 +238,19 @@ export function nombreDeFamilia(id: FamiliaId | null): string {
 export const TOPE_NOTA = 500;
 
 export function notaConAromas(renglones: readonly { nombre: string; cantidad: number; aroma: string | null }[], libre: string): string {
-  const aromas = renglones
-    .filter((r) => r.aroma)
-    .map((r) => `${r.nombre} ×${r.cantidad} — ${r.aroma}`)
-    .join(" · ");
+  const items = renglones.filter((r) => r.aroma).map((r) => `${r.nombre} ×${r.cantidad} — ${r.aroma}`);
   const extra = libre.trim();
-  if (!aromas) return extra.slice(0, TOPE_NOTA);
-  const base = `Aromas: ${aromas}`.slice(0, TOPE_NOTA);
+  if (!items.length) return extra.slice(0, TOPE_NOTA);
+  // Entran los renglones enteros que caben; si sobra alguno, la nota lo dice para que la dueña pregunte.
+  let base = `Aromas: ${items.length} con aroma: confirmar por WhatsApp`.slice(0, TOPE_NOTA);
+  for (let n = items.length; n > 0; n--) {
+    const faltan = items.length - n;
+    const texto = `Aromas: ${items.slice(0, n).join(" · ")}${faltan ? ` · +${faltan} más: confirmar por WhatsApp` : ""}`;
+    if (texto.length <= TOPE_NOTA) {
+      base = texto;
+      break;
+    }
+  }
   if (!extra) return base;
   const lugar = TOPE_NOTA - base.length - 3;
   return lugar > 0 ? `${base} | ${extra.slice(0, lugar)}` : base;
