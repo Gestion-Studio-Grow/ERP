@@ -89,11 +89,11 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
     const p = plazos.get(c.id)!;
     return p.puede ? (
       <div className="flex flex-wrap items-center gap-2">
-        <CambiarHorario token={token} claseId={c.id} estado={c.estado} dias={agenda} profe={profe} />
-        <Cancelar token={token} claseId={c.id} cuando={`${diaHumano(c.empiezaEn)} ${horaHumana(c.empiezaEn)}`} plazo={p.texto} />
+        <CambiarHorario key={`cambiar-${c.id}`} token={token} claseId={c.id} estado={c.estado} dias={agenda} profe={profe} />
+        <Cancelar key={`cancelar-${c.id}`} token={token} claseId={c.id} cuando={`${diaHumano(c.empiezaEn)} ${horaHumana(c.empiezaEn)}`} plazo={p.texto} />
       </div>
     ) : (
-      <FueraDeTermino token={token} claseId={c.id} explicacion={p.texto} profe={profe} />
+      <FueraDeTermino key={`no-voy-${c.id}`} token={token} claseId={c.id} explicacion={p.texto} profe={profe} />
     );
   };
 
