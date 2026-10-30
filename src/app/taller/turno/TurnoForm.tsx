@@ -187,7 +187,9 @@ export default function TurnoForm({
       }
       return;
     }
-    irA(paso);
+    // «Seguir» en el paso 1 avanza, como el botón del paso (QA AGR 29/10, MEDIA-2). En los demás hay que elegir
+    // algo (trabajo, mecánico, horario): la barra lleva al paso en curso.
+    irA(paso === 1 ? 2 : paso);
   }
 
   function cabecera(p: Paso) {
@@ -450,7 +452,7 @@ export default function TurnoForm({
 
       {/* Celular: el resumen y el paso en curso, siempre a un toque. */}
       <div className="agr-fija agr-fija--turno">
-        <span className="agr-fija__info">{resumenFijo || "Sacá turno en 5 pasos"}</span>
+        <span className="agr-fija__info">{resumenFijo || `Sacá turno en ${pasosVisibles.length} pasos`}</span>
         <button type="button" className="agr-btn" onClick={accionFija}>{BOTON_FIJO[paso]}</button>
       </div>
     </>

@@ -5,7 +5,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { mostrarPatente } from "@/lib/taller/core";
 import { autoDeLaNota, avisoPatente, notaDelAuto, patenteEnVivo, puedeSerPatente } from "./patente";
-import { desde, esTrabajoPublicable } from "./reglas";
+import { desde, esTrabajoPublicable, horarioDeLaAgenda } from "./reglas";
 import { CSS_TALLER, ROJO_AGR } from "./estilos";
 import { rutaDelTurno } from "./EnlaceTurno";
 
@@ -117,4 +117,27 @@ test("la barra fija y la de arriba llevan la patente escrita en la chapa (?paten
   const marco = readFileSync(path.join(AQUI, "marco.tsx"), "utf8");
   assert.doesNotMatch(marco, /<a href="\/taller\/turno" className="agr-btn">/, "la barra fija no puede ser un enlace fijo sin patente");
   assert.match(readFileSync(path.join(AQUI, "Chapa.tsx"), "utf8"), /publicarPatente\(normalizarPatente\(nuevo\)\)/);
+});
+
+test("el horario publicado sale de la agenda (días seguidos juntos, varios mecánicos = la unión)", () => {
+  const semana = (dias: number[], startTime: string, endTime: string) => dias.map((dayOfWeek) => ({ dayOfWeek, startTime, endTime }));
+  assert.equal(horarioDeLaAgenda([]), null);
+  assert.equal(horarioDeLaAgenda(semana([1, 2, 3, 4, 5, 6], "08:00", "17:00")), "Lun a sáb · 8 a 17 h");
+  assert.equal(
+    horarioDeLaAgenda([...semana([1, 2, 3, 4, 5], "08:30", "19:00"), ...semana([6], "09:00", "13:00")]),
+    "Lun a vie · 8:30 a 19 h · sáb · 9 a 13 h",
+  );
+  // Dos mecánicos: uno a la mañana y otro a la tarde, sin solaparse; y uno que se solapa.
+  assert.equal(horarioDeLaAgenda([...semana([4], "08:30", "12:00"), ...semana([4], "14:30", "19:00")]), "Jue · 8:30 a 12 y 14:30 a 19 h");
+  assert.equal(horarioDeLaAgenda([...semana([1], "08:00", "13:00"), ...semana([1], "12:00", "17:00")]), "Lun · 8 a 17 h");
+  // Días salteados no se juntan; domingo va al final; una fila rota no cuenta.
+  assert.equal(horarioDeLaAgenda([...semana([1, 3, 0], "09:00", "12:00"), { dayOfWeek: 2, startTime: "18:00", endTime: "09:00" }]), "Lun · 9 a 12 h · mié · 9 a 12 h · dom · 9 a 12 h");
+  // La home toma el de la agenda antes que el texto del panel.
+  assert.match(readFileSync(path.join(AQUI, "marco.tsx"), "utf8"), /const horario = deLaAgenda\s*\? deLaAgenda/);
+});
+
+test("«Seguir» de la barra fija avanza del paso 1 al 2", () => {
+  const form = readFileSync(path.join(AQUI, "turno", "TurnoForm.tsx"), "utf8");
+  assert.match(form, /irA\(paso === 1 \? 2 : paso\)/);
+  assert.doesNotMatch(form, /en 5 pasos/);
 });
