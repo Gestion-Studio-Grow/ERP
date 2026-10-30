@@ -17,13 +17,14 @@
 // la misma página, todos apuntando al mismo lugar equivocado.
 //
 // Ahora, sin número del negocio, NO se abre WhatsApp. Se dice que el local todavía no lo
-// publicó y se ofrecen los otros contactos. Es peor para la conversión y es lo único
+// publicó y, SI la página muestra otro contacto, que se use ése (no se promete «más abajo»:
+// según la vidriera, esos medios pueden no estar). Es peor para la conversión y es lo único
 // honesto: un botón que promete hablar con la carnicería no puede abrir un chat con
 // cualquier otra persona. Que el número falte lo tiene que resolver el local desde
 // /admin/localizacion, y el checklist de apertura de la consola lo pide antes de abrir.
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
+import { buildWhatsAppHref, numeroWhatsApp } from "@/lib/whatsapp-cta";
 
 type WhatsAppCtaContextValue = {
   /** Dispara el CTA: abre directo si ya hay número, si no pide el prompt. */
@@ -52,7 +53,7 @@ export function WhatsAppCtaProvider({
   children: ReactNode;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
-  const configured = sanitizePhone(configuredNumber);
+  const configured = numeroWhatsApp(configuredNumber);
 
   const requestWhatsApp = useCallback(
     (message: string) => {
@@ -105,8 +106,8 @@ export function WhatsAppCtaProvider({
               Todavía no publicamos el WhatsApp
             </h2>
             <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.55, color: "var(--text-muted)" }}>
-              Este local todavía no cargó su número. Escribinos por los otros medios que figuran
-              más abajo y te contestamos igual.
+              Este local todavía no cargó su número de WhatsApp, así que no podemos abrir el chat.
+              Si en esta página figura otro contacto (teléfono, email o Instagram), usá ese.
             </p>
             <button
               type="button"

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { OlvidarBolsa } from "../vidriera/OlvidarBolsa";
 import { CSS_BASE } from "./estilos";
 import { mensajeDirecto, usuarioDeInstagram } from "./vitrina";
+import { numeroWhatsApp } from "@/lib/whatsapp-cta";
 
 const CSS_GRACIAS = `
 .qb-gracias{display:grid;place-items:center;min-height:100vh;padding:48px 20px;text-align:center;overflow:hidden}
@@ -77,7 +78,7 @@ export default function GraciasQuebienoles({
               Escribinos por Instagram
             </a>
             {whatsapp && (
-              <a className="qb-boton qb-boton-linea" href={`https://wa.me/${whatsapp}`} target="_blank" rel="noopener noreferrer">
+              <a className="qb-boton qb-boton-linea" href={`https://wa.me/${numeroWhatsApp(whatsapp)}`} target="_blank" rel="noopener noreferrer">
                 Por WhatsApp
               </a>
             )}

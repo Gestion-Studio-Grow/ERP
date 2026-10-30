@@ -7,7 +7,7 @@
 // queda pedido a plataforma (docs/producto/facturita/PEDIDOS-A-PLATAFORMA.md).
 
 import type { Metadata } from "next";
-import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
+import { buildWhatsAppHref, numeroWhatsApp } from "@/lib/whatsapp-cta";
 import VidrieraMarco from "../VidrieraMarco";
 import AltaAsistente from "./AltaAsistente";
 
@@ -22,8 +22,8 @@ export const metadata: Metadata = {
 export default function FacturitaAltaPage() {
   // El WhatsApp de GSG sale de la variable de entorno (la misma del login y de /admin/usuarios/plan).
   // Sin número cargado no se inventa uno (DX-4): el asistente ofrece copiar el resumen.
-  const numero = sanitizePhone(process.env.WHATSAPP_GSG);
-  const baseWhatsApp = numero.length >= 10 ? buildWhatsAppHref(numero, "") : null;
+  const numero = numeroWhatsApp(process.env.WHATSAPP_GSG);
+  const baseWhatsApp = numero ? buildWhatsAppHref(numero, "") : null;
 
   return (
     <VidrieraMarco>

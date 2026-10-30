@@ -4,6 +4,7 @@
 // ============================================================================
 
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
+import { waLinkClienta } from "@/lib/whatsapp-cta";
 
 // ── Patente ─────────────────────────────────────────────────────────────────
 // Autos: vieja ABC123 (1995–2016) y Mercosur AB123CD (2016+). Motos: vieja 123ABC
@@ -235,19 +236,13 @@ export function armarMensaje(plantilla: string, vars: Record<string, string | nu
     .trim();
 }
 
-/** Link wa.me con el texto pre-armado (editable en WhatsApp antes de enviar). Null si no hay teléfono usable. */
+/**
+ * Link wa.me con el texto pre-armado (editable en WhatsApp antes de enviar). Null si no hay teléfono usable.
+ * El número lo arma `waLinkClienta` (549 + área + número, sin 0 ni 15): la versión propia de acá dejaba el
+ * 15 adentro («011 15-…» → 54911 15…) y le ponía 549 a cualquier cosa de 8 dígitos.
+ */
 export function waLink(telefono: string | null | undefined, texto: string): string | null {
-  let d = (telefono ?? "").replace(/\D/g, "");
-  if (d.length < 8) return null;
-  // Celular argentino: wa.me quiere 549 + área + número, sin 0 ni 15.
-  if (d.startsWith("00")) d = d.slice(2);
-  if (!d.startsWith("54")) {
-    if (d.startsWith("0")) d = d.slice(1);
-    d = `549${d}`;
-  } else if (!d.startsWith("549")) {
-    d = `549${d.slice(2)}`;
-  }
-  return `https://wa.me/${d}?text=${encodeURIComponent(texto)}`;
+  return waLinkClienta(telefono, texto);
 }
 
 // ── Avisos (fidelización) ───────────────────────────────────────────────────

@@ -21,6 +21,8 @@
 // "Vidriera editorial con riel de pedido") — el mockup docs/estrategia/diseno/assets/
 // mockup-magra-vidriera.html, llevado a producto real (catálogo + carrito del ERP).
 
+import { numeroWhatsApp } from "@/lib/whatsapp-cta";
+
 const GEN = "/tenants/magra/gen";
 
 export interface MagraValueProp {
@@ -108,7 +110,7 @@ export interface MagraLocal {
   addressLine: string | null;
   city: string | null;
   hours: string | null;
-  /** Sólo dígitos, listo para wa.me. "" = el local no cargó su número. */
+  /** Listo para wa.me (`numeroWhatsApp`). "" = el local no cargó un número usable. */
   whatsapp: string;
   /** Etiqueta visible, DERIVADA de `whatsapp`. No es un campo aparte: ver abajo. */
   whatsappLabel: string | null;
@@ -187,7 +189,8 @@ function localidadDe(addressLine: string | null | undefined, city: string | null
 }
 
 export function resolveMagraLocal(row: MagraBrandingRow | null | undefined): MagraLocal {
-  const wa = digitsOnly(row?.whatsapp);
+  // 549 + área + número (`numeroWhatsApp`): con los dígitos crudos, «11-6677-8890» era EE. UU.
+  const wa = numeroWhatsApp(row?.whatsapp);
   const ig = resolveInstagram(row?.instagram ?? null);
   return {
     addressLine: text(row?.addressLine),

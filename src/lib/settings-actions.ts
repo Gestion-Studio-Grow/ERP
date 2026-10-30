@@ -48,6 +48,13 @@ const norm = (fd: FormData, key: string): string | null => {
   return v === "" ? null : v;
 };
 
+// "+54 9 11 6677-8890" → "+5491166778890"; "11-6677-8890" → "1166778890"; sin dígitos → null.
+const guardarWhatsApp = (v: string | null): string | null => {
+  const digitos = (v ?? "").replace(/\D/g, "");
+  if (!digitos) return null;
+  return v?.startsWith("+") ? `+${digitos}` : digitos;
+};
+
 // Alta/edición de la localización (singleton por tenant → upsert por tenantId).
 export async function updateBusinessSettings(formData: FormData) {
   await requireCapability("location:manage");
@@ -58,8 +65,9 @@ export async function updateBusinessSettings(formData: FormData) {
     addressLine: norm(formData, "addressLine"),
     city: norm(formData, "city"),
     hoursLabel: norm(formData, "hoursLabel"),
-    // El WhatsApp se guarda solo con dígitos (formato wa.me); si queda vacío, null.
-    whatsapp: norm(formData, "whatsapp")?.replace(/\D/g, "") || null,
+    // El WhatsApp se guarda con sus dígitos y, si lo escribieron, el "+" de adelante: es lo único
+    // que dice sin dudas que un número es de otro país. El link lo arma `numeroWhatsApp` al leerlo.
+    whatsapp: guardarWhatsApp(norm(formData, "whatsapp")),
     email: norm(formData, "email"),
     instagram: norm(formData, "instagram"),
     mapsUrl: norm(formData, "mapsUrl"),

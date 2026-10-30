@@ -26,7 +26,7 @@ import type { VidrieraDelRubro } from "@/blueprints/retail/rubros";
 import type { OfertasDeLaVidriera } from "@/lib/supermercado/vidriera-ofertas";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
 import { leerFiltros, marcaYModelo, plata, precioDe, type ProductoVidriera } from "./catalogo-core";
-import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
+import { buildWhatsAppHref, numeroWhatsApp } from "@/lib/whatsapp-cta";
 import { textoDeMediosDePago } from "../reglas-tienda";
 import type { StorefrontCopy } from "@/tenants/storefront";
 import type { TenantImagery } from "@/lib/tenant-layout";
@@ -168,7 +168,7 @@ export default function TiendaNueva(e: EntradaTienda) {
 
   // ── El local: WhatsApp, zona, pago ──
   const local: MagraLocal | null = marca === "magra" ? resolveMagraLocal(e.branding) : null;
-  const whatsapp = local ? local.whatsapp : sanitizePhone(e.branding?.whatsapp);
+  const whatsapp = local ? local.whatsapp : numeroWhatsApp(e.branding?.whatsapp);
   const zona =
     marca === "magra" ? (local?.zoneLabel ?? null) : marca === "shinevelas" ? (copy?.deliveryZones.join(" y ") ?? null) : null;
   const textoPago =

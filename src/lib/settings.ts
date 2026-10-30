@@ -13,6 +13,7 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { numeroWhatsApp } from "@/lib/whatsapp-cta";
 
 // Copy por defecto = exactamente lo que mostraba el sitio hardcodeado, para que
 // el comportamiento no cambie hasta que la dueña edite algo. `whatsapp` NO
@@ -48,7 +49,7 @@ export type ResolvedLocation = {
   addressLine: string;
   city: string;
   hoursLabel: string;
-  whatsapp: string; // solo dígitos, "" si no hay
+  whatsapp: string; // listo para wa.me (`numeroWhatsApp`), "" si no hay
   email: string | null;
   instagramUrl: string | null;
   instagramLabel: string | null;
@@ -78,7 +79,8 @@ export function resolveLocation(row: BusinessSettingsRow | null): ResolvedLocati
   const city = clean(row?.city) || LOCATION_DEFAULTS.city;
   const hoursLabel = clean(row?.hoursLabel) || LOCATION_DEFAULTS.hoursLabel;
   const contactNote = clean(row?.contactNote) || LOCATION_DEFAULTS.contactNote;
-  const whatsapp = (clean(row?.whatsapp) || LOCATION_DEFAULTS.whatsapp).replace(/\D/g, "");
+  // Listo para wa.me (549 + área + número): ver `numeroWhatsApp`. "" = no hay uno usable.
+  const whatsapp = numeroWhatsApp(clean(row?.whatsapp) || LOCATION_DEFAULTS.whatsapp);
   const email = clean(row?.email) || null;
   const ig = resolveInstagram(clean(row?.instagram));
 
