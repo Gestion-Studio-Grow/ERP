@@ -29,6 +29,7 @@ import SiteReplica from "./SiteReplica";
 import MagraFront from "./MagraFront";
 import ShineFront from "./ShineFront";
 import QuebienolesVidriera from "./quebienoles/QuebienolesVidriera";
+import AdosmanosVidriera from "./adosmanos/AdosmanosVidriera";
 import TiendaNueva from "./vidriera/TiendaNueva";
 import { usaVidrieraNueva } from "./vidriera/marcas";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
@@ -105,7 +106,9 @@ export async function generateMetadata(): Promise<Metadata> {
       ? "/tenants/shinevelas/brand/favicon.png"
       : identity.brandId === "quebienoles"
         ? "/tenants/quebienoles/marca/favicon.svg"
-        : tenantFaviconDataUri(tenantInitials(name), accent);
+        : identity.brandId === "adosmanos"
+          ? "/tenants/adosmanos/marca/favicon.svg"
+          : tenantFaviconDataUri(tenantInitials(name), accent);
   const suffix = data.copy?.tagline ?? data.branding?.city ?? null;
   const title = suffix ? `${name} · ${suffix}` : name;
   const raw =
@@ -114,7 +117,7 @@ export async function generateMetadata(): Promise<Metadata> {
     data.branding?.contactNote ??
     `Comprá online en ${name}${data.branding?.city ? `, ${data.branding.city}` : ""}.`;
   const description = raw.length > 160 ? `${raw.slice(0, 157)}…` : raw;
-  const base = identity.brandId === "quebienoles" ? await baseDelRequest() : null;
+  const base = identity.brandId === "quebienoles" || identity.brandId === "adosmanos" ? await baseDelRequest() : null;
   return {
     title,
     description,
@@ -129,7 +132,9 @@ export async function generateMetadata(): Promise<Metadata> {
       // sus frascos (public/tenants/quebienoles/marca/og.jpg, 1200×630). Los demás siguen sin imagen.
       ...(identity.brandId === "quebienoles"
         ? { images: [{ url: "/tenants/quebienoles/marca/og.jpg", width: 1200, height: 630, alt: "Qué Bien Olés · Perfumería en Ezeiza" }] }
-        : {}),
+        : identity.brandId === "adosmanos"
+          ? { images: [{ url: "/tenants/adosmanos/marca/og.webp", width: 1200, height: 630, alt: "A Dos Manos Pádel · Palas y zapatillas · Envíos a todo el país" }] }
+          : {}),
     },
     icons: { icon: iconUri },
   };
@@ -252,6 +257,23 @@ export default async function TiendaPage({
         branding={data.branding}
         copy={data.copy}
         tenantKey={slug ?? "quebienoles"}
+        entrega={entrega}
+        hoy={hoy}
+      />
+    );
+  }
+
+  // A DOS MANOS PÁDEL — comercio de pádel (palas, zapatillas, accesorios; no reservas). Vidriera de autor
+  // «La pared de palas» (tienda/adosmanos, DISENO.md 29/10): el riel con las palas colgadas por su forma,
+  // el cuadro comparable, «Enfrentadas» y «¿Cuál te conviene?». Identidad PROVISIONAL a confirmar por el
+  // dueño (lo dice el pie). Detrás, el mismo pedido del ERP (placeOnlineOrder → bandeja).
+  if (front === "adosmanos" && data.copy) {
+    return (
+      <AdosmanosVidriera
+        products={data.products}
+        branding={data.branding}
+        copy={data.copy}
+        tenantKey={slug ?? "adosmanos"}
         entrega={entrega}
         hoy={hoy}
       />

@@ -185,5 +185,7 @@ export function usaVidrieraNueva(
   // Qué Bien Olés nació con su front de esta generación (tienda/quebienoles): el interruptor no lo
   // reemplaza por la vidriera común. Prenderlo por error le sacaría el 3D y la vitrina de su marca.
   if (front === "quebienoles") return false;
+  // A Dos Manos tiene su vidriera de autor (tienda/adosmanos, «La pared de palas»): ídem.
+  if (front === "adosmanos") return false;
   return nuevo && (identidad.isRetail || Boolean(front) || Boolean(identidad.brandId));
 }
