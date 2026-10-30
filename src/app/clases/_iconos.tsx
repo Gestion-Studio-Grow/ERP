@@ -42,6 +42,32 @@ export const IconoTilde = (p: P) => (
   </svg>
 );
 
+export const IconoCruz = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M7 7l10 10M17 7L7 17" />
+  </svg>
+);
+
+export const IconoFlecha = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M5 8h9a5 5 0 0 1 0 10h-3" />
+    <path d="M8.5 4.5L5 8l3.5 3.5" />
+  </svg>
+);
+
+export const IconoPunto = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+export const IconoCelular = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+    <path d="M10.5 18.5h3" />
+  </svg>
+);
+
 export const IconoCalendario = (p: P) => (
   <svg {...base(p)}>
     <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />

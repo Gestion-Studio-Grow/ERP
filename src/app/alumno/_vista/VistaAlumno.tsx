@@ -16,7 +16,8 @@ import { diaHumano, esDeuda, esEnRevision, esPagable, horaHumana, linkWhatsApp, 
 import { Piel } from "@/app/clases/_piel";
 import { CabeceraPublica } from "@/app/clases/_cabecera";
 import { antetitulo, botonBorde, caja, tituloCaja } from "@/app/clases/_estilos";
-import { chipEstado, enCuanto, etiquetaPago, explicacionTerminal, lineaDeCuenta, plazoCancelar, terminalVisible, urlMaps, type ClaseVista, type Tono } from "./estado";
+import { IconoCruz, IconoFlecha, IconoPunto, IconoReloj, IconoTilde } from "@/app/clases/_iconos";
+import { chipEstado, enCuanto, etiquetaPago, explicacionTerminal, lineaDeCuenta, plazoCancelar, terminalVisible, urlMaps, type ClaseVista, type IconoEstado, type Tono } from "./estado";
 import { Pagar, type ItemPago } from "./Pagar";
 import { Cancelar, FueraDeTermino } from "./Cancelar";
 import { CambiarHorario, Repetir } from "./CambiarHorario";
@@ -35,11 +36,15 @@ const TONO_CHIP: Record<Tono, string> = {
   neutro: "border-[var(--padel-linea)] bg-[var(--padel-superficie)] text-[var(--padel-suave)]",
 };
 
+// Los íconos del chip, en SVG de la piel (nunca emojis: QA 29/10).
+const ICONO: Record<IconoEstado, typeof IconoReloj> = { reloj: IconoReloj, tilde: IconoTilde, cruz: IconoCruz, punto: IconoPunto, flecha: IconoFlecha };
+
 function ChipEstado({ c, profe }: { c: ClaseVista; profe: string }) {
   const e = chipEstado(c.estado, profe, c.motivoCancel);
+  const Icono = ICONO[e.icono];
   return (
     <span className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold ${TONO_CHIP[e.tono]}`} data-qa="estado">
-      <span aria-hidden>{e.icono}</span>
+      <Icono className="size-4 shrink-0" />
       {e.texto}
     </span>
   );
@@ -105,6 +110,7 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
         <section aria-labelledby="cuenta" className={`${caja} border-t-[5px] ${cuenta.tono === "debe" ? "border-t-[var(--padel-peligro)]" : "border-t-[var(--padel-vivo)]"}`} data-qa="cuenta">
           <h2 id="cuenta" className={`text-xl font-bold tabular-nums ${cuenta.tono === "debe" ? "text-[var(--padel-peligro)]" : ""}`} data-qa={cuenta.tono === "debe" ? "debes" : cuenta.tono === "favor" ? "saldo-a-favor" : "al-dia"}>
             {cuenta.titulo}
+            {cuenta.tono === "al-dia" && <IconoTilde className="ml-1.5 inline-block size-5 align-[-0.15em] text-[var(--padel-cancha)]" />}
           </h2>
           {alumno.saldoAFavor > 0 && (
             <p className="mt-1 text-base" data-qa={cuenta.tono === "favor" ? undefined : "saldo-a-favor"}>
@@ -236,6 +242,11 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
 
         <Contacto wa={wa} profe={profe} token={token} conocido />
         <Instalar nombreApp={nombreApp} />
+        {m.provisional && (
+          <p className="mt-4 text-center text-[0.875rem] text-[var(--padel-suave)]" data-qa="identidad-provisoria">
+            Identidad provisoria · se reemplaza por la marca de {profe}
+          </p>
+        )}
       </main>
     </Piel>
   );

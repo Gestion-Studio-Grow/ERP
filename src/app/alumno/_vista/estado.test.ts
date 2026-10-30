@@ -24,8 +24,8 @@ test("M-099: pedida y confirmada llevan ícono y texto distintos, con hora relat
   const p = chipEstado("PEDIDA", "Matías");
   const c = chipEstado("CONFIRMADA", "Matías");
   assert.equal(p.texto, "Esperando a Matías");
-  assert.equal(p.icono, "⏳");
-  assert.equal(c.icono, "✓");
+  assert.equal(p.icono, "reloj");
+  assert.equal(c.icono, "tilde");
   assert.notEqual(p.icono, c.icono);
   assert.equal(enCuanto(h(20), AHORA), "en 20 h");
   assert.equal(enCuanto(new Date(AHORA.getTime() + 45 * 60_000), AHORA), "en 45 min");
@@ -80,7 +80,7 @@ test("la cuenta: lo que debe manda; si no, el saldo; si no, al día", () => {
   assert.deepEqual(lineaDeCuenta({ debe: 50000, clasesQueDebe: 2, saldoAFavor: 0 }), { titulo: "Debés $ 50.000 · 2 clases", tono: "debe" });
   assert.deepEqual(lineaDeCuenta({ debe: 25000, clasesQueDebe: 1, saldoAFavor: 0 }).titulo, "Debés $ 25.000 · 1 clase");
   assert.deepEqual(lineaDeCuenta({ debe: 0, clasesQueDebe: 0, saldoAFavor: 25000 }), { titulo: "Tenés $ 25.000 a favor", tono: "favor" });
-  assert.deepEqual(lineaDeCuenta({ debe: 0, clasesQueDebe: 0, saldoAFavor: 0 }), { titulo: "Estás al día ✓", tono: "al-dia" });
+  assert.deepEqual(lineaDeCuenta({ debe: 0, clasesQueDebe: 0, saldoAFavor: 0 }), { titulo: "Estás al día", tono: "al-dia" });
 });
 
 test("M-090: la regla de cancelación en criollo", () => {
