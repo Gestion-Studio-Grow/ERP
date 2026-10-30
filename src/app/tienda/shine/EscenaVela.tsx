@@ -27,6 +27,13 @@ export type PropsEscenaVela = {
   aromas: readonly string[];
   /** "columna": en la columna de la foto (vidriera de siempre); "sangre": portada a todo el ancho. */
   encuadre: "columna" | "sangre";
+  /**
+   * Aroma CONTROLADO desde afuera (vidriera de Shine: «Tu aroma» se elige en la carta y vive en toda la
+   * página). Sin esta prop (`undefined`), el selector de la escena decide solo, como en la tienda nueva.
+   */
+  aroma?: string | null;
+  /** Con `aroma` controlado: lo que se toca en los mandos de la escena va a la página. */
+  alElegirAroma?: (a: string | null) => void;
 };
 
 function calidadDelEquipo(): "alta" | "baja" {
@@ -62,7 +69,7 @@ function enRatoLibre(tarea: () => void, tope: number): () => void {
   return () => window.clearTimeout(id);
 }
 
-export default function EscenaVela({ aromas, encuadre }: PropsEscenaVela) {
+export default function EscenaVela({ aromas, encuadre, aroma: aromaDeAfuera, alElegirAroma }: PropsEscenaVela) {
   const raiz = useRef<HTMLDivElement>(null);
   const lienzo = useRef<HTMLCanvasElement>(null);
   const escena = useRef<Vela | null>(null);
@@ -71,7 +78,15 @@ export default function EscenaVela({ aromas, encuadre }: PropsEscenaVela) {
   // sin GPU). Lo sondea el worker, fuera del hilo; sólo el camino de respaldo pregunta acá.
   const [estado, setEstado] = useState<"cargando" | "listo" | "sin-3d">("cargando");
   const [encendida, setEncendida] = useState(true);
-  const [aroma, setAroma] = useState<string | null>(null);
+  const [aromaPropio, setAromaPropio] = useState<string | null>(null);
+  const controlado = aromaDeAfuera !== undefined;
+  const aroma = controlado ? aromaDeAfuera : aromaPropio;
+  // Controlado, tocar el aroma ya elegido lo deja elegido (es «Tu aroma» de toda la página); suelto,
+  // como siempre: tocarlo de nuevo vuelve a la cera del catálogo.
+  const elegir = (a: string) => {
+    if (controlado) alElegirAroma?.(a);
+    else setAromaPropio((actual) => (actual === a ? null : a));
+  };
   // Con lo que nace la escena (los cambios siguientes van por sus métodos).
   const inicial = useRef({ cera: CERA_DEL_CATALOGO, encendida: true, movimiento: !reduce });
   useEffect(() => {
@@ -262,7 +277,7 @@ export default function EscenaVela({ aromas, encuadre }: PropsEscenaVela) {
                   className="shv-aroma"
                   data-aroma={a}
                   aria-pressed={aroma === a}
-                  onClick={() => setAroma((actual) => (actual === a ? null : a))}
+                  onClick={() => elegir(a)}
                 >
                   <span className="shv-aroma-punto" style={{ background: tinteDeAroma(a) }} aria-hidden="true" />
                   {a}
@@ -283,8 +298,9 @@ export default function EscenaVela({ aromas, encuadre }: PropsEscenaVela) {
 // el JS compartido de /tienda. Colores de la marca (manual Shine 2026): crema #fdf8f2, burdeos #671128.
 const ESTILOS = `
 .shv{position:absolute;inset:0}
-.shv-lienzo{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:pan-y;cursor:pointer;opacity:0;transition:opacity 1.2s ease .1s}
-.shv[data-estado="listo"] .shv-lienzo{opacity:1}
+.shv-lienzo{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:pan-y;cursor:pointer;opacity:0;transform:scale(1.02);filter:blur(6px);transition:opacity 1.2s ease .1s,transform 1.2s cubic-bezier(.2,.8,.2,1) .1s,filter 1.2s ease .1s}
+.shv[data-estado="listo"] .shv-lienzo{opacity:1;transform:none;filter:none}
+@media(prefers-reduced-motion:reduce){.shv-lienzo{transition:none}}
 .shv-mandos{position:absolute;z-index:6;left:12px;right:12px;bottom:12px;display:flex;align-items:center;gap:8px;min-width:0}
 .shv-boton{flex:none;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px 0 12px;border-radius:999px;border:1px solid rgba(253,248,242,.38);background:rgba(36,20,14,.8);color:#fdf8f2;font:600 13px/1 var(--font-kumbh),system-ui,sans-serif;letter-spacing:.02em;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .shv-boton:hover{background:rgba(103,17,40,.78)}
@@ -299,18 +315,19 @@ const ESTILOS = `
 .shv-aroma[aria-pressed="true"]{background:#fdf8f2;color:#671128;border-color:#fdf8f2}
 .shv-aroma-punto{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
 .shv-aviso{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-/* Vidriera de siempre: el velo crema de la foto no tapa el toque; en PC los mandos van a la derecha
-   (la izquierda es el velo), en el celular esquivan el sello y el texto que sube sobre la foto. */
-.shine .sh-hero-veil{pointer-events:none}
+/* Vidriera de Shine: los mandos abajo a la derecha de la columna de la vela; en el celular, en dos
+   filas y con los aromas en carrusel con scroll-snap. */
 /* Mientras la vela se arma, el sello (una vuelta cada 30 s) se queda quieto: su animación obliga a
    recomponer la pantalla en cada cuadro y le quita CPU al worker (medido sin GPU: la escena tardaba
    7,7 a 8,8 s en estar lista con el sello girando y 2,2 s con el sello quieto). */
-.shine:has(.shv[data-estado="cargando"]) .sh-seal{animation-play-state:paused}
-.shv[data-encuadre="columna"] .shv-mandos{left:auto;right:20px;bottom:20px;max-width:calc(100% - 140px)}
+.shine:has(.shv[data-estado="cargando"]) .sh-sello{animation-play-state:paused}
+.shv[data-encuadre="columna"] .shv-mandos{left:auto;right:18px;bottom:18px;max-width:calc(100% - 150px);flex-wrap:wrap;justify-content:flex-end;row-gap:6px}
+.shv[data-encuadre="columna"] .shv-aromas{flex-basis:100%;scroll-snap-type:x mandatory}
+.shv[data-encuadre="columna"] .shv-aroma{scroll-snap-align:start}
 /* Celular: dos filas — el botón con el rótulo, y abajo los aromas a todo el ancho (se deslizan). */
 @media(max-width:900px){
-  .shv[data-encuadre="columna"] .shv-mandos{left:12px;right:12px;bottom:calc(6vh + 8px);max-width:none;flex-wrap:wrap;row-gap:6px}
-  .shv[data-encuadre="columna"] .shv-aromas{flex-basis:100%;margin-right:96px} /* el sello ocupa la esquina */
+  .shv[data-encuadre="columna"] .shv-mandos{left:12px;right:12px;bottom:12px;max-width:none;justify-content:flex-start}
+  .shv[data-encuadre="columna"] .shv-aromas{margin-right:0}
 }
 @media(max-width:719px){
   .shv[data-encuadre="sangre"] .shv-mandos{flex-wrap:wrap;row-gap:6px}

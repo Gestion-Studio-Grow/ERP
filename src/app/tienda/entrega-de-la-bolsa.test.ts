@@ -114,7 +114,7 @@ const leer = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
 
 test("cada vidriera que pasa por placeOnlineOrder ofrece la entrega del negocio y frena el botón con lo que falta", () => {
   // Las que llevan su bolsa propia: la entrega con el hook compartido (MagraFront incluida: una sola regla).
-  for (const f of ["./MagraFront.tsx", "./ShineFront.tsx", "./Storefront.tsx", "./SiteReplica.tsx"]) {
+  for (const f of ["./MagraFront.tsx", "./shine/ShineFront.tsx", "./Storefront.tsx", "./SiteReplica.tsx"]) {
     const src = leer(f);
     assert.match(src, /usePedidoOnline\(/, `${f} manda a placeOnlineOrder`);
     assert.match(src, /useEntregaDeLaTienda\(/, `${f} usa la entrega compartida`);
@@ -122,7 +122,7 @@ test("cada vidriera que pasa por placeOnlineOrder ofrece la entrega del negocio 
   }
   // Las de la vidriera nueva (TiendaNueva) y Qué Bien Olés: la entrega viene de useVidriera.
   assert.match(leer("./vidriera/useVidriera.ts"), /useEntregaDeLaTienda\(/);
-  for (const f of ["./vidriera/BolsaPanel.tsx", "./quebienoles/Bolsa.tsx", "./ShineFront.tsx", "./Storefront.tsx", "./SiteReplica.tsx"]) {
+  for (const f of ["./vidriera/BolsaPanel.tsx", "./quebienoles/Bolsa.tsx", "./shine/Bolsa.tsx", "./Storefront.tsx", "./SiteReplica.tsx"]) {
     const src = leer(f);
     assert.match(src, /<CamposDeEntrega /, `${f} dibuja zona, día y franja`);
     assert.match(src, /<FrenoDeEntrega /, `${f} dice lo que frena`);
