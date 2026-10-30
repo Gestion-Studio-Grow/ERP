@@ -6,6 +6,9 @@ import { tenantBrandSheetEnabled } from "@/lib/identity";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import ReserveButton from "../_ch/ReserveButton";
 import ServicesAccordion from "../_ch/ServicesAccordion";
+import Carta from "../_ch/Carta";
+import BarraReservar from "../_ch/BarraReservar";
+import { chConDisenoNuevo } from "../_ch/diseno-ch.server";
 
 // ============================================================================
 // LA CARTA COMPLETA — todos los tratamientos con su precio, en su propia página.
@@ -46,6 +49,42 @@ export default async function ServiciosPage() {
   // El precio de vecino/a de La Alameda es de CH: otro negocio no lo ve (E1).
   const [{ groups }, esCH] = await Promise.all([getPublicBookingData(), getCurrentTenantSlug().then((s) => s === "beauty-spa")]);
   const sheet = tenantBrandSheetEnabled() || !esCH ? await getBrandSheet() : null;
+
+  // Diseño nuevo de CH (sólo con su interruptor prendido): la carta como placa de precios navegable
+  // (_ch/Carta.tsx, DISENO.md §5.2). Apagado o cualquier otro negocio: la carta de siempre, abajo.
+  if (esCH && (await chConDisenoNuevo())) {
+    const { professionals } = await getPublicBookingData();
+    return (
+      <div className="chf">
+        <div className="chf-env" style={{ paddingBlock: "clamp(40px,5vw,88px) clamp(72px,6vw + 40px,144px)" }}>
+          <p className="chf-kicker">La carta</p>
+          <h1 className="chf-h2" style={{ marginTop: 16 }}>
+            Servicios <em>&amp;</em> precios
+          </h1>
+          <p className="chf-baja" style={{ fontSize: "var(--chf-lede)" }}>
+            Sin “desde”: lo que ves es lo que sale. Si sos vecina de La Alameda, el precio de vecina se aplica al reservar.
+          </p>
+          {groups.length === 0 ? (
+            <div className="chf-pie-carta">
+              <p className="chf-lede" style={{ marginTop: 0 }}>Próximamente publicamos la carta.</p>
+              <ReserveButton clase="chf-btn">Reservar turno</ReserveButton>
+            </div>
+          ) : (
+            <>
+              <Carta groups={groups} professionals={professionals} conVecina />
+              <div className="chf-pie-carta">
+                <ReserveButton clase="chf-btn">Reservar turno</ReserveButton>
+                <Link href="/" className="chf-enlace">
+                  Volver al inicio
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+        <BarraReservar />
+      </div>
+    );
+  }
 
   return (
     <main style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(32px,6vw,64px) 24px clamp(56px,8vw,96px)" }}>
