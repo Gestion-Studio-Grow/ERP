@@ -54,6 +54,8 @@ export default function AnularPedidoForm({
   const { showError, showSuccess } = useToast();
   const [abierto, setAbierto] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Doble salida (src/lib/caja/doble-salida.ts): el servidor avisa y el segundo clic confirma.
+  const [porConfirmar, setPorConfirmar] = useState(false);
   const [pending, startTransition] = useTransition();
   const uid = useId();
   const tituloId = `${uid}-titulo`;
@@ -76,10 +78,12 @@ export default function AnularPedidoForm({
       }
       if (r && !r.ok) {
         setError(r.error);
-        showError(r.error);
+        setPorConfirmar(r.tipo === "sin-confirmar");
+        if (r.tipo !== "sin-confirmar") showError(r.error);
         return;
       }
       setError(null);
+      setPorConfirmar(false);
       setAbierto(false);
       showSuccess(r?.mensaje ?? `Pedido #${code} anulado.`);
       router.refresh();
@@ -108,6 +112,7 @@ export default function AnularPedidoForm({
       className="flex w-72 max-w-full flex-col gap-2 whitespace-normal rounded-md border border-line bg-surface-sunken p-3"
     >
       <input type="hidden" name="id" value={id} />
+      {porConfirmar && <input type="hidden" name="confirmar" value="1" />}
       <p id={tituloId} className="text-xs font-medium text-strong">
         ¿Anular el pedido #{code}?
       </p>
@@ -143,13 +148,14 @@ export default function AnularPedidoForm({
           disabled={pending}
           className="chip-btn chip-btn-danger text-xs h-11 sm:h-auto disabled:opacity-50"
         >
-          {pending ? "Anulando…" : "Sí, anular"}
+          {pending ? "Anulando…" : porConfirmar ? "Sí, anular igual" : "Sí, anular"}
         </button>
         <button
           type="button"
           onClick={() => {
             setAbierto(false);
             setError(null);
+            setPorConfirmar(false);
           }}
           className="h-11 px-2 text-xs text-muted hover:underline sm:h-8"
         >

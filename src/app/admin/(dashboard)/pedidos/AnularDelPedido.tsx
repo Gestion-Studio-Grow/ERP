@@ -45,11 +45,14 @@ export default function AnularDelPedido({
   const [motivo, setMotivo] = useState("");
   const [stockNoVolvio, setStockNoVolvio] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Doble salida (src/lib/caja/doble-salida.ts): el servidor avisa y el segundo clic confirma.
+  const [porConfirmar, setPorConfirmar] = useState(false);
   const [pending, startTransition] = useTransition();
   const uid = useId();
 
   function enviar() {
     const fd = aFormData(camposDeLaAnulacion({ id, motivo, stockNoVolvio }));
+    if (porConfirmar) fd.set("confirmar", "1");
     startTransition(async () => {
       let r;
       try {
@@ -63,9 +66,11 @@ export default function AnularDelPedido({
       }
       if (r && !r.ok) {
         setError(r.error);
+        setPorConfirmar(r.tipo === "sin-confirmar");
         return;
       }
       setError(null);
+      setPorConfirmar(false);
       showSuccess(r?.mensaje ?? `${sustantivo === "venta" ? "Venta" : "Pedido"} #${code} anulado.`);
       onHecho?.();
       router.refresh();
@@ -111,7 +116,7 @@ export default function AnularDelPedido({
         La mercadería no volvió
       </label>
       <Button type="submit" variant="danger" disabled={pending} estado={pending ? "cargando" : undefined}>
-        {pending ? "Anulando…" : `Anular ${sustantivo === "venta" ? "la venta" : "el pedido"} #${code}`}
+        {pending ? "Anulando…" : porConfirmar ? "Sí, anular igual" : `Anular ${sustantivo === "venta" ? "la venta" : "el pedido"} #${code}`}
       </Button>
     </form>
   );

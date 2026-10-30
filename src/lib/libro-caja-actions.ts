@@ -55,6 +55,7 @@ import { COMPRA_ACTOR_PREFIX, esEgresoDeCompra } from "@/lib/stock/purchase-egre
 import { COMISION_ACTOR_PREFIX, esEgresoDeComision } from "@/lib/comision-liquidacion";
 import { leerImporte } from "@/lib/pos-peso";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
+import { anulacionDelMismoMonto, avisoDevolucionYaAnulada, type EgresoParecido } from "@/lib/caja/doble-salida";
 
 const LIBRO_PATH = "/admin/caja/libro";
 // El mismo formulario de alta se monta en la Caja (es el único camino de escritura manual),
@@ -66,6 +67,13 @@ const CAJA_PATH = "/admin/caja";
 // suelto) para poder distinguirlo de cualquier otro fallo de la transacción.
 class DuplicadoError extends Error {
   constructor(readonly delSistema: { detail: string; origen: "venta" | "compra" | "comision" } | null = null) {
+    super();
+  }
+}
+
+// Doble salida (src/lib/caja/doble-salida.ts): la venta ya se anuló y ahora se carga su devolución.
+class DobleSalidaError extends Error {
+  constructor(readonly anulada: EgresoParecido) {
     super();
   }
 }
@@ -400,6 +408,10 @@ export async function addLibroEntry(
           if (esEgresoDeComision(yaHay)) throw new DuplicadoError({ detail: yaHay.reason ?? "", origen: "comision" });
           throw new DuplicadoError(null);
         }
+        if (type === "EGRESO") {
+          const anulada = await anulacionDelMismoMonto(tx, tenantId, amount, occurredAt);
+          if (anulada) throw new DobleSalidaError(anulada);
+        }
       }
       const openSession = await tx.cashSession.findFirst({
         where: { tenantId, status: "OPEN" },
@@ -419,6 +431,9 @@ export async function addLibroEntry(
       });
     }, { tenantId });
   } catch (err) {
+    if (err instanceof DobleSalidaError) {
+      return { ok: false, confirmable: "duplicado", error: avisoDevolucionYaAnulada(err.anulada) };
+    }
     if (err instanceof DuplicadoError) {
       if (err.delSistema?.origen === "comision") {
         return {

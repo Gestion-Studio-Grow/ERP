@@ -114,6 +114,7 @@ import {
   avanzarPedidoGuarded,
   horarioDelFormulario,
 } from "@/lib/order-anulacion";
+import { avisoAnulacionConDevolucion, devolucionManualDeLaVenta } from "@/lib/caja/doble-salida";
 import {
   descuentoDelFormulario,
   lineasAManoDelFormulario,
@@ -1213,6 +1214,7 @@ async function anularVentaCore(
   orderId: string,
   motivoRaw: string,
   devuelveStock: boolean,
+  confirmado = false,
 ): Promise<OrderActionState> {
   const user = await requireCapability("orders:void");
   const tenantId = await getCurrentTenantId();
@@ -1225,6 +1227,13 @@ async function anularVentaCore(
   });
   if (!reglas.ok) return { ok: false, error: reglas.error };
   const motivo = reglas.motivo;
+
+  // Doble salida (src/lib/caja/doble-salida.ts): si ya se cargó a mano un egreso por lo que entró
+  // de esta venta, avisar antes de anular. Sólo lectura; confirmado, se anula como siempre.
+  if (!confirmado) {
+    const devolucion = await devolucionManualDeLaVenta(prisma, tenantId, orderId);
+    if (devolucion) return { ok: false, tipo: "sin-confirmar", error: avisoAnulacionConDevolucion(devolucion) };
+  }
 
   // La frontera se lee ANTES de abrir la transacción (no depende de nada que la tx cambie),
   // igual que en el libro y en el cierre diario.
@@ -1335,6 +1344,7 @@ export async function anularVenta(
     String(formData.get("id") || "").trim(),
     String(formData.get("motivo") || ""),
     devuelveStock,
+    String(formData.get("confirmar") || "") === "1",
   );
 }
 
