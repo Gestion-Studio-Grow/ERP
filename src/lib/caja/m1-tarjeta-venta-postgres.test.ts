@@ -1,8 +1,10 @@
 // N2 · M1-C1 contra Postgres: «vender $5.000 con Débito → aparece en el libro», con la venta REAL
-// (`createOrder`, el mismo camino del pie de Vender y del cuaderno), en los dos estados del enum:
-//   · SIN N2_enums.sql: `tarjetaHabilitada()` false y el alta con DEBITO se rechaza (nada se graba);
-//   · CON N2_enums.sql: true, el pedido queda cobrado con DEBITO (o CREDITO: D-C01, separados) y el
-//     libro tiene la VENTA en la columna TARJETA; el reintento con la misma clave no duplica; B no se toca.
+// (`createOrder`, el mismo camino del pie de Vender y del cuaderno). Desde el pase del 30/10 los valores
+// vienen con la migración 20261030120000_m1_enums_caja, así que la base efímera ya los trae: el estado
+// «sin el valor» (tecla oculta, alta rechazada) quedó en la historia y lo cubren los unitarios de
+// `tarjetaHabilitadaPor` (medio-cobro.test.ts). Con el valor: el pedido queda cobrado con DEBITO (o
+// CREDITO: D-C01, separados) y el libro tiene la VENTA en la columna TARJETA; el reintento con la misma
+// clave no duplica; B no se toca.
 // (Reproduce la falla F2 de la certificación de M1: antes, el test insertaba el movimiento a mano.)
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -43,16 +45,9 @@ test("contra Postgres: venta real con Tarjeta, sin y con el valor en el enum, si
   const pedidosDeA = await duenio.order.count({ where: { tenantId: a.id } });
   const pedidosDeB = await duenio.order.count({ where: { tenantId: b.id } });
 
-  // ── SIN el valor en la base ────────────────────────────────────────────────
-  olvidarSchemaProbe();
-  assert.equal(await hayValorEnum("PaymentMethod", "DEBITO"), false);
-  assert.equal(await como(a, a.duenia, () => tarjetaHabilitada()), false, "sin N2_enums.sql la tecla no se ofrece");
-  const sinEnum = await como(a, a.duenia, () => venta("tarjeta:sin-enum"));
-  assert.ok(sinEnum && !sinEnum.ok, `sin el valor, el alta con DEBITO se rechaza: ${JSON.stringify(sinEnum)}`);
-  assert.equal(await duenio.order.count({ where: { tenantId: a.id } }), pedidosDeA, "no se grabó el pedido");
-  assert.equal((await libro(a.id)).length, 0, "no se asentó nada en el libro");
-
-  // ── CON N2_enums.sql aplicada ──────────────────────────────────────────────
+  // ── Con el valor (migración 20261030120000_m1_enums_caja) ──────────────────
+  assert.equal(await hayValorEnum("PaymentMethod", "DEBITO"), true, "la migración del pase trae el valor");
+  // N2_enums.sql sigue siendo idempotente sobre una base que ya los tiene.
   const sql = readFileSync(path.join(process.cwd(), "prisma/pending-gate2/N2_enums.sql"), "utf8");
   for (const paso of sql.split("\n").filter((l) => /^ALTER TYPE/.test(l.trim()))) await duenio.$executeRawUnsafe(paso);
   olvidarSchemaProbe();

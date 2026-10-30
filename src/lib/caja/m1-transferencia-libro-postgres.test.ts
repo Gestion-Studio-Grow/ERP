@@ -1,8 +1,11 @@
 // N2 · M1-C2 contra Postgres: «vender por transferencia → aparece en su columna del libro», con la
-// venta REAL (`createOrder`), en los dos estados de `CashMethod`:
-//   · SIN N2_enums.sql: el asiento va a `MP`, como siempre (nada cambia en producción hasta el paquete);
-//   · CON N2_enums.sql: el asiento va a `TRANSFERENCIA`; el de antes sigue en `MP`; el cierre del día
-//     los muestra juntos en la columna Transferencia y el total del libro no cambia. B no se toca.
+// venta REAL (`createOrder`). Desde el pase del 30/10 `CashMethod.TRANSFERENCIA` viene con la migración
+// 20261030120000_m1_enums_caja, así que la base efímera ya lo trae: el asiento va a `TRANSFERENCIA`.
+// Lo de ANTES del pase (transferencias guardadas en `MP`) se simula con un asiento viejo insertado a
+// mano sobre un pedido cobrado por transferencia: la hoja nueva lo separa por el medio de origen y lo
+// cuenta en Transferencia (F2: lo del período); el total del libro no cambia. B no se toca.
+// (El estado «sin el valor en la base» quedó en la historia: lo cubren los unitarios de
+// `cashMethodFromPaymentMethod` y del cierre de siempre en m1-caja-medios.test.ts.)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -10,7 +13,7 @@ import path from "node:path";
 import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio, type NegocioDePrueba, type UsuarioDePrueba } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
-test("contra Postgres: venta por transferencia, sin y con CashMethod.TRANSFERENCIA, sin mezclar negocios", async (t) => {
+test("contra Postgres: venta por transferencia a su columna, lo viejo guardado en MP separado, sin mezclar negocios", async (t) => {
   const laBase = await baseEfimeraParaElTest(t);
   if (!laBase) return;
   apuntarLaAppA(laBase);
@@ -43,24 +46,20 @@ test("contra Postgres: venta por transferencia, sin y con CashMethod.TRANSFERENC
     duenio.cashMovement.findMany({ where: { tenantId }, orderBy: { createdAt: "asc" }, select: { type: true, method: true, amount: true } });
   const libroDeB = await libro(b.id);
 
-  // ── SIN el valor en la base: a MP, como siempre ────────────────────────────
-  olvidarSchemaProbe();
-  olvidarTransferenciaEnElLibro();
-  const antes = await como(a, a.duenia, () => venta("transf:sin-enum"));
-  assert.ok(antes && antes.ok, JSON.stringify(antes));
-  assert.deepEqual((await libro(a.id)).map((m) => [m.type, m.method, Number(m.amount)]), [["VENTA", "MP", 5_000]]);
-  const hoy = todayInBusinessTz();
-  const hojaSin = await como(a, a.duenia, () => getCierreDiarioData(hoy));
-  assert.equal(hojaSin.preview.porColumna.TRANSFERENCIA.expected, 5_000, "la hoja la separa por el medio de origen");
-  // Cert. M1 v6 F1: el cierre de siempre NO ofrece Transferencia sin el paquete (lo contado ahí se
-  // descartaba y MP asentaba un faltante falso): cuenta «MP / Transf.» junto, como siempre.
-  assert.deepEqual(hojaSin.mediosDelLibro, ["EFECTIVO", "MP", "TARJETA"]);
-
-  // ── CON N2_enums.sql aplicada ──────────────────────────────────────────────
+  // N2_enums.sql sigue siendo idempotente sobre una base que ya tiene los valores de M1.
   const sql = readFileSync(path.join(process.cwd(), "prisma/pending-gate2/N2_enums.sql"), "utf8");
   for (const paso of sql.split("\n").filter((l) => /^ALTER TYPE/.test(l.trim()))) await duenio.$executeRawUnsafe(paso);
   olvidarSchemaProbe();
   olvidarTransferenciaEnElLibro();
+
+  // ── Lo de antes del pase: una transferencia guardada en MP ─────────────────
+  const viejo = a.pedidos[0];
+  await duenio.order.update({ where: { id: viejo }, data: { paymentMethod: "TRANSFERENCIA", paid: true, total: 5_000 } });
+  await duenio.cashMovement.create({
+    data: { tenantId: a.id, type: "VENTA", method: "MP", amount: 5_000, orderId: viejo, reason: "Venta (antes del pase)", createdBy: `user:${a.duenia.id}`, occurredAt: new Date() },
+  });
+
+  // ── Venta real por transferencia: a su columna ────────────────────────────
   const despues = await como(a, a.duenia, () => venta("transf:con-enum"));
   assert.ok(despues && despues.ok, JSON.stringify(despues));
   assert.deepEqual(
@@ -73,12 +72,13 @@ test("contra Postgres: venta por transferencia, sin y con CashMethod.TRANSFERENC
   assert.ok(otraVez && otraVez.ok, JSON.stringify(otraVez));
   assert.equal((await libro(a.id)).length, 2, "un solo asiento por venta");
 
+  const hoy = todayInBusinessTz();
   const hojaCon = await como(a, a.duenia, () => getCierreDiarioData(hoy));
   assert.ok(hojaCon.columnas.includes("TRANSFERENCIA"));
-  assert.equal(hojaCon.preview.porColumna.TRANSFERENCIA.expected, 10_000, "la del libro + la vieja guardada en MP");
+  assert.equal(hojaCon.preview.porColumna.TRANSFERENCIA.expected, 10_000, "la del libro + la vieja guardada en MP (lo del período)");
   assert.equal(hojaCon.preview.porColumna.MP.expected, 0);
   assert.equal(hojaCon.preview.total.expected, 10_000, "el total del libro no cambia");
-  assert.deepEqual(hojaCon.mediosDelLibro, ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"], "con el paquete, el de siempre la cuenta aparte");
+  assert.deepEqual(hojaCon.mediosDelLibro, ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"], "con el valor, el de siempre la cuenta aparte");
 
   // ── B no se mezcló ─────────────────────────────────────────────────────────
   assert.deepEqual(await libro(b.id), libroDeB, "el libro de B no cambió");

@@ -183,6 +183,31 @@ paso 2 (procedimiento manual al pie de `N2_enums.sql`), hacerlo **en ventana, si
 redeploy antes de reabrir**: un proceso vivo que ya vio `CashMethod.TRANSFERENCIA` sigue
 escribiéndolo y cada venta por transferencia falla hasta que se reinicia (cert. M1 v6 F3).
 
+### 5 bis. Vuelta atrás del código de M1 (pase del 30/10/2026)
+
+M1 salió antes que el resto del paquete: sus tres valores (`PaymentMethod.DEBITO`,
+`PaymentMethod.CREDITO`, `CashMethod.TRANSFERENCIA`) se aplicaron con la migración
+`20261030120000_m1_enums_caja` (`prisma migrate deploy`). No se pueden borrar. El código de antes
+(`e2976802`) no los conoce: su cliente de Prisma falla al LEER cualquier fila que los use, y eso
+rompe caja, ventas y KPIs.
+
+**Regla (decisión del dueño, 30/10):** antes de revertir, correr esta consulta (sólo lectura):
+
+```sql
+SELECT
+  (SELECT count(*) FROM "Order"         WHERE "paymentMethod"::text IN ('DEBITO','CREDITO')) AS pedidos,
+  (SELECT count(*) FROM "Collection"    WHERE method::text          IN ('DEBITO','CREDITO')) AS cobros,
+  (SELECT count(*) FROM "CashMovement"  WHERE method::text          = 'TRANSFERENCIA')       AS libro;
+```
+
+- **Las tres en 0:** se puede revertir el código a `e2976802` (los valores quedan en el tipo, sin
+  filas que los usen, y el código viejo los tolera). Redeploy y humo §4.
+- **Alguna mayor que 0:** NO se revierte. Se arregla hacia adelante sobre M1 (rama
+  `n2/m1-caja-medios-dc01`, certificada v10).
+
+Otras tablas con `PaymentMethod` (pagos, deudas, turnos) entran en la misma regla si la consulta
+se amplía; las de arriba son las que escribe M1.
+
 ## 6. Cierre
 
 - Anotar en `docs/ESTADO-ACTUAL.md` y en el README del paquete: aplicado el `<fecha>` contra Neon
