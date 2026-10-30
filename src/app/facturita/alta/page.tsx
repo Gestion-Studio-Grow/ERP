@@ -26,10 +26,10 @@ export default function FacturitaAltaPage() {
   const baseWhatsApp = numero.length >= 10 ? buildWhatsAppHref(numero, "") : null;
 
   return (
-    <VidrieraMarco>
-      <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-14">
-        <h1 className="font-display text-3xl tracking-[-0.02em] text-strong sm:text-4xl">Empezá gratis</h1>
-        <p className="mt-2 text-muted">
+    <VidrieraMarco botonAlta={false} alta>
+      <div className="fx-caja fx-caja--alta" style={{ paddingBlock: "clamp(32px, 2rem + 3vw, 96px) clamp(48px, 3rem + 4vw, 120px)" }}>
+        <h1 className="fx-h1">Empezá gratis</h1>
+        <p className="fx-lead">
           Cinco pasos cortos. No te pedimos tarjeta ni tu clave fiscal.
         </p>
         <AltaAsistente baseWhatsApp={baseWhatsApp} />
