@@ -7,6 +7,7 @@
 // usePedidoOnline → placeOnlineOrder (bandeja, POS, stock), la entrega del negocio y el cupón.
 // La piel (estilos.ts) la escribe el servidor (ShineVidriera.tsx): no viaja en este JS.
 
+import { estadoPropio } from "@/components/vidriera/historial";
 import { useBolsaGuardada } from "@/components/vidriera/useBolsaGuardada";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -14,7 +15,7 @@ import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
 import { useEntregaDeLaTienda } from "../EntregaDeLaTienda";
 import { usePedidoOnline, useCuponDePedido } from "../pedido-online";
-import { nuevaClaveDePedido, etiquetaDeDisponibilidad, type Disponibilidad } from "../reglas-tienda";
+import { etiquetaDeDisponibilidad, type Disponibilidad } from "../reglas-tienda";
 import type { StorefrontCopy } from "@/tenants/storefront";
 import type { TenantImagery } from "@/lib/tenant-layout";
 import VelaDiferida from "./VelaDiferida";
@@ -72,9 +73,8 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
   const aroma = useAromaElegido();
   const hidratado = useSyncExternalStore(nada, () => true, () => false);
   // La bolsa guardada en el navegador (ronda 2): recargar o volver de WhatsApp ya no la vacía.
-  const { bolsa, setBolsa, marcarEnvio } = useBolsaGuardada(tenantKey, products.map((p) => p.id));
+  const { bolsa, setBolsa, marcarEnvio, clave: claveDePedido, renovarClave } = useBolsaGuardada(tenantKey, products.map((p) => p.id));
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
-  const [claveDePedido, setClaveDePedido] = useState(nuevaClaveDePedido);
   const [notaLibre, setNotaLibre] = useState("");
   const [ficha, setFicha] = useState<{ id: string; foco: boolean } | null>(null);
   const [bolsaAbierta, setBolsaAbierta] = useState(false);
@@ -122,7 +122,7 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
     alRegistrar: () => {
       setBolsa({});
       setNotaLibre("");
-      setClaveDePedido(nuevaClaveDePedido());
+      renovarClave();
       cupon.limpiar();
     },
   });
@@ -132,7 +132,7 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
     const p = porId.get(id);
     if (!p || (delta > 0 && p.disponibilidad === "sin-stock")) return;
     pedido.olvidarAviso(id);
-    setClaveDePedido(nuevaClaveDePedido());
+    renovarClave();
     setBolsa((b) => {
       const n = { ...b };
       const q = Math.max(0, (n[clave] ?? 0) + delta);
@@ -165,7 +165,7 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
   function cerrarFicha() {
     setFicha(null);
     if (esFichaDelHistorial(window.history.state)) window.history.back();
-    else window.history.replaceState(null, "", window.location.pathname);
+    else window.history.replaceState(estadoPropio(), "", window.location.pathname);
   }
   function mas(p: (typeof items)[number]) {
     const sirve = p.vista.aromas.length === 0 ? null : aroma && p.vista.aromas.includes(aroma) ? aroma : undefined;
@@ -183,7 +183,7 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
     const clave = new URLSearchParams(window.location.search).get("p");
     const p = clave ? (porClave.get(clave) ?? null) : null;
     if (p && !esFichaDelHistorial(window.history.state)) {
-      window.history.replaceState(null, "", window.location.pathname);
+      window.history.replaceState(estadoPropio(), "", window.location.pathname);
       window.history.pushState(ESTADO_FICHA, "", `?p=${encodeURIComponent(p.vista.clave)}`);
     }
     const id = p ? window.setTimeout(() => setFicha({ id: p.id, foco: false }), 0) : 0;

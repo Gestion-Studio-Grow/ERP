@@ -156,8 +156,8 @@ const magra: StorefrontCopy = {
 // tal cual; los aromas son los 9 de velas del catálogo (los 6 de difusores viven en
 // src/app/tienda/shine/catalogo.ts). Se quitaron, por no estar en el catálogo: «mecha de algodón»,
 // «Armá tu ritual», «Mundos» de Decoración/Accesorios y los sets de regalo armados (diseño 29/10, §9).
-// Envío: tarifa $3.500 y gratis desde $25.000 SIN FUENTE — provisional a confirmar con la dueña; la
-// vidriera sólo lo usa si el negocio no cargó zonas en Envíos.
+// Envío: SIN tarifa en el copy (ronda 2). La de $3.500 / gratis desde $25.000 no tenía fuente y se quitó; hasta que
+// la dueña cargue sus zonas en Envíos, el envío se coordina («A coordinar») y el pedido no lo suma.
 const shinevelas: StorefrontCopy = {
   eyebrow: "Shine · velas de soja hechas a mano",
   tagline: "Que tu luz nunca se apague.",

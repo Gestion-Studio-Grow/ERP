@@ -12,7 +12,12 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 
 const MARCA = "gsgHoja";
+// El id lleva una semilla de la carga: `history.state` sobrevive a la recarga y un contador solo repetiría «h1».
+const SEMILLA = Math.random().toString(36).slice(2, 8);
 let contador = 0;
+// Las entradas que empujaron las hojas, en orden. Next borra las marcas propias del estado cuando reemplaza la entrada
+// (revalidar, `refresh()`, un `replaceState(null)`): sin marca, la entrada de arriba se reconoce por esta pila y la URL.
+const pila: { id: string; href: string }[] = [];
 
 function estadoActual(): Record<string, unknown> | null {
   const s = window.history.state as unknown;
@@ -53,8 +58,9 @@ export function useHoja(
         foco?.current?.focus({ preventScroll: true });
       }
       if (historial && !entrada.current) {
-        const id = `h${++contador}`;
+        const id = `h${SEMILLA}${++contador}`;
         entrada.current = id;
+        pila.push({ id, href: window.location.href });
         window.history.pushState({ ...(estadoActual() ?? {}), [MARCA]: id }, "");
       }
     } else {
@@ -74,6 +80,7 @@ export function useHoja(
       if (!id) return;
       if (estadoActual()?.[MARCA] !== id) {
         entrada.current = null;
+        sacarDeLaPila(id);
         cerrar.current();
       }
     };
@@ -90,5 +97,14 @@ function soltar(entrada: { current: string | null }) {
   const id = entrada.current;
   if (!id) return;
   entrada.current = null;
-  if (estadoActual()?.[MARCA] === id) window.history.back();
+  const ultima = pila[pila.length - 1];
+  sacarDeLaPila(id);
+  const marca = estadoActual()?.[MARCA];
+  const sinMarcaPeroArriba = marca === undefined && ultima?.id === id && ultima.href === window.location.href;
+  if (marca === id || sinMarcaPeroArriba) window.history.back();
+}
+
+function sacarDeLaPila(id: string) {
+  const i = pila.findIndex((e) => e.id === id);
+  if (i >= 0) pila.splice(i, 1);
 }

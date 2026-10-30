@@ -14,7 +14,8 @@ export default function CamposDelPedido({ renglones, clave }: { renglones: reado
           {conPrecio && <input type="hidden" name="unitPrice" value={r.unitPrice ?? ""} />}
         </span>
       ))}
-      <input type="hidden" name="idempotencyKey" value={clave} />
+      {/* Sólo con renglones: con la bolsa vacía (el HTML del servidor) la clave no se dibuja y no hay desajuste al hidratar. */}
+      {renglones.length > 0 && <input type="hidden" name="idempotencyKey" value={clave} />}
     </>
   );
 }

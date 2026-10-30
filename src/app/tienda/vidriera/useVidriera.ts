@@ -26,7 +26,7 @@ import type { ConfigEnvios } from "@/lib/envios/modelo";
 import { useEntregaDeLaTienda } from "../EntregaDeLaTienda";
 
 // Las claves del navegador viven en la vidriera compartida (ronda 2): las usan también Shine, A Dos Manos y Magra.
-import { CLAVE_BOLSA, CLAVE_ENVIO } from "@/components/vidriera/claves";
+import { CLAVE_BOLSA, CLAVE_ENVIO, guardarClave, leerClaveGuardada } from "@/components/vidriera/claves";
 export { CLAVE_BOLSA, CLAVE_ENVIO };
 
 export function useVidriera(opts: {
@@ -65,8 +65,16 @@ export function useVidriera(opts: {
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(CLAVE_BOLSA(tenantKey));
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- la bolsa guardada sólo existe en el navegador: se lee después de hidratar
-      if (raw) setBolsa(bolsaGuardada(JSON.parse(raw), productos));
+      // La bolsa guardada sólo existe en el navegador: se lee después de hidratar.
+      const guardada = raw ? bolsaGuardada(JSON.parse(raw), productos) : {};
+      if (Object.keys(guardada).length > 0) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- ídem
+        setBolsa(guardada);
+        // Ronda 2: la bolsa vuelve con su clave (si ese pedido ya entró, el servidor no suma otro).
+        const claveGuardada = leerClaveGuardada(tenantKey);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- ídem
+        if (claveGuardada) setClave(claveGuardada);
+      }
     } catch {
       // Sin almacenamiento (modo privado, cuota llena) la bolsa arranca vacía: no es un error.
     }
@@ -77,12 +85,14 @@ export function useVidriera(opts: {
     if (!leida.current) return;
     try {
       const k = CLAVE_BOLSA(tenantKey);
-      if (Object.keys(bolsa).length === 0) window.localStorage.removeItem(k);
+      const vacia = Object.keys(bolsa).length === 0;
+      if (vacia) window.localStorage.removeItem(k);
       else window.localStorage.setItem(k, JSON.stringify(bolsa));
+      guardarClave(tenantKey, vacia ? null : clave);
     } catch {
       /* ídem: sin almacenamiento no se guarda, y nada más */
     }
-  }, [bolsa, tenantKey]);
+  }, [bolsa, clave, tenantKey]);
 
   const ls = lineas(bolsa, porId);
   const { subtotal: bruto, piezas } = resumen(ls);

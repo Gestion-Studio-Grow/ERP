@@ -9,7 +9,8 @@
 // mismas funciones: nunca confía en el costo que mandó la pantalla.
 //
 // `configComoShipping` es el puente a la tarifa de siempre (`storefront-shipping.ts`), que sigue
-// intacta para los negocios con la tarifa en su copy (Shine: $3.500, gratis desde $25.000).
+// intacta para los negocios con la tarifa en su copy (hoy ninguno: la de Shine no tenía fuente y se quitó en la
+// ronda 2).
 
 import { centavosDe } from "@/lib/dinero/redondeo";
 import type { ShippingConfig } from "@/lib/storefront-shipping";

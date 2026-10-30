@@ -16,6 +16,7 @@
 // zapatilla (catalogo.ts → notaConTalles), porque el motor no tiene variantes.
 // La piel (estilos.ts) la escribe el servidor (AdosmanosVidriera.tsx): no viaja en este JS.
 
+import { estadoPropio } from "@/components/vidriera/historial";
 import { useBolsaGuardada } from "@/components/vidriera/useBolsaGuardada";
 import { useHoja } from "@/components/vidriera/useHoja";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -24,7 +25,6 @@ import type { ConfigEnvios } from "@/lib/envios/modelo";
 import type { StorefrontCopy } from "@/tenants/storefront";
 import { useEntregaDeLaTienda } from "../EntregaDeLaTienda";
 import { usePedidoOnline, useCuponDePedido } from "../pedido-online";
-import { nuevaClaveDePedido } from "../reglas-tienda";
 import { ORDENES, carta, escribirFiltros, leerFiltros, parecidosPorPrecio, plata, type Filtros, type Orden, type ProductoVidriera } from "../vidriera/catalogo-core";
 import { CLASES_DE_FUENTES } from "./fuentes";
 import { SECCIONES, itemsDe, notaConTalles, type Item, type SeccionId } from "./catalogo";
@@ -62,8 +62,9 @@ function ponerParam(clave: string, valor: string | null) {
   const u = new URL(window.location.href);
   if (valor) u.searchParams.set(clave, valor);
   else u.searchParams.delete(clave);
-  window.history.replaceState(null, "", `${u.pathname}${u.search}${u.hash}`);
+  window.history.replaceState(estadoPropio(), "", `${u.pathname}${u.search}${u.hash}`);
 }
+
 
 export default function AdosmanosFront({ branding, tenantKey, ...resto }: PropsAdosmanos) {
   const numero = branding?.whatsapp ?? null;
@@ -97,9 +98,8 @@ function Vidriera({
   const marcasConProductos = useMemo(() => marcas.filter((m) => items.some((p) => p.vista.marca === m)), [marcas, items]);
 
   // La bolsa guardada en el navegador (ronda 2): recargar o volver de WhatsApp ya no la vacía.
-  const { bolsa, setBolsa, marcarEnvio } = useBolsaGuardada(tenantKey, products.map((p) => p.id));
+  const { bolsa, setBolsa, marcarEnvio, clave: claveDePedido, renovarClave } = useBolsaGuardada(tenantKey, products.map((p) => p.id));
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
-  const [claveDePedido, setClaveDePedido] = useState(nuevaClaveDePedido);
   const [notaLibre, setNotaLibre] = useState("");
   const [ficha, setFicha] = useState<{ id: string; talles: boolean } | null>(null);
   const [bolsaAbierta, setBolsaAbierta] = useState(false);
@@ -132,7 +132,7 @@ function Vidriera({
     alRegistrar: () => {
       setBolsa({});
       setNotaLibre("");
-      setClaveDePedido(nuevaClaveDePedido());
+      renovarClave();
       cupon.limpiar();
     },
   });
@@ -143,7 +143,7 @@ function Vidriera({
       const p = porId.get(id);
       if (!p || (delta > 0 && p.disponibilidad === "sin-stock")) return;
       pedido.olvidarAviso(id);
-      setClaveDePedido(nuevaClaveDePedido());
+      renovarClave();
       setBolsa((b) => {
         const n = { ...b };
         const q = Math.max(0, (n[clave] ?? 0) + delta);
@@ -222,7 +222,7 @@ function Vidriera({
   function cambiarFiltros(f: Filtros) {
     setFiltros(f);
     const u = new URL(window.location.href);
-    window.history.replaceState(null, "", `${u.pathname}${escribirFiltros(f, u.search)}${u.hash}`);
+    window.history.replaceState(estadoPropio(), "", `${u.pathname}${escribirFiltros(f, u.search)}${u.hash}`);
   }
 
   // Al llegar: ?p= abre esa ficha, ?vs= arma el enfrentamiento y los filtros salen de la URL. Después

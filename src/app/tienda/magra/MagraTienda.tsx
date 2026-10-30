@@ -25,7 +25,7 @@ import type { ShippingConfig } from "@/lib/storefront-shipping";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 import { usePedidoOnline, useCuponDePedido } from "../pedido-online";
-import { nuevaClaveDePedido, propuestasConMediosDeLaMarca, textoDeMediosDePago } from "../reglas-tienda";
+import { propuestasConMediosDeLaMarca, textoDeMediosDePago } from "../reglas-tienda";
 import { useEntregaDeLaTienda } from "../EntregaDeLaTienda";
 import { CONFIG, seccionMagra } from "../vidriera/marcas";
 import {
@@ -137,11 +137,10 @@ function Vidriera({
 }) {
   const { requestWhatsApp } = useWhatsAppCta();
   // La bolsa guardada en el navegador (ronda 2): recargar o volver de WhatsApp ya no la vacía.
-  const { bolsa: cart, setBolsa: setCart, marcarEnvio } = useBolsaGuardada(tenantKey, products.map((p) => p.id));
+  const { bolsa: cart, setBolsa: setCart, marcarEnvio, clave: claveDePedido, renovarClave } = useBolsaGuardada(tenantKey, products.map((p) => p.id));
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
   // Clave anti-duplicado del pedido (la lee `placeOnlineOrder`): el doble toque manda la MISMA y
   // el servidor devuelve el mismo pedido. Se renueva cuando cambia la bolsa (reglas-tienda.ts).
-  const [claveDePedido, setClaveDePedido] = useState(nuevaClaveDePedido);
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
   // ── La carta: por animal (las secciones de la marca) y, dentro, por región y cocción ──
@@ -188,7 +187,7 @@ function Vidriera({
   const olvidarAviso = useRef<(id: string) => void>(() => {});
   const cambiar = useCallback((p: MagraProducto, calcular: (actual: number) => number) => {
     olvidarAviso.current(p.id);
-    setClaveDePedido(nuevaClaveDePedido());
+    renovarClave();
     setCart((s) => {
       const q = Math.max(0, Math.round(calcular(s[p.id] ?? 0) * 100) / 100);
       const n = { ...s };
@@ -245,7 +244,8 @@ function Vidriera({
   // ¿Hay una tarifa con fuente (zonas en Envíos o la del local)? Sin ella, un envío de $0 NO es «Gratis»: es «A
   // coordinar» (ronda 2, P0: nada se promete sin fuente).
   const hayTarifa = conZonas || Boolean(envio);
-  // Los medios de pago del local (BusinessSettings), nunca una lista escrita a mano (ronda 2, P0).
+  // Los medios de pago del copy de la marca (`storefront.ts` → `copy.paymentMethods`; no de la configuración del local
+  // todavía [A VALIDAR]: leerlos de BusinessSettings cuando exista el campo). Sin medios, no se nombra ninguno (ronda 2).
   const medios = textoDeMediosDePago(mediosDePago ?? []);
 
   // El pedido: el envío, el rechazo con su motivo (sin perder la bolsa) y el de WhatsApp, que se
@@ -260,7 +260,7 @@ function Vidriera({
     hayWhatsApp: false,
     alRegistrar: () => {
       setCart({});
-      setClaveDePedido(nuevaClaveDePedido());
+      renovarClave();
       cupon.limpiar();
     },
   });

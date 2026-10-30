@@ -104,3 +104,27 @@ test("adopción: ninguna tienda abre un <dialog> a mano (la hoja compartida mane
     assert.match(s, /useHoja\(/, f);
   }
 });
+
+test("trinquete: ninguna tienda con hoja borra el estado del historial con replaceState(null) (deja un «atrás» muerto)", () => {
+  const archivos = [
+    "src/app/tienda/quebienoles/QuebienolesFront.tsx",
+    "src/app/tienda/shine/ShineFront.tsx",
+    "src/app/tienda/adosmanos/AdosmanosFront.tsx",
+    "src/app/tienda/magra/MagraTienda.tsx",
+  ];
+  for (const f of archivos) assert.doesNotMatch(leer(f), /replaceState\(\s*null/, f);
+});
+
+test("la clave anti-duplicado se guarda con la bolsa y sólo se dibuja con renglones", async () => {
+  const { claveGuardadaValida, CLAVE_DEL_PEDIDO } = await import("./claves");
+  assert.equal(CLAVE_DEL_PEDIDO("magra"), "gsg:pedido:magra");
+  assert.equal(claveGuardadaValida("6f1c2b1e-8d4a-4c1b-9a7e-1234567890ab"), "6f1c2b1e-8d4a-4c1b-9a7e-1234567890ab");
+  assert.equal(claveGuardadaValida("1730000000000-abcdefghijkl"), "1730000000000-abcdefghijkl");
+  for (const mala of [null, 42, "", "corta", "<script>", "x".repeat(65)]) assert.equal(claveGuardadaValida(mala), null);
+  const vacia = renderToStaticMarkup(createElement(CamposDelPedido, { renglones: [], clave: "k".repeat(20) }));
+  assert.doesNotMatch(vacia, /idempotencyKey/, "con la bolsa vacía no hay clave en el HTML (hidratación)");
+  for (const f of ["src/components/vidriera/useBolsaGuardada.ts", "src/app/tienda/vidriera/useVidriera.ts"]) {
+    assert.match(leer(f), /leerClaveGuardada\(/, f);
+    assert.match(leer(f), /guardarClave\(/, f);
+  }
+});

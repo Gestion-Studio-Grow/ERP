@@ -7,7 +7,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { limpiarBolsaGuardada } from "./bolsa";
-import { CLAVE_BOLSA, CLAVE_ENVIO } from "./claves";
+import { nuevaClaveDePedido } from "@/app/tienda/reglas-tienda";
+import { CLAVE_BOLSA, CLAVE_ENVIO, guardarClave, leerClaveGuardada } from "./claves";
 
 export function useBolsaGuardada(
   tenantKey: string,
@@ -17,8 +18,16 @@ export function useBolsaGuardada(
   setBolsa: Dispatch<SetStateAction<Record<string, number>>>;
   /** Antes de mandar por «Enviar pedido» (el alta redirige a gracias y acá no vuelve nada): anota qué bolsa salió. */
   marcarEnvio: (via: string | null) => void;
+  /** La clave anti-duplicado de ESTA bolsa: se guarda con ella y vuelve con ella al recargar. */
+  clave: string;
+  /** Otra bolsa es otro pedido: clave nueva (al cambiar la bolsa y al registrar el pedido). */
+  renovarClave: () => void;
 } {
   const [bolsa, setBolsa] = useState<Record<string, number>>({});
+  // Nunca sale en el HTML del servidor (CamposDelPedido la dibuja sólo con renglones): distinta en los dos lados no rompe
+  // la hidratación.
+  const [clave, setClave] = useState(nuevaClaveDePedido);
+  const renovarClave = useCallback(() => setClave(nuevaClaveDePedido()), []);
   const leida = useRef(false);
   // La lista de ids cambia de identidad en cada render del padre; la clave estable es su contenido.
   const firma = ids.join("|");
@@ -28,8 +37,16 @@ export function useBolsaGuardada(
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(CLAVE_BOLSA(tenantKey));
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- la bolsa guardada sólo existe en el navegador: se lee después de hidratar
-      if (raw) setBolsa(limpiarBolsaGuardada(JSON.parse(raw), validos));
+      // La bolsa guardada sólo existe en el navegador: se lee después de hidratar.
+      const guardada = raw ? limpiarBolsaGuardada(JSON.parse(raw), validos) : {};
+      if (Object.keys(guardada).length > 0) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- ídem
+        setBolsa(guardada);
+        // La bolsa vuelve con su clave: si ese pedido ya entró, el servidor devuelve el mismo y no suma otro.
+        const claveGuardada = leerClaveGuardada(tenantKey);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- ídem
+        if (claveGuardada) setClave(claveGuardada);
+      }
     } catch {
       // Sin almacenamiento (modo privado, cuota llena) o JSON roto: la bolsa arranca vacía. No es un error.
     }
@@ -40,12 +57,14 @@ export function useBolsaGuardada(
     if (!leida.current) return;
     try {
       const k = CLAVE_BOLSA(tenantKey);
-      if (Object.keys(bolsa).length === 0) window.localStorage.removeItem(k);
+      const vacia = Object.keys(bolsa).length === 0;
+      if (vacia) window.localStorage.removeItem(k);
       else window.localStorage.setItem(k, JSON.stringify(bolsa));
+      guardarClave(tenantKey, vacia ? null : clave);
     } catch {
       /* sin almacenamiento no se guarda, y nada más */
     }
-  }, [bolsa, tenantKey]);
+  }, [bolsa, clave, tenantKey]);
 
   const marcarEnvio = useCallback(
     (via: string | null) => {
@@ -59,5 +78,5 @@ export function useBolsaGuardada(
     [bolsa, tenantKey],
   );
 
-  return { bolsa, setBolsa, marcarEnvio };
+  return { bolsa, setBolsa, marcarEnvio, clave, renovarClave };
 }
