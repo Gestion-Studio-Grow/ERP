@@ -13,6 +13,7 @@ import { resolveMagraLocal } from "@/tenants/magra-content";
 import { sanitizePhone } from "@/lib/whatsapp-cta";
 import GraciasNueva from "../vidriera/GraciasNueva";
 import GraciasQuebienoles from "../quebienoles/GraciasQuebienoles";
+import GraciasMagra from "../magra/GraciasMagra";
 import { marcaDeLaVidriera, usaVidrieraNueva } from "../vidriera/marcas";
 import { textoDeMediosDePago } from "../reglas-tienda";
 
@@ -67,6 +68,20 @@ export default async function GraciasPage({
         pedido={pedido && /^\d{1,9}$/.test(pedido) ? pedido : null}
         whatsapp={whatsapp}
         pago={pago}
+      />
+    );
+  }
+
+  // MAGRA: la confirmación con su marca (carbón y oro), los pasos de la casa (se pesa al envasar) y el
+  // WhatsApp del local sólo si es de verdad (resolveMagraLocal oculta el relleno «0000 0000»).
+  if (front === "magra") {
+    const tienda = await leerTienda();
+    const medios = textoDeMediosDePago(tienda.copy?.paymentMethods ?? []);
+    return (
+      <GraciasMagra
+        pedido={pedido && /^\d{1,9}$/.test(pedido) ? pedido : null}
+        whatsapp={resolveMagraLocal(tienda.branding).whatsapp}
+        pago={`Te lo llevamos o lo retirás. Pagás al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}`}
       />
     );
   }
