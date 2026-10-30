@@ -1,12 +1,17 @@
-// FACTURITA · Marco de la vidriera pública (landing, alta y planes): piel Fable en claro, el
-// acento ámbar del producto, la barra de arriba y el pie. Sin base ni sesión (PD-1): todo sale
-// de constantes, así las tres páginas pueden ser `force-static`.
+// FACTURITA · Marco de la vidriera pública (landing, alta, planes y legales): piel Fable en claro,
+// el acento ámbar del producto, el papel del talonario, la barra de arriba y el pie. Sin base ni
+// sesión (PD-1): todo sale de constantes, así las páginas pueden ser `force-static`.
+//
+// El CSS de la vidriera (`piel.ts`) se imprime ACÁ, en el servidor: si lo importara un componente
+// cliente viajaría dos veces (HTML y JS). Ver vidriera-de-autor §5.
 
 import type { CSSProperties, ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { resolveAccent } from "@/lib/branding";
-import { FOCO } from "./estilos";
+import { BOTON_CHICO, BOTON_PRINCIPAL } from "./estilos";
+import { PIEL_FACTURITA } from "./piel";
+import BarraFija from "./BarraFija";
 
 const claro = resolveAccent("ambar", "light");
 const oscuro = resolveAccent("ambar", "dark");
@@ -18,42 +23,72 @@ const ESTILO_ACENTO = {
   "--tenant-on-accent-dark": oscuro.onAccent,
 } as CSSProperties;
 
-export default function VidrieraMarco({ children }: { children: ReactNode }) {
+export default function VidrieraMarco({
+  children,
+  barraFija,
+  botonAlta = true,
+  alta = false,
+}: {
+  children: ReactNode;
+  /** Celular: barra fija inferior con «Empezar gratis». `tras-cta` = aparece cuando el CTA del héroe sale de pantalla. */
+  barraFija?: "siempre" | "tras-cta";
+  /** Botón «Empezar gratis» chico en la barra de arriba (sólo compu). En el alta no va: ya estás ahí. */
+  botonAlta?: boolean;
+  /** El alta lleva su propia barra fija (el botón del paso): reserva el lugar abajo. */
+  alta?: boolean;
+}) {
   return (
-    <div data-skin="fable" data-theme="light" style={ESTILO_ACENTO} className="min-h-screen bg-surface text-body">
-      <a
-        href="#contenido"
-        className={`sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface-raised focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-strong ${FOCO}`}
-      >
+    <div
+      data-skin="fable"
+      data-theme="light"
+      style={ESTILO_ACENTO}
+      className="fx"
+      data-barra={barraFija ? "" : undefined}
+      data-alta={alta ? "" : undefined}
+    >
+      <style dangerouslySetInnerHTML={{ __html: PIEL_FACTURITA }} />
+      <a href="#contenido" className="fx-saltar">
         Saltar al contenido
       </a>
-      <header className="border-b border-line bg-surface-raised">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <Link href="/facturita" className={`flex items-center gap-2 rounded-lg ${FOCO}`}>
-            <Image src="/facturita/icon.svg" alt="" width={32} height={32} />
-            <span className="text-lg font-semibold tracking-tight text-strong">Facturita</span>
+      <header className="fx-barra">
+        <div className="fx-caja fx-barra-fila">
+          <Link href="/facturita" className="fx-marca">
+            <Image src="/facturita/icon.svg" alt="" width={36} height={36} priority />
+            Facturita
           </Link>
-          <nav aria-label="Facturita" className="flex items-center gap-1 text-sm font-medium">
-            <Link href="/facturita/planes" className={`rounded-lg px-3 py-2 text-muted hover:text-strong ${FOCO}`}>
+          <nav aria-label="Facturita" className="fx-nav">
+            <Link href="/facturita/planes" className="fx-nav-item">
               Planes
             </Link>
-            <Link href="/admin/login" className={`rounded-lg px-3 py-2 text-muted hover:text-strong ${FOCO}`}>
+            <Link href="/admin/login" className="fx-nav-item">
               Ingresar
             </Link>
+            {botonAlta && (
+              <Link href="/facturita/alta" className={`${BOTON_CHICO} fx-solo-compu`}>
+                Empezar gratis
+              </Link>
+            )}
           </nav>
         </div>
       </header>
       <main id="contenido">{children}</main>
-      <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 py-6 text-xs text-faint sm:flex-row sm:justify-between sm:px-6">
+      <footer className="fx-pie">
+        <div className="fx-caja fx-pie-fila">
           <p>Facturita emite comprobantes electrónicos con el servicio oficial de ARCA.</p>
-          <nav aria-label="Legales" className="flex gap-4">
-            <Link href="/facturita/terminos" className={`rounded hover:text-strong ${FOCO}`}>Términos</Link>
-            <Link href="/facturita/privacidad" className={`rounded hover:text-strong ${FOCO}`}>Privacidad</Link>
+          <nav aria-label="Legales" className="flex gap-5">
+            <Link href="/facturita/terminos">Términos</Link>
+            <Link href="/facturita/privacidad">Privacidad</Link>
           </nav>
           <p>Un producto de Gestión Studio Grow</p>
         </div>
       </footer>
+      {barraFija && (
+        <BarraFija modo={barraFija}>
+          <Link href="/facturita/alta" className={BOTON_PRINCIPAL}>
+            Empezar gratis
+          </Link>
+        </BarraFija>
+      )}
     </div>
   );
 }
