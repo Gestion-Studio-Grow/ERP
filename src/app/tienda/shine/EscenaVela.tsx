@@ -313,6 +313,12 @@ const ESTILOS = `
 .shv-aromas-rotulo small{font-weight:500;letter-spacing:.04em;text-transform:none;opacity:.85}
 .shv-aroma{flex:none;display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid rgba(253,248,242,.34);background:rgba(36,20,14,.78);color:#fdf8f2;font:500 13px/1 var(--font-kumbh),system-ui,sans-serif;white-space:nowrap;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .shv-aroma[aria-pressed="true"]{background:#fdf8f2;color:#671128;border-color:#fdf8f2}
+/* La piel de la tienda (estilos.ts: \`.shine button{color:inherit}\`, especificidad 0,1,1) le ganaba a .shv-boton y
+   .shv-aroma (0,1,0): tinta oscura sobre la píldora oscura, ≈1,2:1 (QA Shine 29/10, ALTA-1). El color de los mandos
+   se fija con la misma especificidad + 1; la letra sigue siendo la heredada de la tienda. Crema sobre la píldora
+   (rgba(36,20,14,.8) sobre cualquier fondo) ≥ 9:1; burdeos sobre crema en el elegido, ≈11:1. */
+.shine .shv .shv-boton,.shine .shv .shv-aroma{color:#fdf8f2}
+.shine .shv .shv-aroma[aria-pressed="true"]{color:#671128}
 .shv-aroma-punto{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
 .shv-aviso{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 /* Vidriera de Shine: los mandos abajo a la derecha de la columna de la vela; en el celular, en dos

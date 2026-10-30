@@ -14,7 +14,7 @@
 // Siempre devuelve una pareja si el catálogo tiene al menos una pala y una zapatilla (test).
 
 import type { Item } from "./catalogo";
-import { NOMBRE_FORMA, ORDEN_NIVEL, type Forma, type Juego } from "./palas";
+import { NOMBRE_FORMA, NOMBRE_JUEGO, ORDEN_NIVEL, type Forma, type Juego } from "./palas";
 
 export type NivelDeJuego = "empiezo" | "seguido" | "compito";
 export type Tope = "hasta" | "sin-tope";
@@ -66,14 +66,24 @@ function puntajePala(p: Item, r: Respuestas, tope: number): number {
   return s;
 }
 
-function porqueDePala(p: Item, r: Respuestas): string {
+// El porqué sale de la FICHA de la pala recomendada (forma, balance, juego), no de lo que se contestó: antes con
+// «Potencia» decía «el peso arriba…» de una pala de balance medio y juego Control (QA 29/10, MEDIA-1). Si la pala
+// no es del juego pedido (el tope o el nivel pesaron más), lo dice.
+export const EFECTO_DEL_BALANCE = {
+  alto: "el peso arriba hace que la bola salga con pegada",
+  bajo: "el peso cerca de la mano la hace fácil de manejar",
+  medio: "el peso repartido da control sin perder salida de bola",
+} as const;
+
+export function porqueDePala(p: Item, r: Respuestas): string {
   const f = p.vista.ficha;
   if (!f) return `Su ficha técnica está a confirmar: preguntanos antes de pedirla.`;
   const forma = NOMBRE_FORMA[f.forma];
   const balance = f.balance.split(" ")[0];
-  if (r.juego === "control") return `${forma} y balance ${balance}: la bola sale donde la ponés, sin pedirte brazo.`;
-  if (r.juego === "potencia") return `${forma} y balance ${balance}: el peso arriba hace que la bola salga con pegada.`;
-  return `${forma} y balance ${balance}: te da control sin perder salida de bola.`;
+  const efecto = /alto/i.test(f.balance) ? EFECTO_DEL_BALANCE.alto : /bajo/i.test(f.balance) ? EFECTO_DEL_BALANCE.bajo : EFECTO_DEL_BALANCE.medio;
+  const base = `${forma}, balance ${balance}, juego de ${NOMBRE_JUEGO[f.juego].toLowerCase()}: ${efecto}.`;
+  if (f.juego === r.juego) return base;
+  return `${base} No es de ${NOMBRE_JUEGO[r.juego].toLowerCase()}: es la que mejor encaja con tu nivel${r.tope === "hasta" ? " y tu tope" : ""}.`;
 }
 
 export type Pareja = {

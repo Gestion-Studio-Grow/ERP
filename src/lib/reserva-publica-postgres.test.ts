@@ -130,6 +130,26 @@ test("B6 · reprogramar desde la agenda a un profesional que no hace el servicio
   assert.equal((await duenio.appointment.findUniqueOrThrow({ where: { id } })).professionalId, s.carla);
 });
 
+test("la nota de la reserva pública (patente del taller) se guarda en el turno; sin nota, queda null", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { createAppointment } = await import("@/lib/actions");
+  const duenio = await prismaComoDuenio(s.base);
+  const [, , , , , , , , primero, , segundo] = await franjasDeManana(s);
+  const reservar = async (horario: string, extra: Record<string, string>) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries({ professionalId: s.carla, serviceId: s.hace, startsAt: horario, clientName: "Ana", clientPhone: TELEFONO, ...extra })) fd.set(k, v);
+    const r = await ejecutarAccion({ negocio: s.base.a }, () => createAppointment(fd));
+    assert.equal(r.tipo, "redireccion");
+    return duenio.appointment.findFirstOrThrow({ where: { tenantId: s.base.a.id, startsAt: new Date(horario) }, select: { notes: true } });
+  };
+  const conNota = await reservar(primero, { notes: `  Patente: AB 123 CD · Auto: VW Gol ${"x".repeat(600)}` });
+  assert.equal(conNota.notes?.length, 500);
+  assert.ok(conNota.notes?.startsWith("Patente: AB 123 CD · Auto: VW Gol"));
+  // Sin el campo (el formulario de CH no lo manda): como siempre, sin nota.
+  assert.equal((await reservar(segundo, {})).notes, null);
+});
+
 test("B7 · la web devuelve el motivo en castellano: horario tomado, turno que no existe, éxito con redirección", async (t) => {
   const s = await preparar(t);
   if (!s) return;

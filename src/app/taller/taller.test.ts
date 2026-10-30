@@ -4,9 +4,10 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { mostrarPatente } from "@/lib/taller/core";
-import { avisoPatente, patenteEnVivo, puedeSerPatente } from "./patente";
-import { desde, esTrabajoPublicable } from "./reglas";
+import { autoDeLaNota, avisoPatente, notaDelAuto, patenteEnVivo, puedeSerPatente } from "./patente";
+import { desde, esTrabajoPublicable, horarioDeLaAgenda } from "./reglas";
 import { CSS_TALLER, ROJO_AGR } from "./estilos";
+import { rutaDelTurno } from "./EnlaceTurno";
 
 const RAIZ = process.cwd();
 const AQUI = path.join(RAIZ, "src", "app", "taller");
@@ -78,4 +79,65 @@ test("piel: rojo del logo, foco visible y nada se anima desde opacidad 0", () =>
   assert.match(CSS_TALLER, /prefers-reduced-motion:reduce/);
   assert.doesNotMatch(CSS_TALLER, /opacity\s*:\s*0[;}]/);
   assert.match(CSS_TALLER, /env\(safe-area-inset-bottom\)/);
+});
+
+test("la nota del turno: se arma con la patente y el modelo, y la página pública lee sólo esos dos datos", () => {
+  assert.equal(notaDelAuto("AB 123 CD", " VW Gol Trend 2015 "), "Patente: AB 123 CD · Auto: VW Gol Trend 2015");
+  assert.equal(notaDelAuto("", "Fiat Uno"), "Auto: Fiat Uno");
+  assert.equal(notaDelAuto("", "  "), "");
+  assert.deepEqual(autoDeLaNota(notaDelAuto("AC 456 GH", "Peugeot 208")), { patente: "AC 456 GH", auto: "Peugeot 208" });
+  assert.deepEqual(autoDeLaNota(null), { patente: null, auto: null });
+  // Lo que el panel le sume a la nota (interno) no sale en la página pública del turno.
+  assert.deepEqual(autoDeLaNota("Patente: AB 123 CD · debe la seña del service anterior"), { patente: "AB 123 CD", auto: null });
+  assert.deepEqual(autoDeLaNota("Cliente difícil, cobrar antes"), { patente: null, auto: null });
+});
+
+test("la confirmación y «ver mi turno» del taller van a su página propia; los demás negocios, como siempre", () => {
+  for (const [ruta, destino] of [
+    ["src/app/(site)/reserva/confirmacion/[id]/page.tsx", "`/taller/turno/${id}?nuevo=1`"],
+    ["src/app/(site)/reserva/turno/[id]/page.tsx", "`/taller/turno/${id}`"],
+  ] as const) {
+    const fuente = readFileSync(path.join(RAIZ, ruta), "utf8");
+    assert.ok(
+      fuente.includes(`if (resolveAgendaRubroIdBySlug(await getCurrentTenantSlug()) === "taller") redirect(${destino});`),
+      `${ruta}: el desvío tiene que depender sólo del rubro taller`,
+    );
+  }
+  const pagina = readFileSync(path.join(AQUI, "turno", "[id]", "page.tsx"), "utf8");
+  // Vocabulario del taller: puesto, no box; sin «Pendiente de pago»; el menú del taller (Barra) y no el del sitio.
+  assert.match(pagina, /<dt>Puesto<\/dt>/);
+  assert.doesNotMatch(pagina, />Box<|Pendiente de pago<|href="\/servicios"/);
+  assert.match(pagina, /<Barra t=\{t\} \/>/);
+});
+
+test("la barra fija y la de arriba llevan la patente escrita en la chapa (?patente=)", () => {
+  assert.equal(rutaDelTurno(""), "/taller/turno");
+  assert.equal(rutaDelTurno("AC456GH"), "/taller/turno?patente=AC456GH");
+  assert.equal(rutaDelTurno("AC456GHXX"), "/taller/turno?patente=AC456GH");
+  const marco = readFileSync(path.join(AQUI, "marco.tsx"), "utf8");
+  assert.doesNotMatch(marco, /<a href="\/taller\/turno" className="agr-btn">/, "la barra fija no puede ser un enlace fijo sin patente");
+  assert.match(readFileSync(path.join(AQUI, "Chapa.tsx"), "utf8"), /publicarPatente\(normalizarPatente\(nuevo\)\)/);
+});
+
+test("el horario publicado sale de la agenda (días seguidos juntos, varios mecánicos = la unión)", () => {
+  const semana = (dias: number[], startTime: string, endTime: string) => dias.map((dayOfWeek) => ({ dayOfWeek, startTime, endTime }));
+  assert.equal(horarioDeLaAgenda([]), null);
+  assert.equal(horarioDeLaAgenda(semana([1, 2, 3, 4, 5, 6], "08:00", "17:00")), "Lun a sáb · 8 a 17 h");
+  assert.equal(
+    horarioDeLaAgenda([...semana([1, 2, 3, 4, 5], "08:30", "19:00"), ...semana([6], "09:00", "13:00")]),
+    "Lun a vie · 8:30 a 19 h · sáb · 9 a 13 h",
+  );
+  // Dos mecánicos: uno a la mañana y otro a la tarde, sin solaparse; y uno que se solapa.
+  assert.equal(horarioDeLaAgenda([...semana([4], "08:30", "12:00"), ...semana([4], "14:30", "19:00")]), "Jue · 8:30 a 12 y 14:30 a 19 h");
+  assert.equal(horarioDeLaAgenda([...semana([1], "08:00", "13:00"), ...semana([1], "12:00", "17:00")]), "Lun · 8 a 17 h");
+  // Días salteados no se juntan; domingo va al final; una fila rota no cuenta.
+  assert.equal(horarioDeLaAgenda([...semana([1, 3, 0], "09:00", "12:00"), { dayOfWeek: 2, startTime: "18:00", endTime: "09:00" }]), "Lun · 9 a 12 h · mié · 9 a 12 h · dom · 9 a 12 h");
+  // La home toma el de la agenda antes que el texto del panel.
+  assert.match(readFileSync(path.join(AQUI, "marco.tsx"), "utf8"), /const horario = deLaAgenda\s*\? deLaAgenda/);
+});
+
+test("«Seguir» de la barra fija avanza del paso 1 al 2", () => {
+  const form = readFileSync(path.join(AQUI, "turno", "TurnoForm.tsx"), "utf8");
+  assert.match(form, /irA\(paso === 1 \? 2 : paso\)/);
+  assert.doesNotMatch(form, /en 5 pasos/);
 });

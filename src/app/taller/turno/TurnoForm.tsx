@@ -4,15 +4,14 @@
 // Llama al motor de reservas sin tocarlo: getAvailableSlotsRange (14 días de una pasada) y createAppointment
 // (que, si sale bien, redirige a /reserva/confirmacion/[id]).
 //
-// DEUDA (pedido a estetica-base): createAppointment no lee `notes` (src/lib/actions.ts:488), así que la patente y
-// el modelo NO llegan al panel. Se mandan igual en `notes` (se ignoran sin romper) y se muestran en el resumen y en
-// el mensaje de WhatsApp que se ofrece antes de confirmar.
+// La patente y el modelo viajan en `notes`: createAppointment los guarda en el turno (recortados a 500, ver
+// src/lib/reserva-publica-notas.ts) y se ven en la confirmación, en «Tu turno» y en el panel.
 import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createAppointment, getAvailableSlotsRange } from "@/lib/actions";
 import { fmtCalendarDateLabel, fmtTime } from "@/lib/datetime";
 import { formatoPatente, mostrarPatente, normalizarPatente, waLink } from "@/lib/taller/core";
-import { avisoPatente, patenteEnVivo } from "../patente";
+import { avisoPatente, notaDelAuto, patenteEnVivo } from "../patente";
 import { desde } from "../reglas";
 
 export type Trabajo = { id: string; nombre: string; minutos: number; precio: number };
@@ -161,7 +160,7 @@ export default function TurnoForm({
   }
 
   const aviso = avisoPatente(norm);
-  const notas = [norm && `Patente: ${patenteLinda}`, modelo.trim() && `Auto: ${modelo.trim()}`].filter(Boolean).join(" · ");
+  const notas = notaDelAuto(patenteLinda, modelo);
   const wa = waLink(
     whatsapp,
     `Hola ${nombreCorto}! Quiero consultar por mi auto${patenteLinda ? ` ${patenteLinda}` : ""}${modelo.trim() ? ` (${modelo.trim()})` : ""}.`,
@@ -188,7 +187,9 @@ export default function TurnoForm({
       }
       return;
     }
-    irA(paso);
+    // «Seguir» en el paso 1 avanza, como el botón del paso (QA AGR 29/10, MEDIA-2). En los demás hay que elegir
+    // algo (trabajo, mecánico, horario): la barra lleva al paso en curso.
+    irA(paso === 1 ? 2 : paso);
   }
 
   function cabecera(p: Paso) {
@@ -402,7 +403,7 @@ export default function TurnoForm({
                 <input type="hidden" name="professionalId" value={mecanico} />
                 <input type="hidden" name="serviceId" value={servicio} />
                 <input type="hidden" name="startsAt" value={hora} />
-                {/* Hoy el motor no lo guarda (ver DEUDA arriba); viaja igual para cuando lo lea. */}
+                {/* Patente y modelo: el motor los guarda en el turno (ver arriba). */}
                 <input type="hidden" name="notes" value={notas} />
                 <div className="agr-campo">
                   <label htmlFor="agr-t-nombre">Nombre y apellido</label>
@@ -451,7 +452,7 @@ export default function TurnoForm({
 
       {/* Celular: el resumen y el paso en curso, siempre a un toque. */}
       <div className="agr-fija agr-fija--turno">
-        <span className="agr-fija__info">{resumenFijo || "Sacá turno en 5 pasos"}</span>
+        <span className="agr-fija__info">{resumenFijo || `Sacá turno en ${pasosVisibles.length} pasos`}</span>
         <button type="button" className="agr-btn" onClick={accionFija}>{BOTON_FIJO[paso]}</button>
       </div>
     </>

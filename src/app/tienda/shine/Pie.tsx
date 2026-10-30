@@ -9,7 +9,8 @@ export default function Pie({ copy, hayWhatsApp, alEscribir }: { copy: Storefron
   return (
     <footer className="sh-pie" id="contacto">
       <p className="sh-pie-lema">Que tu luz nunca se apague.</p>
-      <p className="sh-pie-cierre">{CIERRE}</p>
+      {/* «¡consultanos!» sin un medio para hacerlo es un callejón: sin WhatsApp no se dice (QA 29/10, MEDIA-4). */}
+      {hayWhatsApp && <p className="sh-pie-cierre">{CIERRE}</p>}
       <div className="sh-pie-cols">
         <div>
           <h2>Envíos</h2>

@@ -7,6 +7,9 @@ import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { configTaller, datosDelNegocio } from "@/lib/taller/datos.server";
 import { mostrarPatente, waLink } from "@/lib/taller/core";
 import { marcaTaller, type MarcaTaller } from "@/lib/taller/marca";
+import EnlaceTurno from "./EnlaceTurno";
+import { horarioDeLaAgenda } from "./reglas";
+import { prisma } from "@/lib/prisma";
 
 // Logo chico para la barra (177×88, generado del original 498×247 con sharp). El grande queda para og:image.
 const LOGO_BARRA_AGR = "/tenants/taller-agr/marca/logo-88.webp";
@@ -22,15 +25,29 @@ export const cargarTaller = cache(async function cargarTaller() {
   const identity = await getTenantIdentity();
   if (identity.blueprintId !== "taller") notFound();
   const tenantId = await getCurrentTenantId();
-  const [negocio, config] = await Promise.all([datosDelNegocio(tenantId), configTaller(tenantId)]);
+  const [negocio, config, agenda] = await Promise.all([
+    datosDelNegocio(tenantId),
+    configTaller(tenantId),
+    // Los horarios de los mecánicos que toman turnos (los mismos que usa la agenda para ofrecer horarios).
+    prisma.workingHours
+      .findMany({
+        where: { tenantId, professional: { active: true, deletedAt: null, boxId: { not: null } } },
+        select: { dayOfWeek: true, startTime: true, endTime: true },
+      })
+      .catch(() => []),
+  ]);
   const marca = marcaTaller(negocio.slug);
   const esAGR = marca.logo?.includes("/taller-agr/") ?? false;
   const corto = esAGR ? "AGR" : negocio.nombre;
   const barrio = negocio.direccion.split(",").pop()?.trim() || "";
 
-  // Horario: si el panel todavía tiene el texto de fábrica no se publica (diría «Lun a sáb · 9 a 19 h», el de CH).
-  // AGR: sólo el jueves está verificado (docs/tenants/taller-agr/README.md:35); el resto, provisional a confirmar.
-  const horario = !negocio.horario || HORARIOS_DE_FABRICA.has(negocio.horario)
+  // Horario: el de la AGENDA, para no publicar uno y ofrecer turnos en otro (QA AGR 29/10, MEDIA-1; reglas.ts).
+  // Sin horarios en la agenda, el texto del panel; si todavía es el de fábrica no se publica (diría «Lun a sáb ·
+  // 9 a 19 h», el de CH). AGR: sólo el jueves está verificado (docs/tenants/taller-agr/README.md:35).
+  const deLaAgenda = horarioDeLaAgenda(agenda);
+  const horario = deLaAgenda
+    ? deLaAgenda
+    : !negocio.horario || HORARIOS_DE_FABRICA.has(negocio.horario)
     ? esAGR
       ? "Jueves 8:30–12 y 14:30–19 · resto de la semana, consultá"
       : "Horario a confirmar: consultanos por WhatsApp"
@@ -80,7 +97,11 @@ export function Barra({ t, inicio = false, turno = "/taller/turno" }: { t: Talle
           <a href={inicio ? "#trabajamos" : "/taller#trabajamos"}>Así trabajamos</a>
           <a href={inicio ? "#donde" : "/taller#donde"}>Dónde estamos</a>
         </nav>
-        <a href={turno} className="agr-btn agr-btn--chico agr-barra__cta">Sacar turno</a>
+        {turno === "/taller/turno" ? (
+          <EnlaceTurno className="agr-btn agr-btn--chico agr-barra__cta">Sacar turno</EnlaceTurno>
+        ) : (
+          <a href={turno} className="agr-btn agr-btn--chico agr-barra__cta">Sacar turno</a>
+        )}
       </div>
     </header>
   );
@@ -120,7 +141,7 @@ export function BarraFija({ t }: { t: Taller }) {
   const wa = t.wa();
   return (
     <div className="agr-fija">
-      <a href="/taller/turno" className="agr-btn">Sacar turno</a>
+      <EnlaceTurno className="agr-btn">Sacar turno</EnlaceTurno>
       {wa && (
         <a href={wa} target="_blank" rel="noopener noreferrer" className="agr-fija__wa" aria-label="Escribinos por WhatsApp">
           <IconoWhatsApp />

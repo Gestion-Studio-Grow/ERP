@@ -189,3 +189,49 @@ test("la vidriera no usa las fotos de ambiente sin confirmar", () => {
   assert.doesNotMatch(codigo, /["'`/][\w/.-]*(hero|ambiance|gift|mundo-[a-z]+)\.(jpg|webp)/, "ninguna ruta a las fotos de ambiente");
   assert.doesNotMatch(codigo, /0000 0000/);
 });
+
+test("los mandos sobre la vela se leen: el color le gana a `.shine button` y el contraste es ≥ 4,5:1 (QA 29/10, ALTA-1)", () => {
+  const escena = readFileSync(path.join(process.cwd(), "src", "app", "tienda", "shine", "EscenaVela.tsx"), "utf8");
+  const piel = readFileSync(path.join(process.cwd(), "src", "app", "tienda", "shine", "estilos.ts"), "utf8");
+  // La regla general de la piel (0,1,1) sigue: los mandos se fijan con 0,3,0.
+  assert.match(piel, /\.shine button\{font:inherit;color:inherit\}/);
+  assert.match(escena, /\.shine \.shv \.shv-boton,\.shine \.shv \.shv-aroma\{color:#fdf8f2\}/);
+  assert.match(escena, /\.shine \.shv \.shv-aroma\[aria-pressed="true"\]\{color:#671128\}/);
+  const lum = ([r, g, b]: number[]) => {
+    const c = [r, g, b].map((v) => {
+      const s = v / 255;
+      return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  const contraste = (a: number[], b: number[]) => {
+    const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+    return (x + 0.05) / (y + 0.05);
+  };
+  // Píldora rgba(36,20,14,.8) sobre el peor fondo posible (blanco) y el mejor (negro).
+  const pildora = (fondo: number[]) => [36, 20, 14].map((v, i) => v * 0.8 + fondo[i] * 0.2);
+  for (const fondo of [[255, 255, 255], [0, 0, 0], [243, 235, 225]]) {
+    assert.ok(contraste([253, 248, 242], pildora(fondo)) >= 4.5, `crema sobre la píldora (fondo ${fondo})`);
+  }
+  assert.ok(contraste([103, 17, 40], [253, 248, 242]) >= 4.5, "burdeos sobre crema (aroma elegido)");
+});
+
+test("retiro, cupón, contacto y «atrás» sin callejones (QA 29/10, MEDIA-1 a 4; lectura del código)", () => {
+  const leer = (f: string) => readFileSync(path.join(process.cwd(), "src", "app", "tienda", "shine", f), "utf8");
+  const front = leer("ShineFront.tsx");
+  const bolsa = leer("Bolsa.tsx");
+  const pie = leer("Pie.tsx");
+  // Con «Retiro»: ni «te faltan $X para el envío gratis» ni «Envío: Gratis».
+  assert.match(front, /const faltaParaGratis = entrega\.modo === "envio" && /);
+  assert.match(bolsa, /entrega\.modo === "retiro" && \([\s\S]*?<dt>Retiro<\/dt>[\s\S]*?<dd>Sin cargo<\/dd>/);
+  // Cupón rechazado al enviar: señal junto al botón y foco al cupón.
+  assert.match(bolsa, /No enviamos el pedido: revisá el cupón\./);
+  assert.match(bolsa, /if \(rechazoDeCupon\) irAlCupon\(\)/);
+  // Sin WhatsApp: «Consultanos» y el cierre «¡consultanos!» no se muestran; «Para regalar» sólo con algo que sumar.
+  assert.match(front, /\{hayWhatsApp && <a href="#contacto">Consultanos<\/a>\}/);
+  assert.match(front, /\.filter\(\(\{ p \}\) => p \|\| hayWhatsApp\)/);
+  assert.match(pie, /\{hayWhatsApp && <p className="sh-pie-cierre">\{CIERRE\}<\/p>\}/);
+  // La ficha es una entrada del historial y «atrás» la cierra.
+  assert.match(front, /window\.history\.pushState\(ESTADO_FICHA/);
+  assert.match(front, /addEventListener\("popstate"/);
+});

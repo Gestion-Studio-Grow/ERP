@@ -21,9 +21,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { getRetailRubro } from "@/blueprints/retail";
 import { getStorefrontCopy } from "@/tenants/storefront";
-import { PALAS, fichaDe, formaPorNombre } from "./palas";
+import { NOMBRE_FORMA, NOMBRE_JUEGO, PALAS, fichaDe, formaPorNombre } from "./palas";
 import { TOPE_NOTA, itemsDe, notaConTalles, vistaDe, type Silueta as TipoSilueta } from "./catalogo";
-import { recomendar, topeDePalas, type NivelDeJuego, type Tope } from "./recomendador";
+import { EFECTO_DEL_BALANCE, porqueDePala, recomendar, topeDePalas, type NivelDeJuego, type Tope } from "./recomendador";
 import { MOSTRAR_PRECIO_TRANSFERENCIA, precioTransferencia } from "./tokens";
 import { Silueta } from "./Siluetas";
 import type { Juego } from "./palas";
@@ -154,4 +154,28 @@ test("sin WhatsApp no hay chat: cada salida a WhatsApp está detrás del número
       assert.match(antes, /hayWhatsApp && /, `${f}: botón de WhatsApp sin guardia`);
     }
   }
+});
+
+test("el porqué de la pala sale de SU ficha en las 18 combinaciones (QA 29/10, MEDIA-1)", () => {
+  const items = itemsDe(semilla, copy!.providers);
+  const efectos = Object.values(EFECTO_DEL_BALANCE);
+  for (const nivel of ["empiezo", "seguido", "compito"] as NivelDeJuego[])
+    for (const juego of ["control", "equilibrio", "potencia"] as Juego[])
+      for (const t of ["hasta", "sin-tope"] as Tope[]) {
+        const caso = `${nivel}/${juego}/${t}`;
+        const r = recomendar(items, { nivel, juego, tope: t });
+        const f = r.pala!.vista.ficha!;
+        assert.equal(r.porquePala, porqueDePala(r.pala!, { nivel, juego, tope: t }), caso);
+        // Forma, balance y juego de la pala recomendada, tal cual figuran en su ficha (los de «Enfrentadas»).
+        assert.ok(r.porquePala.startsWith(`${NOMBRE_FORMA[f.forma]}, balance ${f.balance.split(" ")[0]}, juego de ${NOMBRE_JUEGO[f.juego].toLowerCase()}:`), `${caso}: ${r.porquePala}`);
+        // El efecto es el de SU balance y ningún otro.
+        const propio = /alto/i.test(f.balance) ? EFECTO_DEL_BALANCE.alto : /bajo/i.test(f.balance) ? EFECTO_DEL_BALANCE.bajo : EFECTO_DEL_BALANCE.medio;
+        assert.ok(r.porquePala.includes(propio), `${caso}: efecto propio`);
+        for (const otro of efectos.filter((e) => e !== propio)) assert.ok(!r.porquePala.includes(otro), `${caso}: dice «${otro}»`);
+        // Si no es del juego pedido, lo dice; si lo es, no.
+        assert.equal(r.porquePala.includes(`No es de ${NOMBRE_JUEGO[juego].toLowerCase()}`), f.juego !== juego, `${caso}: juego`);
+      }
+  // El caso del informe: Empiezo · Potencia · Hasta el tope ya no promete pegada de una pala de balance medio.
+  const r = recomendar(items, { nivel: "empiezo", juego: "potencia", tope: "hasta" });
+  if (!/alto/i.test(r.pala!.vista.ficha!.balance)) assert.ok(!r.porquePala.includes("peso arriba"));
 });

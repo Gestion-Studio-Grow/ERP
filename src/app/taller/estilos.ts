@@ -208,6 +208,7 @@ html:has(.agr),body:has(.agr){background:#000}
 .agr .agr-turno .agr-h1{margin-top:12px;font-size:clamp(3rem,calc(2rem + 4vw),5.5rem)}
 .agr .agr-turno__bajada{margin:16px 0 0;max-width:46ch;color:var(--texto-2)}
 .agr .agr-turno__regla{margin:12px 0 0;font-size:.9375rem;color:var(--texto-2)}
+.agr .agr-turno__acciones{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
 .agr .agr-resumen{align-self:start;background:var(--tinta);color:#fff;border-radius:16px;padding:24px}
 @media (min-width:1024px){.agr .agr-resumen{position:sticky;top:96px}}
 .agr .agr-resumen h2{margin:0 0 16px;font:600 .875rem/1.2 var(--cuerpo);text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.85)}

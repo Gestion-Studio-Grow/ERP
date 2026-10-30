@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/datetime";
 import { reglaVigenteParaLaClienta } from "@/lib/turnos/practica.server";
 import { chConDisenoNuevo } from "../../../_ch/diseno-ch.server";
 import { sinPromesaDeWhatsApp } from "../../../_ch/contacto-ch";
 import { getLocation } from "@/lib/settings";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { resolveAgendaRubroIdBySlug } from "@/blueprints/agenda/rubros";
 
 export default async function ConfirmacionPage({
   params,
@@ -13,6 +15,8 @@ export default async function ConfirmacionPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  // El taller tiene su propia página del turno (piel, puesto, patente; sin «Pendiente de pago»): QA AGR 29/10.
+  if (resolveAgendaRubroIdBySlug(await getCurrentTenantSlug()) === "taller") redirect(`/taller/turno/${id}?nuevo=1`);
   const appointment = await prisma.appointment.findUnique({
     where: { id },
     include: { professional: true, service: true, box: true },
