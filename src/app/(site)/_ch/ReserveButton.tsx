@@ -1,18 +1,43 @@
 "use client";
 
-import { useBooking } from "./BookingProvider";
+import { useBooking, type PrefillReserva } from "./BookingProvider";
 
 // Botón "Reservar" reutilizable: abre el modal desde cualquier parte del sitio.
+//
+// Diseño nuevo de CH (sólo con su interruptor prendido): `clase` reemplaza los estilos en línea de siempre por
+// las clases de la piel (estilos-ch.ts) y `prefill` abre el modal ya en el paso que corresponde (servicio →
+// «Profesional»; + profesional → «Día y hora»; + día y hora → «Datos»). Sin esos dos, el botón de siempre.
 export default function ReserveButton({
   children = "Reservar",
   variant = "solid",
   style,
+  clase,
+  prefill,
+  etiqueta,
 }: {
   children?: React.ReactNode;
   variant?: "solid" | "nav";
   style?: React.CSSProperties;
+  clase?: string;
+  prefill?: PrefillReserva;
+  /** Nombre accesible cuando el texto visible solo no alcanza (p. ej. «Reservar» en un renglón). */
+  etiqueta?: string;
 }) {
   const { open, precargar } = useBooking();
+  if (clase) {
+    return (
+      <button
+        type="button"
+        onClick={() => open(prefill)}
+        onPointerEnter={precargar}
+        onFocus={precargar}
+        className={clase}
+        aria-label={etiqueta}
+      >
+        {children}
+      </button>
+    );
+  }
   const base: React.CSSProperties =
     variant === "nav"
       ? { padding: "8px 16px", fontSize: 14 }
@@ -20,7 +45,7 @@ export default function ReserveButton({
   return (
     <button
       type="button"
-      onClick={open}
+      onClick={() => open(prefill)}
       // Los datos de la agenda se van a buscar apenas alguien se acerca al botón:
       // con el mouse encima, o al recibir el foco por teclado. Entre ese gesto y
       // el clic hay tiempo de sobra para que lleguen, así que el modal abre

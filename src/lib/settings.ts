@@ -12,7 +12,7 @@
 
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { getCurrentTenantId } from "@/lib/tenant";
+import { getCurrentTenantId, slugResueltoDelPedido } from "@/lib/tenant";
 
 // Copy por defecto = exactamente lo que mostraba el sitio hardcodeado, para que
 // el comportamiento no cambie hasta que la dueña edite algo. `whatsapp` NO
@@ -27,6 +27,23 @@ export const LOCATION_DEFAULTS = {
   whatsapp: "",
   contactNote: "Reservas por la web · WhatsApp con turno confirmado",
 } as const;
+
+// DEFAULTS NEUTROS (E1, fuga de marca, 29/10/2026): los de arriba son la dirección y el horario de CH (lo que mostraba
+// su sitio hardcodeado). Un negocio que todavía no cargó su Localización NO puede mostrar la dirección de CH ni un
+// mapa a La Alameda: ve estos, marcados «a confirmar», y sin botón de mapa hasta que cargue su dirección.
+export const LOCATION_DEFAULTS_NEUTROS = {
+  shortLabel: "",
+  addressLine: "Dirección a confirmar",
+  city: "",
+  hoursLabel: "Horarios a confirmar",
+  whatsapp: "",
+  contactNote: "Reservas por la web",
+} as const;
+
+/** Los defaults que corresponden al negocio: los de siempre sólo para CH (`beauty-spa`). PURA. */
+export function defaultsDeLocalizacion(slug: string | null): typeof LOCATION_DEFAULTS | typeof LOCATION_DEFAULTS_NEUTROS {
+  return slug === "beauty-spa" ? LOCATION_DEFAULTS : LOCATION_DEFAULTS_NEUTROS;
+}
 
 // Forma cruda de la fila (los campos nullable tal cual salen de la base).
 export type BusinessSettingsRow = {
@@ -72,23 +89,29 @@ function resolveInstagram(raw: string): { url: string; label: string } | null {
 }
 
 // Aplica defaults y deriva URLs. Puro (testeable, sin I/O).
-export function resolveLocation(row: BusinessSettingsRow | null): ResolvedLocation {
-  const shortLabel = clean(row?.shortLabel) || LOCATION_DEFAULTS.shortLabel;
-  const addressLine = clean(row?.addressLine) || LOCATION_DEFAULTS.addressLine;
-  const city = clean(row?.city) || LOCATION_DEFAULTS.city;
-  const hoursLabel = clean(row?.hoursLabel) || LOCATION_DEFAULTS.hoursLabel;
-  const contactNote = clean(row?.contactNote) || LOCATION_DEFAULTS.contactNote;
-  const whatsapp = (clean(row?.whatsapp) || LOCATION_DEFAULTS.whatsapp).replace(/\D/g, "");
+export function resolveLocation(
+  row: BusinessSettingsRow | null,
+  defaults: typeof LOCATION_DEFAULTS | typeof LOCATION_DEFAULTS_NEUTROS = LOCATION_DEFAULTS,
+): ResolvedLocation {
+  const shortLabel = clean(row?.shortLabel) || defaults.shortLabel;
+  const addressLine = clean(row?.addressLine) || defaults.addressLine;
+  const city = clean(row?.city) || defaults.city;
+  const hoursLabel = clean(row?.hoursLabel) || defaults.hoursLabel;
+  const contactNote = clean(row?.contactNote) || defaults.contactNote;
+  const whatsapp = (clean(row?.whatsapp) || defaults.whatsapp).replace(/\D/g, "");
   const email = clean(row?.email) || null;
   const ig = resolveInstagram(clean(row?.instagram));
 
   // El mapa: si hay URL cargada se usa; si no, se arma una búsqueda de Google
   // Maps con la dirección + ciudad (lo que ya hacía el botón "Cómo llegar").
+  // Sin dirección propia ni URL cargada (defaults neutros): sin mapa — "" y el sitio no muestra el botón.
   const mapsOverride = clean(row?.mapsUrl);
+  const sinDireccion = !clean(row?.addressLine) && defaults === LOCATION_DEFAULTS_NEUTROS;
   const mapsUrl =
     mapsOverride ||
-    "https://www.google.com/maps/search/?api=1&query=" +
-      encodeURIComponent(`${addressLine}, ${city}`);
+    (sinDireccion
+      ? ""
+      : "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(`${addressLine}, ${city}`));
 
   return {
     shortLabel,
@@ -114,9 +137,10 @@ export const getLocation = cache(async (): Promise<ResolvedLocation> => {
   // con la DB sana (schema migrado → mismo comportamiento).
   try {
     const tenantId = await getCurrentTenantId();
-    const row = await prisma.businessSettings.findUnique({ where: { tenantId } });
-    return resolveLocation(row);
+    const [row, slug] = await Promise.all([prisma.businessSettings.findUnique({ where: { tenantId } }), slugResueltoDelPedido()]);
+    return resolveLocation(row, defaultsDeLocalizacion(slug));
   } catch {
-    return resolveLocation(null);
+    // Sin poder leer: neutros (nunca la dirección de CH en el sitio de otro).
+    return resolveLocation(null, LOCATION_DEFAULTS_NEUTROS);
   }
 });

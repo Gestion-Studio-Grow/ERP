@@ -3,6 +3,8 @@ import { Geist, Geist_Mono, Playfair_Display, Fraunces, Hanken_Grotesk, Bebas_Ne
 import { getTenantBrand, resolveAccent, tenantFaviconDataUri } from "@/lib/branding";
 import { gsgIdentityEnabled, identityAttr, tenantBrandSheetEnabled } from "@/lib/identity";
 import { getBrandSheet } from "@/lib/brand-sheet";
+import { direccionConNegocio } from "@/lib/tenant";
+import { faviconGsg, NOMBRE_GSG, pestanaDelPedido } from "@/lib/pestana";
 import "./globals.css";
 
 // RENDER DINÁMICO APP-WIDE (fix build P1001, 2026-07-10). La app es 100% multi-tenant y
@@ -25,10 +27,16 @@ export const dynamic = "force-dynamic";
 // pantalla, así que el backoffice de CH se bajaba también las fuentes de Magra y
 // de Shine — 355 KB de tipografía por pantalla, más que todo el JavaScript.
 //
-// Regla que se aplica abajo: precargan SOLO las que la mayoría de las pantallas
-// usa de verdad (Geist como base + Fraunces/Hanken, la identidad de CH, el tenant
-// vivo en producción). Las de identidad de OTRAS superficies llevan
-// `preload: false`: siguen disponibles por su variable CSS y el navegador las baja
+// Regla que se aplica abajo: precarga SOLO Geist, la base de todas las pantallas.
+// Fraunces/Hanken (la identidad de CH) también pasaron a `preload: false` (E3,
+// 29/10/2026): precargadas, viajaban ~145 KB a TODAS las vidrieras — Qué Bien Olés,
+// Magra, Shine, A Dos Manos, el taller — aunque usen su propia letra. Las clases de
+// variable siguen en <html> a propósito: globals.css resuelve --font-display y
+// --font-body en :root, así que sacarlas de acá rompe esos tokens. Sin preload, el
+// navegador baja cada familia sólo cuando una pantalla la pinta. Una superficie que
+// quiera precargar su letra la declara en un módulo propio (next/font precarga sólo
+// en las rutas que importan ese módulo), nunca acá. Las de identidad de OTRAS
+// superficies llevan `preload: false`: siguen disponibles por su variable CSS y el navegador las baja
 // recién cuando una pantalla las usa. Con `display: "swap"` el texto se ve desde el
 // primer frame, así que la contrapartida es un cambio de tipografía tardío en la
 // vidriera de esos tenants, no una pantalla en blanco.
@@ -57,12 +65,14 @@ const fraunces = Fraunces({
   subsets: ["latin"],
   style: ["normal", "italic"],
   display: "swap",
+  preload: false, // identidad CH: la baja quien la pinta (E3), no todas las vidrieras
 });
 
 const hanken = Hanken_Grotesk({
   variable: "--font-hanken",
   subsets: ["latin"],
   display: "swap",
+  preload: false, // ídem
 });
 
 // Identidad MAGRA (ADR-072 §8): Bebas Neue (display condensado, cartelería premium) +
@@ -105,25 +115,35 @@ const kumbhSans = Kumbh_Sans({
   preload: false, // identidad SHINE (cuerpo)
 });
 
-// Favicon POR TENANT (no más "CH" hardcodeado para toda la app): el ícono de la
-// pestaña sale del monograma + acento del tenant activo, resuelto en cada request
-// (getTenantBrand cachea por request; fail-open al brand por defecto sin DB). Las
-// rutas que definen su propia metadata (p. ej. /tienda) igual la sobreescriben.
-// El title/description siguen siendo el default del spa (la landing (site) los
-// hereda de acá); su versión por-tenant es un follow-up junto con el SEO por ruta.
+// PESTAÑA POR NEGOCIO (E1, 29/10/2026): título e ícono salen del negocio que resuelve el host, en todas las rutas
+// que no declaran los suyos (src/lib/pestana.ts). Antes el título era «Panel de gestión» para toda la app con la
+// ficha de marca apagada, y una dirección sin negocio mostraba el favicon neutro con la landing de CH. Ahora:
+//   · sin negocio → «Gestión Studio Grow» + ícono de GSG, sin indexar;
+//   · con ficha propia (branding.ts) → su nombre y su monograma, sin consultar nada;
+//   · sin ficha → el nombre de la fila Tenant (getBrandSheet, cacheada por pedido; fail-open).
+// Las rutas con metadata propia (/tienda, /taller, /clases, /admin…) igual la sobreescriben.
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await getTenantBrand();
   const { accent } = resolveAccent(brand.preset, brand.frontTheme);
-  // FICHA DE MARCA (RFC-004-D): con `TENANT_BRAND_SHEET_ENABLED` ON, el título sale del nombre
-  // del tenant (DB) — antes estaba HARDCODEADO "CH Estética" para toda la app, así que la
-  // pestaña de cualquier tenant decía CH. Flag OFF → default neutro (ya no CH). Las rutas con
-  // metadata propia (p. ej. /tienda) igual la sobreescriben por tenant.
+  // FICHA DE MARCA (RFC-004-D): con `TENANT_BRAND_SHEET_ENABLED` ON manda el nombre de la ficha, como siempre.
   const sheet = tenantBrandSheetEnabled() ? await getBrandSheet() : null;
-  const title = sheet ? sheet.name : "Panel de gestión";
+  if (sheet) return { title: sheet.name, description: "Gestión del negocio y reservas online.", icons: { icon: tenantFaviconDataUri(brand.monogram, accent) } };
+  // Una base caída no se disfraza de «dirección sin negocio»: ante la duda, se sigue como negocio.
+  const sinNegocio = await direccionConNegocio().then((ok) => !ok, () => false);
+  const nombreDelTenant = sinNegocio || brand.propia ? null : (await getBrandSheet()).name;
+  const pestana = pestanaDelPedido({ sinNegocio, brand, nombreDelTenant });
+  if (pestana.tipo === "gsg") {
+    return {
+      title: NOMBRE_GSG,
+      description: "Gestión Studio Grow: sistemas de gestión y vidrieras para negocios.",
+      icons: { icon: faviconGsg() },
+      robots: { index: false, follow: false },
+    };
+  }
   return {
-    title,
+    title: pestana.titulo,
     description: "Gestión del negocio y reservas online.",
-    icons: { icon: tenantFaviconDataUri(brand.monogram, accent) },
+    icons: { icon: tenantFaviconDataUri(pestana.glifo, accent) },
   };
 }
 

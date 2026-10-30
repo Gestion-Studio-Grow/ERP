@@ -431,6 +431,34 @@
   font-family: -apple-system, BlinkMacSystemFont, var(--font-geist-sans), "Inter", sans-serif;
 }
 
+/* ESCALA NIVEL 5 (orden del dueño, 29/10/2026: «escala más grande»), SÓLO en el panel de cada negocio y su ingreso
+   (`data-escala="nivel-5"` en src/app/admin/(dashboard)/layout.tsx y admin/login): la consola del operador, el
+   contador, Facturita y el 404 también usan el skin y no se tocan desde acá. Las utilidades de Tailwind leen estas
+   variables en el punto de uso (`.text-sm{font-size:var(--text-sm)}`), así que redefinirlas agranda todas las
+   pantallas del panel sin tocarlas. 12/14/16/18/20/24 → 13/15/17/19/22/28; radios .625/.75 → .75/1. Las cuatro
+   estéticas de cliente cuelgan del mismo data-skin y heredan la escala. */
+[data-skin="fable"][data-escala="nivel-5"] {
+  --radius: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1rem;
+  --text-xs: 0.8125rem;  --text-xs--line-height: 1.45;
+  --text-sm: 0.9375rem;  --text-sm--line-height: 1.5;
+  --text-base: 1.0625rem; --text-base--line-height: 1.55;
+  --text-lg: 1.1875rem;  --text-lg--line-height: 1.45;
+  --text-xl: 1.375rem;   --text-xl--line-height: 1.35;
+  --text-2xl: 1.75rem;   --text-2xl--line-height: 1.25;
+}
+
+/* Escala nivel 5 (29/10/2026): foco con doble anillo en controles y botones del panel — el contorno de siempre más
+   un halo del acento suave del negocio, que se ve en los dos temas y sobre cualquier superficie. */
+[data-skin="fable"] :is([data-ui="input"], [data-ui="select"], [data-ui="textarea"]):focus-visible,
+[data-skin="fable"] [data-ui="button"]:focus-visible {
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+[data-skin="fable"] :is([data-ui="input"], [data-ui="select"], [data-ui="textarea"])[aria-invalid="true"]:focus-visible {
+  box-shadow: 0 0 0 4px var(--danger-soft);
+}
+
 [data-skin="fable"][data-theme="dark"] {
   /* — OSCURO grafito profundo (fablebackofficedark.html :root, hex exactos) — */
   --background: #0d0d0f;
@@ -1205,14 +1233,14 @@ summary:focus-visible {
   [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.875rem;
+    font-size: 0.9375rem; /* escala nivel 5: 14 → 15 px */
     color: var(--text);
   }
   [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) thead th {
-    padding: 0.5rem 0.75rem;
+    padding: 0.625rem 0.875rem;
     border-bottom: 1px solid var(--line-strong);
     text-align: left;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--text-muted);
     white-space: nowrap;
@@ -1226,6 +1254,10 @@ summary:focus-visible {
   [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) tbody tr[data-enlace] {
     cursor: pointer;
   }
+  /* Escala nivel 5: zebra suave para seguir la fila con la vista (el hover, abajo, le gana). */
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) tbody tr:nth-child(even) {
+    background: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
+  }
   [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) tbody tr:hover {
     background: var(--surface-sunken);
   }
@@ -1234,7 +1266,7 @@ summary:focus-visible {
     outline-offset: -2px;
   }
   [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td {
-    padding: 0.625rem 0.75rem;
+    padding: 0.75rem 0.875rem; /* fila ≈ 46 px (antes ≈ 40) */
     vertical-align: middle;
   }
   [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-movil="folio"],

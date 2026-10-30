@@ -6,21 +6,34 @@ import { getTenantBrand, resolveAccent } from "@/lib/branding";
 import { getBrandSheet, brandSheetAccent } from "@/lib/brand-sheet";
 import { tenantBrandSheetEnabled } from "@/lib/identity";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { direccionConNegocio } from "@/lib/tenant";
+import { redirect } from "next/navigation";
 import { WhatsAppCtaProvider } from "@/components/whatsapp-cta";
 import BookingProvider from "./_ch/BookingProvider";
 import Header from "./_ch/Header";
 import AnnouncementBar from "./_ch/AnnouncementBar";
+import { frauncesSitio, hankenSitio } from "./fuentes";
+import { DisenoProvider } from "@/lib/diseno/DisenoProvider";
+import { chConDisenoNuevo } from "./_ch/diseno-ch.server";
+import PielCH from "./_ch/PielCH";
 
 export const dynamic = "force-dynamic";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
+  // FUGA DE MARCA (E1, 29/10/2026): una dirección que no lleva a ningún negocio (el apex, un subdominio inventado o
+  // mal escrito) mostraba la landing de CH con los nombres de su equipo. Ahora ve la página neutra de Gestión Studio
+  // Grow (src/app/sin-negocio), en todo el sitio (portada, /servicios, /reserva). Una base caída no se disfraza de
+  // «sin negocio»: ante la duda, el camino de siempre (fail-open, como el resto de los loaders del sitio).
+  if (await direccionConNegocio().then((ok) => !ok, () => false)) redirect("/sin-negocio");
   // Los servicios y el equipo ya no se leen acá: no viajan en el HTML de cada página (ver
   // BookingProvider) y la lectura quedaba sin usar en /reserva y /reserva/turno.
-  const [news, location, brand, slug] = await Promise.all([
+  const [news, location, brand, slug, chNuevo] = await Promise.all([
     getPublicNews(),
     getLocation(),
     getTenantBrand(),
     getCurrentTenantSlug(),
+    // «Diseño nuevo» de CH (DISENO.md de CH): sólo beauty-spa lo lee; apagado, el sitio de siempre tal cual.
+    chConDisenoNuevo(),
   ]);
   // REGLA front/back: el FRONT (vidriera) usa el tema declarado del tenant; el
   // acento va afinado a ese tema (--accent + on-accent). `data-theme` deja los
@@ -32,27 +45,32 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const sheet = tenantBrandSheetEnabled() ? await getBrandSheet() : null;
   const frontTheme = sheet ? sheet.frontTheme : brand.frontTheme;
   const dataBrand = sheet ? sheet.themeId : undefined;
-  const brandName = sheet ? sheet.name : brand.name;
+  // Un negocio sin ficha propia en branding.ts se nombra con el nombre de su fila Tenant, no «Mi negocio» (E1).
+  const brandName = sheet ? sheet.name : brand.propia ? brand.name : (await getBrandSheet()).name;
   const { accent, onAccent } = sheet
     ? brandSheetAccent(sheet, frontTheme)
     : resolveAccent(brand.preset, brand.frontTheme);
+  // E3: --font-display/--font-body se resuelven en :root con las familias de la raíz (sin precarga). Redeclararlas acá
+  // las ata a las de ./fuentes (precargadas): si no, el título usaría la de la raíz y la letra se bajaría dos veces.
+  // Con la ficha de marca prendida manda su theme pack (data-brand), que define su propia letra.
+  const letraDelSitio: Record<string, string> = dataBrand ? {} : { "--font-display": "var(--font-fraunces)", "--font-body": "var(--font-hanken)" };
   // WhatsApp del negocio (módulo Localización): ya viene normalizado a dígitos.
   const whatsapp = location.whatsapp;
   const latestNews = news[0] ?? null;
 
-  return (
+  const sitio = (
     <WhatsAppCtaProvider tenantKey={slug ?? "ch-default"} configuredNumber={whatsapp}>
       {/* Sin `data`: los ~70 servicios ya no viajan en el HTML de cada página.
           El provider los pide cuando alguien va a reservar (ver client-actions). */}
-      <BookingProvider>
+      <BookingProvider negocio={{ nombre: brandName, direccion: location.mapsUrl ? [location.addressLine, location.city].filter(Boolean).join(", ") : "", esCH: slug === "beauty-spa" }}>
       {/* Acento + tema del front por tenant, disponibles también en el sitio para
           cuando sus pantallas migren a los tokens de la base Nocturne. */}
-      <div data-theme={frontTheme} data-brand={dataBrand} style={{ background: "var(--surface)", color: "var(--text-strong)", fontFamily: "var(--font-body), system-ui, sans-serif", "--accent": accent, "--text-on-accent": onAccent } as CSSProperties}>
+      <div data-theme={frontTheme} data-brand={dataBrand} className={`${frauncesSitio.variable} ${hankenSitio.variable}`} style={{ background: "var(--surface)", color: "var(--text-strong)", fontFamily: "var(--font-body), system-ui, sans-serif", "--accent": accent, "--text-on-accent": onAccent, ...letraDelSitio } as CSSProperties}>
         {/* Franja arriba de todo el sitio (no solo home): la novedad se
             "adopta" con menos fricción que esperando que el cliente llegue
             a la sección más abajo en la página. */}
         {latestNews && <AnnouncementBar id={latestNews.id} message={latestNews.message} />}
-        <Header hasNews={!!latestNews} brandName={brandName} />
+        <Header hasNews={!!latestNews} brandName={brandName} {...(chNuevo ? { nuevo: true } : {})} />
         <main id="top">{children}</main>
 
         <footer style={{ background: "var(--surface-inverted)", color: "var(--text-on-accent)" }}>
@@ -61,7 +79,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
               <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
                 <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 24, color: "var(--accent)" }}>{brandName}</span>
               </div>
-              <p style={{ margin: 0 }}>{location.addressLine} · {location.city}</p>
+              <p style={{ margin: 0 }}>{[location.addressLine, location.city].filter(Boolean).join(" · ")}</p>
             </div>
             <div>
               <p style={{ color: "var(--text-on-accent)", margin: "0 0 4px" }}>Horarios</p>
@@ -93,5 +111,14 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       </div>
       </BookingProvider>
     </WhatsAppCtaProvider>
+  );
+  // Apagado (o cualquier negocio que no es CH): el mismo árbol de siempre, sin un nodo de más. Prendido: la hoja
+  // del diseño nuevo (una vez por página) y `useDiseno()` para el encabezado, la barra y la piel de la reserva.
+  if (!chNuevo) return sitio;
+  return (
+    <DisenoProvider nuevo>
+      <PielCH />
+      {sitio}
+    </DisenoProvider>
   );
 }

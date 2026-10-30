@@ -14,7 +14,8 @@
 
 import { cache } from "react";
 import { basePrisma } from "@/lib/prisma-base";
-import { getCurrentTenantId } from "@/lib/tenant";
+import { getCurrentTenantId, DireccionSinNegocioError } from "@/lib/tenant";
+import { logger, serializeError } from "@/lib/logger";
 import { ACCENT_PRESETS, invertTheme, resolveAccent, type AccentPreset, type Theme } from "@/lib/branding";
 import { themeIdForBlueprint, themePack, type ThemeId, type ThemePack } from "@/lib/theme-packs";
 
@@ -89,7 +90,9 @@ export const getBrandSheet = cache(async (): Promise<BrandSheet> => {
       select: { name: true, accentPreset: true, frontTheme: true, blueprintId: true },
     });
     return buildBrandSheet(t ?? { name: null, accentPreset: null, frontTheme: null, blueprintId: null });
-  } catch {
+  } catch (err) {
+    // Fail-open, pero que se vea: con la ficha neutra el negocio se presenta como «Mi negocio».
+    if (!(err instanceof DireccionSinNegocioError)) logger.warn("brand-sheet", "no se pudo leer la ficha del negocio", { err: serializeError(err) });
     return buildBrandSheet({ name: null, accentPreset: null, frontTheme: null, blueprintId: null });
   }
 });

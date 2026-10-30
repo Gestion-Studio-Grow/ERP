@@ -8,7 +8,7 @@ import { cn } from "./cn";
 
 export type PageContainerProps = {
   children: React.ReactNode;
-  /** "default" = 1240px del mockup; "narrow" = formularios cortos (42rem). */
+  /** "default" = 1320px (escala nivel 5; antes 1240px); "narrow" = formularios cortos (44rem). */
   width?: "default" | "narrow";
   className?: string;
 };
@@ -19,8 +19,8 @@ export function PageContainer({ children, width = "default", className }: PageCo
       data-ui="pagina"
       data-ancho={width === "narrow" ? "angosto" : undefined}
       className={cn(
-        "mx-auto w-full px-4 py-6 sm:px-8 sm:py-9",
-        width === "narrow" ? "max-w-2xl" : "max-w-[1240px]",
+        "mx-auto w-full px-5 py-7 sm:px-10 sm:py-10",
+        width === "narrow" ? "max-w-[44rem]" : "max-w-[1320px]",
         className,
       )}
     >

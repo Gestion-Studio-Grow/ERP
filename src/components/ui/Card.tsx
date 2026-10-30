@@ -16,7 +16,7 @@ export function Card({ flush, interactive, className, ...props }: CardProps) {
       data-interactive={interactive || undefined}
       className={cn(
         "bg-surface-raised border border-line rounded-lg shadow-card",
-        !flush && "p-5 sm:p-6",
+        !flush && "p-5 sm:p-7",
         interactive && "transition-shadow hover:shadow-raised",
         className,
       )}
@@ -33,7 +33,7 @@ export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHead
   return (
     <h3
       data-parte="titulo"
-      className={cn("text-base font-semibold text-strong tracking-tight", className)}
+      className={cn("text-lg font-semibold text-strong tracking-[-0.015em]", className)}
       {...props}
     />
   );

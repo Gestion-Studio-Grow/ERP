@@ -33,6 +33,7 @@ import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import AdminThemeScript from "../AdminThemeScript";
 import { getBrandSheet, brandSheetAccent } from "@/lib/brand-sheet";
+import { pestanaDelPedido } from "@/lib/pestana";
 import { tenantBrandSheetEnabled } from "@/lib/identity";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { PIEL_RENGLON } from "@/lib/diseno/diseno";
@@ -61,9 +62,11 @@ function initialsOf(name: string): string {
 // ofrece «Instalar» (CH no cambia). Los módulos salen de `getProductoContexto`, el mismo que usa el
 // layout: cacheado por pedido, no suma ninguna consulta.
 export async function generateMetadata(): Promise<Metadata> {
-  const { modules } = await getProductoContexto();
+  const [{ modules }, brand] = await Promise.all([getProductoContexto(), getTenantBrand()]);
+  // Pestaña POR NEGOCIO (E1, 29/10/2026): «Magra · Panel», no «Panel de gestión» para todos (src/lib/pestana.ts).
+  const { titulo } = pestanaDelPedido({ sinNegocio: false, brand, nombreDelTenant: brand.propia ? null : (await getBrandSheet()).name });
   return {
-    title: "Panel de gestión",
+    title: titulo === "Panel de gestión" ? titulo : `${titulo} · Panel`,
     robots: { index: false, follow: false },
     ...(panelInstalable(modules) ? { manifest: "/api/pwa/admin.webmanifest" } : {}),
   };
@@ -211,7 +214,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       monogram = initialsOf(ficha.name);
     }
   }
-  if (nuevo && !sheet && !identidad && brand.monogram === "•") {
+  // CO-MARCA (29/10/2026): un negocio sin ficha propia se nombra con SU nombre también con el diseño de siempre (antes
+  // sólo con «Diseño nuevo»): el logo tipográfico del encabezado lleva su nombre y sus iniciales, nunca «Mi negocio».
+  if (!sheet && !identidad && brand.monogram === "•") {
     const ficha = await getBrandSheet();
     if (ficha.name !== "Mi negocio") {
       brandName = ficha.name;
@@ -232,9 +237,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // lo prueba src/apps/paridad-menu.test.ts en todos los casos: CH no ve un cambio.
   // ESTÉTICA DEL BACKOFFICE: cada cliente ve su panel con la estética de su front y su marca (src/lib/estetica-
   // backoffice.ts); sin entrada, la del ERP. Va en la raíz (`data-estetica`) para que la tomen todas las pantallas.
-  const estetica = esteticaBackoffice(await getCurrentTenantSlug());
-  // Su logo (de la marca que ya tiene; el de Matías, provisional). Sin estética no viaja: CH… recibe lo de siempre.
-  const logo = estetica ? <LogoDelNegocio estetica={estetica} nombre={brandName} /> : null;
+  const slugDelNegocio = await getCurrentTenantSlug();
+  const estetica = esteticaBackoffice(slugDelNegocio);
+  // CO-MARCA (29/10/2026): TODOS los negocios llevan su logo arriba — el de su estética, su logo real o el tipográfico
+  // «provisional a confirmar» (LogoDelNegocio) — y GSG firma al pie (FirmaGSG, en el shell).
+  const logo = <LogoDelNegocio estetica={estetica} nombre={brandName} slug={slugDelNegocio} monograma={monogram} />;
   const negocioApps = await getNegocioApps(user.role);
   const visibles = appsVisibles(negocioApps);
   // PANEL DE CASA: un negocio cuyo backoffice es UNA app (Break Point → el club) no ve el menú del ERP. Cualquier
@@ -270,6 +277,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div
       data-skin="fable"
+      // Escala nivel 5 (29/10/2026): letra y radios más generosos, sólo en el panel (globals.css).
+      data-escala="nivel-5"
       // DISEÑO NUEVO (interruptor "Diseño nuevo" del negocio): la piel «Renglón» se acota bajo
       // este atributo. Apagado es `undefined` y React no lo escribe: la raíz de siempre, byte a
       // byte. `data-skin="fable"` NO se toca: ThemeToggle, AparienciaControls y theme-client lo buscan.
@@ -322,7 +331,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {children}
               </PanelDeCasa>
             ) : (
-              <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} {...(logo ? { logo } : {})} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})} {...(pedidosNuevos ? { pedidosNuevos } : {})}>
+              <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} logo={logo} letraDelNegocio={estetica !== null} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})} {...(pedidosNuevos ? { pedidosNuevos } : {})}>
                 {/* Cómo se llama el retiro y qué ejemplo lleva la nota, según el rubro (una perfumería
                     entrega en un punto de encuentro, no en un local): sale del rubro ya leído arriba. */}
                 <VocabularioDelNegocio valor={vocabularioDelNegocio(rubroDelNegocio.rubro)}>{children}</VocabularioDelNegocio>

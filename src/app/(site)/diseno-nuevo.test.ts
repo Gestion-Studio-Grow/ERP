@@ -49,10 +49,15 @@ test("el bloque nuevo de la home corre sólo con el interruptor prendido y antes
 });
 
 test("la home nueva de CH: sin CSS de módulo, sin avatares generados, sin contenido que aparece al bajar", () => {
-  const fuente = leer("_ch/InicioCH.tsx");
-  assert.doesNotMatch(fuente, /import\s+[^;]*\.css["']/);
-  assert.doesNotMatch(fuente, /api\.dicebear\.com/);
-  assert.doesNotMatch(fuente, /from "\.\/Reveal"/);
+  // ChFront es la que dibuja hoy el bloque nuevo (DISENO.md de CH); InicioCH quedó sin uso hasta que el dueño
+  // apruebe borrarla, y sigue con la misma vara. Sus piezas nuevas, también.
+  for (const f of ["_ch/ChFront.tsx", "_ch/InicioCH.tsx", "_ch/ProximoHueco.tsx", "_ch/CartaDestacada.tsx", "_ch/Carta.tsx", "_ch/BarraReservar.tsx"]) {
+    const fuente = leer(f);
+    assert.doesNotMatch(fuente, /import\s+[^;]*\.css["']/, f);
+    assert.doesNotMatch(fuente, /api\.dicebear\.com/, f);
+    assert.doesNotMatch(fuente, /from "\.\/Reveal"/, f);
+  }
+  assert.match(leer("page.tsx"), /import ChFront from "\.\/_ch\/ChFront"; \/\/ «diseño nuevo»/);
 });
 
 test("CH no entra a la vidriera nueva ni prendido; MAGRA, Shine y A Dos Manos sí, y sólo prendidos", () => {

@@ -5,31 +5,71 @@ import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { getAvailableSlots, getAvailableSlotsRange, createBookingFromModal } from "@/lib/actions";
 import { checkCoupon } from "@/lib/coupon-actions";
 import { isValidEmail, isValidArgentinePhone } from "@/lib/contact-validation";
-import { fmtTime, wallHourMinuteInBusinessTz } from "@/lib/datetime";
+import { fmtDateTime, fmtTime, wallHourMinuteInBusinessTz } from "@/lib/datetime";
 import { useWhatsAppCta } from "@/components/whatsapp-cta";
+import { useNegocioDelSitio } from "./negocio-del-sitio";
+import { useDiseno } from "@/lib/diseno/DisenoProvider";
+import type { PrefillReserva } from "./BookingProvider";
 import type { BookingData, BookingGroup, BookingProfessional, BookingService } from "./types";
 
 const STEP_LABELS = ["", "Servicio", "Profesional", "Día y hora", "Datos", "Confirmación"];
 
 type SelectedService = BookingService & { categoria: string };
 
+// Diseño nuevo de CH: el modal puede abrir con servicio, profesional, día y hora ya elegidos (la agenda viva, un
+// renglón de la carta, la ficha). Sólo se toma lo que existe en los datos públicos y encadena: un profesional que
+// no hace ese servicio, o un día fuera de los 14 visibles, se descarta y el modal arranca en el paso anterior. El
+// horario igual lo vuelve a validar el servidor al confirmar (createBookingFromModal). Sin prefill: paso 1.
+function estadoInicial(data: BookingData, prefill: PrefillReserva | null | undefined) {
+  const vacio = { step: 1, svc: null as SelectedService | null, pro: null as BookingProfessional | null, day: null as string | null, slot: null as string | null };
+  if (!prefill?.serviceId) return vacio;
+  let svc: SelectedService | null = null;
+  for (const g of data.groups) {
+    const it = g.services.find((x) => x.id === prefill.serviceId);
+    if (it) {
+      svc = { ...it, categoria: g.name };
+      break;
+    }
+  }
+  if (!svc) return vacio;
+  const elegido = svc;
+  const pro = prefill.professionalId
+    ? (data.professionals.find((p) => p.id === prefill.professionalId && p.serviceIds.includes(elegido.id)) ?? null)
+    : null;
+  if (!pro) return { ...vacio, step: 2, svc };
+  const day = prefill.day && data.days.some((d) => d.value === prefill.day) ? prefill.day : null;
+  const slot = day && prefill.slot ? prefill.slot : null;
+  if (!day || !slot) return { ...vacio, step: 3, svc, pro };
+  return { step: 4, svc, pro, day, slot };
+}
+
 export default function BookingModal({
   data,
   onClose,
+  prefill,
 }: {
   data: BookingData;
   onClose: () => void;
+  prefill?: PrefillReserva | null;
 }) {
   const { requestWhatsApp } = useWhatsAppCta();
-  const [step, setStep] = useState(1);
-  const [svc, setSvc] = useState<SelectedService | null>(null);
-  const [pro, setPro] = useState<BookingProfessional | null>(null);
+  const negocio = useNegocioDelSitio();
+  // Piel del diseño nuevo (sólo CH con su interruptor prendido; ver layout de (site)). Apagado, `k()` no pone
+  // ninguna clase y el modal es el de siempre.
+  const nuevo = useDiseno();
+  const k = (c: string) => (nuevo ? c : undefined);
+  const [inicio] = useState(() => estadoInicial(data, prefill));
+  const [step, setStep] = useState(inicio.step);
+  const [svc, setSvc] = useState<SelectedService | null>(inicio.svc);
+  const [pro, setPro] = useState<BookingProfessional | null>(inicio.pro);
   // Vecino/a de La Alameda (ADR-013): se pregunta en el primer paso porque
   // cambia el precio que se ve de cada servicio — antes de que el cliente
   // elija, no después.
   const [isResident, setIsResident] = useState(false);
-  const [day, setDay] = useState<string | null>(null);
-  const [slot, setSlot] = useState<string | null>(null); // ISO UTC
+  const [day, setDay] = useState<string | null>(inicio.day);
+  const [slot, setSlot] = useState<string | null>(inicio.slot); // ISO UTC
+  // Si el día llegó precargado, sus horarios se muestran cuando llega la disponibilidad (por si vuelve al paso 3).
+  const diaPrecargado = useRef<string | null>(inicio.day);
   const [slots, setSlots] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [tel, setTel] = useState("");
@@ -147,6 +187,10 @@ export default function BookingModal({
       if (cancelled) return;
       setDayAvailability(map);
       setPrefetchingAvailability(false);
+      if (diaPrecargado.current) {
+        setSlots(map[diaPrecargado.current] ?? []);
+        diaPrecargado.current = null;
+      }
       // Si todavía no eligió día, saltar directo al primero con lugar.
       setDay((currentDay) => {
         if (currentDay) return currentDay;
@@ -301,35 +345,41 @@ export default function BookingModal({
     const ics = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//CH Estetica//ES",
+      negocio.esCH ? "PRODID:-//CH Estetica//ES" : "PRODID:-//Gestion Studio Grow//ES",
       "BEGIN:VEVENT",
       // UID y DTSTAMP salen del PROPIO turno, no del reloj: llamar a `Date.now()`
       // durante el render es impuro (y React 19 lo marca). De paso el archivo queda
       // estable — si el cliente lo agrega dos veces, el calendario reconoce el mismo
       // evento en vez de duplicarle el turno.
-      `UID:${confirmedStartsAt}@ch-estetica`,
+      `UID:${confirmedStartsAt}@${negocio.esCH ? "ch-estetica" : "gsgapp"}`,
       `DTSTAMP:${z(start)}`,
       `DTSTART:${z(start)}`,
       `DTEND:${z(end)}`,
-      `SUMMARY:CH Estética — ${svc.name}`,
+      `SUMMARY:${negocio.nombre ? negocio.nombre + " — " : ""}${svc.name}`,
       `DESCRIPTION:${pro ? "Profesional: " + pro.name : "Turno confirmado"}`,
-      "LOCATION:Barrio La Alameda\\, Canning\\, Buenos Aires",
+      // La dirección de CH sólo en el turno de CH; otro negocio, la suya (si la cargó) o ninguna.
+      ...(negocio.esCH
+        ? ["LOCATION:Barrio La Alameda\\, Canning\\, Buenos Aires"]
+        : negocio.direccion
+          ? [`LOCATION:${negocio.direccion.replace(/[,;\\]/g, (c) => "\\" + c)}`]
+          : []),
       "END:VEVENT",
       "END:VCALENDAR",
     ].join("\r\n");
     return "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
-  }, [confirmedStartsAt, svc, pro]);
+  }, [confirmedStartsAt, svc, pro, negocio]);
 
   // El CTA nunca abre a un número hardcodeado (ver WhatsAppCtaProvider en el
   // layout): si `data.whatsapp` no tiene un real configurado, el primer clic
   // pide el número ahí mismo antes de abrir WhatsApp.
   const waMessage = svc
-    ? `Hola! Confirmo mi turno en CH Estética: ${svc.name}${whenLabel ? " — " + whenLabel : ""}${pro ? " con " + pro.name : ""}`
+    ? `Hola! Confirmo mi turno${negocio.nombre ? " en " + negocio.nombre : ""}: ${svc.name}${whenLabel ? " — " + whenLabel : ""}${pro ? " con " + pro.name : ""}`
     : null;
 
   return (
     <div
       onClick={onClose}
+      className={k("chm-fondo")}
       style={{
         position: "fixed",
         inset: 0,
@@ -349,6 +399,7 @@ export default function BookingModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="booking-modal-title"
+        className={k("chm")}
         style={{
           width: "100%",
           maxWidth: 512,
@@ -362,11 +413,16 @@ export default function BookingModal({
         }}
       >
         {/* Header del modal */}
-        <div style={{ padding: "24px 24px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div className={k("chm-cab")} style={{ padding: "24px 24px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div id="booking-modal-title" style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 18, color: "var(--accent)" }}>
-              CH
-            </span>
+            {nuevo ? (
+              // El nombre del negocio del sitio (contexto), nunca «CH» escrito a mano.
+              negocio.nombre && <span className="chm-marca">{negocio.nombre}</span>
+            ) : (
+              <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 18, color: "var(--accent)" }}>
+                CH
+              </span>
+            )}
             <span style={{ textTransform: "uppercase", letterSpacing: ".22em", fontWeight: 600, fontSize: ".75rem", color: "var(--text-muted)" }}>
               Reservar
             </span>
@@ -395,6 +451,18 @@ export default function BookingModal({
         </div>
 
         {/* Progreso */}
+        {nuevo ? (
+          <div className="chm-progreso">
+            <div className="chm-segmentos" aria-hidden>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <span key={n} data-hecho={n <= step ? "" : undefined} />
+              ))}
+            </div>
+            <p className="chm-paso">
+              Paso {step} de 5 · {STEP_LABELS[step]}
+            </p>
+          </div>
+        ) : (
         <div style={{ padding: "16px 24px 0" }}>
           <div style={{ height: 1, background: "var(--line)" }}>
             <div style={{ height: 1, background: accent, width: `${step * 20}%`, transition: "width var(--ch-transicion)" }} />
@@ -403,9 +471,10 @@ export default function BookingModal({
             Paso {step} de 5 · {STEP_LABELS[step]}
           </p>
         </div>
+        )}
 
         {/* Cuerpo */}
-        <div style={{ padding: 24, minHeight: 300 }}>
+        <div className={k("chm-cuerpo")} style={{ padding: 24, minHeight: 300 }}>
           {step === 1 && (
             <Step1
               groups={data.groups}
@@ -425,7 +494,7 @@ export default function BookingModal({
                   No hay profesionales disponibles para este servicio. Probá con otro.
                 </p>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div className={k("chm-pros")} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   {prosForService.map((p) => {
                     const on = pro?.id === p.id;
                     return (
@@ -434,6 +503,7 @@ export default function BookingModal({
                         type="button"
                         aria-pressed={on}
                         onClick={() => elegirYSeguir(() => setPro(p))}
+                        className={k("chm-pro")}
                         style={{ border: "1px solid", padding: 12, borderRadius: 2, fontSize: 14, cursor: "pointer", ...rowSelected(on) }}
                       >
                         {p.name}
@@ -448,7 +518,7 @@ export default function BookingModal({
           {step === 3 && (
             <>
               <StepTitle>Día y hora</StepTitle>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 8 }}>
+              <div className={k("chm-dias")} style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 8 }}>
                 {data.days.map((d) => {
                   const on = day === d.value;
                   const known = dayAvailability[d.value];
@@ -465,6 +535,7 @@ export default function BookingModal({
                       aria-pressed={on}
                       aria-label={`${d.label}${hasSlots === true ? ", con horarios disponibles" : hasSlots === false ? ", sin horarios ese día" : ""}`}
                       onClick={() => selectDay(d.value)}
+                      className={k("chm-dia")}
                       style={{
                         border: "1px solid",
                         borderColor: border,
@@ -479,6 +550,7 @@ export default function BookingModal({
                       }}
                     >
                       {d.label}
+                      {nuevo && <span className="chm-punto" aria-hidden data-hay={hasSlots === true ? "si" : undefined} />}
                     </button>
                   );
                 })}
@@ -507,6 +579,7 @@ export default function BookingModal({
                             type="button"
                             aria-pressed={slot === s}
                             onClick={() => setSlot(s)}
+                            className={k("chm-hora")}
                             style={{ border: "1px solid", padding: "8px 14px", borderRadius: 2, fontSize: 14, cursor: "pointer", ...rowSelected(slot === s) }}
                           >
                             {fmtTime(s)}
@@ -527,6 +600,7 @@ export default function BookingModal({
                             type="button"
                             aria-pressed={slot === s}
                             onClick={() => setSlot(s)}
+                            className={k("chm-hora")}
                             style={{ border: "1px solid", padding: "8px 14px", borderRadius: 2, fontSize: 14, cursor: "pointer", ...rowSelected(slot === s) }}
                           >
                             {fmtTime(s)}
@@ -604,6 +678,12 @@ export default function BookingModal({
               {/* Resumen de precio */}
               {svc && (
                 <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--line)", fontSize: 14 }}>
+                  {/* Diseño nuevo: con quién y cuándo, a la vista (si llegó desde la agenda viva, no pasó por esos pasos). */}
+                  {nuevo && pro && slot && (
+                    <p style={{ margin: "0 0 6px", fontWeight: 600 }}>
+                      Con {pro.name} · {fmtDateTime(slot)}
+                    </p>
+                  )}
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "var(--text-muted)" }}>{svc.name}</span>
                     <span>${basePrice.toLocaleString("es-AR")}</span>
@@ -633,9 +713,15 @@ export default function BookingModal({
 
           {step === 5 && (
             <>
-              <StepTitle>Listo. Te esperamos en La Alameda.</StepTitle>
-              <div style={{ marginTop: 16, background: "var(--surface-sunken)", padding: 20, borderRadius: 2, fontSize: 14, display: "flex", flexDirection: "column", gap: 4 }}>
+              <StepTitle>{negocio.esCH ? "Listo. Te esperamos en La Alameda." : "Listo. Te esperamos."}</StepTitle>
+              <div className={k("chm-tarjeta")} style={{ marginTop: 16, background: "var(--surface-sunken)", padding: 20, borderRadius: 2, fontSize: nuevo ? 16 : 14, display: "flex", flexDirection: "column", gap: 4 }}>
+                {nuevo ? (
+                  <p className="chm-codigo">
+                    <span className="sr-only">Reserva número </span>Nº {code}
+                  </p>
+                ) : (
                 <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Reserva</span> · Nº {code}</p>
+                )}
                 <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Servicio</span> · {svc?.name} · {svc?.categoria}, {svc?.durationMin} min</p>
                 <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Profesional</span> · {pro?.name}</p>
                 <p style={{ margin: 0, textTransform: "capitalize" }}><span style={{ color: "var(--text-muted)", textTransform: "none" }}>Cuándo</span> · {whenLabel} h</p>
@@ -648,7 +734,7 @@ export default function BookingModal({
               </p>
               <div style={{ marginTop: 16, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
                 {icsHref && (
-                  <a href={icsHref} download="turno-ch-estetica.ics" style={{ color: accent, textDecoration: "underline", textUnderlineOffset: 4, fontSize: 15 }}>
+                  <a href={icsHref} download={nuevo ? archivoIcs(negocio.nombre) : "turno-ch-estetica.ics"} style={{ color: accent, textDecoration: "underline", textUnderlineOffset: 4, fontSize: 15 }}>
                     Agregar a mi calendario
                   </a>
                 )}
@@ -667,7 +753,7 @@ export default function BookingModal({
         </div>
 
         {/* Footer del modal */}
-        <div style={{ padding: "16px 24px", borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-raised)" }}>
+        <div className={k("chm-pie")} style={{ padding: "16px 24px", borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-raised)" }}>
           <button
             type="button"
             onClick={back}
@@ -680,6 +766,7 @@ export default function BookingModal({
             type="button"
             onClick={next}
             disabled={!canNext || submitting}
+            className={k("chm-seguir")}
             style={{
               // Touch target ≥ 44px (Gate SAP §accesibilidad): antes ~38.5px de alto.
               minHeight: 44,
@@ -699,9 +786,21 @@ export default function BookingModal({
   );
 }
 
+// «turno-ch-estetica.ics» con el diseño de siempre; con el nuevo, el nombre del negocio del sitio.
+function archivoIcs(nombre: string): string {
+  const base = nombre
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return `turno${base ? "-" + base : ""}.ics`;
+}
+
 function StepTitle({ children }: { children: React.ReactNode }) {
+  const nuevo = useDiseno();
   return (
-    <p style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: "1.25rem", fontWeight: 420, margin: "0 0 16px" }}>
+    <p className={nuevo ? "chm-titulo" : undefined} style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: "1.25rem", fontWeight: 420, margin: "0 0 16px" }}>
       {children}
     </p>
   );
@@ -717,6 +816,7 @@ function ResidentToggle({
   value: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const negocio = useNegocioDelSitio();
   return (
     <div
       style={{
@@ -731,7 +831,11 @@ function ResidentToggle({
       }}
     >
       <span style={{ fontSize: 13, color: "var(--text-strong)" }}>
-        ¿Sos vecino/a de <strong>La Alameda</strong>? Tenés precio especial en algunos servicios.
+        {negocio.esCH ? (
+          <>¿Sos vecino/a de <strong>La Alameda</strong>? Tenés precio especial en algunos servicios.</>
+        ) : (
+          <>¿Sos vecino/a? Tenés precio especial en algunos servicios.</>
+        )}
       </span>
       <div style={{ display: "flex", border: "1px solid var(--line-strong)", borderRadius: 2, flexShrink: 0 }}>
         {[
@@ -791,6 +895,7 @@ function Step1({
   // coincidencias en una sola lista (sin encabezados de categoría): cuando bus qués
   // "masaje" no te importa en qué categoría cae cada uno.
   const [q, setQ] = useState("");
+  const nuevo = useDiseno();
   const query = normalizar(q);
   // Se busca por el nombre del servicio Y por el de su categoría. Sin esto,
   // tipear "depilación" no encontraba NADA en CH: sus 16 servicios de depilación
@@ -850,7 +955,7 @@ function Step1({
       )}
       {gruposVisibles.map((g) => (
         <div key={g.id} style={{ marginBottom: 12 }}>
-          <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-muted)", margin: "0 0 4px" }}>{g.name}</p>
+          <p className={nuevo ? "chm-grupo" : undefined} style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-muted)", margin: "0 0 4px" }}>{g.name}</p>
           {g.services.map((it) => {
             const on = svc?.id === it.id;
             const hasResidentPrice = it.residentPrice != null;
@@ -861,6 +966,7 @@ function Step1({
                 type="button"
                 aria-pressed={on}
                 onClick={() => onPick({ ...it, categoria: g.name })}
+                className={nuevo ? "chm-fila" : undefined}
                 style={{
                   display: "flex",
                   width: "100%",
@@ -910,8 +1016,9 @@ function Field({
   type: string;
   error?: string | null;
 }) {
+  const nuevo = useDiseno();
   return (
-    <label style={{ display: "block" }}>
+    <label className={nuevo ? "chm-campo" : undefined} style={{ display: "block" }}>
       <span style={{ fontSize: 14, color: "var(--text-muted)" }}>{label}</span>
       <input
         type={type}

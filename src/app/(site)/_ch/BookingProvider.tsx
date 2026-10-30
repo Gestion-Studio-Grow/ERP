@@ -1,5 +1,6 @@
 "use client";
 
+import { ProveedorNegocioDelSitio, type NegocioDelSitio } from "./negocio-del-sitio";
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { getBookingDataPublic } from "@/lib/client-actions";
@@ -15,10 +16,25 @@ import type { BookingData } from "./types";
 // en el servidor sería trabajo tirado.
 const BookingModal = dynamic(() => import("./BookingModal"), { ssr: false });
 
+// Lo que un botón puede dejar elegido al abrir el modal (diseño nuevo de CH: la agenda viva, los renglones
+// de la carta, la ficha). Sin prefill, el modal arranca en el paso 1 como siempre.
+export type PrefillReserva = { serviceId?: string; professionalId?: string; day?: string; slot?: string };
+
+// Sólo un objeto con textos cuenta como prefill: un evento de clic (un `onClick={open}` de siempre) o cualquier
+// otra cosa queda en «sin prefill».
+function prefillValido(p: unknown): PrefillReserva | null {
+  if (!p || typeof p !== "object" || !("serviceId" in p)) return null;
+  const { serviceId, professionalId, day, slot } = p as Record<string, unknown>;
+  if (typeof serviceId !== "string" || !serviceId) return null;
+  const texto = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+  return { serviceId, professionalId: texto(professionalId), day: texto(day), slot: texto(slot) };
+}
+
 // Contexto de reserva: cualquier botón "Reservar" del sitio abre el mismo modal.
 // `precargar` no abre nada — le avisa al provider que este visitante está por
-// reservar, para ir a buscar los datos mientras decide el clic.
-const BookingContext = createContext<{ open: () => void; precargar: () => void } | null>(null);
+// reservar, para ir a buscar los datos mientras decide el clic. `abierto` lo lee
+// la barra fija del celular para esconderse mientras el modal está arriba.
+const BookingContext = createContext<{ open: (prefill?: PrefillReserva) => void; precargar: () => void; abierto: boolean } | null>(null);
 
 export function useBooking() {
   const ctx = useContext(BookingContext);
@@ -26,9 +42,10 @@ export function useBooking() {
   return ctx;
 }
 
-export default function BookingProvider({ children }: { children: React.ReactNode }) {
+export default function BookingProvider({ children, negocio }: { children: React.ReactNode; negocio: NegocioDelSitio }) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<BookingData | null>(null);
+  const [prefill, setPrefill] = useState<PrefillReserva | null>(null);
   // La promesa en curso, para que dos botones (o el hover y el clic) no disparen
   // dos veces la misma consulta.
   const pedido = useRef<Promise<BookingData> | null>(null);
@@ -43,19 +60,24 @@ export default function BookingProvider({ children }: { children: React.ReactNod
     return pedido.current;
   }, []);
 
-  const openBooking = useCallback(() => {
-    void traerDatos();
-    setOpen(true);
-  }, [traerDatos]);
+  const openBooking = useCallback(
+    (p?: PrefillReserva) => {
+      void traerDatos();
+      setPrefill(prefillValido(p));
+      setOpen(true);
+    },
+    [traerDatos],
+  );
 
   const closeBooking = useCallback(() => setOpen(false), []);
 
   return (
-    <BookingContext.Provider value={{ open: openBooking, precargar: traerDatos }}>
+    <ProveedorNegocioDelSitio value={negocio}>
+    <BookingContext.Provider value={{ open: openBooking, precargar: traerDatos, abierto: open }}>
       {children}
       {open &&
         (data ? (
-          <BookingModal data={data} onClose={closeBooking} />
+          <BookingModal data={data} onClose={closeBooking} prefill={prefill} />
         ) : (
           // Sólo se ve si alguien llega al clic antes que los datos (por ejemplo
           // entrando por teclado sin pasar por el hover). Ocupa el mismo lugar que
@@ -86,5 +108,6 @@ export default function BookingProvider({ children }: { children: React.ReactNod
           </div>
         ))}
     </BookingContext.Provider>
+    </ProveedorNegocioDelSitio>
   );
 }

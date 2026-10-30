@@ -10,6 +10,7 @@ import type { AppDescriptor } from "@/apps/contract";
 import FormCerrarSesion from "../FormCerrarSesion";
 import MenuDeLaCasa from "./MenuDeLaCasa";
 import ThemeToggle from "./ThemeToggle";
+import FirmaGSG from "@/components/marca/FirmaGSG";
 
 // La letra del logo de Break Point y de «GESTIÓN / DEL CLUB» al lado, como el club de hoy (club.html: Montserrat 500).
 // Va como variable (`--font-montserrat`) en la cabecera; la usa sólo la piel de Break Point (club/piel/armazon.css),
@@ -89,8 +90,8 @@ export default function PanelDeCasa({
         </div>
       </header>
       {children}
-      {/* Sello GSG: crédito discreto en el backoffice (estándar de marca), nunca en la vidriera del cliente. */}
-      <p className="px-4 py-6 text-center text-xs text-faint">Con tecnología de Gestión Studio Grow</p>
+      {/* Sello GSG: la firma «powered by GSG» (co-marca), discreta, en el backoffice; nunca en la vidriera del cliente. */}
+      <div className="flex justify-center px-4 py-6"><FirmaGSG /></div>
     </div>
   );
 }
