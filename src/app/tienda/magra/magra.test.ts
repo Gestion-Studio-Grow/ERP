@@ -12,6 +12,7 @@ import {
   MAGRA_GOURMET_FOTOS,
   MAGRA_HERO,
   MAGRA_LOGO_PROVEEDOR,
+  chatConElNumeroDelLocal,
   coccionesDe,
   esWhatsAppValido,
   packDeCorte,
@@ -19,6 +20,7 @@ import {
   porcionesAKilos,
   regionDeCorte,
   resolveMagraLocal,
+  whatsappInternacionalAR,
 } from "@/tenants/magra-content";
 import { seccionMagra } from "../vidriera/marcas";
 import { ANIMALES, cajaDelRecorte } from "./despiece-datos";
@@ -167,8 +169,68 @@ test("WhatsApp: el relleno «0000 0000» o un número incompleto no se muestra n
   assert.equal(relleno.whatsappLabel, null);
   const real = resolveMagraLocal({ ...base, whatsapp: "+54 9 11 6135-4042" });
   assert.equal(real.whatsapp, "5491161354042");
-  assert.equal(real.whatsappLabel, "+54 9 11 6135 4042");
+  assert.equal(real.whatsappLabel, "+54 9 11 6135-4042");
   // Lo mismo con el Instagram de relleno del alta: no es una cuenta, no se publica.
   assert.equal(resolveMagraLocal({ ...base, whatsapp: null, instagram: "@instagram-a-confirmar" }).instagram, null);
   assert.equal(resolveMagraLocal({ ...base, whatsapp: null, instagram: "@tiendamagra" }).instagram, "@tiendamagra");
+});
+
+test("WhatsApp: se normaliza al formato internacional argentino (549 + área + número)", () => {
+  // El caso de la QA: el panel guarda «11-6677-8890» como 1166778890 y la tienda armaba
+  // wa.me/1166778890, que WhatsApp lee como +1 (EE. UU.).
+  for (const crudo of [
+    "11-6677-8890",
+    "1166778890",
+    "011 6677-8890", // con el 0 de larga distancia
+    "11 15 6677-8890", // con el 15 local
+    "011 15-6677-8890", // con los dos
+    "+54 11 6677-8890", // con 54 y sin el 9: se le pone
+    "541166778890",
+    "+54 9 11 6677-8890",
+    "5491166778890",
+    "0054 9 11 6677 8890",
+  ]) {
+    assert.equal(whatsappInternacionalAR(crudo), "5491166778890", crudo);
+  }
+  assert.equal(whatsappInternacionalAR("221 456-7890"), "5492214567890", "área de 3 dígitos");
+  assert.equal(whatsappInternacionalAR("0221 15 456-7890"), "5492214567890");
+  assert.equal(whatsappInternacionalAR("2944 12-3456"), "5492944123456", "área de 4 dígitos");
+});
+
+test("WhatsApp: lo que no se puede interpretar con seguridad no se muestra", () => {
+  for (const crudo of [
+    "+54 9 11 0000 0000", // el relleno
+    "5491100000000",
+    "6677-8890", // sin área
+    "15 6677-8890", // el 15 sin área: no hay área «15»
+    "1566778890",
+    "+1 415 555 1234", // otro país
+    "+44 7911 123456",
+    "54911667788", // le faltan dígitos
+    "12345",
+    "",
+    null,
+    undefined,
+  ]) {
+    assert.equal(whatsappInternacionalAR(crudo), "", String(crudo));
+    assert.equal(esWhatsAppValido(crudo), false, String(crudo));
+  }
+});
+
+test("WhatsApp: el pie muestra el número legible y el link abre ese mismo número", () => {
+  const base = { addressLine: null, city: null, hoursLabel: null, instagram: null, email: null };
+  const local = resolveMagraLocal({ ...base, whatsapp: "1166778890" });
+  assert.equal(local.whatsapp, "5491166778890");
+  assert.equal(local.whatsappLabel, "+54 9 11 6677-8890");
+  assert.equal(local.whatsappLabel!.replace(/\D/g, ""), local.whatsapp);
+});
+
+test("WhatsApp: el chat del pedido va al número del local normalizado, con el texto intacto", () => {
+  const delServidor = "https://wa.me/1166778890?text=%C2%A1Hola%20MAGRA!%20Pedido%20%2312";
+  assert.equal(
+    chatConElNumeroDelLocal(delServidor, "5491166778890"),
+    "https://wa.me/5491166778890?text=%C2%A1Hola%20MAGRA!%20Pedido%20%2312",
+  );
+  assert.equal(chatConElNumeroDelLocal(delServidor, ""), null, "sin número del local no hay chat");
+  assert.equal(chatConElNumeroDelLocal(null, "5491166778890"), null);
 });

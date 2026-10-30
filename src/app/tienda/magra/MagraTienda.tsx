@@ -17,7 +17,7 @@
 // `BusinessSettings` (resolveMagraLocal).
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { formatearCantidad } from "@/lib/pos-peso";
 import type { ShippingConfig } from "@/lib/storefront-shipping";
 import type { ConfigEnvios } from "@/lib/envios/modelo";
@@ -31,6 +31,7 @@ import {
   MAGRA_GOURMET_FOTOS,
   MAGRA_HERO,
   MAGRA_LOGO_PROVEEDOR,
+  chatConElNumeroDelLocal,
   coccionesDe,
   esElLocalDelCopy,
   promesaDeReparto,
@@ -238,8 +239,14 @@ function Vidriera({
 
   // El pedido: el envío, el rechazo con su motivo (sin perder la bolsa) y el de WhatsApp, que se
   // registra ANTES de abrir el chat (pedido-online.tsx).
+  //
+  // La pestaña del chat la abre ESTA vidriera y no el hook (`hayWhatsApp: false` sólo apaga ese
+  // `window.open`): el servidor arma el `wa.me` con los dígitos crudos del panel, y con
+  // «1166778890» eso es un chat en EE. UU. Acá se lleva al link con el número del local ya
+  // normalizado (`chatConElNumeroDelLocal`). Se abre en blanco EN EL TOQUE, igual que el hook:
+  // un `window.open` después de esperar la respuesta lo bloquea el celular.
   const pedido = usePedidoOnline({
-    hayWhatsApp: Boolean(local.whatsapp),
+    hayWhatsApp: false,
     alRegistrar: () => {
       setCart({});
       setClaveDePedido(nuevaClaveDePedido());
@@ -249,6 +256,31 @@ function Vidriera({
   useEffect(() => {
     olvidarAviso.current = pedido.olvidarAviso;
   });
+  const chatDelPedido = chatConElNumeroDelLocal(pedido.confirmado?.whatsapp, local.whatsapp);
+  const ventanaDelChat = useRef<{ ventana: Window; enviando: boolean } | null>(null);
+  const enviarPedido = (e: FormEvent<HTMLFormElement>) => {
+    const boton = (e.nativeEvent as SubmitEvent).submitter;
+    const porWhatsApp = boton instanceof HTMLButtonElement && boton.value === "whatsapp" && Boolean(local.whatsapp);
+    const ventana = porWhatsApp ? window.open("about:blank", "_blank") : null;
+    ventanaDelChat.current = ventana ? { ventana, enviando: false } : null;
+    pedido.onSubmit(e);
+  };
+  useEffect(() => {
+    const v = ventanaDelChat.current;
+    if (!v) return;
+    if (pedido.enviando) {
+      v.enviando = true;
+      return;
+    }
+    if (!v.enviando) return; // todavía no salió
+    ventanaDelChat.current = null;
+    if (chatDelPedido && !v.ventana.closed) {
+      v.ventana.opener = null;
+      v.ventana.location.href = chatDelPedido;
+    } else {
+      v.ventana.close();
+    }
+  }, [pedido.enviando, chatDelPedido]);
   const errorDeCupon = pedido.error?.campo === "cupon" ? pedido.error.texto : cupon.error;
 
   // ── La ficha (un `<dialog>` nativo: Esc, clic afuera y «×» la cierran) ──
@@ -625,7 +657,7 @@ function Vidriera({
               </button>
             </div>
 
-            <form onSubmit={pedido.onSubmit} className="mg-bolsa-form">
+            <form onSubmit={enviarPedido} className="mg-bolsa-form">
               <div className="mg-renglones">
                 {!hasItems && <p className="mg-bolsa-vacia">{PALABRAS.bolsaVacia}</p>}
                 {lines.map((l) => (
@@ -834,10 +866,10 @@ function Vidriera({
                   <div role="status" className="mg-ok">
                     <p>
                       Tu pedido <b>#{pedido.confirmado.code}</b> quedó registrado.{" "}
-                      {pedido.confirmado.whatsapp ? "Seguimos por WhatsApp." : "Te vamos a escribir al WhatsApp que dejaste."}
+                      {chatDelPedido ? "Seguimos por WhatsApp." : "Te vamos a escribir al WhatsApp que dejaste."}
                     </p>
-                    {pedido.confirmado.whatsapp && (
-                      <a href={pedido.confirmado.whatsapp} target="_blank" rel="noopener noreferrer">
+                    {chatDelPedido && (
+                      <a href={chatDelPedido} target="_blank" rel="noopener noreferrer">
                         Abrir el chat del pedido #{pedido.confirmado.code}
                       </a>
                     )}

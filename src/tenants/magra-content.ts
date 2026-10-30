@@ -23,6 +23,8 @@
 // "Vidriera editorial con riel de pedido") — el mockup docs/estrategia/diseno/assets/
 // mockup-magra-vidriera.html, llevado a producto real (catálogo + carrito del ERP).
 
+import { normalizarTelefono } from "@/lib/clientes/telefono";
+
 const GEN = "/tenants/magra/gen";
 
 export interface MagraValueProp {
@@ -151,10 +153,10 @@ export function whatsappLabel(digits: string): string | null {
     const areaLen = rest.startsWith("11") ? 2 : 3;
     const area = rest.slice(0, areaLen);
     const num = rest.slice(areaLen);
-    // Corte al piso: los últimos 4 dígitos quedan siempre juntos, que es como se
-    // escribe un número acá (11 7609 5555 · 221 456 7890).
+    // Corte al piso: los últimos 4 dígitos quedan siempre juntos, con guion, que es como se
+    // escribe un número acá (11 7609-5555 · 221 456-7890).
     const cut = Math.floor(num.length / 2);
-    return `+54 9 ${area} ${num.slice(0, cut)} ${num.slice(cut)}`;
+    return `+54 9 ${area} ${num.slice(0, cut)}-${num.slice(cut)}`;
   }
   return `+${d}`;
 }
@@ -190,21 +192,52 @@ function localidadDe(addressLine: string | null | undefined, city: string | null
 }
 
 /**
- * ¿Estos dígitos son un WhatsApp de verdad? No lo son si tienen menos de 10 dígitos (un número
- * argentino sin código de país ya tiene 10) o si los 8 finales son todos iguales: el
- * «+54 9 11 0000 0000» que quedó cargado de relleno en el panel. Un número así NO se muestra ni
- * se ofrece como canal: la vidriera no puede mandar a nadie a un chat que no existe.
+ * El WhatsApp del local en formato internacional argentino, listo para wa.me
+ * (`549` + área + número, 13 dígitos), o `""` si no se puede interpretar con seguridad.
+ *
+ * Por qué: el panel guarda lo que se tipeó sin los guiones. Con «11-6677-8890» quedaba
+ * `1166778890` y la tienda armaba `wa.me/1166778890`, que WhatsApp lee como +1 (EE. UU.):
+ * la clienta terminaba en el chat de otro. Sobre la clave nacional de `normalizarTelefono`
+ * (la misma que usan las fichas de clientas):
+ *   - se sacan `00`, `54`, el `0` de larga distancia, el `9` internacional y el `15` local;
+ *   - lo que queda tiene que ser área + número = 10 dígitos, con un área que exista
+ *     (`11`, o que empiece con 2 o 3);
+ *   - se publica siempre con `549` adelante: WhatsApp en la Argentina es celular y lleva el 9,
+ *     también cuando lo cargaron «+54 11 …» sin el 9.
+ * Lo demás —incompleto, de otro país, o el relleno «+54 9 11 0000 0000» (los 8 finales
+ * iguales)— vuelve `""`: no se muestra ni se ofrece. Mejor sin botón que a un chat ajeno.
+ */
+export function whatsappInternacionalAR(raw: string | null | undefined): string {
+  const clave = normalizarTelefono(raw);
+  if (clave.length !== 10 || !/^(11|[23])/.test(clave)) return "";
+  if (/^(\d)\1{7}$/.test(clave.slice(-8))) return "";
+  return `549${clave}`;
+}
+
+/**
+ * ¿Es un WhatsApp de verdad? Sí, si `whatsappInternacionalAR` lo puede interpretar. Un número
+ * que no lo es NO se muestra ni se ofrece: la vidriera no manda a nadie a un chat que no existe.
  */
 export function esWhatsAppValido(digits: string | null | undefined): boolean {
-  const d = digitsOnly(digits);
-  if (d.length < 10) return false;
-  return !/^(\d)\1{7}$/.test(d.slice(-8));
+  return whatsappInternacionalAR(digits) !== "";
+}
+
+/**
+ * El link del chat de un pedido, con el número del LOCAL ya normalizado. El servidor arma el
+ * `wa.me` con los dígitos crudos del panel (`chatDelPedido`, order-actions.ts) y con
+ * «1166778890» eso es un chat en EE. UU.: la vidriera le cambia el número por el de
+ * `whatsappInternacionalAR` (el mismo dato, bien escrito) y deja el texto del pedido intacto.
+ * Sin número del local, no hay chat.
+ */
+export function chatConElNumeroDelLocal(href: string | null | undefined, whatsappDelLocal: string): string | null {
+  if (!href || !whatsappDelLocal) return null;
+  return href.replace(/^https:\/\/wa\.me\/\+?\d*/, `https://wa.me/${whatsappDelLocal}`);
 }
 
 export function resolveMagraLocal(row: MagraBrandingRow | null | undefined): MagraLocal {
-  const crudo = digitsOnly(row?.whatsapp);
-  // Relleno o incompleto = no cargado: sin botón, sin línea en el pie y sin la vía «whatsapp».
-  const wa = esWhatsAppValido(crudo) ? crudo : "";
+  // Normalizado a 549 + área + número. Relleno, incompleto o ilegible = no cargado: sin botón,
+  // sin línea en el pie y sin la vía «whatsapp».
+  const wa = whatsappInternacionalAR(row?.whatsapp);
   const ig = resolveInstagram(row?.instagram ?? null);
   return {
     addressLine: text(row?.addressLine),
