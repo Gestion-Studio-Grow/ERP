@@ -128,3 +128,15 @@ test("la clave anti-duplicado se guarda con la bolsa y sólo se dibuja con rengl
     assert.match(leer(f), /guardarClave\(/, f);
   }
 });
+
+test("adopción: las cuatro tiendas resuelven sus anclas sin empujar un «atrás» sin estado (QA Magra v2, MEDIA)", () => {
+  for (const f of [
+    "src/app/tienda/quebienoles/QuebienolesFront.tsx",
+    "src/app/tienda/shine/ShineFront.tsx",
+    "src/app/tienda/adosmanos/AdosmanosFront.tsx",
+    "src/app/tienda/magra/MagraTienda.tsx",
+  ]) assert.match(leer(f), /useAnclasSinHistorial\(\);/, f);
+  const hook = leer("src/components/vidriera/useAnclasSinHistorial.ts");
+  assert.match(hook, /history\.replaceState\(estadoPropio\(\)/);
+  assert.doesNotMatch(hook, /pushState/);
+});

@@ -23,6 +23,7 @@
 //
 // Voz: la de la marca, textual donde se pudo (storefront.ts). Criollo, de vos, sin jerga.
 
+import { useAnclasSinHistorial } from "@/components/vidriera/useAnclasSinHistorial";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -93,6 +94,8 @@ const FUENTES = [`${CARPETA_FUENTES}/bodoni-moda.woff2`, `${CARPETA_FUENTES}/jos
 
 // La piel (estilos.ts) NO se importa acá: la escribe QuebienolesVidriera.tsx (servidor) en el HTML.
 export default function QuebienolesFront({ products, branding, copy, tenantKey, entrega = null, hoy = null }: PropsFront) {
+  // Las anclas (#cortes, #contacto…) reemplazan la dirección en vez de empujar un «atrás» sin estado (ronda 2).
+  useAnclasSinHistorial();
   for (const f of FUENTES) preload(f, { as: "font", type: "font/woff2", crossOrigin: "anonymous" });
 
   const reduce = usePrefersReducedMotion();

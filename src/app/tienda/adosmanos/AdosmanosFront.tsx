@@ -16,6 +16,7 @@
 // zapatilla (catalogo.ts → notaConTalles), porque el motor no tiene variantes.
 // La piel (estilos.ts) la escribe el servidor (AdosmanosVidriera.tsx): no viaja en este JS.
 
+import { useAnclasSinHistorial } from "@/components/vidriera/useAnclasSinHistorial";
 import { estadoPropio } from "@/components/vidriera/historial";
 import { useBolsaGuardada } from "@/components/vidriera/useBolsaGuardada";
 import { useHoja } from "@/components/vidriera/useHoja";
@@ -99,6 +100,8 @@ function Vidriera({
 
   // La bolsa guardada en el navegador (ronda 2): recargar o volver de WhatsApp ya no la vacía.
   const { bolsa, setBolsa, marcarEnvio, clave: claveDePedido, renovarClave } = useBolsaGuardada(tenantKey, products.map((p) => p.id));
+  // Las anclas (#cortes, #contacto…) reemplazan la dirección en vez de empujar un «atrás» sin estado (ronda 2).
+  useAnclasSinHistorial();
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
   const [notaLibre, setNotaLibre] = useState("");
   const [ficha, setFicha] = useState<{ id: string; talles: boolean } | null>(null);

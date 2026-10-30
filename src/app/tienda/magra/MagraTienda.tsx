@@ -16,6 +16,7 @@
 // editorial es TEXTUAL de magra-content.ts (autorizado por el dueño); los datos del local salen de
 // `BusinessSettings` (resolveMagraLocal).
 
+import { useAnclasSinHistorial } from "@/components/vidriera/useAnclasSinHistorial";
 import { useBolsaGuardada } from "@/components/vidriera/useBolsaGuardada";
 import { useHoja } from "@/components/vidriera/useHoja";
 import Link from "next/link";
@@ -138,6 +139,8 @@ function Vidriera({
   const { requestWhatsApp } = useWhatsAppCta();
   // La bolsa guardada en el navegador (ronda 2): recargar o volver de WhatsApp ya no la vacía.
   const { bolsa: cart, setBolsa: setCart, marcarEnvio, clave: claveDePedido, renovarClave } = useBolsaGuardada(tenantKey, products.map((p) => p.id));
+  // Las anclas (#cortes, #contacto…) reemplazan la dirección en vez de empujar un «atrás» sin estado (ronda 2).
+  useAnclasSinHistorial();
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
   // Clave anti-duplicado del pedido (la lee `placeOnlineOrder`): el doble toque manda la MISMA y
   // el servidor devuelve el mismo pedido. Se renueva cuando cambia la bolsa (reglas-tienda.ts).

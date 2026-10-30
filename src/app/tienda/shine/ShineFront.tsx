@@ -7,6 +7,7 @@
 // usePedidoOnline → placeOnlineOrder (bandeja, POS, stock), la entrega del negocio y el cupón.
 // La piel (estilos.ts) la escribe el servidor (ShineVidriera.tsx): no viaja en este JS.
 
+import { useAnclasSinHistorial } from "@/components/vidriera/useAnclasSinHistorial";
 import { estadoPropio } from "@/components/vidriera/historial";
 import { useBolsaGuardada } from "@/components/vidriera/useBolsaGuardada";
 import Image from "next/image";
@@ -74,6 +75,8 @@ function Vidriera({ products, copy, entrega: configEnvios = null, hoy = null, ha
   const hidratado = useSyncExternalStore(nada, () => true, () => false);
   // La bolsa guardada en el navegador (ronda 2): recargar o volver de WhatsApp ya no la vacía.
   const { bolsa, setBolsa, marcarEnvio, clave: claveDePedido, renovarClave } = useBolsaGuardada(tenantKey, products.map((p) => p.id));
+  // Las anclas (#cortes, #contacto…) reemplazan la dirección en vez de empujar un «atrás» sin estado (ronda 2).
+  useAnclasSinHistorial();
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
   const [notaLibre, setNotaLibre] = useState("");
   const [ficha, setFicha] = useState<{ id: string; foco: boolean } | null>(null);
