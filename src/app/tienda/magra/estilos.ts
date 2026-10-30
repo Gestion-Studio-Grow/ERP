@@ -152,7 +152,7 @@ export const CSS_VIDRIERA = `
 .magra .mg-pack-pie{display:flex;align-items:center;justify-content:space-between;gap:3cqi;min-height:19cqi;font:700 5cqi/1.15 var(--f-c);letter-spacing:.14em;text-transform:uppercase;color:var(--oro)}
 .magra .mg-pack-sello{flex:none;display:grid;place-items:center;width:20cqi;height:20cqi;padding:2.2cqi;border-radius:50%;border:max(1px,.6cqi) solid var(--oro)}
 .magra .mg-pack-sello .mg-mini{width:100%;height:auto;aspect-ratio:880/470}
-@container (max-width:170px){.magra .mg-pack-pie>span:first-child{display:none}.magra .mg-pack-pie{justify-content:center}}
+@container (max-width:140px){.magra .mg-pack-pie>span:first-child{display:none}.magra .mg-pack-pie{justify-content:center}}
 .magra .mg-eti-rot{flex:1;display:flex;flex-direction:column;gap:10px;margin:12px;padding:16px 18px 18px;border:1px solid rgba(197,174,134,.55);border-radius:4px}
 .magra .mg-eti-prov{font:700 12px/1.2 var(--f-c);letter-spacing:.22em;text-transform:uppercase;color:var(--oro)}
 .magra .mg-eti-nom{margin:0;font:400 clamp(30px,2.4vw,40px)/.95 var(--f-d);letter-spacing:.02em;text-transform:uppercase}
