@@ -681,6 +681,8 @@ function NoRetiro({ p, motivoObligatorio, onCerrar }: { p: PedidoDelTablero; mot
   const [motivo, setMotivo] = useState(MOTIVO_NO_RETIRO);
   const [stockNoVolvio, setStockNoVolvio] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Doble salida (src/lib/caja/doble-salida.ts): el servidor avisa y el segundo clic confirma.
+  const [porConfirmar, setPorConfirmar] = useState(false);
   const [pending, startTransition] = useTransition();
   const uid = useId();
   function enviar() {
@@ -688,6 +690,7 @@ function NoRetiro({ p, motivoObligatorio, onCerrar }: { p: PedidoDelTablero; mot
     fd.set("id", p.id);
     fd.set("motivo", motivo);
     if (stockNoVolvio) fd.set("stockNoVolvio", "on");
+    if (porConfirmar) fd.set("confirmar", "1");
     startTransition(async () => {
       let r;
       try {
@@ -701,6 +704,7 @@ function NoRetiro({ p, motivoObligatorio, onCerrar }: { p: PedidoDelTablero; mot
       }
       if (r && !r.ok) {
         setError(r.error);
+        setPorConfirmar(r.tipo === "sin-confirmar");
         return;
       }
       showSuccess(r?.mensaje ?? `Pedido #${p.code} anulado: no lo retiró.`);
@@ -731,6 +735,7 @@ function NoRetiro({ p, motivoObligatorio, onCerrar }: { p: PedidoDelTablero; mot
             aria-invalid={error ? true : undefined}
             onChange={(e) => {
               setMotivo(e.target.value);
+              setPorConfirmar(false);
               setError(null);
             }}
           />
@@ -740,7 +745,7 @@ function NoRetiro({ p, motivoObligatorio, onCerrar }: { p: PedidoDelTablero; mot
           La mercadería no volvió al stock (se tiró o se regaló)
         </label>
         <Button type="submit" variant="danger" disabled={pending} estado={pending ? "cargando" : undefined}>
-          {pending ? "Anulando…" : `Anular el pedido #${p.code}`}
+          {pending ? "Anulando…" : porConfirmar ? "Sí, anular igual" : `Anular el pedido #${p.code}`}
         </Button>
       </form>
     </Dialogo>

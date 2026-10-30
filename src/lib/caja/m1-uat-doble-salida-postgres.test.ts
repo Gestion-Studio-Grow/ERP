@@ -77,6 +77,31 @@ test("contra Postgres: devolución a mano + anulación de la misma venta → avi
   assert.ok(anuladaIgual?.ok, JSON.stringify(anuladaIgual));
   assert.equal((await duenio.order.findFirst({ where: { id: efectivo }, select: { status: true } }))?.status, "CANCELLED");
 
+  // ── 2b. Pago mixto (cert. v12 H-2): un asiento por medio, colgado del cobro, sin `orderId` ─────
+  const mixto = await vender(9_000, "EFECTIVO", "ds:mixto");
+  const original = await duenio.cashMovement.findFirstOrThrow({ where: { tenantId: a.id, orderId: mixto, type: "VENTA" } });
+  await duenio.cashMovement.delete({ where: { id: original.id } });
+  for (const [medio, metodo, monto] of [["EFECTIVO", "EFECTIVO", 4_000], ["MERCADOPAGO", "MP", 5_000]] as const) {
+    const cobro = await duenio.collection.create({
+      data: { tenantId: a.id, originType: "ORDER", originId: mixto, orderId: mixto, amount: monto, method: medio, collectedBy: `user:${a.duenia.id}` },
+    });
+    await duenio.cashMovement.create({
+      data: { tenantId: a.id, type: "VENTA", method: metodo, amount: monto, collectionId: cobro.id, orderId: null, reason: "Venta mixta", createdBy: `venta-pago-mixto:${mixto}`, occurredAt: original.occurredAt },
+    });
+  }
+  const manualMixto = await como(a, a.duenia, () => addLibroEntry(null, form({ date: hoy, detail: "Devolución venta mixta", type: "EGRESO", method: "EFECTIVO", amount: "9.000" })));
+  assert.ok(manualMixto?.ok, JSON.stringify(manualMixto));
+  const preguntaMixto = await como(a, a.duenia, () => anularVenta(null, form({ id: mixto, motivo: "devolución" })));
+  assert.ok(preguntaMixto && !preguntaMixto.ok && preguntaMixto.tipo === "sin-confirmar", `mixto: tiene que avisar. ${JSON.stringify(preguntaMixto)}`);
+  const anuladoMixto = await como(a, a.duenia, () => anularVenta(null, form({ id: mixto, motivo: "devolución", confirmar: "1" })));
+  assert.ok(anuladoMixto?.ok, JSON.stringify(anuladoMixto));
+  // Y al revés: otra devolución de $9.000 suma las dos contrapartidas (4.000 + 5.000) → avisa.
+  const otraMixto = await como(a, a.duenia, () => addLibroEntry(null, form({ date: hoy, detail: "Otra devolución mixta", type: "EGRESO", method: "EFECTIVO", amount: "9.000" })));
+  assert.ok(otraMixto && !otraMixto.ok && /se anuló una venta por el mismo monto/.test(otraMixto.error), JSON.stringify(otraMixto));
+  // Ya anulada: anularla otra vez no pregunta (responde «ya estaba anulada»).
+  const deNuevo = await como(a, a.duenia, () => anularVenta(null, form({ id: mixto, motivo: "devolución" })));
+  assert.ok(deNuevo?.ok, JSON.stringify(deNuevo));
+
   // ── 3. Sin nada parecido, no pregunta ─────────────────────────────────────
   const otra = await vender(7_200, "EFECTIVO", "ds:otra");
   const directa = await como(a, a.duenia, () => anularVenta(null, form({ id: otra, motivo: "se pesó mal" })));

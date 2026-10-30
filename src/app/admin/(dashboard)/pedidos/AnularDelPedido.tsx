@@ -108,6 +108,7 @@ export default function AnularDelPedido({
           onChange={(e) => {
             setMotivo(e.target.value);
             setError(null);
+            setPorConfirmar(false);
           }}
         />
       </Field>
