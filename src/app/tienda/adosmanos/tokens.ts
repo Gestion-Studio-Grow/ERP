@@ -23,16 +23,20 @@ export const MARCA_PROVISIONAL = true;
 export const DESCUENTO_TRANSFERENCIA: number | null = 0.28;
 export const MOSTRAR_PRECIO_TRANSFERENCIA = false;
 
-/** Las promesas del copy, una por una. [A VALIDAR dueño] — apagar = desaparecen de la página. */
+/**
+ * Las promesas del copy, una por una. [A VALIDAR dueño] — apagar = desaparecen de la página.
+ * Apagadas el 29/10 (certificación F4) las que el dueño nunca confirmó: descuento, cuotas y cambios. Se prenden
+ * cuando él las confirme por escrito.
+ */
 export const PROMESAS = {
   /** «28% off por transferencia» como texto (no el precio calculado). */
-  transferencia: true,
+  transferencia: false,
   /** «3 y 12 cuotas sin interés». */
-  cuotas: true,
+  cuotas: false,
   /** «Envíos a todo el país». */
   envios: true,
   /** «Cambios dentro de los 30 días». */
-  cambios: true,
+  cambios: false,
 } as const;
 
 /** El precio por transferencia, redondeado a $100, o null si no corresponde mostrarlo. */
