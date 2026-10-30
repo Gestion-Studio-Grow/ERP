@@ -20,7 +20,7 @@ import Link from "next/link";
 import type { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import { CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego-core";
-import { formatDayLabel, nextDayKey, CERRAR_DIA_SIN_PERMISO, ETIQUETA_DE_COLUMNA, type ColumnaDelCierre } from "@/lib/caja/cierre-diario";
+import { formatDayLabel, nextDayKey, CERRAR_DIA_SIN_PERMISO, ETIQUETA_DE_COLUMNA, TEXTO_NETO_NEGATIVO, type ColumnaDelCierre } from "@/lib/caja/cierre-diario";
 import { movementSign } from "@/lib/caja/cash-register";
 import { causasProbables, textoDeAperturaQueNoSuma } from "./revisar-cierre";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
@@ -42,6 +42,9 @@ const AYUDA: Record<ColumnaDelCierre, string> = {
   TRANSFERENCIA: "Lo que entró por transferencia al banco desde el último cierre (no el saldo).",
   TARJETA: "Opcional: el cierre del posnet; se liquida a los días.",
 };
+
+// Cert. M1 v9 O2: Transferencia es un neto y puede dar negativo.
+const AYUDA_NETO_NEGATIVO = `Da un ${TEXTO_NETO_NEGATIVO}. Escribí el neto del banco con un menos adelante (-400).`;
 
 const ORIGEN: Record<string, string> = { pos: "venta del mostrador", turno: "turno cobrado", manual: "cargado a mano" };
 
@@ -107,7 +110,10 @@ function Comprobante({ d, medios }: { d: Datos; medios: MedioDelComprobante[] | 
                 key={m.medio}
                 className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-0.5 border-b border-line py-2.5 sm:grid-cols-[minmax(0,1fr)_8rem_8rem_8rem]"
               >
-                <dt className="font-medium text-strong">{m.etiqueta}</dt>
+                <dt className="font-medium text-strong">
+                  {m.etiqueta}
+                  {m.neto && <span className="block text-[13px] font-normal text-muted">{m.neto}</span>}
+                </dt>
                 <dd className="text-right">
                   <span className="mr-1 text-[13px] text-muted sm:hidden">contó</span>
                   {m.declarado === null ? <span className="text-sm text-muted">sin conciliar</span> : <Plata valor={m.declarado} />}
@@ -283,7 +289,7 @@ export default async function CierreRenglon({ d, regla = null }: { d: Datos; reg
     return {
       medio: m,
       etiqueta: ETIQUETA_DE_COLUMNA[m],
-      ayuda: AYUDA[m],
+      ayuda: m === "TRANSFERENCIA" && x.expected < 0 ? AYUDA_NETO_NEGATIVO : AYUDA[m],
       esperado: x.expected,
       seMovio: x.opening !== 0 || x.ingresos !== 0 || x.egresos !== 0,
     };

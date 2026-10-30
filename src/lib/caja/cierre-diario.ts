@@ -20,6 +20,7 @@
 // (sobrante) / EGRESO (faltante) y el test verifica que su signo sale de esa tabla.
 
 import { round2 } from "@/lib/round";
+import { leerImporte, type LecturaImporte } from "@/lib/pos-peso";
 import { movementSign, type CashMethod } from "@/lib/caja/cash-register";
 import {
   CASH_METHODS,
@@ -210,6 +211,28 @@ export function esAjusteDeTransferencia(detail: string | null | undefined): bool
   const d = String(detail ?? "");
   return d.startsWith("Diferencia de caja ") && SUFIJOS_AJUSTE_TRANSFERENCIA.some((s) => d.endsWith(s));
 }
+
+/**
+ * Lo tipeado en una columna del cierre. Un importe no lleva signo (`leerImporte`), salvo en
+ * Transferencia: con F2 es lo que entró MENOS lo que salió en el período, y puede ser negativo si
+ * se pagó por transferencia más de lo que entró (cert. M1 v9 O2, decisión del orquestador 30/10).
+ * Ahí, un «-» (o «−») adelante lo vuelve negativo: «-400», «−400», «- $ 400». Un «-» solo no es un
+ * importe. PURA: la usan el servidor (`parseDeclared`) y las dos hojas.
+ */
+export function leerContado(raw: string | null | undefined, columna: ColumnaDelCierre): LecturaImporte {
+  if (columna === "TRANSFERENCIA") {
+    const signo = /^\s*[-−–]\s*([\s\S]*)$/.exec(String(raw ?? ""));
+    if (signo) {
+      const l = leerImporte(signo[1]);
+      if (l.estado !== "ok") return { estado: "invalida" };
+      return { estado: "ok", valor: l.valor === 0 ? 0 : -l.valor };
+    }
+  }
+  return leerImporte(raw);
+}
+
+/** ¿Este número de Transferencia es un neto negativo? Para decirlo en pantalla y en el comprobante. */
+export const TEXTO_NETO_NEGATIVO = "neto del período: salió más de lo que entró por transferencia";
 
 /** La columna de un movimiento: su medio del libro, salvo `MP` cobrado por transferencia. PURA. */
 export function columnaDelMovimiento(m: { method: CashMethod; medioDeOrigen?: string | null }): ColumnaDelCierre {
@@ -602,7 +625,8 @@ export function validateCierre(
   const separa = cierre.columnas.includes("TRANSFERENCIA");
   for (const c of cierre.columnas) {
     const d = cierre.porColumna[c].declared;
-    if (d !== null && d < 0) {
+    // Transferencia es un neto del período (F2): puede ser negativo (cert. M1 v9 O2).
+    if (d !== null && d < 0 && c !== "TRANSFERENCIA") {
       const nombre = separa ? ETIQUETA_DE_COLUMNA[c] : CASH_METHOD_LABEL[c];
       errors.push(`Lo declarado en ${nombre} no puede ser negativo.`);
     }

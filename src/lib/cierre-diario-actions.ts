@@ -50,6 +50,7 @@ import {
   columnasDelCierre,
   conteoDelTurnoParaElCierre,
   SUFIJOS_AJUSTE_TRANSFERENCIA,
+  leerContado,
   mensajeTurnoAbierto,
   pagadosDeMasDelPeriodo,
   puedeCerrarElDia,
@@ -73,7 +74,6 @@ import { cierreMarker, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marc
 import { resumenCierre } from "@/lib/caja/cierre-resumen";
 import { CASH_METHODS, libroOrigin, type LibroMovement } from "@/lib/caja/libro-caja";
 import { movementSign, type CashMethod, type CashMovementType } from "@/lib/caja/cash-register";
-import { leerImporte } from "@/lib/pos-peso";
 import { round2 } from "@/lib/round";
 import { tarjetaHabilitada } from "@/lib/caja-actions";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
@@ -649,7 +649,8 @@ function parseDeclared(formData: FormData, columnas: readonly ColumnaDelCierre[]
   for (const k of columnas) {
     // Plata como se escribe acá ("12.500" = doce mil quinientos), no `Number` con la coma
     // cambiada por punto, que leía "12.500" como 12,5.
-    const lectura = leerImporte(String(formData.get(`declarado_${k}`) ?? ""));
+    // Sólo Transferencia acepta un neto negativo (`leerContado`, cert. M1 v9 O2).
+    const lectura = leerContado(String(formData.get(`declarado_${k}`) ?? ""), k);
     if (lectura.estado === "vacio") continue; // vacío = no se concilia ese medio
     const n = lectura.estado === "ok" ? lectura.valor : NaN;
     // Un valor tipeado pero ilegible NO se trata como "no declarado": se manda NaN, que

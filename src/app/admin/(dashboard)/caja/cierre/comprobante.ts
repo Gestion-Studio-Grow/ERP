@@ -14,6 +14,7 @@
 
 import { CASH_METHODS } from "@/lib/caja/libro-caja";
 import { arqueoDeLaFila } from "@/lib/caja/cierre-resumen";
+import { TEXTO_NETO_NEGATIVO } from "@/lib/caja/cierre-diario";
 import type { CashMethod } from "@/lib/caja/cash-register";
 
 export type MedioDelComprobante = {
@@ -24,6 +25,8 @@ export type MedioDelComprobante = {
   /** null = ese medio no se concilió. */
   declarado: number | null;
   diferencia: number | null;
+  /** Transferencia con un neto negativo (cert. M1 v9 O2): qué quiere decir el signo. */
+  neto: string | null;
 };
 
 const esNumero = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -44,6 +47,7 @@ export function mediosDelComprobante(changes: unknown): MedioDelComprobante[] | 
       esperado,
       declarado: dec,
       diferencia: dec === null ? null : esNumero(diferencia) ? diferencia : Math.round((dec - esperado) * 100) / 100,
+      neto: medio === "TRANSFERENCIA" && (esperado < 0 || (dec ?? 0) < 0) ? `Es un ${TEXTO_NETO_NEGATIVO}.` : null,
     });
   }
   return out.length > 0 ? out : null;

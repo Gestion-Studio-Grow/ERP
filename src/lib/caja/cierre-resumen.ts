@@ -10,7 +10,7 @@
 // caso devuelve null para que la pantalla caiga al volcado de siempre.
 
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
-import { ETIQUETA_DE_COLUMNA } from "@/lib/caja/cierre-diario";
+import { ETIQUETA_DE_COLUMNA, TEXTO_NETO_NEGATIVO } from "@/lib/caja/cierre-diario";
 import type { CashMethod } from "@/lib/caja/cash-register";
 
 /**
@@ -71,7 +71,8 @@ export function resumenCierre(changes: unknown): { titulo: string; medios: strin
     if (!esNumero(esperado)) continue;
     const label = arqueo.etiquetas[k as CashMethod];
     if (!esNumero(declarado)) {
-      medios.push(`${label}: sin conciliar (el libro decía ${money(esperado)})`);
+      const netoSinContar = k === "TRANSFERENCIA" && esperado < 0 ? `, ${TEXTO_NETO_NEGATIVO}` : "";
+      medios.push(`${label}: sin conciliar (el libro decía ${money(esperado)}${netoSinContar})`);
       continue;
     }
     const d = esNumero(diferencia) ? diferencia : declarado - esperado;
@@ -81,7 +82,9 @@ export function resumenCierre(changes: unknown): { titulo: string; medios: strin
         : d > 0
           ? `sobran ${money(Math.abs(d))}`
           : `faltan ${money(Math.abs(d))}`;
-    medios.push(`${label}: contó ${money(declarado)} sobre ${money(esperado)} · ${cola}`);
+    // Transferencia es un neto del período (F2): si dio negativo, que se entienda por qué (O2).
+    const neto = k === "TRANSFERENCIA" && (esperado < 0 || declarado < 0) ? ` (${TEXTO_NETO_NEGATIVO})` : "";
+    medios.push(`${label}: contó ${money(declarado)} sobre ${money(esperado)} · ${cola}${neto}`);
   }
   if (medios.length === 0) return null;
 

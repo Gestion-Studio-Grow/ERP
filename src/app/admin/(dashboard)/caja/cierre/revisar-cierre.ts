@@ -21,7 +21,7 @@ import { leerImporte } from "@/lib/pos-peso";
 import { round2 } from "@/lib/round";
 import { fmtMoneyARS } from "@/components/ui/format";
 import type { CashMethod } from "@/lib/caja/cash-register";
-import type { ColumnaDelCierre, HechosDelCierre } from "@/lib/caja/cierre-diario";
+import { leerContado, TEXTO_NETO_NEGATIVO, type ColumnaDelCierre, type HechosDelCierre } from "@/lib/caja/cierre-diario";
 
 /**
  * Los medios del formulario de SIEMPRE (CierreForm): MP es «MP y transferencias». La hoja nueva
@@ -45,7 +45,7 @@ export function diferenciasDelCierre<K extends ColumnaDelCierre = CashMethod>(
 ): Record<K, number | null> {
   const out = {} as Record<K, number | null>;
   for (const m of medios) {
-    const l = leerImporte(declarado[m]);
+    const l = leerContado(declarado[m], m);
     out[m] = l.estado === "ok" ? round2(l.valor - esperado[m]) : null;
   }
   return out;
@@ -64,11 +64,14 @@ export function revisarCierre<K extends ColumnaDelCierre = CashMethod>(o: {
   // Lo tipeado que no es un importe se marca en SU campo: callarlo sería cerrar ese medio como
   // "no contado" sin que nadie se entere.
   for (const m of medios) {
-    if (leerImporte(o.declarado[m]).estado === "invalida") {
+    if (leerContado(o.declarado[m], m).estado === "invalida") {
       return {
         listo: false,
         campo: m,
-        error: `Lo de ${o.etiquetas[m]} no es un importe: escribí lo que contaste, con coma si tiene centavos (12.500,50).`,
+        error:
+          m === "TRANSFERENCIA"
+            ? `Lo de ${o.etiquetas[m]} no es un importe: escribí lo que entró, con coma si tiene centavos (12.500,50); si salió más de lo que entró, con un menos adelante (-400).`
+            : `Lo de ${o.etiquetas[m]} no es un importe: escribí lo que contaste, con coma si tiene centavos (12.500,50).`,
       };
     }
   }
@@ -87,9 +90,10 @@ export function revisarCierre<K extends ColumnaDelCierre = CashMethod>(o: {
   const renglones = medios.map((m) => {
     const d = dif[m];
     if (d === null) return `${o.etiquetas[m]}: sin contar, queda sin conciliar.`;
-    const contado = leerImporte(o.declarado[m]);
+    const contado = leerContado(o.declarado[m], m);
     const valor = contado.estado === "ok" ? contado.valor : 0;
-    const base = `${o.etiquetas[m]}: contaste ${fmtMoneyARS(valor)}, el libro dice ${fmtMoneyARS(o.esperado[m])}`;
+    const neto = m === "TRANSFERENCIA" && (valor < 0 || o.esperado[m] < 0) ? ` (${TEXTO_NETO_NEGATIVO})` : "";
+    const base = `${o.etiquetas[m]}: contaste ${fmtMoneyARS(valor)}, el libro dice ${fmtMoneyARS(o.esperado[m])}${neto}`;
     if (d === 0) return `${base}. Cuadra.`;
     return `${base}. ${d > 0 ? "Sobran" : "Faltan"} ${fmtMoneyARS(Math.abs(d))}: se asienta como ajuste.`;
   });

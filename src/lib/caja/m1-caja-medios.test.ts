@@ -419,3 +419,60 @@ test("cierre de siempre (sin columnas): TRANSFERENCIA aparece sólo si el libro 
   assert.equal(conPlata.ajustes[0].method, "TRANSFERENCIA");
   assert.equal(conPlata.total.expected, 1_000, "el total del libro la cuenta");
 });
+
+// Cert. M1 v9 O2 (decisión del orquestador 30/10): Transferencia es un neto del período y puede dar
+// negativo. Sólo esa columna acepta el signo; el resto sigue sin aceptarlo.
+test("O2 · leerContado: el «-» sólo vale en Transferencia", async () => {
+  const { leerContado } = await import("@/lib/caja/cierre-diario");
+  assert.deepEqual(leerContado("-400", "TRANSFERENCIA"), { estado: "ok", valor: -400 });
+  assert.deepEqual(leerContado("− $ 1.250,50", "TRANSFERENCIA"), { estado: "ok", valor: -1250.5 });
+  assert.deepEqual(leerContado("-0", "TRANSFERENCIA"), { estado: "ok", valor: 0 });
+  assert.deepEqual(leerContado("-", "TRANSFERENCIA"), { estado: "invalida" });
+  assert.deepEqual(leerContado("400", "TRANSFERENCIA"), { estado: "ok", valor: 400 });
+  assert.deepEqual(leerContado("", "TRANSFERENCIA"), { estado: "vacio" });
+  for (const m of ["EFECTIVO", "MP", "TARJETA"] as const) assert.deepEqual(leerContado("-400", m), { estado: "invalida" }, m);
+});
+
+test("O2 · neto negativo en Transferencia: se declara, cuadra y no asienta nada; con 0 sería un sobrante", async () => {
+  const { validateCierre } = await import("@/lib/caja/cierre-diario");
+  const previous = [mov({ method: "TRANSFERENCIA", amount: 3_000, occurredAt: en("2026-10-19") })];
+  // Entró 1.000 y salió 1.400 por transferencia: el neto del período es −400.
+  const movements = [mov({ method: "TRANSFERENCIA", amount: 1_000 }), mov({ method: "TRANSFERENCIA", amount: 1_400, type: "EGRESO" })];
+  const columnas = columnasDelCierre({ tarjetaHabilitada: false, tarjetaSeMovio: false });
+  const cierre = (t: number) => buildCierreDiario({ day: "2026-10-20", previous, movements, columnas, transferenciaEnElLibro: true, declared: { EFECTIVO: 0, MP: 0, TRANSFERENCIA: t, TARJETA: null } });
+  const bien = cierre(-400);
+  assert.equal(bien.porColumna.TRANSFERENCIA.expected, -400);
+  assert.deepEqual(bien.ajustes, []);
+  assert.equal(bien.estado, "CUADRA");
+  assert.deepEqual(validateCierre(bien, { note: null, today: "2026-10-20", lastClosedDay: null }), { ok: true });
+  assert.deepEqual(openingFromHistory([...previous, ...movements]), openingAfterCierre(bien), "el arrastre del libro no cambia");
+  const conCero = cierre(0);
+  assert.deepEqual(conCero.ajustes.map((a) => [a.type, a.method, a.amount]), [["INGRESO", "TRANSFERENCIA", 400]], "por eso hace falta poder tipear el negativo");
+  // El negativo sigue prohibido en las otras columnas.
+  const mpNegativo = buildCierreDiario({ day: "2026-10-20", previous, movements, columnas, transferenciaEnElLibro: true, declared: { EFECTIVO: 0, MP: -1, TRANSFERENCIA: -400, TARJETA: null } });
+  const v = validateCierre(mpNegativo, { note: "x", today: "2026-10-20", lastClosedDay: null });
+  assert.ok(!v.ok && v.errors.some((e) => /Mercado Pago no puede ser negativo/.test(e)));
+  assert.ok(!v.ok && !v.errors.some((e) => /Transferencia no puede ser negativo/.test(e)));
+});
+
+test("O2 · revisarCierre: el renglón de Transferencia dice que es un neto", async () => {
+  const { revisarCierre } = await import("@/app/admin/(dashboard)/caja/cierre/revisar-cierre");
+  const r = revisarCierre({
+    declarado: { EFECTIVO: "0", MP: "", TRANSFERENCIA: "-400" },
+    esperado: { EFECTIVO: 0, MP: 0, TRANSFERENCIA: -400 },
+    nota: "",
+    etiquetas: { EFECTIVO: "Efectivo", MP: "Mercado Pago", TRANSFERENCIA: "Transferencia" },
+    medios: ["EFECTIVO", "MP", "TRANSFERENCIA"],
+  });
+  assert.ok(r.listo);
+  assert.match(r.listo ? r.renglones[2] : "", /Cuadra/);
+  assert.match(r.listo ? r.renglones[2] : "", /salió más de lo que entró/);
+  const mal = revisarCierre({
+    declarado: { EFECTIVO: "0", MP: "-5", TRANSFERENCIA: "" },
+    esperado: { EFECTIVO: 0, MP: 0, TRANSFERENCIA: 0 },
+    nota: "",
+    etiquetas: { EFECTIVO: "Efectivo", MP: "Mercado Pago", TRANSFERENCIA: "Transferencia" },
+    medios: ["EFECTIVO", "MP", "TRANSFERENCIA"],
+  });
+  assert.ok(!mal.listo && mal.campo === "MP", "MP no acepta signo");
+});

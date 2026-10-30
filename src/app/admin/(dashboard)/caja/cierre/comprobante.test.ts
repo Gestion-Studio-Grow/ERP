@@ -21,8 +21,8 @@ test("lee los tres medios en el orden de la caja, con lo no conciliado en null",
     m.map((x) => x.medio),
     ["EFECTIVO", "MP", "TARJETA"],
   );
-  assert.deepEqual(m[0], { medio: "EFECTIVO", etiqueta: "Efectivo", esperado: 202828.65, declarado: 196578.25, diferencia: -6250.4 });
-  assert.deepEqual(m[2], { medio: "TARJETA", etiqueta: "Tarjeta", esperado: 0, declarado: null, diferencia: null });
+  assert.deepEqual(m[0], { medio: "EFECTIVO", etiqueta: "Efectivo", esperado: 202828.65, declarado: 196578.25, diferencia: -6250.4, neto: null });
+  assert.deepEqual(m[2], { medio: "TARJETA", etiqueta: "Tarjeta", esperado: 0, declarado: null, diferencia: null, neto: null });
 });
 
 test("la diferencia del día suma sólo lo conciliado", () => {
@@ -59,4 +59,14 @@ test("con porColumna, el comprobante es la hoja que se contó, con sus etiquetas
     m.map((x) => [x.etiqueta, x.declarado, x.esperado]),
     [["Efectivo", 15900, 15900], ["Mercado Pago", 29400, 29400], ["Transferencia", 18900, 18900]],
   );
+});
+
+// Cert. M1 v9 O2: Transferencia es un neto; si dio negativo, el comprobante dice por qué.
+test("Transferencia con neto negativo: el comprobante lo aclara", () => {
+  const m = mediosDelComprobante({
+    hoja: "nueva",
+    porColumna: { EFECTIVO: { esperado: 0, declarado: 0, diferencia: 0 }, TRANSFERENCIA: { esperado: -400, declarado: -400, diferencia: 0 } },
+  })!;
+  assert.equal(m[0].neto, null);
+  assert.match(String(m[1].neto), /salió más de lo que entró/);
 });

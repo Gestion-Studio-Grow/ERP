@@ -27,7 +27,7 @@ import { useActionState, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cerrarDia, type CierreActionState } from "@/lib/cierre-diario-actions";
 import { reabrirDiaAction, type EstadoAccionCierre } from "@/lib/cierre-mes/acciones";
-import type { ColumnaDelCierre } from "@/lib/caja/cierre-diario";
+import { leerContado, type ColumnaDelCierre } from "@/lib/caja/cierre-diario";
 import { leerImporte } from "@/lib/pos-peso";
 import { DeslizarParaConfirmar } from "@/components/ui/Deslizar";
 import { Button, Field, Plata, Rotulo } from "@/components/ui";
@@ -237,13 +237,14 @@ export default function ContarYCerrar({
                   data-ui="input"
                   data-importe
                   type="text"
-                  inputMode="decimal"
+                  // Con un neto negativo de Transferencia hace falta el «-», que el teclado decimal no trae.
+                  inputMode={m.medio === "TRANSFERENCIA" && m.esperado < 0 ? "text" : "decimal"}
                   autoComplete="off"
                   enterKeyHint="done"
                   // Vacío de verdad: ni el esperado (le soplaría la respuesta a quien cuenta) ni un «0»
                   // gris que parece un campo ya cargado.
                   value={declarado[m.medio]}
-                  aria-invalid={error !== null || (declarado[m.medio].trim() !== "" && leerImporte(declarado[m.medio]).estado === "invalida")}
+                  aria-invalid={error !== null || (declarado[m.medio].trim() !== "" && leerContado(declarado[m.medio], m.medio).estado === "invalida")}
                   aria-describedby={error ? `${idCampo}-error` : undefined}
                   onChange={(e) => cambio(m.medio, e.target.value)}
                   style={{ paddingInlineStart: "1.75rem" }}
