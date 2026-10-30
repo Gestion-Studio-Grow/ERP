@@ -3,8 +3,12 @@ import { Geist, Geist_Mono, Playfair_Display, Fraunces, Hanken_Grotesk, Bebas_Ne
 import { getTenantBrand, resolveAccent, tenantFaviconDataUri } from "@/lib/branding";
 import { gsgIdentityEnabled, identityAttr, tenantBrandSheetEnabled } from "@/lib/identity";
 import { getBrandSheet } from "@/lib/brand-sheet";
-import { estadoDeLaDireccion } from "@/lib/tenant";
 import { faviconGsg, NOMBRE_GSG, pestanaDelPedido } from "@/lib/pestana";
+import { canonicalDe, pedidoPublico } from "@/lib/seo/base";
+import { ogDelNegocio } from "@/lib/seo/og";
+import { esRutaPrivada } from "@/lib/seo/sitio";
+import { resolveTenantBrandId } from "@/tenants/storefront";
+import { estadoDeLaDireccion, slugResueltoDelPedido } from "@/lib/tenant";
 import "./globals.css";
 
 // RENDER DINÁMICO APP-WIDE (fix build P1001, 2026-07-10). La app es 100% multi-tenant y
@@ -145,10 +149,33 @@ export async function generateMetadata(): Promise<Metadata> {
       robots: { index: false, follow: false },
     };
   }
+  // SEO de base (ronda 2, P0): dirección pública, canonical y tarjeta para compartir de cada negocio, por host. Las
+  // páginas con metadata propia pisan título y descripción; el canonical sale de la ruta real del pedido (`x-pathname`,
+  // lo pone el proxy) y vale para todas. Sin query: `?p=…` y los filtros no son páginas distintas.
+  const { origen, ruta } = await pedidoPublico();
+  const slug = await slugResueltoDelPedido().catch(() => null);
+  const og = ogDelNegocio(slug, resolveTenantBrandId(slug));
   return {
     title: pestana.titulo,
     description: "Gestión del negocio y reservas online.",
     icons: { icon: tenantFaviconDataUri(pestana.glifo, accent) },
+    ...(origen
+      ? {
+          metadataBase: new URL(origen),
+          alternates: { canonical: canonicalDe(origen, ruta) },
+          openGraph: {
+            type: "website",
+            locale: "es_AR",
+            siteName: pestana.titulo,
+            url: canonicalDe(origen, ruta),
+            ...(og ? { images: [{ url: og.src, width: og.width, height: og.height, alt: og.alt, type: "image/webp" }] } : {}),
+          },
+          twitter: { card: og ? "summary_large_image" : "summary" },
+        }
+      : {}),
+    // Paneles, turnos y pedidos de una persona no se indexan aunque la página no lo diga (mismo listado que el robots).
+    robots: esRutaPrivada(ruta) ? { index: false, follow: false } : { index: true, follow: true },
+    generator: "GSG",
   };
 }
 
