@@ -614,8 +614,12 @@
 /* — Magra: su front es negro carbón con hueso y oro, Bebas Neue + Open Sans, sin claro (MagraFront.tsx:733-750,
    ADR-072 §8). El panel es carbón en los dos temas; el oro va de relleno con texto carbón (AA), nunca de texto
    chico sobre claro. — */
-[data-skin="fable"][data-estetica="magra"],
-[data-skin="fable"][data-theme="dark"][data-estetica="magra"] {
+/* UAT caja M1 (30/10): con «Diseño nuevo» (`data-diseno="renglon"` en la MISMA raíz) la piel Renglón pinta el papel
+   claro, pero esta paleta carbón le ganaba los tokens de texto: hueso #f2e6d7 sobre papel (≈1,2:1) en los medios de la
+   hoja de cierre, «Cuadra» y «Faltan» casi invisibles. Con el diseño nuevo manda la paleta de Renglón (claro y oscuro,
+   AA medido en src/design/tokens.test.ts). `:where()` no suma especificidad: el orden de la cascada no cambia. */
+[data-skin="fable"][data-estetica="magra"]:where(:not([data-diseno="renglon"])),
+[data-skin="fable"][data-theme="dark"][data-estetica="magra"]:where(:not([data-diseno="renglon"])) {
   --surface-sunken: #0e0e0c; --surface: #1d1d1b; --surface-raised: #000000; --surface-inverted: #f2e6d7;
   --text-strong: #f2e6d7; --text: #ccd6df; --text-muted: #9ba2aa; --text-faint: #9ba2aa;
   --line: rgba(242, 230, 215, 0.12); --line-strong: rgba(242, 230, 215, 0.22);
@@ -1385,8 +1389,8 @@ summary:focus-visible {
 /* — Capas del panel por negocio. Regla: lo que está más cerca de la mano es más claro (tarjeta > fondo). — */
 /* Magra: antes las tarjetas eran negro puro SOBRE un gris carbón (elevación invertida: parecían huecos). Ahora el
    fondo es el más profundo y la tarjeta sube un escalón; el oro y el hueso no cambian. */
-[data-skin="fable"][data-estetica="magra"],
-[data-skin="fable"][data-theme="dark"][data-estetica="magra"] {
+[data-skin="fable"][data-estetica="magra"]:where(:not([data-diseno="renglon"])),
+[data-skin="fable"][data-theme="dark"][data-estetica="magra"]:where(:not([data-diseno="renglon"])) {
   --surface-sunken: #0f0f0d; --surface: #151513; --surface-raised: #1e1d1a;
   --bo-elev-1: inset 0 1px 0 rgba(242, 230, 215, 0.05), 0 12px 28px -18px rgba(0, 0, 0, 0.8);
 }
