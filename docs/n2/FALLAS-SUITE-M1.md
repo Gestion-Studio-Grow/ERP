@@ -83,3 +83,9 @@ como intermitentes.
   `@/lib/dinero/redondeo`, que no redondea igual que `Math.round(n * 100) / 100`: 1,005 → 1,01 y
   −2,675 → −2,68, lejos del cero (`src/lib/dinero/redondeo.ts:58-80`). Es un cambio de plata
   repartido en 13 módulos fuera de caja: va en su propia rama y con el certificador completo.
+
+### Agregado con F2 (29/10, contra PGlite) — previa, no de F2
+- `src/lib/caja/m1-cert-reabrir-vs-congelar-postgres.test.ts` — corta con `DireccionSinNegocioError`
+  («no hay tenant para el subdominio "negocio-a"») antes de llegar al cierre. Falla igual con el
+  código anterior a F2 (`ba71f668`): no la causa F2. `[A VALIDAR]`: no pude establecer la causa (la
+  resolución del negocio de prueba falla sólo en este test); correrla en CI antes de clasificarla.

@@ -301,6 +301,12 @@ export type CierreDiario = {
   columnas: ColumnaDelCierre[];
   /** Por columna de la hoja. Una columna que no está en `columnas` queda en cero y sin declarar. */
   porColumna: Record<ColumnaDelCierre, CierreMedio>;
+  /**
+   * DEL LIBRO, no de la hoja: `opening`/`ingresos`/`egresos`/`expected` suman `porMedio`. Con la
+   * hoja nueva (F2) las columnas ya no suman el libro —Transferencia abre en 0 y MP sin lo guardado
+   * de transferencia—, así que `declared − expected` ≠ `diff`; `declared` y `diff` suman lo contado
+   * (cert. M1 v8 H2). Para la hoja, sumar `porColumna`.
+   */
   total: CierreTotal;
   movementCount: number;
   cobrosCarteraCount: number;
@@ -319,6 +325,20 @@ function declaredOf(v: number | null | undefined): number | null {
 function ajusteDetail(day: DayKey, etiqueta: string, diff: number): string {
   const que = diff > 0 ? "sobrante" : "faltante";
   return `Diferencia de caja ${formatDayLabel(day)}: ${que} en ${etiqueta}`;
+}
+
+/** F2: la Transferencia como lo que entró en el período, no como saldo: abre en 0. PURA. */
+export function comoIngresoDelPeriodo(m: CierreMedio): CierreMedio {
+  return { ...m, opening: 0, expected: round2(m.ingresos - m.egresos) };
+}
+
+/**
+ * Lo que la hoja de SIEMPRE muestra y cuenta por medio: el del libro, con Transferencia como lo que
+ * entró en el período (F2). Es la misma regla que aplica `buildCierreDiario` sin `columnas`, que es
+ * lo que asienta `cerrarDia` desde esa hoja (cert. M1 v8 H1). PURA.
+ */
+export function medioDeLaClasica(porMedio: Record<CashMethod, CierreMedio>, m: CashMethod): CierreMedio {
+  return m === "TRANSFERENCIA" ? comoIngresoDelPeriodo(porMedio[m]) : porMedio[m];
 }
 
 function medioVacio(): CierreMedio {
@@ -429,10 +449,7 @@ export function buildCierreDiario(input: {
     };
   }
   // F2: Transferencia es lo que entró en el período, no un saldo. Abre en 0 en las dos hojas.
-  if (separaTransferencia) {
-    const t = porColumna.TRANSFERENCIA;
-    porColumna.TRANSFERENCIA = { ...t, opening: 0, expected: round2(t.ingresos - t.egresos) };
-  }
+  if (separaTransferencia) porColumna.TRANSFERENCIA = comoIngresoDelPeriodo(porColumna.TRANSFERENCIA);
 
   const ajustes: AjusteCierre[] = [];
   const declaredTotal = zeroAmounts();

@@ -374,6 +374,24 @@ test("F2 · cierre de siempre con el paquete: Transferencia también es lo del p
   assert.deepEqual(c.ajustes, []);
 });
 
+// Cert. M1 v8 H1: la hoja de siempre (page.tsx) muestra `medioDeLaClasica(preview.porMedio, m)`;
+// `cerrarDia` sin columnas compara contra `porColumna`. Tienen que ser el mismo número en cada medio.
+test("F2 · la hoja de siempre muestra lo mismo que cuenta cerrarDia, medio por medio", async () => {
+  const { medioDeLaClasica } = await import("@/lib/caja/cierre-diario");
+  const previous = [mov({ method: "TRANSFERENCIA", amount: 5_000, occurredAt: en("2026-10-19") }), mov({ method: "MP", amount: 3_000, occurredAt: en("2026-10-19") })];
+  const movements = [mov({ method: "TRANSFERENCIA", amount: 5_000 }), mov({ method: "TRANSFERENCIA", amount: 800, type: "EGRESO" }), mov({ method: "EFECTIVO", amount: 1_200 })];
+  const nada = { EFECTIVO: null, MP: null, TRANSFERENCIA: null, TARJETA: null };
+  // Lo que ve la persona: el preview de la pantalla (con las columnas de la hoja nueva, como hoy).
+  const preview = buildCierreDiario({ day: "2026-10-20", previous, movements, transferenciaEnElLibro: true, columnas: columnasDelCierre({ tarjetaHabilitada: true, tarjetaSeMovio: false }), declared: nada });
+  // Lo que cuenta `cerrarDia` desde la hoja de siempre (sin columnas).
+  const cuenta = buildCierreDiario({ day: "2026-10-20", previous, movements, transferenciaEnElLibro: true, declared: nada });
+  for (const m of cuenta.columnas) {
+    assert.equal(medioDeLaClasica(preview.porMedio, m).expected, cuenta.porColumna[m].expected, `esperado de ${m}`);
+    assert.equal(medioDeLaClasica(preview.porMedio, m).opening, cuenta.porColumna[m].opening, `saldo al abrir de ${m}`);
+  }
+  assert.equal(medioDeLaClasica(preview.porMedio, "TRANSFERENCIA").expected, 4_200, "lo que entró en el período, sin los 5.000 de antes");
+});
+
 test("F2 · esAjusteDeTransferencia: sólo el detalle del ajuste de la columna Transferencia", async () => {
   const { esAjusteDeTransferencia } = await import("@/lib/caja/cierre-diario");
   assert.ok(esAjusteDeTransferencia("Diferencia de caja 20/10/2026: faltante en Transferencia"));
