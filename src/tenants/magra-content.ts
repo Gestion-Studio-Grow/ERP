@@ -12,9 +12,11 @@
 // valor, envasados, gourmet, reseñas, about, contacto) están TEXTUALES: no se reescriben,
 // no se "mejoran", no se parafrasean. Fuente literal: _ch-estetica-base/magra-copia-autorizada.md.
 //
-// 🎨 IMÁGENES: generadas por IA (Pollinations, gratis — ver scripts/gen-magra-imgs.sh) y
-// servidas locales desde /tenants/magra/gen/. NO se usan las fotos con derechos del sitio
-// real. Cada corte del catálogo real (seed-magra) se mapea a su imagen por nombre.
+// 🎨 IMÁGENES (29/10/2026, fronts/magra/DISENO.md §7): la vidriera usa SÓLO fotos reales —los
+// packs de Estancia Don Ramón, la línea gourmet y los logos de proveedores, del sitio de MAGRA
+// (autorizado, ver magra-replica.ts)— y, donde no hay foto, el despiece de marca. Las de
+// /tenants/magra/gen/ (IA) quedan en los campos `img` de abajo sólo por compatibilidad: el front
+// no las muestra.
 //
 // El diseño que consume este contenido (src/app/tienda/MagraFront.tsx) baja la referencia
 // aprobada del ADR-072 §8 (paleta carbón+hueso+oro · Bebas Neue + Open Sans · lenguaje
@@ -160,7 +162,8 @@ export function whatsappLabel(digits: string): string | null {
 /** Instagram: acepta handle ("@tiendamagra"), handle pelado o URL completa. */
 function resolveInstagram(raw: string | null): { handle: string; url: string } | null {
   const v = (raw ?? "").trim();
-  if (!v) return null;
+  // El relleno del alta («@instagram-a-confirmar», rubros.ts) no es una cuenta: no se publica.
+  if (!v || /a[-_ ]?confirmar/i.test(v)) return null;
   if (/^https?:\/\//i.test(v)) {
     const handle = v.replace(/\/+$/, "").split("/").pop() || v;
     return { handle: `@${handle.replace(/^@/, "")}`, url: v };
@@ -186,8 +189,22 @@ function localidadDe(addressLine: string | null | undefined, city: string | null
   return c || null;
 }
 
+/**
+ * ¿Estos dígitos son un WhatsApp de verdad? No lo son si tienen menos de 10 dígitos (un número
+ * argentino sin código de país ya tiene 10) o si los 8 finales son todos iguales: el
+ * «+54 9 11 0000 0000» que quedó cargado de relleno en el panel. Un número así NO se muestra ni
+ * se ofrece como canal: la vidriera no puede mandar a nadie a un chat que no existe.
+ */
+export function esWhatsAppValido(digits: string | null | undefined): boolean {
+  const d = digitsOnly(digits);
+  if (d.length < 10) return false;
+  return !/^(\d)\1{7}$/.test(d.slice(-8));
+}
+
 export function resolveMagraLocal(row: MagraBrandingRow | null | undefined): MagraLocal {
-  const wa = digitsOnly(row?.whatsapp);
+  const crudo = digitsOnly(row?.whatsapp);
+  // Relleno o incompleto = no cargado: sin botón, sin línea en el pie y sin la vía «whatsapp».
+  const wa = esWhatsAppValido(crudo) ? crudo : "";
   const ig = resolveInstagram(row?.instagram ?? null);
   return {
     addressLine: text(row?.addressLine),
@@ -304,8 +321,54 @@ export const MAGRA: MagraContent = {
   copyright: "© 2025 MAGRA Meat Market. Todos los derechos reservados.",
 };
 
-// Mapa nombre-de-corte → imagen generada (por nombre normalizado del catálogo real).
-// Sin match → null (la card cae a un panel de marca con degradé cálido, nunca rota).
+// ── Fotos de producto: SÓLO las reales ─────────────────────────────────────────
+//
+// Las fotos de `gen/` (IA) ya no van en el hero ni en la carta: no son el producto real y se
+// notan (fronts/magra/DISENO.md §7). La única foto real de producto es la de los packs de
+// Estancia Don Ramón del sitio de MAGRA (`hero-carnes.png`, autorizada: magra-replica.ts). De esa
+// foto salen el hero y el pack de los 5 cortes que aparecen en ella.
+//
+// ⚠️ Provisional a confirmar con el dueño: el recorte de su foto como foto de producto por corte es
+// uso derivado de lo autorizado (replicar su sitio). Si no lo autoriza, `PACKS_REALES = false` y la
+// carta sale entera con el despiece de marca.
+const PACKS_REALES = true;
+const MAGRA_DIR = "/tenants/magra";
+
+/** Un pack recortado de la foto real: WebP 480×600 (4:5) sobre negro. */
+export interface MagraPack {
+  src: string;
+  width: number;
+  height: number;
+  /** Lo que dice la etiqueta del pack en la foto. */
+  rotulo: string;
+}
+
+// Orden importa: «Medio Lomo» antes que «Lomo».
+const PACK_DE_CORTE: { match: RegExp; pack: string; rotulo: string }[] = [
+  { match: /rack de ojo|ojo de bife/i, pack: "ojo-de-bife", rotulo: "Ojo de bife" },
+  { match: /asado del medio/i, pack: "asado-del-medio", rotulo: "Asado del medio" },
+  { match: /medio lomo/i, pack: "medio-lomo", rotulo: "Medio lomo" },
+  { match: /^lomo\b|lomo sin cord[oó]n/i, pack: "lomo", rotulo: "Lomo" },
+  { match: /tapa de nalga|milanesas? de nalga/i, pack: "milanesa-de-nalga", rotulo: "Milanesa de nalga" },
+];
+
+export function packDeCorte(name: string): MagraPack | null {
+  if (!PACKS_REALES) return null;
+  const m = PACK_DE_CORTE.find((c) => c.match.test(name));
+  return m ? { src: `${MAGRA_DIR}/packs/pack-${m.pack}.webp`, width: 480, height: 600, rotulo: m.rotulo } : null;
+}
+
+/** La foto real de los packs (1100×874), en WebP a dos anchos. */
+export const MAGRA_HERO = {
+  src: `${MAGRA_DIR}/hero-carnes.webp`,
+  srcSet: `${MAGRA_DIR}/hero-carnes-720.webp 720w, ${MAGRA_DIR}/hero-carnes.webp 1100w`,
+  width: 1100,
+  height: 874,
+} as const;
+
+// ── Lo que sigue usando la vidriera nueva (TiendaNueva, interruptor «Diseño nuevo») ──────────
+// Esa vidriera es compartida y no es de este front: mantiene sus imágenes generadas (gen/) hasta
+// que la ajusten (pedido anotado en el informe de fronts/magra). El front editorial no las usa.
 const CUT_IMG: { match: RegExp; img: string }[] = [
   { match: /ojo de bife/i, img: `${GEN}/ojo-de-bife.jpg` },
   { match: /asado de tira/i, img: `${GEN}/asado-de-tira.jpg` },
@@ -317,11 +380,130 @@ const CUT_IMG: { match: RegExp; img: string }[] = [
   { match: /pollo/i, img: `${GEN}/pollo.jpg` },
 ];
 
+/** Imagen GENERADA por corte, sólo para la vidriera nueva (TiendaNueva). */
 export function cutImage(name: string): string | null {
   return CUT_IMG.find((c) => c.match.test(name))?.img ?? null;
 }
 
+/** Hero GENERADO, sólo para la vidriera nueva (TiendaNueva). */
 export const MAGRA_HERO_IMG = `${GEN}/hero.jpg`;
+
+/** Las fotos reales de la línea gourmet (mismo orden que `MAGRA.gourmet`), WebP 560×560. */
+export const MAGRA_GOURMET_FOTOS: Record<string, string> = {
+  "Ensaladas y vegetales envasados": `${MAGRA_DIR}/gourmet-ensaladas.webp`,
+  "Pescado congelado envasado": `${MAGRA_DIR}/gourmet-pescado.webp`,
+  "Pasta italiana": `${MAGRA_DIR}/gourmet-pasta.webp`,
+  "Conservas importadas": `${MAGRA_DIR}/gourmet-conservas-560.webp`,
+};
+
+/** Logo real de cada proveedor (170×131, crema sobre transparente), por el nombre del copy. */
+export const MAGRA_LOGO_PROVEEDOR: Record<string, string> = {
+  Tinos: `${MAGRA_DIR}/prov-tinos.webp`,
+  Breaders: `${MAGRA_DIR}/prov-breaders.webp`,
+  "Estancia Don Ramón": `${MAGRA_DIR}/prov-don-ramon.webp`,
+  Maderasa: `${MAGRA_DIR}/prov-maderasa.webp`,
+  Paladini: `${MAGRA_DIR}/prov-paladini.webp`,
+  Formagge: `${MAGRA_DIR}/prov-formagge.webp`,
+  Lamberti: `${MAGRA_DIR}/prov-lamberti.webp`,
+  Pizzazen: `${MAGRA_DIR}/prov-pizzazen.webp`,
+};
+
+// ── El nombre del catálogo: proveedor y detalle salen del paréntesis ─────────────
+//
+// «Tapa de Nalga (Estancia Don Ramón)» → nombre «Tapa de Nalga», proveedor «Estancia Don Ramón».
+// «Hamburguesas Gourmet Premium (Breaders, x4)» → proveedor «Breaders», detalle «x4».
+// «Nuggets de Pollo Rebozados (540g)» → sin proveedor, detalle «540g». El nombre completo no cambia
+// en ningún lado (bolsa, pedido, etiquetas accesibles): esto es sólo cómo se dibuja la etiqueta.
+// Los del copy, más Coeco (el pollo del catálogo real, que no está en la franja de proveedores).
+const PROVEEDORES_CONOCIDOS = ["Coeco", ...MAGRA.providers];
+
+export function partesDelNombre(name: string): { nombre: string; proveedor: string | null; detalle: string | null } {
+  const m = /^(.*?)\s*\(([^)]*)\)\s*$/.exec(name.trim());
+  if (!m) return { nombre: name.trim(), proveedor: null, detalle: null };
+  const partes = m[2].split(",").map((x) => x.trim()).filter(Boolean);
+  const primero = partes[0] ?? "";
+  const prov = PROVEEDORES_CONOCIDOS.find((p) => p.toLowerCase() === primero.toLowerCase()) ?? null;
+  const resto = prov ? partes.slice(1) : partes;
+  return { nombre: m[1].trim() || name.trim(), proveedor: prov, detalle: resto.length ? resto.join(", ") : null };
+}
+
+// ── De dónde sale cada corte (el despiece de marca) ──────────────────────────────
+//
+// Regla determinista por nombre, explicable. El ANIMAL lo decide `seccionMagra` (marcas.ts, la misma
+// que usa la vidriera nueva); acá, la REGIÓN dentro del animal. Sin match → sin región: el corte se
+// vende igual y aparece en «Ver todos». Los marcados `[A VALIDAR]` los confirma el dueño
+// (fronts/magra/DISENO.md §13.6).
+
+export type MagraAnimal = "vaca" | "cerdo" | "pollo";
+
+export const REGION_DE_CORTE: Record<MagraAnimal, { match: RegExp; region: string }[]> = {
+  vaca: [
+    // «De varias partes»: no salen de un solo lugar del animal. Tomahawk, Rondelle y Churrasquito
+    // Escondido `[A VALIDAR]` (el tomahawk sale del costillar alto).
+    { match: /picada|hamburguesa|rondelle|churrasquito escondido|tomahawk/i, region: "varias" },
+    { match: /cogote/i, region: "cogote" },
+    { match: /rack de ojo|ojo de bife|bife ancho|aguja/i, region: "aguja" },
+    { match: /bife de chorizo|t-?bone|lomo|bife angosto/i, region: "lomo" },
+    { match: /asado|banderita|bife argentino|costilla/i, region: "costillar" },
+    { match: /cuadril|picanha/i, region: "cuadril" },
+    { match: /nalga|cuadrada|bola de lomo/i, region: "nalga" },
+    { match: /vac[ií]o/i, region: "vacio" },
+    { match: /matambre/i, region: "matambre" },
+    { match: /entra[nñ]a/i, region: "entrana" },
+    { match: /pecho|falda|osobuco/i, region: "pecho" },
+  ],
+  cerdo: [
+    // Churrasquito de Cerdo `[A VALIDAR]`.
+    { match: /pierna|jam[oó]n|churrasquito|lomito ahumado/i, region: "pierna" },
+    { match: /bondiola|cogote/i, region: "bondiola" },
+    { match: /carr[eé]|solomillo|lomito|lomo/i, region: "carre" },
+    { match: /ribs|costilla|pechito/i, region: "costillar" },
+    { match: /matambrito|panceta|panza/i, region: "panza" },
+  ],
+  pollo: [
+    { match: /nugget|rebozad|hamburguesa|milanesa/i, region: "elaborados" },
+    { match: /pechuga|suprema/i, region: "pechuga" },
+    { match: /pata|muslo/i, region: "pata" },
+  ],
+};
+
+export function regionDeCorte(animal: MagraAnimal, name: string): string | null {
+  return REGION_DE_CORTE[animal].find((r) => r.match.test(name))?.region ?? null;
+}
+
+// ── Cómo se cocina (los chips «¿Cómo lo cocinás?») ─────────────────────────────
+//
+// Cada regla suma sus métodos; un corte puede ir a más de uno. Sin ninguna, el corte no se filtra
+// fuera: se ve en «Ver todos». Reglas de la casa, provisional a confirmar con el dueño.
+
+export const COCCIONES = ["parrilla", "horno", "plancha", "olla", "milanesas"] as const;
+export type MagraCoccion = (typeof COCCIONES)[number];
+
+export const COCCION_DE_CORTE: { match: RegExp; metodos: MagraCoccion[] }[] = [
+  { match: /rack de ojo|ojo de bife|bife|t-?bone|tomahawk/i, metodos: ["parrilla", "plancha"] },
+  { match: /asado|banderita|vac[ií]o|entra[nñ]a|matambre(?!.*arrollad)|picanha|ribs|hamburguesa/i, metodos: ["parrilla"] },
+  { match: /colita|cuadril|lomo|lomito|solomillo|bondiola|rondelle|arrollad|pata|muslo|ribs|nugget|entero/i, metodos: ["horno"] },
+  { match: /churrasquito|hamburguesa|suprema|pechuga|medall[oó]n|lomo sin cord|medio lomo/i, metodos: ["plancha"] },
+  { match: /picada|cogote|osobuco|pecho|falda|rondelle/i, metodos: ["olla"] },
+  { match: /nalga|cuadrada|milanesa|suprema/i, metodos: ["milanesas"] },
+  { match: /bondiola|colita|matambrito|churrasquito de cuadril|pata/i, metodos: ["parrilla"] },
+];
+
+export function coccionesDe(name: string): MagraCoccion[] {
+  const s = new Set<MagraCoccion>();
+  for (const r of COCCION_DE_CORTE) if (r.match.test(name)) r.metodos.forEach((m) => s.add(m));
+  return COCCIONES.filter((m) => s.has(m));
+}
+
+// ── «¿Para cuántos comen?» ──────────────────────────────────────────────────────
+//
+// Estimación de la casa: ~350 g por persona, redondeado al paso de la bolsa (0,25 kg). Se dice
+// como estimación (se pesa al envasar). Provisional a confirmar con el dueño (DISENO.md §13.5).
+export const GRAMOS_POR_PERSONA = 350;
+export function porcionesAKilos(personas: number): number {
+  const kg = (Math.max(0, personas) * GRAMOS_POR_PERSONA) / 1000;
+  return Math.max(0.25, Math.round(kg / 0.25) * 0.25);
+}
 
 
 // ── La promesa de reparto, por local ────────────────────────────────────────
