@@ -4,9 +4,8 @@
 // Llama al motor de reservas sin tocarlo: getAvailableSlotsRange (14 días de una pasada) y createAppointment
 // (que, si sale bien, redirige a /reserva/confirmacion/[id]).
 //
-// DEUDA (pedido a estetica-base): createAppointment no lee `notes` (src/lib/actions.ts:488), así que la patente y
-// el modelo NO llegan al panel. Se mandan igual en `notes` (se ignoran sin romper) y se muestran en el resumen y en
-// el mensaje de WhatsApp que se ofrece antes de confirmar.
+// La patente y el modelo viajan en `notes`: createAppointment los guarda en el turno (recortados a 500, ver
+// src/lib/reserva-publica-notas.ts) y se ven en la confirmación, en «Tu turno» y en el panel.
 import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createAppointment, getAvailableSlotsRange } from "@/lib/actions";
@@ -402,7 +401,7 @@ export default function TurnoForm({
                 <input type="hidden" name="professionalId" value={mecanico} />
                 <input type="hidden" name="serviceId" value={servicio} />
                 <input type="hidden" name="startsAt" value={hora} />
-                {/* Hoy el motor no lo guarda (ver DEUDA arriba); viaja igual para cuando lo lea. */}
+                {/* Patente y modelo: el motor los guarda en el turno (ver arriba). */}
                 <input type="hidden" name="notes" value={notas} />
                 <div className="agr-campo">
                   <label htmlFor="agr-t-nombre">Nombre y apellido</label>

@@ -30,6 +30,7 @@ import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
 import { logger } from "@/lib/logger";
 import { RechazoDeDominio, motivoMostrable, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { mensajeParaLaClienta } from "@/lib/reserva-publica-mensaje";
+import { notaDeReservaPublica } from "@/lib/reserva-publica-notas";
 import { cobroTurnoDetail, settleAppointmentPaymentGuarded, type SettleOutcome } from "@/lib/caja/cobro-turno";
 import {
   aplicarCobroTurnoInTx,
@@ -494,6 +495,8 @@ export async function createAppointment(formData: FormData): Promise<ResultadoAc
   const clientEmail = String(formData.get("clientEmail") || "");
   const isResident = formData.get("isResident") === "on";
   const couponCode = String(formData.get("couponCode") || "").trim() || undefined;
+  // La nota de la reserva (el taller manda la patente y el modelo): recortada y sin espacios; vacía, nada.
+  const notes = notaDeReservaPublica(formData.get("notes")) ?? undefined;
 
   // CH-A1 · AUTORIDAD SERVER: el teléfono (canal del recordatorio) y el email —si viene— tienen
   // que ser válidos, o el turno entra pero el aviso nunca llega. No se confía en el cliente.
@@ -521,6 +524,7 @@ export async function createAppointment(formData: FormData): Promise<ResultadoAc
       status: "PENDING",
       isResident,
       couponCode,
+      notes,
       soloFuturo: true,
     });
 
