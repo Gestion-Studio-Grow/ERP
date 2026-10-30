@@ -50,7 +50,7 @@ test("contra Postgres: devolución por transferencia cargada a mano → su colum
   const alta = await como(a, a.duenia, () =>
     addLibroEntry(null, form({ date: hoy, detail: "Devolución por transferencia de la venta #8 del 29", type: "EGRESO", method: "TRANSFERENCIA", amount: "40.000" })),
   );
-  assert.ok(alta.ok, JSON.stringify(alta));
+  assert.ok(alta?.ok, JSON.stringify(alta));
   const egreso = await duenio.cashMovement.findFirst({ where: { tenantId: a.id, type: "EGRESO" }, select: { method: true, amount: true } });
   assert.deepEqual([egreso?.method, Number(egreso?.amount)], ["TRANSFERENCIA", 40_000], "el egreso va a su columna, no a MP");
 
