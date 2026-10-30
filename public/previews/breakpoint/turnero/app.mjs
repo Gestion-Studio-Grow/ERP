@@ -51,6 +51,7 @@ const LINK_IG = `https://ig.me/m/${IG_CLUB}`;
 const POR_IG = MODO_PEDIDO && !WA;
 const CAMARA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r=".6" fill="currentColor"/></svg>`;
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+const DIAS_LARGOS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const pesos = (n) => `$${Math.round(n).toLocaleString("es-AR")}`;
@@ -110,10 +111,30 @@ function pintarDias() {
 
 function elegirDia(fecha) {
   S.fecha = fecha;
+  $("#t-dias").textContent = "Elegí el día";
   for (const b of document.querySelectorAll("#dias .dia")) b.setAttribute("aria-pressed", String(b.dataset.fecha === fecha));
   $(`#dias .dia[data-fecha="${fecha}"]`)?.scrollIntoView({ block: "nearest", inline: "center", behavior: quieto() ? "auto" : "smooth" });
-  cargarSlots();
+  // La franja que vino de la portada (#manana/#tarde/#noche) se conserva al cambiar de día (QA 29/10).
+  const k = clave();
+  cargarSlots().then(() => { if (k === clave() && esAnclaFranja()) aplicarAncla(); });
 }
+
+/** Ahora en Argentina (UTC−3, sin horario de verano): fecha AAAA-MM-DD y minutos desde la medianoche. */
+function ahoraAR() {
+  const d = new Date(Date.now() - 3 * 3600000);
+  return { fecha: d.toISOString().slice(0, 10), min: d.getUTCHours() * 60 + d.getUTCMinutes() };
+}
+/**
+ * ¿Ya no queda ningún turno de hoy? Después del último inicio posible (cierre − duración, con los 15 min de margen
+ * del núcleo), «hoy» sólo muestra «No vemos canchas libres»: el turnero arranca solo en mañana (QA 29/10).
+ */
+function hoyYaCerro(cfg, duracion) {
+  const hoy = cfg.dias?.[0];
+  if (!hoy || !cfg.dias[1]) return false;
+  const a = ahoraAR();
+  return a.fecha === hoy.fecha && a.min + 15 > hoy.cierra - duracion;
+}
+const esAnclaFranja = () => FRANJAS.some(([id]) => `#${id}` === location.hash);
 
 // ───────────── grilla ─────────────
 // «Techada» sólo dice algo si el club tiene techadas y descubiertas (Break Point: las 4 techadas). Sin la lista, se muestra.
@@ -755,8 +776,14 @@ async function iniciar() {
   // Sin descubiertas, «Sólo techadas» no filtra nada: no se muestra (la lógica queda para otro club).
   $("#techadas").closest("label").hidden = !techoMixto();
   S.usuario = yo.usuario ?? null;
-  S.fecha = qs.get("fecha") && cfg.dias.some((d) => d.fecha === qs.get("fecha")) ? qs.get("fecha") : cfg.dias[0].fecha;
   S.duracion = Number($('#duracion input:checked')?.value ?? 90);
+  const pedida = qs.get("fecha") && cfg.dias.some((d) => d.fecha === qs.get("fecha")) ? qs.get("fecha") : null;
+  // Después del último turno de hoy, arranca solo en mañana («Mañana, viernes 30 · hoy ya cerró»).
+  const saltaAManiana = !pedida && hoyYaCerro(cfg, S.duracion);
+  S.fecha = pedida ?? (saltaAManiana ? cfg.dias[1].fecha : cfg.dias[0].fecha);
+  if (saltaAManiana) {
+    $("#t-dias").textContent = `Mañana, ${DIAS_LARGOS[cfg.dias[1].dia]} ${Number(S.fecha.slice(8))} · hoy ya no quedan turnos`;
+  }
   pintarDias();
   pintarUsuario();
   await cargarSlots();

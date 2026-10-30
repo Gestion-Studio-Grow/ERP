@@ -224,6 +224,6 @@ h1 .caja{width:fit-content;margin-top:.08em;padding:.04em .2em .06em .12em;backg
   <a class="btn btn-blanco" href="/turnero#hoy">Reservá tu cancha</a>
   
 </nav>
-<script>(()=>{const e=document.getElementById("hoy-dia");if(!e)return;try{const t=new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",timeZone:"America/Argentina/Buenos_Aires"}).format(new Date()).replace(",","");e.textContent="Hoy, "+t;}catch{}})();</script>
+<script>(()=>{const e=document.getElementById("hoy-dia");if(!e)return;try{const H=[[540,1380],[480,1500],[480,1500],[480,1500],[480,1500],[480,1500],[540,1500]],D=90,P=30;const a=new Date(Date.now()-108e5),m=a.getUTCHours()*60+a.getUTCMinutes(),[ab,ci]=H[a.getUTCDay()],u=ab+Math.floor((ci-D-ab)/P)*P,man=m+15>u,f=new Date(a.getTime()+(man?864e5:0)),t=new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",timeZone:"UTC"}).format(f).replace(",","");e.textContent=(man?"Mañana, ":"Hoy, ")+t;}catch{}})();</script>
 </body>
 </html>

@@ -11,6 +11,10 @@
 // y la portada dice «pedilo por mensaje» (el turnero lo manda por el Instagram del club, QA 29/10);
 // sin tarifas no hay precios; sin ubicación no hay dirección ni mapa.
 
+// Horario del club por día de la semana (el mismo que usa el turnero: CONFIG_DEMO del motor, provisional a confirmar).
+// La portada lo usa sólo para saber si «hoy» ya terminó y pasar a «Mañana, viernes 30» (QA 29/10).
+import { CONFIG_DEMO } from "../../../public/previews/breakpoint/club/motor.mjs";
+
 // Logo provisional a confirmar: trazos derivados del SVG del club (ccr-63ed11dc-brcdpp) para que no dependa de una
 // fuente instalada (antes era <text> en Montserrat, que no se cargaba y cambiaba de forma según la máquina). Cuando
 // llegue el vector oficial del club, reemplazar este SVG.
@@ -183,8 +187,10 @@ h1 .caja{width:fit-content;margin-top:.08em;padding:.04em .2em .06em .12em;backg
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:1ms!important;animation-delay:0s!important;transition-duration:1ms!important}}
 `;
 
-// Nombre del día en hora argentina («Hoy, jueves 29»). Sin JS queda «Hoy» y la portada está completa igual.
-const JS = `(()=>{const e=document.getElementById("hoy-dia");if(!e)return;try{const t=new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",timeZone:"America/Argentina/Buenos_Aires"}).format(new Date()).replace(",","");e.textContent="Hoy, "+t;}catch{}})();`;
+// Nombre del día en hora argentina («Hoy, jueves 29»). Después del último turno de hoy (cierre − duración del turno,
+// con los 15 min de margen del turnero) pasa a «Mañana, viernes 30», igual que el turnero. Sin JS queda «Hoy».
+const HORARIOS = JSON.stringify(CONFIG_DEMO.horarios.map((h) => [h.abre, h.cierra]));
+const JS = `(()=>{const e=document.getElementById("hoy-dia");if(!e)return;try{const H=${HORARIOS},D=${Number(CONFIG_DEMO.duracionTurno) || 90},P=${Number(CONFIG_DEMO.paso) || 30};const a=new Date(Date.now()-108e5),m=a.getUTCHours()*60+a.getUTCMinutes(),[ab,ci]=H[a.getUTCDay()],u=ab+Math.floor((ci-D-ab)/P)*P,man=m+15>u,f=new Date(a.getTime()+(man?864e5:0)),t=new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",timeZone:"UTC"}).format(f).replace(",","");e.textContent=(man?"Mañana, ":"Hoy, ")+t;}catch{}})();`;
 
 /** El HTML de la portada (estático; un script inline mínimo sólo para el nombre del día). PURA. */
 export function portada(publico = {}) {
