@@ -364,14 +364,17 @@ export default async function Home() {
               )}
             </div>
           </Reveal>
-          <div style={{ flex: "1 1 340px", minWidth: 280 }}>
-            <PhotoPlaceholder
-              ratio="4 / 3"
-              pin
-              gradient="linear-gradient(160deg,#E6DDCE 0%,#C7B49C 55%,#6B7660 130%)"
-              caption="Croquis del barrio con el acceso a CH · trazo sobrio, sin logotipos de terceros"
-            />
-          </div>
+          {/* El croquis del barrio es de CH (E1): otro negocio no lo ve. */}
+          {esCH && (
+            <div style={{ flex: "1 1 340px", minWidth: 280 }}>
+              <PhotoPlaceholder
+                ratio="4 / 3"
+                pin
+                gradient="linear-gradient(160deg,#E6DDCE 0%,#C7B49C 55%,#6B7660 130%)"
+                caption="Croquis del barrio con el acceso a CH · trazo sobrio, sin logotipos de terceros"
+              />
+            </div>
+          )}
         </div>
       </section>
     </>

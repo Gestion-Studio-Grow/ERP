@@ -419,9 +419,12 @@ export default function BookingModal({
               // El nombre del negocio del sitio (contexto), nunca «CH» escrito a mano.
               negocio.nombre && <span className="chm-marca">{negocio.nombre}</span>
             ) : (
-              <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 18, color: "var(--accent)" }}>
-                CH
-              </span>
+              // El nombre del negocio (E1): «CH» sólo en CH; sin nombre, sólo «Reservar».
+              (negocio.esCH || negocio.nombre) && (
+                <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 18, color: "var(--accent)", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {negocio.esCH ? "CH" : negocio.nombre}
+                </span>
+              )
             )}
             <span style={{ textTransform: "uppercase", letterSpacing: ".22em", fontWeight: 600, fontSize: ".75rem", color: "var(--text-muted)" }}>
               Reservar
@@ -734,7 +737,7 @@ export default function BookingModal({
               </p>
               <div style={{ marginTop: 16, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
                 {icsHref && (
-                  <a href={icsHref} download={nuevo ? archivoIcs(negocio.nombre) : "turno-ch-estetica.ics"} style={{ color: accent, textDecoration: "underline", textUnderlineOffset: 4, fontSize: 15 }}>
+                  <a href={icsHref} download={nuevo ? archivoIcs(negocio.nombre) : negocio.esCH ? "turno-ch-estetica.ics" : "turno.ics"} style={{ color: accent, textDecoration: "underline", textUnderlineOffset: 4, fontSize: 15 }}>
                     Agregar a mi calendario
                   </a>
                 )}
