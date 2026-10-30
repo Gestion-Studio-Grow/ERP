@@ -153,6 +153,7 @@ export default async function ClasesPage({ searchParams }: { searchParams: Promi
               <DetallesProfe
                 duracionMin={config.duracionMin}
                 precio={config.precioIndividual > 0 ? pesos(config.precioIndividual) : null}
+                precioGrupal={config.precioGrupal > 0 ? pesos(config.precioGrupal) : null}
                 lugar={negocio.lugar}
                 maps={maps}
                 regla={regla}

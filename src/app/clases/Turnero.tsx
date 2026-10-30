@@ -138,7 +138,7 @@ export default function Turnero({
   // sola línea de la misma altura siempre (no corre nada: CLS 0).
   const barra = cn(
     "fixed inset-x-0 bottom-0 z-30 border-t-[1.5px] border-[var(--padel-linea)] bg-[var(--padel-superficie)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(11,31,58,0.08)]",
-    "lg:sticky lg:inset-x-auto lg:mt-6 lg:rounded-[1.25rem] lg:border-[1.5px] lg:px-5 lg:pb-2",
+    "lg:static lg:inset-x-auto lg:rounded-[1.25rem] lg:border-[1.5px] lg:px-5 lg:pb-2 lg:shadow-none",
   );
 
   if (dias.length === 0) {
@@ -185,7 +185,7 @@ export default function Turnero({
             </>
           )}
         </section>
-        <div className={barra}>
+        <div className={cn(barra, "lg:mt-6")}>
           <div className="mx-auto grid max-w-[35rem] gap-1 lg:max-w-none">
             <Contacto wa={wa} profe={profe} conocido={conSesion} principal etiqueta={sinHorarios ? "Pedir un turno por mensaje" : undefined} />
             {!conSesion && (
@@ -338,6 +338,39 @@ export default function Turnero({
           )}
         </section>
 
+        {/* El botón fijo abajo, a mano del pulgar (M-089). Debajo, una sola línea de la misma altura
+            siempre: «Pedís como Juan · No soy yo» o «¿Ya sos alumno? Pedí tu link» (no corre nada: CLS 0).
+            En la compu va justo debajo de las horas, en el flujo (QA 29/10: pegado al pie de la columna
+            tapaba horarios); en el celular sigue fijo abajo. */}
+        <div className={barra}>
+          <div className="mx-auto grid max-w-[35rem] gap-1 lg:max-w-none">
+            <button type="button" className={botonPrincipal} disabled={!hora || pendiente} onClick={() => pedir()} data-qa="pedir">
+              {pendiente ? "Pidiendo…" : cta}
+            </button>
+            <div className="flex min-h-12 items-center justify-center">
+              {quienEs && !abrirLink ? (
+                <p className="text-[0.9375rem] text-[var(--padel-suave)]" data-qa="pedis-como">
+                  Pedís como <strong className="text-[var(--padel-texto)]">{quienEs}</strong>
+                  {" · "}
+                  <button
+                    type="button"
+                    className="min-h-12 cursor-pointer px-1 font-semibold underline underline-offset-2"
+                    onClick={() => {
+                      setPorCookie(false);
+                      setRecuerdo(null);
+                      setErrorHoja(null);
+                    }}
+                  >
+                    No soy yo
+                  </button>
+                </p>
+              ) : (
+                <YaSoyAlumno abierto={abrirLink} />
+              )}
+            </div>
+          </div>
+        </div>
+
         {hayGrupal && (
           <section aria-labelledby="t-tipo" className="lg:order-first">
             <h2 id="t-tipo" className={cn(tituloSeccion, "mb-3")}>
@@ -390,37 +423,6 @@ export default function Turnero({
         </section>
 
         <Contacto wa={wa} profe={profe} conocido={conSesion} />
-      </div>
-
-      {/* El botón fijo abajo, a mano del pulgar (M-089). Debajo, una sola línea de la misma altura
-          siempre: «Pedís como Juan · No soy yo» o «¿Ya sos alumno? Pedí tu link» (no corre nada: CLS 0). */}
-      <div className={barra}>
-        <div className="mx-auto grid max-w-[35rem] gap-1 lg:max-w-none">
-          <button type="button" className={botonPrincipal} disabled={!hora || pendiente} onClick={() => pedir()} data-qa="pedir">
-            {pendiente ? "Pidiendo…" : cta}
-          </button>
-          <div className="flex min-h-12 items-center justify-center">
-            {quienEs && !abrirLink ? (
-              <p className="text-[0.9375rem] text-[var(--padel-suave)]" data-qa="pedis-como">
-                Pedís como <strong className="text-[var(--padel-texto)]">{quienEs}</strong>
-                {" · "}
-                <button
-                  type="button"
-                  className="min-h-12 cursor-pointer px-1 font-semibold underline underline-offset-2"
-                  onClick={() => {
-                    setPorCookie(false);
-                    setRecuerdo(null);
-                    setErrorHoja(null);
-                  }}
-                >
-                  No soy yo
-                </button>
-              </p>
-            ) : (
-              <YaSoyAlumno abierto={abrirLink} />
-            )}
-          </div>
-        </div>
       </div>
 
       <HojaQuien
