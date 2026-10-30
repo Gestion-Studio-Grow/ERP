@@ -30,8 +30,8 @@ import { HojaQuien } from "./_hoja-quien";
 import { Listo, type ResultadoPedido } from "./Listo";
 import { YaSoyAlumno } from "./YaSoyAlumno";
 import { FichaClase, type InfoClase } from "./_ficha-clase";
-import { IconoCalendario } from "./_iconos";
-import { alerta, antetitulo, botonPrincipal, caja, campo, chip, etiqueta, foco, tituloSeccion } from "./_estilos";
+import { IconoCalendario, IconoGirando } from "./_iconos";
+import { alerta, antetitulo, botonPrincipal, caja, campo, chip, etiqueta, foco, ocupado, tituloSeccion } from "./_estilos";
 import { cn } from "@/components/ui/cn";
 import {
   RECUERDO,
@@ -211,7 +211,7 @@ export default function Turnero({
   };
 
   const pedir = (quien?: Quien) => {
-    if (!hora) return;
+    if (!hora || pendiente) return;
     const iso = hora;
     setError(null);
     setSugeridas([]);
@@ -344,9 +344,20 @@ export default function Turnero({
             tapaba horarios); en el celular sigue fijo abajo. */}
         <div className={barra}>
           <div className="mx-auto grid max-w-[35rem] gap-1 lg:max-w-none">
-            <button type="button" className={botonPrincipal} disabled={!hora || pendiente} onClick={() => pedir()} data-qa="pedir">
-              {pendiente ? "Pidiendo…" : cta}
+            {/* Pidiendo…: a pleno color, con la rueda y aria-busy (QA r2: en el celular el gris de
+                `disabled` se leía como «no anduvo»). El segundo toque lo frena `pedir`. */}
+            <button type="button" className={cn(botonPrincipal, ocupado)} disabled={!hora} aria-busy={pendiente} onClick={() => pedir()} data-qa="pedir">
+              {pendiente ? (
+                <>
+                  <IconoGirando className="size-6 shrink-0" /> Pidiendo tu clase…
+                </>
+              ) : (
+                cta
+              )}
             </button>
+            <p className="sr-only" role="status">
+              {pendiente ? "Pidiendo tu clase…" : ""}
+            </p>
             <div className="flex min-h-12 items-center justify-center">
               {quienEs && !abrirLink ? (
                 <p className="text-[0.9375rem] text-[var(--padel-suave)]" data-qa="pedis-como">

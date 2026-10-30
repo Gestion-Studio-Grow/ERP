@@ -93,3 +93,10 @@ export const Pelota = ({ className, costura = "var(--padel-superficie)" }: { cla
     <path d="M4.2 4.6a10.5 10.5 0 0 1 0 14.8M19.8 4.6a10.5 10.5 0 0 0 0 14.8" fill="none" stroke={costura} strokeWidth="1.8" strokeLinecap="round" />
   </svg>
 );
+
+/** Rueda de «Pidiendo…» (gira; quieta si el teléfono pide menos movimiento). */
+export const IconoGirando = (p: P) => (
+  <svg {...base(p)} className={`animate-spin motion-reduce:animate-none ${p.className ?? ""}`}>
+    <path d="M12 3a9 9 0 1 1-9 9" />
+  </svg>
+);

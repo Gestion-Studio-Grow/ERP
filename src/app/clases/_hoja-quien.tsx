@@ -6,7 +6,9 @@
 // 11…, M-093): lo normaliza el servidor. Sin número de ejemplo como placeholder: ayuda en texto (§10).
 
 import { HojaPublica } from "./_hoja";
-import { alerta, ayuda, botonPrincipal, campo, etiqueta } from "./_estilos";
+import { cn } from "@/components/ui/cn";
+import { alerta, ayuda, botonPrincipal, campo, etiqueta, ocupado } from "./_estilos";
+import { IconoGirando } from "./_iconos";
 
 export function HojaQuien({
   abierta,
@@ -35,8 +37,14 @@ export function HojaQuien({
       descripcion={`Así ${profe} sabe quién pidió y te confirma por WhatsApp. Lo pedimos una sola vez.`}
       qa="hoja-quien"
       pie={
-        <button type="submit" form="form-quien" disabled={pendiente} className={botonPrincipal} data-qa="pedir-hoja">
-          {pendiente ? "Pidiendo…" : textoBoton}
+        <button type="submit" form="form-quien" aria-busy={pendiente} className={cn(botonPrincipal, ocupado)} data-qa="pedir-hoja">
+          {pendiente ? (
+            <>
+              <IconoGirando className="size-6 shrink-0" /> Pidiendo tu clase…
+            </>
+          ) : (
+            textoBoton
+          )}
         </button>
       }
     >

@@ -22,6 +22,9 @@ export const botonPrincipal = cn(
   base,
   "min-h-16 w-full bg-[var(--padel-cancha)] text-[clamp(1.125rem,1.3vw,1.3125rem)] font-bold text-[var(--padel-sobre-cancha)] lg:min-h-14",
 );
+/** Enviando (aria-busy): el botón queda a pleno color, con la rueda, para que en el celular se note que
+ *  el toque llegó (gris = «no se puede», que es otra cosa). No acepta otro toque mientras dura. */
+export const ocupado = "aria-busy:pointer-events-none aria-busy:cursor-progress aria-busy:opacity-100";
 /** Llena, de 52 px. */
 export const botonLleno = cn(base, "min-h-[3.25rem] bg-[var(--padel-cancha)] font-bold text-[var(--padel-sobre-cancha)]");
 /** Con borde (la segunda acción), 52 px. */

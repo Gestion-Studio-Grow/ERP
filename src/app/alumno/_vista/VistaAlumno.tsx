@@ -19,7 +19,7 @@ import { antetitulo, botonBorde, caja, tituloCaja } from "@/app/clases/_estilos"
 import { IconoCruz, IconoFlecha, IconoPunto, IconoReloj, IconoTilde } from "@/app/clases/_iconos";
 import { chipEstado, enCuanto, etiquetaPago, explicacionTerminal, lineaDeCuenta, plazoCancelar, terminalVisible, urlMaps, type ClaseVista, type IconoEstado, type Tono } from "./estado";
 import { Pagar, type ItemPago } from "./Pagar";
-import { Cancelar, FueraDeTermino } from "./Cancelar";
+import { AvisoCancelada, Cancelar, FueraDeTermino } from "./Cancelar";
 import { CambiarHorario, Repetir } from "./CambiarHorario";
 import { Contacto } from "./Contacto";
 import { Instalar } from "./Instalar";
@@ -107,6 +107,7 @@ export async function VistaAlumno({ datos, token }: { datos: Datos; token: strin
       <CabeceraPublica antetitulo={negocio.nombre} titulo={`Hola ${nombre}`} />
 
       <main className="mx-auto grid max-w-[35rem] grid-cols-1 gap-4 px-4 pb-12 pt-4">
+        <AvisoCancelada />
         <section aria-labelledby="cuenta" className={`${caja} border-t-[5px] ${cuenta.tono === "debe" ? "border-t-[var(--padel-peligro)]" : "border-t-[var(--padel-vivo)]"}`} data-qa="cuenta">
           <h2 id="cuenta" className={`text-xl font-bold tabular-nums ${cuenta.tono === "debe" ? "text-[var(--padel-peligro)]" : ""}`} data-qa={cuenta.tono === "debe" ? "debes" : cuenta.tono === "favor" ? "saldo-a-favor" : "al-dia"}>
             {cuenta.titulo}
