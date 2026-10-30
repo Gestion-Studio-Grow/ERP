@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/datetime";
 import { reglaVigenteParaLaClienta } from "@/lib/turnos/practica.server";
+import { chConDisenoNuevo } from "../../../_ch/diseno-ch.server";
 
 export default async function ConfirmacionPage({
   params,
@@ -16,7 +17,57 @@ export default async function ConfirmacionPage({
   });
 
   if (!appointment) notFound();
-  const regla = await reglaVigenteParaLaClienta();
+  const [regla, nuevo] = await Promise.all([reglaVigenteParaLaClienta(), chConDisenoNuevo()]);
+
+  // Diseño nuevo de CH (sólo con su interruptor prendido): la tarjeta del turno en tipografía, sin el «✓» en
+  // círculo verde. Mismos datos y mismos textos que la de siempre; ningún texto de CH (página compartida).
+  if (nuevo) {
+    return (
+      <div className="chr mx-auto px-6 py-16">
+        <p className="chf-kicker">Turno {appointment.id.slice(-6).toUpperCase()}</p>
+        <h1 className="chr-h1" style={{ marginTop: 16 }}>
+          ¡Solicitud enviada!
+        </h1>
+        <p style={{ color: "var(--text-muted)", margin: 0 }}>¡Gracias! Tu turno está reservado a la espera de confirmación.</p>
+        <dl className="chr-tarjeta">
+          <div>
+            <dt>Servicio</dt>
+            <dd>{appointment.service.name}</dd>
+          </div>
+          <div>
+            <dt>Profesional</dt>
+            <dd>{appointment.professional.name}</dd>
+          </div>
+          <div>
+            <dt>Box</dt>
+            <dd>{appointment.box.name}</dd>
+          </div>
+          <div>
+            <dt>Fecha y hora</dt>
+            <dd>{fmtDateTime(appointment.startsAt)}</dd>
+          </div>
+          <div>
+            <dt>Estado</dt>
+            <dd>
+              <span className="chr-estado">Pendiente de pago</span>
+            </dd>
+          </div>
+        </dl>
+        <p style={{ color: "var(--text-muted)", margin: "24px 0 0" }}>
+          Te vamos a escribir por WhatsApp para coordinar el pago y confirmar tu turno.
+        </p>
+        <p style={{ color: "var(--text-muted)", margin: "8px 0 0" }}>
+          {regla ? regla : "Guardá el enlace de tu turno para verlo o cancelarlo cuando quieras."}
+        </p>
+        <div className="chr-acc">
+          <Link href={`/reserva/turno/${appointment.id}`} className="chf-btn">
+            Ver mi turno
+          </Link>
+          <Link href="/">Volver al inicio</Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-lg px-6 py-20 text-center">

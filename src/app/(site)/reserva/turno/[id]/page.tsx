@@ -7,6 +7,7 @@ import ReviewForm from "./ReviewForm";
 import { fmtDateTime } from "@/lib/datetime";
 import { isAppointmentModifiable } from "@/lib/booking-core";
 import { cambioOnlineDelTurno } from "@/lib/turnos/practica.server";
+import { chConDisenoNuevo } from "../../../_ch/diseno-ch.server";
 
 const statusLabel: Record<string, string> = {
   PENDING: "Pendiente de pago",
@@ -37,17 +38,51 @@ export default async function MyAppointmentPage({
   // y testeable en booking-core; no llamamos Date.now en el render del RSC).
   const canModify = isAppointmentModifiable(appointment.status, appointment.startsAt);
   // Agenda práctica (E2): dentro del plazo del negocio, la clienta ve la regla en vez de botones que no andan.
-  const { regla, puede } = canModify ? await cambioOnlineDelTurno(appointment.startsAt) : { regla: null, puede: false };
+  const [{ regla, puede }, nuevo] = await Promise.all([
+    canModify ? cambioOnlineDelTurno(appointment.startsAt) : Promise.resolve({ regla: null, puede: false }),
+    // Diseño nuevo de CH (sólo con su interruptor prendido): misma página, escala y tarjeta en tipografía.
+    chConDisenoNuevo(),
+  ]);
 
   return (
-    <div className="mx-auto max-w-lg px-6 py-16">
-      <h1 className="font-serif text-3xl mb-1" style={{ color: "var(--text-strong)" }}>
+    <div className={nuevo ? "chr mx-auto max-w-lg px-6 py-16" : "mx-auto max-w-lg px-6 py-16"}>
+      <h1 className={nuevo ? "chr-h1" : "font-serif text-3xl mb-1"} style={{ color: "var(--text-strong)" }}>
         Tu turno
       </h1>
       <p className="mb-8" style={{ color: "var(--text-muted)" }}>
         Acá está el detalle de tu turno.
       </p>
 
+      {nuevo ? (
+        <dl className="chr-tarjeta" style={{ marginBottom: 24 }}>
+          <div>
+            <dt>Turno</dt>
+            <dd className="chr-codigo">{appointment.id.slice(-6).toUpperCase()}</dd>
+          </div>
+          <div>
+            <dt>Servicio</dt>
+            <dd>{appointment.service.name}</dd>
+          </div>
+          <div>
+            <dt>Profesional</dt>
+            <dd>{appointment.professional.name}</dd>
+          </div>
+          <div>
+            <dt>Box</dt>
+            <dd>{appointment.box.name}</dd>
+          </div>
+          <div>
+            <dt>Fecha y hora</dt>
+            <dd>{fmtDateTime(appointment.startsAt)}</dd>
+          </div>
+          <div>
+            <dt>Estado</dt>
+            <dd>
+              <span className="chr-estado">{statusLabel[appointment.status] ?? appointment.status}</span>
+            </dd>
+          </div>
+        </dl>
+      ) : (
       <div
         className="rounded-lg p-5 space-y-2 mb-6"
         style={{ background: "var(--surface-sunken)", color: "var(--text-strong)" }}
@@ -65,6 +100,7 @@ export default async function MyAppointmentPage({
           </span>
         </p>
       </div>
+      )}
 
       {canModify && puede && (
         <div className="flex flex-wrap items-center">
