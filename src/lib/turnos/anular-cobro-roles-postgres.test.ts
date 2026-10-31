@@ -103,7 +103,7 @@ const ANULADO = { cobros: 2, egresos: 1 };
 async function codigoCon(o: { tenantId: string; collectionId: string; duenaId: string; hace?: number }) {
   const { emitirCodigo } = await import("./codigo-anulacion");
   const { authSecret } = await import("@/lib/auth");
-  return emitirCodigo({ secreto: authSecret(), tenantId: o.tenantId, collectionId: o.collectionId, duenaId: o.duenaId }, Date.now() - (o.hace ?? 0)).codigo;
+  return emitirCodigo({ secreto: authSecret(), tenantId: o.tenantId, objetoId: o.collectionId, duenaId: o.duenaId }, Date.now() - (o.hace ?? 0)).codigo;
 }
 
 test("dueña: anula directo, sin código, y el rastro la dice a ella", async (t) => {

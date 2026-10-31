@@ -17,15 +17,15 @@ import {
 } from "./codigo-anulacion";
 
 const SECRETO = "secreto-de-prueba";
-const BASE = { secreto: SECRETO, tenantId: "negocio-a", collectionId: "cobro-1", duenaId: "caro" };
+const BASE = { secreto: SECRETO, tenantId: "negocio-a", objetoId: "cobro-1", duenaId: "caro" };
 const AHORA = 1_790_000_000_000;
 const emitido = (o: Partial<typeof BASE> = {}, ms = AHORA) => emitirCodigo({ ...BASE, ...o }, ms).codigo;
-const verificar = (codigo: string, ms = AHORA, o: { tenantId?: string; collectionId?: string; duenas?: string[] } = {}) =>
-  verificarCodigo({ secreto: SECRETO, tenantId: "negocio-a", collectionId: "cobro-1", duenas: ["caro"], codigo, ...o }, ms);
+const verificar = (codigo: string, ms = AHORA, o: { tenantId?: string; objetoId?: string; duenas?: string[] } = {}) =>
+  verificarCodigo({ secreto: SECRETO, tenantId: "negocio-a", objetoId: "cobro-1", duenas: ["caro"], codigo, ...o }, ms);
 
 test("es corto y se puede dictar: 6 caracteres, sin 0, O, 1, I ni L", () => {
   for (let i = 0; i < 300; i++) {
-    const c = emitido({ collectionId: `cobro-${i}` });
+    const c = emitido({ objetoId: `cobro-${i}` });
     assert.equal(c.length, LARGO_CODIGO);
     assert.match(c, /^[2-9A-HJKMNP-Z]{6}$/);
   }
@@ -43,7 +43,7 @@ test("se escribe como sea: minúsculas, espacios o guiones", () => {
 });
 
 test("vale sólo para ese cobro y ese negocio", () => {
-  assert.deepEqual(verificar(emitido({ collectionId: "cobro-2" })), { ok: false }, "de otro cobro");
+  assert.deepEqual(verificar(emitido({ objetoId: "cobro-2" })), { ok: false }, "de otro cobro");
   assert.deepEqual(verificar(emitido({ tenantId: "negocio-b" })), { ok: false }, "de otro negocio");
 });
 
@@ -84,7 +84,7 @@ test("compara en tiempo constante y sin cortar en el primero que coincide", () =
 test("tope: al quinto fallo se frena ese cobro, y se libera solo", () => {
   let reloj = AHORA;
   const tope = crearTopeDeIntentos(() => reloj);
-  const q = { tenantId: "a", userId: "recepcion", collectionId: "c1" };
+  const q = { tenantId: "a", userId: "recepcion", objetoId: "c1" };
   for (let i = 0; i < TOPE_POR_COBRO.max; i++) {
     assert.equal(tope.frenado(q), false, `intento ${i}`);
     tope.fallo(q);
@@ -98,16 +98,16 @@ test("tope: al quinto fallo se frena ese cobro, y se libera solo", () => {
 
 test("tope: tampoco se puede barrer probando de a poco en muchos cobros", () => {
   const tope = crearTopeDeIntentos(() => AHORA);
-  for (let i = 0; i < TOPE_POR_USUARIO.max; i++) tope.fallo({ tenantId: "a", userId: "u", collectionId: `c${i}` });
-  assert.equal(tope.frenado({ tenantId: "a", userId: "u", collectionId: "otro" }), true);
+  for (let i = 0; i < TOPE_POR_USUARIO.max; i++) tope.fallo({ tenantId: "a", userId: "u", objetoId: `c${i}` });
+  assert.equal(tope.frenado({ tenantId: "a", userId: "u", objetoId: "otro" }), true);
 });
 
 test("tope: acertar limpia ese cobro, no el total del usuario", () => {
   const tope = crearTopeDeIntentos(() => AHORA);
-  const q = { tenantId: "a", userId: "u", collectionId: "c1" };
+  const q = { tenantId: "a", userId: "u", objetoId: "c1" };
   for (let i = 0; i < TOPE_POR_COBRO.max; i++) tope.fallo(q);
   tope.acierto(q);
   assert.equal(tope.frenado(q), false);
-  for (let i = 0; i < TOPE_POR_USUARIO.max - TOPE_POR_COBRO.max; i++) tope.fallo({ ...q, collectionId: `c${i + 2}` });
+  for (let i = 0; i < TOPE_POR_USUARIO.max - TOPE_POR_COBRO.max; i++) tope.fallo({ ...q, objetoId: `c${i + 2}` });
   assert.equal(tope.frenado(q), true, "los fallos anteriores siguen contando para el usuario");
 });

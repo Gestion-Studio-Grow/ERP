@@ -12,7 +12,6 @@ import {
   todayInBusinessTz,
   dateStrInBusinessTz,
   dayOfWeekForDate,
-  fmtTime,
 } from "@/lib/datetime";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -20,8 +19,7 @@ import { whereVentasCobradasConMedio } from "@/lib/order-anulacion";
 import { bookingTransaction, tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { anulacionDeCobro, roleHasCapability, type AnulacionDeCobro } from "@/lib/capabilities";
-import { authSecret } from "@/lib/auth";
-import { emitirCodigo, normalizarCodigo, topeDeAnulaciones, verificarCodigo } from "@/lib/turnos/codigo-anulacion";
+import { autorizadoraDeLaAnulacion, codigoDeLaDuena, type ResultadoAutorizacion } from "@/lib/anulacion-autorizada";
 import { recordMovement } from "@/lib/stock/ledger";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { generateSlotsForDays } from "@/lib/booking-slots";
@@ -59,10 +57,7 @@ import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { agruparIngresos, bordesDelPeriodo } from "@/lib/report-ingresos";
 import {
   anularCobroTurnoInTx,
-  MENSAJE_CODIGO_MALO,
-  MENSAJE_FALTA_CODIGO,
   MENSAJE_SIN_ANULAR,
-  MENSAJE_TOPE_DE_CODIGOS,
   mensajeSinDevolver,
   cobrosAnulables,
   condonarSaldoTurnoInTx,
@@ -1409,35 +1404,6 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
   return { ok: true };
 }
 
-/** Quién autoriza esta anulación: la dueña misma si anula ella; si no, la que emitió el código. */
-async function autorizadoraDeLaAnulacion(
-  user: { id: string; name: string },
-  politica: AnulacionDeCobro,
-  tenantId: string,
-  collectionId: string,
-  codigoCrudo: FormDataEntryValue | null,
-): Promise<{ ok: true; duena: { id: string; nombre: string } } | { ok: false; error: string }> {
-  if (politica === "directa") return { ok: true, duena: { id: user.id, nombre: user.name } };
-  const codigo = normalizarCodigo(codigoCrudo);
-  if (!codigo) return { ok: false, error: MENSAJE_FALTA_CODIGO };
-  const intento = { tenantId, userId: user.id, collectionId };
-  if (topeDeAnulaciones.frenado(intento)) return { ok: false, error: MENSAJE_TOPE_DE_CODIGOS };
-  const duenas = await prisma.user.findMany({
-    where: { tenantId, role: "OWNER", active: true, deletedAt: null },
-    select: { id: true, name: true },
-  });
-  const r = verificarCodigo({ secreto: authSecret(), tenantId, collectionId, duenas: duenas.map((d) => d.id), codigo }, Date.now());
-  const duena = r.ok ? duenas.find((d) => d.id === r.duenaId) : undefined;
-  if (!duena) {
-    topeDeAnulaciones.fallo(intento);
-    return { ok: false, error: MENSAJE_CODIGO_MALO };
-  }
-  topeDeAnulaciones.acierto(intento);
-  return { ok: true, duena: { id: duena.id, nombre: duena.name } };
-}
-
-export type ResultadoAutorizacion = { ok: true; codigo: string; venceA: string } | { ok: false; error: string };
-
 /**
  * «Autorizar anulación»: la dueña saca el código de UN cobro para que recepción lo anule. Sólo
  * calcula y deja rastro; la plata no se mueve hasta que recepción anula. El código nunca se guarda:
@@ -1455,14 +1421,14 @@ export async function autorizarAnulacionCobro(formData: FormData): Promise<Resul
   const cobro = cobrosAnulables(cobros).find((c) => c.id === collectionId);
   if (!cobro) return { ok: false, error: "Ese cobro ya no se puede anular. Recargá la agenda." };
 
-  const { codigo, venceMs } = emitirCodigo({ secreto: authSecret(), tenantId, collectionId, duenaId: user.id }, Date.now());
+  const { codigo, venceA, vence } = codigoDeLaDuena(tenantId, collectionId, user.id);
   await auditAdmin({
     action: "authorize_void_collection",
     entity: "Appointment",
     entityId: appointmentId,
-    changes: { collectionId, monto: cobro.amount, autorizadaPor: user.id, autorizadaPorNombre: user.name, vence: new Date(venceMs).toISOString() },
+    changes: { collectionId, monto: cobro.amount, autorizadaPor: user.id, autorizadaPorNombre: user.name, vence },
   });
-  return { ok: true, codigo, venceA: fmtTime(new Date(venceMs)) };
+  return { ok: true, codigo, venceA };
 }
 
 /**
