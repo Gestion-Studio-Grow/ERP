@@ -364,7 +364,7 @@ test("el formulario de liquidación pregunta por qué medio se le pagó", () => 
   }
   assert.match(
     leer("./commission-actions.ts"),
-    /parseCashMethod\(formData\.get\("method"\)\)/,
+    /parseMedioDeLiquidacion\(formData\.get\("method"\)\)/,
     "la Server Action tiene que leer el medio del formulario",
   );
 });
