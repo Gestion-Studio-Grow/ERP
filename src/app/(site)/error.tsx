@@ -11,8 +11,11 @@ import Link from "next/link";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import { useNegocioDelSitio } from "./_ch/negocio-del-sitio";
 
-export default function ErrorDelSitio({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+// `retry` (Next 16): vuelve a pedir la página al servidor. `reset` sólo limpia el estado y, si falló un componente de
+// servidor, repetía el mismo error.
+export default function ErrorDelSitio({ error, reset, retry }: { error: Error & { digest?: string }; reset: () => void; retry?: () => void }) {
   const nuevo = useDiseno();
+  const otraVez = () => (retry ?? reset)();
   const { nombre } = useNegocioDelSitio();
 
   useEffect(() => {
@@ -31,7 +34,7 @@ export default function ErrorDelSitio({ error, reset }: { error: Error & { diges
             Fue un problema nuestro. Probá de nuevo; si sigue igual, volvé en unos minutos.
           </p>
           <div className="chf-acc">
-            <button type="button" onClick={() => reset()} className="chf-btn">
+            <button type="button" onClick={otraVez} className="chf-btn">
               Probar de nuevo
             </button>
             <Link href="/" className="chf-enlace">
@@ -52,7 +55,7 @@ export default function ErrorDelSitio({ error, reset }: { error: Error & { diges
       <div style={{ marginTop: 28, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 24 }}>
         <button
           type="button"
-          onClick={() => reset()}
+          onClick={otraVez}
           style={{ minHeight: 48, padding: "0 24px", border: 0, cursor: "pointer", background: "var(--text-strong)", color: "var(--text-on-accent)", fontSize: 15 }}
         >
           Probar de nuevo

@@ -1,8 +1,9 @@
 // «No encontramos esta página» (404) de toda la app. Qué se muestra lo decide noEncontradaPara
 // (no-encontrada-core.ts): en la consola del operador y en el panel de un negocio con el «Diseño
-// nuevo» prendido, una hoja en castellano con el camino de vuelta; en el resto (vidriera, y el
-// panel con el interruptor apagado: CH hoy) el 404 de Next de siempre, el mismo módulo que Next
-// usa cuando no hay not-found.tsx, así que ahí no cambia nada.
+// nuevo» prendido, una hoja en castellano con el camino de vuelta. En la vidriera, CH con su «Diseño
+// nuevo» prendido ve el suyo adentro del sitio (el layout se trae sólo en ese caso, así un 404 de otro
+// negocio no carga nada de CH). En el resto (otras vidrieras, y el panel con el interruptor apagado:
+// CH hoy) el 404 de Next de siempre, el mismo módulo que Next usa cuando no hay not-found.tsx.
 
 import type { CSSProperties } from "react";
 import { headers } from "next/headers";
@@ -18,18 +19,19 @@ import AdminThemeScript from "./admin/AdminThemeScript";
 import HojaDeIngreso, { RAIZ_HOJA_DE_INGRESO } from "./admin/login/HojaDeIngreso";
 import { folioDelDia } from "./admin/login/login-core";
 import { noEncontradaPara } from "./no-encontrada-core";
-import SiteLayout from "./(site)/layout";
-import NoEncontradaCH from "./(site)/_ch/NoEncontradaCH";
 import { chConDisenoNuevo } from "./(site)/_ch/diseno-ch.server";
 
 export default async function NoEncontrada() {
   const ruta = (await headers()).get("x-pathname");
-  // Fuera del panel (vidriera) ni se lee el interruptor; en la consola tampoco (no hay negocio).
+  // En la consola no se lee el interruptor (no hay negocio).
   const siPrendido = noEncontradaPara(ruta, true);
   if (!siPrendido) {
     // Vidriera: una dirección que no existe no pasa por el layout del sitio. CH con el diseño nuevo la ve con su encabezado,
-    // su pie y el camino de vuelta (P0-3); el resto, el 404 de Next de siempre.
+    // su pie y el camino de vuelta (P0-3). El resto, el de siempre. Los `notFound()` de las páginas del sitio no llegan
+    // acá: los atiende (site)/not-found.tsx, ya adentro del layout.
     if (await chConDisenoNuevo()) {
+      const { default: SiteLayout } = await import("./(site)/layout");
+      const { default: NoEncontradaCH } = await import("./(site)/_ch/NoEncontradaCH");
       return (
         <SiteLayout>
           <NoEncontradaCH />

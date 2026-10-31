@@ -23,9 +23,11 @@ export default async function TratamientoNoEncontrado() {
         </p>
         <div className="chf-acc">
           <Link href="/servicios" className="chf-btn">
-            Ver la carta
+            Volver a la carta
           </Link>
-          <Link href="/">Volver al inicio</Link>
+          <Link href="/" className="chf-enlace">
+            Volver al inicio
+          </Link>
         </div>
       </section>
     </div>
