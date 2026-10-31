@@ -264,7 +264,7 @@ a.chf-serv-nom:hover{text-decoration:underline;text-decoration-thickness:1px;tex
 .chm-segmentos span{height:4px;border-radius:2px;background:var(--line);transition:background-color var(--ch-transicion)}
 .chm-segmentos span[data-hecho]{background:var(--accent)}
 .chm-paso{margin:10px 0 0;font-size:.875rem;color:var(--text-muted)}
-.chm-cuerpo{padding:24px 28px!important;flex:1 1 auto}
+.chm-cuerpo{padding:24px 28px!important;flex:1 0 auto}
 .chm-titulo{font-size:clamp(1.75rem,1.5rem + 1vw,2.25rem)!important;font-weight:400!important;line-height:1.1;margin-bottom:20px!important}
 .chm-fila{min-height:56px;padding:12px 10px!important;font-size:1.0625rem!important;gap:16px}
 .chm-fila > span:last-child{font-size:1rem!important;opacity:1!important;font-variant-numeric:tabular-nums;font-weight:600}
