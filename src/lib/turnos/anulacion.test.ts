@@ -11,8 +11,8 @@
 //  · Condonar NO escribe una sola fila en el libro ni infla el `Payment` — si lo hiciera,
 //    el negocio estaría contando plata que nunca entró, que es exactamente lo que hoy
 //    obliga a hacer a mano.
-//  · La acción de anular exige la MISMA capacidad y el MISMO veredicto que cobrar
-//    (se verifica leyendo `actions.ts`, al estilo de `audit-superficie.test.ts`).
+//  · Cobrar no habilita anular: la dueña directo, recepción con su código, la profesional no
+//    (orden del dueño, 31/10/2026; `anular-cobro-roles-postgres.test.ts` lo ejecuta con cada rol).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -580,17 +580,31 @@ test("condonar NO puede escribir en el libro de caja: no hay plata que mover", (
   );
 });
 
-test("anular exige la MISMA capacidad y el MISMO veredicto que cobrar", () => {
+test("cobrar no habilita anular: la orden del dueño corre en el servidor, antes de la transacción", () => {
   const src = readFileSync(join(SRC, "actions.ts"), "utf8");
   const desde = src.indexOf("export async function anularCobroTurno(");
   assert.ok(desde > 0, "no se encontró anularCobroTurno");
-  const cuerpo = src.slice(desde, src.indexOf("export async function condonarSaldoTurno("));
-  assert.match(cuerpo, /requireCapability\("agenda:collect"\)/);
+  const cuerpo = src.slice(desde, src.indexOf("async function autorizadoraDeLaAnulacion("));
+  assert.match(cuerpo, /anulacionDeCobro\(user\.role\)/);
   assert.match(cuerpo, /puedeCobrarEsteTurno\(/);
-  // La invariante dura dentro de la tx: una profesional no toca cobros ajenos.
-  assert.match(cuerpo, /user\.role === "PROFESSIONAL" && appointment\.professionalId !== user\.professionalId/);
+  const autorizacion = cuerpo.indexOf("autorizadoraDeLaAnulacion(");
+  assert.ok(autorizacion > 0 && autorizacion < cuerpo.indexOf("tenantTransaction("), "sin autorización no se abre la transacción");
   // Y la frontera del libro se consulta antes de revertir.
   assert.match(cuerpo, /lastClosedDay\(tenantId\)/);
+});
+
+test("anularCobroTurnoInTx se llama sólo desde tres lugares, y los tres aplican la orden del dueño", () => {
+  // Anular, devolver al cerrar el turno y deshacer la seña son la misma plata saliendo del libro.
+  // Sumar una cuarta puerta sin mirar quién anula es volver a abrir el agujero de E3.
+  const acciones = readFileSync(join(SRC, "actions.ts"), "utf8");
+  const cobro = readFileSync(join(SRC, "turnos", "cobro-actions.ts"), "utf8");
+  const llamadas = (s: string) => (s.match(/anularCobroTurnoInTx\(tx/g) ?? []).length;
+  assert.equal(llamadas(acciones), 2);
+  assert.equal(llamadas(cobro), 1);
+  const cerrar = acciones.slice(acciones.indexOf("export async function cerrarTurnoSinPrestar("));
+  assert.match(cerrar, /politica !== "directa"\) return \{ ok: false, error: mensajeSinDevolver\(politica\) \}/);
+  const deshacer = cobro.slice(cobro.indexOf("async function deshacerSenia("));
+  assert.match(deshacer, /politica !== "directa"/);
 });
 
 test("condonar exige agenda:manage: perdonar plata lo decide el negocio, no quien cobra", () => {

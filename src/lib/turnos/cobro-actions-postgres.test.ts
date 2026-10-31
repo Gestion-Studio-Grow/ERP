@@ -7,11 +7,12 @@
  *   · CH-022 · «Llegó la seña» cobra $5.000 por transferencia y confirma; idempotente (dos toques
  *     seguidos y dos a la vez → un solo cobro);
  *   · CH-049 · deshacer la seña recién cobrada la anula (contrapartida + egreso) y vuelve a Reservado;
+ *     directo, sólo la dueña (orden del dueño, 31/10/2026);
  *   · CH-024 · «+ Sumar lo que debe»: dos cobros imputados cada uno a su turno, ambos en saldo $0;
  *   · CH-026 · deshacer una cancelación: vuelve a Reservado; con el hueco ocupado o pasados 10 min, no;
  *   · CH-061 · con el id de OTRO negocio: «ya no existe» (no un error crudo), 0 cobros y 0 asientos;
  *   · CH-007 · el turno de la profesional que cobra aparte no se cobra dividido desde la recepción;
- *   · cert F-1 · la profesional registra la seña de SU turno sin redirección (cobra, no confirma) y la deshace;
+ *   · cert F-1 · la profesional registra la seña de SU turno sin redirección (cobra, no confirma), y no la deshace;
  *   · caja cerrada · el cobro dividido se rechaza con el motivo y no cobra nada.
  *
  * Sin Postgres local se saltea diciendo por qué (en CI falla), como los demás `*-postgres.test.ts`.
@@ -91,6 +92,13 @@ function fd(campos: Record<string, string>): FormData {
   const f = new FormData();
   for (const [k, v] of Object.entries(campos)) f.set(k, v);
   return f;
+}
+
+async function comoDuena<R>(s: Sembrado, fn: () => Promise<R>): Promise<R> {
+  const r = await ejecutarAccion({ negocio: s.base.a, usuario: s.base.a.duenia }, fn);
+  assert.equal(r.tipo, "respuesta", `la acción no respondió (¿tiró crudo?): ${JSON.stringify(r)}`);
+  if (r.tipo !== "respuesta") throw new Error("sin respuesta");
+  return r.valor;
 }
 
 async function comoRecepcion<R>(s: Sembrado, fn: () => Promise<R>): Promise<R> {
@@ -193,7 +201,7 @@ test("CH-022 · «Llegó la seña»: $5.000 por transferencia + Confirmado; dos 
   const r = await comoRecepcion(s, () => cobrarSeniaYConfirmar(fd(campos)));
   assert.equal(r.ok, true);
   assert.ok(r.ok && r.cobroId && r.monto === 5000 && r.confirmo);
-  const esperado = { status: "CONFIRMED", cobros: [{ amount: 5000, method: "TRANSFERENCIA" }], libro: [{ type: "VENTA", method: "MP", amount: 5000 }] };
+  const esperado = { status: "CONFIRMED", cobros: [{ amount: 5000, method: "TRANSFERENCIA" }], libro: [{ type: "VENTA", method: "TRANSFERENCIA", amount: 5000 }] };
   assert.deepEqual(await foto(s, id), esperado);
   // Comprobante informado ≠ cobrado: el cobro y su auditoría dicen «verificada por recepción».
   {
@@ -218,7 +226,7 @@ test("CH-022 · «Llegó la seña»: $5.000 por transferencia + Confirmado; dos 
   assert.deepEqual(await foto(s, otroId), {
     status: "CONFIRMED",
     cobros: [{ amount: 5000, method: "TRANSFERENCIA" }],
-    libro: [{ type: "VENTA", method: "MP", amount: 5000 }],
+    libro: [{ type: "VENTA", method: "TRANSFERENCIA", amount: 5000 }],
   });
 });
 
@@ -229,8 +237,14 @@ test("CH-049 · deshacer la seña recién cobrada: se anula con contrapartida y 
   const { id } = await s.turnoA("Paula", { horas: 96 });
   const r = await comoRecepcion(s, () => cobrarSeniaYConfirmar(fd({ appointmentId: id, method: "TRANSFERENCIA", amount: "5000" })));
   assert.ok(r.ok && r.cobroId);
+  assert.equal(r.ok && r.sePuedeDeshacer, false, "a recepción no se le ofrece deshacer");
   const cobroId = r.ok ? r.cobroId! : "";
-  assert.deepEqual(await comoRecepcion(s, () => deshacerCierre(fd({ appointmentId: id, que: "senia", cobroId }))), { ok: true });
+  assert.deepEqual(await comoRecepcion(s, () => deshacerCierre(fd({ appointmentId: id, que: "senia", cobroId }))), {
+    ok: false,
+    error: "La seña ya quedó registrada. Si estuvo mal, anular el cobro necesita a la dueña.",
+  });
+  assert.equal((await foto(s, id)).libro.length, 1, "recepción no deshizo nada");
+  assert.deepEqual(await comoDuena(s, () => deshacerCierre(fd({ appointmentId: id, que: "senia", cobroId }))), { ok: true });
   assert.deepEqual(await foto(s, id), {
     status: "PENDING",
     cobros: [
@@ -238,15 +252,15 @@ test("CH-049 · deshacer la seña recién cobrada: se anula con contrapartida y 
       { amount: -5000, method: "TRANSFERENCIA" },
     ],
     libro: [
-      { type: "VENTA", method: "MP", amount: 5000 },
-      { type: "EGRESO", method: "MP", amount: 5000 },
+      { type: "VENTA", method: "TRANSFERENCIA", amount: 5000 },
+      { type: "EGRESO", method: "TRANSFERENCIA", amount: 5000 },
     ],
   });
   const duenio = await prismaComoDuenio(s.base);
   const anulacion = await duenio.auditLog.findFirst({ where: { entityId: id, action: "void_collection" }, select: { changes: true } });
   assert.equal((anulacion?.changes as { motivo?: string } | null)?.motivo, "deshacer: la seña se marcó por error");
   // Un segundo «Deshacer» no anula dos veces.
-  assert.deepEqual(await comoRecepcion(s, () => deshacerCierre(fd({ appointmentId: id, que: "senia", cobroId }))), { ok: true });
+  assert.deepEqual(await comoDuena(s, () => deshacerCierre(fd({ appointmentId: id, que: "senia", cobroId }))), { ok: true });
   assert.equal((await foto(s, id)).cobros.length, 2);
 });
 
@@ -328,7 +342,7 @@ test("CH-061 · con el id de OTRO negocio: «ya no existe», sin error crudo, 0 
   assert.deepEqual(await comoRecepcion(s, () => cobrarSeniaYConfirmar(fd({ appointmentId: s.tOtro, method: "TRANSFERENCIA", amount: "5000" }))), YA_NO_EXISTE);
   assert.deepEqual(await comoRecepcion(s, () => cobrarVariosTurnos(fd({ cobros: JSON.stringify([{ id: s.tOtro, monto: 5000 }]), method: "EFECTIVO" }))), YA_NO_EXISTE);
   assert.deepEqual(await comoRecepcion(s, () => deshacerCierre(fd({ appointmentId: s.tOtro, que: "cancelacion" }))), YA_NO_EXISTE);
-  assert.deepEqual(await comoRecepcion(s, () => deshacerCierre(fd({ appointmentId: s.tOtro, que: "senia", cobroId: "cualquiera" }))), YA_NO_EXISTE);
+  assert.deepEqual(await comoDuena(s, () => deshacerCierre(fd({ appointmentId: s.tOtro, que: "senia", cobroId: "cualquiera" }))), YA_NO_EXISTE);
   assert.deepEqual(await comoRecepcion(s, () => deudaViejaDelTurno(s.tOtro)), []);
   // Mezclado con un turno propio: tampoco se cobra el propio (todo o nada).
   const propio = await s.turnoA("Ana", { horas: -24 * 50, status: "COMPLETED", precio: 5000 });
@@ -353,7 +367,7 @@ test("CH-007 · el turno de la profesional que cobra aparte no se cobra dividido
 });
 
 // Va ÚLTIMO: cierra la caja de hoy del negocio A.
-test("cert F-1 · la profesional (sin agenda:manage) registra la seña de SU turno sin redirección: cobra, no confirma; deshace la suya; la de otra, no", async (t) => {
+test("cert F-1 · la profesional (sin agenda:manage) registra la seña de SU turno sin redirección: cobra, no confirma; no la deshace; la de otra, no toca", async (t) => {
   const s = await preparar(t);
   if (!s) return;
   const duenio = await prismaComoDuenio(s.base);
@@ -375,7 +389,7 @@ test("cert F-1 · la profesional (sin agenda:manage) registra la seña de SU tur
   assert.deepEqual(await foto(s, suyo.id), {
     status: "PENDING",
     cobros: [{ amount: 5000, method: "TRANSFERENCIA" }],
-    libro: [{ type: "VENTA", method: "MP", amount: 5000 }],
+    libro: [{ type: "VENTA", method: "TRANSFERENCIA", amount: 5000 }],
   });
   const [cobro] = await duenio.collection.findMany({ where: { appointmentId: suyo.id }, select: { note: true } });
   assert.match(cobro.note ?? "", /verificada por la profesional/);
@@ -388,11 +402,15 @@ test("cert F-1 · la profesional (sin agenda:manage) registra la seña de SU tur
     aviso: "La seña ya estaba registrada. El turno lo confirma la recepción.",
   });
 
-  // Deshacer la suya: se anula y el turno sigue Reservado (no lo había confirmado).
-  assert.deepEqual(await comoVero(() => deshacerCierre(fd({ appointmentId: suyo.id, que: "senia", cobroId: r.ok ? (r.cobroId ?? "") : "" }))), { ok: true });
+  // Deshacer es anular, y la profesional no anula (orden del dueño, 31/10/2026): ni la suya.
+  assert.equal(r.ok && r.sePuedeDeshacer, false, "no se le ofrece");
+  assert.deepEqual(await comoVero(() => deshacerCierre(fd({ appointmentId: suyo.id, que: "senia", cobroId: r.ok ? (r.cobroId ?? "") : "" }))), {
+    ok: false,
+    error: "Anular un cobro lo hace la dueña. Pasale el turno a ella.",
+  });
   const despues = await foto(s, suyo.id);
   assert.equal(despues.status, "PENDING");
-  assert.equal(despues.libro.length, 2, "VENTA + EGRESO de la anulación");
+  assert.equal(despues.libro.length, 1, "sigue la VENTA, sin egreso");
 
   // El de Caro: se rechaza con el motivo (nunca una redirección), sin cobro.
   const deCaro = await s.turnoA("Romina", { horas: 30 });

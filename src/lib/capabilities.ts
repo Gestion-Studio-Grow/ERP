@@ -27,6 +27,10 @@ export type Capability =
   // baja saldos»). Va SEPARADA de `agenda:manage` porque la recepción gestiona la agenda entera
   // y, con eso, podía regalar saldos. Sólo OWNER; `condonarSaldoTurno` la exige.
   | "agenda:forgive"
+  // Anular un cobro de turno: asienta el egreso en la caja. Va SEPARADA de `agenda:collect` porque
+  // cobrar no habilita deshacer. Orden del dueño (31/10/2026): «no se anulan cobros, pero solamente
+  // recepcion con autorizacion de caro». Cómo anula cada rol: `anulacionDeCobro`, más abajo.
+  | "agenda:void"
   | "clients:read"
   | "clients:manage"
   | "waitlist:manage" // anotar/gestionar la lista de espera y convertir en turno
@@ -112,6 +116,7 @@ const DEL_DUENIO: Record<Exclude<Capability, keyof typeof NO_SON_DEL_DUENIO>, tr
   "agenda:complete": true,
   "agenda:collect": true,
   "agenda:forgive": true,
+  "agenda:void": true,
   "clients:read": true,
   "clients:manage": true,
   "waitlist:manage": true,
@@ -160,7 +165,8 @@ export const ALL_CAPABILITIES: Capability[] = Object.keys(DEL_DUENIO) as Capabil
 //   hueco cuando se libera), del mismo tenor operativo que agenda + clientes.
 // - PROFESSIONAL: solo su propia agenda — leer, marcar completado/no-show y COBRAR sus
 //   turnos. El scoping a su `professionalId` se hace en el loader (getAgendaDay) y en las
-//   acciones de cierre y cobro; la capability solo habilita la clase de acción.
+//   acciones de cierre y cobro; la capability solo habilita la clase de acción. NO ANULA un
+//   cobro, ni el suyo (orden del dueño, 31/10/2026): cobrar no le da `agenda:void`.
 export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
   OWNER: ALL_CAPABILITIES,
   RECEPTION: [
@@ -169,6 +175,8 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     "agenda:manage",
     "agenda:complete",
     "agenda:collect",
+    // Sólo con el código de la dueña para ESE cobro: `anulacionDeCobro`.
+    "agenda:void",
     "clients:read",
     "clients:manage",
     "waitlist:manage",
@@ -220,6 +228,22 @@ export function alcanceDeAnulacion(role: Role): AlcanceDeAnulacion | null {
   if (!roleHasCapability(role, "orders:void")) return null;
   if (role === "OWNER") return { soloHoy: false, motivoObligatorio: false };
   return { soloHoy: true, motivoObligatorio: true };
+}
+
+/**
+ * Cómo anula un cobro de turno cada rol (`agenda:void`). Vale para todos los negocios.
+ *
+ * - `directa`: la dueña. También es quien autoriza a los demás.
+ * - `con-autorizacion`: con el código que la dueña saca para ESE cobro (`codigo-anulacion.ts`).
+ *   Cualquier rol nuevo con la capacidad arranca acá: con el límite puesto, no sin él.
+ * - `null`: no anula. Acepta texto (el `viewer` que cruza el borde RSC): un rol desconocido, tampoco.
+ */
+export type AnulacionDeCobro = "directa" | "con-autorizacion";
+
+export function anulacionDeCobro(role: string | null | undefined): AnulacionDeCobro | null {
+  if (!role || !Object.prototype.hasOwnProperty.call(ROLE_CAPABILITIES, role)) return null;
+  if (!roleHasCapability(role as Role, "agenda:void")) return null;
+  return role === "OWNER" ? "directa" : "con-autorizacion";
 }
 
 // Ruta "home" de cada rol — a dónde mandarlo cuando entra al panel o cuando

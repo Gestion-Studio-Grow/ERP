@@ -12,13 +12,16 @@ import {
   todayInBusinessTz,
   dateStrInBusinessTz,
   dayOfWeekForDate,
+  fmtTime,
 } from "@/lib/datetime";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { whereVentasCobradasConMedio } from "@/lib/order-anulacion";
 import { bookingTransaction, tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { anulacionDeCobro, roleHasCapability, type AnulacionDeCobro } from "@/lib/capabilities";
+import { authSecret } from "@/lib/auth";
+import { emitirCodigo, normalizarCodigo, topeDeAnulaciones, verificarCodigo } from "@/lib/turnos/codigo-anulacion";
 import { recordMovement } from "@/lib/stock/ledger";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { generateSlotsForDays } from "@/lib/booking-slots";
@@ -56,6 +59,11 @@ import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { agruparIngresos, bordesDelPeriodo } from "@/lib/report-ingresos";
 import {
   anularCobroTurnoInTx,
+  MENSAJE_CODIGO_MALO,
+  MENSAJE_FALTA_CODIGO,
+  MENSAJE_SIN_ANULAR,
+  MENSAJE_TOPE_DE_CODIGOS,
+  mensajeSinDevolver,
   cobrosAnulables,
   condonarSaldoTurnoInTx,
   cobrosDetalladosPorTurno,
@@ -1279,15 +1287,17 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
  * Anula UN cobro concreto: asienta la contrapartida (una `Collection` negativa que baja
  * Σ cobros), revierte el asiento del libro con un EGRESO del mismo monto, medio y fecha
  * contable, y recalcula el `Payment` agregado. Idempotente: anular dos veces no duplica la
- * reversa. Auditada con el motivo, que es obligatorio.
+ * reversa. Auditada con quién anuló, quién autorizó y el motivo, que es obligatorio.
  *
- * MISMA capacidad y MISMO veredicto que cobrar (`agenda:collect` + `puedeCobrarEsteTurno`):
- * quien puede tomar la plata es quien puede devolverla. Si la profesional que cobra aparte
- * es la única que puede cobrar su turno, es también la única que puede anular ese cobro —
- * lo contrario dejaría a la recepción deshaciendo plata que no manejó.
+ * QUIÉN ANULA (orden del dueño, 31/10/2026, para todos los negocios): la dueña, directo;
+ * recepción, con el código que la dueña saca para ESE cobro; la profesional, no, ni el suyo
+ * (`anulacionDeCobro`). Recepción tampoco anula el turno de la profesional que cobra aparte: es
+ * plata que no pasó por el mostrador, y lo resuelve la dueña.
  */
 export async function anularCobroTurno(formData: FormData): Promise<ResultadoAccion> {
   const user = await requireCapability("agenda:collect");
+  const politica = anulacionDeCobro(user.role);
+  if (!politica) return { ok: false, error: MENSAJE_SIN_ANULAR };
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const collectionId = String(formData.get("collectionId") || "").trim();
   const appointmentId = String(formData.get("appointmentId") || "").trim();
@@ -1310,7 +1320,11 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
     nombreProfesional: delTurno.nombre,
     cobraEnMostrador: delTurno.cobraEnMostrador,
   });
-  if (!veredicto.ok) return { ok: false, error: veredicto.motivo };
+  if (!veredicto.ok) return { ok: false, error: `${delTurno.nombre ?? "Esa profesional"} cobra aparte: anular este cobro lo hace la dueña.` };
+
+  // Antes de abrir la transacción: sin autorización no se escribe ni se bloquea nada.
+  const autorizacion = await autorizadoraDeLaAnulacion(user, politica, tenantId, collectionId, formData.get("codigo"));
+  if (!autorizacion.ok) return autorizacion;
 
   // La frontera de congelamiento se lee una vez, fuera de la tx: es estado del tenant, no
   // del turno. La regla la aplica el repositorio contra la fecha CONTABLE del asiento.
@@ -1323,10 +1337,6 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
           where: { id: appointmentId },
           include: { service: { select: { price: true } } },
         });
-        // Invariante DURA dentro de la tx, igual que en el cobro: la profesional toca LO SUYO.
-        if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
-          throw new Error("Ese turno es de otra profesional: sólo podés anular cobros de los tuyos.");
-        }
         return anularCobroTurnoInTx(tx, tenantId, {
           collectionId,
           appointmentId,
@@ -1379,6 +1389,11 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
       collectionId,
       motivo: motivoV.motivo,
       monto: settled.value.monto,
+      anuladaPor: user.id,
+      anuladaPorNombre: user.name,
+      anuladaPorRol: user.role,
+      autorizadaPor: autorizacion.duena.id,
+      autorizadaPorNombre: autorizacion.duena.nombre,
       cobrado: settled.value.cobradoDespues,
       saldo: settled.value.saldoDespues,
       libroCaja: settled.outcome === "degraded" ? "sin-migrar" : settled.value.libro,
@@ -1392,6 +1407,62 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
   revalidatePath("/admin/caja");
   revalidatePath("/admin/caja/libro");
   return { ok: true };
+}
+
+/** Quién autoriza esta anulación: la dueña misma si anula ella; si no, la que emitió el código. */
+async function autorizadoraDeLaAnulacion(
+  user: { id: string; name: string },
+  politica: AnulacionDeCobro,
+  tenantId: string,
+  collectionId: string,
+  codigoCrudo: FormDataEntryValue | null,
+): Promise<{ ok: true; duena: { id: string; nombre: string } } | { ok: false; error: string }> {
+  if (politica === "directa") return { ok: true, duena: { id: user.id, nombre: user.name } };
+  const codigo = normalizarCodigo(codigoCrudo);
+  if (!codigo) return { ok: false, error: MENSAJE_FALTA_CODIGO };
+  const intento = { tenantId, userId: user.id, collectionId };
+  if (topeDeAnulaciones.frenado(intento)) return { ok: false, error: MENSAJE_TOPE_DE_CODIGOS };
+  const duenas = await prisma.user.findMany({
+    where: { tenantId, role: "OWNER", active: true, deletedAt: null },
+    select: { id: true, name: true },
+  });
+  const r = verificarCodigo({ secreto: authSecret(), tenantId, collectionId, duenas: duenas.map((d) => d.id), codigo }, Date.now());
+  const duena = r.ok ? duenas.find((d) => d.id === r.duenaId) : undefined;
+  if (!duena) {
+    topeDeAnulaciones.fallo(intento);
+    return { ok: false, error: MENSAJE_CODIGO_MALO };
+  }
+  topeDeAnulaciones.acierto(intento);
+  return { ok: true, duena: { id: duena.id, nombre: duena.name } };
+}
+
+export type ResultadoAutorizacion = { ok: true; codigo: string; venceA: string } | { ok: false; error: string };
+
+/**
+ * «Autorizar anulación»: la dueña saca el código de UN cobro para que recepción lo anule. Sólo
+ * calcula y deja rastro; la plata no se mueve hasta que recepción anula. El código nunca se guarda:
+ * ni en la base ni en la auditoría.
+ */
+export async function autorizarAnulacionCobro(formData: FormData): Promise<ResultadoAutorizacion> {
+  const user = await requireCapability("agenda:collect");
+  if (anulacionDeCobro(user.role) !== "directa") return { ok: false, error: "Autorizar una anulación lo hace la dueña." };
+  if (isDemoSandbox()) return { ok: false, error: "En la demo no se sacan códigos." };
+  const collectionId = String(formData.get("collectionId") || "").trim();
+  const appointmentId = String(formData.get("appointmentId") || "").trim();
+  if (!collectionId || !appointmentId) return { ok: false, error: "Falta identificar el cobro." };
+  const tenantId = await getCurrentTenantId();
+  const cobros = (await cobrosDetalladosPorTurno(prisma, tenantId, [appointmentId])).get(appointmentId) ?? [];
+  const cobro = cobrosAnulables(cobros).find((c) => c.id === collectionId);
+  if (!cobro) return { ok: false, error: "Ese cobro ya no se puede anular. Recargá la agenda." };
+
+  const { codigo, venceMs } = emitirCodigo({ secreto: authSecret(), tenantId, collectionId, duenaId: user.id }, Date.now());
+  await auditAdmin({
+    action: "authorize_void_collection",
+    entity: "Appointment",
+    entityId: appointmentId,
+    changes: { collectionId, monto: cobro.amount, autorizadaPor: user.id, autorizadaPorNombre: user.name, vence: new Date(venceMs).toISOString() },
+  });
+  return { ok: true, codigo, venceA: fmtTime(new Date(venceMs)) };
 }
 
 /**
@@ -1856,9 +1927,11 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
   const plan = planSeniaAlCerrar({ cobrado: cobradoDe(cobrosAntes), destino: destinoPedido });
   if (!plan.ok) return { ok: false, error: plan.error };
 
-  // Devolver es plata que sale: el mismo permiso que anular un cobro.
+  // Devolver es anular el cobro por otra puerta: sale plata del libro. Por eso, directo sólo la
+  // dueña. Recepción lo hace en dos pasos: anula con el código y después cierra el turno sin plata.
   if (plan.destino === "devolver") {
-    if (!roleHasCapability(user.role, "agenda:collect")) return { ok: false, error: "Devolver una seña lo hace quien cobra los turnos." };
+    const politica = anulacionDeCobro(user.role);
+    if (politica !== "directa") return { ok: false, error: mensajeSinDevolver(politica) };
     const veredicto = puedeCobrarEsteTurno({
       rol: user.role,
       professionalIdDelUsuario: user.professionalId,

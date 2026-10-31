@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { roleHasCapability, ROLE_CAPABILITIES, ALL_CAPABILITIES, alcanceDeAnulacion } from "./capabilities";
+import { roleHasCapability, ROLE_CAPABILITIES, ALL_CAPABILITIES, alcanceDeAnulacion, anulacionDeCobro } from "./capabilities";
 
 // ── Quién cobra (decisión del dueño, 2026-09-07) ─────────────────────────────
 //
@@ -15,6 +15,16 @@ test("el profesional cobra sus turnos, pero no gestiona la agenda", () => {
   assert.equal(roleHasCapability("PROFESSIONAL", "clients:manage"), false);
   assert.equal(roleHasCapability("PROFESSIONAL", "orders:manage"), false);
   assert.equal(roleHasCapability("PROFESSIONAL", "reports:read"), false);
+});
+
+test("anular un cobro (orden del dueño, 31/10/2026): la dueña directo, recepción con código, la profesional no", () => {
+  assert.equal(anulacionDeCobro("OWNER"), "directa");
+  assert.equal(anulacionDeCobro("RECEPTION"), "con-autorizacion");
+  assert.equal(anulacionDeCobro("PROFESSIONAL"), null);
+  assert.equal(roleHasCapability("PROFESSIONAL", "agenda:void"), false, "cobrar no habilita anular");
+  assert.equal(anulacionDeCobro("cualquiera"), null);
+  assert.equal(anulacionDeCobro("constructor"), null, "no se confunde con lo heredado de Object");
+  assert.equal(anulacionDeCobro(undefined), null);
 });
 
 test("recepción y dueño también cobran, y recepción lleva la caja entera", () => {

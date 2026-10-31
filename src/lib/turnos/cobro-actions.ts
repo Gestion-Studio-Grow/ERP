@@ -31,7 +31,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { anulacionDeCobro, roleHasCapability } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { tenantTransaction } from "@/lib/rls";
@@ -60,7 +60,7 @@ import {
 } from "./cobro-turno-repo";
 import { esMetodoDePago, estadoCobroTurno, puedeCompletarse, type MetodoDePago } from "./cobros";
 import { puedeCobrarEsteTurno } from "./cobro-mostrador";
-import { AnulacionRechazada, anularCobroTurnoInTx, cobrosDetalladosPorTurno, desglosarCobros, type AnularCobroResult } from "./anulacion";
+import { AnulacionRechazada, anularCobroTurnoInTx, cobrosDetalladosPorTurno, desglosarCobros, MENSAJE_NO_DESHACE, MENSAJE_SIN_ANULAR, type AnularCobroResult } from "./anulacion";
 import { plataDeLaFila, type FilaDeTurno } from "./cierre-lote";
 import { leerFilasDeTurnos } from "./sin-cerrar.server";
 import {
@@ -86,7 +86,7 @@ export type ResultadoCobro = { ok: true; aviso?: string } | { ok: false; error: 
 
 /** «Llegó la seña»: además, el cobro que se hizo (para el «Deshacer» de 10 s). */
 export type ResultadoDeSenia =
-  | { ok: true; aviso?: string; cobroId: string | null; monto: number; confirmo: boolean }
+  | { ok: true; aviso?: string; cobroId: string | null; monto: number; confirmo: boolean; sePuedeDeshacer?: boolean }
   | { ok: false; error: string };
 
 type Usuario = Awaited<ReturnType<typeof requireCapability>>;
@@ -439,7 +439,7 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
         : "La seña ya estaba cobrada: quedó confirmado.";
     return { ok: true, cobroId: null, monto: 0, confirmo, aviso };
   }
-  return { ok: true, cobroId: cobrado.collectionId, monto: cobrado.monto, confirmo };
+  return { ok: true, cobroId: cobrado.collectionId, monto: cobrado.monto, confirmo, sePuedeDeshacer: anulacionDeCobro(user.role) === "directa" };
 }
 
 // ── 3. DEUDA VIEJA ───────────────────────────────────────────────────────────
@@ -627,8 +627,7 @@ export async function deudaViejaDelTurno(appointmentId: string): Promise<DeudaVi
 export async function deshacerCierre(formData: FormData): Promise<ResultadoCobro> {
   const que = leerQueSeDeshace(formData.get("que"));
   if (!que) return { ok: false, error: "No sé qué hay que deshacer. Recargá la agenda." };
-  // Deshacer la seña es anular un cobro recién hecho: la misma capacidad que lo cobró (`agenda:collect`,
-  // y adentro el veredicto de ESE turno), para que la profesional deshaga la suya (cert CH T2, F-1).
+  // Deshacer la seña es anular un cobro recién hecho: rige la orden de quién anula (`deshacerSenia`).
   const user = await requireCapability(que === "no-vino" ? "agenda:complete" : que === "senia" ? "agenda:collect" : "agenda:manage");
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const appointmentId = texto(formData.get("appointmentId"));
@@ -682,7 +681,10 @@ export async function deshacerCierre(formData: FormData): Promise<ResultadoCobro
 }
 
 async function deshacerSenia(user: Usuario, tenantId: string, appointmentId: string, cobroId: string): Promise<ResultadoCobro> {
-  if (!roleHasCapability(user.role, "agenda:collect")) return { ok: false, error: NO_COBRA };
+  // Directo, sólo la dueña (orden del dueño, 31/10/2026). Sin esto, los 10 minutos de «Deshacer»
+  // serían una anulación sin autorización, con el egreso en la caja.
+  const politica = anulacionDeCobro(user.role);
+  if (politica !== "directa") return { ok: false, error: politica ? MENSAJE_NO_DESHACE : MENSAJE_SIN_ANULAR };
   if (!cobroId) return { ok: false, error: "Falta identificar la seña a deshacer." };
   const [fila] = await leerFilasDeTurnos(tenantId, { ids: [appointmentId] });
   if (!fila) return { ok: false, error: YA_NO_EXISTE };
@@ -761,6 +763,11 @@ async function deshacerSenia(user: Usuario, tenantId: string, appointmentId: str
       motivo: MOTIVO_DESHACER_SENIA,
       deshacer: true,
       monto: anulacion.monto,
+      anuladaPor: user.id,
+      anuladaPorNombre: user.name,
+      anuladaPorRol: user.role,
+      autorizadaPor: user.id,
+      autorizadaPorNombre: user.name,
       cobrado: anulacion.cobradoDespues,
       saldo: anulacion.saldoDespues,
       volvioAReservado,
