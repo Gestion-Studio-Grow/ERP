@@ -218,7 +218,7 @@ export default async function ReportesPage({
               gastos, por medio) vive en el libro. Cada cobro de turno aparece en los dos,
               una vez en cada uno: son dos lecturas del mismo hecho, no dos verdades. */}
           <p className="text-xs text-faint mt-1">
-            Solo servicios cobrados. Ventas del mostrador y gastos: en el{" "}
+            Solo servicios cobrados. Las ventas y los gastos: en el{" "}
             <Link href="/admin/caja/libro" className="underline underline-offset-2">libro de caja</Link>.
           </p>
         </div>

@@ -94,7 +94,7 @@ export default async function CajaPage() {
       <h1 className="text-2xl font-semibold mb-1 text-strong">Caja</h1>
       <p className="text-muted mb-6 max-w-2xl">
         Lo que hay ahora por cada medio de pago y todo lo que se movió hoy.{" "}
-        {caja ? "Las ventas del mostrador entran solas" : "Los cobros de turnos y las ventas del mostrador entran solos"}, por cualquier medio: acá se cargan
+        {caja ? "Las ventas del mostrador entran solas" : "Los cobros de turnos y las ventas entran solos"}, por cualquier medio: acá se cargan
         únicamente los gastos, retiros e ingresos sueltos.
       </p>
 

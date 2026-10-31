@@ -404,7 +404,7 @@ export default async function PedidosPage() {
         </div>
       ) : (
         <>
-          <h1 className="text-2xl font-semibold mb-1">Caja y pedidos</h1>
+          <h1 className="text-2xl font-semibold mb-1">{comercio ? "Caja y pedidos" : "Ventas y pedidos"}</h1>
           <p className="text-muted mb-8">
             {comercio ? (
               <>
@@ -414,7 +414,7 @@ export default async function PedidosPage() {
               </>
             ) : (
               <>
-                Atendé en el mostrador. En <strong>Productos</strong>: elegí, cargá la cantidad, cobrá y
+                Vendé lo que no es un turno. En <strong>Productos</strong>: elegí, cargá la cantidad, cobrá y
                 listo. En <strong>Servicios</strong>: elegí el servicio y la profesional, el horario de
                 la agenda, y cobralo en el acto. Los pedidos
                 para retiro o envío caen a la bandeja de abajo para seguir su preparación y cobro.

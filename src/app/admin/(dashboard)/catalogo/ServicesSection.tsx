@@ -554,6 +554,9 @@ export default function ServicesSection({
         >
           Agregar servicio
         </button>
+        <p className="col-span-2 text-xs text-muted sm:col-span-4">
+          Después asignale quién lo hace, en «Asignación de servicios», más abajo. Sin eso no aparece en «Dar turno».
+        </p>
       </form>
     </section>
   );

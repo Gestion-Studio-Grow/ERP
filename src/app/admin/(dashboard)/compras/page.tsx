@@ -171,7 +171,7 @@ export default async function ComprasPage({
     <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-8">
       <h1 className="text-2xl font-semibold mb-1">{negocio.esMostrador ? "Recibir mercadería" : "Compras y reposición"}</h1>
       <p className="text-muted mb-8">
-        Registrá la entrada de mercadería (compra a proveedor o reposición interna): elegí los
+        Registrá lo que entra {negocio.esMostrador ? "de mercadería" : "de productos e insumos"} (compra a proveedor o reposición interna): elegí los
         productos y las cantidades, y el sistema suma ese stock automáticamente. Es la contracara
         de la venta, que lo descuenta.
         {formal && " En la edición Empresa podés dejar registrada la orden formal (razón social, CUIT y N° de orden)."}

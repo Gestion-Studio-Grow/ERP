@@ -170,7 +170,7 @@ export default async function LibroCajaPage({
               Una fila por cobro o por gasto, igual que en la planilla. Se guarda con la fecha que
               pongas, no con la de hoy: podés cargar en diferido.{" "}
               <strong className="font-medium text-body">
-                {esMostrador ? "Las ventas del mostrador entran solas" : "Los turnos cobrados desde Turnos y las ventas del mostrador entran solos"}
+                {esMostrador ? "Las ventas del mostrador entran solas" : "Los turnos cobrados desde Turnos y las ventas entran solos"}
               </strong>
               : acá se carga lo que no pasa por el sistema (señas, gastos, retiros, cobros sueltos).
             </CardDescription>

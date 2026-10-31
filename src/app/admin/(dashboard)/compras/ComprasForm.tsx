@@ -276,8 +276,8 @@ export default function ComprasForm({
         <span className="text-xs text-faint">
           {isCompra
             ? conCostos
-              ? "Ingreso de mercadería con costo. Suma stock y registra el costo de compra."
-              : "Ingreso de mercadería del proveedor. Suma stock; el costo lo carga la dueña o el dueño."
+              ? "Lo que entra, con su costo. Suma stock y registra el costo de compra."
+              : "Lo que entra del proveedor. Suma stock; el costo lo carga la dueña o el dueño."
             : "Reposición interna (recuento, devolución). Suma stock; el costo es opcional."}
         </span>
       </div>

@@ -42,7 +42,7 @@ export function CargarMovimiento({
           descripcion={
             esMostrador
               ? "Lo que no viene de una venta. Las ventas del mostrador ya entran solas: no las cargues acá."
-              : "Lo que no viene de una venta. Los cobros del mostrador y de los turnos ya entran solos: no los cargues acá."
+              : "Lo que no viene de una venta. Los cobros de las ventas y de los turnos ya entran solos: no los cargues acá."
           }
         >
           <AddLibroEntryForm defaultDate={dia} viewMonth={mes ?? dia.slice(0, 7)} />
