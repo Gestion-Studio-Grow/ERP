@@ -84,6 +84,7 @@ export default function AnnouncementBar({ id, message }: { id: string; message: 
         <button
           type="button"
           aria-label="Cerrar aviso"
+          className="chf-aviso-x"
           onClick={() => {
             try {
               sessionStorage.setItem(STORAGE_KEY, id);

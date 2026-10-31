@@ -62,7 +62,9 @@ export const CSS_CH = `
 .chf-nav a:hover{color:var(--chf-tinta)}
 
 /* El pie lo pone el layout de siempre: con el diseño nuevo, sus enlaces también se tocan con el dedo. */
-.chf-cab ~ footer a{display:inline-flex;align-items:center;min-height:48px}
+.chf-cab ~ footer a{display:inline-flex!important;align-items:center;min-height:48px}
+
+.chf-aviso-x{min-width:48px;min-height:48px;display:inline-grid;place-items:center}
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
 /* En la compu, dos columnas: a la izquierda el H1, la bajada y las teclas; a la derecha la agenda viva sobre un plano
@@ -84,6 +86,9 @@ export const CSS_CH = `
   .chf-hero-tit,.chf-hero-a,.chf-hero-b{grid-column:1}
   .chf-h1{max-width:11ch}
   .chf-agenda{grid-column:2;grid-row:1 / span 3;margin-top:calc(var(--chf-kicker) * 1.55 + 16px)}
+  /* La columna derecha es angosta: «Reservar» va en su renglón; al lado de la hora la tapaba («Mañana 09:0»). */
+  .chf-hero .chf-hueco{grid-template-columns:96px minmax(0,1fr);grid-template-areas:"foto nom" "foto hora" "foto acc"}
+  .chf-hero .chf-hueco-acc{justify-content:flex-start;height:auto}
 }
 
 /* Entrada: sólo transform y clip-path (el H1 es el LCP: nunca su opacidad). */
@@ -105,7 +110,7 @@ export const CSS_CH = `
 .chf-hueco-nom b{font-family:var(--font-display),Georgia,serif;font-weight:400;font-size:1.625rem}
 .chf-hueco-nom span{font-size:.9375rem;color:var(--chf-claro)}
 .chf-hueco-nom .chf-ocupada{font-weight:600;color:var(--text-on-accent)}
-.chf-hueco-hora{grid-area:hora;height:56px;display:flex;align-items:center;align-self:start}
+.chf-hueco-hora{grid-area:hora;min-height:56px;display:flex;align-items:center;align-self:start}
 .chf-hueco-acc{grid-area:acc;align-self:start;height:56px;display:flex;align-items:center;justify-content:flex-end}
 .chf-hora{appearance:none;border:0;background:none;padding:0;min-height:48px;cursor:pointer;color:var(--text-on-accent);font-family:var(--font-display),Georgia,serif;font-weight:400;font-size:clamp(1.75rem,1.3rem + 1vw,2.25rem);line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:left;text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--text-on-accent) 45%,transparent);text-underline-offset:8px;text-decoration-thickness:1px;transition:text-decoration-color var(--ch-transicion)}
 .chf-hora:hover{text-decoration-color:var(--text-on-accent)}
@@ -162,7 +167,7 @@ a.chf-serv-nom:hover{text-decoration:underline;text-decoration-thickness:1px;tex
 .chf-tabla{margin-top:40px;border-top:1px solid var(--line-strong)}
 .chf-tabla div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;padding:16px 0;border-bottom:1px solid var(--line)}
 .chf-tabla dt{color:var(--text-muted)}
-.chf-tabla a{color:inherit}
+.chf-tabla a{color:inherit;display:inline-flex;align-items:center;min-height:48px}
 .chf-donde-foto img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:4px;background:var(--surface-sunken)}
 .chf-donde-foto figcaption{margin-top:8px;font-size:.8125rem;color:var(--text-muted)}
 
@@ -276,6 +281,7 @@ a.chf-serv-nom:hover{text-decoration:underline;text-decoration-thickness:1px;tex
 .chm-dia[aria-pressed="true"] .chm-punto{background:var(--text-on-accent)}
 .chm-hora{min-height:52px;min-width:84px;font-size:1.0625rem!important;font-variant-numeric:tabular-nums}
 .chm-cerrar{width:48px!important;height:48px!important}
+.chm-buscar{min-height:48px!important}
 .chm-volver{min-height:48px!important}
 .chm-sino button{min-height:48px;min-width:48px}
 .chm-cupon input,.chm-cupon button{min-height:48px}
