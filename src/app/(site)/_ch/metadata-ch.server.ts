@@ -53,6 +53,8 @@ export async function negocioLdCH(descripcion: string): Promise<Record<string, u
     url: origen,
     descripcion,
     imagen: `${origen}${OG_CH.url}`,
+    // Canónico, con «+549…» (`resolveLocation`); sin número usable no se publica.
+    telefono: lugar.whatsapp || null,
     email: lugar.email,
     direccion: { calle: lugar.addressLine, provincia: lugar.city },
     redes: lugar.instagramUrl ? [lugar.instagramUrl] : null,
