@@ -51,7 +51,7 @@ test("cada celda dice lo mismo que el sistema de permisos", () => {
 test("el resumen del rol para el alta sale de la misma tabla", () => {
   assert.equal(resumenDelRol("OWNER", true), "Todo, incluso precios, reportes y usuarios.");
   const mostrador = resumenDelRol("RECEPTION", true);
-  assert.match(mostrador, /^vender y cobrar en el mostrador · anular una venta \(sólo lo de hoy, con motivo\)/);
+  assert.match(mostrador, /^vender y cobrar en el mostrador · anular una venta \(sólo lo de hoy, con motivo y el código de la dueña\)/);
   assert.doesNotMatch(mostrador, /costos|reportes/);
   assert.equal(resumenDelRol("PROFESSIONAL", true), "");
 });
