@@ -541,9 +541,17 @@ export default function TurnoCajon({
                 const clase = claseDeCobro(c.note);
                 const medio =
                   METODO_LABEL[c.method as MetodoDePago] ?? c.method;
+                // Debajo del renglón y no en su tecla: en el cajón de 480 px dos botones al lado
+                // del importe dejaban el medio en «E…».
+                const autoriza =
+                  clase === "cobro" &&
+                  !!c.id &&
+                  anulables.has(c.id) &&
+                  anular === "directa";
                 return (
                   <li key={c.id ?? i}>
                     <Renglon
+                      className={autoriza ? "border-b-0" : undefined}
                       folio={c.createdAt ? fmtTime(c.createdAt) : "—"}
                       titulo={
                         clase === "cobro"
@@ -572,31 +580,33 @@ export default function TurnoCajon({
                         c.id &&
                         anulables.has(c.id) &&
                         anular ? (
-                          <div className="flex flex-col items-start gap-2">
-                            <ConMotivo
-                              etiqueta="Anular"
-                              pregunta={`¿Anular el cobro de ${medio.toLowerCase()}?`}
-                              verbo="Sí, anular"
-                              placeholder="Por qué (cobré por el medio equivocado…)"
-                              pideCodigo={anular === "con-autorizacion"}
-                              hacer={(motivo, codigo) =>
-                                anularCobroTurno(
-                                  aFormData(
-                                    camposDeAnular({
-                                      cobroId: c.id!,
-                                      turnoId: t.id,
-                                      motivo,
-                                      codigo,
-                                    }),
-                                  ),
-                                )
-                              }
-                            />
-                            {anular === "directa" && <AutorizarAnulacion cobroId={c.id} turnoId={t.id} />}
-                          </div>
+                          <ConMotivo
+                            etiqueta="Anular"
+                            pregunta={`¿Anular el cobro de ${medio.toLowerCase()}?`}
+                            verbo="Sí, anular"
+                            placeholder="Por qué (cobré por el medio equivocado…)"
+                            pideCodigo={anular === "con-autorizacion"}
+                            hacer={(motivo, codigo) =>
+                              anularCobroTurno(
+                                aFormData(
+                                  camposDeAnular({
+                                    cobroId: c.id!,
+                                    turnoId: t.id,
+                                    motivo,
+                                    codigo,
+                                  }),
+                                ),
+                              )
+                            }
+                          />
                         ) : undefined
                       }
                     />
+                    {autoriza && (
+                      <div className="flex justify-end border-b border-line pb-2">
+                        <AutorizarAnulacion cobroId={c.id!} turnoId={t.id} />
+                      </div>
+                    )}
                   </li>
                 );
               })}
