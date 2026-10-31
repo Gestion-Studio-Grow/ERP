@@ -242,9 +242,10 @@ export function parseCashMethod(raw: unknown): CashMethod | null {
 }
 
 /**
- * Los medios con que se puede pagar una comisión. Transferencia tiene su columna en el libro y se
- * elige aparte de Mercado Pago (UAT CH 31/10, E1). Lo que no se reconoce vuelve `null`, y el egreso
- * asume efectivo y lo dice en el detalle (`egresoDeLiquidacion`).
+ * Los medios con que se puede pagar una comisión o reintegrar una devolución a proveedor.
+ * Transferencia tiene su columna en el libro y se elige aparte de Mercado Pago (UAT CH 31/10, E1). Lo
+ * que no se reconoce vuelve `null`: en la comisión el egreso asume efectivo y lo dice en el detalle
+ * (`egresoDeLiquidacion`); en la devolución, no se registra.
  */
 export function parseMedioDeLiquidacion(raw: unknown): CashMethod | null {
   return String(raw ?? "").trim().toUpperCase() === "TRANSFERENCIA" ? "TRANSFERENCIA" : parseCashMethod(raw);

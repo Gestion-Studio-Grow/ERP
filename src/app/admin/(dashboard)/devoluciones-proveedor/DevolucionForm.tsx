@@ -40,7 +40,7 @@ export function DevolucionForm({
   const [purchaseId, setPurchaseId] = useState("");
   const [cantidades, setCantidades] = useState<Record<string, string>>({});
   const [destino, setDestino] = useState<Destino | "">("");
-  const [medio, setMedio] = useState<"EFECTIVO" | "MP">("EFECTIVO");
+  const [medio, setMedio] = useState<"EFECTIVO" | "MP" | "TRANSFERENCIA">("EFECTIVO");
   const [motivo, setMotivo] = useState("");
   const elegirCompra = (id: string) => {
     setPurchaseId(id);
@@ -192,9 +192,10 @@ export function DevolucionForm({
           {destino === "caja" && (
             <label className="ml-8 block text-sm">
               <span className="mb-1 block text-muted">¿Cómo te la devuelve?</span>
-              <Select name="medio" value={medio} onChange={(e) => setMedio(e.target.value as "EFECTIVO" | "MP")} className="sm:max-w-xs">
+              <Select name="medio" value={medio} onChange={(e) => setMedio(e.target.value as "EFECTIVO" | "MP" | "TRANSFERENCIA")} className="sm:max-w-xs">
                 <option value="EFECTIVO">Efectivo (entra a la caja)</option>
-                <option value="MP">Transferencia / Mercado Pago</option>
+                <option value="MP">Mercado Pago</option>
+                <option value="TRANSFERENCIA">Transferencia</option>
               </Select>
             </label>
           )}
