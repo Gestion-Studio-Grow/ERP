@@ -1,3 +1,4 @@
+import { separarNota } from "@/lib/reserva-publica-notas";
 import { getClient } from "@/lib/actions";
 import { ButtonLink, fmtMoneyARS } from "@/components/ui";
 import { notFound } from "next/navigation";
@@ -167,8 +168,12 @@ export default async function ClienteDetailPage({
             {/* La nota de CADA turno: el alta la pide justamente para esto ("Preferencias, tono,
                 alergias…") y el historial de la ficha no la mostraba: "qué tono se usó la vez
                 pasada" sólo se veía en la fila de ese turno en la agenda. */}
-            {a.notes && (
-              <p className="mt-1 whitespace-pre-line rounded-md bg-warning-soft px-2 py-1 text-body">{a.notes}</p>
+            {/* BAJA-9: lo que puso el cliente en la reserva pública no se presenta como nota del equipo. */}
+            {separarNota(a.notes).delCliente && (
+              <p className="mt-1 whitespace-pre-line rounded-md border border-line px-2 py-1 text-body">Del cliente: {separarNota(a.notes).delCliente}</p>
+            )}
+            {separarNota(a.notes).delEquipo && (
+              <p className="mt-1 whitespace-pre-line rounded-md bg-warning-soft px-2 py-1 text-body">Nota del equipo: {separarNota(a.notes).delEquipo}</p>
             )}
           </div>
         ))}
