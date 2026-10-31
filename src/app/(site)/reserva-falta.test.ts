@@ -10,9 +10,10 @@ const vacio: EstadoDeLaReserva = {
   profesional: false,
   hayProfesionales: true,
   dia: false,
+  diaSinHorarios: false,
   hora: false,
   nombre: false,
-  telefonoValido: false,
+  telefono: "vacio",
   emailValido: true,
 };
 
@@ -22,16 +23,24 @@ test("cada paso dice qué falta", () => {
   assert.match(faltaParaSeguir(2, { ...vacio, hayProfesionales: false }) ?? "", /volvé y elegí otro/);
   assert.equal(faltaParaSeguir(3, vacio), "Falta elegir el día y el horario.");
   assert.equal(faltaParaSeguir(3, { ...vacio, dia: true }), "Falta elegir el horario.");
-  assert.equal(faltaParaSeguir(4, vacio), "Falta tu nombre y un teléfono válido.");
-  assert.equal(faltaParaSeguir(4, { ...vacio, nombre: true }), "Falta un teléfono válido.");
-  assert.equal(faltaParaSeguir(4, { ...vacio, emailValido: false }), "Falta tu nombre, un teléfono válido y un email válido.");
+  assert.equal(faltaParaSeguir(3, { ...vacio, dia: true, diaSinHorarios: true }), "Ese día no tiene horarios: elegí otro.");
+  assert.equal(faltaParaSeguir(4, vacio), "Falta tu nombre y tu teléfono.");
+  assert.equal(faltaParaSeguir(4, { ...vacio, nombre: true }), "Falta tu teléfono.");
+  assert.equal(faltaParaSeguir(4, { ...vacio, nombre: true, telefono: "invalido" }), "Revisá el teléfono.");
+  assert.equal(faltaParaSeguir(4, { ...vacio, telefono: "invalido" }), "Falta tu nombre. Revisá el teléfono.");
+});
+
+test("el email es opcional: nunca «falta», se corrige o se borra", () => {
+  const texto = faltaParaSeguir(4, { ...vacio, nombre: true, telefono: "valido", emailValido: false }) ?? "";
+  assert.doesNotMatch(texto, /Falta/);
+  assert.match(texto, /corregilo o borralo, es opcional/);
 });
 
 test("con el paso completo no falta nada, y en la confirmación tampoco", () => {
   assert.equal(faltaParaSeguir(1, { ...vacio, servicio: true }), null);
   assert.equal(faltaParaSeguir(2, { ...vacio, profesional: true }), null);
   assert.equal(faltaParaSeguir(3, { ...vacio, dia: true, hora: true }), null);
-  assert.equal(faltaParaSeguir(4, { ...vacio, nombre: true, telefonoValido: true }), null);
+  assert.equal(faltaParaSeguir(4, { ...vacio, nombre: true, telefono: "valido" }), null);
   assert.equal(faltaParaSeguir(5, vacio), null);
 });
 
@@ -40,6 +49,14 @@ test("el aviso nace de un intento en ESE paso: elegir y avanzar no lo arrastra",
   assert.match(fuente, /const intento = intentoEn === step;/);
   assert.match(fuente, /function elegirYSeguir\(fn: \(\) => void\) \{\s+setIntentoEn\(0\);/);
   assert.equal((fuente.match(/role="alert"[^>]*>\s*\{?falta\}?/g) ?? []).length, 1, "un solo aviso, en el pie que queda a la vista");
+});
+
+test("cambiar de servicio o de profesional no deja una profesional oculta ni una hora vieja", () => {
+  const fuente = readFileSync(join(process.cwd(), "src/app/(site)/_ch/BookingModal.tsx"), "utf8");
+  assert.match(fuente, /if \(pro && !pro\.serviceIds\.includes\(elegido\.id\)\) setPro\(null\);/);
+  assert.match(fuente, /onPick=\{elegirServicio\}/);
+  assert.match(fuente, /elegirProfesional\(p\)/);
+  assert.match(fuente, /function olvidarHorario\(\) \{\s+setSlot\(null\);\s+setSlots\(\[\]\);/);
 });
 
 test("el error de /reserva también vuelve a pedir la página al servidor", () => {

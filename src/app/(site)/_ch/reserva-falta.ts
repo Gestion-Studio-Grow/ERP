@@ -6,11 +6,17 @@ export type EstadoDeLaReserva = {
   profesional: boolean;
   hayProfesionales: boolean;
   dia: boolean;
+  /** Ya se sabe que ese día no tiene horarios (terminó de buscar y no hay ninguno). */
+  diaSinHorarios: boolean;
   hora: boolean;
   nombre: boolean;
-  telefonoValido: boolean;
+  telefono: "vacio" | "invalido" | "valido";
   emailValido: boolean;
 };
+
+function enFrase(partes: string[]): string {
+  return partes.length === 1 ? partes[0] : `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`;
+}
 
 export function faltaParaSeguir(paso: number, e: EstadoDeLaReserva): string | null {
   if (paso === 1) return e.servicio ? null : "Falta elegir el servicio.";
@@ -20,12 +26,18 @@ export function faltaParaSeguir(paso: number, e: EstadoDeLaReserva): string | nu
   }
   if (paso === 3) {
     if (e.hora) return null;
-    return e.dia ? "Falta elegir el horario." : "Falta elegir el día y el horario.";
+    if (!e.dia) return "Falta elegir el día y el horario.";
+    return e.diaSinHorarios ? "Ese día no tiene horarios: elegí otro." : "Falta elegir el horario.";
   }
   if (paso === 4) {
-    const faltan = [!e.nombre && "tu nombre", !e.telefonoValido && "un teléfono válido", !e.emailValido && "un email válido"].filter(Boolean);
-    if (faltan.length === 0) return null;
-    return `Falta ${faltan.length === 1 ? faltan[0] : `${faltan.slice(0, -1).join(", ")} y ${faltan[faltan.length - 1]}`}.`;
+    const faltan = [...(e.nombre ? [] : ["tu nombre"]), ...(e.telefono === "vacio" ? ["tu teléfono"] : [])];
+    const revisar = [...(e.telefono === "invalido" ? ["el teléfono"] : [])];
+    const frases: string[] = [];
+    if (faltan.length > 0) frases.push(`Falta ${enFrase(faltan)}.`);
+    if (revisar.length > 0) frases.push(`Revisá ${enFrase(revisar)}.`);
+    // El email es opcional: no «falta». Si está mal escrito, se corrige o se borra.
+    if (!e.emailValido) frases.push("El email está mal escrito: corregilo o borralo, es opcional.");
+    return frases.length > 0 ? frases.join(" ") : null;
   }
   return null;
 }

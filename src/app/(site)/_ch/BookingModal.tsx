@@ -277,9 +277,10 @@ export default function BookingModal({
         profesional: !!pro,
         hayProfesionales: prosForService.length > 0,
         dia: !!day,
+        diaSinHorarios: !!day && !slotsPending && !prefetchingAvailability && slots.length === 0,
         hora: !!slot,
         nombre: !!name.trim(),
-        telefonoValido: telValid,
+        telefono: tel.trim() === "" ? "vacio" : telValid ? "valido" : "invalido",
         emailValido: mailValid,
       })
     : null;
@@ -346,6 +347,8 @@ export default function BookingModal({
       return;
     }
     setIntentoEn(0);
+    // Un rechazo del servidor es de ESE intento: al seguir no acompaña a otra hora.
+    if (nuevo) setError(null);
     if (step === 4) {
       confirmBooking();
       return;
@@ -367,8 +370,30 @@ export default function BookingModal({
     fn();
     setStep((sActual) => (sActual < 4 ? sActual + 1 : sActual));
   }
+  // Otro servicio u otra profesional cambian qué horarios existen: la hora elegida y la lista del día ya no valen, y una
+  // profesional que no hace el servicio nuevo no sigue elegida sin que se vea. El efecto de abajo vuelve a traer la lista
+  // del día elegido en cuanto hay profesional y servicio.
+  function olvidarHorario() {
+    setSlot(null);
+    setSlots([]);
+    setHoraOcupada(false);
+    diaPrecargado.current = day;
+    horaPrecargada.current = null;
+  }
+  function elegirServicio(elegido: SelectedService) {
+    if (elegido.id !== svc?.id) {
+      if (pro && !pro.serviceIds.includes(elegido.id)) setPro(null);
+      olvidarHorario();
+    }
+    elegirYSeguir(() => setSvc(elegido));
+  }
+  function elegirProfesional(p: BookingProfessional) {
+    if (p.id !== pro?.id) olvidarHorario();
+    elegirYSeguir(() => setPro(p));
+  }
   function back() {
     setIntentoEn(0);
+    if (nuevo) setError(null);
     if (step > 1) setStep(step - 1);
   }
 
@@ -539,7 +564,7 @@ export default function BookingModal({
             <Step1
               groups={data.groups}
               svc={svc}
-              onPick={(elegido) => elegirYSeguir(() => setSvc(elegido))}
+              onPick={elegirServicio}
               rowSelected={rowSelected}
               isResident={isResident}
               onResidentChange={setIsResident}
@@ -562,7 +587,7 @@ export default function BookingModal({
                         key={p.id}
                         type="button"
                         aria-pressed={on}
-                        onClick={() => elegirYSeguir(() => setPro(p))}
+                        onClick={() => elegirProfesional(p)}
                         className={k("chm-pro")}
                         style={{ border: "1px solid", padding: 12, borderRadius: 2, fontSize: 14, cursor: "pointer", ...rowSelected(on) }}
                       >
@@ -627,7 +652,7 @@ export default function BookingModal({
 
               {!day && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Elegí un día para ver los horarios disponibles.</p>}
               {day && slotsPending && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Buscando horarios…</p>}
-              {day && !slotsPending && slots.length === 0 && (
+              {day && !slotsPending && !prefetchingAvailability && slots.length === 0 && (
                 <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>No hay horarios disponibles ese día.</p>
               )}
               {day && !slotsPending && slots.length > 0 && (
