@@ -5,7 +5,10 @@
 import { catalogoLd, negocioLd, type ProductoLd } from "@/lib/seo/jsonld";
 import { ogDelNegocio } from "@/lib/seo/og";
 import { packDeCorte, resolveMagraLocal, type MagraBrandingRow } from "@/tenants/magra-content";
-import { unitPrice, type MagraProducto } from "./Etiqueta";
+import type { MagraProducto } from "./Etiqueta";
+
+// Lo mismo que `unitPrice` de Etiqueta, que no se puede importar acá: Etiqueta trae componentes de cliente y este archivo corre en el servidor.
+const unitPrice = (p: MagraProducto) => (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price) ?? 0;
 
 const NOMBRE = "MAGRA Meat Market";
 
