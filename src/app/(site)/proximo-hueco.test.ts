@@ -46,15 +46,15 @@ test("el modal avisa cuando se reservó, con el UID del turno y sin guardar dato
 });
 
 test("lo guardado se lee con desconfianza: cualquier otra forma es «nada»", () => {
-  assert.deepEqual(reservaDesdeTexto(JSON.stringify({ paso: 4, serviceId: "s1", professionalId: "p1", day: MANANA, slot: "12:00Z", vecina: true, nombre: "x" })), {
+  assert.deepEqual(reservaDesdeTexto(JSON.stringify({ paso: 4, serviceId: "s1", professionalId: "p1", day: MANANA, slot: "2026-10-30T12:00:00.000Z", vecina: true, nombre: "x" })), {
     paso: 4,
     serviceId: "s1",
     professionalId: "p1",
     day: MANANA,
-    slot: "12:00Z",
+    slot: "2026-10-30T12:00:00.000Z",
     vecina: true,
   });
-  for (const malo of [null, "", "no-json", "[]", "{}", JSON.stringify({ paso: 5, serviceId: "s1" }), JSON.stringify({ paso: 1 }), JSON.stringify({ paso: "2", serviceId: "s1" })]) {
+  for (const malo of [null, "", "no-json", "[]", "{}", JSON.stringify({ paso: 5, serviceId: "s1" }), JSON.stringify({ paso: 1 }), JSON.stringify({ paso: "2", serviceId: "s1" }), JSON.stringify({ paso: 4, serviceId: "s1", slot: "12:00Z" })]) {
     assert.equal(reservaDesdeTexto(malo), null, String(malo));
   }
 });

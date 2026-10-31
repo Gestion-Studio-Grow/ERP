@@ -61,19 +61,14 @@ export default function ProximoHueco({
   const estabaAbierto = useRef(abierto);
   const reservasVistas = useRef(reservas);
   // Recién se reservó: la hora tomada se saca ya, detrás del modal, para que al cerrarlo no se vea ni un instante.
-  // Esa lectura también sirve para el cierre: no se repite.
-  const yaReleido = useRef(false);
   useEffect(() => {
     if (reservasVistas.current === reservas) return;
     reservasVistas.current = reservas;
-    yaReleido.current = true;
     setVuelta((n) => n + 1);
   }, [reservas]);
+  // Al cerrar se relee siempre: pudo pasar mucho tiempo con el modal arriba, y la de recién reservar pudo fallar.
   useEffect(() => {
-    if (estabaAbierto.current && !abierto) {
-      if (yaReleido.current) yaReleido.current = false;
-      else setVuelta((n) => n + 1);
-    }
+    if (estabaAbierto.current && !abierto) setVuelta((n) => n + 1);
     estabaAbierto.current = abierto;
   }, [abierto]);
   useEffect(() => {
@@ -103,9 +98,10 @@ export default function ProximoHueco({
             const h = primerHueco(map, fechas);
             poner(f.proId, h ? { tipo: "hora", ...h } : { tipo: "vacio" });
           })
-          // En una vuelta, un error de red no borra la hora que ya se mostraba (el motor valida igual al confirmar).
+          // Un error de red no borra la hora que ya se mostraba (el motor valida igual al confirmar); sin hora, la ficha
+          // queda con «Reservar»: nunca el esqueleto para siempre.
           .catch(() => {
-            if (vuelta === 0) poner(f.proId, { tipo: "error" });
+            if (vivo) setEstados((prev) => (prev[f.proId] ? prev : { ...prev, [f.proId]: { tipo: "error" } }));
           });
       }
     };

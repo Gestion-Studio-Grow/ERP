@@ -61,20 +61,30 @@ export default function BookingProvider({ children, negocio }: { children: React
   const nuevo = useDiseno();
   // La promesa en curso, para que dos botones (o el hover y el clic) no disparen
   // dos veces la misma consulta.
-  const pedido = useRef<Promise<BookingData> | null>(null);
+  const pedido = useRef<Promise<BookingData | null> | null>(null);
+  // No se pudo traer la agenda: se dice, se puede cerrar y el próximo intento vuelve a pedirla.
+  const [fallo, setFallo] = useState(false);
 
   const traerDatos = useCallback(() => {
     if (!pedido.current) {
-      pedido.current = getBookingDataPublic().then((d) => {
-        setData(d);
-        return d;
-      });
+      pedido.current = getBookingDataPublic().then(
+        (d) => {
+          setData(d);
+          return d;
+        },
+        () => {
+          pedido.current = null;
+          setFallo(true);
+          return null;
+        },
+      );
     }
     return pedido.current;
   }, []);
 
   const openBooking = useCallback(
     (p?: PrefillReserva) => {
+      setFallo(false);
       void traerDatos();
       setPrefill(prefillValido(p));
       setOpen(true);
@@ -130,7 +140,16 @@ export default function BookingProvider({ children, negocio }: { children: React
                 fontFamily: "var(--font-body), system-ui, sans-serif",
               }}
             >
-              Abriendo la agenda…
+              {fallo ? "No pudimos abrir la agenda. Probá de nuevo en un momento." : "Abriendo la agenda…"}
+              {fallo && (
+                <button
+                  type="button"
+                  onClick={closeBooking}
+                  style={{ display: "block", marginTop: 12, minHeight: 48, padding: "0 20px", border: "1px solid var(--line-strong)", background: "transparent", color: "var(--text-strong)", cursor: "pointer", font: "inherit" }}
+                >
+                  Cerrar
+                </button>
+              )}
             </p>
           </div>
         ))}

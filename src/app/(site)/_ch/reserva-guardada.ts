@@ -29,6 +29,8 @@ export function reservaDesdeTexto(texto: string | null | undefined): ReservaGuar
   const { paso, serviceId, professionalId, day, slot, vecina } = d as Record<string, unknown>;
   if (typeof serviceId !== "string" || !serviceId) return null;
   if (typeof paso !== "number" || !Number.isInteger(paso) || paso < 1 || paso > 4) return null;
+  // Una hora que no es fecha rompería al dibujarse, y lo guardado la repetiría en cada recarga: se descarta todo.
+  if (typeof slot === "string" && Number.isNaN(new Date(slot).getTime())) return null;
   const texto2 = (v: unknown) => (typeof v === "string" && v ? v : undefined);
   return { paso, serviceId, professionalId: texto2(professionalId), day: texto2(day), slot: texto2(slot), vecina: vecina === true ? true : undefined };
 }

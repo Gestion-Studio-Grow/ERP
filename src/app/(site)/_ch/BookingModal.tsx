@@ -39,7 +39,7 @@ function estadoInicial(data: BookingData, prefill: PrefillReserva | null | undef
   const pro = prefill.professionalId
     ? (data.professionals.find((p) => p.id === prefill.professionalId && p.serviceIds.includes(elegido.id)) ?? null)
     : null;
-  if (!pro) return { ...vacio, step: 2, svc };
+  if (!pro) return { ...vacio, step: hasta(2), svc };
   const day = prefill.day && data.days.some((d) => d.value === prefill.day) ? prefill.day : null;
   const slot = day && prefill.slot ? prefill.slot : null;
   if (!day || !slot) return { ...vacio, step: hasta(3), svc, pro, day };
@@ -88,6 +88,8 @@ export default function BookingModal({
   const [confirmedStartsAt, setConfirmedStartsAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Diseño nuevo: «Continuar»/«Confirmar» no quedan muertos; al tocarlos sin completar, se dice qué falta.
+  const [intento, setIntento] = useState(false);
   const [slotsPending, startSlots] = useTransition();
 
   // Disponibilidad por día, precalculada para todo el rango visible apenas
@@ -254,7 +256,8 @@ export default function BookingModal({
   // turno con datos de contacto rotos y el aviso nunca llegaba.
   const telValid = isValidArgentinePhone(tel);
   const mailValid = mail.trim() === "" || isValidEmail(mail);
-  const telError = tel.trim() !== "" && !telValid ? "Teléfono inválido (ej: 11 2345 6789)." : null;
+  const telError = tel.trim() !== "" && !telValid ? "Teléfono inválido (ej: 11 2345 6789)." : intento && !telValid ? "Falta tu teléfono: por ahí te confirmamos." : null;
+  const nameError = intento && !name.trim() ? "Falta tu nombre." : null;
   const mailError = mail.trim() !== "" && !mailValid ? "Ese email no parece válido." : null;
 
   const canNext = [
@@ -323,6 +326,11 @@ export default function BookingModal({
   }
 
   function next() {
+    if (nuevo && !canNext) {
+      setIntento(true);
+      return;
+    }
+    setIntento(false);
     if (step === 4) {
       confirmBooking();
       return;
@@ -344,6 +352,7 @@ export default function BookingModal({
     setStep((sActual) => (sActual < 4 ? sActual + 1 : sActual));
   }
   function back() {
+    setIntento(false);
     if (step > 1) setStep(step - 1);
   }
 
@@ -553,7 +562,7 @@ export default function BookingModal({
           {step === 3 && (
             <>
               <StepTitle>Día y hora</StepTitle>
-              {horaOcupada && (
+              {horaOcupada && !slot && (
                 <p role="status" style={{ fontSize: 14, fontWeight: 600, color: "var(--text-strong)", margin: "0 0 12px" }}>
                   La hora que tenías elegida se ocupó. Elegí otra.
                 </p>
@@ -601,6 +610,7 @@ export default function BookingModal({
               {!prefetchingAvailability && <div style={{ marginBottom: 16 }} />}
 
               {!day && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Elegí un día para ver los horarios disponibles.</p>}
+              {intento && !slot && <p role="alert" style={{ fontSize: 14, fontWeight: 600, color: "var(--danger)", margin: "0 0 12px" }}>Falta elegir el horario.</p>}
               {day && slotsPending && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Buscando horarios…</p>}
               {day && !slotsPending && slots.length === 0 && (
                 <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>No hay horarios disponibles ese día.</p>
@@ -659,7 +669,7 @@ export default function BookingModal({
               <StepTitle>Tus datos</StepTitle>
               <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 16px" }}>Solo lo necesario para confirmarte.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <Field label="Nombre" value={name} onChange={setName} type="text" />
+                <Field label="Nombre" value={name} onChange={setName} type="text" error={nameError} />
                 <Field label="Teléfono" value={tel} onChange={setTel} type="tel" error={telError} />
                 <Field label="Email (opcional)" value={mail} onChange={setMail} type="email" error={mailError} />
               </div>
@@ -771,7 +781,7 @@ export default function BookingModal({
                 )}
                 <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Servicio</span> · {svc?.name} · {svc?.categoria}, {svc?.durationMin} min</p>
                 <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Profesional</span> · {pro?.name}</p>
-                <p style={{ margin: 0, textTransform: "capitalize" }}><span style={{ color: "var(--text-muted)", textTransform: "none" }}>Cuándo</span> · {whenLabel} h</p>
+                <p style={{ margin: 0, textTransform: nuevo ? "none" : "capitalize" }}><span style={{ color: "var(--text-muted)", textTransform: "none" }}>Cuándo</span> · {whenLabel} h</p>
               </div>
               <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
                 {/* Diseño nuevo sin WhatsApp cargado: no se promete un canal que no existe (contacto-ch.ts). */}
@@ -818,7 +828,7 @@ export default function BookingModal({
           <button
             type="button"
             onClick={next}
-            disabled={!canNext || submitting}
+            disabled={nuevo ? submitting : !canNext || submitting}
             className={k("chm-seguir")}
             style={{
               // Touch target ≥ 44px (Gate SAP §accesibilidad): antes ~38.5px de alto.
@@ -827,8 +837,8 @@ export default function BookingModal({
               border: 0,
               fontSize: 15,
               color: "var(--text-on-accent)",
-              cursor: !canNext || submitting ? "not-allowed" : "pointer",
-              background: !canNext || submitting ? "var(--line-strong)" : "var(--text-strong)",
+              cursor: (nuevo ? submitting : !canNext || submitting) ? "not-allowed" : "pointer",
+              background: (nuevo ? submitting : !canNext || submitting) ? "var(--line-strong)" : "var(--text-strong)",
             }}
           >
             {nextLabel}
@@ -986,6 +996,7 @@ function Step1({
           onChange={(e) => setQ(e.target.value)}
           placeholder="Buscar (ej.: masaje, depilación, facial)"
           autoComplete="off"
+          className={nuevo ? "chm-buscar" : undefined}
           style={{
             width: "100%",
             boxSizing: "border-box",
