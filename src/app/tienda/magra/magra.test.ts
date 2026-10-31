@@ -4,7 +4,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getRetailRubro } from "@/blueprints/retail/rubros";
 import {
@@ -25,6 +26,8 @@ import {
 } from "@/tenants/magra-content";
 import { seccionMagra } from "../vidriera/marcas";
 import { ANIMALES, cajaDelRecorte } from "./despiece-datos";
+import { jsonLdDeMagra } from "./magra-ld";
+import type { MagraProducto } from "./Etiqueta";
 
 const PUBLIC = fileURLToPath(new URL("../../../../public", import.meta.url));
 const existe = (ruta: string) => existsSync(PUBLIC + ruta);
@@ -248,4 +251,29 @@ test("sin WhatsApp, «Atención personalizada» no promete un chat que no existe
     assert.equal(ps.length, MAGRA.valueProps.length, "las cuatro propuestas siguen");
     assert.ok(ps.every((p) => !/whatsapp/i.test(p.text)), "ningún texto promete WhatsApp");
   }
+});
+
+test("T2: el pie no ofrece el panel, hay salto a los cortes y las reseñas no se presentan como cita", () => {
+  const fuente = readFileSync(join(process.cwd(), "src/app/tienda/magra/MagraTienda.tsx"), "utf8");
+  assert.doesNotMatch(fuente, /\/admin/);
+  assert.ok(fuente.indexOf('className="mg-saltar"') < fuente.indexOf("<SpriteDespiece />"), "el salto es lo primero del DOM");
+  assert.doesNotMatch(fuente, /<blockquote>/);
+  assert.doesNotMatch(fuente, /· Cliente MAGRA/);
+  assert.match(fuente, /aria-label="Pausar la cinta"/);
+});
+
+test("T2: el JSON-LD publica la tienda y sólo los cortes con precio, por kilo con KGM", () => {
+  const productos: MagraProducto[] = [
+    { id: "a", name: "Ojo de bife", saleUnit: "WEIGHT", price: null, pricePerKg: 25000, unit: "kg" },
+    { id: "b", name: "Lomo", saleUnit: "UNIT", price: 18000, pricePerKg: null, unit: "u", disponibilidad: "sin-stock" },
+    { id: "c", name: "Sin precio", saleUnit: "UNIT", price: null, pricePerKg: null, unit: "u" },
+  ];
+  const [tienda, catalogo] = jsonLdDeMagra("https://magra.gsgapp.com.ar", productos, null);
+  assert.equal(tienda["@type"], "Store");
+  assert.equal(tienda.telephone, undefined, "sin número cargado no se publica teléfono");
+  const items = (catalogo.itemListElement as { item: { name: string; offers: Record<string, unknown> } }[]).map((i) => i.item);
+  assert.deepEqual(items.map((i) => i.name), ["Ojo de bife", "Lomo"]);
+  assert.equal((items[0].offers.priceSpecification as { unitCode: string }).unitCode, "KGM");
+  assert.equal(items[1].offers.availability, "https://schema.org/OutOfStock");
+  assert.deepEqual(jsonLdDeMagra("https://magra.gsgapp.com.ar", [productos[2]], null).length, 1, "sin precios, sólo la tienda");
 });

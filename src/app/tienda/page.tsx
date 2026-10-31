@@ -24,6 +24,10 @@ import { getBrandSheet, brandSheetAccent } from "@/lib/brand-sheet";
 import { editorialFrontFor, getTenantIdentity } from "@/lib/identidad-rubro";
 import type { CSSProperties } from "react";
 import { getSiteReplica } from "@/tenants/site-replica";
+import JsonLd from "@/components/seo/JsonLd";
+import { pedidoPublico } from "@/lib/seo/base";
+import { ogDelNegocio } from "@/lib/seo/og";
+import { jsonLdDeMagra } from "./magra/magra-ld";
 import Storefront from "./Storefront";
 import SiteReplica from "./SiteReplica";
 import MagraFront from "./MagraFront";
@@ -117,7 +121,8 @@ export async function generateMetadata(): Promise<Metadata> {
     data.branding?.contactNote ??
     `Comprá online en ${name}${data.branding?.city ? `, ${data.branding.city}` : ""}.`;
   const description = raw.length > 160 ? `${raw.slice(0, 157)}…` : raw;
-  const base = identity.brandId === "quebienoles" || identity.brandId === "adosmanos" ? await baseDelRequest() : null;
+  const base = identity.brandId === "quebienoles" || identity.brandId === "adosmanos" || identity.brandId === "magra" ? await baseDelRequest() : null;
+  const ogMagra = identity.brandId === "magra" ? ogDelNegocio("magra") : null;
   return {
     title,
     description,
@@ -134,7 +139,9 @@ export async function generateMetadata(): Promise<Metadata> {
         ? { images: [{ url: "/tenants/quebienoles/marca/og.jpg", width: 1200, height: 630, alt: "Qué Bien Olés · Perfumería en Ezeiza" }] }
         : identity.brandId === "adosmanos"
           ? { images: [{ url: "/tenants/adosmanos/marca/og.webp", width: 1200, height: 630, alt: "A Dos Manos Pádel · Palas y zapatillas · Envíos a todo el país" }] }
-          : {}),
+          : ogMagra
+            ? { images: [{ url: ogMagra.src, width: ogMagra.width, height: ogMagra.height, alt: ogMagra.alt, type: "image/webp" }] }
+            : {}),
     },
     icons: { icon: iconUri },
   };
@@ -213,17 +220,21 @@ export default async function TiendaPage({
   if (front === "magra") {
     // Envíos del negocio: zona, costo, «te faltan $X», mínimo, franjas y pausa. Con zonas cargadas,
     // la tarifa del copy (`envio`) deja de regir; sin config, MAGRA sigue como siempre.
+    const { origen } = await pedidoPublico();
     return (
-      <MagraFront
-        entrega={entrega}
-        hoy={hoy}
-        products={data.products}
-        branding={data.branding}
-        tenantKey={slug ?? "magra"}
-        envio={data.copy?.shipping ?? null}
-        mediosDePago={data.copy?.paymentMethods ?? null}
-        notaDePeso={(identity.rubro?.wording ?? data.wording)?.weightNote ?? null}
-      />
+      <>
+        {origen && <JsonLd datos={jsonLdDeMagra(origen, data.products, data.branding)} />}
+        <MagraFront
+          entrega={entrega}
+          hoy={hoy}
+          products={data.products}
+          branding={data.branding}
+          tenantKey={slug ?? "magra"}
+          envio={data.copy?.shipping ?? null}
+          mediosDePago={data.copy?.paymentMethods ?? null}
+          notaDePeso={(identity.rubro?.wording ?? data.wording)?.weightNote ?? null}
+        />
+      </>
     );
   }
 
