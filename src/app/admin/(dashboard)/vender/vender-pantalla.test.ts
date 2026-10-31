@@ -132,6 +132,7 @@ export async function anularVenta(_prev, fd) {
   if (window.__rechazo) return { ok: false, error: window.__rechazo };
   return { ok: true, mensaje: "Pedido #7 anulado." };
 }
+export async function autorizarAnulacionVenta() { return { ok: false, error: "no se usa en esta prueba" }; }
 export async function updateOrderItems(_prev, fd) { guardar(fd); return { ok: true, mensaje: "ajustado" }; }
 export async function buscarClienteParaVenta(tel) { return tel.includes("4000") ? { nombre: "María Pérez" } : tel.includes("5000") ? { nombre: "Juan Gómez" } : null; }
 export async function registrarAvisoWhatsApp() {}
@@ -256,7 +257,7 @@ window.__montar = (cual, tope, extra) =>
       cual === "pos"
         ? createElement(PosForm, { products: productos, stockById: stock, ...(extra || {}) })
         : cual === "anular"
-        ? createElement(AnularPedidoForm, { id: "ord_7", code: 7, paid: true, total: 15500, motivoObligatorio: true })
+        ? createElement(AnularPedidoForm, { id: "ord_7", code: 7, paid: true, total: 15500, motivoObligatorio: true, conCodigo: false })
         : cual === "sin-precios"
         ? createElement(VenderForm, { products: [], stockById: {}, rapidos: [], negocio: "MAGRA Canning", topeDescuentoPct: tope })
         : cual === "vender" || cual === "pedido"
