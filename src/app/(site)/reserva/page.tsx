@@ -8,8 +8,16 @@ import { reglaVigenteParaLaClienta } from "@/lib/turnos/practica.server";
 import { chConDisenoNuevo } from "../_ch/diseno-ch.server";
 import { sinPromesaDeWhatsApp } from "../_ch/contacto-ch";
 import { getLocation } from "@/lib/settings";
+import { metadataCH, nombreDelNegocioCH } from "../_ch/metadata-ch.server";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
+
+// Diseño nuevo de CH (P0-5): el título dice dónde se reserva. Apagado o cualquier otro negocio: la de siempre.
+export async function generateMetadata(): Promise<Metadata> {
+  if (!(await chConDisenoNuevo())) return {};
+  return metadataCH({ titulo: `Reservar turno — ${await nombreDelNegocioCH()}`, descripcion: "Elegí tratamiento, profesional y horario. Reservás online en un minuto." });
+}
 
 export default async function ReservaPage() {
   // Identidad por rubro (ronda 2, P0): el taller reserva en su formulario y el profe en su turnero, con su piel y su voz.

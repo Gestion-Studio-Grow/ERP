@@ -8,7 +8,6 @@
 
 import { destinoPropio, rubroDelTurno } from "@/lib/turnos/rubro-del-turno";
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getPublicBookingData } from "@/lib/actions";
@@ -19,6 +18,10 @@ import ProximoHueco from "../../_ch/ProximoHueco";
 import BarraReservar from "../../_ch/BarraReservar";
 import Compartir from "../../_ch/Compartir";
 import { chConDisenoNuevo } from "../../_ch/diseno-ch.server";
+import { metadataCH, nombreDelNegocioCH } from "../../_ch/metadata-ch.server";
+import JsonLd from "@/components/seo/JsonLd";
+import { canonicalDe, pedidoPublico } from "@/lib/seo/base";
+import { servicioLd } from "@/lib/seo/jsonld";
 import { fichasDeHueco, fotoChicaDe, ilustracionDeFamilia, iniciales, enumerar, nombreDePila, pesos } from "../../_ch/equipo";
 
 export const dynamic = "force-dynamic";
@@ -33,31 +36,15 @@ async function buscar(id: string) {
   return null;
 }
 
-// Base de las URL absolutas de la metadata (og:image) desde el host del pedido: sin esto Next las resuelve
-// contra el .vercel.app del proyecto (trampa medida en QBO, skill vidriera-de-autor §5).
-async function baseDelPedido(): Promise<URL | null> {
-  const h = await headers();
-  const host = (h.get("x-forwarded-host") ?? h.get("host") ?? "").split(",")[0].trim();
-  if (!/^[a-z0-9.-]+(:\d{1,5})?$/i.test(host)) return null;
-  const local = /^(localhost|127\.0\.0\.1|[a-z0-9-]+\.localhost)(:|$)/i.test(host);
-  return new URL(`${local ? "http" : "https"}://${host}`);
-}
-
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const hallado = await buscar(id);
   if (!hallado) return {};
   const { s } = hallado;
-  const title = `${s.name} · ${pesos(s.price)} — CH Estética`;
-  const description = `${s.durationMin} min · ${pesos(s.price)}. Reservá online.`;
-  const base = await baseDelPedido();
-  const imagen = { url: ilustracionDeFamilia(hallado.familia), width: 1200, height: 900, alt: s.name };
-  return {
-    title,
-    description,
-    ...(base ? { metadataBase: base } : {}),
-    openGraph: { title, description, images: [imagen] },
-  };
+  return metadataCH({
+    titulo: `${s.name} · ${pesos(s.price)} — ${await nombreDelNegocioCH()}`,
+    descripcion: `${s.durationMin} min · ${pesos(s.price)}. Reservá online.`,
+  });
 }
 
 export default async function FichaServicio({ params }: { params: Promise<{ id: string }> }) {
@@ -72,9 +59,17 @@ export default async function FichaServicio({ params }: { params: Promise<{ id: 
   const fichas = fichasDeHueco(professionals, groups, [], s.id);
   const dias = nextBusinessDays(2);
   const vecina = s.residentPrice != null && s.residentPrice < s.price ? s.residentPrice : null;
+  const { origen, ruta } = await pedidoPublico();
+  const ld = origen
+    ? servicioLd(
+        { nombre: s.name, url: canonicalDe(origen, ruta), precio: s.price, duracionMin: s.durationMin },
+        { nombre: await nombreDelNegocioCH(), url: origen, tipo: "HealthAndBeautyBusiness" },
+      )
+    : null;
 
   return (
     <div className="chf">
+      {ld && <JsonLd datos={ld} />}
       <article className="chf-env chf-ficha">
         <div className="chf-ficha-txt">
           <Link href="/servicios" className="chf-volver">

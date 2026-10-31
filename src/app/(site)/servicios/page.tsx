@@ -11,6 +11,7 @@ import ServicesAccordion from "../_ch/ServicesAccordion";
 import Carta from "../_ch/Carta";
 import BarraReservar from "../_ch/BarraReservar";
 import { chConDisenoNuevo } from "../_ch/diseno-ch.server";
+import { metadataCH } from "../_ch/metadata-ch.server";
 
 // ============================================================================
 // LA CARTA COMPLETA — todos los tratamientos con su precio, en su propia página.
@@ -32,10 +33,11 @@ export async function generateMetadata(): Promise<Metadata> {
   const esCH = (await getCurrentTenantSlug()) === "beauty-spa";
   const sheet = tenantBrandSheetEnabled() || !esCH ? await getBrandSheet() : null;
   const nombre = sheet?.name ?? "CH Estética";
-  return {
-    title: `Servicios y precios — ${nombre}`,
-    description: "Todos los tratamientos con su duración y su precio exacto. Reservás online en un minuto.",
-  };
+  const title = `Servicios y precios — ${nombre}`;
+  const description = "Todos los tratamientos con su duración y su precio exacto. Reservás online en un minuto.";
+  // Diseño nuevo de CH: también la tarjeta para compartir (es la página que más circula por WhatsApp).
+  if (esCH && (await chConDisenoNuevo())) return metadataCH({ titulo: title, descripcion: description });
+  return { title, description };
 }
 
 const versalitas: React.CSSProperties = {

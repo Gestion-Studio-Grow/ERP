@@ -16,8 +16,12 @@ import PhotoPlaceholder from "./_ch/PhotoPlaceholder";
 import FeaturedTreatments, { type FeaturedService } from "./_ch/FeaturedTreatments";
 import ChFront from "./_ch/ChFront"; // «diseño nuevo»
 import { disenoNuevo } from "@/lib/diseno/diseno.server"; // «diseño nuevo»
+import { DESCRIPCION_CH, negocioLdCH } from "./_ch/metadata-ch.server"; // «diseño nuevo»
+import JsonLd from "@/components/seo/JsonLd"; // «diseño nuevo»
 
 export const dynamic = "force-dynamic";
+
+export { generateMetadata } from "./_ch/metadata-ch.server"; // «diseño nuevo»: título y tarjeta de la portada (P0-5)
 
 const eyebrow: React.CSSProperties = {
   fontFamily: "var(--font-body), system-ui, sans-serif",
@@ -139,16 +143,22 @@ export default async function Home() {
   // «diseño nuevo»: desde acá — con el interruptor de CH prendido, la home nueva (_ch/ChFront.tsx, DISENO.md de CH).
   // Apagado (CH en producción hoy), no se toca nada: todo lo de abajo es el código de siempre.
   if (await nuevoP) {
-    if (esCH) return (
-      <ChFront
-        groups={groups}
-        professionals={professionals}
-        news={news}
-        reviews={reviews}
-        location={location}
-        destacados={destacados}
-      />
-    );
+    if (esCH) {
+      const ld = await negocioLdCH(DESCRIPCION_CH);
+      return (
+        <>
+          {ld && <JsonLd datos={ld} />}
+          <ChFront
+            groups={groups}
+            professionals={professionals}
+            news={news}
+            reviews={reviews}
+            location={location}
+            destacados={destacados}
+          />
+        </>
+      );
+    }
   }
   // «diseño nuevo»: hasta acá
   const contactRows: [string, string][] = [
