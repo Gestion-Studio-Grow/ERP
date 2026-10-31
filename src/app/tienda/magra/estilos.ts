@@ -256,7 +256,7 @@ export const CSS_VIDRIERA = `
 .magra .mg-ficha[open],.magra .mg-bolsa:modal{animation:mg-sube .24s cubic-bezier(.2,.8,.2,1)}
 .magra .mg-ficha::backdrop,.magra .mg-bolsa::backdrop{background:rgba(0,0,0,.6)}
 .magra .mg-ficha-in{position:relative;display:grid;grid-template-columns:5fr 7fr;grid-template-rows:minmax(0,1fr) auto;height:min(760px,calc(100svh - 50px))}
-.magra .mg-ficha-vis{grid-row:1/3;min-height:0;display:grid;place-items:center;background:var(--negro)}
+.magra .mg-ficha-vis{grid-row:1/3;min-height:0;display:grid;grid-template-rows:minmax(0,1fr);place-items:center;background:var(--negro)}
 /* Nunca ampliada (P0-2): la foto de 480 px y la etiqueta se ven a su tamaño, centradas sobre el negro. */
 .magra .mg-ficha-vis img{display:block;width:auto;height:auto;max-width:min(100%,480px);max-height:100%;object-fit:contain}
 .magra .mg-ficha-vis .mg-pack{max-width:480px;max-height:600px}
