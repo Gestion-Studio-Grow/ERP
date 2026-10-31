@@ -3,8 +3,8 @@
 // No decide permisos: los LEE de `ROLE_CAPABILITIES` (capabilities.ts) y los dice en palabras de
 // trabajo. Si mañana se le suma una capacidad a un rol, la tabla cambia sola; si alguien escribe a
 // mano un «Sí» que el sistema no da, el test lo frena. Los matices que el sistema aplica fuera de la
-// capacidad se dicen tal cual: el Mostrador anula sólo lo cobrado hoy y con motivo
-// (`alcanceDeAnulacion`), recepción anula un cobro de turno sólo con el código de la dueña
+// capacidad se dicen tal cual: el Mostrador anula sólo lo cobrado hoy, con motivo y con el código de
+// la dueña (`alcanceDeAnulacion`), recepción anula un cobro de turno sólo con ese código
 // (`anulacionDeCobro`), y el Profesional ve y cobra sólo sus turnos (el loader filtra por su ficha).
 
 import { alcanceDeAnulacion, anulacionDeCobro, roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
@@ -44,7 +44,7 @@ function celda(role: Role, cap: Capability): Celda {
   if (!roleHasCapability(role, cap)) return { puede: false };
   if (cap === "orders:void") {
     const a = alcanceDeAnulacion(role);
-    if (a?.soloHoy) return { puede: true, matiz: a.motivoObligatorio ? "Sólo lo de hoy, con motivo" : "Sólo lo de hoy" };
+    if (a?.conCodigo) return { puede: true, matiz: "Sólo lo de hoy, con motivo y el código de la dueña" };
   }
   if (cap === "agenda:void" && anulacionDeCobro(role) === "con-autorizacion") return { puede: true, matiz: "Con el código de la dueña" };
   if (role === "PROFESSIONAL" && cap.startsWith("agenda:")) return { puede: true, matiz: "Sólo lo suyo" };

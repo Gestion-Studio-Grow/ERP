@@ -22,10 +22,10 @@ test("el dueño puede todo lo de la tabla, sin matices", () => {
   }
 });
 
-test("el mostrador anula sólo lo de hoy y con motivo, y no ve costos ni reportes", () => {
+test("el mostrador anula sólo lo de hoy, con motivo y el código de la dueña, y no ve costos ni reportes", () => {
   const t = tablaDePermisos(true);
   const fila = (texto: string) => t.filas.find((f) => f.texto === texto)!;
-  assert.deepEqual(fila("Anular una venta").celdas[1], { puede: true, matiz: "Sólo lo de hoy, con motivo" });
+  assert.deepEqual(fila("Anular una venta").celdas[1], { puede: true, matiz: "Sólo lo de hoy, con motivo y el código de la dueña" });
   assert.equal(fila("Ver costos, compras y proveedores").celdas[1].puede, false);
   assert.equal(fila("Ver reportes y el resultado del mes").celdas[1].puede, false);
   assert.equal(fila("Recibir mercadería, contar y cargar mermas").celdas[1].puede, true);

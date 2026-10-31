@@ -103,11 +103,11 @@ test("el profesional no recibe ninguna de las nuevas", () => {
 // ── Hasta dónde anula cada rol ──────────────────────────────────────────────
 
 test("el dueño anula cualquier día no cerrado, y el motivo le queda opcional", () => {
-  assert.deepEqual(alcanceDeAnulacion("OWNER"), { soloHoy: false, motivoObligatorio: false });
+  assert.deepEqual(alcanceDeAnulacion("OWNER"), { soloHoy: false, motivoObligatorio: false, conCodigo: false });
 });
 
-test("recepción anula sólo lo cobrado hoy y siempre con motivo", () => {
-  assert.deepEqual(alcanceDeAnulacion("RECEPTION"), { soloHoy: true, motivoObligatorio: true });
+test("recepción anula sólo lo cobrado hoy, siempre con motivo y, con plata de por medio, con el código", () => {
+  assert.deepEqual(alcanceDeAnulacion("RECEPTION"), { soloHoy: true, motivoObligatorio: true, conCodigo: true });
 });
 
 test("el profesional no anula", () => {

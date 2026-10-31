@@ -185,9 +185,8 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     // RECEPTION lo tiene. El catálogo/precios sigue solo-OWNER.
     "orders:read",
     "orders:manage",
-    // Anula, pero sólo lo cobrado hoy y siempre con motivo (`alcanceDeAnulacion`). Sin esto,
-    // corregir una pesada un sábado con cola obligaría a llamar a la dueña; el control va por
-    // lo que queda escrito (quién anuló y por qué), no por pedir su clave.
+    // Anula, pero sólo lo cobrado hoy, con motivo y, si la venta ya tiene plata, con el código de la
+    // dueña (`alcanceDeAnulacion`; orden del dueño, 31/10/2026). Un pedido sin cobrar no lo pide.
     "orders:void",
     // El encargado del local: ve el stock (sin costos), recibe, cuenta y carga mermas. Los
     // costos, las compras y los proveedores siguen siendo del dueño.
@@ -217,17 +216,21 @@ export function roleHasCapability(role: Role, cap: Capability): boolean {
  *   contando; corregirla es decisión del dueño.
  * - `motivoObligatorio`: el motivo es lo único que explica, meses después, por qué falta esa
  *   plata en la caja.
+ * - `conCodigo`: una venta que ya tiene plata (cobrada o a cuenta) se anula sólo con el código que
+ *   la dueña saca para ESA venta (`codigo-anulacion.ts`). Orden del dueño, 31/10/2026: «no se anulan
+ *   cobros, pero solamente recepcion con autorizacion de caro». Un pedido sin cobrar no lo pide:
+ *   no hay plata que devolver.
  *
  * El dueño anula cualquier día que no esté cerrado y el motivo le queda opcional. Cualquier
  * otro rol con la capability recibe el alcance restringido: si mañana se le da `orders:void`
  * a un rol nuevo, arranca con el límite puesto, no sin él. `null` = no anula.
  */
-export type AlcanceDeAnulacion = { soloHoy: boolean; motivoObligatorio: boolean };
+export type AlcanceDeAnulacion = { soloHoy: boolean; motivoObligatorio: boolean; conCodigo: boolean };
 
 export function alcanceDeAnulacion(role: Role): AlcanceDeAnulacion | null {
   if (!roleHasCapability(role, "orders:void")) return null;
-  if (role === "OWNER") return { soloHoy: false, motivoObligatorio: false };
-  return { soloHoy: true, motivoObligatorio: true };
+  if (role === "OWNER") return { soloHoy: false, motivoObligatorio: false, conCodigo: false };
+  return { soloHoy: true, motivoObligatorio: true, conCodigo: true };
 }
 
 /**

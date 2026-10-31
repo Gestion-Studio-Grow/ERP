@@ -14,6 +14,9 @@ import { auditAdmin, auditPublic, requestIp } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { alcanceDeAnulacion } from "@/lib/capabilities";
+import { autorizadoraDeLaAnulacion, codigoDeLaDuena, type Autorizadora, type ResultadoAutorizacion } from "@/lib/anulacion-autorizada";
+import { normalizarCodigo, objetoDeVenta } from "@/lib/turnos/codigo-anulacion";
+import { isDemoSandbox } from "@/lib/demo-sandbox";
 import { retailWordingForSlug } from "@/blueprints/retail";
 import { getStorefrontCopy } from "@/tenants/storefront";
 import {
@@ -103,6 +106,8 @@ import { shippingVigente } from "@/lib/storefront-shipping";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import {
   AnulacionVentaRechazada,
+  MENSAJE_CODIGO_MALO_VENTA,
+  MENSAJE_FALTA_CODIGO_VENTA,
   reglasDeAnulacion,
   fronteraDeVenta,
   laVentaEscribeEnCaja,
@@ -1212,23 +1217,42 @@ export async function entregarPedido(
 // motivo (`alcanceDeAnulacion`, capabilities.ts). El motivo y el límite de día se deciden en
 // `reglasDeAnulacion` y en `anularVentaInTx`, puros y probados; acá sólo se les pasa quién es
 // y qué día es hoy en la zona del negocio.
+//
+// Y CON PLATA DE POR MEDIO, RECEPCIÓN NECESITA EL CÓDIGO DE LA DUEÑA PARA ESA VENTA (orden del dueño,
+// 31/10/2026). Un pedido sin cobrar no lo pide. Por acá llegan todas las anulaciones de una persona:
+// Ventas del día, la bandeja y «No retiró».
 async function anularVentaCore(
   orderId: string,
   motivoRaw: string,
   devuelveStock: boolean,
   confirmado = false,
+  codigoCrudo: FormDataEntryValue | null = null,
 ): Promise<OrderActionState> {
   const user = await requireCapability("orders:void");
   const tenantId = await getCurrentTenantId();
   if (!orderId) return { ok: false, error: "Falta identificar el pedido a anular." };
 
+  const alcance = alcanceDeAnulacion(user.role);
   const reglas = reglasDeAnulacion({
-    alcance: alcanceDeAnulacion(user.role),
+    alcance,
     motivo: motivoRaw,
     hoy: dateStrInBusinessTz(new Date()),
   });
   if (!reglas.ok) return { ok: false, error: reglas.error };
   const motivo = reglas.motivo;
+
+  // Antes de abrir la transacción: sin autorización no se escribe ni se bloquea nada. Sin código, se
+  // sigue sólo si la venta no tiene plata; `soloSinPlata` lo vuelve a exigir adentro de la transacción.
+  const conCodigo = alcance?.conCodigo !== false;
+  let autorizo: Autorizadora | null = null;
+  if (!conCodigo || normalizarCodigo(codigoCrudo)) {
+    const a = await autorizadoraDeLaAnulacion(user, conCodigo ? "con-autorizacion" : "directa", tenantId, objetoDeVenta(orderId), codigoCrudo, TEXTOS_DEL_CODIGO_DE_VENTA);
+    if (!a.ok) return a;
+    autorizo = a.duena;
+  } else {
+    const venta = await prisma.order.findFirst({ where: { tenantId, id: orderId }, select: { paid: true, status: true } });
+    if (venta?.paid && venta.status !== "CANCELLED") return { ok: false, error: MENSAJE_FALTA_CODIGO_VENTA };
+  }
 
   // Doble salida (src/lib/caja/doble-salida.ts): si ya se cargó a mano un egreso por lo que entró
   // de esta venta, avisar antes de anular. Sólo lectura; confirmado, se anula como siempre.
@@ -1263,6 +1287,7 @@ async function anularVentaCore(
             esDiaCerrado: isFrozenDay,
             diaDe: dateStrInBusinessTz,
             soloDelDia: reglas.soloDelDia,
+            soloSinPlata: !autorizo,
           },
           { conCuentas },
         ),
@@ -1301,6 +1326,8 @@ async function anularVentaCore(
       motivo,
       rol: user.role,
       por: user.name,
+      // Quién dio el código, o la misma dueña si anuló ella. El código no se guarda nunca.
+      ...(autorizo ? { autorizadaPor: autorizo.id, autorizadaPorNombre: autorizo.nombre } : {}),
       montoRevertido: resultado.montoRevertido,
       reversaId: resultado.reversaId,
       stockDevuelto: resultado.stockDevuelto,
@@ -1347,7 +1374,34 @@ export async function anularVenta(
     String(formData.get("motivo") || ""),
     devuelveStock,
     String(formData.get("confirmar") || "") === "1",
+    formData.get("codigo"),
   );
+}
+
+const TEXTOS_DEL_CODIGO_DE_VENTA = { falta: MENSAJE_FALTA_CODIGO_VENTA, malo: MENSAJE_CODIGO_MALO_VENTA };
+
+/**
+ * «Autorizar anulación» de una venta: la dueña saca el código para que recepción la anule. Sólo
+ * calcula y deja rastro; la plata no se mueve hasta que recepción anula. El código no se guarda.
+ */
+export async function autorizarAnulacionVenta(formData: FormData): Promise<ResultadoAutorizacion> {
+  const user = await requireCapability("orders:void");
+  if (alcanceDeAnulacion(user.role)?.conCodigo !== false) return { ok: false, error: "Autorizar una anulación lo hace la dueña." };
+  if (isDemoSandbox()) return { ok: false, error: "En la demo no se sacan códigos." };
+  const orderId = String(formData.get("orderId") || "").trim();
+  if (!orderId) return { ok: false, error: "Falta identificar la venta." };
+  const tenantId = await getCurrentTenantId();
+  const venta = await prisma.order.findFirst({ where: { tenantId, id: orderId }, select: { code: true, total: true, paid: true, status: true } });
+  if (!venta || !venta.paid || venta.status === "CANCELLED") return { ok: false, error: "Esa venta ya no necesita autorización. Recargá la pantalla." };
+
+  const { codigo, venceA, vence } = codigoDeLaDuena(tenantId, objetoDeVenta(orderId), user.id);
+  await auditAdmin({
+    action: "authorize_void_collection",
+    entity: "Order",
+    entityId: orderId,
+    changes: { code: venta.code, monto: venta.total, autorizadaPor: user.id, autorizadaPorNombre: user.name, vence },
+  });
+  return { ok: true, codigo, venceA };
 }
 
 // --- Editar las líneas de un pedido todavía no cobrado (el peso real) ---

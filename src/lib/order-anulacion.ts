@@ -100,6 +100,10 @@ export function esEgresoDeAnulacionDeVenta(m: { createdBy?: string | null }): bo
  */
 export const MOTIVO_ANULACION_SIN_TEXTO = "Anulada desde la bandeja de pedidos (sin motivo escrito)";
 
+export const MENSAJE_FALTA_CODIGO_VENTA =
+  "Esta venta ya tiene plata: para anularla hace falta el código de la dueña. Pedile que abra esta venta y toque «Autorizar anulación».";
+export const MENSAJE_CODIGO_MALO_VENTA = "Ese código no sirve: está mal escrito, venció o es de otra venta. Pedile uno nuevo a la dueña.";
+
 /**
  * QUIÉN PUEDE ANULAR QUÉ, antes de tocar la base. Pura.
  *
@@ -215,7 +219,8 @@ export type MotivoAnulacionVentaRechazada =
   | "facturada" // ENG-023: tiene factura autorizada y todavía no hay nota de crédito que la cancele
   | "factura-en-camino" // ENG-023: su factura espera la respuesta de ARCA; el CAE puede llegar después
   | "dia-cerrado" // el día del asiento ya está cerrado: la corrección va con fecha de hoy
-  | "solo-hoy"; // quien anula sólo puede con lo cobrado hoy, y esta plata es de otro día
+  | "solo-hoy" // quien anula sólo puede con lo cobrado hoy, y esta plata es de otro día
+  | "sin-autorizacion"; // la venta tiene plata y quien anula no trae el código de la dueña
 
 export type PlanAnulacionVenta =
   | { ok: true }
@@ -240,6 +245,8 @@ export function planAnulacionVenta(input: {
    * (`AlcanceDeAnulacion.soloHoy`). Opcional: sin el dato, no hay límite de día.
    */
   fueraDelDia?: boolean;
+  /** La venta tiene plata y quien anula necesita el código de la dueña y no lo trajo. */
+  faltaAutorizacion?: boolean;
   /**
    * ENG-023: la factura de la venta (`facturaDeLaVenta`, factura-viva.ts). Obligatorio: una
    * anulación que no la mira deja la factura vigente ante ARCA.
@@ -258,6 +265,8 @@ export function planAnulacionVenta(input: {
   // dueño, y mandar a la persona a pedírselo sería mandarla a otro rechazo.
   if (input.diaCerrado) return { ok: false, motivo: "dia-cerrado" };
   if (input.fueraDelDia) return { ok: false, motivo: "solo-hoy" };
+  // Al final: no se manda a nadie a buscar a la dueña para que después lo frene otra regla.
+  if (input.faltaAutorizacion) return { ok: false, motivo: "sin-autorizacion" };
   return { ok: true };
 }
 
@@ -285,6 +294,8 @@ export function mensajeAnulacionVentaRechazada(
         `Esa venta se cobró el ${ctx?.dia ?? "otro día"} y con tu usuario sólo se anulan las ventas ` +
         `cobradas hoy. Pedile al dueño del negocio que la anule.`
       );
+    case "sin-autorizacion":
+      return MENSAJE_FALTA_CODIGO_VENTA;
   }
 }
 
@@ -322,6 +333,18 @@ export type AnularVentaArgs = {
    * trabado en la bandeja hasta que aparezca el dueño.
    */
   soloDelDia?: string | null;
+  /**
+   * true = quien anula necesita el código de la dueña y no lo trajo: sólo se anula un pedido sin
+   * plata (ni cobrado, ni a cuenta, ni con asiento en la caja). Lo pone `anularVentaCore`, el único
+   * camino por el que llega una persona; con el código bueno, o la dueña, no se pone.
+   *
+   * Ausente en un proceso automático, a propósito: una devolución avisada por Mercado Pago o un
+   * reintento del sistema no tiene a quién pedirle un código. Hoy ningún proceso anula ventas.
+   *
+   * Se decide adentro de la transacción y otra vez después del compare-and-set (1b): un «Cobrar»
+   * apretado al mismo tiempo no deja a recepción anulando plata sin código.
+   */
+  soloSinPlata?: boolean;
 };
 
 export type AnularVentaResult =
@@ -415,7 +438,7 @@ export async function anularVentaInTx(
 
   // La decisión, en función del asiento y de la factura: se toma una vez antes del
   // compare-and-set y otra vez después (ver 1b).
-  const decidir = (a: Asiento, factura: FacturaDeLaVenta) => {
+  const decidir = (a: Asiento, factura: FacturaDeLaVenta, pagado: boolean) => {
     const diaContable = order ? args.diaDe(a?.occurredAt ?? order.createdAt) : null;
     const plan = planAnulacionVenta({
       existe: Boolean(order),
@@ -427,13 +450,14 @@ export async function anularVentaInTx(
         a && diaContable && args.diaCerradoHasta && args.esDiaCerrado(diaContable, args.diaCerradoHasta),
       ),
       fueraDelDia: Boolean(a && diaContable && args.soloDelDia && diaContable !== args.soloDelDia),
+      faltaAutorizacion: Boolean(args.soloSinPlata && (pagado || a)),
       factura,
     });
     return { plan, dia: diaContable ? formatDayLabel(diaContable) : null };
   };
 
   let asiento: Asiento = order ? await leerAsiento() : null;
-  const antes = decidir(asiento, order ? await leerFactura() : "sin-factura-viva");
+  const antes = decidir(asiento, order ? await leerFactura() : "sin-factura-viva", Boolean(order?.paid));
   if (!antes.plan.ok) {
     if (antes.plan.motivo === "ya-anulada") return { applied: false, reason: "duplicate" };
     throw new AnulacionVentaRechazada(antes.plan.motivo, { dia: antes.dia });
@@ -459,7 +483,11 @@ export async function anularVentaInTx(
   // que la facturación que llega DESPUÉS del bloqueo espere y vea el pedido anulado, del lado de
   // la factura hace falta tomar la fila del pedido: anotado en el BACKLOG, ENG-023.)
   if (!asiento) asiento = await leerAsiento();
-  const despues = decidir(asiento, await leerFactura());
+  // Lo mismo con `paid`, para quien no trae el código: un cobro a cuenta no deja asiento.
+  const pagadoAhora = args.soloSinPlata
+    ? Boolean((await tx.order.findFirst({ where: { tenantId, id: args.orderId }, select: { paid: true } }))?.paid)
+    : Boolean(order?.paid);
+  const despues = decidir(asiento, await leerFactura(), pagadoAhora);
   if (!despues.plan.ok) throw new AnulacionVentaRechazada(despues.plan.motivo, { dia: despues.dia });
 
   // (2) La contrapartida en el libro, con la FECHA DEL ASIENTO ORIGINAL y su mismo turno de
@@ -1426,6 +1454,8 @@ export type Anulacion = {
   motivo: string;
   /** Quién anuló, en palabras: su nombre, o su rol en las filas viejas que no lo guardaban. */
   quien: string;
+  /** La dueña que dio el código, cuando anuló otra persona. */
+  autorizo?: string;
 };
 
 function comoObjeto(v: unknown): Record<string, unknown> {
@@ -1452,6 +1482,7 @@ export function leerAnulacion(
     monto: round2(monto),
     motivo: typeof c.motivo === "string" ? c.motivo : "",
     quien: por ?? rol,
+    ...(typeof c.autorizadaPorNombre === "string" && fila.actor !== `user:${String(c.autorizadaPor)}` ? { autorizo: c.autorizadaPorNombre } : {}),
   };
 }
 
