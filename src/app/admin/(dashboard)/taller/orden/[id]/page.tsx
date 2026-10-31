@@ -6,7 +6,6 @@ import { buttonClasses, cn, Input, Select, Textarea } from "@/components/ui";
 import { ordenCompleta } from "@/lib/taller/datos.server";
 import {
   agregarItem,
-  anularPago,
   cambiarEstado,
   decidirItem,
   entregar,
@@ -31,6 +30,8 @@ import {
 import { ChipEstado, Patente, tarjeta } from "../../_vista";
 import { BotonEnviar, CopiarLink, EnviarWhatsApp, SubirFotos } from "../../_piezas";
 import CobroForm from "./CobroForm";
+import AnularCobroTaller from "./AnularCobroTaller";
+import { anulacionDeCobro } from "@/lib/capabilities";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Taller · Orden" };
@@ -72,6 +73,8 @@ export default async function OrdenPage({ params, searchParams }: { params: Prom
   };
   const msg = (k: keyof typeof config.plantillas) => armarMensaje(config.plantillas[k], vars);
   const tel = orden.client.phone;
+  // Quién anula un cobro: lo vuelve a decidir el servidor en `anularPago`.
+  const anular = anulacionDeCobro(user.role);
 
   return (
     <main className="mx-auto grid grid-cols-1 w-full max-w-3xl gap-4 px-4 py-5">
@@ -334,7 +337,7 @@ export default async function OrdenPage({ params, searchParams }: { params: Prom
           {orden.pagos.length > 0 && (
             <ul className="mb-3 grid grid-cols-1 gap-1.5 text-sm">
               {orden.pagos.map((p) => (
-                <li key={p.id} className={cn("flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2", p.anuladoEl && "opacity-60")}>
+                <li key={p.id} className={cn("flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line px-3 py-2", p.anuladoEl && "opacity-60")}>
                   <span className={p.anuladoEl ? "line-through" : undefined}>
                     {fechaCorta(p.createdAt)} · {MEDIO_LABEL[p.medio as MedioPago] ?? p.medio}
                     {p.cuotas > 1 && ` en ${p.cuotas} cuotas`}
@@ -343,15 +346,9 @@ export default async function OrdenPage({ params, searchParams }: { params: Prom
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="font-semibold tabular-nums text-strong">{pesos(p.monto)}</span>
-                    {p.anuladoEl ? (
-                      <span className="text-xs font-semibold">Anulado</span>
-                    ) : (
-                      <form action={anularPago}>
-                        <input type="hidden" name="id" value={p.id} />
-                        <button className="h-11 px-2 text-xs underline" aria-label="Anular este cobro">Anular</button>
-                      </form>
-                    )}
+                    {p.anuladoEl && <span className="text-xs font-semibold">Anulado</span>}
                   </span>
+                  {!p.anuladoEl && anular && <AnularCobroTaller pagoId={p.id} conCodigo={anular === "con-autorizacion"} />}
                 </li>
               ))}
             </ul>
