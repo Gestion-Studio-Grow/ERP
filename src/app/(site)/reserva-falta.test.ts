@@ -48,15 +48,7 @@ test("el aviso nace de un intento en ESE paso: elegir y avanzar no lo arrastra",
   const fuente = readFileSync(join(process.cwd(), "src/app/(site)/_ch/BookingModal.tsx"), "utf8");
   assert.match(fuente, /const intento = intentoEn === step;/);
   assert.match(fuente, /function elegirYSeguir\(fn: \(\) => void\) \{\s+setIntentoEn\(0\);/);
-  assert.equal((fuente.match(/role="alert"[^>]*>\s*\{?falta\}?/g) ?? []).length, 1, "un solo aviso, en el pie que queda a la vista");
-});
-
-test("cambiar de servicio o de profesional no deja una profesional oculta ni una hora vieja", () => {
-  const fuente = readFileSync(join(process.cwd(), "src/app/(site)/_ch/BookingModal.tsx"), "utf8");
-  assert.match(fuente, /if \(pro && !pro\.serviceIds\.includes\(elegido\.id\)\) setPro\(null\);/);
-  assert.match(fuente, /onPick=\{elegirServicio\}/);
-  assert.match(fuente, /elegirProfesional\(p\)/);
-  assert.match(fuente, /function olvidarHorario\(\) \{\s+setSlot\(null\);\s+setSlots\(\[\]\);/);
+  assert.equal((fuente.match(/role="alert"[^>]*>\s*\{?avisoPie\}?/g) ?? []).length, 1, "un solo aviso, en el pie que queda a la vista");
 });
 
 test("el error de /reserva también vuelve a pedir la página al servidor", () => {

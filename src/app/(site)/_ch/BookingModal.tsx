@@ -92,6 +92,10 @@ export default function BookingModal({
   // Diseño nuevo: «Continuar»/«Confirmar» no quedan muertos; al tocarlos sin completar, se dice qué falta (faltaParaSeguir).
   // Guarda EN QUÉ PASO se intentó: al cambiar de paso, por el camino que sea, el aviso no viaja.
   const [intentoEn, setIntentoEn] = useState(0);
+  // Sube cada vez que cambia el servicio o la profesional: lo que llegue de antes no vale.
+  const eleccionActual = useRef(0);
+  // Sube tras un rechazo del servidor: vuelve a traer los horarios (la hora rechazada puede ya no estar).
+  const [releer, setReleer] = useState(0);
   const intento = intentoEn === step;
   const [slotsPending, startSlots] = useTransition();
 
@@ -161,6 +165,10 @@ export default function BookingModal({
   function selectDay(value: string) {
     setDay(value);
     setSlot(null);
+    setHoraOcupada(false);
+    // El día que toca la clienta manda: una búsqueda en curso ya no le cambia la lista.
+    diaPrecargado.current = null;
+    horaPrecargada.current = null;
     const cached = dayAvailability[value];
     if (cached) {
       setSlots(cached);
@@ -168,8 +176,10 @@ export default function BookingModal({
     }
     setSlots([]);
     if (!pro || !svc) return;
+    const eleccion = eleccionActual.current;
     startSlots(async () => {
       const result = await getAvailableSlots(pro.id, svc.id, value);
+      if (eleccion !== eleccionActual.current) return; // Es de la combinación anterior.
       setSlots(result);
       setDayAvailability((prev) => ({ ...prev, [value]: result }));
     });
@@ -206,8 +216,9 @@ export default function BookingModal({
       if (diaPrecargado.current) {
         const libres = map[diaPrecargado.current] ?? [];
         setSlots(libres);
-        if (horaPrecargada.current && !libres.includes(horaPrecargada.current)) {
-          setSlot(null);
+        const hora = horaPrecargada.current;
+        if (hora && !libres.includes(hora)) {
+          setSlot((actual) => (actual === hora ? null : actual));
           setHoraOcupada(true);
           setStep((s) => (s === 4 ? 3 : s));
         }
@@ -229,7 +240,7 @@ export default function BookingModal({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pro, svc]);
+  }, [pro, svc, releer]);
 
   // Diseño nuevo (P1-2, QA 16): lo elegido sobrevive a un recargar, en esta pestaña. Sólo la elección: nombre, teléfono,
   // email y cupón no se guardan (son datos de una persona y este navegador puede ser de cualquiera). Confirmado, se borra.
@@ -284,6 +295,10 @@ export default function BookingModal({
         emailValido: mailValid,
       })
     : null;
+  // Diseño nuevo: un solo aviso, en el pie, que queda a la vista aunque el paso sea largo.
+  const avisoPie = !nuevo
+    ? null
+    : falta ?? (step === 4 ? error : null) ?? (step === 3 && horaOcupada && !slot ? "La hora que tenías elegida se ocupó. Elegí otra." : null);
 
   // Precio base (ya con el beneficio vecino aplicado si corresponde) y precio
   // final con el cupón — el que se muestra acá es preview, el real se
@@ -327,6 +342,12 @@ export default function BookingModal({
       if (!res.ok) {
         // El motivo viene escrito para la clienta (horario ocupado, ya pasado…).
         setError(res.error);
+        if (nuevo) {
+          // Si la hora ya no existe, el efecto vuelve al paso 3 y lo dice. Si sigue libre, el aviso queda en el paso 4.
+          diaPrecargado.current = day;
+          horaPrecargada.current = slot;
+          setReleer((n) => n + 1);
+        }
         return;
       }
       setReservaId(res.id);
@@ -370,14 +391,15 @@ export default function BookingModal({
     fn();
     setStep((sActual) => (sActual < 4 ? sActual + 1 : sActual));
   }
-  // Otro servicio u otra profesional cambian qué horarios existen: la hora elegida y la lista del día ya no valen, y una
-  // profesional que no hace el servicio nuevo no sigue elegida sin que se vea. El efecto de abajo vuelve a traer la lista
-  // del día elegido en cuanto hay profesional y servicio.
+  // Otro servicio u otra profesional cambian qué horarios existen: se borran el día y la hora, y el efecto salta al primer
+  // día con lugar en cuanto hay profesional y servicio. Una profesional que no hace el servicio nuevo no sigue elegida.
   function olvidarHorario() {
+    eleccionActual.current += 1;
+    setDay(null);
     setSlot(null);
     setSlots([]);
     setHoraOcupada(false);
-    diaPrecargado.current = day;
+    diaPrecargado.current = null;
     horaPrecargada.current = null;
   }
   function elegirServicio(elegido: SelectedService) {
@@ -603,7 +625,7 @@ export default function BookingModal({
           {step === 3 && (
             <>
               <StepTitle>Día y hora</StepTitle>
-              {horaOcupada && !slot && (
+              {!nuevo && horaOcupada && !slot && (
                 <p role="status" style={{ fontSize: 14, fontWeight: 600, color: "var(--text-strong)", margin: "0 0 12px" }}>
                   La hora que tenías elegida se ocupó. Elegí otra.
                 </p>
@@ -804,7 +826,7 @@ export default function BookingModal({
                 </div>
               )}
 
-              {error && <p role="alert" style={{ marginTop: 14, fontSize: 13, color: "var(--danger)" }}>{error}</p>}
+              {!nuevo && error && <p role="alert" style={{ marginTop: 14, fontSize: 13, color: "var(--danger)" }}>{error}</p>}
             </>
           )}
 
@@ -855,10 +877,10 @@ export default function BookingModal({
         </div>
 
         {/* Footer del modal */}
-        <div className={k("chm-pie")} style={{ padding: "16px 24px", borderTop: "1px solid var(--line)", display: "flex", flexWrap: falta ? "wrap" : undefined, alignItems: "center", justifyContent: "space-between", background: "var(--surface-raised)" }}>
-          {falta && (
+        <div className={k("chm-pie")} style={{ padding: "16px 24px", borderTop: "1px solid var(--line)", display: "flex", flexWrap: avisoPie ? "wrap" : undefined, alignItems: "center", justifyContent: "space-between", background: "var(--surface-raised)" }}>
+          {avisoPie && (
             <p role="alert" style={{ flexBasis: "100%", fontSize: 14, fontWeight: 600, color: "var(--danger)", margin: "0 0 12px" }}>
-              {falta}
+              {avisoPie}
             </p>
           )}
           <button
