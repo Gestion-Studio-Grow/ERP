@@ -32,7 +32,7 @@ crudo; dejá un `ASSET_MANIFEST` con las URLs y marcá que faltan bajar — ver 
 
 ### 2. Modelar el contenido como CONFIG del tenant (resuelto por slug)
 El contenido de la réplica va en un módulo de datos por tenant, resuelto por slug (como el acento y
-el copy). En el caso magra: `src/tenants/magra-replica.ts` (datos) + `src/tenants/site-replica.ts`
+el copy). En el caso magra: `el archivo de réplica de MAGRA (borrado el 31/10/2026; en el historial de git)` (datos) + `src/tenants/site-replica.ts`
 (registry `getSiteReplica(slug)`). Así la réplica es config del tenant, no código a medida suelto.
 
 ### 3. Construir el resultado visual en NUESTRO Next
@@ -73,5 +73,5 @@ ahí. Mientras no se puedan bajar (red bloqueada), se referencian por URL (hotli
 - Prometer "front tuyo, back nuestro" sin **conectar** de verdad el backoffice.
 
 ## Caso trabajado
-magra: `docs/tenants/magra/replica-web-demo.md` · `src/tenants/magra-replica.ts` ·
+magra: `docs/tenants/magra/replica-web-demo.md` · `el archivo de réplica de MAGRA (borrado el 31/10/2026; en el historial de git)` ·
 `src/app/tienda/SiteReplica.tsx` · `src/app/tienda/page.tsx`.

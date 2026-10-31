@@ -14,7 +14,7 @@
 //
 // 🎨 IMÁGENES (29/10/2026, fronts/magra/DISENO.md §7): la vidriera usa SÓLO fotos reales —los
 // packs de Estancia Don Ramón, la línea gourmet y los logos de proveedores, del sitio de MAGRA
-// (autorizado, ver magra-replica.ts)— y, donde no hay foto, el despiece de marca. Las de
+// (el cliente autorizó replicar su sitio y usar sus assets)— y, donde no hay foto, el despiece de marca. Las de
 // /tenants/magra/gen/ (IA) quedan en los campos `img` de abajo sólo por compatibilidad: el front
 // no las muestra.
 //
@@ -358,7 +358,7 @@ export const MAGRA: MagraContent = {
 //
 // Las fotos de `gen/` (IA) ya no van en el hero ni en la carta: no son el producto real y se
 // notan (fronts/magra/DISENO.md §7). La única foto real de producto es la de los packs de
-// Estancia Don Ramón del sitio de MAGRA (`hero-carnes.png`, autorizada: magra-replica.ts). De esa
+// Estancia Don Ramón del sitio de MAGRA (`hero-carnes.webp`, autorizada por el cliente). De esa
 // foto salen el hero y el pack de los 5 cortes que aparecen en ella.
 //
 // ⚠️ Provisional a confirmar con el dueño: el recorte de su foto como foto de producto por corte es

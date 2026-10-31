@@ -17,7 +17,7 @@ config (branding + slug), no como un sitio aparte:
 - `src/app/tienda/page.tsx` resuelve el tenant (`getCurrentTenantSlug`) → si tiene réplica de sitio
   (`getSiteReplica(slug)`), sirve la réplica; si no, cae a la vidriera genérica del rubro. Una sola
   ruta `/tienda`, dos "skins" según el tenant.
-- `src/tenants/magra-replica.ts` — contenido real de magra (config del tenant) + `SiteReplicaData`.
+- `el archivo de réplica de MAGRA (borrado el 31/10/2026; en el historial de git)` — contenido real de magra (config del tenant) + `SiteReplicaData`.
 - `src/tenants/site-replica.ts` — registry `getSiteReplica(slug)` (magra → su réplica).
 - `src/lib/tenant-site.ts` — `getCurrentTenantSlug()` (resuelve el slug sin acoplarse a otros loaders).
 - El acento de marca sale del tenant (`getTenantAccent`, magra=oxblood).
@@ -29,7 +29,7 @@ config (branding + slug), no como un sitio aparte:
   Shipping / Calidad premium / Medios de pago / Atención), "Productos gourmet" (4 categorías con
   foto), "Envasados al vacío" (vaca/cerdo/pollo con "Hacer pedido"), proveedores (8 logos),
   reviews reales (Matías R./Jesica F./Macarena A., 5★) y footer con su contacto/horarios.
-- `src/tenants/magra-replica.ts` — todo el contenido real + `ASSET_MANIFEST` de imágenes.
+- `el archivo de réplica de MAGRA (borrado el 31/10/2026; en el historial de git)` — todo el contenido real + `ASSET_MANIFEST` de imágenes.
 
 ## Backoffice conectado (el valor que se vende)
 
@@ -43,7 +43,7 @@ de ellos, back nuestro. Dejan de depender de Bistrosoft y del WhatsApp manual.
 No pude **descargar los binarios** de las imágenes con las herramientas disponibles (la red
 saliente desde el shell está bloqueada y el fetch web devuelve texto, no archivos). Por eso hoy
 las imágenes se **referencian por URL (hotlink)** a su sitio y el `ASSET_MANIFEST` en
-`magra-replica.ts` lista cada archivo con su nombre local destino (`public/tenants/magra/…`).
+`el archivo de réplica de MAGRA (borrado el 31/10/2026; en el historial de git)` lista cada archivo con su nombre local destino (`public/tenants/magra/…`).
 **Para dejarlas locales** hace falta: (a) habilitar descarga de red para bajarlas al repo, o
 (b) que el dueño pase los archivos. Assets referenciados: logo (header + footer), foto de
 cortes del hero, 4 fotos gourmet, 8 logos de proveedores, 3 avatares de reviews.

@@ -49,7 +49,7 @@ dice *"Cae directo a la **cocina/mostrador**"*. Wording del rubro `carniceria` q
 marca del cliente** en su propia vidriera.
 - **Causa probable:** tagline/copy del **template del SiteReplica o default del rubro**, no del
   contenido real relevado. Reversible en código.
-- **Archivo:** `src/app/tienda/SiteReplica.tsx` / `src/tenants/magra-replica.ts` (footer/tagline) o el
+- **Archivo:** `src/app/tienda/SiteReplica.tsx` / `el archivo de réplica de MAGRA (borrado el 31/10/2026; en el historial de git)` (footer/tagline) o el
   default del rubro retail.
 
 > **✅ RESUELTO (2026-07-07, célula Productos por Rubro) — con precisión de causa:** la frase se
@@ -57,7 +57,7 @@ marca del cliente** en su propia vidriera.
 > 1. **"Cae directo a la cocina/mostrador"** — SÍ era código: hardcodeado en `SiteReplica.tsx` (el
 >    componente compartido de réplica de sitio), genérico/gastronómico, chocaba con el posicionamiento
 >    premium/boutique de magra. **Fix:** subtítulo movido a `site.comprarSubtitle` (campo opcional en
->    `SiteReplicaData`, `src/tenants/magra-replica.ts`), con fallback neutro en el componente para
+>    `SiteReplicaData`, `el archivo de réplica de MAGRA (borrado el 31/10/2026; en el historial de git)`), con fallback neutro en el componente para
 >    futuros tenants que no lo definan.
 > 2. **"Carnicería premium — cortes seleccionados. Retiro y envío en Canning."** — verificado: **NO
 >    existe en ningún archivo del repo** (`grep` limpio). Coincide **palabra por palabra** con el
