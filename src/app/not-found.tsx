@@ -1,9 +1,9 @@
 // «No encontramos esta página» (404) de toda la app. Qué se muestra lo decide noEncontradaPara
 // (no-encontrada-core.ts): en la consola del operador y en el panel de un negocio con el «Diseño
 // nuevo» prendido, una hoja en castellano con el camino de vuelta. En la vidriera, CH con su «Diseño
-// nuevo» prendido ve el suyo adentro del sitio: el layout de CH se dibuja sólo en ese caso. El `import()`
+// nuevo» prendido ve el suyo adentro del sitio: el layout del sitio se dibuja sólo en ese caso. El `import()`
 // no lo separa del compilado: el HTML del 404 de otro negocio igual pide el JS de CH y el CSS de sus
-// fuentes (medido en f29231fd; ver TRASPASO-R2). En el resto (otras vidrieras, y el panel con el interruptor
+// fuentes (medido el 31/10 sobre f29231fd). En el resto (otras vidrieras, y el panel con el interruptor
 // apagado: CH hoy) el 404 de Next de siempre, el mismo módulo que Next usa cuando no hay not-found.tsx.
 
 import type { CSSProperties } from "react";
