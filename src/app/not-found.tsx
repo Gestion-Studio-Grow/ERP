@@ -18,12 +18,26 @@ import AdminThemeScript from "./admin/AdminThemeScript";
 import HojaDeIngreso, { RAIZ_HOJA_DE_INGRESO } from "./admin/login/HojaDeIngreso";
 import { folioDelDia } from "./admin/login/login-core";
 import { noEncontradaPara } from "./no-encontrada-core";
+import SiteLayout from "./(site)/layout";
+import NoEncontradaCH from "./(site)/_ch/NoEncontradaCH";
+import { chConDisenoNuevo } from "./(site)/_ch/diseno-ch.server";
 
 export default async function NoEncontrada() {
   const ruta = (await headers()).get("x-pathname");
   // Fuera del panel (vidriera) ni se lee el interruptor; en la consola tampoco (no hay negocio).
   const siPrendido = noEncontradaPara(ruta, true);
-  if (!siPrendido) return <NotFoundDeNext />;
+  if (!siPrendido) {
+    // Vidriera: una dirección que no existe no pasa por el layout del sitio. CH con el diseño nuevo la ve con su encabezado,
+    // su pie y el camino de vuelta (P0-3); el resto, el 404 de Next de siempre.
+    if (await chConDisenoNuevo()) {
+      return (
+        <SiteLayout>
+          <NoEncontradaCH />
+        </SiteLayout>
+      );
+    }
+    return <NotFoundDeNext />;
+  }
   const nuevo = siPrendido.superficie === "operador" ? true : await disenoNuevo();
   const decision = noEncontradaPara(ruta, nuevo);
   if (!decision) return <NotFoundDeNext />;
