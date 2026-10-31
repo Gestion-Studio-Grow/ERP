@@ -42,6 +42,8 @@ import {
   unirTurnos,
   type Respuesta,
 } from "../manana/manana-core";
+import { mensajeSinDevolver } from "@/lib/turnos/anulacion";
+import type { AnulacionDeCobro } from "@/lib/capabilities";
 
 type Avisadas = Record<string, string>;
 
@@ -273,12 +275,15 @@ export function ListaDeManana({
   turnos,
   detalle = {},
   cobra = false,
+  anular = null,
 }: {
   dia: string;
   turnos: TurnoAConfirmar[];
   detalle?: Readonly<Record<string, TurnoDelDia>>;
   /** ¿Quien mira cobra turnos? (agenda:collect; además, el veredicto de cada uno): puede devolver una seña. */
   cobra?: boolean;
+  /** Cómo anula quien mira (`anulacionDeCobro`): devolver una seña es anular, directo sólo la dueña. */
+  anular?: AnulacionDeCobro | null;
 }) {
   const router = useRouter();
   const { avisadas, avisar, error } = useAvisar();
@@ -443,7 +448,8 @@ export function ListaDeManana({
         turno={turnoACancelar}
         accion="cancelar"
         ahora={cancelar?.ahora ?? new Date(0)}
-        puedeDevolver={cobra && (turnoACancelar?.veredicto.ok ?? false)}
+        puedeDevolver={cobra && anular === "directa" && (turnoACancelar?.veredicto.ok ?? false)}
+        motivoSinDevolver={mensajeSinDevolver(anular)}
         onCerrar={() => setCancelar(null)}
         onListo={() => {
           if (cancelar) responder(cancelar.id, "cancela");

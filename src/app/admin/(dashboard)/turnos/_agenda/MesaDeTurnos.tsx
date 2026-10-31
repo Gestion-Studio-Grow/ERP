@@ -49,6 +49,7 @@ import CobrarTurno from "./CobrarTurno";
 import TerminarTurno from "./TerminarTurno";
 import TurnoCajon from "./TurnoCajon";
 import AvisoDeshacerCierre from "./Deshacer";
+import { mensajeSinDevolver } from "@/lib/turnos/anulacion";
 
 type HojaAbierta = { turnoId: string; que: "cobrar" | "terminar" } | null;
 
@@ -151,7 +152,8 @@ export default function MesaDeTurnos({
         turno={turnoDelCierre}
         accion={cierre?.accion ?? "cancelar"}
         ahora={reloj}
-        puedeDevolver={!!turnoDelCierre && permisos.cobrar && turnoDelCierre.veredicto.ok}
+        puedeDevolver={!!turnoDelCierre && permisos.cobrar && permisos.anular === "directa" && turnoDelCierre.veredicto.ok}
+        motivoSinDevolver={mensajeSinDevolver(permisos.anular)}
         onCerrar={() => setCierre(null)}
         conDeshacer
         onListo={(mensaje) => {

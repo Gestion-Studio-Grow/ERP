@@ -287,8 +287,15 @@ function turno(f: FilaParaDescribir, c: Obj | null): Frase | null {
       return { frase: "Marcó que la persona no vino a su turno" };
     case "reschedule":
       return { frase: "Cambió de horario un turno" };
-    case "void_collection":
-      return { frase: `Anuló el cobro de un turno${monto ? ` · ${plata(monto)}` : ""}`, detalle: motivo ? [`Motivo: «${motivo}»`] : [] };
+    case "void_collection": {
+      const autorizo = o.autorizadaPor !== o.anuladaPor ? txt(o.autorizadaPorNombre) : null;
+      return {
+        frase: `Anuló el cobro de un turno${monto ? ` · ${plata(monto)}` : ""}`,
+        detalle: [...(motivo ? [`Motivo: «${motivo}»`] : []), ...(autorizo ? [`Autorizó ${autorizo}`] : [])],
+      };
+    }
+    case "authorize_void_collection":
+      return { frase: `Autorizó anular el cobro de un turno${monto ? ` · ${plata(monto)}` : ""}` };
     case "write_off_balance":
       return { frase: "Perdonó el saldo de un turno", detalle: motivo ? [`Motivo: «${motivo}»`] : [] };
     case "reminder_manual":

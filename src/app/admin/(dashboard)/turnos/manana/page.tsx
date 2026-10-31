@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
-import { roleHasCapability } from "@/lib/capabilities";
+import { anulacionDeCobro, roleHasCapability } from "@/lib/capabilities";
 import { PageContainer, PageHeader, atributosBoton, buttonClasses } from "@/components/ui";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
@@ -68,7 +68,7 @@ export default async function ConfirmarMananaPage() {
             </p>
           ) : (
             <div data-agenda="manana">
-              <ListaDeManana dia={dia} turnos={turnos} detalle={detalle} cobra={roleHasCapability(user.role, "agenda:collect")} />
+              <ListaDeManana dia={dia} turnos={turnos} detalle={detalle} cobra={roleHasCapability(user.role, "agenda:collect")} anular={anulacionDeCobro(user.role)} />
             </div>
           )}
         </PageContainer>

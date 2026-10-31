@@ -21,11 +21,12 @@ import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { turnosSinCerrar } from "@/lib/turnos/sin-cerrar.server";
 import CerrarPendientes from "./CerrarPendientes";
 import type { TurnoPendiente } from "./cerrar-core";
+import { anulacionDeCobro } from "@/lib/capabilities";
 
 export const metadata = { title: "Cerrar lo pendiente" };
 
 export default async function CerrarLoPendientePage() {
-  await requireApp("agenda");
+  const user = await requireApp("agenda");
   const [{ turnos, permisos, hayMas, cajaDeHoyCerrada }, slug] = await Promise.all([turnosSinCerrar(), getCurrentTenantSlug()]);
   // Campo por campo, sin spread: al navegador cruza sólo lo que la bandeja muestra.
   const pendientes: TurnoPendiente[] = turnos.map((t) => ({
@@ -48,7 +49,7 @@ export default async function CerrarLoPendientePage() {
     <ConDiseno nuevo precargarLetra={false}>
       <CerrarPendientes
         turnos={pendientes}
-        permisos={{ cobrar: permisos.cobrar, terminar: permisos.terminar, cajaDeHoyCerrada }}
+        permisos={{ cobrar: permisos.cobrar, terminar: permisos.terminar, cajaDeHoyCerrada, anular: anulacionDeCobro(user.role) }}
         hoy={todayInBusinessTz()}
         hayMas={hayMas}
         letraDelNegocio={esteticaBackoffice(slug) !== null}

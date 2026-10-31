@@ -13,6 +13,7 @@ import {
 import SubmitButton from "@/components/SubmitButton";
 import RescheduleForm from "./RescheduleForm";
 import CerrarSinPrestar from "./CerrarSinPrestar";
+import AutorizarAnulacion from "./_agenda/AutorizarAnulacion";
 import FormDelTurno from "./FormDelTurno";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
@@ -34,6 +35,7 @@ import {
   MOTIVO_MIN,
 } from "@/lib/turnos/anulacion";
 import { puedeCompletarConMedio, puedeDarDeBajaSaldo } from "./fila-core";
+import { anulacionDeCobro, type AnulacionDeCobro } from "@/lib/capabilities";
 
 // La fila de cobro tal como la ve esta pantalla: la de `anulacion.ts` más lo que la grilla
 // del calendario puede no traer.
@@ -252,12 +254,15 @@ function CorreccionConMotivo({
   peligro = true,
   campos,
   accion,
+  pideCodigo = false,
 }: {
   etiqueta: string;
   pregunta: string;
   confirmar: string;
   placeholder: string;
   peligro?: boolean;
+  /** Recepción: además del motivo, el código que la dueña sacó para este cobro. */
+  pideCodigo?: boolean;
   campos: Record<string, string>;
   accion: (fd: FormData) => Promise<ResultadoAccion>;
 }) {
@@ -304,6 +309,23 @@ function CorreccionConMotivo({
         aria-label="Motivo"
         className={`rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent ${TOQUE_CEL}`}
       />
+      {pideCodigo && (
+        <>
+          <input
+            type="text"
+            name="codigo"
+            required
+            maxLength={12}
+            placeholder="Código de la dueña"
+            aria-label="Código de la dueña"
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
+            className={`rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent ${TOQUE_CEL}`}
+          />
+          <p className="text-xs text-muted">La dueña lo saca en este cobro, con «Autorizar anulación». Vale unos minutos y sólo para este cobro.</p>
+        </>
+      )}
       <div className="flex items-center gap-3 text-xs">
         <SubmitButton pendingText="Guardando…" className={`font-semibold underline text-danger ${TOQUE_CEL}`}>
           {confirmar}
@@ -328,11 +350,12 @@ function CorreccionConMotivo({
 function CobrosRegistrados({
   appointmentId,
   cobros,
-  puedeAnular,
+  anular,
 }: {
   appointmentId: string;
   cobros: readonly FilaDeCobroUI[];
-  puedeAnular: boolean;
+  /** Cómo anula quien mira, en ESTE turno: la dueña directo, recepción con su código; `null`, no anula. */
+  anular: AnulacionDeCobro | null;
 }) {
   const anulables = new Set(cobrosAnulables(cobros).map((c) => c.id));
   if (cobros.length === 0) return null;
@@ -361,8 +384,9 @@ function CobrosRegistrados({
                 </span>
               )}
               {c.note && clase !== "cobro" && <span className="text-muted">{c.note.replace(/^[A-Z]+:\S*\s*—?\s*/, "")}</span>}
-              {clase === "cobro" && puedeAnular && c.id && anulables.has(c.id) && (
+              {clase === "cobro" && anular && c.id && anulables.has(c.id) && (
                 <CorreccionConMotivo
+                  pideCodigo={anular === "con-autorizacion"}
                   etiqueta="Anular"
                   // NO promete el libro. La reversa se asienta sólo si el cobro original dejó
                   // asiento y su medio se traduce a un medio de caja; con las columnas sin migrar
@@ -374,6 +398,9 @@ function CobrosRegistrados({
                   campos={{ collectionId: c.id, appointmentId }}
                   accion={anularCobroTurno}
                 />
+              )}
+              {clase === "cobro" && anular === "directa" && c.id && anulables.has(c.id) && (
+                <AutorizarAnulacion cobroId={c.id} turnoId={appointmentId} />
               )}
             </li>
           );
@@ -479,6 +506,7 @@ export default function AppointmentRow({
       hora={fmtTime(appointment.startsAt)}
       cobrado={desglose.cobrado}
       botonClassName={linkButtonClasses}
+      anular={anulacionDeCobro(viewer?.role)}
     />
   );
   // Dar de baja un saldo es perdonar plata: sólo con `agenda:forgive` (la dueña). El servidor
@@ -675,7 +703,7 @@ export default function AppointmentRow({
       <CobrosRegistrados
         appointmentId={appointment.id}
         cobros={cobros}
-        puedeAnular={canCollect && veredictoCobro.ok}
+        anular={canCollect && veredictoCobro.ok ? anulacionDeCobro(viewer?.role) : null}
       />
     </div>
   );

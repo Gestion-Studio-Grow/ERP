@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import {
   aFormData,
   camposDeAnular,
+  camposDeAutorizarAnulacion,
   camposDeCobro,
   camposDeCerrarSinPrestar,
   camposDeCondonar,
@@ -69,6 +70,7 @@ describe("los campos que viajan son los que lee cada acción", () => {
 
   test("anularCobroTurno y condonarSaldoTurno", () => {
     assert.deepEqual(claves(camposDeAnular({ cobroId: "k1", turnoId: "t1", motivo: " medio equivocado " })), camposQueLee("anularCobroTurno"));
+    assert.deepEqual(claves(camposDeAutorizarAnulacion({ cobroId: "k1", turnoId: "t1" })), camposQueLee("autorizarAnulacionCobro"));
     assert.deepEqual(claves(camposDeCondonar({ turnoId: "t1", motivo: "descuento" })), camposQueLee("condonarSaldoTurno"));
     assert.equal(aFormData(camposDeAnular({ cobroId: "k1", turnoId: "t1", motivo: " medio equivocado " })).get("motivo"), "medio equivocado");
   });

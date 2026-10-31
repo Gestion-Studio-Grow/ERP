@@ -4,9 +4,10 @@
 // trabajo. Si mañana se le suma una capacidad a un rol, la tabla cambia sola; si alguien escribe a
 // mano un «Sí» que el sistema no da, el test lo frena. Los matices que el sistema aplica fuera de la
 // capacidad se dicen tal cual: el Mostrador anula sólo lo cobrado hoy y con motivo
-// (`alcanceDeAnulacion`), y el Profesional ve y cobra sólo sus turnos (el loader filtra por su ficha).
+// (`alcanceDeAnulacion`), recepción anula un cobro de turno sólo con el código de la dueña
+// (`anulacionDeCobro`), y el Profesional ve y cobra sólo sus turnos (el loader filtra por su ficha).
 
-import { alcanceDeAnulacion, roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
+import { alcanceDeAnulacion, anulacionDeCobro, roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
 import { rolesParaAlta, etiquetaDeRol } from "./roles";
 
 type Tarea = {
@@ -22,6 +23,7 @@ const TAREAS: readonly Tarea[] = [
   { texto: "Ver la agenda", capacidad: "agenda:read", rubro: "servicios" },
   { texto: "Dar turnos, moverlos y cancelarlos", capacidad: "agenda:manage", rubro: "servicios" },
   { texto: "Cerrar y cobrar turnos", capacidad: "agenda:collect", rubro: "servicios" },
+  { texto: "Anular el cobro de un turno", capacidad: "agenda:void", rubro: "servicios" },
   { texto: "Anotar en la lista de espera", capacidad: "waitlist:manage", rubro: "servicios" },
   { texto: "Ver y cargar clientes", capacidad: "clients:manage" },
   { texto: "Recibir mercadería, contar y cargar mermas", capacidad: "stock:receive" },
@@ -44,6 +46,7 @@ function celda(role: Role, cap: Capability): Celda {
     const a = alcanceDeAnulacion(role);
     if (a?.soloHoy) return { puede: true, matiz: a.motivoObligatorio ? "Sólo lo de hoy, con motivo" : "Sólo lo de hoy" };
   }
+  if (cap === "agenda:void" && anulacionDeCobro(role) === "con-autorizacion") return { puede: true, matiz: "Con el código de la dueña" };
   if (role === "PROFESSIONAL" && cap.startsWith("agenda:")) return { puede: true, matiz: "Sólo lo suyo" };
   return { puede: true };
 }

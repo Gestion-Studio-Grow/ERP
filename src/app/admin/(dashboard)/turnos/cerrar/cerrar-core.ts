@@ -24,6 +24,7 @@ import { fmtTime } from "@/lib/datetime";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
 import { TOPE_DEL_LOTE, formDataDelLote, type PedidoDeCierre, type Permisos, type TurnoSinCerrar } from "@/lib/turnos/cierre-lote";
 import { diaMas, fechaLarga, pesos } from "../agenda-core";
+import type { AnulacionDeCobro } from "@/lib/capabilities";
 
 export { TOPE_DEL_LOTE };
 
@@ -50,7 +51,7 @@ export type TurnoPendiente = Pick<
  * Lo que la bandeja mira de los permisos (el loader trae más campos) y de la caja: con la caja de
  * HOY cerrada no se puede asentar un cobro, así que las líneas con saldo sólo ofrecen dejarlo.
  */
-export type PermisosDeLaBandeja = Pick<Permisos, "cobrar" | "terminar"> & { cajaDeHoyCerrada?: boolean };
+export type PermisosDeLaBandeja = Pick<Permisos, "cobrar" | "terminar"> & { cajaDeHoyCerrada?: boolean; anular?: AnulacionDeCobro | null };
 
 export const MOTIVO_CAJA_CERRADA = "La caja de hoy ya está cerrada: cerralo dejando el saldo y cobralo mañana.";
 

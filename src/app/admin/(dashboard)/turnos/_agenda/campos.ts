@@ -139,12 +139,21 @@ export function leerResultado(r: unknown): { ok: true; aviso?: string } | { ok: 
   return { ok: true };
 }
 
-/** Anular un cobro: el cobro, el turno y el motivo. */
-export function camposDeAnular(p: { cobroId: string; turnoId: string; motivo: string }): Campos {
+/** Anular un cobro: el cobro, el turno, el motivo y, para recepción, el código de la dueña. */
+export function camposDeAnular(p: { cobroId: string; turnoId: string; motivo: string; codigo?: string }): Campos {
   return [
     ["collectionId", p.cobroId],
     ["appointmentId", p.turnoId],
     ["motivo", p.motivo.trim()],
+    ["codigo", (p.codigo ?? "").trim()],
+  ];
+}
+
+/** «Autorizar anulación» de la dueña: el cobro y el turno. */
+export function camposDeAutorizarAnulacion(p: { cobroId: string; turnoId: string }): Campos {
+  return [
+    ["collectionId", p.cobroId],
+    ["appointmentId", p.turnoId],
   ];
 }
 

@@ -24,7 +24,7 @@
 
 import Link from "next/link";
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
-import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
+import { anulacionDeCobro, roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
 import { contarSinCerrarDeQuienMira } from "@/lib/turnos/sin-cerrar.server";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { appPermitida } from "@/apps/visibles";
@@ -119,6 +119,7 @@ export default async function AgendaRenglon({
     cobrar: roleHasCapability(quien.role, "agenda:collect"),
     terminar: roleHasCapability(quien.role, "agenda:complete"),
     perdonar: roleHasCapability(quien.role, PERDONAR),
+    anular: anulacionDeCobro(quien.role),
   };
   // Mañana, sólo mirando HOY y para quien gestiona la agenda (como siempre).
   const verManana = permisos.gestionar && dia === hoy;

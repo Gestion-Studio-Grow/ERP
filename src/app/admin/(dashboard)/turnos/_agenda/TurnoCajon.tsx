@@ -65,6 +65,7 @@ import CobrarTurno from "./CobrarTurno";
 import TerminarTurno from "./TerminarTurno";
 import MoverTurno from "./MoverTurno";
 import LlegoLaSenia from "./LlegoLaSenia";
+import AutorizarAnulacion from "./AutorizarAnulacion";
 import { separarNota } from "@/lib/reserva-publica-notas";
 
 /**
@@ -112,6 +113,7 @@ function ConMotivo({
   verbo,
   placeholder,
   peligro = true,
+  pideCodigo = false,
   hacer,
 }: {
   etiqueta: string;
@@ -119,10 +121,13 @@ function ConMotivo({
   verbo: string;
   placeholder: string;
   peligro?: boolean;
-  hacer: (motivo: string) => Promise<ResultadoAccion>;
+  /** Recepción: además del motivo, el código que la dueña sacó para este cobro. */
+  pideCodigo?: boolean;
+  hacer: (motivo: string, codigo: string) => Promise<ResultadoAccion>;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [motivo, setMotivo] = useState("");
+  const [codigo, setCodigo] = useState("");
   const [error, setError] = useState("");
   const [pendiente, empezar] = useTransition();
   if (!abierto) {
@@ -138,6 +143,7 @@ function ConMotivo({
     );
   }
   const corto = motivo.trim().length < MOTIVO_MIN;
+  const faltaCodigo = pideCodigo && !codigo.trim();
   return (
     <div
       role="group"
@@ -153,6 +159,23 @@ function ConMotivo({
         maxLength={200}
         autoFocus
       />
+      {pideCodigo && (
+        <>
+          <Input
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value)}
+            placeholder="Código de la dueña"
+            aria-label="Código de la dueña"
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
+            maxLength={12}
+          />
+          <p className="text-xs text-muted">
+            La dueña lo saca en este cobro, con «Autorizar anulación». Vale unos minutos y sólo para este cobro.
+          </p>
+        </>
+      )}
       {error && (
         <p role="alert" className="text-sm text-danger">
           {error}
@@ -163,17 +186,18 @@ function ConMotivo({
           type="button"
           variant={peligro ? "danger" : "solid"}
           size="sm"
-          disabled={corto || pendiente}
+          disabled={corto || faltaCodigo || pendiente}
           estado={pendiente ? "cargando" : undefined}
           onClick={() =>
             empezar(async () => {
               setError("");
               try {
-                const r = await hacer(motivo);
+                const r = await hacer(motivo, codigo);
                 if (!r.ok) setError(r.error);
                 else {
                   setAbierto(false);
                   setMotivo("");
+                  setCodigo("");
                 }
               } catch {
                 setError("No se pudo. Probá de nuevo; si sigue, avisá.");
@@ -261,6 +285,8 @@ export default function TurnoCajon({
   const wa = waLinkClienta(t.telefono);
   const vivo = t.estado === "PENDING" || t.estado === "CONFIRMED";
   const cobraEste = permisos.cobrar && t.veredicto.ok;
+  // Quién anula (orden del dueño): la dueña, recepción con su código; la profesional, no.
+  const anular = cobraEste ? permisos.anular : null;
   const anulables = new Set(
     cobrosAnulables(t.cobros.map((c) => ({ ...c, note: c.note ?? null }))).map(
       (c) => c.id,
@@ -545,24 +571,29 @@ export default function TurnoCajon({
                         clase === "cobro" &&
                         c.id &&
                         anulables.has(c.id) &&
-                        cobraEste ? (
-                          <ConMotivo
-                            etiqueta="Anular"
-                            pregunta={`¿Anular el cobro de ${medio.toLowerCase()}?`}
-                            verbo="Sí, anular"
-                            placeholder="Por qué (cobré por el medio equivocado…)"
-                            hacer={(motivo) =>
-                              anularCobroTurno(
-                                aFormData(
-                                  camposDeAnular({
-                                    cobroId: c.id!,
-                                    turnoId: t.id,
-                                    motivo,
-                                  }),
-                                ),
-                              )
-                            }
-                          />
+                        anular ? (
+                          <div className="flex flex-col items-start gap-2">
+                            <ConMotivo
+                              etiqueta="Anular"
+                              pregunta={`¿Anular el cobro de ${medio.toLowerCase()}?`}
+                              verbo="Sí, anular"
+                              placeholder="Por qué (cobré por el medio equivocado…)"
+                              pideCodigo={anular === "con-autorizacion"}
+                              hacer={(motivo, codigo) =>
+                                anularCobroTurno(
+                                  aFormData(
+                                    camposDeAnular({
+                                      cobroId: c.id!,
+                                      turnoId: t.id,
+                                      motivo,
+                                      codigo,
+                                    }),
+                                  ),
+                                )
+                              }
+                            />
+                            {anular === "directa" && <AutorizarAnulacion cobroId={c.id} turnoId={t.id} />}
+                          </div>
                         ) : undefined
                       }
                     />

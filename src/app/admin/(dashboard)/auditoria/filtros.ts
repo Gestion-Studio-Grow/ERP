@@ -49,7 +49,7 @@ const WHERE_TIPO: Record<TipoId, Prisma.AuditLogWhereInput> = {
       // La anulación de una venta: la misma forma que cuenta el Inicio (`whereAnulacionesDelDia`).
       { entity: "Order", action: "update", changes: { path: ["status"], equals: "CANCELLED" } },
       { entity: "Appointment", action: "cancel" },
-      { action: "void_collection" },
+      { action: { in: ["void_collection", "authorize_void_collection"] } },
     ],
   },
   cobros: {
