@@ -11,6 +11,7 @@ import { useNegocioDelSitio } from "./negocio-del-sitio";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import type { PrefillReserva } from "./BookingProvider";
 import { borrarReservaGuardada, guardarReserva } from "./reserva-guardada";
+import { faltaParaSeguir } from "./reserva-falta";
 import type { BookingData, BookingGroup, BookingProfessional, BookingService } from "./types";
 
 const STEP_LABELS = ["", "Servicio", "Profesional", "Día y hora", "Datos", "Confirmación"];
@@ -88,8 +89,10 @@ export default function BookingModal({
   const [confirmedStartsAt, setConfirmedStartsAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // Diseño nuevo: «Continuar»/«Confirmar» no quedan muertos; al tocarlos sin completar, se dice qué falta.
-  const [intento, setIntento] = useState(false);
+  // Diseño nuevo: «Continuar»/«Confirmar» no quedan muertos; al tocarlos sin completar, se dice qué falta (faltaParaSeguir).
+  // Guarda EN QUÉ PASO se intentó: al cambiar de paso, por el camino que sea, el aviso no viaja.
+  const [intentoEn, setIntentoEn] = useState(0);
+  const intento = intentoEn === step;
   const [slotsPending, startSlots] = useTransition();
 
   // Disponibilidad por día, precalculada para todo el rango visible apenas
@@ -268,6 +271,18 @@ export default function BookingModal({
     !!(name.trim() && telValid && mailValid),
     true,
   ][step];
+  const falta = intento
+    ? faltaParaSeguir(step, {
+        servicio: !!svc,
+        profesional: !!pro,
+        hayProfesionales: prosForService.length > 0,
+        dia: !!day,
+        hora: !!slot,
+        nombre: !!name.trim(),
+        telefonoValido: telValid,
+        emailValido: mailValid,
+      })
+    : null;
 
   // Precio base (ya con el beneficio vecino aplicado si corresponde) y precio
   // final con el cupón — el que se muestra acá es preview, el real se
@@ -327,10 +342,10 @@ export default function BookingModal({
 
   function next() {
     if (nuevo && !canNext) {
-      setIntento(true);
+      setIntentoEn(step);
       return;
     }
-    setIntento(false);
+    setIntentoEn(0);
     if (step === 4) {
       confirmBooking();
       return;
@@ -348,11 +363,12 @@ export default function BookingModal({
   // al paso siguiente, que es lo que hace cualquier reserva moderna. "Atrás" sigue
   // estando para cambiar de idea, y el paso 1 muestra igual el elegido si se vuelve.
   function elegirYSeguir(fn: () => void) {
+    setIntentoEn(0);
     fn();
     setStep((sActual) => (sActual < 4 ? sActual + 1 : sActual));
   }
   function back() {
-    setIntento(false);
+    setIntentoEn(0);
     if (step > 1) setStep(step - 1);
   }
 
@@ -610,7 +626,6 @@ export default function BookingModal({
               {!prefetchingAvailability && <div style={{ marginBottom: 16 }} />}
 
               {!day && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Elegí un día para ver los horarios disponibles.</p>}
-              {intento && !slot && <p role="alert" style={{ fontSize: 14, fontWeight: 600, color: "var(--danger)", margin: "0 0 12px" }}>Falta elegir el horario.</p>}
               {day && slotsPending && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Buscando horarios…</p>}
               {day && !slotsPending && slots.length === 0 && (
                 <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>No hay horarios disponibles ese día.</p>
@@ -815,7 +830,12 @@ export default function BookingModal({
         </div>
 
         {/* Footer del modal */}
-        <div className={k("chm-pie")} style={{ padding: "16px 24px", borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-raised)" }}>
+        <div className={k("chm-pie")} style={{ padding: "16px 24px", borderTop: "1px solid var(--line)", display: "flex", flexWrap: falta ? "wrap" : undefined, alignItems: "center", justifyContent: "space-between", background: "var(--surface-raised)" }}>
+          {falta && (
+            <p role="alert" style={{ flexBasis: "100%", fontSize: 14, fontWeight: 600, color: "var(--danger)", margin: "0 0 12px" }}>
+              {falta}
+            </p>
+          )}
           <button
             type="button"
             onClick={back}
