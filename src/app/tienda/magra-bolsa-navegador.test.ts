@@ -171,11 +171,11 @@ describe("La bolsa de MAGRA en el navegador", { timeout: 120_000 }, () => {
     const arriba = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest(".mg-bolsa-wa") !== null, [w.x + w.width / 2, w.y + w.height / 2]);
     assert.equal(arriba, true, "el toque en el centro de «Pedir por WhatsApp» cae en el botón");
     await hoja.getByRole("button", { name: "Cerrar mi bolsa" }).click();
-    // Al final de la página, el pie («Acceso administrador») termina por encima de la barra.
+    // Al final de la página, el pie (la línea legal) termina por encima de la barra.
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    const [b, admin] = await Promise.all([barra.boundingBox(), page.getByRole("link", { name: "Acceso administrador" }).boundingBox()]);
-    assert.ok(b && admin);
-    assert.ok(admin.y + admin.height <= b.y, `«Acceso administrador» termina en ${admin.y + admin.height} y la barra empieza en ${b.y}: lo tapa`);
+    const [b, legal] = await Promise.all([barra.boundingBox(), page.locator(".mg-pie-legal").boundingBox()]);
+    assert.ok(b && legal);
+    assert.ok(legal.y + legal.height <= b.y, `el pie termina en ${legal.y + legal.height} y la barra empieza en ${b.y}: lo tapa`);
     assert.deepEqual(errores, []);
     await page.close();
   });

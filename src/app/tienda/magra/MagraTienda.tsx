@@ -19,7 +19,6 @@
 import { useAnclasSinHistorial } from "@/components/vidriera/useAnclasSinHistorial";
 import { useBolsaGuardada } from "@/components/vidriera/useBolsaGuardada";
 import { useHoja } from "@/components/vidriera/useHoja";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { formatearCantidad } from "@/lib/pos-peso";
 import type { ShippingConfig } from "@/lib/storefront-shipping";
@@ -338,9 +337,14 @@ function Vidriera({
   const propuestas = propuestasSegunContacto(propuestasConMediosDeLaMarca(c.valueProps, mediosDePago), local);
   const promesa = promesaDeReparto(local, c);
   const [h1a, h1b] = partirTitulo(c.heroTitle);
+  const [marqueeQuieto, setMarqueeQuieto] = useState(false);
 
   return (
     <div className={`magra${hasItems ? " con-bolsa" : ""}`}>
+      {/* Lo primero que encuentra el teclado: la cabecera y el hero no se recorren para llegar a comprar. */}
+      <a href="#cortes" className="mg-saltar">
+        Saltar a los cortes
+      </a>
       <SpriteDespiece />
 
       {/* ── CABECERA ── */}
@@ -413,8 +417,8 @@ function Vidriera({
         </section>
 
         {/* ── MARQUEE ── */}
-        <div className="mg-marquee" aria-hidden="true">
-          <div className="mg-track">
+        <div className={`mg-marquee${marqueeQuieto ? " mg-quieto" : ""}`}>
+          <div className="mg-track" aria-hidden="true">
             {[...c.marquee, ...c.marquee].map((m, i) => (
               <span key={i}>
                 {m}
@@ -422,6 +426,10 @@ function Vidriera({
               </span>
             ))}
           </div>
+          {/* Lo que se mueve solo se tiene que poder parar (WCAG 2.2.2). */}
+          <button type="button" className="mg-marquee-pausa" aria-pressed={marqueeQuieto} aria-label="Pausar la cinta" onClick={() => setMarqueeQuieto((q) => !q)}>
+            <span aria-hidden="true">{marqueeQuieto ? "▶" : "❚❚"}</span>
+          </button>
         </div>
 
         {/* ── PROPUESTAS DE VALOR (textuales, con los medios de pago de la marca) ── */}
@@ -630,7 +638,8 @@ function Vidriera({
               </ul>
             </section>
 
-            {/* ── RESEÑAS (reales, textuales) ── */}
+            {/* ── RESEÑAS ── Sin comillas ni «Cliente MAGRA» hasta tener el texto literal autorizado (P1-5, cert F7):
+                salen del sitio del cliente, pero nadie confirmó todavía que sean palabra por palabra. */}
             <section className="mg-sec" id="nosotros" aria-labelledby="mg-rev-t">
               <h2 id="mg-rev-t" className="mg-h2">
                 Reviews de nuestros clientes
@@ -642,8 +651,8 @@ function Vidriera({
                       <span aria-hidden="true" className="mg-sim">{"★".repeat(Math.max(0, Math.min(5, r.rating)))}</span>
                       <span className="mg-sr">{r.rating} de 5</span>
                     </div>
-                    <blockquote>“{r.text}”</blockquote>
-                    <figcaption>{r.name} · Cliente MAGRA</figcaption>
+                    <p className="mg-rev-txt">{r.text}</p>
+                    <figcaption>{r.name}</figcaption>
                   </figure>
                 ))}
               </div>
@@ -960,10 +969,8 @@ function Vidriera({
             )}
           </div>
           <div className="mg-pie-legal">
-            <span>{c.copyright}</span>
-            <Link href="/admin" className="mg-admin">
-              Acceso administrador
-            </Link>
+            {/* El año del copy textual, al día. `hoy` lo calcula el servidor: el reloj del teléfono no decide nada. */}
+            <span>{hoy ? c.copyright.replace(/\d{4}/, hoy.slice(0, 4)) : c.copyright}</span>
           </div>
         </footer>
       </main>

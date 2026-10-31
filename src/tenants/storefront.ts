@@ -136,8 +136,9 @@ const magra: StorefrontCopy = {
     "Pescado congelado envasado",
   ],
   providers: ["Estancia Don Ramón", "Tinos", "Breaders", "Paladini", "Lamberti", "Formagge", "PizzaZen", "Maderasa"],
-  // Reviews reales del sitio (Matías R., Jesica F., Macarena A. — 5/5). Textos que
-  // reflejan los temas reales (calidad, envasado, atención por WhatsApp).
+  // Reviews del sitio (Matías R., Jesica F., Macarena A. — 5/5). NO son textuales: reflejan los temas
+  // (calidad, envasado, atención por WhatsApp). Hasta tener el texto literal autorizado, ninguna vidriera
+  // de MAGRA las presenta como cita (P1-5, cert F7).
   reviews: [
     { name: "Matías R.", rating: 5, text: "Calidad impecable y todo llega perfecto, bien envasado al vacío. Una experiencia premium." },
     { name: "Jesica F.", rating: 5, text: "La atención por WhatsApp es un lujo: me asesoraron con cada corte. Volví a pedir enseguida." },

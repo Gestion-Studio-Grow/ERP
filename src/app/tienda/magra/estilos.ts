@@ -74,7 +74,11 @@ export const CSS_VIDRIERA = `
 .magra .mg-hero-foto figcaption{position:absolute;z-index:1;left:16px;right:16px;bottom:14px;width:fit-content;padding:8px 12px;border-radius:4px;background:var(--carbon);font:700 12px/1.3 var(--f-c);letter-spacing:.2em;text-transform:uppercase;color:var(--crema)}
 
 /* MARQUEE */
-.magra .mg-marquee{overflow:hidden;border-block:1px solid var(--filete);padding:18px 0}
+.magra .mg-marquee{position:relative;overflow:hidden;border-block:1px solid var(--filete);padding:18px 0}
+.magra .mg-marquee:hover .mg-track,.magra .mg-quieto .mg-track{animation-play-state:paused}
+.magra .mg-marquee-pausa{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:48px;height:48px;display:grid;place-items:center;border:1px solid var(--filete);border-radius:50%;background:var(--carbon);color:var(--crema);font-size:13px;cursor:pointer}
+.magra .mg-saltar{position:fixed;left:12px;top:12px;z-index:100;display:inline-flex;align-items:center;min-height:48px;padding:0 20px;border-radius:4px;background:var(--crema);color:var(--carbon);font:700 15px/1 var(--f-c);text-decoration:none;transform:translateY(-200%)}
+.magra .mg-saltar:focus{transform:none}
 .magra .mg-track{display:flex;width:max-content;animation:mg-marq 36s linear infinite}
 .magra .mg-track span{font:400 28px/1 var(--f-d);letter-spacing:.08em;white-space:nowrap;padding-right:28px;text-transform:uppercase}
 .magra .mg-track i{font-style:normal;color:var(--oro);margin-left:28px}
@@ -194,7 +198,7 @@ export const CSS_VIDRIERA = `
 .magra .mg-revs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin-top:48px}
 .magra .mg-rev{margin:0;padding:28px;background:var(--tarjeta);border:1px solid rgba(197,174,134,.18);border-radius:12px;display:flex;flex-direction:column;gap:16px}
 .magra .mg-estrellas{color:var(--oro);letter-spacing:.2em}
-.magra .mg-rev blockquote{margin:0;font-style:italic;font-size:17px;line-height:1.6;font-synthesis:style}
+.magra .mg-rev-txt{margin:0;font-size:17px;line-height:1.6}
 .magra .mg-rev figcaption{margin-top:auto;font:700 13px/1.3 var(--f-c);letter-spacing:.12em;text-transform:uppercase;color:var(--oro)}
 .magra .mg-about{padding-bottom:clamp(96px,12vh,176px)}
 .magra .mg-about .mg-h2{font-size:clamp(40px,7cqi,96px);max-width:16ch}
@@ -253,7 +257,9 @@ export const CSS_VIDRIERA = `
 .magra .mg-ficha::backdrop,.magra .mg-bolsa::backdrop{background:rgba(0,0,0,.6)}
 .magra .mg-ficha-in{position:relative;display:grid;grid-template-columns:5fr 7fr;grid-template-rows:minmax(0,1fr) auto;height:min(760px,calc(100svh - 50px))}
 .magra .mg-ficha-vis{grid-row:1/3;min-height:0;display:grid;place-items:center;background:var(--negro)}
-.magra .mg-ficha-vis img{display:block;width:100%;height:100%;object-fit:cover}
+/* Nunca ampliada (P0-2): la foto de 480 px y la etiqueta se ven a su tamaño, centradas sobre el negro. */
+.magra .mg-ficha-vis img{display:block;width:auto;height:auto;max-width:min(100%,480px);max-height:100%;object-fit:contain}
+.magra .mg-ficha-vis .mg-pack{max-width:480px;max-height:600px}
 .magra .mg-ficha-txt{min-height:0;overflow-y:auto;padding:48px 48px 24px}
 .magra .mg-ficha-h{margin:10px 0 24px;padding-right:56px;font:400 clamp(48px,6vw,96px)/.88 var(--f-d);letter-spacing:.01em;text-transform:uppercase;text-wrap:balance}
 .magra .mg-ficha-sale{display:flex;align-items:center;gap:16px;padding:16px 0;border-block:1px solid var(--filete)}
@@ -286,7 +292,6 @@ export const CSS_VIDRIERA = `
 .magra .mg-pie-cols a{display:flex;align-items:center;min-height:44px;font-size:15px;color:var(--acero);text-decoration:none}
 .magra .mg-pie-cols a:hover{color:var(--oro)}
 .magra .mg-pie-legal{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding-top:20px;border-top:1px solid var(--filete);font-size:13px;color:var(--gris)}
-.magra .mg-admin{display:inline-flex;align-items:center;min-height:44px;color:var(--gris)}
 @media (max-width:820px){.magra .mg-pie-cols{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:480px){.magra .mg-pie-cols{grid-template-columns:minmax(0,1fr)}}
 
@@ -318,8 +323,7 @@ export const CSS_VIDRIERA = `
   .magra .mg-valores{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 20px;padding-block:48px}
   .magra .mg-ficha{inset:auto 0 0 0;margin:0;width:100%;max-width:none;height:94svh;max-height:94svh;border:0;border-top:1px solid var(--oro);border-radius:16px 16px 0 0}
   .magra .mg-ficha-in{display:block;height:100%;max-height:none;overflow-y:auto;overscroll-behavior:contain}
-  .magra .mg-ficha-vis{height:min(44svh,320px);overflow:hidden}
-  .magra .mg-ficha-vis img{object-fit:contain}
+  .magra .mg-ficha-vis{height:min(40svh,320px);overflow:hidden}
   .magra .mg-ficha-txt{overflow:visible;padding:24px 20px 16px}
   .magra .mg-ficha-pie{position:sticky;bottom:0;z-index:2;padding:12px 20px calc(12px + env(safe-area-inset-bottom))}
   .magra .mg-step{height:56px}
