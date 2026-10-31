@@ -38,13 +38,14 @@ import { isDemoSandbox } from "@/lib/demo-sandbox";
 import {
   calcularLiquidacion,
   egresoDeLiquidacion,
-  parseCashMethod,
+  parseMedioDeLiquidacion,
   type TurnoParaComision,
 } from "@/lib/comision-liquidacion";
 import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 // Hasta qué día está CONGELADO el libro (corte inicial + cierres diarios). El egreso de una
 // liquidación no puede caer en un día ya cerrado: sus números ya se arquearon.
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
+import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 // Mismo criterio de fecha contable que el egreso de una compra a proveedor: si hoy está
 // cerrado, el asiento se imputa al primer día abierto en vez de perderse.
 import { diaContableDelEgreso } from "@/lib/stock/purchase-egreso";
@@ -142,7 +143,9 @@ export async function settleCommissions(formData: FormData) {
   // /admin/reportes, con efectivo preseleccionado). `null` sigue siendo un caso posible —un
   // submit sin JS, un llamador que no es ese formulario— y ahí el egreso asume EFECTIVO y lo
   // DICE en el detalle de la fila. Ver `MEDIO_ASUMIDO` en comision-liquidacion.ts.
-  const method = parseCashMethod(formData.get("method"));
+  const method = parseMedioDeLiquidacion(formData.get("method"));
+  // Mismo reparo que el alta manual del libro: sin el valor en la base no se puede asentar.
+  if (method === "TRANSFERENCIA" && !(await transferenciaEnElLibroTx(prisma))) backWith("error_medio", volver);
 
   // Fecha CONTABLE del egreso. Se lee ANTES de la transacción (misma forma que el alta
   // manual del libro): si hoy ya está congelado por un cierre, el asiento se imputa al

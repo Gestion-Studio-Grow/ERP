@@ -71,7 +71,8 @@ export default function ComisionesRenglon({
               <Field label="Cómo se le pagó" htmlFor={`metodo-${c.professionalId}`}>
                 <Select id={`metodo-${c.professionalId}`} name="method" defaultValue="EFECTIVO">
                   <option value="EFECTIVO">Efectivo</option>
-                  <option value="MP">Transferencia / MP</option>
+                  <option value="MP">Mercado Pago</option>
+                  <option value="TRANSFERENCIA">Transferencia</option>
                   <option value="TARJETA">Tarjeta</option>
                 </Select>
               </Field>

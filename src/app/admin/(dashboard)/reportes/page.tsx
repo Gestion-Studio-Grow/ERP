@@ -23,6 +23,7 @@ const STATUS_MESSAGES: Record<string, { text: string; ok: boolean }> = {
   ok_settled: { text: "Comisión liquidada. Quedó registrada en el historial.", ok: true },
   error_nada: { text: "Ese profesional no tiene comisiones pendientes de liquidar.", ok: false },
   error_prof: { text: "No se pudo identificar al profesional.", ok: false },
+  error_medio: { text: "Este negocio todavía no separa la transferencia en el libro. No se liquidó nada: elegí otro medio.", ok: false },
 };
 
 function Table({ title, hint, rows }: { title: string; hint?: string; rows: { label: string; total: number }[] }) {
@@ -423,7 +424,8 @@ export default async function ReportesPage({
                     className="h-11 rounded-md border border-line-strong bg-surface-raised px-2 text-sm text-strong focus:border-accent sm:h-auto sm:py-1.5"
                   >
                     <option value="EFECTIVO">Efectivo</option>
-                    <option value="MP">Transferencia / MP</option>
+                    <option value="MP">Mercado Pago</option>
+                    <option value="TRANSFERENCIA">Transferencia</option>
                     <option value="TARJETA">Tarjeta</option>
                   </select>
                   <input

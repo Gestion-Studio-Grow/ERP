@@ -78,7 +78,8 @@ export default function ComisionesPendientes({
                     className="h-11 rounded-md border border-line-strong bg-surface-raised px-2 text-sm text-strong focus:border-accent"
                   >
                     <option value="EFECTIVO">Efectivo</option>
-                    <option value="MP">Transferencia / MP</option>
+                    <option value="MP">Mercado Pago</option>
+                    <option value="TRANSFERENCIA">Transferencia</option>
                     <option value="TARJETA">Tarjeta</option>
                   </select>
                   <input

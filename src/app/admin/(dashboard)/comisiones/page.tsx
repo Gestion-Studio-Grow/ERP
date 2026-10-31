@@ -24,6 +24,7 @@ const ESTADOS: Record<string, { texto: string; ok: boolean }> = {
   ok_settled: { texto: "Comisión liquidada. Quedó registrada en el historial y el egreso en el libro de caja.", ok: true },
   error_nada: { texto: "Ese profesional no tiene comisiones pendientes de liquidar.", ok: false },
   error_prof: { texto: "No se pudo identificar al profesional. Recargá la pantalla y volvé a intentar.", ok: false },
+  error_medio: { texto: "Este negocio todavía no separa la transferencia en el libro. No se liquidó nada: elegí otro medio.", ok: false },
 };
 
 export default async function ComisionesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
