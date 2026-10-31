@@ -21,6 +21,7 @@ import TicketVenta from "../vender/TicketVenta";
 import type { TerminalDelEquipo } from "@/lib/terminal/usar-perfil";
 import type { VentaTicket } from "../vender/reglas-venta";
 import AnularDelPedido from "../pedidos/AnularDelPedido";
+import AutorizarAnulacionVenta from "../pedidos/AutorizarAnulacionVenta";
 import FacturarVenta from "./FacturarVenta";
 import type { FacturaDeVenta } from "./factura";
 
@@ -30,7 +31,7 @@ export type FilaDeVenta = {
   canal: "COUNTER" | "ONLINE";
   notas: string[];
   factura: FacturaDeVenta | null;
-  anular: { motivoObligatorio: boolean } | null;
+  anular: { motivoObligatorio: boolean; conCodigo: boolean } | null;
 };
 
 function queSeVendio(v: VentaTicket): string {
@@ -58,13 +59,14 @@ export default function TablaDeVentas({
   const params = useSearchParams();
   const ruta = usePathname();
   const empujado = useRef(false);
-  // Se llegó por «Anular…»: la anulación se abre desplegada; por el ticket, queda plegada.
-  const [paraAnular, setParaAnular] = useState(false);
+  // Se llegó por «Anular…» (o desde la caja, con `?anular=1`): la anulación se abre desplegada; por
+  // el ticket, queda plegada.
+  const [paraAnular, setParaAnular] = useState(params.get("anular") === "1");
   const idAbierta = params.get("venta");
   const abierta = idAbierta ? (filas.find((f) => f.venta.id === idAbierta) ?? null) : null;
 
   const cambiar = (id: string | null, modo: "empujar" | "reemplazar") => {
-    const href = hrefConParametros(ruta, new URLSearchParams(window.location.search), { venta: id });
+    const href = hrefConParametros(ruta, new URLSearchParams(window.location.search), { venta: id, anular: null });
     if (modo === "empujar") window.history.pushState(null, "", href);
     else window.history.replaceState(null, "", href);
   };
@@ -233,6 +235,8 @@ export default function TablaDeVentas({
                 <FacturarVenta orderId={abierta.venta.id} inicial={abierta.factura} />
               </section>
             )}
+            {/* La dueña: el código para recepción, a la vista, sin abrir «Anular la venta…». */}
+            {abierta.anular && !abierta.anular.conCodigo && !abierta.venta.anulada && <AutorizarAnulacionVenta orderId={abierta.venta.id} />}
             {abierta.anular && !abierta.venta.anulada && (
               <details className="group" open={paraAnular}>
                 <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between border-b border-line text-sm font-semibold text-danger">
@@ -249,6 +253,8 @@ export default function TablaDeVentas({
                     aCuenta={abierta.venta.aCuenta === true}
                     total={abierta.venta.total}
                     motivoObligatorio={abierta.anular.motivoObligatorio}
+                    conCodigo={abierta.anular.conCodigo}
+                    autorizarAfuera
                     sustantivo="venta"
                     onHecho={cerrar}
                   />

@@ -29,7 +29,9 @@ import { enCampoEditable, quitarPrefijoSufijo } from "@/lib/terminal/lector-core
 import { useLectorDeRafaga } from "@/lib/terminal/usar-lector";
 import { avisar } from "@/lib/terminal/senal";
 import type { VentaTicket } from "../vender/reglas-venta";
+import Link from "next/link";
 import { cobrarVentaDeCaja, anularRenglonDeCaja } from "@/lib/supermercado/caja-actions";
+import { rutaParaAnularLaVenta } from "../ventas/filtros";
 import { buscarPorNombre, indexarPorCodigo, interpretarEntrada, resolverCodigo, type ProductoDeCaja } from "@/lib/supermercado/lectura";
 import { agregarAlTicket, importeDelRenglon, quitarDelTicket, vistaDelTicket, type RenglonDeCaja } from "@/lib/supermercado/ticket-caja";
 import { repartirPagos, type PagoIngresado } from "@/lib/supermercado/pago-mixto";
@@ -401,6 +403,9 @@ export default function CajaRapida({
               {cobrada.vuelto > 0 ? ` · Vuelto ${fmtMoneyARS(cobrada.vuelto)}` : ""}
             </p>
             <TicketVenta venta={cobrada.venta} negocio={negocio} pagoCon={cobrada.pagoCon} terminal={terminal} imprimirAlCobrar />
+            <Link href={rutaParaAnularLaVenta(cobrada.venta.id)} className="inline-flex min-h-11 items-center text-sm text-muted underline hover:text-strong">
+              ¿Salió mal? Anular la venta #{cobrada.venta.code}
+            </Link>
           </div>
         )}
       </section>

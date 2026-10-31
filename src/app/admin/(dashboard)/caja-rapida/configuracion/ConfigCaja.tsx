@@ -51,7 +51,7 @@ export default function ConfigCaja({
 
       <section className="space-y-3 rounded-md border border-line bg-surface-raised p-4">
         <h2 className="text-base font-semibold text-strong">Quién autoriza anular en la caja</h2>
-        <p className="text-sm text-muted">Los dueños siempre. Sumá a quien hace de encargado de turno: anula sin pedir otra clave y autoriza las anulaciones de los cajeros.</p>
+        <p className="text-sm text-muted">Los dueños siempre. Sumá a quien hace de encargado de turno: anula renglones del ticket abierto sin pedir otra clave y autoriza los de los cajeros. Una venta ya cobrada se anula sólo con el código de la dueña.</p>
         {usuarios.length === 0 ? (
           <p className="text-sm text-body">No hay usuarios de recepción todavía. Se agregan en Usuarios.</p>
         ) : (

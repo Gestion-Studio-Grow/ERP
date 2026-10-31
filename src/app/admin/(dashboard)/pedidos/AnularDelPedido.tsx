@@ -8,6 +8,7 @@
 // y la tecla roja dice exactamente qué se hace («Anular el pedido #474») y qué pasa con la plata.
 // El motivo es obligatorio para recepción; la regla la decide el SERVIDOR (`anularVenta`,
 // order-actions.ts), por eso `noValidate`: el rechazo que se ve es el suyo, con su texto.
+// Con plata de por medio, recepción escribe además el código de la dueña, y la dueña es quien lo saca.
 //
 // Misma acción y mismos campos que AnularPedidoForm (formularios-del-pedido.ts).
 
@@ -18,6 +19,7 @@ import { MOTIVO_MAX } from "@/lib/turnos/anulacion";
 import { Button, Field, Input } from "@/components/ui";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { useToast } from "../ToastProvider";
+import AutorizarAnulacionVenta from "./AutorizarAnulacionVenta";
 import { aFormData, camposDeLaAnulacion, esRedirectDeNext } from "./formularios-del-pedido";
 
 export default function AnularDelPedido({
@@ -27,6 +29,8 @@ export default function AnularDelPedido({
   aCuenta = false,
   total,
   motivoObligatorio,
+  conCodigo,
+  autorizarAfuera = false,
   sustantivo = "pedido",
   onHecho,
 }: {
@@ -36,6 +40,10 @@ export default function AnularDelPedido({
   aCuenta?: boolean;
   total: number;
   motivoObligatorio: boolean;
+  /** Quien anula necesita el código de la dueña; sin esto, es ella: anula directo y lo saca. */
+  conCodigo: boolean;
+  /** La pantalla ya ofrece «Autorizar anulación» a la vista, fuera de este formulario. */
+  autorizarAfuera?: boolean;
   /** «pedido» o «venta». */
   sustantivo?: "pedido" | "venta";
   onHecho?: () => void;
@@ -44,14 +52,16 @@ export default function AnularDelPedido({
   const { showError, showSuccess } = useToast();
   const [motivo, setMotivo] = useState("");
   const [stockNoVolvio, setStockNoVolvio] = useState(false);
+  const [codigo, setCodigo] = useState("");
   const [error, setError] = useState<string | null>(null);
   // Doble salida (src/lib/caja/doble-salida.ts): el servidor avisa y el segundo clic confirma.
   const [porConfirmar, setPorConfirmar] = useState(false);
   const [pending, startTransition] = useTransition();
   const uid = useId();
+  const conPlata = cobrado || aCuenta;
 
   function enviar() {
-    const fd = aFormData(camposDeLaAnulacion({ id, motivo, stockNoVolvio }));
+    const fd = aFormData(camposDeLaAnulacion({ id, motivo, stockNoVolvio, codigo }));
     if (porConfirmar) fd.set("confirmar", "1");
     startTransition(async () => {
       let r;
@@ -96,14 +106,14 @@ export default function AnularDelPedido({
       <Field
         label={`Motivo ${motivoObligatorio ? "(obligatorio)" : "(queda en la auditoría)"}`}
         htmlFor={`${uid}-motivo`}
-        error={error ?? undefined}
+        error={conCodigo && conPlata ? undefined : (error ?? undefined)}
       >
         <Input
           id={`${uid}-motivo`}
           value={motivo}
           maxLength={MOTIVO_MAX}
           aria-required={motivoObligatorio || undefined}
-          aria-invalid={error ? true : undefined}
+          aria-invalid={error && !(conCodigo && conPlata) ? true : undefined}
           placeholder="Ej.: se pesó mal, eran 1,310 kg"
           onChange={(e) => {
             setMotivo(e.target.value);
@@ -112,6 +122,23 @@ export default function AnularDelPedido({
           }}
         />
       </Field>
+      {conCodigo && conPlata && (
+        <Field label="Código de la dueña" htmlFor={`${uid}-codigo`} error={error ?? undefined} hint={`La dueña lo saca en la ${sustantivo === "venta" ? "venta" : "pedido"} #${code}, desde Ventas del día o Pedidos, con «Autorizar anulación». Vale unos minutos y sólo para esta venta.`}>
+          <Input
+            id={`${uid}-codigo`}
+            value={codigo}
+            maxLength={12}
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
+            onChange={(e) => {
+              setCodigo(e.target.value);
+              setError(null);
+              setPorConfirmar(false);
+            }}
+          />
+        </Field>
+      )}
       <label htmlFor={`${uid}-stock`} className="flex min-h-11 items-center gap-2 text-sm text-body">
         <input id={`${uid}-stock`} type="checkbox" checked={stockNoVolvio} onChange={(e) => setStockNoVolvio(e.target.checked)} className="size-5" />
         La mercadería no volvió
@@ -119,6 +146,7 @@ export default function AnularDelPedido({
       <Button type="submit" variant="danger" disabled={pending} estado={pending ? "cargando" : undefined}>
         {pending ? "Anulando…" : porConfirmar ? "Sí, anular igual" : `Anular ${sustantivo === "venta" ? "la venta" : "el pedido"} #${code}`}
       </Button>
+      {!conCodigo && conPlata && !autorizarAfuera && <AutorizarAnulacionVenta orderId={id} />}
     </form>
   );
 }

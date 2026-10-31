@@ -21,6 +21,7 @@ import { anularVenta } from "@/lib/order-actions";
 import { MOTIVO_MAX } from "@/lib/turnos/anulacion";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { useToast } from "../ToastProvider";
+import AutorizarAnulacionVenta from "./AutorizarAnulacionVenta";
 
 function isNextRedirect(e: unknown): boolean {
   const digest = (e as { digest?: unknown } | null)?.digest;
@@ -35,6 +36,8 @@ export default function AnularPedidoForm({
   motivoObligatorio,
   aCuenta = false,
   conStock = false,
+  conCodigo,
+  abiertoAlInicio = false,
 }: {
   id: string;
   code: number;
@@ -49,10 +52,14 @@ export default function AnularPedidoForm({
    * tilde «La mercadería no volvió». Sin esto (CH), el texto de siempre.
    */
   conStock?: boolean;
+  /** Quien anula necesita el código de la dueña si hay plata; sin esto, es ella: anula directo y lo saca. */
+  conCodigo: boolean;
+  /** Se llegó para anular ESTA venta (desde la caja o Vender, recién cobrada). */
+  abiertoAlInicio?: boolean;
 }) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
-  const [abierto, setAbierto] = useState(false);
+  const [abierto, setAbierto] = useState(abiertoAlInicio);
   const [error, setError] = useState<string | null>(null);
   // Doble salida (src/lib/caja/doble-salida.ts): el servidor avisa y el segundo clic confirma.
   const [porConfirmar, setPorConfirmar] = useState(false);
@@ -60,6 +67,7 @@ export default function AnularPedidoForm({
   const uid = useId();
   const tituloId = `${uid}-titulo`;
   const motivoId = `${uid}-motivo`;
+  const conPlata = paid || aCuenta;
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -92,14 +100,17 @@ export default function AnularPedidoForm({
 
   if (!abierto) {
     return (
-      <button
-        type="button"
-        onClick={() => setAbierto(true)}
-        aria-expanded={false}
-        className="chip-btn chip-btn-danger text-xs h-11 sm:h-auto w-full sm:w-auto"
-      >
-        Anular…
-      </button>
+      <>
+        <button
+          type="button"
+          onClick={() => setAbierto(true)}
+          aria-expanded={false}
+          className="chip-btn chip-btn-danger text-xs h-11 sm:h-auto w-full sm:w-auto"
+        >
+          Anular…
+        </button>
+        {!conCodigo && conPlata && <AutorizarAnulacionVenta orderId={id} />}
+      </>
     );
   }
 
@@ -138,6 +149,24 @@ export default function AnularPedidoForm({
         placeholder="Ej.: se pesó mal, eran 1,310 kg"
         className="h-11 rounded-md border border-line-strong bg-surface-raised px-3 text-sm text-strong placeholder:text-faint focus:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       />
+      {conCodigo && conPlata && (
+        <>
+          <label htmlFor={`${uid}-codigo`} className="text-xs text-body">
+            Código de la dueña
+          </label>
+          <input
+            id={`${uid}-codigo`}
+            name="codigo"
+            type="text"
+            maxLength={12}
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
+            className="h-11 rounded-md border border-line-strong bg-surface-raised px-3 text-sm text-strong focus:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          />
+          <p className="text-xs text-muted">La dueña lo saca en la venta #{code}, desde Ventas del día o Pedidos, con «Autorizar anulación». Vale unos minutos y sólo para esta venta.</p>
+        </>
+      )}
       <label className="flex min-h-11 items-center gap-2 text-xs text-body sm:min-h-8">
         <input type="checkbox" name="stockNoVolvio" className="h-4 w-4" />
         La mercadería no volvió

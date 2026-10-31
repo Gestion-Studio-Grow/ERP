@@ -78,7 +78,7 @@ import type { ExtraDelPedido } from "./tablero.server";
 import { useVocabulario } from "../VocabularioDelNegocio";
 import { tituloDeEntrega } from "@/lib/vocabulario-negocio";
 
-type Anulacion = { motivoObligatorio: boolean } | null;
+type Anulacion = { motivoObligatorio: boolean; conCodigo: boolean } | null;
 
 // ── La tecla del renglón ─────────────────────────────────────────────────────
 
@@ -675,11 +675,12 @@ function BandejaEnColumnas({
  * carne vuelve al stock salvo que se tilde lo contrario; la regla (quién, qué día, motivo) la
  * decide el servidor en `anularVenta`, como cualquier anulación. Sin estado propio (Gate 2).
  */
-function NoRetiro({ p, motivoObligatorio, onCerrar }: { p: PedidoDelTablero; motivoObligatorio: boolean; onCerrar: () => void }) {
+function NoRetiro({ p, motivoObligatorio, conCodigo, onCerrar }: { p: PedidoDelTablero; motivoObligatorio: boolean; conCodigo: boolean; onCerrar: () => void }) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [motivo, setMotivo] = useState(MOTIVO_NO_RETIRO);
   const [stockNoVolvio, setStockNoVolvio] = useState(false);
+  const [codigo, setCodigo] = useState("");
   const [error, setError] = useState<string | null>(null);
   // Doble salida (src/lib/caja/doble-salida.ts): el servidor avisa y el segundo clic confirma.
   const [porConfirmar, setPorConfirmar] = useState(false);
@@ -690,6 +691,7 @@ function NoRetiro({ p, motivoObligatorio, onCerrar }: { p: PedidoDelTablero; mot
     fd.set("id", p.id);
     fd.set("motivo", motivo);
     if (stockNoVolvio) fd.set("stockNoVolvio", "on");
+    if (codigo.trim()) fd.set("codigo", codigo.trim());
     if (porConfirmar) fd.set("confirmar", "1");
     startTransition(async () => {
       let r;
@@ -726,7 +728,7 @@ function NoRetiro({ p, motivoObligatorio, onCerrar }: { p: PedidoDelTablero; mot
           {p.cobrado ? "Estaba cobrado: se devuelve la plata en la caja del día en que se cobró." : "No estaba cobrado: la caja no se toca."} La
           mercadería vuelve al stock.
         </p>
-        <Field label={`Motivo ${motivoObligatorio ? "(obligatorio)" : "(queda en la auditoría)"}`} htmlFor={`${uid}-motivo`} error={error ?? undefined}>
+        <Field label={`Motivo ${motivoObligatorio ? "(obligatorio)" : "(queda en la auditoría)"}`} htmlFor={`${uid}-motivo`} error={conCodigo && p.cobrado ? undefined : (error ?? undefined)}>
           <Input
             id={`${uid}-motivo`}
             value={motivo}
@@ -740,6 +742,23 @@ function NoRetiro({ p, motivoObligatorio, onCerrar }: { p: PedidoDelTablero; mot
             }}
           />
         </Field>
+        {conCodigo && p.cobrado && (
+          <Field label="Código de la dueña" htmlFor={`${uid}-codigo`} error={error ?? undefined} hint={`La dueña lo saca en el pedido #${p.code}, desde Ventas del día o Pedidos, con «Autorizar anulación». Vale unos minutos y sólo para esta venta.`}>
+            <Input
+              id={`${uid}-codigo`}
+              value={codigo}
+              maxLength={12}
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              onChange={(e) => {
+                setCodigo(e.target.value);
+                setPorConfirmar(false);
+                setError(null);
+              }}
+            />
+          </Field>
+        )}
         <label htmlFor={`${uid}-stock`} className="flex min-h-11 items-center gap-2 text-sm text-body">
           <input id={`${uid}-stock`} type="checkbox" checked={stockNoVolvio} onChange={(e) => setStockNoVolvio(e.target.checked)} className="size-5" />
           La mercadería no volvió al stock (se tiró o se regaló)
@@ -1154,7 +1173,7 @@ export default function TableroPedidos({
       )}
 
       {noRetiro && anulacion && (
-        <NoRetiro p={noRetiro} motivoObligatorio={anulacion.motivoObligatorio} onCerrar={() => setNoRetiro(null)} />
+        <NoRetiro p={noRetiro} motivoObligatorio={anulacion.motivoObligatorio} conCodigo={anulacion.conCodigo} onCerrar={() => setNoRetiro(null)} />
       )}
 
       <PedidoCajon
@@ -1188,6 +1207,7 @@ export default function TableroPedidos({
             aCuenta={anularCerrado.aCuenta}
             total={anularCerrado.total}
             motivoObligatorio={anulacion.motivoObligatorio}
+            conCodigo={anulacion.conCodigo}
             onHecho={() => setAnularCerrado(null)}
           />
         </Dialogo>

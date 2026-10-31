@@ -340,7 +340,7 @@ export default async function PedidosPage() {
             extras={tablero.extras}
             comercio={comercio}
             puedeOperar={roleHasCapability(user.role, "orders:manage")}
-            anulacion={alcance ? { motivoObligatorio: alcance.motivoObligatorio } : null}
+            anulacion={alcance ? { motivoObligatorio: alcance.motivoObligatorio, conCodigo: alcance.conCodigo } : null}
             simulacion={simulacion}
             tomarPedido={puedeTomar ? "/admin/vender?modo=pedido" : null}
             fiado={fiado}
@@ -649,6 +649,7 @@ export default async function PedidosPage() {
                       paid={o.paid}
                       total={o.total}
                       motivoObligatorio={alcance.motivoObligatorio}
+                      conCodigo={alcance.conCodigo}
                       conStock={comercio}
                     />
                   )}
@@ -707,6 +708,7 @@ export default async function PedidosPage() {
                           aCuenta={o.paid && !o.paymentMethod}
                           total={o.total}
                           motivoObligatorio={alcance.motivoObligatorio}
+                          conCodigo={alcance.conCodigo}
                           conStock={comercio}
                         />
                       </div>

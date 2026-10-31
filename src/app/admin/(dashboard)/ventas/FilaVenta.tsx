@@ -20,6 +20,7 @@ export default function FilaVenta({
   canal,
   negocio,
   anular,
+  abrirAnular = false,
   notas,
   factura = null,
   terminal = null,
@@ -30,7 +31,9 @@ export default function FilaVenta({
   canal: "COUNTER" | "ONLINE";
   negocio: string;
   /** Si quien mira puede anular ESTA venta; con el motivo obligatorio o no. */
-  anular: { motivoObligatorio: boolean } | null;
+  anular: { motivoObligatorio: boolean; conCodigo: boolean } | null;
+  /** Se llegó para anular ESTA venta (desde la caja o Vender): el formulario arranca abierto. */
+  abrirAnular?: boolean;
   /** Lo que la dueña tiene que ver: quién anuló y por qué, descuento, precio a mano. */
   notas: string[];
   /** El estado de la factura, sólo para quien puede facturar (null = no se muestra nada). */
@@ -41,7 +44,7 @@ export default function FilaVenta({
   const [conTicket, setConTicket] = useState(false);
   const aMano = venta.lineas.some((l) => l.aMano);
   return (
-    <li className="rounded-lg border border-line p-3 sm:p-4">
+    <li id={`venta-${venta.id}`} className="scroll-mt-20 rounded-lg border border-line p-3 sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2 text-sm">
@@ -94,6 +97,8 @@ export default function FilaVenta({
             aCuenta={venta.aCuenta === true}
             total={venta.total}
             motivoObligatorio={anular.motivoObligatorio}
+            conCodigo={anular.conCodigo}
+            abiertoAlInicio={abrirAnular}
           />
         )}
       </div>
