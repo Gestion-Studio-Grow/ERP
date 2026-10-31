@@ -20,7 +20,8 @@ import {
   CASH_METHOD_LABEL,
   totalOf,
 } from "@/lib/caja/libro-caja";
-import { formatDayLabel, medioDeLaClasica, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
+import { CERRAR_DIA_SIN_PERMISO, formatDayLabel, medioDeLaClasica, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
+import { isDemoSandbox } from "@/lib/demo-flag";
 import { movementSign } from "@/lib/caja/cash-register";
 import { textoDeAperturaQueNoSuma } from "./revisar-cierre";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
@@ -101,6 +102,8 @@ export default async function CierreCajaPage({
     data.mediosDelLibro.reduce((s, m) => s + clasica(m)[key], 0);
   const esperadoTotal = totalClasica("expected");
   const puedeCerrar = !yaCerrado && !enElFuturo;
+  // Rol sin permiso (`puedeCerrarElDia`): el servidor le niega el cierre, no se le ofrece. La demo no tiene usuario.
+  const soloMira = !data.puedeCerrar && !isDemoSandbox();
 
   return (
     // Antes era un `<div>` pelado: ni el shell (`AdminShell`) ni `PageHeader` aportan
@@ -296,7 +299,12 @@ export default async function CierreCajaPage({
         <TurnosSinCerrar day={day} turnos={turnosSinCerrar} />
       )}
 
-      {puedeCerrar && (
+      {puedeCerrar && soloMira && (
+        <p role="status" className="mt-6 rounded-md border border-line bg-surface-raised p-4 text-sm text-body">
+          {CERRAR_DIA_SIN_PERMISO}
+        </p>
+      )}
+      {puedeCerrar && !soloMira && (
         <CerrarDiaForm
           key={day}
           day={day}

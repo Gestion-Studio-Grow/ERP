@@ -209,7 +209,7 @@ function MontoDelLibro({ valor }: { valor: number | null }) {
   return valor === null ? <span className="text-sm text-muted">{EFECTIVO_SE_VE_AL_ABRIR.toLowerCase()}</span> : <Plata valor={valor} />;
 }
 
-function MovimientosDeHoy({ dia }: { dia: Dia }) {
+function MovimientosDeHoy({ dia, esMostrador }: { dia: Dia; esMostrador: boolean }) {
   const deHoy = dia.movements.filter((m) => m.day === dia.day);
   return (
     <section aria-labelledby="movimientos-hoy" className="mt-8">
@@ -223,7 +223,7 @@ function MovimientosDeHoy({ dia }: { dia: Dia }) {
       </div>
       {deHoy.length === 0 && (
         <p className="py-3 text-sm text-muted">
-          Cuando cobres en el mostrador o en la agenda, aparece acá solo. Los gastos y retiros se cargan con «Cargar un gasto o retiro».
+          {esMostrador ? "Cuando cobres en el mostrador, aparece acá solo." : "Cuando cobres en el mostrador o en la agenda, aparece acá solo."} Los gastos y retiros se cargan con «Cargar un gasto o retiro».
         </p>
       )}
       {deHoy.map((m) =>
@@ -383,7 +383,7 @@ export default function CajaRenglon({ dia, caja, regla = null }: { dia: Dia; caj
         </div>
         {!dia.yaCerrado && (
           <div className="flex flex-wrap gap-2">
-            <CargarMovimiento dia={dia.day} />
+            <CargarMovimiento dia={dia.day} esMostrador={caja !== null} />
             {dia.puedeCerrar && (
               <Link href="/admin/caja/cierre" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")}>
                 Cerrar el día
@@ -424,7 +424,7 @@ export default function CajaRenglon({ dia, caja, regla = null }: { dia: Dia; caj
         <div className="grid gap-x-10 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
           <div className="min-w-0">
             <PorMedio dia={dia} />
-            <MovimientosDeHoy dia={dia} />
+            <MovimientosDeHoy dia={dia} esMostrador={caja !== null} />
           </div>
           <div className="min-w-0">
             {caja && <TurnoDeCajero caja={caja} className="mt-8 lg:mt-0" />}

@@ -461,8 +461,8 @@ export async function addLibroEntry(
           confirmable: "duplicado",
           error:
             `El sistema ya registró un cobro igual ese día: “${err.delSistema.detail}”, ` +
-            `${fmtMoneyARS(amount)} (${CASH_METHOD_LABEL[method]}). Los turnos cobrados desde Turnos y las ventas ` +
-            `del mostrador entran solos al libro: no hace falta tipearlos. Si es otro cobro distinto, confirmá para guardarlo igual.`,
+            `${fmtMoneyARS(amount)} (${CASH_METHOD_LABEL[method]}). Lo que cobra el sistema entra solo al libro: ` +
+            `no hace falta tipearlo. Si es otro cobro distinto, confirmá para guardarlo igual.`,
         };
       }
       return {

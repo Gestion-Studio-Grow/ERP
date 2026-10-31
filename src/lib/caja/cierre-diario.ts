@@ -686,7 +686,7 @@ export function puedeCerrarElDia(role: string | null | undefined): boolean {
 }
 
 export const CERRAR_DIA_SIN_PERMISO =
-  "Cerrar el día lo hace la dueña o el dueño: pedíselo. Vos podés cerrar tu turno de caja.";
+  "Cerrar el día lo hace la dueña o el dueño: pedíselo.";
 
 /** Abrir la caja con hoy ya cerrado. La regla no cambia: se dice qué pasó y adónde ir. */
 export const NO_SE_ABRE_CON_EL_DIA_CERRADO =

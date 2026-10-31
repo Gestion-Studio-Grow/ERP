@@ -48,6 +48,7 @@ import {
   APPS_DE_LA_BANDEJA,
   APPS_DE_LA_LINEA,
   avisoDeCaja,
+  pasosSegunRol,
   teclaDelCierreSegunRol,
   pasosParaArrancar,
   lineaDelDia,
@@ -258,7 +259,8 @@ async function Bandeja({ ctx }: { ctx: Contexto }) {
   const arrancando = cierre?.estado === "ok" && cierre.valor === "Sin cierres";
   // La frontera del cierre se lee sólo si la caja está cerrada: es lo único que cambia el aviso.
   const cajaCerrada = !arrancando && caja?.resultado?.estado === "ok" && caja.resultado.valor === "Cerrada";
-  const diaCerrado = cajaCerrada && (await hoyEstaCerrado(await getCurrentTenantId()));
+  // Si esta lectura falla, el aviso de siempre: no se cae el Inicio por una línea de estado.
+  const diaCerrado = cajaCerrada && (await getCurrentTenantId().then(hoyEstaCerrado).catch(() => false));
   const aviso = arrancando ? null : avisoDeCaja(caja?.resultado, caja?.app.ruta, diaCerrado);
   const { pendientes: crudos, sinRevisar } = pendientesDeLaBandeja(items, destinos);
   const pendientes = teclaDelCierreSegunRol(crudos, puedeCerrarElDia(ctx.role));
@@ -368,7 +370,7 @@ async function ParaArrancar({ ctx }: { ctx: Contexto }) {
     (vende || destinos.has("pedidos")) && destinos.has("datos-del-negocio") ? whatsappDeLaVidriera() : Promise.resolve(null),
     vende ? primerDiaDelMostrador() : Promise.resolve(null),
   ]);
-  const pasos = pasosParaArrancar(new Map(items.map((i) => [i.app.id, i.resultado])), destinos, facturacion, whatsapp, mostrador);
+  const pasos = pasosSegunRol(pasosParaArrancar(new Map(items.map((i) => [i.app.id, i.resultado])), destinos, facturacion, whatsapp, mostrador), puedeCerrarElDia(ctx.role));
   if (pasos.length === 0) return null;
   const hechos = pasos.filter((p) => p.hecho).length;
   return (

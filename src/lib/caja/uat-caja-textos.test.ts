@@ -1,7 +1,7 @@
 // UAT de caja del 31/10: lo que la pantalla dice y ofrece. Sin cambiar ninguna regla de plata ni de cierre.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { avisoDeCaja, teclaDelCierreSegunRol } from "@/app/admin/(dashboard)/inicio/bandeja-core";
+import { avisoDeCaja, pasosSegunRol, teclaDelCierreSegunRol } from "@/app/admin/(dashboard)/inicio/bandeja-core";
 import { CERRAR_DIA_SIN_PERMISO, NO_SE_ABRE_CON_EL_DIA_CERRADO, puedeCerrarElDia } from "./cierre-diario";
 import { movimientoDelLedger, motivoParaNoBorrar, rotuloDeOrigen, type FilaLedger } from "./libro-caja";
 
@@ -69,4 +69,13 @@ test("lo que la pantalla ofrece borrar es lo mismo que la acción deja borrar", 
   for (const f of [fila({}), fila({ type: "INGRESO" }), fila({ type: "RETIRO" }), fila({ type: "EGRESO", orderId: "o1" }), fila({ type: "VENTA" })]) {
     assert.equal(movimientoDelLedger(f).borrable, motivoParaNoBorrar(f) === null);
   }
+});
+
+test("quien no cierra el día no tiene «Cerrar el primer día» entre sus pasos", () => {
+  const pasos = [
+    { id: "caja", titulo: "Abrir la caja", hecho: false },
+    { id: "cierre", titulo: "Cerrar el primer día", hecho: false },
+  ] as Parameters<typeof pasosSegunRol>[0];
+  assert.deepEqual(pasosSegunRol(pasos, false).map((p) => p.id), ["caja"]);
+  assert.deepEqual(pasosSegunRol(pasos, true).map((p) => p.id), ["caja", "cierre"]);
 });

@@ -273,6 +273,11 @@ export function teclaDelCierreSegunRol(pendientes: Pendiente[], puedeCerrar: boo
   return pendientes.map((p) => (p.tecla.texto === "Cerrar el día" ? { ...p, tecla: { ...p.tecla, texto: "Ver el cierre" } } : p));
 }
 
+/** «Cerrar el primer día» no es un paso de quien no cierra el día. PURA. */
+export function pasosSegunRol(pasos: PasoParaArrancar[], puedeCerrar: boolean): PasoParaArrancar[] {
+  return puedeCerrar ? pasos : pasos.filter((p) => p.id !== "cierre");
+}
+
 export function pendientesDeLaBandeja(
   items: readonly { app: AppMin; resultado: ResultadoKpi | null }[],
   destinos: ReadonlyMap<string, string>,

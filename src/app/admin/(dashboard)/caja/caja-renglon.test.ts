@@ -69,6 +69,7 @@ const FILAS: (CierreMovement & { origin: "manual" | "pos" | "turno" })[] = [
   { id: "m4", occurredAt: aLas("18:19"), type: "VENTA", method: "EFECTIVO", amount: 7900, detail: "Venta #824", origin: "pos" },
 ];
 const DIA_ABIERTO = {
+  puedeCerrar: true,
   day: DIA,
   today: DIA,
   lastClosedDay: "2026-09-23",

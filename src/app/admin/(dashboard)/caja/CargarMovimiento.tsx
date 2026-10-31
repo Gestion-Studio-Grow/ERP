@@ -18,7 +18,10 @@ export function CargarMovimiento({
   dia,
   mes,
   variante = "outline",
+  esMostrador = false,
 }: {
+  /** Un mostrador no tiene turnos de agenda: no se le habla de ellos. */
+  esMostrador?: boolean;
   /** La fecha que propone el alta (un día abierto). */
   dia: string;
   /** El mes que se está mirando (el libro avisa si la fecha cae afuera). Por defecto, el de `dia`. */
@@ -36,7 +39,11 @@ export function CargarMovimiento({
           abierto
           onCerrar={() => setAbierto(false)}
           titulo="Cargar un gasto, retiro o ingreso"
-          descripcion="Lo que no viene de una venta. Los cobros del mostrador y de los turnos ya entran solos: no los cargues acá."
+          descripcion={
+            esMostrador
+              ? "Lo que no viene de una venta. Las ventas del mostrador ya entran solas: no las cargues acá."
+              : "Lo que no viene de una venta. Los cobros del mostrador y de los turnos ya entran solos: no los cargues acá."
+          }
         >
           <AddLibroEntryForm defaultDate={dia} viewMonth={mes ?? dia.slice(0, 7)} />
         </Cajon>

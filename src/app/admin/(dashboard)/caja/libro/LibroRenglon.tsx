@@ -210,7 +210,7 @@ export default function LibroRenglon({
             siguiente={siguiente <= mesActual ? { href: `${RUTA}?mes=${siguiente}`, texto: nombreMes(siguiente) } : null}
             volver={monthKey !== mesActual ? { href: RUTA, texto: "Este mes" } : null}
           />
-          <CargarMovimiento dia={defaultDate} mes={monthKey} />
+          <CargarMovimiento dia={defaultDate} mes={monthKey} esMostrador={esMostrador} />
           {/* <a>: es un archivo (Link lo precargaría). */}
           <a href={`${RUTA}/export?mes=${monthKey}`} className={buttonClasses("ghost", "md")} {...atributosBoton("ghost", "md")}>
             Bajar el mes (CSV)
@@ -287,7 +287,7 @@ export default function LibroRenglon({
             </details>
           );
         })}
-        {pliegos.length > 0 && puedeCerrar && (
+        {pliegos.length > 0 && puedeCerrar && !(cerradoHasta && hoy <= cerradoHasta) && (
           <p className="mt-3 text-sm text-muted">
             ¿Terminó el día?{" "}
             <Link href="/admin/caja/cierre" className="font-medium text-accent-ink underline underline-offset-4">

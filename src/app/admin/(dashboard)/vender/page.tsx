@@ -38,7 +38,7 @@ async function EstadoDelMostrador({ role, mostrador, tenantId }: { role: Role; m
   const datos: React.ReactNode[] = [];
   if (caja?.estado === "ok") {
     // Con hoy ya cerrado no se abre la caja: no se ofrece.
-    const diaCerrado = caja.valor === "Cerrada" && (await hoyEstaCerrado(tenantId));
+    const diaCerrado = caja.valor === "Cerrada" && (await hoyEstaCerrado(tenantId).catch(() => false));
     datos.push(
       diaCerrado ? (
         <span key="caja">

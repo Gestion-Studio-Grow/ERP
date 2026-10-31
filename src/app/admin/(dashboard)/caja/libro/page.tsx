@@ -128,9 +128,11 @@ export default async function LibroCajaPage({
             {/* El paso final del día es CERRAR, y desde acá no se llegaba. El otro link va a
                 la Caja, que ya no es "el arqueo del mostrador" sino la pantalla del día: la
                 tienen los tres rubros, así que no lleva gate. */}
-            <Link href="/admin/caja/cierre" className="text-sm text-muted underline underline-offset-4 hover:text-strong">
-              Cerrar el día →
-            </Link>
+            {puedeCerrarElDia(quienMira?.role) && !isFrozenDay(today, cerradoHasta) && (
+              <Link href="/admin/caja/cierre" className="text-sm text-muted underline underline-offset-4 hover:text-strong">
+                Cerrar el día →
+              </Link>
+            )}
             <Link href="/admin/caja" className="text-sm text-muted underline underline-offset-4 hover:text-strong">
               Ir a la caja de hoy
             </Link>
@@ -257,7 +259,7 @@ export default async function LibroCajaPage({
                           <Badge
                             tone="warning"
                             className="ml-2"
-                            title="Hay un turno cobrado o una venta del mostrador el mismo día, por el mismo medio y monto. Si es el mismo cobro, borrá esta fila: la del sistema queda."
+                            title={`${esMostrador ? "Hay una venta del mostrador" : "Hay un turno cobrado o una venta del mostrador"} el mismo día, por el mismo medio y monto. Si es el mismo cobro, borrá esta fila: la del sistema queda.`}
                           >
                             ¿Duplicado? El sistema ya registró un cobro igual ese día
                           </Badge>
