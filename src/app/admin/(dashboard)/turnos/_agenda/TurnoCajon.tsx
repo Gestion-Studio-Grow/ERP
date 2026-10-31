@@ -148,7 +148,7 @@ function ConMotivo({
     <div
       role="group"
       aria-label={pregunta}
-      className="w-full space-y-2 sm:min-w-80 border-l-2 border-line-strong pl-3"
+      className="w-full space-y-2 border-l-2 border-line-strong pl-3"
     >
       <p className="text-sm font-medium text-strong">{pregunta}</p>
       <Input
