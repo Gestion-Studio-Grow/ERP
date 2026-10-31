@@ -1,9 +1,11 @@
 "use client";
 
 import { ProveedorNegocioDelSitio, type NegocioDelSitio } from "./negocio-del-sitio";
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { getBookingDataPublic } from "@/lib/client-actions";
+import { useDiseno } from "@/lib/diseno/DisenoProvider";
+import { borrarReservaGuardada, leerReservaGuardada } from "./reserva-guardada";
 import type { BookingData } from "./types";
 
 // El modal de reserva es, de lejos, la pieza de JavaScript más grande del sitio
@@ -18,23 +20,32 @@ const BookingModal = dynamic(() => import("./BookingModal"), { ssr: false });
 
 // Lo que un botón puede dejar elegido al abrir el modal (diseño nuevo de CH: la agenda viva, los renglones
 // de la carta, la ficha). Sin prefill, el modal arranca en el paso 1 como siempre.
-export type PrefillReserva = { serviceId?: string; professionalId?: string; day?: string; slot?: string };
+// `paso`, `vecina`: lo que trae una reserva guardada al recargar (reserva-guardada.ts), para volver a donde estaba.
+export type PrefillReserva = { serviceId?: string; professionalId?: string; day?: string; slot?: string; paso?: number; vecina?: boolean };
 
 // Sólo un objeto con textos cuenta como prefill: un evento de clic (un `onClick={open}` de siempre) o cualquier
 // otra cosa queda en «sin prefill».
 function prefillValido(p: unknown): PrefillReserva | null {
   if (!p || typeof p !== "object" || !("serviceId" in p)) return null;
-  const { serviceId, professionalId, day, slot } = p as Record<string, unknown>;
+  const { serviceId, professionalId, day, slot, paso, vecina } = p as Record<string, unknown>;
   if (typeof serviceId !== "string" || !serviceId) return null;
   const texto = (v: unknown) => (typeof v === "string" && v ? v : undefined);
-  return { serviceId, professionalId: texto(professionalId), day: texto(day), slot: texto(slot) };
+  return {
+    serviceId,
+    professionalId: texto(professionalId),
+    day: texto(day),
+    slot: texto(slot),
+    paso: typeof paso === "number" ? paso : undefined,
+    vecina: vecina === true ? true : undefined,
+  };
 }
 
 // Contexto de reserva: cualquier botón "Reservar" del sitio abre el mismo modal.
 // `precargar` no abre nada — le avisa al provider que este visitante está por
 // reservar, para ir a buscar los datos mientras decide el clic. `abierto` lo lee
-// la barra fija del celular para esconderse mientras el modal está arriba.
-const BookingContext = createContext<{ open: (prefill?: PrefillReserva) => void; precargar: () => void; abierto: boolean } | null>(null);
+// la barra fija del celular para esconderse mientras el modal está arriba. `reservas` cuenta los turnos confirmados
+// en esta visita: la agenda viva lo mira para sacar la hora recién tomada (P0-2, ronda 2).
+const BookingContext = createContext<{ open: (prefill?: PrefillReserva) => void; precargar: () => void; abierto: boolean; reservas: number } | null>(null);
 
 export function useBooking() {
   const ctx = useContext(BookingContext);
@@ -46,6 +57,8 @@ export default function BookingProvider({ children, negocio }: { children: React
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<BookingData | null>(null);
   const [prefill, setPrefill] = useState<PrefillReserva | null>(null);
+  const [reservas, setReservas] = useState(0);
+  const nuevo = useDiseno();
   // La promesa en curso, para que dos botones (o el hover y el clic) no disparen
   // dos veces la misma consulta.
   const pedido = useRef<Promise<BookingData> | null>(null);
@@ -69,15 +82,29 @@ export default function BookingProvider({ children, negocio }: { children: React
     [traerDatos],
   );
 
-  const closeBooking = useCallback(() => setOpen(false), []);
+  // Cerrar a propósito es «no sigo»: lo guardado se borra. Recargar no pasa por acá (P1-2).
+  const closeBooking = useCallback(() => {
+    borrarReservaGuardada();
+    setOpen(false);
+  }, []);
+
+  const avisarReservado = useCallback(() => setReservas((n) => n + 1), []);
+
+  // Diseño nuevo de CH (P1-2, QA 16): si se recargó con una reserva a medias, el modal vuelve al mismo paso. Apagado,
+  // el sitio de siempre: nada se guarda ni se reabre.
+  useEffect(() => {
+    if (!nuevo) return;
+    const guardada = leerReservaGuardada();
+    if (guardada) openBooking(guardada);
+  }, [nuevo, openBooking]);
 
   return (
     <ProveedorNegocioDelSitio value={negocio}>
-    <BookingContext.Provider value={{ open: openBooking, precargar: traerDatos, abierto: open }}>
+    <BookingContext.Provider value={{ open: openBooking, precargar: traerDatos, abierto: open, reservas }}>
       {children}
       {open &&
         (data ? (
-          <BookingModal data={data} onClose={closeBooking} prefill={prefill} />
+          <BookingModal data={data} onClose={closeBooking} prefill={prefill} onReservado={avisarReservado} />
         ) : (
           // Sólo se ve si alguien llega al clic antes que los datos (por ejemplo
           // entrando por teclado sin pasar por el hover). Ocupa el mismo lugar que

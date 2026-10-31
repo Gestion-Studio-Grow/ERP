@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { getAvailableSlots, getAvailableSlotsRange, createBookingFromModal } from "@/lib/actions";
 import { checkCoupon } from "@/lib/coupon-actions";
@@ -10,6 +10,7 @@ import { useWhatsAppCta } from "@/components/whatsapp-cta";
 import { useNegocioDelSitio } from "./negocio-del-sitio";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import type { PrefillReserva } from "./BookingProvider";
+import { borrarReservaGuardada, guardarReserva } from "./reserva-guardada";
 import type { BookingData, BookingGroup, BookingProfessional, BookingService } from "./types";
 
 const STEP_LABELS = ["", "Servicio", "Profesional", "Día y hora", "Datos", "Confirmación"];
@@ -33,24 +34,29 @@ function estadoInicial(data: BookingData, prefill: PrefillReserva | null | undef
   }
   if (!svc) return vacio;
   const elegido = svc;
+  // `paso` (una reserva guardada al recargar): quien volvió atrás a cambiar algo vuelve a ese paso, no al más lejano.
+  const hasta = (n: number) => Math.min(n, prefill.paso ?? n);
   const pro = prefill.professionalId
     ? (data.professionals.find((p) => p.id === prefill.professionalId && p.serviceIds.includes(elegido.id)) ?? null)
     : null;
   if (!pro) return { ...vacio, step: 2, svc };
   const day = prefill.day && data.days.some((d) => d.value === prefill.day) ? prefill.day : null;
   const slot = day && prefill.slot ? prefill.slot : null;
-  if (!day || !slot) return { ...vacio, step: 3, svc, pro };
-  return { step: 4, svc, pro, day, slot };
+  if (!day || !slot) return { ...vacio, step: hasta(3), svc, pro, day };
+  return { step: hasta(4), svc, pro, day, slot };
 }
 
 export default function BookingModal({
   data,
   onClose,
   prefill,
+  onReservado,
 }: {
   data: BookingData;
   onClose: () => void;
   prefill?: PrefillReserva | null;
+  /** Se confirmó el turno: la agenda viva relee sin esperar a que se cierre el modal. */
+  onReservado?: () => void;
 }) {
   const { requestWhatsApp } = useWhatsAppCta();
   const negocio = useNegocioDelSitio();
@@ -65,16 +71,20 @@ export default function BookingModal({
   // Vecino/a de La Alameda (ADR-013): se pregunta en el primer paso porque
   // cambia el precio que se ve de cada servicio — antes de que el cliente
   // elija, no después.
-  const [isResident, setIsResident] = useState(false);
+  const [isResident, setIsResident] = useState(prefill?.vecina === true);
   const [day, setDay] = useState<string | null>(inicio.day);
   const [slot, setSlot] = useState<string | null>(inicio.slot); // ISO UTC
   // Si el día llegó precargado, sus horarios se muestran cuando llega la disponibilidad (por si vuelve al paso 3).
   const diaPrecargado = useRef<string | null>(inicio.day);
+  // La hora precargada puede haberse ocupado mientras tanto (se recargó, pasó el tiempo): se avisa antes de pedir datos.
+  const horaPrecargada = useRef<string | null>(inicio.slot);
+  const [horaOcupada, setHoraOcupada] = useState(false);
   const [slots, setSlots] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [tel, setTel] = useState("");
   const [mail, setMail] = useState("");
-  const [code, setCode] = useState<string | null>(null);
+  const [reservaId, setReservaId] = useState<string | null>(null);
+  const code = reservaId ? reservaId.slice(-6).toUpperCase() : null;
   const [confirmedStartsAt, setConfirmedStartsAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -96,6 +106,7 @@ export default function BookingModal({
   const [couponChecking, setCouponChecking] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
+  const idCupon = useId();
 
   // Accesibilidad del modal (funnel de reserva): Escape cierra; el foco queda
   // ATRAPADO dentro del modal (Tab/Shift+Tab no se escapan al fondo); al abrir se
@@ -188,8 +199,15 @@ export default function BookingModal({
       setDayAvailability(map);
       setPrefetchingAvailability(false);
       if (diaPrecargado.current) {
-        setSlots(map[diaPrecargado.current] ?? []);
+        const libres = map[diaPrecargado.current] ?? [];
+        setSlots(libres);
+        if (horaPrecargada.current && !libres.includes(horaPrecargada.current)) {
+          setSlot(null);
+          setHoraOcupada(true);
+          setStep((s) => (s === 4 ? 3 : s));
+        }
         diaPrecargado.current = null;
+        horaPrecargada.current = null;
       }
       // Si todavía no eligió día, saltar directo al primero con lugar.
       setDay((currentDay) => {
@@ -207,6 +225,17 @@ export default function BookingModal({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pro, svc]);
+
+  // Diseño nuevo (P1-2, QA 16): lo elegido sobrevive a un recargar, en esta pestaña. Sólo la elección: nombre, teléfono,
+  // email y cupón no se guardan (son datos de una persona y este navegador puede ser de cualquiera). Confirmado, se borra.
+  useEffect(() => {
+    if (!nuevo) return;
+    if (step >= 5) {
+      borrarReservaGuardada();
+      return;
+    }
+    if (svc) guardarReserva({ paso: step, serviceId: svc.id, professionalId: pro?.id, day: day ?? undefined, slot: slot ?? undefined, vecina: isResident || undefined });
+  }, [nuevo, step, svc, pro, day, slot, isResident]);
 
   // Horarios agrupados como en TuTurno: mañana / tarde, en vez de una sola
   // grilla plana — se escanea más rápido con la vista partida.
@@ -281,9 +310,10 @@ export default function BookingModal({
         setError(res.error);
         return;
       }
-      setCode(res.id.slice(-6).toUpperCase());
+      setReservaId(res.id);
       setConfirmedStartsAt(res.startsAt);
       setStep(5);
+      onReservado?.();
     } catch {
       // Sin red o el servidor no contestó: el mensaje del navegador no le sirve a nadie.
       setError("No pudimos confirmar tu turno: revisá la conexión y probá de nuevo.");
@@ -350,8 +380,9 @@ export default function BookingModal({
       // UID y DTSTAMP salen del PROPIO turno, no del reloj: llamar a `Date.now()`
       // durante el render es impuro (y React 19 lo marca). De paso el archivo queda
       // estable — si el cliente lo agrega dos veces, el calendario reconoce el mismo
-      // evento en vez de duplicarle el turno.
-      `UID:${confirmedStartsAt}@${negocio.esCH ? "ch-estetica" : "gsgapp"}`,
+      // evento en vez de duplicarle el turno. El UID es el id del turno (P1-3): con la
+      // hora, dos turnos a la misma hora se pisaban en el calendario.
+      `UID:${reservaId ?? confirmedStartsAt}@${negocio.esCH ? "ch-estetica" : "gsgapp"}`,
       `DTSTAMP:${z(start)}`,
       `DTSTART:${z(start)}`,
       `DTEND:${z(end)}`,
@@ -367,7 +398,7 @@ export default function BookingModal({
       "END:VCALENDAR",
     ].join("\r\n");
     return "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
-  }, [confirmedStartsAt, svc, pro, negocio]);
+  }, [confirmedStartsAt, reservaId, svc, pro, negocio]);
 
   // El CTA nunca abre a un número hardcodeado (ver WhatsAppCtaProvider en el
   // layout): si `data.whatsapp` no tiene un real configurado, el primer clic
@@ -434,6 +465,7 @@ export default function BookingModal({
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
+            className={k("chm-cerrar")}
             style={{
               background: "none",
               border: 0,
@@ -521,6 +553,11 @@ export default function BookingModal({
           {step === 3 && (
             <>
               <StepTitle>Día y hora</StepTitle>
+              {horaOcupada && (
+                <p role="status" style={{ fontSize: 14, fontWeight: 600, color: "var(--text-strong)", margin: "0 0 12px" }}>
+                  La hora que tenías elegida se ocupó. Elegí otra.
+                </p>
+              )}
               <div className={k("chm-dias")} style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 8 }}>
                 {data.days.map((d) => {
                   const on = day === d.value;
@@ -575,7 +612,7 @@ export default function BookingModal({
                       <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-muted)", margin: "0 0 8px" }}>
                         Por la mañana
                       </p>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      <div className={k("chm-horas")} style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                         {slotsGrouped.mañana.map((s) => (
                           <button
                             key={s}
@@ -596,7 +633,7 @@ export default function BookingModal({
                       <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-muted)", margin: "0 0 8px" }}>
                         Por la tarde
                       </p>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      <div className={k("chm-horas")} style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                         {slotsGrouped.tarde.map((s) => (
                           <button
                             key={s}
@@ -629,11 +666,12 @@ export default function BookingModal({
 
               {/* Cupón de descuento (ADR-014) */}
               <div style={{ marginTop: 20 }}>
-                <label style={{ fontSize: 13, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>
+                <label htmlFor={idCupon} style={{ fontSize: 13, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>
                   ¿Tenés un cupón?
                 </label>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className={k("chm-cupon")} style={{ display: "flex", gap: 8 }}>
                   <input
+                    id={idCupon}
                     type="text"
                     value={couponInput}
                     onChange={(e) => {
@@ -744,7 +782,7 @@ export default function BookingModal({
                   <> Recordá que para confirmar el turno hay una seña de ${svc.depositAmount.toLocaleString("es-AR")} — te escribimos para coordinarla.</>
                 )}
               </p>
-              <div style={{ marginTop: 16, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
+              <div className={k("chm-salidas")} style={{ marginTop: 16, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
                 {icsHref && (
                   <a href={icsHref} download={nuevo ? archivoIcs(negocio.nombre) : negocio.esCH ? "turno-ch-estetica.ics" : "turno.ics"} style={{ color: accent, textDecoration: "underline", textUnderlineOffset: 4, fontSize: 15 }}>
                     Agregar a mi calendario
@@ -772,6 +810,7 @@ export default function BookingModal({
             type="button"
             onClick={back}
             disabled={step === 1 || step === 5}
+            className={k("chm-volver")}
             style={{ background: "none", border: 0, fontSize: 14, color: "var(--text-muted)", cursor: step === 1 || step === 5 ? "default" : "pointer", opacity: step === 1 || step === 5 ? 0.4 : 1, minHeight: 44, padding: "0 8px" }}
           >
             Volver
@@ -831,6 +870,7 @@ function ResidentToggle({
   onChange: (v: boolean) => void;
 }) {
   const negocio = useNegocioDelSitio();
+  const nuevo = useDiseno();
   return (
     <div
       style={{
@@ -851,7 +891,7 @@ function ResidentToggle({
           <>¿Sos vecino/a? Tenés precio especial en algunos servicios.</>
         )}
       </span>
-      <div style={{ display: "flex", border: "1px solid var(--line-strong)", borderRadius: 2, flexShrink: 0 }}>
+      <div className={nuevo ? "chm-sino" : undefined} style={{ display: "flex", border: "1px solid var(--line-strong)", borderRadius: 2, flexShrink: 0 }}>
         {[
           { label: "No", val: false },
           { label: "Sí", val: true },
@@ -1031,15 +1071,18 @@ function Field({
   error?: string | null;
 }) {
   const nuevo = useDiseno();
+  const id = useId();
   return (
-    <label className={nuevo ? "chm-campo" : undefined} style={{ display: "block" }}>
-      <span style={{ fontSize: 14, color: "var(--text-muted)" }}>{label}</span>
+    <div className={nuevo ? "chm-campo" : undefined}>
+      <label htmlFor={id} style={{ fontSize: 14, color: "var(--text-muted)" }}>{label}</label>
       <input
+        id={id}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         inputMode={type === "tel" ? "tel" : type === "email" ? "email" : undefined}
         aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
         style={{
           marginTop: 4,
           width: "100%",
@@ -1054,10 +1097,10 @@ function Field({
         }}
       />
       {error && (
-        <span role="alert" style={{ display: "block", marginTop: 4, fontSize: 12, color: "var(--danger)" }}>
+        <span id={`${id}-error`} role="alert" style={{ display: "block", marginTop: 4, fontSize: 12, color: "var(--danger)" }}>
           {error}
         </span>
       )}
-    </label>
+    </div>
   );
 }

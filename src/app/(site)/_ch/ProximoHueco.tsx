@@ -16,10 +16,11 @@
 // modal en «Datos» con todo elegido) · sin lugar en 2 días («Mirá la semana», abre el modal en el paso 1) ·
 // error de red (queda la ficha con «Reservar»: nunca una ficha rota ni en blanco).
 //
-// La hora no queda vieja (QA 29/10: después de reservar seguía ofreciendo la hora ya tomada). Se vuelve a pedir
-// al cerrar el modal, al volver a la pestaña (foco/visibilidad) y, al tocar una hora, se confirma que sigue libre
-// ANTES de abrir el modal: si se ocupó, la ficha pasa sola al hueco siguiente y lo dice, en vez de dejar llegar a
-// «Confirmar» para fallar ahí. Siguen siendo sólo lecturas del motor de siempre.
+// La hora no queda vieja (QA 29/10: después de reservar seguía ofreciendo la hora ya tomada) y la lectura es barata
+// (P0-2, ronda 2): una por profesional al cargar; otra vuelta apenas se reserva, al cerrar el modal y cada 90 s con la
+// pestaña a la vista. Volver a la pestaña NO relee: un teléfono cambia de foco todo el tiempo, y lo que protege a la
+// clienta es que, al tocar una hora, se confirma que sigue libre ANTES de abrir el modal: si se ocupó, la ficha pasa
+// sola al hueco siguiente y lo dice, en vez de dejar llegar a «Confirmar» para fallar ahí. Siempre lecturas del motor.
 
 import { useEffect, useRef, useState } from "react";
 import { getAvailableSlotsRange } from "@/lib/actions";
@@ -40,6 +41,9 @@ type Estado = { tipo: "cargando" } | { tipo: "hora"; day: string; slot: string }
 
 const CARGANDO: Estado = { tipo: "cargando" };
 
+/** Cada cuánto se vuelve a mirar la agenda con la pestaña a la vista. */
+const REFRESCO_MS = 90_000;
+
 export default function ProximoHueco({
   fichas,
   dias,
@@ -50,26 +54,35 @@ export default function ProximoHueco({
   dias: { value: string; label: string }[];
   titulo?: string;
 }) {
-  const { open, precargar, abierto } = useBooking();
+  const { open, precargar, abierto, reservas } = useBooking();
   const [estados, setEstados] = useState<Record<string, Estado>>({});
-  // Cada vuelta (cerrar el modal, volver a la pestaña) pide las horas de nuevo, sin esperar el `load`.
+  // Cada vuelta (reservar, cerrar el modal, el reloj de 90 s) pide las horas de nuevo, sin esperar el `load`.
   const [vuelta, setVuelta] = useState(0);
   const estabaAbierto = useRef(abierto);
+  const reservasVistas = useRef(reservas);
+  // Recién se reservó: la hora tomada se saca ya, detrás del modal, para que al cerrarlo no se vea ni un instante.
+  // Esa lectura también sirve para el cierre: no se repite.
+  const yaReleido = useRef(false);
   useEffect(() => {
-    if (estabaAbierto.current && !abierto) setVuelta((n) => n + 1);
+    if (reservasVistas.current === reservas) return;
+    reservasVistas.current = reservas;
+    yaReleido.current = true;
+    setVuelta((n) => n + 1);
+  }, [reservas]);
+  useEffect(() => {
+    if (estabaAbierto.current && !abierto) {
+      if (yaReleido.current) yaReleido.current = false;
+      else setVuelta((n) => n + 1);
+    }
     estabaAbierto.current = abierto;
   }, [abierto]);
   useEffect(() => {
-    const otraVez = () => {
+    if (abierto) return; // con el modal arriba nadie mira las fichas: se relee al cerrarlo
+    const reloj = setInterval(() => {
       if (document.visibilityState === "visible") setVuelta((n) => n + 1);
-    };
-    window.addEventListener("focus", otraVez);
-    document.addEventListener("visibilitychange", otraVez);
-    return () => {
-      window.removeEventListener("focus", otraVez);
-      document.removeEventListener("visibilitychange", otraVez);
-    };
-  }, []);
+    }, REFRESCO_MS);
+    return () => clearInterval(reloj);
+  }, [abierto]);
   // La hora que se está confirmando al tocar (una a la vez) y el aviso de «se ocupó».
   const [verificando, setVerificando] = useState<string | null>(null);
   const [ocupada, setOcupada] = useState<Record<string, string>>({});
@@ -141,7 +154,7 @@ export default function ProximoHueco({
   const cuando = (day: string) => (day === dias[0]?.value ? "Hoy" : day === dias[1]?.value ? "Mañana" : (dias.find((d) => d.value === day)?.label ?? ""));
 
   return (
-    <div className="chf-panel">
+    <div className="chf-panel" aria-busy={fichas.some((f) => !estados[f.proId]) || undefined}>
       <p className="chf-kicker chf-hueco-tit">
         <span>{titulo}</span>
         <span>Hoy y mañana</span>
