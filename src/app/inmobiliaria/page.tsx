@@ -76,7 +76,7 @@ export default async function InmobiliariaInicio() {
           },
         }
       : {}),
-    ...(negocio.whatsapp ? { telephone: `+${negocio.whatsapp}` } : {}),
+    ...(negocio.whatsapp ? { telephone: `+${negocio.whatsapp.replace(/^\+/, "")}` } : {}),
     areaServed: zonas.slice(0, 8).map((z) => z.localidad),
   };
 

@@ -64,7 +64,8 @@ test("mensaje: reemplaza variables y no deja llaves a la vista", () => {
 });
 
 test("wa.me: arma el número de celular argentino", () => {
-  assert.equal(waLink("011 15-5183-9732", "hola")?.startsWith("https://wa.me/549111551839732"), true);
+  // El 15 de celular se saca (antes quedaba adentro: wa.me/549111551839732, otro número).
+  assert.equal(waLink("011 15-5183-9732", "hola")?.startsWith("https://wa.me/5491151839732?text=hola"), true);
   assert.equal(waLink("+54 9 11 5183-9732", "hola")?.startsWith("https://wa.me/5491151839732?text=hola"), true);
   assert.equal(waLink("11 5183-9732", "a b")?.endsWith("?text=a%20b"), true);
   assert.equal(waLink("", "hola"), null);

@@ -13,6 +13,7 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId, slugResueltoDelPedido } from "@/lib/tenant";
+import { whatsappCanonico } from "@/lib/whatsapp-cta";
 
 // Copy por defecto = exactamente lo que mostraba el sitio hardcodeado, para que
 // el comportamiento no cambie hasta que la dueña edite algo. `whatsapp` NO
@@ -65,7 +66,7 @@ export type ResolvedLocation = {
   addressLine: string;
   city: string;
   hoursLabel: string;
-  whatsapp: string; // solo dígitos, "" si no hay
+  whatsapp: string; // con "+" (`whatsappCanonico`): se pasa a buildWhatsAppHref, "" si no hay
   email: string | null;
   instagramUrl: string | null;
   instagramLabel: string | null;
@@ -98,7 +99,9 @@ export function resolveLocation(
   const city = clean(row?.city) || defaults.city;
   const hoursLabel = clean(row?.hoursLabel) || defaults.hoursLabel;
   const contactNote = clean(row?.contactNote) || defaults.contactNote;
-  const whatsapp = (clean(row?.whatsapp) || defaults.whatsapp).replace(/\D/g, "");
+  // «+549…» o «+<otro país>» (`whatsappCanonico`): los que lo usan arman el link con buildWhatsAppHref,
+  // que lo vuelve a leer; el "+" hace que un número de otro país no pase por argentino. "" = no hay uno usable.
+  const whatsapp = whatsappCanonico(clean(row?.whatsapp) || defaults.whatsapp);
   const email = clean(row?.email) || null;
   const ig = resolveInstagram(clean(row?.instagram));
 

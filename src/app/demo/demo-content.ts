@@ -15,6 +15,9 @@
 // tráfico pago sin que el usuario lo complete a mano primero).
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Puro (sin DB): la regla única del número para wa.me, la misma que el ERP.
+import { buildWhatsAppHref } from "@/lib/whatsapp-cta";
+
 export type SceneId = "agenda" | "reserva" | "caja" | "factura" | "dueno" | "cierre";
 
 export type Scene = {
@@ -97,8 +100,7 @@ export const DEMO_CTA = {
 // (ver el campo "Completá tu WhatsApp" en DemoTour) sin tocar código. Sin eso,
 // cae al placeholder de arriba.
 export function whatsappHref(number: string = DEMO_CTA.whatsappNumber): string {
-  const text = encodeURIComponent(DEMO_CTA.whatsappText);
-  return `https://wa.me/${number}?text=${text}`;
+  return buildWhatsAppHref(number, DEMO_CTA.whatsappText);
 }
 
 export function mailtoHref(): string {

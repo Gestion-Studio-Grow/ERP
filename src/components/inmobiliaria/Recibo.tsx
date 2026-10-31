@@ -13,7 +13,7 @@ export const estilosRecibo = r;
 export function Recibo({ d, marca, vistaPrevia }: { d: ReciboDatos; marca: MarcaInmo; vistaPrevia?: boolean }) {
   const c = d.config;
   const variables = { "--acento": marca.acento, "--tinta": marca.tinta } as CSSProperties;
-  const contacto = [d.negocio.direccion, d.negocio.whatsapp ? `WhatsApp ${d.negocio.whatsapp.replace(/^549/, "")}` : "", d.negocio.email ?? ""].filter(Boolean).join("\n");
+  const contacto = [d.negocio.direccion, d.negocio.whatsapp ? `WhatsApp ${d.negocio.whatsapp.replace(/^\+?549/, "")}` : "", d.negocio.email ?? ""].filter(Boolean).join("\n");
   return (
     <article className={`${r.hoja} ${vistaPrevia ? r.vistaPrevia : ""}`} style={variables} aria-label={`Recibo ${d.numero}`}>
       <header className={r.cabecera}>

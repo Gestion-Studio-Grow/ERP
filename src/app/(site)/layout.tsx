@@ -58,7 +58,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   // las ata a las de ./fuentes (precargadas): si no, el título usaría la de la raíz y la letra se bajaría dos veces.
   // Con la ficha de marca prendida manda su theme pack (data-brand), que define su propia letra.
   const letraDelSitio: Record<string, string> = dataBrand ? {} : { "--font-display": "var(--font-fraunces)", "--font-body": "var(--font-hanken)" };
-  // WhatsApp del negocio (módulo Localización): ya viene normalizado a dígitos.
+  // WhatsApp del negocio (módulo Localización): ya viene canónico, con "+" (`resolveLocation`).
   const whatsapp = location.whatsapp;
   const latestNews = news[0] ?? null;
 
