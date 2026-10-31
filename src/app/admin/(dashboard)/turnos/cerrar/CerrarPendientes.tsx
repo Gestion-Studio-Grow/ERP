@@ -34,6 +34,7 @@ import { pesos } from "../agenda-core";
 import TeclasDeMedio from "./TeclasDeMedio";
 import {
   VACIO,
+  salidaDelVacio,
   agruparPorDia,
   alternar,
   alternarTodos,
@@ -310,8 +311,8 @@ export default function CerrarPendientes({
               {VACIO.titulo}
             </h2>
             <p className="mt-1 text-sm text-muted">Todos los turnos que ya pasaron quedaron cerrados.</p>
-            <Link href={VACIO.accion.href} className={buttonClasses("solid", "md", "mt-5")} {...atributosBoton("solid", "md")}>
-              {VACIO.accion.etiqueta} →
+            <Link href={salidaDelVacio(permisos.veLaCaja === true).href} className={buttonClasses("solid", "md", "mt-5")} {...atributosBoton("solid", "md")}>
+              {salidaDelVacio(permisos.veLaCaja === true).etiqueta} →
             </Link>
           </section>
         ) : visibles.length === 0 ? (
