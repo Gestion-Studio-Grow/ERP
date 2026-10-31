@@ -68,7 +68,7 @@
   --text-strong: #1f1b14;      /* títulos, texto principal */
   --text: #413b31;             /* cuerpo */
   --text-muted: #736a58;       /* secundario, labels, metadatos */
-  --text-faint: #6b6254;       /* AA≥4.5 sobre el hueso #f6f3ec (5,5:1); #766d5f daba 4,5 justo y no pasaba sobre el sunken; antes #a79c87 = 2.7:1 (verificado en prod: "Trabajamos con") */
+  --text-faint: #6b6254;       /* AA≥4.5 sobre el hueso #f6f3ec (5,4:1) y sobre el sunken (4,9:1); antes #a79c87 = 2.7:1 (verificado en prod: "Trabajamos con") */
   --text-on-accent: #ffffff;   /* FALLBACK; los layouts inyectan el real por tema+acento */
 
   /* Líneas y bordes — cálidos */

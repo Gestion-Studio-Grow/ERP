@@ -40,7 +40,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return metadataCH({ titulo: `${await nombreDelNegocioCH()} · Estética y spa en La Alameda`, descripcion: DESCRIPCION_CH });
 }
 
-/** El JSON-LD del negocio con los datos cargados en Localización: lo que falta no se publica. */
+/**
+ * El JSON-LD del negocio con lo que muestra el sitio (Localización con sus valores por defecto: los de CH son los reales).
+ * Sin horarios: Localización los guarda como texto («Lun a sáb · 9 a 19 h»), y `openingHoursSpecification` pide franjas.
+ * `city` es la provincia en los datos de CH («Buenos Aires»); la localidad viene dentro de `addressLine`.
+ */
 export async function negocioLdCH(descripcion: string): Promise<Record<string, unknown> | null> {
   const [{ origen }, nombre, lugar] = await Promise.all([pedidoPublico(), nombreDelNegocioCH(), getLocation()]);
   if (!origen) return null;
@@ -49,9 +53,8 @@ export async function negocioLdCH(descripcion: string): Promise<Record<string, u
     url: origen,
     descripcion,
     imagen: `${origen}${OG_CH.url}`,
-    telefono: lugar.whatsapp ? `+${lugar.whatsapp.startsWith("54") ? lugar.whatsapp : `54${lugar.whatsapp}`}` : null,
     email: lugar.email,
-    direccion: { calle: lugar.addressLine, ciudad: lugar.city },
+    direccion: { calle: lugar.addressLine, provincia: lugar.city },
     redes: lugar.instagramUrl ? [lugar.instagramUrl] : null,
   };
   return negocioLd("HealthAndBeautyBusiness", n);
