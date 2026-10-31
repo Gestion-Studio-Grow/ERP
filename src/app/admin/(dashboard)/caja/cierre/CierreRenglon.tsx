@@ -20,6 +20,7 @@ import Link from "next/link";
 import type { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import { CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego-core";
+import { rotuloDeOrigen } from "@/lib/caja/libro-caja";
 import { formatDayLabel, nextDayKey, CERRAR_DIA_SIN_PERMISO, ETIQUETA_DE_COLUMNA, TEXTO_NETO_NEGATIVO, type ColumnaDelCierre } from "@/lib/caja/cierre-diario";
 import { movementSign } from "@/lib/caja/cash-register";
 import { causasProbables, textoDeAperturaQueNoSuma } from "./revisar-cierre";
@@ -46,7 +47,6 @@ const AYUDA: Record<ColumnaDelCierre, string> = {
 // Cert. M1 v9 O2: Transferencia es un neto y puede dar negativo.
 const AYUDA_NETO_NEGATIVO = `Da un ${TEXTO_NETO_NEGATIVO}. Escribí el neto del banco con un menos adelante (-400).`;
 
-const ORIGEN: Record<string, string> = { pos: "venta del mostrador", turno: "turno cobrado", manual: "cargado a mano" };
 
 function Encabezado({ d, regla }: { d: Datos; regla: string | null }) {
   const { day, today, since, preview, yaCerrado } = d;
@@ -235,7 +235,7 @@ function ComoSeLlega({ d }: { d: Datos }) {
                   key={m.id}
                   folio={diaMes(m.day)}
                   titulo={<span className="font-normal">{m.detail || "(sin detalle)"}</span>}
-                  detalle={`${CASH_METHOD_LABEL[m.method]} · ${ORIGEN[m.origin] ?? m.origin}${signo === 0 && m.amount !== null ? ` · ${textoDeAperturaQueNoSuma(m.amount)}` : ""}`}
+                  detalle={`${CASH_METHOD_LABEL[m.method]} · ${rotuloDeOrigen(m)}${signo === 0 && m.amount !== null ? ` · ${textoDeAperturaQueNoSuma(m.amount)}` : ""}`}
                   plata={
                     // null sólo llega a ciegas (`diaALaVista`); esta pantalla pide el esperado a la vista.
                     m.amount === null ? <span className="text-sm text-muted">{EFECTIVO_SE_VE_AL_ABRIR.toLowerCase()}</span> : signo === 0 ? null : <Plata valor={signo * m.amount} />

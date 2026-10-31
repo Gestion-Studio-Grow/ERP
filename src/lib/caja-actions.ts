@@ -27,7 +27,7 @@ import { lastClosedDay, lastClosedDayTx } from "@/lib/caja/frontera-cierre";
 import { ajusteDeArqueoTurno, diferenciaDeApertura } from "@/lib/caja/cierre-marca";
 import { arqueoContraElLibro, finDelDiaDelNegocio, saldoEfectivoDelLibro } from "@/lib/caja/saldo-cajon";
 import { CAMPO_ESPERADO_CONFIRMADO, esperadoConfirmadoVigente } from "@/lib/caja/esperado-del-cajon";
-import { isFrozenDay, frozenDayMessage, notaFaltanteDelArqueo } from "@/lib/caja/cierre-diario";
+import { isFrozenDay, frozenDayMessage, notaFaltanteDelArqueo, NO_SE_ABRE_CON_EL_DIA_CERRADO } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
@@ -233,7 +233,7 @@ export async function openCashSession(
   const motivo = leerMotivoDeApertura(formData.get("motivo"));
 
   const congelado = await rechazarSiElDiaEstaCerrado(tenantId);
-  if (congelado) return congelado;
+  if (congelado) return { ok: false, error: NO_SE_ABRE_CON_EL_DIA_CERRADO };
   // A CIEGAS (N2 · M1-C3): el primer envío llega sin el esperado (el cajero no lo vio). Si cuadra,
   // abre; si no, no se graba nada y se contesta con el esperado y el pedido de motivo. Con el
   // interruptor prendido la diferencia SIEMPRE lleva motivo, venga de la pantalla que venga.
@@ -326,7 +326,7 @@ export async function openCashSession(
     }, { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (err) {
     if (err instanceof Error && err.message === YA_HAY_CAJA_ABIERTA) return { ok: false, error: YA_HAY_CAJA_ABIERTA, yaAbierta: true };
-    if (err instanceof DiaCerradoAlAbrir) return { ok: false, error: err.message };
+    if (err instanceof DiaCerradoAlAbrir) return { ok: false, error: NO_SE_ABRE_CON_EL_DIA_CERRADO };
     if (err instanceof EsperadoVistoSinContarACiegas) return { ok: false, error: err.message };
     if (err instanceof PideMotivoDeApertura) {
       // A ciegas y sin cuadrar: el conteo queda escrito ANTES de revelar el esperado (cert F3). Es la

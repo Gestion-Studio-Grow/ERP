@@ -267,6 +267,12 @@ const REGLAS: Record<string, (r: Ok, app: AppMin, destinos: ReadonlyMap<string, 
  * regla) va a «Revisar» con la app que la mide: ninguna alerta se pierde. Devuelve también qué
  * números no se pudieron calcular: sin ellos no se puede decir «nada pendiente».
  */
+/** Quien no cierra el día (`puedeCerrarElDia`) no recibe «Cerrar el día»: ve el cierre. PURA. */
+export function teclaDelCierreSegunRol(pendientes: Pendiente[], puedeCerrar: boolean): Pendiente[] {
+  if (puedeCerrar) return pendientes;
+  return pendientes.map((p) => (p.tecla.texto === "Cerrar el día" ? { ...p, tecla: { ...p.tecla, texto: "Ver el cierre" } } : p));
+}
+
 export function pendientesDeLaBandeja(
   items: readonly { app: AppMin; resultado: ResultadoKpi | null }[],
   destinos: ReadonlyMap<string, string>,
@@ -370,8 +376,16 @@ export interface AvisoDeCaja {
  * app Caja a la vista: sin ella no hay resultado) sube un renglón con «Abrir la caja». No cuenta
  * como pendiente: a las 22 una caja cerrada es lo normal (finanzas.server.ts, `cajaDelDia`). PURA.
  */
-export function avisoDeCaja(caja: ResultadoKpi | null | undefined, ruta: string | undefined): AvisoDeCaja | null {
+export function avisoDeCaja(caja: ResultadoKpi | null | undefined, ruta: string | undefined, diaCerrado = false): AvisoDeCaja | null {
   if (!ruta || caja?.estado !== "ok" || caja.valor !== "Cerrada") return null;
+  // Con hoy ya cerrado no se abre la caja: mandar a abrirla era un callejón (UAT caja 31/10, 10.9).
+  if (diaCerrado) {
+    return {
+      titulo: "Hoy ya está cerrado",
+      detalle: "No se abre la caja con el día cerrado. Si hay que seguir cobrando hoy, la dueña o el dueño lo reabre desde el cierre",
+      tecla: { texto: "Ver el cierre", href: "/admin/caja/cierre" },
+    };
+  }
   return {
     titulo: "La caja está cerrada",
     detalle: "Abrila para empezar a vender: el efectivo entra al arqueo de tu turno",

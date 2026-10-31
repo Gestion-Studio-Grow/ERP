@@ -20,6 +20,7 @@ import { esperadoDelCajon } from "@/lib/caja/esperado-del-cajon";
 import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego-core";
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { frozenDayMessage } from "@/lib/caja/cierre-diario";
+import { rotuloDeOrigen } from "@/lib/caja/libro-caja";
 import { fmtShortDate, fmtTime } from "@/lib/datetime";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { LineaDeEstado, Marca, Plata, Renglon, Rotulo, atributosBoton, buttonClasses } from "@/components/ui";
@@ -37,11 +38,6 @@ const TIPO: Record<string, string> = {
   INGRESO: "Ingreso",
   EGRESO: "Gasto",
   RETIRO: "Retiro",
-};
-const ORIGEN: Record<string, string> = {
-  manual: "cargado a mano",
-  pos: "venta del mostrador",
-  turno: "turno cobrado",
 };
 const entra = (t: string) => t === "VENTA" || t === "INGRESO";
 
@@ -253,8 +249,8 @@ function MovimientosDeHoy({ dia }: { dia: Dia }) {
           <Renglon
             key={m.id}
             folio={TIPO[m.type] ?? m.type}
-            titulo={<span className="font-normal">{m.detail || ORIGEN[m.origin]}</span>}
-            detalle={`${CASH_METHOD_LABEL[m.method]} · ${ORIGEN[m.origin]}`}
+            titulo={<span className="font-normal">{m.detail || rotuloDeOrigen(m)}</span>}
+            detalle={`${CASH_METHOD_LABEL[m.method]} · ${rotuloDeOrigen(m)}`}
             plata={<MontoDelLibro valor={m.amount === null ? null : entra(m.type) ? m.amount : -m.amount} />}
           />
         ),
@@ -263,10 +259,13 @@ function MovimientosDeHoy({ dia }: { dia: Dia }) {
   );
 }
 
-function TurnoDeCajero({ caja, className = "mt-8" }: { caja: Turno; className?: string }) {
+function TurnoDeCajero({ caja, className = "mt-8", diaCerrado = false }: { caja: Turno; className?: string; diaCerrado?: boolean }) {
   const { open, recentClosed, esperadoEnElCajon, aperturaACiegas } = caja;
   let cuerpo: React.ReactNode;
-  if (!open) {
+  if (!open && diaCerrado) {
+    // Con el día cerrado no se abre turno (`openCashSession`): no se ofrece un formulario que siempre se niega.
+    cuerpo = <p className="pt-3 text-sm text-muted">No hay un turno abierto, y con el día cerrado no se abre.</p>;
+  } else if (!open) {
     cuerpo = (
       <div className="pt-3">
         <p className="mb-3 text-sm text-muted">No hay un turno abierto. Abrilo con el efectivo con el que arranca el cajón.</p>
@@ -385,9 +384,11 @@ export default function CajaRenglon({ dia, caja, regla = null }: { dia: Dia; caj
         {!dia.yaCerrado && (
           <div className="flex flex-wrap gap-2">
             <CargarMovimiento dia={dia.day} />
-            <Link href="/admin/caja/cierre" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")}>
-              Cerrar el día
-            </Link>
+            {dia.puedeCerrar && (
+              <Link href="/admin/caja/cierre" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")}>
+                Cerrar el día
+              </Link>
+            )}
           </div>
         )}
       </header>
@@ -405,7 +406,9 @@ export default function CajaRenglon({ dia, caja, regla = null }: { dia: Dia; caj
                 </span>
               )}
             </div>
-            <p className="py-3 text-sm text-body">{dia.lastClosedDay ? frozenDayMessage(dia.day, dia.lastClosedDay) : null}</p>
+            <p className="py-3 text-sm text-body">
+              {dia.lastClosedDay ? frozenDayMessage(dia.day, dia.lastClosedDay) : null} Si hay que seguir cobrando hoy, la dueña o el dueño lo reabre desde el cierre.
+            </p>
             <div className="flex flex-wrap gap-2">
               <Link href="/admin/caja/cierre" className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
                 Ver el cierre
@@ -415,7 +418,7 @@ export default function CajaRenglon({ dia, caja, regla = null }: { dia: Dia; caj
               </Link>
             </div>
           </section>
-          {caja && <TurnoDeCajero caja={caja} />}
+          {caja && <TurnoDeCajero caja={caja} diaCerrado />}
         </div>
       ) : (
         <div className="grid gap-x-10 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">

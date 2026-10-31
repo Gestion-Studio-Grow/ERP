@@ -686,7 +686,11 @@ export function puedeCerrarElDia(role: string | null | undefined): boolean {
 }
 
 export const CERRAR_DIA_SIN_PERMISO =
-  "Cerrar el día lo hace la dueña, el dueño o el encargado: pedile al encargado que lo cierre. Vos podés cerrar tu turno de caja.";
+  "Cerrar el día lo hace la dueña o el dueño: pedíselo. Vos podés cerrar tu turno de caja.";
+
+/** Abrir la caja con hoy ya cerrado. La regla no cambia: se dice qué pasó y adónde ir. */
+export const NO_SE_ABRE_CON_EL_DIA_CERRADO =
+  "Hoy ya está cerrado, así que no se abre la caja. En «Cierre del día» ves cómo seguir.";
 
 /** El rechazo de cerrar el día con un turno de caja abierto, con quién lo abrió. PURA. */
 export function mensajeTurnoAbierto(t: { quien: string; hora: string }): string {

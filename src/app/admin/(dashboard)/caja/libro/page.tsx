@@ -10,6 +10,9 @@
 // al siguiente, y el saldo corrido no se puede pisar.
 
 import Link from "next/link";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { puedeCerrarElDia } from "@/lib/caja/cierre-diario";
+import { getCurrentUser } from "@/lib/session";
 import { requireApp } from "@/lib/require-app";
 import { getLibroCajaData } from "@/lib/libro-caja-actions";
 import {
@@ -85,7 +88,7 @@ export default async function LibroCajaPage({
   const { mes } = await searchParams;
   // getLibroCajaData aplica además requireCapability("orders:read"), la misma del registro.
   // Un ?mes inválido cae al mes corriente en vez de romper.
-  const [libro, nuevo] = await Promise.all([getLibroCajaData(mes), disenoNuevo()]);
+  const [libro, nuevo, { isRetail: esMostrador }, quienMira] = await Promise.all([getLibroCajaData(mes), disenoNuevo(), getCurrentTenantRubro(), getCurrentUser()]);
   const { rows, summary, year, month, monthKey, posiblesDuplicados, cerradoHasta } = libro;
   const duplicados = new Set(posiblesDuplicados);
 
@@ -104,7 +107,7 @@ export default async function LibroCajaPage({
     cerradoHasta && isFrozenDay(enElMes, cerradoHasta) ? nextDayKey(cerradoHasta) : enElMes;
 
   // DISEÑO NUEVO («Renglón»): el libro por días. Mismos datos, mismos formularios.
-  if (nuevo) return <LibroRenglon d={libro} defaultDate={defaultDate} hoy={today} />;
+  if (nuevo) return <LibroRenglon d={libro} defaultDate={defaultDate} hoy={today} esMostrador={esMostrador} puedeCerrar={puedeCerrarElDia(quienMira?.role)} />;
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
@@ -165,7 +168,7 @@ export default async function LibroCajaPage({
               Una fila por cobro o por gasto, igual que en la planilla. Se guarda con la fecha que
               pongas, no con la de hoy: podés cargar en diferido.{" "}
               <strong className="font-medium text-body">
-                Los turnos cobrados desde Turnos y las ventas del mostrador entran solos
+                {esMostrador ? "Las ventas del mostrador entran solas" : "Los turnos cobrados desde Turnos y las ventas del mostrador entran solos"}
               </strong>
               : acá se carga lo que no pasa por el sistema (señas, gastos, retiros, cobros sueltos).
             </CardDescription>
@@ -227,8 +230,8 @@ export default async function LibroCajaPage({
                   const sale = r.signedAmount < 0;
                   // Solo se puede borrar lo que se cargó a mano en el libro: una VENTA la
                   // escribió el sistema (mostrador o turno cobrado) y una APERTURA el arqueo
-                  // (la acción también lo valida).
-                  const borrable = r.type === "INGRESO" || r.type === "EGRESO";
+                  // (la acción también lo valida). Tampoco lo que asentó otro camino: `motivoParaNoBorrar`.
+                  const borrable = r.borrable ?? (r.type === "INGRESO" || r.type === "EGRESO");
                   const origen = r.origin ?? "manual";
                   // Transición desde la planilla: una fila manual con una gemela del sistema
                   // el mismo día (mismo medio y monto) es un doble conteo probable. Se marca

@@ -83,6 +83,8 @@ export type LibroMovement = {
   // el CSV las deriva de `type` y `origin` (`origenDeFila`).
   origenContable?: OrigenContable;
   referencia?: string;
+  /** ¿Se ofrece borrarla? La misma regla con la que `deleteLibroEntry` niega (`motivoParaNoBorrar`). Ausente: por tipo. */
+  borrable?: boolean;
 };
 
 // Origen de un movimiento a partir de lo que el ledger ya guarda. `VENTA` es el tipo que el
@@ -419,12 +421,24 @@ export function movimientoDelLedger(r: FilaLedger): LibroMovement {
     origin: libroOrigin(r),
     origenContable: origen,
     referencia,
+    borrable: motivoParaNoBorrar(r) === null,
   };
 }
 
 /** Clase de una fila ya armada: la que trae el loader o, si no la trae, por tipo y origen. */
 export function origenDeFila(m: LibroMovement): OrigenContable {
   return m.origenContable ?? origenContable({ type: m.type, origin: m.origin });
+}
+
+/**
+ * De dónde salió una fila, para leer en pantalla. `libroOrigin` llama «manual» a todo lo que no es
+ * una venta: una anulación o un faltante de arqueo no los cargó nadie a mano. PURA.
+ */
+export function rotuloDeOrigen(m: { type: CashMovementType; origin?: LibroOrigin; origenContable?: OrigenContable }): string {
+  if (m.origin === "pos" || m.origin === "turno") return LIBRO_ORIGIN_LABEL[m.origin].toLowerCase();
+  const origen = m.origenContable ?? origenContable({ type: m.type, origin: m.origin });
+  if (origen === "ingreso-manual" || origen === "egreso-manual") return "cargado a mano";
+  return ORIGEN_CONTABLE_LABEL[origen].toLowerCase();
 }
 
 /**

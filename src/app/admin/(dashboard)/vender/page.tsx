@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { hoyEstaCerrado } from "@/lib/caja/frontera-cierre";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { getProfessionalsWithServices } from "@/lib/actions";
@@ -32,12 +33,21 @@ import MostradorBoutique from "./boutique/MostradorBoutique";
  * esa plata se anota en el libro del día sin turno, fuera del arqueo de un cajero
  * (caja/cash-sale.ts). El cartel no prohíbe lo que el sistema deja hacer.
  */
-async function EstadoDelMostrador({ role, mostrador }: { role: Role; mostrador: boolean }) {
+async function EstadoDelMostrador({ role, mostrador, tenantId }: { role: Role; mostrador: boolean; tenantId: string }) {
   const [caja, vender] = await Promise.all([cargarKpi("caja-del-dia", role), cargarKpi("vender", role)]);
   const datos: React.ReactNode[] = [];
   if (caja?.estado === "ok") {
+    // Con hoy ya cerrado no se abre la caja: no se ofrece.
+    const diaCerrado = caja.valor === "Cerrada" && (await hoyEstaCerrado(tenantId));
     datos.push(
-      caja.valor === "Cerrada" ? (
+      diaCerrado ? (
+        <span key="caja">
+          <strong>Hoy ya está cerrado</strong>: no se abre la caja ·{" "}
+          <Link href="/admin/caja/cierre" className="font-semibold text-accent-ink underline">
+            Ver el cierre
+          </Link>
+        </span>
+      ) : caja.valor === "Cerrada" ? (
         <span key="caja">
           <strong>Caja cerrada</strong>: lo que cobres en efectivo se anota en el libro del día, sin turno ·{" "}
           <Link href="/admin/caja" className="font-semibold text-accent-ink underline">
@@ -159,7 +169,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
       <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
         <h1 className="sr-only">Vender</h1>
         <Suspense fallback={<p data-ui="linea-estado" aria-hidden>&nbsp;</p>}>
-          <EstadoDelMostrador role={user.role} mostrador={identidad.isRetail} />
+          <EstadoDelMostrador role={user.role} mostrador={identidad.isRetail} tenantId={tenantId} />
         </Suspense>
         {respaldo}
         {solapas(true)}

@@ -26,6 +26,9 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireCapability } from "@/lib/authz";
 import { roleHasCapability, type Role } from "@/lib/capabilities";
+import { puedeCerrarElDia } from "@/lib/caja/cierre-diario";
+import { hoyEstaCerrado } from "@/lib/caja/frontera-cierre";
+import { getCurrentTenantId } from "@/lib/tenant";
 import { todayInBusinessTz, fmtTime, dateStrInBusinessTz } from "@/lib/datetime";
 import { getDashboardData } from "@/lib/actions";
 import { COOKIE_FIJADAS, fijadasVisibles, leerFijadas } from "@/lib/apps-fijadas";
@@ -45,6 +48,7 @@ import {
   APPS_DE_LA_BANDEJA,
   APPS_DE_LA_LINEA,
   avisoDeCaja,
+  teclaDelCierreSegunRol,
   pasosParaArrancar,
   lineaDelDia,
   misAppsDeFabrica,
@@ -252,8 +256,12 @@ async function Bandeja({ ctx }: { ctx: Contexto }) {
   // El primer día, la caja ya es un paso de «Para arrancar»: no se repite la tecla acá.
   const cierre = items.find((i) => i.app.id === "cierre-del-dia")?.resultado;
   const arrancando = cierre?.estado === "ok" && cierre.valor === "Sin cierres";
-  const aviso = arrancando ? null : avisoDeCaja(caja?.resultado, caja?.app.ruta);
-  const { pendientes, sinRevisar } = pendientesDeLaBandeja(items, destinos);
+  // La frontera del cierre se lee sólo si la caja está cerrada: es lo único que cambia el aviso.
+  const cajaCerrada = !arrancando && caja?.resultado?.estado === "ok" && caja.resultado.valor === "Cerrada";
+  const diaCerrado = cajaCerrada && (await hoyEstaCerrado(await getCurrentTenantId()));
+  const aviso = arrancando ? null : avisoDeCaja(caja?.resultado, caja?.app.ruta, diaCerrado);
+  const { pendientes: crudos, sinRevisar } = pendientesDeLaBandeja(items, destinos);
+  const pendientes = teclaDelCierreSegunRol(crudos, puedeCerrarElDia(ctx.role));
   const grupos = porObjetivo(pendientes);
   const total = pendientes.length;
   const facturacion = items.find((i) => i.app.id === "facturacion");

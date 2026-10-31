@@ -31,7 +31,7 @@
 
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { compareDayKeys, isDayKey, type DayKey } from "@/lib/caja/cierre-diario";
+import { compareDayKeys, isDayKey, isFrozenDay, type DayKey } from "@/lib/caja/cierre-diario";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { CORTE_INICIAL_ACTOR_PREFIX } from "@/lib/caja/corte-inicial";
 
@@ -51,6 +51,11 @@ export async function lastClosedDay(tenantId: string): Promise<DayKey | null> {
     prisma.auditLog.findFirst(consultaCierre(tenantId)),
   ]);
   return fronteraDesde(corte, cierre, todayInBusinessTz());
+}
+
+/** ¿Hoy ya quedó dentro de un cierre? La misma regla con la que las acciones rechazan escribir. */
+export async function hoyEstaCerrado(tenantId: string): Promise<boolean> {
+  return isFrozenDay(todayInBusinessTz(), await lastClosedDay(tenantId));
 }
 
 /**

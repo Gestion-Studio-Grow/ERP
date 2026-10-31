@@ -72,7 +72,7 @@ import {
 } from "@/lib/caja/frontera-cierre";
 import { cierreMarker, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
 import { resumenCierre } from "@/lib/caja/cierre-resumen";
-import { CASH_METHODS, libroOrigin, type LibroMovement } from "@/lib/caja/libro-caja";
+import { CASH_METHODS, clasificarOrigen, libroOrigin, type LibroMovement, type OrigenContable } from "@/lib/caja/libro-caja";
 import { movementSign, type CashMethod, type CashMovementType } from "@/lib/caja/cash-register";
 import { round2 } from "@/lib/round";
 import { tarjetaHabilitada } from "@/lib/caja-actions";
@@ -132,6 +132,8 @@ export type CierreDiarioData = {
     amount: number | null;
     detail: string;
     origin: "manual" | "pos" | "turno";
+    /** Para decir de dónde salió una fila del sistema (`rotuloDeOrigen`). */
+    origenContable?: OrigenContable;
   }[];
   yaCerrado: boolean;
   enElFuturo: boolean;
@@ -478,6 +480,7 @@ async function leerCierreDiario(
       amount: r.amount,
       detail: r.reason ?? "",
       origin: libroOrigin({ type: r.type as CashMovementType, orderId: r.orderId, createdBy: r.createdBy }),
+      origenContable: clasificarOrigen({ type: r.type as CashMovementType, createdBy: r.createdBy, orderId: r.orderId, collectionId: r.collectionId }).origen,
     })),
     yaCerrado: false,
     enElFuturo: compareDayKeys(day, today) > 0,
