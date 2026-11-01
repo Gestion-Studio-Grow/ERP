@@ -3,7 +3,8 @@
  * Postgres con RLS, con las Server Actions reales y la sesión de la recepción.
  *
  *   · con plata cobrada, sin elegir qué pasa con la seña, no se cambia nada;
- *   · «devolver»: el turno queda cancelado y la seña sale del libro (contrapartida + egreso), en una transacción;
+ *   · «devolver», con la dueña: el turno queda cancelado y la seña sale del libro (contrapartida + egreso), en una transacción;
+ *   · «devolver», con la recepción: se niega; hace falta el código de la dueña, por «La plata»;
  *   · «retener»: el turno queda cancelado, la plata queda y la decisión queda en la auditoría.
  */
 import { test } from "node:test";
@@ -11,6 +12,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
+import { mensajeSinDevolver } from "@/lib/turnos/anulacion";
 
 const laBase = baseEfimeraDelArchivo();
 const HORA = 3_600_000;
@@ -67,11 +69,11 @@ async function cobrarSenia(s: Sembrado, appointmentId: string) {
   assert.deepEqual(r.tipo === "respuesta" && r.valor, { ok: true });
 }
 
-async function cerrar(s: Sembrado, appointmentId: string, senia: string) {
+async function cerrar(s: Sembrado, appointmentId: string, senia: string, usuario: { id: string } = s.base.a.recepcion) {
   const { cerrarTurnoSinPrestar } = await import("@/lib/actions");
   const fd = new FormData();
   for (const [k, v] of Object.entries({ appointmentId, accion: "cancelar", senia })) fd.set(k, v);
-  const r = await ejecutarAccion({ negocio: s.base.a, usuario: s.base.a.recepcion }, () => cerrarTurnoSinPrestar(fd));
+  const r = await ejecutarAccion({ negocio: s.base.a, usuario }, () => cerrarTurnoSinPrestar(fd));
   assert.equal(r.tipo, "respuesta");
   return r.tipo === "respuesta" ? r.valor : null;
 }
@@ -102,12 +104,26 @@ test("E3 · con seña cobrada, cancelar sin decir qué pasa con la plata no camb
   assert.equal((await foto(s, id)).status, "PENDING");
 });
 
-test("E3 · «devolver»: el turno queda cancelado y la seña sale del libro con su egreso, todo junto", async (t) => {
+// Desde 3f8c5316 (orden del dueño) devolver es anular el cobro: directo sólo la dueña. La recepción
+// lo hace en dos pasos, con el código, y por esta puerta no sale plata ni cambia el turno.
+test("E3 · «devolver» con la recepción: se niega y no cambia nada", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const id = await s.turno("Gala");
+  await cobrarSenia(s, id);
+  assert.deepEqual(await cerrar(s, id, "devolver"), { ok: false, error: mensajeSinDevolver("con-autorizacion") });
+  const f = await foto(s, id);
+  assert.equal(f.status, "PENDING");
+  assert.equal(f.cobrado, 5000);
+  assert.equal(f.egresos, 0);
+});
+
+test("E3 · «devolver» con la dueña: el turno queda cancelado y la seña sale del libro con su egreso, todo junto", async (t) => {
   const s = await preparar(t);
   if (!s) return;
   const id = await s.turno("Bea");
   await cobrarSenia(s, id);
-  assert.deepEqual(await cerrar(s, id, "devolver"), { ok: true });
+  assert.deepEqual(await cerrar(s, id, "devolver", s.base.a.duenia), { ok: true });
   const f = await foto(s, id);
   assert.equal(f.status, "CANCELLED");
   assert.equal(f.cobrado, 0, "la contrapartida deja lo cobrado en cero");
