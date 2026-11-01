@@ -33,7 +33,8 @@ test("los cambios corren sólo con el diseño nuevo: apagado, CH queda como hoy"
   const dir = join(process.cwd(), "src/app/(site)");
   const leer = (f: string) => readFileSync(join(dir, f), "utf8");
   assert.match(leer("layout.tsx"), /chNuevo \? notaDeContactoSinPromesa\(location\.contactNote, whatsapp\) : location\.contactNote/);
-  assert.match(leer("reserva/page.tsx"), /const bajada = nuevo \? sinPromesaDeWhatsApp\(/);
+  // La bajada de /reserva corre con o sin el diseño nuevo desde 65b427e8 (ronda 2): es la excepción a propósito.
+  assert.match(leer("reserva/page.tsx"), /const bajada = sinPromesaDeWhatsApp\(/);
   const modal = leer("_ch/BookingModal.tsx");
   assert.match(modal, /\{waMessage && \(!nuevo \|\| data\.whatsapp\) && \(/, "el botón de WhatsApp sólo se esconde con el diseño nuevo");
   assert.match(modal, /nuevo && !data\.whatsapp\s*\?\s*"Te confirmamos el turno por mensaje o llamado\./);
