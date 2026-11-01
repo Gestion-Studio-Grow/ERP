@@ -477,6 +477,23 @@ export const PERMISOS_BASE: Record<Exclude<RolGestion, "DIRECCION">, Record<Modu
   ADMINISTRACION: { pipeline: V, ficha: V, costos: V, proveedores: E, cotizaciones: V, diseno: N, pagos: E, empresa: E, liquidaciones: E, direccion: V, equipo: N, ia: V },
 };
 
+/** Qué módulo abre cada app de la barra: con uno alcanza. Las que no figuran las ve todo el equipo. */
+const MODULOS_DE_LA_APP: Readonly<Record<string, readonly ModuloGestion[]>> = {
+  proyectos: ["pipeline"],
+  "gestion-diseno": ["diseno"],
+  "gestion-proveedores": ["proveedores"],
+  "gestion-administracion": ["empresa", "pagos", "liquidaciones"],
+  "gestion-direccion": ["direccion"],
+  "gestion-agentes": ["ia"],
+  "gestion-propuesta-ia": ["ia"],
+  "gestion-equipo": ["equipo"],
+};
+
+export function appDeGestionVisible(appId: string, rol: RolGestion, guardados: readonly { rol: string; modulo: string; ver: boolean; editar: boolean }[]): boolean {
+  const modulos = MODULOS_DE_LA_APP[appId];
+  return !modulos || modulos.some((m) => permisoDe(rol, m, guardados).ver);
+}
+
 /** Columnas de la ficha que un rol no ve de fábrica. */
 export const COLUMNAS_OCULTAS_BASE: Record<Exclude<RolGestion, "DIRECCION">, readonly string[]> = {
   PRODUCCION: [],

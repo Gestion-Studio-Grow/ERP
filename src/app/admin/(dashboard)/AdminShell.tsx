@@ -47,10 +47,13 @@ export const ROLE_LABEL: Record<Role, string> = {
 
 type NavItem = { href: string; label: string; icon: string; exact?: boolean };
 
+// Las apps de gestión de eventos viven bajo /admin/proyectos: en ellas no se marca también «Proyectos».
+const OTRA_APP_DE_GESTION = /^\/admin\/proyectos\/(inicio|diseno|calendario|proveedores|administracion|direccion|agentes|propuesta-ia|mi-liquidacion|equipo)(\/|$)/;
+
 function useActive() {
   const pathname = usePathname();
   return (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname.startsWith(href);
+    exact ? pathname === href : pathname.startsWith(href) && !(href === "/admin/proyectos" && OTRA_APP_DE_GESTION.test(pathname));
 }
 
 function currentLabel(pathname: string, items: NavItem[]) {

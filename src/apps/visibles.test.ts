@@ -475,9 +475,9 @@ test("Vender y Ventas del día: CH no las ve ni por URL; un comercio con pos sí
   }
 });
 
-test("todos los roles de una productora entran a Proyectos; los demás negocios, como siempre", () => {
+test("todos los roles de una productora entran al Inicio de las apps de gestión; los demás negocios, como siempre", () => {
   for (const role of ["OWNER", "RECEPTION", "PROFESSIONAL"] as const) {
-    assert.equal(aterrizajeDelPanel(negocio({ role, blueprintId: "productora", modulosAsignados: ["proyectos", "agenda"] })), "/admin/proyectos", role);
+    assert.equal(aterrizajeDelPanel(negocio({ role, blueprintId: "productora", modulosAsignados: ["proyectos", "agenda"] })), "/admin/proyectos/inicio", role);
     assert.equal(aterrizajeDelPanel(negocio({ role, blueprintId: "productora", modulosAsignados: ["agenda"] })), null, role);
     assert.equal(aterrizajeDelPanel(negocio({ role, modulosAsignados: ["proyectos", "agenda"] })), null, role);
   }

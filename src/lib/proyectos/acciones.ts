@@ -16,10 +16,10 @@ import { requireCapability } from "@/lib/authz";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
-import { clientePuedeResponder, leerNumero, esEtapa, esServicio, etapaAlAprobar, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
+import { clientePuedeResponder, leerNumero, esEtapa, esServicio, etapaAlAprobar, etapaLabel, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
 import { configProyectos } from "./datos.server";
-import { regenerarCuotas } from "./gestion.server";
+import { avisar, regenerarCuotas, registrarCambio, usuariosDelEquipo } from "./gestion.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 
@@ -354,10 +354,11 @@ export async function responderPropuesta(d: { token: string; aprueba: boolean; n
   if (!nombre) return { ok: false, error: "Escribí tu nombre para dejar constancia." };
   const pr = await prisma.proyectoPresupuesto.findFirst({
     where: { tenantId, token: d.token },
-    select: { id: true, estado: true, validoHasta: true, proyectoId: true, proyecto: { select: { servicio: true, etapa: true } } },
+    select: { id: true, estado: true, version: true, validoHasta: true, proyectoId: true, proyecto: { select: { nombre: true, servicio: true, etapa: true } } },
   });
   if (!pr) return { ok: false, error: "El link no es válido." };
   if (!clientePuedeResponder(pr)) return { ok: false, error: "Esta propuesta ya no se puede responder. Escribinos y la actualizamos." };
+  const destinatarios = await usuariosDelEquipo(tenantId, pr.proyectoId, "");
   const ganada = await tenantTransaction(async (tx) => {
     // El estado va en el where: dos clics a la vez no responden dos veces.
     const r = await tx.proyectoPresupuesto.updateMany({
@@ -365,9 +366,14 @@ export async function responderPropuesta(d: { token: string; aprueba: boolean; n
       data: { estado: d.aprueba ? "APROBADO" : "RECHAZADO", respondidoEl: new Date(), respondidoPor: nombre, motivoRechazo: d.aprueba ? null : (d.motivo ?? "").trim().slice(0, 500) || null },
     });
     if (r.count === 0) return false;
+    const autor = `${nombre} (cliente)`;
+    await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "Presupuesto", entidadId: pr.id, campo: `Versión ${pr.version}`, antes: "Enviada", despues: d.aprueba ? "Aprobada" : "Rechazada", autor });
     if (d.aprueba) {
-      await tx.proyecto.updateMany({ where: { id: pr.proyectoId, tenantId }, data: { etapa: etapaAlAprobar(pr.proyecto.servicio, pr.proyecto.etapa) } });
+      const etapa = etapaAlAprobar(pr.proyecto.servicio, pr.proyecto.etapa);
+      await tx.proyecto.updateMany({ where: { id: pr.proyectoId, tenantId }, data: { etapa } });
+      await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "Proyecto", entidadId: pr.proyectoId, campo: "Etapa", antes: etapaLabel(pr.proyecto.etapa, pr.proyecto.servicio), despues: etapaLabel(etapa, pr.proyecto.servicio), autor });
     }
+    await avisar(tx, { tenantId, destinatarios, tipo: "aprobacion", texto: `${nombre} ${d.aprueba ? "aprobó" : "rechazó"} la versión ${pr.version} de ${pr.proyecto.nombre}`, enlace: `/admin/proyectos/${pr.proyectoId}?tab=cotizacion` });
     return true;
   });
   if (!ganada) return { ok: false, error: "Esta propuesta ya fue respondida." };

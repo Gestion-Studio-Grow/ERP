@@ -16,7 +16,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { configProyectos } from "./datos.server";
 import { aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO } from "./gestion-core";
-import { avisar, columnasOcultas, exigirEditar, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
+import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
 import type { ModuloGestion } from "./gestion-core";
@@ -65,11 +65,6 @@ async function regenerar(tenantId: string, proyectoId: string) {
     if ((e as { code?: string }).code !== "P2002") throw e;
     await regenerarCuotas(tenantId, proyectoId);
   }
-}
-
-async function usuariosDelEquipo(tenantId: string, proyectoId: string, salvo: string): Promise<string[]> {
-  const filas = await prisma.proyectoEquipo.findMany({ where: { tenantId, proyectoId }, select: { persona: { select: { userId: true } } } });
-  return filas.map((f) => f.persona.userId).filter((u): u is string => !!u && u !== salvo);
 }
 
 // ── Pipeline ────────────────────────────────────────────────────────────────

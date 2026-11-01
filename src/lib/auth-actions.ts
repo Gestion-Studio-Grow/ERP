@@ -11,6 +11,7 @@ import { adminLoginGuard } from "@/lib/rate-limit";
 import { getProductoContexto } from "@/lib/producto";
 import { productoHome, rutaPermitidaParaProducto } from "@/lib/producto-identidad";
 import { mustChangePasswordFor } from "@/lib/must-change-password";
+import { aterrizajeDelPanel } from "@/apps/visibles";
 
 export async function login(formData: FormData) {
   const email = String(formData.get("email") || "").trim().toLowerCase();
@@ -78,6 +79,12 @@ export async function login(formData: FormData) {
   const { producto } = await getProductoContexto();
   const home = productoHome(producto);
   const dest = next !== "/admin" && rutaPermitidaParaProducto(producto, next) ? next : home;
+  // Panel cerrado: directo a su pantalla. Pasar por /admin encadena dos redirecciones después de la acción
+  // y el enrutador queda pidiendo la página en bucle, con la pantalla en blanco.
+  if (dest === "/admin") {
+    const { getNegocioApps } = await import("@/apps/contexto.server");
+    redirect(aterrizajeDelPanel(await getNegocioApps(user.role)) ?? dest);
+  }
   redirect(dest);
 }
 

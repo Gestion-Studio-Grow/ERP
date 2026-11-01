@@ -87,6 +87,12 @@ export async function registrarCambio(
   await db.proyectoCambio.create({ data: { tenantId: d.tenantId, proyectoId: d.proyectoId ?? null, entidad: d.entidad, entidadId: d.entidadId ?? null, campo: d.campo, antes, despues, autor: d.autor } });
 }
 
+/** Lee por fuera de la transacción: llamarla antes de abrirla. */
+export async function usuariosDelEquipo(tenantId: string, proyectoId: string, salvo: string): Promise<string[]> {
+  const filas = await prisma.proyectoEquipo.findMany({ where: { tenantId, proyectoId }, select: { persona: { select: { userId: true } } } });
+  return filas.map((f) => f.persona.userId).filter((u): u is string => !!u && u !== salvo);
+}
+
 export async function avisar(db: Tx | typeof prisma, d: { tenantId: string; destinatarios: readonly string[]; tipo: string; texto: string; enlace?: string }) {
   const unicos = [...new Set(d.destinatarios)].filter(Boolean);
   if (unicos.length === 0) return;

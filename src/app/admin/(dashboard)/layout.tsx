@@ -23,6 +23,8 @@ import { navGroupingEnabled } from "@/modules";
 import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
 import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
+import { actorActual } from "@/lib/proyectos/gestion.server";
+import { appDeGestionVisible } from "@/lib/proyectos/gestion-core";
 import { appCasa, appDelPanelCerrado, appsDeLaCasa, appsVisibles, conCierreDelMesEnLaBarra, conProyectosEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa, rutaFueraDelPanel } from "@/apps/visibles";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
@@ -236,7 +238,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // Su logo (de la marca que ya tiene; el de Matías, provisional). Sin estética no viaja: CH… recibe lo de siempre.
   const logo = estetica ? <LogoDelNegocio estetica={estetica} nombre={brandName} /> : null;
   const negocioApps = await getNegocioApps(user.role);
-  const visibles = appsVisibles(negocioApps);
+  const visiblesDelNegocio = appsVisibles(negocioApps);
   // PANEL DE CASA: un negocio cuyo backoffice es UNA app (Break Point → el club) no ve el menú del ERP. Cualquier
   // otra pantalla de /admin (el Inicio incluido) rebota a su casa; quedan Usuarios y «Salir». Sin módulo con
   // `casa` asignado (CH, Magra, …) es `null` y todo sigue como siempre. Fail-open sin el header, como el gate de
@@ -253,6 +255,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     const pathname = (await headers()).get("x-pathname");
     if (pathname && rutaFueraDelPanel(pathname, panel)) redirect(panel.ruta);
   }
+  // Apps de gestión de eventos: la barra muestra lo que el rol de esa persona puede abrir.
+  const actor = panel?.id === "proyectos" ? await actorActual() : null;
+  const visibles = actor ? visiblesDelNegocio.filter((a) => appDeGestionVisible(a.id, actor.rol, actor.permisos)) : visiblesDelNegocio;
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
   const menu = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles);
   // DISEÑO NUEVO: la navegación del armazón nuevo (espacios, comandos de ⌘K, tecla del rubro), con

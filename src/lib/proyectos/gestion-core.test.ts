@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  appDeGestionVisible,
   calendarioIcs,
   cambiosEntreVersiones,
   cashflowDelEvento,
@@ -184,4 +185,14 @@ test("el calendario ICS escapa el texto", () => {
   const ics = calendarioIcs("MIA", [{ id: "x", titulo: "Pago; flete, ida", fecha: new Date("2026-11-10T12:00:00Z") }], new Date("2026-11-01T00:00:00Z"));
   assert.match(ics, /SUMMARY:Pago\\; flete\\, ida/);
   assert.match(ics, /DTSTART:20261110T120000Z/);
+});
+
+test("la barra muestra cada app sólo a quien puede abrirla", () => {
+  assert.equal(appDeGestionVisible("gestion-administracion", "DISENO", []), false);
+  assert.equal(appDeGestionVisible("gestion-direccion", "PRODUCCION", []), false);
+  assert.equal(appDeGestionVisible("gestion-diseno", "DISENO", []), true);
+  assert.equal(appDeGestionVisible("gestion-mi-liquidacion", "DISENO", []), true);
+  assert.equal(appDeGestionVisible("gestion-administracion", "DIRECCION", []), true);
+  assert.equal(appDeGestionVisible("gestion-administracion", "DISENO", [{ rol: "DISENO", modulo: "pagos", ver: true, editar: false }]), true);
+  assert.equal(appDeGestionVisible("clientes", "DISENO", []), true);
 });

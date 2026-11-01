@@ -468,7 +468,9 @@ export function destinoDeVuelta(n: NegocioApps): { href: string; etiqueta: strin
  */
 export function aterrizajeDelPanel(n: NegocioApps, apps: readonly AppDescriptor[] = REGISTRO_APPS): string | null {
   const panel = appDelPanelCerrado(n, apps);
-  return panel && appPermitida(panel, n) ? panel.ruta : null;
+  if (!panel || !appPermitida(panel, n)) return null;
+  const inicio = apps.find((a) => a.id === "gestion-inicio");
+  return panel.id === "proyectos" && inicio && appPermitida(inicio, n) ? inicio.ruta : panel.ruta;
 }
 
 /**

@@ -1501,3 +1501,8 @@ summary:focus-visible {
   --radius: 0.625rem;
   color-scheme: dark;
 }
+
+/* Apps de gestión de eventos: se ve en qué pestaña estás y las barras de desplazamiento van con el tema. */
+[data-gestion] [data-ui="pestanas"] a[aria-current="page"] { color: var(--accent, currentColor); box-shadow: inset 0 -2px 0 currentColor; font-weight: 600; }
+[data-gestion] [data-ui="pestanas"] a { white-space: nowrap; }
+[data-gestion] * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
