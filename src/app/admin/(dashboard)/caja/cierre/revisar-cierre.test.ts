@@ -95,3 +95,22 @@ test("con Transferencia sin contar no dice «Cuadra»: dice qué falta (se puede
   });
   assert.ok(r.listo && !r.hayDiferencia);
 });
+
+test("un negativo en Mercado Pago se explica en su campo; la regla no cambia", () => {
+  const medios = ["EFECTIVO", "MP"] as const;
+  const etiquetas = { EFECTIVO: "Efectivo", MP: "Mercado Pago" };
+  for (const tipeado of ["-23.300", "−23.300"]) {
+    const r = revisarCierre({ declarado: { EFECTIVO: "0", MP: tipeado }, esperado: { EFECTIVO: 0, MP: -23_300 }, nota: "", etiquetas, medios });
+    assert.ok(!r.listo && r.campo === "MP", "sigue sin aceptarse: lo declarado en MP no puede ser negativo");
+    const error = !r.listo ? r.error.replace(/\s/g, " ") : "";
+    assert.doesNotMatch(error, /no es un importe/);
+    assert.match(error, /El libro da -?\$ ?-?23\.300,00 porque salió más de lo que entró/);
+    assert.match(error, /no se cuenta en negativo.*o dejalo vacío y queda sin conciliar/);
+  }
+  const efectivo = revisarCierre({ declarado: { EFECTIVO: "-5", MP: "" }, esperado: { EFECTIVO: 100, MP: 0 }, nota: "", etiquetas, medios });
+  assert.ok(!efectivo.listo && efectivo.campo === "EFECTIVO");
+  assert.ok(!efectivo.listo && !/dejalo vacío/.test(efectivo.error), "el efectivo es obligatorio: no se ofrece dejarlo vacío");
+  assert.ok(!efectivo.listo && !/El libro da/.test(efectivo.error), "si el libro no da negativo, no se dice que da negativo");
+  const letras = revisarCierre({ declarado: { EFECTIVO: "0", MP: "doscientos" }, esperado: { EFECTIVO: 0, MP: -23_300 }, nota: "", etiquetas, medios });
+  assert.ok(!letras.listo && /no es un importe/.test(letras.error), "lo ilegible sigue diciendo lo de siempre");
+});

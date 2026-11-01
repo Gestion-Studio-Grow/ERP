@@ -51,6 +51,17 @@ export function diferenciasDelCierre<K extends ColumnaDelCierre = CashMethod>(
   return out;
 }
 
+/**
+ * Sólo Transferencia es un neto que puede dar negativo (`leerContado`). En otro medio se cuenta lo
+ * que hay de verdad, aunque el libro dé negativo: se explica por qué en vez de decir «no es un
+ * importe» de un número que la misma pantalla acaba de mostrar. PURA.
+ */
+function textoDeNegativoQueNoSeCuenta(etiqueta: string, esperado: number, obligatorio: boolean): string {
+  const porque = esperado < 0 ? `El libro da ${fmtMoneyARS(esperado)} porque salió más de lo que entró. ` : "";
+  const salida = obligatorio ? "" : " o dejalo vacío y queda sin conciliar";
+  return `${porque}${etiqueta} no se cuenta en negativo: escribí lo que hay de verdad (0 si no queda nada)${salida}.`;
+}
+
 export function revisarCierre<K extends ColumnaDelCierre = CashMethod>(o: {
   declarado: Record<K, string>;
   esperado: Record<K, number>;
@@ -71,7 +82,9 @@ export function revisarCierre<K extends ColumnaDelCierre = CashMethod>(o: {
         error:
           m === "TRANSFERENCIA"
             ? `Lo de ${o.etiquetas[m]} no es un importe: escribí lo que entró, con coma si tiene centavos (12.500,50); si salió más de lo que entró, con un menos adelante (-400).`
-            : `Lo de ${o.etiquetas[m]} no es un importe: escribí lo que contaste, con coma si tiene centavos (12.500,50).`,
+            : /^\s*[-−–]/.test(o.declarado[m] ?? "")
+              ? textoDeNegativoQueNoSeCuenta(o.etiquetas[m], o.esperado[m], m === efectivo)
+              : `Lo de ${o.etiquetas[m]} no es un importe: escribí lo que contaste, con coma si tiene centavos (12.500,50).`,
       };
     }
   }
