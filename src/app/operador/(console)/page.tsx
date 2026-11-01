@@ -305,6 +305,7 @@ export default async function Negocios({
           <Pestanas
             etiqueta="Vistas de Negocios"
             conRaya
+            className="flex-wrap"
             pestanas={[
               {
                 href: "/operador",

@@ -122,7 +122,7 @@ export default function FichaConPestanas({
 
   return (
     <div>
-      <div ref={lista} role="tablist" aria-label="Partes de la ficha" data-ui="pestanas" data-con-raya onKeyDown={alTeclear} className="mb-6">
+      <div ref={lista} role="tablist" aria-label="Partes de la ficha" data-ui="pestanas" data-con-raya onKeyDown={alTeclear} className="mb-6 flex-wrap">
         {pestanas.map((p) => {
           const sel = p.id === activa;
           return (
