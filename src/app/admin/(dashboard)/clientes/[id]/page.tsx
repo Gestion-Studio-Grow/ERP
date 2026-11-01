@@ -20,6 +20,11 @@ import { appPorId } from "@/apps/registro";
 import { getNegocioApps } from "@/apps/contexto.server";
 import MostradorDeLaFicha from "./MostradorDeLaFicha";
 import { mostradorBoutiqueDelNegocio } from "@/lib/clientes/fiado.server";
+import { prisma } from "@/lib/prisma";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { cobrosDetalladosPorTurno } from "@/lib/turnos/anulacion";
+import { saldoDelTurnoDeFicha } from "@/lib/crm/ficha";
+import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 
 // "Reservado", igual que la agenda (CalendarGrid, lista): la ficha decía "Pendiente de pago"
 // para el mismo estado, y el estado del turno no habla de plata (la seña se cobra al reservar).
@@ -63,6 +68,16 @@ export default async function ClienteDetailPage({
   // WhatsApp a un número que no es el de ella: la ficha lo DICE y dice dónde corregirlo, en vez
   // de que el botón simplemente no esté (contacto-ficha.ts).
   const contacto = contactoDeLaFicha({ telefono: client.phone, noQuiere: false, puedeEditar });
+
+  // Lo que debe de sus turnos, con la regla de la ficha única (`saldoDelTurnoDeFicha`). Sólo se lee.
+  const cobros = await cobrosDetalladosPorTurno(prisma, await getCurrentTenantId(), client.appointments.map((a) => a.id));
+  const saldos = new Map(
+    client.appointments.map((a) => [
+      a.id,
+      saldoDelTurnoDeFicha({ status: a.status, precio: a.priceAtBooking ?? a.service.price, cobros: cobros.get(a.id) ?? [], pagoLegado: a.payment }),
+    ]),
+  );
+  const debe = sumarAlCentavo([...saldos.values()]);
 
   const totalGastado = client.appointments
     .filter((a) => a.payment?.status === "APPROVED")
@@ -141,7 +156,14 @@ export default async function ClienteDetailPage({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 mb-8">
+      <div className={`grid gap-4 mb-8 ${debe > 0 ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"}`}>
+        {debe > 0 && (
+          <div className="col-span-2 rounded-lg border border-line bg-surface-raised shadow-xs p-4 sm:col-span-1">
+            <p className="text-sm text-muted">Debe</p>
+            <p className="text-2xl font-semibold text-danger">{fmtMoneyARS(debe, 0)}</p>
+            <p className="text-[13px] text-muted">turnos sin terminar de cobrar</p>
+          </div>
+        )}
         <div className="rounded-lg border border-line bg-surface-raised shadow-xs p-4">
           <p className="text-sm text-muted">Turnos totales</p>
           <p className="text-2xl font-semibold text-strong">{client.appointments.length}</p>
@@ -160,6 +182,7 @@ export default async function ClienteDetailPage({
               <span className="font-medium text-strong">{a.service.name}</span>
               <span className="text-muted">
                 {statusLabel[a.status] ?? a.status}
+                {(saldos.get(a.id) ?? 0) > 0 && <span className="font-medium text-danger"> · debe {fmtMoneyARS(saldos.get(a.id) ?? 0, 0)}</span>}
               </span>
             </div>
             <p className="text-muted">
