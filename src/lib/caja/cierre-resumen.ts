@@ -10,7 +10,8 @@
 // caso devuelve null para que la pantalla caiga al volcado de siempre.
 
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
-import { ETIQUETA_DE_COLUMNA, TEXTO_NETO_NEGATIVO } from "@/lib/caja/cierre-diario";
+import { ETIQUETA_DE_COLUMNA, TEXTO_NETO_NEGATIVO, type ColumnaDelCierre } from "@/lib/caja/cierre-diario";
+import { fmtMoneyARS } from "@/components/ui/format";
 import type { CashMethod } from "@/lib/caja/cash-register";
 
 /**
@@ -29,6 +30,26 @@ export function arqueoDeLaFila(changes: unknown): { fuente: Record<string, unkno
   if (typeof fuente !== "object" || fuente === null) return null;
   const etiquetas = deLaHoja && c.hoja !== "siempre" ? ETIQUETA_DE_COLUMNA : CASH_METHOD_LABEL;
   return { fuente: fuente as Record<string, unknown>, etiquetas };
+}
+
+/**
+ * Lo que dice el aviso después de «Día X cerrado.». Un medio con plata en el libro que nadie contó no
+ * es «no hubo diferencias»: coincide lo contado y se dice qué quedó sin conciliar, como la hoja y el
+ * comprobante. Se puede cerrar igual: esto sólo cambia lo que se lee. PURA.
+ */
+export function colaDelAvisoDeCierre(o: {
+  ajustes: number;
+  columnas: readonly ColumnaDelCierre[];
+  porColumna: Record<ColumnaDelCierre, { expected: number; declared: number | null }>;
+  etiquetas: Record<CashMethod, string>;
+}): string {
+  const pendientes = o.columnas
+    .filter((c) => o.porColumna[c].declared === null && o.porColumna[c].expected !== 0)
+    .map((c) => `${o.etiquetas[c]} (${fmtMoneyARS(o.porColumna[c].expected)})`)
+    .join(", ");
+  const cola = pendientes ? ` Sin conciliar: ${pendientes}.` : "";
+  if (o.ajustes > 0) return `Se asentó ${o.ajustes === 1 ? "la diferencia" : `${o.ajustes} diferencias`} en el libro.${cola}`;
+  return pendientes ? `Lo contado coincidió con el libro.${cola}` : "No hubo diferencias.";
 }
 
 const ESTADO_LABEL: Record<string, string> = {

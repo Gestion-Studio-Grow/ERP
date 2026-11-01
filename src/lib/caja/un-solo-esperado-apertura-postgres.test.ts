@@ -83,7 +83,8 @@ test("contra Postgres: la diferencia al abrir se muestra, se confirma y queda un
   // al abrir. (El código viejo la asentaba acá, por el mismo monto; ver el encabezado.)
   const cierre = await c.cerrarElDia(a, c.hoy, "1000");
   assert.equal(cierre?.ok, true, JSON.stringify(cierre));
-  assert.match((cierre as { message: string }).message, /No hubo diferencias\./);
+  // Los $5.000 de Mercado Pago de ayer siguen sin contar: el aviso no dice «No hubo diferencias» (R5).
+  assert.match((cierre as { message: string }).message, /Lo contado coincidió con el libro\. Sin conciliar: Mercado Pago/);
   assert.equal((await c.conMarca(a.id, c.marcas.CIERRE_DIARIO_ACTOR_PREFIX)).length, 0, "el día no inventa faltante");
   assert.equal((await c.conMarca(a.id, c.marcas.APERTURA_TURNO_ACTOR_PREFIX)).length, 1, "y la diferencia sigue estando una sola vez");
 

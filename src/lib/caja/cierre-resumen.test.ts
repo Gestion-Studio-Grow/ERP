@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resumenCierre } from "./cierre-resumen";
+import { colaDelAvisoDeCierre, resumenCierre } from "./cierre-resumen";
 
 const CIERRE = {
   day: "2026-09-07",
@@ -82,4 +82,19 @@ test("estado CUADRA con un medio con plata sin contar: el título no dice «cuad
   const fila = (TRANSFERENCIA: unknown) => ({ estado: "CUADRA", movimientos: 2, hoja: "nueva", porColumna: { EFECTIVO: { esperado: 100, declarado: 100, diferencia: 0 }, TRANSFERENCIA } });
   assert.match(resumenCierre(fila({ esperado: 5750, declarado: null, diferencia: null }))!.titulo, /cuadró lo contado, con medios sin conciliar/);
   assert.match(resumenCierre(fila({ esperado: 0, declarado: null, diferencia: null }))!.titulo, /· cuadró$/);
+});
+
+test("el aviso de cierre: con un medio con plata sin contar no dice «No hubo diferencias» (R5)", () => {
+  const medio = (expected: number, declared: number | null) => ({ expected, declared });
+  const hoja = (TRANSFERENCIA: { expected: number; declared: number | null }) => ({
+    columnas: ["EFECTIVO", "TRANSFERENCIA"] as const,
+    porColumna: { EFECTIVO: medio(5_000, 5_000), MP: medio(0, null), TRANSFERENCIA, TARJETA: medio(0, null) },
+    etiquetas: { EFECTIVO: "Efectivo", MP: "Mercado Pago", TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta" },
+  });
+  const sinContar = colaDelAvisoDeCierre({ ajustes: 0, ...hoja(medio(47_000, null)) }).replace(/\s/g, " ");
+  assert.match(sinContar, /^Lo contado coincidió con el libro\. Sin conciliar: Transferencia \(\$ ?47\.000,00\)\.$/);
+  assert.equal(colaDelAvisoDeCierre({ ajustes: 0, ...hoja(medio(47_000, 47_000)) }), "No hubo diferencias.");
+  assert.equal(colaDelAvisoDeCierre({ ajustes: 0, ...hoja(medio(0, null)) }), "No hubo diferencias.", "un medio sin plata no queda pendiente");
+  assert.match(colaDelAvisoDeCierre({ ajustes: 1, ...hoja(medio(47_000, null)) }), /^Se asentó la diferencia en el libro\. Sin conciliar: Transferencia/);
+  assert.equal(colaDelAvisoDeCierre({ ajustes: 2, ...hoja(medio(0, null)) }), "Se asentó 2 diferencias en el libro.");
 });
