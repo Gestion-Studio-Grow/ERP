@@ -18,7 +18,7 @@ createRoot(document.getElementById("root")).render(
     titulo: h("button", { type: "button", "data-abrir": true, onClick: () => { window.__abiertos += 1; }, className: "min-h-11 text-left" }, "Gina Nueva"),
     detalle: h("span", null, "Masaje descontracturante · 60′ · Laura Gómez · Box 1 ", h(Marca, { tipo: "pendiente", className: "ml-1 align-baseline" }, "Reservado, sin confirmar")),
     plata: "$15.000",
-    tecla: h("button", { type: "button", onClick: () => { window.__tecla += 1; }, style: { minHeight: 44, minWidth: 170 } }, "Confirmar"),
+    tecla: h("button", { type: "button", onClick: () => { window.__tecla += 1; }, style: { minHeight: 44, minWidth: 230 } }, "Confirmar"),
   })),
 );
 `;
