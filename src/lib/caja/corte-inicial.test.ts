@@ -213,7 +213,7 @@ test("la diferencia contra el histórico se asienta como fila del libro, con el 
   assert.equal(ultimas.find((r) => r.method === "EFECTIVO")!.signedAmount, -154500);
   assert.equal(ultimas.find((r) => r.method === "MP")!.signedAmount, 48933.99);
   assert.match(ef.detail, new RegExp(`^${CORTE_INICIAL_PREFIX} 30/06/2026 — Efectivo: el histórico decía \\$602\\.534,00, se contaron \\$448\\.034,00 \\(faltante \\$154\\.500,00\\)$`));
-  assert.match(mp.detail, /MP \/ Transf\.: el histórico decía -\$8\.933,99, se contaron \$40\.000,00 \(sobrante \$48\.933,99\)/);
+  assert.match(mp.detail, /Mercado Pago: el histórico decía -\$8\.933,99, se contaron \$40\.000,00 \(sobrante \$48\.933,99\)/);
   // El saldo del mes cierra en lo declarado.
   assert.deepEqual(summary.saldo, { EFECTIVO: 448034, MP: 40000, TRANSFERENCIA: 0, TARJETA: 0 });
 });

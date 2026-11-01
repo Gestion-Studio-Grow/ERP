@@ -2,8 +2,9 @@
 // reales, con dos negocios. Plata y datos: cada asiento se cuenta en la base, desde afuera.
 //
 //   · C3  apertura a ciegas: cuenta antes de ver, la diferencia pide motivo, doble envío → UNA vez;
-//   · C1  Tarjeta en los dos estados del enum (sin y con N2_enums.sql aplicada en ESTA base):
-//         sólo se habilita con el valor en la base Y en el cliente de Prisma; sin romper nada;
+//   · C1  Tarjeta con el enum: la base nace con los valores (migración 20261030120000_m1_enums_caja) y
+//         N2_enums.sql aplicada encima no rompe nada. «Sin el valor» ya no se puede ejecutar acá: Postgres no
+//         borra valores de un enum; la regla de los cuatro estados está en m1-caja-medios.test.ts;
 //   · C2  columnas EFECTIVO · MP · TRANSFERENCIA · TARJETA con su esperado del libro;
 //   · C4  el cierre reusa el conteo del turno; C5 turno abierto → rechazo con nombre;
 //   · C6  causas probables; C8 recepción no cierra; doble envío del cierre → un solo cierre;
@@ -19,7 +20,7 @@ import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-ser
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
-test("contra Postgres: caja y medios de M1 (a ciegas, Tarjeta en los dos estados, columnas, conteo único, reabrir) sin mezclar negocios", async (t) => {
+test("contra Postgres: caja y medios de M1 (a ciegas, Tarjeta con el enum, columnas, conteo único, reabrir) sin mezclar negocios", async (t) => {
   const laBase = await baseEfimeraParaElTest(t);
   if (!laBase) return;
   apuntarLaAppA(laBase);
@@ -69,12 +70,12 @@ test("contra Postgres: caja y medios de M1 (a ciegas, Tarjeta en los dos estados
     data: { tenantId: a.id, actor: "operator:qa", action: "interruptor.encender", entity: "Interruptor", entityId: "arqueo-ciego", channel: "operador" },
   });
 
-  // ── C1 · Tarjeta SIN el valor en el enum ───────────────────────────────────
+  // ── C1 · Tarjeta: la base nace con el valor en el enum ──────────────────────
   olvidarSchemaProbe();
-  assert.equal(await hayValorEnum("PaymentMethod", "DEBITO"), false, "la base nace sin DEBITO en PaymentMethod");
-  assert.equal(await como(a, a.duenia, () => tarjetaHabilitada()), false, "sin el valor, Tarjeta no se ofrece");
-  const deBSinEnum = await como(b, b.duenia, () => getCierreDiarioData(hoy));
-  assert.deepEqual(deBSinEnum.columnas, ["EFECTIVO", "MP", "TRANSFERENCIA"], "sin Tarjeta habilitada y sin plata por tarjeta, la columna no aparece");
+  assert.equal(await hayValorEnum("PaymentMethod", "DEBITO"), true, "la base nace con DEBITO en PaymentMethod (migración de M1)");
+  assert.equal(await como(a, a.duenia, () => tarjetaHabilitada()), true, "con el valor en la base y en el cliente, Tarjeta se ofrece");
+  const deBConTarjeta = await como(b, b.duenia, () => getCierreDiarioData(hoy));
+  assert.deepEqual(deBConTarjeta.columnas, ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"], "con Tarjeta habilitada la columna aparece");
 
   // ── C3 · apertura a ciegas ─────────────────────────────────────────────────
   const aCiegas = await como(a, a.duenia, () => openCashSession(null, form({ openingFloat: "10.000" })));
@@ -177,7 +178,7 @@ test("contra Postgres: caja y medios de M1 (a ciegas, Tarjeta en los dos estados
   assert.equal(await cierresActivos(a.id, hoy), 1);
   const ajustes = await duenio.cashMovement.findMany({ where: { tenantId: a.id, createdBy: cierreMarker(hoy) } });
   assert.equal(ajustes.length, 1, "la diferencia se asienta una vez");
-  assert.deepEqual([ajustes[0].type, ajustes[0].method, ajustes[0].amount], ["EGRESO", "MP", 500], "Transferencia vive en MP del libro");
+  assert.deepEqual([ajustes[0].type, ajustes[0].method, ajustes[0].amount], ["EGRESO", "TRANSFERENCIA", 500], "con el enum, el faltante de Transferencia se asienta en Transferencia");
   assert.match(ajustes[0].reason ?? "", /faltante en Transferencia/);
   const filaCierre = await duenio.auditLog.findFirstOrThrow({ where: { tenantId: a.id, entity: "CierreDiario", action: "caja.cierre-diario", entityId: hoy } });
   const porColumna = (filaCierre.changes as { porColumna?: Record<string, { diferencia: number | null }> }).porColumna;

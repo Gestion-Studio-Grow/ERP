@@ -1100,7 +1100,7 @@ test("entradas del browser sin directiva: src/instrumentation-client.ts; el Page
   });
   conArbol({ "src/pages/_app.tsx": `import { prisma } from "@/lib/prisma";\nexport default function App() { return String(prisma); }\n` }, (a, t) => {
     assert.equal(a.noModelado.length, 1, informe(a, t.raiz));
-    assert.match(informe(a, t.raiz), /NO MODELADO: src\/pages\/: Pages Router/);
+    assert.match(informe(a, t.raiz).replaceAll("\\", "/"), /NO MODELADO: src\/pages\/: Pages Router/);
   });
 });
 
@@ -1260,7 +1260,7 @@ test("mutación real: revalidatePath en lib/cartera-core.ts (sin 'use server') r
   const a = mutarReal(core, `\nimport { revalidatePath } from "next/cache";\nexport function __mutante() { revalidatePath("/contador"); }\n`);
   const v = a.violaciones.find((x) => x.cliente === panel && ultimo(x).archivo === core && x.especificador === "next/cache");
   assert.ok(v, `no se detectó revalidatePath en cartera-core.ts:\n${informe(a, RAIZ_REPO)}`);
-  assert.deepEqual(v.cadena.map((p) => path.relative(SRC_REPO, p.archivo)), ["app/contador/CarteraPanel.tsx", "lib/cartera-core.ts"]);
+  assert.deepEqual(v.cadena.map((p) => path.relative(SRC_REPO, p.archivo).replaceAll("\\", "/")), ["app/contador/CarteraPanel.tsx", "lib/cartera-core.ts"]);
 });
 
 test("mutación real: pg-pool y @electric-sql/pglite-socket (node_modules de verdad) rompen, con la cadena adentro del paquete", () => {
