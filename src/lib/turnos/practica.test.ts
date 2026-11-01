@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   avisoDeEspera,
+  avisoDeReglaFaltante,
   fechaDelProximo,
   fechaPropuestaDelAlta,
   hrefDelProximo,
@@ -67,6 +68,17 @@ test("U3 · «Tu turno» dibuja el botón y la regla no se arma con WhatsApp a c
   assert.match(pagina, /salidaFueraDePlazo\(/);
   assert.match(pagina, /href=\{salida\.href\}/);
   assert.match(readFileSync(join(raiz, "src/lib/turnos/practica.server.ts"), "utf8"), /reglaDeCancelacion\(p, await hayWhatsApp\(\)\)/);
+});
+
+test("U2 · la consola avisa sólo con la agenda práctica prendida y sin la regla de ESE negocio", () => {
+  const conRegla = { CANCELACION_ONLINE_HORAS: "beauty-spa=24" };
+  assert.match(avisoDeReglaFaltante({ slug: "beauty-spa", prendida: true, env: {} }) ?? "", /CANCELACION_ONLINE_HORAS/);
+  assert.match(avisoDeReglaFaltante({ slug: "magra", prendida: true, env: conRegla }) ?? "", /magra=<horas>/);
+  assert.equal(avisoDeReglaFaltante({ slug: "beauty-spa", prendida: true, env: conRegla }), null);
+  assert.equal(avisoDeReglaFaltante({ slug: "beauty-spa", prendida: false, env: {} }), null, "apagada no cambia nada");
+  const ficha = readFileSync(join(process.cwd(), "src/app/operador/(console)/tenants/[id]/InterruptoresCard.tsx"), "utf8");
+  assert.match(ficha, /avisoDeReglaFaltante\(\{ slug, prendida: prendido \}\)/, "la ficha lo dibuja");
+  assert.match(ficha, /\{faltaRegla\}/);
 });
 
 test("T4 · el alta propone mañana y, con una sola profesional, la deja elegida", () => {

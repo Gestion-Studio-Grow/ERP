@@ -47,6 +47,20 @@ export function politicaDelNegocio(
   return (slug && leerPoliticas(env.CANCELACION_ONLINE_HORAS).get(slug)) || null;
 }
 
+/**
+ * El aviso de la consola (U2): con la agenda práctica prendida y sin la regla en el deploy, la clienta
+ * cancela hasta último momento y la consola no lo decía. Lo escribe el operador en Vercel; `null` si
+ * no hay nada que avisar. No cambia la regla: sólo la hace ver.
+ */
+export function avisoDeReglaFaltante(input: {
+  slug: string;
+  prendida: boolean;
+  env?: Record<string, string | undefined>;
+}): string | null {
+  if (!input.prendida || politicaDelNegocio(input.slug, input.env ?? process.env)) return null;
+  return `Falta la regla de cancelación: sin ${input.slug}=<horas> en la variable CANCELACION_ONLINE_HORAS del deploy, la clienta cancela online hasta que empieza el turno y no se le promete ningún plazo. El número lo decide el negocio.`;
+}
+
 /** Qué hacer pasado el plazo. Sin número de WhatsApp cargado, no se nombra WhatsApp (U3). */
 const despuesDelPlazo = (hayWhatsApp: boolean): string => (hayWhatsApp ? "escribinos por WhatsApp" : "avisale al local");
 
