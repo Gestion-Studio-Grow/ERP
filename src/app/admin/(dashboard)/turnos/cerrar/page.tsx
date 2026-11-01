@@ -15,6 +15,7 @@
 
 import { requireApp } from "@/lib/require-app";
 import { todayInBusinessTz } from "@/lib/datetime";
+import { puedeCerrarElDia } from "@/lib/caja/cierre-diario";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
@@ -49,7 +50,7 @@ export default async function CerrarLoPendientePage() {
     <ConDiseno nuevo precargarLetra={false}>
       <CerrarPendientes
         turnos={pendientes}
-        permisos={{ cobrar: permisos.cobrar, terminar: permisos.terminar, cajaDeHoyCerrada, anular: anulacionDeCobro(user.role), veLaCaja: roleHasCapability(user.role, "orders:read") }}
+        permisos={{ cobrar: permisos.cobrar, terminar: permisos.terminar, cajaDeHoyCerrada, anular: anulacionDeCobro(user.role), veLaCaja: roleHasCapability(user.role, "orders:read"), cierraElDia: puedeCerrarElDia(user.role) }}
         hoy={todayInBusinessTz()}
         hayMas={hayMas}
         letraDelNegocio={esteticaBackoffice(slug) !== null}

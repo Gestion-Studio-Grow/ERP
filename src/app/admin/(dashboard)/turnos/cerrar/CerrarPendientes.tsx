@@ -311,8 +311,8 @@ export default function CerrarPendientes({
               {VACIO.titulo}
             </h2>
             <p className="mt-1 text-sm text-muted">Todos los turnos que ya pasaron quedaron cerrados.</p>
-            <Link href={salidaDelVacio(permisos.veLaCaja === true).href} className={buttonClasses("solid", "md", "mt-5")} {...atributosBoton("solid", "md")}>
-              {salidaDelVacio(permisos.veLaCaja === true).etiqueta} →
+            <Link href={salidaDelVacio(permisos.veLaCaja === true, permisos.cierraElDia === true).href} className={buttonClasses("solid", "md", "mt-5")} {...atributosBoton("solid", "md")}>
+              {salidaDelVacio(permisos.veLaCaja === true, permisos.cierraElDia === true).etiqueta} →
             </Link>
           </section>
         ) : visibles.length === 0 ? (

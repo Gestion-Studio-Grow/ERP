@@ -17,6 +17,7 @@
 // Client-safe: sólo datos y una función pura (la llama el layout, en el servidor).
 
 import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
+import { puedeCerrarElDia } from "@/lib/caja/cierre-diario";
 import { hrefNuevoTurno } from "@/app/admin/(dashboard)/turnos/pasos";
 import type { AppDescriptor, NombreIcono } from "./contract";
 
@@ -30,6 +31,12 @@ export interface Accion {
   icono: NombreIcono;
   /** Lo que pide además de ver la app. */
   capability?: Capability;
+  /**
+   * El verbo es de un rol aunque la app se pueda ABRIR con menos. Cerrar el día: recepción ve la
+   * pantalla (orders:read, para mirar cómo viene y el comprobante) pero el cierre se lo niega el
+   * servidor (`puedeCerrarElDia`): no se le ofrece el verbo. La app sigue en el buscador.
+   */
+  soloRol?: (role: Role) => boolean;
   /** Palabras con las que también se encuentra. */
   palabras: readonly string[];
 }
@@ -63,7 +70,7 @@ export const ACCIONES: readonly Accion[] = [
     palabras: ["avisar", "recordar", "whatsapp", "confirmar"],
   },
   { id: "abrir-la-caja", app: "caja-del-dia", verbo: "Abrir la caja", href: "/admin/caja", icono: "caja", palabras: ["caja", "apertura", "efectivo", "gasto", "retiro"] },
-  { id: "cerrar-el-dia", app: "cierre-del-dia", verbo: "Cerrar el día", href: "/admin/caja/cierre", icono: "cierre", palabras: ["arqueo", "cierre", "contar la plata", "cerrar la caja"] },
+  { id: "cerrar-el-dia", app: "cierre-del-dia", verbo: "Cerrar el día", href: "/admin/caja/cierre", icono: "cierre", soloRol: puedeCerrarElDia, palabras: ["arqueo", "cierre", "contar la plata", "cerrar la caja"] },
   { id: "recibir-mercaderia", app: "recibir-mercaderia", verbo: "Recibir mercadería", href: "/admin/compras", icono: "compras", palabras: ["compra", "proveedor", "remito", "ingreso"] },
   { id: "contar-un-producto", app: "recuento", verbo: "Contar un producto", href: "/admin/ajustes/recuento", icono: "ajustes", palabras: ["recuento", "contar", "inventario", "stock"] },
   { id: "cargar-una-merma", app: "mermas", verbo: "Cargar una merma", href: "/admin/ajustes", icono: "ajustes", palabras: ["merma", "rotura", "vencido", "pérdida", "ajuste"] },
@@ -90,6 +97,7 @@ export function accionesParaPersona(
     const app = porId.get(a.app);
     if (!app) return [];
     if (a.capability && !roleHasCapability(role, a.capability)) return [];
+    if (a.soloRol && !a.soloRol(role)) return [];
     if (rutas && !rutas.has(app.ruta)) return [];
     return [{ ...a, nombreApp: app.nombre }];
   });

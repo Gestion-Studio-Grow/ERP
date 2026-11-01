@@ -63,8 +63,14 @@ const vero = (p: { dia: string; hora: string } & Partial<TurnoPendiente>) =>
   turno({ profesional: "Vero", profesionalId: "p-vero", veredicto: { ok: false, motivo: VERO_MOTIVO }, ...p });
 
 test("bandeja vacía: la profesional vuelve a su agenda, no a una pantalla que no tiene (UAT CH E8)", () => {
-  assert.equal(salidaDelVacio(true).href, "/admin/caja/cierre");
-  assert.equal(salidaDelVacio(false).href, "/admin/turnos");
+  assert.equal(salidaDelVacio(true, true).href, "/admin/caja/cierre");
+  assert.equal(salidaDelVacio(false, false).href, "/admin/turnos");
+});
+
+test("bandeja vacía: a recepción, que no cierra el día, no se le ofrece «Ir a cerrar la caja»", () => {
+  const salida = salidaDelVacio(true, false);
+  assert.equal(salida.href, "/admin/caja");
+  assert.doesNotMatch(salida.etiqueta, /cerrar/i);
 });
 
 describe("agrupar por día y por profesional", () => {
