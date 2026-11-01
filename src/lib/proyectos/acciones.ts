@@ -8,6 +8,7 @@
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -26,6 +27,8 @@ export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: str
 const RAIZ = "/admin/proyectos";
 const MAX_ARCHIVOS = 30;
 const MAX_IMAGEN = 1_400_000; // caracteres del data URL (~1 MB de imagen)
+const MAX_ENTREGABLES = 60;
+const MAX_VERSIONES = 12; // cada imagen ocupa la base: un tope, como los archivos
 
 const txt = (v: FormDataEntryValue | null): string => String(v ?? "").trim();
 const numero = (v: FormDataEntryValue | null | undefined): number => leerNumero(String(v ?? ""));
@@ -584,6 +587,144 @@ export async function alternarProveedor(formData: FormData) {
   if (r.count === 0) return;
   await auditAdmin({ action: "proyecto.proveedor.estado", entity: "Supplier", entityId: id, changes: { active } });
   revalidatePath(`${RAIZ}/proveedores`);
+}
+
+// ── Entregables ─────────────────────────────────────────────────────────────
+
+export async function crearEntregable(formData: FormData) {
+  await requireCapability("agenda:read");
+  const tenantId = await getCurrentTenantId();
+  const proyectoId = txt(formData.get("proyectoId"));
+  const nombre = txt(formData.get("nombre")).slice(0, 120);
+  if (!nombre || !(await proyectoDelNegocio(proyectoId, tenantId))) return;
+  if ((await prisma.proyectoEntregable.count({ where: { tenantId, proyectoId, anuladoEl: null } })) >= MAX_ENTREGABLES) return;
+  await prisma.proyectoEntregable.create({
+    data: { tenantId, proyectoId, nombre, especificacion: txt(formData.get("especificacion")).slice(0, 300), venceEl: fecha(formData.get("venceEl")) },
+  });
+  refrescar(proyectoId);
+}
+
+export async function guardarEntregable(formData: FormData) {
+  await requireCapability("agenda:read");
+  const tenantId = await getCurrentTenantId();
+  const id = txt(formData.get("id"));
+  const nombre = txt(formData.get("nombre")).slice(0, 120);
+  const e = await prisma.proyectoEntregable.findFirst({ where: { id, tenantId }, select: { proyectoId: true } });
+  if (!e || !nombre) return;
+  await prisma.proyectoEntregable.updateMany({
+    where: { id, tenantId },
+    data: { nombre, especificacion: txt(formData.get("especificacion")).slice(0, 300), venceEl: fecha(formData.get("venceEl")) },
+  });
+  refrescar(e.proyectoId);
+  revalidatePath(`${RAIZ}/${e.proyectoId}/entregable/${id}`);
+}
+
+/** Sale del link del cliente, pero lo que respondió queda como constancia. */
+export async function anularEntregable(formData: FormData) {
+  const user = await requireCapability("agenda:read");
+  const tenantId = await getCurrentTenantId();
+  const id = txt(formData.get("id"));
+  const e = await prisma.proyectoEntregable.findFirst({ where: { id, tenantId }, select: { proyectoId: true, nombre: true } });
+  if (!e) return;
+  const r = await prisma.proyectoEntregable.updateMany({ where: { id, tenantId, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: user.name } });
+  if (r.count > 0) await auditAdmin({ action: "proyecto.entregable.anular", entity: "ProyectoEntregable", entityId: id, changes: { nombre: e.nombre } });
+  refrescar(e.proyectoId);
+  // La ficha de una pieza sacada ya no existe: se vuelve al proyecto.
+  redirect(`${RAIZ}/${e.proyectoId}`);
+}
+
+/** Imagen ya achicada en el navegador, o link a lo pesado. Si ya hay un borrador, se reemplaza: hay uno solo por pieza. */
+export async function subirVersion(d: { entregableId: string; datos?: string | null; url?: string | null; nota?: string }): Promise<Resultado> {
+  const user = await requireCapability("agenda:read");
+  const tenantId = await getCurrentTenantId();
+  const e = await prisma.proyectoEntregable.findFirst({
+    where: { id: String(d.entregableId ?? ""), tenantId, anuladoEl: null },
+    select: { id: true, proyectoId: true, versiones: { select: { id: true, numero: true, estado: true } } },
+  });
+  if (!e) return { ok: false, error: "Esa pieza no existe." };
+  const url = (d.url ?? "").trim();
+  if (d.datos ? !imagenValida(d.datos) : !urlValida(url)) {
+    return { ok: false, error: d.datos ? "La imagen es demasiado pesada o no es válida." : "Elegí una imagen o pegá un link que empiece con https://." };
+  }
+  const contenido = { datos: d.datos || null, url: d.datos ? null : url, nota: (d.nota ?? "").trim().slice(0, 500), subidoPor: user.name };
+  const borrador = e.versiones.find((v) => v.estado === "BORRADOR");
+  if (borrador) {
+    const r = await prisma.proyectoEntregableVersion.updateMany({ where: { id: borrador.id, tenantId, estado: "BORRADOR" }, data: contenido });
+    if (r.count === 0) return { ok: false, error: "Esa versión ya se envió. Recargá la página." };
+  } else {
+    if (e.versiones.length >= MAX_VERSIONES) return { ok: false, error: `Una pieza guarda hasta ${MAX_VERSIONES} versiones. Abrí una pieza nueva para seguir.` };
+    try {
+      const numero = e.versiones.reduce((m, v) => Math.max(m, v.numero), 0) + 1;
+      await prisma.proyectoEntregableVersion.create({ data: { tenantId, entregableId: e.id, numero, ...contenido } });
+    } catch (err) {
+      if ((err as { code?: string }).code === "P2002") return { ok: false, error: "Otra persona acaba de subir una versión. Recargá la página." };
+      throw err;
+    }
+  }
+  refrescar(e.proyectoId);
+  revalidatePath(`${RAIZ}/${e.proyectoId}/entregable/${e.id}`);
+  return { ok: true };
+}
+
+export async function descartarBorrador(formData: FormData) {
+  await requireCapability("agenda:read");
+  const tenantId = await getCurrentTenantId();
+  const id = txt(formData.get("id"));
+  const v = await prisma.proyectoEntregableVersion.findFirst({ where: { id, tenantId, estado: "BORRADOR" }, select: { entregableId: true, entregable: { select: { proyectoId: true } } } });
+  if (!v) return;
+  await prisma.proyectoEntregableVersion.deleteMany({ where: { id, tenantId, estado: "BORRADOR" } });
+  refrescar(v.entregable.proyectoId);
+  revalidatePath(`${RAIZ}/${v.entregable.proyectoId}/entregable/${v.entregableId}`);
+}
+
+/** Enviar congela la versión con la especificación vigente y la pone en el link. La que seguía sin respuesta queda reemplazada. */
+export async function enviarVersion(formData: FormData) {
+  await requireCapability("agenda:read");
+  const tenantId = await getCurrentTenantId();
+  const id = txt(formData.get("id"));
+  const v = await prisma.proyectoEntregableVersion.findFirst({
+    where: { id, tenantId, estado: "BORRADOR", entregable: { anuladoEl: null } },
+    select: { numero: true, entregableId: true, entregable: { select: { especificacion: true, proyectoId: true } } },
+  });
+  if (!v) return;
+  const { proyectoId, especificacion } = v.entregable;
+  await tenantTransaction(async (tx) => {
+    const r = await tx.proyectoEntregableVersion.updateMany({ where: { id, tenantId, estado: "BORRADOR" }, data: { estado: "ENVIADA", enviadaEl: new Date(), especificacion } });
+    if (r.count === 0) return;
+    await tx.proyectoEntregableVersion.updateMany({ where: { tenantId, entregableId: v.entregableId, estado: "ENVIADA", id: { not: id } }, data: { estado: "REEMPLAZADA" } });
+    await tx.proyecto.updateMany({ where: { id: proyectoId, tenantId, tokenEntregables: null }, data: { tokenEntregables: token() } });
+  });
+  await auditAdmin({ action: "proyecto.entregable.enviar", entity: "ProyectoEntregableVersion", entityId: id, changes: { numero: v.numero } });
+  refrescar(proyectoId);
+  revalidatePath(`${RAIZ}/${proyectoId}/entregable/${v.entregableId}`);
+}
+
+/** El cliente responde desde su link, sin login: la llave es el token y cada versión se responde una sola vez. */
+export async function responderEntregable(d: { token: string; versionId: string; aprueba: boolean; nombre: string; comentario?: string }): Promise<Resultado> {
+  const tenantId = await getCurrentTenantId();
+  const clave = String(d.token ?? "");
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(clave)) return { ok: false, error: "El link no es válido." };
+  const nombre = String(d.nombre ?? "").trim().slice(0, 120);
+  if (!nombre) return { ok: false, error: "Escribí tu nombre para dejar constancia." };
+  const comentario = String(d.comentario ?? "").trim().slice(0, 1000);
+  if (!d.aprueba && !comentario) return { ok: false, error: "Contanos qué hay que cambiar." };
+  const id = String(d.versionId ?? "");
+  const v = await prisma.proyectoEntregableVersion.findFirst({
+    where: { id, tenantId, estado: { not: "BORRADOR" }, entregable: { anuladoEl: null, proyecto: { tenantId, tokenEntregables: clave } } },
+    select: { numero: true, entregableId: true, entregable: { select: { proyectoId: true } } },
+  });
+  if (!v) return { ok: false, error: "El link no es válido." };
+  // El estado va en el where: dos clics a la vez, o una versión nueva que llegó recién, no responden de más.
+  const r = await prisma.proyectoEntregableVersion.updateMany({
+    where: { id, tenantId, estado: "ENVIADA" },
+    data: { estado: d.aprueba ? "APROBADA" : "CAMBIOS", respondidaEl: new Date(), respondidoPor: nombre, comentario: comentario || null },
+  });
+  if (r.count === 0) return { ok: false, error: "Esta versión ya fue respondida o reemplazada. Recargá la página." };
+  await auditPublic({ action: d.aprueba ? "proyecto.entregable.aprobar" : "proyecto.entregable.cambios", entity: "ProyectoEntregableVersion", entityId: id, changes: { nombre, numero: v.numero } });
+  revalidatePath(`/entregables/${clave}`);
+  refrescar(v.entregable.proyectoId);
+  revalidatePath(`${RAIZ}/${v.entregable.proyectoId}/entregable/${v.entregableId}`);
+  return { ok: true };
 }
 
 // ── Armador de stands ───────────────────────────────────────────────────────

@@ -10,7 +10,7 @@ import { requireCapability } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
-import { desvioPorRubro, redondear, resultadoReal, totales } from "./core";
+import { desvioPorRubro, redondear, resultadoReal, totales, ultimaEnviada } from "./core";
 import { costosVigentes, normalizarDiseno } from "./stand";
 
 export const veLaPlata = (u: SessionUser): boolean => roleHasCapability(u.role, "agenda:manage");
@@ -60,6 +60,7 @@ export async function tableroProyectos() {
       responsable: true,
       client: { select: { name: true } },
       tareas: { where: { hechaEl: null }, select: { id: true, venceEl: true } },
+      entregables: { where: { anuladoEl: null }, select: { versiones: { select: { numero: true, estado: true } } } },
     },
   });
   return { conPlata: veLaPlata(user), proyectos };
@@ -80,6 +81,11 @@ export async function fichaProyecto(id: string) {
       presupuestos: { orderBy: { version: "desc" }, include: { items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }] } } },
       pagos: { orderBy: { createdAt: "desc" } },
       gastos: { orderBy: [{ fecha: "desc" }, { createdAt: "desc" }], include: { supplier: { select: { name: true } } } },
+      entregables: {
+        where: { anuladoEl: null },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, nombre: true, especificacion: true, venceEl: true, versiones: { orderBy: { numero: "desc" }, select: { numero: true, estado: true, comentario: true, respondidoPor: true } } },
+      },
     },
   });
   if (!proyecto) return null;
@@ -95,6 +101,26 @@ export async function fichaProyecto(id: string) {
   const rubros = desvioPorRubro(vigente?.items ?? [], proyecto.gastos);
   const cobrado = redondear(proyecto.pagos.filter((p) => !p.anuladoEl).reduce((s, p) => s + p.monto, 0));
   return { user, conPlata, proyecto, config, negocio, totalAprobado, cobrado, saldo: redondear(totalAprobado - cobrado), totalesVigente, real, rubros, proveedores: proveedores.map((s) => s.name) };
+}
+
+/** Una pieza con sus versiones. Las imágenes pesan: sólo baja la del borrador, la última enviada y la que se pidió ver. */
+export async function fichaEntregable(proyectoId: string, id: string, ver?: number) {
+  await requireCapability("agenda:read");
+  const tenantId = await getCurrentTenantId();
+  const entregable = await prisma.proyectoEntregable.findFirst({
+    where: { id, proyectoId, tenantId, anuladoEl: null },
+    include: {
+      proyecto: { select: { id: true, numero: true, nombre: true, servicio: true, tokenEntregables: true, client: { select: { name: true, phone: true } } } },
+      versiones: { orderBy: { numero: "desc" }, omit: { datos: true } },
+    },
+  });
+  if (!entregable) return null;
+  const { versiones } = entregable;
+  const conImagen = versiones.filter((v) => v.estado === "BORRADOR" || v === ultimaEnviada(versiones) || v.numero === ver).map((v) => v.id);
+  const imagenes = await prisma.proyectoEntregableVersion.findMany({ where: { tenantId, id: { in: conImagen } }, select: { id: true, datos: true } });
+  const datos = new Map(imagenes.map((i) => [i.id, i.datos]));
+  const negocio = await datosDelNegocio(tenantId);
+  return { negocio, entregable: { ...entregable, versiones: versiones.map((v) => ({ ...v, datos: datos.get(v.id) ?? null })) } };
 }
 
 export async function standParaEditar(proyectoId: string, standId: string) {
@@ -242,6 +268,47 @@ export async function proyectosDelCliente(clientId: string) {
 }
 
 // ── Link público (sin login): la llave es el token ──────────────────────────
+
+/** Las piezas que el cliente puede ver. De cada una, la imagen de la última versión enviada; del resto, lo que se respondió. */
+export async function entregablesPublicos(token: string) {
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(token)) return null;
+  const tenantId = await getCurrentTenantId();
+  const proyecto = await prisma.proyecto.findFirst({
+    where: { tenantId, tokenEntregables: token },
+    select: {
+      nombre: true,
+      servicio: true,
+      evento: true,
+      client: { select: { name: true } },
+      entregables: {
+        // Un borrador todavía no existe para el cliente.
+        where: { anuladoEl: null, versiones: { some: { estado: { not: "BORRADOR" } } } },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          nombre: true,
+          versiones: {
+            where: { estado: { not: "BORRADOR" } },
+            orderBy: { numero: "desc" },
+            select: { id: true, numero: true, estado: true, url: true, nota: true, especificacion: true, respondidaEl: true, respondidoPor: true, comentario: true },
+          },
+        },
+      },
+    },
+  });
+  if (!proyecto) return null;
+  const actuales = proyecto.entregables.map((e) => e.versiones[0].id);
+  const [imagenes, negocio] = await Promise.all([
+    prisma.proyectoEntregableVersion.findMany({ where: { tenantId, id: { in: actuales } }, select: { id: true, datos: true } }),
+    datosDelNegocio(tenantId),
+  ]);
+  const datos = new Map(imagenes.map((i) => [i.id, i.datos]));
+  return {
+    negocio,
+    proyecto: { nombre: proyecto.nombre, servicio: proyecto.servicio, evento: proyecto.evento, cliente: proyecto.client.name },
+    piezas: proyecto.entregables.map(({ id, nombre, versiones: [actual, ...anteriores] }) => ({ id, nombre, actual: { ...actual, datos: datos.get(actual.id) ?? null }, anteriores })),
+  };
+}
 
 export async function propuestaPublica(token: string) {
   if (!/^[A-Za-z0-9_-]{20,}$/.test(token)) return null;

@@ -1,7 +1,38 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { clientePuedeResponder, desvioPorRubro, resultadoReal, totalDelGasto, leerNumero, etapaAlAprobar, etapaLabel, etapaSiguiente, etapasDe, metodoDeCaja, pesos, porcentaje, porRubro, precioConMargen, sePuedeEditar, totales, waLink } from "./core";
+import { ayudaEspecificacion, clientePuedeResponder, desvioPorRubro, estadoDelEntregable, resultadoReal, resumenEntregables, totalDelGasto, leerNumero, etapaAlAprobar, etapaLabel, etapaSiguiente, etapasDe, metodoDeCaja, pesos, porcentaje, porRubro, precioConMargen, sePuedeEditar, totales, ultimaEnviada, waLink } from "./core";
 import { computar, costosVigentes, dentroDelLote, disenoInicial, normalizarDiseno, paredesDe, superficieParedes } from "./stand";
+
+const v = (numero: number, estado: string) => ({ numero, estado });
+
+test("un entregable vale por la última versión que vio el cliente; un borrador no cuenta", () => {
+  assert.equal(estadoDelEntregable([]), "SIN_VERSION");
+  assert.equal(estadoDelEntregable([v(1, "BORRADOR")]), "BORRADOR");
+  assert.equal(estadoDelEntregable([v(1, "ENVIADA")]), "EN_REVISION");
+  assert.equal(estadoDelEntregable([v(1, "CAMBIOS"), v(2, "ENVIADA")]), "EN_REVISION");
+  assert.equal(estadoDelEntregable([v(1, "CAMBIOS"), v(2, "BORRADOR")]), "CAMBIOS");
+  assert.equal(estadoDelEntregable([v(2, "BORRADOR"), v(1, "APROBADA")]), "APROBADO", "corregir algo aprobado no le saca la aprobación hasta que se envíe");
+  assert.equal(estadoDelEntregable([v(1, "APROBADA"), v(2, "ENVIADA")]), "EN_REVISION", "una versión nueva enviada vuelve a pedir respuesta");
+  assert.equal(ultimaEnviada([v(3, "BORRADOR"), v(1, "REEMPLAZADA"), v(2, "ENVIADA")])?.numero, 2);
+  assert.equal(ultimaEnviada([v(1, "BORRADOR")]), null);
+});
+
+test("para corregir son los cambios pedidos que nadie empezó", () => {
+  const r = resumenEntregables([
+    { versiones: [v(1, "APROBADA")] },
+    { versiones: [v(1, "ENVIADA")] },
+    { versiones: [v(1, "CAMBIOS")] },
+    { versiones: [v(1, "CAMBIOS"), v(2, "BORRADOR")] },
+    { versiones: [] },
+  ]);
+  assert.deepEqual(r, { total: 5, aprobados: 1, esperando: 1, paraCorregir: 1 });
+});
+
+test("la especificación pide lo que importa en cada servicio", () => {
+  assert.match(ayudaEspecificacion("CONTENIDOS"), /Plataforma/);
+  assert.match(ayudaEspecificacion("BRANDING"), /Medida/);
+  assert.match(ayudaEspecificacion("cualquiera"), /formato/);
+});
 
 test("el porcentaje va con coma, igual que la plata", () => {
   assert.equal(porcentaje(33.8), "33,8%");

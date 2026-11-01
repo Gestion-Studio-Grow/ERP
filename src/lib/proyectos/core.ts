@@ -263,3 +263,48 @@ export function fechaParaInput(d: Date | null | undefined): string {
 
 /** Con el 549 del celular argentino que wa.me necesita; `null` si el número cargado no sirve. */
 export const waLink = waLinkClienta;
+
+// ── Entregables ─────────────────────────────────────────────────────────────
+
+export type EstadoEntregable = "SIN_VERSION" | "BORRADOR" | "EN_REVISION" | "CAMBIOS" | "APROBADO";
+
+export const ESTADO_ENTREGABLE_LABEL: Record<EstadoEntregable, string> = {
+  SIN_VERSION: "Sin versión",
+  BORRADOR: "Borrador sin enviar",
+  EN_REVISION: "Esperando al cliente",
+  CAMBIOS: "Cambios pedidos",
+  APROBADO: "Aprobado",
+};
+
+type VersionConEstado = { numero: number; estado: string };
+
+/** La última que vio el cliente. Un borrador todavía no existe para él. */
+export function ultimaEnviada<T extends VersionConEstado>(versiones: readonly T[]): T | null {
+  return versiones.filter((v) => v.estado !== "BORRADOR").reduce<T | null>((m, v) => (!m || v.numero > m.numero ? v : m), null);
+}
+
+/** Manda la última enviada: un borrador encima no le saca la aprobación ni los cambios pedidos a lo que el cliente vio. */
+export function estadoDelEntregable(versiones: readonly VersionConEstado[]): EstadoEntregable {
+  const u = ultimaEnviada(versiones);
+  if (!u) return versiones.length > 0 ? "BORRADOR" : "SIN_VERSION";
+  if (u.estado === "APROBADA") return "APROBADO";
+  return u.estado === "CAMBIOS" ? "CAMBIOS" : "EN_REVISION";
+}
+
+/** Para corregir: pidieron cambios y todavía nadie empezó la versión siguiente. */
+export function resumenEntregables(lista: readonly { versiones: readonly VersionConEstado[] }[]) {
+  const estados = lista.map((e) => ({ estado: estadoDelEntregable(e.versiones), conBorrador: e.versiones.some((v) => v.estado === "BORRADOR") }));
+  return {
+    total: lista.length,
+    aprobados: estados.filter((e) => e.estado === "APROBADO").length,
+    esperando: estados.filter((e) => e.estado === "EN_REVISION").length,
+    paraCorregir: estados.filter((e) => e.estado === "CAMBIOS" && !e.conBorrador).length,
+  };
+}
+
+/** Lo que importa de una pieza cambia con el servicio: una lona se mide, un video se publica. */
+export function ayudaEspecificacion(servicio: string): string {
+  if (servicio === "CONTENIDOS") return "Plataforma, formato, duración";
+  if (servicio === "BRANDING" || servicio === "ARQUITECTURA") return "Medida, material, instalación";
+  return "Medida, formato o material";
+}

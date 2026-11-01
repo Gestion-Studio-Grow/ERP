@@ -167,7 +167,7 @@ test("MIA: las pantallas de otros rubros llevan a la portada sólo en su host", 
   for (const ruta of ["/servicios", "/servicios/:resto*", "/clases", "/facturita", "/tienda", "/reserva"]) {
     assert.ok(deMia.includes(ruta), ruta);
   }
-  for (const ruta of ["/admin", "/admin/:resto*", "/propuesta", "/propuesta/:resto*", "/api", "/operador"]) {
+  for (const ruta of ["/admin", "/admin/:resto*", "/propuesta", "/propuesta/:resto*", "/entregables", "/entregables/:resto*", "/api", "/operador"]) {
     assert.ok(!deMia.includes(ruta), `${ruta} no se puede cerrar: es su panel, su propuesta o la plataforma`);
   }
   assert.ok(!delHost("chestetica.gsgapp.com.ar").length, "CH sigue con sus pantallas");
