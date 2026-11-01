@@ -75,7 +75,7 @@ function RenglonDeInterruptor({
 
   const texto = !interruptor.cambiaLasApps ? (
     <span className="text-muted">
-      {prendido ? "Si lo apagás, en la próxima carga se ve como siempre." : "No cambia qué apps ve cada persona ni sus datos: sólo cómo se ven."}
+      {prendido ? "Si lo apagás, en la próxima carga se ve como siempre." : (interruptor.alPrender ?? "No cambia qué apps ve cada persona ni sus datos: sólo cómo se ven.")}
     </span>
   ) : prendido ? (
     <span className="text-muted">

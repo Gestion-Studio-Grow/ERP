@@ -44,6 +44,8 @@ export interface Interruptor {
   nombre: string;
   /** Qué cambia en el negocio, en una línea para la ficha. */
   queCambia: string;
+  /** Lo que se le aclara al operador antes de prenderlo, si no es sólo «cómo se ve». */
+  alPrender?: string;
   /** Qué se nombra en la Auditoría del negocio: "GSG activó <esto>". */
   enAuditoria: string;
   /**
@@ -71,7 +73,8 @@ export const INTERRUPTORES = [
     id: "diseno-nuevo",
     nombre: "Diseño nuevo",
     queCambia:
-      "El diseño nuevo en su panel: botones, cifras y pantallas renovados, con las mismas apps y los mismos datos. Apagado, se ve como siempre.",
+      "El diseño nuevo en su panel y, en CH, también en su sitio: botones, cifras y pantallas renovados, con las mismas apps y los mismos datos. Apagado, se ve como siempre.",
+    alPrender: "No cambia qué apps ve cada persona ni sus datos: cambia cómo se ven el panel y, en CH, el sitio que ven las clientas.",
     enAuditoria: "el diseño nuevo",
     cambiaLasApps: false,
   },
@@ -83,7 +86,8 @@ export const INTERRUPTORES = [
     id: "agenda-practica",
     nombre: "Agenda práctica",
     queCambia:
-      "La agenda pregunta qué pasa con la seña al cancelar o marcar que no vino, propone mañana en el alta, ofrece reservar el próximo y avisa a la lista de espera. La clienta cancela online sólo con la anticipación del negocio. Apagado, la agenda de siempre.",
+      "La agenda pregunta qué pasa con la seña al cancelar o marcar que no vino, propone mañana en el alta, ofrece reservar el próximo y avisa a la lista de espera. La clienta cancela online sólo con la anticipación del negocio, si está cargada (CANCELACION_ONLINE_HORAS). Apagado, la agenda de siempre.",
+    alPrender: "No cambia qué apps ve cada persona. Sí cambia cómo se trabaja y una regla: con la anticipación cargada, la clienta ya no cancela online fuera de plazo.",
     enAuditoria: "la agenda práctica",
     cambiaLasApps: false,
   },
