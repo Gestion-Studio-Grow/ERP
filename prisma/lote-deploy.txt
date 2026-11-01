@@ -38,4 +38,9 @@
 # 2026-10-30: pase de M1 (orden del dueño). 20261030120000_m1_enums_caja (tres ADD VALUE de enum,
 # irreversibles) se aplica a mano con `prisma migrate deploy` ANTES del push (camino B): no entra
 # en la lista. Vuelta atrás del código: docs/runbooks/gate2-nivel2.md §5 bis.
-20261015120000_modulo_padel_clases
+#
+# 2026-11-01: módulo PROYECTOS (MIA Producciones). Aditiva: ocho tablas nuevas con RLS adentro y una
+# columna nullable con índice único en "CashMovement" (la clave del asiento de cada cobro). Padel-clases
+# sale de la lista: MEDIDO ese día contra Neon (scripts/taller/migrar-produccion.mjs, sólo lectura), lo
+# único pendiente es ésta. Sin aplicar: el pase está en docs/tenants/mia-producciones/README.md.
+20261101120000_modulo_proyectos
