@@ -11,6 +11,10 @@
 // Cada pestaña es un enlace (`?pestana=fiscal`): sin JavaScript abre la misma pestaña desde el
 // servidor, y se puede compartir. Con JavaScript cambia en el lugar y reescribe la URL.
 //
+// LA PESTAÑA SIGUE A LA URL. Un <Link href="?pestana=personas"> (los botones de Puesta en marcha) no
+// remonta esta pieza. Se mira `?pestana=` y no el prop `inicial`: tras entrar con `personas` y tocar
+// Puesta, el servidor vuelve a mandar `personas` y el prop no cambió, aunque la URL sí.
+//
 // VOLVER A LA MISMA PESTAÑA DESPUÉS DE GUARDAR. Las actions de la consola (operator-actions.ts, que
 // no son de esta pantalla) vuelven a `/operador/tenants/<id>?ok=…`, a veces con un ancla (#apps,
 // #interruptores, #red). Sin la pestaña en la URL, la persona que guardó el CUIT caería en «Puesta
@@ -18,6 +22,7 @@
 // contiene y, si no hay ancla, la última pestaña tocada en esta ficha (sessionStorage, sólo con un
 // `ok`/`error` en la URL: al entrar de cero se abre la que pide la URL o la primera).
 
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { PestanaFicha } from "../../negocios-core";
 
@@ -57,6 +62,15 @@ export default function FichaConPestanas({
   const lista = useRef<HTMLDivElement>(null);
   const ids = pestanas.map((p) => p.id);
 
+  // Cambió `?pestana=` sin remontar: se corrige en el mismo render, con el panel ya visible cuando
+  // Next busca el ancla. Sin `?pestana=` (vuelve de guardar con `?ok=`) la pestaña queda donde estaba.
+  const pedida = useSearchParams().get("pestana");
+  const [vista, setVista] = useState(pedida);
+  if (pedida !== vista) {
+    setVista(pedida);
+    if (pedida && (ids as string[]).includes(pedida)) setActiva(pedida as PestanaFicha);
+  }
+
   // Al llegar después de guardar: el ancla, o la última pestaña tocada en esta ficha.
   useEffect(() => {
     if (pedidaEnLaUrl) return;
@@ -90,7 +104,9 @@ export default function FichaConPestanas({
     url.searchParams.delete("ok");
     url.searchParams.delete("error");
     url.hash = "";
-    window.history.replaceState(window.history.state, "", url.toString());
+    // `null`, no `window.history.state`: con su `__NA` Next lo toma como propio y useSearchParams sigue
+    // con la URL vieja (app-router.js). Así se entera, sin pedirle nada al servidor, y conserva su estado.
+    window.history.replaceState(null, "", url.toString());
     if (foco) lista.current?.querySelector<HTMLElement>(`#pestana-${id}`)?.focus();
   };
 
