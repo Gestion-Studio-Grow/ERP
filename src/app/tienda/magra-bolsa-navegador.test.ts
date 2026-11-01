@@ -172,7 +172,8 @@ describe("La bolsa de MAGRA en el navegador", { timeout: 120_000 }, () => {
     assert.equal(arriba, true, "el toque en el centro de «Pedir por WhatsApp» cae en el botón");
     await hoja.getByRole("button", { name: "Cerrar mi bolsa" }).click();
     // Al final de la página, el pie (la línea legal) termina por encima de la barra.
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    // Instantáneo: la vidriera tiene `scroll-behavior: smooth` y hay que medir al llegar, no durante el viaje.
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
     const [b, legal] = await Promise.all([barra.boundingBox(), page.locator(".mg-pie-legal").boundingBox()]);
     assert.ok(b && legal);
     assert.ok(legal.y + legal.height <= b.y, `el pie termina en ${legal.y + legal.height} y la barra empieza en ${b.y}: lo tapa`);
