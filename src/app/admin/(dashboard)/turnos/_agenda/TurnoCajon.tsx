@@ -172,7 +172,7 @@ function ConMotivo({
             maxLength={12}
           />
           <p className="text-xs text-muted">
-            La dueña lo saca en este cobro, con «Autorizar anulación». Vale unos minutos y sólo para este cobro.
+            Pedile el código a la dueña. Vale unos minutos y sólo para este cobro.
           </p>
         </>
       )}

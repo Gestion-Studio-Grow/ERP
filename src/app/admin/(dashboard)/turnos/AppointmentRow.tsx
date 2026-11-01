@@ -323,7 +323,7 @@ function CorreccionConMotivo({
             spellCheck={false}
             className={`rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent ${TOQUE_CEL}`}
           />
-          <p className="text-xs text-muted">La dueña lo saca en este cobro, con «Autorizar anulación». Vale unos minutos y sólo para este cobro.</p>
+          <p className="text-xs text-muted">Pedile el código a la dueña. Vale unos minutos y sólo para este cobro.</p>
         </>
       )}
       <div className="flex items-center gap-3 text-xs">
