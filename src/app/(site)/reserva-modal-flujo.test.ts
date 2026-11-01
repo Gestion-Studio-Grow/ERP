@@ -215,7 +215,7 @@ for (const nuevo of [true, false]) {
   });
 }
 
-test("prendido: rechazo con la hora ya ocupada vuelve al paso 3, sin esa hora y avisando en el pie", async () => {
+test("prendido: un rechazo no relee: queda en el paso 4 con el motivo, y al volver manda el día marcado (H1)", async () => {
   await abrir(true);
   await clic("SrvX");
   await clic("Ana");
@@ -223,12 +223,22 @@ test("prendido: rechazo con la hora ya ocupada vuelve al paso 3, sin esa hora y 
   await clic("09:00");
   await clic("Continuar");
   respuesta = { ok: false, error: "Ese horario ya no está disponible." };
-  sinHora.add(HORA[LUN]);
+  sinHora.add(HORA[LUN]); // Aunque la hora ya no exista, no se vuelve a buscar ni se salta de paso solo.
   await confirmarDatos();
+  assert.equal(cola.length, 0, "tras el rechazo no hay relectura");
   await soltarTodo();
-  assert.equal(paso(), "3");
-  assert.deepEqual(horas(), []);
-  assert.deepEqual(avisos(), ["La hora que tenías elegida se ocupó. Elegí otra."]);
+  assert.equal(paso(), "4");
+  assert.deepEqual(avisos(), ["Ese horario ya no está disponible."]);
+  await clic("Volver");
+  assert.deepEqual(diaMarcado(), ["lun 2"]);
+  await clic(/^mar 3/);
+  assert.deepEqual(diaMarcado(), ["mar 3"]);
+  assert.deepEqual(horas(), ["10:00"], "la lista es la del día marcado");
+  await clic("10:00");
+  await clic("Continuar");
+  respuesta = { ok: true, id: "abcdef123456", startsAt: HORA[MAR] };
+  await clic("Confirmar");
+  assert.equal(creadas.at(-1)!.startsAtIso, HORA[MAR], "la reserva sale el día marcado");
 });
 
 test("prendido: rechazo con la hora todavía libre queda en el paso 4, con el motivo en el pie; al volver se va", async () => {

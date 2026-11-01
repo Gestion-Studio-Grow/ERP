@@ -94,8 +94,6 @@ export default function BookingModal({
   const [intentoEn, setIntentoEn] = useState(0);
   // Sube cada vez que cambia el servicio o la profesional: lo que llegue de antes no vale.
   const eleccionActual = useRef(0);
-  // Sube tras un rechazo del servidor: vuelve a traer los horarios (la hora rechazada puede ya no estar).
-  const [releer, setReleer] = useState(0);
   const intento = intentoEn === step;
   const [slotsPending, startSlots] = useTransition();
 
@@ -240,7 +238,7 @@ export default function BookingModal({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pro, svc, releer]);
+  }, [pro, svc]);
 
   // Diseño nuevo (P1-2, QA 16): lo elegido sobrevive a un recargar, en esta pestaña. Sólo la elección: nombre, teléfono,
   // email y cupón no se guardan (son datos de una persona y este navegador puede ser de cualquiera). Confirmado, se borra.
@@ -340,14 +338,9 @@ export default function BookingModal({
         couponCode: couponApplied?.code,
       });
       if (!res.ok) {
-        // El motivo viene escrito para la clienta (horario ocupado, ya pasado…).
+        // El motivo viene escrito para la clienta (horario ocupado, ya pasado…). Se queda en el paso 4 y no se relee nada:
+        // una relectura acá podía dejar en la lista los horarios de un día que ya no es el marcado (H1).
         setError(res.error);
-        if (nuevo) {
-          // Si la hora ya no existe, el efecto vuelve al paso 3 y lo dice. Si sigue libre, el aviso queda en el paso 4.
-          diaPrecargado.current = day;
-          horaPrecargada.current = slot;
-          setReleer((n) => n + 1);
-        }
         return;
       }
       setReservaId(res.id);
