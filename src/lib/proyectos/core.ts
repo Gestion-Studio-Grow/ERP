@@ -20,26 +20,20 @@ export const ETAPAS = ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA",
 export type Etapa = (typeof ETAPAS)[number];
 
 const ETAPA_LABEL: Record<Etapa, string> = {
-  PEDIDO: "Pedido",
-  DISENO: "Diseño",
-  RENDER: "Render 3D",
-  PRESUPUESTO: "Presupuesto",
-  PROPUESTA: "Propuesta enviada",
-  APROBADO: "Aprobado",
-  PRODUCCION: "Producción",
-  ARMADO: "Armado",
-  DESARME: "Desarme",
+  PEDIDO: "Lead / brief",
+  DISENO: "Desglose",
+  RENDER: "Propuesta creativa",
+  PRESUPUESTO: "Cotización",
+  PROPUESTA: "Enviado al cliente",
+  APROBADO: "Confirmado",
+  PRODUCCION: "Desarrollo técnico",
+  ARMADO: "Producción y seguimiento",
+  DESARME: "Evento",
   CIERRE: "Cierre",
 };
 
-/** Un video no se arma ni se desarma, y un evento puede no pasar por el 3D. */
-const SIN: Record<Servicio, readonly Etapa[]> = {
-  ARQUITECTURA: [],
-  BRANDING: [],
-  EXPERIENCIAS: [],
-  EVENTOS: ["RENDER"],
-  CONTENIDOS: ["RENDER", "ARMADO", "DESARME"],
-};
+/** Todos los servicios recorren las mismas diez etapas (pedido del dueño, 01/11/2026). */
+const SIN: Record<Servicio, readonly Etapa[]> = { ARQUITECTURA: [], BRANDING: [], EXPERIENCIAS: [], EVENTOS: [], CONTENIDOS: [] };
 
 export const esServicio = (v: unknown): v is Servicio => typeof v === "string" && (SERVICIOS as readonly string[]).includes(v);
 export const esEtapa = (v: unknown): v is Etapa => typeof v === "string" && (ETAPAS as readonly string[]).includes(v);
@@ -227,7 +221,7 @@ export function metodoDeCaja(medio: MedioPago, transferenciaEnElLibro = false): 
 export const ESTADO_PRESUPUESTO_LABEL: Record<string, string> = {
   BORRADOR: "Borrador",
   ENVIADO: "Enviado",
-  APROBADO: "Aprobado",
+  APROBADO: "Confirmado",
   RECHAZADO: "Rechazado",
   REEMPLAZADO: "Reemplazado",
 };
@@ -273,7 +267,7 @@ export const ESTADO_ENTREGABLE_LABEL: Record<EstadoEntregable, string> = {
   BORRADOR: "Borrador sin enviar",
   EN_REVISION: "Esperando al cliente",
   CAMBIOS: "Cambios pedidos",
-  APROBADO: "Aprobado",
+  APROBADO: "Confirmado",
 };
 
 type VersionConEstado = { numero: number; estado: string };

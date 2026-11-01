@@ -50,3 +50,5 @@
 # 2026-11-01: ENTREGABLES de un proyecto. Aditiva: dos tablas nuevas con RLS y una columna nullable con índice único en
 # "Proyecto", que crea la primera de este lote. Sin aplicar; van las tres juntas en el pase.
 20261101140000_proyecto_entregables
+# 2026-11-01: GESTION DE EVENTOS de MIA. Aditiva: tablas nuevas con RLS y columnas en tablas del modulo. Sin aplicar.
+20261101150000_proyecto_gestion_eventos

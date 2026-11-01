@@ -198,96 +198,115 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  boxes                    Box[]
-  boxBlocks                BoxBlock[]
-  professionals            Professional[]
-  workingHours             WorkingHours[]
-  services                 Service[]
-  products                 Product[]
-  serviceProducts          ServiceProduct[]
-  clients                  Client[]
-  appointments             Appointment[]
-  reviews                  Review[]
-  payments                 Payment[]
-  auditLogs                AuditLog[]
-  serviceCategories        ServiceCategory[]
-  professionalBlocks       ProfessionalBlock[]
-  serviceCommissions       ProfessionalServiceCommission[]
-  resources                Resource[]
-  serviceResources         ServiceResource[]
-  messageTemplates         MessageTemplate[]
-  professionalNews         ProfessionalNews[]
-  coupons                  Coupon[]
-  users                    User[]
-  businessSettings         BusinessSettings?
-  commissionPayouts        CommissionPayout[]
-  waitlistEntries          WaitlistEntry[]
-  tallerVehiculos          TallerVehiculo[] // módulo taller
-  tallerOrdenes            TallerOrden[]
-  tallerItems              TallerItem[]
-  tallerFotos              TallerFoto[]
-  tallerPagos              TallerPago[]
-  tallerConfig             TallerConfig?
-  tallerAvisosEnviados     TallerAvisoEnviado[]
-  proyectos                Proyecto[] // módulo proyectos
-  proyectoTareas           ProyectoTarea[]
-  proyectoPresupuestos     ProyectoPresupuesto[]
-  proyectoItems            ProyectoItem[]
-  proyectoPagos            ProyectoPago[]
-  proyectoGastos           ProyectoGasto[]
-  proyectoEntregables      ProyectoEntregable[]
-  proyectoEntregableVers   ProyectoEntregableVersion[]
-  proyectoArchivos         ProyectoArchivo[]
-  proyectoStands           ProyectoStand[]
-  proyectoConfig           ProyectoConfig?
-  inmoPropiedades          InmoPropiedad[] // módulo inmobiliaria
-  inmoFotos                InmoFoto[]
-  inmoConsultas            InmoConsulta[]
-  inmoContratos            InmoContrato[]
-  inmoAjustes              InmoAjuste[]
-  inmoCuotas               InmoCuota[]
-  inmoPagos                InmoPago[]
-  inmoLiquidaciones        InmoLiquidacion[]
-  inmoIndices              InmoIndice[]
-  inmoConfig               InmoConfig?
-  padelConfig              PadelConfig? // módulo padel-clases (profe de pádel)
-  padelDisponibilidades    PadelDisponibilidad[]
-  padelAlumnos             PadelAlumno[]
-  padelClases              PadelClase[]
-  padelAvisos              PadelAviso[]
-  invoices                 Invoice[]
-  outboxEvents             OutboxEvent[]
-  orders                   Order[]
-  orderItems               OrderItem[]
-  cashSessions             CashSession[]
-  cashMovements            CashMovement[]
-  stockPurchases           StockPurchase[]
-  stockPurchaseItems       StockPurchaseItem[]
-  stockMovements           StockMovement[]
-  suppliers                Supplier[] // D1 — proveedor maestro (ADR-060 Fase C)
-  collections              Collection[] // D9 — cobros/settlement (ADR-060 Fase C.5)
-  accountsPayable          AccountPayable[] // D2 — cuentas a pagar (ADR-060 Fase D)
-  payableCheques           PayableCheque[] // D2 — cheques diferidos
-  accountsReceivable       AccountReceivable[] // D3 — fiado / cuentas a cobrar (ADR-060 Fase E)
-  importacionesBancarias   ImportacionBancaria[] // módulo BANCOS — extractos importados
-  movimientosImportados    MovimientoImportado[] // módulo BANCOS — movimientos del extracto
-  reglasClasificacionBanco ReglaClasificacionBancoTenant[] // módulo BANCOS — aprendizaje del clasificador
-  carteraClientes          CarteraCliente[]                @relation("CarteraDelEstudio") // módulo CARTERA — clientes que administra este estudio
-  carteraComoCliente       CarteraCliente[]                @relation("CarteraComoCliente") // módulo CARTERA — carteras donde este tenant es el cliente
-  leadsCampania            LeadCampania[] // captación de campañas presenciales (QR del evento)
-  fiscalCredential         TenantFiscalCredential? // cert/clave ARCA del emisor, CIFRADOS (ADR-066)
+  boxes                     Box[]
+  boxBlocks                 BoxBlock[]
+  professionals             Professional[]
+  workingHours              WorkingHours[]
+  services                  Service[]
+  products                  Product[]
+  serviceProducts           ServiceProduct[]
+  clients                   Client[]
+  appointments              Appointment[]
+  reviews                   Review[]
+  payments                  Payment[]
+  auditLogs                 AuditLog[]
+  serviceCategories         ServiceCategory[]
+  professionalBlocks        ProfessionalBlock[]
+  serviceCommissions        ProfessionalServiceCommission[]
+  resources                 Resource[]
+  serviceResources          ServiceResource[]
+  messageTemplates          MessageTemplate[]
+  professionalNews          ProfessionalNews[]
+  coupons                   Coupon[]
+  users                     User[]
+  businessSettings          BusinessSettings?
+  commissionPayouts         CommissionPayout[]
+  waitlistEntries           WaitlistEntry[]
+  tallerVehiculos           TallerVehiculo[] // módulo taller
+  tallerOrdenes             TallerOrden[]
+  tallerItems               TallerItem[]
+  tallerFotos               TallerFoto[]
+  tallerPagos               TallerPago[]
+  tallerConfig              TallerConfig?
+  tallerAvisosEnviados      TallerAvisoEnviado[]
+  proyectos                 Proyecto[] // módulo proyectos
+  proyectoCuotas            ProyectoCuota[]
+  proyectoProveedorFichas   ProyectoProveedorFicha[]
+  proyectoPersonas          ProyectoPersona[]
+  proyectoEquipos           ProyectoEquipo[]
+  proyectoReuniones         ProyectoReunion[]
+  proyectoChecklists        ProyectoChecklist[]
+  proyectoMensajes          ProyectoMensaje[]
+  proyectoComentariosImagen ProyectoComentarioImagen[]
+  proyectoIdeas             ProyectoIdea[]
+  proyectoPresentaciones    ProyectoPresentacion[]
+  proyectoGastosFijos       ProyectoGastoFijo[]
+  proyectoCuentasBanco      ProyectoCuentaBanco[]
+  proyectoMovsBanco         ProyectoMovBanco[]
+  proyectoTiposCambio       ProyectoTipoCambio[]
+  proyectoLiquidaciones     ProyectoLiquidacion[]
+  proyectoAvisos            ProyectoAviso[]
+  proyectoAvisoPrefs        ProyectoAvisoPref[]
+  proyectoPermisos          ProyectoPermiso[]
+  proyectoCambios           ProyectoCambio[]
+  proyectoTareas            ProyectoTarea[]
+  proyectoPresupuestos      ProyectoPresupuesto[]
+  proyectoItems             ProyectoItem[]
+  proyectoPagos             ProyectoPago[]
+  proyectoGastos            ProyectoGasto[]
+  proyectoEntregables       ProyectoEntregable[]
+  proyectoEntregableVers    ProyectoEntregableVersion[]
+  proyectoArchivos          ProyectoArchivo[]
+  proyectoStands            ProyectoStand[]
+  proyectoConfig            ProyectoConfig?
+  inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
+  inmoFotos                 InmoFoto[]
+  inmoConsultas             InmoConsulta[]
+  inmoContratos             InmoContrato[]
+  inmoAjustes               InmoAjuste[]
+  inmoCuotas                InmoCuota[]
+  inmoPagos                 InmoPago[]
+  inmoLiquidaciones         InmoLiquidacion[]
+  inmoIndices               InmoIndice[]
+  inmoConfig                InmoConfig?
+  padelConfig               PadelConfig? // módulo padel-clases (profe de pádel)
+  padelDisponibilidades     PadelDisponibilidad[]
+  padelAlumnos              PadelAlumno[]
+  padelClases               PadelClase[]
+  padelAvisos               PadelAviso[]
+  invoices                  Invoice[]
+  outboxEvents              OutboxEvent[]
+  orders                    Order[]
+  orderItems                OrderItem[]
+  cashSessions              CashSession[]
+  cashMovements             CashMovement[]
+  stockPurchases            StockPurchase[]
+  stockPurchaseItems        StockPurchaseItem[]
+  stockMovements            StockMovement[]
+  suppliers                 Supplier[] // D1 — proveedor maestro (ADR-060 Fase C)
+  collections               Collection[] // D9 — cobros/settlement (ADR-060 Fase C.5)
+  accountsPayable           AccountPayable[] // D2 — cuentas a pagar (ADR-060 Fase D)
+  payableCheques            PayableCheque[] // D2 — cheques diferidos
+  accountsReceivable        AccountReceivable[] // D3 — fiado / cuentas a cobrar (ADR-060 Fase E)
+  importacionesBancarias    ImportacionBancaria[] // módulo BANCOS — extractos importados
+  movimientosImportados     MovimientoImportado[] // módulo BANCOS — movimientos del extracto
+  reglasClasificacionBanco  ReglaClasificacionBancoTenant[] // módulo BANCOS — aprendizaje del clasificador
+  carteraClientes           CarteraCliente[]                @relation("CarteraDelEstudio") // módulo CARTERA — clientes que administra este estudio
+  carteraComoCliente        CarteraCliente[]                @relation("CarteraComoCliente") // módulo CARTERA — carteras donde este tenant es el cliente
+  leadsCampania             LeadCampania[] // captación de campañas presenciales (QR del evento)
+  fiscalCredential          TenantFiscalCredential? // cert/clave ARCA del emisor, CIFRADOS (ADR-066)
   // Lanzamiento (20260925120000_lanzamiento_base): suite de integraciones, contador por
   // WhatsApp, receptores fiscales y caché del ticket de ARCA.
-  integracionConexiones    IntegracionConexion[]
-  integracionUsos          IntegracionUso[]
-  integracionEstadosOAuth  IntegracionEstadoOAuth[]
-  conversacionesWhatsapp   ConversacionWhatsapp[]
-  receptoresFiscales       ReceptorFiscal[]
-  arcaAuthTickets          ArcaAuthTicket[]
+  integracionConexiones     IntegracionConexion[]
+  integracionUsos           IntegracionUso[]
+  integracionEstadosOAuth   IntegracionEstadoOAuth[]
+  conversacionesWhatsapp    ConversacionWhatsapp[]
+  receptoresFiscales        ReceptorFiscal[]
+  arcaAuthTickets           ArcaAuthTicket[]
   // Motor de facturación (20261022140100_regla_facturacion): abonos del estudio por cliente.
-  reglasFacturacion        ReglaFacturacion[]
+  reglasFacturacion         ReglaFacturacion[]
   // Motor de facturación (20261022150000_cobro_facturado): una factura por cobro (R1).
-  cobrosFacturados         CobroFacturado[]
+  cobrosFacturados          CobroFacturado[]
 
   // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
   // La gestiona el plano de operador (superficie separada, cross-tenant), no el
@@ -1747,6 +1766,9 @@ model Supplier {
   purchases        StockPurchase[] // back-relation de la FK nullable en StockPurchase (D6)
   payables         AccountPayable[] // D2 — cuentas a pagar a este proveedor
   gastosDeProyecto ProyectoGasto[]
+  itemsDeProyecto  ProyectoItem[]
+  cuotasDeProyecto ProyectoCuota[]
+  fichaDeProyecto  ProyectoProveedorFicha?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3201,33 +3223,53 @@ model PadelAviso {
 // ── Módulo PROYECTOS: el trabajo de una productora, de punta a punta (ADR-054/055) ──
 
 model Proyecto {
-  id               String                @id @default(cuid())
-  tenant           Tenant                @relation(fields: [tenantId], references: [id])
-  tenantId         String
-  numero           Int
-  client           Client                @relation(fields: [clientId], references: [id])
-  clientId         String
-  nombre           String
-  servicio         String // EVENTOS · EXPERIENCIAS · ARQUITECTURA · BRANDING · CONTENIDOS
-  etapa            String                @default("PEDIDO")
-  evento           String?
-  lugar            String?
-  fechaArmado      DateTime?
-  fechaEvento      DateTime?
-  fechaDesarme     DateTime?
-  responsable      String?
-  brief            String                @default("")
+  id                  String                 @id @default(cuid())
+  tenant              Tenant                 @relation(fields: [tenantId], references: [id])
+  tenantId            String
+  numero              Int
+  client              Client                 @relation(fields: [clientId], references: [id])
+  clientId            String
+  nombre              String
+  servicio            String // EVENTOS · EXPERIENCIAS · ARQUITECTURA · BRANDING · CONTENIDOS
+  etapa               String                 @default("PEDIDO")
+  evento              String?
+  lugar               String?
+  fechaArmado         DateTime?
+  fechaEvento         DateTime?
+  fechaDesarme        DateTime?
+  responsable         String?
+  brief               String                 @default("")
+  tipoEvento          String?
+  ciudad              String?
+  fechaFin            DateTime?
+  invitados           Int?
+  moneda              String                 @default("ARS")
+  presupuestoEstimado Float?
+  anticipoClientePct  Float                  @default(50)
+  carpetaUrl          String?
+  contactoNombre      String?
+  contactoEmail       String?
+  perdidoEl           DateTime?
+  motivoPerdida       String?
+  tokenPortal         String?                @unique
   // El link donde el cliente revisa las piezas. Nace con la primera versión enviada.
-  tokenEntregables String?               @unique
-  tareas           ProyectoTarea[]
-  presupuestos     ProyectoPresupuesto[]
-  pagos            ProyectoPago[]
-  gastos           ProyectoGasto[]
-  archivos         ProyectoArchivo[]
-  stands           ProyectoStand[]
-  entregables      ProyectoEntregable[]
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  tokenEntregables    String?                @unique
+  tareas              ProyectoTarea[]
+  presupuestos        ProyectoPresupuesto[]
+  pagos               ProyectoPago[]
+  gastos              ProyectoGasto[]
+  archivos            ProyectoArchivo[]
+  stands              ProyectoStand[]
+  entregables         ProyectoEntregable[]
+  cuotas              ProyectoCuota[]
+  equipo              ProyectoEquipo[]
+  reuniones           ProyectoReunion[]
+  checklist           ProyectoChecklist[]
+  mensajes            ProyectoMensaje[]
+  idea                ProyectoIdea?
+  presentaciones      ProyectoPresentacion[]
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
 
   @@unique([tenantId, numero])
   @@index([tenantId, etapa])
@@ -3242,6 +3284,9 @@ model ProyectoTarea {
   proyectoId  String
   titulo      String
   responsable String?
+  personaId   String?
+  area        String    @default("PRODUCCION") // PRODUCCION · DISENO
+  estado      String    @default("POR_HACER") // POR_HACER · EN_CURSO · REVISION · APROBADA
   venceEl     DateTime?
   hechaEl     DateTime?
   createdAt   DateTime  @default(now())
@@ -3250,45 +3295,58 @@ model ProyectoTarea {
 }
 
 model ProyectoPresupuesto {
-  id            String         @id @default(cuid())
-  tenant        Tenant         @relation(fields: [tenantId], references: [id])
-  tenantId      String
-  proyecto      Proyecto       @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
-  proyectoId    String
-  version       Int
-  estado        String         @default("BORRADOR") // BORRADOR · ENVIADO · APROBADO · RECHAZADO · REEMPLAZADO
-  token         String         @unique
-  ivaPct        Float          @default(21)
-  presentacion  String         @default("")
-  condiciones   String         @default("")
-  enviadoEl     DateTime?
-  validoHasta   DateTime?
-  respondidoEl  DateTime?
-  respondidoPor String?
-  motivoRechazo String?
-  items         ProyectoItem[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                 String         @id @default(cuid())
+  tenant             Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId           String
+  proyecto           Proyecto       @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId         String
+  version            Int
+  estado             String         @default("BORRADOR") // BORRADOR · ENVIADO · APROBADO · RECHAZADO · REEMPLAZADO
+  token              String         @unique
+  ivaPct             Float          @default(21)
+  presentacion       String         @default("")
+  condiciones        String         @default("")
+  enviadoEl          DateTime?
+  validoHasta        DateTime?
+  respondidoEl       DateTime?
+  respondidoPor      String?
+  motivoRechazo      String?
+  nota               String         @default("")
+  creadoPor          String?
+  aprobadoInternoPor String?
+  aprobadoInternoEl  DateTime?
+  foto               Json? // lo que tenía cada ítem al enviarse: permite comparar versiones
+  items              ProyectoItem[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@unique([tenantId, proyectoId, version])
 }
 
 model ProyectoItem {
-  id            String              @id @default(cuid())
-  tenant        Tenant              @relation(fields: [tenantId], references: [id])
-  tenantId      String
-  presupuesto   ProyectoPresupuesto @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
-  presupuestoId String
-  rubro         String
-  descripcion   String
-  unidad        String              @default("u")
-  cantidad      Float               @default(1)
-  costo         Float               @default(0)
-  precio        Float               @default(0)
-  proveedor     String?
-  origen        String? // de qué stand salió: permite volver a pasar el cómputo sin duplicar
-  posicion      Int                 @default(0)
-  createdAt     DateTime            @default(now())
+  id             String              @id @default(cuid())
+  tenant         Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  presupuesto    ProyectoPresupuesto @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  presupuestoId  String
+  rubro          String
+  descripcion    String
+  unidad         String              @default("u")
+  cantidad       Float               @default(1)
+  costo          Float               @default(0)
+  precio         Float               @default(0)
+  proveedor      String?
+  supplierId     String?
+  supplier       Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  recargoPct     Float?
+  moneda         String              @default("ARS")
+  fechaLimite    DateTime?
+  estadoItem     String              @default("PENDIENTE") // PENDIENTE · COTIZANDO · APROBADO · CONTRATADO · ENTREGADO
+  visibleCliente Boolean             @default(true)
+  costoReal      Float?
+  origen         String? // de qué stand salió: permite volver a pasar el cómputo sin duplicar
+  posicion       Int                 @default(0)
+  createdAt      DateTime            @default(now())
 
   @@index([tenantId, presupuestoId])
 }
@@ -3351,6 +3409,7 @@ model ProyectoArchivo {
   datos          String? // imagen achicada (data URL), como las fotos del taller
   url            String? // lo pesado (PDF, CAD, video) queda en su nube: acá sólo el link
   visibleCliente Boolean  @default(false)
+  itemId         String?
   subidoPor      String?
   createdAt      DateTime @default(now())
 
@@ -3379,23 +3438,24 @@ model ProyectoEntregable {
 // BORRADOR · ENVIADA · APROBADA · CAMBIOS · REEMPLAZADA. Enviada no se edita, y copia la especificación vigente: lo que el
 // cliente aprobó no cambia aunque después se corrija la pieza.
 model ProyectoEntregableVersion {
-  id             String             @id @default(cuid())
-  tenant         Tenant             @relation(fields: [tenantId], references: [id])
+  id             String                     @id @default(cuid())
+  tenant         Tenant                     @relation(fields: [tenantId], references: [id])
   tenantId       String
-  entregable     ProyectoEntregable @relation(fields: [entregableId], references: [id], onDelete: Cascade)
+  entregable     ProyectoEntregable         @relation(fields: [entregableId], references: [id], onDelete: Cascade)
   entregableId   String
   numero         Int
-  estado         String             @default("BORRADOR")
+  estado         String                     @default("BORRADOR")
   datos          String? // imagen achicada (data URL), como los archivos del proyecto
   url            String? // lo pesado (video, PDF) queda en su nube: acá sólo el link
-  nota           String             @default("")
-  especificacion String             @default("")
+  nota           String                     @default("")
+  especificacion String                     @default("")
   subidoPor      String?
   enviadaEl      DateTime?
   respondidaEl   DateTime?
   respondidoPor  String?
   comentario     String?
-  createdAt      DateTime           @default(now())
+  comentarios    ProyectoComentarioImagen[]
+  createdAt      DateTime                   @default(now())
 
   @@unique([entregableId, numero])
   @@index([tenantId, entregableId])
@@ -3425,4 +3485,318 @@ model ProyectoConfig {
   condiciones String   @default("")
   costosStand Json?
   updatedAt   DateTime @updatedAt
+}
+
+// ── Gestión de eventos: las apps relevadas de Heka (docs/benchmark/heka-especificacion.md). Sólo tablas del módulo. ──
+
+model ProyectoCuota {
+  id             String             @id @default(cuid())
+  tenant         Tenant             @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  proyecto       Proyecto?          @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId     String? // sin proyecto: es de la empresa
+  supplier       Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  supplierId     String?
+  tipo           String // COBRO · PAGO
+  concepto       String
+  monto          Float
+  moneda         String             @default("ARS")
+  venceEl        DateTime
+  pagadoEl       DateTime?
+  pagadoPor      String?
+  medio          String?
+  factura        String?
+  comentario     String?
+  auto           Boolean            @default(false)
+  clave          String? // de qué ítem y tramo salió: regenerar no duplica
+  anuladoEl      DateTime?
+  conciliaciones ProyectoMovBanco[]
+  createdAt      DateTime           @default(now())
+
+  @@unique([tenantId, clave])
+  @@index([tenantId, proyectoId])
+  @@index([tenantId, tipo, venceEl])
+}
+
+model ProyectoProveedorFicha {
+  id          String   @id @default(cuid())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierId  String   @unique
+  rubro       String?
+  ciudad      String?
+  condiciones String   @default("50% anticipo / 50% contra entrega")
+  anticipoPct Float    @default(50)
+  evaluacion  Float    @default(4)
+  moneda      String   @default("ARS")
+  notas       String   @default("")
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model ProyectoPersona {
+  id            String                @id @default(cuid())
+  tenant        Tenant                @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  userId        String? // la cuenta con la que entra, si tiene
+  nombre        String
+  email         String?
+  puesto        String                @default("")
+  rol           String                @default("PRODUCCION") // DIRECCION · PRODUCCION · DISENO · ADMINISTRACION
+  sueldoBase    Float                 @default(0)
+  facturaA      String                @default("")
+  activa        Boolean               @default(true)
+  equipos       ProyectoEquipo[]
+  liquidaciones ProyectoLiquidacion[]
+  createdAt     DateTime              @default(now())
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+}
+
+model ProyectoEquipo {
+  id         String          @id @default(cuid())
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  proyecto   Proyecto        @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId String
+  persona    ProyectoPersona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  personaId  String
+  funcion    String          @default("")
+  plus       Float           @default(0)
+
+  @@unique([proyectoId, personaId])
+  @@index([tenantId, personaId])
+}
+
+model ProyectoReunion {
+  id         String    @id @default(cuid())
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  proyecto   Proyecto? @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId String?
+  titulo     String
+  tipo       String    @default("REUNION") // REUNION · MONTAJE · EVENTO_TENTATIVO
+  fecha      DateTime
+  lugar      String    @default("")
+  creadaPor  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId, fecha])
+}
+
+model ProyectoChecklist {
+  id         String    @id @default(cuid())
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  proyecto   Proyecto  @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId String
+  texto      String
+  categoria  String    @default("general")
+  fecha      DateTime?
+  hechoEl    DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId, proyectoId])
+}
+
+model ProyectoMensaje {
+  id            String    @id @default(cuid())
+  tenant        Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  proyecto      Proyecto? @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId    String? // sin proyecto: el chat del equipo de diseño
+  canal         String    @default("general")
+  autor         String
+  texto         String
+  adjuntoNombre String?
+  adjuntoUrl    String?
+  createdAt     DateTime  @default(now())
+
+  @@index([tenantId, proyectoId, createdAt])
+}
+
+model ProyectoComentarioImagen {
+  id         String                    @id @default(cuid())
+  tenant     Tenant                    @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  version    ProyectoEntregableVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  versionId  String
+  x          Float? // de 0 a 100 sobre la imagen; sin punto, es un comentario general
+  y          Float?
+  autor      String
+  texto      String
+  resueltoEl DateTime?
+  createdAt  DateTime                  @default(now())
+
+  @@index([tenantId, versionId])
+}
+
+model ProyectoIdea {
+  id             String   @id @default(cuid())
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  proyecto       Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId     String   @unique
+  concepto       String   @default("")
+  narrativa      String   @default("")
+  referencias    String   @default("")
+  materialidades String   @default("")
+  informacion    String   @default("")
+  imagenes       Json?
+  moodboards     Json?
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model ProyectoPresentacion {
+  id         String   @id @default(cuid())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId String
+  nombre     String
+  plantilla  String   @default("CLASICA")
+  laminas    Json
+  estado     String   @default("BORRADOR") // BORRADOR · ENVIADA · APROBADA · CAMBIOS
+  respuesta  String?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, proyectoId])
+}
+
+model ProyectoGastoFijo {
+  id         String    @id @default(cuid())
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  tipo       String    @default("FIJO") // FIJO · IMPUESTO
+  nombre     String
+  frecuencia String    @default("MENSUAL") // MENSUAL · ANUAL · UNICO
+  monto      Float
+  moneda     String    @default("ARS")
+  fecha      DateTime?
+  activo     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId])
+}
+
+model ProyectoCuentaBanco {
+  id          String             @id @default(cuid())
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  nombre      String
+  moneda      String             @default("ARS")
+  saldo       Float              @default(0)
+  movimientos ProyectoMovBanco[]
+  createdAt   DateTime           @default(now())
+
+  @@index([tenantId])
+}
+
+model ProyectoMovBanco {
+  id          String              @id @default(cuid())
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  cuenta      ProyectoCuentaBanco @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  cuentaId    String
+  fecha       DateTime
+  descripcion String
+  importe     Float
+  lote        String              @default("")
+  cuota       ProyectoCuota?      @relation(fields: [cuotaId], references: [id], onDelete: SetNull)
+  cuotaId     String?
+  createdAt   DateTime            @default(now())
+
+  @@index([tenantId, cuentaId, fecha])
+}
+
+model ProyectoTipoCambio {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  moneda    String
+  porUnidad Float // pesos por 1 unidad de esta moneda
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, moneda])
+}
+
+model ProyectoLiquidacion {
+  id          String          @id @default(cuid())
+  tenant      Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  persona     ProyectoPersona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  personaId   String
+  periodo     String // AAAA-MM
+  base        Float           @default(0)
+  extras      Json?
+  total       Float           @default(0)
+  facturaA    String          @default("")
+  estado      String          @default("BORRADOR") // BORRADOR · PUBLICADA
+  publicadaEl DateTime?
+  vistaEl     DateTime?
+  createdAt   DateTime        @default(now())
+
+  @@unique([tenantId, personaId, periodo])
+  @@index([tenantId, periodo])
+}
+
+model ProyectoAviso {
+  id           String    @id @default(cuid())
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  destinatario String // userId
+  tipo         String
+  texto        String
+  enlace       String?
+  leidoEl      DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([tenantId, destinatario, leidoEl])
+}
+
+model ProyectoAvisoPref {
+  id        String  @id @default(cuid())
+  tenant    Tenant  @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  userId    String
+  tipo      String
+  enSistema Boolean @default(true)
+  porMail   Boolean @default(false)
+
+  @@unique([tenantId, userId, tipo])
+}
+
+model ProyectoPermiso {
+  id              String  @id @default(cuid())
+  tenant          Tenant  @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  rol             String
+  modulo          String
+  ver             Boolean @default(false)
+  editar          Boolean @default(false)
+  columnasOcultas Json?
+
+  @@unique([tenantId, rol, modulo])
+}
+
+model ProyectoCambio {
+  id         String   @id @default(cuid())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  proyectoId String?
+  entidad    String
+  entidadId  String?
+  campo      String
+  antes      String?
+  despues    String?
+  autor      String
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, proyectoId, createdAt])
+  @@index([tenantId, createdAt])
 }

@@ -10,7 +10,7 @@
 //   · magra         → carbón, hueso y oro, Bebas Neue + Open Sans (src/app/tienda/MagraFront.tsx, ADR-072 §8); también
 //                     sus locales `magra-*`.
 //   · matiasconsoli → el turnero de clases: papel claro y verde cancha, Hanken (src/lib/padel/marca.ts, «a confirmar»).
-//   · mia-producciones → su sitio: crema, tinta y azul, Work Sans (src/lib/proyectos/marca.ts).
+//   · mia-producciones → sin fila a pedido del dueño (01/11/2026): su panel de gestión usa la marca GSG. Su sitio y lo que ve su cliente conservan la de MIA.
 //
 // — Elaborado por GSG
 
@@ -21,7 +21,6 @@ const ESTETICA_POR_NEGOCIO: Readonly<Record<string, EsteticaBackoffice>> = {
   "beauty-spa": "beauty-spa",
   magra: "magra",
   matiasconsoli: "matiasconsoli",
-  "mia-producciones": "mia-producciones",
 };
 
 /** La estética del backoffice de este negocio, o `null` (la del ERP). PURA. */
