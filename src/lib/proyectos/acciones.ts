@@ -19,6 +19,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { clientePuedeResponder, leerNumero, esEtapa, esServicio, etapaAlAprobar, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
 import { configProyectos } from "./datos.server";
+import { regenerarCuotas } from "./gestion.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 
@@ -370,6 +371,8 @@ export async function responderPropuesta(d: { token: string; aprueba: boolean; n
     return true;
   });
   if (!ganada) return { ok: false, error: "Esta propuesta ya fue respondida." };
+  // Confirmado: de acá salen los cobros y los pagos.
+  if (d.aprueba) await regenerarCuotas(tenantId, pr.proyectoId);
   await auditPublic({ action: d.aprueba ? "proyecto.propuesta.aprobar" : "proyecto.propuesta.rechazar", entity: "ProyectoPresupuesto", entityId: pr.id, changes: { nombre } });
   revalidatePath(`/propuesta/${d.token}`);
   refrescar(pr.proyectoId);
@@ -767,6 +770,12 @@ export async function computoAlPresupuesto(d: { standId: string }): Promise<Resu
   const config = await configProyectos(tenantId);
   const origen = `stand:${stand.id}`;
   const lineas = computar(diseno);
+  // Una versión vacía encima de una enviada dejaría sin ítems a la ficha viva, y eso anula las cuotas pendientes.
+  const [conBorrador, versiones] = await Promise.all([
+    prisma.proyectoPresupuesto.count({ where: { tenantId, proyectoId: stand.proyectoId, estado: "BORRADOR" } }),
+    prisma.proyectoPresupuesto.count({ where: { tenantId, proyectoId: stand.proyectoId } }),
+  ]);
+  if (conBorrador === 0 && versiones > 0) return { ok: false, error: "La cotización ya se envió. Abrí una versión nueva en Cotización y volvé a pasar el cómputo." };
   await tenantTransaction(async (tx) => {
     let borrador = await tx.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId: stand.proyectoId, estado: "BORRADOR" }, select: { id: true } });
     if (!borrador) {

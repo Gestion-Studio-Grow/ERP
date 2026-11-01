@@ -317,7 +317,7 @@ export async function propuestaPublica(token: string) {
   const presupuesto = await prisma.proyectoPresupuesto.findFirst({
     where: { tenantId, token, estado: { not: "BORRADOR" } },
     include: {
-      items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }], select: { id: true, rubro: true, descripcion: true, unidad: true, cantidad: true, precio: true, costo: true } },
+      items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }], select: { id: true, rubro: true, descripcion: true, unidad: true, cantidad: true, precio: true, costo: true, visibleCliente: true } },
       proyecto: {
         select: {
           id: true,
@@ -339,12 +339,20 @@ export async function propuestaPublica(token: string) {
   if (!presupuesto) return null;
   const t = totales(presupuesto.items, presupuesto.ivaPct);
   const negocio = await datosDelNegocio(tenantId);
+  // Lo interno no sale del servidor: ni notas, ni la foto de la versión, ni quién aprobó adentro.
+  const { foto: _foto, nota: _nota, creadoPor: _creadoPor, aprobadoInternoPor: _aprobadoPor, aprobadoInternoEl: _aprobadoEl, ...publico } = presupuesto;
+  // Un ítem oculto no se detalla, pero se cobra: suma a «Otros conceptos» de su rubro, y el total sigue cerrando.
+  const otros = new Map<string, number>();
+  for (const i of presupuesto.items) if (!i.visibleCliente) otros.set(i.rubro, redondear((otros.get(i.rubro) ?? 0) + i.cantidad * i.precio));
   return {
     negocio,
     presupuesto: {
-      ...presupuesto,
+      ...publico,
       // El costo y el proveedor son internos: del servidor sale sólo lo que el cliente puede ver.
-      items: presupuesto.items.map(({ id, rubro, descripcion, unidad, cantidad, precio }) => ({ id, rubro, descripcion, unidad, cantidad, precio })),
+      items: [
+        ...presupuesto.items.filter((i) => i.visibleCliente).map(({ id, rubro, descripcion, unidad, cantidad, precio }) => ({ id, rubro, descripcion, unidad, cantidad, precio })),
+        ...[...otros].map(([rubro, precio]) => ({ id: `otros:${rubro}`, rubro, descripcion: "Otros conceptos", unidad: "global", cantidad: 1, precio })),
+      ],
     },
     totales: { neto: t.neto, iva: t.iva, total: t.total },
   };

@@ -31,7 +31,7 @@ export function BarraGestion({ permitidas, avisos, persona, rol }: { permitidas:
   };
   // Una ficha de proyecto pertenece a «Proyectos».
   const activa = (a: (typeof APPS)[number]) =>
-    a.exacta ? ruta === a.href || /^\/admin\/proyectos\/(?!inicio|diseno|calendario|proveedores|administracion|direccion|agentes|propuesta-ia|mi-liquidacion|equipo|config|buscar|avisos|reportes)[^/]+/.test(ruta) : ruta.startsWith(a.href);
+    a.exacta ? ruta === a.href || /^\/admin\/proyectos\/(?!inicio|diseno|calendario|proveedores|administracion|direccion|agentes|propuesta-ia|mi-liquidacion|equipo|config|buscar|avisos|reportes|imprimir|presentacion)[^/]+/.test(ruta) : ruta.startsWith(a.href);
   return (
     <aside className="border-b border-line bg-surface-raised lg:sticky lg:top-0 lg:h-dvh lg:border-b-0 lg:border-r">
       <div className="flex h-full flex-col gap-3 p-3">

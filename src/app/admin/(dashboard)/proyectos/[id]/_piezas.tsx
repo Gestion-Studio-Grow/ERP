@@ -6,10 +6,11 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
-import { agregarArchivo, crearStand } from "@/lib/proyectos/acciones";
+import { crearStand } from "@/lib/proyectos/acciones";
+import { subirArchivoFicha } from "@/lib/proyectos/acciones-ficha";
 
 const campo = "min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-strong";
-const TIPOS = [["RENDER", "Render"], ["DISENO", "Diseño"], ["PLANO", "Plano"], ["REFERENCIA", "Referencia"], ["OTRO", "Otro"]];
+const TIPOS = [["RENDER", "Render"], ["PLANO", "Plano"], ["PRESENTACION", "Presentación"], ["PRESUPUESTO", "Presupuesto"], ["CONTRATO", "Contrato"], ["OTRO", "Otro"]];
 
 // Una acción del servidor recibe hasta 1 MB: lo que se manda tiene que entrar, con margen para el resto.
 const TOPE_IMAGEN = 900_000;
@@ -86,7 +87,7 @@ export function SubirArchivo({ proyectoId }: { proyectoId: string }) {
                 }
                 if (datos) {
                   try {
-                    fin(await agregarArchivo({ proyectoId, tipo, nombre: a.name, datos, visibleCliente: tipo === "RENDER" }));
+                    fin(await subirArchivoFicha({ proyectoId, tipo, nombre: a.name, datos, visibleCliente: tipo === "RENDER" }));
                   } catch {
                     setError("No se pudo guardar la imagen. Revisá la conexión y probá de nuevo.");
                   }
@@ -107,7 +108,7 @@ export function SubirArchivo({ proyectoId }: { proyectoId: string }) {
           className={buttonClasses("outline", "md")}
           onClick={() => {
             setError(null);
-            iniciar(async () => fin(await agregarArchivo({ proyectoId, tipo, nombre, url: link })));
+            iniciar(async () => fin(await subirArchivoFicha({ proyectoId, tipo, nombre, url: link })));
           }}
         >
           Guardar link

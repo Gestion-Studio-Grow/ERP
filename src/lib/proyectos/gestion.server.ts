@@ -137,6 +137,7 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
           fechaEvento: p.fechaEvento,
           creado: p.createdAt,
           anticipoClientePct: p.anticipoClientePct,
+          ivaPct: viva.ivaPct,
           recargoGeneral: config.margenPct,
           tiposDeCambio: tc,
           anticipoProveedor: Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct])),

@@ -88,7 +88,7 @@ export async function sembrarGestion(prisma: PrismaClient, tenantId: string, rec
       items.push({ id: it.id, descripcion: l.descripcion, rubro: l.rubro, cantidad: l.cant, costo: l.costo, moneda: l.moneda ?? "ARS", recargoPct: l.recargo, precio: 0, fechaLimite: en(l.limite), supplierId: it.supplierId });
     }
     if (["APROBADO", "PRODUCCION", "ARMADO", "DESARME", "CIERRE"].includes(d.etapa)) {
-      const plan = planDeCuotas(items, { proyectoId: p.id, nombre: d.nombre, fechaEvento: en(d.dias), creado, anticipoClientePct: 50, recargoGeneral, tiposDeCambio: { USD: TC_USD }, anticipoProveedor });
+      const plan = planDeCuotas(items, { proyectoId: p.id, nombre: d.nombre, fechaEvento: en(d.dias), creado, anticipoClientePct: 50, ivaPct: 21, recargoGeneral, tiposDeCambio: { USD: TC_USD }, anticipoProveedor });
       for (const c2 of plan) {
         const cobrada = d.cobrado && c2.clave.endsWith("cliente:anticipo");
         await prisma.proyectoCuota.create({ data: { tenantId, proyectoId: p.id, auto: true, ...c2, ...(cobrada && { pagadoEl: en(-20), pagadoPor: "Rocío Medina", medio: "TRANSFERENCIA" }) } });

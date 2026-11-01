@@ -118,6 +118,8 @@ export interface DatosPlan {
   fechaEvento: Date | null;
   creado: Date;
   anticipoClientePct: number;
+  /** El cliente paga con IVA; el costo del proveedor se compara y se paga neto (provisional, a confirmar con MIA). */
+  ivaPct: number;
   recargoGeneral: number;
   tiposDeCambio: Readonly<Record<string, number>>;
   /** % de anticipo de cada proveedor; sin dato, 50. */
@@ -153,8 +155,9 @@ export function planDeCuotas(items: readonly ItemFicha[], d: DatosPlan): CuotaPl
   const { venta } = totalesFicha(items, d.tiposDeCambio, d.recargoGeneral);
   if (venta > 0) {
     const pct = Math.min(100, Math.max(0, d.anticipoClientePct));
-    const anticipo = redondear((venta * pct) / 100);
-    const saldo = redondear(venta - anticipo);
+    const conIva = redondear(venta * (1 + d.ivaPct / 100));
+    const anticipo = redondear((conIva * pct) / 100);
+    const saldo = redondear(conIva - anticipo);
     if (anticipo > 0) salida.push({ clave: `${d.proyectoId}:cliente:anticipo`, tipo: "COBRO", concepto: `${d.nombre} — anticipo del cliente`, monto: anticipo, moneda: "ARS", venceEl: d.creado, supplierId: null });
     if (saldo > 0) salida.push({ clave: `${d.proyectoId}:cliente:saldo`, tipo: "COBRO", concepto: `${d.nombre} — saldo del cliente`, monto: saldo, moneda: "ARS", venceEl: new Date(evento - DIAS_SALDO_CLIENTE_ANTES * DIA), supplierId: null });
   }

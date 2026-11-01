@@ -24,7 +24,7 @@ import {
 
 const TC = { USD: 1000 };
 const item = (o: Partial<ItemFicha>): ItemFicha => ({ id: "i1", descripcion: "Escenario", rubro: "Venue", cantidad: 1, costo: 100, moneda: "ARS", recargoPct: 50, precio: 0, fechaLimite: null, supplierId: "s1", ...o });
-const plan = { proyectoId: "p", nombre: "Gala", fechaEvento: new Date("2026-12-20T12:00:00Z"), creado: new Date("2026-11-01T12:00:00Z"), anticipoClientePct: 50, recargoGeneral: 35, tiposDeCambio: TC, anticipoProveedor: { s1: 30 } };
+const plan = { proyectoId: "p", nombre: "Gala", fechaEvento: new Date("2026-12-20T12:00:00Z"), creado: new Date("2026-11-01T12:00:00Z"), anticipoClientePct: 50, ivaPct: 0, recargoGeneral: 35, tiposDeCambio: TC, anticipoProveedor: { s1: 30 } };
 
 test("costo y venta de un ítem en dólares salen en pesos", () => {
   const i = item({ moneda: "USD", cantidad: 2, costo: 10 });
@@ -50,6 +50,11 @@ test("el plan genera anticipo y saldo del proveedor y del cliente", () => {
     ["p:cliente:anticipo", "COBRO", 75],
     ["p:cliente:saldo", "COBRO", 75],
   ]);
+});
+
+test("las cuotas al cliente llevan IVA y las del proveedor no", () => {
+  const c = planDeCuotas([item({})], { ...plan, ivaPct: 21 });
+  assert.deepEqual(c.map((x) => x.monto), [30, 70, 90.75, 90.75]);
 });
 
 test("sin fecha de evento o sin proveedor no hay pago", () => {
