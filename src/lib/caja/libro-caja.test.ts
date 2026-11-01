@@ -312,3 +312,12 @@ test("no se borra desde el libro lo que asentó el sistema; lo tipeado a mano, s
   assert.equal(a("INGRESO", "user:u1"), null);
   assert.equal(a("EGRESO", "user:u1"), null);
 });
+
+import { rotuloDeOrigen } from "./libro-caja";
+
+test("el cobro de un proyecto no se rotula como turno; lo demás sigue igual", () => {
+  assert.equal(rotuloDeOrigen("turno", "Proyecto #12 · Stand · Anticipo"), "Cobro de proyecto");
+  assert.equal(rotuloDeOrigen("turno", "Corte y color"), "Turno cobrado");
+  assert.equal(rotuloDeOrigen("turno", null), "Turno cobrado");
+  assert.equal(rotuloDeOrigen("pos", "Proyecto #12"), "Venta del mostrador");
+});

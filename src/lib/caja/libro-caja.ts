@@ -107,7 +107,7 @@ export const LIBRO_ORIGIN_LABEL: Record<Exclude<LibroOrigin, "manual">, string> 
  * cobrado» de un stand confunde: el detalle que asienta `registrarCobro` los identifica. PURA.
  */
 export function rotuloDeOrigen(origen: Exclude<LibroOrigin, "manual">, detalle: string | null | undefined): string {
-  return origen === "turno" && /^Proyecto #d/.test(detalle ?? "") ? "Cobro de proyecto" : LIBRO_ORIGIN_LABEL[origen];
+  return origen === "turno" && /^Proyecto #[0-9]/.test(detalle ?? "") ? "Cobro de proyecto" : LIBRO_ORIGIN_LABEL[origen];
 }
 
 // --- Origen CONTABLE: de dónde salió cada peso, para quien imputa ---
