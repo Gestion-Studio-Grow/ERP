@@ -10,6 +10,7 @@ export const etiqueta = "grid gap-1 text-sm font-medium text-strong";
 const SECCIONES = [
   { href: "/admin/proyectos", label: "Proyectos", plata: false },
   { href: "/admin/proyectos/reportes", label: "Rentabilidad", plata: true },
+  { href: "/admin/proyectos/proveedores", label: "Proveedores", plata: true },
   { href: "/admin/proyectos/config", label: "Configuración", plata: true },
 ];
 

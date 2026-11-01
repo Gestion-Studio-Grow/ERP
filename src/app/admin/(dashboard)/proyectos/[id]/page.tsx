@@ -10,6 +10,7 @@ import {
   alternarTarea,
   alternarVisibleArchivo,
   anularCobro,
+  anularGasto,
   borrarArchivo,
   borrarItem,
   enviarPropuesta,
@@ -17,6 +18,7 @@ import {
   guardarTextosPresupuesto,
   moverEtapa,
   nuevaVersionPresupuesto,
+  pagarGasto,
   registrarCobro,
 } from "@/lib/proyectos/acciones";
 import {
@@ -29,9 +31,11 @@ import {
   MEDIOS,
   MEDIO_LABEL,
   pesos,
+  porcentaje,
   porRubro,
   SERVICIO_LABEL,
   sePuedeEditar,
+  totalDelGasto,
   totales,
   waLink,
   type MedioPago,
@@ -39,6 +43,7 @@ import {
 } from "@/lib/proyectos/core";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonNuevoStand, CopiarLink, SubirArchivo } from "./_piezas";
+import { FormGasto } from "./_gastos";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Proyecto" };
@@ -50,7 +55,7 @@ export default async function FichaProyecto({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const data = await fichaProyecto(id);
   if (!data) notFound();
-  const { proyecto: p, conPlata, cobrado, saldo, totalAprobado, negocio } = data;
+  const { proyecto: p, conPlata, cobrado, saldo, totalAprobado, negocio, totalesVigente, real, rubros, proveedores } = data;
   const etapas = etapasDe(p.servicio);
   const actual = etapas.indexOf(p.etapa as (typeof etapas)[number]);
   const siguiente = etapaSiguiente(p.servicio, p.etapa);
@@ -205,14 +210,14 @@ export default async function FichaProyecto({ params }: { params: Promise<{ id: 
               )}
             </div>
             {p.presupuestos.length === 0 && <p className="text-sm text-muted">Empezá el presupuesto acá, o armá un stand y pasá su cómputo.</p>}
-            <div className="grid gap-4">
+            <div className="grid grid-cols-1 gap-4">
               {p.presupuestos.map((b) => {
                 const t = totales(b.items, b.ivaPct);
                 const editable = sePuedeEditar(b.estado);
                 const ruta = `/propuesta/${b.token}`;
                 const wa = waLink(p.client.phone, `Hola ${p.client.name}! Te compartimos la propuesta de ${negocio.nombre} para "${p.nombre}":`);
                 return (
-                  <article key={b.id} className="rounded-xl border border-line p-3" aria-label={`Versión ${b.version}`}>
+                  <article key={b.id} className="min-w-0 rounded-xl border border-line p-3" aria-label={`Versión ${b.version}`}>
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <h3 className="font-semibold text-strong">Versión {b.version}</h3>
                       <Badge tone={b.estado === "APROBADO" ? "success" : b.estado === "RECHAZADO" ? "danger" : "neutral"}>{ESTADO_PRESUPUESTO_LABEL[b.estado] ?? b.estado}</Badge>
@@ -253,7 +258,7 @@ export default async function FichaProyecto({ params }: { params: Promise<{ id: 
 
                     <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
                       <div><dt className="text-muted">Costo</dt><dd className="font-medium text-strong">{pesos(t.costo)}</dd></div>
-                      <div><dt className="text-muted">Ganancia</dt><dd className="font-medium text-strong">{pesos(t.ganancia)} ({t.margenPct}%)</dd></div>
+                      <div><dt className="text-muted">Ganancia</dt><dd className="font-medium text-strong">{pesos(t.ganancia)} ({porcentaje(t.margenPct)})</dd></div>
                       <div><dt className="text-muted">Neto + IVA {b.ivaPct}%</dt><dd className="font-medium text-strong">{pesos(t.neto)} + {pesos(t.iva)}</dd></div>
                       <div><dt className="text-muted">Total al cliente</dt><dd className="text-lg font-bold text-strong">{pesos(t.total)}</dd></div>
                     </dl>
@@ -298,6 +303,75 @@ export default async function FichaProyecto({ params }: { params: Promise<{ id: 
                 );
               })}
             </div>
+          </section>
+
+          <section className={cn(tarjeta, "mt-4")} aria-label="Costo real">
+            <h2 className="mb-1 font-semibold text-strong">Costo real</h2>
+            <dl className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-5">
+              <div><dt className="text-muted">Presupuestado</dt><dd className="font-medium text-strong">{totalesVigente ? pesos(totalesVigente.costo) : "—"}</dd></div>
+              <div><dt className="text-muted">Real, sin IVA</dt><dd className="font-medium text-strong">{real.conGastos ? pesos(real.costoReal) : "—"}</dd></div>
+              <div>
+                <dt className="text-muted">Diferencia</dt>
+                <dd className={cn("font-medium", real.desvio !== null && real.desvio > 0 ? "text-danger" : "text-strong")}>
+                  {real.desvio === null ? "—" : `${real.desvio > 0 ? "Gastaste " : real.desvio < 0 ? "Ahorraste " : ""}${pesos(Math.abs(real.desvio))}`}
+                </dd>
+              </div>
+              <div><dt className="text-muted">Ganancia real</dt><dd className="font-bold text-strong">{real.gananciaReal === null ? "—" : `${pesos(real.gananciaReal)} (${porcentaje(real.margenReal ?? 0)})`}</dd></div>
+              <div><dt className="text-muted">Por pagar</dt><dd className="font-medium text-strong">{pesos(real.porPagar)}</dd></div>
+            </dl>
+            {rubros.some((r) => r.real > 0) && (
+              <div className="mb-3 overflow-x-auto">
+                <table className="w-full min-w-[420px] text-sm">
+                  <thead className="text-left text-xs text-muted">
+                    <tr><th className="py-1 pr-2 font-medium">Rubro</th><th className="pr-2 text-right font-medium">Presupuestado</th><th className="pr-2 text-right font-medium">Real</th><th className="text-right font-medium">Diferencia</th></tr>
+                  </thead>
+                  <tbody>
+                    {rubros.map((r) => (
+                      <tr key={r.rubro} className="border-t border-line">
+                        <td className="py-1 pr-2">{r.rubro}</td>
+                        <td className="pr-2 text-right">{pesos(r.presupuestado)}</td>
+                        <td className="pr-2 text-right">{pesos(r.real)}</td>
+                        <td className={cn("text-right font-medium", r.diferencia > 0 ? "text-danger" : "text-strong")}>{r.diferencia > 0 ? "+" : r.diferencia < 0 ? "−" : ""}{pesos(Math.abs(r.diferencia))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {p.gastos.length > 0 && (
+              <ul className="mb-3 grid gap-1 text-sm">
+                {p.gastos.map((g) => (
+                  <li key={g.id} className={cn("flex flex-wrap items-center justify-between gap-2 border-t border-line py-1", g.anuladoEl && "text-muted line-through")}>
+                    <span className="min-w-0">
+                      {fechaCorta(g.fecha)} · {g.supplier?.name ?? "Sin proveedor"} · {g.descripcion} · <strong>{pesos(totalDelGasto(g))}</strong>
+                      <span className="block text-xs text-muted">
+                        {g.rubro}{g.iva > 0 && ` · neto ${pesos(g.neto)} + IVA ${pesos(g.iva)}`}{g.comprobante && ` · comp. ${g.comprobante}`}
+                        {g.pagadoEl ? ` · Pagado, ${MEDIO_LABEL[g.medio as MedioPago] ?? g.medio}` : " · Por pagar"}
+                      </span>
+                    </span>
+                    {!g.anuladoEl && (
+                      <span className="flex flex-wrap items-center gap-1">
+                        {!g.pagadoEl && (
+                          <form action={pagarGasto} className="flex items-center gap-1">
+                            <input type="hidden" name="id" value={g.id} />
+                            <select name="medio" aria-label={`Medio de pago de ${g.descripcion}`} defaultValue="TRANSFERENCIA" className={cn(campo, "w-auto")}>
+                              {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
+                            </select>
+                            <button type="submit" className={buttonClasses("outline", "md")} aria-label={`Pagar ${g.descripcion}`}>Pagar</button>
+                          </form>
+                        )}
+                        <form action={anularGasto}>
+                          <input type="hidden" name="id" value={g.id} />
+                          <button type="submit" className={buttonClasses("ghost", "md")} aria-label={`Anular gasto ${g.descripcion}`}>Anular</button>
+                        </form>
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <FormGasto proyectoId={p.id} proveedores={proveedores} rubros={rubros.map((r) => r.rubro)} hoy={fechaParaInput(new Date())} />
+            <p className="mt-2 text-sm text-muted">Lo pagado sale por el libro de caja. El neto es lo que se compara contra el presupuesto.</p>
           </section>
 
           <section className={cn(tarjeta, "mt-4")} aria-label="Cobros">

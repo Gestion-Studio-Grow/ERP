@@ -22,6 +22,7 @@ import { baseLocalParaSeed } from "../src/lib/seed/guarda-base";
 import { provisionTenant } from "../scripts/provision-tenant";
 import { computar, costosVigentes, disenoInicial, type DisenoStand } from "../src/lib/proyectos/stand";
 import { precioConMargen } from "../src/lib/proyectos/core";
+import { marcaDeGastoProyecto } from "../src/lib/proyectos/marcas";
 
 const guarda = baseLocalParaSeed(process.env.DATABASE_URL);
 if (!guarda.ok) {
@@ -63,7 +64,9 @@ async function main() {
 
   // Re-sembrado limpio de lo propio del módulo (idempotente).
   await prisma.cashMovement.deleteMany({ where: { tenantId, proyectoPagoId: { not: null } } });
+  await prisma.cashMovement.deleteMany({ where: { tenantId, proyectoGastoId: { not: null } } });
   await prisma.proyectoPago.deleteMany({ where: { tenantId } });
+  await prisma.proyectoGasto.deleteMany({ where: { tenantId } });
   await prisma.proyecto.deleteMany({ where: { tenantId } });
 
   const email = `diseno@${SLUG}.demo`;
@@ -160,6 +163,21 @@ async function main() {
   const pago = await prisma.proyectoPago.create({ data: { tenantId, proyectoId: pBebidas.id, medio: "TRANSFERENCIA", monto: anticipo, nota: "Anticipo 50%", cobradoPor: "Dueño de MIA" } });
   await prisma.cashMovement.create({
     data: { tenantId, type: "VENTA", method: "TRANSFERENCIA", amount: anticipo, reason: "Proyecto #2 · Activación en festival · Anticipo 50%", proyectoPagoId: pago.id, createdBy: "Dueño de MIA" },
+  });
+
+  // Sus gastos reales: la carpintería salió más cara de lo presupuestado y el flete todavía se debe.
+  const proveedor = async (name: string) =>
+    (await prisma.supplier.findFirst({ where: { tenantId, name } })) ?? prisma.supplier.create({ data: { tenantId, name } });
+  const carpinteria = await proveedor("Carpintería (ficticia)");
+  const fletes = await proveedor("Fletes del Sur (ficticio)");
+  const barra = await prisma.proyectoGasto.create({
+    data: { tenantId, proyectoId: pBebidas.id, supplierId: carpinteria.id, rubro: "Producción", descripcion: "Barra de marca y estructura", neto: 2650000, iva: 556500, comprobante: "A 0003-00001234", pagadoEl: new Date(), medio: "TRANSFERENCIA", pagadoPor: "Dueño de MIA", cargadoPor: "Dueño de MIA" },
+  });
+  await prisma.cashMovement.create({
+    data: { tenantId, type: "EGRESO", method: "TRANSFERENCIA", amount: 3206500, reason: "Proyecto #2 · Barra de marca y estructura · Carpintería (ficticia)", proyectoGastoId: barra.id, createdBy: marcaDeGastoProyecto(barra.id) },
+  });
+  await prisma.proyectoGasto.create({
+    data: { tenantId, proyectoId: pBebidas.id, supplierId: fletes.id, rubro: "Logística y armado", descripcion: "Flete y armado", neto: 580000, cargadoPor: "Dueño de MIA" },
   });
 
   // 3. Pedido recién entrado, de otro servicio: tiene menos etapas.
