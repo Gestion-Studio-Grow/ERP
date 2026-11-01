@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, useTransition, type ChangeEvent, type Reac
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
 import { marcarCuota } from "@/lib/proyectos/acciones-ficha";
-import { editarExtrasLiquidacion, generarLiquidaciones, guardarDatoCuota, importarExtracto, marcarCuotaEmpresa, marcarLiquidacionVista } from "@/lib/proyectos/acciones-empresa";
+import { cuentasParaMarcar, editarExtrasLiquidacion, generarLiquidaciones, guardarDatoCuota, importarExtracto, marcarCuotaEmpresa, marcarLiquidacionVista } from "@/lib/proyectos/acciones-empresa";
 import { MEDIOS, MEDIO_LABEL } from "@/lib/proyectos/core";
 import { campo } from "../_vista";
 
@@ -85,6 +85,20 @@ export function BotonDosPasos({ accion, campos, etiqueta, pregunta, principal }:
 // ── Cuotas ──────────────────────────────────────────────────────────────────
 
 /** Cobrado o Pagar: pide el medio antes de asentar. La cuota de proyecto y la de la empresa van por acciones distintas. */
+function ElegirCuenta() {
+  const [cuentas, setCuentas] = useState<{ id: string; nombre: string; moneda: string }[]>([]);
+  useEffect(() => {
+    cuentasParaMarcar().then(setCuentas).catch(() => setCuentas([]));
+  }, []);
+  if (cuentas.length === 0) return null;
+  return (
+    <select name="cuenta" aria-label="Cuenta que se mueve" defaultValue="" className={campo}>
+      <option value="">Sin cuenta</option>
+      {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>)}
+    </select>
+  );
+}
+
 export function MarcarCuota({ id, deEmpresa, etiqueta }: { id: string; deEmpresa: boolean; etiqueta: string }) {
   const { error, ocupado, correr } = useAccion();
   const [abierto, setAbierto] = useState(false);
@@ -108,6 +122,7 @@ export function MarcarCuota({ id, deEmpresa, etiqueta }: { id: string; deEmpresa
       <select name="medio" aria-label="Medio de pago" defaultValue="TRANSFERENCIA" className={campo}>
         {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
       </select>
+      <ElegirCuenta />
       <div className="flex gap-1">
         <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 flex-1")}>{ocupado ? "…" : "Confirmar"}</button>
         <button type="button" disabled={ocupado} onClick={() => setAbierto(false)} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>Volver</button>

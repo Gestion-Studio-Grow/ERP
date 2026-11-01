@@ -25,15 +25,17 @@ export async function sembrarGestion(prisma: PrismaClient, tenantId: string, rec
   await prisma.proyectoTipoCambio.upsert({ where: { tenantId_moneda: { tenantId, moneda: "USD" } }, create: { tenantId, moneda: "USD", porUnidad: TC_USD }, update: { porUnidad: TC_USD } });
 
   // Personas: el dueño y el equipo de la demo entran con su cuenta; el resto todavía no tiene una.
-  const dueno = await prisma.user.findFirst({ where: { tenantId, role: "OWNER" }, select: { id: true } });
-  const diseno = await prisma.user.findFirst({ where: { tenantId, email: { startsWith: "diseno@" } }, select: { id: true } });
+  const usuario = (local: string) => prisma.user.findFirst({ where: { tenantId, email: { startsWith: `${local}@` } }, select: { id: true } });
+  const dueno = await usuario("admin");
+  const diseno = await usuario("diseno");
   const persona = (nombre: string, puesto: string, rol: string, sueldoBase: number, facturaA: string, userId?: string | null) =>
     prisma.proyectoPersona.create({ data: { tenantId, nombre, puesto, rol, sueldoBase, facturaA, userId: userId ?? null, email: `${nombre.split(" ")[0].toLowerCase()}@mia-producciones.demo` } });
   const dir = await persona("Dueño de MIA", "Dirección general", "DIRECCION", 6_500_000, "MIA Producciones", dueno?.id);
   const dis = await persona("Equipo de diseño", "Diseño 3D", "DISENO", 2_800_000, "Monotributo", diseno?.id);
-  const pro = await persona("Paula Ibáñez", "Productora ejecutiva", "PRODUCCION", 3_400_000, "Monotributo");
+  const pro = await persona("Paula Ibáñez", "Productora ejecutiva", "PRODUCCION", 3_400_000, "Monotributo", (await usuario("produccion"))?.id);
   const log = await persona("Tomás Vera", "Logística", "PRODUCCION", 2_600_000, "Monotributo");
-  const adm = await persona("Rocío Medina", "Administración", "ADMINISTRACION", 2_900_000, "MIA Producciones");
+  const adm = await persona("Rocío Medina", "Administración", "ADMINISTRACION", 2_900_000, "MIA Producciones", (await usuario("administracion"))?.id);
+  await persona("Lucía Paz", "Comercial", "COMERCIAL", 2_700_000, "Monotributo", (await usuario("comercial"))?.id);
   const gra = await persona("Nadia Quiroga", "Diseño gráfico", "DISENO", 2_300_000, "Monotributo");
 
   // Proveedores con su ficha.

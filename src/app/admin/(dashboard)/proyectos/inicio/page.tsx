@@ -23,6 +23,14 @@ function saludo(): string {
 export default async function InicioGestion() {
   await requireApp("gestion-inicio");
   const a = await actorActual();
+  if (a.rol === "SIN_FICHA") {
+    return (
+      <main className="mx-auto grid w-full max-w-3xl gap-2 px-4 py-5">
+        <h1 className="text-2xl font-bold text-strong">Todavía no estás en el equipo</h1>
+        <p className="text-sm text-muted">Pedile a Dirección que te cargue en Equipo y permisos: tu rol define qué apps ves.</p>
+      </main>
+    );
+  }
   const d = await datosDeInicio(a);
   const accesos = [
     { href: "/admin/proyectos/nuevo", label: "Nuevo lead", ve: puede(a, "pipeline", "editar") },

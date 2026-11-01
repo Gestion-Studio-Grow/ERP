@@ -439,9 +439,50 @@ export function cuotaParaMovimiento<T extends CuotaLeida>(mov: LineaExtracto, cu
 
 // ── Permisos ────────────────────────────────────────────────────────────────
 
-export const ROLES_GESTION = ["DIRECCION", "PRODUCCION", "DISENO", "ADMINISTRACION"] as const;
-export type RolGestion = (typeof ROLES_GESTION)[number];
-export const ROL_LABEL: Record<RolGestion, string> = { DIRECCION: "Dirección", PRODUCCION: "Producción", DISENO: "Diseño", ADMINISTRACION: "Administración" };
+/**
+ * Lo ya pagado no se regenera, así que el resto del plan absorbe la diferencia: si la venta sube después del anticipo, el saldo
+ * cubre lo que falta, y si ya estaba todo pagado sale una cuota de ajuste. Si baja, no se pide de más. PURA.
+ */
+export function ajustarAPagado<T extends { clave: string; concepto: string; monto: number }>(plan: readonly T[], pagadas: readonly { clave: string; monto: number }[]): T[] {
+  const base = (clave: string) => clave.slice(0, clave.lastIndexOf(":"));
+  const yaPagadas = new Set(pagadas.map((p) => p.clave));
+  const salida: T[] = [];
+  for (const b of new Set(plan.map((c) => base(c.clave)))) {
+    const grupo = plan.filter((c) => base(c.clave) === b);
+    const total = grupo.reduce((s, c) => s + c.monto, 0);
+    const pagado = pagadas.filter((p) => base(p.clave) === b).reduce((s, p) => s + p.monto, 0);
+    salida.push(...grupo.filter((c) => yaPagadas.has(c.clave)));
+    const pendientes = grupo.filter((c) => !yaPagadas.has(c.clave));
+    let resto = redondear(total - pagado);
+    if (pendientes.length === 0) {
+      if (resto > 0) salida.push({ ...grupo[grupo.length - 1], clave: `${b}:ajuste`, concepto: `${grupo[grupo.length - 1].concepto} (ajuste)`, monto: resto });
+      continue;
+    }
+    pendientes.forEach((c, i) => {
+      const monto = redondear(Math.max(0, i === pendientes.length - 1 ? resto : Math.min(c.monto, resto)));
+      resto = redondear(resto - monto);
+      if (monto > 0) salida.push({ ...c, monto });
+    });
+  }
+  return salida;
+}
+
+/** Cuánto mueve una cuota el saldo de la cuenta elegida. `null` si la cuenta es de otra moneda y no se puede expresar sin inventar un cambio. PURA. */
+export function movimientoDeCuenta(d: { tipo: string; monto: number; moneda: string; importeEnPesos: number; monedaCuenta: string }): number | null {
+  const valor = d.moneda === d.monedaCuenta ? d.monto : d.monedaCuenta === "ARS" ? d.importeEnPesos : null;
+  return valor === null ? null : redondear(d.tipo === "COBRO" ? valor : -valor);
+}
+
+export const ROLES_GESTION = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION"] as const;
+/** `SIN_FICHA` no se asigna: es quien entra sin estar cargado en el equipo, y no abre nada más que Inicio. */
+export type RolGestion = (typeof ROLES_GESTION)[number] | "SIN_FICHA";
+export const ROL_LABEL: Record<RolGestion, string> = { DIRECCION: "Dirección", ADMINISTRACION: "Administración", COMERCIAL: "Comercial", DISENO: "Diseño", PRODUCCION: "Producción", SIN_FICHA: "Sin ficha" };
+
+/** Sólo el dueño entra como Dirección sin ficha: tiene que poder armar el equipo. Cualquier otro espera a que lo carguen. */
+export function rolDelActor(rolDeLaFicha: string | null | undefined, rolDelErp: string): RolGestion {
+  if ((ROLES_GESTION as readonly string[]).includes(rolDeLaFicha ?? "")) return rolDeLaFicha as RolGestion;
+  return rolDelErp === "OWNER" ? "DIRECCION" : "SIN_FICHA";
+}
 
 export const MODULOS = [
   { id: "pipeline", label: "Proyectos y leads" },
@@ -473,11 +514,13 @@ const N: Permiso = { ver: false, editar: false };
 
 export const PERMISOS_BASE: Record<Exclude<RolGestion, "DIRECCION">, Record<ModuloGestion, Permiso>> = {
   PRODUCCION: { pipeline: E, ficha: E, costos: E, proveedores: E, cotizaciones: E, diseno: E, pagos: E, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E },
-  DISENO: { pipeline: V, ficha: V, costos: N, proveedores: N, cotizaciones: N, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E },
-  ADMINISTRACION: { pipeline: V, ficha: V, costos: V, proveedores: E, cotizaciones: V, diseno: N, pagos: E, empresa: E, liquidaciones: E, direccion: V, equipo: N, ia: V },
+  DISENO: { pipeline: V, ficha: V, costos: N, proveedores: N, cotizaciones: V, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E },
+  ADMINISTRACION: { pipeline: V, ficha: V, costos: V, proveedores: E, cotizaciones: V, diseno: N, pagos: E, empresa: E, liquidaciones: E, direccion: N, equipo: N, ia: N },
+  COMERCIAL: { pipeline: E, ficha: V, costos: N, proveedores: N, cotizaciones: E, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E },
+  SIN_FICHA: { pipeline: N, ficha: N, costos: N, proveedores: N, cotizaciones: N, diseno: N, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: N },
 };
 
-/** Qué módulo abre cada app de la barra: con uno alcanza. Las que no figuran las ve todo el equipo. */
+/** Qué módulo abre cada app de eventos: con uno alcanza. */
 const MODULOS_DE_LA_APP: Readonly<Record<string, readonly ModuloGestion[]>> = {
   proyectos: ["pipeline"],
   "gestion-diseno": ["diseno"],
@@ -490,15 +533,41 @@ const MODULOS_DE_LA_APP: Readonly<Record<string, readonly ModuloGestion[]>> = {
 };
 
 export function appDeGestionVisible(appId: string, rol: RolGestion, guardados: readonly { rol: string; modulo: string; ver: boolean; editar: boolean }[]): boolean {
+  if (appId === "gestion-inicio") return true;
+  if (rol === "SIN_FICHA") return false;
   const modulos = MODULOS_DE_LA_APP[appId];
-  return !modulos || modulos.some((m) => permisoDe(rol, m, guardados).ver);
+  if (modulos) return modulos.some((m) => permisoDe(rol, m, guardados).ver);
+  if (APPS_DE_TODO_EL_EQUIPO.includes(appId)) return true;
+  return rol === "DIRECCION" || (APPS_DEL_ERP[rol] ?? []).includes(appId);
 }
+
+const APPS_DE_TODO_EL_EQUIPO: readonly string[] = ["gestion-calendario", "gestion-mi-liquidacion"];
+
+/** Las apps de GSG son del mismo rol: Caja, Clientes y Facturación no se duplican, se abren a quien le toca. El rol del ERP sigue siendo el techo. */
+const APPS_DEL_ERP: Partial<Record<RolGestion, readonly string[]>> = {
+  ADMINISTRACION: ["caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion"],
+  COMERCIAL: ["clientes"],
+};
+
+/** Lo que cada rol tiene a la vista. Dirección puede abrir el resto; los demás, lo que permiten sus módulos. Provisional a confirmar con MIA. */
+const BARRA_DEL_ROL: Record<RolGestion, readonly string[]> = {
+  DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "reportes"],
+  ADMINISTRACION: ["gestion-inicio", "gestion-administracion", "gestion-proveedores", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "gestion-mi-liquidacion"],
+  COMERCIAL: ["gestion-inicio", "proyectos", "clientes", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
+  DISENO: ["gestion-inicio", "gestion-diseno", "proyectos", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
+  PRODUCCION: ["gestion-inicio", "proyectos", "gestion-proveedores", "gestion-calendario", "gestion-agentes", "gestion-mi-liquidacion"],
+  SIN_FICHA: ["gestion-inicio"],
+};
+
+export const appEnLaBarra = (appId: string, rol: RolGestion): boolean => BARRA_DEL_ROL[rol].includes(appId);
 
 /** Columnas de la ficha que un rol no ve de fábrica. */
 export const COLUMNAS_OCULTAS_BASE: Record<Exclude<RolGestion, "DIRECCION">, readonly string[]> = {
   PRODUCCION: [],
   DISENO: ["costoUnit", "costoTotal", "recargo", "margen"],
   ADMINISTRACION: [],
+  COMERCIAL: ["costoUnit", "costoTotal", "recargo", "margen"],
+  SIN_FICHA: ["costoUnit", "costoTotal", "recargo", "margen"],
 };
 
 export function permisoDe(rol: RolGestion, modulo: ModuloGestion, guardados: readonly { rol: string; modulo: string; ver: boolean; editar: boolean }[]): Permiso {
@@ -507,8 +576,8 @@ export function permisoDe(rol: RolGestion, modulo: ModuloGestion, guardados: rea
   return g ? { ver: g.ver, editar: g.editar } : PERMISOS_BASE[rol][modulo];
 }
 
-/** Dirección y Administración ven todos los proyectos; el resto, sólo aquellos donde está en el equipo. */
-export const veTodosLosProyectos = (rol: RolGestion): boolean => rol === "DIRECCION" || rol === "ADMINISTRACION";
+/** Dirección, Administración y Comercial ven todos los proyectos: un lead todavía no tiene equipo. El resto, sólo aquellos donde está. */
+export const veTodosLosProyectos = (rol: RolGestion): boolean => rol === "DIRECCION" || rol === "ADMINISTRACION" || rol === "COMERCIAL";
 
 // ── Avisos ──────────────────────────────────────────────────────────────────
 

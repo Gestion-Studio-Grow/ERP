@@ -5,7 +5,7 @@ import { alertasDeDireccion, desviosDelEvento, extrasRecalculados, finDeSemana, 
 const item = (id: string, rubro: string, costo: number, costoReal: number | null = null) => ({ id, descripcion: id, rubro, cantidad: 1, costo, moneda: "ARS", costoReal, proveedor: null });
 
 test("el real del ítem manda, los gastos valen para el resto del rubro y lo que no tiene dato cuenta lo presupuestado", () => {
-  const d = desviosDelEvento([item("a", "Catering", 100, 130), item("b", "Catering", 50), item("c", "Venue", 200)], [{ rubro: " catering ", neto: 70 }, { rubro: "Viáticos", neto: 10 }, { rubro: "Venue", neto: 999, anuladoEl: new Date() }], {});
+  const d = desviosDelEvento([item("a", "Catering", 100, 130), item("b", "Catering", 50), item("c", "Venue", 200)], [{ rubro: " catering ", neto: 170 }, { rubro: "Viáticos", neto: 10 }, { rubro: "Venue", neto: 999, anuladoEl: new Date() }], {});
   assert.equal(d.costoPresupuestado, 350);
   assert.equal(d.costoReal, 130 + 70 + 200 + 10);
   assert.equal(d.conDatos, true);

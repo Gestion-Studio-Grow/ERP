@@ -3490,6 +3490,8 @@ model ProyectoConfig {
 // ── Gestión de eventos: las apps relevadas de Heka (docs/benchmark/heka-especificacion.md). Sólo tablas del módulo. ──
 
 model ProyectoCuota {
+  cuentaId       String? // la cuenta que movió al marcarla: al reabrirla se devuelve
+  cuentaMovido   Float?
   id             String             @id @default(cuid())
   tenant         Tenant             @relation(fields: [tenantId], references: [id])
   tenantId       String

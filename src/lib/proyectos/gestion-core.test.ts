@@ -22,6 +22,10 @@ import {
   ventaTotalItem,
   type ItemFicha,
   mailDeAviso,
+  ajustarAPagado,
+  appEnLaBarra,
+  movimientoDeCuenta,
+  rolDelActor,
 } from "./gestion-core";
 
 const TC = { USD: 1000 };
@@ -195,7 +199,7 @@ test("la barra muestra cada app sólo a quien puede abrirla", () => {
   assert.equal(appDeGestionVisible("gestion-mi-liquidacion", "DISENO", []), true);
   assert.equal(appDeGestionVisible("gestion-administracion", "DIRECCION", []), true);
   assert.equal(appDeGestionVisible("gestion-administracion", "DISENO", [{ rol: "DISENO", modulo: "pagos", ver: true, editar: false }]), true);
-  assert.equal(appDeGestionVisible("clientes", "DISENO", []), true);
+  assert.equal(appDeGestionVisible("clientes", "DISENO", []), false);
 });
 
 test("el mail de un aviso lleva el link completo sólo si es propio", () => {
@@ -205,4 +209,69 @@ test("el mail de un aviso lleva el link completo sólo si es propio", () => {
   assert.doesNotMatch(mailDeAviso({ tipo: "x", texto: "t", enlace: "//malo.com", origen: "https://mia.x" }).cuerpo, /malo/);
   assert.doesNotMatch(mailDeAviso({ tipo: "x", texto: "t", enlace: "https://malo.com", origen: "https://mia.x" }).cuerpo, /malo/);
   assert.equal(mailDeAviso({ tipo: "x", texto: "t" }).asunto, "Aviso: Novedad");
+});
+
+test("sin ficha sólo entra el dueño: recepción no hereda Dirección", () => {
+  assert.equal(rolDelActor(null, "OWNER"), "DIRECCION");
+  assert.equal(rolDelActor(null, "RECEPTION"), "SIN_FICHA");
+  assert.equal(rolDelActor(null, "PROFESSIONAL"), "SIN_FICHA");
+  assert.equal(rolDelActor("INVENTADO", "RECEPTION"), "SIN_FICHA");
+  assert.equal(rolDelActor("COMERCIAL", "RECEPTION"), "COMERCIAL");
+  assert.equal(rolDelActor("DISENO", "OWNER"), "DISENO");
+  for (const m of ["empresa", "liquidaciones", "equipo", "pipeline", "ia"] as const) assert.equal(permisoDe("SIN_FICHA", m, []).ver, false);
+  assert.equal(appDeGestionVisible("gestion-inicio", "SIN_FICHA", []), true);
+  assert.equal(appDeGestionVisible("gestion-calendario", "SIN_FICHA", []), false);
+  assert.equal(appDeGestionVisible("caja-del-dia", "SIN_FICHA", []), false);
+});
+
+test("un solo rol decide también las apps de GSG", () => {
+  assert.equal(appDeGestionVisible("caja-del-dia", "DISENO", []), false);
+  assert.equal(appDeGestionVisible("caja-del-dia", "ADMINISTRACION", []), true);
+  assert.equal(appDeGestionVisible("clientes", "COMERCIAL", []), true);
+  assert.equal(appDeGestionVisible("facturacion", "COMERCIAL", []), false);
+  assert.equal(appDeGestionVisible("reportes", "DIRECCION", []), true);
+});
+
+test("cada rol ve su mapa y ninguna app de la barra le rebota", () => {
+  assert.equal(appEnLaBarra("gestion-direccion", "DIRECCION"), true);
+  assert.equal(appEnLaBarra("gestion-diseno", "DIRECCION"), false);
+  assert.equal(appEnLaBarra("clientes", "COMERCIAL"), true);
+  assert.equal(appEnLaBarra("gestion-administracion", "PRODUCCION"), false);
+  assert.equal(appEnLaBarra("gestion-propuesta-ia", "ADMINISTRACION"), false);
+  const barra: Record<string, string[]> = {
+    DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "reportes"],
+    ADMINISTRACION: ["gestion-inicio", "gestion-administracion", "gestion-proveedores", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "gestion-mi-liquidacion"],
+    COMERCIAL: ["gestion-inicio", "proyectos", "clientes", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
+    DISENO: ["gestion-inicio", "gestion-diseno", "proyectos", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
+    PRODUCCION: ["gestion-inicio", "proyectos", "gestion-proveedores", "gestion-calendario", "gestion-agentes", "gestion-mi-liquidacion"],
+  };
+  for (const [rol, apps] of Object.entries(barra)) for (const app of apps) assert.equal(appDeGestionVisible(app, rol as "DISENO", []), true, `${rol} ${app}`);
+});
+
+test("Comercial y Diseño no ven costos ni márgenes", () => {
+  assert.equal(permisoDe("COMERCIAL", "costos", []).ver, false);
+  assert.equal(permisoDe("COMERCIAL", "cotizaciones", []).editar, true);
+  assert.equal(permisoDe("DISENO", "cotizaciones", []).ver, true);
+  assert.equal(permisoDe("DISENO", "costos", []).ver, false);
+});
+
+test("lo ya pagado: el saldo absorbe la diferencia y no se cobra de más", () => {
+  const plan = (anticipo: number, saldo: number) => [{ clave: "p:cliente:anticipo", concepto: "anticipo", monto: anticipo }, { clave: "p:cliente:saldo", concepto: "saldo", monto: saldo }];
+  const sube = ajustarAPagado(plan(100, 100), [{ clave: "p:cliente:anticipo", monto: 50 }]);
+  assert.equal(sube.find((c) => c.clave === "p:cliente:saldo")!.monto, 150);
+  const baja = ajustarAPagado(plan(20, 20), [{ clave: "p:cliente:anticipo", monto: 50 }]);
+  assert.equal(baja.some((c) => c.clave === "p:cliente:saldo"), false);
+  const todo = ajustarAPagado(plan(100, 100), [{ clave: "p:cliente:anticipo", monto: 50 }, { clave: "p:cliente:saldo", monto: 50 }]);
+  assert.equal(todo.find((c) => c.clave === "p:cliente:ajuste")!.monto, 100);
+  const conAjuste = ajustarAPagado(plan(100, 100), [{ clave: "p:cliente:anticipo", monto: 50 }, { clave: "p:cliente:saldo", monto: 50 }, { clave: "p:cliente:ajuste", monto: 100 }]);
+  assert.equal(conAjuste.some((c) => c.clave === "p:cliente:ajuste"), false);
+  const sinPagar = ajustarAPagado(plan(50, 150), []);
+  assert.deepEqual(sinPagar.map((c) => c.monto), [50, 150]);
+});
+
+test("la cuenta se mueve en su moneda, y otra moneda no se inventa", () => {
+  assert.equal(movimientoDeCuenta({ tipo: "COBRO", monto: 100, moneda: "ARS", importeEnPesos: 100, monedaCuenta: "ARS" }), 100);
+  assert.equal(movimientoDeCuenta({ tipo: "PAGO", monto: 10, moneda: "USD", importeEnPesos: 12000, monedaCuenta: "ARS" }), -12000);
+  assert.equal(movimientoDeCuenta({ tipo: "PAGO", monto: 10, moneda: "USD", importeEnPesos: 12000, monedaCuenta: "USD" }), -10);
+  assert.equal(movimientoDeCuenta({ tipo: "COBRO", monto: 100, moneda: "ARS", importeEnPesos: 100, monedaCuenta: "USD" }), null);
 });

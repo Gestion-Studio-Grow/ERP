@@ -44,6 +44,8 @@ ALTER TABLE "ProyectoArchivo" ADD COLUMN     "itemId" TEXT;
 -- CreateTable
 CREATE TABLE "ProyectoCuota" (
     "id" TEXT NOT NULL,
+    "cuentaId" TEXT,
+    "cuentaMovido" DOUBLE PRECISION,
     "tenantId" TEXT NOT NULL,
     "proyectoId" TEXT,
     "supplierId" TEXT,

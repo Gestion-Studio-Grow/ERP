@@ -87,7 +87,11 @@ export function desviosDelEvento(items: readonly ItemParaDesvio[], gastos: reado
   for (const [k, suyos] of rubros) {
     const sinDato = suyos.filter((i) => i.costoReal == null);
     for (const i of suyos) if (i.costoReal != null) lineas.push(linea(i.id, i.descripcion, i.rubro, i.proveedor, costoItem(i), i.costoReal));
-    const g = gastado.get(k);
+    // Lo pagado por cuotas ya está en los gastos del rubro: lo que corresponde a ítems con real cargado no se cuenta dos veces.
+    const cubierto = suyos.reduce((s, i) => s + (i.costoReal == null ? 0 : Math.min(i.costoReal, costoItem(i))), 0);
+    const cargado = gastado.get(k);
+    const g = cargado && cargado.neto - cubierto > 0 ? { ...cargado, neto: redondear(cargado.neto - cubierto) } : null;
+    if (!g) gastado.delete(k);
     if (g) {
       const presupuestado = sinDato.reduce((s, i) => s + costoItem(i), 0);
       lineas.push(linea(`rubro:${k}`, sinDato.length > 0 ? `${g.rubro}: gastos cargados` : `${g.rubro}: gastos fuera de los ítems`, g.rubro, null, presupuestado, g.neto));

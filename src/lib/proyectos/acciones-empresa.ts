@@ -5,6 +5,7 @@
 // registro. Marcar una cuota de PROYECTO vive en acciones-ficha.ts: acá están las de la empresa, sin proyecto.
 // ============================================================================
 
+import { cuentaParaCuota } from "./gestion-cuentas.server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
@@ -63,6 +64,12 @@ export async function crearPagoEmpresa(formData: FormData): Promise<Resultado> {
   return { ok: true };
 }
 
+/** Las cuentas para elegir al marcar un cobro o un pago. */
+export async function cuentasParaMarcar(): Promise<{ id: string; nombre: string; moneda: string }[]> {
+  const a = await exigirEditar("empresa");
+  return prisma.proyectoCuentaBanco.findMany({ where: { tenantId: a.tenantId }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, moneda: true } });
+}
+
 /** Marca pagada una cuota de la empresa y asienta el movimiento. El `where` con `pagadoEl: null` es lo que frena el doble clic. */
 export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("empresa");
@@ -76,9 +83,15 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado>
   if (!c) return { ok: false, error: "Ese pago no existe." };
   const amount = aPesos(c.monto, c.moneda, await tiposDeCambio(a.tenantId));
   if (!(amount > 0)) return { ok: false, error: "Falta el tipo de cambio: cargalo en Monedas y gastos fijos." };
+  const cuenta = await cuentaParaCuota(a.tenantId, formData, { tipo: c.tipo, monto: c.monto, moneda: c.moneda, importeEnPesos: amount });
+  if (typeof cuenta === "string") return { ok: false, error: cuenta };
   const hecho = await tenantTransaction(async (tx) => {
     const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio } });
     if (r.count === 0) return false;
+    if (cuenta) {
+      await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId }, data: { cuentaId: cuenta.id, cuentaMovido: cuenta.movido } });
+      await tx.proyectoCuentaBanco.updateMany({ where: { id: cuenta.id, tenantId: a.tenantId }, data: { saldo: { increment: cuenta.movido } } });
+    }
     const session = await tx.cashSession.findFirst({ where: { tenantId: a.tenantId, status: "OPEN" }, select: { id: true } });
     await tx.cashMovement.create({
       data: {
@@ -107,7 +120,8 @@ export async function anularCuotaEmpresa(formData: FormData): Promise<Resultado>
   const hecho = await tenantTransaction(async (tx) => {
     const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null }, data: { anuladoEl: new Date() } });
     if (r.count === 0) return false;
-    const c = await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId }, select: { concepto: true, tipo: true, monto: true, moneda: true } });
+    const c = await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId }, select: { concepto: true, tipo: true, monto: true, moneda: true, cuentaId: true, cuentaMovido: true } });
+    if (c?.cuentaId && c.cuentaMovido) await tx.proyectoCuentaBanco.updateMany({ where: { id: c.cuentaId, tenantId: a.tenantId }, data: { saldo: { decrement: c.cuentaMovido } } });
     const salida = c?.tipo === "COBRO" ? "INGRESO" : "EGRESO";
     const pago = await tx.cashMovement.findFirst({ where: { tenantId: a.tenantId, createdBy: marcaDeCuota(id), type: salida }, select: { amount: true, method: true } });
     if (pago) {

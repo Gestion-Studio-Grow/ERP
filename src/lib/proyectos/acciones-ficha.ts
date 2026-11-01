@@ -7,6 +7,7 @@
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { cuentaParaCuota } from "./gestion-cuentas.server";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -315,6 +316,7 @@ export async function quitarEquipo(formData: FormData): Promise<ResultadoFicha> 
 
 const ETIQUETA_CAMPO: Record<string, string> = {
   descripcion: "Descripción",
+  costoReal: "Costo real",
   rubro: "Rubro",
   supplierId: "Proveedor",
   cantidad: "Cantidad",
@@ -329,15 +331,15 @@ const ETIQUETA_CAMPO: Record<string, string> = {
 
 // Tocan el precio final: lo que Dirección aprobó ya no es lo que se va a enviar.
 const CAMPOS_DE_PRECIO = new Set(["cantidad", "costo", "moneda", "recargoPct", "precio"]);
-const CAMPOS_DE_COSTOS: Record<string, string | null> = { costo: "costoUnit", moneda: "costoUnit", recargoPct: "recargo", precio: null };
-const SIN_EFECTO_EN_CUOTAS = new Set(["estadoItem", "visibleCliente"]);
+const CAMPOS_DE_COSTOS: Record<string, string | null> = { costo: "costoUnit", moneda: "costoUnit", recargoPct: "recargo", precio: null, costoReal: "costoTotal" };
+const SIN_EFECTO_EN_CUOTAS = new Set(["estadoItem", "visibleCliente", "costoReal"]);
 
 /** Guarda un campo al salir de él. Un número mal tipeado se rechaza: nunca queda en cero callado. */
 export async function guardarCampoItem(d: { id: string; campo: string; valor: string }): Promise<ResultadoFicha> {
   const tenantId = await getCurrentTenantId();
   const it = await prisma.proyectoItem.findFirst({
     where: { id: String(d.id ?? ""), tenantId },
-    select: { id: true, descripcion: true, rubro: true, supplierId: true, proveedor: true, cantidad: true, costo: true, moneda: true, recargoPct: true, precio: true, fechaLimite: true, estadoItem: true, visibleCliente: true, presupuesto: { select: { id: true, estado: true, proyectoId: true, aprobadoInternoEl: true } } },
+    select: { id: true, descripcion: true, rubro: true, supplierId: true, proveedor: true, cantidad: true, costo: true, moneda: true, recargoPct: true, precio: true, fechaLimite: true, estadoItem: true, visibleCliente: true, costoReal: true, presupuesto: { select: { id: true, estado: true, proyectoId: true, aprobadoInternoEl: true } } },
   });
   if (!it) return mal("Ese ítem ya no existe. Recargá la página.");
   const { proyectoId } = it.presupuesto;
@@ -377,6 +379,13 @@ export async function guardarCampoItem(d: { id: string; campo: string; valor: st
       const n = numeroDe(valor);
       if (n === null || n <= 0) return mal("La cantidad tiene que ser un número mayor que cero.");
       data = { cantidad: n };
+      despues = n;
+      break;
+    }
+    case "costoReal": {
+      const n = valor.trim() === "" ? null : numeroDe(valor);
+      if (valor.trim() !== "" && n === null) return mal("El costo real no se entiende: escribilo como un número.");
+      data = { costoReal: n };
       despues = n;
       break;
     }
@@ -681,9 +690,12 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const cheque = medio === "CHEQUE" ? " · Cheque" : "";
   // Afuera de la transacción: una lectura por otra conexión, adentro, la traba.
   const destinatarios2 = await usuariosDelEquipo(tenantId, proyectoId, a.user.id);
+  const cuenta = await cuentaParaCuota(tenantId, formData, { tipo: c.tipo, monto: c.monto, moneda: c.moneda, importeEnPesos: importe });
+  if (typeof cuenta === "string") return mal(cuenta);
   const ganada = await tenantTransaction(async (tx) => {
-    const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio } });
+    const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio, cuentaId: cuenta?.id ?? null, cuentaMovido: cuenta?.movido ?? null } });
     if (r.count === 0) return false;
+    if (cuenta) await tx.proyectoCuentaBanco.updateMany({ where: { id: cuenta.id, tenantId }, data: { saldo: { increment: cuenta.movido } } });
     const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
     const method = metodoDeCaja(medio, await transferenciaEnElLibroTx(tx));
     const base = { tenantId, sessionId: session?.id ?? null, method, amount: importe };
@@ -769,7 +781,9 @@ export async function recalcularCuotas(formData: FormData): Promise<ResultadoFic
 async function reabrirCuotaTx(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, asiento: string, autor: string) {
   const enlace = await tx.proyectoCambio.findFirst({ where: { tenantId, proyectoId, entidad: "ProyectoCuota", campo: "Asiento", despues: asiento }, select: { entidadId: true } });
   if (!enlace?.entidadId) return;
-  await tx.proyectoCuota.updateMany({ where: { id: enlace.entidadId, tenantId }, data: { pagadoEl: null, pagadoPor: null, medio: null } });
+  const cuota = await tx.proyectoCuota.findFirst({ where: { id: enlace.entidadId, tenantId }, select: { cuentaId: true, cuentaMovido: true } });
+  if (cuota?.cuentaId && cuota.cuentaMovido) await tx.proyectoCuentaBanco.updateMany({ where: { id: cuota.cuentaId, tenantId }, data: { saldo: { decrement: cuota.cuentaMovido } } });
+  await tx.proyectoCuota.updateMany({ where: { id: enlace.entidadId, tenantId }, data: { pagadoEl: null, pagadoPor: null, medio: null, cuentaId: null, cuentaMovido: null } });
   await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: enlace.entidadId, campo: "Cuota reabierta", despues: "Pendiente", autor });
 }
 

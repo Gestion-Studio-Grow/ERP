@@ -92,6 +92,7 @@ export function TablaFicha({
                 {columnas.costoUnit && <th className="pr-2 font-medium">Moneda</th>}
                 {columnas.recargo && <th className="pr-2 font-medium">Recargo %</th>}
                 {columnas.costoTotal && <th className="pr-2 text-right font-medium">Costo $</th>}
+                {columnas.costoTotal && <th className="pr-2 font-medium">Costo real $</th>}
                 <th className="pr-2 font-medium">Venta u. $</th>
                 <th className="pr-2 text-right font-medium">Venta $</th>
                 {columnas.margen && <th className="pr-2 text-right font-medium">Margen</th>}
@@ -145,6 +146,11 @@ export function TablaFicha({
                           </td>
                         )}
                         {columnas.costoTotal && <td className="py-1 pr-2 pt-3 text-right tabular-nums">{pesos(i.costoTotal ?? 0)}</td>}
+                        {columnas.costoTotal && (
+                          <td className="py-1 pr-2 min-w-36">
+                            <Entrada id={i.id} nombre="costoReal" valor={i.costoReal == null ? "" : aTexto(i.costoReal)} etiqueta="Costo real" guardar={guardar} numero bloqueado={!editaCostos} />
+                          </td>
+                        )}
                         <td className="py-1 pr-2 min-w-36">
                           <Entrada id={i.id} nombre="precio" valor={i.precioManual > 0 ? aTexto(i.precioManual) : ""} etiqueta="Precio de venta unitario" guardar={guardar} numero bloqueado={!editaCostos} ayuda={aTexto(i.ventaUnitaria)} />
                         </td>
@@ -171,6 +177,7 @@ export function TablaFicha({
                         {columnas.costoUnit && <td className="py-2 pr-2">{i.moneda}</td>}
                         {columnas.recargo && <td className="py-2 pr-2 tabular-nums">{i.recargoPct ?? "—"}</td>}
                         {columnas.costoTotal && <td className="py-2 pr-2 text-right tabular-nums">{pesos(i.costoTotal ?? 0)}</td>}
+                        {columnas.costoTotal && <td className="py-2 pr-2 tabular-nums">{i.costoReal == null ? "—" : pesos(i.costoReal)}</td>}
                         <td className="py-2 pr-2 tabular-nums">{pesos(i.ventaUnitaria)}</td>
                         <td className="py-2 pr-2 text-right font-medium text-strong tabular-nums">{pesos(i.venta)}</td>
                         {columnas.margen && <td className={cn("py-2 pr-2 text-right tabular-nums", (i.margen ?? 0) < 0 && "text-danger")}>{pesos(i.margen ?? 0)}</td>}

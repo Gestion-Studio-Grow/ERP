@@ -25,7 +25,8 @@ import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
 import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
 import { actorActual } from "@/lib/proyectos/gestion.server";
-import { appDeGestionVisible } from "@/lib/proyectos/gestion-core";
+import { appDeGestionVisible, appEnLaBarra } from "@/lib/proyectos/gestion-core";
+import { appDeRuta } from "@/apps/rutas";
 import { appCasa, appDelPanelCerrado, appsDeLaCasa, appsVisibles, conCierreDelMesEnLaBarra, conProyectosEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa, rutaFueraDelPanel } from "@/apps/visibles";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
@@ -265,7 +266,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
   // Apps de gestión de eventos: la barra muestra lo que el rol de esa persona puede abrir.
   const actor = panel?.id === "proyectos" ? await actorActual() : null;
-  const visibles = actor ? visiblesDelNegocio.filter((a) => appDeGestionVisible(a.id, actor.rol, actor.permisos)) : visiblesDelNegocio;
+  const abribles = actor ? visiblesDelNegocio.filter((a) => appDeGestionVisible(a.id, actor.rol, actor.permisos)) : visiblesDelNegocio;
+  const visibles = actor ? abribles.filter((a) => appEnLaBarra(a.id, actor.rol)) : abribles;
+  if (actor) {
+    const pathname = (await headers()).get("x-pathname");
+    const app = pathname ? appDeRuta(pathname) : null;
+    if (app && !abribles.some((a) => a.id === app.id)) redirect("/admin/proyectos/inicio");
+  }
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
   const menu = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles);
   // DISEÑO NUEVO: la navegación del armazón nuevo (espacios, comandos de ⌘K, tecla del rubro), con

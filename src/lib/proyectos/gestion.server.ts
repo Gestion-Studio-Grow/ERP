@@ -16,7 +16,7 @@ import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
-import { COLUMNAS_OCULTAS_BASE, mailDeAviso, generaCuotas, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { ajustarAPagado, COLUMNAS_OCULTAS_BASE, rolDelActor, mailDeAviso, generaCuotas, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 
 export interface Actor {
   user: SessionUser;
@@ -27,7 +27,7 @@ export interface Actor {
   permisos: { rol: string; modulo: string; ver: boolean; editar: boolean; columnasOcultas: unknown }[];
 }
 
-/** Quien maneja la plata en el ERP y no tiene ficha de persona es Dirección: el dueño entra sin que nadie lo cargue. */
+/** El dueño entra sin que nadie lo cargue; cualquier otro usuario sin ficha no abre nada hasta que lo sumen al equipo. */
 export async function actorActual(): Promise<Actor> {
   const user = await requireCapability("agenda:read");
   const tenantId = await getCurrentTenantId();
@@ -35,7 +35,7 @@ export async function actorActual(): Promise<Actor> {
     prisma.proyectoPersona.findFirst({ where: { tenantId, userId: user.id, activa: true }, select: { id: true, rol: true, nombre: true } }),
     prisma.proyectoPermiso.findMany({ where: { tenantId }, select: { rol: true, modulo: true, ver: true, editar: true, columnasOcultas: true } }),
   ]);
-  const rol = (persona?.rol as RolGestion | undefined) ?? (roleHasCapability(user.role, "agenda:manage") ? "DIRECCION" : "DISENO");
+  const rol = rolDelActor(persona?.rol, user.role);
   return { user, tenantId, personaId: persona?.id ?? null, nombre: persona?.nombre ?? user.name, rol, permisos };
 }
 
@@ -170,7 +170,7 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
   const items = viva.items.map(aItemFicha);
   const proveedores = [...new Set(items.map((i) => i.supplierId).filter((s): s is string => !!s))];
   const fichas = await prisma.proyectoProveedorFicha.findMany({ where: { tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
-  const plan =
+  const planDeLaFicha =
     generaCuotas(p.etapa) && !p.perdidoEl
       ? planDeCuotas(items, {
           proyectoId,
@@ -184,7 +184,8 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
           anticipoProveedor: Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct])),
         })
       : [];
-  const actuales = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, pagadoEl: true, anuladoEl: true } });
+  const actuales = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, monto: true, pagadoEl: true, anuladoEl: true } });
+  const plan = ajustarAPagado(planDeLaFicha, actuales.filter((c) => c.pagadoEl && !c.anuladoEl).map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
   const porClave = new Map(actuales.map((c) => [c.clave, c]));
   const vigentes = new Set(plan.map((c) => c.clave));
   for (const c of plan) {

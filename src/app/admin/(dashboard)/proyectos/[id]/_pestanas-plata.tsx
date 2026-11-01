@@ -1,5 +1,6 @@
 // Las pestañas Cotización y Finanzas, y lo que viene de antes y sigue vivo: costo real, cobros, propuesta con su link.
 
+import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Badge, buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
@@ -182,6 +183,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
 // ── Finanzas ────────────────────────────────────────────────────────────────
 
 export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab: Cabecera; vista: Vista; filtro?: string }) {
+  const cuentas = vista.editaPagos ? await prisma.proyectoCuentaBanco.findMany({ where: { tenantId: a.tenantId }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, moneda: true } }) : [];
   const { proyecto: p, totales: t, faltanCambio } = cab;
   const d = await datosFinanzas(a, cab, vista);
   const activo = FILTROS_CASHFLOW.some((f) => f.id === filtro) ? (filtro as string) : "todos";
@@ -249,6 +251,12 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                               <select name="medio" aria-label={`Medio de ${c.concepto}`} defaultValue="TRANSFERENCIA" className={campoEnLinea}>
                                 {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
                               </select>
+                              {cuentas.length > 0 && (
+                                <select name="cuenta" aria-label={`Cuenta de ${c.concepto}`} defaultValue="" className={campoEnLinea}>
+                                  <option value="">Sin cuenta</option>
+                                  {cuentas.map((x) => <option key={x.id} value={x.id}>{x.nombre} ({x.moneda})</option>)}
+                                </select>
+                              )}
                               <SubmitButton className={buttonClasses("outline", "md")}>{c.tipo === "COBRO" ? "Marcar cobrado" : "Marcar pagado"}</SubmitButton>
                             </FormAccion>
                             {!c.auto && <BotonConConfirmacion accion={quitarMovimiento} ocultos={{ id: c.id, proyectoId: p.id }} texto="Quitar" textoConfirma="Quitar" etiqueta={`Quitar ${c.concepto}`} />}

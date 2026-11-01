@@ -167,10 +167,11 @@ export interface FilaFicha {
   estadoItem: string;
   visibleCliente: boolean;
   adjuntos: number;
+  costoReal?: number | null;
 }
 
 export function filaDeFicha(
-  i: ItemVenta & { id: string; supplierId: string | null; supplier?: { name: string } | null; proveedor: string | null; fechaLimite: string; estadoItem: string; visibleCliente: boolean; adjuntos: number },
+  i: ItemVenta & { id: string; supplierId: string | null; supplier?: { name: string } | null; proveedor: string | null; fechaLimite: string; estadoItem: string; visibleCliente: boolean; adjuntos: number; costoReal?: number | null },
   tc: Readonly<Record<string, number>>,
   recargoGeneral: number,
   ocultas: ReadonlySet<string>,
@@ -194,7 +195,7 @@ export function filaDeFicha(
     adjuntos: i.adjuntos,
     ...(!ocultas.has("costoUnit") && { costo: i.costo }),
     ...(!ocultas.has("recargo") && { recargoPct: i.recargoPct }),
-    ...(!ocultas.has("costoTotal") && { costoTotal }),
+    ...(!ocultas.has("costoTotal") && { costoTotal, costoReal: i.costoReal ?? null }),
     ...(!ocultas.has("margen") && { margen: redondear(venta - costoTotal) }),
   };
 }

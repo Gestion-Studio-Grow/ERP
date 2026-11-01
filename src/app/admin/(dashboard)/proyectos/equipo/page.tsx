@@ -23,7 +23,7 @@ const PESTANAS = [
 
 const fechaHora = (d: Date) => new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Argentina/Buenos_Aires" }).format(d);
 const casilla = "flex min-h-11 min-w-11 items-center justify-center";
-const ROLES = ROLES_GESTION.filter((r): r is Exclude<RolGestion, "DIRECCION"> => r !== "DIRECCION");
+const ROLES = ROLES_GESTION.filter((r): r is Exclude<RolGestion, "DIRECCION" | "SIN_FICHA"> => r !== "DIRECCION");
 
 async function Personas({ a }: { a: Actor }) {
   const personas = await personasDelEquipo(a);
