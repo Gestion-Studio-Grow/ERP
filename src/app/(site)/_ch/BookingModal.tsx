@@ -18,6 +18,9 @@ const STEP_LABELS = ["", "Servicio", "Profesional", "Día y hora", "Datos", "Con
 
 type SelectedService = BookingService & { categoria: string };
 
+// «Continuar» y «Confirmar» son el mismo botón: el segundo toque de un doble toque en el paso 3 caería en «Confirmar».
+const VENTANA_DOBLE_TOQUE_MS = 500;
+
 // Diseño nuevo de CH: el modal puede abrir con servicio, profesional, día y hora ya elegidos (la agenda viva, un
 // renglón de la carta, la ficha). Sólo se toma lo que existe en los datos públicos y encadena: un profesional que
 // no hace ese servicio, o un día fuera de los 14 visibles, se descarta y el modal arranca en el paso anterior. El
@@ -89,6 +92,9 @@ export default function BookingModal({
   const [confirmedStartsAt, setConfirmedStartsAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Doble toque: `submitting` recién apaga el botón en el render siguiente; la ref frena ya el segundo envío.
+  const confirmando = useRef(false);
+  const llegadaAlPaso4 = useRef(0);
   // Diseño nuevo: «Continuar»/«Confirmar» no quedan muertos; al tocarlos sin completar, se dice qué falta (faltaParaSeguir).
   // Guarda EN QUÉ PASO se intentó: al cambiar de paso, por el camino que sea, el aviso no viaja.
   const [intentoEn, setIntentoEn] = useState(0);
@@ -327,7 +333,8 @@ export default function BookingModal({
   }
 
   async function confirmBooking() {
-    if (!pro || !svc || !slot) return;
+    if (!pro || !svc || !slot || confirmando.current) return;
+    confirmando.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -355,11 +362,13 @@ export default function BookingModal({
       // Sin red o el servidor no contestó: el mensaje del navegador no le sirve a nadie.
       setError("No pudimos confirmar tu turno: revisá la conexión y probá de nuevo.");
     } finally {
+      confirmando.current = false;
       setSubmitting(false);
     }
   }
 
   function next() {
+    if (step === 4 && Date.now() - llegadaAlPaso4.current < VENTANA_DOBLE_TOQUE_MS) return;
     if (nuevo && !canNext) {
       setIntentoEn(step);
       return;
@@ -375,7 +384,10 @@ export default function BookingModal({
       onClose();
       return;
     }
-    if (canNext) setStep(step + 1);
+    if (canNext) {
+      if (step === 3) llegadaAlPaso4.current = Date.now();
+      setStep(step + 1);
+    }
   }
 
   // ELEGIR ES AVANZAR. Antes, tocar un servicio sólo lo pintaba de color: el botón

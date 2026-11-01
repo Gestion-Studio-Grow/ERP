@@ -157,9 +157,18 @@ async function escribir(etiqueta: string, valor: string) {
     input.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
   });
 }
-async function confirmarDatos() {
+// El reloj del modal: un toque en «Confirmar» pegado a la llegada al paso 4 no cuenta (doble toque).
+const ahoraReal = Date.now;
+let salto = 0;
+Date.now = () => ahoraReal() + salto;
+const pasarVentanaDobleToque = () => void (salto += 1000);
+async function cargarDatos() {
   await escribir("Nombre", "QA");
   await escribir("Teléfono", "11 2345 6789");
+}
+async function confirmarDatos() {
+  await cargarDatos();
+  pasarVentanaDobleToque();
   await clic("Confirmar");
 }
 
@@ -251,6 +260,44 @@ for (const nuevo of [true, false]) {
     assert.equal(creadas.length, 1);
   });
 
+  test(`${modo}: dos toques seguidos en Confirmar crean una sola reserva`, async () => {
+    await abrir(nuevo);
+    await clic("SrvX");
+    await clic("Ana");
+    await soltarTodo();
+    await clic("09:00");
+    await clic("Continuar");
+    await cargarDatos();
+    pasarVentanaDobleToque();
+    const confirmar = botones().find((b) => b.textContent!.trim() === "Confirmar")!;
+    await act(async () => {
+      // Los dos en el mismo turno: el botón todavía no llegó a apagarse.
+      confirmar.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
+      confirmar.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
+    });
+    assert.equal(creadas.length, 1);
+    assert.equal(paso(), "5");
+  });
+
+  test(`${modo}: doble toque en Continuar con los datos ya cargados no confirma solo`, async () => {
+    await abrir(nuevo);
+    await clic("SrvX");
+    await clic("Ana");
+    await soltarTodo();
+    await clic("09:00");
+    await clic("Continuar");
+    await cargarDatos();
+    await clic("Volver");
+    await clic("Continuar");
+    await clic("Confirmar"); // El segundo toque cae en el mismo botón, que ya dice «Confirmar».
+    assert.equal(creadas.length, 0, "no se reservó sin mirar el paso 4");
+    assert.equal(paso(), "4");
+    pasarVentanaDobleToque();
+    await clic("Confirmar");
+    assert.equal(creadas.length, 1, "un toque aparte sí confirma");
+    assert.equal(paso(), "5");
+  });
+
   test(`${modo}: cambiar de servicio borra día y hora y salta al primer día con lugar`, async () => {
     await abrir(nuevo);
     await clic("SrvX");
@@ -306,6 +353,7 @@ test("prendido: un rechazo no relee: queda en el paso 4 con el motivo, y al volv
   await clic("10:00");
   await clic("Continuar");
   respuesta = { ok: true, id: "abcdef123456", startsAt: HORA[MAR] };
+  pasarVentanaDobleToque();
   await clic("Confirmar");
   assert.equal(creadas.at(-1)!.startsAtIso, HORA[MAR], "la reserva sale el día marcado");
 });
