@@ -41,6 +41,11 @@ export type SitioEstatico = {
    * están publicados.
    */
   sinEmbeberAfuera?: boolean;
+  /**
+   * Pantallas de otros rubros que en este host llevan a la portada, además de tienda y reserva (con todo lo que
+   * cuelgue de ellas). Opcional para no cambiar los sitios que ya están publicados.
+   */
+  rutasDeOtrosRubros?: readonly string[];
 };
 
 const PAGINA: Omit<ArchivoDelSitio, "archivo"> = { tipo: "text/html; charset=utf-8", cache: "private, max-age=300" };
@@ -72,6 +77,30 @@ export const SITIOS_ESTATICOS: readonly SitioEstatico[] = [
       "": { archivo: "index.html", ...PAGINA },
       turnero: { archivo: "turnero.html", ...PAGINA },
       club: { archivo: "club.html", ...PAGINA },
+    },
+  },
+  {
+    // MIA Producciones: copia de su sitio público (la portada y sus 12 proyectos), en mia-producciones.gsgapp.com.ar
+    // hasta que el dueño decida qué pasa con su dominio. Las imágenes, estilos y scripts están en
+    // public/tenants/mia-producciones/sitio. Se genera con scripts/proyectos/copiar-sitio-mia.mjs
+    // (docs/tenants/mia-producciones/README.md).
+    slug: "mia-producciones",
+    subdominio: "mia-producciones",
+    carpeta: "src/tenants/mia-producciones/sitio",
+    sinEmbeberAfuera: true,
+    rutasDeOtrosRubros: [
+      "/servicios", "/clases", "/mis-clases", "/alumno", "/alquiler", "/demo", "/facturita", "/contador",
+      "/inmobiliaria", "/propiedades", "/premium", "/probar", "/seguimiento", "/taller", "/obsequio",
+    ],
+    archivos: {
+      "": { archivo: "index.html", ...PAGINA },
+      ...Object.fromEntries(
+        [
+          "nucleoelectrica-en-tecnopolis", "sediana", "activacion-flow", "telecom-summit", "mangapalloza",
+          "nissan-expo-ganadera", "personal-fest", "andes-origen", "laboratorios-raffo", "nissan-casa-foa",
+          "nissan-carilo", "biogenesis-bago-expo-ganadera",
+        ].map((ruta) => [ruta, { archivo: `${ruta}.html`, ...PAGINA }]),
+      ),
     },
   },
 ];
@@ -117,7 +146,7 @@ export function redireccionesDeSitiosEstaticos(
   sitios: readonly SitioEstatico[] = SITIOS_ESTATICOS,
 ): ReglaDeRedireccion[] {
   return sitios.flatMap((sitio) =>
-    RUTAS_REEMPLAZADAS.map((source) => ({
+    [...RUTAS_REEMPLAZADAS, ...(sitio.rutasDeOtrosRubros ?? []).flatMap((ruta) => [ruta, `${ruta}/:resto*`])].map((source) => ({
       source,
       destination: "/",
       permanent: false as const,

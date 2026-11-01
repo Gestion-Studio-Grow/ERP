@@ -152,7 +152,42 @@ test("cada archivo registrado existe y su carpeta entra en el trazado de la func
       assert.ok(existsSync(path.join(RAIZ, sitio.carpeta, archivo)), `${sitio.carpeta}/${archivo}`);
     }
   }
-  assert.deepEqual(carpetasParaTrazar(), ["./src/tenants/circuito-wpe/sitio/**/*", "./src/tenants/breakpoint/sitio/**/*"]);
+  assert.deepEqual(carpetasParaTrazar(), [
+    "./src/tenants/circuito-wpe/sitio/**/*",
+    "./src/tenants/breakpoint/sitio/**/*",
+    "./src/tenants/mia-producciones/sitio/**/*",
+  ]);
+});
+
+// ───── MIA Producciones: copia de su sitio en mia-producciones.* ─────
+test("MIA: las pantallas de otros rubros llevan a la portada sólo en su host", () => {
+  const delHost = (host: string) =>
+    redireccionesDeSitiosEstaticos().filter((r) => r.has.some((h) => new RegExp(`^${h.value}$`).test(host)));
+  const deMia = delHost("mia-producciones.gsgapp.com.ar").map((r) => r.source);
+  for (const ruta of ["/servicios", "/servicios/:resto*", "/clases", "/facturita", "/tienda", "/reserva"]) {
+    assert.ok(deMia.includes(ruta), ruta);
+  }
+  for (const ruta of ["/admin", "/admin/:resto*", "/propuesta", "/propuesta/:resto*", "/api", "/operador"]) {
+    assert.ok(!deMia.includes(ruta), `${ruta} no se puede cerrar: es su panel, su propuesta o la plataforma`);
+  }
+  assert.ok(!delHost("chestetica.gsgapp.com.ar").length, "CH sigue con sus pantallas");
+  assert.ok(!delHost("breakpointpadel.gsgapp.com.ar").some((r) => r.source === "/servicios"), "los demás sitios no cambian");
+});
+
+test("MIA: la copia no depende de otros servidores: ni scripts, ni estilos, ni letras de afuera", () => {
+  const mia = sitioDelNegocio("mia-producciones")!;
+  for (const { archivo } of Object.values(mia.archivos)) {
+    const html = readFileSync(path.join(RAIZ, mia.carpeta, archivo), "utf8");
+    assert.match(html, /<meta name="robots" content="noindex">/, `${archivo}: la que indexa Google es la original`);
+    for (const m of html.matchAll(/<(?:script|img|source|iframe)\b[^>]*\bsrc=["']([^"']+)/gi)) {
+      assert.doesNotMatch(m[1], /^(?:https?:)?\/\//, `${archivo}: ${m[1]}`);
+    }
+    for (const m of html.matchAll(/<link\b[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)/gi)) {
+      assert.match(m[1], /^\/tenants\/mia-producciones\/sitio\//, `${archivo}: ${m[1]}`);
+    }
+    assert.doesNotMatch(html, /fonts\.googleapis|fonts\.gstatic|googletagmanager|connect\.facebook/, archivo);
+    assert.doesNotMatch(html, /<form\b[^>]*\baction=/i, `${archivo}: el formulario no publica en otro lado`);
+  }
 });
 
 test("el cuerpo del sitio es el que vio el cliente: el pulido sólo tocó el <head>", () => {
