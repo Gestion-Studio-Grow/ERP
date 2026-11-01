@@ -3491,6 +3491,7 @@ model ProyectoConfig {
 // ── Gestión de eventos: las apps relevadas de Heka (docs/benchmark/heka-especificacion.md). Sólo tablas del módulo. ──
 
 model ProyectoCuota {
+  prevista       Boolean @default(false) // evento sin confirmar o sin fecha: se ve en su ficha, no cuenta como plata
   cuentaId       String? // la cuenta que movió al marcarla: al reabrirla se devuelve
   cuentaMovido   Float?
   id             String             @id @default(cuid())

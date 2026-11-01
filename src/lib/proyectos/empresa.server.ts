@@ -17,7 +17,7 @@ const MESES_PROYECCION = 6;
 
 export async function cuotasDelNegocio(tenantId: string) {
   return prisma.proyectoCuota.findMany({
-    where: { tenantId, anuladoEl: null },
+    where: { tenantId, anuladoEl: null, prevista: false },
     orderBy: { venceEl: "asc" },
     take: 3000,
     select: {
@@ -176,7 +176,7 @@ export async function proyectosConNumeros(tenantId: string) {
         client: { select: { name: true } },
         presupuestos: { orderBy: { version: "desc" }, take: 1, select: { items: { orderBy: { posicion: "asc" }, include: { supplier: { select: { name: true } } } } } },
         gastos: { where: { anuladoEl: null }, select: { rubro: true, neto: true, anuladoEl: true } },
-        cuotas: { where: { anuladoEl: null, tipo: "COBRO" }, select: { monto: true, moneda: true, venceEl: true, pagadoEl: true, tipo: true } },
+        cuotas: { where: { anuladoEl: null, prevista: false, tipo: "COBRO" }, select: { monto: true, moneda: true, venceEl: true, pagadoEl: true, tipo: true } },
       },
     }),
     configProyectos(tenantId),

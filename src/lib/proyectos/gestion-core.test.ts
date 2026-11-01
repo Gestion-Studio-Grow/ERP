@@ -24,6 +24,7 @@ import {
   mailDeAviso,
   ajustarAPagado,
   cambioDeVenta,
+  cuotaPrevista,
   enMonedaDeVenta,
   appEnLaBarra,
   movimientoDeCuenta,
@@ -65,8 +66,8 @@ test("las cuotas al cliente llevan IVA y las del proveedor no", () => {
   assert.deepEqual(c.map((x) => x.monto), [30, 70, 90.75, 90.75]);
 });
 
-test("sin fecha de evento o sin proveedor no hay pago", () => {
-  assert.deepEqual(planDeCuotas([item({})], { ...plan, fechaEvento: null }), []);
+test("sin proveedor no hay pago, y sin fecha igual se planifica", () => {
+  assert.ok(planDeCuotas([item({})], { ...plan, fechaEvento: null }).length > 0, "sin fecha salen como previsión");
   assert.equal(planDeCuotas([item({ supplierId: null })], plan).filter((c) => c.tipo === "PAGO").length, 0);
 });
 
@@ -296,4 +297,12 @@ test("el cliente de un evento en dólares paga en dólares y el proveedor sigue 
   assert.ok(plan.filter((c) => c.tipo === "PAGO").every((c) => c.moneda === "ARS"));
   const sinCambio = planDeCuotas(items, { ...base, monedaVenta: "USD", cambioVenta: 0 });
   assert.ok(sinCambio.filter((c) => c.tipo === "COBRO").every((c) => c.moneda === "ARS"));
+});
+
+test("una cuota es plata recién con el evento confirmado y con fecha", () => {
+  const fecha = new Date("2027-01-10T12:00:00Z");
+  assert.equal(cuotaPrevista("PRESUPUESTO", fecha), true);
+  assert.equal(cuotaPrevista("APROBADO", null), true);
+  assert.equal(cuotaPrevista("APROBADO", fecha), false);
+  assert.equal(cuotaPrevista("CIERRE", fecha), false);
 });

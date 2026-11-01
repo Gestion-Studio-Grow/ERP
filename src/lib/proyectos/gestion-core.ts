@@ -148,6 +148,9 @@ export interface DatosPlan {
 export const ETAPAS_CON_CUOTAS = ["APROBADO", "PRODUCCION", "ARMADO", "DESARME", "CIERRE"] as const;
 export const generaCuotas = (etapa: string): boolean => (ETAPAS_CON_CUOTAS as readonly string[]).includes(etapa);
 
+/** Sin confirmar o sin fecha, la cuota es una previsión: todavía no es plata de nadie. PURA. */
+export const cuotaPrevista = (etapa: string, fechaEvento: Date | null): boolean => !generaCuotas(etapa) || !fechaEvento;
+
 const DIAS_SALDO_CLIENTE_ANTES = 5;
 const DIAS_SALDO_PROVEEDOR_DESPUES = 12;
 const DIAS_ANTICIPO_PROVEEDOR_ANTES = 30;
@@ -157,8 +160,8 @@ const DIAS_ANTICIPO_PROVEEDOR_ANTES = 30;
  * actualiza lo pendiente sin duplicar. Un ítem pagado por completo al 100 % de anticipo no tiene saldo, y viceversa.
  */
 export function planDeCuotas(items: readonly ItemFicha[], d: DatosPlan): CuotaPlaneada[] {
-  if (!d.fechaEvento) return [];
-  const evento = d.fechaEvento.getTime();
+  // Sin fecha salen igual, como previsión: el vencimiento que llevan no se muestra (ver `cuotaPrevista`).
+  const evento = (d.fechaEvento ?? d.creado).getTime();
   const salida: CuotaPlaneada[] = [];
   for (const i of items) {
     if (!i.supplierId || !(i.costo > 0)) continue;

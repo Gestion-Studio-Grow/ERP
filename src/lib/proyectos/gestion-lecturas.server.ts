@@ -69,7 +69,7 @@ export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, sol
     }),
     verPagos
       ? prisma.proyectoCuota.findMany({
-          where: { tenantId, venceEl: rango, pagadoEl: null, anuladoEl: null, OR: [{ proyecto: visibles }, ...(verEmpresa ? [{ proyectoId: null }] : [])] },
+          where: { tenantId, venceEl: rango, pagadoEl: null, anuladoEl: null, prevista: false, OR: [{ proyecto: visibles }, ...(verEmpresa ? [{ proyectoId: null }] : [])] },
           select: { id: true, tipo: true, concepto: true, monto: true, moneda: true, venceEl: true, proyectoId: true, proyecto: { select: { nombre: true } } },
           take: 800,
         })
@@ -256,7 +256,7 @@ export async function listaDeProveedores(a: Actor, f: { rubro?: string; q?: stri
   const ids = proveedores.map((p) => p.id);
   const [eventos, cuotas, gastos, tc] = await Promise.all([
     eventosPorProveedor(a, ids),
-    verPlata ? prisma.proyectoCuota.findMany({ where: { tenantId, tipo: "PAGO", pagadoEl: null, anuladoEl: null, supplierId: { in: ids }, ...filtroCuotasVisibles(a) }, select: { supplierId: true, monto: true, moneda: true }, take: 5000 }) : [],
+    verPlata ? prisma.proyectoCuota.findMany({ where: { tenantId, tipo: "PAGO", pagadoEl: null, anuladoEl: null, prevista: false, supplierId: { in: ids }, ...filtroCuotasVisibles(a) }, select: { supplierId: true, monto: true, moneda: true }, take: 5000 }) : [],
     verPlata
       ? prisma.proyectoGasto.findMany({
           where: { tenantId, anuladoEl: null, pagadoEl: null, proyecto: filtroDeProyectos(a) },
@@ -308,7 +308,7 @@ export async function detalleDeProveedor(a: Actor, id: string) {
     }),
     verPlata
       ? prisma.proyectoCuota.findMany({
-          where: { tenantId, supplierId: id, tipo: "PAGO", pagadoEl: null, anuladoEl: null, ...filtroCuotasVisibles(a) },
+          where: { tenantId, supplierId: id, tipo: "PAGO", pagadoEl: null, anuladoEl: null, prevista: false, ...filtroCuotasVisibles(a) },
           orderBy: { venceEl: "asc" },
           take: 200,
           select: { id: true, concepto: true, monto: true, moneda: true, venceEl: true, proyectoId: true, proyecto: { select: { nombre: true } } },

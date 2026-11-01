@@ -712,6 +712,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   if (!c) return mal("Esa cuota ya no existe. Recargá la página.");
   const { proyectoId, proyecto } = c;
   if (!proyectoId || !proyecto) return mal("Esa cuota es de la empresa: se marca desde Administración.");
+  if (c.prevista) return mal("Esta cuota todavía es una previsión: confirmá el evento y cargale la fecha para poder marcarla.");
   const a = await entrar(["pagos", "empresa"], proyectoId);
   if (typeof a === "string") return mal(a);
   if (!MEDIOS.includes(medio)) return mal("Elegí el medio de pago.");

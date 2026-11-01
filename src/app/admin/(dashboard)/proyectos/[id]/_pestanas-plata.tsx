@@ -220,6 +220,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
           <p className="mb-3 text-sm text-muted">Sin movimientos. Los cobros y pagos se generan solos cuando el proyecto está confirmado y la ficha tiene fecha de evento.</p>
         ) : (
           <div className="mb-3 overflow-x-auto">
+            {lineas.some((l) => l.cuota.prevista && !l.cuota.pagadoEl) && <p className="mb-2 text-sm text-muted">Las cuotas previstas son una proyección: no suman en Administración, agenda ni proveedores, y se pueden marcar recién con el evento confirmado y con fecha.</p>}
             <table className="w-full min-w-[920px] text-sm">
               <thead className="text-left text-xs text-muted">
                 <tr>
@@ -238,15 +239,15 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                   const estado = estadoCuota(c);
                   return (
                     <tr key={c.id} className="border-t border-line align-top">
-                      <td className="py-1.5 pr-2 whitespace-nowrap">{fechaCorta(c.venceEl)}</td>
+                      <td className="py-1.5 pr-2 whitespace-nowrap">{c.prevista && !p.fechaEvento ? "Sin fecha" : fechaCorta(c.venceEl)}</td>
                       <td className="py-1.5 pr-2">{c.concepto}{c.auto && <span className="ml-1 text-xs text-muted">auto</span>}</td>
                       <td className="py-1.5 pr-2">{c.tipo === "COBRO" ? p.client.name : c.supplier?.name ?? "—"}</td>
                       <td className="py-1.5 pr-2 text-right tabular-nums">{plataEn(c.monto, c.moneda)}</td>
                       <td className={cn("py-1.5 pr-2 text-right tabular-nums", importe < 0 ? "text-danger" : "text-strong")}>{pesos(importe)}</td>
                       <td className={cn("py-1.5 pr-2 text-right font-medium tabular-nums", saldo < 0 && "text-danger")}>{pesos(saldo)}</td>
-                      <td className="py-1.5 pr-2"><Badge tone={estado === "PAGADA" ? "success" : estado === "VENCIDA" ? "danger" : "neutral"}>{estado === "PAGADA" ? (c.tipo === "COBRO" ? "Cobrado" : "Pagado") : estado === "VENCIDA" ? "Vencido" : "Pendiente"}</Badge></td>
+                      <td className="py-1.5 pr-2">{c.prevista && !c.pagadoEl ? <Badge tone="neutral">Prevista</Badge> : <Badge tone={estado === "PAGADA" ? "success" : estado === "VENCIDA" ? "danger" : "neutral"}>{estado === "PAGADA" ? (c.tipo === "COBRO" ? "Cobrado" : "Pagado") : estado === "VENCIDA" ? "Vencido" : "Pendiente"}</Badge>}</td>
                       <td className="py-1">
-                        {!c.pagadoEl && vista.editaPagos && (
+                        {!c.pagadoEl && !c.prevista && vista.editaPagos && (
                           <div className="flex flex-wrap items-center justify-end gap-1">
                             <FormAccion accion={marcarCuota} className="flex flex-wrap items-center gap-1">
                               <input type="hidden" name="id" value={c.id} />

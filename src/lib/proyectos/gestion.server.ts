@@ -16,7 +16,7 @@ import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
-import { ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, rolDelActor, mailDeAviso, generaCuotas, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 
 export interface Actor {
   user: SessionUser;
@@ -178,7 +178,7 @@ export const aItemFicha = (i: { id: string; descripcion: string; rubro: string; 
 
 /**
  * Lleva las cuotas automáticas a lo que dice la ficha. Lo pagado no se toca; lo pendiente se actualiza; lo que ya no sale de
- * la ficha se anula, sin borrarlo. Antes de confirmado el proyecto no hay cuotas.
+ * la ficha se anula, sin borrarlo. Antes de confirmado, o sin fecha, las cuotas quedan como previstas.
  */
 export async function regenerarCuotas(tenantId: string, proyectoId: string): Promise<void> {
   const [p, viva, config, tc] = await Promise.all([
@@ -192,7 +192,7 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
   const proveedores = [...new Set(items.map((i) => i.supplierId).filter((s): s is string => !!s))];
   const fichas = await prisma.proyectoProveedorFicha.findMany({ where: { tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
   const planDeLaFicha =
-    generaCuotas(p.etapa) && !p.perdidoEl
+    !p.perdidoEl
       ? planDeCuotas(items, {
           proyectoId,
           nombre: p.nombre,
@@ -209,12 +209,13 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
       : [];
   const actuales = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, monto: true, pagadoEl: true, anuladoEl: true } });
   const plan = ajustarAPagado(planDeLaFicha, actuales.filter((c) => c.pagadoEl && !c.anuladoEl).map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
+  const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
   const porClave = new Map(actuales.map((c) => [c.clave, c]));
   const vigentes = new Set(plan.map((c) => c.clave));
   for (const c of plan) {
     const previa = porClave.get(c.clave);
     if (previa?.pagadoEl) continue;
-    const datos = { tipo: c.tipo, concepto: c.concepto, monto: c.monto, moneda: c.moneda, venceEl: c.venceEl, supplierId: c.supplierId, anuladoEl: null };
+    const datos = { prevista, tipo: c.tipo, concepto: c.concepto, monto: c.monto, moneda: c.moneda, venceEl: c.venceEl, supplierId: c.supplierId, anuladoEl: null };
     if (previa) await prisma.proyectoCuota.update({ where: { id: previa.id }, data: datos });
     else await prisma.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
   }

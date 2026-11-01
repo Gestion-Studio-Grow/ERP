@@ -129,7 +129,7 @@ export type Cabecera = NonNullable<Awaited<ReturnType<typeof cabeceraFicha>>>;
 export async function datosResumen(a: Actor, cab: Cabecera, vista: Vista) {
   const [personas, cuotas, cantChecklist] = await Promise.all([
     prisma.proyectoPersona.findMany({ where: { tenantId: a.tenantId, activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, puesto: true } }),
-    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, anuladoEl: null }, select: { tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true } }) : [],
+    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, anuladoEl: null, prevista: false }, select: { tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true } }) : [],
     prisma.proyectoChecklist.count({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id } }),
   ]);
   return { personas, finanzas: vista.pagos ? resumenCuotas(cuotas, cab.tc) : null, cantCuotas: cuotas.length, cantChecklist };
@@ -196,7 +196,7 @@ export async function datosSeguimiento(a: Actor, cab: Cabecera, vista: Vista) {
   const [checklist, tareas, cuotas, pagos] = await Promise.all([
     prisma.proyectoChecklist.findMany({ where: { tenantId, proyectoId }, orderBy: [{ fecha: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }] }),
     prisma.proyectoTarea.findMany({ where: { tenantId, proyectoId }, orderBy: [{ hechaEl: { sort: "asc", nulls: "first" } }, { venceEl: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }] }),
-    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, tipo: "COBRO", anuladoEl: null }, orderBy: { venceEl: "asc" } }) : [],
+    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, tipo: "COBRO", anuladoEl: null, prevista: false }, orderBy: { venceEl: "asc" } }) : [],
     vista.pagos ? prisma.proyectoPago.findMany({ where: { tenantId, proyectoId, anuladoEl: null }, orderBy: { createdAt: "desc" } }) : [],
   ]);
   return { checklist, tareas, cuotas, pagos };
