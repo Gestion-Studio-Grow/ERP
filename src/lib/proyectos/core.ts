@@ -80,6 +80,10 @@ export function pesos(n: number): string {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 }
 
+export function porcentaje(n: number): string {
+  return `${n.toLocaleString("es-AR", { maximumFractionDigits: 2 })}%`;
+}
+
 export function precioConMargen(costo: number, margenPct: number): number {
   return redondear(costo * (1 + margenPct / 100));
 }
@@ -106,6 +110,86 @@ export function totales(items: readonly ItemCalculable[], ivaPct: number): Total
   const iva = redondear((neto * ivaPct) / 100);
   const ganancia = redondear(neto - costo);
   return { costo, neto, iva, total: redondear(neto + iva), ganancia, margenPct: neto > 0 ? redondear((ganancia / neto) * 100) : 0 };
+}
+
+// ── Costo real ────────────────────────────────────────────────────────────
+
+export interface GastoCalculable {
+  rubro: string;
+  neto: number;
+  iva: number;
+  pagadoEl: Date | null;
+  anuladoEl: Date | null;
+}
+
+/** Lo que sale de la caja por un gasto. */
+export const totalDelGasto = (g: { neto: number; iva: number }): number => redondear(g.neto + g.iva);
+
+export interface ResultadoReal {
+  conGastos: boolean;
+  /** Sin IVA, para compararlo contra el costo presupuestado. */
+  costoReal: number;
+  /** Con IVA: es lo que salió o va a salir de la caja. */
+  pagado: number;
+  porPagar: number;
+  /** Real menos presupuestado: positivo es que se gastó de más. Null sin presupuesto aprobado o sin gastos. */
+  desvio: number | null;
+  /** Null sin presupuesto aprobado o sin gastos: sin gastos cargados no hay ganancia real para mostrar. */
+  gananciaReal: number | null;
+  margenReal: number | null;
+}
+
+/** Lo que dejó el trabajo con los gastos cargados hasta ahora. Los anulados no cuentan. PURA. */
+export function resultadoReal(t: Totales | null, gastos: readonly GastoCalculable[]): ResultadoReal {
+  const vivos = gastos.filter((g) => !g.anuladoEl);
+  const costoReal = redondear(vivos.reduce((s, g) => s + g.neto, 0));
+  const pagado = redondear(vivos.filter((g) => g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0));
+  const porPagar = redondear(vivos.filter((g) => !g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0));
+  const conGastos = vivos.length > 0;
+  if (!t || !conGastos) return { conGastos, costoReal, pagado, porPagar, desvio: null, gananciaReal: null, margenReal: null };
+  const gananciaReal = redondear(t.neto - costoReal);
+  return {
+    conGastos,
+    costoReal,
+    pagado,
+    porPagar,
+    desvio: redondear(costoReal - t.costo),
+    gananciaReal,
+    margenReal: t.neto > 0 ? redondear((gananciaReal / t.neto) * 100) : 0,
+  };
+}
+
+export interface DesvioDeRubro {
+  rubro: string;
+  presupuestado: number;
+  real: number;
+  diferencia: number;
+}
+
+/**
+ * Presupuestado contra real, rubro por rubro. «Producción» y «producción » son el mismo rubro: se tipean a mano.
+ * Primero los del presupuesto, en su orden; después lo que se gastó en rubros que no estaban. PURA.
+ */
+export function desvioPorRubro(items: readonly (ItemCalculable & { rubro: string })[], gastos: readonly GastoCalculable[]): DesvioDeRubro[] {
+  const filas = new Map<string, { rubro: string; presupuestado: number; real: number }>();
+  const fila = (rubro: string) => {
+    const nombre = rubro.trim() || "General";
+    const clave = nombre.toLowerCase();
+    let f = filas.get(clave);
+    if (!f) {
+      f = { rubro: nombre, presupuestado: 0, real: 0 };
+      filas.set(clave, f);
+    }
+    return f;
+  };
+  for (const i of items) fila(i.rubro).presupuestado += i.cantidad * i.costo;
+  for (const g of gastos) if (!g.anuladoEl) fila(g.rubro).real += g.neto;
+  return [...filas.values()].map((f) => ({
+    rubro: f.rubro,
+    presupuestado: redondear(f.presupuestado),
+    real: redondear(f.real),
+    diferencia: redondear(f.real - f.presupuestado),
+  }));
 }
 
 /** Agrupa los ítems por rubro respetando el orden en que aparece cada uno. */

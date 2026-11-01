@@ -18,10 +18,12 @@ import {
   formatMonthKey,
   formatMonthLabel,
   dateBelongsToMonth,
+  clasificarOrigen,
   motivoParaNoBorrar,
   type LibroMovement,
 } from "./libro-caja";
 import { HOJA_AGOSTO_2026, HOJA_AGOSTO_2026_RESUMEN } from "./libro-caja.fixture";
+import { marcaDeGastoProyecto } from "@/lib/proyectos/marcas";
 import type { CashMethod } from "./cash-register";
 
 const METHOD: Record<"E" | "M" | "T", CashMethod> = { E: "EFECTIVO", M: "MP", T: "TARJETA" };
@@ -52,6 +54,15 @@ function mov(over: Partial<LibroMovement> & { amount: number }): LibroMovement {
 }
 
 // ── La prueba que importa: el mes real ──────────────────────────────────────
+
+test("el pago de un gasto de proyecto y su vuelta los asentó el sistema: no se borran desde el libro", () => {
+  const marca = marcaDeGastoProyecto("g1");
+  assert.deepEqual(clasificarOrigen({ type: "EGRESO", createdBy: marca }), { origen: "gasto-proyecto", referencia: "g1" });
+  assert.equal(clasificarOrigen({ type: "INGRESO", createdBy: marca }).origen, "gasto-proyecto");
+  assert.match(motivoParaNoBorrar({ type: "EGRESO", createdBy: marca }) ?? "", /Corregilo desde el proyecto/);
+  assert.match(motivoParaNoBorrar({ type: "INGRESO", createdBy: marca }) ?? "", /Corregilo desde el proyecto/);
+  assert.equal(motivoParaNoBorrar({ type: "EGRESO", createdBy: "Dueño de MIA" }), null, "uno tipeado a mano sigue pudiéndose borrar");
+});
 
 test("hoja \"Agosto 2026\" real: el libro reproduce al peso el RESUMEN de la planilla", () => {
   // La planilla arranca el mes con saldo inicial 0 en los tres medios.
@@ -313,7 +324,13 @@ test("no se borra desde el libro lo que asentó el sistema; lo tipeado a mano, s
   assert.equal(a("EGRESO", "user:u1"), null);
 });
 
-import { rotuloDeOrigen } from "./libro-caja";
+import { rotuloContable, rotuloDeOrigen } from "./libro-caja";
+
+test("en el archivo, el cobro de un proyecto tampoco sale como turno", () => {
+  assert.equal(rotuloContable("cobro-turno", "Proyecto #2 · Stand · Anticipo 50%"), "Cobro de proyecto");
+  assert.equal(rotuloContable("cobro-turno", "Corte y color"), "Cobro turno");
+  assert.equal(rotuloContable("gasto-proyecto", "Proyecto #2 · Flete"), "Gasto de proyecto");
+});
 
 test("el cobro de un proyecto no se rotula como turno; lo demás sigue igual", () => {
   assert.equal(rotuloDeOrigen("turno", "Proyecto #12 · Stand · Anticipo"), "Cobro de proyecto");

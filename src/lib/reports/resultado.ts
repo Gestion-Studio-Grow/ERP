@@ -153,6 +153,9 @@ export function rubroDeCaja(m: MovimientoDeCaja): RubroDeCaja {
       return "reintegro-proveedor";
     case "apertura":
       return "apertura";
+    case "gasto-proyecto":
+      // Es gasto del mes: el pago a un proveedor por un trabajo. Su vuelta, si se anuló, entra como ingreso suelto.
+      return movementSign(m.type) < 0 ? "sin-categoria" : "ingreso-manual";
     case "corte-importacion": {
       if (!String(m.createdBy ?? "").startsWith(IMPORT_ACTOR_PREFIX)) return "ajuste-inicial";
       if (m.type === "RETIRO") return "retiro";

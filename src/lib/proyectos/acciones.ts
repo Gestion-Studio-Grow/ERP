@@ -18,6 +18,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { clientePuedeResponder, leerNumero, esEtapa, esServicio, etapaAlAprobar, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
 import { configProyectos } from "./datos.server";
+import { marcaDeGastoProyecto } from "./marcas";
+import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -433,6 +435,155 @@ export async function anularCobro(formData: FormData) {
   });
   await auditAdmin({ action: "proyecto.cobro.anular", entity: "ProyectoPago", entityId: id, changes: { monto: pago.monto } });
   refrescar(pago.proyectoId);
+}
+
+// ── Gastos reales y proveedores ────────────────────────────────────────────
+
+type PagoDeGasto = { id: string; neto: number; iva: number; descripcion: string };
+
+/** El pago de un gasto y su asiento van juntos. La marca le dice al libro que lo asentó el sistema. */
+async function asentarPagoDeGastoTx(tx: Prisma.TransactionClient, tenantId: string, gasto: PagoDeGasto, numero: number, medio: MedioPago, proveedor: string | null) {
+  const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
+  await tx.cashMovement.create({
+    data: {
+      tenantId,
+      sessionId: session?.id ?? null,
+      type: "EGRESO",
+      method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
+      amount: redondear(gasto.neto + gasto.iva),
+      reason: `Proyecto #${numero} · ${gasto.descripcion}${proveedor ? ` · ${proveedor}` : ""}${medio === "CHEQUE" ? " · Cheque" : ""}`,
+      proyectoGastoId: gasto.id,
+      createdBy: marcaDeGastoProyecto(gasto.id),
+    },
+  });
+}
+
+export async function registrarGasto(formData: FormData): Promise<Resultado> {
+  const user = await requireCapability("agenda:manage");
+  const tenantId = await getCurrentTenantId();
+  const proyectoId = txt(formData.get("proyectoId"));
+  const p = await proyectoDelNegocio(proyectoId, tenantId);
+  if (!p) return { ok: false, error: "Ese proyecto no existe." };
+  const descripcion = txt(formData.get("descripcion")).slice(0, 200);
+  if (!descripcion) return { ok: false, error: "Escribí qué se pagó o qué se debe." };
+  const neto = redondear(numero(formData.get("neto")));
+  if (!(neto > 0)) return { ok: false, error: "Escribí el importe neto, sin IVA." };
+  const ivaTexto = txt(formData.get("iva"));
+  const iva = ivaTexto ? redondear(numero(formData.get("iva"))) : 0;
+  if (!(iva >= 0)) return { ok: false, error: "El IVA no se entiende: escribilo como un número." };
+  const pagado = formData.get("pagado") === "on";
+  const medio = txt(formData.get("medio")) as MedioPago;
+  if (pagado && !MEDIOS.includes(medio)) return { ok: false, error: "Elegí cómo se pagó." };
+  const proveedor = txt(formData.get("proveedor")).slice(0, 120);
+  const gasto = await tenantTransaction(async (tx) => {
+    // El proveedor se escribe como se lo conoce: si ya está, es ése; si no, queda sumado.
+    const existente = proveedor
+      ? await tx.supplier.findFirst({ where: { tenantId, name: { equals: proveedor, mode: "insensitive" } }, select: { id: true, name: true } })
+      : null;
+    const elegido = existente ?? (proveedor ? await tx.supplier.create({ data: { tenantId, name: proveedor }, select: { id: true, name: true } }) : null);
+    const creado = await tx.proyectoGasto.create({
+      data: {
+        tenantId,
+        proyectoId,
+        supplierId: elegido?.id ?? null,
+        rubro: txt(formData.get("rubro")).slice(0, 60) || "General",
+        descripcion,
+        neto,
+        iva,
+        fecha: fecha(formData.get("fecha")) ?? new Date(),
+        comprobante: txt(formData.get("comprobante")).slice(0, 60) || null,
+        cargadoPor: user.name,
+        ...(pagado && { pagadoEl: new Date(), medio, pagadoPor: user.name }),
+      },
+      select: { id: true, neto: true, iva: true, descripcion: true },
+    });
+    if (pagado) await asentarPagoDeGastoTx(tx, tenantId, creado, p.numero, medio, elegido?.name ?? null);
+    return creado;
+  });
+  await auditAdmin({ action: "proyecto.gasto", entity: "ProyectoGasto", entityId: gasto.id, changes: { neto, iva, pagado } });
+  refrescar(proyectoId);
+  revalidatePath(`${RAIZ}/proveedores`);
+  return { ok: true };
+}
+
+export async function pagarGasto(formData: FormData) {
+  const user = await requireCapability("agenda:manage");
+  const tenantId = await getCurrentTenantId();
+  const id = txt(formData.get("id"));
+  const medio = txt(formData.get("medio")) as MedioPago;
+  if (!MEDIOS.includes(medio)) return;
+  const g = await prisma.proyectoGasto.findFirst({
+    where: { id, tenantId },
+    select: { id: true, neto: true, iva: true, descripcion: true, proyectoId: true, proyecto: { select: { numero: true } }, supplier: { select: { name: true } } },
+  });
+  if (!g) return;
+  await tenantTransaction(async (tx) => {
+    // Dos clics, o dos pestañas, no pagan dos veces.
+    const r = await tx.proyectoGasto.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), medio, pagadoPor: user.name } });
+    if (r.count === 0) return;
+    await asentarPagoDeGastoTx(tx, tenantId, g, g.proyecto.numero, medio, g.supplier?.name ?? null);
+  });
+  await auditAdmin({ action: "proyecto.gasto.pagar", entity: "ProyectoGasto", entityId: id, changes: { medio } });
+  refrescar(g.proyectoId);
+  revalidatePath(`${RAIZ}/proveedores`);
+}
+
+/** Anular no borra. Si ya se pagó, vuelve la plata al libro con fecha de hoy, como un cobro anulado. */
+export async function anularGasto(formData: FormData) {
+  const user = await requireCapability("agenda:manage");
+  const tenantId = await getCurrentTenantId();
+  const id = txt(formData.get("id"));
+  const g = await prisma.proyectoGasto.findFirst({ where: { id, tenantId }, select: { id: true, neto: true, iva: true, proyectoId: true, proyecto: { select: { numero: true } } } });
+  if (!g) return;
+  await tenantTransaction(async (tx) => {
+    const r = await tx.proyectoGasto.updateMany({ where: { id, tenantId, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: user.name } });
+    if (r.count === 0) return;
+    const pago = await tx.cashMovement.findFirst({ where: { tenantId, proyectoGastoId: id, type: "EGRESO" }, select: { amount: true, method: true } });
+    if (!pago) return;
+    const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
+    await tx.cashMovement.create({
+      data: {
+        tenantId,
+        sessionId: session?.id ?? null,
+        type: "INGRESO",
+        method: pago.method,
+        amount: pago.amount,
+        reason: `Anulación de gasto · Proyecto #${g.proyecto.numero}`,
+        proyectoGastoId: id,
+        createdBy: marcaDeGastoProyecto(id),
+      },
+    });
+  });
+  await auditAdmin({ action: "proyecto.gasto.anular", entity: "ProyectoGasto", entityId: id, changes: { neto: g.neto, iva: g.iva } });
+  refrescar(g.proyectoId);
+  revalidatePath(`${RAIZ}/proveedores`);
+}
+
+export async function crearProveedor(formData: FormData): Promise<Resultado> {
+  await requireCapability("agenda:manage");
+  const tenantId = await getCurrentTenantId();
+  const v = validateSupplierInput({ name: txt(formData.get("name")), taxId: txt(formData.get("taxId")) || null, phone: txt(formData.get("phone")) || null, email: txt(formData.get("email")) || null });
+  if (!v.ok) return { ok: false, error: mensajeDeProveedor(v.error) };
+  try {
+    const s = await prisma.supplier.create({ data: { tenantId, ...v.value }, select: { id: true } });
+    await auditAdmin({ action: "proyecto.proveedor", entity: "Supplier", entityId: s.id, changes: { name: v.value.name } });
+  } catch (err) {
+    if ((err as { code?: string })?.code === "P2002") return { ok: false, error: "Ya hay un proveedor con ese CUIT: buscalo en la lista." };
+    throw err;
+  }
+  revalidatePath(`${RAIZ}/proveedores`);
+  return { ok: true };
+}
+
+export async function alternarProveedor(formData: FormData) {
+  await requireCapability("agenda:manage");
+  const tenantId = await getCurrentTenantId();
+  const id = txt(formData.get("id"));
+  const active = txt(formData.get("activo")) === "1";
+  const r = await prisma.supplier.updateMany({ where: { id, tenantId }, data: { active } });
+  if (r.count === 0) return;
+  await auditAdmin({ action: "proyecto.proveedor.estado", entity: "Supplier", entityId: id, changes: { active } });
+  revalidatePath(`${RAIZ}/proveedores`);
 }
 
 // ── Armador de stands ───────────────────────────────────────────────────────

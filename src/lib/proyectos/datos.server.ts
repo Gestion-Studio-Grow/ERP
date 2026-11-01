@@ -10,7 +10,7 @@ import { requireCapability } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
-import { redondear, totales } from "./core";
+import { desvioPorRubro, redondear, resultadoReal, totales } from "./core";
 import { costosVigentes, normalizarDiseno } from "./stand";
 
 export const veLaPlata = (u: SessionUser): boolean => roleHasCapability(u.role, "agenda:manage");
@@ -79,14 +79,22 @@ export async function fichaProyecto(id: string) {
       stands: { orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, updatedAt: true } },
       presupuestos: { orderBy: { version: "desc" }, include: { items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }] } } },
       pagos: { orderBy: { createdAt: "desc" } },
+      gastos: { orderBy: [{ fecha: "desc" }, { createdAt: "desc" }], include: { supplier: { select: { name: true } } } },
     },
   });
   if (!proyecto) return null;
-  const [config, negocio] = await Promise.all([configProyectos(tenantId), datosDelNegocio(tenantId)]);
+  const [config, negocio, proveedores] = await Promise.all([
+    configProyectos(tenantId),
+    datosDelNegocio(tenantId),
+    conPlata ? prisma.supplier.findMany({ where: { tenantId, active: true }, orderBy: { name: "asc" }, take: 500, select: { name: true } }) : [],
+  ]);
   const vigente = proyecto.presupuestos.find((p) => p.estado === "APROBADO") ?? null;
-  const totalAprobado = vigente ? totales(vigente.items, vigente.ivaPct).total : 0;
+  const totalesVigente = vigente ? totales(vigente.items, vigente.ivaPct) : null;
+  const totalAprobado = totalesVigente?.total ?? 0;
+  const real = resultadoReal(totalesVigente, proyecto.gastos);
+  const rubros = desvioPorRubro(vigente?.items ?? [], proyecto.gastos);
   const cobrado = redondear(proyecto.pagos.filter((p) => !p.anuladoEl).reduce((s, p) => s + p.monto, 0));
-  return { user, conPlata, proyecto, config, negocio, totalAprobado, cobrado, saldo: redondear(totalAprobado - cobrado) };
+  return { user, conPlata, proyecto, config, negocio, totalAprobado, cobrado, saldo: redondear(totalAprobado - cobrado), totalesVigente, real, rubros, proveedores: proveedores.map((s) => s.name) };
 }
 
 export async function standParaEditar(proyectoId: string, standId: string) {
@@ -123,14 +131,43 @@ export async function reporteProyectos() {
       client: { select: { name: true } },
       presupuestos: { where: { estado: "APROBADO" }, select: { ivaPct: true, items: { select: { cantidad: true, costo: true, precio: true } } } },
       pagos: { where: { anuladoEl: null }, select: { monto: true } },
+      gastos: { where: { anuladoEl: null }, select: { rubro: true, neto: true, iva: true, pagadoEl: true, anuladoEl: true } },
     },
   });
   return proyectos.map((p) => {
     const a = p.presupuestos[0];
     const t = a ? totales(a.items, a.ivaPct) : null;
     const cobrado = redondear(p.pagos.reduce((s, x) => s + x.monto, 0));
-    return { ...p, t, cobrado, saldo: redondear((t?.total ?? 0) - cobrado) };
+    return { ...p, t, cobrado, saldo: redondear((t?.total ?? 0) - cobrado), real: resultadoReal(t, p.gastos) };
   });
+}
+
+/** Los proveedores con lo gastado en proyectos, y lo que queda por pagar. */
+export async function proveedoresConGastos() {
+  await requireCapability("agenda:manage");
+  const tenantId = await getCurrentTenantId();
+  const [proveedores, gastos] = await Promise.all([
+    prisma.supplier.findMany({ where: { tenantId }, orderBy: [{ active: "desc" }, { name: "asc" }], take: 500, select: { id: true, name: true, taxId: true, phone: true, email: true, active: true } }),
+    prisma.proyectoGasto.findMany({
+      where: { tenantId, anuladoEl: null },
+      orderBy: { fecha: "asc" },
+      take: 2000,
+      select: { id: true, supplierId: true, descripcion: true, neto: true, iva: true, fecha: true, pagadoEl: true, supplier: { select: { name: true } }, proyecto: { select: { id: true, numero: true, nombre: true } } },
+    }),
+  ]);
+  const pendientes = gastos.filter((g) => !g.pagadoEl);
+  return {
+    proveedores: proveedores.map((s) => {
+      const suyos = gastos.filter((g) => g.supplierId === s.id);
+      return {
+        ...s,
+        gastado: redondear(suyos.reduce((x, g) => x + g.neto, 0)),
+        porPagar: redondear(suyos.filter((g) => !g.pagadoEl).reduce((x, g) => x + g.neto + g.iva, 0)),
+      };
+    }),
+    pendientes,
+    porPagar: redondear(pendientes.reduce((x, g) => x + g.neto + g.iva, 0)),
+  };
 }
 
 /** Los clientes del negocio con sus proyectos: abiertos, total y lo que falta cobrar de lo aprobado. */

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { clientePuedeResponder, leerNumero, etapaAlAprobar, etapaLabel, etapaSiguiente, etapasDe, metodoDeCaja, pesos, porRubro, precioConMargen, sePuedeEditar, totales, waLink } from "./core";
+import { clientePuedeResponder, desvioPorRubro, resultadoReal, totalDelGasto, leerNumero, etapaAlAprobar, etapaLabel, etapaSiguiente, etapasDe, metodoDeCaja, pesos, porcentaje, porRubro, precioConMargen, sePuedeEditar, totales, waLink } from "./core";
 import { computar, costosVigentes, dentroDelLote, disenoInicial, normalizarDiseno, paredesDe, superficieParedes } from "./stand";
+
+test("el porcentaje va con coma, igual que la plata", () => {
+  assert.equal(porcentaje(33.8), "33,8%");
+  assert.equal(porcentaje(30), "30%");
+});
 
 test("un contenido no pasa por 3D, armado ni desarme; un stand pasa por todo", () => {
   assert.deepEqual(etapasDe("CONTENIDOS"), ["PEDIDO", "DISENO", "PRESUPUESTO", "PROPUESTA", "APROBADO", "PRODUCCION", "CIERRE"]);
@@ -16,6 +21,46 @@ test("totales: IVA sobre el neto y margen sobre el precio, no sobre el costo", (
   assert.deepEqual(t, { costo: 200, neto: 400, iva: 84, total: 484, ganancia: 200, margenPct: 50 });
   assert.equal(totales([], 21).margenPct, 0);
   assert.equal(precioConMargen(100, 35), 135);
+});
+
+test("costo real: sin IVA contra el presupuesto, con IVA contra la caja, y lo anulado no cuenta", () => {
+  const t = totales([{ cantidad: 1, costo: 600, precio: 1000 }], 21);
+  const pagado = { rubro: "Producción", neto: 500, iva: 105, pagadoEl: new Date(), anuladoEl: null };
+  const debe = { rubro: "Producción", neto: 200, iva: 0, pagadoEl: null, anuladoEl: null };
+  const anulado = { rubro: "Producción", neto: 9000, iva: 0, pagadoEl: new Date(), anuladoEl: new Date() };
+  const r = resultadoReal(t, [pagado, debe, anulado]);
+  assert.equal(r.costoReal, 700);
+  assert.equal(r.pagado, 605);
+  assert.equal(r.porPagar, 200);
+  assert.equal(r.desvio, 100, "se gastó 100 más de lo presupuestado");
+  assert.equal(r.gananciaReal, 300);
+  assert.equal(r.margenReal, 30);
+  assert.equal(totalDelGasto(pagado), 605);
+});
+
+test("costo real: sin gastos o sin presupuesto aprobado no se inventa una ganancia", () => {
+  const t = totales([{ cantidad: 1, costo: 600, precio: 1000 }], 21);
+  assert.equal(resultadoReal(t, []).gananciaReal, null, "sin gastos daría un 100 % de ganancia que no existe");
+  const sinPresupuesto = resultadoReal(null, [{ rubro: "X", neto: 50, iva: 0, pagadoEl: null, anuladoEl: null }]);
+  assert.equal(sinPresupuesto.gananciaReal, null);
+  assert.equal(sinPresupuesto.desvio, null);
+  assert.equal(sinPresupuesto.porPagar, 50);
+});
+
+test("desvío por rubro: une lo tipeado distinto y muestra lo que no estaba presupuestado", () => {
+  const filas = desvioPorRubro(
+    [{ rubro: "Producción", cantidad: 2, costo: 100, precio: 150 }, { rubro: "Logística", cantidad: 1, costo: 50, precio: 80 }],
+    [
+      { rubro: " producción ", neto: 260, iva: 50, pagadoEl: null, anuladoEl: null },
+      { rubro: "Permisos", neto: 30, iva: 0, pagadoEl: null, anuladoEl: null },
+      { rubro: "Logística", neto: 999, iva: 0, pagadoEl: null, anuladoEl: new Date() },
+    ],
+  );
+  assert.deepEqual(filas, [
+    { rubro: "Producción", presupuestado: 200, real: 260, diferencia: 60 },
+    { rubro: "Logística", presupuestado: 50, real: 0, diferencia: -50 },
+    { rubro: "Permisos", presupuestado: 0, real: 30, diferencia: 30 },
+  ]);
 });
 
 test("los números se leen como los escribe una persona", () => {
