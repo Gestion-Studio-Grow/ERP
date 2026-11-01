@@ -160,9 +160,10 @@ export function fechaDelProximo(input: { dia: string; cicloDias: number; hoy: st
   return propuesta < manana ? manana : propuesta;
 }
 
-/** El link al alta con la clienta y la fecha puestas (la lista ya lee ?nuevo, ?fecha y ?cliente). */
-export function hrefDelProximo(input: { clienteId: string; fecha: string }): string {
-  return `/admin/turnos/lista?nuevo=1&fecha=${encodeURIComponent(input.fecha)}&cliente=${encodeURIComponent(input.clienteId)}`;
+/** El link al alta con la clienta, la fecha y el mismo servicio puestos (?nuevo, ?fecha, ?cliente, ?servicio). */
+export function hrefDelProximo(input: { clienteId: string; fecha: string; servicioId?: string | null }): string {
+  const servicio = input.servicioId ? `&servicio=${encodeURIComponent(input.servicioId)}` : "";
+  return `/admin/turnos/lista?nuevo=1&fecha=${encodeURIComponent(input.fecha)}&cliente=${encodeURIComponent(input.clienteId)}${servicio}`;
 }
 
 // ── E6 · el hueco a la lista de espera ───────────────────────────────────────

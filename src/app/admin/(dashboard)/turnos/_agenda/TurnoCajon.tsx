@@ -30,7 +30,7 @@ import {
   type ResultadoAccion,
 } from "@/lib/actions";
 import { Cajon } from "@/components/ui/Cajon";
-import { Button, Input, Marca, Plata, Renglon, Seccion } from "@/components/ui";
+import { Button, Input, Marca, Plata, Renglon, Seccion, atributosBoton, buttonClasses } from "@/components/ui";
 import { fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { ALIAS_SENIA_PROVISIONAL, mensajePedidoDeSenia } from "@/lib/turnos/mensajes-whatsapp";
@@ -287,6 +287,8 @@ export default function TurnoCajon({
   const wa = waLinkClienta(t.telefono);
   const vivo = t.estado === "PENDING" || t.estado === "CONFIRMED";
   const cobraEste = permisos.cobrar && t.veredicto.ok;
+  // E5: el próximo turno, con su ciclo y el mismo servicio, a mano en la ficha y en el aviso de terminado (U8).
+  const proximo = permisos.practica && permisos.gestionar ? `/admin/turnos/proximo/${t.id}` : null;
   // Quién anula (orden del dueño): la dueña, recepción con su código; la profesional, no.
   const anular = cobraEste ? permisos.anular : null;
   const anulables = new Set(
@@ -463,6 +465,7 @@ export default function TurnoCajon({
                 saldo={t.saldo}
                 puedeCobrar={cobraEste}
                 motivoSinCobro={t.veredicto.ok ? undefined : t.veredicto.motivo}
+                proximo={proximo}
                 onListo={onCerrar}
               />
             </div>
@@ -488,6 +491,14 @@ export default function TurnoCajon({
           <p className="text-sm text-muted">
             {t.veredicto.motivo} Quedan <Plata valor={t.saldo} sinCentavos={Number.isInteger(t.saldo)} /> a cobrar.
           </p>
+        )}
+
+        {proximo && t.estado === "COMPLETED" && (
+          <div className="pt-1">
+            <Link href={proximo} className={buttonClasses("outline", "md", "w-full")} {...atributosBoton("outline", "md")}>
+              Reservar el próximo
+            </Link>
+          </div>
         )}
 
         <Seccion titulo="La plata">

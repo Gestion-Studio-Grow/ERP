@@ -165,6 +165,8 @@ export function textoSeniaPedida(t: Pick<TurnoDelDia, "estado" | "inicio" | "sug
 
 /** Qué puede hacer quien mira (lo calcula el servidor con sus capacidades). */
 export type Permisos = {
+  /** Agenda práctica prendida: un turno terminado ofrece «Reservar el próximo» (E5). */
+  practica?: boolean;
   /** agenda:manage — confirmar, cancelar, reprogramar, dar de baja un saldo. */
   gestionar: boolean;
   /** agenda:collect — cobrar (además, el veredicto de cada turno). */

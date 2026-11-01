@@ -81,6 +81,15 @@ test("U2 · la consola avisa sólo con la agenda práctica prendida y sin la reg
   assert.match(ficha, /\{faltaRegla\}/);
 });
 
+test("U8 · «Reservar el próximo» lleva el mismo servicio, y está en la ficha y en el aviso de terminado", () => {
+  assert.match(hrefDelProximo({ clienteId: "c", fecha: "2026-11-15", servicioId: "svc 1" }), /&cliente=c&servicio=svc%201$/);
+  const raiz = join(process.cwd(), "src/app/admin/(dashboard)/turnos");
+  assert.match(readFileSync(join(raiz, "proximo/[id]/page.tsx"), "utf8"), /servicioId: turno\.serviceId/);
+  assert.match(readFileSync(join(raiz, "_agenda/DarTurnoCajon.tsx"), "utf8"), /servicioInicial=\{params\.get\("servicio"\)/);
+  assert.match(readFileSync(join(raiz, "_agenda/TurnoCajon.tsx"), "utf8"), /proximo && t\.estado === "COMPLETED"/);
+  assert.match(readFileSync(join(raiz, "_agenda/TerminarTurno.tsx"), "utf8"), /texto: "Reservar el próximo"/);
+});
+
 test("T4 · el alta propone mañana y, con una sola profesional, la deja elegida", () => {
   assert.equal(fechaPropuestaDelAlta("2026-10-31"), "2026-11-01");
   assert.equal(profesionalPropuesta([{ id: "laura" }]), "laura");

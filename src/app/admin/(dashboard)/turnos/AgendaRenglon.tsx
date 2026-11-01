@@ -22,6 +22,7 @@
 // lleva a «Cerrar lo pendiente» (/admin/turnos/cerrar), donde se cierran de a muchos. Un pasado sin
 // cerrar de hace meses también cuenta (CH-044).
 
+import { agendaPractica } from "@/lib/turnos/practica.server";
 import Link from "next/link";
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
 import { anulacionDeCobro, roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
@@ -115,6 +116,7 @@ export default async function AgendaRenglon({
   const hoy = todayInBusinessTz();
   const dia = fecha && esFechaDeCalendario(fecha) ? fecha : hoy;
   const permisos: Permisos = {
+    practica: await agendaPractica(),
     gestionar: roleHasCapability(quien.role, "agenda:manage"),
     cobrar: roleHasCapability(quien.role, "agenda:collect"),
     terminar: roleHasCapability(quien.role, "agenda:complete"),
