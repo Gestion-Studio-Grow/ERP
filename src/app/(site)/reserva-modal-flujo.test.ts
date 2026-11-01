@@ -71,10 +71,11 @@ const LUN = "2026-11-02";
 const MAR = "2026-11-03";
 const servicio = (id: string, name: string) => ({ id, name, durationMin: 60, price: 1000, residentPrice: null, depositAmount: null });
 const datos = {
-  groups: [{ id: "g", name: "Cat", services: [servicio("X", "SrvX"), servicio("Z", "SrvZ")] }],
+  groups: [{ id: "g", name: "Cat", services: [servicio("X", "SrvX"), servicio("Z", "SrvZ"), servicio("U", "SrvU")] }],
   professionals: [
     { id: "A", name: "Ana", serviceIds: ["X"] },
     { id: "B", name: "Bea", serviceIds: ["X", "Z"] },
+    { id: "C", name: "Cora", serviceIds: ["Z", "U"] },
   ],
   days: [
     { value: LUN, label: "lun 2" },
@@ -457,5 +458,22 @@ for (const [modo, nuevo] of [["apagado", false], ["prendido", true]] as const) {
     const sinRegla = await reservar(null);
     assert.match(sinRegla, /cancelar o reprogramar desde «Tu turno»\./);
     assert.doesNotMatch(sinRegla, /\d+ h antes/, "sin regla cargada no hay plazo que prometer");
+  });
+}
+
+for (const [modo, nuevo] of [["apagado", false], ["prendido", true]] as const) {
+  test(`${modo}: si una sola profesional hace el servicio, viene elegida y se sigue sin tocarla`, async () => {
+    await abrir(nuevo);
+    await clic("SrvU");
+    assert.equal(paso(), "2");
+    await clic("Continuar");
+    assert.equal(paso(), "3", "no pide elegir nada");
+    assert.deepEqual(avisos(), []);
+  });
+  test(`${modo}: con dos que lo hacen, sigue sin venir ninguna elegida`, async () => {
+    await abrir(nuevo);
+    await clic("SrvZ");
+    await clic("Continuar");
+    assert.equal(paso(), "2");
   });
 }

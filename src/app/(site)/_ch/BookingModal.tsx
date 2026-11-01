@@ -7,7 +7,7 @@ import { checkCoupon } from "@/lib/coupon-actions";
 import { isValidEmail, isValidArgentinePhone } from "@/lib/contact-validation";
 import { fmtDateTime, fmtTime, wallHourMinuteInBusinessTz } from "@/lib/datetime";
 import { useWhatsAppCta } from "@/components/whatsapp-cta";
-import { promesaDeCambios } from "@/lib/turnos/practica";
+import { profesionalPropuesta, promesaDeCambios } from "@/lib/turnos/practica";
 import { useNegocioDelSitio } from "./negocio-del-sitio";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import type { PrefillReserva } from "./BookingProvider";
@@ -41,14 +41,21 @@ function estadoInicial(data: BookingData, prefill: PrefillReserva | null | undef
   const elegido = svc;
   // `paso` (una reserva guardada al recargar): quien volvió atrás a cambiar algo vuelve a ese paso, no al más lejano.
   const hasta = (n: number) => Math.min(n, prefill.paso ?? n);
-  const pro = prefill.professionalId
+  const pedida = prefill.professionalId
     ? (data.professionals.find((p) => p.id === prefill.professionalId && p.serviceIds.includes(elegido.id)) ?? null)
     : null;
+  const pro = pedida ?? unicaQueLoHace(data.professionals, elegido.id);
   if (!pro) return { ...vacio, step: hasta(2), svc };
   const day = prefill.day && data.days.some((d) => d.value === prefill.day) ? prefill.day : null;
   const slot = day && prefill.slot ? prefill.slot : null;
   if (!day || !slot) return { ...vacio, step: hasta(3), svc, pro, day };
   return { step: hasta(4), svc, pro, day, slot };
+}
+
+/** Si UNA sola profesional hace el servicio, viene elegida: no hay nada que elegir ni un toque de más. */
+function unicaQueLoHace(profesionales: readonly BookingProfessional[], servicioId: string): BookingProfessional | null {
+  const id = profesionalPropuesta(profesionales.filter((p) => p.serviceIds.includes(servicioId)));
+  return profesionales.find((p) => p.id === id) ?? null;
 }
 
 export default function BookingModal({
@@ -422,7 +429,9 @@ export default function BookingModal({
   }
   function elegirServicio(elegido: SelectedService) {
     if (elegido.id !== svc?.id) {
-      if (pro && !pro.serviceIds.includes(elegido.id)) setPro(null);
+      const unica = unicaQueLoHace(data.professionals, elegido.id);
+      if (unica) setPro(unica);
+      else if (pro && !pro.serviceIds.includes(elegido.id)) setPro(null);
       olvidarHorario();
     }
     elegirYSeguir(() => setSvc(elegido));
