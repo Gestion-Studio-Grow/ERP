@@ -74,6 +74,15 @@ test("U3 · pasado el plazo: con número hay botón y texto de WhatsApp; sin nú
   assert.match(decodeURIComponent(salida?.href ?? ""), /mi turno de Masaje del lunes 2/);
 });
 
+test("R8 · sin WhatsApp no se le manda a un canal que no existe", () => {
+  const politica = { horasMinimas: 24 };
+  assert.equal(reglaDeCancelacion(politica, false), "Podés cancelar o reprogramar online hasta 24 h antes del turno. Después, ya no se puede cambiar online.");
+  assert.equal(mensajeFueraDePlazo(politica, false), "Faltan menos de 24 h para tu turno: ya no se puede cambiar online.");
+  assert.doesNotMatch(promesaDeCambios(24, { plazoVencido: true, hayWhatsApp: false }), /avisale|local/i);
+  // Con número, como siempre.
+  assert.equal(mensajeFueraDePlazo(politica, true), "Faltan menos de 24 h para tu turno: ya no se puede cambiar online. Escribinos por WhatsApp y lo vemos.");
+});
+
 test("U3 · «Tu turno» dibuja el botón y la regla no se arma con WhatsApp a ciegas", () => {
   const raiz = process.cwd();
   const pagina = readFileSync(join(raiz, "src/app/(site)/reserva/turno/[id]/page.tsx"), "utf8");

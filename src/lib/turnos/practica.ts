@@ -61,8 +61,8 @@ export function avisoDeReglaFaltante(input: {
   return `Falta la regla de cancelación: sin ${input.slug}=<horas> en la variable CANCELACION_ONLINE_HORAS del deploy, la clienta cancela online hasta que empieza el turno y no se le promete ningún plazo. El número lo decide el negocio.`;
 }
 
-/** Qué hacer pasado el plazo. Sin número de WhatsApp cargado, no se nombra WhatsApp (U3). */
-const despuesDelPlazo = (hayWhatsApp: boolean): string => (hayWhatsApp ? "escribinos por WhatsApp" : "avisale al local");
+/** Qué hacer pasado el plazo. Sin número de WhatsApp cargado no hay canal que ofrecer: no se nombra ninguno (U3, R8). */
+const despuesDelPlazo = (hayWhatsApp: boolean): string => (hayWhatsApp ? "escribinos por WhatsApp" : "ya no se puede cambiar online");
 
 /** La regla en castellano, para la reserva, la confirmación y «Tu turno» (T12). */
 export function reglaDeCancelacion(p: PoliticaDeCancelacion, hayWhatsApp: boolean): string {
@@ -71,7 +71,7 @@ export function reglaDeCancelacion(p: PoliticaDeCancelacion, hayWhatsApp: boolea
 
 /** Lo que se contesta si intenta cambiar el turno pasado el plazo. */
 export function mensajeFueraDePlazo(p: PoliticaDeCancelacion, hayWhatsApp: boolean): string {
-  return `Faltan menos de ${p.horasMinimas} h para tu turno: ya no se puede cambiar online. ${hayWhatsApp ? "Escribinos por WhatsApp y lo vemos." : "Avisale al local y lo ven."}`;
+  return `Faltan menos de ${p.horasMinimas} h para tu turno: ya no se puede cambiar online.${hayWhatsApp ? " Escribinos por WhatsApp y lo vemos." : ""}`;
 }
 
 /**
