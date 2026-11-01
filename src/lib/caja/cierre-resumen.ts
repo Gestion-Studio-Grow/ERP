@@ -57,7 +57,17 @@ export function resumenCierre(changes: unknown): { titulo: string; medios: strin
   if (!arqueo) return null;
   const c = changes as Record<string, unknown>;
 
-  const estado = typeof c.estado === "string" ? (ESTADO_LABEL[c.estado] ?? c.estado) : null;
+  // CUADRA es «todo lo contado dio 0»: con un medio con plata sin contar, no se dice «cuadró» a secas.
+  const quedoSinConciliar = Object.values(arqueo.fuente).some((m) => {
+    const { esperado, declarado } = (typeof m === "object" && m !== null ? m : {}) as Record<string, unknown>;
+    return esNumero(esperado) && esperado !== 0 && !esNumero(declarado);
+  });
+  const estado =
+    c.estado === "CUADRA" && quedoSinConciliar
+      ? "cuadró lo contado, con medios sin conciliar"
+      : typeof c.estado === "string"
+        ? (ESTADO_LABEL[c.estado] ?? c.estado)
+        : null;
   const movimientos = esNumero(c.movimientos) ? c.movimientos : null;
 
   const partes: string[] = [];

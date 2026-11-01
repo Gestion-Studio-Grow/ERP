@@ -101,6 +101,25 @@ export function revisarCierre<K extends ColumnaDelCierre = CashMethod>(o: {
 }
 
 /**
+ * Lo que dice «Diferencia del día» en la hoja. Un medio con plata en el libro que nadie contó no
+ * cuadra: cuadra lo contado, y se dice qué quedó sin conciliar (se puede cerrar igual). PURA.
+ */
+export function textoDeLaDiferenciaDelDia(o: {
+  contados: number;
+  hayDiferencia: boolean;
+  diferencia: number;
+  sinContar: readonly { etiqueta: string; esperado: number }[];
+}): string {
+  if (o.contados === 0) return "Todavía no contaste nada.";
+  const pendientes = o.sinContar.map((m) => `${m.etiqueta} (${fmtMoneyARS(m.esperado)})`).join(", ");
+  const cola = pendientes ? ` Falta contar ${pendientes}: queda sin conciliar.` : "";
+  if (o.hayDiferencia) {
+    return `${o.diferencia < 0 ? "Faltan" : "Sobran"} ${fmtMoneyARS(Math.abs(o.diferencia))}. Queda asentado en el libro como ajuste, con tu nombre.${cola}`;
+  }
+  return pendientes ? `Lo que contaste coincide con el libro.${cola}` : "Cuadra: lo que contaste es lo que el libro dice.";
+}
+
+/**
  * El rótulo de la apertura del turno en la lista de movimientos del cierre. La apertura es el
  * CONTEO del cajón (signo 0 en `movementSign`): se ve, pero no entra en Ingresos ni en Egresos,
  * igual que en el libro. Antes se pintaba en la columna «Ingreso» y la columna no daba lo que

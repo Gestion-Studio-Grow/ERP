@@ -30,7 +30,7 @@ import { LineaDeCuenta } from "@/components/ui/LineaDeCuenta";
 import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
 import { diaAnterior, diaLargo, diaMes, diasEntre, nombreMes } from "../_renglon/fechas";
 import ContarYCerrar, { ReabrirElDia, type MedioAContar } from "./ContarYCerrar";
-import { diferenciaDelComprobante, type MedioDelComprobante } from "./comprobante";
+import { diferenciaDelComprobante, textoDelComprobante, type MedioDelComprobante } from "./comprobante";
 import { leerMediosDelComprobante } from "./comprobante.server";
 
 type Datos = Awaited<ReturnType<typeof getCierreDiarioData>>;
@@ -141,9 +141,7 @@ function Comprobante({ d, medios }: { d: Datos; medios: MedioDelComprobante[] | 
             <div>
               <Rotulo>Diferencia del día</Rotulo>
               <p className="mt-1 text-sm text-body">
-                {diferencia === 0
-                  ? "Cuadró."
-                  : `${diferencia! < 0 ? "Faltaron" : "Sobraron"} ${fmtMoneyARS(Math.abs(diferencia!))}: quedó asentado en el libro como ajuste.`}
+                {textoDelComprobante(medios)}
               </p>
             </div>
             <Plata valor={diferencia!} tamano="grande" tono={diferencia! < 0 ? "peligro" : diferencia! > 0 ? "cobrado" : undefined} />

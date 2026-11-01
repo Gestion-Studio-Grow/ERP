@@ -77,3 +77,9 @@ test("con porColumna manda la hoja; «hoja: siempre» usa las etiquetas del libr
     `Transferencia: contó ${money(2_600)} sobre ${money(2_600)} · cuadra`,
   ]);
 });
+
+test("estado CUADRA con un medio con plata sin contar: el título no dice «cuadró» a secas", () => {
+  const fila = (TRANSFERENCIA: unknown) => ({ estado: "CUADRA", movimientos: 2, hoja: "nueva", porColumna: { EFECTIVO: { esperado: 100, declarado: 100, diferencia: 0 }, TRANSFERENCIA } });
+  assert.match(resumenCierre(fila({ esperado: 5750, declarado: null, diferencia: null }))!.titulo, /cuadró lo contado, con medios sin conciliar/);
+  assert.match(resumenCierre(fila({ esperado: 0, declarado: null, diferencia: null }))!.titulo, /· cuadró$/);
+});

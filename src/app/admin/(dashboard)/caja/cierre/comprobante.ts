@@ -16,6 +16,7 @@ import { CASH_METHODS } from "@/lib/caja/libro-caja";
 import { arqueoDeLaFila } from "@/lib/caja/cierre-resumen";
 import { TEXTO_NETO_NEGATIVO } from "@/lib/caja/cierre-diario";
 import type { CashMethod } from "@/lib/caja/cash-register";
+import { fmtMoneyARS } from "@/components/ui/format";
 
 export type MedioDelComprobante = {
   medio: CashMethod;
@@ -56,4 +57,16 @@ export function mediosDelComprobante(changes: unknown): MedioDelComprobante[] | 
 /** La diferencia del día: la suma de los medios conciliados (los sin conciliar no suman). */
 export function diferenciaDelComprobante(medios: readonly MedioDelComprobante[]): number {
   return Math.round(medios.reduce((s, m) => s + (m.diferencia ?? 0), 0) * 100) / 100;
+}
+
+/** «Diferencia del día» del comprobante: con un medio sin conciliar no dice «Cuadró» a secas. */
+export function textoDelComprobante(medios: readonly MedioDelComprobante[]): string {
+  const diferencia = diferenciaDelComprobante(medios);
+  const pendientes = medios
+    .filter((m) => m.declarado === null && m.esperado !== 0)
+    .map((m) => `${m.etiqueta} (${fmtMoneyARS(m.esperado)})`)
+    .join(", ");
+  const cola = pendientes ? ` Sin conciliar: ${pendientes}.` : "";
+  if (diferencia === 0) return pendientes ? `Lo contado coincidió con el libro.${cola}` : "Cuadró.";
+  return `${diferencia < 0 ? "Faltaron" : "Sobraron"} ${fmtMoneyARS(Math.abs(diferencia))}: quedó asentado en el libro como ajuste.${cola}`;
 }

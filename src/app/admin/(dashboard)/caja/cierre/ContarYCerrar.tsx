@@ -34,7 +34,7 @@ import { Button, Field, Plata, Rotulo } from "@/components/ui";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { fmtTime } from "@/lib/datetime";
 import { useToast } from "../../ToastProvider";
-import { diferenciasDelCierre, revisarCierre, type CausaProbable } from "./revisar-cierre";
+import { diferenciasDelCierre, revisarCierre, textoDeLaDiferenciaDelDia, type CausaProbable } from "./revisar-cierre";
 
 type CashMethod = ColumnaDelCierre;
 
@@ -108,6 +108,7 @@ export default function ContarYCerrar({
   const contados = columnas.filter((m) => diffs[m] !== null);
   const diferencia = Math.round(contados.reduce((s, m) => s + (diffs[m] ?? 0), 0) * 100) / 100;
   const hayDiferencia = contados.some((m) => diffs[m] !== 0);
+  const sinContar = medios.filter((m) => diffs[m.medio] === null && m.esperado !== 0);
   const efectivo = leerImporte(declarado.EFECTIVO);
   const mpSeMovio = medios.find((m) => m.medio === "MP")?.seMovio ?? false;
   const sinMp = mpSeMovio && diffs.MP === null;
@@ -277,11 +278,7 @@ export default function ContarYCerrar({
         <div className="min-w-0">
           <Rotulo>Diferencia del día</Rotulo>
           <p className="mt-1 text-sm text-body">
-            {contados.length === 0
-              ? "Todavía no contaste nada."
-              : !hayDiferencia
-                ? "Cuadra: lo que contaste es lo que el libro dice."
-                : `${diferencia < 0 ? "Faltan" : "Sobran"} ${fmtMoneyARS(Math.abs(diferencia))}. Queda asentado en el libro como ajuste, con tu nombre.`}
+            {textoDeLaDiferenciaDelDia({ contados: contados.length, hayDiferencia, diferencia, sinContar })}
           </p>
         </div>
         {contados.length > 0 && (
