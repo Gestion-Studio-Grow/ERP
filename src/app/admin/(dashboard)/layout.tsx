@@ -23,7 +23,7 @@ import { navGroupingEnabled } from "@/modules";
 import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
 import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
-import { appCasa, appsDeLaCasa, appsVisibles, conCierreDelMesEnLaBarra, conProyectosEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa } from "@/apps/visibles";
+import { appCasa, appDelPanelCerrado, appsDeLaCasa, appsVisibles, conCierreDelMesEnLaBarra, conProyectosEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa, rutaFueraDelPanel } from "@/apps/visibles";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
@@ -245,6 +245,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (casa) {
     const pathname = (await headers()).get("x-pathname");
     if (pathname && !rutaDeLaCasa(pathname, casa)) redirect(casa.ruta);
+  }
+  // PANEL CERRADO (MIA → Proyectos y lo que lo acompaña): lo demás no se abre. Al navegar dentro del panel lo frena
+  // `requireApp`, que usa la misma regla; esto es para una dirección abierta directo, sin pasar por «no disponible».
+  const panel = appDelPanelCerrado(negocioApps);
+  if (panel) {
+    const pathname = (await headers()).get("x-pathname");
+    if (pathname && rutaFueraDelPanel(pathname, panel)) redirect(panel.ruta);
   }
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
   const menu = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles);

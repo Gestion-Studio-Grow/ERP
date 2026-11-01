@@ -18,10 +18,11 @@ import ClientsList from "./ClientsList";
 import EnlacesClientes, { atajosDeClientes } from "./EnlacesClientes";
 import NuevaFicha from "./NuevaFicha";
 import { vacioDeClientes } from "./vacio";
-import { appPermitida } from "@/apps/visibles";
+import { appDelPanelCerrado, appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import ClientesProductora from "./ClientesProductora";
 import ClientesRenglon from "./ClientesRenglon";
 import { leerParametrosLista, paginaDeClientes, type FilaCliente } from "./lista-core";
 import { deudasDelNegocio } from "@/lib/clientes/deudas.server";
@@ -41,7 +42,11 @@ export default async function ClientesPage({
   const user = await requireApp("clientes");
   // «Diseño nuevo» (Renglón): UNA sola lista, la del piloto, en tabla densa y paginada en el
   // servidor. Apagado, todo sigue como hoy (CH → la lista de siempre; piloto → ClientesPiloto).
-  const [nuevo, sp] = await Promise.all([disenoNuevo(), searchParams]);
+  const [nuevo, sp, negocioDeLaLista] = await Promise.all([disenoNuevo(), searchParams, getNegocioApps(user.role)]);
+  // Una productora no cuenta visitas: sus clientes se leen por sus proyectos.
+  if (appDelPanelCerrado(negocioDeLaLista)?.id === "proyectos") {
+    return <ClientesProductora user={user} q={typeof sp.q === "string" ? sp.q.trim() : ""} />;
+  }
   // El piloto («Trabaja por apps») usa la MISMA lista con situación que el diseño nuevo: una sola
   // implementación, paginada en el servidor (antes mandaba todas las fichas al navegador).
   if (nuevo || (await enInicioPorApps())) return <ClientesTabla user={user} sp={sp} />;

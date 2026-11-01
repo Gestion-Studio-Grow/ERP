@@ -212,6 +212,11 @@ export const APPS_COMERCIAL = [
     modulo: "proyectos",
     // Módulo propio del rubro: sin él no se abre ni por URL.
     moduloDuro: true,
+    // Una productora no usa agenda, catálogo ni recordatorios: su panel es esto (pedido del dueño, 01/11/2026).
+    panelCerrado: {
+      blueprint: "productora",
+      apps: ["clientes", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "reportes", "usuarios"],
+    },
     estado: "lista",
     palabras: ["stand", "stands", "evento", "render", "3d", "propuesta", "presupuesto", "armado", "productora", "activacion", "escenografia"],
   },

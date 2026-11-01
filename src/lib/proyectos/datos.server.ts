@@ -133,6 +133,77 @@ export async function reporteProyectos() {
   });
 }
 
+/** Los clientes del negocio con sus proyectos: abiertos, total y lo que falta cobrar de lo aprobado. */
+export async function clientesConProyectos(q: string) {
+  await requireCapability("clients:read");
+  const tenantId = await getCurrentTenantId();
+  const clientes = await prisma.client.findMany({
+    where: {
+      tenantId,
+      ...(q && {
+        OR: [
+          { name: { contains: q, mode: "insensitive" as const } },
+          { phone: { contains: q } },
+          { email: { contains: q, mode: "insensitive" as const } },
+        ],
+      }),
+    },
+    orderBy: { name: "asc" },
+    take: 500,
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+      proyectos: {
+        select: {
+          etapa: true,
+          presupuestos: { where: { estado: "APROBADO" }, select: { ivaPct: true, items: { select: { cantidad: true, costo: true, precio: true } } } },
+          pagos: { where: { anuladoEl: null }, select: { monto: true } },
+        },
+      },
+    },
+  });
+  return clientes.map(({ proyectos, ...c }) => ({
+    ...c,
+    total: proyectos.length,
+    abiertos: proyectos.filter((p) => p.etapa !== "CIERRE").length,
+    porCobrar: redondear(
+      proyectos.reduce((s, p) => {
+        const a = p.presupuestos[0];
+        if (!a) return s;
+        return s + Math.max(0, totales(a.items, a.ivaPct).total - p.pagos.reduce((x, y) => x + y.monto, 0));
+      }, 0),
+    ),
+  }));
+}
+
+/** Los proyectos de un cliente, para su ficha. Sólo lee del negocio del pedido. */
+export async function proyectosDelCliente(clientId: string) {
+  await requireCapability("agenda:read");
+  const tenantId = await getCurrentTenantId();
+  const proyectos = await prisma.proyecto.findMany({
+    where: { tenantId, clientId },
+    orderBy: { numero: "desc" },
+    take: 200,
+    select: {
+      id: true,
+      numero: true,
+      nombre: true,
+      servicio: true,
+      etapa: true,
+      presupuestos: { where: { estado: "APROBADO" }, select: { ivaPct: true, items: { select: { cantidad: true, costo: true, precio: true } } } },
+      pagos: { where: { anuladoEl: null }, select: { monto: true } },
+    },
+  });
+  return proyectos.map((p) => {
+    const a = p.presupuestos[0];
+    const t = a ? totales(a.items, a.ivaPct) : null;
+    const cobrado = redondear(p.pagos.reduce((s, x) => s + x.monto, 0));
+    return { ...p, t, cobrado, saldo: redondear((t?.total ?? 0) - cobrado) };
+  });
+}
+
 // ── Link público (sin login): la llave es el token ──────────────────────────
 
 export async function propuestaPublica(token: string) {

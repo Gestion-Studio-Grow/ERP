@@ -85,6 +85,7 @@ export const getNegocioApps = cache(async (role: Role): Promise<NegocioApps> => 
     role,
     contexto,
     modulosAsignados: t?.modules ?? [],
+    blueprintId: t?.blueprintId ?? null,
     perfil,
     // El mismo criterio que la barra (getCurrentTenantRubro): blueprint retail conocido o,
     // si no hay, el mapa por slug (los locales de MAGRA se llaman magra-<localidad>).

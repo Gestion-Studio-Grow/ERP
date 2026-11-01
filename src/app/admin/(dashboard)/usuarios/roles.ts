@@ -12,7 +12,15 @@ import type { Role } from "@/lib/capabilities";
 
 export type OpcionDeRol = { valor: Role; etiqueta: string };
 
-export function rolesParaAlta(esMostrador: boolean): OpcionDeRol[] {
+export function rolesParaAlta(esMostrador: boolean, conProyectos = false): OpcionDeRol[] {
+  // Una productora no tiene agenda: Profesional es quien diseña y arma, y no ve la plata.
+  if (conProyectos) {
+    return [
+      { valor: "OWNER", etiqueta: "Dueño/a (todo)" },
+      { valor: "RECEPTION", etiqueta: "Administración (proyectos, clientes y cobros)" },
+      { valor: "PROFESSIONAL", etiqueta: "Equipo (proyectos, sin ver la plata)" },
+    ];
+  }
   if (esMostrador) {
     return [
       { valor: "OWNER", etiqueta: "Dueño/a (todo)" },
@@ -27,8 +35,10 @@ export function rolesParaAlta(esMostrador: boolean): OpcionDeRol[] {
 }
 
 /** El rol como se lee en la lista de usuarios. */
-export function etiquetaDeRol(role: string, esMostrador: boolean): string {
+export function etiquetaDeRol(role: string, esMostrador: boolean, conProyectos = false): string {
   if (role === "OWNER") return "Dueño/a";
+  if (conProyectos && role === "RECEPTION") return "Administración";
+  if (conProyectos && role === "PROFESSIONAL") return "Equipo";
   if (role === "RECEPTION") return esMostrador ? "Mostrador" : "Recepción";
   if (role === "PROFESSIONAL") return "Profesional";
   return role;

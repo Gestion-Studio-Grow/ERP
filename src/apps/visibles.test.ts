@@ -15,7 +15,9 @@ import {
   appPermitida,
   appsVisibles,
   buscarApps,
-  aterrizajeDelEquipo,
+  appDelPanelCerrado,
+  aterrizajeDelPanel,
+  rutaFueraDelPanel,
   conProyectosEnLaBarra,
   type ItemMenuDeHoy,
   destinoDeVuelta,
@@ -473,16 +475,48 @@ test("Vender y Ventas del día: CH no las ve ni por URL; un comercio con pos sí
   }
 });
 
-test("el equipo de una productora entra a Proyectos; los demás negocios y roles, como siempre", () => {
-  assert.equal(aterrizajeDelEquipo(negocio({ role: "PROFESSIONAL", modulosAsignados: ["proyectos", "agenda"] })), "/admin/proyectos");
-  assert.equal(aterrizajeDelEquipo(negocio({ role: "PROFESSIONAL", modulosAsignados: ["agenda"] })), null);
-  assert.equal(aterrizajeDelEquipo(negocio({ role: "OWNER", modulosAsignados: ["proyectos"] })), null);
+test("todos los roles de una productora entran a Proyectos; los demás negocios, como siempre", () => {
+  for (const role of ["OWNER", "RECEPTION", "PROFESSIONAL"] as const) {
+    assert.equal(aterrizajeDelPanel(negocio({ role, blueprintId: "productora", modulosAsignados: ["proyectos", "agenda"] })), "/admin/proyectos", role);
+    assert.equal(aterrizajeDelPanel(negocio({ role, blueprintId: "productora", modulosAsignados: ["agenda"] })), null, role);
+    assert.equal(aterrizajeDelPanel(negocio({ role, modulosAsignados: ["proyectos", "agenda"] })), null, role);
+  }
 });
 
-test("Proyectos entra a la barra sólo si la persona ve la app, y antes de la Agenda", () => {
+test("panel cerrado: el dueño de una productora ve sólo lo de su trabajo, aunque tenga más módulos asignados", () => {
+  const n = negocio({ role: "OWNER", blueprintId: "productora", modulosAsignados: ["proyectos", "agenda", "catalog", "clients", "reminders", "reports", "arca"] });
+  assert.equal(appDelPanelCerrado(n)?.id, "proyectos");
+  assert.deepEqual(
+    appsVisibles(n).map((a) => a.id).sort(),
+    ["caja-del-dia", "cierre-del-dia", "clientes", "facturacion", "libro-de-caja", "proyectos", "reportes", "usuarios"],
+  );
+  assert.equal(motivoNoDisponible(appPorId("agenda"), n), "panel");
+  assert.equal(motivoNoDisponible(appPorId("inicio"), n), "panel");
+  assert.deepEqual(destinoDeVuelta(n), { href: "/admin/proyectos", etiqueta: "Ir a Proyectos" });
+});
+
+test("panel cerrado: una dirección fuera del panel rebota; dentro, o sin app, no", () => {
+  const panel = appDelPanelCerrado(negocio({ role: "OWNER", blueprintId: "productora", modulosAsignados: ["proyectos"] }))!;
+  for (const ruta of ["/admin", "/admin/turnos", "/admin/catalogo", "/admin/recordatorios"]) assert.ok(rutaFueraDelPanel(ruta, panel), ruta);
+  for (const ruta of ["/admin/proyectos", "/admin/proyectos/abc", "/admin/clientes", "/admin/caja", "/admin/caja/libro", "/admin/reportes", "/admin/usuarios"]) {
+    assert.ok(!rutaFueraDelPanel(ruta, panel), ruta);
+  }
+});
+
+test("panel cerrado: otro negocio no cambia, aunque sume Proyectos como agregado", () => {
+  for (const modulosAsignados of [["agenda", "clients"], ["proyectos", "agenda", "clients"]]) {
+    const n = negocio({ role: "OWNER", blueprintId: "beauty-spa", modulosAsignados });
+    assert.equal(appDelPanelCerrado(n), null);
+    assert.equal(motivoNoDisponible(appPorId("agenda"), n), null);
+  }
+});
+
+test("Proyectos entra a la barra sólo si la persona ve la app: antes de la Agenda, o primero si no hay", () => {
   const menu = [{ href: "/admin", label: "Inicio", icon: "dashboard" }, { href: "/admin/turnos", label: "Agenda", icon: "agenda", grupo: "agenda" }] as ItemMenuDeHoy[];
   const barra = conProyectosEnLaBarra(menu, appsVisibles(negocio({ role: "PROFESSIONAL", modulosAsignados: ["proyectos", "agenda"] })));
   assert.deepEqual(barra.map((i) => i.href), ["/admin", "/admin/proyectos", "/admin/turnos"]);
   assert.equal(barra[1].grupo, "agenda");
+  const soloCaja = [{ href: "/admin/caja", label: "Caja", icon: "caja" }] as ItemMenuDeHoy[];
+  assert.deepEqual(conProyectosEnLaBarra(soloCaja, appsVisibles(negocio({ role: "OWNER", modulosAsignados: ["proyectos"] }))).map((i) => i.href), ["/admin/proyectos", "/admin/caja"]);
   assert.deepEqual(conProyectosEnLaBarra(menu, appsVisibles(negocio({ role: "OWNER", modulosAsignados: ["agenda"] }))), menu);
 });

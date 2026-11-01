@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getNegocioApps } from "@/apps/contexto.server";
-import { appCasa, aterrizajeDelEquipo } from "@/apps/visibles";
+import { appCasa, aterrizajeDelPanel } from "@/apps/visibles";
 import { getDashboardData, getRetailDashboardData } from "@/lib/actions";
 import Link from "next/link";
 import { fmtTime, fmtDateTimeAr, todayInBusinessTz } from "@/lib/datetime";
@@ -258,8 +258,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const negocioApps = await getNegocioApps((await requireUser()).role);
   const casa = appCasa(negocioApps);
   if (casa) redirect(casa.ruta);
-  const delEquipo = aterrizajeDelEquipo(negocioApps);
-  if (delEquipo) redirect(delEquipo);
+  const delPanel = aterrizajeDelPanel(negocioApps);
+  if (delPanel) redirect(delPanel);
   // DISEÑO NUEVO («Renglón», interruptor del negocio): cada rol aterriza en su trabajo (la bandeja
   // del dueño, la página de un espacio con `?espacio=`), con o sin "Trabaja por apps" (en CH, con las
   // pantallas de su barra de siempre). El Inicio del Comerciante sin "Trabaja por apps" se queda con

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { appDelPanelCerrado } from "@/apps/visibles";
 import { getCajaData } from "@/lib/caja-actions";
 import { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
@@ -68,7 +70,7 @@ function movementSignLabel(type: string): "+" | "−" | "" {
 export default async function CajaPage() {
   // La guardia de la app (rol, rubro, edición) va en la página, como en el resto del panel: quien
   // no puede abrirla ve "App no disponible" en vez de rebotar en silencio desde el loader.
-  await requireApp("caja-del-dia");
+  const guardia = await requireApp("caja-del-dia");
   // Mismo loader que el Cierre del día: la aritmética del resumen es LA MISMA
   // (`buildCierreDiario`), así que lo que se lee acá a las 16 es exactamente lo que va a
   // aparecer a las 20 al cerrar. Cero cálculo nuevo, cero segunda verdad.
@@ -78,12 +80,15 @@ export default async function CajaPage() {
   // base). El turno de cajero sigue consultándose sólo donde hay cajón: sin cajón, es una
   // consulta al pedo, así que espera a saber el rubro (que el layout del panel ya pidió en el
   // mismo pedido) y el día no lo espera a él.
-  const [dia, caja, nuevo] = await Promise.all([
+  const [dia, caja, nuevo, negocio] = await Promise.all([
     getCierreDiarioData(),
     tieneCajonFisico().then((conCajon) => (conCajon ? getCajaData() : null)),
     // «Diseño nuevo»: la lectura de interruptores del layout, cacheada (no suma viajes).
     disenoNuevo(),
+    getNegocioApps(guardia.role),
   ]);
+  // Una productora cobra proyectos: ni turnos ni mostrador.
+  const conProyectos = appDelPanelCerrado(negocio)?.id === "proyectos";
 
   // DISEÑO NUEVO («Renglón»): los mismos datos, ordenados para quien pasa el día acá.
   // La regla del arqueo, sólo donde hay cajón (el mostrador; CH no la ve): reglas-a-la-vista.ts.
@@ -93,14 +98,14 @@ export default async function CajaPage() {
     <main className="mx-auto max-w-3xl px-6 py-8">
       <h1 className="text-2xl font-semibold mb-1 text-strong">Caja</h1>
       <p className="text-muted mb-6 max-w-2xl">
-        Lo que hay ahora por cada medio de pago y todo lo que se movió hoy. Los cobros de
-        turnos y las ventas del mostrador entran solos, por cualquier medio: acá se cargan
-        únicamente los gastos, retiros e ingresos sueltos.
+        Lo que hay ahora por cada medio de pago y todo lo que se movió hoy.{" "}
+        {conProyectos ? "Los cobros de proyectos entran solos" : "Los cobros de turnos y las ventas del mostrador entran solos"}
+        , por cualquier medio: acá se cargan únicamente los gastos, retiros e ingresos sueltos.
       </p>
 
       <ResumenDelDia dia={dia} />
 
-      {!dia.yaCerrado && <MovimientoSuelto dia={dia.day} />}
+      {!dia.yaCerrado && <MovimientoSuelto dia={dia.day} conProyectos={conProyectos} />}
 
       {caja && <TurnoDeCajero caja={caja} />}
     </main>
@@ -332,16 +337,17 @@ function fmtDayKey(day: string): string {
 // No hay tipo RETIRO en el libro a propósito: un retiro es un EGRESO con su detalle
 // ("retiro a caja fuerte"). Agregar un tercer tipo obligaba a tocar la aritmética del mes,
 // el export y la guarda de borrado, a cambio de una palabra.
-function MovimientoSuelto({ dia }: { dia: string }) {
+function MovimientoSuelto({ dia, conProyectos }: { dia: string; conProyectos: boolean }) {
   return (
     <Card className="mt-6">
       <CardHeader>
         <div>
           <CardTitle>Registrar un movimiento</CardTitle>
           <CardDescription>
-            Gastos, retiros o ingresos que no vienen de una venta. Lo que cobrás desde Turnos
-            o desde el mostrador ya entra solo —en efectivo, Mercado Pago o transferencia—:
-            no lo vuelvas a cargar acá.
+            {conProyectos
+              ? "Gastos, retiros o ingresos que no vienen de un proyecto. Lo que cobrás desde Proyectos"
+              : "Gastos, retiros o ingresos que no vienen de una venta. Lo que cobrás desde Turnos o desde el mostrador"}{" "}
+            ya entra solo —en efectivo, Mercado Pago o transferencia—: no lo vuelvas a cargar acá.
           </CardDescription>
         </div>
       </CardHeader>

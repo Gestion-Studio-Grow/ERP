@@ -6,6 +6,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { Input, Select, Field, buttonClasses } from "@/components/ui";
 import { fmtDateTime } from "@/lib/datetime";
 import { etiquetaDeRol, rolSinPantallas, rolesParaAlta } from "./roles";
+import { appDelPanelCerrado } from "@/apps/visibles";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import UsuariosRenglon from "./UsuariosRenglon";
 
@@ -48,7 +49,9 @@ export default async function UsuariosPage({
   const banner = status ? STATUS_MESSAGES[status] : undefined;
   // En un negocio sin agenda no se ofrece el rol Profesional (roles.ts).
   const { esMostrador } = negocio;
-  const roles = rolesParaAlta(esMostrador);
+  // Una productora no tiene agenda: «Recepción» y «Profesional» se dicen con sus palabras (roles.ts).
+  const conProyectos = appDelPanelCerrado(negocio)?.id === "proyectos";
+  const roles = rolesParaAlta(esMostrador, conProyectos);
   // Diseño nuevo («Renglón»): las mismas acciones y los mismos campos. Apagado, igual que siempre.
   if (nuevo) return <UsuariosRenglon users={users} roles={roles} esMostrador={esMostrador} banner={banner} fichas={fichas} />;
 
@@ -108,7 +111,7 @@ export default async function UsuariosPage({
             </SubmitButton>
           </div>
         </form>
-        {!esMostrador && (
+        {!esMostrador && !conProyectos && (
           <p className="mt-3 text-xs text-muted">
             Un usuario Profesional ve sólo su agenda: después de crearlo, elegí su ficha de profesional en
             la lista de abajo.
@@ -130,7 +133,7 @@ export default async function UsuariosPage({
                   <p className="font-medium">
                     {u.name}{" "}
                     <span className="ml-1 inline-block rounded-full bg-surface-sunken px-2 py-0.5 text-xs text-muted">
-                      {etiquetaDeRol(u.role, esMostrador)}
+                      {etiquetaDeRol(u.role, esMostrador, conProyectos)}
                     </span>
                     {!u.active && (
                       <span className="ml-1 inline-block rounded-full bg-danger-soft px-2 py-0.5 text-xs text-danger">
@@ -168,7 +171,7 @@ export default async function UsuariosPage({
                     </SubmitButton>
                   </form>
 
-                  {u.role === "PROFESSIONAL" && !esMostrador && <VincularFicha usuario={u} fichas={fichas} />}
+                  {u.role === "PROFESSIONAL" && !esMostrador && !conProyectos && <VincularFicha usuario={u} fichas={fichas} />}
 
                   {/* Reset de contraseña */}
                   <form action={resetUserPassword} className="flex flex-wrap gap-2">

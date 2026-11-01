@@ -8,13 +8,14 @@ import { claseBotonWhatsApp } from "../boton-whatsapp";
 import { contactoDeLaFicha } from "../contacto-ficha";
 import { requireApp } from "@/lib/require-app";
 import EditarClienteForm from "./EditarClienteForm";
+import FichaProductora from "./FichaProductora";
 import FichaUnica from "./FichaUnica";
 import { enInicioPorApps } from "../../inicio/piloto";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import FichaRenglon from "./FichaRenglon";
 import { hrefNuevoTurno } from "../../turnos/pasos";
 import { roleHasCapability } from "@/lib/capabilities";
-import { appPermitida } from "@/apps/visibles";
+import { appDelPanelCerrado, appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
 import { getNegocioApps } from "@/apps/contexto.server";
 import MostradorDeLaFicha from "./MostradorDeLaFicha";
@@ -36,7 +37,9 @@ export default async function ClienteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireApp("clientes");
-  const [{ id }, nuevo, conMostrador] = await Promise.all([params, disenoNuevo(), mostradorBoutiqueDelNegocio()]);
+  const [{ id }, nuevo, conMostrador, negocio] = await Promise.all([params, disenoNuevo(), mostradorBoutiqueDelNegocio(), getNegocioApps(user.role)]);
+  // Una productora: el cliente es una marca que encarga trabajos. Su ficha son sus proyectos.
+  if (appDelPanelCerrado(negocio)?.id === "proyectos") return <FichaProductora id={id} user={user} />;
   // MOSTRADOR BOUTIQUE (Magra, tanda 2 · 2D): arriba de la ficha, lo que debe, «Recordarle»,
   // «Venderle» y «Repetir» (MostradorDeLaFicha.tsx). Apagado (CH, Shine), la ficha de siempre.
   // DISEÑO NUEVO («Renglón»): la ficha como ciclo de vida (FichaRenglon.tsx), con los datos y las

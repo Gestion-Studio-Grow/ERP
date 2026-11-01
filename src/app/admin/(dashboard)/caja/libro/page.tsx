@@ -11,6 +11,8 @@
 
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { appDelPanelCerrado } from "@/apps/visibles";
 import { getLibroCajaData } from "@/lib/libro-caja-actions";
 import {
   mediosALaVista,
@@ -81,11 +83,13 @@ export default async function LibroCajaPage({
 }: {
   searchParams: Promise<{ mes?: string }>;
 }) {
-  await requireApp("libro-de-caja");
+  const guardia = await requireApp("libro-de-caja");
   const { mes } = await searchParams;
   // getLibroCajaData aplica además requireCapability("orders:read"), la misma del registro.
   // Un ?mes inválido cae al mes corriente en vez de romper.
-  const [libro, nuevo] = await Promise.all([getLibroCajaData(mes), disenoNuevo()]);
+  const [libro, nuevo, negocio] = await Promise.all([getLibroCajaData(mes), disenoNuevo(), getNegocioApps(guardia.role)]);
+  // Una productora cobra proyectos: ni turnos ni mostrador.
+  const conProyectos = appDelPanelCerrado(negocio)?.id === "proyectos";
   const { rows, summary, year, month, monthKey, posiblesDuplicados, cerradoHasta } = libro;
   const duplicados = new Set(posiblesDuplicados);
 
@@ -165,9 +169,9 @@ export default async function LibroCajaPage({
               Una fila por cobro o por gasto, igual que en la planilla. Se guarda con la fecha que
               pongas, no con la de hoy: podés cargar en diferido.{" "}
               <strong className="font-medium text-body">
-                Los turnos cobrados desde Turnos y las ventas del mostrador entran solos
+                {conProyectos ? "Los cobros de proyectos entran solos" : "Los turnos cobrados desde Turnos y las ventas del mostrador entran solos"}
               </strong>
-              : acá se carga lo que no pasa por el sistema (señas, gastos, retiros, cobros sueltos).
+              : acá se carga lo que no pasa por el sistema ({conProyectos ? "gastos, retiros, cobros sueltos" : "señas, gastos, retiros, cobros sueltos"}).
             </CardDescription>
           </div>
         </CardHeader>

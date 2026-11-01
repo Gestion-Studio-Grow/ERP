@@ -103,6 +103,8 @@ export interface NegocioApps {
    * exigen su módulo siempre, y sin esto no habría contra qué compararlo.
    */
   modulosAsignados: readonly string[];
+  /** El rubro del alta (`Tenant.blueprintId`). Decide un panel cerrado (`appDelPanelCerrado`). */
+  blueprintId?: string | null;
   /** Perfil activo, o `null` con el motor de perfiles apagado (hoy). */
   perfil: Perfil | null;
   /** ¿Local de mostrador? (`resolveRubroId(tenant) != null`, el mismo dato que la barra). */
@@ -125,8 +127,9 @@ export interface NegocioApps {
  *   rubro          → no aplica a este tipo de negocio (turnos en un mostrador, etc.).
  *   edicion        → es de la edición por perfiles y el negocio no la tiene.
  *   oculta         → GSG la ocultó en este negocio (consola, «Apps ocultas»): se la vuelve a mostrar GSG.
+ *   panel          → el panel de este negocio es cerrado y no la incluye (`panelCerrado`).
  */
-export type MotivoNoDisponible = "rol" | "en-preparacion" | "modulo" | "rubro" | "edicion" | "oculta";
+export type MotivoNoDisponible = "rol" | "en-preparacion" | "modulo" | "rubro" | "edicion" | "oculta" | "panel";
 
 /**
  * ¿El rol alcanza para entrar? `capability: null` = alcanza con la sesión. En un local de
@@ -202,9 +205,29 @@ function edicionPermite(app: AppDescriptor, n: NegocioApps): boolean {
   return perfilGateAllows(app.perfilMin, n.perfil);
 }
 
+/**
+ * La app que encabeza el panel cerrado de este negocio, o `null` (CH, Magra, …: el backoffice de siempre). PURA.
+ * Mira la asignación del módulo, igual que `appCasa`.
+ */
+export function appDelPanelCerrado(n: NegocioApps, apps: readonly AppDescriptor[] = REGISTRO_APPS): AppDescriptor | null {
+  const asignados = n.contexto ? n.contexto.modulos : new Set(n.modulosAsignados);
+  return apps.find((a) => a.panelCerrado?.blueprint === n.blueprintId && a.panelCerrado && a.modulo !== null && asignados.has(a.modulo)) ?? null;
+}
+
+const entraEnElPanel = (panel: AppDescriptor, app: AppDescriptor): boolean =>
+  app.id === panel.id || !!panel.panelCerrado?.apps.includes(app.id);
+
+/** ¿`path` queda fuera del panel cerrado? Una ruta que no es de ninguna app no se toca. PURA. */
+export function rutaFueraDelPanel(path: string, panel: AppDescriptor, apps: readonly AppDescriptor[] = REGISTRO_APPS): boolean {
+  const app = appDeRuta(path, apps);
+  return !!app && !entraEnElPanel(panel, app);
+}
+
 /** Por qué la persona no puede abrir la app, o `null` si puede. */
 export function motivoNoDisponible(app: AppDescriptor, n: NegocioApps): MotivoNoDisponible | null {
   if (!rolPuedeEntrar(app, n.role, n)) return "rol";
+  const panel = appDelPanelCerrado(n);
+  if (panel && !entraEnElPanel(panel, app)) return "panel";
   // Sólo un id del catálogo cerrado oculta algo: un Set armado a mano con otra app no la tapa.
   if (n.ocultas?.has(app.id) && esAppOcultable(app.id)) return "oculta";
   if (app.estado !== "lista") return "en-preparacion";
@@ -395,6 +418,8 @@ export function explicarNoDisponible(
       };
     case "rol":
       return { titulo, porque: "Tu usuario no tiene acceso a esta app.", aQuien: A_LA_DUENIA };
+    case "panel":
+      return { titulo, porque: "El panel de tu negocio tiene sólo lo que usa tu trabajo, y esta app no es parte.", aQuien: pedido };
     case "en-preparacion":
       return {
         titulo,
@@ -429,6 +454,8 @@ export function explicarNoDisponible(
  * botón: uno que volviera a mandar acá sería un loop hecho a mano. Ahí queda cerrar sesión.
  */
 export function destinoDeVuelta(n: NegocioApps): { href: string; etiqueta: string } | null {
+  const panel = appDelPanelCerrado(n);
+  if (panel) return appPermitida(panel, n) ? { href: panel.ruta, etiqueta: `Ir a ${panel.nombre}` } : null;
   const href = homeRoute(n.role);
   const app = appDeRuta(href);
   if (!app || !appPermitida(app, n)) return null;
@@ -436,20 +463,18 @@ export function destinoDeVuelta(n: NegocioApps): { href: string; etiqueta: strin
 }
 
 /**
- * Dónde cae el equipo (PROFESSIONAL) al entrar a un negocio con Proyectos: en sus trabajos, no en una
- * agenda de turnos vacía. La agenda le sigue quedando en la barra. `null` para el resto de los negocios
- * y de los roles: siguen como siempre. PURA.
+ * Dónde cae cualquier rol al entrar a un negocio de panel cerrado: en la app que lo encabeza, sin pasar por un
+ * Inicio pensado para otros rubros. `null` para el resto de los negocios: siguen como siempre. PURA.
  */
-export function aterrizajeDelEquipo(n: NegocioApps, apps: readonly AppDescriptor[] = REGISTRO_APPS): string | null {
-  if (n.role !== "PROFESSIONAL") return null;
-  const proyectos = apps.find((a) => a.id === "proyectos");
-  return proyectos && appPermitida(proyectos, n) ? proyectos.ruta : null;
+export function aterrizajeDelPanel(n: NegocioApps, apps: readonly AppDescriptor[] = REGISTRO_APPS): string | null {
+  const panel = appDelPanelCerrado(n, apps);
+  return panel && appPermitida(panel, n) ? panel.ruta : null;
 }
 
 /**
- * Proyectos en la barra, antes de la Agenda, sólo para quien ve la app (`appsVisibles`: módulo duro, así
- * que CH y los demás negocios no la reciben y su barra queda idéntica). Mismo criterio que el Cierre del
- * mes: no entra a `menuDeHoy`, que ata la barra al menú viejo sin mirar la asignación del módulo. PURA.
+ * Proyectos en la barra, antes de la Agenda o primero si no hay, sólo para quien ve la app (`appsVisibles`:
+ * módulo duro, así que CH y los demás negocios no la reciben y su barra queda idéntica). Mismo criterio que el
+ * Cierre del mes: no entra a `menuDeHoy`, que ata la barra al menú viejo sin mirar la asignación del módulo. PURA.
  */
 export function conProyectosEnLaBarra(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[]): ItemMenuDeHoy[] {
   const app = visibles.find((a) => a.id === "proyectos");
@@ -457,9 +482,9 @@ export function conProyectosEnLaBarra(menu: readonly ItemMenuDeHoy[], visibles: 
   const item: ItemMenuDeHoy = { href: app.ruta, label: app.nombre, icon: app.icono };
   if (app.palabras) item.alias = app.palabras;
   const i = menu.findIndex((m) => m.href === "/admin/turnos");
-  const grupo = i >= 0 ? menu[i].grupo : undefined;
+  const grupo = (i >= 0 ? menu[i] : menu[0])?.grupo;
   if (grupo) item.grupo = grupo;
   const salida = [...menu];
-  salida.splice(i >= 0 ? i : salida.length, 0, item);
+  salida.splice(Math.max(i, 0), 0, item);
   return salida;
 }

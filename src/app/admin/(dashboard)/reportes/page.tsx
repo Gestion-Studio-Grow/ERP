@@ -14,6 +14,8 @@ import SubmitButton from "@/components/SubmitButton";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
+import { appDelPanelCerrado } from "@/apps/visibles";
+import RentabilidadProyectos from "../proyectos/reportes/page";
 import ReportesMostrador from "./ReportesMostrador";
 
 export const dynamic = "force-dynamic";
@@ -91,8 +93,11 @@ export default async function ReportesPage({
   // abajo (turnos, profesionales, ausencias, comisiones) es de un negocio de servicios, y ahí
   // daba $0 con el local vendiendo todo el día. Un negocio de servicios (CH) sigue viendo
   // exactamente la pantalla de siempre.
-  const { esMostrador } = await getNegocioApps(guardia.role);
+  const negocioDelReporte = await getNegocioApps(guardia.role);
+  const { esMostrador } = negocioDelReporte;
   if (esMostrador) return <ReportesMostrador rangeDays={rangeDays} role={guardia.role} />;
+  // Una productora cobra proyectos, no turnos: lo de abajo le daría $0. Su reporte es la rentabilidad por proyecto.
+  if (appDelPanelCerrado(negocioDelReporte)?.id === "proyectos") return <RentabilidadProyectos />;
 
   const [data, deep, panel, overview, user, profile] = await Promise.all([
     getReportData(rangeDays),
