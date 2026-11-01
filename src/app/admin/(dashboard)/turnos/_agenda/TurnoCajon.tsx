@@ -279,8 +279,12 @@ export default function TurnoCajon({
   const reloj = new Date(ahora);
   const { pendiente, correr } = useAccionSimple();
   const router = useRouter();
+  // Acá arriba y no en el botón de anular: el cobro anulado deja de ofrecer el botón y el aviso se iría con él.
+  // Con el turno al lado: el cajón es el mismo para todos los turnos, y el aviso es de uno.
+  const [avisoAlAnular, setAvisoAlAnular] = useState<{ turnoId: string; texto: string } | null>(null);
   const t = turno;
   if (!t) return null;
+  const avisoDeComision = avisoAlAnular?.turnoId === t.id ? avisoAlAnular.texto : "";
 
   const paso = pasoDelTurno(t, permisos, reloj);
   const marca = marcaDelTurno(t, reloj);
@@ -291,8 +295,6 @@ export default function TurnoCajon({
   const proximo = permisos.practica && permisos.gestionar ? `/admin/turnos/proximo/${t.id}` : null;
   // Quién anula (orden del dueño): la dueña, recepción con su código; la profesional, no.
   const anular = cobraEste ? permisos.anular : null;
-  // Acá arriba y no en el botón de anular: el cobro anulado deja de ofrecer el botón y el aviso se iría con él.
-  const [avisoDeComision, setAvisoDeComision] = useState("");
   const anulables = new Set(
     cobrosAnulables(t.cobros.map((c) => ({ ...c, note: c.note ?? null }))).map(
       (c) => c.id,
@@ -619,7 +621,7 @@ export default function TurnoCajon({
                                   }),
                                 ),
                               );
-                              if (r.ok && r.aviso) setAvisoDeComision(r.aviso);
+                              if (r.ok && r.aviso) setAvisoAlAnular({ turnoId: t.id, texto: r.aviso });
                               return r;
                             }}
                           />

@@ -134,7 +134,7 @@ test("las pantallas muestran el aviso: al anular (agenda y lista) y en comisione
   const raiz = "src/app/admin/(dashboard)";
   for (const archivo of ["turnos/_agenda/TurnoCajon.tsx", "turnos/AppointmentRow.tsx"]) {
     const s = readFileSync(`${raiz}/${archivo}`, "utf8");
-    assert.match(s, /if \(r\.ok && r\.aviso\) setAvisoDeComision\(r\.aviso\)/, archivo);
+    assert.match(s, /if \(r\.ok && r\.aviso\) setAviso/, archivo);
     assert.match(s, /\{avisoDeComision\}/, archivo);
   }
   for (const archivo of ["comisiones/ComisionesPendientes.tsx", "comisiones/ComisionesRenglon.tsx", "reportes/page.tsx"]) {
