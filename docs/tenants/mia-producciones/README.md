@@ -16,7 +16,8 @@ Primer negocio del rubro **productora** (eventos, stands, contenidos). Es un neg
 | Armador 3D | `src/lib/proyectos/stand-escena.ts`, `src/app/admin/(dashboard)/proyectos/[id]/stand/` |
 | Panel | `src/app/admin/(dashboard)/proyectos/` |
 | Propuesta del cliente (link sin login, sin costos) | `src/app/propuesta/[token]/` |
-| Tablas + RLS | `prisma/migrations/20261101120000_modulo_proyectos/`, `20261101130000_proyecto_gastos/` |
+| Tablas + RLS | `prisma/migrations/20261101120000_modulo_proyectos/`, `20261101130000_proyecto_gastos/`, `20261101140000_proyecto_entregables/` |
+| Piezas para aprobar | Reglas: `estadoDelEntregable` y `resumenEntregables` en `core.ts`. Panel: sección de la ficha y `proyectos/[id]/entregable/[entregableId]/`. Link del cliente, sin login y sin plata: `src/app/entregables/[token]/` |
 | Costo real y proveedores | Reglas: `resultadoReal` y `desvioPorRubro` en `core.ts`. Pantallas: sección «Costo real» de la ficha, `proyectos/proveedores/`, `proyectos/reportes/` |
 | Marca | `src/lib/proyectos/marca.ts`, `public/tenants/mia-producciones/marca/`; panel e ingreso: `src/lib/estetica-backoffice.ts`, `globals.css` |
 | Panel sólo de MIA | `panelCerrado` en `src/apps/catalogo/comercial.ts`, regla en `src/apps/visibles.ts` |
@@ -89,7 +90,12 @@ el negocio funciona pero sin su marca. El camino alternativo sin terminal es el 
    presupuesto (provisional, igual que el punto anterior). No pasan por Compras: no suman a la cuenta corriente
    del proveedor ni al IVA compras, y lo «por pagar» vive sólo en Proyectos. En el reporte general de Resultado,
    un gasto pagado aparece sin categoría y su anulación como ingreso manual.
-12. **Entregables con aprobación y cronograma con equipo:** propuestos, sin autorizar ni validar con MIA.
+12. **Piezas para aprobar:** el circuito es una propuesta nuestra, sin validar con MIA. Quien responde deja el nombre que
+   escribe: no se comprueba quién es, igual que en la propuesta. Nadie recibe un aviso cuando el cliente responde: se ve
+   en el tablero y en la ficha. Cualquiera con el link puede responder y no hay forma de cambiarlo desde el panel. Los
+   videos y PDF van por link a su nube, sin vista previa. Una pieza sacada del proyecto no se puede volver a ver en
+   pantalla: su constancia queda en la base. El equipo, no sólo el dueño, puede enviar versiones al cliente (provisional).
+13. **Cronograma y equipo:** propuesto, sin autorizar ni validar con MIA.
 
 ## Verificación
 
@@ -122,15 +128,27 @@ link de WhatsApp con 549 y PDF de la propuesta generado con Chromium, sin costos
 - **La valla de calidad visual no pasa por `/admin/proyectos`:** ningún negocio de esa corrida tiene el módulo (figura
   entre las omitidas). Lo de celular de este módulo se midió con el recorrido, no con esa valla.
 
+**Piezas para aprobar, 01/11/2026, sobre la compilación con este bloque:**
+
+- Dueño y equipo: pieza nueva, imagen real achicada, link `https`, `http` rechazado, borrador descartado, enviar. Tablero y
+  ficha muestran «para corregir» y «esperando al cliente».
+- Cliente, sin sesión y a 390 px: no ve borradores ni piezas sin enviar, ni plata; el HTML tampoco trae quién la subió.
+  Pedir cambios sin nombre o sin comentario avisa. Doble clic responde una vez. Responder una versión ya reemplazada avisa y
+  no pisa nada. Lo aprobado conserva su especificación aunque después se cambie la pieza. Token falso: 404. La página va con `noindex`.
+- Celular sin desborde en ficha, tablero, pieza y link del cliente.
+- **Sin probar:** un token de MIA en el host de otro negocio. La demo tiene un solo negocio: `localhost` cae en el mismo y
+  responde 200, así que eso no prueba nada. Lo protegen el `tenantId` de la consulta y RLS, igual que en la propuesta.
+
 **Sin probar:** abrir WhatsApp de verdad (se revisó el link, no se envió nada) y el PDF con imágenes de un
 render real. La propuesta impresa se miró con la hoja de ejemplo, sin render.
 
-**Vallas del 01/11/2026, con el bloque de gastos:** tipos, compilación, cobertura de RLS, sello, `test:release`
+**Vallas del 01/11/2026, con gastos y piezas:** tipos, compilación, cobertura de RLS, sello, `test:release`
 (14/14) y calidad visual (contraste, toque y desborde: 0 problemas) en verde.
 
-- `npm test`: 6669 pasan, 35 fallan, 280 cancelados, 311 salteados. Comparadas por nombre con la corrida anterior a
-  estos cambios, la única diferencia son las de `m1-cert-tarjeta-cableado`, que aparecen sólo desde PowerShell, que no
-  tiene `grep`. Las demás son del entorno o de la rama base (fin de línea de Windows, navegador, rutas `C:\C:\`).
+- `npm test`: 6672 pasan, 35 fallan, 280 cancelados, 311 salteados. Comparadas por nombre con la corrida anterior a
+  estos cambios, hay dos diferencias: las de `m1-cert-tarjeta-cableado`, que aparecen sólo desde PowerShell, que no tiene
+  `grep`, y una medición de tiempos de `club/almacen-real.test.ts`, que corrida sola pasa (19 de 19). Las demás son del
+  entorno o de la rama base (fin de línea de Windows, navegador, rutas `C:\C:\`).
 - **No corridas en esta máquina:** las pruebas de pantalla de la suite (los 280 cancelados): su navegador
   no arranca (`spawn UNKNOWN`), tampoco en la rama base. Las 311 salteadas piden `ERP_TEST_PG_URL`.
 - `gate:visual`: el login de `/admin` da rojo porque esa valla necesita una base propia: sin base,
@@ -139,7 +157,8 @@ render real. La propuesta impresa se miró con la hoja de ejemplo, sin render.
   en la rama base: correr con `--test-force-exit --test-timeout=180000`.
 
 **Medido el 01/11/2026 contra producción, sólo lectura:** las pendientes son
-`20261101120000_modulo_proyectos` y `20261101130000_proyecto_gastos`, y coinciden con `prisma/lote-deploy.txt`.
+`20261101120000_modulo_proyectos` y `20261101130000_proyecto_gastos`, y coincidían con el lote. Esa medición es anterior a
+`20261101140000_proyecto_entregables`: el paso 2 del pase tiene que mostrar las tres.
 
 **No ensayada sobre una copia de producción:** la migración corrió sobre base en memoria con todas las
 anteriores, no sobre un branch de Neon con datos reales. Para ensayarla: crear un branch `ensayo-lote` y
@@ -148,7 +167,7 @@ pegar en su SQL Editor `docs/runbooks/ensayo-neon/1-lote-en-branch.sql` y despu�
 
 **Trampa de Windows:** `node scripts/ensayo-lote-neon.mjs` no escribe nada acá (su control de arranque no
 reconoce la ruta) y con saltos CRLF en `prisma/lote-deploy.txt` toma los comentarios como migraciones. El
-SQL de ensayo se generó desde una copia con saltos LF; las sumas de control `9a22cd47…` y `e855b4d1…` coinciden
+SQL de ensayo se generó desde una copia con saltos LF; las sumas de control `9a22cd47…`, `e855b4d1…` y `8364154d…` coinciden
 con las de las migraciones en git, que es lo que lee Vercel.
 
 **Trampa de Windows en el paso 3:** con `core.autocrlf=true`, git puede bajar una migración con saltos CRLF, y
