@@ -3,14 +3,14 @@
 // 404 de Next): lo que cambia acá es sólo el cuerpo. Sin este archivo, el de la raíz volvía a poner el layout y salían dos
 // encabezados.
 //
-// Con el «Diseño nuevo» de CH prendido: su piel y el camino de vuelta (P0-3). Apagado (o cualquier otro negocio): el 404 de Next de
-// siempre. Una dirección que no existe la atiende src/app/not-found.tsx, que dibuja la misma pieza.
+// Con el «Diseño nuevo» de CH prendido: su piel y el camino de vuelta (P0-3). Apagado (o cualquier otro negocio): la hoja en
+// castellano con el nombre de ese negocio. Una dirección que no existe la atiende src/app/not-found.tsx, que dibuja las mismas piezas.
 
-import NotFoundDeNext from "next/dist/client/components/builtin/not-found";
 import { chConDisenoNuevo } from "./_ch/diseno-ch.server";
 import NoEncontradaCH from "./_ch/NoEncontradaCH";
+import NoEncontradaDelNegocio from "./NoEncontradaDelNegocio";
 
 export default async function NoEncontradaDelSitio() {
-  if (!(await chConDisenoNuevo())) return <NotFoundDeNext />;
+  if (!(await chConDisenoNuevo())) return <NoEncontradaDelNegocio />;
   return <NoEncontradaCH />;
 }
