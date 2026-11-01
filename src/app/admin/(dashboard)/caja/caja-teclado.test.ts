@@ -58,6 +58,7 @@ import ToastProvider from "@/app/admin/(dashboard)/ToastProvider";
 import { CerrarDiaForm } from "@/app/admin/(dashboard)/caja/cierre/CierreForm";
 import { CloseCajaForm, OpenCajaForm } from "@/app/admin/(dashboard)/caja/CajaForms";
 import { AddLibroEntryForm, IrACargarMovimiento } from "@/app/admin/(dashboard)/caja/libro/LibroForms";
+import { CargarMovimiento } from "@/app/admin/(dashboard)/caja/CargarMovimiento";
 window.__envios = [];
 window.__montar = (cual) =>
   createRoot(document.getElementById("root")).render(
@@ -68,6 +69,8 @@ window.__montar = (cual) =>
         ? createElement(CloseCajaForm, { expected: 10000 })
         : cual === "abrir"
         ? createElement(OpenCajaForm, { esperado: 15000 })
+        : cual === "gasto"
+        ? createElement(CargarMovimiento, { dia: "2026-09-23" })
         : createElement("div", null,
             createElement(AddLibroEntryForm, { defaultDate: "2026-09-23", viewMonth: "2026-09" }),
             // El botón del mes vacío (libro/page.tsx), debajo del formulario como en la página.
@@ -78,7 +81,7 @@ window.__montar = (cual) =>
 `;
 
 type Envio = Record<string, string[]>;
-type Montaje = "cierre" | "turno" | "abrir" | "libro";
+type Montaje = "cierre" | "turno" | "abrir" | "libro" | "gasto";
 type Ventana = { __envios: Envio[]; __sinRed?: boolean; __montar: (cual: Montaje) => void };
 
 function rutaDeChromium(porDefecto: () => string): string | null {
@@ -185,7 +188,7 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
     );
     await page.addScriptTag({ content: bundle });
     await page.evaluate((c) => (window as unknown as Ventana).__montar(c as Montaje), cual);
-    await page.waitForSelector("form");
+    await page.waitForSelector(cual === "gasto" ? "button" : "form");
     return { page, errores };
   }
 
@@ -339,6 +342,20 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
     assert.equal(await page.inputValue("#libro-method"), "TRANSFERENCIA", "lo elegido queda pegado");
     assert.deepEqual(errores, []);
     await page.close();
+  });
+
+  test("«Cargar un gasto o retiro» arranca en Egreso y sin medio; la planilla del libro sigue arrancando en Ingreso", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("gasto");
+    await page.getByRole("button", { name: "Cargar un gasto o retiro" }).click();
+    await page.waitForSelector("#libro-type");
+    assert.equal(await page.inputValue("#libro-type"), "EGRESO", "un gasto cargado sin mirar no entra como ingreso");
+    assert.equal(await page.inputValue("#libro-method"), "", "el medio lo elige la persona");
+    await page.close();
+    const planilla = await montar("libro");
+    assert.equal(await planilla.page.inputValue("#libro-type"), "INGRESO");
+    assert.deepEqual(errores, []);
+    await planilla.page.close();
   });
 
   test("libro en el cajón de 480 px, en una compu de 1440: ningún campo se corta", async (t) => {

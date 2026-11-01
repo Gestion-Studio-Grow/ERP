@@ -45,7 +45,7 @@ export function CargarMovimiento({
               : "Lo que no viene de una venta. Los cobros de las ventas y de los turnos ya entran solos: no los cargues acá."
           }
         >
-          <AddLibroEntryForm defaultDate={dia} viewMonth={mes ?? dia.slice(0, 7)} />
+          <AddLibroEntryForm defaultDate={dia} viewMonth={mes ?? dia.slice(0, 7)} tipoInicial="EGRESO" />
         </Cajon>
       )}
     </>

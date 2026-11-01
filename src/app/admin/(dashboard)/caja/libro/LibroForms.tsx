@@ -66,9 +66,12 @@ function Mensaje({ state }: { state: LibroActionState }) {
 export function AddLibroEntryForm({
   defaultDate,
   viewMonth,
+  tipoInicial = "INGRESO",
 }: {
   defaultDate: string;
   viewMonth: string;
+  /** Con qué tipo arranca. «Cargar un gasto o retiro» va en Egreso: un gasto cargado sin mirar no entra como ingreso. */
+  tipoInicial?: "INGRESO" | "EGRESO";
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -84,7 +87,7 @@ export function AddLibroEntryForm({
   // Volver a elegir "egreso / efectivo" en cada fila es exactamente la fricción que
   // esta pantalla viene a sacar.
   const [date, setDate] = useState(defaultDate);
-  const [type, setType] = useState("INGRESO");
+  const [type, setType] = useState<string>(tipoInicial);
   const [method, setMethod] = useState("");
   // ¿La acción pidió confirmación (fecha fuera del mes, o posible duplicado)?
   //
