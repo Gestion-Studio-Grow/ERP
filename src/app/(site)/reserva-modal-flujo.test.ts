@@ -118,6 +118,16 @@ async function clic(texto: string | RegExp) {
   assert.ok(b, `no está el botón ${texto}: ${dom.window.document.body.textContent}`);
   await act(async () => void b.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
 }
+// Suelta sólo la búsqueda de ese día, para armar respuestas fuera de orden.
+async function soltarDia(dia: string) {
+  const i = cola.findIndex((p) => p.dias.length === 1 && p.dias[0] === dia);
+  assert.ok(i >= 0, `no hay búsqueda en curso de ${dia}`);
+  const [p] = cola.splice(i, 1);
+  await act(async () => {
+    p.soltar();
+    await new Promise((r) => setTimeout(r, 0));
+  });
+}
 async function soltarTodo() {
   while (cola.length) {
     const p = cola.shift()!;
@@ -180,6 +190,40 @@ for (const nuevo of [true, false]) {
     await confirmarDatos();
     assert.equal(creadas.length, 1);
     assert.equal(creadas[0].startsAtIso, HORA[MAR], "la reserva sale el día marcado");
+  });
+
+  test(`${modo}: la respuesta tardía de otro día no pisa los horarios del día marcado (H2)`, async () => {
+    await abrir(nuevo);
+    await clic("SrvX");
+    await clic("Ana"); // La búsqueda de todo el rango queda en curso: cada día tocado sale a buscar lo suyo.
+    await clic(/^lun 2/);
+    await clic(/^mar 3/);
+    await soltarDia(MAR);
+    await soltarDia(LUN); // Llega última la del día anterior.
+    assert.deepEqual(diaMarcado(), ["mar 3"]);
+    assert.deepEqual(horas(), ["10:00"], "sigue la lista de mar 3");
+    await soltarTodo();
+    await clic("10:00");
+    await clic("Continuar");
+    await confirmarDatos();
+    assert.equal(creadas[0].startsAtIso, HORA[MAR], "la reserva sale el día marcado");
+  });
+
+  test(`${modo}: tampoco la pisa si el día marcado salió de lo ya traído (H2)`, async () => {
+    await abrir(nuevo);
+    await clic("SrvX");
+    await clic("Ana");
+    await clic(/^lun 2/); // Esta búsqueda queda en curso…
+    const rango = cola.findIndex((p) => p.dias.length > 1);
+    const [r] = cola.splice(rango, 1);
+    await act(async () => {
+      r.soltar();
+      await new Promise((ok) => setTimeout(ok, 0));
+    });
+    await clic(/^mar 3/); // …y este día ya está traído: no sale a buscar.
+    await soltarDia(LUN);
+    assert.deepEqual(diaMarcado(), ["mar 3"]);
+    assert.deepEqual(horas(), ["10:00"], "sigue la lista de mar 3");
   });
 
   test(`${modo}: cambiar de servicio borra día y hora y salta al primer día con lugar`, async () => {

@@ -94,6 +94,8 @@ export default function BookingModal({
   const [intentoEn, setIntentoEn] = useState(0);
   // Sube cada vez que cambia el servicio o la profesional: lo que llegue de antes no vale.
   const eleccionActual = useRef(0);
+  // El último día que tocó la clienta: de la lista de horarios sólo manda la respuesta de ese día.
+  const diaPedido = useRef<string | null>(null);
   const intento = intentoEn === step;
   const [slotsPending, startSlots] = useTransition();
 
@@ -167,6 +169,7 @@ export default function BookingModal({
     // El día que toca la clienta manda: una búsqueda en curso ya no le cambia la lista.
     diaPrecargado.current = null;
     horaPrecargada.current = null;
+    diaPedido.current = value;
     const cached = dayAvailability[value];
     if (cached) {
       setSlots(cached);
@@ -178,8 +181,9 @@ export default function BookingModal({
     startSlots(async () => {
       const result = await getAvailableSlots(pro.id, svc.id, value);
       if (eleccion !== eleccionActual.current) return; // Es de la combinación anterior.
-      setSlots(result);
       setDayAvailability((prev) => ({ ...prev, [value]: result }));
+      // Respuesta tardía de otro día: vale para ese día, pero no pisa la lista del que está marcado (H2).
+      if (diaPedido.current === value) setSlots(result);
     });
   }
 
