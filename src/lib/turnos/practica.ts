@@ -171,5 +171,5 @@ export function hrefDelProximo(input: { clienteId: string; fecha: string }): str
 export function avisoDeEspera(input: { anotadas: number; servicio: string }): string | null {
   if (input.anotadas <= 0) return null;
   const quien = input.anotadas === 1 ? "Hay 1 clienta anotada" : `Hay ${input.anotadas} clientas anotadas`;
-  return `${quien} en la lista de espera para ${input.servicio}: avisales desde Lista de espera → Huecos liberados.`;
+  return `${quien} en la lista de espera para ${input.servicio}: avisales desde Lista de espera.`;
 }

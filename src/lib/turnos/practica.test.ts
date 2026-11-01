@@ -117,4 +117,7 @@ test("E6 · el aviso de la lista de espera sólo aparece si alguien sirve", () =
   assert.equal(avisoDeEspera({ anotadas: 0, servicio: "Masaje" }), null);
   assert.match(avisoDeEspera({ anotadas: 1, servicio: "Masaje" }) ?? "", /^Hay 1 clienta anotada en la lista de espera para Masaje/);
   assert.match(avisoDeEspera({ anotadas: 3, servicio: "Masaje" }) ?? "", /^Hay 3 clientas anotadas/);
+  // U7: no promete una sección que el negocio puede no ver («Huecos liberados» depende de «Trabaja por apps»).
+  assert.doesNotMatch(avisoDeEspera({ anotadas: 1, servicio: "Masaje" }) ?? "", /Huecos liberados/);
+  assert.match(avisoDeEspera({ anotadas: 1, servicio: "Masaje" }) ?? "", /avisales desde Lista de espera.$/);
 });
