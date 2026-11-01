@@ -110,6 +110,8 @@ describe("cobro dividido: el reparto salda exacto lo que falta", () => {
     assert.equal(claveDeSaldo("t1", 1), "saldo:t1:1");
     assert.equal(claveDeSaldo("t1", 2), "saldo:t1:2");
     assert.equal(claveDeSenia("t1"), "senia:t1");
+    assert.equal(claveDeSenia("t1", 1), "senia:t1", "la primera es la de siempre: la misma de la seña al reservar");
+    assert.equal(claveDeSenia("t1", 2), "senia:t1:2");
   });
 
   test("leer los pagos del formulario", () => {

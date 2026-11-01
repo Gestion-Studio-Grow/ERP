@@ -129,9 +129,14 @@ export function claveDeSaldo(appointmentId: string, n: number): string {
   return `saldo:${appointmentId}:${n}`;
 }
 
-/** Clave de la seña: `senia:<turno>`, la misma que usa la seña cobrada al reservar. */
-export function claveDeSenia(appointmentId: string): string {
-  return claveCobroTurno("senia", appointmentId);
+/**
+ * Clave de la seña: `senia:<turno>`, la misma que usa la seña cobrada al reservar. Una seña anulada
+ * que vuelve a cobrarse es un cobro nuevo y no puede reusar la clave de la fila anulada (las filas no
+ * se borran): de la segunda en adelante es `senia:<turno>:<intento>`.
+ */
+export function claveDeSenia(appointmentId: string, intento = 1): string {
+  const base = claveCobroTurno("senia", appointmentId);
+  return intento > 1 ? `${base}:${intento}` : base;
 }
 
 /** El campo `pagos` del formulario (JSON de `{ metodo, monto }[]`), o por qué no se puede leer. */

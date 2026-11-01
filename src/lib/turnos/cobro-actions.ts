@@ -51,6 +51,7 @@ import { isFrozenDay, type DayKey } from "@/lib/caja/cierre-diario";
 import { cobroTurnoDetail, settleAppointmentPaymentGuarded, type SettleOutcome } from "@/lib/caja/cobro-turno";
 import {
   aplicarCobroTurnoInTx,
+  claveDeSeniaAhoraInTx,
   cobrosDelTurnoInTx,
   rastroLibroCaja,
   CobroTurnoRechazado,
@@ -369,7 +370,8 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
             note: notaLlegoLaSenia(user.role),
             actor,
             detail: cobroTurnoDetail({ serviceName: a.service.name, clientName: a.client.name }),
-            idempotencyKey: claveDeSenia(appointmentId),
+            // Sin la columna migrada no hay clave que se escriba ni fila que leer (`withSchema`).
+            idempotencyKey: withSchema ? await claveDeSeniaAhoraInTx(tx, tenantId, appointmentId) : claveDeSenia(appointmentId),
             withSchema,
             cerradoHasta,
             camino: "cobro",
