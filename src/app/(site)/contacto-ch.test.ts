@@ -37,5 +37,5 @@ test("los cambios corren sólo con el diseño nuevo: apagado, CH queda como hoy"
   assert.match(leer("reserva/page.tsx"), /const bajada = sinPromesaDeWhatsApp\(/);
   const modal = leer("_ch/BookingModal.tsx");
   assert.match(modal, /\{waMessage && \(!nuevo \|\| data\.whatsapp\) && \(/, "el botón de WhatsApp sólo se esconde con el diseño nuevo");
-  assert.match(modal, /nuevo && !data\.whatsapp\s*\?\s*"Te confirmamos el turno por mensaje o llamado\./);
+  assert.match(modal, /nuevo && !data\.whatsapp\s*\?\s*`Te confirmamos el turno por mensaje o llamado\./);
 });
