@@ -49,5 +49,10 @@ export const proyectosModule: ModuleDescriptor = {
       descripcion: "Piezas de un proyecto y sus versiones con RLS, y el link donde el cliente las revisa.",
       aditiva: true,
     },
+    {
+      carpeta: "prisma/migrations/20261101150000_proyecto_gestion_eventos",
+      descripcion: "Apps de gestión de eventos: 19 tablas con RLS (cuotas, personas, permisos, avisos, liquidaciones, bancos y más) y columnas nuevas en las tablas de Proyectos.",
+      aditiva: true,
+    },
   ],
 };

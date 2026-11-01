@@ -4,6 +4,36 @@ Rama `tenant/mia-producciones` (worktree `C:\mia`), nacida de `origin/main` `d8f
 tocar Neon.** Este archivo es la guía del pase; nada de lo que dice se ejecutó todavía salvo lo marcado
 como medido.
 
+## Apps de gestión de eventos (rama `tenant/mia-heka`, worktree `C:\miah`)
+
+Esta rama nace de `tenant/mia-producciones` @`272863a8` y suma las apps relevadas en Heka el 01/11/2026, escritas de cero
+sobre el motor y con la marca GSG en el panel: Inicio, Proyectos (Kanban y Lista), Diseño, Calendario, Proveedores,
+Administración, Dirección, Agentes IA, Propuesta con IA, Mi liquidación y Equipo y permisos. El sitio y lo que ve el cliente
+siguen con la marca de MIA. Lo relevado y la brecha: `docs/benchmark/heka-2026-11-01.md` y `heka-especificacion.md`.
+
+**Antes del pase:** la migración `20261101150000_proyecto_gestion_eventos` no está en
+`docs/runbooks/pase-produccion/1-lote-en-produccion.sql` ni en el ensayo: hay que regenerar esos lotes. Sin aplicar en
+ninguna base que no sea la demo en memoria.
+
+**Probado clic por clic en la demo local:** ingreso de cada rol; ficha, ítems y regeneración de cuotas; versiones, «Qué
+cambió», aprobación interna, envío, PDF y CSV; respuesta del cliente con constancia, historial y aviso; cobros y pagos con su
+asiento en el libro de caja; checklist, chat con mención, archivos, comentario sobre imagen; presentación y su aprobación en el
+portal; bancos, extracto y conciliación; liquidaciones y Mi liquidación; permisos por rol (barra, pantallas y cifras); buscador,
+avisos, calendario suscripto; celular a 375 px sin desbordes.
+
+**No se pudo probar:** agentes y concepto con IA (falta `ANTHROPIC_API_KEY`), imágenes generadas (falta un servicio y
+`IMAGENES_API_URL`/`KEY`; el formato de esa llamada es una suposición a validar con el servicio elegido), y el tiempo de carga
+real: la demo atiende una sola conexión y el panel precarga decenas de pantallas por vista [A VALIDAR en un ambiente real].
+
+**No construido, y la pantalla lo dice:** doble factor, ingreso con Google, carpeta automática en Drive, avisos por mail,
+adjuntos dentro de la fila del ítem.
+
+**Decisiones provisionales, a confirmar con MIA:** las cuotas al cliente llevan IVA y las de proveedores van netas; venta en
+dólares con referencia en pesos; Diseño ve la venta pero nunca costos ni márgenes; `costoReal` del ítem sin definir.
+
+**Dos ramas:** `C:\mia` sigue su propio trabajo sobre `tenant/mia-producciones`. Hay que unirlas antes del pase; el arreglo del
+ingreso (`src/lib/auth-actions.ts`) también le sirve a esa rama, que tiene el mismo problema [A VALIDAR allí].
+
 ## Qué es
 
 Primer negocio del rubro **productora** (eventos, stands, contenidos). Es un negocio más del motor.
