@@ -19,7 +19,7 @@ export interface EscenaStand {
   dibujar(d: DisenoStand, seleccion?: string | null): void;
   vista(v: Vista): void;
   /** La imagen de lo que se ve ahora, lista para guardar en el proyecto. */
-  captura(anchoMax?: number): string;
+  captura(ancho?: number, alto?: number): string;
   medir(ancho: number, alto: number): void;
   destruir(): void;
 }
@@ -302,14 +302,22 @@ export function crearEscena(op: OpcionesEscena): EscenaStand {
       encuadrar(v);
       pintar();
     },
-    captura(anchoMax = 1600) {
+    captura(ancho = 1600, alto = 900) {
+      const antes = renderer.getSize(new THREE.Vector2());
+      const ratio = renderer.getPixelRatio();
+      const aspecto = camara.aspect;
+      renderer.setPixelRatio(1);
+      renderer.setSize(ancho, alto, false);
+      camara.aspect = ancho / alto;
+      camara.updateProjectionMatrix();
       renderer.render(scene, camara);
-      const f = Math.min(1, anchoMax / op.lienzo.width);
-      const c = document.createElement("canvas");
-      c.width = Math.round(op.lienzo.width * f);
-      c.height = Math.round(op.lienzo.height * f);
-      c.getContext("2d")!.drawImage(op.lienzo, 0, 0, c.width, c.height);
-      return c.toDataURL("image/jpeg", 0.85);
+      const datos = op.lienzo.toDataURL("image/jpeg", 0.85);
+      renderer.setPixelRatio(ratio);
+      renderer.setSize(antes.x, antes.y, false);
+      camara.aspect = aspecto;
+      camara.updateProjectionMatrix();
+      renderer.render(scene, camara);
+      return datos;
     },
     medir(ancho, alto) {
       renderer.setSize(ancho, alto, false);

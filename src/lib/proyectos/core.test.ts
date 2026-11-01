@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { clientePuedeResponder, etapaAlAprobar, etapaLabel, etapaSiguiente, etapasDe, porRubro, precioConMargen, sePuedeEditar, totales } from "./core";
+import { clientePuedeResponder, leerNumero, etapaAlAprobar, etapaLabel, etapaSiguiente, etapasDe, porRubro, precioConMargen, sePuedeEditar, totales } from "./core";
 import { computar, costosVigentes, dentroDelLote, disenoInicial, normalizarDiseno, paredesDe, superficieParedes } from "./stand";
 
 test("un contenido no pasa por 3D, armado ni desarme; un stand pasa por todo", () => {
@@ -16,6 +16,15 @@ test("totales: IVA sobre el neto y margen sobre el precio, no sobre el costo", (
   assert.deepEqual(t, { costo: 200, neto: 400, iva: 84, total: 484, ganancia: 200, margenPct: 50 });
   assert.equal(totales([], 21).margenPct, 0);
   assert.equal(precioConMargen(100, 35), 135);
+});
+
+test("los números se leen como los escribe una persona", () => {
+  assert.equal(leerNumero("6.326.546"), 6326546);
+  assert.equal(leerNumero("1.500"), 1500);
+  assert.equal(leerNumero("1,5"), 1.5);
+  assert.equal(leerNumero("1.5"), 1.5);
+  assert.equal(leerNumero("1.500,75"), 1500.75);
+  assert.equal(leerNumero("abc"), 0);
 });
 
 test("porRubro respeta el orden en que aparece cada rubro", () => {

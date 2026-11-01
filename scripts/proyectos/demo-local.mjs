@@ -5,7 +5,7 @@
 // Levanta un Postgres en memoria (PGlite), aplica TODAS las migraciones, siembra MIA Producciones con
 // datos inventados y arranca la app. Al cerrar (Ctrl+C) la base desaparece.
 //
-//   node scripts/proyectos/demo-local.mjs
+//   node scripts/proyectos/demo-local.mjs [--start]
 //   → http://mia-producciones.localhost:3218/admin    (ingreso: ver prisma/seed-mia-producciones.ts)
 
 import { PGlite } from "@electric-sql/pglite";
@@ -55,7 +55,9 @@ if (code !== 0) {
   process.exit(1);
 }
 
-const app = spawn("npx", ["next", "dev", "-p", String(APP_PORT)], {
+// `--start`: sirve la compilación real (antes, `npx next build`) en lugar del modo de desarrollo.
+const modo = process.argv.includes("--start") ? "start" : "dev";
+const app = spawn("npx", ["next", modo, "-p", String(APP_PORT)], {
   cwd: ROOT,
   stdio: "inherit",
   shell: isWin,

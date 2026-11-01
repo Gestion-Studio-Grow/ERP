@@ -103,7 +103,7 @@ export default async function FichaProyecto({ params }: { params: Promise<{ id: 
               <label className={etiqueta}>Evento o feria<input name="evento" defaultValue={p.evento ?? ""} className={campo} /></label>
               <label className={etiqueta}>Lugar<input name="lugar" defaultValue={p.lugar ?? ""} className={campo} /></label>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
               <label className={etiqueta}>Armado<input type="date" name="fechaArmado" defaultValue={fechaParaInput(p.fechaArmado)} className={campo} /></label>
               <label className={etiqueta}>Evento<input type="date" name="fechaEvento" defaultValue={fechaParaInput(p.fechaEvento)} className={campo} /></label>
               <label className={etiqueta}>Desarme<input type="date" name="fechaDesarme" defaultValue={fechaParaInput(p.fechaDesarme)} className={campo} /></label>

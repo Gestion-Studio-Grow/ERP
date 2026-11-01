@@ -14,7 +14,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import type { Prisma } from "@/generated/prisma/client";
-import { clientePuedeResponder, esEtapa, esServicio, etapaAlAprobar, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
+import { clientePuedeResponder, leerNumero, esEtapa, esServicio, etapaAlAprobar, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
 import { configProyectos } from "./datos.server";
 
@@ -25,11 +25,7 @@ const MAX_ARCHIVOS = 30;
 const MAX_IMAGEN = 1_400_000; // caracteres del data URL (~1 MB de imagen)
 
 const txt = (v: FormDataEntryValue | null): string => String(v ?? "").trim();
-const numero = (v: FormDataEntryValue | null | undefined): number => {
-  const s = String(v ?? "").trim().replace(/\./g, "").replace(",", ".");
-  const n = Number(s);
-  return Number.isFinite(n) ? n : 0;
-};
+const numero = (v: FormDataEntryValue | null | undefined): number => leerNumero(String(v ?? ""));
 const fecha = (v: FormDataEntryValue | null): Date | null => {
   const s = txt(v);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;

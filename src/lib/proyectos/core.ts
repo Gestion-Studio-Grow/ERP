@@ -61,6 +61,14 @@ export function etapaSiguiente(servicio: string, etapa: string): Etapa | null {
 
 // ── Plata ───────────────────────────────────────────────────────────────────
 
+/** Como lo escribe una persona: "1.500" son mil quinientos, y "1,5" o "1.5" son uno y medio. */
+export function leerNumero(texto: string): number {
+  const s = texto.trim();
+  const limpio = /^\d+\.\d{1,2}$/.test(s) ? s : s.replace(/\./g, "").replace(",", ".");
+  const n = Number(limpio);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export const redondear = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export function pesos(n: number): string {

@@ -14,6 +14,30 @@ import type { EscenaStand, Vista } from "@/lib/proyectos/stand-escena";
 
 const campo = "min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-strong";
 
+/** Se aplica al salir del campo o con Enter: mientras se escribe, "1" todavía no es un valor inválido. */
+function Medida({ valor, min, max, paso, alCambiar }: { valor: number; min: number; max: number; paso: number; alCambiar: (n: number) => void }) {
+  const [borrador, setBorrador] = useState<string | null>(null);
+  const aplicar = () => {
+    if (borrador !== null && borrador.trim() !== "" && Number.isFinite(Number(borrador))) alCambiar(Number(borrador));
+    setBorrador(null);
+  };
+  return (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      step={paso}
+      value={borrador ?? valor}
+      onChange={(e) => setBorrador(e.target.value)}
+      onBlur={aplicar}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") aplicar();
+      }}
+      className={campo}
+    />
+  );
+}
+
 export default function ArmadorStand({
   id,
   proyectoId,
@@ -160,15 +184,15 @@ export default function ArmadorStand({
           </label>
           <label className="grid gap-1 text-sm">
             Frente (m)
-            <input type="number" min={LIMITES.min} max={LIMITES.max} step={0.5} value={d.ancho} onChange={(e) => medidas({ ancho: Number(e.target.value) })} className={campo} />
+            <Medida min={LIMITES.min} max={LIMITES.max} paso={0.5} valor={d.ancho} alCambiar={(n) => medidas({ ancho: n })} />
           </label>
           <label className="grid gap-1 text-sm">
             Fondo (m)
-            <input type="number" min={LIMITES.min} max={LIMITES.max} step={0.5} value={d.fondo} onChange={(e) => medidas({ fondo: Number(e.target.value) })} className={campo} />
+            <Medida min={LIMITES.min} max={LIMITES.max} paso={0.5} valor={d.fondo} alCambiar={(n) => medidas({ fondo: n })} />
           </label>
           <label className="grid gap-1 text-sm">
             Alto de pared (m)
-            <input type="number" min={LIMITES.altoMin} max={LIMITES.altoMax} step={0.1} value={d.altoPared} onChange={(e) => medidas({ altoPared: Number(e.target.value) })} className={campo} />
+            <Medida min={LIMITES.altoMin} max={LIMITES.altoMax} paso={0.1} valor={d.altoPared} alCambiar={(n) => medidas({ altoPared: n })} />
           </label>
           <label className="grid gap-1 text-sm">
             Piso
