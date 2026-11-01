@@ -235,6 +235,8 @@ model Tenant {
   proyectoItems            ProyectoItem[]
   proyectoPagos            ProyectoPago[]
   proyectoGastos           ProyectoGasto[]
+  proyectoEntregables      ProyectoEntregable[]
+  proyectoEntregableVers   ProyectoEntregableVersion[]
   proyectoArchivos         ProyectoArchivo[]
   proyectoStands           ProyectoStand[]
   proyectoConfig           ProyectoConfig?
@@ -3199,30 +3201,33 @@ model PadelAviso {
 // ── Módulo PROYECTOS: el trabajo de una productora, de punta a punta (ADR-054/055) ──
 
 model Proyecto {
-  id           String                @id @default(cuid())
-  tenant       Tenant                @relation(fields: [tenantId], references: [id])
-  tenantId     String
-  numero       Int
-  client       Client                @relation(fields: [clientId], references: [id])
-  clientId     String
-  nombre       String
-  servicio     String // EVENTOS · EXPERIENCIAS · ARQUITECTURA · BRANDING · CONTENIDOS
-  etapa        String                @default("PEDIDO")
-  evento       String?
-  lugar        String?
-  fechaArmado  DateTime?
-  fechaEvento  DateTime?
-  fechaDesarme DateTime?
-  responsable  String?
-  brief        String                @default("")
-  tareas       ProyectoTarea[]
-  presupuestos ProyectoPresupuesto[]
-  pagos        ProyectoPago[]
-  gastos       ProyectoGasto[]
-  archivos     ProyectoArchivo[]
-  stands       ProyectoStand[]
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
+  id               String                @id @default(cuid())
+  tenant           Tenant                @relation(fields: [tenantId], references: [id])
+  tenantId         String
+  numero           Int
+  client           Client                @relation(fields: [clientId], references: [id])
+  clientId         String
+  nombre           String
+  servicio         String // EVENTOS · EXPERIENCIAS · ARQUITECTURA · BRANDING · CONTENIDOS
+  etapa            String                @default("PEDIDO")
+  evento           String?
+  lugar            String?
+  fechaArmado      DateTime?
+  fechaEvento      DateTime?
+  fechaDesarme     DateTime?
+  responsable      String?
+  brief            String                @default("")
+  // El link donde el cliente revisa las piezas. Nace con la primera versión enviada.
+  tokenEntregables String?               @unique
+  tareas           ProyectoTarea[]
+  presupuestos     ProyectoPresupuesto[]
+  pagos            ProyectoPago[]
+  gastos           ProyectoGasto[]
+  archivos         ProyectoArchivo[]
+  stands           ProyectoStand[]
+  entregables      ProyectoEntregable[]
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
   @@unique([tenantId, numero])
   @@index([tenantId, etapa])
@@ -3350,6 +3355,50 @@ model ProyectoArchivo {
   createdAt      DateTime @default(now())
 
   @@index([tenantId, proyectoId])
+}
+
+// Una pieza que el cliente tiene que aprobar: una gráfica, una escenografía, un video. Anular no borra: lo que el cliente
+// respondió queda como constancia.
+model ProyectoEntregable {
+  id             String                      @id @default(cuid())
+  tenant         Tenant                      @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  proyecto       Proyecto                    @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId     String
+  nombre         String
+  especificacion String                      @default("")
+  venceEl        DateTime?
+  anuladoEl      DateTime?
+  anuladoPor     String?
+  versiones      ProyectoEntregableVersion[]
+  createdAt      DateTime                    @default(now())
+
+  @@index([tenantId, proyectoId])
+}
+
+// BORRADOR · ENVIADA · APROBADA · CAMBIOS · REEMPLAZADA. Enviada no se edita, y copia la especificación vigente: lo que el
+// cliente aprobó no cambia aunque después se corrija la pieza.
+model ProyectoEntregableVersion {
+  id             String             @id @default(cuid())
+  tenant         Tenant             @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  entregable     ProyectoEntregable @relation(fields: [entregableId], references: [id], onDelete: Cascade)
+  entregableId   String
+  numero         Int
+  estado         String             @default("BORRADOR")
+  datos          String? // imagen achicada (data URL), como los archivos del proyecto
+  url            String? // lo pesado (video, PDF) queda en su nube: acá sólo el link
+  nota           String             @default("")
+  especificacion String             @default("")
+  subidoPor      String?
+  enviadaEl      DateTime?
+  respondidaEl   DateTime?
+  respondidoPor  String?
+  comentario     String?
+  createdAt      DateTime           @default(now())
+
+  @@unique([entregableId, numero])
+  @@index([tenantId, entregableId])
 }
 
 model ProyectoStand {

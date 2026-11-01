@@ -28,6 +28,8 @@ export const proyectosModule: ModuleDescriptor = {
     { label: "Tablero de proyectos por etapa" },
     { label: "Presupuesto por versiones con costo y margen" },
     { label: "Propuesta con renders que el cliente aprueba desde un link" },
+    { label: "Piezas con versiones que el cliente aprueba o corrige desde un link" },
+    { label: "Costo real por proyecto y proveedores" },
     { label: "Armador de stands en 3D con cómputo de materiales" },
     { label: "Cobros que entran a la caja" },
   ],
@@ -35,6 +37,16 @@ export const proyectosModule: ModuleDescriptor = {
     {
       carpeta: "prisma/migrations/20261101120000_modulo_proyectos",
       descripcion: "Tablas de proyectos (proyecto, tareas, presupuestos, ítems, cobros, archivos, stands, configuración) con RLS.",
+      aditiva: true,
+    },
+    {
+      carpeta: "prisma/migrations/20261101130000_proyecto_gastos",
+      descripcion: "Gastos reales de un proyecto con RLS y la clave de su asiento en la caja.",
+      aditiva: true,
+    },
+    {
+      carpeta: "prisma/migrations/20261101140000_proyecto_entregables",
+      descripcion: "Piezas de un proyecto y sus versiones con RLS, y el link donde el cliente las revisa.",
       aditiva: true,
     },
   ],

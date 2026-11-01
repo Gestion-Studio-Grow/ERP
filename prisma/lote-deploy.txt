@@ -47,3 +47,6 @@
 # 2026-11-01: GASTOS REALES de un proyecto. Aditiva: una tabla nueva con RLS y otra columna nullable con índice único
 # en "CashMovement". Sin aplicar, igual que la anterior; van juntas en el pase.
 20261101130000_proyecto_gastos
+# 2026-11-01: ENTREGABLES de un proyecto. Aditiva: dos tablas nuevas con RLS y una columna nullable con índice único en
+# "Proyecto", que crea la primera de este lote. Sin aplicar; van las tres juntas en el pase.
+20261101140000_proyecto_entregables

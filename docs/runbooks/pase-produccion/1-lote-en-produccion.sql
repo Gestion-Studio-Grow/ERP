@@ -1,6 +1,6 @@
 -- =============================================================================
--- PASE A PRODUCCIÓN — el lote vigente de prisma/lote-deploy.txt (hoy: 2 migraciones,
--- 20261101120000_modulo_proyectos y 20261101130000_proyecto_gastos). Se pega en el SQL Editor de Neon, en la rama de
+-- PASE A PRODUCCIÓN — el lote vigente de prisma/lote-deploy.txt (hoy: 3 migraciones,
+-- 20261101120000_modulo_proyectos, 20261101130000_proyecto_gastos y 20261101140000_proyecto_entregables). Se pega en el SQL Editor de Neon, en la rama de
 -- PRODUCCIÓN, DESPUÉS de crear un branch de respaldo con la fecha del día
 -- (Branches → Create branch → "respaldo-AAAA-MM-DD"). Gate 2: sólo con OK del dueño.
 -- =============================================================================
@@ -14,7 +14,7 @@
 BEGIN;
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261101120000_modulo_proyectos', '20261101130000_proyecto_gastos')) THEN
+  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261101120000_modulo_proyectos', '20261101130000_proyecto_gastos', '20261101140000_proyecto_entregables')) THEN
     RAISE EXCEPTION 'Alguna migración del lote ya figura en _prisma_migrations: no se vuelve a aplicar encima.';
   END IF;
 END $$;
@@ -247,7 +247,70 @@ CREATE POLICY tenant_isolation ON "ProyectoGasto"
 INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
 VALUES (gen_random_uuid()::text, 'e855b4d1eeb58b9253ddc308c7ae80ef75bcca613b00bbc5487350e2340c8ddd', now(), '20261101130000_proyecto_gastos', NULL, NULL, now(), 1);
 
+-- ─── 20261101140000_proyecto_entregables · checksum 8364154d4c5d91b5633f822c0f2a1e9f6b494b58da5d723138307cee0c6a21e4 ───
+-- ENTREGABLES DE UN PROYECTO (MIA Producciones): cada pieza con sus versiones y la respuesta del cliente desde un link
+-- sin login. Aditiva: dos tablas nuevas con RLS y una columna nullable con índice único en "Proyecto", la tabla que
+-- crea la primera migración de este lote. No toca nada que usen los demás negocios.
+
+ALTER TABLE "Proyecto" ADD COLUMN "tokenEntregables" TEXT;
+CREATE UNIQUE INDEX "Proyecto_tokenEntregables_key" ON "Proyecto"("tokenEntregables");
+
+CREATE TABLE "ProyectoEntregable" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "proyectoId" TEXT NOT NULL,
+  "nombre" TEXT NOT NULL,
+  "especificacion" TEXT NOT NULL DEFAULT '',
+  "venceEl" TIMESTAMP(3),
+  "anuladoEl" TIMESTAMP(3),
+  "anuladoPor" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ProyectoEntregable_pkey" PRIMARY KEY ("id")
+);
+CREATE INDEX "ProyectoEntregable_tenantId_proyectoId_idx" ON "ProyectoEntregable"("tenantId", "proyectoId");
+
+CREATE TABLE "ProyectoEntregableVersion" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "entregableId" TEXT NOT NULL,
+  "numero" INTEGER NOT NULL,
+  "estado" TEXT NOT NULL DEFAULT 'BORRADOR',
+  "datos" TEXT,
+  "url" TEXT,
+  "nota" TEXT NOT NULL DEFAULT '',
+  "especificacion" TEXT NOT NULL DEFAULT '',
+  "subidoPor" TEXT,
+  "enviadaEl" TIMESTAMP(3),
+  "respondidaEl" TIMESTAMP(3),
+  "respondidoPor" TEXT,
+  "comentario" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ProyectoEntregableVersion_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "ProyectoEntregableVersion_entregableId_numero_key" ON "ProyectoEntregableVersion"("entregableId", "numero");
+CREATE INDEX "ProyectoEntregableVersion_tenantId_entregableId_idx" ON "ProyectoEntregableVersion"("tenantId", "entregableId");
+
+ALTER TABLE "ProyectoEntregable" ADD CONSTRAINT "ProyectoEntregable_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProyectoEntregable" ADD CONSTRAINT "ProyectoEntregable_proyectoId_fkey" FOREIGN KEY ("proyectoId") REFERENCES "Proyecto"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ProyectoEntregableVersion" ADD CONSTRAINT "ProyectoEntregableVersion_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProyectoEntregableVersion" ADD CONSTRAINT "ProyectoEntregableVersion_entregableId_fkey" FOREIGN KEY ("entregableId") REFERENCES "ProyectoEntregable"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "ProyectoEntregable" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "ProyectoEntregable";
+CREATE POLICY tenant_isolation ON "ProyectoEntregable"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+
+ALTER TABLE "ProyectoEntregableVersion" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "ProyectoEntregableVersion";
+CREATE POLICY tenant_isolation ON "ProyectoEntregableVersion"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+
+INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+VALUES (gen_random_uuid()::text, '8364154d4c5d91b5633f822c0f2a1e9f6b494b58da5d723138307cee0c6a21e4', now(), '20261101140000_proyecto_entregables', NULL, NULL, now(), 1);
+
 COMMIT;
 
--- Verificación (sólo lectura): 2 filas, todas con finished_at.
-SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261101120000_modulo_proyectos', '20261101130000_proyecto_gastos') ORDER BY migration_name;
+-- Verificación (sólo lectura): 3 filas, todas con finished_at.
+SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261101120000_modulo_proyectos', '20261101130000_proyecto_gastos', '20261101140000_proyecto_entregables') ORDER BY migration_name;
