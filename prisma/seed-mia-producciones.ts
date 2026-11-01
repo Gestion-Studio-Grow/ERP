@@ -23,6 +23,7 @@ import { provisionTenant } from "../scripts/provision-tenant";
 import { computar, costosVigentes, disenoInicial, type DisenoStand } from "../src/lib/proyectos/stand";
 import { precioConMargen } from "../src/lib/proyectos/core";
 import { marcaDeGastoProyecto } from "../src/lib/proyectos/marcas";
+import { sembrarGestion } from "./seed-mia-gestion";
 
 const guarda = baseLocalParaSeed(process.env.DATABASE_URL);
 if (!guarda.ok) {
@@ -196,7 +197,7 @@ async function main() {
     data: { tenantId, proyectoId: pBebidas.id, nombre: "Cartelería de ingreso", especificacion: "Medida a confirmar", venceEl: en(8) },
   });
 
-  // 3. Pedido recién entrado, de otro servicio: tiene menos etapas.
+  // 3. Pedido recién entrado, de otro servicio.
   await prisma.proyecto.create({
     data: {
       tenantId, numero: 3, clientId: tecno.id, nombre: "Video institucional", servicio: "CONTENIDOS", etapa: "PEDIDO", responsable: "Dirección creativa",
@@ -204,6 +205,8 @@ async function main() {
       entregables: { create: [{ tenantId, nombre: "Video de 2 minutos", especificacion: "Horizontal 16:9, para la convención" }, { tenantId, nombre: "Tres piezas para redes", especificacion: "Vertical 9:16, 30 segundos" }] },
     },
   });
+
+  await sembrarGestion(prisma, tenantId, MARGEN);
 
   console.log(`✅ MIA Producciones listo. Ingreso: admin@${SLUG}.demo`);
 }
