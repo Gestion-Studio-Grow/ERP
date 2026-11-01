@@ -23,6 +23,7 @@
 // cerrar de hace meses también cuenta (CH-044).
 
 import { agendaPractica } from "@/lib/turnos/practica.server";
+import { RefrescoDeAgenda } from "./_agenda/RefrescoDeAgenda";
 import Link from "next/link";
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
 import { anulacionDeCobro, roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
@@ -210,6 +211,7 @@ export default async function AgendaRenglon({
       )}
 
       {piloto && permisos.gestionar && dia === hoy && <FranjaDeHuecos />}
+      {dia === hoy && <RefrescoDeAgenda />}
 
       <LibroDelDia
         turnos={agenda.turnos}
