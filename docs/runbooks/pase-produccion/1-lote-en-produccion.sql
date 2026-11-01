@@ -1,6 +1,6 @@
 -- =============================================================================
 -- PASE A PRODUCCIÓN — el lote vigente de prisma/lote-deploy.txt (hoy: 1 migración,
--- 20261015120000_modulo_padel_clases). Se pega en el SQL Editor de Neon, en la rama de
+-- 20261101120000_modulo_proyectos). Se pega en el SQL Editor de Neon, en la rama de
 -- PRODUCCIÓN, DESPUÉS de crear un branch de respaldo con la fecha del día
 -- (Branches → Create branch → "respaldo-AAAA-MM-DD"). Gate 2: sólo con OK del dueño.
 -- =============================================================================
@@ -14,184 +14,167 @@
 BEGIN;
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261015120000_modulo_padel_clases')) THEN
+  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261101120000_modulo_proyectos')) THEN
     RAISE EXCEPTION 'Alguna migración del lote ya figura en _prisma_migrations: no se vuelve a aplicar encima.';
   END IF;
 END $$;
 
--- ─── 20261015120000_modulo_padel_clases · checksum 327a8d5578a60564f00ac2ba553d396ed04afa2a330a20b0a38824e470096ff0 ───
--- Módulo PADEL-CLASES: el turnero y la agenda de un profe de pádel. Aditiva: sólo tablas
--- nuevas (configuración, franjas, alumnos, clases y avisos), sin tocar ninguna tabla
--- existente ni datos de ningún negocio. Plata en numeric(14,2) (ADR-100).
--- SIN APLICAR en Neon y fuera de prisma/lote-deploy.txt: se aplica con OK del dueño (Gate 2).
+-- ─── 20261101120000_modulo_proyectos · checksum 9a22cd4796073147d32332a49879c83caa5e293ea0f3b6b89df3479e4e61bfb8 ───
+-- Módulo PROYECTOS: trabajos por etapas, tareas, presupuesto por versiones, cobros, archivos y
+-- stands del armador 3D. Aditiva: tablas nuevas y una columna nullable en "CashMovement" (la clave
+-- del asiento de cada cobro). No toca datos de ningún negocio existente.
 
--- CreateTable
-CREATE TABLE "PadelConfig" (
-    "id" TEXT NOT NULL,
-    "tenantId" TEXT NOT NULL,
-    "duracionMin" INTEGER NOT NULL DEFAULT 60,
-    "precioIndividual" DECIMAL(14,2) NOT NULL DEFAULT 0,
-    "precioGrupal" DECIMAL(14,2) NOT NULL DEFAULT 0,
-    "aliasCbu" TEXT,
-    "titularCuenta" TEXT,
-    "anticipacionMin" INTEGER NOT NULL DEFAULT 120,
-    "diasAdelante" INTEGER NOT NULL DEFAULT 14,
-    "maxPendientesPorTel" INTEGER NOT NULL DEFAULT 2,
-    "whatsappProfe" TEXT,
-    "plantillas" JSONB,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "PadelConfig_pkey" PRIMARY KEY ("id")
+CREATE TABLE "Proyecto" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "numero" INTEGER NOT NULL,
+  "clientId" TEXT NOT NULL,
+  "nombre" TEXT NOT NULL,
+  "servicio" TEXT NOT NULL,
+  "etapa" TEXT NOT NULL DEFAULT 'PEDIDO',
+  "evento" TEXT,
+  "lugar" TEXT,
+  "fechaArmado" TIMESTAMP(3),
+  "fechaEvento" TIMESTAMP(3),
+  "fechaDesarme" TIMESTAMP(3),
+  "responsable" TEXT,
+  "brief" TEXT NOT NULL DEFAULT '',
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "Proyecto_pkey" PRIMARY KEY ("id")
 );
+CREATE UNIQUE INDEX "Proyecto_tenantId_numero_key" ON "Proyecto"("tenantId", "numero");
+CREATE INDEX "Proyecto_tenantId_etapa_idx" ON "Proyecto"("tenantId", "etapa");
+CREATE INDEX "Proyecto_tenantId_clientId_idx" ON "Proyecto"("tenantId", "clientId");
 
--- CreateTable
-CREATE TABLE "PadelDisponibilidad" (
-    "id" TEXT NOT NULL,
-    "tenantId" TEXT NOT NULL,
-    "diaSemana" INTEGER,
-    "fecha" DATE,
-    "desde" TEXT NOT NULL,
-    "hasta" TEXT NOT NULL,
-    "tipo" TEXT NOT NULL DEFAULT 'DA',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "PadelDisponibilidad_pkey" PRIMARY KEY ("id")
+CREATE TABLE "ProyectoTarea" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "proyectoId" TEXT NOT NULL,
+  "titulo" TEXT NOT NULL,
+  "responsable" TEXT,
+  "venceEl" TIMESTAMP(3),
+  "hechaEl" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ProyectoTarea_pkey" PRIMARY KEY ("id")
 );
+CREATE INDEX "ProyectoTarea_tenantId_proyectoId_idx" ON "ProyectoTarea"("tenantId", "proyectoId");
 
--- CreateTable
-CREATE TABLE "PadelAlumno" (
-    "id" TEXT NOT NULL,
-    "tenantId" TEXT NOT NULL,
-    "clientId" TEXT NOT NULL,
-    "token" TEXT NOT NULL,
-    "nivel" TEXT NOT NULL DEFAULT '',
-    "notas" TEXT,
-    "recibeAvisos" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "PadelAlumno_pkey" PRIMARY KEY ("id")
+CREATE TABLE "ProyectoPresupuesto" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "proyectoId" TEXT NOT NULL,
+  "version" INTEGER NOT NULL,
+  "estado" TEXT NOT NULL DEFAULT 'BORRADOR',
+  "token" TEXT NOT NULL,
+  "ivaPct" DOUBLE PRECISION NOT NULL DEFAULT 21,
+  "presentacion" TEXT NOT NULL DEFAULT '',
+  "condiciones" TEXT NOT NULL DEFAULT '',
+  "enviadoEl" TIMESTAMP(3),
+  "validoHasta" TIMESTAMP(3),
+  "respondidoEl" TIMESTAMP(3),
+  "respondidoPor" TEXT,
+  "motivoRechazo" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "ProyectoPresupuesto_pkey" PRIMARY KEY ("id")
 );
+CREATE UNIQUE INDEX "ProyectoPresupuesto_token_key" ON "ProyectoPresupuesto"("token");
+CREATE UNIQUE INDEX "ProyectoPresupuesto_tenantId_proyectoId_version_key" ON "ProyectoPresupuesto"("tenantId", "proyectoId", "version");
 
--- CreateTable
-CREATE TABLE "PadelClase" (
-    "id" TEXT NOT NULL,
-    "tenantId" TEXT NOT NULL,
-    "alumnoId" TEXT NOT NULL,
-    "clientId" TEXT NOT NULL,
-    "empiezaEn" TIMESTAMP(3) NOT NULL,
-    "terminaEn" TIMESTAMP(3) NOT NULL,
-    "tipo" TEXT NOT NULL DEFAULT 'INDIVIDUAL',
-    "personas" INTEGER NOT NULL DEFAULT 1,
-    "estado" TEXT NOT NULL DEFAULT 'PEDIDA',
-    "origen" TEXT NOT NULL DEFAULT 'TURNERO',
-    "repiteDe" TEXT,
-    "precio" DECIMAL(14,2) NOT NULL DEFAULT 0,
-    "pagoEstado" TEXT NOT NULL DEFAULT 'PENDIENTE',
-    "pagoMedio" TEXT,
-    "comprobante" TEXT,
-    "comprobanteEnviadoEl" TIMESTAMP(3),
-    "pagoValidadoEl" TIMESTAMP(3),
-    "pagoNota" TEXT,
-    "confirmadaEl" TIMESTAMP(3),
-    "rechazadaEl" TIMESTAMP(3),
-    "dadaEl" TIMESTAMP(3),
-    "canceladaEl" TIMESTAMP(3),
-    "motivoCancel" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "PadelClase_pkey" PRIMARY KEY ("id")
+CREATE TABLE "ProyectoItem" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "presupuestoId" TEXT NOT NULL,
+  "rubro" TEXT NOT NULL,
+  "descripcion" TEXT NOT NULL,
+  "unidad" TEXT NOT NULL DEFAULT 'u',
+  "cantidad" DOUBLE PRECISION NOT NULL DEFAULT 1,
+  "costo" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "precio" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "proveedor" TEXT,
+  "origen" TEXT,
+  "posicion" INTEGER NOT NULL DEFAULT 0,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ProyectoItem_pkey" PRIMARY KEY ("id")
 );
+CREATE INDEX "ProyectoItem_tenantId_presupuestoId_idx" ON "ProyectoItem"("tenantId", "presupuestoId");
 
--- CreateTable
-CREATE TABLE "PadelAviso" (
-    "id" TEXT NOT NULL,
-    "tenantId" TEXT NOT NULL,
-    "destino" TEXT NOT NULL,
-    "tipo" TEXT NOT NULL,
-    "claseId" TEXT,
-    "alumnoId" TEXT,
-    "texto" TEXT NOT NULL,
-    "canal" TEXT NOT NULL DEFAULT 'APP',
-    "leidoEl" TIMESTAMP(3),
-    "enviadoEl" TIMESTAMP(3),
-    "errorEnvio" TEXT,
-    "idExterno" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "PadelAviso_pkey" PRIMARY KEY ("id")
+CREATE TABLE "ProyectoPago" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "proyectoId" TEXT NOT NULL,
+  "medio" TEXT NOT NULL,
+  "monto" DOUBLE PRECISION NOT NULL,
+  "nota" TEXT,
+  "cobradoPor" TEXT,
+  "anuladoEl" TIMESTAMP(3),
+  "anuladoPor" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ProyectoPago_pkey" PRIMARY KEY ("id")
 );
+CREATE INDEX "ProyectoPago_tenantId_proyectoId_idx" ON "ProyectoPago"("tenantId", "proyectoId");
 
--- CreateIndex
-CREATE UNIQUE INDEX "PadelConfig_tenantId_key" ON "PadelConfig"("tenantId");
+CREATE TABLE "ProyectoArchivo" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "proyectoId" TEXT NOT NULL,
+  "tipo" TEXT NOT NULL DEFAULT 'RENDER',
+  "nombre" TEXT NOT NULL,
+  "datos" TEXT,
+  "url" TEXT,
+  "visibleCliente" BOOLEAN NOT NULL DEFAULT false,
+  "subidoPor" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ProyectoArchivo_pkey" PRIMARY KEY ("id")
+);
+CREATE INDEX "ProyectoArchivo_tenantId_proyectoId_idx" ON "ProyectoArchivo"("tenantId", "proyectoId");
 
--- CreateIndex
-CREATE INDEX "PadelDisponibilidad_tenantId_diaSemana_idx" ON "PadelDisponibilidad"("tenantId", "diaSemana");
+CREATE TABLE "ProyectoStand" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "proyectoId" TEXT NOT NULL,
+  "nombre" TEXT NOT NULL DEFAULT 'Stand',
+  "diseno" JSONB NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "ProyectoStand_pkey" PRIMARY KEY ("id")
+);
+CREATE INDEX "ProyectoStand_tenantId_proyectoId_idx" ON "ProyectoStand"("tenantId", "proyectoId");
 
--- CreateIndex
-CREATE INDEX "PadelDisponibilidad_tenantId_fecha_idx" ON "PadelDisponibilidad"("tenantId", "fecha");
+CREATE TABLE "ProyectoConfig" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "margenPct" DOUBLE PRECISION NOT NULL DEFAULT 35,
+  "validezDias" INTEGER NOT NULL DEFAULT 15,
+  "ivaPct" DOUBLE PRECISION NOT NULL DEFAULT 21,
+  "condiciones" TEXT NOT NULL DEFAULT '',
+  "costosStand" JSONB,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "ProyectoConfig_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "ProyectoConfig_tenantId_key" ON "ProyectoConfig"("tenantId");
 
--- CreateIndex
-CREATE UNIQUE INDEX "PadelAlumno_clientId_key" ON "PadelAlumno"("clientId");
+ALTER TABLE "Proyecto" ADD CONSTRAINT "Proyecto_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Proyecto" ADD CONSTRAINT "Proyecto_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProyectoTarea" ADD CONSTRAINT "ProyectoTarea_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProyectoTarea" ADD CONSTRAINT "ProyectoTarea_proyectoId_fkey" FOREIGN KEY ("proyectoId") REFERENCES "Proyecto"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ProyectoPresupuesto" ADD CONSTRAINT "ProyectoPresupuesto_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProyectoPresupuesto" ADD CONSTRAINT "ProyectoPresupuesto_proyectoId_fkey" FOREIGN KEY ("proyectoId") REFERENCES "Proyecto"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ProyectoItem" ADD CONSTRAINT "ProyectoItem_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProyectoItem" ADD CONSTRAINT "ProyectoItem_presupuestoId_fkey" FOREIGN KEY ("presupuestoId") REFERENCES "ProyectoPresupuesto"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ProyectoPago" ADD CONSTRAINT "ProyectoPago_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProyectoPago" ADD CONSTRAINT "ProyectoPago_proyectoId_fkey" FOREIGN KEY ("proyectoId") REFERENCES "Proyecto"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProyectoArchivo" ADD CONSTRAINT "ProyectoArchivo_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProyectoArchivo" ADD CONSTRAINT "ProyectoArchivo_proyectoId_fkey" FOREIGN KEY ("proyectoId") REFERENCES "Proyecto"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ProyectoStand" ADD CONSTRAINT "ProyectoStand_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProyectoStand" ADD CONSTRAINT "ProyectoStand_proyectoId_fkey" FOREIGN KEY ("proyectoId") REFERENCES "Proyecto"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ProyectoConfig" ADD CONSTRAINT "ProyectoConfig_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE UNIQUE INDEX "PadelAlumno_token_key" ON "PadelAlumno"("token");
-
--- CreateIndex
-CREATE INDEX "PadelAlumno_tenantId_idx" ON "PadelAlumno"("tenantId");
-
--- CreateIndex
-CREATE INDEX "PadelClase_tenantId_empiezaEn_idx" ON "PadelClase"("tenantId", "empiezaEn");
-
--- CreateIndex
-CREATE INDEX "PadelClase_tenantId_estado_idx" ON "PadelClase"("tenantId", "estado");
-
--- CreateIndex
-CREATE INDEX "PadelClase_tenantId_alumnoId_idx" ON "PadelClase"("tenantId", "alumnoId");
-
--- CreateIndex
-CREATE INDEX "PadelClase_tenantId_pagoEstado_idx" ON "PadelClase"("tenantId", "pagoEstado");
-
--- CreateIndex
-CREATE INDEX "PadelAviso_tenantId_destino_leidoEl_idx" ON "PadelAviso"("tenantId", "destino", "leidoEl");
-
--- CreateIndex
-CREATE INDEX "PadelAviso_tenantId_createdAt_idx" ON "PadelAviso"("tenantId", "createdAt");
-
--- CreateIndex
-CREATE UNIQUE INDEX "PadelAviso_tenantId_idExterno_key" ON "PadelAviso"("tenantId", "idExterno");
-
--- AddForeignKey
-ALTER TABLE "PadelConfig" ADD CONSTRAINT "PadelConfig_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelDisponibilidad" ADD CONSTRAINT "PadelDisponibilidad_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelAlumno" ADD CONSTRAINT "PadelAlumno_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelAlumno" ADD CONSTRAINT "PadelAlumno_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelClase" ADD CONSTRAINT "PadelClase_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelClase" ADD CONSTRAINT "PadelClase_alumnoId_fkey" FOREIGN KEY ("alumnoId") REFERENCES "PadelAlumno"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelClase" ADD CONSTRAINT "PadelClase_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelAviso" ADD CONSTRAINT "PadelAviso_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelAviso" ADD CONSTRAINT "PadelAviso_claseId_fkey" FOREIGN KEY ("claseId") REFERENCES "PadelClase"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PadelAviso" ADD CONSTRAINT "PadelAviso_alumnoId_fkey" FOREIGN KEY ("alumnoId") REFERENCES "PadelAlumno"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
+ALTER TABLE "CashMovement" ADD COLUMN "proyectoPagoId" TEXT;
+ALTER TABLE "CashMovement" ADD CONSTRAINT "CashMovement_proyectoPagoId_fkey"
+  FOREIGN KEY ("proyectoPagoId") REFERENCES "ProyectoPago"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+CREATE UNIQUE INDEX "CashMovement_tenantId_proyectoPagoId_type_key" ON "CashMovement"("tenantId", "proyectoPagoId", "type");
 
 -- ── RLS de las tablas nuevas (misma política que prisma/rls/0001_enable_rls.sql) ──
 DO $$
@@ -199,7 +182,8 @@ DECLARE
   t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'PadelConfig', 'PadelDisponibilidad', 'PadelAlumno', 'PadelClase', 'PadelAviso'
+    'Proyecto', 'ProyectoTarea', 'ProyectoPresupuesto', 'ProyectoItem', 'ProyectoPago',
+    'ProyectoArchivo', 'ProyectoStand', 'ProyectoConfig'
   ]
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
@@ -214,9 +198,9 @@ BEGIN
 END $$;
 
 INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
-VALUES (gen_random_uuid()::text, '327a8d5578a60564f00ac2ba553d396ed04afa2a330a20b0a38824e470096ff0', now(), '20261015120000_modulo_padel_clases', NULL, NULL, now(), 1);
+VALUES (gen_random_uuid()::text, '9a22cd4796073147d32332a49879c83caa5e293ea0f3b6b89df3479e4e61bfb8', now(), '20261101120000_modulo_proyectos', NULL, NULL, now(), 1);
 
 COMMIT;
 
 -- Verificación (sólo lectura): 1 filas, todas con finished_at.
-SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261015120000_modulo_padel_clases') ORDER BY migration_name;
+SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261101120000_modulo_proyectos') ORDER BY migration_name;
