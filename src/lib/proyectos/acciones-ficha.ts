@@ -168,10 +168,12 @@ export async function moverProyecto(d: { id: string; destino: string; motivo?: s
     despues = etapaLabel(d.destino, p.servicio);
     data = { etapa: d.destino, perdidoEl: null, motivoPerdida: null };
   }
+  // Afuera de la transacción: una lectura por otra conexión, adentro, la traba.
+  const destinatarios0 = await usuariosDelEquipo(tenantId, id, a.user.id);
   await tenantTransaction(async (tx) => {
     await tx.proyecto.updateMany({ where: { id, tenantId }, data });
     await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Etapa", antes, despues: motivo && d.destino === PERDIDO ? `Perdido: ${motivo}` : despues, autor: a.nombre });
-    await avisar(tx, { tenantId, destinatarios: await usuariosDelEquipo(tenantId, id, a.user.id), tipo: "etapa", texto: `${p.nombre} pasó a ${despues}`, enlace: `${RAIZ}/${id}` });
+    await avisar(tx, { tenantId, destinatarios: destinatarios0, tipo: "etapa", texto: `${p.nombre} pasó a ${despues}`, enlace: `${RAIZ}/${id}` });
   });
   await regenerar(tenantId, id);
   await auditAdmin({ action: "proyecto.etapa", entity: "Proyecto", entityId: id, changes: { de: antes, a: despues } });
@@ -557,10 +559,12 @@ export async function aprobarInterno(formData: FormData): Promise<ResultadoFicha
   if (a.rol !== "DIRECCION") return mal("Los precios los aprueba Dirección.");
   if (!sePuedeEditar(pr.estado)) return mal("Esta versión ya se envió.");
   if (pr._count.items === 0) return mal("Cargá al menos un ítem antes de aprobar.");
+  // Afuera de la transacción: una lectura por otra conexión, adentro, la traba.
+  const destinatarios1 = await usuariosDelEquipo(tenantId, pr.proyectoId, a.user.id);
   await tenantTransaction(async (tx) => {
     await tx.proyectoPresupuesto.updateMany({ where: { id, tenantId, estado: "BORRADOR" }, data: { aprobadoInternoPor: a.nombre, aprobadoInternoEl: new Date() } });
     await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "ProyectoPresupuesto", entidadId: id, campo: `Aprobación de precios · versión ${pr.version}`, despues: a.nombre, autor: a.nombre });
-    await avisar(tx, { tenantId, destinatarios: await usuariosDelEquipo(tenantId, pr.proyectoId, a.user.id), tipo: "aprobacion", texto: `${a.nombre} aprobó los precios de la versión ${pr.version}`, enlace: `${RAIZ}/${pr.proyectoId}?tab=cotizacion` });
+    await avisar(tx, { tenantId, destinatarios: destinatarios1, tipo: "aprobacion", texto: `${a.nombre} aprobó los precios de la versión ${pr.version}`, enlace: `${RAIZ}/${pr.proyectoId}?tab=cotizacion` });
   });
   refrescar(pr.proyectoId);
   return { ok: true };
@@ -680,6 +684,8 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const esCobro = c.tipo === "COBRO";
   const etiqueta = `Proyecto #${proyecto.numero} · ${c.concepto}`;
   const cheque = medio === "CHEQUE" ? " · Cheque" : "";
+  // Afuera de la transacción: una lectura por otra conexión, adentro, la traba.
+  const destinatarios2 = await usuariosDelEquipo(tenantId, proyectoId, a.user.id);
   const ganada = await tenantTransaction(async (tx) => {
     const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio } });
     if (r.count === 0) return false;
@@ -706,7 +712,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     await registrarCambio(tx, { ...cambio, campo: esCobro ? `Cobrado · ${c.concepto}` : `Pagado · ${c.concepto}`, antes: "Pendiente", despues: `${importe} (${medio})` });
     // Une la cuota con lo que se asentó: al anular el cobro o el gasto, la cuota vuelve a quedar pendiente.
     await registrarCambio(tx, { ...cambio, campo: "Asiento", despues: asiento });
-    await avisar(tx, { tenantId, destinatarios: await usuariosDelEquipo(tenantId, proyectoId, a.user.id), tipo: esCobro ? "cobro" : "pago", texto: `${esCobro ? "Se cobró" : "Se pagó"}: ${c.concepto}`, enlace: `${RAIZ}/${proyectoId}?tab=finanzas` });
+    await avisar(tx, { tenantId, destinatarios: destinatarios2, tipo: esCobro ? "cobro" : "pago", texto: `${esCobro ? "Se cobró" : "Se pagó"}: ${c.concepto}`, enlace: `${RAIZ}/${proyectoId}?tab=finanzas` });
     return true;
   });
   if (!ganada) return mal("Esa cuota ya estaba marcada.");

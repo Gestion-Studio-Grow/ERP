@@ -45,7 +45,6 @@ export function etapasDe(servicio: string): Etapa[] {
 
 export function etapaLabel(etapa: string, servicio?: string): string {
   if (etapa === "DISENO" && servicio === "CONTENIDOS") return "Guion";
-  if (etapa === "ARMADO" && servicio === "EVENTOS") return "Armado y evento";
   return esEtapa(etapa) ? ETAPA_LABEL[etapa] : etapa;
 }
 

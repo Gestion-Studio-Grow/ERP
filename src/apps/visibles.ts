@@ -477,14 +477,19 @@ export function aterrizajeDelPanel(n: NegocioApps, apps: readonly AppDescriptor[
  * Cierre del mes: no entra a `menuDeHoy`, que ata la barra al menú viejo sin mirar la asignación del módulo. PURA.
  */
 export function conProyectosEnLaBarra(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[]): ItemMenuDeHoy[] {
-  const app = visibles.find((a) => a.id === "proyectos");
-  if (!app || menu.some((i) => i.href === app.ruta)) return [...menu];
-  const item: ItemMenuDeHoy = { href: app.ruta, label: app.nombre, icon: app.icono };
-  if (app.palabras) item.alias = app.palabras;
+  // Proyectos y las apps de gestión de eventos, en este orden: todas exigen el mismo módulo.
+  const ORDEN = ["gestion-inicio", "proyectos", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo"];
+  const apps = ORDEN.map((id) => visibles.find((a) => a.id === id)).filter((a): a is AppDescriptor => !!a && !menu.some((i) => i.href === a.ruta));
+  if (apps.length === 0) return [...menu];
   const i = menu.findIndex((m) => m.href === "/admin/turnos");
   const grupo = (i >= 0 ? menu[i] : menu[0])?.grupo;
-  if (grupo) item.grupo = grupo;
+  const items = apps.map((app) => {
+    const item: ItemMenuDeHoy = { href: app.ruta, label: app.nombre, icon: app.icono };
+    if (app.palabras) item.alias = app.palabras;
+    if (grupo) item.grupo = grupo;
+    return item;
+  });
   const salida = [...menu];
-  salida.splice(Math.max(i, 0), 0, item);
+  salida.splice(Math.max(i, 0), 0, ...items);
   return salida;
 }

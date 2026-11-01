@@ -81,7 +81,7 @@ export function TablaFicha({
         <p className="text-sm text-muted">Todavía no hay ítems. Lo que cargues acá arma la planilla de venta, los cobros y los pagos.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] text-sm">
+          <table className="w-full min-w-[1720px] text-sm">
             <thead className="text-left text-xs text-muted">
               <tr>
                 <th className="py-1 pr-2 font-medium">Descripción</th>
@@ -129,28 +129,28 @@ export function TablaFicha({
                             {proveedores.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                           </select>
                         </td>
-                        <td className="py-1 pr-2 w-20"><Entrada id={i.id} nombre="cantidad" valor={aTexto(i.cantidad)} etiqueta="Cantidad" guardar={guardar} numero /></td>
-                        {columnas.costoUnit && <td className="py-1 pr-2 w-28"><Entrada id={i.id} nombre="costo" valor={aTexto(i.costo)} etiqueta="Costo unitario" guardar={guardar} numero bloqueado={!editaCostos} /></td>}
+                        <td className="py-1 pr-2 min-w-24"><Entrada id={i.id} nombre="cantidad" valor={aTexto(i.cantidad)} etiqueta="Cantidad" guardar={guardar} numero /></td>
+                        {columnas.costoUnit && <td className="py-1 pr-2 min-w-36"><Entrada id={i.id} nombre="costo" valor={aTexto(i.costo)} etiqueta="Costo unitario" guardar={guardar} numero bloqueado={!editaCostos} /></td>}
                         {columnas.costoUnit && (
-                          <td className="py-1 pr-2 w-24">
+                          <td className="py-1 pr-2 min-w-24">
                             <select key={`mon:${i.moneda}`} defaultValue={i.moneda} disabled={!editaCostos} aria-label={`Moneda de ${i.descripcion}`} onChange={(e) => guardar(i.id, "moneda", e.target.value)} className={campo}>
                               {MONEDAS.map((m) => <option key={m} value={m}>{m}</option>)}
                             </select>
                           </td>
                         )}
                         {columnas.recargo && (
-                          <td className="py-1 pr-2 w-24">
+                          <td className="py-1 pr-2 min-w-24">
                             <Entrada id={i.id} nombre="recargoPct" valor={aTexto(i.recargoPct)} etiqueta="Recargo" guardar={guardar} numero bloqueado={!editaCostos} ayuda={i.precioManual > 0 && i.recargoPct == null ? "a mano" : `${recargoGeneral}`} />
                           </td>
                         )}
                         {columnas.costoTotal && <td className="py-1 pr-2 pt-3 text-right tabular-nums">{pesos(i.costoTotal ?? 0)}</td>}
-                        <td className="py-1 pr-2 w-32">
+                        <td className="py-1 pr-2 min-w-36">
                           <Entrada id={i.id} nombre="precio" valor={i.precioManual > 0 ? aTexto(i.precioManual) : ""} etiqueta="Precio de venta unitario" guardar={guardar} numero bloqueado={!editaCostos} ayuda={aTexto(i.ventaUnitaria)} />
                         </td>
                         <td className="py-1 pr-2 pt-3 text-right font-medium text-strong tabular-nums">{pesos(i.venta)}</td>
                         {columnas.margen && <td className={cn("py-1 pr-2 pt-3 text-right tabular-nums", (i.margen ?? 0) < 0 && "text-danger")}>{pesos(i.margen ?? 0)}</td>}
-                        <td className="py-1 pr-2 w-40"><Entrada id={i.id} nombre="fechaLimite" valor={i.fechaLimite} etiqueta="Fecha límite" guardar={guardar} tipo="date" /></td>
-                        <td className="py-1 pr-2 w-32">
+                        <td className="py-1 pr-2 min-w-40"><Entrada id={i.id} nombre="fechaLimite" valor={i.fechaLimite} etiqueta="Fecha límite" guardar={guardar} tipo="date" /></td>
+                        <td className="py-1 pr-2 min-w-36">
                           <select key={`est:${i.estadoItem}`} defaultValue={i.estadoItem} aria-label={`Estado de ${i.descripcion}`} onChange={(e) => guardar(i.id, "estadoItem", e.target.value)} className={campo}>
                             {ESTADOS_ITEM.map((s) => <option key={s} value={s}>{ESTADO_ITEM_LABEL[s]}</option>)}
                           </select>

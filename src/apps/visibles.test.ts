@@ -514,9 +514,12 @@ test("panel cerrado: otro negocio no cambia, aunque sume Proyectos como agregado
 test("Proyectos entra a la barra sólo si la persona ve la app: antes de la Agenda, o primero si no hay", () => {
   const menu = [{ href: "/admin", label: "Inicio", icon: "dashboard" }, { href: "/admin/turnos", label: "Agenda", icon: "agenda", grupo: "agenda" }] as ItemMenuDeHoy[];
   const barra = conProyectosEnLaBarra(menu, appsVisibles(negocio({ role: "PROFESSIONAL", modulosAsignados: ["proyectos", "agenda"] })));
-  assert.deepEqual(barra.map((i) => i.href), ["/admin", "/admin/proyectos", "/admin/turnos"]);
+  // Las apps de gestión van juntas, con Inicio primero: acá se mira el lugar del conjunto.
+  const sinGestion = (hrefs: string[]) => hrefs.filter((h) => !h.startsWith("/admin/proyectos/"));
+  assert.deepEqual(sinGestion(barra.map((i) => i.href)), ["/admin", "/admin/proyectos", "/admin/turnos"]);
+  assert.equal(barra[1].href, "/admin/proyectos/inicio");
   assert.equal(barra[1].grupo, "agenda");
   const soloCaja = [{ href: "/admin/caja", label: "Caja", icon: "caja" }] as ItemMenuDeHoy[];
-  assert.deepEqual(conProyectosEnLaBarra(soloCaja, appsVisibles(negocio({ role: "OWNER", modulosAsignados: ["proyectos"] }))).map((i) => i.href), ["/admin/proyectos", "/admin/caja"]);
+  assert.deepEqual(sinGestion(conProyectosEnLaBarra(soloCaja, appsVisibles(negocio({ role: "OWNER", modulosAsignados: ["proyectos"] }))).map((i) => i.href)), ["/admin/proyectos", "/admin/caja"]);
   assert.deepEqual(conProyectosEnLaBarra(menu, appsVisibles(negocio({ role: "OWNER", modulosAsignados: ["agenda"] }))), menu);
 });
