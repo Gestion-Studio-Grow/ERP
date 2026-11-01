@@ -94,8 +94,11 @@ g.__llamada = (_pro: string, _svc: string, dias: string[]) =>
   new Promise((ok) => {
     cola.push({ dias, soltar: () => ok(Object.fromEntries(dias.map((d) => [d, sinHora.has(HORA[d]) ? [] : [HORA[d]]]))) });
   });
+// Si hay freno, la confirmación queda en curso hasta soltarlo.
+let freno: Promise<void> | null = null;
 g.__crear = async (a: (typeof creadas)[number]) => {
   creadas.push(a);
+  await freno;
   return respuesta;
 };
 
@@ -107,6 +110,7 @@ async function abrir(nuevo: boolean) {
   cola = [];
   sinHora = new Set();
   creadas = [];
+  freno = null;
   respuesta = { ok: true, id: "abcdef123456", startsAt: HORA[MAR] };
   dom.window.sessionStorage.clear();
   raizReact = createRoot(dom.window.document.getElementById("r"));
@@ -224,6 +228,27 @@ for (const nuevo of [true, false]) {
     await soltarDia(LUN);
     assert.deepEqual(diaMarcado(), ["mar 3"]);
     assert.deepEqual(horas(), ["10:00"], "sigue la lista de mar 3");
+  });
+
+  test(`${modo}: Volver no hace nada mientras se confirma: no hay rebote de paso (H3)`, async () => {
+    await abrir(nuevo);
+    await clic("SrvX");
+    await clic("Ana");
+    await soltarTodo();
+    await clic("09:00");
+    await clic("Continuar");
+    let soltar = () => {};
+    freno = new Promise((ok) => (soltar = ok));
+    await confirmarDatos();
+    assert.equal(botones().find((b) => b.textContent!.trim() === "Volver")!.disabled, true, "Volver apagado");
+    await clic("Volver");
+    assert.equal(paso(), "4", "sigue en el paso 4 mientras se confirma");
+    await act(async () => {
+      soltar();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    assert.equal(paso(), "5");
+    assert.equal(creadas.length, 1);
   });
 
   test(`${modo}: cambiar de servicio borra día y hora y salta al primer día con lugar`, async () => {

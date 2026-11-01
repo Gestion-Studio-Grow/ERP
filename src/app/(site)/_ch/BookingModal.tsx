@@ -411,6 +411,8 @@ export default function BookingModal({
     elegirYSeguir(() => setPro(p));
   }
   function back() {
+    // Con la confirmación en curso no se vuelve: la respuesta encontraría a la clienta en otro paso (H3).
+    if (submitting) return;
     setIntentoEn(0);
     if (nuevo) setError(null);
     if (step > 1) setStep(step - 1);
@@ -883,9 +885,9 @@ export default function BookingModal({
           <button
             type="button"
             onClick={back}
-            disabled={step === 1 || step === 5}
+            disabled={step === 1 || step === 5 || submitting}
             className={k("chm-volver")}
-            style={{ background: "none", border: 0, fontSize: 14, color: "var(--text-muted)", cursor: step === 1 || step === 5 ? "default" : "pointer", opacity: step === 1 || step === 5 ? 0.4 : 1, minHeight: 44, padding: "0 8px" }}
+            style={{ background: "none", border: 0, fontSize: 14, color: "var(--text-muted)", cursor: step === 1 || step === 5 || submitting ? "default" : "pointer", opacity: step === 1 || step === 5 || submitting ? 0.4 : 1, minHeight: 44, padding: "0 8px" }}
           >
             Volver
           </button>
