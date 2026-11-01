@@ -434,3 +434,32 @@ export function destinoDeVuelta(n: NegocioApps): { href: string; etiqueta: strin
   if (!app || !appPermitida(app, n)) return null;
   return { href, etiqueta: n.role === "PROFESSIONAL" ? "Ir a mi agenda" : "Ir al inicio" };
 }
+
+/**
+ * Dónde cae el equipo (PROFESSIONAL) al entrar a un negocio con Proyectos: en sus trabajos, no en una
+ * agenda de turnos vacía. La agenda le sigue quedando en la barra. `null` para el resto de los negocios
+ * y de los roles: siguen como siempre. PURA.
+ */
+export function aterrizajeDelEquipo(n: NegocioApps, apps: readonly AppDescriptor[] = REGISTRO_APPS): string | null {
+  if (n.role !== "PROFESSIONAL") return null;
+  const proyectos = apps.find((a) => a.id === "proyectos");
+  return proyectos && appPermitida(proyectos, n) ? proyectos.ruta : null;
+}
+
+/**
+ * Proyectos en la barra, antes de la Agenda, sólo para quien ve la app (`appsVisibles`: módulo duro, así
+ * que CH y los demás negocios no la reciben y su barra queda idéntica). Mismo criterio que el Cierre del
+ * mes: no entra a `menuDeHoy`, que ata la barra al menú viejo sin mirar la asignación del módulo. PURA.
+ */
+export function conProyectosEnLaBarra(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[]): ItemMenuDeHoy[] {
+  const app = visibles.find((a) => a.id === "proyectos");
+  if (!app || menu.some((i) => i.href === app.ruta)) return [...menu];
+  const item: ItemMenuDeHoy = { href: app.ruta, label: app.nombre, icon: app.icono };
+  if (app.palabras) item.alias = app.palabras;
+  const i = menu.findIndex((m) => m.href === "/admin/turnos");
+  const grupo = i >= 0 ? menu[i].grupo : undefined;
+  if (grupo) item.grupo = grupo;
+  const salida = [...menu];
+  salida.splice(i >= 0 ? i : salida.length, 0, item);
+  return salida;
+}

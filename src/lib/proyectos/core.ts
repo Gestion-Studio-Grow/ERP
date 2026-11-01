@@ -123,9 +123,14 @@ export const MEDIO_LABEL: Record<MedioPago, string> = {
   MERCADO_PAGO: "Mercado Pago",
 };
 
-/** La columna del libro de caja: el cheque y la transferencia van donde el motor lleva lo bancario. */
-export function metodoDeCaja(medio: MedioPago): "EFECTIVO" | "MP" {
-  return medio === "EFECTIVO" ? "EFECTIVO" : "MP";
+/**
+ * La columna del libro de caja. El cheque va con la transferencia porque el libro no tiene columna de
+ * cheques, y el asiento lo dice en su detalle. Sin la columna en la base, lo bancario sigue en `MP`.
+ */
+export function metodoDeCaja(medio: MedioPago, transferenciaEnElLibro = false): "EFECTIVO" | "MP" | "TRANSFERENCIA" {
+  if (medio === "EFECTIVO") return "EFECTIVO";
+  if (medio === "MERCADO_PAGO") return "MP";
+  return transferenciaEnElLibro ? "TRANSFERENCIA" : "MP";
 }
 
 // ── Presupuesto: qué se puede hacer en cada estado ──────────────────────────

@@ -15,6 +15,9 @@ import {
   appPermitida,
   appsVisibles,
   buscarApps,
+  aterrizajeDelEquipo,
+  conProyectosEnLaBarra,
+  type ItemMenuDeHoy,
   destinoDeVuelta,
   explicarNoDisponible,
   motivoNoDisponible,
@@ -468,4 +471,18 @@ test("Vender y Ventas del día: CH no las ve ni por URL; un comercio con pos sí
     const comercio = negocio({ role, contexto: null, modulosAsignados: ["pos", "catalog"], esMostrador: true });
     for (const app of apps) assert.equal(motivoNoDisponible(app, comercio), null, `${app.id} para ${role} de un comercio`);
   }
+});
+
+test("el equipo de una productora entra a Proyectos; los demás negocios y roles, como siempre", () => {
+  assert.equal(aterrizajeDelEquipo(negocio({ role: "PROFESSIONAL", modulosAsignados: ["proyectos", "agenda"] })), "/admin/proyectos");
+  assert.equal(aterrizajeDelEquipo(negocio({ role: "PROFESSIONAL", modulosAsignados: ["agenda"] })), null);
+  assert.equal(aterrizajeDelEquipo(negocio({ role: "OWNER", modulosAsignados: ["proyectos"] })), null);
+});
+
+test("Proyectos entra a la barra sólo si la persona ve la app, y antes de la Agenda", () => {
+  const menu = [{ href: "/admin", label: "Inicio", icon: "dashboard" }, { href: "/admin/turnos", label: "Agenda", icon: "agenda", grupo: "agenda" }] as ItemMenuDeHoy[];
+  const barra = conProyectosEnLaBarra(menu, appsVisibles(negocio({ role: "PROFESSIONAL", modulosAsignados: ["proyectos", "agenda"] })));
+  assert.deepEqual(barra.map((i) => i.href), ["/admin", "/admin/proyectos", "/admin/turnos"]);
+  assert.equal(barra[1].grupo, "agenda");
+  assert.deepEqual(conProyectosEnLaBarra(menu, appsVisibles(negocio({ role: "OWNER", modulosAsignados: ["agenda"] }))), menu);
 });

@@ -23,7 +23,7 @@ import { navGroupingEnabled } from "@/modules";
 import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
 import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
-import { appCasa, appsDeLaCasa, appsVisibles, conCierreDelMesEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa } from "@/apps/visibles";
+import { appCasa, appsDeLaCasa, appsVisibles, conCierreDelMesEnLaBarra, conProyectosEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa } from "@/apps/visibles";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
@@ -247,7 +247,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     if (pathname && !rutaDeLaCasa(pathname, casa)) redirect(casa.ruta);
   }
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
-  const menu = conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto));
+  const menu = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles);
   // DISEÑO NUEVO: la navegación del armazón nuevo (espacios, comandos de ⌘K, tecla del rubro), con
   // las MISMAS apps que ya decidió `appsVisibles`. Apagado no se arma ni viaja: CH recibe los mismos
   // props de siempre (armazon/armazon-ch.test.ts).

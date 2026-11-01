@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getNegocioApps } from "@/apps/contexto.server";
-import { appCasa } from "@/apps/visibles";
+import { appCasa, aterrizajeDelEquipo } from "@/apps/visibles";
 import { getDashboardData, getRetailDashboardData } from "@/lib/actions";
 import Link from "next/link";
 import { fmtTime, fmtDateTimeAr, todayInBusinessTz } from "@/lib/datetime";
@@ -255,8 +255,11 @@ async function RetailHome({
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ espacio?: string | string[] }> }) {
   // PANEL DE CASA (Break Point → el club): su Inicio es la casa. El layout ya redirige, pero no corre en una
   // navegación del lado del cliente; esto cubre el clic en un enlace a /admin.
-  const casa = appCasa(await getNegocioApps((await requireUser()).role));
+  const negocioApps = await getNegocioApps((await requireUser()).role);
+  const casa = appCasa(negocioApps);
   if (casa) redirect(casa.ruta);
+  const delEquipo = aterrizajeDelEquipo(negocioApps);
+  if (delEquipo) redirect(delEquipo);
   // DISEÑO NUEVO («Renglón», interruptor del negocio): cada rol aterriza en su trabajo (la bandeja
   // del dueño, la página de un espacio con `?espacio=`), con o sin "Trabaja por apps" (en CH, con las
   // pantallas de su barra de siempre). El Inicio del Comerciante sin "Trabaja por apps" se queda con

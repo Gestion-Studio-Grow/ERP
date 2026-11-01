@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { clientePuedeResponder, leerNumero, etapaAlAprobar, etapaLabel, etapaSiguiente, etapasDe, porRubro, precioConMargen, sePuedeEditar, totales } from "./core";
+import { clientePuedeResponder, leerNumero, etapaAlAprobar, etapaLabel, etapaSiguiente, etapasDe, metodoDeCaja, porRubro, precioConMargen, sePuedeEditar, totales } from "./core";
 import { computar, costosVigentes, dentroDelLote, disenoInicial, normalizarDiseno, paredesDe, superficieParedes } from "./stand";
 
 test("un contenido no pasa por 3D, armado ni desarme; un stand pasa por todo", () => {
@@ -25,6 +25,15 @@ test("los números se leen como los escribe una persona", () => {
   assert.equal(leerNumero("1.5"), 1.5);
   assert.equal(leerNumero("1.500,75"), 1500.75);
   assert.equal(leerNumero("abc"), 0);
+});
+
+test("cada medio va a su columna del libro: nada bancario bajo Mercado Pago si existe Transferencia", () => {
+  assert.equal(metodoDeCaja("EFECTIVO", true), "EFECTIVO");
+  assert.equal(metodoDeCaja("MERCADO_PAGO", true), "MP");
+  assert.equal(metodoDeCaja("TRANSFERENCIA", true), "TRANSFERENCIA");
+  assert.equal(metodoDeCaja("CHEQUE", true), "TRANSFERENCIA");
+  assert.equal(metodoDeCaja("TRANSFERENCIA", false), "MP");
+  assert.equal(metodoDeCaja("CHEQUE"), "MP");
 });
 
 test("porRubro respeta el orden en que aparece cada rubro", () => {

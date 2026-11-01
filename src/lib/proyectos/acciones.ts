@@ -13,6 +13,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
+import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
 import { clientePuedeResponder, leerNumero, esEtapa, esServicio, etapaAlAprobar, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
@@ -391,9 +392,9 @@ export async function registrarCobro(formData: FormData) {
         tenantId,
         sessionId: session?.id ?? null,
         type: "VENTA",
-        method: metodoDeCaja(medio),
+        method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
         amount: monto,
-        reason: `Proyecto #${p.numero} · ${p.nombre}${nota ? ` · ${nota}` : ""}`,
+        reason: `Proyecto #${p.numero} · ${p.nombre}${medio === "CHEQUE" ? " · Cheque" : ""}${nota ? ` · ${nota}` : ""}`,
         proyectoPagoId: creado.id,
         createdBy: user.name,
       },
