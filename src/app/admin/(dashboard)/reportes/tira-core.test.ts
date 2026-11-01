@@ -12,6 +12,16 @@ import {
 
 const HOY = "2026-09-24"; // jueves
 
+test("un período cerrado termina completo: su último día no está en curso", () => {
+  const dias = [{ dia: "2026-10-31", total: 100, cantidad: 1 }];
+  const abierta = armarTira(dias, "2026-10-31", 31);
+  assert.equal(abierta.tramos[30].enCurso, true);
+  const cerrada = armarTira(dias, "2026-10-31", 31, { cerrado: true });
+  assert.equal(cerrada.tramos[30].enCurso, false);
+  assert.equal(cerrada.tramos[30].parcial, false);
+  assert.equal(cerrada.mejor?.desde, "2026-10-31");
+});
+
 test("el 24/09/2026 es jueves y el período cuenta hoy", () => {
   assert.equal(diaDeLaSemana(HOY), 3);
   const p = diasDelPeriodo(HOY, 90);

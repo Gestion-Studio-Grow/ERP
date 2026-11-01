@@ -63,12 +63,12 @@ export type PaymentMixRow = {
 };
 
 export type RetentionBreakdown = {
-  // Clientes distintos con al menos un turno "resuelto" (completado/no-show/
-  // cancelado) en el período.
+  // Clientes distintos ATENDIDOS en el período (al menos un turno completado). Quien canceló o
+  // no vino no volvió: contarlos daba clientes "que vuelven" que nunca pisaron el local.
   clientesUnicos: number;
-  // De esos, cuántos tienen 2+ turnos en el período.
+  // De esos, cuántos se atendieron 2+ veces en el período.
   recurrentes: number;
-  // Con exactamente 1 turno en el período.
+  // Atendidos exactamente 1 vez en el período.
   esporadicos: number;
   // recurrentes / clientesUnicos. 0 si no hay clientes. Se lee "en este período"
   // — es honesto respecto de la ventana, no una tasa de retención histórica
@@ -115,21 +115,18 @@ export function computeDeepKpis(appointments: KpiAppointment[]): DeepKpis {
   let cantidadPagos = 0;
   const mix = new Map<KpiPaymentMethod, { cantidad: number; total: number }>();
 
-  // Retención: cuántos turnos "resueltos" tuvo cada cliente en el período.
+  // Retención: cuántas veces se atendió cada cliente en el período.
   const turnosPorCliente = new Map<string, number>();
 
   // Rentabilidad hora-silla: ingresos y horas por profesional (turnos completados).
   const porProfesional = new Map<string, { ingresos: number; horas: number }>();
 
   for (const a of appointments) {
-    const resuelto =
-      a.status === "COMPLETED" || a.status === "NO_SHOW" || a.status === "CANCELLED";
-
     if (a.status === "COMPLETED") completados++;
     else if (a.status === "NO_SHOW") noShow++;
     else if (a.status === "CANCELLED") cancelados++;
 
-    if (resuelto) {
+    if (a.status === "COMPLETED") {
       turnosPorCliente.set(a.clientId, (turnosPorCliente.get(a.clientId) ?? 0) + 1);
     }
 

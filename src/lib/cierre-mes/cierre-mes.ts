@@ -427,7 +427,7 @@ export function evaluarPasos(h: HechosCierreMes, estado: EstadoCierreMes): Paso[
     if (pendientes > 0) {
       pasos.push(
         paso("comisiones-liquidadas", "pendiente", `${plural(pendientes, "turno", "turnos")} de ${mes} con la comisión sin liquidar.${conSaldo}`, {
-          accion: { texto: "Liquidar comisiones", href: "/admin/reportes" },
+          accion: { texto: "Liquidar comisiones", href: "/admin/comisiones" },
         }),
       );
     } else {

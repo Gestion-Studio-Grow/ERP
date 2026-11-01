@@ -12,7 +12,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { agruparIngresos, bordesDelPeriodo, type PagoParaReporte } from "./report-ingresos";
+import { agruparIngresos, bordesDelPeriodo, kpisDelPeriodo, type PagoParaReporte } from "./report-ingresos";
+import { computeDeepKpis } from "./report-kpis";
 import { businessWallTimeToUtc, dateStrInBusinessTz } from "./datetime";
 
 const pago = (over: Partial<PagoParaReporte> = {}): PagoParaReporte => ({
@@ -20,6 +21,9 @@ const pago = (over: Partial<PagoParaReporte> = {}): PagoParaReporte => ({
   cobradoEn: new Date("2026-03-11T15:00:00.000Z"), // miércoles 11, mediodía local
   profesional: "Sofía",
   servicio: "Facial",
+  metodo: "EFECTIVO",
+  completado: true,
+  horas: 1,
   ...over,
 });
 
@@ -27,7 +31,7 @@ test("el día de una fila es el del COBRO, no el del turno", () => {
   // El caso que motivó todo: un turno del lunes cobrado el miércoles. Antes sumaba al lunes
   // aunque el filtro lo hubiera dejado entrar por el miércoles.
   const r = agruparIngresos([pago()], dateStrInBusinessTz);
-  assert.deepEqual(r.porDia, [{ label: "2026-03-11", total: 10000 }]);
+  assert.deepEqual(r.porDia, [{ label: "2026-03-11", total: 10000, cantidad: 1 }]);
 });
 
 test("el total y las tres tablas cierran entre sí, siempre", () => {
@@ -47,8 +51,8 @@ test("el total y las tres tablas cierran entre sí, siempre", () => {
     );
   }
   assert.deepEqual(r.porDia, [
-    { label: "2026-03-12", total: 30000 },
-    { label: "2026-03-11", total: 10000 },
+    { label: "2026-03-12", total: 30000, cantidad: 2 },
+    { label: "2026-03-11", total: 10000, cantidad: 1 },
   ]);
   assert.deepEqual(r.porProfesional, [
     { label: "Caro", total: 25000 },
@@ -60,12 +64,53 @@ test("un cobro de las 22:00 cuenta ese día, no el siguiente", () => {
   // Argentina es UTC−3: las 22:00 del 11 son las 01:00 UTC del 12. Con el día UTC, tres
   // horas de cada día se iban a la fila del día siguiente.
   const r = agruparIngresos([pago({ cobradoEn: new Date("2026-03-12T01:00:00.000Z") })], dateStrInBusinessTz);
-  assert.deepEqual(r.porDia, [{ label: "2026-03-11", total: 10000 }]);
+  assert.deepEqual(r.porDia, [{ label: "2026-03-11", total: 10000, cantidad: 1 }]);
+});
+
+test("los medios de pago y el ticket salen de los mismos cobros que el total", () => {
+  const r = agruparIngresos(
+    [
+      pago({ amount: 10000, metodo: "EFECTIVO" }),
+      pago({ amount: 30000, metodo: "DEBITO" }),
+      pago({ amount: 5000, metodo: "DEBITO" }),
+    ],
+    dateStrInBusinessTz,
+  );
+  assert.equal(r.porMedio.reduce((s, m) => s + m.total, 0), r.totalIngresos, "los medios tienen que sumar el total");
+  assert.equal(r.porMedio[0].method, "DEBITO");
+  assert.equal(r.porMedio[0].cantidad, 2);
+  assert.equal(r.ticketPromedio * r.cantidadPagos, r.totalIngresos, "ticket por cantidad de cobros da el total");
+});
+
+test("por hora cuenta sólo los turnos atendidos: una seña de uno que no se hizo no es una hora", () => {
+  const r = agruparIngresos(
+    [
+      pago({ amount: 20000, profesional: "Ana", horas: 2 }),
+      pago({ amount: 5000, profesional: "Ana", horas: 1, completado: false }),
+      pago({ amount: 9000, profesional: "Caro", horas: 1 }),
+    ],
+    dateStrInBusinessTz,
+  );
+  assert.deepEqual(r.porHora, [
+    { label: "Ana", ingresos: 20000, horas: 2, porHora: 10000 },
+    { label: "Caro", ingresos: 9000, horas: 1, porHora: 9000 },
+  ]);
+});
+
+test("los indicadores: la plata de los cobros, las ausencias y los clientes de los turnos", () => {
+  const turnos = computeDeepKpis([]);
+  const cobros = agruparIngresos([pago({ amount: 7000 })], dateStrInBusinessTz);
+  const k = kpisDelPeriodo({ ...turnos, ticketPromedio: 99 }, cobros);
+  assert.equal(k.ticketPromedio, 7000);
+  assert.deepEqual(k.mixMetodoPago, cobros.porMedio);
+  assert.deepEqual(k.rentabilidadHoraSilla, cobros.porHora);
+  assert.deepEqual(k.estados, turnos.estados);
+  assert.deepEqual(k.retencion, turnos.retencion);
 });
 
 test("sin pagos, todo en cero y sin filas fantasma", () => {
   const r = agruparIngresos([], dateStrInBusinessTz);
-  assert.deepEqual(r, { totalIngresos: 0, cantidadPagos: 0, porDia: [], porProfesional: [], porServicio: [] });
+  assert.deepEqual(r, { totalIngresos: 0, cantidadPagos: 0, ticketPromedio: 0, porDia: [], porProfesional: [], porServicio: [], porMedio: [], porHora: [] });
 });
 
 // ── Los bordes del período ──────────────────────────────────────────────────

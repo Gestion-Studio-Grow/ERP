@@ -100,10 +100,10 @@ test("los KPIs aparecen en la sección de indicadores", () => {
     rentabilidadHoraSilla: [{ label: "Ana", ingresos: 12000, horas: 4, porHora: 3000 }],
   };
   const csv = buildReportCsv(baseInput({ totalIngresos: 28000, cantidadPagos: 8, totalTurnos: 11, kpis }));
-  assert.ok(csv.includes("Tasa de no-show;20%"));
-  assert.ok(csv.includes("Tasa de recurrencia;40%"));
-  // Sección hora-silla y método de pago presentes con sus filas.
-  assert.ok(csv.includes("Rentabilidad hora-silla"));
+  assert.ok(csv.includes("Tasa de ausencias;20%"));
+  assert.ok(csv.includes("Parte de los clientes que vuelve;40%"));
+  // Sección por hora y medio de pago presentes con sus filas.
+  assert.ok(csv.includes("Por hora trabajada"));
   assert.ok(csv.includes("Ana;"));
   assert.ok(csv.includes("Efectivo;5;"));
 });

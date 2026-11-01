@@ -9,8 +9,9 @@
  */
 
 import { getReportData, getDeepReportData } from "@/lib/actions";
-import { REPORT_RANGE_DAYS, DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
+import { periodoDeLaUrl, resolverPeriodo } from "@/lib/report-periodo";
 import { buildReportCsv } from "@/lib/report-csv";
+import { kpisDelPeriodo } from "@/lib/report-ingresos";
 import { logger } from "@/lib/logger";
 import { requireApp } from "@/lib/require-app";
 import { prisma } from "@/lib/prisma";
@@ -31,17 +32,16 @@ export async function GET(request: Request) {
   // Guardia de la app (ADR-098): una app oculta no es una app protegida.
   const user = await requireApp("reportes");
   try {
-    const parsed = Number(new URL(request.url).searchParams.get("dias"));
-    const rangeDays = (REPORT_RANGE_DAYS as readonly number[]).includes(parsed)
-      ? parsed
-      : DEFAULT_REPORT_RANGE_DAYS;
+    const { searchParams } = new URL(request.url);
+    const pedido = periodoDeLaUrl({ dias: searchParams.get("dias"), periodo: searchParams.get("periodo") });
+    const periodo = resolverPeriodo(pedido, todayInBusinessTz());
 
     // Un local de MOSTRADOR exporta lo que ve su pantalla: las ventas cobradas del período,
     // por día, medio y producto (ReportesMostrador.tsx). El de servicios sigue igual.
     const [{ esMostrador }, brand] = await Promise.all([getNegocioApps(user.role), getTenantBrand()]);
     if (esMostrador) {
       const tenantId = await getCurrentTenantId();
-      const r = await leerVentasMostrador(prisma, tenantId, todayInBusinessTz(), rangeDays);
+      const r = await leerVentasMostrador(prisma, tenantId, periodo.ultimoDia, periodo.dias);
       const desde = dateStrInBusinessTz(r.desde);
       const hasta = dateStrInBusinessTz(r.hasta);
       return new Response(BOM + csvVentasMostrador(r, { desde, hasta, negocio: brand.name }), {
@@ -52,21 +52,22 @@ export async function GET(request: Request) {
     }
 
     const [data, deep] = await Promise.all([
-      getReportData(rangeDays),
-      getDeepReportData(rangeDays),
+      getReportData(pedido),
+      getDeepReportData(pedido),
     ]);
 
     const csv = buildReportCsv({
       desde: data.desde,
       hasta: data.hasta,
-      rangeDays,
+      rangeDays: periodo.dias,
+      etiqueta: periodo.etiqueta,
       totalIngresos: data.totalIngresos,
       cantidadPagos: data.cantidadPagos,
       totalTurnos: deep.totalTurnos,
       porDia: data.porDia,
       porProfesional: data.porProfesional,
       porServicio: data.porServicio,
-      kpis: deep.kpis,
+      kpis: kpisDelPeriodo(deep.kpis, data),
     });
 
     // Los días del negocio (hora argentina): `toISOString` daba el de Greenwich y a la noche el

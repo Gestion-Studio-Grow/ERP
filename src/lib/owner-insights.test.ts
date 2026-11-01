@@ -56,7 +56,10 @@ test("las alertas quedan primeras (orden por severidad)", () => {
       tasaNoShow: 0.2,
       tasaCancelacion: 0,
     },
-    rentabilidadHoraSilla: [{ label: "Ana", ingresos: 5000, horas: 5, porHora: 1000 }],
+    rentabilidadHoraSilla: [
+      { label: "Ana", ingresos: 5000, horas: 5, porHora: 1000 },
+      { label: "Caro", ingresos: 4000, horas: 5, porHora: 800 },
+    ],
   });
   const insights = generateOwnerInsights(current);
   assert.ok(insights.length >= 2);
