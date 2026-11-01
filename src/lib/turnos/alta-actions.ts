@@ -28,6 +28,7 @@ import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { createManualAppointment } from "@/lib/actions";
+import { urlDelSitio } from "@/lib/crm/cargas.server";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { franjaDeAhora } from "@/app/admin/(dashboard)/turnos/_agenda/alta-core";
 import { ACCION_SENIA_PEDIDA } from "./senia-pedida";
@@ -39,6 +40,8 @@ export type ResultadoDarTurno =
       id: string | null;
       /** La dirección del local para el WhatsApp (`BusinessSettings.addressLine` + `city`), si está. */
       direccion: string | null;
+      /** El link a «Tu turno», para el WhatsApp de confirmación. */
+      linkTurno: string | null;
       /** ¿Quedó la marca «seña pedida»? */
       seniaPedida: boolean;
     }
@@ -52,7 +55,7 @@ export async function darTurno(fd: FormData, opciones: { pedirSenia?: boolean; m
   await requireCapability("agenda:manage");
   const r = await createManualAppointment(fd);
   if (!r.ok) return r;
-  if (isDemoSandbox()) return { ok: true, id: null, direccion: null, seniaPedida: false };
+  if (isDemoSandbox()) return { ok: true, id: null, direccion: null, linkTurno: null, seniaPedida: false };
 
   const tenantId = await getCurrentTenantId();
   const professionalId = String(fd.get("professionalId") ?? "");
@@ -81,7 +84,8 @@ export async function darTurno(fd: FormData, opciones: { pedirSenia?: boolean; m
   }
 
   const direccion = [ajustes?.addressLine?.trim(), ajustes?.city?.trim()].filter(Boolean).join(", ") || null;
-  return { ok: true, id: turno?.id ?? null, direccion, seniaPedida };
+  const sitio = turno ? await urlDelSitio() : null;
+  return { ok: true, id: turno?.id ?? null, direccion, linkTurno: sitio && turno ? `${sitio}/reserva/turno/${turno.id}` : null, seniaPedida };
 }
 
 export type LibresAhora = {

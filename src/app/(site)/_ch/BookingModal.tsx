@@ -7,6 +7,7 @@ import { checkCoupon } from "@/lib/coupon-actions";
 import { isValidEmail, isValidArgentinePhone } from "@/lib/contact-validation";
 import { fmtDateTime, fmtTime, wallHourMinuteInBusinessTz } from "@/lib/datetime";
 import { useWhatsAppCta } from "@/components/whatsapp-cta";
+import { promesaDeCambios } from "@/lib/turnos/practica";
 import { useNegocioDelSitio } from "./negocio-del-sitio";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import type { PrefillReserva } from "./BookingProvider";
@@ -90,6 +91,7 @@ export default function BookingModal({
   const [tel, setTel] = useState("");
   const [mail, setMail] = useState("");
   const [reservaId, setReservaId] = useState<string | null>(null);
+  const [horasParaCambiar, setHorasParaCambiar] = useState<number | null>(null);
   const code = reservaId ? reservaId.slice(-6).toUpperCase() : null;
   const [confirmedStartsAt, setConfirmedStartsAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -360,6 +362,7 @@ export default function BookingModal({
         return;
       }
       setReservaId(res.id);
+      setHorasParaCambiar(res.horasParaCambiar);
       setConfirmedStartsAt(res.startsAt);
       setStep(5);
       onReservado?.();
@@ -866,13 +869,19 @@ export default function BookingModal({
               <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
                 {/* Diseño nuevo sin WhatsApp cargado: no se promete un canal que no existe (contacto-ch.ts). */}
                 {nuevo && !data.whatsapp
-                  ? "Te confirmamos el turno por mensaje o llamado. Podés reprogramar o cancelar hasta 24 hs antes."
-                  : "Te confirmamos por WhatsApp o email. Podés reprogramar o cancelar hasta 24 hs antes."}
+                  ? `Te confirmamos el turno por mensaje o llamado. ${promesaDeCambios(horasParaCambiar)}`
+                  : `Te confirmamos por WhatsApp o email. ${promesaDeCambios(horasParaCambiar)}`}
                 {svc?.depositAmount != null && (
                   <> Recordá que para confirmar el turno hay una seña de ${svc.depositAmount.toLocaleString("es-AR")} — te escribimos para coordinarla.</>
                 )}
               </p>
               <div className={k("chm-salidas")} style={{ marginTop: 16, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
+                {/* Lo que el texto promete, con su camino: sin este link la clienta no tenía cómo llegar a su turno (U1). */}
+                {reservaId && (
+                  <a href={`/reserva/turno/${reservaId}`} style={{ color: accent, textDecoration: "underline", textUnderlineOffset: 4, fontSize: 15 }}>
+                    Ver mi turno
+                  </a>
+                )}
                 {icsHref && (
                   <a href={icsHref} download={nuevo ? archivoIcs(negocio.nombre) : negocio.esCH ? "turno-ch-estetica.ics" : "turno.ics"} style={{ color: accent, textDecoration: "underline", textUnderlineOffset: 4, fontSize: 15 }}>
                     Agregar a mi calendario

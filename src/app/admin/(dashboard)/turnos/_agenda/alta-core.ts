@@ -346,6 +346,7 @@ export type TurnoDado = {
   cobrada: boolean;
   direccion?: string | null;
   alias?: string | null;
+  linkTurno?: string | null;
 };
 
 /**
@@ -354,7 +355,7 @@ export type TurnoDado = {
  * pedido (monto + alias); si no, la confirmación. `wa` es `null` si el teléfono no es un celular.
  */
 export function listoDelTurno(t: TurnoDado): { estado: string; tecla: string; texto: string; wa: string | null } {
-  const turno = { clienta: t.clienta, servicios: t.servicio, inicio: t.inicio, profesional: t.profesional, direccion: t.direccion };
+  const turno = { clienta: t.clienta, servicios: t.servicio, inicio: t.inicio, profesional: t.profesional, direccion: t.direccion, linkTurno: t.linkTurno };
   let estado: string;
   let tecla: string;
   let texto: string;

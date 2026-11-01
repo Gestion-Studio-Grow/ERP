@@ -51,6 +51,15 @@ export function reglaDeCancelacion(p: PoliticaDeCancelacion): string {
   return `Podés cancelar o reprogramar online hasta ${p.horasMinimas} h antes del turno. Después, escribinos por WhatsApp.`;
 }
 
+/**
+ * Lo que se le promete a la clienta al terminar de reservar (U1, U2): dónde cambia el turno y, sólo
+ * si el negocio cargó una regla, hasta cuándo. Sin regla no hay plazo que prometer: «Tu turno» la
+ * deja cancelar hasta que empieza. `horas` sale de `politicaVigente()`.
+ */
+export function promesaDeCambios(horas: number | null | undefined): string {
+  return horas ? `Podés cancelar o reprogramar desde «Tu turno» hasta ${horas} h antes.` : "Podés cancelar o reprogramar desde «Tu turno».";
+}
+
 /** ¿La clienta puede cancelar o reprogramar ella sola este turno, ahora? */
 export function puedeCambiarOnline(input: {
   startsAt: Date;

@@ -431,3 +431,31 @@ for (const nuevo of [true, false]) {
     assert.deepEqual(horas(), ["09:00"]);
   });
 }
+
+for (const [modo, nuevo] of [["apagado", false], ["prendido", true]] as const) {
+  test(`${modo}: el paso 5 da el link a «Tu turno» y promete sólo lo que dice la regla (U1, U2)`, async () => {
+    const reservar = async (horasParaCambiar: number | null) => {
+      await abrir(nuevo);
+      respuesta = { ok: true, id: "abcdef123456", startsAt: HORA[MAR], horasParaCambiar };
+      await clic("SrvX");
+      await clic("Ana");
+      await soltarTodo();
+      await clic("09:00");
+      await clic("Continuar");
+      await cargarDatos();
+      pasarVentanaDobleToque();
+      await clic("Confirmar");
+      assert.equal(paso(), "5");
+      const cuerpo = dom.window.document.body.textContent ?? "";
+      const link = dom.window.document.querySelector('a[href="/reserva/turno/abcdef123456"]');
+      assert.equal(link?.textContent, "Ver mi turno", "lo que se promete tiene su camino");
+      assert.doesNotMatch(cuerpo, /24 hs/);
+      return cuerpo;
+    };
+    const conRegla = await reservar(24);
+    assert.match(conRegla, /desde «Tu turno» hasta 24 h antes/);
+    const sinRegla = await reservar(null);
+    assert.match(sinRegla, /cancelar o reprogramar desde «Tu turno»\./);
+    assert.doesNotMatch(sinRegla, /\d+ h antes/, "sin regla cargada no hay plazo que prometer");
+  });
+}

@@ -360,6 +360,7 @@ export default function AltaDeTurno({
           medio: decision.cobro?.metodo ?? null,
           cobrada: decision.cobro !== null,
           direccion: r.direccion,
+          linkTurno: r.linkTurno,
           alias,
         });
         setListo({

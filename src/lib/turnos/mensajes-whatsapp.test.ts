@@ -58,6 +58,14 @@ describe("piezas", () => {
 });
 
 describe("confirmación del turno (CH-017)", () => {
+  test("con el link de «Tu turno», para que pueda cambiarlo sola (U1); sin link, no se nombra", () => {
+    const link = "https://ch.x/reserva/turno/t1";
+    assert.match(mensajeConfirmacion({ ...LAURA, linkTurno: link }), /Tu turno: https:\/\/ch\.x\/reserva\/turno\/t1 Cualquier cambio/);
+    assert.match(mensajePedidoDeSenia({ ...LAURA, monto: 5000, linkTurno: link }), /Tu turno: https:\/\/ch\.x\/reserva\/turno\/t1/);
+    assert.doesNotMatch(mensajeConfirmacion(LAURA), /Tu turno/);
+    assert.doesNotMatch(mensajeConfirmacion({ ...LAURA, linkTurno: null }), /Tu turno/);
+  });
+
   test("con seña recibida: día, hora, profesional y la seña con su medio", () => {
     const m = mensajeConfirmacion({ ...LAURA, senia: { monto: 5000, medio: "TRANSFERENCIA" } });
     assert.match(m, /^¡Hola Laura!/);
