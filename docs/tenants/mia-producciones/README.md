@@ -17,7 +17,9 @@ Primer negocio del rubro **productora** (eventos, stands, contenidos). Es un neg
 | Panel | `src/app/admin/(dashboard)/proyectos/` |
 | Propuesta del cliente (link sin login, sin costos) | `src/app/propuesta/[token]/` |
 | Tablas + RLS | `prisma/migrations/20261101120000_modulo_proyectos/` |
-| Marca | `src/lib/proyectos/marca.ts`, `public/tenants/mia-producciones/marca/` |
+| Marca | `src/lib/proyectos/marca.ts`, `public/tenants/mia-producciones/marca/`; panel e ingreso: `src/lib/estetica-backoffice.ts`, `globals.css` |
+| Panel sólo de MIA | `panelCerrado` en `src/apps/catalogo/comercial.ts`, regla en `src/apps/visibles.ts` |
+| Copia de su sitio | Páginas: `src/tenants/mia-producciones/sitio/`. Imágenes, estilos y scripts: `public/tenants/mia-producciones/sitio/` (22 MB). Registro: `src/lib/sitio-estatico.ts`. Se regenera con `scripts/proyectos/copiar-sitio-mia.mjs` |
 | Demo en esta máquina | `next build` y `node scripts/proyectos/demo-local.mjs --start` → `http://mia-producciones.localhost:3218/admin` |
 
 ## El pase
@@ -37,7 +39,7 @@ código compartido que entra con el deploy. El push además publica lo que haya 
 | 3 | Migrar: `node scripts/taller/migrar-produccion.mjs --migrar`. Aplica, verifica índices únicos y RLS. | Agente, con OK del dueño | Sí, ver abajo |
 | 4 | Traer lo nuevo de `main`, rebasar, repetir pruebas si hubo cambios. Push a `main`: **deploy de producción**. | Agente, con OK del dueño | Sí, Instant Rollback |
 | 5 | Esperar *Ready* y `npm run release:smoke -- https://<dominio> --commit <sha>`. | Agente | No escribe |
-| 6 | Alta en `/operador/alta`: rubro **Productora** elegido del desplegable, slug `mia-producciones`, estado `TRIAL`. | Dueño | Ver abajo |
+| 6 | Alta en `/operador/alta`: rubro **Productora** elegido del desplegable, slug y subdominio `mia-producciones`, estado `TRIAL`. El rubro cierra el panel y el subdominio publica la copia del sitio: con otro, no aparecen. | Dueño | Ver abajo |
 | 7 | En la ficha del negocio: controlar que estén los módulos y prender **«Trabaja por apps»**. | Dueño | Sí |
 | 8 | Dar de alta a las personas con su mail real (ficha → Personas). Las claves van sólo por chat al dueño. | Dueño | Sí |
 | 9 | Cargar los costos reales del armador en Proyectos → Configuración. Los de fábrica son referencia. | MIA | Sí |
@@ -66,14 +68,20 @@ el negocio funciona pero sin su marca. El camino alternativo sin terminal es el 
 
 ## Qué NO está hecho
 
-1. **Textos de CH en `/reserva` y `/servicios`:** el arreglo está en la rama
-   `fix/textos-ch-en-otros-negocios` (commit `2173013d`), todavía no unida a ésta ni a `main`.
-2. **Factura electrónica:** no se emite desde el módulo; sale de Facturación.
-3. **Costos del armador:** provisionales, no son de MIA.
-4. **Render:** es la vista 3D del navegador. No hay integración con un programa de render externo.
-5. **PDF:** imprimir o guardar desde el navegador.
-6. **Archivos:** imágenes achicadas en la base (hasta ~1 MB, 30 por proyecto) y links para lo pesado.
-7. **Caja:** el libro no tiene columna de cheques: el cheque se asienta en Transferencia y su detalle dice
+1. **Su dominio:** `miaproducciones.com.ar` sigue en su WordPress, sin tocar. La copia vive en
+   `mia-producciones.<dominio>` con `noindex`: no se pasa a su dominio sin decisión del dueño.
+2. **Formulario de contacto de la copia:** valida y abre el correo de quien consulta, con el mensaje listo para
+   `comercial@miaproducciones.com.ar` (`contacto.js`). Es provisional: el original publica en su WordPress.
+3. **La copia es una foto del 01/11/2026:** un proyecto nuevo en su WordPress no aparece solo. Conserva
+   «Nos estamos renovando», su WhatsApp y sus enlaces tal cual; saca Google, Meta, AddToAny y reCAPTCHA.
+4. **Diseño nuevo («Renglón»):** con ese interruptor prendido, Caja, Libro y Usuarios usan otras pantallas, que no
+   se adaptaron a la productora. En MIA va apagado.
+5. **Factura electrónica:** no se emite desde el módulo; sale de Facturación.
+6. **Costos del armador:** provisionales, no son de MIA.
+7. **Render:** es la vista 3D del navegador. No hay integración con un programa de render externo.
+8. **PDF:** imprimir o guardar desde el navegador.
+9. **Archivos:** imágenes achicadas en la base (hasta ~1 MB, 30 por proyecto) y links para lo pesado.
+10. **Caja:** el libro no tiene columna de cheques: el cheque se asienta en Transferencia y su detalle dice
    «Cheque». Decisión provisional a confirmar con quien lleve la contabilidad de MIA.
 
 ## Verificación
@@ -83,16 +91,28 @@ versión 2, cobro, caja, anulación, rentabilidad, rol equipo sin plata, celular
 Proyectos, imagen de 6,1 MB subida por archivo, cobro con centavos, transferencia y cheque en el libro,
 link de WhatsApp con 549 y PDF de la propuesta generado con Chromium, sin costos ni botones.
 
+**Front y panel, 01/11/2026, sobre la compilación final:**
+
+- Copia: 13 páginas en 200 y 0 pedidos a otros servidores. En la portada, igual que el original: 59 imágenes,
+  video, carruseles, marquee, botón de WhatsApp y Work Sans. Lo único que no está es el sello de reCAPTCHA.
+- `/servicios`, `/clases`, `/facturita`, `/tienda` y las demás de otros rubros llevan a la portada, sólo en este host.
+- Panel: dueño y equipo entran a Proyectos; el dueño ve las 8 apps aprobadas, el equipo sólo Proyectos; `/admin/turnos`,
+  catálogo, recordatorios, auditoría, apariencia y localización rebotan. Sin textos de turnos en las 8 pantallas.
+- Alta de cliente desde la lista, búsqueda, ficha con sus proyectos, exportación del libro, tema oscuro y celular a 390 px.
+- **La demo necesita más de una conexión a su base** (`maxConnections`): con una sola, la portada daba 404 o el ingreso
+  500, según qué se abriera primero. Es de la base en memoria; contra Neon no se pudo probar sin el pase.
+- **Sin probar:** `/admin/proyectos` con el interruptor «Trabaja por apps» apagado, y el `mailto` abriendo un correo real
+  (se revisó el enlace que arma).
+
 **Sin probar:** abrir WhatsApp de verdad (se revisó el link, no se envió nada) y el PDF con imágenes de un
 render real. La propuesta impresa se miró con la hoja de ejemplo, sin render.
 
 **Vallas del 01/11/2026:** tipos, compilación, cobertura de RLS, sello, `test:release` y calidad visual
 (contraste, toque y desborde: 0 problemas) en verde.
 
-- `npm test`: 6658 pasan, 35 fallan, 280 cancelados, 311 salteados. Las 35 fallas son del entorno o ya
-  venían: de las que no usan navegador, comparadas contra la rama base, la única nueva era la frontera de
-  three.js y quedó corregida. Las de `m1-cert-tarjeta-cableado` aparecen sólo desde PowerShell, que no
-  tiene `grep`.
+- `npm test`: 6663 pasan, 35 fallan, 280 cancelados, 311 salteados. Las 35 fallas ya estaban en la corrida
+  anterior a estos cambios: son del entorno o de la rama base (fin de línea de Windows, navegador). Las de
+  `m1-cert-tarjeta-cableado` aparecen sólo desde PowerShell, que no tiene `grep`.
 - **No corridas en esta máquina:** las pruebas de pantalla de la suite (los 280 cancelados): su navegador
   no arranca (`spawn UNKNOWN`), tampoco en la rama base. Las 311 salteadas piden `ERP_TEST_PG_URL`.
 - `gate:visual`: el login de `/admin` da rojo porque esa valla necesita una base propia: sin base,

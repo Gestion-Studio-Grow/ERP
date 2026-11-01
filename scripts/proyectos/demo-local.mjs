@@ -31,7 +31,9 @@ const correr = (cmd, args, env) =>
 
 const db = new PGlite();
 await db.waitReady;
-const server = new PGLiteSocketServer({ db, port: DB_PORT, host: "127.0.0.1" });
+// Más de una conexión: las páginas y las rutas directas (el sitio copiado, la exportación del libro) no comparten
+// la suya, y con una sola la que llega segunda queda afuera y da 404 o 500.
+const server = new PGLiteSocketServer({ db, port: DB_PORT, host: "127.0.0.1", maxConnections: 8 });
 await server.start();
 log(`base en memoria en 127.0.0.1:${DB_PORT}`);
 
