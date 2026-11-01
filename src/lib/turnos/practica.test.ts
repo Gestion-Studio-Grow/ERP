@@ -16,6 +16,7 @@ import {
   preguntaDeCierre,
   profesionalPropuesta,
   mensajeFueraDePlazo,
+  promesaDeCambios,
   puedeCambiarOnline,
   salidaFueraDePlazo,
   reglaDeCancelacion,
@@ -44,6 +45,17 @@ test("E2 · con 25 h de anticipación la clienta cancela sola; con 23 h, se le p
   const tarde = puedeCambiarOnline({ startsAt: new Date("2026-10-19T11:00:00Z"), ahora, politica, hayWhatsApp: true });
   assert.equal(tarde.ok, false);
   assert.match(tarde.ok ? "" : tarde.error, /menos de 24 h.*WhatsApp/);
+});
+
+test("R7 · reservando adentro del plazo, el paso 5 no promete un plazo ya vencido", () => {
+  assert.equal(promesaDeCambios(24), "Podés cancelar o reprogramar desde «Tu turno» hasta 24 h antes.");
+  assert.equal(promesaDeCambios(24, { plazoVencido: false, hayWhatsApp: true }), "Podés cancelar o reprogramar desde «Tu turno» hasta 24 h antes.");
+  assert.equal(promesaDeCambios(null, { plazoVencido: false }), "Podés cancelar o reprogramar desde «Tu turno».");
+  const vencido = promesaDeCambios(24, { plazoVencido: true, hayWhatsApp: true });
+  assert.doesNotMatch(vencido, /hasta 24 h antes/);
+  assert.equal(vencido, mensajeFueraDePlazo({ horasMinimas: 24 }, true));
+  // El servidor lo decide con la misma regla que después aplica, no con el reloj del navegador.
+  assert.match(readFileSync(join(process.cwd(), "src/lib/actions.ts"), "utf8"), /plazoVencido: politica \? !puedeCambiarOnline\(\{ startsAt: appointment\.startsAt, ahora: new Date\(\), politica \}\)\.ok : false/);
 });
 
 test("U3 · pasado el plazo: con número hay botón y texto de WhatsApp; sin número, no se lo nombra", () => {

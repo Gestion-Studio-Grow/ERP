@@ -87,9 +87,12 @@ export function salidaFueraDePlazo(input: { whatsapp: string | null | undefined;
 /**
  * Lo que se le promete a la clienta al terminar de reservar (U1, U2): dónde cambia el turno y, sólo
  * si el negocio cargó una regla, hasta cuándo. Sin regla no hay plazo que prometer: «Tu turno» la
- * deja cancelar hasta que empieza. `horas` sale de `politicaVigente()`.
+ * deja cancelar hasta que empieza. `horas` sale de `politicaVigente()`. Si reservó con el plazo ya
+ * vencido (`plazoVencido`, lo calcula el servidor), no se le promete: se le dice lo que le va a
+ * contestar «Tu turno» (R7).
  */
-export function promesaDeCambios(horas: number | null | undefined): string {
+export function promesaDeCambios(horas: number | null | undefined, o: { plazoVencido?: boolean; hayWhatsApp?: boolean } = {}): string {
+  if (horas && o.plazoVencido) return mensajeFueraDePlazo({ horasMinimas: horas }, o.hayWhatsApp === true);
   return horas ? `Podés cancelar o reprogramar desde «Tu turno» hasta ${horas} h antes.` : "Podés cancelar o reprogramar desde «Tu turno».";
 }
 

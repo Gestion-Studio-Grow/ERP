@@ -100,6 +100,7 @@ export default function BookingModal({
   const [mail, setMail] = useState("");
   const [reservaId, setReservaId] = useState<string | null>(null);
   const [horasParaCambiar, setHorasParaCambiar] = useState<number | null>(null);
+  const [plazoVencido, setPlazoVencido] = useState(false);
   const code = reservaId ? reservaId.slice(-6).toUpperCase() : null;
   const [confirmedStartsAt, setConfirmedStartsAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -371,6 +372,7 @@ export default function BookingModal({
       }
       setReservaId(res.id);
       setHorasParaCambiar(res.horasParaCambiar);
+      setPlazoVencido(res.plazoVencido);
       setConfirmedStartsAt(res.startsAt);
       setStep(5);
       onReservado?.();
@@ -879,8 +881,8 @@ export default function BookingModal({
               <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
                 {/* Diseño nuevo sin WhatsApp cargado: no se promete un canal que no existe (contacto-ch.ts). */}
                 {nuevo && !data.whatsapp
-                  ? `Te confirmamos el turno por mensaje o llamado. ${promesaDeCambios(horasParaCambiar)}`
-                  : `Te confirmamos por WhatsApp o email. ${promesaDeCambios(horasParaCambiar)}`}
+                  ? `Te confirmamos el turno por mensaje o llamado. ${promesaDeCambios(horasParaCambiar, { plazoVencido, hayWhatsApp: Boolean(data.whatsapp) })}`
+                  : `Te confirmamos por WhatsApp o email. ${promesaDeCambios(horasParaCambiar, { plazoVencido, hayWhatsApp: Boolean(data.whatsapp) })}`}
                 {svc?.depositAmount != null && (
                   <> Recordá que para confirmar el turno hay una seña de ${svc.depositAmount.toLocaleString("es-AR")} — te escribimos para coordinarla.</>
                 )}

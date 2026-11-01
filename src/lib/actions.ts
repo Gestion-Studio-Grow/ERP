@@ -53,7 +53,7 @@ import {
   type MetodoDePago,
 } from "@/lib/turnos/cobros";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
-import { avisoDeEspera, motivoDeDevolucion, planSeniaAlCerrar } from "@/lib/turnos/practica";
+import { avisoDeEspera, motivoDeDevolucion, planSeniaAlCerrar, puedeCambiarOnline } from "@/lib/turnos/practica";
 import { politicaVigente } from "@/lib/turnos/practica.server";
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { agruparIngresos, bordesDelPeriodo } from "@/lib/report-ingresos";
@@ -692,7 +692,7 @@ export async function createBookingFromModal(input: {
   clientEmail?: string;
   isResident?: boolean;
   couponCode?: string;
-}): Promise<{ ok: true; id: string; startsAt: string; horasParaCambiar: number | null } | { ok: false; error: string }> {
+}): Promise<{ ok: true; id: string; startsAt: string; horasParaCambiar: number | null; plazoVencido: boolean } | { ok: false; error: string }> {
   const clientName = input.clientName.trim();
   const clientPhone = input.clientPhone.trim();
   const isResident = !!input.isResident;
@@ -740,7 +740,13 @@ export async function createBookingFromModal(input: {
 
     // Lo que el paso 5 promete sale de la regla real (U1, U2). El turno ya está: si esto falla, no hay plazo que prometer.
     const politica = await politicaVigente().catch(() => null);
-    return { ok: true, id: appointment.id, startsAt: appointment.startsAt.toISOString(), horasParaCambiar: politica?.horasMinimas ?? null };
+    return {
+      ok: true,
+      id: appointment.id,
+      startsAt: appointment.startsAt.toISOString(),
+      horasParaCambiar: politica?.horasMinimas ?? null,
+      plazoVencido: politica ? !puedeCambiarOnline({ startsAt: appointment.startsAt, ahora: new Date(), politica }).ok : false,
+    };
   } catch (e) {
     unstable_rethrow(e);
     return { ok: false, error: mensajeParaLaClienta(e, NO_SE_PUDO_RESERVAR, "reserva.modal") };

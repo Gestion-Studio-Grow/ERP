@@ -435,9 +435,9 @@ for (const nuevo of [true, false]) {
 
 for (const [modo, nuevo] of [["apagado", false], ["prendido", true]] as const) {
   test(`${modo}: el paso 5 da el link a «Tu turno» y promete sólo lo que dice la regla (U1, U2)`, async () => {
-    const reservar = async (horasParaCambiar: number | null) => {
+    const reservar = async (horasParaCambiar: number | null, plazoVencido = false) => {
       await abrir(nuevo);
-      respuesta = { ok: true, id: "abcdef123456", startsAt: HORA[MAR], horasParaCambiar };
+      respuesta = { ok: true, id: "abcdef123456", startsAt: HORA[MAR], horasParaCambiar, plazoVencido };
       await clic("SrvX");
       await clic("Ana");
       await soltarTodo();
@@ -458,6 +458,10 @@ for (const [modo, nuevo] of [["apagado", false], ["prendido", true]] as const) {
     const sinRegla = await reservar(null);
     assert.match(sinRegla, /cancelar o reprogramar desde «Tu turno»\./);
     assert.doesNotMatch(sinRegla, /\d+ h antes/, "sin regla cargada no hay plazo que prometer");
+    // Reservó con menos de 24 h: ese plazo ya pasó y no se le promete (R7).
+    const vencido = await reservar(24, true);
+    assert.doesNotMatch(vencido, /hasta 24 h antes/);
+    assert.match(vencido, /Faltan menos de 24 h para tu turno: ya no se puede cambiar online\./);
   });
 }
 
