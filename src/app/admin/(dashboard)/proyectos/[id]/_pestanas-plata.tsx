@@ -80,7 +80,8 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                 <div className="flex flex-wrap items-center gap-2">
                   <Link href={`?tab=cotizacion&ver=${v.id}`} scroll={false} className={buttonClasses("outline", "md")}>Ver</Link>
                   {n < versiones.length - 1 && <Link href={`?tab=cotizacion&cambios=${v.id}`} scroll={false} className={buttonClasses("outline", "md")}>Qué cambió</Link>}
-                  <a href={`/admin/proyectos/imprimir/venta/${p.id}?version=${v.id}`} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>PDF</a>
+                  <a href={`/admin/proyectos/imprimir/venta/${p.id}/pdf?version=${v.id}`} className={buttonClasses("outline", "md")}>PDF</a>
+                  <a href={`/admin/proyectos/imprimir/venta/${p.id}?version=${v.id}`} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Imprimir</a>
                   <a href={`/admin/proyectos/imprimir/venta/${p.id}/xlsx?version=${v.id}`} className={buttonClasses("outline", "md")}>Excel</a>
                   {!editable && <a href={ruta} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Ver propuesta</a>}
                   {!editable && <CopiarLink ruta={ruta} />}
@@ -247,6 +248,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                       <td className={cn("py-1.5 pr-2 text-right font-medium tabular-nums", saldo < 0 && "text-danger")}>{pesos(saldo)}</td>
                       <td className="py-1.5 pr-2">{c.prevista && !c.pagadoEl ? <Badge tone="neutral">Prevista</Badge> : <Badge tone={estado === "PAGADA" ? "success" : estado === "VENCIDA" ? "danger" : "neutral"}>{estado === "PAGADA" ? (c.tipo === "COBRO" ? "Cobrado" : "Pagado") : estado === "VENCIDA" ? "Vencido" : "Pendiente"}</Badge>}</td>
                       <td className="py-1">
+                        {c.pagadoEl && c.tipo === "COBRO" && !c.anuladoEl && <a href={`/admin/proyectos/imprimir/cobro/${c.id}`} className={buttonClasses("ghost", "sm")}>Constancia</a>}
                         {!c.pagadoEl && !c.prevista && vista.editaPagos && (
                           <div className="flex flex-wrap items-center justify-end gap-1">
                             <FormAccion accion={marcarCuota} className="flex flex-wrap items-center gap-1">

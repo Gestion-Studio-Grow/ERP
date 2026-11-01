@@ -11,7 +11,6 @@ import { BotonImprimir } from "./_boton";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Liquidación" };
 
-// «Guardar como PDF» lo hace el propio navegador desde Imprimir: sale idéntico y no hay generador aparte que mantener.
 export default async function ImprimirLiquidacion({ params }: { params: Promise<{ id: string }> }) {
   await requireApp("proyectos");
   const a = await actorActual();
@@ -37,6 +36,7 @@ export default async function ImprimirLiquidacion({ params }: { params: Promise<
       `}</style>
       {esMia && l.estado === "PUBLICADA" && <MarcarVista id={l.id} />}
       <BotonImprimir volver={volver} />
+      <p className="mb-3 text-sm"><a href={`/admin/proyectos/imprimir-liquidacion/${l.id}/pdf`} className="underline">Descargar en PDF</a></p>
       <article id="papel" className="rounded-2xl border border-line bg-surface-raised p-6 text-sm text-strong">
         <header className="mb-4 flex flex-wrap justify-between gap-3 border-b border-line pb-3">
           <div>
