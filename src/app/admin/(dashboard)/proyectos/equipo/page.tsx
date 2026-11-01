@@ -3,7 +3,9 @@ import { buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 import { RLS_ENFORCEMENT } from "@/lib/prisma";
 import { requireApp } from "@/lib/require-app";
-import { cambiarEstadoPersona, guardarPermisos } from "@/lib/proyectos/acciones-gestion";
+import { cambiarEstadoPersona, guardarPermisos, reiniciarSegundoFactor } from "@/lib/proyectos/acciones-gestion";
+import { prisma } from "@/lib/prisma";
+import { ROLES_CON_SEGUNDO_PASO } from "@/lib/proyectos/segundo-factor-core";
 import { COLUMNAS_FICHA, COLUMNAS_OCULTAS_BASE, MODULOS, permisoDe, ROL_LABEL, ROLES_GESTION, type RolGestion } from "@/lib/proyectos/gestion-core";
 import { exigirVer, puede, type Actor } from "@/lib/proyectos/gestion.server";
 import { personasDelEquipo, registroDeCambios } from "@/lib/proyectos/gestion-lecturas.server";
@@ -27,6 +29,8 @@ const ROLES = ROLES_GESTION.filter((r): r is Exclude<RolGestion, "DIRECCION" | "
 
 async function Personas({ a }: { a: Actor }) {
   const personas = await personasDelEquipo(a);
+  const factores = await prisma.proyectoSegundoFactor.findMany({ where: { tenantId: a.tenantId, activadoEl: { not: null } }, select: { userId: true } });
+  const conFactor = new Set(factores.map((f) => f.userId));
   const edita = puede(a, "equipo", "editar");
   const sueldo = puede(a, "liquidaciones", "editar") ? "editar" : puede(a, "liquidaciones", "ver") ? "ver" : "oculto";
   const noEsDireccion = a.rol !== "DIRECCION";
@@ -52,6 +56,17 @@ async function Personas({ a }: { a: Actor }) {
                 <p className="break-words font-semibold text-strong">{p.nombre}{!p.activa && " (de baja)"}</p>
                 <p className="break-words text-sm text-muted">{[ROL_LABEL[p.rol as RolGestion] ?? p.rol, p.puesto].filter(Boolean).join(" · ")}</p>
                 <p className="break-words text-sm text-muted">{p.email ?? "Sin mail"} · {p.userId ? "Con cuenta" : "Sin cuenta de ingreso"}</p>
+                {p.userId && (
+                  <p className="text-sm text-muted">
+                    Dos pasos: {conFactor.has(p.userId) ? "activos" : ROLES_CON_SEGUNDO_PASO.includes(p.rol) ? "se activan en su próximo ingreso" : "no los pide su rol"}
+                  </p>
+                )}
+                {a.rol === "DIRECCION" && p.userId && p.userId !== a.user.id && conFactor.has(p.userId) && (
+                  <form action={reiniciarSegundoFactor}>
+                    <input type="hidden" name="id" value={p.id} />
+                    <button type="submit" className={buttonClasses("ghost", "md")}>Reiniciar dos pasos (perdió el teléfono)</button>
+                  </form>
+                )}
                 {p.sueldoBase !== null && <p className="text-sm text-strong">Sueldo {plataEn(p.sueldoBase, "ARS")}</p>}
                 {p.facturaA && <p className="break-words text-sm text-muted">Factura a {p.facturaA}</p>}
                 {tocable && (
@@ -182,6 +197,8 @@ function Seguridad() {
     "Contraseñas guardadas con hash (scrypt): nadie puede leerlas, tampoco desde la base.",
     "Sesión en una cookie firmada, inaccesible desde el navegador, que vence a las 8 horas.",
     "Bloqueo tras 5 ingresos fallidos en 15 minutos.",
+    "Verificación en dos pasos, obligatoria para Dirección y Administración: un código de una app además de la clave, con códigos de respaldo. El secreto se guarda cifrado.",
+    ...(process.env.GOOGLE_CLIENT_ID?.trim() ? ["Ingreso con Google, sólo para mails ya dados de alta; quien ve plata también pasa por los dos pasos."] : []),
     "Cada pantalla y cada acción de estas apps comprueba el permiso del rol en el servidor, no sólo esconde el botón.",
     "Todas las lecturas y escrituras están acotadas a este negocio.",
     RLS_ENFORCEMENT ? "Además, la base de datos filtra por negocio (seguridad por fila) en este servidor." : "La seguridad por fila de la base de datos está apagada en este servidor: el filtro por negocio lo hace la aplicación.",
@@ -189,8 +206,7 @@ function Seguridad() {
     "Los cambios de precios, pagos, permisos y personas quedan en el registro: quién, qué, antes y después.",
   ];
   const noHay = [
-    "Verificación en dos pasos (2FA): no está construida para el ingreso al ERP.",
-    "Ingreso con Google: no está construido.",
+    ...(process.env.GOOGLE_CLIENT_ID?.trim() ? [] : ["Ingreso con Google: aparece cuando el servidor tenga GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET."]),
     "Envío por mail de estos avisos: sale sólo si el servidor tiene RESEND_API_KEY y RESEND_FROM_EMAIL.",
     "Los links de cliente y de calendario no vencen: quien tenga el link entra. La dirección de calendario de una persona deja de funcionar cuando se da de baja su cuenta en Usuarios; no se puede renovar por separado.",
   ];

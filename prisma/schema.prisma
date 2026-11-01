@@ -249,6 +249,7 @@ model Tenant {
   proyectoAvisoPrefs        ProyectoAvisoPref[]
   proyectoPermisos          ProyectoPermiso[]
   proyectoCambios           ProyectoCambio[]
+  proyectoSegundosFactores  ProyectoSegundoFactor[]
   proyectoTareas            ProyectoTarea[]
   proyectoPresupuestos      ProyectoPresupuesto[]
   proyectoItems             ProyectoItem[]
@@ -3539,6 +3540,23 @@ model ProyectoProveedorFicha {
   updatedAt   DateTime @updatedAt
 
   @@index([tenantId])
+}
+
+/// Verificación en dos pasos de quien entra al panel de una productora. Vive fuera de `User`: no toca a los demás negocios.
+model ProyectoSegundoFactor {
+  id              String    @id @default(cuid())
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  userId          String
+  secreto         String // cifrado con una clave derivada de AUTH_SECRET
+  activadoEl      DateTime?
+  ultimoPaso      Int? // un código ya usado no sirve otra vez
+  intentos        Int       @default(0)
+  bloqueadoHasta  DateTime?
+  codigosRespaldo String[] // sólo hashes
+  createdAt       DateTime  @default(now())
+
+  @@unique([tenantId, userId])
 }
 
 model ProyectoPersona {

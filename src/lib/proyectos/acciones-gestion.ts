@@ -194,6 +194,18 @@ export async function cambiarEstadoPersona(formData: FormData): Promise<void> {
   revalidatePath(`${RAIZ}/equipo`);
 }
 
+/** Para quien perdió el teléfono y los códigos: vuelve a activarlos en su próximo ingreso. Queda en el registro. */
+export async function reiniciarSegundoFactor(formData: FormData): Promise<void> {
+  const a = await exigirEditar("equipo");
+  if (a.rol !== "DIRECCION") throw new Error("Sólo Dirección puede reiniciar los dos pasos.");
+  const p = await prisma.proyectoPersona.findFirst({ where: { id: txt(formData.get("id"), 40), tenantId: a.tenantId }, select: { id: true, nombre: true, userId: true } });
+  if (!p?.userId) return;
+  if (p.userId === a.user.id) throw new Error("No podés reiniciar los tuyos: usá un código de respaldo.");
+  await prisma.proyectoSegundoFactor.deleteMany({ where: { tenantId: a.tenantId, userId: p.userId } });
+  await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "Persona", entidadId: p.id, campo: `${p.nombre}: verificación en dos pasos`, antes: "Activa", despues: "Reiniciada", autor: a.nombre });
+  revalidatePath(`${RAIZ}/equipo`);
+}
+
 /** Sólo escribe lo que cambió. Dirección es fija, y nadie se sube a sí mismo los permisos salvo Dirección. */
 export async function guardarPermisos(formData: FormData): Promise<void> {
   const a = await exigirEditar("equipo");

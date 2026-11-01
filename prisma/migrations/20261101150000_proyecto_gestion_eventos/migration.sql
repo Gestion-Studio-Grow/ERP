@@ -633,5 +633,29 @@ CREATE POLICY tenant_isolation ON "ProyectoCambio"
   USING ("tenantId" = current_setting('app.current_tenant_id', true))
   WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
 
+-- Verificación en dos pasos del panel de una productora. Fuera de "User": los demás negocios no cambian.
+CREATE TABLE "ProyectoSegundoFactor" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "secreto" TEXT NOT NULL,
+    "activadoEl" TIMESTAMP(3),
+    "ultimoPaso" INTEGER,
+    "intentos" INTEGER NOT NULL DEFAULT 0,
+    "bloqueadoHasta" TIMESTAMP(3),
+    "codigosRespaldo" TEXT[],
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ProyectoSegundoFactor_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "ProyectoSegundoFactor_tenantId_userId_key" ON "ProyectoSegundoFactor"("tenantId", "userId");
+ALTER TABLE "ProyectoSegundoFactor" ADD CONSTRAINT "ProyectoSegundoFactor_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "ProyectoSegundoFactor" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "ProyectoSegundoFactor";
+CREATE POLICY tenant_isolation ON "ProyectoSegundoFactor"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+
 -- Moneda de venta del evento: el cambio queda fijo en la versión.
 ALTER TABLE "ProyectoPresupuesto" ADD COLUMN "tcVenta" DOUBLE PRECISION;

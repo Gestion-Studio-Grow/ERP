@@ -22,6 +22,12 @@ export function avisoDeIngreso(
 ): AvisoDeIngreso | null {
   if (!error) return null;
   const min = minutos(regla);
+  if (error === "google") {
+    return {
+      titulo: "No pudimos ingresar con Google.",
+      detalle: "Tu mail de Google tiene que estar dado de alta en este panel. Probá de nuevo o ingresá con tu clave.",
+    };
+  }
   if (error === "throttled") {
     return {
       titulo: "Frenamos el ingreso desde esta conexión.",
