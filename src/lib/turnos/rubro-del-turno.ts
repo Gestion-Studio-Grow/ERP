@@ -54,12 +54,12 @@ export function destinoPropio(
 }
 
 /**
- * PURA: el estado que se le muestra a quien reservó. «Pendiente de pago» SÓLO si el servicio pide seña (ADR-014,
+ * PURA: el estado que se le muestra a quien reservó. «Seña pendiente» (la misma palabra que la confirmación) SÓLO si el servicio pide seña (ADR-014,
  * `Service.depositAmount`); si no, el turno espera la confirmación del negocio y no hay ningún pago pendiente.
  */
 export function estadoPublicoDelTurno(depositAmount: number | null | undefined): { texto: string; conSena: boolean } {
   const conSena = typeof depositAmount === "number" && Number.isFinite(depositAmount) && depositAmount > 0;
-  return conSena ? { texto: "Pendiente de pago", conSena } : { texto: "A confirmar", conSena };
+  return conSena ? { texto: "Seña pendiente", conSena } : { texto: "A confirmar", conSena };
 }
 
 /** PURA: el aviso de cómo sigue, según haya seña y canal. Sin número de WhatsApp no se promete WhatsApp. */

@@ -13,7 +13,6 @@ import { getLocation } from "@/lib/settings";
 import { chConDisenoNuevo } from "../../../_ch/diseno-ch.server";
 
 const statusLabel: Record<string, string> = {
-  PENDING: "Pendiente de pago",
   CONFIRMED: "Confirmado",
   CANCELLED: "Cancelado",
   COMPLETED: "Completado",
@@ -43,7 +42,7 @@ export default async function MyAppointmentPage({
   if (propio) redirect(propio);
   const appointment = await getMyAppointment(id);
   if (!appointment) notFound();
-  // «Pendiente de pago» sólo si el servicio pide seña (ronda 2); sin seña, el turno está «A confirmar».
+  // «Seña pendiente» sólo si el servicio pide seña (ronda 2); sin seña, el turno está «A confirmar».
   const etiquetaDelEstado =
     appointment.status === "PENDING" ? estadoPublicoDelTurno(appointment.service.depositAmount).texto : (statusLabel[appointment.status] ?? appointment.status);
 

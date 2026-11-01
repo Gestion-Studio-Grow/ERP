@@ -26,10 +26,10 @@ test("el taller y el profe van a sus páginas; la estética se queda en las comp
   for (const r of ["reserva", "servicios", "servicio", "turno", "confirmacion"] as const) assert.equal(destinoPropio("agenda", r, "x"), null);
 });
 
-test("«Pendiente de pago» sólo con seña; WhatsApp sólo con número", () => {
+test("«Seña pendiente» sólo con seña; WhatsApp sólo con número", () => {
   assert.deepEqual(estadoPublicoDelTurno(null), { texto: "A confirmar", conSena: false });
   assert.deepEqual(estadoPublicoDelTurno(0), { texto: "A confirmar", conSena: false });
-  assert.deepEqual(estadoPublicoDelTurno(5000), { texto: "Pendiente de pago", conSena: true });
+  assert.deepEqual(estadoPublicoDelTurno(5000), { texto: "Seña pendiente", conSena: true });
   assert.ok(!comoSigueElTurno({ conSena: false, hayWhatsApp: false }).includes("WhatsApp"));
   assert.ok(!comoSigueElTurno({ conSena: false, hayWhatsApp: true }).includes("pago"));
   assert.match(comoSigueElTurno({ conSena: true, hayWhatsApp: true }), /WhatsApp/);
