@@ -17,7 +17,13 @@
 // Objetivo de diseño de la carga: que anotar una fila cueste lo mismo que en la
 // planilla. Fecha, tipo y medio quedan PEGADOS en lo último usado (se cargan seis
 // egresos en efectivo seguidos), el foco vuelve al detalle y cada alta confirma en
-// pantalla lo que guardó.
+// pantalla lo que guardó. El medio de la PRIMERA fila no se supone: lo elige la persona (un
+// medio ya elegido de fábrica asentaba plata en una columna que nadie miró).
+//
+// El ancho lo decide el LUGAR del formulario y no la pantalla (`@container`): vive en una tarjeta
+// ancha (diseño de siempre) y en un cajón de 480 px (diseño nuevo). Con las columnas atadas al
+// ancho de la pantalla, en una compu de 1440 los cinco campos seguían en fila adentro del cajón
+// y Medio y Monto quedaban cortados afuera.
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -79,7 +85,7 @@ export function AddLibroEntryForm({
   // esta pantalla viene a sacar.
   const [date, setDate] = useState(defaultDate);
   const [type, setType] = useState("INGRESO");
-  const [method, setMethod] = useState("MP");
+  const [method, setMethod] = useState("");
   // ¿La acción pidió confirmación (fecha fuera del mes, o posible duplicado)?
   //
   // Es un BOOLEANO, no una copia del FormData. Guardar la foto de los datos y
@@ -142,9 +148,9 @@ export function AddLibroEntryForm({
           setState(null);
         }
       }}
-      className="flex flex-col gap-4"
+      className="@container flex flex-col gap-4"
     >
-      <div className="grid gap-4 sm:grid-cols-[9.5rem_1fr_8rem_9.5rem_9rem]">
+      <div className="grid gap-4 @sm:grid-cols-2 @4xl:grid-cols-[9.5rem_minmax(0,1fr)_8rem_9.5rem_9rem]">
         <Field label="Fecha" htmlFor="libro-date" required>
           <Input
             id="libro-date"
@@ -171,13 +177,17 @@ export function AddLibroEntryForm({
             <option value="EGRESO">Egreso</option>
           </Select>
         </Field>
-        <Field label="Medio" htmlFor="libro-method">
+        <Field label="Medio" htmlFor="libro-method" required>
           <Select
             id="libro-method"
             name="method"
+            required
             value={method}
             onChange={(e) => setMethod(e.target.value)}
           >
+            <option value="" disabled>
+              Elegí el medio
+            </option>
             <option value="EFECTIVO">Efectivo</option>
             <option value="MP">Mercado Pago</option>
             <option value="TRANSFERENCIA">Transferencia</option>

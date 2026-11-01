@@ -308,6 +308,7 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
     const { page, errores } = await montar("libro");
     await page.fill("#libro-detail", "Proveedor de bolsas");
     await page.selectOption("#libro-type", "EGRESO");
+    await page.selectOption("#libro-method", "EFECTIVO");
     await page.fill("#libro-amount", "8.400,50");
     await page.evaluate(() => {
       (window as unknown as Ventana).__sinRed = true;
@@ -317,6 +318,50 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
     assert.equal(await page.inputValue("#libro-detail"), "Proveedor de bolsas");
     assert.equal(await page.inputValue("#libro-amount"), "8.400,50");
     assert.equal(await page.inputValue("#libro-type"), "EGRESO");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("libro: el medio no viene elegido: sin elegirlo no se manda nada, y el elegido queda para la fila siguiente", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("libro");
+    assert.equal(await page.inputValue("#libro-method"), "", "ni Mercado Pago ni efectivo de fábrica");
+    await page.fill("#libro-detail", "Proveedor de bolsas");
+    await page.fill("#libro-amount", "8.400,50");
+    await page.getByRole("button", { name: "Agregar movimiento" }).click();
+    assert.equal((await envios(page)).length, 0, "sin medio no sale nada");
+    assert.equal(await page.evaluate(() => document.activeElement?.id), "libro-method", "el navegador lleva al campo que falta");
+    await page.selectOption("#libro-method", "TRANSFERENCIA");
+    await page.getByRole("button", { name: "Agregar movimiento" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length >= 1);
+    assert.deepEqual((await envios(page))[0].method, ["TRANSFERENCIA"]);
+    await page.getByRole("status").filter({ hasText: "Guardado." }).waitFor();
+    assert.equal(await page.inputValue("#libro-method"), "TRANSFERENCIA", "lo elegido queda pegado");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("libro en el cajón de 480 px, en una compu de 1440: ningún campo se corta", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS");
+    const { page, errores } = await montar("libro", true);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.evaluate(() => {
+      const raiz = document.getElementById("root")!;
+      raiz.className = "";
+      raiz.style.width = "440px"; // el cuerpo del cajón: 480 menos sus márgenes
+    });
+    const medidas = await page.evaluate(() => {
+      const form = document.querySelector("form")!;
+      const borde = form.getBoundingClientRect().right;
+      return {
+        sobra: form.scrollWidth - form.clientWidth,
+        afuera: ["libro-date", "libro-detail", "libro-type", "libro-method", "libro-amount"].filter(
+          (id) => document.getElementById(id)!.getBoundingClientRect().right > borde + 0.5,
+        ),
+      };
+    });
+    assert.deepEqual(medidas, { sobra: 0, afuera: [] });
     assert.deepEqual(errores, []);
     await page.close();
   });
