@@ -69,7 +69,7 @@ export function esEgresoDeAnulacion(m: { createdBy?: string | null }): boolean {
   return String(m.createdBy ?? "").startsWith(ANULACION_TURNO_ACTOR_PREFIX);
 }
 
-const MARCA_ANULACION = "ANULACION:";
+export const MARCA_ANULACION = "ANULACION:";
 const MARCA_CONDONACION = "CONDONACION:";
 
 /** Largo mínimo del motivo: menos que esto es "asd" y no explica nada en la auditoría. */

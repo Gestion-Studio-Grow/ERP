@@ -1,5 +1,6 @@
 "use server";
 
+import { avisoDeComisionYaPagada, leerComisionPagadaDelTurno, type ComisionYaPagada } from "@/lib/reports/comision-ya-pagada";
 import { leerPaginaDeFichas, type PaginaDeFichas } from "@/lib/clientes/lista-fichas.server";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
@@ -1386,12 +1387,22 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
     });
   }
 
+  // Comisión ya pagada de este turno: SÓLO un aviso (cert ronda 2, F2). La anulación ya quedó firme y
+  // no depende de esto: si la lectura falla, se anuló igual y se contesta sin el aviso.
+  let comisionPagada: ComisionYaPagada | null = null;
+  try {
+    comisionPagada = await leerComisionPagadaDelTurno(prisma, tenantId, appointmentId);
+  } catch (e) {
+    logger.warn("caja", "anularCobroTurno: no se pudo leer si la comisión ya estaba pagada", { tenantId, appointmentId, error: String(e) });
+  }
+
   await auditAdmin({
     action: "void_collection",
     entity: "Appointment",
     entityId: appointmentId,
     changes: {
       collectionId,
+      ...(comisionPagada ? { comisionYaPagada: { payoutId: comisionPagada.payoutId, monto: comisionPagada.monto } } : {}),
       motivo: motivoV.motivo,
       monto: settled.value.monto,
       anuladaPor: user.id,
@@ -1411,7 +1422,8 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
   revalidatePath("/admin/reportes");
   revalidatePath("/admin/caja");
   revalidatePath("/admin/caja/libro");
-  return { ok: true };
+  revalidatePath("/admin/comisiones");
+  return comisionPagada ? { ok: true, aviso: avisoDeComisionYaPagada(comisionPagada) } : { ok: true };
 }
 
 /**

@@ -4,6 +4,7 @@ import { METODO_LABEL } from "@/lib/report-config";
 import { opcionesDePeriodo, periodoDeLaUrl, resolverPeriodo } from "@/lib/report-periodo";
 import { kpisDelPeriodo } from "@/lib/report-ingresos";
 import { getCommissionsOverview, settleCommissions } from "@/lib/commission-actions";
+import ComisionesConCobroAnulado from "../comisiones/ComisionesConCobroAnulado";
 import { requireUser } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
@@ -430,6 +431,7 @@ export default async function ReportesPage({
         </div>
       </details>
 
+      <ComisionesConCobroAnulado filas={overview.conCobroAnulado} />
       {/* Comisiones pendientes de pago (liquidación por período) */}
       <details open={Boolean(banner)} className="rounded-lg border border-line p-4 mb-4">
         <summary className="flex min-h-11 cursor-pointer flex-wrap items-center gap-x-3 font-medium">

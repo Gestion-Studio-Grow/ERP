@@ -50,6 +50,7 @@ import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 // cerrado, el asiento se imputa al primer día abierto en vez de perderse.
 import { diaContableDelEgreso } from "@/lib/stock/purchase-egreso";
 import { leerComisionesPendientes, leerTurnosEsperandoSaldo } from "@/lib/reports/comisiones-lectura";
+import { leerComisionesConCobroAnulado, type ComisionConCobroAnulado } from "@/lib/reports/comision-ya-pagada";
 import {
   vueltaDeLiquidacion,
   whereTurnosConComisionPendiente,
@@ -98,13 +99,15 @@ export type PayoutHistoryRow = {
 export async function getCommissionsOverview(): Promise<{
   pending: PendingCommission[];
   history: PayoutHistoryRow[];
+  conCobroAnulado: ComisionConCobroAnulado[];
 }> {
   await requireCapability("reports:read");
-  if (isDemoSandbox()) return { pending: [], history: [] };
+  if (isDemoSandbox()) return { pending: [], history: [], conCobroAnulado: [] };
   const tenantId = await getCurrentTenantId();
 
-  const [pending, payouts] = await Promise.all([
+  const [pending, conCobroAnulado, payouts] = await Promise.all([
     leerComisionesPendientes(prisma, tenantId),
+    leerComisionesConCobroAnulado(prisma, tenantId),
     prisma.commissionPayout.findMany({
       where: { tenantId },
       include: { professional: true },
@@ -123,7 +126,7 @@ export async function getCommissionsOverview(): Promise<{
     createdAt: p.createdAt,
   }));
 
-  return { pending, history };
+  return { pending, history, conCobroAnulado };
 }
 
 // Cuántos turnos esperan a que se cobre el saldo. Sólo lectura → `reports:read`.

@@ -13,6 +13,8 @@ import { fmtShortDate } from "@/lib/datetime";
 import SubmitButton from "@/components/SubmitButton";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 import type { VueltaDeLiquidacion } from "@/lib/reports/comisiones";
+import type { ComisionConCobroAnulado } from "@/lib/reports/comision-ya-pagada";
+import ComisionesConCobroAnulado from "./ComisionesConCobroAnulado";
 
 const money = (n: number) => fmtMoneyARS(n, 0);
 
@@ -21,7 +23,7 @@ export default function ComisionesPendientes({
   canSettle,
   volver,
 }: {
-  overview: { pending: PendingCommission[]; history: PayoutHistoryRow[] };
+  overview: { pending: PendingCommission[]; history: PayoutHistoryRow[]; conCobroAnulado: ComisionConCobroAnulado[] };
   /** Sólo quien tiene commissions:manage ve el botón de liquidar. */
   canSettle: boolean;
   /** A qué pantalla vuelve la liquidación. */
@@ -29,6 +31,7 @@ export default function ComisionesPendientes({
 }) {
   return (
     <>
+      <ComisionesConCobroAnulado filas={overview.conCobroAnulado} />
       {/* Comisiones pendientes de pago (liquidación por período) */}
       <div className="rounded-lg border border-line p-4 mb-4">
         <h3 className="font-medium mb-1">Comisiones pendientes de pago</h3>

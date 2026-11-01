@@ -358,10 +358,17 @@ function CobrosRegistrados({
   anular: AnulacionDeCobro | null;
 }) {
   const anulables = new Set(cobrosAnulables(cobros).map((c) => c.id));
+  // Acá arriba y no en el botón de anular: el cobro anulado deja de ofrecer el botón y el aviso se iría con él.
+  const [avisoDeComision, setAvisoDeComision] = useState("");
   if (cobros.length === 0) return null;
   return (
     <div className="mt-3 border-t border-line pt-2">
       <p className="text-xs font-medium text-muted">Cobros registrados</p>
+      {avisoDeComision && (
+        <p role="status" className="mt-1 rounded-md bg-surface-sunken px-2 py-1 text-xs text-strong">
+          {avisoDeComision}
+        </p>
+      )}
       <ul className="mt-1 flex flex-col gap-1.5">
         {cobros.map((c, i) => {
           const clase = claseDeCobro(c.note);
@@ -396,7 +403,11 @@ function CobrosRegistrados({
                   confirmar="Sí, anular"
                   placeholder="Por qué se anula (cobré el medio equivocado…)"
                   campos={{ collectionId: c.id, appointmentId }}
-                  accion={anularCobroTurno}
+                  accion={async (fd) => {
+                    const r = await anularCobroTurno(fd);
+                    if (r.ok && r.aviso) setAvisoDeComision(r.aviso);
+                    return r;
+                  }}
                 />
               )}
               {clase === "cobro" && anular === "directa" && c.id && anulables.has(c.id) && (

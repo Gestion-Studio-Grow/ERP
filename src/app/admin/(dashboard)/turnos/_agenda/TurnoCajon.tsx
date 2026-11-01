@@ -291,6 +291,8 @@ export default function TurnoCajon({
   const proximo = permisos.practica && permisos.gestionar ? `/admin/turnos/proximo/${t.id}` : null;
   // Quién anula (orden del dueño): la dueña, recepción con su código; la profesional, no.
   const anular = cobraEste ? permisos.anular : null;
+  // Acá arriba y no en el botón de anular: el cobro anulado deja de ofrecer el botón y el aviso se iría con él.
+  const [avisoDeComision, setAvisoDeComision] = useState("");
   const anulables = new Set(
     cobrosAnulables(t.cobros.map((c) => ({ ...c, note: c.note ?? null }))).map(
       (c) => c.id,
@@ -551,6 +553,11 @@ export default function TurnoCajon({
 
         {t.cobros.length > 0 && (
           <Seccion titulo="Cobros" nota={t.cobros.length}>
+            {avisoDeComision && (
+              <p role="status" className="my-2 rounded-md bg-surface-sunken px-3 py-2 text-sm text-strong">
+                {avisoDeComision}
+              </p>
+            )}
             <ul>
               {t.cobros.map((c, i) => {
                 const clase = claseDeCobro(c.note);
@@ -601,8 +608,8 @@ export default function TurnoCajon({
                             verbo="Sí, anular"
                             placeholder="Por qué (cobré por el medio equivocado…)"
                             pideCodigo={anular === "con-autorizacion"}
-                            hacer={(motivo, codigo) =>
-                              anularCobroTurno(
+                            hacer={async (motivo, codigo) => {
+                              const r = await anularCobroTurno(
                                 aFormData(
                                   camposDeAnular({
                                     cobroId: c.id!,
@@ -611,8 +618,10 @@ export default function TurnoCajon({
                                     codigo,
                                   }),
                                 ),
-                              )
-                            }
+                              );
+                              if (r.ok && r.aviso) setAvisoDeComision(r.aviso);
+                              return r;
+                            }}
                           />
                         ) : undefined
                       }
