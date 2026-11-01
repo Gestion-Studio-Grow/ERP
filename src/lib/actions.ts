@@ -1808,7 +1808,14 @@ export async function cancelAppointment(formData: FormData): Promise<ResultadoAc
   const tenantId = await getCurrentTenantId();
   const turno = await prisma.appointment.findFirst({
     where: { id: appointmentId, tenantId },
-    select: { priceAtBooking: true, service: { select: { price: true } }, payment: { select: { status: true, amount: true } } },
+    select: {
+      startsAt: true,
+      serviceId: true,
+      professionalId: true,
+      priceAtBooking: true,
+      service: { select: { price: true, name: true } },
+      payment: { select: { status: true, amount: true } },
+    },
   });
   if (!turno) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
   const cobros = (await cobrosDetalladosPorTurno(prisma, tenantId, [appointmentId])).get(appointmentId) ?? [];
@@ -1829,7 +1836,25 @@ export async function cancelAppointment(formData: FormData): Promise<ResultadoAc
   revalidatePath("/admin/turnos");
   // El hueco que se libera aparece en la lista de espera (huecos liberados).
   revalidatePath("/admin/espera");
-  return { ok: true };
+  const aviso = await avisoDelHuecoLiberado(tenantId, turno);
+  return aviso ? { ok: true, aviso } : { ok: true };
+}
+
+/** E6 + U7: un hueco que todavía no pasó le puede servir a alguien de la lista de espera. Cancelar con y sin seña dicen lo mismo. */
+async function avisoDelHuecoLiberado(
+  tenantId: string,
+  turno: { startsAt: Date; serviceId: string; professionalId: string; service: { name: string } },
+): Promise<string | null> {
+  if (turno.startsAt.getTime() <= Date.now()) return null;
+  const anotadas = await prisma.waitlistEntry.count({
+    where: {
+      tenantId,
+      status: "WAITING",
+      serviceId: turno.serviceId,
+      OR: [{ professionalId: null }, { professionalId: turno.professionalId }],
+    },
+  });
+  return avisoDeEspera({ anotadas, servicio: turno.service.name });
 }
 
 /** `cancelAppointment` sobre un turno con plata cobrada: se cancela por la hoja de la seña. */
@@ -2004,20 +2029,8 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
   revalidatePath("/admin/caja");
   revalidatePath("/admin/espera");
 
-  // E6: un hueco que todavía no pasó le puede servir a alguien de la lista de espera.
-  if (accion === "cancelar" && turno.startsAt.getTime() > Date.now()) {
-    const anotadas = await prisma.waitlistEntry.count({
-      where: {
-        tenantId,
-        status: "WAITING",
-        serviceId: turno.serviceId,
-        OR: [{ professionalId: null }, { professionalId: turno.professionalId }],
-      },
-    });
-    const aviso = avisoDeEspera({ anotadas, servicio: turno.service.name });
-    if (aviso) return { ok: true, aviso };
-  }
-  return { ok: true };
+  const aviso = accion === "cancelar" ? await avisoDelHuecoLiberado(tenantId, turno) : null;
+  return aviso ? { ok: true, aviso } : { ok: true };
 }
 
 // Realizado → Completado: el servicio se prestó Y se cobró el resto. Exige que el turno haya

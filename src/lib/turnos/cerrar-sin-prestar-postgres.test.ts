@@ -186,3 +186,30 @@ test("M3 · sin la agenda práctica, la acción igual funciona; y un turno de ot
   assert.deepEqual(r.tipo === "respuesta" && r.valor, { ok: true });
   assert.equal((await duenio.appointment.findUniqueOrThrow({ where: { id: deB.id }, select: { status: true } })).status, "CANCELLED");
 });
+
+// U7 (R1): el aviso de la lista de espera también en el camino sin seña, el de `cancelAppointment`.
+test("U7 · cancelar sin seña avisa de la lista de espera sólo si alguien sirve y el hueco no pasó", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { cancelAppointment } = await import("@/lib/actions");
+  const duenio = await prismaComoDuenio(s.base);
+  const tenantId = s.base.a.id;
+  const cancelar = async (appointmentId: string) => {
+    const fd = new FormData();
+    fd.set("appointmentId", appointmentId);
+    const r = await ejecutarAccion({ negocio: s.base.a, usuario: s.base.a.recepcion }, () => cancelAppointment(fd));
+    return r.tipo === "respuesta" ? r.valor : null;
+  };
+  const sinNadie = await s.turno("Gabi");
+  assert.deepEqual(await cancelar(sinNadie), { ok: true }, "nadie anotado: sin aviso");
+
+  const id = await s.turno("Hilda");
+  const turno = await duenio.appointment.findUniqueOrThrow({ where: { id }, select: { serviceId: true } });
+  const anotada = await duenio.waitlistEntry.create({ data: { tenantId, clientName: "Irma", clientPhone: "1130002000", serviceId: turno.serviceId } });
+  assert.deepEqual(await cancelar(id), { ok: true, aviso: "Hay 1 clienta anotada en la lista de espera para Masaje: avisales desde Lista de espera." });
+
+  const pasado = await s.turno("Juana");
+  await duenio.appointment.update({ where: { id: pasado }, data: { startsAt: new Date(Date.now() - 2 * HORA), endsAt: new Date(Date.now() - HORA) } });
+  assert.deepEqual(await cancelar(pasado), { ok: true }, "un hueco que ya pasó no le sirve a nadie");
+  await duenio.waitlistEntry.delete({ where: { id: anotada.id } });
+});
