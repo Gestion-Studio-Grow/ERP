@@ -88,7 +88,7 @@ export function DeslizarParaConfirmar({ texto, etiqueta, textoHecho = "Listo", o
         aria-valuenow={Math.round(avance * 100)}
         aria-valuetext={estado === "hecho" ? textoHecho : `${Math.round(avance * 100)} %: llevala hasta el final para confirmar`}
         aria-disabled={bloqueado || undefined}
-        className="relative z-10 grid size-13 place-items-center rounded-full bg-accent text-on-accent"
+        className="relative z-10 grid size-13 touch-none place-items-center rounded-full bg-accent text-on-accent"
         onPointerDown={(e) => {
           if (bloqueado) return;
           x0.current = e.clientX;
