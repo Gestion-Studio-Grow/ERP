@@ -90,8 +90,9 @@ export async function leerComisionesConCobroAnulado(db: Prisma.TransactionClient
       commissionPayout: { select: { id: true, amount: true, appointmentCount: true, createdAt: true, professional: { select: { name: true } } } },
       collections: { select: { amount: true, note: true, createdAt: true } },
     },
+    // Sin corte: «la plata volvió a entrar» se sabe recién en memoria, así que cortar antes de filtrar
+    // puede esconder un caso real (V2-3). El `where` ya deja sólo los turnos pagados con una anulación.
     orderBy: { startsAt: "desc" },
-    take: 50,
   });
   const filas: ComisionConCobroAnulado[] = [];
   for (const t of turnos) {
