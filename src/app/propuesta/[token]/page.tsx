@@ -26,6 +26,7 @@ const ESTILOS = `
   .mia-solo-pantalla{display:none!important}
   html,body,.mia-hoja{background:#fff!important}
   .mia-tabla tr,figure{break-inside:avoid}
+  .mia-tabla tfoot{display:table-row-group}
   .mia-hoja h2,.mia-hoja h3{break-after:avoid}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }`;

@@ -66,22 +66,39 @@ el negocio funciona pero sin su marca. El camino alternativo sin terminal es el 
 
 ## Qué NO está hecho
 
-1. **El equipo (rol PROFESSIONAL) aterriza en la agenda vacía** y llega a Proyectos sólo por el buscador
-   (Ctrl K). Sumarlo al menú rompe `src/apps/paridad-menu.test.ts`.
+1. **Textos de CH en `/reserva` y `/servicios`:** el arreglo está en la rama
+   `fix/textos-ch-en-otros-negocios` (commit `2173013d`), todavía no unida a ésta ni a `main`.
 2. **Factura electrónica:** no se emite desde el módulo; sale de Facturación.
 3. **Costos del armador:** provisionales, no son de MIA.
 4. **Render:** es la vista 3D del navegador. No hay integración con un programa de render externo.
 5. **PDF:** imprimir o guardar desde el navegador.
 6. **Archivos:** imágenes achicadas en la base (hasta ~1 MB, 30 por proyecto) y links para lo pesado.
-7. **Caja:** cheque y transferencia caen hoy en la columna «Mercado Pago» del reporte de caja.
+7. **Caja:** el libro no tiene columna de cheques: el cheque se asienta en Transferencia y su detalle dice
+   «Cheque». Decisión provisional a confirmar con quien lleve la contabilidad de MIA.
 
 ## Verificación
 
 Hecha con compilación real y base en memoria: alta, armador, cómputo, propuesta, aprobar y rechazar,
-versión 2, cobro, caja, anulación, rentabilidad, rol equipo sin plata, celular.
+versión 2, cobro, caja, anulación, rentabilidad, rol equipo sin plata, celular. También: el equipo entra a
+Proyectos, imagen de 6,1 MB subida por archivo, cobro con centavos, transferencia y cheque en el libro,
+link de WhatsApp con 549 y PDF de la propuesta generado con Chromium, sin costos ni botones.
 
-**Sin probar:** subir una imagen por archivo, el PDF impreso y abrir WhatsApp. Los decimales sólo por
-prueba unitaria.
+**Sin probar:** abrir WhatsApp de verdad (se revisó el link, no se envió nada) y el PDF con imágenes de un
+render real. La propuesta impresa se miró con la hoja de ejemplo, sin render.
+
+**Vallas del 01/11/2026:** tipos, compilación, cobertura de RLS, sello, `test:release` y calidad visual
+(contraste, toque y desborde: 0 problemas) en verde.
+
+- `npm test`: 6658 pasan, 35 fallan, 280 cancelados, 311 salteados. Las 35 fallas son del entorno o ya
+  venían: de las que no usan navegador, comparadas contra la rama base, la única nueva era la frontera de
+  three.js y quedó corregida. Las de `m1-cert-tarjeta-cableado` aparecen sólo desde PowerShell, que no
+  tiene `grep`.
+- **No corridas en esta máquina:** las pruebas de pantalla de la suite (los 280 cancelados): su navegador
+  no arranca (`spawn UNKNOWN`), tampoco en la rama base. Las 311 salteadas piden `ERP_TEST_PG_URL`.
+- `gate:visual`: el login de `/admin` da rojo porque esa valla necesita una base propia: sin base,
+  `DatabaseNotReachable`; con la de la demo, `ConnectionClosed`. Causa de entorno, sin una corrida en verde.
+- `src/tenants/breakpoint/turnero/demo-local.test.ts` puede colgar `npm test` indefinidamente acá. Ya pasa
+  en la rama base: correr con `--test-force-exit --test-timeout=180000`.
 
 **Medido el 01/11/2026 contra producción, sólo lectura:** 58 migraciones en el repo, la única pendiente es
 `20261101120000_modulo_proyectos`, y coincide con `prisma/lote-deploy.txt`.
