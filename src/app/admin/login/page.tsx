@@ -13,6 +13,11 @@ import { avisoDeIngreso, folioDelDia } from "./login-core";
 import type { CSSProperties } from "react";
 import { direccionConNegocio } from "@/lib/tenant";
 import DireccionNoHabilitada from "./DireccionNoHabilitada";
+import LogoDelNegocio from "@/components/marca/LogoDelNegocio";
+import { esteticaBackoffice } from "@/lib/estetica-backoffice";
+import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
+import { marcaProductora } from "@/lib/proyectos/marca";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
 
 // Título neutro + sin indexar, igual que el resto de /admin — esta pantalla vive
 // FUERA de (dashboard) (proxy.ts la deja pasar sin sesión) así que no hereda su
@@ -60,6 +65,10 @@ export default async function LoginPage({
   const { nombre: marcaNombre, monograma: marcaMonograma } = marcaDelNegocio(brand, identidad);
   const tituloLogin = identidad?.login.titulo ?? "Ingresá a tu panel";
   const subtituloLogin = identidad?.login.subtitulo ?? "Con el email y la contraseña de tu cuenta.";
+  // Una productora con marca propia entra con su logo, su letra y sus colores, igual que su panel. Los demás
+  // negocios, como siempre: `undefined` deja la raíz y el monograma tal cual.
+  const slugDelIngreso = await getCurrentTenantSlug();
+  const esteticaDelIngreso = marcaProductora(slugDelIngreso).logoOscuro ? esteticaBackoffice(slugDelIngreso) ?? undefined : undefined;
   const nuevo = await disenoP;
 
   return (
@@ -68,6 +77,7 @@ export default async function LoginPage({
       // Diseño nuevo: apagado es `undefined` y la raíz queda como siempre (raices-ch.test.ts).
       data-diseno={nuevo ? PIEL_RENGLON : undefined}
       data-theme="light"
+      data-estetica={esteticaDelIngreso}
       suppressHydrationWarning
       style={
         {
@@ -82,7 +92,7 @@ export default async function LoginPage({
       className={
         nuevo
           ? RAIZ_HOJA_DE_INGRESO
-          : "min-h-screen flex flex-col items-center justify-center bg-surface text-body px-4 py-10 sm:px-6"
+          : `min-h-screen flex flex-col items-center justify-center bg-surface text-body px-4 py-10 sm:px-6${esteticaDelIngreso ? ` ${claseDeFuentes(esteticaDelIngreso)}` : ""}`
       }
     >
       {/* Corrige el data-theme ANTES del primer paint (sistema/localStorage). */}
@@ -116,6 +126,9 @@ export default async function LoginPage({
                 {identidad.login.eyebrow}
               </p>
             )}
+            {esteticaDelIngreso ? (
+              <LogoDelNegocio estetica={esteticaDelIngreso} nombre={marcaNombre} />
+            ) : (
             <span className="relative grid h-12 w-12 place-items-center">
               <span
                 aria-hidden
@@ -128,6 +141,7 @@ export default async function LoginPage({
                 {marcaMonograma}
               </span>
             </span>
+            )}
             <p className="mt-3 text-sm font-medium text-muted">{marcaNombre}</p>
           </div>
 

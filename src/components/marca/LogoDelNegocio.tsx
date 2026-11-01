@@ -5,6 +5,7 @@
 //   · Magra       → MA·G·RA en Bebas con la G de oro, como su tienda (MagraFront.tsx «mf-logo», magra-content.ts).
 //   · Matías      → no tiene logo todavía: una cancha de pádel vista de arriba con la pelota, en su verde. PROVISIONAL
 //                   hasta que pase el suyo (docs/tenants/matiasconsoli/README.md, marca autorizada).
+//   · MIA         → su logo del sitio, negro en el tema claro y crema en el oscuro (src/lib/proyectos/marca.ts).
 // Los colores van por tokens y por `data-logo` en globals.css; el nombre es texto real (el dibujo, aria-hidden).
 
 import type { EsteticaBackoffice } from "@/lib/estetica-backoffice";
@@ -69,6 +70,16 @@ export default function LogoDelNegocio({ estetica, nombre }: { estetica: Estetic
             <span data-logo-parte="nombre" className="truncate">{nombre}</span>
             <span data-logo-parte="bajada">Clases de pádel</span>
           </span>
+        </span>
+      );
+    case "mia-producciones":
+      return (
+        <span data-logo="mia-producciones" className="flex min-w-0 items-center">
+          <span className="sr-only">{nombre}</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img data-logo-parte="claro" src="/tenants/mia-producciones/marca/logo-negro.svg" alt="" className="h-7 w-auto" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img data-logo-parte="oscuro" src="/tenants/mia-producciones/marca/logo-crema.svg" alt="" className="h-7 w-auto" />
         </span>
       );
     default:
