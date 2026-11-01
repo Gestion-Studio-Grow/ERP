@@ -150,8 +150,9 @@ export function AddLibroEntryForm({
       }}
       className="@container flex flex-col gap-4"
     >
+      {/* En el cajón, Detalle (lo único que se escribe de corrido) ocupa el renglón entero. */}
       <div className="grid gap-4 @sm:grid-cols-2 @4xl:grid-cols-[9.5rem_minmax(0,1fr)_8rem_9.5rem_9rem]">
-        <Field label="Fecha" htmlFor="libro-date" required>
+        <Field label="Fecha" htmlFor="libro-date" required className="@sm:col-span-2 @4xl:col-span-1">
           <Input
             id="libro-date"
             type="date"
@@ -161,7 +162,7 @@ export function AddLibroEntryForm({
             onChange={(e) => setDate(e.target.value)}
           />
         </Field>
-        <Field label="Detalle" htmlFor="libro-detail" required>
+        <Field label="Detalle" htmlFor="libro-detail" required className="@sm:col-span-2 @4xl:col-span-1">
           <Input
             id="libro-detail"
             type="text"
@@ -194,7 +195,7 @@ export function AddLibroEntryForm({
             <option value="TARJETA">Tarjeta</option>
           </Select>
         </Field>
-        <Field label="Monto" htmlFor="libro-amount" required>
+        <Field label="Monto" htmlFor="libro-amount" required className="@sm:col-span-2 @4xl:col-span-1">
           <Input
             id="libro-amount"
             // Texto: "12.500" son doce mil quinientos (el servidor lee con `leerImporte`).

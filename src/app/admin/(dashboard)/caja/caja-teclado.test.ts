@@ -366,6 +366,36 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
     await page.close();
   });
 
+  test("libro en la compu: el Detalle se puede leer, en el cajón y en la tarjeta ancha", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS");
+    const { page, errores } = await montar("libro", true);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const medir = (ancho: number) =>
+      page.evaluate((w) => {
+        const raiz = document.getElementById("root")!;
+        raiz.className = "";
+        raiz.style.width = `${w}px`;
+        return {
+          detalle: Math.round(document.getElementById("libro-detail")!.getBoundingClientRect().width),
+          enFila:
+            new Set(
+              ["libro-date", "libro-detail", "libro-type", "libro-method", "libro-amount"].map((id) =>
+                Math.round(document.getElementById(id)!.getBoundingClientRect().top),
+              ),
+            ).size === 1,
+        };
+      }, ancho);
+    const cajon = await medir(440);
+    assert.equal(cajon.detalle, 440, "en el cajón, el renglón entero");
+    assert.equal(cajon.enFila, false);
+    const tarjeta = await medir(1060);
+    assert.ok(tarjeta.enFila, "en la tarjeta ancha, los cinco en fila");
+    assert.ok(tarjeta.detalle >= 400, `Detalle de ${tarjeta.detalle} px en la tarjeta`);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("libro vacío: «Cargar un movimiento» deja el foco en el Detalle, listo para tipear", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("libro");
