@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Proveedor" };
 
 export default async function DetalleProveedor({ params }: { params: Promise<{ id: string }> }) {
-  await requireApp("proyectos");
+  await requireApp("gestion-proveedores");
   const a = await exigirVer("proveedores");
   const { id } = await params;
   const d = await detalleDeProveedor(a, id);

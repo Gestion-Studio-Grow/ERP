@@ -21,7 +21,7 @@ function saludo(): string {
 }
 
 export default async function InicioGestion() {
-  await requireApp("proyectos");
+  await requireApp("gestion-inicio");
   const a = await actorActual();
   const d = await datosDeInicio(a);
   const accesos = [

@@ -24,7 +24,7 @@ const DE_EMPRESA = [
 type Busqueda = { tab?: string; estado?: string; q?: string; mes?: string };
 
 export default async function Administracion({ searchParams }: { searchParams: Promise<Busqueda> }) {
-  await requireApp("proyectos");
+  await requireApp("gestion-administracion");
   const a = await actorActual();
   const veEmpresa = puede(a, "empresa", "ver");
   const veLiquidaciones = puede(a, "liquidaciones", "ver");

@@ -8,7 +8,7 @@ import { actorActual, proyectoVisible, puede } from "@/lib/proyectos/gestion.ser
 const NO = () => new Response("No encontrada", { status: 404 });
 
 export async function GET(_: Request, { params }: { params: Promise<{ clave: string }> }) {
-  await requireApp("proyectos");
+  await requireApp("gestion-diseno");
   const a = await actorActual();
   const c = leerClaveImagen((await params).clave);
   if (!c || !puede(a, "diseno", "ver")) return NO();

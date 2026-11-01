@@ -488,7 +488,7 @@ test("panel cerrado: el dueño de una productora ve sólo lo de su trabajo, aunq
   assert.equal(appDelPanelCerrado(n)?.id, "proyectos");
   assert.deepEqual(
     appsVisibles(n).map((a) => a.id).sort(),
-    ["caja-del-dia", "cierre-del-dia", "clientes", "facturacion", "libro-de-caja", "proyectos", "reportes", "usuarios"],
+    ["caja-del-dia", "cierre-del-dia", "clientes", "facturacion", "gestion-administracion", "gestion-agentes", "gestion-calendario", "gestion-direccion", "gestion-diseno", "gestion-equipo", "gestion-inicio", "gestion-mi-liquidacion", "gestion-propuesta-ia", "gestion-proveedores", "libro-de-caja", "proyectos", "reportes", "usuarios"],
   );
   assert.equal(motivoNoDisponible(appPorId("agenda"), n), "panel");
   assert.equal(motivoNoDisponible(appPorId("inicio"), n), "panel");

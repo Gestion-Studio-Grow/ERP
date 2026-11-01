@@ -22,7 +22,7 @@ const TABS = [
 ];
 
 export default async function AppDiseno({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  await requireApp("proyectos");
+  await requireApp("gestion-diseno");
   const a = await exigirVer("diseno");
   const { tab } = await searchParams;
   const actual = TABS.find((t) => t.id === tab)?.id ?? "tablero";

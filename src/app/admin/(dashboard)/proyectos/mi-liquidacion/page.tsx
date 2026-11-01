@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Mi liquidación" };
 
 export default async function MiLiquidacion({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
-  await requireApp("proyectos");
+  await requireApp("gestion-mi-liquidacion");
   const a = await actorActual();
   const { periodo } = await searchParams;
   // Se lee siempre por la persona de la sesión: no hay manera de pedir la de otro desde acá.

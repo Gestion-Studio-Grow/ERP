@@ -51,7 +51,7 @@ test("«Facturas e impuestos» tiene exactamente las apps de los módulos argent
 
 // Los circuitos verticales (taller, inmobiliaria, club de pádel, clases del profe) son excluyentes: un negocio tiene uno
 // solo, con su módulo propio y `moduloDuro`. En un espacio ocupan UN lugar, no uno cada uno.
-const VERTICALES: ReadonlySet<string> = new Set(["taller", "inmobiliaria", "proyectos", "club", "padel-clases"]);
+const VERTICALES: ReadonlySet<string> = new Set(["taller", "inmobiliaria", "proyectos", "gestion-inicio", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "club", "padel-clases"]);
 
 test("ningún espacio pasa de 8 apps por rubro con el registro de hoy", () => {
   for (const rubro of ["mostrador", "servicios"] as const) {
@@ -68,7 +68,7 @@ test("ningún espacio pasa de 8 apps por rubro con el registro de hoy", () => {
 
 test("los verticales que cuentan como un lugar son de verdad excluyentes: módulo propio y moduloDuro", () => {
   for (const id of VERTICALES) {
-    const app = REGISTRO_APPS.find((a) => a.modulo === id);
+    const app = REGISTRO_APPS.find((a) => a.modulo === id || a.id === id);
     assert.ok(app, `no hay app del vertical ${id}`);
     assert.equal(app.moduloDuro, true, `${app.id} no exige su módulo: no es excluyente`);
   }

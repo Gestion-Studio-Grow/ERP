@@ -17,7 +17,7 @@ export const metadata = { title: "Proveedores" };
 
 // Con quién trabaja la productora. Son los mismos proveedores del sistema (`Supplier`): la ficha suma lo que importa en un evento.
 export default async function ProveedoresDeProyectos({ searchParams }: { searchParams: Promise<{ rubro?: string; q?: string; bajas?: string }> }) {
-  await requireApp("proyectos");
+  await requireApp("gestion-proveedores");
   const a = await exigirVer("proveedores");
   const sp = await searchParams;
   const rubro = (RUBROS as readonly string[]).includes(sp.rubro ?? "") ? sp.rubro! : "";

@@ -209,7 +209,7 @@ function Seguridad() {
 }
 
 export default async function EquipoGestion({ searchParams }: { searchParams: Promise<{ tab?: string; pagina?: string; ok?: string }> }) {
-  await requireApp("proyectos");
+  await requireApp("gestion-equipo");
   const a = await exigirVer("equipo");
   const sp = await searchParams;
   const tab = PESTANAS.find((p) => p.id === sp.tab)?.id ?? "personas";

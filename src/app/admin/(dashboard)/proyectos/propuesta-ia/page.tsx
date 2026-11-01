@@ -17,7 +17,7 @@ export const maxDuration = 120;
 export const metadata = { title: "Propuesta con IA" };
 
 export default async function PaginaPropuesta({ searchParams }: { searchParams: Promise<{ proyecto?: string; paso?: string }> }) {
-  await requireApp("proyectos");
+  await requireApp("gestion-propuesta-ia");
   const a = await exigirVer("ia");
   const { proyecto, paso } = await searchParams;
   if (!puede(a, "diseno", "ver")) {

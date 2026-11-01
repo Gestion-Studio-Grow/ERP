@@ -17,7 +17,7 @@ const TABS = [
 ] as const;
 
 export default async function Direccion({ searchParams }: { searchParams: Promise<{ tab?: string; proyecto?: string }> }) {
-  await requireApp("proyectos");
+  await requireApp("gestion-direccion");
   const a = await exigirVer("direccion");
   const sp = await searchParams;
   const tab = TABS.some((t) => t.id === sp.tab) ? sp.tab : "tablero";

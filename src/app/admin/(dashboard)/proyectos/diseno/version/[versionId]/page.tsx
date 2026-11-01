@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Versión de la pieza" };
 
 export default async function PaginaVersion({ params }: { params: Promise<{ versionId: string }> }) {
-  await requireApp("proyectos");
+  await requireApp("gestion-diseno");
   const a = await exigirVer("diseno");
   const { versionId } = await params;
   const v = await prisma.proyectoEntregableVersion.findFirst({

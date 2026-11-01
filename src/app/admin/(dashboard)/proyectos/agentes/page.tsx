@@ -11,7 +11,7 @@ export const maxDuration = 120;
 export const metadata = { title: "Agentes IA" };
 
 export default async function PaginaAgentes({ searchParams }: { searchParams: Promise<{ proyecto?: string }> }) {
-  await requireApp("proyectos");
+  await requireApp("gestion-agentes");
   const a = await exigirVer("ia");
   const { proyecto } = await searchParams;
   const proyectos = await proyectosElegibles(a);

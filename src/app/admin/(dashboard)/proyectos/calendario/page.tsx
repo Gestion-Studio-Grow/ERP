@@ -42,7 +42,7 @@ function Renglon({ e }: { e: EntradaCalendario }) {
 }
 
 export default async function CalendarioGestion({ searchParams }: { searchParams: Promise<{ mes?: string; mias?: string; dia?: string }> }) {
-  await requireApp("proyectos");
+  await requireApp("gestion-calendario");
   const a = await actorActual();
   const sp = await searchParams;
   const mes = mesPedido(sp.mes);

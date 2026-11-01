@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Editar proveedor" };
 
 export default async function EditarProveedor({ params }: { params: Promise<{ id: string }> }) {
-  await requireApp("proyectos");
+  await requireApp("gestion-proveedores");
   const a = await exigirVer("proveedores");
   const { id } = await params;
   if (!puede(a, "proveedores", "editar")) redirect(`/admin/proyectos/proveedores/${id}`);
