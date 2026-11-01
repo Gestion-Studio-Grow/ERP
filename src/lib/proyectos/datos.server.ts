@@ -321,6 +321,7 @@ export async function propuestaPublica(token: string) {
       proyecto: {
         select: {
           id: true,
+          moneda: true,
           numero: true,
           nombre: true,
           servicio: true,

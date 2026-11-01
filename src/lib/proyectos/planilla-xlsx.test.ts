@@ -10,7 +10,7 @@ const leer = (b: Buffer) => {
 
 const base = {
   proyecto: { nombre: "Gala", client: { name: "Cliente" } },
-  codigo: "2026-001",
+  moneda: "ARS", codigo: "2026-001",
   version: 2,
   grupos: [{ rubro: "Catering", subtotal: 1500.5, lineas: [{ descripcion: "Menú", cantidad: 3, importe: 1500.5 }] }],
   neto: 1500.5,

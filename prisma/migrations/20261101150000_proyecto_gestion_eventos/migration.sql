@@ -631,3 +631,6 @@ DROP POLICY IF EXISTS tenant_isolation ON "ProyectoCambio";
 CREATE POLICY tenant_isolation ON "ProyectoCambio"
   USING ("tenantId" = current_setting('app.current_tenant_id', true))
   WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+
+-- Moneda de venta del evento: el cambio queda fijo en la versión.
+ALTER TABLE "ProyectoPresupuesto" ADD COLUMN "tcVenta" DOUBLE PRECISION;

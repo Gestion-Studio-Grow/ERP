@@ -23,6 +23,8 @@ import {
   type ItemFicha,
   mailDeAviso,
   ajustarAPagado,
+  cambioDeVenta,
+  enMonedaDeVenta,
   appEnLaBarra,
   movimientoDeCuenta,
   rolDelActor,
@@ -274,4 +276,24 @@ test("la cuenta se mueve en su moneda, y otra moneda no se inventa", () => {
   assert.equal(movimientoDeCuenta({ tipo: "PAGO", monto: 10, moneda: "USD", importeEnPesos: 12000, monedaCuenta: "ARS" }), -12000);
   assert.equal(movimientoDeCuenta({ tipo: "PAGO", monto: 10, moneda: "USD", importeEnPesos: 12000, monedaCuenta: "USD" }), -10);
   assert.equal(movimientoDeCuenta({ tipo: "COBRO", monto: 100, moneda: "ARS", importeEnPesos: 100, monedaCuenta: "USD" }), null);
+});
+
+test("moneda de venta: el cambio de la versión manda y sin cambio no se inventa", () => {
+  assert.equal(cambioDeVenta("ARS", 999, { USD: 1000 }), 1);
+  assert.equal(cambioDeVenta("USD", null, { USD: 1000 }), 1000);
+  assert.equal(cambioDeVenta("USD", 1200, { USD: 1000 }), 1200);
+  assert.equal(cambioDeVenta("USD", null, {}), 0);
+  assert.equal(enMonedaDeVenta(1_210_000, 1000), 1210);
+  assert.equal(enMonedaDeVenta(1_210_000, 0), 1_210_000);
+});
+
+test("el cliente de un evento en dólares paga en dólares y el proveedor sigue en su moneda", () => {
+  const items = [{ id: "i", descripcion: "Stand", rubro: "Stand", cantidad: 1, costo: 500_000, moneda: "ARS", recargoPct: null, precio: 1_000_000, fechaLimite: null, supplierId: "s" }];
+  const base = { proyectoId: "p", nombre: "E", fechaEvento: new Date("2027-01-10T12:00:00Z"), creado: new Date("2026-11-01T12:00:00Z"), anticipoClientePct: 50, ivaPct: 21, recargoGeneral: 0, tiposDeCambio: { USD: 1000 }, anticipoProveedor: { s: 50 } };
+  const plan = planDeCuotas(items, { ...base, monedaVenta: "USD", cambioVenta: 1000 });
+  const cobros = plan.filter((c) => c.tipo === "COBRO");
+  assert.deepEqual(cobros.map((c) => [c.moneda, c.monto]), [["USD", 605], ["USD", 605]]);
+  assert.ok(plan.filter((c) => c.tipo === "PAGO").every((c) => c.moneda === "ARS"));
+  const sinCambio = planDeCuotas(items, { ...base, monedaVenta: "USD", cambioVenta: 0 });
+  assert.ok(sinCambio.filter((c) => c.tipo === "COBRO").every((c) => c.moneda === "ARS"));
 });

@@ -125,7 +125,7 @@ Provisional hasta confirmarlo con MIA. Probado en la demo con un usuario por rol
 - **IVA:** cambiarlo pierde la aprobación de precios y recalcula las cuotas. En una versión enviada, el margen se rotula «al cambio de hoy».
 - **Vencimientos:** el aviso sale a 3 días, cuando alguien abre Inicio. No hay proceso nocturno: si nadie entra, no sale.
 - **Tope de subida:** `next.config.ts` sube las acciones a 3 MB para el PDF. Vale para todos los negocios al desplegar.
-- **Moneda del evento:** no está hecha; espera que MIA confirme si cotiza en dólares.
+- **Moneda del evento:** cada evento se vende en pesos o en dólares (confirmado por el dueño, 01/11). El cliente ve y paga en esa moneda: ficha, cotización, propuesta, papel, Excel y cuotas de cobro. Internamente la venta se guarda en pesos al **cambio de la versión** (`tcVenta`): queda fijo al escribir un precio en dólares o al enviar, y se puede corregir mientras la versión es borrador, lo que pierde la aprobación de precios. Una versión nueva conserva el cambio de la anterior. Costos, márgenes, pipeline y reportes siguen en pesos: el margen de un evento en dólares usa el cambio de la versión para la venta y el de hoy para los costos en dólares. Al cobrar, la caja asienta los pesos al cambio del día, así que la diferencia de cambio no se calcula aparte (provisional, a confirmar con quien lleve la contabilidad de MIA). La moneda no se puede cambiar con una versión enviada o un cobro hecho.
 
 ## Qué NO está hecho
 

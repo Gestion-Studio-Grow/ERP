@@ -1,9 +1,10 @@
 // La planilla de venta: rubro con subtotal, ítem, cantidad, importe. Nunca un costo. La usan la cotización y el papel.
 
-import { pesos } from "@/lib/proyectos/core";
+import { ventaEn } from "@/lib/proyectos/gestion-core";
 import type { GrupoPlanilla } from "@/lib/proyectos/ficha-core";
 
-export function PlanillaVenta({ grupos, neto, ivaPct }: { grupos: readonly GrupoPlanilla[]; neto: number; ivaPct?: number }) {
+export function PlanillaVenta({ grupos, neto, ivaPct, moneda = "ARS", cambio = 1 }: { grupos: readonly GrupoPlanilla[]; neto: number; ivaPct?: number; moneda?: string; cambio?: number }) {
+  const pesos = (n: number) => ventaEn(n, moneda, cambio);
   if (grupos.length === 0) return <p className="text-sm text-muted">Sin ítems todavía.</p>;
   const iva = ivaPct ? Math.round(neto * ivaPct) / 100 : 0;
   return (

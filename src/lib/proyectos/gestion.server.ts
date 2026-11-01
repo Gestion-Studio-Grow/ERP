@@ -16,7 +16,7 @@ import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
-import { ajustarAPagado, COLUMNAS_OCULTAS_BASE, rolDelActor, mailDeAviso, generaCuotas, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, rolDelActor, mailDeAviso, generaCuotas, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 
 export interface Actor {
   user: SessionUser;
@@ -182,7 +182,7 @@ export const aItemFicha = (i: { id: string; descripcion: string; rubro: string; 
  */
 export async function regenerarCuotas(tenantId: string, proyectoId: string): Promise<void> {
   const [p, viva, config, tc] = await Promise.all([
-    prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true } }),
+    prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true } }),
     versionViva(tenantId, proyectoId),
     configProyectos(tenantId),
     tiposDeCambio(tenantId),
@@ -202,6 +202,8 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
           ivaPct: viva.ivaPct,
           recargoGeneral: config.margenPct,
           tiposDeCambio: tc,
+          monedaVenta: p.moneda,
+          cambioVenta: cambioDeVenta(p.moneda, viva.tcVenta, tc),
           anticipoProveedor: Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct])),
         })
       : [];

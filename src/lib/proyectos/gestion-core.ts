@@ -60,6 +60,21 @@ export function plataEn(monto: number, moneda: string): string {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: moneda === "USD" ? "USD" : "ARS", minimumFractionDigits: d, maximumFractionDigits: d }).format(monto);
 }
 
+/** Pesos por unidad de la moneda de venta. Enviada la versión queda fijo; antes, el de hoy. 0 si falta. PURA. */
+export function cambioDeVenta(moneda: string, tcVenta: number | null | undefined, tc: Readonly<Record<string, number>>): number {
+  if (moneda === "ARS") return 1;
+  return tcVenta ?? tc[moneda] ?? 0;
+}
+
+/** Internamente todo se calcula en pesos: esto es lo que ve y paga el cliente. Sin cambio, se queda en pesos antes que inventar uno. PURA. */
+export function enMonedaDeVenta(enPesos: number, cambio: number): number {
+  return cambio > 0 ? redondear(enPesos / cambio) : enPesos;
+}
+
+export function ventaEn(enPesos: number, moneda: string, cambio: number): string {
+  return moneda === "ARS" || !(cambio > 0) ? plataEn(enPesos, "ARS") : plataEn(enMonedaDeVenta(enPesos, cambio), moneda);
+}
+
 // ── Ficha del evento ────────────────────────────────────────────────────────
 
 export interface ItemFicha {
@@ -122,6 +137,9 @@ export interface DatosPlan {
   ivaPct: number;
   recargoGeneral: number;
   tiposDeCambio: Readonly<Record<string, number>>;
+  /** En qué moneda paga el cliente y a qué cambio. Sin esto, en pesos. */
+  monedaVenta?: string;
+  cambioVenta?: number;
   /** % de anticipo de cada proveedor; sin dato, 50. */
   anticipoProveedor: Readonly<Record<string, number>>;
 }
@@ -155,11 +173,12 @@ export function planDeCuotas(items: readonly ItemFicha[], d: DatosPlan): CuotaPl
   const { venta } = totalesFicha(items, d.tiposDeCambio, d.recargoGeneral);
   if (venta > 0) {
     const pct = Math.min(100, Math.max(0, d.anticipoClientePct));
-    const conIva = redondear(venta * (1 + d.ivaPct / 100));
+    const monedaCliente = d.monedaVenta && d.monedaVenta !== "ARS" && (d.cambioVenta ?? 0) > 0 ? d.monedaVenta : "ARS";
+    const conIva = enMonedaDeVenta(redondear(venta * (1 + d.ivaPct / 100)), monedaCliente === "ARS" ? 1 : d.cambioVenta!);
     const anticipo = redondear((conIva * pct) / 100);
     const saldo = redondear(conIva - anticipo);
-    if (anticipo > 0) salida.push({ clave: `${d.proyectoId}:cliente:anticipo`, tipo: "COBRO", concepto: `${d.nombre} — anticipo del cliente`, monto: anticipo, moneda: "ARS", venceEl: d.creado, supplierId: null });
-    if (saldo > 0) salida.push({ clave: `${d.proyectoId}:cliente:saldo`, tipo: "COBRO", concepto: `${d.nombre} — saldo del cliente`, monto: saldo, moneda: "ARS", venceEl: new Date(evento - DIAS_SALDO_CLIENTE_ANTES * DIA), supplierId: null });
+    if (anticipo > 0) salida.push({ clave: `${d.proyectoId}:cliente:anticipo`, tipo: "COBRO", concepto: `${d.nombre} — anticipo del cliente`, monto: anticipo, moneda: monedaCliente, venceEl: d.creado, supplierId: null });
+    if (saldo > 0) salida.push({ clave: `${d.proyectoId}:cliente:saldo`, tipo: "COBRO", concepto: `${d.nombre} — saldo del cliente`, monto: saldo, moneda: monedaCliente, venceEl: new Date(evento - DIAS_SALDO_CLIENTE_ANTES * DIA), supplierId: null });
   }
   return salida;
 }

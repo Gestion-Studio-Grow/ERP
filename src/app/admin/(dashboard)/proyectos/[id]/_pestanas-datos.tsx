@@ -7,7 +7,7 @@ import { agregarTarea, alternarTarea } from "@/lib/proyectos/acciones";
 import { agregarChecklist, alternarChecklist, asignarEquipo, borrarChecklist, cargarPlantillaChecklist, generarPortal, guardarDatos, nuevaVersion, quitarEquipo, revocarPortal } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, yaVencio, type MedioPago } from "@/lib/proyectos/core";
 import { conteoPorEstado } from "@/lib/proyectos/ficha-core";
-import { ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, plataEn, TIPOS_EVENTO } from "@/lib/proyectos/gestion-core";
+import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, plataEn, TIPOS_EVENTO, ventaEn } from "@/lib/proyectos/gestion-core";
 import { datosFicha, datosHistorial, datosResumen, datosSeguimiento, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import type { Actor } from "@/lib/proyectos/gestion.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
@@ -181,11 +181,12 @@ export async function PestanaFicha({ a, cab, vista }: { a: Actor; cab: Cabecera;
   const enBorrador = !viva || sePuedeEditar(viva.estado);
   const verCosto = !vista.ocultas.has("costoTotal");
   const verMargen = !vista.ocultas.has("margen");
+  const cambioVenta = cambioDeVenta(proyecto.moneda, viva?.tcVenta, cab.tc);
   return (
     <section className={tarjeta} aria-label="Ficha del evento">
       <dl className="mb-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <Numero titulo="Ítems" valor={String(t.items)} />
-        <Numero titulo="Venta total" valor={pesos(t.venta)} />
+        <Numero titulo="Venta total" valor={ventaEn(t.venta, proyecto.moneda, cambioVenta)} />
         {verCosto && <Numero titulo="Costo total" valor={pesos(t.costo)} />}
         {verMargen && <Numero titulo="Margen" valor={`${pesos(t.margen)} (${porcentaje(t.margenPct)})`} alerta={t.margen < 0} />}
       </dl>
@@ -213,6 +214,8 @@ export async function PestanaFicha({ a, cab, vista }: { a: Actor; cab: Cabecera;
         editable={vista.fichaEdita && !!viva && enBorrador}
         editaCostos={vista.editaCostos}
         recargoGeneral={config.margenPct}
+        moneda={proyecto.moneda}
+        cambio={cambioVenta}
       />
       <p className="mt-3 text-sm text-muted">Al guardar se regeneran solos los pagos a proveedores, los cobros al cliente y las fechas límite. Lo ya pagado no se toca.</p>
     </section>

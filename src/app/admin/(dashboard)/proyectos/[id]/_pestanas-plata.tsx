@@ -9,7 +9,7 @@ import { anularCobroFicha, anularGastoFicha, aprobarInterno, crearMovimientoManu
 import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
 import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, planillaDeVenta } from "@/lib/proyectos/ficha-core";
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
-import { cambiosEntreVersiones, estadoCuota, MONEDAS, plataEn, totalesFicha } from "@/lib/proyectos/gestion-core";
+import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, plataEn, totalesFicha, ventaEn } from "@/lib/proyectos/gestion-core";
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
 import type { Actor } from "@/lib/proyectos/gestion.server";
@@ -60,6 +60,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
           {versiones.map((v, n) => {
             const t = totalesFicha(v.items.map(aItemFicha), tc, recargo);
             const editable = sePuedeEditar(v.estado);
+            const cambio = cambioDeVenta(p.moneda, v.tcVenta, tc);
             const ruta = `/propuesta/${v.token}`;
             return (
               <li key={v.id} className="rounded-xl border border-line p-3">
@@ -69,7 +70,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                   {v.aprobadoInternoEl ? <span className="text-xs text-muted">Precios aprobados por {v.aprobadoInternoPor}</span> : editable && <span className="text-xs font-medium text-danger">Falta la aprobación de Dirección</span>}
                 </div>
                 <dl className="mb-2 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                  <Numero titulo="Total sin IVA" valor={pesos(t.venta)} />
+                  <Numero titulo="Total sin IVA" valor={ventaEn(t.venta, p.moneda, cambio)} />
                   {verMargen && <Numero titulo={editable ? "Margen" : "Margen al cambio de hoy"} valor={`${pesos(t.margen)} (${porcentaje(t.margenPct)})`} />}
                   <Numero titulo="Fecha" valor={fechaCorta(v.enviadoEl ?? v.createdAt)} />
                   <Numero titulo="Quién" valor={v.creadoPor ?? "—"} />
@@ -100,6 +101,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                       <label className={etiqueta}>Presentación para el cliente<textarea name="presentacion" rows={3} defaultValue={v.presentacion} className={areaTexto} /></label>
                       <label className={etiqueta}>Condiciones<textarea name="condiciones" rows={3} defaultValue={v.condiciones} className={areaTexto} /></label>
                       <label className={cn(etiqueta, "max-w-40")}>IVA %<input name="ivaPct" defaultValue={String(v.ivaPct).replace(".", ",")} inputMode="decimal" className={campo} /></label>
+                      {p.moneda !== "ARS" && <label className={cn(etiqueta, "max-w-64")}>Cambio de venta: pesos por {p.moneda}<input name="tcVenta" defaultValue={cambio > 0 ? String(cambio).replace(".", ",") : ""} inputMode="decimal" className={campo} /></label>}
                       <SubmitButton className={buttonClasses("outline", "md")}>Guardar textos</SubmitButton>
                     </FormAccion>
                     <FormAccion accion={enviarCotizacion}>
@@ -165,7 +167,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
           <h2 className="mb-2 font-semibold text-strong">Versión {abierta.version}</h2>
           {(() => {
             const pl = planillaDeVenta(abierta.items, tc, recargo);
-            return <PlanillaVenta grupos={pl.grupos} neto={pl.neto} ivaPct={abierta.ivaPct} />;
+            return <PlanillaVenta grupos={pl.grupos} neto={pl.neto} ivaPct={abierta.ivaPct} moneda={p.moneda} cambio={cambioDeVenta(p.moneda, abierta.tcVenta, tc)} />;
           })()}
         </section>
       )}
@@ -173,7 +175,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
       {planillaViva && (
         <section className={tarjeta} aria-label="Planilla de venta en vivo">
           <h2 className="mb-2 font-semibold text-strong">Planilla de venta en vivo</h2>
-          <PlanillaVenta grupos={planillaViva.grupos} neto={planillaViva.neto} ivaPct={viva.ivaPct} />
+          <PlanillaVenta grupos={planillaViva.grupos} neto={planillaViva.neto} ivaPct={viva.ivaPct} moneda={p.moneda} cambio={cambioDeVenta(p.moneda, viva.tcVenta, tc)} />
         </section>
       )}
     </div>

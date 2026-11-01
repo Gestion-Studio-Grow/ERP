@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 export interface PlanillaParaExcel {
   proyecto: { nombre: string; client: { name: string } };
   codigo: string;
+  moneda: string;
   version: number;
   grupos: { rubro: string; subtotal: number; lineas: { descripcion: string; cantidad: number | null; importe: number }[] }[];
   neto: number;
@@ -18,7 +19,7 @@ const FORMATO_PLATA = "#,##0.00";
 
 export function libroDePlanilla(d: PlanillaParaExcel): Buffer {
   const filas: (string | number | null)[][] = [
-    [d.proyecto.nombre, d.proyecto.client.name, d.codigo, `Versión ${d.version}`],
+    [d.proyecto.nombre, d.proyecto.client.name, d.codigo, `Versión ${d.version}`, `Importes en ${d.moneda}`],
     [],
     ["Rubro", "Detalle", "Cantidad", "Importe"],
     ...d.grupos.flatMap((g) => [...g.lineas.map((l) => [g.rubro, l.descripcion, l.cantidad, l.importe]), [g.rubro, "Subtotal", null, g.subtotal]]),

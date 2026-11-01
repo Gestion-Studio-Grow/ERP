@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { Work_Sans } from "next/font/google";
 import { notFound } from "next/navigation";
 import { propuestaPublica } from "@/lib/proyectos/datos.server";
+import { cambioDeVenta, ventaEn } from "@/lib/proyectos/gestion-core";
 import { marcaProductora } from "@/lib/proyectos/marca";
-import { clientePuedeResponder, fechaCorta, pesos, porRubro, SERVICIO_LABEL, waLink, yaVencio, type Servicio } from "@/lib/proyectos/core";
+import { clientePuedeResponder, fechaCorta, porRubro, SERVICIO_LABEL, waLink, yaVencio, type Servicio } from "@/lib/proyectos/core";
 import { BotonImprimir, Responder, VisorStand } from "./piezas";
 
 // Link del cliente: sin login, la llave es el token. No se indexa ni se cachea.
@@ -36,6 +37,8 @@ export default async function PropuestaPage({ params }: { params: Promise<{ toke
   const data = await propuestaPublica(token).catch(() => null);
   if (!data) notFound();
   const { presupuesto: b, negocio, totales: t } = data;
+  const cambio = cambioDeVenta(b.proyecto.moneda, b.tcVenta, {});
+  const pesos = (n: number) => ventaEn(n, b.proyecto.moneda, cambio);
   const p = b.proyecto;
   const marca = marcaProductora(negocio.slug);
   const puede = clientePuedeResponder(b);

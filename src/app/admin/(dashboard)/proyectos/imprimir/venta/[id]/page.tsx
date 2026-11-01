@@ -39,7 +39,7 @@ export default async function PlanillaImprimible({ params, searchParams }: { par
           <h1 className="text-xl font-bold text-strong">{p.nombre}</h1>
           <p className="text-sm">{[p.client.name, p.lugar, p.ciudad, p.fechaEvento && fechaCorta(p.fechaEvento)].filter(Boolean).join(" · ")}</p>
         </header>
-        <PlanillaVenta grupos={d.grupos} neto={d.neto} ivaPct={d.ivaPct} />
+        <PlanillaVenta grupos={d.grupos} neto={d.neto} ivaPct={d.ivaPct} moneda={d.moneda} />
         {d.condiciones && <p className="mt-4 whitespace-pre-line border-t border-line pt-3 text-sm">{d.condiciones}</p>}
       </article>
     </main>

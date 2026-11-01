@@ -9,6 +9,7 @@ import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuota
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
+import { cambioDeVenta, enMonedaDeVenta } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
 
 export interface TarjetaProyecto {
@@ -233,17 +234,23 @@ export async function datosDiseno(a: Actor, proyectoId: string) {
 export async function planillaParaPapel(a: Actor, proyectoId: string, versionId?: string | null) {
   const p = await prisma.proyecto.findFirst({
     where: { ...filtroDeProyectos(a), id: proyectoId },
-    select: { id: true, numero: true, nombre: true, lugar: true, ciudad: true, fechaEvento: true, createdAt: true, client: { select: { name: true } } },
+    select: { moneda: true, id: true, numero: true, nombre: true, lugar: true, ciudad: true, fechaEvento: true, createdAt: true, client: { select: { name: true } } },
   });
   if (!p) return null;
   const version = await prisma.proyectoPresupuesto.findFirst({
     where: { tenantId: a.tenantId, proyectoId, ...(versionId ? { id: versionId } : {}) },
     orderBy: { version: "desc" },
-    select: { version: true, ivaPct: true, condiciones: true, items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }], select: { descripcion: true, rubro: true, unidad: true, cantidad: true, costo: true, moneda: true, recargoPct: true, precio: true, visibleCliente: true } } },
+    select: { version: true, ivaPct: true, tcVenta: true, condiciones: true, items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }], select: { descripcion: true, rubro: true, unidad: true, cantidad: true, costo: true, moneda: true, recargoPct: true, precio: true, visibleCliente: true } } },
   });
   if (!version) return null;
   const [tc, config, negocio] = await Promise.all([tiposDeCambio(a.tenantId), configProyectos(a.tenantId), datosDelNegocio(a.tenantId)]);
-  const { grupos, neto } = planillaDeVenta(version.items, tc, config.margenPct);
+  const enPesos = planillaDeVenta(version.items, tc, config.margenPct);
+  // El papel es para el cliente: va en la moneda de venta.
+  const cambio = cambioDeVenta(p.moneda, version.tcVenta, tc);
+  const moneda = cambio > 0 ? p.moneda : "ARS";
+  const en = (n: number) => (moneda === "ARS" ? n : enMonedaDeVenta(n, cambio));
+  const grupos = enPesos.grupos.map((g) => ({ ...g, subtotal: en(g.subtotal), lineas: g.lineas.map((l) => ({ ...l, importe: en(l.importe) })) }));
+  const neto = en(enPesos.neto);
   const iva = redondear((neto * version.ivaPct) / 100);
-  return { proyecto: p, codigo: codigoProyecto(p.numero, p.createdAt), negocio, version: version.version, condiciones: version.condiciones, ivaPct: version.ivaPct, grupos, neto, iva, total: redondear(neto + iva) };
+  return { proyecto: p, codigo: codigoProyecto(p.numero, p.createdAt), negocio, moneda, version: version.version, condiciones: version.condiciones, ivaPct: version.ivaPct, grupos, neto, iva, total: redondear(neto + iva) };
 }

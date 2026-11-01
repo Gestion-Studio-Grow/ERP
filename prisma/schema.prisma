@@ -3304,6 +3304,7 @@ model ProyectoPresupuesto {
   estado             String         @default("BORRADOR") // BORRADOR · ENVIADO · APROBADO · RECHAZADO · REEMPLAZADO
   token              String         @unique
   ivaPct             Float          @default(21)
+  tcVenta            Float? // pesos por unidad de la moneda de venta: fijo al enviar, para que el total no se mueva
   presentacion       String         @default("")
   condiciones        String         @default("")
   enviadoEl          DateTime?

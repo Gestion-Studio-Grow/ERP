@@ -16,7 +16,7 @@ import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
 import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { configProyectos } from "./datos.server";
-import { aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO } from "./gestion-core";
+import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
@@ -205,6 +205,13 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
   if (textoEstimado && estimado === null) return mal("El presupuesto estimado no se entiende.");
   const previo = await prisma.proyecto.findFirst({ where: { id, tenantId }, select: { anticipoClientePct: true, fechaEvento: true, moneda: true } });
   if (!previo) return mal("Ese proyecto no existe.");
+  if (moneda !== previo.moneda) {
+    const [enviadas, cobradas] = await Promise.all([
+      prisma.proyectoPresupuesto.count({ where: { tenantId, proyectoId: id, estado: { in: ["ENVIADO", "APROBADO"] } } }),
+      prisma.proyectoCuota.count({ where: { tenantId, proyectoId: id, tipo: "COBRO", pagadoEl: { not: null }, anuladoEl: null } }),
+    ]);
+    if (enviadas + cobradas > 0) return mal("La moneda de venta no se puede cambiar: el cliente ya tiene una versión enviada o hay un cobro hecho.");
+  }
   await tenantTransaction(async (tx) => {
     await tx.proyecto.updateMany({
       where: { id, tenantId },
@@ -340,7 +347,7 @@ export async function guardarCampoItem(d: { id: string; campo: string; valor: st
   const tenantId = await getCurrentTenantId();
   const it = await prisma.proyectoItem.findFirst({
     where: { id: String(d.id ?? ""), tenantId },
-    select: { id: true, descripcion: true, rubro: true, supplierId: true, proveedor: true, cantidad: true, costo: true, moneda: true, recargoPct: true, precio: true, fechaLimite: true, estadoItem: true, visibleCliente: true, costoReal: true, presupuesto: { select: { id: true, estado: true, proyectoId: true, aprobadoInternoEl: true } } },
+    select: { id: true, descripcion: true, rubro: true, supplierId: true, proveedor: true, cantidad: true, costo: true, moneda: true, recargoPct: true, precio: true, fechaLimite: true, estadoItem: true, visibleCliente: true, costoReal: true, presupuesto: { select: { id: true, estado: true, proyectoId: true, aprobadoInternoEl: true, tcVenta: true, proyecto: { select: { moneda: true } } } } },
   });
   if (!it) return mal("Ese ítem ya no existe. Recargá la página.");
   const { proyectoId } = it.presupuesto;
@@ -359,6 +366,7 @@ export async function guardarCampoItem(d: { id: string; campo: string; valor: st
   let data: Prisma.ProyectoItemUncheckedUpdateManyInput;
   let antes: unknown = it[campo as keyof typeof it];
   let despues: unknown = valor;
+  let congelarCambio: number | null = null;
 
   switch (campo) {
     case "descripcion":
@@ -413,7 +421,12 @@ export async function guardarCampoItem(d: { id: string; campo: string; valor: st
     case "precio": {
       const n = valor ? numeroDe(valor) : 0;
       if (n === null) return mal("El precio no se entiende: escribilo como un número.");
-      data = n > 0 ? { precio: redondear(n), recargoPct: null } : { precio: 0 };
+      // El precio se escribe en la moneda de venta y se guarda en pesos, con un cambio que desde acá queda fijo: lo tipeado no se mueve solo.
+      const monedaVenta = it.presupuesto.proyecto.moneda;
+      const cambio = cambioDeVenta(monedaVenta, it.presupuesto.tcVenta, monedaVenta === "ARS" ? {} : await tiposDeCambio(tenantId));
+      if (!(cambio > 0)) return mal(`Falta el tipo de cambio de ${monedaVenta}: cargalo en Monedas y gastos fijos.`);
+      if (monedaVenta !== "ARS" && it.presupuesto.tcVenta == null) congelarCambio = cambio;
+      data = n > 0 ? { precio: redondear(n * cambio), recargoPct: null } : { precio: 0 };
       despues = n;
       break;
     }
@@ -439,6 +452,7 @@ export async function guardarCampoItem(d: { id: string; campo: string; valor: st
     await tx.proyectoItem.updateMany({ where: { id: it.id, tenantId }, data });
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoItem", entidadId: it.id, campo: `${ETIQUETA_CAMPO[campo]} · ${it.descripcion}`, antes, despues, autor: a.nombre });
     if (pierdeAprobacion) await tx.proyectoPresupuesto.updateMany({ where: { id: it.presupuesto.id, tenantId }, data: { aprobadoInternoEl: null, aprobadoInternoPor: null } });
+    if (congelarCambio) await tx.proyectoPresupuesto.updateMany({ where: { id: it.presupuesto.id, tenantId }, data: { tcVenta: congelarCambio } });
   });
   if (!SIN_EFECTO_EN_CUOTAS.has(campo)) await regenerar(tenantId, proyectoId);
   refrescar(proyectoId);
@@ -508,6 +522,7 @@ export async function nuevaVersion(formData: FormData): Promise<ResultadoFicha> 
         version: (ultima?.version ?? 0) + 1,
         token: token(),
         ivaPct: ultima?.ivaPct ?? config.ivaPct,
+        tcVenta: ultima?.tcVenta ?? null,
         presentacion: ultima?.presentacion ?? "",
         condiciones: ultima?.condiciones || config.condiciones,
         nota: txt(formData.get("nota")).slice(0, 300),
@@ -588,7 +603,9 @@ export async function enviarCotizacion(formData: FormData): Promise<ResultadoFic
   if (pr.items.length === 0) return mal("Cargá al menos un ítem antes de enviar.");
   if (!pr.aprobadoInternoEl) return mal("Falta que Dirección apruebe los precios.");
   const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
-  const faltan = monedasSinCambio(pr.items, tc);
+  const proyectoDeVersion = await prisma.proyecto.findFirst({ where: { id: pr.proyectoId, tenantId }, select: { moneda: true } });
+  const monedaVenta = proyectoDeVersion?.moneda ?? "ARS";
+  const faltan = monedasSinCambio([...pr.items, { moneda: monedaVenta }], tc);
   if (faltan.length > 0) return mal(`Falta el tipo de cambio de ${faltan.join(", ")}: sin él, esos ítems valen cero.`);
   const fijados = pr.items.map((i) => ({ item: i, fijo: precioAlEnviar(i, tc, config.margenPct) }));
   const foto = fotoDeVersion(fijados.map(({ item, fijo }) => ({ ...item, ...fijo })), tc, config.margenPct);
@@ -597,7 +614,7 @@ export async function enviarCotizacion(formData: FormData): Promise<ResultadoFic
   const enviada = await tenantTransaction(async (tx) => {
     const r = await tx.proyectoPresupuesto.updateMany({
       where: { id, tenantId, estado: "BORRADOR", aprobadoInternoEl: { not: null } },
-      data: { estado: "ENVIADO", enviadoEl: ahora, validoHasta: sumarDias(ahora, config.validezDias), foto: foto as unknown as Prisma.InputJsonValue },
+      data: { estado: "ENVIADO", enviadoEl: ahora, validoHasta: sumarDias(ahora, config.validezDias), foto: foto as unknown as Prisma.InputJsonValue, tcVenta: monedaVenta === "ARS" ? null : cambioDeVenta(monedaVenta, pr.tcVenta, tc) },
     });
     if (r.count === 0) return false;
     for (const { item, fijo } of fijados) if (fijo) await tx.proyectoItem.updateMany({ where: { id: item.id, tenantId }, data: fijo });
@@ -659,16 +676,20 @@ async function avisarEtapa(tenantId: string, proyectoId: string, salvo: string, 
 export async function guardarTextos(formData: FormData): Promise<ResultadoFicha> {
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
-  const pr = await prisma.proyectoPresupuesto.findFirst({ where: { id, tenantId }, select: { proyectoId: true, estado: true, ivaPct: true } });
+  const pr = await prisma.proyectoPresupuesto.findFirst({ where: { id, tenantId }, select: { proyectoId: true, estado: true, ivaPct: true, tcVenta: true, proyecto: { select: { moneda: true } } } });
   if (!pr) return mal("Esa versión no existe.");
   const a = await entrar("cotizaciones", pr.proyectoId);
   if (typeof a === "string") return mal(a);
   if (!sePuedeEditar(pr.estado)) return mal("Esta versión ya se envió.");
   const iva = numeroDe(txt(formData.get("ivaPct")));
   if (iva === null) return mal("El IVA no se entiende: escribilo como un número.");
-  await prisma.proyectoPresupuesto.updateMany({ where: { id, tenantId }, data: { presentacion: txt(formData.get("presentacion")), condiciones: txt(formData.get("condiciones")), ivaPct: iva, ...(iva !== pr.ivaPct && { aprobadoInternoEl: null, aprobadoInternoPor: null }) } });
-  // Otro IVA es otro total para el cliente: la aprobación de precios ya no vale y las cuotas se recalculan.
-  if (iva !== pr.ivaPct) await regenerar(tenantId, pr.proyectoId);
+  const textoCambio = txt(formData.get("tcVenta"));
+  const tcVenta = pr.proyecto.moneda !== "ARS" && textoCambio ? numeroDe(textoCambio) : pr.tcVenta;
+  if (tcVenta === null && textoCambio && pr.proyecto.moneda !== "ARS") return mal("El tipo de cambio no se entiende: escribilo como un número.");
+  const cambiaTotal = iva !== pr.ivaPct || tcVenta !== pr.tcVenta;
+  await prisma.proyectoPresupuesto.updateMany({ where: { id, tenantId }, data: { presentacion: txt(formData.get("presentacion")), condiciones: txt(formData.get("condiciones")), ivaPct: iva, tcVenta, ...(cambiaTotal && { aprobadoInternoEl: null, aprobadoInternoPor: null }) } });
+  // Otro IVA u otro cambio es otro total para el cliente: la aprobación de precios ya no vale y las cuotas se recalculan.
+  if (cambiaTotal) await regenerar(tenantId, pr.proyectoId);
   refrescar(pr.proyectoId);
   return { ok: true };
 }
