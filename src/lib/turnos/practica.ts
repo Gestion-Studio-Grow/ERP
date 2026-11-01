@@ -15,6 +15,7 @@
 //   · E6 — al cancelar, cuántas anotadas de la lista de espera sirven para ese hueco.
 
 import { sumarDias } from "@/lib/crm/fechas";
+import { buildWhatsAppHref } from "@/lib/whatsapp-cta";
 
 // ── E2 · la regla de cancelación de la clienta ───────────────────────────────
 
@@ -46,9 +47,27 @@ export function politicaDelNegocio(
   return (slug && leerPoliticas(env.CANCELACION_ONLINE_HORAS).get(slug)) || null;
 }
 
+/** Qué hacer pasado el plazo. Sin número de WhatsApp cargado, no se nombra WhatsApp (U3). */
+const despuesDelPlazo = (hayWhatsApp: boolean): string => (hayWhatsApp ? "escribinos por WhatsApp" : "avisale al local");
+
 /** La regla en castellano, para la reserva, la confirmación y «Tu turno» (T12). */
-export function reglaDeCancelacion(p: PoliticaDeCancelacion): string {
-  return `Podés cancelar o reprogramar online hasta ${p.horasMinimas} h antes del turno. Después, escribinos por WhatsApp.`;
+export function reglaDeCancelacion(p: PoliticaDeCancelacion, hayWhatsApp: boolean): string {
+  return `Podés cancelar o reprogramar online hasta ${p.horasMinimas} h antes del turno. Después, ${despuesDelPlazo(hayWhatsApp)}.`;
+}
+
+/** Lo que se contesta si intenta cambiar el turno pasado el plazo. */
+export function mensajeFueraDePlazo(p: PoliticaDeCancelacion, hayWhatsApp: boolean): string {
+  return `Faltan menos de ${p.horasMinimas} h para tu turno: ya no se puede cambiar online. ${hayWhatsApp ? "Escribinos por WhatsApp y lo vemos." : "Avisale al local y lo ven."}`;
+}
+
+/**
+ * «Tu turno», pasado el plazo: el botón para escribirle al negocio, con el turno ya escrito (U3).
+ * Sin número cargado no hay botón: `null`. `whatsapp` es el número del negocio (`getLocation`).
+ */
+export function salidaFueraDePlazo(input: { whatsapp: string | null | undefined; servicio: string; cuando: string }): { texto: string; href: string } | null {
+  if (!input.whatsapp) return null;
+  const mensaje = `¡Hola! Quiero cambiar mi turno de ${input.servicio} del ${input.cuando}.`;
+  return { texto: "Escribinos por WhatsApp", href: buildWhatsAppHref(input.whatsapp, mensaje) };
 }
 
 /**
@@ -65,13 +84,12 @@ export function puedeCambiarOnline(input: {
   startsAt: Date;
   ahora: Date;
   politica: PoliticaDeCancelacion;
+  /** ¿El negocio tiene WhatsApp cargado? Sin saberlo, no se nombra WhatsApp. */
+  hayWhatsApp?: boolean;
 }): { ok: true } | { ok: false; error: string } {
   const faltan = input.startsAt.getTime() - input.ahora.getTime();
   if (faltan >= input.politica.horasMinimas * 3_600_000) return { ok: true };
-  return {
-    ok: false,
-    error: `Faltan menos de ${input.politica.horasMinimas} h para tu turno: ya no se puede cambiar online. Escribinos por WhatsApp y lo vemos.`,
-  };
+  return { ok: false, error: mensajeFueraDePlazo(input.politica, input.hayWhatsApp === true) };
 }
 
 // ── T4 · defaults del alta ───────────────────────────────────────────────────

@@ -1,6 +1,8 @@
 // Agenda práctica (interruptor «agenda-practica»): las reglas puras, con reloj fijo.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   avisoDeEspera,
   fechaDelProximo,
@@ -12,7 +14,9 @@ import {
   politicaDelNegocio,
   preguntaDeCierre,
   profesionalPropuesta,
+  mensajeFueraDePlazo,
   puedeCambiarOnline,
+  salidaFueraDePlazo,
   reglaDeCancelacion,
 } from "./practica";
 
@@ -23,7 +27,7 @@ test("E2 · la regla la carga el negocio; si no la cargó, no hay regla ni texto
   assert.equal(politicaDelNegocio("sin-regla", env), null);
   assert.equal(politicaDelNegocio("beauty-spa", {}), null);
   assert.equal(politicaDelNegocio(null, env), null);
-  assert.equal(reglaDeCancelacion({ horasMinimas: 24 }), "Podés cancelar o reprogramar online hasta 24 h antes del turno. Después, escribinos por WhatsApp.");
+  assert.equal(reglaDeCancelacion({ horasMinimas: 24 }, true), "Podés cancelar o reprogramar online hasta 24 h antes del turno. Después, escribinos por WhatsApp.");
 });
 
 test("E2 · un valor mal cargado (texto, cero, negativo, absurdo) no arma una regla", () => {
@@ -36,9 +40,33 @@ test("E2 · con 25 h de anticipación la clienta cancela sola; con 23 h, se le p
   const politica = { horasMinimas: 24 };
   assert.deepEqual(puedeCambiarOnline({ startsAt: new Date("2026-10-19T13:00:00Z"), ahora, politica }), { ok: true });
   assert.deepEqual(puedeCambiarOnline({ startsAt: new Date("2026-10-19T12:00:00Z"), ahora, politica }), { ok: true }, "justo 24 h: entra");
-  const tarde = puedeCambiarOnline({ startsAt: new Date("2026-10-19T11:00:00Z"), ahora, politica });
+  const tarde = puedeCambiarOnline({ startsAt: new Date("2026-10-19T11:00:00Z"), ahora, politica, hayWhatsApp: true });
   assert.equal(tarde.ok, false);
   assert.match(tarde.ok ? "" : tarde.error, /menos de 24 h.*WhatsApp/);
+});
+
+test("U3 · pasado el plazo: con número hay botón y texto de WhatsApp; sin número, no se lo nombra", () => {
+  const politica = { horasMinimas: 24 };
+  const tarde = { startsAt: new Date("2026-10-19T11:00:00Z"), ahora: new Date("2026-10-18T12:00:00Z"), politica };
+  const sinNumero = puedeCambiarOnline(tarde);
+  assert.doesNotMatch(sinNumero.ok ? "x" : sinNumero.error, /WhatsApp/);
+  assert.doesNotMatch(reglaDeCancelacion(politica, false), /WhatsApp/);
+  assert.doesNotMatch(mensajeFueraDePlazo(politica, false), /WhatsApp/);
+  assert.match(mensajeFueraDePlazo(politica, true), /WhatsApp/);
+  assert.equal(salidaFueraDePlazo({ whatsapp: "", servicio: "Masaje", cuando: "lunes 2" }), null);
+  assert.equal(salidaFueraDePlazo({ whatsapp: null, servicio: "Masaje", cuando: "lunes 2" }), null);
+  const salida = salidaFueraDePlazo({ whatsapp: "+5491166778890", servicio: "Masaje", cuando: "lunes 2" });
+  assert.equal(salida?.texto, "Escribinos por WhatsApp");
+  assert.match(salida?.href ?? "", /^https:\/\/wa\.me\/5491166778890\?text=/);
+  assert.match(decodeURIComponent(salida?.href ?? ""), /mi turno de Masaje del lunes 2/);
+});
+
+test("U3 · «Tu turno» dibuja el botón y la regla no se arma con WhatsApp a ciegas", () => {
+  const raiz = process.cwd();
+  const pagina = readFileSync(join(raiz, "src/app/(site)/reserva/turno/[id]/page.tsx"), "utf8");
+  assert.match(pagina, /salidaFueraDePlazo\(/);
+  assert.match(pagina, /href=\{salida\.href\}/);
+  assert.match(readFileSync(join(raiz, "src/lib/turnos/practica.server.ts"), "utf8"), /reglaDeCancelacion\(p, await hayWhatsApp\(\)\)/);
 });
 
 test("T4 · el alta propone mañana y, con una sola profesional, la deja elegida", () => {

@@ -8,6 +8,8 @@ import ReviewForm from "./ReviewForm";
 import { fmtDateTime } from "@/lib/datetime";
 import { isAppointmentModifiable } from "@/lib/booking-core";
 import { cambioOnlineDelTurno } from "@/lib/turnos/practica.server";
+import { salidaFueraDePlazo } from "@/lib/turnos/practica";
+import { getLocation } from "@/lib/settings";
 import { chConDisenoNuevo } from "../../../_ch/diseno-ch.server";
 
 const statusLabel: Record<string, string> = {
@@ -49,11 +51,14 @@ export default async function MyAppointmentPage({
   // y testeable en booking-core; no llamamos Date.now en el render del RSC).
   const canModify = isAppointmentModifiable(appointment.status, appointment.startsAt);
   // Agenda práctica (E2): dentro del plazo del negocio, la clienta ve la regla en vez de botones que no andan.
-  const [{ regla, puede }, nuevo] = await Promise.all([
+  const [{ regla, puede }, nuevo, { whatsapp }] = await Promise.all([
     canModify ? cambioOnlineDelTurno(appointment.startsAt) : Promise.resolve({ regla: null, puede: false }),
     // Diseño nuevo de CH (sólo con su interruptor prendido): misma página, escala y tarjeta en tipografía.
     chConDisenoNuevo(),
+    getLocation(),
   ]);
+  // Pasado el plazo no hay botones de cambiar: el camino es escribirle al negocio (U3).
+  const salida = canModify && !puede ? salidaFueraDePlazo({ whatsapp, servicio: appointment.service.name, cuando: fmtDateTime(appointment.startsAt) }) : null;
 
   return (
     <div className={nuevo ? "chr mx-auto max-w-lg px-6 py-16" : "mx-auto max-w-lg px-6 py-16"}>
@@ -127,6 +132,13 @@ export default async function MyAppointmentPage({
       {regla && (
         <p className="mb-6 text-sm" style={{ color: "var(--text-muted)" }}>
           {regla}
+        </p>
+      )}
+      {salida && (
+        <p className="mb-6">
+          <a href={salida.href} target="_blank" rel="noopener noreferrer" className={nuevo ? "chf-btn" : "inline-block rounded-md border border-line-strong px-4 py-2 text-sm font-medium"} style={nuevo ? undefined : { color: "var(--text-strong)" }}>
+            {salida.texto}
+          </a>
         </p>
       )}
 
