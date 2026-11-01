@@ -14,3 +14,8 @@ test("punto 13: a recepción se le dice qué hacer, no de dónde lo saca la due�
     assert.doesNotMatch(texto, /La dueña lo saca/, archivo);
   }
 });
+
+test("punto 8: Confirmar, en la lista y en la ficha, ofrece el mensaje ya escrito", () => {
+  assert.match(leer("_agenda/MesaDeTurnos.tsx"), /accionDeConfirmado\(t\)/);
+  assert.match(leer("_agenda/TurnoCajon.tsx"), /accionDeConfirmado\(t\)/);
+});

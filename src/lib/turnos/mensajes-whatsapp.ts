@@ -194,6 +194,15 @@ export function mensajeConfirmacion(t: TurnoDelMensaje & { senia?: SeniaDelMensa
   );
 }
 
+/**
+ * Después de «Confirmar», el mensaje ya escrito (punto 8): la web promete que le escriben. `null` si
+ * el teléfono no es un celular. No nombra ninguna seña: el que cobra usa «Llegó la seña».
+ */
+export function linkDeConfirmado(t: { turnoId: string; telefono: string | null | undefined; clienta: string; servicio: string; inicio: string | Date; profesional?: string | null }, origen: string): string | null {
+  const texto = mensajeConfirmacion({ clienta: t.clienta, servicios: t.servicio, inicio: t.inicio, profesional: t.profesional, senia: null, linkTurno: `${origen}/reserva/turno/${t.turnoId}` });
+  return linkWhatsApp(t.telefono, texto);
+}
+
 // ── 2. Pedido de seña ─────────────────────────────────────────────────────────
 
 /**

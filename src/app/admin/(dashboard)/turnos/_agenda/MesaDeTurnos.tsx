@@ -27,7 +27,8 @@ import { Button, Hoja, Marca, Plata, Renglon, hrefConParametros } from "@/compon
 import { MenuMas } from "@/components/ui/MenuMas";
 import { dateStrInBusinessTz, fmtShortDate, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
-import { useToast } from "../../ToastProvider";
+import { useToast, type AccionDelAviso } from "../../ToastProvider";
+import { accionDeConfirmado } from "./aviso-confirmado";
 import {
   estaResuelto,
   fechaCorta,
@@ -232,13 +233,13 @@ function TeclaDelTurno({ t, paso }: { t: TurnoDelDia; paso: Paso }) {
   const verbo = verboDelPaso(paso);
   if (!verbo) return null;
 
-  const directo = (accion: (fd: FormData) => Promise<unknown>, fd: FormData, ok: string) =>
+  const directo = (accion: (fd: FormData) => Promise<unknown>, fd: FormData, ok: string, enElAviso?: AccionDelAviso) =>
     empezar(async () => {
       try {
         const r = leerResultado(await accion(fd));
         if (!r.ok) showError(r.error);
         else {
-          showSuccess(ok);
+          showSuccess(ok, enElAviso);
           if (r?.aviso) showError(r.aviso);
         }
       } catch {
@@ -257,7 +258,7 @@ function TeclaDelTurno({ t, paso }: { t: TurnoDelDia; paso: Paso }) {
           aria-label={etiqueta}
           disabled={pendiente}
           estado={pendiente ? "cargando" : undefined}
-          onClick={() => directo(confirmarTurno, aFormData(camposDelTurno(t.id)), `Confirmado: ${t.clienta}, ${fmtTime(t.inicio)}.`)}
+          onClick={() => directo(confirmarTurno, aFormData(camposDelTurno(t.id)), `Confirmado: ${t.clienta}, ${fmtTime(t.inicio)}.`, accionDeConfirmado(t))}
         >
           Confirmar
         </Button>

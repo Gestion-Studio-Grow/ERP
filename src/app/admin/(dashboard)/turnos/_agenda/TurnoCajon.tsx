@@ -41,7 +41,8 @@ import {
   cobrosAnulables,
   MOTIVO_MIN,
 } from "@/lib/turnos/anulacion";
-import { useToast } from "../../ToastProvider";
+import { useToast, type AccionDelAviso } from "../../ToastProvider";
+import { accionDeConfirmado } from "./aviso-confirmado";
 import {
   cierraElTurno,
   marcaDelTurno,
@@ -235,6 +236,7 @@ function useAccionSimple() {
     turnoId: string,
     ok: string,
     onListo?: () => void,
+    enElAviso?: AccionDelAviso,
   ) =>
     empezar(async () => {
       try {
@@ -243,7 +245,7 @@ function useAccionSimple() {
           showError(r.error);
           return;
         }
-        showSuccess(ok);
+        showSuccess(ok, enElAviso);
         onListo?.();
       } catch (e) {
         const m =
@@ -440,6 +442,8 @@ export default function TurnoCajon({
                     confirmarTurno,
                     t.id,
                     `Confirmado: ${t.clienta}, ${fmtTime(t.inicio)}.`,
+                    undefined,
+                    accionDeConfirmado(t),
                   )
                 }
               >

@@ -9,6 +9,7 @@ import {
   mensajeCancelacion,
   mensajeCierreDeCaja,
   mensajeCobro,
+  linkDeConfirmado,
   mensajeConfirmacion,
   mensajeMover,
   mensajeNoVino,
@@ -58,6 +59,14 @@ describe("piezas", () => {
 });
 
 describe("confirmación del turno (CH-017)", () => {
+  test("después de Confirmar: el link con el mensaje y «Tu turno»; sin celular, nada (punto 8)", () => {
+    const t = { turnoId: "t1", clienta: "Laura Gómez", servicio: "Masaje", inicio: SAB_16, profesional: "Caro" };
+    const link = linkDeConfirmado({ ...t, telefono: "11 4000 7919" }, "https://ch.x");
+    assert.match(link ?? "", /^https:\/\/wa\.me\/5491140007919\?text=/);
+    assert.match(decodeURIComponent(link ?? ""), /Te agendamos \*Masaje\*.*Tu turno: https:\/\/ch\.x\/reserva\/turno\/t1/);
+    assert.equal(linkDeConfirmado({ ...t, telefono: "" }, "https://ch.x"), null);
+  });
+
   test("con el link de «Tu turno», para que pueda cambiarlo sola (U1); sin link, no se nombra", () => {
     const link = "https://ch.x/reserva/turno/t1";
     assert.match(mensajeConfirmacion({ ...LAURA, linkTurno: link }), /Tu turno: https:\/\/ch\.x\/reserva\/turno\/t1 Cualquier cambio/);
