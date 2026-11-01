@@ -49,7 +49,7 @@ import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 // Mismo criterio de fecha contable que el egreso de una compra a proveedor: si hoy está
 // cerrado, el asiento se imputa al primer día abierto en vez de perderse.
 import { diaContableDelEgreso } from "@/lib/stock/purchase-egreso";
-import { leerComisionesPendientes } from "@/lib/reports/comisiones-lectura";
+import { leerComisionesPendientes, leerTurnosEsperandoSaldo } from "@/lib/reports/comisiones-lectura";
 import {
   vueltaDeLiquidacion,
   whereTurnosConComisionPendiente,
@@ -124,6 +124,13 @@ export async function getCommissionsOverview(): Promise<{
   }));
 
   return { pending, history };
+}
+
+// Cuántos turnos esperan a que se cobre el saldo. Sólo lectura → `reports:read`.
+export async function getTurnosEsperandoSaldo(): Promise<number> {
+  await requireCapability("reports:read");
+  if (isDemoSandbox()) return 0;
+  return leerTurnosEsperandoSaldo(prisma, await getCurrentTenantId());
 }
 
 // Liquida (marca como pagada) toda la comisión pendiente de un profesional.
