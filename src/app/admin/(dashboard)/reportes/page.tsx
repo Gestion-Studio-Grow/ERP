@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { getReportData, getDeepReportData, getOwnerPanelData } from "@/lib/actions";
-import { REPORT_RANGE_DAYS, DEFAULT_REPORT_RANGE_DAYS, METODO_LABEL } from "@/lib/report-config";
+import { METODO_LABEL } from "@/lib/report-config";
+import { opcionesDePeriodo, periodoDeLaUrl, resolverPeriodo } from "@/lib/report-periodo";
+import { kpisDelPeriodo } from "@/lib/report-ingresos";
 import { getCommissionsOverview, settleCommissions } from "@/lib/commission-actions";
 import { requireUser } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { getMarginReport } from "@/lib/reports/margin-loader";
-import { fmtShortDate } from "@/lib/datetime";
+import { fmtShortDate, todayInBusinessTz } from "@/lib/datetime";
+import { appsQuePuedeAbrir } from "@/lib/reports/apps-a-mano.server";
+import { diaLegible } from "@/lib/libros/fecha-fiscal";
 import { generateOwnerInsights } from "@/lib/owner-insights";
 import { analyzeTrends, type MetricSeriesInput } from "@/lib/owner-trends";
 import { OwnerPanel } from "@/components/OwnerPanel";
@@ -15,6 +19,9 @@ import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
 import ReportesMostrador from "./ReportesMostrador";
+import { ContraAnterior } from "./ContraAnterior";
+import { GraficoTira, NOMBRE_UNIDAD } from "./GraficoTira";
+import { armarTira } from "./tira-core";
 
 export const dynamic = "force-dynamic";
 
@@ -75,34 +82,34 @@ function KpiCard({
 export default async function ReportesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; dias?: string }>;
+  searchParams: Promise<{ status?: string; dias?: string; periodo?: string }>;
 }) {
   // Guardia de la app (ADR-098): una app oculta no es una app protegida.
   const guardia = await requireApp("reportes");
-  const { status, dias } = await searchParams;
-  // Rango del reporte desde la URL (?dias=), validado contra la lista permitida; si no
-  // es válido, cae al default (90d). El rango es obligatorio a nivel de datos (ADR-023 F3).
-  const parsedDias = Number(dias);
-  const rangeDays = (REPORT_RANGE_DAYS as readonly number[]).includes(parsedDias)
-    ? parsedDias
-    : DEFAULT_REPORT_RANGE_DAYS;
+  const { status, dias, periodo: periodoEnUrl } = await searchParams;
+  // Período desde la URL, validado contra la lista permitida; si no es válido, cae al default
+  // (90d). El rango es obligatorio a nivel de datos (ADR-023 F3).
+  const hoy = todayInBusinessTz();
+  const pedido = periodoDeLaUrl({ dias, periodo: periodoEnUrl });
+  const periodo = resolverPeriodo(pedido, hoy);
 
   // En un local de MOSTRADOR, Reportes muestra las ventas cobradas del mostrador: todo lo de
   // abajo (turnos, profesionales, ausencias, comisiones) es de un negocio de servicios, y ahí
   // daba $0 con el local vendiendo todo el día. Un negocio de servicios (CH) sigue viendo
   // exactamente la pantalla de siempre.
   const { esMostrador } = await getNegocioApps(guardia.role);
-  if (esMostrador) return <ReportesMostrador rangeDays={rangeDays} role={guardia.role} />;
+  if (esMostrador) return <ReportesMostrador periodo={periodo} hoy={hoy} role={guardia.role} />;
 
-  const [data, deep, panel, overview, user, profile] = await Promise.all([
-    getReportData(rangeDays),
-    getDeepReportData(rangeDays),
-    getOwnerPanelData(rangeDays),
+  const [data, deep, panel, overview, user, profile, abribles] = await Promise.all([
+    getReportData(pedido),
+    getDeepReportData(pedido),
+    getOwnerPanelData(pedido),
     getCommissionsOverview(),
     requireUser(),
     getActiveProfile(),
+    appsQuePuedeAbrir(guardia.role, ["resultado-del-mes", "flujo-de-fondos", "margen", "comisiones"]),
   ]);
-  const k = deep.kpis;
+  const k = kpisDelPeriodo(deep.kpis, data);
 
   // Rentabilidad/margen por producto (16T) — profundización Empresa (P1.b). Solo se
   // carga y se muestra en la edición Empresa; y aun ahí, solo si hay productos con
@@ -113,7 +120,9 @@ export default async function ReportesPage({
   // Panel del Dueño (Agencia Grow): la lectura en lenguaje llano se computa acá con
   // los motores puros. Insights = período actual vs. previo; tendencias = serie de
   // los últimos meses completos, cada métrica con su dirección "buena".
-  const insights = generateOwnerInsights(panel.current, panel.previous);
+  // Quién rinde más y cómo se cobró salen de los mismos cobros que las tablas de abajo: la lectura
+  // no puede nombrar a una persona y la tabla ordenar a otra primera.
+  const insights = generateOwnerInsights({ ...panel.current, rentabilidadHoraSilla: k.rentabilidadHoraSilla, mixMetodoPago: k.mixMetodoPago }, panel.previous);
   const trendSeries: MetricSeriesInput[] = [
     {
       metric: "ticketPromedio",
@@ -143,6 +152,21 @@ export default async function ReportesPage({
   // ven los montos pero no el botón.
   const canSettle = roleHasCapability(user.role, "commissions:manage");
   const banner = status ? STATUS_MESSAGES[status] : undefined;
+  const tira = armarTira(
+    data.porDia.map((f) => ({ dia: f.label, total: f.total, cantidad: f.cantidad })),
+    periodo.ultimoDia,
+    periodo.dias,
+    { cerrado: periodo.cerrado },
+  );
+  // Las comisiones van plegadas, con el total a la vista. Abiertas al volver de liquidar, para ver el
+  // resultado que el aviso de arriba anuncia.
+  const aLiquidar = overview.pending.reduce((s, c) => s + c.amount, 0);
+  const otrasPantallas = [
+    { app: "resultado-del-mes", href: "/admin/resultado", texto: "¿Cuánto dejó? Resultado del mes" },
+    { app: "flujo-de-fondos", href: "/admin/flujo", texto: "Flujo de fondos" },
+    { app: "margen", href: "/admin/reportes/margen", texto: "Margen" },
+    { app: "comisiones", href: "/admin/comisiones", texto: "Comisiones" },
+  ].filter((p) => abribles.has(p.app as "margen"));
 
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
@@ -161,12 +185,12 @@ export default async function ReportesPage({
       {/* Selector de rango (ADR-023 F3): el reporte se acota a un período, no al histórico. */}
       <div className="mb-8 flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted">Período:</span>
-        {REPORT_RANGE_DAYS.map((d) => {
-          const active = d === data.rangeDays;
+        {opcionesDePeriodo(hoy).map((p) => {
+          const active = p.query === periodo.query;
           return (
             <Link
-              key={d}
-              href={`/admin/reportes?dias=${d}`}
+              key={p.query}
+              href={`/admin/reportes?${p.query}`}
               aria-current={active ? "page" : undefined}
               // 44 px en el celular (se toca con el dedo); en la PC, como siempre.
               className={`inline-flex h-11 items-center rounded-md border px-3 text-sm transition-colors sm:h-auto sm:py-1 ${
@@ -175,13 +199,13 @@ export default async function ReportesPage({
                   : "border-line text-muted hover:border-line-strong"
               }`}
             >
-              {d === 365 ? "1 año" : `${d} días`}
+              {p.etiqueta}
             </Link>
           );
         })}
         {/* Export CSV del período visible (abre en Excel/Sheets). */}
         <a
-          href={`/admin/reportes/export?dias=${data.rangeDays}`}
+          href={`/admin/reportes/export?${periodo.query}`}
           className="ml-auto inline-flex h-11 items-center rounded-md border border-line px-3 text-sm text-muted transition-colors hover:border-line-strong hover:text-strong sm:h-auto sm:py-1"
         >
           ↓ Exportar CSV
@@ -198,21 +222,13 @@ export default async function ReportesPage({
         </p>
       )}
 
-      {/* Panel del Dueño (Agencia Grow): la lectura de negocio en lenguaje llano va
-          arriba de todo — es el "wow" del reporte, no un apéndice. */}
-      <OwnerPanel
-        insights={insights}
-        trends={trends}
-        hasPrevious={panel.hasPrevious}
-        monthsAnalyzed={panel.months.length}
-      />
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div className="rounded-lg border border-line p-4">
           <p className="text-sm text-muted">Ingresos por turnos</p>
           <p className="text-2xl font-semibold">
             {fmtMoneyARS(data.totalIngresos, 0)}
           </p>
+          <ContraAnterior actual={data.totalIngresos} anterior={data.totalAnterior} periodo={periodo} />
           {/* Reportes suma los PAGOS de turnos; la caja completa (turnos + mostrador +
               gastos, por medio) vive en el libro. Cada cobro de turno aparece en los dos,
               una vez en cada uno: son dos lecturas del mismo hecho, no dos verdades. */}
@@ -226,6 +242,37 @@ export default async function ReportesPage({
           <p className="text-2xl font-semibold">{data.cantidadPagos}</p>
         </div>
       </div>
+
+      {data.cantidadPagos === 0 && <p className="mb-4 text-sm text-muted">Todavía no hay cobros en este período.</p>}
+      {data.cantidadPagos > 0 && (
+        <section aria-labelledby="tira-titulo" className="mb-4 rounded-lg border border-line p-4">
+          <h2 id="tira-titulo" className="font-medium">Cómo vino el período</h2>
+          {tira.mejor && (
+            <p className="mt-1 text-xs text-muted">
+              {NOMBRE_UNIDAD[tira.unidad].mejor}: {tira.mejor.etiqueta} · {money(tira.mejor.total)}
+            </p>
+          )}
+          <GraficoTira tira={tira} que="cobrado" cada={{ uno: "cobro", varios: "cobros" }} />
+        </section>
+      )}
+
+      {otrasPantallas.length > 0 && (
+        <nav aria-label="Otras pantallas de plata" className="mb-8 flex flex-wrap gap-2">
+          {otrasPantallas.map((p) => (
+            <Link key={p.href} href={p.href} className={buttonClasses("outline", "md")}>
+              {p.texto}
+            </Link>
+          ))}
+        </nav>
+      )}
+
+      {/* Panel del Dueño (Agencia Grow): la lectura de los números, debajo de los números. */}
+      <OwnerPanel
+        insights={insights}
+        trends={trends}
+        hasPrevious={panel.hasPrevious}
+        monthsAnalyzed={panel.months.length}
+      />
 
       {/* KPIs profundos (Reportes v2): fuga operativa, valor por venta, retención,
           productividad. Complementan la facturación bruta de arriba. */}
@@ -246,31 +293,25 @@ export default async function ReportesPage({
           value={pct(k.estados.tasaCancelacion)}
           hint={`${k.estados.cancelados} de ${k.estados.resueltos} turnos resueltos`}
         />
-        {/* OJO: este KPI sale de OTRO conjunto que el total de arriba. Los de esta fila se
-            arman sobre los turnos DEL PERÍODO (por `startsAt`) que tienen un pago
-            registrado, cualquiera sea su estado —un no-show con seña cobrada cuenta— mientras
-            que "Ingresos" de arriba sale de la plata cobrada en el período. Multiplicar este
-            promedio por la cantidad de turnos de arriba NO da el total, y el rótulo tiene que
-            decirlo antes de que alguien lo intente. */}
         <KpiCard
           label="Ticket promedio"
           value={money(k.ticketPromedio)}
-          hint="Sobre los turnos del período con pago registrado. No multiplica contra el total de arriba."
+          hint="Lo cobrado dividido los turnos pagados de arriba."
         />
         <KpiCard
           label="Clientes que vuelven"
           value={pct(k.retencion.tasaRecurrencia)}
-          hint={`${k.retencion.recurrentes} recurrentes de ${k.retencion.clientesUnicos} en el período`}
+          hint={`${k.retencion.recurrentes} de ${k.retencion.clientesUnicos} clientes atendidos vinieron 2 veces o más`}
           tone={k.retencion.tasaRecurrencia >= 0.3 ? "success" : "neutral"}
         />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        {/* Rentabilidad hora-silla: cuánto factura cada profesional por hora ocupada. */}
+        {/* Cuánto factura cada profesional por hora trabajada. */}
         <div className="rounded-lg border border-line p-4">
-          <h3 className="font-medium mb-1">Rentabilidad hora-silla</h3>
+          <h3 className="font-medium mb-1">Lo que factura cada hora de trabajo</h3>
           <p className="text-xs text-muted mb-3">
-            Ingresos por hora ocupada (turnos completados y cobrados).
+            Sólo turnos atendidos: una seña de un turno que no se hizo no suma acá.
           </p>
           {k.rentabilidadHoraSilla.length === 0 && (
             <p className="text-sm text-muted">Todavía no hay datos.</p>
@@ -292,8 +333,8 @@ export default async function ReportesPage({
 
         {/* Mix de método de pago. */}
         <div className="rounded-lg border border-line p-4">
-          <h3 className="font-medium mb-1">Método de pago</h3>
-          <p className="text-xs text-muted mb-3">Cómo se cobró en el período.</p>
+          <h3 className="font-medium mb-1">Medio de pago</h3>
+          <p className="text-xs text-muted mb-3">Cómo se cobró. Suma el total de arriba.</p>
           {k.mixMetodoPago.length === 0 && (
             <p className="text-sm text-muted">Todavía no hay cobros.</p>
           )}
@@ -318,7 +359,7 @@ export default async function ReportesPage({
         <div className="mb-8">
           <h2 className="text-lg font-semibold mb-1">Rentabilidad por producto</h2>
           <p className="text-muted mb-4 text-sm">
-            Margen bruto = precio de venta − último costo de compra conocido. Edición Empresa.
+            Precio de venta menos el último costo de compra conocido.
           </p>
 
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
@@ -358,12 +399,7 @@ export default async function ReportesPage({
         </div>
       )}
 
-      <div className="grid gap-4 mb-8">
-        <Table
-          title="Ingresos por día"
-          hint="Fecha en que entró la plata, no la del turno."
-          rows={data.porDia}
-        />
+      <div className="grid gap-4 mb-4">
         <Table
           title="Ingresos por profesional"
           hint="Mismo conjunto de cobros que la tabla de arriba, repartido por profesional."
@@ -376,10 +412,34 @@ export default async function ReportesPage({
         />
       </div>
 
+      {/* El día por día, plegado: en 90 días son unas 80 filas y el gráfico ya cuenta cómo vino. */}
+      <details className="mb-4 rounded-lg border border-line p-4">
+        <summary className="flex min-h-11 cursor-pointer items-center gap-3 font-medium">
+          Día por día
+          <span className="text-xs font-normal text-muted">{data.porDia.length} {data.porDia.length === 1 ? "día con cobros" : "días con cobros"}</span>
+        </summary>
+        <p className="mb-3 mt-2 text-xs text-muted">Fecha en que entró la plata, no la del turno.</p>
+        <div className="space-y-1.5">
+          {data.porDia.map((d) => (
+            <div key={d.label} className="flex justify-between text-sm">
+              <span className="text-muted">{diaLegible(d.label)}</span>
+              <span className="font-medium tabular-nums">{money(d.total)}</span>
+            </div>
+          ))}
+        </div>
+      </details>
+
       {/* Comisiones pendientes de pago (liquidación por período) */}
-      <div className="rounded-lg border border-line p-4 mb-4">
-        <h3 className="font-medium mb-1">Comisiones pendientes de pago</h3>
-        <p className="text-xs text-muted mb-4">
+      <details open={Boolean(banner)} className="rounded-lg border border-line p-4 mb-4">
+        <summary className="flex min-h-11 cursor-pointer flex-wrap items-center gap-x-3 font-medium">
+          Comisiones pendientes de pago
+          <span className="text-sm font-normal text-muted tabular-nums">
+            {overview.pending.length === 0
+              ? "ninguna"
+              : `${money(aLiquidar)} · ${overview.pending.length} ${overview.pending.length === 1 ? "profesional" : "profesionales"}`}
+          </span>
+        </summary>
+        <p className="text-xs text-muted mb-4 mt-2">
           Sobre turnos completados y cobrados que todavía no se liquidaron, según el % configurado
           por profesional. Al liquidar, el monto queda congelado y esos turnos dejan de figurar acá.
         </p>
@@ -442,12 +502,12 @@ export default async function ReportesPage({
             </div>
           ))}
         </div>
-      </div>
+      </details>
 
       {/* Historial de liquidaciones */}
-      <div className="rounded-lg border border-line p-4">
-        <h3 className="font-medium mb-1">Historial de liquidaciones</h3>
-        <p className="text-xs text-muted mb-4">
+      <details open={Boolean(banner?.ok)} className="rounded-lg border border-line p-4">
+        <summary className="flex min-h-11 cursor-pointer items-center font-medium">Historial de liquidaciones</summary>
+        <p className="text-xs text-muted mb-4 mt-2">
           Comprobantes de comisiones ya pagadas. El monto es el que se liquidó en ese momento.
         </p>
         {overview.history.length === 0 && (
@@ -468,7 +528,7 @@ export default async function ReportesPage({
             </div>
           ))}
         </div>
-      </div>
+      </details>
     </main>
   );
 }

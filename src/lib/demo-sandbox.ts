@@ -340,17 +340,22 @@ export function getDemoReportData(
       .sort((a, b) => b.total - a.total);
 
   const totalIngresos = paid.reduce((s, a) => s + a.payment!.amount, 0);
+  const kpis = computeDeepKpis(current);
   return {
     rangeDays,
     desde,
     hasta,
     totalIngresos,
     cantidadPagos: paid.length,
+    totalAnterior: buildDemoPeriod(rec, PREVIOUS_OFFSETS).reduce((s, a) => s + (a.payment?.amount ?? 0), 0),
+    ticketPromedio: kpis.ticketPromedio,
+    porMedio: kpis.mixMetodoPago,
+    porHora: kpis.rentabilidadHoraSilla,
     // Etiquetas en día de NEGOCIO, como las reales: `toISOString()` rendía el día UTC y en
     // la última franja de cada día mostraba el día siguiente.
     porDia: [
-      { label: dateStrInBusinessTz(desde), total: Math.round(totalIngresos * 0.42) },
-      { label: dateStrInBusinessTz(hasta), total: Math.round(totalIngresos * 0.58) },
+      { label: dateStrInBusinessTz(desde), total: Math.round(totalIngresos * 0.42), cantidad: Math.round(paid.length * 0.42) },
+      { label: dateStrInBusinessTz(hasta), total: Math.round(totalIngresos * 0.58), cantidad: Math.round(paid.length * 0.58) },
     ],
     // Mismos nombres de campo que `getReportData` real; el contenido lo dicta el
     // rubro (para retail, "por profesional" es el canal/mostrador).

@@ -7,6 +7,7 @@ import { redirect, unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { BUFFER_MIN } from "@/lib/business-config";
 import { DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
+import { resolverPeriodo, type PeriodoPedido } from "@/lib/report-periodo";
 import {
   businessWallTimeToUtc,
   todayInBusinessTz,
@@ -1513,9 +1514,16 @@ export async function confirmarTurno(formData: FormData): Promise<ResultadoAccio
   return { ok: true };
 }
 
-export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
+// Cuánto duró un turno. Es una duración, no un reloj: `getReportData` fecha y agrupa sólo por el cobro.
+function horasDelTurno(turno: { startsAt: Date; endsAt: Date }): number {
+  return Math.max(0, turno.endsAt.getTime() - turno.startsAt.getTime()) / 3_600_000;
+}
+
+export async function getReportData(pedido: PeriodoPedido = DEFAULT_REPORT_RANGE_DAYS) {
   await requireCapability("reports:read");
-  if (isDemoSandbox()) return getDemoReportData(rangeDays);
+  const periodo = resolverPeriodo(pedido, todayInBusinessTz());
+  const { desde, hasta } = bordesDelPeriodo(periodo.ultimoDia, periodo.dias, businessWallTimeToUtc);
+  if (isDemoSandbox()) return { ...getDemoReportData(periodo.dias), desde, hasta, periodo };
   const tenantId = await getCurrentTenantId();
   // Ingresos (pagos aprobados). Las comisiones ya NO se calculan acá: viven en
   // `commission-actions.ts` (getCommissionsOverview), única fuente de verdad
@@ -1543,14 +1551,23 @@ export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAY
   //
   // Y los bordes se snapean al día de negocio. Eran un instante a media tarde, así que la
   // primera fila siempre era un día PARCIAL sin nada que lo dijera.
-  const { desde, hasta } = bordesDelPeriodo(todayInBusinessTz(), rangeDays, businessWallTimeToUtc);
+  // Lo cobrado en el tramo anterior: una sola suma en la base, para comparar el total de arriba.
+  const previo = bordesDelPeriodo(periodo.anterior.ultimoDia, periodo.anterior.dias, businessWallTimeToUtc);
+  const anterior = await prisma.payment.aggregate({
+    where: { tenantId, status: "APPROVED", createdAt: { gte: previo.desde, lte: previo.hasta } },
+    _sum: { amount: true },
+  });
   const payments = await prisma.payment.findMany({
     where: { tenantId, status: "APPROVED", createdAt: { gte: desde, lte: hasta } },
     select: {
       amount: true,
       createdAt: true,
+      method: true,
       appointment: {
         select: {
+          status: true,
+          startsAt: true,
+          endsAt: true,
           professional: { select: { name: true } },
           service: { select: { name: true } },
         },
@@ -1568,11 +1585,14 @@ export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAY
       cobradoEn: p.createdAt,
       profesional: p.appointment.professional.name,
       servicio: p.appointment.service.name,
+      metodo: p.method,
+      completado: p.appointment.status === "COMPLETED",
+      horas: horasDelTurno(p.appointment),
     })),
     dateStrInBusinessTz,
   );
 
-  return { rangeDays, desde, hasta, ...agrupado };
+  return { rangeDays: periodo.dias, desde, hasta, periodo, totalAnterior: anterior._sum.amount ?? 0, ...agrupado };
 }
 
 // Reportes v2 (frente ejecutivo): KPIs profundos para el dueño — fuga operativa
@@ -1581,13 +1601,16 @@ export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAY
 // tocarlo. Una sola query de turnos acotada por tenant + rango (índice
 // `[tenantId, startsAt]`); la agregación vive en `report-kpis.ts` (lógica pura,
 // testeada). Read-only y range-bounded — sano para el plan free de Neon.
-export async function getDeepReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
+export async function getDeepReportData(pedido: PeriodoPedido = DEFAULT_REPORT_RANGE_DAYS) {
   await requireCapability("reports:read");
-  if (isDemoSandbox()) return getDemoDeepReportData(rangeDays);
+  const periodo = resolverPeriodo(pedido, todayInBusinessTz());
+  if (isDemoSandbox()) return getDemoDeepReportData(periodo.dias);
   const tenantId = await getCurrentTenantId();
 
-  const hasta = new Date();
-  const desde = new Date(hasta.getTime() - rangeDays * 24 * 60 * 60 * 1000);
+  // Los mismos días que los cobros de arriba, y sólo hasta ahora: un turno de mañana todavía no pasó.
+  const bordes = bordesDelPeriodo(periodo.ultimoDia, periodo.dias, businessWallTimeToUtc);
+  const desde = bordes.desde;
+  const hasta = new Date(Math.min(Date.now(), bordes.hasta.getTime()));
 
   const appointments = await prisma.appointment.findMany({
     where: { tenantId, startsAt: { gte: desde, lte: hasta } },
@@ -1615,7 +1638,7 @@ export async function getDeepReportData(rangeDays: number = DEFAULT_REPORT_RANGE
   }));
 
   return {
-    rangeDays,
+    rangeDays: periodo.dias,
     desde,
     hasta,
     totalTurnos: mapped.length,
@@ -1631,12 +1654,12 @@ export async function getDeepReportData(rangeDays: number = DEFAULT_REPORT_RANGE
 // sola query range-bounded sobre una ventana ancha que se rebana en memoria — no
 // golpea Neon más de una vez y respeta el plan free. La narrativa/tendencia se computa
 // en la página (funciones puras owner-insights/owner-trends), acá solo el dato.
-export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
+export async function getOwnerPanelData(pedido: PeriodoPedido = DEFAULT_REPORT_RANGE_DAYS) {
   await requireCapability("reports:read");
-  if (isDemoSandbox()) return getDemoOwnerPanelData(rangeDays);
+  const periodo = resolverPeriodo(pedido, todayInBusinessTz());
+  if (isDemoSandbox()) return getDemoOwnerPanelData(periodo.dias);
   const tenantId = await getCurrentTenantId();
 
-  const DAY_MS = 24 * 60 * 60 * 1000;
   const TREND_MONTHS = 6; // meses completos objetivo para la serie de tendencia
   const hasta = new Date();
 
@@ -1644,7 +1667,8 @@ export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE
   // delta de insights [now - 2*range] y (b) el inicio del bloque de tendencia
   // [primer día del mes, TREND_MONTHS atrás]. Una query cubre ambos usos.
   const trendStart = new Date(hasta.getFullYear(), hasta.getMonth() - TREND_MONTHS, 1);
-  const prevStart = new Date(hasta.getTime() - 2 * rangeDays * DAY_MS);
+  const actual = bordesDelPeriodo(periodo.ultimoDia, periodo.dias, businessWallTimeToUtc);
+  const prevStart = bordesDelPeriodo(periodo.anterior.ultimoDia, periodo.anterior.dias, businessWallTimeToUtc).desde;
   const desde = trendStart < prevStart ? trendStart : prevStart;
 
   const appointments = await prisma.appointment.findMany({
@@ -1673,9 +1697,8 @@ export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE
 
   // Insights: período actual vs. el previo de igual largo (comparación contra vos
   // mismo — no requiere ADR-027 ni otros tenants).
-  const curStart = new Date(hasta.getTime() - rangeDays * DAY_MS);
-  const current = computeDeepKpis(mapped.filter((a) => a.startsAt >= curStart));
-  const prevList = mapped.filter((a) => a.startsAt >= prevStart && a.startsAt < curStart);
+  const current = computeDeepKpis(mapped.filter((a) => a.startsAt >= actual.desde && a.startsAt <= actual.hasta));
+  const prevList = mapped.filter((a) => a.startsAt >= prevStart && a.startsAt < actual.desde);
   const previous = prevList.length > 0 ? computeDeepKpis(prevList) : null;
 
   // Tendencias: buckets por mes calendario (zona del negocio). Se EXCLUYE el mes en
@@ -1696,7 +1719,7 @@ export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE
     .map((month) => ({ month, kpis: computeDeepKpis(byMonth.get(month)!) }));
 
   return {
-    rangeDays,
+    rangeDays: periodo.dias,
     desde,
     hasta,
     hasPrevious: previous !== null,

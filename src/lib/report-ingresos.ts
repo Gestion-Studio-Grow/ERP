@@ -25,6 +25,8 @@
 // cubierto por ningún test (`report-csv.test.ts` le pasaba `[]`), y por eso el defecto
 // sobrevivió a una auditoría de once dimensiones.
 
+import type { ChairProfitRow, DeepKpis, KpiPaymentMethod, PaymentMixRow } from "./report-kpis";
+
 /** Un pago tal como lo necesita la agrupación: cuánto, cuándo entró, y de qué turno vino. */
 export type PagoParaReporte = {
   amount: number;
@@ -32,6 +34,11 @@ export type PagoParaReporte = {
   cobradoEn: Date;
   profesional: string;
   servicio: string;
+  metodo: KpiPaymentMethod;
+  /** El turno terminó atendido. Una seña de un turno que no se hizo es plata, pero no es una hora trabajada. */
+  completado: boolean;
+  /** Lo que duró el turno. */
+  horas: number;
 };
 
 export type FilaDeReporte = { label: string; total: number };
@@ -39,9 +46,12 @@ export type FilaDeReporte = { label: string; total: number };
 export type IngresosAgrupados = {
   totalIngresos: number;
   cantidadPagos: number;
-  porDia: FilaDeReporte[];
+  ticketPromedio: number;
+  porDia: (FilaDeReporte & { cantidad: number })[];
   porProfesional: FilaDeReporte[];
   porServicio: FilaDeReporte[];
+  porMedio: PaymentMixRow[];
+  porHora: ChairProfitRow[];
 };
 
 function aFilas(m: Map<string, number>): FilaDeReporte[] {
@@ -55,14 +65,18 @@ function aFilas(m: Map<string, number>): FilaDeReporte[] {
  * se INYECTA: sin eso no hay forma de probar los bordes del día sin depender de la zona de
  * la máquina que corre los tests, que es cómo se cuelan estos bugs.
  *
- * Los tres cortes usan el MISMO conjunto de pagos y el MISMO reloj, así que el total de
- * arriba y cualquiera de las tres tablas cierran entre sí. Eso no era cierto antes.
+ * Todos los cortes usan el MISMO conjunto de pagos y el MISMO reloj, así que el total de
+ * arriba y cualquiera de las tablas cierran entre sí. Eso no era cierto antes: los medios de pago
+ * y el ticket salían de los turnos del período (por `startsAt`) y no sumaban el total.
+ * `porHora` cuenta sólo los turnos atendidos, y por eso es lo único que puede dar menos.
  */
 export function agruparIngresos(
   pagos: readonly PagoParaReporte[],
   diaDe: (instante: Date) => string,
 ): IngresosAgrupados {
-  const porDia = new Map<string, number>();
+  const porDia = new Map<string, { total: number; cantidad: number }>();
+  const porMedio = new Map<KpiPaymentMethod, { cantidad: number; total: number }>();
+  const porHora = new Map<string, { ingresos: number; horas: number }>();
   const porProfesional = new Map<string, number>();
   const porServicio = new Map<string, number>();
   let totalIngresos = 0;
@@ -70,7 +84,20 @@ export function agruparIngresos(
   for (const p of pagos) {
     totalIngresos += p.amount;
     const dia = diaDe(p.cobradoEn);
-    porDia.set(dia, (porDia.get(dia) ?? 0) + p.amount);
+    const d = porDia.get(dia) ?? { total: 0, cantidad: 0 };
+    d.total += p.amount;
+    d.cantidad++;
+    porDia.set(dia, d);
+    const m = porMedio.get(p.metodo) ?? { cantidad: 0, total: 0 };
+    m.cantidad++;
+    m.total += p.amount;
+    porMedio.set(p.metodo, m);
+    if (p.completado) {
+      const h = porHora.get(p.profesional) ?? { ingresos: 0, horas: 0 };
+      h.ingresos += p.amount;
+      h.horas += p.horas;
+      porHora.set(p.profesional, h);
+    }
     porProfesional.set(p.profesional, (porProfesional.get(p.profesional) ?? 0) + p.amount);
     porServicio.set(p.servicio, (porServicio.get(p.servicio) ?? 0) + p.amount);
   }
@@ -78,17 +105,36 @@ export function agruparIngresos(
   return {
     totalIngresos,
     cantidadPagos: pagos.length,
+    ticketPromedio: pagos.length > 0 ? totalIngresos / pagos.length : 0,
     // Por día va en orden cronológico inverso (el día más reciente arriba), no por monto.
     porDia: Array.from(porDia.entries())
-      .map(([label, total]) => ({ label, total }))
+      .map(([label, d]) => ({ label, total: d.total, cantidad: d.cantidad }))
       .sort((a, b) => (a.label < b.label ? 1 : -1)),
     porProfesional: aFilas(porProfesional),
     porServicio: aFilas(porServicio),
+    porMedio: Array.from(porMedio.entries())
+      .map(([method, v]) => ({ method, cantidad: v.cantidad, total: v.total }))
+      .sort((a, b) => b.total - a.total),
+    porHora: Array.from(porHora.entries())
+      .map(([label, v]) => ({ label, ingresos: v.ingresos, horas: v.horas, porHora: v.horas > 0 ? v.ingresos / v.horas : 0 }))
+      .sort((a, b) => b.porHora - a.porHora),
   };
 }
 
+/**
+ * Los indicadores que se muestran: ausencias, cancelación y clientes que vuelven salen de los TURNOS
+ * del período; lo que es plata (ticket, medios, por hora), de los COBROS, como el total de arriba.
+ * Lo usan la pantalla y el CSV, así los dos dicen lo mismo.
+ */
+export function kpisDelPeriodo(
+  turnos: DeepKpis,
+  cobros: Pick<IngresosAgrupados, "ticketPromedio" | "porMedio" | "porHora">,
+): DeepKpis {
+  return { ...turnos, ticketPromedio: cobros.ticketPromedio, mixMetodoPago: cobros.porMedio, rentabilidadHoraSilla: cobros.porHora };
+}
+
 /** El día calendario que está `dias` días después de `dateStr`. */
-function diaMas(dateStr: string, dias: number): string {
+export function diaMas(dateStr: string, dias: number): string {
   // Anclado al MEDIODÍA: ningún corrimiento de zona cruza la medianoche, así que sumar días
   // en UTC da el mismo resultado que sumarlos en el calendario. Es el mismo truco que usa
   // `dayOfWeekForDate` en `datetime.ts`.
