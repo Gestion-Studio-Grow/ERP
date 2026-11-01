@@ -1,6 +1,8 @@
 // PROYECTOS — reglas puras: etapas por servicio, totales del presupuesto y qué puede pasar con
 // cada versión. Sin base ni React, para probarlas sin nada alrededor.
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
+
 export const SERVICIOS = ["EVENTOS", "EXPERIENCIAS", "ARQUITECTURA", "BRANDING", "CONTENIDOS"] as const;
 export type Servicio = (typeof SERVICIOS)[number];
 
@@ -69,7 +71,7 @@ export function leerNumero(texto: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export const redondear = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
+export const redondear = redondearAlCentavo;
 
 export function pesos(n: number): string {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);

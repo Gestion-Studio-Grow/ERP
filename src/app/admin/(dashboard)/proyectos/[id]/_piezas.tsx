@@ -11,16 +11,31 @@ import { agregarArchivo, crearStand } from "@/lib/proyectos/acciones";
 const campo = "min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-strong";
 const TIPOS = [["RENDER", "Render"], ["DISENO", "Diseño"], ["PLANO", "Plano"], ["REFERENCIA", "Referencia"], ["OTRO", "Otro"]];
 
-/** El render se achica en el navegador: 2000 px bastan para mostrarlo y entra en la base sin pagar almacenamiento aparte. */
-async function achicar(archivo: File, lado = 2000, calidad = 0.82): Promise<string> {
+// Una acción del servidor recibe hasta 1 MB: lo que se manda tiene que entrar, con margen para el resto.
+const TOPE_IMAGEN = 900_000;
+
+/**
+ * El render se achica en el navegador para entrar en la base sin pagar almacenamiento aparte: arranca en
+ * 2000 px y baja calidad y tamaño hasta que entra, así una foto pesada también sube.
+ */
+async function achicar(archivo: File): Promise<string> {
   const img = await createImageBitmap(archivo);
-  const f = Math.min(1, lado / Math.max(img.width, img.height));
-  const c = document.createElement("canvas");
-  c.width = Math.round(img.width * f);
-  c.height = Math.round(img.height * f);
-  c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-  img.close();
-  return c.toDataURL("image/jpeg", calidad);
+  try {
+    for (const lado of [2000, 1600, 1280, 1024, 800]) {
+      const f = Math.min(1, lado / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * f);
+      c.height = Math.round(img.height * f);
+      c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+      for (const calidad of [0.82, 0.7, 0.6]) {
+        const datos = c.toDataURL("image/jpeg", calidad);
+        if (datos.length <= TOPE_IMAGEN) return datos;
+      }
+    }
+    throw new Error("no entra");
+  } finally {
+    img.close();
+  }
 }
 
 export function SubirArchivo({ proyectoId }: { proyectoId: string }) {
@@ -49,7 +64,7 @@ export function SubirArchivo({ proyectoId }: { proyectoId: string }) {
             {TIPOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </label>
-        <div className="grid gap-1 text-sm font-medium text-strong">
+        <div className="grid min-w-0 gap-1 text-sm font-medium text-strong">
           Imagen
           <input
             ref={entrada}
@@ -57,16 +72,24 @@ export function SubirArchivo({ proyectoId }: { proyectoId: string }) {
             accept="image/jpeg,image/png,image/webp"
             aria-label="Elegir imagen"
             disabled={ocupado}
-            className="text-sm"
+            className="w-full min-w-0 text-sm"
             onChange={(e) => {
               const a = e.target.files?.[0];
               if (!a) return;
               setError(null);
               iniciar(async () => {
+                let datos: string | null = null;
                 try {
-                  fin(await agregarArchivo({ proyectoId, tipo, nombre: a.name, datos: await achicar(a), visibleCliente: tipo === "RENDER" }));
+                  datos = await achicar(a);
                 } catch {
-                  setError("No se pudo leer esa imagen.");
+                  setError("No se pudo leer esa imagen. Probá con un JPG o PNG.");
+                }
+                if (datos) {
+                  try {
+                    fin(await agregarArchivo({ proyectoId, tipo, nombre: a.name, datos, visibleCliente: tipo === "RENDER" }));
+                  } catch {
+                    setError("No se pudo guardar la imagen. Revisá la conexión y probá de nuevo.");
+                  }
                 }
                 if (entrada.current) entrada.current.value = "";
               });

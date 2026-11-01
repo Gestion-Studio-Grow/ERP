@@ -203,7 +203,7 @@ export interface LineaComputo {
   cantidad: number;
 }
 
-const dos = (n: number) => Math.round(n * 100) / 100;
+const dos = (n: number) => Math.round(n * 100) / 100; // no-es-plata: metros y unidades del cómputo
 
 export function superficieParedes(d: DisenoStand): number {
   return dos(paredesDe(d.tipo).reduce((s, lado) => s + (lado === "fondo" ? d.ancho : d.fondo) * d.altoPared, 0));
