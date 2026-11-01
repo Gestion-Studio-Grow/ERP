@@ -5,13 +5,13 @@
 --
 -- Cómo: Neon → Branches → Create branch (desde producción, nombre "ensayo-lote") →
 -- SQL Editor → elegí el branch "ensayo-lote" arriba → pegá TODO → Run.
--- Aplica las 1 migraciones en UNA transacción y las registra en _prisma_migrations con el
+-- Aplica las 2 migraciones en UNA transacción y las registra en _prisma_migrations con el
 -- checksum de Prisma. Si algo falla no queda nada a medias, y el error dice qué migración.
 -- Después: pegá 2-rls-despues-del-lote.sql (el aislamiento entre negocios, data-driven).
 BEGIN;
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261101120000_modulo_proyectos')) THEN
+  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20261101120000_modulo_proyectos', '20261101130000_proyecto_gastos')) THEN
     RAISE EXCEPTION 'Alguna migración del lote ya figura en _prisma_migrations: no se vuelve a aplicar encima.';
   END IF;
 END $$;
@@ -197,7 +197,54 @@ END $$;
 INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
 VALUES (gen_random_uuid()::text, '9a22cd4796073147d32332a49879c83caa5e293ea0f3b6b89df3479e4e61bfb8', now(), '20261101120000_modulo_proyectos', NULL, NULL, now(), 1);
 
+-- ─── 20261101130000_proyecto_gastos · checksum e855b4d1eeb58b9253ddc308c7ae80ef75bcca613b00bbc5487350e2340c8ddd ───
+-- GASTOS REALES DE UN PROYECTO (MIA Producciones): lo que se le paga o se le debe a cada proveedor por un trabajo,
+-- para comparar el costo real contra el presupuestado. Aditiva: una tabla nueva con RLS y una columna nullable con
+-- índice único en "CashMovement" (la clave del asiento de cada pago, como "proyectoPagoId"). Los demás negocios no
+-- la usan: queda nula.
+
+CREATE TABLE "ProyectoGasto" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "proyectoId" TEXT NOT NULL,
+  "supplierId" TEXT,
+  "rubro" TEXT NOT NULL DEFAULT 'General',
+  "descripcion" TEXT NOT NULL,
+  "neto" DOUBLE PRECISION NOT NULL,
+  "iva" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "fecha" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "comprobante" TEXT,
+  "pagadoEl" TIMESTAMP(3),
+  "medio" TEXT,
+  "pagadoPor" TEXT,
+  "anuladoEl" TIMESTAMP(3),
+  "anuladoPor" TEXT,
+  "cargadoPor" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ProyectoGasto_pkey" PRIMARY KEY ("id")
+);
+CREATE INDEX "ProyectoGasto_tenantId_proyectoId_idx" ON "ProyectoGasto"("tenantId", "proyectoId");
+CREATE INDEX "ProyectoGasto_tenantId_supplierId_idx" ON "ProyectoGasto"("tenantId", "supplierId");
+
+ALTER TABLE "ProyectoGasto" ADD CONSTRAINT "ProyectoGasto_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProyectoGasto" ADD CONSTRAINT "ProyectoGasto_proyectoId_fkey" FOREIGN KEY ("proyectoId") REFERENCES "Proyecto"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProyectoGasto" ADD CONSTRAINT "ProyectoGasto_supplierId_fkey" FOREIGN KEY ("supplierId") REFERENCES "Supplier"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE "CashMovement" ADD COLUMN "proyectoGastoId" TEXT;
+ALTER TABLE "CashMovement" ADD CONSTRAINT "CashMovement_proyectoGastoId_fkey"
+  FOREIGN KEY ("proyectoGastoId") REFERENCES "ProyectoGasto"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+CREATE UNIQUE INDEX "CashMovement_tenantId_proyectoGastoId_type_key" ON "CashMovement"("tenantId", "proyectoGastoId", "type");
+
+ALTER TABLE "ProyectoGasto" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "ProyectoGasto";
+CREATE POLICY tenant_isolation ON "ProyectoGasto"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+
+INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+VALUES (gen_random_uuid()::text, 'e855b4d1eeb58b9253ddc308c7ae80ef75bcca613b00bbc5487350e2340c8ddd', now(), '20261101130000_proyecto_gastos', NULL, NULL, now(), 1);
+
 COMMIT;
 
--- Verificación (sólo lectura): 1 filas, todas con finished_at.
-SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261101120000_modulo_proyectos') ORDER BY migration_name;
+-- Verificación (sólo lectura): 2 filas, todas con finished_at.
+SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20261101120000_modulo_proyectos', '20261101130000_proyecto_gastos') ORDER BY migration_name;

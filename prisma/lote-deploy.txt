@@ -44,3 +44,6 @@
 # sale de la lista: MEDIDO ese día contra Neon (scripts/taller/migrar-produccion.mjs, sólo lectura), lo
 # único pendiente es ésta. Sin aplicar: el pase está en docs/tenants/mia-producciones/README.md.
 20261101120000_modulo_proyectos
+# 2026-11-01: GASTOS REALES de un proyecto. Aditiva: una tabla nueva con RLS y otra columna nullable con índice único
+# en "CashMovement". Sin aplicar, igual que la anterior; van juntas en el pase.
+20261101130000_proyecto_gastos

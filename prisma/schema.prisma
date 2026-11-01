@@ -234,6 +234,7 @@ model Tenant {
   proyectoPresupuestos     ProyectoPresupuesto[]
   proyectoItems            ProyectoItem[]
   proyectoPagos            ProyectoPago[]
+  proyectoGastos           ProyectoGasto[]
   proyectoArchivos         ProyectoArchivo[]
   proyectoStands           ProyectoStand[]
   proyectoConfig           ProyectoConfig?
@@ -681,41 +682,41 @@ model ServiceProduct {
 }
 
 model Client {
-  id           String              @id @default(cuid())
-  tenant       Tenant              @relation(fields: [tenantId], references: [id])
-  tenantId     String
-  name         String
+  id                       String              @id @default(cuid())
+  tenant                   Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId                 String
+  name                     String
   // En la BASE ya es nullable (20260925120000_lanzamiento_base: DROP NOT NULL), para que el
   // importador traiga empresas sin teléfono sin inventar datos. Acá sigue obligatorio A
   // PROPÓSITO hasta que el importador (R5-F1) lo pase a `String?` junto con los ~75 usos que
   // hoy lo tratan como texto. NO volver a poner NOT NULL en una migración nueva.
-  phone        String
-  email        String?
-  notes        String?
-  birthDate    DateTime?
+  phone                    String
+  email                    String?
+  notes                    String?
+  birthDate                DateTime?
   // Vecino/a de La Alameda (ADR-013): lo responde el cliente al reservar.
   // Null = todavía no se le preguntó (clientes previos a esta feature).
-  isResident   Boolean?
-  appointments Appointment[]
-  orders       Order[]
-  receivables  AccountReceivable[] // D3 — fiado de este cliente (ADR-060 Fase E)
+  isResident               Boolean?
+  appointments             Appointment[]
+  orders                   Order[]
+  receivables              AccountReceivable[] // D3 — fiado de este cliente (ADR-060 Fase E)
   // Módulo taller: los autos del cliente, sus etiquetas y si puede dejar saldo.
-  tallerVehiculos TallerVehiculo[]
-  tallerOrdenes   TallerOrden[]
-  tallerEtiquetas String[]            @default([]) // particular · flota · empresa · VIP
-  tallerCtaCte    Boolean             @default(false)
+  tallerVehiculos          TallerVehiculo[]
+  tallerOrdenes            TallerOrden[]
+  tallerEtiquetas          String[]            @default([]) // particular · flota · empresa · VIP
+  tallerCtaCte             Boolean             @default(false)
   // Módulo inmobiliaria: la misma persona puede ser propietaria, inquilina y haber consultado.
   proyectos                Proyecto[]
-  inmoPropiedades          InmoPropiedad[]   @relation("InmoPropietario")
+  inmoPropiedades          InmoPropiedad[]     @relation("InmoPropietario")
   inmoConsultas            InmoConsulta[]
-  inmoContratosInquilino   InmoContrato[]    @relation("InmoInquilino")
-  inmoContratosPropietario InmoContrato[]    @relation("InmoLocador")
+  inmoContratosInquilino   InmoContrato[]      @relation("InmoInquilino")
+  inmoContratosPropietario InmoContrato[]      @relation("InmoLocador")
   inmoLiquidaciones        InmoLiquidacion[]
   // Módulo padel-clases: el alumno del profe (su link estable) y sus clases.
   padelAlumno              PadelAlumno?
   padelClases              PadelClase[]
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
 
   // --- Ficha fiscal (lanzamiento, E2 B3) ---
   // Mismo par que Invoice.docTipo/docNro: el comprobante se arma copiando la ficha.
@@ -1129,10 +1130,10 @@ model Invoice {
   // `abonoClave`: origen ABONO = "<reglaId>:<AAAA-MM>". Con el @@unique de abajo la BASE impide
   // dos facturas del mismo abono en el mismo mes, venga por donde venga el pedido (DB-4).
   // `descripcion`: «qué se factura» («Honorarios de octubre»), para el PDF y el CSV.
-  abonoClave            String?
-  descripcion           String?
+  abonoClave       String?
+  descripcion      String?
   // R1 · los cobros que este comprobante factura (una factura por cobro; ver CobroFacturado).
-  cobrosFacturados      CobroFacturado[]
+  cobrosFacturados CobroFacturado[]
 
   @@unique([tenantId, abonoClave]) // 1 factura por (regla, mes); NULLs no colisionan
   @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
@@ -1181,15 +1182,15 @@ model OutboxEvent {
   // N2: version Int @default(1) // N2_hub.sql (P2): versión del contrato del evento
   // N2: clave   String? // N2_hub.sql (P2): dedupe por negocio; NULL = sin dedupe (ARCA de hoy)
   // N2: entregasWebhook EntregaWebhook[]
+  // N2: @@index([tenantId, processedAt, proximoIntentoEn])
+  // N2_hub.sql también crea "OutboxEvent_tenantId_payloadClave_sinClave_idx" (tenantId, payload->>'clave') WHERE clave IS NULL:
+  // índice PARCIAL y de expresión, que Prisma no sabe declarar. Vive sólo en el SQL (dedupe del emisor de eventos, P2).
 
   @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
   // N2: @@unique([tenantId, clave])
   @@index([tenantId])
   @@index([processedAt])
   @@index([processedAt, proximoIntentoEn])
-  // N2: @@index([tenantId, processedAt, proximoIntentoEn])
-  // N2_hub.sql también crea "OutboxEvent_tenantId_payloadClave_sinClave_idx" (tenantId, payload->>'clave') WHERE clave IS NULL:
-  // índice PARCIAL y de expresión, que Prisma no sabe declarar. Vive sólo en el SQL (dedupe del emisor de eventos, P2).
 }
 
 // --- Módulo BANCOS (plugin src/plugins/bancos + glue src/lib/bancos-*) ---
@@ -1481,7 +1482,7 @@ model CashMovement {
   amount Float // siempre > 0; el signo lo aplica el arqueo según `type`
   // Medio por el que entró/salió la plata. El arqueo de turno SOLO mira EFECTIVO
   // (contar el cajón no aplica a MP ni a tarjeta): ver `summarizeMovements`.
-  method CashMethod @default(EFECTIVO)
+  method CashMethod       @default(EFECTIVO)
   reason String? // motivo/descripción (obligatorio en la UI para INGRESO/EGRESO/RETIRO)
 
   // Fecha CONTABLE del movimiento, separada de `createdAt` (que es cuándo se tipeó).
@@ -1519,11 +1520,14 @@ model CashMovement {
   // Puente TALLER → libro de caja: el cobro de una orden de trabajo (src/lib/taller/caja.ts).
   // Misma idea que `collectionId`: es la clave del asiento, con su árbitro
   // `@@unique(tenantId, tallerPagoId, type)` — una VENTA por cobro y, si se anula, un EGRESO.
-  tallerPago   TallerPago? @relation(fields: [tallerPagoId], references: [id], onDelete: SetNull)
-  tallerPagoId String?
+  tallerPago      TallerPago?    @relation(fields: [tallerPagoId], references: [id], onDelete: SetNull)
+  tallerPagoId    String?
   // Cobro de un proyecto (módulo proyectos): misma regla que el taller.
-  proyectoPago   ProyectoPago? @relation(fields: [proyectoPagoId], references: [id], onDelete: SetNull)
-  proyectoPagoId String?
+  proyectoPago    ProyectoPago?  @relation(fields: [proyectoPagoId], references: [id], onDelete: SetNull)
+  proyectoPagoId  String?
+  // El pago de un gasto de proyecto (y su reversa): la misma idea que `proyectoPagoId`, del otro lado.
+  proyectoGasto   ProyectoGasto? @relation(fields: [proyectoGastoId], references: [id], onDelete: SetNull)
+  proyectoGastoId String?
 
   createdBy String // actor "user:<id>"
   createdAt DateTime @default(now())
@@ -1549,6 +1553,7 @@ model CashMovement {
   @@unique([tenantId, collectionId, type])
   @@unique([tenantId, tallerPagoId, type])
   @@unique([tenantId, proyectoPagoId, type])
+  @@unique([tenantId, proyectoGastoId, type])
   @@index([tenantId])
   @@index([sessionId, createdAt])
   @@index([orderId])
@@ -1737,8 +1742,9 @@ model Supplier {
   notes  String?
   active Boolean @default(true) // baja lógica: nunca se borra un proveedor con historial
 
-  purchases StockPurchase[] // back-relation de la FK nullable en StockPurchase (D6)
-  payables  AccountPayable[] // D2 — cuentas a pagar a este proveedor
+  purchases        StockPurchase[] // back-relation de la FK nullable en StockPurchase (D6)
+  payables         AccountPayable[] // D2 — cuentas a pagar a este proveedor
+  gastosDeProyecto ProyectoGasto[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2144,14 +2150,14 @@ model EventoIntegracion {
 
 // Contador mensual barato para los límites por plan (no se cuenta sobre EventoIntegracion).
 model IntegracionUso {
-  id         String @id @default(cuid())
-  tenant     Tenant @relation(fields: [tenantId], references: [id])
+  id         String              @id @default(cuid())
+  tenant     Tenant              @relation(fields: [tenantId], references: [id])
   tenantId   String
   conexionId String
   // El contador sobrevive: una conexión con uso contado no se borra (se da de baja con su estado).
   conexion   IntegracionConexion @relation(fields: [tenantId, conexionId], references: [tenantId, id], onDelete: Restrict)
   mes        String // "2026-09"
-  eventos    Int    @default(0)
+  eventos    Int                 @default(0)
 
   @@unique([tenantId, conexionId, mes])
 }
@@ -2565,22 +2571,22 @@ model TallerFoto {
 }
 
 model TallerPago {
-  id         String      @id @default(cuid())
-  tenant     Tenant      @relation(fields: [tenantId], references: [id])
-  tenantId   String
-  orden      TallerOrden @relation(fields: [ordenId], references: [id], onDelete: Cascade)
-  ordenId    String
-  medio      String // EFECTIVO · TRANSFERENCIA · MERCADO_PAGO · DEBITO · CREDITO · CUENTA_CORRIENTE
-  monto      Float // lo que baja de la deuda del trabajo
-  recargo    Float       @default(0) // lo que se cobró de más por tarjeta
-  cuotas     Int         @default(1)
-  nota       String?
-  cobradoPor String?
+  id            String         @id @default(cuid())
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  orden         TallerOrden    @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  ordenId       String
+  medio         String // EFECTIVO · TRANSFERENCIA · MERCADO_PAGO · DEBITO · CREDITO · CUENTA_CORRIENTE
+  monto         Float // lo que baja de la deuda del trabajo
+  recargo       Float          @default(0) // lo que se cobró de más por tarjeta
+  cuotas        Int            @default(1)
+  nota          String?
+  cobradoPor    String?
   // Un cobro no se borra: se anula y queda el rastro (y su contrapartida en el libro de caja).
-  anuladoEl  DateTime?
-  anuladoPor String?
+  anuladoEl     DateTime?
+  anuladoPor    String?
   cashMovements CashMovement[]
-  createdAt  DateTime    @default(now())
+  createdAt     DateTime       @default(now())
 
   @@index([tenantId, ordenId])
   @@index([tenantId, createdAt])
@@ -2801,57 +2807,57 @@ model InmoAjuste {
 }
 
 model InmoCuota {
-  id              String       @id @default(cuid())
-  tenant          Tenant       @relation(fields: [tenantId], references: [id])
-  tenantId        String
-  contrato        InmoContrato @relation(fields: [contratoId], references: [id])
-  contratoId      String
-  numero          Int
-  periodo         String // AAAA-MM
-  vence           DateTime
-  tramo           Int          @default(0)
-  alquiler        Decimal      @db.Decimal(14, 2)
+  id                  String       @id @default(cuid())
+  tenant              Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId            String
+  contrato            InmoContrato @relation(fields: [contratoId], references: [id])
+  contratoId          String
+  numero              Int
+  periodo             String // AAAA-MM
+  vence               DateTime
+  tramo               Int          @default(0)
+  alquiler            Decimal      @db.Decimal(14, 2)
   // true: el monto es el último conocido; falta aplicar el índice de su tramo.
-  ajustePendiente Boolean      @default(false)
-  extras          Json? // [{ concepto, monto }] — expensas, servicios, ABL a cargo del inquilino
-  punitorios      Decimal      @default(0) @db.Decimal(14, 2)
-  pagado          Decimal      @default(0) @db.Decimal(14, 2) // suma de los cobros no anulados
-  anulada         Boolean      @default(false)
+  ajustePendiente     Boolean      @default(false)
+  extras              Json? // [{ concepto, monto }] — expensas, servicios, ABL a cargo del inquilino
+  punitorios          Decimal      @default(0) @db.Decimal(14, 2)
+  pagado              Decimal      @default(0) @db.Decimal(14, 2) // suma de los cobros no anulados
+  anulada             Boolean      @default(false)
   // De lo cobrado, cuánto ya se le liquidó al propietario. Una cuota pagada en dos veces puede
   // entrar en dos liquidaciones: en cada una entra sólo lo que todavía no se había liquidado.
-  liquidado       Decimal      @default(0) @db.Decimal(14, 2)
+  liquidado           Decimal      @default(0) @db.Decimal(14, 2)
   // Lo mismo, abierto por rubro: si después de liquidar en parte se le suman expensas o mora a
   // la cuota, la liquidación siguiente resta lo ya liquidado de CADA rubro (y la comisión, que
   // va sobre el alquiler, sale bien). `liquidado` sigue siendo el total, para compatibilidad.
-  liquidadoAlquiler   Decimal  @default(0) @db.Decimal(14, 2)
-  liquidadoExtras     Decimal  @default(0) @db.Decimal(14, 2)
-  liquidadoPunitorios Decimal  @default(0) @db.Decimal(14, 2)
+  liquidadoAlquiler   Decimal      @default(0) @db.Decimal(14, 2)
+  liquidadoExtras     Decimal      @default(0) @db.Decimal(14, 2)
+  liquidadoPunitorios Decimal      @default(0) @db.Decimal(14, 2)
   // true: la mora se perdonó a propósito (queda en 0 y el panel no la vuelve a sugerir).
-  moraPerdonada   Boolean      @default(false)
-  pagos           InmoPago[]
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  moraPerdonada       Boolean      @default(false)
+  pagos               InmoPago[]
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
   @@unique([tenantId, contratoId, periodo])
   @@index([tenantId, vence])
 }
 
 model InmoPago {
-  id         String    @id @default(cuid())
-  tenant     Tenant    @relation(fields: [tenantId], references: [id])
-  tenantId   String
-  cuota      InmoCuota @relation(fields: [cuotaId], references: [id])
-  cuotaId    String
-  medio      String // TRANSFERENCIA · EFECTIVO · MERCADO_PAGO · DEPOSITO · CHEQUE
-  monto      Decimal   @db.Decimal(14, 2)
-  nota       String?
-  cobradoPor String?
+  id           String    @id @default(cuid())
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  cuota        InmoCuota @relation(fields: [cuotaId], references: [id])
+  cuotaId      String
+  medio        String // TRANSFERENCIA · EFECTIVO · MERCADO_PAGO · DEPOSITO · CHEQUE
+  monto        Decimal   @db.Decimal(14, 2)
+  nota         String?
+  cobradoPor   String?
   // Número de recibo, correlativo por negocio. Nace con el cobro; un cobro anulado lo conserva.
   reciboNumero Int?
   // Un cobro no se borra: se anula y queda el rastro.
-  anuladoEl  DateTime?
-  anuladoPor String?
-  createdAt  DateTime  @default(now())
+  anuladoEl    DateTime?
+  anuladoPor   String?
+  createdAt    DateTime  @default(now())
 
   @@unique([tenantId, reciboNumero])
   @@index([tenantId, cuotaId])
@@ -2949,15 +2955,15 @@ model PadelConfig {
 // Franja semanal (diaSemana 0..6) o excepción de un día (fecha). tipo DA = da clases;
 // NO = bloqueo (lluvia, viaje): pisa a las franjas semanales de ese día.
 model PadelDisponibilidad {
-  id         String    @id @default(cuid())
-  tenant     Tenant    @relation(fields: [tenantId], references: [id])
-  tenantId   String
-  diaSemana  Int?
-  fecha      DateTime? @db.Date
-  desde      String // "08:00"
-  hasta      String // "12:00"
-  tipo       String    @default("DA") // DA · NO
-  createdAt  DateTime  @default(now())
+  id        String    @id @default(cuid())
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  diaSemana Int?
+  fecha     DateTime? @db.Date
+  desde     String // "08:00"
+  hasta     String // "12:00"
+  tipo      String    @default("DA") // DA · NO
+  createdAt DateTime  @default(now())
 
   @@index([tenantId, diaSemana])
   @@index([tenantId, fecha])
@@ -3212,6 +3218,7 @@ model Proyecto {
   tareas       ProyectoTarea[]
   presupuestos ProyectoPresupuesto[]
   pagos        ProyectoPago[]
+  gastos       ProyectoGasto[]
   archivos     ProyectoArchivo[]
   stands       ProyectoStand[]
   createdAt    DateTime              @default(now())
@@ -3297,6 +3304,35 @@ model ProyectoPago {
   createdAt  DateTime       @default(now())
 
   @@index([tenantId, proyectoId])
+}
+
+// Lo que realmente se paga o se debe por un trabajo. `neto` es lo que se compara contra el costo presupuestado,
+// que también va sin IVA; a la caja sale `neto + iva`. Sin `pagadoEl` queda por pagar. Anular no borra.
+model ProyectoGasto {
+  id          String         @id @default(cuid())
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  proyecto    Proyecto       @relation(fields: [proyectoId], references: [id])
+  proyectoId  String
+  supplier    Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  supplierId  String?
+  rubro       String         @default("General")
+  descripcion String
+  neto        Float
+  iva         Float          @default(0)
+  fecha       DateTime       @default(now())
+  comprobante String?
+  pagadoEl    DateTime?
+  medio       String?
+  pagadoPor   String?
+  anuladoEl   DateTime?
+  anuladoPor  String?
+  cargadoPor  String?
+  asientos    CashMovement[]
+  createdAt   DateTime       @default(now())
+
+  @@index([tenantId, proyectoId])
+  @@index([tenantId, supplierId])
 }
 
 model ProyectoArchivo {
