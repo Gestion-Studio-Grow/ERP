@@ -21,3 +21,19 @@ test("las pantallas usan estas palabras, no el texto fijo", () => {
   assert.doesNotMatch(ajustes, /Contar una góndola entera/);
   assert.match(readFileSync(join(raiz, "pedidos/page.tsx"), "utf8"), /palabras\.cobrarLaVenta/);
 });
+
+test("R4 · al reabrir el día, CH no lee «cuaderno» ni «cadete»; los demás, como siempre", () => {
+  const ch = palabrasDelNegocio("beauty-spa");
+  for (const texto of [ch.reabrirAviso, ch.reabrirQueFalto, ch.reabrirMotivo]) assert.doesNotMatch(texto, /cuaderno|cadete/);
+  for (const otro of ["magra", "adosmanos", null]) {
+    const p = palabrasDelNegocio(otro);
+    assert.equal(p.reabrirAviso, "una venta del cuaderno, una rendición");
+    assert.equal(p.reabrirQueFalto, "la venta del cuaderno, la rendición del cadete");
+    assert.equal(p.reabrirMotivo, "faltó cargar una venta del cuaderno");
+  }
+  // Las pantallas no los tienen escritos a mano.
+  const raiz = join(process.cwd(), "src/app/admin/(dashboard)/caja/cierre");
+  for (const archivo of ["ContarYCerrar.tsx", "CierreRenglon.tsx"]) {
+    assert.doesNotMatch(readFileSync(join(raiz, archivo), "utf8"), /cuaderno|cadete/, archivo);
+  }
+});

@@ -30,6 +30,8 @@ import { LineaDeCuenta } from "@/components/ui/LineaDeCuenta";
 import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
 import { diaAnterior, diaLargo, diaMes, diasEntre, nombreMes } from "../_renglon/fechas";
 import ContarYCerrar, { ReabrirElDia, type MedioAContar } from "./ContarYCerrar";
+import { palabrasDelNegocio, type PalabrasDelNegocio } from "@/lib/palabras-del-negocio";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { diferenciaDelComprobante, textoDelComprobante, type MedioDelComprobante } from "./comprobante";
 import { leerMediosDelComprobante } from "./comprobante.server";
 
@@ -76,7 +78,7 @@ function Encabezado({ d, regla }: { d: Datos; regla: string | null }) {
 }
 
 /** El comprobante de un día cerrado: la misma hoja con la que se contó, ahora en tinta. */
-function Comprobante({ d, medios }: { d: Datos; medios: MedioDelComprobante[] | null }) {
+function Comprobante({ d, medios, palabras }: { d: Datos; medios: MedioDelComprobante[] | null; palabras: PalabrasDelNegocio }) {
   const r = d.registro!;
   const resumen = r.resumen!;
   const diferencia = medios ? diferenciaDelComprobante(medios) : null;
@@ -156,12 +158,12 @@ function Comprobante({ d, medios }: { d: Datos; medios: MedioDelComprobante[] | 
       {resumen.nota && <Renglon folio="Nota" titulo={<span className="font-normal">“{resumen.nota}”</span>} />}
       <p className="mt-3 text-sm text-muted">
         {d.reabrir?.puede
-          ? "Si apareció algo de este día (una venta del cuaderno, una rendición), podés reabrirlo, cargarlo y cerrarlo de nuevo."
+          ? `Si apareció algo de este día (${palabras.reabrirAviso}), podés reabrirlo, cargarlo y cerrarlo de nuevo.`
           : `Un cierre no se rehace: si apareció algo, cargalo con fecha ${formatDayLabel(nextDayKey(d.lastClosedDay!))} y aclaralo en el detalle.`}
       </p>
       {d.reabrir?.puede && (
         <div className="mt-3">
-          <ReabrirElDia day={d.day} diaNombre={diaLargo(d.day).toLowerCase().split(" de ")[0]} />
+          <ReabrirElDia day={d.day} diaNombre={diaLargo(d.day).toLowerCase().split(" de ")[0]} palabras={palabras} />
         </div>
       )}
       {d.reabrir && !d.reabrir.puede && <p className="mt-2 text-sm text-muted">{d.reabrir.porque}</p>}
@@ -281,6 +283,7 @@ function TurnosSinCerrar({ d }: { d: Datos }) {
 }
 
 export default async function CierreRenglon({ d, regla = null }: { d: Datos; regla?: string | null }) {
+  const palabras = palabrasDelNegocio(await getCurrentTenantSlug());
   const { day, yaCerrado, enElFuturo, registro, lastClosedDay, preview } = d;
   const medios: MedioAContar[] = d.columnas.map((m) => {
     const x = preview.porColumna[m];
@@ -297,7 +300,7 @@ export default async function CierreRenglon({ d, regla = null }: { d: Datos; reg
   return (
     <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
       <Encabezado d={d} regla={regla} />
-      {yaCerrado && registro && <Comprobante d={d} medios={mediosCerrados} />}
+      {yaCerrado && registro && <Comprobante d={d} medios={mediosCerrados} palabras={palabras} />}
       {yaCerrado && !registro && (
         <Franja tono="info">
           El {diaLargo(day).toLowerCase()} quedó adentro del cierre del {diaMes(lastClosedDay!)}: cerrar un día arquea todo lo que quedó
