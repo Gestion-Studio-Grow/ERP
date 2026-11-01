@@ -4,9 +4,9 @@ Rama `tenant/mia-producciones` (worktree `C:\mia`), nacida de `origin/main` `d8f
 tocar Neon.** Este archivo es la guía del pase; nada de lo que dice se ejecutó todavía salvo lo marcado
 como medido.
 
-## Apps de gestión de eventos (rama `tenant/mia-heka`, worktree `C:\miah`)
+## Apps de gestión de eventos
 
-Esta rama nace de `tenant/mia-producciones` @`272863a8` y suma las apps relevadas en Heka el 01/11/2026, escritas de cero
+Desde `272863a8` se suman las apps relevadas en Heka el 01/11/2026, escritas de cero
 sobre el motor y con la marca GSG en el panel: Inicio, Proyectos (Kanban y Lista), Diseño, Calendario, Proveedores,
 Administración, Dirección, Agentes IA, Propuesta con IA, Mi liquidación y Equipo y permisos. El sitio y lo que ve el cliente
 siguen con la marca de MIA. Lo relevado y la brecha: `docs/benchmark/heka-2026-11-01.md` y `heka-especificacion.md`.
@@ -31,8 +31,7 @@ adjuntos dentro de la fila del ítem.
 **Decisiones provisionales, a confirmar con MIA:** las cuotas al cliente llevan IVA y las de proveedores van netas; venta en
 dólares con referencia en pesos; Diseño ve la venta pero nunca costos ni márgenes; `costoReal` del ítem sin definir.
 
-**Dos ramas:** `C:\mia` sigue su propio trabajo sobre `tenant/mia-producciones`. Hay que unirlas antes del pase; el arreglo del
-ingreso (`src/lib/auth-actions.ts`) también le sirve a esa rama, que tiene el mismo problema [A VALIDAR allí].
+**Ramas:** `tenant/mia-producciones` (`C:\mia`) ya incluye todo esto: no tenía commits propios y avanzó sin merge sobre `tenant/mia-heka`. Se sigue trabajando en `C:\mia`.
 
 ## Qué es
 
