@@ -267,6 +267,17 @@ const REGLAS: Record<string, (r: Ok, app: AppMin, destinos: ReadonlyMap<string, 
  * regla) va a «Revisar» con la app que la mide: ninguna alerta se pierde. Devuelve también qué
  * números no se pudieron calcular: sin ellos no se puede decir «nada pendiente».
  */
+/**
+ * La frase cuando nada pide atención. «Todavía no hay movimiento» es mentira si la estética ya cobró
+ * y todavía no hizo su primer cierre (U9), y allá no se «vende» (U13). Los demás rubros, como siempre. PURA.
+ */
+export function fraseSinPendientes(p: { arrancando: boolean; esEstetica: boolean }): { tipo: "info" | "hecho"; marca: string; texto: string } {
+  if (p.arrancando && !p.esEstetica) {
+    return { tipo: "info", marca: "Todavía no hay movimiento.", texto: "Cuando empieces a vender, lo que pida atención va a estar acá, con la tecla para resolverlo." };
+  }
+  return { tipo: "hecho", marca: "Nada pide atención ahora.", texto: "Lo que aparezca en el día va a estar acá, con la tecla para resolverlo." };
+}
+
 /** Quien no cierra el día (`puedeCerrarElDia`) no recibe «Cerrar el día»: ve el cierre. PURA. */
 export function teclaDelCierreSegunRol(pendientes: Pendiente[], puedeCerrar: boolean): Pendiente[] {
   if (puedeCerrar) return pendientes;

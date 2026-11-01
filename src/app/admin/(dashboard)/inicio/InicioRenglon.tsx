@@ -29,6 +29,8 @@ import { roleHasCapability, type Role } from "@/lib/capabilities";
 import { puedeCerrarElDia } from "@/lib/caja/cierre-diario";
 import { hoyEstaCerrado } from "@/lib/caja/frontera-cierre";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { esEstetica } from "@/lib/palabras-del-negocio";
 import { todayInBusinessTz, fmtTime, dateStrInBusinessTz } from "@/lib/datetime";
 import { getDashboardData } from "@/lib/actions";
 import { COOKIE_FIJADAS, fijadasVisibles, leerFijadas } from "@/lib/apps-fijadas";
@@ -48,6 +50,7 @@ import {
   APPS_DE_LA_BANDEJA,
   APPS_DE_LA_LINEA,
   avisoDeCaja,
+  fraseSinPendientes,
   pasosSegunRol,
   teclaDelCierreSegunRol,
   pasosParaArrancar,
@@ -267,6 +270,7 @@ async function Bandeja({ ctx }: { ctx: Contexto }) {
   const grupos = porObjetivo(pendientes);
   const total = pendientes.length;
   const facturacion = items.find((i) => i.app.id === "facturacion");
+  const frase = fraseSinPendientes({ arrancando, esEstetica: esEstetica(await getCurrentTenantSlug()) });
 
   return (
     <Bloque id="para-atender-hoy" titulo="Para atender hoy" cuenta={total > 0 ? total : undefined} nota={total > 0 ? "Cada cosa se va cuando la resolvés" : undefined}>
@@ -283,15 +287,7 @@ async function Bandeja({ ctx }: { ctx: Contexto }) {
       )}
       {total === 0 && sinRevisar.length === 0 && !aviso && (
         <p className="border-b border-line py-3 text-sm text-muted">
-          {arrancando ? (
-            <>
-              <Marca tipo="info">Todavía no hay movimiento.</Marca> Cuando empieces a vender, lo que pida atención va a estar acá, con la tecla para resolverlo.
-            </>
-          ) : (
-            <>
-              <Marca tipo="hecho">Nada pide atención ahora.</Marca> Lo que aparezca en el día va a estar acá, con la tecla para resolverlo.
-            </>
-          )}
+          <Marca tipo={frase.tipo}>{frase.marca}</Marca> {frase.texto}
         </p>
       )}
       {grupos.map((g) => {

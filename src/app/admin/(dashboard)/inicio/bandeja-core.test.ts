@@ -6,6 +6,7 @@ import type { ResultadoKpi } from "@/apps/kpis/nucleo.server";
 import {
   APPS_DE_LA_BANDEJA,
   avisoDeCaja,
+  fraseSinPendientes,
   pasosParaArrancar,
   type PrimerDiaDelMostrador,
   lineaDelDia,
@@ -278,6 +279,16 @@ test("mostrador: cada paso sale sólo si se ve la app donde se resuelve (un caje
   const cajero = new Map([["vender", "/admin/vender"], ["caja-del-dia", "/admin/caja"]]);
   const pasos = pasosParaArrancar(arrancandoMostrador(), cajero, null, null, NADA_HECHO);
   assert.deepEqual(pasos.map((p) => p.id), ["venta", "caja"]);
+});
+
+test("U9, U13: la estética sin su primer cierre no dice «sin movimiento» ni habla de vender; los demás, igual", () => {
+  const ch = fraseSinPendientes({ arrancando: true, esEstetica: true });
+  assert.equal(ch.marca, "Nada pide atención ahora.");
+  assert.doesNotMatch(ch.texto, /vender/);
+  const otro = fraseSinPendientes({ arrancando: true, esEstetica: false });
+  assert.equal(otro.marca, "Todavía no hay movimiento.");
+  assert.match(otro.texto, /Cuando empieces a vender/);
+  assert.equal(fraseSinPendientes({ arrancando: false, esEstetica: false }).marca, "Nada pide atención ahora.");
 });
 
 // ── Reingeniería CH, Tanda 1 (1-D): los turnos que quedaron sin cerrar ───────
