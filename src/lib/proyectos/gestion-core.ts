@@ -617,6 +617,7 @@ export const TIPOS_AVISO = [
   { id: "mencion", label: "Me mencionan en un chat" },
   { id: "tarea", label: "Me asignan una tarea" },
   { id: "deadline", label: "Fechas límite próximas" },
+  { id: "vencimiento", label: "Cobros y pagos por vencer" },
   { id: "aprobacion", label: "Aprobaciones de precios y propuestas" },
   { id: "pago", label: "Pagos a proveedores" },
   { id: "cobro", label: "Cobros recibidos" },

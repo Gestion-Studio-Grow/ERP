@@ -92,33 +92,66 @@ export async function registrarCambio(
 }
 
 /** Lee por fuera de la transacción: llamarla antes de abrirla. */
-export async function usuariosDelEquipo(tenantId: string, proyectoId: string, salvo: string): Promise<string[]> {
-  const filas = await prisma.proyectoEquipo.findMany({ where: { tenantId, proyectoId }, select: { persona: { select: { userId: true } } } });
+export async function usuariosDelEquipo(tenantId: string, proyectoId: string, salvo: string, db: Tx | typeof prisma = prisma): Promise<string[]> {
+  const filas = await db.proyectoEquipo.findMany({ where: { tenantId, proyectoId }, select: { persona: { select: { userId: true } } } });
   return filas.map((f) => f.persona.userId).filter((u): u is string => !!u && u !== salvo);
 }
 
+const FECHA_DEL_AVISO = (d: Date) => d.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+
 /**
- * «Deadlines próximos». No hay un proceso nocturno propio: corre cuando alguien abre Inicio, y el mismo texto no se repite a la misma persona.
- * Si nadie entra, no sale; alcanza mientras el equipo use el sistema todos los días.
+ * Cobros y pagos a 3 días, para quien lleva la plata. Las previstas no son plata todavía. Mira también la última semana:
+ * si el proceso no corrió un día, igual avisa, y el mismo texto no se repite a la misma persona.
  */
-export async function avisarDeadlines(tenantId: string) {
+async function avisarCuotas(db: Tx, tenantId: string, ahora: Date, origen?: string | null) {
+  const cuotas = await db.proyectoCuota.findMany({
+    where: { tenantId, prevista: false, pagadoEl: null, anuladoEl: null, venceEl: { gte: new Date(ahora.getTime() - 7 * 86_400_000), lte: new Date(ahora.getTime() + 3 * 86_400_000) } },
+    orderBy: { venceEl: "asc" },
+    take: 100,
+    select: { tipo: true, concepto: true, venceEl: true, proyectoId: true, proyecto: { select: { nombre: true } } },
+  });
+  if (cuotas.length === 0) return;
+  const [personas, duenos] = await Promise.all([
+    db.proyectoPersona.findMany({ where: { tenantId, activa: true, rol: { in: ["DIRECCION", "ADMINISTRACION"] }, userId: { not: null } }, select: { userId: true } }),
+    db.user.findMany({ where: { tenantId, role: "OWNER", active: true, deletedAt: null }, select: { id: true } }),
+  ]);
+  const destinatarios = [...new Set([...personas.map((p) => p.userId!), ...duenos.map((d) => d.id)])];
+  for (const c of cuotas) {
+    const texto = `${c.proyecto?.nombre ?? "Empresa"}: ${c.tipo === "COBRO" ? "cobro" : "pago"} «${c.concepto}» vence el ${FECHA_DEL_AVISO(c.venceEl)}`;
+    const ya = await db.proyectoAviso.findMany({ where: { tenantId, tipo: "vencimiento", texto, destinatario: { in: destinatarios } }, select: { destinatario: true } });
+    const avisados = new Set(ya.map((y) => y.destinatario));
+    await avisar(db, { tenantId, destinatarios: destinatarios.filter((u) => !avisados.has(u)), tipo: "vencimiento", texto, enlace: c.proyectoId ? `/admin/proyectos/${c.proyectoId}?tab=finanzas` : "/admin/proyectos/administracion", origen });
+  }
+}
+
+/** Lo que corre una vez por día desde el cron, parado en el negocio: `db` es su transacción. */
+export async function avisarVencimientos(db: Tx, tenantId: string, origen: string | null) {
+  await avisarDeadlines(tenantId, db, origen);
+  await avisarCuotas(db, tenantId, new Date(), origen);
+}
+
+/**
+ * «Deadlines próximos». Corre una vez por día desde el cron de recordatorios y además cuando alguien abre Inicio; el mismo texto no se repite
+ * a la misma persona.
+ */
+export async function avisarDeadlines(tenantId: string, db: Tx | typeof prisma = prisma, origen?: string | null) {
   const ahora = new Date();
-  const items = await prisma.proyectoItem.findMany({
+  const items = await db.proyectoItem.findMany({
     where: { tenantId, fechaLimite: { gte: ahora, lte: new Date(ahora.getTime() + 3 * 86_400_000) }, estadoItem: { not: "ENTREGADO" }, presupuesto: { proyecto: { perdidoEl: null } } },
     select: { descripcion: true, fechaLimite: true, presupuesto: { select: { proyectoId: true, proyecto: { select: { nombre: true } } } } },
     take: 50,
   });
   for (const i of items) {
     const { proyectoId, proyecto } = i.presupuesto;
-    const texto = `${proyecto.nombre}: ${i.descripcion} vence el ${i.fechaLimite!.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}`;
-    const equipo = await usuariosDelEquipo(tenantId, proyectoId, "");
-    const ya = await prisma.proyectoAviso.findMany({ where: { tenantId, tipo: "deadline", texto, destinatario: { in: equipo } }, select: { destinatario: true } });
+    const texto = `${proyecto.nombre}: ${i.descripcion} vence el ${FECHA_DEL_AVISO(i.fechaLimite!)}`;
+    const equipo = await usuariosDelEquipo(tenantId, proyectoId, "", db);
+    const ya = await db.proyectoAviso.findMany({ where: { tenantId, tipo: "deadline", texto, destinatario: { in: equipo } }, select: { destinatario: true } });
     const avisados = new Set(ya.map((y) => y.destinatario));
-    await avisar(prisma, { tenantId, destinatarios: equipo.filter((u) => !avisados.has(u)), tipo: "deadline", texto, enlace: `/admin/proyectos/${proyectoId}` });
+    await avisar(db, { tenantId, destinatarios: equipo.filter((u) => !avisados.has(u)), tipo: "deadline", texto, enlace: `/admin/proyectos/${proyectoId}`, origen });
   }
 }
 
-export async function avisar(db: Tx | typeof prisma, d: { tenantId: string; destinatarios: readonly string[]; tipo: string; texto: string; enlace?: string }) {
+export async function avisar(db: Tx | typeof prisma, d: { tenantId: string; destinatarios: readonly string[]; tipo: string; texto: string; enlace?: string; origen?: string | null }) {
   const unicos = [...new Set(d.destinatarios)].filter(Boolean);
   if (unicos.length === 0) return;
   const apagados = await db.proyectoAvisoPref.findMany({ where: { tenantId: d.tenantId, tipo: d.tipo, enSistema: false, userId: { in: unicos } }, select: { userId: true } });
@@ -131,13 +164,14 @@ export async function avisar(db: Tx | typeof prisma, d: { tenantId: string; dest
 
 /**
  * Sale después de responder, para no alargar la transacción. Si los avisos no quedaron guardados es porque la transacción se
- * deshizo, y entonces no sale nada. Fuera de un pedido (sin `headers`) no hay mail: queda el aviso en el sistema.
+ * deshizo, y entonces no sale nada. El cron pasa `origen`: su pedido viene de otra dirección. Fuera de un pedido no hay mail: queda el
+ * aviso en el sistema.
  */
-async function programarMails(d: { tenantId: string; tipo: string; texto: string; enlace?: string }, para: string[], avisos: string[]) {
+async function programarMails(d: { tenantId: string; tipo: string; texto: string; enlace?: string; origen?: string | null }, para: string[], avisos: string[]) {
   try {
     const h = await headers();
     const host = h.get("x-forwarded-host") ?? h.get("host");
-    const origen = host ? `${h.get("x-forwarded-proto") ?? "https"}://${host}` : null;
+    const origen = d.origen !== undefined ? d.origen : host ? `${h.get("x-forwarded-proto") ?? "https"}://${host}` : null;
     after(async () => {
       try {
         const usuarios = await tenantTransaction(
