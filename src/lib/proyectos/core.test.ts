@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { clientePuedeResponder, leerNumero, etapaAlAprobar, etapaLabel, etapaSiguiente, etapasDe, metodoDeCaja, porRubro, precioConMargen, sePuedeEditar, totales } from "./core";
+import { clientePuedeResponder, leerNumero, etapaAlAprobar, etapaLabel, etapaSiguiente, etapasDe, metodoDeCaja, pesos, porRubro, precioConMargen, sePuedeEditar, totales, waLink } from "./core";
 import { computar, costosVigentes, dentroDelLote, disenoInicial, normalizarDiseno, paredesDe, superficieParedes } from "./stand";
 
 test("un contenido no pasa por 3D, armado ni desarme; un stand pasa por todo", () => {
@@ -34,6 +34,18 @@ test("cada medio va a su columna del libro: nada bancario bajo Mercado Pago si e
   assert.equal(metodoDeCaja("CHEQUE", true), "TRANSFERENCIA");
   assert.equal(metodoDeCaja("TRANSFERENCIA", false), "MP");
   assert.equal(metodoDeCaja("CHEQUE"), "MP");
+});
+
+test("el WhatsApp sale con el 549 y no abre un número que no sirve", () => {
+  assert.equal(waLink("11 5000-0001", "Hola"), "https://wa.me/5491150000001?text=Hola");
+  assert.equal(waLink("+54 9 11 5000-0001", "Hola"), "https://wa.me/5491150000001?text=Hola");
+  assert.equal(waLink("1234", "Hola"), null);
+  assert.equal(waLink(null, "Hola"), null);
+});
+
+test("los pesos muestran los centavos sólo si los hay", () => {
+  assert.match(pesos(1500.75), /1.500,75/);
+  assert.doesNotMatch(pesos(2000), /,/);
 });
 
 test("porRubro respeta el orden en que aparece cada rubro", () => {

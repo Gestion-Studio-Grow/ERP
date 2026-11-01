@@ -1,7 +1,8 @@
 // PROYECTOS — reglas puras: etapas por servicio, totales del presupuesto y qué puede pasar con
 // cada versión. Sin base ni React, para probarlas sin nada alrededor.
 
-import { redondearAlCentavo } from "@/lib/dinero/redondeo";
+import { admiteCentavos, redondearAlCentavo } from "@/lib/dinero/redondeo";
+import { waLinkClienta } from "@/lib/whatsapp-cta";
 
 export const SERVICIOS = ["EVENTOS", "EXPERIENCIAS", "ARQUITECTURA", "BRANDING", "CONTENIDOS"] as const;
 export type Servicio = (typeof SERVICIOS)[number];
@@ -74,7 +75,9 @@ export function leerNumero(texto: string): number {
 export const redondear = redondearAlCentavo;
 
 export function pesos(n: number): string {
-  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
+  // Sin centavos si el importe no los tiene; con ellos, tal cual: un cobro de $ 1.500,75 no se muestra como $ 1.501.
+  const d = admiteCentavos(n) && !Number.isInteger(n) ? 2 : 0;
+  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 }
 
 export function precioConMargen(costo: number, margenPct: number): number {
@@ -174,7 +177,5 @@ export function fechaParaInput(d: Date | null | undefined): string {
   return d ? new Date(d.getTime() - 3 * 3_600_000).toISOString().slice(0, 10) : "";
 }
 
-export function waLink(telefono: string | null | undefined, texto: string): string | null {
-  const dig = (telefono ?? "").replace(/\D/g, "");
-  return dig.length >= 8 ? `https://wa.me/${dig}?text=${encodeURIComponent(texto)}` : null;
-}
+/** Con el 549 del celular argentino que wa.me necesita; `null` si el número cargado no sirve. */
+export const waLink = waLinkClienta;

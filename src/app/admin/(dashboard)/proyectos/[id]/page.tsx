@@ -303,7 +303,7 @@ export default async function FichaProyecto({ params }: { params: Promise<{ id: 
           <section className={cn(tarjeta, "mt-4")} aria-label="Cobros">
             <h2 className="mb-1 font-semibold text-strong">Cobros</h2>
             <p className="mb-3 text-sm">
-              Aprobado {pesos(totalAprobado)} · Cobrado {pesos(cobrado)} · <strong className="text-strong">Saldo {pesos(saldo)}</strong>
+              Aprobado {pesos(totalAprobado)} · Cobrado {pesos(cobrado)} · <strong className="text-strong">{totalAprobado > 0 ? `Saldo ${pesos(saldo)}` : "Sin presupuesto aprobado"}</strong>
             </p>
             {p.pagos.length > 0 && (
               <ul className="mb-3 grid gap-1 text-sm">

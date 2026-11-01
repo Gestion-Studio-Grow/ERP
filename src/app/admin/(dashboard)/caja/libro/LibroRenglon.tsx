@@ -19,7 +19,7 @@
 
 import Link from "next/link";
 import type { getLibroCajaData } from "@/lib/libro-caja-actions";
-import { CASH_METHODS, CASH_METHOD_LABEL, LIBRO_ORIGIN_LABEL, mediosALaVista, totalOf } from "@/lib/caja/libro-caja";
+import { CASH_METHODS, CASH_METHOD_LABEL, mediosALaVista, rotuloDeOrigen, totalOf } from "@/lib/caja/libro-caja";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { LineaDeEstado, Marca, Plata, Rotulo, atributosBoton, buttonClasses } from "@/components/ui";
 import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
@@ -136,7 +136,7 @@ function RenglonDelLibro({ r, dudosa }: { r: Fila; dudosa: boolean }) {
         <span className="block text-strong">{r.detail || <span className="text-muted">(sin detalle)</span>}</span>
         <span className="block text-[13px] text-muted">
           {CASH_METHOD_LABEL[r.method]}
-          {origen !== "manual" ? ` · ${LIBRO_ORIGIN_LABEL[origen].toLowerCase()}` : " · cargado a mano"}
+          {origen !== "manual" ? ` · ${rotuloDeOrigen(origen, r.detail).toLowerCase()}` : " · cargado a mano"}
           {r.type === "APERTURA" ? " · apertura de turno" : ""}
         </span>
         {dudosa && (

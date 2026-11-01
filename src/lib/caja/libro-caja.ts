@@ -102,6 +102,14 @@ export const LIBRO_ORIGIN_LABEL: Record<Exclude<LibroOrigin, "manual">, string> 
   turno: "Turno cobrado",
 };
 
+/**
+ * El rótulo de una fila. Los cobros de Proyectos también son una VENTA sin pedido, y decir «Turno
+ * cobrado» de un stand confunde: el detalle que asienta `registrarCobro` los identifica. PURA.
+ */
+export function rotuloDeOrigen(origen: Exclude<LibroOrigin, "manual">, detalle: string | null | undefined): string {
+  return origen === "turno" && /^Proyecto #d/.test(detalle ?? "") ? "Cobro de proyecto" : LIBRO_ORIGIN_LABEL[origen];
+}
+
 // --- Origen CONTABLE: de dónde salió cada peso, para quien imputa ---
 //
 // `libroOrigin` separa sistema de manual para la pantalla. La contadora necesita más:

@@ -19,6 +19,7 @@ import { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import {
   CASH_METHOD_LABEL,
   totalOf,
+  rotuloDeOrigen,
 } from "@/lib/caja/libro-caja";
 import { formatDayLabel, medioDeLaClasica, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
 import { movementSign } from "@/lib/caja/cash-register";
@@ -350,7 +351,7 @@ export default async function CierreCajaPage({
                         {m.detail || <span className="text-muted">(sin detalle)</span>}
                         {m.origin !== "manual" && (
                           <Badge className="ml-2" tone="neutral">
-                            {m.origin === "turno" ? "Turno cobrado" : "Venta del mostrador"}
+                            {rotuloDeOrigen(m.origin, m.detail)}
                           </Badge>
                         )}
                         {/* `amount` null sólo a ciegas (`diaALaVista`); esta pantalla pide el esperado a la vista. */}

@@ -159,7 +159,7 @@ async function main() {
   const anticipo = Math.round(neto * 1.21 * 0.5);
   const pago = await prisma.proyectoPago.create({ data: { tenantId, proyectoId: pBebidas.id, medio: "TRANSFERENCIA", monto: anticipo, nota: "Anticipo 50%", cobradoPor: "Dueño de MIA" } });
   await prisma.cashMovement.create({
-    data: { tenantId, type: "VENTA", method: "MP", amount: anticipo, reason: "Proyecto #2 · Activación en festival · Anticipo 50%", proyectoPagoId: pago.id, createdBy: "Dueño de MIA" },
+    data: { tenantId, type: "VENTA", method: "TRANSFERENCIA", amount: anticipo, reason: "Proyecto #2 · Activación en festival · Anticipo 50%", proyectoPagoId: pago.id, createdBy: "Dueño de MIA" },
   });
 
   // 3. Pedido recién entrado, de otro servicio: tiene menos etapas.
