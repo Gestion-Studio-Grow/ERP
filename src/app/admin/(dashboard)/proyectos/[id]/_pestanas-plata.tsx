@@ -79,7 +79,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                   <Link href={`?tab=cotizacion&ver=${v.id}`} scroll={false} className={buttonClasses("outline", "md")}>Ver</Link>
                   {n < versiones.length - 1 && <Link href={`?tab=cotizacion&cambios=${v.id}`} scroll={false} className={buttonClasses("outline", "md")}>Qué cambió</Link>}
                   <a href={`/admin/proyectos/imprimir/venta/${p.id}?version=${v.id}`} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>PDF</a>
-                  <a href={`/admin/proyectos/imprimir/venta/${p.id}/csv?version=${v.id}`} className={buttonClasses("outline", "md")}>Excel</a>
+                  <a href={`/admin/proyectos/imprimir/venta/${p.id}/xlsx?version=${v.id}`} className={buttonClasses("outline", "md")}>Excel</a>
                   {!editable && <a href={ruta} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Ver propuesta</a>}
                   {!editable && <CopiarLink ruta={ruta} />}
                   {wa && v.estado === "ENVIADO" && <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Abrir WhatsApp</a>}

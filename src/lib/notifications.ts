@@ -75,6 +75,27 @@ async function sendEmailReminder(payload: ReminderPayload) {
   return { sent: res.ok, channel: "email", reason: res.ok ? undefined : `HTTP ${res.status}` };
 }
 
+export const mailConectado = (): boolean => !!process.env.RESEND_API_KEY && !!process.env.RESEND_FROM_EMAIL?.trim();
+
+/** Un mail de texto al equipo del negocio. Sin clave o sin remitente no sale: nunca un remitente inventado. */
+export async function enviarMailInterno(d: { tenantId: string; para: string; asunto: string; cuerpo: string }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL?.trim();
+  if (!apiKey || !from) {
+    // Sin dirección ni texto en el log: estándar §4.
+    console.log(`[aviso-mail:SIMULADO] negocio ${d.tenantId} · ${d.cuerpo.length} caracteres`);
+    return { sent: false, reason: "mail no configurado" };
+  }
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to: d.para, subject: d.asunto, text: d.cuerpo }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) console.error(`[aviso-mail] el servicio respondió ${res.status}`);
+  return { sent: res.ok, reason: res.ok ? undefined : `HTTP ${res.status}` };
+}
+
 async function sendWhatsAppReminder(payload: ReminderPayload) {
   const template = await getActiveTemplate(payload.tenantId, "APPOINTMENT_REMINDER", "WHATSAPP");
   const message = textoRecordatorio(template?.body, payload);

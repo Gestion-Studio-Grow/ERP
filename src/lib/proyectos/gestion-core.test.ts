@@ -21,6 +21,7 @@ import {
   totalesFicha,
   ventaTotalItem,
   type ItemFicha,
+  mailDeAviso,
 } from "./gestion-core";
 
 const TC = { USD: 1000 };
@@ -195,4 +196,13 @@ test("la barra muestra cada app sólo a quien puede abrirla", () => {
   assert.equal(appDeGestionVisible("gestion-administracion", "DIRECCION", []), true);
   assert.equal(appDeGestionVisible("gestion-administracion", "DISENO", [{ rol: "DISENO", modulo: "pagos", ver: true, editar: false }]), true);
   assert.equal(appDeGestionVisible("clientes", "DISENO", []), true);
+});
+
+test("el mail de un aviso lleva el link completo sólo si es propio", () => {
+  const m = mailDeAviso({ tipo: "mencion", texto: "Te mencionaron", enlace: "/admin/proyectos/1", origen: "https://mia.x" });
+  assert.equal(m.asunto, "Aviso: Me mencionan en un chat");
+  assert.match(m.cuerpo, /https:\/\/mia\.x\/admin\/proyectos\/1/);
+  assert.doesNotMatch(mailDeAviso({ tipo: "x", texto: "t", enlace: "//malo.com", origen: "https://mia.x" }).cuerpo, /malo/);
+  assert.doesNotMatch(mailDeAviso({ tipo: "x", texto: "t", enlace: "https://malo.com", origen: "https://mia.x" }).cuerpo, /malo/);
+  assert.equal(mailDeAviso({ tipo: "x", texto: "t" }).asunto, "Aviso: Novedad");
 });

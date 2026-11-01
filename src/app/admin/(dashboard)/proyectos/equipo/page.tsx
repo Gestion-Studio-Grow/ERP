@@ -191,7 +191,7 @@ function Seguridad() {
   const noHay = [
     "Verificación en dos pasos (2FA): no está construida para el ingreso al ERP.",
     "Ingreso con Google: no está construido.",
-    "Envío por mail de estos avisos: no está conectado.",
+    "Envío por mail de estos avisos: sale sólo si el servidor tiene RESEND_API_KEY y RESEND_FROM_EMAIL.",
     "Los links de cliente y de calendario no vencen: quien tenga el link entra. La dirección de calendario de una persona deja de funcionar cuando se da de baja su cuenta en Usuarios; no se puede renovar por separado.",
   ];
   return (

@@ -39,7 +39,7 @@ export async function achicar(archivo: File): Promise<string> {
   }
 }
 
-export function SubirArchivo({ proyectoId }: { proyectoId: string }) {
+export function SubirArchivo({ proyectoId, itemId, alTerminar }: { proyectoId: string; itemId?: string; alTerminar?: () => void }) {
   const [tipo, setTipo] = useState("RENDER");
   const [link, setLink] = useState("");
   const [nombre, setNombre] = useState("");
@@ -52,6 +52,7 @@ export function SubirArchivo({ proyectoId }: { proyectoId: string }) {
     if (r.ok) {
       setLink("");
       setNombre("");
+      alTerminar?.();
       router.refresh();
     } else setError(r.error);
   };
@@ -87,7 +88,7 @@ export function SubirArchivo({ proyectoId }: { proyectoId: string }) {
                 }
                 if (datos) {
                   try {
-                    fin(await subirArchivoFicha({ proyectoId, tipo, nombre: a.name, datos, visibleCliente: tipo === "RENDER" }));
+                    fin(await subirArchivoFicha({ proyectoId, tipo, nombre: a.name, datos, visibleCliente: tipo === "RENDER", itemId }));
                   } catch {
                     setError("No se pudo guardar la imagen. Revisá la conexión y probá de nuevo.");
                   }
@@ -108,7 +109,7 @@ export function SubirArchivo({ proyectoId }: { proyectoId: string }) {
           className={buttonClasses("outline", "md")}
           onClick={() => {
             setError(null);
-            iniciar(async () => fin(await subirArchivoFicha({ proyectoId, tipo, nombre, url: link })));
+            iniciar(async () => fin(await subirArchivoFicha({ proyectoId, tipo, nombre, url: link, itemId })));
           }}
         >
           Guardar link

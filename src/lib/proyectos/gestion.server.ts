@@ -5,6 +5,10 @@
 
 import "server-only";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { after } from "next/server";
+import { enviarMailInterno } from "@/lib/notifications";
+import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
@@ -12,7 +16,7 @@ import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
-import { COLUMNAS_OCULTAS_BASE, generaCuotas, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { COLUMNAS_OCULTAS_BASE, mailDeAviso, generaCuotas, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 
 export interface Actor {
   user: SessionUser;
@@ -99,7 +103,38 @@ export async function avisar(db: Tx | typeof prisma, d: { tenantId: string; dest
   const apagados = await db.proyectoAvisoPref.findMany({ where: { tenantId: d.tenantId, tipo: d.tipo, enSistema: false, userId: { in: unicos } }, select: { userId: true } });
   const callados = new Set(apagados.map((p) => p.userId));
   const datos = unicos.filter((u) => !callados.has(u)).map((destinatario) => ({ tenantId: d.tenantId, destinatario, tipo: d.tipo, texto: d.texto, enlace: d.enlace ?? null }));
-  if (datos.length > 0) await db.proyectoAviso.createMany({ data: datos });
+  const creados = datos.length > 0 ? await db.proyectoAviso.createManyAndReturn({ data: datos, select: { id: true } }) : [];
+  const porMail = await db.proyectoAvisoPref.findMany({ where: { tenantId: d.tenantId, tipo: d.tipo, porMail: true, userId: { in: unicos } }, select: { userId: true } });
+  if (porMail.length > 0) await programarMails(d, porMail.map((p) => p.userId), creados.map((c) => c.id));
+}
+
+/**
+ * Sale después de responder, para no alargar la transacción. Si los avisos no quedaron guardados es porque la transacción se
+ * deshizo, y entonces no sale nada. Fuera de un pedido (sin `headers`) no hay mail: queda el aviso en el sistema.
+ */
+async function programarMails(d: { tenantId: string; tipo: string; texto: string; enlace?: string }, para: string[], avisos: string[]) {
+  try {
+    const h = await headers();
+    const host = h.get("x-forwarded-host") ?? h.get("host");
+    const origen = host ? `${h.get("x-forwarded-proto") ?? "https"}://${host}` : null;
+    after(async () => {
+      try {
+        const usuarios = await tenantTransaction(
+          async (tx) => {
+            if (avisos.length > 0 && (await tx.proyectoAviso.count({ where: { tenantId: d.tenantId, id: { in: avisos } } })) === 0) return [];
+            return tx.user.findMany({ where: { tenantId: d.tenantId, id: { in: para } }, select: { email: true } });
+          },
+          { tenantId: d.tenantId },
+        );
+        const mail = mailDeAviso({ ...d, origen });
+        await Promise.all(usuarios.filter((u) => u.email).map((u) => enviarMailInterno({ tenantId: d.tenantId, para: u.email, ...mail })));
+      } catch {
+        console.error("[proyectos/avisos] no se pudo mandar el mail");
+      }
+    });
+  } catch {
+    // Sin pedido en curso: alcanza con el aviso en el sistema.
+  }
 }
 
 /** La última versión del presupuesto es la ficha viva: de ahí salen planilla, cuotas y deadlines. */

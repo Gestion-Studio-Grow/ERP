@@ -10,6 +10,7 @@ import { pesos, porRubro } from "@/lib/proyectos/core";
 import { ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, RUBROS } from "@/lib/proyectos/gestion-core";
 import type { FilaFicha } from "@/lib/proyectos/ficha-core";
 import { campo } from "../_vista";
+import { AdjuntosItem } from "./_adjuntos-item";
 import { FormAccion } from "./_cliente";
 
 type Columnas = { costoUnit: boolean; costoTotal: boolean; recargo: boolean; margen: boolean };
@@ -179,7 +180,11 @@ export function TablaFicha({
                       </>
                     )}
                     <td className="py-1 pr-2">
-                      <a href={`/admin/proyectos/${proyectoId}?tab=archivos`} className="flex min-h-11 items-center justify-center underline tabular-nums" aria-label={`Adjuntos de ${i.descripcion}: ${i.adjuntos}`}>{i.adjuntos}</a>
+                      {editable ? (
+                        <AdjuntosItem proyectoId={proyectoId} itemId={i.id} descripcion={i.descripcion} cantidad={i.adjuntos} />
+                      ) : (
+                        <a href={`/admin/proyectos/${proyectoId}?tab=archivos`} className="flex min-h-11 items-center justify-center underline tabular-nums" aria-label={`Adjuntos de ${i.descripcion}: ${i.adjuntos}`}>{i.adjuntos}</a>
+                      )}
                     </td>
                     {editable && (
                       <td className="py-1 text-right">

@@ -6,6 +6,7 @@ import { guardarPreferenciasAvisos } from "@/lib/proyectos/acciones-gestion";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
 import { TIPOS_AVISO } from "@/lib/proyectos/gestion-core";
 import { actorActual } from "@/lib/proyectos/gestion.server";
+import { mailConectado } from "@/lib/notifications";
 import { direccionDelCalendario, misPreferenciasDeAviso } from "@/lib/proyectos/gestion-lecturas.server";
 import { tarjeta } from "../_vista";
 import { CopiarDireccion } from "../calendario/_cliente";
@@ -18,6 +19,7 @@ export default async function ConfiguracionGestion({ searchParams }: { searchPar
   const a = await actorActual();
   const [{ ok }, prefs, direccion] = await Promise.all([searchParams, misPreferenciasDeAviso(a), direccionDelCalendario(a)]);
   const apagados = new Set(prefs.filter((p) => !p.enSistema).map((p) => p.tipo));
+  const porMail = new Set(prefs.filter((p) => p.porMail).map((p) => p.tipo));
 
   return (
     <main className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-5">
@@ -25,7 +27,7 @@ export default async function ConfiguracionGestion({ searchParams }: { searchPar
 
       <section className={tarjeta} aria-label="Avisos">
         <h2 className="mb-1 font-semibold text-strong">Mis avisos</h2>
-        <p className="mb-3 text-sm text-muted">El envío por mail de estos avisos todavía no está conectado: esa columna queda apagada hasta que lo esté.</p>
+        <p className="mb-3 text-sm text-muted">{mailConectado() ? "Elegí qué avisos querés recibir también en tu mail." : "Podés dejar elegidos los mails: empiezan a salir cuando se conecte el servicio de envío en el servidor."}</p>
         <form action={guardarPreferenciasAvisos} className="grid gap-3">
           {ok === "1" && <p role="status" className="text-sm font-medium text-strong">Avisos guardados.</p>}
           <div className="overflow-x-auto">
@@ -42,7 +44,7 @@ export default async function ConfiguracionGestion({ searchParams }: { searchPar
                   <tr key={t.id} className="border-t border-line">
                     <th scope="row" className="py-1 pr-2 text-left font-normal text-strong">{t.label}</th>
                     <td className="text-center"><label className="flex min-h-11 min-w-11 items-center justify-center"><input type="checkbox" name={`sistema:${t.id}`} defaultChecked={!apagados.has(t.id)} aria-label={`${t.label}, en el sistema`} className="h-5 w-5" /></label></td>
-                    <td className="text-center"><span className="flex min-h-11 min-w-11 items-center justify-center"><input type="checkbox" disabled aria-label={`${t.label}, por mail: no disponible`} className="h-5 w-5" /></span></td>
+                    <td className="text-center"><label className="flex min-h-11 min-w-11 items-center justify-center"><input type="checkbox" name={`mail:${t.id}`} defaultChecked={porMail.has(t.id)} aria-label={`${t.label}, por mail`} className="h-5 w-5" /></label></td>
                   </tr>
                 ))}
               </tbody>

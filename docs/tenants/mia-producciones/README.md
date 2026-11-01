@@ -31,8 +31,10 @@ cupo gratis, sólo datos de demostración [A VALIDAR antes de cargar datos reale
 simuladas), la calidad del texto en castellano y de las imágenes, y el tiempo de carga real: la demo atiende una sola conexión y
 el panel precarga decenas de pantallas por vista [A VALIDAR en un ambiente real].
 
-**No construido, y la pantalla lo dice:** doble factor, ingreso con Google, carpeta automática en Drive, avisos por mail,
-adjuntos dentro de la fila del ítem.
+**Avisos por mail:** cada persona los elige en Configuración. Salen sólo si el servidor tiene `RESEND_API_KEY` y
+`RESEND_FROM_EMAIL`; probado hasta el envío simulado, no con un mail real.
+
+**No construido, y la pantalla lo dice:** doble factor, ingreso con Google, carpeta automática en Drive.
 
 **Decisiones provisionales, a confirmar con MIA:** las cuotas al cliente llevan IVA y las de proveedores van netas; venta en
 dólares con referencia en pesos; Diseño ve la venta pero nunca costos ni márgenes; `costoReal` del ítem sin definir.

@@ -512,6 +512,16 @@ export const veTodosLosProyectos = (rol: RolGestion): boolean => rol === "DIRECC
 
 // ── Avisos ──────────────────────────────────────────────────────────────────
 
+/** El mail de un aviso: texto plano, con el link completo sólo si es de este sistema. */
+export function mailDeAviso(d: { tipo: string; texto: string; enlace?: string | null; origen?: string | null }): { asunto: string; cuerpo: string } {
+  const label = TIPOS_AVISO.find((t) => t.id === d.tipo)?.label ?? "Novedad";
+  const link = d.origen && d.enlace?.startsWith("/") && !d.enlace.startsWith("//") ? `${d.origen}${d.enlace}` : null;
+  return {
+    asunto: `Aviso: ${label}`.replace(/\s+/g, " ").slice(0, 120),
+    cuerpo: [d.texto, ...(link ? ["", link] : []), "", "Podés cambiar estos avisos en Configuración."].join("\n"),
+  };
+}
+
 export const TIPOS_AVISO = [
   { id: "mencion", label: "Me mencionan en un chat" },
   { id: "tarea", label: "Me asignan una tarea" },

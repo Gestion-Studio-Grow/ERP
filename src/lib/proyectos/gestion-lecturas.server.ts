@@ -394,7 +394,7 @@ export async function misAvisos(a: Actor) {
 }
 
 export async function misPreferenciasDeAviso(a: Actor) {
-  return prisma.proyectoAvisoPref.findMany({ where: { tenantId: a.tenantId, userId: a.user.id }, select: { tipo: true, enSistema: true } });
+  return prisma.proyectoAvisoPref.findMany({ where: { tenantId: a.tenantId, userId: a.user.id }, select: { tipo: true, enSistema: true, porMail: true } });
 }
 
 // ── Buscador global ─────────────────────────────────────────────────────────

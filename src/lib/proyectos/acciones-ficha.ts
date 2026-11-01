@@ -874,7 +874,7 @@ export async function borrarChecklist(formData: FormData): Promise<ResultadoFich
 // ── Archivos ────────────────────────────────────────────────────────────────
 
 /** La subida de siempre, con el mismo tope, y los tipos que pide la ficha. Sube también quien sólo edita diseño. */
-export async function subirArchivoFicha(d: { proyectoId: string; tipo: string; nombre: string; datos?: string | null; url?: string | null; visibleCliente?: boolean }): Promise<ResultadoFicha<{ id: string }>> {
+export async function subirArchivoFicha(d: { proyectoId: string; tipo: string; nombre: string; datos?: string | null; url?: string | null; visibleCliente?: boolean; itemId?: string | null }): Promise<ResultadoFicha<{ id: string }>> {
   const proyectoId = String(d.proyectoId ?? "");
   const a = await entrar(["ficha", "diseno"], proyectoId);
   if (typeof a === "string") return mal(a);
@@ -884,14 +884,24 @@ export async function subirArchivoFicha(d: { proyectoId: string; tipo: string; n
   const url = (d.url ?? "").trim();
   const imagenOk = typeof d.datos === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(d.datos) && d.datos.length <= MAX_IMAGEN;
   if (d.datos ? !imagenOk : !linkSeguro(url)) return mal(d.datos ? "La imagen es demasiado pesada o no es válida." : "Pegá un link que empiece con https://.");
+  const itemId = d.itemId || null;
+  if (itemId && !(await prisma.proyectoItem.findFirst({ where: { id: itemId, tenantId, presupuesto: { proyectoId } }, select: { id: true } }))) return mal("Ese ítem no es de este proyecto.");
   const cuantos = await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId } });
   if (cuantos >= MAX_ARCHIVOS) return mal(`Un proyecto guarda hasta ${MAX_ARCHIVOS} archivos. Sacá alguno que ya no uses.`);
   const nuevo = await prisma.proyectoArchivo.create({
-    data: { tenantId, proyectoId, tipo, nombre, datos: d.datos || null, url: d.datos ? null : url, visibleCliente: !!d.visibleCliente && !!d.datos, subidoPor: a.nombre },
+    data: { tenantId, proyectoId, tipo, nombre, datos: d.datos || null, url: d.datos ? null : url, visibleCliente: !!d.visibleCliente && !!d.datos, itemId, subidoPor: a.nombre },
     select: { id: true },
   });
   refrescar(proyectoId);
   return { ok: true, id: nuevo.id };
+}
+
+export async function adjuntosDeItem(d: { proyectoId: string; itemId: string }): Promise<ResultadoFicha<{ archivos: { id: string; nombre: string; ruta: string }[] }>> {
+  const proyectoId = String(d.proyectoId ?? "");
+  const a = await entrar(["ficha", "diseno"], proyectoId);
+  if (typeof a === "string") return mal(a);
+  const filas = await prisma.proyectoArchivo.findMany({ where: { tenantId: a.tenantId, proyectoId, itemId: String(d.itemId ?? "") }, orderBy: { createdAt: "desc" }, select: { id: true, nombre: true, url: true } });
+  return { ok: true, archivos: filas.map((f) => ({ id: f.id, nombre: f.nombre, ruta: f.url ?? `${RAIZ}/${proyectoId}/archivo/${f.id}` })) };
 }
 
 export async function vincularArchivo(formData: FormData): Promise<ResultadoFicha> {

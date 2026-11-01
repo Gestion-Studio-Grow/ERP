@@ -243,7 +243,8 @@ export async function guardarPreferenciasAvisos(formData: FormData): Promise<voi
   await tenantTransaction(async (tx) => {
     for (const { id: tipo } of TIPOS_AVISO) {
       const enSistema = formData.get(`sistema:${tipo}`) !== null;
-      await tx.proyectoAvisoPref.upsert({ where: { tenantId_userId_tipo: { tenantId, userId, tipo } }, create: { tenantId, userId, tipo, enSistema }, update: { enSistema } });
+      const porMail = formData.get(`mail:${tipo}`) !== null;
+      await tx.proyectoAvisoPref.upsert({ where: { tenantId_userId_tipo: { tenantId, userId, tipo } }, create: { tenantId, userId, tipo, enSistema, porMail }, update: { enSistema, porMail } });
     }
   });
   redirect(`${RAIZ}/configuracion?ok=1`);
