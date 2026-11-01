@@ -298,6 +298,7 @@ test("cierre: el día con la seña deshecha y vuelta a cobrar cierra sin diferen
 
   const antesDeCerrar = movs.length;
   const r = await como(s, s.base.a.duenia, () => cerrarDia(fd({ day: hoy, columnas: "1", declarado_EFECTIVO: String(delCierre) })));
+  assert.ok(r, "el cierre contesta");
   assert.equal(r.ok, true, JSON.stringify(r));
   const sinAjustes = await duenio.cashMovement.count({ where: { tenantId, method: "EFECTIVO" } });
   assert.equal(sinAjustes, antesDeCerrar, "contando lo que entró no hay faltante ni sobrante");
