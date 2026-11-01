@@ -180,11 +180,28 @@ async function main() {
     data: { tenantId, proyectoId: pBebidas.id, supplierId: fletes.id, rubro: "Logística y armado", descripcion: "Flete y armado", neto: 580000, cargadoPor: "Dueño de MIA" },
   });
 
+  await prisma.proyecto.update({ where: { id: pBebidas.id }, data: { tokenEntregables: randomBytes(18).toString("base64url") } });
+  await prisma.proyectoEntregable.create({
+    data: {
+      tenantId, proyectoId: pBebidas.id, nombre: "Gráfica de la barra", especificacion: "3 x 1,2 m, vinilo sobre MDF", venceEl: en(6),
+      versiones: {
+        create: [
+          { tenantId, numero: 1, estado: "CAMBIOS", url: "https://example.com/grafica-barra-v1.pdf", nota: "Primera propuesta", especificacion: "3 x 1,2 m, vinilo sobre MDF", subidoPor: "Equipo de diseño", enviadaEl: new Date(), respondidaEl: new Date(), respondidoPor: "Laura Gómez (ficticia)", comentario: "El logo más grande y a la izquierda." },
+          { tenantId, numero: 2, estado: "ENVIADA", url: "https://example.com/grafica-barra-v2.pdf", nota: "Logo más grande, a la izquierda", especificacion: "3 x 1,2 m, vinilo sobre MDF", subidoPor: "Equipo de diseño", enviadaEl: new Date() },
+        ],
+      },
+    },
+  });
+  await prisma.proyectoEntregable.create({
+    data: { tenantId, proyectoId: pBebidas.id, nombre: "Cartelería de ingreso", especificacion: "Medida a confirmar", venceEl: en(8) },
+  });
+
   // 3. Pedido recién entrado, de otro servicio: tiene menos etapas.
   await prisma.proyecto.create({
     data: {
       tenantId, numero: 3, clientId: tecno.id, nombre: "Video institucional", servicio: "CONTENIDOS", etapa: "PEDIDO", responsable: "Dirección creativa",
       brief: "Video de 2 minutos para la convención anual, más tres piezas cortas para redes.",
+      entregables: { create: [{ tenantId, nombre: "Video de 2 minutos", especificacion: "Horizontal 16:9, para la convención" }, { tenantId, nombre: "Tres piezas para redes", especificacion: "Vertical 9:16, 30 segundos" }] },
     },
   });
 

@@ -13,6 +13,7 @@ import {
   anularGasto,
   borrarArchivo,
   borrarItem,
+  crearEntregable,
   enviarPropuesta,
   guardarDatosProyecto,
   guardarTextosPresupuesto,
@@ -22,7 +23,10 @@ import {
   registrarCobro,
 } from "@/lib/proyectos/acciones";
 import {
+  ayudaEspecificacion,
+  ESTADO_ENTREGABLE_LABEL,
   ESTADO_PRESUPUESTO_LABEL,
+  estadoDelEntregable,
   etapaLabel,
   etapaSiguiente,
   etapasDe,
@@ -33,11 +37,14 @@ import {
   pesos,
   porcentaje,
   porRubro,
+  resumenEntregables,
   SERVICIO_LABEL,
   sePuedeEditar,
   totalDelGasto,
   totales,
+  ultimaEnviada,
   waLink,
+  yaVencio,
   type MedioPago,
   type Servicio,
 } from "@/lib/proyectos/core";
@@ -60,6 +67,8 @@ export default async function FichaProyecto({ params }: { params: Promise<{ id: 
   const actual = etapas.indexOf(p.etapa as (typeof etapas)[number]);
   const siguiente = etapaSiguiente(p.servicio, p.etapa);
   const borrador = p.presupuestos.find((b) => sePuedeEditar(b.estado));
+  const piezas = resumenEntregables(p.entregables);
+  const waPiezas = waLink(p.client.phone, `Hola ${p.client.name}! Te compartimos las piezas de ${negocio.nombre} para "${p.nombre}", para que las revises:`);
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-5">
@@ -196,6 +205,52 @@ export default async function FichaProyecto({ params }: { params: Promise<{ id: 
           <SubirArchivo proyectoId={p.id} />
         </section>
       </div>
+
+      <section className={cn(tarjeta, "mt-4")} aria-label="Piezas para aprobar">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-semibold text-strong">Piezas para aprobar</h2>
+            {piezas.total > 0 && <p className="text-sm text-muted">{piezas.aprobados} de {piezas.total} aprobadas{piezas.esperando > 0 && ` · ${piezas.esperando} esperando al cliente`}{piezas.paraCorregir > 0 && ` · ${piezas.paraCorregir} para corregir`}</p>}
+          </div>
+          {p.tokenEntregables && (
+            <div className="flex flex-wrap gap-2">
+              <a href={`/entregables/${p.tokenEntregables}`} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Ver como el cliente</a>
+              <CopiarLink ruta={`/entregables/${p.tokenEntregables}`} />
+              {waPiezas && <a href={waPiezas} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Abrir WhatsApp</a>}
+            </div>
+          )}
+        </div>
+        {p.entregables.length === 0 && <p className="mb-3 text-sm text-muted">Cargá cada pieza que el cliente tiene que aprobar: una gráfica, una escenografía, un video.</p>}
+        {p.entregables.length > 0 && (
+          <ul className="mb-3 grid gap-2">
+            {p.entregables.map((e) => {
+              const estado = estadoDelEntregable(e.versiones);
+              const respuesta = estado === "CAMBIOS" ? ultimaEnviada(e.versiones) : null;
+              return (
+                <li key={e.id}>
+                  <Link href={`/admin/proyectos/${p.id}/entregable/${e.id}`} className="block min-h-11 rounded-lg border border-line px-3 py-2 text-sm hover:border-accent">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-strong">{e.nombre}</span>
+                      <Badge tone={estado === "APROBADO" ? "success" : estado === "CAMBIOS" ? "danger" : "neutral"}>{ESTADO_ENTREGABLE_LABEL[estado]}</Badge>
+                      {e.versiones.length > 0 && <span className="text-xs text-muted">Versión {e.versiones[0].numero}</span>}
+                      {e.venceEl && <span className={cn("text-xs", estado !== "APROBADO" && yaVencio(e.venceEl) ? "font-medium text-danger" : "text-muted")}>Para el {fechaCorta(e.venceEl)}</span>}
+                    </span>
+                    {e.especificacion && <span className="mt-0.5 block text-xs text-muted">{e.especificacion}</span>}
+                    {respuesta?.comentario && <span className="mt-1 block">{respuesta.respondidoPor}: «{respuesta.comentario}»</span>}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <form action={crearEntregable} className="grid gap-2 border-t border-line pt-3 sm:grid-cols-[2fr_2fr_1fr_auto]">
+          <input type="hidden" name="proyectoId" value={p.id} />
+          <input name="nombre" required maxLength={120} aria-label="Nombre de la pieza" placeholder="Pieza" className={campo} />
+          <input name="especificacion" maxLength={300} aria-label="Especificación de la pieza" placeholder={ayudaEspecificacion(p.servicio)} className={campo} />
+          <input type="date" name="venceEl" aria-label="Para cuándo" className={campo} />
+          <SubmitButton className={buttonClasses("outline", "md")}>Agregar pieza</SubmitButton>
+        </form>
+      </section>
 
       {conPlata && (
         <>

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { buttonClasses, cn, EmptyState } from "@/components/ui";
 import { tableroProyectos } from "@/lib/proyectos/datos.server";
-import { ETAPAS, etapaLabel, fechaCorta, SERVICIO_LABEL, yaVencio, type Servicio } from "@/lib/proyectos/core";
+import { ETAPAS, etapaLabel, fechaCorta, resumenEntregables, SERVICIO_LABEL, yaVencio, type Servicio } from "@/lib/proyectos/core";
 import { BarraProyectos, tarjeta } from "./_vista";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +42,7 @@ export default async function TableroProyectos() {
                 <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {lista.map((p) => {
                     const vencidas = p.tareas.filter((t) => yaVencio(t.venceEl)).length;
+                    const piezas = resumenEntregables(p.entregables);
                     return (
                       <li key={p.id}>
                         <Link href={`/admin/proyectos/${p.id}`} className={cn(tarjeta, "block h-full hover:border-accent")}>
@@ -53,6 +54,8 @@ export default async function TableroProyectos() {
                             {p.tareas.length > 0 && ` · ${p.tareas.length} tarea${p.tareas.length > 1 ? "s" : ""}`}
                           </p>
                           {vencidas > 0 && <p className="mt-1 text-sm font-medium text-danger">{vencidas} tarea{vencidas > 1 ? "s" : ""} vencida{vencidas > 1 ? "s" : ""}</p>}
+                          {piezas.paraCorregir > 0 && <p className="mt-1 text-sm font-medium text-danger">{piezas.paraCorregir} pieza{piezas.paraCorregir > 1 ? "s" : ""} para corregir</p>}
+                          {piezas.esperando > 0 && <p className="mt-1 text-sm text-muted">{piezas.esperando} pieza{piezas.esperando > 1 ? "s" : ""} esperando al cliente</p>}
                         </Link>
                       </li>
                     );

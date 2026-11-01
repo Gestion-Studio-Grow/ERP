@@ -18,7 +18,7 @@ const TOPE_IMAGEN = 900_000;
  * El render se achica en el navegador para entrar en la base sin pagar almacenamiento aparte: arranca en
  * 2000 px y baja calidad y tamaño hasta que entra, así una foto pesada también sube.
  */
-async function achicar(archivo: File): Promise<string> {
+export async function achicar(archivo: File): Promise<string> {
   const img = await createImageBitmap(archivo);
   try {
     for (const lado of [2000, 1600, 1280, 1024, 800]) {
