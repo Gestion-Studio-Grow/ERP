@@ -2,6 +2,7 @@
 // la agenda (getMostBookedServiceIds; sin historial, los primeros de la carta). Servidor.
 import Link from "next/link";
 import { Renglon, quienesHacen } from "./Carta";
+import { categoriaVisible } from "./copy-ch";
 import type { BookingProfessional } from "./types";
 import type { FeaturedService } from "./FeaturedTreatments";
 
@@ -28,7 +29,7 @@ export default function CartaDestacada({
           <Renglon
             key={s.id}
             s={s}
-            meta={[s.groupName, quienesHacen(s.id, professionals)].filter(Boolean).join(" · ")}
+            meta={[categoriaVisible(s.groupName) ? s.groupName : "", quienesHacen(s.id, professionals)].filter(Boolean).join(" · ")}
             conVecina={conVecina}
           />
         ))}

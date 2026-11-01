@@ -14,6 +14,7 @@ test("«Otros servicios» es relleno, no una categoría que se le muestre a la c
   assert.match(leer("src/app/(site)/_ch/InicioCH.tsx"), /categoriaVisible\(s\.grupo\)/);
   assert.match(leer("src/app/(site)/_ch/BookingModal.tsx"), /categoriaVisible\(svc\.categoria\)/);
   assert.match(leer("src/app/(site)/_ch/Carta.tsx"), /!categoriaVisible\(familias\[0\]\.name\)/);
+  assert.match(leer("src/app/(site)/_ch/CartaDestacada.tsx"), /meta=\{\[categoriaVisible\(s\.groupName\) \? s\.groupName : "", quienesHacen\(s\.id, professionals\)\]/, "los destacados del inicio (R2)");
 });
 
 test("contraste: las etiquetas del hueco y la marca del pie, con el color de texto y no mezclados", () => {
