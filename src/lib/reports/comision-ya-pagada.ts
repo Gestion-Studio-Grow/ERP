@@ -38,7 +38,13 @@ export function textoDelPago(c: Pick<ComisionYaPagada, "profesional" | "monto" |
   return c.turnos > 1 ? `${base} por ${c.turnos} turnos, este entre ellos.` : `${base}.`;
 }
 
-/** Lo que ve quien anula. */
+/**
+ * Lo que ve quien anula sin `reports:read` (recepción, con el código de la dueña): que hay algo que
+ * avisar, sin quién cobró ni cuánto. Eso lo ve la dueña en Comisiones y en la auditoría (cert ronda 2, V2-1).
+ */
+export const AVISO_COMISION_PAGADA_SIN_DETALLE = "Este cobro ya entró en una liquidación de comisión pagada. Avisale a la dueña.";
+
+/** Lo que ve quien anula con `reports:read`. */
 export function avisoDeComisionYaPagada(c: Pick<ComisionYaPagada, "profesional" | "monto" | "turnos" | "pagadaEl">): string {
   return `La comisión de este turno ya se pagó: ${textoDelPago(c)} Es sólo un aviso: ese pago sigue como está.`;
 }

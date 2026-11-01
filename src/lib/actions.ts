@@ -1,6 +1,6 @@
 "use server";
 
-import { avisoDeComisionYaPagada, leerComisionPagadaDelTurno, type ComisionYaPagada } from "@/lib/reports/comision-ya-pagada";
+import { AVISO_COMISION_PAGADA_SIN_DETALLE, avisoDeComisionYaPagada, leerComisionPagadaDelTurno, type ComisionYaPagada } from "@/lib/reports/comision-ya-pagada";
 import { leerPaginaDeFichas, type PaginaDeFichas } from "@/lib/clientes/lista-fichas.server";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
@@ -1423,7 +1423,9 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
   revalidatePath("/admin/caja");
   revalidatePath("/admin/caja/libro");
   revalidatePath("/admin/comisiones");
-  return comisionPagada ? { ok: true, aviso: avisoDeComisionYaPagada(comisionPagada) } : { ok: true };
+  if (!comisionPagada) return { ok: true };
+  // Nombre y monto de la liquidación sólo con `reports:read`: lo mismo que protege la pantalla de comisiones.
+  return { ok: true, aviso: roleHasCapability(user.role, "reports:read") ? avisoDeComisionYaPagada(comisionPagada) : AVISO_COMISION_PAGADA_SIN_DETALLE };
 }
 
 /**

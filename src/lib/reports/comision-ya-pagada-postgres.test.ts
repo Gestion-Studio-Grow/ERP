@@ -20,7 +20,7 @@ test("comisión pagada y cobro anulado después: avisa cuánto, a quien anula y 
   const { a } = base;
   const duenio = await prismaComoDuenio(base);
   const { settleCommissions, getCommissionsOverview } = await import("@/lib/commission-actions");
-  const { anularCobroTurno, registrarCobroTurno } = await import("@/lib/actions");
+  const { anularCobroTurno, autorizarAnulacionCobro, registrarCobroTurno } = await import("@/lib/actions");
 
   const box = await duenio.box.create({ data: { tenantId: a.id, name: "Box" } });
   const servicio = await duenio.service.create({ data: { tenantId: a.id, name: "Masaje", durationMin: 60, price: 15_000 } });
@@ -128,6 +128,43 @@ test("comisión pagada y cobro anulado después: avisa cuánto, a quien anula y 
   assert.deepEqual(await accion(() => registrarCobroTurno(g)), { ok: true });
   await pagar(lucia.id);
   assert.equal((await pantalla()).conCobroAnulado.some((c) => c.turnoId === previo.turnoId), false);
+
+  // Quién ve qué (cert ronda 2, V2-1). Recepción anula con el código de la dueña y `reports:read` no es
+  // suyo: se entera de que hay que avisar, sin el nombre ni el monto de lo que cobró una compañera. La
+  // misma liquidación, anulada por la dueña, sigue con todo el detalle. El rastro no cambia.
+  const sofia = await profesional("Sofía");
+  const paraRecepcion = await turnoCobrado(sofia.id);
+  const paraLaDuenia = await turnoCobrado(sofia.id);
+  await pagar(sofia.id);
+  const pagosAntesDeRecepcion = await payouts();
+  const fa = new FormData();
+  fa.set("collectionId", paraRecepcion.cobroId);
+  fa.set("appointmentId", paraRecepcion.turnoId);
+  const autorizacion = await accion(() => autorizarAnulacionCobro(fa));
+  assert.equal(autorizacion.ok, true, JSON.stringify(autorizacion));
+  const fr = new FormData();
+  for (const [k, v] of Object.entries({
+    collectionId: paraRecepcion.cobroId,
+    appointmentId: paraRecepcion.turnoId,
+    motivo: "Se cargó mal el cobro",
+    codigo: autorizacion.ok ? autorizacion.codigo : "",
+  }))
+    fr.set(k, v);
+  const deRecepcion = await ejecutarAccion({ negocio: a, usuario: a.recepcion }, () => anularCobroTurno(fr));
+  assert.equal(deRecepcion.tipo, "respuesta", JSON.stringify(deRecepcion));
+  const respuesta = (deRecepcion as { valor: Awaited<ReturnType<typeof anularCobroTurno>> }).valor;
+  assert.equal(respuesta.ok, true, JSON.stringify(respuesta));
+  const avisoRecepcion = respuesta.ok ? respuesta.aviso ?? "" : "";
+  assert.match(avisoRecepcion, /ya entró en una liquidación de comisión pagada/);
+  assert.match(avisoRecepcion, /Avisale a la dueña/);
+  assert.doesNotMatch(avisoRecepcion, /Sofía|cobró|\$|\d/, "recepción no ve quién cobró, cuánto, cuándo ni por cuántos turnos");
+  assert.deepEqual(await payouts(), pagosAntesDeRecepcion, "el aviso no cambia un importe");
+  const rastroRecepcion = await duenio.auditLog.findFirst({ where: { entityId: paraRecepcion.turnoId, action: "void_collection" }, select: { changes: true } });
+  assert.equal((rastroRecepcion?.changes as { comisionYaPagada?: { monto?: number } } | null)?.comisionYaPagada?.monto, 12_000, "la dueña lo encuentra en la auditoría");
+
+  const deLaDuenia = await anular(paraLaDuenia);
+  assert.match(deLaDuenia.ok ? deLaDuenia.aviso ?? "" : "", /Sofía cobró \$12\.000 .* por 2 turnos, este entre ellos\./);
+  assert.deepEqual(await payouts(), pagosAntesDeRecepcion);
 });
 
 test("las pantallas muestran el aviso: al anular (agenda y lista) y en comisiones (las tres)", () => {
