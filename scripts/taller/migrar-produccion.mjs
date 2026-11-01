@@ -91,6 +91,12 @@ const DRIFT_CONOCIDO = new Set(["20260705150000_add_tenant_fiscal_config"]);
   if (desconocidas.length) fatal(`la base tiene migraciones que el repo no conoce: ${desconocidas.join(", ")}. No se tocó nada.`);
   const iguales = pendientes.length === declarado.length && pendientes.every((m, i) => m === declarado[i]);
   if (!iguales) fatal("lo pendiente no coincide con prisma/lote-deploy.txt. No se tocó nada.");
+  // `migrate deploy` registra la suma del archivo en disco. Con core.autocrlf=true, git puede bajarlo con CRLF y
+  // la suma registrada dejaría de ser la del archivo en git, que es el que lee Vercel.
+  const conCrlf = pendientes.filter((m) => readFileSync(path.join(ROOT, "prisma", "migrations", m, "migration.sql"), "utf8").includes("\r\n"));
+  if (conCrlf.length) {
+    fatal(`estas migraciones tienen saltos CRLF en disco: ${conCrlf.join(", ")}. No se tocó nada. Borrá ese archivo (está en git) y bajalo en LF: git -c core.autocrlf=false checkout -- prisma/migrations/<nombre>/migration.sql`);
+  }
   if (pendientes.length === 0) {
     log("\n✅ Nada pendiente: la base ya tiene todas las migraciones del repo.");
     process.exit(0);

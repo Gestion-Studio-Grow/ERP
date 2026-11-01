@@ -16,7 +16,8 @@ Primer negocio del rubro **productora** (eventos, stands, contenidos). Es un neg
 | Armador 3D | `src/lib/proyectos/stand-escena.ts`, `src/app/admin/(dashboard)/proyectos/[id]/stand/` |
 | Panel | `src/app/admin/(dashboard)/proyectos/` |
 | Propuesta del cliente (link sin login, sin costos) | `src/app/propuesta/[token]/` |
-| Tablas + RLS | `prisma/migrations/20261101120000_modulo_proyectos/` |
+| Tablas + RLS | `prisma/migrations/20261101120000_modulo_proyectos/`, `20261101130000_proyecto_gastos/` |
+| Costo real y proveedores | Reglas: `resultadoReal` y `desvioPorRubro` en `core.ts`. Pantallas: sección «Costo real» de la ficha, `proyectos/proveedores/`, `proyectos/reportes/` |
 | Marca | `src/lib/proyectos/marca.ts`, `public/tenants/mia-producciones/marca/`; panel e ingreso: `src/lib/estetica-backoffice.ts`, `globals.css` |
 | Panel sólo de MIA | `panelCerrado` en `src/apps/catalogo/comercial.ts`, regla en `src/apps/visibles.ts` |
 | Copia de su sitio | Páginas: `src/tenants/mia-producciones/sitio/`. Imágenes, estilos y scripts: `public/tenants/mia-producciones/sitio/` (22 MB). Registro: `src/lib/sitio-estatico.ts`. Se regenera con `scripts/proyectos/copiar-sitio-mia.mjs` |
@@ -24,13 +25,14 @@ Primer negocio del rubro **productora** (eventos, stands, contenidos). Es un neg
 
 ## El pase
 
-**El orden importa: primero la base, después el código.** `CashMovement` suma una columna que el código
+**El orden importa: primero la base, después el código.** `CashMovement` suma dos columnas que el código
 nuevo lee en toda la caja: con el código nuevo y la base vieja se rompería la caja de todos los negocios.
 El build de Vercel frena si la base está atrás, así que ese error no llega a publicarse. Al revés no hay
 problema: el código actual funciona con la base ya migrada.
 
-**Qué afecta a los demás negocios:** la columna nueva e índice en `CashMovement` (nulos para todos) y el
-código compartido que entra con el deploy. El push además publica lo que haya en `main` en ese momento.
+**Qué afecta a los demás negocios:** las dos columnas nuevas con sus índices en `CashMovement` (nulas para
+todos), el código compartido que entra con el deploy y un rótulo nuevo en el libro de caja, que sólo aparece
+si hay gastos de proyecto. El push además publica lo que haya en `main` en ese momento.
 
 | # | Paso | Quién | Se deshace |
 |---|---|---|---|
@@ -82,7 +84,12 @@ el negocio funciona pero sin su marca. El camino alternativo sin terminal es el 
 8. **PDF:** imprimir o guardar desde el navegador.
 9. **Archivos:** imágenes achicadas en la base (hasta ~1 MB, 30 por proyecto) y links para lo pesado.
 10. **Caja:** el libro no tiene columna de cheques: el cheque se asienta en Transferencia y su detalle dice
-   «Cheque». Decisión provisional a confirmar con quien lleve la contabilidad de MIA.
+   «Cheque», en cobros y en gastos. Decisión provisional a confirmar con quien lleve la contabilidad de MIA.
+11. **Gastos de proyecto:** el neto y el IVA se cargan separados y el neto es lo que se compara contra el
+   presupuesto (provisional, igual que el punto anterior). No pasan por Compras: no suman a la cuenta corriente
+   del proveedor ni al IVA compras, y lo «por pagar» vive sólo en Proyectos. En el reporte general de Resultado,
+   un gasto pagado aparece sin categoría y su anulación como ingreso manual.
+12. **Entregables con aprobación y cronograma con equipo:** propuestos, sin autorizar ni validar con MIA.
 
 ## Verificación
 
@@ -104,15 +111,26 @@ link de WhatsApp con 549 y PDF de la propuesta generado con Chromium, sin costos
 - **Sin probar:** `/admin/proyectos` con el interruptor «Trabaja por apps» apagado, y el `mailto` abriendo un correo real
   (se revisó el enlace que arma).
 
+**Costo real y proveedores, 01/11/2026, sobre la compilación final:**
+
+- Neto con letras: avisa y no guarda. Gasto pagado con centavos y cheque, gasto por pagar, proveedor nuevo por nombre
+  y existente sin distinguir mayúsculas, rubro no presupuestado y rubro en minúsculas unido al presupuestado.
+- Doble clic en Pagar: un solo egreso. Anular uno pagado: vuelve la plata. Saldos del libro y ganancia real controlados
+  a mano. El libro y su exportación dicen «Gasto de proyecto» y «Cobro de proyecto».
+- Proveedores: alta, CUIT inválido y CUIT repetido avisan; pagar desde «Por pagar». El rol equipo no ve costo real ni
+  cobros y rebota de Proveedores. Celular a 390 px sin desborde en las tres fichas, Proveedores y Rentabilidad.
+- **La valla de calidad visual no pasa por `/admin/proyectos`:** ningún negocio de esa corrida tiene el módulo (figura
+  entre las omitidas). Lo de celular de este módulo se midió con el recorrido, no con esa valla.
+
 **Sin probar:** abrir WhatsApp de verdad (se revisó el link, no se envió nada) y el PDF con imágenes de un
 render real. La propuesta impresa se miró con la hoja de ejemplo, sin render.
 
-**Vallas del 01/11/2026:** tipos, compilación, cobertura de RLS, sello, `test:release` y calidad visual
-(contraste, toque y desborde: 0 problemas) en verde.
+**Vallas del 01/11/2026, con el bloque de gastos:** tipos, compilación, cobertura de RLS, sello, `test:release`
+(14/14) y calidad visual (contraste, toque y desborde: 0 problemas) en verde.
 
-- `npm test`: 6663 pasan, 35 fallan, 280 cancelados, 311 salteados. Las 35 fallas ya estaban en la corrida
-  anterior a estos cambios: son del entorno o de la rama base (fin de línea de Windows, navegador). Las de
-  `m1-cert-tarjeta-cableado` aparecen sólo desde PowerShell, que no tiene `grep`.
+- `npm test`: 6669 pasan, 35 fallan, 280 cancelados, 311 salteados. Comparadas por nombre con la corrida anterior a
+  estos cambios, la única diferencia son las de `m1-cert-tarjeta-cableado`, que aparecen sólo desde PowerShell, que no
+  tiene `grep`. Las demás son del entorno o de la rama base (fin de línea de Windows, navegador, rutas `C:\C:\`).
 - **No corridas en esta máquina:** las pruebas de pantalla de la suite (los 280 cancelados): su navegador
   no arranca (`spawn UNKNOWN`), tampoco en la rama base. Las 311 salteadas piden `ERP_TEST_PG_URL`.
 - `gate:visual`: el login de `/admin` da rojo porque esa valla necesita una base propia: sin base,
@@ -120,8 +138,8 @@ render real. La propuesta impresa se miró con la hoja de ejemplo, sin render.
 - `src/tenants/breakpoint/turnero/demo-local.test.ts` puede colgar `npm test` indefinidamente acá. Ya pasa
   en la rama base: correr con `--test-force-exit --test-timeout=180000`.
 
-**Medido el 01/11/2026 contra producción, sólo lectura:** 58 migraciones en el repo, la única pendiente es
-`20261101120000_modulo_proyectos`, y coincide con `prisma/lote-deploy.txt`.
+**Medido el 01/11/2026 contra producción, sólo lectura:** las pendientes son
+`20261101120000_modulo_proyectos` y `20261101130000_proyecto_gastos`, y coinciden con `prisma/lote-deploy.txt`.
 
 **No ensayada sobre una copia de producción:** la migración corrió sobre base en memoria con todas las
 anteriores, no sobre un branch de Neon con datos reales. Para ensayarla: crear un branch `ensayo-lote` y
@@ -130,5 +148,12 @@ pegar en su SQL Editor `docs/runbooks/ensayo-neon/1-lote-en-branch.sql` y despu�
 
 **Trampa de Windows:** `node scripts/ensayo-lote-neon.mjs` no escribe nada acá (su control de arranque no
 reconoce la ruta) y con saltos CRLF en `prisma/lote-deploy.txt` toma los comentarios como migraciones. El
-SQL de ensayo se generó desde una copia con saltos LF; la suma de control `9a22cd47…` coincide con la del
-archivo de la migración, que está en LF en esta copia y en git.
+SQL de ensayo se generó desde una copia con saltos LF; las sumas de control `9a22cd47…` y `e855b4d1…` coinciden
+con las de las migraciones en git, que es lo que lee Vercel.
+
+**Trampa de Windows en el paso 3:** con `core.autocrlf=true`, git puede bajar una migración con saltos CRLF, y
+`prisma migrate deploy` registra la suma del archivo en disco, no la de git. Medido el 01/11/2026:
+`20261101120000_modulo_proyectos` estaba en CRLF, con suma `2e4c42d4…` en disco contra `9a22cd47…` en git. Por eso
+`migrar-produccion.mjs` ahora frena si una migración pendiente tiene CRLF y dice cómo corregirla. Qué haría Vercel
+con una suma distinta no se probó: la documentación de Prisma dice que avisa y no frena. [A VALIDAR si alguna vez
+se saltea este freno]
