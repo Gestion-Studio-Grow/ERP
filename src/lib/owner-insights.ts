@@ -13,6 +13,7 @@
 // por severidad, listos para pintar en una tarjeta.
 
 import type { DeepKpis } from "./report-kpis";
+import { METODO_LABEL } from "./report-config";
 
 export type InsightSeverity = "alert" | "warn" | "info" | "good";
 
@@ -74,6 +75,14 @@ function signoPct(d: number): string {
   return d >= 0 ? `subió ${abs}%` : `bajó ${abs}%`;
 }
 
+// El cambio contra el período anterior, para sumarlo a un título que no lo dice. El panel no lo
+// repite aparte: antes salía dos veces en la misma línea.
+function contraAnterior(d: number | null): string {
+  if (d === null) return "";
+  const s = signoPct(d);
+  return ` ${s.charAt(0).toUpperCase()}${s.slice(1)} contra el período anterior.`;
+}
+
 // Genera los insights del período. `previous` puede ser null (primer período o sin
 // histórico): en ese caso se omiten las comparaciones temporales y solo salen los
 // insights de nivel absoluto (umbrales) + los estructurales (mejor profesional, mix).
@@ -92,9 +101,9 @@ export function generateOwnerInsights(
       id: "no-show-alto",
       severity: "alert",
       metric: "tasaNoShow",
-      title: `Tu no-show está en ${pct(noShow)} — por encima del umbral (${pct(
+      title: `Las ausencias están en ${pct(noShow)}, arriba del ${pct(
         thresholds.noShowAlert,
-      )}). Cada ausencia es una silla que no facturó.`,
+      )} que conviene no pasar. Cada ausencia es un turno que no se cobró.${contraAnterior(noShowDelta)}`,
       deltaPct: noShowDelta,
     });
   } else if (noShowDelta !== null && noShowDelta > 0.2) {
@@ -102,7 +111,7 @@ export function generateOwnerInsights(
       id: "no-show-empeora",
       severity: "warn",
       metric: "tasaNoShow",
-      title: `Tu no-show ${signoPct(noShowDelta)} vs. el período anterior (hoy ${pct(noShow)}).`,
+      title: `La tasa de ausencias ${signoPct(noShowDelta)} contra el período anterior (hoy ${pct(noShow)}).`,
       deltaPct: noShowDelta,
     });
   }
@@ -114,7 +123,7 @@ export function generateOwnerInsights(
       id: "cancelacion-alta",
       severity: "warn",
       metric: "tasaCancelacion",
-      title: `Tu tasa de cancelación es ${pct(cancel)}. Avisar con tiempo ayuda, pero conviene entender por qué.`,
+      title: `Se cancela el ${pct(cancel)} de los turnos. Avisar con tiempo ayuda, pero conviene entender por qué.${contraAnterior(deltaPct(cancel, previous?.estados.tasaCancelacion ?? null))}`,
       deltaPct: deltaPct(cancel, previous?.estados.tasaCancelacion ?? null),
     });
   }
@@ -126,7 +135,7 @@ export function generateOwnerInsights(
       id: "ticket-cae",
       severity: "warn",
       metric: "ticketPromedio",
-      title: `Tu ticket promedio ${signoPct(ticketDelta)} vs. el período anterior. Revisá precios, combos o upselling.`,
+      title: `Tu ticket promedio ${signoPct(ticketDelta)} contra el período anterior. Revisá precios y combos.`,
       deltaPct: ticketDelta,
     });
   } else if (ticketDelta !== null && ticketDelta >= thresholds.ticketDropWarn) {
@@ -134,7 +143,7 @@ export function generateOwnerInsights(
       id: "ticket-sube",
       severity: "good",
       metric: "ticketPromedio",
-      title: `Tu ticket promedio ${signoPct(ticketDelta)} vs. el período anterior. Buen trabajo de valor por venta.`,
+      title: `Tu ticket promedio ${signoPct(ticketDelta)} contra el período anterior. Cada turno deja más.`,
       deltaPct: ticketDelta,
     });
   }
@@ -146,19 +155,20 @@ export function generateOwnerInsights(
       id: "recurrencia-baja",
       severity: "info",
       metric: "tasaRecurrencia",
-      title: `Solo el ${pct(rec)} de tus clientes del período volvió más de una vez. Hay lugar para fidelizar (recordatorios, packs).`,
+      title: `Solo el ${pct(rec)} de tus clientes del período volvió más de una vez. Hay lugar para que vuelvan más (recordatorios, packs).${contraAnterior(deltaPct(rec, previous?.retencion.tasaRecurrencia ?? null))}`,
       deltaPct: deltaPct(rec, previous?.retencion.tasaRecurrencia ?? null),
     });
   }
 
-  // --- Productividad: mejor hora-silla ---
+  // --- Productividad: quién rinde más por hora. Con una sola persona no hay a quién compararla, y
+  // no se dice cuánto más rinde: el orden es un hecho, "bastante arriba" no siempre lo era.
   const top = current.rentabilidadHoraSilla[0];
-  if (top && top.porHora > 0) {
+  if (top && top.porHora > 0 && current.rentabilidadHoraSilla.length > 1) {
     out.push({
       id: "hora-silla-top",
       severity: "good",
       metric: "rentabilidadHoraSilla",
-      title: `Tu hora-silla más rentable es la de ${top.label}: factura por hora bastante arriba del resto.`,
+      title: `Quien más factura por hora trabajada es ${top.label}.`,
       deltaPct: null,
     });
   }
@@ -173,7 +183,7 @@ export function generateOwnerInsights(
         id: "mix-concentrado",
         severity: "info",
         metric: "mixMetodoPago",
-        title: `El ${pct(share)} de tu facturación entra por ${lider.method}. Diversificar medios de cobro reduce riesgo.`,
+        title: `El ${pct(share)} de tu facturación entra por ${METODO_LABEL[lider.method] ?? lider.method}. Diversificar medios de cobro reduce riesgo.`,
         deltaPct: null,
       });
     }
