@@ -81,20 +81,20 @@ test("mix de método de pago agrupa cantidad y total, ordenado por total desc", 
   assert.deepEqual(k.mixMetodoPago[2], { method: "TRANSFERENCIA", cantidad: 1, total: 800 });
 });
 
-test("retención: recurrentes = clientes con 2+ turnos resueltos en el período", () => {
+test("retención: vuelve quien se atendió 2+ veces; quien canceló o no vino no volvió", () => {
   const k = computeDeepKpis([
     appt({ clientId: "ana", status: "COMPLETED", payment: null }),
     appt({ clientId: "ana", status: "COMPLETED", payment: null }), // ana: recurrente
     appt({ clientId: "beto", status: "NO_SHOW", payment: null }),
-    appt({ clientId: "beto", status: "CANCELLED", payment: null }), // beto: recurrente (2 resueltos)
+    appt({ clientId: "beto", status: "CANCELLED", payment: null }), // beto: nunca vino, no cuenta
     appt({ clientId: "caro", status: "COMPLETED", payment: null }), // caro: esporádico
-    // Un PENDING de caro NO cuenta como turno resuelto → caro sigue esporádico.
+    // Un PENDING de caro NO cuenta: todavía no vino → caro sigue esporádico.
     appt({ clientId: "caro", status: "PENDING", payment: null }),
   ]);
-  assert.equal(k.retencion.clientesUnicos, 3);
-  assert.equal(k.retencion.recurrentes, 2);
+  assert.equal(k.retencion.clientesUnicos, 2);
+  assert.equal(k.retencion.recurrentes, 1);
   assert.equal(k.retencion.esporadicos, 1);
-  assert.equal(k.retencion.tasaRecurrencia, 2 / 3);
+  assert.equal(k.retencion.tasaRecurrencia, 1 / 2);
 });
 
 test("rentabilidad hora-silla = ingresos / horas ocupadas, solo turnos completados con pago", () => {
