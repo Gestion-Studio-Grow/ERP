@@ -272,9 +272,11 @@ test("la vidriera muestra la cantidad con coma", async () => {
   assert.equal(formatearCantidad(0.25), "0,25");
   const tienda = readFileSync("src/app/tienda/Storefront.tsx", "utf8");
   assert.match(tienda, /<span>\{formatearCantidad\(l\.qty\)\} /, "la línea del carrito");
-  const magra = readFileSync("src/app/tienda/MagraFront.tsx", "utf8");
-  assert.match(magra, /\$\{formatearCantidad\(q\)\} \$\{p\.saleUnit/, "el contador de la tarjeta");
-  assert.match(magra, /\{formatearCantidad\(l\.q\)\}\{l\.p\.saleUnit/, "la línea del carrito de MAGRA");
+  // El front de MAGRA se despiezó en ./magra/ (MagraFront.tsx quedó como la puerta).
+  const etiqueta = readFileSync("src/app/tienda/magra/Etiqueta.tsx", "utf8");
+  assert.match(etiqueta, /\$\{formatearCantidad\(q\)\} \$\{p\.saleUnit/, "el contador de la tarjeta");
+  const magra = readFileSync("src/app/tienda/magra/MagraTienda.tsx", "utf8");
+  assert.match(magra, /\{formatearCantidad\(l\.q\)\}\s*\{l\.p\.saleUnit/, "la línea del carrito de MAGRA");
   const reglas = readFileSync("src/app/tienda/reglas-tienda.ts", "utf8");
   assert.match(reglas, /formatearCantidad\(/, "el mensaje de WhatsApp, armado en el servidor");
 });

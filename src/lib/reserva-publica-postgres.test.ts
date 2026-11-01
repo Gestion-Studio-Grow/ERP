@@ -135,7 +135,7 @@ test("la nota de la reserva pública (patente del taller) se guarda en el turno;
   if (!s) return;
   const { createAppointment } = await import("@/lib/actions");
   const duenio = await prismaComoDuenio(s.base);
-  const [, , , , , , , , primero, , segundo] = await franjasDeManana(s);
+  const [, , , , , , , , primero] = await franjasDeManana(s);
   const reservar = async (horario: string, extra: Record<string, string>) => {
     const fd = new FormData();
     for (const [k, v] of Object.entries({ professionalId: s.carla, serviceId: s.hace, startsAt: horario, clientName: "Ana", clientPhone: TELEFONO, ...extra })) fd.set(k, v);
@@ -147,6 +147,8 @@ test("la nota de la reserva pública (patente del taller) se guarda en el turno;
   assert.equal(conNota.notes?.length, 500);
   assert.ok(conNota.notes?.startsWith("Patente: AB 123 CD · Auto: VW Gol"));
   // Sin el campo (el formulario de CH no lo manda): como siempre, sin nota.
+  // Una franja que sigue libre después de la primera: las de al lado se pisan con ella.
+  const segundo = (await franjasDeManana(s)).at(-1)!;
   assert.equal((await reservar(segundo, {})).notes, null);
 });
 
