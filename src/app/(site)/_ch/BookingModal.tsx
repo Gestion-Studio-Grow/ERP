@@ -7,6 +7,7 @@ import { checkCoupon } from "@/lib/coupon-actions";
 import { isValidEmail, isValidArgentinePhone } from "@/lib/contact-validation";
 import { fmtDateTime, fmtTime, wallHourMinuteInBusinessTz } from "@/lib/datetime";
 import { useWhatsAppCta } from "@/components/whatsapp-cta";
+import { categoriaVisible } from "./copy-ch";
 import { profesionalPropuesta, promesaDeCambios } from "@/lib/turnos/practica";
 import { useNegocioDelSitio } from "./negocio-del-sitio";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
@@ -871,7 +872,7 @@ export default function BookingModal({
                 ) : (
                 <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Reserva</span> · Nº {code}</p>
                 )}
-                <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Servicio</span> · {svc?.name} · {svc?.categoria}, {svc?.durationMin} min</p>
+                <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Servicio</span> · {svc?.name}{svc && categoriaVisible(svc.categoria) ? ` · ${svc.categoria}` : ""}, {svc?.durationMin} min</p>
                 <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Profesional</span> · {pro?.name}</p>
                 <p style={{ margin: 0, textTransform: nuevo ? "none" : "capitalize" }}><span style={{ color: "var(--text-muted)", textTransform: "none" }}>Cuándo</span> · {whenLabel} h</p>
               </div>

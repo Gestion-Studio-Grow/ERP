@@ -9,6 +9,7 @@
 
 import Link from "next/link";
 import ReserveButton from "./ReserveButton";
+import { categoriaVisible } from "./copy-ch";
 import { enumerar, nombreDePila, pesos } from "./equipo";
 import type { BookingGroup, BookingProfessional, BookingService } from "./types";
 
@@ -68,6 +69,16 @@ export default function Carta({
   conVecina: boolean;
 }) {
   const familias = groups.filter((g) => g.services.length > 0);
+  // Todo en «Otros servicios» es que el negocio todavía no cargó categorías: ni índice ni título de relleno.
+  if (familias.length === 1 && !categoriaVisible(familias[0].name)) {
+    return (
+      <ul className="chf-renglones">
+        {familias[0].services.map((s) => (
+          <Renglon key={s.id} s={s} meta={quienesHacen(s.id, professionals)} conVecina={conVecina} />
+        ))}
+      </ul>
+    );
+  }
   return (
     <>
       <nav className="chf-chips" aria-label="Familias de servicios">

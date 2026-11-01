@@ -97,7 +97,7 @@ export const CSS_CH = `
 @keyframes chf-acerca{from{transform:scale(1.14)}to{transform:none}}
 
 /* ── La agenda viva: plano petróleo con las fotos del equipo ───────────── */
-.chf-panel{--chf-claro:color-mix(in srgb,var(--text-on-accent) 88%,var(--accent));background:var(--accent);color:var(--text-on-accent);padding:clamp(20px,2.2vw,36px);border-radius:2px;animation:chf-sube 640ms var(--ch-transicion-curva) both}
+.chf-panel{--chf-claro:var(--text-on-accent);background:var(--accent);color:var(--text-on-accent);padding:clamp(20px,2.2vw,36px);border-radius:2px;animation:chf-sube 640ms var(--ch-transicion-curva) both}
 .chf-panel .chf-kicker{color:var(--chf-claro)}
 .chf-panel :focus-visible{outline-color:var(--text-on-accent)}
 .chf-hueco-tit{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding-bottom:14px;border-bottom:1px solid color-mix(in srgb,var(--text-on-accent) 35%,transparent)}

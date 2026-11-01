@@ -21,3 +21,9 @@ export const FOTOS_EQUIPO_CH: Record<string, { src: string; rotate?: number }> =
   "Macarena Arias": { src: "/team/macarena.png" },
   "Romina Delpardo": { src: "/team/romina.png", rotate: 90 },
 };
+
+/** «Otros servicios» es el grupo de los servicios sin categoría (getPublicBookingData): no se le muestra como categoría. */
+export function categoriaVisible(nombre: string | null | undefined): boolean {
+  const n = (nombre ?? "").trim().toLowerCase();
+  return n !== "" && n !== "otros servicios";
+}

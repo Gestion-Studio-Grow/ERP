@@ -22,6 +22,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import ReserveButton from "./ReserveButton";
+import { categoriaVisible } from "./copy-ch";
 import type { FeaturedService } from "./FeaturedTreatments";
 
 type Servicio = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null };
@@ -164,7 +165,7 @@ export default function InicioCH({
                   <li key={s.id} className="chn-serv">
                     <span className="chn-serv-txt">
                       <span className="chn-serv-nom">{s.name}</span>
-                      <span className="chn-serv-meta">{[s.grupo, enumerar(q)].filter(Boolean).join(" · ")}</span>
+                      <span className="chn-serv-meta">{[categoriaVisible(s.grupo) ? s.grupo : "", enumerar(q)].filter(Boolean).join(" · ")}</span>
                     </span>
                     <span className="chn-dur">{s.durationMin} min</span>
                     <span className="chn-plata">
