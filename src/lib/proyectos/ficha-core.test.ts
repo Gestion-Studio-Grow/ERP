@@ -1,3 +1,4 @@
+import { tipoDeArchivoSubido } from "./ficha-core";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cambiosEntreVersiones, cashflowDelEvento, ventaTotalItem } from "./gestion-core";
@@ -134,4 +135,13 @@ test("el historial esconde costos y pagos según el permiso", () => {
   assert.equal(cambioVisible({ entidad: "ProyectoCuota", campo: "Cobrado" }, sin), false);
   assert.equal(cambioVisible({ entidad: "Proyecto", campo: "Etapa" }, sin), true);
   assert.equal(cambioVisible({ entidad: "ProyectoCuota", campo: "Asiento" }, { costos: true, pagos: true }), false);
+});
+
+test("se sube una imagen o un PDF de verdad, con su tope", () => {
+  assert.equal(tipoDeArchivoSubido("data:image/png;base64,AAAA", 100, 100), "imagen");
+  assert.equal(tipoDeArchivoSubido("data:application/pdf;base64,JVBERi0x", 100, 100), "pdf");
+  assert.equal(tipoDeArchivoSubido("data:application/pdf;base64,PGh0bWw+", 100, 100), null);
+  assert.equal(tipoDeArchivoSubido("data:text/html;base64,AAAA", 100, 100), null);
+  assert.equal(tipoDeArchivoSubido("data:image/png;base64,AAAA", 5, 100), null);
+  assert.equal(tipoDeArchivoSubido("data:application/pdf;base64,JVBERi0x", 100, 5), null);
 });

@@ -74,6 +74,7 @@ CREATE TABLE "ProyectoProveedorFicha" (
     "supplierId" TEXT NOT NULL,
     "rubro" TEXT,
     "ciudad" TEXT,
+    "contacto" TEXT,
     "condiciones" TEXT NOT NULL DEFAULT '50% anticipo / 50% contra entrega',
     "anticipoPct" DOUBLE PRECISION NOT NULL DEFAULT 50,
     "evaluacion" DOUBLE PRECISION NOT NULL DEFAULT 4,

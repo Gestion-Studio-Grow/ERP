@@ -73,7 +73,7 @@ export async function TabLiquidaciones({ tenantId, mes, edita }: { tenantId: str
                     <td className="whitespace-nowrap py-2 pr-3">{f.vistaEl ? fechaCorta(f.vistaEl) : "—"}</td>
                     <td className="py-2">
                       <div className="flex flex-wrap items-start gap-1">
-                        {edita && f.estado === "BORRADOR" && <EditarExtras id={f.id} persona={f.persona.nombre} manuales={extras.filter((e) => e.manual)} />}
+                        {edita && f.estado === "BORRADOR" && <EditarExtras id={f.id} persona={f.persona.nombre} base={f.base} manuales={extras.filter((e) => e.manual)} />}
                         <Link href={`/admin/proyectos/imprimir-liquidacion/${f.id}`} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>PDF</Link>
                       </div>
                     </td>

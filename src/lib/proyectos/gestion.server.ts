@@ -97,6 +97,27 @@ export async function usuariosDelEquipo(tenantId: string, proyectoId: string, sa
   return filas.map((f) => f.persona.userId).filter((u): u is string => !!u && u !== salvo);
 }
 
+/**
+ * «Deadlines próximos». No hay un proceso nocturno propio: corre cuando alguien abre Inicio, y el mismo texto no se repite a la misma persona.
+ * Si nadie entra, no sale; alcanza mientras el equipo use el sistema todos los días.
+ */
+export async function avisarDeadlines(tenantId: string) {
+  const ahora = new Date();
+  const items = await prisma.proyectoItem.findMany({
+    where: { tenantId, fechaLimite: { gte: ahora, lte: new Date(ahora.getTime() + 3 * 86_400_000) }, estadoItem: { not: "ENTREGADO" }, presupuesto: { proyecto: { perdidoEl: null } } },
+    select: { descripcion: true, fechaLimite: true, presupuesto: { select: { proyectoId: true, proyecto: { select: { nombre: true } } } } },
+    take: 50,
+  });
+  for (const i of items) {
+    const { proyectoId, proyecto } = i.presupuesto;
+    const texto = `${proyecto.nombre}: ${i.descripcion} vence el ${i.fechaLimite!.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}`;
+    const equipo = await usuariosDelEquipo(tenantId, proyectoId, "");
+    const ya = await prisma.proyectoAviso.findMany({ where: { tenantId, tipo: "deadline", texto, destinatario: { in: equipo } }, select: { destinatario: true } });
+    const avisados = new Set(ya.map((y) => y.destinatario));
+    await avisar(prisma, { tenantId, destinatarios: equipo.filter((u) => !avisados.has(u)), tipo: "deadline", texto, enlace: `/admin/proyectos/${proyectoId}` });
+  }
+}
+
 export async function avisar(db: Tx | typeof prisma, d: { tenantId: string; destinatarios: readonly string[]; tipo: string; texto: string; enlace?: string }) {
   const unicos = [...new Set(d.destinatarios)].filter(Boolean);
   if (unicos.length === 0) return;

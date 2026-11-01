@@ -170,6 +170,13 @@ export interface FilaFicha {
   costoReal?: number | null;
 }
 
+/** Qué es lo que se está subiendo, mirando el contenido y no el nombre. `null` si no se acepta o pesa de más. PURA. */
+export function tipoDeArchivoSubido(datos: string, maxImagen: number, maxPdf: number): "imagen" | "pdf" | null {
+  if (/^data:image\/(jpeg|png|webp);base64,/.test(datos)) return datos.length <= maxImagen ? "imagen" : null;
+  if (datos.startsWith("data:application/pdf;base64,JVBER")) return datos.length <= maxPdf ? "pdf" : null; // JVBER = «%PDF» en base64
+  return null;
+}
+
 export function filaDeFicha(
   i: ItemVenta & { id: string; supplierId: string | null; supplier?: { name: string } | null; proveedor: string | null; fechaLimite: string; estadoItem: string; visibleCliente: boolean; adjuntos: number; costoReal?: number | null },
   tc: Readonly<Record<string, number>>,

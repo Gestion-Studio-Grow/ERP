@@ -39,6 +39,18 @@ export async function achicar(archivo: File): Promise<string> {
   }
 }
 
+/** Una imagen se achica; un PDF viaja tal cual, con su tope. */
+export async function archivoADatos(a: File): Promise<string> {
+  if (a.type !== "application/pdf") return achicar(a);
+  if (a.size > 2_000_000) throw new Error("PDF pesado");
+  return new Promise((listo, fallo) => {
+    const r = new FileReader();
+    r.onload = () => listo(String(r.result));
+    r.onerror = () => fallo(new Error("PDF ilegible"));
+    r.readAsDataURL(a);
+  });
+}
+
 export function SubirArchivo({ proyectoId, itemId, alTerminar }: { proyectoId: string; itemId?: string; alTerminar?: () => void }) {
   const [tipo, setTipo] = useState("RENDER");
   const [link, setLink] = useState("");
@@ -67,12 +79,12 @@ export function SubirArchivo({ proyectoId, itemId, alTerminar }: { proyectoId: s
           </select>
         </label>
         <div className="grid min-w-0 gap-1 text-sm font-medium text-strong">
-          Imagen
+          Imagen o PDF
           <input
             ref={entrada}
             type="file"
-            accept="image/jpeg,image/png,image/webp"
-            aria-label="Elegir imagen"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+            aria-label="Elegir imagen o PDF"
             disabled={ocupado}
             className="w-full min-w-0 text-sm"
             onChange={(e) => {
@@ -82,15 +94,15 @@ export function SubirArchivo({ proyectoId, itemId, alTerminar }: { proyectoId: s
               iniciar(async () => {
                 let datos: string | null = null;
                 try {
-                  datos = await achicar(a);
+                  datos = await archivoADatos(a);
                 } catch {
-                  setError("No se pudo leer esa imagen. Probá con un JPG o PNG.");
+                  setError(a.type === "application/pdf" ? "El PDF pesa más de 2 MB o no se pudo leer. Pegá el link de tu nube." : "No se pudo leer esa imagen. Probá con un JPG o PNG.");
                 }
                 if (datos) {
                   try {
                     fin(await subirArchivoFicha({ proyectoId, tipo, nombre: a.name, datos, visibleCliente: tipo === "RENDER", itemId }));
                   } catch {
-                    setError("No se pudo guardar la imagen. Revisá la conexión y probá de nuevo.");
+                    setError("No se pudo guardar el archivo. Revisá la conexión y probá de nuevo.");
                   }
                 }
                 if (entrada.current) entrada.current.value = "";
@@ -99,7 +111,7 @@ export function SubirArchivo({ proyectoId, itemId, alTerminar }: { proyectoId: s
           />
         </div>
       </div>
-      <p className="text-sm text-muted">Para PDF, planos pesados o video, pegá el link de tu nube:</p>
+      <p className="text-sm text-muted">Para archivos de más de 2 MB, planos pesados o video, pegá el link de tu nube:</p>
       <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
         <input value={nombre} onChange={(e) => setNombre(e.target.value)} aria-label="Nombre del archivo" placeholder="Nombre" maxLength={120} className={campo} />
         <input value={link} onChange={(e) => setLink(e.target.value)} aria-label="Link del archivo" placeholder="https://…" inputMode="url" className={campo} />

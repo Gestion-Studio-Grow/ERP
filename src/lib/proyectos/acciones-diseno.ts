@@ -215,7 +215,7 @@ async function imagenDelProyecto(tenantId: string, proyectoId: string, ref: stri
   const r = leerRef(ref);
   if (!r) return false;
   if (r.tipo === "url") return true;
-  if (r.tipo === "archivo") return !!(await prisma.proyectoArchivo.findFirst({ where: { id: r.id, tenantId, proyectoId, datos: { not: null } }, select: { id: true } }));
+  if (r.tipo === "archivo") return !!(await prisma.proyectoArchivo.findFirst({ where: { id: r.id, tenantId, proyectoId, datos: { startsWith: "data:image/" } }, select: { id: true } }));
   return !!(await prisma.proyectoEntregableVersion.findFirst({ where: { id: r.id, tenantId, entregable: { proyectoId }, datos: { not: null } }, select: { id: true } }));
 }
 
@@ -359,7 +359,7 @@ export async function registrarRespuestaPresentacion(d: { id: string; aprueba: b
 
 // ── Chat ────────────────────────────────────────────────────────────────────
 
-export async function enviarMensajeChat(d: { proyectoId: string | null; canal: string; texto: string; adjuntoNombre?: string; adjuntoUrl?: string }): Promise<Resultado> {
+export async function enviarMensajeChat(d: { proyectoId: string | null; canal: string; texto: string; adjuntoNombre?: string; adjuntoUrl?: string; archivoId?: string }): Promise<Resultado> {
   const a = await actorActual();
   const proyectoId = d.proyectoId || null;
   const acceso = await accesoChat(a, proyectoId);
@@ -367,11 +367,14 @@ export async function enviarMensajeChat(d: { proyectoId: string | null; canal: s
   if (!acceso.canales.includes(d.canal)) return { ok: false, error: "Elegí un canal para escribir." };
   const cuerpo = texto(d.texto, 4000);
   const crudo = texto(d.adjuntoUrl, 2000);
-  const adjuntoUrl = crudo ? linkSeguro(crudo) : null;
+  const archivoId = String(d.archivoId ?? "");
+  const archivo = archivoId && proyectoId ? await prisma.proyectoArchivo.findFirst({ where: { id: archivoId, tenantId: a.tenantId, proyectoId, datos: { not: null } }, select: { id: true, nombre: true } }) : null;
+  if (archivoId && !archivo) return { ok: false, error: "Ese archivo ya no está en el proyecto." };
+  const adjuntoUrl = archivo ? `/admin/proyectos/${proyectoId}/archivo/${archivo.id}` : crudo ? linkSeguro(crudo) : null;
   if (crudo && !adjuntoUrl) return { ok: false, error: "El adjunto tiene que ser un link que empiece con https://." };
   if (!cuerpo && !adjuntoUrl) return { ok: false, error: "Escribí un mensaje." };
   await prisma.proyectoMensaje.create({
-    data: { tenantId: a.tenantId, proyectoId, canal: d.canal, autor: a.nombre, texto: cuerpo, adjuntoUrl, adjuntoNombre: adjuntoUrl ? texto(d.adjuntoNombre, 120) || "Adjunto" : null },
+    data: { tenantId: a.tenantId, proyectoId, canal: d.canal, autor: a.nombre, texto: cuerpo, adjuntoUrl, adjuntoNombre: archivo?.nombre ?? (adjuntoUrl ? texto(d.adjuntoNombre, 120) || "Adjunto" : null) },
   });
   const personas = await personasDelChat(a, proyectoId, d.canal);
   const nombrados = new Set(mencionados(cuerpo, personas));

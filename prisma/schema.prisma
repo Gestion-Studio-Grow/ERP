@@ -3528,6 +3528,7 @@ model ProyectoProveedorFicha {
   supplierId  String   @unique
   rubro       String?
   ciudad      String?
+  contacto    String?
   condiciones String   @default("50% anticipo / 50% contra entrega")
   anticipoPct Float    @default(50)
   evaluacion  Float    @default(4)

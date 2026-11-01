@@ -25,7 +25,9 @@ import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
 import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
 import { actorActual } from "@/lib/proyectos/gestion.server";
-import { appDeGestionVisible, appEnLaBarra } from "@/lib/proyectos/gestion-core";
+import { appDeGestionVisible, appEnLaBarra, ROL_LABEL } from "@/lib/proyectos/gestion-core";
+import { prisma } from "@/lib/prisma";
+import { BarraGestion } from "./proyectos/_barra";
 import { appDeRuta } from "@/apps/rutas";
 import { appCasa, appDelPanelCerrado, appsDeLaCasa, appsVisibles, conCierreDelMesEnLaBarra, conProyectosEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa, rutaFueraDelPanel } from "@/apps/visibles";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
@@ -268,10 +270,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const actor = panel?.id === "proyectos" ? await actorActual() : null;
   const abribles = actor ? visiblesDelNegocio.filter((a) => appDeGestionVisible(a.id, actor.rol, actor.permisos)) : visiblesDelNegocio;
   const visibles = actor ? abribles.filter((a) => appEnLaBarra(a.id, actor.rol)) : abribles;
+  let barraFuera: React.ReactNode = null;
   if (actor) {
     const pathname = (await headers()).get("x-pathname");
     const app = pathname ? appDeRuta(pathname) : null;
     if (app && !abribles.some((a) => a.id === app.id)) redirect("/admin/proyectos/inicio");
+    // Fuera de /admin/proyectos (caja, facturación…) el buscador y los avisos siguen a mano; adentro los pone su propio layout.
+    if (pathname && !pathname.startsWith("/admin/proyectos")) {
+      const avisos = await prisma.proyectoAviso.count({ where: { tenantId: actor.tenantId, destinatario: actor.user.id, leidoEl: null } });
+      barraFuera = <div data-gestion><BarraGestion avisos={avisos} persona={actor.nombre} rol={ROL_LABEL[actor.rol]} /></div>;
+    }
   }
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
   const menu = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles);
@@ -353,9 +361,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {children}
               </PanelDeCasa>
             ) : (
-              <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} logo={logo} letraDelNegocio={estetica !== null} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})} {...(pedidosNuevos ? { pedidosNuevos } : {})}>
+              <AdminShell role={user.role} rolVisible={actor ? ROL_LABEL[actor.rol] : undefined} userName={user.name} brandName={brandName} monogram={monogram} logo={logo} letraDelNegocio={estetica !== null} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})} {...(pedidosNuevos ? { pedidosNuevos } : {})}>
                 {/* Cómo se llama el retiro y qué ejemplo lleva la nota, según el rubro (una perfumería
                     entrega en un punto de encuentro, no en un local): sale del rubro ya leído arriba. */}
+                {barraFuera}
                 <VocabularioDelNegocio valor={vocabularioDelNegocio(rubroDelNegocio.rubro)}>{children}</VocabularioDelNegocio>
               </AdminShell>
             )}

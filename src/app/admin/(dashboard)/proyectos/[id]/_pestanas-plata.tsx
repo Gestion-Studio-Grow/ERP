@@ -70,7 +70,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                 </div>
                 <dl className="mb-2 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                   <Numero titulo="Total sin IVA" valor={pesos(t.venta)} />
-                  {verMargen && <Numero titulo="Margen" valor={`${pesos(t.margen)} (${porcentaje(t.margenPct)})`} />}
+                  {verMargen && <Numero titulo={editable ? "Margen" : "Margen al cambio de hoy"} valor={`${pesos(t.margen)} (${porcentaje(t.margenPct)})`} />}
                   <Numero titulo="Fecha" valor={fechaCorta(v.enviadoEl ?? v.createdAt)} />
                   <Numero titulo="Quién" valor={v.creadoPor ?? "—"} />
                 </dl>

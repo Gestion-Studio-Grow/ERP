@@ -27,7 +27,7 @@ export function BarraGestion({ avisos, persona, rol }: { avisos: number; persona
         Avisos{avisos > 0 && <span className="ml-2 rounded-full bg-accent px-2 text-xs text-on-accent">{avisos}</span>}
       </Link>
       <Link href="/admin/proyectos/configuracion" className="flex min-h-11 items-center rounded-lg border border-line px-3 text-sm text-strong">Ajustes</Link>
-      <p className="hidden text-sm text-muted xl:block">{persona} · {rol}</p>
+      <p className="text-sm text-muted">{persona} · {rol}</p>
     </div>
   );
 }

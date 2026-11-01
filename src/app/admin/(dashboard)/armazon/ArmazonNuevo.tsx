@@ -166,6 +166,7 @@ function MenuDePersona({
 export default function ArmazonNuevo({
   children,
   role,
+  rolVisible,
   userName,
   brandName,
   monogram,
@@ -227,7 +228,7 @@ export default function ArmazonNuevo({
   const titulo = tituloDePantalla(pathname, espacioParam, espacios, brandName);
   const idEspacio = (id: string) => `${base}-esp-${id}`;
   const idPersona = `${base}-persona`;
-  const roleLabel = ROLE_LABEL[role];
+  const roleLabel = rolVisible ?? ROLE_LABEL[role];
   const casa = conInicio ? "/admin" : (rubro?.ruta ?? "/admin");
 
   // La cápsula: el Inicio (si es su casa) y los primeros espacios, hasta 4 lugares.

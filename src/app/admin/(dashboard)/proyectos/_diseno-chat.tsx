@@ -1,11 +1,13 @@
 "use client";
 
-// El chat: canales, mensajes con autor y hora, menciones con @ y, en el del equipo, adjunto por link.
+// El chat: canales, mensajes con autor y hora, menciones con @ y, en el del equipo, adjunto por archivo o por link.
 
 import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button, cn } from "@/components/ui";
 import { enviarMensajeChat } from "@/lib/proyectos/acciones-diseno";
+import { subirArchivoFicha } from "@/lib/proyectos/acciones-ficha";
+import { archivoADatos } from "./[id]/_piezas";
 import { campo, etiqueta } from "./_vista";
 
 export interface MensajeChat {
@@ -34,6 +36,7 @@ export function ChatCliente({ proyectoId, canales, mensajes, personas, puedeEscr
   const [texto, setTexto] = useState("");
   const [adjuntoNombre, setAdjuntoNombre] = useState("");
   const [adjuntoUrl, setAdjuntoUrl] = useState("");
+  const [archivo, setArchivo] = useState<{ id: string; nombre: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
   const lista = useRef<HTMLOListElement>(null);
@@ -52,11 +55,12 @@ export function ChatCliente({ proyectoId, canales, mensajes, personas, puedeEscr
     setError(null);
     iniciar(async () => {
       try {
-        const r = await enviarMensajeChat({ proyectoId, canal, texto, adjuntoNombre, adjuntoUrl });
+        const r = await enviarMensajeChat({ proyectoId, canal, texto, adjuntoNombre, adjuntoUrl, archivoId: archivo?.id });
         if (!r.ok) return setError(r.error);
         setTexto("");
         setAdjuntoNombre("");
         setAdjuntoUrl("");
+        setArchivo(null);
         router.refresh();
       } catch {
         setError("No se pudo enviar. Revisá la conexión y probá de nuevo.");
@@ -139,6 +143,32 @@ export function ChatCliente({ proyectoId, canales, mensajes, personas, puedeEscr
               ))}
             </div>
           )}
+          {proyectoId && (
+            <label className="grid gap-1 text-sm font-medium text-strong">
+              {archivo ? `Adjunto: ${archivo.nombre}` : "Adjuntar imagen o PDF (hasta 2 MB)"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                disabled={ocupado}
+                className="w-full min-w-0 text-sm font-normal"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!f) return;
+                  setError(null);
+                  iniciar(async () => {
+                    try {
+                      const r = await subirArchivoFicha({ proyectoId, tipo: "OTRO", nombre: f.name, datos: await archivoADatos(f) });
+                      if (!r.ok) return setError(r.error);
+                      setArchivo({ id: r.id, nombre: f.name });
+                    } catch {
+                      setError("No se pudo subir: el PDF pesa más de 2 MB o el archivo no se pudo leer.");
+                    }
+                  });
+                }}
+              />
+            </label>
+          )}
           {conAdjunto && (
             <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
               <input value={adjuntoNombre} onChange={(e) => setAdjuntoNombre(e.target.value)} aria-label="Nombre del adjunto" placeholder="Nombre del adjunto" maxLength={120} className={campo} />
@@ -146,7 +176,7 @@ export function ChatCliente({ proyectoId, canales, mensajes, personas, puedeEscr
             </div>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" disabled={ocupado || (!texto.trim() && !adjuntoUrl.trim())}>{ocupado ? "Enviando…" : "Enviar"}</Button>
+            <Button type="submit" disabled={ocupado || (!texto.trim() && !adjuntoUrl.trim() && !archivo)}>{ocupado ? "Enviando…" : "Enviar"}</Button>
             <Button variant="ghost" disabled={ocupado} onClick={() => router.refresh()}>Actualizar</Button>
           </div>
           {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}

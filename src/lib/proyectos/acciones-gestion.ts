@@ -77,6 +77,7 @@ export async function guardarProveedor(formData: FormData): Promise<Resultado<{ 
   const ficha = {
     rubro: (RUBROS as readonly string[]).includes(rubro) ? rubro : null,
     ciudad: txt(formData.get("ciudad"), 80) || null,
+    contacto: txt(formData.get("contacto"), 120) || null,
     condiciones: txt(formData.get("condiciones"), 300),
     anticipoPct: entre(leerNumero(String(formData.get("anticipoPct") ?? "")), 0, 100, 50),
     evaluacion: entre(leerNumero(String(formData.get("evaluacion") ?? "")), 1, 5, 4),

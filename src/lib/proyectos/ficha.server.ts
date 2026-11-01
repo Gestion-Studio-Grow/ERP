@@ -206,7 +206,7 @@ export async function datosArchivos(a: Actor, cab: Cabecera) {
   const items = cab.viva?.items ?? [];
   // La imagen viaja por su ruta, de a una: acá sólo su tamaño, para no meter 30 MB en la página.
   return {
-    archivos: filas.map(({ datos, ...f }) => ({ ...f, esImagen: !!datos, tamano: datos ? Math.round(datos.length * 0.75) : null })),
+    archivos: filas.map(({ datos, ...f }) => ({ ...f, esImagen: !!datos?.startsWith("data:image/"), esPdf: !!datos?.startsWith("data:application/pdf"), tamano: datos ? Math.round(datos.length * 0.75) : null })),
     items: items.map((i) => ({ id: i.id, descripcion: i.descripcion })),
   };
 }

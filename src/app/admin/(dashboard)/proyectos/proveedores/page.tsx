@@ -70,7 +70,7 @@ export default async function ProveedoresDeProyectos({ searchParams }: { searchP
                   <span className="text-muted"> · {s.eventos === 1 ? "1 evento" : `${s.eventos} eventos`}</span>
                 </p>
                 {f?.condiciones && <p className="break-words text-xs text-muted">{f.condiciones}</p>}
-                {(s.phone || s.email) && <p className="break-words text-xs text-muted">{[s.phone, s.email].filter(Boolean).join(" · ")}</p>}
+                {(f?.contacto || s.phone || s.email) && <p className="break-words text-xs text-muted">{[f?.contacto, s.phone, s.email].filter(Boolean).join(" · ")}</p>}
                 {s.taxId && <p className="text-xs text-muted">CUIT {s.taxId}</p>}
                 {verPlata && s.debe > 0 && <p className="text-sm font-medium text-strong">Debés {pesos(s.debe)}</p>}
                 <div className="flex flex-wrap gap-2">

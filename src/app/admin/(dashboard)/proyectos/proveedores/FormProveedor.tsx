@@ -13,7 +13,7 @@ export interface ValoresProveedor {
   taxId: string | null;
   phone: string | null;
   email: string | null;
-  fichaDeProyecto: { rubro: string | null; ciudad: string | null; condiciones: string; anticipoPct: number; evaluacion: number; moneda: string; notas: string } | null;
+  fichaDeProyecto: { rubro: string | null; ciudad: string | null; contacto: string | null; condiciones: string; anticipoPct: number; evaluacion: number; moneda: string; notas: string } | null;
 }
 
 export function FormProveedor({ valores }: { valores?: ValoresProveedor }) {
@@ -48,6 +48,7 @@ export function FormProveedor({ valores }: { valores?: ValoresProveedor }) {
         </select>
       </label>
       <label className={etiqueta}>Ciudad<input name="ciudad" maxLength={80} defaultValue={f?.ciudad ?? ""} className={campo} /></label>
+      <label className={etiqueta}>Contacto<input name="contacto" maxLength={120} defaultValue={f?.contacto ?? ""} placeholder="Con quién se habla" className={campo} /></label>
       <label className={etiqueta}>CUIT (opcional)<input name="taxId" inputMode="numeric" defaultValue={valores?.taxId ?? ""} className={campo} /></label>
       <label className={etiqueta}>Teléfono<input name="phone" type="tel" defaultValue={valores?.phone ?? ""} className={campo} /></label>
       <label className={etiqueta}>Mail<input name="email" type="email" defaultValue={valores?.email ?? ""} className={campo} /></label>

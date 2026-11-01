@@ -135,7 +135,7 @@ export async function PestanaArchivos({ a, cab, tipo }: { a: Actor; cab: Cabecer
             </thead>
             <tbody>
               {lista.map((f) => {
-                const ruta = f.esImagen ? `/admin/proyectos/${p.id}/archivo/${f.id}` : f.url ?? "#";
+                const ruta = f.esImagen || f.esPdf ? `/admin/proyectos/${p.id}/archivo/${f.id}` : f.url ?? "#";
                 return (
                   <tr key={f.id} className="border-t border-line align-top">
                     <td className="py-1.5 pr-2">

@@ -249,7 +249,7 @@ export async function listaDeProveedores(a: Actor, f: { rubro?: string; q?: stri
       phone: true,
       email: true,
       active: true,
-      fichaDeProyecto: { select: { rubro: true, ciudad: true, condiciones: true, evaluacion: true, anticipoPct: true } },
+      fichaDeProyecto: { select: { rubro: true, ciudad: true, contacto: true, condiciones: true, evaluacion: true, anticipoPct: true } },
     },
   });
   const verPlata = puede(a, "pagos", "ver");
@@ -286,7 +286,7 @@ export async function detalleDeProveedor(a: Actor, id: string) {
   const { tenantId } = a;
   const proveedor = await prisma.supplier.findFirst({
     where: { id, tenantId },
-    select: { id: true, name: true, taxId: true, phone: true, email: true, active: true, fichaDeProyecto: { select: { rubro: true, ciudad: true, condiciones: true, anticipoPct: true, evaluacion: true, moneda: true, notas: true } } },
+    select: { id: true, name: true, taxId: true, phone: true, email: true, active: true, fichaDeProyecto: { select: { rubro: true, ciudad: true, contacto: true, condiciones: true, anticipoPct: true, evaluacion: true, moneda: true, notas: true } } },
   });
   if (!proveedor) return null;
   const verPlata = puede(a, "pagos", "ver");
@@ -346,7 +346,7 @@ export async function detalleDeProveedor(a: Actor, id: string) {
 export async function proveedorParaEditar(tenantId: string, id: string) {
   return prisma.supplier.findFirst({
     where: { id, tenantId },
-    select: { id: true, name: true, taxId: true, phone: true, email: true, fichaDeProyecto: { select: { rubro: true, ciudad: true, condiciones: true, anticipoPct: true, evaluacion: true, moneda: true, notas: true } } },
+    select: { id: true, name: true, taxId: true, phone: true, email: true, fichaDeProyecto: { select: { rubro: true, ciudad: true, contacto: true, condiciones: true, anticipoPct: true, evaluacion: true, moneda: true, notas: true } } },
   });
 }
 

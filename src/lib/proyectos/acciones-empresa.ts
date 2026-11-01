@@ -352,8 +352,8 @@ export async function publicarBorradores(formData: FormData): Promise<Resultado<
   return { ok: true, publicadas: borradores.length };
 }
 
-/** Reemplaza los extras manuales. Los que salen de los eventos quedan como están. Un descuento va en negativo. */
-export async function editarExtrasLiquidacion(d: { id: string; manuales: readonly { nombre: string; monto: string }[] }): Promise<Resultado> {
+/** Reemplaza la base y los extras manuales. Los que salen de los eventos quedan como están. Un descuento va en negativo. */
+export async function editarExtrasLiquidacion(d: { id: string; base?: string; manuales: readonly { nombre: string; monto: string }[] }): Promise<Resultado> {
   const a = await exigirEditar("liquidaciones");
   const l = await prisma.proyectoLiquidacion.findFirst({ where: { id: String(d.id ?? ""), tenantId: a.tenantId }, select: { id: true, periodo: true, base: true, extras: true, total: true, estado: true } });
   if (!l) return { ok: false, error: "Esa liquidación no existe." };
@@ -365,9 +365,11 @@ export async function editarExtrasLiquidacion(d: { id: string; manuales: readonl
   if (manuales.some((m) => !m.nombre)) return { ok: false, error: "Cada extra necesita un concepto." };
   if (manuales.some((m) => m.monto === 0)) return { ok: false, error: "Cada extra necesita un monto." };
   const extras = [...leerExtras(l.extras).filter((e) => !e.manual), ...manuales];
-  const total = totalLiquidacion(l.base, extras);
+  const base = d.base === undefined ? l.base : redondear(leerNumero(String(d.base)));
+  if (base < 0) return { ok: false, error: "La base no puede ser negativa." };
+  const total = totalLiquidacion(base, extras);
   if (total < 0) return { ok: false, error: "El total no puede quedar negativo." };
-  const r = await prisma.proyectoLiquidacion.updateMany({ where: { id: l.id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { extras: extras as unknown as Prisma.InputJsonValue, total } });
+  const r = await prisma.proyectoLiquidacion.updateMany({ where: { id: l.id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { base, extras: extras as unknown as Prisma.InputJsonValue, total } });
   if (r.count === 0) return { ok: false, error: "Ya está publicada: no se puede cambiar." };
   await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: l.id, campo: `total ${l.periodo}`, antes: l.total, despues: total, autor: a.nombre });
   revalidatePath(ADMIN);

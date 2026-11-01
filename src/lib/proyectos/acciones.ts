@@ -204,7 +204,7 @@ export async function alternarVisibleArchivo(formData: FormData) {
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
   const a = await prisma.proyectoArchivo.findFirst({ where: { id, tenantId }, select: { proyectoId: true, visibleCliente: true, datos: true } });
-  if (!a || !a.datos) return;
+  if (!a?.datos?.startsWith("data:image/")) return;
   await prisma.proyectoArchivo.updateMany({ where: { id, tenantId }, data: { visibleCliente: !a.visibleCliente } });
   refrescar(a.proyectoId);
 }

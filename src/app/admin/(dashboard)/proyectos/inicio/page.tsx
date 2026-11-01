@@ -3,7 +3,7 @@ import { buttonClasses, cn } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
 import { etapaLabel, fechaCorta } from "@/lib/proyectos/core";
 import { codigoProyecto, plataEn, TIPOS_CALENDARIO } from "@/lib/proyectos/gestion-core";
-import { actorActual, puede } from "@/lib/proyectos/gestion.server";
+import { actorActual, avisarDeadlines, puede } from "@/lib/proyectos/gestion.server";
 import { cuandoEnArgentina } from "@/lib/proyectos/gestion-lecturas-core";
 import { datosDeInicio } from "@/lib/proyectos/gestion-lecturas.server";
 import { tarjeta } from "../_vista";
@@ -31,6 +31,8 @@ export default async function InicioGestion() {
       </main>
     );
   }
+  // Que falle el aviso no puede dejar a nadie sin su Inicio.
+  await avisarDeadlines(a.tenantId).catch((e) => console.error("[proyectos] avisar deadlines", e));
   const d = await datosDeInicio(a);
   const accesos = [
     { href: "/admin/proyectos/nuevo", label: "Nuevo lead", ve: puede(a, "pipeline", "editar") },

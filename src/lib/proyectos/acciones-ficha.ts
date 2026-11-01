@@ -18,7 +18,7 @@ import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, redondear, s
 import { configProyectos } from "./datos.server";
 import { aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
-import { clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
+import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
 import type { ModuloGestion } from "./gestion-core";
 
@@ -27,6 +27,7 @@ export type ResultadoFicha<T = object> = ({ ok: true } & T) | { ok: false; error
 const RAIZ = "/admin/proyectos";
 const MAX_ARCHIVOS = 30;
 const MAX_IMAGEN = 1_400_000;
+const MAX_PDF = 2_800_000; // caracteres del data URL (~2 MB de PDF)
 const TIPOS_ARCHIVO = ["OTRO", "PRESUPUESTO", "PRESENTACION", "RENDER", "PLANO", "CONTRATO", "DISENO", "REFERENCIA"];
 
 const txt = (v: FormDataEntryValue | null): string => String(v ?? "").trim();
@@ -345,8 +346,9 @@ export async function guardarCampoItem(d: { id: string; campo: string; valor: st
   const { proyectoId } = it.presupuesto;
   const a = await entrar("ficha", proyectoId);
   if (typeof a === "string") return mal(a);
-  if (!sePuedeEditar(it.presupuesto.estado)) return mal("Esta versión ya se envió: abrí una nueva para cambiarla.");
   const campo = String(d.campo ?? "");
+  // El costo real se conoce después de enviar, y no cambia lo que se le cotizó al cliente.
+  if (campo !== "costoReal" && !sePuedeEditar(it.presupuesto.estado)) return mal("Esta versión ya se envió: abrí una nueva para cambiarla.");
   if (!(campo in ETIQUETA_CAMPO)) return mal("Ese campo no se puede editar.");
   if (campo in CAMPOS_DE_COSTOS) {
     if (!puede(a, "costos", "editar")) return mal("No tenés permiso para cambiar costos ni precios.");
@@ -591,6 +593,7 @@ export async function enviarCotizacion(formData: FormData): Promise<ResultadoFic
   const fijados = pr.items.map((i) => ({ item: i, fijo: precioAlEnviar(i, tc, config.margenPct) }));
   const foto = fotoDeVersion(fijados.map(({ item, fijo }) => ({ ...item, ...fijo })), tc, config.margenPct);
   const ahora = new Date();
+  let avanzo = false;
   const enviada = await tenantTransaction(async (tx) => {
     const r = await tx.proyectoPresupuesto.updateMany({
       where: { id, tenantId, estado: "BORRADOR", aprobadoInternoEl: { not: null } },
@@ -601,10 +604,12 @@ export async function enviarCotizacion(formData: FormData): Promise<ResultadoFic
     await tx.proyectoPresupuesto.updateMany({ where: { tenantId, proyectoId: pr.proyectoId, estado: "ENVIADO", id: { not: id } }, data: { estado: "REEMPLAZADO" } });
     const avanza = await tx.proyecto.updateMany({ where: { id: pr.proyectoId, tenantId, etapa: { in: ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO"] } }, data: { etapa: "PROPUESTA" } });
     await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "ProyectoPresupuesto", entidadId: id, campo: `Versión ${pr.version}`, antes: "Borrador", despues: "Enviada", autor: a.nombre });
-    if (avanza.count > 0) await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "Proyecto", entidadId: pr.proyectoId, campo: "Etapa", despues: etapaLabel("PROPUESTA"), autor: a.nombre });
+    avanzo = avanza.count > 0;
+    if (avanzo) await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "Proyecto", entidadId: pr.proyectoId, campo: "Etapa", despues: etapaLabel("PROPUESTA"), autor: a.nombre });
     return true;
   });
   if (!enviada) return mal("No se pudo enviar: revisá que siga aprobada y en borrador.");
+  if (avanzo) await avisarEtapa(tenantId, pr.proyectoId, a.user.id, etapaLabel("PROPUESTA"));
   await regenerar(tenantId, pr.proyectoId);
   await auditAdmin({ action: "proyecto.propuesta.enviar", entity: "ProyectoPresupuesto", entityId: id, changes: { version: pr.version } });
   refrescar(pr.proyectoId);
@@ -639,22 +644,31 @@ export async function registrarRespuesta(formData: FormData): Promise<ResultadoF
     return true;
   });
   if (!ganada) return mal("Esta versión ya fue respondida o reemplazada.");
+  if (aprueba) await avisarEtapa(tenantId, pr.proyectoId, a.user.id, etapaLabel(etapaAlAprobar(pr.proyecto.servicio, pr.proyecto.etapa), pr.proyecto.servicio));
   await regenerar(tenantId, pr.proyectoId);
   refrescar(pr.proyectoId);
   return { ok: true };
 }
 
+/** La etapa también cambia sola, al enviar o aprobar una versión: el equipo se entera igual que cuando se mueve la tarjeta. */
+async function avisarEtapa(tenantId: string, proyectoId: string, salvo: string, etapa: string) {
+  const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { nombre: true } });
+  await avisar(prisma, { tenantId, destinatarios: await usuariosDelEquipo(tenantId, proyectoId, salvo), tipo: "etapa", texto: `${p?.nombre ?? "Un proyecto"} pasó a ${etapa}`, enlace: `${RAIZ}/${proyectoId}` });
+}
+
 export async function guardarTextos(formData: FormData): Promise<ResultadoFicha> {
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
-  const pr = await prisma.proyectoPresupuesto.findFirst({ where: { id, tenantId }, select: { proyectoId: true, estado: true } });
+  const pr = await prisma.proyectoPresupuesto.findFirst({ where: { id, tenantId }, select: { proyectoId: true, estado: true, ivaPct: true } });
   if (!pr) return mal("Esa versión no existe.");
   const a = await entrar("cotizaciones", pr.proyectoId);
   if (typeof a === "string") return mal(a);
   if (!sePuedeEditar(pr.estado)) return mal("Esta versión ya se envió.");
   const iva = numeroDe(txt(formData.get("ivaPct")));
   if (iva === null) return mal("El IVA no se entiende: escribilo como un número.");
-  await prisma.proyectoPresupuesto.updateMany({ where: { id, tenantId }, data: { presentacion: txt(formData.get("presentacion")), condiciones: txt(formData.get("condiciones")), ivaPct: iva } });
+  await prisma.proyectoPresupuesto.updateMany({ where: { id, tenantId }, data: { presentacion: txt(formData.get("presentacion")), condiciones: txt(formData.get("condiciones")), ivaPct: iva, ...(iva !== pr.ivaPct && { aprobadoInternoEl: null, aprobadoInternoPor: null }) } });
+  // Otro IVA es otro total para el cliente: la aprobación de precios ya no vale y las cuotas se recalculan.
+  if (iva !== pr.ivaPct) await regenerar(tenantId, pr.proyectoId);
   refrescar(pr.proyectoId);
   return { ok: true };
 }
@@ -896,14 +910,14 @@ export async function subirArchivoFicha(d: { proyectoId: string; tipo: string; n
   const tipo = TIPOS_ARCHIVO.includes(d.tipo) ? d.tipo : "OTRO";
   const nombre = (d.nombre ?? "").trim().slice(0, 120) || "Archivo";
   const url = (d.url ?? "").trim();
-  const imagenOk = typeof d.datos === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(d.datos) && d.datos.length <= MAX_IMAGEN;
-  if (d.datos ? !imagenOk : !linkSeguro(url)) return mal(d.datos ? "La imagen es demasiado pesada o no es válida." : "Pegá un link que empiece con https://.");
+  const subido = typeof d.datos === "string" && d.datos ? tipoDeArchivoSubido(d.datos, MAX_IMAGEN, MAX_PDF) : null;
+  if (d.datos ? !subido : !linkSeguro(url)) return mal(d.datos ? "El archivo es demasiado pesado o no es una imagen ni un PDF válido." : "Pegá un link que empiece con https://.");
   const itemId = d.itemId || null;
   if (itemId && !(await prisma.proyectoItem.findFirst({ where: { id: itemId, tenantId, presupuesto: { proyectoId } }, select: { id: true } }))) return mal("Ese ítem no es de este proyecto.");
   const cuantos = await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId } });
   if (cuantos >= MAX_ARCHIVOS) return mal(`Un proyecto guarda hasta ${MAX_ARCHIVOS} archivos. Sacá alguno que ya no uses.`);
   const nuevo = await prisma.proyectoArchivo.create({
-    data: { tenantId, proyectoId, tipo, nombre, datos: d.datos || null, url: d.datos ? null : url, visibleCliente: !!d.visibleCliente && !!d.datos, itemId, subidoPor: a.nombre },
+    data: { tenantId, proyectoId, tipo, nombre, datos: d.datos || null, url: d.datos ? null : url, visibleCliente: !!d.visibleCliente && subido === "imagen", itemId, subidoPor: a.nombre },
     select: { id: true },
   });
   refrescar(proyectoId);

@@ -236,8 +236,9 @@ export function GenerarLiquidaciones({ periodo }: { periodo: string }) {
   );
 }
 
-export function EditarExtras({ id, persona, manuales }: { id: string; persona: string; manuales: readonly { nombre: string; monto: number }[] }) {
+export function EditarExtras({ id, persona, base: baseActual, manuales }: { id: string; persona: string; base: number; manuales: readonly { nombre: string; monto: number }[] }) {
   const [abierto, setAbierto] = useState(false);
+  const [base, setBase] = useState(() => String(baseActual).replace(".", ","));
   const [filas, setFilas] = useState(() => manuales.map((m) => ({ nombre: m.nombre, monto: String(m.monto).replace(".", ",") })));
   const [error, setError] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
@@ -247,7 +248,7 @@ export function EditarExtras({ id, persona, manuales }: { id: string; persona: s
     iniciar(async () => {
       setError(null);
       try {
-        const r = await editarExtrasLiquidacion({ id, manuales: filas });
+        const r = await editarExtrasLiquidacion({ id, base, manuales: filas });
         if (!r.ok) return setError(r.error);
         setAbierto(false);
       } catch (e) {
@@ -256,7 +257,13 @@ export function EditarExtras({ id, persona, manuales }: { id: string; persona: s
     });
   return (
     <div className="grid min-w-72 gap-2">
-      <p className="text-sm font-medium text-strong">Extras de {persona}</p>
+      <p className="text-sm font-medium text-strong">Liquidación de {persona}</p>
+      <label className="grid gap-1 text-sm text-strong">
+        Base
+        <input value={base} onChange={(e) => setBase(e.target.value)} inputMode="decimal" className={campo} />
+        <span className="text-xs text-muted">Si volvés a generar el mes, vuelve a la base de la ficha de equipo.</span>
+      </label>
+      <p className="text-sm font-medium text-strong">Extras</p>
       {filas.map((f, i) => (
         <div key={i} className="flex gap-1">
           <input value={f.nombre} onChange={(e) => cambiar(i, "nombre", e.target.value)} aria-label="Concepto" placeholder="Concepto" maxLength={120} className={campo} />
