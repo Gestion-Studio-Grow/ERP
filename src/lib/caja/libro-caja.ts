@@ -281,7 +281,14 @@ export function origenContable(m: FilaParaOrigen): OrigenContable {
  * mano y se puede. PURA: la usa `deleteLibroEntry` (libro-caja-actions.ts) antes de borrar; el
  * candado de día cerrado va aparte, porque depende de la frontera del cierre.
  */
-export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string | null; createdBy?: string | null }): string | null {
+export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string | null; createdBy?: string | null; tallerPagoId?: string | null }): string | null {
+  // El Taller firma sus asientos con el usuario, así que no se lo reconoce por la marca: lo dice
+  // `tallerPagoId`. Borrar la VENTA dejaría el cobro sin plata; borrar la reversa, la plata de un cobro anulado.
+  if (m.tallerPagoId) {
+    return m.type === "VENTA"
+      ? "Ese movimiento lo asentó un cobro del Taller. No se borra desde el libro: si está mal, anulá el cobro desde la orden."
+      : "Ese egreso lo asentó la anulación de un cobro del Taller. No se borra desde el libro: si la anulación estuvo mal, cargá una corrección con la fecha de hoy.";
+  }
   const origen = libroOrigin({ type: m.type, orderId: m.orderId, createdBy: m.createdBy });
   // La reversa de una venta anulada, también cuando la venta se cobró con varios medios (la
   // reversa de cada medio cuelga de su cobro y no lleva `orderId`).
@@ -362,6 +369,7 @@ export type FilaLedger = {
   createdBy: string;
   collectionId?: string | null;
   paymentId?: string | null;
+  tallerPagoId?: string | null;
 };
 
 // --- Columnas de REFERENCIA que pueden faltar en la base ---
