@@ -37,7 +37,13 @@ export function MenuMas({
     const b = boton.current?.getBoundingClientRect();
     const m = menu.current;
     if (!b || !m) return;
+    // Antes de abrirse el popover todavía es `display: none` y mide 0: se mide un instante sin
+    // pintarlo. Con 0, la última fila de la lista abría el menú fuera de la pantalla.
+    m.style.visibility = "hidden";
+    m.style.display = "block";
     const alto = m.offsetHeight;
+    m.style.display = "";
+    m.style.visibility = "";
     const abajo = b.bottom + 4 + alto <= window.innerHeight;
     m.style.position = "fixed";
     m.style.inset = "auto";
