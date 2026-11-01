@@ -11,9 +11,10 @@ sobre el motor y con la marca GSG en el panel: Inicio, Proyectos (Kanban y Lista
 Administración, Dirección, Agentes IA, Propuesta con IA, Mi liquidación y Equipo y permisos. El sitio y lo que ve el cliente
 siguen con la marca de MIA. Lo relevado y la brecha: `docs/benchmark/heka-2026-11-01.md` y `heka-especificacion.md`.
 
-**Antes del pase:** la migración `20261101150000_proyecto_gestion_eventos` no está en
-`docs/runbooks/pase-produccion/1-lote-en-produccion.sql` ni en el ensayo: hay que regenerar esos lotes. Sin aplicar en
-ninguna base que no sea la demo en memoria.
+**Antes del pase:** los lotes `docs/runbooks/pase-produccion/1-lote-en-produccion.sql` y `docs/runbooks/ensayo-neon/1-lote-en-branch.sql` ya traen las 4
+migraciones (regenerados el 01/11/2026 desde lo commiteado, con saltos LF). Si la migración `20261101150000_proyecto_gestion_eventos` vuelve a cambiar, hay que
+regenerarlos. Sin aplicar en ninguna base que no sea la de memoria. Corrió también por `prisma migrate deploy` sobre PGlite, con el aislamiento por rol comprobado
+en `avisos-programados-postgres.test.ts`; falta correr esa prueba en CI, con un Postgres de verdad, y ensayar el lote sobre un branch de Neon con datos reales.
 
 **Probado clic por clic en la demo local:** ingreso de cada rol; ficha, ítems y regeneración de cuotas; versiones, «Qué
 cambió», aprobación interna, envío, PDF y CSV; respuesta del cliente con constancia, historial y aviso; cobros y pagos con su
@@ -34,7 +35,13 @@ el panel precarga decenas de pantallas por vista [A VALIDAR en un ambiente real]
 **Avisos por mail:** cada persona los elige en Configuración. Salen sólo si el servidor tiene `RESEND_API_KEY` y
 `RESEND_FROM_EMAIL`; probado hasta el envío simulado, no con un mail real.
 
-**No construido, y la pantalla lo dice:** doble factor, ingreso con Google, carpeta automática en Drive.
+**No construido, y la pantalla lo dice:** carpeta automática en Drive (hay un botón con el link cargado a mano).
+
+**Verificación en dos pasos (01/11/2026):** obligatoria para Dirección y Administración, sólo en una productora (`blueprintId = productora`); los demás negocios entran igual que siempre. Código de una app (TOTP, RFC 6238) y 10 códigos de respaldo de un solo uso. Tabla propia `ProyectoSegundoFactor`, sin tocar `User`; el secreto va cifrado con una clave derivada de `AUTH_SECRET`: **rotar `AUTH_SECRET` obliga a reiniciar los dos pasos de todos**. El freno (5 fallos, 15 minutos) se guarda en la base. Quién perdió el teléfono y los códigos: Dirección lo reinicia desde Equipo y queda en el registro. Si es la única persona de Dirección, no hay botón para sí misma: se borra su fila en un SQL con OK del dueño. Probado en la demo: activación, código equivocado, código repetido, respaldo, respaldo repetido, bloqueo y rol sin obligación. Quién debe tenerlo es provisional, a confirmar con MIA.
+
+**Ingreso con Google:** construido y **sin probar contra Google**: requiere `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`, con la dirección `https://<host>/admin/login/google/vuelta` registrada en Google. Sin ellas no aparece el botón y la ruta da 404. Sólo entra un mail ya dado de alta; quien ve plata también pasa por el código. Pruebas: sólo la validación del token con respuestas armadas.
+
+**Sesión del panel, para todo el ERP:** el token no lleva fecha: las 8 horas son sólo el vencimiento de la cookie (`src/lib/auth.ts:61`). Una cookie copiada sigue valiendo y cerrar sesión no la anula. No se cambió acá porque afecta a todos los negocios.
 
 **Decisiones provisionales, a confirmar con MIA:** las cuotas al cliente llevan IVA y las de proveedores van netas; venta en
 dólares con referencia en pesos; Diseño ve la venta pero nunca costos ni márgenes; `costoReal` del ítem sin definir.
@@ -123,7 +130,7 @@ Provisional hasta confirmarlo con MIA. Probado en la demo con un usuario por rol
 - **Caja hoy:** al marcar una cuota se puede elegir una cuenta. Reabrirla o anularla devuelve lo movido. Una cuenta de otra moneda se rechaza, salvo la de pesos para una cuota en dólares, que toma el importe en pesos.
 - **Costo real:** se carga a mano por ítem, también en versiones ya enviadas. El desvío no cuenta dos veces lo pagado por cuotas.
 - **IVA:** cambiarlo pierde la aprobación de precios y recalcula las cuotas. En una versión enviada, el margen se rotula «al cambio de hoy».
-- **Vencimientos:** el aviso sale a 3 días, cuando alguien abre Inicio. No hay proceso nocturno: si nadie entra, no sale.
+- **Vencimientos:** el aviso sale a 3 días, una vez por día, desde el cron de recordatorios (`/api/cron/reminders`, 12:00 UTC, sin cron nuevo en Vercel) y también al abrir Inicio. Cobros y pagos reales van a Dirección, Administración y el dueño; las fechas límite de ítems, al equipo del proyecto. El mismo texto no se repite. Requiere `CRON_SECRET`; el enlace del mail usa `APP_BASE_DOMAIN`. Si MIA entra por otro dominio, el mail lleva la dirección del subdominio.
 - **Tope de subida:** `next.config.ts` sube las acciones a 3 MB para el PDF. Vale para todos los negocios al desplegar.
 - **Cuotas previstas:** guardar la ficha genera cobros y pagos en cualquier etapa, también sin fecha. Sin confirmar o sin fecha quedan «previstas»: se ven en las finanzas del evento, no suman en Administración, cashflow, agenda, proveedores, Resumen ni IA, y no se pueden marcar. Al confirmar con fecha pasan a ser plata real.
 - **Moneda del evento:** cada evento se vende en pesos o en dólares (confirmado por el dueño, 01/11). El cliente ve y paga en esa moneda: ficha, cotización, propuesta, papel, Excel y cuotas de cobro. Internamente la venta se guarda en pesos al **cambio de la versión** (`tcVenta`): queda fijo al escribir un precio en dólares o al enviar, y se puede corregir mientras la versión es borrador, lo que pierde la aprobación de precios. Una versión nueva conserva el cambio de la anterior. Costos, márgenes, pipeline y reportes siguen en pesos: el margen de un evento en dólares usa el cambio de la versión para la venta y el de hoy para los costos en dólares. Al cobrar, la caja asienta los pesos al cambio del día, así que la diferencia de cambio no se calcula aparte (provisional, a confirmar con quien lleve la contabilidad de MIA). La moneda no se puede cambiar con una versión enviada o un cobro hecho.
@@ -141,7 +148,7 @@ Provisional hasta confirmarlo con MIA. Probado en la demo con un usuario por rol
 5. **Factura electrónica:** no se emite desde el módulo; sale de Facturación.
 6. **Costos del armador:** provisionales, no son de MIA.
 7. **Render:** es la vista 3D del navegador. No hay integración con un programa de render externo.
-8. **PDF:** imprimir o guardar desde el navegador.
+8. **PDF:** cotización, constancia de cobro y recibo de liquidación salen como PDF del servidor (`src/lib/proyectos/papel-pdf.ts`), con el nombre y el color de MIA en texto, sin su logo. La constancia no es un comprobante fiscal y lo dice. La propuesta del cliente sigue siendo imprimir desde el navegador.
 9. **Archivos:** imágenes achicadas y PDF de hasta 2 MB en la base (30 por proyecto); links para lo pesado. Los PDF no se muestran al cliente.
 10. **Caja:** el libro no tiene columna de cheques: el cheque se asienta en Transferencia y su detalle dice
    «Cheque», en cobros y en gastos. Decisión provisional a confirmar con quien lleve la contabilidad de MIA.
