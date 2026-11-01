@@ -10,6 +10,7 @@ import { configProyectos, datosDelNegocio } from "./datos.server";
 import { bloqueDeDatos, type AgenteId, type MensajeAgente } from "./diseno-core";
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
 import { codigoProyecto, costoTotalItem, ESTADO_ITEM_LABEL, ESTADO_TAREA_LABEL, resumenCuotas, totalesFicha, ventaTotalItem, type ModuloGestion } from "./gestion-core";
+import { errorDeGratis, imagenDeGratis, MODELO_IMAGEN_GRATIS, MODELO_TEXTO_GRATIS, pedidoDeImagen, pedidoDeTexto, textoDeGratis, urlGratis } from "./ia-gratis-core";
 
 const API = "https://api.anthropic.com/v1/messages";
 const MODELO = "claude-opus-5-5";
@@ -17,11 +18,40 @@ const VERSION_API = "2026-10-21";
 const FALLBACK = "server-side-fallback-2026-07-01";
 const TIEMPO_MAX = 110_000;
 
-export const FALTA_CLAVE = "Falta conectar la IA: hay que cargar ANTHROPIC_API_KEY en la configuración del servidor.";
-export const FALTAN_IMAGENES = "Falta conectar un servicio de imágenes: hay que contratar uno y cargar IMAGENES_API_URL e IMAGENES_API_KEY en la configuración del servidor.";
+export const FALTA_CLAVE = "Falta conectar la IA: hay que cargar CLOUDFLARE_ACCOUNT_ID y CLOUDFLARE_AI_TOKEN (o ANTHROPIC_API_KEY) en la configuración del servidor.";
+export const FALTAN_IMAGENES = "Falta conectar las imágenes: hay que cargar CLOUDFLARE_ACCOUNT_ID y CLOUDFLARE_AI_TOKEN (o IMAGENES_API_URL e IMAGENES_API_KEY) en la configuración del servidor.";
 
-export const iaConectada = (): boolean => !!process.env.ANTHROPIC_API_KEY?.trim();
-export const imagenesConectadas = (): boolean => !!process.env.IMAGENES_API_URL?.trim() && !!process.env.IMAGENES_API_KEY?.trim();
+function cuentaGratis(): { cuenta: string; token: string } | null {
+  const cuenta = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
+  const token = process.env.CLOUDFLARE_AI_TOKEN?.trim();
+  return cuenta && token ? { cuenta, token } : null;
+}
+
+export const iaConectada = (): boolean => !!process.env.ANTHROPIC_API_KEY?.trim() || !!cuentaGratis();
+export const imagenesConectadas = (): boolean => (!!process.env.IMAGENES_API_URL?.trim() && !!process.env.IMAGENES_API_KEY?.trim()) || !!cuentaGratis();
+
+/** Llama al servicio gratis. El cuerpo vuelve null si la respuesta no se pudo leer. */
+async function llamarGratis(g: { cuenta: string; token: string }, modelo: string, cuerpo: Record<string, unknown>): Promise<{ error: string } | { cuerpo: Parameters<typeof textoDeGratis>[0] }> {
+  let r: Response;
+  try {
+    r = await fetch(urlGratis(g.cuenta, modelo), {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${g.token}` },
+      body: JSON.stringify(cuerpo),
+      signal: AbortSignal.timeout(TIEMPO_MAX),
+      cache: "no-store",
+    });
+  } catch {
+    return { error: "La IA no respondió a tiempo. Probá de nuevo." };
+  }
+  const leido = (await r.json().catch(() => null)) as Parameters<typeof textoDeGratis>[0];
+  const error = errorDeGratis(r.status, leido);
+  if (error) {
+    console.error(`[proyectos/ia] el servicio gratis respondió ${r.status}`);
+    return { error };
+  }
+  return { cuerpo: leido };
+}
 
 export type RespuestaIA = { ok: true; texto: string; cortada: boolean } | { ok: false; error: string };
 
@@ -36,7 +66,15 @@ interface PedidoIA {
 
 export async function pedirAlModelo(p: PedidoIA): Promise<RespuestaIA> {
   const clave = process.env.ANTHROPIC_API_KEY?.trim();
-  if (!clave) return { ok: false, error: FALTA_CLAVE };
+  if (!clave) {
+    const g = cuentaGratis();
+    if (!g) return { ok: false, error: FALTA_CLAVE };
+    const maxTokens = p.maxTokens ?? 2000;
+    const res = await llamarGratis(g, MODELO_TEXTO_GRATIS, pedidoDeTexto({ sistema: p.sistema, mensajes: p.mensajes, maxTokens, esquema: p.esquema }));
+    if ("error" in res) return { ok: false, error: res.error };
+    const t = textoDeGratis(res.cuerpo, maxTokens);
+    return t ? { ok: true, ...t } : { ok: false, error: "La IA no devolvió texto. Probá de nuevo." };
+  }
   let r: Response;
   try {
     r = await fetch(API, {
@@ -78,14 +116,23 @@ const MAX_IMAGEN = 1_400_000;
 export type ImagenGenerada = { ok: true; datos: string } | { ok: false; error: string };
 
 /**
- * El modelo no genera imágenes y no hay proveedor contratado. El servicio que se contrate se conecta acá:
+ * Claude no genera imágenes. Sin proveedor contratado se usa el cupo gratis. El servicio que se contrate se conecta con:
  * POST a IMAGENES_API_URL con `Authorization: Bearer IMAGENES_API_KEY` y `{ "prompt": "..." }`; responde
  * `{ "imagen": "data:image/jpeg;base64,..." }` (JPG, PNG o WebP, hasta ~1 MB).
  */
 export async function generarImagen(pedido: string): Promise<ImagenGenerada> {
   const url = process.env.IMAGENES_API_URL?.trim();
   const clave = process.env.IMAGENES_API_KEY?.trim();
-  if (!url || !clave) return { ok: false, error: FALTAN_IMAGENES };
+  if (!url || !clave) {
+    const g = cuentaGratis();
+    if (!g) return { ok: false, error: FALTAN_IMAGENES };
+    const res = await llamarGratis(g, MODELO_IMAGEN_GRATIS, pedidoDeImagen(pedido));
+    if ("error" in res) return { ok: false, error: res.error };
+    const datos = imagenDeGratis(res.cuerpo);
+    if (!datos) return { ok: false, error: "El servicio de imágenes devolvió algo que no es una imagen." };
+    if (datos.length > MAX_IMAGEN) return { ok: false, error: "La imagen generada pesa demasiado para guardarla." };
+    return { ok: true, datos };
+  }
   try {
     const r = await fetch(url, {
       method: "POST",

@@ -21,9 +21,15 @@ asiento en el libro de caja; checklist, chat con mención, archivos, comentario 
 portal; bancos, extracto y conciliación; liquidaciones y Mi liquidación; permisos por rol (barra, pantallas y cifras); buscador,
 avisos, calendario suscripto; celular a 375 px sin desbordes.
 
-**No se pudo probar:** agentes y concepto con IA (falta `ANTHROPIC_API_KEY`), imágenes generadas (falta un servicio y
-`IMAGENES_API_URL`/`KEY`; el formato de esa llamada es una suposición a validar con el servicio elegido), y el tiempo de carga
-real: la demo atiende una sola conexión y el panel precarga decenas de pantallas por vista [A VALIDAR en un ambiente real].
+**IA gratis hasta la venta (decisión del dueño, 01/11/2026):** agentes, concepto e imágenes usan el cupo sin cargo de Cloudflare
+Workers AI (`CLOUDFLARE_ACCOUNT_ID` y `CLOUDFLARE_AI_TOKEN`): 10.000 neuronas por día, compartidas entre texto e imágenes. Si se
+carga `ANTHROPIC_API_KEY`, el texto pasa a Claude; si se cargan `IMAGENES_API_URL`/`KEY`, las imágenes pasan a ese servicio. Al
+vender, el costo de la IA entra en el precio. Cloudflare no aclara en las páginas leídas si usa lo enviado para entrenar: con el
+cupo gratis, sólo datos de demostración [A VALIDAR antes de cargar datos reales].
+
+**No se pudo probar:** agentes, concepto e imágenes contra el servicio real (falta la cuenta; sólo hay pruebas con respuestas
+simuladas), la calidad del texto en castellano y de las imágenes, y el tiempo de carga real: la demo atiende una sola conexión y
+el panel precarga decenas de pantallas por vista [A VALIDAR en un ambiente real].
 
 **No construido, y la pantalla lo dice:** doble factor, ingreso con Google, carpeta automática en Drive, avisos por mail,
 adjuntos dentro de la fila del ítem.
