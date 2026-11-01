@@ -173,7 +173,8 @@ export default function AsignacionSection({
       <p className="mb-3 text-sm text-muted">
         Quién realiza cada servicio. La asignación es explícita y distinta por profesional — cada
         una ofrece lo suyo, no todas todo. También podés asignarla desde la ficha de cada
-        profesional; es la misma relación, editable de los dos lados.
+        profesional; es la misma relación, editable de los dos lados. Un servicio sin asignar no
+        aparece en «Dar turno».
       </p>
 
       <DiagnosticoPanel profesionales={professionals} servicios={services} />

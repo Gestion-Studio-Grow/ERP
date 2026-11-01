@@ -9,7 +9,9 @@ import { fmtShortDate } from "@/lib/datetime";
 import SubmitButton from "@/components/SubmitButton";
 import { Bloque, Field, Plata, Renglon, Select, Input, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import type { VueltaDeLiquidacion } from "@/lib/reports/comisiones";
+import type { ComisionConCobroAnulado } from "@/lib/reports/comision-ya-pagada";
 import CajonPorUrl from "../CajonPorUrl";
+import ComisionesConCobroAnulado from "./ComisionesConCobroAnulado";
 
 const turnos = (n: number) => `${n} ${n === 1 ? "turno" : "turnos"}`;
 
@@ -18,12 +20,13 @@ export default function ComisionesRenglon({
   canSettle,
   volver,
 }: {
-  overview: { pending: PendingCommission[]; history: PayoutHistoryRow[] };
+  overview: { pending: PendingCommission[]; history: PayoutHistoryRow[]; conCobroAnulado: ComisionConCobroAnulado[] };
   canSettle: boolean;
   volver: VueltaDeLiquidacion;
 }) {
   return (
     <>
+      <ComisionesConCobroAnulado filas={overview.conCobroAnulado} />
       <Bloque titulo="A liquidar" cuenta={overview.pending.length || undefined} className="mt-6">
         {overview.pending.length === 0 ? (
           <p data-ui="vacio" className="border-b border-line py-4 text-sm text-body">
@@ -71,7 +74,8 @@ export default function ComisionesRenglon({
               <Field label="Cómo se le pagó" htmlFor={`metodo-${c.professionalId}`}>
                 <Select id={`metodo-${c.professionalId}`} name="method" defaultValue="EFECTIVO">
                   <option value="EFECTIVO">Efectivo</option>
-                  <option value="MP">Transferencia / MP</option>
+                  <option value="MP">Mercado Pago</option>
+                  <option value="TRANSFERENCIA">Transferencia</option>
                   <option value="TARJETA">Tarjeta</option>
                 </Select>
               </Field>

@@ -1,5 +1,6 @@
 import { getMyAppointment } from "@/lib/client-actions";
-import { notFound } from "next/navigation";
+import { destinoPropio, estadoPublicoDelTurno, rubroDelTurno } from "@/lib/turnos/rubro-del-turno";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import CancelButton from "./CancelButton";
 import RescheduleButton from "./RescheduleButton";
@@ -7,9 +8,11 @@ import ReviewForm from "./ReviewForm";
 import { fmtDateTime } from "@/lib/datetime";
 import { isAppointmentModifiable } from "@/lib/booking-core";
 import { cambioOnlineDelTurno } from "@/lib/turnos/practica.server";
+import { salidaFueraDePlazo } from "@/lib/turnos/practica";
+import { getLocation } from "@/lib/settings";
+import { chConDisenoNuevo } from "../../../_ch/diseno-ch.server";
 
 const statusLabel: Record<string, string> = {
-  PENDING: "Pendiente de pago",
   CONFIRMED: "Confirmado",
   CANCELLED: "Cancelado",
   COMPLETED: "Completado",
@@ -26,28 +29,75 @@ const statusStyles: Record<string, string> = {
 
 export default async function MyAppointmentPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ resena?: string | string[] }>;
 }) {
   const { id } = await params;
+  const resena = (await searchParams).resena === "1";
+  // El taller tiene su propia página del turno (piel, puesto, patente; sin «Pendiente de pago»): QA AGR 29/10.
+  // Ronda 2: por el rubro del alta (blueprint), no sólo por el slug; el profe va a su turnero.
+  const propio = destinoPropio(await rubroDelTurno(), "turno", id, { resena });
+  if (propio) redirect(propio);
   const appointment = await getMyAppointment(id);
   if (!appointment) notFound();
+  // «Seña pendiente» sólo si el servicio pide seña (ronda 2); sin seña, el turno está «A confirmar».
+  const etiquetaDelEstado =
+    appointment.status === "PENDING" ? estadoPublicoDelTurno(appointment.service.depositAmount).texto : (statusLabel[appointment.status] ?? appointment.status);
 
   // Un turno vivo y futuro se puede tanto cancelar como reprogramar (política pura
   // y testeable en booking-core; no llamamos Date.now en el render del RSC).
   const canModify = isAppointmentModifiable(appointment.status, appointment.startsAt);
   // Agenda práctica (E2): dentro del plazo del negocio, la clienta ve la regla en vez de botones que no andan.
-  const { regla, puede } = canModify ? await cambioOnlineDelTurno(appointment.startsAt) : { regla: null, puede: false };
+  const [{ regla, puede }, nuevo, { whatsapp }] = await Promise.all([
+    canModify ? cambioOnlineDelTurno(appointment.startsAt) : Promise.resolve({ regla: null, puede: false }),
+    // Diseño nuevo de CH (sólo con su interruptor prendido): misma página, escala y tarjeta en tipografía.
+    chConDisenoNuevo(),
+    getLocation(),
+  ]);
+  // Pasado el plazo no hay botones de cambiar: el camino es escribirle al negocio (U3).
+  const salida = canModify && !puede ? salidaFueraDePlazo({ whatsapp, servicio: appointment.service.name, cuando: fmtDateTime(appointment.startsAt) }) : null;
 
   return (
-    <div className="mx-auto max-w-lg px-6 py-16">
-      <h1 className="font-serif text-3xl mb-1" style={{ color: "var(--text-strong)" }}>
+    <div className={nuevo ? "chr mx-auto max-w-lg px-6 py-16" : "mx-auto max-w-lg px-6 py-16"}>
+      <h1 className={nuevo ? "chr-h1" : "font-serif text-3xl mb-1"} style={{ color: "var(--text-strong)" }}>
         Tu turno
       </h1>
       <p className="mb-8" style={{ color: "var(--text-muted)" }}>
         Acá está el detalle de tu turno.
       </p>
 
+      {nuevo ? (
+        <dl className="chr-tarjeta" style={{ marginBottom: 24 }}>
+          <div>
+            <dt>Turno</dt>
+            <dd className="chr-codigo">{appointment.id.slice(-6).toUpperCase()}</dd>
+          </div>
+          <div>
+            <dt>Servicio</dt>
+            <dd>{appointment.service.name}</dd>
+          </div>
+          <div>
+            <dt>Profesional</dt>
+            <dd>{appointment.professional.name}</dd>
+          </div>
+          <div>
+            <dt>Box</dt>
+            <dd>{appointment.box.name}</dd>
+          </div>
+          <div>
+            <dt>Fecha y hora</dt>
+            <dd>{fmtDateTime(appointment.startsAt)}</dd>
+          </div>
+          <div>
+            <dt>Estado</dt>
+            <dd>
+              <span className="chr-estado">{etiquetaDelEstado}</span>
+            </dd>
+          </div>
+        </dl>
+      ) : (
       <div
         className="rounded-lg p-5 space-y-2 mb-6"
         style={{ background: "var(--surface-sunken)", color: "var(--text-strong)" }}
@@ -61,10 +111,11 @@ export default async function MyAppointmentPage({
         </p>
         <p className="pt-1">
           <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusStyles[appointment.status]}`}>
-            {statusLabel[appointment.status] ?? appointment.status}
+            {etiquetaDelEstado}
           </span>
         </p>
       </div>
+      )}
 
       {canModify && puede && (
         <div className="flex flex-wrap items-center">
@@ -80,6 +131,13 @@ export default async function MyAppointmentPage({
       {regla && (
         <p className="mb-6 text-sm" style={{ color: "var(--text-muted)" }}>
           {regla}
+        </p>
+      )}
+      {salida && (
+        <p className="mb-6">
+          <a href={salida.href} target="_blank" rel="noopener noreferrer" className={nuevo ? "chf-btn" : "inline-block rounded-md border border-line-strong px-4 py-2 text-sm font-medium"} style={nuevo ? undefined : { color: "var(--text-strong)" }}>
+            {salida.texto}
+          </a>
         </p>
       )}
 

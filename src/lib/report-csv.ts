@@ -61,6 +61,8 @@ export type ReportCsvInput = {
   desde: Date;
   hasta: Date;
   rangeDays: number;
+  /** Cómo se llama el período en pantalla («Mes pasado»). Sin esto, «90 días». */
+  etiqueta?: string;
   totalIngresos: number;
   cantidadPagos: number;
   totalTurnos: number;
@@ -83,7 +85,7 @@ export function buildReportCsv(input: ReportCsvInput): string {
       // Días del NEGOCIO: `hasta` es 23:59:59.999 hora argentina (02:59:59.999Z del día
       // siguiente), y en UTC decía un día de más; el nombre del archivo ya usa el día del negocio.
       `${dateStrInBusinessTz(input.desde)} a ${dateStrInBusinessTz(input.hasta)}`,
-      `${input.rangeDays} días`,
+      input.etiqueta ?? `${input.rangeDays} días`,
     ),
   );
   lines.push("");
@@ -93,11 +95,11 @@ export function buildReportCsv(input: ReportCsvInput): string {
   lines.push(row("Turnos cobrados", input.cantidadPagos));
   lines.push(row("Turnos del período", input.totalTurnos));
   lines.push(row("Ticket promedio", money(k.ticketPromedio)));
-  lines.push(row("Tasa de no-show", pct(k.estados.tasaNoShow)));
+  lines.push(row("Tasa de ausencias", pct(k.estados.tasaNoShow)));
   lines.push(row("Tasa de cancelación", pct(k.estados.tasaCancelacion)));
-  lines.push(row("Clientes únicos", k.retencion.clientesUnicos));
-  lines.push(row("Clientes recurrentes", k.retencion.recurrentes));
-  lines.push(row("Tasa de recurrencia", pct(k.retencion.tasaRecurrencia)));
+  lines.push(row("Clientes atendidos", k.retencion.clientesUnicos));
+  lines.push(row("Clientes que vuelven", k.retencion.recurrentes));
+  lines.push(row("Parte de los clientes que vuelve", pct(k.retencion.tasaRecurrencia)));
   lines.push("");
 
   lines.push(row("Ingresos por día", "Total"));
@@ -112,13 +114,13 @@ export function buildReportCsv(input: ReportCsvInput): string {
   for (const r of input.porServicio) lines.push(row(r.label, money(r.total)));
   lines.push("");
 
-  lines.push(row("Rentabilidad hora-silla", "Ingresos", "Horas", "Por hora"));
+  lines.push(row("Por hora trabajada", "Ingresos", "Horas", "Por hora"));
   for (const r of k.rentabilidadHoraSilla) {
     lines.push(row(r.label, money(r.ingresos), r.horas.toLocaleString("es-AR", { maximumFractionDigits: 1 }), money(r.porHora)));
   }
   lines.push("");
 
-  lines.push(row("Método de pago", "Cantidad", "Total"));
+  lines.push(row("Medio de pago", "Cantidad", "Total"));
   for (const m of k.mixMetodoPago) {
     lines.push(row(METODO_LABEL[m.method] ?? m.method, m.cantidad, money(m.total)));
   }

@@ -1,8 +1,10 @@
 // «No encontramos esta página» (404) de toda la app. Qué se muestra lo decide noEncontradaPara
 // (no-encontrada-core.ts): en la consola del operador y en el panel de un negocio con el «Diseño
-// nuevo» prendido, una hoja en castellano con el camino de vuelta; en el resto (vidriera, y el
-// panel con el interruptor apagado: CH hoy) el 404 de Next de siempre, el mismo módulo que Next
-// usa cuando no hay not-found.tsx, así que ahí no cambia nada.
+// nuevo» prendido, una hoja en castellano con el camino de vuelta. En la vidriera, CH con su «Diseño
+// nuevo» prendido ve el suyo adentro del sitio, y apagado la hoja en castellano con su nombre: el layout del
+// sitio se dibuja sólo para CH. El `import()` no lo separa del compilado: el HTML del 404 de otro negocio igual
+// pide el JS de CH y el CSS de sus fuentes (medido el 31/10 sobre f29231fd). En el resto (otras vidrieras, y el
+// panel con el interruptor apagado) el 404 de Next de siempre, el mismo módulo que Next usa cuando no hay not-found.tsx.
 
 import type { CSSProperties } from "react";
 import { headers } from "next/headers";
@@ -17,13 +19,36 @@ import { cn } from "@/components/ui/cn";
 import AdminThemeScript from "./admin/AdminThemeScript";
 import HojaDeIngreso, { RAIZ_HOJA_DE_INGRESO } from "./admin/login/HojaDeIngreso";
 import { folioDelDia } from "./admin/login/login-core";
-import { noEncontradaPara } from "./no-encontrada-core";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { noEncontradaDeLaVidriera, noEncontradaPara } from "./no-encontrada-core";
+import { chConDisenoNuevo } from "./(site)/_ch/diseno-ch.server";
 
 export default async function NoEncontrada() {
   const ruta = (await headers()).get("x-pathname");
-  // Fuera del panel (vidriera) ni se lee el interruptor; en la consola tampoco (no hay negocio).
+  // En la consola no se lee el interruptor (no hay negocio).
   const siPrendido = noEncontradaPara(ruta, true);
-  if (!siPrendido) return <NotFoundDeNext />;
+  if (!siPrendido) {
+    // Vidriera: una dirección que no existe no pasa por el layout del sitio. CH la ve con su encabezado, su pie y el camino de
+    // vuelta (P0-3), con el diseño nuevo o con el de siempre. El resto, el de siempre. Los `notFound()` de las páginas del
+    // sitio no llegan acá: los atiende (site)/not-found.tsx, ya adentro del layout.
+    const vidriera = noEncontradaDeLaVidriera(await getCurrentTenantSlug().catch(() => null), await chConDisenoNuevo());
+    if (vidriera === "de-next") return <NotFoundDeNext />;
+    const { default: SiteLayout } = await import("./(site)/layout");
+    if (vidriera === "ch-de-siempre") {
+      const { default: NoEncontradaDelNegocio } = await import("./(site)/NoEncontradaDelNegocio");
+      return (
+        <SiteLayout>
+          <NoEncontradaDelNegocio />
+        </SiteLayout>
+      );
+    }
+    const { default: NoEncontradaCH } = await import("./(site)/_ch/NoEncontradaCH");
+    return (
+      <SiteLayout>
+        <NoEncontradaCH />
+      </SiteLayout>
+    );
+  }
   const nuevo = siPrendido.superficie === "operador" ? true : await disenoNuevo();
   const decision = noEncontradaPara(ruta, nuevo);
   if (!decision) return <NotFoundDeNext />;

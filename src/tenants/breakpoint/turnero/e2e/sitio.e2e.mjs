@@ -33,6 +33,12 @@ const check = (cond, msj) => { if (!cond) { fallas.push(msj); console.error(`  �
 const srv = createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   if (url.pathname.length > 1 && url.pathname.endsWith("/")) { res.writeHead(308, { Location: url.pathname.slice(0, -1) }); return res.end(); }
+  // Las fuentes y la placa del club (public/tenants/breakpoint/…) las sirve Next desde public/, fuera del manejador.
+  if (url.pathname.startsWith("/tenants/breakpoint/") && !url.pathname.includes("..")) {
+    const b = await readFile(path.join(RAIZ, "public", url.pathname)).catch(() => null);
+    res.writeHead(b ? 200 : 404, { "Content-Type": { ".woff2": "font/woff2", ".webp": "image/webp" }[path.extname(url.pathname)] ?? "application/octet-stream" });
+    return res.end(b ?? undefined);
+  }
   const segmentos = url.pathname.split("/").filter(Boolean);
   const r = await responderSitioEstatico("breakpoint", segmentos, async (rel) => new Uint8Array(await readFile(path.join(RAIZ, rel))));
   res.writeHead(r.status, Object.fromEntries(r.headers));
@@ -109,7 +115,7 @@ console.log("\n▶ portada");
   await p.click('a[href="/turnero"]');
   await p.waitForSelector("body[data-estado=listo]", { timeout: 10000 }).catch(() => {});
   check(await p.locator(".slot").count() > 0, "desde la portada, «Reservá tu cancha» abre el turnero");
-  check(await p.getAttribute("body", "data-modo") === "pedido" && /Pedido por WhatsApp/.test(await p.textContent("#en-vivo")), "el turnero del sitio es el real: pedido por WhatsApp (la demo, con ?demo=1)");
+  check(await p.getAttribute("body", "data-modo") === "pedido" && /Pedido por (WhatsApp|mensaje)/.test(await p.textContent("#en-vivo")), "el turnero del sitio es el real: pedido por WhatsApp o, sin número publicado, por mensaje (la demo, con ?demo=1)");
   check(!(await p.locator(".slot-precio").count()), "sin tarifas publicadas por el club no se muestran precios");
   await p.close();
 }
@@ -280,7 +286,13 @@ console.log("\n▶ modo pedido por WhatsApp (?modo=pedido)");
     await p2.goto(`${BASE}/turnero?modo=pedido${q}`);
     await elegirTurno(p2);
     await p2.fill("#ped-nombre", "Ana");
-    check((await p2.getAttribute("#ped-wa", "href")).startsWith("https://wa.me/?text=") && await p2.isVisible("#ped-sin-wa"), `${nombre}: wa.me/?text= y la leyenda «elegí el chat del club»`);
+    // QA 29/10: sin número del club, nunca un wa.me sin destinatario: el pedido va al Instagram del club (se copia y se abre el chat).
+    check((await p2.getAttribute("#ped-wa", "href")) === "https://ig.me/m/breakpointpadel_" && /Instagram/.test(await p2.textContent("#ped-wa")), `${nombre}: «Mandalo por Instagram» al chat del club, sin wa.me pelado`);
+    // El chat de Instagram no se abre en la prueba (sería un pedido a otro origen): sólo se mira el aviso de la copia.
+    await p2.evaluate(() => document.addEventListener("click", (e) => { if (e.target.closest?.("#ped-wa")) e.preventDefault(); }, true));
+    await p2.click("#ped-wa");
+    await p2.waitForFunction(() => /Copiado|No pudimos copiarlo/.test(document.querySelector("#ped-copiado")?.textContent ?? ""), null, { timeout: 3000 }).catch(() => {});
+    check(/Copiado: pegalo en el chat|No pudimos copiarlo/.test(await p2.textContent("#ped-copiado")), `${nombre}: aviso visible al copiar (o el pedido a la vista si el portapapeles falla)`);
     await p2.close();
   }
   await axe(`${BASE}/turnero?modo=pedido&wa=5491100000000`, "turnero modo pedido", (x) => x.waitForSelector("body[data-estado=listo]"));

@@ -25,6 +25,7 @@
 import { generateSlots, hasOverlap, type Interval } from "@/lib/booking-slots";
 import { businessWallTimeToUtc, dayOfWeekForDate } from "@/lib/datetime";
 import { normalizarTelefono } from "@/lib/clientes/telefono";
+import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 
 // ── Estados ─────────────────────────────────────────────────────────────────
@@ -380,10 +381,9 @@ export function telefonoAlumno(raw: string | null | undefined): string {
   return t.length === 10 ? t : "";
 }
 
-/** Link wa.me a un celular argentino con el texto pre-armado. Null si el número no sirve. */
+/** Link wa.me a un celular (`waLinkClienta`, la regla única del 549) con el texto pre-armado. Null si el número no sirve. */
 export function linkWhatsApp(telefono: string | null | undefined, texto: string): string | null {
-  const t = telefonoAlumno(telefono);
-  return t ? `https://wa.me/549${t}?text=${encodeURIComponent(texto)}` : null;
+  return waLinkClienta(telefono, texto);
 }
 
 // ── Mensajes ────────────────────────────────────────────────────────────────

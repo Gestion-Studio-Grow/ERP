@@ -26,6 +26,11 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireCapability } from "@/lib/authz";
 import { roleHasCapability, type Role } from "@/lib/capabilities";
+import { puedeCerrarElDia } from "@/lib/caja/cierre-diario";
+import { hoyEstaCerrado } from "@/lib/caja/frontera-cierre";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { esEstetica } from "@/lib/palabras-del-negocio";
 import { todayInBusinessTz, fmtTime, dateStrInBusinessTz } from "@/lib/datetime";
 import { getDashboardData } from "@/lib/actions";
 import { COOKIE_FIJADAS, fijadasVisibles, leerFijadas } from "@/lib/apps-fijadas";
@@ -45,6 +50,9 @@ import {
   APPS_DE_LA_BANDEJA,
   APPS_DE_LA_LINEA,
   avisoDeCaja,
+  fraseSinPendientes,
+  pasosSegunRol,
+  teclaDelCierreSegunRol,
   pasosParaArrancar,
   lineaDelDia,
   misAppsDeFabrica,
@@ -252,11 +260,17 @@ async function Bandeja({ ctx }: { ctx: Contexto }) {
   // El primer día, la caja ya es un paso de «Para arrancar»: no se repite la tecla acá.
   const cierre = items.find((i) => i.app.id === "cierre-del-dia")?.resultado;
   const arrancando = cierre?.estado === "ok" && cierre.valor === "Sin cierres";
-  const aviso = arrancando ? null : avisoDeCaja(caja?.resultado, caja?.app.ruta);
-  const { pendientes, sinRevisar } = pendientesDeLaBandeja(items, destinos);
+  // La frontera del cierre se lee sólo si la caja está cerrada: es lo único que cambia el aviso.
+  const cajaCerrada = !arrancando && caja?.resultado?.estado === "ok" && caja.resultado.valor === "Cerrada";
+  // Si esta lectura falla, el aviso de siempre: no se cae el Inicio por una línea de estado.
+  const diaCerrado = cajaCerrada && (await getCurrentTenantId().then(hoyEstaCerrado).catch(() => false));
+  const aviso = arrancando ? null : avisoDeCaja(caja?.resultado, caja?.app.ruta, diaCerrado);
+  const { pendientes: crudos, sinRevisar } = pendientesDeLaBandeja(items, destinos);
+  const pendientes = teclaDelCierreSegunRol(crudos, puedeCerrarElDia(ctx.role));
   const grupos = porObjetivo(pendientes);
   const total = pendientes.length;
   const facturacion = items.find((i) => i.app.id === "facturacion");
+  const frase = fraseSinPendientes({ arrancando, esEstetica: esEstetica(await getCurrentTenantSlug()) });
 
   return (
     <Bloque id="para-atender-hoy" titulo="Para atender hoy" cuenta={total > 0 ? total : undefined} nota={total > 0 ? "Cada cosa se va cuando la resolvés" : undefined}>
@@ -273,15 +287,7 @@ async function Bandeja({ ctx }: { ctx: Contexto }) {
       )}
       {total === 0 && sinRevisar.length === 0 && !aviso && (
         <p className="border-b border-line py-3 text-sm text-muted">
-          {arrancando ? (
-            <>
-              <Marca tipo="info">Todavía no hay movimiento.</Marca> Cuando empieces a vender, lo que pida atención va a estar acá, con la tecla para resolverlo.
-            </>
-          ) : (
-            <>
-              <Marca tipo="hecho">Nada pide atención ahora.</Marca> Lo que aparezca en el día va a estar acá, con la tecla para resolverlo.
-            </>
-          )}
+          <Marca tipo={frase.tipo}>{frase.marca}</Marca> {frase.texto}
         </p>
       )}
       {grupos.map((g) => {
@@ -360,7 +366,7 @@ async function ParaArrancar({ ctx }: { ctx: Contexto }) {
     (vende || destinos.has("pedidos")) && destinos.has("datos-del-negocio") ? whatsappDeLaVidriera() : Promise.resolve(null),
     vende ? primerDiaDelMostrador() : Promise.resolve(null),
   ]);
-  const pasos = pasosParaArrancar(new Map(items.map((i) => [i.app.id, i.resultado])), destinos, facturacion, whatsapp, mostrador);
+  const pasos = pasosSegunRol(pasosParaArrancar(new Map(items.map((i) => [i.app.id, i.resultado])), destinos, facturacion, whatsapp, mostrador), puedeCerrarElDia(ctx.role));
   if (pasos.length === 0) return null;
   const hechos = pasos.filter((p) => p.hecho).length;
   return (

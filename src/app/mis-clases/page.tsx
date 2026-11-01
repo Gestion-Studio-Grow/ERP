@@ -26,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const base: Metadata = { robots: { index: false, follow: false }, manifest: "/mis-clases/app.webmanifest", generator: "Gestión Studio Grow" };
   try {
     const n = await datosDelNegocio(await getCurrentTenantId());
-    return { ...base, title: `Mis clases · ${n.nombre}` };
+    return { ...base, title: `Mis clases · ${n.nombre}`, description: `Tus clases de pádel con ${n.profe}: las próximas, lo que debés y cómo cambiar o cancelar.` };
   } catch {
     return { ...base, title: "Mis clases" };
   }
@@ -50,8 +50,9 @@ export default async function MisClasesPage() {
   if (datos) return <VistaAlumno datos={datos} token={null} />;
 
   const negocio = await datosDelNegocio(tenantId);
+  const m = marcaProfe(negocio.slug);
   return (
-    <Piel marca={marcaProfe(negocio.slug)}>
+    <Piel marca={m}>
       <CabeceraPublica antetitulo={negocio.nombre} titulo="Entrá con tu celular" />
       <main className="mx-auto grid max-w-[35rem] grid-cols-1 gap-4 px-4 pb-12 pt-4">
         {frenado && (
@@ -71,6 +72,11 @@ export default async function MisClasesPage() {
         <a href="/clases" className={`${botonBorde} w-full`} data-qa="ver-horarios">
           Ver horarios y pedir clase
         </a>
+        {m.provisional && (
+          <p className="mt-4 text-center text-[0.875rem] text-[var(--padel-suave)]" data-qa="identidad-provisoria">
+            Identidad provisoria · se reemplaza por la marca de {negocio.profe}
+          </p>
+        )}
       </main>
     </Piel>
   );

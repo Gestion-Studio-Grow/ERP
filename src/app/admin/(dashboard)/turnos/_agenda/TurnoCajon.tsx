@@ -30,7 +30,7 @@ import {
   type ResultadoAccion,
 } from "@/lib/actions";
 import { Cajon } from "@/components/ui/Cajon";
-import { Button, Input, Marca, Plata, Renglon, Seccion } from "@/components/ui";
+import { Button, Input, Marca, Plata, Renglon, Seccion, atributosBoton, buttonClasses } from "@/components/ui";
 import { fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { ALIAS_SENIA_PROVISIONAL, mensajePedidoDeSenia } from "@/lib/turnos/mensajes-whatsapp";
@@ -41,7 +41,8 @@ import {
   cobrosAnulables,
   MOTIVO_MIN,
 } from "@/lib/turnos/anulacion";
-import { useToast } from "../../ToastProvider";
+import { useToast, type AccionDelAviso } from "../../ToastProvider";
+import { accionDeConfirmado } from "./aviso-confirmado";
 import {
   cierraElTurno,
   marcaDelTurno,
@@ -65,6 +66,8 @@ import CobrarTurno from "./CobrarTurno";
 import TerminarTurno from "./TerminarTurno";
 import MoverTurno from "./MoverTurno";
 import LlegoLaSenia from "./LlegoLaSenia";
+import AutorizarAnulacion from "./AutorizarAnulacion";
+import { separarNota } from "@/lib/reserva-publica-notas";
 
 /**
  * «Recordar la seña»: abre WhatsApp con el pedido armado (es un enlace: el navegador no lo bloquea) y
@@ -111,6 +114,7 @@ function ConMotivo({
   verbo,
   placeholder,
   peligro = true,
+  pideCodigo = false,
   hacer,
 }: {
   etiqueta: string;
@@ -118,10 +122,13 @@ function ConMotivo({
   verbo: string;
   placeholder: string;
   peligro?: boolean;
-  hacer: (motivo: string) => Promise<ResultadoAccion>;
+  /** Recepción: además del motivo, el código que la dueña sacó para este cobro. */
+  pideCodigo?: boolean;
+  hacer: (motivo: string, codigo: string) => Promise<ResultadoAccion>;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [motivo, setMotivo] = useState("");
+  const [codigo, setCodigo] = useState("");
   const [error, setError] = useState("");
   const [pendiente, empezar] = useTransition();
   if (!abierto) {
@@ -137,6 +144,7 @@ function ConMotivo({
     );
   }
   const corto = motivo.trim().length < MOTIVO_MIN;
+  const faltaCodigo = pideCodigo && !codigo.trim();
   return (
     <div
       role="group"
@@ -152,6 +160,23 @@ function ConMotivo({
         maxLength={200}
         autoFocus
       />
+      {pideCodigo && (
+        <>
+          <Input
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value)}
+            placeholder="Código de la dueña"
+            aria-label="Código de la dueña"
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
+            maxLength={12}
+          />
+          <p className="text-xs text-muted">
+            Pedile el código a la dueña. Vale unos minutos y sólo para este cobro.
+          </p>
+        </>
+      )}
       {error && (
         <p role="alert" className="text-sm text-danger">
           {error}
@@ -162,17 +187,18 @@ function ConMotivo({
           type="button"
           variant={peligro ? "danger" : "solid"}
           size="sm"
-          disabled={corto || pendiente}
+          disabled={corto || faltaCodigo || pendiente}
           estado={pendiente ? "cargando" : undefined}
           onClick={() =>
             empezar(async () => {
               setError("");
               try {
-                const r = await hacer(motivo);
+                const r = await hacer(motivo, codigo);
                 if (!r.ok) setError(r.error);
                 else {
                   setAbierto(false);
                   setMotivo("");
+                  setCodigo("");
                 }
               } catch {
                 setError("No se pudo. Probá de nuevo; si sigue, avisá.");
@@ -210,6 +236,7 @@ function useAccionSimple() {
     turnoId: string,
     ok: string,
     onListo?: () => void,
+    enElAviso?: AccionDelAviso,
   ) =>
     empezar(async () => {
       try {
@@ -218,7 +245,7 @@ function useAccionSimple() {
           showError(r.error);
           return;
         }
-        showSuccess(ok);
+        showSuccess(ok, enElAviso);
         onListo?.();
       } catch (e) {
         const m =
@@ -252,14 +279,22 @@ export default function TurnoCajon({
   const reloj = new Date(ahora);
   const { pendiente, correr } = useAccionSimple();
   const router = useRouter();
+  // Acá arriba y no en el botón de anular: el cobro anulado deja de ofrecer el botón y el aviso se iría con él.
+  // Con el turno al lado: el cajón es el mismo para todos los turnos, y el aviso es de uno.
+  const [avisoAlAnular, setAvisoAlAnular] = useState<{ turnoId: string; texto: string } | null>(null);
   const t = turno;
   if (!t) return null;
+  const avisoDeComision = avisoAlAnular?.turnoId === t.id ? avisoAlAnular.texto : "";
 
   const paso = pasoDelTurno(t, permisos, reloj);
   const marca = marcaDelTurno(t, reloj);
   const wa = waLinkClienta(t.telefono);
   const vivo = t.estado === "PENDING" || t.estado === "CONFIRMED";
   const cobraEste = permisos.cobrar && t.veredicto.ok;
+  // E5: el próximo turno, con su ciclo y el mismo servicio, a mano en la ficha y en el aviso de terminado (U8).
+  const proximo = permisos.practica && permisos.gestionar ? `/admin/turnos/proximo/${t.id}` : null;
+  // Quién anula (orden del dueño): la dueña, recepción con su código; la profesional, no.
+  const anular = cobraEste ? permisos.anular : null;
   const anulables = new Set(
     cobrosAnulables(t.cobros.map((c) => ({ ...c, note: c.note ?? null }))).map(
       (c) => c.id,
@@ -355,14 +390,18 @@ export default function TurnoCajon({
               ) : undefined
             }
           />
-          {t.notas && (
+          {/* G1: lo que mandó el cliente desde la reserva pública (patente y auto) va aparte del
+              renglón del equipo, para que nadie lea un texto del cliente como nota interna. */}
+          {separarNota(t.notas).delCliente && (
             <Renglon
-              folio="Notas"
-              titulo={
-                <span className="whitespace-pre-line font-normal">
-                  {t.notas}
-                </span>
-              }
+              folio="Del cliente"
+              titulo={<span className="whitespace-pre-line font-normal">{separarNota(t.notas).delCliente}</span>}
+            />
+          )}
+          {separarNota(t.notas).delEquipo && (
+            <Renglon
+              folio="Nota del equipo"
+              titulo={<span className="whitespace-pre-line font-normal">{separarNota(t.notas).delEquipo}</span>}
             />
           )}
         </Seccion>
@@ -409,6 +448,8 @@ export default function TurnoCajon({
                     confirmarTurno,
                     t.id,
                     `Confirmado: ${t.clienta}, ${fmtTime(t.inicio)}.`,
+                    undefined,
+                    accionDeConfirmado(t),
                   )
                 }
               >
@@ -428,6 +469,7 @@ export default function TurnoCajon({
                 saldo={t.saldo}
                 puedeCobrar={cobraEste}
                 motivoSinCobro={t.veredicto.ok ? undefined : t.veredicto.motivo}
+                proximo={proximo}
                 onListo={onCerrar}
               />
             </div>
@@ -453,6 +495,14 @@ export default function TurnoCajon({
           <p className="text-sm text-muted">
             {t.veredicto.motivo} Quedan <Plata valor={t.saldo} sinCentavos={Number.isInteger(t.saldo)} /> a cobrar.
           </p>
+        )}
+
+        {proximo && t.estado === "COMPLETED" && (
+          <div className="pt-1">
+            <Link href={proximo} className={buttonClasses("outline", "md", "w-full")} {...atributosBoton("outline", "md")}>
+              Reservar el próximo
+            </Link>
+          </div>
         )}
 
         <Seccion titulo="La plata">
@@ -505,14 +555,27 @@ export default function TurnoCajon({
 
         {t.cobros.length > 0 && (
           <Seccion titulo="Cobros" nota={t.cobros.length}>
+            {avisoDeComision && (
+              <p role="status" className="my-2 rounded-md bg-surface-sunken px-3 py-2 text-sm text-strong">
+                {avisoDeComision}
+              </p>
+            )}
             <ul>
               {t.cobros.map((c, i) => {
                 const clase = claseDeCobro(c.note);
                 const medio =
                   METODO_LABEL[c.method as MetodoDePago] ?? c.method;
+                // Debajo del renglón y no en su tecla: en el cajón de 480 px dos botones al lado
+                // del importe dejaban el medio en «E…».
+                const autoriza =
+                  clase === "cobro" &&
+                  !!c.id &&
+                  anulables.has(c.id) &&
+                  anular === "directa";
                 return (
                   <li key={c.id ?? i}>
                     <Renglon
+                      className={autoriza ? "border-b-0" : undefined}
                       folio={c.createdAt ? fmtTime(c.createdAt) : "—"}
                       titulo={
                         clase === "cobro"
@@ -540,27 +603,36 @@ export default function TurnoCajon({
                         clase === "cobro" &&
                         c.id &&
                         anulables.has(c.id) &&
-                        cobraEste ? (
+                        anular ? (
                           <ConMotivo
                             etiqueta="Anular"
                             pregunta={`¿Anular el cobro de ${medio.toLowerCase()}?`}
                             verbo="Sí, anular"
                             placeholder="Por qué (cobré por el medio equivocado…)"
-                            hacer={(motivo) =>
-                              anularCobroTurno(
+                            pideCodigo={anular === "con-autorizacion"}
+                            hacer={async (motivo, codigo) => {
+                              const r = await anularCobroTurno(
                                 aFormData(
                                   camposDeAnular({
                                     cobroId: c.id!,
                                     turnoId: t.id,
                                     motivo,
+                                    codigo,
                                   }),
                                 ),
-                              )
-                            }
+                              );
+                              if (r.ok && r.aviso) setAvisoAlAnular({ turnoId: t.id, texto: r.aviso });
+                              return r;
+                            }}
                           />
                         ) : undefined
                       }
                     />
+                    {autoriza && (
+                      <div className="flex justify-end border-b border-line pb-2">
+                        <AutorizarAnulacion cobroId={c.id!} turnoId={t.id} />
+                      </div>
+                    )}
                   </li>
                 );
               })}

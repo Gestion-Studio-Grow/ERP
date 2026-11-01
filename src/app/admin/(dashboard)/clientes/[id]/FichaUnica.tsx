@@ -28,6 +28,7 @@ import { ACCION_BAJA, CRM_REGLAS, MOTIVO_ETIQUETA, esMotivoContacto } from "@/li
 import EditarClienteForm from "./EditarClienteForm";
 import PermisoMensajes from "./PermisoMensajes";
 import MostradorDeLaFicha from "./MostradorDeLaFicha";
+import { separarNota } from "@/lib/reserva-publica-notas";
 
 const ESTADO_TURNO: Record<string, string> = {
   PENDING: "Reservado",
@@ -284,7 +285,8 @@ export default async function FichaUnica({
                 <p className="text-muted">
                   {a.professional.name} · {fmtDateTime(a.startsAt)}
                 </p>
-                {a.notes && <p className="mt-1 whitespace-pre-line rounded-md bg-warning-soft px-2 py-1 text-body">{a.notes}</p>}
+                {separarNota(a.notes).delCliente && <p className="mt-1 whitespace-pre-line rounded-md border border-line px-2 py-1 text-body">Del cliente: {separarNota(a.notes).delCliente}</p>}
+                {separarNota(a.notes).delEquipo && <p className="mt-1 whitespace-pre-line rounded-md bg-warning-soft px-2 py-1 text-body">Nota del equipo: {separarNota(a.notes).delEquipo}</p>}
               </div>
             ))}
             {f.turnos.length === 0 && <p className="text-sm text-muted">Todavía no tiene turnos.</p>}

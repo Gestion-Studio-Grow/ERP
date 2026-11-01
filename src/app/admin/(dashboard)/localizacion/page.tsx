@@ -7,6 +7,7 @@ import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import type { BusinessSettingsRow } from "@/lib/settings";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import type { RetailRubro } from "@/blueprints/retail/rubros";
+import CampoWhatsApp from "./CampoWhatsApp";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ const FIELDS: {
   { key: "addressLine", label: "Dirección" },
   { key: "city", label: "Ciudad / provincia" },
   { key: "hoursLabel", label: "Horarios (texto)", hint: "Leyenda que se muestra en la web. Los horarios reales por profesional siguen en Catálogo." },
-  { key: "whatsapp", label: "WhatsApp", type: "tel", hint: "Con característica, sin +. Ej.: 54911…" },
+  { key: "whatsapp", label: "WhatsApp", type: "tel", hint: "Con código de área: 11 6677-8890. Si es de otro país, con + adelante." },
   { key: "email", label: "Email de contacto", type: "email" },
   { key: "instagram", label: "Instagram", hint: "@usuario o link completo." },
   { key: "mapsUrl", label: "Link de Google Maps", type: "url", wide: true, hint: "Opcional. Si lo dejás vacío, el botón “Cómo llegar” arma una búsqueda con la dirección." },
@@ -49,7 +50,7 @@ const GRUPOS: { titulo: string; id: string; campos: (keyof BusinessSettingsRow)[
 const AYUDA_CORTA: Partial<Record<keyof BusinessSettingsRow, string>> = {
   shortLabel: "Va arriba del título en la portada.",
   hoursLabel: "Tal cual se lee en la web («Lun a sáb de 9 a 20»).",
-  whatsapp: "Con característica y sin +: 54911…",
+  whatsapp: "Con código de área: 11 6677-8890. De otro país, con +.",
   instagram: "@usuario o el link.",
   mapsUrl: "Si lo dejás vacío, «Cómo llegar» busca la dirección.",
   contactNote: "La frase del pie del sitio.",
@@ -131,18 +132,30 @@ export default async function LocalizacionPage({
                       <label htmlFor={idCampo} className="mb-1 block text-sm font-medium text-strong">
                         {k === "hoursLabel" ? "Horarios" : f.label}
                       </label>
-                      <Input
-                        id={idCampo}
-                        name={f.key}
-                        type={f.type ?? "text"}
-                        defaultValue={row?.[f.key] ?? ""}
-                        placeholder={d[f.key] ?? ""}
-                        aria-describedby={ayuda ? `${idCampo}-ayuda` : undefined}
-                      />
-                      {ayuda && (
-                        <p id={`${idCampo}-ayuda`} className="mt-1 text-[13px] text-muted">
-                          {ayuda}
-                        </p>
+                      {k === "whatsapp" ? (
+                        <CampoWhatsApp
+                          id={idCampo}
+                          defaultValue={row?.whatsapp ?? ""}
+                          placeholder={d[f.key] ?? ""}
+                          ayuda={ayuda}
+                          claseAyuda="mt-1 text-[13px] text-muted"
+                        />
+                      ) : (
+                        <>
+                          <Input
+                            id={idCampo}
+                            name={f.key}
+                            type={f.type ?? "text"}
+                            defaultValue={row?.[f.key] ?? ""}
+                            placeholder={d[f.key] ?? ""}
+                            aria-describedby={ayuda ? `${idCampo}-ayuda` : undefined}
+                          />
+                          {ayuda && (
+                            <p id={`${idCampo}-ayuda`} className="mt-1 text-[13px] text-muted">
+                              {ayuda}
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
                   );
@@ -194,13 +207,24 @@ export default async function LocalizacionPage({
           return (
             <div key={f.key} className={f.wide ? "sm:col-span-2" : ""}>
               <label className="block text-sm text-body mb-1">{f.label}</label>
-              <Input
-                name={f.key}
-                type={f.type ?? "text"}
-                defaultValue={row?.[f.key] ?? ""}
-                placeholder={placeholder}
-              />
-              {pistaDe(f) && <p className="mt-1 text-xs text-faint">{pistaDe(f)}</p>}
+              {f.key === "whatsapp" ? (
+                <CampoWhatsApp
+                  defaultValue={row?.whatsapp ?? ""}
+                  placeholder={placeholder}
+                  ayuda={pistaDe(f)}
+                  claseAyuda="mt-1 text-xs text-faint"
+                />
+              ) : (
+                <>
+                  <Input
+                    name={f.key}
+                    type={f.type ?? "text"}
+                    defaultValue={row?.[f.key] ?? ""}
+                    placeholder={placeholder}
+                  />
+                  {pistaDe(f) && <p className="mt-1 text-xs text-faint">{pistaDe(f)}</p>}
+                </>
+              )}
             </div>
           );
         })}

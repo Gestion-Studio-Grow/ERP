@@ -28,6 +28,8 @@ import { enCampoDeTexto, enCampoEditable, esCampoDeCantidad, motivoParaNoSumar }
 import { useLectorDeRafaga, type OrigenDeLaLectura } from "@/lib/terminal/usar-lector";
 import { avisar } from "@/lib/terminal/senal";
 import { indexarPorCodigo, resolverCodigo } from "@/lib/supermercado/lectura";
+import Link from "next/link";
+import { rutaParaAnularLaVenta } from "../ventas/filtros";
 import FacturarVenta from "../ventas/FacturarVenta";
 import { SIN_FACTURA, type FacturaDeVenta } from "../ventas/factura";
 import { useCuponDePedido } from "@/app/tienda/pedido-online";
@@ -1148,6 +1150,11 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
             </p>
           )}
           <TicketVenta venta={ultima.venta} negocio={negocio} pagoCon={ultima.pagoCon} terminal={terminal} imprimirAlCobrar />
+          {!ultima.venta.anulada && (
+            <Link href={rutaParaAnularLaVenta(ultima.venta.id)} className="inline-flex min-h-11 items-center text-sm text-muted underline hover:text-strong">
+              ¿Salió mal? Anular la venta #{ultima.venta.code}
+            </Link>
+          )}
         </section>
       )}
     </>

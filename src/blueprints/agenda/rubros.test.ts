@@ -11,7 +11,7 @@ import {
   agendaBookingCopyForSlug,
 } from "./rubros";
 
-test("resolveAgendaRubroIdBySlug: sin mapeos, siempre null (seguro)", () => {
+test("resolveAgendaRubroIdBySlug: slug sin mapeo → null (seguro)", () => {
   assert.equal(resolveAgendaRubroIdBySlug("cualquier-tenant"), null);
   assert.equal(resolveAgendaRubroIdBySlug(null), null);
   assert.equal(resolveAgendaRubroIdBySlug(undefined), null);
@@ -32,4 +32,21 @@ test("copy fallback (rubro sin voz propia): wording histórico intacto", () => {
     assert.equal(copy.servicePlaceholder, "Seleccioná un servicio");
     assert.equal(copy.confirmCta, "Confirmar turno");
   }
+});
+
+test("taller (AGR): el turno habla de mecánico y trabajo, no de profesional", () => {
+  assert.equal(resolveAgendaRubroIdBySlug("agr"), "taller");
+  assert.equal(resolveAgendaRubroIdBySlug("taller-agr"), "taller");
+  for (const copy of [agendaBookingCopyForSlug("agr"), agendaBookingCopyForSlug("taller-agr")]) {
+    assert.equal(copy.title, "Sacá turno");
+    assert.equal(copy.providerLabel, "Mecánico");
+    assert.equal(copy.providerPlaceholder, "Seleccioná un mecánico");
+    assert.equal(copy.serviceLabel, "Trabajo");
+    assert.equal(copy.servicePlaceholder, "Seleccioná un trabajo");
+    assert.equal(copy.summaryProviderLabel, "Mecánico");
+    assert.equal(copy.confirmCta, "Confirmar turno");
+  }
+  // Los demás negocios no cambian.
+  assert.equal(agendaBookingCopyForSlug("beauty-spa").providerLabel, "Profesional");
+  assert.equal(agendaBookingCopyForSlug("chestetica").providerLabel, "Profesional");
 });

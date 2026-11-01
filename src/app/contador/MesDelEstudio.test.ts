@@ -35,7 +35,7 @@ test("un bloque por grupo en el orden recibido, la tecla abre la ficha y lo de S
   assert.match(html, /aria-label="Ver la ficha de Cliente 1"/);
   assert.match(html, /Soporte GSG/);
   // Tecla táctil: 44 px en el celular (h-11) aunque en la PC sea más baja.
-  assert.match(html, /h-11 sm:h-9/);
+  assert.match(html, /h-11 sm:h-10/);
 });
 
 test("con más de seis en un grupo, el resto queda plegado con cuántos faltan", () => {

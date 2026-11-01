@@ -90,7 +90,7 @@ export function resolveTenantLayout(brand: { layout?: Partial<TenantLayout> }): 
 // Clave de fuente → la CSS var que expone el layout raíz (next/font). Único punto de mapeo. PURA.
 export const FONT_VAR: Record<FontKey, string> = {
   fraunces: "var(--font-fraunces)",
-  playfair: "var(--font-spa-serif)",
+  playfair: "var(--font-spa-serif, var(--font-fraunces))",
   hanken: "var(--font-hanken)",
   geist: "var(--font-geist-sans)",
 };

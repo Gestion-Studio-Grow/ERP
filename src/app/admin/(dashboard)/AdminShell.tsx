@@ -1,5 +1,6 @@
 "use client";
 
+import FirmaGSG from "@/components/marca/FirmaGSG";
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -63,14 +64,15 @@ function currentLabel(pathname: string, items: NavItem[]) {
   return match?.label ?? "Panel";
 }
 
-// Logo del tenant: monograma sobre el acento (contraste AA garantizado por el
-// par accent/on-accent del preset) + nombre. Con la estética de su front, el logo del cliente (LogoDelNegocio).
+// ZONA DE MARCA (co-marca, 29/10/2026): el logo del CLIENTE arriba y grande — su logo real, el de la estética de su
+// front o el tipográfico provisional (LogoDelNegocio); GSG firma abajo, en el pie (FirmaGSG). Sin logo (un llamador
+// viejo), el monograma sobre el acento (par AA accent/on-accent del preset) + nombre, como siempre.
 function Brand({ monogram, name, logo }: { monogram: string; name: string; logo?: React.ReactNode }) {
-  if (logo) return <div className="flex min-w-0 items-center">{logo}</div>;
+  if (logo) return <div data-ui="zona-de-marca" className="flex min-h-14 min-w-0 items-center">{logo}</div>;
   return (
-    <div className="flex items-center gap-2.5">
-      <span className="grid place-items-center w-8 h-8 rounded-lg bg-accent text-on-accent text-[13px] font-bold shadow-xs">{monogram}</span>
-      <span className="text-[15px] font-semibold tracking-tight text-strong">{name}</span>
+    <div data-ui="zona-de-marca" className="flex min-h-14 items-center gap-3">
+      <span className="grid place-items-center size-10 rounded-[11px] bg-accent text-on-accent text-[15px] font-bold shadow-xs">{monogram}</span>
+      <span className="text-[17px] font-[650] tracking-[-0.02em] text-strong">{name}</span>
     </div>
   );
 }
@@ -89,7 +91,7 @@ export function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?:
             data-nav-item
             data-active={active || undefined}
             aria-current={active ? "page" : undefined}
-            className={`flex items-center gap-3 rounded-lg px-3 py-[7.5px] text-sm whitespace-nowrap ${
+            className={`flex min-h-11 lg:min-h-10 items-center gap-3 rounded-lg px-3 py-2 lg:py-[7px] text-sm whitespace-nowrap ${
               active ? "text-strong font-semibold" : "text-body font-medium"
             }`}
           >
@@ -130,7 +132,7 @@ export function NavGroups({ items, onNavigate }: { items: ItemMenuDeHoy[]; onNav
     <div className="space-y-4">
       {groups.map((g) => (
         <div key={g.id} className="space-y-0.5">
-          <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[.09em] text-faint">
+          <p className="px-3 pb-1 text-[12px] font-semibold uppercase tracking-[.09em] text-faint">
             {g.label}
           </p>
           <NavLinks items={g.items} onNavigate={onNavigate} />
@@ -344,7 +346,7 @@ export function NavBuscable({
                   onMouseEnter={() => setCursor(i)}
                   data-nav-item
                   data-active={i === seleccionado || undefined}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-[7.5px] text-sm whitespace-nowrap ${
+                  className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm whitespace-nowrap ${
                     i === seleccionado ? "text-strong font-semibold" : "text-body font-medium"
                   }`}
                 >
@@ -409,6 +411,8 @@ export function NavFooter({
           Cerrar sesión
         </button>
       </FormCerrarSesion>
+      {/* Co-marca: GSG firma al pie, chico; el cliente manda arriba. */}
+      <FirmaGSG className="lg:min-h-8" />
     </div>
   );
 }
@@ -487,6 +491,7 @@ function ArmazonDeSiempre({
   brandName,
   monogram,
   logo,
+  letraDelNegocio,
   menu,
   apps = [],
   modoApps = false,
@@ -502,6 +507,9 @@ function ArmazonDeSiempre({
   monogram: string;
   // El logo del cliente (estética de su front); sin él, el monograma de siempre.
   logo?: React.ReactNode;
+  // ¿El buscador global usa la letra de cuerpo del negocio? Sólo con estética propia (src/lib/estetica-backoffice.ts).
+  // Antes se deducía de que hubiera logo; ahora todos los negocios tienen logo (co-marca) y el layout lo dice explícito.
+  letraDelNegocio?: boolean;
   // La barra, YA decidida en el layout (server) desde el registro de apps: sólo lo que esta
   // persona puede abrir en este negocio, con el rótulo, ícono, grupo y orden de hoy.
   menu: ItemMenuDeHoy[];
@@ -585,9 +593,9 @@ function ArmazonDeSiempre({
       {/* Sidebar fijo — solo desktop (lg+). El fondo va en una columna que se estira con la
           página y la barra (sticky, alto de pantalla) va adentro: antes el fondo era el de la
           barra misma y en una página larga, abajo de su alto, se veía el gris de la página. */}
-      <div className="hidden lg:block w-[236px] shrink-0 border-r border-line bg-surface-raised">
-        <nav aria-label="Menú" className="flex flex-col px-3 py-5 h-screen sticky top-0">
-          <div className="shrink-0 px-2 mb-6"><Brand monogram={monogram} name={brandName} logo={logo} /></div>
+      <div className="hidden lg:block w-[264px] shrink-0 border-r border-line bg-surface-raised">
+        <nav aria-label="Menú" className="flex flex-col px-3 py-4 h-screen sticky top-0">
+          <div className="shrink-0 px-2 mb-5"><Brand monogram={monogram} name={brandName} logo={logo} /></div>
           {/* Fuera del piloto, el Ctrl/⌘K de siempre: enfoca el buscador de la barra. En el
               piloto lo atiende la paleta de apps (efecto de arriba). */}
           <NavBuscable
@@ -609,8 +617,8 @@ function ArmazonDeSiempre({
             onClick={() => setDrawerOpen(false)}
             aria-hidden
           />
-          <nav aria-label="Menú" data-cajon="panel" className="relative w-64 max-w-[80%] bg-surface-raised h-full max-h-[100dvh] px-3 py-5 flex flex-col shadow-overlay">
-            <div className="shrink-0 px-2 mb-6 flex items-center justify-between">
+          <nav aria-label="Menú" data-cajon="panel" className="relative w-72 max-w-[85%] bg-surface-raised h-full max-h-[100dvh] px-3 py-4 flex flex-col shadow-overlay">
+            <div className="shrink-0 px-2 mb-5 flex items-center justify-between gap-2">
               <Brand monogram={monogram} name={brandName} logo={logo} />
               <button
                 onClick={() => setDrawerOpen(false)}
@@ -638,7 +646,7 @@ function ArmazonDeSiempre({
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar móvil con hamburguesa */}
-        <header className="lg:hidden sticky top-0 z-30 bg-surface-raised/90 backdrop-blur border-b border-line px-4 h-14 flex items-center gap-3">
+        <header className="lg:hidden sticky top-0 z-30 bg-surface-raised/90 backdrop-blur border-b border-line px-4 h-16 flex items-center gap-3">
           {/* 44 × 44 para el dedo (antes 36): el dibujo es el mismo, crece el área que se toca. */}
           <button
             onClick={() => setDrawerOpen(true)}
@@ -649,9 +657,11 @@ function ArmazonDeSiempre({
             <span className="block h-0.5 w-5 bg-strong" />
             <span className="block h-0.5 w-5 bg-strong" />
           </button>
-          <span className="font-medium text-strong">{currentLabel(pathname, items)}</span>
+          <span className="min-w-0 truncate text-[17px] font-semibold tracking-[-0.01em] text-strong">{currentLabel(pathname, items)}</span>
           <span className="ml-auto flex items-center gap-2 min-w-0">
-            <span className="font-semibold text-muted truncate">{brandName}</span>
+            {/* La marca del cliente, compacta: su loseta (el logo entero vive en el cajón). */}
+            <span aria-hidden="true" title={brandName} className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-accent text-[12px] font-bold text-on-accent">{monogram}</span>
+            <span className="sr-only">{brandName}</span>
             {/* Edición del tenant (Comercio/Empresa) en canal NEUTRO — solo si el motor
                 de perfiles está encendido (activeProfile != null). ADR-059 D5/D7. */}
             {activeProfile && <ProfileBadge profile={activeProfile} />}
@@ -660,14 +670,14 @@ function ArmazonDeSiempre({
           </span>
         </header>
         {/* Pedidos nuevos de la tienda (sólo con el chip montado; si no, no dibuja nada). */}
-        <ChipDePedidosNuevos lugar="movil" arriba="top-14" />
+        <ChipDePedidosNuevos lugar="movil" arriba="top-16" />
 
         {/* Header desktop — sticky con blur (fix 29), como ya hacía el móvil. */}
-        <header className="hidden lg:flex sticky top-0 z-30 bg-surface-raised/90 backdrop-blur border-b border-line px-8 h-[58px] items-center justify-between gap-4">
+        <header className="hidden lg:flex sticky top-0 z-30 bg-surface-raised/90 backdrop-blur border-b border-line px-10 h-16 items-center justify-between gap-4">
           <div className="flex items-center gap-2.5 min-w-0">
             <span className="text-sm text-muted whitespace-nowrap">{brandName}</span>
             <span aria-hidden className="text-faint">/</span>
-            <span data-ui="miga" className="font-semibold text-strong truncate">{currentLabel(pathname, items)}</span>
+            <span data-ui="miga" className="text-[17px] font-semibold tracking-[-0.01em] text-strong truncate">{currentLabel(pathname, items)}</span>
             {/* Edición (Comercio/Empresa), canal neutro (ADR-059 D5). Default OFF: sin
                 perfil activo no se renderiza → header idéntico al legado. */}
             {activeProfile && <ProfileBadge profile={activeProfile} />}
@@ -693,7 +703,7 @@ function ArmazonDeSiempre({
 
       {/* «/» = buscar una clienta o un turno (reingeniería CH, Tanda 2). Sólo quien ve la agenda; cerrado
           no dibuja nada, así el HTML de siempre no cambia (armazon/armazon-ch.test.ts). */}
-      {veLaAgenda(items.map((i) => i.href)) && <BuscadorGlobal menu={items} letraDelNegocio={logo !== undefined && logo !== null} />}
+      {veLaAgenda(items.map((i) => i.href)) && <BuscadorGlobal menu={items} letraDelNegocio={letraDelNegocio ?? (logo !== undefined && logo !== null)} />}
       {modoApps && <BarraInferior apps={apps} esMostrador={esMostrador} onBuscar={abrirPaleta} />}
       {modoApps && <PaletaApps apps={apps} abierta={paletaAbierta} onCerrar={cerrarPaleta} />}
     </div>

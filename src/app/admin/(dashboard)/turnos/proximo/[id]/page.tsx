@@ -18,7 +18,7 @@ export default async function ReservarElProximo({ params }: { params: Promise<{ 
   await requireCapability("agenda:manage");
   const { id } = await params;
   const tenantId = await getCurrentTenantId();
-  const turno = await prisma.appointment.findFirst({ where: { id, tenantId }, select: { clientId: true, startsAt: true } });
+  const turno = await prisma.appointment.findFirst({ where: { id, tenantId }, select: { clientId: true, startsAt: true, serviceId: true } });
   if (!turno) redirect("/admin/turnos/lista");
 
   const filas = await prisma.appointment.findMany({
@@ -35,5 +35,5 @@ export default async function ReservarElProximo({ params }: { params: Promise<{ 
   }
   const ciclo = cicloPersonal(visitas, new Map());
   const fecha = fechaDelProximo({ dia: dateStrInBusinessTz(turno.startsAt), cicloDias: ciclo.dias, hoy: todayInBusinessTz() });
-  redirect(hrefDelProximo({ clienteId: turno.clientId, fecha }));
+  redirect(hrefDelProximo({ clienteId: turno.clientId, fecha, servicioId: turno.serviceId }));
 }

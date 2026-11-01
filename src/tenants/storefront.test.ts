@@ -30,32 +30,29 @@ test("shinevelas resuelve su copy propio (voz de marca)", () => {
   const copy = getStorefrontCopy("shinevelas");
   assert.ok(copy, "shinevelas debe tener copy propio");
   assert.ok(copy!.tagline.length > 0);
-  // La firma de marca "que tu luz nunca se apague" vive en el about.
-  assert.match(copy!.about.body, /luz nunca se apague/i);
+  // La firma de marca "Que tu luz nunca se apague" es el titular (diseño 29/10, §9).
+  assert.match(copy!.tagline, /luz nunca se apague/i);
   assert.ok(copy!.valueProps.length >= 3);
   assert.ok(copy!.reviews.every((r) => r.rating >= 1 && r.rating <= 5));
 });
 
-test("shinevelas trae config de envío real (fijo $3.500, gratis desde $25.000)", () => {
+test("shinevelas NO cobra envío sin fuente (ronda 2): sin tarifa en el copy, el envío no suma ni se promete gratis", () => {
   const copy = getStorefrontCopy("shinevelas");
-  assert.deepEqual(copy!.shipping, { flatRate: 3500, freeThreshold: 25000 });
-  // El cableado copy → cálculo de envío funciona end-to-end.
-  assert.equal(shippingCost(8500, "DELIVERY", copy!.shipping), 3500);
-  assert.equal(shippingCost(25000, "DELIVERY", copy!.shipping), 0);
-  assert.equal(amountToFreeShipping(20000, copy!.shipping), 5000);
+  assert.equal(copy!.shipping, undefined);
+  assert.equal(shippingCost(8500, "DELIVERY", copy!.shipping), 0);
+  assert.equal(amountToFreeShipping(20000, copy!.shipping), 0, "sin «te faltan $X para el envío gratis»");
 });
 
-test("shinevelas trae la VISIÓN experiencial: ritual + sets de regalo + deco", () => {
+test("shinevelas habla con el catálogo oficial: sin ritual, sets ni decoración inventados", () => {
+  // Diseño del front 29/10 (§9): «Armá tu ritual», los sets de regalo armados y los mundos de
+  // Decoración/Accesorios no están en el catálogo de la dueña (docs/diseno/catalogo-shine-2026.md) y se quitan.
   const copy = getStorefrontCopy("shinevelas")!;
-  // "Armá tu ritual" con pasos.
-  assert.ok(copy.ritual, "debe tener sección de ritual");
-  assert.ok(copy.ritual!.steps.length >= 3);
-  // Sets/combos de regalo con precio.
-  assert.ok(copy.giftSets, "debe tener sets de regalo");
-  assert.ok(copy.giftSets!.sets.length >= 2);
-  assert.ok(copy.giftSets!.sets.some((s) => typeof s.price === "number"));
-  // La decoración es una de las líneas destacadas.
-  assert.ok(copy.vacioLines.some((l) => /decoraci/i.test(l.title)));
+  assert.equal(copy.ritual, undefined);
+  assert.equal(copy.giftSets, undefined);
+  assert.ok(!copy.vacioLines.some((l) => /decoraci|accesorio/i.test(l.title)));
+  // Los aromas son los 9 de velas del catálogo.
+  assert.equal(copy.gourmetItems.length, 9);
+  assert.ok(copy.gourmetItems.includes("Vainilla & Caramelo"));
 });
 
 test("magra sigue sin experiencia extendida (retrocompatible)", () => {
@@ -193,19 +190,19 @@ test("MG-036 · tienda pausada: el mensaje del dueño frena la cotización (y el
   assert.equal(motivoTiendaPausada(CONFIG_MAGRA), null);
 });
 
-test("MG-037 · Shine sigue con su tarifa de storefront.ts ($3.500, gratis desde $25.000) y sin zonas", () => {
+test("MG-037 · Shine sin zonas y sin tarifa del copy (ronda 2): el alta no suma envío", () => {
   const shine = getStorefrontCopy("shinevelas")!.shipping;
   // Sin zonas propias, `placeOnlineOrder` usa la tarifa del copy (`shippingVigente`) y nada más.
   const cot = cotizarEnvio(configPorDefecto(), { subtotal: 20000, modo: "envio" });
   assert.ok(cot.ok && cot.zona === null && cot.renglon === null && cot.costo === 0, "sin zonas, la cotización no decide la tarifa");
-  assert.deepEqual(shippingVigente(null, shine), { flatRate: 3500, freeThreshold: 25000 });
+  assert.equal(shippingVigente(null, shine) ?? null, null);
   const alta = decidirAlta({
     tenantId: "t_shine",
     input: { ...PEDIDO, items: [{ productId: "p_vela", qty: 1 }] },
     products: [{ id: "p_vela", name: "Vela", saleUnit: "UNIT", price: 20000, pricePerKg: null, trackStock: false }],
     opts: { envio: shippingVigente(null, shine), envioZona: cot.ok ? cot.zona : null },
   });
-  assert.deepEqual([alta.envio, alta.envioRenglon, alta.total], [3500, undefined, 23500], "renglón «Envío a domicilio» de siempre");
+  assert.deepEqual([alta.envio ?? 0, alta.total], [0, 20000], "sin tarifa con fuente, el pedido no suma envío");
 });
 
 test("seguridad: el costo sale de la zona de la base, no del navegador; un retiro con zona no suma envío", () => {

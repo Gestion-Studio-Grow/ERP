@@ -28,6 +28,16 @@ const nextConfig: NextConfig = {
         { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
       ],
     }, {
+      // Fotos y marcas de cada negocio (E3, 29/10/2026): antes salían con `max-age=0, must-revalidate` y cada visita
+      // revalidaba todo. El navegador las guarda 7 días; el CDN de Vercel, un año (se purga en cada deploy). No son
+      // `immutable` porque el nombre no lleva hash: para cambiar una foto, subila con otro nombre o esperá la semana.
+      source: "/tenants/:ruta*",
+      headers: [{ key: "Cache-Control", value: "public, max-age=604800, s-maxage=31536000, stale-while-revalidate=86400" }],
+    }, {
+      // Las fotos del equipo de CH (public/team), con la misma regla que las de /tenants.
+      source: "/team/:ruta*",
+      headers: [{ key: "Cache-Control", value: "public, max-age=604800, s-maxage=31536000, stale-while-revalidate=86400" }],
+    }, {
       source: "/facturita/sw.js",
       headers: [
         { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },

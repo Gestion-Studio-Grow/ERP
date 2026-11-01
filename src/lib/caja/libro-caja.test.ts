@@ -324,7 +324,7 @@ test("no se borra desde el libro lo que asentó el sistema; lo tipeado a mano, s
   assert.equal(a("EGRESO", "user:u1"), null);
 });
 
-import { rotuloContable, rotuloDeOrigen } from "./libro-caja";
+import { rotuloContable, rotuloDeOrigen, rotuloDeVenta } from "./libro-caja";
 
 test("en el archivo, el cobro de un proyecto tampoco sale como turno", () => {
   assert.equal(rotuloContable("cobro-turno", "Proyecto #2 · Stand · Anticipo 50%"), "Cobro de proyecto");
@@ -333,8 +333,9 @@ test("en el archivo, el cobro de un proyecto tampoco sale como turno", () => {
 });
 
 test("el cobro de un proyecto no se rotula como turno; lo demás sigue igual", () => {
-  assert.equal(rotuloDeOrigen("turno", "Proyecto #12 · Stand · Anticipo"), "Cobro de proyecto");
-  assert.equal(rotuloDeOrigen("turno", "Corte y color"), "Turno cobrado");
-  assert.equal(rotuloDeOrigen("turno", null), "Turno cobrado");
-  assert.equal(rotuloDeOrigen("pos", "Proyecto #12"), "Venta del mostrador");
+  assert.equal(rotuloDeVenta("turno", "Proyecto #12 · Stand · Anticipo"), "Cobro de proyecto");
+  assert.equal(rotuloDeOrigen({ type: "INGRESO", origin: "turno", detail: "Proyecto #12 · Stand" }), "cobro de proyecto");
+  assert.equal(rotuloDeVenta("turno", "Corte y color"), "Turno cobrado");
+  assert.equal(rotuloDeVenta("turno", null), "Turno cobrado");
+  assert.equal(rotuloDeVenta("pos", "Proyecto #12"), "Venta del mostrador");
 });

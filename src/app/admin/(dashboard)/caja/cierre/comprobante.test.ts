@@ -70,3 +70,14 @@ test("Transferencia con neto negativo: el comprobante lo aclara", () => {
   assert.equal(m[0].neto, null);
   assert.match(String(m[1].neto), /salió más de lo que entró/);
 });
+
+test("el comprobante no dice «Cuadró» con un medio con plata sin conciliar", async () => {
+  const { textoDelComprobante } = await import("./comprobante");
+  const m = (medio: "EFECTIVO" | "TRANSFERENCIA", esperado: number, declarado: number | null) => ({ medio, etiqueta: medio, esperado, declarado, diferencia: declarado === null ? null : declarado - esperado, neto: null });
+  assert.equal(textoDelComprobante([m("EFECTIVO", 100, 100), m("TRANSFERENCIA", 0, null)]), "Cuadró.");
+  const t = textoDelComprobante([m("EFECTIVO", 100, 100), m("TRANSFERENCIA", 5_750, null)]).replace(/\s/g, " ");
+  assert.doesNotMatch(t, /Cuadró/);
+  const { readFileSync } = await import("node:fs");
+  assert.match(readFileSync(new URL("./CierreRenglon.tsx", import.meta.url), "utf8"), /\{textoDelComprobante\(medios\)\}/);
+  assert.match(t, /Sin conciliar: TRANSFERENCIA \(\$ ?5\.750,00\)/);
+});

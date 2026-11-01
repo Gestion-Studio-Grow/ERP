@@ -19,7 +19,8 @@ export const SELECT_MI_TURNO = {
   startsAt: true,
   professionalId: true,
   serviceId: true,
-  service: { select: { name: true } },
+  // La seña del servicio (ronda 2): «Pendiente de pago» sólo si la pide.
+  service: { select: { name: true, depositAmount: true } },
   professional: { select: { name: true } },
   box: { select: { name: true } },
   review: { select: { rating: true } },

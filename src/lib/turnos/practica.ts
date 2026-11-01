@@ -15,6 +15,7 @@
 //   · E6 — al cancelar, cuántas anotadas de la lista de espera sirven para ese hueco.
 
 import { sumarDias } from "@/lib/crm/fechas";
+import { buildWhatsAppHref } from "@/lib/whatsapp-cta";
 
 // ── E2 · la regla de cancelación de la clienta ───────────────────────────────
 
@@ -46,9 +47,53 @@ export function politicaDelNegocio(
   return (slug && leerPoliticas(env.CANCELACION_ONLINE_HORAS).get(slug)) || null;
 }
 
+/**
+ * El aviso de la consola (U2): con la agenda práctica prendida y sin la regla en el deploy, la clienta
+ * cancela hasta último momento y la consola no lo decía. Lo escribe el operador en Vercel; `null` si
+ * no hay nada que avisar. No cambia la regla: sólo la hace ver.
+ */
+export function avisoDeReglaFaltante(input: {
+  slug: string;
+  prendida: boolean;
+  env?: Record<string, string | undefined>;
+}): string | null {
+  if (!input.prendida || politicaDelNegocio(input.slug, input.env ?? process.env)) return null;
+  return `Falta la regla de cancelación: sin ${input.slug}=<horas> en la variable CANCELACION_ONLINE_HORAS del deploy, la clienta cancela online hasta que empieza el turno y no se le promete ningún plazo. El número lo decide el negocio.`;
+}
+
+/** Qué hacer pasado el plazo. Sin número de WhatsApp cargado no hay canal que ofrecer: no se nombra ninguno (U3, R8). */
+const despuesDelPlazo = (hayWhatsApp: boolean): string => (hayWhatsApp ? "escribinos por WhatsApp" : "ya no se puede cambiar online");
+
 /** La regla en castellano, para la reserva, la confirmación y «Tu turno» (T12). */
-export function reglaDeCancelacion(p: PoliticaDeCancelacion): string {
-  return `Podés cancelar o reprogramar online hasta ${p.horasMinimas} h antes del turno. Después, escribinos por WhatsApp.`;
+export function reglaDeCancelacion(p: PoliticaDeCancelacion, hayWhatsApp: boolean): string {
+  return `Podés cancelar o reprogramar online hasta ${p.horasMinimas} h antes del turno. Después, ${despuesDelPlazo(hayWhatsApp)}.`;
+}
+
+/** Lo que se contesta si intenta cambiar el turno pasado el plazo. */
+export function mensajeFueraDePlazo(p: PoliticaDeCancelacion, hayWhatsApp: boolean): string {
+  return `Faltan menos de ${p.horasMinimas} h para tu turno: ya no se puede cambiar online.${hayWhatsApp ? " Escribinos por WhatsApp y lo vemos." : ""}`;
+}
+
+/**
+ * «Tu turno», pasado el plazo: el botón para escribirle al negocio, con el turno ya escrito (U3).
+ * Sin número cargado no hay botón: `null`. `whatsapp` es el número del negocio (`getLocation`).
+ */
+export function salidaFueraDePlazo(input: { whatsapp: string | null | undefined; servicio: string; cuando: string }): { texto: string; href: string } | null {
+  if (!input.whatsapp) return null;
+  const mensaje = `¡Hola! Quiero cambiar mi turno de ${input.servicio} del ${input.cuando}.`;
+  return { texto: "Escribinos por WhatsApp", href: buildWhatsAppHref(input.whatsapp, mensaje) };
+}
+
+/**
+ * Lo que se le promete a la clienta al terminar de reservar (U1, U2): dónde cambia el turno y, sólo
+ * si el negocio cargó una regla, hasta cuándo. Sin regla no hay plazo que prometer: «Tu turno» la
+ * deja cancelar hasta que empieza. `horas` sale de `politicaVigente()`. Si reservó con el plazo ya
+ * vencido (`plazoVencido`, lo calcula el servidor), no se le promete: se le dice lo que le va a
+ * contestar «Tu turno» (R7).
+ */
+export function promesaDeCambios(horas: number | null | undefined, o: { plazoVencido?: boolean; hayWhatsApp?: boolean } = {}): string {
+  if (horas && o.plazoVencido) return mensajeFueraDePlazo({ horasMinimas: horas }, o.hayWhatsApp === true);
+  return horas ? `Podés cancelar o reprogramar desde «Tu turno» hasta ${horas} h antes.` : "Podés cancelar o reprogramar desde «Tu turno».";
 }
 
 /** ¿La clienta puede cancelar o reprogramar ella sola este turno, ahora? */
@@ -56,13 +101,12 @@ export function puedeCambiarOnline(input: {
   startsAt: Date;
   ahora: Date;
   politica: PoliticaDeCancelacion;
+  /** ¿El negocio tiene WhatsApp cargado? Sin saberlo, no se nombra WhatsApp. */
+  hayWhatsApp?: boolean;
 }): { ok: true } | { ok: false; error: string } {
   const faltan = input.startsAt.getTime() - input.ahora.getTime();
   if (faltan >= input.politica.horasMinimas * 3_600_000) return { ok: true };
-  return {
-    ok: false,
-    error: `Faltan menos de ${input.politica.horasMinimas} h para tu turno: ya no se puede cambiar online. Escribinos por WhatsApp y lo vemos.`,
-  };
+  return { ok: false, error: mensajeFueraDePlazo(input.politica, input.hayWhatsApp === true) };
 }
 
 // ── T4 · defaults del alta ───────────────────────────────────────────────────
@@ -119,9 +163,10 @@ export function fechaDelProximo(input: { dia: string; cicloDias: number; hoy: st
   return propuesta < manana ? manana : propuesta;
 }
 
-/** El link al alta con la clienta y la fecha puestas (la lista ya lee ?nuevo, ?fecha y ?cliente). */
-export function hrefDelProximo(input: { clienteId: string; fecha: string }): string {
-  return `/admin/turnos/lista?nuevo=1&fecha=${encodeURIComponent(input.fecha)}&cliente=${encodeURIComponent(input.clienteId)}`;
+/** El link al alta con la clienta, la fecha y el mismo servicio puestos (?nuevo, ?fecha, ?cliente, ?servicio). */
+export function hrefDelProximo(input: { clienteId: string; fecha: string; servicioId?: string | null }): string {
+  const servicio = input.servicioId ? `&servicio=${encodeURIComponent(input.servicioId)}` : "";
+  return `/admin/turnos/lista?nuevo=1&fecha=${encodeURIComponent(input.fecha)}&cliente=${encodeURIComponent(input.clienteId)}${servicio}`;
 }
 
 // ── E6 · el hueco a la lista de espera ───────────────────────────────────────
@@ -130,5 +175,5 @@ export function hrefDelProximo(input: { clienteId: string; fecha: string }): str
 export function avisoDeEspera(input: { anotadas: number; servicio: string }): string | null {
   if (input.anotadas <= 0) return null;
   const quien = input.anotadas === 1 ? "Hay 1 clienta anotada" : `Hay ${input.anotadas} clientas anotadas`;
-  return `${quien} en la lista de espera para ${input.servicio}: avisales desde Lista de espera → Huecos liberados.`;
+  return `${quien} en la lista de espera para ${input.servicio}: avisales desde Lista de espera.`;
 }

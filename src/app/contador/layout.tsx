@@ -20,7 +20,7 @@ import { basePrisma } from "@/lib/prisma-base";
 import { getCurrentTenantId } from "@/lib/tenant";
 
 export const metadata: Metadata = {
-  title: "Panel del contador",
+  title: "Consola del contador",
   robots: { index: false, follow: false },
   // Sello GSG (estándar de marca): el estudio conserva SU marca visible; GSG
   // firma como generador, discreto.

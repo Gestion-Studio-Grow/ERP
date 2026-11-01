@@ -18,7 +18,7 @@ tags: [brain/leccion, leccion/dx]
 
 ## Detalle
 
-- **Síntoma:** el dueño detectó que el front replicado (`SiteReplica.tsx` + `magra-replica.ts`) no se sentía
+- **Síntoma:** el dueño detectó que el front replicado (`SiteReplica.tsx` + `el archivo de réplica de MAGRA (borrado el 31/10/2026; en el historial de git)`) no se sentía
   fiel al sitio real (`magrameatmarket.com.ar`), y por separado que el tenant en vivo mostraba dirección/IG/
   horario **genéricos del rubro** en vez de los reales.
 - **Causa raíz:** dos causas independientes, confundidas como una sola. **(1)** la transcripción de contenido
@@ -28,7 +28,7 @@ tags: [brain/leccion, leccion/dx]
   (`docs/tenants/magra/provisioning-magra.md`) — quedó en los placeholders del rubro `carniceria`.
 - **Fix:** préstamo de pool (Diseño + Adaptador/Delivery + QA, ADR-053) hizo el diff **con navegador real**
   (accessibility tree + `innerText` de header/footer vía JS — un `WebFetch` de texto plano **no** agarra
-  header/footer, que quedan fuera del `<article>` principal) y completó `magra-replica.ts`/`SiteReplica.tsx`
+  header/footer, que quedan fuera del `<article>` principal) y completó `el archivo de réplica de MAGRA (borrado el 31/10/2026; en el historial de git)`/`SiteReplica.tsx`
   (commit `32924c4`). El gap de Branding en Neon queda **pendiente del dueño** (Gate 2, dato de prod, no lo
   toca el front).
 - **Lección:** "copia exacta" no es relevar a ojo ni un `WebFetch` superficial del texto principal — hay que

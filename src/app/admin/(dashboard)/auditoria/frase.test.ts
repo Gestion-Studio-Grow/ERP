@@ -167,3 +167,38 @@ test("plata: sin centavos cuando no hay, con coma cuando hay", () => {
   assert.equal(plata(1234.5), "$1.234,50");
   assert.equal(plata(-200), "-$200");
 });
+
+// ── Orden del dueño, 31/10/2026: quién autorizó anular, en ventas y en Taller ────────────────
+
+test("anular una venta con código: dice quién autorizó; la dueña que anuló ella no se autoriza a sí misma", () => {
+  const fila = (actor: string) => ({
+    actor,
+    action: "update",
+    entity: "Order",
+    entityId: "o1",
+    channel: null,
+    changes: { status: "CANCELLED", code: 8, motivo: "se pesó mal", autorizadaPor: "caro", autorizadaPorNombre: "Caro" },
+  });
+  assert.ok(describirAccion(fila("user:juan")).detalle.includes("Autorizó Caro"));
+  assert.ok(!describirAccion(fila("user:caro")).detalle.includes("Autorizó Caro"));
+});
+
+test("autorizar anular una venta: la frase, sin ningún código", () => {
+  const d = describirAccion({ actor: "user:caro", action: "authorize_void_collection", entity: "Order", entityId: "o1", channel: null, changes: { code: 8, monto: 6900 } });
+  assert.match(d.frase, /^Autorizó anular la venta #8/);
+});
+
+test("un cobro de Taller: anular y autorizar, en castellano", () => {
+  const anulo = describirAccion({
+    actor: "user:juan",
+    action: "taller.cobro.anulado",
+    entity: "TallerPago",
+    entityId: "p1",
+    channel: null,
+    changes: { numero: 12, monto: 50000, motivo: "se cobró de más", anuladaPor: "juan", autorizadaPor: "caro", autorizadaPorNombre: "Caro" },
+  });
+  assert.match(anulo.frase, /^Anuló el cobro de la orden #12/);
+  assert.deepEqual(anulo.detalle, ["Motivo: «se cobró de más»", "Autorizó Caro"]);
+  const autorizo = describirAccion({ actor: "user:caro", action: "authorize_void_collection", entity: "TallerPago", entityId: "p1", channel: null, changes: { numero: 12, monto: 50000 } });
+  assert.match(autorizo.frase, /^Autorizó anular el cobro de la orden #12/);
+});

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Reservá tu cancha · Break Point Pádel</title>
-<meta name="description" content="Turnero de Break Point Pádel, Ezeiza: mirá los horarios libres en vivo y reservá tu cancha.">
+<meta name="description" content="Turnero de Break Point Pádel: elegí el día y el horario y pedí tu cancha por WhatsApp; el club te confirma.">
 <meta name="generator" content="Gestión Studio Grow">
 <meta name="robots" content="noindex">
 <!-- DEMO a costo cero: sin back configurado, el turnero corre en el navegador (local.mjs). Post-venta: sacar esta
@@ -13,22 +13,23 @@
 <meta name="theme-color" content="#035BA8">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='3' fill='%23035BA8'/%3E%3Ccircle cx='16' cy='16' r='8' fill='none' stroke='%23DC6E22' stroke-width='3'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Fuentes propias (public/tenants/breakpoint/fuentes, OFL): Anton para títulos y Barlow Semi Condensed para la UI,
+     declaradas en turnero.css; se precarga sólo la del título. Nada de Google Fonts en runtime. -->
+<link rel="preload" href="/tenants/breakpoint/fuentes/anton-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="./turnero.css">
-<!-- Fuentes (Anton para títulos y Montserrat para el logo, en subsets de pocos KB): las carga app.mjs sin bloquear -->
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&display=swap&text=ABCDEFGHIJKLMNOPQRSTUVWXYZ%C3%81%C3%89%C3%8D%C3%93%C3%9A%C3%91%C3%9C0123456789%C2%A1!%C2%BF%3F%24.%2C%3A-%20"></noscript>
 </head>
 <body data-estado="cargando">
 <a class="saltar" href="#mis-reservas">Saltar a Mis turnos</a>
 
-<p id="cinta" class="cinta" role="note">Demo: los datos son de ejemplo y no se guardan</p>
+<!-- Sin JS se ve lo del ambiente real (QA 29/10): ni «Demo: …» ni «Conectando…». app.mjs pone lo de la demo. -->
+<p id="cinta" class="cinta" role="note">Horarios de referencia: el club te confirma por mensaje</p>
 
 <header class="top">
   <div class="top-in">
-    <!-- Logo oficial del club (SVG de ccr-63ed11dc-brcdpp, el mismo del backoffice), sobre su cuadrado azul. -->
-    <svg id="logo" viewBox="0 0 120 120" role="img" aria-label="Break Point Pádel"><rect width="120" height="120" fill="#035BA8"/><g transform="translate(8 20)" color="#fff"><rect x="0.5" y="3.5" width="3.6" height="73" fill="currentColor"/><g fill="currentColor" font-family="Montserrat,'Century Gothic','Avenir Next',sans-serif" font-weight="500" font-size="24.5"><text x="9.5" y="25" textLength="92" lengthAdjust="spacingAndGlyphs">BREAK</text><text x="9.5" y="51" textLength="15.5" lengthAdjust="spacingAndGlyphs">P</text><text x="45" y="51" textLength="56.5" lengthAdjust="spacingAndGlyphs">INT</text><text x="9.5" y="77" textLength="92" lengthAdjust="spacingAndGlyphs">PADEL</text></g><g fill="none" stroke="#DC6E22" stroke-width="3.3" stroke-linecap="round"><circle cx="35" cy="42.4" r="8.1"/><path d="M34.2 35.6a7.6 7.6 0 0 0 0 13.6"/></g></g></svg>
-    <span id="en-vivo" class="vivo off" role="status">Conectando…</span>
+    <!-- Logo provisional a confirmar: trazos derivados del SVG del club (ccr-63ed11dc-brcdpp), sin depender de una fuente
+         instalada. Lleva a la portada del club. Reemplazar por el vector oficial cuando llegue. -->
+    <a class="logo-link" href="/" aria-label="Break Point Pádel: inicio"><svg id="logo" viewBox="0 0 120 120" aria-hidden="true" focusable="false"><rect width="120" height="120" fill="#035BA8"/><g transform="translate(8 20)"><rect x="0.5" y="3.5" width="3.6" height="73" fill="#fff"/><path fill="none" stroke="#fff" stroke-width="2.6" d="M10.8 15.17H18.86A3.94 3.94 0 0 0 18.86 7.3H10.8V23.7H18.94A4.26 4.26 0 0 0 18.94 15.17ZM28.8 23.7V7.3H38.26A3.94 3.94 0 0 1 38.26 15.17H28.8M37.06 15.17L42.4 23.7M58.2 7.3H47.8V23.7H58.2M47.8 15.17H56.8M63.4 25L72 7.1L80.6 25M66.1 19.4H77.9M85.8 7.3V23.7M100.6 6.9L86.4 17.37M90.2 14.57L100.6 24.1M10.8 49.7V33.3H17.96A4.24 4.24 0 0 1 17.96 41.78H10.8M50.1 33.3V49.7M56.3 51V33.3L72.7 49.7V32M77.5 33.3H101.5M89.5 33.3V51M10.8 75.7V59.3H17.97A4.23 4.23 0 0 1 17.97 67.76H10.8M28.15 77L36.75 59.1L45.35 77M30.85 71.4H42.65M51.3 59.3V75.7H57.14A8.56 8.2 0 0 0 57.14 59.3ZM82.45 59.3H72.05V75.7H82.45M72.05 67.17H81.05M88.8 59.3V75.7H100.2"/><g fill="none" stroke="#DC6E22" stroke-width="3.3" stroke-linecap="round"><circle cx="35" cy="42.4" r="8.1"/><path d="M34.2 35.6a7.6 7.6 0 0 0 0 13.6"/></g></g></svg></a>
+    <span id="en-vivo" class="vivo pedido" role="status">Pedido por mensaje</span>
     <a id="btn-tienda" class="btn-head btn-tienda" href="#tienda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><span class="t-txt">Tienda</span></a>
     <button id="btn-ingresar" class="btn-head" type="button">Ingresar</button>
     <div id="usuario" class="usuario" hidden></div>
@@ -42,7 +43,10 @@
       <p id="subtitulo">Elegí el día y el horario que te quede cómodo. Si lo ves libre, es tuyo.</p>
     </section>
 
-    <p class="paso" id="t-dias">Elegí el día</p>
+    <div class="paso-fila">
+      <p class="paso" id="t-dias">Elegí el día</p>
+      <span id="chip-cancha" class="chip-cancha" hidden><span id="chip-cancha-txt"></span><button id="chip-cancha-x" type="button" class="chip-x" aria-label="Quitar la cancha elegida"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg></button></span>
+    </div>
     <div id="dias" role="group" aria-labelledby="t-dias"></div>
 
     <div id="filtros">
@@ -94,7 +98,7 @@
 </main>
 
 <footer class="pie">
-  <p><b>Break Point Pádel</b> · Ezeiza</p>
+  <p><b>Break Point Pádel</b></p>
   <p><a href="https://www.instagram.com/breakpointpadel_/" target="_blank" rel="noopener">Instagram @breakpointpadel_</a></p>
 </footer>
 
@@ -219,9 +223,18 @@
         <input id="ped-nombre" name="nombre" type="text" autocomplete="name" maxlength="60" required aria-describedby="ped-error">
       </div>
       <p id="ped-error" class="error" role="alert"></p>
-      <a id="ped-wa" class="btn btn-wa btn-block" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 18.8z"/></svg>Pedir este turno por WhatsApp</a>
-      <p class="hint">El club te confirma por WhatsApp y te pasa el alias para la seña.</p>
-      <p id="ped-sin-wa" class="hint" hidden>Se abre WhatsApp: elegí el chat del club y mandá el mensaje.</p>
+      <a id="ped-wa" class="btn btn-pri btn-block btn-pedir" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 18.8z"/></svg><span id="ped-wa-txt">Pedir este turno por WhatsApp</span></a>
+      <!-- Sin el WhatsApp del club publicado, el pedido va por el Instagram del club: se copia y se abre el chat.
+           Segunda salida (QA r2): «Copiar pedido» sólo copia y deja el texto a la vista, con instrucciones, para quien
+           no usa Instagram o prefiere mandarlo por otro lado. -->
+      <button id="ped-copiar" type="button" class="btn btn-block" hidden>Copiar pedido</button>
+      <p id="ped-copiado" class="copiado" role="status" aria-live="polite"></p>
+      <div id="ped-manual" class="campo" hidden>
+        <label for="ped-texto">Tu pedido: copialo y pegalo en el chat</label>
+        <textarea id="ped-texto" readonly rows="5"></textarea>
+      </div>
+      <p id="ped-ayuda" class="hint">El club te confirma por WhatsApp y te pasa el alias para la seña.</p>
+      <p id="ped-sin-wa" class="hint" hidden>Se abre el chat de Instagram del club (@breakpointpadel_): pegá el pedido y mandalo.</p>
     </form>
   </div>
 </dialog>

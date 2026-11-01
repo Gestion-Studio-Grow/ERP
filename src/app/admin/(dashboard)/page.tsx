@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { hoyEstaCerrado } from "@/lib/caja/frontera-cierre";
+import { getCurrentTenantId } from "@/lib/tenant";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { appCasa, aterrizajeDelPanel } from "@/apps/visibles";
 import { getDashboardData, getRetailDashboardData } from "@/lib/actions";
@@ -181,19 +183,7 @@ async function RetailHome({
         </Link>
       </div>
 
-      {!d.cashOpen && (
-        <div className="mb-6 flex items-center gap-2.5 rounded-lg bg-warning-soft border border-warning/25 px-4 py-2.5 text-sm text-warning">
-          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 9v4M12 16h.01" /></svg>
-          <span className="flex-1">
-            <span className="font-semibold">La caja está cerrada. </span>
-            Se puede cobrar igual, pero lo que entre en efectivo no va a figurar en el arqueo
-            del turno.
-          </span>
-          <Link href="/admin/caja" className="font-semibold whitespace-nowrap hover:underline">
-            Abrir caja →
-          </Link>
-        </div>
-      )}
+      {!d.cashOpen && <AvisoCajaCerrada />}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {/* Con la caja cerrada no se repite acá: lo dice la banda de arriba, que además
@@ -252,6 +242,34 @@ async function RetailHome({
 //   - "contador"/"facturita" → el layout ya los redirigió a su casa; si por algún
 //                     borde llegan acá, caen al Inicio vertical (genérico y seguro).
 // ─────────────────────────────────────────────────────────────────────────────
+/** Con hoy ya cerrado no se abre la caja ni se cobra en firme: lo dice y lleva al cierre (UAT caja 31/10, 10.9). */
+async function AvisoCajaCerrada() {
+  // Es una línea de estado: si la lectura falla, el aviso de siempre, no la pantalla caída.
+  const diaCerrado = await getCurrentTenantId().then(hoyEstaCerrado).catch(() => false);
+  return (
+    <div className="mb-6 flex items-center gap-2.5 rounded-lg bg-warning-soft border border-warning/25 px-4 py-2.5 text-sm text-warning">
+      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+      <span className="flex-1">
+        {diaCerrado ? (
+          <>
+            <span className="font-semibold">Hoy ya está cerrado. </span>
+            No se abre la caja con el día cerrado.
+          </>
+        ) : (
+          <>
+            <span className="font-semibold">La caja está cerrada. </span>
+            Se puede cobrar igual, pero lo que entre en efectivo no va a figurar en el arqueo
+            del turno.
+          </>
+        )}
+      </span>
+      <Link href={diaCerrado ? "/admin/caja/cierre" : "/admin/caja"} className="font-semibold whitespace-nowrap hover:underline">
+        {diaCerrado ? "Ver el cierre →" : "Abrir caja →"}
+      </Link>
+    </div>
+  );
+}
+
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ espacio?: string | string[] }> }) {
   // PANEL DE CASA (Break Point → el club): su Inicio es la casa. El layout ya redirige, pero no corre en una
   // navegación del lado del cliente; esto cubre el clic en un enlace a /admin.

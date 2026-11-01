@@ -1,5 +1,6 @@
 "use server";
 
+import { AVISO_COMISION_PAGADA_SIN_DETALLE, avisoDeComisionYaPagada, leerComisionPagadaDelTurno, type ComisionYaPagada } from "@/lib/reports/comision-ya-pagada";
 import { leerPaginaDeFichas, type PaginaDeFichas } from "@/lib/clientes/lista-fichas.server";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
@@ -7,6 +8,7 @@ import { redirect, unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { BUFFER_MIN } from "@/lib/business-config";
 import { DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
+import { resolverPeriodo, type PeriodoPedido } from "@/lib/report-periodo";
 import {
   businessWallTimeToUtc,
   todayInBusinessTz,
@@ -18,7 +20,8 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { whereVentasCobradasConMedio } from "@/lib/order-anulacion";
 import { bookingTransaction, tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { anulacionDeCobro, roleHasCapability, type AnulacionDeCobro } from "@/lib/capabilities";
+import { autorizadoraDeLaAnulacion, codigoDeLaDuena, type ResultadoAutorizacion } from "@/lib/anulacion-autorizada";
 import { recordMovement } from "@/lib/stock/ledger";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { generateSlotsForDays } from "@/lib/booking-slots";
@@ -30,6 +33,7 @@ import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
 import { logger } from "@/lib/logger";
 import { RechazoDeDominio, motivoMostrable, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { mensajeParaLaClienta } from "@/lib/reserva-publica-mensaje";
+import { notaDeReservaPublica } from "@/lib/reserva-publica-notas";
 import { cobroTurnoDetail, settleAppointmentPaymentGuarded, type SettleOutcome } from "@/lib/caja/cobro-turno";
 import {
   aplicarCobroTurnoInTx,
@@ -50,11 +54,14 @@ import {
   type MetodoDePago,
 } from "@/lib/turnos/cobros";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
-import { avisoDeEspera, motivoDeDevolucion, planSeniaAlCerrar } from "@/lib/turnos/practica";
+import { avisoDeEspera, motivoDeDevolucion, planSeniaAlCerrar, puedeCambiarOnline } from "@/lib/turnos/practica";
+import { politicaVigente } from "@/lib/turnos/practica.server";
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { agruparIngresos, bordesDelPeriodo } from "@/lib/report-ingresos";
 import {
   anularCobroTurnoInTx,
+  MENSAJE_SIN_ANULAR,
+  mensajeSinDevolver,
   cobrosAnulables,
   condonarSaldoTurnoInTx,
   cobrosDetalladosPorTurno,
@@ -494,6 +501,8 @@ export async function createAppointment(formData: FormData): Promise<ResultadoAc
   const clientEmail = String(formData.get("clientEmail") || "");
   const isResident = formData.get("isResident") === "on";
   const couponCode = String(formData.get("couponCode") || "").trim() || undefined;
+  // La nota de la reserva (el taller manda la patente y el modelo): recortada y sin espacios; vacía, nada.
+  const notes = notaDeReservaPublica(formData.get("notes")) ?? undefined;
 
   // CH-A1 · AUTORIDAD SERVER: el teléfono (canal del recordatorio) y el email —si viene— tienen
   // que ser válidos, o el turno entra pero el aviso nunca llega. No se confía en el cliente.
@@ -521,6 +530,7 @@ export async function createAppointment(formData: FormData): Promise<ResultadoAc
       status: "PENDING",
       isResident,
       couponCode,
+      notes,
       soloFuturo: true,
     });
 
@@ -683,7 +693,7 @@ export async function createBookingFromModal(input: {
   clientEmail?: string;
   isResident?: boolean;
   couponCode?: string;
-}): Promise<{ ok: true; id: string; startsAt: string } | { ok: false; error: string }> {
+}): Promise<{ ok: true; id: string; startsAt: string; horasParaCambiar: number | null; plazoVencido: boolean } | { ok: false; error: string }> {
   const clientName = input.clientName.trim();
   const clientPhone = input.clientPhone.trim();
   const isResident = !!input.isResident;
@@ -729,7 +739,15 @@ export async function createBookingFromModal(input: {
       },
     });
 
-    return { ok: true, id: appointment.id, startsAt: appointment.startsAt.toISOString() };
+    // Lo que el paso 5 promete sale de la regla real (U1, U2). El turno ya está: si esto falla, no hay plazo que prometer.
+    const politica = await politicaVigente().catch(() => null);
+    return {
+      ok: true,
+      id: appointment.id,
+      startsAt: appointment.startsAt.toISOString(),
+      horasParaCambiar: politica?.horasMinimas ?? null,
+      plazoVencido: politica ? !puedeCambiarOnline({ startsAt: appointment.startsAt, ahora: new Date(), politica }).ok : false,
+    };
   } catch (e) {
     unstable_rethrow(e);
     return { ok: false, error: mensajeParaLaClienta(e, NO_SE_PUDO_RESERVAR, "reserva.modal") };
@@ -1275,15 +1293,17 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
  * Anula UN cobro concreto: asienta la contrapartida (una `Collection` negativa que baja
  * Σ cobros), revierte el asiento del libro con un EGRESO del mismo monto, medio y fecha
  * contable, y recalcula el `Payment` agregado. Idempotente: anular dos veces no duplica la
- * reversa. Auditada con el motivo, que es obligatorio.
+ * reversa. Auditada con quién anuló, quién autorizó y el motivo, que es obligatorio.
  *
- * MISMA capacidad y MISMO veredicto que cobrar (`agenda:collect` + `puedeCobrarEsteTurno`):
- * quien puede tomar la plata es quien puede devolverla. Si la profesional que cobra aparte
- * es la única que puede cobrar su turno, es también la única que puede anular ese cobro —
- * lo contrario dejaría a la recepción deshaciendo plata que no manejó.
+ * QUIÉN ANULA (orden del dueño, 31/10/2026, para todos los negocios): la dueña, directo;
+ * recepción, con el código que la dueña saca para ESE cobro; la profesional, no, ni el suyo
+ * (`anulacionDeCobro`). Recepción tampoco anula el turno de la profesional que cobra aparte: es
+ * plata que no pasó por el mostrador, y lo resuelve la dueña.
  */
 export async function anularCobroTurno(formData: FormData): Promise<ResultadoAccion> {
   const user = await requireCapability("agenda:collect");
+  const politica = anulacionDeCobro(user.role);
+  if (!politica) return { ok: false, error: MENSAJE_SIN_ANULAR };
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const collectionId = String(formData.get("collectionId") || "").trim();
   const appointmentId = String(formData.get("appointmentId") || "").trim();
@@ -1306,7 +1326,11 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
     nombreProfesional: delTurno.nombre,
     cobraEnMostrador: delTurno.cobraEnMostrador,
   });
-  if (!veredicto.ok) return { ok: false, error: veredicto.motivo };
+  if (!veredicto.ok) return { ok: false, error: `${delTurno.nombre ?? "Esa profesional"} cobra aparte: anular este cobro lo hace la dueña.` };
+
+  // Antes de abrir la transacción: sin autorización no se escribe ni se bloquea nada.
+  const autorizacion = await autorizadoraDeLaAnulacion(user, politica, tenantId, collectionId, formData.get("codigo"));
+  if (!autorizacion.ok) return autorizacion;
 
   // La frontera de congelamiento se lee una vez, fuera de la tx: es estado del tenant, no
   // del turno. La regla la aplica el repositorio contra la fecha CONTABLE del asiento.
@@ -1319,10 +1343,6 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
           where: { id: appointmentId },
           include: { service: { select: { price: true } } },
         });
-        // Invariante DURA dentro de la tx, igual que en el cobro: la profesional toca LO SUYO.
-        if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
-          throw new Error("Ese turno es de otra profesional: sólo podés anular cobros de los tuyos.");
-        }
         return anularCobroTurnoInTx(tx, tenantId, {
           collectionId,
           appointmentId,
@@ -1367,14 +1387,29 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
     });
   }
 
+  // Comisión ya pagada de este turno: SÓLO un aviso (cert ronda 2, F2). La anulación ya quedó firme y
+  // no depende de esto: si la lectura falla, se anuló igual y se contesta sin el aviso.
+  let comisionPagada: ComisionYaPagada | null = null;
+  try {
+    comisionPagada = await leerComisionPagadaDelTurno(prisma, tenantId, appointmentId);
+  } catch (e) {
+    logger.warn("caja", "anularCobroTurno: no se pudo leer si la comisión ya estaba pagada", { tenantId, appointmentId, error: String(e) });
+  }
+
   await auditAdmin({
     action: "void_collection",
     entity: "Appointment",
     entityId: appointmentId,
     changes: {
       collectionId,
+      ...(comisionPagada ? { comisionYaPagada: { payoutId: comisionPagada.payoutId, monto: comisionPagada.monto } } : {}),
       motivo: motivoV.motivo,
       monto: settled.value.monto,
+      anuladaPor: user.id,
+      anuladaPorNombre: user.name,
+      anuladaPorRol: user.role,
+      autorizadaPor: autorizacion.duena.id,
+      autorizadaPorNombre: autorizacion.duena.nombre,
       cobrado: settled.value.cobradoDespues,
       saldo: settled.value.saldoDespues,
       libroCaja: settled.outcome === "degraded" ? "sin-migrar" : settled.value.libro,
@@ -1387,7 +1422,37 @@ export async function anularCobroTurno(formData: FormData): Promise<ResultadoAcc
   revalidatePath("/admin/reportes");
   revalidatePath("/admin/caja");
   revalidatePath("/admin/caja/libro");
-  return { ok: true };
+  revalidatePath("/admin/comisiones");
+  if (!comisionPagada) return { ok: true };
+  // Nombre y monto de la liquidación sólo con `reports:read`: lo mismo que protege la pantalla de comisiones.
+  return { ok: true, aviso: roleHasCapability(user.role, "reports:read") ? avisoDeComisionYaPagada(comisionPagada) : AVISO_COMISION_PAGADA_SIN_DETALLE };
+}
+
+/**
+ * «Autorizar anulación»: la dueña saca el código de UN cobro para que recepción lo anule. Sólo
+ * calcula y deja rastro; la plata no se mueve hasta que recepción anula. El código nunca se guarda:
+ * ni en la base ni en la auditoría.
+ */
+export async function autorizarAnulacionCobro(formData: FormData): Promise<ResultadoAutorizacion> {
+  const user = await requireCapability("agenda:collect");
+  if (anulacionDeCobro(user.role) !== "directa") return { ok: false, error: "Autorizar una anulación lo hace la dueña." };
+  if (isDemoSandbox()) return { ok: false, error: "En la demo no se sacan códigos." };
+  const collectionId = String(formData.get("collectionId") || "").trim();
+  const appointmentId = String(formData.get("appointmentId") || "").trim();
+  if (!collectionId || !appointmentId) return { ok: false, error: "Falta identificar el cobro." };
+  const tenantId = await getCurrentTenantId();
+  const cobros = (await cobrosDetalladosPorTurno(prisma, tenantId, [appointmentId])).get(appointmentId) ?? [];
+  const cobro = cobrosAnulables(cobros).find((c) => c.id === collectionId);
+  if (!cobro) return { ok: false, error: "Ese cobro ya no se puede anular. Recargá la agenda." };
+
+  const { codigo, venceA, vence } = codigoDeLaDuena(tenantId, collectionId, user.id);
+  await auditAdmin({
+    action: "authorize_void_collection",
+    entity: "Appointment",
+    entityId: appointmentId,
+    changes: { collectionId, monto: cobro.amount, autorizadaPor: user.id, autorizadaPorNombre: user.name, vence },
+  });
+  return { ok: true, codigo, venceA };
 }
 
 /**
@@ -1513,9 +1578,16 @@ export async function confirmarTurno(formData: FormData): Promise<ResultadoAccio
   return { ok: true };
 }
 
-export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
+// Cuánto duró un turno. Es una duración, no un reloj: `getReportData` fecha y agrupa sólo por el cobro.
+function horasDelTurno(turno: { startsAt: Date; endsAt: Date }): number {
+  return Math.max(0, turno.endsAt.getTime() - turno.startsAt.getTime()) / 3_600_000;
+}
+
+export async function getReportData(pedido: PeriodoPedido = DEFAULT_REPORT_RANGE_DAYS) {
   await requireCapability("reports:read");
-  if (isDemoSandbox()) return getDemoReportData(rangeDays);
+  const periodo = resolverPeriodo(pedido, todayInBusinessTz());
+  const { desde, hasta } = bordesDelPeriodo(periodo.ultimoDia, periodo.dias, businessWallTimeToUtc);
+  if (isDemoSandbox()) return { ...getDemoReportData(periodo.dias), desde, hasta, periodo };
   const tenantId = await getCurrentTenantId();
   // Ingresos (pagos aprobados). Las comisiones ya NO se calculan acá: viven en
   // `commission-actions.ts` (getCommissionsOverview), única fuente de verdad
@@ -1543,14 +1615,23 @@ export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAY
   //
   // Y los bordes se snapean al día de negocio. Eran un instante a media tarde, así que la
   // primera fila siempre era un día PARCIAL sin nada que lo dijera.
-  const { desde, hasta } = bordesDelPeriodo(todayInBusinessTz(), rangeDays, businessWallTimeToUtc);
+  // Lo cobrado en el tramo anterior: una sola suma en la base, para comparar el total de arriba.
+  const previo = bordesDelPeriodo(periodo.anterior.ultimoDia, periodo.anterior.dias, businessWallTimeToUtc);
+  const anterior = await prisma.payment.aggregate({
+    where: { tenantId, status: "APPROVED", createdAt: { gte: previo.desde, lte: previo.hasta } },
+    _sum: { amount: true },
+  });
   const payments = await prisma.payment.findMany({
     where: { tenantId, status: "APPROVED", createdAt: { gte: desde, lte: hasta } },
     select: {
       amount: true,
       createdAt: true,
+      method: true,
       appointment: {
         select: {
+          status: true,
+          startsAt: true,
+          endsAt: true,
           professional: { select: { name: true } },
           service: { select: { name: true } },
         },
@@ -1568,11 +1649,14 @@ export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAY
       cobradoEn: p.createdAt,
       profesional: p.appointment.professional.name,
       servicio: p.appointment.service.name,
+      metodo: p.method,
+      completado: p.appointment.status === "COMPLETED",
+      horas: horasDelTurno(p.appointment),
     })),
     dateStrInBusinessTz,
   );
 
-  return { rangeDays, desde, hasta, ...agrupado };
+  return { rangeDays: periodo.dias, desde, hasta, periodo, totalAnterior: anterior._sum.amount ?? 0, ...agrupado };
 }
 
 // Reportes v2 (frente ejecutivo): KPIs profundos para el dueño — fuga operativa
@@ -1581,13 +1665,16 @@ export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAY
 // tocarlo. Una sola query de turnos acotada por tenant + rango (índice
 // `[tenantId, startsAt]`); la agregación vive en `report-kpis.ts` (lógica pura,
 // testeada). Read-only y range-bounded — sano para el plan free de Neon.
-export async function getDeepReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
+export async function getDeepReportData(pedido: PeriodoPedido = DEFAULT_REPORT_RANGE_DAYS) {
   await requireCapability("reports:read");
-  if (isDemoSandbox()) return getDemoDeepReportData(rangeDays);
+  const periodo = resolverPeriodo(pedido, todayInBusinessTz());
+  if (isDemoSandbox()) return getDemoDeepReportData(periodo.dias);
   const tenantId = await getCurrentTenantId();
 
-  const hasta = new Date();
-  const desde = new Date(hasta.getTime() - rangeDays * 24 * 60 * 60 * 1000);
+  // Los mismos días que los cobros de arriba, y sólo hasta ahora: un turno de mañana todavía no pasó.
+  const bordes = bordesDelPeriodo(periodo.ultimoDia, periodo.dias, businessWallTimeToUtc);
+  const desde = bordes.desde;
+  const hasta = new Date(Math.min(Date.now(), bordes.hasta.getTime()));
 
   const appointments = await prisma.appointment.findMany({
     where: { tenantId, startsAt: { gte: desde, lte: hasta } },
@@ -1615,7 +1702,7 @@ export async function getDeepReportData(rangeDays: number = DEFAULT_REPORT_RANGE
   }));
 
   return {
-    rangeDays,
+    rangeDays: periodo.dias,
     desde,
     hasta,
     totalTurnos: mapped.length,
@@ -1631,12 +1718,12 @@ export async function getDeepReportData(rangeDays: number = DEFAULT_REPORT_RANGE
 // sola query range-bounded sobre una ventana ancha que se rebana en memoria — no
 // golpea Neon más de una vez y respeta el plan free. La narrativa/tendencia se computa
 // en la página (funciones puras owner-insights/owner-trends), acá solo el dato.
-export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
+export async function getOwnerPanelData(pedido: PeriodoPedido = DEFAULT_REPORT_RANGE_DAYS) {
   await requireCapability("reports:read");
-  if (isDemoSandbox()) return getDemoOwnerPanelData(rangeDays);
+  const periodo = resolverPeriodo(pedido, todayInBusinessTz());
+  if (isDemoSandbox()) return getDemoOwnerPanelData(periodo.dias);
   const tenantId = await getCurrentTenantId();
 
-  const DAY_MS = 24 * 60 * 60 * 1000;
   const TREND_MONTHS = 6; // meses completos objetivo para la serie de tendencia
   const hasta = new Date();
 
@@ -1644,7 +1731,8 @@ export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE
   // delta de insights [now - 2*range] y (b) el inicio del bloque de tendencia
   // [primer día del mes, TREND_MONTHS atrás]. Una query cubre ambos usos.
   const trendStart = new Date(hasta.getFullYear(), hasta.getMonth() - TREND_MONTHS, 1);
-  const prevStart = new Date(hasta.getTime() - 2 * rangeDays * DAY_MS);
+  const actual = bordesDelPeriodo(periodo.ultimoDia, periodo.dias, businessWallTimeToUtc);
+  const prevStart = bordesDelPeriodo(periodo.anterior.ultimoDia, periodo.anterior.dias, businessWallTimeToUtc).desde;
   const desde = trendStart < prevStart ? trendStart : prevStart;
 
   const appointments = await prisma.appointment.findMany({
@@ -1673,9 +1761,8 @@ export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE
 
   // Insights: período actual vs. el previo de igual largo (comparación contra vos
   // mismo — no requiere ADR-027 ni otros tenants).
-  const curStart = new Date(hasta.getTime() - rangeDays * DAY_MS);
-  const current = computeDeepKpis(mapped.filter((a) => a.startsAt >= curStart));
-  const prevList = mapped.filter((a) => a.startsAt >= prevStart && a.startsAt < curStart);
+  const current = computeDeepKpis(mapped.filter((a) => a.startsAt >= actual.desde && a.startsAt <= actual.hasta));
+  const prevList = mapped.filter((a) => a.startsAt >= prevStart && a.startsAt < actual.desde);
   const previous = prevList.length > 0 ? computeDeepKpis(prevList) : null;
 
   // Tendencias: buckets por mes calendario (zona del negocio). Se EXCLUYE el mes en
@@ -1696,7 +1783,7 @@ export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE
     .map((month) => ({ month, kpis: computeDeepKpis(byMonth.get(month)!) }));
 
   return {
-    rangeDays,
+    rangeDays: periodo.dias,
     desde,
     hasta,
     hasPrevious: previous !== null,
@@ -1735,7 +1822,14 @@ export async function cancelAppointment(formData: FormData): Promise<ResultadoAc
   const tenantId = await getCurrentTenantId();
   const turno = await prisma.appointment.findFirst({
     where: { id: appointmentId, tenantId },
-    select: { priceAtBooking: true, service: { select: { price: true } }, payment: { select: { status: true, amount: true } } },
+    select: {
+      startsAt: true,
+      serviceId: true,
+      professionalId: true,
+      priceAtBooking: true,
+      service: { select: { price: true, name: true } },
+      payment: { select: { status: true, amount: true } },
+    },
   });
   if (!turno) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
   const cobros = (await cobrosDetalladosPorTurno(prisma, tenantId, [appointmentId])).get(appointmentId) ?? [];
@@ -1756,7 +1850,25 @@ export async function cancelAppointment(formData: FormData): Promise<ResultadoAc
   revalidatePath("/admin/turnos");
   // El hueco que se libera aparece en la lista de espera (huecos liberados).
   revalidatePath("/admin/espera");
-  return { ok: true };
+  const aviso = await avisoDelHuecoLiberado(tenantId, turno);
+  return aviso ? { ok: true, aviso } : { ok: true };
+}
+
+/** E6 + U7: un hueco que todavía no pasó le puede servir a alguien de la lista de espera. Cancelar con y sin seña dicen lo mismo. */
+async function avisoDelHuecoLiberado(
+  tenantId: string,
+  turno: { startsAt: Date; serviceId: string; professionalId: string; service: { name: string } },
+): Promise<string | null> {
+  if (turno.startsAt.getTime() <= Date.now()) return null;
+  const anotadas = await prisma.waitlistEntry.count({
+    where: {
+      tenantId,
+      status: "WAITING",
+      serviceId: turno.serviceId,
+      OR: [{ professionalId: null }, { professionalId: turno.professionalId }],
+    },
+  });
+  return avisoDeEspera({ anotadas, servicio: turno.service.name });
 }
 
 /** `cancelAppointment` sobre un turno con plata cobrada: se cancela por la hoja de la seña. */
@@ -1852,9 +1964,11 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
   const plan = planSeniaAlCerrar({ cobrado: cobradoDe(cobrosAntes), destino: destinoPedido });
   if (!plan.ok) return { ok: false, error: plan.error };
 
-  // Devolver es plata que sale: el mismo permiso que anular un cobro.
+  // Devolver es anular el cobro por otra puerta: sale plata del libro. Por eso, directo sólo la
+  // dueña. Recepción lo hace en dos pasos: anula con el código y después cierra el turno sin plata.
   if (plan.destino === "devolver") {
-    if (!roleHasCapability(user.role, "agenda:collect")) return { ok: false, error: "Devolver una seña lo hace quien cobra los turnos." };
+    const politica = anulacionDeCobro(user.role);
+    if (politica !== "directa") return { ok: false, error: mensajeSinDevolver(politica) };
     const veredicto = puedeCobrarEsteTurno({
       rol: user.role,
       professionalIdDelUsuario: user.professionalId,
@@ -1929,20 +2043,8 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
   revalidatePath("/admin/caja");
   revalidatePath("/admin/espera");
 
-  // E6: un hueco que todavía no pasó le puede servir a alguien de la lista de espera.
-  if (accion === "cancelar" && turno.startsAt.getTime() > Date.now()) {
-    const anotadas = await prisma.waitlistEntry.count({
-      where: {
-        tenantId,
-        status: "WAITING",
-        serviceId: turno.serviceId,
-        OR: [{ professionalId: null }, { professionalId: turno.professionalId }],
-      },
-    });
-    const aviso = avisoDeEspera({ anotadas, servicio: turno.service.name });
-    if (aviso) return { ok: true, aviso };
-  }
-  return { ok: true };
+  const aviso = accion === "cancelar" ? await avisoDelHuecoLiberado(tenantId, turno) : null;
+  return aviso ? { ok: true, aviso } : { ok: true };
 }
 
 // Realizado → Completado: el servicio se prestó Y se cobró el resto. Exige que el turno haya

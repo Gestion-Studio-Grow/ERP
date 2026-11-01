@@ -28,6 +28,13 @@ function previewBloqueado(pathname: string): NextResponse | null {
   );
 }
 
+/** ¿El host es el dominio base (`APP_BASE_DOMAIN`) o su `www.`? Sin dominio base configurado, nunca. PURA. */
+export function esApexDelDominio(host: string | null | undefined, base = process.env.APP_BASE_DOMAIN): boolean {
+  const b = base?.trim().toLowerCase();
+  const h = (host ?? "").split(",")[0].trim().toLowerCase().split(":")[0];
+  return !!b && !!h && (h === b || h === `www.${b}`);
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const bloqueado = previewBloqueado(pathname);
@@ -45,8 +52,12 @@ export async function proxy(request: NextRequest) {
   // Rewrite, no redirect; sólo la raíz. Va antes del portón del sitio: la vidriera de un producto
   // es pública como `/facturita` (ver `gateAplicaA`).
   if (pathname === "/") {
-    const vidriera = vidrieraDelHost(request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? request.nextUrl.host);
+    const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? request.nextUrl.host;
+    const vidriera = vidrieraDelHost(host);
     if (vidriera) return NextResponse.rewrite(new URL(vidriera, request.url), { request: { headers: requestHeaders } });
+    // --- El apex del dominio (`gsgapp.com.ar`, `www.`) es la portada de GSG, no la de un negocio (E1, 29/10/2026):
+    // antes caía a la landing de CH. Sin consulta: es el dominio base, no un negocio.
+    if (esApexDelDominio(host)) return NextResponse.rewrite(new URL("/sin-negocio", request.url), { request: { headers: requestHeaders } });
   }
 
   // --- PORTÓN DEL SITIO PÚBLICO (`SITE_GATE_PASSWORD`).

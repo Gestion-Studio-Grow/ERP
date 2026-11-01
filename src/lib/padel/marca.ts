@@ -25,6 +25,14 @@ export interface MarcaProfe {
   /** Texto sobre la cancha (el botón principal). */
   sobreCancha: string;
   lema: string;
+  /**
+   * Identidad provisional (diseñada por GSG, todavía sin confirmar por el profe): la página lo dice
+   * al pie («Identidad provisoria · …»). No se simula que es la marca real.
+   */
+  provisional?: boolean;
+  /** Ícono (favicon) y placa para compartir (og:image), si el profe los tiene. */
+  icono?: string;
+  og?: string;
 }
 
 const NEUTRA: MarcaProfe = {
@@ -43,8 +51,27 @@ const NEUTRA: MarcaProfe = {
 };
 
 const POR_SLUG: Record<string, MarcaProfe> = {
-  // Matías Consoli (@matiasconsoli): provisional a confirmar. Sin autorización registrada
-  // todavía, va la paleta neutra con su nombre en letras.
+  // Matías Consoli (@matiasconsoli). Autorización de marca registrada (docs/tenants/matiasconsoli/
+  // README.md, 17/10/2026, ADR-034), pero sin material propio todavía: esta identidad la diseñó GSG
+  // y es PROVISIONAL A CONFIRMAR con Matías (fronts/agendaprofe/DISENO.md §3). La cancha real:
+  // alfombra azul, líneas blancas, pelota amarilla, noche del club. El amarillo nunca lleva texto.
+  matiasconsoli: {
+    logo: null,
+    tinta: "#0b1f3a",
+    cancha: "#1f5fd1",
+    vivo: "#d4f24a",
+    papel: "#f3f5f8",
+    texto: "#0f172a",
+    suave: "#52607a",
+    linea: "#d9dfe8",
+    superficie: "#ffffff",
+    sobreTinta: "#ffffff",
+    sobreCancha: "#ffffff",
+    lema: "Clases individuales y con amigos. Elegí día y hora; te confirmo por WhatsApp.",
+    provisional: true,
+    icono: "/tenants/matiasconsoli/marca/monograma.svg",
+    og: "/tenants/matiasconsoli/marca/og.webp",
+  },
 };
 
 export function marcaProfe(slug: string | null | undefined): MarcaProfe {

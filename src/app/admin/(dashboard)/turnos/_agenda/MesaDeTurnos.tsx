@@ -27,7 +27,8 @@ import { Button, Hoja, Marca, Plata, Renglon, hrefConParametros } from "@/compon
 import { MenuMas } from "@/components/ui/MenuMas";
 import { dateStrInBusinessTz, fmtShortDate, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
-import { useToast } from "../../ToastProvider";
+import { useToast, type AccionDelAviso } from "../../ToastProvider";
+import { accionDeConfirmado } from "./aviso-confirmado";
 import {
   estaResuelto,
   fechaCorta,
@@ -49,6 +50,7 @@ import CobrarTurno from "./CobrarTurno";
 import TerminarTurno from "./TerminarTurno";
 import TurnoCajon from "./TurnoCajon";
 import AvisoDeshacerCierre from "./Deshacer";
+import { mensajeSinDevolver } from "@/lib/turnos/anulacion";
 
 type HojaAbierta = { turnoId: string; que: "cobrar" | "terminar" } | null;
 
@@ -151,7 +153,8 @@ export default function MesaDeTurnos({
         turno={turnoDelCierre}
         accion={cierre?.accion ?? "cancelar"}
         ahora={reloj}
-        puedeDevolver={!!turnoDelCierre && permisos.cobrar && turnoDelCierre.veredicto.ok}
+        puedeDevolver={!!turnoDelCierre && permisos.cobrar && permisos.anular === "directa" && turnoDelCierre.veredicto.ok}
+        motivoSinDevolver={mensajeSinDevolver(permisos.anular)}
         onCerrar={() => setCierre(null)}
         conDeshacer
         onListo={(mensaje) => {
@@ -230,13 +233,13 @@ function TeclaDelTurno({ t, paso }: { t: TurnoDelDia; paso: Paso }) {
   const verbo = verboDelPaso(paso);
   if (!verbo) return null;
 
-  const directo = (accion: (fd: FormData) => Promise<unknown>, fd: FormData, ok: string) =>
+  const directo = (accion: (fd: FormData) => Promise<unknown>, fd: FormData, ok: string, enElAviso?: AccionDelAviso) =>
     empezar(async () => {
       try {
         const r = leerResultado(await accion(fd));
         if (!r.ok) showError(r.error);
         else {
-          showSuccess(ok);
+          showSuccess(ok, enElAviso);
           if (r?.aviso) showError(r.aviso);
         }
       } catch {
@@ -255,7 +258,7 @@ function TeclaDelTurno({ t, paso }: { t: TurnoDelDia; paso: Paso }) {
           aria-label={etiqueta}
           disabled={pendiente}
           estado={pendiente ? "cargando" : undefined}
-          onClick={() => directo(confirmarTurno, aFormData(camposDelTurno(t.id)), `Confirmado: ${t.clienta}, ${fmtTime(t.inicio)}.`)}
+          onClick={() => directo(confirmarTurno, aFormData(camposDelTurno(t.id)), `Confirmado: ${t.clienta}, ${fmtTime(t.inicio)}.`, accionDeConfirmado(t))}
         >
           Confirmar
         </Button>

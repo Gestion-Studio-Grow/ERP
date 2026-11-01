@@ -10,8 +10,8 @@
 // descontaba stock. Los campos ya existían en `Product` (saleUnit/price/pricePerKg/
 // trackStock) y la action ya los parseaba; faltaba la UI. Cero schema nuevo.
 //
-// Copy neutral de rubro a propósito: el mismo form lo ven una estética, una tienda y una
-// carnicería. "Por peso (kg)" sí, "pesalo" o "cortes" no.
+// Copy neutral de rubro a propósito: este form es el de los negocios de servicios (los de mostrador
+// cargan por `CortesSection`). "Por peso (kg)" se ofrece sólo si el producto ya se vende así.
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -241,7 +241,7 @@ function SaleFields({
           onChange={(e) => setModo(e.target.value === "WEIGHT" ? "WEIGHT" : "UNIT")}
         >
           <option value="UNIT">Por unidad</option>
-          <option value="WEIGHT">Por peso (kg)</option>
+          {saleUnit === "WEIGHT" && <option value="WEIGHT">Por peso (kg)</option>}
         </Select>
       </label>
 

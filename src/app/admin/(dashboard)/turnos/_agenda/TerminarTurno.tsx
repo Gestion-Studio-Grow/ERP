@@ -18,6 +18,7 @@ import { useState, useTransition } from "react";
 import { completeAppointment } from "@/lib/actions";
 import { Button, Plata } from "@/components/ui";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
+import { useRouter } from "next/navigation";
 import { useToast } from "../../ToastProvider";
 import { pesos, type EstadoDelTurno } from "../agenda-core";
 import TeclasDeMedio from "../cerrar/TeclasDeMedio";
@@ -33,6 +34,7 @@ export default function TerminarTurno({
   saldo,
   puedeCobrar,
   motivoSinCobro,
+  proximo,
   onListo,
 }: {
   turnoId: string;
@@ -44,9 +46,12 @@ export default function TerminarTurno({
   puedeCobrar: boolean;
   /** Por qué no (la frase de `puedeCobrarEsteTurno`). */
   motivoSinCobro?: string;
+  /** Agenda práctica: a dónde lleva «Reservar el próximo» desde el aviso de terminado (U8). */
+  proximo?: string | null;
   onListo?: () => void;
 }) {
   const { showError, showSuccess } = useToast();
+  const router = useRouter();
   const [error, setError] = useState("");
   const [enCurso, setEnCurso] = useState<Cobro | undefined>(undefined);
   const [pendiente, empezar] = useTransition();
@@ -64,12 +69,14 @@ export default function TerminarTurno({
           return;
         }
         const hecho = vino ? "Vino" : "Terminado";
+        const destino = proximo && !vino ? proximo : null;
         showSuccess(
           cobro === "dejar-a-cobrar"
             ? `${hecho}: ${clienta}. Queda debiendo ${pesos(saldo)}.`
             : cobro
               ? `${hecho} y cobrado: ${clienta}, ${pesos(saldo)} en ${METODO_LABEL[cobro.metodo].toLowerCase()}.`
               : `${hecho}: ${clienta}.`,
+          destino ? { texto: "Reservar el próximo", alTocar: () => router.push(destino) } : undefined,
         );
         // La factura del turno no salió (ARCA la rechazó): se dice, el turno igual quedó terminado.
         if (r.aviso) showError(r.aviso);

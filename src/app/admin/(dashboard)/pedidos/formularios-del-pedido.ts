@@ -11,7 +11,7 @@
 //   · entregar: id, paymentMethod (sólo si no tildó «Queda a cobrar»: el select deshabilitado no
 //               viajaba), quedaACobrar="on" si lo tildó;
 //   · avanzar:  id;
-//   · anular:   id, motivo, stockNoVolvio="on" si lo tildó.
+//   · anular:   id, motivo, stockNoVolvio="on" si lo tildó, codigo si recepción lo escribió.
 //
 // Lo prueba formularios-del-pedido.test.ts contra lo que armaba cada formulario viejo.
 
@@ -35,12 +35,13 @@ export function camposDeLaEntrega(c: CamposDelCobro & { cobrado: boolean }): [st
 }
 
 /** Lo que manda «Anular» (bandeja de siempre: AnularPedidoForm). */
-export function camposDeLaAnulacion(c: { id: string; motivo: string; stockNoVolvio: boolean }): [string, string][] {
+export function camposDeLaAnulacion(c: { id: string; motivo: string; stockNoVolvio: boolean; codigo?: string }): [string, string][] {
   const out: [string, string][] = [
     ["id", c.id],
     ["motivo", c.motivo],
   ];
   if (c.stockNoVolvio) out.push(["stockNoVolvio", "on"]);
+  if (c.codigo?.trim()) out.push(["codigo", c.codigo.trim()]);
   return out;
 }
 

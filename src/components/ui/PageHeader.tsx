@@ -38,12 +38,12 @@ export function PageHeader({ title, description, badge, actions, className, esta
     >
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-sm">
-          {/* Spec del mockup (fix 6): 27px / 700 / letter-spacing -.02em. */}
-          <h1 className="text-[27px] font-bold leading-tight tracking-[-0.02em] text-strong">{title}</h1>
+          {/* Escala nivel 5 (29/10/2026): 28 px en el celular → 34 px en la PC, 700, -.02em (antes 27 px fijo). */}
+          <h1 className="text-[clamp(1.75rem,1.4rem+1vw,2.125rem)] font-bold leading-[1.12] tracking-[-0.02em] text-strong [text-wrap:balance]">{title}</h1>
           {badge}
         </div>
         {description && (
-          <p data-parte="bajada" className="mt-2xs max-w-2xl text-sm leading-relaxed text-muted">{description}</p>
+          <p data-parte="bajada" className="mt-xs max-w-3xl text-base leading-relaxed text-muted">{description}</p>
         )}
         {estado && <LineaDeEstado datos={estado} />}
       </div>

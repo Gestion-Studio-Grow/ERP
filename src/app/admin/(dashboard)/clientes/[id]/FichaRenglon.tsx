@@ -40,6 +40,7 @@ import EditarClienteForm from "./EditarClienteForm";
 import PermisoMensajes from "./PermisoMensajes";
 import MostradorDeLaFicha from "./MostradorDeLaFicha";
 import { comoVieneMostrador, detalleSinDeuda, estadoDeLaFicha, notaDelRitmo, pedidoSinCobrar, teclaPrincipal } from "./ficha-core";
+import { separarNota } from "@/lib/reserva-publica-notas";
 
 const ESTADO_TURNO: Record<string, string> = {
   PENDING: "Reservado",
@@ -277,7 +278,8 @@ export default async function FichaRenglon({
                         <>
                           {a.professional.name} · {ESTADO_TURNO[a.status] ?? a.status}
                           {a.review ? ` · la calificó con ${a.review.rating} de 5` : ""}
-                          {a.notes && <span className="mt-1 block whitespace-pre-line text-body">{a.notes}</span>}
+                          {separarNota(a.notes).delCliente && <span className="mt-1 block whitespace-pre-line text-muted">Del cliente: {separarNota(a.notes).delCliente}</span>}
+                          {separarNota(a.notes).delEquipo && <span className="mt-1 block whitespace-pre-line text-body">Nota del equipo: {separarNota(a.notes).delEquipo}</span>}
                         </>
                       }
                       // Cancelado o «No vino»: sin monto, para que no se lea como deuda ni como cobrado.

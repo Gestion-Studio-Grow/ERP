@@ -152,3 +152,12 @@ test("el bloque sólo vive bajo [data-brand=\"magra\"]: ningún selector toca a 
     assert.ok(CSS.lastIndexOf(otro) < inicio, `el bloque de Magra boutique va después de ${otro}`);
   }
 });
+
+test("UAT caja M1: con «Diseño nuevo» la paleta carbón de Magra no pisa los tokens de Renglón (claro y oscuro)", () => {
+  // La raíz del panel lleva data-estetica="magra" y data-diseno="renglon" juntos: si la paleta de la estética aplicara,
+  // el texto hueso (#f2e6d7) quedaría sobre el papel claro de Renglón (≈1,2:1). Las dos apariciones del bloque se
+  // apagan bajo Renglón, sin sumar especificidad (`:where`).
+  const bloques = [...CSS.matchAll(/^\[data-skin="fable"\](?:\[data-theme="dark"\])?\[data-estetica="magra"\]([^,{]*)[,{]/gm)];
+  assert.ok(bloques.length >= 4, String(bloques.length));
+  for (const b of bloques) assert.equal(b[1].trim(), ':where(:not([data-diseno="renglon"]))', b[0]);
+});

@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Playfair_Display, Fraunces, Hanken_Grotesk, Bebas_Neue, Open_Sans, Cormorant, Kumbh_Sans } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
+import { FUENTES_CH } from "@/design/fuentes-ch";
 import { getTenantBrand, resolveAccent, tenantFaviconDataUri } from "@/lib/branding";
 import { gsgIdentityEnabled, identityAttr, tenantBrandSheetEnabled } from "@/lib/identity";
 import { getBrandSheet } from "@/lib/brand-sheet";
+import { faviconGsg, NOMBRE_GSG, pestanaDelPedido } from "@/lib/pestana";
+import { canonicalDe, pedidoPublico } from "@/lib/seo/base";
+import { ogDelNegocio } from "@/lib/seo/og";
+import { esRutaPrivada } from "@/lib/seo/sitio";
+import { resolveTenantBrandId } from "@/tenants/storefront";
+import { estadoDeLaDireccion, slugResueltoDelPedido } from "@/lib/tenant";
 import "./globals.css";
 
 // RENDER DINÁMICO APP-WIDE (fix build P1001, 2026-07-10). La app es 100% multi-tenant y
@@ -15,26 +22,24 @@ import "./globals.css";
 export const dynamic = "force-dynamic";
 
 // ============================================================================
-// FUENTES — una sola declaración para toda la app, PERO no todas se precargan.
+// FUENTES POR SUPERFICIE (ronda 2, P0, 30/10/2026)
 // ============================================================================
 //
-// Acá conviven las identidades de CUATRO negocios (spa genérico, CH Estética,
-// Magra, Shine Velas). Declararlas juntas está bien: `next/font` las auto-hospeda
-// y evita el salto de tipografía. El problema era `preload`, que viene en true por
-// defecto: Next inyectaba un <link rel="preload"> de las NUEVE familias en CADA
-// pantalla, así que el backoffice de CH se bajaba también las fuentes de Magra y
-// de Shine — 355 KB de tipografía por pantalla, más que todo el JavaScript.
+// La raíz declara SÓLO Geist (la base de todas las pantallas; precargada sólo en el panel) y Geist Mono (sin precarga). Antes declaraba
+// nueve familias: cada vidriera cargaba los `@font-face` de CH, Magra y Shine, y `--font-body` era Hanken en todo
+// `body`. Ahora cada superficie declara su letra en su propio módulo (next/font la precarga sólo en las rutas que
+// importan ese módulo): CH en src/app/(site)/fuentes.ts, el panel en src/design/fuentes-panel.ts, cada tienda en
+// src/app/tienda/<marca>/fuentes.ts, taller y clases en el suyo.
 //
-// Regla que se aplica abajo: precargan SOLO las que la mayoría de las pantallas
-// usa de verdad (Geist como base + Fraunces/Hanken, la identidad de CH, el tenant
-// vivo en producción). Las de identidad de OTRAS superficies llevan
-// `preload: false`: siguen disponibles por su variable CSS y el navegador las baja
-// recién cuando una pantalla las usa. Con `display: "swap"` el texto se ve desde el
-// primer frame, así que la contrapartida es un cambio de tipografía tardío en la
-// vidriera de esos tenants, no una pantalla en blanco.
+// Excepción temporal: Fraunces + Hanken (src/design/fuentes-ch.ts, SIN precarga) siguen colgadas de <html> por
+// Facturita, que las toma de la raíz (src/app/facturita/piel.ts) y está en otra rama. Sin precarga no bajan nada en
+// las vidrieras que no las pintan. Se van de acá cuando facturin ponga `FUENTES_CH` en su layout.
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  // Sin precarga en la raíz: las vidrieras pintan su propia letra y no la necesitan. El panel la precarga con su
+  // propia declaración (src/design/fuentes-panel.ts, mismo archivo).
+  preload: false,
 });
 
 const geistMono = Geist_Mono({
@@ -45,85 +50,63 @@ const geistMono = Geist_Mono({
   preload: false,
 });
 
-const playfair = Playfair_Display({
-  variable: "--font-spa-serif",
-  subsets: ["latin"],
-  preload: false, // identidad del spa genérico / vidriera, no del backoffice
-});
-
-// Identidad CH Estética (rediseño): display serif editorial + grotesque de cuerpo.
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
-  subsets: ["latin"],
-  style: ["normal", "italic"],
-  display: "swap",
-});
-
-const hanken = Hanken_Grotesk({
-  variable: "--font-hanken",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-// Identidad MAGRA (ADR-072 §8): Bebas Neue (display condensado, cartelería premium) +
-// Open Sans (cuerpo/UI). Familias cargadas acá una sola vez; la vidriera de magra las
-// consume por `--font-bebas` / `--font-open-sans`. Sin descargas por-pantalla.
-const bebasNeue = Bebas_Neue({
-  variable: "--font-bebas",
-  subsets: ["latin"],
-  weight: "400",
-  display: "swap",
-  preload: false, // identidad MAGRA: la baja su vidriera, no el resto de los tenants
-});
-
-const openSans = Open_Sans({
-  variable: "--font-open-sans",
-  subsets: ["latin"],
-  display: "swap",
-  preload: false, // identidad MAGRA (cuerpo)
-});
-
-// Identidad SHINE (manual de marca 2026): serif display DELICADA de alto contraste
-// (Cormorant — sustituto libre de "The Seasons", la primaria del manual) + Kumbh Sans
-// (cuerpo, exactamente la del manual). Cargadas acá una vez; el front de shinevelas las
-// consume por `--font-cormorant` / `--font-kumbh`. Sin descargas por-pantalla, cero CLS.
-const cormorant = Cormorant({
-  variable: "--font-cormorant",
-  subsets: ["latin"],
-  style: ["normal", "italic"],
-  weight: ["400", "500", "600"],
-  display: "swap",
-  // Identidad SHINE y la más cara de todas: 3 pesos × 2 estilos = 6 archivos. Sin
-  // preload no la toca nadie salvo la vidriera de shinevelas.
-  preload: false,
-});
-
-const kumbhSans = Kumbh_Sans({
-  variable: "--font-kumbh",
-  subsets: ["latin"],
-  display: "swap",
-  preload: false, // identidad SHINE (cuerpo)
-});
-
-// Favicon POR TENANT (no más "CH" hardcodeado para toda la app): el ícono de la
-// pestaña sale del monograma + acento del tenant activo, resuelto en cada request
-// (getTenantBrand cachea por request; fail-open al brand por defecto sin DB). Las
-// rutas que definen su propia metadata (p. ej. /tienda) igual la sobreescriben.
-// El title/description siguen siendo el default del spa (la landing (site) los
-// hereda de acá); su versión por-tenant es un follow-up junto con el SEO por ruta.
+// PESTAÑA POR NEGOCIO (E1, 29/10/2026): título e ícono salen del negocio que resuelve el host, en todas las rutas
+// que no declaran los suyos (src/lib/pestana.ts). Antes el título era «Panel de gestión» para toda la app con la
+// ficha de marca apagada, y una dirección sin negocio mostraba el favicon neutro con la landing de CH. Ahora:
+//   · sin negocio → «Gestión Studio Grow» + ícono de GSG, sin indexar;
+//   · con ficha propia (branding.ts) → su nombre y su monograma, sin consultar nada;
+//   · sin ficha → el nombre de la fila Tenant (getBrandSheet, cacheada por pedido; fail-open).
+// Las rutas con metadata propia (/tienda, /taller, /clases, /admin…) igual la sobreescriben.
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await getTenantBrand();
   const { accent } = resolveAccent(brand.preset, brand.frontTheme);
-  // FICHA DE MARCA (RFC-004-D): con `TENANT_BRAND_SHEET_ENABLED` ON, el título sale del nombre
-  // del tenant (DB) — antes estaba HARDCODEADO "CH Estética" para toda la app, así que la
-  // pestaña de cualquier tenant decía CH. Flag OFF → default neutro (ya no CH). Las rutas con
-  // metadata propia (p. ej. /tienda) igual la sobreescriben por tenant.
+  // FICHA DE MARCA (RFC-004-D): con `TENANT_BRAND_SHEET_ENABLED` ON manda el nombre de la ficha, como siempre.
   const sheet = tenantBrandSheetEnabled() ? await getBrandSheet() : null;
-  const title = sheet ? sheet.name : "Panel de gestión";
+  if (sheet) return { title: sheet.name, description: "Gestión del negocio y reservas online.", icons: { icon: tenantFaviconDataUri(brand.monogram, accent) } };
+  // Una base caída no se disfraza de «dirección sin negocio», pero tampoco de negocio (P0 ronda 2): pestaña neutra de
+  // GSG y sin indexar. El cuerpo lo resuelve el layout del sitio (redirige a /sin-servicio).
+  const estado = await estadoDeLaDireccion();
+  if (estado === "sin-servicio") {
+    return { title: NOMBRE_GSG, icons: { icon: faviconGsg() }, robots: { index: false, follow: false } };
+  }
+  const sinNegocio = estado === "sin-negocio";
+  const nombreDelTenant = sinNegocio || brand.propia ? null : (await getBrandSheet()).name;
+  const pestana = pestanaDelPedido({ sinNegocio, brand, nombreDelTenant });
+  if (pestana.tipo === "gsg") {
+    return {
+      title: NOMBRE_GSG,
+      description: "Gestión Studio Grow: sistemas de gestión y vidrieras para negocios.",
+      icons: { icon: faviconGsg() },
+      robots: { index: false, follow: false },
+    };
+  }
+  // SEO de base (ronda 2, P0): dirección pública, canonical y tarjeta para compartir de cada negocio, por host. Las
+  // páginas con metadata propia pisan título y descripción; el canonical sale de la ruta real del pedido (`x-pathname`,
+  // lo pone el proxy) y vale para todas. Sin query: `?p=…` y los filtros no son páginas distintas.
+  const { origen, ruta } = await pedidoPublico();
+  const slug = await slugResueltoDelPedido().catch(() => null);
+  const og = ogDelNegocio(slug, resolveTenantBrandId(slug));
   return {
-    title,
+    title: pestana.titulo,
     description: "Gestión del negocio y reservas online.",
-    icons: { icon: tenantFaviconDataUri(brand.monogram, accent) },
+    icons: { icon: tenantFaviconDataUri(pestana.glifo, accent) },
+    ...(origen
+      ? {
+          metadataBase: new URL(origen),
+          alternates: { canonical: canonicalDe(origen, ruta) },
+          openGraph: {
+            type: "website",
+            locale: "es_AR",
+            siteName: pestana.titulo,
+            url: canonicalDe(origen, ruta),
+            ...(og ? { images: [{ url: og.src, width: og.width, height: og.height, alt: og.alt, type: "image/webp" }] } : {}),
+          },
+          twitter: { card: og ? "summary_large_image" : "summary" },
+        }
+      : {}),
+    // Paneles, turnos y pedidos de una persona no se indexan aunque la página no lo diga (mismo listado que el robots).
+    robots: esRutaPrivada(ruta) ? { index: false, follow: false } : { index: true, follow: true },
+    generator: "GSG",
   };
 }
 
@@ -142,7 +125,7 @@ export default function RootLayout({
     <html
       lang="es"
       data-identity={identity}
-      className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} ${fraunces.variable} ${hanken.variable} ${bebasNeue.variable} ${openSans.variable} ${cormorant.variable} ${kumbhSans.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${FUENTES_CH} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

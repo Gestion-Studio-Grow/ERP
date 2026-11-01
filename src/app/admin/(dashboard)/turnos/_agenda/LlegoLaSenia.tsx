@@ -56,7 +56,7 @@ export default function LlegoLaSenia({
   const [medio, setMedio] = useState<MetodoDePago>(medioInicial);
   const [cambiando, setCambiando] = useState(false);
   const [error, setError] = useState("");
-  const [hecho, setHecho] = useState<{ cobroId: string; monto: number; medio: MetodoDePago; confirmo: boolean } | null>(null);
+  const [hecho, setHecho] = useState<{ cobroId: string; monto: number; medio: MetodoDePago; confirmo: boolean; sePuedeDeshacer: boolean } | null>(null);
   const [pendiente, empezar] = useTransition();
 
   if (!(monto > 0) && !hecho) return null;
@@ -73,7 +73,7 @@ export default function LlegoLaSenia({
         }
         setCambiando(false);
         if (r.cobroId) {
-          setHecho({ cobroId: r.cobroId, monto: r.monto, medio, confirmo: r.confirmo });
+          setHecho({ cobroId: r.cobroId, monto: r.monto, medio, confirmo: r.confirmo, sePuedeDeshacer: r.sePuedeDeshacer === true });
           return;
         }
         showSuccess(r.aviso ?? `Confirmado: ${clienta}.`);
@@ -109,7 +109,7 @@ export default function LlegoLaSenia({
             : `Seña de ${pesosDelCobro(hecho.monto)} por ${METODO_LABEL[hecho.medio].toLowerCase()} registrada. El turno de ${clienta} lo confirma la recepción.`
         }
         duracion={DURACION_DESHACER_MS}
-        onDeshacer={pendiente ? undefined : () => deshacer(hecho.cobroId, hecho.confirmo)}
+        onDeshacer={pendiente || !hecho.sePuedeDeshacer ? undefined : () => deshacer(hecho.cobroId, hecho.confirmo)}
         onTermina={() => {
           setHecho(null);
           onListo?.();

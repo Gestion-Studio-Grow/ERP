@@ -6,7 +6,12 @@
 //
 // Llegar al final llama `onConfirmar`; con `enviar`, además manda el <form> que la contiene
 // (`requestSubmit`, así corren la validación y la server action de siempre). La lógica de cuándo
-// confirma es pura y está probada en deslizar-core.test.ts.
+// confirma es pura y está probada en deslizar-core.test.ts; el gesto con el dedo, en
+// deslizar-tactil.test.ts.
+//
+// `touch-none` en la perilla: sin eso el navegador toma el arrastre para desplazar la página, corta
+// con `pointercancel` y en un celular nunca se llega al final. Va sólo en la perilla: desde el resto
+// de la pista la página se sigue desplazando con el dedo.
 
 import { useRef, useState } from "react";
 import { cn } from "./cn";
@@ -88,7 +93,7 @@ export function DeslizarParaConfirmar({ texto, etiqueta, textoHecho = "Listo", o
         aria-valuenow={Math.round(avance * 100)}
         aria-valuetext={estado === "hecho" ? textoHecho : `${Math.round(avance * 100)} %: llevala hasta el final para confirmar`}
         aria-disabled={bloqueado || undefined}
-        className="relative z-10 grid size-13 place-items-center rounded-full bg-accent text-on-accent"
+        className="relative z-10 grid size-13 touch-none place-items-center rounded-full bg-accent text-on-accent"
         onPointerDown={(e) => {
           if (bloqueado) return;
           x0.current = e.clientX;
@@ -99,10 +104,13 @@ export function DeslizarParaConfirmar({ texto, etiqueta, textoHecho = "Listo", o
           if (x0.current === null) return;
           setAvance(avanceDe(e.clientX - x0.current, recorrido()));
         }}
-        onPointerUp={() => {
+        onPointerUp={(e) => {
           if (x0.current === null) return;
+          // La posición al soltar y no el último dibujo: en un golpe rápido React puede no haber pintado
+          // el último movimiento, y el avance guardado se quedaría corto.
+          const final = avanceDe(e.clientX - x0.current, recorrido());
           x0.current = null;
-          if (alSoltar(avance) === "confirma") confirmar();
+          if (alSoltar(final) === "confirma") confirmar();
           else {
             setEstado("quieto");
             setAvance(0);

@@ -33,8 +33,9 @@ import { DeslizarParaConfirmar } from "@/components/ui/Deslizar";
 import { Button, Field, Plata, Rotulo } from "@/components/ui";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { fmtTime } from "@/lib/datetime";
+import type { PalabrasDelNegocio } from "@/lib/palabras-del-negocio";
 import { useToast } from "../../ToastProvider";
-import { diferenciasDelCierre, revisarCierre, type CausaProbable } from "./revisar-cierre";
+import { diferenciasDelCierre, revisarCierre, textoDeLaDiferenciaDelDia, type CausaProbable } from "./revisar-cierre";
 
 type CashMethod = ColumnaDelCierre;
 
@@ -108,6 +109,7 @@ export default function ContarYCerrar({
   const contados = columnas.filter((m) => diffs[m] !== null);
   const diferencia = Math.round(contados.reduce((s, m) => s + (diffs[m] ?? 0), 0) * 100) / 100;
   const hayDiferencia = contados.some((m) => diffs[m] !== 0);
+  const sinContar = medios.filter((m) => diffs[m.medio] === null && m.esperado !== 0);
   const efectivo = leerImporte(declarado.EFECTIVO);
   const mpSeMovio = medios.find((m) => m.medio === "MP")?.seMovio ?? false;
   const sinMp = mpSeMovio && diffs.MP === null;
@@ -277,11 +279,7 @@ export default function ContarYCerrar({
         <div className="min-w-0">
           <Rotulo>Diferencia del día</Rotulo>
           <p className="mt-1 text-sm text-body">
-            {contados.length === 0
-              ? "Todavía no contaste nada."
-              : !hayDiferencia
-                ? "Cuadra: lo que contaste es lo que el libro dice."
-                : `${diferencia < 0 ? "Faltan" : "Sobran"} ${fmtMoneyARS(Math.abs(diferencia))}. Queda asentado en el libro como ajuste, con tu nombre.`}
+            {textoDeLaDiferenciaDelDia({ contados: contados.length, hayDiferencia, diferencia, sinContar })}
           </p>
         </div>
         {contados.length > 0 && (
@@ -370,7 +368,7 @@ export default function ContarYCerrar({
  * congelar (lo decide `getCierreDiarioData.reabrir` y lo vuelve a decidir `reabrirDiaAction`). Pide
  * el motivo, que queda en la Auditoría con su nombre. Al cerrar de nuevo, el día vuelve a congelarse.
  */
-export function ReabrirElDia({ day, diaNombre }: { day: string; diaNombre: string }) {
+export function ReabrirElDia({ day, diaNombre, palabras }: { day: string; diaNombre: string; palabras: PalabrasDelNegocio }) {
   const router = useRouter();
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const [abierto, setAbierto] = useState(false);
@@ -390,7 +388,7 @@ export function ReabrirElDia({ day, diaNombre }: { day: string; diaNombre: strin
     <form action={accion} className="flex max-w-xl flex-col gap-3 rounded-md border border-line bg-surface-sunken p-3">
       <input type="hidden" name="day" value={day} />
       <p className="text-sm text-body">
-        Reabrir deja cargar lo que faltó en el {diaNombre} (la venta del cuaderno, la rendición del cadete). Se quitan los ajustes de
+        Reabrir deja cargar lo que faltó en el {diaNombre} ({palabras.reabrirQueFalto}). Se quitan los ajustes de
         este cierre y, al cerrarlo de nuevo, se vuelve a contar. Un mes congelado no se reabre desde acá.
       </p>
       <Field label="Por qué lo reabrís (obligatorio)" htmlFor={`${uid}-motivo`} error={estado && !estado.ok ? estado.error : undefined}>
@@ -401,7 +399,7 @@ export function ReabrirElDia({ day, diaNombre }: { day: string; diaNombre: strin
           rows={2}
           required
           minLength={10}
-          placeholder="faltó cargar una venta del cuaderno"
+          placeholder={palabras.reabrirMotivo}
           className="w-full rounded border border-line-strong bg-surface-raised px-3 py-2 text-sm"
         />
       </Field>

@@ -58,6 +58,12 @@ export type ResumenFicha = {
 
 const ANIO_MS = 365 * 86_400_000;
 
+/** Lo que se debe de ESTE turno, con la misma regla que `saldoTurnos`: COMPLETADO con saldo. Si no, 0. */
+export function saldoDelTurnoDeFicha(t: Pick<TurnoDeFicha, "status" | "precio" | "cobros" | "pagoLegado">): number {
+  const { saldo } = estadoCobroTurno({ precio: t.precio, cobros: t.cobros, pagoLegado: t.pagoLegado });
+  return esCuentaACobrar({ status: t.status, saldo }) ? saldo : 0;
+}
+
 export function resumirFicha(input: {
   turnos: readonly TurnoDeFicha[];
   pedidos: readonly PedidoDeFicha[];

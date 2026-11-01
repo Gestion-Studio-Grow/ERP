@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { FUENTES_PANEL } from "@/design/fuentes-panel";
 import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import { getProductoContexto } from "@/lib/producto";
@@ -18,6 +19,8 @@ import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
 import { marcaProductora } from "@/lib/proyectos/marca";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { getBrandSheet } from "@/lib/brand-sheet";
+import { pestanaDelPedido } from "@/lib/pestana";
 
 // Título neutro + sin indexar, igual que el resto de /admin — esta pantalla vive
 // FUERA de (dashboard) (proxy.ts la deja pasar sin sesión) así que no hereda su
@@ -25,11 +28,14 @@ import { getCurrentTenantSlug } from "@/lib/tenant-site";
 // filtrando la marca de CH a la pestaña del login de CUALQUIER tenant (J-2).
 // Sello GSG: el login es la primera impresión del producto — GSG firma como
 // generador (discreto, en metadata + pie), el tenant conserva SU marca visible.
-export const metadata: Metadata = {
-  title: "Ingresá a tu panel",
-  robots: { index: false, follow: false },
-  generator: "Gestión Studio Grow",
-};
+// Pestaña POR NEGOCIO (E1, 29/10/2026): «Ingresá · Magra»; una dirección sin negocio no nombra a nadie.
+export async function generateMetadata(): Promise<Metadata> {
+  const base = { robots: { index: false, follow: false }, generator: "Gestión Studio Grow" } satisfies Metadata;
+  if (!(await direccionConNegocio().catch(() => false))) return { ...base, title: "Ingresá a tu panel" };
+  const brand = await getTenantBrand();
+  const { titulo } = pestanaDelPedido({ sinNegocio: false, brand, nombreDelTenant: brand.propia ? null : (await getBrandSheet()).name });
+  return { ...base, title: titulo === "Panel de gestión" ? "Ingresá a tu panel" : `Ingresá · ${titulo}` };
+}
 
 export default async function LoginPage({
   searchParams,
@@ -74,6 +80,7 @@ export default async function LoginPage({
   return (
     <main
       data-skin="fable"
+      data-escala="nivel-5"
       // Diseño nuevo: apagado es `undefined` y la raíz queda como siempre (raices-ch.test.ts).
       data-diseno={nuevo ? PIEL_RENGLON : undefined}
       data-theme="light"
@@ -91,8 +98,8 @@ export default async function LoginPage({
       // Apagado, la misma clase de siempre.
       className={
         nuevo
-          ? RAIZ_HOJA_DE_INGRESO
-          : `min-h-screen flex flex-col items-center justify-center bg-surface text-body px-4 py-10 sm:px-6${esteticaDelIngreso ? ` ${claseDeFuentes(esteticaDelIngreso)}` : ""}`
+          ? `${RAIZ_HOJA_DE_INGRESO} ${FUENTES_PANEL}`
+          : `min-h-screen flex flex-col items-center justify-center bg-surface text-body px-4 py-10 sm:px-6 ${FUENTES_PANEL}${esteticaDelIngreso ? ` ${claseDeFuentes(esteticaDelIngreso)}` : ""}`
       }
     >
       {/* Corrige el data-theme ANTES del primer paint (sistema/localStorage). */}

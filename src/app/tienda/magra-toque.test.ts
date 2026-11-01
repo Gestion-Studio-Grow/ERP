@@ -4,7 +4,7 @@
 //
 // El gate «visual-aa» (scripts/qa/visual-audit.mjs) mide también la home y /tienda del negocio
 // «magra» (prisma/seed-magra.ts, slug magra-demo): su vidriera es el front editorial propio
-// (MagraFront.tsx), no la genérica. Se mide igual que el gate, sin servidor: el markup real con
+// (magra/, servido por MagraFront.tsx), no la genérica. Se mide igual que el gate, sin servidor: el markup real con
 // react-dom/server, el CSS real (globals.css compilado con Tailwind), Chromium a 412 px y la MISMA
 // función de medición (`auditInPage`, vía src/test/navegador.ts).
 
@@ -17,7 +17,9 @@ import { getRetailRubro } from "@/blueprints/retail/rubros";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { abrirNavegador, medirComoElGate, TOQUE_MIN } from "@/test/navegador";
 
-let MagraFront: typeof import("./MagraFront").default;
+// La piel de la vidriera (CSS + parte del navegador) sin las letras de next/font, que sólo existen
+// compiladas por Next: el mismo markup que sirve /tienda, con las letras de respaldo.
+let MagraFront: typeof import("./magra/MagraPiel").default;
 
 /** Diez cortes del rubro carnicería, por kilo y por unidad, como los que siembra el gate. */
 function cortes() {
@@ -49,7 +51,7 @@ describe("La vidriera de MAGRA en el celular: todo lo que se toca mide 44 px o m
 
   before(async () => {
     prepararAccionesDeServidor();
-    MagraFront = (await import("./MagraFront")).default;
+    MagraFront = (await import("./magra/MagraPiel")).default;
     const n = await abrirNavegador();
     if ("sinNavegador" in n) sinNavegador = n.sinNavegador;
     else ({ browser, css } = n);

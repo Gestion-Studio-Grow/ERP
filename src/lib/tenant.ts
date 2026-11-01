@@ -324,3 +324,20 @@ export async function direccionConNegocio(resolver: () => Promise<string> = getC
     throw e;
   }
 }
+
+/** Lo que se sabe de la dirección del pedido: lleva a un negocio, no lleva a ninguno, o no se puede saber (base caída). */
+export type EstadoDeLaDireccion = "negocio" | "sin-negocio" | "sin-servicio";
+
+/**
+ * Como `direccionConNegocio`, pero sin tirar: la falla de la base es un estado propio (`"sin-servicio"`). FAIL-SAFE (P0
+ * ronda 2, 30/10/2026): antes las páginas públicas trataban «no sé» como «hay negocio» y, con la base caída, cualquier
+ * host pintaba la landing de CH. Ahora quien llama decide qué mostrar en cada caso — el sitio público, una página neutra
+ * de GSG. `resolver` inyectable para testear sin request.
+ */
+export async function estadoDeLaDireccion(resolver: () => Promise<string> = getCurrentTenantId): Promise<EstadoDeLaDireccion> {
+  try {
+    return (await direccionConNegocio(resolver)) ? "negocio" : "sin-negocio";
+  } catch {
+    return "sin-servicio";
+  }
+}

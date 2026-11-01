@@ -45,7 +45,8 @@ import {
 // condonado. El import va en esta dirección y sólo en esta: `anulacion.ts` NO importa este
 // módulo (que sí trae el namespace de Prisma como valor), así que el client component que
 // importa `anulacion.ts` no arrastra el runtime de Prisma al bundle del browser.
-import { claseDeCobro, desglosarCobros } from "./anulacion";
+import { claseDeCobro, cobroAnuladoPor, desglosarCobros } from "./anulacion";
+import { claveDeSenia } from "./cobro-dividido";
 
 export type CobroTurnoTx = Prisma.TransactionClient;
 
@@ -178,6 +179,29 @@ async function loadCobros(tx: CobroTurnoTx, tenantId: string, appointmentId: str
     select: { amount: true, method: true, note: true },
   });
   return rows.map((r) => ({ amount: r.amount.toNumber(), method: r.method, note: r.note }));
+}
+
+/**
+ * La clave con que se cobra AHORA la seña del turno: la primera de la serie `senia:<turno>`,
+ * `senia:<turno>:2`… que no pertenece a un cobro anulado. Una seña deshecha, anulada o devuelta que
+ * vuelve a llegar es plata nueva: con la clave de la fila anulada chocaba, contestaba «ya estaba
+ * cobrada» y no dejaba asiento (cert ronda 2, F1).
+ *
+ * Si la clave la tiene un cobro en pie, sigue siendo esa: `aplicarCobroTurnoInTx` contesta «duplicate»
+ * como siempre. Sale sólo de las filas del turno, así dos pedidos a la vez sacan la misma clave y el
+ * `@@unique([tenantId, idempotencyKey])` deja pasar a uno.
+ */
+export async function claveDeSeniaAhoraInTx(tx: CobroTurnoTx, tenantId: string, appointmentId: string): Promise<string> {
+  const filas = await tx.collection.findMany({
+    where: { tenantId, originType: "APPOINTMENT", originId: appointmentId },
+    select: { id: true, idempotencyKey: true, note: true },
+  });
+  const anulados = new Set(filas.map((f) => cobroAnuladoPor(f.note)));
+  for (let intento = 1; ; intento++) {
+    const clave = claveDeSenia(appointmentId, intento);
+    const fila = filas.find((f) => f.idempotencyKey === clave);
+    if (!fila || !anulados.has(fila.id)) return clave;
+  }
 }
 
 export async function aplicarCobroTurnoInTx(

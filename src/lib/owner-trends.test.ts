@@ -25,7 +25,7 @@ test("plano: ticket que apenas se mueve → flat con racha", () => {
   assert.ok(t);
   assert.equal(t!.direction, "flat");
   assert.equal(t!.sentiment, "neutral");
-  assert.match(t!.title, /viene plano/);
+  assert.match(t!.title, /viene sin cambios/);
 });
 
 // --- Subida / bajada + sentimiento --------------------------------------------

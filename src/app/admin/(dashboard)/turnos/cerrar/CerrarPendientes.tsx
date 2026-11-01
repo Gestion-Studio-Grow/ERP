@@ -34,6 +34,7 @@ import { pesos } from "../agenda-core";
 import TeclasDeMedio from "./TeclasDeMedio";
 import {
   VACIO,
+  salidaDelVacio,
   agruparPorDia,
   alternar,
   alternarTodos,
@@ -62,6 +63,7 @@ import {
   type PermisosDeLaBandeja,
   type TurnoPendiente,
 } from "./cerrar-core";
+import { mensajeSinDevolver } from "@/lib/turnos/anulacion";
 
 type EstadoDeLinea = { fase: "corriendo" } | { fase: "ok" } | { fase: "error"; error: string };
 
@@ -309,8 +311,8 @@ export default function CerrarPendientes({
               {VACIO.titulo}
             </h2>
             <p className="mt-1 text-sm text-muted">Todos los turnos que ya pasaron quedaron cerrados.</p>
-            <Link href={VACIO.accion.href} className={buttonClasses("solid", "md", "mt-5")} {...atributosBoton("solid", "md")}>
-              {VACIO.accion.etiqueta} →
+            <Link href={salidaDelVacio(permisos.veLaCaja === true, permisos.cierraElDia === true).href} className={buttonClasses("solid", "md", "mt-5")} {...atributosBoton("solid", "md")}>
+              {salidaDelVacio(permisos.veLaCaja === true, permisos.cierraElDia === true).etiqueta} →
             </Link>
           </section>
         ) : visibles.length === 0 ? (
@@ -517,12 +519,12 @@ export default function CerrarPendientes({
             <Button type="button" size="lg" className="w-full" onClick={() => noVino(turnoNoVino, "retener")}>
               Se la queda el negocio
             </Button>
-            {cobraEste(turnoNoVino, permisos) ? (
+            {permisos.anular === "directa" && cobraEste(turnoNoVino, permisos) ? (
               <Button type="button" size="lg" variant="outline" className="w-full" onClick={() => noVino(turnoNoVino, "devolver")}>
                 Se la devolvemos (se anula el cobro en la caja)
               </Button>
             ) : (
-              <p className="text-sm text-muted">Para devolverla, que lo haga quien cobra este turno.</p>
+              <p className="text-sm text-muted">{mensajeSinDevolver(permisos.anular ?? null)}</p>
             )}
             <Button type="button" variant="ghost" className="w-full" onClick={() => setHojaNoVino(null)}>
               No, volver

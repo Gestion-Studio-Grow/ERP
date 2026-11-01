@@ -54,7 +54,9 @@ export type ConfigDeMarca = {
 // lo gourmet (lo que no es carne), el cerdo, el pollo; el resto es vaca, que es casi toda la carta.
 
 const MAGRA_GOURMET = /\b(ensalada|merluza|pescado|salmon|sorrentino|raviol|pasta|salsa|conserva|queso|verdura|vegetal)/;
-const MAGRA_CERDO = /\b(cerdo|bondiola|pechito|carre)\b/;
+// Los cortes de cerdo del catálogo real no siempre dicen «cerdo»: «Solomillo (Lamberti)»,
+// «Matambrito (Lamberti)», «Lomito Ahumado (Lamberti)» (scripts/fix-magra-data-2026-07-07.ts).
+const MAGRA_CERDO = /\b(cerdo|bondiola|pechito|carre|solomillo|matambrito|ribs|lomito)\b/;
 const MAGRA_POLLO = /\b(pollo|pechuga|suprema|muslo|pata)\b/;
 
 export function seccionMagra(nombre: string): "vaca" | "cerdo" | "pollo" | "gourmet" {
@@ -185,5 +187,7 @@ export function usaVidrieraNueva(
   // Qué Bien Olés nació con su front de esta generación (tienda/quebienoles): el interruptor no lo
   // reemplaza por la vidriera común. Prenderlo por error le sacaría el 3D y la vitrina de su marca.
   if (front === "quebienoles") return false;
+  // A Dos Manos tiene su vidriera de autor (tienda/adosmanos, «La pared de palas»): ídem.
+  if (front === "adosmanos") return false;
   return nuevo && (identidad.isRetail || Boolean(front) || Boolean(identidad.brandId));
 }

@@ -102,6 +102,7 @@ export default function DarTurnoCajon({
         clienteInicial={clienteInicial}
         profesionalInicial={hueco.profesional || undefined}
         horaInicial={hueco.hora || undefined}
+        servicioInicial={params.get("servicio") ?? undefined}
         ahoraInicial={hueco.ahora}
         viewer={viewer}
         onListo={(fin) => {

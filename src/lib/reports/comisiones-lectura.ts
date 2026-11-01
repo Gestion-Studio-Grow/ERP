@@ -11,14 +11,14 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { aNumero } from "@/lib/debts/resumen-cuentas";
-import { comisionesPendientes, whereTurnosConComisionPendiente, type ComisionPendiente } from "./comisiones";
+import { comisionesPendientes, contarTurnosEsperandoSaldo, whereTurnosConComisionPendiente, type ComisionPendiente, type TurnoPendiente } from "./comisiones";
 
-export async function leerComisionesPendientes(
+async function leerTurnos(
   db: Prisma.TransactionClient,
-  tenantId: string,
-): Promise<ComisionPendiente[]> {
+  where: Prisma.AppointmentWhereInput,
+): Promise<{ turnos: TurnoPendiente[]; overrides: Map<string, Map<string, number>> }> {
   const turnos = await db.appointment.findMany({
-    where: whereTurnosConComisionPendiente(tenantId),
+    where,
     select: {
       id: true,
       serviceId: true,
@@ -45,8 +45,9 @@ export async function leerComisionesPendientes(
       new Map((t.professional?.serviceCommissions ?? []).map((o) => [o.serviceId, o.commissionPercent])),
     );
   }
-  return comisionesPendientes(
-    turnos.map((t) => ({
+  return {
+    overrides,
+    turnos: turnos.map((t) => ({
       id: t.id,
       serviceId: t.serviceId,
       startsAt: t.startsAt,
@@ -57,6 +58,19 @@ export async function leerComisionesPendientes(
       cobros: (t.collections ?? []).map((c) => ({ amount: aNumero(c.amount), method: c.method })),
       payment: t.payment ? { status: t.payment.status, amount: aNumero(t.payment.amount) } : null,
     })),
-    overrides,
-  );
+  };
+}
+
+export async function leerComisionesPendientes(
+  db: Prisma.TransactionClient,
+  tenantId: string,
+): Promise<ComisionPendiente[]> {
+  const { turnos, overrides } = await leerTurnos(db, whereTurnosConComisionPendiente(tenantId));
+  return comisionesPendientes(turnos, overrides);
+}
+
+/** Los turnos terminados y sin liquidar que esperan a que se cobre el saldo, con o sin cobro todavía. */
+export async function leerTurnosEsperandoSaldo(db: Prisma.TransactionClient, tenantId: string): Promise<number> {
+  const { turnos, overrides } = await leerTurnos(db, { tenantId, status: "COMPLETED", commissionPayoutId: null });
+  return contarTurnosEsperandoSaldo(turnos, overrides);
 }

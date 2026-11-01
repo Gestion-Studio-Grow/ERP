@@ -159,21 +159,23 @@ function sentimentOf(direction: TrendDirection, good: MetricGoodDirection): "goo
 
 // Etiqueta amable de la métrica para la narrativa. Fallback: la clave cruda.
 const METRIC_LABEL: Record<string, string> = {
-  tasaNoShow: "tu no-show",
-  tasaCancelacion: "tu cancelación",
-  ticketPromedio: "tu ticket promedio",
-  tasaRecurrencia: "la recurrencia de tus clientes",
-  ingresos: "tu facturación",
+  tasaNoShow: "la tasa de ausencias",
+  tasaCancelacion: "la tasa de cancelación",
+  ticketPromedio: "el ticket promedio",
+  tasaRecurrencia: "la parte de tus clientes que vuelve",
+  ingresos: "la facturación",
 };
 
 function label(metric: string): string {
   return METRIC_LABEL[metric] ?? metric;
 }
 
-// "N períodos" con singular/plural. El PMO ejemplifica con meses, pero la serie puede
-// ser semanal/mensual: usamos "períodos" neutro y dejamos que la UI diga el grano.
-function periodos(n: number): string {
-  return n === 1 ? "1 período" : `${n} períodos`;
+// Cómo viene en los últimos meses (la serie de la pantalla es mensual). `streak` son los últimos
+// pasos seguidos en esa dirección: uno solo no es una racha, y puede ser cero si el último mes se frenó.
+function tramo(verbo: "subiendo" | "bajando", pasado: string, streak: number): string {
+  if (streak >= 2) return `viene ${verbo} hace ${streak} meses`;
+  if (streak === 1) return `${pasado} el último mes`;
+  return `viene ${verbo}, aunque el último mes se frenó`;
 }
 
 function narrate(
@@ -184,20 +186,20 @@ function narrate(
   sentiment: "good" | "bad" | "neutral",
 ): string {
   const m = label(metric);
-  const cambio = changePct !== null ? ` (${changePct >= 0 ? "+" : "-"}${pct(changePct)} punta a punta)` : "";
+  const cambio = changePct !== null ? ` (${changePct >= 0 ? "+" : "-"}${pct(changePct)} en estos meses)` : "";
   const Cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   switch (direction) {
     case "flat":
-      return `${Cap(m)} viene plano hace ${periodos(streak || 0)}${cambio}. Sin movimiento — puede ser estabilidad o estancamiento.`;
+      return `${Cap(m)} viene sin cambios${cambio}. Puede ser estabilidad o estancamiento.`;
     case "up":
       return sentiment === "good"
-        ? `${Cap(m)} viene subiendo hace ${periodos(streak)}${cambio}. Buena racha, sostenela.`
-        : `${Cap(m)} viene subiendo hace ${periodos(streak)}${cambio}. Conviene frenar la tendencia.`;
+        ? `${Cap(m)} ${tramo("subiendo", "subió", streak)}${cambio}. ${streak >= 2 ? "Buena racha, sostenela." : "Vas bien."}`
+        : `${Cap(m)} ${tramo("subiendo", "subió", streak)}${cambio}. Conviene frenarlo.`;
     case "down":
       return sentiment === "good"
-        ? `${Cap(m)} viene bajando hace ${periodos(streak)}${cambio}. Vas en la dirección correcta.`
-        : `${Cap(m)} viene bajando hace ${periodos(streak)}${cambio}. Atención, la tendencia juega en contra.`;
+        ? `${Cap(m)} ${tramo("bajando", "bajó", streak)}${cambio}. Vas en la dirección correcta.`
+        : `${Cap(m)} ${tramo("bajando", "bajó", streak)}${cambio}. Atención, juega en contra.`;
     case "volatile":
       return `${Cap(m)} viene inestable${cambio}: sube y baja sin una dirección clara. Difícil de planificar.`;
   }

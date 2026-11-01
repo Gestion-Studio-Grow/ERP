@@ -22,9 +22,11 @@
 // lleva a «Cerrar lo pendiente» (/admin/turnos/cerrar), donde se cierran de a muchos. Un pasado sin
 // cerrar de hace meses también cuenta (CH-044).
 
+import { agendaPractica } from "@/lib/turnos/practica.server";
+import { RefrescoDeAgenda } from "./_agenda/RefrescoDeAgenda";
 import Link from "next/link";
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
-import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
+import { anulacionDeCobro, roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
 import { contarSinCerrarDeQuienMira } from "@/lib/turnos/sin-cerrar.server";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { appPermitida } from "@/apps/visibles";
@@ -115,10 +117,12 @@ export default async function AgendaRenglon({
   const hoy = todayInBusinessTz();
   const dia = fecha && esFechaDeCalendario(fecha) ? fecha : hoy;
   const permisos: Permisos = {
+    practica: await agendaPractica(),
     gestionar: roleHasCapability(quien.role, "agenda:manage"),
     cobrar: roleHasCapability(quien.role, "agenda:collect"),
     terminar: roleHasCapability(quien.role, "agenda:complete"),
     perdonar: roleHasCapability(quien.role, PERDONAR),
+    anular: anulacionDeCobro(quien.role),
   };
   // Mañana, sólo mirando HOY y para quien gestiona la agenda (como siempre).
   const verManana = permisos.gestionar && dia === hoy;
@@ -207,6 +211,7 @@ export default async function AgendaRenglon({
       )}
 
       {piloto && permisos.gestionar && dia === hoy && <FranjaDeHuecos />}
+      {dia === hoy && <RefrescoDeAgenda />}
 
       <LibroDelDia
         turnos={agenda.turnos}

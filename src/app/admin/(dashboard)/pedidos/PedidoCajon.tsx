@@ -112,7 +112,7 @@ export default function PedidoCajon({
   extra: ExtraDelPedido | null;
   comercio: boolean;
   puedeOperar: boolean;
-  anulacion: { motivoObligatorio: boolean } | null;
+  anulacion: { motivoObligatorio: boolean; conCodigo: boolean } | null;
   simulacion: boolean;
   seccion: SeccionDelCajon;
   onCerrar: () => void;
@@ -350,6 +350,7 @@ export default function PedidoCajon({
                     cobrado={pedido.cobrado}
                     total={pedido.total}
                     motivoObligatorio={anulacion.motivoObligatorio}
+                    conCodigo={anulacion.conCodigo}
                     onHecho={onCerrar}
                   />
                 </section>

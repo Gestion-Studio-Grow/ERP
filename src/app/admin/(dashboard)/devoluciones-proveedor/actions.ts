@@ -14,24 +14,14 @@ import { unstable_rethrow } from "next/navigation";
 import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireAppAccion } from "@/lib/require-app";
-import { parseCashMethod } from "@/lib/comision-liquidacion";
-import { DevolucionRechazada, registrarDevolucion, type DestinoDelCredito, type ErrorDeLinea } from "@/lib/stock/supplier-return";
+import { prisma } from "@/lib/prisma";
+import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
+import { DevolucionRechazada, destinoDelFormulario, registrarDevolucion, type ErrorDeLinea } from "@/lib/stock/supplier-return";
 
 export type EstadoDevolucion =
   | null
   | { ok: true; mensaje: string }
   | { ok: false; error: string; errores?: ErrorDeLinea[] };
-
-function leerDestino(fd: FormData): DestinoDelCredito | null {
-  const tipo = String(fd.get("destino") ?? "");
-  if (tipo === "deuda") return { tipo: "deuda" };
-  if (tipo === "ninguno") return { tipo: "ninguno" };
-  if (tipo === "caja") {
-    const method = parseCashMethod(fd.get("medio"));
-    return method ? { tipo: "caja", method } : null;
-  }
-  return null;
-}
 
 const pesos = (n: number) => `$${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(n)}`;
 
@@ -41,8 +31,12 @@ export async function registrarDevolucionAccion(_prev: EstadoDevolucion, fd: For
     const tenantId = await getCurrentTenantId();
     const purchaseId = String(fd.get("purchaseId") ?? "").trim();
     if (!purchaseId) return { ok: false, error: "Elegí la compra de la que devolvés." };
-    const destino = leerDestino(fd);
+    const destino = destinoDelFormulario(fd);
     if (!destino) return { ok: false, error: "Elegí qué pasa con la plata: se descuenta de la deuda, te la devuelven, o sin reintegro." };
+    // Mismo reparo que la comisión y el alta del libro: sin el valor en la base no se puede asentar.
+    if (destino.tipo === "caja" && destino.method === "TRANSFERENCIA" && !(await transferenciaEnElLibroTx(prisma))) {
+      return { ok: false, error: "Este negocio todavía no separa la transferencia en el libro. No se registró nada: elegí otro medio." };
+    }
     const motivo = String(fd.get("motivo") ?? "").trim() || null;
     const productIds = fd.getAll("productId").map(String);
     const cantidades = fd.getAll("qty").map(String);

@@ -7,6 +7,9 @@ import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { getBrandSheet } from "@/lib/brand-sheet";
 import { tenantBrandSheetEnabled } from "@/lib/identity";
 import { getProductoActual } from "@/lib/producto";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { estadoDeLaDireccion } from "@/lib/tenant";
+import { HERO_CH, FOTO_CABINA_CH, FOTOS_EQUIPO_CH } from "./_ch/copy-ch";
 import ReserveButton from "./_ch/ReserveButton";
 import Reveal from "./_ch/Reveal";
 import PhotoPlaceholder from "./_ch/PhotoPlaceholder";
@@ -39,16 +42,10 @@ const linkAccent: React.CSSProperties = {
 
 const newsDate = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "long" });
 
-// Fotos reales del equipo (reemplazan el placeholder ilustrado apenas están
-// disponibles). Mapeadas por nombre porque no todavía no hay un campo de foto
-// en el modelo Professional — si el nombre no matchea, cae al ilustrado.
-const TEAM_PHOTOS: Record<string, { src: string; rotate?: number }> = {
-  "Carolina Haponiuk": { src: "/team/carolina.png" },
-  "Macarena Arias": { src: "/team/macarena.png" },
-  "Romina Delpardo": { src: "/team/romina.png", rotate: 90 },
-};
-
 export default async function Home() {
+  // Sin negocio (o con la base caída) el layout ya manda a una página neutra de GSG y no pinta esta: se corta acá para no
+  // leer ni redirigir nada de un negocio que no existe (misma resolución, cacheada por pedido).
+  if ((await estadoDeLaDireccion()) !== "negocio") return null;
   // ENTRADA POR PRODUCTO (frente identidad-por-producto): los productos de facturación NO
   // tienen vidriera pública — su raíz no debe mostrar la landing de estética de CH (que estaba
   // "hardcodeada", como marcó el dueño). Comerciante y Contador entran por un LOGIN diseñado
@@ -86,7 +83,12 @@ export default async function Home() {
   // FICHA DE MARCA (RFC-004-D, frente A), detrás de `TENANT_BRAND_SHEET_ENABLED`: con el flag
   // ON, los textos de la landing salen del nombre del tenant en vez de decir "CH". Flag OFF →
   // copy legado de CH (idéntico).
-  const sheet = tenantBrandSheetEnabled() ? await getBrandSheet() : null;
+  //
+  // FUGA DE MARCA (E1, 29/10/2026): el copy y la foto de CH (los nombres del equipo, la cabina del
+  // spa) son de CH y de nadie más. Cualquier otro negocio que cae en esta landing (sin rubro de mostrador: «Estética
+  // DEMO», un negocio de servicios recién dado de alta) se presenta con SU nombre, como con la ficha prendida.
+  const esCH = (await getCurrentTenantSlug()) === "beauty-spa";
+  const sheet = tenantBrandSheetEnabled() || !esCH ? await getBrandSheet() : null;
 
   // `professionals` sale de getPublicBookingData() (loader PÚBLICO, ya filtra
   // active/deletedAt server-side) — antes se pisaba con getCatalog(), un loader
@@ -149,12 +151,12 @@ export default async function Home() {
           <div style={{ position: "relative", zIndex: 1 }}>
             <p style={{ ...eyebrow, margin: "0 0 16px" }}>{location.shortLabel}</p>
             <h1 style={display({ fontSize: "clamp(2.2rem,5vw + 1rem,3.9rem)", lineHeight: 1.05, letterSpacing: "-.01em", fontWeight: 480, margin: 0 })}>
-              {sheet ? "Tu momento, reservado." : "Estética y spa en La Alameda."}
+              {sheet ? "Tu momento, reservado." : HERO_CH.titulo}
             </h1>
             <p style={{ margin: "20px 0 0", fontSize: "1.0625rem", color: "var(--text-muted)", maxWidth: "30rem", lineHeight: 1.72 }}>
               {sheet
                 ? `Turnos y atención en ${sheet.name}. Reservás en un minuto.`
-                : "Mirá los precios y pedí tu turno. Atienden Carolina, Macarena y Romina."}
+                : HERO_CH.bajada}
             </p>
             <div style={{ marginTop: 28, display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
               <ReserveButton>Reservar turno</ReserveButton>
@@ -175,25 +177,28 @@ export default async function Home() {
             )}
           </div>
         </div>
-        <div style={{ flex: "1 1 360px", minWidth: 280 }}>
-          {/* Foto real de la cabina (asset del proyecto en /public). El marco
-              art-directed (radio + sombra + viñeta) se conserva del lenguaje CH;
-              acá ya va la imagen, no el placeholder. */}
-          <div style={{ position: "relative", aspectRatio: "4 / 5", borderRadius: 4, overflow: "hidden", boxShadow: "var(--shadow-md)" }}>
-            <Image
-              src="/tenants/ch-hero-spa.jpg"
-              alt="Cabina de spa de CH Estética: lino color crema sobre la camilla, plantas naturales y luz cálida de tarde entrando por la ventana"
-              fill
-              priority
-              sizes="(max-width: 800px) 100vw, 400px"
-              style={{ objectFit: "cover" }}
-            />
-            <div
-              aria-hidden
-              style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(120% 100% at 50% 30%, transparent 60%, rgba(20,16,12,.16) 100%)" }}
-            />
+        {/* La foto es de la cabina de CH: sólo en su landing (E1). */}
+        {esCH && (
+          <div style={{ flex: "1 1 360px", minWidth: 280 }}>
+            {/* Foto real de la cabina (asset del proyecto en /public). El marco
+                art-directed (radio + sombra + viñeta) se conserva del lenguaje CH;
+                acá ya va la imagen, no el placeholder. */}
+            <div style={{ position: "relative", aspectRatio: "4 / 5", borderRadius: 4, overflow: "hidden", boxShadow: "var(--shadow-md)" }}>
+              <Image
+                src={FOTO_CABINA_CH.src}
+                alt={FOTO_CABINA_CH.alt}
+                fill
+                priority
+                sizes="(max-width: 800px) 100vw, 400px"
+                style={{ objectFit: "cover" }}
+              />
+              <div
+                aria-hidden
+                style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(120% 100% at 50% 30%, transparent 60%, rgba(20,16,12,.16) 100%)" }}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       {/* NOVEDADES — lo que el cliente habitual viene a chequear: horarios
@@ -244,7 +249,7 @@ export default async function Home() {
         ) : (
           <>
             <p style={{ margin: "0 0 40px", fontSize: "1.0625rem", color: "var(--text-muted)", maxWidth: "32rem", lineHeight: 1.72 }}>
-              Lo que más se elige en CH, con el precio exacto. La carta completa está a un clic.
+              {sheet ? `Lo que más se elige en ${sheet.name}` : "Lo que más se elige en CH"}, con el precio exacto. La carta completa está a un clic.
             </p>
             <FeaturedTreatments services={destacados} />
           </>
@@ -257,7 +262,7 @@ export default async function Home() {
           <p style={{ ...eyebrow, margin: "0 0 12px" }}>Quién te atiende</p>
           <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 520, margin: "0 0 48px" })}>Equipo</h2>
           {professionals.map((p) => {
-            const photo = TEAM_PHOTOS[p.name];
+            const photo = esCH ? FOTOS_EQUIPO_CH[p.name] : undefined;
             return (
             <Reveal key={p.id} style={{ padding: "32px 0", display: "flex", gap: 24, alignItems: "flex-start", borderTop: "1px solid var(--line)" }}>
               <div style={{ position: "relative", width: 64, height: 64, borderRadius: 9999, flexShrink: 0, overflow: "hidden", background: "var(--surface-sunken)" }}>
@@ -341,24 +346,29 @@ export default async function Home() {
               ))}
             </div>
             <div style={{ marginTop: 32 }}>
-              <a
-                href={location.mapsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ background: "var(--surface-inverted)", color: "var(--text-on-accent)", padding: "12px 24px", textDecoration: "none", fontSize: 15 }}
-              >
-                Cómo llegar
-              </a>
+              {location.mapsUrl && (
+                <a
+                  href={location.mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ background: "var(--surface-inverted)", color: "var(--text-on-accent)", padding: "12px 24px", textDecoration: "none", fontSize: 15 }}
+                >
+                  Cómo llegar
+                </a>
+              )}
             </div>
           </Reveal>
-          <div style={{ flex: "1 1 340px", minWidth: 280 }}>
-            <PhotoPlaceholder
-              ratio="4 / 3"
-              pin
-              gradient="linear-gradient(160deg,#E6DDCE 0%,#C7B49C 55%,#6B7660 130%)"
-              caption="Croquis del barrio con el acceso a CH · trazo sobrio, sin logotipos de terceros"
-            />
-          </div>
+          {/* El croquis del barrio es de CH (E1): otro negocio no lo ve. */}
+          {esCH && (
+            <div style={{ flex: "1 1 340px", minWidth: 280 }}>
+              <PhotoPlaceholder
+                ratio="4 / 3"
+                pin
+                gradient="linear-gradient(160deg,#E6DDCE 0%,#C7B49C 55%,#6B7660 130%)"
+                caption="Croquis del barrio con el acceso a CH · trazo sobrio, sin logotipos de terceros"
+              />
+            </div>
+          )}
         </div>
       </section>
     </>

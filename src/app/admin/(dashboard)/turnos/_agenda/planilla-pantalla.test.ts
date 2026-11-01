@@ -49,6 +49,7 @@ export async function cerrarTurnoSinPrestar(fd) { anotar("sin-prestar", fd); ret
 export async function markNoShow(fd) { anotar("no-vino", fd); return { ok: true }; }
 export async function registrarCobroTurno(fd) { anotar("cobrar", fd); return { ok: true }; }
 export async function anularCobroTurno(fd) { anotar("anular", fd); return { ok: true }; }
+export async function autorizarAnulacionCobro(fd) { anotar("autorizar-anulacion", fd); return { ok: true, codigo: "ABC234", venceA: "10:10" }; }
 export async function condonarSaldoTurno(fd) { anotar("condonar", fd); return { ok: true }; }`;
 const MOVER_FALSO = `
 export async function huecosParaMover(turnoId, dias, profesionalId) {
@@ -66,7 +67,7 @@ export async function huecosParaMover(turnoId, dias, profesionalId) {
 const COBRO_FALSO = `
 const anotar = (accion, fd) => { (window.__enviado ??= []).push({ accion, ...Object.fromEntries(fd.entries()) }); };
 export async function terminarYCobrarDividido(fd) { anotar("dividir", fd); return { ok: true }; }
-export async function cobrarSeniaYConfirmar(fd) { anotar("senia", fd); return { ok: true, cobroId: "cobro-1", monto: Number(fd.get("monto")) || 0, confirmo: true }; }
+export async function cobrarSeniaYConfirmar(fd) { anotar("senia", fd); return { ok: true, cobroId: "cobro-1", monto: Number(fd.get("monto")) || 0, confirmo: true, sePuedeDeshacer: true }; }
 export async function cobrarVariosTurnos(fd) { anotar("cobrar-varios", fd); return { ok: true }; }
 export async function deudaViejaDelTurno() { return []; }
 export async function deshacerCierre(fd) { anotar("deshacer", fd); return { ok: true }; }`;
@@ -142,7 +143,7 @@ const TURNOS = [
 ];
 const MONTAJE = {
   turnos: TURNOS,
-  permisos: { gestionar: true, cobrar: true, terminar: true, perdonar: false },
+  permisos: { gestionar: true, cobrar: true, terminar: true, perdonar: false, anular: "con-autorizacion" },
   ahora: AHORA,
   dia: DIA,
   profesionales: [

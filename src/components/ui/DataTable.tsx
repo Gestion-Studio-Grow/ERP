@@ -106,14 +106,14 @@ export function DataTable<T>({
           <caption className="sr-only">{caption}</caption>
           <thead className="hidden sm:table-header-group">
             {/* Header del mockup (fix 17): 11px / 600 / tracking .06em / uppercase. */}
-            <tr className="border-b border-line bg-surface-sunken text-[11px] uppercase tracking-[.06em] text-muted">
+            <tr className="border-b border-line bg-surface-sunken text-[12px] uppercase tracking-[.06em] text-muted">
               {columns.map((col) => (
                 <th
                   key={col.key}
                   scope="col"
                   aria-sort={col.sortable ? ariaSortFor(sort, col.key) : undefined}
                   className={cn(
-                    "px-[22px] py-xs font-semibold",
+                    "px-[22px] py-sm font-semibold",
                     col.align === "right" && "text-right",
                     col.className,
                   )}
@@ -143,7 +143,7 @@ export function DataTable<T>({
               SKELETON_ROWS.map((skeletonKey) => (
                 <tr key={skeletonKey} className="block sm:table-row border-t border-line first:border-t-0 sm:first:border-t">
                   {columns.map((col) => (
-                    <td key={col.key} className="block sm:table-cell px-sm py-2xs sm:px-[22px] sm:py-[13px]">
+                    <td key={col.key} className="block sm:table-cell px-sm py-2xs sm:px-[22px] sm:py-[15px]">
                       <span
                         aria-hidden="true"
                         className="block h-4 w-full max-w-32 rounded bg-surface-sunken motion-safe:animate-pulse"
@@ -178,7 +178,7 @@ export function DataTable<T>({
                       key={col.key}
                       className={cn(
                         // Densidad de celda del mockup (fix 18): 22px / 13px en desktop.
-                        "block sm:table-cell px-0 py-3xs sm:px-[22px] sm:py-[13px] text-body",
+                        "block sm:table-cell px-0 py-3xs sm:px-[22px] sm:py-[15px] text-body",
                         col.align === "right" && "text-right",
                         col.className,
                       )}

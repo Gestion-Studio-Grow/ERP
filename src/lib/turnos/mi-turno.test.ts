@@ -16,7 +16,7 @@ const FILA = {
   clientId: "cli_1",
   priceAtBooking: 25000,
   notes: "nota interna",
-  service: { id: "svc_1", name: "Limpieza facial", price: 25000, tenantId: "t_ch" },
+  service: { id: "svc_1", name: "Limpieza facial", price: 25000, depositAmount: 5000, tenantId: "t_ch" },
   professional: { id: "pro_1", name: "Caro", email: "caro@ch.com", phone: "1140000000", commissionPercent: 40 },
   box: { id: "box_1", name: "Box 2" },
   payment: { id: "pay_1", amount: 5000, status: "APPROVED", mpPaymentId: "mp_99" },
@@ -46,7 +46,8 @@ const db = {
 test("la página pública del turno recibe lo que muestra y nada de la profesional ni del pago", async () => {
   const t = (await leerMiTurno(db as never, "t_ch", "ap_1")) as unknown as Record<string, unknown>;
   assert.deepEqual(t.professional, { name: "Caro" }, "sin email, teléfono ni comisión");
-  assert.deepEqual(t.service, { name: "Limpieza facial" });
+  // La seña del servicio sí viaja (ronda 2: «Pendiente de pago» sólo si la pide); el precio y el negocio, no.
+  assert.deepEqual(t.service, { name: "Limpieza facial", depositAmount: 5000 });
   assert.deepEqual(t.box, { name: "Box 2" });
   assert.deepEqual(t.review, { rating: 5 });
   assert.equal(t.payment, undefined);

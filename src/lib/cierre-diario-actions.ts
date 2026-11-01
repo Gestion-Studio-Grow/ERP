@@ -56,6 +56,7 @@ import {
   puedeCerrarElDia,
   validarReabrirDia,
   CERRAR_DIA_SIN_PERMISO,
+  ETIQUETA_DE_COLUMNA,
   MOTIVO_MINIMO_REABRIR_DIA,
   type CierreDiario,
   type CierreMovement,
@@ -71,8 +72,8 @@ import {
   CIERRE_DIARIO_ENTITY,
 } from "@/lib/caja/frontera-cierre";
 import { cierreMarker, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
-import { resumenCierre } from "@/lib/caja/cierre-resumen";
-import { CASH_METHODS, libroOrigin, type LibroMovement } from "@/lib/caja/libro-caja";
+import { colaDelAvisoDeCierre, resumenCierre } from "@/lib/caja/cierre-resumen";
+import { CASH_METHODS, CASH_METHOD_LABEL, clasificarOrigen, libroOrigin, type LibroMovement, type OrigenContable } from "@/lib/caja/libro-caja";
 import { movementSign, type CashMethod, type CashMovementType } from "@/lib/caja/cash-register";
 import { round2 } from "@/lib/round";
 import { tarjetaHabilitada } from "@/lib/caja-actions";
@@ -132,6 +133,8 @@ export type CierreDiarioData = {
     amount: number | null;
     detail: string;
     origin: "manual" | "pos" | "turno";
+    /** Para decir de dónde salió una fila del sistema (`rotuloDeOrigen`). */
+    origenContable?: OrigenContable;
   }[];
   yaCerrado: boolean;
   enElFuturo: boolean;
@@ -478,6 +481,7 @@ async function leerCierreDiario(
       amount: r.amount,
       detail: r.reason ?? "",
       origin: libroOrigin({ type: r.type as CashMovementType, orderId: r.orderId, createdBy: r.createdBy }),
+      origenContable: clasificarOrigen({ type: r.type as CashMovementType, createdBy: r.createdBy, orderId: r.orderId, collectionId: r.collectionId }).origen,
     })),
     yaCerrado: false,
     enElFuturo: compareDayKeys(day, today) > 0,
@@ -821,7 +825,9 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
         // N2/P2: `caja.cerrada@1` en la transacción del cierre (el id del registro es el del cierre).
         await emitirCajaCerrada(tx, { tenantId, cierreId: registro.id, dia: day, porMedio: cierre.porMedio });
 
-        return { ok: true as const, estado: cierre.estado, ajustes: filas.length };
+        // Las etiquetas de la hoja que se contó, las mismas que el comprobante (`arqueoDeLaFila`).
+        const cola = colaDelAvisoDeCierre({ ajustes: filas.length, columnas: cierre.columnas, porColumna: cierre.porColumna, etiquetas: columnas ? ETIQUETA_DE_COLUMNA : CASH_METHOD_LABEL });
+        return { ok: true as const, estado: cierre.estado, ajustes: filas.length, cola };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -831,11 +837,7 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
     revalidatePath(CIERRE_PATH);
     revalidatePath(LIBRO_PATH);
 
-    const cola =
-      resultado.ajustes === 0
-        ? "No hubo diferencias."
-        : `Se asentó ${resultado.ajustes === 1 ? "la diferencia" : `${resultado.ajustes} diferencias`} en el libro.`;
-    return { ok: true, message: `Día ${formatDayLabel(day)} cerrado. ${cola}` };
+    return { ok: true, message: `Día ${formatDayLabel(day)} cerrado. ${resultado.cola}` };
   } catch (e) {
     const msg = e instanceof Error && e.message ? e.message : "No se pudo cerrar el día.";
     return { ok: false, errors: [msg] };

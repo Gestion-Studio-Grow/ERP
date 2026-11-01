@@ -1,11 +1,13 @@
 "use client";
 
 // Asistente de alta de Facturita: cinco pasos, uno por pantalla. Toda la validación es la de
-// src/lib/facturita-onboarding.ts (pura, testeada). Lo que se tipea queda en memoria de esta
-// pestaña: no se manda a ningún servidor ni se guarda en el navegador. El último paso arma el
-// mensaje para que GSG active la cuenta (alta operada, ver page.tsx).
+// src/lib/facturita-onboarding.ts (pura, testeada). Lo que se tipea no se manda a ningún servidor:
+// queda en esta pestaña (sessionStorage, se borra al cerrarla) para que «volver» del navegador o
+// una recarga no lo borren, y el paso va en la URL (?paso=2) con su entrada en el historial (QA
+// 29/10). Nunca van datos en la URL: sólo el número de paso. El último paso arma el mensaje para
+// que GSG active la cuenta (alta operada, ver page.tsx) y lo manda por el canal de ../contacto.ts.
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   ALTA_VACIA,
   CONDICIONES_IVA,
@@ -22,30 +24,119 @@ import {
   type ErroresAlta,
 } from "@/lib/facturita-onboarding";
 import { BOTON_PRINCIPAL, BOTON_SECUNDARIO, FOCO } from "../estilos";
+import { CASILLA_GSG as CASILLA, linkCanal, type CanalGsg } from "../contacto";
+
+// Rediseño 29/10/2026 (fronts/facturita/DISENO.md §5.3): sólo cambian clases y estructura visual
+// (la tarjeta pasa a hoja del talonario, campos h 56, barra fija con el botón del paso en el
+// celular). La lógica, las validaciones, el foco y los textos legales quedan como estaban.
 
 const PASOS = ["Tus datos", "Cómo estás inscripto", "Punto de venta", "Permiso en ARCA", "Listo"] as const;
 
-const INPUT =
-  "mt-1 block h-12 w-full rounded-lg border border-line-strong bg-surface-raised px-3 text-base text-strong placeholder:text-faint aria-[invalid=true]:border-danger " +
-  FOCO;
+const INPUT = "fx-alta-input";
+
+/** Lo que esta pestaña recuerda del alta: los datos y hasta qué paso llegó (validado). */
+const GUARDADO = "facturita-alta";
+type Guardado = { datos: DatosAlta; alcanzado: number };
+
+function leerGuardado(): Guardado | null {
+  try {
+    const g = JSON.parse(sessionStorage.getItem(GUARDADO) ?? "null") as Guardado | null;
+    if (!g || typeof g !== "object" || !g.datos || typeof g.alcanzado !== "number") return null;
+    return { datos: { ...ALTA_VACIA, ...g.datos }, alcanzado: Math.max(0, Math.min(g.alcanzado, PASOS.length - 1)) };
+  } catch {
+    return null;
+  }
+}
+
+function guardar(g: Guardado) {
+  try {
+    sessionStorage.setItem(GUARDADO, JSON.stringify(g));
+  } catch {
+    // sin almacenamiento (modo privado estricto): el alta anda igual, sólo no sobrevive a «volver»
+  }
+}
+
+/** El paso de la URL (?paso=2 → índice 1), o null. */
+function pasoDeLaUrl(): number | null {
+  const n = Number(new URLSearchParams(window.location.search).get("paso"));
+  return Number.isInteger(n) && n >= 1 && n <= PASOS.length ? n - 1 : null;
+}
+
+function urlDelPaso(p: number): string {
+  const u = new URL(window.location.href);
+  if (p > 0) u.searchParams.set("paso", String(p + 1));
+  else u.searchParams.delete("paso");
+  return `${u.pathname}${u.search}${u.hash}`;
+}
 
 function MensajeError({ id, texto }: { id: string; texto?: string }) {
   if (!texto) return null;
   return (
-    <p id={id} role="alert" className="mt-2 text-sm font-medium text-danger">
+    <p id={id} role="alert" className="mt-2 text-base font-medium text-danger">
       {texto}
     </p>
   );
 }
 
-export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string | null }) {
+export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
   const [paso, setPaso] = useState(0);
   const [datos, setDatos] = useState<DatosAlta>(ALTA_VACIA);
   const [errores, setErrores] = useState<ErroresAlta>({});
-  const [copiado, setCopiado] = useState(false);
+  // «ok»: se copió (aviso visible); «fallo»: el portapapeles no anduvo → el resumen a la vista, seleccionable.
+  const [copia, setCopia] = useState<"nada" | "ok" | "fallo">("nada");
+  const [alcanzado, setAlcanzado] = useState(0);
   const titulo = useRef<HTMLHeadingElement>(null);
   const primerMontaje = useRef(true);
+  const textoManual = useRef<HTMLTextAreaElement>(null);
+  const aviso = useRef<HTMLParagraphElement>(null);
   const uid = useId();
+  const baseWhatsApp = canal.tipo === "whatsapp" ? canal.base : null;
+
+  /** Muestra el paso de la URL, sin pasar nunca de lo que esta pestaña ya validó. */
+  const irAlPasoDeLaUrl = useCallback((hasta: number) => {
+    setPaso(Math.min(pasoDeLaUrl() ?? 0, hasta));
+    setCopia("nada");
+  }, []);
+
+  // Al volver a la página (recarga, «volver» o «adelante» del navegador): los datos y el paso de esta
+  // pestaña. El HTML estático es el del paso 1; esto corre después de hidratar.
+  useEffect(() => {
+    const g = leerGuardado();
+    const hasta = g?.alcanzado ?? 0;
+    // Si la URL pedía un paso que esta pestaña no validó, se corrige sin sumar historial.
+    const p = pasoDeLaUrl();
+    if (p !== null && p > hasta) window.history.replaceState(window.history.state, "", urlDelPaso(hasta));
+    if (!g && p === null) return;
+    queueMicrotask(() => {
+      if (g) {
+        setDatos(g.datos);
+        setAlcanzado(hasta);
+      }
+      irAlPasoDeLaUrl(hasta);
+    });
+  }, [irAlPasoDeLaUrl]);
+
+  useEffect(() => {
+    const alVolver = () => irAlPasoDeLaUrl(leerGuardado()?.alcanzado ?? 0);
+    window.addEventListener("popstate", alVolver);
+    return () => window.removeEventListener("popstate", alVolver);
+  }, [irAlPasoDeLaUrl]);
+
+  /** Avanza un paso con su entrada en el historial: «volver» del navegador vuelve al paso anterior. */
+  const avanzar = () => {
+    const p = Math.min(paso + 1, PASOS.length - 1);
+    const hasta = Math.max(alcanzado, p);
+    setAlcanzado(hasta);
+    guardar({ datos, alcanzado: hasta });
+    window.history.pushState(window.history.state, "", urlDelPaso(p));
+    setPaso(p);
+    setCopia("nada");
+  };
+  /** «Volver» de la pantalla = «volver» del navegador (el historial y la pantalla no se desfasan). */
+  const retroceder = () => {
+    if (pasoDeLaUrl() !== null) window.history.back();
+    else setPaso((p) => Math.max(0, p - 1));
+  };
 
   // Al cambiar de paso, el foco va al título del paso nuevo (lector de pantalla y teclado).
   useEffect(() => {
@@ -57,7 +148,12 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
   }, [paso]);
 
   const cambiar = <K extends keyof DatosAlta>(campo: K, valor: DatosAlta[K]) => {
-    setDatos((d) => ({ ...d, [campo]: valor }));
+    setDatos((d) => {
+      const nuevos = { ...d, [campo]: valor };
+      // Lo tipeado queda en esta pestaña (no viaja a ningún lado).
+      guardar({ datos: nuevos, alcanzado });
+      return nuevos;
+    });
     setErrores((e) => ({ ...e, [campo]: undefined }));
   };
 
@@ -76,22 +172,42 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
       if (!pv.ok) e.puntoVenta = pv.error;
     }
     setErrores(e);
-    if (Object.keys(e).length === 0) setPaso((p) => Math.min(p + 1, PASOS.length - 1));
+    if (Object.keys(e).length === 0) avanzar();
   };
 
   const cuit = validarCuitEmisor(datos.cuit);
   const mensaje = mensajeActivacion(datos);
+  const completa = altaCompleta(datos);
+
+  const copiar = async () => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("sin portapapeles");
+      await navigator.clipboard.writeText(mensaje);
+      setCopia("ok");
+    } catch {
+      // El portapapeles no anduvo (permiso, navegador viejo): el resumen queda a la vista, seleccionado.
+      setCopia("fallo");
+      requestAnimationFrame(() => {
+        textoManual.current?.focus();
+        textoManual.current?.select();
+      });
+    }
+    // En el celular el botón está en la barra fija: el aviso se trae a la vista.
+    requestAnimationFrame(() => aviso.current?.scrollIntoView({ block: "nearest" }));
+  };
+  const linkMandar = linkCanal(canal, "Alta en Facturita", mensaje);
+  const textoCopiar = copia === "ok" ? "Copiado" : "Copiar el resumen";
   const id = (campo: string) => `${uid}-${campo}`;
 
   return (
-    <div className="mt-8">
+    <div>
       {/* Progreso */}
-      <p className="text-sm font-medium text-muted" aria-live="polite">
+      <p className="fx-progreso" aria-live="polite">
         Paso {paso + 1} de {PASOS.length}: {PASOS[paso]}
       </p>
-      <div className="mt-2 grid grid-cols-5 gap-1" aria-hidden="true">
+      <div className="fx-segmentos" aria-hidden="true">
         {PASOS.map((p, i) => (
-          <span key={p} className={`h-1.5 rounded-full ${i <= paso ? "bg-accent" : "bg-line-strong"}`} />
+          <span key={p} data-lleno={i <= paso ? "" : undefined} />
         ))}
       </div>
 
@@ -101,16 +217,22 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
           ev.preventDefault();
           siguiente();
         }}
-        className="mt-6 rounded-xl border border-line bg-surface-raised p-5 sm:p-7"
+        className="fx-hoja-form"
       >
-        <h2 ref={titulo} tabIndex={-1} className="text-xl font-semibold tracking-tight text-strong outline-none">
+        {/* Celular: «Volver» arriba a la izquierda, como enlace; el botón del paso va en la barra fija. */}
+        {paso > 0 && (
+          <button type="button" onClick={retroceder} className="fx-volver fx-solo-celu">
+            <span aria-hidden="true">←</span> Volver
+          </button>
+        )}
+        <h2 ref={titulo} tabIndex={-1}>
           {PASOS[paso]}
         </h2>
 
         {paso === 0 && (
-          <div className="mt-5 space-y-5">
+          <div className="mt-7 space-y-7">
             <div>
-              <label htmlFor={id("nombre")} className="text-sm font-semibold text-strong">
+              <label htmlFor={id("nombre")} className="fx-alta-label">
                 Nombre y apellido, o razón social
               </label>
               <input
@@ -125,10 +247,10 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
               <MensajeError id={id("nombre-error")} texto={errores.nombre} />
             </div>
             <div>
-              <label htmlFor={id("cuit")} className="text-sm font-semibold text-strong">
+              <label htmlFor={id("cuit")} className="fx-alta-label">
                 Tu CUIT
               </label>
-              <p id={id("cuit-ayuda")} className="text-sm text-muted">
+              <p id={id("cuit-ayuda")} className="fx-alta-ayuda">
                 Los 11 números, con o sin guiones. Está en tu constancia de inscripción.
               </p>
               <input
@@ -146,7 +268,7 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
                 aria-describedby={`${id("cuit-ayuda")}${errores.cuit ? ` ${id("cuit-error")}` : ""}`}
               />
               {cuit.ok && (
-                <p className="mt-2 text-sm font-medium text-success">✓ CUIT válido: {cuit.formateado}</p>
+                <p className="mt-2 text-base font-medium text-success">✓ CUIT válido: {cuit.formateado}</p>
               )}
               <MensajeError id={id("cuit-error")} texto={errores.cuit} />
             </div>
@@ -154,15 +276,15 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
         )}
 
         {paso === 1 && (
-          <fieldset className="mt-5" aria-describedby={errores.condicion ? id("condicion-error") : undefined}>
-            <legend className="text-sm text-muted">
+          <fieldset className="mt-6" aria-describedby={errores.condicion ? id("condicion-error") : undefined}>
+            <legend className="fx-alta-ayuda">
               ¿Cómo figurás en ARCA? Si no estás seguro, fijate en tu constancia de inscripción.
             </legend>
-            <div className="mt-3 space-y-3">
+            <div className="mt-4 space-y-3">
               {CONDICIONES_IVA.map((c) => (
                 <label
                   key={c.id}
-                  className="flex cursor-pointer gap-3 rounded-lg border border-line p-4 has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent"
+                  className="fx-condicion"
                 >
                   <input
                     type="radio"
@@ -170,12 +292,11 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
                     value={c.id}
                     checked={datos.condicion === c.id}
                     onChange={() => cambiar("condicion", c.id as CondicionIva)}
-                    className="mt-1 size-4 accent-[var(--accent)]"
                   />
                   <span>
                     <span className="block font-semibold text-strong">{c.nombre}</span>
-                    <span className="block text-sm text-muted">{c.ayuda}</span>
-                    <span className="mt-1 block text-sm text-body">Vas a emitir factura {c.letras}.</span>
+                    <span className="block text-base text-[var(--fx-tenue)]">{c.ayuda}</span>
+                    <span className="mt-1 block text-base">Vas a emitir factura {c.letras}.</span>
                   </span>
                 </label>
               ))}
@@ -185,9 +306,9 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
         )}
 
         {paso === 2 && (
-          <div className="mt-5 space-y-4">
+          <div className="mt-7 space-y-5">
             <div>
-              <label htmlFor={id("pv")} className="text-sm font-semibold text-strong">
+              <label htmlFor={id("pv")} className="fx-alta-label">
                 Número de punto de venta para facturación electrónica
               </label>
               <input
@@ -204,7 +325,7 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
               />
               <MensajeError id={id("pv-error")} texto={errores.puntoVenta} />
             </div>
-            <label className="flex items-start gap-3 text-sm text-body">
+            <label className="fx-check">
               <input
                 type="checkbox"
                 checked={datos.sinPuntoVenta}
@@ -212,20 +333,19 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
                   cambiar("sinPuntoVenta", e.target.checked);
                   setErrores((er) => ({ ...er, puntoVenta: undefined }));
                 }}
-                className={`mt-0.5 size-4 accent-[var(--accent)] ${FOCO}`}
               />
               Todavía no lo creé: lo armamos juntos cuando te activamos.
             </label>
-            <details className="rounded-lg bg-surface-sunken p-4">
-              <summary className={`cursor-pointer rounded text-sm font-semibold text-strong ${FOCO}`}>
+            <details className="rounded-2xl bg-white p-5 ring-1 ring-[var(--fx-borde)]">
+              <summary className={`flex min-h-12 cursor-pointer items-center rounded text-base font-semibold text-strong ${FOCO}`}>
                 ¿Cómo creo un punto de venta? (cinco pasos en ARCA)
               </summary>
-              <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-muted">
+              <ol className="mt-3 list-decimal space-y-2 pl-5 text-base text-[var(--fx-tenue)]">
                 {PASOS_PUNTO_VENTA.map((p) => (
                   <li key={p}>{p}</li>
                 ))}
               </ol>
-              <p className="mt-3 text-sm text-muted">
+              <p className="mt-3 text-base text-[var(--fx-tenue)]">
                 Ojo: el punto de venta que usás para el «Comprobantes en línea» de ARCA no sirve acá; tiene que ser uno
                 de «Web Services».
               </p>
@@ -234,69 +354,75 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
         )}
 
         {paso === 3 && (
-          <div className="mt-5">
-            <p className="text-muted">
+          <div className="mt-6">
+            <p className="text-[var(--fx-tenue)]">
               Para que Facturita emita a tu nombre, nos das permiso desde ARCA. No nos das tu clave: das un permiso que
               sirve sólo para facturar, y lo podés sacar cuando quieras.
             </p>
-            <ol className="mt-4 space-y-3">
+            <ol className="mt-5 space-y-4">
               {pasosDelegacion().map((p, i) => (
-                <li key={p} className="flex gap-3 text-sm text-body">
-                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold tabular-nums text-accent-ink">
+                <li key={p} className="flex gap-3 text-base">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--fx-ambar)] text-sm font-semibold tabular-nums text-white">
                     {i + 1}
                   </span>
                   <span className="pt-1">{p}</span>
                 </li>
               ))}
             </ol>
-            <label className="mt-5 flex items-start gap-3 rounded-lg border border-line p-4 text-sm text-body">
+            <label className="fx-check fx-condicion mt-6">
               <input
                 type="checkbox"
                 checked={datos.delegacionHecha}
                 onChange={(e) => cambiar("delegacionHecha", e.target.checked)}
-                className={`mt-0.5 size-4 accent-[var(--accent)] ${FOCO}`}
               />
-              Ya lo hice. (Si no te sale, seguí igual: te ayudamos por WhatsApp.)
+              Ya lo hice. (Si no te sale, seguí igual: te ayudamos {baseWhatsApp ? "por WhatsApp" : "cuando te activamos"}.)
             </label>
           </div>
         )}
 
         {paso === 4 && (
-          <div className="mt-5">
-            <dl className="divide-y divide-line rounded-lg border border-line text-sm">
-              <div className="flex justify-between gap-4 px-4 py-3">
-                <dt className="text-muted">Nombre</dt>
-                <dd className="text-right font-medium text-strong">{datos.nombre.trim()}</dd>
+          <div className="mt-6">
+            <dl className="fx-resumen-alta">
+              <div>
+                <dt>Nombre</dt>
+                <dd>{datos.nombre.trim()}</dd>
               </div>
-              <div className="flex justify-between gap-4 px-4 py-3">
-                <dt className="text-muted">CUIT</dt>
-                <dd className="font-medium tabular-nums text-strong">{cuit.ok ? cuit.formateado : datos.cuit}</dd>
+              <div>
+                <dt>CUIT</dt>
+                <dd className="tabular-nums">{cuit.ok ? cuit.formateado : datos.cuit}</dd>
               </div>
-              <div className="flex justify-between gap-4 px-4 py-3">
-                <dt className="text-muted">Inscripción</dt>
-                <dd className="text-right font-medium text-strong">
+              <div>
+                <dt>Inscripción</dt>
+                <dd>
                   {datos.condicion ? opcionCondicion(datos.condicion).nombre : "—"}
                 </dd>
               </div>
-              <div className="flex justify-between gap-4 px-4 py-3">
-                <dt className="text-muted">Punto de venta</dt>
-                <dd className="font-medium tabular-nums text-strong">
+              <div>
+                <dt>Punto de venta</dt>
+                <dd className="tabular-nums">
                   {datos.sinPuntoVenta ? "Lo armamos juntos" : datos.puntoVenta}
                 </dd>
               </div>
-              <div className="flex justify-between gap-4 px-4 py-3">
-                <dt className="text-muted">Permiso en ARCA</dt>
-                <dd className="text-right font-medium text-strong">
+              <div>
+                <dt>Permiso en ARCA</dt>
+                <dd>
                   {datos.delegacionHecha ? "Hecho" : "Te ayudamos"}
                 </dd>
               </div>
             </dl>
 
-            <p className="mt-5 text-sm text-muted">
-              Mandanos este resumen y te escribimos para activar la cuenta. Todavía no guardamos nada: estos datos quedan
-              sólo en tu pantalla hasta que los mandes.
+            <p className="mt-6 text-base text-[var(--fx-tenue)]" data-qa="adonde-mandarlo">
+              {baseWhatsApp ? (
+                <>Mandanos este resumen por WhatsApp y te escribimos para activar la cuenta.</>
+              ) : (
+                <>
+                  Mandanos este resumen por mail a <strong className="text-strong">{CASILLA}</strong> y te escribimos para
+                  activar la cuenta. Si preferís, copialo y pegalo en el mail.
+                </>
+              )}{" "}
+              Todavía no guardamos nada: estos datos quedan sólo en tu pantalla hasta que los mandes.
             </p>
-            <p className="mt-2 text-xs text-muted">
+            <p className="mt-3 text-[0.9375rem] leading-relaxed text-[var(--fx-tenue)]">
               Al mandarlo aceptás los{" "}
               <a href="/facturita/terminos" className={`rounded underline underline-offset-2 hover:text-strong ${FOCO}`}>términos</a>{" "}
               y que usemos tus datos para darte de alta y emitir tus facturas, como dice la{" "}
@@ -304,56 +430,58 @@ export default function AltaAsistente({ baseWhatsApp }: { baseWhatsApp: string |
               Podés pedir acceso, corrección o borrado cuando quieras (Ley 25.326).
             </p>
 
-            {altaCompleta(datos) ? (
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                {baseWhatsApp ? (
-                  <a
-                    href={`${baseWhatsApp}${encodeURIComponent(mensaje)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={BOTON_PRINCIPAL}
-                  >
-                    Mandar por WhatsApp
-                  </a>
-                ) : null}
-                <button
-                  type="button"
-                  className={baseWhatsApp ? BOTON_SECUNDARIO : BOTON_PRINCIPAL}
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(mensaje);
-                      setCopiado(true);
-                    } catch {
-                      setCopiado(false);
-                    }
-                  }}
-                >
-                  Copiar el resumen
+            {completa ? (
+              // «Copiar» queda como alternativa a «Mandar»: en compu va en la fila de abajo; en el celular,
+              // acá (la barra fija lleva sólo el botón principal).
+              <div className="mt-6 fx-solo-celu">
+                <button type="button" className={BOTON_SECUNDARIO} style={{ width: "100%" }} onClick={copiar}>
+                  {textoCopiar}
                 </button>
               </div>
             ) : (
-              <p role="alert" className="mt-5 text-sm font-medium text-danger">
+              <p role="alert" className="mt-5 text-base font-medium text-danger">
                 Falta algún dato: volvé a los pasos anteriores y revisalos.
               </p>
             )}
-            <p aria-live="polite" className="mt-3 text-sm text-success">
-              {copiado ? "Copiado. Pegalo en el chat con nosotros." : ""}
+            <p ref={aviso} role="status" aria-live="polite" className="mt-3 text-base font-medium text-success" data-qa="aviso-copia">
+              {copia === "ok" ? (baseWhatsApp ? "Copiado: pegalo en el chat de WhatsApp con nosotros." : `Copiado: pegalo en un mail a ${CASILLA}.`) : ""}
             </p>
+            {copia === "fallo" && (
+              <div className="mt-3">
+                <p role="alert" className="text-base font-medium text-danger">
+                  No pudimos copiarlo solo: seleccioná el texto de abajo y copialo.
+                </p>
+                <label htmlFor={id("resumen-texto")} className="fx-alta-label mt-3 block">
+                  Tu resumen
+                </label>
+                <textarea id={id("resumen-texto")} ref={textoManual} readOnly rows={7} value={mensaje} className={`${INPUT} fx-alta-texto`} />
+              </div>
+            )}
           </div>
         )}
 
-        <div className="mt-8 flex flex-col-reverse gap-3 border-t border-line pt-5 sm:flex-row sm:justify-between">
+        <div className="fx-alta-acciones" data-vacia={paso === PASOS.length - 1 && !completa ? "" : undefined}>
           {paso > 0 ? (
-            <button type="button" onClick={() => setPaso((p) => p - 1)} className={BOTON_SECUNDARIO}>
+            <button type="button" onClick={retroceder} className={`${BOTON_SECUNDARIO} fx-solo-compu`}>
               Volver
             </button>
           ) : (
-            <span />
+            <span className="fx-solo-compu" />
           )}
           {paso < PASOS.length - 1 && (
             <button type="submit" className={BOTON_PRINCIPAL}>
               {paso === 3 ? "Ver el resumen" : "Seguir"}
             </button>
+          )}
+          {paso === PASOS.length - 1 && completa && (
+            <div className="fx-alta-grupo">
+              <a href={linkMandar} target="_blank" rel="noopener noreferrer" className={BOTON_PRINCIPAL} data-qa="mandar-resumen">
+                {baseWhatsApp ? "Mandar por WhatsApp" : "Mandar por mail"}
+              </a>
+              <button type="button" className={`${BOTON_SECUNDARIO} fx-solo-compu`} onClick={copiar}>
+                {textoCopiar}
+              </button>
+            </div>
           )}
         </div>
       </form>

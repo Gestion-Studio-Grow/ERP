@@ -84,6 +84,8 @@ export type LibroMovement = {
   // el CSV las deriva de `type` y `origin` (`origenDeFila`).
   origenContable?: OrigenContable;
   referencia?: string;
+  /** ¿Se ofrece borrarla? La misma regla con la que `deleteLibroEntry` niega (`motivoParaNoBorrar`). Ausente: por tipo. */
+  borrable?: boolean;
 };
 
 // Origen de un movimiento a partir de lo que el ledger ya guarda. `VENTA` es el tipo que el
@@ -107,7 +109,7 @@ export const LIBRO_ORIGIN_LABEL: Record<Exclude<LibroOrigin, "manual">, string> 
  * El rótulo de una fila. Los cobros de Proyectos también son una VENTA sin pedido, y decir «Turno
  * cobrado» de un stand confunde: el detalle que asienta `registrarCobro` los identifica. PURA.
  */
-export function rotuloDeOrigen(origen: Exclude<LibroOrigin, "manual">, detalle: string | null | undefined): string {
+export function rotuloDeVenta(origen: Exclude<LibroOrigin, "manual">, detalle: string | null | undefined): string {
   return origen === "turno" && esDetalleDeProyecto(detalle) ? "Cobro de proyecto" : LIBRO_ORIGIN_LABEL[origen];
 }
 
@@ -300,7 +302,14 @@ export function origenContable(m: FilaParaOrigen): OrigenContable {
  * mano y se puede. PURA: la usa `deleteLibroEntry` (libro-caja-actions.ts) antes de borrar; el
  * candado de día cerrado va aparte, porque depende de la frontera del cierre.
  */
-export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string | null; createdBy?: string | null }): string | null {
+export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string | null; createdBy?: string | null; tallerPagoId?: string | null }): string | null {
+  // El Taller firma sus asientos con el usuario, así que no se lo reconoce por la marca: lo dice
+  // `tallerPagoId`. Borrar la VENTA dejaría el cobro sin plata; borrar la reversa, la plata de un cobro anulado.
+  if (m.tallerPagoId) {
+    return m.type === "VENTA"
+      ? "Ese movimiento lo asentó un cobro del Taller. No se borra desde el libro: si está mal, anulá el cobro desde la orden."
+      : "Ese egreso lo asentó la anulación de un cobro del Taller. No se borra desde el libro: si la anulación estuvo mal, cargá una corrección con la fecha de hoy.";
+  }
   const origen = libroOrigin({ type: m.type, orderId: m.orderId, createdBy: m.createdBy });
   // La reversa de una venta anulada, también cuando la venta se cobró con varios medios (la
   // reversa de cada medio cuelga de su cobro y no lleva `orderId`).
@@ -384,6 +393,7 @@ export type FilaLedger = {
   createdBy: string;
   collectionId?: string | null;
   paymentId?: string | null;
+  tallerPagoId?: string | null;
 };
 
 // --- Columnas de REFERENCIA que pueden faltar en la base ---
@@ -443,12 +453,25 @@ export function movimientoDelLedger(r: FilaLedger): LibroMovement {
     origin: libroOrigin(r),
     origenContable: origen,
     referencia,
+    borrable: motivoParaNoBorrar(r) === null,
   };
 }
 
 /** Clase de una fila ya armada: la que trae el loader o, si no la trae, por tipo y origen. */
 export function origenDeFila(m: LibroMovement): OrigenContable {
   return m.origenContable ?? origenContable({ type: m.type, origin: m.origin });
+}
+
+/**
+ * De dónde salió una fila, para leer en pantalla. `libroOrigin` llama «manual» a todo lo que no es
+ * una venta: una anulación o un faltante de arqueo no los cargó nadie a mano. PURA.
+ */
+export function rotuloDeOrigen(m: { type: CashMovementType; origin?: LibroOrigin; origenContable?: OrigenContable; detail?: string | null }): string {
+  if (m.origin === "turno" && esDetalleDeProyecto(m.detail)) return "cobro de proyecto";
+  if (m.origin === "pos" || m.origin === "turno") return LIBRO_ORIGIN_LABEL[m.origin].toLowerCase();
+  const origen = m.origenContable ?? origenContable({ type: m.type, origin: m.origin });
+  if (origen === "ingreso-manual" || origen === "egreso-manual") return "cargado a mano";
+  return ORIGEN_CONTABLE_LABEL[origen].toLowerCase();
 }
 
 /**

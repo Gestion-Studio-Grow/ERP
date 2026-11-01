@@ -97,3 +97,15 @@ test("anular en un mostrador dice que la mercadería vuelve al stock, y es lo qu
   const acciones = readFileSync(new URL("../../../../lib/order-actions.ts", import.meta.url), "utf8");
   assert.match(acciones, /const devuelveStock = String\(formData\.get\("stockNoVolvio"\) \|\| ""\) !== "on";/);
 });
+
+test("anular con código: viaja recortado, y sin código el formulario es el de siempre", () => {
+  assert.deepEqual(camposDeLaAnulacion({ id: "o1", motivo: "x", stockNoVolvio: false, codigo: " ABC234 " }), [
+    ["id", "o1"],
+    ["motivo", "x"],
+    ["codigo", "ABC234"],
+  ]);
+  assert.deepEqual(camposDeLaAnulacion({ id: "o1", motivo: "x", stockNoVolvio: false, codigo: "  " }), [
+    ["id", "o1"],
+    ["motivo", "x"],
+  ]);
+});

@@ -99,15 +99,15 @@ export default async function CajaPage() {
       <h1 className="text-2xl font-semibold mb-1 text-strong">Caja</h1>
       <p className="text-muted mb-6 max-w-2xl">
         Lo que hay ahora por cada medio de pago y todo lo que se movió hoy.{" "}
-        {conProyectos ? "Los cobros de proyectos entran solos" : "Los cobros de turnos y las ventas del mostrador entran solos"}
-        , por cualquier medio: acá se cargan únicamente los gastos, retiros e ingresos sueltos.
+        {conProyectos ? "Los cobros de proyectos entran solos" : caja ? "Las ventas del mostrador entran solas" : "Los cobros de turnos y las ventas entran solos"}, por cualquier medio: acá se cargan
+        únicamente los gastos, retiros e ingresos sueltos.
       </p>
 
       <ResumenDelDia dia={dia} />
 
-      {!dia.yaCerrado && <MovimientoSuelto dia={dia.day} conProyectos={conProyectos} />}
+      {!dia.yaCerrado && <MovimientoSuelto dia={dia.day} conProyectos={conProyectos} esMostrador={caja !== null} />}
 
-      {caja && <TurnoDeCajero caja={caja} />}
+      {caja && <TurnoDeCajero caja={caja} diaCerrado={dia.yaCerrado} />}
     </main>
   );
 }
@@ -202,12 +202,14 @@ function ResumenDelDia({ dia }: { dia: Awaited<ReturnType<typeof getCierreDiario
             <Link href="/admin/caja/libro" className="underline underline-offset-4 hover:text-strong">
               Ver el mes en el libro
             </Link>
-            <Link
-              href="/admin/caja/cierre"
-              className="font-medium underline underline-offset-4 hover:text-strong"
-            >
-              Cerrar el día →
-            </Link>
+            {(dia.puedeCerrar || isDemoSandbox()) && (
+              <Link
+                href="/admin/caja/cierre"
+                className="font-medium underline underline-offset-4 hover:text-strong"
+              >
+                Cerrar el día →
+              </Link>
+            )}
           </span>
         </div>
       </Card>
@@ -337,7 +339,7 @@ function fmtDayKey(day: string): string {
 // No hay tipo RETIRO en el libro a propósito: un retiro es un EGRESO con su detalle
 // ("retiro a caja fuerte"). Agregar un tercer tipo obligaba a tocar la aritmética del mes,
 // el export y la guarda de borrado, a cambio de una palabra.
-function MovimientoSuelto({ dia, conProyectos }: { dia: string; conProyectos: boolean }) {
+function MovimientoSuelto({ dia, conProyectos, esMostrador }: { dia: string; conProyectos: boolean; esMostrador: boolean }) {
   return (
     <Card className="mt-6">
       <CardHeader>
@@ -346,7 +348,7 @@ function MovimientoSuelto({ dia, conProyectos }: { dia: string; conProyectos: bo
           <CardDescription>
             {conProyectos
               ? "Gastos, retiros o ingresos que no vienen de un proyecto. Lo que cobrás desde Proyectos"
-              : "Gastos, retiros o ingresos que no vienen de una venta. Lo que cobrás desde Turnos o desde el mostrador"}{" "}
+              : `Gastos, retiros o ingresos que no vienen de una venta. ${esMostrador ? "Lo que cobrás desde el mostrador" : "Lo que cobrás desde Turnos o desde el mostrador"}`}{" "}
             ya entra solo —en efectivo, Mercado Pago o transferencia—: no lo vuelvas a cargar acá.
           </CardDescription>
         </div>
@@ -357,7 +359,7 @@ function MovimientoSuelto({ dia, conProyectos }: { dia: string; conProyectos: bo
 }
 
 // --- Turno de cajero (sólo donde hay cajón físico) ------------------------------------
-function TurnoDeCajero({ caja }: { caja: Awaited<ReturnType<typeof getCajaData>> }) {
+function TurnoDeCajero({ caja, diaCerrado }: { caja: Awaited<ReturnType<typeof getCajaData>>; diaCerrado: boolean }) {
   const { open, recentClosed } = caja;
   return (
     <section className="mt-10">
@@ -371,7 +373,14 @@ function TurnoDeCajero({ caja }: { caja: Awaited<ReturnType<typeof getCajaData>>
         .
       </p>
 
-      {open ? <OpenSession session={open} esperadoDelLibro={caja.esperadoEnElCajon} /> : <ClosedState esperado={caja.esperadoEnElCajon} aCiegas={caja.aperturaACiegas} />}
+      {open ? (
+        <OpenSession session={open} esperadoDelLibro={caja.esperadoEnElCajon} />
+      ) : diaCerrado ? (
+        // Con el día cerrado no se abre turno (`openCashSession`): no se ofrece un formulario que siempre se niega.
+        <p className="text-sm text-muted">No hay un turno abierto, y con el día cerrado no se abre.</p>
+      ) : (
+        <ClosedState esperado={caja.esperadoEnElCajon} aCiegas={caja.aperturaACiegas} />
+      )}
 
       {recentClosed.length > 0 && (
         <div className="mt-8">

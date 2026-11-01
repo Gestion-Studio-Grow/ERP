@@ -35,7 +35,8 @@ window.__montar = (marca, extra) => {
   createRoot(document.getElementById("root")).render(
     createElement(TiendaNueva, {
       nombre: magra ? "MAGRA" : "Almacén Prueba",
-      branding: { shortLabel: null, city: "Canning", addressLine: "Av. Ficticia 1234", hoursLabel: "Lun a Sáb 9–20h", whatsapp: "5491100000000", instagram: null, email: null, contactNote: null },
+      // WhatsApp de verdad (el relevado de Canning): el de relleno «0000 0000» ya no se ofrece (resolveMagraLocal).
+      branding: { shortLabel: null, city: "Canning", addressLine: "Av. Ficticia 1234", hoursLabel: "Lun a Sáb 9–20h", whatsapp: "5491161354042", instagram: null, email: null, contactNote: null },
       wording: rubro.wording,
       copy: magra ? getStorefrontCopy("magra") : null,
       productos: window.__productos,
@@ -64,12 +65,19 @@ import { createElement } from "react";
 export default function Image({ src, alt, fill, priority, sizes, placeholder, blurDataURL, quality, ...resto }) { return createElement("img", { src: typeof src === "string" ? src : "", alt, ...resto }); }
 `;
 const DINAMICO_FALSO = `export default function dynamic() { return function Nada() { return null; }; }`;
+// `next/font/google` sólo existe compilado por Next: sin este falso, el bundle se rompe al cargar (Vidriera.tsx → vidriera/fuentes.ts).
+// Una letra nueva en la vidriera corta el armado con «No matching export»: se agrega acá.
+const LETRAS_FALSAS = `
+const letra = () => ({ className: "", variable: "", style: { fontFamily: "serif" } });
+export { letra as Bebas_Neue, letra as Cormorant, letra as Fraunces, letra as Geist, letra as Hanken_Grotesk, letra as Kumbh_Sans, letra as Open_Sans, letra as Playfair_Display };
+`;
 const FALSOS: Record<string, string> = {
   acciones: ACCIONES_FALSAS,
   cupones: CUPONES_FALSOS,
   link: LINK_FALSO,
   imagen: IMAGEN_FALSA,
   dinamico: DINAMICO_FALSO,
+  letras: LETRAS_FALSAS,
 };
 
 function rutaDeChromium(porDefecto: () => string): string | null {
@@ -139,6 +147,7 @@ describe("TiendaNueva con los envíos del negocio, en el navegador", { timeout: 
             b.onResolve({ filter: /^next\/link$/ }, () => ({ path: "link", namespace: "falso" }));
             b.onResolve({ filter: /^next\/image$/ }, () => ({ path: "imagen", namespace: "falso" }));
             b.onResolve({ filter: /^next\/dynamic$/ }, () => ({ path: "dinamico", namespace: "falso" }));
+            b.onResolve({ filter: /^next\/font\/google$/ }, () => ({ path: "letras", namespace: "falso" }));
             b.onLoad({ filter: /.*/, namespace: "falso" }, (a) => ({ contents: FALSOS[a.path], loader: "js", resolveDir: RAIZ }));
           },
         },

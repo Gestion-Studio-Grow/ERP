@@ -4,7 +4,7 @@ import CalendarGrid from "./CalendarGrid";
 import MananaConfirmar from "./MananaConfirmar";
 import { todayInBusinessTz, fmtCalendarDateLabel } from "@/lib/datetime";
 import { requireApp } from "@/lib/require-app";
-import { roleHasCapability } from "@/lib/capabilities";
+import { anulacionDeCobro, roleHasCapability } from "@/lib/capabilities";
 import { buttonClasses } from "@/components/ui";
 import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
@@ -126,6 +126,7 @@ export default async function TurnosCalendarPage({
       cobrar: canCollect,
       terminar: roleHasCapability(user.role, "agenda:complete"),
       perdonar: roleHasCapability(user.role, "agenda:forgive"),
+      anular: anulacionDeCobro(user.role),
     },
     ahora: new Date().toISOString(),
     dia: diaDeLaPlanilla,

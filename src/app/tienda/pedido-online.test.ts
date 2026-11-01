@@ -112,7 +112,7 @@ test("precio viejo: los precios del formulario se emparejan con las líneas sól
 });
 
 test("la vidriera de MAGRA manda el precio que mostró en cada línea", () => {
-  const front = readFileSync(new URL("./MagraFront.tsx", import.meta.url), "utf8");
+  const front = readFileSync(new URL("./magra/MagraTienda.tsx", import.meta.url), "utf8");
   assert.match(front, /name="unitPrice" value=\{unitPrice\(l\.p\)\}/);
 });
 
@@ -160,9 +160,19 @@ function txFalsa() {
   return { tx, creadas };
 }
 
-test("envío $3.500: el servidor lo calcula con la tarifa de la marca y el pedido de la bandeja lo suma", async () => {
+// Una tarifa de FIXTURE (ronda 2): Shine ya no tiene tarifa en el copy (no tenía fuente). Lo que se cubre acá es el
+// cableado tarifa → alta → línea de envío en la bandeja, con cualquier tarifa que el negocio cargue.
+const TARIFA_DE_PRUEBA = { flatRate: 3500, freeThreshold: 25000 };
+
+test("Shine sin tarifa (ronda 2): el pedido no suma envío y no hay línea de envío", () => {
   const envio = getStorefrontCopy("shinevelas")?.shipping ?? null;
-  assert.deepEqual(envio, { flatRate: 3500, freeThreshold: 25000 });
+  assert.equal(envio, null, "sin tarifa con fuente en el copy");
+  const alta = decidirAlta({ tenantId: "t_shine", input: PEDIDO_ONLINE, products: [VELA], opts: { envio } });
+  assert.deepEqual([alta.subtotal, alta.total, alta.envio], [20000, 20000, undefined]);
+});
+
+test("envío con tarifa: el servidor lo calcula con la tarifa del negocio y el pedido de la bandeja lo suma", async () => {
+  const envio = TARIFA_DE_PRUEBA;
   const alta = decidirAlta({ tenantId: "t_shine", input: PEDIDO_ONLINE, products: [VELA], opts: { envio } });
   assert.deepEqual([alta.subtotal, alta.descuento, alta.total, alta.envio], [23500, 0, 23500, 3500]);
 
@@ -183,7 +193,7 @@ test("envío $3.500: el servidor lo calcula con la tarifa de la marca y el pedid
 });
 
 test("retiro en el local o compra desde $25.000: sin envío y sin línea", () => {
-  const envio = getStorefrontCopy("shinevelas")?.shipping ?? null;
+  const envio = TARIFA_DE_PRUEBA;
   const retiro = decidirAlta({ tenantId: "t", input: { ...PEDIDO_ONLINE, fulfillment: "PICKUP", address: null }, products: [VELA], opts: { envio } });
   assert.deepEqual([retiro.total, retiro.envio], [20000, undefined]);
   const grande = decidirAlta({ tenantId: "t", input: { ...PEDIDO_ONLINE, items: [{ productId: "p_vela", qty: 3 }] }, products: [VELA], opts: { envio } });
@@ -430,9 +440,15 @@ test("M2: todas las vidrieras generan la clave con nuevaClaveDePedido, y el serv
   // La forma VIEJA de SiteReplica (con el punto de Math.random()), de pestañas abiertas antes del cambio.
   assert.equal(claveDeLaVidriera("1790250166194-0.0180339349025187"), "web:1790250166194-0.0180339349025187");
   // TRINQUETE: ninguna vidriera arma su propia clave.
-  for (const f of ["Storefront.tsx", "MagraFront.tsx", "ShineFront.tsx", "SiteReplica.tsx"]) {
+  // Shine, A Dos Manos y Magra la reciben de la bolsa guardada (ronda 2: la clave viaja con la bolsa).
+  for (const f of ["Storefront.tsx", "../../components/vidriera/useBolsaGuardada.ts", "SiteReplica.tsx"]) {
     const src = readFileSync(new URL(`./${f}`, import.meta.url), "utf8");
     assert.match(src, /nuevaClaveDePedido\(\)/, f);
+    assert.doesNotMatch(src, /Math\.random\(\)|randomUUID\(\)/, `${f} arma su propia clave`);
+  }
+  for (const f of ["magra/MagraTienda.tsx", "shine/ShineFront.tsx", "adosmanos/AdosmanosFront.tsx"]) {
+    const src = readFileSync(new URL(`./${f}`, import.meta.url), "utf8");
+    assert.match(src, /clave: claveDePedido, renovarClave \} = useBolsaGuardada\(/, f);
     assert.doesNotMatch(src, /Math\.random\(\)|randomUUID\(\)/, `${f} arma su propia clave`);
   }
 });

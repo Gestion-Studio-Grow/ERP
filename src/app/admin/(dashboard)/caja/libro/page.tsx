@@ -10,6 +10,9 @@
 // al siguiente, y el saldo corrido no se puede pisar.
 
 import Link from "next/link";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { puedeCerrarElDia } from "@/lib/caja/cierre-diario";
+import { getCurrentUser } from "@/lib/session";
 import { requireApp } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { appDelPanelCerrado } from "@/apps/visibles";
@@ -17,7 +20,7 @@ import { getLibroCajaData } from "@/lib/libro-caja-actions";
 import {
   mediosALaVista,
   CASH_METHOD_LABEL,
-  rotuloDeOrigen,
+  rotuloDeVenta,
   totalOf,
   shiftMonth,
   formatMonthKey,
@@ -87,7 +90,7 @@ export default async function LibroCajaPage({
   const { mes } = await searchParams;
   // getLibroCajaData aplica además requireCapability("orders:read"), la misma del registro.
   // Un ?mes inválido cae al mes corriente en vez de romper.
-  const [libro, nuevo, negocio] = await Promise.all([getLibroCajaData(mes), disenoNuevo(), getNegocioApps(guardia.role)]);
+  const [libro, nuevo, { isRetail: esMostrador }, quienMira, negocio] = await Promise.all([getLibroCajaData(mes), disenoNuevo(), getCurrentTenantRubro(), getCurrentUser(), getNegocioApps(guardia.role)]);
   // Una productora cobra proyectos: ni turnos ni mostrador.
   const conProyectos = appDelPanelCerrado(negocio)?.id === "proyectos";
   const { rows, summary, year, month, monthKey, posiblesDuplicados, cerradoHasta } = libro;
@@ -108,7 +111,7 @@ export default async function LibroCajaPage({
     cerradoHasta && isFrozenDay(enElMes, cerradoHasta) ? nextDayKey(cerradoHasta) : enElMes;
 
   // DISEÑO NUEVO («Renglón»): el libro por días. Mismos datos, mismos formularios.
-  if (nuevo) return <LibroRenglon d={libro} defaultDate={defaultDate} hoy={today} />;
+  if (nuevo) return <LibroRenglon d={libro} defaultDate={defaultDate} hoy={today} esMostrador={esMostrador} puedeCerrar={puedeCerrarElDia(quienMira?.role)} />;
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
@@ -129,9 +132,11 @@ export default async function LibroCajaPage({
             {/* El paso final del día es CERRAR, y desde acá no se llegaba. El otro link va a
                 la Caja, que ya no es "el arqueo del mostrador" sino la pantalla del día: la
                 tienen los tres rubros, así que no lleva gate. */}
-            <Link href="/admin/caja/cierre" className="text-sm text-muted underline underline-offset-4 hover:text-strong">
-              Cerrar el día →
-            </Link>
+            {puedeCerrarElDia(quienMira?.role) && !isFrozenDay(today, cerradoHasta) && (
+              <Link href="/admin/caja/cierre" className="text-sm text-muted underline underline-offset-4 hover:text-strong">
+                Cerrar el día →
+              </Link>
+            )}
             <Link href="/admin/caja" className="text-sm text-muted underline underline-offset-4 hover:text-strong">
               Ir a la caja de hoy
             </Link>
@@ -169,7 +174,7 @@ export default async function LibroCajaPage({
               Una fila por cobro o por gasto, igual que en la planilla. Se guarda con la fecha que
               pongas, no con la de hoy: podés cargar en diferido.{" "}
               <strong className="font-medium text-body">
-                {conProyectos ? "Los cobros de proyectos entran solos" : "Los turnos cobrados desde Turnos y las ventas del mostrador entran solos"}
+                {conProyectos ? "Los cobros de proyectos entran solos" : esMostrador ? "Las ventas del mostrador entran solas" : "Los turnos cobrados desde Turnos y las ventas entran solos"}
               </strong>
               : acá se carga lo que no pasa por el sistema ({conProyectos ? "gastos, retiros, cobros sueltos" : "señas, gastos, retiros, cobros sueltos"}).
             </CardDescription>
@@ -231,8 +236,8 @@ export default async function LibroCajaPage({
                   const sale = r.signedAmount < 0;
                   // Solo se puede borrar lo que se cargó a mano en el libro: una VENTA la
                   // escribió el sistema (mostrador o turno cobrado) y una APERTURA el arqueo
-                  // (la acción también lo valida).
-                  const borrable = r.type === "INGRESO" || r.type === "EGRESO";
+                  // (la acción también lo valida). Tampoco lo que asentó otro camino: `motivoParaNoBorrar`.
+                  const borrable = r.borrable ?? (r.type === "INGRESO" || r.type === "EGRESO");
                   const origen = r.origin ?? "manual";
                   // Transición desde la planilla: una fila manual con una gemela del sistema
                   // el mismo día (mismo medio y monto) es un doble conteo probable. Se marca
@@ -249,7 +254,7 @@ export default async function LibroCajaPage({
                       <td className="block pt-0.5 text-body sm:table-cell sm:px-4 sm:py-2 sm:pt-2">
                         {r.detail || <span className="text-faint">—</span>}
                         {origen !== "manual" && (
-                          <Badge tone="info" className="ml-2">{rotuloDeOrigen(origen, r.detail)}</Badge>
+                          <Badge tone="info" className="ml-2">{rotuloDeVenta(origen, r.detail)}</Badge>
                         )}
                         {r.type === "APERTURA" && (
                           <Badge tone="neutral" className="ml-2">Apertura de turno</Badge>
@@ -258,7 +263,7 @@ export default async function LibroCajaPage({
                           <Badge
                             tone="warning"
                             className="ml-2"
-                            title="Hay un turno cobrado o una venta del mostrador el mismo día, por el mismo medio y monto. Si es el mismo cobro, borrá esta fila: la del sistema queda."
+                            title={`${esMostrador ? "Hay una venta del mostrador" : "Hay un turno cobrado o una venta del mostrador"} el mismo día, por el mismo medio y monto. Si es el mismo cobro, borrá esta fila: la del sistema queda.`}
                           >
                             ¿Duplicado? El sistema ya registró un cobro igual ese día
                           </Badge>

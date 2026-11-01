@@ -1,7 +1,8 @@
 // Las piezas de siempre, con la piel de siempre: MISMAS clases y mismo árbol que antes del diseño
 // nuevo (HTML de HEAD 3a96b52, copiado acá). Lo único que se agregó son los atributos data-* que la
 // piel «Renglón» usa para vestirlas; sin `data-diseno` en la raíz no pintan nada. Si alguien
-// cambia una clase de una pieza compartida, CH cambia: este test lo frena.
+// cambia una clase de una pieza compartida, CH cambia: este test lo frena. Último cambio a sabiendas: la escala nivel 5
+// (orden del dueño, 29/10/2026) — botón md 48 px, sm 40 px en la PC, input 48 px con letra de 16 px, tarjeta p-7.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,14 +14,14 @@ const sinPiel = (html: string) => html.replace(/ data-(ui|variant|size|tone|part
 
 const ANTES = {
   button:
-    '<button type="button" class="inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap rounded-md transition-colors duration-150 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-on-accent hover:bg-accent-hover active:translate-y-px shadow-xs disabled:opacity-100 disabled:bg-surface-sunken disabled:text-faint disabled:shadow-none h-11 px-5 text-sm tracking-wide">Cobrar</button>',
+    '<button type="button" class="inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap rounded-md transition-colors duration-150 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-on-accent hover:bg-accent-hover active:translate-y-px shadow-xs disabled:opacity-100 disabled:bg-surface-sunken disabled:text-faint disabled:shadow-none h-12 px-6 text-sm tracking-wide">Cobrar</button>',
   danger:
-    '<button type="button" class="inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap rounded-md transition-colors duration-150 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50 disabled:cursor-not-allowed bg-danger text-on-accent hover:opacity-90 active:translate-y-px shadow-xs h-11 sm:h-9 px-3 text-sm">Eliminar</button>',
+    '<button type="button" class="inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap rounded-md transition-colors duration-150 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50 disabled:cursor-not-allowed bg-danger text-on-accent hover:opacity-90 active:translate-y-px shadow-xs h-11 sm:h-10 px-3.5 text-sm">Eliminar</button>',
   badge:
     '<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium leading-5 tracking-wide tabular-nums bg-success-soft text-success"><span class="size-1.5 rounded-full bg-current opacity-70" aria-hidden="true"></span>Cobrado</span>',
   input:
-    '<input class="w-full h-11 rounded-md border border-line-strong bg-surface-raised px-3 text-sm text-strong placeholder:text-faint transition-colors focus:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus aria-invalid:border-danger disabled:opacity-60 disabled:bg-surface-sunken" id="n"/>',
-  card: '<div class="bg-surface-raised border border-line rounded-lg shadow-card p-5 sm:p-6">x</div>',
+    '<input class="w-full h-12 rounded-md border border-line-strong bg-surface-raised px-3.5 text-base text-strong placeholder:text-faint hover:border-[color-mix(in_srgb,var(--text-strong)_30%,transparent)] transition-colors focus:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus aria-invalid:border-danger disabled:opacity-60 disabled:bg-surface-sunken" id="n"/>',
+  card: '<div class="bg-surface-raised border border-line rounded-lg shadow-card p-5 sm:p-7">x</div>',
 };
 
 test("sin la piel nueva, las piezas rinden el HTML de siempre (más sus data-*)", () => {

@@ -9,7 +9,8 @@
 //   - consola del operador: siempre el nuevo (la consola va siempre con el diseño nuevo);
 //   - panel de un negocio, contador o Facturita: el nuevo SÓLO con el interruptor prendido;
 //     apagado (CH hoy) → `null` = el 404 de Next de siempre, sin cambios;
-//   - vidriera y el resto del sitio público: `null` (no es parte del rediseño del panel).
+//   - vidriera y el resto del sitio público: `null` (no es parte del rediseño del panel); ahí deciden
+//     `noEncontradaDeLaVidriera` y `nombreEnLaNoEncontrada`, más abajo.
 
 export type EnlaceDeVuelta = { href: string; etiqueta: string };
 
@@ -44,4 +45,20 @@ export function noEncontradaPara(ruta: string | null | undefined, nuevo: boolean
     return { superficie: "negocio", enlaces: [{ href: "/facturita/app", etiqueta: "Volver a Facturita" }] };
   }
   return null;
+}
+
+/** Una dirección que no existe en una vidriera. Sólo CH pasa por el layout del sitio; el resto, el 404 de Next de siempre. PURA. */
+export function noEncontradaDeLaVidriera(slug: string | null, chConDisenoNuevo: boolean): "ch-nuevo" | "ch-de-siempre" | "de-next" {
+  if (slug !== "beauty-spa") return "de-next";
+  return chConDisenoNuevo ? "ch-nuevo" : "ch-de-siempre";
+}
+
+/**
+ * Con qué nombre se presenta el 404 de la vidriera: la ficha propia del negocio o el nombre de su fila Tenant. Sin nombre legible,
+ * `null`: neutro, nunca el de otro negocio. PURA.
+ */
+export function nombreEnLaNoEncontrada(brand: { propia?: boolean; name: string }, nombreDelTenant: string | null): string | null {
+  if (brand.propia) return brand.name;
+  const nombre = (nombreDelTenant ?? "").trim();
+  return nombre && nombre !== "Mi negocio" ? nombre : null;
 }

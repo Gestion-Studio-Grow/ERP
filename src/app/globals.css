@@ -68,7 +68,7 @@
   --text-strong: #1f1b14;      /* títulos, texto principal */
   --text: #413b31;             /* cuerpo */
   --text-muted: #736a58;       /* secundario, labels, metadatos */
-  --text-faint: #766d5f;       /* AA≥4.5 sobre el hueso #f6f3ec (4.6:1) — no solo sobre blanco; antes #a79c87 = 2.7:1 (verificado en prod: "Trabajamos con") */
+  --text-faint: #6b6254;       /* AA≥4.5 sobre el hueso #f6f3ec (5,4:1) y sobre el sunken (4,9:1); antes #a79c87 = 2.7:1 (verificado en prod: "Trabajamos con") */
   --text-on-accent: #ffffff;   /* FALLBACK; los layouts inyectan el real por tema+acento */
 
   /* Líneas y bordes — cálidos */
@@ -207,6 +207,11 @@
   --line: rgba(255, 255, 255, 0.09);
   --line-strong: rgba(255, 255, 255, 0.16);
 }
+
+/* Letra del panel (ronda 2, fuentes por superficie): el cuerpo por defecto de la app pasó a Geist; el panel conserva
+   Hanken en `.font-body` y en lo que lee `var(--font-body)`. Va ANTES de los theme packs y de las pieles por negocio
+   (mismo o mayor peso): ellos siguen mandando cuando están. */
+[data-skin="fable"] { --font-cuerpo: var(--font-hanken); --font-body: var(--font-hanken); }
 
 /* ═════════ THEME PACKS por tenant (RFC-004-D, frente B) ═════════
    La PIEL curada por tenant: cada `[data-brand="…"]` redefine neutros + tipografía +
@@ -431,6 +436,34 @@
   font-family: -apple-system, BlinkMacSystemFont, var(--font-geist-sans), "Inter", sans-serif;
 }
 
+/* ESCALA NIVEL 5 (orden del dueño, 29/10/2026: «escala más grande»), SÓLO en el panel de cada negocio y su ingreso
+   (`data-escala="nivel-5"` en src/app/admin/(dashboard)/layout.tsx y admin/login): la consola del operador, el
+   contador, Facturita y el 404 también usan el skin y no se tocan desde acá. Las utilidades de Tailwind leen estas
+   variables en el punto de uso (`.text-sm{font-size:var(--text-sm)}`), así que redefinirlas agranda todas las
+   pantallas del panel sin tocarlas. 12/14/16/18/20/24 → 13/15/17/19/22/28; radios .625/.75 → .75/1. Las cuatro
+   estéticas de cliente cuelgan del mismo data-skin y heredan la escala. */
+[data-skin="fable"][data-escala="nivel-5"] {
+  --radius: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1rem;
+  --text-xs: 0.8125rem;  --text-xs--line-height: 1.45;
+  --text-sm: 0.9375rem;  --text-sm--line-height: 1.5;
+  --text-base: 1.0625rem; --text-base--line-height: 1.55;
+  --text-lg: 1.1875rem;  --text-lg--line-height: 1.45;
+  --text-xl: 1.375rem;   --text-xl--line-height: 1.35;
+  --text-2xl: 1.75rem;   --text-2xl--line-height: 1.25;
+}
+
+/* Escala nivel 5 (29/10/2026): foco con doble anillo en controles y botones del panel — el contorno de siempre más
+   un halo del acento suave del negocio, que se ve en los dos temas y sobre cualquier superficie. */
+[data-skin="fable"] :is([data-ui="input"], [data-ui="select"], [data-ui="textarea"]):focus-visible,
+[data-skin="fable"] [data-ui="button"]:focus-visible {
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+[data-skin="fable"] :is([data-ui="input"], [data-ui="select"], [data-ui="textarea"])[aria-invalid="true"]:focus-visible {
+  box-shadow: 0 0 0 4px var(--danger-soft);
+}
+
 [data-skin="fable"][data-theme="dark"] {
   /* — OSCURO grafito profundo (fablebackofficedark.html :root, hex exactos) — */
   --background: #0d0d0f;
@@ -581,8 +614,12 @@
 /* — Magra: su front es negro carbón con hueso y oro, Bebas Neue + Open Sans, sin claro (MagraFront.tsx:733-750,
    ADR-072 §8). El panel es carbón en los dos temas; el oro va de relleno con texto carbón (AA), nunca de texto
    chico sobre claro. — */
-[data-skin="fable"][data-estetica="magra"],
-[data-skin="fable"][data-theme="dark"][data-estetica="magra"] {
+/* UAT caja M1 (30/10): con «Diseño nuevo» (`data-diseno="renglon"` en la MISMA raíz) la piel Renglón pinta el papel
+   claro, pero esta paleta carbón le ganaba los tokens de texto: hueso #f2e6d7 sobre papel (≈1,2:1) en los medios de la
+   hoja de cierre, «Cuadra» y «Faltan» casi invisibles. Con el diseño nuevo manda la paleta de Renglón (claro y oscuro,
+   AA medido en src/design/tokens.test.ts). `:where()` no suma especificidad: el orden de la cascada no cambia. */
+[data-skin="fable"][data-estetica="magra"]:where(:not([data-diseno="renglon"])),
+[data-skin="fable"][data-theme="dark"][data-estetica="magra"]:where(:not([data-diseno="renglon"])) {
   --surface-sunken: #0e0e0c; --surface: #1d1d1b; --surface-raised: #000000; --surface-inverted: #f2e6d7;
   --text-strong: #f2e6d7; --text: #ccd6df; --text-muted: #9ba2aa; --text-faint: #9ba2aa;
   --line: rgba(242, 230, 215, 0.12); --line-strong: rgba(242, 230, 215, 0.22);
@@ -779,9 +816,12 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-serif: var(--font-spa-serif);
+  /* Fuentes por superficie (ronda 2): el cuerpo por defecto es Geist, ya no Hanken (antes `body` bajaba Hanken en todo
+     tenant). El panel conserva su letra con `--font-cuerpo` (regla `[data-skin="fable"]` de arriba). La serif cae a la
+     de CH cuando la superficie no declara Playfair (sólo la declara el panel). */
+  --font-serif: var(--font-spa-serif, var(--font-fraunces));
   --font-display: var(--font-fraunces);
-  --font-body: var(--font-hanken);
+  --font-body: var(--font-cuerpo, var(--font-geist-sans));
 
   /* Paleta de marca CH expuesta como utilidades: bg-ch-petrol, text-ch-mocha,
      border-ch-clay, etc. Fin de los estilos inline con var(--ch-*). */
@@ -1224,14 +1264,14 @@ summary:focus-visible {
   [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.875rem;
+    font-size: 0.9375rem; /* escala nivel 5: 14 → 15 px */
     color: var(--text);
   }
   [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) thead th {
-    padding: 0.5rem 0.75rem;
+    padding: 0.625rem 0.875rem;
     border-bottom: 1px solid var(--line-strong);
     text-align: left;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--text-muted);
     white-space: nowrap;
@@ -1245,6 +1285,10 @@ summary:focus-visible {
   [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) tbody tr[data-enlace] {
     cursor: pointer;
   }
+  /* Escala nivel 5: zebra suave para seguir la fila con la vista (el hover, abajo, le gana). */
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) tbody tr:nth-child(even) {
+    background: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
+  }
   [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) tbody tr:hover {
     background: var(--surface-sunken);
   }
@@ -1253,7 +1297,7 @@ summary:focus-visible {
     outline-offset: -2px;
   }
   [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td {
-    padding: 0.625rem 0.75rem;
+    padding: 0.75rem 0.875rem; /* fila ≈ 46 px (antes ≈ 40) */
     vertical-align: middle;
   }
   [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-movil="folio"],
@@ -1364,8 +1408,8 @@ summary:focus-visible {
 /* — Capas del panel por negocio. Regla: lo que está más cerca de la mano es más claro (tarjeta > fondo). — */
 /* Magra: antes las tarjetas eran negro puro SOBRE un gris carbón (elevación invertida: parecían huecos). Ahora el
    fondo es el más profundo y la tarjeta sube un escalón; el oro y el hueso no cambian. */
-[data-skin="fable"][data-estetica="magra"],
-[data-skin="fable"][data-theme="dark"][data-estetica="magra"] {
+[data-skin="fable"][data-estetica="magra"]:where(:not([data-diseno="renglon"])),
+[data-skin="fable"][data-theme="dark"][data-estetica="magra"]:where(:not([data-diseno="renglon"])) {
   --surface-sunken: #0f0f0d; --surface: #151513; --surface-raised: #1e1d1a;
   --bo-elev-1: inset 0 1px 0 rgba(242, 230, 215, 0.05), 0 12px 28px -18px rgba(0, 0, 0, 0.8);
 }

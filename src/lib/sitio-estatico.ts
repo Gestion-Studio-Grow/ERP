@@ -24,6 +24,8 @@ export type ArchivoDelSitio = {
   tipo: string;
   /** `cache-control`: privado (sólo el navegador), así ninguna caché compartida mezcla hosts. */
   cache: string;
+  /** `false`: una pantalla de gestión (la del club), no una página para buscadores: fuera del sitemap (SEO ronda 2). */
+  indexable?: boolean;
 };
 
 export type SitioEstatico = {
@@ -76,7 +78,7 @@ export const SITIOS_ESTATICOS: readonly SitioEstatico[] = [
     archivos: {
       "": { archivo: "index.html", ...PAGINA },
       turnero: { archivo: "turnero.html", ...PAGINA },
-      club: { archivo: "club.html", ...PAGINA },
+      club: { archivo: "club.html", ...PAGINA, indexable: false },
     },
   },
   {

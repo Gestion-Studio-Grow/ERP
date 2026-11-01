@@ -48,14 +48,14 @@ export interface TenantIdentity {
 
 /**
  * Marcas con front editorial PROPIO: un componente dedicado en src/app/tienda, con su
- * paleta, su tipografía y su relato. Es un subconjunto de las marcas con copy propio —
- * `adosmanos` tiene copy pero se sirve con la vidriera genérica.
+ * paleta, su tipografía y su relato (MAGRA, Shine, Qué Bien Olés y, desde el 29/10, A Dos Manos en
+ * src/app/tienda/adosmanos/). Es un subconjunto de las marcas con copy propio.
  *
  * Es una lista corta a propósito: cada entrada es un componente React que existe en el
  * repo. Lo que NO es una lista a mano es qué TENANT cae en cada marca: eso lo resuelve
  * la familia del slug, así los 5 locales de MAGRA entran solos.
  */
-const EDITORIAL_FRONT_IDS = ["magra", "shinevelas", "quebienoles"] as const;
+const EDITORIAL_FRONT_IDS = ["magra", "shinevelas", "quebienoles", "adosmanos"] as const;
 export type EditorialFrontId = (typeof EDITORIAL_FRONT_IDS)[number];
 
 /** Qué front editorial le corresponde al tenant, o null → vidriera genérica del rubro. */

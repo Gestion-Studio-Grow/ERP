@@ -25,6 +25,8 @@ import {
   anularVentaInTx,
   AnulacionVentaRechazada,
   planAnulacionVenta,
+  mensajeAnulacionVentaRechazada,
+  leerAnulacion,
   planEdicionDeLineas,
   deltasDeStock,
   laVentaEscribeEnCaja,
@@ -614,4 +616,28 @@ test("si la anulación no pasa (día cerrado), el cupón tampoco vuelve", async 
   });
   await assert.rejects(() => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: "2026-09-16" }));
   assert.equal(mundo.cupones[0].usedCount, 1);
+});
+
+// ── Orden del dueño, 31/10/2026: con plata, recepción necesita el código de la dueña ──────────
+
+test("sin el código no se anula una venta con plata, y el motivo lo dice", () => {
+  const base = { existe: true, yaAnulada: false, diaCerrado: false, factura: "sin-factura-viva" as const };
+  assert.deepEqual(planAnulacionVenta({ ...base, faltaAutorizacion: true }), { ok: false, motivo: "sin-autorizacion" });
+  assert.deepEqual(planAnulacionVenta(base), { ok: true });
+  assert.match(mensajeAnulacionVentaRechazada("sin-autorizacion"), /código de la dueña/);
+});
+
+test("sin el código, las otras reglas hablan primero: no se manda a nadie a buscar a la dueña para otro rechazo", () => {
+  const base = { existe: true, yaAnulada: false, diaCerrado: false, factura: "sin-factura-viva" as const, faltaAutorizacion: true };
+  assert.deepEqual(planAnulacionVenta({ ...base, yaAnulada: true }), { ok: false, motivo: "ya-anulada" });
+  assert.deepEqual(planAnulacionVenta({ ...base, factura: "autorizada" }), { ok: false, motivo: "facturada" });
+  assert.deepEqual(planAnulacionVenta({ ...base, diaCerrado: true }), { ok: false, motivo: "dia-cerrado" });
+  assert.deepEqual(planAnulacionVenta({ ...base, fueraDelDia: true }), { ok: false, motivo: "solo-hoy" });
+});
+
+test("el rastro dice quién autorizó sólo si anuló otra persona", () => {
+  const fila = (actor: string) => ({ actor, entityId: "o1", changes: { code: 8, por: "Juan", motivo: "se pesó mal", autorizadaPor: "caro", autorizadaPorNombre: "Caro" } });
+  assert.equal(leerAnulacion(fila("user:juan")).autorizo, "Caro");
+  assert.equal(leerAnulacion(fila("user:caro")).autorizo, undefined);
+  assert.equal(leerAnulacion({ actor: "user:juan", changes: { por: "Juan" } }).autorizo, undefined, "las filas viejas no lo traen");
 });

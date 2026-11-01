@@ -13,6 +13,13 @@
 // sólo se muestra si este dispositivo es el dueño. Si el celular es de un alumno conocido y el
 // teléfono es otro: «Te confirmamos por WhatsApp» (sin link).
 // Si la hora se ocupó en el medio: el chip se apaga y se sugieren las 2 más cercanas (M-097).
+//
+// Piel de la placa de horarios (fronts/agendaprofe/DISENO.md §5.1): la cinta PRIMERO (en el celular,
+// el primer horario entra en la primera pantalla; en la compu el tipo de clase sube arriba con
+// `lg:order-first`, como en el diseño), tipo de clase en dos tarjetas grandes, cinta alta, horas de 56 px, barra fija de 64 px (en la compu, pegada al pie de la columna).
+// Sin horarios publicados, la columna es la placa de presentación (qué clases da, cómo pedir un turno
+// por mensaje y cuándo vuelven los horarios) y la barra dice «Pedir un turno por mensaje». La lógica
+// de pedir, los `data-qa` y los textos que fijan los tests no cambian.
 
 import { useState, useSyncExternalStore, useTransition } from "react";
 import { pedirClase, reservarDesdeLink } from "@/lib/padel/acciones-alumno";
@@ -22,7 +29,10 @@ import { ElegirHora } from "./_elegir-hora";
 import { HojaQuien } from "./_hoja-quien";
 import { Listo, type ResultadoPedido } from "./Listo";
 import { YaSoyAlumno } from "./YaSoyAlumno";
-import { alerta, botonPrincipal, caja, campo, chip, etiqueta } from "./_estilos";
+import { FichaClase, type InfoClase } from "./_ficha-clase";
+import { IconoCalendario, IconoGirando } from "./_iconos";
+import { alerta, antetitulo, botonPrincipal, caja, campo, chip, etiqueta, foco, ocupado, tituloSeccion } from "./_estilos";
+import { cn } from "@/components/ui/cn";
 import {
   RECUERDO,
   SIN_CONEXION_PEDIDO,
@@ -62,6 +72,7 @@ export default function Turnero({
   abrirLink = false,
   inicio = {},
   nombreApp,
+  info,
 }: {
   dias: DiaConLugar[];
   /** El profe todavía no cargó ninguna franja en la que da clases. */
@@ -79,6 +90,8 @@ export default function Turnero({
   /** `?fecha=` / `?hora=` del link («Elegir otro horario», «¿Te sirve…?»). */
   inicio?: { fecha?: string | null; hora?: string | null };
   nombreApp: string;
+  /** La ficha «¿Qué incluye?» (duración, precios, dónde, regla). Sin ella, no hay ficha. */
+  info?: InfoClase;
 }) {
   const [dias, setDias] = useState(diasIniciales);
   const [arranque] = useState(() => inicioDeLaCinta(diasIniciales, inicio));
@@ -121,16 +134,68 @@ export default function Turnero({
     );
   }
 
-  const contacto = <Contacto wa={wa} profe={profe} conocido={conSesion} />;
+  // La barra fija de abajo (celular) o pegada al pie de la columna (compu, desde 1024 px). Debajo, una
+  // sola línea de la misma altura siempre (no corre nada: CLS 0).
+  const barra = cn(
+    "fixed inset-x-0 bottom-0 z-30 border-t-[1.5px] border-[var(--padel-linea)] bg-[var(--padel-superficie)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(11,31,58,0.08)]",
+    "lg:static lg:inset-x-auto lg:rounded-[1.25rem] lg:border-[1.5px] lg:px-5 lg:pb-2 lg:shadow-none",
+  );
 
   if (dias.length === 0) {
     return (
-      <section className={`${caja} grid gap-3`} data-qa="sin-horarios">
-        <h2 className="text-lg font-bold">{sinHorarios ? `${profe} todavía no publicó sus horarios` : "No quedan horarios libres por ahora"}</h2>
-        <p className="text-base text-[var(--padel-suave)]">Volvé a mirar en unos días o escribile: capaz te hace un lugar.</p>
-        {contacto}
-        {!conSesion && <YaSoyAlumno abierto={abrirLink} />}
-      </section>
+      <>
+        <section className="grid gap-5" data-qa="sin-horarios" aria-labelledby="t-vacio">
+          {sinHorarios ? (
+            <>
+              <h2 id="t-vacio" className={tituloSeccion}>
+                Esta semana no tengo horarios publicados
+              </h2>
+              <p className="max-w-[38rem]">Estoy armando la agenda. Mientras tanto, pedime un turno por mensaje y te contesto por WhatsApp.</p>
+              {/* Lo que da: las dos clases que existen en el motor (individual y con amigos). Sin precio
+                  cargado, la tarjeta no dice «$ 0»: dice sólo qué es. */}
+              <ul className="grid gap-3 sm:grid-cols-2" aria-label="Qué clases doy">
+                <li className={cn(caja, "grid content-between gap-3")} data-qa="oferta-individual">
+                  <p className={antetitulo}>Clase individual</p>
+                  <OfertaDatos precio={precioIndividual} sufijo="la clase" duracionMin={info?.duracionMin ?? 0} />
+                </li>
+                <li className={cn(caja, "grid content-between gap-3")} data-qa="oferta-grupal">
+                  <div>
+                    <p className={antetitulo}>Clase con amigos</p>
+                    <p className="mt-1 text-[var(--padel-suave)]">De 2 a 4, por persona.</p>
+                  </div>
+                  <OfertaDatos precio={precioGrupal} sufijo="por persona" duracionMin={info?.duracionMin ?? 0} />
+                </li>
+              </ul>
+              {info && (
+                <div className="-mt-2">
+                  <FichaClase info={info} conHorarios={false} />
+                </div>
+              )}
+              <p className="flex items-start gap-2 text-[var(--padel-suave)]" data-qa="cuando-vuelven">
+                <IconoCalendario className="mt-0.5 size-5 shrink-0" />
+                <span>{profe} publica los horarios semana a semana.</span>
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 id="t-vacio" className={tituloSeccion}>
+                No quedan horarios libres por ahora
+              </h2>
+              <p>Si te sirve, escribime: capaz te hago un lugar.</p>
+            </>
+          )}
+        </section>
+        <div className={cn(barra, "lg:mt-6")}>
+          <div className="mx-auto grid max-w-[35rem] gap-1 lg:max-w-none">
+            <Contacto wa={wa} profe={profe} conocido={conSesion} principal etiqueta={sinHorarios ? "Pedir un turno por mensaje" : undefined} />
+            {!conSesion && (
+              <div className="flex min-h-12 items-center justify-center">
+                <YaSoyAlumno abierto={abrirLink} />
+              </div>
+            )}
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -146,7 +211,7 @@ export default function Turnero({
   };
 
   const pedir = (quien?: Quien) => {
-    if (!hora) return;
+    if (!hora || pendiente) return;
     const iso = hora;
     setError(null);
     setSugeridas([]);
@@ -223,57 +288,27 @@ export default function Turnero({
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-4">
-        {hayGrupal && (
-          <section className={caja} aria-labelledby="t-tipo">
-            <h2 id="t-tipo" className="mb-2 text-base font-bold">
-              ¿Cómo querés la clase?
-            </h2>
-            <div role="group" aria-labelledby="t-tipo" className="grid grid-cols-2 gap-2">
-              <button type="button" aria-pressed={tipo === "INDIVIDUAL"} className={`${chip(tipo === "INDIVIDUAL")} flex-col leading-tight`} onClick={() => setTipo("INDIVIDUAL")} data-qa="tipo-individual">
-                Individual
-                {precioIndividual > 0 && <span className="text-sm font-normal">{plata(precioIndividual)}</span>}
-              </button>
-              <button type="button" aria-pressed={tipo === "GRUPAL"} className={`${chip(tipo === "GRUPAL")} flex-col leading-tight`} onClick={() => setTipo("GRUPAL")} data-qa="tipo-grupal">
-                Con amigos
-                <span className="text-sm font-normal">{plata(precioGrupal)} c/u</span>
-              </button>
-            </div>
-            {tipo === "GRUPAL" && (
-              <div className="mt-3 flex items-center gap-2" role="group" aria-label="¿Cuántos son?">
-                <span className="text-base">Somos</span>
-                {[2, 3, 4].map((n) => (
-                  <button key={n} type="button" aria-pressed={personas === n} className={chip(personas === n)} onClick={() => setPersonas(n)} data-qa="personas" data-n={n}>
-                    {n}
-                  </button>
-                ))}
-              </div>
-            )}
-            {textoPrecio(tipo, personas, precioIndividual, precioGrupal) && (
-              <p className="mt-3 text-base font-semibold tabular-nums" data-qa="precio">
-                {textoPrecio(tipo, personas, precioIndividual, precioGrupal)}
-              </p>
-            )}
-          </section>
-        )}
-
-        <section className={caja} aria-label="Día y hora">
-          <ElegirHora
-            prefijo="t"
-            dias={dias}
-            fecha={fecha}
-            hora={hora}
-            onFecha={(f) => {
-              setFecha(f);
-              setHora(null);
-            }}
-            onHora={(h) => {
-              setHora(h);
-              setError(null);
-            }}
-          />
+      <div className="grid grid-cols-1 gap-[clamp(1.5rem,3vw,2rem)]">
+        <section id="cinta" className={cn(caja, "pz-ancla")} aria-label="Día y hora" aria-busy={pendiente}>
+          {/* Pidiendo…: los chips quedan quietos (no se cambia la hora a mitad del pedido). */}
+          <div className={pendiente ? "pointer-events-none opacity-60" : undefined}>
+            <ElegirHora
+              prefijo="t"
+              dias={dias}
+              fecha={fecha}
+              hora={hora}
+              onFecha={(f) => {
+                setFecha(f);
+                setHora(null);
+              }}
+              onHora={(h) => {
+                setHora(h);
+                setError(null);
+              }}
+            />
+          </div>
           {error && (
-            <div className="mt-4 grid gap-2">
+            <div className="mt-4 grid gap-3">
               <p role="alert" className={alerta} data-qa="error">
                 {error}
               </p>
@@ -283,7 +318,7 @@ export default function Turnero({
                     <button
                       key={s}
                       type="button"
-                      className={chip(false)}
+                      className={cn(chip(false), "pz-pulso border-[var(--padel-vivo)] ring-2 ring-[var(--padel-vivo)]")}
                       data-qa="sugerida"
                       data-hora={s}
                       onClick={() => {
@@ -303,45 +338,102 @@ export default function Turnero({
           )}
         </section>
 
-        <section className={caja}>
+        {/* El botón fijo abajo, a mano del pulgar (M-089). Debajo, una sola línea de la misma altura
+            siempre: «Pedís como Juan · No soy yo» o «¿Ya sos alumno? Pedí tu link» (no corre nada: CLS 0).
+            En la compu va justo debajo de las horas, en el flujo (QA 29/10: pegado al pie de la columna
+            tapaba horarios); en el celular sigue fijo abajo. */}
+        <div className={barra}>
+          <div className="mx-auto grid max-w-[35rem] gap-1 lg:max-w-none">
+            {/* Pidiendo…: a pleno color, con la rueda y aria-busy (QA r2: en el celular el gris de
+                `disabled` se leía como «no anduvo»). El segundo toque lo frena `pedir`. */}
+            <button type="button" className={cn(botonPrincipal, ocupado)} disabled={!hora} aria-busy={pendiente} onClick={() => pedir()} data-qa="pedir">
+              {pendiente ? (
+                <>
+                  <IconoGirando className="size-6 shrink-0" /> Pidiendo tu clase…
+                </>
+              ) : (
+                cta
+              )}
+            </button>
+            <p className="sr-only" role="status">
+              {pendiente ? "Pidiendo tu clase…" : ""}
+            </p>
+            <div className="flex min-h-12 items-center justify-center">
+              {quienEs && !abrirLink ? (
+                <p className="text-[0.9375rem] text-[var(--padel-suave)]" data-qa="pedis-como">
+                  Pedís como <strong className="text-[var(--padel-texto)]">{quienEs}</strong>
+                  {" · "}
+                  <button
+                    type="button"
+                    className="min-h-12 cursor-pointer px-1 font-semibold underline underline-offset-2"
+                    onClick={() => {
+                      setPorCookie(false);
+                      setRecuerdo(null);
+                      setErrorHoja(null);
+                    }}
+                  >
+                    No soy yo
+                  </button>
+                </p>
+              ) : (
+                <YaSoyAlumno abierto={abrirLink} />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {hayGrupal && (
+          <section aria-labelledby="t-tipo" className="lg:order-first">
+            <h2 id="t-tipo" className={cn(tituloSeccion, "mb-3")}>
+              ¿Cómo querés la clase?
+            </h2>
+            <div role="group" aria-labelledby="t-tipo" className="grid grid-cols-2 gap-3">
+              <button type="button" aria-pressed={tipo === "INDIVIDUAL"} className={tarjetaTipo(tipo === "INDIVIDUAL")} onClick={() => setTipo("INDIVIDUAL")} data-qa="tipo-individual">
+                <span className="text-[1.0625rem] font-semibold">Individual</span>
+                {precioIndividual > 0 && <span className="pz-display pz-num text-[clamp(1.75rem,3vw,2.75rem)] font-bold leading-none">{plata(precioIndividual)}</span>}
+              </button>
+              <button type="button" aria-pressed={tipo === "GRUPAL"} className={tarjetaTipo(tipo === "GRUPAL")} onClick={() => setTipo("GRUPAL")} data-qa="tipo-grupal">
+                <span className="text-[1.0625rem] font-semibold">Con amigos</span>
+                <span className="pz-display pz-num text-[clamp(1.75rem,3vw,2.75rem)] font-bold leading-none">
+                  {plata(precioGrupal)}
+                  <span className="ml-1 text-[0.55em]">c/u</span>
+                </span>
+              </button>
+            </div>
+            {tipo === "GRUPAL" && (
+              <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="¿Cuántos son?">
+                <span className="text-[1.0625rem] font-semibold">Somos</span>
+                {[2, 3, 4].map((n) => (
+                  <button key={n} type="button" aria-pressed={personas === n} className={cn(chip(personas === n), "min-w-14")} onClick={() => setPersonas(n)} data-qa="personas" data-n={n}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="mt-2 flex min-h-12 flex-wrap items-center justify-between gap-x-4">
+              {textoPrecio(tipo, personas, precioIndividual, precioGrupal) && (
+                <p className="pz-num text-[1.0625rem] font-semibold" data-qa="precio">
+                  {textoPrecio(tipo, personas, precioIndividual, precioGrupal)}
+                </p>
+              )}
+              {info && <FichaClase info={info} conHorarios />}
+            </div>
+          </section>
+        )}
+
+        <section>
           <label htmlFor="t-nota" className={etiqueta}>
             ¿Algo que {profe} tenga que saber? <span className="font-normal text-[var(--padel-suave)]">(opcional)</span>
           </label>
           <textarea id="t-nota" rows={2} maxLength={300} value={nota} onChange={(e) => setNota(e.target.value)} className={`${campo} py-3`} placeholder="Ej.: es mi primera clase" />
+          {!hayGrupal && info && (
+            <div className="mt-2">
+              <FichaClase info={info} conHorarios />
+            </div>
+          )}
         </section>
 
-        {contacto}
-      </div>
-
-      {/* El botón fijo abajo, a mano del pulgar (M-089). Debajo, una sola línea de la misma altura
-          siempre: «Pedís como Juan · No soy yo» o «¿Ya sos alumno? Pedí tu link» (no corre nada: CLS 0). */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--padel-linea)] bg-[var(--padel-papel)] px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-3">
-        <div className="mx-auto grid max-w-[35rem] gap-1">
-          <button type="button" className={botonPrincipal} disabled={!hora || pendiente} onClick={() => pedir()} data-qa="pedir">
-            {pendiente ? "Pidiendo…" : cta}
-          </button>
-          <div className="flex min-h-12 items-center justify-center">
-            {quienEs && !abrirLink ? (
-              <p className="text-sm text-[var(--padel-suave)]" data-qa="pedis-como">
-                Pedís como <strong className="text-[var(--padel-texto)]">{quienEs}</strong>
-                {" · "}
-                <button
-                  type="button"
-                  className="min-h-12 cursor-pointer px-1 font-semibold underline underline-offset-2"
-                  onClick={() => {
-                    setPorCookie(false);
-                    setRecuerdo(null);
-                    setErrorHoja(null);
-                  }}
-                >
-                  No soy yo
-                </button>
-              </p>
-            ) : (
-              <YaSoyAlumno abierto={abrirLink} />
-            )}
-          </div>
-        </div>
+        <Contacto wa={wa} profe={profe} conocido={conSesion} />
       </div>
 
       <HojaQuien
@@ -358,3 +450,28 @@ export default function Turnero({
   );
 }
 
+/** Tarjeta grande de tipo de clase (patrón «elegí tu programa»): apretada = llena de cancha. */
+const tarjetaTipo = (activo: boolean) =>
+  cn(
+    "flex min-h-[6.5rem] cursor-pointer flex-col items-start justify-between gap-2 rounded-[1.25rem] border-[1.5px] p-4 text-left",
+    "transition-transform duration-[var(--dur-1,120ms)] active:translate-y-px motion-reduce:transition-none motion-reduce:active:translate-y-0",
+    foco,
+    activo
+      ? "border-[var(--padel-cancha)] bg-[var(--padel-cancha)] text-[var(--padel-sobre-cancha)]"
+      : "border-[var(--padel-linea)] bg-[var(--padel-superficie)] text-[var(--padel-texto)]",
+  );
+
+/** Precio y duración de una oferta, sólo si están cargados (nada de «$ 0»). */
+function OfertaDatos({ precio, sufijo, duracionMin }: { precio: number; sufijo: string; duracionMin: number }) {
+  if (!(precio > 0) && !(duracionMin > 0)) return null;
+  return (
+    <p className="flex flex-wrap items-baseline gap-x-3">
+      {precio > 0 && (
+        <span className="pz-display pz-num text-[clamp(1.75rem,3vw,2.75rem)] font-bold leading-none">
+          {plata(precio)} <span className="text-[0.5em] text-[var(--padel-suave)]">{sufijo}</span>
+        </span>
+      )}
+      {duracionMin > 0 && <span className="pz-num font-semibold text-[var(--padel-suave)]">{duracionMin} min</span>}
+    </p>
+  );
+}

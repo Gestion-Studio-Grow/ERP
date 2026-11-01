@@ -24,7 +24,7 @@
 // que el alta de siempre (`camposDelAlta`, con prueba). Todo lo que se decide sin pantalla está en
 // alta-core.ts con su test.
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getAvailableSlotsRange } from "@/lib/actions";
 import { darTurno, libresAhora } from "@/lib/turnos/alta-actions";
 import { Button, Chip, Input, Marca, Plata, Seccion, Textarea } from "@/components/ui";
@@ -80,6 +80,7 @@ export default function AltaDeTurno({
   clienteInicial,
   profesionalInicial,
   horaInicial,
+  servicioInicial,
   ahoraInicial = false,
   alias = ALIAS_SENIA_PROVISIONAL,
   viewer,
@@ -96,6 +97,8 @@ export default function AltaDeTurno({
   profesionalInicial?: string;
   /** La hora de pared del hueco tocado, «HH:MM». */
   horaInicial?: string;
+  /** El servicio que ya viene elegido («Reservar el próximo»: el mismo del turno). */
+  servicioInicial?: string;
   /** «Atender ahora» (CH-019). */
   ahoraInicial?: boolean;
   /** El alias del negocio para el pedido de seña (provisional a confirmar: hoy `null`). */
@@ -250,6 +253,15 @@ export default function AltaDeTurno({
     else buscarHuecos(s, dias.includes(dia) ? dias : [...dias, dia], false);
   }
 
+  // «Reservar el próximo» llega con el mismo servicio: una sola vez, al abrir. Si ya no se da, se elige a mano.
+  const servicioPedido = useRef(servicioInicial);
+  useEffect(() => {
+    const id = servicioPedido.current;
+    servicioPedido.current = undefined;
+    if (id && servicios.some((s) => s.id === id)) elegirServicio(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sólo al abrir
+  }, []);
+
   function elegirDia(d: string) {
     setModoAhora(false);
     setAhora(null);
@@ -360,6 +372,7 @@ export default function AltaDeTurno({
           medio: decision.cobro?.metodo ?? null,
           cobrada: decision.cobro !== null,
           direccion: r.direccion,
+          linkTurno: r.linkTurno,
           alias,
         });
         setListo({

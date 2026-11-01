@@ -34,12 +34,6 @@ const DIRECTION_GLYPH: Record<TrendDirection, string> = {
   volatile: "↕",
 };
 
-function pctSigned(n: number | null): string | null {
-  if (n === null) return null;
-  const v = Math.round(n * 100);
-  return `${v >= 0 ? "+" : ""}${v}%`;
-}
-
 export function OwnerPanel({
   insights,
   trends,
@@ -60,8 +54,7 @@ export function OwnerPanel({
           Tu negocio te habla
         </h2>
         <p className="text-sm text-muted">
-          Lectura automática de tus números, en lenguaje llano — sin que tengas que interpretar
-          gráficos.
+          Lo que se ve en tus números de este período.
         </p>
       </div>
 
@@ -77,18 +70,12 @@ export function OwnerPanel({
         <div className="mb-4 space-y-2.5">
           {insights.map((ins) => {
             const meta = SEVERITY_META[ins.severity];
-            const delta = pctSigned(ins.deltaPct);
             return (
               <Card key={ins.id} className="flex items-start gap-3 py-3.5">
                 <Badge tone={meta.tone} className="mt-0.5 shrink-0">
                   {meta.label}
                 </Badge>
-                <p className="text-sm text-strong leading-relaxed">
-                  {ins.title}
-                  {delta && (
-                    <span className="ml-1.5 text-xs text-muted">({delta} vs. período previo)</span>
-                  )}
-                </p>
+                <p className="text-sm text-strong leading-relaxed">{ins.title}</p>
               </Card>
             );
           })}
@@ -99,7 +86,7 @@ export function OwnerPanel({
       <div className="mb-3 mt-6">
         <h3 className="text-base font-semibold text-strong">Tendencias</h3>
         <p className="text-sm text-muted">
-          Cómo vienen tus métricas mes a mes — no una foto, la película.
+          Cómo vienen tus números mes a mes.
         </p>
       </div>
 
@@ -115,7 +102,6 @@ export function OwnerPanel({
         <div className="space-y-2.5">
           {trends.map((t) => {
             const tone = SENTIMENT_TONE[t.sentiment];
-            const delta = pctSigned(t.changePct);
             return (
               <Card key={t.metric} className="flex items-start gap-3 py-3.5">
                 <span
@@ -130,24 +116,12 @@ export function OwnerPanel({
                 >
                   {DIRECTION_GLYPH[t.direction]}
                 </span>
-                <p className="text-sm text-strong leading-relaxed">
-                  {t.title}
-                  {delta && t.direction !== "flat" && (
-                    <span className="ml-1.5 text-xs text-muted">({delta} punta a punta)</span>
-                  )}
-                </p>
+                <p className="text-sm text-strong leading-relaxed">{t.title}</p>
               </Card>
             );
           })}
         </div>
       )}
-
-      {/* Teaser del incremento cross-tenant (ADR-027, Agencia Digital): la comparativa
-          contra el rubro llega cuando se active el benchmarking. No se construye acá. */}
-      <p className="mt-4 text-xs text-muted">
-        Próximamente: comparativa contra el promedio de tu rubro y zona — se activa cuando haya
-        suficientes negocios en tu categoría.
-      </p>
     </section>
   );
 }

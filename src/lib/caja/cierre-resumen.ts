@@ -10,7 +10,8 @@
 // caso devuelve null para que la pantalla caiga al volcado de siempre.
 
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
-import { ETIQUETA_DE_COLUMNA, TEXTO_NETO_NEGATIVO } from "@/lib/caja/cierre-diario";
+import { ETIQUETA_DE_COLUMNA, TEXTO_NETO_NEGATIVO, type ColumnaDelCierre } from "@/lib/caja/cierre-diario";
+import { fmtMoneyARS } from "@/components/ui/format";
 import type { CashMethod } from "@/lib/caja/cash-register";
 
 /**
@@ -29,6 +30,26 @@ export function arqueoDeLaFila(changes: unknown): { fuente: Record<string, unkno
   if (typeof fuente !== "object" || fuente === null) return null;
   const etiquetas = deLaHoja && c.hoja !== "siempre" ? ETIQUETA_DE_COLUMNA : CASH_METHOD_LABEL;
   return { fuente: fuente as Record<string, unknown>, etiquetas };
+}
+
+/**
+ * Lo que dice el aviso después de «Día X cerrado.». Un medio con plata en el libro que nadie contó no
+ * es «no hubo diferencias»: coincide lo contado y se dice qué quedó sin conciliar, como la hoja y el
+ * comprobante. Se puede cerrar igual: esto sólo cambia lo que se lee. PURA.
+ */
+export function colaDelAvisoDeCierre(o: {
+  ajustes: number;
+  columnas: readonly ColumnaDelCierre[];
+  porColumna: Record<ColumnaDelCierre, { expected: number; declared: number | null }>;
+  etiquetas: Record<CashMethod, string>;
+}): string {
+  const pendientes = o.columnas
+    .filter((c) => o.porColumna[c].declared === null && o.porColumna[c].expected !== 0)
+    .map((c) => `${o.etiquetas[c]} (${fmtMoneyARS(o.porColumna[c].expected)})`)
+    .join(", ");
+  const cola = pendientes ? ` Sin conciliar: ${pendientes}.` : "";
+  if (o.ajustes > 0) return `Se asentó ${o.ajustes === 1 ? "la diferencia" : `${o.ajustes} diferencias`} en el libro.${cola}`;
+  return pendientes ? `Lo contado coincidió con el libro.${cola}` : "No hubo diferencias.";
 }
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -57,7 +78,17 @@ export function resumenCierre(changes: unknown): { titulo: string; medios: strin
   if (!arqueo) return null;
   const c = changes as Record<string, unknown>;
 
-  const estado = typeof c.estado === "string" ? (ESTADO_LABEL[c.estado] ?? c.estado) : null;
+  // CUADRA es «todo lo contado dio 0»: con un medio con plata sin contar, no se dice «cuadró» a secas.
+  const quedoSinConciliar = Object.values(arqueo.fuente).some((m) => {
+    const { esperado, declarado } = (typeof m === "object" && m !== null ? m : {}) as Record<string, unknown>;
+    return esNumero(esperado) && esperado !== 0 && !esNumero(declarado);
+  });
+  const estado =
+    c.estado === "CUADRA" && quedoSinConciliar
+      ? "cuadró lo contado, con medios sin conciliar"
+      : typeof c.estado === "string"
+        ? (ESTADO_LABEL[c.estado] ?? c.estado)
+        : null;
   const movimientos = esNumero(c.movimientos) ? c.movimientos : null;
 
   const partes: string[] = [];

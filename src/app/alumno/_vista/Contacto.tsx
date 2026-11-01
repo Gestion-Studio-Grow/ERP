@@ -4,24 +4,45 @@
 // su celular; si no, «Dejarle un mensaje», que entra a su bandeja. Con el link o la cookie, el
 // mensaje va con el nombre del alumno; desde el turnero sin sesión, pide nombre y celular (llega
 // marcado «sin verificar»: nadie se hace pasar por otro).
+// Ícono SVG (no emoji). La placa sin horarios del turnero lo usa como acción principal de la barra
+// fija («Pedir un turno por mensaje»): `etiqueta` y `principal` cambian sólo el botón, no el canal.
 
 import { useRef, useState, useTransition } from "react";
 import { dejarMensaje } from "@/lib/padel/acciones-alumno";
 import { HojaPublica } from "@/app/clases/_hoja";
-import { alerta, botonBorde, botonPrincipal, campo, etiqueta, listo } from "@/app/clases/_estilos";
+import { alerta, ayuda, botonBorde, botonPrincipal, campo, etiqueta, listo } from "@/app/clases/_estilos";
+import { IconoMensaje, IconoWhatsApp } from "@/app/clases/_iconos";
 
-export function Contacto({ wa, profe, token = null, conocido }: { wa: string | null; profe: string; token?: string | null; conocido: boolean }) {
+export function Contacto({
+  wa,
+  profe,
+  token = null,
+  conocido,
+  etiqueta: texto_,
+  principal = false,
+}: {
+  wa: string | null;
+  profe: string;
+  token?: string | null;
+  conocido: boolean;
+  /** El texto del botón, si no es el de siempre («Escribirle a …» / «Dejarle un mensaje a …»). */
+  etiqueta?: string;
+  /** Lleno, como la acción principal (la barra fija de la placa sin horarios). */
+  principal?: boolean;
+}) {
   const [abierta, setAbierta] = useState(false);
   const [pendiente, start] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
   const texto = useRef<HTMLTextAreaElement>(null);
   const nombre = useRef<HTMLInputElement>(null);
   const tel = useRef<HTMLInputElement>(null);
+  const clase = principal ? botonPrincipal : `${botonBorde} w-full`;
+  const icono = "size-6 shrink-0";
 
   if (wa) {
     return (
-      <a href={wa} target="_blank" rel="noopener noreferrer" className={`${botonBorde} w-full`} data-qa="escribirle">
-        <span aria-hidden>💬</span> Escribirle a {profe}
+      <a href={wa} target="_blank" rel="noopener noreferrer" className={clase} data-qa="escribirle">
+        <IconoWhatsApp className={icono} /> {texto_ ?? `Escribirle a ${profe}`}
       </a>
     );
   }
@@ -36,8 +57,8 @@ export function Contacto({ wa, profe, token = null, conocido }: { wa: string | n
 
   return (
     <>
-      <button type="button" className={`${botonBorde} w-full`} onClick={() => setAbierta(true)} data-qa="dejar-mensaje">
-        <span aria-hidden>💬</span> Dejarle un mensaje a {profe}
+      <button type="button" className={clase} onClick={() => setAbierta(true)} data-qa="dejar-mensaje">
+        <IconoMensaje className={icono} /> {texto_ ?? `Dejarle un mensaje a ${profe}`}
       </button>
       <HojaPublica
         abierta={abierta}
@@ -60,7 +81,8 @@ export function Contacto({ wa, profe, token = null, conocido }: { wa: string | n
               </div>
               <div>
                 <label htmlFor="m-tel" className={etiqueta}>Tu celular (WhatsApp)</label>
-                <input ref={tel} id="m-tel" type="tel" inputMode="tel" autoComplete="tel" placeholder="11 5555-1234" className={campo} />
+                <input ref={tel} id="m-tel" type="tel" inputMode="tel" autoComplete="tel" aria-describedby="m-tel-ayuda" className={campo} />
+                <p id="m-tel-ayuda" className={ayuda}>El que usás en WhatsApp, con característica.</p>
               </div>
             </>
           )}

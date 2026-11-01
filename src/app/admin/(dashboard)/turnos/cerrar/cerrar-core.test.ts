@@ -1,6 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  salidaDelVacio,
   agruparPorDia,
   alternar,
   alternarTodos,
@@ -60,6 +61,17 @@ function turno(p: Partial<TurnoPendiente> & { dia: string; hora: string }): Turn
 
 const vero = (p: { dia: string; hora: string } & Partial<TurnoPendiente>) =>
   turno({ profesional: "Vero", profesionalId: "p-vero", veredicto: { ok: false, motivo: VERO_MOTIVO }, ...p });
+
+test("bandeja vacía: la profesional vuelve a su agenda, no a una pantalla que no tiene (UAT CH E8)", () => {
+  assert.equal(salidaDelVacio(true, true).href, "/admin/caja/cierre");
+  assert.equal(salidaDelVacio(false, false).href, "/admin/turnos");
+});
+
+test("bandeja vacía: a recepción, que no cierra el día, no se le ofrece «Ir a cerrar la caja»", () => {
+  const salida = salidaDelVacio(true, false);
+  assert.equal(salida.href, "/admin/caja");
+  assert.doesNotMatch(salida.etiqueta, /cerrar/i);
+});
 
 describe("agrupar por día y por profesional", () => {
   test("el día más nuevo arriba; adentro, por hora (también cruzando la medianoche UTC)", () => {

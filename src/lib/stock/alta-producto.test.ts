@@ -417,17 +417,20 @@ describe("alta en el navegador: después de cada alta los números vuelven a su 
     await page.close();
   });
 
-  test("CH: después de un alta 'por peso', la forma de venta vuelve a 'por unidad' entera", async (t) => {
+  // El alta de este catálogo ya no ofrece «por peso» (9192396b): lo vendido por kilo se carga en
+  // `CortesSection`, y su ida y vuelta la controla el test de cortes de abajo.
+  test("CH: el alta vende sólo por unidad y cada alta manda su precio, sin nada de kilo", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("productos");
+    const opciones = await page.locator("#new-product-saleUnit option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+    assert.deepEqual(opciones, ["UNIT"]);
     await page.fill("#new-product-name", "Queso");
-    await page.selectOption("#new-product-saleUnit", "WEIGHT");
     await page.fill("#new-product-precio", "9.000");
     const primero = await enviar(page, "Agregar producto", "new-product-name", 1);
-    assert.deepEqual([primero.saleUnit, primero.unit, primero.pricePerKg], [["WEIGHT"], ["kg"], ["9000"]]);
+    assert.deepEqual([primero.saleUnit, primero.unit, primero.price], [["UNIT"], ["unidades"], ["9000"]]);
+    assert.equal(primero.pricePerKg, undefined);
 
-    // El select vuelve solo a "por unidad"; el resto del form (unidad, qué precio manda)
-    // tiene que acompañarlo, no quedarse en kg.
+    // Y el alta siguiente no hereda el precio: unidad y precio vuelven a su inicial.
     await page.fill("#new-product-name", "Jabón");
     const segundo = await enviar(page, "Agregar producto", "new-product-name", 2);
     assert.deepEqual(segundo.saleUnit, ["UNIT"]);

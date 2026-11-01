@@ -20,6 +20,7 @@ import Link from "next/link";
 import type { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import { CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego-core";
+import { rotuloDeOrigen } from "@/lib/caja/libro-caja";
 import { formatDayLabel, nextDayKey, CERRAR_DIA_SIN_PERMISO, ETIQUETA_DE_COLUMNA, TEXTO_NETO_NEGATIVO, type ColumnaDelCierre } from "@/lib/caja/cierre-diario";
 import { movementSign } from "@/lib/caja/cash-register";
 import { causasProbables, textoDeAperturaQueNoSuma } from "./revisar-cierre";
@@ -29,7 +30,9 @@ import { LineaDeCuenta } from "@/components/ui/LineaDeCuenta";
 import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
 import { diaAnterior, diaLargo, diaMes, diasEntre, nombreMes } from "../_renglon/fechas";
 import ContarYCerrar, { ReabrirElDia, type MedioAContar } from "./ContarYCerrar";
-import { diferenciaDelComprobante, type MedioDelComprobante } from "./comprobante";
+import { palabrasDelNegocio, type PalabrasDelNegocio } from "@/lib/palabras-del-negocio";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { diferenciaDelComprobante, textoDelComprobante, type MedioDelComprobante } from "./comprobante";
 import { leerMediosDelComprobante } from "./comprobante.server";
 
 type Datos = Awaited<ReturnType<typeof getCierreDiarioData>>;
@@ -46,7 +49,6 @@ const AYUDA: Record<ColumnaDelCierre, string> = {
 // Cert. M1 v9 O2: Transferencia es un neto y puede dar negativo.
 const AYUDA_NETO_NEGATIVO = `Da un ${TEXTO_NETO_NEGATIVO}. Escribí el neto del banco con un menos adelante (-400).`;
 
-const ORIGEN: Record<string, string> = { pos: "venta del mostrador", turno: "turno cobrado", manual: "cargado a mano" };
 
 function Encabezado({ d, regla }: { d: Datos; regla: string | null }) {
   const { day, today, since, preview, yaCerrado } = d;
@@ -76,7 +78,7 @@ function Encabezado({ d, regla }: { d: Datos; regla: string | null }) {
 }
 
 /** El comprobante de un día cerrado: la misma hoja con la que se contó, ahora en tinta. */
-function Comprobante({ d, medios }: { d: Datos; medios: MedioDelComprobante[] | null }) {
+function Comprobante({ d, medios, palabras }: { d: Datos; medios: MedioDelComprobante[] | null; palabras: PalabrasDelNegocio }) {
   const r = d.registro!;
   const resumen = r.resumen!;
   const diferencia = medios ? diferenciaDelComprobante(medios) : null;
@@ -141,9 +143,7 @@ function Comprobante({ d, medios }: { d: Datos; medios: MedioDelComprobante[] | 
             <div>
               <Rotulo>Diferencia del día</Rotulo>
               <p className="mt-1 text-sm text-body">
-                {diferencia === 0
-                  ? "Cuadró."
-                  : `${diferencia! < 0 ? "Faltaron" : "Sobraron"} ${fmtMoneyARS(Math.abs(diferencia!))}: quedó asentado en el libro como ajuste.`}
+                {textoDelComprobante(medios)}
               </p>
             </div>
             <Plata valor={diferencia!} tamano="grande" tono={diferencia! < 0 ? "peligro" : diferencia! > 0 ? "cobrado" : undefined} />
@@ -158,12 +158,12 @@ function Comprobante({ d, medios }: { d: Datos; medios: MedioDelComprobante[] | 
       {resumen.nota && <Renglon folio="Nota" titulo={<span className="font-normal">“{resumen.nota}”</span>} />}
       <p className="mt-3 text-sm text-muted">
         {d.reabrir?.puede
-          ? "Si apareció algo de este día (una venta del cuaderno, una rendición), podés reabrirlo, cargarlo y cerrarlo de nuevo."
+          ? `Si apareció algo de este día (${palabras.reabrirAviso}), podés reabrirlo, cargarlo y cerrarlo de nuevo.`
           : `Un cierre no se rehace: si apareció algo, cargalo con fecha ${formatDayLabel(nextDayKey(d.lastClosedDay!))} y aclaralo en el detalle.`}
       </p>
       {d.reabrir?.puede && (
         <div className="mt-3">
-          <ReabrirElDia day={d.day} diaNombre={diaLargo(d.day).toLowerCase().split(" de ")[0]} />
+          <ReabrirElDia day={d.day} diaNombre={diaLargo(d.day).toLowerCase().split(" de ")[0]} palabras={palabras} />
         </div>
       )}
       {d.reabrir && !d.reabrir.puede && <p className="mt-2 text-sm text-muted">{d.reabrir.porque}</p>}
@@ -235,7 +235,7 @@ function ComoSeLlega({ d }: { d: Datos }) {
                   key={m.id}
                   folio={diaMes(m.day)}
                   titulo={<span className="font-normal">{m.detail || "(sin detalle)"}</span>}
-                  detalle={`${CASH_METHOD_LABEL[m.method]} · ${ORIGEN[m.origin] ?? m.origin}${signo === 0 && m.amount !== null ? ` · ${textoDeAperturaQueNoSuma(m.amount)}` : ""}`}
+                  detalle={`${CASH_METHOD_LABEL[m.method]} · ${rotuloDeOrigen(m)}${signo === 0 && m.amount !== null ? ` · ${textoDeAperturaQueNoSuma(m.amount)}` : ""}`}
                   plata={
                     // null sólo llega a ciegas (`diaALaVista`); esta pantalla pide el esperado a la vista.
                     m.amount === null ? <span className="text-sm text-muted">{EFECTIVO_SE_VE_AL_ABRIR.toLowerCase()}</span> : signo === 0 ? null : <Plata valor={signo * m.amount} />
@@ -283,6 +283,7 @@ function TurnosSinCerrar({ d }: { d: Datos }) {
 }
 
 export default async function CierreRenglon({ d, regla = null }: { d: Datos; regla?: string | null }) {
+  const palabras = palabrasDelNegocio(await getCurrentTenantSlug());
   const { day, yaCerrado, enElFuturo, registro, lastClosedDay, preview } = d;
   const medios: MedioAContar[] = d.columnas.map((m) => {
     const x = preview.porColumna[m];
@@ -299,7 +300,7 @@ export default async function CierreRenglon({ d, regla = null }: { d: Datos; reg
   return (
     <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
       <Encabezado d={d} regla={regla} />
-      {yaCerrado && registro && <Comprobante d={d} medios={mediosCerrados} />}
+      {yaCerrado && registro && <Comprobante d={d} medios={mediosCerrados} palabras={palabras} />}
       {yaCerrado && !registro && (
         <Franja tono="info">
           El {diaLargo(day).toLowerCase()} quedó adentro del cierre del {diaMes(lastClosedDay!)}: cerrar un día arquea todo lo que quedó

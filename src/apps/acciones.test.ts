@@ -55,6 +55,16 @@ test("el profesional ve su agenda pero no da turnos: la acción pide agenda:mana
   assert.ok(!rec.includes("sumar-una-persona"));
 });
 
+test("«Cerrar el día» sólo se le ofrece a quien cierra: recepción abre la pantalla, pero no hay verbo que no pueda hacer", () => {
+  const paraRol = (role: "OWNER" | "RECEPTION") => {
+    const visibles = appsVisibles(negocio({ role, esMostrador: false }));
+    assert.ok(visibles.some((a) => a.id === "cierre-del-dia"), `${role} sigue viendo la app (orders:read)`);
+    return accionesParaPersona(visibles, role).map((a) => a.id);
+  };
+  assert.ok(paraRol("OWNER").includes("cerrar-el-dia"));
+  assert.ok(!paraRol("RECEPTION").includes("cerrar-el-dia"));
+});
+
 test("con la barra de siempre (CH), sólo las acciones de sus pantallas", () => {
   const visibles = appsVisibles(negocio({ role: "OWNER", esMostrador: false }));
   const soloAgenda = accionesParaPersona(visibles, "OWNER", new Set(["/admin/turnos"])).map((a) => a.id);

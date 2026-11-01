@@ -20,7 +20,8 @@
 import Link from "next/link";
 import { cambiarAppOculta, cambiarInterruptor } from "@/lib/operador/interruptores-actions";
 import { Bloque, Button, Input, Marca } from "@/components/ui";
-import { APPS_OCULTABLES, INTERRUPTORES, type Interruptor } from "@/cambios/interruptores";
+import { AGENDA_PRACTICA, APPS_OCULTABLES, INTERRUPTORES, type Interruptor } from "@/cambios/interruptores";
+import { avisoDeReglaFaltante } from "@/lib/turnos/practica";
 import type { EstadoInterruptores } from "@/cambios/interruptores-core";
 import type { EstadoAppsDelNegocio } from "./apps-del-negocio";
 
@@ -69,10 +70,12 @@ function RenglonDeInterruptor({
   const bloqueadoPorCandado = candado !== null && !candado.puedeTocar;
   const previa = `interruptor-${interruptor.id}-previa`;
   const formId = `interruptor-${interruptor.id}-form`;
+  // La regla de cancelar no se carga acá (variable del deploy): si falta, se avisa (U2).
+  const faltaRegla = interruptor.id === AGENDA_PRACTICA ? avisoDeReglaFaltante({ slug, prendida: prendido }) : null;
 
   const texto = !interruptor.cambiaLasApps ? (
     <span className="text-muted">
-      {prendido ? "Si lo apagás, en la próxima carga se ve como siempre." : "No cambia qué apps ve cada persona ni sus datos: sólo cómo se ven."}
+      {prendido ? "Si lo apagás, en la próxima carga se ve como siempre." : (interruptor.alPrender ?? "No cambia qué apps ve cada persona ni sus datos: sólo cómo se ven.")}
     </span>
   ) : prendido ? (
     <span className="text-muted">
@@ -128,6 +131,11 @@ function RenglonDeInterruptor({
         <p id={previa} className="mt-1 break-words text-[13px]">
           {texto}
         </p>
+        {faltaRegla && (
+          <p role="alert" className="mt-1 break-words text-[13px] text-warning">
+            {faltaRegla}
+          </p>
+        )}
         {aceptaAMano && (
           <fieldset className="mt-2 grid gap-1 text-[13px]">
             <legend className="mb-1 font-semibold text-strong">

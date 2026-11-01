@@ -82,7 +82,7 @@ const SELECT_VENTA = {
 export default async function VentasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ dia?: string | string[]; medio?: string | string[]; canal?: string | string[] }>;
+  searchParams: Promise<{ dia?: string | string[]; medio?: string | string[]; canal?: string | string[]; venta?: string | string[] }>;
 }) {
   const user = await requireApp("ventas-del-dia");
   const tenantId = await getCurrentTenantId();
@@ -90,7 +90,10 @@ export default async function VentasPage({
   const verPlata = roleHasCapability(user.role, "reports:read");
   const alcance = alcanceDeAnulacion(user.role);
   const puedeVender = roleHasCapability(user.role, "orders:manage");
-  const filtrosPedidos = leerFiltros(await searchParams, { hoy, otrosDias: verPlata });
+  const pedido = await searchParams;
+  const filtrosPedidos = leerFiltros(pedido, { hoy, otrosDias: verPlata });
+  // Se llegó para anular una venta recién cobrada (desde la caja o Vender).
+  const ventaPedida = typeof pedido.venta === "string" ? pedido.venta : null;
   // «Facturar» en cada fila: con la MISMA regla que exige su action (app Facturación: módulo arca
   // y billing:manage). Sin ella, la fila no muestra nada de facturas: como hasta hoy.
   // El ticket sale en el ancho de ESTE equipo sólo si el negocio tiene el módulo `terminal`
@@ -172,7 +175,7 @@ export default async function VentasPage({
       if (r.action === ACCION_PROMOS_DE_LA_VENTA) continue;
       if (r.action === "update") {
         const a = leerAnulacion(r, nombres);
-        out.push(`Anuló ${a.quien}${a.motivo ? `: ${a.motivo}` : ""}.`);
+        out.push(`Anuló ${a.quien}${a.motivo ? `: ${a.motivo}` : ""}.${a.autorizo ? ` Autorizó ${a.autorizo}.` : ""}`);
         continue;
       }
       const c = (r.changes ?? {}) as Record<string, unknown>;
@@ -218,7 +221,7 @@ export default async function VentasPage({
   const lista = [...vigentes, ...anuladas].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const cuando = esHoy ? "hoy" : `el ${fmtShortDate(desde)}`;
   // Recepción anula sólo lo de hoy (el servidor lo vuelve a exigir en `anularVenta`).
-  const anulaEsteDia = alcance && (!alcance.soloHoy || esHoy) ? { motivoObligatorio: alcance.motivoObligatorio } : null;
+  const anulaEsteDia = alcance && (!alcance.soloHoy || esHoy) ? { motivoObligatorio: alcance.motivoObligatorio, conCodigo: alcance.conCodigo } : null;
   const hayFiltro = filtros.medio !== null || filtros.canal !== null;
   const vacio = vacioDeVentas({ esHoy, hayFiltro, cuando, puedeVender });
   const destinoVacio = {
@@ -301,7 +304,7 @@ export default async function VentasPage({
                 key={i}
                 folio={a.code != null ? `#${a.code}` : "—"}
                 titulo={a.quien}
-                detalle={a.motivo || "sin motivo escrito"}
+                detalle={`${a.motivo || "sin motivo escrito"}${a.autorizo ? ` · autorizó ${a.autorizo}` : ""}`}
                 plata={verPlata ? <Plata valor={a.monto} /> : undefined}
               />
             ))}
@@ -357,7 +360,7 @@ export default async function VentasPage({
         title="Ventas del día"
         description={
           alcance?.soloHoy
-            ? "Las ventas cobradas de hoy. Para corregir una pesada, anulala con el motivo y volvé a cobrarla."
+            ? "Las ventas cobradas de hoy. Para corregir una pesada, anulala con el motivo y el código de la dueña, y volvé a cobrarla."
             : "Las ventas cobradas. Para corregir una, anulala con el motivo y volvé a cobrarla."
         }
         actions={
@@ -440,6 +443,7 @@ export default async function VentasPage({
                   {a.code != null ? `#${a.code} · ` : ""}
                   {a.quien}
                   {a.motivo ? `: ${a.motivo}` : ""}
+                  {a.autorizo ? ` · autorizó ${a.autorizo}` : ""}
                 </li>
               ))}
             </ul>
@@ -477,6 +481,7 @@ export default async function VentasPage({
                   negocio={negocio}
                   terminal={terminal}
                   anular={venta.anulada ? null : anulaEsteDia}
+                  abrirAnular={ventaPedida === o.id}
                   notas={notasDe(o)}
                   factura={puedeFacturar && !venta.anulada ? (facturaDe.get(o.id) ?? SIN_FACTURA) : null}
                 />

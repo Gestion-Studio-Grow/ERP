@@ -13,11 +13,13 @@ import {
 import SubmitButton from "@/components/SubmitButton";
 import RescheduleForm from "./RescheduleForm";
 import CerrarSinPrestar from "./CerrarSinPrestar";
+import AutorizarAnulacion from "./_agenda/AutorizarAnulacion";
 import FormDelTurno from "./FormDelTurno";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
+import { separarNota } from "@/lib/reserva-publica-notas";
 import {
   cobroSugerido,
   esCuentaACobrar,
@@ -33,6 +35,7 @@ import {
   MOTIVO_MIN,
 } from "@/lib/turnos/anulacion";
 import { puedeCompletarConMedio, puedeDarDeBajaSaldo } from "./fila-core";
+import { anulacionDeCobro, type AnulacionDeCobro } from "@/lib/capabilities";
 
 // La fila de cobro tal como la ve esta pantalla: la de `anulacion.ts` más lo que la grilla
 // del calendario puede no traer.
@@ -251,12 +254,15 @@ function CorreccionConMotivo({
   peligro = true,
   campos,
   accion,
+  pideCodigo = false,
 }: {
   etiqueta: string;
   pregunta: string;
   confirmar: string;
   placeholder: string;
   peligro?: boolean;
+  /** Recepción: además del motivo, el código que la dueña sacó para este cobro. */
+  pideCodigo?: boolean;
   campos: Record<string, string>;
   accion: (fd: FormData) => Promise<ResultadoAccion>;
 }) {
@@ -303,6 +309,23 @@ function CorreccionConMotivo({
         aria-label="Motivo"
         className={`rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent ${TOQUE_CEL}`}
       />
+      {pideCodigo && (
+        <>
+          <input
+            type="text"
+            name="codigo"
+            required
+            maxLength={12}
+            placeholder="Código de la dueña"
+            aria-label="Código de la dueña"
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
+            className={`rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent ${TOQUE_CEL}`}
+          />
+          <p className="text-xs text-muted">Pedile el código a la dueña. Vale unos minutos y sólo para este cobro.</p>
+        </>
+      )}
       <div className="flex items-center gap-3 text-xs">
         <SubmitButton pendingText="Guardando…" className={`font-semibold underline text-danger ${TOQUE_CEL}`}>
           {confirmar}
@@ -327,17 +350,25 @@ function CorreccionConMotivo({
 function CobrosRegistrados({
   appointmentId,
   cobros,
-  puedeAnular,
+  anular,
 }: {
   appointmentId: string;
   cobros: readonly FilaDeCobroUI[];
-  puedeAnular: boolean;
+  /** Cómo anula quien mira, en ESTE turno: la dueña directo, recepción con su código; `null`, no anula. */
+  anular: AnulacionDeCobro | null;
 }) {
   const anulables = new Set(cobrosAnulables(cobros).map((c) => c.id));
+  // Acá arriba y no en el botón de anular: el cobro anulado deja de ofrecer el botón y el aviso se iría con él.
+  const [avisoDeComision, setAvisoDeComision] = useState("");
   if (cobros.length === 0) return null;
   return (
     <div className="mt-3 border-t border-line pt-2">
       <p className="text-xs font-medium text-muted">Cobros registrados</p>
+      {avisoDeComision && (
+        <p role="status" className="mt-1 rounded-md bg-surface-sunken px-2 py-1 text-xs text-strong">
+          {avisoDeComision}
+        </p>
+      )}
       <ul className="mt-1 flex flex-col gap-1.5">
         {cobros.map((c, i) => {
           const clase = claseDeCobro(c.note);
@@ -360,8 +391,9 @@ function CobrosRegistrados({
                 </span>
               )}
               {c.note && clase !== "cobro" && <span className="text-muted">{c.note.replace(/^[A-Z]+:\S*\s*—?\s*/, "")}</span>}
-              {clase === "cobro" && puedeAnular && c.id && anulables.has(c.id) && (
+              {clase === "cobro" && anular && c.id && anulables.has(c.id) && (
                 <CorreccionConMotivo
+                  pideCodigo={anular === "con-autorizacion"}
                   etiqueta="Anular"
                   // NO promete el libro. La reversa se asienta sólo si el cobro original dejó
                   // asiento y su medio se traduce a un medio de caja; con las columnas sin migrar
@@ -371,8 +403,15 @@ function CobrosRegistrados({
                   confirmar="Sí, anular"
                   placeholder="Por qué se anula (cobré el medio equivocado…)"
                   campos={{ collectionId: c.id, appointmentId }}
-                  accion={anularCobroTurno}
+                  accion={async (fd) => {
+                    const r = await anularCobroTurno(fd);
+                    if (r.ok && r.aviso) setAvisoDeComision(r.aviso);
+                    return r;
+                  }}
                 />
+              )}
+              {clase === "cobro" && anular === "directa" && c.id && anulables.has(c.id) && (
+                <AutorizarAnulacion cobroId={c.id} turnoId={appointmentId} />
               )}
             </li>
           );
@@ -455,6 +494,7 @@ export default function AppointmentRow({
   // Cobrado y condonado se muestran SEPARADOS: sumarlos diría que entraron $20.000 cuando
   // entraron $17.000, que es justo la mentira que obligaba a inventar asientos en la caja.
   const desglose = desglosarCobros(cobros);
+  const nota = separarNota(appointment.notes);
   // "Ya ocurrió" es sólo una pista visual (el server es la autoridad: `puedeCompletarse`);
   // el reloj se toma una vez al montar para no leer `Date.now()` en el render.
   const [ahora] = useState(() => Date.now());
@@ -477,6 +517,7 @@ export default function AppointmentRow({
       hora={fmtTime(appointment.startsAt)}
       cobrado={desglose.cobrado}
       botonClassName={linkButtonClasses}
+      anular={anulacionDeCobro(viewer?.role)}
     />
   );
   // Dar de baja un saldo es perdonar plata: sólo con `agenda:forgive` (la dueña). El servidor
@@ -540,9 +581,18 @@ export default function AppointmentRow({
               </span>
             )}
           </div>
-          {appointment.notes && (
-            <p className="text-sm text-body mt-2 rounded-md bg-warning-soft px-2 py-1">
-              {appointment.notes}
+          {/* G1: lo que mandó el cliente (patente y auto, desde la reserva pública) va aparte y
+              rotulado; el recuadro amarillo queda sólo para lo que escribió el equipo. */}
+          {nota.delCliente && (
+            <p className="text-sm text-body mt-2 rounded-md border border-line px-2 py-1" data-qa="nota-del-cliente">
+              <span className="font-medium text-muted">Del cliente: </span>
+              {nota.delCliente}
+            </p>
+          )}
+          {nota.delEquipo && (
+            <p className="text-sm text-body mt-2 rounded-md bg-warning-soft px-2 py-1" data-qa="nota-del-equipo">
+              <span className="font-medium">Nota del equipo: </span>
+              {nota.delEquipo}
             </p>
           )}
         </div>
@@ -664,7 +714,7 @@ export default function AppointmentRow({
       <CobrosRegistrados
         appointmentId={appointment.id}
         cobros={cobros}
-        puedeAnular={canCollect && veredictoCobro.ok}
+        anular={canCollect && veredictoCobro.ok ? anulacionDeCobro(viewer?.role) : null}
       />
     </div>
   );

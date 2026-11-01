@@ -25,6 +25,13 @@ export function whereVentasDelPeriodo(tenantId: string, hoy: string, dias: numbe
   return { where: whereVentasCobradas(tenantId, desde, new Date(hasta.getTime() + 1)), desde, hasta };
 }
 
+/** Lo cobrado en un tramo, sin más detalle: para comparar el período contra el anterior. */
+export async function leerTotalDelPeriodo(db: Prisma.TransactionClient, tenantId: string, hoy: string, dias: number): Promise<number> {
+  const { where } = whereVentasDelPeriodo(tenantId, hoy, dias);
+  const r = await db.order.aggregate({ where, _sum: { total: true } });
+  return aNumero(r._sum.total);
+}
+
 /**
  * Las ventas del período con lo justo para agruparlas. Tres lecturas, ninguna con ítems por
  * venta (un año de un mostrador son decenas de miles de líneas):

@@ -136,8 +136,9 @@ const magra: StorefrontCopy = {
     "Pescado congelado envasado",
   ],
   providers: ["Estancia Don Ramón", "Tinos", "Breaders", "Paladini", "Lamberti", "Formagge", "PizzaZen", "Maderasa"],
-  // Reviews reales del sitio (Matías R., Jesica F., Macarena A. — 5/5). Textos que
-  // reflejan los temas reales (calidad, envasado, atención por WhatsApp).
+  // Reviews del sitio (Matías R., Jesica F., Macarena A. — 5/5). NO son textuales: reflejan los temas
+  // (calidad, envasado, atención por WhatsApp). Hasta tener el texto literal autorizado, ninguna vidriera
+  // de MAGRA las presenta como cita (P1-5, cert F7).
   reviews: [
     { name: "Matías R.", rating: 5, text: "Calidad impecable y todo llega perfecto, bien envasado al vacío. Una experiencia premium." },
     { name: "Jesica F.", rating: 5, text: "La atención por WhatsApp es un lujo: me asesoraron con cada corte. Volví a pedir enseguida." },
@@ -151,65 +152,51 @@ const magra: StorefrontCopy = {
   paymentMethods: ["Efectivo", "Transferencia", "Mercado Pago"],
 };
 
-// --- SHINE Velas de soja & deco (CABA) — voz de @shine.velas.store ---
-// Segundo arquetipo, rubro `velas`. VISIÓN: no es sólo vender velas, es una
-// EXPERIENCIA — velas + aromas + DECORACIÓN para el hogar + accesorios del ritual.
-// Marca: "Que tu luz nunca se apague". Envío con umbral de envío gratis real (fijo
-// $3.500, gratis desde $25.000). PRECIOS del catálogo (rubro) provisionales; estos
-// textos son de su comunicación / la voz experiencial de la marca.
+// --- SHINE Velas (CABA) — voz del catálogo oficial «Velas y Aromas» (02/09/2026) ---
+// Fuente: docs/diseno/catalogo-shine-2026.md [VERIFICADO]. El manifiesto (p2) y el cierre (p21) van
+// tal cual; los aromas son los 9 de velas del catálogo (los 6 de difusores viven en
+// src/app/tienda/shine/catalogo.ts). Se quitaron, por no estar en el catálogo: «mecha de algodón»,
+// «Armá tu ritual», «Mundos» de Decoración/Accesorios y los sets de regalo armados (diseño 29/10, §9).
+// Envío: SIN tarifa en el copy (ronda 2). La de $3.500 / gratis desde $25.000 no tenía fuente y se quitó; hasta que
+// la dueña cargue sus zonas en Envíos, el envío se coordina («A coordinar») y el pedido no lo suma.
 const shinevelas: StorefrontCopy = {
-  eyebrow: "SHINE · Velas · aromas · deco",
-  tagline: "No es una vela. Es un ambiente.",
-  pitch: "Velas, aromas y decoración para vivir tu casa distinto.",
+  eyebrow: "Shine · velas de soja hechas a mano",
+  tagline: "Que tu luz nunca se apague.",
+  pitch: "Velitas aromáticas, artesanales, con la fragancia que elijas.",
   intro:
-    "Cera de soja, mecha de algodón y fragancias que cambian cómo se siente un espacio. No vendemos productos sueltos: armamos el ambiente de tu casa. Elegí, encendé y habitá el momento.",
+    "Todas nuestras velitas: son aromáticas y podés elegir su fragancia. Están realizadas de forma artesanal, con mucho amor y cera de soja. No son solo velas. Son pausas, rituales y atmósferas que transforman lo cotidiano.",
   valueProps: [
-    { icon: "✿", title: "Cera de soja natural", text: "Vegetal, biodegradable y de combustión limpia: sin humo ni hollín." },
-    { icon: "❖", title: "Velas + deco para el hogar", text: "Velas, difusores, objetos deco y accesorios que combinan entre sí." },
-    { icon: "◈", title: "Hecho y elegido a mano", text: "Piezas en lotes chicos y una curaduría de deco con el mismo criterio." },
-    { icon: "→", title: "Envío gratis desde $25.000", text: "Envío a domicilio en CABA y GBA; gratis a partir de $25.000." },
-    { icon: "✳", title: "Sets de regalo", text: "Experiencias armadas para regalar —o para regalarte." },
+    { icon: "✿", title: "Cera de soja", text: "Todas nuestras velitas están hechas con cera de soja." },
+    { icon: "❖", title: "Hechas a mano", text: "Realizadas de forma artesanal, con mucho amor." },
+    { icon: "◈", title: "Elegís tu fragancia", text: "9 aromas para velas y 6 para difusores y home spray." },
+    { icon: "✳", title: "Souvenirs y personalizados", text: "Si buscabas algo que no encontraste acá, ¡consultanos!" },
+    { icon: "→", title: "Envíos en CABA y GBA", text: "Coordinamos la entrega y el pago al confirmar el pedido." },
   ],
-  vacioTitle: "Mundos para tu casa",
+  vacioTitle: "Velas y aromas",
   vacioLines: [
-    { title: "Velas", text: "Aromáticas, decorativas y artesanales, en cera de soja con mecha de algodón.", section: "velas" },
-    { title: "Aromas", text: "Difusores, sahumerios y textiles para perfumar cada rincón por semanas.", section: "aromas" },
-    { title: "Decoración", text: "Portavelas, bandejas, floreros y espejos que completan la escena.", section: "decoracion" },
-    { title: "Accesorios", text: "Los detalles del ritual: cortamechas, apagadores y fósforos largos.", section: "accesorios" },
+    { title: "Velas", text: "De envase y de molde, todas aromáticas y en cera de soja.", section: "velas" },
+    { title: "Aromas", text: "Difusores, home spray y sus refills, con la fragancia que elijas.", section: "aromas" },
   ],
-  gourmetTitle: "Aromas de temporada",
-  gourmetItems: ["Vainilla y canela", "Flor de naranjo", "Sándalo", "Lavanda", "Coco y vainilla", "Jazmín", "Cedro y ámbar"],
+  gourmetTitle: "Aromas para velas",
+  gourmetItems: ["Vainilla & Caramelo", "Rosas", "Lavanda", "Frutos Rojos", "Bebé", "Coco & Lima", "Limón & Jengibre", "Flores Blancas", "Mango & Maracuyá"],
   providers: [],
-  ritual: {
-    title: "Armá tu ritual",
-    intro: "Un aroma no se compra, se vive. Tres pasos para convertir un momento cualquiera en algo tuyo.",
-    steps: [
-      { icon: "1", title: "Elegí tu aroma", text: "Cálido para relajar, cítrico para despertar, amaderado para concentrarte. Cada fragancia arma una escena distinta." },
-      { icon: "2", title: "Encendé y respirá", text: "Sumá un difusor o un textil a juego y dejá que el ambiente cambie. La luz baja, el aroma sube." },
-      { icon: "3", title: "Habitá el momento", text: "Un portavela lindo, una bandeja, tu música. Tu casa deja de ser un lugar y pasa a ser un estado." },
-    ],
-  },
-  giftSets: {
-    title: "Sets de regalo",
-    intro: "Experiencias listas para regalar —o para darte un gusto.",
-    sets: [
-      { name: "Set Ritual", items: "Vela de soja + difusor a juego + fósforos largos", price: 21900, note: "El más elegido" },
-      { name: "Caja Aromas", items: "3 velas aromáticas en caja de regalo", price: 22900 },
-      { name: "Set Deco & Luz", items: "Vela decorativa + portavela de cerámica + bandeja", price: 24900, note: "Envío gratis" },
-    ],
-  },
   // Reviews: VACÍO a propósito. Las 3 que había (Carla P./Sofía M./Belén R.) venían del
   // preview de preventa marcado "datos de ejemplo" — nombres y textos INVENTADOS, no
   // testimonios reales. Presentarlos como clientes reales viola DX-5 + honestidad de marca.
   // Se dejan fuera hasta que el dueño aporte reseñas reales (capturas de IG/WhatsApp).
   reviews: [],
+  // El texto «Shine nació de una obsesión simple…» no tiene fuente [A VALIDAR con la dueña]: mientras,
+  // el manifiesto del catálogo (p2).
   about: {
-    title: "No vendemos velas. Creamos ambientes.",
-    body: "Shine nació de una obsesión simple: que la luz y el aroma puedan cambiar cómo se siente un espacio. Empezamos con velas de soja hechas a mano y hoy sumamos difusores, objetos de decoración y los accesorios del ritual —todo elegido con el mismo criterio para que combine entre sí. No comprás un producto: armás el ambiente de tu casa. Para que tu luz nunca se apague.",
+    title: "No son solo velas.",
+    body: "Son pausas, rituales y atmósferas que transforman lo cotidiano.",
   },
   deliveryZones: ["CABA", "GBA"],
   paymentMethods: ["Efectivo", "Transferencia", "Débito", "Crédito", "Mercado Pago"],
-  shipping: { flatRate: 3500, freeThreshold: 25000 },
+  // SIN TARIFA hasta que la dueña cargue sus zonas en Envíos (ronda 2, P0: nada se cobra sin fuente). La tarifa fija de
+  // $3.500 y el «gratis desde $25.000» eran provisionales sin fuente [CONTRADICTORIO en el relevamiento] y se SUMABAN al
+  // total del pedido. Sin tarifa, la bolsa dice «Envío a coordinar» y el alta no suma envío.
+  shipping: undefined,
 };
 
 // --- A DOS MANOS Pádel (`adosmanos`, rubro `padel`) — voz de @adosmanospadel ---

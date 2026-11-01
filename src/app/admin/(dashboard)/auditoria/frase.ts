@@ -218,6 +218,8 @@ function pedido(f: FilaParaDescribir, c: Obj): Frase | null {
       if (cuenta) detalle.push(`Se anularon ${plata(cuenta)} de la cuenta corriente del cliente`);
       const cupon = txt(c.cuponDevuelto);
       if (cupon) detalle.push(`El cupón ${cupon} recuperó su uso`);
+      const autorizo = f.actor !== `user:${String(c.autorizadaPor)}` ? txt(c.autorizadaPorNombre) : null;
+      if (autorizo) detalle.push(`Autorizó ${autorizo}`);
       return { frase: `Anuló ${code !== null ? `la venta #${code}` : "una venta"}`, detalle };
     }
     if (esObj(c.status)) {
@@ -254,6 +256,10 @@ function pedido(f: FilaParaDescribir, c: Obj): Frase | null {
     return { frase: `Mandó un link de pago${code !== null ? ` por ${venta(code, c)}` : ""}${monto ? ` de ${plata(monto)}` : ""}` };
   }
   if (f.action === "whatsapp") return { frase: `Avisó por WhatsApp ${code !== null ? `del pedido #${code}` : "de un pedido"}` };
+  if (f.action === "authorize_void_collection") {
+    const monto = num(c.monto);
+    return { frase: `Autorizó anular ${code !== null ? `la venta #${code}` : "una venta"}${monto ? ` · ${plata(monto)}` : ""}` };
+  }
   return null;
 }
 
@@ -287,8 +293,15 @@ function turno(f: FilaParaDescribir, c: Obj | null): Frase | null {
       return { frase: "Marcó que la persona no vino a su turno" };
     case "reschedule":
       return { frase: "Cambió de horario un turno" };
-    case "void_collection":
-      return { frase: `Anuló el cobro de un turno${monto ? ` · ${plata(monto)}` : ""}`, detalle: motivo ? [`Motivo: «${motivo}»`] : [] };
+    case "void_collection": {
+      const autorizo = o.autorizadaPor !== o.anuladaPor ? txt(o.autorizadaPorNombre) : null;
+      return {
+        frase: `Anuló el cobro de un turno${monto ? ` · ${plata(monto)}` : ""}`,
+        detalle: [...(motivo ? [`Motivo: «${motivo}»`] : []), ...(autorizo ? [`Autorizó ${autorizo}`] : [])],
+      };
+    }
+    case "authorize_void_collection":
+      return { frase: `Autorizó anular el cobro de un turno${monto ? ` · ${plata(monto)}` : ""}` };
     case "write_off_balance":
       return { frase: "Perdonó el saldo de un turno", detalle: motivo ? [`Motivo: «${motivo}»`] : [] };
     case "reminder_manual":
@@ -298,6 +311,19 @@ function turno(f: FilaParaDescribir, c: Obj | null): Frase | null {
     default:
       return null;
   }
+}
+
+/** Los cobros de una orden de Taller, cuando se anulan o la dueña autoriza anularlos. */
+function cobroDeTaller(f: FilaParaDescribir, c: Obj | null): Frase | null {
+  const o = c ?? {};
+  const numero = num(o.numero);
+  const monto = num(o.monto);
+  const cual = `el cobro de ${numero !== null ? `la orden #${numero}` : "una orden"}${monto ? ` · ${plata(monto)}` : ""}`;
+  if (f.action === "authorize_void_collection") return { frase: `Autorizó anular ${cual}` };
+  if (f.action !== "taller.cobro.anulado") return null;
+  const motivo = txt(o.motivo);
+  const autorizo = o.autorizadaPor !== o.anuladaPor ? txt(o.autorizadaPorNombre) : null;
+  return { frase: `Anuló ${cual}`, detalle: [...(motivo ? [`Motivo: «${motivo}»`] : []), ...(autorizo ? [`Autorizó ${autorizo}`] : [])] };
 }
 
 function caja(f: FilaParaDescribir, c: Obj | null): Frase | null {
@@ -503,6 +529,7 @@ export function describirAccion(f: FilaParaDescribir): Descripcion {
   const propia =
     (f.entity === "Order" && c ? pedido(f, c) : null) ??
     (f.entity === "Appointment" ? turno(f, c) : null) ??
+    (f.entity === "TallerPago" ? cobroDeTaller(f, c) : null) ??
     caja(f, c) ??
     stock(f, c) ??
     red(f, c) ??

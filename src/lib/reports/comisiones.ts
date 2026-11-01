@@ -16,7 +16,7 @@
 // Sin Prisma de valor.
 
 import { sePuedeLiquidar } from "@/lib/comision-liquidable";
-import { calcularLiquidacion, type TurnoParaComision } from "@/lib/comision-liquidacion";
+import { calcularLiquidacion, resolvePct, type TurnoParaComision } from "@/lib/comision-liquidacion";
 import { round2 } from "@/lib/round";
 
 /**
@@ -95,6 +95,31 @@ export function comisionesPendientes(
     });
   }
   return out.sort((x, y) => y.amount - x.amount);
+}
+
+/**
+ * Cuántos turnos esperan por tener saldo sin cobrar (lo que `comisionesPendientes` deja afuera). Uno
+ * que no dejaría comisión no espera nada. No liquida ni decide nada: sólo se cuenta. PURA.
+ */
+export function contarTurnosEsperandoSaldo(
+  turnos: readonly TurnoPendiente[],
+  overrides: ReadonlyMap<string, ReadonlyMap<string, number>>,
+): number {
+  return turnos.filter(
+    (t) =>
+      !sePuedeLiquidar({ precio: t.precio, cobros: t.cobros, pagoLegado: t.payment }) &&
+      resolvePct(t.pctGeneral, overrides.get(t.professionalId) ?? new Map(), t.serviceId) > 0,
+  ).length;
+}
+
+/**
+ * El renglón de la pantalla. `null`: el negocio no lo cuenta y dice lo de siempre (los otros rubros);
+ * con cero turnos esperando no hay nada que decir. PURA.
+ */
+export function textoDeEsperaPorSaldo(esperando: number | null): string | null {
+  if (esperando === null) return "un turno con saldo sin cobrar espera hasta que se salde";
+  if (esperando === 0) return null;
+  return esperando === 1 ? "1 turno con saldo sin cobrar espera hasta que se salde" : `${esperando} turnos con saldo sin cobrar esperan hasta que se salden`;
 }
 
 /** El total a liquidar y a cuántos profesionales. PURA. */

@@ -123,9 +123,9 @@ function Resumen({ d }: { d: Datos }) {
   );
 }
 
-function RenglonDelLibro({ r, dudosa }: { r: Fila; dudosa: boolean }) {
-  const borrable = r.type === "INGRESO" || r.type === "EGRESO";
-  const origen = r.origin ?? "manual";
+function RenglonDelLibro({ r, dudosa, diaCerrado }: { r: Fila; dudosa: boolean; diaCerrado: boolean }) {
+  // Se ofrece borrar sólo lo que de verdad se puede: ni una fila del sistema ni una de un día cerrado.
+  const borrable = !diaCerrado && (r.borrable ?? (r.type === "INGRESO" || r.type === "EGRESO"));
   return (
     <li
       className={`grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-0.5 border-b border-line py-2 sm:grid-cols-[minmax(0,1fr)_8rem_8rem_8.5rem_2.75rem] ${
@@ -136,8 +136,7 @@ function RenglonDelLibro({ r, dudosa }: { r: Fila; dudosa: boolean }) {
         <span className="block text-strong">{r.detail || <span className="text-muted">(sin detalle)</span>}</span>
         <span className="block text-[13px] text-muted">
           {CASH_METHOD_LABEL[r.method]}
-          {origen !== "manual" ? ` · ${rotuloDeOrigen(origen, r.detail).toLowerCase()}` : " · cargado a mano"}
-          {r.type === "APERTURA" ? " · apertura de turno" : ""}
+          {` · ${rotuloDeOrigen(r)}`}
         </span>
         {dudosa && (
           <span className="mt-0.5 block text-[13px]">
@@ -160,7 +159,19 @@ function RenglonDelLibro({ r, dudosa }: { r: Fila; dudosa: boolean }) {
   );
 }
 
-export default function LibroRenglon({ d, defaultDate, hoy }: { d: Datos; defaultDate: string; hoy: string }) {
+export default function LibroRenglon({
+  d,
+  defaultDate,
+  hoy,
+  esMostrador,
+  puedeCerrar,
+}: {
+  d: Datos;
+  defaultDate: string;
+  hoy: string;
+  esMostrador: boolean;
+  puedeCerrar: boolean;
+}) {
   const { rows, monthKey, posiblesDuplicados, cerradoHasta } = d;
   const duplicados = new Set(posiblesDuplicados);
   const [y, m] = monthKey.split("-").map(Number);
@@ -199,7 +210,7 @@ export default function LibroRenglon({ d, defaultDate, hoy }: { d: Datos; defaul
             siguiente={siguiente <= mesActual ? { href: `${RUTA}?mes=${siguiente}`, texto: nombreMes(siguiente) } : null}
             volver={monthKey !== mesActual ? { href: RUTA, texto: "Este mes" } : null}
           />
-          <CargarMovimiento dia={defaultDate} mes={monthKey} />
+          <CargarMovimiento dia={defaultDate} mes={monthKey} esMostrador={esMostrador} />
           {/* <a>: es un archivo (Link lo precargaría). */}
           <a href={`${RUTA}/export?mes=${monthKey}`} className={buttonClasses("ghost", "md")} {...atributosBoton("ghost", "md")}>
             Bajar el mes (CSV)
@@ -234,7 +245,7 @@ export default function LibroRenglon({ d, defaultDate, hoy }: { d: Datos; defaul
         )}
         {pliegos.length === 0 && (
           <p className="py-3 text-sm text-muted">
-            Todavía no hay movimientos en {nombreMes(monthKey)}. Las ventas y los turnos cobrados entran solos; lo demás se carga con «Cargar un gasto o retiro».
+            Todavía no hay movimientos en {nombreMes(monthKey)}. {esMostrador ? "Las ventas entran solas" : "Las ventas y los turnos cobrados entran solos"}; lo demás se carga con «Cargar un gasto o retiro».
           </p>
         )}
         {pliegos.map(([dia, filas]) => {
@@ -270,13 +281,13 @@ export default function LibroRenglon({ d, defaultDate, hoy }: { d: Datos; defaul
               </summary>
               <ol className="border-t border-line pb-2">
                 {filas.map((r) => (
-                  <RenglonDelLibro key={r.id} r={r} dudosa={duplicados.has(r.id)} />
+                  <RenglonDelLibro key={r.id} r={r} dudosa={duplicados.has(r.id)} diaCerrado={!!cerradoHasta && dia <= cerradoHasta} />
                 ))}
               </ol>
             </details>
           );
         })}
-        {pliegos.length > 0 && (
+        {pliegos.length > 0 && puedeCerrar && !(cerradoHasta && hoy <= cerradoHasta) && (
           <p className="mt-3 text-sm text-muted">
             ¿Terminó el día?{" "}
             <Link href="/admin/caja/cierre" className="font-medium text-accent-ink underline underline-offset-4">

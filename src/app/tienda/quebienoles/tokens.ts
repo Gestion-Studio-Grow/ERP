@@ -8,6 +8,20 @@
 
 export const FONDO = "#0b0908";
 export const ORO = "#d8b36a";
+/** La tirita de papel secante donde el vendedor rocía el perfume (rediseño 29/10). Sobre el fondo: 13,9:1. */
+export const PAPEL = "#efe6d3";
+/** La tirita de un perfume sin stock: el mismo papel, apagado. */
+export const PAPEL_APAGADO = "#cfc6b4";
+/** La tinta con la que se escribe el nombre en la tirita. */
+export const TINTA = "#2a211b";
+/** La mesa de mármol negro donde se apoyan frasco y tirita. */
+export const MARMOL = "#141110";
+/**
+ * Un solo `sizes` para TODAS las fotos chicas de frascos (tarjeta, abanico de las puertas, guía, regalo,
+ * parecidos): mismo `sizes` y mismo ancho declarado → misma URL del optimizador → la segunda vez sale de
+ * la caché. Las fotos originales miden 270-379 px (recortes de Instagram): nunca se muestran más grandes.
+ */
+export const SIZES_FRASCO = "(max-width: 719px) 46vw, 190px";
 /** La familia CSS de la didona, tal como la declara la piel (la usa el lienzo 3D para dibujar la Q). */
 export const LETRA_DIDONA = '"QB Bodoni"';
 /** Carpeta de las fuentes auto-hospedadas (ADR-099 §Letra). */

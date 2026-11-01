@@ -31,6 +31,7 @@ import {
   type TurnoDelDia,
 } from "../agenda-core";
 import { aFormData, camposDeCancelar, camposDeCerrarSinPrestar, camposDelTurno, leerResultado } from "./campos";
+import { MENSAJE_SIN_ANULAR } from "@/lib/turnos/anulacion";
 
 export type CierreAbierto = { turnoId: string; accion: CierreSinPrestar };
 
@@ -184,6 +185,7 @@ export default function CancelarONoVino({
   accion,
   ahora,
   puedeDevolver,
+  motivoSinDevolver,
   conDeshacer = false,
   onCerrar,
   onListo,
@@ -191,8 +193,10 @@ export default function CancelarONoVino({
   turno: TurnoDelDia | null;
   accion: CierreSinPrestar;
   ahora: Date;
-  /** ¿Quien mira puede devolver la seña? (cobra turnos y el veredicto de ESTE turno lo deja). */
+  /** ¿Quien mira puede devolver la seña? Devolver es anular: directo, sólo la dueña. */
   puedeDevolver: boolean;
+  /** Por qué no, si no puede. */
+  motivoSinDevolver?: string;
   /** Quien la monta muestra el aviso con [Deshacer] (la mesa): la hoja no muestra el suyo. */
   conDeshacer?: boolean;
   onCerrar: () => void;
@@ -214,7 +218,7 @@ export default function CancelarONoVino({
           accion={accion}
           ahora={ahora}
           puedeDevolver={puedeDevolver}
-          motivoSinDevolver={t.veredicto.ok ? undefined : t.veredicto.motivo}
+          motivoSinDevolver={t.veredicto.ok ? motivoSinDevolver : MENSAJE_SIN_ANULAR}
           conDeshacer={conDeshacer}
           onListo={onListo}
           onVolver={onCerrar}

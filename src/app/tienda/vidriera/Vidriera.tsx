@@ -14,6 +14,7 @@
 // la primera pantalla, la búsqueda que filtra mientras escribe, la bolsa siempre a la vista (riel en
 // la PC, barra abajo en el celular) y el pedido que no se pierde si la señal se corta.
 
+import { FUENTES_VIDRIERA } from "./fuentes";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import s from "./vidriera.module.css";
@@ -191,7 +192,7 @@ export default function Vidriera(props: DatosVidriera & Slots) {
   const limpiar = () => setFiltros((f) => ({ ...f, q: "", seccion: null, marca: null }));
 
   return (
-    <div className={s.v} data-marca={marca}>
+    <div className={`${s.v} ${FUENTES_VIDRIERA}`} data-marca={marca}>
       <a href="#carta" className={s.saltar}>
         Ir a la carta
       </a>

@@ -113,3 +113,25 @@ test("tecla principal: turno si no tiene, WhatsApp si ya tiene, nada si no hay a
   assert.equal(teclaPrincipal({ servicios: true, puedeDarTurno: false, tieneTurno: false, puedeEscribirle: false }), null);
   assert.equal(teclaPrincipal({ servicios: false, puedeDarTurno: true, tieneTurno: false, puedeEscribirle: true }), "whatsapp");
 });
+
+test("E7: la ficha de siempre dice cuánto debe, con la regla de la ficha única", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { resumirFicha, saldoDelTurnoDeFicha } = await import("@/lib/crm/ficha");
+  const turno = (id: string, status: string, cobrado: number) => ({
+    id,
+    status,
+    startsAt: new Date("2026-10-20T15:00:00Z"),
+    precio: 15_000,
+    cobros: cobrado ? [{ amount: cobrado, method: "EFECTIVO", note: null }] : [],
+    servicio: "S",
+    profesional: "P",
+  });
+  const turnos = [turno("debe", "COMPLETED", 5_000), turno("pago", "COMPLETED", 15_000), turno("futuro", "CONFIRMED", 0), turno("cancelado", "CANCELLED", 0)];
+  assert.deepEqual(turnos.map(saldoDelTurnoDeFicha), [10_000, 0, 0, 0]);
+  const { saldoTurnos } = resumirFicha({ turnos, pedidos: [], fiado: [], ahora: new Date("2026-10-21T15:00:00Z") });
+  assert.equal(turnos.reduce((s, t) => s + saldoDelTurnoDeFicha(t), 0), saldoTurnos, "la misma cuenta que la ficha única");
+  const pagina = readFileSync(new URL("./page.tsx", import.meta.url), "utf8");
+  assert.match(pagina, /cobrosDetalladosPorTurno\(prisma, await getCurrentTenantId\(\)/, "lee los cobros del turno, no sólo el pago viejo");
+  assert.match(pagina, />Debe<\/p>/, "la ficha muestra el total");
+  assert.match(pagina, /· debe \{fmtMoneyARS\(saldos\.get\(a\.id\)/, "y lo dice en el turno");
+});

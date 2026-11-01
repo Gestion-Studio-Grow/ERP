@@ -43,6 +43,7 @@
 
 import { round2 } from "@/lib/round";
 import type { Prisma } from "@/generated/prisma/client";
+import type { AnulacionDeCobro } from "@/lib/capabilities";
 import { estadoCobroTurno, type CobroTurno, type PagoLegado } from "./cobros";
 import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
 import type { CashMethod } from "@/lib/caja/cash-register";
@@ -68,7 +69,7 @@ export function esEgresoDeAnulacion(m: { createdBy?: string | null }): boolean {
   return String(m.createdBy ?? "").startsWith(ANULACION_TURNO_ACTOR_PREFIX);
 }
 
-const MARCA_ANULACION = "ANULACION:";
+export const MARCA_ANULACION = "ANULACION:";
 const MARCA_CONDONACION = "CONDONACION:";
 
 /** Largo mínimo del motivo: menos que esto es "asd" y no explica nada en la auditoría. */
@@ -259,6 +260,21 @@ export function claveCondonacion(appointmentId: string): string {
 export function detalleReversa(detalleOriginal: string | null | undefined, motivo: string): string {
   const base = String(detalleOriginal ?? "").trim() || "Turno cobrado";
   return `Anulación de cobro · ${base} — ${motivo}`;
+}
+
+// ── Quién anula: los textos, para que la pantalla y el servidor digan lo mismo ──
+
+export const MENSAJE_SIN_ANULAR = "Anular un cobro lo hace la dueña. Pasale el turno a ella.";
+export const MENSAJE_FALTA_CODIGO = "Para anular hace falta el código de la dueña. Pedile que abra este cobro y toque «Autorizar anulación».";
+export const MENSAJE_CODIGO_MALO = "Ese código no sirve: está mal escrito, venció o es de otro cobro. Pedile uno nuevo a la dueña.";
+export const MENSAJE_TOPE_DE_CODIGOS = "Demasiados intentos con el código. Esperá unos minutos y pedile uno nuevo a la dueña.";
+export const MENSAJE_NO_DESHACE = "La seña ya quedó registrada. Si estuvo mal, anular el cobro necesita a la dueña.";
+
+/** Por qué no se ofrece «Se la devolvemos»: devolver es anular el cobro, y no hay otra puerta. */
+export function mensajeSinDevolver(anular: AnulacionDeCobro | null): string {
+  return anular === "con-autorizacion"
+    ? "Devolverla necesita a la dueña: anulá el cobro con su código, desde «La plata», y después cerrá el turno."
+    : MENSAJE_SIN_ANULAR;
 }
 
 export function mensajeAnulacionRechazada(motivo: MotivoAnulacionRechazada): string {

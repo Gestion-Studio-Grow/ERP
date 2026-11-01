@@ -22,6 +22,7 @@
 // migración). La nota del movimiento empieza con `NOTA_DE_CREDITO_PREFIX`, que es lo que
 // distingue un crédito de un pago de verdad.
 
+import { parseMedioDeLiquidacion } from "@/lib/comision-liquidacion";
 import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
@@ -42,6 +43,21 @@ export { REINTEGRO_ACTOR_PREFIX };
 
 /** Adónde va la plata de la devolución. */
 export type DestinoDelCredito = { tipo: "deuda" } | { tipo: "caja"; method: CashMethod } | { tipo: "ninguno" };
+
+/**
+ * Qué pasa con la plata, según el formulario. Mercado Pago y Transferencia son dos opciones y cada una
+ * entra por su columna: «Transferencia / Mercado Pago» grababa `MP`. `null`: no se puede decidir.
+ */
+export function destinoDelFormulario(fd: { get(k: string): unknown }): DestinoDelCredito | null {
+  const tipo = String(fd.get("destino") ?? "");
+  if (tipo === "deuda") return { tipo: "deuda" };
+  if (tipo === "ninguno") return { tipo: "ninguno" };
+  if (tipo === "caja") {
+    const method = parseMedioDeLiquidacion(fd.get("medio"));
+    return method ? { tipo: "caja", method } : null;
+  }
+  return null;
+}
 
 /** Una línea como llega del formulario: el producto y lo que se tipeó. */
 export type LineaPedida = { productId: string; cantidad: string };

@@ -4,10 +4,13 @@ import { createContext, useCallback, useContext, useRef, useState } from "react"
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import { Aviso } from "@/components/ui/Aviso";
 
-type Toast = { id: number; message: string; kind: "error" | "success" };
+type Toast = { id: number; message: string; kind: "error" | "success"; accion?: AccionDelAviso };
+/** Lo que se puede hacer desde el aviso («Avisarle por WhatsApp»). */
+export type AccionDelAviso = { texto: string; alTocar: () => void };
+
 type ToastContextValue = {
   showError: (message: string) => void;
-  showSuccess: (message: string) => void;
+  showSuccess: (message: string, accion?: AccionDelAviso) => void;
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -29,14 +32,14 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
     setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
 
-  const push = useCallback((message: string, kind: Toast["kind"]) => {
+  const push = useCallback((message: string, kind: Toast["kind"], accion?: AccionDelAviso) => {
     const id = nextId.current++;
-    setToasts((t) => [...t, { id, message, kind }]);
+    setToasts((t) => [...t, { id, message, kind, accion }]);
     if (!nuevo) setTimeout(() => sacar(id), 4000);
   }, [nuevo, sacar]);
 
   const showError = useCallback((message: string) => push(message, "error"), [push]);
-  const showSuccess = useCallback((message: string) => push(message, "success"), [push]);
+  const showSuccess = useCallback((message: string, accion?: AccionDelAviso) => push(message, "success", accion), [push]);
 
   return (
     <ToastContext.Provider value={{ showError, showSuccess }}>
@@ -47,7 +50,14 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
       <div className="pointer-events-none fixed bottom-[calc(1rem_+_var(--alto-barra-inferior,0px))] right-4 z-50 flex flex-col gap-2 max-w-sm">
         {toasts.map((t) =>
           nuevo ? (
-            <Aviso key={t.id} mensaje={t.message} tono={t.kind === "error" ? "error" : "exito"} onTermina={() => sacar(t.id)} />
+            <Aviso
+              key={t.id}
+              mensaje={t.message}
+              tono={t.kind === "error" ? "error" : "exito"}
+              onDeshacer={t.accion ? () => { t.accion?.alTocar(); sacar(t.id); } : undefined}
+              textoDeshacer={t.accion?.texto}
+              onTermina={() => sacar(t.id)}
+            />
           ) : (
           <div
             key={t.id}
@@ -59,6 +69,11 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
             }`}
           >
             {t.message}
+            {t.accion && (
+              <button type="button" className="ml-3 font-semibold underline underline-offset-2" onClick={() => { t.accion?.alTocar(); sacar(t.id); }}>
+                {t.accion.texto}
+              </button>
+            )}
           </div>
           ),
         )}

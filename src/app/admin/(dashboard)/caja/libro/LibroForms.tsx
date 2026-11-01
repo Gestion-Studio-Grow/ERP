@@ -17,7 +17,13 @@
 // Objetivo de diseño de la carga: que anotar una fila cueste lo mismo que en la
 // planilla. Fecha, tipo y medio quedan PEGADOS en lo último usado (se cargan seis
 // egresos en efectivo seguidos), el foco vuelve al detalle y cada alta confirma en
-// pantalla lo que guardó.
+// pantalla lo que guardó. El medio de la PRIMERA fila no se supone: lo elige la persona (un
+// medio ya elegido de fábrica asentaba plata en una columna que nadie miró).
+//
+// El ancho lo decide el LUGAR del formulario y no la pantalla (`@container`): vive en una tarjeta
+// ancha (diseño de siempre) y en un cajón de 480 px (diseño nuevo). Con las columnas atadas al
+// ancho de la pantalla, en una compu de 1440 los cinco campos seguían en fila adentro del cajón
+// y Medio y Monto quedaban cortados afuera.
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -60,9 +66,12 @@ function Mensaje({ state }: { state: LibroActionState }) {
 export function AddLibroEntryForm({
   defaultDate,
   viewMonth,
+  tipoInicial = "INGRESO",
 }: {
   defaultDate: string;
   viewMonth: string;
+  /** Con qué tipo arranca. «Cargar un gasto o retiro» va en Egreso: un gasto cargado sin mirar no entra como ingreso. */
+  tipoInicial?: "INGRESO" | "EGRESO";
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -78,8 +87,8 @@ export function AddLibroEntryForm({
   // Volver a elegir "egreso / efectivo" en cada fila es exactamente la fricción que
   // esta pantalla viene a sacar.
   const [date, setDate] = useState(defaultDate);
-  const [type, setType] = useState("INGRESO");
-  const [method, setMethod] = useState("MP");
+  const [type, setType] = useState<string>(tipoInicial);
+  const [method, setMethod] = useState("");
   // ¿La acción pidió confirmación (fecha fuera del mes, o posible duplicado)?
   //
   // Es un BOOLEANO, no una copia del FormData. Guardar la foto de los datos y
@@ -142,10 +151,11 @@ export function AddLibroEntryForm({
           setState(null);
         }
       }}
-      className="flex flex-col gap-4"
+      className="@container flex flex-col gap-4"
     >
-      <div className="grid gap-4 sm:grid-cols-[9.5rem_1fr_8rem_9.5rem_9rem]">
-        <Field label="Fecha" htmlFor="libro-date" required>
+      {/* En el cajón, Detalle (lo único que se escribe de corrido) ocupa el renglón entero. */}
+      <div className="grid gap-4 @sm:grid-cols-2 @4xl:grid-cols-[9.5rem_minmax(0,1fr)_8rem_9.5rem_9rem]">
+        <Field label="Fecha" htmlFor="libro-date" required className="@sm:col-span-2 @4xl:col-span-1">
           <Input
             id="libro-date"
             type="date"
@@ -155,7 +165,7 @@ export function AddLibroEntryForm({
             onChange={(e) => setDate(e.target.value)}
           />
         </Field>
-        <Field label="Detalle" htmlFor="libro-detail" required>
+        <Field label="Detalle" htmlFor="libro-detail" required className="@sm:col-span-2 @4xl:col-span-1">
           <Input
             id="libro-detail"
             type="text"
@@ -171,20 +181,24 @@ export function AddLibroEntryForm({
             <option value="EGRESO">Egreso</option>
           </Select>
         </Field>
-        <Field label="Medio" htmlFor="libro-method">
+        <Field label="Medio" htmlFor="libro-method" required>
           <Select
             id="libro-method"
             name="method"
+            required
             value={method}
             onChange={(e) => setMethod(e.target.value)}
           >
+            <option value="" disabled>
+              Elegí el medio
+            </option>
             <option value="EFECTIVO">Efectivo</option>
             <option value="MP">Mercado Pago</option>
             <option value="TRANSFERENCIA">Transferencia</option>
             <option value="TARJETA">Tarjeta</option>
           </Select>
         </Field>
-        <Field label="Monto" htmlFor="libro-amount" required>
+        <Field label="Monto" htmlFor="libro-amount" required className="@sm:col-span-2 @4xl:col-span-1">
           <Input
             id="libro-amount"
             // Texto: "12.500" son doce mil quinientos (el servidor lee con `leerImporte`).

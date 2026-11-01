@@ -6,6 +6,14 @@ import { esVentaACuenta } from "@/lib/venta-reglas";
 import { leerMedioDeCobro, MEDIOS_DE_COBRO, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import { fmtMoneyARS } from "@/components/ui/format";
 
+/**
+ * La venta recién cobrada, lista para anular: la abre Ventas del día en los dos diseños (cajón con
+ * «Anular la venta…» desplegado, o el renglón con el formulario abierto y a la vista).
+ */
+export function rutaParaAnularLaVenta(id: string): string {
+  return `/admin/ventas?venta=${encodeURIComponent(id)}&anular=1#venta-${encodeURIComponent(id)}`;
+}
+
 export type CanalDeVenta = "COUNTER" | "ONLINE";
 
 export type FiltrosDeVentas = {

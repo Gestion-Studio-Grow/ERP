@@ -58,6 +58,7 @@ import ToastProvider from "@/app/admin/(dashboard)/ToastProvider";
 import { CerrarDiaForm } from "@/app/admin/(dashboard)/caja/cierre/CierreForm";
 import { CloseCajaForm, OpenCajaForm } from "@/app/admin/(dashboard)/caja/CajaForms";
 import { AddLibroEntryForm, IrACargarMovimiento } from "@/app/admin/(dashboard)/caja/libro/LibroForms";
+import { CargarMovimiento } from "@/app/admin/(dashboard)/caja/CargarMovimiento";
 window.__envios = [];
 window.__montar = (cual) =>
   createRoot(document.getElementById("root")).render(
@@ -68,6 +69,8 @@ window.__montar = (cual) =>
         ? createElement(CloseCajaForm, { expected: 10000 })
         : cual === "abrir"
         ? createElement(OpenCajaForm, { esperado: 15000 })
+        : cual === "gasto"
+        ? createElement(CargarMovimiento, { dia: "2026-09-23" })
         : createElement("div", null,
             createElement(AddLibroEntryForm, { defaultDate: "2026-09-23", viewMonth: "2026-09" }),
             // El botón del mes vacío (libro/page.tsx), debajo del formulario como en la página.
@@ -78,7 +81,7 @@ window.__montar = (cual) =>
 `;
 
 type Envio = Record<string, string[]>;
-type Montaje = "cierre" | "turno" | "abrir" | "libro";
+type Montaje = "cierre" | "turno" | "abrir" | "libro" | "gasto";
 type Ventana = { __envios: Envio[]; __sinRed?: boolean; __montar: (cual: Montaje) => void };
 
 function rutaDeChromium(porDefecto: () => string): string | null {
@@ -185,7 +188,7 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
     );
     await page.addScriptTag({ content: bundle });
     await page.evaluate((c) => (window as unknown as Ventana).__montar(c as Montaje), cual);
-    await page.waitForSelector("form");
+    await page.waitForSelector(cual === "gasto" ? "button" : "form");
     return { page, errores };
   }
 
@@ -308,6 +311,7 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
     const { page, errores } = await montar("libro");
     await page.fill("#libro-detail", "Proveedor de bolsas");
     await page.selectOption("#libro-type", "EGRESO");
+    await page.selectOption("#libro-method", "EFECTIVO");
     await page.fill("#libro-amount", "8.400,50");
     await page.evaluate(() => {
       (window as unknown as Ventana).__sinRed = true;
@@ -317,6 +321,94 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
     assert.equal(await page.inputValue("#libro-detail"), "Proveedor de bolsas");
     assert.equal(await page.inputValue("#libro-amount"), "8.400,50");
     assert.equal(await page.inputValue("#libro-type"), "EGRESO");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("libro: el medio no viene elegido: sin elegirlo no se manda nada, y el elegido queda para la fila siguiente", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("libro");
+    assert.equal(await page.inputValue("#libro-method"), "", "ni Mercado Pago ni efectivo de fábrica");
+    await page.fill("#libro-detail", "Proveedor de bolsas");
+    await page.fill("#libro-amount", "8.400,50");
+    await page.getByRole("button", { name: "Agregar movimiento" }).click();
+    assert.equal((await envios(page)).length, 0, "sin medio no sale nada");
+    assert.equal(await page.evaluate(() => document.activeElement?.id), "libro-method", "el navegador lleva al campo que falta");
+    await page.selectOption("#libro-method", "TRANSFERENCIA");
+    await page.getByRole("button", { name: "Agregar movimiento" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length >= 1);
+    assert.deepEqual((await envios(page))[0].method, ["TRANSFERENCIA"]);
+    await page.getByRole("status").filter({ hasText: "Guardado." }).waitFor();
+    assert.equal(await page.inputValue("#libro-method"), "TRANSFERENCIA", "lo elegido queda pegado");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("«Cargar un gasto o retiro» arranca en Egreso y sin medio; la planilla del libro sigue arrancando en Ingreso", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("gasto");
+    await page.getByRole("button", { name: "Cargar un gasto o retiro" }).click();
+    await page.waitForSelector("#libro-type");
+    assert.equal(await page.inputValue("#libro-type"), "EGRESO", "un gasto cargado sin mirar no entra como ingreso");
+    assert.equal(await page.inputValue("#libro-method"), "", "el medio lo elige la persona");
+    await page.close();
+    const planilla = await montar("libro");
+    assert.equal(await planilla.page.inputValue("#libro-type"), "INGRESO");
+    assert.deepEqual(errores, []);
+    await planilla.page.close();
+  });
+
+  test("libro en el cajón de 480 px, en una compu de 1440: ningún campo se corta", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS");
+    const { page, errores } = await montar("libro", true);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.evaluate(() => {
+      const raiz = document.getElementById("root")!;
+      raiz.className = "";
+      raiz.style.width = "440px"; // el cuerpo del cajón: 480 menos sus márgenes
+    });
+    const medidas = await page.evaluate(() => {
+      const form = document.querySelector("form")!;
+      const borde = form.getBoundingClientRect().right;
+      return {
+        sobra: form.scrollWidth - form.clientWidth,
+        afuera: ["libro-date", "libro-detail", "libro-type", "libro-method", "libro-amount"].filter(
+          (id) => document.getElementById(id)!.getBoundingClientRect().right > borde + 0.5,
+        ),
+      };
+    });
+    assert.deepEqual(medidas, { sobra: 0, afuera: [] });
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("libro en la compu: el Detalle se puede leer, en el cajón y en la tarjeta ancha", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS");
+    const { page, errores } = await montar("libro", true);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const medir = (ancho: number) =>
+      page.evaluate((w) => {
+        const raiz = document.getElementById("root")!;
+        raiz.className = "";
+        raiz.style.width = `${w}px`;
+        return {
+          detalle: Math.round(document.getElementById("libro-detail")!.getBoundingClientRect().width),
+          enFila:
+            new Set(
+              ["libro-date", "libro-detail", "libro-type", "libro-method", "libro-amount"].map((id) =>
+                Math.round(document.getElementById(id)!.getBoundingClientRect().top),
+              ),
+            ).size === 1,
+        };
+      }, ancho);
+    const cajon = await medir(440);
+    assert.equal(cajon.detalle, 440, "en el cajón, el renglón entero");
+    assert.equal(cajon.enFila, false);
+    const tarjeta = await medir(1060);
+    assert.ok(tarjeta.enFila, "en la tarjeta ancha, los cinco en fila");
+    assert.ok(tarjeta.detalle >= 400, `Detalle de ${tarjeta.detalle} px en la tarjeta`);
     assert.deepEqual(errores, []);
     await page.close();
   });

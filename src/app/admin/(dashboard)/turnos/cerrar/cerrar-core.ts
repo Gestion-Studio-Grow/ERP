@@ -24,6 +24,7 @@ import { fmtTime } from "@/lib/datetime";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
 import { TOPE_DEL_LOTE, formDataDelLote, type PedidoDeCierre, type Permisos, type TurnoSinCerrar } from "@/lib/turnos/cierre-lote";
 import { diaMas, fechaLarga, pesos } from "../agenda-core";
+import type { AnulacionDeCobro } from "@/lib/capabilities";
 
 export { TOPE_DEL_LOTE };
 
@@ -50,7 +51,7 @@ export type TurnoPendiente = Pick<
  * Lo que la bandeja mira de los permisos (el loader trae más campos) y de la caja: con la caja de
  * HOY cerrada no se puede asentar un cobro, así que las líneas con saldo sólo ofrecen dejarlo.
  */
-export type PermisosDeLaBandeja = Pick<Permisos, "cobrar" | "terminar"> & { cajaDeHoyCerrada?: boolean };
+export type PermisosDeLaBandeja = Pick<Permisos, "cobrar" | "terminar"> & { cajaDeHoyCerrada?: boolean; anular?: AnulacionDeCobro | null; veLaCaja?: boolean; cierraElDia?: boolean };
 
 export const MOTIVO_CAJA_CERRADA = "La caja de hoy ya está cerrada: cerralo dejando el saldo y cobralo mañana.";
 
@@ -403,6 +404,15 @@ export const VACIO = {
   titulo: "Listo, no quedó nada sin cerrar",
   accion: { etiqueta: "Ir a cerrar la caja", href: "/admin/caja/cierre" },
 } as const;
+
+/**
+ * A dónde sigue: quien no ve la caja (la profesional) vuelve a su agenda, no a «no disponible»; quien la
+ * ve pero no cierra el día (recepción, `puedeCerrarElDia`) va a la caja, sin que se le ofrezca cerrarla.
+ */
+export function salidaDelVacio(veLaCaja: boolean, cierraElDia: boolean): { etiqueta: string; href: string } {
+  if (!veLaCaja) return { etiqueta: "Volver a la agenda", href: "/admin/turnos" };
+  return cierraElDia ? VACIO.accion : { etiqueta: "Ir a la caja", href: "/admin/caja" };
+}
 
 // ── Auxiliares ───────────────────────────────────────────────────────────────
 

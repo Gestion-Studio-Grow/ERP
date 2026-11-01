@@ -25,6 +25,7 @@ import {
   esEgresoDeComision,
   montoComision,
   parseCashMethod,
+  parseMedioDeLiquidacion,
   resolvePct,
   type TurnoParaComision,
 } from "./comision-liquidacion";
@@ -249,6 +250,13 @@ test("parseCashMethod no confía en el borde", () => {
   assert.equal(parseCashMethod(""), null);
 });
 
+test("la liquidación acepta cada medio por separado (UAT CH 31/10, E1)", () => {
+  for (const m of ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"]) assert.equal(parseMedioDeLiquidacion(m), m);
+  assert.equal(parseMedioDeLiquidacion("transferencia"), "TRANSFERENCIA");
+  assert.equal(parseMedioDeLiquidacion("cripto"), null);
+  assert.equal(parseMedioDeLiquidacion(null), null);
+});
+
 // ── 5. La FORMA de commission-actions.ts ───────────────────────────────────
 //
 // Lo que falló no fue una función mal escrita: fue que el asiento no existía y que la
@@ -329,6 +337,17 @@ test("el egreso de una liquidación NO se borra desde el libro de caja", () => {
 });
 
 
+test("las tres pantallas de liquidación separan Mercado Pago de Transferencia (UAT CH 31/10, E1)", () => {
+  // Una sola opción «Transferencia / MP» grababa `MP`: la comisión por transferencia salía de
+  // Mercado Pago y el libro quedaba mal por medio hasta que el cierre lo tapaba con dos ajustes.
+  for (const ruta of ["reportes/page.tsx", "comisiones/ComisionesPendientes.tsx", "comisiones/ComisionesRenglon.tsx"]) {
+    const pantalla = leer(`../app/admin/(dashboard)/${ruta}`);
+    assert.doesNotMatch(pantalla, /Transferencia \/ MP/, ruta);
+    assert.match(pantalla, /<option value="MP">Mercado Pago<\/option>/, ruta);
+    assert.match(pantalla, /<option value="TRANSFERENCIA">Transferencia<\/option>/, ruta);
+  }
+});
+
 test("el formulario de liquidación pregunta por qué medio se le pagó", () => {
   // El servidor ya leía `method` con `parseCashMethod` y el formulario no lo mandaba nunca,
   // así que el egreso del libro asumía EFECTIVO en el 100% de las liquidaciones. Hoy todas
@@ -340,12 +359,12 @@ test("el formulario de liquidación pregunta por qué medio se le pagó", () => 
   assert.ok(i > 0, "no encontré el formulario de liquidación en /admin/reportes");
   const form = page.slice(i, page.indexOf("</form>", i));
   assert.match(form, /name="method"/, "sin este control el medio nunca llega y se vuelve a asumir");
-  for (const m of ["EFECTIVO", "MP", "TARJETA"]) {
+  for (const m of ["EFECTIVO", "MP", "TRANSFERENCIA", "TARJETA"]) {
     assert.match(form, new RegExp(`value="${m}"`), `falta la opción ${m}`);
   }
   assert.match(
     leer("./commission-actions.ts"),
-    /parseCashMethod\(formData\.get\("method"\)\)/,
+    /parseMedioDeLiquidacion\(formData\.get\("method"\)\)/,
     "la Server Action tiene que leer el medio del formulario",
   );
 });

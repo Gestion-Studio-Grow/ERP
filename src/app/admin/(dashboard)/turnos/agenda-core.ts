@@ -25,6 +25,7 @@ import { desglosarCobros } from "@/lib/turnos/anulacion";
 import type { CierreSinPrestar, DestinoDeLaSenia } from "@/lib/turnos/practica";
 import type { TipoMarca } from "@/components/ui/Marca";
 import { dateStrInBusinessTz, fmtShortDate, fmtTime } from "@/lib/datetime";
+import type { AnulacionDeCobro } from "@/lib/capabilities";
 
 export type EstadoDelTurno = "PENDING" | "CONFIRMED" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
 
@@ -164,6 +165,8 @@ export function textoSeniaPedida(t: Pick<TurnoDelDia, "estado" | "inicio" | "sug
 
 /** Qué puede hacer quien mira (lo calcula el servidor con sus capacidades). */
 export type Permisos = {
+  /** Agenda práctica prendida: un turno terminado ofrece «Reservar el próximo» (E5). */
+  practica?: boolean;
   /** agenda:manage — confirmar, cancelar, reprogramar, dar de baja un saldo. */
   gestionar: boolean;
   /** agenda:collect — cobrar (además, el veredicto de cada turno). */
@@ -175,6 +178,11 @@ export type Permisos = {
    * Sólo la dueña (D5 del diseño: la recepción tiene tope $0). Lo calcula el servidor.
    */
   perdonar: boolean;
+  /**
+   * agenda:void — cómo anula un cobro quien mira: la dueña, directo; recepción, con el código de la
+   * dueña; la profesional, no (`anulacionDeCobro`). Lo calcula el servidor, y el servidor lo exige.
+   */
+  anular: AnulacionDeCobro | null;
 };
 
 export type Paso =

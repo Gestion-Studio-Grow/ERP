@@ -14,6 +14,7 @@
 import { LIMITE_IDS, planPorId, type LimiteId } from "@/planes/catalogo";
 import { decidirAlta, evaluarUso, LIMITES, type LimitesDelNegocio, type NivelDeUso } from "@/planes/limites";
 import { ESTADO_DE_LOS_PRECIOS, PRECIOS_PROVISIONALES } from "@/planes/precios";
+import { numeroWhatsApp } from "@/lib/whatsapp-cta";
 
 /** La ruta de la pantalla (y la base del destino de quien choca con el tope). */
 export const RUTA_TU_PLAN = "/admin/usuarios/plan";
@@ -115,10 +116,9 @@ export function vistaDeTuPlan(p: { limites: LimitesDelNegocio; uso: UsoMedido; n
   };
 }
 
-/** Número de WhatsApp de GSG: sólo dígitos, de 10 a 15. Otra cosa = no hay número. */
+/** Número de WhatsApp de GSG, listo para wa.me (`numeroWhatsApp`). Otra cosa = no hay número. */
 export function numeroDeWhatsApp(crudo: string | undefined): string | null {
-  const n = (crudo ?? "").replace(/[\s+\-()]/g, "");
-  return /^\d{10,15}$/.test(n) ? n : null;
+  return numeroWhatsApp(crudo) || null;
 }
 
 /**

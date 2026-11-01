@@ -12,6 +12,7 @@ import "server-only";
 import { cache } from "react";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { agendaPracticaPrendida } from "@/cambios/interruptores-core";
+import { getLocation } from "@/lib/settings";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { politicaDelNegocio, puedeCambiarOnline, reglaDeCancelacion, type PoliticaDeCancelacion } from "./practica";
 
@@ -25,10 +26,13 @@ export const politicaVigente = cache(async (): Promise<PoliticaDeCancelacion | n
   return politica && (await agendaPractica()) ? politica : null;
 });
 
+/** ¿El negocio tiene WhatsApp cargado? (`getLocation` está cacheada por pedido y sólo se pide si hay regla). */
+const hayWhatsApp = async (): Promise<boolean> => Boolean((await getLocation()).whatsapp);
+
 /** La regla escrita para la clienta (T12), o null con la agenda práctica apagada. */
 export async function reglaVigenteParaLaClienta(): Promise<string | null> {
   const p = await politicaVigente();
-  return p ? reglaDeCancelacion(p) : null;
+  return p ? reglaDeCancelacion(p, await hayWhatsApp()) : null;
 }
 
 /**
@@ -38,5 +42,5 @@ export async function reglaVigenteParaLaClienta(): Promise<string | null> {
 export async function cambioOnlineDelTurno(startsAt: Date): Promise<{ regla: string | null; puede: boolean }> {
   const p = await politicaVigente();
   if (!p) return { regla: null, puede: true };
-  return { regla: reglaDeCancelacion(p), puede: puedeCambiarOnline({ startsAt, ahora: new Date(), politica: p }).ok };
+  return { regla: reglaDeCancelacion(p, await hayWhatsApp()), puede: puedeCambiarOnline({ startsAt, ahora: new Date(), politica: p }).ok };
 }

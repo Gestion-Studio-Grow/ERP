@@ -13,6 +13,8 @@ import SubmitButton from "@/components/SubmitButton";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { preguntaDeCierre, type CierreSinPrestar as Accion } from "@/lib/turnos/practica";
 import { useToast } from "../ToastProvider";
+import { mensajeSinDevolver } from "@/lib/turnos/anulacion";
+import type { AnulacionDeCobro } from "@/lib/capabilities";
 
 export default function CerrarSinPrestar({
   appointmentId,
@@ -21,6 +23,7 @@ export default function CerrarSinPrestar({
   hora,
   cobrado,
   botonClassName,
+  anular = null,
 }: {
   appointmentId: string;
   accion: Accion;
@@ -29,6 +32,8 @@ export default function CerrarSinPrestar({
   /** Plata que ya entró por este turno (seña o parciales). */
   cobrado: number;
   botonClassName: string;
+  /** Cómo anula quien mira: devolver la plata es anular el cobro, directo sólo la dueña. */
+  anular?: AnulacionDeCobro | null;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [error, setError] = useState("");
@@ -77,10 +82,14 @@ export default function CerrarSinPrestar({
             <input type="radio" name="senia" value="retener" required className="accent-accent" />
             Se la queda el negocio
           </label>
-          <label className="flex min-h-11 items-center gap-2 text-sm text-body sm:min-h-0">
-            <input type="radio" name="senia" value="devolver" className="accent-accent" />
-            Se la devolvemos (se anula el cobro en la caja)
-          </label>
+          {anular === "directa" ? (
+            <label className="flex min-h-11 items-center gap-2 text-sm text-body sm:min-h-0">
+              <input type="radio" name="senia" value="devolver" className="accent-accent" />
+              Se la devolvemos (se anula el cobro en la caja)
+            </label>
+          ) : (
+            <p className="text-xs text-muted">{mensajeSinDevolver(anular)}</p>
+          )}
         </fieldset>
       )}
       <div className="flex flex-wrap gap-2">

@@ -2,12 +2,15 @@
 
 import { buttonClasses } from "@/components/ui";
 
+// `retry` (Next 16) vuelve a pedir la página al servidor; `reset` sólo limpia el estado y repetía el mismo error.
 export default function ReservaError({
   error,
   reset,
+  retry,
 }: {
   error: Error;
   reset: () => void;
+  retry?: () => void;
 }) {
   return (
     <div className="mx-auto max-w-lg px-6 py-20 text-center">
@@ -15,7 +18,7 @@ export default function ReservaError({
       <p className="text-muted mb-8">
         {error.message || "Ese horario se acaba de ocupar. Elegí otro horario disponible."}
       </p>
-      <button onClick={() => reset()} className={buttonClasses("solid", "md")}>
+      <button onClick={() => (retry ?? reset)()} className={buttonClasses("solid", "md")}>
         Elegir otro horario
       </button>
     </div>

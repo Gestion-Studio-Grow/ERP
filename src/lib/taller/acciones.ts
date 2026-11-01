@@ -13,6 +13,10 @@ import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
+import { anulacionDeCobro } from "@/lib/capabilities";
+import { autorizadoraDeLaAnulacion, codigoDeLaDuena, type ResultadoAutorizacion } from "@/lib/anulacion-autorizada";
+import { MENSAJE_SIN_ANULAR, mensajeMotivoInvalido, validarMotivo } from "@/lib/turnos/anulacion";
+import { objetoDeCobroDeTaller } from "@/lib/turnos/codigo-anulacion";
 import {
   CLAVES_PLANTILLA,
   conRecargo,
@@ -396,31 +400,89 @@ export async function registrarPago(formData: FormData) {
   revalidatePath("/admin/caja");
 }
 
-/** Un cobro no se borra: queda anulado, con su contrapartida en el libro de caja. */
-export async function anularPago(formData: FormData) {
+const TEXTOS_DEL_CODIGO = {
+  falta: "Para anular hace falta el código de la dueña. Pedile que abra esta orden y toque «Autorizar anulación» en este cobro.",
+  malo: "Ese código no sirve: está mal escrito, venció o es de otro cobro. Pedile uno nuevo a la dueña.",
+};
+
+/**
+ * Un cobro no se borra: queda anulado, con su contrapartida en el libro de caja.
+ *
+ * QUIÉN ANULA (orden del dueño, 31/10/2026): la dueña, directo; recepción, con el código que la dueña
+ * saca para ESE cobro (`anulacionDeCobro`). El mecánico no llega: no tiene `agenda:manage`.
+ */
+export async function anularPago(formData: FormData): Promise<Resultado> {
   const user = await requireCapability("agenda:manage");
+  const politica = anulacionDeCobro(user.role);
+  if (!politica) return { ok: false, error: MENSAJE_SIN_ANULAR };
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
+  const motivo = validarMotivo(String(formData.get("motivo") ?? ""));
+  if (!motivo.ok) return { ok: false, error: mensajeMotivoInvalido(motivo.error) };
   const pago = await prisma.tallerPago.findFirst({
     where: { id, tenantId, anuladoEl: null },
     include: { orden: { select: { numero: true, vehiculo: { select: { patente: true } } } } },
   });
-  if (!pago) return;
+  if (!pago) return { ok: false, error: "Ese cobro ya estaba anulado. Recargá la orden." };
+  // Antes de abrir la transacción: sin autorización no se escribe ni se bloquea nada.
+  const autorizacion = await autorizadoraDeLaAnulacion(user, politica, tenantId, objetoDeCobroDeTaller(id), formData.get("codigo"), TEXTOS_DEL_CODIGO);
+  if (!autorizacion.ok) return autorizacion;
   const hecho = await tenantTransaction(async (tx) => {
     // Sólo anula quien llega primero: un doble toque no escribe dos contrapartidas.
     const r = await tx.tallerPago.updateMany({ where: { id, tenantId, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: user.name } });
     if (r.count !== 1) return false;
     await revertirCobroInTx(tx, tenantId, {
       pagoId: id,
-      detalle: detalleDelCobro(pago.orden.numero, pago.orden.vehiculo.patente),
+      detalle: `${detalleDelCobro(pago.orden.numero, pago.orden.vehiculo.patente)} — ${motivo.motivo}`,
       actor: `user:${user.id}`,
     });
     return true;
   });
-  if (!hecho) return;
-  await auditAdmin({ action: "taller.cobro.anulado", entity: "TallerPago", entityId: id, changes: { ordenId: pago.ordenId, medio: pago.medio, monto: pago.monto } });
+  if (!hecho) return { ok: false, error: "Ese cobro ya estaba anulado. Recargá la orden." };
+  await auditAdmin({
+    action: "taller.cobro.anulado",
+    entity: "TallerPago",
+    entityId: id,
+    changes: {
+      ordenId: pago.ordenId,
+      numero: pago.orden.numero,
+      medio: pago.medio,
+      monto: pago.monto,
+      motivo: motivo.motivo,
+      anuladaPor: user.id,
+      anuladaPorNombre: user.name,
+      anuladaPorRol: user.role,
+      autorizadaPor: autorizacion.duena.id,
+      autorizadaPorNombre: autorizacion.duena.nombre,
+    },
+  });
   refrescar(pago.ordenId);
   revalidatePath("/admin/caja");
+  return { ok: true };
+}
+
+/**
+ * «Autorizar anulación» de un cobro de Taller: la dueña saca el código. Sólo calcula y deja rastro;
+ * la plata no se mueve hasta que recepción anula. El código no se guarda.
+ */
+export async function autorizarAnulacionPago(formData: FormData): Promise<ResultadoAutorizacion> {
+  const user = await requireCapability("agenda:manage");
+  if (anulacionDeCobro(user.role) !== "directa") return { ok: false, error: "Autorizar una anulación lo hace la dueña." };
+  const tenantId = await getCurrentTenantId();
+  const id = txt(formData.get("id"));
+  const pago = await prisma.tallerPago.findFirst({
+    where: { id, tenantId, anuladoEl: null },
+    select: { monto: true, ordenId: true, orden: { select: { numero: true } } },
+  });
+  if (!pago) return { ok: false, error: "Ese cobro ya no se puede anular. Recargá la orden." };
+  const { codigo, venceA, vence } = codigoDeLaDuena(tenantId, objetoDeCobroDeTaller(id), user.id);
+  await auditAdmin({
+    action: "authorize_void_collection",
+    entity: "TallerPago",
+    entityId: id,
+    changes: { ordenId: pago.ordenId, numero: pago.orden.numero, monto: pago.monto, autorizadaPor: user.id, autorizadaPorNombre: user.name, vence },
+  });
+  return { ok: true, codigo, venceA };
 }
 
 // ── Entrega ─────────────────────────────────────────────────────────────────

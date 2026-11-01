@@ -177,8 +177,8 @@ test("WhatsApp: el texto que se lee y el número que se abre son el MISMO dato",
 });
 
 test("WhatsApp: formato AR legible, sin inventar cuando no lo es", () => {
-  assert.equal(whatsappLabel("5491161354042"), "+54 9 11 6135 4042");
-  assert.equal(whatsappLabel("5492214567890"), "+54 9 221 456 7890");
+  assert.equal(whatsappLabel("5491161354042"), "+54 9 11 6135-4042");
+  assert.equal(whatsappLabel("5492214567890"), "+54 9 221 456-7890");
   assert.equal(whatsappLabel("447911123456"), "+447911123456"); // no-AR: se muestra tal cual
   assert.equal(whatsappLabel(""), null);
 });
@@ -209,7 +209,7 @@ test("local con datos cargados: gana BusinessSettings, campo por campo", () => {
   assert.equal(local.addressLine, "Av. Antártida Argentina 1200, Lomas de Zamora");
   assert.equal(local.hours, "Lun a sáb · 9 a 21 h");
   assert.equal(local.whatsapp, "5491155551234");
-  assert.equal(local.whatsappLabel, "+54 9 11 5555 1234");
+  assert.equal(local.whatsappLabel, "+54 9 11 5555-1234");
   assert.equal(local.instagram, "@magralomas");
   assert.equal(local.instagramUrl, "https://www.instagram.com/magralomas/");
   assert.equal(local.email, "lomas@magrameatmarket.com.ar");

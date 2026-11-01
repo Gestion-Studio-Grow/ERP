@@ -51,6 +51,17 @@ export function diferenciasDelCierre<K extends ColumnaDelCierre = CashMethod>(
   return out;
 }
 
+/**
+ * Sólo Transferencia es un neto que puede dar negativo (`leerContado`). En otro medio se cuenta lo
+ * que hay de verdad, aunque el libro dé negativo: se explica por qué en vez de decir «no es un
+ * importe» de un número que la misma pantalla acaba de mostrar. PURA.
+ */
+function textoDeNegativoQueNoSeCuenta(etiqueta: string, esperado: number, obligatorio: boolean): string {
+  const porque = esperado < 0 ? `El libro da ${fmtMoneyARS(esperado)} porque salió más de lo que entró. ` : "";
+  const salida = obligatorio ? "" : " o dejalo vacío y queda sin conciliar";
+  return `${porque}${etiqueta} no se cuenta en negativo: escribí lo que hay de verdad (0 si no queda nada)${salida}.`;
+}
+
 export function revisarCierre<K extends ColumnaDelCierre = CashMethod>(o: {
   declarado: Record<K, string>;
   esperado: Record<K, number>;
@@ -71,7 +82,9 @@ export function revisarCierre<K extends ColumnaDelCierre = CashMethod>(o: {
         error:
           m === "TRANSFERENCIA"
             ? `Lo de ${o.etiquetas[m]} no es un importe: escribí lo que entró, con coma si tiene centavos (12.500,50); si salió más de lo que entró, con un menos adelante (-400).`
-            : `Lo de ${o.etiquetas[m]} no es un importe: escribí lo que contaste, con coma si tiene centavos (12.500,50).`,
+            : /^\s*[-−–]/.test(o.declarado[m] ?? "")
+              ? textoDeNegativoQueNoSeCuenta(o.etiquetas[m], o.esperado[m], m === efectivo)
+              : `Lo de ${o.etiquetas[m]} no es un importe: escribí lo que contaste, con coma si tiene centavos (12.500,50).`,
       };
     }
   }
@@ -98,6 +111,25 @@ export function revisarCierre<K extends ColumnaDelCierre = CashMethod>(o: {
     return `${base}. ${d > 0 ? "Sobran" : "Faltan"} ${fmtMoneyARS(Math.abs(d))}: se asienta como ajuste.`;
   });
   return { listo: true, renglones, hayDiferencia };
+}
+
+/**
+ * Lo que dice «Diferencia del día» en la hoja. Un medio con plata en el libro que nadie contó no
+ * cuadra: cuadra lo contado, y se dice qué quedó sin conciliar (se puede cerrar igual). PURA.
+ */
+export function textoDeLaDiferenciaDelDia(o: {
+  contados: number;
+  hayDiferencia: boolean;
+  diferencia: number;
+  sinContar: readonly { etiqueta: string; esperado: number }[];
+}): string {
+  if (o.contados === 0) return "Todavía no contaste nada.";
+  const pendientes = o.sinContar.map((m) => `${m.etiqueta} (${fmtMoneyARS(m.esperado)})`).join(", ");
+  const cola = pendientes ? ` Falta contar ${pendientes}: queda sin conciliar.` : "";
+  if (o.hayDiferencia) {
+    return `${o.diferencia < 0 ? "Faltan" : "Sobran"} ${fmtMoneyARS(Math.abs(o.diferencia))}. Queda asentado en el libro como ajuste, con tu nombre.${cola}`;
+  }
+  return pendientes ? `Lo que contaste coincide con el libro.${cola}` : "Cuadra: lo que contaste es lo que el libro dice.";
 }
 
 /**

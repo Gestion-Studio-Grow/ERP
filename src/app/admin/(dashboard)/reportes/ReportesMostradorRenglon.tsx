@@ -10,24 +10,17 @@
 import Link from "next/link";
 import type { ReporteMostrador } from "@/lib/reports/ventas-mostrador";
 import { cantidadLegible } from "@/lib/reports/ventas-mostrador";
-import { REPORT_RANGE_DAYS } from "@/lib/report-config";
+import { opcionesDePeriodo, type PeriodoReporte } from "@/lib/report-periodo";
+import { diaMas } from "@/lib/report-ingresos";
 import { fmtShortDate } from "@/lib/datetime";
 import { Bloque, DosColumnas, EmptyState, PageHeader, Plata, Renglon, buttonClasses, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
-import { armarSemanaTipo, armarTira, diaConNombre, porcentajeLegible, proporcion, unDecimal, type Tira, type Unidad } from "./tira-core";
+import { armarSemanaTipo, armarTira, diaConNombre, porcentajeLegible, proporcion, unDecimal } from "./tira-core";
+import { ContraAnterior } from "./ContraAnterior";
+import { GraficoTira, NOMBRE_UNIDAD } from "./GraficoTira";
 
 const money = (n: number) => fmtMoneyARS(n, 0);
 const TOPE_PRODUCTOS = 25;
-
-const NOMBRE_UNIDAD: Record<Unidad, { una: string; mejor: string; hueco: string }> = {
-  dia: { una: "día", mejor: "Mejor día", hueco: "El palo hueco es hoy: el día todavía no terminó." },
-  semana: {
-    una: "semana",
-    mejor: "Mejor semana",
-    hueco: "Los palos huecos son semanas incompletas: la de hoy y, si el período arranca a mitad de semana, la primera.",
-  },
-  mes: { una: "mes", mejor: "Mejor mes", hueco: "Los palos huecos son meses incompletos: el de hoy y el primero del período." },
-};
 
 /** Una raya del largo de lo que representa (0 a 1). Decorativa: el número está al lado. */
 function Raya({ largo, destacada = false }: { largo: number; destacada?: boolean }) {
@@ -38,75 +31,31 @@ function Raya({ largo, destacada = false }: { largo: number; destacada?: boolean
   );
 }
 
-/** La tira: un palo por tramo; los incompletos, huecos. El tope del gráfico dice cuánto vale. */
-function GraficoTira({ tira }: { tira: Tira }) {
-  const n = tira.tramos.length;
-  const tope = Math.max(0, ...tira.tramos.map((t) => t.total));
-  const paso = Math.max(1, Math.ceil(n / 6));
-  const u = NOMBRE_UNIDAD[tira.unidad];
-  return (
-    <figure className="mt-3">
-      <p className="flex items-baseline justify-between text-xs text-muted">
-        <span className="tabular-nums">{money(tope)}</span>
-        <span>por {u.una}</span>
-      </p>
-      <ol
-        aria-label={`Lo vendido por ${u.una}, del más viejo al de hoy`}
-        className="mt-1 flex h-40 items-end gap-[3px] border-b border-t border-dashed border-b-line-strong border-t-line sm:h-48"
-      >
-        {tira.tramos.map((t) => {
-          const esMejor = tira.mejor?.desde === t.desde;
-          const alto = t.total > 0 ? Math.max(t.alto * 100, 1.5) : 0;
-          const estado = t.enCurso ? " (en curso)" : t.parcial ? " (incompleta)" : "";
-          return (
-            <li key={t.desde} className="flex h-full min-w-0 flex-1 flex-col justify-end" title={`${t.etiqueta}: ${money(t.total)} · ${fmtNumberAR(t.cantidad)} ventas${estado}`}>
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "mx-auto block w-4/5 max-w-12",
-                  t.total <= 0 ? "" : t.parcial ? "border-2 border-b-0 border-strong" : esMejor ? "bg-accent" : "bg-strong",
-                )}
-                style={{ height: `${alto}%` }}
-              />
-              <span className="sr-only">
-                {t.etiqueta}: {money(t.total)}, {fmtNumberAR(t.cantidad)} ventas{estado}
-                {esMejor ? `. ${u.mejor}.` : ""}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-      <div aria-hidden="true" className="mt-1 flex gap-[3px] text-[11px] text-muted">
-        {tira.tramos.map((t, i) => (
-          <span key={t.desde} className="min-w-0 flex-1 overflow-visible whitespace-nowrap">
-            {i % paso === 0 || i === n - 1 ? (i === n - 1 ? "hoy" : t.corta) : ""}
-          </span>
-        ))}
-      </div>
-      <figcaption className="mt-2 text-xs text-muted">{u.hueco}</figcaption>
-    </figure>
-  );
-}
-
 export default function ReportesMostradorRenglon({
   r,
+  periodo,
   hoy,
-  rangeDays,
+  totalAnterior,
   abribles,
 }: {
   r: ReporteMostrador & { desde: Date; hasta: Date };
+  periodo: PeriodoReporte;
   hoy: string;
-  rangeDays: number;
+  totalAnterior: number;
   abribles: ReadonlySet<string>;
 }) {
-  const tira = armarTira(r.porDia, hoy, rangeDays);
-  const semana = armarSemanaTipo(r.porDia, hoy, rangeDays);
+  const tira = armarTira(r.porDia, periodo.ultimoDia, periodo.dias, { cerrado: periodo.cerrado });
+  // La semana tipo deja afuera el último día porque es hoy y no terminó. En un período cerrado sí
+  // terminó: se le suma un día de más, sin ventas, para que el que quede afuera sea ése.
+  const semana = periodo.cerrado
+    ? armarSemanaTipo(r.porDia, diaMas(periodo.ultimoDia, 1), periodo.dias + 1)
+    : armarSemanaTipo(r.porDia, periodo.ultimoDia, periodo.dias);
   const u = NOMBRE_UNIDAD[tira.unidad];
   const sumaMedios = r.porMedio.reduce((s, m) => s + m.total, 0);
   const topeProducto = r.porProducto[0]?.total ?? 0;
   const productos = r.porProducto.slice(0, TOPE_PRODUCTOS);
   const exportar = (
-    <a href={`/admin/reportes/export?dias=${rangeDays}`} className={cn(buttonClasses("outline", "md"), "min-h-11")}>
+    <a href={`/admin/reportes/export?${periodo.query}`} className={cn(buttonClasses("outline", "md"), "min-h-11")}>
       Exportar CSV
     </a>
   );
@@ -127,21 +76,22 @@ export default function ReportesMostradorRenglon({
         ]}
         actions={exportar}
       />
+      {r.cantidad > 0 && <ContraAnterior actual={r.total} anterior={totalAnterior} periodo={periodo} />}
 
       <nav aria-label="Período" className="mb-6 mt-3 flex flex-wrap gap-x-1 border-b border-line">
-        {REPORT_RANGE_DAYS.map((d) => {
-          const activo = d === rangeDays;
+        {opcionesDePeriodo(hoy).map((p) => {
+          const activo = p.query === periodo.query;
           return (
             <Link
-              key={d}
-              href={`/admin/reportes?dias=${d}`}
+              key={p.query}
+              href={`/admin/reportes?${p.query}`}
               aria-current={activo ? "page" : undefined}
               className={cn(
                 "-mb-px inline-flex h-11 items-center border-b-2 px-3 text-sm",
                 activo ? "border-accent font-semibold text-strong" : "border-transparent text-muted hover:text-strong",
               )}
             >
-              {d === 365 ? "1 año" : `${d} días`}
+              {p.etiqueta}
             </Link>
           );
         })}
@@ -166,12 +116,17 @@ export default function ReportesMostradorRenglon({
             titulo="Cómo vino el período"
             nota={tira.mejor ? `${u.mejor}: ${tira.mejor.etiqueta} · ${money(tira.mejor.total)}` : undefined}
           >
-            <GraficoTira tira={tira} />
-            {(abribles.has("resultado-del-mes") || abribles.has("margen")) && (
+            <GraficoTira tira={tira} que="vendido" cada={{ uno: "venta", varios: "ventas" }} />
+            {(abribles.has("resultado-del-mes") || abribles.has("flujo-de-fondos") || abribles.has("margen")) && (
               <p className="mt-3 flex flex-wrap gap-x-4 text-sm">
                 {abribles.has("resultado-del-mes") && (
                   <Link href="/admin/resultado" className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-strong">
                     ¿Cuánto dejó? Resultado del mes
+                  </Link>
+                )}
+                {abribles.has("flujo-de-fondos") && (
+                  <Link href="/admin/flujo" className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-strong">
+                    Flujo de fondos
                   </Link>
                 )}
                 {abribles.has("margen") && (
@@ -187,7 +142,7 @@ export default function ReportesMostradorRenglon({
             <Bloque
               id="semana-tipo"
               titulo="Qué día se vende más"
-              nota={semana.desde ? `Promedio desde el ${diaConNombre(semana.desde)}, sin hoy` : undefined}
+              nota={semana.desde ? `Promedio desde el ${diaConNombre(semana.desde)}${periodo.cerrado ? "" : ", sin hoy"}` : undefined}
             >
               {semana.dias.map((d, i) => (
                 <Renglon

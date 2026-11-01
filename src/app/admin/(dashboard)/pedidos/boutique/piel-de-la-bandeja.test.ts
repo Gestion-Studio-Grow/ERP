@@ -8,7 +8,7 @@ const leer = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
 
 test("hereda TODOS los colores que la estética de Magra pone en el panel (los de Vender)", () => {
   const globales = readFileSync(new URL("../../../../globals.css", import.meta.url), "utf8");
-  const bloque = globales.match(/\[data-skin="fable"\]\[data-estetica="magra"\],\s*\[data-skin="fable"\]\[data-theme="dark"\]\[data-estetica="magra"\] \{([^}]*)\}/);
+  const bloque = globales.match(/\[data-skin="fable"\]\[data-estetica="magra"\](?::where\([^{,]*\))?,\s*\[data-skin="fable"\]\[data-theme="dark"\]\[data-estetica="magra"\](?::where\([^{,]*\))? \{([^}]*)\}/);
   assert.ok(bloque, "el bloque de la estética de Magra");
   const colores = [...bloque[1].matchAll(/(--[a-z-]+):/g)].map((m) => m[1]).filter((t) => !/^--(font|radius|shadow)/.test(t));
   assert.ok(colores.length > 20, String(colores.length));

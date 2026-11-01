@@ -2,16 +2,30 @@
 // Tiene que vender en cinco segundos: qué es, para quién, que es gratis y cómo se empieza.
 // `force-static` sin base (PD-1): todo lo que muestra sale de constantes (planes, pasos), así
 // el build no golpea Neon y la página carga de la CDN.
+//
+// Rediseño 29/10/2026 «el talonario que se desprende» (fronts/facturita/DISENO.md): un teléfono
+// dibujado con los tres toques reales y la hoja que se arranca (Talonario, simulador SÓLO de
+// navegador, «sin validez fiscal»). Textos fiscales intactos: pasaron cuatro vueltas de contador
+// (docs/producto/facturita/GATE.md).
 
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ACLARACION_IVA, ESTADO_PRECIOS, PLAN_FACTURITA, PLAN_SALTO, precioTexto } from "@/lib/facturita-planes";
+import { ACLARACION_IVA, PLAN_FACTURITA, PLAN_SALTO, precioTexto } from "@/lib/facturita-planes";
 import { LIMITE_FACTURAS_FACTURITA } from "@/lib/facturita-core";
+import { HOSTS_DE_PRODUCTO } from "@/lib/producto-host";
 import VidrieraMarco from "./VidrieraMarco";
-import { BOTON_PRINCIPAL, FOCO } from "./estilos";
+import { BOTON_PRINCIPAL } from "./estilos";
 import InstalarApp from "./InstalarApp";
+import Talonario from "./Talonario";
+import Hoja, { EJEMPLO } from "./Hoja";
 
 export const dynamic = "force-static";
+
+// og:image ABSOLUTA (trampa vidriera-de-autor §5: relativa sale con el host del deploy). La página
+// es estática y no puede leer el host del request: se usa el host público de Facturita, el mismo
+// que la manda a esta vidriera (src/lib/producto-host.ts).
+const HOST_PUBLICO = Object.keys(HOSTS_DE_PRODUCTO).find((h) => HOSTS_DE_PRODUCTO[h] === "/facturita");
+const OG_IMAGEN = HOST_PUBLICO ? `https://${HOST_PUBLICO}/facturita/og.webp` : "/facturita/og.webp";
 
 export const metadata: Metadata = {
   title: "Facturita — tu factura de ARCA en tres toques, gratis",
@@ -22,7 +36,11 @@ export const metadata: Metadata = {
     description: `${LIMITE_FACTURAS_FACTURITA} facturas gratis por mes, sin tarjeta. Si sos monotributista, sin saber de letras ni alícuotas.`,
     locale: "es_AR",
     type: "website",
+    images: [
+      { url: OG_IMAGEN, width: 1200, height: 630, type: "image/webp", alt: "Facturita: tu factura de ARCA en tres toques" },
+    ],
   },
+  twitter: { card: "summary_large_image" },
 };
 
 const PASOS = [
@@ -54,153 +72,180 @@ const PREGUNTAS = [
   },
 ];
 
+// «Así sale»: cada parte de la hoja, con su número en la hoja grande.
+const PARTES = [
+  {
+    t: "La letra",
+    d: "La letra sale sola: C si sos monotributista o exento, B si sos inscripto y le vendés a un consumidor final o a un exento. La A, por ahora, desde ARCA.",
+  },
+  { t: "El número", d: "Los primeros cinco números son tu punto de venta; los ocho que siguen, el número de la factura." },
+  { t: "A quién", d: "Consumidor final, o con CUIT, CUIL o DNI." },
+  { t: "El CAE", d: "ARCA te da el CAE: el número que dice que la factura es válida." },
+  { t: "El QR de ARCA", d: "Va en el PDF, para que tu cliente la pueda verificar escaneándolo." },
+];
+
 export default function FacturitaLanding() {
   return (
-    <VidrieraMarco>
-      {/* Lo que vende en cinco segundos */}
-      <section aria-labelledby="titulo" className="mx-auto grid max-w-5xl gap-10 px-4 pb-14 pt-10 sm:px-6 sm:pt-16 lg:grid-cols-[1.15fr_1fr] lg:items-center">
-        <div>
-          <p className="text-sm font-semibold text-accent-ink">Para monotributistas y comercios chicos</p>
-          <h1 id="titulo" className="mt-3 font-display text-4xl leading-[1.08] tracking-[-0.02em] text-strong sm:text-5xl">
-            Tu factura de ARCA en tres toques. Gratis.
-          </h1>
-          <p className="mt-4 max-w-xl text-lg text-muted">
-            Facturita es un emisor de facturas electrónicas que se usa desde el celu, sin instalar programas y con{" "}
-            {LIMITE_FACTURAS_FACTURITA} facturas por mes sin pagar un peso. Si sos monotributista, no tenés que saber de
-            letras ni alícuotas; si sos inscripto, elegís la alícuota y cómo está inscripto tu comprador.
-          </p>
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Link href="/facturita/alta" className={BOTON_PRINCIPAL}>
-              Empezar gratis
-            </Link>
-            <Link href="/admin/login" className={`rounded-lg px-1 py-2 text-sm font-semibold text-strong underline-offset-4 hover:underline ${FOCO}`}>
-              Ya tengo cuenta, quiero ingresar
-            </Link>
+    <VidrieraMarco barraFija="tras-cta">
+      {/* 1 · Héroe: lo que vende en cinco segundos + el talonario */}
+      <section aria-labelledby="titulo" className="fx-heroe">
+        <div className="fx-caja fx-heroe-grilla">
+          <div>
+            <p className="fx-ante">Para monotributistas y comercios chicos</p>
+            <h1 id="titulo" className="fx-h1">
+              Tu factura de ARCA en tres toques. <em>Gratis.</em>
+            </h1>
+            <p className="fx-lead">
+              Facturita es un emisor de facturas electrónicas que se usa desde el celu, sin instalar programas y con{" "}
+              {LIMITE_FACTURAS_FACTURITA} facturas por mes sin pagar un peso. Si sos monotributista, no tenés que saber de
+              letras ni alícuotas; si sos inscripto, elegís la alícuota y cómo está inscripto tu comprador.
+            </p>
+            <div className="fx-acciones">
+              <Link id="cta-heroe" href="/facturita/alta" className={BOTON_PRINCIPAL}>
+                Empezar gratis
+              </Link>
+              <Link href="/admin/login" className="fx-enlace">
+                Ya tengo cuenta, quiero ingresar
+              </Link>
+            </div>
+            <ul className="fx-garantias" aria-label="Lo que tenés que saber">
+              <li>Se autoriza en ARCA, con CAE</li>
+              <li>Sin tarjeta</li>
+              <li>Tu clave fiscal queda con vos</li>
+            </ul>
           </div>
-          <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted" aria-label="Lo que tenés que saber">
-            <li>✓ Se autoriza en ARCA, con CAE</li>
-            <li>✓ Sin tarjeta</li>
-            <li>✓ Tu clave fiscal queda con vos</li>
-          </ul>
+          <Talonario />
         </div>
-
-        {/* Ejemplo de factura: HTML puro, sin imagen (no pesa ni mueve el LCP) */}
-        <figure className="mx-auto w-full max-w-sm">
-          <div className="rounded-xl border border-line bg-surface-raised p-5 shadow-raised">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[.06em] text-muted">Factura C</p>
-                <p className="mt-1 whitespace-nowrap font-mono text-sm tabular-nums text-strong">N.º 00002-00000015</p>
-              </div>
-              <span className="whitespace-nowrap rounded-full bg-success-soft px-2.5 py-1 text-xs font-semibold text-success">
-                Autorizada · CAE
-              </span>
-            </div>
-            <dl className="mt-5 space-y-2 text-sm">
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted">A</dt>
-                <dd className="text-strong">Consumidor final</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted">Detalle</dt>
-                <dd className="text-right text-strong">Corte y peinado</dd>
-              </div>
-            </dl>
-            <div className="mt-5 flex items-baseline justify-between border-t border-line pt-4">
-              <span className="text-sm text-muted">Total</span>
-              <span className="text-2xl font-semibold tabular-nums text-strong">$18.500</span>
-            </div>
-            <div className="mt-5 text-center text-sm font-semibold">
-              <span className="block rounded-lg bg-surface-sunken py-2 text-strong">PDF para tu cliente</span>
-            </div>
-          </div>
-          <figcaption className="mt-3 text-center text-xs text-faint">Ejemplo ilustrativo, con datos inventados.</figcaption>
-        </figure>
       </section>
 
-      {/* Cómo funciona */}
-      <section aria-labelledby="como" className="border-t border-line bg-surface-raised">
-        <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
-          <h2 id="como" className="font-display text-2xl tracking-[-0.01em] text-strong sm:text-3xl">
-            Así de corto
+      {/* 3 · Así de corto */}
+      <section aria-labelledby="como" className="fx-seccion fx-seccion--papel">
+        <div className="fx-caja">
+          <h2 id="como" className="fx-h2 fx-aparece">
+            Así de <em>corto</em>
           </h2>
-          <ol className="mt-8 grid gap-8 sm:grid-cols-3">
+          <ol className="fx-pasos">
             {PASOS.map((paso, i) => (
-              <li key={paso.t} className="border-t-2 border-accent pt-4">
-                <span className="text-sm font-semibold tabular-nums text-accent-ink">Paso {i + 1}</span>
-                <h3 className="mt-1 text-base font-semibold text-strong">{paso.t}</h3>
-                <p className="mt-1 text-sm text-muted">{paso.d}</p>
+              <li key={paso.t} className="fx-paso fx-aparece">
+                <span className="fx-paso-n" aria-hidden="true">
+                  {i + 1}
+                </span>
+                <h3 className="fx-h3">
+                  <span className="sr-only">Paso {i + 1}: </span>
+                  {paso.t}
+                </h3>
+                <p>{paso.d}</p>
               </li>
             ))}
           </ol>
         </div>
       </section>
 
-      {/* Planes: lo gratis y el salto */}
-      <section aria-labelledby="planes" className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
-        <h2 id="planes" className="font-display text-2xl tracking-[-0.01em] text-strong sm:text-3xl">
-          Arrancás gratis. Crecés sin mudarte.
-        </h2>
-        <p className="mt-2 max-w-2xl text-muted">
-          Cuando necesites más, pasás a Comerciante en el mismo lugar: tus facturas y tus datos quedan donde estaban.
-        </p>
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
-          <article className="rounded-xl border-2 border-accent bg-surface-raised p-6">
-            <h3 className="text-lg font-semibold text-strong">{PLAN_FACTURITA.nombre}</h3>
-            <p className="mt-1 text-3xl font-semibold text-strong">{precioTexto(PLAN_FACTURITA.precioMensual)}</p>
-            <p className="text-sm text-muted">{PLAN_FACTURITA.nota}</p>
-            <ul className="mt-4 space-y-2 text-sm text-body">
-              {PLAN_FACTURITA.incluye.map((x) => (
-                <li key={x}>✓ {x}</li>
+      {/* 4 · Así sale: la «ficha» del producto */}
+      <section aria-labelledby="asi-sale" className="fx-seccion">
+        <div className="fx-caja">
+          <h2 id="asi-sale" className="fx-h2 fx-aparece">
+            Así <em>sale</em>
+          </h2>
+          <p className="fx-bajada">Esta hoja es de ejemplo, con datos inventados. Lo que señalamos es lo que vas a ver en las tuyas.</p>
+          <div className="fx-asi-grilla">
+            <figure className="fx-hoja fx-hoja--grande fx-aparece" aria-label="Factura de ejemplo con sus partes numeradas, sin validez fiscal">
+              <Hoja detalle={EJEMPLO.detalle} total={EJEMPLO.total} destinatario={EJEMPLO.destinatario} emitida grande conQr />
+            </figure>
+            <ol className="fx-partes">
+              {PARTES.map((p, i) => (
+                <li key={p.t}>
+                  <span className="fx-marca-n" aria-hidden="true">
+                    {i + 1}
+                  </span>
+                  <div>
+                    <h3>{p.t}</h3>
+                    <p>{p.d}</p>
+                  </div>
+                </li>
               ))}
-            </ul>
-          </article>
-          <article className="rounded-xl border border-line bg-surface-raised p-6">
-            <h3 className="text-lg font-semibold text-strong">{PLAN_SALTO.nombre}</h3>
-            <p className="mt-1 text-3xl font-semibold tabular-nums text-strong">
-              {precioTexto(PLAN_SALTO.precioMensual)}
-              <span className="text-base font-normal text-muted"> por mes</span>
-            </p>
-            <p className="text-sm text-muted">{PLAN_SALTO.nota}</p>
-            <ul className="mt-4 space-y-2 text-sm text-body">
-              {PLAN_SALTO.incluye.map((x) => (
-                <li key={x}>✓ {x}</li>
-              ))}
-            </ul>
-          </article>
+            </ol>
+          </div>
         </div>
-        <p className="mt-4 text-xs text-faint">
-          {ESTADO_PRECIOS}. {ACLARACION_IVA}.{" "}
-          <Link href="/facturita/planes" className={`font-semibold text-strong underline underline-offset-4 ${FOCO}`}>
-            Ver todos los planes
-          </Link>
-        </p>
       </section>
 
-      {/* Instalala */}
-      <section aria-labelledby="instalar" className="border-t border-line bg-surface-raised">
-        <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
-          <h2 id="instalar" className="font-display text-2xl tracking-[-0.01em] text-strong sm:text-3xl">
-            Tenela a mano, como una app
+      {/* 5 · Planes: lo gratis y el salto */}
+      <section aria-labelledby="planes" className="fx-seccion fx-seccion--papel">
+        <div className="fx-caja">
+          <h2 id="planes" className="fx-h2 fx-aparece">
+            Arrancás <em>gratis.</em> Crecés sin mudarte.
           </h2>
-          <p className="mt-2 max-w-2xl text-muted">
+          <p className="fx-bajada">
+            Cuando necesites más, pasás a Comerciante en el mismo lugar: tus facturas y tus datos quedan donde estaban.
+          </p>
+          <div className="fx-precios">
+            <article aria-labelledby="plan-gratis" className="fx-hoja-plan fx-aparece">
+              <h3 id="plan-gratis" className="fx-h3">
+                {PLAN_FACTURITA.nombre}
+              </h3>
+              <p className="fx-precio">{precioTexto(PLAN_FACTURITA.precioMensual)}</p>
+              <p className="fx-tenue" style={{ margin: "8px 0 0" }}>
+                {PLAN_FACTURITA.nota}
+              </p>
+              <ul className="fx-lista">
+                {PLAN_FACTURITA.incluye.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+            </article>
+            <article aria-labelledby="plan-salto" className="fx-hoja-plan fx-hoja-plan--quieta fx-aparece">
+              <h3 id="plan-salto" className="fx-h3">
+                {PLAN_SALTO.nombre}
+              </h3>
+              <p className="fx-precio">
+                <span className="fx-precio-desde">desde</span>
+                {precioTexto(PLAN_SALTO.precioMensual)}
+                <small> por mes</small>
+              </p>
+              <p className="fx-tenue" style={{ margin: "8px 0 0" }}>
+                {PLAN_SALTO.nota}
+              </p>
+              <ul className="fx-lista">
+                {PLAN_SALTO.incluye.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+            </article>
+          </div>
+          <p className="fx-bajada" style={{ marginTop: 28 }}>
+            Precios de referencia (lista del 11/07/2026, en revisión). Te lo confirmamos antes de cobrarte un peso.{" "}
+            {ACLARACION_IVA}.{" "}
+            <Link href="/facturita/planes" className="fx-enlace">
+              Ver todos los planes
+            </Link>
+          </p>
+        </div>
+      </section>
+
+      {/* 6 · Instalala */}
+      <section aria-labelledby="instalar" className="fx-seccion">
+        <div className="fx-caja">
+          <h2 id="instalar" className="fx-h2 fx-aparece">
+            Tenela a mano, <em>como una app</em>
+          </h2>
+          <p className="fx-bajada">
             No hace falta bajar nada de ningún store: la agregás a la pantalla de inicio y se abre directo en «Emitir».
           </p>
-          <div className="mt-6">
+          <div style={{ marginTop: 28 }}>
             <InstalarApp />
           </div>
-          <div className="mt-6 grid gap-6 sm:grid-cols-2">
+          <div className="fx-dos">
             <div>
-              <h3 className="text-base font-semibold text-strong">En Android</h3>
-              <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted">
+              <h3 className="fx-h3">En Android</h3>
+              <ol>
                 <li>Abrí esta página en Chrome.</li>
                 <li>Tocá los tres puntitos de arriba a la derecha.</li>
                 <li>Elegí «Instalar app» o «Agregar a la pantalla principal».</li>
               </ol>
             </div>
             <div>
-              <h3 className="text-base font-semibold text-strong">En iPhone</h3>
-              <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted">
+              <h3 className="fx-h3">En iPhone</h3>
+              <ol>
                 <li>Abrí esta página en Safari.</li>
                 <li>Tocá el botón de compartir (el cuadradito con la flecha).</li>
                 <li>Elegí «Agregar a inicio».</li>
@@ -210,34 +255,36 @@ export default function FacturitaLanding() {
         </div>
       </section>
 
-      {/* Preguntas */}
-      <section aria-labelledby="preguntas" className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
-        <h2 id="preguntas" className="font-display text-2xl tracking-[-0.01em] text-strong sm:text-3xl">
-          Lo que todos preguntan
-        </h2>
-        <div className="mt-6 divide-y divide-line border-y border-line">
-          {PREGUNTAS.map((q) => (
-            <details key={q.p} className="group py-1">
-              <summary className={`flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg py-3 text-base font-semibold text-strong ${FOCO}`}>
-                {q.p}
-                <span aria-hidden="true" className="text-xl text-muted transition-transform duration-200 group-open:rotate-45 motion-reduce:transition-none">
-                  +
-                </span>
-              </summary>
-              <p className="pb-4 text-sm text-muted">{q.r}</p>
-            </details>
-          ))}
+      {/* 7 · Preguntas */}
+      <section aria-labelledby="preguntas" className="fx-seccion fx-seccion--papel">
+        <div className="fx-caja fx-caja--texto">
+          <h2 id="preguntas" className="fx-h2 fx-aparece">
+            Lo que todos <em>preguntan</em>
+          </h2>
+          <div className="fx-faq">
+            {PREGUNTAS.map((q) => (
+              <details key={q.p}>
+                <summary>
+                  {q.p}
+                  <span aria-hidden="true">+</span>
+                </summary>
+                <p>{q.r}</p>
+              </details>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Cierre */}
-      <section aria-labelledby="cierre" className="border-t border-line bg-surface-raised">
-        <div className="mx-auto flex max-w-5xl flex-col items-start gap-5 px-4 py-14 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      {/* 8 · Cierre */}
+      <section aria-labelledby="cierre" className="fx-seccion">
+        <div className="fx-caja fx-cierre">
           <div>
-            <h2 id="cierre" className="font-display text-2xl tracking-[-0.01em] text-strong">
-              Tu primera factura, hoy.
+            <h2 id="cierre" className="fx-h2 fx-aparece">
+              Tu primera factura, <em>hoy.</em>
             </h2>
-            <p className="mt-1 text-muted">El alta son cinco pasos cortos y no te pide tarjeta. Después la activamos nosotros y te avisamos.</p>
+            <p className="fx-bajada">
+              El alta son cinco pasos cortos y no te pide tarjeta. Después la activamos nosotros y te avisamos.
+            </p>
           </div>
           <Link href="/facturita/alta" className={BOTON_PRINCIPAL}>
             Empezar gratis

@@ -109,7 +109,7 @@ function etiquetas(desde: string, hasta: string, unidad: Unidad, parcial: boolea
 }
 
 /** Reparte los días con ventas en tramos del período; los días sin ventas suman cero. */
-export function armarTira(porDia: readonly FilaPorDia[], hoy: string, dias: number): Tira {
+export function armarTira(porDia: readonly FilaPorDia[], hoy: string, dias: number, { cerrado = false }: { cerrado?: boolean } = {}): Tira {
   const unidad = unidadPara(dias);
   const delDia = new Map(porDia.map((f) => [f.dia, f]));
   const grupos = new Map<string, { dias: string[]; total: number; cantidad: number }>();
@@ -127,7 +127,8 @@ export function armarTira(porDia: readonly FilaPorDia[], hoy: string, dias: numb
   const tramos: Tramo[] = [...grupos.values()].map((g) => {
     const desde = g.dias[0];
     const hasta = g.dias[g.dias.length - 1];
-    const enCurso = hasta === hoy;
+    // En un período que ya terminó (el mes pasado), `hoy` es su último día y nada sigue en curso.
+    const enCurso = !cerrado && hasta === hoy;
     const parcial = enCurso || g.dias.length < largoDeLaUnidad(desde, unidad);
     return {
       desde,

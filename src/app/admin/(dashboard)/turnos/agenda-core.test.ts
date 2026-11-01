@@ -27,9 +27,9 @@ import {
 
 // Jueves 24 de septiembre de 2026, 11:32 en Buenos Aires (14:32 UTC).
 const AHORA = new Date("2026-09-24T14:32:00.000Z");
-const TODO: Permisos = { gestionar: true, cobrar: true, terminar: true, perdonar: true };
-const RECEPCION: Permisos = { gestionar: true, cobrar: true, terminar: true, perdonar: false };
-const PROFESIONAL: Permisos = { gestionar: false, cobrar: true, terminar: true, perdonar: false };
+const TODO: Permisos = { gestionar: true, cobrar: true, terminar: true, perdonar: true, anular: "directa" };
+const RECEPCION: Permisos = { gestionar: true, cobrar: true, terminar: true, perdonar: false, anular: "con-autorizacion" };
+const PROFESIONAL: Permisos = { gestionar: false, cobrar: true, terminar: true, perdonar: false, anular: null };
 const OK = { ok: true } as const;
 
 function crudo(p: Partial<TurnoCrudo> & { hora: string; minutos?: number }): TurnoCrudo {
@@ -175,7 +175,7 @@ describe("una tecla por renglón: el paso que sigue", () => {
   });
 
   test("sin agenda:complete no se ofrece terminar", () => {
-    assert.deepEqual(pasoDelTurno(turno({ hora: "11:15" }), { gestionar: true, cobrar: true, terminar: false, perdonar: false }, AHORA), { tipo: "ninguno" });
+    assert.deepEqual(pasoDelTurno(turno({ hora: "11:15" }), { gestionar: true, cobrar: true, terminar: false, perdonar: false, anular: "con-autorizacion" }, AHORA), { tipo: "ninguno" });
   });
 });
 

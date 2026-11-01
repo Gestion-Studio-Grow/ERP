@@ -7,13 +7,16 @@
 // Lo que NO dice, porque la marca no lo publicó: tarifa de envío, zonas ni medios de pago. Dice lo que
 // es cierto: el envío o el punto de encuentro en Ezeiza y el pago se coordinan por mensaje.
 
+import CamposDelPedido from "@/components/vidriera/CamposDelPedido";
+import { useHoja } from "@/components/vidriera/useHoja";
+import { precioDe } from "../vidriera/catalogo-core";
 import Image from "next/image";
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { plata, textoDelEnvio } from "../vidriera/catalogo-core";
 import type { EstadoVidriera } from "../vidriera/useVidriera";
 import { MENSAJE_NO_SE_PUDO } from "../reglas-tienda";
 import { mensajeDirecto, type Pieza } from "./vitrina";
-import { IconoBolsa, IconoCerrar } from "./Iconos";
+import { IconoBolsa, IconoCerrar, QConCorona, altDeFrasco } from "./Iconos";
 import { CamposDeEntrega, FrenoDeEntrega, type AparienciaDeEntrega } from "../EntregaDeLaTienda";
 
 // La piel de Qué Bien Olés para la zona, el día, la franja y el freno, si el negocio carga Envíos
@@ -24,7 +27,7 @@ const APARIENCIA_ENTREGA: AparienciaDeEntrega = {
   campo: { className: "qb-campo" },
   rotulo: { style: ROTULO },
   control: {
-    style: { height: 52, padding: "0 14px", border: "1px solid var(--linea-2)", borderRadius: 0, background: "transparent", color: "var(--hueso)", font: "400 16px var(--palo)" },
+    style: { height: 52, padding: "0 14px", border: "1px solid var(--linea-2)", borderRadius: 0, background: "transparent", color: "var(--hueso)", font: "400 17px var(--palo)" },
   },
   grupo: { className: "qb-entrega" },
   nota: { className: "qb-tenue", style: { margin: 0 } },
@@ -62,14 +65,8 @@ export default function Bolsa({
   const { pedido, cupon, entrega } = v;
   const hay = v.lineas.length > 0;
 
-  useEffect(() => {
-    const d = dialogo.current;
-    if (!d) return;
-    if (abierta && !d.open) {
-      d.showModal();
-      titulo.current?.focus();
-    } else if (!abierta && d.open) d.close();
-  }, [abierta]);
+  // La hoja compartida (ronda 2): «atrás» del celular cierra la bolsa en vez de sacar de la tienda.
+  useHoja(dialogo, abierta, alCerrar, { foco: titulo });
 
   // Si la bolsa se vacía estando en «tus datos», se vuelve al primer paso (no hay nada que pedir).
   const pasoVisible = hay ? paso : "bolsa";
@@ -81,6 +78,21 @@ export default function Bolsa({
         : pedido.error.texto
       : null;
   const errorDeCupon = pedido.error?.campo === "cupon" ? pedido.error.texto : cupon.error;
+  // «Hacer pedido» con un cupón que no sirve: el aviso quedaba abajo del cupón, fuera de la vista bajo el pie fijo,
+  // y parecía que el botón no andaba (QA 29/10). Se abre el cupón, se lleva el foco y la vista al campo, y junto al
+  // botón queda una línea que dice qué pasó.
+  const cajaCupon = useRef<HTMLDetailsElement>(null);
+  const campoCupon = useRef<HTMLInputElement>(null);
+  const cuponFrenaElPedido = pedido.error?.campo === "cupon" ? pedido.error.texto : null;
+  useEffect(() => {
+    if (!cuponFrenaElPedido) return;
+    if (cajaCupon.current) cajaCupon.current.open = true;
+    const c = campoCupon.current;
+    if (!c) return;
+    c.focus({ preventScroll: true });
+    // Salto directo, sin animación: un scroll suave se cortaba a mitad de camino y el campo quedaba bajo el pie.
+    c.scrollIntoView({ block: "center" });
+  }, [cuponFrenaElPedido, pedido.error]);
   const envio = textoDelEnvio({
     fulfillment: v.fulfillment,
     costo: v.costoEnvio,
@@ -114,7 +126,7 @@ export default function Bolsa({
       >
         <div className="qb-bolsa-cabeza">
           <h2 id="qb-bolsa-titulo" ref={titulo} tabIndex={-1}>
-            {pasoVisible === "bolsa" ? "Tu bolsa" : "Tus datos"}
+            {!hay ? "Tu bolsa" : pasoVisible === "bolsa" ? "Las que te llevás" : "Tus datos"}
           </h2>
           <span className="qb-bolsa-cuantos">
             {hay ? `${v.piezas} ${v.piezas === 1 ? "perfume" : "perfumes"}` : "Vacía"}
@@ -125,13 +137,8 @@ export default function Bolsa({
         </div>
 
         {/* Lo que viaja al servidor: siempre adentro del formulario, en los dos pasos. */}
-        {v.lineas.map((l) => (
-          <span key={l.p.id} hidden>
-            <input type="hidden" name="productId" value={l.p.id} />
-            <input type="hidden" name="quantity" value={l.q} />
-          </span>
-        ))}
-        <input type="hidden" name="idempotencyKey" value={v.clave} />
+        {/* Con el precio que la vidriera MOSTRÓ (ronda 2): si cambió, el servidor avisa en vez de cobrar distinto. */}
+        <CamposDelPedido renglones={v.lineas.map((l) => ({ productId: l.p.id, quantity: l.q, unitPrice: precioDe(l.p) || null }))} clave={v.clave} />
 
         {!hay ? (
           <div className="qb-bolsa-vacia">
@@ -157,8 +164,14 @@ export default function Bolsa({
                 const aviso = pedido.avisoDe(l.p.id);
                 return (
                   <li key={l.p.id} className="qb-linea">
-                    <div className="qb-linea-foto" aria-hidden="true">
-                      {p?.foto ? <Image src={p.foto} alt="" width={120} height={150} sizes="64px" /> : <span>{(p?.nombre ?? l.p.name).charAt(0)}</span>}
+                    {/* La tirita de ese perfume, chiquita, detrás del frasco: las que te llevás, apiladas. */}
+                    <div className="qb-linea-foto">
+                      <span className="qb-linea-tirita" aria-hidden="true" />
+                      {p?.foto ? (
+                        <Image src={p.foto} alt={altDeFrasco(p.nombre, p.casa)} width={240} height={300} sizes="88px" />
+                      ) : (
+                        <QConCorona className="qb-linea-q" />
+                      )}
                     </div>
                     <div className="qb-linea-texto">
                       <p className="qb-linea-nombre">{p?.nombre ?? l.p.name}</p>
@@ -279,7 +292,7 @@ export default function Bolsa({
                 </label>
                 <input id={`${id}-nota`} name="notes" maxLength={500} placeholder={notasPlaceholder} />
               </div>
-              <details className="qb-cupon" open={Boolean(cupon.aplicado) || undefined}>
+              <details ref={cajaCupon} className="qb-cupon" open={Boolean(cupon.aplicado) || undefined}>
                 <summary>Tengo un cupón</summary>
                 <div className="qb-cupon-fila">
                   <div className="qb-campo">
@@ -294,6 +307,8 @@ export default function Bolsa({
                       autoComplete="off"
                       placeholder="CÓDIGO"
                       aria-invalid={Boolean(errorDeCupon)}
+                      aria-describedby={errorDeCupon ? `${id}-cupon-error` : undefined}
+                      ref={campoCupon}
                     />
                   </div>
                   <button type="button" className="qb-boton qb-boton-linea" onClick={() => void cupon.aplicar()} disabled={cupon.probando}>
@@ -301,7 +316,7 @@ export default function Bolsa({
                   </button>
                 </div>
                 {errorDeCupon && (
-                  <p className="qb-error-linea" role="alert">
+                  <p className="qb-error-linea" role="alert" id={`${id}-cupon-error`}>
                     {errorDeCupon}
                   </p>
                 )}
@@ -334,6 +349,8 @@ export default function Bolsa({
                   {error}
                 </p>
               )}
+              {/* Sin role: el aviso del campo ya se anuncia y el foco va ahí. Esto es para el que mira el botón. */}
+              {cuponFrenaElPedido && <p className="qb-error">El cupón no se pudo aplicar: corregilo o borralo para hacer el pedido.</p>}
               <button
                 type="submit"
                 name="via"

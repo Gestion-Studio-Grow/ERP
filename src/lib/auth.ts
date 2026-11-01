@@ -21,7 +21,7 @@ function toHex(buffer: ArrayBuffer) {
 // En producción ahora se rompe al arrancar, que es la falla correcta: un deploy sin
 // secreto no debe atender, no debe atender inseguro. En desarrollo se mantiene el
 // default para no romper el arranque local.
-function authSecret(): string {
+export function authSecret(): string {
   const secret = process.env.AUTH_SECRET;
   if (secret) return secret;
   if (process.env.NODE_ENV === "production") {

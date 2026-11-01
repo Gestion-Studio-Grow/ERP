@@ -50,9 +50,10 @@ const variants: Record<Variant, string> = {
 const sizes: Record<Size, string> = {
   // `sm` es chico en la PC; en el celular mide 44 px igual que el resto (piso táctil de la casa,
   // lo mide el gate visual a 412 px). Un botón de 36 px en una fila de tabla es un toque errado.
-  sm: "h-11 sm:h-9 px-3 text-sm",
-  md: "h-11 px-5 text-sm tracking-wide",
-  lg: "h-12 px-7 text-base",
+  // Escala nivel 5 (29/10/2026): md 48 px (antes 44), lg 56 px; sm sigue en el piso táctil en el celular.
+  sm: "h-11 sm:h-10 px-3.5 text-sm",
+  md: "h-12 px-6 text-sm tracking-wide",
+  lg: "h-14 px-8 text-lg",
 };
 
 /** Los atributos que marcan un botón para la piel. Para un <Link> con `buttonClasses(...)`. */

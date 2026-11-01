@@ -5,8 +5,8 @@
 // aparece recién con las tres contestadas y cambia en vivo si se cambia una. Siempre queda la salida
 // humana: escribirles por Instagram.
 
-import Image from "next/image";
 import { useMemo, useState, type CSSProperties } from "react";
+import { FotoDeFrasco, Tirita } from "./Iconos";
 import { plata } from "../vidriera/catalogo-core";
 import { FAMILIA_POR_ID } from "./perfumes";
 import { PREGUNTAS, recomendar, type Respuestas } from "./recomendador";
@@ -45,7 +45,7 @@ export default function Guia({
         <h2 id="qb-guia-titulo" className="qb-h2">
           ¿No sabés <em className="qb-oro">cuál elegir?</em>
         </h2>
-        <p className="qb-lead">Tres preguntas y te decimos por dónde arrancar.</p>
+        <p className="qb-lead">Tres preguntas y un criterio escrito, sin inteligencia artificial.</p>
       </div>
 
       <div className="qb-preguntas">
@@ -86,8 +86,16 @@ export default function Guia({
                 const familia = p.familia ? FAMILIA_POR_ID[p.familia] : null;
                 return (
                   <li key={x.id} className="qb-rec" style={{ "--i": i, "--color-puerta": familia?.color } as CSSProperties}>
-                    <button type="button" className="qb-rec-foto" onClick={() => alVer(p.id)} aria-label={`Ver la ficha de ${p.nombre}`}>
-                      {p.foto && <Image src={p.foto} alt="" width={360} height={450} sizes="(max-width: 720px) 36vw, 180px" />}
+                    {/* La misma tirita de la vitrina, en tamaño «mesa»: la foto a la izquierda. */}
+                    <button type="button" className="qb-rec-foto qb-mesa qb-mesa-chica" onClick={() => alVer(p.id)} aria-label={`Ver la ficha de ${p.nombre}`}>
+                      <Tirita sinFoto={!p.foto} apagada={p.disponibilidad === "sin-stock"} giro={i % 2 ? 1 : -1.5}>
+                        <span />
+                      </Tirita>
+                      {p.foto && (
+                        <span className="qb-mesa-capa">
+                          <FotoDeFrasco src={p.foto} nombre={p.nombre} casa={p.casa} className="qb-mesa-frasco" />
+                        </span>
+                      )}
                     </button>
                     <div className="qb-rec-texto">
                       <p className="qb-rec-orden">{["Primera opción", "Segunda opción", "Tercera opción"][i]}</p>
@@ -95,7 +103,7 @@ export default function Guia({
                         {p.nombre} {p.casa && <span>{p.casa}</span>}
                       </h3>
                       <p className="qb-rec-porque">{x.porque}</p>
-                      <p className="qb-rec-precio">{p.price ? plata(p.price) : ""}</p>
+                      <p className="qb-rec-precio">{p.price ? plata(p.price) : "Consultanos"}</p>
                       <div className="qb-rec-acciones">
                         <button
                           type="button"

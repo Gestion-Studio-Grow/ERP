@@ -10,6 +10,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   ACCION_APAGAR,
   ACCION_ENCENDER,
@@ -99,4 +101,15 @@ test("la Auditoría del negocio lo nombra sin el operador: «GSG activó el most
   const base = { entity: ENTIDAD_INTERRUPTOR, entityId: MOSTRADOR_BOUTIQUE, actor: "operator:facu", channel: CANAL_INTERRUPTOR };
   assert.equal(textoDeInterruptorEnAuditoria({ ...base, action: ACCION_ENCENDER }), "GSG activó el mostrador boutique");
   assert.equal(textoDeInterruptorEnAuditoria({ ...base, action: ACCION_APAGAR }), "GSG apagó el mostrador boutique");
+});
+
+test("U14: los dos interruptores dicen lo que cambian de verdad, no «sólo cómo se ven»", () => {
+  const diseno = interruptorPorId("diseno-nuevo");
+  const agenda = interruptorPorId("agenda-practica");
+  assert.match(diseno.queCambia, /en su panel y, en CH, también en su sitio/);
+  assert.match(diseno.alPrender ?? "", /el sitio que ven las clientas/);
+  assert.match(agenda.alPrender ?? "", /una regla/);
+  assert.doesNotMatch(agenda.alPrender ?? "", /sólo cómo se ven/);
+  const ficha = readFileSync(join(process.cwd(), "src/app/operador/(console)/tenants/[id]/InterruptoresCard.tsx"), "utf8");
+  assert.match(ficha, /interruptor\.alPrender \?\?/);
 });

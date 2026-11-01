@@ -24,7 +24,7 @@ import { nextBusinessDays } from "@/lib/datetime";
 import type { BookingData } from "@/app/(site)/_ch/types";
 import { cambiosDeFicha, validarFichaFiscal } from "@/lib/fiscal/ficha-fiscal";
 import { politicaVigente } from "@/lib/turnos/practica.server";
-import { puedeCambiarOnline } from "@/lib/turnos/practica";
+import { mensajeFueraDePlazo, puedeCambiarOnline } from "@/lib/turnos/practica";
 
 // Es un endpoint PÚBLICO ("use server" + lo llama la página del turno, sin sesión): quien
 // tenga el link del turno lo puede invocar. Por eso NO trae la ficha de la clienta —notas,
@@ -104,8 +104,8 @@ async function dejarResena(formData: FormData): Promise<void> {
 async function exigirAnticipacion(startsAt: Date): Promise<void> {
   const politica = await politicaVigente();
   if (!politica) return;
-  const v = puedeCambiarOnline({ startsAt, ahora: new Date(), politica });
-  if (!v.ok) throw new RechazoDeDominio(v.error);
+  if (puedeCambiarOnline({ startsAt, ahora: new Date(), politica }).ok) return;
+  throw new RechazoDeDominio(mensajeFueraDePlazo(politica, Boolean((await getLocation()).whatsapp)));
 }
 
 export async function cancelMyAppointment(formData: FormData): Promise<ResultadoAccion> {

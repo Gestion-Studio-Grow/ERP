@@ -14,6 +14,7 @@
 //   · M-094/M-095: con la cookie no se tipea nada (pide por el link) y puede nacer confirmada;
 //   · M-108/M-109/M-110 y PDF: copiar alias y monto, un comprobante para 2 clases, sin alias.
 //   · M-052: ningún `style` con un hex en lo que pinta la pantalla.
+//   · QA 29/10: doble toque en «Sí, cancelar» cancela UNA clase, no la siguiente.
 // Con CAPTURAS_TURNERO=<carpeta> deja capturas. Sin Chromium o sin esbuild, se saltea con el motivo.
 
 import { after, before, describe, test } from "node:test";
@@ -28,15 +29,26 @@ const ORIGEN = "http://localhost:3999/clases";
 const CAPTURAS = process.env.CAPTURAS_TURNERO ?? "";
 
 const ENTRADA = `
-import { createElement as h } from "react";
+import { createElement as h, useState } from "react";
 import { createRoot } from "react-dom/client";
 import Turnero from "@/app/clases/Turnero";
 import { Pagar } from "@/app/alumno/_vista/Pagar";
+import { Cancelar } from "@/app/alumno/_vista/Cancelar";
 import { marcaProfe, varsCss } from "@/lib/padel/marca";
 // La piel como en <Piel> (que es de servidor e importa el kit entero): las mismas variables --padel-*.
 const Piel = ({ marca, children }) => h("div", { "data-piel": "padel", style: varsCss(marca), className: "min-h-dvh bg-[var(--padel-papel)] font-body text-[var(--padel-texto)]" }, children);
 const raiz = () => createRoot(document.getElementById("root"));
 window.__turnero = (props) => raiz().render(h(Piel, { marca: marcaProfe("") }, h("main", { className: "mx-auto grid max-w-[35rem] grid-cols-1 gap-4 px-4 pb-44 pt-4" }, h(Turnero, props))));
+// «Tu próxima» como en VistaAlumno, pero SIN key: al refrescar, el MISMO componente pasa a mostrar la
+// clase siguiente (lo que hace React si la posición no cambia). Así se prueba que la confirmación está
+// atada a la clase y no a la posición.
+const Proxima = ({ clases, token }) => {
+  const [vivas, setVivas] = useState(clases);
+  window.__alRefrescar = () => setVivas((v) => v.filter((c) => !(window.__canceladas || []).includes(c.id)));
+  const c = vivas[0];
+  return c ? h("div", { "data-clase": c.id }, h("p", null, c.cuando), h(Cancelar, { token, claseId: c.id, cuando: c.cuando, plazo: "gratis hasta las 16:00" })) : h("p", null, "No tenés clases agendadas");
+};
+window.__cancelar = (props) => raiz().render(h(Piel, { marca: marcaProfe("") }, h("main", { className: "mx-auto max-w-[35rem] p-4" }, h(Proxima, props))));
 window.__pagar = (props) => raiz().render(h(Piel, { marca: marcaProfe("") }, h("main", { className: "mx-auto max-w-[35rem] p-4" }, h(Pagar, props))));
 `;
 
@@ -57,11 +69,13 @@ export const cambiarHorarioDesdeLink = llamar("cambiarHorarioDesdeLink");
 export const avisarNoVoy = llamar("avisarNoVoy");
 export const recordarToken = llamar("recordarToken");
 `;
-const NAVEGACION_FALSA = `export const useRouter = () => ({ refresh: () => { window.__refrescos = (window.__refrescos || 0) + 1; } });`;
+const NAVEGACION_FALSA = `export const useRouter = () => ({ refresh: () => { window.__refrescos = (window.__refrescos || 0) + 1; window.__alRefrescar?.(); } });`;
 
 type Ventana = {
   __turnero: (p: unknown) => void;
   __pagar: (p: unknown) => void;
+  __cancelar: (p: unknown) => void;
+  __canceladas: string[];
   __resp: Record<string, unknown>;
   __llamadas: { nombre: string; args: unknown[] }[];
 };
@@ -158,7 +172,7 @@ describe("El turnero y Pagar en el navegador", { timeout: 240_000 }, () => {
 
   const html = () => `<!doctype html><html lang="es"><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style></head><body><div id="root"></div></body></html>`;
 
-  async function abrir(montar: "__turnero" | "__pagar", props: unknown, resp: Record<string, unknown>, errores: string[], recuerdo?: { nombre: string; telefono: string }): Promise<Page> {
+  async function abrir(montar: "__turnero" | "__pagar" | "__cancelar", props: unknown, resp: Record<string, unknown>, errores: string[], recuerdo?: { nombre: string; telefono: string }): Promise<Page> {
     const contexto = await browser!.newContext({ viewport: { width: 390, height: 844 }, locale: "es-AR", timezoneId: "America/Argentina/Buenos_Aires", permissions: ["clipboard-read", "clipboard-write"] });
     // Lo que este teléfono ya recordaba de una visita anterior (nombre y celular).
     if (recuerdo) await contexto.addInitScript((r) => localStorage.setItem("gsg-padel-alumno", r), JSON.stringify(recuerdo));
@@ -229,7 +243,7 @@ describe("El turnero y Pagar en el navegador", { timeout: 240_000 }, () => {
     await hoja.getByRole("button", { name: "Pedir hoy · 18:00 · $ 25.000" }).click();
     await page.getByRole("heading", { name: "¡Listo! Pediste tu clase" }).waitFor();
     await page.getByText("Viernes 23/10 a las 18:00").waitFor();
-    await page.getByText("· falta que Matías la confirme.").waitFor();
+    await page.getByText("Falta que Matías la confirme").waitFor(); // el estado como ficha (DISENO agendaprofe §5.4)
     // M-092: sin celular del profe, nada de WhatsApp roto.
     assert.equal(await page.locator('[data-qa="avisar-profe"]').count(), 0);
     await page.getByText("Matías ya lo ve en su agenda; te confirma por WhatsApp.").waitFor();
@@ -404,6 +418,37 @@ describe("El turnero y Pagar en el navegador", { timeout: 240_000 }, () => {
     const p2 = await abrir("__pagar", { token: "t", items: items.slice(0, 1), alias: "", titular: "", profe: "Matías", waAlias: "https://wa.me/5491100000000?text=alias" }, {}, errores);
     await p2.getByText("Matías te pasa el alias por WhatsApp.").waitFor();
     assert.equal(await p2.getByRole("link", { name: /Pedirle el alias a Matías/ }).getAttribute("href"), "https://wa.me/5491100000000?text=alias");
+    assert.deepEqual(errores, []);
+  });
+
+  test("QA 29/10: doble toque en «Sí, cancelar» cancela UNA clase y la siguiente arranca sin confirmar", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const errores: string[] = [];
+    const clases = [
+      { id: "vie", cuando: "viernes 30 18:00" },
+      { id: "sab", cuando: "sábado 31 11:00" },
+    ];
+    const page = await abrir("__cancelar", { token: null, clases }, {}, errores);
+    // La acción tarda un poco (como en la vida real) y anota la clase cancelada para el «refresh».
+    // Como texto: una función armada en el test viaja con ayudantes de tsx que la página no tiene.
+    await page.addScriptTag({
+      content: `window.__canceladas = [];
+        window.__resp = { cancelarDesdeLink: (t, id) => new Promise((ok) => setTimeout(() => { window.__canceladas.push(id); ok({ ok: true }); }, 150)) };`,
+    });
+    await page.locator('[data-qa="cancelar"]').click();
+    await page.getByText("¿Cancelás la clase del viernes 30 18:00?").waitFor();
+    // Doble toque en el mismo lugar, y un tercero cuando ya refrescó.
+    await page.locator('[data-qa="cancelar-si"]').dblclick();
+    await page.locator('[data-clase="sab"]').waitFor();
+    const enElLugar = page.locator('[data-qa="cancelar-si"]');
+    assert.equal(await enElLugar.count(), 0, "la clase siguiente NO hereda el «Sí, cancelar»");
+    await page.locator('[data-clase="sab"] [data-qa="cancelar"]').waitFor();
+    const hechas = (await llamadas(page)).filter((l) => l.nombre === "cancelarDesdeLink");
+    assert.equal(hechas.length, 1, "un solo pedido de cancelación");
+    assert.equal(hechas[0].args[1], "vie");
+    // La del sábado se cancela sólo si se confirma de nuevo.
+    await page.locator('[data-qa="cancelar"]').click();
+    await page.getByText("¿Cancelás la clase del sábado 31 11:00?").waitFor();
     assert.deepEqual(errores, []);
   });
 });

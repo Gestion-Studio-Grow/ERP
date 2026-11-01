@@ -10,8 +10,10 @@
 
 import { requireApp } from "@/lib/require-app";
 import { roleHasCapability } from "@/lib/capabilities";
-import { getCommissionsOverview } from "@/lib/commission-actions";
-import { totalALiquidar } from "@/lib/reports/comisiones";
+import { getCommissionsOverview, getTurnosEsperandoSaldo } from "@/lib/commission-actions";
+import { textoDeEsperaPorSaldo, totalALiquidar } from "@/lib/reports/comisiones";
+import { esEstetica } from "@/lib/palabras-del-negocio";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { LineaDeEstado, PageHeader, Plata, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import ComisionesPendientes from "./ComisionesPendientes";
@@ -24,6 +26,7 @@ const ESTADOS: Record<string, { texto: string; ok: boolean }> = {
   ok_settled: { texto: "Comisión liquidada. Quedó registrada en el historial y el egreso en el libro de caja.", ok: true },
   error_nada: { texto: "Ese profesional no tiene comisiones pendientes de liquidar.", ok: false },
   error_prof: { texto: "No se pudo identificar al profesional. Recargá la pantalla y volvé a intentar.", ok: false },
+  error_medio: { texto: "Este negocio todavía no separa la transferencia en el libro. No se liquidó nada: elegí otro medio.", ok: false },
 };
 
 export default async function ComisionesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
@@ -45,6 +48,8 @@ export default async function ComisionesPage({ searchParams }: { searchParams: P
   // número grande), un renglón por profesional con «Pagar» y el historial abajo. Los mismos datos
   // y la misma acción. Apagado, lo de abajo tal cual.
   if (nuevo) {
+    // Sólo CH: el renglón sale si de verdad hay un turno esperando. Los demás rubros, como siempre.
+    const esperando = esEstetica(await getCurrentTenantSlug()) ? await getTurnosEsperandoSaldo() : null;
     return (
       <main data-ui="pagina" className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
         <PageHeader title="Comisiones" />
@@ -57,7 +62,7 @@ export default async function ComisionesPage({ searchParams }: { searchParams: P
             total.profesionales > 0
               ? `a ${fmtNumberAR(total.profesionales)} ${total.profesionales === 1 ? "profesional" : "profesionales"}`
               : null,
-            "un turno con saldo sin cobrar espera hasta que se salde",
+            textoDeEsperaPorSaldo(esperando),
           ]}
         />
         {aviso}
