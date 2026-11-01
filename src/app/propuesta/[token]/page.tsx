@@ -25,7 +25,8 @@ const ESTILOS = `
   @page{margin:14mm}
   .mia-solo-pantalla{display:none!important}
   html,body,.mia-hoja{background:#fff!important}
-  .mia-hoja section,.mia-tabla tr,figure{break-inside:avoid}
+  .mia-tabla tr,figure{break-inside:avoid}
+  .mia-hoja h2,.mia-hoja h3{break-after:avoid}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }`;
 
@@ -76,7 +77,7 @@ export default async function PropuestaPage({ params }: { params: Promise<{ toke
               {p.archivos.map((a) => (
                 <figure key={a.id} style={{ margin: 0 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={a.datos ?? ""} alt={a.nombre} loading="lazy" style={{ display: "block", width: "100%", height: "auto", borderRadius: 4 }} />
+                  <img src={a.datos ?? ""} alt={a.nombre} style={{ display: "block", width: "100%", height: "auto", borderRadius: 4 }} />
                   <figcaption style={{ marginTop: 6, fontSize: 13 }}>{a.nombre}</figcaption>
                 </figure>
               ))}
