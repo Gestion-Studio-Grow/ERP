@@ -1,3 +1,5 @@
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { palabrasDelNegocio } from "@/lib/palabras-del-negocio";
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
@@ -53,6 +55,7 @@ export default async function AjustesPage({
   searchParams: Promise<{ producto?: string | string[]; motivo?: string | string[] }>;
 }) {
   const user = await requireApp("mermas");
+  const palabras = palabrasDelNegocio(await getCurrentTenantSlug());
   const [sp, negocio, rubro, nuevo] = await Promise.all([searchParams, getNegocioApps(user.role), getCurrentTenantRubro(), disenoNuevo()]);
   const { products, recent } = await getAdjustmentData(uno(sp.producto) || undefined);
   // Los motivos de perecederos salen del dato del blueprint (el mismo que prende Lotes y Despiece).
@@ -95,7 +98,7 @@ export default async function AjustesPage({
             <strong key="h">{deHoy === 1 ? "1 ajuste hoy" : `${deHoy} ajustes hoy`}</strong>,
             "cada uno mueve el stock y queda quién lo cargó",
             <Link key="r" href="/admin/ajustes/recuento" className="underline underline-offset-2">
-              Contar una góndola entera
+              {palabras.contarTodo}
             </Link>,
           ]}
         />
@@ -153,7 +156,7 @@ export default async function AjustesPage({
       {negocio.esMostrador ? (
         <p className="text-muted mb-8">
           Lo que se venció, se rompió, se decomisó o se consumió: cargalo acá y el stock baja. Queda registrado quién lo
-          cargó y cuánto costaba ese día. Para contar una góndola entera usá el{" "}
+          cargó y cuánto costaba ese día. Para {palabras.contarTodoDentro} usá el{" "}
           <Link href="/admin/ajustes/recuento" className="font-medium text-accent-ink underline underline-offset-2">
             recuento
           </Link>

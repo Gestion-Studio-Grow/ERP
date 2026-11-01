@@ -234,7 +234,7 @@ test("entrega y cobro con el pie de cobro único y el ticket de Vender, detrás 
   assert.match(pagina, /const boutique = comercio && mostradorBoutiquePrendido\(interruptores\);/);
   assert.equal(pagina.match(/<CobroDelNegocio boutique=\{boutique\}/g)?.length, 2, "las dos bandejas");
   // Una sola puerta para vender: con el interruptor, el link dice «Vender» y no se arma el mostrador acá.
-  assert.match(pagina, /\{boutique \? "Vender" : "Cobrar en el mostrador"\}/);
+  assert.match(pagina, /\{boutique \? "Vender" : palabras\.cobrarLaVenta\}/);
   assert.match(pagina, /const conMostradorUnico = !modeloNuevo && !boutique &&/);
 });
 

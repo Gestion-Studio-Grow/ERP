@@ -1,3 +1,5 @@
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { palabrasDelNegocio } from "@/lib/palabras-del-negocio";
 import Link from "next/link";
 import { getPosData } from "@/lib/order-actions";
 import { fmtMoneyARS, EmptyState, ButtonLink, buttonClasses, atributosBoton } from "@/components/ui";
@@ -116,6 +118,7 @@ export default async function PedidosPage() {
   // una sola puerta para vender: el link «Vender» en lugar del mostrador de esta pantalla. Sólo
   // comercio; apagado (CH y todo negocio sin prender), la bandeja de siempre, byte a byte.
   const boutique = comercio && mostradorBoutiquePrendido(interruptores);
+  const palabras = palabrasDelNegocio(await getCurrentTenantSlug());
   // «Nuevo pedido de WhatsApp» (Magra T2 · 2B): con el mostrador boutique y para quien toma pedidos.
   const pedidoDeWhatsApp = boutique && roleHasCapability(user.role, "orders:manage");
   // UN SOLO MOSTRADOR: la venta de mostrador de esta pantalla es la MISMA que Vender
@@ -300,11 +303,11 @@ export default async function PedidosPage() {
               dos columnas, que miden la pantalla, se pisaban desde 1024 px. */}
           {!modeloNuevo && comercio && (await puedeAbrirApp("vender")) && (
             <Link href="/admin/vender" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")}>
-              {boutique ? "Vender" : "Cobrar en el mostrador"}
+              {boutique ? "Vender" : palabras.cobrarLaVenta}
             </Link>
           )}
           {!modeloNuevo && !comercio && (
-            <MostradorEnCajon servicios>
+            <MostradorEnCajon servicios etiqueta={palabras.cobrarLaVenta}>
               <MostradorTabs
                 viewer={{ role: user.role, professionalId: user.professionalId }}
                 products={mostradorUnico ? [] : products}
