@@ -1163,6 +1163,7 @@
   /* El renglón entero abre el turno con el dedo, no sólo el nombre (U12): el botón se estira sobre la fila y
      las teclas y el menú quedan arriba suyo. */
   [data-diseno="renglon"] [data-ui="renglon"]:has([data-abrir]) { position: relative; }
+  [data-diseno="renglon"] [data-ui="renglon"] [data-abrir] { position: static; overflow: visible; }
   [data-diseno="renglon"] [data-ui="renglon"] [data-abrir]::after { content: ""; position: absolute; inset: 0; }
   [data-diseno="renglon"] [data-ui="renglon"]:has([data-abrir]) > [data-parte="tecla"] { position: relative; z-index: 1; }
 }
@@ -3036,6 +3037,9 @@
     position: absolute;
     inset: -0.75rem 0;
   }
+  /* En la lista del día, toda la fila abre el turno (U12): el área del nombre se estira sobre el renglón. */
+  [data-diseno="renglon"] [data-agenda="libro"] [data-ui="renglon"] [data-parte="titulo"] > button[data-abrir] { position: static; overflow: visible; }
+  [data-diseno="renglon"] [data-agenda="libro"] [data-ui="renglon"] [data-parte="titulo"] > button[data-abrir]::after { inset: 0; }
   [data-diseno="renglon"] [data-agenda="libro"] [data-ui="renglon"] > [data-parte="plata"],
   [data-diseno="renglon"] [data-agenda="manana"] [data-ui="renglon"] > [data-parte="plata"] {
     align-self: start;

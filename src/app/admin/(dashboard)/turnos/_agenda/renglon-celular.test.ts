@@ -12,7 +12,7 @@ import { Marca } from "@/components/ui/Marca";
 window.__abiertos = 0;
 window.__tecla = 0;
 createRoot(document.getElementById("root")).render(
-  h("ol", null, h(Renglon, {
+  h("ol", { "data-agenda": "libro" }, h(Renglon, {
     as: "li",
     folio: "09:30",
     titulo: h("button", { type: "button", "data-abrir": true, onClick: () => { window.__abiertos += 1; }, className: "min-h-11 text-left" }, "Gina Nueva"),
