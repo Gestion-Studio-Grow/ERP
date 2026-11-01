@@ -197,6 +197,11 @@ const TENANTS: Record<string, TenantBrand> = {
   breakpoint: {
     name: "Break Point Pádel", monogram: "BP", preset: "celeste", frontTheme: "light",
   },
+  // MIA Producciones: productora. Su azul real (#0049D5) vive en las superficies del cliente
+  // (src/lib/proyectos/marca.ts); el panel usa el acento azul del motor, el más cercano.
+  "mia-producciones": {
+    name: "MIA Producciones", monogram: "MIA", preset: "azul", frontTheme: "light",
+  },
 };
 
 // (resolveTenantLayout / FONT_VAR / DEFAULT_SECTION_ORDER / resolveSectionOrder ahora viven

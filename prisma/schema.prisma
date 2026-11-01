@@ -229,6 +229,14 @@ model Tenant {
   tallerPagos              TallerPago[]
   tallerConfig             TallerConfig?
   tallerAvisosEnviados     TallerAvisoEnviado[]
+  proyectos                Proyecto[] // módulo proyectos
+  proyectoTareas           ProyectoTarea[]
+  proyectoPresupuestos     ProyectoPresupuesto[]
+  proyectoItems            ProyectoItem[]
+  proyectoPagos            ProyectoPago[]
+  proyectoArchivos         ProyectoArchivo[]
+  proyectoStands           ProyectoStand[]
+  proyectoConfig           ProyectoConfig?
   inmoPropiedades          InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                InmoFoto[]
   inmoConsultas            InmoConsulta[]
@@ -697,6 +705,7 @@ model Client {
   tallerEtiquetas String[]            @default([]) // particular · flota · empresa · VIP
   tallerCtaCte    Boolean             @default(false)
   // Módulo inmobiliaria: la misma persona puede ser propietaria, inquilina y haber consultado.
+  proyectos                Proyecto[]
   inmoPropiedades          InmoPropiedad[]   @relation("InmoPropietario")
   inmoConsultas            InmoConsulta[]
   inmoContratosInquilino   InmoContrato[]    @relation("InmoInquilino")
@@ -1512,6 +1521,9 @@ model CashMovement {
   // `@@unique(tenantId, tallerPagoId, type)` — una VENTA por cobro y, si se anula, un EGRESO.
   tallerPago   TallerPago? @relation(fields: [tallerPagoId], references: [id], onDelete: SetNull)
   tallerPagoId String?
+  // Cobro de un proyecto (módulo proyectos): misma regla que el taller.
+  proyectoPago   ProyectoPago? @relation(fields: [proyectoPagoId], references: [id], onDelete: SetNull)
+  proyectoPagoId String?
 
   createdBy String // actor "user:<id>"
   createdAt DateTime @default(now())
@@ -1536,6 +1548,7 @@ model CashMovement {
   // idempotencia vigente del puente turnos → libro; `paymentId` es la anterior.
   @@unique([tenantId, collectionId, type])
   @@unique([tenantId, tallerPagoId, type])
+  @@unique([tenantId, proyectoPagoId, type])
   @@index([tenantId])
   @@index([sessionId, createdAt])
   @@index([orderId])
@@ -3176,3 +3189,155 @@ model PadelAviso {
 // N2:   @@index([tenantId, canchaId, inicio])
 // N2:   @@index([tenantId, inicio])
 // N2: }
+
+// ── Módulo PROYECTOS: el trabajo de una productora, de punta a punta (ADR-054/055) ──
+
+model Proyecto {
+  id           String                @id @default(cuid())
+  tenant       Tenant                @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  numero       Int
+  client       Client                @relation(fields: [clientId], references: [id])
+  clientId     String
+  nombre       String
+  servicio     String // EVENTOS · EXPERIENCIAS · ARQUITECTURA · BRANDING · CONTENIDOS
+  etapa        String                @default("PEDIDO")
+  evento       String?
+  lugar        String?
+  fechaArmado  DateTime?
+  fechaEvento  DateTime?
+  fechaDesarme DateTime?
+  responsable  String?
+  brief        String                @default("")
+  tareas       ProyectoTarea[]
+  presupuestos ProyectoPresupuesto[]
+  pagos        ProyectoPago[]
+  archivos     ProyectoArchivo[]
+  stands       ProyectoStand[]
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, etapa])
+  @@index([tenantId, clientId])
+}
+
+model ProyectoTarea {
+  id          String    @id @default(cuid())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  proyecto    Proyecto  @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId  String
+  titulo      String
+  responsable String?
+  venceEl     DateTime?
+  hechaEl     DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId, proyectoId])
+}
+
+model ProyectoPresupuesto {
+  id            String         @id @default(cuid())
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  proyecto      Proyecto       @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId    String
+  version       Int
+  estado        String         @default("BORRADOR") // BORRADOR · ENVIADO · APROBADO · RECHAZADO · REEMPLAZADO
+  token         String         @unique
+  ivaPct        Float          @default(21)
+  presentacion  String         @default("")
+  condiciones   String         @default("")
+  enviadoEl     DateTime?
+  validoHasta   DateTime?
+  respondidoEl  DateTime?
+  respondidoPor String?
+  motivoRechazo String?
+  items         ProyectoItem[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([tenantId, proyectoId, version])
+}
+
+model ProyectoItem {
+  id            String              @id @default(cuid())
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  presupuesto   ProyectoPresupuesto @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  presupuestoId String
+  rubro         String
+  descripcion   String
+  unidad        String              @default("u")
+  cantidad      Float               @default(1)
+  costo         Float               @default(0)
+  precio        Float               @default(0)
+  proveedor     String?
+  origen        String? // de qué stand salió: permite volver a pasar el cómputo sin duplicar
+  posicion      Int                 @default(0)
+  createdAt     DateTime            @default(now())
+
+  @@index([tenantId, presupuestoId])
+}
+
+model ProyectoPago {
+  id         String         @id @default(cuid())
+  tenant     Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  proyecto   Proyecto       @relation(fields: [proyectoId], references: [id])
+  proyectoId String
+  medio      String
+  monto      Float
+  nota       String?
+  cobradoPor String?
+  anuladoEl  DateTime?
+  anuladoPor String?
+  asientos   CashMovement[]
+  createdAt  DateTime       @default(now())
+
+  @@index([tenantId, proyectoId])
+}
+
+model ProyectoArchivo {
+  id             String   @id @default(cuid())
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  proyecto       Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId     String
+  tipo           String   @default("RENDER") // RENDER · DISENO · PLANO · REFERENCIA · OTRO
+  nombre         String
+  datos          String? // imagen achicada (data URL), como las fotos del taller
+  url            String? // lo pesado (PDF, CAD, video) queda en su nube: acá sólo el link
+  visibleCliente Boolean  @default(false)
+  subidoPor      String?
+  createdAt      DateTime @default(now())
+
+  @@index([tenantId, proyectoId])
+}
+
+model ProyectoStand {
+  id         String   @id @default(cuid())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId String
+  nombre     String   @default("Stand")
+  diseno     Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([tenantId, proyectoId])
+}
+
+model ProyectoConfig {
+  id          String   @id @default(cuid())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId    String   @unique
+  margenPct   Float    @default(35)
+  validezDias Int      @default(15)
+  ivaPct      Float    @default(21)
+  condiciones String   @default("")
+  costosStand Json?
+  updatedAt   DateTime @updatedAt
+}

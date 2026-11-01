@@ -198,6 +198,24 @@ export const APPS_COMERCIAL = [
     palabras: ["autos", "patente", "orden de trabajo", "presupuesto", "ingreso", "vehiculo", "mecanico", "service", "vtv"],
   },
   {
+    // El circuito de una productora: proyectos por etapa, presupuesto, propuesta, cobros y armador
+    // de stands 3D. Una sola app con sus pantallas adentro (/admin/proyectos/...). Pide agenda:read
+    // porque el equipo de diseño y armado entra a ver y mover trabajos; la plata la piden aparte
+    // las acciones con agenda:manage.
+    id: "proyectos",
+    nombre: "Proyectos",
+    descripcion: "Cada trabajo por etapa: diseño, render 3D, presupuesto, propuesta, armado y cobro.",
+    icono: "pedidos",
+    ruta: "/admin/proyectos",
+    espacio: "mostrador",
+    capability: "agenda:read",
+    modulo: "proyectos",
+    // Módulo propio del rubro: sin él no se abre ni por URL.
+    moduloDuro: true,
+    estado: "lista",
+    palabras: ["stand", "stands", "evento", "render", "3d", "propuesta", "presupuesto", "armado", "productora", "activacion", "escenografia"],
+  },
+  {
     // El circuito de la inmobiliaria: lo de hoy, propiedades, consultas, alquileres administrados
     // y liquidaciones. Una sola app con sus pantallas adentro (/admin/inmobiliaria/...).
     // Pide agenda:read porque el agente (PROFESSIONAL) entra a cargar fichas y atender SUS
