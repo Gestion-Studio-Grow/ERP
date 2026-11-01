@@ -84,6 +84,8 @@ export default function BookingModal({
   const horaPrecargada = useRef<string | null>(inicio.slot);
   const [horaOcupada, setHoraOcupada] = useState(false);
   const [slots, setSlots] = useState<string[]>([]);
+  // Las horas que el servidor rechazó, sólo en memoria: salen de la lista sin releer. Con otro servicio o profesional se olvidan.
+  const [horasRechazadas, setHorasRechazadas] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [tel, setTel] = useState("");
   const [mail, setMail] = useState("");
@@ -263,15 +265,16 @@ export default function BookingModal({
 
   // Horarios agrupados como en TuTurno: mañana / tarde, en vez de una sola
   // grilla plana — se escanea más rápido con la vista partida.
+  const horasDelDia = useMemo(() => slots.filter((s) => !horasRechazadas.includes(s)), [slots, horasRechazadas]);
   const slotsGrouped = useMemo(() => {
     const mañana: string[] = [];
     const tarde: string[] = [];
-    for (const s of slots) {
+    for (const s of horasDelDia) {
       const { hour } = wallHourMinuteInBusinessTz(new Date(s));
       (hour < 13 ? mañana : tarde).push(s);
     }
     return { mañana, tarde };
-  }, [slots]);
+  }, [horasDelDia]);
 
   // CH-A1: el "Confirmar" del paso 4 se habilita SOLO con teléfono válido (canal del recordatorio)
   // y, si se cargó email, con email válido. Antes bastaba con que no estuvieran vacíos → entraba un
@@ -296,7 +299,7 @@ export default function BookingModal({
         profesional: !!pro,
         hayProfesionales: prosForService.length > 0,
         dia: !!day,
-        diaSinHorarios: !!day && !slotsPending && !prefetchingAvailability && slots.length === 0,
+        diaSinHorarios: !!day && !slotsPending && !prefetchingAvailability && horasDelDia.length === 0,
         hora: !!slot,
         nombre: !!name.trim(),
         telefono: tel.trim() === "" ? "vacio" : telValid ? "valido" : "invalido",
@@ -352,6 +355,8 @@ export default function BookingModal({
         // El motivo viene escrito para la clienta (horario ocupado, ya pasado…). Se queda en el paso 4 y no se relee nada:
         // una relectura acá podía dejar en la lista los horarios de un día que ya no es el marcado (H1).
         setError(res.error);
+        // La hora sigue elegida mientras esté en el paso 4 (un cupón rechazado se puede sacar y reintentar); al volver, se va.
+        setHorasRechazadas((h) => [...h, slot]);
         return;
       }
       setReservaId(res.id);
@@ -407,6 +412,7 @@ export default function BookingModal({
     setDay(null);
     setSlot(null);
     setSlots([]);
+    setHorasRechazadas([]);
     setHoraOcupada(false);
     diaPrecargado.current = null;
     horaPrecargada.current = null;
@@ -427,6 +433,7 @@ export default function BookingModal({
     if (submitting) return;
     setIntentoEn(0);
     if (nuevo) setError(null);
+    if (slot && horasRechazadas.includes(slot)) setSlot(null);
     if (step > 1) setStep(step - 1);
   }
 
@@ -644,7 +651,7 @@ export default function BookingModal({
               <div className={k("chm-dias")} style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 8 }}>
                 {data.days.map((d) => {
                   const on = day === d.value;
-                  const known = dayAvailability[d.value];
+                  const known = dayAvailability[d.value]?.filter((s) => !horasRechazadas.includes(s));
                   const hasSlots = known ? known.length > 0 : null; // null = todavía no se sabe
                   // Verde = hay lugar, rojo apagado = sin lugar ese día, gris = cargando.
                   // El color no reemplaza el estado de selección (ring), solo adelanta
@@ -685,10 +692,10 @@ export default function BookingModal({
 
               {!day && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Elegí un día para ver los horarios disponibles.</p>}
               {day && slotsPending && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Buscando horarios…</p>}
-              {day && !slotsPending && !prefetchingAvailability && slots.length === 0 && (
+              {day && !slotsPending && !prefetchingAvailability && horasDelDia.length === 0 && (
                 <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>No hay horarios disponibles ese día.</p>
               )}
-              {day && !slotsPending && slots.length > 0 && (
+              {day && !slotsPending && horasDelDia.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {slotsGrouped.mañana.length > 0 && (
                     <div>

@@ -358,7 +358,7 @@ test("prendido: un rechazo no relee: queda en el paso 4 con el motivo, y al volv
   assert.equal(creadas.at(-1)!.startsAtIso, HORA[MAR], "la reserva sale el día marcado");
 });
 
-test("prendido: rechazo con la hora todavía libre queda en el paso 4, con el motivo en el pie; al volver se va", async () => {
+test("prendido: rechazo con motivo en el pie; al volver el motivo se va", async () => {
   await abrir(true);
   await clic("SrvX");
   await clic("Ana");
@@ -371,6 +371,63 @@ test("prendido: rechazo con la hora todavía libre queda en el paso 4, con el mo
   assert.equal(paso(), "4");
   assert.deepEqual(avisos(), ["No pudimos confirmar."]);
   await clic("Volver");
-  await clic("Continuar");
   assert.deepEqual(avisos(), []);
 });
+
+for (const nuevo of [true, false]) {
+  const modo = nuevo ? "prendido" : "apagado";
+
+  test(`${modo}: la hora rechazada sale de la lista sin releer, también al volver a ese día`, async () => {
+    await abrir(nuevo);
+    await clic("SrvX");
+    await clic("Ana");
+    await soltarTodo();
+    await clic("09:00");
+    await clic("Continuar");
+    respuesta = { ok: false, error: "Ese horario ya no está disponible." };
+    await confirmarDatos();
+    await clic("Volver");
+    assert.equal(paso(), "3");
+    assert.deepEqual(horas(), [], "la hora rechazada no se ofrece");
+    assert.deepEqual(marcado(/^\d\d:\d\d/), [], "no queda elegida");
+    await clic(/^mar 3/);
+    assert.deepEqual(horas(), ["10:00"]);
+    await clic(/^lun 2/); // Vuelve por lo ya traído.
+    assert.deepEqual(horas(), [], "tampoco reaparece por lo ya traído");
+    assert.equal(cola.length, 0, "no se releyó nada");
+    assert.equal(creadas.length, 1);
+  });
+
+  test(`${modo}: tras un rechazo, reintentar desde el paso 4 sigue mandando la misma hora`, async () => {
+    await abrir(nuevo);
+    await clic("SrvX");
+    await clic("Ana");
+    await soltarTodo();
+    await clic("09:00");
+    await clic("Continuar");
+    respuesta = { ok: false, error: "Ese cupón ya no vale." };
+    await confirmarDatos();
+    respuesta = { ok: true, id: "abcdef123456", startsAt: HORA[LUN] };
+    await clic("Confirmar");
+    assert.equal(paso(), "5");
+    assert.deepEqual(creadas.map((c) => c.startsAtIso), [HORA[LUN], HORA[LUN]]);
+  });
+
+  test(`${modo}: con otro servicio o profesional, la hora rechazada vuelve a la lista`, async () => {
+    await abrir(nuevo);
+    await clic("SrvX");
+    await clic("Bea");
+    await soltarTodo();
+    await clic("09:00");
+    await clic("Continuar");
+    respuesta = { ok: false, error: "Ese horario ya no está disponible." };
+    await confirmarDatos();
+    await clic("Volver");
+    await clic("Volver");
+    await clic("Volver");
+    await clic("SrvZ");
+    await clic("Bea");
+    await soltarTodo();
+    assert.deepEqual(horas(), ["09:00"]);
+  });
+}
