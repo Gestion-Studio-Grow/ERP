@@ -13,7 +13,7 @@ export default async function LayoutGestion({ children }: { children: ReactNode 
   const avisos = await prisma.proyectoAviso.count({ where: { tenantId: a.tenantId, destinatario: a.user.id, leidoEl: null } });
   return (
     <div className="min-w-0" data-gestion>
-      <BarraGestion avisos={avisos} persona={a.nombre} rol={ROL_LABEL[a.rol]} />
+      {a.rol !== "SIN_FICHA" && <BarraGestion avisos={avisos} persona={a.nombre} rol={ROL_LABEL[a.rol]} />}
       {children}
     </div>
   );

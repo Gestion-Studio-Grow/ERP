@@ -106,6 +106,27 @@ el negocio funciona pero sin su marca. El camino alternativo sin terminal es el 
 | Falla el chequeo de la app sobre una tabla nueva | Falta un GRANT: pegar `prisma/rls/0002_app_role.sql` en el SQL Editor (idempotente). |
 | El deploy rompe pantallas | Vercel → Instant Rollback (`docs/runbooks/facturacion/rollback.md` §A), y revertir en `main` antes del siguiente push. |
 
+## Apps por rol y reglas de plata (01/11/2026)
+
+Provisional hasta confirmarlo con MIA. Probado en la demo con un usuario por rol: `admin@`, `administracion@`, `comercial@`, `diseno@`, `produccion@` y `sinficha@`.
+
+| Rol | Barra |
+|---|---|
+| Dirección | Inicio, Proyectos, Calendario, Administración, Dirección, Equipo y permisos, Reportes |
+| Administración | Inicio, Proveedores, Administración, Mi liquidación, Caja, Libro de caja, Cierre del día, Facturación |
+| Comercial | Inicio, Proyectos, Calendario, Agentes IA, Propuesta con IA, Mi liquidación, Clientes (sin costos ni márgenes) |
+| Diseño | Inicio, Proyectos, Diseño, Calendario, Agentes IA, Propuesta con IA, Mi liquidación (sin costos ni márgenes) |
+| Producción | Inicio, Proyectos, Calendario, Proveedores, Agentes IA, Mi liquidación |
+| Sin ficha, y no es dueño | Sólo un aviso: pedile a Dirección que te cargue |
+
+- **Saldo:** lo ya pagado no se regenera; el resto del plan absorbe la diferencia y, si estaba todo pagado, sale una cuota de ajuste.
+- **Caja hoy:** al marcar una cuota se puede elegir una cuenta. Reabrirla o anularla devuelve lo movido. Una cuenta de otra moneda se rechaza, salvo la de pesos para una cuota en dólares, que toma el importe en pesos.
+- **Costo real:** se carga a mano por ítem, también en versiones ya enviadas. El desvío no cuenta dos veces lo pagado por cuotas.
+- **IVA:** cambiarlo pierde la aprobación de precios y recalcula las cuotas. En una versión enviada, el margen se rotula «al cambio de hoy».
+- **Vencimientos:** el aviso sale a 3 días, cuando alguien abre Inicio. No hay proceso nocturno: si nadie entra, no sale.
+- **Tope de subida:** `next.config.ts` sube las acciones a 3 MB para el PDF. Vale para todos los negocios al desplegar.
+- **Moneda del evento:** no está hecha; espera que MIA confirme si cotiza en dólares.
+
 ## Qué NO está hecho
 
 1. **Su dominio:** `miaproducciones.com.ar` sigue en su WordPress, sin tocar. La copia vive en
@@ -120,7 +141,7 @@ el negocio funciona pero sin su marca. El camino alternativo sin terminal es el 
 6. **Costos del armador:** provisionales, no son de MIA.
 7. **Render:** es la vista 3D del navegador. No hay integración con un programa de render externo.
 8. **PDF:** imprimir o guardar desde el navegador.
-9. **Archivos:** imágenes achicadas en la base (hasta ~1 MB, 30 por proyecto) y links para lo pesado.
+9. **Archivos:** imágenes achicadas y PDF de hasta 2 MB en la base (30 por proyecto); links para lo pesado. Los PDF no se muestran al cliente.
 10. **Caja:** el libro no tiene columna de cheques: el cheque se asienta en Transferencia y su detalle dice
    «Cheque», en cobros y en gastos. Decisión provisional a confirmar con quien lleve la contabilidad de MIA.
 11. **Gastos de proyecto:** el neto y el IVA se cargan separados y el neto es lo que se compara contra el

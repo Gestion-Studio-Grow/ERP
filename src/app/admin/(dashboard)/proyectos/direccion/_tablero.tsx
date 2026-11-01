@@ -18,7 +18,7 @@ export async function TabTablero({ tenantId }: { tenantId: string }) {
   });
   return (
     <div className="grid gap-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <KpiTile label="Caja hoy" value={pesos(caja.cajaHoy)} />
         <KpiTile label={`Facturación ${r.anio}`} value={pesos(r.facturacion)} sub="venta confirmada, sin IVA" />
         <KpiTile label="Margen acumulado" value={pesos(r.margen)} sub={porcentaje(r.margenPct)} />
