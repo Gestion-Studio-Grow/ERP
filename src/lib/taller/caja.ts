@@ -16,20 +16,24 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { recordMovement } from "@/lib/stock/ledger";
+import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import { redondear, type MedioPago } from "./core";
 
 type Tx = Prisma.TransactionClient;
 
 /** La columna del libro de caja donde cae cada medio del taller. */
-export function metodoDeCaja(medio: MedioPago): "EFECTIVO" | "MP" | "TARJETA" {
+export function metodoDeCaja(medio: MedioPago, transferenciaEnElLibro = false): "EFECTIVO" | "MP" | "TARJETA" | "TRANSFERENCIA" {
   switch (medio) {
     case "EFECTIVO":
       return "EFECTIVO";
     case "DEBITO":
     case "CREDITO":
       return "TARJETA";
-    // Transferencia y Mercado Pago van juntas, como en el resto del motor
-    // (cashMethodFromPaymentMethod): es como el negocio lleva la columna.
+    // Transferencia va a su columna si el libro ya la tiene (transferencia-en-el-libro.ts), como
+    // en el resto del motor (cashMethodFromPaymentMethod). Sin el paquete, el valor no existe en
+    // la base y sigue junto con Mercado Pago.
+    case "TRANSFERENCIA":
+      return transferenciaEnElLibro ? "TRANSFERENCIA" : "MP";
     default:
       return "MP";
   }
@@ -55,12 +59,13 @@ export async function asentarCobroInTx(
   // Si el negocio trabaja con turno de caja abierto, el asiento se engancha para que el arqueo
   // lo vea; si no, queda suelto y el libro lo toma igual.
   const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
+  const transferenciaEnElLibro = input.medio === "TRANSFERENCIA" && (await transferenciaEnElLibroTx(tx));
   await tx.cashMovement.create({
     data: {
       tenantId,
       sessionId: session?.id ?? null,
       type: "VENTA",
-      method: metodoDeCaja(input.medio),
+      method: metodoDeCaja(input.medio, transferenciaEnElLibro),
       amount,
       reason: input.detalle,
       tallerPagoId: input.pagoId,
