@@ -11,6 +11,7 @@ import { bloqueDeDatos, type AgenteId, type MensajeAgente } from "./diseno-core"
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
 import { codigoProyecto, costoTotalItem, ESTADO_ITEM_LABEL, ESTADO_TAREA_LABEL, resumenCuotas, totalesFicha, ventaTotalItem, type ModuloGestion } from "./gestion-core";
 import { errorDeGratis, imagenDeGratis, MODELO_IMAGEN_GRATIS, MODELO_TEXTO_GRATIS, pedidoDeImagen, pedidoDeTexto, textoDeGratis, urlGratis } from "./ia-gratis-core";
+import { aDataUri, tipoDeImagen, urlPollinations } from "./ia-pollinations-core";
 
 const API = "https://api.anthropic.com/v1/messages";
 const MODELO = "claude-opus-5-5";
@@ -19,7 +20,6 @@ const FALLBACK = "server-side-fallback-2026-07-01";
 const TIEMPO_MAX = 110_000;
 
 export const FALTA_CLAVE = "Falta conectar la IA: hay que cargar CLOUDFLARE_ACCOUNT_ID y CLOUDFLARE_AI_TOKEN (o ANTHROPIC_API_KEY) en la configuración del servidor.";
-export const FALTAN_IMAGENES = "Falta conectar las imágenes: hay que cargar CLOUDFLARE_ACCOUNT_ID y CLOUDFLARE_AI_TOKEN (o IMAGENES_API_URL e IMAGENES_API_KEY) en la configuración del servidor.";
 
 function cuentaGratis(): { cuenta: string; token: string } | null {
   const cuenta = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
@@ -28,7 +28,8 @@ function cuentaGratis(): { cuenta: string; token: string } | null {
 }
 
 export const iaConectada = (): boolean => !!process.env.ANTHROPIC_API_KEY?.trim() || !!cuentaGratis();
-export const imagenesConectadas = (): boolean => (!!process.env.IMAGENES_API_URL?.trim() && !!process.env.IMAGENES_API_KEY?.trim()) || !!cuentaGratis();
+/** Siempre hay imágenes: sin servicio propio ni cuenta de Cloudflare se usa Pollinations, que no pide clave. */
+export const imagenesConectadas = (): boolean => true;
 
 /** Llama al servicio gratis. El cuerpo vuelve null si la respuesta no se pudo leer. */
 async function llamarGratis(g: { cuenta: string; token: string }, modelo: string, cuerpo: Record<string, unknown>): Promise<{ error: string } | { cuerpo: Parameters<typeof textoDeGratis>[0] }> {
@@ -116,7 +117,8 @@ const MAX_IMAGEN = 1_400_000;
 export type ImagenGenerada = { ok: true; datos: string } | { ok: false; error: string };
 
 /**
- * Claude no genera imágenes. Sin proveedor contratado se usa el cupo gratis. El servicio que se contrate se conecta con:
+ * Claude no genera imágenes. El orden es: servicio propio, cuenta gratis de Cloudflare y, si no hay ninguno, Pollinations (el mismo que usa Azimut,
+ * sin clave). El servicio propio se conecta con:
  * POST a IMAGENES_API_URL con `Authorization: Bearer IMAGENES_API_KEY` y `{ "prompt": "..." }`; responde
  * `{ "imagen": "data:image/jpeg;base64,..." }` (JPG, PNG o WebP, hasta ~1 MB).
  */
@@ -125,7 +127,7 @@ export async function generarImagen(pedido: string): Promise<ImagenGenerada> {
   const clave = process.env.IMAGENES_API_KEY?.trim();
   if (!url || !clave) {
     const g = cuentaGratis();
-    if (!g) return { ok: false, error: FALTAN_IMAGENES };
+    if (!g) return generarConPollinations(pedido);
     const res = await llamarGratis(g, MODELO_IMAGEN_GRATIS, pedidoDeImagen(pedido));
     if ("error" in res) return { ok: false, error: res.error };
     const datos = imagenDeGratis(res.cuerpo);
@@ -146,6 +148,24 @@ export async function generarImagen(pedido: string): Promise<ImagenGenerada> {
     if (typeof j.imagen !== "string" || !/^data:image\/(jpeg|png|webp);base64,/.test(j.imagen)) return { ok: false, error: "El servicio de imágenes devolvió algo que no es una imagen." };
     if (j.imagen.length > MAX_IMAGEN) return { ok: false, error: "La imagen generada pesa demasiado para guardarla." };
     return { ok: true, datos: j.imagen };
+  } catch {
+    return { ok: false, error: "El servicio de imágenes no respondió a tiempo." };
+  }
+}
+
+/** El pedido sale hacia un tercero: viaja sólo el texto que escribió la persona, no datos del proyecto. Conviene no poner nombres de clientes ahí. */
+async function generarConPollinations(pedido: string): Promise<ImagenGenerada> {
+  try {
+    const r = await fetch(urlPollinations(pedido, Math.floor(Math.random() * 1_000_000)), { signal: AbortSignal.timeout(55_000), cache: "no-store" });
+    if (!r.ok) {
+      console.error(`[proyectos/ia] el servicio de imágenes respondió ${r.status}`);
+      return { ok: false, error: r.status === 429 ? "El servicio de imágenes está saturado en este momento. Probá en unos minutos." : "El servicio de imágenes no pudo generar este pedido." };
+    }
+    const tipo = tipoDeImagen(r.headers.get("content-type"));
+    if (!tipo) return { ok: false, error: "El servicio de imágenes devolvió algo que no es una imagen." };
+    const datos = aDataUri(tipo, new Uint8Array(await r.arrayBuffer()));
+    if (datos.length > MAX_IMAGEN) return { ok: false, error: "La imagen generada pesa demasiado para guardarla." };
+    return { ok: true, datos };
   } catch {
     return { ok: false, error: "El servicio de imágenes no respondió a tiempo." };
   }
