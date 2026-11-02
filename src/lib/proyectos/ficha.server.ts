@@ -11,11 +11,12 @@ import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuota
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
-import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta } from "./gestion-core";
+import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
 
 export interface TarjetaProyecto {
   id: string;
+  ventaTexto: string; // en la moneda del evento; `venta` sigue en pesos para sumar
   codigo: string;
   nombre: string;
   ciudad: string | null;
@@ -30,14 +31,17 @@ export interface TarjetaProyecto {
   motivoPerdida: string | null;
 }
 
+export const TOPE_TABLERO = 300;
+
 export async function tableroPipeline(a: Actor): Promise<TarjetaProyecto[]> {
   const [proyectos, tc, config] = await Promise.all([
     prisma.proyecto.findMany({
       where: filtroDeProyectos(a),
       orderBy: [{ fechaEvento: { sort: "asc", nulls: "last" } }, { numero: "desc" }],
-      take: 300,
+      take: TOPE_TABLERO,
       select: {
         id: true,
+        moneda: true,
         numero: true,
         nombre: true,
         etapa: true,
@@ -50,7 +54,7 @@ export async function tableroPipeline(a: Actor): Promise<TarjetaProyecto[]> {
         motivoPerdida: true,
         client: { select: { name: true } },
         equipo: { select: { persona: { select: { nombre: true } } } },
-        presupuestos: { orderBy: { version: "desc" }, take: 1, select: { items: { select: { cantidad: true, costo: true, moneda: true, recargoPct: true, precio: true } } } },
+        presupuestos: { orderBy: { version: "desc" }, take: 1, select: { tcVenta: true, items: { select: { cantidad: true, costo: true, moneda: true, recargoPct: true, precio: true } } } },
       },
     }),
     tiposDeCambio(a.tenantId),
@@ -65,6 +69,7 @@ export async function tableroPipeline(a: Actor): Promise<TarjetaProyecto[]> {
     tipo: p.tipoEvento ?? p.evento,
     iniciales: p.equipo.map((e) => iniciales(e.persona.nombre)),
     venta: redondear((p.presupuestos[0]?.items ?? []).reduce((s, i) => s + ventaTotalItem(i, tc, config.margenPct), 0)),
+    ventaTexto: ventaEn(redondear((p.presupuestos[0]?.items ?? []).reduce((s, i) => s + ventaTotalItem(i, tc, config.margenPct), 0)), p.moneda, cambioDeVenta(p.moneda, p.presupuestos[0]?.tcVenta, tc)),
     fecha: p.fechaEvento ? fechaCorta(p.fechaEvento) : "Sin fecha",
     fechaOrden: p.fechaEvento?.getTime() ?? Number.MAX_SAFE_INTEGER,
     etapa: p.etapa,

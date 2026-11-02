@@ -161,7 +161,7 @@ export async function PestanaArchivos({ a, cab, tipo }: { a: Actor; cab: Cabecer
                         (f.itemId && items_.get(f.itemId)) || "—"
                       )}
                     </td>
-                    <td className="py-1.5 pr-2">{f.esImagen ? "Subido" : "Link"}</td>
+                    <td className="py-1.5 pr-2">{f.esImagen || f.esPdf ? "Subido" : "Link"}</td>
                     <td className="py-1.5 pr-2">{f.subidoPor ?? "—"}</td>
                     <td className="py-1.5 pr-2 whitespace-nowrap">{fechaCorta(f.createdAt)}</td>
                     <td className="py-1.5 pr-2 whitespace-nowrap">{tamano(f.tamano)}</td>

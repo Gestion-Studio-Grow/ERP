@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { accesoChat, personasDelChat } from "@/lib/proyectos/diseno.server";
+import { aliasDeMencion } from "@/lib/proyectos/gestion-core";
 import { actorActual } from "@/lib/proyectos/gestion.server";
 import { ChatCliente } from "./_diseno-chat";
 
@@ -21,6 +22,7 @@ export async function ChatProyecto({ proyectoId, conAdjunto }: { proyectoId: str
     personasDelChat(a, proyectoId, "general"),
   ]);
   const mensajes = filas.reverse().map(({ createdAt, ...m }) => ({ ...m, hora: hora.format(createdAt) }));
-  const nombres = [...new Set(personas.filter((p) => p.id !== a.personaId).map((p) => p.nombre.split(" ")[0]))];
+  const alias = aliasDeMencion(personas);
+  const nombres = personas.filter((p) => p.id !== a.personaId).map((p) => alias.get(p.id) ?? p.nombre);
   return <ChatCliente proyectoId={proyectoId} canales={acceso.canales} mensajes={mensajes} personas={nombres} puedeEscribir={acceso.escribir} conAdjunto={conAdjunto} />;
 }

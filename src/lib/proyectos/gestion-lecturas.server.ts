@@ -246,6 +246,7 @@ export async function listaDeProveedores(a: Actor, f: { rubro?: string; q?: stri
               { email: { contains: q, mode: "insensitive" as const } },
               { phone: { contains: q } },
               { fichaDeProyecto: { is: { ciudad: { contains: q, mode: "insensitive" as const } } } },
+              { fichaDeProyecto: { is: { contacto: { contains: q, mode: "insensitive" as const } } } },
             ],
           }
         : {}),

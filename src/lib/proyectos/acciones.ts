@@ -15,7 +15,7 @@ import { requireCapability } from "@/lib/authz";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
-import { clientePuedeResponder, fechaCorta, leerNumero, esEtapa, esServicio, etapaAlAprobar, etapaLabel, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
+import { clientePuedeResponder, fechaCorta, leerNumero, MEDIO_LABEL, pesos, esEtapa, esServicio, etapaAlAprobar, etapaLabel, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
 import { configProyectos } from "./datos.server";
 import { actorActual, avisar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
@@ -81,7 +81,7 @@ export async function agregarTarea(formData: FormData) {
   });
   await registrarCambio(prisma, { tenantId, proyectoId, entidad: "Tarea", entidadId: proyectoId, campo: "alta", despues: titulo, autor: a.nombre });
   if (miembro?.persona.userId && miembro.persona.userId !== a.user.id) {
-    await avisar(prisma, { tenantId, destinatarios: [miembro.persona.userId], tipo: "deadline", texto: `Te asignaron la tarea ${titulo}${venceEl ? `, vence el ${fechaCorta(venceEl)}` : ""}`, enlace: `${RAIZ}/${proyectoId}?tab=seguimiento` });
+    await avisar(prisma, { tenantId, destinatarios: [miembro.persona.userId], tipo: "tarea", texto: `Te asignaron la tarea ${titulo}${venceEl ? `, vence el ${fechaCorta(venceEl)}` : ""}`, enlace: `${RAIZ}/${proyectoId}?tab=seguimiento` });
   }
   refrescar(proyectoId);
 }
@@ -200,6 +200,7 @@ export async function registrarCobro(formData: FormData) {
   // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno.
   const pago = await tenantTransaction(async (tx) => {
     const creado = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto, nota, cobradoPor: user.name }, select: { id: true } });
+    await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: creado.id, campo: "Cobro", despues: `${MEDIO_LABEL[medio]} · ${pesos(monto)}`, autor: user.name });
     const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
     await tx.cashMovement.create({
       data: {
@@ -280,6 +281,7 @@ export async function registrarGasto(formData: FormData): Promise<Resultado> {
       },
       select: { id: true, neto: true, iva: true, descripcion: true },
     });
+    await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoGasto", entidadId: creado.id, campo: "Costo real", despues: `${descripcion} · ${pesos(neto)}${pagado ? " · pagado" : ""}`, autor: user.name });
     if (pagado) await asentarPagoDeGastoTx(tx, tenantId, creado, p.numero, medio, elegido?.name ?? null);
     return creado;
   });
@@ -304,6 +306,7 @@ export async function pagarGasto(formData: FormData) {
     // Dos clics, o dos pestañas, no pagan dos veces.
     const r = await tx.proyectoGasto.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), medio, pagadoPor: user.name } });
     if (r.count === 0) return;
+    await registrarCambio(tx, { tenantId, proyectoId: g.proyectoId, entidad: "ProyectoGasto", entidadId: id, campo: "Costo real pagado", despues: `${g.descripcion} · ${MEDIO_LABEL[medio]}`, autor: user.name });
     await asentarPagoDeGastoTx(tx, tenantId, g, g.proyecto.numero, medio, g.supplier?.name ?? null);
   });
   await auditAdmin({ action: "proyecto.gasto.pagar", entity: "ProyectoGasto", entityId: id, changes: { medio } });

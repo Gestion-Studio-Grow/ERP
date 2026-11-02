@@ -135,7 +135,7 @@ export function Pipeline({ tarjetas, vista, edita }: { tarjetas: TarjetaProyecto
                           {t.iniciales.slice(0, 4).map((i, n) => <span key={n} className="grid size-7 place-items-center rounded-full border border-line bg-surface font-semibold text-strong">{i}</span>)}
                         </span>
                         <span className="text-right">
-                          <span className="block font-semibold text-strong tabular-nums">{pesos(t.venta)}</span>
+                          <span className="block font-semibold text-strong tabular-nums">{t.ventaTexto}</span>
                           <span className="text-muted">{t.fecha}</span>
                         </span>
                       </div>
@@ -174,7 +174,7 @@ export function Pipeline({ tarjetas, vista, edita }: { tarjetas: TarjetaProyecto
                   <td className="pr-2">{t.ciudad ?? "—"}</td>
                   <td className="pr-2">{t.iniciales.join(", ") || "—"}</td>
                   <td className="pr-2 whitespace-nowrap">{t.fecha}</td>
-                  <td className="pr-2 text-right font-medium text-strong tabular-nums">{pesos(t.venta)}</td>
+                  <td className="pr-2 text-right font-medium text-strong tabular-nums">{t.ventaTexto}</td>
                   <td className="py-1 min-w-44">{edita ? selector(t) : nombreColumna(columnaDe(t))}</td>
                 </tr>
               ))}

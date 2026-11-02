@@ -42,6 +42,13 @@ export function ChatCliente({ proyectoId, canales, mensajes, personas, puedeEscr
   const lista = useRef<HTMLOListElement>(null);
   const caja = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
+  // Sin canal en vivo: lo nuevo se trae cada 20 segundos, sólo con la pantalla a la vista. Lo que se está escribiendo no se pierde.
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, 20_000);
+    return () => clearInterval(t);
+  }, [router]);
   const variosCanales = canales.length > 1;
   const visibles = vista === "todo" ? mensajes : mensajes.filter((m) => m.canal === vista);
 

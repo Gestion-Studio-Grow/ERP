@@ -80,8 +80,15 @@ export function fotoDeVersion(items: readonly ItemVenta[], tc: Readonly<Record<s
     const base = claveFoto(i.descripcion);
     const n = (vistas.get(base) ?? 0) + 1;
     vistas.set(base, n);
-    return { clave: n === 1 ? base : `${base}#${n}`, descripcion: i.descripcion, rubro: i.rubro, importe: ventaTotalItem(i, tc, recargoGeneral) };
+    return { clave: n === 1 ? base : `${base}#${n}`, descripcion: i.descripcion, rubro: i.rubro, importe: ventaTotalItem(i, tc, recargoGeneral), costo: costoTotalItem(i, tc) };
   });
+}
+
+/** El margen tal como quedó al enviar. */
+export function margenDeFoto(foto: readonly FotoItem[]): { margen: number; pct: number } {
+  const venta = redondear(foto.reduce((s, i) => s + i.importe, 0));
+  const margen = redondear(venta - foto.reduce((s, i) => s + (i.costo ?? 0), 0));
+  return { margen, pct: venta > 0 ? redondear((margen / venta) * 100) : 0 };
 }
 
 export function esFoto(v: unknown): v is FotoItem[] {

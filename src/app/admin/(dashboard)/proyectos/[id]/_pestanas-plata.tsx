@@ -7,7 +7,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { pagarGasto, registrarCobro } from "@/lib/proyectos/acciones";
 import { anularCobroFicha, anularGastoFicha, aprobarInterno, pedirAprobacion, crearMovimientoManual, enviarCotizacion, guardarTextos, marcarCuota, nuevaVersion, quitarMovimiento, recalcularCuotas, registrarRespuesta } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
-import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, planillaDeVenta } from "@/lib/proyectos/ficha-core";
+import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, planillaDeVenta } from "@/lib/proyectos/ficha-core";
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
 import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, plataEn, totalesFicha, ventaEn } from "@/lib/proyectos/gestion-core";
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
@@ -37,6 +37,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
   const comparada = versiones.find((v) => v.id === cambios);
   const anterior = comparada ? versiones.find((v) => v.version < comparada.version) : undefined;
   const diferencia = comparada && anterior ? cambiosEntreVersiones(foto(anterior), foto(comparada)) : null;
+  const enComparada = (n: number) => ventaEn(n, p.moneda, cambioDeVenta(p.moneda, comparada?.tcVenta, tc));
   const viva = versiones[0];
   const hayBorrador = !!viva && sePuedeEditar(viva.estado);
   const planillaViva = viva ? planillaDeVenta(viva.items, tc, recargo) : null;
@@ -59,6 +60,9 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
         <ul className="grid gap-3">
           {versiones.map((v, n) => {
             const t = totalesFicha(v.items.map(aItemFicha), tc, recargo);
+            // Lo enviado guarda su costo; las versiones anteriores a esa foto siguen calculándose al cambio de hoy.
+            const fotoGuardada = esFoto(v.foto) && v.foto.every((i) => typeof i.costo === "number") ? v.foto : null;
+            const enviado = fotoGuardada ? margenDeFoto(fotoGuardada) : null;
             const editable = sePuedeEditar(v.estado);
             const cambio = cambioDeVenta(p.moneda, v.tcVenta, tc);
             const ruta = `/propuesta/${v.token}`;
@@ -77,7 +81,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                 </div>
                 <dl className="mb-2 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                   <Numero titulo="Total sin IVA" valor={ventaEn(t.venta, p.moneda, cambio)} />
-                  {verMargen && <Numero titulo={editable ? "Margen" : "Margen al cambio de hoy"} valor={`${pesos(t.margen)} (${porcentaje(t.margenPct)})`} />}
+                  {verMargen && <Numero titulo={editable ? "Margen" : enviado ? "Margen al enviar" : "Margen al cambio de hoy"} valor={`${ventaEn(enviado?.margen ?? t.margen, p.moneda, cambio)} (${porcentaje(enviado?.pct ?? t.margenPct)})`} />}
                   <Numero titulo="Fecha" valor={fechaCorta(v.enviadoEl ?? v.createdAt)} />
                   <Numero titulo="Quién" valor={v.creadoPor ?? "—"} />
                 </dl>
@@ -146,9 +150,9 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
           {diferencia ? (
             <>
               <dl className="mb-3 grid grid-cols-3 gap-3 text-sm">
-                <Numero titulo={`Versión ${anterior?.version}`} valor={pesos(diferencia.totalAnterior)} />
-                <Numero titulo={`Versión ${comparada.version}`} valor={pesos(diferencia.totalNuevo)} />
-                <Numero titulo="Diferencia" valor={`${diferencia.diferencia > 0 ? "+" : ""}${pesos(diferencia.diferencia)}`} />
+                <Numero titulo={`Versión ${anterior?.version}`} valor={enComparada(diferencia.totalAnterior)} />
+                <Numero titulo={`Versión ${comparada.version}`} valor={enComparada(diferencia.totalNuevo)} />
+                <Numero titulo="Diferencia" valor={`${diferencia.diferencia > 0 ? "+" : ""}${enComparada(diferencia.diferencia)}`} />
               </dl>
               {diferencia.cambios.length === 0 && <p className="text-sm text-muted">Los precios son los mismos.</p>}
               <ul className="grid gap-1 text-sm">
@@ -156,8 +160,8 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                   <li key={n} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-1">
                     <span className="min-w-0"><Badge tone={c.tipo === "quitado" ? "danger" : c.tipo === "agregado" ? "success" : "neutral"}>{c.tipo}</Badge> {c.descripcion} <span className="text-xs text-muted">{c.rubro}</span></span>
                     <span className="tabular-nums">
-                      {c.antes !== null && <s className="mr-2 text-muted">{pesos(c.antes)}</s>}
-                      {c.despues !== null && <strong className="text-strong">{pesos(c.despues)}</strong>}
+                      {c.antes !== null && <s className="mr-2 text-muted">{enComparada(c.antes)}</s>}
+                      {c.despues !== null && <strong className="text-strong">{enComparada(c.despues)}</strong>}
                     </span>
                   </li>
                 ))}
@@ -203,6 +207,10 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
   const conCobros = d.cuotas.some((c) => c.tipo === "COBRO" && !c.anuladoEl);
   const conPagos = d.cuotas.some((c) => c.tipo === "PAGO" && !c.anuladoEl);
   const verCosto = !vista.ocultas.has("costoTotal");
+  const cambioEvento = cambioDeVenta(p.moneda, cab.viva?.tcVenta, cab.tc);
+  const enEvento = (n: number) => ventaEn(n, p.moneda, cambioEvento);
+  // El cashflow se calcula al cambio de hoy, cuota por cuota: se muestra con ese mismo, no con el fijado al vender.
+  const enCaja = (n: number) => ventaEn(n, p.moneda, cambioDeVenta(p.moneda, null, cab.tc));
 
   return (
     <div className="grid gap-4">
@@ -213,10 +221,10 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
       )}
       <section className={tarjeta} aria-label="Resultado del evento">
         <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-          <Numero titulo="Venta presupuestada" valor={pesos(t.venta)} />
-          {verCosto && <Numero titulo="Costo presupuestado" valor={pesos(t.costo)} />}
-          {vista.costos && <Numero titulo="Saldo final" valor={pesos(d.flujo.saldoFinal)} alerta={d.flujo.saldoFinal < 0} />}
-          {vista.costos && <Numero titulo="Máximo a financiar" valor={pesos(d.flujo.maximoAFinanciar)} alerta={d.flujo.maximoAFinanciar > 0} />}
+          <Numero titulo="Venta presupuestada" valor={enEvento(t.venta)} />
+          {verCosto && <Numero titulo="Costo presupuestado" valor={enEvento(t.costo)} />}
+          {vista.costos && <Numero titulo="Saldo final" valor={enCaja(d.flujo.saldoFinal)} alerta={d.flujo.saldoFinal < 0} />}
+          {vista.costos && <Numero titulo="Máximo a financiar" valor={enCaja(d.flujo.maximoAFinanciar)} alerta={d.flujo.maximoAFinanciar > 0} />}
         </dl>
         {faltanCambio.length > 0 && <p role="alert" className="mt-3 text-sm font-medium text-danger">Falta el tipo de cambio de {faltanCambio.join(", ")}: esos importes están valiendo cero.</p>}
       </section>
@@ -242,7 +250,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                   <th className="pr-2 font-medium">Concepto</th>
                   <th className="pr-2 font-medium">Contraparte</th>
                   <th className="pr-2 text-right font-medium">Original</th>
-                  <th className="pr-2 text-right font-medium">Importe $</th>
+                  <th className="pr-2 text-right font-medium">Importe {p.moneda === "USD" ? "US$" : "$"}</th>
                   <th className="pr-2 text-right font-medium">Saldo</th>
                   <th className="pr-2 font-medium">Estado</th>
                   <th aria-label="Acción" />
@@ -257,8 +265,8 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                       <td className="py-1.5 pr-2">{c.concepto}{c.auto && <span className="ml-1 text-xs text-muted">auto</span>}</td>
                       <td className="py-1.5 pr-2">{c.tipo === "COBRO" ? p.client.name : c.supplier?.name ?? "—"}</td>
                       <td className="py-1.5 pr-2 text-right tabular-nums">{plataEn(c.monto, c.moneda)}</td>
-                      <td className={cn("py-1.5 pr-2 text-right tabular-nums", importe < 0 ? "text-danger" : "text-strong")}>{pesos(importe)}</td>
-                      <td className={cn("py-1.5 pr-2 text-right font-medium tabular-nums", saldo < 0 && "text-danger")}>{pesos(saldo)}</td>
+                      <td className={cn("py-1.5 pr-2 text-right tabular-nums", importe < 0 ? "text-danger" : "text-strong")}>{enCaja(importe)}</td>
+                      <td className={cn("py-1.5 pr-2 text-right font-medium tabular-nums", saldo < 0 && "text-danger")}>{enCaja(saldo)}</td>
                       <td className="py-1.5 pr-2">{c.prevista && !c.pagadoEl ? <Badge tone="neutral">Prevista</Badge> : <Badge tone={estado === "PAGADA" ? "success" : estado === "VENCIDA" ? "danger" : "neutral"}>{estado === "PAGADA" ? (c.tipo === "COBRO" ? "Cobrado" : "Pagado") : estado === "VENCIDA" ? "Vencido" : "Pendiente"}</Badge>}</td>
                       <td className="py-1">
                         {c.pagadoEl && c.tipo === "COBRO" && !c.anuladoEl && <a href={`/admin/proyectos/imprimir/cobro/${c.id}`} className={buttonClasses("ghost", "sm")}>Constancia</a>}

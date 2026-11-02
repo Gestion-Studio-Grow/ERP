@@ -9,6 +9,7 @@ import { fechaCorta, fechaParaInput, MEDIO_LABEL, pesos, porcentaje, sePuedeEdit
 import { conteoPorEstado } from "@/lib/proyectos/ficha-core";
 import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, plataEn, TIPOS_EVENTO, ventaEn } from "@/lib/proyectos/gestion-core";
 import { datosFicha, datosHistorial, datosResumen, datosSeguimiento, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
+import { prisma } from "@/lib/prisma";
 import { puede, type Actor } from "@/lib/proyectos/gestion.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
@@ -27,6 +28,8 @@ export function Numero({ titulo, valor, alerta }: { titulo: string; valor: strin
   );
 }
 
+const CUANDO = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Argentina/Buenos_Aires" });
+
 // ── Resumen ─────────────────────────────────────────────────────────────────
 
 export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecera; vista: Vista }) {
@@ -34,6 +37,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
   const { personas, finanzas, cantCuotas, cantChecklist } = await datosResumen(a, cab, vista);
   const avance = finanzas && finanzas.cobrado + finanzas.aCobrar > 0 ? (finanzas.cobrado / (finanzas.cobrado + finanzas.aCobrar)) * 100 : 0;
   const libres = personas.filter((x) => !p.equipo.some((e) => e.personaId === x.id));
+  const clientes = vista.pipelineEdita ? await prisma.client.findMany({ where: { tenantId: a.tenantId }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [];
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -56,6 +60,12 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
             <FormAccion accion={guardarDatos} className="grid gap-3 pt-2">
               <input type="hidden" name="id" value={p.id} />
               <label className={etiqueta}>Nombre del evento<input name="nombre" required maxLength={120} defaultValue={p.nombre} className={campo} /></label>
+              <label className={etiqueta}>Cliente
+                <select name="clientId" defaultValue={p.clientId} className={campo}>
+                  {!clientes.some((c) => c.id === p.clientId) && <option value={p.clientId}>{p.client.name}</option>}
+                  {clientes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </label>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className={etiqueta}>Tipo de evento
                   <select name="tipoEvento" defaultValue={p.tipoEvento ?? ""} className={campo}>
@@ -357,7 +367,7 @@ export async function PestanaHistorial({ a, cab, vista }: { a: Actor; cab: Cabec
             <tbody>
               {cambios.map((c) => (
                 <tr key={c.id} className="border-t border-line align-top">
-                  <td className="py-1.5 pr-2 whitespace-nowrap">{fechaCorta(c.createdAt)}</td>
+                  <td className="py-1.5 pr-2 whitespace-nowrap">{CUANDO.format(c.createdAt)}</td>
                   <td className="pr-2">{c.autor}</td>
                   <td className="pr-2">{c.campo}</td>
                   <td className="pr-2 text-muted">{c.antes ?? "—"}</td>

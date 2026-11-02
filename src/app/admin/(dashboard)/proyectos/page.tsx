@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { buttonClasses, cn, EmptyState, Pestanas } from "@/components/ui";
-import { tableroPipeline } from "@/lib/proyectos/ficha.server";
+import { TOPE_TABLERO, tableroPipeline } from "@/lib/proyectos/ficha.server";
 import { exigirVer, puede } from "@/lib/proyectos/gestion.server";
 import { Pipeline } from "./_pipeline";
 
@@ -22,6 +22,7 @@ export default async function TableroProyectos({ searchParams }: { searchParams:
         <h1 className="text-2xl font-bold text-strong">Proyectos</h1>
         {edita && <Link href="/admin/proyectos/nuevo" className={cn(buttonClasses("solid", "lg"), "w-full justify-center sm:w-auto")}>+ Nuevo lead</Link>}
       </header>
+      {tarjetas.length >= TOPE_TABLERO && <p role="status" className="mb-3 text-sm text-danger">Se muestran los primeros {TOPE_TABLERO} proyectos. Para llegar a los demás, usá el buscador de arriba.</p>}
       <Pestanas
         etiqueta="Vistas de Proyectos"
         conRaya

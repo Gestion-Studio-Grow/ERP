@@ -203,8 +203,15 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
   const textoEstimado = txt(formData.get("presupuestoEstimado"));
   const estimado = textoEstimado ? numeroDe(textoEstimado) : null;
   if (textoEstimado && estimado === null) return mal("El presupuesto estimado no se entiende.");
-  const previo = await prisma.proyecto.findFirst({ where: { id, tenantId }, select: { anticipoClientePct: true, fechaEvento: true, moneda: true } });
+  const previo = await prisma.proyecto.findFirst({ where: { id, tenantId }, select: { anticipoClientePct: true, fechaEvento: true, moneda: true, clientId: true, nombre: true, tipoEvento: true, evento: true, ciudad: true, lugar: true, invitados: true, presupuestoEstimado: true, responsable: true, contactoNombre: true, contactoEmail: true, client: { select: { name: true } } } });
   if (!previo) return mal("Ese proyecto no existe.");
+  const clientId = txt(formData.get("clientId")) || previo.clientId;
+  const clienteNuevo = clientId === previo.clientId ? null : await prisma.client.findFirst({ where: { id: clientId, tenantId }, select: { name: true } });
+  if (clientId !== previo.clientId) {
+    if (!clienteNuevo) return mal("Ese cliente no existe.");
+    // Lo cobrado ya tiene recibo y quizás factura a nombre del anterior.
+    if (await prisma.proyectoCuota.count({ where: { tenantId, proyectoId: id, tipo: "COBRO", pagadoEl: { not: null }, anuladoEl: null } })) return mal("El cliente no se puede cambiar: ya hay un cobro hecho a su nombre.");
+  }
   if (moneda !== previo.moneda) {
     const [enviadas, cobradas] = await Promise.all([
       prisma.proyectoPresupuesto.count({ where: { tenantId, proyectoId: id, estado: { in: ["ENVIADO", "APROBADO"] } } }),
@@ -217,6 +224,7 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
       where: { id, tenantId },
       data: {
         nombre,
+        clientId,
         tipoEvento: tipoEvento || null,
         evento: txt(formData.get("evento")).slice(0, 120) || null,
         ciudad: txt(formData.get("ciudad")).slice(0, 80) || null,
@@ -235,6 +243,20 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
         brief: txt(formData.get("brief")),
       },
     });
+    const datosNuevos: [string, unknown, unknown][] = [
+      ["Nombre", previo.nombre, nombre],
+      ["Cliente", previo.client.name, clienteNuevo?.name ?? previo.client.name],
+      ["Tipo de evento", previo.tipoEvento, tipoEvento || null],
+      ["Feria o marco", previo.evento, txt(formData.get("evento")).slice(0, 120) || null],
+      ["Ciudad", previo.ciudad, txt(formData.get("ciudad")).slice(0, 80) || null],
+      ["Lugar", previo.lugar, txt(formData.get("lugar")).slice(0, 120) || null],
+      ["Invitados", previo.invitados, invitados === null ? null : Math.round(invitados)],
+      ["Presupuesto estimado", previo.presupuestoEstimado, estimado],
+      ["Responsable", previo.responsable, txt(formData.get("responsable")).slice(0, 80) || null],
+      ["Contacto", previo.contactoNombre, txt(formData.get("contactoNombre")).slice(0, 120) || null],
+      ["Mail de contacto", previo.contactoEmail, txt(formData.get("contactoEmail")).slice(0, 160) || null],
+    ];
+    for (const [campo, antes, despues] of datosNuevos) await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo, antes, despues, autor: a.nombre });
     await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Anticipo del cliente %", antes: previo.anticipoClientePct, despues: anticipo, autor: a.nombre });
     await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Moneda de venta", antes: previo.moneda, despues: moneda, autor: a.nombre });
     // El checklist cuenta para atrás desde el evento: si se mueve la fecha, lo pendiente de la plantilla se mueve con ella.
@@ -699,6 +721,8 @@ export async function guardarTextos(formData: FormData): Promise<ResultadoFicha>
   const cambiaTotal = iva !== pr.ivaPct || tcVenta !== pr.tcVenta;
   await prisma.proyectoPresupuesto.updateMany({ where: { id, tenantId }, data: { presentacion: txt(formData.get("presentacion")), condiciones: txt(formData.get("condiciones")), ivaPct: iva, tcVenta, ...(cambiaTotal && { aprobadoInternoEl: null, aprobadoInternoPor: null }) } });
   // Otro IVA u otro cambio es otro total para el cliente: la aprobación de precios ya no vale y las cuotas se recalculan.
+  await registrarCambio(prisma, { tenantId, proyectoId: pr.proyectoId, entidad: "Versión", entidadId: id, campo: "IVA %", antes: pr.ivaPct, despues: iva, autor: a.nombre });
+  await registrarCambio(prisma, { tenantId, proyectoId: pr.proyectoId, entidad: "Versión", entidadId: id, campo: "Cambio de venta", antes: pr.tcVenta, despues: tcVenta, autor: a.nombre });
   if (cambiaTotal) await regenerar(tenantId, pr.proyectoId);
   refrescar(pr.proyectoId);
   return { ok: true };
