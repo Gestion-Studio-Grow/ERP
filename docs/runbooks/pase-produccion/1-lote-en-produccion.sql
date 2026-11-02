@@ -310,7 +310,7 @@ CREATE POLICY tenant_isolation ON "ProyectoEntregableVersion"
 INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
 VALUES (gen_random_uuid()::text, '8364154d4c5d91b5633f822c0f2a1e9f6b494b58da5d723138307cee0c6a21e4', now(), '20261101140000_proyecto_entregables', NULL, NULL, now(), 1);
 
--- ─── 20261101150000_proyecto_gestion_eventos · checksum 6e0780a1790cefe660a54d1a585b430a8280d9d5f839825fc3f5a98efde355ee ───
+-- ─── 20261101150000_proyecto_gestion_eventos · checksum 7f60aea6e9434cb354abec47d27a50be81d6b803d5238b240e6d252d5032f415 ───
 -- GESTIÓN DE EVENTOS (MIA Producciones): las apps relevadas en docs/benchmark/heka-especificacion.md.
 -- Aditiva: tablas nuevas con RLS y columnas con valor por defecto o nulas en tablas de este mismo módulo.
 -- No toca ninguna tabla que usen los demás negocios.
@@ -357,6 +357,7 @@ ALTER TABLE "ProyectoArchivo" ADD COLUMN     "itemId" TEXT;
 -- CreateTable
 CREATE TABLE "ProyectoCuota" (
     "id" TEXT NOT NULL,
+    "venceManual" BOOLEAN NOT NULL DEFAULT false,
     "prevista" BOOLEAN NOT NULL DEFAULT false,
     "cuentaId" TEXT,
     "cuentaMovido" DOUBLE PRECISION,
@@ -974,7 +975,7 @@ CREATE POLICY tenant_isolation ON "ProyectoSegundoFactor"
 ALTER TABLE "ProyectoPresupuesto" ADD COLUMN "tcVenta" DOUBLE PRECISION;
 
 INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
-VALUES (gen_random_uuid()::text, '6e0780a1790cefe660a54d1a585b430a8280d9d5f839825fc3f5a98efde355ee', now(), '20261101150000_proyecto_gestion_eventos', NULL, NULL, now(), 1);
+VALUES (gen_random_uuid()::text, '7f60aea6e9434cb354abec47d27a50be81d6b803d5238b240e6d252d5032f415', now(), '20261101150000_proyecto_gestion_eventos', NULL, NULL, now(), 1);
 
 COMMIT;
 
