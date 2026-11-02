@@ -128,7 +128,7 @@ export async function agregarArchivo(d: {
   if (d.datos ? !imagenValida(d.datos) : !urlValida(url)) {
     return { ok: false, error: d.datos ? "La imagen es demasiado pesada o no es válida." : "Pegá un link que empiece con https://." };
   }
-  const cuantos = await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId: d.proyectoId } });
+  const cuantos = await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId: d.proyectoId, clave: null } });
   if (cuantos >= MAX_ARCHIVOS) return { ok: false, error: `Un proyecto guarda hasta ${MAX_ARCHIVOS} archivos. Sacá alguno que ya no uses.` };
   const a = await prisma.proyectoArchivo.create({
     data: { tenantId, proyectoId: d.proyectoId, tipo, nombre, datos: d.datos || null, url: d.datos ? null : url, visibleCliente: !!d.visibleCliente && !!d.datos, subidoPor: user.name },

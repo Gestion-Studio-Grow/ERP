@@ -3,11 +3,11 @@
 // Piezas de cliente de la ficha: subir imágenes achicadas, guardar un link, abrir un stand nuevo y
 // copiar el link de la propuesta.
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
 import { crearStand } from "@/lib/proyectos/acciones";
-import { subirArchivoFicha } from "@/lib/proyectos/acciones-ficha";
+import { confirmarSubida, hayNube, pedirSubida, subirArchivoFicha, type ResultadoFicha } from "@/lib/proyectos/acciones-ficha";
 
 const campo = "min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-strong";
 const TIPOS = [["RENDER", "Render"], ["PLANO", "Plano"], ["PRESENTACION", "Presentación"], ["PRESUPUESTO", "Presupuesto"], ["CONTRATO", "Contrato"], ["OTRO", "Otro"]];
@@ -51,7 +51,41 @@ export async function archivoADatos(a: File): Promise<string> {
   });
 }
 
+/** Si está configurada la nube: mientras no conteste, se ofrece lo que anda sin ella. */
+export function useNube(): boolean {
+  const [nube, setNube] = useState(false);
+  useEffect(() => {
+    hayNube().then(setNube, () => setNube(false));
+  }, []);
+  return nube;
+}
+
+function mandarALaNube(url: string, a: File, alAvanzar?: (porcentaje: number) => void): Promise<boolean> {
+  return new Promise((listo) => {
+    const x = new XMLHttpRequest();
+    x.open("PUT", url);
+    x.upload.onprogress = (e) => {
+      if (e.lengthComputable) alAvanzar?.(Math.round((e.loaded / e.total) * 100));
+    };
+    x.onload = () => listo(x.status >= 200 && x.status < 300);
+    x.onerror = () => listo(false);
+    x.send(a);
+  });
+}
+
+/** Sube el original directo a la nube; una imagen deja además su versión achicada para la propuesta y las miniaturas. Sin nube devuelve null y se sigue como siempre. */
+export async function subirANube(a: File, d: { proyectoId: string; tipo: string; itemId?: string; visibleCliente?: boolean }, alAvanzar?: (porcentaje: number) => void): Promise<ResultadoFicha<{ id: string }> | null> {
+  const pedido = await pedirSubida({ proyectoId: d.proyectoId, nombre: a.name, tamano: a.size });
+  if (!pedido.ok) return pedido;
+  if (!pedido.url || !pedido.clave) return null;
+  if (!(await mandarALaNube(pedido.url, a, alAvanzar))) return { ok: false, error: "No se pudo subir el archivo. Revisá la conexión y probá de nuevo." };
+  const miniatura = /^image\/(jpeg|png|webp)$/.test(a.type) ? await achicar(a).catch(() => null) : null;
+  return confirmarSubida({ ...d, clave: pedido.clave, nombre: a.name, miniatura });
+}
+
 export function SubirArchivo({ proyectoId, itemId, alTerminar }: { proyectoId: string; itemId?: string; alTerminar?: () => void }) {
+  const nube = useNube();
+  const [avance, setAvance] = useState<number | null>(null);
   const [tipo, setTipo] = useState("RENDER");
   const [link, setLink] = useState("");
   const [nombre, setNombre] = useState("");
@@ -79,12 +113,12 @@ export function SubirArchivo({ proyectoId, itemId, alTerminar }: { proyectoId: s
           </select>
         </label>
         <div className="grid min-w-0 gap-1 text-sm font-medium text-strong">
-          Imagen o PDF
+          {nube ? "Archivo (hasta 200 MB)" : "Imagen o PDF"}
           <input
             ref={entrada}
             type="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf"
-            aria-label="Elegir imagen o PDF"
+            accept={nube ? undefined : "image/jpeg,image/png,image/webp,application/pdf"}
+            aria-label={nube ? "Elegir archivo" : "Elegir imagen o PDF"}
             disabled={ocupado}
             className="w-full min-w-0 text-sm"
             onChange={(e) => {
@@ -92,6 +126,20 @@ export function SubirArchivo({ proyectoId, itemId, alTerminar }: { proyectoId: s
               if (!a) return;
               setError(null);
               iniciar(async () => {
+                try {
+                  const enNube = await subirANube(a, { proyectoId, tipo, itemId, visibleCliente: tipo === "RENDER" }, setAvance);
+                  setAvance(null);
+                  if (enNube) {
+                    fin(enNube);
+                    if (entrada.current) entrada.current.value = "";
+                    return;
+                  }
+                } catch {
+                  setAvance(null);
+                  setError("No se pudo subir el archivo. Revisá la conexión y probá de nuevo.");
+                  if (entrada.current) entrada.current.value = "";
+                  return;
+                }
                 let datos: string | null = null;
                 try {
                   datos = await archivoADatos(a);
@@ -111,7 +159,8 @@ export function SubirArchivo({ proyectoId, itemId, alTerminar }: { proyectoId: s
           />
         </div>
       </div>
-      <p className="text-sm text-muted">Para archivos de más de 2 MB, planos pesados o video, pegá el link de tu nube:</p>
+      {avance !== null && <p role="status" className="text-sm font-medium text-strong">Subiendo… {avance} %</p>}
+      <p className="text-sm text-muted">{nube ? "¿Ya está en otra nube? Pegá el link:" : "Para archivos de más de 2 MB, planos pesados o video, pegá el link de tu nube:"}</p>
       <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
         <input value={nombre} onChange={(e) => setNombre(e.target.value)} aria-label="Nombre del archivo" placeholder="Nombre" maxLength={120} className={campo} />
         <input value={link} onChange={(e) => setLink(e.target.value)} aria-label="Link del archivo" placeholder="https://…" inputMode="url" className={campo} />

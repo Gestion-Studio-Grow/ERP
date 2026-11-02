@@ -3410,6 +3410,8 @@ model ProyectoArchivo {
   nombre         String
   datos          String? // imagen achicada (data URL), como las fotos del taller
   url            String? // lo pesado (PDF, CAD, video) queda en su nube: acá sólo el link
+  clave          String? // dónde está el original en Cloudflare R2; `datos` queda como imagen achicada
+  tamanoBytes    Int?
   visibleCliente Boolean  @default(false)
   itemId         String?
   subidoPor      String?

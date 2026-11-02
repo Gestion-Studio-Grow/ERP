@@ -256,7 +256,7 @@ export async function quitarMoodboard(d: { proyectoId: string; link: string }): 
 // ── Estudio ─────────────────────────────────────────────────────────────────
 
 async function guardarDelEstudio(a: Awaited<ReturnType<typeof exigirEditar>>, proyectoId: string, nombre: string, datos: string): Promise<Resultado<{ ref: string }>> {
-  if ((await prisma.proyectoArchivo.count({ where: { tenantId: a.tenantId, proyectoId } })) >= MAX_ARCHIVOS) return { ok: false, error: `Un proyecto guarda hasta ${MAX_ARCHIVOS} archivos. Sacá alguno que ya no uses.` };
+  if ((await prisma.proyectoArchivo.count({ where: { tenantId: a.tenantId, proyectoId, clave: null } })) >= MAX_ARCHIVOS) return { ok: false, error: `Un proyecto guarda hasta ${MAX_ARCHIVOS} archivos. Sacá alguno que ya no uses.` };
   const creado = await prisma.proyectoArchivo.create({ data: { tenantId: a.tenantId, proyectoId, tipo: "RENDER", nombre: `${ETIQUETA_ESTUDIO}${nombre}`.slice(0, 120), datos, subidoPor: a.nombre }, select: { id: true } });
   refrescar(proyectoId);
   return { ok: true, ref: `archivo:${creado.id}` };
@@ -368,7 +368,7 @@ export async function enviarMensajeChat(d: { proyectoId: string | null; canal: s
   const cuerpo = texto(d.texto, 4000);
   const crudo = texto(d.adjuntoUrl, 2000);
   const archivoId = String(d.archivoId ?? "");
-  const archivo = archivoId && proyectoId ? await prisma.proyectoArchivo.findFirst({ where: { id: archivoId, tenantId: a.tenantId, proyectoId, datos: { not: null } }, select: { id: true, nombre: true } }) : null;
+  const archivo = archivoId && proyectoId ? await prisma.proyectoArchivo.findFirst({ where: { id: archivoId, tenantId: a.tenantId, proyectoId, OR: [{ datos: { not: null } }, { clave: { not: null } }] }, select: { id: true, nombre: true } }) : null;
   if (archivoId && !archivo) return { ok: false, error: "Ese archivo ya no está en el proyecto." };
   const adjuntoUrl = archivo ? `/admin/proyectos/${proyectoId}/archivo/${archivo.id}` : crudo ? linkSeguro(crudo) : null;
   if (crudo && !adjuntoUrl) return { ok: false, error: "El adjunto tiene que ser un link que empiece con https://." };

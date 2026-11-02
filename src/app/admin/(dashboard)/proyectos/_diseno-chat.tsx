@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button, cn } from "@/components/ui";
 import { enviarMensajeChat } from "@/lib/proyectos/acciones-diseno";
 import { subirArchivoFicha } from "@/lib/proyectos/acciones-ficha";
-import { archivoADatos } from "./[id]/_piezas";
+import { archivoADatos, subirANube, useNube } from "./[id]/_piezas";
 import { campo, etiqueta } from "./_vista";
 
 export interface MensajeChat {
@@ -31,6 +31,7 @@ function ConMenciones({ texto }: { texto: string }) {
 }
 
 export function ChatCliente({ proyectoId, canales, mensajes, personas, puedeEscribir, conAdjunto }: { proyectoId: string | null; canales: readonly string[]; mensajes: readonly MensajeChat[]; personas: readonly string[]; puedeEscribir: boolean; conAdjunto?: boolean }) {
+  const nube = useNube();
   const [vista, setVista] = useState("todo");
   const [canal, setCanal] = useState(canales[0] ?? "general");
   const [texto, setTexto] = useState("");
@@ -152,10 +153,10 @@ export function ChatCliente({ proyectoId, canales, mensajes, personas, puedeEscr
           )}
           {proyectoId && (
             <label className="grid gap-1 text-sm font-medium text-strong">
-              {archivo ? `Adjunto: ${archivo.nombre}` : "Adjuntar imagen o PDF (hasta 2 MB)"}
+              {archivo ? `Adjunto: ${archivo.nombre}` : nube ? "Adjuntar archivo (hasta 200 MB)" : "Adjuntar imagen o PDF (hasta 2 MB)"}
               <input
                 type="file"
-                accept="image/jpeg,image/png,image/webp,application/pdf"
+                accept={nube ? undefined : "image/jpeg,image/png,image/webp,application/pdf"}
                 disabled={ocupado}
                 className="w-full min-w-0 text-sm font-normal"
                 onChange={(e) => {
@@ -165,11 +166,11 @@ export function ChatCliente({ proyectoId, canales, mensajes, personas, puedeEscr
                   setError(null);
                   iniciar(async () => {
                     try {
-                      const r = await subirArchivoFicha({ proyectoId, tipo: "OTRO", nombre: f.name, datos: await archivoADatos(f) });
+                      const r = (await subirANube(f, { proyectoId, tipo: "OTRO" })) ?? (await subirArchivoFicha({ proyectoId, tipo: "OTRO", nombre: f.name, datos: await archivoADatos(f) }));
                       if (!r.ok) return setError(r.error);
                       setArchivo({ id: r.id, nombre: f.name });
                     } catch {
-                      setError("No se pudo subir: el PDF pesa más de 2 MB o el archivo no se pudo leer.");
+                      setError(nube ? "No se pudo subir el archivo. Revisá la conexión y probá de nuevo." : "No se pudo subir: el PDF pesa más de 2 MB o el archivo no se pudo leer.");
                     }
                   });
                 }}

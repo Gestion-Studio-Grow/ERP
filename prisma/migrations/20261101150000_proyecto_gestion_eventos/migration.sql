@@ -39,7 +39,9 @@ ADD COLUMN     "supplierId" TEXT,
 ADD COLUMN     "visibleCliente" BOOLEAN NOT NULL DEFAULT true;
 
 -- AlterTable
-ALTER TABLE "ProyectoArchivo" ADD COLUMN     "itemId" TEXT;
+ALTER TABLE "ProyectoArchivo" ADD COLUMN     "clave" TEXT,
+ADD COLUMN     "itemId" TEXT,
+ADD COLUMN     "tamanoBytes" INTEGER;
 
 -- CreateTable
 CREATE TABLE "ProyectoCuota" (

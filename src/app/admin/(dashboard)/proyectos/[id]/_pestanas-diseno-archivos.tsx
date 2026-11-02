@@ -135,13 +135,13 @@ export async function PestanaArchivos({ a, cab, tipo }: { a: Actor; cab: Cabecer
             </thead>
             <tbody>
               {lista.map((f) => {
-                const ruta = f.esImagen || f.esPdf ? `/admin/proyectos/${p.id}/archivo/${f.id}` : f.url ?? "#";
+                const ruta = f.clave || f.esImagen || f.esPdf ? `/admin/proyectos/${p.id}/archivo/${f.id}` : f.url ?? "#";
                 return (
                   <tr key={f.id} className="border-t border-line align-top">
                     <td className="py-1.5 pr-2">
                       <a href={ruta} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center gap-2 underline">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        {f.esImagen && <img src={ruta} alt="" loading="lazy" className="h-10 w-14 shrink-0 rounded object-cover" />}
+                        {f.esImagen && <img src={`${ruta}?mini=1`} alt="" loading="lazy" className="h-10 w-14 shrink-0 rounded object-cover" />}
                         <span className="min-w-0 break-words">{f.nombre}</span>
                       </a>
                     </td>
@@ -161,7 +161,7 @@ export async function PestanaArchivos({ a, cab, tipo }: { a: Actor; cab: Cabecer
                         (f.itemId && items_.get(f.itemId)) || "—"
                       )}
                     </td>
-                    <td className="py-1.5 pr-2">{f.esImagen || f.esPdf ? "Subido" : "Link"}</td>
+                    <td className="py-1.5 pr-2">{f.clave || f.esImagen || f.esPdf ? "Subido" : "Link"}</td>
                     <td className="py-1.5 pr-2">{f.subidoPor ?? "—"}</td>
                     <td className="py-1.5 pr-2 whitespace-nowrap">{fechaCorta(f.createdAt)}</td>
                     <td className="py-1.5 pr-2 whitespace-nowrap">{tamano(f.tamano)}</td>

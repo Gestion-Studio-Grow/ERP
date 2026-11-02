@@ -20,12 +20,15 @@ import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, T
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
+import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, urlFirmada } from "./r2-core";
+import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
 import type { ModuloGestion } from "./gestion-core";
 
 export type ResultadoFicha<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
 const RAIZ = "/admin/proyectos";
-const MAX_ARCHIVOS = 30;
+const MAX_ARCHIVOS = 30; // los que viven en la base; los que están en la nube tienen su propio tope
+const MAX_EN_NUBE = 300;
 const MAX_IMAGEN = 1_400_000;
 const MAX_PDF = 2_800_000; // caracteres del data URL (~2 MB de PDF)
 const TIPOS_ARCHIVO = ["OTRO", "PRESUPUESTO", "PRESENTACION", "RENDER", "PLANO", "CONTRATO", "DISENO", "REFERENCIA"];
@@ -970,10 +973,58 @@ export async function subirArchivoFicha(d: { proyectoId: string; tipo: string; n
   if (d.datos ? !subido : !linkSeguro(url)) return mal(d.datos ? "El archivo es demasiado pesado o no es una imagen ni un PDF válido." : "Pegá un link que empiece con https://.");
   const itemId = d.itemId || null;
   if (itemId && !(await prisma.proyectoItem.findFirst({ where: { id: itemId, tenantId, presupuesto: { proyectoId } }, select: { id: true } }))) return mal("Ese ítem no es de este proyecto.");
-  const cuantos = await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId } });
+  const cuantos = await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId, clave: null } });
   if (cuantos >= MAX_ARCHIVOS) return mal(`Un proyecto guarda hasta ${MAX_ARCHIVOS} archivos. Sacá alguno que ya no uses.`);
   const nuevo = await prisma.proyectoArchivo.create({
     data: { tenantId, proyectoId, tipo, nombre, datos: d.datos || null, url: d.datos ? null : url, visibleCliente: !!d.visibleCliente && subido === "imagen", itemId, subidoPor: a.nombre },
+    select: { id: true },
+  });
+  refrescar(proyectoId);
+  return { ok: true, id: nuevo.id };
+}
+
+export async function hayNube(): Promise<boolean> {
+  return configR2() !== null;
+}
+
+/** El archivo va del navegador a la nube sin pasar por acá: esto da permiso para una subida, a un lugar y por un rato. Sin nube, url = null. */
+export async function pedirSubida(d: { proyectoId: string; nombre: string; tamano: number }): Promise<ResultadoFicha<{ url: string | null; clave: string | null }>> {
+  const proyectoId = String(d.proyectoId ?? "");
+  const a = await entrar(["ficha", "diseno"], proyectoId);
+  if (typeof a === "string") return mal(a);
+  const c = configR2();
+  if (!c) return { ok: true, url: null, clave: null };
+  const problema = archivoAdmitido(String(d.nombre ?? ""), Number(d.tamano));
+  if (problema) return mal(problema);
+  if ((await prisma.proyectoArchivo.count({ where: { tenantId: a.tenantId, proyectoId, clave: { not: null } } })) >= MAX_EN_NUBE) return mal(`Un proyecto guarda hasta ${MAX_EN_NUBE} archivos. Sacá alguno que ya no uses.`);
+  const clave = claveDeArchivo(a.tenantId, proyectoId, randomBytes(12).toString("hex"), String(d.nombre));
+  return { ok: true, clave, url: urlFirmada(c, { metodo: "PUT", clave, ahora: new Date(), segundos: MINUTOS_SUBIDA * 60 }) };
+}
+
+/** Recién acá el archivo existe para el sistema, y con lo que pesa de verdad: el link firmado no limita el tamaño. */
+export async function confirmarSubida(d: { proyectoId: string; clave: string; nombre: string; tipo: string; itemId?: string | null; miniatura?: string | null; visibleCliente?: boolean }): Promise<ResultadoFicha<{ id: string }>> {
+  const proyectoId = String(d.proyectoId ?? "");
+  const a = await entrar(["ficha", "diseno"], proyectoId);
+  if (typeof a === "string") return mal(a);
+  const { tenantId } = a;
+  const c = configR2();
+  const clave = String(d.clave ?? "");
+  if (!c || !claveEsDelProyecto(clave, tenantId, proyectoId)) return mal("Esa subida no es de este proyecto.");
+  if (await prisma.proyectoArchivo.findFirst({ where: { tenantId, clave }, select: { id: true } })) return mal("Ese archivo ya está guardado.");
+  const nombre = (d.nombre ?? "").trim().slice(-120) || "Archivo";
+  const tamano = await tamanoEnNube(c, clave);
+  if (tamano === null) return mal("El archivo no llegó a la nube. Probá de nuevo.");
+  const problema = archivoAdmitido(nombre, tamano);
+  const itemId = d.itemId || null;
+  const itemAjeno = itemId && !(await prisma.proyectoItem.findFirst({ where: { id: itemId, tenantId, presupuesto: { proyectoId } }, select: { id: true } }));
+  if (problema || itemAjeno) {
+    await borrarDeNube(clave);
+    return mal(problema ?? "Ese ítem no es de este proyecto.");
+  }
+  // La base guarda hasta MAX_ARCHIVOS imágenes achicadas; de ahí en más el archivo se guarda igual, sin miniatura.
+  const entraMiniatura = typeof d.miniatura === "string" && tipoDeArchivoSubido(d.miniatura, MAX_IMAGEN, MAX_PDF) === "imagen" && (await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId, datos: { not: null } } })) < MAX_ARCHIVOS;
+  const nuevo = await prisma.proyectoArchivo.create({
+    data: { tenantId, proyectoId, tipo: TIPOS_ARCHIVO.includes(d.tipo) ? d.tipo : "OTRO", nombre, clave, tamanoBytes: tamano, datos: entraMiniatura ? d.miniatura : null, visibleCliente: !!d.visibleCliente && entraMiniatura, itemId, subidoPor: a.nombre },
     select: { id: true },
   });
   refrescar(proyectoId);
@@ -1005,9 +1056,10 @@ export async function borrarArchivoFicha(formData: FormData): Promise<ResultadoF
   const a = await entrar(["ficha", "diseno"], proyectoId);
   if (typeof a === "string") return mal(a);
   const id = txt(formData.get("id"));
-  const f = await prisma.proyectoArchivo.findFirst({ where: { id, proyectoId, tenantId: a.tenantId }, select: { nombre: true } });
+  const f = await prisma.proyectoArchivo.findFirst({ where: { id, proyectoId, tenantId: a.tenantId }, select: { nombre: true, clave: true } });
   if (!f) return mal("Ese archivo ya no existe.");
   await prisma.proyectoArchivo.deleteMany({ where: { id, proyectoId, tenantId: a.tenantId } });
+  if (f.clave) await borrarDeNube(f.clave);
   await auditAdmin({ action: "proyecto.archivo.borrar", entity: "ProyectoArchivo", entityId: id, changes: { nombre: f.nombre } });
   refrescar(proyectoId);
   return { ok: true };
