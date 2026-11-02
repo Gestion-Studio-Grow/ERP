@@ -364,7 +364,18 @@ function TurnoDeCajero({ caja, className = "mt-8", diaCerrado = false }: { caja:
   );
 }
 
-export default function CajaRenglon({ dia, caja, regla = null }: { dia: Dia; caja: Turno | null; regla?: string | null }) {
+export default function CajaRenglon({
+  dia,
+  caja,
+  regla = null,
+  cobrarVenta = null,
+}: {
+  dia: Dia;
+  caja: Turno | null;
+  regla?: string | null;
+  /** «Cobrar una venta», sólo en CH y para quien vende (cobrar-una-venta.ts). */
+  cobrarVenta?: { href: string; etiqueta: string } | null;
+}) {
   const deHoy = dia.movements.filter((m) => m.day === dia.day).length;
   return (
     <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
@@ -384,6 +395,11 @@ export default function CajaRenglon({ dia, caja, regla = null }: { dia: Dia; caj
         {!dia.yaCerrado && (
           <div className="flex flex-wrap gap-2">
             <CargarMovimiento dia={dia.day} esMostrador={caja !== null} />
+            {cobrarVenta && (
+              <Link href={cobrarVenta.href} className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+                {cobrarVenta.etiqueta}
+              </Link>
+            )}
             {dia.puedeCerrar && (
               <Link href="/admin/caja/cierre" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")}>
                 Cerrar el día

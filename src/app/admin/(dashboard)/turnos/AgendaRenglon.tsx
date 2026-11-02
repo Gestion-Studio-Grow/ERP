@@ -42,6 +42,8 @@ import { esFechaDeCalendario, hrefDiaDeLaAgenda, hrefNuevoTurno, vacioDiaSinTurn
 import LinkAlDia from "./_agenda/LinkAlDia";
 import BotonBuscar from "../armazon/BotonBuscar";
 import AtajosDelAlta from "./_agenda/AtajosDelAlta";
+import { enlaceCobrarUnaVenta } from "../pedidos/cobrar-una-venta";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import LibroDelDia from "./_agenda/LibroDelDia";
 import { RenglonDeManana } from "./_agenda/ParaManana";
 import OtroDia from "./_agenda/OtroDia";
@@ -126,6 +128,7 @@ export default async function AgendaRenglon({
   };
   // Mañana, sólo mirando HOY y para quien gestiona la agenda (como siempre).
   const verManana = permisos.gestionar && dia === hoy;
+  const cobrarVenta = enlaceCobrarUnaVenta(await getCurrentTenantSlug(), quien.role);
   const [cruda, manana, piloto, negocio, pendientes] = await Promise.all([
     getAgendaDay(dia),
     verManana ? getMananaConfirmar() : Promise.resolve(null),
@@ -194,6 +197,11 @@ export default async function AgendaRenglon({
           <>
             {/* Las entradas fijas al alta nueva (cert CH T2, F-2/F-4). Con el alta ya abierta, no. */}
             {permisos.gestionar && !alta && <AtajosDelAlta fecha={dia} hoy={hoy} />}
+            {cobrarVenta && (
+              <Link href={cobrarVenta.href} className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+                {cobrarVenta.etiqueta}
+              </Link>
+            )}
             {/* En el celular no hay «/»: el buscador de clientas y turnos, a un toque (CH-028). */}
             <BotonBuscar />
             <ElDia dia={dia} hoy={hoy} vista={vista} />

@@ -15,6 +15,8 @@ import { frozenDayMessage } from "@/lib/caja/cierre-diario";
 import { OpenCajaForm, CloseCajaForm } from "./CajaForms";
 import { AddLibroEntryForm } from "./libro/LibroForms";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { enlaceCobrarUnaVenta } from "../pedidos/cobrar-una-venta";
 import CajaRenglon from "./CajaRenglon";
 
 export const dynamic = "force-dynamic";
@@ -68,7 +70,7 @@ function movementSignLabel(type: string): "+" | "−" | "" {
 export default async function CajaPage() {
   // La guardia de la app (rol, rubro, edición) va en la página, como en el resto del panel: quien
   // no puede abrirla ve "App no disponible" en vez de rebotar en silencio desde el loader.
-  await requireApp("caja-del-dia");
+  const user = await requireApp("caja-del-dia");
   // Mismo loader que el Cierre del día: la aritmética del resumen es LA MISMA
   // (`buildCierreDiario`), así que lo que se lee acá a las 16 es exactamente lo que va a
   // aparecer a las 20 al cerrar. Cero cálculo nuevo, cero segunda verdad.
@@ -78,20 +80,28 @@ export default async function CajaPage() {
   // base). El turno de cajero sigue consultándose sólo donde hay cajón: sin cajón, es una
   // consulta al pedo, así que espera a saber el rubro (que el layout del panel ya pidió en el
   // mismo pedido) y el día no lo espera a él.
-  const [dia, caja, nuevo] = await Promise.all([
+  const [dia, caja, nuevo, slug] = await Promise.all([
     getCierreDiarioData(),
     tieneCajonFisico().then((conCajon) => (conCajon ? getCajaData() : null)),
     // «Diseño nuevo»: la lectura de interruptores del layout, cacheada (no suma viajes).
     disenoNuevo(),
+    getCurrentTenantSlug(),
   ]);
+  // Con el día cerrado no se vende (lo dice el servidor): no se ofrece.
+  const cobrarVenta = dia.yaCerrado ? null : enlaceCobrarUnaVenta(slug, user.role);
 
   // DISEÑO NUEVO («Renglón»): los mismos datos, ordenados para quien pasa el día acá.
   // La regla del arqueo, sólo donde hay cajón (el mostrador; CH no la ve): reglas-a-la-vista.ts.
-  if (nuevo) return <CajaRenglon dia={dia} caja={caja} regla={reglaALaVista("caja", caja !== null)} />;
+  if (nuevo) return <CajaRenglon dia={dia} caja={caja} regla={reglaALaVista("caja", caja !== null)} cobrarVenta={cobrarVenta} />;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
       <h1 className="text-2xl font-semibold mb-1 text-strong">Caja</h1>
+      {cobrarVenta && (
+        <Link href={cobrarVenta.href} className="mb-2 inline-flex min-h-11 items-center text-sm text-strong underline underline-offset-4">
+          {cobrarVenta.etiqueta}
+        </Link>
+      )}
       <p className="text-muted mb-6 max-w-2xl">
         Lo que hay ahora por cada medio de pago y todo lo que se movió hoy.{" "}
         {caja ? "Las ventas del mostrador entran solas" : "Los cobros de turnos y las ventas entran solos"}, por cualquier medio: acá se cargan
