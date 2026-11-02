@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { BotonEliminarStand } from "../../_piezas";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
 import { agregarArchivo, computoAlPresupuesto, guardarStand } from "@/lib/proyectos/acciones";
@@ -476,6 +477,7 @@ export default function ArmadorStand({
             </button>
           )}
           <Link href={`/admin/proyectos/${proyectoId}`} className={cn(buttonClasses("ghost", "lg"), "justify-center")}>Volver al proyecto</Link>
+          <BotonEliminarStand id={id} nombre={nombre} proyectoId={proyectoId} alEliminar="volver" ancho />
         </div>
       </div>
     </div>

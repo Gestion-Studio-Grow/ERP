@@ -12,7 +12,7 @@ import type { Actor } from "@/lib/proyectos/gestion.server";
 import { puede } from "@/lib/proyectos/gestion.server";
 import { campo, tarjeta } from "../_vista";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
-import { BotonNuevoStand, BotonStandConIA, CopiarLink, SubirArchivo } from "./_piezas";
+import { BotonEliminarStand, BotonNuevoStand, BotonStandConIA, CopiarLink, SubirArchivo } from "./_piezas";
 
 export async function ArmadorYPiezas({ a, cab }: { a: Actor; cab: Cabecera }) {
   const { proyecto: p, negocio } = cab;
@@ -27,10 +27,11 @@ export async function ArmadorYPiezas({ a, cab }: { a: Actor; cab: Cabecera }) {
         {stands.length === 0 && <p className="mb-3 text-sm text-muted">Todavía no hay opciones armadas.</p>}
         <ul className="mb-3 grid gap-2">
           {stands.map((s) => (
-            <li key={s.id}>
-              <Link href={`/admin/proyectos/${p.id}/stand/${s.id}`} className="flex min-h-11 items-center justify-between rounded-lg border border-line px-3 text-sm font-medium text-strong hover:border-accent">
+            <li key={s.id} className="grid gap-1 sm:flex sm:items-start sm:gap-2">
+              <Link href={`/admin/proyectos/${p.id}/stand/${s.id}`} className="flex min-h-11 flex-1 items-center justify-between rounded-lg border border-line px-3 text-sm font-medium text-strong hover:border-accent">
                 {s.nombre}<span className="text-xs font-normal text-muted">Abrir</span>
               </Link>
+              {edita && <BotonEliminarStand id={s.id} nombre={s.nombre} proyectoId={p.id} alEliminar="refrescar" />}
             </li>
           ))}
         </ul>

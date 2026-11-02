@@ -84,6 +84,21 @@ ok(foto && foto.extras.ancho === 2.4 && foto.extras.alto === 2.4 && foto.extras.
 // El marco de selección son líneas (modo 1 de glTF): no tienen que estar en el modelo, aunque la pieza esté elegida.
 ok(!(json.meshes ?? []).some((mesh) => mesh.primitives.some((p) => p.mode === 1)), "sin marco de selección en el modelo");
 
+// Eliminar la maqueta desde el editor: pide confirmación, «No» cancela y «Sí» la elimina y vuelve al proyecto.
+const standId = page.url().split("/stand/")[1]?.split(/[?#]/)[0] ?? "";
+await page.getByRole("button", { name: /Eliminar la maqueta/ }).click();
+ok(await page.getByRole("alertdialog").isVisible(), "eliminar pide confirmación");
+await page.getByRole("button", { name: "No", exact: true }).click();
+ok(page.url().includes("/stand/") && !(await page.getByRole("alertdialog").count()), "«No» cancela y sigue en el editor");
+await page.getByRole("button", { name: /Eliminar la maqueta/ }).click();
+await page.getByRole("button", { name: "Sí, eliminar" }).click();
+await page.waitForURL((u) => !u.pathname.includes("/stand/"), { timeout: 20000 });
+await page.waitForLoadState("networkidle");
+await page.waitForTimeout(2500);
+ok(standId.length > 5 && (await page.locator(`a[href*="${standId}"]`).count()) === 0, "la maqueta eliminada ya no está en la lista del proyecto");
+const respuesta = await page.evaluate(async (id) => (await fetch(`/admin/proyectos/x/stand/${id}`)).status, standId);
+ok(respuesta !== 500, `pedir la maqueta eliminada no rompe (estado ${respuesta})`);
+
 if (errores.length) console.log(errores.join("\n"));
 await n.close();
 console.log(fallas.length ? `\n✖ ${fallas.length} fallas` : "\n✔ editor sin fallas");

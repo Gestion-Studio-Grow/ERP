@@ -491,6 +491,18 @@ export async function guardarStand(d: { id: string; nombre: string; diseno: Dise
   return { ok: true };
 }
 
+/** Elimina una maqueta. Los renglones que ya pasaron al presupuesto no se tocan: el presupuesto tiene su propia vida. */
+export async function eliminarStand(d: { id: string }): Promise<Resultado<{ proyectoId: string }>> {
+  const a = await actorCon(["ficha", "diseno"]);
+  const { tenantId } = a;
+  const s = await prisma.proyectoStand.findFirst({ where: { id: d.id, tenantId }, select: { proyectoId: true } });
+  if (!s || !(await proyectoDelActor(a, s.proyectoId))) return { ok: false, error: "Ese stand no existe." };
+  const r = await prisma.proyectoStand.deleteMany({ where: { id: d.id, tenantId } });
+  if (r.count === 0) return { ok: false, error: "Ese stand no existe." };
+  refrescar(s.proyectoId);
+  return { ok: true, proyectoId: s.proyectoId };
+}
+
 /** Pasa el cómputo del stand al presupuesto en borrador. Reemplaza lo que vino de ESTE stand, no lo cargado a mano. */
 export async function computoAlPresupuesto(d: { standId: string }): Promise<Resultado<{ lineas: number; proyectoId: string }>> {
   const a = await actorCon(["ficha"]);

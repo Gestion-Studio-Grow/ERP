@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
-import { crearStand } from "@/lib/proyectos/acciones";
+import { crearStand, eliminarStand } from "@/lib/proyectos/acciones";
 import { armarStandConIA, armarStandsConIA, type AlternativaStand } from "@/lib/proyectos/acciones-diseno";
 import { confirmarSubida, hayNube, pedirSubida, subirArchivoFicha, type ResultadoFicha } from "@/lib/proyectos/acciones-ficha";
 
@@ -207,6 +207,46 @@ export function BotonNuevoStand({ proyectoId }: { proyectoId: string }) {
       </button>
       {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
     </>
+  );
+}
+
+/** Elimina una maqueta tras una confirmación. Lo que ya pasó al presupuesto se conserva. `alEliminar`: refrescar la lista o volver al proyecto. */
+export function BotonEliminarStand({ id, nombre, proyectoId, alEliminar, ancho }: { id: string; nombre: string; proyectoId: string; alEliminar: "refrescar" | "volver"; ancho?: boolean }) {
+  const [ocupado, iniciar] = useTransition();
+  const [abierto, setAbierto] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  if (!abierto) {
+    return (
+      <button type="button" aria-label={`Eliminar la maqueta ${nombre}`} onClick={() => setAbierto(true)} className={cn(buttonClasses("ghost", "md"), "min-h-11 text-danger", ancho && "w-full justify-center")}>
+        Eliminar{ancho ? " esta maqueta" : ""}
+      </button>
+    );
+  }
+  return (
+    <div role="alertdialog" aria-label="Confirmar la eliminación" className="grid gap-2 rounded-lg border border-danger p-2 text-sm text-strong">
+      <p>¿Eliminar «{nombre}»? No se puede deshacer. Los renglones que ya pasaron al presupuesto se conservan.</p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={ocupado}
+          className={cn(buttonClasses("solid", "md"), "min-h-11 flex-1 justify-center")}
+          onClick={() =>
+            iniciar(async () => {
+              setError(null);
+              const r = await eliminarStand({ id });
+              if (!r.ok) return setError(r.error);
+              if (alEliminar === "volver") router.push(`/admin/proyectos/${proyectoId}?tab=diseno`);
+              else router.refresh();
+            })
+          }
+        >
+          {ocupado ? "Eliminando…" : "Sí, eliminar"}
+        </button>
+        <button type="button" disabled={ocupado} className={cn(buttonClasses("ghost", "md"), "min-h-11 flex-1 justify-center")} onClick={() => setAbierto(false)}>No</button>
+      </div>
+      {error && <p role="alert" className="font-medium text-danger">{error}</p>}
+    </div>
   );
 }
 
