@@ -13,13 +13,14 @@ import { Button, Cajon } from "@/components/ui";
 export default function MostradorEnCajon({ servicios, etiqueta = "Cobrar en el mostrador", children }: { servicios: boolean; etiqueta?: string; children: React.ReactNode }) {
   const params = useSearchParams();
   const [abierto, setAbierto] = useState(params.get("cobrar") === "1");
-  // «¿Salió mal? Anular la venta» se toca adentro del cajón y queda en esta misma pantalla: sin esto
-  // el cajón seguía abierto, tapando el formulario de anular que se acaba de pedir.
-  const anular = params.get("anular");
-  const [anularVisto, setAnularVisto] = useState(anular);
-  if (anular !== anularVisto) {
-    setAnularVisto(anular);
-    if (anular) setAbierto(false);
+  // «¿Salió mal? Anular la venta» se toca adentro del cajón y queda en esta misma pantalla, en
+  // Cerrados: sin esto el cajón seguía abierto, tapando la lista donde se anula. Se mira `venta` y no
+  // `estado`: si ya se estaba en Cerrados, sólo cambia la venta.
+  const venta = params.get("venta");
+  const [ventaVista, setVentaVista] = useState(venta);
+  if (venta !== ventaVista) {
+    setVentaVista(venta);
+    if (venta) setAbierto(false);
   }
   return (
     <>

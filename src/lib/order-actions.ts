@@ -151,18 +151,6 @@ function revalidarMostrador() {
 // Cuántos cerrados muestra la bandeja: es historial, no trabajo pendiente.
 const CERRADOS_EN_BANDEJA = 20;
 
-const SELECT_CERRADO_DE_LA_BANDEJA = { id: true, code: true, status: true, customerName: true, total: true, createdAt: true, paid: true, paymentMethod: true } as const;
-
-/**
- * Un cerrado puntual, del negocio y por el mismo filtro de la bandeja: el enlace para anular una venta
- * que quedó afuera de los últimos. Un id ajeno o de un pedido abierto no devuelve nada.
- */
-export async function leerCerradoDeLaBandeja(id: string) {
-  await requireCapability("orders:read");
-  const tenantId = await getCurrentTenantId();
-  return prisma.order.findMany({ where: { AND: [wherePedidosCerrados(tenantId), { id }] }, take: 1, select: SELECT_CERRADO_DE_LA_BANDEJA });
-}
-
 /**
  * La clienta de un turno, para cargarla en la venta («Sumar un producto»). Del negocio y para quien
  * puede vender. Sólo lee: la venta va por `createOrder`, como cualquier otra.
@@ -209,7 +197,7 @@ export async function getPosData({ productos = "lista" }: { productos?: "lista" 
       where: wherePedidosCerrados(tenantId),
       orderBy: { createdAt: "desc" },
       take: CERRADOS_EN_BANDEJA,
-      select: SELECT_CERRADO_DE_LA_BANDEJA,
+      select: { id: true, code: true, status: true, customerName: true, total: true, createdAt: true, paid: true, paymentMethod: true },
     }),
     // Solo productos vendibles: activos, no borrados, con algún precio cargado.
     productos === "lista"

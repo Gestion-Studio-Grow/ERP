@@ -16,17 +16,19 @@ export function rutaParaAnularLaVenta(id: string): string {
 
 /**
  * Lo mismo donde no existe Ventas del día (CH: `ventas-del-dia` pide el módulo `pos`, que no tiene):
- * la venta se anula desde Pedidos, que abre ahí mismo su formulario de anular. El ancla es sólo para
- * el diseño de siempre, donde el formulario abre en su renglón; en el nuevo abre un diálogo.
+ * lleva a Pedidos, a Cerrados, y la persona toca «Anular» en la fila de la venta. No abre el formulario
+ * sola: así lo decidió el dueño (abrirlo desde la URL congelaba la pantalla al anular, 3 de cada 5).
+ * `venta` cierra el cajón del mostrador aunque ya se estuviera en Cerrados; el ancla ubica la fila en
+ * el diseño de siempre, donde los cerrados van debajo de los abiertos.
  */
-export function rutaParaAnularEnPedidos(id: string, { conAncla = false }: { conAncla?: boolean } = {}): string {
+export function rutaParaAnularEnCerrados(id: string): string {
   const seguro = encodeURIComponent(id);
-  return `/admin/pedidos?anular=${seguro}${conAncla ? `#pedido-${seguro}` : ""}`;
+  return `/admin/pedidos?estado=cerrados&venta=${seguro}#pedido-${seguro}`;
 }
 
 /** Adónde lleva «¿Salió mal? Anular la venta», según tenga o no Ventas del día el negocio. */
-export function rutaDeAnulacion(id: string, { sinVentasDelDia, conAncla = false }: { sinVentasDelDia: boolean; conAncla?: boolean }): string {
-  return sinVentasDelDia ? rutaParaAnularEnPedidos(id, { conAncla }) : rutaParaAnularLaVenta(id);
+export function rutaDeAnulacion(id: string, { sinVentasDelDia }: { sinVentasDelDia: boolean }): string {
+  return sinVentasDelDia ? rutaParaAnularEnCerrados(id) : rutaParaAnularLaVenta(id);
 }
 
 export type CanalDeVenta = "COUNTER" | "ONLINE";

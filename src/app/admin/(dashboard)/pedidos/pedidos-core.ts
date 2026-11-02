@@ -817,20 +817,3 @@ export function puedeMarcarNoRetiro(p: Pick<PedidoDelTablero, "status" | "entreg
 
 // «Recordarle» el pago de un pedido entregado sin cobrar: el texto es UNO solo para la bandeja y la
 // ficha, `recordatorioDePago` (src/lib/clientes/fiado.ts, con `pedido`). Lo arma tablero.server.ts.
-
-/**
- * `?anular=<id>` (lo manda «¿Salió mal? Anular la venta»): una venta ya cerrada abre el diálogo de
- * anular; un pedido en curso abre su cajón, donde está «Anular». Sin permiso o fuera de lista, nada:
- * el servidor es quien decide, esto sólo ofrece. PURA.
- */
-export function destinoDeAnular<A extends { id: string }, C extends { id: string; anulable: boolean }>(
-  id: string | null,
-  abiertos: readonly A[],
-  cerrados: readonly C[],
-): { tipo: "cajon"; pedido: A } | { tipo: "dialogo"; pedido: C } | null {
-  if (!id) return null;
-  const abierto = abiertos.find((p) => p.id === id);
-  if (abierto) return { tipo: "cajon", pedido: abierto };
-  const cerrado = cerrados.find((p) => p.id === id);
-  return cerrado?.anulable ? { tipo: "dialogo", pedido: cerrado } : null;
-}

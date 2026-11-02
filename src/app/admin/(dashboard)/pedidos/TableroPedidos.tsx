@@ -60,7 +60,6 @@ import {
   ETIQUETA_DEL_ESTADO,
   ORDENABLES,
   conteosDelTablero,
-  destinoDeAnular,
   filtrarPedidos,
   leerFiltrosDelTablero,
   loteDelTablero,
@@ -807,7 +806,6 @@ export default function TableroPedidos({
   const [seccion, setSeccion] = useState<SeccionDelCajon>(null);
   const [avisar, setAvisar] = useState<string[]>([]);
   const [anularCerrado, setAnularCerrado] = useState<PedidoCerrado | null>(null);
-  const [anularDescartado, setAnularDescartado] = useState<string | null>(null);
   const [noRetiro, setNoRetiro] = useState<PedidoDelTablero | null>(null);
   const empujado = useRef(false);
   // MOSTRADOR BOUTIQUE (2C): la bandeja en columnas. `?vista=lista` vuelve a la tabla de siempre
@@ -830,18 +828,8 @@ export default function TableroPedidos({
   // Sólo comercio: la bandeja de CH queda como estaba.
   const otrosDeLaClienta = comercio ? otrosPedidosDeLaClienta(abiertos) : new Map<string, number[]>();
 
-  // El diálogo pedido por URL se cierra EN EL MOMENTO, con estado: la URL cambia en una transición de
-  // Next y el diálogo no la espera.
-  const anularDeLaUrl = params.get("anular");
-  const pedirAnular = destinoDeAnular(anularDeLaUrl === anularDescartado ? null : anularDeLaUrl, abiertos, cerrados);
-  const idAbierto = params.get("pedido") ?? (pedirAnular?.tipo === "cajon" ? pedirAnular.pedido.id : null);
+  const idAbierto = params.get("pedido");
   const pedidoAbierto = idAbierto ? (abiertos.find((p) => p.id === idAbierto) ?? null) : null;
-  const cerradoAAnular = anularCerrado ?? (pedirAnular?.tipo === "dialogo" ? pedirAnular.pedido : null);
-  const cerrarAnularCerrado = () => {
-    setAnularCerrado(null);
-    setAnularDescartado(anularDeLaUrl);
-    cambiarUrl({ anular: null });
-  };
 
   const abrir = (id: string, sec: SeccionDelCajon = null) => {
     setSeccion(sec);
@@ -853,7 +841,7 @@ export default function TableroPedidos({
     if (empujado.current) {
       empujado.current = false;
       window.history.back();
-    } else cambiarUrl({ pedido: null, anular: null });
+    } else cambiarUrl({ pedido: null });
   };
 
   // Enter abre el pedido con foco de fila (la tabla mueve el foco; el cajón lo abre el tablero),
@@ -1206,23 +1194,23 @@ export default function TableroPedidos({
         onCerrar={() => setAvisar([])}
       />
 
-      {cerradoAAnular && anulacion && (
+      {anularCerrado && anulacion && (
         <Dialogo
           abierto
-          onCerrar={cerrarAnularCerrado}
-          titulo={`Anular ${comercio ? "el pedido" : "la venta"} #${cerradoAAnular.code}`}
-          descripcion={`${cerradoAAnular.cliente} · ${cerradoAAnular.cuando}`}
+          onCerrar={() => setAnularCerrado(null)}
+          titulo={`Anular ${comercio ? "el pedido" : "la venta"} #${anularCerrado.code}`}
+          descripcion={`${anularCerrado.cliente} · ${anularCerrado.cuando}`}
         >
           <AnularDelPedido
-            id={cerradoAAnular.id}
-            code={cerradoAAnular.code}
-            cobrado={cerradoAAnular.cobrado}
-            aCuenta={cerradoAAnular.aCuenta}
-            total={cerradoAAnular.total}
+            id={anularCerrado.id}
+            code={anularCerrado.code}
+            cobrado={anularCerrado.cobrado}
+            aCuenta={anularCerrado.aCuenta}
+            total={anularCerrado.total}
             motivoObligatorio={anulacion.motivoObligatorio}
             conCodigo={anulacion.conCodigo}
             sustantivo={comercio ? "pedido" : "venta"}
-            onHecho={cerrarAnularCerrado}
+            onHecho={() => setAnularCerrado(null)}
           />
         </Dialogo>
       )}
