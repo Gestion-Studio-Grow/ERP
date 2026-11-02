@@ -5,9 +5,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, cn } from "@/components/ui";
-import { agregarMoodboard, alternarImagenIdea, guardarIdea, proponerIdea, quitarMoodboard } from "@/lib/proyectos/acciones-diseno";
+import { agregarMoodboard, alternarImagenIdea, eliminarImagenDelProyecto, guardarIdea, proponerIdea, quitarMoodboard } from "@/lib/proyectos/acciones-diseno";
 import { srcDeImagen, type Moodboard } from "@/lib/proyectos/diseno-core";
 import { campo, etiqueta, tarjeta } from "./_vista";
+import { VisorImagen } from "./_visor-imagen";
 
 const CAMPOS = [
   { id: "concepto", label: "Concepto", filas: 4 },
@@ -98,18 +99,71 @@ export function FormIdea({ proyectoId, inicial, puedeEditar, iaLista, mostrarPed
 export function GrillaImagenes({ proyectoId, imagenes, puedeEditar, vacio }: { proyectoId: string; imagenes: readonly { ref: string; nombre: string; elegida: boolean }[]; puedeEditar: boolean; vacio: string }) {
   const [error, setError] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
+  const [viendo, setViendo] = useState<number | null>(null);
+  const [confirmando, setConfirmando] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const router = useRouter();
-  if (imagenes.length === 0) return <p className="text-sm text-muted">{vacio}</p>;
+  if (imagenes.length === 0) {
+    return (
+      <div className="grid gap-2">
+        <p className="text-sm text-muted">{vacio}</p>
+        {aviso && <p role="status" className="text-sm text-strong">{aviso}</p>}
+        {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
+      </div>
+    );
+  }
+  const paraVisor = imagenes.map((i) => ({ src: srcDeImagen(i.ref) ?? "", nombre: i.nombre })).filter((v) => v.src);
   return (
     <div className="grid gap-2">
+      {viendo !== null && paraVisor[viendo] && <VisorImagen imagenes={paraVisor} indice={viendo} alCerrar={() => setViendo(null)} alCambiar={setViendo} />}
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {imagenes.map((i) => {
           const src = srcDeImagen(i.ref);
+          const posicion = src ? paraVisor.findIndex((v) => v.src === src) : -1;
           return (
             <li key={i.ref} className={cn(tarjeta, "grid min-w-0 content-start gap-2 p-2", i.elegida && "border-accent")}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {src ? <img src={src} alt={i.nombre} loading="lazy" className="aspect-[4/3] w-full rounded-lg object-cover" /> : <span className="text-xs text-muted">Sin imagen</span>}
+              {src ? (
+                <button type="button" aria-label={`Ampliar la imagen ${i.nombre}`} onClick={() => setViendo(posicion >= 0 ? posicion : 0)} className="block min-h-11 w-full cursor-zoom-in overflow-hidden rounded-lg">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt={i.nombre} loading="lazy" className="aspect-[4/3] w-full object-cover" />
+                </button>
+              ) : (
+                <span className="text-xs text-muted">Sin imagen</span>
+              )}
               <p className="truncate text-xs text-muted" title={i.nombre}>{i.nombre}</p>
+              {puedeEditar && i.ref.startsWith("archivo:") && (
+                confirmando === i.ref ? (
+                  <div role="alertdialog" aria-label="Confirmar la eliminación" className="grid gap-1 rounded-lg border border-danger p-2 text-xs text-strong">
+                    <p>¿Eliminar esta imagen? No se puede deshacer.</p>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        disabled={ocupado}
+                        onClick={() => {
+                          setError(null);
+                          setAviso(null);
+                          iniciar(async () => {
+                            try {
+                              const r = await eliminarImagenDelProyecto({ proyectoId, ref: i.ref });
+                              setConfirmando(null);
+                              if (!r.ok) return setError(r.error);
+                              if (r.quitadaDeLaFicha) setAviso("Se eliminó y se sacó de la ficha.");
+                              router.refresh();
+                            } catch {
+                              setError("No se pudo eliminar. Probá de nuevo.");
+                            }
+                          });
+                        }}
+                      >
+                        {ocupado ? "Eliminando…" : "Sí, eliminar"}
+                      </Button>
+                      <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => setConfirmando(null)}>No</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="ghost" aria-label={`Eliminar la imagen ${i.nombre}`} disabled={ocupado} onClick={() => setConfirmando(i.ref)}>Eliminar</Button>
+                )
+              )}
               {puedeEditar ? (
                 <Button
                   size="sm"
@@ -138,6 +192,7 @@ export function GrillaImagenes({ proyectoId, imagenes, puedeEditar, vacio }: { p
           );
         })}
       </ul>
+      {aviso && <p role="status" className="text-sm text-strong">{aviso}</p>}
       {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
     </div>
   );

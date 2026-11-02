@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mezclarBrief, validarBriefDeModelo, tipoEventoDeTexto, resumenParaLead, acotarEntrante, acuseDeRecibo, acuseSinPreguntas, armarPreguntas, clasificarConsulta, emailValido, enlaceWhatsApp, faltantes, normalizarTelefonoAR, puedeCotizar, respuestaAutomatica, revisarRespuesta, type BriefConsulta, type Intencion } from "./consulta-core";
+import { esDemorada, esperaSinRespuestaHumana, ordenarBandeja, textoDeEspera, mezclarBrief, validarBriefDeModelo, tipoEventoDeTexto, resumenParaLead, acotarEntrante, acuseDeRecibo, acuseSinPreguntas, armarPreguntas, clasificarConsulta, emailValido, enlaceWhatsApp, faltantes, normalizarTelefonoAR, puedeCotizar, respuestaAutomatica, revisarRespuesta, type BriefConsulta, type Intencion } from "./consulta-core";
 
 // Consultas como las que llegan: el conjunto con que se mide la clasificación. Si una regla nueva cambia alguna, la prueba lo dice.
 const EJEMPLOS: [string, Intencion][] = [
@@ -199,4 +199,40 @@ test("al mezclar el brief, lo confirmado no se pisa con algo menos firme ni un p
   assert.deepEqual(m.fecha, { estado: "INFERIDO", valor: "abril" });
   assert.deepEqual(m.ubicacion, { estado: "CONFIRMADO", valor: "Córdoba" });
   assert.deepEqual(m.objetivo, { estado: "INFERIDO", valor: "ventas" });
+});
+
+const H = 3_600_000;
+const t0 = new Date("2026-11-02T12:00:00Z");
+const en = (horas: number) => new Date(t0.getTime() + horas * H);
+const msg = (direccion: string, origen: string, envio: string, horas: number) => ({ direccion, origen, envio, createdAt: en(horas) });
+
+test("el acuse automático no cuenta como atención: sólo una persona (o un borrador aprobado) después del último mensaje del cliente", () => {
+  const ahora = en(5);
+  const cliente = msg("ENTRANTE", "CLIENTE", "NO_APLICA", 0);
+  const acuse = msg("SALIENTE", "PLANTILLA", "ENVIADO", 0.01);
+  assert.equal(esperaSinRespuestaHumana([cliente, acuse], ahora), 5 * H, "con sólo el acuse sigue esperando");
+  assert.equal(esperaSinRespuestaHumana([cliente, acuse, msg("SALIENTE", "AGENTE", "BORRADOR", 1)], ahora), 5 * H, "un borrador sin aprobar no atiende");
+  assert.equal(esperaSinRespuestaHumana([cliente, acuse, msg("SALIENTE", "AGENTE", "DESCARTADO", 1)], ahora), 5 * H, "un borrador descartado tampoco");
+  assert.equal(esperaSinRespuestaHumana([cliente, acuse, msg("SALIENTE", "PERSONA", "SIMULADO", 1)], ahora), null, "una respuesta de una persona atiende, haya salido por mail o por otro canal");
+  assert.equal(esperaSinRespuestaHumana([cliente, msg("SALIENTE", "AGENTE", "ENVIADO", 1)], ahora), null, "un borrador aprobado y enviado atiende");
+  // El cliente vuelve a escribir después de que lo atendieron: espera de nuevo desde ese mensaje.
+  assert.equal(esperaSinRespuestaHumana([cliente, msg("SALIENTE", "PERSONA", "ENVIADO", 1), msg("ENTRANTE", "CLIENTE", "NO_APLICA", 3)], ahora), 2 * H);
+  assert.equal(esperaSinRespuestaHumana([], ahora), null);
+});
+
+test("demorada desde las 4 horas, y los textos de espera son legibles", () => {
+  assert.equal(esDemorada(3.9 * H), false);
+  assert.equal(esDemorada(4 * H), true);
+  assert.equal(esDemorada(null), false);
+  assert.equal(textoDeEspera(20_000), "recién llegó");
+  assert.equal(textoDeEspera(25 * 60_000), "hace 25 min");
+  assert.equal(textoDeEspera(3 * H + 10 * 60_000), "hace 3 h");
+  assert.equal(textoDeEspera(24 * H), "hace 1 día");
+  assert.equal(textoDeEspera(72 * H), "hace 3 días");
+});
+
+test("la bandeja pone primero lo que hay que atender ya, después lo que más espera, y al final lo atendido", () => {
+  const f = (id: string, intencion: string, esperaMs: number | null, h: number) => ({ id, intencion, esperaMs, ultimaActividad: en(h) });
+  const orden = ordenarBandeja([f("atendida", "NUEVA", null, 4), f("espera1h", "NUEVA", 1 * H, 3), f("espera9h", "NUEVA", 9 * H, 1), f("urgente", "ESCALAR", 2 * H, 2)]).map((x) => x.id);
+  assert.deepEqual(orden, ["urgente", "espera9h", "espera1h", "atendida"]);
 });

@@ -12,7 +12,7 @@ import type { Actor } from "@/lib/proyectos/gestion.server";
 import { puede } from "@/lib/proyectos/gestion.server";
 import { campo, tarjeta } from "../_vista";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
-import { BotonEliminarStand, BotonNuevoStand, BotonStandConIA, CopiarLink, SubirArchivo } from "./_piezas";
+import { BotonEliminarStand, BotonNuevoStand, BotonStandConIA, CopiarLink, ProponerPiezasConIA, SubirArchivo } from "./_piezas";
 
 export async function ArmadorYPiezas({ a, cab }: { a: Actor; cab: Cabecera }) {
   const { proyecto: p, negocio } = cab;
@@ -53,6 +53,7 @@ export async function ArmadorYPiezas({ a, cab }: { a: Actor; cab: Cabecera }) {
             </div>
           )}
         </div>
+        {edita && <ProponerPiezasConIA proyectoId={p.id} />}
         {entregables.length === 0 && <p className="mb-3 text-sm text-muted">Cargá cada pieza que el cliente tiene que aprobar: una gráfica, una escenografía, un video.</p>}
         {entregables.length > 0 && (
           <ul className="mb-3 grid gap-2">

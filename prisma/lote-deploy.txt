@@ -55,4 +55,4 @@
 # 2026-11-02: CONSULTAS de potenciales clientes (MIA). Aditiva: dos tablas nuevas (Consulta y ConsultaMensaje) con RLS adentro y claves
 # foráneas a Tenant y Proyecto; no toca columnas ni datos existentes. Sin respaldo: decisión del dueño del 02/11 («no existen datos reales
 # en la base»); como es sólo CREATE, la vuelta atrás es borrar las dos tablas.
-20261102120000_consultas
+# (aplicada en Neon el 02/11 por el build de Vercel: sale de la lista) 20261102120000_consultas

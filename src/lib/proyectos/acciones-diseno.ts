@@ -21,6 +21,7 @@ import {
   esMarcaDeRevision,
   esPlantilla,
   ETIQUETA_ESTUDIO,
+  leerLaminas,
   leerRef,
   linkSeguro,
   normalizarImagenes,
@@ -32,7 +33,9 @@ import {
 } from "./diseno-core";
 import { actorActual, avisar, exigirEditar, proyectoVisible, puede } from "./gestion.server";
 import { ESTADOS_TAREA, mencionados, veTodosLosProyectos, type RolGestion } from "./gestion-core";
-import { charlarConAgente, generarImagen, iaConectada, proponerIdeaDelProyecto, proponerStandDelProyecto, FALTA_CLAVE, type IdeaPropuesta } from "./ia.server";
+import { charlarConAgente, generarImagen, iaConectada, proponerIdeaDelProyecto, proponerPiezasDelProyecto, proponerStandDelProyecto, FALTA_CLAVE, type IdeaPropuesta } from "./ia.server";
+import { borrarDeNube } from "./r2.server";
+import type { PiezaPropuesta } from "./ia-piezas-core";
 import { ENFOQUES_STAND, metricasStand, type MetricasStand } from "./ia-stand-core";
 
 const RAIZ = "/admin/proyectos";
@@ -279,6 +282,33 @@ export async function alternarImagenIdea(d: { proyectoId: string; ref: string })
   return { ok: true };
 }
 
+/**
+ * Elimina una imagen del proyecto (la del Estudio o una subida). Se frena, explicando por qué, si el cliente la ve en la propuesta o si
+ * va en una presentación: borrarla ahí cambiaría algo que ya se mostró. Si estaba elegida para la ficha, se saca de la ficha.
+ */
+export async function eliminarImagenDelProyecto(d: { proyectoId: string; ref: string }): Promise<Resultado<{ quitadaDeLaFicha: boolean }>> {
+  const a = await exigirEditar("diseno");
+  if (!(await proyectoVisible(a, d.proyectoId))) return { ok: false, error: SIN_PROYECTO };
+  const r = leerRef(d.ref);
+  if (!r || r.tipo !== "archivo") return { ok: false, error: "Esa imagen no se puede eliminar desde acá." };
+  const f = await prisma.proyectoArchivo.findFirst({ where: { id: r.id, tenantId: a.tenantId, proyectoId: d.proyectoId, datos: { startsWith: "data:image/" } }, select: { id: true, nombre: true, clave: true, visibleCliente: true } });
+  if (!f) return { ok: false, error: "Esa imagen ya no existe." };
+  if (f.visibleCliente) return { ok: false, error: "El cliente ve esta imagen en la propuesta. Sacala de la propuesta antes de eliminarla." };
+  const presentaciones = await prisma.proyectoPresentacion.findMany({ where: { tenantId: a.tenantId, proyectoId: d.proyectoId }, select: { nombre: true, laminas: true } });
+  const enUso = presentaciones.find((p) => leerLaminas(p.laminas).some((l) => l.imagen === d.ref));
+  if (enUso) return { ok: false, error: `Esta imagen está en la presentación «${enUso.nombre}». Sacala de ahí antes de eliminarla.` };
+  const idea = await prisma.proyectoIdea.findUnique({ where: { proyectoId: d.proyectoId }, select: { imagenes: true } });
+  const elegidas = normalizarImagenes(idea?.imagenes);
+  const estabaElegida = elegidas.includes(d.ref);
+  await prisma.$transaction([
+    prisma.proyectoArchivo.deleteMany({ where: { id: f.id, tenantId: a.tenantId, proyectoId: d.proyectoId } }),
+    ...(estabaElegida ? [prisma.proyectoIdea.update({ where: { proyectoId: d.proyectoId }, data: { imagenes: elegidas.filter((x) => x !== d.ref) as unknown as Prisma.InputJsonValue } })] : []),
+  ]);
+  if (f.clave) await borrarDeNube(f.clave);
+  refrescar(d.proyectoId);
+  return { ok: true, quitadaDeLaFicha: estabaElegida };
+}
+
 export async function agregarMoodboard(d: { proyectoId: string; nombre: string; link: string }): Promise<Resultado> {
   const i = await ideaEditable(d.proyectoId);
   if (!i) return { ok: false, error: SIN_PROYECTO };
@@ -458,4 +488,26 @@ export async function conversarConAgente(d: { agente: string; proyectoId?: strin
   if (!mensajes) return { ok: false, error: "La charla es demasiado larga. Empezá una nueva." };
   const r = await charlarConAgente(a, d.agente, proyectoId, mensajes);
   return r.ok ? { ok: true, texto: r.texto, cortada: r.cortada } : r;
+}
+
+/** El agente propone qué piezas necesita el proyecto. No crea nada: la persona elige cuáles. */
+export async function proponerPiezas(d: { proyectoId: string; pedido?: string }): Promise<Resultado<{ piezas: PiezaPropuesta[]; nota: string }>> {
+  const a = await exigirEditar("diseno");
+  if (!puede(a, "ia", "editar")) return { ok: false, error: "Tu rol no puede usar la IA." };
+  if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
+  if (!(await proyectoVisible(a, d.proyectoId))) return { ok: false, error: SIN_PROYECTO };
+  return proponerPiezasDelProyecto(a, d.proyectoId, texto(d.pedido, 2000));
+}
+
+/** Crea las piezas que la persona eligió de la propuesta del agente. */
+export async function crearPiezasPropuestas(d: { proyectoId: string; piezas: readonly PiezaPropuesta[] }): Promise<Resultado<{ creadas: number }>> {
+  const a = await exigirEditar("diseno");
+  if (!(await proyectoVisible(a, d.proyectoId))) return { ok: false, error: SIN_PROYECTO };
+  const limpias = (Array.isArray(d.piezas) ? d.piezas : []).slice(0, 8).map((p) => ({ nombre: texto(p?.nombre, 120), especificacion: texto(p?.especificacion, 300) })).filter((p) => p.nombre);
+  if (limpias.length === 0) return { ok: false, error: "Elegí al menos una pieza." };
+  const activas = await prisma.proyectoEntregable.count({ where: { tenantId: a.tenantId, proyectoId: d.proyectoId, anuladoEl: null } });
+  if (activas + limpias.length > MAX_ENTREGABLES) return { ok: false, error: `El proyecto guarda hasta ${MAX_ENTREGABLES} piezas.` };
+  await prisma.proyectoEntregable.createMany({ data: limpias.map((p) => ({ tenantId: a.tenantId, proyectoId: d.proyectoId, nombre: p.nombre, especificacion: p.especificacion })) });
+  refrescar(d.proyectoId);
+  return { ok: true, creadas: limpias.length };
 }

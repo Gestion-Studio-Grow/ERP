@@ -14,6 +14,7 @@ import { errorDeGratis, imagenDeGratis, MODELO_IMAGEN_GRATIS, MODELO_TEXTO_GRATI
 import { aDataUri, tipoDeImagen, urlPollinations } from "./ia-pollinations-core";
 import { describirStand, ESQUEMA_STAND, INSTRUCCIONES_STAND, leerStandPropuesto } from "./ia-stand-core";
 import { normalizarDiseno, type DisenoStand } from "./stand";
+import { ESQUEMA_PIEZAS, INSTRUCCIONES_PIEZAS, leerPiezasPropuestas, type PiezaPropuesta } from "./ia-piezas-core";
 import { CAMPOS_BRIEF, ESTADOS_DATO, INSTRUCCIONES_CONSULTA, textoDeBrief, type BriefConsulta } from "./consulta-core";
 
 const API = "https://api.anthropic.com/v1/messages";
@@ -442,4 +443,26 @@ export async function analizarConsultaConIA(d: { negocio: string; nombre: string
   } catch {
     return { ok: false, error: "El borrador no se pudo leer. Probá de nuevo." };
   }
+}
+
+// ── Piezas que propone el agente ────────────────────────────────────────────
+
+/** El Diseñador propone las piezas que el proyecto necesita mostrarle al cliente, sin repetir las que ya hay. Propone: crearlas lo decide una persona. */
+export async function proponerPiezasDelProyecto(a: Actor, proyectoId: string, pedido: string): Promise<{ ok: true; piezas: PiezaPropuesta[]; nota: string } | { ok: false; error: string }> {
+  if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
+  const [contexto, existentes] = await Promise.all([
+    contextoDeAgente(a, "disenador", proyectoId),
+    prisma.proyectoEntregable.findMany({ where: { tenantId: a.tenantId, proyectoId, anuladoEl: null }, select: { nombre: true }, take: 100 }),
+  ]);
+  const r = await pedirAlModelo({
+    sistema: `${SISTEMA.disenador}\n\n${INSTRUCCIONES_PIEZAS}`,
+    mensajes: [{ role: "user", content: `${contexto}\n\n${pedido.trim() ? `Pedido especial de la persona: ${pedido.trim()}` : "Proponé las piezas que hacen falta para este proyecto."}` }],
+    esfuerzo: "medium",
+    maxTokens: 2500,
+    esquema: ESQUEMA_PIEZAS as unknown as Record<string, unknown>,
+  });
+  if (!r.ok) return r;
+  if (r.cortada) return { ok: false, error: "La propuesta quedó cortada. Probá con un pedido más acotado." };
+  const p = leerPiezasPropuestas(r.texto, existentes.map((e) => e.nombre));
+  return p ? { ok: true, ...p } : { ok: false, error: "No salieron piezas nuevas para proponer. Probá con un pedido más específico." };
 }

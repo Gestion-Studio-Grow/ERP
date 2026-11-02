@@ -125,9 +125,12 @@ export async function convertirEnLead(d: { id: string }): Promise<Resultado<{ pr
   const primer = c.mensajes.find((m) => m.direccion === "ENTRANTE")?.texto ?? "";
   const tipo = tipoEventoDeTexto(primer) ?? (brief.tipoEvento?.valor ? tipoEventoDeTexto(brief.tipoEvento.valor) : null) ?? "Activación de marca";
   const quien = c.empresa || c.nombre || "Contacto sin nombre";
+  // Si ya es cliente (mismo mail o mismo teléfono), el lead se cuelga de ese cliente: no se duplica.
+  const existente = await prisma.client.findFirst({ where: { tenantId: a.tenantId, OR: [...(c.email ? [{ email: { equals: c.email, mode: "insensitive" as const } }] : []), ...(c.telefono ? [{ phone: { endsWith: c.telefono.slice(-10) } }] : [])] }, select: { id: true } });
   const fd = new FormData();
   fd.set("nombre", `${quien} — ${tipo}`.slice(0, 120));
-  fd.set("clienteNuevo", quien.slice(0, 120));
+  if (existente) fd.set("clienteId", existente.id);
+  else fd.set("clienteNuevo", quien.slice(0, 120));
   fd.set("telefono", c.telefono ?? "");
   fd.set("tipoEvento", tipo);
   fd.set("moneda", "ARS");
@@ -138,4 +141,21 @@ export async function convertirEnLead(d: { id: string }): Promise<Resultado<{ pr
   await prisma.consulta.update({ where: { id: c.id }, data: { estado: "CONVERTIDA", proyectoId: r.id, ultimaActividad: new Date() } });
   refrescar(c.id);
   return { ok: true, proyectoId: r.id };
+}
+
+const VIAS = { WHATSAPP: "WhatsApp", TELEFONO: "teléfono", MAIL: "mail", PERSONAL: "en persona" } as const;
+
+/** Cuando alguien contestó por fuera del sistema (su WhatsApp, un llamado): se anota para que la consulta no siga figurando como sin atender. */
+export async function registrarRespuestaExterna(d: { id: string; via: string }): Promise<Resultado> {
+  const a = await exigirEditar("pipeline");
+  const via = (VIAS as Record<string, string>)[d.via];
+  if (!via) return { ok: false, error: "Elegí por dónde se respondió." };
+  const c = await prisma.consulta.findFirst({ where: { id: acotarEntrante(d.id, 40), tenantId: a.tenantId, estado: { not: "CONVERTIDA" } }, select: { id: true } });
+  if (!c) return { ok: false, error: SIN_CONSULTA };
+  await prisma.$transaction([
+    prisma.consultaMensaje.create({ data: { tenantId: a.tenantId, consultaId: c.id, direccion: "SALIENTE", origen: "PERSONA", texto: `${a.nombre} respondió por ${via} (registrado a mano).`, envio: "NO_APLICA", autor: a.nombre } }),
+    prisma.consulta.update({ where: { id: c.id }, data: { ultimaActividad: new Date(), estado: "EN_CALIFICACION" } }),
+  ]);
+  refrescar(c.id);
+  return { ok: true };
 }

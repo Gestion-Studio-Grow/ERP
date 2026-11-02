@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { buttonClasses, cn } from "@/components/ui";
-import { aprobarBorrador, cambiarEstadoConsulta, convertirEnLead, descartarBorrador, pedirBorradorConsulta, responderConsulta } from "@/lib/proyectos/acciones-consultas";
+import { aprobarBorrador, cambiarEstadoConsulta, convertirEnLead, descartarBorrador, pedirBorradorConsulta, registrarRespuestaExterna, responderConsulta } from "@/lib/proyectos/acciones-consultas";
 import { campo } from "../../_vista";
 
 export interface BorradorVista {
@@ -30,6 +30,7 @@ export function PanelConsulta({ id, estado, proyectoId, puedeUsarIA, tieneMail, 
   const [nota, setNota] = useState<string | null>(null);
   const [wa, setWa] = useState<string | null>(null);
   const [respuesta, setRespuesta] = useState("");
+  const [via, setVia] = useState("WHATSAPP");
   const [editados, setEditados] = useState<Record<string, string>>({});
 
   const correr = (f: () => Promise<{ ok: boolean; error?: string } | { ok: true }>, alOk?: (r: never) => void) =>
@@ -87,6 +88,22 @@ export function PanelConsulta({ id, estado, proyectoId, puedeUsarIA, tieneMail, 
               <p className="self-center text-xs text-muted">Tu rol no usa el agente.</p>
             )}
           </div>
+        </section>
+      )}
+
+      {estado !== "CONVERTIDA" && (
+        <section aria-label="Respondí por otro canal" className="flex flex-wrap items-center gap-2 rounded-2xl border border-line p-3">
+          <label className="flex items-center gap-2 text-sm text-strong">
+            Ya respondí por
+            <select value={via} onChange={(e) => setVia(e.target.value)} className={cn(campo, "w-auto")}>
+              <option value="WHATSAPP">WhatsApp</option>
+              <option value="TELEFONO">teléfono</option>
+              <option value="MAIL">mail</option>
+              <option value="PERSONAL">en persona</option>
+            </select>
+          </label>
+          <button type="button" disabled={ocupado} className={cn(buttonClasses("outline", "md"), "min-h-11")} onClick={() => correr(() => registrarRespuestaExterna({ id, via }))}>Registrarlo</button>
+          <p className="basis-full text-xs text-muted">Así la consulta deja de figurar como sin atender.</p>
         </section>
       )}
 

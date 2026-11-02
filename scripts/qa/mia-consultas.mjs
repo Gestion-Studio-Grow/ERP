@@ -48,6 +48,9 @@ ok(cuerpo.includes(`Beto ${marca}`), "la consulta urgente aparece en la bandeja"
 ok(!cuerpo.includes(`Soy un bot ${marca}`), "la del bot no se guardó");
 ok(/Hay que atenderla ya/.test(cuerpo), "la urgente se marca «Hay que atenderla ya»");
 ok(/Se está calificando/.test(cuerpo), "la normal queda «Se está calificando»");
+ok(/Espera a una persona/.test(cuerpo), "la bandeja dice cuánto hace que espera a una persona");
+ok(cuerpo.indexOf(`Beto ${marca}`) >= 0 && cuerpo.indexOf(`Beto ${marca}`) < cuerpo.indexOf("Marca de prueba SA"), "lo urgente va antes que lo normal en la bandeja");
+ok(/esperan a una persona|espera a una persona/.test(cuerpo), "el encabezado cuenta las consultas que esperan");
 
 await admin.goto("/admin/proyectos");
 await admin.waitForLoadState("networkidle");
@@ -69,6 +72,7 @@ ok(!/\$|pesos|dólares/i.test(cuerpo.split("Conversación")[1] ?? ""), "la conve
 ok(/No salió: no hay mail conectado/.test(cuerpo), "sin mail conectado se dice la verdad: no salió");
 ok(/Stand \/ Feria \(inferido\)/.test(cuerpo.replace(/\s+/g, " ")) || /Stand \/ Feria/.test(cuerpo), "el tipo de evento se dedujo y está marcado como inferido");
 ok(/\(indispensable\)/.test(cuerpo), "lo indispensable que falta se marca");
+ok(/Espera a una persona hace|Espera a una persona recién llegó/.test(cuerpo), "el acuse automático no la da por atendida: sigue esperando a una persona");
 ok((await admin.locator('a[href^="https://wa.me/5491126823872"]').count()) >= 1, "el teléfono se normaliza y lleva a WhatsApp");
 
 // El agente sin IA conectada: lo dice, no inventa
@@ -83,6 +87,7 @@ await admin.waitForTimeout(2500);
 cuerpo = await admin.locator("main").innerText();
 ok(/Equipo · /.test(cuerpo) && /te llama mañana/.test(cuerpo), "la respuesta de la persona queda en la conversación con su autor");
 ok((await admin.getByRole("link", { name: "Abrir WhatsApp con este texto" }).count()) === 1, "se ofrece mandarla por WhatsApp con el texto");
+ok(!/Espera a una persona/.test(await admin.locator("main").innerText()), "después de que una persona responde, ya no figura como esperando");
 
 // Permisos: Diseño ve pero no responde
 await diseno.goto(admin.url());
@@ -105,6 +110,33 @@ await admin.goto("/admin/proyectos/consultas?estado=CONVERTIDA");
 await admin.waitForLoadState("networkidle");
 await admin.waitForTimeout(1500);
 ok(/Marca de prueba SA/.test(await admin.locator("main").innerText()), "la consulta aparece en «Ya son proyectos»");
+
+// Respondí por otro canal: la urgente deja de figurar como sin atender
+await admin.goto("/admin/proyectos/consultas");
+await admin.waitForLoadState("networkidle");
+await admin.waitForTimeout(1000);
+await admin.locator("a", { hasText: `Beto ${marca}` }).first().click();
+await admin.waitForURL(/consultas\/c/);
+await admin.waitForLoadState("networkidle");
+await admin.waitForTimeout(1500);
+ok(/Espera a una persona/.test(await admin.locator("main").innerText()), "la urgente espera a una persona antes de registrar la respuesta");
+await admin.getByLabel("Ya respondí por").selectOption("TELEFONO");
+await admin.getByRole("button", { name: "Registrarlo" }).click();
+await admin.waitForTimeout(2500);
+cuerpo = await admin.locator("main").innerText();
+ok(/respondió por teléfono \(registrado a mano\)/.test(cuerpo), "queda anotado quién respondió y por qué canal");
+ok(!/Espera a una persona/.test(cuerpo), "registrar la respuesta externa saca la espera");
+
+// Piezas con IA: sin IA conectada avisa, no inventa
+await admin.goto("/admin/proyectos");
+await admin.waitForLoadState("networkidle");
+const proyecto = await admin.locator('a[href^="/admin/proyectos/"][href*="cm"]').first().getAttribute("href");
+await admin.goto(`${proyecto}?tab=diseno`);
+await admin.waitForLoadState("networkidle");
+await admin.waitForTimeout(2500);
+await admin.getByRole("button", { name: "Proponer piezas con IA" }).click();
+await admin.waitForTimeout(2500);
+ok(/Falta conectar la IA/.test(await admin.locator("main").innerText()), "proponer piezas sin IA conectada avisa que falta conectarla");
 
 // Límite por IP: pasados 5 pedidos en 10 minutos se frena
 let freno = false;

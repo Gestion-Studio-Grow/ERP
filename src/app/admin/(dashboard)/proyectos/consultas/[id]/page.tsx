@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
 import { prisma } from "@/lib/prisma";
-import { CAMPOS_BRIEF, ESTADO_DATO_LABEL, type BriefConsulta } from "@/lib/proyectos/consulta-core";
+import { CAMPOS_BRIEF, esDemorada, ESTADO_DATO_LABEL, esperaSinRespuestaHumana, textoDeEspera, type BriefConsulta } from "@/lib/proyectos/consulta-core";
 import { mailConectado } from "@/lib/notifications";
 import { exigirVer, puede } from "@/lib/proyectos/gestion.server";
 import { tarjeta } from "../../_vista";
@@ -22,6 +22,10 @@ export default async function DetalleDeConsulta({ params }: { params: Promise<{ 
   if (!c) notFound();
   const brief = (c.brief ?? {}) as BriefConsulta;
   const edita = puede(a, "pipeline", "editar");
+  const esperaMs = ["NUEVA", "PARA_PERSONA", "EN_CALIFICACION"].includes(c.estado) ? esperaSinRespuestaHumana(c.mensajes, new Date()) : null;
+  const antes = c.email || c.telefono
+    ? await prisma.consulta.count({ where: { tenantId: a.tenantId, id: { not: c.id }, OR: [...(c.email ? [{ email: c.email }] : []), ...(c.telefono ? [{ telefono: c.telefono }] : [])] } })
+    : 0;
   const borradores = c.mensajes.filter((m) => m.direccion === "SALIENTE" && m.envio === "BORRADOR");
 
   return (
@@ -34,6 +38,12 @@ export default async function DetalleDeConsulta({ params }: { params: Promise<{ 
           <span className={cn("rounded-full px-2 py-0.5 font-medium", c.intencion === "ESCALAR" ? "bg-danger text-on-accent" : "bg-surface-raised text-strong")}>{INTENCION_LABEL[c.intencion] ?? c.intencion}</span>
           <span className="rounded-full bg-surface-raised px-2 py-0.5 text-muted">{c.canal.toLowerCase()}</span>
         </p>
+        {esperaMs !== null && (
+          <p role="note" className={cn("rounded-lg border p-2 text-sm font-medium", esDemorada(esperaMs) ? "border-danger text-danger" : "border-line text-strong")}>
+            Espera a una persona {textoDeEspera(esperaMs)}.{esDemorada(esperaMs) ? " Ya pasaron las 4 horas sin respuesta." : ""}
+          </p>
+        )}
+        {antes > 0 && <p role="note" className="rounded-lg border border-line p-2 text-sm text-strong">Ya consultó {antes === 1 ? "otra vez" : `${antes} veces más`} con este mismo contacto.</p>}
         {c.motivos.length > 0 && <p role="note" className="rounded-lg border border-danger p-2 text-sm text-danger">Por qué hay que atenderla: {c.motivos.join(", ")}.</p>}
       </header>
 

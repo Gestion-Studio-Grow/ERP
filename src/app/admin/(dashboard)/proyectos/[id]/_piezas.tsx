@@ -8,7 +8,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
 import { crearStand, eliminarStand } from "@/lib/proyectos/acciones";
-import { armarStandConIA, armarStandsConIA, type AlternativaStand } from "@/lib/proyectos/acciones-diseno";
+import { armarStandConIA, armarStandsConIA, crearPiezasPropuestas, proponerPiezas, type AlternativaStand } from "@/lib/proyectos/acciones-diseno";
+import type { PiezaPropuesta } from "@/lib/proyectos/ia-piezas-core";
 import { confirmarSubida, hayNube, pedirSubida, subirArchivoFicha, type ResultadoFicha } from "@/lib/proyectos/acciones-ficha";
 
 const campo = "min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-strong";
@@ -246,6 +247,95 @@ export function BotonEliminarStand({ id, nombre, proyectoId, alEliminar, ancho }
         <button type="button" disabled={ocupado} className={cn(buttonClasses("ghost", "md"), "min-h-11 flex-1 justify-center")} onClick={() => setAbierto(false)}>No</button>
       </div>
       {error && <p role="alert" className="font-medium text-danger">{error}</p>}
+    </div>
+  );
+}
+
+/** El agente propone las piezas que el proyecto necesita; la persona tilda las que quiere y se crean. No se crea nada sin elegirlo. */
+export function ProponerPiezasConIA({ proyectoId }: { proyectoId: string }) {
+  const router = useRouter();
+  const [ocupado, iniciar] = useTransition();
+  const [pedido, setPedido] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [propuesta, setPropuesta] = useState<{ piezas: PiezaPropuesta[]; nota: string } | null>(null);
+  const [elegidas, setElegidas] = useState<Set<number>>(new Set());
+  const [hecho, setHecho] = useState<string | null>(null);
+
+  return (
+    <div className="mb-3 grid gap-2 rounded-xl border border-line p-3">
+      <label className="grid gap-1 text-sm font-medium text-strong">
+        Que el agente proponga las piezas
+        <textarea value={pedido} onChange={(e) => setPedido(e.target.value)} maxLength={2000} rows={2} placeholder="Opcional: qué necesita mostrar el cliente, formatos, plazos…" className={cn(campo, "py-2 font-normal")} />
+      </label>
+      <button
+        type="button"
+        disabled={ocupado}
+        className={cn(buttonClasses("outline", "md"), "justify-center")}
+        onClick={() =>
+          iniciar(async () => {
+            setError(null);
+            setHecho(null);
+            const r = await proponerPiezas({ proyectoId, pedido });
+            if (!r.ok) return setError(r.error);
+            setPropuesta({ piezas: r.piezas, nota: r.nota });
+            setElegidas(new Set(r.piezas.map((_, i) => i)));
+          })
+        }
+      >
+        {ocupado && !propuesta ? "Pensando las piezas…" : "Proponer piezas con IA"}
+      </button>
+      {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
+      {hecho && <p role="status" className="text-sm font-medium text-strong">{hecho}</p>}
+      {propuesta && (
+        <div className="grid gap-2 text-sm text-strong">
+          {propuesta.nota && <p className="text-muted">{propuesta.nota}</p>}
+          <ul className="grid gap-2">
+            {propuesta.piezas.map((p, i) => (
+              <li key={p.nombre} className="rounded-lg border border-line p-2">
+                <label className="flex min-h-11 items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-5 w-5"
+                    checked={elegidas.has(i)}
+                    onChange={(e) =>
+                      setElegidas((v) => {
+                        const n = new Set(v);
+                        if (e.target.checked) n.add(i);
+                        else n.delete(i);
+                        return n;
+                      })
+                    }
+                  />
+                  <span>
+                    <span className="block font-medium">{p.nombre}</span>
+                    <span className="block text-muted">{p.especificacion}</span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={ocupado || elegidas.size === 0}
+              className={cn(buttonClasses("solid", "md"), "min-h-11")}
+              onClick={() =>
+                iniciar(async () => {
+                  setError(null);
+                  const r = await crearPiezasPropuestas({ proyectoId, piezas: propuesta.piezas.filter((_, i) => elegidas.has(i)) });
+                  if (!r.ok) return setError(r.error);
+                  setHecho(r.creadas === 1 ? "Se creó 1 pieza." : `Se crearon ${r.creadas} piezas.`);
+                  setPropuesta(null);
+                  router.refresh();
+                })
+              }
+            >
+              Crear {elegidas.size === 1 ? "la pieza elegida" : `las ${elegidas.size} elegidas`}
+            </button>
+            <button type="button" disabled={ocupado} className={cn(buttonClasses("ghost", "md"), "min-h-11")} onClick={() => setPropuesta(null)}>Descartar la propuesta</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
