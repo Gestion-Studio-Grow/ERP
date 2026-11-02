@@ -347,3 +347,105 @@ Fuentes:
   - teclab.edu.ar (sueldos Sysarmy 2026.1 y tarifas freelance)
   - cristiantait.com
   - x.com/maxifirtman (Sysarmy 2026)
+
+---
+
+## 9. Nicho para subir las ganancias: el barrio cerrado como cliente
+
+**Tesis.** Un barrio cerrado se cobra **por lote**. Una sola venta equivale a 15–40 comercios chicos, con
+un único interlocutor de soporte: la administración. Además conecta todo lo demás que vende GSG:
+
+- **Anillo 1:** los proveedores que entran al barrio.
+- **Anillo 2:** los comercios que le venden al barrio.
+- **Anillo 3:** pádel, turnos y eventos en el SUM.
+
+### Datos [EXTRACTO, búsqueda extendida 2026-11-02]
+
+- **Software para consorcios, precio por unidad funcional por mes:**
+  - CONSO: $2.950 + IVA.
+  - ExpensasFlow: $1.950.
+  - KM44: $1.520 + $490 de procesamiento.
+  - Octopus: no publica precio.
+- **Software específico para barrios:** Octavo Piso, Olimposoft, Kavanagh Cloud, Country Cloud, A-Gestión,
+  AdminProp, HomeApp. Ninguno publica un precio por lote.
+  - Lo que hacen: liquidar expensas, cupones de pago, reservas de amenities y comunicación.
+- **Expensas en Canning:** $150.000–600.000 por lote por mes.
+  - Malibú, unos $260.000.
+  - Canning Village, $280.000–450.000.
+  - Fuentes: iProfesional y Roomix, 2026.
+  - El software cuesta menos del 1 % de la expensa.
+
+### Cuánto deja `[INFERIDO]`
+
+| Escenario | Lotes | $/lote/mes | Por mes |
+|---|---|---|---|
+| Cuña: reservas + proveedores habilitados + WhatsApp, en 1 barrio | 300 | $500 | $150.000 |
+| Barrio completo, con expensas | 300 | $2.000 | $600.000 |
+| 5 barrios completos en Canning | 1.500 | $2.000 | **$3.000.000** |
+
+Los $3 M por mes de 5 barrios equivalen a unos **100 comercios de $30.000**. Pero el soporte es 5
+administraciones, no 100 dueños.
+
+### Cómo entrar sin pelear de frente con los que ya liquidan expensas
+
+1. **Cuña, módulos que hoy nadie junta:**
+   - **Proveedores habilitados:** cada proveedor carga sus papeles (ART, seguro, monotributo); la guardia
+     ve quién está al día y el barrio se protege. Al proveedor se le cobra con Facturita y el paquete de
+     servicios para countries.
+   - **Reservas de amenities** (pádel, tenis, SUM) con cobro por Mercado Pago. Reutiliza el turnero de
+     Break Point y `turnos`.
+   - **Avisos por WhatsApp** de la administración a los vecinos.
+2. **Expandirse a la liquidación de expensas** cuando el barrio ya usa la cuña. Hay piezas que se
+   reutilizan:
+   - cuotas, ajustes y liquidaciones del módulo `inmobiliaria`;
+   - importación y conciliación bancaria (`ImportacionBancaria`);
+   - factura recurrente (`ReglaFacturacion`).
+   Falta lo propio de las expensas:
+   - prorrateo por coeficiente;
+   - formato «Mis Expensas»;
+   - cupones de pago;
+   - régimen de información de expensas (RG 3369; confirmar si sigue vigente).
+3. **Vender a la administradora, no al barrio.** Las administradoras grandes llevan varios barrios: una
+   venta abre muchos.
+
+### Efecto multiplicador (por qué es el nicho que impulsa)
+
+Un barrio con la cuña obliga a sus 30–80 proveedores a cargar los papeles en GSG. Esos proveedores son
+clientes de Facturita y del paquete de servicios. Además, el barrio es la vidriera de los comercios que
+reparten ahí. **Un barrio alimenta los otros dos anillos.**
+
+### Riesgos
+
+- **Ciclo de venta lento:** decide el consejo de administración o la asamblea. Hay que entrar con una
+  prueba gratis de la cuña.
+- **Los competidores ya liquidan expensas.** No se ataca eso al principio.
+- **La liquidación de expensas es una pieza grande y toca plata:** necesita certificación adversarial, el
+  Gate y migraciones. Se construye sólo después de la venta de la cuña (DEMO → VENTA → INVERSIÓN).
+- **Privacidad de los datos de los vecinos:** RLS y permisos por rol desde el día uno.
+
+### Validación (va junto con la de la sección 7, sin costo)
+
+En las 3 llamadas a administraciones de Canning, preguntar:
+
+- qué software usan y cuánto pagan por lote;
+- cómo controlan a los proveedores en la guardia;
+- cómo reservan las canchas y el SUM;
+- si administran otros barrios.
+
+**Criterio para seguir:** si 2 de las 3 aceptan probar gratis la cuña, se construye la cuña. Son 1 o 2
+tandas sobre piezas que ya existen.
+
+Fuentes de esta sección:
+
+- conso.com.ar (comparativa y precios)
+- expensasflow.com.ar
+- octavo-piso.com.ar
+- olimposoft.com.ar
+- kavanaghgroup.com.ar
+- countrycloud.com.ar
+- a-gestion.net
+- adminprop.net
+- homeapp.ar
+- iprofesional.com (expensas en barrios cerrados, 06/08/2026)
+- roomix.ai (countries de Canning)
+- blogdelcontador.com.ar (RG 3369)
