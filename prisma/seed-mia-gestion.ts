@@ -3,6 +3,7 @@
 
 import { randomBytes } from "node:crypto";
 import type { PrismaClient } from "../src/generated/prisma/client";
+import { precioAlEnviar } from "../src/lib/proyectos/ficha-core";
 import { CHECKLIST_BASE, planDeCuotas, type ItemFicha } from "../src/lib/proyectos/gestion-core";
 
 const DIA = 86_400_000;
@@ -84,10 +85,12 @@ export async function sembrarGestion(prisma: PrismaClient, tenantId: string, rec
     const items: ItemFicha[] = [];
     let posicion = 0;
     for (const l of d.lineas) {
+      // Como en la app: al enviar la versión, el precio queda fijo. Si no, la propuesta del cliente sale en cero.
+      const precio = pres.estado === "BORRADOR" ? 0 : (precioAlEnviar({ descripcion: l.descripcion, rubro: l.rubro, cantidad: l.cant, costo: l.costo, moneda: l.moneda ?? "ARS", recargoPct: l.recargo, precio: 0 }, { USD: TC_USD }, recargoGeneral)?.precio ?? 0);
       const it = await prisma.proyectoItem.create({
-        data: { tenantId, presupuestoId: pres.id, rubro: l.rubro, descripcion: l.descripcion, unidad: "u", cantidad: l.cant, costo: l.costo, precio: 0, moneda: l.moneda ?? "ARS", recargoPct: l.recargo, supplierId: l.prov ? provs[l.prov] : null, fechaLimite: en(l.limite), estadoItem: l.estado, posicion: posicion++ },
+        data: { tenantId, presupuestoId: pres.id, rubro: l.rubro, descripcion: l.descripcion, unidad: "u", cantidad: l.cant, costo: l.costo, precio, moneda: l.moneda ?? "ARS", recargoPct: l.recargo, supplierId: l.prov ? provs[l.prov] : null, fechaLimite: en(l.limite), estadoItem: l.estado, posicion: posicion++ },
       });
-      items.push({ id: it.id, descripcion: l.descripcion, rubro: l.rubro, cantidad: l.cant, costo: l.costo, moneda: l.moneda ?? "ARS", recargoPct: l.recargo, precio: 0, fechaLimite: en(l.limite), supplierId: it.supplierId });
+      items.push({ id: it.id, descripcion: l.descripcion, rubro: l.rubro, cantidad: l.cant, costo: l.costo, moneda: l.moneda ?? "ARS", recargoPct: l.recargo, precio, fechaLimite: en(l.limite), supplierId: it.supplierId });
     }
     if (["APROBADO", "PRODUCCION", "ARMADO", "DESARME", "CIERRE"].includes(d.etapa)) {
       const plan = planDeCuotas(items, { proyectoId: p.id, nombre: d.nombre, fechaEvento: en(d.dias), creado, anticipoClientePct: 50, ivaPct: 21, recargoGeneral, tiposDeCambio: { USD: TC_USD }, anticipoProveedor });

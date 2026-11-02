@@ -137,6 +137,7 @@ export default async function PropuestaPage({ params }: { params: Promise<{ toke
           {puede && <Responder token={token} acento={marca.acento} />}
           <div className="mia-solo-pantalla" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
             <BotonImprimir />
+            <a href={`/propuesta/${token}/pdf`} className="mia-boton mia-boton-linea" style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}>Descargar PDF</a>
             {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="mia-boton mia-boton-linea" style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}>Consultar por WhatsApp</a>}
           </div>
         </section>

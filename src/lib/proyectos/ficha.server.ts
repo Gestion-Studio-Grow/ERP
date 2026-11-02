@@ -3,6 +3,8 @@
 // de acá, ni escondido en el HTML. Las escrituras: acciones-ficha.ts.
 // ============================================================================
 
+import type { Prisma } from "@/generated/prisma/client";
+import { getCurrentTenantId } from "@/lib/tenant";
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, totalesFicha, ventaTotalItem } from "./gestion-core";
@@ -232,19 +234,31 @@ export async function datosDiseno(a: Actor, proyectoId: string) {
 }
 
 /** Lo que sale en papel y en la planilla descargable: nunca un costo. */
-export async function planillaParaPapel(a: Actor, proyectoId: string, versionId?: string | null) {
+export function planillaParaPapel(a: Actor, proyectoId: string, versionId?: string | null) {
+  return armarPapel(a.tenantId, { ...filtroDeProyectos(a), id: proyectoId }, versionId);
+}
+
+/** El mismo papel para el cliente, con el link de su propuesta. Un borrador todavía no existe para él. */
+export async function papelDeLaPropuesta(token: string) {
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(token)) return null;
+  const tenantId = await getCurrentTenantId();
+  const version = await prisma.proyectoPresupuesto.findFirst({ where: { tenantId, token, estado: { not: "BORRADOR" } }, select: { id: true, proyectoId: true } });
+  return version ? armarPapel(tenantId, { tenantId, id: version.proyectoId }, version.id) : null;
+}
+
+async function armarPapel(tenantId: string, cual: Prisma.ProyectoWhereInput, versionId?: string | null) {
   const p = await prisma.proyecto.findFirst({
-    where: { ...filtroDeProyectos(a), id: proyectoId },
+    where: cual,
     select: { moneda: true, id: true, numero: true, nombre: true, lugar: true, ciudad: true, fechaEvento: true, createdAt: true, client: { select: { name: true } } },
   });
   if (!p) return null;
   const version = await prisma.proyectoPresupuesto.findFirst({
-    where: { tenantId: a.tenantId, proyectoId, ...(versionId ? { id: versionId } : {}) },
+    where: { tenantId, proyectoId: p.id, ...(versionId ? { id: versionId } : {}) },
     orderBy: { version: "desc" },
     select: { version: true, ivaPct: true, tcVenta: true, condiciones: true, items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }], select: { descripcion: true, rubro: true, unidad: true, cantidad: true, costo: true, moneda: true, recargoPct: true, precio: true, visibleCliente: true } } },
   });
   if (!version) return null;
-  const [tc, config, negocio] = await Promise.all([tiposDeCambio(a.tenantId), configProyectos(a.tenantId), datosDelNegocio(a.tenantId)]);
+  const [tc, config, negocio] = await Promise.all([tiposDeCambio(tenantId), configProyectos(tenantId), datosDelNegocio(tenantId)]);
   const enPesos = planillaDeVenta(version.items, tc, config.margenPct);
   // El papel es para el cliente: va en la moneda de venta.
   const cambio = cambioDeVenta(p.moneda, version.tcVenta, tc);

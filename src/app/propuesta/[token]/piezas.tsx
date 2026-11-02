@@ -73,7 +73,7 @@ export function Responder({ token, acento }: { token: string; acento: string }) 
       </label>
       {rechazando && (
         <label style={{ display: "grid", gap: 6, fontSize: 14 }}>
-          ¿Qué te gustaría cambiar? (opcional)
+          ¿Qué te gustaría cambiar?
           <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} maxLength={500} className="mia-campo" style={{ paddingTop: 10 }} />
         </label>
       )}
@@ -86,7 +86,7 @@ export function Responder({ token, acento }: { token: string; acento: string }) 
         )}
         {rechazando ? (
           <>
-            <button type="button" disabled={ocupado} onClick={() => enviar(false)} className="mia-boton" style={{ background: "#1a1a1a", color: "#fff", flex: "1 1 200px" }}>
+            <button type="button" disabled={ocupado || !motivo.trim()} onClick={() => enviar(false)} className="mia-boton" style={{ background: "#1a1a1a", color: "#fff", flex: "1 1 200px" }}>
               {ocupado ? "Enviando…" : "Enviar respuesta"}
             </button>
             <button type="button" onClick={() => setRechazando(false)} className="mia-boton mia-boton-linea">Volver</button>
