@@ -23,6 +23,18 @@ export const PIEZAS = {
   TARIMA: { label: "Tarima para producto", ancho: 2.4, fondo: 2.4, alto: 0.2, unidad: "u" },
   DEPOSITO: { label: "Depósito", ancho: 1.5, fondo: 1, alto: 2.5, unidad: "u" },
   PLANTA: { label: "Planta", ancho: 0.5, fondo: 0.5, alto: 1.4, unidad: "u" },
+  // Activaciones de marca
+  PHOTOCALL: { label: "Photocall", ancho: 2.4, fondo: 0.4, alto: 2.4, unidad: "u" },
+  ZONA_PRUEBA: { label: "Zona de prueba de producto", ancho: 2, fondo: 1, alto: 1.2, unidad: "u" },
+  DESAFIO: { label: "Estación de desafío interactivo", ancho: 1.2, fondo: 1.2, alto: 1.9, unidad: "u" },
+  MURO_EXHIBICION: { label: "Muro de exhibición", ancho: 2.4, fondo: 0.3, alto: 2.2, unidad: "u" },
+  MONITOR_55: { label: "Monitor de 55 pulgadas", ancho: 1.3, fondo: 0.5, alto: 1.8, unidad: "u" },
+  CINTA: { label: "Cinta de correr", ancho: 0.9, fondo: 1.9, alto: 1.3, unidad: "u" },
+  ARCO: { label: "Arco de largada", ancho: 3, fondo: 0.5, alto: 2.8, unidad: "u" },
+  SILLON: { label: "Sillón", ancho: 1.8, fondo: 0.8, alto: 0.8, unidad: "u" },
+  POUF: { label: "Pouf", ancho: 0.5, fondo: 0.5, alto: 0.45, unidad: "u" },
+  ISLA_PRODUCTO: { label: "Isla de producto", ancho: 1.2, fondo: 1.2, alto: 1, unidad: "u" },
+  BARRA: { label: "Barra", ancho: 2.4, fondo: 0.6, alto: 1.1, unidad: "u" },
 } as const;
 export type TipoPieza = keyof typeof PIEZAS;
 
@@ -173,6 +185,17 @@ export const COSTOS_REFERENCIA: Record<ClaveCosto, number> = {
   TARIMA: 380000,
   DEPOSITO: 450000,
   PLANTA: 45000,
+  PHOTOCALL: 260000,
+  ZONA_PRUEBA: 350000,
+  DESAFIO: 520000,
+  MURO_EXHIBICION: 380000,
+  MONITOR_55: 480000,
+  CINTA: 850000,
+  ARCO: 600000,
+  SILLON: 220000,
+  POUF: 60000,
+  ISLA_PRODUCTO: 360000,
+  BARRA: 420000,
 };
 
 export const COSTO_LABEL: Record<ClaveCosto, string> = {

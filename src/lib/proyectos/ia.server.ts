@@ -178,7 +178,8 @@ async function generarConPollinations(pedido: string): Promise<ImagenGenerada> {
     const r = await fetch(urlPollinations(pedido, Math.floor(Math.random() * 1_000_000)), { signal: AbortSignal.timeout(55_000), cache: "no-store" });
     if (!r.ok) {
       console.error(`[proyectos/ia] el servicio de imágenes respondió ${r.status}`);
-      return { ok: false, error: r.status === 429 ? "El servicio de imágenes está saturado en este momento. Probá en unos minutos." : "El servicio de imágenes no pudo generar este pedido." };
+      // Sin clave, Pollinations deja 1 imagen cada 45 segundos por IP (responde 402): en un servidor compartido es lo normal.
+      return { ok: false, error: r.status === 402 || r.status === 429 ? "El servicio gratuito de imágenes permite una imagen cada 45 segundos. Probá de nuevo en un minuto, o conectá la cuenta de Cloudflare para tener un cupo propio." : "El servicio de imágenes no pudo generar este pedido." };
     }
     const tipo = tipoDeImagen(r.headers.get("content-type"));
     if (!tipo) return { ok: false, error: "El servicio de imágenes devolvió algo que no es una imagen." };
