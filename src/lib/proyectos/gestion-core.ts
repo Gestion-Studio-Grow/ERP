@@ -413,6 +413,7 @@ export interface FotoItem {
   descripcion: string;
   rubro: string;
   importe: number;
+  costo?: number; // en pesos, al enviar: el margen de lo enviado no se mueve con el dólar de hoy
 }
 
 export interface CambioVersion {
@@ -448,28 +449,104 @@ export interface LineaExtracto {
   importe: number;
 }
 
-/** Extracto en CSV: fecha;descripción;importe (o con comas). Devuelve lo legible y cuántas líneas no se entendieron. */
+/** Una fila de CSV: respeta comillas, porque un importe con coma decimal suele venir entre ellas. */
+function celdas(linea: string, sep: string): string[] {
+  const salida: string[] = [];
+  let actual = "";
+  let entre = false;
+  for (const ch of linea) {
+    if (ch === '"') entre = !entre;
+    else if (ch === sep && !entre) {
+      salida.push(actual.trim());
+      actual = "";
+    } else actual += ch;
+  }
+  salida.push(actual.trim());
+  return salida;
+}
+
+/** 1.500,50 · 1,500.50 · 1.500 · -200 · $ 300 · (300). Lo que no es un número da null. PURA. */
+export function leerImporte(crudo: string): number | null {
+  let s = crudo.replace(/[$\s]|ARS|USD/g, "");
+  if (!s) return null;
+  const negativo = /^\(.*\)$/.test(s) || s.startsWith("-") || s.endsWith("-");
+  s = s.replace(/[()\-+]/g, "");
+  const coma = s.lastIndexOf(",");
+  const punto = s.lastIndexOf(".");
+  if (coma >= 0 && punto >= 0) s = coma > punto ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
+  else if (coma >= 0) s = /,\d{3}$/.test(s) && s.length > 4 && s.indexOf(",") !== coma ? s.replace(/,/g, "") : s.replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
+  if (!/^\d+(\.\d+)?$/.test(s)) return null;
+  return (negativo ? -1 : 1) * Number(s);
+}
+
+function leerFecha(crudo: string): Date | null {
+  const s = crudo.trim();
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]), 12);
+  const m = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/.exec(s);
+  if (!m || Number(m[2]) > 12 || Number(m[1]) > 31) return null;
+  return new Date(m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]), Number(m[2]) - 1, Number(m[1]), 12);
+}
+
+const sinAcentos = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+/** Si la primera fila son títulos, dice en qué columna está cada cosa. */
+function columnasDelTitulo(fila: readonly string[]) {
+  const buscar = (re: RegExp) => fila.findIndex((c) => re.test(sinAcentos(c)));
+  const fecha = buscar(/^fecha/);
+  const importe = buscar(/importe|monto/);
+  const debito = buscar(/debito|^debe|egreso/);
+  const credito = buscar(/credito|^haber|ingreso/);
+  if (fecha < 0 || (importe < 0 && debito < 0 && credito < 0)) return null;
+  return { fecha, importe, debito, credito, descripcion: buscar(/descripcion|concepto|detalle|referencia|movimiento/) };
+}
+
+/**
+ * Extracto en CSV de cualquier banco. Con títulos, se guía por ellos: ignora el saldo y entiende débito y crédito en
+ * columnas separadas. Sin títulos, entiende fecha;descripción;importe y, si las dos últimas son números, la última es el saldo.
+ */
 export function leerExtracto(csv: string): { lineas: LineaExtracto[]; ilegibles: number } {
   const lineas: LineaExtracto[] = [];
   let ilegibles = 0;
-  for (const cruda of csv.split(/\r?\n/)) {
-    const s = cruda.trim();
-    if (!s) continue;
-    const partes = s.includes(";") ? s.split(";") : s.split(",");
+  const filas = csv.replace(/^\uFEFF/, "").split(/\r?\n/).map((f) => f.trim()).filter(Boolean);
+  const sep = filas.some((f) => f.includes(";")) ? ";" : filas.some((f) => f.includes("\t")) ? "\t" : ",";
+  let titulos: ReturnType<typeof columnasDelTitulo> = null;
+  for (const fila of filas) {
+    const partes = celdas(fila, sep);
+    if (!titulos && lineas.length === 0) {
+      titulos = columnasDelTitulo(partes);
+      if (titulos) continue;
+    }
     if (partes.length < 3) {
       ilegibles++;
       continue;
     }
-    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(partes[0].trim()) ?? null;
-    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(partes[0].trim());
-    const fecha = m ? new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), 12) : iso ? new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]), 12) : null;
-    const textoImporte = partes[partes.length - 1].trim();
-    const importe = Number(textoImporte.includes(",") ? textoImporte.replace(/\./g, "").replace(",", ".") : textoImporte);
-    if (!fecha || !Number.isFinite(importe) || importe === 0) {
+    let fecha: Date | null;
+    let importe: number | null;
+    let descripcion: string;
+    if (titulos) {
+      fecha = leerFecha(partes[titulos.fecha] ?? "");
+      descripcion = titulos.descripcion >= 0 ? (partes[titulos.descripcion] ?? "") : "";
+      if (titulos.importe >= 0) importe = leerImporte(partes[titulos.importe] ?? "");
+      else {
+        const debe = titulos.debito >= 0 ? leerImporte(partes[titulos.debito] ?? "") : null;
+        const haber = titulos.credito >= 0 ? leerImporte(partes[titulos.credito] ?? "") : null;
+        importe = debe === null && haber === null ? null : (haber ?? 0) - Math.abs(debe ?? 0);
+      }
+    } else {
+      fecha = leerFecha(partes[0]);
+      const ultima = leerImporte(partes[partes.length - 1]);
+      const penultima = partes.length > 3 ? leerImporte(partes[partes.length - 2]) : null;
+      const conSaldo = ultima !== null && penultima !== null;
+      importe = conSaldo ? penultima : (ultima ?? penultima);
+      descripcion = partes.slice(1, conSaldo || ultima === null ? -2 : -1).join(" ").trim();
+    }
+    if (!fecha || importe === null || importe === 0) {
       ilegibles++;
       continue;
     }
-    lineas.push({ fecha, descripcion: partes.slice(1, -1).join(" ").trim(), importe });
+    lineas.push({ fecha, descripcion, importe });
   }
   return { lineas, ilegibles };
 }
@@ -650,7 +727,16 @@ export const TIPOS_AVISO = [
 /** `@Ana` en un mensaje: los nombres mencionados que coinciden con alguien del equipo. */
 export function mencionados(texto: string, personas: readonly { id: string; nombre: string }[]): string[] {
   const palabras = new Set((texto.match(/@([\p{L}]+)/gu) ?? []).map((m) => m.slice(1).toLowerCase()));
-  return personas.filter((p) => palabras.has(p.nombre.split(" ")[0].toLowerCase())).map((p) => p.id);
+  const alias = aliasDeMencion(personas);
+  return personas.filter((p) => palabras.has((alias.get(p.id) ?? "").toLowerCase())).map((p) => p.id);
+}
+
+/** Cómo se menciona a cada uno: el nombre de pila o, si hay dos Ana, el nombre completo junto (@AnaPérez), para no avisarles a las dos. */
+export function aliasDeMencion(personas: readonly { id: string; nombre: string }[]): Map<string, string> {
+  const pila = (n: string) => n.trim().split(/\s+/)[0];
+  const veces = new Map<string, number>();
+  for (const p of personas) veces.set(pila(p.nombre).toLowerCase(), (veces.get(pila(p.nombre).toLowerCase()) ?? 0) + 1);
+  return new Map(personas.map((p) => [p.id, (veces.get(pila(p.nombre).toLowerCase()) ?? 0) > 1 ? p.nombre.replace(/\s+/g, "") : pila(p.nombre)]));
 }
 
 // ── Agenda de inicio y calendario ───────────────────────────────────────────

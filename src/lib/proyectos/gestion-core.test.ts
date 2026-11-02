@@ -12,6 +12,7 @@ import {
   motivoBase,
   extrasDelPeriodo,
   leerExtracto,
+  leerImporte,
   mencionados,
   nivelDeCarga,
   permisoDe,
@@ -338,4 +339,24 @@ test("el costo sin proveedor se cuenta en pesos, y lo que tiene proveedor no", (
 test("el motivo de pérdida suma por lo de la lista, sin el detalle", () => {
   assert.equal(motivoBase("Precio — pidió 20% menos"), "Precio");
   assert.equal(motivoBase("Precio"), "Precio");
+});
+
+test("el extracto entiende títulos, débito y crédito, y no toma el saldo como importe", () => {
+  const conSaldo = leerExtracto("Fecha;Concepto;Importe;Saldo\n15/10/2026;Transferencia;1.500,50;90.000,00\n16/10/26;Comisión;-200;89.800");
+  assert.deepEqual(conSaldo.lineas.map((l) => [l.descripcion, l.importe]), [["Transferencia", 1500.5], ["Comisión", -200]]);
+  assert.equal(conSaldo.ilegibles, 0);
+  const separadas = leerExtracto(`Fecha,Detalle,Débito,Crédito,Saldo\n2026-10-15,Pago,"1.000,00",,5000\n2026-10-16,Cobro,,"300,50",5300`);
+  assert.deepEqual(separadas.lineas.map((l) => l.importe), [-1000, 300.5]);
+  const sinTitulo = leerExtracto("15/10/2026;Pago;-100;900\n16/10/2026;Otro;$ 50");
+  assert.deepEqual(sinTitulo.lineas.map((l) => [l.descripcion, l.importe]), [["Pago", -100], ["Otro", 50]]);
+});
+
+test("importes como los escriben los bancos", () => {
+  for (const [crudo, valor] of [["1.234,56", 1234.56], ["1,234.56", 1234.56], ["1.234", 1234], ["1,5", 1.5], ["(300)", -300], ["300-", -300], ["$ 2.000.000", 2000000], ["abc", null], ["", null]] as const) assert.equal(leerImporte(crudo), valor, crudo);
+});
+
+test("con dos Ana, la mención por nombre de pila no le avisa a ninguna", () => {
+  const p = [{ id: "1", nombre: "Ana Pérez" }, { id: "2", nombre: "Ana Gil" }, { id: "3", nombre: "Tomás Vera" }];
+  assert.deepEqual(mencionados("@Ana mirá", p), []);
+  assert.deepEqual(mencionados("@AnaPérez y @tomás", p), ["1", "3"]);
 });

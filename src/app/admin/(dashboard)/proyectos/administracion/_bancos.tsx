@@ -7,6 +7,25 @@ import { conciliarMovimiento, crearCuenta, desconciliarMovimiento, guardarSaldo 
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonDosPasos, FormAccion, ImportarExtracto, MarcarCuota } from "./_controles";
 
+/** Un cobro partido o una comisión descontada no coinciden con ninguna cuota: lo decide la persona. */
+function ElegirCuota({ id, opciones, etiqueta: titulo }: { id: string; opciones: readonly { id: string; concepto: string; monto: number; moneda: string; venceEl: Date }[]; etiqueta: string }) {
+  if (opciones.length === 0) return null;
+  return (
+    <details>
+      <summary className="min-h-11 cursor-pointer py-2 text-sm text-strong">{titulo}</summary>
+      <FormAccion accion={conciliarMovimiento} boton="Conciliar">
+        <input type="hidden" name="id" value={id} />
+        <label className={etiqueta}>Cuota
+          <select name="cuotaId" required defaultValue="" className={campo}>
+            <option value="" disabled>Elegí una cuota</option>
+            {opciones.map((c) => <option key={c.id} value={c.id}>{c.concepto} · {plataEn(c.monto, c.moneda)} · vence {fechaCorta(c.venceEl)}</option>)}
+          </select>
+        </label>
+      </FormAccion>
+    </details>
+  );
+}
+
 export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenantId: string; editaEmpresa: boolean; editaPagos: boolean }) {
   const { cuentas, movimientos, candidatas, tc } = await datosDeBancos(tenantId);
   // Las cuotas se comparan en pesos: el movimiento de una cuenta en dólares, también.
@@ -94,9 +113,13 @@ export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenant
                         <div className="grid justify-items-start gap-1">
                           <span className="text-muted">Propuesta: <span className="text-strong">{propuesta.concepto}</span> · vence {fechaCorta(propuesta.venceEl)}</span>
                           {editaEmpresa && <FormAccion accion={conciliarMovimiento} boton="Conciliar"><input type="hidden" name="id" value={m.id} /><input type="hidden" name="cuotaId" value={propuesta.id} /></FormAccion>}
+                          {editaEmpresa && <ElegirCuota id={m.id} opciones={candidatas.filter((c) => (c.tipo === "COBRO") === m.importe > 0)} etiqueta="Elegir otra cuota" />}
                         </div>
                       ) : (
-                        <span className="text-muted">Sin cuota con ese importe</span>
+                        <div className="grid justify-items-start gap-1">
+                          <span className="text-muted">Sin cuota con ese importe</span>
+                          {editaEmpresa && <ElegirCuota id={m.id} opciones={candidatas.filter((c) => (c.tipo === "COBRO") === m.importe > 0)} etiqueta="Elegir la cuota a mano" />}
+                        </div>
                       )}
                     </td>
                     <td className="py-2 text-xs text-muted">{m.lote || "—"}</td>

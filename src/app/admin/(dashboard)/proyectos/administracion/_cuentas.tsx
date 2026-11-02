@@ -97,7 +97,7 @@ export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaE
                     <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums text-strong">{plataEn(c.monto, c.moneda)}</td>
                     <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-muted">{referencia > 0 ? pesos(referencia) : "—"}</td>
                     <td className="py-2 pr-3">{editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>
-                    <td className={cn("whitespace-nowrap py-2 pr-3", vencida && "font-medium text-danger")}>{ESTADO_LABEL[est]}</td>
+                    <td className={cn("whitespace-nowrap py-2 pr-3", vencida && "font-medium text-danger")}>{est === "PAGADA" && c.tipo === "COBRO" ? "Cobrada" : ESTADO_LABEL[est]}</td>
                     <td className="py-2 pr-3">
                       <div className="grid justify-items-start gap-1">
                         {est !== "PAGADA" && puedeMarcar && <MarcarCuota id={c.id} deEmpresa={deEmpresa} etiqueta={tipo === "COBRO" ? "Cobrado" : "Pagar"} />}
@@ -115,18 +115,21 @@ export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaE
         </div>
       )}
 
-      {tipo === "PAGO" && editaEmpresa && (
+      {editaEmpresa && (
         <section className={tarjeta}>
-          <h2 className="mb-2 font-semibold text-strong">Nuevo pago de la empresa</h2>
-          <p className="mb-3 text-sm text-muted">Lo que no es de ningún evento: alquiler, servicios, un honorario.</p>
-          <FormAccion accion={crearPagoEmpresa} boton="Sumar pago" className="sm:grid-cols-2 lg:grid-cols-3">
+          <h2 className="mb-2 font-semibold text-strong">{tipo === "COBRO" ? "Nuevo cobro de la empresa" : "Nuevo pago de la empresa"}</h2>
+          <p className="mb-3 text-sm text-muted">{tipo === "COBRO" ? "Lo que no es de ningún evento: un alquiler de equipos, una asesoría." : "Lo que no es de ningún evento: alquiler, servicios, un honorario."}</p>
+          <FormAccion accion={crearPagoEmpresa} boton={tipo === "COBRO" ? "Sumar cobro" : "Sumar pago"} className="sm:grid-cols-2 lg:grid-cols-3">
+            <input type="hidden" name="tipo" value={tipo} />
             <label className={etiqueta}>Concepto<input name="concepto" required maxLength={200} className={campo} /></label>
-            <label className={etiqueta}>Proveedor
-              <select name="supplierId" className={campo} defaultValue="">
-                <option value="">Sin proveedor</option>
-                {proveedores.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </label>
+            {tipo === "PAGO" && (
+              <label className={etiqueta}>Proveedor
+                <select name="supplierId" className={campo} defaultValue="">
+                  <option value="">Sin proveedor</option>
+                  {proveedores.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </label>
+            )}
             <label className={etiqueta}>Vence<input name="venceEl" type="date" required className={campo} /></label>
             <label className={etiqueta}>Monto<input name="monto" inputMode="decimal" required className={campo} /></label>
             <label className={etiqueta}>Moneda

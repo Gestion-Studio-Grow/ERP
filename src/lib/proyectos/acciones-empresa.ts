@@ -44,21 +44,22 @@ const marcaDeCuota = (id: string) => marcaDeGastoProyecto(`cuota-${id}`);
 
 export async function crearPagoEmpresa(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("empresa");
+  const tipo = txt(formData.get("tipo")) === "COBRO" ? "COBRO" : "PAGO";
   const concepto = txt(formData.get("concepto")).slice(0, 200);
-  if (!concepto) return { ok: false, error: "Escribí qué hay que pagar." };
+  if (!concepto) return { ok: false, error: tipo === "COBRO" ? "Escribí qué hay que cobrar." : "Escribí qué hay que pagar." };
   const monto = redondear(numero(formData.get("monto")));
   if (!(monto > 0)) return { ok: false, error: "Escribí el monto." };
   const venceEl = fecha(formData.get("venceEl"));
   if (!venceEl) return { ok: false, error: "Elegí cuándo vence." };
-  const supplierId = txt(formData.get("supplierId")) || null;
+  const supplierId = tipo === "PAGO" ? txt(formData.get("supplierId")) || null : null;
   if (supplierId && !(await prisma.supplier.findFirst({ where: { id: supplierId, tenantId: a.tenantId }, select: { id: true } }))) return { ok: false, error: "Ese proveedor no existe." };
   const mon = moneda(formData.get("moneda"));
   await tenantTransaction(async (tx) => {
     const c = await tx.proyectoCuota.create({
-      data: { tenantId: a.tenantId, proyectoId: null, supplierId, tipo: "PAGO", concepto, monto, moneda: mon, venceEl, factura: txt(formData.get("factura")).slice(0, 60) || null },
+      data: { tenantId: a.tenantId, proyectoId: null, supplierId, tipo, concepto, monto, moneda: mon, venceEl, factura: txt(formData.get("factura")).slice(0, 60) || null },
       select: { id: true },
     });
-    await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: c.id, campo: "alta de pago de empresa", despues: `${concepto} · ${mon} ${monto}`, autor: a.nombre });
+    await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: c.id, campo: tipo === "COBRO" ? "alta de cobro de empresa" : "alta de pago de empresa", despues: `${concepto} · ${mon} ${monto}`, autor: a.nombre });
   });
   refrescar();
   return { ok: true };
@@ -80,7 +81,7 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado>
     where: { id, tenantId: a.tenantId, proyectoId: null },
     select: { id: true, tipo: true, concepto: true, monto: true, moneda: true, supplier: { select: { name: true } } },
   });
-  if (!c) return { ok: false, error: "Ese pago no existe." };
+  if (!c) return { ok: false, error: "Esa cuota no existe." };
   const amount = aPesos(c.monto, c.moneda, await tiposDeCambio(a.tenantId));
   if (!(amount > 0)) return { ok: false, error: "Falta el tipo de cambio: cargalo en Monedas y gastos fijos." };
   const cuenta = await cuentaParaCuota(a.tenantId, formData, { tipo: c.tipo, monto: c.monto, moneda: c.moneda, importeEnPesos: amount });
@@ -104,10 +105,10 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado>
         createdBy: marcaDeCuota(id),
       },
     });
-    await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: id, campo: "pago de empresa", antes: "pendiente", despues: `pagada · ${medio} · $ ${amount}`, autor: a.nombre });
+    await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: id, campo: c.tipo === "COBRO" ? "cobro de empresa" : "pago de empresa", antes: "pendiente", despues: `${c.tipo === "COBRO" ? "cobrada" : "pagada"} · ${medio} · $ ${amount}`, autor: a.nombre });
     return true;
   });
-  if (!hecho) return { ok: false, error: "Ese pago ya estaba marcado." };
+  if (!hecho) return { ok: false, error: "Esa cuota ya estaba marcada." };
   await auditAdmin({ action: "proyecto.cuota-empresa.pagar", entity: "ProyectoCuota", entityId: id, changes: { amount, medio } });
   refrescar();
   return { ok: true };
@@ -205,7 +206,7 @@ export async function importarExtracto(formData: FormData): Promise<Resultado<{ 
   if (csv.length > MAX_EXTRACTO) return { ok: false, error: "El extracto es demasiado grande: subilo de a un período por vez." };
   if (!(await prisma.proyectoCuentaBanco.findFirst({ where: { id: cuentaId, tenantId: a.tenantId }, select: { id: true } }))) return { ok: false, error: "Elegí una cuenta." };
   const { lineas, ilegibles } = leerExtracto(csv);
-  if (lineas.length === 0) return { ok: false, error: `No se entendió ninguna línea (${ilegibles} sin leer). Tiene que ser fecha;descripción;importe.` };
+  if (lineas.length === 0) return { ok: false, error: `No se entendió ninguna línea (${ilegibles} sin leer). Tiene que tener fecha, descripción e importe.` };
   if (lineas.length > MAX_LINEAS_EXTRACTO) return { ok: false, error: `Un extracto puede tener hasta ${MAX_LINEAS_EXTRACTO} líneas: subilo de a un período por vez.` };
   const existentes = await prisma.proyectoMovBanco.findMany({ where: { tenantId: a.tenantId, cuentaId, fecha: { gte: new Date(Math.min(...lineas.map((l) => l.fecha.getTime())) - 86_400_000) } }, select: { fecha: true, descripcion: true, importe: true } });
   const nuevas = lineasNuevas(lineas, existentes);
