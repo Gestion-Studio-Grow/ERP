@@ -14,11 +14,13 @@ test("sin Ventas del día (CH) el enlace lleva a Pedidos; con ella, como siempre
   assert.equal(new URL(ch, "http://x").searchParams.get("anular"), "v/1");
   assert.doesNotMatch(ch, /\/admin\/ventas/);
   assert.equal(rutaDeAnulacion("v/1", { sinVentasDelDia: false }), rutaParaAnularLaVenta("v/1"));
+  assert.doesNotMatch(ch, /#/, "en el diseño nuevo, sin ancla: abre un diálogo");
+  assert.match(rutaDeAnulacion("v1", { sinVentasDelDia: true, conAncla: true }), /#pedido-v1$/);
 });
 
 test("el mostrador usa ese enlace, y sólo CH lo pide", () => {
   const nucleo = fuente("./nucleo-de-venta.tsx");
-  assert.match(nucleo, /<Link href=\{rutaDeAnulacion\(ultima\.venta\.id, \{ sinVentasDelDia \}\)\}/);
+  assert.match(nucleo, /<Link href=\{rutaDeAnulacion\(ultima\.venta\.id, \{ sinVentasDelDia, conAncla: !nuevo \}\)\}/);
   assert.doesNotMatch(nucleo, /rutaParaAnularLaVenta/);
   assert.match(fuente("./MostradorDeVenta.tsx"), /sinVentasDelDia=\{quienCompra === "clienta"\}/);
 });
@@ -34,6 +36,13 @@ test("Pedidos resuelve ?anular=: cerrada al diálogo, en curso al cajón; sin pe
   assert.equal(destinoDeAnular("d", abiertos, cerrados), null, "no anulable para este rol o este día");
   assert.equal(destinoDeAnular("otra", abiertos, cerrados), null);
   assert.equal(destinoDeAnular(null, abiertos, cerrados), null);
+});
+
+test("el diálogo pedido por URL se cierra con estado, sin esperar a la URL, y dice «venta» en CH", () => {
+  const t = fuente("../pedidos/TableroPedidos.tsx");
+  assert.match(t, /setAnularDescartado\(anularDeLaUrl\)/);
+  assert.match(t, /anularDeLaUrl === anularDescartado \? null : anularDeLaUrl/);
+  assert.match(t, /sustantivo=\{comercio \? "pedido" : "venta"\}/);
 });
 
 test("el cajón del mostrador se cierra para dejar ver el formulario de anular", () => {

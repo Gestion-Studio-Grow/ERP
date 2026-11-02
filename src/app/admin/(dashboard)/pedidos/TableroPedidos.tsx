@@ -807,6 +807,7 @@ export default function TableroPedidos({
   const [seccion, setSeccion] = useState<SeccionDelCajon>(null);
   const [avisar, setAvisar] = useState<string[]>([]);
   const [anularCerrado, setAnularCerrado] = useState<PedidoCerrado | null>(null);
+  const [anularDescartado, setAnularDescartado] = useState<string | null>(null);
   const [noRetiro, setNoRetiro] = useState<PedidoDelTablero | null>(null);
   const empujado = useRef(false);
   // MOSTRADOR BOUTIQUE (2C): la bandeja en columnas. `?vista=lista` vuelve a la tabla de siempre
@@ -829,12 +830,16 @@ export default function TableroPedidos({
   // Sólo comercio: la bandeja de CH queda como estaba.
   const otrosDeLaClienta = comercio ? otrosPedidosDeLaClienta(abiertos) : new Map<string, number[]>();
 
-  const pedirAnular = destinoDeAnular(params.get("anular"), abiertos, cerrados);
+  // El diálogo pedido por URL se cierra EN EL MOMENTO, con estado: la URL cambia en una transición de
+  // Next y el diálogo no la espera.
+  const anularDeLaUrl = params.get("anular");
+  const pedirAnular = destinoDeAnular(anularDeLaUrl === anularDescartado ? null : anularDeLaUrl, abiertos, cerrados);
   const idAbierto = params.get("pedido") ?? (pedirAnular?.tipo === "cajon" ? pedirAnular.pedido.id : null);
   const pedidoAbierto = idAbierto ? (abiertos.find((p) => p.id === idAbierto) ?? null) : null;
   const cerradoAAnular = anularCerrado ?? (pedirAnular?.tipo === "dialogo" ? pedirAnular.pedido : null);
   const cerrarAnularCerrado = () => {
     setAnularCerrado(null);
+    setAnularDescartado(anularDeLaUrl);
     cambiarUrl({ anular: null });
   };
 
@@ -1216,6 +1221,7 @@ export default function TableroPedidos({
             total={cerradoAAnular.total}
             motivoObligatorio={anulacion.motivoObligatorio}
             conCodigo={anulacion.conCodigo}
+            sustantivo={comercio ? "pedido" : "venta"}
             onHecho={cerrarAnularCerrado}
           />
         </Dialogo>
