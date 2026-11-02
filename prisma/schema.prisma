@@ -259,6 +259,8 @@ model Tenant {
   proyectoEntregableVers    ProyectoEntregableVersion[]
   proyectoArchivos          ProyectoArchivo[]
   proyectoStands            ProyectoStand[]
+  consultas                 Consulta[]
+  consultaMensajes          ConsultaMensaje[]
   proyectoConfig            ProyectoConfig?
   inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                 InmoFoto[]
@@ -3261,6 +3263,7 @@ model Proyecto {
   gastos              ProyectoGasto[]
   archivos            ProyectoArchivo[]
   stands              ProyectoStand[]
+  consultas           Consulta[]
   entregables         ProyectoEntregable[]
   cuotas              ProyectoCuota[]
   equipo              ProyectoEquipo[]
@@ -3477,6 +3480,47 @@ model ProyectoStand {
   updatedAt  DateTime @updatedAt
 
   @@index([tenantId, proyectoId])
+}
+
+/// Consulta de un potencial cliente que llegó por el formulario del sitio, mail, WhatsApp o se cargó a mano. Es el lead antes de ser proyecto.
+model Consulta {
+  id              String            @id @default(cuid())
+  tenant          Tenant            @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  canal           String // WEB · EMAIL · WHATSAPP · MANUAL
+  nombre          String            @default("")
+  email           String?
+  telefono        String? // formato internacional de celular: 549…
+  empresa         String?
+  estado          String            @default("NUEVA") // NUEVA · EN_CALIFICACION · PARA_PERSONA · CONVERTIDA · DESCARTADA
+  intencion       String            @default("NUEVA") // NUEVA · PRECIO · ESCALAR · NO_CLIENTE (ver consulta-core.ts)
+  motivos         String[] // por qué hay que escalarla
+  brief           Json? // BriefConsulta: cada dato con su estado (confirmado, inferido, pendiente, no aplica)
+  proyecto        Proyecto?         @relation(fields: [proyectoId], references: [id], onDelete: SetNull)
+  proyectoId      String?
+  mensajes        ConsultaMensaje[]
+  ultimaActividad DateTime          @default(now())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([tenantId, estado, ultimaActividad])
+}
+
+model ConsultaMensaje {
+  id         String   @id @default(cuid())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  consulta   Consulta @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+  consultaId String
+  direccion  String // ENTRANTE · SALIENTE
+  origen     String // CLIENTE · PLANTILLA · AGENTE · PERSONA
+  texto      String
+  envio      String   @default("NO_APLICA") // NO_APLICA · BORRADOR · SIMULADO · ENVIADO · FALLIDO · DESCARTADO
+  problemas  String[] // lo que frenó un borrador del agente
+  autor      String? // la persona que lo aprobó o lo escribió
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, consultaId, createdAt])
 }
 
 model ProyectoConfig {

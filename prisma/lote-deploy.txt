@@ -52,3 +52,7 @@
 20261101140000_proyecto_entregables
 # 2026-11-01: GESTION DE EVENTOS de MIA. Aditiva: tablas nuevas con RLS y columnas en tablas del modulo. Sin aplicar.
 20261101150000_proyecto_gestion_eventos
+# 2026-11-02: CONSULTAS de potenciales clientes (MIA). Aditiva: dos tablas nuevas (Consulta y ConsultaMensaje) con RLS adentro y claves
+# foráneas a Tenant y Proyecto; no toca columnas ni datos existentes. Sin respaldo: decisión del dueño del 02/11 («no existen datos reales
+# en la base»); como es sólo CREATE, la vuelta atrás es borrar las dos tablas.
+20261102120000_consultas

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acotarEntrante, acuseDeRecibo, acuseSinPreguntas, armarPreguntas, clasificarConsulta, emailValido, enlaceWhatsApp, faltantes, normalizarTelefonoAR, puedeCotizar, respuestaAutomatica, revisarRespuesta, type BriefConsulta, type Intencion } from "./consulta-core";
+import { mezclarBrief, validarBriefDeModelo, tipoEventoDeTexto, resumenParaLead, acotarEntrante, acuseDeRecibo, acuseSinPreguntas, armarPreguntas, clasificarConsulta, emailValido, enlaceWhatsApp, faltantes, normalizarTelefonoAR, puedeCotizar, respuestaAutomatica, revisarRespuesta, type BriefConsulta, type Intencion } from "./consulta-core";
 
 // Consultas como las que llegan: el conjunto con que se mide la clasificación. Si una regla nueva cambia alguna, la prueba lo dice.
 const EJEMPLOS: [string, Intencion][] = [
@@ -136,4 +136,67 @@ test("repetir lo que el cliente ya dijo, o nombrar un contacto del negocio, est�
     ["Hola! Mientras tanto podés ver nuestros trabajos en https://www.mia.com.ar/trabajos y una persona te contacta.", CTX],
   ] as const;
   for (const [texto, ctx] of ok) assert.deepEqual(revisarRespuesta(texto, ctx), [], texto);
+});
+
+test("el tipo de evento se deduce del texto sólo cuando alcanza, y si no lo define una persona", () => {
+  const casos: [string, string | null][] = [
+    ["Quiero un stand para la Expo Rural", "Stand / Feria"],
+    ["Una activación de marca en un shopping", "Activación de marca"],
+    ["Lanzamiento de un producto nuevo", "Lanzamiento"],
+    ["Armamos un congreso médico en Córdoba", "Congreso"],
+    ["Tenemos la convención anual en marzo", "Convención"],
+    ["Una cena de fin de año para 200 personas", "Gala / Fiesta"],
+    ["Hola, necesito ayuda con algo", null],
+  ];
+  for (const [texto, esperado] of casos) assert.equal(tipoEventoDeTexto(texto), esperado, texto);
+});
+
+test("el resumen para el lead lleva contacto, lo que escribió y el brief con sus estados, sin inventar", () => {
+  const r = resumenParaLead({ canal: "WEB", nombre: "Ana", email: "ana@empresa.com", telefono: "5491126823872", empresa: "Empresa SA", primerMensaje: "Queremos un stand de 6x4 en la Expo", brief: { superficie: { estado: "CONFIRMADO", valor: "6 x 4 m" }, fecha: { estado: "INFERIDO", valor: "abril" } } });
+  assert.match(r, /Consulta recibida por web/);
+  assert.match(r, /Ana · Empresa SA · ana@empresa\.com · 5491126823872/);
+  assert.match(r, /Queremos un stand de 6x4/);
+  assert.match(r, /Medidas o superficie disponible: 6 x 4 m \(confirmado por el cliente\)/);
+  assert.match(r, /Fecha o período: abril \(inferido\)/);
+  assert.match(r, /Lugar o ciudad: pendiente/);
+  assert.ok(r.length <= 4000);
+});
+
+test("lo que la IA marca como confirmado tiene que haberlo dicho el cliente; si no, queda inferido", () => {
+  const cliente = "Hola, necesitamos un stand de 6x4 en la Expo Rural de Palermo para abril";
+  const b = validarBriefDeModelo(
+    {
+      tipoEvento: { estado: "CONFIRMADO", valor: "stand en feria" },
+      superficie: { estado: "CONFIRMADO", valor: "6 x 4 m" },
+      ubicacion: { estado: "CONFIRMADO", valor: "Expo Rural de Palermo" },
+      fecha: { estado: "CONFIRMADO", valor: "15 de abril" },
+      presupuesto: { estado: "CONFIRMADO", valor: "alrededor de dos millones" },
+      objetivo: { estado: "INFERIDO", valor: "ventas" },
+      publico: { estado: "PENDIENTE", valor: "inventado igual" },
+      infraestructura: { estado: "ESTADO_RARO", valor: "x" },
+      basura: { estado: "CONFIRMADO", valor: "y" },
+    },
+    cliente,
+  );
+  assert.equal(b.superficie?.estado, "CONFIRMADO", "las cifras sí figuran");
+  assert.equal(b.ubicacion?.estado, "CONFIRMADO");
+  assert.equal(b.tipoEvento?.estado, "CONFIRMADO", "stand figura");
+  assert.equal(b.fecha?.estado, "CONFIRMADO", "abril figura");
+  assert.equal(b.presupuesto?.estado, "INFERIDO", "el presupuesto no lo dijo el cliente");
+  assert.equal(b.objetivo?.estado, "INFERIDO");
+  assert.deepEqual(b.publico, { estado: "PENDIENTE" }, "un pendiente no lleva valor");
+  assert.equal(b.infraestructura, undefined, "un estado desconocido se descarta");
+  assert.equal("basura" in b, false);
+  assert.deepEqual(validarBriefDeModelo(null, cliente), {});
+  assert.equal(validarBriefDeModelo({ fecha: { estado: "CONFIRMADO", valor: "" } }, cliente).fecha?.estado, "PENDIENTE", "confirmado sin valor no existe");
+});
+
+test("al mezclar el brief, lo confirmado no se pisa con algo menos firme ni un pendiente borra un dato", () => {
+  const previo: BriefConsulta = { superficie: { estado: "CONFIRMADO", valor: "6 x 4 m" }, fecha: { estado: "INFERIDO", valor: "abril" }, ubicacion: { estado: "PENDIENTE" } };
+  const nuevo: BriefConsulta = { superficie: { estado: "INFERIDO", valor: "5 x 5 m" }, fecha: { estado: "PENDIENTE" }, ubicacion: { estado: "CONFIRMADO", valor: "Córdoba" }, objetivo: { estado: "INFERIDO", valor: "ventas" } };
+  const m = mezclarBrief(previo, nuevo);
+  assert.deepEqual(m.superficie, { estado: "CONFIRMADO", valor: "6 x 4 m" });
+  assert.deepEqual(m.fecha, { estado: "INFERIDO", valor: "abril" });
+  assert.deepEqual(m.ubicacion, { estado: "CONFIRMADO", valor: "Córdoba" });
+  assert.deepEqual(m.objetivo, { estado: "INFERIDO", valor: "ventas" });
 });
