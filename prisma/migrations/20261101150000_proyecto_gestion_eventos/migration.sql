@@ -44,6 +44,7 @@ ALTER TABLE "ProyectoArchivo" ADD COLUMN     "itemId" TEXT;
 -- CreateTable
 CREATE TABLE "ProyectoCuota" (
     "id" TEXT NOT NULL,
+    "venceManual" BOOLEAN NOT NULL DEFAULT false,
     "prevista" BOOLEAN NOT NULL DEFAULT false,
     "cuentaId" TEXT,
     "cuentaMovido" DOUBLE PRECISION,

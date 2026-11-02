@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { cn } from "@/components/ui";
-import { fechaCorta, pesos } from "@/lib/proyectos/core";
+import { fechaCorta, fechaParaInput, pesos } from "@/lib/proyectos/core";
 import { aPesos, codigoProyecto, diasDeAtraso, estadoCuota, plataEn } from "@/lib/proyectos/gestion-core";
 import { FILTROS_CUOTA, pasaFiltro, type FiltroCuota } from "@/lib/proyectos/empresa-core";
 import { proveedoresActivos, type CuotaDelNegocio } from "@/lib/proyectos/empresa.server";
 import { anularCuotaEmpresa, crearPagoEmpresa } from "@/lib/proyectos/acciones-empresa";
 import { campo, etiqueta, tarjeta } from "../_vista";
-import { BotonDosPasos, DatoCuota, FormAccion, MarcarCuota } from "./_controles";
+import { BotonDosPasos, DatoCuota, FormAccion, MarcarCuota, VenceCuota } from "./_controles";
 
 const MAX_FILAS = 300;
 const FILTRO_LABEL: Record<FiltroCuota, string> = { pendientes: "Pendientes", vencidos: "Vencidos", pagados: "Pagados", todos: "Todos" };
@@ -82,7 +82,10 @@ export async function TabCuentas({ tipo, estado, q, cuotas, tc, tenantId, editaE
                 const referencia = aPesos(c.monto, c.moneda, tc);
                 return (
                   <tr key={c.id} className={cn("border-t border-line align-top", vencida && "bg-danger-soft")}>
-                    <td className={cn("py-2 pr-3", vencida && "text-danger")}>{vence(c.venceEl, vencida)}</td>
+                    <td className={cn("py-2 pr-3", vencida && "text-danger")}>
+                      {editaEmpresa && !c.pagadoEl ? <VenceCuota id={c.id} valor={fechaParaInput(c.venceEl)} etiqueta={`Vencimiento de ${c.concepto}`} /> : null}
+                      {vence(c.venceEl, vencida)}
+                    </td>
                     <td className="py-2 pr-3">
                       {c.proyecto ? <Link href={`/admin/proyectos/${c.proyecto.id}`} className="underline">{codigoProyecto(c.proyecto.numero, c.proyecto.createdAt)} {c.proyecto.nombre}</Link> : <span className="text-muted">Empresa</span>}
                     </td>

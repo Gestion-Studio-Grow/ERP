@@ -9,7 +9,7 @@ import { aItemFicha, tiposDeCambio } from "./gestion.server";
 import { configProyectos } from "./datos.server";
 import { aPesos, codigoProyecto, nivelDeCarga, pipelinePonderado, proyeccionDeCaja, resumenCuotas, totalesFicha, type NivelCarga } from "./gestion-core";
 import { desviosDelEvento, estaAbierto, estaActivo, estaConfirmado, finDeSemana, margenSobreVenta } from "./empresa-core";
-import { redondear } from "./core";
+import { redondear, yaVencio } from "./core";
 
 const MESES_PROYECCION = 6;
 
@@ -280,7 +280,7 @@ export async function cargaDelEquipo(tenantId: string): Promise<FilaCarga[]> {
         proyectos: p.equipos.filter((e) => !e.proyecto.perdidoEl && e.proyecto.etapa !== "CIERRE").length,
         tareas: suyas.length,
         semana: suyas.filter((t) => t.venceEl && t.venceEl.getTime() >= hoy.getTime() && t.venceEl.getTime() < fin).length,
-        vencidas: suyas.filter((t) => t.venceEl && t.venceEl.getTime() < hoy.getTime()).length,
+        vencidas: suyas.filter((t) => yaVencio(t.venceEl, hoy)).length,
         nivel: nivelDeCarga(suyas.length),
       };
     })

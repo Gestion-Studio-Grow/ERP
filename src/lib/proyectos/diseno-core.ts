@@ -149,7 +149,7 @@ export function estadoDeVersion(estado: string, revision: RevisionInterna): stri
 export function puntoEnImagen(x: unknown, y: unknown): { x: number; y: number } | null {
   if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) return null;
   if (x < 0 || x > 100 || y < 0 || y > 100) return null;
-  return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
+  return { x: Number(x.toFixed(2)), y: Number(y.toFixed(2)) }; // no-es-plata: posición en la imagen, en %
 }
 
 /** El número de cada comentario con punto, por orden de llegada. */

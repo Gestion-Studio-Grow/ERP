@@ -14,7 +14,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 import { fechaCorta, leerNumero } from "./core";
-import { actorActual, avisar, exigirEditar, proyectoVisible, puede, registrarCambio, type Actor } from "./gestion.server";
+import { actorActual, avisar, exigirEditar, proyectoVisible, puede, registrarCambio, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import { COLUMNAS_OCULTAS_BASE, MONEDAS, permisoDe, ROLES_GESTION, RUBROS, TIPOS_AVISO, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { entre, matrizDelFormulario, respuestaDePresentacion } from "./gestion-lecturas-core";
 
@@ -285,7 +285,7 @@ export async function responderPresentacion(d: { token: string; presentacionId: 
     const r = await tx.proyectoPresentacion.updateMany({ where: { id, tenantId, estado: "ENVIADA" }, data: { estado: d.aprueba ? "APROBADA" : "CAMBIOS", respuesta } });
     if (r.count === 0) return false;
     await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "Presentación", entidadId: id, campo: `${pr.nombre}: respuesta del cliente`, antes: "Enviada", despues: respuesta, autor: nombre });
-    const destinatarios = pr.proyecto.equipo.map((e) => e.persona.userId).filter((u): u is string => !!u);
+    const destinatarios = [...pr.proyecto.equipo.map((e) => e.persona.userId).filter((u): u is string => !!u), ...(await usuariosDeLaPlata(tx, tenantId))];
     await avisar(tx, { tenantId, destinatarios, tipo: "aprobacion", texto: `${pr.proyecto.nombre}: ${pr.nombre}. ${respuesta}`, enlace: `${RAIZ}/${pr.proyectoId}` });
     return true;
   });

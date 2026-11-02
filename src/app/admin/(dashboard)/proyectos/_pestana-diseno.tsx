@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Badge, cn } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
-import { fechaCorta, fechaParaInput } from "@/lib/proyectos/core";
+import { fechaCorta, fechaParaInput, yaVencio } from "@/lib/proyectos/core";
 import { esDelEstudio, ETIQUETA_ESTUDIO, estadoDeVersion, esMarcaDeRevision, leerLaminas, normalizarImagenes, normalizarMoodboards, revisionVigente, srcDeImagen } from "@/lib/proyectos/diseno-core";
 import { personasAsignables } from "@/lib/proyectos/diseno.server";
 import { actorActual, filtroDeProyectos, proyectoVisible, puede, type Actor } from "@/lib/proyectos/gestion.server";
@@ -30,7 +30,7 @@ export function aTareaTablero(t: { id: string; titulo: string; estado: string; a
     responsable: t.responsable,
     vence: t.venceEl ? fechaCorta(t.venceEl) : null,
     venceInput: fechaParaInput(t.venceEl),
-    vencida: !!t.venceEl && t.venceEl.getTime() < hoy.getTime() && t.estado !== "APROBADA",
+    vencida: yaVencio(t.venceEl, hoy) && t.estado !== "APROBADA",
   };
 }
 

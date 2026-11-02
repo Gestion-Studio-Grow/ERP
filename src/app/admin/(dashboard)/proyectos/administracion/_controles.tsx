@@ -92,8 +92,9 @@ function ElegirCuenta() {
   }, []);
   if (cuentas.length === 0) return null;
   return (
-    <select name="cuenta" aria-label="Cuenta que se mueve" defaultValue="" className={campo}>
-      <option value="">Sin cuenta</option>
+    <select name="cuenta" aria-label="Cuenta que se mueve" defaultValue="" required className={campo}>
+      <option value="" disabled>Elegí la cuenta</option>
+      <option value="ninguna">No mueve ninguna cuenta</option>
       {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>)}
     </select>
   );
@@ -133,6 +134,33 @@ export function MarcarCuota({ id, deEmpresa, etiqueta }: { id: string; deEmpresa
 }
 
 /** Factura y comentario: se guardan al salir del campo. */
+/** La fecha de una cuota, corregida a mano: regenerar la ficha ya no la pisa. */
+export function VenceCuota({ id, valor, etiqueta }: { id: string; valor: string; etiqueta: string }) {
+  const { error, ocupado, correr } = useAccion();
+  const router = useRouter();
+  return (
+    <div className="grid gap-1">
+      <input
+        type="date"
+        defaultValue={valor}
+        aria-label={etiqueta}
+        aria-busy={ocupado}
+        required
+        className={cn(campo, "w-36")}
+        onChange={(e) => {
+          if (!e.target.value) return;
+          const fd = new FormData();
+          fd.set("id", id);
+          fd.set("campo", "venceEl");
+          fd.set("valor", e.target.value);
+          correr(guardarDatoCuota, fd, () => router.refresh());
+        }}
+      />
+      <Fallo texto={error} />
+    </div>
+  );
+}
+
 export function DatoCuota({ id, dato, valor, etiqueta }: { id: string; dato: "factura" | "comentario"; valor: string; etiqueta: string }) {
   const { error, ocupado, correr } = useAccion();
   const ultimo = useRef(valor);

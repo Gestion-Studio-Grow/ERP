@@ -17,7 +17,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { configProyectos } from "./datos.server";
 import { cambioDeVenta, aPesos, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO } from "./gestion-core";
-import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
+import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { marcaDeGastoProyecto } from "./marcas";
 import type { ModuloGestion } from "./gestion-core";
@@ -570,6 +570,16 @@ export async function nuevaVersion(formData: FormData): Promise<ResultadoFicha> 
 }
 
 /** Sólo Dirección. Un cambio de precio posterior la borra: lo aprobado tiene que ser lo que se envía. */
+/** El cartel sólo lo ve quien entra a la cotización: esto le llega a Dirección. */
+export async function pedirAprobacion(formData: FormData): Promise<ResultadoFicha> {
+  const proyectoId = txt(formData.get("proyectoId"));
+  const a = await entrar(["cotizaciones", "ficha"], proyectoId);
+  if (typeof a === "string") return mal(a);
+  const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId: a.tenantId }, select: { nombre: true } });
+  await avisar(prisma, { tenantId: a.tenantId, destinatarios: await usuariosDeDireccion(a.tenantId), tipo: "aprobacion", texto: `${a.nombre} pide aprobar los precios de ${p?.nombre ?? "un proyecto"}`, enlace: `${RAIZ}/${proyectoId}?tab=cotizacion` });
+  return { ok: true };
+}
+
 export async function aprobarInterno(formData: FormData): Promise<ResultadoFicha> {
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
@@ -725,7 +735,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const etiqueta = `Proyecto #${proyecto.numero} · ${c.concepto}`;
   const cheque = medio === "CHEQUE" ? " · Cheque" : "";
   // Afuera de la transacción: una lectura por otra conexión, adentro, la traba.
-  const destinatarios2 = await usuariosDelEquipo(tenantId, proyectoId, a.user.id);
+  const destinatarios2 = [...(await usuariosDelEquipo(tenantId, proyectoId, a.user.id)), ...(await usuariosDeLaPlata(prisma, tenantId, a.user.id))];
   const cuenta = await cuentaParaCuota(tenantId, formData, { tipo: c.tipo, monto: c.monto, moneda: c.moneda, importeEnPesos: importe });
   if (typeof cuenta === "string") return mal(cuenta);
   const ganada = await tenantTransaction(async (tx) => {

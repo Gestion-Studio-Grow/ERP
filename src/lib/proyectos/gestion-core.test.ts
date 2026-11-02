@@ -24,7 +24,9 @@ import {
   mailDeAviso,
   ajustarAPagado,
   cambioDeVenta,
+  costoSinProveedor,
   cuotaPrevista,
+  venceDeLaCuota,
   enMonedaDeVenta,
   appEnLaBarra,
   movimientoDeCuenta,
@@ -98,6 +100,8 @@ test("estado y resumen de cuotas", () => {
   const p = new Date("2026-11-12T12:00:00Z");
   assert.equal(estadoCuota({ venceEl: v, pagadoEl: null }, hoy), "VENCIDA");
   assert.equal(estadoCuota({ venceEl: v, pagadoEl: hoy }, hoy), "PAGADA");
+  assert.equal(estadoCuota({ venceEl: new Date("2026-11-10T04:00:00Z"), pagadoEl: null }, hoy), "PENDIENTE", "vence hoy: no está vencida aunque ya pasó la hora");
+  assert.equal(estadoCuota({ venceEl: new Date("2026-11-10T02:59:00Z"), pagadoEl: null }, hoy), "VENCIDA", "ayer a la noche en Argentina, aunque en UTC ya sea hoy");
   const r = resumenCuotas(
     [
       { tipo: "COBRO", monto: 10, moneda: "USD", venceEl: v, pagadoEl: null },
@@ -305,4 +309,27 @@ test("una cuota es plata recién con el evento confirmado y con fecha", () => {
   assert.equal(cuotaPrevista("APROBADO", null), true);
   assert.equal(cuotaPrevista("APROBADO", fecha), false);
   assert.equal(cuotaPrevista("CIERRE", fecha), false);
+});
+
+test("el anticipo del cliente vence al confirmar y queda fijo; una fecha a mano no se pisa", () => {
+  const plan = new Date("2026-01-01T12:00:00Z");
+  const hoy = new Date("2026-03-01T12:00:00Z");
+  const antes = new Date("2026-02-01T12:00:00Z");
+  const clave = "p:cliente:anticipo";
+  assert.equal(venceDeLaCuota({ clave, plan, prevista: true, hoy }), plan);
+  assert.equal(venceDeLaCuota({ clave, plan, prevista: false, hoy }), hoy);
+  assert.equal(venceDeLaCuota({ clave, plan, prevista: false, hoy, previa: { venceEl: antes, venceManual: false, prevista: true } }), hoy);
+  assert.equal(venceDeLaCuota({ clave, plan, prevista: false, hoy, previa: { venceEl: antes, venceManual: false, prevista: false } }), antes);
+  assert.equal(venceDeLaCuota({ clave: "p:cliente:saldo", plan, prevista: false, hoy, previa: { venceEl: antes, venceManual: false, prevista: false } }), plan);
+  assert.equal(venceDeLaCuota({ clave: "p:i:saldo", plan, prevista: false, hoy, previa: { venceEl: antes, venceManual: true, prevista: false } }), antes);
+});
+
+test("el costo sin proveedor se cuenta en pesos, y lo que tiene proveedor no", () => {
+  const items = [
+    { costo: 100, cantidad: 2, moneda: "ARS", supplierId: null },
+    { costo: 10, cantidad: 1, moneda: "USD", supplierId: null },
+    { costo: 500, cantidad: 1, moneda: "ARS", supplierId: "s1" },
+    { costo: 0, cantidad: 1, moneda: "ARS", supplierId: null },
+  ];
+  assert.deepEqual(costoSinProveedor(items, { USD: 1000 }), { cuantos: 2, monto: 10200 });
 });

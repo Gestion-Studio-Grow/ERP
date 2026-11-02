@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Badge, buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 import { pagarGasto, registrarCobro } from "@/lib/proyectos/acciones";
-import { anularCobroFicha, anularGastoFicha, aprobarInterno, crearMovimientoManual, enviarCotizacion, guardarTextos, marcarCuota, nuevaVersion, quitarMovimiento, recalcularCuotas, registrarRespuesta } from "@/lib/proyectos/acciones-ficha";
+import { anularCobroFicha, anularGastoFicha, aprobarInterno, pedirAprobacion, crearMovimientoManual, enviarCotizacion, guardarTextos, marcarCuota, nuevaVersion, quitarMovimiento, recalcularCuotas, registrarRespuesta } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
 import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, planillaDeVenta } from "@/lib/proyectos/ficha-core";
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
@@ -68,6 +68,12 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                   <h3 className="font-semibold text-strong">Versión {v.version}</h3>
                   <Badge tone={v.estado === "APROBADO" ? "success" : v.estado === "RECHAZADO" ? "danger" : "neutral"}>{ESTADO_VERSION[v.estado] ?? v.estado}</Badge>
                   {v.aprobadoInternoEl ? <span className="text-xs text-muted">Precios aprobados por {v.aprobadoInternoPor}</span> : editable && <span className="text-xs font-medium text-danger">Falta la aprobación de Dirección</span>}
+                  {!v.aprobadoInternoEl && editable && a.rol !== "DIRECCION" && vista.editaCotizaciones && (
+                    <FormAccion accion={pedirAprobacion}>
+                      <input type="hidden" name="proyectoId" value={p.id} />
+                      <SubmitButton className={buttonClasses("outline", "md")}>Pedir aprobación</SubmitButton>
+                    </FormAccion>
+                  )}
                 </div>
                 <dl className="mb-2 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                   <Numero titulo="Total sin IVA" valor={ventaEn(t.venta, p.moneda, cambio)} />
@@ -192,12 +198,19 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
   const activo = FILTROS_CASHFLOW.some((f) => f.id === filtro) ? (filtro as string) : "todos";
   const lineas = filtrarCashflow(d.flujo.lineas, activo);
   const hoy = fechaParaInput(new Date());
-  // Las acciones viejas de cobro y gasto piden además poder manejar plata en el ERP.
+  // Con cuotas, se cobra y se paga marcándolas: cargar además por acá contaría dos veces. Sin cuotas, es el único camino.
   const cargaDirecta = vista.editaPagos && veLaPlata(a.user);
+  const conCobros = d.cuotas.some((c) => c.tipo === "COBRO" && !c.anuladoEl);
+  const conPagos = d.cuotas.some((c) => c.tipo === "PAGO" && !c.anuladoEl);
   const verCosto = !vista.ocultas.has("costoTotal");
 
   return (
     <div className="grid gap-4">
+      {vista.costos && cab.sinProveedor.cuantos > 0 && (
+        <p role="status" className="rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-sm text-danger">
+          {cab.sinProveedor.cuantos === 1 ? "1 ítem con costo no tiene" : `${cab.sinProveedor.cuantos} ítems con costo no tienen`} proveedor: {pesos(cab.sinProveedor.monto)} no están en este cashflow, y el saldo se ve mejor de lo que es.
+        </p>
+      )}
       <section className={tarjeta} aria-label="Resultado del evento">
         <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
           <Numero titulo="Venta presupuestada" valor={pesos(t.venta)} />
@@ -257,8 +270,9 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                                 {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
                               </select>
                               {cuentas.length > 0 && (
-                                <select name="cuenta" aria-label={`Cuenta de ${c.concepto}`} defaultValue="" className={campoEnLinea}>
-                                  <option value="">Sin cuenta</option>
+                                <select name="cuenta" aria-label={`Cuenta de ${c.concepto}`} defaultValue="" required className={campoEnLinea}>
+                                  <option value="" disabled>Elegí la cuenta</option>
+                                  <option value="ninguna">No mueve ninguna cuenta</option>
                                   {cuentas.map((x) => <option key={x.id} value={x.id}>{x.nombre} ({x.moneda})</option>)}
                                 </select>
                               )}
@@ -367,7 +381,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
               ))}
             </ul>
           )}
-          {cargaDirecta && <FormGasto proyectoId={p.id} proveedores={d.proveedores.map((s) => s.name)} rubros={d.rubros.map((r) => r.rubro)} hoy={hoy} />}
+          {cargaDirecta && !conPagos && <FormGasto proyectoId={p.id} proveedores={d.proveedores.map((s) => s.name)} rubros={d.rubros.map((r) => r.rubro)} hoy={hoy} />}
           <p className="mt-2 text-sm text-muted">Lo pagado sale por el libro de caja. El neto es lo que se compara contra el presupuesto.</p>
         </section>
       )}
@@ -387,7 +401,8 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
             ))}
           </ul>
         )}
-        {cargaDirecta && (
+        {conCobros && <p className="text-sm text-muted">Los cobros de este evento se registran marcando su cuota, en la tabla de arriba.</p>}
+        {cargaDirecta && !conCobros && (
           <form action={registrarCobro} className="grid gap-2 sm:grid-cols-4">
             <input type="hidden" name="proyectoId" value={p.id} />
             <input name="monto" required aria-label="Monto" placeholder="Monto" inputMode="decimal" className={campo} />

@@ -9,7 +9,7 @@ import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuota
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal, totales } from "./core";
-import { cambioDeVenta, enMonedaDeVenta } from "./gestion-core";
+import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
 
 export interface TarjetaProyecto {
@@ -120,6 +120,7 @@ export async function cabeceraFicha(a: Actor, id: string) {
     negocio,
     codigo: codigoProyecto(proyecto.numero, proyecto.createdAt),
     totales: totalesFicha(items, tc, config.margenPct),
+    sinProveedor: costoSinProveedor(items, tc),
     faltanCambio: monedasSinCambio(viva?.items ?? [], tc),
   };
 }

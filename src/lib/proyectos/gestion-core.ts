@@ -2,7 +2,7 @@
 // las alertas y la liquidación. Sin base ni React, para probarlas sin nada alrededor. Especificación funcional en
 // docs/benchmark/heka-especificacion.md.
 
-import { redondear } from "./core";
+import { redondear, yaVencio } from "./core";
 
 const DIA = 86_400_000;
 
@@ -151,6 +151,22 @@ export const generaCuotas = (etapa: string): boolean => (ETAPAS_CON_CUOTAS as re
 /** Sin confirmar o sin fecha, la cuota es una previsión: todavía no es plata de nadie. PURA. */
 export const cuotaPrevista = (etapa: string, fechaEvento: Date | null): boolean => !generaCuotas(etapa) || !fechaEvento;
 
+/**
+ * De cuándo es la cuota. Una fecha corregida a mano no se pisa. El anticipo del cliente vence el día que se confirma, no el
+ * día que entró el lead (naceria vencido), y después queda fijo. PURA.
+ */
+export function venceDeLaCuota(d: { clave: string; plan: Date; prevista: boolean; hoy: Date; previa?: { venceEl: Date; venceManual: boolean; prevista: boolean } }): Date {
+  if (d.previa?.venceManual) return d.previa.venceEl;
+  if (!d.clave.endsWith(":cliente:anticipo") || d.prevista) return d.plan;
+  return d.previa && !d.previa.prevista ? d.previa.venceEl : d.hoy;
+}
+
+/** Lo que el cashflow no ve: un ítem con costo y sin proveedor no genera pago, y el saldo queda mejor de lo real. En pesos. PURA. */
+export function costoSinProveedor(items: readonly { costo: number; cantidad: number; moneda: string; supplierId: string | null }[], tc: Record<string, number>): { cuantos: number; monto: number } {
+  const sueltos = items.filter((i) => !i.supplierId && i.costo > 0 && i.cantidad > 0);
+  return { cuantos: sueltos.length, monto: redondear(sueltos.reduce((s, i) => s + aPesos(i.cantidad * i.costo, i.moneda, tc), 0)) };
+}
+
 const DIAS_SALDO_CLIENTE_ANTES = 5;
 const DIAS_SALDO_PROVEEDOR_DESPUES = 12;
 const DIAS_ANTICIPO_PROVEEDOR_ANTES = 30;
@@ -202,7 +218,7 @@ export type EstadoCuota = "PAGADA" | "VENCIDA" | "PENDIENTE";
 
 export function estadoCuota(c: Pick<CuotaLeida, "venceEl" | "pagadoEl">, hoy: Date = new Date()): EstadoCuota {
   if (c.pagadoEl) return "PAGADA";
-  return c.venceEl.getTime() < hoy.getTime() ? "VENCIDA" : "PENDIENTE";
+  return yaVencio(c.venceEl, hoy) ? "VENCIDA" : "PENDIENTE";
 }
 
 export function diasDeAtraso(venceEl: Date, hoy: Date = new Date()): number {
@@ -255,7 +271,7 @@ export function resumenCuotas(cuotas: readonly CuotaLeida[], tc: Readonly<Record
       else r.pagado += pesos;
       continue;
     }
-    const vencida = c.venceEl.getTime() < hoy.getTime();
+    const vencida = yaVencio(c.venceEl, hoy);
     const pronto = !vencida && c.venceEl.getTime() <= en7;
     if (esCobro) {
       r.aCobrar += pesos;

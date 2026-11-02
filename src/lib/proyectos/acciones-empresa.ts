@@ -152,6 +152,17 @@ export async function guardarDatoCuota(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("empresa");
   const id = txt(formData.get("id"));
   const campo = txt(formData.get("campo"));
+  if (campo === "venceEl") {
+    const texto = txt(formData.get("valor"));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) return { ok: false, error: "Elegí una fecha." };
+    const q = await prisma.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId, pagadoEl: null, anuladoEl: null }, select: { proyectoId: true, venceEl: true } });
+    if (!q) return { ok: false, error: "Esa cuota ya se pagó o ya no corre." };
+    const venceEl = new Date(`${texto}T12:00:00-03:00`);
+    await prisma.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId }, data: { venceEl, venceManual: true } });
+    await registrarCambio(prisma, { tenantId: a.tenantId, proyectoId: q.proyectoId, entidad: "cuota", entidadId: id, campo: "vencimiento", antes: q.venceEl.toISOString().slice(0, 10), despues: texto, autor: a.nombre });
+    revalidatePath(ADMIN);
+    return { ok: true };
+  }
   if (campo !== "factura" && campo !== "comentario") return { ok: false, error: "Ese dato no se puede cambiar." };
   const valor = txt(formData.get("valor")).slice(0, campo === "factura" ? 60 : 300) || null;
   const c = await prisma.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId }, select: { proyectoId: true, factura: true, comentario: true } });

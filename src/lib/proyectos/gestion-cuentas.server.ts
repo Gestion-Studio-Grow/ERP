@@ -7,7 +7,7 @@ import { movimientoDeCuenta } from "./gestion-core";
 /** Lee por fuera de la transacción: llamarla antes de abrirla. Sin cuenta elegida devuelve null; un texto es el error para la persona. */
 export async function cuentaParaCuota(tenantId: string, formData: FormData, c: { tipo: string; monto: number; moneda: string; importeEnPesos: number }): Promise<{ id: string; movido: number } | null | string> {
   const id = String(formData.get("cuenta") ?? "");
-  if (!id) return null;
+  if (!id || id === "ninguna") return null;
   const cuenta = await prisma.proyectoCuentaBanco.findFirst({ where: { id, tenantId }, select: { id: true, moneda: true } });
   if (!cuenta) return "Esa cuenta ya no existe. Recargá la página.";
   const movido = movimientoDeCuenta({ ...c, monedaCuenta: cuenta.moneda });

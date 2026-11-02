@@ -228,8 +228,11 @@ export const ESTADO_PRESUPUESTO_LABEL: Record<string, string> = {
 /** Lo que el cliente ya vio no se reescribe: para cambiarlo se abre otra versión. */
 export const sePuedeEditar = (estado: string): boolean => estado === "BORRADOR";
 
+const diaEnArgentina = (d: Date): string => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(d);
+
+/** Lo que vence hoy vence recién a la noche: se compara el día en Argentina, no la hora. */
 export function yaVencio(validoHasta: Date | null | undefined, ahora: Date = new Date()): boolean {
-  return !!validoHasta && validoHasta.getTime() < ahora.getTime();
+  return !!validoHasta && diaEnArgentina(validoHasta) < diaEnArgentina(ahora);
 }
 
 /** El cliente sólo responde una propuesta enviada y vigente. */

@@ -16,7 +16,7 @@ import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
-import { ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { venceDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 
 export interface Actor {
   user: SessionUser;
@@ -97,6 +97,24 @@ export async function usuariosDelEquipo(tenantId: string, proyectoId: string, sa
   return filas.map((f) => f.persona.userId).filter((u): u is string => !!u && u !== salvo);
 }
 
+/** Quien lleva la plata: Dirección, Administración y el dueño, estén o no en el equipo del proyecto. */
+export async function usuariosDeLaPlata(db: Tx | typeof prisma, tenantId: string, salvo = ""): Promise<string[]> {
+  const [personas, duenos] = await Promise.all([
+    db.proyectoPersona.findMany({ where: { tenantId, activa: true, rol: { in: ["DIRECCION", "ADMINISTRACION"] }, userId: { not: null } }, select: { userId: true } }),
+    db.user.findMany({ where: { tenantId, role: "OWNER", active: true, deletedAt: null }, select: { id: true } }),
+  ]);
+  return [...new Set([...personas.map((p) => p.userId!), ...duenos.map((d) => d.id)])].filter((u) => u !== salvo);
+}
+
+/** Quien aprueba precios: Dirección y el dueño. */
+export async function usuariosDeDireccion(tenantId: string): Promise<string[]> {
+  const [personas, duenos] = await Promise.all([
+    prisma.proyectoPersona.findMany({ where: { tenantId, activa: true, rol: "DIRECCION", userId: { not: null } }, select: { userId: true } }),
+    prisma.user.findMany({ where: { tenantId, role: "OWNER", active: true, deletedAt: null }, select: { id: true } }),
+  ]);
+  return [...new Set([...personas.map((p) => p.userId!), ...duenos.map((d) => d.id)])];
+}
+
 const FECHA_DEL_AVISO = (d: Date) => d.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
 
 /**
@@ -111,11 +129,7 @@ async function avisarCuotas(db: Tx, tenantId: string, ahora: Date, origen?: stri
     select: { tipo: true, concepto: true, venceEl: true, proyectoId: true, proyecto: { select: { nombre: true } } },
   });
   if (cuotas.length === 0) return;
-  const [personas, duenos] = await Promise.all([
-    db.proyectoPersona.findMany({ where: { tenantId, activa: true, rol: { in: ["DIRECCION", "ADMINISTRACION"] }, userId: { not: null } }, select: { userId: true } }),
-    db.user.findMany({ where: { tenantId, role: "OWNER", active: true, deletedAt: null }, select: { id: true } }),
-  ]);
-  const destinatarios = [...new Set([...personas.map((p) => p.userId!), ...duenos.map((d) => d.id)])];
+  const destinatarios = await usuariosDeLaPlata(db, tenantId);
   for (const c of cuotas) {
     const texto = `${c.proyecto?.nombre ?? "Empresa"}: ${c.tipo === "COBRO" ? "cobro" : "pago"} «${c.concepto}» vence el ${FECHA_DEL_AVISO(c.venceEl)}`;
     const ya = await db.proyectoAviso.findMany({ where: { tenantId, tipo: "vencimiento", texto, destinatario: { in: destinatarios } }, select: { destinatario: true } });
@@ -138,11 +152,13 @@ export async function avisarDeadlines(tenantId: string, db: Tx | typeof prisma =
   const ahora = new Date();
   const items = await db.proyectoItem.findMany({
     where: { tenantId, fechaLimite: { gte: ahora, lte: new Date(ahora.getTime() + 3 * 86_400_000) }, estadoItem: { not: "ENTREGADO" }, presupuesto: { proyecto: { perdidoEl: null } } },
-    select: { descripcion: true, fechaLimite: true, presupuesto: { select: { proyectoId: true, proyecto: { select: { nombre: true } } } } },
+    select: { descripcion: true, fechaLimite: true, presupuesto: { select: { id: true, proyectoId: true, proyecto: { select: { nombre: true, presupuestos: { orderBy: { version: "desc" }, take: 1, select: { id: true } } } } } } },
     take: 50,
   });
   for (const i of items) {
     const { proyectoId, proyecto } = i.presupuesto;
+    // Sólo la última versión es la ficha viva: un ítem quitado o una fecha cambiada no avisan.
+    if (proyecto.presupuestos[0]?.id !== i.presupuesto.id) continue;
     const texto = `${proyecto.nombre}: ${i.descripcion} vence el ${FECHA_DEL_AVISO(i.fechaLimite!)}`;
     const equipo = await usuariosDelEquipo(tenantId, proyectoId, "", db);
     const ya = await db.proyectoAviso.findMany({ where: { tenantId, tipo: "deadline", texto, destinatario: { in: equipo } }, select: { destinatario: true } });
@@ -241,15 +257,16 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
           anticipoProveedor: Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct])),
         })
       : [];
-  const actuales = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, monto: true, pagadoEl: true, anuladoEl: true } });
+  const actuales = await prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true } });
   const plan = ajustarAPagado(planDeLaFicha, actuales.filter((c) => c.pagadoEl && !c.anuladoEl).map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
   const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
   const porClave = new Map(actuales.map((c) => [c.clave, c]));
   const vigentes = new Set(plan.map((c) => c.clave));
+  const hoy = new Date();
   for (const c of plan) {
     const previa = porClave.get(c.clave);
     if (previa?.pagadoEl) continue;
-    const datos = { prevista, tipo: c.tipo, concepto: c.concepto, monto: c.monto, moneda: c.moneda, venceEl: c.venceEl, supplierId: c.supplierId, anuladoEl: null };
+    const datos = { prevista, tipo: c.tipo, concepto: c.concepto, monto: c.monto, moneda: c.moneda, venceEl: venceDeLaCuota({ clave: c.clave, plan: c.venceEl, prevista, hoy, previa }), supplierId: c.supplierId, anuladoEl: null };
     if (previa) await prisma.proyectoCuota.update({ where: { id: previa.id }, data: datos });
     else await prisma.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
   }
