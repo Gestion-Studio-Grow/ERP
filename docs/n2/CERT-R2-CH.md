@@ -1,4 +1,4 @@
-Veredicto final: CON OBSERVACIONES (vuelta 3, 444bd0b2)
+Veredicto final: CERTIFICA (vuelta 4, cf8c54d6)
 
 # Dictamen — ronda 2 (`estetica/ronda2`, HEAD `fc0aec24`, contra `origin/main` `8d3057f5`)
 
@@ -496,3 +496,154 @@ Sólo se modificó `cuaderno-postgres`; los otros 8 del diff son nuevos. No se b
 - Arreglar V3-3 (una línea) y decidir V3-4.
 - Confirmar el perfil fiscal real de CH.
 - Siguen abiertos V2-2, V2-3, F3 y B5. V2-1 no se miró en esta vuelta.
+
+---
+
+# Vuelta 4 — diff `a7e61906..cf8c54d6` (HEAD `cf8c54d6`)
+
+Certificador independiente: intenté rechazar y no corregí nada. Leí de la vuelta 3 sólo V3-1, V3-2 y la lista de fallas. Modo completo sobre lo que toca plata (cobro de turnos y facturación) y la mezcla; el resto, acotado.
+
+**Veredicto: CERTIFICA.** No hay ALTOS ni MEDIOS. La mezcla no perdió nada de ningún lado. V3-1 cumple en los tres caminos y el cobro no cambia. V3-3 y la guardia del armazón cumplen. Ninguna de las fallas abiertas es un defecto de plata: todas fallan igual en `main`. Quedan cuatro BAJOS, tres de ellos fuera de este diff.
+
+## Estado de `main` `[VERIFICADO]`
+
+- El brief da `a1fbdd13` como `origin/main`, pero `a1fbdd13` es el commit de mezcla. `origin/main` es `63b4469c`, su segundo padre.
+- `git ls-remote origin main` da `63b4469c` al cierre de esta vuelta: **`main` no avanzó después de `cf8c54d6`**. No hay nada nuevo que pueda chocar.
+- `git diff origin/main...HEAD` (base `63b4469c`): 41 archivos, 0 en `prisma/`. Son los de la rama más este dictamen.
+
+## 1. La mezcla `a1fbdd13` `[VERIFICADO]`
+
+- **Sólo dos archivos con resolución a mano.** `git show --remerge-diff a1fbdd13` muestra sólo `caja/page.tsx` y `layout.tsx`. El resto es la mezcla automática tal cual, sin cambios agregados.
+- **Archivos tocados por los dos lados:** `caja/page.tsx`, `layout.tsx` y `src/apps/visibles.ts`. El último se mezcló solo: queda `barraDeCH` de la rama y `conProyectosEnLaBarra` de `main`.
+- **Nada revertido de `main`.** Revisé cada línea que `git diff 63b4469c HEAD` borra contra lo que borró la rama. Las únicas sin explicar son las 5 de la resolución, y las 5 están conservadas con otra forma:
+  - `caja/page.tsx:75`: `guardia` pasa a llamarse `user`.
+  - `caja/page.tsx:83-96`: el `Promise.all` lleva `slug` y `negocio`, en el orden de sus lecturas. Quedan `cobrarVenta` de la rama y `conProyectos` de `main`.
+  - `layout.tsx:32`: el import junta las dos listas.
+  - `layout.tsx:286-287`: `barra = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(...))` y `menu = esEstetica ? barraDeCH(barra) : barra`.
+- **Menú por rol, función pura** (`adv-v4-barra.mts`, corrido en HEAD, `63b4469c` y `a7e61906`, con los roles OWNER, RECEPTION y PROFESSIONAL):
+
+| Negocio | HEAD contra la rama (`a7e61906`) | HEAD contra `main` (`63b4469c`) |
+|---|---|---|
+| CH | menú y apps visibles idénticos en los 3 roles | difiere sólo por `barraDeCH`; apps visibles idénticas |
+| Productora (MIA) | — | menú y apps visibles idénticos en los 3 roles |
+| Comercio | idéntico | idéntico |
+
+- **Menú de CH en pantalla** (`adv-v4-menu.mjs`: `next start` del build de HEAD, base efímera, `app_rls`, RLS prendido). Probé dueña y recepción, con y sin diseño nuevo, en `/admin/caja`. Hay «Vender» y «Cobrar una venta». No están Campañas ni Recordatorios. Comisiones aparece sólo para la dueña. La página da 200 y el servidor no registró errores.
+- **Caja de una productora:** `enlaceCobrarUnaVenta` devuelve null fuera de `beauty-spa` (`cobrar-una-venta.ts:12`). Por eso no aparece «Cobrar una venta» y queda el texto de proyectos de `main`. `[POR LECTURA]`: no entré a la pantalla, ver «Lo que no probé».
+
+## 2. V3-1 (`d580af25`) `[VERIFICADO]`
+
+**Código:** `src/lib/turnos/factura-fallida.server.ts:21-34`. Se calla sólo si el error es `PerfilFiscalIncompletoError` y el negocio no tiene punto de venta y tiene 0 credenciales. No mira el CUIT. Si la lectura falla, avisa. Lo usan los tres caminos: `actions.ts:2247` y `cobro-actions.ts:160`.
+
+**Caso** `adv-v4-perfil`: Server Actions reales, recepción, base efímera con `app_rls`, ARCA en stub. Cada perfil corre por los 3 caminos y el cobro se compara con el de la llave apagada (turno, pago, cobros y libro). Pasaron 17 de 17.
+
+| Perfil | Resultado en los 3 caminos | Log |
+|---|---|---|
+| CH exacto: CUIT cargado, punto de venta y condición null, 0 credenciales (con y sin el módulo `arca`) | sin aviso, 0 facturas, turno COMPLETED | `warn` |
+| Credencial sin punto de venta (CUIT bien o mal) | aviso | `error` |
+| Punto de venta con CUIT mal o sin CUIT · punto de venta en 0 · punto de venta en real sin condición | aviso | `error` |
+| Punto de venta bien, en homologación, sin condición | factura (asume Monotributo, como antes) | — |
+| Credencial ilegible (tabla renombrada) | aviso | `error` |
+| Otro negocio con credencial y punto de venta | A sigue en silencio: no se cuela | `warn` |
+
+**El cobro no cambia** en ningún caso. La credencial se cuenta con RLS: como `app_rls`, sin contexto da 0 y parado en el negocio da 1, así que el conteo no es un 0 falso. Con seis turnos a la vez y 3 conexiones no hubo cuelgues ni avisos (ver V4-2).
+
+### V4-1 · BAJO · el límite del ingeniero no se alcanza desde la app
+
+**El caso:** en real, sin credencial y sin punto de venta, el turno se calla. Lo reproduje poniendo el estado por SQL («real sin PV ni credencial»: silencio).
+
+**¿Se llega desde el código?** No.
+- `arcaHomologacion=false` se escribe en un solo lugar: `pase-a-real.server.ts:294`. Busqué en `src`, `scripts` y `prisma`.
+- El pase exige punto de venta y certificado propio (`pase-a-real.ts:13-14`, `precondicionDeCredencial` en `pase-a-real.ts:194-214`, `decidirPase` en `pase-a-real.ts:348-354`). La delegación no alcanza para pasar.
+- El operador puede borrar después el punto de venta (`operator-actions.ts:266`, sin mirar si está en real). La credencial, en cambio, no tiene baja en `src`: no hay `tenantFiscalCredential.delete` ni un `DELETE` crudo, sólo en tests. Un negocio que pasó a real conserva su credencial, así que avisa. Probado: «credencial sin PV».
+- **`arca.produccion` no decide nada.** Se puede prender por `FACTURACION_FLAGS` sin credencial ni punto de venta, pero `flagActivo` (`flags/facturacion.ts:221`) no tiene quien lo llame. Sólo `/api/health` lo cuenta. Lo que manda es `Tenant.arcaHomologacion` con `ARCA_MODO`.
+
+**Sólo se llega a mano:** borrando la fila de `TenantFiscalCredential` por SQL, o con el «flip» manual del runbook (`docs/runbooks/golive-suite-3-productos.md:85`), que igual pide certificado.
+
+**Dos silencios más, por diseño, en homologación:**
+- Un negocio con delegación verificada en un estudio, sin certificado propio y sin punto de venta. La emisión sí firma con la delegación (`arca-dispatch.ts`, `resolverFirmaParaTenant`). Probado: silencio.
+- Un negocio que cargó sólo CUIT y condición de IVA. Probado: silencio.
+
+En ninguno de los dos hay validez fiscal, y el contador ve el punto de venta faltante en el monitor.
+
+## 3. BAJO (`48012102`) y `armazon-ch` (`cf8c54d6`) `[VERIFICADO]`
+
+**BAJO:**
+- `ventaDeOrden` marca `abierta` con la regla inversa de `wherePedidosCerrados`: cerrada es la anulada, o la entregada y cobrada (`reglas-venta.ts:630-631` contra `order-anulacion.ts:1079-1081`).
+- El ticket se arma leyendo la base después del paso a Entregado (`order-actions.ts:676-696`, con `status` y `paid`).
+- El reintento (`respuesta-al-reintento.ts:62`) también arma el ticket con `ventaDeOrden`. Si allí no llega `paid` (no lo verifiqué), sólo cambiaría la entregada sin cobrar, y en CH no nace ninguna.
+- El test nuevo cubre tres casos: Pedido cobrado y a cuenta llevan a Abiertos, mostrador cobrada lleva a Cerrados. Es sólo navegación: la plata no cambia.
+
+**`armazon-ch`:**
+- La comparación byte a byte y el fixture no cambiaron. Sólo cambió cómo se importa el `AdminShell` (`armazon-ch.test.ts:17-27`).
+- Mutación: cambié `aria-label="Menú"` por `"Menu"` en `AdminShell.tsx:600` y el test pasó de 2/2 a 0/2. La guardia no se aflojó.
+- En `63b4469c` y en `a1fbdd13` el test no carga (`Cannot find module 'server-only'`). `main` sigue con ese test caído.
+
+## 4. Las fallas abiertas, cada una sola, en HEAD y en `63b4469c`
+
+Las corrí una por una con la máquina sin otra carga, en `C:\r2` y en un worktree temporal de `63b4469c`.
+
+| Falla | HEAD | `main` | Causa | ¿Plata? |
+|---|---|---|---|---|
+| `piel-de-la-bandeja` | falla | falla | CRLF (confirmada en la vuelta 3). | No |
+| `m1-caja-medios-postgres` | **pasa** | pasa | Ya no falla: corre sus 11 tramos. | — |
+| `caja/medio-cobro` | falla | falla | **CRLF.** `cuerpoDe` corta en `"\n}\n"` (`medio-cobro.test.ts:135`); con finales `\r\n` no encuentra el fin de `createOrder`, toma el archivo hasta el final y cuenta 3 `leerPagos(`. Con LF da 1, como debe (`order-actions.ts:345`). | No: el código llama una vez |
+| `facturacion/lista-postgres` | **pasa** | pasa | Rendimiento con la máquina cargada: con la zona corriendo dio un p95 de 1.196 ms; sola, pasa. | No |
+| `facturacion/motor-postgres` | falla | falla | **Zona horaria del Postgres local** (`America/Buenos_Aires`). Ver V4-3. | No en este diff |
+| `avisos-programados-postgres` | falla | falla | `permission denied to set role "app_rls"` (42501). `neondb_owner` no es miembro de `app_rls` en este Postgres; el test se escribió para PGlite, donde todo es superusuario (`avisos-programados-postgres.test.ts:4-5,70`). Es del arnés. Corta antes de mirar el aislamiento de `ProyectoSegundoFactor` y las tablas sin política, que quedan sin probar. | No |
+
+**Otras fallas con carga, todas ajenas al diff:**
+- Se repiten igual en `main` estando solas: `arca-procesador-sin-operador` (la misma zona horaria) y `cobros/links-y-clientes` (p95 de 310 ms en HEAD contra 418 ms en `main`).
+- Pasan solas en los dos lados: `facturar-turno-con-cobro-anulado`, `facturar-venta-anulada`, `vender-pantalla` y `club/vender-pantalla`.
+- `apps/kpis/fila`: falló una vez sola en HEAD y después pasó 3 de 3. Es un test de tiempos.
+
+### V4-3 · BAJO, fuera del diff · el próximo intento de ARCA depende de la zona horaria de la base `[VERIFICADO]` en local, `[A VALIDAR]` en producción
+
+- `arca-reserva.ts:272` escribe `GREATEST(${hasta}::timestamptz, now())` en `proximoIntentoEn`, una columna sin zona (`schema.prisma:1198`). Postgres la convierte con la zona de la sesión.
+- Con `America/Buenos_Aires` queda guardada 3 horas antes: el test ve `00:45-03` contra `06:44Z`. Así la espera entre intentos no espera.
+- Si la base está en UTC no pasa. Por eso el test anda en otros entornos.
+- **Cómo se cierra:** `SHOW timezone` en la base de producción, en sólo lectura y por quien tenga el acceso. No lo hice: tengo prohibido Neon.
+
+### V4-2 · BAJO, fuera del diff · seis turnos terminados a la vez: alguno sale con error de base `[VERIFICADO]`
+
+- Seis `completeAppointment` simultáneos del mismo negocio, con la llave apagada y 3 conexiones, en 4 rondas:
+  - HEAD: 21 terminaron bien y 3 dieron `P2034` (conflicto de escritura en `cobro-turno.ts:146`).
+  - `main`: 20 bien, 1 `P2034` y 3 errores de otra clase.
+- El rechazado vuelve entero, sin cobro y sin libro: `CONFIRMED`, 0 cobros, 0 movimientos. No hay doble cobro.
+- Lo que ve recepción es un error sin reintento automático. Viene de antes de este diff.
+
+## 5. Corridas `[VERIFICADO]`
+
+| Corrida | Resultado |
+|---|---|
+| `npx tsc --noEmit` | Exit 0 |
+| `next build` (`DATABASE_URL` local, sin `.env`) | Exit 0. No hizo falta renombrar `.next/cache`. |
+| Zona: 294 archivos de caja, menú, ventas, pedidos, facturación, fiscal, ARCA, turnos y proyectos, con la máquina cargada | pass 2.663, **fail 12** |
+| Las 12 fallas y `m1-caja-medios`, cada una sola, en HEAD | 7 fallan: las 6 de la tabla de arriba, menos `lista-postgres` y `m1-caja-medios`, más `arca-procesador` y `links-y-clientes`; además `fila`, que es de tiempos |
+| Las mismas en `63b4469c` | Las mismas 7, salvo `fila`, que pasa |
+| `adv-v4-perfil` | 17 de 17 |
+| Menú en pantalla (CH) | 4 de 4 recorridos |
+
+**La suite entera no la corrí.** `git diff origin/main...HEAD` sólo toca caja, pedidos, vender, ventas, turnos, armazón, `src/apps` y librerías de venta y turnos: todo dentro de las zonas pedidas. Los 324 archivos de `main` se mezclaron sin tocar, salvo los 3 compartidos.
+
+## Lo que no probé
+
+- **La productora en pantalla.** Pide segundo factor al entrar (`/admin/login/segundo-paso`) y no lo salteé. La cubre la comparación de la función pura con `main`; la caja, por lectura.
+- ARCA y Mercado Pago reales. El estado real de CH en producción y la zona horaria de producción (V4-3).
+- El aislamiento de `ProyectoSegundoFactor` (el test corta antes, ver la tabla de fallas).
+- Los botones de la consola para borrar CUIT y punto de venta: puse el estado directo en la base.
+- `mostrador-ch.e2e`, `uat-ch.e2e` y `demo-local`.
+
+## Entorno, vuelta 4
+
+- `C:\r2` quedó limpio salvo este archivo. Los tests reescribieron `.qa/facturacion-escala/rendimiento*.txt` y los restauré con `git checkout`. Se regeneró `.next`, que está ignorado.
+- Worktrees temporales `C:\cr2m4` (`63b4469c`) y `C:\cr2r4` (`a7e61906`, después `cf8c54d6`): los saqué con `git worktree remove` y después quité las junctions sin tocar su destino. `node_modules` y `src/generated` de `C:\r2` siguen en su lugar.
+- No toqué `C:\pg16`, `.efr`, `C:\reportes`, `C:\ch-uat`, `C:\mia` ni las ramas `ch/*`. No maté procesos. Las bases efímeras se borraron solas.
+- Pruebas fuera del repo, en `C:\Users\MLLOVE~1\AppData\Local\Temp\claude\C--Users-mlloveras2-Documents-Claude\392f7e71-179a-4e6c-a710-485cda5528a4\scratchpad\adv\`: `adv-v4-perfil.test.ts`, `adv-v4-barra.mts`, `adv-v4-menu.mjs`, `adv-v4-concurrente.test.ts`.
+
+## Pendientes, vuelta 4
+
+- Confirmar la zona horaria de la base de producción (V4-3), antes de prender ARCA real en cualquier negocio.
+- Arreglar los dos tests con CRLF (`piel-de-la-bandeja`, `medio-cobro`) y el `SET ROLE` de `avisos-programados`: hoy dejan sin probar la regla del medio de cobro y el aislamiento del segundo paso.
+- Decidir si el error por concurrencia al terminar turnos (V4-2) merece reintento.
+- Publicar sigue siendo push a `main` = deploy: lo decide el dueño.
