@@ -124,3 +124,89 @@ abrir las páginas. `[INFERIDO]` es cálculo propio.
   - `docs/tenants/*/README.md`
   - `docs/sectores/agencia-digital/analisis-mercado/2026-07-05-segmento-local-canning.md`
   - `docs/tenants/mia-producciones/ESTUDIO-MERCADO-Y-PRESUPUESTO.md`
+
+---
+
+## 7. Dónde hacernos fuertes: la economía del country (Canning)
+
+**Tesis.** GSG no gana peleando de frente contra jugadores nacionales con plata, como AgendaPro en
+estética o Fudo en gastronomía, ni contra facturadores que ya son gratis, como Xubio o Alegra. Gana donde
+se juntan tres cosas: un rubro **que nadie atiende**, una **obligación con fecha** y **presencia local**.
+En Canning eso es **la economía del country**: los que trabajan para los barrios cerrados y los comercios
+que les venden por WhatsApp.
+
+### Anillo 1: proveedores de servicio a countries (la bandera)
+
+Son piletas, jardinería, mantenimiento, limpieza y pequeñas obras.
+
+**Por qué ahí:**
+
+- **No hay competencia local.** No aparece ningún software argentino con precio para piletas o
+  jardinería. La referencia es Jobber, de Estados Unidos, en dólares y sin ARCA ni Mercado Pago [EXTRACTO].
+  AgendaPro vende turnos en un local, no trabajo en la casa del cliente.
+- **Hay mercado concentrado:** más de 60 barrios y más de 5.000 casas en obra [FUENTE]. El mantenimiento
+  de una pileta cuesta $40.000–80.000 por mes (servidos.ar, abril 2026) [EXTRACTO]. Un piletero con
+  30 piletas factura unos $1,8 M por mes `[INFERIDO]`, y nuestro abono de $19.900–29.900 es menos del 2 %.
+- **Hay obligación:** la RG 5893 (1/11), la recategorización (5/2) y el 1/3 para los no alcanzados por
+  IVA. Además, muchos barrios piden factura y seguro para dejar entrar a un proveedor [EXTRACTO, guía
+  general; **validar con 3 administraciones**].
+- **El canal es barato:** los grupos de WhatsApp de cada barrio y las recomendaciones entre vecinos. Un
+  proveedor atiende muchas casas del mismo barrio.
+- **Ya está casi todo construido:**
+  - órdenes de trabajo (`TallerOrden`);
+  - factura recurrente (`ReglaFacturacion`, `prisma/schema.prisma:2366`, hoy usada por la Consola del
+    contador);
+  - recordatorios y WhatsApp;
+  - link de Mercado Pago;
+  - Facturita.
+- **Falta un paquete de 1 o 2 tandas** `[INFERIDO]`:
+  - un abono por casa que factura y cobra solo cada mes;
+  - la ruta del día ordenada por barrio;
+  - el aviso al vecino: «hoy pasamos» y «listo», con foto;
+  - la carpeta de papeles del proveedor (seguro, ART, monotributo) para presentar en la guardia.
+
+**Oferta:** un mes gratis con Facturita, y después **$19.900–29.900 por mes**, sin costo de entrada.
+
+**Ventana:** **de noviembre a marzo.** La temporada de piletas y las tres fechas de ARCA caen juntas. Si no
+entramos en este verano, la próxima ventana igual de buena es el verano 2027–28.
+
+### Anillo 2: comercio de cercanía que vende al country por WhatsApp
+
+Son carnicerías, almacenes premium, proveedurías y autoservicios. Productos 4, 8 y 9 del catálogo.
+
+- **Qué se vende:** vidriera con pedido por WhatsApp, venta por kilo y, en el súper, promociones, más la
+  entrega en el barrio.
+- **Por qué:** magra ya es de Canning y el súper está en `main`.
+- **Ventana:** las fiestas y el verano, y la apertura de Castex 4200 entre diciembre y febrero.
+
+### Anillo 3: servicios a la persona del barrio
+
+Son estética (CH), pádel (Break Point, WPE y profes) y eventos (MIA).
+
+- **Rol:** se vende y se cobra, pero **no es la bandera**. En estética, AgendaPro con US$35 M va a ganar
+  la pelea por precio. Estos clientes sirven de casos de éxito locales y para vender de a varios productos.
+
+### Dónde NO hacernos fuertes ahora
+
+- Facturita como producto nacional suelto: la competencia es gratis.
+- Punto de venta gastronómico, porque Fudo domina.
+- Supermercados con varias cajas, porque falta la migración.
+
+### Cómo validar barato (2 semanas, $0)
+
+1. **Entrevistar a 10 pileteros o jardineros de Canning.** Preguntar:
+   - cuántas casas atienden;
+   - cómo facturan y cobran;
+   - qué les pide la guardia.
+2. **Llamar a 3 administraciones de barrios.** Preguntar qué papeles le piden a un proveedor y si tienen
+   un registro.
+3. **Ofrecer el mes gratis a los 10.**
+   - Criterio para seguir: **si 3 o más pagan el segundo mes**, se arma el paquete completo.
+   - Si no, la bandera pasa al anillo 2.
+
+Fuentes de esta sección:
+
+- servidos.ar (precios de servicios de jardinería y piletas 2026; guía para jardineros independientes)
+- capterra.es (software de jardinería y de órdenes de trabajo)
+- iprofesional.com (barrios y obras en Canning)
+- finder.techleap.nl (AgendaPro)
