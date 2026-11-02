@@ -1,7 +1,7 @@
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { palabrasDelNegocio } from "@/lib/palabras-del-negocio";
 import Link from "next/link";
-import { getPosData } from "@/lib/order-actions";
+import { getPosData, leerCerradoDeLaBandeja } from "@/lib/order-actions";
 import { fmtMoneyARS, EmptyState, ButtonLink, buttonClasses, atributosBoton } from "@/components/ui";
 import { fmtShortDate, todayInBusinessTz, dateStrInBusinessTz } from "@/lib/datetime";
 import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
@@ -91,7 +91,7 @@ const EN_CURSO: ReadonlySet<string> = new Set(ESTADOS_EN_CURSO);
 
 export const metadata = { title: "Pedidos", generator: "Gestión Studio Grow" };
 
-export default async function PedidosPage() {
+export default async function PedidosPage({ searchParams }: { searchParams?: Promise<{ anular?: string | string[] }> }) {
   // La guardia de la app (rol, módulo pos): esconderla del menú no la protegería. getPosData
   // vuelve a pedir orders:read, como siempre.
   const user = await requireApp("pedidos");
@@ -133,12 +133,20 @@ export default async function PedidosPage() {
   // sin productos. El stock (mismo gate) va donde hay solapas: la estética. Un comercio no lee
   // ninguna de las dos acá: su mostrador (o Vender) lee lo suyo.
   const servicios = !modeloNuevo && !comercio;
-  const [{ abiertos, cerrados, products, hayVendibles }, stockSnap, puedeAgenda] = await Promise.all([
+  const [{ abiertos, cerrados: cerradosRecientes, products, hayVendibles }, stockSnap, puedeAgenda] = await Promise.all([
     getPosData({ productos: servicios ? (conMostradorUnico ? "si-hay" : "lista") : "no" }),
     // Cacheado por pedido: el mostrador único lo vuelve a pedir y no hay segunda lectura.
     servicios ? getPosStockSnapshot() : Promise.resolve(null),
     servicios ? canCurrentUser("agenda:manage") : Promise.resolve(false),
   ]);
+  // «¿Salió mal? Anular la venta» (?anular=<id>): abre el formulario de ESA venta. Si quedó afuera de
+  // los últimos cerrados se lee aparte, con el mismo filtro, para que el enlace no termine en nada.
+  const anularCrudo = (await searchParams)?.anular;
+  const idAnular = typeof anularCrudo === "string" && anularCrudo ? anularCrudo : null;
+  const cerrados =
+    idAnular && !cerradosRecientes.some((o) => o.id === idAnular) && !abiertos.some((o) => o.id === idAnular)
+      ? [...(await leerCerradoDeLaBandeja(idAnular)), ...cerradosRecientes]
+      : cerradosRecientes;
   // Cómo se llama el retiro en este rubro: "Retira" en un local, "Encuentro" en una perfumería que
   // entrega en un punto de encuentro (rubros.ts `entrega`). Lo mismo que ve el tablero nuevo.
   const entrega = entregaDelRubro(identidad.rubro);
@@ -647,6 +655,8 @@ export default async function PedidosPage() {
                   )}
                   {alcance && (
                     <AnularPedidoForm
+                      key={idAnular === o.id ? "anular" : "cerrado"}
+                      abiertoAlInicio={idAnular === o.id}
                       id={o.id}
                       code={o.code}
                       paid={o.paid}
@@ -686,6 +696,7 @@ export default async function PedidosPage() {
               return (
                 <div
                   key={o.id}
+                  id={`pedido-${o.id}`}
                   className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line px-4 py-2 text-sm"
                 >
                   <span className="font-medium">#{o.code}</span>
@@ -704,6 +715,8 @@ export default async function PedidosPage() {
                     (!alcance.soloHoy || dateStrInBusinessTz(new Date(o.createdAt)) === hoy) && (
                       <div className="basis-full">
                         <AnularPedidoForm
+                          key={idAnular === o.id ? "anular" : "cerrado"}
+                          abiertoAlInicio={idAnular === o.id}
                           id={o.id}
                           code={o.code}
                           paid={o.paid}

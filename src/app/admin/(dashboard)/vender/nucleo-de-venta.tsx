@@ -29,7 +29,7 @@ import { useLectorDeRafaga, type OrigenDeLaLectura } from "@/lib/terminal/usar-l
 import { avisar } from "@/lib/terminal/senal";
 import { indexarPorCodigo, resolverCodigo } from "@/lib/supermercado/lectura";
 import Link from "next/link";
-import { rutaParaAnularLaVenta } from "../ventas/filtros";
+import { rutaDeAnulacion } from "../ventas/filtros";
 import FacturarVenta from "../ventas/FacturarVenta";
 import { SIN_FACTURA, type FacturaDeVenta } from "../ventas/factura";
 import { useCuponDePedido } from "@/app/tienda/pedido-online";
@@ -207,6 +207,8 @@ export type PropsDeVender = {
    * se ofrece «Facturar» (factura-del-mostrador.ts). Sin esto, como siempre.
    */
   factura?: { receptor: string; sinFactura: string | null };
+  /** El negocio no tiene Ventas del día (CH): lo que manda ahí, manda a Pedidos. Lo decide MostradorDeVenta. */
+  sinVentasDelDia?: boolean;
   /** Tope del precio a mano de quien vende (null = sin tope). La misma regla que el servidor. */
   topePrecioAMano?: TopePrecioAMano | null;
   /** El negocio (su id): separa en el almacén de la pestaña el cobro sin confirmar de cada uno. */
@@ -269,6 +271,7 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
   aCuentaDisponible = false,
   puedeFacturar = false,
   factura,
+  sinVentasDelDia = false,
   topePrecioAMano = null,
   negocioId = "",
   usuarioId = "",
@@ -1151,7 +1154,7 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
           )}
           <TicketVenta venta={ultima.venta} negocio={negocio} pagoCon={ultima.pagoCon} terminal={terminal} imprimirAlCobrar />
           {!ultima.venta.anulada && (
-            <Link href={rutaParaAnularLaVenta(ultima.venta.id)} className="inline-flex min-h-11 items-center text-sm text-muted underline hover:text-strong">
+            <Link href={rutaDeAnulacion(ultima.venta.id, { sinVentasDelDia })} className="inline-flex min-h-11 items-center text-sm text-muted underline hover:text-strong">
               ¿Salió mal? Anular la venta #{ultima.venta.code}
             </Link>
           )}

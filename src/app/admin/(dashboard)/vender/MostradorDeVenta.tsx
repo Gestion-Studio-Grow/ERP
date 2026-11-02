@@ -174,6 +174,7 @@ export default async function MostradorDeVenta({
         // que no es comercio (una heladería) sigue como estaba.
         conPeso={quienCompra !== "clienta"}
         quienCompra={quienCompra}
+        sinVentasDelDia={quienCompra === "clienta"}
         envios={enviosDeSiempre}
         {...(extras
           ? {

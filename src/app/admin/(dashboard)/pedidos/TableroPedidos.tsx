@@ -60,6 +60,7 @@ import {
   ETIQUETA_DEL_ESTADO,
   ORDENABLES,
   conteosDelTablero,
+  destinoDeAnular,
   filtrarPedidos,
   leerFiltrosDelTablero,
   loteDelTablero,
@@ -827,8 +828,14 @@ export default function TableroPedidos({
   // Sólo comercio: la bandeja de CH queda como estaba.
   const otrosDeLaClienta = comercio ? otrosPedidosDeLaClienta(abiertos) : new Map<string, number[]>();
 
-  const idAbierto = params.get("pedido");
+  const pedirAnular = destinoDeAnular(params.get("anular"), abiertos, cerrados);
+  const idAbierto = params.get("pedido") ?? (pedirAnular?.tipo === "cajon" ? pedirAnular.pedido.id : null);
   const pedidoAbierto = idAbierto ? (abiertos.find((p) => p.id === idAbierto) ?? null) : null;
+  const cerradoAAnular = anularCerrado ?? (pedirAnular?.tipo === "dialogo" ? pedirAnular.pedido : null);
+  const cerrarAnularCerrado = () => {
+    setAnularCerrado(null);
+    cambiarUrl({ anular: null });
+  };
 
   const abrir = (id: string, sec: SeccionDelCajon = null) => {
     setSeccion(sec);
@@ -840,7 +847,7 @@ export default function TableroPedidos({
     if (empujado.current) {
       empujado.current = false;
       window.history.back();
-    } else cambiarUrl({ pedido: null });
+    } else cambiarUrl({ pedido: null, anular: null });
   };
 
   // Enter abre el pedido con foco de fila (la tabla mueve el foco; el cajón lo abre el tablero),
@@ -1193,22 +1200,22 @@ export default function TableroPedidos({
         onCerrar={() => setAvisar([])}
       />
 
-      {anularCerrado && anulacion && (
+      {cerradoAAnular && anulacion && (
         <Dialogo
           abierto
-          onCerrar={() => setAnularCerrado(null)}
-          titulo={`Anular el pedido #${anularCerrado.code}`}
-          descripcion={`${anularCerrado.cliente} · ${anularCerrado.cuando}`}
+          onCerrar={cerrarAnularCerrado}
+          titulo={`Anular ${comercio ? "el pedido" : "la venta"} #${cerradoAAnular.code}`}
+          descripcion={`${cerradoAAnular.cliente} · ${cerradoAAnular.cuando}`}
         >
           <AnularDelPedido
-            id={anularCerrado.id}
-            code={anularCerrado.code}
-            cobrado={anularCerrado.cobrado}
-            aCuenta={anularCerrado.aCuenta}
-            total={anularCerrado.total}
+            id={cerradoAAnular.id}
+            code={cerradoAAnular.code}
+            cobrado={cerradoAAnular.cobrado}
+            aCuenta={cerradoAAnular.aCuenta}
+            total={cerradoAAnular.total}
             motivoObligatorio={anulacion.motivoObligatorio}
             conCodigo={anulacion.conCodigo}
-            onHecho={() => setAnularCerrado(null)}
+            onHecho={cerrarAnularCerrado}
           />
         </Dialogo>
       )}
