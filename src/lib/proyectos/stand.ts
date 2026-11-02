@@ -332,3 +332,15 @@ export function validarDiseno(d: DisenoStand): AvisoStand[] {
   if (pct > 50) avisos.push({ nivel: "aviso", texto: `Las piezas ocupan el ${pct} % del lote: queda poco lugar para circular.`, piezas: [] });
   return avisos;
 }
+
+/**
+ * Qué impide eliminar una maqueta: sus materiales están en una cotización que ya se envió, o alguno ya se contrató o tiene costo real.
+ * Devuelve el motivo para mostrarle a la persona, o null si se puede (y entonces se van la maqueta y sus renglones del borrador).
+ */
+export function bloqueoDeEliminar(renglones: readonly { presupuestoEstado: string; version: number; estadoItem: string; costoReal: number | null }[]): string | null {
+  const viva = renglones.find((r) => r.presupuestoEstado === "ENVIADO" || r.presupuestoEstado === "APROBADO");
+  if (viva) return `Los materiales de esta maqueta están en la cotización de la versión ${viva.version}, que ya se envió al cliente. Esa cotización no se toca: abrí una versión nueva en Cotización, sacá esos renglones y recién después eliminá la maqueta.`;
+  const avanzado = renglones.find((r) => r.presupuestoEstado === "BORRADOR" && (r.estadoItem === "CONTRATADO" || r.estadoItem === "ENTREGADO" || r.costoReal !== null));
+  if (avanzado) return "Alguno de los materiales de esta maqueta ya se contrató o tiene costo real cargado. Sacalo a mano del presupuesto antes de eliminar la maqueta.";
+  return null;
+}

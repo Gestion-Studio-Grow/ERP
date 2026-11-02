@@ -210,7 +210,7 @@ export function BotonNuevoStand({ proyectoId }: { proyectoId: string }) {
   );
 }
 
-/** Elimina una maqueta tras una confirmación. Lo que ya pasó al presupuesto se conserva. `alEliminar`: refrescar la lista o volver al proyecto. */
+/** Elimina una maqueta tras una confirmación; con ella se van sus renglones del presupuesto en borrador. `alEliminar`: refrescar la lista o volver al proyecto. */
 export function BotonEliminarStand({ id, nombre, proyectoId, alEliminar, ancho }: { id: string; nombre: string; proyectoId: string; alEliminar: "refrescar" | "volver"; ancho?: boolean }) {
   const [ocupado, iniciar] = useTransition();
   const [abierto, setAbierto] = useState(false);
@@ -225,7 +225,7 @@ export function BotonEliminarStand({ id, nombre, proyectoId, alEliminar, ancho }
   }
   return (
     <div role="alertdialog" aria-label="Confirmar la eliminación" className="grid gap-2 rounded-lg border border-danger p-2 text-sm text-strong">
-      <p>¿Eliminar «{nombre}»? No se puede deshacer. Los renglones que ya pasaron al presupuesto se conservan.</p>
+      <p>¿Eliminar «{nombre}»? No se puede deshacer. También se sacan del presupuesto en borrador los renglones que salieron de esta maqueta.</p>
       <div className="flex gap-2">
         <button
           type="button"

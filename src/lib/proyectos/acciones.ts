@@ -16,7 +16,7 @@ import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
 import { clientePuedeResponder, fechaCorta, leerNumero, MEDIO_LABEL, pesos, esEtapa, esServicio, etapaAlAprobar, etapaLabel, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
-import { computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
+import { bloqueoDeEliminar, computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
 import { configProyectos } from "./datos.server";
 import { actorActual, avisar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import type { ModuloGestion } from "./gestion-core";
@@ -491,16 +491,29 @@ export async function guardarStand(d: { id: string; nombre: string; diseno: Dise
   return { ok: true };
 }
 
-/** Elimina una maqueta. Los renglones que ya pasaron al presupuesto no se tocan: el presupuesto tiene su propia vida. */
-export async function eliminarStand(d: { id: string }): Promise<Resultado<{ proyectoId: string }>> {
+/**
+ * Elimina una maqueta y, con ella, los renglones del presupuesto en borrador que salieron de ella: sin maqueta, esos costos de
+ * materiales no tienen de dónde venir. Si están en una cotización enviada o ya se contrataron, no se elimina nada y se explica por qué.
+ */
+export async function eliminarStand(d: { id: string }): Promise<Resultado<{ proyectoId: string; renglones: number }>> {
   const a = await actorCon(["ficha", "diseno"]);
   const { tenantId } = a;
   const s = await prisma.proyectoStand.findFirst({ where: { id: d.id, tenantId }, select: { proyectoId: true } });
   if (!s || !(await proyectoDelActor(a, s.proyectoId))) return { ok: false, error: "Ese stand no existe." };
-  const r = await prisma.proyectoStand.deleteMany({ where: { id: d.id, tenantId } });
-  if (r.count === 0) return { ok: false, error: "Ese stand no existe." };
+  const origen = `stand:${d.id}`;
+  const suyos = await prisma.proyectoItem.findMany({ where: { tenantId, origen }, select: { estadoItem: true, costoReal: true, presupuesto: { select: { estado: true, version: true } } } });
+  const bloqueo = bloqueoDeEliminar(suyos.map((i) => ({ presupuestoEstado: i.presupuesto.estado, version: i.presupuesto.version, estadoItem: i.estadoItem, costoReal: i.costoReal })));
+  if (bloqueo) return { ok: false, error: bloqueo };
+  let renglones = 0;
+  const borrada = await tenantTransaction(async (tx) => {
+    const r = await tx.proyectoStand.deleteMany({ where: { id: d.id, tenantId } });
+    if (r.count === 0) return false;
+    renglones = (await tx.proyectoItem.deleteMany({ where: { tenantId, origen, presupuesto: { estado: "BORRADOR" } } })).count;
+    return true;
+  });
+  if (!borrada) return { ok: false, error: "Ese stand no existe." };
   refrescar(s.proyectoId);
-  return { ok: true, proyectoId: s.proyectoId };
+  return { ok: true, proyectoId: s.proyectoId, renglones };
 }
 
 /** Pasa el cómputo del stand al presupuesto en borrador. Reemplaza lo que vino de ESTE stand, no lo cargado a mano. */

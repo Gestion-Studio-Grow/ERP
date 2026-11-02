@@ -84,6 +84,28 @@ ok(foto && foto.extras.ancho === 2.4 && foto.extras.alto === 2.4 && foto.extras.
 // El marco de selección son líneas (modo 1 de glTF): no tienen que estar en el modelo, aunque la pieza esté elegida.
 ok(!(json.meshes ?? []).some((mesh) => mesh.primitives.some((p) => p.mode === 1)), "sin marco de selección en el modelo");
 
+// Integridad: los renglones del presupuesto que salieron de la maqueta se van con ella.
+const urlEditor = page.url();
+const renglonesDeComputo = async () => {
+  await page.goto(`${link}?tab=cotizacion`);
+  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(2000);
+  return (await page.locator("main").innerText()).split("Armado y desarme").length - 1;
+};
+const base = await renglonesDeComputo();
+await page.goto(urlEditor);
+await page.waitForLoadState("networkidle");
+await page.waitForTimeout(3000);
+await page.getByRole("button", { name: "Pasar el cómputo al presupuesto" }).click();
+await page.waitForTimeout(3000);
+const conComputo = await renglonesDeComputo();
+const hayBorrador = conComputo > base;
+if (hayBorrador) ok(true, `el cómputo suma renglones al presupuesto (${base} → ${conComputo})`);
+else console.log("· la cotización de esta demo ya se envió: no se prueba el retiro de renglones");
+await page.goto(urlEditor);
+await page.waitForLoadState("networkidle");
+await page.waitForTimeout(3000);
+
 // Eliminar la maqueta desde el editor: pide confirmación, «No» cancela y «Sí» la elimina y vuelve al proyecto.
 const standId = page.url().split("/stand/")[1]?.split(/[?#]/)[0] ?? "";
 await page.getByRole("button", { name: /Eliminar la maqueta/ }).click();
@@ -96,6 +118,7 @@ await page.waitForURL((u) => !u.pathname.includes("/stand/"), { timeout: 20000 }
 await page.waitForLoadState("networkidle");
 await page.waitForTimeout(2500);
 ok(standId.length > 5 && (await page.locator(`a[href*="${standId}"]`).count()) === 0, "la maqueta eliminada ya no está en la lista del proyecto");
+if (hayBorrador) ok((await renglonesDeComputo()) === base, "los renglones de materiales de esa maqueta se fueron con ella");
 const respuesta = await page.evaluate(async (id) => (await fetch(`/admin/proyectos/x/stand/${id}`)).status, standId);
 ok(respuesta !== 500, `pedir la maqueta eliminada no rompe (estado ${respuesta})`);
 

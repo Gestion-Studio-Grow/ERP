@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { COSTO_LABEL, COSTOS_REFERENCIA, computar, GRUPOS_PIEZAS, lugarLibre, normalizarDiseno, PIEZAS, validarDiseno, type DisenoStand, type Pieza, type TipoPieza } from "./stand";
+import { bloqueoDeEliminar, COSTO_LABEL, COSTOS_REFERENCIA, computar, GRUPOS_PIEZAS, lugarLibre, normalizarDiseno, PIEZAS, validarDiseno, type DisenoStand, type Pieza, type TipoPieza } from "./stand";
 
 const NUEVAS: TipoPieza[] = ["PHOTOCALL", "ZONA_PRUEBA", "DESAFIO", "MURO_EXHIBICION", "MONITOR_55", "CINTA", "ARCO", "SILLON", "POUF", "ISLA_PRODUCTO", "BARRA"];
 
@@ -117,4 +117,15 @@ test("una pieza nueva se pone en un lugar libre y dentro del lote", () => {
   assert.ok(vacio);
   assert.deepEqual(lugarLibre({ ...vacio, piezas: [] }, "MOSTRADOR").z > 0, true, "sin piezas, empieza por el frente");
   for (const t of ["MURO_EXHIBICION", "PHOTOCALL", "PANTALLA", "MONITOR_55", "DEPOSITO"] as const) assert.ok(lugarLibre({ ...vacio, piezas: [] }, t).z < 0, `${t} va contra la pared del fondo`);
+});
+
+test("eliminar una maqueta se frena si sus materiales están en una cotización enviada o ya se contrataron", () => {
+  const borrador = { presupuestoEstado: "BORRADOR", version: 2, estadoItem: "PENDIENTE", costoReal: null };
+  assert.equal(bloqueoDeEliminar([]), null, "sin renglones se puede");
+  assert.equal(bloqueoDeEliminar([borrador, borrador]), null, "renglones sólo en borrador se pueden retirar");
+  assert.match(bloqueoDeEliminar([borrador, { ...borrador, presupuestoEstado: "ENVIADO", version: 1 }]) ?? "", /versión 1.*ya se envió/);
+  assert.match(bloqueoDeEliminar([{ ...borrador, presupuestoEstado: "APROBADO" }]) ?? "", /ya se envió/);
+  assert.match(bloqueoDeEliminar([{ ...borrador, estadoItem: "CONTRATADO" }]) ?? "", /ya se contrató/);
+  assert.match(bloqueoDeEliminar([{ ...borrador, costoReal: 1000 }]) ?? "", /costo real/);
+  assert.equal(bloqueoDeEliminar([{ ...borrador, presupuestoEstado: "REEMPLAZADO" }, { ...borrador, presupuestoEstado: "RECHAZADO" }]), null, "las versiones viejas son historia y no frenan");
 });
