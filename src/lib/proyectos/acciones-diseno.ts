@@ -32,7 +32,7 @@ import {
 } from "./diseno-core";
 import { actorActual, avisar, exigirEditar, proyectoVisible, puede } from "./gestion.server";
 import { ESTADOS_TAREA, mencionados, veTodosLosProyectos, type RolGestion } from "./gestion-core";
-import { charlarConAgente, generarImagen, iaConectada, proponerIdeaDelProyecto, FALTA_CLAVE, type IdeaPropuesta } from "./ia.server";
+import { charlarConAgente, generarImagen, iaConectada, proponerIdeaDelProyecto, proponerStandDelProyecto, FALTA_CLAVE, type IdeaPropuesta } from "./ia.server";
 
 const RAIZ = "/admin/proyectos";
 const MAX_ARCHIVOS = 30;
@@ -201,6 +201,23 @@ export async function proponerIdea(d: { proyectoId: string; pedido?: string }): 
   if (!(await proyectoVisible(a, d.proyectoId))) return { ok: false, error: SIN_PROYECTO };
   const r = await proponerIdeaDelProyecto(a, d.proyectoId, texto(d.pedido, 2000));
   return r.ok ? { ok: true, idea: r.idea } : r;
+}
+
+/** Crea una opción NUEVA de stand con el borrador del agente. No toca las opciones que ya hay: la persona lo abre, lo ajusta y lo guarda. */
+export async function armarStandConIA(d: { proyectoId: string; pedido?: string }): Promise<Resultado<{ id: string; notas: string }>> {
+  const a = await exigirEditar("diseno");
+  if (!puede(a, "ia", "editar")) return { ok: false, error: "Tu rol no puede usar la IA." };
+  if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
+  if (!(await proyectoVisible(a, d.proyectoId))) return { ok: false, error: SIN_PROYECTO };
+  const r = await proponerStandDelProyecto(a, d.proyectoId, texto(d.pedido, 2000));
+  if (!r.ok) return r;
+  const cuantos = await prisma.proyectoStand.count({ where: { tenantId: a.tenantId, proyectoId: d.proyectoId } });
+  const s = await prisma.proyectoStand.create({
+    data: { tenantId: a.tenantId, proyectoId: d.proyectoId, nombre: `Opción ${cuantos + 1} · borrador de IA`, diseno: r.diseno as unknown as Prisma.InputJsonValue },
+    select: { id: true },
+  });
+  refrescar(d.proyectoId);
+  return { ok: true, id: s.id, notas: r.notas };
 }
 
 async function ideaEditable(proyectoId: string) {

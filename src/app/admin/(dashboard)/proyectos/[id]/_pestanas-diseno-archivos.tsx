@@ -12,7 +12,7 @@ import type { Actor } from "@/lib/proyectos/gestion.server";
 import { puede } from "@/lib/proyectos/gestion.server";
 import { campo, tarjeta } from "../_vista";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
-import { BotonNuevoStand, CopiarLink, SubirArchivo } from "./_piezas";
+import { BotonNuevoStand, BotonStandConIA, CopiarLink, SubirArchivo } from "./_piezas";
 
 export async function ArmadorYPiezas({ a, cab }: { a: Actor; cab: Cabecera }) {
   const { proyecto: p, negocio } = cab;
@@ -35,6 +35,7 @@ export async function ArmadorYPiezas({ a, cab }: { a: Actor; cab: Cabecera }) {
           ))}
         </ul>
         {edita && <BotonNuevoStand proyectoId={p.id} />}
+        {edita && <BotonStandConIA proyectoId={p.id} />}
       </section>
 
       <section className={tarjeta} aria-label="Piezas para aprobar">

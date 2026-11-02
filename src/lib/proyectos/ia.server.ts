@@ -12,6 +12,8 @@ import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, 
 import { codigoProyecto, costoTotalItem, ESTADO_ITEM_LABEL, ESTADO_TAREA_LABEL, resumenCuotas, totalesFicha, ventaTotalItem, type ModuloGestion } from "./gestion-core";
 import { errorDeGratis, imagenDeGratis, MODELO_IMAGEN_GRATIS, MODELO_TEXTO_GRATIS, pedidoDeImagen, pedidoDeTexto, textoDeGratis, urlGratis } from "./ia-gratis-core";
 import { aDataUri, tipoDeImagen, urlPollinations } from "./ia-pollinations-core";
+import { ESQUEMA_STAND, INSTRUCCIONES_STAND, leerStandPropuesto } from "./ia-stand-core";
+import type { DisenoStand } from "./stand";
 
 const API = "https://api.anthropic.com/v1/messages";
 const MODELO = "claude-opus-5-5";
@@ -151,6 +153,23 @@ export async function generarImagen(pedido: string): Promise<ImagenGenerada> {
   } catch {
     return { ok: false, error: "El servicio de imágenes no respondió a tiempo." };
   }
+}
+
+/** Propone el stand como datos del armador 3D; crearlo y ajustarlo lo hace la persona. */
+export async function proponerStandDelProyecto(a: Actor, proyectoId: string, pedido: string): Promise<{ ok: true; diseno: DisenoStand; notas: string } | { ok: false; error: string }> {
+  if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
+  const contexto = await contextoDeAgente(a, "disenador", proyectoId);
+  const r = await pedirAlModelo({
+    sistema: `${SISTEMA.disenador}\n\n${INSTRUCCIONES_STAND}`,
+    mensajes: [{ role: "user", content: `${contexto}\n\n${pedido.trim() ? `Pedido especial de la persona: ${pedido.trim()}` : "Proponé un primer borrador del stand para este evento."}` }],
+    esfuerzo: "medium",
+    maxTokens: 3000,
+    esquema: ESQUEMA_STAND as unknown as Record<string, unknown>,
+  });
+  if (!r.ok) return r;
+  if (r.cortada) return { ok: false, error: "El borrador quedó cortado. Probá con un pedido más acotado." };
+  const p = leerStandPropuesto(r.texto);
+  return p ? { ok: true, ...p } : { ok: false, error: "El borrador no se pudo leer. Probá de nuevo." };
 }
 
 /** El pedido sale hacia un tercero: viaja sólo el texto que escribió la persona, no datos del proyecto. Conviene no poner nombres de clientes ahí. */

@@ -4,9 +4,11 @@
 // copiar el link de la propuesta.
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
 import { crearStand } from "@/lib/proyectos/acciones";
+import { armarStandConIA } from "@/lib/proyectos/acciones-diseno";
 import { confirmarSubida, hayNube, pedirSubida, subirArchivoFicha, type ResultadoFicha } from "@/lib/proyectos/acciones-ficha";
 
 const campo = "min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-strong";
@@ -205,6 +207,53 @@ export function BotonNuevoStand({ proyectoId }: { proyectoId: string }) {
       </button>
       {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
     </>
+  );
+}
+
+/** Un agente arma el primer borrador del stand desde el brief; el equipo lo abre y lo ajusta. */
+export function BotonStandConIA({ proyectoId }: { proyectoId: string }) {
+  const [ocupado, iniciar] = useTransition();
+  const [pedido, setPedido] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [listo, setListo] = useState<{ id: string; notas: string } | null>(null);
+  return (
+    <div className="mt-3 grid gap-2 border-t border-line pt-3">
+      <label className="grid gap-1 text-sm font-medium text-strong">
+        Primer borrador con IA
+        <textarea
+          value={pedido}
+          onChange={(e) => setPedido(e.target.value)}
+          maxLength={2000}
+          rows={2}
+          placeholder="Opcional: medidas del lote, estilo, qué tiene que mostrar el stand…"
+          className={cn(campo, "py-2 font-normal")}
+        />
+      </label>
+      <button
+        type="button"
+        disabled={ocupado}
+        className={cn(buttonClasses("outline", "md"), "justify-center")}
+        onClick={() =>
+          iniciar(async () => {
+            setError(null);
+            setListo(null);
+            const r = await armarStandConIA({ proyectoId, pedido });
+            if (r.ok) setListo({ id: r.id, notas: r.notas });
+            else setError(r.error);
+          })
+        }
+      >
+        {ocupado ? "Armando el borrador… puede tardar un minuto" : "Armar un primer borrador con IA"}
+      </button>
+      {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
+      {listo && (
+        <div role="status" className="grid gap-2 rounded-lg border border-line p-3 text-sm text-strong">
+          <p className="font-medium">Borrador listo. Es un punto de partida: revisalo y ajustalo antes de mostrarlo.</p>
+          {listo.notas && <p className="whitespace-pre-line text-muted">{listo.notas}</p>}
+          <Link href={`/admin/proyectos/${proyectoId}/stand/${listo.id}`} className={cn(buttonClasses("solid", "md"), "justify-center")}>Abrir el borrador</Link>
+        </div>
+      )}
+    </div>
   );
 }
 
