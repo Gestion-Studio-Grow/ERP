@@ -37,6 +37,7 @@ import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
+import { esEstetica } from "@/lib/palabras-del-negocio";
 import { entregaDelRubro } from "@/blueprints/retail/rubros";
 import { vocabularioDelNegocio } from "@/lib/vocabulario-negocio";
 import { prisma } from "@/lib/prisma";
@@ -275,7 +276,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
             360 px no entran los dos y el título se partía en dos renglones. */}
         <header data-ui="page-header" className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
-            <h1 className="text-2xl font-bold text-strong">{comercio ? "Pedidos para preparar" : "Pedidos"}</h1>
+            <h1 className="text-2xl font-bold text-strong">{comercio ? "Pedidos para preparar" : esEstetica(identidad.slug) ? "Vender" : "Pedidos"}</h1>
             <LineaDeEstado
               datos={[
                 <strong key="a">{linea.abiertos === 1 ? "1 abierto" : `${linea.abiertos} abiertos`}</strong>,
