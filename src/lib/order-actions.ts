@@ -47,9 +47,10 @@ import { VentaAnuladaError } from "@/lib/invoice-core";
 import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
 import { buildWhatsAppHref, whatsappCanonico } from "@/lib/whatsapp-cta";
 import { logger } from "@/lib/logger";
-import { normalizarCodigoDeCupon, topeDePrecioAMano, CUPON_NO_VALE } from "@/lib/venta-reglas";
+import { normalizarCodigoDeCupon, topeDePrecioAMano, ventaNaceEntregada, CUPON_NO_VALE } from "@/lib/venta-reglas";
 import type { VentaYaGrabada } from "@/lib/reintento-de-venta";
 import { pedidoDelFormulario, rechazoDelAltaConClave, respuestaAlReintento } from "@/lib/respuesta-al-reintento";
+import { esEstetica } from "@/lib/palabras-del-negocio";
 import { frenoDeCupones, rechazoPublicoDelCupon, CUPON_FRENADO } from "@/lib/cupones/prueba-publica";
 import {
   disponibilidadDe,
@@ -592,18 +593,16 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // lista de trabajo y pasa a ser un historial que nadie mira. Se filtra por `status`
   // CONFIRMED para no pisar un estado que otra pestaña ya movió.
   //
-  // POR QUÉ VA GATEADO POR RUBRO, y no para todos: en la bandeja, un pedido DELIVERED cae en
-  // la lista de cerrados y deja de ofrecer sus acciones. Para una estética —que hace un puñado
-  // de ventas de mostrador por día y no tiene la bandeja tapada— esto es sólo perder la forma
-  // de corregir una venta, sin ganar nada a cambio. El problema que se está resolviendo es de
-  // volumen, y el volumen es del rubro de mostrador. El día que la bandeja sepa mostrar las
-  // acciones de un pedido cerrado, esta distinción sobra.
+  // POR QUÉ VA GATEADO: el problema de arriba es de volumen, y el volumen es del rubro de mostrador.
+  // En CH (UAT venta de productos, 01/11) es de otra clase pero con el mismo final: cada venta cobrada
+  // quedaba «Para preparar», llenaba el Inicio de la dueña y cerrarla llevaba 4 toques. Una estética no
+  // prepara nada, así que entra sólo la venta COBRADA; el resto de los negocios de servicios, como estaba.
+  // Corregirla no se pierde: la bandeja ofrece «Anular» en los cerrados y `anularVenta` acepta DELIVERED.
   //
   // La venta A CUENTA de mostrador también terminó: la mercadería se fue y la deuda ya está en
-  // la cuenta corriente del cliente, no en la bandeja.
-  const { isRetail } = await getTenantIdentity();
-  const naceEntregada =
-    isRetail && channel === "COUNTER" && fulfillment === "PICKUP" && ((paid && paymentMethod != null) || aCuenta);
+  // la cuenta corriente del cliente, no en la bandeja (sólo en el rubro de mostrador).
+  const { isRetail, slug } = await getTenantIdentity();
+  const naceEntregada = ventaNaceEntregada({ isRetail, esEstetica: esEstetica(slug), channel, fulfillment, paid, paymentMethod, aCuenta });
   if (naceEntregada) {
     // N2/P2: el paso a Entregado y `pedido.entregado@1` en una transacción.
     await tenantTransaction(
