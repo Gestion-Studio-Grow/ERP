@@ -14,7 +14,6 @@ test("sin Ventas del día (CH) el enlace lleva a Pedidos, a Cerrados, y ubica la
   const ch = new URL(rutaDeAnulacion("v/1", { sinVentasDelDia: true }), "http://x");
   assert.equal(ch.pathname, "/admin/pedidos");
   assert.equal(leerFiltrosDelTablero(ch.searchParams).estado, "cerrados", "el tablero abre en la pestaña Cerrados");
-  assert.equal(ch.searchParams.get("venta"), "v/1", "cambia con cada venta: cierra el cajón aunque ya se estuviera en Cerrados");
   assert.equal(ch.hash, "#pedido-v%2F1", "en el diseño de siempre, la fila de esa venta");
   assert.equal(ch.searchParams.get("anular"), null, "no pide abrir el formulario");
   assert.equal(rutaDeAnulacion("v/1", { sinVentasDelDia: false }), rutaParaAnularLaVenta("v/1"));
@@ -45,5 +44,7 @@ test("en CH el diálogo de la fila dice «venta»", () => {
 });
 
 test("el cajón del mostrador se cierra para dejar ver Cerrados", () => {
-  assert.match(fuente("../pedidos/MostradorEnCajon.tsx"), /if \(venta\) setAbierto\(false\)/);
+  // Por el toque y no por la URL: si ya se estaba en Cerrados, la URL del enlace es la misma.
+  assert.match(fuente("../pedidos/MostradorEnCajon.tsx"), /closest\('a\[href\^="\/admin\/pedidos"\]'\)\) setAbierto\(false\)/);
+  assert.ok(rutaDeAnulacion("v1", { sinVentasDelDia: true }).startsWith("/admin/pedidos"), "el enlace es de los que cierran el cajón");
 });

@@ -18,12 +18,11 @@ export function rutaParaAnularLaVenta(id: string): string {
  * Lo mismo donde no existe Ventas del día (CH: `ventas-del-dia` pide el módulo `pos`, que no tiene):
  * lleva a Pedidos, a Cerrados, y la persona toca «Anular» en la fila de la venta. No abre el formulario
  * sola: así lo decidió el dueño (abrirlo desde la URL congelaba la pantalla al anular, 3 de cada 5).
- * `venta` cierra el cajón del mostrador aunque ya se estuviera en Cerrados; el ancla ubica la fila en
- * el diseño de siempre, donde los cerrados van debajo de los abiertos.
+ * El ancla ubica la fila en el diseño de siempre, donde los cerrados van debajo de los abiertos.
  */
 export function rutaParaAnularEnCerrados(id: string): string {
   const seguro = encodeURIComponent(id);
-  return `/admin/pedidos?estado=cerrados&venta=${seguro}#pedido-${seguro}`;
+  return `/admin/pedidos?estado=cerrados#pedido-${seguro}`;
 }
 
 /** Adónde lleva «¿Salió mal? Anular la venta», según tenga o no Ventas del día el negocio. */

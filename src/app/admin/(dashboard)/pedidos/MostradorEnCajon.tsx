@@ -13,22 +13,23 @@ import { Button, Cajon } from "@/components/ui";
 export default function MostradorEnCajon({ servicios, etiqueta = "Cobrar en el mostrador", children }: { servicios: boolean; etiqueta?: string; children: React.ReactNode }) {
   const params = useSearchParams();
   const [abierto, setAbierto] = useState(params.get("cobrar") === "1");
-  // «¿Salió mal? Anular la venta» se toca adentro del cajón y queda en esta misma pantalla, en
-  // Cerrados: sin esto el cajón seguía abierto, tapando la lista donde se anula. Se mira `venta` y no
-  // `estado`: si ya se estaba en Cerrados, sólo cambia la venta.
-  const venta = params.get("venta");
-  const [ventaVista, setVentaVista] = useState(venta);
-  if (venta !== ventaVista) {
-    setVentaVista(venta);
-    if (venta) setAbierto(false);
-  }
   return (
     <>
       <Button type="button" onClick={() => setAbierto(true)} className="min-h-11">
         {etiqueta}
       </Button>
       <Cajon abierto={abierto} onCerrar={() => setAbierto(false)} titulo={etiqueta} descripcion={servicios ? "Un producto, o un servicio sin turno previo." : "Lo que se lleva en el momento."}>
-        {children}
+        {/* «¿Salió mal? Anular la venta» se toca acá adentro y queda en esta misma pantalla, en Cerrados:
+            sin esto el cajón seguía abierto, tapando la lista donde se anula. Se mira el toque y no la
+            URL: si ya se estaba en Cerrados, la URL no cambia. */}
+        <div
+          className="contents"
+          onClick={(e) => {
+            if ((e.target as Element).closest('a[href^="/admin/pedidos"]')) setAbierto(false);
+          }}
+        >
+          {children}
+        </div>
       </Cajon>
     </>
   );
