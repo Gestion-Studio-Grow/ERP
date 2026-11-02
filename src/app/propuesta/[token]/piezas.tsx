@@ -104,7 +104,7 @@ export function Responder({ token, acento }: { token: string; acento: string }) 
 export function BotonImprimir() {
   return (
     <button type="button" onClick={() => window.print()} className="mia-boton mia-boton-linea mia-solo-pantalla">
-      Descargar PDF
+      Imprimir
     </button>
   );
 }
