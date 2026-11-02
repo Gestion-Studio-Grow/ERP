@@ -14,6 +14,24 @@ export function rutaParaAnularLaVenta(id: string): string {
   return `/admin/ventas?venta=${encodeURIComponent(id)}&anular=1#venta-${encodeURIComponent(id)}`;
 }
 
+/**
+ * Lo mismo donde no existe Ventas del día (CH: `ventas-del-dia` pide el módulo `pos`, que no tiene):
+ * lleva a Pedidos, a Cerrados, y la persona toca «Anular» en la fila de la venta. No abre el formulario
+ * sola: así lo decidió el dueño (abrirlo desde la URL congelaba la pantalla al anular, 3 de cada 5).
+ * El ancla ubica la fila en el diseño de siempre, donde los cerrados van debajo de los abiertos.
+ */
+export function rutaParaAnularEnCerrados(id: string): string {
+  const seguro = encodeURIComponent(id);
+  return `/admin/pedidos?estado=cerrados#pedido-${seguro}`;
+}
+
+/** Adónde lleva «¿Salió mal? Anular la venta», según tenga o no Ventas del día el negocio. */
+export function rutaDeAnulacion(id: string, { sinVentasDelDia, nacioAbierta = false }: { sinVentasDelDia: boolean; nacioAbierta?: boolean }): string {
+  if (!sinVentasDelDia) return rutaParaAnularLaVenta(id);
+  // La venta a cuenta y el pedido, aun cobrado, nacen abiertos (`ventaNaceEntregada`): no están en Cerrados, sino en Abiertos.
+  return nacioAbierta ? "/admin/pedidos" : rutaParaAnularEnCerrados(id);
+}
+
 export type CanalDeVenta = "COUNTER" | "ONLINE";
 
 export type FiltrosDeVentas = {

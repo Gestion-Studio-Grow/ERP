@@ -6,9 +6,9 @@
 // acción devuelve un aviso y la pantalla lo muestra.
 
 export type ResultadoFacturaDelTurno =
-  | { tipo: "sin-factura" } // el negocio no factura, se eligió no facturar, o no hay monto
+  | { tipo: "sin-factura" } // el negocio nunca configuró la facturación, se eligió no facturar, o no hay monto
   | { tipo: "emitida"; status: "PENDING" | "AUTHORIZED" | "REJECTED"; rechazoMotivo: string | null }
-  | { tipo: "fallo" }; // tiró antes de llegar a ARCA (la base, el cobro cambió, un bug)
+  | { tipo: "fallo" }; // tiró antes de llegar a ARCA (un dato fiscal mal, la base, el cobro cambió, un bug)
 
 const DONDE = "Quedó en Facturación → Comprobantes ARCA: avisale a quien lleva la facturación.";
 

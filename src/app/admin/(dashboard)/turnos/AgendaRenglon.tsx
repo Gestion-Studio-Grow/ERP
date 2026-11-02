@@ -42,6 +42,8 @@ import { esFechaDeCalendario, hrefDiaDeLaAgenda, hrefNuevoTurno, vacioDiaSinTurn
 import LinkAlDia from "./_agenda/LinkAlDia";
 import BotonBuscar from "../armazon/BotonBuscar";
 import AtajosDelAlta from "./_agenda/AtajosDelAlta";
+import { enlaceCobrarUnaVenta } from "../pedidos/cobrar-una-venta";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import LibroDelDia from "./_agenda/LibroDelDia";
 import { RenglonDeManana } from "./_agenda/ParaManana";
 import OtroDia from "./_agenda/OtroDia";
@@ -116,8 +118,10 @@ export default async function AgendaRenglon({
 }) {
   const hoy = todayInBusinessTz();
   const dia = fecha && esFechaDeCalendario(fecha) ? fecha : hoy;
+  const cobrarVenta = enlaceCobrarUnaVenta(await getCurrentTenantSlug(), quien.role);
   const permisos: Permisos = {
     practica: await agendaPractica(),
+    sumarProducto: cobrarVenta !== null,
     gestionar: roleHasCapability(quien.role, "agenda:manage"),
     cobrar: roleHasCapability(quien.role, "agenda:collect"),
     terminar: roleHasCapability(quien.role, "agenda:complete"),
@@ -194,6 +198,11 @@ export default async function AgendaRenglon({
           <>
             {/* Las entradas fijas al alta nueva (cert CH T2, F-2/F-4). Con el alta ya abierta, no. */}
             {permisos.gestionar && !alta && <AtajosDelAlta fecha={dia} hoy={hoy} />}
+            {cobrarVenta && (
+              <Link href={cobrarVenta.href} className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+                {cobrarVenta.etiqueta}
+              </Link>
+            )}
             {/* En el celular no hay «/»: el buscador de clientas y turnos, a un toque (CH-028). */}
             <BotonBuscar />
             <ElDia dia={dia} hoy={hoy} vista={vista} />

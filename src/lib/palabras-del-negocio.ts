@@ -26,3 +26,15 @@ export function palabrasDelNegocio(slug: string | null | undefined) {
         reabrirMotivo: "faltó cargar una venta del cuaderno",
       };
 }
+
+/**
+ * Los textos del mostrador que mandan a «Ventas del día», en un negocio que no tiene esa pantalla
+ * (CH): sus ventas cobradas están en Vender, en «Cerrados». Va sobre el texto, y en un solo lugar,
+ * para que los avisos de cobro —los comparten todos los rubros— sigan siendo uno. PURA.
+ */
+export function sinVentasDelDia(texto: string): string {
+  return texto
+    .replace(/el dueño,? desde Ventas del día/g, "la dueña")
+    .replace(/queda marcado en Ventas del día/g, "queda registrado")
+    .replace(/Ventas del día/g, "Vender, en «Cerrados»");
+}

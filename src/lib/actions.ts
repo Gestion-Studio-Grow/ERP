@@ -27,6 +27,7 @@ import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { generateSlotsForDays } from "@/lib/booking-slots";
 import { validateBookingContact } from "@/lib/contact-validation";
 import { isInvoicingEnabled } from "@/lib/fiscal";
+import { resultadoDeFacturaFallida } from "@/lib/turnos/factura-fallida.server";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
 import { avisoDeFacturaDelTurno, type ResultadoFacturaDelTurno } from "@/lib/turnos/aviso-factura";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
@@ -2243,8 +2244,7 @@ async function facturarConResultado(appointmentId: string, tenantId: string): Pr
     }
     return { tipo: "emitida", status: factura.status, rechazoMotivo: factura.rechazoMotivo };
   } catch (err) {
-    logger.error("arca", "facturación best-effort falló", err, { appointmentId, tenantId });
-    return { tipo: "fallo" };
+    return resultadoDeFacturaFallida(err, { appointmentId, tenantId });
   }
 }
 

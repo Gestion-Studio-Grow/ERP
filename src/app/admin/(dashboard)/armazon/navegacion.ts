@@ -103,7 +103,7 @@ export function espaciosDelMenu(menu: readonly ItemMenuDeHoy[], esMostrador: boo
     const app = appDeRuta(item.href);
     const espacio: EspacioNavId | null = app ? espacioNavDeApp(app) : "administracion";
     if (!espacio) return [];
-    const nav: AppDeNav = { id: app?.id ?? item.href, nombre: item.label, ruta: item.href, icono: item.icon, descripcion: app?.descripcion };
+    const nav: AppDeNav = { id: app?.id ?? item.href, nombre: item.label, ruta: item.href, icono: item.icon, descripcion: item.descripcion ?? app?.descripcion };
     if (item.exact) nav.exacta = true;
     return [{ espacio, orden: app ? ordenDentroDelEspacioNav(espacio, app.id) : Number.POSITIVE_INFINITY, app: nav, i }];
   });

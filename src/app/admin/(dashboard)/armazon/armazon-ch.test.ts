@@ -6,7 +6,7 @@
 // (__fixtures__/armazon-head.json, generado sacando `git show HEAD:…/AdminShell.tsx` al lado del de
 // hoy y renderizándolo con escenarios-ch.ts). También con la navegación nueva pasada por error: sin
 // el provider, se ignora.
-import { test } from "node:test";
+import { before, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -14,9 +14,17 @@ import { createElement, type ComponentType } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import AdminShell from "../AdminShell";
+import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { escenarios } from "./escenarios-ch";
 import { armarNavegacion } from "./navegacion";
+
+// El AdminShell llega a las acciones de ingreso (`server-only`): se resuelven como en el servidor de
+// Next y el armazón se importa después.
+let AdminShell: typeof import("../AdminShell").default;
+before(async () => {
+  prepararAccionesDeServidor();
+  AdminShell = (await import("../AdminShell")).default;
+});
 
 const HEAD: Record<string, string> = JSON.parse(
   readFileSync(join(process.cwd(), "src/app/admin/(dashboard)/armazon/__fixtures__/armazon-head.json"), "utf8"),

@@ -29,7 +29,8 @@ import { useLectorDeRafaga, type OrigenDeLaLectura } from "@/lib/terminal/usar-l
 import { avisar } from "@/lib/terminal/senal";
 import { indexarPorCodigo, resolverCodigo } from "@/lib/supermercado/lectura";
 import Link from "next/link";
-import { rutaParaAnularLaVenta } from "../ventas/filtros";
+import { rutaDeAnulacion } from "../ventas/filtros";
+import { sinVentasDelDia as textoSinVentasDelDia } from "@/lib/palabras-del-negocio";
 import FacturarVenta from "../ventas/FacturarVenta";
 import { SIN_FACTURA, type FacturaDeVenta } from "../ventas/factura";
 import { useCuponDePedido } from "@/app/tienda/pedido-online";
@@ -207,6 +208,10 @@ export type PropsDeVender = {
    * se ofrece «Facturar» (factura-del-mostrador.ts). Sin esto, como siempre.
    */
   factura?: { receptor: string; sinFactura: string | null };
+  /** El negocio no tiene Ventas del día (CH): lo que manda ahí, manda a Pedidos. Lo decide MostradorDeVenta. */
+  sinVentasDelDia?: boolean;
+  /** La clienta ya cargada («Sumar un producto» desde el turno). Un cobro sin confirmar en la pestaña gana. */
+  clienteInicial?: { nombre: string; telefono: string } | null;
   /** Tope del precio a mano de quien vende (null = sin tope). La misma regla que el servidor. */
   topePrecioAMano?: TopePrecioAMano | null;
   /** El negocio (su id): separa en el almacén de la pestaña el cobro sin confirmar de cada uno. */
@@ -269,6 +274,8 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
   aCuentaDisponible = false,
   puedeFacturar = false,
   factura,
+  sinVentasDelDia = false,
+  clienteInicial = null,
   topePrecioAMano = null,
   negocioId = "",
   usuarioId = "",
@@ -411,11 +418,11 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
   // Opcionales, cerrados hasta que alguien los abre (ninguno suma un paso al camino feliz).
   const Quien = quienCompra === "clienta" ? "Clienta" : "Cliente";
   const alQuien = quienCompra === "clienta" ? "a la clienta" : "al cliente";
-  const [conCliente, setConCliente] = useState(k?.conCliente ?? Boolean(desdeLaFicha));
-  const [telefono, setTelefono] = useState(k?.telefono ?? "");
-  const [nombreCliente, setNombreCliente] = useState(k?.nombre ?? "");
+  const [conCliente, setConCliente] = useState(k?.conCliente ?? Boolean(desdeLaFicha || clienteInicial));
+  const [telefono, setTelefono] = useState(k?.telefono ?? clienteInicial?.telefono ?? "");
+  const [nombreCliente, setNombreCliente] = useState(k?.nombre ?? clienteInicial?.nombre ?? "");
   const [busqueda, setBusqueda] = useState<"nada" | "buscando" | "encontrado" | "sin-ficha" | "error">(
-    k?.fichaEncontrada ? "encontrado" : "nada",
+    k?.fichaEncontrada || (!k && clienteInicial) ? "encontrado" : "nada",
   );
   const [conDescuento, setConDescuento] = useState(k?.descuento.abierto ?? false);
   // El cupón es la tercera forma del descuento: uno o el otro, nunca los dos (lo mismo exige el
@@ -679,13 +686,15 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
     const p = byId.get(l.productId);
     return p && l.qty > 0 ? round2(l.qty * precioDe(p)) : 0;
   };
+  // CH no tiene Ventas del día: lo que manda ahí, dice dónde están sus ventas.
+  const enEsteNegocio = (texto: string) => (sinVentasDelDia ? textoSinVentasDelDia(texto) : texto);
   const manualesLeidas = manuales.map((m) => {
     const tocada = m.nombre.trim() !== "" || m.importeText.trim() !== "" || m.motivo.trim() !== "";
     const v = validarLineaAMano({ nombre: m.nombre, importe: m.importeText, motivo: m.motivo });
     // El tope de quien vende, con la MISMA regla que el alta aplica en la transacción: la
     // pantalla avisa antes de cobrar y el servidor decide (con el catálogo entero de la base).
     const t = v.ok ? controlarPrecioAMano({ linea: v.linea, catalogo: products, tope: topePrecioAMano }) : null;
-    const error = tocada && !v.ok ? v.error : t && !t.ok ? t.error : null;
+    const error = tocada && !v.ok ? enEsteNegocio(v.error) : t && !t.ok ? t.error : null;
     return { ...m, importe: importeOCero(m.importeText), error, valida: v.ok && (t?.ok ?? true) };
   });
 
@@ -1151,7 +1160,7 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
           )}
           <TicketVenta venta={ultima.venta} negocio={negocio} pagoCon={ultima.pagoCon} terminal={terminal} imprimirAlCobrar />
           {!ultima.venta.anulada && (
-            <Link href={rutaParaAnularLaVenta(ultima.venta.id)} className="inline-flex min-h-11 items-center text-sm text-muted underline hover:text-strong">
+            <Link href={rutaDeAnulacion(ultima.venta.id, { sinVentasDelDia, nacioAbierta: ultima.venta.abierta })} className="inline-flex min-h-11 items-center text-sm text-muted underline hover:text-strong">
               ¿Salió mal? Anular la venta #{ultima.venta.code}
             </Link>
           )}
@@ -1204,7 +1213,7 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
         <AvisoError
           tono="aviso"
           titulo={avisoDeDudaIlegible(dudaIlegible.desde).titulo}
-          comoSeguir={avisoDeDudaIlegible(dudaIlegible.desde).comoSeguir}
+          comoSeguir={enEsteNegocio(avisoDeDudaIlegible(dudaIlegible.desde).comoSeguir)}
           accion={
             <button
               type="button"
@@ -1224,7 +1233,7 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
         <AvisoError
           tono="aviso"
           titulo={avisoDeDudaDeOtraPersona(dudaAjena).titulo}
-          comoSeguir={avisoDeDudaDeOtraPersona(dudaAjena).comoSeguir}
+          comoSeguir={enEsteNegocio(avisoDeDudaDeOtraPersona(dudaAjena).comoSeguir)}
           accion={
             <button
               type="button"
@@ -1457,8 +1466,8 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
     <>
           {aviso && (
             <AvisoError
-              titulo={aviso.titulo}
-              comoSeguir={aviso.comoSeguir}
+              titulo={enEsteNegocio(aviso.titulo)}
+              comoSeguir={enEsteNegocio(aviso.comoSeguir)}
               accion={
                 yaGrabada ? (
                   <>
@@ -1486,12 +1495,12 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
                     {!etiquetaDeCobrarAparte(yaGrabada) && fueraDelCatalogo.length === 0 && (
                       <>
                         <a
-                          href={yaGrabada.esPedido ? "/admin/pedidos" : "/admin/ventas"}
+                          href={yaGrabada.esPedido ? "/admin/pedidos" : sinVentasDelDia ? "/admin/pedidos?estado=cerrados" : "/admin/ventas"}
                           target="_blank"
                           rel="noopener"
                           className="inline-flex h-11 items-center px-2 text-sm text-strong underline"
                         >
-                          {yaGrabada.esPedido ? "Abrir Pedidos para preparar" : "Abrir Ventas del día"}
+                          {yaGrabada.esPedido ? "Abrir Pedidos para preparar" : sinVentasDelDia ? "Abrir las ventas cerradas" : "Abrir Ventas del día"}
                         </a>
                         <button type="button" onClick={volverAConsultar} className="h-11 px-2 text-sm text-strong underline">
                           {ETIQUETA_VOLVER_A_CONSULTAR}
@@ -1504,7 +1513,7 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
                   </>
                 ) : confirmarEmpezar ? (
                   <>
-                    <p className="w-full text-sm text-body">{avisoAntesDeEmpezarDeNuevo(isOrder)}</p>
+                    <p className="w-full text-sm text-body">{enEsteNegocio(avisoAntesDeEmpezarDeNuevo(isOrder))}</p>
                     <button type="button" onClick={limpiar} className="h-11 px-2 text-sm font-medium text-strong underline">
                       Sí, empezar de nuevo
                     </button>

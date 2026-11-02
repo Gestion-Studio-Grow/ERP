@@ -319,6 +319,8 @@ export interface ItemMenuDeHoy {
   alias?: readonly string[];
   /** Grupo de la barra agrupada (`NAV_GROUPING_ENABLED`). */
   grupo?: NavGroupId;
+  /** Lo que dice el lanzador de esta entrada, si no es la descripción de su app. */
+  descripcion?: string;
 }
 
 function grupoDeHoy(href: string): NavGroupId | undefined {
@@ -367,6 +369,35 @@ export function conCierreDelMesEnLaBarra(
   const grupo = i >= 0 ? menu[i].grupo : grupoDeHoy(app.ruta);
   if (grupo) item.grupo = grupo;
   const salida = [...menu];
+  salida.splice(i >= 0 ? i + 1 : salida.length, 0, item);
+  return salida;
+}
+
+/** Lo que sale de la barra de CH: Campañas no la usa y Recordatorios todavía es simulado. */
+const FUERA_DE_LA_BARRA_DE_CH = new Set(["/admin/campania", "/admin/recordatorios"]);
+
+/**
+ * La barra de CH (orden del dueño, UAT venta de productos, 01/11): Comisiones entra; Pedidos se llama
+ * «Vender»; salen Campañas y Recordatorios. Es la barra, no el permiso: las pantallas abren igual por
+ * su ruta (`appsVisibles` no cambia) y Comisiones entra SÓLO si la app ya es visible para esa persona,
+ * así que un rol sin `reports:read` no la ve. Va aparte de `proyectarMenuDeHoy`, que sigue atada a la
+ * barra de siempre (paridad-menu.test.ts). PURA.
+ */
+export function barraDeCH(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[]): ItemMenuDeHoy[] {
+  const salida = menu
+    .filter((i) => !FUERA_DE_LA_BARRA_DE_CH.has(i.href))
+    .map((i) =>
+      i.href === "/admin/pedidos"
+        ? { ...i, label: "Vender", alias: [...(i.alias ?? []), "pedidos"], descripcion: "Cobrar una venta y ver las cerradas, para anularlas si salió mal." }
+        : i,
+    );
+  const comisiones = visibles.find((a) => a.id === "comisiones");
+  if (!comisiones || salida.some((i) => i.href === comisiones.ruta)) return salida;
+  const i = salida.findIndex((m) => m.href === "/admin/reportes");
+  const item: ItemMenuDeHoy = { href: comisiones.ruta, label: comisiones.nombre, icon: comisiones.icono };
+  if (comisiones.palabras) item.alias = comisiones.palabras;
+  const grupo = i >= 0 ? salida[i].grupo : grupoDeHoy(comisiones.ruta);
+  if (grupo) item.grupo = grupo;
   salida.splice(i >= 0 ? i + 1 : salida.length, 0, item);
   return salida;
 }

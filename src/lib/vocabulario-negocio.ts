@@ -21,6 +21,8 @@ export type VocabularioDelNegocio = EntregaWording & {
   notasEjemplo: string;
   /** ¿El rubro vende algo por kilo? Si no, el panel no habla de "cargá el peso". */
   porPeso: boolean;
+  /** ¿Existe Ventas del día? Es del rubro de mostrador (módulo `pos`): CH no la tiene y no se la nombra. */
+  conVentasDelDia: boolean;
 };
 
 export const VOCABULARIO_POR_DEFECTO: VocabularioDelNegocio = vocabularioDelNegocio(null);
@@ -32,6 +34,7 @@ export function vocabularioDelNegocio(rubro: Pick<RetailRubro, "wording" | "cata
     notasEjemplo: notas.charAt(0).toUpperCase() + notas.slice(1),
     // Sin rubro (una estética) queda como siempre: el mostrador puede vender por kilo.
     porPeso: rubro ? rubro.catalog.some((i) => i.sale === "kg") : true,
+    conVentasDelDia: Boolean(rubro),
   };
 }
 

@@ -9,6 +9,7 @@ import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server"
 import { todayInBusinessTz } from "@/lib/datetime";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
+import { sinVentasDelDia } from "@/lib/palabras-del-negocio";
 import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
 import { posEmptyState } from "@/lib/stock/pos-stock-rules";
 import { terminalDelEquipo } from "@/lib/terminal/terminal.server";
@@ -38,6 +39,7 @@ export default async function MostradorDeVenta({
   pedidoInicial = false,
   conVendedor = false,
   desdeLaFicha = null,
+  clienteInicial = null,
 }: {
   user: Quien;
   tenantId: string;
@@ -48,6 +50,8 @@ export default async function MostradorDeVenta({
    * leídos por la página con `pedidoDeVentaDesdeLaFicha` (acotados al negocio). Sólo el boutique.
    */
   desdeLaFicha?: { cliente: ClienteElegido; repetir: RepetirPedido | null } | null;
+  /** «Sumar un producto» desde un turno de CH: la clienta ya cargada en el bloque de siempre. */
+  clienteInicial?: { nombre: string; telefono: string } | null;
 }) {
   const hoy = todayInBusinessTz();
   const [datos, stockSnap, identidad, puedeCuentas, puedeFacturar, nuevo, rubro, terminal, interruptores] = await Promise.all([
@@ -104,11 +108,12 @@ export default async function MostradorDeVenta({
   const quienCompra = esteticaBackoffice(rubro.slug) === "beauty-spa" ? "clienta" : "cliente";
   // En el boutique el bloque Cliente tiene «CUIT/DNI» (ClienteDeLaVenta): el texto dice que se carga ahí.
   const rolFactura = roleHasCapability(user.role, "billing:manage");
+  const motivoDeLaFactura = motivoSinFactura({ puedeFacturar, rolFactura, conDocumento: boutique });
   const factura = {
     receptor: textoDelReceptor(vigenteEn(UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, fechaFiscalDelDia())?.valor ?? null, quienCompra, {
       conDocumento: boutique,
     }),
-    sinFactura: motivoSinFactura({ puedeFacturar, rolFactura, conDocumento: boutique }),
+    sinFactura: motivoDeLaFactura && quienCompra === "clienta" ? sinVentasDelDia(motivoDeLaFactura) : motivoDeLaFactura,
   };
   // Boutique: teclas del catálogo aunque no haya ventas (las vendidas primero), hasta 24.
   // MAGRA T2 · 2B: «Nuevo pedido de WhatsApp» (pegar el chat → propuesta → confirmar renglón por
@@ -174,6 +179,8 @@ export default async function MostradorDeVenta({
         // que no es comercio (una heladería) sigue como estaba.
         conPeso={quienCompra !== "clienta"}
         quienCompra={quienCompra}
+        sinVentasDelDia={quienCompra === "clienta"}
+        clienteInicial={clienteInicial}
         envios={enviosDeSiempre}
         {...(extras
           ? {

@@ -1,7 +1,7 @@
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { palabrasDelNegocio } from "@/lib/palabras-del-negocio";
 import Link from "next/link";
-import { getPosData } from "@/lib/order-actions";
+import { getPosData, leerClientaDelTurno } from "@/lib/order-actions";
 import { fmtMoneyARS, EmptyState, ButtonLink, buttonClasses, atributosBoton } from "@/components/ui";
 import { fmtShortDate, todayInBusinessTz, dateStrInBusinessTz } from "@/lib/datetime";
 import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
@@ -37,6 +37,7 @@ import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
+import { esEstetica } from "@/lib/palabras-del-negocio";
 import { entregaDelRubro } from "@/blueprints/retail/rubros";
 import { vocabularioDelNegocio } from "@/lib/vocabulario-negocio";
 import { prisma } from "@/lib/prisma";
@@ -91,7 +92,7 @@ const EN_CURSO: ReadonlySet<string> = new Set(ESTADOS_EN_CURSO);
 
 export const metadata = { title: "Pedidos", generator: "Gestión Studio Grow" };
 
-export default async function PedidosPage() {
+export default async function PedidosPage({ searchParams }: { searchParams?: Promise<{ turno?: string | string[] }> }) {
   // La guardia de la app (rol, módulo pos): esconderla del menú no la protegería. getPosData
   // vuelve a pedir orders:read, como siempre.
   const user = await requireApp("pedidos");
@@ -139,6 +140,7 @@ export default async function PedidosPage() {
     servicios ? getPosStockSnapshot() : Promise.resolve(null),
     servicios ? canCurrentUser("agenda:manage") : Promise.resolve(false),
   ]);
+  const sp = await searchParams;
   // Cómo se llama el retiro en este rubro: "Retira" en un local, "Encuentro" en una perfumería que
   // entrega en un punto de encuentro (rubros.ts `entrega`). Lo mismo que ve el tablero nuevo.
   const entrega = entregaDelRubro(identidad.rubro);
@@ -153,8 +155,12 @@ export default async function PedidosPage() {
   // gestionar agenda (OWNER y RECEPCIÓN), y sólo en un negocio de servicios: en un comercio la
   // solapa «Servicios» era un callejón.
   const professionals = puedeAgenda && !comercio ? await getProfessionalsWithServices() : [];
+  // «Sumar un producto» desde el turno de CH: la venta arranca con su clienta cargada.
+  const turnoDeLaVenta = typeof sp?.turno === "string" ? sp.turno : null;
+  const clienteInicial =
+    turnoDeLaVenta && conMostradorUnico && !comercio && roleHasCapability(user.role, "orders:manage") ? await leerClientaDelTurno(turnoDeLaVenta) : null;
   const mostradorUnico = conMostradorUnico
-    ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} conVendedor={!comercio} />
+    ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} conVendedor={!comercio} clienteInicial={clienteInicial} />
     : undefined;
   // O-2: el POS de siempre (sólo cuando se muestra con productos) ofrece la zona del envío si el
   // negocio tiene zonas; el servidor la exige igual. Donde no se usa, no se lee nada.
@@ -262,7 +268,7 @@ export default async function PedidosPage() {
             360 px no entran los dos y el título se partía en dos renglones. */}
         <header data-ui="page-header" className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
-            <h1 className="text-2xl font-bold text-strong">{comercio ? "Pedidos para preparar" : "Pedidos"}</h1>
+            <h1 className="text-2xl font-bold text-strong">{comercio ? "Pedidos para preparar" : esEstetica(identidad.slug) ? "Vender" : "Pedidos"}</h1>
             <LineaDeEstado
               datos={[
                 <strong key="a">{linea.abiertos === 1 ? "1 abierto" : `${linea.abiertos} abiertos`}</strong>,
@@ -686,6 +692,7 @@ export default async function PedidosPage() {
               return (
                 <div
                   key={o.id}
+                  id={`pedido-${o.id}`}
                   className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line px-4 py-2 text-sm"
                 >
                   <span className="font-medium">#{o.code}</span>

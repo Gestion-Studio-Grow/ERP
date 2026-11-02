@@ -23,6 +23,10 @@ const laBase = baseEfimeraDelArchivo();
 const MIN = 60_000;
 const DIA = 24 * 60 * MIN;
 
+// M1-C2 (32563465, orden del dueño 29/10): la transferencia tiene su columna en el libro; la base
+// efímera aplica las migraciones, así que el valor del enum está. Un medio por columna, sin «otro».
+const COLUMNA_DEL_LIBRO: Record<string, string> = { EFECTIVO: "EFECTIVO", MERCADOPAGO: "MP", TRANSFERENCIA: "TRANSFERENCIA" };
+
 test("cargar ventas del cuaderno: con su hora, sin duplicar, día cerrado, futuro, ventana del rol y aislamiento", async (t) => {
   const base = await laBase(t);
   if (!base) return;
@@ -120,7 +124,7 @@ test("cargar ventas del cuaderno: con su hora, sin duplicar, día cerrado, futur
     const mov: { occurredAt: Date; sessionId: string | null; amount: number; type: string; method: string }[] = await duenio.cashMovement.findMany({ where: { tenantId: base.a.id, orderId: o.id }, select: { occurredAt: true, sessionId: true, amount: true, type: true, method: true } });
     assert.equal(mov.length, 1, "un solo asiento por venta");
     assert.equal(mov[0].occurredAt.toISOString(), cuando.toISOString(), "el libro la asienta el día y la hora en que se vendió");
-    assert.deepEqual([mov[0].type, mov[0].amount, mov[0].method], ["VENTA", e.total, e.medio === "EFECTIVO" ? "EFECTIVO" : "MP"]);
+    assert.deepEqual([mov[0].type, mov[0].amount, mov[0].method], ["VENTA", e.total, COLUMNA_DEL_LIBRO[e.medio]]);
     assert.equal(mov[0].sessionId, null, "ayer: no es plata del cajón del turno de hoy");
     const stock: { createdAt: Date; type: string }[] = await duenio.stockMovement.findMany({ where: { tenantId: base.a.id, orderId: o.id }, select: { createdAt: true, type: true } });
     assert.ok(stock.length >= 1);

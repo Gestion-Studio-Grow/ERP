@@ -21,6 +21,7 @@ import BotonBuscar from "../armazon/BotonBuscar";
 import AtajosDelAlta from "./_agenda/AtajosDelAlta";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { enlaceCobrarUnaVenta } from "../pedidos/cobrar-una-venta";
 
 // Muestra en un vistazo qué profesionales tienen novedad (franco/vacaciones)
 // ese día, para no tener que ir a buscarlo a Catálogo (ADR-011 G9).
@@ -125,6 +126,7 @@ export default async function TurnosCalendarPage({
       gestionar: canManage,
       cobrar: canCollect,
       terminar: roleHasCapability(user.role, "agenda:complete"),
+      sumarProducto: enlaceCobrarUnaVenta(slug, user.role) !== null,
       perdonar: roleHasCapability(user.role, "agenda:forgive"),
       anular: anulacionDeCobro(user.role),
     },
@@ -135,6 +137,7 @@ export default async function TurnosCalendarPage({
     letraDelNegocio: esteticaBackoffice(slug) !== null,
   };
 
+  const cobrarVenta = enlaceCobrarUnaVenta(slug, user.role);
   const label = fmtCalendarDateLabel(date);
   // Qué se ofrece si la agenda está vacía (pasos.ts): el botón sólo lleva a una pantalla que esta
   // persona puede abrir, con la misma regla que la guardia de cada página.
@@ -152,6 +155,11 @@ export default async function TurnosCalendarPage({
           {/* Las entradas fijas al alta nueva (cert CH T2, F-2/F-4): «Dar turno» y «Atender ahora»
               (CH-019), en la PC y en el celular. Sólo quien da turnos. */}
           {canManage && <AtajosDelAlta fecha={date} hoy={today} />}
+          {cobrarVenta && (
+            <Link href={cobrarVenta.href} className={buttonClasses("outline", "md")}>
+              {cobrarVenta.etiqueta}
+            </Link>
+          )}
           {/* En el celular no hay «/»: el buscador de clientas y turnos, a un toque (CH-028). */}
           <BotonBuscar />
         </div>

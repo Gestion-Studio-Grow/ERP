@@ -23,9 +23,11 @@ export default function AppointmentsHistoryList({
   appointments,
   statusLabel,
   practica = false,
+  sumarProducto = false,
   viewer,
   permisos,
 }: {
+  sumarProducto?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   appointments: any[];
   statusLabel: Record<string, string>;
@@ -76,6 +78,7 @@ export default function AppointmentsHistoryList({
             appointment={a}
             statusLabel={statusLabel}
             practica={practica}
+            sumarProducto={sumarProducto}
             viewer={viewer}
             canManage={permisos.gestionar}
             canCollect={permisos.cobrar}

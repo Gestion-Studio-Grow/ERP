@@ -618,3 +618,24 @@ export function whereDevolucionDeCupon(
 export function esVentaACuenta(v: { paid?: boolean | null; paymentMethod?: string | null }): boolean {
   return v.paid !== false && !v.paymentMethod;
 }
+
+/**
+ * ¿La venta recién grabada ya terminó, y nace Entregada? Sólo la de mostrador que se lleva en el
+ * momento: en un comercio la cobrada o la que quedó a cuenta; en CH sólo la cobrada con su medio. Otro
+ * negocio de servicios, como estaba. Cambia el estado y nada más: stock, libro y reportes no lo miran
+ * (los lee `venta-nace-cerrada-ch-postgres.test.ts`). PURA.
+ */
+export function ventaNaceEntregada(v: {
+  isRetail: boolean;
+  esEstetica: boolean;
+  channel: string;
+  fulfillment: string;
+  paid: boolean;
+  paymentMethod: string | null;
+  aCuenta: boolean;
+}): boolean {
+  if (v.channel !== "COUNTER" || v.fulfillment !== "PICKUP") return false;
+  const cobrada = v.paid && v.paymentMethod != null;
+  if (v.isRetail) return cobrada || v.aCuenta;
+  return v.esEstetica && cobrada;
+}

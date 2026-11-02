@@ -29,8 +29,9 @@ import { appDeGestionVisible, appEnLaBarra, ROL_LABEL } from "@/lib/proyectos/ge
 import { prisma } from "@/lib/prisma";
 import { BarraGestion } from "./proyectos/_barra";
 import { appDeRuta } from "@/apps/rutas";
-import { appCasa, appDelPanelCerrado, appsDeLaCasa, appsVisibles, conCierreDelMesEnLaBarra, conProyectosEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa, rutaFueraDelPanel } from "@/apps/visibles";
+import { appCasa, appDelPanelCerrado, appsDeLaCasa, appsVisibles, barraDeCH, conCierreDelMesEnLaBarra, conProyectosEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa, rutaFueraDelPanel } from "@/apps/visibles";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
+import { esEstetica } from "@/lib/palabras-del-negocio";
 import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { rutaDeAppDelNegocio } from "@/apps/rutas";
@@ -282,7 +283,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     }
   }
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
-  const menu = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles);
+  const barra = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles);
+  const menu = esEstetica(slugDelNegocio) ? barraDeCH(barra, visibles) : barra;
   // DISEÑO NUEVO: la navegación del armazón nuevo (espacios, comandos de ⌘K, tecla del rubro), con
   // las MISMAS apps que ya decidió `appsVisibles`. Apagado no se arma ni viaja: CH recibe los mismos
   // props de siempre (armazon/armazon-ch.test.ts).

@@ -19,7 +19,17 @@ export default function MostradorEnCajon({ servicios, etiqueta = "Cobrar en el m
         {etiqueta}
       </Button>
       <Cajon abierto={abierto} onCerrar={() => setAbierto(false)} titulo={etiqueta} descripcion={servicios ? "Un producto, o un servicio sin turno previo." : "Lo que se lleva en el momento."}>
-        {children}
+        {/* «¿Salió mal? Anular la venta» se toca acá adentro y queda en esta misma pantalla, en Cerrados:
+            sin esto el cajón seguía abierto, tapando la lista donde se anula. Se mira el toque y no la
+            URL: si ya se estaba en Cerrados, la URL no cambia. */}
+        <div
+          className="contents"
+          onClick={(e) => {
+            if ((e.target as Element).closest('a[href^="/admin/pedidos"]')) setAbierto(false);
+          }}
+        >
+          {children}
+        </div>
       </Cajon>
     </>
   );

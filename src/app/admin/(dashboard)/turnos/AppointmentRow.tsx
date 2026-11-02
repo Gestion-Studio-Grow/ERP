@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { hrefSumarProducto, turnoAdmiteProducto } from "../pedidos/cobrar-una-venta";
 import {
   registrarCobroTurno,
   anularCobroTurno,
@@ -429,7 +430,10 @@ export default function AppointmentRow({
   viewer,
   ancla = false,
   practica = false,
+  sumarProducto = false,
 }: {
+  /** CH y orders:manage: el turno ofrece «Sumar un producto» (cobrar-una-venta.ts). */
+  sumarProducto?: boolean;
   appointment: Appointment;
   statusLabel: Record<string, string>;
   /**
@@ -707,6 +711,11 @@ export default function AppointmentRow({
             className={buttonClasses("outline", "sm", "self-start whitespace-nowrap")}
           >
             Reservar el próximo
+          </Link>
+        )}
+        {sumarProducto && turnoAdmiteProducto(appointment.status) && (
+          <Link href={hrefSumarProducto(appointment.id)} className={buttonClasses("outline", "sm", "self-start whitespace-nowrap")}>
+            Sumar un producto
           </Link>
         )}
       </div>

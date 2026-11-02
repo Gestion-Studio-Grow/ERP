@@ -22,6 +22,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { hrefSumarProducto, turnoAdmiteProducto } from "../../pedidos/cobrar-una-venta";
 import { useRouter } from "next/navigation";
 import {
   anularCobroTurno,
@@ -502,6 +503,15 @@ export default function TurnoCajon({
             <Link href={proximo} className={buttonClasses("outline", "md", "w-full")} {...atributosBoton("outline", "md")}>
               Reservar el próximo
             </Link>
+          </div>
+        )}
+
+        {permisos.sumarProducto && turnoAdmiteProducto(t.estado) && (
+          <div className="pt-1">
+            <Link href={hrefSumarProducto(t.id)} className={buttonClasses("outline", "md", "w-full")} {...atributosBoton("outline", "md")}>
+              Sumar un producto
+            </Link>
+            <p className="mt-1 text-xs text-muted">Es otro cobro, aparte del turno.</p>
           </div>
         )}
 
