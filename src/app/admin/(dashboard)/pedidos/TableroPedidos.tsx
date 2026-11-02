@@ -677,6 +677,7 @@ function BandejaEnColumnas({
  * decide el servidor en `anularVenta`, como cualquier anulación. Sin estado propio (Gate 2).
  */
 function NoRetiro({ p, motivoObligatorio, conCodigo, onCerrar }: { p: PedidoDelTablero; motivoObligatorio: boolean; conCodigo: boolean; onCerrar: () => void }) {
+  const vocab = useVocabulario();
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [motivo, setMotivo] = useState(MOTIVO_NO_RETIRO);
@@ -744,7 +745,7 @@ function NoRetiro({ p, motivoObligatorio, conCodigo, onCerrar }: { p: PedidoDelT
           />
         </Field>
         {conCodigo && p.cobrado && (
-          <Field label="Código de la dueña" htmlFor={`${uid}-codigo`} error={error ?? undefined} hint={`La dueña lo saca en el pedido #${p.code}, desde Ventas del día o Pedidos, con «Autorizar anulación». Vale unos minutos y sólo para esta venta.`}>
+          <Field label="Código de la dueña" htmlFor={`${uid}-codigo`} error={error ?? undefined} hint={`La dueña lo saca en el pedido #${p.code}, desde ${vocab.conVentasDelDia ? "Ventas del día o Pedidos" : "esta pantalla"}, con «Autorizar anulación». Vale unos minutos y sólo para esta venta.`}>
             <Input
               id={`${uid}-codigo`}
               value={codigo}

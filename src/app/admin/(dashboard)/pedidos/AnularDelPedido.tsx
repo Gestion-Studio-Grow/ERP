@@ -19,6 +19,7 @@ import { MOTIVO_MAX } from "@/lib/turnos/anulacion";
 import { Button, Field, Input } from "@/components/ui";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { useToast } from "../ToastProvider";
+import { useVocabulario } from "../VocabularioDelNegocio";
 import AutorizarAnulacionVenta from "./AutorizarAnulacionVenta";
 import { aFormData, camposDeLaAnulacion, esRedirectDeNext } from "./formularios-del-pedido";
 
@@ -58,6 +59,7 @@ export default function AnularDelPedido({
   const [porConfirmar, setPorConfirmar] = useState(false);
   const [pending, startTransition] = useTransition();
   const uid = useId();
+  const { conVentasDelDia } = useVocabulario();
   const conPlata = cobrado || aCuenta;
 
   function enviar() {
@@ -123,7 +125,7 @@ export default function AnularDelPedido({
         />
       </Field>
       {conCodigo && conPlata && (
-        <Field label="Código de la dueña" htmlFor={`${uid}-codigo`} error={error ?? undefined} hint={`La dueña lo saca en la ${sustantivo === "venta" ? "venta" : "pedido"} #${code}, desde Ventas del día o Pedidos, con «Autorizar anulación». Vale unos minutos y sólo para esta venta.`}>
+        <Field label="Código de la dueña" htmlFor={`${uid}-codigo`} error={error ?? undefined} hint={`La dueña lo saca en la ${sustantivo === "venta" ? "venta" : "pedido"} #${code}, desde ${conVentasDelDia ? "Ventas del día o Pedidos" : "esta pantalla"}, con «Autorizar anulación». Vale unos minutos y sólo para esta venta.`}>
           <Input
             id={`${uid}-codigo`}
             value={codigo}

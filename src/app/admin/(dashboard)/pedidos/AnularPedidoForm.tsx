@@ -21,6 +21,7 @@ import { anularVenta } from "@/lib/order-actions";
 import { MOTIVO_MAX } from "@/lib/turnos/anulacion";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { useToast } from "../ToastProvider";
+import { useVocabulario } from "../VocabularioDelNegocio";
 import AutorizarAnulacionVenta from "./AutorizarAnulacionVenta";
 
 function isNextRedirect(e: unknown): boolean {
@@ -60,6 +61,7 @@ export default function AnularPedidoForm({
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [abierto, setAbierto] = useState(abiertoAlInicio);
+  const { conVentasDelDia } = useVocabulario();
   const [error, setError] = useState<string | null>(null);
   // Doble salida (src/lib/caja/doble-salida.ts): el servidor avisa y el segundo clic confirma.
   const [porConfirmar, setPorConfirmar] = useState(false);
@@ -164,7 +166,7 @@ export default function AnularPedidoForm({
             spellCheck={false}
             className="h-11 rounded-md border border-line-strong bg-surface-raised px-3 text-sm text-strong focus:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
           />
-          <p className="text-xs text-muted">La dueña lo saca en la venta #{code}, desde Ventas del día o Pedidos, con «Autorizar anulación». Vale unos minutos y sólo para esta venta.</p>
+          <p className="text-xs text-muted">La dueña lo saca en la venta #{code}, desde {conVentasDelDia ? "Ventas del día o Pedidos" : "esta pantalla"}, con «Autorizar anulación». Vale unos minutos y sólo para esta venta.</p>
         </>
       )}
       <label className="flex min-h-11 items-center gap-2 text-xs text-body sm:min-h-8">
