@@ -20,6 +20,8 @@ test("la ficha del turno lo ofrece, y la venta arranca con la clienta cargada", 
   const dash = "../app/admin/(dashboard)/";
   assert.match(fuente(`${dash}turnos/_agenda/TurnoCajon.tsx`), /permisos\.sumarProducto && turnoAdmiteProducto\(t\.estado\)/);
   assert.match(fuente(`${dash}turnos/AgendaRenglon.tsx`), /sumarProducto: cobrarVenta !== null/);
+  assert.match(fuente(`${dash}turnos/AppointmentRow.tsx`), /sumarProducto && turnoAdmiteProducto\(appointment\.status\)/);
+  assert.equal(fuente(`${dash}turnos/lista/page.tsx`).match(/sumarProducto=\{sumarProducto\}/g)?.length, 3, "las tres listas de la pestaña Lista");
   assert.match(fuente(`${dash}turnos/page.tsx`), /sumarProducto: enlaceCobrarUnaVenta\(slug, user\.role\) !== null/);
   assert.match(fuente(`${dash}vender/nucleo-de-venta.tsx`), /useState\(k\?\.telefono \?\? clienteInicial\?\.telefono \?\? ""\)/);
   assert.match(fuente(`${dash}pedidos/page.tsx`), /clienteInicial=\{clienteInicial\}/);

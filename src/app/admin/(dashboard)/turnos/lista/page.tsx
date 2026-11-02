@@ -14,6 +14,7 @@ import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { agendaPractica } from "@/lib/turnos/practica.server";
 import { fechaPropuestaDelAlta } from "@/lib/turnos/practica";
 import AgendaRenglon from "../AgendaRenglon";
+import { enlaceCobrarUnaVenta } from "../../pedidos/cobrar-una-venta";
 import DarTurnoCajon from "../_agenda/DarTurnoCajon";
 import { buttonClasses } from "@/components/ui";
 import { roleHasCapability } from "@/lib/capabilities";
@@ -176,6 +177,7 @@ export default async function TurnosListaPage({
   const ahora = instanteDeCarga();
   // Sin las lecturas del alta (profesionales con servicios, fichas, faltazos): el alta vive en el
   // cajón de `?nuevo=1` y las hace ella (cert CH T2, F-4).
+  const sumarProducto = enlaceCobrarUnaVenta(await getCurrentTenantSlug(), user.role) !== null;
   const [appointments, practica, sinCerrar] = await Promise.all([
     getAppointments(ventana.dias),
     agendaPractica(),
@@ -266,6 +268,7 @@ export default async function TurnosListaPage({
               canManage={permisos.gestionar}
               canCollect={permisos.cobrar}
               practica={practica}
+              sumarProducto={sumarProducto}
               ancla
             />
           ))}
@@ -288,6 +291,7 @@ export default async function TurnosListaPage({
                 canManage={permisos.gestionar}
                 canCollect={permisos.cobrar}
                 practica={practica}
+                sumarProducto={sumarProducto}
               />
             ))}
           </div>
@@ -301,6 +305,7 @@ export default async function TurnosListaPage({
           appointments={rest}
           statusLabel={statusLabel}
           practica={practica}
+          sumarProducto={sumarProducto}
           viewer={viewer}
           permisos={permisos}
         />
