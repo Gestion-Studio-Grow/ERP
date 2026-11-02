@@ -210,3 +210,57 @@ Fuentes de esta sección:
 - capterra.es (software de jardinería y de órdenes de trabajo)
 - iprofesional.com (barrios y obras en Canning)
 - finder.techleap.nl (AgendaPro)
+
+---
+
+## 8. Servicio de desarrollo de apps a medida: cuánto cobrar
+
+**Criterio.** El código lo genera la IA, también para la competencia. Lo que se cobra es:
+
+- entrega en semanas;
+- que funcione con datos reales;
+- seguridad;
+- integraciones argentinas (ARCA, Mercado Pago, WhatsApp);
+- soporte.
+
+El recurso escaso son las **horas del dueño**: relevar, revisar, probar y publicar. Se valúan a
+USD 30–40 por hora `[INFERIDO]`.
+
+**Referencias de mercado** `[EXTRACTO]`:
+
+| Quién | Precio |
+|---|---|
+| Fiverr con Lovable | USD 25–1.500 |
+| Software factory AR (Nexosmart) | 1 módulo USD 3.500–4.000 · ERP USD 6.500–8.200 · mantenimiento USD 80–150/mes |
+| Drimfix | Simple USD 3–7k · ERP pyme USD 8–20k |
+| Agencias de MVP con IA | USD 5–25k en 2–4 semanas |
+| Programador argentino | USD 28–45/h · software factory USD 48–65/h |
+| Mantenimiento | 15–25 % anual del desarrollo |
+
+**Lista propuesta** (USD + IVA, cobrados en pesos al oficial BNA; *provisional a confirmar*):
+
+| Paquete | Qué es | Plazo | Precio | Abono |
+|---|---|---|---|---|
+| **Prototipo** | Demo navegable con datos de ejemplo; se descuenta si avanza el proyecto | 1 semana | USD 400–800 | – |
+| **App simple** | Catálogo, reservas, formularios y panel de administración | 1–2 semanas | USD 1.200–2.500 | USD 40–80 |
+| **Sistema de gestión** | 3–6 módulos, roles, cobro MP, factura ARCA, WhatsApp | 3–6 semanas | USD 3.000–7.000 | USD 150–300 |
+| **Proyecto grande** | 10 o más apps con integraciones (tipo MIA) | 6–10 semanas | USD 8.000–15.000, o implementación + abono si va sobre el motor | USD 300–500 |
+| Adicional: app en las tiendas | Por defecto se entrega app web instalable; publicarla en las tiendas | +1–2 semanas | +USD 1.500–3.000 (más USD 99/año de Apple y USD 25 de Google) | – |
+| Cambios fuera del abono | Bolsa de 10 horas | – | USD 300 | – |
+| Código propio fuera del motor | El cliente se queda con un sistema independiente | – | Precio × 1,5–2 | Mantenimiento aparte |
+
+**Posicionamiento.** Por encima de Fiverr y Lovable, por seguridad, soporte, ARCA y MP. Entre 30 y 50 %
+por debajo de una agencia de IA.
+
+**Reglas:**
+
+1. **Nunca proyecto sin abono.** El negocio es lo recurrente; los proyectos sueltos no escalan con un equipo chico.
+2. **Si el pedido entra en el motor** (comercio, turnos, gestión), se vende como **implementación + abono**,
+   no como desarrollo. Es más barato para el cliente y deja más margen.
+3. **Capacidad:** 2–3 proyectos por mes como máximo, con el dueño revisando `[INFERIDO]`.
+4. **Pago de proyectos:** 50 % al empezar y 50 % al entregar. El prototipo se cobra por adelantado.
+5. **Gates:** no se gasta nada antes de vender. Si la demo usa la marca del cliente, hace falta su
+   autorización registrada.
+
+**Escenario** `[INFERIDO]`: 2 sistemas por mes a USD 4.000 son USD 8.000 por mes en proyectos. Con 10 abonos
+acumulados de USD 200 en 5 meses se suman USD 2.000 por mes que quedan aunque no entre ningún proyecto nuevo.
