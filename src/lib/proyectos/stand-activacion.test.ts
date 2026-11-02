@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { COSTO_LABEL, COSTOS_REFERENCIA, computar, normalizarDiseno, PIEZAS, type DisenoStand, type Pieza, type TipoPieza } from "./stand";
+import { COSTO_LABEL, COSTOS_REFERENCIA, computar, GRUPOS_PIEZAS, lugarLibre, normalizarDiseno, PIEZAS, validarDiseno, type DisenoStand, type Pieza, type TipoPieza } from "./stand";
 
 const NUEVAS: TipoPieza[] = ["PHOTOCALL", "ZONA_PRUEBA", "DESAFIO", "MURO_EXHIBICION", "MONITOR_55", "CINTA", "ARCO", "SILLON", "POUF", "ISLA_PRODUCTO", "BARRA"];
 
@@ -74,4 +74,47 @@ test("el cómputo cuenta las piezas nuevas con su rubro y su unidad", () => {
     assert.equal(l.cantidad, 1);
     assert.equal(l.rubro, "Equipamiento");
   }
+});
+
+test("cada pieza está en un solo grupo de la paleta", () => {
+  const todas = GRUPOS_PIEZAS.flatMap((g) => g.piezas);
+  assert.equal(new Set(todas).size, todas.length, "una pieza repetida");
+  assert.deepEqual([...todas].sort(), (Object.keys(PIEZAS) as TipoPieza[]).sort());
+});
+
+test("el armado de ejemplo de Adidas no da errores de validación", () => {
+  const d = normalizarDiseno(ADIDAS);
+  assert.ok(d);
+  assert.deepEqual(validarDiseno(d).filter((a) => a.nivel === "error"), []);
+});
+
+test("la validación marca superposiciones, piezas más altas que el lote y poco lugar para circular", () => {
+  const base = normalizarDiseno({ ...ADIDAS, piezas: [] });
+  assert.ok(base);
+  const pegadas = { ...base, piezas: [{ id: "a", tipo: "MOSTRADOR" as const, x: 0, z: 0, giro: 0 }, { id: "b", tipo: "MOSTRADOR" as const, x: 0.5, z: 0, giro: 0 }] };
+  const sup = validarDiseno(pegadas).filter((a) => a.nivel === "error");
+  assert.equal(sup.length, 1);
+  assert.deepEqual(sup[0].piezas, ["a", "b"]);
+  const tocandose = { ...base, piezas: [{ id: "a", tipo: "MOSTRADOR" as const, x: -0.75, z: 0, giro: 0 }, { id: "b", tipo: "MOSTRADOR" as const, x: 0.75, z: 0, giro: 0 }] };
+  assert.equal(validarDiseno(tocandose).filter((a) => a.nivel === "error").length, 0, "dos piezas que se tocan no se superponen");
+  const baja = { ...base, altoPared: 2.5, piezas: [{ id: "a", tipo: "ARCO" as const, x: 0, z: 0, giro: 0 }] };
+  assert.match(validarDiseno(baja)[0].texto, /2,8 m.*2,5 m/);
+  const lleno = { ...base, ancho: 3, fondo: 2, piezas: [{ id: "a", tipo: "TARIMA" as const, x: 0, z: 0, giro: 0 }] };
+  assert.ok(validarDiseno(lleno).some((a) => /poco lugar para circular/.test(a.texto)));
+  assert.equal(validarDiseno({ ...base, piezas: [] }).length, 1);
+});
+
+test("una pieza nueva se pone en un lugar libre y dentro del lote", () => {
+  const d = normalizarDiseno(ADIDAS);
+  assert.ok(d);
+  for (const tipo of ["POUF", "SILLON", "ZONA_PRUEBA", "PLANTA"] as const) {
+    const l = lugarLibre(d, tipo);
+    const c: Pieza = { id: "nuevo", tipo, x: l.x, z: l.z, giro: 0 };
+    const conPieza: DisenoStand = { ...d, piezas: [...d.piezas, c] };
+    assert.equal(validarDiseno(conPieza).filter((a) => a.nivel === "error").length, 0, tipo);
+  }
+  const vacio = normalizarDiseno({ ...ADIDAS, piezas: [] });
+  assert.ok(vacio);
+  assert.deepEqual(lugarLibre({ ...vacio, piezas: [] }, "MOSTRADOR").z > 0, true, "sin piezas, empieza por el frente");
+  for (const t of ["MURO_EXHIBICION", "PHOTOCALL", "PANTALLA", "MONITOR_55", "DEPOSITO"] as const) assert.ok(lugarLibre({ ...vacio, piezas: [] }, t).z < 0, `${t} va contra la pared del fondo`);
 });

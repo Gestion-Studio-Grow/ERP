@@ -253,3 +253,77 @@ export function computar(d: DisenoStand): LineaComputo[] {
   lineas.push({ clave: "flete", rubro: "Logística y armado", descripcion: "Flete ida y vuelta", unidad: "viaje", cantidad: 1 });
   return lineas;
 }
+
+// ── Paleta, lugar libre y validaciones ──────────────────────────────────────
+
+/** Cómo se agrupan las piezas en el editor: cada una aparece en un solo grupo. */
+export const GRUPOS_PIEZAS: readonly { titulo: string; piezas: readonly TipoPieza[] }[] = [
+  { titulo: "Atención y exhibición", piezas: ["MOSTRADOR", "VITRINA", "MURO_EXHIBICION", "ISLA_PRODUCTO", "BARRA"] },
+  { titulo: "Pantallas y gráfica", piezas: ["PANTALLA", "MONITOR_55", "TOTEM", "PHOTOCALL"] },
+  { titulo: "Activación", piezas: ["ZONA_PRUEBA", "DESAFIO", "CINTA", "ARCO"] },
+  { titulo: "Mobiliario y estructura", piezas: ["MESA", "SILLON", "POUF", "TARIMA", "DEPOSITO", "PLANTA"] },
+];
+
+const EPS = 1e-9;
+
+function huella(p: Pick<Pieza, "tipo" | "giro" | "x" | "z">) {
+  const t = tamanoGirado(p);
+  return { x0: p.x - t.ancho / 2, x1: p.x + t.ancho / 2, z0: p.z - t.fondo / 2, z1: p.z + t.fondo / 2 };
+}
+
+function seSuperponen(a: Pick<Pieza, "tipo" | "giro" | "x" | "z">, b: Pick<Pieza, "tipo" | "giro" | "x" | "z">): boolean {
+  const p = huella(a);
+  const q = huella(b);
+  return p.x0 < q.x1 - EPS && q.x0 < p.x1 - EPS && p.z0 < q.z1 - EPS && q.z0 < p.z1 - EPS;
+}
+
+/** Piezas que van contra la pared del fondo: ahí se las busca primero. */
+export const CONTRA_PARED: readonly TipoPieza[] = ["PANTALLA", "MONITOR_55", "MURO_EXHIBICION", "PHOTOCALL", "DEPOSITO"];
+
+/** El primer lugar del lote donde la pieza entra sin tocar a otra, del centro hacia los lados; las piezas de pared empiezan por el fondo y el resto por el frente. Si no hay, el centro. */
+export function lugarLibre(d: DisenoStand, tipo: TipoPieza): { x: number; z: number } {
+  const t = tamanoGirado({ tipo, giro: 0 });
+  const maxX = Math.max(0, (d.ancho - t.ancho) / 2);
+  const maxZ = Math.max(0, (d.fondo - t.fondo) / 2);
+  const pasos = Math.round(maxX / 0.25);
+  const alFondo = CONTRA_PARED.includes(tipo);
+  for (let i = 0; i <= Math.round((2 * maxZ) / 0.25); i++) {
+    const z = alFondo ? -paso(maxZ) + i * 0.25 : paso(maxZ) - i * 0.25;
+    if (Math.abs(z) > maxZ + EPS) continue;
+    for (let k = 0; k <= pasos; k++) {
+      for (const sx of k === 0 ? [1] : [1, -1]) {
+        const c = { tipo, giro: 0, x: sx * k * 0.25, z };
+        if (Math.abs(c.x) <= maxX + EPS && !d.piezas.some((p) => seSuperponen(c, p))) return { x: c.x, z: c.z };
+      }
+    }
+  }
+  return { x: 0, z: 0 };
+}
+
+export interface AvisoStand {
+  nivel: "error" | "aviso";
+  texto: string;
+  /** Piezas involucradas, para resaltarlas en la lista. */
+  piezas: string[];
+}
+
+const metros = (n: number): string => String(Math.round(n * 100) / 100).replace(".", ",");
+
+/** Controles que se pueden hacer sin un profesional: superposición, altura y espacio para circular. No reemplaza la validación técnica. */
+export function validarDiseno(d: DisenoStand): AvisoStand[] {
+  const avisos: AvisoStand[] = [];
+  if (d.piezas.length === 0) return [{ nivel: "aviso", texto: "El stand todavía no tiene piezas.", piezas: [] }];
+  for (let i = 0; i < d.piezas.length; i++) {
+    for (let j = i + 1; j < d.piezas.length; j++) {
+      if (seSuperponen(d.piezas[i], d.piezas[j])) avisos.push({ nivel: "error", texto: `${PIEZAS[d.piezas[i].tipo].label} y ${PIEZAS[d.piezas[j].tipo].label} se superponen.`, piezas: [d.piezas[i].id, d.piezas[j].id] });
+    }
+  }
+  for (const p of d.piezas) {
+    const alto = PIEZAS[p.tipo].alto;
+    if (alto > d.altoPared + EPS) avisos.push({ nivel: "error", texto: `${PIEZAS[p.tipo].label} mide ${metros(alto)} m y el alto del lote es de ${metros(d.altoPared)} m.`, piezas: [p.id] });
+  }
+  const ocupado = d.piezas.reduce((s, p) => s + PIEZAS[p.tipo].ancho * PIEZAS[p.tipo].fondo, 0);
+  const pct = Math.round((ocupado / (d.ancho * d.fondo)) * 100);
+  if (pct > 50) avisos.push({ nivel: "aviso", texto: `Las piezas ocupan el ${pct} % del lote: queda poco lugar para circular.`, piezas: [] });
+  return avisos;
+}

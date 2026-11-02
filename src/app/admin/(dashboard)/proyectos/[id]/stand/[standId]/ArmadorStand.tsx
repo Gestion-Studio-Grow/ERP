@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
 import { agregarArchivo, computoAlPresupuesto, guardarStand } from "@/lib/proyectos/acciones";
-import { ACABADOS_PISO, computar, dentroDelLote, LIMITES, normalizarDiseno, PIEZAS, TIPOS_STAND, TIPO_STAND_LABEL, type AcabadoPiso, type DisenoStand, type TipoPieza, type TipoStand } from "@/lib/proyectos/stand";
+import { ACABADOS_PISO, computar, dentroDelLote, GRUPOS_PIEZAS, LIMITES, lugarLibre, normalizarDiseno, PIEZAS, validarDiseno, TIPOS_STAND, TIPO_STAND_LABEL, type AcabadoPiso, type DisenoStand, type TipoPieza, type TipoStand } from "@/lib/proyectos/stand";
 import type { EscenaStand, Vista } from "@/lib/proyectos/stand-escena";
 
 const campo = "min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-strong";
@@ -110,11 +110,49 @@ export default function ArmadorStand({
 
   const lineas = useMemo(() => computar(d), [d]);
   const elegida = d.piezas.find((p) => p.id === sel) ?? null;
+  const avisos = useMemo(() => validarDiseno(d), [d]);
+  const enAviso = useMemo(() => new Set(avisos.flatMap((a) => a.piezas)), [avisos]);
+
+  /** Mueve la pieza elegida de a un paso de la grilla (25 cm); el lote la frena en el borde. */
+  const mover = useCallback(
+    (dx: number, dz: number) => {
+      if (!sel) return;
+      cambiar((v) => ({ ...v, piezas: v.piezas.map((p) => (p.id === sel ? dentroDelLote({ ...p, x: p.x + dx, z: p.z + dz }, v) : p)) }));
+    },
+    [sel, cambiar],
+  );
+
+  // Flechas mueven la pieza elegida y Suprimir la saca, salvo que se esté escribiendo en un campo.
+  useEffect(() => {
+    const alApretar = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!sel || e.altKey || e.ctrlKey || e.metaKey || (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      const flecha: Record<string, [number, number]> = { ArrowLeft: [-0.25, 0], ArrowRight: [0.25, 0], ArrowUp: [0, -0.25], ArrowDown: [0, 0.25] };
+      if (flecha[e.key]) {
+        e.preventDefault();
+        mover(...flecha[e.key]);
+      } else if (e.key === "Delete") {
+        cambiar((v) => ({ ...v, piezas: v.piezas.filter((p) => p.id !== sel) }));
+        setSel(null);
+      }
+    };
+    window.addEventListener("keydown", alApretar);
+    return () => window.removeEventListener("keydown", alApretar);
+  }, [sel, mover, cambiar]);
+
+  // Salir con cambios sin guardar pide confirmación del navegador.
+  useEffect(() => {
+    if (!sucio) return;
+    const aviso = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", aviso);
+    return () => window.removeEventListener("beforeunload", aviso);
+  }, [sucio]);
 
   const agregarPieza = (tipo: TipoPieza) =>
     cambiar((v) => {
       if (v.piezas.length >= LIMITES.maxPiezas) return v;
-      const p = dentroDelLote({ id: `n${contador.current++}`, tipo, x: 0, z: 0, giro: 0 }, v);
+      const libre = lugarLibre(v, tipo);
+      const p = dentroDelLote({ id: `n${contador.current++}`, tipo, x: libre.x, z: libre.z, giro: 0 }, v);
       setSel(p.id);
       return { ...v, piezas: [...v.piezas, p] };
     });
@@ -144,7 +182,7 @@ export default function ArmadorStand({
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_340px]">
-      <div>
+      <div className="lg:sticky lg:top-4 lg:max-h-screen lg:self-start lg:overflow-y-auto">
         <div className="relative h-[52vh] min-h-[320px] overflow-hidden rounded-2xl border border-line lg:h-[72vh]">
           <canvas ref={lienzo} aria-label={`Vista 3D de ${nombre}`} className="block h-full w-full touch-none" />
           {sinWebgl && <p className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-strong">Este navegador no puede mostrar el 3D. El cómputo de la derecha sigue funcionando.</p>}
@@ -165,10 +203,24 @@ export default function ArmadorStand({
             ))}
           </div>
         </div>
-        <p className="mt-2 text-sm text-muted">Arrastrá una pieza para moverla. Arrastrá el fondo para girar la cámara y usá la rueda o dos dedos para acercarla.</p>
+        <p className="mt-2 text-sm text-muted">Arrastrá una pieza para moverla. Arrastrá el fondo para girar la cámara y usá la rueda o dos dedos para acercarla. Con una pieza elegida, las flechas del teclado la mueven 25 cm.</p>
+        <div role="status" aria-label="Controles del diseño" className="mt-3 grid gap-2 text-sm">
+          {avisos.length === 0 ? (
+            <p className="rounded-lg border border-line px-3 py-2 text-muted">Sin superposiciones ni piezas fuera de medida.</p>
+          ) : (
+            avisos.map((a, i) => (
+              <p key={i} className={cn("rounded-lg border px-3 py-2", a.nivel === "error" ? "border-danger text-danger" : "border-line text-strong")}>
+                <span className="font-semibold">{a.nivel === "error" ? "Revisar: " : "Atención: "}</span>
+                {a.texto}
+              </p>
+            ))
+          )}
+          <p className="text-xs text-muted">Controles básicos. Las medidas y la estructura tienen que validarlas profesionales antes de fabricar.</p>
+        </div>
       </div>
 
       <div className="grid content-start gap-4">
+        <Link href={`/admin/proyectos/${proyectoId}?tab=diseno`} className={cn(buttonClasses("ghost", "md"), "min-h-11 justify-start")}>← Volver al proyecto{sucio ? " (sin guardar)" : ""}</Link>
         <label className="grid gap-1 text-sm font-medium text-strong">
           Nombre de esta opción
           <input value={nombre} maxLength={80} onChange={(e) => { setNombre(e.target.value); setSucio(true); }} className={campo} />
@@ -223,10 +275,62 @@ export default function ArmadorStand({
         </fieldset>
 
         <fieldset className="rounded-xl border border-line p-3">
+          <legend className="px-1 text-sm font-semibold text-strong">Piezas en el stand ({d.piezas.length})</legend>
+          {d.piezas.length === 0 ? (
+            <p className="text-sm text-muted">Todavía no hay piezas. Agregá una desde la lista de abajo.</p>
+          ) : (
+            <ul className="grid gap-1">
+              {d.piezas.map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    aria-pressed={sel === p.id}
+                    onClick={() => setSel(sel === p.id ? null : p.id)}
+                    className={cn("flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm", sel === p.id ? "border-accent bg-surface-raised font-semibold text-strong" : "border-line text-strong", enAviso.has(p.id) && "border-danger")}
+                  >
+                    <span className="min-w-0 truncate">{PIEZAS[p.tipo].label}{enAviso.has(p.id) ? " ⚠" : ""}</span>
+                    <span className="shrink-0 text-xs font-normal text-muted">{String(p.x.toFixed(2)).replace(".", ",")} · {String(p.z.toFixed(2)).replace(".", ",")} m</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {elegida && (
+            <div className="mt-3 grid gap-2 border-t border-line pt-3">
+              <p className="text-sm font-medium text-strong">Mover «{PIEZAS[elegida.tipo].label}» (25 cm por toque)</p>
+              <div className="grid grid-cols-4 gap-2">
+                {([["←", "a la izquierda", -0.25, 0], ["→", "a la derecha", 0.25, 0], ["↑", "hacia el fondo", 0, -0.25], ["↓", "hacia el pasillo", 0, 0.25]] as const).map(([flecha, texto, dx, dz]) => (
+                  <button key={flecha} type="button" aria-label={`Mover 25 cm ${texto}`} onClick={() => mover(dx, dz)} className={cn(buttonClasses("outline", "md"), "justify-center")}>{flecha}</button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className={buttonClasses("outline", "md")}
+                onClick={() => {
+                  const libre = lugarLibre(d, elegida.tipo);
+                  const id = `n${contador.current++}`;
+                  cambiar((v) => ({ ...v, piezas: [...v.piezas, dentroDelLote({ id, tipo: elegida.tipo, x: libre.x, z: libre.z, giro: elegida.giro }, v)] }));
+                  setSel(id);
+                }}
+              >
+                Duplicar esta pieza
+              </button>
+            </div>
+          )}
+        </fieldset>
+
+        <fieldset className="rounded-xl border border-line p-3">
           <legend className="px-1 text-sm font-semibold text-strong">Agregar pieza</legend>
-          <div className="grid grid-cols-2 gap-2">
-            {(Object.keys(PIEZAS) as TipoPieza[]).map((t) => (
-              <button key={t} type="button" onClick={() => agregarPieza(t)} className={cn(buttonClasses("outline", "md"), "justify-center")}>{PIEZAS[t].label}</button>
+          <div className="grid gap-3">
+            {GRUPOS_PIEZAS.map((g) => (
+              <div key={g.titulo}>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">{g.titulo}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {g.piezas.map((t) => (
+                    <button key={t} type="button" onClick={() => agregarPieza(t)} className={cn(buttonClasses("outline", "md"), "h-auto! min-h-11 justify-center whitespace-normal! py-2 text-center leading-tight")}>{PIEZAS[t].label}</button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
           {elegida && (
