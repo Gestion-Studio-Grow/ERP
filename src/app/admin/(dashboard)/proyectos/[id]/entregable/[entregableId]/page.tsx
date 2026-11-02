@@ -4,6 +4,7 @@ import { requireApp } from "@/lib/require-app";
 import { Badge, buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 import { fichaEntregable } from "@/lib/proyectos/datos.server";
+import { exigirVer, proyectoVisible } from "@/lib/proyectos/gestion.server";
 import { anularEntregable, descartarBorrador, enviarVersion, guardarEntregable } from "@/lib/proyectos/acciones";
 import { ayudaEspecificacion, ESTADO_ENTREGABLE_LABEL, estadoDelEntregable, fechaCorta, fechaParaInput, type EstadoEntregable } from "@/lib/proyectos/core";
 import { campo, etiqueta, tarjeta } from "../../../_vista";
@@ -24,8 +25,10 @@ const toneDeEntregable = (e: EstadoEntregable) => (e === "APROBADO" ? "success" 
 
 export default async function FichaEntregable({ params, searchParams }: { params: Promise<{ id: string; entregableId: string }>; searchParams: Promise<{ ver?: string }> }) {
   await requireApp("proyectos");
+  const actor = await exigirVer("diseno");
   const { id, entregableId } = await params;
   const { ver } = await searchParams;
+  if (!(await proyectoVisible(actor, id))) notFound();
   const data = await fichaEntregable(id, entregableId, Number(ver) || undefined);
   if (!data) notFound();
   const { entregable: e } = data;

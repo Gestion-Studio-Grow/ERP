@@ -1,9 +1,8 @@
 "use server";
 
 // ============================================================================
-// PROYECTOS — escrituras. Cada acción vuelve a pedir el permiso y acota por negocio: esconder un
-// botón no protege nada. La plata pide agenda:manage (dueño y administrativo); mover un trabajo,
-// cargar tareas, archivos y stands, agenda:read (también el equipo de diseño y armado).
+// PROYECTOS — escrituras. Cada acción vuelve a pedir el permiso de su módulo y que el proyecto sea visible
+// para esta persona: esconder un botón no protege nada.
 // ============================================================================
 
 import { randomBytes } from "node:crypto";
@@ -19,7 +18,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { clientePuedeResponder, leerNumero, esEtapa, esServicio, etapaAlAprobar, etapaLabel, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
 import { configProyectos } from "./datos.server";
-import { avisar, regenerarCuotas, registrarCambio, usuariosDelEquipo } from "./gestion.server";
+import { actorActual, avisar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
+import type { ModuloGestion } from "./gestion-core";
 import { marcaDeGastoProyecto } from "./marcas";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 
@@ -53,106 +53,26 @@ function refrescar(id?: string) {
   if (id) revalidatePath(`${RAIZ}/${id}`);
 }
 
-/** Todo lo que cuelga de un proyecto arranca comprobando que el proyecto es de este negocio. */
-async function proyectoDelNegocio(id: string, tenantId: string) {
-  return prisma.proyecto.findFirst({ where: { id, tenantId }, select: { id: true, numero: true, servicio: true, etapa: true, nombre: true } });
+/** El permiso de cualquiera de estos módulos. Esconder un botón no protege nada. */
+async function actorCon(modulos: readonly ModuloGestion[]): Promise<Actor> {
+  const a = await actorActual();
+  if (!modulos.some((m) => puede(a, m, "editar"))) throw new Error("No tenés permiso para hacer esto.");
+  return a;
 }
+
+/** Todo lo que cuelga de un proyecto arranca comprobando que esta persona lo puede ver: un proyecto ajeno no existe. */
+const proyectoDelActor = (a: Actor, id: string) => proyectoVisible(a, id);
 
 // ── Proyecto ────────────────────────────────────────────────────────────────
-
-export async function crearProyecto(formData: FormData): Promise<Resultado<{ id: string }>> {
-  await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
-  const nombre = txt(formData.get("nombre"));
-  const servicio = txt(formData.get("servicio"));
-  const clienteId = txt(formData.get("clienteId"));
-  const clienteNuevo = txt(formData.get("clienteNuevo"));
-  const telefono = txt(formData.get("telefono")).replace(/[^\d+]/g, "");
-  if (!nombre) return { ok: false, error: "Falta el nombre del proyecto." };
-  if (!esServicio(servicio)) return { ok: false, error: "Elegí el servicio." };
-  if (!clienteId && !clienteNuevo) return { ok: false, error: "Elegí un cliente o escribí uno nuevo." };
-
-  for (let intento = 0; intento < 3; intento++) {
-    try {
-      const creado = await tenantTransaction(async (tx) => {
-        const clientId = clienteId
-          ? (await tx.client.findFirst({ where: { id: clienteId, tenantId }, select: { id: true } }))?.id
-          : (await tx.client.create({ data: { tenantId, name: clienteNuevo, phone: telefono || `sin-tel-${randomBytes(4).toString("hex")}` } })).id;
-        if (!clientId) throw new Error("CLIENTE");
-        const ultimo = await tx.proyecto.findFirst({ where: { tenantId }, orderBy: { numero: "desc" }, select: { numero: true } });
-        return tx.proyecto.create({
-          data: {
-            tenantId,
-            numero: (ultimo?.numero ?? 0) + 1,
-            clientId,
-            nombre,
-            servicio,
-            evento: txt(formData.get("evento")) || null,
-            lugar: txt(formData.get("lugar")) || null,
-            fechaArmado: fecha(formData.get("fechaArmado")),
-            fechaEvento: fecha(formData.get("fechaEvento")),
-            fechaDesarme: fecha(formData.get("fechaDesarme")),
-            responsable: txt(formData.get("responsable")) || null,
-            brief: txt(formData.get("brief")),
-          },
-          select: { id: true, numero: true },
-        });
-      });
-      await auditAdmin({ action: "proyecto.crear", entity: "Proyecto", entityId: creado.id, changes: { numero: creado.numero, servicio } });
-      refrescar();
-      return { ok: true, id: creado.id };
-    } catch (e) {
-      if (e instanceof Error && e.message === "CLIENTE") return { ok: false, error: "Ese cliente no existe." };
-      // Dos altas a la vez chocan en el número: se reintenta con el siguiente.
-      if ((e as { code?: string }).code === "P2002" && intento < 2) continue;
-      throw e;
-    }
-  }
-  return { ok: false, error: "No se pudo crear el proyecto. Probá de nuevo." };
-}
-
-export async function guardarDatosProyecto(formData: FormData) {
-  await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
-  const id = txt(formData.get("id"));
-  const nombre = txt(formData.get("nombre"));
-  if (!nombre) return;
-  await prisma.proyecto.updateMany({
-    where: { id, tenantId },
-    data: {
-      nombre,
-      evento: txt(formData.get("evento")) || null,
-      lugar: txt(formData.get("lugar")) || null,
-      fechaArmado: fecha(formData.get("fechaArmado")),
-      fechaEvento: fecha(formData.get("fechaEvento")),
-      fechaDesarme: fecha(formData.get("fechaDesarme")),
-      responsable: txt(formData.get("responsable")) || null,
-      brief: txt(formData.get("brief")),
-    },
-  });
-  refrescar(id);
-}
-
-export async function moverEtapa(formData: FormData) {
-  await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
-  const id = txt(formData.get("id"));
-  const etapa = txt(formData.get("etapa"));
-  const p = await proyectoDelNegocio(id, tenantId);
-  if (!p || !esEtapa(etapa) || !etapasDe(p.servicio).includes(etapa)) return;
-  await prisma.proyecto.updateMany({ where: { id, tenantId }, data: { etapa } });
-  await auditAdmin({ action: "proyecto.etapa", entity: "Proyecto", entityId: id, changes: { de: p.etapa, a: etapa } });
-  refrescar(id);
-}
 
 // ── Tareas ──────────────────────────────────────────────────────────────────
 
 export async function agregarTarea(formData: FormData) {
-  await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["ficha", "diseno"]);
+  const { tenantId } = a;
   const proyectoId = txt(formData.get("proyectoId"));
   const titulo = txt(formData.get("titulo"));
-  if (!titulo || !(await proyectoDelNegocio(proyectoId, tenantId))) return;
+  if (!titulo || !(await proyectoDelActor(a, proyectoId))) return;
   await prisma.proyectoTarea.create({
     data: { tenantId, proyectoId, titulo, responsable: txt(formData.get("responsable")) || null, venceEl: fecha(formData.get("venceEl")) },
   });
@@ -160,11 +80,11 @@ export async function agregarTarea(formData: FormData) {
 }
 
 export async function alternarTarea(formData: FormData) {
-  await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["ficha", "diseno"]);
+  const { tenantId } = a;
   const id = txt(formData.get("id"));
   const t = await prisma.proyectoTarea.findFirst({ where: { id, tenantId }, select: { proyectoId: true, hechaEl: true } });
-  if (!t) return;
+  if (!t || !(await proyectoDelActor(a, t.proyectoId))) return;
   await prisma.proyectoTarea.updateMany({ where: { id, tenantId }, data: { hechaEl: t.hechaEl ? null : new Date() } });
   refrescar(t.proyectoId);
 }
@@ -180,9 +100,9 @@ export async function agregarArchivo(d: {
   url?: string | null;
   visibleCliente?: boolean;
 }): Promise<Resultado<{ id: string }>> {
-  const user = await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
-  if (!(await proyectoDelNegocio(d.proyectoId, tenantId))) return { ok: false, error: "Ese proyecto no existe." };
+  const actor = await actorCon(["ficha", "diseno"]);
+  const { user, tenantId } = actor;
+  if (!(await proyectoDelActor(actor, d.proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
   const tipo = ["RENDER", "DISENO", "PLANO", "REFERENCIA", "OTRO"].includes(d.tipo) ? d.tipo : "OTRO";
   const nombre = (d.nombre ?? "").trim().slice(0, 120) || "Archivo";
   const url = (d.url ?? "").trim();
@@ -199,151 +119,10 @@ export async function agregarArchivo(d: {
   return { ok: true, id: a.id };
 }
 
-export async function alternarVisibleArchivo(formData: FormData) {
-  await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
-  const id = txt(formData.get("id"));
-  const a = await prisma.proyectoArchivo.findFirst({ where: { id, tenantId }, select: { proyectoId: true, visibleCliente: true, datos: true } });
-  if (!a?.datos?.startsWith("data:image/")) return;
-  await prisma.proyectoArchivo.updateMany({ where: { id, tenantId }, data: { visibleCliente: !a.visibleCliente } });
-  refrescar(a.proyectoId);
-}
-
-export async function borrarArchivo(formData: FormData) {
-  await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
-  const id = txt(formData.get("id"));
-  const a = await prisma.proyectoArchivo.findFirst({ where: { id, tenantId }, select: { proyectoId: true, nombre: true } });
-  if (!a) return;
-  await prisma.proyectoArchivo.deleteMany({ where: { id, tenantId } });
-  await auditAdmin({ action: "proyecto.archivo.borrar", entity: "ProyectoArchivo", entityId: id, changes: { nombre: a.nombre } });
-  refrescar(a.proyectoId);
-}
-
 // ── Presupuesto ─────────────────────────────────────────────────────────────
 
 async function presupuestoDelNegocio(id: string, tenantId: string) {
   return prisma.proyectoPresupuesto.findFirst({ where: { id, tenantId }, select: { id: true, proyectoId: true, estado: true, version: true } });
-}
-
-export async function nuevaVersionPresupuesto(formData: FormData) {
-  await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
-  const proyectoId = txt(formData.get("proyectoId"));
-  const p = await proyectoDelNegocio(proyectoId, tenantId);
-  if (!p) return;
-  const config = await configProyectos(tenantId);
-  await tenantTransaction(async (tx) => {
-    const ultima = await tx.proyectoPresupuesto.findFirst({
-      where: { tenantId, proyectoId },
-      orderBy: { version: "desc" },
-      include: { items: { orderBy: { posicion: "asc" } } },
-    });
-    // Ya hay un borrador abierto: se sigue con ése, no se abren dos.
-    if (ultima?.estado === "BORRADOR") return;
-    const nueva = await tx.proyectoPresupuesto.create({
-      data: {
-        tenantId,
-        proyectoId,
-        version: (ultima?.version ?? 0) + 1,
-        token: token(),
-        ivaPct: ultima?.ivaPct ?? config.ivaPct,
-        presentacion: ultima?.presentacion ?? "",
-        condiciones: ultima?.condiciones || config.condiciones,
-      },
-    });
-    if (ultima?.items.length) {
-      await tx.proyectoItem.createMany({
-        data: ultima.items.map((i) => ({
-          tenantId,
-          presupuestoId: nueva.id,
-          rubro: i.rubro,
-          descripcion: i.descripcion,
-          unidad: i.unidad,
-          cantidad: i.cantidad,
-          costo: i.costo,
-          precio: i.precio,
-          proveedor: i.proveedor,
-          origen: i.origen,
-          posicion: i.posicion,
-        })),
-      });
-    }
-  });
-  refrescar(proyectoId);
-}
-
-export async function agregarItem(formData: FormData) {
-  await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
-  const presupuestoId = txt(formData.get("presupuestoId"));
-  const pr = await presupuestoDelNegocio(presupuestoId, tenantId);
-  const descripcion = txt(formData.get("descripcion"));
-  if (!pr || !sePuedeEditar(pr.estado) || !descripcion) return;
-  const costo = Math.max(0, numero(formData.get("costo")));
-  const { margenPct } = await configProyectos(tenantId);
-  const precioCargado = numero(formData.get("precio"));
-  await prisma.proyectoItem.create({
-    data: {
-      tenantId,
-      presupuestoId,
-      rubro: txt(formData.get("rubro")) || "General",
-      descripcion,
-      unidad: txt(formData.get("unidad")) || "u",
-      cantidad: Math.max(0, numero(formData.get("cantidad"))) || 1,
-      costo,
-      // Sin precio cargado, sale del costo más el margen de la configuración.
-      precio: precioCargado > 0 ? redondear(precioCargado) : precioConMargen(costo, margenPct),
-      proveedor: txt(formData.get("proveedor")) || null,
-      posicion: await prisma.proyectoItem.count({ where: { tenantId, presupuestoId } }),
-    },
-  });
-  refrescar(pr.proyectoId);
-}
-
-export async function borrarItem(formData: FormData) {
-  await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
-  const id = txt(formData.get("id"));
-  const it = await prisma.proyectoItem.findFirst({ where: { id, tenantId }, select: { presupuesto: { select: { estado: true, proyectoId: true } } } });
-  if (!it || !sePuedeEditar(it.presupuesto.estado)) return;
-  await prisma.proyectoItem.deleteMany({ where: { id, tenantId } });
-  refrescar(it.presupuesto.proyectoId);
-}
-
-export async function guardarTextosPresupuesto(formData: FormData) {
-  await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
-  const id = txt(formData.get("id"));
-  const pr = await presupuestoDelNegocio(id, tenantId);
-  if (!pr || !sePuedeEditar(pr.estado)) return;
-  await prisma.proyectoPresupuesto.updateMany({
-    where: { id, tenantId },
-    data: { presentacion: txt(formData.get("presentacion")), condiciones: txt(formData.get("condiciones")), ivaPct: Math.max(0, numero(formData.get("ivaPct"))) },
-  });
-  refrescar(pr.proyectoId);
-}
-
-/** Enviar congela la versión y la vuelve visible en su link. Las versiones anteriores abiertas quedan reemplazadas. */
-export async function enviarPropuesta(formData: FormData): Promise<void> {
-  await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
-  const id = txt(formData.get("id"));
-  const pr = await presupuestoDelNegocio(id, tenantId);
-  if (!pr || !sePuedeEditar(pr.estado)) return;
-  if ((await prisma.proyectoItem.count({ where: { tenantId, presupuestoId: id } })) === 0) return;
-  const { validezDias } = await configProyectos(tenantId);
-  const ahora = new Date();
-  await tenantTransaction(async (tx) => {
-    await tx.proyectoPresupuesto.updateMany({
-      where: { tenantId, proyectoId: pr.proyectoId, estado: "ENVIADO", id: { not: id } },
-      data: { estado: "REEMPLAZADO" },
-    });
-    await tx.proyectoPresupuesto.updateMany({ where: { id, tenantId, estado: "BORRADOR" }, data: { estado: "ENVIADO", enviadoEl: ahora, validoHasta: sumarDias(ahora, validezDias) } });
-    await tx.proyecto.updateMany({ where: { id: pr.proyectoId, tenantId, etapa: { in: ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO"] } }, data: { etapa: "PROPUESTA" } });
-  });
-  await auditAdmin({ action: "proyecto.propuesta.enviar", entity: "ProyectoPresupuesto", entityId: id, changes: { version: pr.version } });
-  refrescar(pr.proyectoId);
 }
 
 /** El cliente responde desde su link, sin login: la llave es el token y sólo vale una vez. */
@@ -388,13 +167,14 @@ export async function responderPropuesta(d: { token: string; aprueba: boolean; n
 // ── Cobros ──────────────────────────────────────────────────────────────────
 
 export async function registrarCobro(formData: FormData) {
-  const user = await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["pagos"]);
+  const { user, tenantId } = a;
   const proyectoId = txt(formData.get("proyectoId"));
   const medio = txt(formData.get("medio")) as MedioPago;
   const monto = redondear(numero(formData.get("monto")));
   if (!MEDIOS.includes(medio) || monto <= 0) return;
-  const p = await proyectoDelNegocio(proyectoId, tenantId);
+  if (!(await proyectoDelActor(a, proyectoId))) return;
+  const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true } });
   if (!p) return;
   const nota = txt(formData.get("nota")) || null;
   // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno.
@@ -419,36 +199,6 @@ export async function registrarCobro(formData: FormData) {
   refrescar(proyectoId);
 }
 
-/** Anular no borra: escribe la contrapartida con fecha de hoy, como el taller. Un día cerrado no se reescribe. */
-export async function anularCobro(formData: FormData) {
-  const user = await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
-  const id = txt(formData.get("id"));
-  const pago = await prisma.proyectoPago.findFirst({ where: { id, tenantId }, select: { id: true, proyectoId: true, anuladoEl: true, monto: true, proyecto: { select: { numero: true } } } });
-  if (!pago || pago.anuladoEl) return;
-  await tenantTransaction(async (tx) => {
-    const r = await tx.proyectoPago.updateMany({ where: { id, tenantId, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: user.name } });
-    if (r.count === 0) return;
-    const venta = await tx.cashMovement.findFirst({ where: { tenantId, proyectoPagoId: id, type: "VENTA" }, select: { amount: true, method: true } });
-    if (!venta) return;
-    const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-    await tx.cashMovement.create({
-      data: {
-        tenantId,
-        sessionId: session?.id ?? null,
-        type: "EGRESO",
-        method: venta.method,
-        amount: venta.amount,
-        reason: `Anulación · Proyecto #${pago.proyecto.numero}`,
-        proyectoPagoId: id,
-        createdBy: user.name,
-      },
-    });
-  });
-  await auditAdmin({ action: "proyecto.cobro.anular", entity: "ProyectoPago", entityId: id, changes: { monto: pago.monto } });
-  refrescar(pago.proyectoId);
-}
-
 // ── Gastos reales y proveedores ────────────────────────────────────────────
 
 type PagoDeGasto = { id: string; neto: number; iva: number; descripcion: string };
@@ -471,10 +221,11 @@ async function asentarPagoDeGastoTx(tx: Prisma.TransactionClient, tenantId: stri
 }
 
 export async function registrarGasto(formData: FormData): Promise<Resultado> {
-  const user = await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["pagos"]);
+  const { user, tenantId } = a;
   const proyectoId = txt(formData.get("proyectoId"));
-  const p = await proyectoDelNegocio(proyectoId, tenantId);
+  if (!(await proyectoDelActor(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
+  const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true } });
   if (!p) return { ok: false, error: "Ese proyecto no existe." };
   const descripcion = txt(formData.get("descripcion")).slice(0, 200);
   if (!descripcion) return { ok: false, error: "Escribí qué se pagó o qué se debe." };
@@ -519,8 +270,8 @@ export async function registrarGasto(formData: FormData): Promise<Resultado> {
 }
 
 export async function pagarGasto(formData: FormData) {
-  const user = await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["pagos", "proveedores"]);
+  const { user, tenantId } = a;
   const id = txt(formData.get("id"));
   const medio = txt(formData.get("medio")) as MedioPago;
   if (!MEDIOS.includes(medio)) return;
@@ -540,72 +291,14 @@ export async function pagarGasto(formData: FormData) {
   revalidatePath(`${RAIZ}/proveedores`);
 }
 
-/** Anular no borra. Si ya se pagó, vuelve la plata al libro con fecha de hoy, como un cobro anulado. */
-export async function anularGasto(formData: FormData) {
-  const user = await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
-  const id = txt(formData.get("id"));
-  const g = await prisma.proyectoGasto.findFirst({ where: { id, tenantId }, select: { id: true, neto: true, iva: true, proyectoId: true, proyecto: { select: { numero: true } } } });
-  if (!g) return;
-  await tenantTransaction(async (tx) => {
-    const r = await tx.proyectoGasto.updateMany({ where: { id, tenantId, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: user.name } });
-    if (r.count === 0) return;
-    const pago = await tx.cashMovement.findFirst({ where: { tenantId, proyectoGastoId: id, type: "EGRESO" }, select: { amount: true, method: true } });
-    if (!pago) return;
-    const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-    await tx.cashMovement.create({
-      data: {
-        tenantId,
-        sessionId: session?.id ?? null,
-        type: "INGRESO",
-        method: pago.method,
-        amount: pago.amount,
-        reason: `Anulación de gasto · Proyecto #${g.proyecto.numero}`,
-        proyectoGastoId: id,
-        createdBy: marcaDeGastoProyecto(id),
-      },
-    });
-  });
-  await auditAdmin({ action: "proyecto.gasto.anular", entity: "ProyectoGasto", entityId: id, changes: { neto: g.neto, iva: g.iva } });
-  refrescar(g.proyectoId);
-  revalidatePath(`${RAIZ}/proveedores`);
-}
-
-export async function crearProveedor(formData: FormData): Promise<Resultado> {
-  await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
-  const v = validateSupplierInput({ name: txt(formData.get("name")), taxId: txt(formData.get("taxId")) || null, phone: txt(formData.get("phone")) || null, email: txt(formData.get("email")) || null });
-  if (!v.ok) return { ok: false, error: mensajeDeProveedor(v.error) };
-  try {
-    const s = await prisma.supplier.create({ data: { tenantId, ...v.value }, select: { id: true } });
-    await auditAdmin({ action: "proyecto.proveedor", entity: "Supplier", entityId: s.id, changes: { name: v.value.name } });
-  } catch (err) {
-    if ((err as { code?: string })?.code === "P2002") return { ok: false, error: "Ya hay un proveedor con ese CUIT: buscalo en la lista." };
-    throw err;
-  }
-  revalidatePath(`${RAIZ}/proveedores`);
-  return { ok: true };
-}
-
-export async function alternarProveedor(formData: FormData) {
-  await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
-  const id = txt(formData.get("id"));
-  const active = txt(formData.get("activo")) === "1";
-  const r = await prisma.supplier.updateMany({ where: { id, tenantId }, data: { active } });
-  if (r.count === 0) return;
-  await auditAdmin({ action: "proyecto.proveedor.estado", entity: "Supplier", entityId: id, changes: { active } });
-  revalidatePath(`${RAIZ}/proveedores`);
-}
-
 // ── Entregables ─────────────────────────────────────────────────────────────
 
 export async function crearEntregable(formData: FormData) {
-  await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["diseno"]);
+  const { tenantId } = a;
   const proyectoId = txt(formData.get("proyectoId"));
   const nombre = txt(formData.get("nombre")).slice(0, 120);
-  if (!nombre || !(await proyectoDelNegocio(proyectoId, tenantId))) return;
+  if (!nombre || !(await proyectoDelActor(a, proyectoId))) return;
   if ((await prisma.proyectoEntregable.count({ where: { tenantId, proyectoId, anuladoEl: null } })) >= MAX_ENTREGABLES) return;
   await prisma.proyectoEntregable.create({
     data: { tenantId, proyectoId, nombre, especificacion: txt(formData.get("especificacion")).slice(0, 300), venceEl: fecha(formData.get("venceEl")) },
@@ -614,12 +307,12 @@ export async function crearEntregable(formData: FormData) {
 }
 
 export async function guardarEntregable(formData: FormData) {
-  await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["diseno"]);
+  const { tenantId } = a;
   const id = txt(formData.get("id"));
   const nombre = txt(formData.get("nombre")).slice(0, 120);
   const e = await prisma.proyectoEntregable.findFirst({ where: { id, tenantId }, select: { proyectoId: true } });
-  if (!e || !nombre) return;
+  if (!e || !nombre || !(await proyectoDelActor(a, e.proyectoId))) return;
   await prisma.proyectoEntregable.updateMany({
     where: { id, tenantId },
     data: { nombre, especificacion: txt(formData.get("especificacion")).slice(0, 300), venceEl: fecha(formData.get("venceEl")) },
@@ -630,11 +323,11 @@ export async function guardarEntregable(formData: FormData) {
 
 /** Sale del link del cliente, pero lo que respondió queda como constancia. */
 export async function anularEntregable(formData: FormData) {
-  const user = await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["diseno"]);
+  const { user, tenantId } = a;
   const id = txt(formData.get("id"));
   const e = await prisma.proyectoEntregable.findFirst({ where: { id, tenantId }, select: { proyectoId: true, nombre: true } });
-  if (!e) return;
+  if (!e || !(await proyectoDelActor(a, e.proyectoId))) return;
   const r = await prisma.proyectoEntregable.updateMany({ where: { id, tenantId, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: user.name } });
   if (r.count > 0) await auditAdmin({ action: "proyecto.entregable.anular", entity: "ProyectoEntregable", entityId: id, changes: { nombre: e.nombre } });
   refrescar(e.proyectoId);
@@ -644,13 +337,13 @@ export async function anularEntregable(formData: FormData) {
 
 /** Imagen ya achicada en el navegador, o link a lo pesado. Si ya hay un borrador, se reemplaza: hay uno solo por pieza. */
 export async function subirVersion(d: { entregableId: string; datos?: string | null; url?: string | null; nota?: string }): Promise<Resultado> {
-  const user = await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["diseno"]);
+  const { user, tenantId } = a;
   const e = await prisma.proyectoEntregable.findFirst({
     where: { id: String(d.entregableId ?? ""), tenantId, anuladoEl: null },
     select: { id: true, proyectoId: true, versiones: { select: { id: true, numero: true, estado: true } } },
   });
-  if (!e) return { ok: false, error: "Esa pieza no existe." };
+  if (!e || !(await proyectoDelActor(a, e.proyectoId))) return { ok: false, error: "Esa pieza no existe." };
   const url = (d.url ?? "").trim();
   if (d.datos ? !imagenValida(d.datos) : !urlValida(url)) {
     return { ok: false, error: d.datos ? "La imagen es demasiado pesada o no es válida." : "Elegí una imagen o pegá un link que empiece con https://." };
@@ -676,11 +369,11 @@ export async function subirVersion(d: { entregableId: string; datos?: string | n
 }
 
 export async function descartarBorrador(formData: FormData) {
-  await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["diseno"]);
+  const { tenantId } = a;
   const id = txt(formData.get("id"));
   const v = await prisma.proyectoEntregableVersion.findFirst({ where: { id, tenantId, estado: "BORRADOR" }, select: { entregableId: true, entregable: { select: { proyectoId: true } } } });
-  if (!v) return;
+  if (!v || !(await proyectoDelActor(a, v.entregable.proyectoId))) return;
   await prisma.proyectoEntregableVersion.deleteMany({ where: { id, tenantId, estado: "BORRADOR" } });
   refrescar(v.entregable.proyectoId);
   revalidatePath(`${RAIZ}/${v.entregable.proyectoId}/entregable/${v.entregableId}`);
@@ -688,14 +381,14 @@ export async function descartarBorrador(formData: FormData) {
 
 /** Enviar congela la versión con la especificación vigente y la pone en el link. La que seguía sin respuesta queda reemplazada. */
 export async function enviarVersion(formData: FormData) {
-  await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["diseno"]);
+  const { tenantId } = a;
   const id = txt(formData.get("id"));
   const v = await prisma.proyectoEntregableVersion.findFirst({
     where: { id, tenantId, estado: "BORRADOR", entregable: { anuladoEl: null } },
     select: { numero: true, entregableId: true, entregable: { select: { especificacion: true, proyectoId: true } } },
   });
-  if (!v) return;
+  if (!v || !(await proyectoDelActor(a, v.entregable.proyectoId))) return;
   const { proyectoId, especificacion } = v.entregable;
   await tenantTransaction(async (tx) => {
     const r = await tx.proyectoEntregableVersion.updateMany({ where: { id, tenantId, estado: "BORRADOR" }, data: { estado: "ENVIADA", enviadaEl: new Date(), especificacion } });
@@ -729,6 +422,13 @@ export async function responderEntregable(d: { token: string; versionId: string;
     data: { estado: d.aprueba ? "APROBADA" : "CAMBIOS", respondidaEl: new Date(), respondidoPor: nombre, comentario: comentario || null },
   });
   if (r.count === 0) return { ok: false, error: "Esta versión ya fue respondida o reemplazada. Recargá la página." };
+  await avisar(prisma, {
+    tenantId,
+    destinatarios: [...(await usuariosDelEquipo(tenantId, v.entregable.proyectoId, "")), ...(await usuariosDeLaPlata(prisma, tenantId))],
+    tipo: "aprobacion",
+    texto: `${nombre} ${d.aprueba ? "aprobó" : "pidió cambios en"} la versión ${v.numero} de una pieza`,
+    enlace: `${RAIZ}/${v.entregable.proyectoId}/entregable/${v.entregableId}`,
+  });
   await auditPublic({ action: d.aprueba ? "proyecto.entregable.aprobar" : "proyecto.entregable.cambios", entity: "ProyectoEntregableVersion", entityId: id, changes: { nombre, numero: v.numero } });
   revalidatePath(`/entregables/${clave}`);
   refrescar(v.entregable.proyectoId);
@@ -739,10 +439,10 @@ export async function responderEntregable(d: { token: string; versionId: string;
 // ── Armador de stands ───────────────────────────────────────────────────────
 
 export async function crearStand(formData: FormData): Promise<Resultado<{ id: string; proyectoId: string }>> {
-  await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["ficha", "diseno"]);
+  const { tenantId } = a;
   const proyectoId = txt(formData.get("proyectoId"));
-  if (!(await proyectoDelNegocio(proyectoId, tenantId))) return { ok: false, error: "Ese proyecto no existe." };
+  if (!(await proyectoDelActor(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
   const cuantos = await prisma.proyectoStand.count({ where: { tenantId, proyectoId } });
   const diseno = disenoInicial(TIPOS_STAND[1]);
   const s = await prisma.proyectoStand.create({
@@ -754,10 +454,12 @@ export async function crearStand(formData: FormData): Promise<Resultado<{ id: st
 }
 
 export async function guardarStand(d: { id: string; nombre: string; diseno: DisenoStand }): Promise<Resultado> {
-  await requireCapability("agenda:read");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["ficha", "diseno"]);
+  const { tenantId } = a;
   const diseno = normalizarDiseno(d.diseno);
   if (!diseno) return { ok: false, error: "El diseño no es válido." };
+  const s = await prisma.proyectoStand.findFirst({ where: { id: d.id, tenantId }, select: { proyectoId: true } });
+  if (!s || !(await proyectoDelActor(a, s.proyectoId))) return { ok: false, error: "Ese stand no existe." };
   const r = await prisma.proyectoStand.updateMany({
     where: { id: d.id, tenantId },
     data: { nombre: (d.nombre ?? "").trim().slice(0, 80) || "Stand", diseno: diseno as unknown as Prisma.InputJsonValue },
@@ -768,11 +470,11 @@ export async function guardarStand(d: { id: string; nombre: string; diseno: Dise
 
 /** Pasa el cómputo del stand al presupuesto en borrador. Reemplaza lo que vino de ESTE stand, no lo cargado a mano. */
 export async function computoAlPresupuesto(d: { standId: string }): Promise<Resultado<{ lineas: number; proyectoId: string }>> {
-  await requireCapability("agenda:manage");
-  const tenantId = await getCurrentTenantId();
+  const a = await actorCon(["ficha"]);
+  const { tenantId } = a;
   const stand = await prisma.proyectoStand.findFirst({ where: { id: d.standId, tenantId }, select: { id: true, nombre: true, proyectoId: true, diseno: true } });
   const diseno = stand && normalizarDiseno(stand.diseno);
-  if (!stand || !diseno) return { ok: false, error: "Ese stand no existe." };
+  if (!stand || !diseno || !(await proyectoDelActor(a, stand.proyectoId))) return { ok: false, error: "Ese stand no existe." };
   const config = await configProyectos(tenantId);
   const origen = `stand:${stand.id}`;
   const lineas = computar(diseno);
@@ -809,6 +511,9 @@ export async function computoAlPresupuesto(d: { standId: string }): Promise<Resu
       })),
     });
   });
+  // Como cualquier cambio de la ficha: los precios nuevos piden aprobación, y las cuotas siguen a los ítems.
+  await prisma.proyectoPresupuesto.updateMany({ where: { tenantId, proyectoId: stand.proyectoId, estado: "BORRADOR" }, data: { aprobadoInternoEl: null, aprobadoInternoPor: null } });
+  await regenerarCuotas(tenantId, stand.proyectoId);
   refrescar(stand.proyectoId);
   return { ok: true, lineas: lineas.length, proyectoId: stand.proyectoId };
 }
