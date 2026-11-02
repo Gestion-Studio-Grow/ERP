@@ -79,7 +79,7 @@ function maskedHost(url: string): string {
 // Ése es exactamente el estado que este bloque atrapa.
 function parseExpectedIndexes(schema: string): { tabla: string; cols: string[]; unico: boolean }[] {
   const out: { tabla: string; cols: string[]; unico: boolean }[] = [];
-  for (const [, model, body] of schema.matchAll(/model\s+(\w+)\s*\{([\s\S]*?)\n\}/g)) {
+  for (const [, model, body] of schema.matchAll(/^model\s+(\w+)\s*\{([\s\S]*?)\n\}/gm)) {
     for (const rawLine of body.split("\n")) {
       const line = rawLine.trim();
       const m = /^@@(unique|index)\s*\(\s*\[([^\]]+)\]/.exec(line);
@@ -95,10 +95,10 @@ function parseExpectedIndexes(schema: string): { tabla: string; cols: string[]; 
 function parseExpectedColumns(schema: string): Map<string, Set<string>> {
   // Los enums cuentan como tipos escalares (una columna de ese enum SÍ existe).
   const enums = new Set<string>();
-  for (const m of schema.matchAll(/enum\s+(\w+)\s*\{/g)) enums.add(m[1]);
+  for (const m of schema.matchAll(/^enum\s+(\w+)\s*\{/gm)) enums.add(m[1]);
 
   const tables = new Map<string, Set<string>>();
-  for (const [, model, body] of schema.matchAll(/model\s+(\w+)\s*\{([\s\S]*?)\n\}/g)) {
+  for (const [, model, body] of schema.matchAll(/^model\s+(\w+)\s*\{([\s\S]*?)\n\}/gm)) {
     const cols = new Set<string>();
     for (const rawLine of body.split("\n")) {
       const line = rawLine.trim();
