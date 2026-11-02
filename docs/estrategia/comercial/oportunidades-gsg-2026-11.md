@@ -30,7 +30,8 @@ abrir las páginas. `[INFERIDO]` es cálculo propio.
 | 7 | **Gestión de productora** | Eventos y stands | Rama `tenant/mia-producciones` (11 apps tipo Heka) | En la PC del dueño, sin push | USD 2.500–3.000 | USD 300 | Agencias de IA USD 10–25k |
 | 8 | **Vidriera web + pedidos por WhatsApp** | Locales nuevos, retail | Shine, Qué Bien Olés, CH, magra | El servicio más probado; sin precio | $250.000–450.000 `[INFERIDO]` | $25.000–35.000 (hosting y cambios) | Agencias de zona sur, sin precios publicados |
 | – | Taller, inmobiliaria | – | `taller`, `inmobiliaria` | Demo; al taller le falta `MIGRATE_DATABASE_URL` | Segunda ola | – | – |
-| ✗ | Supermercado, punto de venta gastronómico | – | Sólo fit-gap | No se sale a vender ahora | – | – | Fudo domina [EXTRACTO] |
+| 9 | **Autoservicio / supermercado de barrio** | Autoservicios, minimercados, proveedurías de countries | En `main` (`src/lib/supermercado/`, 36 archivos): caja con lector, balanza 20–29, «3 ×», pago mixto, promos (2×1, 3×2, 2.ª unidad, por día y medio de pago), aumentos por margen, carteles de góndola, mermas, sugerido de compra, listas de proveedores, vidriera con pedido online; catálogo semilla de 380 productos (`docs/tenants/supermercado/fit-gap.md`) | Demo lista, sin cliente | $300.000–500.000 (catálogo, balanza, capacitación de cajeros) | $59.900 por local con 1 caja `[INFERIDO]` | Tango Punto de Venta ~$171.906 [EXTRACTO] |
+| ✗ | Punto de venta gastronómico | – | – | No se sale a vender ahora | – | – | Fudo domina [EXTRACTO] |
 
 ## 3. Canning como mercado de prueba
 
@@ -56,6 +57,14 @@ abrir las páginas. `[INFERIDO]` es cálculo propio.
    **Riesgo:** magra no llega a diciembre sin cobro ni precios reales. Si no está lista el 25/11, pasa a
    marzo.
 4. **Pádel** (producto 6). Las canchas crecen y está todo diseñado. Se cobra por cancha y por torneo.
+- **Autoservicios y proveedurías de countries** (producto 9). Va junto con el puesto 3 en las fiestas y
+  el verano.
+  - **Hoy sirve para** un local de 1 caja: la tarjeta entra por el posnet de Mercado Pago.
+  - **No sirve todavía para** varias cajas con arqueo propio, tarjeta como medio aparte ni lotes con
+    vencimiento. Cada una necesita una migración o un ADR, y eso es decisión del dueño (fit-gap,
+    pendientes 1–3).
+  - **Antes de facturar,** el contador valida el IVA por producto y la ley de góndolas.
+
 5. **Locales nuevos de Castex 4200** (producto 8). Se les vende vidriera y pedidos por WhatsApp el día que
    abren. No conviene pelear el punto de venta contra Fudo.
 
