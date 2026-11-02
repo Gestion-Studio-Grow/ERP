@@ -5,6 +5,7 @@
 //   · Magra       → MA·G·RA en Bebas con la G de oro, como su tienda (MagraFront.tsx «mf-logo», magra-content.ts).
 //   · Matías      → no tiene logo todavía: una cancha de pádel vista de arriba con la pelota, en su verde. PROVISIONAL
 //                   hasta que pase el suyo (docs/tenants/matiasconsoli/README.md, marca autorizada).
+//   · MIA         → su logo del sitio, negro en el tema claro y crema en el oscuro (src/lib/proyectos/marca.ts).
 //   · Shine, Taller AGR, Qué Bien Olés → su logo real, el mismo archivo que usa su front (LOGO_REAL, abajo).
 //   · El resto → LOGO TIPOGRÁFICO (co-marca, 29/10/2026): la loseta con sus iniciales en el acento del negocio y su
 //     nombre, marcado «Logo provisional · a confirmar» hasta que el cliente pase el suyo. Nunca el de otro negocio.
@@ -119,6 +120,16 @@ export default function LogoDelNegocio({
               Logo provisional · a confirmar
             </span>
           </span>
+        </span>
+      );
+    case "mia-producciones":
+      return (
+        <span data-logo="mia-producciones" className="flex min-w-0 items-center">
+          <span className="sr-only">{nombre}</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img data-logo-parte="claro" src="/tenants/mia-producciones/marca/logo-negro.svg" alt="" className="h-7 w-auto" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img data-logo-parte="oscuro" src="/tenants/mia-producciones/marca/logo-crema.svg" alt="" className="h-7 w-auto" />
         </span>
       );
     default:

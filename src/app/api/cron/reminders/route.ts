@@ -28,5 +28,13 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json(summary);
+  // Va en este mismo cron para no sumar otro al plan de Vercel. Si falla, los recordatorios de turnos ya salieron.
+  const avisosProyectos = await import("@/lib/proyectos/avisos-programados.server")
+    .then((m) => m.barrerAvisosDeProyectos())
+    .catch((e) => {
+      logger.error("reminders", "avisos de proyectos sin correr", e);
+      return null;
+    });
+
+  return NextResponse.json({ ...summary, avisosProyectos });
 }

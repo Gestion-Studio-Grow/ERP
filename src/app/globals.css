@@ -655,6 +655,22 @@
   --accent: #30d158; --accent-hover: #5cdc7d; --accent-soft: rgba(48, 209, 88, 0.16); --accent-ink: #5cdc7d; --text-on-accent: #0b1f10;
 }
 
+/* — MIA Producciones: los valores de su sitio (src/lib/proyectos/marca.ts): Work Sans, azul #0049D5, crema #E3E1D4
+   y tinta #1A1A1A. Las pantallas de trabajo van sobre un crema más claro, para que tablas y datos se lean. — */
+[data-skin="fable"][data-estetica="mia-producciones"] {
+  --font-display: var(--font-work-sans); --font-body: var(--font-work-sans);
+  --radius-sm: 0.25rem; --radius: 0.25rem; --radius-lg: 0.5rem; --radius-xl: 0.5rem;
+  font-family: var(--font-work-sans), ui-sans-serif, system-ui, sans-serif;
+}
+[data-skin="fable"][data-estetica="mia-producciones"]:not([data-theme="dark"]) {
+  --surface-sunken: #e3e1d4; --surface: #f4f3ec; --surface-raised: #ffffff; --surface-inverted: #1a1a1a;
+  --text-strong: #1a1a1a; --text-muted: #5c5a50; --line: #d5d3c5;
+  --accent: #0049d5; --accent-hover: #003aab; --accent-soft: rgba(0, 73, 213, 0.1); --accent-ink: #0049d5; --text-on-accent: #ffffff;
+}
+[data-skin="fable"][data-theme="dark"][data-estetica="mia-producciones"] {
+  --accent: #7ea6ff; --accent-hover: #a3c0ff; --accent-soft: rgba(126, 166, 255, 0.16); --accent-ink: #a3c0ff; --text-on-accent: #0a1a3a;
+}
+
 /* ═════════ LOGO DEL CLIENTE en su backoffice (src/components/marca/LogoDelNegocio.tsx) ═════════ */
 [data-logo="breakpoint"] [data-logo-parte="loseta"] { background: #035ba8; color: #ffffff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.55); }
 [data-logo="breakpoint"] [data-logo-parte="pelota"] { stroke: var(--club-naranja, #dc6e22); }
@@ -667,6 +683,9 @@
 [data-logo="beauty-spa"] { font-family: var(--font-fraunces), Georgia, serif; font-size: 1.375rem; font-weight: 480; line-height: 1; letter-spacing: -0.01em; color: var(--accent); }
 [data-logo="magra"] { font-family: var(--font-bebas), sans-serif; font-size: 1.875rem; letter-spacing: 0.16em; line-height: 1; color: var(--text-strong); }
 [data-logo="magra"] b { font-weight: 400; color: var(--accent); }
+[data-logo="mia-producciones"] [data-logo-parte="oscuro"] { display: none; }
+[data-theme="dark"] [data-logo="mia-producciones"] [data-logo-parte="claro"] { display: none; }
+[data-theme="dark"] [data-logo="mia-producciones"] [data-logo-parte="oscuro"] { display: block; }
 [data-logo="matiasconsoli"] [data-logo-parte="loseta"] { color: var(--accent); }
 [data-logo="matiasconsoli"] [data-logo-parte="lineas"],
 [data-logo="matiasconsoli"] [data-logo-parte="red"] { stroke: var(--text-on-accent); }
@@ -1526,3 +1545,17 @@ summary:focus-visible {
   --radius: 0.625rem;
   color-scheme: dark;
 }
+
+/* Apps de gestión de eventos: se ve en qué pestaña estás y las barras de desplazamiento van con el tema. */
+[data-gestion] [data-ui="pestanas"] a[aria-current="page"] { color: var(--accent, currentColor); box-shadow: inset 0 -2px 0 currentColor; font-weight: 600; }
+[data-gestion] [data-ui="pestanas"] a { white-space: nowrap; }
+/* Cajón y diálogo del panel de gestión: su piel vive en el diseño Renglón, que este panel no usa. */
+[data-gestion] dialog[data-ui="cajon"] { margin: 0 0 0 auto; width: min(32rem, 100%); max-width: 100%; height: 100dvh; max-height: 100dvh; border-left: 1px solid var(--line); }
+[data-gestion] dialog[data-ui="dialogo"] { margin: auto; width: min(28rem, calc(100% - 2rem)); border: 1px solid var(--line); border-radius: 0.75rem; }
+[data-gestion] dialog:is([data-ui="cajon"], [data-ui="dialogo"])::backdrop { background: rgb(0 0 0 / 0.55); }
+[data-gestion] dialog:is([data-ui="cajon"], [data-ui="dialogo"]) > [data-parte="marco"] { display: flex; flex-direction: column; height: 100%; max-height: 100dvh; }
+[data-gestion] dialog [data-parte="cabeza"] { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--line); }
+[data-gestion] dialog [data-parte="cabeza"] h2 { font-weight: 600; color: var(--text-strong, inherit); overflow-wrap: anywhere; }
+[data-gestion] dialog [data-parte="cuerpo"] { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem; }
+[data-gestion] dialog [data-parte="pie"] { display: flex; justify-content: flex-end; gap: 0.5rem; padding: 0.75rem 1rem; border-top: 1px solid var(--line); }
+[data-gestion] * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }

@@ -160,12 +160,12 @@ describe("textos de la vela", () => {
 });
 
 describe("la escena sólo se carga en Shine; el resto del ERP no importa three.js", () => {
-  test("three sólo lo importan la escena del frasco de Qué Bien Olés y la de la vela de Shine", () => {
+  test("three sólo lo importan el frasco de Qué Bien Olés, la vela de Shine y el armador de stands de Proyectos", () => {
     const conThree = archivos(SRC)
       .filter((f) => /from\s+["']three(\/[^"']*)?["']|import\(\s*["']three/.test(readFileSync(f, "utf8")))
       .map((f) => path.relative(SRC, f).split(path.sep).join("/"))
       .sort();
-    assert.deepEqual(conThree, ["app/tienda/quebienoles/frasco-escena.ts", "app/tienda/shine/vela-escena.ts"]);
+    assert.deepEqual(conThree, ["app/tienda/quebienoles/frasco-escena.ts", "app/tienda/shine/vela-escena.ts", "lib/proyectos/stand-escena.ts"]);
   });
 
   test("la escena se pide por import dinámico o desde su worker, nunca de entrada", () => {

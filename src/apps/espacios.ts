@@ -56,7 +56,7 @@ export const ESPACIOS: readonly EspacioMeta[] = [
     nombre: "Mostrador",
     nombreEnServicios: "Recepción",
     enInicio: true,
-    apps: ["padel-clases", "taller", "inmobiliaria", "club", "vender", "caja-rapida", "balanza", "pedidos", "ventas-del-dia", "agenda", "confirmar-manana", "lista-de-espera", "tienda-online", "devoluciones-y-cambios"],
+    apps: ["padel-clases", "taller", "inmobiliaria", "gestion-inicio", "proyectos", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "club", "vender", "caja-rapida", "balanza", "pedidos", "ventas-del-dia", "agenda", "confirmar-manana", "lista-de-espera", "tienda-online", "devoluciones-y-cambios"],
   },
   { id: "caja", nombre: "Caja", enInicio: true, apps: ["caja-del-dia", "cierre-del-dia", "libro-de-caja"] },
   {
@@ -201,7 +201,7 @@ export interface EspacioNav {
  * de ese rubro, así que un negocio ve a lo sumo una. El tope de apps por espacio las cuenta como
  * un solo lugar (espacios-nav.test.ts).
  */
-export const APPS_DE_UN_RUBRO: readonly string[] = ["taller", "inmobiliaria", "club", "padel-clases"];
+export const APPS_DE_UN_RUBRO: readonly string[] = ["taller", "inmobiliaria", "proyectos", "gestion-inicio", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "club", "padel-clases"];
 
 export const ESPACIOS_NAV: readonly EspacioNav[] = [
   {
@@ -210,7 +210,7 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     nombreEnServicios: "Recepción",
     objetivo: "Atender y cobrar",
     apps: [
-      "padel-clases", "taller", "inmobiliaria", "club", "vender", "caja-rapida", "balanza", "agenda", "pedidos", "ventas-del-dia", "confirmar-manana", "lista-de-espera", "vales-de-regalo",
+      "padel-clases", "taller", "inmobiliaria", "gestion-inicio", "proyectos", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "club", "vender", "caja-rapida", "balanza", "agenda", "pedidos", "ventas-del-dia", "confirmar-manana", "lista-de-espera", "vales-de-regalo",
       "paquetes-y-abonos", "devoluciones-y-cambios", "presupuestos", "envios-y-reparto", "tienda-online", "huecos-de-la-semana",
     ],
   },

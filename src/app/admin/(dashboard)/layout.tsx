@@ -24,7 +24,12 @@ import { navGroupingEnabled } from "@/modules";
 import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
 import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
-import { appCasa, appsDeLaCasa, appsVisibles, barraDeCH, conCierreDelMesEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa } from "@/apps/visibles";
+import { actorActual } from "@/lib/proyectos/gestion.server";
+import { appDeGestionVisible, appEnLaBarra, ROL_LABEL } from "@/lib/proyectos/gestion-core";
+import { prisma } from "@/lib/prisma";
+import { BarraGestion } from "./proyectos/_barra";
+import { appDeRuta } from "@/apps/rutas";
+import { appCasa, appDelPanelCerrado, appsDeLaCasa, appsVisibles, barraDeCH, conCierreDelMesEnLaBarra, conProyectosEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa, rutaFueraDelPanel } from "@/apps/visibles";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { esEstetica } from "@/lib/palabras-del-negocio";
 import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
@@ -245,7 +250,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // «provisional a confirmar» (LogoDelNegocio) — y GSG firma al pie (FirmaGSG, en el shell).
   const logo = <LogoDelNegocio estetica={estetica} nombre={brandName} slug={slugDelNegocio} monograma={monogram} />;
   const negocioApps = await getNegocioApps(user.role);
-  const visibles = appsVisibles(negocioApps);
+  const visiblesDelNegocio = appsVisibles(negocioApps);
   // PANEL DE CASA: un negocio cuyo backoffice es UNA app (Break Point → el club) no ve el menú del ERP. Cualquier
   // otra pantalla de /admin (el Inicio incluido) rebota a su casa; quedan Usuarios y «Salir». Sin módulo con
   // `casa` asignado (CH, Magra, …) es `null` y todo sigue como siempre. Fail-open sin el header, como el gate de
@@ -255,8 +260,30 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     const pathname = (await headers()).get("x-pathname");
     if (pathname && !rutaDeLaCasa(pathname, casa)) redirect(casa.ruta);
   }
+  // PANEL CERRADO (MIA → Proyectos y lo que lo acompaña): lo demás no se abre. Al navegar dentro del panel lo frena
+  // `requireApp`, que usa la misma regla; esto es para una dirección abierta directo, sin pasar por «no disponible».
+  const panel = appDelPanelCerrado(negocioApps);
+  if (panel) {
+    const pathname = (await headers()).get("x-pathname");
+    if (pathname && rutaFueraDelPanel(pathname, panel)) redirect(panel.ruta);
+  }
+  // Apps de gestión de eventos: la barra muestra lo que el rol de esa persona puede abrir.
+  const actor = panel?.id === "proyectos" ? await actorActual() : null;
+  const abribles = actor ? visiblesDelNegocio.filter((a) => appDeGestionVisible(a.id, actor.rol, actor.permisos)) : visiblesDelNegocio;
+  const visibles = actor ? abribles.filter((a) => appEnLaBarra(a.id, actor.rol)) : abribles;
+  let barraFuera: React.ReactNode = null;
+  if (actor) {
+    const pathname = (await headers()).get("x-pathname");
+    const app = pathname ? appDeRuta(pathname) : null;
+    if (app && !abribles.some((a) => a.id === app.id)) redirect("/admin/proyectos/inicio");
+    // Fuera de /admin/proyectos (caja, facturación…) el buscador y los avisos siguen a mano; adentro los pone su propio layout.
+    if (pathname && !pathname.startsWith("/admin/proyectos")) {
+      const avisos = await prisma.proyectoAviso.count({ where: { tenantId: actor.tenantId, destinatario: actor.user.id, leidoEl: null } });
+      barraFuera = <div data-gestion><BarraGestion avisos={avisos} persona={actor.nombre} rol={ROL_LABEL[actor.rol]} /></div>;
+    }
+  }
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
-  const barra = conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto));
+  const barra = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles);
   const menu = esEstetica(slugDelNegocio) ? barraDeCH(barra, visibles) : barra;
   // DISEÑO NUEVO: la navegación del armazón nuevo (espacios, comandos de ⌘K, tecla del rubro), con
   // las MISMAS apps que ya decidió `appsVisibles`. Apagado no se arma ni viaja: CH recibe los mismos
@@ -336,9 +363,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {children}
               </PanelDeCasa>
             ) : (
-              <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} logo={logo} letraDelNegocio={estetica !== null} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})} {...(pedidosNuevos ? { pedidosNuevos } : {})}>
+              <AdminShell role={user.role} rolVisible={actor ? ROL_LABEL[actor.rol] : undefined} userName={user.name} brandName={brandName} monogram={monogram} logo={logo} letraDelNegocio={estetica !== null} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})} {...(pedidosNuevos ? { pedidosNuevos } : {})}>
                 {/* Cómo se llama el retiro y qué ejemplo lleva la nota, según el rubro (una perfumería
                     entrega en un punto de encuentro, no en un local): sale del rubro ya leído arriba. */}
+                {barraFuera}
                 <VocabularioDelNegocio valor={vocabularioDelNegocio(rubroDelNegocio.rubro)}>{children}</VocabularioDelNegocio>
               </AdminShell>
             )}

@@ -36,7 +36,8 @@ export default function BarraInferior({
   onBuscar: () => void;
 }) {
   const pathname = usePathname();
-  const espacios = espaciosDeLaBarra(apps, { esMostrador });
+  // Una productora no tiene recepción: sus apps de gestión van bajo «Gestión».
+  const espacios = espaciosDeLaBarra(apps, { esMostrador }).map((e) => (e.nombre === "Recepción" && apps.some((a) => a.id === "gestion-inicio") ? { ...e, nombre: "Gestión", rotulo: "Gestión" } : e));
   const actual = espacioDeRuta(pathname, apps);
   const [abierto, setAbierto] = useState<EspacioId | null>(null);
   const botones = useRef(new Map<EspacioId, HTMLButtonElement>());

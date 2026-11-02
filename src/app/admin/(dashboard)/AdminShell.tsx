@@ -48,10 +48,13 @@ export const ROLE_LABEL: Record<Role, string> = {
 
 type NavItem = { href: string; label: string; icon: string; exact?: boolean };
 
+// Las apps de gestión de eventos viven bajo /admin/proyectos: en ellas no se marca también «Proyectos».
+const OTRA_APP_DE_GESTION = /^\/admin\/proyectos\/(inicio|diseno|calendario|proveedores|administracion|direccion|agentes|propuesta-ia|mi-liquidacion|equipo)(\/|$)/;
+
 function useActive() {
   const pathname = usePathname();
   return (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname.startsWith(href);
+    exact ? pathname === href : pathname.startsWith(href) && !(href === "/admin/proyectos" && OTRA_APP_DE_GESTION.test(pathname));
 }
 
 function currentLabel(pathname: string, items: NavItem[]) {
@@ -495,6 +498,7 @@ function ArmazonDeSiempre({
   esMostrador = false,
   navGrouping = false,
   activeProfile = null,
+  rolVisible,
   showPublicSite = true,
 }: {
   children: React.ReactNode;
@@ -528,11 +532,13 @@ function ArmazonDeSiempre({
   // entran por perfil ya lo decidió el layout. El cliente ve "Comercio"/"Empresa", nunca
   // lite/enterprise (ADR-059 D7).
   activeProfile?: Perfil | null;
+  // El rol que entiende la persona, cuando el negocio tiene el suyo propio (gestión de eventos).
+  rolVisible?: string;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const items = menu;
-  const roleLabel = ROLE_LABEL[role];
+  const roleLabel = rolVisible ?? ROLE_LABEL[role];
 
   // PALETA DE APPS (Ctrl/⌘K en todo el panel) — sólo en el piloto. Se guarda dónde estaba
   // el foco al abrirla para devolverlo al cerrar con Escape o tocando afuera.

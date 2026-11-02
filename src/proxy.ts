@@ -104,7 +104,8 @@ export async function proxy(request: NextRequest) {
     return pass();
   }
 
-  if (pathname === "/admin/login") {
+  // Lo que hay debajo (segundo paso, Google) pasa antes de que exista la sesión; cada ruta controla su propio pase.
+  if (pathname === "/admin/login" || pathname.startsWith("/admin/login/")) {
     return NextResponse.next();
   }
 

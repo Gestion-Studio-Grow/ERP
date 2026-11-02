@@ -45,6 +45,8 @@ const nextConfig: NextConfig = {
       ],
     }];
   },
+  // Un PDF de hasta 2 MB viaja en base64 por la acción de subir archivo.
+  experimental: { serverActions: { bodySizeLimit: "3mb" } },
   outputFileTracingIncludes: {
     "/sitio-estatico/**": carpetasParaTrazar(),
     "/sitio-buscatufoto/**": [`./${CARPETA_BUSCATUFOTO}/**/*`],

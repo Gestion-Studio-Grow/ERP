@@ -14,11 +14,13 @@ import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { puedeCerrarElDia } from "@/lib/caja/cierre-diario";
 import { getCurrentUser } from "@/lib/session";
 import { requireApp } from "@/lib/require-app";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { appDelPanelCerrado } from "@/apps/visibles";
 import { getLibroCajaData } from "@/lib/libro-caja-actions";
 import {
   mediosALaVista,
   CASH_METHOD_LABEL,
-  LIBRO_ORIGIN_LABEL,
+  rotuloDeVenta,
   totalOf,
   shiftMonth,
   formatMonthKey,
@@ -84,11 +86,13 @@ export default async function LibroCajaPage({
 }: {
   searchParams: Promise<{ mes?: string }>;
 }) {
-  await requireApp("libro-de-caja");
+  const guardia = await requireApp("libro-de-caja");
   const { mes } = await searchParams;
   // getLibroCajaData aplica además requireCapability("orders:read"), la misma del registro.
   // Un ?mes inválido cae al mes corriente en vez de romper.
-  const [libro, nuevo, { isRetail: esMostrador }, quienMira] = await Promise.all([getLibroCajaData(mes), disenoNuevo(), getCurrentTenantRubro(), getCurrentUser()]);
+  const [libro, nuevo, { isRetail: esMostrador }, quienMira, negocio] = await Promise.all([getLibroCajaData(mes), disenoNuevo(), getCurrentTenantRubro(), getCurrentUser(), getNegocioApps(guardia.role)]);
+  // Una productora cobra proyectos: ni turnos ni mostrador.
+  const conProyectos = appDelPanelCerrado(negocio)?.id === "proyectos";
   const { rows, summary, year, month, monthKey, posiblesDuplicados, cerradoHasta } = libro;
   const duplicados = new Set(posiblesDuplicados);
 
@@ -170,9 +174,9 @@ export default async function LibroCajaPage({
               Una fila por cobro o por gasto, igual que en la planilla. Se guarda con la fecha que
               pongas, no con la de hoy: podés cargar en diferido.{" "}
               <strong className="font-medium text-body">
-                {esMostrador ? "Las ventas del mostrador entran solas" : "Los turnos cobrados desde Turnos y las ventas entran solos"}
+                {conProyectos ? "Los cobros de proyectos entran solos" : esMostrador ? "Las ventas del mostrador entran solas" : "Los turnos cobrados desde Turnos y las ventas entran solos"}
               </strong>
-              : acá se carga lo que no pasa por el sistema (señas, gastos, retiros, cobros sueltos).
+              : acá se carga lo que no pasa por el sistema ({conProyectos ? "gastos, retiros, cobros sueltos" : "señas, gastos, retiros, cobros sueltos"}).
             </CardDescription>
           </div>
         </CardHeader>
@@ -250,7 +254,7 @@ export default async function LibroCajaPage({
                       <td className="block pt-0.5 text-body sm:table-cell sm:px-4 sm:py-2 sm:pt-2">
                         {r.detail || <span className="text-faint">—</span>}
                         {origen !== "manual" && (
-                          <Badge tone="info" className="ml-2">{LIBRO_ORIGIN_LABEL[origen]}</Badge>
+                          <Badge tone="info" className="ml-2">{rotuloDeVenta(origen, r.detail)}</Badge>
                         )}
                         {r.type === "APERTURA" && (
                           <Badge tone="neutral" className="ml-2">Apertura de turno</Badge>

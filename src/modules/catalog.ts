@@ -30,6 +30,7 @@ import { carteraModule } from "./descriptors/cartera";
 import { multilocalModule } from "./descriptors/multilocal";
 import { cajaRapidaModule, ofertasModule } from "./descriptors/supermercado";
 import { tallerModule } from "./descriptors/taller";
+import { proyectosModule } from "./descriptors/proyectos";
 import { inmobiliariaModule } from "./descriptors/inmobiliaria";
 import { terminalModule } from "./descriptors/terminal";
 import { clubModule } from "./descriptors/club";
@@ -62,6 +63,8 @@ export const DESCRIPTORES_CATALOGO = [
   padelClasesModule,
   // WhatsApp (plugin; conector de la suite E3, Tanda P1): src/plugins/whatsapp/module.ts. Al final.
   whatsappModule,
+  // Proyectos de una productora (src/modules/descriptors/proyectos.ts). Al final, como los anteriores.
+  proyectosModule,
 ];
 
 /**

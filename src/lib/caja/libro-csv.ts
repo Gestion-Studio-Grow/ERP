@@ -18,6 +18,7 @@ import {
   egresosPorOrigen,
   mediosALaVista,
   origenDeFila,
+  rotuloContable,
   type Libro,
   type MethodAmounts,
 } from "@/lib/caja/libro-caja";
@@ -111,7 +112,7 @@ export function buildLibroCsv(libro: Libro, deps: LibroCsvDeps): string {
         entra ? money(r.amount) : "",
         sale ? money(r.amount) : "",
         money(r.runningTotal),
-        ORIGEN_CONTABLE_LABEL[origenDeFila(r)],
+        rotuloContable(origenDeFila(r), r.detail),
         r.referencia ?? "",
       ),
     );

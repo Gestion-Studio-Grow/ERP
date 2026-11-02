@@ -220,6 +220,39 @@ export const OFICIOS_RUBROS: OficiosRubro[] = [
     suggestedTheme: "dark",
   },
   {
+    // Productora: de la familia toma la agenda (reuniones y visitas técnicas) y los clientes. Su
+    // circuito (proyectos, presupuesto, propuesta, armador 3D) vive en el módulo `proyectos`. Los
+    // servicios son los que publica MIA Producciones en su sitio; precio 0: se presupuesta cada trabajo.
+    id: "productora",
+    label: "Productora de eventos y stands",
+    keywords: ["productora", "produccion de eventos", "stands", "stand", "arquitectura promocional", "activaciones", "escenografia", "agencia de eventos"],
+    categories: ["Eventos", "Experiencias", "Stands", "Branding", "Contenidos"],
+    services: [
+      { name: "Reunión de relevamiento", cat: "Eventos", durationMin: 60, price: 0 },
+      { name: "Visita técnica al predio", cat: "Stands", durationMin: 120, price: 0 },
+      { name: "Producción de eventos", cat: "Eventos", durationMin: 60, price: 0 },
+      { name: "Diseño de experiencias", cat: "Experiencias", durationMin: 60, price: 0 },
+      { name: "Arquitectura promocional", cat: "Stands", durationMin: 60, price: 0 },
+      { name: "Branding y escenografías", cat: "Branding", durationMin: 60, price: 0 },
+      { name: "Contenidos transmedia", cat: "Contenidos", durationMin: 60, price: 0 },
+    ],
+    exampleProfessional: "Productor de ejemplo (editable)",
+    wording: {
+      catalogHeading: "Qué hacemos",
+      providerNoun: "productor",
+      heroTagline: "Creamos. Diseñamos. Desarrollamos. Producimos.",
+      bookCta: "Contactanos",
+      priceNote: "Cada trabajo se presupuesta a medida.",
+    },
+    brandingDefaults: {
+      shortLabel: "Agencia creativa y productora integral",
+      hoursLabel: "Lun a vie · 9 a 18 h",
+      contactNote: "Eventos, stands, activaciones y contenidos.",
+    },
+    suggestedAccent: "azul",
+    suggestedTheme: "light",
+  },
+  {
     // Inmobiliaria: de la familia toma la agenda (visitas, tasaciones, firmas) y los clientes.
     // Su circuito propio (propiedades, consultas, alquileres administrados, liquidaciones) es el
     // módulo `inmobiliaria`; acá va sólo la config del rubro. Los servicios son sin cargo: son

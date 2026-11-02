@@ -10,10 +10,11 @@
 //   · magra         → carbón, hueso y oro, Bebas Neue + Open Sans (src/app/tienda/MagraFront.tsx, ADR-072 §8); también
 //                     sus locales `magra-*`.
 //   · matiasconsoli → el turnero de clases: papel claro y verde cancha, Hanken (src/lib/padel/marca.ts, «a confirmar»).
+//   · mia-producciones → sin fila a pedido del dueño (01/11/2026): su panel de gestión usa la marca GSG. Su sitio y lo que ve su cliente conservan la de MIA.
 //
 // — Elaborado por GSG
 
-export type EsteticaBackoffice = "breakpoint" | "beauty-spa" | "magra" | "matiasconsoli";
+export type EsteticaBackoffice = "breakpoint" | "beauty-spa" | "magra" | "matiasconsoli" | "mia-producciones";
 
 const ESTETICA_POR_NEGOCIO: Readonly<Record<string, EsteticaBackoffice>> = {
   breakpoint: "breakpoint",

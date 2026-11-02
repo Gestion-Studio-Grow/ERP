@@ -7,7 +7,7 @@ import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import { getProductoContexto } from "@/lib/producto";
 import { buscarApp } from "@/apps/registro";
-import { destinoDeVuelta, explicarNoDisponible, motivoNoDisponible } from "@/apps/visibles";
+import { appDelPanelCerrado, destinoDeVuelta, explicarNoDisponible, motivoNoDisponible } from "@/apps/visibles";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { IconoApp } from "@/components/iconos-apps";
 import { buttonClasses } from "@/components/ui";
@@ -57,6 +57,8 @@ export default async function NoDisponiblePage({
     // pedido), así que no suma viajes. Si falla, el de siempre.
     disenoNuevo(),
   ]);
+  // En un panel cerrado la descripción general de la app habla de otros rubros: alcanza con el nombre.
+  const panel = appDelPanelCerrado(negocio);
   const motivo = app ? motivoNoDisponible(app, negocio) : null;
   const texto = explicarNoDisponible(app, motivo, negocio);
   const vuelta = destinoDeVuelta(negocio);
@@ -115,7 +117,7 @@ export default async function NoDisponiblePage({
                   <IconoApp nombre={app.icono} className="h-5 w-5 shrink-0 text-muted" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[15px] font-medium text-strong">{app.nombre}</p>
-                    <p className="text-[13px] text-muted">{app.descripcion}</p>
+                    {!panel && <p className="text-[13px] text-muted">{app.descripcion}</p>}
                   </div>
                   <span
                     data-parte="estado-app"
@@ -177,7 +179,7 @@ export default async function NoDisponiblePage({
             <h1 id="nd-titulo" className="text-xl font-semibold tracking-tight text-strong">
               {texto.titulo}
             </h1>
-            {app && <p className="mt-1 text-sm text-muted">{app.descripcion}</p>}
+            {app && !panel && <p className="mt-1 text-sm text-muted">{app.descripcion}</p>}
 
             <p className="mt-4 text-sm text-body">{texto.porque}</p>
             <p className="mt-1 text-sm text-body">{texto.aQuien}</p>

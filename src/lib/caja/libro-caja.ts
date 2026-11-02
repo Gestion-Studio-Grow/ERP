@@ -32,6 +32,7 @@ import { PAGO_MIXTO_ACTOR_PREFIX, esAsientoDePagoMixto } from "@/lib/supermercad
 // corriente se LEE dentro de las funciones (`marcasDelSistema`, `motivoParaNoBorrar`), nunca
 // al cargar el módulo.
 import { CUENTA_CORRIENTE_ACTOR_PREFIX, esAsientoDeCuentaCorriente } from "@/lib/settlement/asiento-libro";
+import { GASTO_PROYECTO_ACTOR_PREFIX } from "@/lib/proyectos/marcas";
 
 // Orden CANÓNICO de los medios: es el orden de las columnas de la planilla y el de
 // las columnas de la pantalla. Un solo lugar para que tabla y resumen no se
@@ -104,6 +105,16 @@ export const LIBRO_ORIGIN_LABEL: Record<Exclude<LibroOrigin, "manual">, string> 
   turno: "Turno cobrado",
 };
 
+/**
+ * El rótulo de una fila. Los cobros de Proyectos también son una VENTA sin pedido, y decir «Turno
+ * cobrado» de un stand confunde: el detalle que asienta `registrarCobro` los identifica. PURA.
+ */
+export function rotuloDeVenta(origen: Exclude<LibroOrigin, "manual">, detalle: string | null | undefined): string {
+  return origen === "turno" && esDetalleDeProyecto(detalle) ? "Cobro de proyecto" : LIBRO_ORIGIN_LABEL[origen];
+}
+
+const esDetalleDeProyecto = (detalle: string | null | undefined): boolean => /^Proyecto #[0-9]/.test(detalle ?? "");
+
 // --- Origen CONTABLE: de dónde salió cada peso, para quien imputa ---
 //
 // `libroOrigin` separa sistema de manual para la pantalla. La contadora necesita más:
@@ -129,7 +140,8 @@ export type OrigenContable =
   | "apertura"
   | "cobro-cuenta-corriente"
   | "pago-cuenta-corriente"
-  | "reintegro-proveedor";
+  | "reintegro-proveedor"
+  | "gasto-proyecto";
 
 /** Orden canónico: el de la columna y el del subtotal del RESUMEN. */
 export const ORIGENES_CONTABLES: readonly OrigenContable[] = [
@@ -147,6 +159,7 @@ export const ORIGENES_CONTABLES: readonly OrigenContable[] = [
   "cobro-cuenta-corriente",
   "pago-cuenta-corriente",
   "reintegro-proveedor",
+  "gasto-proyecto",
 ];
 
 export const ORIGEN_CONTABLE_LABEL: Record<OrigenContable, string> = {
@@ -167,7 +180,13 @@ export const ORIGEN_CONTABLE_LABEL: Record<OrigenContable, string> = {
   // salía como "Ingreso manual" y la contadora la buscaba como un cobro sin respaldo: no es
   // una venta ni un aporte, es una compra que se achica.
   "reintegro-proveedor": "Reintegro de proveedor",
+  "gasto-proyecto": "Gasto de proyecto",
 };
+
+/** La columna Origen del archivo: el mismo criterio que `rotuloDeOrigen`, un stand no es un turno. PURA. */
+export function rotuloContable(origen: OrigenContable, detalle: string | null | undefined): string {
+  return origen === "cobro-turno" && esDetalleDeProyecto(detalle) ? "Cobro de proyecto" : ORIGEN_CONTABLE_LABEL[origen];
+}
 
 /** Lo que el ledger guarda de una fila y alcanza para clasificarla. */
 export type FilaParaOrigen = {
@@ -213,6 +232,8 @@ function marcasDelSistema(): readonly {
       referenciaEnMarca: true,
     }, // collectionId
     { prefijo: COMISION_ACTOR_PREFIX, origen: "comision", referenciaEnMarca: true }, // payoutId
+    // El pago a un proveedor desde un proyecto, y su reversa si se anula (proyectos/acciones.ts).
+    { prefijo: GASTO_PROYECTO_ACTOR_PREFIX, origen: "gasto-proyecto", referenciaEnMarca: true }, // gastoId
     { prefijo: ANULACION_VENTA_ACTOR_PREFIX, origen: "anulacion", referenciaEnMarca: false },
     // Cada medio de una venta cobrada con varios medios: `venta-pago-mixto:<orderId>`.
     { prefijo: PAGO_MIXTO_ACTOR_PREFIX, origen: "venta-mostrador", referenciaEnMarca: true }, // orderId
@@ -305,6 +326,9 @@ export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string
     return "Ese movimiento lo generó la caja del mostrador. Corregilo desde el turno, no desde el libro.";
   }
   const marca = String(m.createdBy ?? "");
+  if (marca.startsWith(GASTO_PROYECTO_ACTOR_PREFIX)) {
+    return "Ese movimiento es el pago de un gasto de proyecto. Corregilo desde el proyecto: anular el gasto asienta la vuelta.";
+  }
   // El corte inicial es lo que ata el saldo del sistema al conteo físico.
   if (marca.startsWith(CORTE_INICIAL_ACTOR_PREFIX)) {
     return "Ese movimiento es el ajuste del corte inicial. No se borra: es lo que ata el saldo del sistema al conteo físico.";
@@ -442,7 +466,8 @@ export function origenDeFila(m: LibroMovement): OrigenContable {
  * De dónde salió una fila, para leer en pantalla. `libroOrigin` llama «manual» a todo lo que no es
  * una venta: una anulación o un faltante de arqueo no los cargó nadie a mano. PURA.
  */
-export function rotuloDeOrigen(m: { type: CashMovementType; origin?: LibroOrigin; origenContable?: OrigenContable }): string {
+export function rotuloDeOrigen(m: { type: CashMovementType; origin?: LibroOrigin; origenContable?: OrigenContable; detail?: string | null }): string {
+  if (m.origin === "turno" && esDetalleDeProyecto(m.detail)) return "cobro de proyecto";
   if (m.origin === "pos" || m.origin === "turno") return LIBRO_ORIGIN_LABEL[m.origin].toLowerCase();
   const origen = m.origenContable ?? origenContable({ type: m.type, origin: m.origin });
   if (origen === "ingreso-manual" || origen === "egreso-manual") return "cargado a mano";

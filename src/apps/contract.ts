@@ -172,6 +172,13 @@ export interface AppDescriptor {
    * el club. Va siempre con `moduloDuro` (`appCasa`, layout del admin).
    */
   casa?: true;
+  /**
+   * Panel cerrado: en un negocio de ESTE rubro con el módulo asignado, del backoffice sólo se abren esta app y las
+   * que nombra `apps`, con el menú de siempre. Va por rubro y no sólo por módulo: otro negocio que sume este módulo
+   * como un agregado no pierde el resto de su panel. Es regla de disponibilidad (`motivoNoDisponible`), así que vale
+   * también por URL. Va siempre con `moduloDuro`.
+   */
+  panelCerrado?: { blueprint: string; apps: readonly string[] };
   rubro?: RubroApp;
   /**
    * Pantalla de la edición por perfiles (Comercio/Empresa). Presente = sólo se ofrece con

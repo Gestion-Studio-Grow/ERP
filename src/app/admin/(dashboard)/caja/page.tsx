@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { appDelPanelCerrado } from "@/apps/visibles";
 import { getCajaData } from "@/lib/caja-actions";
 import { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
@@ -80,15 +82,18 @@ export default async function CajaPage() {
   // base). El turno de cajero sigue consultándose sólo donde hay cajón: sin cajón, es una
   // consulta al pedo, así que espera a saber el rubro (que el layout del panel ya pidió en el
   // mismo pedido) y el día no lo espera a él.
-  const [dia, caja, nuevo, slug] = await Promise.all([
+  const [dia, caja, nuevo, slug, negocio] = await Promise.all([
     getCierreDiarioData(),
     tieneCajonFisico().then((conCajon) => (conCajon ? getCajaData() : null)),
     // «Diseño nuevo»: la lectura de interruptores del layout, cacheada (no suma viajes).
     disenoNuevo(),
     getCurrentTenantSlug(),
+    getNegocioApps(user.role),
   ]);
   // Con el día cerrado no se vende (lo dice el servidor): no se ofrece.
   const cobrarVenta = dia.yaCerrado ? null : enlaceCobrarUnaVenta(slug, user.role);
+  // Una productora cobra proyectos: ni turnos ni mostrador.
+  const conProyectos = appDelPanelCerrado(negocio)?.id === "proyectos";
 
   // DISEÑO NUEVO («Renglón»): los mismos datos, ordenados para quien pasa el día acá.
   // La regla del arqueo, sólo donde hay cajón (el mostrador; CH no la ve): reglas-a-la-vista.ts.
@@ -104,13 +109,13 @@ export default async function CajaPage() {
       )}
       <p className="text-muted mb-6 max-w-2xl">
         Lo que hay ahora por cada medio de pago y todo lo que se movió hoy.{" "}
-        {caja ? "Las ventas del mostrador entran solas" : "Los cobros de turnos y las ventas entran solos"}, por cualquier medio: acá se cargan
+        {conProyectos ? "Los cobros de proyectos entran solos" : caja ? "Las ventas del mostrador entran solas" : "Los cobros de turnos y las ventas entran solos"}, por cualquier medio: acá se cargan
         únicamente los gastos, retiros e ingresos sueltos.
       </p>
 
       <ResumenDelDia dia={dia} />
 
-      {!dia.yaCerrado && <MovimientoSuelto dia={dia.day} esMostrador={caja !== null} />}
+      {!dia.yaCerrado && <MovimientoSuelto dia={dia.day} conProyectos={conProyectos} esMostrador={caja !== null} />}
 
       {caja && <TurnoDeCajero caja={caja} diaCerrado={dia.yaCerrado} />}
     </main>
@@ -344,15 +349,17 @@ function fmtDayKey(day: string): string {
 // No hay tipo RETIRO en el libro a propósito: un retiro es un EGRESO con su detalle
 // ("retiro a caja fuerte"). Agregar un tercer tipo obligaba a tocar la aritmética del mes,
 // el export y la guarda de borrado, a cambio de una palabra.
-function MovimientoSuelto({ dia, esMostrador }: { dia: string; esMostrador: boolean }) {
+function MovimientoSuelto({ dia, conProyectos, esMostrador }: { dia: string; conProyectos: boolean; esMostrador: boolean }) {
   return (
     <Card className="mt-6">
       <CardHeader>
         <div>
           <CardTitle>Registrar un movimiento</CardTitle>
           <CardDescription>
-            Gastos, retiros o ingresos que no vienen de una venta. {esMostrador ? "Lo que cobrás desde el mostrador" : "Lo que cobrás desde Turnos o desde el mostrador"} ya entra solo —en efectivo, Mercado Pago o transferencia—:
-            no lo vuelvas a cargar acá.
+            {conProyectos
+              ? "Gastos, retiros o ingresos que no vienen de un proyecto. Lo que cobrás desde Proyectos"
+              : `Gastos, retiros o ingresos que no vienen de una venta. ${esMostrador ? "Lo que cobrás desde el mostrador" : "Lo que cobrás desde Turnos o desde el mostrador"}`}{" "}
+            ya entra solo —en efectivo, Mercado Pago o transferencia—: no lo vuelvas a cargar acá.
           </CardDescription>
         </div>
       </CardHeader>

@@ -2,15 +2,13 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createSessionToken, getSessionCookieName } from "@/lib/auth";
+import { getSessionCookieName } from "@/lib/auth";
 import { verifyPassword } from "@/lib/auth-password";
 import { prisma } from "@/lib/prisma";
 import { DireccionSinNegocioError, getCurrentTenantId } from "@/lib/tenant";
 import { requestIp } from "@/lib/audit-core";
 import { adminLoginGuard } from "@/lib/rate-limit";
-import { getProductoContexto } from "@/lib/producto";
-import { productoHome, rutaPermitidaParaProducto } from "@/lib/producto-identidad";
-import { mustChangePasswordFor } from "@/lib/must-change-password";
+import { abrirSesion, destinoTrasIngreso } from "@/lib/ingreso.server";
 
 export async function login(formData: FormData) {
   const email = String(formData.get("email") || "").trim().toLowerCase();
@@ -49,36 +47,15 @@ export async function login(formData: FormData) {
   // Login válido: limpiar el contador para no penalizar al usuario legítimo.
   adminLoginGuard.succeed(ip, email);
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { lastLoginAt: new Date() },
-  });
-
-  const cookieStore = await cookies();
-  cookieStore.set(getSessionCookieName(), await createSessionToken(user.id), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 8,
-  });
-
-  // CONTRASEÑA TEMPORAL: si el OWNER entra con una contraseña marcada para cambio forzado
-  // (reset del operador), lo mandamos derecho a definir una nueva ANTES de cualquier ruteo por
-  // producto. Fail-safe: si la columna no existe todavía (Gate 2 sin aplicar), devuelve false y
-  // el login sigue normal.
-  if (await mustChangePasswordFor({ id: user.id, tenantId: user.tenantId })) {
-    redirect("/admin/cambiar-password");
+  // Una productora: quien ve plata no entra sólo con la clave. Todavía no hay sesión: sale un pase que el portón no acepta.
+  const { darPase, exigeSegundoPaso } = await import("@/lib/proyectos/segundo-factor.server");
+  if (await exigeSegundoPaso(user)) {
+    await darPase(user.id);
+    redirect(`/admin/login/segundo-paso?next=${encodeURIComponent(next)}`);
   }
 
-  // RUTEO POST-LOGIN POR PRODUCTO (frente identidad-por-producto): cada producto entra a
-  // SU casa (Comerciante → /admin, Contador → /contador, Facturita → /facturita/app; el ERP
-  // vertical → /admin, como siempre). Se honra un `next` explícito SOLO si cae en el área
-  // del producto (no se manda un usuario de Facturita al /admin de otro producto).
-  const { producto } = await getProductoContexto();
-  const home = productoHome(producto);
-  const dest = next !== "/admin" && rutaPermitidaParaProducto(producto, next) ? next : home;
-  redirect(dest);
+  await abrirSesion(user.id);
+  redirect(await destinoTrasIngreso(user, next));
 }
 
 export async function logout() {
