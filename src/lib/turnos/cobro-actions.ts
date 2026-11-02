@@ -43,7 +43,7 @@ import { centavosDe } from "@/lib/dinero/redondeo";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { assertSlotAvailable } from "@/lib/booking-core";
 import { recordMovement } from "@/lib/stock/ledger";
-import { isInvoicingEnabled } from "@/lib/fiscal";
+import { isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
 import { avisoDeFacturaDelTurno, type ResultadoFacturaDelTurno } from "./aviso-factura";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
@@ -156,6 +156,11 @@ async function facturarConResultado(appointmentId: string, tenantId: string): Pr
     if (!factura) return { tipo: "fallo" };
     return { tipo: "emitida", status: factura.status, rechazoMotivo: factura.rechazoMotivo };
   } catch (err) {
+    // El negocio todavía no factura: no es una falla que recepción pueda resolver, y se repetiría en cada turno.
+    if (err instanceof PerfilFiscalIncompletoError) {
+      logger.warn("arca", "perfil fiscal incompleto: el turno no se factura", { appointmentId, tenantId, campo: err.campo });
+      return { tipo: "sin-factura" };
+    }
     logger.error("arca", "facturación best-effort falló", err, { appointmentId, tenantId });
     return { tipo: "fallo" };
   }

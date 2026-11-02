@@ -6,7 +6,7 @@
 // acción devuelve un aviso y la pantalla lo muestra.
 
 export type ResultadoFacturaDelTurno =
-  | { tipo: "sin-factura" } // el negocio no factura, se eligió no facturar, o no hay monto
+  | { tipo: "sin-factura" } // el negocio no factura (o tiene el perfil fiscal incompleto), se eligió no facturar, o no hay monto
   | { tipo: "emitida"; status: "PENDING" | "AUTHORIZED" | "REJECTED"; rechazoMotivo: string | null }
   | { tipo: "fallo" }; // tiró antes de llegar a ARCA (la base, el cobro cambió, un bug)
 
