@@ -1,211 +1,178 @@
-# Mia Producciones: estudio de mercado y presupuesto del sistema
+# MIA Producciones: estudio de mercado y presupuesto (versión 2, sistema tipo Heka)
 
-**Fecha:** 2026-11-02 · **Estado:** borrador para el dueño, no para enviar todavía · **Dólar:** $1.450 *(provisional a confirmar)*
+**Fecha:** 2026-11-02 · **Estado:** borrador para el dueño, no para enviar · **Dólar:** $1.450 *(provisional a confirmar)*
 
-> **Supuesto de rubro *(provisional a confirmar)*.** En el repo no hay nada sobre Mia Producciones, y la web
-> tampoco da un perfil claro. Este estudio supone que es una **productora de eventos y espectáculos**:
-> fiestas, casamientos, 15, corporativos y shows, quizás con alquiler de sonido, iluminación y staff.
-> Si es una productora audiovisual o de contenido, cambian los competidores (sección 2), pero el método y los
-> valores de desarrollo (sección 3) siguen sirviendo.
+> **Fuentes.** La red de la sesión no dejó abrir las páginas de los proveedores. Las cifras externas salen
+> del extracto del buscador `[EXTRACTO]`, y lo calculado acá va marcado `[INFERIDO]`. Hay que reconfirmar
+> los precios que sostienen la propuesta antes de mandarla.
 
-> **Confiabilidad de las cifras.** La red de la sesión no permitió abrir las páginas de los proveedores.
-> Los precios salen de los extractos del buscador sobre los dominios oficiales, marcados `[OFICIAL-B]`, o de
-> agregadores, marcados `[INFERIDO]`. **Antes de cotizarle al cliente, hay que reconfirmar los 4 o 5 precios
-> que sostienen la propuesta** (Brinden, HoneyBook, Rentman, Nexosmart, Tango).
+## 1. Qué es MIA y qué se presupuesta
 
----
+- **El cliente.** MIA Producciones (miaproducciones.com.ar) produce eventos y stands en Argentina. Tiene
+  cinco servicios: producción de eventos, diseño de experiencias, arquitectura promocional, branding y
+  escenografía, y contenidos transmedia. Nunca se la relevó: no sabemos cuántos eventos hace, cuánto
+  factura ni cuántos usuarios tendría.
+- **El pedido.** El sistema de gestión replica las apps de **Heka** (`heka.mapplyia.com`, Angular 18), con
+  marca GSG.
+- **Precio de Heka:** no aparece en la web. No figura en Capterra ni en ningún buscador; es «a cotizar».
+- **Las 11 apps que se replican:**
+  1. Inicio.
+  2. Proyectos: Kanban de 10 etapas.
+  3. Ficha del evento: cotización por versiones, aprobación interna, cuotas de anticipo y saldo, cashflow
+     y máximo a financiar.
+  4. Diseño: tablero, carga de trabajo, chat y comentarios sobre imagen.
+  5. Calendario con iCal.
+  6. Proveedores: historial de precios y puntaje.
+  7. Administración: cashflow, pipeline ponderado, monedas, gastos fijos, conciliación bancaria por CSV y
+     liquidaciones.
+  8. Dirección: desvíos por evento y carga del equipo.
+  9. IA: propuesta y agentes.
+  10. Mi liquidación.
+  11. Equipo y permisos por módulo y por proyecto.
+- **Funciones transversales:** portal del cliente, registro de cambios, buscador, ingreso con Google y
+  doble factor, Drive, mails, y PDF o Excel de la cotización.
 
-## 1. Conclusión en una línea
+**Estado en GSG.** La rama `tenant/mia-producciones` está en la PC del dueño, sin push.
 
-Proponemos **una implementación de USD 3.500 (~$5.075.000) más un abono de $190.000 por mes + IVA, con ajuste
-trimestral por IPC**. Queda en la parte baja de lo que cobra el mercado por un sistema de varios módulos y
-por debajo de la combinación de herramientas que hoy usaría una productora. Además trae lo que ningún
-competidor tiene junto: **factura ARCA, Mercado Pago o transferencia, y WhatsApp.**
+- **Ya está hecho:** unos 17 de los 27 puntos del cruce con Heka, con 143 pruebas en verde.
+- **Falta:**
+  - almacenamiento real de archivos;
+  - moneda en todas las vistas;
+  - registro de cambios;
+  - chat en vivo;
+  - conciliación por CSV;
+  - Drive;
+  - usuario Cliente;
+  - claves de las APIs.
+- **Antes de mostrarlo hay que** respaldar y migrar en Neon (Gate 2).
 
----
+## 2. Cuánto vale un sistema así en el mercado
 
-## 2. Qué software usa hoy una productora, y cuánto paga
-
-### 2.1 Competencia directa (USD/mes; dólar $1.450)
-
-| Producto | Para quién | USD/mes | Marca |
-|---|---|---|---|
-| **Brinden** (AR) | Salones: agenda, presupuesto PDF, caja | ~21 ($30.000; anual $300.000; +50 % por sucursal) | OFICIAL-B |
-| Booqable | Alquiler de equipos | 29–149 | INFERIDO |
-| Dubsado | Planners: CRM, contratos, cobros | 35–55 | OFICIAL-B |
-| HoneyBook | Planners: CRM, contratos, portal del cliente | 36–129 | OFICIAL-B |
-| Aisle Planner | Bodas | 70–230 | INFERIDO |
-| Event Temple | Salones (contrato anual) | 109–199 | INFERIDO |
-| Rentman | Equipos + staff de producción | ~€150 (3 usuarios) | OFICIAL-B |
-| Current RMS | Alquiler + servicios | ~190 (3 usuarios) | OFICIAL-B, posiblemente viejo |
-| Planning Pod | Salones y planners | 199–319 | OFICIAL-B |
-| Perfect Venue | Salones | 239–339 | OFICIAL-B |
-| Tripleseat | Salones | 375+ por salón | INFERIDO |
-
-Las ticketeras cobran comisión por entrada, sin abono: Eventbrite AR cobra 5,99–6,99 % más el procesamiento,
-Alpogo 15–20 % y Fanz 5–10 % `[OFICIAL-B / INFERIDO]`. En Passline paga el comprador.
-
-### 2.2 Lo que pagaría una pyme argentina por un genérico (ARS/mes + IVA)
-
-| Producto | ARS/mes | Marca |
-|---|---|---|
-| Alegra | 19.999–79.999 | INFERIDO |
-| Xubio | 123.100–375.900 | INFERIDO |
-| Colppy | 128.500–310.900 | INFERIDO |
-| Tango Nube | ~731.000 (6 meses mínimo) | INFERIDO |
-| Bitrix24 (CRM) | USD 69–289 | OFICIAL-B |
-
-### 2.3 Lectura
-
-- **Lo que trae todo el mercado:** cotizador, contrato con firma, seña o cuotas online, calendario que
-  avisa la doble reserva, CRM de consultas, portal del cliente y reportes.
-- **Lo que sólo traen los de alquiler** (Rentman, Booqable, Current RMS): stock de equipos y turnos del staff.
-- **Lo que nadie resuelve para Argentina:**
-  - Los globales cobran con Stripe, que no opera para comercios argentinos, y no emiten factura ARCA.
-  - Los argentinos que facturan no gestionan eventos.
-  - Brinden cobra en pesos, pero es para salones, no para productoras.
-  - Ninguno tiene WhatsApp de verdad.
-- **Cuánto se paga hoy.** Una productora chica o mediana que arma su combinación (CRM de eventos, alquiler
-  de equipos y facturación argentina) paga **USD 150–330 por mes, unos $220.000–480.000**. El piso
-  (Brinden o Dubsado) es USD 20–60 y el techo (Perfect Venue o Tango) USD 340–500.
-
----
-
-## 3. Cuánto cuesta construirlo a medida en Argentina
-
-### 3.1 Valor hora 2026 `[extractos del buscador]`
-
-| Perfil | USD/h |
-|---|---|
-| Junior nearshore | 18–28 |
-| Semi senior | 28–45 |
-| Senior (mediana Lemon.io) | 40 (33–45) |
-| Software factory | 48–65 |
-
-### 3.2 Proyectos comparables (precio cerrado)
-
-| Fuente | Alcance | Setup | Mantenimiento |
-|---|---|---|---|
-| Nexosmart 2026 | 1 módulo / varios / ERP | USD 3.500–4.000 / 4.000–5.200 / 6.500–8.200 | USD 80–150/mes |
-| Drimfix | Simple / ERP pyme | USD 3.000–7.000 / 8.000–20.000 | – |
-| Neowyze (pesos, posiblemente desactualizado) | Intermedio / complejo | $1,5–4 M / $4–15 M | – |
-| Prisys | – | – | Servidor USD 15–35 + soporte |
-
-### 3.3 Estimación desde cero para este alcance `[INFERIDO]`
+### 2.1 Construirlo de cero `[INFERIDO, por bloques]`
 
 | Bloque | Horas |
 |---|---|
-| Ficha de evento: tipo, fecha, lugar, invitados, checklist, minuta del día | 40 |
-| Cotizador con ítems, versiones, PDF y aceptación online | 60 |
-| Contrato, plan de cuotas y ajuste | 40 |
-| Reserva de equipos y staff por fecha, con aviso de doble reserva | 50 |
-| Portal del cliente: ver presupuesto, pagar cuota, ver estado | 40 |
-| Liquidación de staff y proveedores, rentabilidad por evento | 30 |
-| Base: clientes, agenda, cobros MP, factura ARCA, WhatsApp, roles | 120 |
-| Configuración, carga de datos, QA y capacitación | 30 |
-| **Total** | **~410 h** |
+| Proyectos con Kanban y lista | 60 |
+| Ficha del evento: cotización con versiones, cuotas, cashflow | 160 |
+| Diseño: tablero, carga, chat, comentarios sobre imagen | 120 |
+| Administración: cashflow, pipeline, monedas, bancos, liquidaciones | 160 |
+| Dirección y reportes | 80 |
+| Proveedores y calendario | 70 |
+| IA: propuesta y agentes | 80 |
+| Equipo, permisos y portal del cliente | 110 |
+| Google, doble factor, Drive, mails, PDF/Excel, avisos, buscador | 120 |
+| QA, despliegue y capacitación | 90 |
+| **Total** | **~1.050 h** |
 
-A USD 35 por hora, **el valor de mercado desde cero ronda los USD 14.000** (rango USD 11.000–18.000), más
-mantenimiento. Es la referencia del valor que el cliente recibe.
-
-### 3.4 Por qué GSG puede cobrar menos y ganar más
-
-El ERP ya trae el bloque «Base» de 120 h, verificado en `prisma/schema.prisma`:
-
-- `Client`, `Appointment` y `Resource`: agenda y recursos.
-- `Payment`: señas y Mercado Pago.
-- `Invoice` con `src/plugins/arca`: factura.
-- `AccountReceivable` / `AccountPayable` y `Supplier`.
-- `CommissionPayout`: pagos al staff.
-- `ConversacionWhatsapp`.
-- El patrón de orden de trabajo de `TallerOrden`, reutilizable como ficha de evento.
-
-Lo nuevo son unas 260–290 h, y el equipo es 100 % IA. El hosting es compartido por toda la flota
-(`docs/estrategia/costos-por-segmento.md`: $54.000/mes en total), así que el costo marginal de un tenant
-más es casi cero.
-
----
-
-## 4. Cuánto puede pagar Mia Producciones `[INFERIDO]`
-
-- Una fiesta de 15 o un casamiento de 100 personas cuesta en 2026 **$15,5–30 M** (iProfesional). El cubierto
-  va de $60.000 a $160.000 por invitado.
-- Supuesto: la productora hace 2–4 eventos por mes y se queda con ~10 %, o sea $4–8 M por mes de ingreso
-  propio. Si destina 5–10 % a herramientas, **puede pagar entre $200.000 y $800.000 por mes.**
-- No encontramos ningún dato público de facturación de productoras chicas. Hay que preguntárselo al cliente.
-
----
-
-## 5. Propuesta de presupuesto (3 opciones)
-
-Todas las opciones se cotizan con estas condiciones:
-
-- **Moneda e impuestos:** precios en pesos + IVA. Si GSG factura como responsable inscripto y la
-  productora es monotributista, el IVA no le sirve como crédito y le encarece el servicio un 21 %
-  *(provisional a confirmar)*.
-- **Ajuste:** el abono se ajusta cada trimestre por IPC del INDEC. La implementación se fija en USD y se
-  paga en pesos al tipo de cambio del día del pago (oficial vendedor BNA).
-- **Costos que paga el cliente aparte:** la comisión de Mercado Pago y las conversaciones de WhatsApp
-  Business que cobra Meta.
-
-| | **Arranque** | **Productora** ✅ recomendada | **Productora Pro** |
+| Quién lo hace | Tarifa | Precio | Fuente |
 |---|---|---|---|
-| Para | Empezar a ordenar | El día a día completo | Productora con equipos propios |
-| Incluye | Clientes, agenda, cotizador simple en PDF, seña por MP, factura ARCA, WhatsApp, 2 usuarios | Todo Arranque + ficha de evento, cotizador con versiones y aceptación online, contrato y cuotas, staff y proveedores por evento, rentabilidad, 4 usuarios | Todo Productora + stock y alquiler de equipos con doble reserva, portal del cliente, venta de entradas integrada a una ticketera, 8 usuarios |
-| **Implementación** | USD 1.200 (~$1.740.000) | **USD 3.500 (~$5.075.000)** | USD 6.000 (~$8.700.000) |
-| **Abono mensual** | $120.000 | **$190.000** | $290.000 |
-| Cómo se compara | Por encima de Brinden, con factura y MP | Debajo de la combinación típica ($220k–480k) | Al nivel de Planning Pod o Rentman, pero argentino |
-| Plazo estimado | 2 semanas | 4–6 semanas | 8–10 semanas |
+| Programador argentino | USD 28–45/h | **USD 30.000–47.000** | EXTRACTO (Lemon.io, Develop Argentina) |
+| Software factory argentina | USD 48–65/h | USD 50.000–68.000 | EXTRACTO (Devico) |
+| Rango de mercado: «sistema de gestión pyme mediano» | – | USD 12.000–40.000 | EXTRACTO (Develop Argentina) |
 
-- **Forma de pago de la implementación:** 50 % al firmar y 50 % al entregar, o 3 cuotas.
-- **Permanencia:** mínimo 12 meses, con el primer mes de abono bonificado.
-- **Usuario adicional:** $12.000 por mes.
+**Mantenimiento de mercado:** 15–25 % por año del costo de desarrollo; un estudio dio 19,6 % de promedio
+`[EXTRACTO]`.
 
-**Por qué la opción «Productora».** La implementación queda dentro del rango de un sistema de varios
-módulos (USD 3.500–5.200) y es la cuarta parte del valor desde cero. El abono queda debajo de lo que la
-productora pagaría juntando herramientas, y dentro de lo que puede pagar. Con 12 meses de contrato, GSG
-cobra unos **$7,4 M en el primer año** con un costo marginal casi nulo.
+### 2.2 La competencia que trae la IA
 
----
+| Alternativa | Precio | Lo que no resuelve |
+|---|---|---|
+| Que MIA lo arme sola con Lovable, Bolt o Replit | USD 25–100/mes más su tiempo | Seguridad: la falla CVE-2025-48757 expuso la base de más de 170 apps de Lovable. Tampoco trae ARCA, Mercado Pago, soporte ni continuidad |
+| Bubble, Glide, Softr, Airtable para 5–8 usuarios | USD 100–400/mes | Hay que armarlo igual; sin ARCA ni cuotas en dos monedas |
+| Freelancer de Fiverr con Lovable | USD 25–1.500 | Prototipo sin datos reales, sin garantía |
+| Agencia de «MVP con IA» | USD 10.000–25.000 en 2–4 semanas, más 15–25 % anual | Llega a un MVP, no a 11 apps afinadas al rubro |
+| SaaS de eventos de afuera (Planning Pod, Perfect Venue, Tripleseat) | USD 200–375/mes | En inglés y cobra en dólares; usa medios de pago que no operan en Argentina; sin ARCA ni cuotas en pesos y dólares |
 
-## 6. Qué falta confirmar antes de mandar el presupuesto
+**Qué cambió de verdad con la IA** `[EXTRACTO]`:
 
-1. **Rubro exacto** de Mia Producciones: eventos, espectáculos o audiovisual.
-2. Eventos por mes, usuarios, si alquila equipos propios y si vende entradas.
-3. **Condición fiscal** de Mia (monotributo o responsable inscripto) y de GSG como emisor, por el tema del IVA.
-4. Dólar del día y reconfirmación de los precios de la sección 2 en las fuentes oficiales.
-5. Si se muestra una demo con su marca, hace falta **autorización registrada del cliente**
-   (`docs/metodologia/generador-preset-ia.md`).
+- **El prototipo sale 40–60 % más rápido**, y por eso bajó el precio de lo simple.
+- **La productividad en sistemas reales no está probada:**
+  - METR 2025 midió programadores 19 % más lentos.
+  - METR 2026 dio +18 %, sin poder concluir nada.
+  - Sólo 3 % de los que usan IA confía mucho en el resultado (DORA 2025).
+- **Las agencias sienten la presión:** 27 % ya recibió pedidos de bajar el precio por la IA.
+
+**Lectura:** la IA bajó el piso de lo que se puede mostrar en una demo, no el costo de lo que hay que
+sostener. Eso es seguridad y datos de varios clientes, plata, monedas, soporte y responsabilidad.
+
+## 3. Presupuesto propuesto
+
+**Criterio.** El precio queda claramente debajo de la agencia de IA más barata (USD 10.000–25.000). Esa es
+la competencia real que va a cotizar MIA. Pero no lo bajamos al nivel de quien lo arma solo con Lovable,
+porque eso no tiene seguridad ni soporte. GSG puede: el sistema está construido en ~65 % sobre el motor
+multi-tenant, y el hosting compartido hace que el costo de un tenant más sea casi cero
+(`docs/estrategia/costos-por-segmento.md`).
+
+**Condiciones comunes a las tres opciones:**
+
+- Precios + IVA. La implementación se paga en pesos, al dólar oficial vendedor del BNA del día del pago.
+- El abono se fija en pesos y se ajusta cada trimestre por IPC.
+- La comisión de Mercado Pago y las claves de servicios externos, si superan el cupo incluido, las paga MIA.
+
+| | **A. Suscripción** ✅ recomendada | **B. Licencia + mantenimiento** | **C. Arranque** |
+|---|---|---|---|
+| Alcance | Las 11 apps, portal del cliente, IA con cupo mensual, hasta 8 usuarios | Igual que A | Proyectos, ficha y cotización, proveedores, portal; 4 usuarios |
+| Implementación | **USD 4.500** (~$6,5 M): ajuste a su proceso, carga de datos, capacitación | USD 14.000 (~$20,3 M): licencia de uso perpetua | USD 2.000 (~$2,9 M) |
+| Mensual | **USD 300 (~$435.000)** con soporte, actualizaciones, hosting y respaldo | USD 230 (~$333.000) de mantenimiento (~20 % anual) | USD 180 (~$261.000) |
+| Usuario extra | USD 25 | USD 25 | USD 25 |
+| Total año 1 | **USD 8.100** | USD 16.760 | USD 4.160 |
+| Total a 3 años | USD 15.300 | USD 22.280 | USD 8.480 |
+| Plazo | 3–4 semanas | 3–4 semanas | 2 semanas |
+
+**Formas de pago:**
+
+- Implementación: 50 % al firmar y 50 % al entregar.
+- Opción A: permanencia de 12 meses.
+
+**El código fuente propio no está en ninguna opción.** El sistema corre sobre el motor de GSG, que es
+compartido. Si MIA exige ser dueña del código, la referencia es el valor de construirlo de cero:
+USD 30.000 o más.
+
+**Por qué la opción A:**
+
+- **Contra una agencia de IA**, el primer año cuesta un tercio o la mitad: USD 8.100 contra
+  USD 12.500–31.000, si se suma el mantenimiento.
+- **Contra un SaaS de eventos de afuera**, el abono es parecido, pero el sistema está en castellano, en
+  pesos y hecho a su medida.
+- **Para GSG**, es ingreso recurrente con un costo marginal casi nulo.
+
+**Piso para negociar** `[INFERIDO]`: implementación de USD 3.000 y abono de USD 250. Más abajo, el abono
+no paga el soporte de un cliente con 8 usuarios.
+
+## 4. Antes de enviar
+
+1. **Relevar a MIA:** usuarios, proyectos por mes, condición fiscal (por el IVA), si factura en dólares y
+   si quiere ARCA desde el día uno.
+2. **Cerrar los 10 puntos pendientes** de la brecha con Heka, o sacarlos del alcance de la opción C.
+3. **Pase a producción** 🔴: respaldo, migración en Neon y push. Necesita la orden del dueño (Gate 2).
+4. **Reconfirmar** el dólar y los precios `[EXTRACTO]`.
+5. **Costear el cupo de IA:** hoy usa Cloudflare gratis. Hay que fijar el tope mensual incluido.
 
 ## Fuentes
 
-- Competencia:
-  - brinden.com
-  - honeybook.com/pricing
-  - dubsado.com/pricing
-  - rentman.io/pricing
-  - current-rms.com/pricing
-  - planningpod.com
-  - perfectvenue.com (comparativas)
-  - help.booqable.com
-  - bitrix24.com/prices
-  - eventbrite.com (tarifas para organizadores)
-  - productorxs.alpogo.com
-  - producers.passline.com
-  - app.spomsolutions.com/blog/cuanto-cuesta-erp-argentina-2026
-- Desarrollo:
-  - lemon.io/rate-calculator/argentina
-  - developargentina.com (salarios y costos de software factory 2026)
+- Competencia IA:
+  - fuzen.io (precios de Lovable 2026)
+  - jetadmin.io (precios de Bolt, Bubble y Glide 2026)
+  - alternativeto.net (planes de Replit)
+  - softr.io (precios de Airtable)
+  - cvemon.intruder.io (CVE-2025-48757)
+  - bitsens.com (costo de un MVP con IA 2026)
+  - developargentina.com (empresas de software y agentes IA 2026)
+  - getdx.com y codercops.com (estudios METR)
+  - blog.google (DORA 2025)
+  - shiftmag.dev (encuesta Stack Overflow 2025)
+  - gautamkhorana.com (precios de agencias con IA)
+  - blueacornici.com (mantenimiento)
+- Tarifas:
+  - lemon.io
   - devico.io
-  - nexosmart.com.ar/costos/desarrollo-sistema-gestion
+  - nexosmart.com.ar
   - drimfix.com
-  - neowyze.tech
-  - prisys.com.ar
-- Rubro e impuestos:
-  - iprofesional.com (costo de fiestas 2026)
-  - hacecuentas.com/eventos/casamiento
-  - lanacion.com.ar (REM: inflación 2026 del 20,1 %)
-  - presupuestofamiliar.com.ar (escala de monotributo de agosto 2026)
+- SaaS de eventos:
+  - planningpod.com
+  - perfectvenue.com
+  - honeybook.com
+  - rentman.io
 - Interno:
+  - sesiones «Análisis de sistema de gestión Heka» y «Administración y renderizado de propuestas MIA» (01–02/11)
   - `docs/estrategia/costos-por-segmento.md`
-  - `docs/estrategia/comercial/documento-fundacional-comercial.md` §6
