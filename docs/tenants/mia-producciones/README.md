@@ -115,7 +115,7 @@ el negocio funciona pero sin su marca. El camino alternativo sin terminal es el 
 
 ## Apps por rol y reglas de plata (01/11/2026)
 
-Provisional hasta confirmarlo con MIA. Probado en la demo con un usuario por rol: `admin@`, `administracion@`, `comercial@`, `diseno@`, `produccion@` y `sinficha@`.
+**Reglas fijadas el 02/11/2026:** el dueño decidió aplicar lo que recomienda GSG sin esperar a MIA en siete puntos: menú por rol, cuotas previstas, diferencia de cambio, «referencia», motivos de pérdida, formularios directos y cambio de cliente. Son las que figuran acá y MIA no las validó todavía: si pide otra cosa, es un cambio. Probado en la demo con un usuario por rol: `admin@`, `administracion@`, `comercial@`, `diseno@`, `produccion@` y `sinficha@`.
 
 | Rol | Barra |
 |---|---|
@@ -134,17 +134,17 @@ Provisional hasta confirmarlo con MIA. Probado en la demo con un usuario por rol
 - **Anticipo del cliente:** vence el día que se confirma el evento y esa fecha no se mueve más. Una fecha corregida a mano en Administración tampoco la pisa una regeneración.
 - **Vencido:** se cuenta por día en Argentina. Lo que vence hoy sigue pendiente hasta la noche.
 - **Cuenta al marcar:** es obligatorio elegirla, o decir «No mueve ninguna cuenta». Ya no puede quedar sin mover por olvido.
-- **Formularios directos:** si el evento tiene cuotas de cobro o de pago, se registran marcando la cuota; el formulario directo de ese tipo se oculta para no contar la plata dos veces. Provisional.
+- **Formularios directos:** si el evento tiene cuotas de cobro o de pago, se registran marcando la cuota; el formulario directo de ese tipo se oculta para no contar la plata dos veces.
 - **Costo sin proveedor:** no genera pago, y Finanzas avisa cuánto queda afuera del cashflow.
 - **Permisos dentro del proyecto:** tareas, archivos, piezas, stands, cobros y gastos piden el módulo y que el proyecto sea visible para esa persona, también en las acciones del servidor, no sólo en pantalla.
 - **Dólar y anticipo de proveedor:** cambiarlos pone al día las cuotas sin pagar de los proyectos abiertos que dependen de ellos. Lo pagado no se toca: la diferencia va al saldo.
-- **Motivos de pérdida:** lista fija, con detalle opcional (obligatorio en «Otro»). Dirección suma por lo de la lista. Lista provisional, a confirmar con MIA.
+- **Motivos de pérdida:** lista fija, con detalle opcional (obligatorio en «Otro»). Dirección suma por lo de la lista.
 - **Propuesta del cliente:** se baja en PDF sin login, con su link y sin costos. Para no aprobarla hay que decir qué cambiar.
 - **Tareas de Seguimiento:** el responsable sale del equipo del proyecto y recibe aviso; marcarla hecha también la saca de «Por hacer». Se pueden borrar.
 - **Reuniones:** se editan y cancelan desde «Reuniones del mes» del Calendario; el equipo recibe aviso si cambia la fecha o se cancela.
 - **Eventos en dólares:** venta, costo, margen, «Qué cambió» y tablero se ven en dólares, al cambio fijado de la versión. El cashflow usa el cambio de hoy, porque así se calcula cuota por cuota. Costo real y gastos siguen en pesos.
 - **Margen de lo enviado:** la versión guarda su costo al enviarse: el margen no se mueve con el dólar. Las enviadas antes de este cambio siguen mostrando «al cambio de hoy».
-- **Cliente del proyecto:** se puede cambiar, salvo que ya haya un cobro hecho a su nombre. Regla provisional.
+- **Cliente del proyecto:** se puede cambiar, salvo que ya haya un cobro hecho a su nombre.
 - **Cobro de empresa:** en Administración se cargan cobros que no son de un evento, igual que los pagos.
 - **Extractos:** se reconoce la fila de títulos, las columnas de débito y crédito y la de saldo. Sin títulos, si las dos últimas columnas son números, la última se toma como saldo. Si el importe no coincide con una cuota, se elige a mano.
 - **Chat:** trae lo nuevo cada 20 segundos, sólo con la pantalla a la vista. Si dos personas comparten nombre, se las menciona con el nombre completo junto (@AnaPérez).
@@ -153,8 +153,9 @@ Provisional hasta confirmarlo con MIA. Probado en la demo con un usuario por rol
 - **Archivos pesados (Cloudflare R2):** con las variables `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` y `R2_BUCKET` cargadas, ficha y chat del proyecto suben cualquier archivo de hasta 200 MB y 300 por proyecto, directo del navegador a la nube. Se rechaza lo que se ejecuta al abrirlo. Los links para bajar vencen a los 5 minutos y se piden después de controlar el permiso. Sin esas variables sigue todo como antes: imagen achicada, PDF de hasta 2 MB y links. El chat de Diseño sin proyecto sigue sólo con links. Quien deja una subida a medias puede dejar un archivo sin usar en la nube.
 - **Para activarla (pasos del dueño):** 1) crear el bucket en R2; 2) crear un token de R2 con lectura y escritura sólo sobre ese bucket; 3) en el bucket, poner CORS: `[{"AllowedOrigins":["https://<dominio de MIA>"],"AllowedMethods":["PUT"],"AllowedHeaders":["Content-Type"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]`; 4) cargar las cuatro variables en Vercel y redeployar; 5) subir y bajar un archivo de prueba. La firma se probó contra un servidor local que imita a R2, todavía no contra R2 real.
 - **Tope de subida:** `next.config.ts` sube las acciones a 3 MB para el PDF. Vale para todos los negocios al desplegar.
+- **«Referencia» en cuentas:** no se suma una columna aparte: la columna «En pesos» de cobros y pagos es la referencia de cada cuota al cambio de hoy.
 - **Cuotas previstas:** guardar la ficha genera cobros y pagos en cualquier etapa, también sin fecha. Sin confirmar o sin fecha quedan «previstas»: se ven en las finanzas del evento, no suman en Administración, cashflow, agenda, proveedores, Resumen ni IA, y no se pueden marcar. Al confirmar con fecha pasan a ser plata real.
-- **Moneda del evento:** cada evento se vende en pesos o en dólares (confirmado por el dueño, 01/11). El cliente ve y paga en esa moneda: ficha, cotización, propuesta, papel, Excel y cuotas de cobro. Internamente la venta se guarda en pesos al **cambio de la versión** (`tcVenta`): queda fijo al escribir un precio en dólares o al enviar, y se puede corregir mientras la versión es borrador, lo que pierde la aprobación de precios. Una versión nueva conserva el cambio de la anterior. Costos, márgenes, pipeline y reportes siguen en pesos: el margen de un evento en dólares usa el cambio de la versión para la venta y el de hoy para los costos en dólares. Al cobrar, la caja asienta los pesos al cambio del día, así que la diferencia de cambio no se calcula aparte (provisional, a confirmar con quien lleve la contabilidad de MIA). La moneda no se puede cambiar con una versión enviada o un cobro hecho.
+- **Moneda del evento:** cada evento se vende en pesos o en dólares (confirmado por el dueño, 01/11). El cliente ve y paga en esa moneda: ficha, cotización, propuesta, papel, Excel y cuotas de cobro. Internamente la venta se guarda en pesos al **cambio de la versión** (`tcVenta`): queda fijo al escribir un precio en dólares o al enviar, y se puede corregir mientras la versión es borrador, lo que pierde la aprobación de precios. Una versión nueva conserva el cambio de la anterior. Costos, márgenes, pipeline y reportes siguen en pesos: el margen de un evento en dólares usa el cambio de la versión para la venta y el de hoy para los costos en dólares. Al cobrar, la caja asienta los pesos al cambio del día, así que la diferencia de cambio no se calcula aparte. La moneda no se puede cambiar con una versión enviada o un cobro hecho.
 
 ## Qué NO está hecho
 
@@ -169,8 +170,8 @@ Provisional hasta confirmarlo con MIA. Probado en la demo con un usuario por rol
 5. **Factura electrónica:** no se emite desde el módulo; sale de Facturación.
 6. **Costos del armador:** provisionales, no son de MIA.
 7. **Render:** es la vista 3D del navegador. No hay integración con un programa de render externo.
-8. **PDF:** cotización, constancia de cobro y recibo de liquidación salen como PDF del servidor (`src/lib/proyectos/papel-pdf.ts`), con el nombre y el color de MIA en texto, sin su logo. La constancia no es un comprobante fiscal y lo dice. La propuesta del cliente sigue siendo imprimir desde el navegador.
-9. **Archivos:** imágenes achicadas y PDF de hasta 2 MB en la base (30 por proyecto); links para lo pesado. Los PDF no se muestran al cliente.
+8. **PDF:** cotización, constancia de cobro y recibo de liquidación salen como PDF del servidor (`src/lib/proyectos/papel-pdf.ts`), con el nombre y el color de MIA en texto, sin su logo. La constancia no es un comprobante fiscal y lo dice. La propuesta del cliente también se baja en PDF desde su link.
+9. **Archivos:** sin R2, imágenes achicadas y PDF de hasta 2 MB en la base (30 por proyecto) y links para lo pesado; con R2, ver «Archivos pesados». Al cliente sólo se le muestran imágenes.
 10. **Caja:** el libro no tiene columna de cheques: el cheque se asienta en Transferencia y su detalle dice
    «Cheque», en cobros y en gastos. Decisión provisional a confirmar con quien lleve la contabilidad de MIA.
 11. **Gastos de proyecto:** el neto y el IVA se cargan separados y el neto es lo que se compara contra el

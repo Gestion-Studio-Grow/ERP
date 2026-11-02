@@ -46,7 +46,7 @@ export const CHECKLIST_BASE = [
   { texto: "Reunión de equipo en el lugar", categoria: "equipo", dias: 2 },
 ] as const;
 
-/** Lista fija para que Dirección pueda sumar por motivo. Provisional, a confirmar con MIA. */
+/** Lista fija para que Dirección pueda sumar por motivo. */
 export const MOTIVOS_PERDIDA = ["Precio", "Eligió otra productora", "El cliente canceló el evento", "Sin presupuesto del cliente", "No llegamos con los tiempos", "Sin respuesta del cliente", "Otro"] as const;
 
 /** El motivo se guarda como «Precio — detalle»: para sumar sólo cuenta lo de la lista. */
@@ -670,7 +670,7 @@ const APPS_DEL_ERP: Partial<Record<RolGestion, readonly string[]>> = {
   COMERCIAL: ["clientes"],
 };
 
-/** Lo que cada rol tiene a la vista. Dirección puede abrir el resto; los demás, lo que permiten sus módulos. Provisional a confirmar con MIA. */
+/** Lo que cada rol tiene a la vista. Dirección puede abrir el resto; los demás, lo que permiten sus módulos. */
 const BARRA_DEL_ROL: Record<RolGestion, readonly string[]> = {
   DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "reportes"],
   ADMINISTRACION: ["gestion-inicio", "gestion-administracion", "gestion-proveedores", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "gestion-mi-liquidacion"],
