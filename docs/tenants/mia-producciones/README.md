@@ -92,6 +92,8 @@ si hay gastos de proyecto. El push además publica lo que haya en `main` en ese 
 | 9 | Cargar los costos reales del armador en Proyectos → Configuración. Los de fábrica son referencia. | MIA | Sí |
 | 10 | Recorrido de punta a punta con un proyecto de prueba, en la dirección real. | Agente + dueño | — |
 
+**Alta hecha el 02/11/2026 por comando**, sin la consola: `npm run soporte:alta -- --nombre "MIA Producciones" --slug mia-producciones --blueprint productora --por-apps --produccion`. Cubre los pasos 6 y 7, con «Soporte GSG» como dueño provisional. La clave queda sólo en `~/.gsg-soporte/mia-producciones.txt`. Correrlo de nuevo no duplica ni pisa.
+
 Si el slug termina siendo otro, sumarlo en `src/lib/proyectos/marca.ts` y `src/lib/branding.ts`; si no,
 el negocio funciona pero sin su marca. El camino alternativo sin terminal es el SQL de
 `docs/runbooks/pase-produccion/` pegado en el SQL Editor de Neon: es el mismo lote.

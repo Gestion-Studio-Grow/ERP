@@ -30,6 +30,7 @@ const RAIZ = process.cwd();
 const ESCRITORES_PERMITIDOS: Record<string, string> = {
   "src/lib/operador/interruptores-escritura.server.ts": "la escritura condicional de la consola",
   "scripts/provision-tenant.ts": "el alta integrada (todavía no la escribe)",
+  "scripts/soporte/alta-negocio.mts": "el alta por comando de Soporte",
   "scripts/qa/visual-audit-gate.mjs": "el gate visual, SÓLO contra su PGlite en memoria (prende el piloto para medirlo)",
   "scripts/qa/facturacion-escala-e2e.mjs":
     "el QA de Facturación a escala, SÓLO contra su base efímera local (crearBaseEfimera se niega a un servidor que no sea local): prende el diseño nuevo para recorrerlo",
