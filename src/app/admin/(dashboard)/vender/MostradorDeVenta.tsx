@@ -39,6 +39,7 @@ export default async function MostradorDeVenta({
   pedidoInicial = false,
   conVendedor = false,
   desdeLaFicha = null,
+  clienteInicial = null,
 }: {
   user: Quien;
   tenantId: string;
@@ -49,6 +50,8 @@ export default async function MostradorDeVenta({
    * leídos por la página con `pedidoDeVentaDesdeLaFicha` (acotados al negocio). Sólo el boutique.
    */
   desdeLaFicha?: { cliente: ClienteElegido; repetir: RepetirPedido | null } | null;
+  /** «Sumar un producto» desde un turno de CH: la clienta ya cargada en el bloque de siempre. */
+  clienteInicial?: { nombre: string; telefono: string } | null;
 }) {
   const hoy = todayInBusinessTz();
   const [datos, stockSnap, identidad, puedeCuentas, puedeFacturar, nuevo, rubro, terminal, interruptores] = await Promise.all([
@@ -177,6 +180,7 @@ export default async function MostradorDeVenta({
         conPeso={quienCompra !== "clienta"}
         quienCompra={quienCompra}
         sinVentasDelDia={quienCompra === "clienta"}
+        clienteInicial={clienteInicial}
         envios={enviosDeSiempre}
         {...(extras
           ? {

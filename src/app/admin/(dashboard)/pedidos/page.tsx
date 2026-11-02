@@ -1,7 +1,7 @@
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { palabrasDelNegocio } from "@/lib/palabras-del-negocio";
 import Link from "next/link";
-import { getPosData, leerCerradoDeLaBandeja } from "@/lib/order-actions";
+import { getPosData, leerCerradoDeLaBandeja, leerClientaDelTurno } from "@/lib/order-actions";
 import { fmtMoneyARS, EmptyState, ButtonLink, buttonClasses, atributosBoton } from "@/components/ui";
 import { fmtShortDate, todayInBusinessTz, dateStrInBusinessTz } from "@/lib/datetime";
 import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
@@ -91,7 +91,7 @@ const EN_CURSO: ReadonlySet<string> = new Set(ESTADOS_EN_CURSO);
 
 export const metadata = { title: "Pedidos", generator: "Gestión Studio Grow" };
 
-export default async function PedidosPage({ searchParams }: { searchParams?: Promise<{ anular?: string | string[] }> }) {
+export default async function PedidosPage({ searchParams }: { searchParams?: Promise<{ anular?: string | string[]; turno?: string | string[] }> }) {
   // La guardia de la app (rol, módulo pos): esconderla del menú no la protegería. getPosData
   // vuelve a pedir orders:read, como siempre.
   const user = await requireApp("pedidos");
@@ -141,7 +141,8 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
   ]);
   // «¿Salió mal? Anular la venta» (?anular=<id>): abre el formulario de ESA venta. Si quedó afuera de
   // los últimos cerrados se lee aparte, con el mismo filtro, para que el enlace no termine en nada.
-  const anularCrudo = (await searchParams)?.anular;
+  const sp = await searchParams;
+  const anularCrudo = sp?.anular;
   const idAnular = typeof anularCrudo === "string" && anularCrudo ? anularCrudo : null;
   const cerrados =
     idAnular && !cerradosRecientes.some((o) => o.id === idAnular) && !abiertos.some((o) => o.id === idAnular)
@@ -161,8 +162,12 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
   // gestionar agenda (OWNER y RECEPCIÓN), y sólo en un negocio de servicios: en un comercio la
   // solapa «Servicios» era un callejón.
   const professionals = puedeAgenda && !comercio ? await getProfessionalsWithServices() : [];
+  // «Sumar un producto» desde el turno de CH: la venta arranca con su clienta cargada.
+  const turnoDeLaVenta = typeof sp?.turno === "string" ? sp.turno : null;
+  const clienteInicial =
+    turnoDeLaVenta && conMostradorUnico && !comercio && roleHasCapability(user.role, "orders:manage") ? await leerClientaDelTurno(turnoDeLaVenta) : null;
   const mostradorUnico = conMostradorUnico
-    ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} conVendedor={!comercio} />
+    ? <MostradorDeVenta user={user} tenantId={await getCurrentTenantId()} conVendedor={!comercio} clienteInicial={clienteInicial} />
     : undefined;
   // O-2: el POS de siempre (sólo cuando se muestra con productos) ofrece la zona del envío si el
   // negocio tiene zonas; el servidor la exige igual. Donde no se usa, no se lee nada.

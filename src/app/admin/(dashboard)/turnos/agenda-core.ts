@@ -167,6 +167,8 @@ export function textoSeniaPedida(t: Pick<TurnoDelDia, "estado" | "inicio" | "sug
 export type Permisos = {
   /** Agenda práctica prendida: un turno terminado ofrece «Reservar el próximo» (E5). */
   practica?: boolean;
+  /** CH y orders:manage: el turno ofrece «Sumar un producto» (cobrar-una-venta.ts). */
+  sumarProducto?: boolean;
   /** agenda:manage — confirmar, cancelar, reprogramar, dar de baja un saldo. */
   gestionar: boolean;
   /** agenda:collect — cobrar (además, el veredicto de cada turno). */

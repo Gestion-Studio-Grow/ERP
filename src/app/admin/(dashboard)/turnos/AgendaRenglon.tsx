@@ -118,8 +118,10 @@ export default async function AgendaRenglon({
 }) {
   const hoy = todayInBusinessTz();
   const dia = fecha && esFechaDeCalendario(fecha) ? fecha : hoy;
+  const cobrarVenta = enlaceCobrarUnaVenta(await getCurrentTenantSlug(), quien.role);
   const permisos: Permisos = {
     practica: await agendaPractica(),
+    sumarProducto: cobrarVenta !== null,
     gestionar: roleHasCapability(quien.role, "agenda:manage"),
     cobrar: roleHasCapability(quien.role, "agenda:collect"),
     terminar: roleHasCapability(quien.role, "agenda:complete"),
@@ -128,7 +130,6 @@ export default async function AgendaRenglon({
   };
   // Mañana, sólo mirando HOY y para quien gestiona la agenda (como siempre).
   const verManana = permisos.gestionar && dia === hoy;
-  const cobrarVenta = enlaceCobrarUnaVenta(await getCurrentTenantSlug(), quien.role);
   const [cruda, manana, piloto, negocio, pendientes] = await Promise.all([
     getAgendaDay(dia),
     verManana ? getMananaConfirmar() : Promise.resolve(null),

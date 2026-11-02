@@ -12,3 +12,17 @@ export function enlaceCobrarUnaVenta(slug: string | null | undefined, role: Role
   if (!esEstetica(slug) || !roleHasCapability(role, "orders:manage")) return null;
   return { href: HREF_COBRAR_UNA_VENTA, etiqueta: palabrasDelNegocio(slug).cobrarLaVenta };
 }
+
+/**
+ * «Sumar un producto» desde el turno (UAT venta de productos, S.1): el mismo cajón, con la clienta
+ * ya cargada. Son dos cobros, el del turno y el de la venta. Va el id del turno y no el teléfono:
+ * los datos de la clienta no viajan en la URL, los lee el servidor (`leerClientaDelTurno`).
+ */
+export function hrefSumarProducto(turnoId: string): string {
+  return `${HREF_COBRAR_UNA_VENTA}&turno=${encodeURIComponent(turnoId)}`;
+}
+
+/** Un turno cancelado o en que no vino no tiene visita a la que sumarle nada. */
+export function turnoAdmiteProducto(estado: string): boolean {
+  return estado !== "CANCELLED" && estado !== "NO_SHOW";
+}

@@ -210,6 +210,8 @@ export type PropsDeVender = {
   factura?: { receptor: string; sinFactura: string | null };
   /** El negocio no tiene Ventas del día (CH): lo que manda ahí, manda a Pedidos. Lo decide MostradorDeVenta. */
   sinVentasDelDia?: boolean;
+  /** La clienta ya cargada («Sumar un producto» desde el turno). Un cobro sin confirmar en la pestaña gana. */
+  clienteInicial?: { nombre: string; telefono: string } | null;
   /** Tope del precio a mano de quien vende (null = sin tope). La misma regla que el servidor. */
   topePrecioAMano?: TopePrecioAMano | null;
   /** El negocio (su id): separa en el almacén de la pestaña el cobro sin confirmar de cada uno. */
@@ -273,6 +275,7 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
   puedeFacturar = false,
   factura,
   sinVentasDelDia = false,
+  clienteInicial = null,
   topePrecioAMano = null,
   negocioId = "",
   usuarioId = "",
@@ -415,11 +418,11 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
   // Opcionales, cerrados hasta que alguien los abre (ninguno suma un paso al camino feliz).
   const Quien = quienCompra === "clienta" ? "Clienta" : "Cliente";
   const alQuien = quienCompra === "clienta" ? "a la clienta" : "al cliente";
-  const [conCliente, setConCliente] = useState(k?.conCliente ?? Boolean(desdeLaFicha));
-  const [telefono, setTelefono] = useState(k?.telefono ?? "");
-  const [nombreCliente, setNombreCliente] = useState(k?.nombre ?? "");
+  const [conCliente, setConCliente] = useState(k?.conCliente ?? Boolean(desdeLaFicha || clienteInicial));
+  const [telefono, setTelefono] = useState(k?.telefono ?? clienteInicial?.telefono ?? "");
+  const [nombreCliente, setNombreCliente] = useState(k?.nombre ?? clienteInicial?.nombre ?? "");
   const [busqueda, setBusqueda] = useState<"nada" | "buscando" | "encontrado" | "sin-ficha" | "error">(
-    k?.fichaEncontrada ? "encontrado" : "nada",
+    k?.fichaEncontrada || (!k && clienteInicial) ? "encontrado" : "nada",
   );
   const [conDescuento, setConDescuento] = useState(k?.descuento.abierto ?? false);
   // El cupón es la tercera forma del descuento: uno o el otro, nunca los dos (lo mismo exige el

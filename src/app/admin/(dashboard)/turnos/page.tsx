@@ -126,6 +126,7 @@ export default async function TurnosCalendarPage({
       gestionar: canManage,
       cobrar: canCollect,
       terminar: roleHasCapability(user.role, "agenda:complete"),
+      sumarProducto: enlaceCobrarUnaVenta(slug, user.role) !== null,
       perdonar: roleHasCapability(user.role, "agenda:forgive"),
       anular: anulacionDeCobro(user.role),
     },

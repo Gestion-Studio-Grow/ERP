@@ -164,6 +164,20 @@ export async function leerCerradoDeLaBandeja(id: string) {
 }
 
 /**
+ * La clienta de un turno, para cargarla en la venta («Sumar un producto»). Del negocio y para quien
+ * puede vender. Sólo lee: la venta va por `createOrder`, como cualquier otra.
+ */
+export async function leerClientaDelTurno(turnoId: string): Promise<{ nombre: string; telefono: string } | null> {
+  await requireCapability("orders:manage");
+  const tenantId = await getCurrentTenantId();
+  const turno = await prisma.appointment.findFirst({
+    where: { tenantId, id: turnoId },
+    select: { client: { select: { name: true, phone: true } } },
+  });
+  return turno ? { nombre: turno.client.name, telefono: turno.client.phone } : null;
+}
+
+/**
  * `productos`: «lista» trae los vendibles (el formulario de siempre los necesita); «si-hay» sólo
  * dice si hay alguno (el mostrador único carga los suyos y la página sólo decide el estado vacío);
  * «no» ni pregunta (y `hayVendibles` es null: no se sabe). Menos lecturas contra la base (Neon,
