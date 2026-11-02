@@ -26,7 +26,8 @@ import { recordMovement } from "@/lib/stock/ledger";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { generateSlotsForDays } from "@/lib/booking-slots";
 import { validateBookingContact } from "@/lib/contact-validation";
-import { isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
+import { isInvoicingEnabled } from "@/lib/fiscal";
+import { resultadoDeFacturaFallida } from "@/lib/turnos/factura-fallida.server";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
 import { avisoDeFacturaDelTurno, type ResultadoFacturaDelTurno } from "@/lib/turnos/aviso-factura";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
@@ -2243,13 +2244,7 @@ async function facturarConResultado(appointmentId: string, tenantId: string): Pr
     }
     return { tipo: "emitida", status: factura.status, rechazoMotivo: factura.rechazoMotivo };
   } catch (err) {
-    // El negocio todavía no factura: no es una falla que recepción pueda resolver, y se repetiría en cada turno.
-    if (err instanceof PerfilFiscalIncompletoError) {
-      logger.warn("arca", "perfil fiscal incompleto: el turno no se factura", { appointmentId, tenantId, campo: err.campo });
-      return { tipo: "sin-factura" };
-    }
-    logger.error("arca", "facturación best-effort falló", err, { appointmentId, tenantId });
-    return { tipo: "fallo" };
+    return resultadoDeFacturaFallida(err, { appointmentId, tenantId });
   }
 }
 
