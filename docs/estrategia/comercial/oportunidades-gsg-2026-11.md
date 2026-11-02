@@ -264,3 +264,86 @@ por debajo de una agencia de IA.
 
 **Escenario** `[INFERIDO]`: 2 sistemas por mes a USD 4.000 son USD 8.000 por mes en proyectos. Con 10 abonos
 acumulados de USD 200 en 5 meses se suman USD 2.000 por mes que quedan aunque no entre ningún proyecto nuevo.
+
+### 8.1 Precios de mercado a fondo (búsqueda extendida, 2026-11-02)
+
+La red de la sesión bloquea abrir páginas (proxy 403), así que las cifras salen de lo que el buscador
+muestra de cada página `[EXTRACTO]`. Casi todas las fuentes son blogs de los propios proveedores: son
+precios de lista, sesgados hacia arriba.
+
+**Valor hora en Argentina:**
+
+| Perfil | USD/h | Fuente |
+|---|---|---|
+| Fiverr (global), CRM | 25 | fiverr.com |
+| Freelancer AR junior / semi / senior | 15–30 / 35–55 / 45–85 | teclab (informe LATAM 2025), cristiantait.com |
+| Semi / senior en estudio | 30–45 / 45–60 | sodi.com.ar |
+| Software factory grande | 80–120 · Globant 70–180 (no publica) | sodi.com.ar, suriscode.com |
+| Sueldo en relación de dependencia (Sysarmy 2026.1, mediana bruta mensual) | junior $1,54 M · semi $2,50 M · senior $3,50 M | teclab, Firtman en X |
+
+**Proyecto cerrado:**
+
+| Proveedor | Chico | Mediano | Grande | Mantenimiento |
+|---|---|---|---|---|
+| Fiverr, CRM inicial (1 usuario, 7 días) | USD 400 (reseñas: 100–400) | – | – | – |
+| Skyma IT (AR, dólar a 1.450) | USD 1.000–2.500 en 3–5 semanas | USD 2.500–7.000 (3–5 partes) | USD 8.000–20.000 (10 o más) | USD 60–180 chico · hasta 1.000 grande |
+| Prisys (AR), sistema de gestión | USD 1.500 | hasta USD 4.500+ | – | – |
+| Nebula Solutions (AR) | Web app desde USD 2.000 | Sistema interno desde USD 3.000 | – | – |
+| Cambalache Studio (BA) | Desde USD 2.000, en 8–12 semanas | – | – | – |
+| Nexosmart (AR) | App USD 3.000 | Sistema USD 3.500–8.200 | – | USD 80–150 |
+| Sistemas Winter (AR) | App MVP desde USD 5.000 | USD 10.000–30.000 con backend | – | – |
+| developargentina (AR) | App USD 3.000–8.000 | USD 10.000–30.000 | – | USD 500–3.000/mes |
+| Grupo Vansur (AR) | MVP USD 8.000–20.000 en 2–4 meses | – | – | 15–20 % anual |
+| Estudios chicos / medianos / consultoras (app móvil) | USD 10–30k | USD 25–80k | USD 100k+ | – |
+| Vytra (LatAm), MVP con IA | Desde USD 15.000 en 6–10 semanas | hasta USD 40.000 | – | – |
+| Webvise (Europa), MVP asistido por IA | €5.000–25.000 en 3–5 semanas (agencia tradicional: €60.000+) | – | – | – |
+| Suscripción: Teon / Tec5 (AR) | Desde USD 250/mes | Desde $900.000/mes | – | – |
+| SaaS de gestión mensual | USD 80–150/mes | – | – | – |
+
+**Lectura (corrige lo dicho arriba):**
+
+1. **El mercado real de este servicio en Argentina son los estudios chicos:** USD 1.000–2.500 por algo
+   chico y USD 2.500–7.000 por un sistema mediano. Nuestra lista propuesta queda **a la par** de ellos.
+   No queda 30–50 % por debajo: eso vale sólo contra las agencias de IA (Vytra) y las software factories
+   medianas.
+2. **Nuestra ventaja es el plazo, no el precio.** Ellos entregan en 3–5 semanas lo chico y en 2–4 meses
+   el MVP; nosotros, en 1–2 semanas y 3–6 semanas. **Hay que vender eso:** «la mitad del tiempo, al
+   mismo precio, con ARCA, MP y WhatsApp».
+3. **El piso es USD 1.000.** Debajo está Fiverr (USD 100–400) con plantillas, y un proveedor advierte que
+   un MVP bien hecho no se hace a ese precio. No hay que bajar ahí.
+4. **El abono va en la banda del mercado:** USD 60–180 para lo chico y 15–20 % anual del desarrollo. La
+   app simple pasa de USD 40–80 a **USD 60–120**.
+5. **La bolsa de horas** pasa a **USD 350 cada 10 horas** (USD 35/h, el semi senior del mercado).
+6. **Nuestro margen real** `[INFERIDO]`: un sistema de USD 4.000 lleva ~30–40 horas del dueño más los
+   tokens. Eso da unos USD 100 por hora efectivos, el doble de un senior argentino.
+
+**Lista ajustada:**
+
+| Paquete | Precio | Abono |
+|---|---|---|
+| Prototipo | USD 400–800, se descuenta si avanza | – |
+| App simple | **USD 1.500–2.500** | **USD 60–120** |
+| Sistema de gestión | **USD 3.500–7.000** (centro: 4.500) | USD 150–300 |
+| Proyecto grande | USD 8.000–15.000 | USD 300–500 |
+| Bolsa de 10 horas | **USD 350** | – |
+
+Fuentes:
+- Precios de proyectos:
+  - skymait.com/blog/cuanto-cuesta-software-a-medida-argentina
+  - prisys.com.ar/blog/cuanto-cuesta-sistema-de-gestion-argentina
+  - nebulasolutions.com.ar/es/blog/cuanto-cuesta-hacer-una-app-argentina
+  - nexosmart.com.ar (costos y respuestas 2026)
+  - sistemaswinter.com/precios/cuanto-cuesta-una-app-movil
+  - developargentina.com (guías de apps 2026)
+  - grupovansur.com
+  - sodi.com.ar/blog/cuanto-cuesta-software-a-medida-argentina
+  - suriscode.com
+  - troopsf.com (ranking, Cambalache)
+  - vytra.ai
+  - webvise.io
+  - tec5.tech (Teon y Tec5)
+- Tarifas y sueldos:
+  - fiverr.com (gig de CRM y guía de costos 2026)
+  - teclab.edu.ar (sueldos Sysarmy 2026.1 y tarifas freelance)
+  - cristiantait.com
+  - x.com/maxifirtman (Sysarmy 2026)
