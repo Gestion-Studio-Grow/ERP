@@ -1160,7 +1160,7 @@ export function useNucleoDeVenta({ products: productosDeLaPagina,
           )}
           <TicketVenta venta={ultima.venta} negocio={negocio} pagoCon={ultima.pagoCon} terminal={terminal} imprimirAlCobrar />
           {!ultima.venta.anulada && (
-            <Link href={rutaDeAnulacion(ultima.venta.id, { sinVentasDelDia })} className="inline-flex min-h-11 items-center text-sm text-muted underline hover:text-strong">
+            <Link href={rutaDeAnulacion(ultima.venta.id, { sinVentasDelDia, nacioAbierta: ultima.venta.aCuenta })} className="inline-flex min-h-11 items-center text-sm text-muted underline hover:text-strong">
               ¿Salió mal? Anular la venta #{ultima.venta.code}
             </Link>
           )}

@@ -26,8 +26,10 @@ export function rutaParaAnularEnCerrados(id: string): string {
 }
 
 /** Adónde lleva «¿Salió mal? Anular la venta», según tenga o no Ventas del día el negocio. */
-export function rutaDeAnulacion(id: string, { sinVentasDelDia }: { sinVentasDelDia: boolean }): string {
-  return sinVentasDelDia ? rutaParaAnularEnCerrados(id) : rutaParaAnularLaVenta(id);
+export function rutaDeAnulacion(id: string, { sinVentasDelDia, nacioAbierta = false }: { sinVentasDelDia: boolean; nacioAbierta?: boolean }): string {
+  if (!sinVentasDelDia) return rutaParaAnularLaVenta(id);
+  // La venta a cuenta de CH nace abierta (`ventaNaceEntregada`): no está en Cerrados, sino en Abiertos.
+  return nacioAbierta ? "/admin/pedidos" : rutaParaAnularEnCerrados(id);
 }
 
 export type CanalDeVenta = "COUNTER" | "ONLINE";

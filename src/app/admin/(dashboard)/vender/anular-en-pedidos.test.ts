@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { rutaDeAnulacion, rutaParaAnularLaVenta } from "../ventas/filtros";
 import { leerFiltrosDelTablero } from "../pedidos/pedidos-core";
+import { ventaNaceEntregada } from "@/lib/venta-reglas";
 
 const fuente = (ruta: string) => readFileSync(new URL(ruta, import.meta.url), "utf8");
 
@@ -19,9 +20,18 @@ test("sin Ventas del día (CH) el enlace lleva a Pedidos, a Cerrados, y ubica la
   assert.equal(rutaDeAnulacion("v/1", { sinVentasDelDia: false }), rutaParaAnularLaVenta("v/1"));
 });
 
+test("la venta a cuenta de CH nace abierta: el enlace lleva a la pestaña donde está", () => {
+  const venta = { isRetail: false, esEstetica: true, channel: "COUNTER", fulfillment: "PICKUP", paid: true, paymentMethod: null, aCuenta: true };
+  assert.equal(ventaNaceEntregada(venta), false, "por eso no está en Cerrados");
+  const abierta = new URL(rutaDeAnulacion("v1", { sinVentasDelDia: true, nacioAbierta: true }), "http://x");
+  assert.equal(abierta.pathname, "/admin/pedidos");
+  assert.equal(leerFiltrosDelTablero(abierta.searchParams).estado, "abiertos");
+  assert.equal(rutaDeAnulacion("v1", { sinVentasDelDia: false, nacioAbierta: true }), rutaParaAnularLaVenta("v1"), "con Ventas del día, como siempre");
+});
+
 test("el mostrador usa ese enlace, y sólo CH lo pide", () => {
   const nucleo = fuente("./nucleo-de-venta.tsx");
-  assert.match(nucleo, /<Link href=\{rutaDeAnulacion\(ultima\.venta\.id, \{ sinVentasDelDia \}\)\}/);
+  assert.match(nucleo, /<Link href=\{rutaDeAnulacion\(ultima\.venta\.id, \{ sinVentasDelDia, nacioAbierta: ultima\.venta\.aCuenta \}\)\}/);
   assert.doesNotMatch(nucleo, /rutaParaAnularLaVenta/);
   assert.match(fuente("./MostradorDeVenta.tsx"), /sinVentasDelDia=\{quienCompra === "clienta"\}/);
 });
