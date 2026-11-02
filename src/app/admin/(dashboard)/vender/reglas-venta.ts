@@ -550,6 +550,8 @@ export type VentaTicket = {
   cliente: string | null;
   telefono: string | null;
   anulada: boolean;
+  /** Sigue en la bandeja, en Abiertos (un pedido, aunque ya esté cobrado): no está en Cerrados. */
+  abierta?: true;
   /** Saldada contra la cuenta corriente del cliente: sin medio, no entró plata. */
   aCuenta?: true;
   /** Cobrada con VARIOS medios: cuánto por cada uno (`medio` queda null en el ticket). */
@@ -625,6 +627,8 @@ export function ventaDeOrden(o: OrdenParaTicket): VentaTicket {
     cliente: nombre && nombre !== SIN_CLIENTE ? nombre : null,
     telefono: o.customerPhone.trim() || null,
     anulada: o.status === "CANCELLED",
+    // La misma regla que `wherePedidosCerrados`: cerrada es la anulada o la entregada y cobrada.
+    ...(o.status !== "CANCELLED" && !(o.status === "DELIVERED" && o.paid !== false) ? { abierta: true as const } : {}),
     ...(o.paid && !o.paymentMethod ? { aCuenta: true as const } : {}),
     ...(pagos.length > 1 ? { pagos } : {}),
     ...(ahorro > 0 ? { ahorroPromos: ahorro } : {}),
