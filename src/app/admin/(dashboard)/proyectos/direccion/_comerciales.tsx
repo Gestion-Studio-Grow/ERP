@@ -2,6 +2,7 @@ import { KpiTile } from "@/components/ui";
 import { ETAPAS, etapaLabel, pesos, porcentaje } from "@/lib/proyectos/core";
 import { estaConfirmado, sumarPor, tasaDeConversion } from "@/lib/proyectos/empresa-core";
 import { proyectosConNumeros } from "@/lib/proyectos/empresa.server";
+import { motivoBase } from "@/lib/proyectos/gestion-core";
 import { BarrasAcostadas } from "../administracion/_graficos";
 import { tarjeta } from "../_vista";
 
@@ -19,7 +20,7 @@ export async function TabComerciales({ tenantId }: { tenantId: string }) {
   const aFilas = (l: { nombre: string; valor: number }[]) => l.map((x) => ({ ...x, texto: pesos(x.valor) }));
   const porCliente = sumarPor(confirmados, (p) => p.cliente, (p) => p.venta);
   const porTipo = sumarPor(confirmados, (p) => p.tipoEvento || "Sin tipo", (p) => p.venta);
-  const motivos = sumarPor(perdidos, (p) => p.motivoPerdida?.trim() || "Sin motivo cargado", () => 1);
+  const motivos = sumarPor(perdidos, (p) => (p.motivoPerdida ? motivoBase(p.motivoPerdida) : "") || "Sin motivo cargado", () => 1);
   return (
     <div className="grid gap-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

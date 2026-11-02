@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { Badge, buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
-import { agregarTarea, alternarTarea } from "@/lib/proyectos/acciones";
+import { agregarTarea, alternarTarea, borrarTarea } from "@/lib/proyectos/acciones";
 import { agregarChecklist, alternarChecklist, asignarEquipo, borrarChecklist, cargarPlantillaChecklist, generarPortal, guardarDatos, nuevaVersion, quitarEquipo, revocarPortal } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, yaVencio, type MedioPago } from "@/lib/proyectos/core";
 import { conteoPorEstado } from "@/lib/proyectos/ficha-core";
 import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, plataEn, TIPOS_EVENTO, ventaEn } from "@/lib/proyectos/gestion-core";
 import { datosFicha, datosHistorial, datosResumen, datosSeguimiento, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
-import type { Actor } from "@/lib/proyectos/gestion.server";
+import { puede, type Actor } from "@/lib/proyectos/gestion.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
 import { CopiarLink } from "./_piezas";
@@ -117,7 +117,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
 
       <section className={tarjeta} aria-label="Equipo del evento">
         <h2 className="mb-1 font-semibold text-strong">Equipo del evento</h2>
-        <p className="mb-3 text-sm text-muted">Cada persona ve sólo sus proyectos, salvo Dirección y Administración.</p>
+        <p className="mb-3 text-sm text-muted">Cada persona ve sólo sus proyectos, salvo Dirección, Administración y Comercial.</p>
         {p.equipo.length === 0 && <p className="mb-3 text-sm text-muted">Sin personas asignadas.</p>}
         <ul className="mb-3 grid gap-1">
           {p.equipo.map((e) => (
@@ -229,6 +229,7 @@ export async function PestanaSeguimiento({ a, cab, vista }: { a: Actor; cab: Cab
   const { checklist, tareas, cuotas, pagos } = await datosSeguimiento(a, cab, vista);
   const listos = checklist.filter((c) => c.hechoEl).length;
   const conteo = conteoPorEstado(viva?.items ?? []);
+  const editaTareas = puede(a, "ficha", "editar") || puede(a, "diseno", "editar");
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <section className={tarjeta} aria-label="Checklist hasta el evento">
@@ -300,27 +301,38 @@ export async function PestanaSeguimiento({ a, cab, vista }: { a: Actor; cab: Cab
           {tareas.length === 0 && <p className="mb-3 text-sm text-muted">Sin tareas todavía.</p>}
           <ul className="mb-3 grid gap-1">
             {tareas.map((t) => (
-              <li key={t.id}>
-                <form action={alternarTarea} className="flex items-center gap-2">
+              <li key={t.id} className="flex items-center gap-2">
+                <form action={alternarTarea} className="flex min-w-0 flex-1 items-center gap-2">
                   <input type="hidden" name="id" value={t.id} />
-                  <button type="submit" aria-label={t.hechaEl ? `Reabrir ${t.titulo}` : `Marcar hecha ${t.titulo}`} className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-line text-strong">{t.hechaEl ? "✓" : ""}</button>
+                  <button type="submit" disabled={!editaTareas} aria-label={t.hechaEl ? `Reabrir ${t.titulo}` : `Marcar hecha ${t.titulo}`} className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-line text-strong">{t.hechaEl ? "✓" : ""}</button>
                   <span className={cn("min-w-0 flex-1 text-sm", t.hechaEl && "text-muted line-through")}>
                     {t.titulo}
                     {(t.responsable || t.venceEl) && <span className="block text-xs text-muted">{[t.responsable, t.venceEl && `vence ${fechaCorta(t.venceEl)}`].filter(Boolean).join(" · ")}</span>}
                   </span>
                 </form>
+                {editaTareas && (
+                  <form action={borrarTarea}>
+                    <input type="hidden" name="id" value={t.id} />
+                    <button type="submit" aria-label={`Borrar ${t.titulo}`} className={buttonClasses("ghost", "md")}>Borrar</button>
+                  </form>
+                )}
               </li>
             ))}
           </ul>
-          <form action={agregarTarea} className="grid gap-2 border-t border-line pt-3">
-            <input type="hidden" name="proyectoId" value={p.id} />
-            <input name="titulo" required aria-label="Nueva tarea" placeholder="Nueva tarea" className={campo} />
-            <div className="grid grid-cols-2 gap-2">
-              <input name="responsable" aria-label="Responsable de la tarea" placeholder="Responsable" className={campo} />
-              <input type="date" name="venceEl" aria-label="Vencimiento de la tarea" className={campo} />
-            </div>
-            <SubmitButton className={buttonClasses("outline", "md")}>Agregar tarea</SubmitButton>
-          </form>
+          {editaTareas && (
+            <form action={agregarTarea} className="grid gap-2 border-t border-line pt-3">
+              <input type="hidden" name="proyectoId" value={p.id} />
+              <input name="titulo" required aria-label="Nueva tarea" placeholder="Nueva tarea" className={campo} />
+              <div className="grid grid-cols-2 gap-2">
+                <select name="personaId" aria-label="Responsable de la tarea" defaultValue="" className={campo}>
+                  <option value="">Sin responsable</option>
+                  {p.equipo.map((e) => <option key={e.persona.id} value={e.persona.id}>{e.persona.nombre}</option>)}
+                </select>
+                <input type="date" name="venceEl" aria-label="Vencimiento de la tarea" className={campo} />
+              </div>
+              <SubmitButton className={buttonClasses("outline", "md")}>Agregar tarea</SubmitButton>
+            </form>
+          )}
         </section>
       </div>
     </div>

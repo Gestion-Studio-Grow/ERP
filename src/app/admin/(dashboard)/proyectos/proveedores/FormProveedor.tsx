@@ -56,11 +56,11 @@ export function FormProveedor({ valores }: { valores?: ValoresProveedor }) {
       <label className={etiqueta}>
         % de anticipo
         <input name="anticipoPct" type="number" min={0} max={100} step={1} required defaultValue={f?.anticipoPct ?? 50} className={campo} />
-        <span className="text-xs font-normal text-muted">Las cuotas de un proyecto confirmado no cambian hasta que se vuelve a guardar su ficha.</span>
+        <span className="text-xs font-normal text-muted">Al guardar se ponen al día las cuotas sin pagar de los proyectos abiertos con este proveedor.</span>
       </label>
       <label className={etiqueta}>
         Evaluación (1 a 5)
-        <input name="evaluacion" type="number" min={1} max={5} step={0.5} required defaultValue={f?.evaluacion ?? 4} className={campo} />
+        <input name="evaluacion" type="number" min={1} max={5} step={0.1} required defaultValue={f?.evaluacion ?? 4} className={campo} />
       </label>
       <label className={etiqueta}>
         Moneda habitual

@@ -103,7 +103,7 @@ function Permisos({ a, ok }: { a: Actor; ok: boolean }) {
   };
   return (
     <form action={guardarPermisos} className="grid gap-4">
-      <p className="text-sm text-muted">Dirección es fija: ve y edita todo. Editar incluye ver. Dirección y Administración ven todos los proyectos; el resto, sólo aquellos donde está en el equipo.</p>
+      <p className="text-sm text-muted">Dirección es fija: ve y edita todo. Editar incluye ver. Dirección, Administración y Comercial ven todos los proyectos; el resto, sólo aquellos donde está en el equipo.</p>
       {ok && <p role="status" className="text-sm font-medium text-strong">Permisos guardados.</p>}
       <section className={cn(tarjeta, "overflow-x-auto")} aria-label="Permisos por rol y módulo">
         <table className="w-full min-w-[560px] text-sm">

@@ -33,6 +33,16 @@ async function idsDeMisProyectos(a: Actor): Promise<Set<string>> {
   return new Set([...equipo.map((e) => e.proyectoId), ...responsable.map((p) => p.id)]);
 }
 
+/** Las reuniones del período que esta persona puede ver, para corregirlas o cancelarlas. */
+export function reunionesDelPeriodo(a: Actor, desde: Date, hasta: Date) {
+  return prisma.proyectoReunion.findMany({
+    where: { tenantId: a.tenantId, fecha: { gte: desde, lte: hasta }, OR: [{ proyectoId: null }, { proyecto: filtroDeProyectos(a) }] },
+    select: { id: true, titulo: true, tipo: true, fecha: true, lugar: true, proyectoId: true },
+    orderBy: { fecha: "asc" },
+    take: 200,
+  });
+}
+
 /**
  * Todo lo que tiene fecha entre `desde` y `hasta`, según lo que la persona puede ver. Los pagos y cobros sólo se consultan
  * con permiso `pagos`: sin él, no salen de la base. Lo ya hecho (ítem entregado, tarea cerrada, cuota pagada) no se muestra.
@@ -409,11 +419,14 @@ export async function buscarEnGestion(a: Actor, texto: string) {
   const visibles = filtroDeProyectos(a);
   const contiene = { contains: q, mode: "insensitive" as const };
   const numero = /^\d{1,9}$/.test(q) ? Number(q) : null;
+  // El código que se ve en pantalla (2026-008) también se busca.
+  const codigo = /^(\d{4})-(\d{1,9})$/.exec(q);
+  const porCodigo = codigo ? [{ numero: Number(codigo[2]), createdAt: { gte: new Date(`${codigo[1]}-01-01T00:00:00-03:00`), lt: new Date(`${Number(codigo[1]) + 1}-01-01T00:00:00-03:00`) } }] : [];
   const permite = (k: keyof typeof PERMISOS_BUSQUEDA) => puede(a, PERMISOS_BUSQUEDA[k], "ver");
   const [proyectos, proveedores, archivos, mensajes] = await Promise.all([
     permite("proyectos")
       ? prisma.proyecto.findMany({
-          where: { ...visibles, OR: [{ nombre: contiene }, { evento: contiene }, { ciudad: contiene }, { lugar: contiene }, { client: { name: contiene } }, ...(numero !== null ? [{ numero }] : [])] },
+          where: { ...visibles, OR: [{ nombre: contiene }, { evento: contiene }, { ciudad: contiene }, { lugar: contiene }, { client: { name: contiene } }, ...(numero !== null ? [{ numero }] : []), ...porCodigo] },
           orderBy: { numero: "desc" },
           take: 20,
           select: { id: true, numero: true, createdAt: true, nombre: true, ciudad: true, etapa: true, servicio: true, client: { select: { name: true } } },

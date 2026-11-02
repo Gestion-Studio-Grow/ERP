@@ -15,7 +15,7 @@ import { requireCapability } from "@/lib/authz";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
-import { clientePuedeResponder, leerNumero, esEtapa, esServicio, etapaAlAprobar, etapaLabel, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
+import { clientePuedeResponder, fechaCorta, leerNumero, esEtapa, esServicio, etapaAlAprobar, etapaLabel, etapasDe, MEDIOS, metodoDeCaja, precioConMargen, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 import { computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
 import { configProyectos } from "./datos.server";
 import { actorActual, avisar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
@@ -73,9 +73,16 @@ export async function agregarTarea(formData: FormData) {
   const proyectoId = txt(formData.get("proyectoId"));
   const titulo = txt(formData.get("titulo"));
   if (!titulo || !(await proyectoDelActor(a, proyectoId))) return;
+  const personaId = txt(formData.get("personaId"));
+  const miembro = personaId ? await prisma.proyectoEquipo.findFirst({ where: { tenantId, proyectoId, personaId }, select: { persona: { select: { nombre: true, userId: true } } } }) : null;
+  const venceEl = fecha(formData.get("venceEl"));
   await prisma.proyectoTarea.create({
-    data: { tenantId, proyectoId, titulo, responsable: txt(formData.get("responsable")) || null, venceEl: fecha(formData.get("venceEl")) },
+    data: { tenantId, proyectoId, titulo, personaId: miembro ? personaId : null, responsable: miembro?.persona.nombre ?? null, venceEl },
   });
+  await registrarCambio(prisma, { tenantId, proyectoId, entidad: "Tarea", entidadId: proyectoId, campo: "alta", despues: titulo, autor: a.nombre });
+  if (miembro?.persona.userId && miembro.persona.userId !== a.user.id) {
+    await avisar(prisma, { tenantId, destinatarios: [miembro.persona.userId], tipo: "deadline", texto: `Te asignaron la tarea ${titulo}${venceEl ? `, vence el ${fechaCorta(venceEl)}` : ""}`, enlace: `${RAIZ}/${proyectoId}?tab=seguimiento` });
+  }
   refrescar(proyectoId);
 }
 
@@ -85,7 +92,19 @@ export async function alternarTarea(formData: FormData) {
   const id = txt(formData.get("id"));
   const t = await prisma.proyectoTarea.findFirst({ where: { id, tenantId }, select: { proyectoId: true, hechaEl: true } });
   if (!t || !(await proyectoDelActor(a, t.proyectoId))) return;
-  await prisma.proyectoTarea.updateMany({ where: { id, tenantId }, data: { hechaEl: t.hechaEl ? null : new Date() } });
+  // El estado va con la marca: si no, una tarea hecha sigue en «Por hacer» del tablero.
+  await prisma.proyectoTarea.updateMany({ where: { id, tenantId }, data: t.hechaEl ? { hechaEl: null, estado: "POR_HACER" } : { hechaEl: new Date(), estado: "APROBADA" } });
+  refrescar(t.proyectoId);
+}
+
+export async function borrarTarea(formData: FormData) {
+  const a = await actorCon(["ficha", "diseno"]);
+  const { tenantId } = a;
+  const id = txt(formData.get("id"));
+  const t = await prisma.proyectoTarea.findFirst({ where: { id, tenantId }, select: { proyectoId: true, titulo: true } });
+  if (!t || !(await proyectoDelActor(a, t.proyectoId))) return;
+  await prisma.proyectoTarea.deleteMany({ where: { id, tenantId } });
+  await registrarCambio(prisma, { tenantId, proyectoId: t.proyectoId, entidad: "Tarea", entidadId: id, campo: "baja", antes: t.titulo, autor: a.nombre });
   refrescar(t.proyectoId);
 }
 
@@ -131,6 +150,7 @@ export async function responderPropuesta(d: { token: string; aprueba: boolean; n
   if (!/^[A-Za-z0-9_-]{20,}$/.test(d.token ?? "")) return { ok: false, error: "El link no es válido." };
   const nombre = (d.nombre ?? "").trim().slice(0, 120);
   if (!nombre) return { ok: false, error: "Escribí tu nombre para dejar constancia." };
+  if (!d.aprueba && !(d.motivo ?? "").trim()) return { ok: false, error: "Contanos qué hay que cambiar." };
   const pr = await prisma.proyectoPresupuesto.findFirst({
     where: { tenantId, token: d.token },
     select: { id: true, estado: true, version: true, validoHasta: true, proyectoId: true, proyecto: { select: { nombre: true, servicio: true, etapa: true } } },

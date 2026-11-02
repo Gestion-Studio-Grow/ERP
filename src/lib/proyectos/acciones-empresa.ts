@@ -14,7 +14,7 @@ import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
 import { leerNumero, MEDIOS, metodoDeCaja, redondear, type MedioPago } from "./core";
 import { aPesos, extrasDelPeriodo, leerExtracto, MONEDAS } from "./gestion-core";
-import { actorActual, avisar, exigirEditar, registrarCambio, tiposDeCambio } from "./gestion.server";
+import { actorActual, avisar, exigirEditar, regenerarCuotasDe, registrarCambio, tiposDeCambio } from "./gestion.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { etiquetaMes, extrasRecalculados, leerExtras, lineasNuevas, periodoValido, totalLiquidacion, type ExtraGuardado } from "./empresa-core";
 import type { Resultado } from "./acciones";
@@ -257,6 +257,7 @@ export async function guardarTipoCambio(formData: FormData): Promise<Resultado> 
   const previo = await prisma.proyectoTipoCambio.findFirst({ where: { tenantId: a.tenantId, moneda: "USD" }, select: { porUnidad: true } });
   await prisma.proyectoTipoCambio.upsert({ where: { tenantId_moneda: { tenantId: a.tenantId, moneda: "USD" } }, create: { tenantId: a.tenantId, moneda: "USD", porUnidad }, update: { porUnidad } });
   await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "tipoCambio", entidadId: "USD", campo: "pesos por dólar", antes: previo?.porUnidad, despues: porUnidad, autor: a.nombre });
+  if (previo?.porUnidad !== porUnidad) await regenerarCuotasDe(a.tenantId, { OR: [{ moneda: "USD" }, { presupuestos: { some: { items: { some: { moneda: "USD" } } } } }] });
   refrescar();
   return { ok: true };
 }

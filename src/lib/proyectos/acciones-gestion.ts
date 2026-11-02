@@ -14,7 +14,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 import { fechaCorta, leerNumero } from "./core";
-import { actorActual, avisar, exigirEditar, proyectoVisible, puede, registrarCambio, usuariosDeLaPlata, type Actor } from "./gestion.server";
+import { actorActual, avisar, exigirEditar, proyectoVisible, puede, regenerarCuotasDe, registrarCambio, usuariosDeLaPlata, usuariosDelEquipo, type Actor } from "./gestion.server";
 import { COLUMNAS_OCULTAS_BASE, MONEDAS, permisoDe, ROLES_GESTION, RUBROS, TIPOS_AVISO, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { entre, matrizDelFormulario, respuestaDePresentacion } from "./gestion-lecturas-core";
 
@@ -34,20 +34,69 @@ async function exigirAlguno(modulos: readonly ModuloGestion[]): Promise<Actor> {
 
 const TIPOS_REUNION = ["REUNION", "MONTAJE", "EVENTO_TENTATIVO"];
 
-export async function crearReunion(formData: FormData): Promise<Resultado> {
-  const a = await exigirAlguno(["pipeline", "diseno"]);
+/** Lo que se escribe en el formulario de reunión, ya validado. */
+async function leerReunion(a: Actor, formData: FormData) {
   const titulo = txt(formData.get("titulo"), 160);
-  if (!titulo) return { ok: false, error: "Poné un título." };
+  if (!titulo) return "Poné un título.";
   const cuando = txt(formData.get("fecha"), 16);
   // La hora que se escribe es la de Argentina, sea cual sea la zona del servidor.
   const fecha = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(cuando) ? new Date(`${cuando}:00-03:00`) : null;
-  if (!fecha || Number.isNaN(fecha.getTime())) return { ok: false, error: "Elegí fecha y hora." };
+  if (!fecha || Number.isNaN(fecha.getTime())) return "Elegí fecha y hora.";
   const tipo = txt(formData.get("tipo"), 20);
   const proyectoId = txt(formData.get("proyectoId"), 40) || null;
-  if (proyectoId && !(await proyectoVisible(a, proyectoId))) return { ok: false, error: "Ese proyecto no está disponible." };
+  if (proyectoId && !(await proyectoVisible(a, proyectoId))) return "Ese proyecto no está disponible.";
+  return { titulo, fecha, tipo: TIPOS_REUNION.includes(tipo) ? tipo : "REUNION", proyectoId, lugar: txt(formData.get("lugar"), 300) };
+}
+
+/** La reunión que esta persona puede tocar: una de un proyecto ajeno no existe para ella. */
+async function reunionDelActor(a: Actor, id: string) {
+  const r = await prisma.proyectoReunion.findFirst({ where: { id, tenantId: a.tenantId }, select: { id: true, titulo: true, fecha: true, proyectoId: true } });
+  if (!r || (r.proyectoId && !(await proyectoVisible(a, r.proyectoId)))) return null;
+  return r;
+}
+
+export async function editarReunion(formData: FormData): Promise<Resultado> {
+  const a = await exigirAlguno(["pipeline", "diseno"]);
+  const previa = await reunionDelActor(a, txt(formData.get("id"), 40));
+  if (!previa) return { ok: false, error: "Esa reunión ya no está." };
+  const datos = await leerReunion(a, formData);
+  if (typeof datos === "string") return { ok: false, error: datos };
+  await tenantTransaction(async (tx) => {
+    await tx.proyectoReunion.updateMany({ where: { id: previa.id, tenantId: a.tenantId }, data: datos });
+    await registrarCambio(tx, { tenantId: a.tenantId, proyectoId: datos.proyectoId, entidad: "Reunión", entidadId: previa.id, campo: "fecha", antes: fechaCorta(previa.fecha), despues: fechaCorta(datos.fecha), autor: a.nombre });
+    if (datos.proyectoId && datos.fecha.getTime() !== previa.fecha.getTime()) {
+      await avisar(tx, { tenantId: a.tenantId, destinatarios: await usuariosDelEquipo(a.tenantId, datos.proyectoId, a.user.id, tx), tipo: "deadline", texto: `La reunión ${datos.titulo} pasó al ${fechaCorta(datos.fecha)}`, enlace: `${RAIZ}/calendario` });
+    }
+  });
+  revalidatePath(`${RAIZ}/calendario`);
+  revalidatePath(`${RAIZ}/inicio`);
+  return { ok: true };
+}
+
+export async function cancelarReunion(formData: FormData): Promise<Resultado> {
+  const a = await exigirAlguno(["pipeline", "diseno"]);
+  const r = await reunionDelActor(a, txt(formData.get("id"), 40));
+  if (!r) return { ok: false, error: "Esa reunión ya no está." };
+  await tenantTransaction(async (tx) => {
+    await tx.proyectoReunion.deleteMany({ where: { id: r.id, tenantId: a.tenantId } });
+    await registrarCambio(tx, { tenantId: a.tenantId, proyectoId: r.proyectoId, entidad: "Reunión", entidadId: r.id, campo: "baja", antes: r.titulo, autor: a.nombre });
+    if (r.proyectoId) {
+      await avisar(tx, { tenantId: a.tenantId, destinatarios: await usuariosDelEquipo(a.tenantId, r.proyectoId, a.user.id, tx), tipo: "deadline", texto: `Se canceló la reunión ${r.titulo} del ${fechaCorta(r.fecha)}`, enlace: `${RAIZ}/calendario` });
+    }
+  });
+  revalidatePath(`${RAIZ}/calendario`);
+  revalidatePath(`${RAIZ}/inicio`);
+  return { ok: true };
+}
+
+export async function crearReunion(formData: FormData): Promise<Resultado> {
+  const a = await exigirAlguno(["pipeline", "diseno"]);
+  const leida = await leerReunion(a, formData);
+  if (typeof leida === "string") return { ok: false, error: leida };
+  const { titulo, fecha, tipo, proyectoId, lugar } = leida;
   await tenantTransaction(async (tx) => {
     const r = await tx.proyectoReunion.create({
-      data: { tenantId: a.tenantId, proyectoId, titulo, tipo: TIPOS_REUNION.includes(tipo) ? tipo : "REUNION", fecha, lugar: txt(formData.get("lugar"), 300), creadaPor: a.nombre },
+      data: { tenantId: a.tenantId, proyectoId, titulo, tipo, fecha, lugar, creadaPor: a.nombre },
       select: { id: true },
     });
     await registrarCambio(tx, { tenantId: a.tenantId, proyectoId, entidad: "Reunión", entidadId: r.id, campo: "alta", despues: titulo, autor: a.nombre });
@@ -64,7 +113,7 @@ export async function crearReunion(formData: FormData): Promise<Resultado> {
 
 // ── Proveedores ─────────────────────────────────────────────────────────────
 
-/** Cambiar el % de anticipo no toca cuotas: las de un proyecto confirmado se recalculan cuando se vuelve a guardar su ficha. */
+/** Cambiar el % de anticipo pone al día las cuotas de los proyectos abiertos con ese proveedor. */
 export async function guardarProveedor(formData: FormData): Promise<Resultado<{ id: string }>> {
   const a = await exigirEditar("proveedores");
   const { tenantId } = a;
@@ -105,12 +154,13 @@ export async function guardarProveedor(formData: FormData): Promise<Resultado<{ 
         await tx.proyectoProveedorFicha.create({ data: { tenantId, supplierId: supplierId!, ...ficha } });
         if (!id) await registrarCambio(tx, { tenantId, entidad: "Proveedor", entidadId: supplierId, campo: "alta", despues: name, autor: a.nombre });
       }
-      return supplierId!;
+      return { id: supplierId!, cambioAnticipo: !!previa && previa.anticipoPct !== ficha.anticipoPct };
     });
-    await auditAdmin({ action: id ? "proyecto.proveedor.editar" : "proyecto.proveedor", entity: "Supplier", entityId: guardado, changes: { name } });
+    await auditAdmin({ action: id ? "proyecto.proveedor.editar" : "proyecto.proveedor", entity: "Supplier", entityId: guardado.id, changes: { name } });
+    if (guardado.cambioAnticipo) await regenerarCuotasDe(tenantId, { presupuestos: { some: { items: { some: { supplierId: guardado.id } } } } });
     revalidatePath(`${RAIZ}/proveedores`);
-    revalidatePath(`${RAIZ}/proveedores/${guardado}`);
-    return { ok: true, id: guardado };
+    revalidatePath(`${RAIZ}/proveedores/${guardado.id}`);
+    return { ok: true, id: guardado.id };
   } catch (err) {
     if ((err as { code?: string })?.code === "P2002") return { ok: false, error: "Ya hay un proveedor con ese CUIT: buscalo en la lista." };
     throw err;

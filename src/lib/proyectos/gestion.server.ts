@@ -230,6 +230,12 @@ export const aItemFicha = (i: { id: string; descripcion: string; rubro: string; 
  * Lleva las cuotas automáticas a lo que dice la ficha. Lo pagado no se toca; lo pendiente se actualiza; lo que ya no sale de
  * la ficha se anula, sin borrarlo. Antes de confirmado, o sin fecha, las cuotas quedan como previstas.
  */
+/** Un dato de la empresa cambió: se ponen al día las cuotas de los proyectos abiertos que dependen de él. Lo pagado no se toca. */
+export async function regenerarCuotasDe(tenantId: string, cuales: Prisma.ProyectoWhereInput): Promise<void> {
+  const abiertos = await prisma.proyecto.findMany({ where: { ...cuales, tenantId, perdidoEl: null, etapa: { not: "CIERRE" } }, select: { id: true }, take: 300 });
+  for (const p of abiertos) await regenerarCuotas(tenantId, p.id);
+}
+
 export async function regenerarCuotas(tenantId: string, proyectoId: string): Promise<void> {
   const [p, viva, config, tc] = await Promise.all([
     prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true } }),

@@ -46,6 +46,12 @@ export const CHECKLIST_BASE = [
   { texto: "Reunión de equipo en el lugar", categoria: "equipo", dias: 2 },
 ] as const;
 
+/** Lista fija para que Dirección pueda sumar por motivo. Provisional, a confirmar con MIA. */
+export const MOTIVOS_PERDIDA = ["Precio", "Eligió otra productora", "El cliente canceló el evento", "Sin presupuesto del cliente", "No llegamos con los tiempos", "Sin respuesta del cliente", "Otro"] as const;
+
+/** El motivo se guarda como «Precio — detalle»: para sumar sólo cuenta lo de la lista. */
+export const motivoBase = (motivo: string): string => motivo.split(" — ")[0].trim();
+
 export function codigoProyecto(numero: number, creado: Date): string {
   return `${creado.getFullYear()}-${String(numero).padStart(3, "0")}`;
 }

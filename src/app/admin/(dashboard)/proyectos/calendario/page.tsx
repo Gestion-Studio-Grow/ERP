@@ -4,9 +4,9 @@ import { requireApp } from "@/lib/require-app";
 import { codigoProyecto, plataEn, TIPOS_CALENDARIO } from "@/lib/proyectos/gestion-core";
 import { actorActual, puede } from "@/lib/proyectos/gestion.server";
 import { agruparPorDia, claveDia, ETIQUETA_CORTA, finDelDia, grillaDelMes, inicioDelDia, mesPedido, mesVecino, nombreDelMes, type EntradaCalendario, type TipoCalendario } from "@/lib/proyectos/gestion-lecturas-core";
-import { direccionDelCalendario, entradasCalendario, opcionesDeProyecto } from "@/lib/proyectos/gestion-lecturas.server";
+import { direccionDelCalendario, entradasCalendario, opcionesDeProyecto, reunionesDelPeriodo } from "@/lib/proyectos/gestion-lecturas.server";
 import { tarjeta } from "../_vista";
-import { CopiarDireccion, FormReunion } from "./_cliente";
+import { CancelarReunion, CopiarDireccion, FormReunion } from "./_cliente";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Calendario" };
@@ -28,6 +28,7 @@ const DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const POR_CELDA = 3;
 
 const enlace = (e: EntradaCalendario): string => (e.proyectoId ? `/admin/proyectos/${e.proyectoId}` : e.tipo === "PAGO" || e.tipo === "COBRO" ? "/admin/proyectos/administracion" : "/admin/proyectos/calendario");
+const paraElCampo = (d: Date) => new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Buenos_Aires" }).format(d).replace(" ", "T");
 const hora = (d: Date) => new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Argentina/Buenos_Aires" }).format(d);
 const diaLargo = (clave: string) => new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${clave}T12:00:00Z`));
 
@@ -48,10 +49,11 @@ export default async function CalendarioGestion({ searchParams }: { searchParams
   const mes = mesPedido(sp.mes);
   const soloMias = sp.mias === "1";
   const dias = grillaDelMes(mes);
-  const [entradas, proyectos, direccion] = await Promise.all([
+  const [entradas, proyectos, direccion, reuniones] = await Promise.all([
     entradasCalendario(a, inicioDelDia(dias[0]), finDelDia(dias[dias.length - 1]), soloMias),
     opcionesDeProyecto(a),
     direccionDelCalendario(a),
+    reunionesDelPeriodo(a, inicioDelDia(dias[0]), finDelDia(dias[dias.length - 1])),
   ]);
   const porDia = agruparPorDia(entradas);
   const hoy = claveDia(new Date());
@@ -129,6 +131,25 @@ export default async function CalendarioGestion({ searchParams }: { searchParams
           </div>
         ))}
       </section>
+
+      {puedeReunir && reuniones.length > 0 && (
+        <section className={tarjeta} aria-label="Reuniones del mes">
+          <h2 className="mb-3 font-semibold text-strong">Reuniones del mes</h2>
+          <ul className="grid gap-2">
+            {reuniones.map((r) => (
+              <li key={r.id} className="border-t border-line pt-2">
+                <details>
+                  <summary className="min-h-11 cursor-pointer py-2 text-sm text-strong">{claveDia(r.fecha).split("-").reverse().join("/")} {hora(r.fecha)}: {r.titulo}</summary>
+                  <div className="grid gap-3 pt-2">
+                    <FormReunion proyectos={proyectos.map((p) => ({ id: p.id, texto: `${codigoProyecto(p.numero, p.createdAt)} ${p.nombre}` }))} reunion={{ id: r.id, titulo: r.titulo, tipo: r.tipo, fecha: paraElCampo(r.fecha), lugar: r.lugar, proyectoId: r.proyectoId }} />
+                    <CancelarReunion id={r.id} />
+                  </div>
+                </details>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {puedeReunir && (

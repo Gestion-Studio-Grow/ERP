@@ -9,6 +9,7 @@ import {
   costoTotalItem,
   cuotaParaMovimiento,
   estadoCuota,
+  motivoBase,
   extrasDelPeriodo,
   leerExtracto,
   mencionados,
@@ -332,4 +333,9 @@ test("el costo sin proveedor se cuenta en pesos, y lo que tiene proveedor no", (
     { costo: 0, cantidad: 1, moneda: "ARS", supplierId: null },
   ];
   assert.deepEqual(costoSinProveedor(items, { USD: 1000 }), { cuantos: 2, monto: 10200 });
+});
+
+test("el motivo de pérdida suma por lo de la lista, sin el detalle", () => {
+  assert.equal(motivoBase("Precio — pidió 20% menos"), "Precio");
+  assert.equal(motivoBase("Precio"), "Precio");
 });
