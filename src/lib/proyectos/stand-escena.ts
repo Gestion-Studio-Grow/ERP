@@ -20,6 +20,8 @@ export interface EscenaStand {
   vista(v: Vista): void;
   /** La imagen de lo que se ve ahora, lista para guardar en el proyecto. */
   captura(ancho?: number, alto?: number): string;
+  /** El modelo en GLB (glTF binario): cada pieza es un objeto con su nombre, tipo, medidas y posición. Sin el marco de selección. */
+  glb(): Promise<ArrayBuffer>;
   medir(ancho: number, alto: number): void;
   destruir(): void;
 }
@@ -403,6 +405,9 @@ export function crearEscena(op: OpcionesEscena): EscenaStand {
       g.position.set(p.x, 0.04 + alzado, p.z);
       g.rotation.y = -(p.giro * Math.PI) / 2;
       g.userData.piezaId = p.id;
+      // Para identificar cada objeto al exportar: tipo y medidas reales en metros.
+      g.name = PIEZAS[p.tipo].label;
+      Object.assign(g.userData, { tipo: p.tipo, ancho: PIEZAS[p.tipo].ancho, fondo: PIEZAS[p.tipo].fondo, alto: PIEZAS[p.tipo].alto, x: p.x, z: p.z, giro: p.giro, unidad: "m" });
       if (p.id === seleccion) {
         const b = PIEZAS[p.tipo];
         const marco = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(b.ancho + 0.1, b.alto + 0.1, b.fondo + 0.1)), new THREE.LineBasicMaterial({ color: "#ff5a1f" }));
@@ -491,6 +496,23 @@ export function crearEscena(op: OpcionesEscena): EscenaStand {
       camara.updateProjectionMatrix();
       renderer.render(scene, camara);
       return datos;
+    },
+    async glb() {
+      const { GLTFExporter } = await import("three/examples/jsm/exporters/GLTFExporter.js");
+      // El marco de selección es ayuda de edición, no parte del modelo.
+      const marcos: THREE.Object3D[] = [];
+      stand.traverse((o) => {
+        if (o instanceof THREE.LineSegments && o.visible) {
+          o.visible = false;
+          marcos.push(o);
+        }
+      });
+      try {
+        stand.name = diseno?.textoMarca.trim() || "Stand";
+        return (await new GLTFExporter().parseAsync(stand, { binary: true, onlyVisible: true })) as ArrayBuffer;
+      } finally {
+        for (const o of marcos) o.visible = true;
+      }
     },
     medir(ancho, alto) {
       renderer.setSize(ancho, alto, false);

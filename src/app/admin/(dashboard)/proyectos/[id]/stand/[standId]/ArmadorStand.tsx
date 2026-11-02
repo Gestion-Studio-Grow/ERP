@@ -65,9 +65,50 @@ export default function ArmadorStand({
   const contador = useRef(d.piezas.length + 1);
   const router = useRouter();
 
+  // Historial para deshacer y rehacer: los cambios seguidos (arrastrar una pieza) cuentan como uno solo.
+  const dRef = useRef(d);
+  const pasado = useRef<DisenoStand[]>([]);
+  const futuro = useRef<DisenoStand[]>([]);
+  const ultimoCambio = useRef(0);
+  const [hist, setHist] = useState({ atras: 0, adelante: 0 });
+  useEffect(() => {
+    dRef.current = d;
+  }, [d]);
+
   const cambiar = useCallback((f: (x: DisenoStand) => DisenoStand) => {
+    const antes = dRef.current;
+    const n = f(antes);
+    if (n === antes) return;
+    const ahora = Date.now();
+    if (ahora - ultimoCambio.current > 600) pasado.current = [...pasado.current.slice(-49), antes];
+    ultimoCambio.current = ahora;
+    futuro.current = [];
+    dRef.current = n;
+    setD(n);
     setSucio(true);
-    setD((x) => f(x));
+    setHist({ atras: pasado.current.length, adelante: 0 });
+  }, []);
+
+  const deshacer = useCallback(() => {
+    const previo = pasado.current.pop();
+    if (!previo) return;
+    futuro.current.push(dRef.current);
+    dRef.current = previo;
+    ultimoCambio.current = 0;
+    setD(previo);
+    setSucio(true);
+    setHist({ atras: pasado.current.length, adelante: futuro.current.length });
+  }, []);
+
+  const rehacer = useCallback(() => {
+    const siguiente = futuro.current.pop();
+    if (!siguiente) return;
+    pasado.current.push(dRef.current);
+    dRef.current = siguiente;
+    ultimoCambio.current = 0;
+    setD(siguiente);
+    setSucio(true);
+    setHist({ atras: pasado.current.length, adelante: futuro.current.length });
   }, []);
 
   useEffect(() => {
@@ -126,7 +167,19 @@ export default function ArmadorStand({
   useEffect(() => {
     const alApretar = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (!sel || e.altKey || e.ctrlKey || e.metaKey || (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const k = e.key.toLowerCase();
+        if (k === "z" && !e.shiftKey) {
+          e.preventDefault();
+          deshacer();
+        } else if (k === "y" || (k === "z" && e.shiftKey)) {
+          e.preventDefault();
+          rehacer();
+        }
+        return;
+      }
+      if (!sel || e.altKey) return;
       const flecha: Record<string, [number, number]> = { ArrowLeft: [-0.25, 0], ArrowRight: [0.25, 0], ArrowUp: [0, -0.25], ArrowDown: [0, 0.25] };
       if (flecha[e.key]) {
         e.preventDefault();
@@ -138,7 +191,7 @@ export default function ArmadorStand({
     };
     window.addEventListener("keydown", alApretar);
     return () => window.removeEventListener("keydown", alApretar);
-  }, [sel, mover, cambiar]);
+  }, [sel, mover, cambiar, deshacer, rehacer]);
 
   // Salir con cambios sin guardar pide confirmación del navegador.
   useEffect(() => {
@@ -221,6 +274,10 @@ export default function ArmadorStand({
 
       <div className="grid content-start gap-4">
         <Link href={`/admin/proyectos/${proyectoId}?tab=diseno`} className={cn(buttonClasses("ghost", "md"), "min-h-11 justify-start")}>← Volver al proyecto{sucio ? " (sin guardar)" : ""}</Link>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" disabled={hist.atras === 0} onClick={deshacer} className={cn(buttonClasses("outline", "md"), "justify-center")} title="Ctrl + Z">↶ Deshacer</button>
+          <button type="button" disabled={hist.adelante === 0} onClick={rehacer} className={cn(buttonClasses("outline", "md"), "justify-center")} title="Ctrl + Y">↷ Rehacer</button>
+        </div>
         <label className="grid gap-1 text-sm font-medium text-strong">
           Nombre de esta opción
           <input value={nombre} maxLength={80} onChange={(e) => { setNombre(e.target.value); setSucio(true); }} className={campo} />
@@ -378,6 +435,26 @@ export default function ArmadorStand({
             }
           >
             Agregar esta vista a la propuesta
+          </button>
+          <button
+            type="button"
+            disabled={ocupado || !escenaLista}
+            className={cn(buttonClasses("outline", "lg"), "justify-center")}
+            onClick={() =>
+              accion(async () => {
+                const datos = await escena.current?.glb();
+                if (!datos) return;
+                const url = URL.createObjectURL(new Blob([datos], { type: "model/gltf-binary" }));
+                const enlace = document.createElement("a");
+                enlace.href = url;
+                enlace.download = `${nombre.trim().replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 60) || "stand"}.glb`;
+                enlace.click();
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                setAviso({ ok: true, texto: "Modelo 3D exportado (GLB). Cada pieza lleva su tipo y sus medidas en metros." });
+              })
+            }
+          >
+            Exportar modelo 3D (GLB)
           </button>
           {conPlata && (
             <button

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ESQUEMA_STAND, INSTRUCCIONES_STAND, leerStandPropuesto } from "./ia-stand-core";
+import { describirStand, ENFOQUES_STAND, ESQUEMA_STAND, INSTRUCCIONES_STAND, leerStandPropuesto, metricasStand } from "./ia-stand-core";
 import { LIMITES, PIEZAS } from "./stand";
 
 const buena = {
@@ -62,4 +62,30 @@ test("el esquema y las instrucciones nombran todas las piezas y todos los tipos"
   }
   for (const t of ["LINEAL", "ESQUINA", "PENINSULA", "ISLA"]) assert.ok(INSTRUCCIONES_STAND.includes(t), t);
   assert.equal(ESQUEMA_STAND.additionalProperties, false);
+});
+
+test("el stand se describe en una línea con medidas, piezas y controles, sin costos", () => {
+  const r = leerStandPropuesto(JSON.stringify({ ...buena, piezas: [...buena.piezas, { tipo: "POUF", x: -2, z: 1, giro: 0 }, { tipo: "POUF", x: 2, z: 1, giro: 0 }] }));
+  assert.ok(r);
+  const t = describirStand("Opción 1", r.diseno);
+  assert.match(t, /Opción 1 · Esquina/);
+  assert.match(t, /lote de 6 × 4 m/);
+  assert.match(t, /2 × Pouf/);
+  assert.match(t, /marca «Adidas»/);
+  assert.match(t, /sin superposiciones/);
+  assert.doesNotMatch(t, /\$|costo|precio/i);
+});
+
+test("las métricas cuentan piezas, ocupación y errores de control", () => {
+  const r = leerStandPropuesto(JSON.stringify({ ...buena, piezas: [{ tipo: "MOSTRADOR", x: 0, z: 0, giro: 0 }, { tipo: "MOSTRADOR", x: 0.5, z: 0, giro: 0 }] }));
+  assert.ok(r);
+  const mt = metricasStand(r.diseno);
+  assert.equal(mt.piezas, 2);
+  assert.equal(mt.errores, 1);
+  assert.equal(mt.ocupacion, Math.round(((1.5 * 0.6 * 2) / 24) * 100));
+});
+
+test("hay tres enfoques distintos para las alternativas", () => {
+  assert.equal(ENFOQUES_STAND.length, 3);
+  assert.equal(new Set(ENFOQUES_STAND.map((e) => e.clave)).size, 3);
 });

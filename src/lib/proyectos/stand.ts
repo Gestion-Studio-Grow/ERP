@@ -309,6 +309,12 @@ export interface AvisoStand {
 
 const metros = (n: number): string => String(Math.round(n * 100) / 100).replace(".", ",");
 
+/** Qué parte del piso del lote tapan las piezas, en %. */
+export function ocupacionStand(d: Pick<DisenoStand, "ancho" | "fondo" | "piezas">): number {
+  const ocupado = d.piezas.reduce((s, p) => s + PIEZAS[p.tipo].ancho * PIEZAS[p.tipo].fondo, 0);
+  return Math.round((ocupado / (d.ancho * d.fondo)) * 100);
+}
+
 /** Controles que se pueden hacer sin un profesional: superposición, altura y espacio para circular. No reemplaza la validación técnica. */
 export function validarDiseno(d: DisenoStand): AvisoStand[] {
   const avisos: AvisoStand[] = [];
@@ -322,8 +328,7 @@ export function validarDiseno(d: DisenoStand): AvisoStand[] {
     const alto = PIEZAS[p.tipo].alto;
     if (alto > d.altoPared + EPS) avisos.push({ nivel: "error", texto: `${PIEZAS[p.tipo].label} mide ${metros(alto)} m y el alto del lote es de ${metros(d.altoPared)} m.`, piezas: [p.id] });
   }
-  const ocupado = d.piezas.reduce((s, p) => s + PIEZAS[p.tipo].ancho * PIEZAS[p.tipo].fondo, 0);
-  const pct = Math.round((ocupado / (d.ancho * d.fondo)) * 100);
+  const pct = ocupacionStand(d);
   if (pct > 50) avisos.push({ nivel: "aviso", texto: `Las piezas ocupan el ${pct} % del lote: queda poco lugar para circular.`, piezas: [] });
   return avisos;
 }

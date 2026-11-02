@@ -33,6 +33,7 @@ import {
 import { actorActual, avisar, exigirEditar, proyectoVisible, puede } from "./gestion.server";
 import { ESTADOS_TAREA, mencionados, veTodosLosProyectos, type RolGestion } from "./gestion-core";
 import { charlarConAgente, generarImagen, iaConectada, proponerIdeaDelProyecto, proponerStandDelProyecto, FALTA_CLAVE, type IdeaPropuesta } from "./ia.server";
+import { ENFOQUES_STAND, metricasStand, type MetricasStand } from "./ia-stand-core";
 
 const RAIZ = "/admin/proyectos";
 const MAX_ARCHIVOS = 30;
@@ -218,6 +219,35 @@ export async function armarStandConIA(d: { proyectoId: string; pedido?: string }
   });
   refrescar(d.proyectoId);
   return { ok: true, id: s.id, notas: r.notas };
+}
+
+export interface AlternativaStand extends MetricasStand {
+  id: string;
+  nombre: string;
+  enfoque: string;
+  notas: string;
+}
+
+/** Tres alternativas a la vez, cada una con un enfoque distinto, para compararlas. Se guardan como opciones nuevas; si alguna falla, quedan las que salieron. */
+export async function armarStandsConIA(d: { proyectoId: string; pedido?: string }): Promise<Resultado<{ alternativas: AlternativaStand[]; fallaron: number }>> {
+  const a = await exigirEditar("diseno");
+  if (!puede(a, "ia", "editar")) return { ok: false, error: "Tu rol no puede usar la IA." };
+  if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
+  if (!(await proyectoVisible(a, d.proyectoId))) return { ok: false, error: SIN_PROYECTO };
+  const pedido = texto(d.pedido, 2000);
+  const respuestas = await Promise.all(ENFOQUES_STAND.map((e) => proponerStandDelProyecto(a, d.proyectoId, pedido, e.texto)));
+  const buenas = respuestas.flatMap((r, i) => (r.ok ? [{ ...r, enfoque: ENFOQUES_STAND[i].clave }] : []));
+  const primerError = respuestas.find((r) => !r.ok);
+  if (buenas.length === 0) return { ok: false, error: primerError && !primerError.ok ? primerError.error : "No se pudo armar ninguna alternativa." };
+  let cuantos = await prisma.proyectoStand.count({ where: { tenantId: a.tenantId, proyectoId: d.proyectoId } });
+  const alternativas: AlternativaStand[] = [];
+  for (const b of buenas) {
+    const nombre = `Opción ${++cuantos} · ${b.enfoque} (IA)`;
+    const s = await prisma.proyectoStand.create({ data: { tenantId: a.tenantId, proyectoId: d.proyectoId, nombre, diseno: b.diseno as unknown as Prisma.InputJsonValue }, select: { id: true } });
+    alternativas.push({ id: s.id, nombre, enfoque: b.enfoque, notas: b.notas, ...metricasStand(b.diseno) });
+  }
+  refrescar(d.proyectoId);
+  return { ok: true, alternativas, fallaron: respuestas.length - buenas.length };
 }
 
 async function ideaEditable(proyectoId: string) {

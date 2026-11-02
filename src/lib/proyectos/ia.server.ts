@@ -12,8 +12,8 @@ import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, 
 import { codigoProyecto, costoTotalItem, ESTADO_ITEM_LABEL, ESTADO_TAREA_LABEL, resumenCuotas, totalesFicha, ventaTotalItem, type ModuloGestion } from "./gestion-core";
 import { errorDeGratis, imagenDeGratis, MODELO_IMAGEN_GRATIS, MODELO_TEXTO_GRATIS, pedidoDeImagen, pedidoDeTexto, textoDeGratis, urlGratis } from "./ia-gratis-core";
 import { aDataUri, tipoDeImagen, urlPollinations } from "./ia-pollinations-core";
-import { ESQUEMA_STAND, INSTRUCCIONES_STAND, leerStandPropuesto } from "./ia-stand-core";
-import type { DisenoStand } from "./stand";
+import { describirStand, ESQUEMA_STAND, INSTRUCCIONES_STAND, leerStandPropuesto } from "./ia-stand-core";
+import { normalizarDiseno, type DisenoStand } from "./stand";
 
 const API = "https://api.anthropic.com/v1/messages";
 const MODELO = "claude-opus-5-5";
@@ -156,12 +156,12 @@ export async function generarImagen(pedido: string): Promise<ImagenGenerada> {
 }
 
 /** Propone el stand como datos del armador 3D; crearlo y ajustarlo lo hace la persona. */
-export async function proponerStandDelProyecto(a: Actor, proyectoId: string, pedido: string): Promise<{ ok: true; diseno: DisenoStand; notas: string } | { ok: false; error: string }> {
+export async function proponerStandDelProyecto(a: Actor, proyectoId: string, pedido: string, enfoque = ""): Promise<{ ok: true; diseno: DisenoStand; notas: string } | { ok: false; error: string }> {
   if (!iaConectada()) return { ok: false, error: FALTA_CLAVE };
   const contexto = await contextoDeAgente(a, "disenador", proyectoId);
   const r = await pedirAlModelo({
     sistema: `${SISTEMA.disenador}\n\n${INSTRUCCIONES_STAND}`,
-    mensajes: [{ role: "user", content: `${contexto}\n\n${pedido.trim() ? `Pedido especial de la persona: ${pedido.trim()}` : "Proponé un primer borrador del stand para este evento."}` }],
+    mensajes: [{ role: "user", content: `${contexto}\n\n${pedido.trim() ? `Pedido especial de la persona: ${pedido.trim()}` : "Proponé un primer borrador del stand para este evento."}${enfoque ? `\n\nEsta es una de varias alternativas para comparar; hacela ${enfoque}.` : ""}` }],
     esfuerzo: "medium",
     maxTokens: 3000,
     esquema: ESQUEMA_STAND as unknown as Record<string, unknown>,
@@ -207,16 +207,20 @@ const SISTEMA: Record<AgenteId, string> = {
   productor: `Sos el Productor. Mirás el evento como operación: rubros que faltan, proveedores a cotizar, fechas límite, secuencia de armado y riesgos. Preparás pedidos de cotización y mensajes a proveedores para que una persona los envíe.\n\n${REGLAS}`,
   administrador: `Sos el Administrador. Ordenás cobros, pagos y vencimientos, y preparás recordatorios y resúmenes. Sé exacto con los importes: citá sólo los del bloque y no hagas proyecciones presentadas como hechos. No aconsejás inversiones. Registrar un cobro o un pago lo hace una persona.\n\n${REGLAS}`,
   asistente: `Sos el Asistente. Resolvés lo cotidiano del equipo: resúmenes de estado, minutas, listas de pendientes y mensajes internos, claros y breves.\n\n${REGLAS}`,
+  analista: `Sos el Analista del brief. Leés lo que pidió el cliente (la ficha del proyecto y lo que la persona te pegue) y lo ordenás en cuatro grupos: comercial (cliente, campaña, objetivo, público, fecha, duración, ubicación, presupuesto), espacial (superficie, ancho, largo, altura máxima, interior o exterior, accesos, restricciones, instalaciones), infraestructura pedida y experiencia del visitante. A cada dato le ponés un estado: Confirmado por el cliente, Inferido, Pendiente o No aplica. No inventes medidas, condiciones técnicas ni requerimientos: lo que no está escrito es Pendiente. Si falta algo indispensable (medidas, fecha, lugar, electricidad, condiciones de montaje), escribí preguntas concretas para el cliente antes de que el equipo avance. Nada se cotiza como definitivo sin medidas y materiales confirmados.\n\n${REGLAS}`,
+  revisor: `Sos el Revisor. Controlás el diseño contra el pedido: ¿están las piezas que pidió el cliente?, ¿las medidas del lote coinciden con el brief?, ¿hay piezas superpuestas, más altas que el lote o que dejan poco lugar para circular?, ¿hay datos inventados? Respondé en tres listas: Cumple, Falta y A validar. Marcá siempre como «a validar por un profesional» las medidas, la estructura, la electricidad y los permisos del lugar: tus controles son básicos y no aprueban nada. Citá sólo lo que figura en los bloques de datos.\n\n${REGLAS}`,
 };
 
 export const sistemaDeAgente = (id: AgenteId): string => SISTEMA[id];
 
-const ALCANCE: Record<AgenteId, { idea?: true; tareas?: true; piezas?: true; ficha?: true; plata?: true; checklist?: true }> = {
+const ALCANCE: Record<AgenteId, { idea?: true; tareas?: true; piezas?: true; ficha?: true; plata?: true; checklist?: true; stands?: true }> = {
   creativo: { idea: true },
-  disenador: { idea: true, tareas: true, piezas: true },
-  productor: { idea: true, ficha: true, tareas: true, checklist: true },
+  disenador: { idea: true, tareas: true, piezas: true, stands: true },
+  productor: { idea: true, ficha: true, tareas: true, checklist: true, stands: true },
   administrador: { plata: true },
   asistente: { tareas: true, checklist: true },
+  analista: { ficha: true, idea: true },
+  revisor: { idea: true, ficha: true, stands: true },
 };
 
 const fechaDe = (d: Date | null | undefined): string => (d ? new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" }).format(d) : "sin fecha");
@@ -291,6 +295,15 @@ export async function contextoDeAgente(a: Actor, id: AgenteId, proyectoId: strin
   if (alcance.tareas && ve("diseno")) {
     const tareas = await prisma.proyectoTarea.findMany({ where: { tenantId, proyectoId, estado: { not: "APROBADA" } }, orderBy: [{ venceEl: { sort: "asc", nulls: "last" } }], take: 40, select: { titulo: true, area: true, estado: true, venceEl: true, responsable: true } });
     secciones.push({ titulo: "Tareas abiertas", lineas: tareas.map((t) => linea(t.titulo, t.area === "DISENO" ? "Diseño" : "Producción", ESTADO_TAREA_LABEL[t.estado], `vence ${fechaDe(t.venceEl)}`, t.responsable)) });
+  }
+  if (alcance.stands && ve("diseno")) {
+    // El stand armado en 3D: medidas, piezas y controles. Sin costos: eso lo decide el permiso de la ficha.
+    const stands = await prisma.proyectoStand.findMany({ where: { tenantId, proyectoId }, orderBy: { createdAt: "asc" }, take: 8, select: { nombre: true, diseno: true } });
+    const lineasStand = stands.flatMap((s) => {
+      const d = normalizarDiseno(s.diseno);
+      return d ? [describirStand(s.nombre, d)] : [];
+    });
+    if (lineasStand.length > 0) secciones.push({ titulo: "Stands en 3D (medidas en metros)", lineas: lineasStand });
   }
   if (alcance.piezas && ve("diseno")) {
     const piezas = await prisma.proyectoEntregable.findMany({ where: { tenantId, proyectoId, anuladoEl: null }, take: 40, select: { nombre: true, especificacion: true, versiones: { orderBy: { numero: "desc" }, take: 1, select: { numero: true, estado: true, comentario: true } } } });

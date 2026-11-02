@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
 import { crearStand } from "@/lib/proyectos/acciones";
-import { armarStandConIA } from "@/lib/proyectos/acciones-diseno";
+import { armarStandConIA, armarStandsConIA, type AlternativaStand } from "@/lib/proyectos/acciones-diseno";
 import { confirmarSubida, hayNube, pedirSubida, subirArchivoFicha, type ResultadoFicha } from "@/lib/proyectos/acciones-ficha";
 
 const campo = "min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-strong";
@@ -216,6 +216,7 @@ export function BotonStandConIA({ proyectoId }: { proyectoId: string }) {
   const [pedido, setPedido] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState<{ id: string; notas: string } | null>(null);
+  const [alternativas, setAlternativas] = useState<{ lista: AlternativaStand[]; fallaron: number } | null>(null);
   return (
     <div className="mt-3 grid gap-2 border-t border-line pt-3">
       <label className="grid gap-1 text-sm font-medium text-strong">
@@ -237,6 +238,7 @@ export function BotonStandConIA({ proyectoId }: { proyectoId: string }) {
           iniciar(async () => {
             setError(null);
             setListo(null);
+            setAlternativas(null);
             const r = await armarStandConIA({ proyectoId, pedido });
             if (r.ok) setListo({ id: r.id, notas: r.notas });
             else setError(r.error);
@@ -245,6 +247,53 @@ export function BotonStandConIA({ proyectoId }: { proyectoId: string }) {
       >
         {ocupado ? "Armando el borrador… puede tardar un minuto" : "Armar un primer borrador con IA"}
       </button>
+      <button
+        type="button"
+        disabled={ocupado}
+        className={cn(buttonClasses("outline", "md"), "justify-center")}
+        onClick={() =>
+          iniciar(async () => {
+            setError(null);
+            setListo(null);
+            setAlternativas(null);
+            const r = await armarStandsConIA({ proyectoId, pedido });
+            if (r.ok) setAlternativas({ lista: r.alternativas, fallaron: r.fallaron });
+            else setError(r.error);
+          })
+        }
+      >
+        {ocupado ? "Armando las alternativas… puede tardar un minuto" : "Armar 3 alternativas para comparar"}
+      </button>
+      {alternativas && (
+        <div role="status" className="grid gap-2 rounded-lg border border-line p-3 text-sm text-strong">
+          <p className="font-medium">Alternativas listas: son puntos de partida, revisalas y ajustalas.{alternativas.fallaron > 0 ? ` ${alternativas.fallaron} no se pudo armar; probá de nuevo.` : ""}</p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[420px] text-left">
+              <thead>
+                <tr className="text-xs text-muted">
+                  <th className="py-1 pr-2 font-medium">Alternativa</th>
+                  <th className="py-1 pr-2 font-medium">Piezas</th>
+                  <th className="py-1 pr-2 font-medium">Ocupa</th>
+                  <th className="py-1 font-medium">Controles</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alternativas.lista.map((x) => (
+                  <tr key={x.id} className="border-t border-line align-top">
+                    <td className="py-2 pr-2">
+                      <Link href={`/admin/proyectos/${proyectoId}/stand/${x.id}`} className="font-medium underline">{x.enfoque}</Link>
+                      {x.notas && <p className="mt-1 max-w-xs whitespace-pre-line text-xs text-muted">{x.notas}</p>}
+                    </td>
+                    <td className="py-2 pr-2">{x.piezas}</td>
+                    <td className="py-2 pr-2">{x.ocupacion} %</td>
+                    <td className={cn("py-2", x.errores > 0 && "font-medium text-danger")}>{x.errores > 0 ? `${x.errores} por revisar` : "Sin errores"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
       {listo && (
         <div role="status" className="grid gap-2 rounded-lg border border-line p-3 text-sm text-strong">

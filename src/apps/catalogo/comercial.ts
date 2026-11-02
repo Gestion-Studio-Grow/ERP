@@ -301,7 +301,7 @@ export const APPS_COMERCIAL = [
   {
     id: "gestion-agentes",
     nombre: "Agentes IA",
-    descripcion: "Cinco asistentes que preparan y sugieren.",
+    descripcion: "Siete asistentes que preparan y sugieren.",
     icono: "modulos",
     ruta: "/admin/proyectos/agentes",
     espacio: "mostrador",

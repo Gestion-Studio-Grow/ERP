@@ -327,6 +327,20 @@ export const AGENTES = [
     exige: ["pipeline"],
     sugerencias: ["Resumí en qué estado está este evento", "Redactá un mensaje al equipo con lo pendiente", "¿Qué tengo para hacer esta semana?"],
   },
+  {
+    id: "analista",
+    nombre: "Analista del brief",
+    ayuda: "Ordena el pedido del cliente, marca qué está confirmado y qué falta, y prepara las preguntas.",
+    exige: ["ficha"],
+    sugerencias: ["Analizá el brief y marcá cada dato como confirmado, inferido o pendiente", "¿Qué le falta preguntar al cliente antes de diseñar?", "Escribí un mail con las preguntas pendientes para el cliente"],
+  },
+  {
+    id: "revisor",
+    nombre: "Revisor",
+    ayuda: "Controla que el diseño cumpla el pedido y señala lo que hay que validar antes de fabricar.",
+    exige: ["diseno"],
+    sugerencias: ["Revisá si el stand cumple lo que pidió el cliente", "¿Qué hay que validar con un profesional antes de fabricar?", "¿Faltan piezas respecto del brief?"],
+  },
 ] as const satisfies readonly { id: string; nombre: string; ayuda: string; exige: readonly ModuloGestion[]; sugerencias: readonly string[] }[];
 
 export type AgenteId = (typeof AGENTES)[number]["id"];
