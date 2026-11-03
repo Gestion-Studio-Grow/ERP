@@ -101,3 +101,41 @@ de una sola laptop.
 - Disco cifrado.
 - Secretos sólo en Vercel y en el gestor de contraseñas, con la menor cantidad posible en `.env` locales.
 - Una lista de rotación lista para usar (este documento, sección 2).
+
+---
+
+## 6. Impacto por cliente (3 agentes, registros de sesiones + GitHub, 2026-11-03)
+
+| Cliente | En producción o en `main` | Perdido (sólo estaba en la laptop) | ¿Se reconstruye? | Impacto |
+|---|---|---|---|---|
+| **Facturita / Consola del contador** | Lo que ya existía en `src/app/contador` y `src/app/facturita` | Rama `producto/facturin` (C:\fin): `6a2b4d7d`, `1bab399d`, `c09d3753` (certificada), `cae19ffe` (T4 en curso). Incluye el control de la clave temporal (`requireCapability`) | **En parte:** `CONDICIONES-DEL-PASE.md` (Write `f048f6bf`); scripts `ed3/ed4/ed5.cjs` (`2ce8d02e`, `cb3933a6`, `30ac5a50`); tests (`628285cd`, `7453f51a`); faltan las vueltas viejas | **Alto** |
+| **CH Estética** (vivo) | `8e35ce19`, ronda 2 certificada; producción intacta | `ch/etapa-2` `b3b70a5e` (cobro único, «Mañana», seña MP, recordatorios); `ch/integra-etapa2` `da82f113`; `ch/recordatorios-auto`; `fix/c1-rediseno` `da2b418f` | C-1: Edit de cobros y bancos (`0207f666`, `7de1f126`, `3937ceee`…). Etapa 2: **no** (la hicieron subagentes). Manual de pruebas completo (`3929351e`) | Medio |
+| **Factory-GSG después del 28/10** | Nada posterior a `7157018` | `00-ESTADO` (ORQUESTADOR, EVALUACION-S2), `status-n2.sh`, `MIA-PASOS-DEV.txt`, sección del manual de MIA | `MIA-PASOS-DEV.txt` **completo** (`a15ddbac`); EVALUACION-S2 (`f93f9548`); el resto en parte | Alto (estado interno) |
+| **Kit de redes de GSG** | Nada en Git | `redes/`: guiones y mensajes V1–V3, `gsg/formatos.md` | **Casi todo:** ESTUDIO.md (`209a93c8` + 6 Edit), factoque README (`0830f2d6`), video (`5c62d2fb`), cuentas (`fb9e38c6`), perfil.svg (`52c36ab2`…), ficha (`634c48f5`). Guiones y mensajes: no (dependen de docs perdidos) | Medio |
+| **Memoria de Claude** | `20-MEMORIA` sincronizada el 04/09 | ~10 notas (MEMORY.md, mia, s2, pases Neon, shine…) | En parte; `project_s2_recortado_aplicado` completa (`6d1c4b18`) | Medio |
+| **Magra** | S2 aplicado en Neon el 01/11 (respaldo `respaldo-s2-2026-11-01`) y código en `main` | Scripts de C:\m1caja | No hace falta | Bajo (falta avisarle al encargado de Lotes y Despiece) |
+| **Circuito WPE** (vendido) | Sitio en `main`; repo propio con un solo commit (13/07) | Lo hecho en `Documents\Claude\circuito-wpe` después del 13/07 (¿app Expo?) | No: ninguna sesión lo registra. **Preguntarle al dueño** | Medio |
+| Break Point | T3C y B4 en `main`; corrieron en la nube | Nada | – | Bajo |
+| Matías Consoli | En `main` | Nada | – | Bajo |
+| Taller AGR | En `main` (el README que dice «sin push» está desactualizado) | Lo que hubiera sin commitear en C:\agr, desconocido | No | Bajo |
+| Inmobiliaria (PDC) | En `main` (`0d60adc4`, `68b43fd4`) | La skill `rae` local | No hace falta | Bajo. **La clave temporal del OWNER de PDC quedó escrita en el registro de la sesión: cambiarla** |
+| Supermercado | Todo en `main` | Nada | – | Bajo |
+| Buscatufoto | `main` (`5df82081`); la beta y la política de menores están en la rama `ccr-b472eea8-50j9zt` | Nada en la laptop; el cambio a un proyecto de Vercel propio quedó sin commitear en una sesión en la nube | Sí, desde el registro | Bajo |
+| Tiendas (Qué Bien Olés, Shine, A Dos Manos) | En `main` | Nada | – | Bajo |
+| MIA | Entera en `main` y en producción (`ee193f1e`) | Sólo su guía (`MIA-PASOS-DEV.txt`), recuperable | Sí | Bajo |
+
+### Orden de reconstrucción propuesto (tareas reversibles, en sesiones en la nube)
+
+1. `MIA-PASOS-DEV.txt` y el kit de `redes/`: copia directa desde los registros. Es lo más barato.
+2. `producto/facturin`: reconstruir desde los registros, y después **certificar de nuevo** (toca seguridad y plata).
+3. C-1 (seña MP facturada dos veces): reconstruir y certificar de nuevo. Antes, el dueño elige una de las 3 opciones.
+4. CH etapa 2: **rehacerla** desde su diseño, no desde el registro.
+5. `00-ESTADO` y la memoria: reescribir el estado actual desde el repo (`npm run brain`), sin recuperar texto viejo.
+
+### Urgente del dueño, además de la sección 2
+
+- Cambiar la clave del OWNER de PDC.
+- Cargar `CANCELACION_ONLINE_HORAS=beauty-spa=24` en Vercel y prender en CH «Diseño nuevo» y «Agenda práctica».
+- Avisarle al encargado de Magra.
+- Confirmar si había trabajo local de Circuito WPE posterior al 13/07.
+- Neon tiene los branches de respaldo en 10/10: liberar lugar antes de la rotación.
