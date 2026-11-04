@@ -35,7 +35,15 @@ import { FILTROS_AGENDA, entraEnFiltro, leerFiltroAgenda, marcaDelTurno, textoSe
 import {
   LEYENDA_DE_LA_GRILLA,
   PASO_MIN,
+  CARRILES_EN_EL_CELULAR,
+  CARRILES_EN_LA_PC,
+  anchoDeLaColumna,
+  carrilesConTope,
   carrilesDeLaColumna,
+  columnaUnica,
+  esTurnoCorto,
+  lineaDelTurno,
+  tituloDelTurno,
   columnaDelTurno,
   columnasDeLaGrilla,
   enMinutos,
@@ -64,11 +72,12 @@ type Arrastre = { id: string; x0: number; y0: number; activo: boolean };
 const UMBRAL_ARRASTRE = 6;
 
 export default function PorProfesional({
-  turnos,
+  turnos: todosLosTurnos,
   profesionales,
   ahora,
   dia,
   bloqueos = [],
+  soloProfesional = null,
 }: {
   turnos: TurnoDelDia[];
   profesionales: { id: string; nombre: string; box: string | null }[];
@@ -77,16 +86,27 @@ export default function PorProfesional({
   dia: string;
   /** Francos y ausencias del día (sus celdas no se ofrecen como hueco). */
   bloqueos?: BloqueoDelDia[];
+  /**
+   * Agenda interactiva en el celular: la grilla de UNA profesional (su id). Sólo cuenta con
+   * `permisos.interaccion`; apagado, la planilla de siempre.
+   */
+  soloProfesional?: string | null;
 }) {
   const { permisos, abrir, cambiarUrl } = useMesa();
   const params = useSearchParams();
-  const verPor = leerVerPor(params.get("por"));
+  // Agenda interactiva (AGENDA-INTERACCION.md §2.1 y §2.7): apagada, todo como antes.
+  const interaccion = permisos.interaccion === true;
+  const solo = interaccion ? soloProfesional : null;
+  const verPor = solo ? "profesional" : leerVerPor(params.get("por"));
   const filtro = leerFiltroAgenda(params.get("ver"));
   const reloj = new Date(ahora);
   const hoy = dateStrInBusinessTz(reloj);
   const ahoraMin = minutosDelDia(reloj);
 
-  const columnas = columnasDeLaGrilla(verPor, profesionales, turnos);
+  const todasLasColumnas = columnasDeLaGrilla(verPor, profesionales, todosLosTurnos);
+  const columnas = solo ? columnaUnica(todasLasColumnas, solo) : todasLasColumnas;
+  // Con una sola profesional a la vista, los chips cuentan y la grilla se estira con lo suyo.
+  const turnos = solo ? todosLosTurnos.filter((t) => t.profesionalId === (columnas[0]?.clave ?? solo)) : todosLosTurnos;
   const nombreDe = (id: string) => profesionales.find((p) => p.id === id)?.nombre;
   const horas = horasDeLaGrilla(turnos.map(enMinutos));
   const desde = horas.desde * 60;
@@ -183,8 +203,19 @@ export default function PorProfesional({
   const turnoAConfirmar = aConfirmar ? (turnos.find((t) => t.id === aConfirmar.turnoId) ?? null) : null;
   const conteo = (f: (typeof FILTROS_AGENDA)[number]["id"]) => turnos.filter((t) => entraEnFiltro(t, f, reloj)).length;
 
+  // Carriles: apagado, todos los que haya (como siempre); prendido, con ancho mínimo y «+N».
+  const reparto = new Map(
+    columnas.map((c) => {
+      const deLaColumna = porColumna.get(c.clave) ?? [];
+      return [c.clave, interaccion ? carrilesConTope(deLaColumna, solo ? CARRILES_EN_EL_CELULAR : CARRILES_EN_LA_PC) : { ...carrilesDeLaColumna(deLaColumna), ocultos: new Set<string>(), desbordes: [], carrilesMax: 1 }];
+    }),
+  );
   const estiloGrilla = {
-    gridTemplateColumns: `3.5rem repeat(${columnas.length}, minmax(9.5rem, 1fr))`,
+    gridTemplateColumns: solo
+      ? "3.5rem minmax(0, 1fr)"
+      : interaccion
+        ? `3.5rem ${columnas.map((c) => anchoDeLaColumna(reparto.get(c.clave)?.carrilesMax ?? 1)).join(" ")}`
+        : `3.5rem repeat(${columnas.length}, minmax(9.5rem, 1fr))`,
     gridTemplateRows: `2.75rem repeat(${filas}, var(--fila))`,
   } as CSSProperties;
 
@@ -202,6 +233,7 @@ export default function PorProfesional({
             );
           })}
         </div>
+        {!solo && (
         <Segmented
           name="ver-por"
           leyenda="Ver la planilla por"
@@ -215,6 +247,7 @@ export default function PorProfesional({
             { valor: "box", etiqueta: "Por box" },
           ]}
         />
+        )}
       </div>
 
       <p aria-live="polite" className="sr-only">
@@ -229,7 +262,7 @@ export default function PorProfesional({
       <div
         className="overflow-x-auto border-t border-line-strong [--fila:2.75rem] lg:[--fila:2.25rem]"
         role="region"
-        aria-label={verPor === "box" ? "La agenda por box" : "La agenda por profesional"}
+        aria-label={solo ? `La agenda de ${columnas[0]?.titulo ?? "la profesional"}` : verPor === "box" ? "La agenda por box" : "La agenda por profesional"}
         tabIndex={0}
       >
         <div className="relative grid min-w-full text-sm" style={estiloGrilla}>
@@ -268,7 +301,7 @@ export default function PorProfesional({
                     aria-label={celda.etiqueta}
                     className="group flex items-center justify-center border-b border-l border-line/60 text-xs text-accent-ink hover:bg-accent-soft focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                   >
-                    <span aria-hidden className="opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <span aria-hidden className={solo ? "text-muted group-hover:text-accent-ink" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}>
                       + {horaDeMinuto(minuto)}
                     </span>
                   </Link>
@@ -286,7 +319,25 @@ export default function PorProfesional({
             });
           })}
 
-          {raya !== null && (
+          {raya !== null && interaccion && (
+            <>
+              {/* Prendido: la raya va DETRÁS de los turnos (no tapa texto) y la hora sólo en la canaleta. */}
+              <div
+                role="separator"
+                aria-label={`Ahora, ${fmtTime(reloj)}`}
+                className="pointer-events-none z-0 h-0 self-start border-t-2 border-accent"
+                style={{ gridColumn: "2 / -1", gridRow: Math.floor(raya / PASO_MIN) + 2, marginTop: `calc(var(--fila) * ${(raya % PASO_MIN) / PASO_MIN})` }}
+              />
+              <span
+                aria-hidden
+                className="pointer-events-none sticky left-0 z-[11] -translate-y-1/2 self-start justify-self-end bg-surface pr-2 text-[11px] font-semibold leading-none tabular-nums text-accent-ink"
+                style={{ gridColumn: 1, gridRow: Math.floor(raya / PASO_MIN) + 2, marginTop: `calc(var(--fila) * ${(raya % PASO_MIN) / PASO_MIN})` }}
+              >
+                {fmtTime(reloj)}
+              </span>
+            </>
+          )}
+          {raya !== null && !interaccion && (
             <div
               role="separator"
               aria-label={`Ahora, ${fmtTime(reloj)}`}
@@ -301,8 +352,26 @@ export default function PorProfesional({
 
           {columnas.map((c, ci) => {
             const deLaColumna = porColumna.get(c.clave) ?? [];
-            const { carriles, choques } = carrilesDeLaColumna(deLaColumna);
-            return deLaColumna.map((t) => {
+            const { carriles, choques, ocultos, desbordes } = reparto.get(c.clave) ?? { ...carrilesDeLaColumna(deLaColumna), ocultos: new Set<string>(), desbordes: [] };
+            const masN = desbordes.map((d) => {
+              const fila = Math.max(0, Math.floor((d.desde - desde) / PASO_MIN));
+              const nombres = d.ids.map((id) => deLaColumna.find((t) => t.id === id)).filter((t): t is TurnoDelDia => !!t);
+              return (
+                <button
+                  key={`mas-${c.clave}-${d.desde}`}
+                  type="button"
+                  data-abrir
+                  onClick={() => abrir(d.ids[0])}
+                  aria-label={`${d.ids.length} turno${d.ids.length === 1 ? "" : "s"} más a esta hora: ${nombres.map((t) => `${fmtTime(t.inicio)} ${t.clienta}`).join(", ")}. Abrir el primero`}
+                  title={nombres.map((t) => tituloDelTurno(t)).join("\n")}
+                  className="z-[2] m-0.5 inline-flex min-h-6 items-center self-start justify-self-end rounded-full border border-line-strong bg-surface-inverted px-2 text-xs font-semibold tabular-nums text-surface hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                  style={{ gridColumn: ci + 2, gridRow: fila + 2 }}
+                >
+                  +{d.ids.length}
+                </button>
+              );
+            });
+            return [...masN, ...deLaColumna.filter((t) => !ocultos.has(t.id)).map((t) => {
               const m = enMinutos(t);
               const fila = Math.max(0, Math.floor((m.desde - desde) / PASO_MIN));
               const alto = Math.max(1, Math.ceil((m.hasta - desde) / PASO_MIN) - fila);
@@ -312,6 +381,7 @@ export default function PorProfesional({
               const movible = permisos.gestionar && sePuedeMover(t);
               const atenuado = filtro !== "todos" && !entraEnFiltro(t, filtro, reloj);
               const choca = choques.has(t.id);
+              const enUnaLinea = interaccion && esTurnoCorto(t);
               return (
                 <button
                   key={t.id}
@@ -353,6 +423,7 @@ export default function PorProfesional({
                     } else arrastre.current = null;
                   }}
                   onPointerCancel={cancelar}
+                  title={interaccion ? tituloDelTurno(t, [verPor === "box" && t.profesional, marca.texto, pedida, choca && "se pisa con otro turno"]) : undefined}
                   aria-label={`${fmtTime(t.inicio)}, ${t.clienta}, ${t.servicio}, ${marca.texto}${pedida ? `, ${pedida}` : ""}${choca ? ", se pisa con otro turno" : ""}: abrir el turno`}
                   className={`z-[1] flex min-w-0 flex-col items-start gap-0.5 self-stretch overflow-hidden rounded border border-line-strong bg-surface-raised px-2 py-1 text-left hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus ${
                     movible ? "lg:cursor-grab" : ""
@@ -365,21 +436,35 @@ export default function PorProfesional({
                     margin: `2px 0 2px calc(${(100 * carril) / de}% + 2px)`,
                   }}
                 >
+                  {enUnaLinea ? (
+                    // Prendido, ≤ 30': una línea «16:00 Ana · Peeling» y la forma del estado (la palabra
+                    // está en el aria-label y en el title; el detalle, en el cajón).
+                    <span className="flex w-full min-w-0 items-center gap-1.5">
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="text-xs font-semibold tabular-nums text-strong">{lineaDelTurno(t).slice(0, 5)}</span>{" "}
+                        <span className="font-medium text-strong">{lineaDelTurno(t).slice(6)}</span>
+                      </span>
+                      <Marca tipo={choca ? "atencion" : marca.tipo} className="shrink-0">
+                        <span className="sr-only">{choca ? "Se pisa con otro turno" : marca.texto}</span>
+                      </Marca>
+                    </span>
+                  ) : (
                   <span className="flex w-full items-baseline gap-1.5">
                     <span className="text-xs font-semibold tabular-nums text-strong">{fmtTime(t.inicio)}</span>
                     <span className="truncate font-medium text-strong">{t.clienta}</span>
                   </span>
-                  {alto > 1 && (
+                  )}
+                  {!enUnaLinea && alto > 1 && (
                     <span className="w-full truncate text-xs text-muted">
                       {verPor === "box" ? `${t.servicio} · ${t.profesional}` : t.servicio}
                       {pedida ? " · seña pedida" : ""}
                     </span>
                   )}
-                  {alto > 1 && !choca && <Marca tipo={marca.tipo}>{marca.texto}</Marca>}
-                  {choca && <Marca tipo="atencion">{verPor === "box" ? "Choca en el box" : "Se pisa con otro turno"}</Marca>}
+                  {!enUnaLinea && alto > 1 && !choca && <Marca tipo={marca.tipo}>{marca.texto}</Marca>}
+                  {!enUnaLinea && choca && <Marca tipo="atencion">{verPor === "box" ? "Choca en el box" : "Se pisa con otro turno"}</Marca>}
                 </button>
               );
-            });
+            })];
           })}
 
           {turnoArrastrado && sobre && sobreActual && (
