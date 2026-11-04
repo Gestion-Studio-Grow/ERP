@@ -53,5 +53,9 @@ Además: sin vista semana; sin atajos; turnos cortos recortan servicio/estado; s
 
 Orden: T1 → T2 → T3; cada una con `tsc` + suites + merge de prueba contra `origin/claude/fantasma-agenda` y `claude/venta-agenda-simple` (resumen `n/n`) y Gate de Excelencia antes de integrar.
 
+## Estado (04/11, rama `claude/agenda-interaccion`)
+T1 y T2 hechas detrás de `agenda-interaccion`: tsc 0 · 589/589 · e2e CH 47/47 · certificación T2 con observaciones, M-1/B-1/B-2/B-3 cerrados. Medido en e2e (prendido, 1366/375): mover 4 → 1 gesto · estirar no existía → 1 · no vino 3 → 1 (+ Deshacer) / 2 en 375 · WhatsApp 2 → 1 / 2 · cobrar 2 → 2 / 3 · día de una profesional en 375 no existía → 1 chip · dar turno 5/6 → 5/5 (no llegó a la meta ≤ 4: elegir clienta son 2 toques, buscar y elegir).
+Deuda: O-1 (baja, sin plata ni solape) `src/lib/turnos/duracion-actions.ts:67-75` acepta volver a «un fin que tuvo» aunque el turno se haya movido sin conservar; arreglo: exigir que el último audit del turno sea el estiramiento. El dueño descartó los rótulos de media hora (04/11). Falta T3 (Semana + «Llegó»).
+
 ## 6. Qué decide el dueño
 1. Prender `agenda-interaccion` en CH y en los negocios de canchas (y cuándo). 2. Soltar mueve **sin preguntar** (con Deshacer 8 s) en vez de la hoja de hoy: confirmar que es lo que quiere la recepción. 3. «Llegó» como marca de auditoría (sin migración) o como estado propio (migración → Gate 2). 4. Paso de duración 15' y tope al cierre del día. 5. Push a `main` de cada tanda (= deploy).
