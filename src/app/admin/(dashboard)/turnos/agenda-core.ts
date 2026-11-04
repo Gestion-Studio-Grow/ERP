@@ -173,6 +173,8 @@ export type Permisos = {
   cobroConProducto?: boolean;
   /** Venta y agenda simples prendido: vuelto a la vista y «Listo ✓» con comprobante al cobrar (T2). */
   ventaSimple?: boolean;
+  /** Agenda interactiva prendida (AGENDA-INTERACCION.md): grilla por profesional en el celular, barra de un toque. */
+  interaccion?: boolean;
   /** agenda:manage — confirmar, cancelar, reprogramar, dar de baja un saldo. */
   gestionar: boolean;
   /** agenda:collect — cobrar (además, el veredicto de cada turno). */

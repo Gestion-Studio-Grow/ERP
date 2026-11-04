@@ -23,7 +23,7 @@ import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { enlaceCobrarUnaVenta } from "../pedidos/cobrar-una-venta";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
-import { ventaAgendaSimplePrendida } from "@/cambios/interruptores";
+import { agendaInteraccionPrendida, ventaAgendaSimplePrendida } from "@/cambios/interruptores";
 
 // Muestra en un vistazo qué profesionales tienen novedad (franco/vacaciones)
 // ese día, para no tener que ir a buscarlo a Catálogo (ADR-011 G9).
@@ -136,6 +136,7 @@ export default async function TurnosCalendarPage({
         roleHasCapability(user.role, "orders:manage") &&
         roleHasCapability(user.role, "agenda:collect"),
       ventaSimple: ventaAgendaSimplePrendida(interruptores),
+      interaccion: agendaInteraccionPrendida(interruptores),
       perdonar: roleHasCapability(user.role, "agenda:forgive"),
       anular: anulacionDeCobro(user.role),
     },

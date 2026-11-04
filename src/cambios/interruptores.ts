@@ -145,6 +145,19 @@ export const INTERRUPTORES = [
     enAuditoria: "la venta y agenda simples",
     cambiaLasApps: false,
   },
+  {
+    // Agenda más práctica e interactiva (docs/producto/venta-agenda/AGENDA-INTERACCION.md, T1–T3):
+    // en el celular la grilla de una profesional con huecos tocables, la barra de un toque sobre el
+    // turno (no vino con deshacer, cobrar, WhatsApp), turnos cortos legibles y, en tandas
+    // siguientes, soltar para mover y estirar para cambiar la duración. Va AL FINAL del array, como
+    // «venta-agenda-simple». Apagado, la agenda de siempre, byte a byte.
+    id: "agenda-interaccion",
+    nombre: "Agenda interactiva",
+    queCambia:
+      "La agenda se maneja con menos toques: en el celular se ve el día de cada profesional y se toca un hueco para dar turno, y sobre cada turno hay teclas de un toque (no vino, cobrar, WhatsApp) con deshacer. Apagado, la agenda de siempre.",
+    enAuditoria: "la agenda interactiva",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -174,6 +187,16 @@ export function ventaAgendaSimplePrendida(
   estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
 ): boolean {
   return estado[VENTA_AGENDA_SIMPLE]?.encendido === true;
+}
+
+/** Agenda interactiva (docs/producto/venta-agenda/AGENDA-INTERACCION.md). */
+export const AGENDA_INTERACCION: InterruptorId = "agenda-interaccion";
+
+/** ¿El negocio tiene la agenda interactiva? Un estado sin la entrada cuenta como apagado. PURA. */
+export function agendaInteraccionPrendida(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return estado[AGENDA_INTERACCION]?.encendido === true;
 }
 
 /**
