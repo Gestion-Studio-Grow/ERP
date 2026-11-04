@@ -22,11 +22,11 @@ tags: [brain/indice, brain/codigo]
 
 | Métrica | Valor |
 |---|---:|
-| Archivos de `src/` que citan un ADR | 378 de 2062 |
+| Archivos de `src/` que citan un ADR | 384 de 2395 |
 | Archivos de `prisma/` que citan un ADR | 39 de 92 |
-| Archivos de `scripts/` que citan un ADR | 12 de 55 |
-| Archivos escaneados en total | 2209 |
-| Archivos que citan algún ADR | 429 |
+| Archivos de `scripts/` que citan un ADR | 12 de 57 |
+| Archivos escaneados en total | 2544 |
+| Archivos que citan algún ADR | 435 |
 | ADR con vínculo (cita desde código **o** ruta citada por el ADR) | 85 de 87 |
 
 ## 🕳️ Los agujeros (a la vista, no tapados)
@@ -55,7 +55,7 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-004](ADR-004.md)
 
 - **cabecera (1):** `src/lib/caja/caja-open-concurrency.test.ts`
-- **inline (4):** `src/lib/caja-actions.ts` · `src/lib/padel/acciones.ts` · `src/lib/rls.ts` · `scripts/adr-graph.mjs`
+- **inline (5):** `src/lib/caja-actions.ts` · `src/lib/padel/acciones-alumno.ts` · `src/lib/padel/acciones.ts` · `src/lib/rls.ts` · `scripts/adr-graph.mjs`
 - **el ADR cita:** `src/lib/rls.ts`
 
 ### [ADR-005](ADR-005.md)
@@ -214,7 +214,7 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-034](ADR-034.md)
 
 - **cabecera (1):** `src/lib/padel/marca.ts`
-- **inline (2):** `scripts/adr-graph.mjs` · `scripts/brain-sync.mjs`
+- **inline (3):** `src/app/clases/_cabecera.tsx` · `scripts/adr-graph.mjs` · `scripts/brain-sync.mjs`
 - **el ADR cita:** `src/preset/extraction/`
 
 ### [ADR-035](ADR-035.md)
@@ -271,7 +271,7 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-046](ADR-046.md)
 
 - **cabecera (3):** `src/lib/contact-validation.ts` · `src/lib/password-policy.ts` · `src/plugins/arca/domain/qr-afip.ts`
-- **inline (2):** `scripts/adr-graph.mjs` · `scripts/brain-sync.mjs`
+- **inline (3):** `src/lib/pedidos/interpretar-whatsapp.ts` · `scripts/adr-graph.mjs` · `scripts/brain-sync.mjs`
 
 ### [ADR-047](ADR-047.md)
 
@@ -311,8 +311,8 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-055](ADR-055.md)
 
-- **cabecera (22):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/lib/provisioning/adapters.ts` · `src/lib/reserva-publica-postgres.test.ts` · `src/lib/terminal/perfil-core.ts` · `src/modules/activation.test.ts` · `src/modules/activation.ts` · `src/modules/catalog/asignacion.ts` … y 14 más
-- **inline (13):** `src/generated/prisma/internal/class.ts` · `src/lib/actions.ts` · `src/lib/capabilities.ts` · `src/lib/catalog-actions.ts` · `src/lib/producto-identidad.test.ts` … y 8 más
+- **cabecera (23):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/lib/provisioning/adapters.ts` · `src/lib/reserva-publica-postgres.test.ts` · `src/lib/terminal/perfil-core.ts` · `src/modules/activation.test.ts` · `src/modules/activation.ts` · `src/modules/catalog/asignacion.ts` … y 15 más
+- **inline (14):** `src/generated/prisma/internal/class.ts` · `src/lib/actions.ts` · `src/lib/capabilities.ts` · `src/lib/catalog-actions.ts` · `src/lib/producto-identidad.test.ts` … y 9 más
 - **el ADR cita:** `src/modules/`
 
 ### [ADR-056](ADR-056.md)
@@ -446,7 +446,7 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-101](ADR-101.md)
 
-- **cabecera (10):** `src/lib/caja/esperado-del-cajon.test.ts` · `src/lib/caja/esperado-del-cajon.ts` · `src/lib/caja/saldo-cajon.ts` · `src/lib/caja/un-solo-esperado-apertura-postgres.test.ts` · `src/lib/caja/un-solo-esperado-dias-cerrados-postgres.test.ts` · `src/lib/caja/un-solo-esperado-pantalla-postgres.test.ts` · `src/lib/caja/un-solo-esperado-relevo-postgres.test.ts` · `src/lib/caja/un-solo-esperado.arnes.ts` … y 2 más
+- **cabecera (11):** `src/lib/caja/esperado-del-cajon.test.ts` · `src/lib/caja/esperado-del-cajon.ts` · `src/lib/caja/saldo-cajon.ts` · `src/lib/caja/un-solo-esperado-apertura-postgres.test.ts` · `src/lib/caja/un-solo-esperado-dias-cerrados-postgres.test.ts` · `src/lib/caja/un-solo-esperado-pantalla-postgres.test.ts` · `src/lib/caja/un-solo-esperado-relevo-postgres.test.ts` · `src/lib/caja/un-solo-esperado.arnes.ts` … y 3 más
 - **inline (7):** `src/app/admin/(dashboard)/caja/caja-renglon.test.ts` · `src/app/admin/(dashboard)/caja/caja-teclado.test.ts` · `src/lib/caja/cierre-marca.ts` · `src/lib/caja/libro-caja.ts` · `src/app/admin/(dashboard)/caja/CajaForms.tsx` … y 2 más
 - **el ADR cita:** `src/lib/caja-actions.ts` · `src/lib/cierre-diario-actions.ts` · `src/lib/caja/libro-caja.ts` · `src/lib/caja/cash-register.ts` · `src/lib/turnos/anulacion.ts`
 

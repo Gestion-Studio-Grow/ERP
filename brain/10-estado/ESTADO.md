@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-10-20 03:38 UTC
+generado_el: 2026-11-04 00:19 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-10-20 03:38 UTC sobre `afb3413`.**
+> ⏱️ **Foto tomada el 2026-11-04 00:19 UTC sobre `5792a3e`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -18,27 +18,27 @@ tags: [brain/estado, fase-0]
 
 | Campo | Valor |
 |---|---|
-| Rama actual | `claude/balanza-universal` |
-| HEAD | `afb3413` (2026-10-20) |
-| Árbol | **12 archivo(s) sin commitear** _(sin contar `brain/`)_ |
-| Tip de `main` | 5f0cac8 · 2026-10-19 · feat(consola): dar de alta a una persona desde la ficha del negocio |
+| Rama actual | `claude/fantasma-agenda` |
+| HEAD | `5792a3e` (2026-11-04) |
+| Árbol | limpio _(sin contar `brain/`)_ |
+| Tip de `main` | _no disponible (este clon no trae `main` local)_ |
 
-**Ramas locales (6, más reciente primero):** `claude/balanza-universal` · `claude/balanza-serie` · `claude/magra-nivel-bp` · `claude/magra-practicidad` · `claude/magra-eventualidades` · `claude/sleepy-tesla-392rov`
+**Ramas locales (2, más reciente primero):** `claude/fantasma-agenda` · `claude/gcg-laboratorio-negocios-9j00n1`
 
 **Últimos commits**
 
-- afb3413 · 2026-10-20 · feat(balanza): «Tomar peso» en Vender y Pedidos, asistente por cable en Balanza y lector, y recorrido E2E (test:balanza-e2e, 24/24)
-- 962de48 · 2026-10-20 · feat(balanza): «Tomar peso» y el asistente de la balanza por cable
-- 318e872 · 2026-10-20 · feat(balanza): leer el peso de la balanza por cable (Web Serial) — protocolos, detector, hook y simulador
-- 27eb20f · 2026-10-20 · feat(pedidos): el campo de la etiqueta de la balanza también en Pedidos (el POS que usa MAGRA desde el celular)
-- f4d99c3 · 2026-10-20 · feat(balanza): pantalla «Balanza y lector» en el menú del mostrador — detectar, probar, guardar el formato y el PLU de cada producto
-- 91f6621 · 2026-10-20 · feat(balanza): etiquetas de cualquier balanza — prefijo de 1 dígito, control del precio GS1, UPC-A, presets por marca y «detectar con una etiqueta»
-- 5f0cac8 · 2026-10-19 · feat(consola): dar de alta a una persona desde la ficha del negocio
-- 740867f · 2026-10-19 · fix(alta): «Profe de pádel» escrito a mano ya no cae en la tienda de pádel
-- 3e2a5d6 · 2026-10-19 · fix(build): el control de [sin-deploy] no adivina la base y construye si no la tiene
-- 35cb452 · 2026-10-19 · chore(lote): ensayo y pase de Neon regenerados con la migración del profe [sin-deploy]
-- ead6a00 · 2026-10-19 · merge: main al día en la rama del profe Matías
-- 9063bae · 2026-10-19 · docs(breakpoint): deuda anotada por el Gate del panel de casa y la estética por cliente
+- 5792a3e · 2026-11-04 · chore(tokens): lectura automática en Opus (agente gsg-investigador) y medición en US$ al cierre [sin-deploy]
+- d341f1d · 2026-11-04 · docs(lab): ciclo del 04/11/2026 — dos listas tras red-team R1+R2 y activación [sin-deploy]
+- 28cbf0f · 2026-10-29 · docs(lab): plan de ganancias del GSG Lab (tesis + Challenger) y kits de preventa [sin-deploy]
+- 31a5661 · 2026-10-29 · docs(lab): hub de demos del GSG Lab + URLs de los artifacts publicados [sin-deploy]
+- d479801 · 2026-10-28 · chore(tokens): certificador acotado por defecto; completo sólo plata o datos entre negocios [sin-deploy]
+- 7334a16 · 2026-10-28 · fix(magra): el chip se va apenas se toma el pedido y en el celular no se corta la espera
+- 7922737 · 2026-10-28 · feat(magra): el aviso del pedido web se nota: alerta a los 15 min, (N) en la pestaña y notificación opt-in
+- ecf5229 · 2026-10-28 · feat(magra): la consola acepta a mano las apps que se pierden y oculta apps por negocio
+- 90297d9 · 2026-10-28 · Merge remote-tracking branch 'origin/main' into reing-magra-practica
+- af3623b · 2026-10-28 · fix(magra): revisión visual y de plata de la tanda práctica
+- 1641910 · 2026-10-28 · fix(magra): la marca «rendido» relee pedido y libro dentro del candado — «Rindió todo»/«a cobrar» contra «Cobró» del otro puesto rinde «cobrado»
+- 7522058 · 2026-10-28 · feat(magra): pedidos prácticos — «Rindió todo como salió», una marca por pedido, Armar sin 404 pesado y bandeja con la piel de Vender
 
 ## Migraciones (Prisma)
 
@@ -56,8 +56,8 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 355 |
-| Palabras en `docs/` | 612.144 |
+| Documentos en `docs/` | 358 |
+| Palabras en `docs/` | 619.129 |
 | ADRs | 87 |
 | Nodos en el grafo | 93 _(los 87 ADR + 6 enmiendas)_ |
 
