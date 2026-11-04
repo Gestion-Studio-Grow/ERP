@@ -2,15 +2,30 @@
  * Motor de asientos contables (Contabilidad, ola 1 — docs/producto/contabilidad/PLAN.md §5).
  *
  * PURO: sin Prisma ni framework. Valida un asiento antes de que toque la base y arma el
- * contra-asiento de uno confirmado (un asiento CONFIRMADO no se edita: se contra-asienta).
+ * contra-asiento de uno confirmado (un asiento CONFIRMADO no se edita ni se borra: se
+ * contra-asienta, y el nuevo apunta al original con `anulaAsientoId`).
  *
  * Montos en CENTAVOS `bigint` (nunca Float/Decimal): la suma no pierde precisión con inflación.
  * La base vuelve a controlar lo mismo (CHECK por línea y trigger diferido de cuadre, migración
  * 20261104120000_contabilidad_ola1): el motor da el error en criollo, la base es la red.
  */
 
-export type TipoCuenta = "ACTIVO" | "PASIVO" | "PATRIMONIO" | "RESULTADO_POSITIVO" | "RESULTADO_NEGATIVO";
-export type OrigenAsiento = "MANUAL" | "FACTURA" | "COBRO" | "PAGO";
+export type TipoCuenta = "ACTIVO" | "PASIVO" | "PATRIMONIO_NETO" | "RESULTADO_POSITIVO" | "RESULTADO_NEGATIVO";
+/** DEUDORA: saldo normal al debe. ACREEDORA: al haber. Las regularizadoras invierten la de su rubro. */
+export type Naturaleza = "DEUDORA" | "ACREEDORA";
+export type OrigenAsiento = "MANUAL" | "FACTURA" | "COBRO" | "PAGO" | "APERTURA" | "CIERRE" | "REFUNDICION" | "AJUSTE";
+export type EstadoEjercicio = "ABIERTO" | "CERRADO";
+
+/** Naturaleza habitual del tipo (la de una cuenta regularizadora es la opuesta). */
+export function naturalezaPorTipo(tipo: TipoCuenta): Naturaleza {
+  return tipo === "ACTIVO" || tipo === "RESULTADO_NEGATIVO" ? "DEUDORA" : "ACREEDORA";
+}
+
+export interface EjercicioParaValidar {
+  fechaInicio: Date;
+  fechaCierre: Date;
+  estado: EstadoEjercicio;
+}
 export type EstadoAsiento = "BORRADOR" | "CONFIRMADO";
 
 /** Lo mínimo de una cuenta que el motor necesita para validar una imputación. */
@@ -42,7 +57,10 @@ export type CodigoErrorAsiento =
   | "CUENTA_NO_IMPUTABLE"
   | "CUENTA_INACTIVA"
   | "CUENTA_DE_OTRO_NEGOCIO"
-  | "FECHA_INVALIDA";
+  | "FECHA_INVALIDA"
+  | "SIN_EJERCICIO"
+  | "EJERCICIO_CERRADO"
+  | "FECHA_FUERA_DEL_EJERCICIO";
 
 export interface ErrorAsiento {
   codigo: CodigoErrorAsiento;
@@ -59,9 +77,15 @@ export type ResultadoValidacion =
 export interface OpcionesValidacion {
   /** Negocio dueño del asiento: toda cuenta imputada tiene que ser de él. */
   tenantId?: string;
-  /** En ola 1 sólo se controla que sea una fecha válida (el ejercicio abierto llega en ola 6). */
   fecha?: Date;
+  /**
+   * Ejercicio al que se imputa. Si se pasa `fecha`, tiene que venir el ejercicio (`null` = no hay
+   * ninguno que la contenga) y estar ABIERTO con la fecha adentro.
+   */
+  ejercicio?: EjercicioParaValidar | null;
 }
+
+const dia = (d: Date) => d.toISOString().slice(0, 10);
 
 const CERO = BigInt(0);
 
@@ -79,7 +103,8 @@ export function formatearCentavos(centavos: bigint): string {
  * pantalla marque cada línea mal de una vez.
  *
  * Reglas: ≥ 2 líneas · cada línea sólo debe o sólo haber, > 0 · cuenta existente, imputable y
- * activa · todas las cuentas del mismo negocio · Σ debe === Σ haber · total ≠ 0 · fecha válida.
+ * activa · todas las cuentas del mismo negocio · Σ debe === Σ haber · total ≠ 0 · fecha válida y
+ * dentro de un ejercicio ABIERTO.
  */
 export function validarAsiento(
   lineas: readonly LineaAsiento[],
@@ -90,6 +115,18 @@ export function validarAsiento(
 
   if (opts.fecha !== undefined && Number.isNaN(opts.fecha.getTime())) {
     errores.push({ codigo: "FECHA_INVALIDA", mensaje: "La fecha del asiento no es válida. Elegí una fecha del calendario." });
+  } else if (opts.fecha !== undefined && opts.ejercicio !== undefined) {
+    const ej = opts.ejercicio;
+    if (ej === null) {
+      errores.push({ codigo: "SIN_EJERCICIO", mensaje: "No hay un ejercicio abierto que contenga esa fecha. Abrí el ejercicio o cambiá la fecha." });
+    } else if (ej.estado !== "ABIERTO") {
+      errores.push({ codigo: "EJERCICIO_CERRADO", mensaje: "El ejercicio de esa fecha está cerrado: no admite asientos nuevos." });
+    } else if (dia(opts.fecha) < dia(ej.fechaInicio) || dia(opts.fecha) > dia(ej.fechaCierre)) {
+      errores.push({
+        codigo: "FECHA_FUERA_DEL_EJERCICIO",
+        mensaje: `La fecha queda fuera del ejercicio (${dia(ej.fechaInicio)} al ${dia(ej.fechaCierre)}).`,
+      });
+    }
   }
 
   if (lineas.length < 2) {
