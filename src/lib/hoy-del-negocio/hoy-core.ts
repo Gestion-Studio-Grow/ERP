@@ -19,6 +19,7 @@
 // El libro junta Débito y Crédito en TARJETA (D-C01) y, sin el paquete Gate 2, la transferencia
 // en MP: el medio fino sale del cobro o del pedido de origen cuando lo hay.
 
+import { centavosDe, redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { seniaDelServicio } from "@/lib/turnos/cobros";
 
 /** Los medios que ve el dueño, en el orden de la tarjeta. */
@@ -74,7 +75,7 @@ export function signoDelCobro(m: Pick<MovimientoDelHoy, "type" | "collectionId" 
   return 0;
 }
 
-const redondear = (n: number) => Math.round(n * 100) / 100;
+const redondear = (n: number) => redondearAlCentavo(n);
 
 export interface FilaDeMedio {
   medio: MedioDelHoy;
@@ -204,7 +205,7 @@ export function armarHoy(l: LecturaDelHoy): TarjetaHoy {
 
 /** Pesos a la argentina: sin centavos salvo que los haya («$ 12.500», «$ 1.234,50»). PURA. */
 export function pesosDelHoy(n: number): string {
-  const conCentavos = Math.round(n * 100) % 100 !== 0;
+  const conCentavos = centavosDe(n) % 100 !== 0;
   return new Intl.NumberFormat("es-AR", {
     style: "currency",
     currency: "ARS",

@@ -23,6 +23,7 @@
 // transacción; `aplicarCobroTurnoInTx` la vuelve a exigir adentro. Sin interruptor, la acción no
 // hace nada: la pantalla de siempre ni siquiera la llama.
 
+import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -194,7 +195,7 @@ async function loQueYaSeGrabo(p: {
   // Lo grabado tiene que ser de ESTE turno (la clave lleva su id) y el turno, terminado: si no, no
   // se da por cobrado.
   if (!orden || !turno || turno.status !== "COMPLETED") return { ok: false, error: YA_REGISTRADO };
-  const total = Math.round(((cobro ? cobro.amount.toNumber() : 0) + orden.total) * 100) / 100;
+  const total = sumarAlCentavo([cobro ? cobro.amount.toNumber() : 0, orden.total]);
   const igual = coincideConLoGrabado(
     { method: p.method, renglones: p.renglones },
     { method: orden.paymentMethod, renglones: orden.items.map((i) => ({ productId: i.productId, qty: i.quantity })) },
@@ -411,6 +412,6 @@ export async function cobrarTurnoConProductos(formData: FormData): Promise<Resul
   for (const p of ["/admin", "/admin/turnos", "/admin/turnos/lista", "/admin/turnos/cerrar", "/admin/reportes", "/admin/caja", "/admin/caja/libro", "/admin/pedidos", "/admin/catalogo"]) {
     revalidatePath(p);
   }
-  const total = Math.round((hecho.saldo + hecho.orden.total) * 100) / 100;
+  const total = sumarAlCentavo([hecho.saldo, hecho.orden.total]);
   return aviso ? { ok: true, aviso, orderCode: hecho.orden.code, total } : { ok: true, orderCode: hecho.orden.code, total };
 }
