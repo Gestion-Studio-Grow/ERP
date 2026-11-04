@@ -2,11 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Aviso, Boton, Dialogo, Entrada, Girador, IconoBasura, IconoFlecha, ModoDemo, Vacio, claseEntrada } from "@/components/ui";
+import { Aviso, Boton, Dialogo, Entrada, Girador, IconoBasura, IconoFlecha, ModoDemo, Segmentado, SoloDemo, Vacio, claseEntrada } from "@/components/ui";
 import { plata } from "@/lib/dinero";
 import { cotizar, precioUnitario } from "@/lib/precios";
-import { ErrorRepo, mensajeDeError, obtenerRepo } from "@/lib/repo";
-import type { Album, Cotizacion, Medio, Pedido } from "@/lib/tipos";
+import { ErrorRepo, mensajeDeError, mpDisponible, obtenerRepo, useModoRepo } from "@/lib/repo";
+import type { Album, Cotizacion, Fotografo, Medio, MetodoCobro, Pedido } from "@/lib/tipos";
 import s from "./comprador.module.css";
 import { Miniatura } from "./Miniatura";
 import { listaDorsales, nombreMedio, sugerencia } from "./textos";
@@ -16,13 +16,16 @@ const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type Paso = "carrito" | "pago";
 
 /**
- * Carrito con cotización en vivo (mismo motor que usa el repositorio para cobrar) y pago simulado.
+ * Carrito con cotización del repositorio (`repo.cotizar`: en modo servidor la calcula el servidor con los cupones
+ * reales; en la demo, IndexedDB con el mismo motor). Pago: Mercado Pago (redirección al checkout del fotógrafo)
+ * o transferencia (el pedido queda pendiente hasta que el fotógrafo lo marca pagado). En la demo, el pago es simulado.
  * El total que vale es el que devuelve `crearPedido`: el repositorio recalcula y consume el cupón.
  */
 export function Carrito({
   abierto,
   onCerrar,
   album,
+  fotografo,
   medios,
   seleccion,
   indiceAlbum,
@@ -34,6 +37,7 @@ export function Carrito({
   abierto: boolean;
   onCerrar: () => void;
   album: Album;
+  fotografo: Fotografo | null;
   medios: Medio[];
   seleccion: Medio[];
   indiceAlbum: (id: string) => number;
@@ -43,6 +47,11 @@ export function Carrito({
   onVaciar: () => void;
 }) {
   const router = useRouter();
+  const modo = useModoRepo();
+  const demo = modo !== "servidor";
+  const conMp = modo !== undefined && mpDisponible();
+  const [metodoElegido, setMetodo] = useState<MetodoCobro>("mercadopago");
+  const metodo: MetodoCobro = conMp ? metodoElegido : "transferencia";
   const [paso, setPaso] = useState<Paso>("carrito");
   const [cuponTexto, setCuponTexto] = useState(cupon ?? "");
   const [nombre, setNombre] = useState("");
@@ -58,8 +67,38 @@ export function Carrito({
   const refNombre = useRef<HTMLInputElement>(null);
 
   const items = seleccion.map((m) => ({ tipo: m.tipo }));
-  const cot = cotizar(album, items, cupon, medios.length);
-  const cuponValido = cot.cupon ? cupon : null;
+  const ids = seleccion.map((m) => m.id);
+  const claveCot = `${album.id}|${ids.join(",")}|${cupon ?? ""}`;
+  const [remota, setRemota] = useState<{ clave: string; cot: Cotizacion } | null>(null);
+  const [errorCot, setErrorCot] = useState<string | null>(null);
+  const [vuelta, setVuelta] = useState(0);
+  // Cotización del repositorio con un respiro (debounce) para no pedirla en cada toque.
+  useEffect(() => {
+    if (!abierto || !ids.length) return;
+    let vivo = true;
+    const t = window.setTimeout(() => {
+      obtenerRepo()
+        .cotizar(album.id, ids, cupon)
+        .then((c) => {
+          if (!vivo) return;
+          setRemota({ clave: claveCot, cot: c });
+          setErrorCot(null);
+        })
+        .catch((e: unknown) => {
+          if (vivo) setErrorCot(mensajeDeError(e));
+        });
+    }, 300);
+    return () => {
+      vivo = false;
+      window.clearTimeout(t);
+    };
+    // claveCot resume album.id, ids y cupon
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abierto, claveCot, vuelta]);
+  const cotizando = remota?.clave !== claveCot;
+  // Mientras llega la cotización se muestra la última conocida (o la estimación local, sin cupones).
+  const cot = remota?.cot ?? cotizar(album, items, null, medios.length);
+  const cuponValido = !cotizando && cot.cupon ? cupon : null;
   const sug = sugerencia(album, items, medios.length);
 
   useEffect(() => {
@@ -89,40 +128,46 @@ export function Carrito({
   async function pagar(sinCupon = false) {
     const err: typeof errores = {};
     if (!nombre.trim()) err.nombre = "Poné tu nombre.";
-    if (!EMAIL_OK.test(email.trim())) err.email = "Revisá el email: ahí te mandaríamos las fotos.";
+    if (!EMAIL_OK.test(email.trim())) err.email = "Revisá el email: con él identificamos tu pedido.";
     setErrores(err);
     if (err.nombre || err.email) return;
-    const sinCuponTotal = cotizar(album, items, null, medios.length).total;
-    const cuponFinal = sinCupon ? null : (congelado?.cupon ?? cuponValido);
-    const totalEsperado = sinCupon ? sinCuponTotal : (congelado?.total ?? cot.total);
-    if (sinCupon) {
-      quitarCupon();
-      setCongelado({ total: sinCuponTotal, cupon: null });
-    }
     setPagando(true);
     setErrorPago(null);
     try {
-      const pedido = await obtenerRepo().crearPedido({
+      const repo = obtenerRepo();
+      let totalEsperado = congelado?.total ?? cot.total;
+      if (sinCupon) {
+        totalEsperado = (await repo.cotizar(album.id, ids, null)).total;
+        quitarCupon();
+        setCongelado({ total: totalEsperado, cupon: null });
+      }
+      const cuponFinal = sinCupon ? null : (congelado?.cupon ?? cuponValido);
+      const pedido = await repo.crearPedido({
         albumId: album.id,
-        items: seleccion.map((m) => m.id),
-        comprador: { nombre, email, whatsapp },
+        items: ids,
+        comprador: { nombre: nombre.trim(), email: email.trim(), whatsapp: whatsapp.trim() },
         cupon: cuponFinal,
         totalEsperado,
+        metodo,
       });
-      const mostrado = totalEsperado;
       // Si el repositorio recalculó (cambió un precio o un cupón), mostramos el total real antes de seguir.
-      const ajustado = pedido.cotizacion.total !== mostrado;
+      const ajustado = pedido.cotizacion.total !== totalEsperado;
       setHecho({ pedido, ajustado });
       onVaciar();
       onCupon(null);
+      if (!ajustado) {
+        seguir(pedido);
+        return;
+      }
       setPagando(false);
-      if (!ajustado) router.push(`/a/${album.slug}/pedido/${pedido.id}?clave=${pedido.clave}`);
     } catch (e) {
       setPagando(false);
       if (e instanceof ErrorRepo && e.codigo === "precio") {
         // Se muestra el total nuevo y se pide confirmar otra vez: nunca se cobra un monto que no se vio.
-        setCongelado({ total: cot.total, cupon: cuponValido });
-        setErrorPago({ mensaje: e.message, porCupon: false });
+        setCongelado(null);
+        setRemota(null);
+        setVuelta((v) => v + 1);
+        setErrorPago({ mensaje: `${e.message} Revisá el total nuevo y confirmá otra vez.`, porCupon: false });
       } else if (e instanceof ErrorRepo && e.codigo === "cupon") {
         setErrorPago({ mensaje: `No pudimos aplicar el cupón: ${e.message}`, porCupon: true });
       } else {
@@ -131,11 +176,25 @@ export function Carrito({
     }
   }
 
+  /** Después de crear el pedido: Mercado Pago real → checkout; si no, a la página del pedido. */
+  function seguir(pedido: Pedido) {
+    if (!demo && pedido.metodo === "mercadopago" && pedido.initPoint) {
+      window.location.assign(pedido.initPoint);
+      return;
+    }
+    router.push(`/a/${album.slug}/pedido/${pedido.id}?clave=${encodeURIComponent(pedido.clave)}`);
+  }
+
   if (hecho) {
     const { pedido } = hecho;
-    const irADescargas = () => router.push(`/a/${album.slug}/pedido/${pedido.id}?clave=${pedido.clave}`);
+    const irADescargas = () => seguir(pedido);
+    const titulo = demo
+      ? "Pago confirmado (demostración)"
+      : pedido.metodo === "mercadopago" && pedido.initPoint
+        ? "Te llevamos a Mercado Pago"
+        : "Pedido creado";
     return (
-      <Dialogo abierto={abierto} onCerrar={irADescargas} titulo="Pago confirmado (demostración)">
+      <Dialogo abierto={abierto} onCerrar={irADescargas} titulo={titulo}>
         <div className={s.texto}>
           {hecho.ajustado ? (
             <Aviso tono="ok">
@@ -144,11 +203,11 @@ export function Carrito({
             </Aviso>
           ) : (
             <p className={s.estadoFila}>
-              <Girador etiqueta="Abriendo tus descargas" /> Listo. Te llevamos a tus descargas…
+              <Girador etiqueta="Abriendo tu pedido" /> Listo. Te llevamos a tu pedido…
             </p>
           )}
           <Boton variante="primario" onClick={irADescargas}>
-            Ver mis descargas <IconoFlecha />
+            {!demo && pedido.metodo === "mercadopago" && pedido.initPoint ? "Ir a pagar con Mercado Pago" : "Ver mi pedido"} <IconoFlecha />
           </Boton>
         </div>
       </Dialogo>
@@ -171,6 +230,7 @@ export function Carrito({
             <Boton
               key="continuar"
               variante="primario"
+              disabled={cotizando}
               onClick={(e) => {
                 e.preventDefault();
                 setCongelado({ total: cot.total, cupon: cuponValido });
@@ -194,8 +254,14 @@ export function Carrito({
             >
               Volver al carrito
             </Boton>
-            <Boton key="pagar" variante="primario" type="submit" form="form-pago" disabled={pagando} aria-busy={pagando || undefined}>
-              {pagando ? "Procesando…" : `Pagar ${plata(congelado?.total ?? cot.total)} (demostración)`}
+            <Boton key="pagar" variante="primario" type="submit" form="form-pago" disabled={pagando || cotizando} aria-busy={pagando || undefined}>
+              {pagando
+                ? "Procesando…"
+                : demo
+                  ? `Pagar ${plata(congelado?.total ?? cot.total)} (demostración)`
+                  : metodo === "mercadopago"
+                    ? `Pagar ${plata(congelado?.total ?? cot.total)} con Mercado Pago`
+                    : `Confirmar pedido por ${plata(congelado?.total ?? cot.total)}`}
             </Boton>
           </div>
         )
@@ -230,6 +296,12 @@ export function Carrito({
           </ul>
 
           <Cuentas cot={cot} />
+          {cotizando ? (
+            <p className={s.estadoFila}>
+              <Girador etiqueta="Calculando el total" /> Calculando el total…
+            </p>
+          ) : null}
+          {errorCot ? <Aviso tono="error">No pudimos calcular el total: {errorCot}</Aviso> : null}
 
           <form className={s.cupon} onSubmit={aplicarCupon}>
             <div className={s.campoCupon}>
@@ -253,12 +325,12 @@ export function Carrito({
             <Boton type="submit" disabled={!cuponTexto.trim()}>
               Aplicar
             </Boton>
-            {cupon && cot.errorCupon ? (
+            {cupon && !cotizando && cot.errorCupon ? (
               <span id="cupon-mensaje" role="alert" className={`${s.cuponMensaje} ${s.cuponError}`}>
                 {cot.errorCupon}
               </span>
             ) : null}
-            {cupon && cot.cupon ? (
+            {cupon && !cotizando && cot.cupon ? (
               <span id="cupon-mensaje" role="status" className={`${s.cuponMensaje} ${s.cuponOk}`}>
                 <span>
                   Cupón <span className="mono">{cot.cupon.codigo}</span> aplicado: −{" "}
@@ -288,12 +360,38 @@ export function Carrito({
             void pagar();
           }}
         >
-          <Aviso tono="demo">
-            <span>
-              <ModoDemo /> <strong>Modo demostración: no se cobra nada ni se pide tarjeta.</strong> Con un cobro real, acá pagarías con
-              Mercado Pago o transferencia.
-            </span>
-          </Aviso>
+          <SoloDemo>
+            <Aviso tono="demo">
+              <span>
+                <ModoDemo /> <strong>Modo demostración: no se cobra nada ni se pide tarjeta.</strong> Con un cobro real, acá pagarías con
+                Mercado Pago o transferencia.
+              </span>
+            </Aviso>
+          </SoloDemo>
+          {conMp ? (
+            <Segmentado<MetodoCobro>
+              etiqueta="Cómo querés pagar"
+              valor={metodo}
+              onChange={setMetodo}
+              opciones={[
+                { valor: "mercadopago", texto: "Mercado Pago" },
+                { valor: "transferencia", texto: "Transferencia" },
+              ]}
+            />
+          ) : modo === "servidor" ? (
+            <Aviso>
+              Por ahora este álbum se paga sólo por transferencia. Al confirmar te mostramos cómo pagar
+              {fotografo ? ` a ${fotografo.nombre}` : ""}; las descargas se habilitan cuando el fotógrafo confirma que le llegó la plata.
+            </Aviso>
+          ) : null}
+          {conMp && metodo === "mercadopago" && !demo ? (
+            <p className={s.nota}>Te llevamos al checkout de Mercado Pago del fotógrafo. Al aprobarse el pago volvés acá y descargás.</p>
+          ) : null}
+          {conMp && metodo === "transferencia" ? (
+            <p className={s.nota}>
+              Le transferís directo al fotógrafo. Las descargas se habilitan cuando confirma que le llegó la plata.
+            </p>
+          ) : null}
           <Entrada
             ref={refNombre}
             etiqueta="Tu nombre"
@@ -311,7 +409,7 @@ export function Carrito({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             error={errores.email}
-            ayuda="Te serviría para recuperar el enlace de descarga."
+            ayuda="Para identificar tu pedido. Guardá el enlace de tu pedido: es tu acceso a las descargas."
             disabled={pagando}
           />
           <Entrada
@@ -342,7 +440,7 @@ export function Carrito({
               <dd className="mono">{plata(cot.total)}</dd>
             </div>
           </dl>
-          {congelado && congelado.total !== cot.total && !errorPago ? (
+          {congelado && !cotizando && congelado.total !== cot.total && !errorPago ? (
             <Aviso tono="error">
               <div>
                 El total cambió mientras completabas tus datos: era {plata(congelado.total)} y ahora es {plata(cot.total)}.{" "}

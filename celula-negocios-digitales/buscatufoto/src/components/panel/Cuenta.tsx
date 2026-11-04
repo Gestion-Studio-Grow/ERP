@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { AreaTexto, Aviso, Boton, BotonLink, Entrada, ModoDemo, Segmentado, Tarjeta } from "@/components/ui";
+import { AreaTexto, Aviso, Boton, BotonLink, Entrada, Insignia, ModoDemo, Segmentado, SoloDemo, Tarjeta } from "@/components/ui";
 import { aSlug } from "@/lib/ids";
-import { mensajeDeError, obtenerRepo } from "@/lib/repo";
+import { mensajeDeError, obtenerRepo, useModoRepo } from "@/lib/repo";
 import type { DatosCobro, Fotografo, MetodoCobro } from "@/lib/tipos";
 import { Encabezado, useFotografo, useOrigen } from "./comunes";
 import s from "./panel.module.css";
@@ -119,6 +119,94 @@ function FormPerfil({ f }: { f: Fotografo }) {
   );
 }
 
+/** Modo servidor: el fotógrafo conecta SU cuenta de Mercado Pago pegando el Access Token. Nunca se muestra lo guardado. */
+function TokenMercadoPago({ configurado }: { configurado: boolean }) {
+  const [token, setToken] = useState("");
+  const [estado, setEstado] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const conectado = estado ?? configurado;
+
+  async function guardar(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setOk(null);
+    const t = token.trim();
+    if (!t) return setError("Pegá el Access Token de producción de tu cuenta de Mercado Pago.");
+    if (t.startsWith("TEST-")) return setError("Ese es un token de prueba (empieza con TEST-). Para cobrar de verdad hace falta el de producción (APP_USR-…).");
+    setOcupado(true);
+    try {
+      await obtenerRepo().guardarTokenMp(t);
+      setToken("");
+      setEstado(true);
+      setOk("Listo: tu cuenta de Mercado Pago quedó conectada.");
+    } catch (err) {
+      setError(mensajeDeError(err));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function quitar() {
+    setError(null);
+    setOk(null);
+    setOcupado(true);
+    try {
+      await obtenerRepo().quitarTokenMp();
+      setEstado(false);
+      setOk("Quitamos el token. Mientras no cargues otro, tus compradores sólo pueden pagar por transferencia.");
+    } catch (err) {
+      setError(mensajeDeError(err));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <Tarjeta as="section" className={s.tarjetaForm}>
+      <form className={s.formulario} onSubmit={guardar} noValidate>
+        <h2 className="titulo-m">
+          Mercado Pago <Insignia tono={conectado ? "ok" : undefined}>{conectado ? "Conectado" : "Sin conectar"}</Insignia>
+        </h2>
+        <p>
+          La plata entra a <strong>TU</strong> cuenta de Mercado Pago; GSG no la toca. El comprador paga en el checkout de Mercado Pago con tu
+          cuenta y, cuando el pago se aprueba, se le habilitan las descargas.
+        </p>
+        <Entrada
+          etiqueta={conectado ? "Reemplazar el Access Token" : "Access Token de producción"}
+          type="password"
+          value={token}
+          onChange={(e) => setToken(e.target.value.replace(/\s/g, ""))}
+          className={s.campoMono}
+          autoComplete="off"
+          spellCheck={false}
+          autoCapitalize="off"
+          placeholder="APP_USR-…"
+          ayuda="Lo sacás de Mercado Pago Developers → Tus integraciones → Credenciales de producción. Se guarda cifrado y no se vuelve a mostrar."
+          disabled={ocupado}
+        />
+        {error ? (
+          <p role="alert" className={s.error}>
+            {error}
+          </p>
+        ) : null}
+        {ok ? <Aviso tono="ok">{ok}</Aviso> : null}
+        <div className={s.filaBotones}>
+          <Boton type="submit" variante="primario" disabled={ocupado || !token.trim()}>
+            {ocupado ? "Guardando…" : conectado ? "Reemplazar token" : "Conectar Mercado Pago"}
+          </Boton>
+          {conectado ? (
+            <Boton variante="peligro" onClick={quitar} disabled={ocupado}>
+              Quitar
+            </Boton>
+          ) : null}
+        </div>
+      </form>
+    </Tarjeta>
+  );
+}
+
 /* ---------- Cobros ---------- */
 
 const cobroDe = (f: Fotografo): DatosCobro => f.cobro ?? { metodo: "mercadopago", titular: f.nombre, alias: "", cuit: "" };
@@ -129,6 +217,7 @@ export function Cobros() {
 }
 
 function FormCobros({ f }: { f: Fotografo }) {
+  const modo = useModoRepo();
   const [b, setB] = useState<DatosCobro>(() => cobroDe(f));
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
@@ -195,10 +284,12 @@ function FormCobros({ f }: { f: Fotografo }) {
             />
             <Entrada etiqueta="CUIT / CUIL" inputMode="numeric" value={b.cuit} onChange={(e) => set({ cuit: e.target.value })} placeholder="20-12345678-3" />
           </div>
-          <Aviso tono="demo">
-            En la demo estos datos sólo se guardan en tu navegador: no se valida la cuenta ni se transfiere plata. Con la plataforma real, cada venta se
-            acredita acá menos la comisión de tu plan.
-          </Aviso>
+          <SoloDemo>
+            <Aviso tono="demo">
+              En la demo estos datos sólo se guardan en tu navegador: no se valida la cuenta ni se transfiere plata. Con la plataforma real, cada venta se
+              acredita acá menos la comisión de tu plan.
+            </Aviso>
+          </SoloDemo>
           {error ? (
             <p role="alert" className={s.error}>
               {error}
@@ -212,6 +303,7 @@ function FormCobros({ f }: { f: Fotografo }) {
           </div>
         </form>
       </Tarjeta>
+      {modo === "servidor" ? <TokenMercadoPago configurado={!!f.mpConfigurado} /> : null}
     </>
   );
 }

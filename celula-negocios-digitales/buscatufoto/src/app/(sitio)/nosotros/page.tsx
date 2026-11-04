@@ -43,8 +43,8 @@ export default function PaginaNosotros() {
 
           <h2>Cómo trabajamos</h2>
           <p>
-            Preferimos decir lo que todavía no está antes que fingirlo. Por eso esta versión es una{" "}
-            <strong>demostración</strong>: funciona entera en tu navegador, los pagos y el WhatsApp están simulados y los
+            Preferimos decir lo que todavía no está antes que fingirlo. Por eso lo simulado se rotula: el{" "}
+            <strong>modo de prueba</strong> funciona entero en tu navegador y avisa que sus pagos no son reales, y los
             precios de los planes son provisionales a confirmar. La búsqueda por selfie la vamos a sumar cuando esté
             resuelta y probada, no antes.
           </p>

@@ -106,3 +106,21 @@ export function nombreDescarga(nombreArchivo: string | undefined, tipoMime: stri
   const ext = tipoMime.split("/")[1]?.replace("jpeg", "jpg").replace("quicktime", "mov") || "bin";
   return `buscatufoto-${indice + 1}.${ext}`;
 }
+
+/** Número de WhatsApp sólo con dígitos, listo para `wa.me` (vacío si no sirve). */
+export function numeroWhatsapp(n: string | null | undefined): string {
+  const d = (n ?? "").replace(/\D/g, "");
+  return d.length >= 8 ? d : "";
+}
+
+/**
+ * Enlace para escribirle al fotógrafo: WhatsApp si lo tiene, si no email; null si no hay ninguno.
+ * El texto va armado; el comprador lo puede editar antes de mandar.
+ */
+export function enlaceContacto(f: { whatsapp?: string; email?: string } | null, asunto: string, texto: string): string | null {
+  const wa = numeroWhatsapp(f?.whatsapp);
+  if (wa) return `https://wa.me/${wa}?text=${encodeURIComponent(texto)}`;
+  const email = f?.email?.trim();
+  if (email) return `mailto:${email}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(texto)}`;
+  return null;
+}

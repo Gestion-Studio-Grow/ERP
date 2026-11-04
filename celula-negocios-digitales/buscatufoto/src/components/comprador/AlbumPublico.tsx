@@ -67,7 +67,9 @@ export function AlbumPublico({ slug }: { slug: string }) {
         }
       }
       if (!album) return null;
-      const [medios, fotografo] = await Promise.all([repo.mediosDe(album.id), repo.obtenerFotografo(album.fotografoId)]);
+      const [todos, fotografo] = await Promise.all([repo.mediosDe(album.id), repo.obtenerFotografo(album.fotografoId)]);
+      // Lo que el fotógrafo retiró no se muestra (en modo servidor ya viene filtrado; en la demo, acá).
+      const medios = todos.filter((m) => !m.oculto);
       return { album, medios, fotografo };
     },
     [slug],
@@ -287,6 +289,8 @@ function AlbumListo({ album, medios, fotografo }: DatosAlbum) {
       ) : null}
 
       <Visor
+        album={album}
+        fotografo={fotografo}
         lista={listaVisor}
         actualId={visorId}
         indiceAlbum={indiceAlbum}
@@ -300,6 +304,7 @@ function AlbumListo({ album, medios, fotografo }: DatosAlbum) {
         abierto={carritoAbierto}
         onCerrar={() => setCarritoAbierto(false)}
         album={album}
+        fotografo={fotografo}
         medios={medios}
         seleccion={medioSel}
         indiceAlbum={indiceAlbum}

@@ -26,8 +26,9 @@ export default function PaginaTerminos() {
           <h2>1. Qué es buscatufoto</h2>
           <p>
             buscatufoto es una plataforma donde fotógrafos de eventos publican fotos y videos para que las personas que
-            aparecen en ellos los encuentren y los compren. Hoy funciona como <strong>demostración</strong>: los datos
-            quedan en tu navegador y los pagos y envíos por WhatsApp están simulados.
+            aparecen en ellos los encuentren y los compren. Tiene un <strong>modo de prueba</strong>, rotulado «Modo
+            demostración», donde los datos quedan en tu navegador y los pagos están simulados, y cuentas habilitadas,
+            donde los datos se guardan en el servidor y los cobros son reales.
           </p>
 
           <h2>2. Quién puede usarlo</h2>
@@ -69,16 +70,16 @@ export default function PaginaTerminos() {
 
           <h2>6. Pagos y entregas</h2>
           <p>
-            El original se entrega sólo con el pedido pagado. Mientras el servicio sea una demostración, ningún pago es
-            real y no se mueve dinero. Cuando haya cobros reales, se van a hacer a través del medio de pago que elija el
-            fotógrafo, con sus propias condiciones.
+            El original se entrega sólo con el pedido pagado. Los cobros reales los recibe el fotógrafo directamente, por
+            Mercado Pago con su propia cuenta o por transferencia a sus datos, con las condiciones de ese medio. En el
+            modo de prueba ningún pago es real y no se mueve dinero.
           </p>
 
           <h2>7. Lo que no garantizamos</h2>
           <p>
             Hacemos lo posible para que el servicio funcione bien, pero puede tener cortes o errores, sobre todo en esta
-            etapa. Como en la demo todo se guarda en tu navegador, si borrás los datos del sitio se pierden; conviene
-            conservar siempre tus originales.
+            etapa. En el modo de prueba todo se guarda en tu navegador: si borrás los datos del sitio se pierden. En cualquier
+            caso, conservá siempre tus originales.
           </p>
 
           <h2>8. Cambios</h2>

@@ -386,6 +386,18 @@ function TarjetaMedio({
     if (cambiado) void guardar(parsearListaDorsales(texto));
   }
 
+  async function alternarOculto() {
+    setError(null);
+    setOcupado(true);
+    try {
+      await obtenerRepo().ocultarMedio(medio.id, !medio.oculto);
+    } catch (e) {
+      setError(mensajeDeError(e));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   function leerDelNombre() {
     const d = dorsalesDesdeNombre(medio.nombreArchivo);
     if (!d.length) {
@@ -406,6 +418,7 @@ function TarjetaMedio({
         <div className={s.miniaturaInsignias}>
           {medio.tipo === "video" ? <Insignia>Video{medio.duracion ? ` · ${medio.duracion} s` : ""}</Insignia> : null}
           {esPortada ? <Insignia tono="acento">Portada</Insignia> : null}
+          {medio.oculto ? <Insignia tono="demo">Oculta: no se ve en la galería</Insignia> : null}
         </div>
       </div>
       <div className={s.tarjetaMedioCuerpo}>
@@ -434,6 +447,16 @@ function TarjetaMedio({
         <div className={s.accionesMedio}>
           <Boton tam="chico" variante="fantasma" onClick={leerDelNombre} disabled={ocupado}>
             Leer del nombre
+          </Boton>
+          <Boton
+            tam="chico"
+            variante="fantasma"
+            onClick={alternarOculto}
+            disabled={ocupado}
+            aria-pressed={!!medio.oculto}
+            title={medio.oculto ? "Volver a mostrarla en la galería pública" : "Sacarla de la galería pública (por ejemplo, si alguien pidió que la retiren)"}
+          >
+            {medio.oculto ? "Mostrar" : "Ocultar"}
           </Boton>
           {medio.tipo === "foto" && !esPortada ? (
             <Boton tam="chico" variante="fantasma" onClick={onPortada}>

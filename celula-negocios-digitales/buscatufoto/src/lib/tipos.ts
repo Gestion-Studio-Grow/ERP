@@ -42,6 +42,8 @@ export interface Fotografo {
   creadoEn: number;
   /** Sólo en modo servidor: el token de Mercado Pago está guardado (nunca viaja el token). */
   mpConfigurado?: boolean;
+  /** Contacto público por WhatsApp (sólo lo trae el álbum público en modo servidor, si el fotógrafo lo cargó). */
+  whatsapp?: string;
 }
 
 export interface Paquete {

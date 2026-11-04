@@ -2,16 +2,19 @@
 
 import { useEffect } from "react";
 import { Boton, Dialogo, IconoFlecha, IconoMas, IconoTilde } from "@/components/ui";
-import type { Medio } from "@/lib/tipos";
+import Link from "next/link";
+import type { Album, Fotografo, Medio } from "@/lib/tipos";
 import s from "./comprador.module.css";
 import { Miniatura } from "./Miniatura";
-import { duracionTexto, nombreMedio } from "./textos";
+import { duracionTexto, enlaceContacto, nombreMedio } from "./textos";
 
 /**
  * Visor ampliado: muestra la VISTA PREVIA marcada (≤ 1280 px), nunca el original.
  * Flechas del teclado para moverse dentro de la lista que se está viendo (filtrada o completa).
  */
 export function Visor({
+  album,
+  fotografo,
   lista,
   actualId,
   indiceAlbum,
@@ -20,6 +23,8 @@ export function Visor({
   onAlternar,
   onCerrar,
 }: {
+  album: Album;
+  fotografo: Fotografo | null;
   lista: Medio[];
   actualId: string | null;
   indiceAlbum: (id: string) => number;
@@ -52,6 +57,13 @@ export function Visor({
 
   const nombre = medio ? nombreMedio(medio, indiceAlbum(medio.id)) : "";
   const sel = medio ? elegida(medio.id) : false;
+  const retiro = medio
+    ? enlaceContacto(
+        fotografo,
+        `Pedido de retiro de una foto · ${album.nombre}`,
+        `Hola${fotografo ? ` ${fotografo.nombre}` : ""}. Aparezco (o aparece alguien a mi cargo) en esta foto y pido que la saquen de la galería: ${nombre}, código ${medio.id}, álbum «${album.nombre}» (${album.slug}).`,
+      )
+    : null;
 
   return (
     <Dialogo abierto={abierto} onCerrar={onCerrar} ancho titulo={medio ? `${nombre} · ${pos + 1} de ${lista.length}` : ""}>
@@ -101,6 +113,16 @@ export function Visor({
                 {medio.tipo === "video"
                   ? `Video${medio.duracion != null ? ` de ${duracionTexto(medio.duracion)}` : ""}: acá ves un cuadro con marca. El video completo, sin marca, lo descargás después de pagar.`
                   : "Vista previa con marca de agua. El original, sin marca y en tamaño completo, lo descargás después de pagar."}
+              </span>
+              <span>
+                ¿Aparecés vos o un menor a tu cargo y no querés que esta foto se publique?{" "}
+                {retiro ? (
+                  <a href={retiro} target="_blank" rel="noopener noreferrer">
+                    Pedir que saquen esta foto
+                  </a>
+                ) : (
+                  <Link href="/contacto">Pedir que saquen esta foto</Link>
+                )}
               </span>
             </div>
             <Boton variante={sel ? "secundario" : "primario"} aria-pressed={sel} onClick={() => onAlternar(medio.id)}>

@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Aviso, Boton, BotonLink, Girador, IconoCopiar, IconoDescargar, IconoTilde, IconoWhatsapp, ModoDemo, Tarjeta } from "@/components/ui";
+import { Aviso, Boton, BotonLink, Girador, IconoCopiar, IconoDescargar, IconoTilde, IconoWhatsapp, ModoDemo, SoloDemo, Tarjeta } from "@/components/ui";
 import { fechaHora, plata } from "@/lib/dinero";
 import { useDatos } from "@/lib/hooks";
 import { mensajeDeError, obtenerRepo } from "@/lib/repo";
 import type { Album, Medio, Pedido, Fotografo } from "@/lib/tipos";
 import s from "./comprador.module.css";
 import { Miniatura } from "./Miniatura";
-import { listaDorsales, nombreDescarga, nombreMedio } from "./textos";
+import { enlaceContacto, listaDorsales, nombreDescarga, nombreMedio } from "./textos";
 
 interface DatosPedido {
   pedido: Pedido;
@@ -44,16 +44,18 @@ export function PedidoVista({ slug, pedidoId, clave }: { slug: string; pedidoId:
   const datos = useDatos<DatosPedido | null>(
     async () => {
       const repo = obtenerRepo();
-      const pedido = await repo.obtenerPedido(pedidoId, clave);
+      if (!clave) return null;
+      // El álbum público (por slug) trae también el contacto del fotógrafo; el pedido se pide con su clave.
+      const [porSlug, pedido] = await Promise.all([repo.albumPorSlug(slug).catch(() => null), repo.obtenerPedido(pedidoId, clave)]);
       if (!pedido) return null;
-      const [album, medios, fotografo] = await Promise.all([
-        repo.obtenerAlbum(pedido.albumId),
-        repo.mediosDe(pedido.albumId),
-        repo.obtenerFotografo(pedido.fotografoId),
+      const album = porSlug && porSlug.id === pedido.albumId ? porSlug : await repo.obtenerAlbum(pedido.albumId).catch(() => null);
+      const [medios, fotografo] = await Promise.all([
+        album ? repo.mediosDe(pedido.albumId).catch(() => [] as Medio[]) : Promise.resolve([] as Medio[]),
+        repo.obtenerFotografo(pedido.fotografoId).catch(() => null),
       ]);
       return { pedido, album, medios, fotografo };
     },
-    [pedidoId, clave],
+    [slug, pedidoId, clave],
     ["pedidos", "medios", "albumes"],
   );
 
@@ -83,8 +85,8 @@ export function PedidoVista({ slug, pedidoId, clave }: { slug: string; pedidoId:
         <p className="rotulo">Pedido</p>
         <h1 className="titulo-l">No encontramos ese pedido o el enlace está incompleto</h1>
         <p className="bajada">
-          El enlace de descarga trae una clave al final. Si lo copiaste a mano, fijate que esté entero. En esta demo, los pedidos quedan
-          guardados sólo en el navegador donde se pagaron.
+          El enlace de descarga trae una clave al final. Si lo copiaste a mano, fijate que esté entero.
+          <SoloDemo> En esta demo, los pedidos quedan guardados sólo en el navegador donde se pagaron.</SoloDemo>
         </p>
         <BotonLink href={`/a/${slug}`} variante="primario">
           Volver al álbum
@@ -92,7 +94,123 @@ export function PedidoVista({ slug, pedidoId, clave }: { slug: string; pedidoId:
       </div>
     );
   }
+  if (datos.datos.pedido.estado === "pendiente") return <PedidoPendiente {...datos.datos} slug={slug} onVerificar={datos.recargar} />;
   return <PedidoListo {...datos.datos} slug={slug} />;
+}
+
+/** Pedido creado pero sin pago confirmado: Mercado Pago (verificar) o transferencia (datos y aviso al fotógrafo). */
+function PedidoPendiente({ pedido, album, fotografo, slug, onVerificar }: DatosPedido & { slug: string; onVerificar: () => void }) {
+  const [verificando, setVerificando] = useState(false);
+  const [revisado, setRevisado] = useState(false);
+  const albumSlug = album?.slug ?? slug;
+  const total = plata(pedido.cotizacion.total);
+  const esMp = pedido.metodo === "mercadopago";
+  const cobro = fotografo?.cobro?.alias ? fotografo.cobro : null;
+  const enlacePedido = typeof window !== "undefined" ? window.location.href : "";
+  const aviso = enlaceContacto(
+    fotografo,
+    `Transferí el pedido ${pedido.referenciaPago || pedido.id}`,
+    `Hola${fotografo ? ` ${fotografo.nombre}` : ""}. Te transferí ${total} por el pedido ${pedido.referenciaPago || pedido.id}` +
+      `${album ? ` del álbum «${album.nombre}»` : ""}, a nombre de ${pedido.comprador.nombre}. Enlace del pedido: ${enlacePedido}`,
+  );
+
+  function verificar() {
+    setVerificando(true);
+    setRevisado(false);
+    onVerificar();
+    // Si el pago se confirmó, esta vista se reemplaza por las descargas; si no, se avisa que sigue pendiente.
+    window.setTimeout(() => {
+      setVerificando(false);
+      setRevisado(true);
+    }, 2500);
+  }
+
+  return (
+    <div className={`contenedor ${s.pagina}`}>
+      <header className={s.pedidoCabeza}>
+        <p className="rotulo">
+          Pedido <span className="mono">{pedido.referenciaPago || pedido.id}</span> · Pendiente de pago
+        </p>
+        <h1 className="titulo-xl">{esMp ? "Falta confirmar el pago" : "Falta la transferencia"}</h1>
+        <p className="bajada">
+          {esMp
+            ? `Todavía no nos llegó la aprobación de Mercado Pago por ${total}. Si ya pagaste, puede tardar unos minutos.`
+            : `Transferile ${total} a ${fotografo?.nombre ?? "el fotógrafo"}. Cuando confirme que le llegó, acá se habilitan tus descargas.`}
+        </p>
+      </header>
+
+      <Aviso>
+        <span style={{ display: "grid", gap: 8, justifyItems: "start" }}>
+          <strong>Guardá este enlace: es la llave de tus descargas.</strong>
+          <span>Volvé a abrirlo cuando el pago esté confirmado.</span>
+        </span>
+      </Aviso>
+
+      <Tarjeta as="section">
+        <div className={s.bloque}>
+          {esMp ? (
+            <>
+              <Boton variante="primario" onClick={verificar} disabled={verificando} aria-busy={verificando || undefined}>
+                {verificando ? <Girador etiqueta="Verificando el pago" /> : null}
+                Ya pagué, verificar
+              </Boton>
+              {revisado ? (
+                <p role="status" className={s.nota}>
+                  Todavía figura pendiente. Si recién pagaste, esperá un par de minutos y volvé a verificar.
+                </p>
+              ) : null}
+              <p className={s.nota}>Si el pago no se completó, volvé al álbum y armá el pedido de nuevo.</p>
+            </>
+          ) : (
+            <>
+              <h2 className="titulo-m">Datos para transferir</h2>
+              {cobro ? (
+                <dl className={s.cuentas} style={{ marginTop: 0, borderTop: 0, paddingTop: 0 }}>
+                  <div>
+                    <dt>Alias o CBU/CVU</dt>
+                    <dd className="mono" style={{ overflowWrap: "anywhere" }}>
+                      {cobro.alias}
+                    </dd>
+                  </div>
+                  {cobro.titular ? (
+                    <div>
+                      <dt>Titular</dt>
+                      <dd>{cobro.titular}</dd>
+                    </div>
+                  ) : null}
+                  <div className={s.total}>
+                    <dt>Monto</dt>
+                    <dd className="mono">{total}</dd>
+                  </div>
+                </dl>
+              ) : (
+                <p>
+                  {aviso
+                    ? `Pedile el alias a ${fotografo?.nombre ?? "el fotógrafo"} con el botón de abajo; el monto es ${total}.`
+                    : `El fotógrafo todavía no cargó sus datos de cobro. Escribinos desde Contacto y te ayudamos con el pedido.`}
+                </p>
+              )}
+              {aviso ? (
+                <BotonLink href={aviso} externo variante="primario">
+                  {fotografo?.whatsapp ? <IconoWhatsapp /> : null} Avisar que transferí
+                </BotonLink>
+              ) : (
+                <BotonLink href="/contacto" variante="secundario">
+                  Ir a Contacto
+                </BotonLink>
+              )}
+              <Boton variante="fantasma" onClick={verificar} disabled={verificando}>
+                Ya me confirmó, ver de nuevo
+              </Boton>
+            </>
+          )}
+          <BotonLink href={`/a/${albumSlug}`} variante="fantasma">
+            Volver al álbum
+          </BotonLink>
+        </div>
+      </Tarjeta>
+    </div>
+  );
 }
 
 function PedidoListo({ pedido, album, medios, fotografo, slug }: DatosPedido & { slug: string }) {
@@ -144,12 +262,21 @@ function PedidoListo({ pedido, album, medios, fotografo, slug }: DatosPedido & {
   }
 
   const bajandoTodo = todo !== null;
+  const contacto = enlaceContacto(
+    fotografo,
+    `Pedido ${pedido.referenciaPago || pedido.id}`,
+    `Hola${fotografo ? ` ${fotografo.nombre}` : ""}. Te escribo por el pedido ${pedido.referenciaPago || pedido.id}${album ? ` del álbum «${album.nombre}»` : ""}.`,
+  );
 
   return (
     <div className={`contenedor ${s.pagina}`}>
       <header className={s.pedidoCabeza}>
         <p className="rotulo">
-          Pedido <span className="mono">{pedido.referenciaPago}</span> · <ModoDemo>Pago de demostración</ModoDemo>
+          Pedido <span className="mono">{pedido.referenciaPago || pedido.id}</span>
+          <SoloDemo>
+            {" "}
+            · <ModoDemo>Pago de demostración</ModoDemo>
+          </SoloDemo>
         </p>
         <h1 className="titulo-xl">Listo, ya son tuyas</h1>
         <p className="bajada">
@@ -161,12 +288,13 @@ function PedidoListo({ pedido, album, medios, fotografo, slug }: DatosPedido & {
             "Tus fotos sin marca de agua y en tamaño original."
           )}
         </p>
-        {fotografo ? (
+        {fotografo && contacto ? (
           <p className="bajada">
-            ¿Algún problema con una descarga? Escribile a {fotografo.nombre}:{" "}
-            <a href={`mailto:${fotografo.email}?subject=${encodeURIComponent(`Pedido ${pedido.referenciaPago}`)}`}>
-              {fotografo.email}
+            ¿Algún problema con una descarga?{" "}
+            <a href={contacto} target="_blank" rel="noopener noreferrer">
+              Escribile a {fotografo.nombre}
             </a>
+            {!fotografo.whatsapp && fotografo.email ? <> ({fotografo.email})</> : null}
           </p>
         ) : null}
       </header>
@@ -285,9 +413,17 @@ function PedidoListo({ pedido, album, medios, fotografo, slug }: DatosPedido & {
                 <dd className="mono">{plata(cot.total)}</dd>
               </div>
             </dl>
-            <p style={{ fontSize: 13, color: "var(--muted)" }}>
-              Pago simulado: no se cobró nada. Con cobros reales, el comprobante llegaría a tu email.
-            </p>
+            <SoloDemo>
+              <p style={{ fontSize: 13, color: "var(--muted)" }}>
+                Pago simulado: no se cobró nada. Con cobros reales, el comprobante llegaría a tu email.
+              </p>
+            </SoloDemo>
+            <dl className={s.cuentas} style={{ marginTop: 0, borderTop: 0, paddingTop: 0 }}>
+              <div>
+                <dt>Pagado con</dt>
+                <dd>{pedido.metodo === "transferencia" ? "Transferencia" : "Mercado Pago"}</dd>
+              </div>
+            </dl>
             <BotonLink href={`/a/${albumSlug}`} variante="fantasma">
               Volver al álbum
             </BotonLink>

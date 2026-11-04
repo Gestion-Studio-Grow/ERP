@@ -12,6 +12,7 @@ export { escucharCambios } from "./cambios";
 export type ModoRepo = "servidor" | "demo";
 
 let modo: ModoRepo | undefined;
+let mp = false;
 let resolviendo: Promise<ModoRepo> | null = null;
 let real: Repositorio | null = null;
 const oyentesModo = new Set<() => void>();
@@ -27,7 +28,8 @@ export function resolverModo(): Promise<ModoRepo> {
       try {
         const r = await fetch("/api/btf/estado", { credentials: "include", cache: "no-store" });
         if (!r.ok) return "demo";
-        const cuerpo = (await r.json()) as { configurado?: unknown };
+        const cuerpo = (await r.json()) as { configurado?: unknown; mp?: unknown };
+        mp = cuerpo.mp === true;
         return cuerpo.configurado === true ? "servidor" : "demo";
       } catch {
         return "demo";
@@ -46,6 +48,11 @@ async function repoReal(): Promise<Repositorio> {
   const m = await resolverModo();
   if (!real) real = m === "servidor" ? new RepositorioRemoto() : new RepositorioIDB();
   return real;
+}
+
+/** Modo servidor: `/estado` dijo que el cobro con Mercado Pago está disponible. En la demo, siempre (simulado). */
+export function mpDisponible(): boolean {
+  return modo === "demo" || (modo === "servidor" && mp);
 }
 
 /** Modo ya resuelto; mientras se consulta el servidor responde "demo". Para la UI usar `useModoRepo`. */

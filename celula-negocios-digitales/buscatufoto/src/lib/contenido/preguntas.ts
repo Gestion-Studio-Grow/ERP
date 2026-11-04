@@ -17,7 +17,7 @@ export const PREGUNTAS: Pregunta[] = [
     pregunta: "¿Qué es buscatufoto?",
     respuesta: [
       "Una plataforma para que fotógrafos de carreras, torneos y fiestas publiquen sus fotos y videos y los vendan. La gente entra desde el enlace, se busca por número, elige y paga.",
-      "Hoy es una demostración: funciona entera en tu navegador, sin servidor.",
+      "Hay dos modos. Con una cuenta habilitada (por invitación), los álbumes se guardan en nuestro servidor y los cobros son reales. En el modo de prueba, todo funciona en tu navegador y lo simulado está rotulado «Modo demostración».",
     ],
   },
   {
@@ -48,8 +48,8 @@ export const PREGUNTAS: Pregunta[] = [
     id: "cobro",
     pregunta: "¿Cómo cobro lo que vendo?",
     respuesta: [
-      "La idea es que el comprador te pague por Mercado Pago o transferencia a los datos que cargaste en el panel.",
-      "Hoy el pago está en modo demostración: el recorrido se completa entero, pero no se mueve plata real.",
+      "El comprador paga con Mercado Pago, en tu propia cuenta (la plata entra directo a vos), o por transferencia a los datos que cargaste en el panel; en ese caso marcás el pedido como pagado cuando te llega.",
+      "En el modo de prueba el pago es simulado y no se mueve plata real; la pantalla lo avisa.",
     ],
   },
   {
@@ -100,7 +100,8 @@ export const PREGUNTAS: Pregunta[] = [
     id: "datos",
     pregunta: "¿Qué pasa con mis datos?",
     respuesta: [
-      "En esta demo todo queda guardado en tu navegador (IndexedDB): no hay servidor que reciba tus fotos ni tus datos. Si borrás los datos del sitio, se pierde todo.",
+      "Con una cuenta habilitada, los originales se guardan en un almacenamiento privado y sólo se entregan con el pedido pagado; lo público son las vistas previas con marca de agua. En el modo de prueba todo queda en tu navegador (IndexedDB) y, si borrás los datos del sitio, se pierde.",
+      "Si aparecés en una foto (o aparece un menor a tu cargo) y no querés que se publique, en la vista ampliada tocá «Pedir que saquen esta foto» y le escribís al fotógrafo, que la puede ocultar.",
       "Tampoco procesamos rostros.",
     ],
     enlace: { href: "/privacidad", texto: "Leer la política de privacidad" },
@@ -109,7 +110,7 @@ export const PREGUNTAS: Pregunta[] = [
     id: "formatos",
     pregunta: "¿Qué formatos y pesos acepta?",
     respuesta: [
-      "Fotos JPG, PNG y WebP de hasta 40 MB, y videos MP4, WebM o MOV de hasta 300 MB. Como todo se procesa en tu navegador, el límite práctico depende de tu computadora: para la demo conviene usar videos cortos (límites provisionales a confirmar).",
+      "Fotos JPG, PNG y WebP de hasta 40 MB, y videos MP4, WebM o MOV de hasta 300 MB. Como todo se procesa en tu navegador, el límite práctico depende de tu computadora: conviene usar videos cortos (límites provisionales a confirmar).",
     ],
   },
   {

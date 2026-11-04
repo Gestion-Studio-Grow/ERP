@@ -86,6 +86,7 @@ export function NuevoAlbum() {
   const [precioFoto, setPrecioFoto] = useState("3500");
   const [precioVideo, setPrecioVideo] = useState("0");
   const [publicado, setPublicado] = useState(false);
+  const [consentimiento, setConsentimiento] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
@@ -98,6 +99,7 @@ export function NuevoAlbum() {
     const pv = precioVideo.trim() === "" ? 0 : aEntero(precioVideo);
     if (!Number.isFinite(pf)) return setError("Poné el precio por foto en pesos, sin centavos (ej.: 3500).");
     if (!Number.isFinite(pv)) return setError("El precio por video va en pesos, sin centavos. Dejalo en 0 para cobrarlo igual que una foto.");
+    if (!consentimiento) return setError("Para crear el álbum tenés que confirmar el consentimiento de los participantes (Ley 25.326).");
     setOcupado(true);
     try {
       const a = await obtenerRepo().crearAlbum(f.id, {
@@ -114,6 +116,7 @@ export function NuevoAlbum() {
         cupones: [],
         colaboradores: [],
         publicado,
+        consentimiento: true,
       });
       router.push(`/panel/albumes/${a.id}?seccion=fotos`);
     } catch (err) {
@@ -148,6 +151,23 @@ export function NuevoAlbum() {
             />
           </div>
           <Interruptor etiqueta="Publicado: cualquiera con el enlace puede verlo" checked={publicado} onChange={setPublicado} />
+          <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={consentimiento}
+              onChange={(e) => setConsentimiento(e.target.checked)}
+              required
+              aria-describedby="ayuda-consentimiento"
+              style={{ marginTop: 4, flexShrink: 0 }}
+            />
+            <span>
+              Confirmo que el organizador del evento tiene el consentimiento de los participantes y de los responsables de los menores para
+              tomar y vender imágenes del evento.
+              <small id="ayuda-consentimiento" style={{ display: "block", color: "var(--muted)" }}>
+                Obligatorio (Ley 25.326 de protección de datos personales). Si alguien pide que saquen su foto, la ocultás desde el álbum.
+              </small>
+            </span>
+          </label>
           {error ? (
             <p role="alert" className={s.error}>
               {error}

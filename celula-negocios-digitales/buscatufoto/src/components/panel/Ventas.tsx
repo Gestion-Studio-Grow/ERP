@@ -1,26 +1,86 @@
 "use client";
 
 import { useState } from "react";
-import { Selector, Vacio } from "@/components/ui";
+import { Boton, Insignia, Selector, Vacio } from "@/components/ui";
 import { fechaHora, plata } from "@/lib/dinero";
 import { useDatos } from "@/lib/hooks";
-import { obtenerRepo, useModoRepo } from "@/lib/repo";
+import { mensajeDeError, obtenerRepo, useModoRepo } from "@/lib/repo";
 import type { Album, Pedido } from "@/lib/tipos";
 import { Cargando, Cifra, Encabezado, ErrorCarga, Seccion, useAlbumes, useFotografo } from "./comunes";
 import s from "./panel.module.css";
 
-/** Totales arriba + tabla de pedidos (en móvil, tarjetas apiladas). */
+/** Estado + acción: sólo una transferencia pendiente se marca a mano, con confirmación. */
+function EstadoPedido({ p }: { p: Pedido }) {
+  const [confirmar, setConfirmar] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const metodo = p.metodo === "transferencia" ? "Transferencia" : "Mercado Pago";
+  if (p.estado === "pagado") {
+    return (
+      <span className={s.celdaDoble}>
+        <Insignia tono="ok">Pagado</Insignia>
+        <span className={s.ayudaChica}>{metodo}</span>
+      </span>
+    );
+  }
+  async function marcar() {
+    setOcupado(true);
+    setError(null);
+    try {
+      await obtenerRepo().marcarPagado(p.id);
+    } catch (e) {
+      setError(mensajeDeError(e));
+      setOcupado(false);
+    }
+  }
+  return (
+    <span className={s.celdaDoble}>
+      <Insignia>Pendiente</Insignia>
+      <span className={s.ayudaChica}>{metodo}</span>
+      {p.metodo === "transferencia" ? (
+        confirmar ? (
+          <span>
+            <span className={s.ayudaChica}>¿Te llegaron {plata(p.cotizacion.total)}? </span>
+            <Boton tam="chico" variante="primario" onClick={marcar} disabled={ocupado}>
+              {ocupado ? "Marcando…" : "Sí, marcar pagado"}
+            </Boton>{" "}
+            <Boton tam="chico" variante="fantasma" onClick={() => setConfirmar(false)} disabled={ocupado}>
+              Cancelar
+            </Boton>
+          </span>
+        ) : (
+          <Boton tam="chico" onClick={() => setConfirmar(true)}>
+            Marcar pagado
+          </Boton>
+        )
+      ) : null}
+      {error ? (
+        <span role="alert" className={s.error}>
+          {error}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/** Totales arriba (sólo pedidos pagados) + tabla de pedidos (en móvil, tarjetas apiladas). */
 export function TablaVentas({ pedidos, albumes }: { pedidos: Pedido[]; albumes?: Map<string, Album> }) {
-  const vendido = pedidos.reduce((t, p) => t + p.cotizacion.total, 0);
-  const comision = pedidos.reduce((t, p) => t + p.comision, 0);
-  const unidades = pedidos.reduce((t, p) => t + p.cotizacion.cantidad, 0);
+  const pagados = pedidos.filter((p) => p.estado !== "pendiente");
+  const pendientes = pedidos.length - pagados.length;
+  const vendido = pagados.reduce((t, p) => t + p.cotizacion.total, 0);
+  const comision = pagados.reduce((t, p) => t + p.comision, 0);
+  const unidades = pagados.reduce((t, p) => t + p.cotizacion.cantidad, 0);
   return (
     <>
       <div className={s.cifras}>
         <Cifra etiqueta="Ventas" valor={plata(vendido)} />
         <Cifra etiqueta="Comisión de la plataforma" valor={plata(comision)} nota="Según tu plan al momento de cada venta." />
         <Cifra etiqueta="Neto para vos" valor={plata(vendido - comision)} />
-        <Cifra etiqueta="Pedidos" valor={pedidos.length} nota={`${unidades} ${unidades === 1 ? "foto o video" : "fotos y videos"}`} />
+        <Cifra
+          etiqueta="Pedidos pagados"
+          valor={pagados.length}
+          nota={`${unidades} ${unidades === 1 ? "foto o video" : "fotos y videos"}${pendientes ? ` · ${pendientes} pendiente${pendientes === 1 ? "" : "s"} de pago` : ""}`}
+        />
       </div>
       {pedidos.length === 0 ? (
         <Vacio>
@@ -30,7 +90,7 @@ export function TablaVentas({ pedidos, albumes }: { pedidos: Pedido[]; albumes?:
       ) : (
         <div className={s.tablaCaja}>
           <table className={s.tabla}>
-            <caption className="sr-only">Pedidos pagados</caption>
+            <caption className="sr-only">Pedidos</caption>
             <thead>
               <tr>
                 <th scope="col">Fecha</th>
@@ -39,6 +99,7 @@ export function TablaVentas({ pedidos, albumes }: { pedidos: Pedido[]; albumes?:
                 <th scope="col" className={s.num}>
                   Cant.
                 </th>
+                <th scope="col">Estado</th>
                 <th scope="col">Cupón</th>
                 <th scope="col" className={s.num}>
                   Total
@@ -61,11 +122,14 @@ export function TablaVentas({ pedidos, albumes }: { pedidos: Pedido[]; albumes?:
                   <td data-etiqueta="Comprador">
                     <span className={s.celdaDoble}>
                       <span>{p.comprador.nombre}</span>
-                      <span className={`mono ${s.ayudaChica}`}>{p.comprador.email}</span>
+                      {p.comprador.email ? <span className={`mono ${s.ayudaChica}`}>{p.comprador.email}</span> : null}
                     </span>
                   </td>
                   <td data-etiqueta="Cantidad" className={`mono ${s.num}`}>
                     {p.cotizacion.cantidad}
+                  </td>
+                  <td data-etiqueta="Estado">
+                    <EstadoPedido p={p} />
                   </td>
                   <td data-etiqueta="Cupón" className="mono">
                     {p.cotizacion.cupon ? `${p.cotizacion.cupon.codigo} (−${plata(p.cotizacion.cupon.descuento)})` : "—"}

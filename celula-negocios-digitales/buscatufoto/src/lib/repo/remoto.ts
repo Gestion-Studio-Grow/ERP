@@ -138,6 +138,8 @@ interface FotografoPublicoMin {
   nombre: string;
   usuario: string;
   whatsapp?: string;
+  /** si el servidor lo expone para pagar por transferencia (no está en el contrato actual) */
+  cobro?: { titular?: string; alias?: string } | null;
 }
 
 /** Fotógrafo armado con lo poco que trae el álbum público (sin email ni cobro). */
@@ -150,9 +152,10 @@ function fotografoMinimo(id: string, f: FotografoPublicoMin): Fotografo {
     bio: "",
     instagram: "",
     plan: "libre",
-    cobro: null,
+    cobro: f.cobro?.alias ? { metodo: "transferencia", titular: f.cobro.titular ?? "", alias: f.cobro.alias, cuit: "" } : null,
     marca: { ...MARCA_POR_DEFECTO },
     creadoEn: 0,
+    ...(f.whatsapp ? { whatsapp: f.whatsapp } : {}),
   };
 }
 
