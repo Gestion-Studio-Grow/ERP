@@ -54,6 +54,19 @@ Si se suma el soporte a precio sombra (USD 150 ≈ $226.000), con IA alta queda 
 arranque, con el doble de soporte, da pérdida. Por eso el cupo de IA y la
 puesta en marcha cobrada (o el contrato anual) no son opcionales.
 
+### La versión más barata: «Productora Esencial»
+
+| Qué incluye | Precio |
+|---|---|
+| Las mismas apps, sin IA. Hasta **5 usuarios**. Soporte por WhatsApp con tope de **2 h por mes**. | **$175.000** por mes (≈ USD 116) |
+| Puesta en marcha | $600.000, bonificada con contrato anual |
+
+Sale con el marco de GSG: base $110.000 (3 usuarios) + 2 usuarios × $12.000 + módulo Proyectos/eventos $40.000 ≈ $174.000.
+No se le sacan apps porque ya están hechas y no nos cuestan más: lo que cuesta es el soporte, y ahí va el tope.
+**Piso:** infra USD 5 + 2 h de soporte a USD 30 = USD 65 ≈ **$98.000**. Por debajo de eso perdemos.
+Con el 30 % de primer cliente quedaría en $122.500, todavía arriba del piso. Si después quieren IA o más gente, pasan
+al plan «Productora + IA» sin otra puesta en marcha.
+
 ### Precio de primer cliente del rubro (a decidir)
 
 MIA es el caso con el que se le va a vender a otras productoras. Opción: **30 % menos durante 6 meses**
