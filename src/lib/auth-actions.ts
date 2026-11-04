@@ -53,6 +53,13 @@ export async function login(formData: FormData) {
     await darPase(user.id);
     redirect(`/admin/login/segundo-paso?next=${encodeURIComponent(next)}`);
   }
+  // Comercial/Producción sin app de códigos: PIN por mail (Rendí §4). El código sale ya; la pantalla permite pedir otro.
+  const { exigePin, pedirPin } = await import("@/lib/rendiciones/pin.server");
+  if (await exigePin(user)) {
+    await darPase(user.id);
+    await pedirPin(tenantId, user);
+    redirect(`/admin/login/pin?next=${encodeURIComponent(next)}`);
+  }
 
   await abrirSesion(user.id);
   redirect(await destinoTrasIngreso(user, next));
