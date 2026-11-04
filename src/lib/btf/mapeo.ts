@@ -1,8 +1,8 @@
 // Fila de la base → objeto por red. Acá se decide qué NO viaja: el token de MP, el email y el cobro en lo
 // público, los cupones del álbum público y TODO lo del original de un medio.
 
-import type { BtfAlbum, BtfFotografo, BtfMedio } from "@/generated/prisma/client";
-import type { Album, AlbumPublico, Colaborador, Cupon, DatosCobro, EscalonDescuento, FotografoPublico, FotografoRed, MarcaAgua, MedioRed, Paquete, PlanId, TipoEvento, TipoMedio } from "./tipos";
+import type { BtfAlbum, BtfFotografo, BtfMedio, BtfPedido } from "@/generated/prisma/client";
+import type { Album, AlbumPublico, CobroPublico, Colaborador, Comprador, Cotizacion, Cupon, DatosCobro, EscalonDescuento, FotografoPublico, FotografoRed, MarcaAgua, MedioRed, Paquete, PedidoRed, PlanId, TipoEvento, TipoMedio } from "./tipos";
 
 export const MARCA_POR_DEFECTO: MarcaAgua = {
   texto: "buscatufoto · vista previa",
@@ -93,5 +93,29 @@ export function medioRed(m: BtfMedio, urlPublica: string): MedioRed {
     subido: m.subido,
     oculto: m.oculto,
     creadoEn: m.creadoEn.getTime(),
+  };
+}
+
+/** Cobro que ve el comprador en `/a/:slug` (para transferir): sin CUIT. null si no cargó cobro. */
+export function cobroPublico(f: BtfFotografo): CobroPublico | null {
+  const c = cobroSinToken(f.cobro);
+  return c ? { metodo: c.metodo, titular: c.titular, alias: c.alias } : null;
+}
+
+/** Pedido por red. `conClave` sólo al crearlo y al consultarlo con la clave correcta. */
+export function pedidoRed(p: BtfPedido, conClave: boolean): PedidoRed {
+  return {
+    id: p.id,
+    albumId: p.albumId,
+    fotografoId: p.fotografoId,
+    items: p.items,
+    comprador: p.comprador as unknown as Comprador,
+    cotizacion: p.cotizacion as unknown as Cotizacion,
+    comision: p.comision,
+    estado: p.estado === "pagado" ? "pagado" : "pendiente",
+    metodo: p.metodo === "transferencia" ? "transferencia" : "mercadopago",
+    referenciaPago: p.referenciaPago,
+    creadoEn: p.creadoEn.getTime(),
+    ...(conClave ? { clave: p.clave } : {}),
   };
 }

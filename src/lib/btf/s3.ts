@@ -14,7 +14,7 @@ export interface Credenciales {
 }
 
 export interface Prefirma {
-  metodo: "GET" | "PUT" | "DELETE";
+  metodo: "GET" | "PUT" | "DELETE" | "HEAD";
   /** host sin esquema (con puerto si lo hay) */
   host: string;
   /** ruta absoluta sin codificar, ej. `/bucket/o/f1/a1/m1.jpg` */
@@ -25,6 +25,8 @@ export interface Prefirma {
   /** cabeceras extra que el cliente DEBE mandar tal cual (ej. content-type) */
   cabeceras?: Record<string, string>;
   esquema?: "https" | "http";
+  /** parámetros extra de la query que entran a la firma (ej. response-content-disposition) */
+  queryExtra?: Record<string, string>;
 }
 
 /** RFC 3986, como lo pide SigV4. */
@@ -51,6 +53,7 @@ export function presignar(p: Prefirma): string {
     "X-Amz-Date": iso,
     "X-Amz-Expires": String(p.segundos),
     "X-Amz-SignedHeaders": firmadas,
+    ...(p.queryExtra ?? {}),
   };
   const queryCanonica = Object.keys(query)
     .sort()
@@ -106,7 +109,14 @@ function exigirConfig(): ConfigS3 {
   return c;
 }
 
-function firmar(metodo: Prefirma["metodo"], bucket: string, clave: string, segundos: number, cabeceras?: Record<string, string>): string {
+function firmar(
+  metodo: Prefirma["metodo"],
+  bucket: string,
+  clave: string,
+  segundos: number,
+  cabeceras?: Record<string, string>,
+  queryExtra?: Record<string, string>,
+): string {
   const c = exigirConfig();
   const base = c.endpoint.pathname.replace(/\/+$/, "");
   return presignar({
@@ -118,6 +128,7 @@ function firmar(metodo: Prefirma["metodo"], bucket: string, clave: string, segun
     fecha: new Date(),
     segundos,
     cabeceras,
+    queryExtra,
   });
 }
 
@@ -128,6 +139,25 @@ export function urlFirmadaPut(bucket: string, clave: string, contentType: string
 
 export function urlFirmadaGet(bucket: string, clave: string, segundos: number): string {
   return firmar("GET", bucket, clave, segundos);
+}
+
+/**
+ * GET prefirmado que fuerza la descarga con el nombre de archivo dado (`response-content-disposition`
+ * va dentro de la query firmada, así el almacén lo respeta y nadie lo puede cambiar).
+ */
+export function urlFirmadaDescarga(bucket: string, clave: string, nombreArchivo: string, segundos: number): string {
+  const limpio = nombreArchivo.replace(/[\r\n"\\]/g, "").slice(0, 150) || "foto";
+  const ascii = limpio.normalize("NFD").replace(/[^\x20-\x7e]/g, "") || "foto";
+  const disposicion = `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(limpio).replace(/'/g, "%27")}`;
+  return firmar("GET", bucket, clave, segundos, undefined, { "response-content-disposition": disposicion });
+}
+
+/** ¿Existe el objeto? HEAD prefirmado. true = 200; false = 404/403; tira si el almacén no responde. */
+export async function existeObjeto(bucket: string, clave: string): Promise<boolean> {
+  const r = await fetch(firmar("HEAD", bucket, clave, 60), { method: "HEAD" });
+  if (r.ok) return true;
+  if (r.status === 404 || r.status === 403) return false;
+  throw new Error(`buscatufoto: el almacén respondió ${r.status} al HEAD`);
 }
 
 /** Borra un objeto. Best effort: devuelve false si falló, nunca tira. */

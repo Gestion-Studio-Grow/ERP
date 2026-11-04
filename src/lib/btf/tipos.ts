@@ -1,6 +1,6 @@
 /** Modelo de datos de buscatufoto. Todo en pesos argentinos (ARS), enteros. */
 // COPIA SERVIDOR de celula-negocios-digitales/buscatufoto/src/lib/tipos.ts (la célula está fuera del tsconfig)
-// + los tipos por red del contrato. Mantener en sincronía con la de la app.
+/** Modelo de datos de buscatufoto. Todo en pesos argentinos (ARS), enteros. */
 
 export type PlanId = "libre" | "pro";
 
@@ -44,6 +44,8 @@ export interface Fotografo {
   creadoEn: number;
   /** Sólo en modo servidor: el token de Mercado Pago está guardado (nunca viaja el token). */
   mpConfigurado?: boolean;
+  /** Contacto público por WhatsApp (sólo lo trae el álbum público en modo servidor, si el fotógrafo lo cargó). */
+  whatsapp?: string;
 }
 
 export interface Paquete {
@@ -202,3 +204,11 @@ export interface MedioRed extends Omit<Medio, "previa" | "miniatura"> {
   subido: boolean;
   oculto: boolean;
 }
+
+/** Pedido por red: `clave` sólo al crearlo y al consultarlo con la clave; nunca en las listas del dueño. */
+export interface PedidoRed extends Omit<Pedido, "clave" | "initPoint"> {
+  clave?: string;
+}
+
+/** Cobro público del fotógrafo en `/a/:slug`: sin CUIT. */
+export type CobroPublico = Pick<DatosCobro, "metodo" | "titular" | "alias">;

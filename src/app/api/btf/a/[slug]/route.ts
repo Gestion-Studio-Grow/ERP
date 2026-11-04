@@ -1,7 +1,8 @@
-// GET /api/btf/a/:slug → { album (público), medios (subidos, no ocultos, sin nada del original), fotografo }.
+// GET /api/btf/a/:slug → { album (público), medios (subidos, no ocultos, sin nada del original),
+// fotografo: { nombre, usuario, whatsapp?, cobro: { metodo, titular, alias } | null } }.
 import { exigirServidor } from "@/lib/btf/db";
 import { json, manejar } from "@/lib/btf/http";
-import { albumPublico, medioRed } from "@/lib/btf/mapeo";
+import { albumPublico, cobroPublico, medioRed } from "@/lib/btf/mapeo";
 import { configS3 } from "@/lib/btf/s3";
 import { albumPublicoPorSlug } from "./publico";
 
@@ -18,7 +19,8 @@ export function GET(_request: Request, { params }: { params: Promise<{ slug: str
     return json({
       album: albumPublico(album),
       medios: medios.map((m) => medioRed(m, url)),
-      fotografo: { nombre: f.nombre, usuario: f.usuario, ...(f.whatsapp ? { whatsapp: f.whatsapp } : {}) },
+      // cobro sin CUIT: el comprador necesita alias y titular para transferir, nada más.
+      fotografo: { nombre: f.nombre, usuario: f.usuario, ...(f.whatsapp ? { whatsapp: f.whatsapp } : {}), cobro: cobroPublico(f) },
     });
   });
 }
