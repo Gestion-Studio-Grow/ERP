@@ -322,7 +322,8 @@ console.log("\n▶ tienda (demo) con el club en otra pestaña");
   await t.waitForSelector("#tienda-listo:not([hidden])", { timeout: 6000 }).catch(() => {});
   const codigo = (await t.textContent("#tienda-codigo").catch(() => "")) ?? "";
   const href = (await t.getAttribute("#tienda-wa", "href").catch(() => "")) ?? "";
-  check(/^T-[A-Z2-9]{4}$/.test(codigo) && href.startsWith("https://wa.me/?text=") && decodeURIComponent(href).includes(codigo), `pedido ${codigo}: el link de WhatsApp lleva el código`);
+  // Sin WhatsApp del club, el pedido va por su Instagram (copiado y a la vista con el código), nunca un wa.me pelado.
+  check(/^T-[A-Z2-9]{4}$/.test(codigo) && href === "https://ig.me/m/breakpointpadel_" && (await t.inputValue("#tienda-texto").catch(() => "")).includes(codigo), `pedido ${codigo}: va por Instagram con el código a la vista`);
   await t.screenshot({ path: `${SALIDA}/tienda-390.png` });
   // El club lo recibe por el bus (evento "pedido" del canal staff). Se activa solo cuando conectado.mjs lo escucha.
   const clubOye = /addEventListener\(\s*["']pedido["']/.test(readFileSync(path.join(RAIZ, "public/previews/breakpoint/club/conectado.mjs"), "utf8"));
@@ -334,7 +335,7 @@ console.log("\n▶ tienda (demo) con el club en otra pestaña");
   // Portada → tienda.
   const pt = vigilar(await ctx.newPage(), "portada-tienda");
   await pt.goto(`${BASE}/`);
-  check(await pt.locator('a[href="/turnero#tienda"]').count() === 0, "sin tienda publicada por el club, la portada no ofrece tienda");
+  check(await pt.locator('a[href="/turnero#tienda"]').count() === 1, "la portada ofrece la tienda (sin catálogo publicado, sin precios)");
   await pt.close();
   await t.close();
   // Peso: el turnero publicado lleva todo su JS inline (app + local + núcleo + motor + tienda).

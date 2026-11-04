@@ -531,10 +531,12 @@ function vistaBuffet() {
   const q = ui.busca.buffet ?? "";
   const lista = q ? abiertas.filter((c) => c.titular.toLowerCase().includes(q.toLowerCase())) : abiertas;
   return `<div class="stack">
-    ${pedidos.length ? `<section class="card" aria-labelledby="t-pedidos">
-      <div class="card-head"><h2 id="t-pedidos">Pedidos de la tienda para retirar (${pedidos.length})</h2></div>
-      <div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">${pedidos.map(tarjetaPedido).join("")}</div>
-    </section>` : ""}
+    <section class="card" aria-labelledby="t-pedidos">
+      <div class="card-head"><h2 id="t-pedidos">Pedidos de la tienda para retirar (${pedidos.length})</h2>
+        <div class="row"><button type="button" class="btn" data-a="pegarPedido">Cargar pedido recibido por mensaje</button></div></div>
+      ${pedidos.length ? `<div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">${pedidos.map(tarjetaPedido).join("")}</div>`
+        : `<p class="small muted" style="margin:0">No hay pedidos para retirar. Los que el cliente manda desde la tienda por WhatsApp o Instagram (con su código T-…) se cargan con «Cargar pedido recibido por mensaje» y se cobran al entregarlos.</p>`}
+    </section>
     ${mesas.length ? `<section class="card" aria-labelledby="t-mesas">
       <div class="card-head"><h2 id="t-mesas">Mesas que siguen cargando · cancha cerrada (${mesas.length})</h2></div>
       <p class="small muted" style="margin:0 0 10px">La cancha ya se cobró y quedó libre para el turno siguiente. Lo que piden ahora se suma a la mesa y se cobra cuando se van.</p>
@@ -542,7 +544,7 @@ function vistaBuffet() {
     </section>` : ""}
     <section class="card" aria-labelledby="t-buffet">
       <div class="card-head"><h2 id="t-buffet" class="pantalla">Buffet · cuentas abiertas (${abiertas.length})</h2>
-        <div class="row"><button type="button" class="btn primary" data-a="abrirConsumo">Abrir cuenta</button><button type="button" class="btn accent" data-a="mostrador">Venta rápida</button><button type="button" class="btn" data-a="pegarPedido">Pedido de la tienda por WhatsApp</button></div></div>
+        <div class="row"><button type="button" class="btn primary" data-a="abrirConsumo">Abrir cuenta</button><button type="button" class="btn accent" data-a="mostrador">Venta rápida</button></div></div>
       <p class="small muted" style="margin:0 0 10px">Los cargos del buffet son una cuenta aparte de la cancha: quedan abiertos a nombre del cliente y se cobran cuando se va, o pasan a su cuenta corriente.</p>
       <div class="search" style="max-width:360px;margin-bottom:10px"><label class="sr" for="busca-buffet">Buscar cuenta</label><input id="busca-buffet" data-busca="buffet" placeholder="Buscar por nombre" value="${esc(q)}"></div>
       <div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${lista.map(tarjetaCuenta).join("") || `<p class="empty">No hay cuentas abiertas.</p>`}</div>
@@ -2255,9 +2257,9 @@ const acciones = {
   },
   confirmarPedidoCuenta: (b) => cerrarSiSale(M.cargarPedidoACuenta(E, b.dataset.v, b.dataset.c, AHORA), "El pedido quedó en su cuenta de cargos."),
   pegarPedido: () => abrir({
-    titulo: "Pedido de la tienda por WhatsApp",
-    sub: "Pegá el mensaje tal como llegó (empieza con «Hola Break Point, quiero encargar…»).",
-    cuerpo: `<label class="f">Mensaje<textarea id="pd-texto" rows="5"></textarea></label>`,
+    titulo: "Cargar pedido recibido por mensaje",
+    sub: "Pegá el mensaje entero, tal como llegó por WhatsApp o Instagram (empieza con «Hola Break Point Pádel, quiero encargar…» y termina con el código T-…). Se cobra con tus precios al entregarlo.",
+    cuerpo: `<label class="f">Mensaje del cliente<textarea id="pd-texto" rows="5"></textarea></label>`,
     pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="cargarPedidoPegado">Cargar el pedido</button>`,
     alAbrir(d) { $("#pd-texto", d).focus(); },
   }),

@@ -120,12 +120,16 @@ export function fuenteFalsa(alCerrar = () => {}) {
 export function crearLocalPedido({ reloj = () => Date.now(), tarifas = null, catalogo = null } = {}) {
   const estado = crearClubReal(aMotor(reloj()).fecha);
   // Lo que manda el club en el link: sus precios por hora y su tienda (sólo esos productos, a esos precios).
+  // Sin catálogo publicado, la tienda muestra los productos de la tienda del club SIN precio (nada de precios de
+  // ejemplo a un cliente real): el jugador encarga igual y el club cobra con su lista al entregar.
   if (tarifas?.length) estado.config.tarifas = tarifas;
-  for (const p of estado.productos) {
-    const precio = catalogo?.[p.id];
-    p.tienda = Boolean(p.tienda && precio);
-    if (precio) p.precio = precio;
-  }
+  if (catalogo) {
+    for (const p of estado.productos) {
+      const precio = catalogo[p.id];
+      p.tienda = Boolean(p.tienda && precio);
+      if (precio) p.precio = precio;
+    }
+  } else estado.config.tiendaSinPrecios = true;
   const servidor = crearServidorDemo({ reloj, estado });
   const tab = "pedido";
   return {

@@ -3838,11 +3838,16 @@ export function contactosCSV(lista) {
 
 // ───────────────────────── tienda (encargos por la web, se retiran y pagan en el club) ─────────────────────────
 
-/** Lo que se ve en la tienda: productos marcados para la tienda, activos y con stock. Sin costos ni códigos. */
+/**
+ * Lo que se ve en la tienda: productos marcados para la tienda, activos y con stock. Sin costos ni códigos.
+ * Con `config.tiendaSinPrecios` (sitio publicado sin el catálogo del club: nada de precios de ejemplo a un cliente
+ * real) el precio va en null: el club lo pone al entregar, con SU lista.
+ */
 export function catalogoTienda(estado) {
+  const sinPrecios = Boolean(estado.config?.tiendaSinPrecios);
   return estado.productos
     .filter((p) => p.tienda && p.activo !== false && !p.alquiler && !p.plato && (p.stock == null || p.stock > 0))
-    .map((p) => ({ id: p.id, nombre: p.nombre, categoria: p.categoria, precio: p.precio, pocas: p.stock != null && p.stock <= Math.max(2, p.minimo ?? 0) }));
+    .map((p) => ({ id: p.id, nombre: p.nombre, categoria: p.categoria, precio: sinPrecios ? null : p.precio, pocas: p.stock != null && p.stock <= Math.max(2, p.minimo ?? 0) }));
 }
 
 export function nuevoCodigoPedido(estado, azar = Math.random) {
@@ -3852,13 +3857,13 @@ export function nuevoCodigoPedido(estado, azar = Math.random) {
   return s;
 }
 
-const listaPedido = (items) => items.map((i) => `${i.cant} × ${i.nombre} ${pesos(i.cant * i.precioUnit)}`).join(" · ");
+const listaPedido = (items, conPrecios = true) => items.map((i) => `${i.cant} × ${i.nombre}${conPrecios ? ` ${pesos(i.cant * i.precioUnit)}` : ""}`).join(" · ");
 
 /**
  * El cliente encarga desde la web. No descuenta stock (se descuenta al entregar, que es cuando se cobra) y no
  * mueve caja: el pedido queda pendiente para que el club lo prepare. Devuelve el mensaje para WhatsApp.
  */
-export function crearPedidoTienda(estado, { items, nombre, tel = "", origen = "web" }, ahora) {
+export function crearPedidoTienda(estado, { items, nombre, tel = "", origen = "web", codigo = null }, ahora) {
   estado.pedidos ??= [];
   const quien = String(nombre ?? "").trim().slice(0, 60);
   if (!quien) return { ok: false, motivo: "Poné tu nombre para el pedido." };
@@ -3873,33 +3878,38 @@ export function crearPedidoTienda(estado, { items, nombre, tel = "", origen = "w
   }
   if (!lineas.length) return { ok: false, motivo: "El pedido está vacío." };
   const total = lineas.reduce((s, i) => s + i.cant * i.precioUnit, 0);
-  const pedido = { id: nuevoId("pd"), codigo: nuevoCodigoPedido(estado), items: lineas, total, nombre: quien, tel: String(tel ?? "").trim().slice(0, 30), origen, estado: "pendiente", ...sello(ahora) };
+  const pedido = { id: nuevoId("pd"), codigo: codigo ?? nuevoCodigoPedido(estado), items: lineas, total, nombre: quien, tel: String(tel ?? "").trim().slice(0, 30), origen, estado: "pendiente", ...sello(ahora) };
   estado.pedidos.push(pedido);
   registrar(estado, `Pedido de la tienda ${pedido.codigo} de ${quien}: ${pesos(total)}.`, ahora);
-  return { ok: true, pedido, mensaje: mensajeWhatsApp("pedidoTienda", { lista: listaPedido(lineas), total: pesos(total), nombre: quien, tel: pedido.tel, codigo: pedido.codigo }) };
+  const conPrecios = !estado.config?.tiendaSinPrecios;
+  return { ok: true, pedido, mensaje: mensajeWhatsApp("pedidoTienda", { lista: listaPedido(lineas, conPrecios), total: conPrecios ? pesos(total) : null, nombre: quien, tel: pedido.tel, codigo: pedido.codigo }) };
 }
 
 /**
- * El club pega el mensaje de WhatsApp que mandó el cliente desde la tienda (con el celular del cliente no hay
- * conexión con la compu del club): se leen los productos, el nombre y el código, y queda como pedido pendiente.
+ * El club pega el mensaje que mandó el cliente desde la tienda, por WhatsApp o por Instagram (con el celular del
+ * cliente no hay conexión con la compu del club): se leen los productos, el nombre y el código, y queda como pedido
+ * pendiente. Los renglones pueden venir con precio («2 × Agua 500 ml $4.000») o sin él («2 × Agua 500 ml», sitio sin
+ * catálogo publicado): el precio es siempre el de la lista del club. El mismo código no se carga dos veces.
  */
 export function pedidoDesdeWhatsApp(estado, texto, ahora) {
   const t = String(texto ?? "");
+  const codigo = t.match(/\b(T-[A-Z0-9]{4})\b/i)?.[1]?.toUpperCase() ?? null;
+  if (codigo && (estado.pedidos ?? []).some((x) => x.codigo === codigo)) return { ok: false, motivo: `El pedido ${codigo} ya está cargado.` };
+  if (codigo && codigoArchivado(estado, "pedidos", codigo)) return { ok: false, motivo: `El pedido ${codigo} ya se había cargado: está en los días archivados.` };
   const items = [];
-  for (const m of t.matchAll(/(\d+)\s*[×x]\s*([^$·\n]+?)\s*\$/g)) {
+  for (const m of t.matchAll(/(\d+)\s*[×x]\s*([^$·\n]+?)\s*(?=\$|·|\.(?:\s|$)|\n|$)/g)) {
     const nombre = m[2].trim().toLowerCase();
     const p = estado.productos.find((x) => x.nombre.toLowerCase() === nombre);
     if (!p) return { ok: false, motivo: `No encuentro «${m[2].trim()}» en los productos de la tienda.` };
     items.push({ productoId: p.id, cant: Number(m[1]) });
   }
-  if (!items.length) return { ok: false, motivo: "No encontré productos en el mensaje: pegalo entero, como llegó." };
-  const quien = t.match(/Soy ([^(.\n]+?)\s*(?:\(([^)]*)\))?\.\s/);
-  const codigo = t.match(/Pedido (T-[A-Z0-9]{4})/)?.[1] ?? null;
-  if (codigo && (estado.pedidos ?? []).some((x) => x.codigo === codigo)) return { ok: false, motivo: `El pedido ${codigo} ya está cargado.` };
-  if (codigo && codigoArchivado(estado, "pedidos", codigo)) return { ok: false, motivo: `El pedido ${codigo} ya se había cargado: está en los días archivados.` };
-  const res = crearPedidoTienda(estado, { items, nombre: quien?.[1]?.trim() || "Cliente de WhatsApp", tel: quien?.[2] ?? "", origen: "whatsapp" }, ahora);
-  if (res.ok && codigo) res.pedido.codigo = codigo;
-  return res;
+  if (!items.length) {
+    return { ok: false, motivo: codigo
+      ? `Con el código ${codigo} solo no alcanza (ese pedido no llegó a esta compu): pegá el mensaje entero, como llegó.`
+      : "No encontré productos en el mensaje: pegalo entero, como llegó." };
+  }
+  const quien = t.match(/Soy ([^(.\n]+?)\s*(?:\(([^)]*)\))?\.(?:\s|$)/);
+  return crearPedidoTienda(estado, { items, nombre: quien?.[1]?.trim() || "Cliente por mensaje", tel: quien?.[2] ?? "", origen: "whatsapp", codigo }, ahora);
 }
 
 export const pedidosPendientes = (estado) => (estado.pedidos ?? []).filter((x) => x.estado === "pendiente");
@@ -4025,7 +4035,7 @@ export function mensajeWhatsApp(tipo, d) {
     case "aprobado":
       return `Aprobado: ${d.cliente} ${d.monto}. Código ${d.codigo}`;
     case "pedidoTienda":
-      return `Hola ${club}, quiero encargar para retirar en el club: ${d.lista}. Total ${d.total}. Soy ${d.nombre}${d.tel ? ` (${d.tel})` : ""}. Pedido ${d.codigo}.`;
+      return `Hola ${club}, quiero encargar para retirar en el club: ${d.lista}. ${d.total ? `Total ${d.total}` : "El precio me lo confirman en el club"}. Soy ${d.nombre}${d.tel ? ` (${d.tel})` : ""}. Pedido ${d.codigo}.`;
     case "pedidoListo":
       return `¡Hola ${d.nombre}! Tu pedido ${d.codigo} ya está listo para retirar en ${club}: ${d.lista}. Total ${d.total}, se paga al retirar. ¡Te esperamos!`;
     case "reposicion":
