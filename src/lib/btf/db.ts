@@ -4,7 +4,7 @@
 // El aislamiento acá es por `fotografoId`, validado en cada ruta (src/app/api/btf/).
 
 import { basePrisma } from "@/lib/prisma-base";
-import { configS3 } from "./s3";
+import { configS3, problemaS3 } from "./s3";
 import { ErrorBtf } from "./http";
 
 export const btfDb = basePrisma;
@@ -20,7 +20,11 @@ export function entornoListo(env: Record<string, string | undefined> = process.e
 
 /** 503 si falta el entorno. Las tablas ausentes (P2021) las traduce `manejar` a 503. */
 export function exigirServidor(): void {
-  if (!entornoListo()) throw new ErrorBtf("no-configurado", "buscatufoto todavía no está configurado en este servidor.");
+  if (entornoListo()) return;
+  const s3 = problemaS3();
+  // El motivo va al log del servidor (nombres de variables, nunca valores); al público, el mensaje genérico.
+  if (s3) console.error(`[btf] almacén sin configurar: ${s3}`);
+  throw new ErrorBtf("no-configurado", "buscatufoto todavía no está configurado en este servidor.");
 }
 
 function esTablaAusente(e: unknown): boolean {

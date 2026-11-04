@@ -1,4 +1,4 @@
-// Plata de buscatufoto: marcar pagado (transacción Serializable, cupón consumido en el mismo tx) y
+// Plata de buscatufoto: reservar el cupón al crear el pedido y marcar pagado (transacciones Serializable) y
 // Mercado Pago por `fetch` con el token del FOTÓGRAFO (cobra él; la plataforma no toca la plata).
 // Contrato: celula-negocios-digitales/buscatufoto/docs/API.md → «Mercado Pago».
 //
@@ -6,24 +6,27 @@
 //  - Nunca se confía en lo que manda el webhook ni el comprador: siempre se re-consulta a MP
 //    (`/v1/payments/search?external_reference=<pedidoId>`) y sólo un pago `approved`, en ARS, con
 //    `transaction_amount === total` (números, no strings) marca pagado.
-//  - `marcarPagado` es idempotente: si ya está pagado no hace nada (ni vuelve a consumir el cupón).
+//  - El cupón se RESERVA al crear el pedido (`crearPedidoReservandoCupon`: exige `activo` y `usos < usosMax`,
+//    0 = ilimitado, y hace `usos + 1` en el mismo tx que inserta el pedido). Si el pedido se descarta (MP no
+//    armó la preferencia) se LIBERA (`descartarPedido`, `usos − 1`). `marcarPagado` ya no toca `usos`.
+//  - `marcarPagado` es idempotente: si ya está pagado no hace nada.
 //  - Lección DB-4: chequear-y-escribir no es atómico → Serializable + reintento ante P2034.
 //
-// DEUDA: el webhook de `payment` sin `?pedido=` prueba con el token de cada fotógrafo con credencial (≤ 20).
-// Lo correcto es OAuth de marketplace (un `collector_id` por fotógrafo, `marketplace_fee` = comisión).
+// DEUDA: el cobro va con el token del fotógrafo; lo correcto es OAuth de marketplace (un `collector_id` por
+// fotógrafo, `marketplace_fee` = comisión).
 
 import { timingSafeEqual } from "node:crypto";
 import { Prisma, type BtfPedido } from "@/generated/prisma/client";
 import { masterKeyDesdeEnv, openSecret, type SealedCredential } from "@/lib/fiscal/cert-crypto";
 import { btfDb } from "./db";
 import { ErrorBtf } from "./http";
+import { motivoCuponInvalido } from "./precios";
 import type { Cupon } from "./tipos";
+import { esHostDeBuscatufoto } from "@/lib/sitio-buscatufoto";
 
 export const MP_API = "https://api.mercadopago.com";
 /** Comisión de la plataforma por plan (celula-negocios-digitales/buscatufoto/src/lib/planes.ts). */
 export const COMISION_POR_PLAN: Readonly<Record<string, number>> = { libre: 0.09, pro: 0 };
-/** Tope de fotógrafos a los que se les prueba el token en el webhook sin pedido (ver DEUDA). */
-export const TOPE_FOTOGRAFOS_WEBHOOK = 20;
 
 type Fetch = typeof fetch;
 
@@ -40,46 +43,88 @@ export function claveCoincide(dada: string | null | undefined, guardada: string)
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-// ---------- Marcar pagado ----------
+// ---------- Transacciones Serializable ----------
 
 const esSerializacion = (e: unknown) =>
   typeof e === "object" && e !== null && ((e as { code?: unknown }).code === "P2034" || /could not serialize|40001/.test(String((e as { message?: unknown }).message)));
 
-/**
- * Pasa el pedido a `pagado` y consume su cupón (`usos + 1`) en la MISMA transacción Serializable.
- * Idempotente: si ya estaba pagado devuelve `cambio: false` y no toca nada.
- */
-export async function marcarPagado(pedidoId: string, referencia: string): Promise<{ pedido: BtfPedido; cambio: boolean }> {
+type Tx = Prisma.TransactionClient;
+
+/** Corre `fn` en Serializable; ante conflicto de serialización reintenta (con espera corta al azar). */
+async function serializable<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   for (let intento = 0; ; intento++) {
     try {
-      return await btfDb.$transaction(
-        async (tx) => {
-          const p = await tx.btfPedido.findUnique({ where: { id: pedidoId } });
-          if (!p) throw new ErrorBtf("no-encontrado", "No encontramos ese pedido.");
-          if (p.estado === "pagado") return { pedido: p, cambio: false };
-          // Guarda condicional además del Serializable: sólo un escritor pasa de pendiente a pagado.
-          const r = await tx.btfPedido.updateMany({
-            where: { id: pedidoId, estado: "pendiente" },
-            data: { estado: "pagado", referenciaPago: referencia.slice(0, 120), pagadoEn: new Date() },
-          });
-          if (r.count === 0) return { pedido: await tx.btfPedido.findUniqueOrThrow({ where: { id: pedidoId } }), cambio: false };
-          if (p.cupon) {
-            const a = await tx.btfAlbum.findUnique({ where: { id: p.albumId }, select: { cupones: true } });
-            if (a && Array.isArray(a.cupones)) {
-              const codigo = p.cupon.toUpperCase();
-              const cupones = (a.cupones as unknown as Cupon[]).map((c) => (c.codigo.toUpperCase() === codigo ? { ...c, usos: (c.usos || 0) + 1 } : c));
-              await tx.btfAlbum.update({ where: { id: p.albumId }, data: { cupones: cupones as unknown as Prisma.InputJsonValue } });
-            }
-          }
-          return { pedido: await tx.btfPedido.findUniqueOrThrow({ where: { id: pedidoId } }), cambio: true };
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      );
+      return await btfDb.$transaction(fn, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (e) {
-      if (intento < 3 && esSerializacion(e)) continue;
+      if (intento < 8 && esSerializacion(e)) {
+        await new Promise((r) => setTimeout(r, 5 + Math.random() * 20 * (intento + 1)));
+        continue;
+      }
       throw e;
     }
   }
+}
+
+/** Suma `delta` a los usos del cupón `codigo` (sin distinguir mayúsculas). Nunca baja de 0. */
+async function moverUsos(tx: Tx, albumId: string, codigo: string, delta: 1 | -1): Promise<Cupon | null> {
+  const a = await tx.btfAlbum.findUnique({ where: { id: albumId }, select: { cupones: true } });
+  if (!a || !Array.isArray(a.cupones)) return null;
+  const cod = codigo.toUpperCase();
+  const lista = a.cupones as unknown as Cupon[];
+  const c = lista.find((x) => x.codigo.toUpperCase() === cod);
+  if (!c) return null;
+  const cupones = lista.map((x) => (x === c ? { ...x, usos: Math.max(0, (x.usos || 0) + delta) } : x));
+  await tx.btfAlbum.update({ where: { id: albumId }, data: { cupones: cupones as unknown as Prisma.InputJsonValue } });
+  return c;
+}
+
+// ---------- Crear y descartar pedido (reserva del cupón) ----------
+
+/**
+ * Inserta el pedido y, si trae cupón, lo reserva (`usos + 1`) en la MISMA transacción Serializable, releyendo
+ * el cupón adentro: `activo` y `usos < usosMax` (0 = ilimitado). Si ya no alcanza → ErrorBtf `cupon` (422).
+ */
+export async function crearPedidoReservandoCupon(data: Prisma.BtfPedidoUncheckedCreateInput): Promise<BtfPedido> {
+  if (!data.cupon) return btfDb.btfPedido.create({ data });
+  const codigo = data.cupon;
+  return serializable(async (tx) => {
+    const a = await tx.btfAlbum.findUnique({ where: { id: data.albumId }, select: { cupones: true } });
+    const lista = a && Array.isArray(a.cupones) ? (a.cupones as unknown as Cupon[]) : [];
+    const motivo = motivoCuponInvalido(lista.find((x) => x.codigo.toUpperCase() === codigo.toUpperCase()));
+    if (motivo) throw new ErrorBtf("cupon", motivo);
+    await moverUsos(tx, data.albumId, codigo, 1);
+    return tx.btfPedido.create({ data });
+  });
+}
+
+/** Borra un pedido que no llegó a cobrarse (pendiente) y libera su cupón (`usos − 1`), en una transacción. */
+export async function descartarPedido(pedidoId: string): Promise<void> {
+  await serializable(async (tx) => {
+    const p = await tx.btfPedido.findUnique({ where: { id: pedidoId } });
+    if (!p || p.estado !== "pendiente") return;
+    const r = await tx.btfPedido.deleteMany({ where: { id: pedidoId, estado: "pendiente" } });
+    if (r.count === 1 && p.cupon) await moverUsos(tx, p.albumId, p.cupon, -1);
+  });
+}
+
+// ---------- Marcar pagado ----------
+
+/**
+ * Pasa el pedido a `pagado` en una transacción Serializable. El cupón ya se reservó al crearlo: acá no se toca.
+ * Idempotente: si ya estaba pagado devuelve `cambio: false` y no toca nada.
+ */
+export async function marcarPagado(pedidoId: string, referencia: string): Promise<{ pedido: BtfPedido; cambio: boolean }> {
+  return serializable(async (tx) => {
+    const p = await tx.btfPedido.findUnique({ where: { id: pedidoId } });
+    if (!p) throw new ErrorBtf("no-encontrado", "No encontramos ese pedido.");
+    if (p.estado === "pagado") return { pedido: p, cambio: false };
+    // Guarda condicional además del Serializable: sólo un escritor pasa de pendiente a pagado.
+    const r = await tx.btfPedido.updateMany({
+      where: { id: pedidoId, estado: "pendiente" },
+      data: { estado: "pagado", referenciaPago: referencia.slice(0, 120), pagadoEn: new Date() },
+    });
+    return { pedido: await tx.btfPedido.findUniqueOrThrow({ where: { id: pedidoId } }), cambio: r.count === 1 };
+  });
 }
 
 // ---------- Token del fotógrafo ----------
@@ -159,52 +204,21 @@ export async function verificarEnMp(
   return true;
 }
 
-/**
- * Webhook de `payment` sin pedido conocido: busca el pago con el token de cada fotógrafo con credencial
- * (≤ TOPE) hasta encontrar al dueño, y re-verifica el pedido de su `external_reference`. Ver DEUDA.
- */
-export async function verificarPagoSinPedido(pagoId: string, deps: { fetch?: Fetch } = {}): Promise<boolean> {
-  if (!/^\d{1,20}$/.test(pagoId)) return false;
-  const f = deps.fetch ?? fetch;
-  const fotografos = await btfDb.btfFotografo.findMany({
-    where: { mpCredencial: { not: Prisma.DbNull } },
-    select: { id: true, mpCredencial: true },
-    take: TOPE_FOTOGRAFOS_WEBHOOK + 1,
-  });
-  if (fotografos.length > TOPE_FOTOGRAFOS_WEBHOOK) {
-    console.error("[btf] webhook MP: más fotógrafos con credencial que el tope; falta OAuth de marketplace");
-    return false;
-  }
-  for (const fot of fotografos) {
-    let token: string;
-    try {
-      token = abrirToken(fot.mpCredencial);
-    } catch {
-      continue;
-    }
-    let r: Response;
-    try {
-      r = await f(`${MP_API}/v1/payments/${pagoId}`, { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
-    } catch {
-      continue;
-    }
-    if (!r.ok) continue;
-    const pago = (await r.json().catch(() => null)) as PagoMp | null;
-    const pedidoId = String(pago?.external_reference ?? "");
-    if (!pedidoId) return false;
-    const pedido = await btfDb.btfPedido.findUnique({ where: { id: pedidoId } });
-    if (!pedido || pedido.fotografoId !== fot.id) return false;
-    return verificarEnMp(pedido, { fetch: f, token });
-  }
-  return false;
-}
-
 // ---------- Preferencia ----------
 
-/** `https://<host>` del request (x-forwarded-host en Vercel). Host validado: nada de inyectar URLs. */
+/** Hosts de desarrollo admitidos además de los de buscatufoto. */
+const HOST_DESARROLLO = /^(?:buscatufoto\.)?localhost(?::\d{1,5})?$/;
+
+/**
+ * `https://<host>` del request (x-forwarded-host en Vercel). Sólo hosts de buscatufoto (`esHostDeBuscatufoto`)
+ * o `localhost` / `buscatufoto.localhost` (desarrollo): el host va a la vuelta y al webhook de MP, no se inyecta.
+ */
 export function origenDe(request: Request): string {
   const h = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? new URL(request.url).host).split(",")[0].trim().toLowerCase();
-  if (!/^[a-z0-9.-]{1,253}(:\d{1,5})?$/.test(h)) throw new ErrorBtf("invalido", "No pudimos armar el enlace de pago.");
+  const formaValida = /^[a-z0-9.-]{1,253}(:\d{1,5})?$/.test(h);
+  if (!formaValida || !(esHostDeBuscatufoto(h) || HOST_DESARROLLO.test(h))) {
+    throw new ErrorBtf("host", "No pudimos armar el enlace de pago: este pedido no llegó por la dirección de buscatufoto. Entrá por buscatufoto y probá de nuevo.");
+  }
   return `https://${h}`;
 }
 

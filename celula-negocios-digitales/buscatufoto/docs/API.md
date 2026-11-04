@@ -38,7 +38,7 @@ Sesión del fotógrafo: cookie `btf_sesion` HttpOnly, SameSite=Lax, firmada HMAC
 | GET `/medios/:id/original` | dueño | 302 a GET prefirmado (10 min) |
 | GET `/a/:slug` | todos | `{ album (público), medios: Medio[] subidos y no ocultos, fotografo: { nombre, usuario, whatsapp? } }` |
 | POST `/a/:slug/cotizar` | todos | `{ items, cupon }` → Cotizacion (`lib/precios.cotizar` en el servidor) |
-| POST `/a/:slug/pedidos` | todos | `{ items, comprador, cupon, totalEsperado, metodo }` → 201 `{ pedido, pagar?: { initPoint } }`. Recalcula; si `total ≠ totalEsperado` → 422 `precio` |
+| POST `/a/:slug/pedidos` | todos | `{ items, comprador, cupon, totalEsperado, metodo }` → 201 `{ pedido, pagar?: { initPoint } }`. Recalcula; si `total ≠ totalEsperado` → 422 `precio`. El cupón se **reserva al crear** (Serializable: `activo` y `usos < usosMax`, 0 = ilimitado; `usos + 1` en el mismo tx que inserta el pedido); si ya no alcanza → 422 `cupon`. Si MP no arma la preferencia, el pedido se descarta y el cupón se libera. Host que no es de buscatufoto (ni `localhost`) con MP → 400 `host` |
 | GET `/pedidos/:id?clave=` | quien tiene la clave | Pedido. Si está pendiente y es MP, consulta MP antes de responder |
 | GET `/descarga?pedido&clave&medio` | quien tiene la clave | 302 al GET prefirmado del original. Exige pagado + clave (comparación constante) + medio del pedido |
 | POST `/mp/webhook` | Mercado Pago | `{ type:"payment", data:{ id } }` → busca el pago en MP con el token del fotógrafo del pedido (`external_reference`), marca pagado sólo si `approved` y `transaction_amount === total`. Siempre 200 |
@@ -54,6 +54,6 @@ Preferencia: `POST https://api.mercadopago.com/checkout/preferences` con `items`
 `unit_price = total`), `external_reference = pedidoId`, `notification_url = https://<host>/api/btf/mp/webhook`,
 `back_urls` a `https://<host>/a/<slug>/pedido/<pedidoId>?clave=<clave>`, `auto_return: "approved"`,
 `X-Idempotency-Key = pedidoId`. Verificación: `GET /v1/payments/{id}` y, para el re-chequeo del pedido,
-`GET /v1/payments/search?external_reference=<pedidoId>`. El cupón se consume al marcar pagado (transacción Serializable).
+`GET /v1/payments/search?external_reference=<pedidoId>`. El cupón se reserva al crear el pedido, no al pagar: marcar pagado no toca `usos`. El webhook sin `?pedido=` válido responde 200 y no hace nada (la `notification_url` siempre lo lleva).
 
 — Elaborado por GSG

@@ -3,7 +3,7 @@
 // Lo que se prueba: lo público no trae ocultos, ni no subidos, ni nada del original, ni cupones; otro
 // fotógrafo no puede tocar el álbum; el token de MP queda cifrado y nunca vuelve.
 // Plata: pedido → no descarga pendiente → marcar pagado → descarga 302 → clave mala 404 → medio ajeno 404 →
-// cupón consumido una vez aunque se marque dos veces (y en paralelo); MP: preferencia + verificación re-consultando.
+// cupón reservado al crear (marcar pagado, una o varias veces, no lo vuelve a sumar); MP: preferencia + verificación.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -222,7 +222,7 @@ test("alta → álbum → medios → /a/:slug no expone ocultos, no subidos, ori
   assert.equal((await crearPedido({ items: [oculto], totalEsperado: 1500 })).status, 422);
   assert.equal((await (await crearPedido({ cupon: "NOEXISTE", totalEsperado: 1500 })).json()).error, "cupon");
 
-  // Transferencia con cupón: pendiente, con clave, el cupón NO se consume todavía
+  // Transferencia con cupón: pendiente, con clave, el cupón queda RESERVADO al crear
   const rT = await crearPedido({ cupon: "amigos", totalEsperado: 1200 });
   assert.equal(rT.status, 201);
   const { pedido: pT, pagar } = await rT.json();
@@ -230,12 +230,12 @@ test("alta → álbum → medios → /a/:slug no expone ocultos, no subidos, ori
   assert.equal(pT.estado, "pendiente");
   assert.equal(pT.clave.length, 48);
   assert.equal(pT.comision, 108);
-  assert.equal(await usosAmigos(), 0);
+  assert.equal(await usosAmigos(), 1);
 
   // Pendiente: no descarga
   assert.equal((await bajar({ pedido: pT.id, clave: pT.clave, medio: visible })).status, 404);
 
-  // Marcar pagado: otro fotógrafo → 403; dueño → pagado; dos veces → el cupón se consume UNA vez
+  // Marcar pagado: otro fotógrafo → 403; dueño → pagado; dos veces → el cupón no se vuelve a sumar
   assert.equal((await marcar.POST(pedir(`/pedidos/${pT.id}/marcar-pagado`, { method: "POST", cookie: cookieOtro }), ctx({ id: pT.id }))).status, 403);
   for (let i = 0; i < 2; i++) {
     const r = await marcar.POST(pedir(`/pedidos/${pT.id}/marcar-pagado`, { method: "POST", cookie }), ctx({ id: pT.id }));
@@ -243,7 +243,7 @@ test("alta → álbum → medios → /a/:slug no expone ocultos, no subidos, ori
   }
   assert.equal(await usosAmigos(), 1);
 
-  // En paralelo (Serializable): otro pedido con cupón marcado 3 veces a la vez → +1
+  // En paralelo (Serializable): otro pedido con cupón (+1 al crear) marcado 3 veces a la vez → un solo cambio
   const { pedido: pP } = await (await crearPedido({ cupon: "AMIGOS", totalEsperado: 1200 })).json();
   const resultados = await Promise.all([1, 2, 3].map(() => marcarPagado(pP.id, "TRANSF")));
   assert.equal(resultados.filter((r) => r.cambio).length, 1);

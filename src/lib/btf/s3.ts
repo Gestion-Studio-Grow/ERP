@@ -83,17 +83,29 @@ export interface ConfigS3 {
   urlPublicaPrevias: string;
 }
 
-/** Config del almacén desde el entorno; null si falta algo. */
-export function configS3(env: Record<string, string | undefined> = process.env): ConfigS3 | null {
+const REQUERIDAS = ["BTF_S3_ENDPOINT", "BTF_S3_KEY", "BTF_S3_SECRET", "BTF_S3_BUCKET_ORIGINALES", "BTF_S3_BUCKET_PREVIAS", "BTF_PREVIAS_URL_PUBLICA"];
+
+/** Por qué el almacén no está listo (null si lo está). Buckets iguales = originales públicos: no se acepta. */
+export function problemaS3(env: Record<string, string | undefined> = process.env): string | null {
   const v = (k: string) => env[k]?.trim() || "";
-  const req = ["BTF_S3_ENDPOINT", "BTF_S3_KEY", "BTF_S3_SECRET", "BTF_S3_BUCKET_ORIGINALES", "BTF_S3_BUCKET_PREVIAS", "BTF_PREVIAS_URL_PUBLICA"];
-  if (req.some((k) => !v(k))) return null;
-  let endpoint: URL;
+  const faltan = REQUERIDAS.filter((k) => !v(k));
+  if (faltan.length) return `faltan ${faltan.join(", ")}`;
   try {
-    endpoint = new URL(v("BTF_S3_ENDPOINT"));
+    new URL(v("BTF_S3_ENDPOINT"));
   } catch {
-    return null;
+    return "BTF_S3_ENDPOINT no es una URL";
   }
+  if (v("BTF_S3_BUCKET_ORIGINALES") === v("BTF_S3_BUCKET_PREVIAS")) {
+    return "BTF_S3_BUCKET_ORIGINALES y BTF_S3_BUCKET_PREVIAS son el mismo bucket: los originales quedarían públicos";
+  }
+  return null;
+}
+
+/** Config del almacén desde el entorno; null si falta algo o los buckets coinciden (ver `problemaS3`). */
+export function configS3(env: Record<string, string | undefined> = process.env): ConfigS3 | null {
+  if (problemaS3(env)) return null;
+  const v = (k: string) => env[k]?.trim() || "";
+  const endpoint = new URL(v("BTF_S3_ENDPOINT"));
   return {
     endpoint,
     credenciales: { key: v("BTF_S3_KEY"), secret: v("BTF_S3_SECRET"), region: v("BTF_S3_REGION") || "auto" },
@@ -105,7 +117,7 @@ export function configS3(env: Record<string, string | undefined> = process.env):
 
 function exigirConfig(): ConfigS3 {
   const c = configS3();
-  if (!c) throw new Error("buscatufoto: almacén S3 sin configurar (BTF_S3_*)");
+  if (!c) throw new Error(`buscatufoto: almacén S3 sin configurar (${problemaS3() ?? "BTF_S3_*"})`);
   return c;
 }
 

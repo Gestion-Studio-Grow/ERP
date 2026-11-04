@@ -1,5 +1,5 @@
 // Respuestas y errores de /api/btf/* según el contrato (docs/API.md de la célula): JSON siempre,
-// `{ error, mensaje }` con 401/403/404/409/422/503.
+// `{ error, mensaje }` con 400/401/403/404/409/422/503.
 
 export type CodigoError =
   | "no-encontrado"
@@ -9,9 +9,11 @@ export type CodigoError =
   | "cupon"
   | "precio"
   | "no-autenticado"
-  | "no-configurado";
+  | "no-configurado"
+  | "host";
 
 const STATUS: Record<CodigoError, number> = {
+  host: 400,
   "no-autenticado": 401,
   prohibido: 403,
   "no-encontrado": 404,

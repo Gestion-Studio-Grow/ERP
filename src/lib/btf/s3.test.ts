@@ -2,7 +2,7 @@
 // Parameters", GET de examplebucket/test.txt del 24/05/2013) y las reglas que usa el almacén.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { configS3, presignar, urlFirmadaGet, urlFirmadaPut } from "./s3";
+import { configS3, presignar, problemaS3, urlFirmadaGet, urlFirmadaPut } from "./s3";
 
 const AWS = { key: "AKIAIOSFODNN7EXAMPLE", secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", region: "us-east-1" };
 
@@ -44,6 +44,12 @@ test("configS3 exige todo el entorno y usa estilo de ruta con el endpoint", () =
     BTF_PREVIAS_URL_PUBLICA: "https://previas.example/",
   };
   assert.equal(configS3({ ...env, BTF_S3_KEY: "" }), null);
+  assert.match(problemaS3({ ...env, BTF_S3_KEY: "" })!, /BTF_S3_KEY/);
+  // Buckets iguales: los originales quedarían públicos → no configurado, y el motivo lo dice
+  const iguales = { ...env, BTF_S3_BUCKET_PREVIAS: "orig" };
+  assert.equal(configS3(iguales), null);
+  assert.match(problemaS3(iguales)!, /mismo bucket.*públicos/);
+  assert.equal(problemaS3(env), null);
   const c = configS3(env)!;
   assert.equal(c.credenciales.region, "auto");
   assert.equal(c.urlPublicaPrevias, "https://previas.example");

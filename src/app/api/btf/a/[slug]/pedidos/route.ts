@@ -1,11 +1,12 @@
 // POST /api/btf/a/:slug/pedidos { items, comprador, cupon, totalEsperado, metodo } → 201 { pedido, pagar? }.
 // El total lo recalcula el servidor con `cotizar`; si no coincide con lo que vio el comprador → 422 precio.
-// El cupón se valida acá pero se CONSUME al marcar pagado (src/lib/btf/pagos.ts, Serializable).
+// El cupón se RESERVA al crear el pedido (usos + 1 en el mismo tx Serializable que lo inserta; si ya no alcanza
+// → 422 cupon) y se LIBERA si MP no arma la preferencia y el pedido se descarta (src/lib/btf/pagos.ts).
 import { btfDb, exigirServidor } from "@/lib/btf/db";
 import { ErrorBtf, json, leerCuerpo, manejar, texto } from "@/lib/btf/http";
 import { nuevaClave } from "@/lib/btf/ids";
 import { albumRed, pedidoRed } from "@/lib/btf/mapeo";
-import { comisionDe, crearPreferencia, marcarPagado, origenDe, tokenDelFotografo } from "@/lib/btf/pagos";
+import { comisionDe, crearPedidoReservandoCupon, crearPreferencia, descartarPedido, marcarPagado, origenDe, tokenDelFotografo } from "@/lib/btf/pagos";
 import { cotizar } from "@/lib/btf/precios";
 import { email as emailValido } from "@/lib/btf/validar";
 import type { Prisma } from "@/generated/prisma/client";
@@ -50,9 +51,11 @@ export function POST(request: Request, { params }: { params: Promise<{ slug: str
       throw new ErrorBtf("invalido", "Este fotógrafo todavía no configuró Mercado Pago. Elegí transferencia o escribile.");
     }
 
+    // Antes de reservar el cupón: si el host no es de buscatufoto, 400 sin tocar nada.
+    const origen = metodo === "mercadopago" && cot.total > 0 ? origenDe(request) : "";
+
     const clave = nuevaClave();
-    let pedido = await btfDb.btfPedido.create({
-      data: {
+    let pedido = await crearPedidoReservandoCupon({
         albumId: album.id,
         fotografoId: f.id,
         items: ids,
@@ -64,7 +67,6 @@ export function POST(request: Request, { params }: { params: Promise<{ slug: str
         estado: "pendiente",
         metodo,
         clave,
-      },
     });
 
     if (cot.total === 0) {
@@ -76,12 +78,12 @@ export function POST(request: Request, { params }: { params: Promise<{ slug: str
     let pref: { id: string; initPoint: string };
     try {
       pref = await crearPreferencia(
-        { pedidoId: pedido.id, clave, slug: album.slug, albumNombre: album.nombre, cantidad: ids.length, total: cot.total, comprador, origen: origenDe(request) },
+        { pedidoId: pedido.id, clave, slug: album.slug, albumNombre: album.nombre, cantidad: ids.length, total: cot.total, comprador, origen },
         token!,
       );
     } catch (e) {
-      // Sin preferencia no hay cobro posible: el pedido no sirve (y no consumió cupón).
-      await btfDb.btfPedido.delete({ where: { id: pedido.id } }).catch(() => undefined);
+      // Sin preferencia no hay cobro posible: el pedido se descarta y libera el cupón que reservó.
+      await descartarPedido(pedido.id).catch(() => undefined);
       throw e;
     }
     pedido = await btfDb.btfPedido.update({ where: { id: pedido.id }, data: { mpPreferenciaId: pref.id } });
