@@ -58,5 +58,15 @@ test("en el armazón nuevo: Vender no se describe como «pesar», y Comisiones c
 });
 
 test("sólo CH pasa por esta barra", () => {
-  assert.match(readFileSync(new URL("../app/admin/(dashboard)/layout.tsx", import.meta.url), "utf8"), /esEstetica\(slugDelNegocio\) \? barraDeCH\(barra, visibles\) : barra/);
+  assert.match(readFileSync(new URL("../app/admin/(dashboard)/layout.tsx", import.meta.url), "utf8"), /esEstetica\(slugDelNegocio\) \? barraDeCH\(barra, visibles, user\.role\) : barra/);
+});
+
+test("recepción de CH (04/11): Agenda primero, sólo el día a día, sin Libro de caja; la dueña igual que antes", () => {
+  const visibles = appsVisibles({ role: "RECEPTION", contexto: null, modulosAsignados: [], perfil: null, esMostrador: false, carniceriaLista: false });
+  const barra = barraDeCH(proyectarMenuDeHoy(visibles), visibles, "RECEPTION");
+  assert.deepEqual(rutas(barra), ["/admin/turnos", "/admin/clientes", "/admin/pedidos", "/admin/caja", "/admin/caja/cierre", "/admin/espera", "/admin"]);
+  assert.ok(visibles.some((a) => a.ruta === "/admin/caja/libro"), "el Libro de caja sigue abriendo: la barra no es el permiso");
+  const duenia = paraRol("OWNER");
+  const vis = appsVisibles({ role: "OWNER", contexto: null, modulosAsignados: [], perfil: null, esMostrador: false, carniceriaLista: false });
+  assert.deepEqual(rutas(barraDeCH(proyectarMenuDeHoy(vis), vis, "OWNER")), rutas(duenia.barra));
 });

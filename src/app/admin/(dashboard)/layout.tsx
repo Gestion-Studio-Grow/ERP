@@ -284,7 +284,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
   const barra = conProyectosEnLaBarra(conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto)), visibles);
-  const menu = esEstetica(slugDelNegocio) ? barraDeCH(barra, visibles) : barra;
+  const menu = esEstetica(slugDelNegocio) ? barraDeCH(barra, visibles, user.role) : barra;
   // DISEÑO NUEVO: la navegación del armazón nuevo (espacios, comandos de ⌘K, tecla del rubro), con
   // las MISMAS apps que ya decidió `appsVisibles`. Apagado no se arma ni viaja: CH recibe los mismos
   // props de siempre (armazon/armazon-ch.test.ts).

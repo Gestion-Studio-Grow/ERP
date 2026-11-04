@@ -383,7 +383,22 @@ const FUERA_DE_LA_BARRA_DE_CH = new Set(["/admin/campania", "/admin/recordatorio
  * así que un rol sin `reports:read` no la ve. Va aparte de `proyectarMenuDeHoy`, que sigue atada a la
  * barra de siempre (paridad-menu.test.ts). PURA.
  */
-export function barraDeCH(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[]): ItemMenuDeHoy[] {
+export function barraDeCH(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[], role?: string): ItemMenuDeHoy[] {
+  const deCH = barraDeCHSinRol(menu, visibles);
+  return role === "RECEPTION" ? barraDeRecepcionDeCH(deCH) : deCH;
+}
+
+/**
+ * La barra de la recepción de CH (orden del dueño, 04/11): sólo lo del día a día y la Agenda
+ * primero. Sale lo contable (Libro de caja); la pantalla sigue abriendo por su ruta y el buscador
+ * (la barra no es el permiso). La dueña ve todo, como siempre. PURA.
+ */
+const DIA_A_DIA_DE_RECEPCION = ["/admin/turnos", "/admin/clientes", "/admin/pedidos", "/admin/caja", "/admin/caja/cierre", "/admin/espera", "/admin"];
+export function barraDeRecepcionDeCH(menu: readonly ItemMenuDeHoy[]): ItemMenuDeHoy[] {
+  return DIA_A_DIA_DE_RECEPCION.flatMap((href) => menu.filter((i) => i.href === href));
+}
+
+function barraDeCHSinRol(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[]): ItemMenuDeHoy[] {
   const salida = menu
     .filter((i) => !FUERA_DE_LA_BARRA_DE_CH.has(i.href))
     .map((i) =>
