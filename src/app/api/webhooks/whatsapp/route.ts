@@ -51,7 +51,12 @@ function origenDe(request: Request): string {
 
 export async function POST(request: Request) {
   const secreto = process.env.WHATSAPP_APP_SECRET;
-  if (!secreto) return Response.json({ ok: false, error: "webhook sin configurar" }, { status: 503 });
+  if (!secreto) {
+    // Sin secreto no se puede verificar nada: con el pádel prendido es un error de configuración (503);
+    // apagado, acusa recibo como siempre (Fantasma Agenda tampoco corre sin firma).
+    if (modoWhatsApp(process.env) === "cloud") return Response.json({ ok: false, error: "webhook sin configurar" }, { status: 503 });
+    return Response.json({ ok: true, skipped: "whatsapp-apagado" });
+  }
   const crudo = await request.text();
   if (!firmaValida(crudo, request.headers.get("x-hub-signature-256"), secreto)) {
     return Response.json({ ok: false, error: "firma inválida" }, { status: 401 });
