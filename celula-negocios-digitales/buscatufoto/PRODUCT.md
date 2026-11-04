@@ -11,12 +11,18 @@ videos, y para que la gente encuentre y compre las suyas. Referencia de estructu
 - **Corredor / jugador / invitado** (zona de uso: el celular, el día después, desde el link del grupo de
   WhatsApp o de Instagram). Quiere encontrarse rápido por número, ver precio claro y descargar.
 
-## Qué tiene que andar (demo, sin backend)
+## Qué tiene que andar (dos modos)
+
+- **Demo:** sin servidor configurado, todo en el navegador (IndexedDB); alta de prueba, pagos y WhatsApp
+  simulados, rotulados *modo demostración*.
+- **Servidor:** con `/api/btf` configurado (ver `docs/API.md`), datos en el ERP, archivos en un almacén
+  S3-compatible, alta con código de invitación y cobro real con el Mercado Pago del fotógrafo (o transferencia).
+  La app elige el modo sola según `/api/btf/estado`.
 
 | Recorrido | Qué hace |
 |---|---|
-| Fotógrafo | alta e ingreso de prueba · datos de cobro simulados · crear álbum (nombre, evento, fecha, precio por foto, paquetes, descuento por cantidad, cupones con tope y usos) · subir fotos y videos · marca de agua automática en el navegador · editor de marca propia (logo, texto, color, escala, ángulo) con vista en vivo · dorsales por foto a mano o desde el nombre del archivo · colaboradores · ventas · enlace público · placa vertical para historias |
-| Comprador | galería con vistas previas marcadas · búsqueda por número · selección · carrito con descuentos y cupón · pago simulado · descarga de originales |
+| Fotógrafo | alta e ingreso (de prueba en demo; con código de invitación en servidor) · datos de cobro y conexión con Mercado Pago · crear álbum (nombre, evento, fecha, precio por foto, paquetes, descuento por cantidad, cupones con tope y usos) · subir fotos y videos · marca de agua automática en el navegador · editor de marca propia (logo, texto, color, escala, ángulo) con vista en vivo · dorsales por foto a mano o desde el nombre del archivo · colaboradores · ventas · enlace público · placa vertical para historias |
+| Comprador | galería con vistas previas marcadas · búsqueda por número · selección · carrito con descuentos y cupón · pago (simulado en demo; Mercado Pago o transferencia en servidor) · descarga de originales |
 | Selfie | **próximamente** (no hay detección facial 100 % en el navegador probada; no se simulan resultados) |
 
 ## Reglas que no se negocian
@@ -26,8 +32,8 @@ videos, y para que la gente encuentre y compre las suyas. Referencia de estructu
 2. **Honestidad:** sin testimonios, cifras de usuarios ni logos de clientes inventados. Pagos y WhatsApp
    simulados se rotulan *modo demostración*. Fotos de muestra generadas por nosotros (`scripts/generar-muestras.py`).
 3. **Números provisionales:** precios de planes y comisiones, *provisional a confirmar* (decide el dueño).
-4. **Sin servicios pagos:** datos en IndexedDB detrás de `Repositorio` (`src/lib/repo/`), listo para cambiar
-   por un backend.
+4. **Servidor en el ERP + almacén S3-compatible; la demo sigue en IndexedDB si no está configurado.** Los dos
+   implementan `Repositorio` (`src/lib/repo/`).
 
 ## Límite conocido de la demo
 
