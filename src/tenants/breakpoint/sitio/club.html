@@ -7109,7 +7109,6 @@ function resumenTurno(r, t, cl) {
   }).join("");
   return `<section class="seccion cuenta-turno" aria-labelledby="ct-t">
     <h3 id="ct-t">Cuenta del turno ${abierto ? "" : `<span class="chip">Cancha cerrada · la mesa sigue</span>`}</h3>
-    <dl class="kv num totales-turno" aria-label="Totales del turno"><dt>Cancha</dt><dd>${M.pesos(T.cancha)}</dd><dt>Cargos</dt><dd>${M.pesos(T.cargos)}</dd><dt class="tot">Falta cobrar</dt><dd class="tot">${M.pesos(T.pendiente)}</dd></dl>
     ${hayAlgo ? pickMedios(true, cl) : ""}
     <ul class="filas-jug">${filas}</ul>
     ${t.deOtraMesa.length ? `<p class="small muted" style="margin:0">No se cobra acá: ${t.deOtraMesa.map((x) => `los cargos de ${esc(x.titular)} (${M.pesos(x.saldo)}) los paga ${esc(x.paga)} en su mesa`).join(" · ")}.</p>` : ""}
@@ -7171,7 +7170,8 @@ function verReserva(id) {
             <p class="small muted" style="margin:0">Cerrar la cancha no cierra los cargos: cada jugador sigue cargando y se cobra cuando se va.</p>
           </div>
           <div class="seccion">
-            <h3>Cargos de los jugadores</h3>
+            <h3>Sumar cargo del buffet</h3>
+            ${t.ok ? `<dl class="kv num totales-turno" aria-label="Saldo del turno"><dt>Cancha</dt><dd>${M.pesos(t.totales.cancha)}</dd><dt>Cargos</dt><dd>${M.pesos(t.totales.cargos)}</dd><dt class="tot">Falta cobrar</dt><dd class="tot">${M.pesos(t.totales.pendiente)}</dd></dl>` : ""}
             <div class="players">${r.jugadores.map((j, i) => {
               const cta = cuentasJug[i];
               const jc = j.clienteId ? M.cliente(E, j.clienteId) : null;
@@ -7182,9 +7182,10 @@ function verReserva(id) {
             }).join("")}</div>
             ${r.estado !== "cancelada" && r.estado !== "suspendida" && r.estado !== "no_show" ? `${buscadorProductos("turno")}
               <div class="row"><label class="sr" for="cant-turno">Cantidad</label><input id="cant-turno" type="number" min="1" value="1" style="max-width:80px">
+                <button type="button" class="btn primary" data-a="consumo" data-v="${r.id}" data-m="cancha" title="Se carga en la cuenta de ${esc(r.jugadores[0]?.nombre ?? r.titular)}, que paga la cancha">Sumar a la cancha</button>
                 <button type="button" class="btn" data-a="consumo" data-v="${r.id}" data-m="cuenta">Sumar a su cuenta</button>
                 <button type="button" class="btn accent" data-a="consumo" data-v="${r.id}" data-m="cobrar">Cobrar ahora</button></div>
-              <p class="small muted" style="margin:0">«Cobrar ahora» usa el medio elegido arriba (${M.MEDIOS[ui.medio === "monedero" ? "efectivo" : ui.medio]}).</p>` : ""}
+              <p class="small muted" style="margin:0">«Sumar a la cancha» lo carga en la cuenta de ${esc(r.jugadores[0]?.nombre ?? r.titular)} (el titular del turno); «Sumar a su cuenta», en la del jugador elegido. «Cobrar ahora» usa el medio elegido arriba (${M.MEDIOS[ui.medio === "monedero" ? "efectivo" : ui.medio]}).</p>` : ""}
             ${abierto && r.jugadores.length < 4 ? `<div class="row"><label class="sr" for="nuevo-jug">Jugador</label><input id="nuevo-jug" data-busca="jug" value="${esc(ui.busca.jug ?? "")}" placeholder="Sumar jugador (nombre, o buscá su ficha)" autocomplete="off" style="flex:1"><button type="button" class="btn sm" data-a="sumarJugador" data-v="${r.id}">Sumar</button></div>
               ${(ui.busca.jug ?? "").trim().length >= 2 ? `<div class="sug">${M.buscarClientes(E, ui.busca.jug).filter((c) => !r.jugadores.some((j) => j.clienteId === c.id)).slice(0, 5).map((c) => `<button type="button" data-a="sumarJugadorFicha" data-v="${r.id}" data-c="${c.id}">${esc(c.nombre)} <span class="small muted">· ficha${c.cc.habilitada ? " · cuenta corriente" : ""}${c.monedero ? ` · créditos ${M.pesos(c.monedero)}` : ""}</span></button>`).join("")}</div>` : ""}` : ""}
           </div>
@@ -8209,9 +8210,12 @@ const acciones = {
   consumo: (b) => {
     const pid = ui.producto.turno;
     if (!pid) return toast("Buscá y elegí un producto.", { error: true });
-    const res = M.consumoJugador(E, b.dataset.v, acciones._jugadorSel?.() ?? 0, pid, Number(val("#cant-turno")) || 1, { modo: b.dataset.m, medio: ultimoMedio() }, AHORA);
+    // «Sumar a la cancha»: va a la cuenta del titular del turno (jugador 0), la misma cuenta de cargos de siempre.
+    const aLaCancha = b.dataset.m === "cancha";
+    const jugadorIdx = aLaCancha ? 0 : acciones._jugadorSel?.() ?? 0;
+    const res = M.consumoJugador(E, b.dataset.v, jugadorIdx, pid, Number(val("#cant-turno")) || 1, { modo: aLaCancha ? "cuenta" : b.dataset.m, medio: ultimoMedio() }, AHORA);
     if (res.ok) { ui.producto.turno = null; ui.busca.turno = ""; }
-    hecho(res, b.dataset.m === "cobrar" ? "Cargado y cobrado." : "Sumado a su cuenta.");
+    hecho(res, b.dataset.m === "cobrar" ? "Cargado y cobrado." : aLaCancha ? "Sumado a la cancha." : "Sumado a su cuenta.");
   },
   sumarJugador: (b) => { const res = M.sumarJugador(E, b.dataset.v, val("#nuevo-jug")); if (res.ok) ui.busca.jug = ""; hecho(res, "Jugador sumado."); },
   sumarJugadorFicha: (b) => { const res = M.sumarJugador(E, b.dataset.v, null, b.dataset.c); if (res.ok) ui.busca.jug = ""; hecho(res, "Jugador sumado con su ficha."); },
