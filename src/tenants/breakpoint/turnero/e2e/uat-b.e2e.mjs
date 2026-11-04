@@ -161,7 +161,7 @@ await p.fill("#bl-pin", "1111"); await W(400);
 
 // ── Parte 3: los 8 pedidos (mismo recorrido del QA, ahora sobre el sitio empaquetado) ──
 await entrarComo("u-lu", "33"); await irTab("agenda");
-await p.click('#app .blk[data-v]:has-text("Martín Ríos")'); await W(300);
+await p.click('#app .blk[data-v]:has-text("Martín Ríos"):has-text("4/4")'); await W(300);
 await p.selectOption('select[data-a="aCargo"][data-j="1"]', "2"); await W();
 const partes = await p.$$eval(".partes .player", (els) => els.map((e) => e.innerText.replace(/\s+/g, " ")));
 ok("3.1", partes.some((x) => /paga también por Sofía/.test(x)), "«A cargo de»: Tomás paga su parte y la de Sofía");
