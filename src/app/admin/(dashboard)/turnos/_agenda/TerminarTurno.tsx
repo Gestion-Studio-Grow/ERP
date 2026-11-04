@@ -24,6 +24,8 @@ import { pesos, type EstadoDelTurno } from "../agenda-core";
 import TeclasDeMedio from "../cerrar/TeclasDeMedio";
 import { aFormData, camposDeTerminar } from "./campos";
 import DividirPago, { SumarLoQueDebe } from "./DividirPago";
+import SumarProductos, { type RenglonDelCajon } from "./SumarProductos";
+import CobroConProductos from "./CobroConProductos";
 
 type Cobro = { metodo: MetodoDePago } | "dejar-a-cobrar" | null;
 
@@ -35,6 +37,7 @@ export default function TerminarTurno({
   puedeCobrar,
   motivoSinCobro,
   proximo,
+  conProductos,
   onListo,
 }: {
   turnoId: string;
@@ -48,6 +51,8 @@ export default function TerminarTurno({
   motivoSinCobro?: string;
   /** Agenda práctica: a dónde lleva «Reservar el próximo» desde el aviso de terminado (U8). */
   proximo?: string | null;
+  /** Venta y agenda simples (interruptor `venta-agenda-simple`): «+ Producto» y un solo cobro. */
+  conProductos?: boolean;
   onListo?: () => void;
 }) {
   const { showError, showSuccess } = useToast();
@@ -56,6 +61,13 @@ export default function TerminarTurno({
   const [enCurso, setEnCurso] = useState<Cobro | undefined>(undefined);
   const [pendiente, empezar] = useTransition();
   const vino = estado === "PENDING";
+  const [renglones, setRenglones] = useState<RenglonDelCajon[]>([]);
+  const [conTarjeta, setConTarjeta] = useState(false);
+  // Apagado (o sin permiso de cobrar), `sumar` es null y la hoja es la de siempre.
+  const sumar =
+    conProductos && puedeCobrar ? (
+      <SumarProductos renglones={renglones} onCambiar={setRenglones} onTarjeta={setConTarjeta} disabled={pendiente} />
+    ) : null;
 
   const terminar = (cobro: Cobro) => {
     if (pendiente) return; // un doble toque no manda dos veces
@@ -95,10 +107,19 @@ export default function TerminarTurno({
     </p>
   );
 
+  if (sumar && renglones.length > 0) {
+    return (
+      <CobroConProductos turnoId={turnoId} clienta={clienta} estado={estado} saldo={saldo} renglones={renglones} conTarjeta={conTarjeta} proximo={proximo} onListo={onListo}>
+        {sumar}
+      </CobroConProductos>
+    );
+  }
+
   if (saldo <= 0) {
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted">No falta cobrar nada: {vino ? "queda como que vino y terminado." : "queda terminado."}</p>
+        {sumar}
         {elError}
         <Button type="button" size="lg" className="w-full" disabled={pendiente} estado={pendiente ? "cargando" : undefined} onClick={() => terminar(null)}>
           {pendiente ? "Guardando…" : vino ? "Vino ✓" : "Terminar el turno"}
@@ -137,6 +158,7 @@ export default function TerminarTurno({
         enCurso={enCurso && typeof enCurso === "object" ? enCurso.metodo : null}
       />
       <p className="text-center text-xs text-muted">Un toque en el medio cobra y {vino ? "la marca como que vino" : "termina el turno"}.</p>
+      {sumar}
       {/* CH Tanda 2 (2-B): pagar en dos medios, o sumar lo que debía de antes (cada cobro a su turno). */}
       <DividirPago turnoId={turnoId} clienta={clienta} estado={estado} saldo={saldo} onListo={onListo} disabled={pendiente} />
       <SumarLoQueDebe turnoId={turnoId} clienta={clienta} estado={estado} saldo={saldo} onListo={onListo} disabled={pendiente} />

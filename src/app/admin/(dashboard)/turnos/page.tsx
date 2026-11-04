@@ -22,6 +22,8 @@ import AtajosDelAlta from "./_agenda/AtajosDelAlta";
 import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { enlaceCobrarUnaVenta } from "../pedidos/cobrar-una-venta";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { ventaAgendaSimplePrendida } from "@/cambios/interruptores";
 
 // Muestra en un vistazo qué profesionales tienen novedad (franco/vacaciones)
 // ese día, para no tener que ir a buscarlo a Catálogo (ADR-011 G9).
@@ -105,12 +107,13 @@ export default async function TurnosCalendarPage({
   // de la recepción al final del día, y mañana es mañana de verdad (no "el día siguiente al
   // que se está mirando"). Al profesional no se le muestra: confirmar no es su tarea.
   const verManana = canManage && date === today;
-  const [cruda, manana, piloto, negocio, slug] = await Promise.all([
+  const [cruda, manana, piloto, negocio, slug, interruptores] = await Promise.all([
     getAgendaDay(date),
     verManana ? getMananaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(user.role),
     getCurrentTenantSlug(),
+    interruptoresDelNegocio(),
   ]);
   const { professionals, blocksToday } = cruda;
   // La planilla de la PC (Tanda 2 · 2-C): el día proyectado campo por campo (agenda.server.ts), con
@@ -127,6 +130,11 @@ export default async function TurnosCalendarPage({
       cobrar: canCollect,
       terminar: roleHasCapability(user.role, "agenda:complete"),
       sumarProducto: enlaceCobrarUnaVenta(slug, user.role) !== null,
+      // Venta y agenda simples: el servidor vuelve a mirar todo esto en `cobrarTurnoConProductos`.
+      cobroConProducto:
+        ventaAgendaSimplePrendida(interruptores) &&
+        roleHasCapability(user.role, "orders:manage") &&
+        roleHasCapability(user.role, "agenda:collect"),
       perdonar: roleHasCapability(user.role, "agenda:forgive"),
       anular: anulacionDeCobro(user.role),
     },

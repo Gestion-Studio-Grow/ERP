@@ -183,7 +183,9 @@ function cuerpoDe(src: string, firma: string): string {
 
 test("insertOrder no decide la excepción: no importa la regla ni mira saleUnit para el stock", () => {
   assert.doesNotMatch(orderCore, /pos-stock-rules|permiteVenderSinStock|productosQuePuedenQuedarNegativos/);
-  const cuerpo = cuerpoDe(orderCore, "export async function insertOrder(");
+  // El cuerpo de la tx del alta vive en `insertarOrdenEnTx` (lo corre `insertOrder` y el cobro del turno).
+  assert.match(cuerpoDe(orderCore, "export async function insertOrder("), /insertarOrdenEnTx\(tx,/);
+  const cuerpo = cuerpoDe(orderCore, "export async function insertarOrdenEnTx(");
   assert.match(cuerpo, /allowNegative:\s*negativoPermitido\.has\(l\.productId\)/);
   assert.match(cuerpo, /opts\?\.permitirNegativoPorProducto/);
 });

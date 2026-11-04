@@ -471,6 +471,7 @@ export default function TurnoCajon({
                 puedeCobrar={cobraEste}
                 motivoSinCobro={t.veredicto.ok ? undefined : t.veredicto.motivo}
                 proximo={proximo}
+                conProductos={permisos.cobroConProducto}
                 onListo={onCerrar}
               />
             </div>
@@ -506,7 +507,8 @@ export default function TurnoCajon({
           </div>
         )}
 
-        {permisos.sumarProducto && turnoAdmiteProducto(t.estado) && (
+        {/* Venta y agenda simples: si «Terminar» ya suma productos al cobro, el enlace a Pedidos sobra. */}
+        {permisos.sumarProducto && turnoAdmiteProducto(t.estado) && !(permisos.cobroConProducto && cierra && cobraEste) && (
           <div className="pt-1">
             <Link href={hrefSumarProducto(t.id)} className={buttonClasses("outline", "md", "w-full")} {...atributosBoton("outline", "md")}>
               Sumar un producto

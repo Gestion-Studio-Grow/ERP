@@ -169,6 +169,8 @@ export type Permisos = {
   practica?: boolean;
   /** CH y orders:manage: el turno ofrece «Sumar un producto» (cobrar-una-venta.ts). */
   sumarProducto?: boolean;
+  /** Venta y agenda simples prendido + orders:manage + agenda:collect: «+ Producto» y un solo cobro en «Terminar». */
+  cobroConProducto?: boolean;
   /** agenda:manage — confirmar, cancelar, reprogramar, dar de baja un saldo. */
   gestionar: boolean;
   /** agenda:collect — cobrar (además, el veredicto de cada turno). */
