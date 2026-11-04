@@ -3949,22 +3949,21 @@ model ProyectoAnticipo {
 }
 
 // PIN dinámico de ingreso (plan §4) para COMERCIAL/PRODUCCION sin app de TOTP. Un código vivo por usuario: pedir
-// otro pisa `hash`/`venceEl`/`usadoEl`/`intentos`, pero NO `intentosVentana`, `ventanaDesde` ni `bloqueadoHasta`
+// otro pisa `hash`/`venceEl`/`usadoEl`/`intentos`, pero NO `fallosEl` ni `bloqueadoHasta`
 // (si no, pedir códigos nuevos sería la forma de esquivar el bloqueo). `hash` = HMAC-SHA256, nunca el código.
 model ProyectoPinIngreso {
-  id              String    @id @default(cuid())
-  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  id              String     @id @default(cuid())
+  tenant          Tenant     @relation(fields: [tenantId], references: [id])
   tenantId        String
   userId          String
   hash            String
   venceEl         DateTime
   usadoEl         DateTime?
-  intentos        Int       @default(0) // contra el código vivo
-  intentosVentana Int       @default(0) // fallidos en la ventana, sobrevive al código nuevo
-  ventanaDesde    DateTime?
+  intentos        Int        @default(0) // contra el código vivo
+  fallosEl        DateTime[] @default([]) // horas de los últimos fallos (ventana deslizante), sobrevive al código nuevo
   bloqueadoHasta  DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   @@unique([tenantId, userId])
 }

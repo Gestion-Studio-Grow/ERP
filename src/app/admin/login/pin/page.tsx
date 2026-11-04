@@ -12,6 +12,7 @@ import { esteticaBackoffice } from "@/lib/estetica-backoffice";
 import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
 import { prisma } from "@/lib/prisma";
 import { exigeSegundoPaso, leerPaseActual } from "@/lib/proyectos/segundo-factor.server";
+import { MENSAJE_RECIEN } from "@/lib/rendiciones/pin-core";
 import { exigePin } from "@/lib/rendiciones/pin.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
@@ -20,13 +21,13 @@ import { FormularioPin } from "./_formulario";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Código de ingreso", robots: { index: false, follow: false } };
 
-export default async function IngresoConPin({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+export default async function IngresoConPin({ searchParams }: { searchParams: Promise<{ next?: string; recien?: string }> }) {
   const userId = await leerPaseActual();
   if (!userId) redirect("/admin/login");
   const tenantId = await getCurrentTenantId();
   const user = await prisma.user.findFirst({ where: { id: userId, tenantId, active: true, deletedAt: null }, select: { id: true, tenantId: true, email: true, role: true } });
   if (!user) redirect("/admin/login");
-  const { next } = await searchParams;
+  const { next, recien } = await searchParams;
   const destino = encodeURIComponent(next ?? "/admin");
   // Quien ve plata o ya tiene la app sigue con TOTP: el PIN nunca es un atajo para esquivarlo.
   if (await exigeSegundoPaso(user)) redirect(`/admin/login/segundo-paso?next=${destino}`);
@@ -55,7 +56,11 @@ export default async function IngresoConPin({ searchParams }: { searchParams: Pr
         </div>
         <section className="grid gap-4 rounded-xl border border-line bg-surface-raised p-6 shadow-sm sm:p-8">
           <h1 className="text-xl font-semibold tracking-tight text-strong">Código de ingreso</h1>
-          <p className="text-sm text-muted">Si tu usuario existe, te mandamos un código de 6 dígitos a tu mail. Vence en 5 minutos y sirve una sola vez.</p>
+          {recien === "1" ? (
+            <p role="status" className="text-sm font-medium text-strong">{MENSAJE_RECIEN}</p>
+          ) : (
+            <p className="text-sm text-muted">Si tu usuario existe, te mandamos un código de 6 dígitos a tu mail. Vence en 5 minutos y sirve una sola vez.</p>
+          )}
           <FormularioPin next={next ?? "/admin"} />
           <Link href="/admin/login" className="flex min-h-11 items-center justify-center text-sm text-muted underline">Volver al ingreso</Link>
         </section>

@@ -7,6 +7,7 @@ import { abrirSesion, destinoTrasIngreso } from "@/lib/ingreso.server";
 import { prisma } from "@/lib/prisma";
 import { COOKIE_GOOGLE, mailDelToken, type EstadoGoogle } from "@/lib/proyectos/google-ingreso-core";
 import { darPase, esProductora, exigeSegundoPaso } from "@/lib/proyectos/segundo-factor.server";
+import { MENSAJE_RECIEN } from "@/lib/rendiciones/pin-core";
 import { exigePin, pedirPin } from "@/lib/rendiciones/pin.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 
@@ -60,8 +61,9 @@ export async function GET(request: NextRequest) {
   }
   if (await exigePin(user)) {
     await darPase(user.id);
-    await pedirPin(tenantId, user);
-    redirect(`/admin/login/pin?next=${encodeURIComponent(estado.next)}`);
+    const { mensaje } = await pedirPin(tenantId, user);
+    const recien = mensaje === MENSAJE_RECIEN ? "&recien=1" : "";
+    redirect(`/admin/login/pin?next=${encodeURIComponent(estado.next)}${recien}`);
   }
   await abrirSesion(user.id);
   redirect(await destinoTrasIngreso(user, estado.next));
