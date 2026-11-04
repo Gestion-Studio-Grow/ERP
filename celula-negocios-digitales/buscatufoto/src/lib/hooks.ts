@@ -17,9 +17,11 @@ function entradaUrl(blob: Blob) {
 /**
  * URL de objeto para un Blob. Compartida entre componentes que muestran el mismo Blob y revocada cuando
  * nadie la usa (con un respiro, para sobrevivir al doble montaje de StrictMode).
+ * Si recibe un string (URL pública del modo servidor) lo devuelve tal cual.
  */
-export function useUrlBlob(blob: Blob | null | undefined): string | null {
-  const url = blob && typeof window !== "undefined" ? entradaUrl(blob).url : null;
+export function useUrlBlob(fuente: Blob | string | null | undefined): string | null {
+  const blob = typeof fuente === "string" ? null : fuente;
+  const url = typeof fuente === "string" ? fuente : blob && typeof window !== "undefined" ? entradaUrl(blob).url : null;
   useEffect(() => {
     if (!blob) return;
     const e = entradaUrl(blob);

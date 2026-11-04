@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Aviso, Boton, BotonLink, IconoCopiar, IconoDescargar, IconoEnlace, IconoWhatsapp, ModoDemo, claseEntrada } from "@/components/ui";
+import { Aviso, Boton, BotonLink, IconoCopiar, IconoDescargar, IconoEnlace, IconoWhatsapp, ModoDemo, SoloDemo, claseEntrada } from "@/components/ui";
 import { fechaLarga } from "@/lib/dinero";
 import { mensajeDeError, obtenerRepo } from "@/lib/repo";
 import type { Album, Medio } from "@/lib/tipos";
@@ -74,7 +74,7 @@ export function SeccionCompartir({ album, medios }: { album: Album; medios: Medi
         ) : null}
         <div className={s.filaBotones}>
           <BotonLink href={`https://wa.me/?text=${encodeURIComponent(texto)}`} externo variante="secundario">
-            <IconoWhatsapp /> Compartir por WhatsApp (modo demostración)
+            <IconoWhatsapp /> Compartir por WhatsApp<SoloDemo> (modo demostración)</SoloDemo>
           </BotonLink>
         </div>
         <p className={s.ayudaChica}>Código QR para imprimir: pendiente (no sumamos una librería todavía).</p>
@@ -100,7 +100,9 @@ function Placa({ album, portada, enlace }: { album: Album; portada: Medio | null
     (async () => {
       try {
         await cargarFuentes();
-        const img = previa ? await createImageBitmap(previa) : null;
+        // Modo servidor: la previa es una URL pública; se baja como Blob para no ensuciar el lienzo (pide CORS en el bucket).
+        const fuente = typeof previa === "string" ? await fetch(previa).then((r) => r.blob()) : previa;
+        const img = fuente ? await createImageBitmap(fuente) : null;
         if (!vivo) {
           img?.close();
           return;

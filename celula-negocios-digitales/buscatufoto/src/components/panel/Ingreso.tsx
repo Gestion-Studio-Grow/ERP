@@ -3,17 +3,25 @@
 import { useState, type FormEvent } from "react";
 import { Aviso, BarraProgreso, Boton, Entrada, ModoDemo, Segmentado, Tarjeta } from "@/components/ui";
 import { asegurarMuestras } from "@/lib/muestras";
-import { mensajeDeError, obtenerRepo } from "@/lib/repo";
+import { mensajeDeError, obtenerRepo, useModoRepo } from "@/lib/repo";
 import { iniciarSesion } from "@/lib/sesion";
 import s from "./panel.module.css";
 
 type Pestana = "crear" | "ingresar";
 
-/** Alta e ingreso de prueba en una sola pantalla. Sin contraseña: la cuenta vive en este navegador. */
+/**
+ * Alta e ingreso en una sola pantalla.
+ * - Demo: sin contraseña, la cuenta vive en este navegador (y está la cuenta de muestra).
+ * - Servidor: email + contraseña; el alta pide el código de invitación.
+ */
 export function Ingreso({ aviso }: { aviso?: string }) {
   const [pestana, setPestana] = useState<Pestana>("crear");
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
+  const [contrasena, setContrasena] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const modo = useModoRepo();
+  const servidor = modo === "servidor";
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [progreso, setProgreso] = useState<{ hechas: number; total: number } | null>(null);
@@ -24,7 +32,20 @@ export function Ingreso({ aviso }: { aviso?: string }) {
     setOcupado(true);
     try {
       const repo = obtenerRepo();
-      if (pestana === "crear") {
+      if (servidor) {
+        if (!email.trim()) throw new Error("Poné tu email.");
+        if (pestana === "crear") {
+          if (!nombre.trim()) throw new Error("Poné tu nombre o el de tu estudio.");
+          if (contrasena.length < 8) throw new Error("La contraseña necesita 8 caracteres o más.");
+          if (!codigo.trim()) throw new Error("Poné el código de invitación que te pasamos.");
+          const f = await repo.alta({ nombre, email, contrasena, codigo });
+          iniciarSesion(f.id);
+        } else {
+          if (!contrasena) throw new Error("Poné tu contraseña.");
+          const f = await repo.ingresar(email, contrasena);
+          iniciarSesion(f.id);
+        }
+      } else if (pestana === "crear") {
         const f = await repo.registrarFotografo({ nombre, email });
         iniciarSesion(f.id);
       } else {
@@ -108,33 +129,59 @@ export function Ingreso({ aviso }: { aviso?: string }) {
             onChange={(e) => setEmail(e.target.value)}
             required
           />
-          <span className={s.rotuloLargo}>
-            <ModoDemo>Cuenta de prueba: sin contraseña, los datos quedan en este navegador</ModoDemo>
-          </span>
+          {servidor ? (
+            <>
+              <Entrada
+                etiqueta="Contraseña"
+                name="contrasena"
+                type="password"
+                autoComplete={pestana === "crear" ? "new-password" : "current-password"}
+                value={contrasena}
+                onChange={(e) => setContrasena(e.target.value)}
+                required
+              />
+              {pestana === "crear" ? (
+                <Entrada
+                  etiqueta="Código de invitación"
+                  name="codigo"
+                  autoComplete="off"
+                  value={codigo}
+                  onChange={(e) => setCodigo(e.target.value)}
+                  required
+                />
+              ) : null}
+            </>
+          ) : (
+            <span className={s.rotuloLargo}>
+              <ModoDemo>Cuenta de prueba: sin contraseña, los datos quedan en este navegador</ModoDemo>
+            </span>
+          )}
           {error ? (
             <p role="alert" className={s.error}>
               {error}
             </p>
           ) : null}
-          <Boton type="submit" variante="primario" tam="grande" ancho disabled={ocupado}>
+          <Boton type="submit" variante="primario" tam="grande" ancho disabled={ocupado || modo === undefined}>
             {pestana === "crear" ? "Crear mi cuenta" : "Ingresar"}
           </Boton>
         </form>
 
-        <div className={s.ingresoMuestra}>
-          <p className={s.ayudaChica}>¿Querés ver cómo queda sin cargar nada? Abrimos una cuenta con un álbum ficticio de 18 fotos.</p>
-          <Boton variante="secundario" ancho onClick={probarMuestra} disabled={ocupado}>
-            Probar con la cuenta de muestra
-          </Boton>
-          {progreso ? (
-            <div className={s.progreso}>
-              <BarraProgreso valor={progreso.total ? progreso.hechas / progreso.total : 0} etiqueta="Preparando la cuenta de muestra" />
-              <span className={`mono ${s.ayudaChica}`}>
-                Preparando fotos de muestra: {progreso.hechas} de {progreso.total}
-              </span>
-            </div>
-          ) : null}
-        </div>
+        {modo === "demo" ? (
+          <div className={s.ingresoMuestra}>
+            <p className={s.ayudaChica}>¿Querés ver cómo queda sin cargar nada? Abrimos una cuenta con un álbum ficticio de 18 fotos.</p>
+            <Boton variante="secundario" ancho onClick={probarMuestra} disabled={ocupado}>
+              Probar con la cuenta de muestra
+            </Boton>
+            {progreso ? (
+              <div className={s.progreso}>
+                <BarraProgreso valor={progreso.total ? progreso.hechas / progreso.total : 0} etiqueta="Preparando la cuenta de muestra" />
+                <span className={`mono ${s.ayudaChica}`}>
+                  Preparando fotos de muestra: {progreso.hechas} de {progreso.total}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </Tarjeta>
     </div>
   );

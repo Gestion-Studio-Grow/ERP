@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Selector, Vacio } from "@/components/ui";
 import { fechaHora, plata } from "@/lib/dinero";
 import { useDatos } from "@/lib/hooks";
-import { obtenerRepo } from "@/lib/repo";
+import { obtenerRepo, useModoRepo } from "@/lib/repo";
 import type { Album, Pedido } from "@/lib/tipos";
 import { Cargando, Cifra, Encabezado, ErrorCarga, Seccion, useAlbumes, useFotografo } from "./comunes";
 import s from "./panel.module.css";
@@ -92,8 +92,9 @@ export function TablaVentas({ pedidos, albumes }: { pedidos: Pedido[]; albumes?:
 /** Ventas de un álbum (sección del álbum). */
 export function SeccionVentas({ album }: { album: Album }) {
   const d = useDatos(() => obtenerRepo().pedidosDe(album.id), [album.id], ["pedidos"]);
+  const demo = useModoRepo() === "demo";
   return (
-    <Seccion titulo="Ventas de este álbum" bajada="Pagos simulados (modo demostración). Se actualiza sola.">
+    <Seccion titulo="Ventas de este álbum" bajada={demo ? "Pagos simulados (modo demostración). Se actualiza sola." : "Se actualiza sola."}>
       {d.estado === "cargando" ? <Cargando /> : null}
       {d.estado === "error" ? <ErrorCarga error={d.error} /> : null}
       {d.estado === "listo" ? <TablaVentas pedidos={d.datos} /> : null}
@@ -104,6 +105,7 @@ export function SeccionVentas({ album }: { album: Album }) {
 /** /panel/ventas */
 export function VentasGlobal() {
   const f = useFotografo();
+  const demo = useModoRepo() === "demo";
   const [filtro, setFiltro] = useState("todos");
   const d = useDatos(() => obtenerRepo().pedidosDeFotografo(f.id), [f.id], ["pedidos"]);
   const a = useAlbumes(f.id);
@@ -114,7 +116,11 @@ export function VentasGlobal() {
     <>
       <Encabezado
         titulo="Ventas"
-        bajada="Todos tus pedidos pagados. Los pagos son simulados (modo demostración). La lista se actualiza sola: si alguien paga en otra pestaña, aparece acá."
+        bajada={
+          demo
+            ? "Todos tus pedidos pagados. Los pagos son simulados (modo demostración). La lista se actualiza sola: si alguien paga en otra pestaña, aparece acá."
+            : "Todos tus pedidos. La lista se actualiza sola."
+        }
       />
       {(a.datos?.length ?? 0) > 1 ? (
         <div className={s.filtroAlbum}>

@@ -13,7 +13,7 @@ interface FilaAlbum {
   album: Album;
   fotos: number;
   videos: number;
-  portada: Blob | null;
+  portada: Blob | string | null;
   pedidos: number;
   vendido: number;
 }

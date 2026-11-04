@@ -5,9 +5,10 @@ import { MARCA_POR_DEFECTO, OPACIDAD_MIN } from "../marca-agua";
 import { plata } from "../dinero";
 import { PLANES } from "../planes";
 import { cotizar, motivoCuponInvalido } from "../precios";
-import type { Album, Fotografo, MarcaAgua, Medio, Pedido } from "../tipos";
+import type { Album, Cotizacion, Fotografo, MarcaAgua, Medio, Pedido } from "../tipos";
 import { avisarCambio } from "./cambios";
-import { ErrorRepo, type AltaFotografo, type DatosAlbum, type DatosPedido, type NuevoMedio, type Repositorio } from "./tipos";
+import { leerSesionLocal } from "./sesion-local";
+import { ErrorRepo, type AltaConCodigo, type AltaFotografo, type DatosAlbum, type DatosPedido, type NuevoMedio, type Repositorio } from "./tipos";
 
 const NOMBRE_DB = "buscatufoto";
 const VERSION = 1;
@@ -162,10 +163,45 @@ export class RepositorioIDB implements Repositorio {
     return this.actualizarFotografo(id, { marca });
   }
 
+  // ---------- Sesión (demo: la cuenta de este navegador, sin contraseña) ----------
+
+  async ingresar(email: string, contrasena: string): Promise<Fotografo> {
+    void contrasena;
+    if (!email.trim()) throw new ErrorRepo("Poné el email con el que creaste la cuenta.", "invalido");
+    const f = await this.fotografoPorEmail(email);
+    if (!f) throw new ErrorRepo("No hay ninguna cuenta con ese email en este navegador. Creala en la pestaña “Crear cuenta”.", "no-encontrado");
+    return f;
+  }
+
+  alta(d: AltaConCodigo): Promise<Fotografo> {
+    return this.registrarFotografo({ nombre: d.nombre, email: d.email });
+  }
+
+  async salir(): Promise<void> {
+    /* la sesión de la demo la borra lib/sesion */
+  }
+
+  async yo(): Promise<Fotografo | null> {
+    const id = leerSesionLocal();
+    return id ? this.obtenerFotografo(id) : null;
+  }
+
+  async guardarTokenMp(token: string): Promise<void> {
+    void token;
+    throw new ErrorRepo("En la demostración no se conecta Mercado Pago.", "no-configurado");
+  }
+
+  async quitarTokenMp(): Promise<void> {
+    /* nada que quitar en la demo */
+  }
+
   // ---------- Álbumes ----------
 
-  async crearAlbum(fotografoId: string, d: DatosAlbum): Promise<Album> {
+  async crearAlbum(fotografoId: string, entrada: DatosAlbum): Promise<Album> {
     if (!(await this.obtenerFotografo(fotografoId))) throw new ErrorRepo("No encontramos tu cuenta.", "no-encontrado");
+    // El consentimiento se exige en la pantalla; no se guarda en el álbum.
+    const { consentimiento, ...d } = entrada;
+    void consentimiento;
     validarAlbum(d);
     const base = aSlug(d.slug || d.nombre) || "album";
     let slug = base;
@@ -235,13 +271,13 @@ export class RepositorioIDB implements Repositorio {
       ancho: m.ancho,
       alto: m.alto,
       duracion: m.duracion,
-      peso: m.original.size,
+      peso: m.peso ?? m.original.size,
       dorsales: m.dorsales,
       previa: m.previa,
       miniatura: m.miniatura,
       creadoEn: Date.now(),
     };
-    const original: Original = { id: medio.id, albumId, fotografoId: album.fotografoId, blob: m.original, peso: m.original.size };
+    const original: Original = { id: medio.id, albumId, fotografoId: album.fotografoId, blob: m.original, peso: m.peso ?? m.original.size };
     const t = await this.tx(["medios", "originales", "albumes"], "readwrite");
     t.objectStore("medios").put(medio);
     t.objectStore("originales").put(original);
@@ -268,6 +304,12 @@ export class RepositorioIDB implements Repositorio {
     await this.guardar("medios", { ...m, previa, miniatura });
   }
 
+  async ocultarMedio(medioId: string, oculto: boolean) {
+    const m = await this.uno<Medio>("medios", medioId);
+    if (!m) throw new ErrorRepo("No encontramos esa foto.", "no-encontrado");
+    return this.guardar("medios", { ...m, oculto });
+  }
+
   async eliminarMedio(medioId: string) {
     const m = await this.uno<Medio>("medios", medioId);
     if (m && (await this.pedidosDe(m.albumId)).some((p) => p.items.includes(medioId)))
@@ -291,6 +333,15 @@ export class RepositorioIDB implements Repositorio {
   }
 
   // ---------- Ventas ----------
+
+  async cotizar(albumId: string, items: string[], cupon: string | null): Promise<Cotizacion> {
+    const album = await this.obtenerAlbum(albumId);
+    if (!album) throw new ErrorRepo("Ese álbum no está disponible.", "no-encontrado");
+    const medios = await this.mediosDe(albumId);
+    const porId = new Map(medios.map((m) => [m.id, m]));
+    const elegidos = [...new Set(items)].map((id) => porId.get(id)).filter((m): m is Medio => !!m);
+    return cotizar(album, elegidos.map((m) => ({ tipo: m.tipo })), cupon, medios.length);
+  }
 
   async crearPedido(d: DatosPedido): Promise<Pedido> {
     const items = [...new Set(d.items)];
@@ -346,6 +397,7 @@ export class RepositorioIDB implements Repositorio {
       cotizacion: cot,
       comision,
       estado: "pagado",
+      metodo: d.metodo ?? "mercadopago",
       clave: nuevaClave(),
       referenciaPago: `DEMO-${nuevoId().toUpperCase().slice(0, 8)}`,
       creadoEn: Date.now(),
@@ -360,17 +412,26 @@ export class RepositorioIDB implements Repositorio {
   async obtenerPedido(id: string, clave: string) {
     const p = await this.uno<Pedido>("pedidos", id);
     if (!p || !clave || p.clave !== clave) return null;
-    return p;
+    return conMetodo(p);
   }
 
   async pedidosDe(albumId: string) {
     const l = await this.porIndice<Pedido>("pedidos", "albumId", albumId);
-    return l.sort((a, b) => b.creadoEn - a.creadoEn);
+    return l.map(conMetodo).sort((a, b) => b.creadoEn - a.creadoEn);
   }
 
   async pedidosDeFotografo(fotografoId: string) {
     const l = await this.porIndice<Pedido>("pedidos", "fotografoId", fotografoId);
-    return l.sort((a, b) => b.creadoEn - a.creadoEn);
+    return l.map(conMetodo).sort((a, b) => b.creadoEn - a.creadoEn);
+  }
+
+  async marcarPagado(pedidoId: string): Promise<Pedido> {
+    const p = await this.uno<Pedido>("pedidos", pedidoId);
+    if (!p) throw new ErrorRepo("No encontramos ese pedido.", "no-encontrado");
+    const pedido = conMetodo(p);
+    if (pedido.estado === "pagado") return pedido;
+    if (pedido.metodo !== "transferencia") throw new ErrorRepo("Sólo se marcan a mano los pedidos por transferencia.", "prohibido");
+    return this.guardar("pedidos", { ...pedido, estado: "pagado" as const });
   }
 
   async descargarOriginal(pedidoId: string, clave: string, medioId: string) {
@@ -398,6 +459,11 @@ export class RepositorioIDB implements Repositorio {
     });
     return total;
   }
+}
+
+/** Pedidos guardados antes de que existiera `metodo` (demo vieja): se tratan como Mercado Pago. */
+function conMetodo(p: Pedido): Pedido {
+  return p.metodo ? p : { ...p, metodo: "mercadopago" };
 }
 
 function validarAlbum(d: Pick<Album, "nombre" | "fecha" | "precioFoto" | "precioVideo" | "paquetes" | "escalones" | "cupones">) {

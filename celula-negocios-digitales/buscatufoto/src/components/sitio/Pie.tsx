@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SoloDemo } from "@/components/ui";
 import { Logo } from "./Logo";
 import s from "./sitio.module.css";
 
@@ -34,7 +35,9 @@ export function Pie() {
       </div>
       <div className={`contenedor ${s.pieLegal}`}>
         <span>© 2026 buscatufoto. Hecho en Argentina.</span>
-        <span>Demo: pagos y WhatsApp en modo demostración.</span>
+        <SoloDemo>
+          <span>Demo: pagos y WhatsApp en modo demostración.</span>
+        </SoloDemo>
       </div>
     </footer>
   );

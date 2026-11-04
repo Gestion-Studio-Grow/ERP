@@ -11,7 +11,7 @@ export function Miniatura({
   alto,
   ansiosa,
 }: {
-  blob: Blob;
+  blob: Blob | string;
   alt: string;
   className?: string;
   ancho?: number;

@@ -40,6 +40,8 @@ export interface Fotografo {
   cobro: DatosCobro | null;
   marca: MarcaAgua;
   creadoEn: number;
+  /** Sólo en modo servidor: el token de Mercado Pago está guardado (nunca viaja el token). */
+  mpConfigurado?: boolean;
 }
 
 export interface Paquete {
@@ -120,11 +122,15 @@ export interface Medio {
   /** bytes del original (para créditos/almacenamiento) */
   peso: number;
   dorsales: string[];
-  /** vista previa con marca de agua, lado mayor ≤ 1280 px */
-  previa: Blob;
-  /** miniatura con marca de agua, lado mayor ≤ 480 px */
-  miniatura: Blob;
+  /** vista previa con marca de agua, lado mayor ≤ 1280 px. Blob en la demo; URL pública en modo servidor. */
+  previa: Blob | string;
+  /** miniatura con marca de agua, lado mayor ≤ 480 px. Blob en la demo; URL pública en modo servidor. */
+  miniatura: Blob | string;
   creadoEn: number;
+  /** modo servidor: los tres archivos llegaron al almacén (sólo entonces es público) */
+  subido?: boolean;
+  /** retirado de la galería pública por el fotógrafo (sigue en los pedidos ya pagados) */
+  oculto?: boolean;
 }
 
 export interface Comprador {
@@ -133,7 +139,7 @@ export interface Comprador {
   whatsapp: string;
 }
 
-export type EstadoPedido = "pagado";
+export type EstadoPedido = "pendiente" | "pagado";
 
 export interface Pedido {
   id: string;
@@ -145,6 +151,9 @@ export interface Pedido {
   /** comisión de la plataforma según el plan del fotógrafo al momento de la venta */
   comision: number;
   estado: EstadoPedido;
+  metodo: MetodoCobro;
+  /** modo servidor, Mercado Pago: enlace de pago devuelto al crear el pedido */
+  initPoint?: string;
   /** clave para descargar; sólo la tiene quien pagó */
   clave: string;
   /** referencia del pago simulado */

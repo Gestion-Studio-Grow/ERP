@@ -20,7 +20,7 @@ import { useDatos } from "@/lib/hooks";
 import { asegurarMuestras, SLUG_MUESTRA } from "@/lib/muestras";
 import { ARCHIVOS_MUESTRA } from "@/lib/muestras-lista";
 import { cotizar } from "@/lib/precios";
-import { obtenerRepo } from "@/lib/repo";
+import { obtenerRepo, resolverModo } from "@/lib/repo";
 import type { Album, Fotografo, Medio } from "@/lib/tipos";
 import { Buscador } from "./Buscador";
 import { Carrito } from "./Carrito";
@@ -50,7 +50,8 @@ export function AlbumPublico({ slug }: { slug: string }) {
       const repo = obtenerRepo();
       if (preparacion) await preparacion.catch(() => undefined);
       let album = await repo.albumPorSlug(slug);
-      if (slug === SLUG_MUESTRA) {
+      // La muestra se genera en el navegador: sólo existe en la demo.
+      if (slug === SLUG_MUESTRA && (await resolverModo()) === "demo") {
         const faltan = !album || (await repo.mediosDe(album.id)).length < ARCHIVOS_MUESTRA.length;
         if (faltan) {
           setPreparando(true);

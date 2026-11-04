@@ -12,6 +12,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
+import { useModoRepo } from "@/lib/repo";
 import s from "./ui.module.css";
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
@@ -216,8 +217,15 @@ export function Insignia({ children, tono }: { children: ReactNode; tono?: "acen
   );
 }
 
-/** Rótulo obligatorio para todo lo simulado (pagos, WhatsApp, cobros). */
+/** Contenido que sólo tiene sentido en la demo (textos que avisan que algo es simulado). */
+export function SoloDemo({ children }: { children: ReactNode }) {
+  return useModoRepo() === "demo" ? <>{children}</> : null;
+}
+
+/** Rótulo obligatorio para todo lo simulado (pagos, WhatsApp, cobros). Sólo se ve en modo demo. */
 export function ModoDemo({ children = "Modo demostración" }: { children?: ReactNode }) {
+  const modo = useModoRepo();
+  if (modo !== "demo") return null;
   return <Insignia tono="demo">{children}</Insignia>;
 }
 
