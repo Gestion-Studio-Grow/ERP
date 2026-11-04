@@ -3900,8 +3900,9 @@ export function crearPedidoTienda(estado, { items, nombre, tel = "", origen = "w
  */
 export function pedidoDesdeWhatsApp(estado, texto, ahora) {
   const t = String(texto ?? "");
-  // El código es el de «Pedido T-…»; uno suelto (p. ej. metido en el nombre) sólo vale si no hay otro.
-  const codigo = (t.match(/\bPedido\s+(T-[A-Z0-9]{4})\b/i) ?? t.match(/\b(T-[A-Z0-9]{4})\b/i))?.[1]?.toUpperCase() ?? null;
+  // El código es el ÚLTIMO «Pedido T-…» (el mensaje real lo pone al final, después del nombre: un nombre como
+  // «Pedido T-ZZZZ» no le gana); uno suelto (p. ej. metido en el nombre) sólo vale si no hay ninguno con «Pedido».
+  const codigo = ([...t.matchAll(/\bPedido\s+(T-[A-Z0-9]{4})\b/gi)].at(-1) ?? t.match(/\b(T-[A-Z0-9]{4})\b/i))?.[1]?.toUpperCase() ?? null;
   if (codigo && (estado.pedidos ?? []).some((x) => x.codigo === codigo)) return { ok: false, motivo: `El pedido ${codigo} ya está cargado.` };
   if (codigo && codigoArchivado(estado, "pedidos", codigo)) return { ok: false, motivo: `El pedido ${codigo} ya se había cargado: está en los días archivados.` };
   const items = [];

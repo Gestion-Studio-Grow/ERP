@@ -1279,6 +1279,13 @@ test("la mesa que sigue no pierde su marca si el cierre se rechaza (Gate 20/10)"
 const msjPedido = (lista: string, { nombre = "Pedro", codigo = "T-ABCD" } = {}) =>
   `Hola Break Point Pádel, quiero encargar para retirar en el club: ${lista}. El precio me lo confirman en el club. Soy ${nombre} (11 5555-1234). Pedido ${codigo}.`;
 
+test("pedidos C10 (vuelta 2): un nombre «Pedido T-…» no le gana al código real del final del mensaje", () => {
+  const e = club();
+  const r = M.pedidoDesdeWhatsApp(e, msjPedido("1 × Agua 500 ml", { nombre: "Pedido T-ZZZZ", codigo: "T-ABCD" }), ahora(10));
+  assert.ok(r.ok, r.motivo);
+  assert.equal(r.pedido.codigo, "T-ABCD");
+});
+
 test("pedidos C08: el mismo producto en dos renglones se junta y el stock se mira con lo sumado", () => {
   const e = club(); // Muñequera: stock 4, $6.000
   const r = M.pedidoDesdeWhatsApp(e, msjPedido("2 × Muñequera · 3 × Muñequera"), ahora(10));
