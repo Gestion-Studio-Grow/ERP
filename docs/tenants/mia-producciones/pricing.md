@@ -1,5 +1,7 @@
 # MIA Producciones — lo que le cobra GSG (propuesta)
 
+> **04/11/2026:** para el alcance inicial (Administración + Gestión de proyectos) la propuesta vigente es otra: USD 2.000 de implementación y USD 140 por mes, en el documento «MIA Producciones — Plan de implementación, alcance y soporte» (https://claude.ai/artifact/4DAr6mDstSGJMwwDnPY2hi). Lo de abajo queda como referencia para cuando se sumen IA y más usuarios.
+
 **Estado: PROPUESTA, no adoptada.** Escrita el 04/11/2026. Precio, descuento y forma de cobro los decide el dueño
 (decisión comercial, ADR-048). Antes de adoptarla como base para otras productoras pasa por el Challenger (ADR-045).
 Hasta hoy no había ningún precio escrito para MIA ni para el rubro productora: esto es la primera versión, no un ajuste.
