@@ -133,6 +133,18 @@ export const INTERRUPTORES = [
     enAuditoria: "el arqueo a ciegas",
     cambiaLasApps: false,
   },
+  {
+    // Venta y agenda simples (docs/producto/venta-agenda/PLAN.md, tandas T1–T4): el cobro del turno
+    // y los productos en un solo pie del cajón (un cobro), el resumen «Hoy» del dueño y, en tandas
+    // siguientes, la reserva en un flujo con seña. Va AL FINAL del array a propósito: Fantasma Agenda
+    // suma el suyo después de «agenda-practica» y así no chocan. Apagado, todo como siempre.
+    id: "venta-agenda-simple",
+    nombre: "Venta y agenda simples",
+    queCambia:
+      "El turno y los productos se cobran juntos desde el cajón del turno, en un solo cobro, y el Inicio muestra el día de hoy: turnos, lo cobrado por medio y las señas que faltan. Apagado, el producto se cobra aparte, como siempre.",
+    enAuditoria: "la venta y agenda simples",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -153,6 +165,16 @@ export const CUENTAS_CORRIENTES: InterruptorId = "cuentas-corrientes";
 
 /** Arqueo a ciegas al abrir la caja (N2 · M1-C3; lo lee `openCashSession`). */
 export const ARQUEO_CIEGO: InterruptorId = "arqueo-ciego";
+
+/** Venta y agenda simples (docs/producto/venta-agenda/PLAN.md): cobro único turno + productos y resumen «Hoy». */
+export const VENTA_AGENDA_SIMPLE: InterruptorId = "venta-agenda-simple";
+
+/** ¿El negocio tiene «Venta y agenda simples»? Un estado sin la entrada cuenta como apagado. PURA. */
+export function ventaAgendaSimplePrendida(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return estado[VENTA_AGENDA_SIMPLE]?.encendido === true;
+}
 
 /**
  * ¿Este negocio trabaja con el mostrador boutique? Recibe el estado que arma
