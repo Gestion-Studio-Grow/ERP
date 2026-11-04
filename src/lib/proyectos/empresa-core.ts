@@ -220,6 +220,19 @@ export function conReintegros(extras: readonly ExtraGuardado[], reclamadas: read
   ];
 }
 
+/**
+ * Rendí: al pagar, lo reclamado en la base (rendiciones con ese `liquidacionId`) tiene que ser exactamente lo que suma
+ * el total: mismos gastos, misma plata. Si no cuadra, no se paga (se regenera el borrador). PURA.
+ */
+export function reintegrosCuadran(extras: readonly ExtraGuardado[], reclamadas: readonly { gastoId: string; montoCentavos: number }[]): boolean {
+  const enExtras = extras.filter((e) => e.reintegro && e.gastoId);
+  const ids = new Set(enExtras.map((e) => e.gastoId as string));
+  if (ids.size !== enExtras.length || ids.size !== reclamadas.length) return false;
+  if (reclamadas.some((r) => !ids.has(r.gastoId))) return false;
+  const centavosExtras = enExtras.reduce((s, e) => s + Math.round(e.monto * 100), 0);
+  return centavosExtras === reclamadas.reduce((s, r) => s + r.montoCentavos, 0);
+}
+
 // ── Bancos ──────────────────────────────────────────────────────────────────
 
 const claveLinea = (l: { fecha: Date; descripcion: string; importe: number }) => `${l.fecha.getFullYear()}-${l.fecha.getMonth()}-${l.fecha.getDate()}|${l.descripcion.trim().toLowerCase()}|${redondear(l.importe)}`;

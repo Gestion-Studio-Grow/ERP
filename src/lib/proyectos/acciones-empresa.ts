@@ -14,13 +14,13 @@ import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
 import { leerNumero, MEDIOS, metodoDeCaja, redondear, type MedioPago } from "./core";
 import { aPesos, extrasDelPeriodo, leerExtracto, MONEDAS } from "./gestion-core";
-import { actorActual, avisar, exigirEditar, regenerarCuotasDe, registrarCambio, tiposDeCambio } from "./gestion.server";
+import { actorActual, avisar, exigirEditar, puede, regenerarCuotasDe, registrarCambio, tiposDeCambio } from "./gestion.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { actorDelMotor, faltaLaMigracion, rendicionDelMotor, SIN_MIGRACION } from "./rendiciones-core";
 import { puedeReintegrarRendicion } from "./gestion-core";
 import { aplicarAccion } from "@/lib/rendiciones/rendicion";
 import type { RolActor } from "@/lib/rendiciones/tipos";
-import { conReintegros, etiquetaMes, extrasRecalculados, leerExtras, lineasNuevas, periodoValido, totalLiquidacion, type ExtraGuardado } from "./empresa-core";
+import { conReintegros, etiquetaMes, extrasRecalculados, leerExtras, lineasNuevas, periodoValido, reintegrosCuadran, totalLiquidacion, type ExtraGuardado } from "./empresa-core";
 import type { Resultado } from "./acciones";
 
 const ADMIN = "/admin/proyectos/administracion";
@@ -356,14 +356,16 @@ export async function generarLiquidaciones(formData: FormData): Promise<Resultad
       if (previa && previa.estado !== "BORRADOR") continue;
       const delPeriodo = extrasDelPeriodo(p.equipos, periodo);
       if (!previa && !(p.sueldoBase > 0) && delPeriodo.length === 0 && !conReintegro?.has(p.id)) continue;
-      const sinReintegros = extrasRecalculados(leerExtras(previa?.extras), delPeriodo);
       if (!previa) await tx.proyectoLiquidacion.createMany({ data: [{ tenantId: a.tenantId, personaId: p.id, periodo, base: p.sueldoBase, facturaA: p.facturaA }], skipDuplicates: true });
       // Toma la fila y confirma que sigue en borrador: si alguien la publicó recién, queda como está; si la publican
       // ahora, esperan a que esta transacción termine (el claim de reintegros y el total van juntos).
       const tomada = await tx.proyectoLiquidacion.updateMany({ where: { tenantId: a.tenantId, personaId: p.id, periodo, estado: "BORRADOR" }, data: { facturaA: p.facturaA } });
       if (tomada.count === 0) continue;
-      const id = previa?.id ?? (await tx.proyectoLiquidacion.findFirstOrThrow({ where: { tenantId: a.tenantId, personaId: p.id, periodo }, select: { id: true } })).id;
-      const extras = conReintegro ? await reclamarReintegrosTx(tx, a.tenantId, id, p.id, sinReintegros) : [...sinReintegros, ...leerExtras(previa?.extras).filter((e) => e.reintegro)];
+      // Los extras se leen con la fila ya tomada: lo que otra edición guardó recién no se pisa con una lectura vieja.
+      const fila = await tx.proyectoLiquidacion.findFirstOrThrow({ where: { tenantId: a.tenantId, personaId: p.id, periodo }, select: { id: true, extras: true } });
+      const id = fila.id;
+      const sinReintegros = extrasRecalculados(leerExtras(fila.extras), delPeriodo);
+      const extras = conReintegro ? await reclamarReintegrosTx(tx, a.tenantId, id, p.id, sinReintegros) : [...sinReintegros, ...leerExtras(fila.extras).filter((e) => e.reintegro)];
       const total = totalLiquidacion(p.sueldoBase, extras);
       await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { base: p.sueldoBase, extras: extras as unknown as Prisma.InputJsonValue, total, facturaA: p.facturaA } });
       generadas++;
@@ -403,6 +405,10 @@ export async function publicarBorradores(formData: FormData): Promise<Resultado<
  * Rendí: pagar una liquidación publicada. PAGADA + un egreso por el total (clave única `proyectoLiquidacionId`: dos clics
  * = un egreso) + las rendiciones que reclamó pasan a reintegradas. Dirección o Administración; nadie se paga lo propio.
  */
+/** Aborta la transacción del pago: los reintegros reclamados no coinciden con los del total. */
+class Descuadre extends Error {}
+const DESCUADRE = "Los reintegros de esta liquidación no cuadran con su total: no se pagó nada. Avisá a Dirección para revisarla.";
+
 export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
   const a = await actorActual();
   const id = txt(formData.get("id"));
@@ -414,7 +420,7 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
     if (!l) return { ok: false, error: "Esa liquidación no existe." };
     const actorId = actorDelMotor({ personaId: a.personaId, userId: a.user.id });
     if (actorId === l.personaId || (!!l.persona.userId && l.persona.userId === a.user.id)) return { ok: false, error: "Nadie se paga lo propio: esta liquidación es tuya." };
-    if (!puedeReintegrarRendicion(a.rol, actorId, l.personaId)) return { ok: false, error: "Sólo Dirección o Administración pagan liquidaciones." };
+    if (!puedeReintegrarRendicion(a.rol, actorId, l.personaId) || !puede(a, "liquidaciones", "editar")) return { ok: false, error: "Sólo Dirección o Administración, con permiso para editar liquidaciones, las pagan." };
     if (l.estado === "PAGADA") return { ok: false, error: "Esta liquidación ya está pagada." };
     if (l.estado !== "PUBLICADA") return { ok: false, error: "Primero publicala: se paga lo que la persona ya vio." };
     const ahora = new Date();
@@ -422,6 +428,10 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
       // El claim: dos clics o dos pestañas pagan una sola vez.
       const r = await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "PUBLICADA" }, data: { estado: "PAGADA", pagadaEl: ahora, pagadaPor: a.nombre } });
       if (r.count === 0) return false;
+      // Con la fila tomada: lo reclamado en la base tiene que ser lo que suma el total. Si no cuadra, no se paga nada.
+      const fila = await tx.proyectoLiquidacion.findFirstOrThrow({ where: { id, tenantId: a.tenantId }, select: { extras: true } });
+      const incluidas = await tx.proyectoRendicion.findMany({ where: { tenantId: a.tenantId, liquidacionId: id, estado: "aprobada" }, select: { id: true, gastoId: true, personaId: true, medio: true, anticipoId: true, montoCentavos: true, estado: true, eventos: true } });
+      if (!reintegrosCuadran(leerExtras(fila.extras), incluidas)) throw new Descuadre();
       if (l.total > 0) {
         const session = await tx.cashSession.findFirst({ where: { tenantId: a.tenantId, status: "OPEN" }, select: { id: true } });
         await tx.cashMovement.create({
@@ -437,7 +447,6 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
           },
         });
       }
-      const incluidas = await tx.proyectoRendicion.findMany({ where: { tenantId: a.tenantId, liquidacionId: id, estado: "aprobada" }, select: { id: true, gastoId: true, personaId: true, medio: true, anticipoId: true, montoCentavos: true, estado: true, eventos: true } });
       for (const f of incluidas) {
         const res = aplicarAccion(rendicionDelMotor(f), "reintegrar", { fecha: ahora.toISOString(), actorId, rolActor: a.rol as RolActor, comentario: `Con la liquidación de ${etiquetaMes(l.periodo)}` });
         if (!res.ok) throw new Error(res.motivo);
@@ -449,6 +458,7 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
     });
     if (!hecho) return { ok: false, error: "Esta liquidación ya está pagada." };
   } catch (e) {
+    if (e instanceof Descuadre) return { ok: false, error: DESCUADRE };
     if (faltaLaMigracion(e)) return { ok: false, error: SIN_MIGRACION };
     throw e;
   }
@@ -482,28 +492,39 @@ export async function borrarLiquidacion(formData: FormData): Promise<Resultado> 
   return { ok: true };
 }
 
-/** Reemplaza la base y los extras manuales. Los que salen de los eventos quedan como están. Un descuento va en negativo. */
+/**
+ * Reemplaza la base y los extras manuales. Los que salen de los eventos y los reintegros de Rendí quedan como están: un
+ * reintegro sólo lo pone o lo saca generar, que lo reclama en la base. Un descuento va en negativo. Toma la fila en
+ * borrador antes de leer los extras (mismo candado que generar): una generación en paralelo espera o se ve entera.
+ */
 export async function editarExtrasLiquidacion(d: { id: string; base?: string; manuales: readonly { nombre: string; monto: string }[] }): Promise<Resultado> {
   const a = await exigirEditar("liquidaciones");
-  const l = await prisma.proyectoLiquidacion.findFirst({ where: { id: String(d.id ?? ""), tenantId: a.tenantId }, select: { id: true, periodo: true, base: true, extras: true, total: true, estado: true } });
-  if (!l) return { ok: false, error: "Esa liquidación no existe." };
-  if (l.estado !== "BORRADOR") return { ok: false, error: "Ya está publicada: no se puede cambiar." };
+  const id = String(d.id ?? "");
   const manuales: ExtraGuardado[] = (Array.isArray(d.manuales) ? d.manuales : [])
     .slice(0, 30)
     .map((m) => ({ proyectoId: null, nombre: String(m.nombre ?? "").trim().slice(0, 120), monto: redondear(leerNumero(String(m.monto ?? ""))), manual: true }))
     .filter((m) => m.nombre || m.monto !== 0);
   if (manuales.some((m) => !m.nombre)) return { ok: false, error: "Cada extra necesita un concepto." };
   if (manuales.some((m) => m.monto === 0)) return { ok: false, error: "Cada extra necesita un monto." };
-  const extras = [...leerExtras(l.extras).filter((e) => !e.manual), ...manuales];
-  const base = d.base === undefined ? l.base : redondear(leerNumero(String(d.base)));
-  if (base < 0) return { ok: false, error: "La base no puede ser negativa." };
-  const total = totalLiquidacion(base, extras);
-  if (total < 0) return { ok: false, error: "El total no puede quedar negativo." };
-  const r = await prisma.proyectoLiquidacion.updateMany({ where: { id: l.id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { base, extras: extras as unknown as Prisma.InputJsonValue, total } });
-  if (r.count === 0) return { ok: false, error: "Ya está publicada: no se puede cambiar." };
-  await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: l.id, campo: `total ${l.periodo}`, antes: l.total, despues: total, autor: a.nombre });
-  revalidatePath(ADMIN);
-  return { ok: true };
+  const pedida = d.base === undefined ? null : redondear(leerNumero(String(d.base)));
+  if (pedida !== null && pedida < 0) return { ok: false, error: "La base no puede ser negativa." };
+  const r = await tenantTransaction(async (tx): Promise<Resultado> => {
+    const tomada = await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { estado: "BORRADOR" } });
+    if (tomada.count === 0) {
+      const existe = await tx.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId }, select: { id: true } });
+      return { ok: false, error: existe ? "Ya está publicada: no se puede cambiar." : "Esa liquidación no existe." };
+    }
+    const l = await tx.proyectoLiquidacion.findFirstOrThrow({ where: { id, tenantId: a.tenantId }, select: { periodo: true, base: true, extras: true, total: true } });
+    const extras = [...leerExtras(l.extras).filter((e) => !e.manual || e.reintegro), ...manuales];
+    const base = pedida ?? l.base;
+    const total = totalLiquidacion(base, extras);
+    if (total < 0) return { ok: false, error: "El total no puede quedar negativo." };
+    await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { base, extras: extras as unknown as Prisma.InputJsonValue, total } });
+    await registrarCambio(tx, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: id, campo: `total ${l.periodo}`, antes: l.total, despues: total, autor: a.nombre });
+    return { ok: true };
+  });
+  if (r.ok) revalidatePath(ADMIN);
+  return r;
 }
 
 /**
