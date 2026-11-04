@@ -5,7 +5,8 @@
  *   · prendido, A ve los huecos de SUS dos profesionales que hacen el servicio (y no la que no lo hace);
  *   · los huecos de A no aparecen en B: B con el servicio de A contesta «ya no está», y con el suyo
  *     ve sólo a su profesional;
- *   · un horario ocupado de A no se ofrece (el motor de siempre).
+ *   · un horario ocupado de A no se ofrece (el motor de siempre);
+ *   · sin `agenda:manage` (rol PROFESSIONAL) se ven los huecos, con `puedeDarTurno` en falso.
  * Sin Postgres local se saltea diciendo por qué (en CI falla), como los demás `*-postgres.test.ts`.
  */
 import { test } from "node:test";
@@ -82,6 +83,15 @@ test("Turnos libres: apagado no responde; prendido, A ve sus huecos y B no ve lo
   assert.ok((laura.huecos[manana] ?? []).length > 0, "Laura tiene otros huecos mañana");
   const idsDeA = new Set(rA.valor.profesionales.map((p) => p.id));
   assert.ok(!idsDeA.has(a.sinPeeling));
+
+  // Sin `agenda:manage` (una profesional): ve los mismos huecos, pero sin tecla para dar el turno.
+  const pro = await duenio.user.create({
+    data: { tenantId: base.a.id, name: "Laura (usuaria)", email: "laura@negocio-a.erp.test", passwordHash: "x", role: "PROFESSIONAL" },
+  });
+  const rPro = await ejecutarAccion({ negocio: base.a, usuario: pro }, () => turnosLibresDelServicio(a.peeling));
+  if (rPro.tipo !== "respuesta" || !rPro.valor.ok) throw new Error(`La profesional no recibió huecos: ${JSON.stringify(rPro)}`);
+  assert.equal(rPro.valor.puedeDarTurno, false);
+  assert.deepEqual(rPro.valor.profesionales.map((p) => p.nombre), ["Laura", "Marina"]);
 
   // B con el servicio de A: no existe para B. Con el suyo: sólo Bea, ningún id de A.
   const cruzado = await comoB(a.peeling);
