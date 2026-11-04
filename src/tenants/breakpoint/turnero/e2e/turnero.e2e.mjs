@@ -338,7 +338,10 @@ console.log("\n▶ demo pública sin servidor (adaptador local)");
   await p.waitForFunction(() => /avisamos por WhatsApp/.test(document.querySelector("#aviso")?.textContent ?? ""), null, { timeout: 3000 }).catch(() => {});
   check(/avisamos por WhatsApp/.test(await p.textContent("#aviso")), "lista de espera: queda anotado y se confirma");
   check(pedidosApi.length === 0, `local: ningún pedido a una API (todo queda en el navegador)${pedidosApi.length ? ` → ${pedidosApi[0]}` : ""}`);
-  check(bytes.js > 0 && bytes.js < 60 * 1024, `local: JS comprimido total ${(bytes.js / 1024).toFixed(1)} KB < 60 KB`);
+  // El tope de 60 KB es de lo que baja el jugador: se mide sobre el sitio empaquetado («JS del turnero» arriba y en
+  // sitio.e2e.mjs). Este servidor de desarrollo no recorta módulos y baja el motor entero del club (~43 KB): acá
+  // sólo se informa el peso.
+  check(bytes.js > 0, `local: JS comprimido sin recortar ${(bytes.js / 1024).toFixed(1)} KB (informativo; el tope se mide en lo publicado)`);
   check(!p.errores.length, `local: cero errores de consola${p.errores.length ? ` → ${p.errores.join(" | ")}` : ""}`);
   await p.screenshot({ path: `${SALIDA}/local-firme.png` });
   resumen.local = { jsComprimido: bytes.js };
