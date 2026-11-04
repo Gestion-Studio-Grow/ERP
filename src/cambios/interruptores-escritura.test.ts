@@ -36,6 +36,8 @@ const ESCRITORES_PERMITIDOS: Record<string, string> = {
     "el QA de Facturación a escala, SÓLO contra su base efímera local (crearBaseEfimera se niega a un servidor que no sea local): prende el diseño nuevo para recorrerlo",
   "src/tenants/ch/e2e/uat-ch.e2e.mjs":
     "el UAT de CH (npm run test:ch-uat), SÓLO contra su base efímera local (crearBaseEfimera): prende la agenda práctica para recorrerla",
+  "src/tenants/ch/e2e/venta-agenda.e2e.mjs":
+    "el QA de Venta y agenda simples de CH, SÓLO contra su base efímera local (entorno-ch.mjs → crearBaseEfimera): prende «venta-agenda-simple» para recorrer el cobro único",
   "src/tenants/ch/e2e/preparar-mostrador-ch.mjs":
     "los recorridos del mostrador de CH (npm run test:ch-mostrador-e2e), SÓLO contra su base efímera local (crearBaseEfimera): prende el diseño nuevo para recorrer el cajón",
   "src/tenants/magra/e2e/mostrador.e2e.mjs":

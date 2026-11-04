@@ -8,6 +8,7 @@
 // El comprobante es texto + link `wa.me` que abre la recepción (nada de despachos ni webhooks).
 
 import { billetesSugeridos, estadoDelEfectivo } from "@/lib/cobro/pie-de-cobro-core";
+import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { linkWhatsApp, mensajeCobro, medioEnTexto, pesosEnTexto } from "./mensajes-whatsapp";
 
 /** Los billetes que se ofrecen para «Paga con» (los mismos del pie de cobro). */
@@ -29,7 +30,7 @@ export function vueltoDelCajon(total: number, pagaCon: number | string | null | 
   const e = estadoDelEfectivo(total, pagaCon);
   if (e.estado === "sin-dato" || e.estado === "invalido") return null;
   if (e.estado === "justo") return { estado: "justo", vuelto: 0, texto: "Paga justo, sin vuelto" };
-  const con = total + (e.estado === "vuelto" ? e.vuelto : -e.falta);
+  const con = sumarAlCentavo([total, e.estado === "vuelto" ? e.vuelto : -e.falta]);
   if (e.estado === "vuelto") return { estado: "vuelto", vuelto: e.vuelto, texto: `Paga con ${pesosEnTexto(con)} → vuelto ${pesosEnTexto(e.vuelto)}` };
   return { estado: "falta", falta: e.falta, texto: `Con ${pesosEnTexto(con)} te faltan ${pesosEnTexto(e.falta)}` };
 }
