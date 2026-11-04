@@ -60,7 +60,31 @@ export default function PaginaTerminos() {
             Si aparecés en una foto y querés que la saquen, escribile al fotógrafo o a nosotros y lo resolvemos.
           </p>
 
-          <h2>5. Precios y comisiones</h2>
+          <h2>5. Quién responde por los datos y las imágenes</h2>
+          <ul>
+            <li>
+              El fotógrafo es el <strong>responsable del tratamiento</strong> de los datos personales y las imágenes de
+              cada álbum que publica: decide qué sube, para qué y por cuánto tiempo.
+            </li>
+            <li>
+              Gestión Studio Grow presta la plataforma y actúa como <strong>encargado de tratamiento</strong>: guarda y
+              muestra el contenido sólo para que el servicio funcione y siguiendo las instrucciones del fotógrafo.
+            </li>
+            <li>
+              El cobro de cada venta lo hace Mercado Pago y entra en la cuenta del propio fotógrafo; buscatufoto no recibe
+              ni guarda ese dinero.
+            </li>
+            <li>
+              Al publicar un álbum, el fotógrafo declara contar con el consentimiento de las personas que aparecen y, si hay
+              menores, el de sus padres, madres o responsables.
+            </li>
+          </ul>
+          <p>
+            Este reparto de roles, en el marco de la Ley 25.326 de Protección de Datos Personales, es{" "}
+            <strong>provisional a confirmar por un abogado</strong>.
+          </p>
+
+          <h2>6. Precios y comisiones</h2>
           <p>
             Cada fotógrafo pone el precio de sus fotos. buscatufoto cobra según el plan: en el Libre, un{" "}
             {pct(PLANES.libre.comision)} de cada venta; en el Pro, una cuota fija sin comisión por venta. Los precios de
@@ -68,26 +92,26 @@ export default function PaginaTerminos() {
             el costo del medio de pago. Ver <Link href="/#precios">precios</Link>.
           </p>
 
-          <h2>6. Pagos y entregas</h2>
+          <h2>7. Pagos y entregas</h2>
           <p>
             El original se entrega sólo con el pedido pagado. Los cobros reales los recibe el fotógrafo directamente, por
             Mercado Pago con su propia cuenta o por transferencia a sus datos, con las condiciones de ese medio. En el
             modo de prueba ningún pago es real y no se mueve dinero.
           </p>
 
-          <h2>7. Lo que no garantizamos</h2>
+          <h2>8. Lo que no garantizamos</h2>
           <p>
             Hacemos lo posible para que el servicio funcione bien, pero puede tener cortes o errores, sobre todo en esta
             etapa. En el modo de prueba todo se guarda en tu navegador: si borrás los datos del sitio se pierden. En cualquier
             caso, conservá siempre tus originales.
           </p>
 
-          <h2>8. Cambios</h2>
+          <h2>9. Cambios</h2>
           <p>
             Podemos actualizar estos términos. Si el cambio es importante, lo vamos a avisar en el sitio antes de que rija.
           </p>
 
-          <h2>9. Ley aplicable y contacto</h2>
+          <h2>10. Ley aplicable y contacto</h2>
           <p>
             Rigen las leyes de la República Argentina (provisional a confirmar). Para cualquier consulta, escribinos a{" "}
             {CORREO_CONTACTO} (provisional a confirmar) o desde <Link href="/contacto">contacto</Link>.
