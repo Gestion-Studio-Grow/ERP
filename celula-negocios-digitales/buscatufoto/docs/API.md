@@ -36,7 +36,7 @@ Sesión del fotógrafo: cookie `btf_sesion` HttpOnly, SameSite=Lax, firmada HMAC
 | PATCH `/medios/:id` · DELETE `/medios/:id` | dueño | `{ dorsales?, oculto? }` → Medio · borra fila y objetos |
 | POST `/medios/:id/vistas` | dueño | → `{ previa, miniatura }` PUT prefirmados (rehacer marca) |
 | GET `/medios/:id/original` | dueño | 302 a GET prefirmado (10 min) |
-| GET `/a/:slug` | todos | `{ album (público), medios: Medio[] subidos y no ocultos, fotografo: { nombre, usuario, whatsapp? } }` |
+| GET `/a/:slug` | todos | `{ album (público), medios: Medio[] subidos y no ocultos, fotografo: { nombre, usuario, whatsapp?, mpConfigurado, cobro: { metodo, titular, alias } \| null } }` (`mpConfigurado`: conectó Mercado Pago; sin él el carrito sólo ofrece transferencia) |
 | POST `/a/:slug/cotizar` | todos | `{ items, cupon }` → Cotizacion (`lib/precios.cotizar` en el servidor) |
 | POST `/a/:slug/pedidos` | todos | `{ items, comprador, cupon, totalEsperado, metodo }` → 201 `{ pedido, pagar?: { initPoint } }`. Recalcula; si `total ≠ totalEsperado` → 422 `precio`. El cupón se **reserva al crear** (Serializable: `activo` y `usos < usosMax`, 0 = ilimitado; `usos + 1` en el mismo tx que inserta el pedido); si ya no alcanza → 422 `cupon`. Si MP no arma la preferencia, el pedido se descarta y el cupón se libera. Host que no es de buscatufoto (ni `localhost`) con MP → 400 `host` |
 | GET `/pedidos/:id?clave=` | quien tiene la clave | Pedido. Si está pendiente y es MP, consulta MP antes de responder |

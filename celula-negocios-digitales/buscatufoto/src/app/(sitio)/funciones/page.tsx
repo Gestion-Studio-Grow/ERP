@@ -17,7 +17,7 @@ export default function PaginaFunciones() {
       <Encabezado
         rotulo="Funciones"
         titulo="Todo lo que hace buscatufoto"
-        bajada="Explicado sin vueltas. Lo que está en modo demostración lo decimos, y lo que todavía no está, también."
+        bajada="Explicado sin vueltas. Lo que todavía no está, también lo decimos."
       />
 
       {GRUPOS.map((g) => {

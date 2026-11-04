@@ -1,5 +1,6 @@
 // GET /api/btf/a/:slug → { album (público), medios (subidos, no ocultos, sin nada del original),
-// fotografo: { nombre, usuario, whatsapp?, cobro: { metodo, titular, alias } | null } }.
+// fotografo: { nombre, usuario, whatsapp?, mpConfigurado, cobro: { metodo, titular, alias } | null } }.
+// mpConfigurado: el fotógrafo conectó Mercado Pago (sólo el booleano, nunca el token).
 import { exigirServidor } from "@/lib/btf/db";
 import { json, manejar } from "@/lib/btf/http";
 import { albumPublico, cobroPublico, medioRed } from "@/lib/btf/mapeo";
@@ -20,7 +21,7 @@ export function GET(_request: Request, { params }: { params: Promise<{ slug: str
       album: albumPublico(album),
       medios: medios.map((m) => medioRed(m, url)),
       // cobro sin CUIT: el comprador necesita alias y titular para transferir, nada más.
-      fotografo: { nombre: f.nombre, usuario: f.usuario, ...(f.whatsapp ? { whatsapp: f.whatsapp } : {}), cobro: cobroPublico(f) },
+      fotografo: { nombre: f.nombre, usuario: f.usuario, ...(f.whatsapp ? { whatsapp: f.whatsapp } : {}), mpConfigurado: f.mpCredencial !== null, cobro: cobroPublico(f) },
     });
   });
 }

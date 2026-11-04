@@ -62,4 +62,21 @@ T2 plata: pedidos + preferencia MP + webhook + verificación + descarga firmada 
 `RepositorioRemoto`, subida firmada, checkout, pedido, ocultar/retiro, consentimiento; reexportar el sitio.
 T4 certificación adversarial del diff + QA clic por clic fotógrafo → comprador → pago → descarga + docs.
 
+## Estado al 04/11/2026 (cierre de la rama)
+**Hecho (T1–T4):** servidor `/api/btf/*` completo (contrato en `docs/API.md`), modelos + migración sin aplicar, almacén
+S3 firmado, MP con token del fotógrafo, webhook, descarga firmada, transferencia + «marcar pagado», cliente remoto,
+consentimiento, ocultar/retiro, `/privacidad` y Términos, `scripts/btf-limpieza.mjs`, sitio reexportado.
+Tests `src/lib/btf/*` 22/22 + test de reescritura. Certificación adversarial (plata + datos): v1 NO CUMPLE (cupón
+reutilizable) → corregido → v2 **CUMPLE** con observaciones bajas. QA clic por clic (local, Postgres + S3 simulado,
+24 capturas): los 9 pasos OK; 3 hallazgos corregidos en la última vuelta (MP ofrecido sin token del fotógrafo,
+falta del campo WhatsApp en Cuenta, texto demo en `/funciones`).
+**Observaciones aceptadas (bajas):** sin límite de intentos en el ingreso · webhook sin `x-signature` (mitigado:
+re-consulta a MP con el token y `?pedido=`) · comisión GSG se registra (9 %) pero no se cobra (marketplace OAuth es
+deuda) · pedidos pendientes retienen el uso del cupón · `GET /yo` 401 en páginas públicas (ruido de consola) ·
+patrón de host `buscatufoto\..+` amplio.
+**Falta (sólo §C, arriba):** cuenta R2 + buckets + CORS, secretos en Vercel, `migrate deploy`, push a `main`, token de
+MP y consentimientos del fotógrafo, números de comisión/planes. Sin eso la app sigue en demo (IndexedDB).
+**Nota técnica:** Next 16.4.0 del subproducto pide una actualización de seguridad (`next upgrade --agent=security`);
+no se corrió sin OK.
+
 — Elaborado por GSG

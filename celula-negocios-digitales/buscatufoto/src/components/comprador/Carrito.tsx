@@ -49,7 +49,8 @@ export function Carrito({
   const router = useRouter();
   const modo = useModoRepo();
   const demo = modo !== "servidor";
-  const conMp = modo !== undefined && mpDisponible();
+  // En el servidor, MP sólo si este fotógrafo conectó su cuenta; en la demo el pago es simulado y siempre se ofrece.
+  const conMp = modo !== undefined && mpDisponible() && (demo || fotografo?.mpConfigurado === true);
   const [metodoElegido, setMetodo] = useState<MetodoCobro>("mercadopago");
   const metodo: MetodoCobro = conMp ? metodoElegido : "transferencia";
   const [paso, setPaso] = useState<Paso>("carrito");

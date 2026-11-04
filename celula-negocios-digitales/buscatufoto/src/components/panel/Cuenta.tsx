@@ -16,9 +16,17 @@ interface BorradorPerfil {
   usuario: string;
   bio: string;
   instagram: string;
+  whatsapp: string;
 }
 
-const perfilDe = (f: Fotografo): BorradorPerfil => ({ nombre: f.nombre, email: f.email, usuario: f.usuario, bio: f.bio, instagram: f.instagram });
+const perfilDe = (f: Fotografo): BorradorPerfil => ({
+  nombre: f.nombre,
+  email: f.email,
+  usuario: f.usuario,
+  bio: f.bio,
+  instagram: f.instagram,
+  whatsapp: f.whatsapp ?? "",
+});
 
 export function Perfil() {
   const f = useFotografo();
@@ -55,6 +63,7 @@ function FormPerfil({ f }: { f: Fotografo }) {
           .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
           .replace(/^@/, "")
           .replace(/\/$/, ""),
+        whatsapp: b.whatsapp.replace(/\D/g, ""),
       });
       setB(perfilDe(nuevo));
       setOk(true);
@@ -97,6 +106,17 @@ function FormPerfil({ f }: { f: Fotografo }) {
           />
           <AreaTexto etiqueta="Sobre vos" value={b.bio} onChange={(e) => set({ bio: e.target.value })} rows={4} maxLength={400} placeholder="Qué eventos cubrís, dónde, cómo contactarte." />
           <Entrada etiqueta="Instagram" value={b.instagram} onChange={(e) => set({ instagram: e.target.value })} placeholder="tuestudio" className={s.campoMono} ayuda="Sin la @. También podés pegar el enlace." />
+          <Entrada
+            etiqueta="WhatsApp"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            value={b.whatsapp}
+            onChange={(e) => set({ whatsapp: e.target.value })}
+            placeholder="549 341 555 0000"
+            className={s.campoMono}
+            ayuda="Sólo números con código de país. Lo ve el comprador para avisarte que transfirió o pedir que saques una foto."
+          />
           {error ? (
             <p role="alert" className={s.error}>
               {error}

@@ -214,6 +214,8 @@ test("alta → álbum → medios → /a/:slug no expone ocultos, no subidos, ori
   const pub2 = await (await publico.GET(pedir(`/a/${a.slug}`), ctx({ slug: a.slug }))).json();
   assert.deepEqual(pub2.fotografo.cobro, { metodo: "transferencia", titular: "Estudio Lente", alias: "lente.fotos" });
   assert.equal(pub2.fotografo.whatsapp, "5493415550000");
+  assert.equal(pub2.fotografo.mpConfigurado, true, "con token guardado el carrito ofrece Mercado Pago");
+  assert.ok(!JSON.stringify(pub2).includes(TOKEN_MP), "lo público trae el token de MP");
 
   // Validaciones: total distinto → 422 precio; medio oculto → 422; cupón inexistente → 422 cupon
   const rPrecio = await crearPedido({ cupon: "AMIGOS", totalEsperado: 1500 });
@@ -270,6 +272,8 @@ test("alta → álbum → medios → /a/:slug no expone ocultos, no subidos, ori
 
   // Mercado Pago: sin token → 422 claro; con token → preferencia con el token del fotógrafo
   await mp.DELETE(pedir("/yo/mp", { method: "DELETE", cookie }));
+  const pubSinMp = await (await publico.GET(pedir(`/a/${a.slug}`), ctx({ slug: a.slug }))).json();
+  assert.equal(pubSinMp.fotografo.mpConfigurado, false, "sin token el carrito sólo ofrece transferencia");
   const rSinMp = await crearPedido({ metodo: "mercadopago", totalEsperado: 1500 });
   assert.equal(rSinMp.status, 422);
   assert.match((await rSinMp.json()).mensaje, /no configuró Mercado Pago/);

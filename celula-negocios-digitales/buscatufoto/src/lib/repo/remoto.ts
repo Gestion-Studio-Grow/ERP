@@ -138,6 +138,8 @@ interface FotografoPublicoMin {
   nombre: string;
   usuario: string;
   whatsapp?: string;
+  /** el fotógrafo conectó su cuenta de Mercado Pago: sin esto el carrito sólo ofrece transferencia */
+  mpConfigurado?: boolean;
   /** si el servidor lo expone para pagar por transferencia (no está en el contrato actual) */
   cobro?: { titular?: string; alias?: string } | null;
 }
@@ -155,6 +157,7 @@ function fotografoMinimo(id: string, f: FotografoPublicoMin): Fotografo {
     cobro: f.cobro?.alias ? { metodo: "transferencia", titular: f.cobro.titular ?? "", alias: f.cobro.alias, cuit: "" } : null,
     marca: { ...MARCA_POR_DEFECTO },
     creadoEn: 0,
+    mpConfigurado: f.mpConfigurado === true,
     ...(f.whatsapp ? { whatsapp: f.whatsapp } : {}),
   };
 }
