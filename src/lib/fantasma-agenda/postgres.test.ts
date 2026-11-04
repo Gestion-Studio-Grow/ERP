@@ -6,7 +6,9 @@
  *   · B (apagado): el mismo teléfono escribe y no pasa nada: ni turno, ni mensaje, ni respuesta;
  *   · wamid repetido (Meta reintenta): no se atiende dos veces, sigue habiendo un solo turno;
  *   · slot ocupado al confirmar: no crea turno y la respuesta ofrece otros horarios;
- *   · tope de charlas del mes alcanzado: no atiende, avisa, y no crea turno.
+ *   · tope de charlas del mes alcanzado: no atiende, avisa, y no crea turno;
+ *   · dos «sí» simultáneos del mismo cliente: un solo turno (toma de la conversación + solapamiento);
+ *   · hora que no está en la grilla ofrecida: se rechaza como «se ocupó».
  *
  * Sin Postgres local se saltea diciendo por qué (en CI falla), como los demás `*-postgres.test.ts`.
  */
@@ -133,4 +135,42 @@ test("tope de charlas del mes alcanzado: avisa y no crea turno", async (t) => {
   } finally {
     delete process.env.FANTASMA_TOPE_CHARLAS_MES;
   }
+});
+
+test("dos 'sí' simultáneos del mismo cliente con dos profesionales libres: un solo turno", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const duenio = await prismaComoDuenio(s.base);
+  const color = await duenio.service.create({ data: { tenantId: A, name: "Color", durationMin: 30, price: 10000 } });
+  for (const nombre of ["Ana", "Bea"]) {
+    const box = await duenio.box.create({ data: { tenantId: A, name: `Box ${nombre}` } });
+    const pro = await duenio.professional.create({ data: { tenantId: A, name: nombre, boxId: box.id, services: { connect: [{ id: color.id }] } } });
+    await duenio.workingHours.createMany({
+      data: Array.from({ length: 7 }, (_, dayOfWeek) => ({ tenantId: A, professionalId: pro.id, dayOfWeek, startTime: "00:00", endTime: "23:59" })),
+    });
+  }
+  const tel = "5491140004444";
+  const r1 = await s.atender({ tenantId: A, from: tel, text: "quiero un turno de color mañana a las 16:00", wamid: "z1", now: new Date() });
+  assert.match(r1.respuesta ?? "", /Confirmame/);
+  await Promise.allSettled([
+    s.atender({ tenantId: A, from: tel, text: "sí", wamid: "z2", now: new Date() }),
+    s.atender({ tenantId: A, from: tel, text: "si", wamid: "z3", now: new Date() }),
+  ]);
+  assert.equal(await duenio.appointment.count({ where: { tenantId: A, serviceId: color.id } }), 1);
+  // La conversación no queda tomada: el siguiente mensaje se atiende.
+  const r4 = await s.atender({ tenantId: A, from: tel, text: "hola", wamid: "z4", now: new Date() });
+  assert.equal(r4.atendido, true);
+});
+
+test("hora fuera de la grilla ofrecida (18:07): sin turno y ofrece los horarios del día", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const A = s.base.a.id;
+  const tel = "5491140005555";
+  await s.atender({ tenantId: A, from: tel, text: "quiero un turno de corte mañana a las 18:07", wamid: "h1", now: new Date() });
+  const r = await s.atender({ tenantId: A, from: tel, text: "sí", wamid: "h2", now: new Date() });
+  assert.match(r.respuesta ?? "", /\d{2}:\d{2}/);
+  const duenio = await prismaComoDuenio(s.base);
+  assert.equal(await duenio.appointment.count({ where: { tenantId: A, client: { phone: tel } } }), 0);
 });

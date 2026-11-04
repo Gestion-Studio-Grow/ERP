@@ -5,6 +5,11 @@
 //   2. Conversación por {tenantId, telefono} (`ConversacionWhatsapp`, estado "agenda:<flow>").
 //   3. Idempotencia: el mensaje entrante se guarda con su wamid (único por negocio). Si ya estaba,
 //      Meta reintentó: no se vuelve a atender (un solo turno, una sola respuesta).
+//   3b. Turno de atención: la conversación se toma con un `updateMany` condicional sobre `estado`
+//      (pasa a "agenda:atendiendo"). Dos mensajes distintos que llegan juntos ("sí" y "si") no se
+//      atienden los dos con el mismo estado: el que obtiene 0 filas no responde. Si un proceso murió
+//      con la conversación tomada, a los `TOMA_VENCIDA_MS` se puede volver a tomar (compare-and-swap
+//      sobre `updatedAt`).
 //   4. `decidirAtencion` (uso.ts): tope de charlas del mes y charla larga, con aviso una sola vez.
 //   5. Charla nueva → AuditLog `FantasmaCharla` (es lo que cuenta el tope del mes).
 //   6. `dispatch` con los puertos del negocio; el estado vuelve a la conversación (vence en 24 h).
@@ -28,6 +33,9 @@ import { puertosDelNegocio } from "./puertos.server";
 
 export const ENTIDAD_CHARLA = "FantasmaCharla";
 const PREFIJO_ESTADO = "agenda:";
+const ESTADO_ATENDIENDO = `${PREFIJO_ESTADO}atendiendo`;
+/** Una toma más vieja que esto es de un proceso que murió: se puede volver a tomar. */
+const TOMA_VENCIDA_MS = 60_000;
 
 export type MensajeEntrante = {
   tenantId: string;
@@ -39,7 +47,7 @@ export type MensajeEntrante = {
 };
 
 export type ResultadoAtencion =
-  | { atendido: false; motivo: MotivoSinAtender | "duplicado"; respuesta: string | null }
+  | { atendido: false; motivo: MotivoSinAtender | "duplicado" | "ocupado"; respuesta: string | null }
   | { atendido: true; respuesta: string; handoff: boolean };
 
 /** Lo que guarda la conversación en `contexto` (el estado del dispatcher + el uso de la charla). */
@@ -126,7 +134,7 @@ export function atenderMensaje(m: MensajeEntrante): Promise<ResultadoAtencion> {
       where: { tenantId_telefono: { tenantId, telefono } },
       create: { tenantId, telefono, estado: `${PREFIJO_ESTADO}idle`, contexto: { ...INITIAL_STATE, mensajes: 0, ultimo: null, avisado: null } },
       update: {},
-      select: { id: true, estado: true, contexto: true },
+      select: { id: true, estado: true, contexto: true, updatedAt: true },
     });
 
     // Idempotencia: la fila del mensaje entrante es la llave (único {tenantId, wamid}).
@@ -139,56 +147,85 @@ export function atenderMensaje(m: MensajeEntrante): Promise<ResultadoAtencion> {
       throw e;
     }
 
-    const ctx = leerContexto(conv.estado, conv.contexto);
-    const charlasDelMes = await prisma.auditLog.count({
-      where: { tenantId, entity: ENTIDAD_CHARLA, createdAt: { gte: inicioDelMes(m.now) } },
-    });
-    const decision = decidirAtencion({
-      prendido: true,
-      charlasDelMes,
-      mensajesEnCharla: ctx.mensajes,
-      ultimoMensaje: ctx.ultimo ? new Date(ctx.ultimo) : null,
-      ahora: m.now,
-      yaAvisado: ctx.avisado,
-      tope: topeCharlasMes(),
-    });
-    const vence = new Date(m.now.getTime() + VENTANA_CHARLA_MS);
-
-    if (!decision.atender) {
-      await prisma.conversacionWhatsapp.update({
-        where: { tenantId_telefono: { tenantId, telefono } },
-        data: { contexto: { ...ctx, ultimo: m.now.toISOString(), avisado: decision.motivo === "apagado" ? null : decision.motivo }, vence },
-      });
-      if (decision.aviso) {
-        await enviarYGuardar({ tenantId, conversacionId: conv.id, telefono, texto: decision.aviso, wamidEntrada: m.wamid });
-      }
-      return { atendido: false, motivo: decision.motivo, respuesta: decision.aviso ?? null };
+    // Turno de atención: sólo uno de los mensajes que leyeron este mismo estado lo atiende.
+    const tomada = conv.estado === ESTADO_ATENDIENDO;
+    if (tomada && m.now.getTime() - conv.updatedAt.getTime() < TOMA_VENCIDA_MS) {
+      return { atendido: false, motivo: "ocupado", respuesta: null };
     }
-
-    let estado: Contexto = ctx;
-    if (decision.charlaNueva) {
-      estado = { ...INITIAL_STATE, mensajes: 0, ultimo: null, avisado: null };
-      await prisma.auditLog.create({
-        data: { tenantId, actor: `cliente:${telefono}`, action: "charla.inicio", entity: ENTIDAD_CHARLA, entityId: conv.id, channel: "whatsapp" },
-      });
-    }
-
-    const reply = await dispatch(m.text, { flow: estado.flow, draft: estado.draft }, {
-      now: m.now,
-      from: telefono,
-      ports: puertosDelNegocio(tenantId, { contactName: m.contactName }),
+    const toma = await prisma.conversacionWhatsapp.updateMany({
+      where: { tenantId, id: conv.id, estado: conv.estado, ...(tomada ? { updatedAt: conv.updatedAt } : {}) },
+      data: { estado: ESTADO_ATENDIENDO },
     });
+    if (toma.count === 0) return { atendido: false, motivo: "ocupado", respuesta: null };
+    // Estado al que se vuelve si no se atiende (el contexto conserva el flow del dispatcher).
+    const estadoPrevio = tomada ? `${PREFIJO_ESTADO}idle` : conv.estado;
+    try {
+      return await atenderTomada(m, telefono, conv, estadoPrevio);
+    } catch (e) {
+      await prisma.conversacionWhatsapp
+        .updateMany({ where: { tenantId, id: conv.id, estado: ESTADO_ATENDIENDO }, data: { estado: estadoPrevio } })
+        .catch(() => undefined);
+      throw e;
+    }
+  });
+}
 
+async function atenderTomada(
+  m: MensajeEntrante,
+  telefono: string,
+  conv: { id: string; estado: string; contexto: unknown },
+  estadoPrevio: string,
+): Promise<ResultadoAtencion> {
+  const { tenantId } = m;
+  const ctx = leerContexto(conv.estado, conv.contexto);
+  const charlasDelMes = await prisma.auditLog.count({
+    where: { tenantId, entity: ENTIDAD_CHARLA, createdAt: { gte: inicioDelMes(m.now) } },
+  });
+  const decision = decidirAtencion({
+    prendido: true,
+    charlasDelMes,
+    mensajesEnCharla: ctx.mensajes,
+    ultimoMensaje: ctx.ultimo ? new Date(ctx.ultimo) : null,
+    ahora: m.now,
+    yaAvisado: ctx.avisado,
+    tope: topeCharlasMes(),
+  });
+  const vence = new Date(m.now.getTime() + VENTANA_CHARLA_MS);
+
+  if (!decision.atender) {
     await prisma.conversacionWhatsapp.update({
       where: { tenantId_telefono: { tenantId, telefono } },
-      data: {
-        estado: `${PREFIJO_ESTADO}${reply.state.flow}`,
-        contexto: { ...reply.state, mensajes: estado.mensajes + 1, ultimo: m.now.toISOString(), avisado: null },
-        vence,
-      },
+      data: { estado: estadoPrevio, contexto: { ...ctx, ultimo: m.now.toISOString(), avisado: decision.motivo === "apagado" ? null : decision.motivo }, vence },
     });
-    await enviarYGuardar({ tenantId, conversacionId: conv.id, telefono, texto: reply.text, wamidEntrada: m.wamid });
-    if (reply.handoff) logger.info("fantasma.agenda", "el bot derivó la charla al local", { tenantId, conversacionId: conv.id });
-    return { atendido: true, respuesta: reply.text, handoff: reply.handoff };
+    if (decision.aviso) {
+      await enviarYGuardar({ tenantId, conversacionId: conv.id, telefono, texto: decision.aviso, wamidEntrada: m.wamid });
+    }
+    return { atendido: false, motivo: decision.motivo, respuesta: decision.aviso ?? null };
+  }
+
+  let estado: Contexto = ctx;
+  if (decision.charlaNueva) {
+    estado = { ...INITIAL_STATE, mensajes: 0, ultimo: null, avisado: null };
+    await prisma.auditLog.create({
+      data: { tenantId, actor: `cliente:${telefono}`, action: "charla.inicio", entity: ENTIDAD_CHARLA, entityId: conv.id, channel: "whatsapp" },
+    });
+  }
+
+  const reply = await dispatch(m.text, { flow: estado.flow, draft: estado.draft }, {
+    now: m.now,
+    from: telefono,
+    ports: puertosDelNegocio(tenantId, { contactName: m.contactName }),
   });
+
+  await prisma.conversacionWhatsapp.update({
+    where: { tenantId_telefono: { tenantId, telefono } },
+    data: {
+      estado: `${PREFIJO_ESTADO}${reply.state.flow}`,
+      contexto: { ...reply.state, mensajes: estado.mensajes + 1, ultimo: m.now.toISOString(), avisado: null },
+      vence,
+    },
+  });
+  await enviarYGuardar({ tenantId, conversacionId: conv.id, telefono, texto: reply.text, wamidEntrada: m.wamid });
+  if (reply.handoff) logger.info("fantasma.agenda", "el bot derivó la charla al local", { tenantId, conversacionId: conv.id });
+  return { atendido: true, respuesta: reply.text, handoff: reply.handoff };
 }

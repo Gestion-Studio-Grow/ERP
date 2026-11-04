@@ -78,19 +78,38 @@ export function puertosDelNegocio(tenantId: string, contacto: { contactName?: st
         }
         const endsAt = new Date(startsAt.getTime() + servicio.durationMin * 60_000);
 
-        // Sólo las que trabajan en esa franja (la ventana se lee fuera de la transacción, como el alta).
+        // Sólo las que trabajan en esa franja Y ofrecen esa hora en su grilla (la misma que lista
+        // `availableSlots`): una hora inventada ("18:07") se rechaza igual que un horario ocupado.
+        // La ventana y la grilla se leen fuera de la transacción, como el alta.
         const candidatas: { id: string; boxId: string }[] = [];
         for (const p of servicio.professionals) {
           const ventana = await getWorkingWindow(p.id, dateISO);
-          if (ventana && startsAt >= ventana.dayStart && endsAt <= ventana.dayEnd) {
-            candidatas.push({ id: p.id, boxId: p.boxId as string });
-          }
+          if (!ventana || startsAt < ventana.dayStart || endsAt > ventana.dayEnd) continue;
+          const grilla = (await getAvailableSlotsRange(p.id, servicio.id, [dateISO]))[dateISO] ?? [];
+          if (!grilla.some((iso) => hhmm(iso) === time)) continue;
+          candidatas.push({ id: p.id, boxId: p.boxId as string });
         }
-        if (candidatas.length === 0) throw new RechazoDeDominio("No hay quien atienda en ese horario.");
+        if (candidatas.length === 0) throw new RechazoDeDominio("Ese horario ya no está disponible.");
 
         const telefono = normalizePhone(from);
         return bookingTransaction(
           async (tx) => {
+            const ficha = await buscarFichaPorTelefono(tx, tenantId, telefono);
+            // El mismo cliente no queda con dos turnos que se pisan (dos "sí" seguidos, otra profesional).
+            if (ficha) {
+              const pisado = await tx.appointment.findFirst({
+                where: {
+                  tenantId,
+                  clientId: ficha.id,
+                  status: { in: ["PENDING", "CONFIRMED"] },
+                  startsAt: { lt: endsAt },
+                  endsAt: { gt: startsAt },
+                },
+                select: { id: true },
+              });
+              if (pisado) throw new RechazoDeDominio("Ya tenés un turno en ese horario.");
+            }
+
             // Primera profesional libre: el re-chequeo va DENTRO de la transacción Serializable.
             let elegida: { id: string; boxId: string } | null = null;
             for (const p of candidatas) {
@@ -105,7 +124,6 @@ export function puertosDelNegocio(tenantId: string, contacto: { contactName?: st
             }
             if (!elegida) throw new RechazoDeDominio("Ese horario ya no está disponible.");
 
-            const ficha = await buscarFichaPorTelefono(tx, tenantId, telefono);
             const clientId =
               ficha?.id ??
               (
