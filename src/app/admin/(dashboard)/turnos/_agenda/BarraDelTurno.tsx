@@ -60,7 +60,13 @@ export default function BarraDelTurno({ t, alAbrir }: { t: TurnoDelDia; alAbrir?
   };
 
   return (
-    <span role="group" aria-label={`Acciones rápidas: ${quien}`} className="inline-flex flex-wrap items-center gap-2">
+    // Táctil (con «Abrir»): 4 teclas en 2×2 de igual ancho, para que entren en un celular de 343 px
+    // (en un renglón, «WhatsApp» se salía por el borde derecho). Con mouse, un renglón como siempre.
+    <span
+      role="group"
+      aria-label={`Acciones rápidas: ${quien}`}
+      className={alAbrir ? "grid grid-cols-2 gap-2 [&>*]:w-full" : "inline-flex flex-wrap items-center gap-2"}
+    >
       {barra.noVino && (
         <Button
           type="button"

@@ -744,7 +744,9 @@ export default function AltaDeTurno({
           {error}
         </p>
       )}
-      <div className="sticky bottom-0 -mx-1 space-y-1 border-t border-line bg-surface-raised px-1 pb-1 pt-3">
+      {/* El pie se pega al borde de ABAJO del cuerpo, no al de su relleno (1rem): `-bottom-4` + `pb-5`
+          tapan esa franja con fondo opaco; antes asomaban los horarios por debajo de «Falta quién…». */}
+      <div className="sticky -bottom-4 z-10 -mx-1 space-y-1 border-t border-line bg-surface-raised px-1 pb-5 pt-3">
         <Button type="button" size="lg" className="w-full" disabled={!!falta || enviando} estado={enviando ? "cargando" : undefined} onClick={dar}>
           {enviando
             ? "Dando el turno…"

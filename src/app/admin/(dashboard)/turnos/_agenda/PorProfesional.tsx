@@ -928,7 +928,7 @@ export default function PorProfesional({
  * adentro. Aparece en ≤ 150 ms (opacidad + un corrimiento corto); con «reducir movimiento», de golpe.
  */
 function claseDeLaBarra(vista: "elegida" | "al-pasar" | "cerrada", vertical: "abajo" | "arriba"): string {
-  const base = "absolute z-30 w-max max-w-[min(20rem,calc(100vw-5rem))] transition-[opacity,transform,visibility] duration-150 motion-reduce:transition-none";
+  const base = "absolute z-30 w-max max-w-[min(20rem,calc(100vw-5rem))] max-lg:max-w-full transition-[opacity,transform,visibility] duration-150 motion-reduce:transition-none";
   const escondida = `invisible pointer-events-none opacity-0 ${vertical === "abajo" ? "translate-y-1" : "-translate-y-1"}`;
   if (vista === "elegida") return `${base} visible opacity-100 translate-y-0`;
   if (vista === "cerrada") return `${base} ${escondida}`;

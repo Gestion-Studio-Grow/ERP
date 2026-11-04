@@ -67,7 +67,11 @@ export default function CelularPorProfesional({
     );
   }
 
-  const elegir = (id: string) => cambiarUrl({ pro: id });
+  const elegir = (id: string) => {
+    cambiarUrl({ pro: id });
+    // Sólo el renglón de chips se corre (block "nearest": la página no salta).
+    chips.current[profesionales.findIndex((p) => p.id === id)]?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  };
   const alTeclear = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
     const n = profesionales.length;
     const destino =
@@ -80,9 +84,16 @@ export default function CelularPorProfesional({
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        {conChips ? (
-          <div role="radiogroup" aria-label="Ver la agenda de" className="-mx-1 flex min-w-0 gap-2 overflow-x-auto px-1 py-1">
+      {/* Los chips ocupan su renglón entero y se deslizan de costado (scroll-snap, sin mover la
+          página); «Ver lista» va en su propio renglón, para no tapar el último chip (en 375 px
+          «Marina» quedaba cortada). La elegida se trae a la vista al cambiar. */}
+      <div className="mb-3 flex flex-col gap-1">
+        {conChips && (
+          <div
+            role="radiogroup"
+            aria-label="Ver la agenda de"
+            className="-mx-1 flex min-w-0 snap-x snap-mandatory scroll-px-1 gap-2 overflow-x-auto overscroll-x-contain px-1 py-1"
+          >
             {profesionales.map((p, i) => {
               const prendido = p.id === elegida;
               return (
@@ -95,7 +106,7 @@ export default function CelularPorProfesional({
                   role="radio"
                   aria-checked={prendido}
                   tabIndex={prendido ? 0 : -1}
-                  className={CHIP}
+                  className={`${CHIP} snap-start`}
                   onClick={() => elegir(p.id)}
                   onKeyDown={(e) => alTeclear(e, i)}
                 >
@@ -104,10 +115,8 @@ export default function CelularPorProfesional({
               );
             })}
           </div>
-        ) : (
-          <span />
         )}
-        <button type="button" className={`${ENLACE} shrink-0`} onClick={() => cambiarUrl({ cel: "lista" })}>
+        <button type="button" className={`${ENLACE} self-end`} onClick={() => cambiarUrl({ cel: "lista" })}>
           Ver lista
         </button>
       </div>
