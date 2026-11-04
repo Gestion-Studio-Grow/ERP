@@ -4,7 +4,7 @@
 // exportación estática de Next (fuente en celula-negocios-digitales/buscatufoto/, `BTF_EXPORT=1 next build`)
 // y el resultado vive en `src/tenants/buscatufoto/sitio/`. Mismo patrón que Circuito WPE
 // (src/lib/sitio-estatico.ts), con dos diferencias:
-//   1. No hay negocio en la base: decide SÓLO el host (`buscatufoto.<dominio>` o `buscatufoto-erp.vercel.app`).
+//   1. No hay negocio en la base: decide SÓLO el host (salvo /api/btf/*, su servidor: src/lib/btf/) (`buscatufoto.<dominio>` o `buscatufoto-erp.vercel.app`).
 //      No toca Neon, ni tenant, ni sesión. En cualquier otro host el manejador responde 404.
 //   2. Es una app con rutas dinámicas (/a/<álbum>, /f/<usuario>…): cada una se exportó una sola vez con el
 //      comodín "_" y el cliente lee el valor real de la URL. El resolvedor de abajo traduce la ruta pedida al
@@ -26,11 +26,14 @@ export function esHostDeBuscatufoto(host: string | null | undefined): boolean {
   return new RegExp(`^${PATRON_HOST_BUSCATUFOTO}$`).test(h);
 }
 
-/** Regla de `rewrites().beforeFiles`: en el host de buscatufoto, TODO va al manejador. PURA. */
+/**
+ * Regla de `rewrites().beforeFiles`: en el host de buscatufoto, TODO va al manejador SALVO `/api/btf` y
+ * `/api/btf/*`, que es el servidor de buscatufoto (src/app/api/btf/). PURA.
+ */
 export function reescrituraDeBuscatufoto() {
   return {
-    source: "/:ruta*",
-    destination: `${PREFIJO_BUSCATUFOTO}/:ruta*`,
+    source: "/:ruta((?!api/btf(?:/|$)).*)",
+    destination: `${PREFIJO_BUSCATUFOTO}/:ruta`,
     has: [{ type: "host" as const, value: PATRON_HOST_BUSCATUFOTO }],
   };
 }

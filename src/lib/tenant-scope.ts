@@ -42,7 +42,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
  * `src/lib/tenant-scope.test.ts` lee `prisma/schema.prisma` y falla si esta lista
  * se desincroniza — o sea: el día que alguien agregue un modelo global, se entera.
  */
-export const MODELOS_SIN_TENANT: ReadonlySet<string> = new Set(["Tenant"]);
+export const MODELOS_SIN_TENANT: ReadonlySet<string> = new Set(["Tenant", "BtfFotografo", "BtfAlbum", "BtfMedio", "BtfPedido"]);
 
 /**
  * Operaciones cuyo `where` selecciona filas YA existentes. Son las únicas que se

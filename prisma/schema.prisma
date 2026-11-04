@@ -2918,3 +2918,104 @@ model PadelAviso {
   @@index([tenantId, destino, leidoEl])
   @@index([tenantId, createdAt])
 }
+
+// ── BUSCATUFOTO (producto GSG, fotos de eventos) ─────────────────────────────────────────────────
+// NO es un negocio del ERP: no tiene tenantId (está en MODELOS_SIN_TENANT) y lo usa sólo
+// src/lib/btf/ con `basePrisma`. Contrato: celula-negocios-digitales/buscatufoto/docs/API.md.
+// Dinero en ARS enteros (Int). `mpCredencial` = sobre de `sealSecret` (nunca el token en claro).
+model BtfFotografo {
+  id            String      @id @default(cuid())
+  nombre        String
+  email         String      @unique
+  usuario       String      @unique
+  contrasena    String // hash scrypt (src/lib/auth-password.ts)
+  bio           String      @default("")
+  instagram     String      @default("")
+  whatsapp      String      @default("")
+  plan          String      @default("libre") // libre · pro
+  cobro         Json? // DatosCobro sin token
+  marca         Json // MarcaAgua
+  mpCredencial  Json? // SealedCredential del access token de MP
+  albumes       BtfAlbum[]
+  medios        BtfMedio[]
+  pedidos       BtfPedido[]
+  creadoEn      DateTime    @default(now())
+  actualizadoEn DateTime    @updatedAt
+}
+
+model BtfAlbum {
+  id               String       @id @default(cuid())
+  slug             String       @unique
+  fotografo        BtfFotografo @relation(fields: [fotografoId], references: [id], onDelete: Cascade)
+  fotografoId      String
+  nombre           String
+  evento           String       @default("otro") // carrera · torneo · fiesta · otro
+  lugar            String       @default("")
+  fecha            String       @default("") // AAAA-MM-DD
+  descripcion      String       @default("")
+  precioFoto       Int          @default(0)
+  precioVideo      Int          @default(0)
+  paquetes         Json         @default("[]")
+  escalones        Json         @default("[]")
+  cupones          Json         @default("[]")
+  colaboradores    Json         @default("[]")
+  portadaId        String?
+  publicado        Boolean      @default(false)
+  consentimientoEn DateTime?
+  medios           BtfMedio[]
+  pedidos          BtfPedido[]
+  creadoEn         DateTime     @default(now())
+  actualizadoEn    DateTime     @updatedAt
+
+  @@index([fotografoId])
+}
+
+model BtfMedio {
+  id             String       @id @default(cuid())
+  album          BtfAlbum     @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  albumId        String
+  fotografo      BtfFotografo @relation(fields: [fotografoId], references: [id], onDelete: Cascade)
+  fotografoId    String
+  tipo           String // foto · video
+  nombreArchivo  String
+  ancho          Int          @default(0)
+  alto           Int          @default(0)
+  duracion       Float?
+  peso           BigInt       @default(0)
+  dorsales       String[]     @default([])
+  mimeOriginal   String
+  mimePrevia     String
+  claveOriginal  String // bucket privado: o/<fotografoId>/<albumId>/<medioId>.<ext>
+  clavePrevia    String // bucket público: p/<albumId>/<medioId>.<ext>
+  claveMiniatura String // bucket público: m/<albumId>/<medioId>.<ext>
+  subido         Boolean      @default(false)
+  oculto         Boolean      @default(false)
+  creadoEn       DateTime     @default(now())
+
+  @@index([albumId])
+  @@index([fotografoId])
+}
+
+model BtfPedido {
+  id              String       @id @default(cuid())
+  album           BtfAlbum     @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  albumId         String
+  fotografo       BtfFotografo @relation(fields: [fotografoId], references: [id], onDelete: Cascade)
+  fotografoId     String
+  items           String[]
+  comprador       Json
+  cotizacion      Json
+  cupon           String?
+  total           Int
+  comision        Int          @default(0)
+  estado          String       @default("pendiente") // pendiente · pagado
+  metodo          String // mercadopago · transferencia
+  clave           String
+  referenciaPago  String       @default("")
+  mpPreferenciaId String?
+  pagadoEn        DateTime?
+  creadoEn        DateTime     @default(now())
+
+  @@index([albumId])
+  @@index([fotografoId])
+}

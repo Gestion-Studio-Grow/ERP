@@ -67,3 +67,20 @@ test("la exportación está en el repo y se sirve", async () => {
   assert.equal(nada.status, 404);
   assert.equal(tipoDeArchivo("_next/static/chunks/a.js"), "application/javascript; charset=utf-8");
 });
+
+test("la reescritura deja pasar /api/btf/* (el servidor de buscatufoto) y toma todo lo demás", async () => {
+  // El mismo comparador que usa Next para `source` (path-to-regexp con sus opciones de rewrites).
+  const { getPathMatch } = (await import("next/dist/shared/lib/router/utils/path-match.js")) as {
+    getPathMatch: (p: string, o: { removeUnnamedParams: boolean; strict: boolean }) => (ruta: string) => false | Record<string, string>;
+  };
+  const regla = reescrituraDeBuscatufoto();
+  const coincide = getPathMatch(regla.source, { removeUnnamedParams: true, strict: true });
+  for (const r of ["/api/btf", "/api/btf/estado", "/api/btf/a/torneo/cotizar"]) assert.equal(coincide(r), false, r);
+  assert.deepEqual(coincide("/"), { ruta: "" });
+  assert.deepEqual(coincide("/a/torneo-qa"), { ruta: "a/torneo-qa" });
+  assert.deepEqual(coincide("/btf/_next/static/x.js"), { ruta: "btf/_next/static/x.js" });
+  // ni /api/btfx ni otras /api se escapan del manejador (que falla cerrado)
+  assert.deepEqual(coincide("/api/btfx"), { ruta: "api/btfx" });
+  assert.deepEqual(coincide("/api/health"), { ruta: "api/health" });
+  assert.equal(regla.destination, "/sitio-buscatufoto/:ruta");
+});
