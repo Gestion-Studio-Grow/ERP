@@ -10,6 +10,8 @@
 //     [Mover sin avisar]. En el celular, ⋯ → Abrir el turno → Mover: 4 toques.
 //   · Arrastre en la grilla (`ConfirmarMover`): al soltar, «¿Mover a jue 24 16:30 con Caro?»
 //     [Mover y avisar por WhatsApp] [Mover sin avisar] [No]: 2 toques.
+//   · Agenda interactiva prendida (T2): soltar = mover sin hoja (1 toque) y el aviso de 8 s
+//     «Movido a 17:00 con Caro · Avisar por WhatsApp · Deshacer» lo monta la grilla (PorProfesional).
 //
 // Las dos terminan en `rescheduleAppointment`, la reprogramación de siempre: el MISMO turno (nunca
 // uno nuevo), con el choque re-validado en el servidor (`assertSlotAvailable`, transacción del
@@ -34,17 +36,23 @@ import { diasParaMover, huecosParaOfrecer, preguntaDeMover, type Destino } from 
 
 type ResultadoDeMover = { ok: true; avisoPendiente: string | null } | { ok: false; error: string };
 
-/** Mueve el turno (y, si se pide, abre el WhatsApp con el aviso). Una sola acción, la de siempre. */
-export function useMoverTurno() {
+/** El enlace de WhatsApp con «Te pasamos el turno al …» (null si no tiene un celular válido). */
+export function enlaceAvisoMover(t: Pick<TurnoDelDia, "clienta" | "telefono" | "servicio" | "inicio">, d: Destino): string | null {
+  return waLinkClienta(t.telefono, mensajeMover({ clienta: t.clienta, servicios: t.servicio, inicio: d.inicio, profesional: d.profesional, inicioAnterior: t.inicio }));
+}
+
+/**
+ * Mueve el turno (y, si se pide, abre el WhatsApp con el aviso). Una sola acción, la de siempre.
+ * `silencioso`: sin el «Listo: …» (la agenda interactiva muestra su propio aviso con Deshacer).
+ */
+export function useMoverTurno({ silencioso = false }: { silencioso?: boolean } = {}) {
   const { showSuccess } = useToast();
   const [pendiente, empezar] = useTransition();
 
   const mover = (t: Pick<TurnoDelDia, "id" | "clienta" | "telefono" | "servicio" | "inicio">, d: Destino, avisar: boolean) =>
     new Promise<ResultadoDeMover>((listo) =>
       empezar(async () => {
-        const wa = avisar
-          ? waLinkClienta(t.telefono, mensajeMover({ clienta: t.clienta, servicios: t.servicio, inicio: d.inicio, profesional: d.profesional, inicioAnterior: t.inicio }))
-          : null;
+        const wa = avisar ? enlaceAvisoMover(t, d) : null;
         // En el mismo toque, antes de esperar: si no, el navegador la toma por una ventana emergente.
         const ventana = wa ? window.open("", "_blank") : null;
         const fd = new FormData();
@@ -71,7 +79,7 @@ export function useMoverTurno() {
           ventana.opener = null;
           ventana.location.href = wa;
         }
-        showSuccess(`Listo: ${t.clienta} quedó el ${fechaCorta(dateStrInBusinessTz(new Date(d.inicio)))} a las ${fmtTime(d.inicio)} con ${d.profesional}.`);
+        if (!silencioso) showSuccess(`Listo: ${t.clienta} quedó el ${fechaCorta(dateStrInBusinessTz(new Date(d.inicio)))} a las ${fmtTime(d.inicio)} con ${d.profesional}.`);
         listo({ ok: true, avisoPendiente: wa && !ventana ? wa : null });
       }),
     );

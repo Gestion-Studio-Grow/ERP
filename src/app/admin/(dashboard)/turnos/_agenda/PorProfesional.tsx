@@ -24,16 +24,25 @@
 //   · Prendida la agenda interactiva, la BARRA de un toque (No vino · Cobrar · WhatsApp) flota sobre
 //     el turno: en la PC con el mouse encima o el foco del teclado; en táctil, el 1.er toque elige el
 //     turno y la muestra con «Abrir». Tocar fuera o Esc la cierra (`seleccionDeLaBarra`, barra-core).
+//   · Prendida (T2, AGENDA-INTERACCION.md §2.2/§2.3/§2.8): soltar = mover SIN hoja y aviso de 8 s
+//     «Movido a 17:00 con Caro · Avisar por WhatsApp · Deshacer»; en táctil, mantener 300 ms levanta
+//     el turno; la manija del borde de abajo lo estira de a 15' (`cambiarDuracionDelTurno`); con el
+//     teclado, M levanta, flechas, Enter suelta, Esc cancela, Shift+↑↓ estira (se guarda al soltar
+//     Shift). Lo que se anticipa es `veredictoDelDestino` / `veredictoDeDuracion`; la verdad, el servidor.
 //
 // En el celular la planilla se desliza de costado dentro de su marco (la hora queda fija a la
 // izquierda); la página no.
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as KeyboardEventDeReact } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Chip, Marca, Segmented } from "@/components/ui";
 import { businessWallTimeToUtc, dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
 import { huecosParaMover } from "@/lib/turnos/mover-actions";
+import { cambiarDuracionDelTurno } from "@/lib/turnos/duracion-actions";
+import { rescheduleAppointment } from "@/lib/actions";
+import { BUFFER_MIN } from "@/lib/business-config";
+import { esRedireccionDeNext } from "../errores";
 import { FILTROS_AGENDA, entraEnFiltro, leerFiltroAgenda, marcaDelTurno, textoSeniaPedida, type TurnoDelDia } from "../agenda-core";
 import {
   LEYENDA_DE_LA_GRILLA,
@@ -65,16 +74,36 @@ import {
 import { useMesa } from "./MesaDeTurnos";
 import BarraDelTurno from "./BarraDelTurno";
 import { SIN_SELECCION, hayBarra, ladoDeLaBarra, seleccionDeLaBarra, teclasDeLaBarra, vistaDeLaBarra, type EventoDeLaBarra, type SeleccionDeLaBarra } from "./barra-core";
-import { ConfirmarMover } from "./MoverTurno";
-import { destinoDelArrastre, sePuedeMover, veredictoDelDestino, type Destino, type VeredictoDelDestino } from "./mover-core";
+import { ConfirmarMover, enlaceAvisoMover, useMoverTurno } from "./MoverTurno";
+import { AvisoDeshacerCambio, type CambioParaDeshacer } from "./Deshacer";
+import {
+  PASO_DURACION_MIN,
+  destinoDelArrastre,
+  destinoPorTeclado,
+  finEstirado,
+  rotuloDeDuracion,
+  sePuedeMover,
+  textoMovido,
+  veredictoDeDuracion,
+  veredictoDelDestino,
+  type Destino,
+  type TeclaDeMover,
+  type VeredictoDelDestino,
+} from "./mover-core";
 
 /** Lo que sabe la planilla del servidor para validar el arrastre de UN turno. */
 type Consulta = { turnoId: string; hacen: Set<string> | null; nombres: Map<string, string>; huecos: Record<string, string[]> | null; error?: string };
 
-type Arrastre = { id: string; x0: number; y0: number; activo: boolean };
+type Arrastre = { id: string; x0: number; y0: number; activo: boolean; tactil?: boolean };
 
 /** Distancia mínima (px) para que un apretar-y-mover sea arrastre y no un toque. */
 const UMBRAL_ARRASTRE = 6;
+/** Táctil (prendida): mantener apretado este tiempo levanta el turno (antes, el dedo desliza la grilla). */
+const PULSACION_MS = 300;
+const NO_RESPONDIO = "No volvió respuesta del servidor. Recargá la agenda y fijate cómo quedó el turno.";
+
+/** Estirar con la manija (o con Shift+↑↓): el fin que se está mostrando. */
+type Estirando = { id: string; fin: string; via: "puntero" | "teclado" };
 
 export default function PorProfesional({
   turnos: todosLosTurnos,
@@ -134,6 +163,18 @@ export default function PorProfesional({
   const [aviso, setAviso] = useState("");
   const [aConfirmar, setAConfirmar] = useState<{ turnoId: string; destino: Destino } | null>(null);
 
+  // ── Agenda interactiva (T2): mover sin hoja, estirar, teclado y táctil ──
+  const { mover: moverSinHoja } = useMoverTurno({ silencioso: true });
+  const [cambio, setCambio] = useState<CambioParaDeshacer | null>(null);
+  const moviendo = useRef(false);
+  const levantadoConTeclado = useRef<string | null>(null);
+  const pulsacion = useRef<number | null>(null);
+  const [estirando, setEstirando] = useState<Estirando | null>(null);
+  const manija = useRef<{ id: string; y0: number; fin0: string; fin: string; pxPorPaso: number } | null>(null);
+  const [anuncio, setAnuncio] = useState("");
+  const [arrastreTactil, setArrastreTactil] = useState(false);
+  const topeDelDia = new Date(businessWallTimeToUtc(dia, "00:00").getTime() + hasta * 60_000).toISOString();
+
   // ── La barra sobre el turno (sólo prendida) ──
   const [seleccion, setSeleccion] = useState<SeleccionDeLaBarra>(SIN_SELECCION);
   const ultimoPuntero = useRef<string | null>(null);
@@ -164,7 +205,23 @@ export default function PorProfesional({
     arrastre.current = null;
     setArrastrando(null);
     setSobre(null);
+    if (interaccion) {
+      setArrastreTactil(false);
+      levantadoConTeclado.current = null;
+      if (pulsacion.current !== null) window.clearTimeout(pulsacion.current);
+      pulsacion.current = null;
+    }
   };
+
+  // Táctil: con el turno levantado, el dedo lo lleva y la grilla no se desliza.
+  useEffect(() => {
+    if (!arrastreTactil) return;
+    const quieto = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault();
+    };
+    document.addEventListener("touchmove", quieto, { passive: false });
+    return () => document.removeEventListener("touchmove", quieto);
+  }, [arrastreTactil]);
 
   useEffect(() => {
     if (!arrastrando) return;
@@ -173,6 +230,8 @@ export default function PorProfesional({
     };
     window.addEventListener("keydown", alPresionar);
     return () => window.removeEventListener("keydown", alPresionar);
+    // `cancelar` sólo toca refs y setters (y `interaccion`, fijo durante el arrastre): no hace falta re-suscribir.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arrastrando]);
 
   const consultar = (turnoId: string) => {
@@ -224,9 +283,165 @@ export default function PorProfesional({
     const { destino, veredicto } = destinoDe(t, celda);
     if (veredicto.tipo === "ok" && destino) {
       setAviso("");
-      setAConfirmar({ turnoId: t.id, destino });
+      if (interaccion) void moverDirecto(t, destino);
+      else setAConfirmar({ turnoId: t.id, destino });
     } else if (veredicto.tipo === "no") setAviso(`No se movió ${t.clienta}: ${veredicto.motivo}`);
     else if (veredicto.tipo === "buscando") setAviso("Todavía me estaba fijando si ese horario está libre: soltalo de nuevo en un segundo.");
+  };
+
+  /** Prendida: soltar = mover (sin hoja) y el aviso con Deshacer. Un segundo drop mientras va, no. */
+  const moverDirecto = async (t: TurnoDelDia, destino: Destino) => {
+    if (moviendo.current) return;
+    moviendo.current = true;
+    const origen = { profesionalId: t.profesionalId, inicio: t.inicio };
+    const r = await moverSinHoja(t, destino, false).finally(() => {
+      moviendo.current = false;
+    });
+    if (!r.ok) {
+      setAviso(`No se movió ${t.clienta}: ${r.error}`);
+      setAnuncio(`No se movió ${t.clienta}: ${r.error}`);
+      return;
+    }
+    const wa = enlaceAvisoMover(t, destino);
+    const texto = textoMovido(destino, dia);
+    setAnuncio(`${texto}. Podés deshacerlo en el aviso.`);
+    setCambio({
+      clave: `mover-${t.id}-${destino.profesionalId}-${destino.inicio}`,
+      que: "mover",
+      mensaje: (
+        <>
+          {texto}
+          {wa && (
+            <>
+              {" · "}
+              <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-2">
+                Avisar por WhatsApp
+              </a>
+            </>
+          )}
+        </>
+      ),
+      listo: `Listo: ${t.clienta} volvió a las ${fmtTime(t.inicio)} con ${t.profesional}.`,
+      deshacer: async () => {
+        const fd = new FormData();
+        fd.set("appointmentId", t.id);
+        fd.set("startsAt", origen.inicio);
+        fd.set("professionalId", origen.profesionalId);
+        try {
+          const v = await rescheduleAppointment(fd);
+          return v.ok ? null : v.error;
+        } catch (err) {
+          if (esRedireccionDeNext(err)) throw err;
+          return NO_RESPONDIO;
+        }
+      },
+    });
+  };
+
+  const llamarDuracion = async (id: string, fin: string): Promise<string | null> => {
+    const fd = new FormData();
+    fd.set("appointmentId", id);
+    fd.set("endsAt", fin);
+    try {
+      const v = await cambiarDuracionDelTurno(fd);
+      return v.ok ? null : v.error;
+    } catch (err) {
+      if (esRedireccionDeNext(err)) throw err;
+      return NO_RESPONDIO;
+    }
+  };
+
+  const veredictoEstirar = (t: TurnoDelDia, fin: string) =>
+    veredictoDeDuracion({
+      turno: t,
+      finNuevo: fin,
+      vecinos: todosLosTurnos.filter((v) => v.profesionalId === t.profesionalId && v.id !== t.id),
+      tope: topeDelDia,
+      margenMin: BUFFER_MIN,
+    });
+
+  /** Soltar la manija (o Shift): se guarda si entra; si no, se lee por qué y queda como estaba. */
+  const guardarDuracion = async (t: TurnoDelDia, fin: string) => {
+    const v = veredictoEstirar(t, fin);
+    if (v.tipo === "igual") {
+      setEstirando(null);
+      return;
+    }
+    if (v.tipo === "no") {
+      setEstirando(null);
+      setAviso(`No se cambió la duración de ${t.clienta}: ${v.motivo}`);
+      setAnuncio(v.motivo);
+      return;
+    }
+    setAviso("");
+    const finAnterior = t.fin;
+    const error = await llamarDuracion(t.id, fin);
+    setEstirando(null);
+    if (error) {
+      setAviso(`No se cambió la duración de ${t.clienta}: ${error}`);
+      setAnuncio(error);
+      return;
+    }
+    setAnuncio(`${t.clienta}: ahora termina a las ${fmtTime(fin)}. Podés deshacerlo en el aviso.`);
+    setCambio({
+      clave: `duracion-${t.id}-${fin}`,
+      que: "duracion",
+      mensaje: `${t.clienta}: ahora termina a las ${fmtTime(fin)}`,
+      listo: `Listo: ${t.clienta} vuelve a terminar a las ${fmtTime(finAnterior)}.`,
+      deshacer: () => llamarDuracion(t.id, finAnterior),
+    });
+  };
+
+  /** Teclado (prendida): M levanta, flechas, Enter suelta, Esc cancela; Shift+↑↓ estira. */
+  const alTeclado = (e: KeyboardEventDeReact<HTMLButtonElement>, t: TurnoDelDia, ci: number) => {
+    const levantado = levantadoConTeclado.current === t.id;
+    if (!levantado && (e.key === "m" || e.key === "M") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      levantadoConTeclado.current = t.id;
+      setArrastrando(t.id);
+      setSobre({ columna: columnas[ci]?.clave ?? "", minuto: enMinutos(t).desde });
+      consultar(t.id);
+      setAnuncio(`Levantaste el turno de ${t.clienta}. Flechas para elegir hora o profesional, Enter para soltar, Escape para cancelar.`);
+      return;
+    }
+    if (levantado) {
+      if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        e.stopPropagation();
+        const m = enMinutos(t);
+        const actual = sobre ?? { columna: columnas[ci]?.clave ?? "", minuto: m.desde };
+        const indice = columnas.findIndex((c) => c.clave === actual.columna);
+        const r = destinoPorTeclado({
+          minuto: actual.minuto,
+          columna: indice < 0 ? ci : indice,
+          tecla: e.key as TeclaDeMover,
+          columnas: columnas.length,
+          desde,
+          hasta,
+          duracionMin: m.hasta - m.desde,
+          paso: PASO_MIN,
+        });
+        setSobre({ columna: columnas[r.columna]?.clave ?? actual.columna, minuto: r.minuto });
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        soltar(t, sobre);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        cancelar();
+        setAnuncio("Cancelado: el turno quedó donde estaba.");
+      } else if (e.key === "Tab") cancelar();
+      return;
+    }
+    if (e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      e.preventDefault();
+      e.stopPropagation();
+      const actual = estirando?.id === t.id ? estirando.fin : t.fin;
+      const fin = finEstirado(t.inicio, actual, e.key === "ArrowDown" ? 1 : -1, topeDelDia);
+      setEstirando({ id: t.id, fin, via: "teclado" });
+      const v = veredictoEstirar(t, fin);
+      setAnuncio(v.tipo === "no" ? v.motivo : `${rotuloDeDuracion(t.inicio, fin)}. Soltá Shift para guardar.`);
+    }
   };
 
   const turnoArrastrado = arrastrando ? turnos.find((t) => t.id === arrastrando) : undefined;
@@ -282,7 +497,7 @@ export default function PorProfesional({
       </div>
 
       <p aria-live="polite" className="sr-only">
-        {sobreActual ? (sobreActual.veredicto.tipo === "ok" && sobreActual.destino ? `Soltá para mover a las ${fmtTime(sobreActual.destino.inicio)} con ${sobreActual.destino.profesional}` : sobreActual.veredicto.tipo === "no" ? sobreActual.veredicto.motivo : "") : ""}
+        {sobreActual ? (sobreActual.veredicto.tipo === "ok" && sobreActual.destino ? `Soltá para mover a las ${fmtTime(sobreActual.destino.inicio)} con ${sobreActual.destino.profesional}` : sobreActual.veredicto.tipo === "no" ? sobreActual.veredicto.motivo : "") : interaccion ? anuncio : ""}
       </p>
       {aviso && (
         <p role="alert" className="mb-3 border-l-2 border-danger pl-3 text-sm text-body">
@@ -307,7 +522,16 @@ export default function PorProfesional({
               className="sticky left-0 z-10 border-b border-line bg-surface pr-2 pt-0.5 text-right text-xs tabular-nums text-muted"
               style={{ gridColumn: 1, gridRow: f + 2 }}
             >
-              {(desde + f * PASO_MIN) % 60 === 0 ? horaDeMinuto(desde + f * PASO_MIN) : ""}
+              {(desde + f * PASO_MIN) % 60 === 0 ? (
+                horaDeMinuto(desde + f * PASO_MIN)
+              ) : interaccion ? (
+                // Prendida: también la media hora, más tenue (la grilla no se lee en bloques de 1 h).
+                <span data-media-hora className="text-[11px] text-faint">
+                  {horaDeMinuto(desde + f * PASO_MIN)}
+                </span>
+              ) : (
+                ""
+              )}
             </div>
           ))}
 
@@ -322,6 +546,8 @@ export default function PorProfesional({
                 "data-minuto": String(minuto),
                 style: { gridColumn: ci + 2, gridRow: f + 2 } as CSSProperties,
               };
+              // Prendida: la línea de la hora entera, más marcada; la de la media hora, la de siempre (tenue).
+              const lineaDeHora = interaccion && minuto % 60 === 30 ? " border-b-line" : "";
               if (celda.tipo === "hueco") {
                 return (
                   <Link
@@ -330,7 +556,7 @@ export default function PorProfesional({
                     href={celda.href}
                     prefetch={false}
                     aria-label={celda.etiqueta}
-                    className="group flex items-center justify-center border-b border-l border-line/60 text-xs text-accent-ink hover:bg-accent-soft focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                    className={`group flex items-center justify-center border-b border-l border-line/60 text-xs text-accent-ink hover:bg-accent-soft focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus${lineaDeHora}`}
                   >
                     <span aria-hidden className={solo ? "text-muted group-hover:text-accent-ink" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}>
                       + {horaDeMinuto(minuto)}
@@ -344,7 +570,7 @@ export default function PorProfesional({
                   {...comun}
                   aria-hidden
                   title={celda.tipo === "bloqueada" ? (celda.motivo === FUERA_DE_HORARIO || celda.motivo === NO_TRABAJA_ESE_DIA ? `No atiende: ${celda.motivo}` : `No atiende (${celda.motivo})`) : undefined}
-                  className={`border-b border-l border-line/60 ${celda.tipo === "bloqueada" ? "bg-surface-sunken" : ""}`}
+                  className={`border-b border-l border-line/60 ${celda.tipo === "bloqueada" ? "bg-surface-sunken" : ""}${lineaDeHora}`}
                 />
               );
             });
@@ -414,6 +640,10 @@ export default function PorProfesional({
               const choca = choques.has(t.id);
               const enUnaLinea = interaccion && esTurnoCorto(t);
               const conBarra = interaccion && hayBarra(teclasDeLaBarra(t, permisos, relojDeLaMesa));
+              // Prendida: el turno que se puede mover también se estira y se levanta con el dedo o con M.
+              const estirable = interaccion && movible;
+              const envuelto = conBarra || estirable;
+              const estiraEste = estirando?.id === t.id ? estirando : null;
               const ubicacion = {
                 gridColumn: ci + 2,
                 gridRow: `${fila + 2} / span ${alto}`,
@@ -437,6 +667,26 @@ export default function PorProfesional({
                   }}
                   onPointerDown={(e) => {
                     ultimoPuntero.current = e.pointerType;
+                    if (estirable && e.pointerType === "touch" && e.button === 0) {
+                      // Prendida, táctil: mantener 300 ms levanta; si antes el dedo se corre, es scroll.
+                      const x0 = e.clientX;
+                      const y0 = e.clientY;
+                      arrastre.current = { id: t.id, x0, y0, activo: false, tactil: true };
+                      if (pulsacion.current !== null) window.clearTimeout(pulsacion.current);
+                      pulsacion.current = window.setTimeout(() => {
+                        pulsacion.current = null;
+                        const a = arrastre.current;
+                        if (!a || a.id !== t.id || a.activo) return;
+                        a.activo = true;
+                        setArrastreTactil(true);
+                        setArrastrando(t.id);
+                        setSobre(celdaBajo(x0, y0));
+                        consultar(t.id);
+                        setAnuncio(`Levantaste el turno de ${t.clienta}: llevalo y soltalo donde va.`);
+                        navigator.vibrate?.(10);
+                      }, PULSACION_MS);
+                      return;
+                    }
                     if (!movible || e.button !== 0 || e.pointerType === "touch") return;
                     arrastre.current = { id: t.id, x0: e.clientX, y0: e.clientY, activo: false };
                   }}
@@ -445,6 +695,11 @@ export default function PorProfesional({
                     if (!a || a.id !== t.id) return;
                     if (!a.activo) {
                       if (Math.hypot(e.clientX - a.x0, e.clientY - a.y0) < UMBRAL_ARRASTRE) return;
+                      if (a.tactil) {
+                        // Se corrió antes de los 300 ms: era deslizar la grilla, no levantar.
+                        cancelar();
+                        return;
+                      }
                       a.activo = true;
                       e.currentTarget.setPointerCapture(e.pointerId);
                       setArrastrando(t.id);
@@ -460,16 +715,37 @@ export default function PorProfesional({
                     if (!a || a.id !== t.id) return;
                     if (a.activo) {
                       recienSoltado.current = true;
+                      // En táctil el click puede no llegar después de arrastrar: que no se trague el próximo toque.
+                      if (a.tactil) window.setTimeout(() => (recienSoltado.current = false), 400);
                       soltar(t, celdaBajo(e.clientX, e.clientY));
-                    } else arrastre.current = null;
+                    } else if (a.tactil) cancelar();
+                    else arrastre.current = null;
                   }}
                   onPointerCancel={cancelar}
+                  onContextMenu={estirable ? (e) => e.preventDefault() : undefined}
+                  onKeyDown={estirable ? (e) => alTeclado(e, t, ci) : undefined}
+                  onKeyUp={
+                    estirable
+                      ? (e) => {
+                          if (e.key === "Shift" && estirando?.id === t.id && estirando.via === "teclado") void guardarDuracion(t, estirando.fin);
+                        }
+                      : undefined
+                  }
+                  onBlur={
+                    estirable
+                      ? () => {
+                          if (levantadoConTeclado.current === t.id) cancelar();
+                          if (estirando?.id === t.id && estirando.via === "teclado") setEstirando(null);
+                        }
+                      : undefined
+                  }
+                  aria-keyshortcuts={estirable ? "M Shift+ArrowUp Shift+ArrowDown" : undefined}
                   title={interaccion ? tituloDelTurno(t, [verPor === "box" && t.profesional, marca.texto, pedida, choca && "se pisa con otro turno"]) : undefined}
                   aria-label={`${fmtTime(t.inicio)}, ${t.clienta}, ${t.servicio}, ${marca.texto}${pedida ? `, ${pedida}` : ""}${choca ? ", se pisa con otro turno" : ""}: abrir el turno`}
-                  className={`${conBarra ? "h-full w-full" : "z-[1] self-stretch"} flex min-w-0 flex-col items-start gap-0.5 overflow-hidden rounded border border-line-strong bg-surface-raised px-2 py-1 text-left hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus ${
+                  className={`${envuelto ? "h-full w-full" : "z-[1] self-stretch"} flex min-w-0 flex-col items-start gap-0.5 overflow-hidden rounded border border-line-strong bg-surface-raised px-2 py-1 text-left hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus ${
                     movible ? "lg:cursor-grab" : ""
-                  } ${atenuado ? "opacity-40" : ""} ${arrastrando === t.id ? "opacity-60" : ""}`}
-                  style={conBarra ? undefined : ubicacion}
+                  } ${atenuado ? "opacity-40" : ""} ${arrastrando === t.id ? "opacity-60" : ""}${estirable ? " select-none [-webkit-touch-callout:none]" : ""}`}
+                  style={envuelto ? undefined : ubicacion}
                 >
                   {enUnaLinea ? (
                     // Prendido, ≤ 30': una línea «16:00 Ana · Peeling» y la forma del estado (la palabra
@@ -499,26 +775,93 @@ export default function PorProfesional({
                   {!enUnaLinea && choca && <Marca tipo="atencion">{verPor === "box" ? "Choca en el box" : "Se pisa con otro turno"}</Marca>}
                 </button>
               );
-              if (!conBarra) return bloque;
-              const vista = vistaDeLaBarra(seleccion, t.id);
+              if (!envuelto) return bloque;
+              const vista = conBarra ? vistaDeLaBarra(seleccion, t.id) : "cerrada";
               const lado = ladoDeLaBarra({ fila, alto, filas, columna: ci, columnas: columnas.length });
+              // Minutos que cubre el bloque (desde el borde de su primera fila) y los del fin estirado.
+              const minutosDelBloque = alto * PASO_MIN;
+              const corrimiento = m.desde - (desde + fila * PASO_MIN);
+              const veredictoDelFin = estiraEste ? veredictoEstirar(t, estiraEste.fin) : null;
               return (
                 <div
                   key={t.id}
-                  data-turno-barra={t.id}
-                  className={`group/turno relative flex min-w-0 self-stretch hover:z-20 focus-within:z-20 ${vista === "elegida" ? "z-20" : "z-[1]"}`}
+                  data-turno-barra={conBarra ? t.id : undefined}
+                  className={`${conBarra ? "group/turno " : ""}relative flex min-w-0 self-stretch hover:z-20 focus-within:z-20 ${vista === "elegida" || estiraEste ? "z-20" : "z-[1]"}`}
                   style={ubicacion}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Escape" || vista === "cerrada") return;
-                    alBarra({ tipo: "escape", id: t.id });
-                    e.currentTarget.querySelector<HTMLElement>("[data-abrir]")?.focus();
-                  }}
-                  onPointerLeave={(e) => e.pointerType !== "touch" && vista === "cerrada" && alBarra({ tipo: "salir", id: t.id })}
-                  onBlur={(e) => {
-                    if (vista === "cerrada" && !e.currentTarget.contains(e.relatedTarget as Node | null)) alBarra({ tipo: "salir", id: t.id });
-                  }}
+                  onKeyDown={
+                    conBarra
+                      ? (e) => {
+                          if (e.key !== "Escape" || vista === "cerrada") return;
+                          alBarra({ tipo: "escape", id: t.id });
+                          e.currentTarget.querySelector<HTMLElement>("[data-abrir]")?.focus();
+                        }
+                      : undefined
+                  }
+                  onPointerLeave={conBarra ? (e) => e.pointerType !== "touch" && vista === "cerrada" && alBarra({ tipo: "salir", id: t.id }) : undefined}
+                  onBlur={
+                    conBarra
+                      ? (e) => {
+                          if (vista === "cerrada" && !e.currentTarget.contains(e.relatedTarget as Node | null)) alBarra({ tipo: "salir", id: t.id });
+                        }
+                      : undefined
+                  }
                 >
                   {bloque}
+                  {estiraEste && veredictoDelFin && (
+                    <span
+                      aria-hidden
+                      data-estirando
+                      className={`pointer-events-none absolute inset-x-0 top-0 z-[2] flex items-end overflow-hidden rounded border-2 border-dashed px-2 pb-0.5 text-xs font-semibold ${
+                        veredictoDelFin.tipo === "no" ? "border-danger bg-danger-soft/60 text-danger" : "border-success bg-success-soft/60 text-success"
+                      }`}
+                      style={{ height: `calc(100% * ${(corrimiento + (new Date(estiraEste.fin).getTime() - new Date(t.inicio).getTime()) / 60_000) / minutosDelBloque})` }}
+                    >
+                      {veredictoDelFin.tipo === "no" ? veredictoDelFin.motivo : rotuloDeDuracion(t.inicio, estiraEste.fin)}
+                    </span>
+                  )}
+                  {estirable && (
+                    <span
+                      aria-hidden
+                      data-manija
+                      title="Estirar o acortar el turno"
+                      className="absolute inset-x-2 -bottom-1 z-[3] flex h-4 cursor-ns-resize touch-none items-end justify-center"
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => {
+                        if (e.button !== 0) return;
+                        e.stopPropagation();
+                        e.preventDefault();
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                        const altoPx = e.currentTarget.parentElement?.getBoundingClientRect().height ?? 0;
+                        const pxPorPaso = Math.max(4, (altoPx / minutosDelBloque) * PASO_DURACION_MIN);
+                        manija.current = { id: t.id, y0: e.clientY, fin0: t.fin, fin: t.fin, pxPorPaso };
+                        setEstirando({ id: t.id, fin: t.fin, via: "puntero" });
+                      }}
+                      onPointerMove={(e) => {
+                        const h = manija.current;
+                        if (!h || h.id !== t.id) return;
+                        const fin = finEstirado(t.inicio, h.fin0, Math.round((e.clientY - h.y0) / h.pxPorPaso), topeDelDia);
+                        if (fin === h.fin) return;
+                        h.fin = fin;
+                        setEstirando({ id: t.id, fin, via: "puntero" });
+                        const v = veredictoEstirar(t, fin);
+                        setAnuncio(v.tipo === "no" ? v.motivo : rotuloDeDuracion(t.inicio, fin));
+                      }}
+                      onPointerUp={(e) => {
+                        const h = manija.current;
+                        if (!h || h.id !== t.id) return;
+                        e.stopPropagation();
+                        manija.current = null;
+                        void guardarDuracion(t, h.fin);
+                      }}
+                      onPointerCancel={() => {
+                        manija.current = null;
+                        setEstirando(null);
+                      }}
+                    >
+                      <span className="mb-1 h-1 w-6 rounded-full bg-line-strong" />
+                    </span>
+                  )}
+                  {conBarra && (
                   <div
                     className={`${claseDeLaBarra(vista, lado.vertical)} ${lado.vertical === "abajo" ? "top-full pt-1" : "bottom-full pb-1"} ${lado.horizontal === "izquierda" ? "left-0" : "right-0"}`}
                     onClick={(e) => e.stopPropagation()}
@@ -528,6 +871,7 @@ export default function PorProfesional({
                       <BarraDelTurno t={t} alAbrir={vista === "elegida" ? () => alBarra({ tipo: "toque", id: t.id, tactil: true, conBarra }) : undefined} />
                     </div>
                   </div>
+                  )}
                 </div>
               );
             })];
@@ -554,11 +898,14 @@ export default function PorProfesional({
       </ul>
       {permisos.gestionar && (
         <p className="mt-2 text-xs text-muted">
-          Tocá un hueco para dar un turno a esa hora. Para mover un turno, arrastralo (en la compu) o abrilo y tocá «Mover».
+          {interaccion
+            ? "Tocá un hueco para dar un turno a esa hora. Arrastrá un turno para moverlo (en el celular, mantenelo apretado) y estirá su borde de abajo para cambiar cuánto dura. Con el teclado: M lo levanta, flechas y Enter lo sueltan; Shift + flechas lo estiran."
+            : "Tocá un hueco para dar un turno a esa hora. Para mover un turno, arrastralo (en la compu) o abrilo y tocá «Mover»."}
         </p>
       )}
 
       <ConfirmarMover turno={turnoAConfirmar} destino={aConfirmar?.destino ?? null} onCerrar={() => setAConfirmar(null)} />
+      {interaccion && cambio && <AvisoDeshacerCambio key={cambio.clave} {...cambio} onTermina={() => setCambio(null)} />}
     </div>
   );
 }

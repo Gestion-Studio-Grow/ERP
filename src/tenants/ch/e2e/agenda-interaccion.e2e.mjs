@@ -8,6 +8,9 @@
 //   C · «Cobrar» desde la barra → Efectivo (un cobro en la base).
 //   D · WhatsApp desde la barra: el href es wa.me (no se sigue).
 //   E · en 375: elegir otra profesional por chip.
+//   T2 · G: arrastrar a un hueco libre (1 gesto; en 375, mantener 300 ms y llevar) → aviso → Deshacer.
+//        H: estirar 15' con la manija (y estirar sobre otro turno → «Se pisa con…», queda igual).
+//        I: mover con el teclado (M, ↓↓, Enter), en 1366. K: la canaleta rotula «10:30» prendida y no apagada.
 //   Chequeos: sin scroll horizontal, teclas ≥ 44 px, consola limpia.
 // Uso: node --import tsx src/tenants/ch/e2e/agenda-interaccion.e2e.mjs <carpeta del resumen (fuera del repo)>
 import { mkdir, writeFile } from "node:fs/promises";
@@ -95,6 +98,52 @@ async function crearTurno(db, e, { nombre, k, prof = "marina" }) {
   });
   return { id: a.id, nombre, clientId: client.id };
 }
+/** Un turno de MAÑANA a las `hhmm` (Buenos Aires), para que siempre haya huecos que no pasaron. */
+async function turnoManana(db, e, { nombre, k, hhmm, min = 40, prof = "marina" }) {
+  const tenantId = e.base.a.id;
+  const client = await db.client.create({ data: { tenantId, name: nombre, phone: `11 4100 ${String(3000 + k)}` } });
+  const profId = e.semilla.profesionales[prof];
+  const profFila = await db.professional.findUniqueOrThrow({ where: { id: profId } });
+  const startsAt = new Date(`${mananaBA}T${hhmm}:00-03:00`);
+  const a = await db.appointment.create({
+    data: { tenantId, clientId: client.id, professionalId: profId, serviceId: e.semilla.servicios.peeling, boxId: profFila.boxId, startsAt, endsAt: new Date(startsAt.getTime() + min * 60_000), status: "CONFIRMED", priceAtBooking: 22000 },
+  });
+  return { id: a.id, nombre, clientId: client.id };
+}
+const enHora = (hhmm) => new Date(`${mananaBA}T${hhmm}:00-03:00`).toISOString();
+const centro = (bx) => ({ x: bx.x + bx.width / 2, y: bx.y + bx.height / 2 });
+
+/** Arrastra de `desde` a `hasta`: mouse en la PC; en táctil, mantener `mantener` ms y llevar (CDP). */
+async function arrastrar(s, desde, hasta, { mantener = 450, antesDeSoltar } = {}) {
+  if (!s.tactil) {
+    await s.p.mouse.move(desde.x, desde.y);
+    await s.p.mouse.down();
+    await s.p.mouse.move(hasta.x, hasta.y, { steps: 10 });
+    if (antesDeSoltar) await antesDeSoltar();
+    await s.p.mouse.up();
+    return;
+  }
+  const cdp = await s.ctx.newCDPSession(s.p);
+  const dedo = (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
+  await dedo("touchStart", desde.x, desde.y);
+  await s.p.waitForTimeout(mantener);
+  for (let i = 1; i <= 10; i++) {
+    await dedo("touchMove", desde.x + ((hasta.x - desde.x) * i) / 10, desde.y + ((hasta.y - desde.y) * i) / 10);
+    await s.p.waitForTimeout(25);
+  }
+  if (antesDeSoltar) await antesDeSoltar();
+  await dedo("touchEnd");
+  await cdp.detach();
+}
+async function esperarBase(leer, cond, veces = 20) {
+  let v = await leer();
+  for (let i = 0; i < veces && !cond(v); i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    v = await leer();
+  }
+  return v;
+}
+
 async function prender(db, e, id) {
   await db.auditLog.create({
     data: { tenantId: e.base.a.id, entity: ENTIDAD_INTERRUPTOR, entityId: id, action: ACCION_ENCENDER, channel: CANAL_INTERRUPTOR, actor: PREFIJO_ACTOR_OPERADOR + "e2e" },
@@ -142,6 +191,8 @@ for (const [w, h] of [[1366, 768], [375, 812]]) {
       const nBarras = await s.p.locator("[data-turno-barra]").count();
       const nGrupos = await s.p.getByRole("group", { name: /Acciones rápidas/ }).count();
       const nChips = await s.p.getByRole("radiogroup", { name: "Ver la agenda de" }).count();
+      const nMedias = await s.p.locator("[data-media-hora]").count();
+      ok(`K1.${V}`, nMedias === 0, `apagado: la canaleta no rotula las medias horas (${nMedias})`);
       ok(`F1.${V}`, nBarras === 0 && nGrupos === 0 && nChips === 0, `apagado: sin barra ni chips (barras ${nBarras}, grupos ${nGrupos}, chips ${nChips})`);
       const d = await sinDesborde(s.p);
       ok(`F2.${V}`, d.sw <= d.iw, `apagado: agenda sin scroll horizontal (${d.sw} ≤ ${d.iw})`);
@@ -260,6 +311,88 @@ for (const [w, h] of [[1366, 768], [375, 812]]) {
       anotar(s, V, "e · otra profesional por chip");
       const d = await sinDesborde(s.p);
       ok(`E6.${V}`, d.sw <= d.iw, `grilla de una profesional sin scroll horizontal (${d.sw} ≤ ${d.iw})`);
+      await s.ctx.close();
+    }
+
+    // ───────── T2 · G mover sin hoja → Deshacer · H estirar · I teclado · K canaleta ─────────
+    {
+      const marina = e.semilla.profesionales.marina;
+      const tMover = await turnoManana(db, e, { nombre: `Gina Mover ${V}`, k: 10, hhmm: "11:30" });
+      const tEstirar = await turnoManana(db, e, { nombre: `Elsa Estirar ${V}`, k: 11, hhmm: "14:00", min: 45 });
+      await turnoManana(db, e, { nombre: `Otto Ocupado ${V}`, k: 12, hhmm: "16:00" });
+      const tTeclado = await turnoManana(db, e, { nombre: `Teo Teclado ${V}`, k: 13, hhmm: "17:00" });
+      const s = await pagina(e, [w, h], { etiqueta: `G-${V}` });
+      // Las dos grillas están en la página (la del celular escondida en la PC): siempre la VISIBLE.
+      await irALaAgenda(s, e, `?date=${mananaBA}&pro=${marina}`);
+
+      const media = s.p.locator("[data-media-hora]", { hasText: "10:30" }).filter({ visible: true });
+      ok(`K2.${V}`, await espera(media, 10000), "prendido: la canaleta rotula «10:30»");
+
+      // G · arrastrar a 13:00 (hueco libre) en UN gesto.
+      const bloque = bloqueDe(s.p, tMover).filter({ visible: true }).first();
+      await bloque.waitFor({ timeout: 15000 });
+      await bloque.evaluate((el) => el.scrollIntoView({ block: "center" }));
+      const bb = await bloque.boundingBox();
+      const celda = s.p.locator(`[data-celda][data-columna="${marina}"][data-minuto="780"]`).filter({ visible: true }).first();
+      const cb = await celda.boundingBox();
+      s.n.push("arrastrar (1 gesto)");
+      await arrastrar(s, { x: bb.x + bb.width / 2, y: bb.y + 8 }, centro(cb), {
+        antesDeSoltar: () => espera(s.p.getByText(/^Soltá: 13:00/).filter({ visible: true }), 10000),
+      });
+      const movido = await espera(s.p.getByText(/Movido a 13:00 con Marina/), 15000);
+      const ini1 = await esperarBase(async () => (await db.appointment.findUniqueOrThrow({ where: { id: tMover.id } })).startsAt.toISOString(), (v) => v === enHora("13:00"));
+      ok(`G1.${V}`, movido && ini1 === enHora("13:00"), `soltar = mover sin hoja: aviso «Movido a 13:00…» (base ${ini1.slice(11, 16)}Z; ${s.n.length} gesto)`);
+      ok(`G2.${V}`, (await s.p.getByRole("dialog").filter({ visible: true }).count()) === 0, "sin hoja de confirmación");
+      ok(`G3.${V}`, await espera(s.p.getByRole("link", { name: "Avisar por WhatsApp" }), 3000), "el aviso trae «Avisar por WhatsApp»");
+      await s.p.screenshot({ path: `${OUT}/t2-mover-${V}.png` });
+      await toque(s, s.p.getByRole("button", { name: "Deshacer" }), "Deshacer");
+      const ini2 = await esperarBase(async () => (await db.appointment.findUniqueOrThrow({ where: { id: tMover.id } })).startsAt.toISOString(), (v) => v === enHora("11:30"));
+      ok(`G4.${V}`, ini2 === enHora("11:30"), `Deshacer vuelve al origen (base ${ini2.slice(11, 16)}Z; ${s.n.length} toques)`);
+      anotar(s, V, "g · arrastrar a hueco libre → Deshacer");
+
+      // H · estirar 15' (14:00–14:45 → 15:00).
+      const sh = { ...s, n: [] };
+      await s.p.waitForTimeout(500);
+      const bEst = bloqueDe(s.p, tEstirar).filter({ visible: true }).first();
+      await bEst.evaluate((el) => el.scrollIntoView({ block: "center" }));
+      const fila = (await s.p.locator("[data-celda]").filter({ visible: true }).first().boundingBox()).height;
+      const manija = () => bEst.locator("xpath=..").locator("[data-manija]").first();
+      let mb = centro(await manija().boundingBox());
+      sh.n.push("estirar (1 gesto)");
+      let rotulo = "";
+      await arrastrar(sh, mb, { x: mb.x, y: mb.y + fila / 2 + 2 }, {
+        mantener: 0,
+        antesDeSoltar: async () => {
+          rotulo = (await s.p.locator("[data-estirando]").filter({ visible: true }).first().textContent({ timeout: 3000 }).catch(() => "")) ?? "";
+          await s.p.screenshot({ path: `${OUT}/t2-estirar-${V}.png` });
+        },
+      });
+      const fin1 = await esperarBase(async () => (await db.appointment.findUniqueOrThrow({ where: { id: tEstirar.id } })).endsAt.toISOString(), (v) => v === enHora("15:00"));
+      ok(`H1.${V}`, fin1 === enHora("15:00"), `estirar 15' guarda el fin (base ${fin1.slice(11, 16)}Z; ${sh.n.length} gesto)`);
+      ok(`H2.${V}`, rotulo.includes("14:00–15:00 · 1 h"), `mientras se estira dice la duración («${rotulo}»)`);
+      anotar(sh, V, "h · estirar 15'");
+      // Estirar hasta las 16:00 (Otto): se rechaza y queda como estaba.
+      await s.p.mouse.move(1, 1).catch(() => {});
+      await s.p.getByRole("button", { name: "Deshacer" }).first().waitFor({ state: "detached", timeout: 12000 }).catch(() => {});
+      mb = centro(await manija().boundingBox());
+      await arrastrar(sh, mb, { x: mb.x, y: mb.y + fila * 2 + 2 }, { mantener: 0 });
+      const rechazo = await espera(s.p.getByText(/Se pisa con Otto Ocupado .* a las 16:00/).filter({ visible: true }), 8000);
+      const fin2 = (await db.appointment.findUniqueOrThrow({ where: { id: tEstirar.id } })).endsAt.toISOString();
+      ok(`H3.${V}`, rechazo && fin2 === enHora("15:00"), `estirar sobre otro turno: «Se pisa con Otto…» y queda igual (base ${fin2.slice(11, 16)}Z)`);
+
+      // I · teclado (PC): M, ↓↓, Enter → 18:00.
+      if (!s.tactil) {
+        const bt = bloqueDe(s.p, tTeclado).filter({ visible: true }).first();
+        await bt.evaluate((el) => el.scrollIntoView({ block: "center" }));
+        await bt.focus();
+        await s.p.keyboard.press("m");
+        await s.p.keyboard.press("ArrowDown");
+        await s.p.keyboard.press("ArrowDown");
+        await espera(s.p.getByText(/^Soltá: 18:00/).filter({ visible: true }), 10000);
+        await s.p.keyboard.press("Enter");
+        const ini3 = await esperarBase(async () => (await db.appointment.findUniqueOrThrow({ where: { id: tTeclado.id } })).startsAt.toISOString(), (v) => v === enHora("18:00"));
+        ok(`I1.${V}`, ini3 === enHora("18:00"), `teclado: M, ↓↓, Enter mueve a las 18:00 (base ${ini3.slice(11, 16)}Z)`);
+      }
       await s.ctx.close();
     }
   } catch (err) {
