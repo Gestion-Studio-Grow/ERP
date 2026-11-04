@@ -12,7 +12,7 @@ function rendicion(p: Partial<Rendicion> = {}): Rendicion {
     id: "R1",
     gastoId: "G1",
     rindeId: "com",
-    medio: "propio_a_reintegrar",
+    medio: "PROPIO",
     montoCentavos: 1250000,
     estado: "borrador",
     eventos: [],
@@ -84,7 +84,7 @@ test("enviar: sólo quien rinde, con importe entero positivo y anticipo si lo us
   assert.equal(aplicarAccion(rendicion(), "enviar", ctx("otro", "DIRECCION")).ok, false);
   assert.equal(aplicarAccion(rendicion({ montoCentavos: 0 }), "enviar", ctx("com", "COMERCIAL")).ok, false);
   assert.equal(aplicarAccion(rendicion({ montoCentavos: 10.5 }), "enviar", ctx("com", "COMERCIAL")).ok, false);
-  assert.equal(aplicarAccion(rendicion({ medio: "efectivo_anticipo" }), "enviar", ctx("com", "COMERCIAL")).ok, false);
+  assert.equal(aplicarAccion(rendicion({ medio: "ANTICIPO" }), "enviar", ctx("com", "COMERCIAL")).ok, false);
   const devuelta = rendicion({ estado: "devuelta" });
   assert.equal(hacer(devuelta, "enviar", ctx("com", "COMERCIAL")).estado, "enviada");
 });
@@ -100,7 +100,7 @@ test("devolver y rechazar exigen comentario y lo guardan en la bitácora", () =>
 });
 
 test("reintegrar: lo pagado con anticipo no se reintegra; sólo Dirección o Administración", () => {
-  const conAnticipo = rendicion({ estado: "aprobada", medio: "efectivo_anticipo", anticipoId: "A1" });
+  const conAnticipo = rendicion({ estado: "aprobada", medio: "ANTICIPO", anticipoId: "A1" });
   assert.equal(aplicarAccion(conAnticipo, "reintegrar", ctx("adm", "ADMINISTRACION")).ok, false);
   assert.equal(aplicarAccion(rendicion({ estado: "aprobada" }), "reintegrar", ctx("prod", "PRODUCCION")).ok, false);
 });
@@ -108,7 +108,7 @@ test("reintegrar: lo pagado con anticipo no se reintegra; sólo Dirección o Adm
 test("cuadratura: sobrante a devolver, faltante a reintegrar, rechazadas no cuentan", () => {
   const anticipo = { id: "A1", montoCentavos: 10000000, devueltoCentavos: 0 };
   const g = (monto: number, p: Partial<Rendicion> = {}) =>
-    rendicion({ medio: "efectivo_anticipo", anticipoId: "A1", montoCentavos: monto, estado: "aprobada", ...p });
+    rendicion({ medio: "ANTICIPO", anticipoId: "A1", montoCentavos: monto, estado: "aprobada", ...p });
 
   const sobra = calcularCuadratura(anticipo, [g(6000000), g(9999999, { estado: "rechazada" }), g(1, { anticipoId: "A2" })], 2);
   assert.equal(sobra.rendido, 6000000);
@@ -116,7 +116,7 @@ test("cuadratura: sobrante a devolver, faltante a reintegrar, rechazadas no cuen
   assert.equal(sobra.aReintegrar, 0);
   assert.equal(sobra.mensaje, "Recibiste $100.000 y rendiste $60.000. Te quedan $40.000 para devolver.");
 
-  const falta = calcularCuadratura(anticipo, [g(12000000), rendicion({ montoCentavos: 50000 })], 2);
+  const falta = calcularCuadratura(anticipo, [g(12000000), rendicion({ montoCentavos: 50000, estado: "aprobada" })], 2);
   assert.equal(falta.aReintegrar, 2000000 + 50000);
   assert.equal(falta.aDevolver, 0);
 
@@ -124,6 +124,36 @@ test("cuadratura: sobrante a devolver, faltante a reintegrar, rechazadas no cuen
   assert.equal(justo.cuadra, true);
   assert.equal(justo.aDevolver, 0);
 
-  const sin = calcularCuadratura(null, [rendicion({ montoCentavos: 300000 })], 2);
+  const sin = calcularCuadratura(null, [rendicion({ montoCentavos: 300000, estado: "aprobada" })], 2);
   assert.equal(sin.mensaje, "No hay anticipo: te reintegramos $3.000 que pagaste de tu bolsillo.");
+});
+
+// Regresión de la certificación de la tanda 1 (ADV1..ADV4).
+test("cuadratura: lo ya reintegrado (propio o faltante) no se vuelve a sumar en aReintegrar", () => {
+  const reintegrada = rendicion({ estado: "reintegrada", montoCentavos: 1000 });
+  assert.equal(calcularCuadratura(null, [reintegrada], 0).aReintegrar, 0);
+  const anticipo = { id: "A1", montoCentavos: 10000, devueltoCentavos: 0 };
+  const gasto = rendicion({ medio: "ANTICIPO", anticipoId: "A1", montoCentavos: 12000, estado: "aprobada" });
+  assert.equal(calcularCuadratura(anticipo, [gasto], 0).aReintegrar, 2000);
+  const pagado = calcularCuadratura({ ...anticipo, reintegradoCentavos: 2000 }, [gasto], 0);
+  assert.equal(pagado.aReintegrar, 0);
+  assert.equal(pagado.cuadra, true);
+});
+
+test("cuadratura: contra el anticipo cuentan sólo aprobadas y reintegradas", () => {
+  const anticipo = { id: "A1", montoCentavos: 5000, devueltoCentavos: 0 };
+  for (const estado of ["borrador", "enviada", "devuelta", "rechazada"] as const) {
+    const c = calcularCuadratura(anticipo, [rendicion({ medio: "ANTICIPO", anticipoId: "A1", montoCentavos: 5000, estado })], 0);
+    assert.equal(c.rendido, 0, estado);
+    assert.equal(c.cuadra, false, estado);
+    assert.equal(c.pendiente, estado === "rechazada" ? 0 : 5000, estado);
+  }
+  const propiaSinAprobar = calcularCuadratura(null, [rendicion({ estado: "enviada", montoCentavos: 700 })], 0);
+  assert.equal(propiaSinAprobar.aReintegrar, 0);
+});
+
+test("motor: no aprueba un importe no entero ni reintegra uno negativo", () => {
+  assert.equal(aplicarAccion(rendicion({ estado: "enviada", montoCentavos: 10.5 }), "aprobar", ctx("adm", "ADMINISTRACION")).ok, false);
+  assert.equal(aplicarAccion(rendicion({ estado: "aprobada", montoCentavos: -500 }), "reintegrar", ctx("adm", "ADMINISTRACION")).ok, false);
+  assert.equal(aplicarAccion(rendicion({ estado: "enviada", montoCentavos: 10.5 }), "rechazar", ctx("adm", "ADMINISTRACION", "mal")).ok, true, "rechazar sigue pudiendo");
 });

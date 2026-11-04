@@ -21,25 +21,32 @@ import type {
   ResultadoTransicion,
 } from "./tipos";
 
+/** Estados que cuentan como gasto justificado: aprobado por Dirección/Administración (y, si era propio, ya pagado). */
+const JUSTIFICADA: readonly EstadoRendicion[] = ["aprobada", "reintegrada"];
+/** Todavía en manos de quien rinde o de quien revisa. */
+const EN_REVISION: readonly EstadoRendicion[] = ["borrador", "enviada", "devuelta"];
+
 /**
  * Cuadratura de un anticipo contra las rendiciones de quien lo recibió.
- * - rendido: gastos pagados con ESE anticipo que no fueron rechazados.
- * - deSuBolsillo: gastos propios no rechazados (se reintegran aparte).
- * - diferencia = anticipado − rendido − devuelto. > 0 sobra (a devolver), < 0 falta (a reintegrar).
+ * - rendido: gastos pagados con ESE anticipo y aprobados (aprobada o reintegrada). Un borrador no justifica nada.
+ * - pendiente: los de ese anticipo que esperan revisión (informativo; no cuadra con ellos).
+ * - deSuBolsillo: gastos propios APROBADOS y no reintegrados (lo reintegrado ya se pagó: no se vuelve a sumar).
+ * - diferencia = anticipado + reintegrado − rendido − devuelto. > 0 sobra (a devolver), < 0 falta (a reintegrar).
+ *   El faltante ya reintegrado (`anticipo.reintegradoCentavos`) entra sumando: no se paga dos veces.
  */
 export function calcularCuadratura(
   anticipo: Anticipo | null,
   rendiciones: readonly Rendicion[],
   tolerancia: Centavos,
 ): Cuadratura {
-  const vivas = rendiciones.filter((r) => r.estado !== "rechazada");
   const anticipado = anticipo?.montoCentavos ?? 0;
   const devuelto = anticipo?.devueltoCentavos ?? 0;
-  const rendido = anticipo
-    ? sumar(...vivas.filter((r) => r.medio === "efectivo_anticipo" && r.anticipoId === anticipo.id).map((r) => r.montoCentavos))
-    : 0;
-  const deSuBolsillo = sumar(...vivas.filter((r) => r.medio === "propio_a_reintegrar").map((r) => r.montoCentavos));
-  const diferencia = anticipado - rendido - devuelto;
+  const reintegrado = anticipo?.reintegradoCentavos ?? 0;
+  const delAnticipo = anticipo ? rendiciones.filter((r) => r.medio === "ANTICIPO" && r.anticipoId === anticipo.id) : [];
+  const rendido = sumar(...delAnticipo.filter((r) => JUSTIFICADA.includes(r.estado)).map((r) => r.montoCentavos));
+  const pendiente = sumar(...delAnticipo.filter((r) => EN_REVISION.includes(r.estado)).map((r) => r.montoCentavos));
+  const deSuBolsillo = sumar(...rendiciones.filter((r) => r.medio === "PROPIO" && r.estado === "aprobada").map((r) => r.montoCentavos));
+  const diferencia = anticipado + reintegrado - rendido - devuelto;
   const dentro = Math.abs(diferencia) <= tolerancia;
   const aDevolver = dentro ? 0 : Math.max(0, diferencia);
   const aReintegrar = deSuBolsillo + (dentro ? 0 : Math.max(0, -diferencia));
@@ -58,7 +65,8 @@ export function calcularCuadratura(
   } else {
     mensaje = `Gastaste ${f(-diferencia)} más que el anticipo: te lo reintegramos.`;
   }
-  return { anticipado, rendido, devuelto, diferencia, aDevolver, aReintegrar, cuadra: dentro, mensaje };
+  if (pendiente > 0) mensaje += ` Hay ${f(pendiente)} esperando revisión: cuentan cuando se aprueben.`;
+  return { anticipado, rendido, pendiente, devuelto, reintegrado, diferencia, aDevolver, aReintegrar, cuadra: dentro, mensaje };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -109,16 +117,21 @@ export function aplicarAccion(r: Rendicion, accion: AccionRendicion, ctx: Contex
   if (!DESDE[accion].includes(r.estado)) {
     return { ok: false, motivo: `No se puede ${VERBO[accion]} una rendición ${ESTADO[r.estado]}` };
   }
+  const importeValido = Number.isInteger(r.montoCentavos) && r.montoCentavos > 0;
+  // Aprobar o reintegrar un importe roto (no entero, cero o negativo) movería plata mal: se frena en todo el camino.
+  if ((accion === "aprobar" || accion === "reintegrar") && !importeValido) {
+    return { ok: false, motivo: "El importe de esta rendición no es válido: devolvela o rechazala" };
+  }
   const tieneComentario = (ctx.comentario ?? "").trim() !== "";
   const esSuya = ctx.actorId === r.rindeId;
 
   switch (accion) {
     case "enviar": {
       if (!esSuya) return { ok: false, motivo: "Sólo quien pagó el gasto puede enviar su rendición" };
-      if (!Number.isInteger(r.montoCentavos) || r.montoCentavos <= 0) {
+      if (!importeValido) {
         return { ok: false, motivo: "Todavía no se puede enviar: el importe tiene que ser mayor a cero" };
       }
-      if (r.medio === "efectivo_anticipo" && !r.anticipoId) {
+      if (r.medio === "ANTICIPO" && !r.anticipoId) {
         return { ok: false, motivo: "Todavía no se puede enviar: elegí con qué anticipo lo pagaste" };
       }
       return pasarA(r, accion, ctx);
@@ -135,7 +148,7 @@ export function aplicarAccion(r: Rendicion, accion: AccionRendicion, ctx: Contex
       return pasarA(r, accion, ctx);
     }
     case "reintegrar": {
-      if (r.medio !== "propio_a_reintegrar") {
+      if (r.medio !== "PROPIO") {
         return { ok: false, motivo: "Lo pagado con un anticipo no se reintegra: se cierra con la cuadratura del anticipo" };
       }
       if (esSuya) return { ok: false, motivo: "Nadie se reintegra lo propio: esta rendición es tuya" };

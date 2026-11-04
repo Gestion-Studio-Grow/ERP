@@ -1557,9 +1557,10 @@ model CashMovement {
   proyectoGastoId String?
   // Rendí (MIA): el egreso del pago de una liquidación (con sus reintegros) y el de la entrega de un anticipo.
   // Misma regla: la clave del asiento es (tenant, origen, tipo). Las agrega `20261104120000_rendiciones` (SIN aplicar).
-  proyectoLiquidacion   ProyectoLiquidacion? @relation(fields: [proyectoLiquidacionId], references: [id], onDelete: SetNull)
+  // Rendí: FKs compuestas (id, tenantId): el asiento no apunta a una liquidación ni a un anticipo de otro negocio.
+  proyectoLiquidacion   ProyectoLiquidacion? @relation(fields: [proyectoLiquidacionId, tenantId], references: [id, tenantId], onDelete: Restrict)
   proyectoLiquidacionId String?
-  proyectoAnticipo      ProyectoAnticipo?    @relation(fields: [proyectoAnticipoId], references: [id], onDelete: SetNull)
+  proyectoAnticipo      ProyectoAnticipo?    @relation(fields: [proyectoAnticipoId, tenantId], references: [id, tenantId], onDelete: Restrict)
   proyectoAnticipoId    String?
 
   createdBy String // actor "user:<id>"
@@ -3289,6 +3290,7 @@ model Proyecto {
   updatedAt           DateTime               @updatedAt
 
   @@unique([tenantId, numero])
+  @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId), que no cruzan de negocio
   @@index([tenantId, etapa])
   @@index([tenantId, clientId])
 }
@@ -3413,6 +3415,7 @@ model ProyectoGasto {
   rendiciones ProyectoRendicion[]
   createdAt   DateTime       @default(now())
 
+  @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId)
   @@index([tenantId, proyectoId])
   @@index([tenantId, supplierId])
 }
@@ -3435,6 +3438,7 @@ model ProyectoArchivo {
   rendiciones    ProyectoRendicion[]
   createdAt      DateTime @default(now())
 
+  @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId)
   @@index([tenantId, proyectoId])
 }
 
@@ -3640,6 +3644,7 @@ model ProyectoPersona {
   createdAt     DateTime              @default(now())
 
   @@unique([tenantId, userId])
+  @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId)
   @@index([tenantId])
 }
 
@@ -3833,6 +3838,7 @@ model ProyectoLiquidacion {
   createdAt   DateTime        @default(now())
 
   @@unique([tenantId, personaId, periodo])
+  @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId)
   @@index([tenantId, periodo])
 }
 
@@ -3895,34 +3901,36 @@ model ProyectoCambio {
 // RENDÍ (MIA, plan `docs/tenants/mia-producciones/PLAN-RENDI.md` §3): la rendición de UN gasto de proyecto que alguien
 // del equipo pagó de su bolsillo (PROPIO) o con un anticipo (ANTICIPO). Plata en centavos enteros; el gasto sigue en
 // Float pesos (deuda anotada). `estado` guarda el estado del motor (`src/lib/rendiciones/tipos.ts`), `eventos` la
-// bitácora. Un gasto, una rendición; un extra por gasto por liquidación. La agrega `20261104120000_rendiciones` (SIN aplicar).
+// bitácora. Un gasto, una rendición. FKs compuestas (id, tenantId). La agrega `20261104120000_rendiciones` (SIN aplicar).
 model ProyectoRendicion {
   id            String               @id @default(cuid())
   tenant        Tenant               @relation(fields: [tenantId], references: [id])
   tenantId      String
-  proyecto      Proyecto             @relation(fields: [proyectoId], references: [id])
+  // FKs compuestas (id, tenantId): la base no deja apuntar a un proyecto, gasto o persona de otro negocio.
+  proyecto      Proyecto             @relation(fields: [proyectoId, tenantId], references: [id, tenantId])
   proyectoId    String
-  gasto         ProyectoGasto        @relation(fields: [gastoId], references: [id])
+  gasto         ProyectoGasto        @relation(fields: [gastoId, tenantId], references: [id, tenantId])
   gastoId       String
-  persona       ProyectoPersona      @relation(fields: [personaId], references: [id])
+  persona       ProyectoPersona      @relation(fields: [personaId, tenantId], references: [id, tenantId])
   personaId     String
   medio         String // PROPIO · ANTICIPO
-  anticipo      ProyectoAnticipo?    @relation(fields: [anticipoId], references: [id], onDelete: SetNull)
+  anticipo      ProyectoAnticipo?    @relation(fields: [anticipoId, tenantId], references: [id, tenantId], onDelete: Restrict)
   anticipoId    String?
   montoCentavos Int
-  archivo       ProyectoArchivo?     @relation(fields: [archivoId], references: [id], onDelete: SetNull)
+  archivo       ProyectoArchivo?     @relation(fields: [archivoId, tenantId], references: [id, tenantId], onDelete: Restrict)
   archivoId     String? // el comprobante (ProyectoArchivo tipo COMPROBANTE)
   estado        String               @default("borrador") // borrador · enviada · devuelta · rechazada · aprobada · reintegrada
   eventos       Json                 @default("[]")
   aprobadoPor   String?
   aprobadoEl    DateTime?
-  liquidacion   ProyectoLiquidacion? @relation(fields: [liquidacionId], references: [id], onDelete: SetNull)
+  liquidacion   ProyectoLiquidacion? @relation(fields: [liquidacionId, tenantId], references: [id, tenantId], onDelete: Restrict)
   liquidacionId String?
   reintegradoEl DateTime?
   createdAt     DateTime             @default(now())
 
+  // Un gasto, una rendición. Rechazar anula el gasto: re-rendir es cargar un gasto nuevo (no se reabre el rechazado).
+  // Por eso alcanza esta única también para «un extra por gasto por liquidación».
   @@unique([tenantId, gastoId])
-  @@unique([tenantId, liquidacionId, gastoId])
   @@index([tenantId, proyectoId])
   @@index([tenantId, personaId, estado])
 }
@@ -3933,18 +3941,20 @@ model ProyectoAnticipo {
   id               String              @id @default(cuid())
   tenant           Tenant              @relation(fields: [tenantId], references: [id])
   tenantId         String
-  persona          ProyectoPersona     @relation(fields: [personaId], references: [id])
+  persona          ProyectoPersona     @relation(fields: [personaId, tenantId], references: [id, tenantId])
   personaId        String
-  proyecto         Proyecto?           @relation(fields: [proyectoId], references: [id], onDelete: SetNull)
+  proyecto         Proyecto?           @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Restrict)
   proyectoId       String?
   montoCentavos    Int
   entregadoEl      DateTime            @default(now())
-  devueltoCentavos Int                 @default(0)
+  devueltoCentavos    Int              @default(0)
+  reintegradoCentavos Int              @default(0) // faltante ya reintegrado (gastó más que el anticipo)
   estado           String              @default("ENTREGADO") // ENTREGADO · RENDIDO · CERRADO
   rendiciones      ProyectoRendicion[]
   asientos         CashMovement[]
   createdAt        DateTime            @default(now())
 
+  @@unique([id, tenantId]) // destino de FKs compuestas (id, tenantId)
   @@index([tenantId, personaId])
 }
 

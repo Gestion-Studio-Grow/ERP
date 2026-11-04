@@ -20,6 +20,12 @@ conciliación, haberes, motor fiscal ni QR de ARCA (README MIA punto 11: sin Com
   `aprobar` no pasa. La idempotencia de la plata la ponen además las únicas de la base (`CashMovement`).
 - **Separación de funciones:** nadie aprueba, devuelve, rechaza ni se reintegra lo propio.
 - Lo pagado con anticipo no se reintegra por rendición: el sobrante o faltante sale de `calcularCuadratura`.
+- **Cuadratura:** contra el anticipo cuentan sólo `aprobada`/`reintegrada` (lo demás es `pendiente`, informativo);
+  `aReintegrar` es lo que TODAVÍA se debe: lo propio `aprobada` (no lo `reintegrada`) + el faltante menos
+  `anticipo.reintegradoCentavos`.
+- **Medio de pago:** `MEDIOS_PAGO` de `tipos.ts` (`PROPIO` · `ANTICIPO`) es la única fuente; son los mismos valores del
+  CHECK de la migración (ANTICIPO exige `anticipoId`), y `rendiciones-core.test.ts` controla que coincidan.
+- **Re-rendir:** rechazar anula el gasto; corregir es cargar un gasto nuevo (única `(tenantId, gastoId)`).
 
 ## Tests
 
