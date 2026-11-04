@@ -120,8 +120,12 @@ export default async function TurnosCalendarPage({
   // el veredicto de cobro de quien mira, y lo que puede hacer (las mismas capacidades del servidor).
   // Tanda 2: la marca «seña pedida» y el horario de trabajo (una lectura más por día, con tenantId).
   const diaDeLaPlanilla = esFechaDeCalendario(date) ? date : today;
-  const extras = await extrasDeLaAgenda(cruda, diaDeLaPlanilla);
-  const proyectada = proyectarAgenda(cruda, { role: user.role, professionalId: user.professionalId }, { seniasPedidas: extras.seniasPedidas });
+  const extras = await extrasDeLaAgenda(cruda, diaDeLaPlanilla, { quienCobro: agendaInteraccionPrendida(interruptores) });
+  const proyectada = proyectarAgenda(
+    cruda,
+    { role: user.role, professionalId: user.professionalId },
+    { seniasPedidas: extras.seniasPedidas, quienCobro: extras.quienCobro },
+  );
   const planilla = {
     turnos: proyectada.turnos,
     profesionales: proyectada.profesionales,

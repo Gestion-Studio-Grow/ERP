@@ -75,6 +75,11 @@ export async function deshacerCierre(fd) { anotar("deshacer", fd); return { ok: 
 const CON_PRODUCTO_FALSO = `
 export async function productosParaElTurno() { return { ok: true, productos: [], conTarjeta: false }; }
 export async function cobrarTurnoConProductos(fd) { (window.__enviado ??= []).push({ accion: "con-producto", ...Object.fromEntries(fd.entries()) }); return { ok: true }; }`;
+// Editar el turno (agenda interactiva): la mesa monta la hoja; acá no se edita nada.
+const EDITAR_FALSO = `
+export async function editarTurno(fd) { (window.__ediciones ??= []).push(Object.fromEntries(fd)); return { ok: true }; }
+export async function opcionesParaEditar() { return { ok: false, error: "sin opciones" }; }
+export async function huecosParaEditar() { return { ok: true, huecos: {} }; }`;
 const DURACION_FALSA = `
 export async function cambiarDuracionDelTurno(fd) {
   (window.__duraciones ??= []).push(Object.fromEntries(fd));
@@ -232,6 +237,7 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
       "@/lib/turnos/cobro-actions": COBRO_FALSO,
       "@/lib/turnos/senia-actions": SENIA_FALSA,
       "@/lib/turnos/duracion-actions": DURACION_FALSA,
+      "@/lib/turnos/editar-actions": EDITAR_FALSO,
       "@/lib/turnos/cobro-con-producto-actions": CON_PRODUCTO_FALSO,
       "next/navigation": NAVEGACION_FALSA,
       "next/link": LINK_FALSO,
@@ -250,7 +256,7 @@ describe("La planilla del día en el navegador", { timeout: 240_000 }, () => {
         {
           name: "falsos",
           setup(b) {
-            b.onResolve({ filter: /^(@\/lib\/actions|@\/lib\/turnos\/(mover|cobro|senia|cobro-con-producto|duracion)-actions|next\/navigation|next\/link)$/ }, (a) => ({ path: a.path, namespace: "falso" }));
+            b.onResolve({ filter: /^(@\/lib\/actions|@\/lib\/turnos\/(mover|cobro|senia|cobro-con-producto|duracion|editar)-actions|next\/navigation|next\/link)$/ }, (a) => ({ path: a.path, namespace: "falso" }));
             b.onLoad({ filter: /.*/, namespace: "falso" }, (a) => ({ contents: falsos[a.path], loader: "js", resolveDir: RAIZ }));
           },
         },
