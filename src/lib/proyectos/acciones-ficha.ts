@@ -973,7 +973,7 @@ export async function subirArchivoFicha(d: { proyectoId: string; tipo: string; n
   if (d.datos ? !subido : !linkSeguro(url)) return mal(d.datos ? "El archivo es demasiado pesado o no es una imagen ni un PDF válido." : "Pegá un link que empiece con https://.");
   const itemId = d.itemId || null;
   if (itemId && !(await prisma.proyectoItem.findFirst({ where: { id: itemId, tenantId, presupuesto: { proyectoId } }, select: { id: true } }))) return mal("Ese ítem no es de este proyecto.");
-  const cuantos = await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId, clave: null } });
+  const cuantos = await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId, clave: null, tipo: { not: "COMPROBANTE" } } });
   if (cuantos >= MAX_ARCHIVOS) return mal(`Un proyecto guarda hasta ${MAX_ARCHIVOS} archivos. Sacá alguno que ya no uses.`);
   const nuevo = await prisma.proyectoArchivo.create({
     data: { tenantId, proyectoId, tipo, nombre, datos: d.datos || null, url: d.datos ? null : url, visibleCliente: !!d.visibleCliente && subido === "imagen", itemId, subidoPor: a.nombre },
@@ -1022,7 +1022,7 @@ export async function confirmarSubida(d: { proyectoId: string; clave: string; no
     return mal(problema ?? "Ese ítem no es de este proyecto.");
   }
   // La base guarda hasta MAX_ARCHIVOS imágenes achicadas; de ahí en más el archivo se guarda igual, sin miniatura.
-  const entraMiniatura = typeof d.miniatura === "string" && tipoDeArchivoSubido(d.miniatura, MAX_IMAGEN, MAX_PDF) === "imagen" && (await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId, datos: { not: null } } })) < MAX_ARCHIVOS;
+  const entraMiniatura = typeof d.miniatura === "string" && tipoDeArchivoSubido(d.miniatura, MAX_IMAGEN, MAX_PDF) === "imagen" && (await prisma.proyectoArchivo.count({ where: { tenantId, proyectoId, datos: { not: null }, tipo: { not: "COMPROBANTE" } } })) < MAX_ARCHIVOS;
   const nuevo = await prisma.proyectoArchivo.create({
     data: { tenantId, proyectoId, tipo: TIPOS_ARCHIVO.includes(d.tipo) ? d.tipo : "OTRO", nombre, clave, tamanoBytes: tamano, datos: entraMiniatura ? d.miniatura : null, visibleCliente: !!d.visibleCliente && entraMiniatura, itemId, subidoPor: a.nombre },
     select: { id: true },

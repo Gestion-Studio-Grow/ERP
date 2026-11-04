@@ -745,6 +745,7 @@ export const TIPOS_AVISO = [
   { id: "liquidacion", label: "Mi liquidación publicada" },
   { id: "etapa", label: "Cambios de etapa de mis proyectos" },
   { id: "consulta", label: "Llegan consultas de potenciales clientes" },
+  { id: "rendicion", label: "Rendiciones de gastos para revisar o revisadas" },
 ] as const;
 
 /** `@Ana` en un mensaje: los nombres mencionados que coinciden con alguien del equipo. */
