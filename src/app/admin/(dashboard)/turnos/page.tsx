@@ -145,6 +145,7 @@ export default async function TurnosCalendarPage({
     bloqueos: extras.bloqueos,
     hrefFicha: appPermitida(appPorId("clientes"), negocio) ? "/admin/clientes/" : null,
     letraDelNegocio: esteticaBackoffice(slug) !== null,
+    miProfesional: user.role === "PROFESSIONAL" ? (user.professionalId ?? null) : null,
   };
 
   const cobrarVenta = enlaceCobrarUnaVenta(slug, user.role);

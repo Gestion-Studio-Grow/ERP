@@ -33,6 +33,7 @@ import type { BloqueoDelDia } from "./grilla";
 import MesaDeTurnos, { RenglonDelTurno } from "./_agenda/MesaDeTurnos";
 import { lugarDeLaRaya } from "./agenda-core";
 import PorProfesional from "./_agenda/PorProfesional";
+import CelularPorProfesional from "./_agenda/CelularPorProfesional";
 
 type Professional = { id: string; name: string; box: { name: string } | null };
 /** Lo que la planilla de la PC necesita: la agenda del día ya proyectada en el servidor. */
@@ -49,6 +50,8 @@ export type PlanillaDelDia = {
   hrefFicha: string | null;
   /** La letra de cuerpo del negocio en vez de la de la piel (CH: Hanken). */
   letraDelNegocio: boolean;
+  /** Si quien mira es PROFESSIONAL, su id (la grilla del celular no le ofrece elegir otra). */
+  miProfesional?: string | null;
 };
 
 // La piel «Renglón» se viste bajo `data-diseno` y lee el modo oscuro del MISMO elemento: se copia el
@@ -138,10 +141,28 @@ export default function CalendarGrid({
       <div ref={piel} data-diseno={PIEL_RENGLON} data-theme={tema} data-pantalla="agenda-planilla" style={estilo} className="text-body lg:bg-surface">
         <MesaDeTurnos turnos={planilla.turnos} permisos={planilla.permisos} ahora={planilla.ahora} hrefFicha={planilla.hrefFicha}>
           <div className="lg:hidden">
-            <ListaDelCelular
-              planilla={planilla}
-              vacio={diaVacio ? <PasoVacio paso={diaVacio} /> : <p className="text-sm text-muted">No hay turnos ese día.</p>}
-            />
+            {planilla.permisos.interaccion ? (
+              // Agenda interactiva: la grilla de UNA profesional con chips; «Ver lista» = la de siempre.
+              <CelularPorProfesional
+                turnos={planilla.turnos}
+                profesionales={planilla.profesionales}
+                ahora={planilla.ahora}
+                dia={planilla.dia}
+                bloqueos={planilla.bloqueos}
+                miProfesional={planilla.miProfesional ?? null}
+                lista={
+                  <ListaDelCelular
+                    planilla={planilla}
+                    vacio={diaVacio ? <PasoVacio paso={diaVacio} /> : <p className="text-sm text-muted">No hay turnos ese día.</p>}
+                  />
+                }
+              />
+            ) : (
+              <ListaDelCelular
+                planilla={planilla}
+                vacio={diaVacio ? <PasoVacio paso={diaVacio} /> : <p className="text-sm text-muted">No hay turnos ese día.</p>}
+              />
+            )}
           </div>
           <div className="hidden lg:block">
             <PorProfesional

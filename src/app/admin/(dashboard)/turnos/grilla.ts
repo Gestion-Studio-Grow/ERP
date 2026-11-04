@@ -326,6 +326,119 @@ export function rayaDeAhora(input: { dia: string; hoy: string; ahoraMin: number;
   return ahoraMin - desde;
 }
 
+// ── Agenda interactiva (AGENDA-INTERACCION.md §2 ítems 1 y 7; sólo con `permisos.interaccion`) ──
+
+/** Ancho mínimo de un carril (turnos que se pisan, uno al lado del otro): se lee «Ana · Peeling». */
+export const ANCHO_MIN_CARRIL_REM = 9;
+/** Cuántos carriles entran antes de juntar el resto en «+N»: en el celular (una columna) y en la PC. */
+export const CARRILES_EN_EL_CELULAR = 2;
+export const CARRILES_EN_LA_PC = 3;
+/** Un turno de esta duración o menos va en UNA línea («16:00 Ana · Peeling» + la forma del estado). */
+export const MINUTOS_DE_UNA_LINEA = 30;
+
+/**
+ * Qué profesional se mira en la grilla del celular (una columna): la del usuario si es PROFESSIONAL
+ * (no elige: sólo ve la suya), si no la de `?pro=` si existe, si no la primera (en el orden de la
+ * lista) con turnos vivos ese día, si no la primera. Sin profesionales, ninguna.
+ */
+export function profesionalElegida(input: {
+  profesionales: readonly { id: string }[];
+  turnos: readonly { profesionalId: string; estado: string }[];
+  pedida?: string | null;
+  miProfesional?: string | null;
+}): string | null {
+  const { profesionales, turnos, pedida, miProfesional } = input;
+  if (profesionales.length === 0) return null;
+  const existe = (id: string | null | undefined): id is string => !!id && profesionales.some((p) => p.id === id);
+  if (miProfesional) return existe(miProfesional) ? miProfesional : profesionales[0].id;
+  if (existe(pedida)) return pedida;
+  const conTurnos = profesionales.find((p) => turnos.some((t) => t.profesionalId === p.id && t.estado !== "CANCELLED"));
+  return (conTurnos ?? profesionales[0]).id;
+}
+
+/** ¿Se ofrecen los chips para elegir profesional? No a la PROFESSIONAL ni con una sola. */
+export function hayQueElegirProfesional(profesionales: readonly unknown[], miProfesional?: string | null): boolean {
+  return !miProfesional && profesionales.length > 1;
+}
+
+/** La grilla de UNA columna: la de la clave pedida (o la primera si no está). */
+export function columnaUnica(columnas: readonly ColumnaDeLaGrilla[], clave: string | null): ColumnaDeLaGrilla[] {
+  const una = columnas.find((c) => c.clave === clave) ?? columnas[0];
+  return una ? [una] : [];
+}
+
+/** Turnos que no entran en los carriles visibles: se juntan en un «+N» a la hora del primero. */
+export type DesbordeDeCarriles = { desde: number; ids: string[] };
+
+/**
+ * `carrilesDeLaColumna` con tope: hasta `tope` carriles uno al lado del otro (cada uno con ancho
+ * mínimo); los que caen en un carril de más NO se dibujan encima de otro: van a `ocultos` y se
+ * agrupan en `desbordes` («+N», que abre el cajón). `carrilesMax`: cuántos carriles se ven a la vez
+ * en la columna (para darle ancho mínimo a la columna en la PC).
+ */
+export function carrilesConTope(
+  turnos: readonly TurnoConHorario[],
+  tope: number,
+): {
+  carriles: Map<string, { carril: number; de: number }>;
+  choques: Set<string>;
+  ocultos: Set<string>;
+  desbordes: DesbordeDeCarriles[];
+  carrilesMax: number;
+} {
+  const max = Math.max(1, Math.floor(tope));
+  const { carriles: todos, choques } = carrilesDeLaColumna(turnos);
+  const carriles = new Map<string, { carril: number; de: number }>();
+  const ocultos = new Set<string>();
+  let carrilesMax = turnos.length > 0 ? 1 : 0;
+  for (const [id, c] of todos) {
+    if (c.carril >= max) ocultos.add(id);
+    else {
+      const de = Math.min(c.de, max);
+      carriles.set(id, { carril: c.carril, de });
+      carrilesMax = Math.max(carrilesMax, de);
+    }
+  }
+  const desbordes: DesbordeDeCarriles[] = [];
+  let actual: (DesbordeDeCarriles & { hasta: number }) | null = null;
+  const enOrden = turnos.filter((t) => ocultos.has(t.id)).sort((a, b) => enMinutos(a).desde - enMinutos(b).desde);
+  for (const t of enOrden) {
+    const m = enMinutos(t);
+    if (actual && m.desde < actual.hasta) {
+      actual.ids.push(t.id);
+      actual.hasta = Math.max(actual.hasta, m.hasta);
+    } else {
+      if (actual) desbordes.push({ desde: actual.desde, ids: actual.ids });
+      actual = { desde: m.desde, hasta: m.hasta, ids: [t.id] };
+    }
+  }
+  if (actual) desbordes.push({ desde: actual.desde, ids: actual.ids });
+  return { carriles, choques, ocultos, desbordes, carrilesMax };
+}
+
+/** ¿El turno va en una sola línea? (dura `MINUTOS_DE_UNA_LINEA` o menos). */
+export function esTurnoCorto(t: { inicio: string; fin: string }): boolean {
+  const m = enMinutos(t);
+  return m.hasta - m.desde <= MINUTOS_DE_UNA_LINEA;
+}
+
+/** «16:00 Ana · Peeling»: la línea de un turno corto (el resto va en `title` y en el cajón). */
+export function lineaDelTurno(t: { inicio: string; clienta: string; servicio: string }): string {
+  return `${horaDeMinuto(minutosDelDia(t.inicio))} ${t.clienta} · ${t.servicio}`;
+}
+
+/** El texto entero del turno para el `title` (lo que no entra en la línea). */
+export function tituloDelTurno(t: { inicio: string; fin: string; clienta: string; servicio: string }, extras: readonly (string | null | undefined | false)[] = []): string {
+  const m = enMinutos(t);
+  return [`${horaDeMinuto(m.desde)}–${horaDeMinuto(m.hasta % (24 * 60))}`, t.clienta, t.servicio, ...extras.filter((x): x is string => !!x)].join(" · ");
+}
+
+/** El ancho mínimo de una columna de la PC según cuántos carriles muestra a la vez. */
+export function anchoDeLaColumna(carrilesMax: number): string {
+  const n = Math.max(1, carrilesMax);
+  return n === 1 ? "minmax(9.5rem, 1fr)" : `minmax(${n * ANCHO_MIN_CARRIL_REM}rem, 1fr)`;
+}
+
 // ── La leyenda: los cinco estados, con forma + palabra (como se ven en la grilla) ──
 
 export const LEYENDA_DE_LA_GRILLA: readonly { tipo: TipoMarca; palabra: string }[] = [
