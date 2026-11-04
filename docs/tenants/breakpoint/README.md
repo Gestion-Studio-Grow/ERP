@@ -49,6 +49,7 @@ celular y contraseña; seña por transferencia con comprobante por **WhatsApp** 
 | Levantar todo | `npm run turnero` · E2E: `npm run test:turnero-e2e` |
 | Sync entre pestañas sin servidor (el sitio publicado) | `public/previews/breakpoint/turnero/bus.mjs` (una pestaña del turnero hace de servidor; el club entra sólo si hay un turnero abierto) |
 | E2E del sitio servido (portada → turnero → reserva → seña, con el club en otra pestaña) | `src/tenants/breakpoint/turnero/e2e/sitio.e2e.mjs` (dentro de `npm run test:turnero-e2e`) |
+| **Entrega (04/11): criterio, verificación y recorrido del dueño** | [`ENTREGA.md`](ENTREGA.md) |
 | QA en Chrome real (sesión local) | [`TURNERO-QA-CHROME.md`](TURNERO-QA-CHROME.md) · defectos D21–D34 resueltos en [`TURNERO-QA.md`](TURNERO-QA.md) |
 
 ## Pedidos del club del 15/10 (gestión del club)

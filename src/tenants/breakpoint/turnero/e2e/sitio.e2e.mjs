@@ -104,7 +104,8 @@ console.log("\n▶ portada");
   const p = vigilar(await ctx.newPage(), "portada");
   const r = await p.goto(`${BASE}/`);
   check(r.status() === 200 && r.headers()["x-content-type-options"] === "nosniff", "la portada la sirve el manejador del ERP (nosniff)");
-  check(await p.locator('a[href="/turnero"]').count() === 1 && await p.locator('a[href="/club"]').count() === 0, "front público: «Reservá tu cancha» (/turnero) y sin acceso a la gestión del club (el back)");
+  // La portada de «la cancha desde arriba» (29/10) lleva «Reservá» en el encabezado y en la portada, más anclas por franja y cancha.
+check(await p.locator('a[href="/turnero"]').count() >= 1 && await p.locator('a[href^="/club"]').count() === 0, "front público: «Reservá tu cancha» (/turnero) y sin acceso a la gestión del club (el back)");
   check(!/demo/i.test(await p.textContent("body")), "la portada del club no dice «demo» (ambiente real)");
   check(await p.getAttribute('meta[name="generator"]', "content") === "Gestión Studio Grow", "sello GSG en meta generator");
   await p.setViewportSize({ width: 390, height: 844 });
@@ -112,7 +113,7 @@ console.log("\n▶ portada");
   await p.screenshot({ path: `${SALIDA}/publicado-portada-390.png` });
   await axe(`${BASE}/`, "portada");
   await p.setViewportSize({ width: 1280, height: 860 });
-  await p.click('a[href="/turnero"]');
+  await p.locator('a[href="/turnero"]').first().click();
   await p.waitForSelector("body[data-estado=listo]", { timeout: 10000 }).catch(() => {});
   check(await p.locator(".slot").count() > 0, "desde la portada, «Reservá tu cancha» abre el turnero");
   check(await p.getAttribute("body", "data-modo") === "pedido" && /Pedido por (WhatsApp|mensaje)/.test(await p.textContent("#en-vivo")), "el turnero del sitio es el real: pedido por WhatsApp o, sin número publicado, por mensaje (la demo, con ?demo=1)");
