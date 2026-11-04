@@ -135,6 +135,7 @@ export default async function TurnosCalendarPage({
         ventaAgendaSimplePrendida(interruptores) &&
         roleHasCapability(user.role, "orders:manage") &&
         roleHasCapability(user.role, "agenda:collect"),
+      ventaSimple: ventaAgendaSimplePrendida(interruptores),
       perdonar: roleHasCapability(user.role, "agenda:forgive"),
       anular: anulacionDeCobro(user.role),
     },

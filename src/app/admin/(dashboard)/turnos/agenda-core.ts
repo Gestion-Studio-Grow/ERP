@@ -171,6 +171,8 @@ export type Permisos = {
   sumarProducto?: boolean;
   /** Venta y agenda simples prendido + orders:manage + agenda:collect: «+ Producto» y un solo cobro en «Terminar». */
   cobroConProducto?: boolean;
+  /** Venta y agenda simples prendido: vuelto a la vista y «Listo ✓» con comprobante al cobrar (T2). */
+  ventaSimple?: boolean;
   /** agenda:manage — confirmar, cancelar, reprogramar, dar de baja un saldo. */
   gestionar: boolean;
   /** agenda:collect — cobrar (además, el veredicto de cada turno). */

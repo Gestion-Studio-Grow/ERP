@@ -19,6 +19,8 @@ import { useToast } from "../../ToastProvider";
 import { pesos, type EstadoDelTurno } from "../agenda-core";
 import TeclasDeMedio from "../cerrar/TeclasDeMedio";
 import type { RenglonDelCajon } from "./SumarProductos";
+import VueltoEnEfectivo from "./VueltoEnEfectivo";
+import { vueltoDelCajon, type CobroHecho } from "@/lib/turnos/cobro-del-cajon";
 
 const ETIQUETA: Record<MedioConProducto, string> = {
   EFECTIVO: "efectivo",
@@ -37,6 +39,9 @@ export default function CobroConProductos({
   conTarjeta,
   proximo,
   onListo,
+  alCobrar,
+  telefono,
+  servicio,
   children,
 }: {
   turnoId: string;
@@ -47,6 +52,10 @@ export default function CobroConProductos({
   conTarjeta: boolean;
   proximo?: string | null;
   onListo?: () => void;
+  /** Venta y agenda simples: vuelto a la vista y «Listo ✓» del cajón (ver TerminarTurno). */
+  alCobrar?: (cobro: CobroHecho) => void;
+  telefono?: string | null;
+  servicio?: string | null;
   children: React.ReactNode;
 }) {
   const { showError, showSuccess } = useToast();
@@ -55,6 +64,7 @@ export default function CobroConProductos({
   const [error, setError] = useState("");
   const [enCurso, setEnCurso] = useState<MedioConProducto | null>(null);
   const [pendiente, empezar] = useTransition();
+  const [pagaCon, setPagaCon] = useState("");
   const vino = estado === "PENDING";
   const cuenta = totalDelCobro({ saldo, renglones: renglones.map((r) => ({ qty: r.qty, precio: r.producto.precio })) });
 
@@ -77,13 +87,17 @@ export default function CobroConProductos({
         }
         // El monto del aviso es el que GRABÓ el servidor, nunca la cuenta del navegador.
         const monto = r.total != null ? `${pesos(r.total)} en ` : "en ";
-        const destino = proximo && !vino ? proximo : null;
+        const destino = proximo && !vino && !alCobrar ? proximo : null;
         showSuccess(
           `${vino ? "Vino" : "Terminado"} y cobrado: ${clienta}, ${monto}${ETIQUETA[medio]} (turno y productos).`,
           destino ? { texto: "Reservar el próximo", alTocar: () => router.push(destino) } : undefined,
         );
         if (r.aviso) showError(r.aviso);
-        onListo?.();
+        if (alCobrar) {
+          // El vuelto se calcula sobre lo que grabó el servidor; sin ese monto, ni vuelto ni comprobante.
+          const v = medio === "EFECTIVO" && r.total != null ? vueltoDelCajon(r.total, pagaCon) : null;
+          alCobrar({ clienta, telefono, servicio, monto: r.total ?? null, medio, cuando: new Date(), vuelto: v?.estado === "vuelto" ? v.vuelto : null });
+        } else onListo?.();
       } catch {
         showError("No se pudo cobrar. Probá de nuevo; si sigue, avisá.");
       } finally {
@@ -109,6 +123,7 @@ export default function CobroConProductos({
         <p className="text-sm text-muted">Total a cobrar</p>
         <Plata valor={cuenta.total} tamano="grande" sinCentavos={Number.isInteger(cuenta.total)} />
       </div>
+      {alCobrar && <VueltoEnEfectivo total={cuenta.total} pagaCon={pagaCon} onCambiar={setPagaCon} disabled={pendiente} />}
       <TeclasDeMedio
         tamano="grande"
         etiqueta={`Cobrar ${pesos(cuenta.total)}, turno y productos, y ${vino ? "cerrar como que vino" : "terminar"}, con`}

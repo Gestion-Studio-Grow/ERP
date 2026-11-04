@@ -69,6 +69,8 @@ import TerminarTurno from "./TerminarTurno";
 import MoverTurno from "./MoverTurno";
 import LlegoLaSenia from "./LlegoLaSenia";
 import AutorizarAnulacion from "./AutorizarAnulacion";
+import ListoDelCobro from "./ListoDelCobro";
+import type { CobroHecho } from "@/lib/turnos/cobro-del-cajon";
 import { separarNota } from "@/lib/reserva-publica-notas";
 
 /**
@@ -284,6 +286,8 @@ export default function TurnoCajon({
   // Acá arriba y no en el botón de anular: el cobro anulado deja de ofrecer el botón y el aviso se iría con él.
   // Con el turno al lado: el cajón es el mismo para todos los turnos, y el aviso es de uno.
   const [avisoAlAnular, setAvisoAlAnular] = useState<{ turnoId: string; texto: string } | null>(null);
+  // Venta y agenda simples: lo recién cobrado, para el «Listo ✓» (del turno abierto, no de otro).
+  const [cobrado, setCobrado] = useState<{ turnoId: string; cobro: CobroHecho; vino: boolean } | null>(null);
   const t = turno;
   if (!t) return null;
   const avisoDeComision = avisoAlAnular?.turnoId === t.id ? avisoAlAnular.texto : "";
@@ -295,6 +299,7 @@ export default function TurnoCajon({
   const cobraEste = permisos.cobrar && t.veredicto.ok;
   // E5: el próximo turno, con su ciclo y el mismo servicio, a mano en la ficha y en el aviso de terminado (U8).
   const proximo = permisos.practica && permisos.gestionar ? `/admin/turnos/proximo/${t.id}` : null;
+  const cobradoEste = cobrado?.turnoId === t.id ? cobrado : null;
   // Quién anula (orden del dueño): la dueña, recepción con su código; la profesional, no.
   const anular = cobraEste ? permisos.anular : null;
   const anulables = new Set(
@@ -461,7 +466,11 @@ export default function TurnoCajon({
           </Seccion>
         )}
 
-        {cierra && (
+        {cobradoEste && (
+          <ListoDelCobro cobro={cobradoEste.cobro} proximo={cobradoEste.vino ? null : proximo} onCerrar={onCerrar} />
+        )}
+
+        {cierra && !cobradoEste && (
           <Seccion titulo={t.estado === "PENDING" ? "Vino" : "Terminar"}>
             <div className="pt-3">
               <TerminarTurno
@@ -474,6 +483,13 @@ export default function TurnoCajon({
                 motivoSinCobro={t.veredicto.ok ? undefined : t.veredicto.motivo}
                 proximo={proximo}
                 conProductos={permisos.cobroConProducto}
+                {...(permisos.ventaSimple
+                  ? {
+                      alCobrar: (cobro: CobroHecho) => setCobrado({ turnoId: t.id, cobro, vino: t.estado === "PENDING" }),
+                      telefono: t.telefono,
+                      servicio: t.servicio,
+                    }
+                  : {})}
                 onListo={onCerrar}
               />
             </div>
@@ -501,7 +517,7 @@ export default function TurnoCajon({
           </p>
         )}
 
-        {proximo && t.estado === "COMPLETED" && (
+        {proximo && t.estado === "COMPLETED" && !cobradoEste && (
           <div className="pt-1">
             <Link href={proximo} className={buttonClasses("outline", "md", "w-full")} {...atributosBoton("outline", "md")}>
               Reservar el próximo

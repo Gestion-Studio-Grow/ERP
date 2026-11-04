@@ -314,14 +314,25 @@ export function mensajeRecordarSaldo(d: {
 
 // ── 7. Comprobante de un cobro ────────────────────────────────────────────────
 
-/** «¡Hola Laura! Recibimos $27.000 en efectivo por Piernas completas. ¡Gracias!» (+ saldo si queda). */
-export function mensajeCobro(d: { clienta: string; monto: number; medio?: string | null; servicio?: string | null; saldo?: number | null }): string {
+/**
+ * «¡Hola Laura! Recibimos $27.000 en efectivo por Piernas completas. ¡Gracias!» (+ saldo si queda).
+ * Con `cuando` (el momento del cobro), la fecha va en la frase: «… por *Piernas* el jueves 24 a las 16:00.»
+ */
+export function mensajeCobro(d: {
+  clienta: string;
+  monto: number;
+  medio?: string | null;
+  servicio?: string | null;
+  saldo?: number | null;
+  cuando?: string | Date | null;
+}): string {
   if (!hayPlata(d.monto)) return "";
   const medio = medioEnTexto(d.medio);
   const servicio = limpio(d.servicio);
+  const cuando = d.cuando ? cuandoEnTexto(d.cuando) : "";
   return frases(
     saludo(d.clienta),
-    `Recibimos ${pesosEnTexto(d.monto)}${medio ? ` ${medio}` : ""}${servicio ? ` por *${servicio}*` : ""}.`,
+    `Recibimos ${pesosEnTexto(d.monto)}${medio ? ` ${medio}` : ""}${servicio ? ` por *${servicio}*` : ""}${cuando ? ` ${cuando}` : ""}.`,
     hayPlata(d.saldo) && `Queda un saldo de ${pesosEnTexto(d.saldo)}.`,
     "¡Gracias! 💚",
   );
