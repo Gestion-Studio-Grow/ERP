@@ -56,3 +56,13 @@ credenciales de Meta por variables de entorno del proyecto del negocio (como el 
 7. **Plantillas fuera de ventana** (recordatorio 24 h antes) con su costo por mensaje en la factura del negocio.
 8. **Factura mensual al negocio** (abono + charlas): `planes.ts` del MVP viejo sirve de base, en pesos y por uso.
 9. **Validar con Meta** lo marcado [A VALIDAR] antes de prometerlo en una venta.
+10. **Observaciones bajas de la certificación (CUMPLE, 04/11):** el mensaje que pierde la carrera por la conversación
+    no recibe respuesta (reencolar o contestar «dame un segundo»); dos primeros mensajes simultáneos de un teléfono
+    nuevo chocan en el `upsert` y uno se pierde (releer la conversación ante clave duplicada). `atender.server.ts:133-173`.
+11. **Aviso al local cuando el bot deriva** (hoy sólo queda en el log) y convivencia con otro bot en el mismo número.
+12. **QA clic por clic con un número real de Meta** (sandbox de Cloud API) antes de prenderlo en un negocio.
+
+## 5. Estado al cierre de la tanda 1 (04/11/2026)
+Construida y certificada en `claude/fantasma-agenda` (commits 32838f8, c424f49, e6452c2): interruptor, puertos reales,
+atención con toma de conversación, topes y kill-switch, webhook. Tests: 34 propios + 13 adversariales, todos verdes;
+`tsc` limpio. Apagada por defecto en todos los negocios: prenderla es decisión del dueño por la consola (§C).
