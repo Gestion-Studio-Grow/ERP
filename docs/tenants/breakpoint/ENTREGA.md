@@ -34,6 +34,12 @@ portada nueva del 29/10 («la cancha desde arriba») y al arreglo del paso 5 de 
   cuántas son.
 - **Turnero** (`/turnero`): horarios de referencia, sin precios. El jugador elige día, horario y duración y **manda el
   pedido armado por Instagram** (no hay WhatsApp del club cargado). El club le confirma y le pasa el alias de la seña.
+- **Tienda** (`/turnero#tienda`, también desde la portada): el jugador encarga para **retirar y pagar en el club**.
+  Sin catálogo publicado, los productos salen **sin precio** («Precio en el club», total «A confirmar en el club») y el
+  pedido, con su código **T-XXXX**, se manda **por Instagram** (se copia y queda a la vista). En `/club` → **Buffet** →
+  «Pedidos de la tienda para retirar» → **Cargar pedido recibido por mensaje** (se pega el mensaje) → aparece con los
+  precios del club → **Entregar y cobrar** (descuenta stock y entra a la caja una sola vez; el mismo código no se carga
+  dos veces).
 - **Gestión del club** (`/club`): la demo de gestión (agenda, buffet, caja, clientes…), con datos de ejemplo.
 - `/turnero?demo=1`: la demo completa del turnero (Google simulado, seña simulada), sincronizada con `/club`.
 
