@@ -16,7 +16,7 @@ import { aplicarAccion } from "@/lib/rendiciones/rendicion";
 import { formatearPesos } from "@/lib/rendiciones/dinero";
 import type { Prisma } from "@/generated/prisma/client";
 import { actorActual, avisar, proyectoVisible, registrarCambio, usuariosDeLaPlata, type Actor } from "./gestion.server";
-import { ESTADO_RENDICION_LABEL, SIN_MIGRACION, actorDelMotor, decidirRevision, claveValida, esClaveRepetida, faltaLaMigracion, leerRendicion, medioDelMotor, motivoNoRinde, type AccionDeRevision } from "./rendiciones-core";
+import { ESTADO_RENDICION_LABEL, MAX_COMPROBANTES_MES, SIN_MIGRACION, actorDelMotor, inicioDelMesArgentino, decidirRevision, claveValida, esClaveRepetida, faltaLaMigracion, leerRendicion, medioDelMotor, motivoNoRinde, type AccionDeRevision } from "./rendiciones-core";
 
 export type ResultadoRendicion = { ok: true; repetida?: boolean } | { ok: false; error: string };
 
@@ -85,6 +85,10 @@ export async function rendirGasto(formData: FormData): Promise<ResultadoRendicio
       return { ok: false, error: `Este proyecto ya tiene ${MAX_COMPROBANTES} comprobantes. Avisale a Administración.` };
     }
     const ahora = new Date();
+    // Tope por negocio por mes: las fotos viven en la base (Neon free). Provisional a confirmar.
+    if ((await prisma.proyectoArchivo.count({ where: { tenantId, tipo: "COMPROBANTE", createdAt: { gte: inicioDelMesArgentino(ahora) } } })) >= MAX_COMPROBANTES_MES) {
+      return { ok: false, error: `Este mes el negocio ya cargó ${MAX_COMPROBANTES_MES} comprobantes, el máximo por ahora. Avisale a Dirección para ampliarlo.` };
+    }
     const actorId = actorDelMotor({ personaId, userId: user.id });
     const enviada = aplicarAccion(
       { id: "", gastoId, rindeId: personaId, medio: medioDelMotor(d.medio), ...(d.anticipoId ? { anticipoId: d.anticipoId } : {}), montoCentavos: d.montoCentavos, estado: "borrador", eventos: [] },
@@ -155,17 +159,19 @@ async function revisar(accion: AccionDeRevision, formData: FormData): Promise<Re
     // Del negocio de la sesión: la de otro negocio no existe.
     const f = await prisma.proyectoRendicion.findFirst({
       where: { id, tenantId },
-      select: { id: true, gastoId: true, personaId: true, proyectoId: true, medio: true, anticipoId: true, montoCentavos: true, estado: true, eventos: true, persona: { select: { userId: true, nombre: true } }, gasto: { select: { descripcion: true } } },
+      select: { id: true, gastoId: true, personaId: true, proyectoId: true, medio: true, anticipoId: true, montoCentavos: true, estado: true, eventos: true, persona: { select: { userId: true, nombre: true } }, gasto: { select: { descripcion: true, anuladoEl: true } } },
     });
     if (!f) return { ok: false, error: "Esa rendición no existe." };
     const ahora = new Date();
     const actorId = actorDelMotor({ personaId: a.personaId, userId: user.id });
-    const dec = decidirRevision(f, accion, { rol: a.rol, actorId, fecha: ahora.toISOString(), comentario });
+    const dec = decidirRevision(f, accion, { rol: a.rol, actorId, fecha: ahora.toISOString(), comentario, actorUserId: user.id, rindeUserId: f.persona.userId });
     if (!dec.ok) return { ok: false, error: dec.error };
+    if (accion === "aprobar" && f.gasto.anuladoEl) return { ok: false, error: "El gasto de esta rendición está anulado: no se puede aprobar. Rechazala." };
     const hecho = await tenantTransaction(async (tx) => {
       // El claim: si otro ya la movió (dos clics, dos pestañas), no pasa nada dos veces.
       const r = await tx.proyectoRendicion.updateMany({
-        where: { id, tenantId, estado: dec.desde },
+        // Aprobar exige, dentro del mismo claim, que el gasto siga vivo (nadie lo anuló entre la lectura y acá).
+        where: { id, tenantId, estado: dec.desde, ...(accion === "aprobar" ? { gasto: { anuladoEl: null } } : {}) },
         data: { estado: dec.hacia, eventos: dec.eventos as unknown as Prisma.InputJsonValue, ...(accion === "aprobar" ? { aprobadoPor: a.nombre, aprobadoEl: ahora } : {}) },
       });
       if (r.count === 0) return false;
@@ -177,7 +183,7 @@ async function revisar(accion: AccionDeRevision, formData: FormData): Promise<Re
       }
       return true;
     });
-    if (!hecho) return { ok: false, error: "Alguien ya la revisó. Recargá para ver cómo quedó." };
+    if (!hecho) return { ok: false, error: "Alguien ya la revisó o anuló su gasto. Recargá para ver cómo quedó." };
     await auditAdmin({ action: `proyecto.rendicion.${accion}`, entity: "ProyectoRendicion", entityId: id, changes: { desde: dec.desde, hacia: dec.hacia } });
     refrescar(f.proyectoId);
     return { ok: true };

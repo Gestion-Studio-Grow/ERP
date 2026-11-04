@@ -15,8 +15,14 @@ export type Centavos = number;
 /** Fecha ISO `AAAA-MM-DD` (o ISO completo). El dominio no usa objetos Date. */
 export type FechaISO = string;
 
-/** Con qué se pagó el gasto rendido. */
-export type MedioPago = "propio_a_reintegrar" | "efectivo_anticipo";
+/**
+ * Con qué se pagó el gasto rendido. ÚNICA fuente de los valores: son los mismos que guarda la base
+ * ("ProyectoRendicion"."medio", CHECK `ProyectoRendicion_medio_check` de `20261104120000_rendiciones`; un test lo controla).
+ * - PROPIO: de su bolsillo, se le reintegra.
+ * - ANTICIPO: con un anticipo; se cierra con la cuadratura del anticipo.
+ */
+export const MEDIOS_PAGO = ["PROPIO", "ANTICIPO"] as const;
+export type MedioPago = (typeof MEDIOS_PAGO)[number];
 
 export type EstadoRendicion = "borrador" | "enviada" | "devuelta" | "rechazada" | "aprobada" | "reintegrada";
 
@@ -55,18 +61,24 @@ export interface Anticipo {
   montoCentavos: Centavos;
   /** Lo que la persona ya devolvió en efectivo. */
   devueltoCentavos: Centavos;
+  /** El faltante que la productora ya le reintegró (gastó más que el anticipo). Sin dato: 0. */
+  reintegradoCentavos?: Centavos;
 }
 
 export interface Cuadratura {
   anticipado: Centavos;
-  /** Gastos pagados con el anticipo (no rechazados). */
+  /** Gastos pagados con el anticipo YA APROBADOS (aprobada o reintegrada). Lo que espera revisión no cuenta. */
   rendido: Centavos;
+  /** Pagados con el anticipo que todavía esperan revisión (borrador, enviada, devuelta): informativo. */
+  pendiente: Centavos;
   devuelto: Centavos;
-  /** anticipado − rendido − devuelto. > 0: tiene que devolver; < 0: gastó de más. */
+  /** Faltante ya reintegrado por la productora. */
+  reintegrado: Centavos;
+  /** anticipado + reintegrado − rendido − devuelto. > 0: tiene que devolver; < 0: gastó de más (falta reintegrar). */
   diferencia: Centavos;
   /** Sobrante a devolver (INGRESO «devolución de anticipo»). */
   aDevolver: Centavos;
-  /** Faltante + lo pagado de su bolsillo: lo que la productora le reintegra. */
+  /** Lo que la productora TODAVÍA le debe: faltante sin reintegrar + lo de su bolsillo aprobado y no reintegrado. */
   aReintegrar: Centavos;
   cuadra: boolean;
   mensaje: string;

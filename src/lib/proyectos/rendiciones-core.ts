@@ -4,13 +4,12 @@
 // ============================================================================
 
 import { aplicarAccion } from "@/lib/rendiciones/rendicion";
-import { pesos as aCentavos } from "@/lib/rendiciones/dinero";
-import type { EstadoRendicion, EventoRendicion, MedioPago, Rendicion, RolActor } from "@/lib/rendiciones/tipos";
-import { leerNumero } from "./core";
+import { MEDIOS_PAGO, type EstadoRendicion, type EventoRendicion, type MedioPago, type Rendicion, type RolActor } from "@/lib/rendiciones/tipos";
 import { puedeAprobarRendicion, puedeRendir, type RolGestion } from "./gestion-core";
 
-export const MEDIOS_RENDICION = ["PROPIO", "ANTICIPO"] as const;
-export type MedioRendicion = (typeof MEDIOS_RENDICION)[number];
+/** Los medios salen del motor (`tipos.ts`, única fuente; los mismos valores que el CHECK de la base). */
+export const MEDIOS_RENDICION = MEDIOS_PAGO;
+export type MedioRendicion = MedioPago;
 export const MEDIO_RENDICION_LABEL: Record<MedioRendicion, string> = { PROPIO: "De mi bolsillo", ANTICIPO: "Con un anticipo" };
 
 export const ESTADO_RENDICION_LABEL: Record<EstadoRendicion, string> = {
@@ -39,7 +38,46 @@ export function esClaveRepetida(e: unknown): boolean {
   return (e as { code?: unknown } | null)?.code === "P2002";
 }
 
-export const medioDelMotor = (m: string): MedioPago => (m === "ANTICIPO" ? "efectivo_anticipo" : "propio_a_reintegrar");
+/** El medio guardado → el del motor. Son los mismos valores; la base sólo admite esos dos (CHECK). */
+export const medioDelMotor = (m: string): MedioPago => (m === "ANTICIPO" ? "ANTICIPO" : "PROPIO");
+
+/** Filtro de Prisma: todo archivo del proyecto MENOS los comprobantes de Rendí (esos se ven sólo desde Rendiciones). */
+export const SIN_COMPROBANTES = { tipo: { not: "COMPROBANTE" } } as const;
+
+/** Mensaje cuando se quiere anular un gasto que está en una rendición viva. */
+export const GASTO_EN_RENDICION = "Este gasto está en una rendición: rechazala desde Rendiciones.";
+
+/**
+ * Tope de comprobantes nuevos por negocio por mes (la foto vive en la base: Neon free). PROVISIONAL A CONFIRMAR con
+ * MIA; si se queda corto, la salida es pasar los comprobantes a la nube (R2).
+ */
+export const MAX_COMPROBANTES_MES = 200;
+
+/** Primer instante del mes calendario argentino (UTC−3, sin horario de verano) en el que cae `ahora`. */
+export function inicioDelMesArgentino(ahora: Date): Date {
+  const ar = new Date(ahora.getTime() - 3 * 3600_000);
+  return new Date(Date.UTC(ar.getUTCFullYear(), ar.getUTCMonth(), 1, 3));
+}
+
+/**
+ * Un importe como lo escribe una persona en Argentina, a centavos. Sólo dígitos, puntos de miles y coma decimal
+ * (o un punto decimal con 1 o 2 dígitos: «12.5»). Nada de «0x10», «1e3», signos ni más de dos decimales: `null`.
+ */
+export function leerMontoArgentino(texto: string): number | null {
+  const s = texto.trim().replace(/^\$\s*/, "");
+  let entero: string;
+  let dec = "";
+  let m: RegExpMatchArray | null;
+  if ((m = s.match(/^(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?$/))) {
+    entero = m[1].replace(/\./g, "");
+    dec = m[2] ?? "";
+  } else if ((m = s.match(/^(\d+)\.(\d{1,2})$/))) {
+    entero = m[1];
+    dec = m[2];
+  } else return null;
+  if (entero.length > 12) return null;
+  return Number(entero) * 100 + Number(dec.padEnd(2, "0"));
+}
 const esEstado = (s: string): s is EstadoRendicion => s in ESTADO_RENDICION_LABEL;
 
 /** La fila de la base, en la forma del motor. Quien rinde se identifica por su persona del equipo. */
@@ -75,8 +113,7 @@ export interface DatosDeRendicion {
 export function leerRendicion(d: { descripcion: string; rubro: string; monto: string; medio: string; anticipoId: string; fecha: string }): { ok: true; datos: DatosDeRendicion } | { ok: false; error: string } {
   const descripcion = d.descripcion.trim().slice(0, 200);
   if (!descripcion) return { ok: false, error: "Escribí qué pagaste (por ejemplo: «Taxi al predio»)." };
-  const monto = leerNumero(d.monto);
-  const montoCentavos = Number.isFinite(monto) ? aCentavos(monto) : 0;
+  const montoCentavos = leerMontoArgentino(d.monto) ?? 0;
   if (!(montoCentavos > 0) || !Number.isSafeInteger(montoCentavos) || montoCentavos > 100_000_000_00) return { ok: false, error: "Escribí cuánto pagaste: un importe mayor a cero." };
   if (!(MEDIOS_RENDICION as readonly string[]).includes(d.medio)) return { ok: false, error: "Elegí si lo pagaste de tu bolsillo o con un anticipo." };
   const medio = d.medio as MedioRendicion;
@@ -110,11 +147,12 @@ export function muestraRevision(rol: RolGestion, actorId: string, rindePersonaId
 export function decidirRevision(
   fila: Parameters<typeof rendicionDelMotor>[0],
   accion: AccionDeRevision,
-  ctx: { rol: RolGestion; actorId: string; fecha: string; comentario?: string },
+  ctx: { rol: RolGestion; actorId: string; fecha: string; comentario?: string; actorUserId?: string; rindeUserId?: string | null },
 ): { ok: true; desde: EstadoRendicion; hacia: EstadoRendicion; eventos: EventoRendicion[] } | { ok: false; error: string } {
-  if (!puedeAprobarRendicion(ctx.rol, ctx.actorId, fila.personaId)) {
-    return { ok: false, error: ctx.actorId === fila.personaId ? "Nadie aprueba lo propio: esta rendición es tuya." : "Sólo Dirección o Administración revisan rendiciones." };
-  }
+  // Lo propio se mira por persona Y por usuario: si la ficha de quien rindió se desactivó, su actor pasa a `user:<id>`.
+  const esPropia = ctx.actorId === fila.personaId || (!!ctx.actorUserId && !!ctx.rindeUserId && ctx.actorUserId === ctx.rindeUserId);
+  if (esPropia) return { ok: false, error: "Nadie aprueba lo propio: esta rendición es tuya." };
+  if (!puedeAprobarRendicion(ctx.rol, ctx.actorId, fila.personaId)) return { ok: false, error: "Sólo Dirección o Administración revisan rendiciones." };
   const r = rendicionDelMotor(fila);
   const res = aplicarAccion(r, accion, { fecha: ctx.fecha, actorId: ctx.actorId, rolActor: ctx.rol as RolActor, comentario: ctx.comentario });
   if (!res.ok) return { ok: false, error: `${res.motivo}.` };
