@@ -1,7 +1,7 @@
 # Trabajar GSG 100 % desde la tablet (sin PC)
 
-> Decisión del dueño, 2026-11-04. Equipo: Galaxy Tab S6 Lite 2022 (SM-P613, 4 GB RAM, One UI 6.1) + teclado
-> Bluetooth. Apps: Claude (sesiones en la nube), GitHub Mobile y Chrome (Vercel y Neon por web).
+> Decisión del dueño, 2026-11-04. Equipo: Galaxy Tab S6 Lite 2022 (SM-P613, 4 GB RAM, One UI 6.1) con S Pen, sin
+> teclado físico (se escribe con S Pen a texto, Gboard y dictado por voz). Apps: Claude (sesiones en la nube), GitHub Mobile y Chrome (Vercel y Neon por web).
 > Diseño consultado con Fable (planificación), ejecución en Opus.
 
 ## Principio
@@ -44,5 +44,9 @@ escritorio». Los secretos los pega el dueño ahí, nunca en el chat.
 - *Batería → Límites de uso en segundo plano*: Claude, GitHub y WhatsApp Business en «Nunca se suspenden».
 - Barra de tareas, y par de apps Claude + Chrome guardado.
 - Chrome sin precarga y con 5 pestañas como máximo.
-- Atajos de texto: `xsm` → `/sesion-movil`, `xst` → `status`, `xsg` → `seguimos`.
-- Rutina de *Modos y rutinas*: al conectar el teclado se activa el modo Trabajo.
+- Gboard como teclado, con dictado en español sin conexión. Atajos del diccionario personal: `xsm` →
+  `/sesion-movil`, `xst` → `status`, `xsg` → `seguimos`.
+- S Pen: «S Pen a texto» activado. En el menú del lápiz (Air command): Claude, GitHub, Samsung Notes, «Escritura
+  en pantalla» y «Selección inteligente». Para marcar un cambio de pantalla: captura, se marca con el lápiz y se
+  comparte a Claude.
+- Rutina de *Modos y rutinas*: modo Trabajo de lunes a viernes de 9 a 19, que se revierte al terminar.
