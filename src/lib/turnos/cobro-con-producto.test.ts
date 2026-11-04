@@ -4,6 +4,9 @@ import {
   buscarProductos,
   claveDelCobro,
   claveDelPedido,
+  coincideConLoGrabado,
+  ETIQUETA_DE_TARJETA,
+  rechazoDeCantidad,
   esMedioConProducto,
   esMedioDeTarjeta,
   leerClave,
@@ -54,4 +57,28 @@ test("buscarProductos · sin acentos ni mayúsculas, hasta 8", () => {
   assert.deepEqual(buscarProductos(lista, "crema").map((p) => p.name), ["Crema de manos", "CREMA corporal"]);
   assert.deepEqual(buscarProductos(lista, "serum").map((p) => p.name), ["Sérum facial"]);
   assert.equal(buscarProductos(Array.from({ length: 20 }, (_, i) => ({ name: `P${i}` })), "").length, 8);
+});
+
+test("rechazoDeCantidad · por unidad de a enteros; por kilo con decimales", () => {
+  assert.equal(rechazoDeCantidad("UNIT", 1), null);
+  assert.equal(rechazoDeCantidad("UNIT", 3), null);
+  assert.match(rechazoDeCantidad("UNIT", 0.001) ?? "", /entero/);
+  assert.match(rechazoDeCantidad("UNIT", 1.5) ?? "", /entero/);
+  assert.match(rechazoDeCantidad("UNIT", 0) ?? "", /mayor a cero/);
+  assert.match(rechazoDeCantidad("WEIGHT", -1) ?? "", /mayor a cero/);
+  assert.equal(rechazoDeCantidad("WEIGHT", 0.25), null);
+});
+
+test("coincideConLoGrabado · mismos productos, cantidades y medio; si no, no", () => {
+  const grabado = { method: "EFECTIVO", renglones: [{ productId: "a", qty: 1 }, { productId: "b", qty: 2 }] };
+  assert.equal(coincideConLoGrabado({ method: "EFECTIVO", renglones: [{ productId: "b", qty: 2 }, { productId: "a", qty: 1 }] }, grabado), true);
+  assert.equal(coincideConLoGrabado({ method: "TRANSFERENCIA", renglones: grabado.renglones }, grabado), false);
+  assert.equal(coincideConLoGrabado({ method: "EFECTIVO", renglones: [{ productId: "a", qty: 1 }] }, grabado), false);
+  assert.equal(coincideConLoGrabado({ method: "EFECTIVO", renglones: [{ productId: "a", qty: 1 }, { productId: "b", qty: 3 }] }, grabado), false);
+  assert.equal(coincideConLoGrabado({ method: "EFECTIVO", renglones: [{ productId: "a", qty: 1 }, { productId: "c", qty: 2 }] }, grabado), false);
+});
+
+test("ETIQUETA_DE_TARJETA · Débito y Crédito en criollo", () => {
+  assert.equal(ETIQUETA_DE_TARJETA.DEBITO, "Débito");
+  assert.equal(ETIQUETA_DE_TARJETA.CREDITO, "Crédito");
 });

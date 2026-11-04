@@ -8,7 +8,10 @@
  *   · stock que no alcanza · nada escrito (ni cobro, ni orden, ni stock, ni turno);
  *   · doble envío (seguido y a la vez) con la misma clave · un solo cobro y una sola orden;
  *   · B · no ve los productos de A, no cobra el turno de A, no vende un producto de A;
- *   · caja cerrada (DB-5) · rechazo con el motivo y nada escrito.
+ *   · caja cerrada (DB-5) · rechazo con el motivo y nada escrito;
+ *   · reenvío con la misma clave · idéntico → ok con el total GRABADO; con otros productos → ok:false
+ *     con lo que sí se cobró y nada nuevo escrito, en A y en B;
+ *   · producto por unidad con 0,001 → rechazo y nada escrito, en A y en B.
  *
  * Sin Postgres local se saltea diciendo por qué (en CI falla), como los demás `*-postgres.test.ts`.
  */
@@ -215,6 +218,53 @@ test("B · no ve los productos de A, no cobra el turno de A ni vende un producto
   assert.deepEqual(await foto(s, turnoB, cremaB), { status: "CONFIRMED", ...vacio });
 });
 
+test("reenvío con la misma clave · idéntico → total real; otros productos → ok:false y nada nuevo (A y B)", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { cobrarTurnoConProductos } = await import("./cobro-con-producto-actions");
+  for (const [negocio, n] of [[s.base.a, s.a], [s.base.b, s.b]] as const) {
+    const turno = await n.turno("Reenvío");
+    const p1 = await n.producto("Crema reenvío", 5);
+    const p2 = await n.producto("Sérum reenvío", 5, 9000);
+    const clave = randomUUID();
+    const r1 = await como(negocio, () => cobrarTurnoConProductos(campos(turno, [{ productId: p1, qty: 1 }], clave)));
+    assert.deepEqual(r1.ok && r1.total, 24000, JSON.stringify(r1));
+
+    const igual = await como(negocio, () => cobrarTurnoConProductos(campos(turno, [{ productId: p1, qty: 1 }], clave)));
+    assert.equal(igual.ok, true, JSON.stringify(igual));
+    assert.equal(igual.ok && igual.total, 24000);
+    assert.equal(igual.ok && igual.orderCode, r1.ok ? r1.orderCode : -1);
+
+    const otros = await como(negocio, () =>
+      cobrarTurnoConProductos(campos(turno, [{ productId: p1, qty: 1 }, { productId: p2, qty: 1 }], clave)),
+    );
+    assert.deepEqual(otros, { ok: false, error: "Ese cobro ya se hizo con otros productos: $24.000. Si falta algo, sumalo como venta aparte." });
+
+    const otroMedio = await como(negocio, () =>
+      cobrarTurnoConProductos(fd({ appointmentId: turno, method: "TRANSFERENCIA", productos: JSON.stringify([{ productId: p1, qty: 1 }]), clave, facturar: "false" })),
+    );
+    assert.equal(otroMedio.ok, false);
+
+    assert.deepEqual(await foto(s, turno, p1), { status: "COMPLETED", cobros: [18000], ordenes: 1, stock: 4, libroTurno: [18000], libroVenta: [6000], ventasDeStock: [-1] });
+    assert.deepEqual(await foto(s, turno, p2), { status: "COMPLETED", cobros: [18000], ordenes: 0, stock: 5, libroTurno: [18000], libroVenta: [], ventasDeStock: [] });
+  }
+});
+
+test("producto por unidad con 0,001 · rechazo y nada escrito (A y B)", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { cobrarTurnoConProductos } = await import("./cobro-con-producto-actions");
+  for (const [negocio, n] of [[s.base.a, s.a], [s.base.b, s.b]] as const) {
+    const turno = await n.turno("Milésima");
+    const p = await n.producto("Crema milésima", 5);
+    const r = await como(negocio, () => cobrarTurnoConProductos(campos(turno, [{ productId: p, qty: 0.001 }])));
+    assert.equal(r.ok, false);
+    assert.match(r.ok ? "" : r.error, /entero/);
+    assert.deepEqual(await foto(s, turno, p), { status: "CONFIRMED", cobros: [], ordenes: 0, stock: 5, libroTurno: [], libroVenta: [], ventasDeStock: [] });
+  }
+});
+
+// Último: cierra la caja de hoy del negocio A.
 test("caja cerrada (DB-5) · el cobro con productos se rechaza con el motivo y no escribe nada", async (t) => {
   const s = await preparar(t);
   if (!s) return;

@@ -64,7 +64,17 @@ import {
 import { estadoCobroTurno, puedeCompletarse, type MetodoDePago } from "./cobros";
 import { puedeCobrarEsteTurno } from "./cobro-mostrador";
 import { leerFilasDeTurnos } from "./sin-cerrar.server";
-import { claveDelCobro, claveDelPedido, esMedioConProducto, esMedioDeTarjeta, leerClave, leerRenglones } from "./cobro-con-producto";
+import {
+  claveDelCobro,
+  claveDelPedido,
+  coincideConLoGrabado,
+  esMedioConProducto,
+  esMedioDeTarjeta,
+  leerClave,
+  leerRenglones,
+  rechazoDeCantidad,
+} from "./cobro-con-producto";
+import { pesos } from "@/app/admin/(dashboard)/turnos/agenda-core";
 
 export type ResultadoCobroConProducto =
   | { ok: true; aviso?: string; orderCode?: number; total?: number }
@@ -80,7 +90,8 @@ const NO_COBRA = "Cobrar un turno lo hace quien cobra los turnos.";
 const NO_VENDE = "Sumar productos al cobro lo hace quien vende en el mostrador.";
 const SIN_TARJETA = "Este negocio todavía no cobra con tarjeta: elegí otro medio.";
 const NO_SE_COBRO = "No se pudo cobrar y no quedó nada a medias: no se registró ningún cobro ni venta. Probá de nuevo; si sigue, avisá.";
-const SERIALIZABLE = Prisma.TransactionIsolationLevel.Serializable;
+const YA_REGISTRADO = "Ese cobro ya se registró. Recargá la agenda para ver cómo quedó.";
+const SERIALIZABLE =Prisma.TransactionIsolationLevel.Serializable;
 /** Reintentos ante el choque del correlativo de la orden (max(code)+1 bajo concurrencia). */
 const REINTENTOS_DE_CODIGO = 3;
 
@@ -154,6 +165,41 @@ function comoRechazo(e: unknown): string {
 }
 
 /**
+ * El reenvío con la misma clave (doble toque, reintento, dos a la vez): lee la orden por su clave y
+ * el cobro del turno por la suya, con el tenantId, y devuelve el total y el código REALES. Si el
+ * reenvío pide otros productos u otro medio, no se da por hecho: lo dice, con lo que sí se cobró.
+ */
+async function loQueYaSeGrabo(p: {
+  tenantId: string;
+  appointmentId: string;
+  claveCobro: string;
+  clavePedido: string;
+  method: string;
+  renglones: readonly { productId: string; qty: number }[];
+}): Promise<ResultadoCobroConProducto> {
+  const [orden, cobro] = await Promise.all([
+    prisma.order.findFirst({
+      where: { tenantId: p.tenantId, idempotencyKey: p.clavePedido },
+      select: { code: true, total: true, paymentMethod: true, items: { select: { productId: true, quantity: true } } },
+    }),
+    prisma.collection.findFirst({
+      where: { tenantId: p.tenantId, idempotencyKey: p.claveCobro, appointmentId: p.appointmentId },
+      select: { amount: true },
+    }),
+  ]);
+  if (!orden) return { ok: false, error: YA_REGISTRADO };
+  const total = Math.round(((cobro ? cobro.amount.toNumber() : 0) + orden.total) * 100) / 100;
+  const igual = coincideConLoGrabado(
+    { method: p.method, renglones: p.renglones },
+    { method: orden.paymentMethod, renglones: orden.items.map((i) => ({ productId: i.productId, qty: i.quantity })) },
+  );
+  if (!igual) {
+    return { ok: false, error: `Ese cobro ya se hizo con otros productos: ${pesos(total)}. Si falta algo, sumalo como venta aparte.` };
+  }
+  return { ok: true, orderCode: orden.code, total };
+}
+
+/**
  * Termina el turno cobrando su saldo y los productos sumados, con UN medio, en UNA transacción.
  *
  * Campos: `appointmentId`, `method` (EFECTIVO · TRANSFERENCIA · MERCADOPAGO · DEBITO · CREDITO),
@@ -206,6 +252,12 @@ export async function cobrarTurnoConProductos(formData: FormData): Promise<Resul
   });
   if (productos.length !== leidos.renglones.length) {
     return { ok: false, error: "Uno de los productos ya no está a la venta. Sacalo y volvé a intentar." };
+  }
+  // Por unidad, de a enteros (con la unidad de la BASE, no la que diga el navegador).
+  for (const r of leidos.renglones) {
+    const p = productos.find((x) => x.id === r.productId);
+    const motivo = p ? rechazoDeCantidad(p.saleUnit, r.qty) : null;
+    if (motivo) return { ok: false, error: `${p!.name}: ${motivo}` };
   }
 
   const input: OrderInput = {
@@ -326,9 +378,9 @@ export async function cobrarTurnoConProductos(formData: FormData): Promise<Resul
   }
 
   if (settled.outcome === "race" || settled.value.dup) {
-    // El otro envío del mismo cobro ya cobró, vendió y terminó el turno.
+    // El otro envío del mismo cobro ya cobró, vendió y terminó el turno: se devuelve LO GRABADO.
     revalidatePath("/admin/turnos");
-    return { ok: true };
+    return loQueYaSeGrabo({ tenantId, appointmentId, claveCobro, clavePedido, method, renglones: leidos.renglones });
   }
   if (settled.outcome === "degraded") {
     logger.warn("caja", "cobrarTurnoConProductos: cobro SIN puente al libro (migración de cobros parciales sin aplicar)", { tenantId, appointmentId });

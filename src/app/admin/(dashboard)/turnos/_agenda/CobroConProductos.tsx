@@ -75,10 +75,11 @@ export default function CobroConProductos({
           setError(r.error);
           return;
         }
-        const total = r.total ?? cuenta.total;
+        // El monto del aviso es el que GRABÓ el servidor, nunca la cuenta del navegador.
+        const monto = r.total != null ? `${pesos(r.total)} en ` : "en ";
         const destino = proximo && !vino ? proximo : null;
         showSuccess(
-          `${vino ? "Vino" : "Terminado"} y cobrado: ${clienta}, ${pesos(total)} en ${ETIQUETA[medio]} (turno y productos).`,
+          `${vino ? "Vino" : "Terminado"} y cobrado: ${clienta}, ${monto}${ETIQUETA[medio]} (turno y productos).`,
           destino ? { texto: "Reservar el próximo", alTocar: () => router.push(destino) } : undefined,
         );
         if (r.aviso) showError(r.aviso);

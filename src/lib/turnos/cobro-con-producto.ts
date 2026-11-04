@@ -25,7 +25,10 @@ export function esMedioDeTarjeta(m: MedioConProducto): boolean {
   return m === "DEBITO" || m === "CREDITO";
 }
 
-export type RenglonPedido = { productId: string; qty: number };
+/** Débito y Crédito en criollo para el historial del turno (los demás medios, con su etiqueta de siempre). */
+export const ETIQUETA_DE_TARJETA: Readonly<Record<string, string>> = { DEBITO: "Débito", CREDITO: "Crédito" };
+
+export type RenglonPedido ={ productId: string; qty: number };
 
 /** Tope de renglones y de cantidad: un turno no se lleva un depósito. */
 export const MAX_RENGLONES = 30;
@@ -56,6 +59,37 @@ export function leerRenglones(raw: unknown): { ok: true; renglones: RenglonPedid
     if (qty > MAX_CANTIDAD) return { ok: false, error: `La cantidad de un producto no puede pasar de ${MAX_CANTIDAD}.` };
   }
   return { ok: true, renglones: [...porProducto].map(([productId, qty]) => ({ productId, qty })) };
+}
+
+/**
+ * En el cobro con el turno, un producto por unidad se vende de a enteros (1, 2, 3…); los por kilo
+ * siguen aceptando decimales. Devuelve el motivo del rechazo, o null si la cantidad sirve. PURA.
+ */
+export function rechazoDeCantidad(saleUnit: "UNIT" | "WEIGHT", qty: number): string | null {
+  if (!Number.isFinite(qty) || qty <= 0) return "La cantidad de cada producto tiene que ser mayor a cero.";
+  if (saleUnit === "UNIT" && !Number.isInteger(qty)) return "Los productos por unidad van de a uno entero (1, 2, 3…), sin decimales.";
+  return null;
+}
+
+/**
+ * ¿El reenvío (misma clave) pide lo MISMO que quedó grabado? Mismos productos con las mismas
+ * cantidades y el mismo medio. Si no, el segundo envío no se cobra ni se da por hecho. PURA.
+ */
+export function coincideConLoGrabado(
+  pedido: { method: string; renglones: readonly RenglonPedido[] },
+  grabado: { method: string | null; renglones: readonly { productId: string | null; qty: number }[] },
+): boolean {
+  if (grabado.method !== pedido.method) return false;
+  const suma = (rs: readonly { productId: string | null; qty: number }[]) => {
+    const m = new Map<string, number>();
+    for (const r of rs) m.set(r.productId ?? "", round3((m.get(r.productId ?? "") ?? 0) + r.qty));
+    return m;
+  };
+  const a = suma(pedido.renglones);
+  const b = suma(grabado.renglones);
+  if (a.size !== b.size) return false;
+  for (const [id, qty] of a) if (b.get(id) !== qty) return false;
+  return true;
 }
 
 function round3(n: number): number {

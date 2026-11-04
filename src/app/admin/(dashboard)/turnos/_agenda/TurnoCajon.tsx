@@ -37,6 +37,7 @@ import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { ALIAS_SENIA_PROVISIONAL, mensajePedidoDeSenia } from "@/lib/turnos/mensajes-whatsapp";
 import { marcarSeniaPedida } from "@/lib/turnos/senia-actions";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
+import { ETIQUETA_DE_TARJETA } from "@/lib/turnos/cobro-con-producto";
 import {
   claseDeCobro,
   cobrosAnulables,
@@ -576,7 +577,7 @@ export default function TurnoCajon({
               {t.cobros.map((c, i) => {
                 const clase = claseDeCobro(c.note);
                 const medio =
-                  METODO_LABEL[c.method as MetodoDePago] ?? c.method;
+                  METODO_LABEL[c.method as MetodoDePago] ?? ETIQUETA_DE_TARJETA[c.method] ?? c.method;
                 // Debajo del renglón y no en su tecla: en el cajón de 480 px dos botones al lado
                 // del importe dejaban el medio en «E…».
                 const autoriza =
