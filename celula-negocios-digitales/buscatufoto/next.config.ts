@@ -10,6 +10,9 @@ const exportar = process.env.BTF_EXPORT === "1";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  // Raíz explícita: sin esto Turbopack sube hasta el package-lock del ERP y toma su `src/proxy.ts`
+  // (módulos `@/lib/...` que no existen acá).
+  turbopack: { root: import.meta.dirname },
   ...(exportar ? { output: "export" as const, assetPrefix: "/btf", images: { unoptimized: true } } : {}),
 };
 
