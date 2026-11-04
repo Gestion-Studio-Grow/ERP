@@ -443,7 +443,7 @@ export async function buscarEnGestion(a: Actor, texto: string) {
       : [],
     permite("archivos")
       ? prisma.proyectoArchivo.findMany({
-          where: { tenantId, nombre: contiene, proyecto: visibles },
+          where: { tenantId, nombre: contiene, proyecto: visibles, tipo: { not: "COMPROBANTE" } },
           orderBy: { createdAt: "desc" },
           take: 20,
           select: { id: true, nombre: true, tipo: true, proyectoId: true, proyecto: { select: { nombre: true } } },
