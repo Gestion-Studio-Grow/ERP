@@ -1,5 +1,9 @@
 # Plan de ganancias del GSG Lab — 29/10/2026
 
+> ⚠️ **Reemplazado en parte por el ciclo del 04/11/2026: ver `CICLO-2026-11-04.md`.** Cambios: Fantasma suelto murió
+> (pasa a Fantasma Agenda, cobro por uso); Testigo sube al 2.º lugar; la leyenda de IIBB CABA entra como gancho de
+> Facturita con fecha 1/1/2027; Buzón ARCA y Disputa Ganada murieron.
+
 > **Autor:** ejecutivo del Lab (por encargo del dueño: «el lab tiene que generar ganancias»).
 > **Proceso:** tesis → Challenger (veredicto: 1 herido, 2 herido, 3 sostiene con condición) → este plan corregido.
 > **Regla que manda:** DEMO → VENTA → INVERSIÓN. No se gasta un peso antes de cobrar. Todo lo marcado §C

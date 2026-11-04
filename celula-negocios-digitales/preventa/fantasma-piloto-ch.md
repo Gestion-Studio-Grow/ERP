@@ -1,4 +1,9 @@
-# Fantasma · piloto en CH Estética — kit
+# Fantasma Agenda · piloto en CH Estética — kit
+
+> **Actualizado por el ciclo del 04/11/2026** (`../CICLO-2026-11-04.md`): Fantasma suelto murió (el agente de IA de
+> Meta es gratis); lo que se vende es **Fantasma Agenda**, que reserva en la agenda del ERP. Cobro **por uso**: abono
+> chico + ≥ $900 por charla (una tarifa plana de $45.000 pierde plata con 300 charlas). Preventa: seña de $60.000.
+> Antes de prenderlo: certificación adversarial (escribe en la agenda y cobra seña).
 
 > Uso interno. Lo habla el dueño con CH (§C). Precios: **provisional a confirmar por el dueño.**
 
@@ -14,7 +19,7 @@ Pedirle a quien atiende el WhatsApp de CH que, cada mañana, anote los mensajes 
 ## Paso 1 · propuesta del piloto (texto para el dueño)
 «Te propongo probar 30 días un asistente que contesta el WhatsApp de CH cuando están cerrados: responde precios con
 tu lista, sugiere un horario y deja el pedido anotado. A la mañana ustedes confirman el turno, como hoy. Cuesta
-$__ por mes. Si en 30 días no te trajo más turnos que lo que cuesta, lo cortamos y no pagás el mes siguiente.»
+un abono chico más $__ por charla atendida. Si en 30 días no te trajo más turnos que lo que cuesta, lo cortamos y no pagás el mes siguiente.»
 
 ## Qué se mide
 - Charlas atendidas de noche · turnos pedidos · turnos que se concretaron · plata de esos turnos.
