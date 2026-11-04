@@ -36,7 +36,7 @@ import { roleHasCapability } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { ventaAgendaSimplePrendida } from "@/cambios/interruptores";
-import HoyDelNegocio, { HoyDelNegocioCargando } from "./HoyDelNegocio";
+import { HoySiCorresponde } from "./HoyDelNegocio";
 import BuscadorApps from "./BuscadorApps";
 import ParaAtenderHoy, { ParaAtenderHoyCargando } from "./ParaAtenderHoy";
 import Tile from "./Tile";
@@ -52,12 +52,6 @@ export default async function InicioApps() {
   const misApps = fijadasVisibles(leerFijadas((await cookies()).get(COOKIE_FIJADAS)?.value, user.id), visibles);
   const fijadas = new Set(misApps.map((a) => a.id));
   const conNumero = enOrdenDePantalla(misApps, secciones, visibles).filter((app) => llevaNumero(app, user.role));
-  // «Hoy» (venta-agenda-simple, T1): sólo con el interruptor prendido y para quien ve la plata
-  // (`reports:read`, la dueña o el dueño). Apagado, el Inicio es el de siempre.
-  const hoyTenantId =
-    roleHasCapability(user.role, "reports:read") && ventaAgendaSimplePrendida(await interruptoresDelNegocio())
-      ? await getCurrentTenantId()
-      : null;
 
   return (
     <PageContainer>
@@ -71,11 +65,8 @@ export default async function InicioApps() {
         }
       />
 
-      {hoyTenantId && (
-        <Suspense fallback={<HoyDelNegocioCargando />}>
-          <HoyDelNegocio tenantId={hoyTenantId} />
-        </Suspense>
-      )}
+      {/* «Hoy» (venta-agenda-simple, T1): decide solo si corresponde. */}
+      <HoySiCorresponde role={user.role} />
 
       {conNumero.length > 0 && (
         <Suspense fallback={<ParaAtenderHoyCargando />}>

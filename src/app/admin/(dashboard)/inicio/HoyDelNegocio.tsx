@@ -7,6 +7,11 @@
 // (`reports:read`). Una parte que no se pudo leer dice «No se pudo leer», nunca un cero.
 
 import Link from "next/link";
+import { Suspense } from "react";
+import { roleHasCapability, type Role } from "@/lib/capabilities";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { ventaAgendaSimplePrendida } from "@/cambios/interruptores";
 import { fmtTime, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { leerHoyDelNegocio } from "@/lib/hoy-del-negocio/lector";
 import { pesosDelHoy, type TarjetaHoy } from "@/lib/hoy-del-negocio/hoy-core";
@@ -161,5 +166,21 @@ export default async function HoyDelNegocio({ tenantId }: { tenantId: string }) 
         </Link>
       </div>
     </section>
+  );
+}
+
+/**
+ * «Hoy» donde corresponde: sólo con `venta-agenda-simple` prendido y para quien ve la plata
+ * (`reports:read`). Lo montan los tres Inicios (por apps, Renglón y el de siempre); apagado no lee
+ * nada nuevo y no pinta nada.
+ */
+export async function HoySiCorresponde({ role }: { role: Role }) {
+  if (!roleHasCapability(role, "reports:read")) return null;
+  if (!ventaAgendaSimplePrendida(await interruptoresDelNegocio())) return null;
+  const tenantId = await getCurrentTenantId();
+  return (
+    <Suspense fallback={<HoyDelNegocioCargando />}>
+      <HoyDelNegocio tenantId={tenantId} />
+    </Suspense>
   );
 }

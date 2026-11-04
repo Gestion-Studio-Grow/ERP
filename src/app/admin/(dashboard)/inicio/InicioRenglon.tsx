@@ -20,6 +20,7 @@
 //
 // La guardia es la del Inicio de siempre (dashboard:read): lo que se ve sale de `appsVisibles`.
 
+import { HoySiCorresponde } from "./HoyDelNegocio";
 import { Suspense } from "react";
 import Link from "next/link";
 import { cookies } from "next/headers";
@@ -131,6 +132,7 @@ export default async function InicioRenglon({ espacio }: { espacio: string | nul
       </header>
       <DosColumnas>
         <div className="min-w-0">
+          <HoySiCorresponde role={ctx.role} />
           <Suspense fallback={null}>
             <ParaArrancar ctx={ctx} />
           </Suspense>

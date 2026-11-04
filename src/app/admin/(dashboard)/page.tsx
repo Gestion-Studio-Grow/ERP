@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { HoySiCorresponde } from "./inicio/HoyDelNegocio";
 import { hoyEstaCerrado } from "@/lib/caja/frontera-cierre";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getNegocioApps } from "@/apps/contexto.server";
@@ -368,6 +369,9 @@ async function InicioVertical() {
           </div>
         )}
       </div>
+
+      {/* «Hoy» (venta-agenda-simple, T1): apagado no pinta nada y el Inicio queda byte a byte. */}
+      <HoySiCorresponde role={user.role} />
 
       {analytical ? (
         // Panel analítico Empresa: lidera lo financiero + un indicador derivado
