@@ -191,3 +191,29 @@ test("crea el turno con el teléfono del contexto", async () => {
   await dispatch("dale", CONFIRM_STATE, c);
   assert.equal(received.from, "5491155551234");
 });
+
+test("PAY sin puerto de pago: no inventa link y deriva al local", async () => {
+  const ports = fakePorts();
+  delete ports.createPaymentLink;
+  const r = await dispatch("quiero pagar", INITIAL_STATE, { now: NOW, from: "5491155551234", ports });
+  assert.equal(r.effect.kind, "none");
+  assert.equal(r.handoff, true);
+  assert.match(r.text, /seña te la pide el local/);
+});
+
+test("turno pendiente: la respuesta no lo da por firme", async () => {
+  const c = ctx({ createBooking: async () => ({ id: "appt-p", pending: true }) });
+  const r = await dispatch("dale", CONFIRM_STATE, c);
+  assert.equal(r.effect.kind, "booking_created");
+  assert.match(r.text, /pendiente/i);
+});
+
+test("slot ocupado al confirmar: lista los horarios que quedan ese día", async () => {
+  const c = ctx({
+    createBooking: async () => {
+      throw new Error("slot tomado");
+    },
+  });
+  const r = await dispatch("dale", CONFIRM_STATE, c);
+  assert.match(r.text, /15:00, 16:00/);
+});

@@ -1,11 +1,15 @@
-// Webhook de WhatsApp Business (Cloud API de Meta) del profe de pádel.
+// Webhook de WhatsApp Business (Cloud API de Meta): Fantasma Agenda y el profe de pádel.
 //
 // GET  = verificación de Meta (hub.challenge). Sin WHATSAPP_VERIFY_TOKEN → 503; token que no
 //        coincide → 403. Ver responderDesafio (src/lib/padel/whatsapp-cloud.ts).
-// POST = mensajes entrantes. APAGADO salvo PADEL_WHATSAPP=cloud: hasta entonces acusa recibo
-//        sin tocar nada (como el webhook de Mercado Pago con la facturación apagada). Prendido:
-//        firma X-Hub-Signature-256 con WHATSAPP_APP_SECRET (sin secreto 503, firma mala 401),
-//        deduplicación por wamid, y la respuesta del alumno según interpretarRespuesta:
+// POST = mensajes entrantes. Siempre primero la firma X-Hub-Signature-256 con WHATSAPP_APP_SECRET
+//        (sin secreto 503, firma mala 401) y el parse del cuerpo. Después:
+//        · Fantasma Agenda: si el negocio tiene prendido el interruptor «fantasma-agenda», el bot
+//          atiende (src/lib/fantasma-agenda/atender.server.ts): servicios, horarios libres y turno
+//          PENDIENTE en la agenda, con idempotencia por wamid. No depende de PADEL_WHATSAPP.
+//        · Si no, el camino del pádel, APAGADO salvo PADEL_WHATSAPP=cloud: hasta entonces acusa
+//          recibo sin tocar nada (como el webhook de Mercado Pago con la facturación apagada).
+//          Prendido: deduplicación por wamid y la respuesta del alumno según interpretarRespuesta:
 //          · «CANCELAR» exacto (o el botón rápido CANCELAR) → cancela su próxima clase si está a
 //            tiempo y le contesta «Listo, cancelada…»; fuera de término le contesta y avisa al profe.
 //          · «no», «no puedo…», «no voy…» → NO toca la clase: le pregunta «¿Cancelás…? Respondé
@@ -26,6 +30,9 @@ import { parseInboundMeta } from "@/lib/wa-provider";
 import { diaHumano, horaHumana, pagoAlCancelar, puedeCancelarAlumno, telefonoAlumno } from "@/lib/padel/core";
 import { configPadel, datosDelNegocio } from "@/lib/padel/datos.server";
 import { notificadorActual } from "@/lib/padel/notificador";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { fantasmaAgendaPrendida } from "@/cambios/interruptores-core";
+import { atenderMensaje } from "@/lib/fantasma-agenda/atender.server";
 import { botonRespuestaMeta, firmaValida, interpretarRespuesta, modoWhatsApp, respuestaAlAlumno, responderDesafio } from "@/lib/padel/whatsapp-cloud";
 
 export const dynamic = "force-dynamic";
@@ -43,8 +50,6 @@ function origenDe(request: Request): string {
 }
 
 export async function POST(request: Request) {
-  if (modoWhatsApp(process.env) !== "cloud") return Response.json({ ok: true, skipped: "whatsapp-apagado" });
-
   const secreto = process.env.WHATSAPP_APP_SECRET;
   if (!secreto) return Response.json({ ok: false, error: "webhook sin configurar" }, { status: 503 });
   const crudo = await request.text();
@@ -62,6 +67,20 @@ export async function POST(request: Request) {
   const boton = texto ? null : botonRespuestaMeta(payload);
   const msg = texto ? { from: texto.from, text: texto.text, messageId: texto.messageId, contactName: texto.contactName, payload: null } : boton;
   if (!msg) return Response.json({ ok: true, ignorado: "no es un mensaje de texto ni un botón" });
+
+  // Fantasma Agenda (interruptor por negocio): atiende el bot y no pasa al pádel.
+  try {
+    if (fantasmaAgendaPrendida(await interruptoresDelNegocio())) {
+      const tenantId = await getCurrentTenantId();
+      await atenderMensaje({ tenantId, from: msg.from, text: msg.text, wamid: msg.messageId, contactName: msg.contactName, now: new Date() });
+      return Response.json({ ok: true });
+    }
+  } catch (e) {
+    logger.error("fantasma.agenda", "no se pudo atender el mensaje entrante", e, { messageId: msg.messageId });
+    return Response.json({ ok: true, error: "procesamiento" });
+  }
+
+  if (modoWhatsApp(process.env) !== "cloud") return Response.json({ ok: true, skipped: "whatsapp-apagado" });
 
   try {
     const tenantId = await getCurrentTenantId();

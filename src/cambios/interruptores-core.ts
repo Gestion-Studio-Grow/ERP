@@ -34,6 +34,7 @@ import {
   CANAL_INTERRUPTOR,
   DISENO_NUEVO,
   AGENDA_PRACTICA,
+  FANTASMA_AGENDA,
   ENTIDAD_INTERRUPTOR,
   esFilaDeInterruptorValida,
   esInterruptorId,
@@ -119,6 +120,14 @@ export function disenoNuevoPrendido(estado: EstadoInterruptores): boolean {
 /** ¿El negocio tiene la agenda práctica? Lo lee src/lib/turnos/practica.server.ts. */
 export function agendaPracticaPrendida(estado: EstadoInterruptores): boolean {
   return estado[AGENDA_PRACTICA].encendido;
+}
+
+/**
+ * ¿El negocio tiene Fantasma Agenda (el bot de WhatsApp que deja turnos PENDIENTES)? Lo lee el
+ * webhook de WhatsApp. Un estado sin la entrada cuenta como apagado: lo nuevo nunca se prende por un hueco.
+ */
+export function fantasmaAgendaPrendida(estado: EstadoInterruptores): boolean {
+  return estado[FANTASMA_AGENDA]?.encendido === true;
 }
 
 // ── La fila que se escribe ───────────────────────────────────────────────────

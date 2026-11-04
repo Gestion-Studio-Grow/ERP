@@ -33,10 +33,17 @@ export type WaPorts = {
   listServices: () => Promise<WaServiceInfo[]>;
   // slots disponibles ("HH:MM") para un servicio y una fecha ISO.
   availableSlots: (serviceId: string, dateISO: string) => Promise<string[]>;
-  // crea el turno y devuelve su id (o lanza si el slot se ocupó recién).
-  createBooking: (input: { serviceId: string; dateISO: string; time: string; from: string }) => Promise<{ id: string }>;
-  // link de pago de Mercado Pago para el cliente.
-  createPaymentLink: (input: { from: string }) => Promise<{ url: string }>;
+  // crea el turno y devuelve su id (o lanza si el slot se ocupó recién). `pending: true` = el turno
+  // quedó PENDIENTE y lo confirma el local (Fantasma Agenda): la respuesta no promete un turno firme.
+  createBooking: (input: {
+    serviceId: string;
+    dateISO: string;
+    time: string;
+    from: string;
+  }) => Promise<{ id: string; pending?: boolean }>;
+  // link de pago de Mercado Pago para el cliente. Opcional: sin él (Fantasma Agenda, sin seña),
+  // el pedido de pago se deriva al local.
+  createPaymentLink?: (input: { from: string }) => Promise<{ url: string }>;
   // horarios y dirección del negocio, ya en texto.
   businessInfo: () => Promise<{ hours: string; address: string }>;
 };
@@ -126,6 +133,9 @@ export async function dispatch(
       return reply(`📍 ${info.address}\n🕒 ${info.hours}`, inFlow ? state : INITIAL_STATE, { kind: "none" }, false);
     }
     case "PAY": {
+      if (!ctx.ports.createPaymentLink) {
+        return reply("La seña te la pide el local cuando confirma el turno.", INITIAL_STATE, { kind: "none" }, true);
+      }
       const { url } = await ctx.ports.createPaymentLink({ from: ctx.from });
       return reply(`Podés abonar desde acá: ${url}`, INITIAL_STATE, { kind: "payment_link", url }, false);
     }
@@ -242,17 +252,24 @@ async function confirmBooking(state: WaSessionState, ctx: DispatchContext): Prom
     return reply("Retomemos: ¿qué servicio querés reservar?", { flow: "booking", draft: {} }, { kind: "none" }, false);
   }
   try {
-    const { id } = await ctx.ports.createBooking({ serviceId, dateISO, time, from: ctx.from });
+    const { id, pending } = await ctx.ports.createBooking({ serviceId, dateISO, time, from: ctx.from });
     return reply(
-      `¡Listo! Te reservé ${serviceName} el ${dateISO} a las ${time}. Te espero 🙌`,
+      pending
+        ? `¡Listo! Te anoté ${serviceName} el ${dateISO} a las ${time}. Queda pendiente: el local te lo confirma por acá.`
+        : `¡Listo! Te reservé ${serviceName} el ${dateISO} a las ${time}. Te espero 🙌`,
       INITIAL_STATE,
       { kind: "booking_created", appointmentId: id, serviceName, dateISO, time },
       false,
     );
   } catch {
-    // el slot pudo ocuparse entre la oferta y la confirmación.
+    // el slot pudo ocuparse entre la oferta y la confirmación: ofrecer los que quedan ese día.
+    const others = (await ctx.ports.availableSlots(serviceId, dateISO).catch(() => [] as string[])).filter(
+      (s) => s !== time,
+    );
     return reply(
-      "Se me ocupó ese horario justo recién 😕. ¿Buscamos otro?",
+      others.length
+        ? `Se me ocupó ese horario justo recién 😕. Para el ${dateISO} me queda: ${others.join(", ")}. ¿Te sirve otro?`
+        : "Se me ocupó ese horario justo recién 😕. ¿Buscamos otro día?",
       { flow: "booking", draft: { ...state.draft, time: undefined } },
       { kind: "none" },
       false,

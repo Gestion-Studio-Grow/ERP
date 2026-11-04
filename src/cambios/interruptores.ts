@@ -117,6 +117,18 @@ export const INTERRUPTORES = [
     enAuditoria: "el fiado y las cuentas corrientes",
     cambiaLasApps: false,
   },
+  {
+    // Fantasma Agenda (célula de negocios digitales, ADDON-ERP §2–§3): el bot de WhatsApp del
+    // negocio contesta, muestra servicios y horarios libres y deja el turno PENDIENTE en la agenda
+    // para que el local lo confirme. Sin seña ni IA en esta tanda. Lo lee el webhook de WhatsApp con
+    // `fantasmaAgendaPrendida`. Apagado, el bot no contesta nada en este negocio.
+    id: "fantasma-agenda",
+    nombre: "Fantasma Agenda",
+    queCambia:
+      "El WhatsApp del negocio atiende solo: muestra los servicios y los horarios libres y anota el turno en la agenda como pendiente, para que el local lo confirme. Apagado, el bot no contesta.",
+    enAuditoria: "Fantasma Agenda (turnos por WhatsApp)",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -134,6 +146,9 @@ export const MOSTRADOR_BOUTIQUE: InterruptorId = "mostrador-boutique";
 
 /** Fiado y cuentas corrientes por negocio (reemplaza CUENTAS_CORRIENTES_ENABLED; tri-estado). */
 export const CUENTAS_CORRIENTES: InterruptorId = "cuentas-corrientes";
+
+/** Fantasma Agenda: el bot de WhatsApp que deja turnos PENDIENTES (src/lib/fantasma-agenda/). */
+export const FANTASMA_AGENDA: InterruptorId = "fantasma-agenda";
 
 /**
  * ¿Este negocio trabaja con el mostrador boutique? Recibe el estado que arma
