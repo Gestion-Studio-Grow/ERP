@@ -7,11 +7,11 @@ tags: [brain/calibracion, brain/roster]
 
 # 👥 Agentes materializados — derivado de `.claude/agents/`
 
-> 28 agentes con charter real. Esta tabla **se deriva de los archivos**, no se
+> 30 agentes con charter real. Esta tabla **se deriva de los archivos**, no se
 > mantiene a mano: el roster narrado (`docs/organizacion/roster-completo-gsg.md`) quedó viejo
 > respecto del repo, que es la enfermedad que el vault existe para curar.
 
-> 🚨 **25 de 28 agentes NO declaran `model:` en su frontmatter.**
+> 🚨 **25 de 30 agentes NO declaran `model:` en su frontmatter.**
 > La capa que ves abajo es **prosa del encabezado**, no una instrucción que el harness honre:
 > al despachar, el subagente **hereda el modelo del padre**. Es la causa exacta de la lección
 > **MP-4** (Opus por herencia) y **MP-9** (modelo mal etiquetado), y deja sin red la regla de
@@ -33,6 +33,8 @@ tags: [brain/calibracion, brain/roster]
 | [diseno-marca](../../.claude/agents/diseno-marca.md) | Sonnet | ❌ | Diseño & Marca de GSG — identidad visual, design tokens, branding por tenant y vidriera pública. Úsalo para el […] |
 | [finops-costo-uso](../../.claude/agents/finops-costo-uso.md) | Sonnet (+Opus revisa) | ❌ | FinOps / Costo-Uso de GSG — telemetría de costo y uso de la factory (gasto por célula/modelo, serie temporal, alertas). […] |
 | [growth](../../.claude/agents/growth.md) | Sonnet → Opus (estrategia) | ❌ | Growth / Go-to-market de GSG — adquisición, canal, CAC/ROAS, funnel, retención y posicionamiento, con evidencia real y […] |
+| [gsg-certificador](../../.claude/agents/gsg-certificador.md) | _sin declarar_ | ✅ | Certificador adversarial de GSG con contexto mínimo — intenta demostrar que un DIFF de plata, seguridad, concurrencia o […] |
+| [gsg-ingeniero](../../.claude/agents/gsg-ingeniero.md) | _sin declarar_ | ✅ | Constructor de GSG con contexto mínimo — implementa UNA tarea del brief (≤ 2 KB) en el worktree que le indican, […] |
 | [operaciones](../../.claude/agents/operaciones.md) | Sonnet | ❌ | Operaciones de GSG — puesta en marcha end-to-end de un negocio, runbooks, onboarding operativo y soporte. Úsalo para […] |
 | [plataforma-deploy](../../.claude/agents/plataforma-deploy.md) | Sonnet → Opus (seguridad) | ❌ | Plataforma / Deploy / Infra de GSG — RLS/tenancy, performance multi-tenant, observabilidad, health y el tren de deploy. […] |
 | [pmo](../../.claude/agents/pmo.md) | Opus | ❌ | PMO de GSG — genera/actualiza el plan del sprint sobre el roadmap del repo, lo presenta al dueño, consolida y releva […] |
