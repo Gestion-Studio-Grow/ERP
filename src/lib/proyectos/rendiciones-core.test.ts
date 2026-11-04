@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { MEDIOS_PAGO } from "@/lib/rendiciones/tipos";
-import { actorDelMotor, claveValida, decidirRevision, faltaLaMigracion, inicioDelMesArgentino, leerMontoArgentino, leerRendicion, medioDelMotor, motivoNoRinde, muestraRevision, veLaRendicion } from "./rendiciones-core";
+import { actorDelMotor, cierreDeAnticipo, motivoNoMuevePlata, muestraReintegro, claveValida, decidirRevision, faltaLaMigracion, inicioDelMesArgentino, leerMontoArgentino, leerRendicion, medioDelMotor, motivoNoRinde, muestraRevision, veLaRendicion } from "./rendiciones-core";
 
 const base = { descripcion: "Taxi al predio", rubro: "", monto: "12.500,50", medio: "PROPIO", anticipoId: "", fecha: "2026-11-04" };
 const fila = { id: "r1", gastoId: "g1", personaId: "p-prod", medio: "PROPIO", anticipoId: null, montoCentavos: 1250050, estado: "enviada", eventos: [] };
@@ -104,4 +104,28 @@ test("mes argentino: el tope de comprobantes arranca el día 1 a las 00:00 de Ar
   assert.equal(inicioDelMesArgentino(new Date("2026-11-04T15:00:00Z")).toISOString(), "2026-11-01T03:00:00.000Z");
   assert.equal(inicioDelMesArgentino(new Date("2026-12-01T02:00:00Z")).toISOString(), "2026-11-01T03:00:00.000Z", "30/11 23 h en Argentina");
   assert.equal(inicioDelMesArgentino(new Date("2027-01-01T03:00:00Z")).toISOString(), "2027-01-01T03:00:00.000Z");
+});
+
+test("Rendí tanda 3: quién mueve plata, cuándo se ofrece «Reintegrar ahora» y el cierre de un anticipo", () => {
+  const de = { personaId: "p1", userId: "u1" };
+  assert.equal(motivoNoMuevePlata("ADMINISTRACION", { personaId: "p2", userId: "u2" }, de), null);
+  assert.equal(motivoNoMuevePlata("DIRECCION", { personaId: null, userId: "u9" }, de), null);
+  assert.match(motivoNoMuevePlata("ADMINISTRACION", { personaId: "p1", userId: "u1" }, de) ?? "", /propio/);
+  assert.match(motivoNoMuevePlata("DIRECCION", { personaId: null, userId: "u1" }, de) ?? "", /propio/, "ficha desactivada: se mira el usuario");
+  assert.match(motivoNoMuevePlata("PRODUCCION", { personaId: "p2", userId: "u2" }, de) ?? "", /Dirección o Administración/);
+  assert.match(motivoNoMuevePlata("DISENO", { personaId: "p2", userId: "u2" }, de) ?? "", /Dirección o Administración/);
+
+  const f = { personaId: "p1", medio: "PROPIO", estado: "aprobada", liquidacionId: null };
+  assert.equal(muestraReintegro("ADMINISTRACION", "p2", f), true);
+  assert.equal(muestraReintegro("ADMINISTRACION", "p2", { ...f, liquidacionId: "l1" }), false, "reclamada por una liquidación");
+  assert.equal(muestraReintegro("ADMINISTRACION", "p2", { ...f, medio: "ANTICIPO" }), false);
+  assert.equal(muestraReintegro("ADMINISTRACION", "p1", f), false, "lo propio no");
+
+  const an = { id: "a1", montoCentavos: 1000000, devueltoCentavos: 0, reintegradoCentavos: 0 };
+  const fila = (montoCentavos: number, estado: string, medio = "ANTICIPO") => ({ id: `r${montoCentavos}`, gastoId: `g${montoCentavos}`, personaId: "p1", medio, anticipoId: medio === "ANTICIPO" ? "a1" : null, montoCentavos, estado, eventos: [] });
+  const sobra = cierreDeAnticipo(an, [fila(700000, "aprobada"), fila(50000, "rechazada"), fila(999900, "aprobada", "PROPIO")]);
+  assert.ok(sobra.ok && sobra.aDevolver === 300000 && sobra.aReintegrar === 0, "sobrante → devolución; rechazado y propio no cuentan");
+  const falta = cierreDeAnticipo(an, [fila(1200000, "aprobada")]);
+  assert.ok(falta.ok && falta.aReintegrar === 200000 && falta.aDevolver === 0, "faltante → reintegro");
+  assert.equal(cierreDeAnticipo(an, [fila(700000, "aprobada"), fila(1000, "enviada")]).ok, false, "con pendientes no cierra");
 });

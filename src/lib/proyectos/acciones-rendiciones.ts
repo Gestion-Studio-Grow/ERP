@@ -16,6 +16,11 @@ import { aplicarAccion } from "@/lib/rendiciones/rendicion";
 import { formatearPesos } from "@/lib/rendiciones/dinero";
 import type { Prisma } from "@/generated/prisma/client";
 import { actorActual, avisar, proyectoVisible, registrarCambio, usuariosDeLaPlata, type Actor } from "./gestion.server";
+import { cierreDeAnticipo, leerMontoArgentino, motivoNoMuevePlata, rendicionDelMotor } from "./rendiciones-core";
+import { MEDIOS, metodoDeCaja, type MedioPago } from "./core";
+import { marcaDeGastoProyecto } from "./marcas";
+import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
+import type { RolActor } from "@/lib/rendiciones/tipos";
 import { ESTADO_RENDICION_LABEL, MAX_COMPROBANTES_MES, SIN_MIGRACION, actorDelMotor, inicioDelMesArgentino, decidirRevision, claveValida, esClaveRepetida, faltaLaMigracion, leerRendicion, medioDelMotor, motivoNoRinde, type AccionDeRevision } from "./rendiciones-core";
 
 export type ResultadoRendicion = { ok: true; repetida?: boolean } | { ok: false; error: string };
@@ -99,6 +104,11 @@ export async function rendirGasto(formData: FormData): Promise<ResultadoRendicio
     const neto = d.montoCentavos / 100;
     try {
       await tenantTransaction(async (tx) => {
+        if (d.medio === "ANTICIPO") {
+          // Toma el anticipo: si lo están cerrando ahora, esta rendición espera y, si quedó cerrado, no entra.
+          const vivo = await tx.proyectoAnticipo.updateMany({ where: { id: d.anticipoId!, tenantId, personaId, estado: "ENTREGADO" }, data: { estado: "ENTREGADO" } });
+          if (vivo.count === 0) throw new AnticipoCerrado();
+        }
         await tx.proyectoGasto.create({
           data: {
             id: gastoId,
@@ -140,6 +150,7 @@ export async function rendirGasto(formData: FormData): Promise<ResultadoRendicio
         await avisar(tx, { tenantId, destinatarios: await usuariosDeLaPlata(tx, tenantId, user.id), tipo: "rendicion", texto: `${a.nombre} rindió ${formatearPesos(d.montoCentavos)}: ${d.descripcion}`, enlace: `${RAIZ}/${proyectoId}?tab=rendiciones` });
       });
     } catch (e) {
+      if (e instanceof AnticipoCerrado) return { ok: false, error: "Ese anticipo ya está cerrado." };
       // El mismo envío llegó dos veces a la vez: la base dejó pasar uno solo.
       if (esClaveRepetida(e)) return { ok: true, repetida: true };
       throw e;
@@ -201,3 +212,152 @@ export async function devolverRendicion(formData: FormData): Promise<ResultadoRe
 export async function rechazarRendicion(formData: FormData): Promise<ResultadoRendicion> {
   return revisar("rechazar", formData);
 }
+
+// ── Tanda 3: reintegro directo y anticipos ──────────────────────────────────
+// Regla de caja: el único egreso de un gasto PROPIO es su reintegro, por liquidación pagada o directo, nunca ambos. El
+// claim de los dos caminos es el mismo (`liquidacionId IS NULL AND reintegradoEl IS NULL AND estado = 'aprobada'`).
+
+const medioDelForm = (v: FormDataEntryValue | null): MedioPago | null => {
+  const m = txt(v) || "TRANSFERENCIA";
+  return (MEDIOS as readonly string[]).includes(m) ? (m as MedioPago) : null;
+};
+
+async function asentarTx(tx: Prisma.TransactionClient, tenantId: string, d: { type: "EGRESO" | "INGRESO"; medio: MedioPago; centavos: number; reason: string; marca: string; proyectoGastoId?: string; proyectoAnticipoId?: string }) {
+  const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
+  await tx.cashMovement.create({
+    data: {
+      tenantId,
+      sessionId: session?.id ?? null,
+      type: d.type,
+      method: metodoDeCaja(d.medio, await transferenciaEnElLibroTx(tx)),
+      amount: d.centavos / 100,
+      reason: d.reason,
+      createdBy: marcaDeGastoProyecto(d.marca),
+      ...(d.proyectoGastoId ? { proyectoGastoId: d.proyectoGastoId } : {}),
+      ...(d.proyectoAnticipoId ? { proyectoAnticipoId: d.proyectoAnticipoId } : {}),
+    },
+  });
+}
+
+/** Reintegrar ahora una rendición aprobada de su bolsillo, sin esperar la liquidación. Un egreso con `proyectoGastoId`. */
+export async function reintegrarDirecto(formData: FormData): Promise<ResultadoRendicion> {
+  const a = await actorActual();
+  const { tenantId, user } = a;
+  const id = txt(formData.get("id"));
+  const medio = medioDelForm(formData.get("medio"));
+  if (!medio) return { ok: false, error: "Elegí cómo se reintegra." };
+  return conMigracion(async () => {
+    const f = await prisma.proyectoRendicion.findFirst({
+      where: { id, tenantId },
+      select: { id: true, gastoId: true, personaId: true, proyectoId: true, medio: true, anticipoId: true, montoCentavos: true, estado: true, eventos: true, liquidacionId: true, persona: { select: { userId: true, nombre: true } }, gasto: { select: { descripcion: true } } },
+    });
+    if (!f) return { ok: false, error: "Esa rendición no existe." };
+    const noMueve = motivoNoMuevePlata(a.rol, { personaId: a.personaId, userId: user.id }, { personaId: f.personaId, userId: f.persona.userId });
+    if (noMueve) return { ok: false, error: noMueve };
+    if (f.liquidacionId) return { ok: false, error: "Ya está en una liquidación: se reintegra cuando se pague." };
+    const ahora = new Date();
+    const res = aplicarAccion(rendicionDelMotor(f), "reintegrar", { fecha: ahora.toISOString(), actorId: actorDelMotor({ personaId: a.personaId, userId: user.id }), rolActor: a.rol as RolActor, comentario: "Reintegro directo" });
+    if (!res.ok) return { ok: false, error: `${res.motivo}.` };
+    const hecho = await tenantTransaction(async (tx) => {
+      // El claim compartido con la liquidación: si una la reclamó (o otro clic la reintegró), acá no pasa nada.
+      const r = await tx.proyectoRendicion.updateMany({
+        where: { id, tenantId, medio: "PROPIO", estado: "aprobada", liquidacionId: null, reintegradoEl: null },
+        data: { estado: "reintegrada", reintegradoEl: ahora, eventos: res.rendicion.eventos as unknown as Prisma.InputJsonValue },
+      });
+      if (r.count === 0) return false;
+      await asentarTx(tx, tenantId, { type: "EGRESO", medio, centavos: f.montoCentavos, reason: `Reintegro · ${f.persona.nombre} · ${f.gasto.descripcion}`, marca: f.gastoId, proyectoGastoId: f.gastoId });
+      await registrarCambio(tx, { tenantId, proyectoId: f.proyectoId, entidad: "ProyectoRendicion", entidadId: id, campo: "Rendición", antes: ESTADO_RENDICION_LABEL.aprobada, despues: `${ESTADO_RENDICION_LABEL.reintegrada} · ${formatearPesos(f.montoCentavos)}`, autor: a.nombre });
+      if (f.persona.userId) await avisar(tx, { tenantId, destinatarios: [f.persona.userId], tipo: "rendicion", texto: `Te reintegramos ${formatearPesos(f.montoCentavos)} de «${f.gasto.descripcion}».`, enlace: `${RAIZ}/mi-liquidacion/rendiciones` });
+      return true;
+    });
+    if (!hecho) return { ok: false, error: "Ya se reintegró o entró en una liquidación. Recargá para ver cómo quedó." };
+    await auditAdmin({ action: "proyecto.rendicion.reintegrar", entity: "ProyectoRendicion", entityId: id, changes: { montoCentavos: f.montoCentavos, medio } });
+    refrescar(f.proyectoId);
+    return { ok: true };
+  });
+}
+
+/**
+ * Entregar un anticipo: el anticipo y su egreso van juntos (`proyectoAnticipoId` único por tipo). La `clave` del
+ * formulario da el id: el mismo envío dos veces es un anticipo y un egreso.
+ */
+export async function entregarAnticipo(formData: FormData): Promise<ResultadoRendicion> {
+  const a = await actorActual();
+  const { tenantId, user } = a;
+  const personaId = txt(formData.get("personaId"));
+  const proyectoId = txt(formData.get("proyectoId")) || null;
+  const medio = medioDelForm(formData.get("medio"));
+  if (!medio) return { ok: false, error: "Elegí cómo se entrega." };
+  const montoCentavos = leerMontoArgentino(txt(formData.get("monto"))) ?? 0;
+  if (!(montoCentavos > 0) || !Number.isSafeInteger(montoCentavos) || montoCentavos > 100_000_000_00) return { ok: false, error: "Escribí cuánto se entrega: un importe mayor a cero." };
+  const id = idDelGastoRendido(tenantId, user.id, txt(formData.get("clave")))?.replace(/^rnd/, "ant");
+  if (!id) return { ok: false, error: "El formulario venció. Recargá la página y cargalo de nuevo." };
+  return conMigracion(async () => {
+    const p = await prisma.proyectoPersona.findFirst({ where: { id: personaId, tenantId, activa: true }, select: { id: true, nombre: true, userId: true } });
+    if (!p) return { ok: false, error: "Esa persona no está en el equipo." };
+    const noMueve = motivoNoMuevePlata(a.rol, { personaId: a.personaId, userId: user.id }, { personaId: p.id, userId: p.userId });
+    if (noMueve) return { ok: false, error: noMueve };
+    if (proyectoId && !(await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true } }))) return { ok: false, error: "Ese proyecto no existe." };
+    if (await prisma.proyectoAnticipo.findFirst({ where: { id, tenantId }, select: { id: true } })) return { ok: true, repetida: true };
+    try {
+      await tenantTransaction(async (tx) => {
+        await tx.proyectoAnticipo.create({ data: { id, tenantId, personaId: p.id, proyectoId, montoCentavos } });
+        await asentarTx(tx, tenantId, { type: "EGRESO", medio, centavos: montoCentavos, reason: `Anticipo · ${p.nombre}`, marca: `anticipo-${id}`, proyectoAnticipoId: id });
+        await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoAnticipo", entidadId: id, campo: "Anticipo", despues: `${p.nombre} · ${formatearPesos(montoCentavos)} · entregado`, autor: a.nombre });
+        if (p.userId) await avisar(tx, { tenantId, destinatarios: [p.userId], tipo: "rendicion", texto: `Te entregamos un anticipo de ${formatearPesos(montoCentavos)}. Rendí los gastos con «Con un anticipo».`, enlace: `${RAIZ}/mi-liquidacion/rendiciones` });
+      });
+    } catch (e) {
+      if (esClaveRepetida(e)) return { ok: true, repetida: true };
+      throw e;
+    }
+    await auditAdmin({ action: "proyecto.anticipo.entregar", entity: "ProyectoAnticipo", entityId: id, changes: { montoCentavos, medio } });
+    revalidatePath(`${RAIZ}/equipo`);
+    if (proyectoId) refrescar(proyectoId);
+    return { ok: true };
+  });
+}
+
+/**
+ * Cerrar un anticipo con la cuadratura: sobrante → INGRESO «devolución de anticipo»; faltante → EGRESO de reintegro.
+ * No se cierra con rendiciones sin revisar. El claim `estado = ENTREGADO` hace que dos clics cierren una vez.
+ */
+export async function cerrarAnticipo(formData: FormData): Promise<ResultadoRendicion> {
+  const a = await actorActual();
+  const { tenantId, user } = a;
+  const id = txt(formData.get("id"));
+  const medio = medioDelForm(formData.get("medio"));
+  if (!medio) return { ok: false, error: "Elegí el medio." };
+  return conMigracion(async () => {
+    const an = await prisma.proyectoAnticipo.findFirst({ where: { id, tenantId }, select: { id: true, personaId: true, proyectoId: true, montoCentavos: true, devueltoCentavos: true, reintegradoCentavos: true, estado: true, persona: { select: { nombre: true, userId: true } } } });
+    if (!an) return { ok: false, error: "Ese anticipo no existe." };
+    const noMueve = motivoNoMuevePlata(a.rol, { personaId: a.personaId, userId: user.id }, { personaId: an.personaId, userId: an.persona.userId });
+    if (noMueve) return { ok: false, error: noMueve };
+    if (an.estado === "CERRADO") return { ok: false, error: "Este anticipo ya está cerrado." };
+    const resultado = await tenantTransaction(async (tx) => {
+      // Toma el anticipo: mientras tanto nadie rinde contra él ni lo cierra otra vez.
+      const r = await tx.proyectoAnticipo.updateMany({ where: { id, tenantId, estado: { not: "CERRADO" } }, data: { estado: "CERRADO" } });
+      if (r.count === 0) return { ok: false as const, error: "Este anticipo ya está cerrado." };
+      const filas = await tx.proyectoRendicion.findMany({ where: { tenantId, anticipoId: id }, select: { id: true, gastoId: true, personaId: true, medio: true, anticipoId: true, montoCentavos: true, estado: true, eventos: true } });
+      const c = cierreDeAnticipo(an, filas);
+      if (!c.ok) throw new NoCierra(c.error);
+      if (c.aDevolver > 0) await asentarTx(tx, tenantId, { type: "INGRESO", medio, centavos: c.aDevolver, reason: `Devolución de anticipo · ${an.persona.nombre}`, marca: `anticipo-${id}`, proyectoAnticipoId: id });
+      // El faltante no lleva `proyectoAnticipoId` (el EGRESO de esa clave es la entrega): lo protege el claim de arriba.
+      if (c.aReintegrar > 0) await asentarTx(tx, tenantId, { type: "EGRESO", medio, centavos: c.aReintegrar, reason: `Reintegro de anticipo · ${an.persona.nombre}`, marca: `anticipo-${id}-reintegro` });
+      await tx.proyectoAnticipo.updateMany({ where: { id, tenantId }, data: { devueltoCentavos: { increment: c.aDevolver }, reintegradoCentavos: { increment: c.aReintegrar } } });
+      await registrarCambio(tx, { tenantId, proyectoId: an.proyectoId, entidad: "ProyectoAnticipo", entidadId: id, campo: "Anticipo", antes: "entregado", despues: `cerrado · ${c.mensaje}`, autor: a.nombre });
+      if (an.persona.userId) await avisar(tx, { tenantId, destinatarios: [an.persona.userId], tipo: "rendicion", texto: `Cerramos tu anticipo: ${c.mensaje}`, enlace: `${RAIZ}/mi-liquidacion/rendiciones` });
+      return { ok: true as const, aDevolver: c.aDevolver, aReintegrar: c.aReintegrar };
+    }).catch((e) => {
+      if (e instanceof NoCierra) return { ok: false as const, error: e.message };
+      throw e;
+    });
+    if (!resultado.ok) return resultado;
+    await auditAdmin({ action: "proyecto.anticipo.cerrar", entity: "ProyectoAnticipo", entityId: id, changes: { aDevolver: resultado.aDevolver, aReintegrar: resultado.aReintegrar, medio } });
+    revalidatePath(`${RAIZ}/equipo`);
+    if (an.proyectoId) refrescar(an.proyectoId);
+    return { ok: true };
+  });
+}
+
+class NoCierra extends Error {}
+class AnticipoCerrado extends Error {}

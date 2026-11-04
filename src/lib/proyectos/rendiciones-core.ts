@@ -3,9 +3,9 @@
 // Sin Prisma ni fechas del sistema: las acciones (`acciones-rendiciones.ts`) leen, deciden acá y escriben con claim.
 // ============================================================================
 
-import { aplicarAccion } from "@/lib/rendiciones/rendicion";
+import { aplicarAccion, calcularCuadratura } from "@/lib/rendiciones/rendicion";
 import { MEDIOS_PAGO, type EstadoRendicion, type EventoRendicion, type MedioPago, type Rendicion, type RolActor } from "@/lib/rendiciones/tipos";
-import { puedeAprobarRendicion, puedeRendir, type RolGestion } from "./gestion-core";
+import { puedeAprobarRendicion, puedeReintegrarRendicion, puedeRendir, type RolGestion } from "./gestion-core";
 
 /** Los medios salen del motor (`tipos.ts`, única fuente; los mismos valores que el CHECK de la base). */
 export const MEDIOS_RENDICION = MEDIOS_PAGO;
@@ -157,4 +157,35 @@ export function decidirRevision(
   const res = aplicarAccion(r, accion, { fecha: ctx.fecha, actorId: ctx.actorId, rolActor: ctx.rol as RolActor, comentario: ctx.comentario });
   if (!res.ok) return { ok: false, error: `${res.motivo}.` };
   return { ok: true, desde: r.estado, hacia: res.rendicion.estado, eventos: res.rendicion.eventos };
+}
+
+// ── Tanda 3: reintegro y anticipos ──────────────────────────────────────────
+
+/** Pagar, reintegrar o mover un anticipo: Dirección o Administración, nunca lo propio (por persona y por usuario). PURA. */
+export function motivoNoMuevePlata(rol: RolGestion, actor: { personaId: string | null; userId: string }, de: { personaId: string; userId: string | null }): string | null {
+  const actorId = actorDelMotor(actor);
+  if (actorId === de.personaId || (!!de.userId && de.userId === actor.userId)) return "Nadie se paga lo propio: esto es tuyo.";
+  if (!puedeReintegrarRendicion(rol, actorId, de.personaId)) return "Sólo Dirección o Administración mueven esta plata.";
+  return null;
+}
+
+/** Se ve el botón «Reintegrar ahora»: aprobada, de su bolsillo, sin liquidación que la reclame. El servidor lo vuelve a decidir. */
+export function muestraReintegro(rol: RolGestion, actorId: string, f: { personaId: string; medio: string; estado: string; liquidacionId: string | null }): boolean {
+  return f.estado === "aprobada" && f.medio === "PROPIO" && !f.liquidacionId && puedeReintegrarRendicion(rol, actorId, f.personaId);
+}
+
+const EN_REVISION = new Set(["borrador", "enviada", "devuelta"]);
+
+/**
+ * Cierre de un anticipo con la cuadratura del motor (sólo las rendiciones de ESE anticipo; lo propio va por reintegro).
+ * Con rendiciones esperando revisión no se cierra. Sobrante → devolución (INGRESO); faltante → reintegro (EGRESO). PURA.
+ */
+export function cierreDeAnticipo(
+  anticipo: { id: string; montoCentavos: number; devueltoCentavos: number; reintegradoCentavos: number },
+  filas: readonly Parameters<typeof rendicionDelMotor>[0][],
+): { ok: true; aDevolver: number; aReintegrar: number; mensaje: string } | { ok: false; error: string } {
+  const delAnticipo = filas.filter((f) => f.medio === "ANTICIPO" && f.anticipoId === anticipo.id);
+  if (delAnticipo.some((f) => EN_REVISION.has(f.estado))) return { ok: false, error: "Hay rendiciones de este anticipo sin revisar: aprobalas, devolvelas o rechazalas antes de cerrarlo." };
+  const c = calcularCuadratura(anticipo, delAnticipo.map(rendicionDelMotor), 0);
+  return { ok: true, aDevolver: c.aDevolver, aReintegrar: Math.max(0, -c.diferencia), mensaje: c.mensaje };
 }
