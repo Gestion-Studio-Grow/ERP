@@ -207,7 +207,7 @@ ALTER TABLE "VencimientoFiscal" ADD CONSTRAINT "VencimientoFiscal_periodo_check"
 -- Un asiento CONFIRMADO cuadra: ≥ 2 líneas, Σ debe = Σ haber, total > 0. Diferido al COMMIT para que
 -- el alta (cabecera + líneas + confirmación) se valide entera. Corre también al DELETE de líneas.
 CREATE OR REPLACE FUNCTION contabilidad_controlar_cuadre() RETURNS trigger
-  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
   v_asiento TEXT;
   v_estado TEXT;
@@ -247,7 +247,7 @@ CREATE CONSTRAINT TRIGGER "Asiento_cuadre"
 -- El estado de la cabecera se lee con FOR SHARE: una transacción con foto vieja (REPEATABLE READ,
 -- tomada antes de la confirmación) no puede borrar ni agregar líneas a un asiento ya confirmado.
 CREATE OR REPLACE FUNCTION contabilidad_asiento_inmutable() RETURNS trigger
-  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
   v_estado TEXT;
 BEGIN
@@ -282,7 +282,7 @@ CREATE TRIGGER "AsientoLinea_inmutable" BEFORE INSERT OR UPDATE OR DELETE ON "As
 -- Todo asiento que se escribe (alta, cambio o confirmación) cae en un ejercicio ABIERTO del mismo
 -- negocio y con la fecha adentro. Un ejercicio CERRADO no admite asientos nuevos ni confirmaciones.
 CREATE OR REPLACE FUNCTION contabilidad_asiento_en_ejercicio() RETURNS trigger
-  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
   v_ej RECORD;
 BEGIN
@@ -308,7 +308,7 @@ CREATE TRIGGER "Asiento_en_ejercicio" BEFORE INSERT OR UPDATE ON "Asiento"
 -- las fechas dejando asientos afuera. Reabrir (CERRADO → ABIERTO) queda permitido a nivel base:
 -- es una decisión de producto que sostiene la app.
 CREATE OR REPLACE FUNCTION contabilidad_controlar_ejercicio() RETURNS trigger
-  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
   IF NEW."estado" = 'CERRADO' AND OLD."estado" <> 'CERRADO'
      AND EXISTS (SELECT 1 FROM "Asiento" WHERE "ejercicioId" = OLD."id" AND "estado" = 'BORRADOR') THEN
