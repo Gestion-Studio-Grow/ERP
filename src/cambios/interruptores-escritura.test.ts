@@ -38,6 +38,8 @@ const ESCRITORES_PERMITIDOS: Record<string, string> = {
     "el UAT de CH (npm run test:ch-uat), SÓLO contra su base efímera local (crearBaseEfimera): prende la agenda práctica para recorrerla",
   "src/tenants/ch/e2e/venta-agenda.e2e.mjs":
     "el QA de Venta y agenda simples de CH, SÓLO contra su base efímera local (entorno-ch.mjs → crearBaseEfimera): prende «venta-agenda-simple» para recorrer el cobro único",
+  "src/tenants/ch/e2e/agenda-interaccion.e2e.mjs":
+    "el QA de la Agenda interactiva de CH, SÓLO contra su base efímera local (entorno-ch.mjs → crearBaseEfimera): prende «agenda-practica» y «agenda-interaccion» para recorrer la barra y la grilla",
   "src/tenants/ch/e2e/preparar-mostrador-ch.mjs":
     "los recorridos del mostrador de CH (npm run test:ch-mostrador-e2e), SÓLO contra su base efímera local (crearBaseEfimera): prende el diseño nuevo para recorrer el cajón",
   "src/tenants/magra/e2e/mostrador.e2e.mjs":

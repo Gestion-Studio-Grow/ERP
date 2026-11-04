@@ -21,6 +21,9 @@
 //     si están vivos, con la marca «Se pisa con otro turno» (por box: dos en el mismo box).
 //   · Chips (`?ver=`): atenúan lo que no entra en el filtro, sin ir al servidor.
 //   · La raya de «ahora» cruza la planilla a la hora justa (sólo hoy).
+//   · Prendida la agenda interactiva, la BARRA de un toque (No vino · Cobrar · WhatsApp) flota sobre
+//     el turno: en la PC con el mouse encima o el foco del teclado; en táctil, el 1.er toque elige el
+//     turno y la muestra con «Abrir». Tocar fuera o Esc la cierra (`seleccionDeLaBarra`, barra-core).
 //
 // En el celular la planilla se desliza de costado dentro de su marco (la hora queda fija a la
 // izquierda); la página no.
@@ -60,6 +63,8 @@ import {
   type ColumnaDeLaGrilla,
 } from "../grilla";
 import { useMesa } from "./MesaDeTurnos";
+import BarraDelTurno from "./BarraDelTurno";
+import { SIN_SELECCION, hayBarra, ladoDeLaBarra, seleccionDeLaBarra, teclasDeLaBarra, vistaDeLaBarra, type EventoDeLaBarra, type SeleccionDeLaBarra } from "./barra-core";
 import { ConfirmarMover } from "./MoverTurno";
 import { destinoDelArrastre, sePuedeMover, veredictoDelDestino, type Destino, type VeredictoDelDestino } from "./mover-core";
 
@@ -92,7 +97,7 @@ export default function PorProfesional({
    */
   soloProfesional?: string | null;
 }) {
-  const { permisos, abrir, cambiarUrl } = useMesa();
+  const { permisos, abrir, cambiarUrl, reloj: relojDeLaMesa } = useMesa();
   const params = useSearchParams();
   // Agenda interactiva (AGENDA-INTERACCION.md §2.1 y §2.7): apagada, todo como antes.
   const interaccion = permisos.interaccion === true;
@@ -128,6 +133,32 @@ export default function PorProfesional({
   const [consulta, setConsulta] = useState<Consulta | null>(null);
   const [aviso, setAviso] = useState("");
   const [aConfirmar, setAConfirmar] = useState<{ turnoId: string; destino: Destino } | null>(null);
+
+  // ── La barra sobre el turno (sólo prendida) ──
+  const [seleccion, setSeleccion] = useState<SeleccionDeLaBarra>(SIN_SELECCION);
+  const ultimoPuntero = useRef<string | null>(null);
+  const alBarra = (e: EventoDeLaBarra) => {
+    const r = seleccionDeLaBarra(seleccion, e);
+    setSeleccion(r.seleccion);
+    if (r.abrirCajon) abrir(r.abrirCajon);
+  };
+  useEffect(() => {
+    if (!seleccion.elegido) return;
+    const elegido = seleccion.elegido;
+    const alTocar = (e: PointerEvent) => {
+      const dueño = (e.target as HTMLElement | null)?.closest?.<HTMLElement>("[data-turno-barra]");
+      if (dueño?.dataset.turnoBarra !== elegido) setSeleccion((s) => seleccionDeLaBarra(s, { tipo: "fuera" }).seleccion);
+    };
+    const alPresionar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSeleccion((s) => seleccionDeLaBarra(s, { tipo: "escape", id: null }).seleccion);
+    };
+    document.addEventListener("pointerdown", alTocar, true);
+    window.addEventListener("keydown", alPresionar);
+    return () => {
+      document.removeEventListener("pointerdown", alTocar, true);
+      window.removeEventListener("keydown", alPresionar);
+    };
+  }, [seleccion.elegido]);
 
   const cancelar = () => {
     arrastre.current = null;
@@ -382,20 +413,30 @@ export default function PorProfesional({
               const atenuado = filtro !== "todos" && !entraEnFiltro(t, filtro, reloj);
               const choca = choques.has(t.id);
               const enUnaLinea = interaccion && esTurnoCorto(t);
-              return (
+              const conBarra = interaccion && hayBarra(teclasDeLaBarra(t, permisos, relojDeLaMesa));
+              const ubicacion = {
+                gridColumn: ci + 2,
+                gridRow: `${fila + 2} / span ${alto}`,
+                justifySelf: "start",
+                width: `calc(${100 / de}% - 4px)`,
+                margin: `2px 0 2px calc(${(100 * carril) / de}% + 2px)`,
+              } as const;
+              const bloque = (
                 <button
                   key={t.id}
                   type="button"
                   data-abrir
                   data-atenuado={atenuado || undefined}
-                  onClick={() => {
+                  onClick={(e) => {
                     if (recienSoltado.current) {
                       recienSoltado.current = false;
                       return;
                     }
-                    abrir(t.id);
+                    if (conBarra) alBarra({ tipo: "toque", id: t.id, tactil: e.detail !== 0 && ultimoPuntero.current === "touch", conBarra });
+                    else abrir(t.id);
                   }}
                   onPointerDown={(e) => {
+                    ultimoPuntero.current = e.pointerType;
                     if (!movible || e.button !== 0 || e.pointerType === "touch") return;
                     arrastre.current = { id: t.id, x0: e.clientX, y0: e.clientY, activo: false };
                   }}
@@ -425,16 +466,10 @@ export default function PorProfesional({
                   onPointerCancel={cancelar}
                   title={interaccion ? tituloDelTurno(t, [verPor === "box" && t.profesional, marca.texto, pedida, choca && "se pisa con otro turno"]) : undefined}
                   aria-label={`${fmtTime(t.inicio)}, ${t.clienta}, ${t.servicio}, ${marca.texto}${pedida ? `, ${pedida}` : ""}${choca ? ", se pisa con otro turno" : ""}: abrir el turno`}
-                  className={`z-[1] flex min-w-0 flex-col items-start gap-0.5 self-stretch overflow-hidden rounded border border-line-strong bg-surface-raised px-2 py-1 text-left hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus ${
+                  className={`${conBarra ? "h-full w-full" : "z-[1] self-stretch"} flex min-w-0 flex-col items-start gap-0.5 overflow-hidden rounded border border-line-strong bg-surface-raised px-2 py-1 text-left hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus ${
                     movible ? "lg:cursor-grab" : ""
                   } ${atenuado ? "opacity-40" : ""} ${arrastrando === t.id ? "opacity-60" : ""}`}
-                  style={{
-                    gridColumn: ci + 2,
-                    gridRow: `${fila + 2} / span ${alto}`,
-                    justifySelf: "start",
-                    width: `calc(${100 / de}% - 4px)`,
-                    margin: `2px 0 2px calc(${(100 * carril) / de}% + 2px)`,
-                  }}
+                  style={conBarra ? undefined : ubicacion}
                 >
                   {enUnaLinea ? (
                     // Prendido, ≤ 30': una línea «16:00 Ana · Peeling» y la forma del estado (la palabra
@@ -463,6 +498,37 @@ export default function PorProfesional({
                   {!enUnaLinea && alto > 1 && !choca && <Marca tipo={marca.tipo}>{marca.texto}</Marca>}
                   {!enUnaLinea && choca && <Marca tipo="atencion">{verPor === "box" ? "Choca en el box" : "Se pisa con otro turno"}</Marca>}
                 </button>
+              );
+              if (!conBarra) return bloque;
+              const vista = vistaDeLaBarra(seleccion, t.id);
+              const lado = ladoDeLaBarra({ fila, alto, filas, columna: ci, columnas: columnas.length });
+              return (
+                <div
+                  key={t.id}
+                  data-turno-barra={t.id}
+                  className={`group/turno relative flex min-w-0 self-stretch hover:z-20 focus-within:z-20 ${vista === "elegida" ? "z-20" : "z-[1]"}`}
+                  style={ubicacion}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Escape" || vista === "cerrada") return;
+                    alBarra({ tipo: "escape", id: t.id });
+                    e.currentTarget.querySelector<HTMLElement>("[data-abrir]")?.focus();
+                  }}
+                  onPointerLeave={(e) => e.pointerType !== "touch" && vista === "cerrada" && alBarra({ tipo: "salir", id: t.id })}
+                  onBlur={(e) => {
+                    if (vista === "cerrada" && !e.currentTarget.contains(e.relatedTarget as Node | null)) alBarra({ tipo: "salir", id: t.id });
+                  }}
+                >
+                  {bloque}
+                  <div
+                    className={`${claseDeLaBarra(vista, lado.vertical)} ${lado.vertical === "abajo" ? "top-full pt-1" : "bottom-full pb-1"} ${lado.horizontal === "izquierda" ? "left-0" : "right-0"}`}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <div className="rounded-lg border border-line-strong bg-surface-raised p-1.5 shadow-lg">
+                      <BarraDelTurno t={t} alAbrir={vista === "elegida" ? () => alBarra({ tipo: "toque", id: t.id, tactil: true, conBarra }) : undefined} />
+                    </div>
+                  </div>
+                </div>
               );
             })];
           })}
@@ -495,6 +561,18 @@ export default function PorProfesional({
       <ConfirmarMover turno={turnoAConfirmar} destino={aConfirmar?.destino ?? null} onCerrar={() => setAConfirmar(null)} />
     </div>
   );
+}
+
+/**
+ * La barra flotante: escondida, salvo elegida (táctil) o con el mouse encima / el foco del teclado
+ * adentro. Aparece en ≤ 150 ms (opacidad + un corrimiento corto); con «reducir movimiento», de golpe.
+ */
+function claseDeLaBarra(vista: "elegida" | "al-pasar" | "cerrada", vertical: "abajo" | "arriba"): string {
+  const base = "absolute z-30 w-max max-w-[min(20rem,calc(100vw-5rem))] transition-[opacity,transform,visibility] duration-150 motion-reduce:transition-none";
+  const escondida = `invisible pointer-events-none opacity-0 ${vertical === "abajo" ? "translate-y-1" : "-translate-y-1"}`;
+  if (vista === "elegida") return `${base} visible opacity-100 translate-y-0`;
+  if (vista === "cerrada") return `${base} ${escondida}`;
+  return `${base} ${escondida} group-hover/turno:visible group-hover/turno:pointer-events-auto group-hover/turno:opacity-100 group-hover/turno:translate-y-0 group-has-[:focus-visible]/turno:visible group-has-[:focus-visible]/turno:pointer-events-auto group-has-[:focus-visible]/turno:opacity-100 group-has-[:focus-visible]/turno:translate-y-0`;
 }
 
 function EncabezadoDeColumna({ columna, numero, bloqueos }: { columna: ColumnaDeLaGrilla; numero: number; bloqueos: readonly BloqueoDelDia[] }) {

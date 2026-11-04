@@ -23,8 +23,15 @@ import { useMesa } from "./MesaDeTurnos";
 import { hayBarra, teclasDeLaBarra } from "./barra-core";
 
 const TECLA = "min-h-11";
+// La piel «Renglón» baja las teclas `sm` a 36 px en la PC (renglon.css, `--alto`); las de la barra
+// se tocan también con el dedo en una tablet ancha: 44 px siempre (inline, gana a la piel).
+const ALTO = { minHeight: "2.75rem" } as const;
 
-export default function BarraDelTurno({ t }: { t: TurnoDelDia }) {
+/**
+ * `alAbrir`: en la grilla táctil, la barra suma «Abrir» (el cajón del turno), porque el primer toque
+ * sobre el turno sólo lo eligió.
+ */
+export default function BarraDelTurno({ t, alAbrir }: { t: TurnoDelDia; alAbrir?: () => void }) {
   const { permisos, reloj, hoja, cerrarSinPrestar, avisarCierre } = useMesa();
   const { showError } = useToast();
   const [pendiente, empezar] = useTransition();
@@ -60,6 +67,7 @@ export default function BarraDelTurno({ t }: { t: TurnoDelDia }) {
           variant="outline"
           size="sm"
           className={TECLA}
+          style={ALTO}
           aria-label={`No vino: ${quien}`}
           aria-haspopup={barra.noVino === "hoja" ? "dialog" : undefined}
           disabled={pendiente}
@@ -74,6 +82,7 @@ export default function BarraDelTurno({ t }: { t: TurnoDelDia }) {
           type="button"
           size="sm"
           className={TECLA}
+          style={ALTO}
           aria-label={`Cobrar: ${quien}`}
           aria-haspopup="dialog"
           onClick={() => barra.cobrar && hoja({ turnoId: t.id, que: barra.cobrar.que })}
@@ -89,10 +98,16 @@ export default function BarraDelTurno({ t }: { t: TurnoDelDia }) {
           variant="outline"
           size="sm"
           className={TECLA}
+          style={ALTO}
           aria-label={`WhatsApp a ${t.clienta} (se abre en otra pestaña)`}
         >
           WhatsApp
         </ButtonLink>
+      )}
+      {alAbrir && (
+        <Button type="button" variant="outline" size="sm" className={TECLA} style={ALTO} aria-label={`Abrir el turno: ${quien}`} onClick={alAbrir}>
+          Abrir
+        </Button>
       )}
     </span>
   );

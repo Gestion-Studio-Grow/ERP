@@ -53,3 +53,60 @@ export function muestraTeclaDelPaso(paso: Paso, barra: TeclasDeLaBarra | null): 
 export function hayBarra(b: TeclasDeLaBarra | null): b is TeclasDeLaBarra {
   return !!b && (b.noVino !== null || b.cobrar !== null || b.whatsapp !== null);
 }
+
+// ── La barra sobre el turno de la GRILLA (PorProfesional): qué turno está elegido ──
+//
+// En la PC la barra aparece con el mouse encima o con el foco del teclado (CSS); el clic abre el
+// cajón como siempre. En táctil no hay «encima»: el PRIMER toque elige el turno y muestra la barra
+// + «Abrir»; un segundo toque sobre el mismo (o «Abrir») abre el cajón. Tocar fuera o Esc la cierra.
+// `cerrada` recuerda el turno al que se le cerró la barra con Esc mientras sigue con el foco o el
+// mouse encima (si no, el CSS la volvería a mostrar); se olvida cuando el foco o el mouse se van.
+
+export type SeleccionDeLaBarra = { elegido: string | null; cerrada: string | null };
+
+export const SIN_SELECCION: SeleccionDeLaBarra = { elegido: null, cerrada: null };
+
+export type EventoDeLaBarra =
+  | { tipo: "toque"; id: string; tactil: boolean; conBarra: boolean }
+  | { tipo: "fuera" }
+  | { tipo: "escape"; id: string | null }
+  | { tipo: "salir"; id: string };
+
+export type EfectoDeLaBarra = { seleccion: SeleccionDeLaBarra; abrirCajon: string | null };
+
+export function seleccionDeLaBarra(s: SeleccionDeLaBarra, e: EventoDeLaBarra): EfectoDeLaBarra {
+  switch (e.tipo) {
+    case "toque":
+      // Mouse/teclado, o un turno sin teclas: el toque abre el cajón, como siempre.
+      if (!e.tactil || !e.conBarra || s.elegido === e.id) return { seleccion: SIN_SELECCION, abrirCajon: e.id };
+      return { seleccion: { elegido: e.id, cerrada: null }, abrirCajon: null };
+    case "fuera":
+      return { seleccion: s.elegido === null ? s : { ...s, elegido: null }, abrirCajon: null };
+    case "escape": {
+      const id = e.id ?? s.elegido;
+      return { seleccion: { elegido: null, cerrada: id }, abrirCajon: null };
+    }
+    case "salir":
+      return { seleccion: s.cerrada === e.id ? { ...s, cerrada: null } : s, abrirCajon: null };
+  }
+}
+
+/** Cómo se ve la barra de un turno: «elegida» (táctil), «al-pasar» (mouse/foco) o «cerrada» (Esc). */
+export function vistaDeLaBarra(s: SeleccionDeLaBarra, id: string): "elegida" | "al-pasar" | "cerrada" {
+  if (s.cerrada === id) return "cerrada";
+  return s.elegido === id ? "elegida" : "al-pasar";
+}
+
+/**
+ * Dónde flota la barra para no salirse del marco de la planilla (que recorta): debajo del turno,
+ * salvo que termine en las últimas filas (arriba); pegada a la izquierda, salvo en la mitad
+ * derecha de las columnas (a la derecha).
+ */
+export function ladoDeLaBarra(o: { fila: number; alto: number; filas: number; columna: number; columnas: number }): {
+  vertical: "abajo" | "arriba";
+  horizontal: "izquierda" | "derecha";
+} {
+  const vertical = o.fila + o.alto >= o.filas - 1 && o.fila > 0 ? "arriba" : "abajo";
+  const horizontal = o.columnas > 1 && o.columna >= Math.ceil(o.columnas / 2) ? "derecha" : "izquierda";
+  return { vertical, horizontal };
+}
