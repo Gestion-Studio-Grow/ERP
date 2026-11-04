@@ -1,0 +1,182 @@
+/**
+ * Motor de asientos contables (Contabilidad, ola 1 — docs/producto/contabilidad/PLAN.md §5).
+ *
+ * PURO: sin Prisma ni framework. Valida un asiento antes de que toque la base y arma el
+ * contra-asiento de uno confirmado (un asiento CONFIRMADO no se edita: se contra-asienta).
+ *
+ * Montos en CENTAVOS `bigint` (nunca Float/Decimal): la suma no pierde precisión con inflación.
+ * La base vuelve a controlar lo mismo (CHECK por línea y trigger diferido de cuadre, migración
+ * 20261104120000_contabilidad_ola1): el motor da el error en criollo, la base es la red.
+ */
+
+export type TipoCuenta = "ACTIVO" | "PASIVO" | "PATRIMONIO" | "RESULTADO_POSITIVO" | "RESULTADO_NEGATIVO";
+export type OrigenAsiento = "MANUAL" | "FACTURA" | "COBRO" | "PAGO";
+export type EstadoAsiento = "BORRADOR" | "CONFIRMADO";
+
+/** Lo mínimo de una cuenta que el motor necesita para validar una imputación. */
+export interface CuentaParaValidar {
+  id: string;
+  tenantId: string;
+  codigo: string;
+  nombre: string;
+  imputable: boolean;
+  activa: boolean;
+}
+
+export interface LineaAsiento {
+  cuentaId: string;
+  /** Centavos. Una línea es SÓLO debe o SÓLO haber. */
+  debe: bigint;
+  haber: bigint;
+  detalle?: string | null;
+}
+
+export type CodigoErrorAsiento =
+  | "POCAS_LINEAS"
+  | "DESCUADRADO"
+  | "TOTAL_EN_CERO"
+  | "MONTO_NEGATIVO"
+  | "LINEA_DEBE_Y_HABER"
+  | "LINEA_EN_CERO"
+  | "CUENTA_INEXISTENTE"
+  | "CUENTA_NO_IMPUTABLE"
+  | "CUENTA_INACTIVA"
+  | "CUENTA_DE_OTRO_NEGOCIO"
+  | "FECHA_INVALIDA";
+
+export interface ErrorAsiento {
+  codigo: CodigoErrorAsiento;
+  /** Texto para mostrar tal cual: qué pasa y cómo seguir. */
+  mensaje: string;
+  /** Índice (base 0) de la línea con problema, si el error es de una línea. */
+  linea?: number;
+}
+
+export type ResultadoValidacion =
+  | { ok: true; totalDebe: bigint; totalHaber: bigint }
+  | { ok: false; errores: ErrorAsiento[] };
+
+export interface OpcionesValidacion {
+  /** Negocio dueño del asiento: toda cuenta imputada tiene que ser de él. */
+  tenantId?: string;
+  /** En ola 1 sólo se controla que sea una fecha válida (el ejercicio abierto llega en ola 6). */
+  fecha?: Date;
+}
+
+const CERO = BigInt(0);
+
+/** Formatea centavos como pesos para los mensajes: 123456n → "$ 1.234,56". */
+export function formatearCentavos(centavos: bigint): string {
+  const negativo = centavos < CERO;
+  const abs = negativo ? -centavos : centavos;
+  const pesos = (abs / BigInt(100)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const cent = (abs % BigInt(100)).toString().padStart(2, "0");
+  return `${negativo ? "-" : ""}$ ${pesos},${cent}`;
+}
+
+/**
+ * Valida un asiento. Devuelve TODOS los errores encontrados (no sólo el primero), para que la
+ * pantalla marque cada línea mal de una vez.
+ *
+ * Reglas: ≥ 2 líneas · cada línea sólo debe o sólo haber, > 0 · cuenta existente, imputable y
+ * activa · todas las cuentas del mismo negocio · Σ debe === Σ haber · total ≠ 0 · fecha válida.
+ */
+export function validarAsiento(
+  lineas: readonly LineaAsiento[],
+  cuentas: readonly CuentaParaValidar[],
+  opts: OpcionesValidacion = {},
+): ResultadoValidacion {
+  const errores: ErrorAsiento[] = [];
+
+  if (opts.fecha !== undefined && Number.isNaN(opts.fecha.getTime())) {
+    errores.push({ codigo: "FECHA_INVALIDA", mensaje: "La fecha del asiento no es válida. Elegí una fecha del calendario." });
+  }
+
+  if (lineas.length < 2) {
+    errores.push({
+      codigo: "POCAS_LINEAS",
+      mensaje: "Un asiento necesita al menos dos líneas: una al debe y otra al haber.",
+    });
+  }
+
+  const porId = new Map(cuentas.map((c) => [c.id, c]));
+  // El negocio de referencia: el explícito o, si no vino, el de la primera cuenta encontrada.
+  let negocio = opts.tenantId;
+  let totalDebe = CERO;
+  let totalHaber = CERO;
+
+  lineas.forEach((l, i) => {
+    const n = i + 1;
+    if (l.debe < CERO || l.haber < CERO) {
+      errores.push({ codigo: "MONTO_NEGATIVO", linea: i, mensaje: `Línea ${n}: los importes no pueden ser negativos. Para revertir, cargá el importe del otro lado.` });
+    } else if (l.debe > CERO && l.haber > CERO) {
+      errores.push({ codigo: "LINEA_DEBE_Y_HABER", linea: i, mensaje: `Línea ${n}: tiene importe al debe y al haber. Cada línea va de un solo lado; separala en dos.` });
+    } else if (l.debe === CERO && l.haber === CERO) {
+      errores.push({ codigo: "LINEA_EN_CERO", linea: i, mensaje: `Línea ${n}: no tiene importe. Cargá un monto al debe o al haber, o borrala.` });
+    }
+    totalDebe += l.debe;
+    totalHaber += l.haber;
+
+    const cuenta = porId.get(l.cuentaId);
+    if (!cuenta) {
+      errores.push({ codigo: "CUENTA_INEXISTENTE", linea: i, mensaje: `Línea ${n}: la cuenta elegida no existe en el plan de cuentas de este negocio.` });
+      return;
+    }
+    if (negocio === undefined) negocio = cuenta.tenantId;
+    if (cuenta.tenantId !== negocio) {
+      errores.push({ codigo: "CUENTA_DE_OTRO_NEGOCIO", linea: i, mensaje: `Línea ${n}: la cuenta ${cuenta.codigo} no es de este negocio.` });
+      return;
+    }
+    if (!cuenta.imputable) {
+      errores.push({
+        codigo: "CUENTA_NO_IMPUTABLE",
+        linea: i,
+        mensaje: `Línea ${n}: «${cuenta.codigo} ${cuenta.nombre}» agrupa otras cuentas y no recibe movimientos. Elegí una cuenta de detalle.`,
+      });
+    }
+    if (!cuenta.activa) {
+      errores.push({ codigo: "CUENTA_INACTIVA", linea: i, mensaje: `Línea ${n}: «${cuenta.codigo} ${cuenta.nombre}» está dada de baja. Reactivala o elegí otra.` });
+    }
+  });
+
+  if (lineas.length >= 2 && totalDebe !== totalHaber) {
+    const dif = totalDebe > totalHaber ? totalDebe - totalHaber : totalHaber - totalDebe;
+    errores.push({
+      codigo: "DESCUADRADO",
+      mensaje: `El asiento no cuadra: el debe suma ${formatearCentavos(totalDebe)} y el haber ${formatearCentavos(totalHaber)} (diferencia ${formatearCentavos(dif)}).`,
+    });
+  }
+  if (lineas.length >= 2 && totalDebe === CERO && totalHaber === CERO) {
+    errores.push({ codigo: "TOTAL_EN_CERO", mensaje: "El asiento suma cero. Cargá los importes antes de guardarlo." });
+  }
+
+  return errores.length ? { ok: false, errores } : { ok: true, totalDebe, totalHaber };
+}
+
+export interface AsientoParaContraasentar {
+  numero?: number;
+  fecha: Date;
+  descripcion: string;
+  lineas: readonly LineaAsiento[];
+}
+
+/**
+ * Contra-asiento: mismas cuentas, debe y haber invertidos. Es la ÚNICA forma de corregir un
+ * asiento CONFIRMADO (no se edita). La fecha la decide quien llama (por defecto, la del original).
+ */
+export function contraAsiento(
+  asiento: AsientoParaContraasentar,
+  fecha: Date = asiento.fecha,
+): { fecha: Date; descripcion: string; lineas: LineaAsiento[] } {
+  const ref = asiento.numero !== undefined ? `N° ${asiento.numero}` : `«${asiento.descripcion}»`;
+  return {
+    fecha,
+    descripcion: `Contra-asiento del asiento ${ref}: ${asiento.descripcion}`,
+    lineas: asiento.lineas.map((l) => ({
+      cuentaId: l.cuentaId,
+      debe: l.haber,
+      haber: l.debe,
+      ...(l.detalle != null ? { detalle: l.detalle } : {}),
+    })),
+  };
+}
