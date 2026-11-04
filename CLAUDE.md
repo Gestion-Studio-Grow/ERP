@@ -64,6 +64,11 @@ con «un agente = una tarea»).
 Regla del dueño (27/10/2026): **se planifica en Fable y se ejecuta en Opus.**
 - **Fable:** análisis de mercado y de producto, diseño y planificación (los planes de reingeniería y sus tandas).
 - **Opus 5.5:** todo lo demás: sesiones, construcción, verificación y certificación (`/tanda`, workflow `tanda-gsg`).
+- **Automático (04/11/2026):** leer y buscar corre en Opus aunque la sesión esté en Fable: la lectura es ~95 % del
+  gasto y cuesta 2,5× menos ahí. Toda búsqueda web o lectura larga va al agente `gsg-investigador` (`model: opus`);
+  los constructores (`gsg-ingeniero`, `gsg-certificador`) ya están fijados en Opus. Fable se queda con el juicio.
+- **Medir siempre:** al cerrar cada frente, `node <factory>/entorno/tokens/medir-consumo.mjs <transcripts> --semana
+  --tope-semanal-usd <tope>` da tokens, US$ por modelo y % del tope semanal; va al informe.
 - **Fable en ejecución, sólo como escalamiento técnico:** cuando Opus agotó sus 2 vueltas de corrección y siguen fallas
   alta/media, una única vuelta en Fable, con el motivo escrito en el informe.
 
