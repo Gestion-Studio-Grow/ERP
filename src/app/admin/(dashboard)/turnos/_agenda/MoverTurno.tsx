@@ -45,7 +45,7 @@ export function enlaceAvisoMover(t: Pick<TurnoDelDia, "clienta" | "telefono" | "
  * Mueve el turno (y, si se pide, abre el WhatsApp con el aviso). Una sola acción, la de siempre.
  * `silencioso`: sin el «Listo: …» (la agenda interactiva muestra su propio aviso con Deshacer).
  */
-export function useMoverTurno({ silencioso = false }: { silencioso?: boolean } = {}) {
+export function useMoverTurno({ silencioso = false, conservarDuracion = false }: { silencioso?: boolean; conservarDuracion?: boolean } = {}) {
   const { showSuccess } = useToast();
   const [pendiente, empezar] = useTransition();
 
@@ -59,6 +59,8 @@ export function useMoverTurno({ silencioso = false }: { silencioso?: boolean } =
         fd.set("appointmentId", t.id);
         fd.set("startsAt", d.inicio);
         fd.set("professionalId", d.profesionalId);
+        // Agenda interactiva: el turno se lleva la duración que tiene (un estiramiento no se pierde al mover).
+        if (conservarDuracion) fd.set("conservarDuracion", "1");
         try {
           const r = await rescheduleAppointment(fd);
           if (!r.ok) {

@@ -151,12 +151,15 @@ export function veredictoDeDuracion(input: {
   vecinos: readonly TurnoVecino[];
   tope: string | null;
   margenMin?: number;
+  /** Si se pasa, un turno que ya empezó no se estira (el mismo criterio del servidor). */
+  ahora?: Date;
 }): VeredictoDeDuracion {
-  const { turno, finNuevo, vecinos, tope, margenMin = 0 } = input;
+  const { turno, finNuevo, vecinos, tope, margenMin = 0, ahora } = input;
   const desde = new Date(turno.inicio).getTime();
   const hasta = new Date(finNuevo).getTime();
   if (hasta === new Date(turno.fin).getTime()) return { tipo: "igual" };
   if (!sePuedeMover(turno)) return { tipo: "no", motivo: "Sólo se cambia la duración de un turno reservado o confirmado." };
+  if (ahora && desde <= ahora.getTime()) return { tipo: "no", motivo: "Ese turno ya empezó: no se le cambia la duración desde la agenda." };
   const minutos = (hasta - desde) / MIN_MS;
   if (minutos < PASO_DURACION_MIN) return { tipo: "no", motivo: `Lo mínimo es ${PASO_DURACION_MIN} minutos.` };
   if (minutos % PASO_DURACION_MIN !== 0) return { tipo: "no", motivo: `La duración va de a ${PASO_DURACION_MIN} minutos.` };

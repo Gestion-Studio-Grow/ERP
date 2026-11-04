@@ -14,9 +14,13 @@
 //     tiene, y si algún día la tuviera, sólo estira lo suyo (ADR-017 §2.b).
 //   · el turno se lee por id + `tenantId` escrito a mano además de RLS: un id de otro negocio
 //     contesta «Ese turno ya no existe» y no escribe nada.
-//   · `endsAt` > `startsAt`, la duración en pasos de 15', mínimo 15', dentro del mismo día; si
-//     alarga, no pasa del cierre de la profesional ese día.
-//   · sólo un turno vivo (Reservado o Confirmado), re-chequeado DENTRO de la transacción.
+//   · `endsAt` > `startsAt`, la duración en pasos de 15' (o, exactamente, la duración del servicio:
+//     así el Deshacer de un servicio de 20' estirado a 30' vuelve a sus 20'), mínimo 15', dentro del
+//     mismo día; si alarga, no pasa del cierre de la profesional ese día.
+//   · un turno que ya empezó no se estira ni se acorta (el mismo criterio que mover: lo pasado no se
+//     toca desde la grilla).
+//   · sólo un turno vivo (Reservado o Confirmado), re-leído DENTRO de la transacción con su inicio
+//     Y su fin: si alguien lo movió o lo estiró entre la lectura y la escritura, se rechaza.
 //   · el choque se valida con `assertSlotAvailable` (booking-core.ts, la misma regla del alta y de
 //     mover) con `excludeAppointmentId`, en `bookingTransaction` (Serializable con reintentos): dos
 //     recepcionistas que estiran y mueven a la vez no dejan dos turnos en el mismo recurso.
@@ -58,6 +62,21 @@ export async function cambiarDuracionDelTurno(fd: FormData): Promise<ResultadoAc
   }
 }
 
+/**
+ * ¿`fin` es el fin que tenía el turno antes de su último `resize`, y el turno sigue terminando en
+ * `finActual` (el `to` de ese resize)? Es la regla del Deshacer para duraciones fuera del paso.
+ */
+async function esElFinDeAntes(tenantId: string, appointmentId: string, finActual: Date, fin: Date): Promise<boolean> {
+  const ultimo = await prisma.auditLog.findFirst({
+    where: { tenantId, entity: "Appointment", entityId: appointmentId, action: "resize" },
+    orderBy: { createdAt: "desc" },
+    select: { changes: true },
+  });
+  const c = ultimo?.changes as { from?: { endsAt?: unknown }; to?: { endsAt?: unknown } } | null | undefined;
+  const ms = (v: unknown) => (typeof v === "string" || v instanceof Date ? new Date(v).getTime() : NaN);
+  return ms(c?.to?.endsAt) === finActual.getTime() && ms(c?.from?.endsAt) === fin.getTime();
+}
+
 async function cambiarDuracion(fd: FormData, user: { role: string; professionalId?: string | null }): Promise<void> {
   const tenantId = await getCurrentTenantId();
   const appointmentId = String(fd.get("appointmentId") ?? "").trim();
@@ -68,7 +87,7 @@ async function cambiarDuracion(fd: FormData, user: { role: string; professionalI
 
   const turno = await prisma.appointment.findFirst({
     where: { id: appointmentId, tenantId },
-    select: { id: true, status: true, startsAt: true, endsAt: true, professionalId: true, boxId: true, serviceId: true },
+    select: { id: true, status: true, startsAt: true, endsAt: true, professionalId: true, boxId: true, serviceId: true, service: { select: { durationMin: true } } },
   });
   if (!turno) throw new RechazoDeDominio("Ese turno ya no existe. Recargá la agenda.");
   if (user.role === "PROFESSIONAL" && turno.professionalId !== user.professionalId) {
@@ -81,11 +100,23 @@ async function cambiarDuracion(fd: FormData, user: { role: string; professionalI
   const duracionMin = (endsAt.getTime() - turno.startsAt.getTime()) / MIN;
   if (duracionMin <= 0) throw new RechazoDeDominio("El turno tiene que terminar después de que empieza.");
   if (duracionMin < PASO_DURACION_MIN) throw new RechazoDeDominio(`Lo mínimo es ${PASO_DURACION_MIN} minutos.`);
-  if (!Number.isInteger(duracionMin) || duracionMin % PASO_DURACION_MIN !== 0) {
+  // Fuera del paso de 15' sólo se vuelve a un fin que el turno YA tuvo (el Deshacer de un servicio de
+  // 20', 25' o 50'): la duración exacta del servicio, o el fin de antes del último estiramiento
+  // auditado, si el turno sigue terminando donde lo dejó ese estiramiento. Cualquier otro valor suelto,
+  // no.
+  if (
+    (!Number.isInteger(duracionMin) || duracionMin % PASO_DURACION_MIN !== 0) &&
+    duracionMin !== turno.service.durationMin &&
+    !(await esElFinDeAntes(tenantId, appointmentId, turno.endsAt, endsAt))
+  ) {
     throw new RechazoDeDominio(`La duración va de a ${PASO_DURACION_MIN} minutos.`);
   }
   if (duracionMin > DURACION_MAXIMA_MIN) throw new RechazoDeDominio("Un turno no puede durar más de un día.");
   if (endsAt.getTime() === turno.endsAt.getTime()) throw new RechazoDeDominio("Ya termina a esa hora: no se cambió nada.");
+  // Mismo criterio que mover (`reprogramarTurno`, actions.ts): lo que ya empezó no se toca desde la grilla.
+  if (turno.startsAt.getTime() <= Date.now()) {
+    throw new RechazoDeDominio("Ese turno ya empezó: no se le cambia la duración desde la agenda.");
+  }
 
   // Si alarga, no pasa del cierre de la profesional ese día (acortar siempre se puede).
   if (endsAt > turno.endsAt) {
@@ -100,9 +131,16 @@ async function cambiarDuracion(fd: FormData, user: { role: string; professionalI
     // la lectura de arriba y ahora, no se estira un turno muerto.
     const vivo = await tx.appointment.findFirst({
       where: { id: appointmentId, tenantId, status: { in: ["PENDING", "CONFIRMED"] } },
-      select: { startsAt: true, professionalId: true, boxId: true },
+      select: { startsAt: true, endsAt: true, professionalId: true, boxId: true },
     });
-    if (!vivo || vivo.startsAt.getTime() !== turno.startsAt.getTime() || vivo.professionalId !== turno.professionalId) {
+    // El «antes» se compara entero (inicio Y fin) adentro de la tx: si otra recepcionista lo estiró o
+    // lo movió recién, no se pisa su cambio y la auditoría no queda con un `from` viejo.
+    if (
+      !vivo ||
+      vivo.startsAt.getTime() !== turno.startsAt.getTime() ||
+      vivo.endsAt.getTime() !== turno.endsAt.getTime() ||
+      vivo.professionalId !== turno.professionalId
+    ) {
       throw new RechazoDeDominio("Ese turno cambió recién. Recargá la agenda.");
     }
 
@@ -139,7 +177,7 @@ async function cambiarDuracion(fd: FormData, user: { role: string; professionalI
     action: "resize",
     entity: "Appointment",
     entityId: appointmentId,
-    changes: { from: { endsAt: turno.endsAt }, to: { endsAt } },
+    changes: { from: { endsAt: turno.endsAt }, to: { endsAt } }, // `turno.endsAt` = el re-leído en la tx (B-2)
   });
 
   revalidatePath("/admin");

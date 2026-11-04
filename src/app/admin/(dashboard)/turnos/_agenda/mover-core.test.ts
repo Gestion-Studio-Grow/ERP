@@ -94,6 +94,12 @@ test("estirar sobre otro turno: «Se pisa con Marta a las 17:30» (con el margen
   assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "18:00"), vecinos: [{ ...marta, estado: "CANCELLED" }, { ...ana, clienta: "Ana" }], tope }), { tipo: "ok" });
 });
 
+test("B-1 · un turno que ya empezó no se estira (el mismo criterio del servidor)", () => {
+  const motivo = "Ese turno ya empezó: no se le cambia la duración desde la agenda.";
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "17:15"), vecinos: [], tope, ahora: new Date(iso(DIA, "16:05")) }), { tipo: "no", motivo });
+  assert.deepEqual(veredictoDeDuracion({ turno: ana, finNuevo: iso(DIA, "17:15"), vecinos: [], tope, ahora: new Date(iso(DIA, "15:55")) }), { tipo: "ok" });
+});
+
 test("la manija: nunca menos de 15', nunca después del tope, y redondea a pasos de 15' desde el inicio", () => {
   assert.equal(finEstirado(ana.inicio, ana.fin, -10, tope), iso(DIA, "16:15"));
   assert.equal(finEstirado(ana.inicio, ana.fin, 40, tope), iso(DIA, "21:00"));

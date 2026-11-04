@@ -9,6 +9,9 @@
  *   · concurrencia: estirar y mover al mismo hueco a la vez → uno solo pasa, sin solape;
  *   · aislamiento: la recepción de A no estira un turno de B;
  *   · un PROFESSIONAL no estira (no tiene `agenda:manage`), menos uno ajeno.
+ *   · (cert T2) Deshacer vuelve a un fin fuera del paso de 15' (el del último resize o el del servicio);
+ *     un turno que ya empezó no se estira; mover con `conservarDuracion=1` no pierde el estiramiento.
+ *   Los casos de la cert usan PASADO MAÑANA (`a2`) para no chocar con los de arriba.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -22,11 +25,13 @@ type Sembrado = {
   base: BaseEfimera;
   caro: string;
   lu: string;
-  turno: (hhmm: string, o?: { profesional?: string; minutos?: number; status?: "PENDING" | "CONFIRMED" | "CANCELLED"; clienta?: string }) => Promise<string>;
+  turno: (hhmm: string, o?: { profesional?: string; minutos?: number; status?: "PENDING" | "CONFIRMED" | "CANCELLED"; clienta?: string; inicio?: string; servicio?: string }) => Promise<string>;
   tOtro: string;
   /** Usuaria PROFESSIONAL de Lu, en el negocio A. */
   usuariaLu: { id: string };
   a: (hhmm: string) => string;
+  /** Pasado mañana a esa hora (ISO). */
+  a2: (hhmm: string) => string;
 };
 let sembrado: Sembrado | null = null;
 
@@ -41,6 +46,8 @@ async function preparar(t: import("node:test").TestContext): Promise<Sembrado | 
   const { todayInBusinessTz, businessWallTimeToUtc } = await import("@/lib/datetime");
   const manana = new Date(new Date(`${todayInBusinessTz()}T12:00:00Z`).getTime() + 86_400_000).toISOString().slice(0, 10);
   const a = (hhmm: string) => businessWallTimeToUtc(manana, hhmm).toISOString();
+  const pasado = new Date(new Date(`${todayInBusinessTz()}T12:00:00Z`).getTime() + 2 * 86_400_000).toISOString().slice(0, 10);
+  const a2 = (hhmm: string) => businessWallTimeToUtc(pasado, hhmm).toISOString();
 
   const negocio = async (tenantId: string) => {
     const [b1, b2] = await Promise.all(["Box 1", "Box 2"].map((name) => duenio.box.create({ data: { tenantId, name } })));
@@ -57,13 +64,13 @@ async function preparar(t: import("node:test").TestContext): Promise<Sembrado | 
     const turno: Sembrado["turno"] = async (hhmm, o = {}) => {
       const client = await duenio.client.create({ data: { tenantId, name: o.clienta ?? `Clienta ${n}`, phone: `11400040${String(n++).padStart(2, "0")}` } });
       const profesional = o.profesional ?? caro.id;
-      const startsAt = new Date(a(hhmm));
+      const startsAt = new Date(o.inicio ?? a(hhmm));
       const t = await duenio.appointment.create({
         data: {
           tenantId,
           clientId: client.id,
           professionalId: profesional,
-          serviceId: piernas.id,
+          serviceId: o.servicio ?? piernas.id,
           boxId: boxDe[profesional],
           startsAt,
           endsAt: new Date(startsAt.getTime() + (o.minutos ?? 60) * MIN),
@@ -81,7 +88,7 @@ async function preparar(t: import("node:test").TestContext): Promise<Sembrado | 
   const usuariaLu = await duenio.user.create({
     data: { tenantId: base.a.id, name: "Lu", email: `lu-${Date.now()}@erp.test`, passwordHash: "x", role: "PROFESSIONAL", professionalId: A.lu },
   });
-  sembrado = { base, caro: A.caro, lu: A.lu, turno: A.turno, tOtro, usuariaLu, a };
+  sembrado = { base, caro: A.caro, lu: A.lu, turno: A.turno, tOtro, usuariaLu, a, a2 };
   return sembrado;
 }
 
@@ -100,12 +107,13 @@ async function estirarValor(s: Sembrado, turnoId: string, endsAt: string, quien:
   return r.tipo === "respuesta" ? r.valor : { ok: false as const, error: "sin respuesta" };
 }
 
-async function mover(s: Sembrado, turnoId: string, profesionalId: string, inicio: string) {
+async function mover(s: Sembrado, turnoId: string, profesionalId: string, inicio: string, o: { conservarDuracion?: boolean } = {}) {
   const { rescheduleAppointment } = await import("@/lib/actions");
   const fd = new FormData();
   fd.set("appointmentId", turnoId);
   fd.set("startsAt", inicio);
   fd.set("professionalId", profesionalId);
+  if (o.conservarDuracion) fd.set("conservarDuracion", "1");
   const r = await ejecutarAccion({ negocio: s.base.a, usuario: s.base.a.recepcion }, () => rescheduleAppointment(fd));
   return r.tipo === "respuesta" ? r.valor : { ok: false as const, error: r.tipo };
 }
@@ -212,4 +220,57 @@ test("un PROFESSIONAL no estira: ni un turno ajeno ni el suyo (no tiene agenda:m
   const r = await estirar(s, deCaro, s.a("12:45"), { usuario: s.usuariaLu });
   assert.notEqual(r.tipo === "respuesta" && r.valor.ok, true, `no debía pasar: ${JSON.stringify(r)}`);
   assert.equal((await duenio.appointment.findUniqueOrThrow({ where: { id: deCaro } })).endsAt.toISOString(), s.a("12:30"));
+});
+
+// ── Certificación T2 (certif-t2.md): M-1, B-1, B-3 ──
+
+test("ATQ-1 · Deshacer de un turno de 20' estirado a 30' vuelve a 10:20 (el fin del último resize)", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const ana = await s.turno("10:00", { inicio: s.a2("10:00"), minutos: 20 });
+  assert.deepEqual(await estirarValor(s, ana, s.a2("10:30")), { ok: true }, "estira 10:20 → 10:30");
+  assert.deepEqual(await estirarValor(s, ana, s.a2("10:20")), { ok: true }, "Deshacer vuelve a 10:20");
+  assert.equal((await duenio.appointment.findUniqueOrThrow({ where: { id: ana } })).endsAt.toISOString(), s.a2("10:20"));
+  // Ya deshecho, un fin suelto que el turno no tuvo nunca (10:25) sigue rechazado.
+  assert.deepEqual(await estirarValor(s, ana, s.a2("10:25")), { ok: false, error: "La duración va de a 15 minutos." });
+});
+
+test("M-1 · se vuelve a la duración exacta del servicio (20') aunque no vaya de a 15'; otro valor suelto, no", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const cejas = await duenio.service.create({ data: { tenantId: s.base.a.id, name: "Cejas", durationMin: 20, price: 5000 } });
+  const ana = await s.turno("11:00", { inicio: s.a2("11:00"), minutos: 30, servicio: cejas.id });
+  assert.deepEqual(await estirarValor(s, ana, s.a2("11:25")), { ok: false, error: "La duración va de a 15 minutos." });
+  assert.deepEqual(await estirarValor(s, ana, s.a2("11:20")), { ok: true });
+  assert.equal((await duenio.appointment.findUniqueOrThrow({ where: { id: ana } })).endsAt.toISOString(), s.a2("11:20"));
+});
+
+test("B-1 · un turno que ya empezó (ayer, todavía Reservado) no se estira ni se acorta", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const ayer = new Date(new Date(s.a("10:00")).getTime() - 2 * 86_400_000);
+  const viejo = await s.turno("10:00", { inicio: ayer.toISOString(), profesional: s.lu });
+  const r = await estirarValor(s, viejo, new Date(ayer.getTime() + 30 * MIN).toISOString());
+  assert.deepEqual(r, { ok: false, error: "Ese turno ya empezó: no se le cambia la duración desde la agenda." });
+  assert.equal((await duenio.appointment.findUniqueOrThrow({ where: { id: viejo } })).endsAt.getTime(), ayer.getTime() + 60 * MIN);
+});
+
+test("B-3 · estirar → mover con conservarDuracion=1 conserva la duración; sin el campo, la del servicio", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const ana = await s.turno("13:00", { inicio: s.a2("13:00") }); // Piernas: 60'
+  assert.deepEqual(await estirarValor(s, ana, s.a2("14:30")), { ok: true }, "estira a 1 h 30'");
+  assert.deepEqual(await mover(s, ana, s.lu, s.a2("15:00"), { conservarDuracion: true }), { ok: true });
+  const movido = await duenio.appointment.findUniqueOrThrow({ where: { id: ana } });
+  assert.deepEqual([movido.startsAt.toISOString(), movido.endsAt.toISOString(), movido.professionalId], [s.a2("15:00"), s.a2("16:30"), s.lu]);
+  // Deshacer del mover (también con el campo): vuelve con su 1 h 30'.
+  assert.deepEqual(await mover(s, ana, s.caro, s.a2("13:00"), { conservarDuracion: true }), { ok: true });
+  assert.equal((await duenio.appointment.findUniqueOrThrow({ where: { id: ana } })).endsAt.toISOString(), s.a2("14:30"));
+  // Sin el campo (la hoja de siempre, interruptor apagado): la duración del servicio.
+  assert.deepEqual(await mover(s, ana, s.caro, s.a2("17:00")), { ok: true });
+  assert.equal((await duenio.appointment.findUniqueOrThrow({ where: { id: ana } })).endsAt.toISOString(), s.a2("18:00"));
 });

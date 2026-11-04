@@ -164,7 +164,7 @@ export default function PorProfesional({
   const [aConfirmar, setAConfirmar] = useState<{ turnoId: string; destino: Destino } | null>(null);
 
   // ── Agenda interactiva (T2): mover sin hoja, estirar, teclado y táctil ──
-  const { mover: moverSinHoja } = useMoverTurno({ silencioso: true });
+  const { mover: moverSinHoja } = useMoverTurno({ silencioso: true, conservarDuracion: true });
   const [cambio, setCambio] = useState<CambioParaDeshacer | null>(null);
   const moviendo = useRef(false);
   const levantadoConTeclado = useRef<string | null>(null);
@@ -308,18 +308,24 @@ export default function PorProfesional({
     setCambio({
       clave: `mover-${t.id}-${destino.profesionalId}-${destino.inicio}`,
       que: "mover",
+      // Una línea: el texto se corta con «…» (entero en el title) y la acción queda a la derecha, ≥ 44 px.
       mensaje: (
-        <>
-          {texto}
+        <span className="-my-2 flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1 truncate" title={texto}>
+            {texto}
+          </span>
           {wa && (
-            <>
-              {" · "}
-              <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-2">
-                Avisar por WhatsApp
-              </a>
-            </>
+            <a
+              href={wa}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded px-2 font-semibold underline underline-offset-2"
+            >
+              {/* En el celular se ve «WhatsApp»; el nombre accesible sigue entero. */}
+              <span className="max-sm:sr-only">Avisar por&nbsp;</span>WhatsApp
+            </a>
           )}
-        </>
+        </span>
       ),
       listo: `Listo: ${t.clienta} volvió a las ${fmtTime(t.inicio)} con ${t.profesional}.`,
       deshacer: async () => {
@@ -327,6 +333,7 @@ export default function PorProfesional({
         fd.set("appointmentId", t.id);
         fd.set("startsAt", origen.inicio);
         fd.set("professionalId", origen.profesionalId);
+        fd.set("conservarDuracion", "1");
         try {
           const v = await rescheduleAppointment(fd);
           return v.ok ? null : v.error;
@@ -358,6 +365,7 @@ export default function PorProfesional({
       vecinos: todosLosTurnos.filter((v) => v.profesionalId === t.profesionalId && v.id !== t.id),
       tope: topeDelDia,
       margenMin: BUFFER_MIN,
+      ahora: new Date(),
     });
 
   /** Soltar la manija (o Shift): se guarda si entra; si no, se lee por qué y queda como estaba. */
@@ -522,16 +530,7 @@ export default function PorProfesional({
               className="sticky left-0 z-10 border-b border-line bg-surface pr-2 pt-0.5 text-right text-xs tabular-nums text-muted"
               style={{ gridColumn: 1, gridRow: f + 2 }}
             >
-              {(desde + f * PASO_MIN) % 60 === 0 ? (
-                horaDeMinuto(desde + f * PASO_MIN)
-              ) : interaccion ? (
-                // Prendida: también la media hora, más tenue (la grilla no se lee en bloques de 1 h).
-                <span data-media-hora className="text-[11px] text-faint">
-                  {horaDeMinuto(desde + f * PASO_MIN)}
-                </span>
-              ) : (
-                ""
-              )}
+              {(desde + f * PASO_MIN) % 60 === 0 ? horaDeMinuto(desde + f * PASO_MIN) : ""}
             </div>
           ))}
 
@@ -546,8 +545,6 @@ export default function PorProfesional({
                 "data-minuto": String(minuto),
                 style: { gridColumn: ci + 2, gridRow: f + 2 } as CSSProperties,
               };
-              // Prendida: la línea de la hora entera, más marcada; la de la media hora, la de siempre (tenue).
-              const lineaDeHora = interaccion && minuto % 60 === 30 ? " border-b-line" : "";
               if (celda.tipo === "hueco") {
                 return (
                   <Link
@@ -556,7 +553,7 @@ export default function PorProfesional({
                     href={celda.href}
                     prefetch={false}
                     aria-label={celda.etiqueta}
-                    className={`group flex items-center justify-center border-b border-l border-line/60 text-xs text-accent-ink hover:bg-accent-soft focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus${lineaDeHora}`}
+                    className="group flex items-center justify-center border-b border-l border-line/60 text-xs text-accent-ink hover:bg-accent-soft focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                   >
                     <span aria-hidden className={solo ? "text-muted group-hover:text-accent-ink" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}>
                       + {horaDeMinuto(minuto)}
@@ -570,7 +567,7 @@ export default function PorProfesional({
                   {...comun}
                   aria-hidden
                   title={celda.tipo === "bloqueada" ? (celda.motivo === FUERA_DE_HORARIO || celda.motivo === NO_TRABAJA_ESE_DIA ? `No atiende: ${celda.motivo}` : `No atiende (${celda.motivo})`) : undefined}
-                  className={`border-b border-l border-line/60 ${celda.tipo === "bloqueada" ? "bg-surface-sunken" : ""}${lineaDeHora}`}
+                  className={`border-b border-l border-line/60 ${celda.tipo === "bloqueada" ? "bg-surface-sunken" : ""}`}
                 />
               );
             });
@@ -639,6 +636,9 @@ export default function PorProfesional({
               const atenuado = filtro !== "todos" && !entraEnFiltro(t, filtro, reloj);
               const choca = choques.has(t.id);
               const enUnaLinea = interaccion && esTurnoCorto(t);
+              // Prendido, hasta 1 h (dos filas): hora, clienta y servicio en la primera línea y el estado
+              // en la segunda; en tres líneas el servicio quedaba cortado al medio (QA T2, 1366).
+              const compacto = interaccion && !enUnaLinea && alto <= 2;
               const conBarra = interaccion && hayBarra(teclasDeLaBarra(t, permisos, relojDeLaMesa));
               // Prendida: el turno que se puede mover también se estira y se levanta con el dedo o con M.
               const estirable = interaccion && movible;
@@ -760,12 +760,18 @@ export default function PorProfesional({
                       </Marca>
                     </span>
                   ) : (
-                  <span className="flex w-full items-baseline gap-1.5">
-                    <span className="text-xs font-semibold tabular-nums text-strong">{fmtTime(t.inicio)}</span>
-                    <span className="truncate font-medium text-strong">{t.clienta}</span>
+                  <span className="flex w-full min-w-0 items-baseline gap-1.5">
+                    <span className="shrink-0 text-xs font-semibold tabular-nums text-strong">{fmtTime(t.inicio)}</span>
+                    <span className={`truncate font-medium text-strong${compacto ? " max-w-[60%] shrink-0" : ""}`}>{t.clienta}</span>
+                    {compacto && (
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted">
+                        · {verPor === "box" ? `${t.servicio} · ${t.profesional}` : t.servicio}
+                        {pedida ? " · seña pedida" : ""}
+                      </span>
+                    )}
                   </span>
                   )}
-                  {!enUnaLinea && alto > 1 && (
+                  {!enUnaLinea && !compacto && alto > 1 && (
                     <span className="w-full truncate text-xs text-muted">
                       {verPor === "box" ? `${t.servicio} · ${t.profesional}` : t.servicio}
                       {pedida ? " · seña pedida" : ""}
@@ -811,12 +817,19 @@ export default function PorProfesional({
                     <span
                       aria-hidden
                       data-estirando
-                      className={`pointer-events-none absolute inset-x-0 top-0 z-[2] flex items-end overflow-hidden rounded border-2 border-dashed px-2 pb-0.5 text-xs font-semibold ${
-                        veredictoDelFin.tipo === "no" ? "border-danger bg-danger-soft/60 text-danger" : "border-success bg-success-soft/60 text-success"
+                      className={`pointer-events-none absolute inset-x-0 top-0 z-[2] rounded border-2 border-dashed ${
+                        veredictoDelFin.tipo === "no" ? "border-danger bg-danger-soft/60" : "border-success bg-success-soft/60"
                       }`}
                       style={{ height: `calc(100% * ${(corrimiento + (new Date(estiraEste.fin).getTime() - new Date(t.inicio).getTime()) / 60_000) / minutosDelBloque})` }}
                     >
-                      {veredictoDelFin.tipo === "no" ? veredictoDelFin.motivo : rotuloDeDuracion(t.inicio, estiraEste.fin)}
+                      {/* Chip flotante abajo del bloque: no se pisa con la línea del estado (QA T2). */}
+                      <span
+                        className={`absolute left-0 top-full mt-1 w-max max-w-[18rem] rounded border px-2 py-0.5 text-xs font-semibold shadow-overlay ${
+                          veredictoDelFin.tipo === "no" ? "border-danger bg-danger-soft text-danger" : "border-success bg-success-soft text-success"
+                        }`}
+                      >
+                        {veredictoDelFin.tipo === "no" ? veredictoDelFin.motivo : rotuloDeDuracion(t.inicio, estiraEste.fin)}
+                      </span>
                     </span>
                   )}
                   {estirable && (

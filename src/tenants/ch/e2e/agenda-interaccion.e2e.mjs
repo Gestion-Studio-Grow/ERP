@@ -10,7 +10,7 @@
 //   E · en 375: elegir otra profesional por chip.
 //   T2 · G: arrastrar a un hueco libre (1 gesto; en 375, mantener 300 ms y llevar) → aviso → Deshacer.
 //        H: estirar 15' con la manija (y estirar sobre otro turno → «Se pisa con…», queda igual).
-//        I: mover con el teclado (M, ↓↓, Enter), en 1366. K: la canaleta rotula «10:30» prendida y no apagada.
+//        I: mover con el teclado (M, ↓↓, Enter), en 1366. (La canaleta es la de siempre: sin medias horas.)
 //   Chequeos: sin scroll horizontal, teclas ≥ 44 px, consola limpia.
 // Uso: node --import tsx src/tenants/ch/e2e/agenda-interaccion.e2e.mjs <carpeta del resumen (fuera del repo)>
 import { mkdir, writeFile } from "node:fs/promises";
@@ -191,8 +191,6 @@ for (const [w, h] of [[1366, 768], [375, 812]]) {
       const nBarras = await s.p.locator("[data-turno-barra]").count();
       const nGrupos = await s.p.getByRole("group", { name: /Acciones rápidas/ }).count();
       const nChips = await s.p.getByRole("radiogroup", { name: "Ver la agenda de" }).count();
-      const nMedias = await s.p.locator("[data-media-hora]").count();
-      ok(`K1.${V}`, nMedias === 0, `apagado: la canaleta no rotula las medias horas (${nMedias})`);
       ok(`F1.${V}`, nBarras === 0 && nGrupos === 0 && nChips === 0, `apagado: sin barra ni chips (barras ${nBarras}, grupos ${nGrupos}, chips ${nChips})`);
       const d = await sinDesborde(s.p);
       ok(`F2.${V}`, d.sw <= d.iw, `apagado: agenda sin scroll horizontal (${d.sw} ≤ ${d.iw})`);
@@ -314,7 +312,7 @@ for (const [w, h] of [[1366, 768], [375, 812]]) {
       await s.ctx.close();
     }
 
-    // ───────── T2 · G mover sin hoja → Deshacer · H estirar · I teclado · K canaleta ─────────
+    // ───────── T2 · G mover sin hoja → Deshacer · H estirar · I teclado ─────────
     {
       const marina = e.semilla.profesionales.marina;
       const tMover = await turnoManana(db, e, { nombre: `Gina Mover ${V}`, k: 10, hhmm: "11:30" });
@@ -324,9 +322,6 @@ for (const [w, h] of [[1366, 768], [375, 812]]) {
       const s = await pagina(e, [w, h], { etiqueta: `G-${V}` });
       // Las dos grillas están en la página (la del celular escondida en la PC): siempre la VISIBLE.
       await irALaAgenda(s, e, `?date=${mananaBA}&pro=${marina}`);
-
-      const media = s.p.locator("[data-media-hora]", { hasText: "10:30" }).filter({ visible: true });
-      ok(`K2.${V}`, await espera(media, 10000), "prendido: la canaleta rotula «10:30»");
 
       // G · arrastrar a 13:00 (hueco libre) en UN gesto.
       const bloque = bloqueDe(s.p, tMover).filter({ visible: true }).first();

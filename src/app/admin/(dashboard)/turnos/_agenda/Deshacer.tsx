@@ -103,7 +103,9 @@ export function AvisoDeshacerCambio({ mensaje, listo, deshacer, duracion = 8_000
   };
   return (
     <div className="pointer-events-none fixed bottom-[calc(1rem_+_var(--alto-barra-inferior,0px))] left-4 right-4 z-50 flex justify-end sm:left-auto">
-      <Aviso mensaje={mensaje} duracion={duracion} onDeshacer={pendiente ? undefined : alDeshacer} onTermina={onTermina} />
+      {/* Más ancho en la PC: el texto entra en una línea junto a «Avisar por WhatsApp» y «Deshacer».
+          Con `!`: `cn` no fusiona clases y otra hoja repite `.max-w-sm` más abajo (QA T2b). */}
+      <Aviso mensaje={mensaje} duracion={duracion} onDeshacer={pendiente ? undefined : alDeshacer} onTermina={onTermina} className="sm:max-w-lg!" />
     </div>
   );
 }

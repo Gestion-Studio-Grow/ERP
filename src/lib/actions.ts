@@ -996,7 +996,14 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
   if (startsAt.getTime() <= Date.now()) {
     throw new RechazoDeDominio("Ese horario ya pasó. Elegí uno que venga.");
   }
-  const endsAt = new Date(startsAt.getTime() + appointment.service.durationMin * 60000);
+  // `conservarDuracion=1` (sólo la agenda interactiva: soltar, teclado y el Deshacer de mover): el turno
+  // se lleva la duración que tiene ahora (p. ej. estirado de 1 h a 1 h 30'), no la del servicio. Sin el
+  // campo, como siempre: la duración del servicio.
+  const conservarDuracion = String(formData.get("conservarDuracion") ?? "") === "1";
+  const duracionMs = conservarDuracion
+    ? appointment.endsAt.getTime() - appointment.startsAt.getTime()
+    : appointment.service.durationMin * 60000;
+  const endsAt = new Date(startsAt.getTime() + duracionMs);
   const boxId = professional.boxId;
 
   // El profesional debe trabajar en ese horario (misma regla que el alta).
@@ -1019,8 +1026,15 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
     // Dentro de la misma transacción (Serializable, del negocio): el turno sigue siendo de ESTE
     // negocio y sigue vivo. Si otra recepcionista lo canceló o lo cerró entre que se leyó arriba y
     // ahora, no se mueve un turno muerto (CH Tanda 2 · mover desde la grilla).
+    // Conservando la duración, además, el turno tiene que seguir durando lo que se leyó arriba: si otra
+    // recepcionista lo estiró recién, no se lo achica sin querer.
     const sigueVivo = await tx.appointment.count({
-      where: { id: appointmentId, tenantId, status: { in: ["PENDING", "CONFIRMED"] } },
+      where: {
+        id: appointmentId,
+        tenantId,
+        status: { in: ["PENDING", "CONFIRMED"] },
+        ...(conservarDuracion ? { startsAt: appointment.startsAt, endsAt: appointment.endsAt } : {}),
+      },
     });
     if (sigueVivo === 0) throw new RechazoDeDominio("Ese turno cambió recién. Recargá la agenda.");
 
