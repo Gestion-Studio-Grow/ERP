@@ -265,6 +265,27 @@ test("producto por unidad con 0,001 · rechazo y nada escrito (A y B)", async (t
 });
 
 // Último: cierra la caja de hoy del negocio A.
+test("misma clave en OTRO turno del mismo negocio · se cobra de verdad, nunca ok sin cobro (A y B)", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { cobrarTurnoConProductos } = await import("./cobro-con-producto-actions");
+  for (const [negocio, n] of [[s.base.a, s.a], [s.base.b, s.b]] as const) {
+    const t1 = await n.turno("Clave viajera 1");
+    const t2 = await n.turno("Clave viajera 2");
+    const p1 = await n.producto("Crema viajera 1", 5);
+    const p2 = await n.producto("Crema viajera 2", 5);
+    const clave = randomUUID();
+    const r1 = await como(negocio, () => cobrarTurnoConProductos(campos(t1, [{ productId: p1, qty: 1 }], clave)));
+    assert.equal(r1.ok && r1.total, 24000, JSON.stringify(r1));
+    const r2 = await como(negocio, () => cobrarTurnoConProductos(campos(t2, [{ productId: p2, qty: 1 }], clave)));
+    assert.equal(r2.ok, true, JSON.stringify(r2));
+    assert.equal(r2.ok && r2.total, 24000);
+    assert.notEqual(r2.ok && r2.orderCode, r1.ok && r1.orderCode, "el turno 2 tiene su propia orden");
+    assert.deepEqual(await foto(s, t2, p2), { status: "COMPLETED", cobros: [18000], ordenes: 1, stock: 4, libroTurno: [18000], libroVenta: [6000], ventasDeStock: [-1] });
+    assert.deepEqual(await foto(s, t1, p1), { status: "COMPLETED", cobros: [18000], ordenes: 1, stock: 4, libroTurno: [18000], libroVenta: [6000], ventasDeStock: [-1] });
+  }
+});
+
 test("caja cerrada (DB-5) · el cobro con productos se rechaza con el motivo y no escribe nada", async (t) => {
   const s = await preparar(t);
   if (!s) return;

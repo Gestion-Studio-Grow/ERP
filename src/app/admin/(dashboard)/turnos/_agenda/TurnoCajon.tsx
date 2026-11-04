@@ -465,6 +465,7 @@ export default function TurnoCajon({
           <Seccion titulo={t.estado === "PENDING" ? "Vino" : "Terminar"}>
             <div className="pt-3">
               <TerminarTurno
+                key={t.id}
                 turnoId={t.id}
                 clienta={t.clienta}
                 estado={t.estado}

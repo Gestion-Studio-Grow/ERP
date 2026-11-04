@@ -177,7 +177,7 @@ async function loQueYaSeGrabo(p: {
   method: string;
   renglones: readonly { productId: string; qty: number }[];
 }): Promise<ResultadoCobroConProducto> {
-  const [orden, cobro] = await Promise.all([
+  const [orden, cobro, turno] = await Promise.all([
     prisma.order.findFirst({
       where: { tenantId: p.tenantId, idempotencyKey: p.clavePedido },
       select: { code: true, total: true, paymentMethod: true, items: { select: { productId: true, quantity: true } } },
@@ -186,8 +186,14 @@ async function loQueYaSeGrabo(p: {
       where: { tenantId: p.tenantId, idempotencyKey: p.claveCobro, appointmentId: p.appointmentId },
       select: { amount: true },
     }),
+    prisma.appointment.findFirst({
+      where: { id: p.appointmentId, tenantId: p.tenantId },
+      select: { status: true },
+    }),
   ]);
-  if (!orden) return { ok: false, error: YA_REGISTRADO };
+  // Lo grabado tiene que ser de ESTE turno (la clave lleva su id) y el turno, terminado: si no, no
+  // se da por cobrado.
+  if (!orden || !turno || turno.status !== "COMPLETED") return { ok: false, error: YA_REGISTRADO };
   const total = Math.round(((cobro ? cobro.amount.toNumber() : 0) + orden.total) * 100) / 100;
   const igual = coincideConLoGrabado(
     { method: p.method, renglones: p.renglones },
@@ -281,8 +287,8 @@ export async function cobrarTurnoConProductos(formData: FormData): Promise<Resul
   // La excepción de stock negativo es la del mostrador (por peso), decidida con la unidad de la base:
   // lo demás respeta la guarda anti-oversell (`canDecrementStock` en el ledger) y aborta todo.
   const permitirNegativoPorProducto = productosQuePuedenQuedarNegativos(productos, "COUNTER");
-  const claveCobro = claveDelCobro(clave);
-  const clavePedido = claveDelPedido(clave);
+  const claveCobro = claveDelCobro(clave, appointmentId);
+  const clavePedido = claveDelPedido(clave, appointmentId);
 
   type Hecho =
     | { dup: true }

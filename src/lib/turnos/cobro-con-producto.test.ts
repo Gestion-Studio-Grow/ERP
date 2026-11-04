@@ -48,8 +48,10 @@ test("claves · una para el cobro y la del pedido derivada; la del formulario co
   assert.equal(leerClave("corta"), null);
   assert.equal(leerClave("con espacio adentro"), null);
   assert.equal(leerClave(undefined), null);
-  assert.notEqual(claveDelCobro(c), claveDelPedido(c));
-  assert.ok(claveDelPedido(c).startsWith(claveDelCobro(c)));
+  assert.notEqual(claveDelCobro(c, "t1"), claveDelPedido(c, "t1"));
+  assert.ok(claveDelPedido(c, "t1").startsWith(claveDelCobro(c, "t1")));
+  assert.notEqual(claveDelCobro(c, "t1"), claveDelCobro(c, "t2"), "la misma clave en otro turno es otra clave");
+  assert.notEqual(claveDelPedido(c, "t1"), claveDelPedido(c, "t2"));
 });
 
 test("buscarProductos · sin acentos ni mayúsculas, hasta 8", () => {

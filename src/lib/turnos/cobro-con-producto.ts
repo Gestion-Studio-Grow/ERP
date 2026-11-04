@@ -114,14 +114,17 @@ export function leerClave(raw: unknown): string | null {
   return FORMA_CLAVE.test(v) ? v : null;
 }
 
-/** Clave del cobro del turno (`Collection.idempotencyKey`). */
-export function claveDelCobro(clave: string): string {
-  return `turno-producto:${clave}`;
+/**
+ * Clave del cobro del turno (`Collection.idempotencyKey`), derivada en el servidor de la clave de la
+ * hoja + el id del turno: la misma clave reusada en OTRO turno es otra clave (no se da por cobrado).
+ */
+export function claveDelCobro(clave: string, appointmentId: string): string {
+  return `turno-producto:${appointmentId}:${clave}`;
 }
 
 /** Clave de la orden de los productos, derivada de la del cobro (`Order.idempotencyKey`). */
-export function claveDelPedido(clave: string): string {
-  return `turno-producto:${clave}:pedido`;
+export function claveDelPedido(clave: string, appointmentId: string): string {
+  return `${claveDelCobro(clave, appointmentId)}:pedido`;
 }
 
 const MAX_RESULTADOS = 8;
