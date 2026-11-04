@@ -9,7 +9,7 @@
  * Los nodos con hijos AGRUPAN (no imputables); las hojas son imputables. PURO: sin base.
  */
 
-import type { TipoCuenta } from "./asiento";
+import { naturalezaPorTipo, type Naturaleza, type TipoCuenta } from "./asiento";
 
 /** [A VALIDAR con contador matriculado] */
 export const PLAN_MODELO_PROVISIONAL = true;
@@ -24,9 +24,11 @@ export interface CuentaModelo {
   /** `null` en las cinco raíces. */
   padreCodigo: string | null;
   imputable: boolean;
+  naturaleza: Naturaleza;
 }
 
-type Hoja = [codigo: string, nombre: string];
+/** `regularizadora`: naturaleza opuesta a la de su rubro (amortizaciones acumuladas, previsiones). */
+type Hoja = [codigo: string, nombre: string, regularizadora?: "regularizadora"];
 
 /** Hojas comunes a todos los rubros, por agrupador. */
 const AGRUPADORES: ReadonlyArray<{ codigo: string; nombre: string; padre: string }> = [
@@ -52,14 +54,22 @@ const AGRUPADORES: ReadonlyArray<{ codigo: string; nombre: string; padre: string
 
 const HOJAS_COMUNES: Readonly<Record<string, readonly Hoja[]>> = {
   "1.1.1": [["1.1.1.01", "Caja"], ["1.1.1.02", "Banco cuenta corriente"], ["1.1.1.03", "Mercado Pago y billeteras"]],
-  "1.1.2": [["1.1.2.01", "Deudores por ventas"], ["1.1.2.02", "Tarjetas a cobrar"]],
+  "1.1.2": [
+    ["1.1.2.01", "Deudores por ventas"],
+    ["1.1.2.02", "Tarjetas a cobrar"],
+    ["1.1.2.03", "Previsión para deudores incobrables", "regularizadora"],
+  ],
   "1.1.3": [
     ["1.1.3.01", "IVA crédito fiscal"],
     ["1.1.3.02", "Percepciones IIBB sufridas"],
     ["1.1.3.03", "Retenciones IIBB sufridas"],
     ["1.1.3.04", "Percepciones y retenciones IVA sufridas"],
   ],
-  "1.2.1": [["1.2.1.01", "Muebles y útiles"], ["1.2.1.02", "Equipos de computación"]],
+  "1.2.1": [
+    ["1.2.1.01", "Muebles y útiles"],
+    ["1.2.1.02", "Equipos de computación"],
+    ["1.2.1.03", "Amortizaciones acumuladas de bienes de uso", "regularizadora"],
+  ],
   "2.1.1": [["2.1.1.01", "Proveedores"]],
   "2.1.2": [["2.1.2.01", "IVA débito fiscal"], ["2.1.2.02", "IVA a pagar"], ["2.1.2.03", "IIBB a pagar"], ["2.1.2.04", "Ganancias a pagar"]],
   "2.1.3": [["2.1.3.01", "Sueldos a pagar"], ["2.1.3.02", "Cargas sociales a pagar"]],
@@ -102,7 +112,7 @@ const HOJAS_POR_RUBRO: Readonly<Record<RubroContable, Readonly<Record<string, re
 const RAICES: ReadonlyArray<{ codigo: string; nombre: string; tipo: TipoCuenta }> = [
   { codigo: "1", nombre: "Activo", tipo: "ACTIVO" },
   { codigo: "2", nombre: "Pasivo", tipo: "PASIVO" },
-  { codigo: "3", nombre: "Patrimonio neto", tipo: "PATRIMONIO" },
+  { codigo: "3", nombre: "Patrimonio neto", tipo: "PATRIMONIO_NETO" },
   { codigo: "4", nombre: "Ingresos", tipo: "RESULTADO_POSITIVO" },
   { codigo: "5", nombre: "Egresos", tipo: "RESULTADO_NEGATIVO" },
 ];
@@ -117,7 +127,7 @@ const tipoDe = (codigo: string): TipoCuenta => TIPO_POR_RAIZ.get(codigo.split(".
  */
 export function planModelo(rubro: RubroContable): CuentaModelo[] {
   const hojas: Record<string, readonly Hoja[]> = { ...HOJAS_COMUNES, ...HOJAS_POR_RUBRO[rubro] };
-  const plan: CuentaModelo[] = RAICES.map((r) => ({ codigo: r.codigo, nombre: r.nombre, tipo: r.tipo, padreCodigo: null, imputable: false }));
+  const plan: CuentaModelo[] = RAICES.map((r) => ({ codigo: r.codigo, nombre: r.nombre, tipo: r.tipo, padreCodigo: null, imputable: false, naturaleza: naturalezaPorTipo(r.tipo) }));
 
   // Un agrupador entra si él o algún descendiente tiene hojas.
   const tieneHojas = (codigo: string): boolean =>
@@ -125,11 +135,15 @@ export function planModelo(rubro: RubroContable): CuentaModelo[] {
 
   for (const a of AGRUPADORES) {
     if (!tieneHojas(a.codigo)) continue;
-    plan.push({ codigo: a.codigo, nombre: a.nombre, tipo: tipoDe(a.codigo), padreCodigo: a.padre, imputable: false });
+    const tipo = tipoDe(a.codigo);
+    plan.push({ codigo: a.codigo, nombre: a.nombre, tipo, padreCodigo: a.padre, imputable: false, naturaleza: naturalezaPorTipo(tipo) });
   }
   for (const a of AGRUPADORES) {
-    for (const [codigo, nombre] of hojas[a.codigo] ?? []) {
-      plan.push({ codigo, nombre, tipo: tipoDe(codigo), padreCodigo: a.codigo, imputable: true });
+    for (const [codigo, nombre, regularizadora] of hojas[a.codigo] ?? []) {
+      const tipo = tipoDe(codigo);
+      const habitual = naturalezaPorTipo(tipo);
+      const naturaleza: Naturaleza = regularizadora ? (habitual === "DEUDORA" ? "ACREEDORA" : "DEUDORA") : habitual;
+      plan.push({ codigo, nombre, tipo, padreCodigo: a.codigo, imputable: true, naturaleza });
     }
   }
   // Orden jerárquico por código (segmentos numéricos): padres antes que hijos.
