@@ -57,14 +57,25 @@ async function prender(db, e, id) {
   });
 }
 
-/** Pedidos → «Cobrar una venta» (1 toque): el mostrador en su cajón, en «Productos». */
+/**
+ * Caja y pedidos → el mostrador de CH (solapa «Productos», el mismo formulario que Vender). Si la
+ * pantalla lo trae en un cajón («Cobrar una venta»), se abre con un toque; si no, ya está a la vista.
+ */
 async function abrirVender(s, e) {
   await s.p.goto(`${e.url}/admin/pedidos`);
   await s.p.waitForLoadState("networkidle").catch(() => {});
-  await toque(s, s.p.getByRole("button", { name: "Cobrar una venta" }), "Cobrar una venta");
-  const cajon = s.p.getByRole("dialog").filter({ visible: true }).first();
-  await cajon.waitFor({ timeout: 20000 });
-  return cajon;
+  const enCajon = s.p.getByRole("button", { name: "Cobrar una venta" });
+  if (await enCajon.first().isVisible().catch(() => false)) {
+    await toque(s, enCajon, "Cobrar una venta");
+    const cajon = s.p.getByRole("dialog").filter({ visible: true }).first();
+    await cajon.waitFor({ timeout: 20000 });
+    return cajon;
+  }
+  const solapa = s.p.getByRole("tab", { name: /Productos/ });
+  if ((await solapa.count()) > 0 && (await solapa.first().getAttribute("aria-selected")) !== "true") await toque(s, solapa, "Productos");
+  const form = s.p.locator('form:is([data-vender="mostrador"], [data-vender="formulario"])').first();
+  await form.waitFor({ timeout: 20000 });
+  return s.p.locator("main").first();
 }
 
 for (const [w, h] of [[1366, 768], [375, 812]]) {
