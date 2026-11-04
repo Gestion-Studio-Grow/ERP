@@ -53,6 +53,7 @@ export type CodigoErrorAsiento =
   | "MONTO_NEGATIVO"
   | "LINEA_DEBE_Y_HABER"
   | "LINEA_EN_CERO"
+  | "MONTO_EXCEDIDO"
   | "CUENTA_INEXISTENTE"
   | "CUENTA_NO_IMPUTABLE"
   | "CUENTA_INACTIVA"
@@ -88,6 +89,8 @@ export interface OpcionesValidacion {
 const dia = (d: Date) => d.toISOString().slice(0, 10);
 
 const CERO = BigInt(0);
+/** Máximo de BIGINT en Postgres (2^63 − 1): más que eso la base no lo guarda. */
+export const MAXIMO_CENTAVOS = BigInt("9223372036854775807");
 
 /** Formatea centavos como pesos para los mensajes: 123456n → "$ 1.234,56". */
 export function formatearCentavos(centavos: bigint): string {
@@ -150,6 +153,9 @@ export function validarAsiento(
       errores.push({ codigo: "LINEA_DEBE_Y_HABER", linea: i, mensaje: `Línea ${n}: tiene importe al debe y al haber. Cada línea va de un solo lado; separala en dos.` });
     } else if (l.debe === CERO && l.haber === CERO) {
       errores.push({ codigo: "LINEA_EN_CERO", linea: i, mensaje: `Línea ${n}: no tiene importe. Cargá un monto al debe o al haber, o borrala.` });
+    }
+    if (l.debe > MAXIMO_CENTAVOS || l.haber > MAXIMO_CENTAVOS) {
+      errores.push({ codigo: "MONTO_EXCEDIDO", linea: i, mensaje: `Línea ${n}: el importe es demasiado grande. Revisá que no sobren dígitos.` });
     }
     totalDebe += l.debe;
     totalHaber += l.haber;

@@ -196,10 +196,18 @@ ALTER TABLE "Ejercicio" ADD CONSTRAINT "Ejercicio_fechas_check" CHECK ("fechaCie
 ALTER TABLE "VencimientoFiscal" ADD CONSTRAINT "VencimientoFiscal_periodo_check"
   CHECK ("periodo" ~ '^[0-9]{4}(-(0[1-9]|1[0-2]))?$' AND "cuota" >= 0);
 
+-- Las funciones de abajo son SECURITY DEFINER con search_path fijo: corren como el dueño de las
+-- tablas (neondb_owner, exento de RLS porque no hay FORCE ROW LEVEL SECURITY) y validan por id,
+-- sin depender de `app.current_tenant_id`. Así no se las engaña cambiando de negocio antes del
+-- COMMIT (el trigger diferido corre con el negocio vigente AL COMMIT, no al escribir).
+-- Las lecturas del asiento/ejercicio van con FOR SHARE: en READ COMMITTED esperan a la
+-- transacción que lo está tocando y leen lo commiteado; en REPEATABLE READ/SERIALIZABLE, si cambió
+-- después de la foto, cortan con error de serialización (40001) en vez de decidir con datos viejos.
+
 -- Un asiento CONFIRMADO cuadra: ≥ 2 líneas, Σ debe = Σ haber, total > 0. Diferido al COMMIT para que
--- el alta (cabecera + líneas + confirmación) se valide entera. Corre con los permisos de quien escribe:
--- con RLS ve sólo las filas de su negocio, que son todas las del asiento.
-CREATE OR REPLACE FUNCTION contabilidad_controlar_cuadre() RETURNS trigger LANGUAGE plpgsql AS $$
+-- el alta (cabecera + líneas + confirmación) se valide entera. Corre también al DELETE de líneas.
+CREATE OR REPLACE FUNCTION contabilidad_controlar_cuadre() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_asiento TEXT;
   v_estado TEXT;
@@ -214,7 +222,7 @@ BEGIN
   ELSE
     v_asiento := NEW."asientoId";
   END IF;
-  SELECT "estado" INTO v_estado FROM "Asiento" WHERE "id" = v_asiento;
+  SELECT "estado" INTO v_estado FROM "Asiento" WHERE "id" = v_asiento FOR SHARE;
   IF v_estado IS DISTINCT FROM 'CONFIRMADO' THEN
     RETURN NULL;
   END IF;
@@ -236,7 +244,10 @@ CREATE CONSTRAINT TRIGGER "Asiento_cuadre"
   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION contabilidad_controlar_cuadre();
 
 -- Un asiento CONFIRMADO no se edita ni se borra (se contra-asienta), y sus líneas tampoco.
-CREATE OR REPLACE FUNCTION contabilidad_asiento_inmutable() RETURNS trigger LANGUAGE plpgsql AS $$
+-- El estado de la cabecera se lee con FOR SHARE: una transacción con foto vieja (REPEATABLE READ,
+-- tomada antes de la confirmación) no puede borrar ni agregar líneas a un asiento ya confirmado.
+CREATE OR REPLACE FUNCTION contabilidad_asiento_inmutable() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_estado TEXT;
 BEGIN
@@ -247,12 +258,13 @@ BEGIN
     END IF;
   ELSE
     SELECT "estado" INTO v_estado FROM "Asiento"
-      WHERE "id" = CASE WHEN TG_OP = 'DELETE' THEN OLD."asientoId" ELSE NEW."asientoId" END;
+      WHERE "id" = CASE WHEN TG_OP = 'DELETE' THEN OLD."asientoId" ELSE NEW."asientoId" END
+      FOR SHARE;
     IF v_estado = 'CONFIRMADO' THEN
       RAISE EXCEPTION 'Las líneas de un asiento confirmado no se modifican' USING ERRCODE = '23514';
     END IF;
     IF TG_OP = 'UPDATE' AND OLD."asientoId" <> NEW."asientoId" THEN
-      SELECT "estado" INTO v_estado FROM "Asiento" WHERE "id" = OLD."asientoId";
+      SELECT "estado" INTO v_estado FROM "Asiento" WHERE "id" = OLD."asientoId" FOR SHARE;
       IF v_estado = 'CONFIRMADO' THEN
         RAISE EXCEPTION 'Las líneas de un asiento confirmado no se modifican' USING ERRCODE = '23514';
       END IF;
@@ -266,6 +278,65 @@ CREATE TRIGGER "Asiento_inmutable" BEFORE UPDATE OR DELETE ON "Asiento"
   FOR EACH ROW EXECUTE FUNCTION contabilidad_asiento_inmutable();
 CREATE TRIGGER "AsientoLinea_inmutable" BEFORE INSERT OR UPDATE OR DELETE ON "AsientoLinea"
   FOR EACH ROW EXECUTE FUNCTION contabilidad_asiento_inmutable();
+
+-- Todo asiento que se escribe (alta, cambio o confirmación) cae en un ejercicio ABIERTO del mismo
+-- negocio y con la fecha adentro. Un ejercicio CERRADO no admite asientos nuevos ni confirmaciones.
+CREATE OR REPLACE FUNCTION contabilidad_asiento_en_ejercicio() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_ej RECORD;
+BEGIN
+  SELECT "tenantId", "estado", "fechaInicio", "fechaCierre" INTO v_ej
+    FROM "Ejercicio" WHERE "id" = NEW."ejercicioId" FOR SHARE;
+  IF NOT FOUND OR v_ej."tenantId" <> NEW."tenantId" THEN
+    RAISE EXCEPTION 'El asiento % no tiene un ejercicio válido', NEW."id" USING ERRCODE = '23514';
+  END IF;
+  IF v_ej."estado" <> 'ABIERTO' THEN
+    RAISE EXCEPTION 'El ejercicio del asiento % está cerrado', NEW."id" USING ERRCODE = '23514';
+  END IF;
+  IF NEW."fecha" < v_ej."fechaInicio" OR NEW."fecha" > v_ej."fechaCierre" THEN
+    RAISE EXCEPTION 'La fecha % del asiento % queda fuera de su ejercicio (% a %)',
+      NEW."fecha", NEW."id", v_ej."fechaInicio", v_ej."fechaCierre" USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER "Asiento_en_ejercicio" BEFORE INSERT OR UPDATE ON "Asiento"
+  FOR EACH ROW EXECUTE FUNCTION contabilidad_asiento_en_ejercicio();
+
+-- Un ejercicio con borradores no se cierra (se confirman o se borran antes), y no se le achican
+-- las fechas dejando asientos afuera. Reabrir (CERRADO → ABIERTO) queda permitido a nivel base:
+-- es una decisión de producto que sostiene la app.
+CREATE OR REPLACE FUNCTION contabilidad_controlar_ejercicio() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW."estado" = 'CERRADO' AND OLD."estado" <> 'CERRADO'
+     AND EXISTS (SELECT 1 FROM "Asiento" WHERE "ejercicioId" = OLD."id" AND "estado" = 'BORRADOR') THEN
+    RAISE EXCEPTION 'El ejercicio % tiene asientos en borrador: confirmalos o borralos antes de cerrarlo', OLD."id"
+      USING ERRCODE = '23514';
+  END IF;
+  IF (NEW."fechaInicio" > OLD."fechaInicio" OR NEW."fechaCierre" < OLD."fechaCierre")
+     AND EXISTS (SELECT 1 FROM "Asiento" WHERE "ejercicioId" = OLD."id"
+                 AND ("fecha" < NEW."fechaInicio" OR "fecha" > NEW."fechaCierre")) THEN
+    RAISE EXCEPTION 'El ejercicio % tiene asientos fuera de las fechas nuevas', OLD."id" USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER "Ejercicio_controlar" BEFORE UPDATE ON "Ejercicio"
+  FOR EACH ROW EXECUTE FUNCTION contabilidad_controlar_ejercicio();
+
+-- Dueño explícito de las funciones SECURITY DEFINER: el de las tablas (en Neon y en la base de
+-- prueba la migración ya corre como neondb_owner; esto lo fija si la corriera otro rol).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'neondb_owner') THEN
+    ALTER FUNCTION contabilidad_controlar_cuadre() OWNER TO neondb_owner;
+    ALTER FUNCTION contabilidad_asiento_inmutable() OWNER TO neondb_owner;
+    ALTER FUNCTION contabilidad_asiento_en_ejercicio() OWNER TO neondb_owner;
+    ALTER FUNCTION contabilidad_controlar_ejercicio() OWNER TO neondb_owner;
+  END IF;
+END $$;
 
 -- ── RLS: misma policy que el resto (prisma/rls/0001_enable_rls.sql la recrea igual) ───────────
 

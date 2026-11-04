@@ -165,13 +165,18 @@ export interface AsientoGuardado {
   estado: "BORRADOR" | "CONFIRMADO";
 }
 
-/** Valida contra las cuentas y el ejercicio que ve ESTE negocio (las de otro no existen para él). */
-async function validarEnTx(tx: Tx, tenantId: string, fecha: Date, lineas: readonly LineaAsiento[]) {
+/**
+ * Valida contra las cuentas y el ejercicio que ve ESTE negocio (las de otro no existen para él).
+ * `inactivasPermitidas`: cuentas que pueden estar dadas de baja (el contra-asiento revierte las
+ * mismas cuentas del original aunque hoy ya no se usen).
+ */
+async function validarEnTx(tx: Tx, tenantId: string, fecha: Date, lineas: readonly LineaAsiento[], inactivasPermitidas?: ReadonlySet<string>) {
   const ids = [...new Set(lineas.map((l) => l.cuentaId))];
-  const cuentas = await tx.cuentaContable.findMany({
+  const encontradas = await tx.cuentaContable.findMany({
     where: { tenantId, id: { in: ids } },
     select: { id: true, tenantId: true, codigo: true, nombre: true, imputable: true, activa: true },
   });
+  const cuentas = inactivasPermitidas ? encontradas.map((c) => (inactivasPermitidas.has(c.id) ? { ...c, activa: true } : c)) : encontradas;
   const ejercicios = await tx.ejercicio.findMany({
     where: { tenantId, fechaInicio: { lte: fecha }, fechaCierre: { gte: fecha } },
     select: { id: true, fechaInicio: true, fechaCierre: true, estado: true },
@@ -195,9 +200,15 @@ async function confirmarEnTx(tx: Tx, tenantId: string, asientoId: string, ejerci
   return numero;
 }
 
-async function crearEnTx(tx: Tx, tenantId: string, input: AsientoInput, anulaAsientoId?: string): Promise<AsientoGuardado> {
+async function crearEnTx(
+  tx: Tx,
+  tenantId: string,
+  input: AsientoInput,
+  anula?: { asientoId: string; cuentas: ReadonlySet<string> },
+): Promise<AsientoGuardado> {
   const fecha = soloDia(input.fecha);
-  const ejercicio = await validarEnTx(tx, tenantId, fecha, input.lineas);
+  const ejercicio = await validarEnTx(tx, tenantId, fecha, input.lineas, anula?.cuentas);
+  const anulaAsientoId = anula?.asientoId;
   const asiento = await tx.asiento.create({
     data: {
       tenantId,
@@ -231,9 +242,23 @@ export function registrarAsiento(tenantId: string, input: AsientoInput): Promise
   return enTransaccion(tenantId, (tx) => crearEnTx(tx, tenantId, input));
 }
 
+/**
+ * Toma el asiento con FOR UPDATE: dos confirmaciones o anulaciones simultáneas del mismo asiento se
+ * encolan, y la segunda (READ COMMITTED) lee lo que dejó la primera ya commiteado.
+ */
+async function bloquearAsiento(tx: Tx, tenantId: string, asientoId: string): Promise<void> {
+  await tx.$queryRaw`SELECT "id" FROM "Asiento" WHERE "id" = ${asientoId} AND "tenantId" = ${tenantId} FOR UPDATE`;
+}
+
+/** Código Prisma de un error, si lo tiene. */
+function codigoDe(e: unknown): string | undefined {
+  return (e as { code?: string } | null)?.code;
+}
+
 /** Confirma un borrador: revalida (cuentas y ejercicio pueden haber cambiado) y le da número. */
 export function confirmarAsiento(tenantId: string, asientoId: string): Promise<Resultado<AsientoGuardado>> {
   return enTransaccion(tenantId, async (tx) => {
+    await bloquearAsiento(tx, tenantId, asientoId);
     const a = await tx.asiento.findFirst({
       where: { id: asientoId, tenantId },
       select: { id: true, fecha: true, estado: true, lineas: { select: { cuentaId: true, debe: true, haber: true } } },
@@ -249,8 +274,19 @@ export function confirmarAsiento(tenantId: string, asientoId: string): Promise<R
 }
 
 /** Anula un asiento confirmado con su contra-asiento (confirmado, con `anulaAsientoId`). */
-export function anularAsiento(tenantId: string, asientoId: string, fecha?: Date): Promise<Resultado<AsientoGuardado>> {
+export async function anularAsiento(tenantId: string, asientoId: string, fecha?: Date): Promise<Resultado<AsientoGuardado>> {
+  try {
+    return await anularEnTransaccion(tenantId, asientoId, fecha);
+  } catch (e) {
+    // Red de seguridad: si igual chocan dos anulaciones, el índice único de `anulaAsientoId` frena la segunda.
+    if (codigoDe(e) === "P2002") return { ok: false, error: "YA_ANULADO", mensaje: "Ese asiento ya tiene su contra-asiento." };
+    throw e;
+  }
+}
+
+function anularEnTransaccion(tenantId: string, asientoId: string, fecha?: Date): Promise<Resultado<AsientoGuardado>> {
   return enTransaccion(tenantId, async (tx) => {
+    await bloquearAsiento(tx, tenantId, asientoId);
     const a = await tx.asiento.findFirst({
       where: { id: asientoId, tenantId },
       select: {
@@ -267,7 +303,12 @@ export function anularAsiento(tenantId: string, asientoId: string, fecha?: Date)
     if (a.estado !== "CONFIRMADO") throw new Rechazo("NO_CONFIRMADO", "Un borrador no se anula: se corrige o se borra.");
     if (a.anuladoPor.length) throw new Rechazo("YA_ANULADO", "Ese asiento ya tiene su contra-asiento.");
     const contra = contraAsiento({ numero: a.numero ?? undefined, fecha: a.fecha, descripcion: a.descripcion, lineas: a.lineas }, fecha ?? a.fecha);
-    return crearEnTx(tx, tenantId, { ...contra, origenTipo: "AJUSTE", origenId: a.id, confirmar: true }, a.id);
+    return crearEnTx(
+      tx,
+      tenantId,
+      { ...contra, origenTipo: "AJUSTE", origenId: a.id, confirmar: true },
+      { asientoId: a.id, cuentas: new Set(a.lineas.map((l) => l.cuentaId)) },
+    );
   });
 }
 

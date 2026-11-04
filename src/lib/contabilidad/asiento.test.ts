@@ -81,3 +81,12 @@ test("naturaleza habitual por tipo", () => {
   assert.equal(naturalezaPorTipo("PASIVO"), "ACREEDORA");
   assert.equal(naturalezaPorTipo("PATRIMONIO_NETO"), "ACREEDORA");
 });
+
+test("un importe mayor que el BIGINT de Postgres se rechaza antes de llegar a la base", () => {
+  const max = BigInt("9223372036854775807");
+  const sobra = max + BigInt(1);
+  const ok = validarAsiento([{ cuentaId: "caja", debe: max, haber: BigInt(0) }, { cuentaId: "ventas", debe: BigInt(0), haber: max }], CUENTAS);
+  assert.equal(ok.ok, true);
+  const r = validarAsiento([{ cuentaId: "caja", debe: sobra, haber: BigInt(0) }, { cuentaId: "ventas", debe: BigInt(0), haber: sobra }], CUENTAS);
+  assert.deepEqual(codigos(r), ["MONTO_EXCEDIDO", "MONTO_EXCEDIDO"]);
+});
