@@ -26,7 +26,7 @@ test("PIN: un solo uso, vence, bloquea al quinto aunque pida otro, sin enumeraci
   };
 
   const { pedirPin, confirmarPin, exigePin } = await import("./pin.server");
-  const { MENSAJE_FALLO, MENSAJE_PEDIDO, VIGENCIA_PIN_MS } = await import("./pin-core");
+  const { MENSAJE_FALLO, MENSAJE_PEDIDO, MENSAJE_RECIEN, VIGENCIA_PIN_MS } = await import("./pin-core");
   const en = async <R>(n: NegocioDePrueba, f: () => Promise<R>): Promise<R> => {
     const r = await ejecutarAccion({ negocio: n }, f);
     assert.equal(r.tipo, "respuesta");
@@ -37,7 +37,8 @@ test("PIN: un solo uso, vence, bloquea al quinto aunque pida otro, sin enumeraci
   const pedir = async (n: NegocioDePrueba, u: Awaited<ReturnType<typeof persona>> | null, ahoraMs: number) => {
     const antes = mails.length;
     const { mensaje } = await en(n, () => pedirPin(n.id, u, { ahoraMs, enviar }));
-    assert.equal(mensaje, MENSAJE_PEDIDO);
+    // «Hace instantes» depende sólo de cuándo pidió la misma clave (sin usuario comparten una), nunca de si existe.
+    assert.ok([MENSAJE_PEDIDO, MENSAJE_RECIEN].includes(mensaje));
     return mails.length > antes ? mails.at(-1)!.cuerpo.match(/\d{6}/)![0] : null;
   };
   const confirmar = (n: NegocioDePrueba, u: Awaited<ReturnType<typeof persona>> | null, codigo: string, ahoraMs: number) =>
@@ -78,7 +79,7 @@ test("PIN: un solo uso, vence, bloquea al quinto aunque pida otro, sin enumeraci
   for (let i = 0; i < 4; i++) assert.equal((await confirmar(a, insistente, otro(c4), T0 + 1000 + i)).ok, false);
   const c5 = (await pedir(a, insistente, T0 + 61_000))!;
   assert.ok(c5, "pedir otro código antes del bloqueo funciona");
-  assert.equal((await duenio.proyectoPinIngreso.findFirstOrThrow({ where: { tenantId: a.id, userId: insistente.id } })).intentosVentana, 4, "pedir otro no reinicia la ventana");
+  assert.equal((await duenio.proyectoPinIngreso.findFirstOrThrow({ where: { tenantId: a.id, userId: insistente.id } })).fallosEl.length, 4, "pedir otro no reinicia la ventana");
   assert.equal((await confirmar(a, insistente, otro(c5), T0 + 62_000)).ok, false);
   assert.equal((await confirmar(a, insistente, c5, T0 + 63_000)).ok, false, "bloqueado: ni el código bueno entra");
   assert.equal(await pedir(a, insistente, T0 + 200_000), null, "bloqueado: no se mandan códigos nuevos");
