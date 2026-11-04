@@ -30,10 +30,10 @@ test("Rendí: un gasto, una rendición; un asiento por anticipo; PIN único; ais
   await assert.rejects(duenio.cashMovement.create({ data: egreso }), esUnica, "un egreso por anticipo");
 
   const pin = { tenantId: a.id, userId: a.recepcion.id, hash: "h1", venceEl: new Date(Date.now() + 300_000) };
-  await duenio.proyectoPinIngreso.create({ data: { ...pin, intentosVentana: 3 } });
+  await duenio.proyectoPinIngreso.create({ data: { ...pin, fallosEl: [new Date(), new Date(), new Date()] } });
   await assert.rejects(duenio.proyectoPinIngreso.create({ data: pin }), esUnica, "un código vivo por usuario");
   const pisado = await duenio.proyectoPinIngreso.update({ where: { tenantId_userId: { tenantId: a.id, userId: a.recepcion.id } }, data: { hash: "h2", intentos: 0 } });
-  assert.equal(pisado.intentosVentana, 3, "pedir otro código no reinicia la ventana");
+  assert.equal(pisado.fallosEl.length, 3, "pedir otro código no reinicia la ventana");
 
   // Conectado como el rol de la app (`app_rls`, sin BYPASSRLS): las políticas se aplican de verdad.
   const [{ PrismaClient }, { PrismaPg }] = await Promise.all([import("@/generated/prisma/client"), import("@prisma/adapter-pg")]);

@@ -5,7 +5,7 @@
 --   por liquidación (tenantId, liquidacionId, gastoId). Plata en centavos enteros.
 -- - "ProyectoAnticipo": plata adelantada; su egreso es "CashMovement"."proyectoAnticipoId" (un asiento por tipo).
 -- - "ProyectoLiquidacion".pagadaEl/pagadaPor (estado PAGADA); su egreso es "CashMovement"."proyectoLiquidacionId".
--- - "ProyectoPinIngreso": el PIN de ingreso, un código vivo por usuario; intentosVentana/ventanaDesde/bloqueadoHasta
+-- - "ProyectoPinIngreso": el PIN de ingreso, un código vivo por usuario; fallosEl (ventana deslizante)/bloqueadoHasta
 --   NO se reinician al pedir otro código.
 
 ALTER TABLE "CashMovement" ADD COLUMN     "proyectoAnticipoId" TEXT,
@@ -57,8 +57,7 @@ CREATE TABLE "ProyectoPinIngreso" (
     "venceEl" TIMESTAMP(3) NOT NULL,
     "usadoEl" TIMESTAMP(3),
     "intentos" INTEGER NOT NULL DEFAULT 0,
-    "intentosVentana" INTEGER NOT NULL DEFAULT 0,
-    "ventanaDesde" TIMESTAMP(3),
+    "fallosEl" TIMESTAMP(3)[] DEFAULT ARRAY[]::TIMESTAMP(3)[],
     "bloqueadoHasta" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
