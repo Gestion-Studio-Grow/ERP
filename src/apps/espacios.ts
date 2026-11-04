@@ -63,7 +63,7 @@ export const ESPACIOS: readonly EspacioMeta[] = [
     id: "clientes",
     nombre: "Clientes",
     enInicio: true,
-    apps: ["clientes", "para-contactar-hoy", "clientas-por-recuperar", "unificar-fichas", "campanias", "recordatorios", "resenas"],
+    apps: ["clientes", "para-contactar-hoy", "clientas-por-recuperar", "unificar-fichas", "campanias", "contenido", "recordatorios", "resenas"],
   },
   {
     id: "precios",
@@ -241,7 +241,9 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     nombre: "Catálogo y precios",
     rotulo: "Catálogo",
     objetivo: "Qué vendo y a cuánto",
-    apps: ["catalogo", "actualizar-precios", "etiquetas-de-precio", "promociones", "ofertas", "listas-de-precio", "precio-segun-como-paga", "kits-y-sets", "lista-para-compartir"],
+    // «contenido» (estante Clientes en el Inicio) se navega acá, al lado de «promociones»: las placas cuentan
+    // promos, horarios y novedades, y «Clientes» ya está en el tope de 8 apps en servicios.
+    apps: ["catalogo", "actualizar-precios", "etiquetas-de-precio", "promociones", "contenido", "ofertas", "listas-de-precio", "precio-segun-como-paga", "kits-y-sets", "lista-para-compartir"],
   },
   {
     id: "stock",

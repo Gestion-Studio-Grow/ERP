@@ -236,9 +236,11 @@ test("magra hoy: fuera del Inicio por apps, y con su asignación perdería apps 
   // lo decida. Fuera de stock, Campañas, Facturación automática y Retenciones (las dos de
   // bancos); de stock, las de la ola 1, las que sumó el frente de stock en la ola 2
   // (Movimientos, Recuento y Proveedores), el Sugerido de compra de la ola 3 y las Listas de
-  // proveedores (frente supermercado).
+  // proveedores (frente supermercado). Contenido (creador + agenda, módulo `contenido`) es nuevo y
+  // magra no lo tiene asignado: la ve hoy sin gate y la perdería, como Campañas.
   assert.deepEqual(ids(pierde).sort(), [
     "campanias",
+    "contenido",
     "despiece",
     "facturacion-automatica",
     "inventario",
@@ -263,7 +265,7 @@ test("magra hoy: fuera del Inicio por apps, y con su asignación perdería apps 
 test("fijar en magra suma lo mínimo (inventario, campañas, bancos) y deja 0 apps perdidas", () => {
   const f = planFijarAsignacion(MAGRA, SIN_PILOTO, cat);
   assert.ok(f.ok);
-  assert.deepEqual([...f.agregados].sort(), ["bancos", "campanias", "inventario"]);
+  assert.deepEqual([...f.agregados].sort(), ["bancos", "campanias", "contenido", "inventario"]);
   // Nunca saca: lo de antes sigue.
   for (const m of MAGRA.modules) assert.ok(f.despues.includes(m));
   assert.deepEqual(f.frenteAlMenu.pierde, []);
@@ -293,7 +295,7 @@ test("ya en el piloto con la asignación incompleta: la tarjeta lo marca y fijar
   assert.ok(ids(e.conInicioFrenteAlMenu.pierde).includes("inventario"));
   const f = planFijarAsignacion(MAGRA, PILOTO, cat);
   assert.ok(f.ok);
-  assert.deepEqual([...f.agregados].sort(), ["bancos", "campanias", "inventario"]);
+  assert.deepEqual([...f.agregados].sort(), ["bancos", "campanias", "contenido", "inventario"]);
   assert.deepEqual(f.frenteAlMenu.pierde, []);
 });
 
@@ -311,6 +313,7 @@ test("sin módulos asignados: el Inicio por apps no filtra, y fijar da la asigna
     "campanias",
     "catalog",
     "clients",
+    "contenido",
     "inventario",
     "pos",
     "reminders",
@@ -338,8 +341,8 @@ test("shinevelas y adosmanos con la asignación de su rubro: fijar deja 0 apps p
     };
     const f = planFijarAsignacion(n, SIN_PILOTO, cat);
     assert.ok(f.ok, slug);
-    // Stock (inventario), Campañas y las dos de facturación las ven hoy sin tener el módulo.
-    assert.deepEqual([...f.agregados].sort(), ["arca", "bancos", "campanias", "inventario"], slug);
+    // Stock (inventario), Campañas, Contenido y las dos de facturación las ven hoy sin tener el módulo.
+    assert.deepEqual([...f.agregados].sort(), ["arca", "bancos", "campanias", "contenido", "inventario"], slug);
     assert.deepEqual(f.frenteAlMenu.pierde, [], slug);
   }
 });

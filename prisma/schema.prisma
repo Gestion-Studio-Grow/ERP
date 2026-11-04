@@ -261,6 +261,7 @@ model Tenant {
   proyectoStands            ProyectoStand[]
   consultas                 Consulta[]
   consultaMensajes          ConsultaMensaje[]
+  publicacionesAgendadas    PublicacionAgendada[] // agenda de contenido (docs/producto/contenido/PLAN.md §2)
   proyectoConfig            ProyectoConfig?
   inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                 InmoFoto[]
@@ -3869,4 +3870,27 @@ model ProyectoCambio {
 
   @@index([tenantId, proyectoId, createdAt])
   @@index([tenantId, createdAt])
+}
+
+// Agenda de contenido del negocio (docs/producto/contenido/PLAN.md §2): la pieza elegida en el creador, con su día,
+// hora, canal y estado. Publica una persona; no hay API de redes. Tabla aditiva (20261105120000), con RLS.
+model PublicacionAgendada {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  fecha     String // «YYYY-MM-DD» local (string, sin corrimiento de zona)
+  hora      String // «HH:mm»
+  canal     String // instagram · historia · whatsapp
+  estado    String   @default("borrador") // borrador · programado · publicado
+  tipo      String // promo · horario · evento · novedad · servicio
+  plantilla String
+  formato   String // post · historia
+  titulo    String
+  texto     String
+  campos    Json // { rotulo, titulo, bajada, cta }
+  caption   Json // { instagram, whatsapp }
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, fecha])
 }

@@ -194,6 +194,26 @@ export const campaniasModule: ModuleDescriptor = {
   ],
 };
 
+// Creador + agenda de contenido (docs/producto/contenido/PLAN.md): el negocio escribe el texto, elige una de 3
+// placas con su marca y la agenda. Sin IA paga ni API de redes: publica una persona.
+export const contenidoModule: ModuleDescriptor = {
+  id: "contenido",
+  version: "1.0.0",
+  nombre: "Contenido",
+  descripcion: "Placas para Instagram y WhatsApp con la marca del negocio, y la agenda de qué publicar cada día.",
+  kind: "capability",
+  capability: "clients:read",
+  rubros: "todos",
+  grupo: "clientes-fidelizacion",
+  resumen: "Escribís lo que querés contar, elegís una de tres placas con tu marca y la agendás para el día que va.",
+  fit: "Cualquier negocio que publica promos, horarios o novedades en Instagram o por WhatsApp.",
+  scopeItems: [
+    { label: "Tres placas por texto (post e historia)" },
+    { label: "Texto listo para Instagram y WhatsApp" },
+    { label: "Agenda por mes y semana, con aviso del día" },
+  ],
+};
+
 export const reviewsModule: ModuleDescriptor = {
   id: "reviews",
   version: "1.0.0",

@@ -115,8 +115,10 @@ test("piloto: el gate saca sólo lo no asignado; con inventario, bancos y campa�
   const pierde = ids(appsVisibles(sinGate)).filter((id) => !ids(appsVisibles(conGate)).includes(id));
   // Stock, Recibir mercadería y Mermas cuelgan de `inventario`, que magra no tiene todavía
   // en su seed: por eso el operador se lo asigna antes de prenderle el Inicio por apps.
+  // `contenido` (creador + agenda, docs/producto/contenido/PLAN.md) es un módulo nuevo que magra no tiene asignado.
   assert.deepEqual(pierde.sort(), [
     "campanias",
+    "contenido",
     "facturacion-automatica",
     "inventario",
     "listas-de-proveedores",
@@ -130,7 +132,7 @@ test("piloto: el gate saca sólo lo no asignado; con inventario, bancos y campa�
   ]);
   const conInventario = negocio({
     role: "OWNER",
-    contexto: ctx({ ...MAGRA, modules: [...MAGRA.modules, "inventario", "bancos", "campanias"] }),
+    contexto: ctx({ ...MAGRA, modules: [...MAGRA.modules, "inventario", "bancos", "campanias", "contenido"] }),
     esMostrador: true,
   });
   assert.deepEqual(ids(appsVisibles(sinGate)).filter((id) => !ids(appsVisibles(conInventario)).includes(id)), []);

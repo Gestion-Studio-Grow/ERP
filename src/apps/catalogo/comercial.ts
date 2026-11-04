@@ -180,6 +180,19 @@ export const APPS_COMERCIAL = [
     menuDeHoy: { etiqueta: "Campañas", orden: 190 },
   },
   {
+    // Creador + agenda de contenido (docs/producto/contenido/PLAN.md): texto → 3 placas con la marca → agenda.
+    id: "contenido",
+    nombre: "Contenido",
+    descripcion: "Placas para Instagram y WhatsApp con tu marca, y qué publicar cada día.",
+    icono: "clientes",
+    ruta: "/admin/contenido",
+    espacio: "clientes",
+    capability: "clients:read",
+    modulo: "contenido",
+    estado: "lista",
+    palabras: ["instagram", "redes", "placas", "agenda", "publicaciones", "posteos", "historias"],
+  },
+  {
     // El circuito del taller mecánico: tablero del día, ingreso del auto, orden de trabajo,
     // presupuesto, cobro y avisos. Una sola app con sus pantallas adentro (/admin/taller/...).
     // Pide agenda:read porque el mecánico (PROFESSIONAL) entra a ver y mover SUS autos; la plata

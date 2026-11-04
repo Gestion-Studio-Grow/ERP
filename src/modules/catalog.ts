@@ -24,7 +24,7 @@
 //   - Club de pádel (agenda de canchas y cuenta del turno): src/modules/descriptors/club.ts.
 
 import { ModuleRegistry } from "./registry";
-import { MODULOS_NATIVOS } from "./descriptors/nativos";
+import { MODULOS_NATIVOS, contenidoModule } from "./descriptors/nativos";
 import { mercadopagoModule } from "./descriptors/mercadopago";
 import { carteraModule } from "./descriptors/cartera";
 import { multilocalModule } from "./descriptors/multilocal";
@@ -65,6 +65,8 @@ export const DESCRIPTORES_CATALOGO = [
   whatsappModule,
   // Proyectos de una productora (src/modules/descriptors/proyectos.ts). Al final, como los anteriores.
   proyectosModule,
+  // Creador + agenda de contenido (src/modules/descriptors/nativos.ts). Al final, como los anteriores.
+  contenidoModule,
 ];
 
 /**

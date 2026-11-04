@@ -315,17 +315,17 @@ test("prendido en la carnicería fijada: ve las mismas apps que en su menú de s
 
 // ── Aceptar a mano las apps que pierde (fuera de CH) ─────────────────────────
 
-/** Las apps que la carnicería sin fijar (Magra hoy) perdería con el Inicio por apps: 13. */
+/** Las apps que la carnicería sin fijar (Magra hoy) perdería con el Inicio por apps: 14 (la 14.ª es Contenido, módulo nuevo que no tiene asignado). */
 const PERDIDAS = estadoDeApps(CARNICERIA_SIN_FIJAR, { registroGlobal: false, enInicioPorApps: false }, cat)
   .conInicioFrenteAlMenu.pierde;
 
-test("A1 · 13 perdidas: sin lista, el rechazo de siempre; con la lista exacta, la fila guarda pierdeAceptadas", async () => {
-  assert.equal(PERDIDAS.length, 13);
+test("A1 · 14 perdidas: sin lista, el rechazo de siempre; con la lista exacta, la fila guarda pierdeAceptadas", async () => {
+  assert.equal(PERDIDAS.length, 14);
   const b = base([CARNICERIA_SIN_FIJAR]);
   for (const perdidasAceptadas of [undefined, null, []]) {
     const r = await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA_SIN_FIJAR, "encender", { perdidasAceptadas }));
     assert.equal(r.tipo, "rechazado");
-    assert.match((r as { motivo: string }).motivo, /perdería 13 apps de su menú de siempre: .*Primero fijá la asignación actual\.$/);
+    assert.match((r as { motivo: string }).motivo, /perdería 14 apps de su menú de siempre: .*Primero fijá la asignación actual\.$/);
   }
   assert.equal(b.escrituras(), 0);
   // La lista exacta, en otro orden que la vista previa (las casillas no tienen por qué llegar igual).
@@ -334,7 +334,7 @@ test("A1 · 13 perdidas: sin lista, el rechazo de siempre; con la lista exacta, 
   assert.deepEqual(r, { tipo: "hecho", interruptor: INICIO_POR_APPS, accion: "encender" });
   assert.equal(b.escrituras(), 1);
   const changes = b.filas[0].changes as { pierdeAceptadas?: string[] };
-  assert.equal(changes.pierdeAceptadas?.length, 13);
+  assert.equal(changes.pierdeAceptadas?.length, 14);
   assert.deepEqual(changes.pierdeAceptadas, [...exacta].sort());
   assert.equal(b.trabajaPorApps(CARNICERIA_SIN_FIJAR.id), true);
 });
@@ -357,7 +357,7 @@ test("A2 · lista incompleta, de más, por nombre o repetida → rechazo y 0 fil
   for (const perdidasAceptadas of malas) {
     const r = await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA_SIN_FIJAR, "encender", { perdidasAceptadas }));
     assert.equal(r.tipo, "rechazado", perdidasAceptadas.join(","));
-    assert.match((r as { motivo: string }).motivo, /no coincide con las 13 apps/);
+    assert.match((r as { motivo: string }).motivo, /no coincide con las 14 apps/);
   }
   assert.equal(b.escrituras(), 0);
   // Una lista cuando no pierde nada también es "de más" (la carnicería fijada tiene el mismo id: otra base).
