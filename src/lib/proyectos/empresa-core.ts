@@ -180,6 +180,9 @@ export interface ExtraGuardado {
   nombre: string;
   monto: number;
   manual?: boolean;
+  /** Rendí: reintegro de un gasto que la persona pagó de su bolsillo. El gasto queda reclamado por la liquidación. */
+  gastoId?: string;
+  reintegro?: true;
 }
 
 export function leerExtras(json: unknown): ExtraGuardado[] {
@@ -187,7 +190,13 @@ export function leerExtras(json: unknown): ExtraGuardado[] {
   return json.flatMap((e) => {
     const x = e as Partial<ExtraGuardado> | null;
     if (!x || typeof x.nombre !== "string" || typeof x.monto !== "number" || !Number.isFinite(x.monto)) return [];
-    return [{ proyectoId: typeof x.proyectoId === "string" ? x.proyectoId : null, nombre: x.nombre, monto: x.monto, ...(x.manual ? { manual: true } : {}) }];
+    return [{
+      proyectoId: typeof x.proyectoId === "string" ? x.proyectoId : null,
+      nombre: x.nombre,
+      monto: x.monto,
+      ...(x.manual ? { manual: true } : {}),
+      ...(x.reintegro && typeof x.gastoId === "string" ? { gastoId: x.gastoId, reintegro: true as const } : {}),
+    }];
   });
 }
 
@@ -197,6 +206,18 @@ export const totalLiquidacion = (base: number, extras: readonly { monto: number 
 /** Recalcular trae los plus de los eventos de nuevo y no pierde lo que alguien cargó a mano. */
 export function extrasRecalculados(previos: readonly ExtraGuardado[], delPeriodo: readonly { proyectoId: string; nombre: string; monto: number }[]): ExtraGuardado[] {
   return [...delPeriodo.map((e) => ({ proyectoId: e.proyectoId, nombre: e.nombre, monto: e.monto })), ...previos.filter((e) => e.manual)];
+}
+
+/**
+ * Rendí: los reintegros que reclamó la liquidación, como extras (uno por gasto, en pesos). Reemplazan a los que había:
+ * la fuente es la rendición reclamada en la base, no el JSON guardado. PURA.
+ */
+export function conReintegros(extras: readonly ExtraGuardado[], reclamadas: readonly { gastoId: string; proyectoId: string; descripcion: string; montoCentavos: number }[]): ExtraGuardado[] {
+  const unaVez = new Map(reclamadas.map((r) => [r.gastoId, r]));
+  return [
+    ...extras.filter((e) => !e.reintegro),
+    ...[...unaVez.values()].map((r) => ({ proyectoId: r.proyectoId, nombre: `Reintegro · ${r.descripcion}`.slice(0, 120), monto: r.montoCentavos / 100, gastoId: r.gastoId, reintegro: true as const })),
+  ];
 }
 
 // ── Bancos ──────────────────────────────────────────────────────────────────

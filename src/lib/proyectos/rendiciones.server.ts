@@ -7,7 +7,8 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { EstadoRendicion } from "@/lib/rendiciones/tipos";
 import type { Actor } from "./gestion.server";
-import { actorDelMotor, faltaLaMigracion, motivoNoRinde, muestraRevision, rendicionDelMotor, type MedioRendicion } from "./rendiciones-core";
+import { urlDelComprobante } from "./comprobante.server";
+import { actorDelMotor, cierreDeAnticipo, faltaLaMigracion, motivoNoRinde, muestraReintegro, muestraRevision, rendicionDelMotor, type MedioRendicion } from "./rendiciones-core";
 
 export interface FilaRendicion {
   id: string;
@@ -19,7 +20,10 @@ export interface FilaRendicion {
   medio: MedioRendicion;
   montoCentavos: number;
   estado: EstadoRendicion;
-  foto: string | null;
+  /** La ruta propia del comprobante (sólo quien rindió y Dirección/Administración); `null` si no hay foto. */
+  comprobante: string | null;
+  puedeReintegrar: boolean;
+  enLiquidacion: boolean;
   ultimoComentario: string | null;
   puedeRevisar: boolean;
 }
@@ -43,10 +47,11 @@ const SELECT = {
   proyecto: { select: { nombre: true } },
   persona: { select: { nombre: true } },
   gasto: { select: { descripcion: true, fecha: true } },
-  archivo: { select: { datos: true } },
+  liquidacionId: true,
+  archivoId: true,
 } as const;
 
-type Cruda = { id: string; proyectoId: string; gastoId: string; personaId: string; medio: string; anticipoId: string | null; montoCentavos: number; estado: string; eventos: unknown; proyecto: { nombre: string }; persona: { nombre: string }; gasto: { descripcion: string; fecha: Date }; archivo: { datos: string | null } | null };
+type Cruda = { id: string; proyectoId: string; gastoId: string; personaId: string; medio: string; anticipoId: string | null; montoCentavos: number; estado: string; eventos: unknown; proyecto: { nombre: string }; persona: { nombre: string }; gasto: { descripcion: string; fecha: Date }; liquidacionId: string | null; archivoId: string | null };
 
 function aFila(a: Actor, f: Cruda): FilaRendicion {
   const r = rendicionDelMotor(f);
@@ -61,7 +66,9 @@ function aFila(a: Actor, f: Cruda): FilaRendicion {
     medio: f.medio === "ANTICIPO" ? "ANTICIPO" : "PROPIO",
     montoCentavos: f.montoCentavos,
     estado: r.estado,
-    foto: f.archivo?.datos ?? null,
+    comprobante: f.archivoId ? urlDelComprobante(f.id) : null,
+    puedeReintegrar: muestraReintegro(a.rol, actorDelMotor({ personaId: a.personaId, userId: a.user.id }), { personaId: f.personaId, medio: f.medio, estado: r.estado, liquidacionId: f.liquidacionId }),
+    enLiquidacion: !!f.liquidacionId,
     ultimoComentario: conComentario?.comentario ?? null,
     puedeRevisar: muestraRevision(a.rol, actorDelMotor({ personaId: a.personaId, userId: a.user.id }), f.personaId, r.estado),
   };
@@ -106,5 +113,41 @@ async function misAnticiposAbiertos(a: Actor, proyectoId: string): Promise<Antic
     where: { tenantId: a.tenantId, personaId: a.personaId, estado: "ENTREGADO", OR: [{ proyectoId: null }, { proyectoId }] },
     orderBy: { entregadoEl: "desc" },
     select: { id: true, montoCentavos: true, entregadoEl: true },
+  });
+}
+
+export interface AnticipoDelProyecto {
+  id: string;
+  persona: string;
+  montoCentavos: number;
+  entregadoEl: Date;
+  estado: string;
+  devueltoCentavos: number;
+  reintegradoCentavos: number;
+  /** Lo que diría la cuadratura si se cerrara hoy, o por qué no se puede cerrar. */
+  cierre: string;
+  sePuedeCerrar: boolean;
+}
+
+/** Para Dirección/Administración: los anticipos del proyecto y a quién se le puede entregar uno (su equipo). */
+export async function anticiposDelProyecto(a: Actor, proyectoId: string): Promise<{ anticipos: AnticipoDelProyecto[]; equipo: { id: string; nombre: string }[] } | null> {
+  if (a.rol !== "DIRECCION" && a.rol !== "ADMINISTRACION") return null;
+  return tolerante(async () => {
+    const [filas, equipo] = await Promise.all([
+      prisma.proyectoAnticipo.findMany({
+        where: { tenantId: a.tenantId, proyectoId },
+        orderBy: { entregadoEl: "desc" },
+        take: 50,
+        select: { id: true, montoCentavos: true, entregadoEl: true, estado: true, devueltoCentavos: true, reintegradoCentavos: true, persona: { select: { nombre: true } }, rendiciones: { select: { id: true, gastoId: true, personaId: true, medio: true, anticipoId: true, montoCentavos: true, estado: true, eventos: true } } },
+      }),
+      prisma.proyectoEquipo.findMany({ where: { tenantId: a.tenantId, proyectoId, persona: { activa: true } }, select: { persona: { select: { id: true, nombre: true } } } }),
+    ]);
+    return {
+      anticipos: filas.map((f) => {
+        const c = cierreDeAnticipo(f, f.rendiciones);
+        return { id: f.id, persona: f.persona.nombre, montoCentavos: f.montoCentavos, entregadoEl: f.entregadoEl, estado: f.estado, devueltoCentavos: f.devueltoCentavos, reintegradoCentavos: f.reintegradoCentavos, cierre: c.ok ? c.mensaje : c.error, sePuedeCerrar: c.ok && f.estado !== "CERRADO" };
+      }),
+      equipo: equipo.map((e) => e.persona),
+    };
   });
 }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alertasDeDireccion, desviosDelEvento, extrasRecalculados, finDeSemana, leerExtras, lineasNuevas, margenSobreVenta, pasaFiltro, periodoValido, propuestasDeConciliacion, respuestaDeCarga, tasaDeConversion, totalLiquidacion } from "./empresa-core";
+import { alertasDeDireccion, conReintegros, desviosDelEvento, extrasRecalculados, finDeSemana, leerExtras, lineasNuevas, margenSobreVenta, pasaFiltro, periodoValido, propuestasDeConciliacion, respuestaDeCarga, tasaDeConversion, totalLiquidacion } from "./empresa-core";
 
 const item = (id: string, rubro: string, costo: number, costoReal: number | null = null) => ({ id, descripcion: id, rubro, cantidad: 1, costo, moneda: "ARS", costoReal, proveedor: null });
 
@@ -107,4 +107,16 @@ test("dos movimientos iguales no se proponen contra la misma cuota", () => {
   assert.equal(new Set([p.get("1")?.id, p.get("2")?.id]).size, 2);
   assert.equal(p.has("3"), false);
   assert.equal(propuestasDeConciliacion([m("1", -100)], [c("a")], {}).size, 0);
+});
+
+test("Rendí: los reintegros se rehacen desde la base, uno por gasto, y sobreviven a leerExtras", () => {
+  const previos = leerExtras([{ proyectoId: null, nombre: "Bono", monto: 100, manual: true }, { proyectoId: "p", nombre: "Reintegro · viejo", monto: 9, gastoId: "g0", reintegro: true }]);
+  assert.equal(previos[1].reintegro, true);
+  assert.equal(previos[1].gastoId, "g0");
+  const r = { gastoId: "g1", proyectoId: "p", descripcion: "Taxi", montoCentavos: 1250050 };
+  const extras = conReintegros(previos, [r, r]);
+  assert.deepEqual(extras.map((e) => e.nombre), ["Bono", "Reintegro · Taxi"], "el viejo se va, el repetido entra una vez");
+  assert.equal(totalLiquidacion(0, extras), 12600.5);
+  assert.deepEqual(leerExtras(JSON.parse(JSON.stringify(extras))), extras, "ida y vuelta por el JSON");
+  assert.equal(extrasRecalculados(extras, []).some((e) => e.reintegro), false, "recalcular los saca; los vuelve a poner el claim");
 });
