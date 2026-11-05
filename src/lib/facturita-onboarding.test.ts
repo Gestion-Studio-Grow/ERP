@@ -7,7 +7,7 @@ import {
   altaCompleta,
   formatearCuit,
   mensajeActivacion,
-  pasosDelegacion,
+  PASOS_CERTIFICADO_PROPIO,
   validarAlta,
   validarCuitEmisor,
   validarPuntoVenta,
@@ -89,16 +89,20 @@ test("mensaje de activación: lleva los datos y NUNCA pide clave fiscal", () => 
   assert.match(m, /CUIT: 20-11111111-2/);
   assert.match(m, /Monotributo/);
   assert.match(m, /Punto de venta: 2/);
-  assert.match(m, /ya la hice/);
+  assert.match(m, /Certificado en ARCA: ya lo hice/);
   assert.doesNotMatch(m, /clave/i);
   const sinPv = mensajeActivacion({ ...COMPLETO, puntoVenta: "", sinPuntoVenta: true, delegacionHecha: false });
   assert.match(sinPv, /todavía no lo creé/);
   assert.match(sinPv, /ayudame/);
 });
 
-test("delegación: sin CUIT de GSG confirmado no se inventa ninguno", () => {
-  const pasos = pasosDelegacion(null).join(" ");
-  assert.match(pasos, /te lo pasamos por WhatsApp/);
+test("certificado propio: el usuario lo hace él mismo, sin delegar a GSG ni dar su clave", () => {
+  const pasos = PASOS_CERTIFICADO_PROPIO.join(" ");
+  assert.match(pasos, /nivel 3/);
+  assert.match(pasos, /Facturación Electrónica/);
+  assert.match(pasos, /\.csr/);
+  assert.match(pasos, /no nos la das nunca/);
+  assert.doesNotMatch(pasos, /Representante/);
+  assert.doesNotMatch(pasos, /CUIT de Gestión Studio Grow/);
   assert.doesNotMatch(pasos, /\d{2}-\d{8}-\d/);
-  assert.match(pasosDelegacion(CUIT_OK).join(" "), /20-11111111-2/);
 });

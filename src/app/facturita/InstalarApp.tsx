@@ -67,7 +67,7 @@ export default function InstalarApp() {
       }}
       className="fx-btn fx-btn--2"
     >
-      Instalar Facturita en este equipo
+      Instalar Factoque en este equipo
     </button>
   );
 }
