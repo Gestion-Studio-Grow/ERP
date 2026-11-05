@@ -58,3 +58,9 @@
 - **Riesgos para el certificador (plata, datos, tenant):** (a) seña de uñas entrando a la caja de CH o la rendición NO entrando; (b) alias de otra profesional por elegir mal el turno;
   (c) alias cambiado con señas pedidas: comprobante debe mostrar el viejo; (d) `tenantId` en cada consulta/`tenantTransaction` de settlement y alias (RLS); (e) doble registro
   de la rendición (carrera del P2002); (f) la profesional editando el alias de otra o viendo rendiciones ajenas; (g) `commissionPercent` y `rentPercent` cargados a la vez.
+
+## 7. Estado (05/11/2026, rama `claude/ch-nail-artist`, sin `main`, migración sin aplicar)
+- Hecho: T1 (53b9a99), T2 (7e70d12), correcciones de certificación (c1b6c2f, 76d717c, 08cd96e) y de QA (03bf57e). Adversariales 21/21, QA local 10/10 pasos.
+- Gate 2: `20261105120000_nail_artist` sin aplicar; el `omit` global (`src/lib/prisma-omitir-sin-migrar.ts`) mantiene vivo el resto del ERP sin ella. Al aplicarla, sacar las columnas del `omit`.
+- Pendiente del dueño: cómo rinde la profesional (alquiler fijo, %, ambos; período mensual), textos a la clienta, nombre que se muestra («CH» vs `Tenant.name`).
+- Deuda: aviso «no entra a la caja» en «Cobro con productos»; la profesional no tiene pantalla propia para editar su alias (lo hace el socio); falta la casilla `payments:own-account` de matriz-permisos; anulación de una rendición registrada (hoy sólo candado).
