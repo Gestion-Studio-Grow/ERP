@@ -10,12 +10,13 @@ import type { Metadata } from "next";
 import VidrieraMarco from "../VidrieraMarco";
 import { canalGsg } from "../contacto";
 import AltaAsistente from "./AltaAsistente";
+import { conexionMPDisponibleEnElAlta } from "./mp-disponible";
 
 export const dynamic = "force-static";
 
 export const metadata: Metadata = {
   title: "Empezá gratis — Factoque",
-  description: "Pedí tu Factoque en cinco pasos cortos: tu CUIT, cómo estás inscripto y tu punto de venta.",
+  description: "Pedí tu Factoque en pocos pasos: tu Mercado Pago (opcional), tu CUIT, cómo estás inscripto y tu punto de venta.",
   generator: "Gestión Studio Grow",
 };
 
@@ -30,9 +31,9 @@ export default function FacturitaAltaPage() {
       <div className="fx-caja fx-caja--alta" style={{ paddingBlock: "clamp(32px, 2rem + 3vw, 96px) clamp(48px, 3rem + 4vw, 120px)" }}>
         <h1 className="fx-h1">Empezá gratis</h1>
         <p className="fx-lead">
-          Cinco pasos cortos. No te pedimos tarjeta ni tu clave fiscal.
+          Seis pasos cortos, y el primero es opcional. No te pedimos tarjeta ni tu clave fiscal.
         </p>
-        <AltaAsistente canal={canal} />
+        <AltaAsistente canal={canal} mpDisponible={conexionMPDisponibleEnElAlta()} />
       </div>
     </VidrieraMarco>
   );
