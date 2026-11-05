@@ -123,7 +123,11 @@ test("links de cobro y lista de clientes a escala: aislamiento, totales reales, 
   await sembrar(base);
   const { tenantTransaction } = await import("@/lib/rls");
   const { paginaDeLinksEn, leerPaginaDeLinks } = await import("./links.server");
-  const { paginaDeFichasEn, leerPaginaDeFichas } = await import("@/lib/clientes/lista-fichas.server");
+  const { paginaDeFichasEn } = await import("@/lib/clientes/lista-fichas.server");
+  // `leerPaginaDeFichas` lee la sesión (máscara del teléfono, matriz de permisos): fuera de un request se usa la
+  // misma lectura en la transacción del negocio, con el contacto visible (dueño).
+  const leerPaginaDeFichas = (t: string, p: { q: string; pagina: number; rubro: "servicios" }) =>
+    tenantTransaction((tx) => paginaDeFichasEn(tx, t, { ...p, veContacto: true }), { tenantId: t });
   const { leerFichasConActividad, evaluarFichas, desdeHistorial } = await import("@/lib/crm/lecturas");
   const { buscarFichaPorTelefono } = await import("@/lib/clientes/ficha-por-telefono");
   const A = base.a.id;
