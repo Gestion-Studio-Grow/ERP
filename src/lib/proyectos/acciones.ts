@@ -11,7 +11,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
+import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
@@ -569,7 +569,7 @@ export async function computoAlPresupuesto(d: { standId: string }): Promise<Resu
 // ── Configuración ───────────────────────────────────────────────────────────
 
 export async function guardarConfig(formData: FormData) {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const costos: Partial<Record<ClaveCosto, number>> = {};
   for (const k of Object.keys(COSTO_LABEL) as ClaveCosto[]) {

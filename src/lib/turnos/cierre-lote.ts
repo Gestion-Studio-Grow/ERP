@@ -22,7 +22,7 @@
 // validar todo adentro de su transacción: este plan es el filtro rápido y el que arma el motivo
 // en criollo, no la única guarda.
 
-import { roleHasCapability, type Role } from "@/lib/capabilities";
+import { permisoDe, type Role, type UsuarioConPermisos } from "@/lib/capabilities";
 import {
   esMetodoDePago,
   estadoCobroTurno,
@@ -56,13 +56,23 @@ export type Permisos = {
   perdonar: boolean;
 };
 
-export function permisosDeRol(role: Role): Permisos {
+/**
+ * Los permisos de quien mira. Con el USUARIO (rol + excepciones de la matriz, `permisoEfectivo`):
+ * es lo que usan el servidor y la bandeja, así «cargar cobranzas» apagado no planifica cobros
+ * (certificación A1). Con sólo el rol queda para fixtures.
+ */
+export function permisosDe(quien: Role | UsuarioConPermisos): Permisos {
   return {
-    gestionar: roleHasCapability(role, "agenda:manage"),
-    cobrar: roleHasCapability(role, "agenda:collect"),
-    terminar: roleHasCapability(role, "agenda:complete"),
-    perdonar: roleHasCapability(role, "agenda:forgive"),
+    gestionar: permisoDe(quien, "agenda:manage"),
+    cobrar: permisoDe(quien, "agenda:collect"),
+    terminar: permisoDe(quien, "agenda:complete"),
+    perdonar: permisoDe(quien, "agenda:forgive"),
   };
+}
+
+/** Los permisos por default del rol, sin la matriz. NO usar con un usuario de sesión: `permisosDe(user)`. */
+export function permisosDeRol(role: Role): Permisos {
+  return permisosDe(role);
 }
 
 /** ¿Quien mira puede cobrar ESTE turno? (`puedeCobrarEsteTurno`, src/lib/turnos/cobro-mostrador.ts). */

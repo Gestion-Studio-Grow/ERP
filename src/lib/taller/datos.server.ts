@@ -6,8 +6,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
-import { permisoEfectivo } from "@/lib/capabilities";
+import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
+import { permisoFueraDeLaAgenda } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -89,7 +89,7 @@ export async function datosDelNegocio(tenantId: string) {
 
 // ── Sesión ──────────────────────────────────────────────────────────────────
 
-export const veLaPlata = (u: SessionUser): boolean => permisoEfectivo(u, "agenda:manage");
+export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
 /** El mecánico ve sus órdenes y las que todavía no tienen mecánico. */
 function filtroDeRol(u: SessionUser) {
@@ -307,7 +307,7 @@ export interface Aviso {
 }
 
 export async function bandejaDeAvisos() {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const hoy = new Date();
   const [vehiculos, entregadas, enviados] = await Promise.all([
@@ -394,7 +394,7 @@ export async function bandejaDeAvisos() {
 // ── Reportes ────────────────────────────────────────────────────────────────
 
 export async function reportesTaller() {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const desde = new Date();
   desde.setMonth(desde.getMonth() - 11, 1);

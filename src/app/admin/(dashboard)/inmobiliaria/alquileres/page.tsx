@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
-import { requireCapability } from "@/lib/authz";
+import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { buttonClasses, cn, EmptyState } from "@/components/ui";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { listaContratos } from "@/lib/inmobiliaria/datos.server";
@@ -12,7 +12,7 @@ export const metadata = { title: "Inmobiliaria · Alquileres" };
 
 export default async function Alquileres() {
   const user = await requireApp("inmobiliaria");
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const contratos = await listaContratos();
   const vigentes = contratos.filter((c) => c.estado === "VIGENTE");
   const debe = vigentes.reduce((s, c) => s + c.debe, 0);

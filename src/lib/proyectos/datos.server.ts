@@ -6,14 +6,14 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
-import { permisoEfectivo } from "@/lib/capabilities";
+import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
+import { permisoFueraDeLaAgenda } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
 import { desvioPorRubro, redondear, resultadoReal, totales, ultimaEnviada } from "./core";
 import { costosVigentes, normalizarDiseno } from "./stand";
 
-export const veLaPlata = (u: SessionUser): boolean => permisoEfectivo(u, "agenda:manage");
+export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
 export async function configProyectos(tenantId: string) {
   const c = await prisma.proyectoConfig.findUnique({ where: { tenantId } });
@@ -142,7 +142,7 @@ export async function clientesDelNegocio() {
 }
 
 export async function reporteProyectos() {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const proyectos = await prisma.proyecto.findMany({
     where: { tenantId },
@@ -170,7 +170,7 @@ export async function reporteProyectos() {
 
 /** Los proveedores con lo gastado en proyectos, y lo que queda por pagar. */
 export async function proveedoresConGastos() {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const [proveedores, gastos] = await Promise.all([
     prisma.supplier.findMany({ where: { tenantId }, orderBy: [{ active: "desc" }, { name: "asc" }], take: 500, select: { id: true, name: true, taxId: true, phone: true, email: true, active: true } }),

@@ -8,7 +8,7 @@ import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { leerOverridesTolerante } from "@/lib/permisos-overrides";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { permisoEfectivo } from "@/lib/capabilities";
+import { permisoEfectivo, permisoFueraDeLaAgenda } from "@/lib/capabilities";
 import type { Prisma } from "@/generated/prisma/client";
 import { datosDelNegocio } from "./datos.server";
 import { leerRef } from "./diseno-core";
@@ -155,7 +155,7 @@ export async function actorDeUsuario(tenantId: string, userId: string): Promise<
   ]);
   const user = fila ? { ...fila, overrides } : null;
   if (!user || !permisoEfectivo(user, "agenda:read")) return null;
-  const rol = (persona?.rol as RolGestion | undefined) ?? (permisoEfectivo(user, "agenda:manage") ? "DIRECCION" : "DISENO");
+  const rol = (persona?.rol as RolGestion | undefined) ?? (permisoFueraDeLaAgenda(user, "agenda:manage") ? "DIRECCION" : "DISENO");
   return { user, tenantId, personaId: persona?.id ?? null, nombre: persona?.nombre ?? user.name, rol, permisos };
 }
 

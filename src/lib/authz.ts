@@ -10,7 +10,7 @@
 
 import { redirect } from "next/navigation";
 import { getCurrentUser, type SessionUser } from "@/lib/session";
-import { homeRoute, motivoSoloLoSuyo, permisoEfectivo, type Capability } from "@/lib/capabilities";
+import { homeRoute, motivoSoloLoSuyo, permisoEfectivo, permisoFueraDeLaAgenda, type Capability } from "@/lib/capabilities";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 
 // Exige una sesión válida. Sin usuario → al login. Devuelve el usuario ya
@@ -31,6 +31,19 @@ export async function requireCapability(cap: Capability): Promise<SessionUser> {
   const user = await requireUser();
   // Rol + matriz de permisos por usuario (PLAN permisos §2): un solo resolvedor.
   if (!permisoEfectivo(user, cap)) {
+    redirect(homeRoute(user.role));
+  }
+  return user;
+}
+
+/**
+ * `requireCapability` para los módulos que NO son la agenda de turnos (pádel, taller, inmobiliaria,
+ * proyectos…): ahí la excepción de agendar/editar que la matriz le prende a un PROFESSIONAL no vale,
+ * porque esos módulos no tienen el scoping «sólo lo suyo» (`permisoFueraDeLaAgenda`, certificación M3).
+ */
+export async function requireCapabilityFueraDeLaAgenda(cap: Capability): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!permisoFueraDeLaAgenda(user, cap)) {
     redirect(homeRoute(user.role));
   }
   return user;

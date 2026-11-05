@@ -124,6 +124,15 @@ export function enmascararTelefono(phone: string | null | undefined): string | n
   return d.length > 4 ? `${MASCARA} ${d.slice(-4)}` : MASCARA;
 }
 
+/**
+ * Lo que llega de un formulario como teléfono, sin la máscara: un «•••• 4821» (la pantalla lo mostró
+ * enmascarado a quien no tiene `clients:contact`) no es un teléfono y no se graba ni ata una ficha.
+ */
+export function telefonoDelFormulario(raw: string | null | undefined): string {
+  const t = String(raw ?? "").trim();
+  return t.includes(MASCARA) ? "" : t;
+}
+
 /** «m…@…». Vacío devuelve lo mismo. */
 export function enmascararEmail(email: string): string;
 export function enmascararEmail(email: string | null | undefined): string | null | undefined;

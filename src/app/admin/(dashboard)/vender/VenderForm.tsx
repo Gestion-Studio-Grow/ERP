@@ -369,6 +369,11 @@ function FormularioVender(props: PropsDeVender & { enNavegador: boolean }) {
   const bloqueCliente = (
     <>
         {/* Cliente: opcional en la venta, obligatorio el nombre en el pedido. */}
+        {/* La clienta del turno, sin tocar el teléfono: la venta se ata a SU ficha (el número puede
+            venir enmascarado a quien no ve el contacto, y eso no se graba). */}
+        {(isOrder || conCliente) && props.clienteInicial?.clientId && telefono === props.clienteInicial.telefono ? (
+          <input type="hidden" name="clientId" value={props.clienteInicial.clientId} />
+        ) : null}
         {isOrder || conCliente ? (
           <div className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
             <label className="text-sm">

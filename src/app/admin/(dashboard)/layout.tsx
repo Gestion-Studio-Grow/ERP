@@ -289,7 +289,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // las MISMAS apps que ya decidió `appsVisibles`. Apagado no se arma ni viaja: CH recibe los mismos
   // props de siempre (armazon/armazon-ch.test.ts).
   const nav = nuevo
-    ? armarNavegacion({ visibles, menu, modoApps, esMostrador: negocioApps.esMostrador, role: user.role })
+    ? armarNavegacion({ visibles, menu, modoApps, esMostrador: negocioApps.esMostrador, role: user.role, overrides: user.overrides })
     : undefined;
 
   // CHIP DE PEDIDOS NUEVOS (Magra 1I, MG-054): sólo con el mostrador boutique prendido y para quien

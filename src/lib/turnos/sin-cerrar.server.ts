@@ -26,8 +26,8 @@ import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { contarTurnosSinCerrar } from "@/apps/kpis/turnos-sin-cerrar.server";
 import { cobrosDetalladosPorTurno } from "./anulacion";
-import { puedeCobrarEsteTurno } from "./cobro-mostrador";
-import { permisosDeRol, turnoSinCerrar, type BandejaSinCerrar, type FilaDeTurno } from "./cierre-lote";
+import { veredictoDeCobroDe } from "./cobro-mostrador";
+import { permisosDe, turnoSinCerrar, type BandejaSinCerrar, type FilaDeTurno } from "./cierre-lote";
 
 /** Cuántos trae la bandeja de una vez (un mes muy atrasado entra; más es otra conversación). */
 export const TOPE_DE_LA_BANDEJA = 300;
@@ -136,7 +136,7 @@ export async function contarSinCerrarDeQuienMira(): Promise<number> {
  */
 export async function turnosSinCerrar(): Promise<BandejaSinCerrar> {
   const user = await requireCapability("agenda:read");
-  const permisos = permisosDeRol(user.role);
+  const permisos = permisosDe(user);
   if (isDemoSandbox()) return { turnos: [], permisos, hayMas: false, cajaDeHoyCerrada: false };
 
   const tenantId = await getCurrentTenantId();
@@ -150,10 +150,8 @@ export async function turnosSinCerrar(): Promise<BandejaSinCerrar> {
   const turnos = filas.slice(0, TOPE_DE_LA_BANDEJA).map((f) =>
     turnoSinCerrar(
       { ...f, client: enmascararContacto(f.client, user) },
-      puedeCobrarEsteTurno({
-        rol: user.role,
-        professionalIdDelUsuario: user.professionalId,
-        professionalIdDelTurno: f.professionalId,
+      veredictoDeCobroDe(user, {
+        professionalId: f.professionalId,
         nombreProfesional: f.professional.name,
         cobraEnMostrador: f.professional.cobraEnMostrador,
       }),

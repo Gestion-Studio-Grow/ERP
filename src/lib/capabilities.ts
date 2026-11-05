@@ -273,6 +273,27 @@ export function permisoEfectivo(user: UsuarioConPermisos, cap: Capability): bool
 }
 
 /**
+ * Agendar y editar turnos (casillas 2 y 3) que la matriz le prende a un PROFESSIONAL valen «en su
+ * agenda»: la agenda de TURNOS, donde todo pasa por `soloLoSuyo`. Los otros módulos que gatean con
+ * esas mismas capacidades (pádel, taller, inmobiliaria, proyectos…) no tienen ese scoping, así que
+ * ahí un PROFESSIONAL se rige por su ROL y la excepción no le abre nada (certificación M3). Para
+ * todo lo demás es `permisoEfectivo`. Es el ÚNICO lugar donde vive esta regla.
+ */
+const DE_LA_AGENDA_DE_TURNOS: readonly Capability[] = ["agenda:create", "agenda:manage"];
+
+export function permisoFueraDeLaAgenda(user: UsuarioConPermisos, cap: Capability): boolean {
+  if (user.role === "PROFESSIONAL" && DE_LA_AGENDA_DE_TURNOS.includes(cap)) {
+    return roleHasCapability(user.role, cap);
+  }
+  return permisoEfectivo(user, cap);
+}
+
+/** Para piezas que reciben a veces sólo el rol (fixtures, pantallas viejas) y a veces el usuario. */
+export function permisoDe(quien: Role | UsuarioConPermisos, cap: Capability): boolean {
+  return typeof quien === "string" ? roleHasCapability(quien, cap) : permisoEfectivo(quien, cap);
+}
+
+/**
  * Scoping «en su agenda» (PLAN permisos §5), lógica pura de `soloLoSuyo` (authz.ts). Un
  * PROFESSIONAL —aunque la matriz le prenda agendar/editar/cobrar— opera SÓLO turnos de su
  * `professionalId`; sin ficha vinculada, ninguno. Los demás roles no se limitan. Devuelve el

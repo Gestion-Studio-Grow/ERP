@@ -54,7 +54,7 @@ import {
   mensajeNoVino,
   type MetodoDePago,
 } from "@/lib/turnos/cobros";
-import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
+import { puedeCobrarEsteTurno, veredictoDeCobroDe } from "@/lib/turnos/cobro-mostrador";
 import { avisoDeEspera, motivoDeDevolucion, planSeniaAlCerrar, puedeCambiarOnline } from "@/lib/turnos/practica";
 import { politicaVigente } from "@/lib/turnos/practica.server";
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
@@ -2114,10 +2114,9 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   if (method && !dejarSaldoACobrar) {
     const delTurno = await leerProfesionalDelTurno(tenantId, appointmentId);
     if (!delTurno) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
-    veredictoDeCobro = puedeCobrarEsteTurno({
-      rol: user.role,
-      professionalIdDelUsuario: user.professionalId,
-      professionalIdDelTurno: delTurno.professionalId,
+    // Con «cargar cobranzas» apagada (matriz, casilla 4) no se cobra aunque llegue el medio (A1).
+    veredictoDeCobro = veredictoDeCobroDe(user, {
+      professionalId: delTurno.professionalId,
       nombreProfesional: delTurno.nombre,
       cobraEnMostrador: delTurno.cobraEnMostrador,
     });

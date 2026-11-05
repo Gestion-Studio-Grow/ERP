@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
-import { requireCapability } from "@/lib/authz";
+import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { cn, Field, Input, Select, Textarea } from "@/components/ui";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -15,7 +15,7 @@ export const metadata = { title: "Inmobiliaria · Nuevo contrato" };
 
 export default async function NuevoContrato() {
   const user = await requireApp("inmobiliaria");
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const [config, gente, fichas] = await Promise.all([configInmo(tenantId), personas(), propiedadesParaContrato()]);
   const inicio = `${sumarMesesADia(hoyDia(), 1).slice(0, 7)}-01`;
