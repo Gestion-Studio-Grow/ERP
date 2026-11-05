@@ -72,3 +72,6 @@ qa-shots/
 CLAUDE.local.md
 .claude/settings.local.json
 .claude/.kit-backup/
+
+# Salida local del navegador de QA (Playwright MCP)
+.playwright-mcp/
