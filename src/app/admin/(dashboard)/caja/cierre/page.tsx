@@ -21,7 +21,7 @@ import {
   totalOf,
   rotuloDeVenta,
 } from "@/lib/caja/libro-caja";
-import { CERRAR_DIA_SIN_PERMISO, formatDayLabel, medioDeLaClasica, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
+import { CERRAR_DIA_SIN_PERMISO, ETIQUETA_VOUCHER_DEL_CIERRE, formatDayLabel, medioDeLaClasica, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { movementSign } from "@/lib/caja/cash-register";
 import { textoDeAperturaQueNoSuma } from "./revisar-cierre";
@@ -287,6 +287,14 @@ export default async function CierreCajaPage({
               TRANSFERENCIA: preview.porMedio.TRANSFERENCIA.cobrosCartera,
               TARJETA: preview.porMedio.TARJETA.cobrosCartera,
             }))}). Ya están contados una sola vez acá arriba.
+          </p>
+        )}
+        {/* CH · vouchers: a cobrar a OpenKey. Renglón propio, NUNCA sumado al cajón ni al esperado. */}
+        {!yaCerrado && data.vouchersACobrar && (
+          <p className="border-t border-line px-4 py-3 text-sm text-muted" data-testid="cierre-vouchers">
+            <span className="font-medium text-strong">{ETIQUETA_VOUCHER_DEL_CIERRE}</span>: {data.vouchersACobrar.cantidad} por{" "}
+            <span className="tabular-nums">{fmtMoneyARS(data.vouchersACobrar.monto)}</span>, a cobrar a OpenKey. No está en el
+            cajón ni en el esperado: no se cuenta.
           </p>
         )}
       </Card>

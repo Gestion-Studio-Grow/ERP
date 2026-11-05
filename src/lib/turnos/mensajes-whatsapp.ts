@@ -133,6 +133,7 @@ const MEDIO_EN_TEXTO: Record<string, string> = {
   TRANSFERENCIA: "por transferencia",
   DEBITO: "con débito",
   CREDITO: "con crédito",
+  VOUCHER: "con voucher",
 };
 
 /** «por transferencia» · «en efectivo» · "" si el medio no se sabe. */

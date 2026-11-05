@@ -188,7 +188,8 @@ export type MotivoAnulacionRechazada =
   | "monto-invalido" // fila corrupta (≤ 0): no hay nada que revertir
   | "facturado" // ENG-023: el turno tiene factura autorizada y todavía no hay nota de crédito
   | "factura-en-camino" // ENG-023: su factura espera la respuesta de ARCA; el CAE puede llegar después
-  | "dia-cerrado"; // el día del asiento ya está cerrado: la corrección va con fecha de hoy
+  | "dia-cerrado" // el día del asiento ya está cerrado: la corrección va con fecha de hoy
+  | "voucher-con-baja"; // CH: cobro con voucher ya dado de baja en OpenKey: no vuelve a DISPONIBLE
 
 export type PlanAnulacion =
   | { ok: true; monto: number }
@@ -291,6 +292,8 @@ export function mensajeAnulacionRechazada(motivo: MotivoAnulacionRechazada): str
       return mensajeFacturaViva("en-camino", "turno");
     case "dia-cerrado":
       return "Ese cobro es de un día ya cerrado y un día contado no se toca. La corrección va con fecha de hoy: cargala en el libro de caja como INGRESO/EGRESO, con el motivo.";
+    case "voucher-con-baja":
+      return "Ese cobro es con un voucher que ya se dio de baja en OpenKey: no se anula desde acá. Resolvelo con La Alameda y anotalo.";
   }
 }
 
@@ -434,6 +437,14 @@ export async function anularCobroTurnoInTx(
     throw new AnulacionRechazada(plan.motivo);
   }
 
+  // CH · cobro con voucher (src/lib/vouchers): el voucher vuelve a DISPONIBLE en esta misma tx,
+  // sólo si OpenKey todavía no lo dio de baja. Con la baja hecha, la anulación no corre.
+  const voucher =
+    original.method === "VOUCHER"
+      ? await tx.voucher.findFirst({ where: { tenantId, collectionId: args.collectionId }, select: { id: true, bajaOpenKeyEn: true } })
+      : null;
+  if (voucher?.bajaOpenKeyEn) throw new AnulacionRechazada("voucher-con-baja");
+
   const reversa = await tx.collection.create({
     data: {
       tenantId,
@@ -450,6 +461,15 @@ export async function anularCobroTurnoInTx(
     },
     select: { id: true },
   });
+
+  if (voucher) {
+    const liberado = await tx.voucher.updateMany({
+      where: { id: voucher.id, tenantId, estado: "USADO", collectionId: args.collectionId, bajaOpenKeyEn: null },
+      data: { estado: "DISPONIBLE", appointmentId: null, collectionId: null, valorCubierto: null, usadoEn: null, usadoPor: null },
+    });
+    // Cambió entre la lectura y acá (la foto de OpenKey lo dio de baja en paralelo): no se anula.
+    if (liberado.count !== 1) throw new AnulacionRechazada("voucher-con-baja");
+  }
 
   // `Payment` sigue siendo el AGREGADO de los cobros del turno: si no baja acá, Reportes, la
   // ficha de la clienta y las comisiones seguirían contando plata que se dio de baja.

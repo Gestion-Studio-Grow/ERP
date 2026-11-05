@@ -132,6 +132,28 @@ export function cashMethodFromPaymentMethod(paymentMethod: string, transferencia
   }
 }
 
+// ── Vouchers (CH): a cobrar a OpenKey, FUERA del cajón ──────────────────────
+//
+// Un cobro con voucher (`PaymentMethod.VOUCHER`, src/lib/vouchers) no es plata que entra al
+// cajón: `cashMethodFromPaymentMethod` no lo traduce (devuelve null) y el libro no lo asienta. El
+// cierre lo muestra como renglón propio, «Voucher», a cobrar a OpenKey: NUNCA se suma al efectivo,
+// a otra columna ni al esperado. Las anulaciones son filas negativas del mismo medio. PURA.
+
+export const ETIQUETA_VOUCHER_DEL_CIERRE = "Voucher";
+
+export type VouchersDelCierre = { cantidad: number; monto: number };
+
+export function vouchersDelCierre(cobros: readonly { amount: number }[]): VouchersDelCierre {
+  let cantidad = 0;
+  let monto = 0;
+  for (const c of cobros) {
+    if (!Number.isFinite(c.amount) || c.amount === 0) continue;
+    cantidad += c.amount > 0 ? 1 : -1;
+    monto += c.amount;
+  }
+  return { cantidad: Math.max(0, cantidad), monto: round2(Math.max(0, monto)) };
+}
+
 // ── Tipos del cierre ────────────────────────────────────────────────────────
 
 // Movimiento visto por el cierre: el del libro + el rastro opcional al cobro de
