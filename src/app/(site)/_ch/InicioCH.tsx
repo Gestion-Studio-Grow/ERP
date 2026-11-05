@@ -24,6 +24,7 @@ import Link from "next/link";
 import ReserveButton from "./ReserveButton";
 import { categoriaVisible } from "./copy-ch";
 import type { FeaturedService } from "./FeaturedTreatments";
+import { textoDelPrecio } from "@/lib/servicios/ficha";
 
 type Servicio = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null };
 type Grupo = { id: string; name: string; services: Servicio[] };
@@ -169,7 +170,7 @@ export default function InicioCH({
                     </span>
                     <span className="chn-dur">{s.durationMin} min</span>
                     <span className="chn-plata">
-                      {pesos(s.price)}
+                      {textoDelPrecio(s.price, pesos)}
                       {s.residentPrice != null && s.residentPrice < s.price && (
                         <small>Vecinas {pesos(s.residentPrice)}</small>
                       )}
