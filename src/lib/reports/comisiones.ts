@@ -23,20 +23,22 @@ import { round2 } from "@/lib/round";
  * Los turnos con comisión pendiente: realizados, cobrados y sin liquidar. El MISMO `where` que
  * la liquidación (`settleCommissions`) y la pantalla. Objeto plano, sin Prisma de valor.
  */
-export function whereTurnosConComisionPendiente(tenantId: string, nailArtist = false) {
+export function whereTurnosConComisionPendiente(tenantId: string, nailArtist = false, conColumnaDeRendicion = nailArtist) {
   const base = {
     tenantId,
     status: "COMPLETED" as const,
     commissionPayoutId: null,
     payment: { status: "APPROVED" as const },
+    // Un turno ya RENDIDO (`settlementId`) nunca vuelve a ser comisión: ni si se le saca la config
+    // ni si se apaga el interruptor. Se filtra siempre que la columna exista (sin la migración
+    // `nail_artist` no hay columna ni turno rendido: el filtro no va, y Postgres no da P2022).
+    ...(conColumnaDeRendicion || nailArtist ? { settlementId: null } : {}),
   };
   if (!nailArtist) return base;
-  // Box «Nail Artist» (NAIL-ARTIST.md §5): quien RINDE al salón no cobra comisión, y un turno ya
-  // rendido (`settlementId`) no vuelve a ser comisión aunque después se le saque la config. Sólo con
-  // el interruptor prendido, que exige la migración aplicada (las columnas existen).
+  // Box «Nail Artist» (NAIL-ARTIST.md §5): quien RINDE al salón no cobra comisión. Sólo con el
+  // interruptor prendido, que exige la migración aplicada (las columnas existen).
   return {
     ...base,
-    settlementId: null,
     professional: {
       AND: [
         { OR: [{ boxRentAmount: null }, { boxRentAmount: { lte: 0 } }] },

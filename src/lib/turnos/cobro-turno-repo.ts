@@ -45,16 +45,14 @@ import {
 // condonado. El import va en esta dirección y sólo en esta: `anulacion.ts` NO importa este
 // módulo (que sí trae el namespace de Prisma como valor), así que el client component que
 // importa `anulacion.ts` no arrastra el runtime de Prisma al bundle del browser.
-import { claseDeCobro, cobroAnuladoPor, desglosarCobros } from "./anulacion";
+import { claseDeCobro, cobroAnuladoPor, desglosarCobros, NOTA_COBRO_LEGADO } from "./anulacion";
 import { claveDeSenia } from "./cobro-dividido";
 
 export type CobroTurnoTx = Prisma.TransactionClient;
 
-// Nota del cobro que materializa un `Payment` legado. Vive ACÁ y no en un módulo
-// compartido a propósito: si `anulacion.ts` la importara de este archivo, se llevaría
-// consigo el import de valor de Prisma de la línea 30, y `AppointmentRow.tsx` —que es
-// client component e importa `anulacion.ts`— rompería el build de Turbopack.
-const NOTA_COBRO_LEGADO = "Cobro previo a los cobros parciales (Payment del turno)";
+// Nota del cobro que materializa un `Payment` legado: vive en `anulacion.ts` (sin Prisma de
+// valor), nunca al revés — si `anulacion.ts` importara este archivo arrastraría Prisma al
+// client component `AppointmentRow.tsx` y rompería el build de Turbopack.
 
 export type AplicarCobroArgs = {
   appointmentId: string;

@@ -69,6 +69,17 @@ export function esEgresoDeAnulacion(m: { createdBy?: string | null }): boolean {
   return String(m.createdBy ?? "").startsWith(ANULACION_TURNO_ACTOR_PREFIX);
 }
 
+/**
+ * Nota del cobro que materializa un `Payment` legado (`aplicarCobroTurnoInTx`, cobro-turno-repo.ts).
+ * Vive acá (módulo sin Prisma de valor) para que la lean las lecturas puras sin arrastrar el repo.
+ */
+export const NOTA_COBRO_LEGADO = "Cobro previo a los cobros parciales (Payment del turno)";
+
+/** ¿Este cobro es la materialización de un `Payment` del camino viejo (MP / `confirmPayment`)? */
+export function esCobroLegado(note: string | null | undefined): boolean {
+  return note === NOTA_COBRO_LEGADO;
+}
+
 export const MARCA_ANULACION = "ANULACION:";
 const MARCA_CONDONACION = "CONDONACION:";
 

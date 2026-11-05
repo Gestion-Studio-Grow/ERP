@@ -62,12 +62,38 @@ async function leerTurnos(
   };
 }
 
+// Una vez que la columna existe no deja de existir (migración aditiva): se cachea sólo el «sí».
+let columnaDeRendicionVista = false;
+
+/**
+ * ¿Existe `Appointment.settlementId` (migración `20261105120000_nail_artist`)? Mira el catálogo, no
+ * los datos. Ante un error responde «no» (sin la columna, el filtro rompería la lectura con P2022).
+ */
+export async function hayColumnaDeRendicion(db: Prisma.TransactionClient): Promise<boolean> {
+  if (columnaDeRendicionVista) return true;
+  try {
+    const filas = await db.$queryRaw<{ n: number }[]>`
+      SELECT 1 AS n FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = 'Appointment' AND column_name = 'settlementId' LIMIT 1`;
+    columnaDeRendicionVista = filas.length > 0;
+  } catch {
+    return false;
+  }
+  return columnaDeRendicionVista;
+}
+
+/** El `where` de comisión pendiente con el interruptor y la columna de rendición resueltos. */
+export async function whereComisionPendienteDe(db: Prisma.TransactionClient, tenantId: string, nailArtist?: boolean) {
+  const prendido = nailArtist ?? (await nailArtistDe(db, tenantId));
+  return whereTurnosConComisionPendiente(tenantId, prendido, prendido || (await hayColumnaDeRendicion(db)));
+}
+
 export async function leerComisionesPendientes(
   db: Prisma.TransactionClient,
   tenantId: string,
 ): Promise<ComisionPendiente[]> {
   // El KPI del Inicio, la pantalla y la liquidación: el MISMO filtro del box «Nail Artist».
-  const { turnos, overrides } = await leerTurnos(db, whereTurnosConComisionPendiente(tenantId, await nailArtistDe(db, tenantId)));
+  const { turnos, overrides } = await leerTurnos(db, await whereComisionPendienteDe(db, tenantId));
   return comisionesPendientes(turnos, overrides);
 }
 

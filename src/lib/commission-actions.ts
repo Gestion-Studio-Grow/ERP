@@ -49,11 +49,10 @@ import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 // Mismo criterio de fecha contable que el egreso de una compra a proveedor: si hoy está
 // cerrado, el asiento se imputa al primer día abierto en vez de perderse.
 import { diaContableDelEgreso } from "@/lib/stock/purchase-egreso";
-import { leerComisionesPendientes, leerTurnosEsperandoSaldo } from "@/lib/reports/comisiones-lectura";
+import { leerComisionesPendientes, leerTurnosEsperandoSaldo, whereComisionPendienteDe } from "@/lib/reports/comisiones-lectura";
 import { leerComisionesConCobroAnulado, type ComisionConCobroAnulado } from "@/lib/reports/comision-ya-pagada";
 import {
   vueltaDeLiquidacion,
-  whereTurnosConComisionPendiente,
   type ComisionPendiente,
   type VueltaDeLiquidacion,
 } from "@/lib/reports/comisiones";
@@ -187,7 +186,7 @@ export async function settleCommissions(formData: FormData) {
     const [appointments, overrides] = await Promise.all([
       tx.appointment.findMany({
         // El MISMO `where` que el listado de pendientes y el botón del Inicio.
-        where: { ...whereTurnosConComisionPendiente(tenantId, nailArtist), professionalId },
+        where: { ...(await whereComisionPendienteDe(tx, tenantId, nailArtist)), professionalId },
         include: {
           payment: true,
           collections: { select: { amount: true, method: true } },

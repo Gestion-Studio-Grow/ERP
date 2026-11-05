@@ -14,7 +14,7 @@
 import { porcentajeDe, sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 import { leerImporte } from "@/lib/dinero/leer";
-import { claseDeCobro, cobroAnuladoPor } from "@/lib/turnos/anulacion";
+import { claseDeCobro, cobroAnuladoPor, esCobroLegado } from "@/lib/turnos/anulacion";
 import { pesosDelCobro } from "@/lib/turnos/cobro-dividido";
 import { esNotaDeCobroProfesional } from "@/lib/turnos/senia-profesional";
 
@@ -47,9 +47,14 @@ export type CobroConDestino = CobroDelTurno & {
  * es de ella aunque el servicio se haya marcado después. Sin asiento, es de ella si la nota lo dice
  * (la seña al alias, fijada por el snapshot del pedido) o si el servicio está marcado (el saldo,
  * que se cobra sin nota propia). La anulación sigue a su cobro original; la condonación no es plata.
+ *
+ * REGLA (positiva): es de ella sólo si no tiene asiento y la nota dirigida lo dice, o si es un cobro del
+ * camino nuevo de un servicio marcado; el `Payment` legado materializado (MP/`confirmPayment`, su asiento
+ * va por `paymentId`) es SIEMPRE de CH: ni rendición ni descuento de factura.
  */
 export function cobrosDeLaProfesional(cobros: readonly CobroConDestino[], servicioMarcado: boolean): CobroDelTurno[] {
-  const deElla = (c: CobroConDestino) => !c.conAsientoEnCaja && (esNotaDeCobroProfesional(c.note) || servicioMarcado);
+  const deElla = (c: CobroConDestino) =>
+    !c.conAsientoEnCaja && (esNotaDeCobroProfesional(c.note) || (servicioMarcado && !esCobroLegado(c.note)));
   const porId = new Map(cobros.map((c) => [c.id, c]));
   return cobros
     .filter((c) => {

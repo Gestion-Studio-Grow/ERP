@@ -150,3 +150,150 @@ test("D1 el mes en curso no se registra (todavía suma turnos)", async (t) => {
   assert.equal(r.ok, false);
   assert.match(r.ok ? "" : r.error, /no terminó/);
 });
+
+// ── Recertificación vuelta 1 (R1-R5): pago legado de CH, turno rendido con el interruptor apagado,
+// profesional normal, migración y turno mixto. Estado propio (`st`), misma base efímera.
+let st: { base: BaseEfimera; mes: string; inicio: number; serv: string; servNormal: string; box: string } | null = null;
+let n = 0;
+
+async function prep(t: import("node:test").TestContext) {
+  if (st) return st;
+  const base = await laBase(t);
+  if (!base) return null;
+  apuntarLaAppA(base);
+  prepararAccionesDeServidor();
+  Object.assign(process.env as Record<string, string | undefined>, { DB_CONNECTION_LIMIT: "4", DB_CONNECT_TIMEOUT_MS: "3000" });
+  const d = await prismaComoDuenio(base);
+  const mes = mesAnterior(dateStrInBusinessTz(new Date()).slice(0, 7));
+  const inicio = periodoMensual(mes)!.desde.getTime();
+  const tenantId = base.a.id;
+  const box = await d.box.create({ data: { tenantId, name: "Nail" } });
+  const serv = await d.service.create({ data: { tenantId, name: "Kapping", durationMin: 10, price: 10000, depositToProfessional: true } });
+  const servNormal = await d.service.create({ data: { tenantId, name: "Corte", durationMin: 10, price: 10000 } });
+  const { filaDeInterruptor } = await import("@/cambios/interruptores-core");
+  const { NAIL_ARTIST } = await import("@/cambios/interruptores");
+  await d.auditLog.create({ data: filaDeInterruptor({ tenantId, interruptor: NAIL_ARTIST, accion: "encender", operador: "test" }) });
+  st = { base, mes, inicio, serv: serv.id, servNormal: servNormal.id, box: box.id };
+  return st;
+}
+
+async function turno(x: NonNullable<typeof st>, professionalId: string, serviceId: string, status: "COMPLETED" | "CONFIRMED" = "COMPLETED") {
+  const d = await prismaComoDuenio(x.base);
+  const tenantId = x.base.a.id;
+  const clientId = (await d.client.create({ data: { tenantId, name: `R${n}`, phone: `11500099${n}` } })).id;
+  const startsAt = new Date(x.inicio + 3 * 24 * 60 * MIN + (30 + n++) * MIN);
+  return d.appointment.create({ data: { tenantId, clientId, professionalId, serviceId, boxId: x.box, startsAt, endsAt: new Date(startsAt.getTime() + 10 * MIN), status, priceAtBooking: 10000 } });
+}
+
+async function comoR<R>(x: NonNullable<typeof st>, fn: () => Promise<R>): Promise<R> {
+  const r = await ejecutarAccion({ negocio: x.base.a, usuario: x.base.a.duenia }, fn);
+  if (r.tipo !== "respuesta") throw new Error(`sin respuesta: ${JSON.stringify(r)}`);
+  return r.valor;
+}
+
+test("R1 pago legado de CH (MP, asiento por paymentId) en servicio marcado: al cobrar el saldo se materializa SIN asiento y se le atribuye a ella", async (t) => {
+  const x = await prep(t); if (!x) return;
+  const d = await prismaComoDuenio(x.base);
+  const tenantId = x.base.a.id;
+  const pro = await d.professional.create({ data: { tenantId, name: "Lola", rentPercent: 10 } });
+  const a = await turno(x, pro.id, x.serv);
+  const pay = await d.payment.create({ data: { tenantId, appointmentId: a.id, amount: 4000, status: "APPROVED", method: "MERCADOPAGO" } as never });
+  await d.cashMovement.create({ data: { tenantId, type: "VENTA", method: "MP", amount: 4000, paymentId: (pay as { id: string }).id, occurredAt: new Date(), createdBy: "test" } as never });
+  const { tenantTransaction } = await import("@/lib/rls");
+  const { aplicarCobroTurnoInTx } = await import("@/lib/turnos/cobro-turno-repo");
+  await tenantTransaction((tx) => aplicarCobroTurnoInTx(tx as never, tenantId, {
+    appointmentId: a.id, status: "COMPLETED", precio: 10000, monto: 6000, method: "EFECTIVO", note: "Saldo", actor: "user:x",
+    detail: "Turno · Kapping", idempotencyKey: `saldo:${a.id}`, withSchema: true, cerradoHasta: null, camino: "completar", nailArtist: true,
+  } as never), { tenantId });
+  const { leerCobradoPorLaProfesional } = await import("@/lib/reports/rendiciones-lectura");
+  const deElla = await tenantTransaction((tx) => leerCobradoPorLaProfesional(tx as never, tenantId, a.id), { tenantId });
+  assert.equal(deElla, 6000, `FALLA: se le atribuyen $${deElla} a la profesional; $4.000 son el pago MP legado que entró a CH (VENTA por paymentId). CH deja de facturarlos y se los cobra en la rendición.`);
+});
+
+test("R2 apagar el interruptor tras rendir: los turnos YA rendidos vuelven a comisión pendiente", async (t) => {
+  const x = await prep(t); if (!x) return;
+  const d = await prismaComoDuenio(x.base);
+  const tenantId = x.base.a.id;
+  const pro = await d.professional.create({ data: { tenantId, name: "Sol", commissionPercent: 40, rentPercent: 33 } });
+  const a = await turno(x, pro.id, x.serv);
+  await d.collection.create({ data: { tenantId, originType: "APPOINTMENT", originId: a.id, appointmentId: a.id, amount: 10000, method: "EFECTIVO", collectedBy: "test" } });
+  await d.payment.create({ data: { tenantId, appointmentId: a.id, amount: 10000, status: "APPROVED", method: "EFECTIVO" } as never });
+  const { registrarRendicion } = await import("@/lib/rendicion-actions");
+  const r = await comoR(x, () => registrarRendicion(fd({ professionalId: pro.id, mes: x.mes, method: "EFECTIVO" })));
+  assert.ok(r.ok, JSON.stringify(r));
+  const marcado = await d.appointment.findUniqueOrThrow({ where: { id: a.id }, select: { settlementId: true } });
+  assert.ok(marcado.settlementId, "el turno rendido queda marcado");
+  const { tenantTransaction } = await import("@/lib/rls");
+  const { leerComisionesPendientes } = await import("@/lib/reports/comisiones-lectura");
+  const conOn = await tenantTransaction((tx) => leerComisionesPendientes(tx as never, tenantId), { tenantId });
+  assert.equal(conOn.find((p) => p.professionalId === pro.id), undefined, "prendido: no aparece");
+  const { filaDeInterruptor } = await import("@/cambios/interruptores-core");
+  const { NAIL_ARTIST } = await import("@/cambios/interruptores");
+  await new Promise((res) => setTimeout(res, 20));
+  await d.auditLog.create({ data: filaDeInterruptor({ tenantId, interruptor: NAIL_ARTIST, accion: "apagar", operador: "test" }) });
+  const conOff = await tenantTransaction((tx) => leerComisionesPendientes(tx as never, tenantId), { tenantId });
+  const sol = conOff.find((p) => p.professionalId === pro.id);
+  // re-prender para los demás tests
+  await new Promise((res) => setTimeout(res, 20));
+  await d.auditLog.create({ data: filaDeInterruptor({ tenantId, interruptor: NAIL_ARTIST, accion: "encender", operador: "test" }) });
+  assert.equal(sol, undefined, `FALLA: con el interruptor apagado el turno rendido (settlementId=${marcado.settlementId}) vuelve a comisión pendiente: ${JSON.stringify(sol)}`);
+});
+
+test("R3 profesional normal (sin rendición) conserva su comisión con el interruptor prendido", async (t) => {
+  const x = await prep(t); if (!x) return;
+  const d = await prismaComoDuenio(x.base);
+  const tenantId = x.base.a.id;
+  const pro = await d.professional.create({ data: { tenantId, name: "Normal", commissionPercent: 50 } });
+  const pro0 = await d.professional.create({ data: { tenantId, name: "Cero", commissionPercent: 50, boxRentAmount: 0, rentPercent: 0 } });
+  for (const p of [pro, pro0]) {
+    const a = await turno(x, p.id, x.servNormal);
+    await d.collection.create({ data: { tenantId, originType: "APPOINTMENT", originId: a.id, appointmentId: a.id, amount: 10000, method: "EFECTIVO", collectedBy: "test" } });
+    await d.payment.create({ data: { tenantId, appointmentId: a.id, amount: 10000, status: "APPROVED", method: "EFECTIVO" } as never });
+  }
+  const { tenantTransaction } = await import("@/lib/rls");
+  const { leerComisionesPendientes } = await import("@/lib/reports/comisiones-lectura");
+  const l = await tenantTransaction((tx) => leerComisionesPendientes(tx as never, tenantId), { tenantId });
+  assert.ok(l.find((p) => p.professionalId === pro.id), "FALLA: perdió la comisión la profesional sin config");
+  assert.ok(l.find((p) => p.professionalId === pro0.id), "FALLA: perdió la comisión la profesional con config en 0");
+  const { getCommissionsOverview } = await import("@/lib/commission-actions");
+  const o = await comoR(x, () => getCommissionsOverview());
+  const { comisiones } = await import("@/apps/kpis/finanzas.server");
+  const k = await comisiones({ db: d as never, tenantId } as never);
+  const total = o.pending.reduce((s, p) => s + (p as { total?: number; amount?: number }).total! || 0, 0);
+  t.diagnostic(`pantalla: ${JSON.stringify(o.pending.map((p) => p.professionalId === pro.id || p.professionalId === pro0.id))} kpi: ${JSON.stringify(k)} total:${total}`);
+});
+
+test("R4 faltaLaMigracion con la migración aplicada: no bloquea (sin falso positivo) y sí bloquea interruptor sin requisito → null", async (t) => {
+  const x = await prep(t); if (!x) return;
+  const { depsDeCambioReales } = await import("@/lib/operador/interruptores-escritura.server");
+  const { NAIL_ARTIST, INICIO_POR_APPS } = await import("@/cambios/interruptores") as unknown as Record<string, string>;
+  const deps = depsDeCambioReales();
+  assert.equal(await deps.faltaLaMigracion!(NAIL_ARTIST as never), null, "FALLA: falso positivo con la migración aplicada");
+  if (INICIO_POR_APPS) assert.equal(await deps.faltaLaMigracion!(INICIO_POR_APPS as never), null);
+});
+
+test("R5 turno mixto: seña a ella (nota, sin asiento) + saldo a CH (asiento) → CH factura sólo el saldo", async (t) => {
+  const x = await prep(t); if (!x) return;
+  const d = await prismaComoDuenio(x.base);
+  const tenantId = x.base.a.id;
+  const pro = await d.professional.create({ data: { tenantId, name: "Mix", rentPercent: 10 } });
+  const a = await turno(x, pro.id, x.servNormal);
+  const { notaDeCobroProfesional } = await import("@/lib/turnos/senia-profesional");
+  const nota = notaDeCobroProfesional({ aliasCbu: "mix.alias", titularCuenta: "Mix", cuitTitular: null, reasignada: false } as never);
+  await d.collection.create({ data: { tenantId, originType: "APPOINTMENT", originId: a.id, appointmentId: a.id, amount: 3000, method: "TRANSFERENCIA", note: nota, collectedBy: "test" } });
+  const c2 = await d.collection.create({ data: { tenantId, originType: "APPOINTMENT", originId: a.id, appointmentId: a.id, amount: 7000, method: "EFECTIVO", collectedBy: "test" } });
+  await d.cashMovement.create({ data: { tenantId, type: "VENTA", method: "EFECTIVO", amount: 7000, collectionId: c2.id, occurredAt: new Date(), createdBy: "test" } as never });
+  const { tenantTransaction } = await import("@/lib/rls");
+  const { leerCobradoPorLaProfesional } = await import("@/lib/reports/rendiciones-lectura");
+  const deElla = await tenantTransaction((tx) => leerCobradoPorLaProfesional(tx as never, tenantId, a.id), { tenantId });
+  const { pendienteDelTurno } = await import("@/lib/facturacion/cobros-facturados");
+  const p = pendienteDelTurno({ cobrado: 10000, precio: 10000, cobradoPorMP: 0, facturadoPorMP: 0, cobradoPorLaProfesional: deElla });
+  assert.equal(deElla, 3000);
+  assert.equal(p.pendiente, 7000, `FALLA: CH facturaría $${p.pendiente}`);
+  // Saldo de CH por MP ya facturado por MP: no hay otra factura.
+  const q = pendienteDelTurno({ cobrado: 10000, precio: 10000, cobradoPorMP: 7000, facturadoPorMP: 7000, cobradoPorLaProfesional: 3000 });
+  assert.equal(q.pendiente, 0, `FALLA: doble factura MP: $${q.pendiente}`);
+  // Seña anulada de ella: vuelve a la base de CH sólo lo que queda.
+  const r = pendienteDelTurno({ cobrado: 7000, precio: 10000, cobradoPorMP: 0, facturadoPorMP: 0, cobradoPorLaProfesional: 0 });
+  assert.equal(r.pendiente, 7000);
+});
