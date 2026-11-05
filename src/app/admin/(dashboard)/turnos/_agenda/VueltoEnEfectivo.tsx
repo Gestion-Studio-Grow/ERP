@@ -45,7 +45,7 @@ export default function VueltoEnEfectivo({
         <Input
           importe
           inputMode="decimal"
-          className="h-12 max-w-40"
+          className="h-12 min-h-12 max-w-40"
           aria-label="Con cuánto paga"
           placeholder="$"
           value={billetes.includes(Number(pagaCon)) || pagaCon === String(total) ? "" : pagaCon}
