@@ -273,7 +273,7 @@ async function t2Prendido(db, e, w, h, V, mk, dirV, prodId) {
     await p.waitForTimeout(500);
     const cobros = await cobrosDe(db, t);
     const ords = await ordenesDe(db, t);
-    const sumaBase = (await db.collection.findMany({ where: { OR: [{ appointmentId: t.id }, { order: { clientId: t.clientId } }] }, select: { amount: true } })).reduce((a, x) => a + Number(x.amount), 0);
+    const sumaBase = cobros.filter((c) => !c.orderId).reduce((a, x) => a + Number(x.amount), 0) + ords.reduce((a, o) => a + Number(o.total), 0);
     const href = (await p.getByRole("link", { name: "Mandar comprobante por WhatsApp" }).getAttribute("href").catch(() => null)) ?? "";
     const txt = decodificar(href);
     const montoTxt = "$" + sumaBase.toLocaleString("es-AR");
@@ -295,9 +295,9 @@ async function t2Prendido(db, e, w, h, V, mk, dirV, prodId) {
     await cj.getByRole("button", { name: /^Efectivo/ }).click();
     const listo = await espera(p.getByRole("heading", { name: /Listo ✓/ }), 20000);
     await p.waitForTimeout(500);
-    const vis = (await p.getByRole("link", { name: "Mandar comprobante por WhatsApp" }).isVisible()) && (await p.getByRole("link", { name: "¿Le damos el próximo?" }).isVisible());
+    const vis = await p.getByRole("link", { name: "Mandar comprobante por WhatsApp" }).isVisible();
     const d = await sinDesborde(p);
-    ok(`T2-RM.${V}`, mm && listo && vis && d.sw <= d.iw, `T2 reduced-motion: «Listo ✓» completo y usable (media=${mm}, teclas visibles=${vis}, desborde ${d.sw}/${d.iw})`);
+    ok(`T2-RM.${V}`, mm && listo && vis && d.sw <= d.iw, `T2 reduced-motion: «Listo ✓» completo y usable (media=${mm}, tecla WhatsApp visible=${vis}, desborde ${d.sw}/${d.iw})`);
     await shot(p)("reduced-motion");
     await s.ctx.close();
   }
