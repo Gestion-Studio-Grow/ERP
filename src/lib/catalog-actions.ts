@@ -8,6 +8,7 @@ import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
+import { isDemoSandbox } from "@/lib/demo-sandbox";
 import { writeProductExtras } from "@/lib/carniceria/product-extras";
 import { parseSaleFields } from "@/lib/stock/product-sale-fields";
 import { crearProductoConStockInicial } from "@/lib/stock/alta-producto";
@@ -658,12 +659,25 @@ export async function createProfessional(formData: FormData) {
   revalidatePath(CATALOG_PATH);
 }
 
+// También es la casilla 1 de la matriz de permisos («Disponible para reserva online», PLAN permisos
+// §6): `active` es lo que leen la reserva online y los links. Por eso se audita y va por negocio.
 export async function toggleProfessionalActive(formData: FormData) {
   await requireCapability("catalog:manage");
+  if (isDemoSandbox()) return; // modo demo: no persiste
+  const tenantId = await getCurrentTenantId();
   const id = String(formData.get("id"));
   const active = String(formData.get("active")) === "true";
-  await prisma.professional.update({ where: { id }, data: { active: !active } });
+  // El id viene del navegador: el negocio va escrito a mano además de RLS.
+  const res = await prisma.professional.updateMany({ where: { id, tenantId, deletedAt: null }, data: { active: !active } });
+  if (res.count === 0) return;
+  await auditAdmin({
+    action: active ? "deactivate" : "activate",
+    entity: "Professional",
+    entityId: id,
+    changes: { active: !active, motivo: "reserva-online" },
+  });
   revalidatePath(CATALOG_PATH);
+  revalidatePath("/admin/usuarios");
 }
 
 export async function updateProfessional(formData: FormData) {

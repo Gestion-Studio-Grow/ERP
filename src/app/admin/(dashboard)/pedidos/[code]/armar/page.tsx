@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { prisma } from "@/lib/prisma";
@@ -55,7 +55,7 @@ export default async function ArmarPedidoPage({ params }: { params: Promise<{ co
   const user = await requireApp("pedidos");
   const [{ code: codeRaw }, interruptores, identidad] = await Promise.all([params, interruptoresDelNegocio(), getTenantIdentity()]);
   if (!identidad.isRetail || !mostradorBoutiquePrendido(interruptores)) redirect("/admin/pedidos");
-  if (!roleHasCapability(user.role, "orders:manage")) redirect("/admin/pedidos");
+  if (!permisoEfectivo(user, "orders:manage")) redirect("/admin/pedidos");
   const code = Number(codeRaw);
   if (!Number.isInteger(code) || code <= 0) return <PedidoQueNoEsta code={codeRaw} />;
 

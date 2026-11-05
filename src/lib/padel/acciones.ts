@@ -27,7 +27,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { bookingTransaction, tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
+import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { leerImporte } from "@/lib/dinero/leer";
 import { businessWallTimeToUtc, todayInBusinessTz } from "@/lib/datetime";
@@ -108,7 +108,7 @@ export type { AvisoEnCola, ConAviso, Resultado } from "./acciones-compartido";
 const ACTIVAS = ["PEDIDA", "CONFIRMADA"];
 
 async function claseDelProfe(id: string) {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const clase = await prisma.padelClase.findFirst({
     where: { tenantId, id: String(id ?? "") },
@@ -372,7 +372,7 @@ export async function moverHorario(claseId: string, nuevaHoraIso: string): Promi
  * como libre y la duración es la suya).
  */
 export async function horasLibres(fecha: string, excluirClaseId?: string): Promise<Resultado<{ libres: string[] }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   if (!fechaValida(fecha)) return { ok: false, error: "Elegí el día." };
   let duracionMin: number | undefined;
@@ -429,7 +429,7 @@ export async function cobrar(claseId: string, medio: MedioCobro, opciones?: { re
  * ninguna. Lo que tiene el comprobante por revisar no entra (se valida aparte).
  */
 export async function cobrarTodo(alumnoId: string, medio: MedioCobro): Promise<Resultado<{ cantidad: number; total: number }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   if (!esMedioCobro(medio)) return { ok: false, error: "Elegí cómo te pagó." };
   return conErrorNegocio(async () => {
@@ -464,7 +464,7 @@ export async function cobrarTodo(alumnoId: string, medio: MedioCobro): Promise<R
  * confirmar (cambió en el medio) vuelve en `fallidas` con su motivo.
  */
 export async function confirmarTodos(ids: string[]): Promise<Resultado<{ avisos: AvisoEnCola[]; fallidas: { claseId: string; error: string }[] }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const lista = idsLimpios(ids, 30);
   if (!lista.length) return { ok: false, error: "No hay pedidos para confirmar." };
   const avisos: AvisoEnCola[] = [];
@@ -484,7 +484,7 @@ export async function confirmarTodos(ids: string[]): Promise<Resultado<{ avisos:
  * ya había uno de hoy sin mandar, se reusa (no se duplica); si ya salió, no se repite.
  */
 export async function recordarVarios(ids: string[]): Promise<Resultado<{ avisos: AvisoEnCola[]; yaRecordadas: string[] }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const lista = idsLimpios(ids, 40);
   if (!lista.length) return { ok: false, error: "No hay clases para recordar." };
@@ -535,7 +535,7 @@ export async function recordarVarios(ids: string[]): Promise<Resultado<{ avisos:
  * marcado, no hace nada. Lo importa la ColaAvisos de la pantalla (Tanda 2B) de acá.
  */
 export async function marcarAvisado(avisoId: string): Promise<Resultado<{ marcado: boolean }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   if (typeof avisoId !== "string" || !avisoId || avisoId.length > 40) return { ok: false, error: "No encontramos ese aviso." };
   const n = await prisma.padelAviso.updateMany({ where: { tenantId, id: avisoId, destino: "ALUMNO", enviadoEl: null }, data: { enviadoEl: new Date() } });
@@ -647,7 +647,7 @@ export async function suspenderDia(
   accion: AccionAfectadas,
   motivo: MotivoCancel = "LLUVIA",
 ): Promise<Resultado<ResultadoAfectadas>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const d = desde || "00:00";
   const h = hasta || "23:59";
@@ -668,7 +668,7 @@ export async function suspenderDia(
  * devuelve la lista para ofrecer cancelar o mover; con «cancelar» o «proponer», como suspenderDia.
  */
 export async function bloquearRango(desde: string, hasta: string, accion: AccionAfectadas = "nada", motivo: MotivoCancel = "OTRO"): Promise<Resultado<ResultadoAfectadas & { dias: number }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const dias = diasEntre(desde, hasta, 63);
   if (!dias.length) return { ok: false, error: "Elegí desde y hasta qué día." };
@@ -693,7 +693,7 @@ export async function bloquearRango(desde: string, hasta: string, accion: Accion
  * cliente con ese celular (otro módulo), se usa esa.
  */
 export async function crearAlumno(nombre: string, telefono: string, nivel?: string): Promise<Resultado<{ alumnoId: string }> | { ok: false; error: string; alumnoId: string }> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const n = nombreValido(nombre);
   if (!n) return { ok: false, error: "Poné el nombre (de 2 a 60 letras)." };
@@ -724,7 +724,7 @@ export async function editarAlumno(
   alumnoId: string,
   cambios: { nombre?: string; telefono?: string; nivel?: string; notas?: string },
 ): Promise<Resultado<{ linkNuevo: boolean }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const c = cambios ?? {};
   const nombre = c.nombre !== undefined ? nombreValido(c.nombre) : undefined;
@@ -761,7 +761,7 @@ export async function editarAlumno(
  * «Recordarle» (Plata, M-074): el WhatsApp con el detalle de lo que debe, el total y el alias.
  */
 export async function recordarDeuda(alumnoId: string): Promise<Resultado<ConAviso & { total: number }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const a = await prisma.padelAlumno.findFirst({ where: { tenantId, id: String(alumnoId ?? "") }, select: { id: true, token: true, client: { select: { name: true, phone: true } } } });
   if (!a) return { ok: false, error: "No encontramos ese alumno." };
@@ -923,7 +923,7 @@ export async function agendarProxima(id: string): Promise<Resultado<ConAviso & {
  * ya existía y el profe todavía no lo había reconocido, su link se regenera (O-1).
  */
 export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & { cuando: string; linkNuevo?: boolean }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const fecha = String(fd.get("fecha") ?? "");
   const horaTxt = String(fd.get("hora") ?? "");
@@ -971,7 +971,7 @@ export async function agendarClase(fd: FormData): Promise<Resultado<ConAviso & {
 
 /** El link del alumno por WhatsApp (para mandárselo la primera vez o si lo perdió). */
 export async function mandarLinkAlAlumno(alumnoId: string): Promise<Resultado<{ wa: string | null; linkNuevo?: boolean }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const a = await prisma.padelAlumno.findFirst({ where: { tenantId, id: alumnoId }, select: { id: true, token: true, client: { select: { name: true, phone: true } } } });
   if (!a) return { ok: false, error: "No encontramos ese alumno." };
@@ -992,7 +992,7 @@ export async function mandarLinkAlAlumno(alumnoId: string): Promise<Resultado<{ 
  * afuera). Devuelve el WhatsApp con el link nuevo, listo para mandar al número registrado.
  */
 export async function regenerarLink(alumnoId: string): Promise<Resultado<{ wa: string | null }>> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const a = await prisma.padelAlumno.findFirst({ where: { tenantId, id: alumnoId }, select: { token: true, client: { select: { name: true, phone: true } } } });
   if (!a) return { ok: false, error: "No encontramos ese alumno." };
@@ -1047,7 +1047,7 @@ export async function devolverSaldo(claseId: string): Promise<Resultado<{ aFavor
 }
 
 export async function marcarAvisosLeidos(): Promise<void> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   await prisma.padelAviso.updateMany({ where: { tenantId, destino: "PROFE", leidoEl: null, tipo: { in: [...AVISOS_QUE_ESPERAN, "proxima"] } }, data: { leidoEl: new Date() } });
   revalidatePath(RAIZ, "layout");
@@ -1065,7 +1065,7 @@ export async function marcarAvisosLeidos(): Promise<void> {
  * ("08:00-12:00, 16:00-21:00"). Vacío = ese día no da clases. Reemplaza las franjas semanales.
  */
 export async function guardarHorarios(fd: FormData): Promise<Resultado> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const filas: { diaSemana: number; desde: string; hasta: string }[] = [];
   for (let dia = 0; dia < 7; dia++) {
@@ -1091,7 +1091,7 @@ export async function guardarHorarios(fd: FormData): Promise<Resultado> {
 
 /** Bloquear un día (o una parte): lluvia, viaje, torneo. El turnero deja de ofrecerlo. */
 export async function agregarBloqueo(fd: FormData): Promise<Resultado> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const fecha = String(fd.get("fecha") ?? "");
   const desde = String(fd.get("desde") ?? "") || "00:00";
@@ -1104,7 +1104,7 @@ export async function agregarBloqueo(fd: FormData): Promise<Resultado> {
 }
 
 export async function quitarBloqueo(fd: FormData): Promise<void> {
-  await requireCapability("agenda:manage");
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
   const tenantId = await getCurrentTenantId();
   await prisma.padelDisponibilidad.deleteMany({ where: { tenantId, id: String(fd.get("id") ?? ""), fecha: { not: null } } });
   refrescar();

@@ -1,10 +1,10 @@
-import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
+import { getAgendaDay } from "@/lib/actions";
 import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
 import MananaConfirmar from "./MananaConfirmar";
 import { todayInBusinessTz, fmtCalendarDateLabel } from "@/lib/datetime";
 import { requireApp } from "@/lib/require-app";
-import { anulacionDeCobro, roleHasCapability } from "@/lib/capabilities";
+import { anulacionDeCobro, permisoEfectivo } from "@/lib/capabilities";
 import { buttonClasses } from "@/components/ui";
 import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
@@ -15,7 +15,7 @@ import { enInicioPorApps } from "../inicio/piloto";
 import { esFechaDeCalendario, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import AgendaRenglon from "./AgendaRenglon";
-import { extrasDeLaAgenda, proyectarAgenda } from "./agenda.server";
+import { extrasDeLaAgenda, mananaParaConfirmar, proyectarAgenda } from "./agenda.server";
 import LinkAlDia from "./_agenda/LinkAlDia";
 import BotonBuscar from "../armazon/BotonBuscar";
 import AtajosDelAlta from "./_agenda/AtajosDelAlta";
@@ -85,9 +85,9 @@ export default async function TurnosCalendarPage({
   // scopea) pero sin las acciones de gestión (confirmar pago / cancelar), que
   // son de OWNER/RECEPTION. Sí puede cerrar sus turnos (completar / no-show).
   const user = await requireApp("agenda");
-  const canManage = roleHasCapability(user.role, "agenda:manage");
+  const canManage = permisoEfectivo(user, "agenda:manage");
   // El profesional cobra sus turnos aunque no pueda gestionarlos (decisión del dueño).
-  const canCollect = roleHasCapability(user.role, "agenda:collect");
+  const canCollect = permisoEfectivo(user, "agenda:collect");
 
   const [{ date: dateParam, vista }, nuevo] = await Promise.all([searchParams, disenoNuevo()]);
   // DISEÑO NUEVO («Renglón»): el libro del día (AgendaRenglon.tsx). Mismos datos, mismas acciones,
@@ -95,7 +95,7 @@ export default async function TurnosCalendarPage({
   if (nuevo) {
     return (
       <AgendaRenglon
-        quien={{ role: user.role, professionalId: user.professionalId }}
+        quien={user}
         fecha={dateParam}
         vista={vista === "profesionales" ? "profesionales" : vista === "lista" ? "lista" : undefined}
       />
@@ -109,7 +109,7 @@ export default async function TurnosCalendarPage({
   const verManana = canManage && date === today;
   const [cruda, manana, piloto, negocio, slug, interruptores] = await Promise.all([
     getAgendaDay(date),
-    verManana ? getMananaConfirmar() : Promise.resolve(null),
+    verManana ? mananaParaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(user.role),
     getCurrentTenantSlug(),
@@ -121,27 +121,26 @@ export default async function TurnosCalendarPage({
   // Tanda 2: la marca «seña pedida» y el horario de trabajo (una lectura más por día, con tenantId).
   const diaDeLaPlanilla = esFechaDeCalendario(date) ? date : today;
   const extras = await extrasDeLaAgenda(cruda, diaDeLaPlanilla, { quienCobro: agendaInteraccionPrendida(interruptores) });
-  const proyectada = proyectarAgenda(
-    cruda,
-    { role: user.role, professionalId: user.professionalId },
-    { seniasPedidas: extras.seniasPedidas, quienCobro: extras.quienCobro },
-  );
+  const proyectada = proyectarAgenda(cruda, user, {
+    seniasPedidas: extras.seniasPedidas,
+    quienCobro: extras.quienCobro,
+  });
   const planilla = {
     turnos: proyectada.turnos,
     profesionales: proyectada.profesionales,
     permisos: {
       gestionar: canManage,
       cobrar: canCollect,
-      terminar: roleHasCapability(user.role, "agenda:complete"),
+      terminar: permisoEfectivo(user, "agenda:complete"),
       sumarProducto: enlaceCobrarUnaVenta(slug, user.role) !== null,
       // Venta y agenda simples: el servidor vuelve a mirar todo esto en `cobrarTurnoConProductos`.
       cobroConProducto:
         ventaAgendaSimplePrendida(interruptores) &&
-        roleHasCapability(user.role, "orders:manage") &&
-        roleHasCapability(user.role, "agenda:collect"),
+        permisoEfectivo(user, "orders:manage") &&
+        permisoEfectivo(user, "agenda:collect"),
       ventaSimple: ventaAgendaSimplePrendida(interruptores),
       interaccion: agendaInteraccionPrendida(interruptores),
-      perdonar: roleHasCapability(user.role, "agenda:forgive"),
+      perdonar: permisoEfectivo(user, "agenda:forgive"),
       anular: anulacionDeCobro(user.role),
     },
     ahora: new Date().toISOString(),

@@ -13,7 +13,7 @@ import { getPublicBookingData, type ResultadoAccion } from "@/lib/actions";
 import { requireCapability } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { validateBookingContact } from "@/lib/contact-validation";
-import { fichaQueChoca, normalizarTelefono } from "@/lib/clientes/telefono";
+import { fichaQueChoca, normalizarTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
 import { crearFichaEnTx } from "@/lib/clientes/crear-ficha";
 import { leerMiTurno } from "@/lib/turnos/mi-turno";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -283,12 +283,20 @@ export async function getBookingDataPublic(): Promise<BookingData> {
 export async function updateClient(formData: FormData): Promise<ResultadoAccion> {
   // DEVUELVE resultado en vez de tirar: un `throw` dentro de una Server Action llega a
   // producción como "Minified React error #441" y quien lo lee es la recepcionista.
-  await requireCapability("clients:manage");
+  const user = await requireCapability("clients:manage");
 
   const id = String(formData.get("id") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim().replace(/\s+/g, " ");
-  const phone = String(formData.get("phone") ?? "").trim().replace(/\s+/g, " ");
-  const email = String(formData.get("email") ?? "").trim();
+  let phone = String(formData.get("phone") ?? "").trim().replace(/\s+/g, " ");
+  let email = String(formData.get("email") ?? "").trim();
+  // Sin `clients:contact` (casilla 5 de la matriz) la ficha le llega con el contacto enmascarado
+  // («•••• 4821»): lo que vuelva en esos campos NO se guarda, se conserva lo que había. Si no, editar
+  // la nota de una clienta le pisaría el teléfono con la máscara.
+  if (!puedeVerContacto(user) && id) {
+    const guardado = await prisma.client.findUnique({ where: { id }, select: { phone: true, email: true } });
+    phone = guardado?.phone ?? "";
+    email = guardado?.email ?? "";
+  }
   const notes = String(formData.get("notes") ?? "").trim();
   const birthDateStr = String(formData.get("birthDate") ?? "").trim();
 

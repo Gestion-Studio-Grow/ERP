@@ -176,7 +176,7 @@ test("O-1: guardia — confirmar/dar/ausente, agendar la próxima y el alta del 
   const alta = cuerpoDe(f, "agendarClase");
   assert.ok(alta.indexOf("reconocerAlumno(") > 0 && alta.indexOf("reconocerAlumno(") < alta.indexOf("padelClase.create("));
   const regen = cuerpoDe(f, "regenerarLink");
-  assert.match(regen, /requireCapability\("agenda:manage"\)/, "sólo el profe");
+  assert.match(regen, /requireCapabilityFueraDeLaAgenda\("agenda:manage"\)/, "sólo el profe");
   assert.match(regen, /updateMany\(\{ where: \{ tenantId, id: alumnoId, token: a\.token \}, data: \{ token \} \}\)/, "reemplaza el token leído: el viejo deja de andar");
   assert.match(regen, /auditAdmin\(/);
   assert.doesNotMatch(regen, /return \{[^}]*token[,:]/, "no devuelve el token a pelo: sólo el WhatsApp al número registrado");

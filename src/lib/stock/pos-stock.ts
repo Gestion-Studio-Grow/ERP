@@ -9,7 +9,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import type { PosStockInfo } from "./pos-stock-rules";
 
 export type PosStockSnapshot = {
@@ -33,7 +33,7 @@ export const getPosStockSnapshot = cache(async function getPosStockSnapshot(): P
   for (const r of rows) stockById[r.id] = { stock: r.stock, trackStock: r.trackStock };
   return {
     activeProducts: rows.length,
-    canManageCatalog: roleHasCapability(user.role, "catalog:manage"),
+    canManageCatalog: permisoEfectivo(user, "catalog:manage"),
     stockById,
   };
 });

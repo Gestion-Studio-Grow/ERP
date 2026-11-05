@@ -168,11 +168,23 @@ function baseEnMemoria(t: { clientes: Fila[]; pedidos?: Fila[]; deudas?: Fila[];
     accountReceivable: modelo("accountReceivable", t.deudas ?? []),
     collection: modelo("collection", t.cobros ?? []),
     // La única cruda: `… WHERE "tenantId" = ${tenantId} AND regexp_replace(phone) LIKE ${patron} LIMIT ${n}`.
-    $queryRaw: async (_s: TemplateStringsArray, tenantId: string, patron: string, limite: number) => {
+    // Recibe un `Prisma.sql` (busqueda-por-contacto.ts): tenantId, los patrones LIKE y el límite, en ese
+    // orden. «%x%» = los dígitos del teléfono contienen x; «%x» = terminan en x (sin `clients:contact`).
+    $queryRaw: async (consulta: { values: unknown[] }) => {
+      const valores = consulta.values;
+      const tenantId = String(valores[0]);
+      const limite = Number(valores[valores.length - 1]);
+      const patrones = valores.slice(1, -1).map(String);
       consultas.push({ modelo: "client(raw)", where: undefined, tenantCrudo: tenantId });
-      const parte = patron.replace(/%/g, "");
+      const coincide = (phone: string | null) => {
+        const digitos = String(phone ?? "").replace(/\D/g, "");
+        return patrones.some((p) => {
+          const parte = p.replace(/%/g, "");
+          return p.endsWith("%") ? digitos.includes(parte) : digitos.endsWith(parte);
+        });
+      };
       return t.clientes
-        .filter((c) => c.tenantId === tenantId && String(c.phone ?? "").replace(/\D/g, "").includes(parte))
+        .filter((c) => c.tenantId === tenantId && coincide((c.phone as string | null | undefined) ?? null))
         .slice(0, limite)
         .map((c) => ({ id: c.id }));
     },

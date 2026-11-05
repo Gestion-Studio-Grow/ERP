@@ -19,7 +19,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability, type Role } from "@/lib/capabilities";
+import { type Role, permisoEfectivo } from "@/lib/capabilities";
 import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
@@ -218,7 +218,7 @@ export async function cargarMostradorBoutique(p: {
 }, leerPermisos: (user: SessionUser) => Promise<PermisosDelMostrador> = permisosDelMostrador): Promise<MostradorBoutique> {
   const { user, tenantId } = p;
   const hoy = todayInBusinessTz();
-  const tomaPedidos = roleHasCapability(user.role, "orders:manage");
+  const tomaPedidos = permisoEfectivo(user, "orders:manage");
   // La tarjeta «Abrí la caja» sólo para quien toma pedidos y nunca en la demo (`getAperturaEnVender`).
   const conApertura = tomaPedidos && !isDemoSandbox();
   const [datos, permisos, gondolas, desdeLaFicha] = await Promise.all([
@@ -240,11 +240,11 @@ export async function cargarMostradorBoutique(p: {
     // «A cuenta» por NEGOCIO: el interruptor «cuentas-corrientes» ya leído con los demás (la misma
     // fila que lee `cuentasCorrientesDe`), sin otra consulta.
     cuentasCorrientes: cuentasCorrientesPrendidas(p.interruptores[CUENTAS_CORRIENTES]),
-    canManageCatalog: roleHasCapability(user.role, "catalog:manage"),
+    canManageCatalog: permisoEfectivo(user, "catalog:manage"),
     teclas: {
       fijadas: datos.fijadas.ids,
       version: datos.fijadas.version,
-      puedeFijar: roleHasCapability(user.role, "catalog:manage"),
+      puedeFijar: permisoEfectivo(user, "catalog:manage"),
       gondolas: Object.fromEntries(gondolas),
     },
     desdeLaFicha,

@@ -4,6 +4,7 @@ import { fmtDateTime } from "@/lib/datetime";
 import { Bloque, EmptyState, LineaDeEstado, Marca, PageHeader, Renglon, buttonClasses } from "@/components/ui";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
 import { leerAnotados } from "./anotados";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,10 @@ export default async function CampaniaPage() {
   // La guardia de la app, como la descarga (export/route.ts): una app oculta no es una app
   // protegida. Antes la página pedía sólo el permiso (clients:read) y se abría tecleando la URL
   // aunque el negocio no tuviera la campaña. El permiso lo aplica requireApp desde el registro.
-  await requireApp("campanias");
+  const user = await requireApp("campanias");
+  // Sin `clients:contact` (casilla 5 de la matriz) el teléfono y el Instagram salen enmascarados del
+  // servidor, no hay `tel:` ni WhatsApp, y no se ofrece el CSV (la descarga además da 403).
+  const veContacto = puedeVerContacto(user);
 
   // Donde la tabla todavía no existe, la pantalla lo dice en vez de caer en la pantalla de
   // error genérica. Cualquier otra falla sigue (anotados.ts).
@@ -42,10 +46,11 @@ export default async function CampaniaPage() {
       </main>
     );
   }
-  const leads = anotados.leads;
-
-  const conDifusion = leads.filter((l) => l.aceptaDifusion).length;
-  const conInstagram = leads.filter((l) => l.instagram).length;
+  const conDifusion = anotados.leads.filter((l) => l.aceptaDifusion).length;
+  const conInstagram = anotados.leads.filter((l) => l.instagram).length;
+  const leads = veContacto
+    ? anotados.leads
+    : anotados.leads.map((l) => ({ ...l, telefono: enmascararTelefono(l.telefono), instagram: null }));
 
   // DISEÑO NUEVO («Renglón»): los tres números van en la línea de estado (no en tres cajas), un
   // renglón por anotado (el último arriba) y la tecla «Escribirle» SÓLO para quien aceptó
@@ -56,9 +61,11 @@ export default async function CampaniaPage() {
         <PageHeader
           title="Anotados del obsequio"
           actions={
-            <a href="/admin/campania/export" download className={buttonClasses("outline", "md")}>
-              Descargar CSV
-            </a>
+            veContacto ? (
+              <a href="/admin/campania/export" download className={buttonClasses("outline", "md")}>
+                Descargar CSV
+              </a>
+            ) : undefined
           }
         />
         <LineaDeEstado
@@ -87,7 +94,7 @@ export default async function CampaniaPage() {
                     titulo={`${l.nombre} ${l.apellido}`}
                     detalle={
                       <>
-                        <a href={`tel:${l.telefono}`} className="underline underline-offset-2">
+                        <a href={veContacto ? `tel:${l.telefono}` : undefined} className="underline underline-offset-2">
                           {l.telefono}
                         </a>
                         {l.instagram && (
@@ -132,13 +139,15 @@ export default async function CampaniaPage() {
           </p>
         </div>
         {/* Los datos son de ella: que pueda bajarlos sin depender de nadie. */}
-        <a
-          href="/admin/campania/export"
-          download
-          className="shrink-0 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center rounded-lg border border-line-strong px-3 py-2 text-sm font-medium text-strong hover:bg-surface-sunken"
-        >
-          Descargar CSV
-        </a>
+        {veContacto && (
+          <a
+            href="/admin/campania/export"
+            download
+            className="shrink-0 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center rounded-lg border border-line-strong px-3 py-2 text-sm font-medium text-strong hover:bg-surface-sunken"
+          >
+            Descargar CSV
+          </a>
+        )}
       </header>
 
       <div className="grid grid-cols-3 gap-3">
@@ -174,7 +183,7 @@ export default async function CampaniaPage() {
                   </Td>
                   {/* Toca para llamar: en el mostrador se usa desde el celular. */}
                   <Td>
-                    <a href={`tel:${l.telefono}`} style={{ color: "var(--accent)" }}>
+                    <a href={veContacto ? `tel:${l.telefono}` : undefined} style={{ color: "var(--accent)" }}>
                       {l.telefono}
                     </a>
                   </Td>
