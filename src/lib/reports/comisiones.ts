@@ -45,6 +45,9 @@ export interface TurnoPendiente {
   precio: number;
   cobros: readonly { amount: number; method: string }[];
   payment: { status: string; amount: number } | null;
+  /** Para el detalle de la vista previa (comisiones/vista-previa.ts). No entra en ningún cálculo. */
+  servicio?: string;
+  clienta?: string;
 }
 
 export interface ComisionPendiente {
