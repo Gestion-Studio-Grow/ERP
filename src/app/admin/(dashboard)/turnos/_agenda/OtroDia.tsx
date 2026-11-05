@@ -9,7 +9,18 @@ import { useRef } from "react";
 import { useRouter } from "next/navigation";
 import { IconoApp } from "@/components/iconos-apps";
 
-export default function OtroDia({ dia, base }: { dia: string; base: string }) {
+export default function OtroDia({
+  dia,
+  base,
+  children,
+  etiqueta = "Ir a otro día",
+}: {
+  dia: string;
+  base: string;
+  /** Lo que se lee en la tecla (por defecto «Otro día»); la agenda como objeto pone la fecha. */
+  children?: React.ReactNode;
+  etiqueta?: string;
+}) {
   const router = useRouter();
   const campo = useRef<HTMLInputElement>(null);
   const ir = (valor: string) => {
@@ -37,10 +48,10 @@ export default function OtroDia({ dia, base }: { dia: string; base: string }) {
             c.focus();
           }
         }}
-        aria-label="Ir a otro día"
+        aria-label={etiqueta}
       >
         <IconoApp nombre="agenda" className="size-4" />
-        Otro día
+        {children ?? "Otro día"}
       </button>
       <input
         ref={campo}

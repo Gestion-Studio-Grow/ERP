@@ -136,6 +136,9 @@ export function hrefDiaDeLaAgenda(dia: string, hoy: string, como: { vista?: stri
   const p = new URLSearchParams();
   if (dia !== hoy && esFechaDeCalendario(dia)) p.set("date", dia);
   if (como.vista === "profesionales") p.set("vista", "profesionales");
+  // «lista» viaja explícita: con la agenda como objeto (interruptor «Agenda interactiva»), sin vista
+  // se abre la grilla; sin el interruptor, sin vista es la lista de siempre (da igual que viaje).
+  if (como.vista === "lista") p.set("vista", "lista");
   if (como.por === "box") p.set("por", "box");
   const q = p.toString();
   return q ? `/admin/turnos?${q}` : "/admin/turnos";
