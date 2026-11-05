@@ -31,11 +31,11 @@ export default function VueltoEnEfectivo({
     <div data-ui="vuelto-en-efectivo" className="space-y-2">
       <p className="text-sm text-muted">Si paga en efectivo, ¿con cuánto paga?</p>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant={elegido(total) ? "solid" : "outline"} aria-pressed={elegido(total)} disabled={disabled} onClick={() => onCambiar(String(total))}>
+        <Button type="button" size="lg" variant={elegido(total) ? "solid" : "outline"} aria-pressed={elegido(total)} disabled={disabled} onClick={() => onCambiar(String(total))}>
           Exacto
         </Button>
         {billetes.map((b) => (
-          <Button key={b} type="button" variant={elegido(b) ? "solid" : "outline"} aria-pressed={elegido(b)} disabled={disabled} onClick={() => onCambiar(String(b))}>
+          <Button key={b} type="button" size="lg" variant={elegido(b) ? "solid" : "outline"} aria-pressed={elegido(b)} disabled={disabled} onClick={() => onCambiar(String(b))}>
             {pesosEnTexto(b)}
           </Button>
         ))}
