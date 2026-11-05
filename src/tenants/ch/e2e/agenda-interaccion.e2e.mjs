@@ -11,6 +11,10 @@
 //   T2 · G: arrastrar a un hueco libre (1 gesto; en 375, mantener 300 ms y llevar) → aviso → Deshacer.
 //        H: estirar 15' con la manija (y estirar sobre otro turno → «Se pisa con…», queda igual).
 //        I: mover con el teclado (M, ↓↓, Enter), en 1366. (La canaleta es la de siempre: sin medias horas.)
+//   Editar · J: el cajón trae WhatsApp arriba (wa.me) y, sin celular, «Sin celular cargado»; «Editar» →
+//        otro servicio + otra hora → antes/después y precio → Guardar → aviso con WhatsApp → Deshacer
+//        (la base vuelve exacta). K: la sección «Pagos» del cajón (un cobro y «Pagado ✓»; sin pagos,
+//        «Todavía no pagó nada»).
 //   Chequeos: sin scroll horizontal, teclas ≥ 44 px, consola limpia.
 // Uso: node --import tsx src/tenants/ch/e2e/agenda-interaccion.e2e.mjs <carpeta del resumen (fuera del repo)>
 import { mkdir, writeFile } from "node:fs/promises";
@@ -389,6 +393,99 @@ for (const [w, h] of [[1366, 768], [375, 812]]) {
         ok(`I1.${V}`, ini3 === enHora("18:00"), `teclado: M, ↓↓, Enter mueve a las 18:00 (base ${ini3.slice(11, 16)}Z)`);
       }
       await s.ctx.close();
+    }
+
+    // ───────── Editar · J WhatsApp del cajón + Editar servicio y hora → Guardar → Deshacer · K Pagos ─────────
+    {
+      const marina = e.semilla.profesionales.marina;
+      // A las 12:30: el 10:00 lo toma el turno que da la sección A (y el Deshacer chocaría con él).
+      const tEditar = await turnoManana(db, e, { nombre: `Eva Editar ${V}`, k: 20, hhmm: "12:30" });
+      const sinCel = await turnoManana(db, e, { nombre: `Sara Sincel ${V}`, k: 21, hhmm: "19:00" });
+      await db.client.update({ where: { id: sinCel.clientId }, data: { phone: "" } });
+      const s = await pagina(e, [w, h], { etiqueta: `J-${V}` });
+      const abrirCajon = async (sx, turno) => {
+        if (sx.tactil) {
+          const { barra } = await mostrarBarra(sx, turno);
+          await toque(sx, barra.getByRole("button", { name: /^Abrir el turno/ }), "Abrir");
+        } else {
+          const bl = bloqueDe(sx.p, turno).filter({ visible: true });
+          await bl.first().scrollIntoViewIfNeeded();
+          await toque(sx, bl, "turno (abre)");
+        }
+        const c = sx.p.getByRole("dialog", { name: new RegExp(turno.nombre) }).filter({ visible: true }).first();
+        await c.waitFor({ timeout: 15000 });
+        return c;
+      };
+      await irALaAgenda(s, e, `?date=${mananaBA}&pro=${marina}`);
+
+      // J0 · sin celular.
+      let cajon = await abrirCajon({ ...s, n: [] }, sinCel);
+      ok(`J0.${V}`, await espera(cajon.getByText("Sin celular cargado"), 5000), "cajón sin celular: «Sin celular cargado»");
+      await s.p.keyboard.press("Escape");
+      await cajon.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+
+      // J1 · WhatsApp arriba del cajón, con el saludo.
+      cajon = await abrirCajon(s, tEditar);
+      const wa = cajon.getByRole("link", { name: new RegExp(`^WhatsApp a ${tEditar.nombre}`) });
+      const hrefWa = (await wa.first().getAttribute("href").catch(() => null)) ?? "";
+      ok(`J1.${V}`, /^https:\/\/wa\.me\/549\d+\?text=/.test(hrefWa), `WhatsApp arriba del cajón → ${hrefWa.slice(0, 32)}…`);
+      ok(`K0.${V}`, await espera(cajon.getByText("Todavía no pagó nada"), 5000), "Pagos sin pagos: «Todavía no pagó nada»");
+      const chicasCajon = (await teclasDe(cajon.locator('[data-parte="arriba-del-turno"]').first())).filter((x) => x.h < 44);
+      ok(`J2.${V}`, chicasCajon.length === 0, `WhatsApp y Editar del cajón ≥ 44 px${chicasCajon.length ? `: CHICAS ${chicasCajon.map((x) => `${x.t}:${x.h}`).join(", ")}` : ""}`);
+      await s.p.screenshot({ path: `${OUT}/editar-cajon-${V}.png` });
+
+      // J3 · Editar: Limpieza facial (50') a las 09:00.
+      await toque(s, cajon.getByRole("button", { name: `Editar el turno de ${tEditar.nombre}` }), "Editar");
+      const hoja = s.p.getByRole("dialog", { name: `Editar · ${tEditar.nombre}` });
+      await hoja.waitFor({ timeout: 15000 });
+      await toque(s, hoja.getByRole("group", { name: "Servicio" }).getByRole("button", { name: /^Limpieza facial profunda/ }), "servicio");
+      const nueve = hoja.getByRole("group", { name: "Horarios libres" }).getByRole("button", { name: "09:00" });
+      ok(`J3.${V}`, await espera(nueve, 15000), "los huecos del servicio nuevo (09:00 libre)");
+      await toque(s, nueve, "09:00");
+      const antesDespues = (await hoja.locator('[aria-live="polite"]').first().textContent()) ?? "";
+      ok(
+        `J4.${V}`,
+        /Antes: Peeling químico.*12:30/.test(antesDespues) && /Después: Limpieza facial profunda.*09:00/.test(antesDespues) && /22\.000.*→.*20\.000/.test(antesDespues),
+        `antes → después y precio nuevo («${antesDespues.replace(/\s+/g, " ").slice(0, 140)}»)`,
+      );
+      const d = await sinDesborde(s.p);
+      ok(`J5.${V}`, d.sw <= d.iw, `hoja Editar sin scroll horizontal (${d.sw} ≤ ${d.iw})`);
+      await s.p.screenshot({ path: `${OUT}/editar-hoja-${V}.png` });
+      await toque(s, hoja.getByRole("button", { name: "Guardar" }), "Guardar");
+      const listo = await espera(s.p.getByText(new RegExp(`Listo: ${tEditar.nombre} · Limpieza facial profunda`)), 15000);
+      const leer = async () => db.appointment.findUniqueOrThrow({ where: { id: tEditar.id }, select: { serviceId: true, startsAt: true, endsAt: true, priceAtBooking: true } });
+      const r1 = await esperarBase(leer, (v) => v.serviceId === e.semilla.servicios.limpieza);
+      ok(
+        `J6.${V}`,
+        listo && r1.serviceId === e.semilla.servicios.limpieza && r1.startsAt.toISOString() === enHora("09:00") && r1.endsAt.toISOString() === enHora("09:50") && r1.priceAtBooking === 20000,
+        `Guardar (1 toque) → «Listo…»; base: ${r1.startsAt.toISOString().slice(11, 16)}–${r1.endsAt.toISOString().slice(11, 16)}Z $${r1.priceAtBooking} (${s.n.length} toques)`,
+      );
+      const avisar = s.p.getByRole("link", { name: "Avisar por WhatsApp" });
+      const hrefAviso = (await avisar.first().getAttribute("href", { timeout: 3000 }).catch(() => null)) ?? "";
+      ok(`J7.${V}`, /^https:\/\/wa\.me\//.test(hrefAviso), "el aviso trae [Avisar por WhatsApp]");
+      await s.p.screenshot({ path: `${OUT}/editar-aviso-${V}.png` });
+      await toque(s, s.p.getByRole("button", { name: "Deshacer" }), "Deshacer");
+      const r2 = await esperarBase(leer, (v) => v.serviceId === e.semilla.servicios.peeling);
+      ok(
+        `J8.${V}`,
+        r2.serviceId === e.semilla.servicios.peeling && r2.startsAt.toISOString() === enHora("12:30") && r2.endsAt.toISOString() === enHora("13:10") && r2.priceAtBooking === 22000,
+        `Deshacer vuelve exacto (base ${r2.startsAt.toISOString().slice(11, 16)}–${r2.endsAt.toISOString().slice(11, 16)}Z $${r2.priceAtBooking}; ${s.n.length} toques)`,
+      );
+      anotar(s, V, "j · Editar servicio + hora → Guardar → Deshacer");
+      await s.ctx.close();
+
+      // K · Pagos del turno cobrado en C (hoy).
+      const sk = await pagina(e, [w, h], { etiqueta: `K-${V}` });
+      await irALaAgenda(sk, e, `?pro=${marina}`);
+      const cajonK = await abrirCajon(sk, tCobro);
+      const pagos = cajonK.getByRole("list", { name: "Pagos del turno" });
+      const hayPagos = await espera(pagos, 8000);
+      const textoPagos = hayPagos ? ((await pagos.first().textContent()) ?? "") : "";
+      ok(`K1.${V}`, hayPagos && /Efectivo · Saldo/.test(textoPagos), `Pagos: un renglón por cobro («${textoPagos.replace(/\s+/g, " ").slice(0, 80)}»)`);
+      ok(`K2.${V}`, (await espera(cajonK.getByText("Total pagado"), 3000)) && (await espera(cajonK.getByText("Pagado ✓"), 3000)), "Pagos: Total pagado y «Pagado ✓»");
+      await pagos.first().scrollIntoViewIfNeeded().catch(() => {});
+      await sk.p.screenshot({ path: `${OUT}/pagos-${V}.png` });
+      await sk.ctx.close();
     }
   } catch (err) {
     console.log(String(err?.stack ?? err).split("\n").slice(0, 6).join("\n"));
