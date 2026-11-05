@@ -23,10 +23,24 @@ import { separarNota } from "@/lib/reserva-publica-notas";
 /** Turnos por página de la historia. */
 export const TURNOS_POR_PAGINA = 20;
 
+export type RolDeHistoria = "OWNER" | "RECEPTION" | "PROFESSIONAL";
+
 /** Lo que se audita cada vez que alguien abre una historia (dato de salud: queda quién y cuándo). */
 export const ACCION_HISTORIA_VISTA = "historia_vista";
 
-export type RolDeHistoria = "OWNER" | "RECEPTION" | "PROFESSIONAL";
+/** Lo que se audita cuando alguien intenta abrir una historia que no puede ver (quién, qué id y por qué). */
+export const ACCION_HISTORIA_DENEGADA = "historia_denegada";
+
+/**
+ * Por qué no se abrió. «otro negocio»: el id no es de una clienta de este negocio (no existe o es de otro;
+ * con RLS no se distingue, y no hace falta). «sin turno con ella»: una profesional sin turno con esa
+ * clienta, o sin profesional vinculada. «rol»: un rol que no es dueña, recepción ni profesional.
+ * Queda SÓLO en la auditoría: a quien mira se le contesta siempre «no encontramos esa historia».
+ */
+export type MotivoHistoriaDenegada = "otro negocio" | "sin turno con ella" | "rol";
+
+/** ¿Es uno de los roles que la historia conoce? */
+export const esRolDeHistoria = (role: string): role is RolDeHistoria => role === "OWNER" || role === "RECEPTION" || role === "PROFESSIONAL";
 
 export interface VistaDeHistoria {
   /** Notas del turno (del equipo y de la clienta). */

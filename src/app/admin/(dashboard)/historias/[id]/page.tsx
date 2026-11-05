@@ -2,14 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { auditAdmin } from "@/lib/audit-core";
+import { logger } from "@/lib/logger";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { roleHasCapability } from "@/lib/capabilities";
 import { fmtDateTimeAr } from "@/lib/datetime";
 import { Badge, Field, Input, PageContainer, PageHeader, Select, buttonClasses, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
-import { leerHistoriaDeLaClienta } from "@/lib/clientes/historia.server";
+import { abrirHistoriaDeLaClienta, leerHistoriaDeLaClienta, type HistoriaDeLaClienta } from "@/lib/clientes/historia.server";
 import {
-  ACCION_HISTORIA_VISTA,
   TURNOS_POR_PAGINA,
   duracionEnCriollo,
   hayFiltrosDeHistoria,
@@ -22,8 +21,15 @@ export const dynamic = "force-dynamic";
 // LA HISTORIA DE UNA CLIENTA (pedido del dueño de CH, 04/11): cada turno, nuevo arriba, con quién la
 // atendió, en qué box, cómo terminó y quién lo cerró; la plata y las notas a quien hoy las ve; y
 // debajo de cada turno el rastro de la auditoría en criollo. Qué ve cada rol: lib/clientes/historia-core.ts.
-// Se abre desde el cajón del turno, desde la ficha y desde Historias. Cada apertura queda auditada
-// (`historia_vista`): son datos de salud.
+// Se abre desde el cajón del turno, desde la ficha y desde Historias. Son datos de salud: cada
+// apertura queda auditada (`historia_vista`) y cada intento que no se abre también
+// (`historia_denegada`, con el motivo), en MODO ESTRICTO: si el registro no se escribe, no se muestra
+// la historia (lib/clientes/historia.server.ts → `abrirHistoriaDeLaClienta`).
+//
+// En la DEMO (`DEMO_MODE_ENABLED`) no se audita, igual que el resto del ERP: el sandbox de preventa
+// no persiste nada (las acciones devuelven `ok` sin escribir, src/lib/actions.ts) y sus datos y su
+// usuaria son ficticios (src/lib/demo-sandbox.ts), así que no hay a quién ni qué rastrear. Es un
+// deploy aislado: ningún negocio real tiene la flag.
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -33,11 +39,19 @@ export default async function HistoriaDeLaClientaPage({ params, searchParams }: 
   const user = await requireApp("historias");
   const [{ id }, sp, tenantId] = await Promise.all([params, searchParams, getCurrentTenantId()]);
   const filtros = leerFiltrosDeHistoria(sp);
-  const h = await leerHistoriaDeLaClienta(tenantId, id, { role: user.role, professionalId: user.professionalId }, filtros);
-  if (!h) notFound();
-  if (!isDemoSandbox()) {
-    await auditAdmin({ action: ACCION_HISTORIA_VISTA, entity: "Client", entityId: h.clienta.id, changes: { pagina: h.pagina, filtros: hayFiltrosDeHistoria(filtros) } });
+  const quien = { role: user.role, professionalId: user.professionalId };
+  let h: HistoriaDeLaClienta | null;
+  if (isDemoSandbox()) {
+    h = await leerHistoriaDeLaClienta(tenantId, id, quien, filtros);
+  } else {
+    try {
+      h = await abrirHistoriaDeLaClienta(tenantId, id, quien, filtros, `user:${user.id}`);
+    } catch (err) {
+      logger.error("historia", "no se pudo registrar el acceso a la historia: no se muestra", err, { clienteId: id });
+      return <AccesoSinRegistrar href={hrefHistoria(id, filtros)} />;
+    }
   }
+  if (!h) notFound();
 
   const volver = roleHasCapability(user.role, "clients:read")
     ? { href: `/admin/clientes/${encodeURIComponent(h.clienta.id)}`, texto: "← Su ficha" }
@@ -165,6 +179,29 @@ export default async function HistoriaDeLaClientaPage({ params, searchParams }: 
           )}
         </nav>
       )}
+    </PageContainer>
+  );
+}
+
+// Si el acceso no quedó registrado, la historia no se muestra (datos de salud). No dice nada de la
+// clienta: la misma pantalla para cualquier id.
+function AccesoSinRegistrar({ href }: { href: string }) {
+  return (
+    <PageContainer width="narrow">
+      <div role="alert">
+        <h1 className="text-2xl font-semibold text-strong">No pudimos registrar el acceso; probá de nuevo</h1>
+        <p className="mt-2 text-body">
+          Cada vez que alguien abre una historia queda anotado quién y cuándo. Esta vez no se pudo anotar, así que no te la mostramos. Si vuelve a pasar, avisale a la dueña.
+        </p>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Link href={href} className={buttonClasses("solid", "md")}>
+          Probar de nuevo
+        </Link>
+        <Link href="/admin/historias" className={buttonClasses("outline", "md")}>
+          Ir a Historias
+        </Link>
+      </div>
     </PageContainer>
   );
 }

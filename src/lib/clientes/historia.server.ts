@@ -12,6 +12,12 @@
 // (fail-closed). Una clienta de otro negocio o ajena da `null`: la página contesta «no existe», sin
 // decir que existe. Lo que el rol no ve (notas, plata) no se recorta al pintar: NO SE LEE.
 //
+// LA AUDITORÍA ESTRICTA (datos de salud, certificación del 05/11): `abrirHistoriaDeLaClienta` escribe
+// el registro DENTRO de la misma transacción de la lectura: `historia_vista` si se abrió,
+// `historia_denegada` (con el motivo) si no. Si el registro no se escribe, la transacción se cae y la
+// historia NO se devuelve: sin rastro, no se muestra. Distinto de `audit()` (src/lib/audit-core.ts),
+// que nunca lanza porque no debe tumbar una operación de negocio; acá la lectura ES lo que se audita.
+//
 // Sin chequeo de rol de la app: lo hace la página (`requireApp`). Sin migración: no hay modelo de
 // notas clínicas aparte; las notas son las del turno (`Appointment.notes`), que ya existen.
 
@@ -21,13 +27,18 @@ import { cobrosDetalladosPorTurno } from "@/lib/turnos/anulacion";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import {
+  ACCION_HISTORIA_DENEGADA,
+  ACCION_HISTORIA_VISTA,
   TURNOS_POR_PAGINA,
   armarLineaDeTiempo,
   diaSiguienteDe,
+  esRolDeHistoria,
+  hayFiltrosDeHistoria,
   usuariosDelRastro,
   veMontosDelTurno,
   vistaDeHistoria,
   type FiltrosDeHistoria,
+  type MotivoHistoriaDenegada,
   type TurnoDeLaHistoria,
   type TurnoLeidoDeHistoria,
   type VistaDeHistoria,
@@ -53,14 +64,17 @@ export interface HistoriaDeLaClienta {
 /** Las acciones del turno que cuentan para la recepción: sólo las que dicen cómo terminó. */
 const ACCIONES_DEL_CIERRE = ["complete", "no_show", "cancel"];
 
-async function leerEn(tx: Tx, tenantId: string, clienteId: string, quien: QuienMiraLaHistoria, f: FiltrosDeHistoria): Promise<HistoriaDeLaClienta | null> {
+type Lectura = { historia: HistoriaDeLaClienta; denegada?: never } | { historia?: never; denegada: MotivoHistoriaDenegada };
+
+async function leerEn(tx: Tx, tenantId: string, clienteId: string, quien: QuienMiraLaHistoria, f: FiltrosDeHistoria): Promise<Lectura> {
   const vista = vistaDeHistoria(quien.role);
   const clienta = await tx.client.findFirst({ where: { id: clienteId, tenantId }, select: { id: true, name: true } });
-  if (!clienta) return null;
+  if (!clienta) return { denegada: "otro negocio" };
   if (vista.soloSusClientas) {
-    if (!quien.professionalId) return null;
+    const sinPuerta: MotivoHistoriaDenegada = esRolDeHistoria(quien.role) ? "sin turno con ella" : "rol";
+    if (!quien.professionalId) return { denegada: sinPuerta };
     const suya = await tx.appointment.findFirst({ where: { tenantId, clientId: clienteId, professionalId: quien.professionalId }, select: { id: true } });
-    if (!suya) return null;
+    if (!suya) return { denegada: sinPuerta };
   }
 
   const where: Prisma.AppointmentWhereInput = {
@@ -143,7 +157,7 @@ async function leerEn(tx: Tx, tenantId: string, clienteId: string, quien: QuienM
   });
 
   const porNombre = <T extends { nombre: string }>(a: T, b: T) => a.nombre.localeCompare(b.nombre, "es");
-  return {
+  const historia: HistoriaDeLaClienta = {
     clienta: { id: clienta.id, nombre: clienta.name },
     vista,
     turnos: armarLineaDeTiempo(leidos, auditoria, new Map(usuarios.map((u) => [u.id, u.name])), vista, quien.professionalId),
@@ -155,16 +169,68 @@ async function leerEn(tx: Tx, tenantId: string, clienteId: string, quien: QuienM
       servicios: servicios.map((s) => ({ id: s.service.id, nombre: s.service.name })).sort(porNombre),
     },
   };
+  return { historia };
 }
 
-/** La historia de la clienta, o `null` si no es de este negocio o quien mira no puede abrirla. */
-export function leerHistoriaDeLaClienta(
+/**
+ * La historia de la clienta, o `null` si no es de este negocio o quien mira no puede abrirla, SIN
+ * auditar. Sólo para la demo (que no persiste nada, ver la página) y los tests del lector: la pantalla
+ * real usa `abrirHistoriaDeLaClienta`.
+ */
+export async function leerHistoriaDeLaClienta(
   tenantId: string,
   clienteId: string,
   quien: QuienMiraLaHistoria,
   filtros: FiltrosDeHistoria,
 ): Promise<HistoriaDeLaClienta | null> {
-  return tenantTransaction((tx) => leerEn(tx, tenantId, clienteId, quien, filtros), { tenantId });
+  return (await tenantTransaction((tx) => leerEn(tx, tenantId, clienteId, quien, filtros), { tenantId })).historia ?? null;
+}
+
+/** Tope del id pedido que se guarda en la auditoría (viene de la URL: un cuid mide 25). */
+const LARGO_MAXIMO_DEL_ID = 64;
+
+/**
+ * Abre la historia AUDITANDO EN MODO ESTRICTO, en la misma transacción: deja `historia_vista` (quién,
+ * qué clienta, qué página, si filtró) o `historia_denegada` (quién, qué id pidió y por qué). Devuelve
+ * la historia o `null` (a quien mira no se le dice si la clienta existe). Si el registro no se puede
+ * escribir, LANZA y no devuelve nada: la página muestra «No pudimos registrar el acceso».
+ * `actor`: el de la sesión, `user:<id>`, como `auditAdmin`.
+ */
+export async function abrirHistoriaDeLaClienta(
+  tenantId: string,
+  clienteId: string,
+  quien: QuienMiraLaHistoria,
+  filtros: FiltrosDeHistoria,
+  actor: string,
+): Promise<HistoriaDeLaClienta | null> {
+  return tenantTransaction(
+    async (tx) => {
+      const lectura = await leerEn(tx, tenantId, clienteId, quien, filtros);
+      await tx.auditLog.create({
+        data: lectura.historia
+          ? {
+              tenantId,
+              actor,
+              action: ACCION_HISTORIA_VISTA,
+              entity: "Client",
+              entityId: lectura.historia.clienta.id,
+              changes: { pagina: lectura.historia.pagina, filtros: hayFiltrosDeHistoria(filtros) },
+              channel: "admin",
+            }
+          : {
+              tenantId,
+              actor,
+              action: ACCION_HISTORIA_DENEGADA,
+              entity: "Client",
+              entityId: clienteId.slice(0, LARGO_MAXIMO_DEL_ID),
+              changes: { motivo: lectura.denegada, rol: quien.role.slice(0, 32) },
+              channel: "admin",
+            },
+      });
+      return lectura.historia ?? null;
+    },
+    { tenantId },
+  );
 }
 
 export interface ClientaDelBuscador {
