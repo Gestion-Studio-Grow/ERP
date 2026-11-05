@@ -6,6 +6,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { getTenantBrand } from "@/lib/branding";
 import { agruparOrigenes, type OrigenContado } from "./compartir-core";
 
 const DIAS = 30;
@@ -20,9 +21,7 @@ export async function reservasDesdeRedes(ahora: Date = new Date()): Promise<Orig
   return agruparOrigenes(filas.map((f) => f.notes));
 }
 
-/** Nombre del negocio para el título de la vista previa. */
+/** Nombre del negocio para el título de la vista previa: el mismo que usan la tarjeta OG y el <head> de /reserva. */
 export async function nombreDelNegocio(): Promise<string> {
-  const tenantId = await getCurrentTenantId();
-  const t = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
-  return t?.name ?? "Tu negocio";
+  return (await getTenantBrand()).name;
 }
