@@ -28,16 +28,16 @@ const HOST_PUBLICO = Object.keys(HOSTS_DE_PRODUCTO).find((h) => HOSTS_DE_PRODUCT
 const OG_IMAGEN = HOST_PUBLICO ? `https://${HOST_PUBLICO}/facturita/og.webp` : "/facturita/og.webp";
 
 export const metadata: Metadata = {
-  title: "Facturita — tu factura de ARCA en tres toques, gratis",
+  title: "Facturita — facturá desde el celu, sin vueltas. Gratis",
   description: `Emití facturas electrónicas desde el celu y mandalas a ARCA para su autorización. ${LIMITE_FACTURAS_FACTURITA} gratis por mes, sin tarjeta, para monotributistas y comercios chicos.`,
   generator: "Gestión Studio Grow",
   openGraph: {
-    title: "Facturita — tu factura de ARCA en tres toques",
+    title: "Facturita — facturá desde el celu, sin vueltas",
     description: `${LIMITE_FACTURAS_FACTURITA} facturas gratis por mes, sin tarjeta. Si sos monotributista, sin saber de letras ni alícuotas.`,
     locale: "es_AR",
     type: "website",
     images: [
-      { url: OG_IMAGEN, width: 1200, height: 630, type: "image/webp", alt: "Facturita: tu factura de ARCA en tres toques" },
+      { url: OG_IMAGEN, width: 1200, height: 630, type: "image/webp", alt: "Facturita: facturá desde el celu, sin vueltas" },
     ],
   },
   twitter: { card: "summary_large_image" },
@@ -93,7 +93,7 @@ export default function FacturitaLanding() {
           <div>
             <p className="fx-ante">Para monotributistas y comercios chicos</p>
             <h1 id="titulo" className="fx-h1">
-              Tu factura de ARCA en tres toques. <em>Gratis.</em>
+              Facturá desde el celu, sin vueltas. <em>Gratis.</em>
             </h1>
             <p className="fx-lead">
               Facturita es un emisor de facturas electrónicas que se usa desde el celu, sin instalar programas y con{" "}
