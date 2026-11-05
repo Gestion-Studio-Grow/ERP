@@ -57,6 +57,15 @@ import {
   type ComisionPendiente,
   type VueltaDeLiquidacion,
 } from "@/lib/reports/comisiones";
+// Box «Nail Artist» (NAIL-ARTIST.md §5): la profesional que RINDE no cobra comisión a la vez.
+import { nailArtistDelNegocio } from "@/cambios/interruptores.server";
+import { leerProfesionalesConRendicion } from "@/lib/reports/rendiciones-lectura";
+
+/** Con el box prendido, las profesionales con rendición configurada. Apagado: ninguna (no lee columnas nuevas). */
+async function profesionalesQueRinden(tenantId: string): Promise<ReadonlySet<string>> {
+  if (!(await nailArtistDelNegocio())) return new Set();
+  return new Set((await leerProfesionalesConRendicion(prisma, tenantId)).map((p) => p.id));
+}
 
 const REPORTES_PATH = "/admin/reportes";
 // La app Comisiones: liquida con el mismo formulario y vuelve a su pantalla.
@@ -105,8 +114,9 @@ export async function getCommissionsOverview(): Promise<{
   if (isDemoSandbox()) return { pending: [], history: [], conCobroAnulado: [] };
   const tenantId = await getCurrentTenantId();
 
-  const [pending, conCobroAnulado, payouts] = await Promise.all([
+  const [todas, rinden, conCobroAnulado, payouts] = await Promise.all([
     leerComisionesPendientes(prisma, tenantId),
+    profesionalesQueRinden(tenantId),
     leerComisionesConCobroAnulado(prisma, tenantId),
     prisma.commissionPayout.findMany({
       where: { tenantId },
@@ -114,6 +124,9 @@ export async function getCommissionsOverview(): Promise<{
       orderBy: { createdAt: "desc" },
     }),
   ]);
+
+  // No se le paga comisión a quien le rinde al salón (se le cobraría y pagaría a la vez).
+  const pending = todas.filter((p) => !rinden.has(p.professionalId));
 
   const history: PayoutHistoryRow[] = payouts.map((p) => ({
     id: p.id,
@@ -148,6 +161,7 @@ export async function settleCommissions(formData: FormData) {
   const tenantId = await getCurrentTenantId();
   const professionalId = String(formData.get("professionalId") ?? "").trim();
   if (!professionalId) backWith("error_prof", volver);
+  if ((await profesionalesQueRinden(tenantId)).has(professionalId)) backWith("error_nada", volver);
   const note = String(formData.get("note") ?? "").trim() || null;
   // Por qué medio se le pagó. El formulario AHORA lo pregunta (`<select name="method">` en
   // /admin/reportes, con efectivo preseleccionado). `null` sigue siendo un caso posible —un

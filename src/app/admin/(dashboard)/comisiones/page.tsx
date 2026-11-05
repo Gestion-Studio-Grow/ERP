@@ -18,6 +18,12 @@ import { LineaDeEstado, PageHeader, Plata, fmtMoneyARS, fmtNumberAR } from "@/co
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import ComisionesPendientes from "./ComisionesPendientes";
 import ComisionesRenglon from "./ComisionesRenglon";
+import Link from "next/link";
+import { nailArtistDelNegocio } from "@/cambios/interruptores.server";
+import { todayInBusinessTz } from "@/lib/datetime";
+import { mesDelDia, periodoMensual } from "@/lib/reports/rendiciones";
+import { leerPestaniaRendiciones } from "./rendiciones.server";
+import Rendiciones from "./Rendiciones";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +35,42 @@ const ESTADOS: Record<string, { texto: string; ok: boolean }> = {
   error_medio: { texto: "Este negocio todavía no separa la transferencia en el libro. No se liquidó nada: elegí otro medio.", ok: false },
 };
 
-export default async function ComisionesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+// Las dos pestañas, sólo con el box «Nail Artist» prendido (NAIL-ARTIST.md §5). Apagado, no hay pestañas.
+function Pestanias({ activa }: { activa: "comisiones" | "rendiciones" }) {
+  const clase = (on: boolean) =>
+    `min-h-11 inline-flex items-center border-b-2 px-1 ${on ? "border-accent font-semibold text-strong" : "border-transparent text-muted hover:text-strong"}`;
+  return (
+    <nav aria-label="Comisiones y rendiciones" className="mb-6 flex gap-6 border-b border-line text-sm">
+      <Link href="/admin/comisiones" aria-current={activa === "comisiones" ? "page" : undefined} className={clase(activa === "comisiones")}>
+        Comisiones a pagar
+      </Link>
+      <Link href="/admin/comisiones?vista=rendiciones" aria-current={activa === "rendiciones" ? "page" : undefined} className={clase(activa === "rendiciones")}>
+        Rendiciones
+      </Link>
+    </nav>
+  );
+}
+
+export default async function ComisionesPage({ searchParams }: { searchParams: Promise<{ status?: string; vista?: string; mes?: string }> }) {
   const user = await requireApp("comisiones");
-  const [{ status }, overview, nuevo] = await Promise.all([searchParams, getCommissionsOverview(), disenoNuevo()]);
+  const [params, nail] = await Promise.all([searchParams, nailArtistDelNegocio()]);
+  const canSettleRend = roleHasCapability(user.role, "commissions:manage");
+  if (nail && params.vista === "rendiciones") {
+    const mesActual = mesDelDia(todayInBusinessTz());
+    const pedido = periodoMensual(params.mes);
+    const periodo = pedido && pedido.mes <= mesActual ? pedido : periodoMensual(mesActual)!;
+    const { filas, config } = await leerPestaniaRendiciones(periodo);
+    return (
+      <main data-ui="pagina" className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+        <PageHeader title="Comisiones" />
+        <Pestanias activa="rendiciones" />
+        <Rendiciones periodo={periodo} mesActual={mesActual} filas={filas} config={config} canSettle={canSettleRend} />
+      </main>
+    );
+  }
+  const status = params.status;
+  const [overview, nuevo] = await Promise.all([getCommissionsOverview(), disenoNuevo()]);
+  const pestanias = nail ? <Pestanias activa="comisiones" /> : null;
   const total = totalALiquidar(overview.pending);
   const canSettle = roleHasCapability(user.role, "commissions:manage");
   const banner = status ? ESTADOS[status] : undefined;
@@ -53,6 +92,7 @@ export default async function ComisionesPage({ searchParams }: { searchParams: P
     return (
       <main data-ui="pagina" className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
         <PageHeader title="Comisiones" />
+        {pestanias}
         <LineaDeEstado
           className="-mt-2 mb-4"
           datos={[
@@ -77,6 +117,7 @@ export default async function ComisionesPage({ searchParams }: { searchParams: P
         title="Comisiones"
         description="Lo que le toca a cada profesional por los turnos completados y cobrados. Al liquidar, el monto queda congelado y el pago sale del libro de caja."
       />
+      {pestanias}
 
       {banner && (
         <p
