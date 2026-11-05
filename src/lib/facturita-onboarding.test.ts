@@ -8,6 +8,7 @@ import {
   formatearCuit,
   mensajeActivacion,
   PASOS_CERTIFICADO_PROPIO,
+  resumenMercadoPago,
   validarAlta,
   validarCuitEmisor,
   validarPuntoVenta,
@@ -64,6 +65,7 @@ test("punto de venta: 1 a 99998, acepta ceros adelante", () => {
 });
 
 const COMPLETO: DatosAlta = {
+  mercadoPago: "",
   nombre: "Ana Pérez",
   cuit: "20-11111111-2",
   condicion: "monotributo",
@@ -105,4 +107,17 @@ test("certificado propio: el usuario lo hace él mismo, sin delegar a GSG ni dar
   assert.doesNotMatch(pasos, /Representante/);
   assert.doesNotMatch(pasos, /CUIT de Gestión Studio Grow/);
   assert.doesNotMatch(pasos, /\d{2}-\d{8}-\d/);
+});
+
+test("Mercado Pago (paso 1, opcional): saltarlo no bloquea el alta ni cambia el mensaje", () => {
+  assert.equal(ALTA_VACIA.mercadoPago, "");
+  assert.equal(altaCompleta({ ...COMPLETO, mercadoPago: "" }), true);
+  assert.equal(altaCompleta({ ...COMPLETO, mercadoPago: "despues" }), true);
+  assert.equal(mensajeActivacion({ ...COMPLETO, mercadoPago: "despues" }), mensajeActivacion({ ...COMPLETO, mercadoPago: "" }));
+  assert.doesNotMatch(mensajeActivacion({ ...COMPLETO, mercadoPago: "" }), /Mercado Pago/);
+  const quiere = mensajeActivacion({ ...COMPLETO, mercadoPago: "quiere" });
+  assert.match(quiere, /Mercado Pago: quiero conectarlo/);
+  assert.doesNotMatch(quiere, /clave|token/i);
+  assert.match(resumenMercadoPago("quiere"), /un toque/);
+  assert.match(resumenMercadoPago(""), /Más adelante/);
 });

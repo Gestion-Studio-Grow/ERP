@@ -1,6 +1,6 @@
 "use client";
 
-// Asistente de alta de Facturita: cinco pasos, uno por pantalla. Toda la validación es la de
+// Asistente de alta de Facturita: seis pasos (el primero, Mercado Pago, opcional), uno por pantalla. Toda la validación es la de
 // src/lib/facturita-onboarding.ts (pura, testeada). Lo que se tipea no se manda a ningún servidor:
 // queda en esta pestaña (sessionStorage, se borra al cerrarla) para que «volver» del navegador o
 // una recarga no lo borren, y el paso va en la URL (?paso=2) con su entrada en el historial (QA
@@ -16,6 +16,7 @@ import {
   mensajeActivacion,
   opcionCondicion,
   PASOS_CERTIFICADO_PROPIO,
+  resumenMercadoPago,
   validarCuitEmisor,
   validarNombre,
   validarPuntoVenta,
@@ -30,7 +31,7 @@ import { CASILLA_GSG as CASILLA, linkCanal, type CanalGsg } from "../contacto";
 // (la tarjeta pasa a hoja del talonario, campos h 56, barra fija con el botón del paso en el
 // celular). La lógica, las validaciones, el foco y los textos legales quedan como estaban.
 
-const PASOS = ["Tus datos", "Cómo estás inscripto", "Punto de venta", "Permiso en ARCA", "Listo"] as const;
+const PASOS = ["Tu Mercado Pago", "Tus datos", "Cómo estás inscripto", "Punto de venta", "Permiso en ARCA", "Listo"] as const;
 
 const INPUT = "fx-alta-input";
 
@@ -42,7 +43,9 @@ function leerGuardado(): Guardado | null {
   try {
     const g = JSON.parse(sessionStorage.getItem(GUARDADO) ?? "null") as Guardado | null;
     if (!g || typeof g !== "object" || !g.datos || typeof g.alcanzado !== "number") return null;
-    return { datos: { ...ALTA_VACIA, ...g.datos }, alcanzado: Math.max(0, Math.min(g.alcanzado, PASOS.length - 1)) };
+    const datos = { ...ALTA_VACIA, ...g.datos };
+    if (!["", "quiere", "despues"].includes(datos.mercadoPago)) datos.mercadoPago = "";
+    return { datos, alcanzado: Math.max(0, Math.min(g.alcanzado, PASOS.length - 1)) };
   } catch {
     return null;
   }
@@ -78,7 +81,7 @@ function MensajeError({ id, texto }: { id: string; texto?: string }) {
   );
 }
 
-export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
+export default function AltaAsistente({ canal, mpDisponible }: { canal: CanalGsg; mpDisponible: boolean }) {
   const [paso, setPaso] = useState(0);
   const [datos, setDatos] = useState<DatosAlta>(ALTA_VACIA);
   const [errores, setErrores] = useState<ErroresAlta>({});
@@ -123,11 +126,11 @@ export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
   }, [irAlPasoDeLaUrl]);
 
   /** Avanza un paso con su entrada en el historial: «volver» del navegador vuelve al paso anterior. */
-  const avanzar = () => {
+  const avanzar = (d: DatosAlta = datos) => {
     const p = Math.min(paso + 1, PASOS.length - 1);
     const hasta = Math.max(alcanzado, p);
     setAlcanzado(hasta);
-    guardar({ datos, alcanzado: hasta });
+    guardar({ datos: d, alcanzado: hasta });
     window.history.pushState(window.history.state, "", urlDelPaso(p));
     setPaso(p);
     setCopia("nada");
@@ -157,17 +160,28 @@ export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
     setErrores((e) => ({ ...e, [campo]: undefined }));
   };
 
+  /** Paso 1 (opcional): anota si quiere conectar Mercado Pago y sigue. Saltarlo nunca frena el alta. */
+  const elegirMercadoPago = (m: DatosAlta["mercadoPago"]) => {
+    const d = { ...datos, mercadoPago: m };
+    setDatos(d);
+    avanzar(d);
+  };
+
   /** Valida sólo lo del paso actual; si está bien, avanza. */
   const siguiente = () => {
-    const e: ErroresAlta = {};
     if (paso === 0) {
+      elegirMercadoPago(mpDisponible ? "quiere" : "");
+      return;
+    }
+    const e: ErroresAlta = {};
+    if (paso === 1) {
       const n = validarNombre(datos.nombre);
       if (n) e.nombre = n;
       const c = validarCuitEmisor(datos.cuit);
       if (!c.ok) e.cuit = c.error;
     }
-    if (paso === 1 && !datos.condicion) e.condicion = "Elegí una opción para seguir.";
-    if (paso === 2 && !datos.sinPuntoVenta) {
+    if (paso === 2 && !datos.condicion) e.condicion = "Elegí una opción para seguir.";
+    if (paso === 3 && !datos.sinPuntoVenta) {
       const pv = validarPuntoVenta(datos.puntoVenta);
       if (!pv.ok) e.puntoVenta = pv.error;
     }
@@ -230,6 +244,27 @@ export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
         </h2>
 
         {paso === 0 && (
+          <div className="mt-6" data-qa="paso-mercadopago">
+            <p className="text-[var(--fx-tenue)]">
+              Este paso es opcional. Si cobrás con Mercado Pago, conectalo y tus cobros quedan listos para facturarse
+              sin tipear nada. No nos das tu clave de Mercado Pago: das un permiso desde su sitio, y lo sacás cuando
+              quieras.
+            </p>
+            {mpDisponible ? (
+              <p className="mt-4 text-base">
+                Como todavía no tenés tu Factoque activo, lo anotamos: cuando te activamos, lo conectás con un toque desde
+                «Mi cuenta».
+              </p>
+            ) : (
+              <p className="mt-4 text-base" data-qa="mp-no-disponible">
+                Conectar Mercado Pago todavía no está disponible. Seguí con el alta: te avisamos por WhatsApp apenas lo
+                habilitemos.
+              </p>
+            )}
+          </div>
+        )}
+
+        {paso === 1 && (
           <div className="mt-7 space-y-7">
             <div>
               <label htmlFor={id("nombre")} className="fx-alta-label">
@@ -275,7 +310,7 @@ export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
           </div>
         )}
 
-        {paso === 1 && (
+        {paso === 2 && (
           <fieldset className="mt-6" aria-describedby={errores.condicion ? id("condicion-error") : undefined}>
             <legend className="fx-alta-ayuda">
               ¿Cómo figurás en ARCA? Si no estás seguro, fijate en tu constancia de inscripción.
@@ -305,7 +340,7 @@ export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
           </fieldset>
         )}
 
-        {paso === 2 && (
+        {paso === 3 && (
           <div className="mt-7 space-y-5">
             <div>
               <label htmlFor={id("pv")} className="fx-alta-label">
@@ -353,7 +388,7 @@ export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
           </div>
         )}
 
-        {paso === 3 && (
+        {paso === 4 && (
           <div className="mt-6">
             <p className="text-[var(--fx-tenue)]">
               Para que Factoque emita a tu nombre, creás vos tu certificado en ARCA. Nosotros no entramos a tu ARCA ni
@@ -380,9 +415,13 @@ export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
           </div>
         )}
 
-        {paso === 4 && (
+        {paso === 5 && (
           <div className="mt-6">
             <dl className="fx-resumen-alta">
+              <div>
+                <dt>Mercado Pago</dt>
+                <dd>{resumenMercadoPago(datos.mercadoPago)}</dd>
+              </div>
               <div>
                 <dt>Nombre</dt>
                 <dd>{datos.nombre.trim()}</dd>
@@ -465,12 +504,17 @@ export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
             <button type="button" onClick={retroceder} className={`${BOTON_SECUNDARIO} fx-solo-compu`}>
               Volver
             </button>
+          ) : mpDisponible ? (
+            // Saltar = seguir sin Mercado Pago. Visible en compu y en el celular (no es «Volver»).
+            <button type="button" onClick={() => elegirMercadoPago("despues")} className={BOTON_SECUNDARIO} data-qa="saltar-mp">
+              Ahora no
+            </button>
           ) : (
             <span className="fx-solo-compu" />
           )}
           {paso < PASOS.length - 1 && (
             <button type="submit" className={BOTON_PRINCIPAL}>
-              {paso === 3 ? "Ver el resumen" : "Seguir"}
+              {paso === 0 && mpDisponible ? "Sí, quiero conectarlo" : paso === 4 ? "Ver el resumen" : "Seguir"}
             </button>
           )}
           {paso === PASOS.length - 1 && completa && (

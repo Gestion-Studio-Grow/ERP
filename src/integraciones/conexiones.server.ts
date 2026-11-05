@@ -160,6 +160,8 @@ export interface DatosConexion {
   etiqueta?: string | null;
   /** Quién la conectó (id de usuario o "cli"): va a `conectadaPor` y a `cargadaPor`. */
   conectadaPor?: string;
+  /** Vencimiento por campo (OAuth: el access token): va a `IntegracionCredencial.expiraEn`. */
+  vencen?: Record<string, Date>;
 }
 
 export interface DepsConexiones {
@@ -285,6 +287,7 @@ export async function crearConexion(
             campo: s.campo,
             ...s.sobre,
             ultimos4: s.ultimos4,
+            expiraEn: datos.vencen?.[s.campo] ?? null,
             cargadaPor: quien,
           })),
         });
@@ -362,6 +365,108 @@ export async function leerCredencial(
   if (!fila) return null;
   const sobre: SobreSecreto = { kekId: fila.kekId, wrappedDek: fila.wrappedDek, sealed: fila.sealed };
   return abrirSecreto(sobre, { tenantId, conexionId, campo }, claveMaestra(deps.env ?? process.env));
+}
+
+/**
+ * Baja de la conexión activa de un conector en UN negocio: queda "desconectada" (la fila se
+ * conserva: IntegracionUso la referencia) y sus credenciales se BORRAN con sus DEK, así que el
+ * secreto deja de existir en la base. Sin ruta (`rutaHash` null) y con `tokenVersion` nuevo: un
+ * refresh en vuelo no la revive. Devuelve cuántas conexiones bajó (0 si no había ninguna).
+ */
+export async function darDeBajaConexion(tenantId: string, conectorId: string): Promise<number> {
+  exigirTenant(tenantId);
+  return tenantTransaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`integracion-conexion:${tenantId}:${conectorId}`}))`;
+      const activas = await tx.integracionConexion.findMany({
+        where: { tenantId, conector: conectorId, estado: { not: "desconectada" } },
+        select: { id: true },
+      });
+      const ids = activas.map((a) => a.id);
+      if (ids.length === 0) return 0;
+      await tx.integracionCredencial.deleteMany({ where: { tenantId, conexionId: { in: ids } } });
+      await tx.integracionConexion.updateMany({
+        where: { tenantId, id: { in: ids } },
+        data: { estado: "desconectada", rutaHash: null, tokenVersion: { increment: 1 } },
+      });
+      return ids.length;
+    },
+    { tenantId },
+  );
+}
+
+/** La versión de las credenciales de una conexión (para renovar sin pisar) y el vencimiento de un campo. */
+export async function versionDeCredenciales(
+  tenantId: string,
+  conexionId: string,
+  campo: string,
+): Promise<{ tokenVersion: number; expiraEn: Date | null } | null> {
+  exigirTenant(tenantId);
+  return tenantTransaction(
+    async (tx) => {
+      const c = await tx.integracionConexion.findFirst({ where: { tenantId, id: conexionId }, select: { tokenVersion: true } });
+      if (!c) return null;
+      const cred = await tx.integracionCredencial.findFirst({ where: { tenantId, conexionId, campo }, select: { expiraEn: true } });
+      return { tokenVersion: c.tokenVersion, expiraEn: cred?.expiraEn ?? null };
+    },
+    { tenantId },
+  );
+}
+
+/**
+ * Reclama la renovación OAuth: sube `tokenVersion` sólo si sigue en `version`. Gana UN solo
+ * renovador (dos pestañas, dos procesos); el que pierde sigue con el token vigente. Devuelve la
+ * versión reclamada o null.
+ */
+export async function reclamarRenovacion(tenantId: string, conexionId: string, version: number): Promise<number | null> {
+  exigirTenant(tenantId);
+  const r = await tenantTransaction(
+    (tx) =>
+      tx.integracionConexion.updateMany({
+        where: { tenantId, id: conexionId, tokenVersion: version, estado: { not: "desconectada" } },
+        data: { tokenVersion: { increment: 1 } },
+      }),
+    { tenantId },
+  );
+  return r.count === 1 ? version + 1 : null;
+}
+
+/**
+ * Guarda las credenciales renovadas (DEK nuevas) sólo si nadie tocó la conexión desde el reclamo
+ * (`version`): una reconexión o una baja en el medio ganan y lo renovado se descarta. true si guardó.
+ */
+export async function guardarRenovacion(
+  tenantId: string,
+  conexionId: string,
+  version: number,
+  valores: Record<string, { valor: string; expiraEn?: Date | null }>,
+  deps: DepsConexiones = {},
+): Promise<boolean> {
+  exigirTenant(tenantId);
+  const clave = claveMaestra(deps.env ?? process.env);
+  const sellados = Object.entries(valores).map(([campo, { valor, expiraEn }]) => {
+    if (!RE_CAMPO.test(campo) || typeof valor !== "string" || valor.trim() === "" || valor.length > LARGO_MAXIMO_SECRETO) {
+      throw new ConexionError("datos_invalidos", `La credencial "${campo.slice(0, 64)}" es inválida.`);
+    }
+    return { campo, sobre: cerrarSecreto(valor, { tenantId, conexionId, campo }, clave), ultimos4: ultimos4(valor), expiraEn: expiraEn ?? null };
+  });
+  return tenantTransaction(
+    async (tx) => {
+      const vigente = await tx.integracionConexion.updateMany({
+        where: { tenantId, id: conexionId, tokenVersion: version, estado: { not: "desconectada" } },
+        data: { fallosSeguidos: 0, estado: "conectada" },
+      });
+      if (vigente.count !== 1) return false;
+      for (const s of sellados) {
+        await tx.integracionCredencial.updateMany({
+          where: { tenantId, conexionId, campo: s.campo },
+          data: { ...s.sobre, ultimos4: s.ultimos4, expiraEn: s.expiraEn, cargadaPor: "renovacion-oauth" },
+        });
+      }
+      return true;
+    },
+    { tenantId },
+  );
 }
 
 // ── Resolución ───────────────────────────────────────────────────────────────
