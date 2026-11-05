@@ -7,7 +7,7 @@
  * Responsable Inscripto le pide la alícuota. Toda la validación es la de `facturita-core` (pura).
  */
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Badge, Button, Field, Input, Select, Segmented, fmtMoneyARS } from "@/components/ui";
 import { cuitValido, normalizarCuit } from "@/lib/cuit";
 import {
@@ -23,6 +23,7 @@ import {
   type CondicionReceptorConCuit,
 } from "@/lib/facturita-core";
 import { emitirFacturitaAction, type ResultadoEmisionFacturita } from "@/lib/facturita-actions";
+import { nuevaClaveEmision, type Atajo } from "@/lib/facturita-atajos";
 
 const SELECT = "h-11 w-full";
 
@@ -30,17 +31,20 @@ export default function EmitirForm({
   bloqueado,
   inscripto,
   hoy,
+  inicial,
 }: {
   bloqueado: boolean;
+  /** Un producto guardado que necesita más datos (o que la persona quiso cambiar): precarga el formulario. */
+  inicial?: Atajo | null;
   /** El emisor es Responsable Inscripto: elige la alícuota de IVA. */
   inscripto: boolean;
   /** Fecha fiscal de hoy (AAAAMMDD), default de las fechas del servicio. */
   hoy: string;
 }) {
   const hoyInput = fechaFiscalAInput(hoy);
-  const [concepto, setConcepto] = useState<ConceptoFacturita>("productos");
-  const [descripcion, setDescripcion] = useState("");
-  const [total, setTotal] = useState("");
+  const [concepto, setConcepto] = useState<ConceptoFacturita>(inicial?.concepto ?? "productos");
+  const [descripcion, setDescripcion] = useState(inicial?.detalle ?? "");
+  const [total, setTotal] = useState(inicial ? String(inicial.precio).replace(".", ",") : "");
   // Vacías a propósito: un período precargado que nadie miró sería un dato falso en la factura.
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -53,6 +57,9 @@ export default function EmitirForm({
   const [domicilio, setDomicilio] = useState("");
   const [resultado, setResultado] = useState<ResultadoEmisionFacturita | null>(null);
   const [pendiente, startTransition] = useTransition();
+  // Una clave por intento: el doble toque o el reintento de red no pide otro CAE. Se renueva cuando
+  // llega una respuesta (la próxima factura es otro intento).
+  const clave = useRef<{ firma: string; valor: string } | null>(null);
 
   const conServicio = conceptoConFechasDeServicio(concepto);
   const ejemplo = OPCIONES_CONCEPTO.find((o) => o.id === concepto)?.ejemplo ?? "";
@@ -76,24 +83,31 @@ export default function EmitirForm({
     descripcion.trim() !== "" && totalNum > 0 && !docInvalido && !faltaCondicion && !faltaNombre && !faltaDomicilio && !faltanFechas && !bloqueado;
 
   function emitir() {
+    if (pendiente) return;
     setResultado(null);
+    const datos = {
+      descripcion: descripcion.trim(),
+      total: totalNum,
+      concepto,
+      ...(conServicio ? { servicioDesde: desde, servicioHasta: hasta, vencimientoPago: vencimiento } : {}),
+      ...(inscripto ? { alicuota } : {}),
+      ...(docCargado
+        ? {
+            docTipo: Number(docTipo) as 80 | 86 | 96,
+            docNro,
+            ...(docTipo === "80" && condicion ? { condicionReceptor: condicion } : {}),
+            nombreReceptor: nombre,
+            ...(docTipo === "80" && domicilio.trim() ? { domicilioReceptor: domicilio } : {}),
+          }
+        : {}),
+    };
+    // La misma clave sólo para el MISMO pedido: si la persona cambió algo, es otra factura.
+    const firma = JSON.stringify(datos);
+    if (clave.current?.firma !== firma) clave.current = { firma, valor: nuevaClaveEmision() };
+    const claveEmision = clave.current.valor;
     startTransition(async () => {
-      const r = await emitirFacturitaAction({
-        descripcion: descripcion.trim(),
-        total: totalNum,
-        concepto,
-        ...(conServicio ? { servicioDesde: desde, servicioHasta: hasta, vencimientoPago: vencimiento } : {}),
-        ...(inscripto ? { alicuota } : {}),
-        ...(docCargado
-          ? {
-              docTipo: Number(docTipo) as 80 | 86 | 96,
-              docNro,
-              ...(docTipo === "80" && condicion ? { condicionReceptor: condicion } : {}),
-              nombreReceptor: nombre,
-              ...(docTipo === "80" && domicilio.trim() ? { domicilioReceptor: domicilio } : {}),
-            }
-          : {}),
-      });
+      const r = await emitirFacturitaAction({ ...datos, claveEmision });
+      clave.current = null;
       setResultado(r);
       if (r.ok) {
         setDescripcion("");

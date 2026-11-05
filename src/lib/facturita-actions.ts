@@ -40,6 +40,18 @@ import {
 } from "@/lib/facturita-core";
 import { montosFacturita } from "@/lib/facturita-montos";
 import {
+  ACCION_EMISION,
+  ENTIDAD_EMISION,
+  MAX_ATAJOS,
+  UNIDAD_SERVICIO,
+  atajoDesdeProducto,
+  atajoDesdeUltima,
+  claveEmisionValida,
+  validarAtajo,
+  type Atajo,
+  type RegistroEmision,
+} from "@/lib/facturita-atajos";
+import {
   faltantesEmisor,
   validarDatosEmisor,
   type CampoEmisor,
@@ -162,8 +174,31 @@ export async function guardarDatosParaFacturasAction(form: DatosEmisorForm): Pro
   return { ok: true };
 }
 
+/** `AuditLog.entityId` del registro: la clave del pedido, o la factura si el pedido no trajo clave. */
+function idDelRegistro(clave: string | null, invoiceId: string): string {
+  return clave ? `clave:${clave}` : `factura:${invoiceId}`;
+}
+
+function invoiceIdDelRegistro(changes: unknown): string | null {
+  const id = (changes as { invoiceId?: unknown } | null)?.invoiceId;
+  return typeof id === "string" && id ? id : null;
+}
+
+/** La factura que ya emitió esta clave en este negocio, si la hay. */
+async function facturaDeLaClave(tenantId: string, clave: string): Promise<string | null> {
+  const r = await tenantTransaction(
+    (tx) =>
+      tx.auditLog.findFirst({
+        where: { tenantId, entity: ENTIDAD_EMISION, entityId: idDelRegistro(clave, "") },
+        select: { changes: true },
+      }),
+    { tenantId },
+  );
+  return invoiceIdDelRegistro(r?.changes);
+}
+
 export type ResultadoEmisionFacturita =
-  | { ok: true; invoiceId: string; limite: EstadoLimite; estado: EstadoEmision; mensaje: string }
+  | { ok: true; invoiceId: string; limite: EstadoLimite; estado: EstadoEmision; mensaje: string; repetida?: true }
   | { ok: false; error: string; invoiceId?: string; estado?: EstadoEmision };
 
 /**
@@ -190,9 +225,17 @@ export async function emitirFacturitaAction(
     });
   const validacion = validarEmision(datos, hoy, { condicionEmisor });
   if (!validacion.ok) return { ok: false, error: validacion.error };
+  // Una clave que no tiene la forma no se ignora: sin ella se perdería la guarda del doble toque.
+  if (datos.claveEmision !== undefined && !claveEmisionValida(datos.claveEmision)) {
+    return { ok: false, error: "No se pudo emitir: recargá la pantalla y probá de nuevo." };
+  }
+  const clave = datos.claveEmision ?? null;
 
+  // El mismo pedido otra vez (doble toque, reintento): la factura ya existe, no se cuenta de nuevo
+  // contra el tope ni se pide otro CAE. Se contesta con cómo quedó la primera.
+  const yaEmitida = clave ? await facturaDeLaClave(tenantId, clave) : null;
   const limite = estadoLimite(await contarFacturasDelMes(tenantId));
-  if (!limite.puedeEmitir) {
+  if (!yaEmitida && !limite.puedeEmitir) {
     return { ok: false, error: limite.mensaje ?? "Llegaste al límite de facturas del plan de este mes." };
   }
 
@@ -206,6 +249,17 @@ export async function emitirFacturitaAction(
     // factura se crea igual, sin la descripción (el PDF cae al concepto), en vez de no emitir.
     const crear = (conDescripcion: boolean) => tenantTransaction(
       async (tx) => {
+        if (clave) {
+          // Dos pedidos con la misma clave se ponen en fila: el segundo espera a que el primero
+          // confirme y encuentra su registro. Nunca dos facturas (ni dos CAE) por un doble toque.
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`facturita-emision:${tenantId}:${clave}`}))`;
+          const previa = await tx.auditLog.findFirst({
+            where: { tenantId, entity: ENTIDAD_EMISION, entityId: idDelRegistro(clave, "") },
+            select: { changes: true },
+          });
+          const previaId = invoiceIdDelRegistro(previa?.changes);
+          if (previaId) return previaId;
+        }
         const id = await createInvoiceInTx(tx, {
           tenantId,
           concepto: validacion.concepto,
@@ -245,14 +299,37 @@ export async function emitirFacturitaAction(
             },
           });
         }
+        // El registro de la emisión, en la MISMA transacción que la factura: guarda del doble toque
+        // (por su clave) y fuente de «Repetir la última».
+        const registro: RegistroEmision = {
+          invoiceId: id,
+          descripcion: validacion.descripcion,
+          total: montos.total,
+          concepto: datos.concepto ?? "productos",
+          consumidorFinal: validacion.receptor.condicionIva === "CONSUMIDOR_FINAL" && !validacion.ficha,
+        };
+        await tx.auditLog.create({
+          data: {
+            tenantId,
+            actor: `user:${userId}`,
+            action: ACCION_EMISION,
+            entity: ENTIDAD_EMISION,
+            entityId: idDelRegistro(clave, id),
+            changes: { ...registro },
+            channel: "admin",
+          },
+        });
         return id;
       },
       { tenantId },
     );
-    const invoiceId = await crear(true).catch((e: unknown) => {
-      if (esMigracionPendiente(e)) return crear(false);
-      throw e;
-    });
+    const invoiceId =
+      yaEmitida ??
+      (await crear(true).catch((e: unknown) => {
+        if (esMigracionPendiente(e)) return crear(false);
+        throw e;
+      }));
+    const repetida = yaEmitida !== null;
 
     // Despacho a ARCA (CAE) si la facturación está encendida (stub/homologación/real).
     const encendida = isInvoicingEnabled();
@@ -295,7 +372,8 @@ export async function emitirFacturitaAction(
     if (estado.estado === "rechazada") {
       return { ok: false, error: mensajeDeEmision(estado), invoiceId, estado };
     }
-    return { ok: true, invoiceId, limite: estadoLimite(limite.usadas + 1), estado, mensaje: mensajeDeEmision(estado) };
+    const limiteDespues = estadoLimite(await contarFacturasDelMes(tenantId));
+    return { ok: true, invoiceId, limite: limiteDespues, estado, mensaje: mensajeDeEmision(estado), ...(repetida ? { repetida } : {}) };
   } catch (err) {
     logger.error("facturita", "emisión falló", err, { tenantId });
     // Perfil fiscal sin cargar: reintentar no lo arregla, hay que cargar el dato.
@@ -503,4 +581,109 @@ export async function anularFacturitaAction(facturaId: string, motivo: string): 
   }
   revalidatePath(`${PATH_APP}/facturas`);
   return { ok: true, mensaje };
+}
+
+// ---------------------------------------------------------------------------
+// Mis productos: lo que el negocio factura seguido, como botones de la pantalla de emitir
+// ---------------------------------------------------------------------------
+
+/** Los productos guardados (los más nuevos primero) y «Repetir la última», si se puede repetir. */
+export async function atajosFacturitaAction(): Promise<{ productos: Atajo[]; ultima: Atajo | null }> {
+  const { tenantId } = await requireTenantFacturita();
+  const { filas, registro } = await tenantTransaction(
+    async (tx) => ({
+      filas: await tx.product.findMany({
+        where: { tenantId, active: true, deletedAt: null, price: { gt: 0 } },
+        select: { id: true, name: true, price: true, unit: true },
+        orderBy: { createdAt: "desc" },
+        take: MAX_ATAJOS,
+      }),
+      registro: await tx.auditLog.findFirst({
+        where: { tenantId, entity: ENTIDAD_EMISION, action: ACCION_EMISION },
+        orderBy: { createdAt: "desc" },
+        select: { changes: true },
+      }),
+    }),
+    { tenantId },
+  );
+  return {
+    productos: filas.map(atajoDesdeProducto).filter((a): a is Atajo => a !== null),
+    ultima: atajoDesdeUltima(registro?.changes),
+  };
+}
+
+export type ResultadoAtajo = { ok: true; atajo: Atajo } | { ok: false; error: string };
+
+/** Guarda un producto (detalle + precio) del propio negocio. No controla stock ni se vende en otro canal. */
+export async function guardarAtajoFacturitaAction(form: {
+  detalle: unknown;
+  precio: unknown;
+  concepto?: unknown;
+}): Promise<ResultadoAtajo> {
+  const { tenantId, userId } = await requireTenantFacturita();
+  const v = validarAtajo(form);
+  if (!v.ok) return v;
+  const r = await tenantTransaction(
+    async (tx) => {
+      const cuantos = await tx.product.count({ where: { tenantId, active: true, deletedAt: null } });
+      if (cuantos >= MAX_ATAJOS) return null;
+      const p = await tx.product.create({
+        data: {
+          tenantId,
+          name: v.detalle,
+          price: v.precio,
+          unit: v.concepto === "servicios" ? UNIDAD_SERVICIO : "unidades",
+          trackStock: false,
+        },
+        select: { id: true, name: true, price: true, unit: true },
+      });
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          actor: `user:${userId}`,
+          action: "facturita.producto_guardado",
+          entity: "Product",
+          entityId: p.id,
+          changes: { detalle: v.detalle, precio: v.precio, concepto: v.concepto },
+          channel: "admin",
+        },
+      });
+      return p;
+    },
+    { tenantId },
+  );
+  if (!r) return { ok: false, error: `Ya tenés ${MAX_ATAJOS} productos: sacá uno para guardar otro.` };
+  revalidatePath(PATH_APP);
+  const atajo = atajoDesdeProducto(r);
+  return atajo ? { ok: true, atajo } : { ok: false, error: "No se pudo guardar el producto." };
+}
+
+/** Saca un producto de la lista (baja lógica): las facturas ya emitidas no cambian. */
+export async function quitarAtajoFacturitaAction(productoId: unknown): Promise<{ ok: boolean }> {
+  const { tenantId, userId } = await requireTenantFacturita();
+  if (typeof productoId !== "string" || !productoId) return { ok: false };
+  const n = await tenantTransaction(
+    async (tx) => {
+      const r = await tx.product.updateMany({
+        where: { id: productoId, tenantId, deletedAt: null },
+        data: { active: false, deletedAt: new Date() },
+      });
+      if (r.count === 1) {
+        await tx.auditLog.create({
+          data: {
+            tenantId,
+            actor: `user:${userId}`,
+            action: "facturita.producto_quitado",
+            entity: "Product",
+            entityId: productoId,
+            channel: "admin",
+          },
+        });
+      }
+      return r.count;
+    },
+    { tenantId },
+  );
+  if (n === 1) revalidatePath(PATH_APP);
+  return { ok: n === 1 };
 }
