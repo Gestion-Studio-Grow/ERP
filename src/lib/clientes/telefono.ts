@@ -20,6 +20,9 @@
 // que es la guarda de forma. Acá un número inválido simplemente da una clave rara; lo que
 // nunca puede pasar es que dos escrituras del MISMO número den claves distintas.
 
+import { permisoEfectivo, type OverrideDePermiso } from "@/lib/permisos-stub";
+import type { Role } from "@/lib/capabilities";
+
 /**
  * Clave de comparación de un teléfono argentino. Devuelve `""` si no hay ningún dígito.
  *
@@ -97,4 +100,55 @@ export function fichaQueChoca(
   if (!clave) return null;
   if (clave === normalizarTelefono(telefonoAnterior)) return null;
   return otras.find((c) => c.id !== editandoId && normalizarTelefono(c.phone) === clave) ?? null;
+}
+
+// ── Contacto enmascarado (matriz de permisos, casilla 5 «Ver datos de contacto») ──────────────
+//
+// Quien no tiene `clients:contact` ve a la clienta (nombre, turnos) pero no cómo llegarle por fuera
+// del negocio. Se enmascara en el SERVIDOR, en cada loader que entrega el dato: si sólo se ocultara
+// en el componente, el número viajaría igual en el payload. Quedan los 4 últimos dígitos para que la
+// recepción distinga a dos Anas sin ver el número entero.
+//
+// Invariante que se prueba: un teléfono enmascarado NO arma link de WhatsApp (`waLinkClienta` da
+// null con 4 dígitos), así que los botones que dependen del link se apagan solos aunque alguno se
+// escape de la lista de componentes revisados.
+
+export const MASCARA = "••••";
+
+/** «•••• 4821». Sin dígitos (o vacío) devuelve lo mismo que entró: no hay nada que esconder. */
+export function enmascararTelefono(phone: string): string;
+export function enmascararTelefono(phone: string | null | undefined): string | null | undefined;
+export function enmascararTelefono(phone: string | null | undefined): string | null | undefined {
+  const d = String(phone ?? "").replace(/\D/g, "");
+  if (!d) return phone;
+  return d.length > 4 ? `${MASCARA} ${d.slice(-4)}` : MASCARA;
+}
+
+/** «m…@…». Vacío devuelve lo mismo. */
+export function enmascararEmail(email: string): string;
+export function enmascararEmail(email: string | null | undefined): string | null | undefined;
+export function enmascararEmail(email: string | null | undefined): string | null | undefined {
+  const e = String(email ?? "").trim();
+  if (!e) return email;
+  return `${e[0]}…@…`;
+}
+
+export type QuienMira = { role: Role; overrides?: ReadonlyArray<OverrideDePermiso> } | null | undefined;
+
+/** ¿Esta persona ve teléfono y mail de las clientas? Sin sesión, no (fail-closed). */
+export function puedeVerContacto(quien: QuienMira): boolean {
+  return !!quien && permisoEfectivo(quien, "clients:contact");
+}
+
+/**
+ * Devuelve la ficha con `phone`/`email` enmascarados si quien mira no tiene `clients:contact`; si
+ * lo tiene, la MISMA ficha. Sólo toca esas dos claves y conserva el tipo (un `string` sigue string,
+ * un `null` sigue null), así el loader no cambia de forma.
+ */
+export function enmascararContacto<T extends { phone?: string | null; email?: string | null }>(ficha: T, quien: QuienMira): T {
+  if (puedeVerContacto(quien)) return ficha;
+  const out = { ...ficha };
+  if ("phone" in ficha) out.phone = enmascararTelefono(ficha.phone) as T["phone"];
+  if ("email" in ficha) out.email = enmascararEmail(ficha.email) as T["email"];
+  return out;
 }

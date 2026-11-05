@@ -3,6 +3,7 @@ import AppointmentRow from "../AppointmentRow";
 import AppointmentsHistoryList from "./AppointmentsHistoryList";
 import Link from "next/link";
 import { requireCapability } from "@/lib/authz";
+import { enmascararContacto, type QuienMira } from "@/lib/clientes/telefono";
 import { requireApp } from "@/lib/require-app";
 import { cargarFaltazosPorFicha } from "@/lib/crm/cargas.server";
 import { enInicioPorApps } from "../../inicio/piloto";
@@ -64,7 +65,7 @@ export const statusLabel: Record<string, string> = {
 // lo cargado son los últimos 90 días (`ventanaDeLista`) con «Ver más atrás» (?desde=), no 365.
 type TurnoDelLoader = Awaited<ReturnType<typeof getAppointments>>[number];
 
-function proyectarTurno(a: TurnoDelLoader) {
+function proyectarTurno(a: TurnoDelLoader, quien: QuienMira) {
   return {
     id: a.id,
     startsAt: a.startsAt,
@@ -73,7 +74,8 @@ function proyectarTurno(a: TurnoDelLoader) {
     serviceId: a.serviceId,
     priceAtBooking: a.priceAtBooking,
     notes: a.notes,
-    client: { name: a.client.name, phone: a.client.phone },
+    // Sin `clients:contact` (casilla 5 de la matriz) el teléfono sale enmascarado.
+    client: enmascararContacto({ name: a.client.name, phone: a.client.phone }, quien),
     professional: { name: a.professional.name, cobraEnMostrador: a.professional.cobraEnMostrador },
     service: { name: a.service.name, price: a.service.price, depositAmount: a.service.depositAmount },
     box: { name: a.box.name },
@@ -146,7 +148,7 @@ export default async function TurnosListaPage({
     ]);
     const agenda = (
       <AgendaRenglon
-        quien={{ role: user.role, professionalId: user.professionalId }}
+        quien={user}
         fecha={nuevo.fecha || undefined}
         vista="lista"
         alta={
@@ -186,7 +188,7 @@ export default async function TurnosListaPage({
   ]);
   // Único punto donde se lee el resultado crudo del loader: de acá para abajo se trabaja
   // siempre con `turnos`, que es lo que el navegador va a recibir.
-  const turnos = appointments.map(proyectarTurno);
+  const turnos = appointments.map((a) => proyectarTurno(a, user));
   // La sección "Reservados" se PARTE en dos (regla pura `seccionDeLista`, con test):
   //   · pasados sin cerrar: Reservados Y Confirmados con la hora ya pasada. Ya no se dibujan acá
   //     como tarjetas: son un renglón «N pasados sin cerrar → [Cerrar lo pendiente]» que lleva a

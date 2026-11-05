@@ -17,6 +17,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
+import { enmascararContacto } from "@/lib/clientes/telefono";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { isColumnMissing } from "@/lib/prisma-errors";
@@ -145,9 +146,10 @@ export async function turnosSinCerrar(): Promise<BandejaSinCerrar> {
     lastClosedDay(tenantId),
   ]);
   const hayMas = filas.length > TOPE_DE_LA_BANDEJA;
+  // Sin `clients:contact` (casilla 5 de la matriz) el teléfono de la clienta sale enmascarado.
   const turnos = filas.slice(0, TOPE_DE_LA_BANDEJA).map((f) =>
     turnoSinCerrar(
-      f,
+      { ...f, client: enmascararContacto(f.client, user) },
       puedeCobrarEsteTurno({
         rol: user.role,
         professionalIdDelUsuario: user.professionalId,

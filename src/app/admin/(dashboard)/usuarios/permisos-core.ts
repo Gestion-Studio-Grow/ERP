@@ -7,12 +7,13 @@
 // la dueña (`alcanceDeAnulacion`), recepción anula un cobro de turno sólo con ese código
 // (`anulacionDeCobro`), y el Profesional ve y cobra sólo sus turnos (el loader filtra por su ficha).
 
-import { alcanceDeAnulacion, anulacionDeCobro, roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
+import { alcanceDeAnulacion, anulacionDeCobro, type Role } from "@/lib/capabilities";
+import { permisoEfectivo, type CapabilityPorUsuario } from "@/lib/permisos-stub";
 import { rolesParaAlta, etiquetaDeRol } from "./roles";
 
 type Tarea = {
   texto: string;
-  capacidad: Capability;
+  capacidad: CapabilityPorUsuario;
   /** Sólo en negocios con agenda (servicios) o sólo en los de mostrador. */
   rubro?: "servicios" | "mostrador";
 };
@@ -21,12 +22,17 @@ const TAREAS: readonly Tarea[] = [
   { texto: "Vender y cobrar en el mostrador", capacidad: "orders:manage" },
   { texto: "Anular una venta", capacidad: "orders:void" },
   { texto: "Ver la agenda", capacidad: "agenda:read", rubro: "servicios" },
-  { texto: "Dar turnos, moverlos y cancelarlos", capacidad: "agenda:manage", rubro: "servicios" },
+  // Dar un turno y moverlo/cancelarlo van separadas (matriz de permisos, decisión del 05/11): sólo
+  // las acciones que CREAN turno piden `agenda:create`.
+  { texto: "Dar turnos", capacidad: "agenda:create", rubro: "servicios" },
+  { texto: "Mover, reprogramar y cancelar turnos", capacidad: "agenda:manage", rubro: "servicios" },
   { texto: "Cerrar y cobrar turnos", capacidad: "agenda:collect", rubro: "servicios" },
   { texto: "Anular el cobro de un turno", capacidad: "agenda:void", rubro: "servicios" },
   { texto: "Anotar en la lista de espera", capacidad: "waitlist:manage", rubro: "servicios" },
   { texto: "Ver y cargar clientes", capacidad: "clients:manage" },
+  { texto: "Ver el teléfono y el mail de los clientes", capacidad: "clients:contact" },
   { texto: "Recibir mercadería, contar y cargar mermas", capacidad: "stock:receive" },
+  { texto: "Abrir y cerrar la caja", capacidad: "cash:manage" },
   { texto: "Cambiar precios y el catálogo", capacidad: "catalog:manage" },
   { texto: "Ver costos, compras y proveedores", capacidad: "costs:read" },
   { texto: "Ver reportes y el resultado del mes", capacidad: "reports:read" },
@@ -37,11 +43,13 @@ const TAREAS: readonly Tarea[] = [
 ];
 
 export type Celda = { puede: boolean; matiz?: string };
-export type FilaDePermisos = { texto: string; capacidad: Capability; celdas: Celda[] };
+export type FilaDePermisos = { texto: string; capacidad: CapabilityPorUsuario; celdas: Celda[] };
 export type TablaDePermisos = { roles: { valor: Role; nombre: string }[]; filas: FilaDePermisos[] };
 
-function celda(role: Role, cap: Capability): Celda {
-  if (!roleHasCapability(role, cap)) return { puede: false };
+// Lo que da el ROL (sin excepciones por persona): esta tabla habla de roles; las excepciones se ven
+// en la matriz de abajo (matriz-core.ts).
+function celda(role: Role, cap: CapabilityPorUsuario): Celda {
+  if (!permisoEfectivo({ role, overrides: [] }, cap)) return { puede: false };
   if (cap === "orders:void") {
     const a = alcanceDeAnulacion(role);
     if (a?.conCodigo) return { puede: true, matiz: "Sólo lo de hoy, con motivo y el código de la dueña" };

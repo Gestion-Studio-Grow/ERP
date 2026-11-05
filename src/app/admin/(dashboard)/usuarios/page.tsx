@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { getUsers, createUser, setUserActive, resetUserPassword, getFichasDeProfesional } from "@/lib/user-actions";
 import VincularFicha from "./VincularFicha";
 import { requireApp } from "@/lib/require-app";
@@ -9,6 +10,10 @@ import { etiquetaDeRol, rolSinPantallas, rolesParaAlta } from "./roles";
 import { appDelPanelCerrado } from "@/apps/visibles";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import UsuariosRenglon from "./UsuariosRenglon";
+import { canCurrentUser } from "@/lib/authz";
+import MatrizDePermisos from "./MatrizDePermisos";
+import { armarMatriz } from "./matriz-core";
+import { cargarDatosDeLaMatriz } from "./matriz.server";
 
 export const dynamic = "force-dynamic";
 
@@ -52,8 +57,31 @@ export default async function UsuariosPage({
   // Una productora no tiene agenda: «Recepción» y «Profesional» se dicen con sus palabras (roles.ts).
   const conProyectos = appDelPanelCerrado(negocio)?.id === "proyectos";
   const roles = rolesParaAlta(esMostrador, conProyectos);
+
+  // «Qué puede hacer cada persona» (matriz de permisos, PLAN.md §9): sólo con `users:manage`, que es
+  // también lo que exige `setUserPermission`. Las personas dadas de baja no aparecen.
+  let matriz: ReactNode = null;
+  if (await canCurrentUser("users:manage")) {
+    const datos = await cargarDatosDeLaMatriz();
+    const tabla = armarMatriz(
+      users
+        .filter((u) => u.active && !u.deletedAt)
+        .map((u) => ({
+          id: u.id,
+          name: u.name,
+          role: u.role,
+          professionalId: u.professionalId,
+          overrides: datos.overrides.get(u.id) ?? [],
+          fichaActiva: u.professionalId ? (datos.fichaActiva.get(u.professionalId) ?? null) : null,
+        })),
+      user.id,
+      esMostrador,
+    );
+    matriz = <MatrizDePermisos matriz={tabla} conTabla={datos.conTabla} />;
+  }
+
   // Diseño nuevo («Renglón»): las mismas acciones y los mismos campos. Apagado, igual que siempre.
-  if (nuevo) return <UsuariosRenglon users={users} roles={roles} esMostrador={esMostrador} banner={banner} fichas={fichas} />;
+  if (nuevo) return <UsuariosRenglon users={users} roles={roles} esMostrador={esMostrador} banner={banner} fichas={fichas} matriz={matriz} />;
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
@@ -199,6 +227,15 @@ export default async function UsuariosPage({
           ))}
         </div>
       </section>
+
+      {matriz && (
+        <section id="permisos-por-persona" aria-labelledby="titulo-permisos-por-persona" className="mt-10">
+          <h2 id="titulo-permisos-por-persona" className="text-lg font-medium mb-3">
+            Qué puede hacer cada persona
+          </h2>
+          {matriz}
+        </section>
+      )}
     </main>
   );
 }

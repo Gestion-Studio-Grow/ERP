@@ -9,6 +9,7 @@
 // Lo gastado es plata del negocio: sólo con reports:read. Lo que DEBE sí lo ve la recepción:
 // es lo que tiene que cobrarle (el alta de turno ya se lo muestra).
 
+import { enmascararContacto } from "@/lib/clientes/telefono";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge, KpiTile, fmtMoneyARS } from "@/components/ui";
@@ -66,7 +67,9 @@ export default async function FichaUnica({
   // El detalle de cada deuda vive en "Fiado y cuentas de clientes": se enlaza sólo si esta
   // persona puede abrirla (si no, el link terminaría en "App no disponible").
   const abreFiado = appPermitida(appPorId("cuentas-a-cobrar"), negocio);
-  const { client, resumen, ev } = f;
+  const { client: crudo, resumen, ev } = f;
+  // Sin `clients:contact` (casilla 5 de la matriz) teléfono y mail salen enmascarados del servidor.
+  const client = enmascararContacto(crudo, user);
   const verPlata = roleHasCapability(user.role, "reports:read");
   const puedeEditar = roleHasCapability(user.role, "clients:manage");
   const noQuiere = f.permiso?.accion === ACCION_BAJA;

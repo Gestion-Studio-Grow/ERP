@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { puedeVerContacto } from "@/lib/clientes/telefono";
 import { requireApp } from "@/lib/require-app";
 import { prisma } from "@/lib/prisma";
 import { roleHasCapability } from "@/lib/capabilities";
@@ -42,6 +43,8 @@ export default async function PorRecuperarPage() {
   const enRiesgo = porRecuperar(base);
   const verPlata = roleHasCapability(user.role, "reports:read");
   const puedeSumar = roleHasCapability(user.role, "clients:manage");
+  // Sin `clients:contact` (casilla 5 de la matriz) no se ofrece escribirle ni «corregir celular».
+  const veContacto = puedeVerContacto(user);
   const total = enRiesgo.reduce((s, x) => s + x.ev.valorAnual, 0);
 
   // DISEÑO NUEVO («Renglón»): el folio es lo que mide el riesgo (días sin venir), el detalle cada
@@ -131,7 +134,7 @@ export default async function PorRecuperarPage() {
                         <Marca tipo="hecho">
                           contactada {haceDias(diasContacto!)}
                         </Marca>
-                      ) : !celular ? (
+                      ) : !veContacto ? undefined : !celular ? (
                         <Link
                           href={`/admin/clientes/${persona.id}`}
                           className={buttonClasses("outline", "sm")}
@@ -221,7 +224,7 @@ export default async function PorRecuperarPage() {
                     <span className="text-muted">
                       Contactada {haceDias(diasContacto!)}
                     </span>
-                  ) : !celular ? (
+                  ) : !veContacto ? null : !celular ? (
                     <Link
                       href={`/admin/clientes/${persona.id}`}
                       className="inline-flex min-h-11 items-center text-warning underline"

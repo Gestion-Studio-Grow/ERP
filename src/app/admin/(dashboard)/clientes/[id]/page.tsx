@@ -8,6 +8,7 @@ import { canCurrentUser } from "@/lib/authz";
 import { claseBotonWhatsApp } from "../boton-whatsapp";
 import { contactoDeLaFicha } from "../contacto-ficha";
 import { requireApp } from "@/lib/require-app";
+import { enmascararContacto } from "@/lib/clientes/telefono";
 import EditarClienteForm from "./EditarClienteForm";
 import FichaProductora from "./FichaProductora";
 import FichaUnica from "./FichaUnica";
@@ -54,8 +55,10 @@ export default async function ClienteDetailPage({
   // En el Inicio por apps, la ficha única (próximo turno, lo que debe, faltazos, pedidos, fiado,
   // cumpleaños y permiso de mensajes). CH, fuera del piloto, sigue con la ficha de siempre.
   if (await enInicioPorApps()) return <FichaUnica id={id} user={user} conMostrador={conMostrador} />;
-  const client = await getClient(id);
-  if (!client) notFound();
+  const crudo = await getClient(id);
+  if (!crudo) notFound();
+  // Sin `clients:contact` (casilla 5 de la matriz) teléfono y mail salen enmascarados del servidor.
+  const client = enmascararContacto(crudo, user);
 
   // `clients:manage` está otorgada a RECEPTION y hasta acá no la consumía nadie. Esto es
   // sólo para no mostrar un botón que no va a funcionar; la guarda de verdad está en
