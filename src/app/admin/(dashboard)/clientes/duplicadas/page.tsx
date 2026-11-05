@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
+import { enmascararContacto } from "@/lib/clientes/telefono";
 import {
   Bloque,
   EmptyState,
@@ -29,11 +30,19 @@ export const dynamic = "force-dynamic";
 
 export default async function DuplicadasPage() {
   const user = await requireApp("unificar-fichas");
-  const [grupos, recientes, nuevo] = await Promise.all([
+  const [crudos, recientes, nuevo] = await Promise.all([
     cargarDuplicadas(),
     cargarUnificacionesRecientes(),
     disenoNuevo(),
   ]);
+  // Sin `clients:contact` (casilla 5 de la matriz) el teléfono —también el del título del grupo— y
+  // el mail salen enmascarados del servidor. La clave se enmascara igual que el teléfono.
+  const grupos = crudos.map((g) => ({
+    ...g,
+    clave: enmascararContacto({ phone: g.clave }, user).phone ?? g.clave,
+    fichas: g.fichas.map((f) => enmascararContacto(f, user)),
+    sugerida: enmascararContacto(g.sugerida, user),
+  }));
   const fichasDe = (g: (typeof grupos)[number]): FichaDelGrupo[] =>
     g.fichas.map((f) => ({
       id: f.id,
@@ -81,7 +90,7 @@ export default async function DuplicadasPage() {
         ) : (
           grupos.map((g) => (
             <Bloque
-              key={g.clave}
+              key={g.sugerida.id}
               titulo={`Teléfono ${g.clave}`}
               cuenta={g.fichas.length}
               className="mt-6"
@@ -194,7 +203,7 @@ export default async function DuplicadasPage() {
             }));
             return (
               <li
-                key={g.clave}
+                key={g.sugerida.id}
                 className="rounded-lg border border-line bg-surface-raised p-4"
               >
                 <p className="mb-2 text-sm font-medium text-strong">

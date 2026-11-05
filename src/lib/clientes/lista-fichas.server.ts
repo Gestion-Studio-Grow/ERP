@@ -22,6 +22,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { CON_TILDE, SIN_TILDE, escaparLike, textoComparable } from "@/lib/facturacion/lista-core";
 import type { ConsultaCruda } from "@/lib/facturacion/lista.server";
 import { normalizarTelefono } from "@/lib/clientes/telefono";
+import { contactoSegunQuienMira } from "@/lib/clientes/contacto.server";
 import type { Rubro } from "@/lib/crm/personas";
 import { desdeHistorial } from "@/lib/crm/lecturas";
 
@@ -95,7 +96,11 @@ export async function paginaDeFichasEn(
   return { filas, total, coinciden, pagina, paginas, rubro };
 }
 
-/** La página pedida, en la transacción del negocio (RLS). Sin chequeo de rol: lo hace quien llama. */
-export function leerPaginaDeFichas(tenantId: string, p: { q: string; pagina: number; rubro: Rubro }): Promise<PaginaDeFichas> {
-  return tenantTransaction((tx) => paginaDeFichasEn(tx, tenantId, p), { tenantId });
+/**
+ * La página pedida, en la transacción del negocio (RLS). El rol lo chequea quien llama; el teléfono
+ * sale enmascarado para quien no tiene `clients:contact` (casilla 5 de la matriz de permisos).
+ */
+export async function leerPaginaDeFichas(tenantId: string, p: { q: string; pagina: number; rubro: Rubro }): Promise<PaginaDeFichas> {
+  const pagina = await tenantTransaction((tx) => paginaDeFichasEn(tx, tenantId, p), { tenantId });
+  return { ...pagina, filas: await contactoSegunQuienMira(pagina.filas) };
 }

@@ -36,6 +36,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { normalizarBusqueda } from "@/modules/nav-search";
 import { requireCapability } from "@/lib/authz";
+import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox } from "@/lib/demo-flag";
@@ -144,10 +145,13 @@ export async function buscarClientasYTurnos(q: unknown): Promise<ResultadoDelBus
     let clientas: ClientaLeida[] = [];
     if (permisos.verClientas) {
       const filas = await fichasQueCoinciden(tenantId, { texto, digitos }, FILAS_A_LEER);
+      // Se ordena con el número entero (la búsqueda por teléfono lo necesita) y recién después se
+      // enmascara para quien no tiene `clients:contact` (casilla 5): el número no sale del servidor.
+      const veContacto = puedeVerContacto(user);
       clientas = ordenarClientas(
         filas.map((c) => ({ id: c.id, nombre: c.name, telefono: c.phone ?? "" })),
         busqueda,
-      );
+      ).map((c) => (veContacto ? c : { ...c, telefono: enmascararTelefono(c.telefono) }));
     }
     const ids = clientas.map((c) => c.id);
     // La profesional: SUS turnos cuya clienta coincide, también sin tildes (la consulta de siempre,

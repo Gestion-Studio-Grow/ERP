@@ -1,4 +1,4 @@
-import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
+import { getAgendaDay } from "@/lib/actions";
 import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
 import MananaConfirmar from "./MananaConfirmar";
@@ -15,7 +15,7 @@ import { enInicioPorApps } from "../inicio/piloto";
 import { esFechaDeCalendario, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import AgendaRenglon from "./AgendaRenglon";
-import { extrasDeLaAgenda, proyectarAgenda } from "./agenda.server";
+import { extrasDeLaAgenda, mananaParaConfirmar, proyectarAgenda } from "./agenda.server";
 import LinkAlDia from "./_agenda/LinkAlDia";
 import BotonBuscar from "../armazon/BotonBuscar";
 import AtajosDelAlta from "./_agenda/AtajosDelAlta";
@@ -95,7 +95,7 @@ export default async function TurnosCalendarPage({
   if (nuevo) {
     return (
       <AgendaRenglon
-        quien={{ role: user.role, professionalId: user.professionalId }}
+        quien={user}
         fecha={dateParam}
         vista={vista === "profesionales" ? "profesionales" : "lista"}
       />
@@ -109,7 +109,7 @@ export default async function TurnosCalendarPage({
   const verManana = canManage && date === today;
   const [cruda, manana, piloto, negocio, slug, interruptores] = await Promise.all([
     getAgendaDay(date),
-    verManana ? getMananaConfirmar() : Promise.resolve(null),
+    verManana ? mananaParaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(user.role),
     getCurrentTenantSlug(),
@@ -121,7 +121,7 @@ export default async function TurnosCalendarPage({
   // Tanda 2: la marca «seña pedida» y el horario de trabajo (una lectura más por día, con tenantId).
   const diaDeLaPlanilla = esFechaDeCalendario(date) ? date : today;
   const extras = await extrasDeLaAgenda(cruda, diaDeLaPlanilla);
-  const proyectada = proyectarAgenda(cruda, { role: user.role, professionalId: user.professionalId }, { seniasPedidas: extras.seniasPedidas });
+  const proyectada = proyectarAgenda(cruda, user, { seniasPedidas: extras.seniasPedidas });
   const planilla = {
     turnos: proyectada.turnos,
     profesionales: proyectada.profesionales,

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
-import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
+import { getAgendaDay } from "@/lib/actions";
 import { anulacionDeCobro, permisoEfectivo } from "@/lib/capabilities";
 import { PageContainer, PageHeader, atributosBoton, buttonClasses } from "@/components/ui";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
@@ -10,7 +10,7 @@ import PielPropia from "../../armazon/PielPropia";
 import BotonBuscar from "../../armazon/BotonBuscar";
 import { ListaDeManana } from "../_agenda/ParaManana";
 import { fechaLarga, type TurnoDelDia } from "../agenda-core";
-import { proyectarAgenda } from "../agenda.server";
+import { mananaParaConfirmar, proyectarAgenda } from "../agenda.server";
 
 export const dynamic = "force-dynamic";
 
@@ -31,12 +31,12 @@ export const dynamic = "force-dynamic";
 
 export default async function ConfirmarMananaPage() {
   const user = await requireApp("confirmar-manana");
-  const { dia, turnos } = await getMananaConfirmar();
+  const { dia, turnos } = await mananaParaConfirmar();
   const [agenda, slug] = await Promise.all([turnos.length > 0 ? getAgendaDay(dia) : Promise.resolve(null), getCurrentTenantSlug()]);
   const deLaLista = new Set(turnos.map((t) => t.id));
   const detalle: Record<string, TurnoDelDia> = {};
   if (agenda) {
-    for (const t of proyectarAgenda(agenda, { role: user.role, professionalId: user.professionalId }).turnos) {
+    for (const t of proyectarAgenda(agenda, user).turnos) {
       if (deLaLista.has(t.id)) detalle[t.id] = t;
     }
   }

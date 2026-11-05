@@ -23,6 +23,7 @@ import { SEGMENTOS, SEGMENTO_ETIQUETA, type Segmento } from "@/lib/crm/segmentos
 import type { FilaCliente, VistaClientes } from "./lista-core";
 import { DIAS_PARA_EL_CUMPLE, TAMANIO_PAGINA, VISTAS, VISTA_ETIQUETA, diasHastaElCumple, textoDeWhatsApp, ultimaVez } from "./lista-core";
 import { EVENTO_FICHA, type PedidoFicha } from "./NuevaFicha";
+import { MASCARA } from "@/lib/clientes/telefono";
 
 // La forma dice en qué punto del ciclo está: vacía (todavía no vino), llena (viene), a medias (se
 // está yendo), alerta (no volvió). Forma + palabra: se lee igual en claro, en oscuro y sin color.
@@ -191,7 +192,8 @@ export default function ClientesRenglon({
               >
                 WhatsApp
               </a>
-            ) : (
+            ) : f.telefono?.startsWith(MASCARA) ? null : (
+              // Enmascarado = sin permiso para ver el contacto (casilla 5): no es un error del dato.
               <span className="text-sm text-muted">{f.telefono ? "No es un celular" : "Sin teléfono"}</span>
             )}
           </span>

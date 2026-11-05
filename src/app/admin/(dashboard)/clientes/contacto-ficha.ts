@@ -11,11 +11,15 @@
 // Client-safe y puro. El link lo arma `waLinkClienta`, la misma regla que la agenda.
 
 import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { MASCARA } from "@/lib/clientes/telefono";
 
 export type ContactoFicha =
   | { tipo: "whatsapp"; href: string }
   | { tipo: "no-quiere" }
-  | { tipo: "sin-celular"; texto: string };
+  | { tipo: "sin-celular"; texto: string }
+  // Quien mira no tiene `clients:contact` (casilla 5 de la matriz): el teléfono le llegó enmascarado
+  // desde el servidor. No hay botón ni aviso de «no es un celular»: no es un error del dato.
+  | { tipo: "oculto" };
 
 export function contactoDeLaFicha({
   telefono,
@@ -27,6 +31,7 @@ export function contactoDeLaFicha({
   puedeEditar: boolean;
 }): ContactoFicha {
   if (noQuiere) return { tipo: "no-quiere" };
+  if (String(telefono ?? "").startsWith(MASCARA)) return { tipo: "oculto" };
   const href = waLinkClienta(telefono);
   if (href) return { tipo: "whatsapp", href };
   return {

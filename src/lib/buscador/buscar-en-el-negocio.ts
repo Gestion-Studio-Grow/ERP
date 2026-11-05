@@ -27,6 +27,7 @@
 // también es una extensión nueva). Proveedores y comprobantes por número quedan para otra porción.
 
 import { requireUser } from "@/lib/authz";
+import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -70,6 +71,7 @@ export async function buscarEnElNegocio(q: unknown): Promise<ResultadoDeBusqueda
     verPlata: permisoEfectivo(user, "reports:read"),
   };
   const { texto, digitos, codigo } = busqueda;
+  const veContacto = puedeVerContacto(user);
 
   try {
     const leidos = await tenantTransaction(async (tx) => {
@@ -87,7 +89,8 @@ export async function buscarEnElNegocio(q: unknown): Promise<ResultadoDeBusqueda
               take: FILAS_A_LEER,
               select: { id: true, name: true, phone: true },
             })
-          ).map((c) => ({ id: c.id, nombre: c.name, telefono: c.phone }))
+            // Sin `clients:contact` (casilla 5 de la matriz) el teléfono sale enmascarado.
+          ).map((c) => ({ id: c.id, nombre: c.name, telefono: veContacto ? c.phone : enmascararTelefono(c.phone) }))
         : [];
 
       const productos: ProductoLeido[] =

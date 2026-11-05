@@ -25,7 +25,7 @@
 import { agendaPractica } from "@/lib/turnos/practica.server";
 import { RefrescoDeAgenda } from "./_agenda/RefrescoDeAgenda";
 import Link from "next/link";
-import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
+import { getAgendaDay } from "@/lib/actions";
 import { permisoEfectivo, anulacionDeCobro, type Capability, type PermisoOverride, type Role } from "@/lib/capabilities";
 import { contarSinCerrarDeQuienMira } from "@/lib/turnos/sin-cerrar.server";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -37,7 +37,7 @@ import { anotadosConHueco } from "@/lib/crm/huecos";
 import { EmptyState, Franja, PageContainer, PageHeader, Pestanas, atributosBoton, buttonClasses, chipLinkAtributos } from "@/components/ui";
 import { enInicioPorApps } from "../inicio/piloto";
 import { diaMas, fechaCorta, fechaLarga, lineaDeLaAgenda, nombreRelativo, type Permisos } from "./agenda-core";
-import { extrasDeLaAgenda, proyectarAgenda } from "./agenda.server";
+import { extrasDeLaAgenda, mananaParaConfirmar, proyectarAgenda } from "./agenda.server";
 import { esFechaDeCalendario, hrefDiaDeLaAgenda, hrefNuevoTurno, vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
 import LinkAlDia from "./_agenda/LinkAlDia";
 import BotonBuscar from "../armazon/BotonBuscar";
@@ -48,8 +48,7 @@ import LibroDelDia from "./_agenda/LibroDelDia";
 import { RenglonDeManana } from "./_agenda/ParaManana";
 import OtroDia from "./_agenda/OtroDia";
 
-// `overrides`: la matriz de permisos (PLAN permisos §2); la sesión los trae, sin ellos rige el rol.
-type Quien = { role: Role; professionalId?: string | null; overrides?: ReadonlyArray<PermisoOverride> };
+type Quien = { role: Role; professionalId?: string | null; overrides: ReadonlyArray<PermisoOverride> };
 
 // Dar de baja un saldo: sólo la dueña (D5).
 const PERDONAR: Capability = "agenda:forgive";
@@ -134,7 +133,7 @@ export default async function AgendaRenglon({
   const verManana = permisos.gestionar && dia === hoy;
   const [cruda, manana, piloto, negocio, pendientes] = await Promise.all([
     getAgendaDay(dia),
-    verManana ? getMananaConfirmar() : Promise.resolve(null),
+    verManana ? mananaParaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(quien.role),
     // Sólo quien cierra turnos ve cuántos quedaron sin cerrar (y puede ir a cerrarlos). Un `count`,
