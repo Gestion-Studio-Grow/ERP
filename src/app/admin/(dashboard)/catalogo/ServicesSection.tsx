@@ -11,6 +11,8 @@ import {
 } from "@/lib/catalog-actions";
 import { useToast } from "../ToastProvider";
 import { Input, Select, Textarea, buttonClasses } from "@/components/ui";
+import CompartirLink from "./CompartirLink";
+import { motivoServicio, type DatosCompartir } from "./compartir-core";
 
 type Product = { id: string; name: string; unit: string; active: boolean };
 type ServiceProductLink = { productId: string; quantity: number; product: Product };
@@ -152,11 +154,13 @@ function ServiceRow({
   products,
   categories,
   resources,
+  compartir,
 }: {
   service: Service;
   products: Product[];
   categories: Category[];
   resources: Resource[];
+  compartir?: DatosCompartir;
 }) {
   const [editing, setEditing] = useState(false);
   const [editingInsumos, setEditingInsumos] = useState(false);
@@ -334,6 +338,9 @@ function ServiceRow({
             <button onClick={() => setEditing(true)} className="chip-btn max-sm:min-h-11!">
               Editar
             </button>
+            {compartir && (
+              <CompartirLink datos={compartir} sel={{ serviceId: service.id }} motivo={motivoServicio(compartir.lista, service)} />
+            )}
             <form
               action={async (fd) => {
                 if (!confirm(`¿Eliminar "${service.name}"? Esta acción no se puede deshacer.`)) return;
@@ -416,11 +423,14 @@ export default function ServicesSection({
   products,
   categories,
   resources,
+  compartir,
 }: {
   services: Service[];
   products: Product[];
   categories: Category[];
   resources: Resource[];
+  /** Datos del link de reserva; sin ellos no se muestra «Compartir». */
+  compartir?: DatosCompartir;
 }) {
   const { showError } = useToast();
   const sinCategoria = services.filter((s) => !s.categoryId);
@@ -460,6 +470,7 @@ export default function ServicesSection({
                 products={products}
                 categories={categories}
                 resources={resources}
+                compartir={compartir}
               />
             ))}
           </CategoryGroup>
@@ -473,6 +484,7 @@ export default function ServicesSection({
                 products={products}
                 categories={categories}
                 resources={resources}
+                compartir={compartir}
               />
             ))}
           </CategoryGroup>

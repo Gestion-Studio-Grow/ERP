@@ -26,6 +26,10 @@ import { vocabularioDelRubro } from "./vocabulario";
 import CatalogoRenglon from "./CatalogoRenglon";
 import CatalogoServiciosPagina from "./CatalogoServiciosPagina";
 import { leerEditar, leerParametrosCatalogo, paginaDelCatalogo } from "./lista-core";
+import LinksParaRedes from "./LinksParaRedes";
+import { listaActiva, type DatosCompartir } from "./compartir-core";
+import { nombreDelNegocio, reservasDesdeRedes } from "./reservas-desde-redes.server";
+import { linkDelTurnero } from "../clases/config/_link.server";
 
 export const dynamic = "force-dynamic";
 
@@ -204,11 +208,17 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
   }
 
   // --- Rubro SERVICIOS (spa) y demás: layout histórico, sin cambios ---
-  const [{ boxes, services, professionals, products, categories, resources }, coupons, conDisenoNuevo] = await Promise.all([
-    getCatalog(),
-    getCoupons(),
-    disenoNuevo(),
-  ]);
+  const [{ boxes, services, professionals, products, categories, resources }, coupons, conDisenoNuevo, turnero, negocio, reservas] =
+    await Promise.all([getCatalog(), getCoupons(), disenoNuevo(), linkDelTurnero(), nombreDelNegocio(), reservasDesdeRedes()]);
+
+  // Link de reserva para redes: misma base que el turnero (el dominio público del pedido) y la
+  // lista activa profesional → servicios con la forma de `getProfessionalsWithServices()`, para
+  // que los slugs coincidan con los que resuelve /reserva.
+  const compartir: DatosCompartir = {
+    base: new URL(turnero).origin,
+    negocio,
+    lista: listaActiva(professionals),
+  };
 
   // «Diseño nuevo» (Renglón): una pestaña por parte del catálogo y un renglón por ítem, con los
   // MISMOS datos de arriba (cero consultas nuevas). Apagado, CH sigue viendo el catálogo de siempre.
@@ -217,6 +227,7 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
       <CatalogoServiciosPagina
         sp={await searchParams}
         datos={{ boxes, services, professionals, products, categories, resources, coupons }}
+        redes={{ datos: compartir, reservas }}
       />
     );
   }
@@ -235,10 +246,11 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
           products={products}
           categories={categories}
           resources={resources}
+          compartir={compartir}
         />
         <ResourcesSection resources={resources} />
         <ProductsSection products={products} />
-        <ProfessionalsSection professionals={professionals} boxes={boxes} services={services} />
+        <ProfessionalsSection professionals={professionals} boxes={boxes} services={services} compartir={compartir} />
         <AsignacionSection
           services={services.map((s) => ({
             id: s.id,
@@ -253,6 +265,7 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
             serviceIds: p.services.map((s) => s.id),
           }))}
         />
+        <LinksParaRedes datos={compartir} reservas={reservas} />
         <CouponsSection coupons={coupons} />
       </div>
     </main>
