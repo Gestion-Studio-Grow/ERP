@@ -28,16 +28,16 @@ const HOST_PUBLICO = Object.keys(HOSTS_DE_PRODUCTO).find((h) => HOSTS_DE_PRODUCT
 const OG_IMAGEN = HOST_PUBLICO ? `https://${HOST_PUBLICO}/facturita/og.webp` : "/facturita/og.webp";
 
 export const metadata: Metadata = {
-  title: "Facturita — facturá desde el celu, sin vueltas. Gratis",
+  title: "Factoque — facturá desde el celu, sin vueltas. Gratis",
   description: `Emití facturas electrónicas desde el celu y mandalas a ARCA para su autorización. ${LIMITE_FACTURAS_FACTURITA} gratis por mes, sin tarjeta, para monotributistas y comercios chicos.`,
   generator: "Gestión Studio Grow",
   openGraph: {
-    title: "Facturita — facturá desde el celu, sin vueltas",
+    title: "Factoque — facturá desde el celu, sin vueltas",
     description: `${LIMITE_FACTURAS_FACTURITA} facturas gratis por mes, sin tarjeta. Si sos monotributista, sin saber de letras ni alícuotas.`,
     locale: "es_AR",
     type: "website",
     images: [
-      { url: OG_IMAGEN, width: 1200, height: 630, type: "image/webp", alt: "Facturita: facturá desde el celu, sin vueltas" },
+      { url: OG_IMAGEN, width: 1200, height: 630, type: "image/webp", alt: "Factoque: facturá desde el celu, sin vueltas" },
     ],
   },
   twitter: { card: "summary_large_image" },
@@ -64,7 +64,7 @@ const PREGUNTAS = [
   },
   {
     p: "¿Sirve si soy responsable inscripto?",
-    r: "Sí, para la Factura B: a consumidores finales y a exentos, con la alícuota que elijas (21, 10,5 o 27 %), una por factura. La Factura A (a otro inscripto o a un monotributista) todavía no sale desde Facturita: esa hacela desde ARCA por ahora.",
+    r: "Sí, para la Factura B: a consumidores finales y a exentos, con la alícuota que elijas (21, 10,5 o 27 %), una por factura. La Factura A (a otro inscripto o a un monotributista) todavía no sale desde Factoque: esa hacela desde ARCA por ahora.",
   },
   {
     p: "¿Puedo cobrar con Mercado Pago o subir el extracto del banco?",
@@ -96,7 +96,7 @@ export default function FacturitaLanding() {
               Facturá desde el celu, sin vueltas. <em>Gratis.</em>
             </h1>
             <p className="fx-lead">
-              Facturita es un emisor de facturas electrónicas que se usa desde el celu, sin instalar programas y con{" "}
+              Factoque es un emisor de facturas electrónicas que se usa desde el celu, sin instalar programas y con{" "}
               {LIMITE_FACTURAS_FACTURITA} facturas por mes sin pagar un peso. Si sos monotributista, no tenés que saber de
               letras ni alícuotas; si sos inscripto, elegís la alícuota y cómo está inscripto tu comprador.
             </p>

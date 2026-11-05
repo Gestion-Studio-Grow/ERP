@@ -16,7 +16,7 @@ import { PIEL_RENGLON } from "@/lib/diseno/diseno";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
 
 export const metadata: Metadata = {
-  title: "Facturita",
+  title: "Factoque",
   robots: { index: false, follow: false },
   // Sello GSG: el negocio conserva su marca; GSG firma como generador, discreto.
   generator: "Gestión Studio Grow",
@@ -39,7 +39,7 @@ export default async function FacturitaLayout({ children }: { children: React.Re
   const preset = (await getTeamAccentPreset()) ?? identidad?.acento ?? brand.preset;
   const accentLight = resolveAccent(preset, "light");
   const accentDark = resolveAccent(preset, "dark");
-  const nombreProducto = identidad?.nombre ?? brand.name ?? "Facturita";
+  const nombreProducto = identidad?.nombre ?? brand.name ?? "Factoque";
   const nuevo = await disenoP;
 
   return (

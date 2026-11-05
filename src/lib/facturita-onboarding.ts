@@ -205,7 +205,7 @@ export function mensajeActivacion(d: DatosAlta): string {
   const pv = d.sinPuntoVenta ? null : validarPuntoVenta(d.puntoVenta);
   const condicion = esCondicionIva(d.condicion) ? opcionCondicion(d.condicion).nombre : "a confirmar";
   return [
-    "¡Hola! Quiero activar mi Facturita gratis.",
+    "¡Hola! Quiero activar mi Factoque gratis.",
     `Nombre: ${d.nombre.trim()}`,
     `CUIT: ${cuit.ok ? cuit.formateado : d.cuit.trim()}`,
     `Condición frente al IVA: ${condicion}`,
