@@ -15,7 +15,7 @@ import {
 import RegistrarServiceWorker from "./RegistrarServiceWorker";
 
 export const metadata: Metadata = {
-  applicationName: "Facturita",
+  applicationName: "Factoque",
   manifest: MANIFEST_FACTURITA_URL,
   // Sello GSG (bloque 2 del Gate): firma como generador, discreto; la marca visible es Facturita.
   generator: "Gestión Studio Grow",
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: APPLE_TOUCH_ICON_FACTURITA, sizes: "180x180" }],
   },
-  appleWebApp: { capable: true, title: "Facturita", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Factoque", statusBarStyle: "default" },
   formatDetection: { telephone: false },
 };
 
