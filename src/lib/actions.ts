@@ -76,14 +76,18 @@ import {
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay, type DayKey } from "@/lib/caja/cierre-diario";
 import { isColumnMissing } from "@/lib/prisma-errors";
+import { getCurrentUser } from "@/lib/session";
+import { FUERA_DE_RESERVA_ONLINE, profesionalesFueraDeReservaOnline, sinLasDeFuera } from "@/lib/permisos/reserva-online";
 import {
   buscarFichaPorTelefono,
   entradaAuditoriaEmpate,
   resumirFichasParaAlta,
+  enmascararFichasParaAlta,
   type FichaEncontrada,
   type FichaParaAlta,
 } from "@/lib/clientes/ficha-por-telefono";
 import { diaSiguiente, rangoDelDia, textoRecordatorio } from "@/lib/turnos/turno-abierto";
+import { contactoOculto } from "@/lib/clientes/telefono";
 import { cancelarTurnoVivo, whereTurnosDeManana, whereTurnosDelDia } from "@/lib/crm/wheres";
 import { Prisma } from "@/generated/prisma/client";
 import { importeONaN } from "@/lib/dinero/leer";
@@ -96,7 +100,15 @@ import {
   getDemoOwnerPanelData,
 } from "@/lib/demo-sandbox";
 
-export async function getProfessionalsWithServices() {
+// `reservaOnline: true` (sólo los caminos PÚBLICOS: /reserva, el turnero del taller) saca a las
+// profesionales con la casilla 1 apagada (PLAN permisos §3). La agenda interna y «Dar turno» no lo pasan.
+export async function getProfessionalsWithServices(opciones?: { reservaOnline?: boolean }) {
+  const lista = await profesionalesConServicios();
+  if (!opciones?.reservaOnline) return lista;
+  return sinLasDeFuera(lista, await profesionalesFueraDeReservaOnline(await getCurrentTenantId()));
+}
+
+async function profesionalesConServicios() {
   const args = {
     where: { active: true, deletedAt: null },
     include: { services: { where: { active: true, deletedAt: null } }, box: true },
@@ -138,6 +150,19 @@ export async function getAvailableSlots(
   return byDay[date] ?? [];
 }
 
+async function huecosVisiblesParaQuienPregunta(professionalId: string): Promise<boolean> {
+  const fuera = await profesionalesFueraDeReservaOnline(await getCurrentTenantId());
+  if (!fuera.has(professionalId)) return true;
+  const user = await getCurrentUser();
+  return user !== null && permisoEfectivo(user, "agenda:read");
+}
+
+/** Reservar online (público): rechaza a la profesional con la casilla 1 apagada. `null` = puede. */
+async function rechazoDeReservaOnline(professionalId: string): Promise<string | null> {
+  const fuera = await profesionalesFueraDeReservaOnline(await getCurrentTenantId());
+  return fuera.has(professionalId) ? FUERA_DE_RESERVA_ONLINE : null;
+}
+
 // Franjas libres de VARIOS días de una sola pasada (perf ADR-023 F-agenda).
 // El calendario del funnel de reserva precalienta 14 días de golpe: hacerlo con
 // `getAvailableSlots` por día disparaba ~7 queries × 14 = ~100 round-trips a Neon
@@ -154,6 +179,12 @@ export async function getAvailableSlotsRange(
   const result: Record<string, string[]> = {};
   const uniqueDates = [...new Set(dates)];
   if (uniqueDates.length === 0) return result;
+  // Casilla 1 (PLAN permisos §3): a una profesional fuera de la reserva online el público no le ve
+  // huecos. El equipo (con `agenda:read`) sí: la grilla y «Dar turno» usan este mismo motor.
+  if (!(await huecosVisiblesParaQuienPregunta(professionalId))) {
+    for (const date of uniqueDates) result[date] = [];
+    return result;
+  }
 
   // Datos compartidos por TODOS los días: no cambian de una fecha a otra, así que
   // se leen una sola vez (antes se re-leían por día). Los horarios del profesional
@@ -512,6 +543,9 @@ export async function createAppointment(formData: FormData): Promise<ResultadoAc
 
   let appointmentId: string;
   try {
+    // Casilla 1: antes de crear la ficha, así un rechazo no deja una clienta suelta.
+    const fuera = await rechazoDeReservaOnline(professionalId);
+    if (fuera) return { ok: false, error: fuera };
     const ficha = await fichaDeReservaPublica({
       name: clientName,
       phone: clientPhone,
@@ -641,9 +675,11 @@ export const getPublicBookingData = cache(async () => {
       groups.push({ id: "otros", name: "Otros servicios", services: uncategorized });
     }
 
+    // Casilla 1 (PLAN permisos §3): la vidriera pública no ofrece a quien no toma turnos online.
+    const fuera = await profesionalesFueraDeReservaOnline(await getCurrentTenantId());
     return {
       groups,
-      professionals: professionals.map((p) => ({
+      professionals: sinLasDeFuera(professionals, fuera).map((p) => ({
         id: p.id,
         name: p.name,
         boxName: p.box?.name ?? null,
@@ -707,6 +743,8 @@ export async function createBookingFromModal(input: {
 
   // DEVUELVE el rechazo en vez de tirarlo (UAT 16/10, B7), igual que createAppointment.
   try {
+    const fuera = await rechazoDeReservaOnline(input.professionalId);
+    if (fuera) return { ok: false, error: fuera };
     const ficha = await fichaDeReservaPublica({
       name: clientName,
       phone: clientPhone,
@@ -844,7 +882,17 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
   // Acá, a diferencia de la reserva pública, la ficha SÍ se actualiza con "cliente de la
   // zona": lo marca la recepción, con sesión y auditoría, como siempre.
   const tenantId = await getCurrentTenantId();
-  const encontrada = await buscarFichaPorTelefono(prisma, tenantId, clientPhone);
+  // Sin `clients:contact` (casilla 5) el alta recibe el teléfono enmascarado («•••• 4821»): no sirve
+  // para buscar ni para grabar. Ahí la ficha se ata por el id elegido de la lista (del negocio), y
+  // sin id no se da el turno: nunca se crea una ficha con la máscara como teléfono (QA vuelta 2).
+  let encontrada: { id: string; empate?: FichaEncontrada["empate"] } | null;
+  if (contactoOculto(clientPhone)) {
+    const elegida = String(formData.get("clientId") || "");
+    encontrada = elegida ? await prisma.client.findFirst({ where: { id: elegida, tenantId }, select: { id: true } }) : null;
+    if (!encontrada) return { ok: false, error: "Elegí a la clienta de la lista: no tenés permiso para ver su teléfono." };
+  } else {
+    encontrada = await buscarFichaPorTelefono(prisma, tenantId, clientPhone);
+  }
   let client = encontrada
     ? await prisma.client.findFirst({ where: { id: encontrada.id, tenantId } })
     : null;
@@ -2317,7 +2365,7 @@ const FICHAS_ALTA_RANGO_DIAS = 365;
 
 export async function getFichasParaAlta(): Promise<FichaParaAlta[]> {
   // Sirven al alta (casilla 2) y a la lista de gestión (casilla 3).
-  await requireAlgunaCapability(["agenda:create", "agenda:manage"]);
+  const user = await requireAlgunaCapability(["agenda:create", "agenda:manage"]);
   if (isDemoSandbox()) return [];
   const tenantId = await getCurrentTenantId();
   const desde = new Date(Date.now() - FICHAS_ALTA_RANGO_DIAS * 24 * 60 * 60 * 1000);
@@ -2350,7 +2398,8 @@ export async function getFichasParaAlta(): Promise<FichaParaAlta[]> {
     }),
   ]);
   const cobros = await cobrosDetalladosPorTurno(prisma, tenantId, completados.map((a) => a.id));
-  return resumirFichasParaAlta(
+  // Sin `clients:contact` (casilla 5) el teléfono sale enmascarado del SERVIDOR (QA vuelta 2).
+  return enmascararFichasParaAlta(resumirFichasParaAlta(
     clientes,
     completados.map((a) => ({
       clientId: a.clientId,
@@ -2362,7 +2411,7 @@ export async function getFichasParaAlta(): Promise<FichaParaAlta[]> {
       cobros: cobros.get(a.id) ?? [],
       pagoLegado: a.payment,
     })),
-  );
+  ), user);
 }
 
 // ── "Mañana: confirmar" (/admin/turnos) ──────────────────────────────────────

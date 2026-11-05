@@ -26,7 +26,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { validarCuit } from "@/lib/fiscal/cuit";
 import { DOC_TIPO } from "@/lib/fiscal/decidir-comprobante";
 import { cambiosDeFicha, validarFichaFiscal, type FichaFiscal } from "@/lib/fiscal/ficha-fiscal";
-import { normalizarTelefono } from "./telefono";
+import { normalizarTelefono, ultimosCuatroBuscados } from "./telefono";
 import { crearFichaEnTx } from "./crear-ficha";
 import { isValidArgentinePhone } from "@/lib/contact-validation";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
@@ -185,7 +185,13 @@ export function ordenarEncontrados(
  * tipeó («11 5555-1234»), así que un `contains` sobre el texto no lo encuentra. Mismo criterio
  * que crear-ficha.ts; el `tenantId` va a mano además de RLS.
  */
-export async function buscarClientesParaVentaEnTx(tx: Tx, tenantId: string, crudo: string): Promise<ClienteEncontrado[]> {
+export async function buscarClientesParaVentaEnTx(
+  tx: Tx,
+  tenantId: string,
+  crudo: string,
+  // Sin `clients:contact` (casilla 5): por teléfono sólo los últimos 4 completos, nunca un tramo del medio.
+  veContacto = true,
+): Promise<ClienteEncontrado[]> {
   const q = textoParaBuscar(crudo);
   if (!q.ok || !tenantId) return [];
   const { texto, digitos } = q;
@@ -214,10 +220,13 @@ export async function buscarClientesParaVentaEnTx(tx: Tx, tenantId: string, crud
     : [];
 
   let porTelefono: FilaEncontrada[] = [];
-  if (conDigitos) {
+  const cuatro = veContacto ? null : ultimosCuatroBuscados(crudo);
+  if (veContacto ? conDigitos : cuatro !== null) {
     // Lo escrito puede venir con +54, 0 o 15: se compara también la clave normalizada.
     const clave = normalizarTelefono(digitos);
-    const patrones = [...new Set([digitos, clave].filter((p) => p.length >= MINIMO_PARA_BUSCAR))].map((p) => `%${p}%`);
+    const patrones = cuatro
+      ? [`%${cuatro}`]
+      : [...new Set([digitos, clave].filter((p) => p.length >= MINIMO_PARA_BUSCAR))].map((p) => `%${p}%`);
     const ids = new Set<string>();
     for (const patron of patrones) {
       const filas = await tx.$queryRaw<{ id: string }[]>`

@@ -106,6 +106,11 @@ export type AltaParaMandar = {
   inicio: string;
   nombre: string;
   telefono: string;
+  /**
+   * La ficha elegida de la lista, si hay. Viaja para que el servidor ate el turno por id: sin
+   * `clients:contact` el teléfono llega enmascarado («•••• 4821») y no sirve para encontrarla.
+   */
+  clienteId?: string | null;
   deLaZona: boolean;
   /**
    * Lo que dice la ficha precargada de «De la zona» (`null` = no hay ficha precargada o nunca se le
@@ -132,6 +137,7 @@ export function camposDelAlta(a: AltaParaMandar): Campos {
     ["clientName", a.nombre.trim()],
     ["clientPhone", a.telefono.trim()],
   ];
+  if (a.clienteId) c.push(["clientId", a.clienteId]);
   // «De la zona»: tildado viaja «on»; destildado SÓLO viaja («off») si la ficha decía que sí, porque
   // ahí hubo una decisión. Sin tocarlo no viaja y el servidor no le toca la ficha (O-5: null ≠ false).
   if (a.deLaZona) c.push(["isResident", "on"]);
@@ -142,6 +148,15 @@ export function camposDelAlta(a: AltaParaMandar): Campos {
   }
   c.push(["status", a.estado], ["notes", a.notas]);
   return c;
+}
+
+/**
+ * A quién se le puede dar un turno desde «Dar turno». Una PROFESSIONAL (la matriz le prendió agendar)
+ * ve sólo su ficha —con sus servicios y sus horarios—; sin ficha, a nadie. El servidor igual lo
+ * rechaza (`motivoSoloLoSuyo`): esto es no ofrecerle lo que no puede hacer (QA vuelta 2).
+ */
+export function profesionalesParaDarTurno<T extends { id: string }>(lista: readonly T[], viewer: { role: string; professionalId: string | null }): T[] {
+  return viewer.role === "PROFESSIONAL" ? lista.filter((p) => p.id === viewer.professionalId) : [...lista];
 }
 
 /** ¿Qué falta para poder dar el turno? (en el orden de la llamada). `null` = nada. */

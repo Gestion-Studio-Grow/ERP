@@ -97,10 +97,13 @@ export default async function CajaPage() {
   const cobrarVenta = dia.yaCerrado ? null : enlaceCobrarUnaVenta(slug, user.role);
   // Una productora cobra proyectos: ni turnos ni mostrador.
   const conProyectos = appDelPanelCerrado(negocio)?.id === "proyectos";
+  // Cargar un movimiento suelto es la casilla 8 (`cash:manage`); sin ella el servidor lo rechaza, así
+  // que ni se ofrece (QA vuelta 2).
+  const puedeCargar = permisoEfectivo(user, "cash:manage");
 
   // DISEÑO NUEVO («Renglón»): los mismos datos, ordenados para quien pasa el día acá.
   // La regla del arqueo, sólo donde hay cajón (el mostrador; CH no la ve): reglas-a-la-vista.ts.
-  if (nuevo) return <CajaRenglon dia={dia} caja={caja} regla={reglaALaVista("caja", caja !== null)} cobrarVenta={cobrarVenta} />;
+  if (nuevo) return <CajaRenglon dia={dia} caja={caja} regla={reglaALaVista("caja", caja !== null)} cobrarVenta={cobrarVenta} puedeCargar={puedeCargar} />;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
@@ -118,7 +121,7 @@ export default async function CajaPage() {
 
       <ResumenDelDia dia={dia} />
 
-      {!dia.yaCerrado && <MovimientoSuelto dia={dia.day} conProyectos={conProyectos} esMostrador={caja !== null} />}
+      {!dia.yaCerrado && puedeCargar && <MovimientoSuelto dia={dia.day} conProyectos={conProyectos} esMostrador={caja !== null} />}
 
       {caja && <TurnoDeCajero caja={caja} diaCerrado={dia.yaCerrado} />}
     </main>

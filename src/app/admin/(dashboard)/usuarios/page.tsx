@@ -72,7 +72,6 @@ export default async function UsuariosPage({
           role: u.role,
           professionalId: u.professionalId,
           overrides: datos.overrides.get(u.id) ?? [],
-          fichaActiva: u.professionalId ? (datos.fichaActiva.get(u.professionalId) ?? null) : null,
         })),
       user.id,
       esMostrador,

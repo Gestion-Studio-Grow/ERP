@@ -17,6 +17,7 @@ import { fechaPropuestaDelAlta } from "@/lib/turnos/practica";
 import AgendaRenglon from "../AgendaRenglon";
 import { enlaceCobrarUnaVenta } from "../../pedidos/cobrar-una-venta";
 import DarTurnoCajon from "../_agenda/DarTurnoCajon";
+import { profesionalesParaDarTurno } from "../_agenda/alta-core";
 import { buttonClasses } from "@/components/ui";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { contarSinCerrarDeQuienMira } from "@/lib/turnos/sin-cerrar.server";
@@ -153,7 +154,7 @@ export default async function TurnosListaPage({
         vista="lista"
         alta={
           <DarTurnoCajon
-            profesionales={profesionales}
+            profesionales={profesionalesParaDarTurno(profesionales, viewer)}
             fichas={fichasAlta}
             faltazos={faltazosAlta}
             hoy={hoy}

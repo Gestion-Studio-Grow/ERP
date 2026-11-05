@@ -161,3 +161,37 @@ export function enmascararContacto<T extends { phone?: string | null; email?: st
   if ("email" in ficha) out.email = enmascararEmail(ficha.email) as T["email"];
   return out;
 }
+
+// ── Contacto oculto ≠ teléfono mal cargado (QA vuelta 2, M3) ─────────────────────────────────
+//
+// Un «•••• 4821» no arma WhatsApp, pero NO es un celular inválido: está oculto por la casilla 5. Las
+// pantallas que avisan «no es un celular válido, corregilo» preguntan esto primero y, si está oculto,
+// dicen por qué sin mandar a corregir una ficha que la persona no puede ver (sin callejón).
+
+export const SIN_PERMISO_DE_CONTACTO = "No tenés permiso para ver el contacto";
+export const AVISO_CONTACTO_OCULTO = `${SIN_PERMISO_DE_CONTACTO}: el WhatsApp se lo manda quien sí lo ve.`;
+
+/** ¿El teléfono llegó enmascarado por permisos (y no mal cargado)? */
+export function contactoOculto(phone: string | null | undefined): boolean {
+  return String(phone ?? "").includes(MASCARA);
+}
+
+// ── Buscar por teléfono sin `clients:contact` (QA vuelta 2, M4) ──────────────────────────────
+//
+// Quien no ve el contacto puede encontrar a una clienta por nombre o por los ÚLTIMOS 4 dígitos
+// completos (los mismos que le muestra la máscara). Nunca por un tramo del medio: tipeando «5551234»
+// e ir viendo quién aparece se reconstruye el número entero (el oráculo que encontró el QA).
+
+/** Los 4 dígitos que se pueden buscar sin permiso, si lo tipeado es exactamente eso; si no, `null`. */
+export function ultimosCuatroBuscados(texto: string | null | undefined): string | null {
+  const t = String(texto ?? "").trim();
+  if (!/^[\d\s.\-]+$/.test(t)) return null;
+  const d = t.replace(/\D/g, "");
+  return d.length === 4 ? d : null;
+}
+
+/** ¿Este teléfono aparece en la búsqueda de quien NO ve el contacto? Sólo si termina en esos 4. */
+export function coincideSinVerContacto(phone: string | null | undefined, texto: string): boolean {
+  const cuatro = ultimosCuatroBuscados(texto);
+  return cuatro !== null && String(phone ?? "").replace(/\D/g, "").endsWith(cuatro);
+}

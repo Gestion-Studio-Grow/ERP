@@ -2,11 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { armarMatriz, BLOQUEOS, COLUMNAS, textoPorRol, valorParaGrabar, type UsuarioDeLaMatriz } from "./matriz-core";
 
-const caro: UsuarioDeLaMatriz = { id: "u-caro", name: "Caro", role: "OWNER", professionalId: null, overrides: [], fichaActiva: null };
-const socio: UsuarioDeLaMatriz = { id: "u-socio", name: "Socio", role: "OWNER", professionalId: null, overrides: [], fichaActiva: null };
-const rocio: UsuarioDeLaMatriz = { id: "u-rocio", name: "Rocío", role: "RECEPTION", professionalId: null, overrides: [], fichaActiva: null };
-const lu: UsuarioDeLaMatriz = { id: "u-lu", name: "Lu", role: "PROFESSIONAL", professionalId: "p-lu", overrides: [], fichaActiva: true };
-const sinFicha: UsuarioDeLaMatriz = { id: "u-sf", name: "Nueva", role: "PROFESSIONAL", professionalId: null, overrides: [], fichaActiva: null };
+const caro: UsuarioDeLaMatriz = { id: "u-caro", name: "Caro", role: "OWNER", professionalId: null, overrides: [] };
+const socio: UsuarioDeLaMatriz = { id: "u-socio", name: "Socio", role: "OWNER", professionalId: null, overrides: [] };
+const rocio: UsuarioDeLaMatriz = { id: "u-rocio", name: "Rocío", role: "RECEPTION", professionalId: null, overrides: [] };
+const lu: UsuarioDeLaMatriz = { id: "u-lu", name: "Lu", role: "PROFESSIONAL", professionalId: "p-lu", overrides: [] };
+const sinFicha: UsuarioDeLaMatriz = { id: "u-sf", name: "Nueva", role: "PROFESSIONAL", professionalId: null, overrides: [] };
 
 const celda = (m: ReturnType<typeof armarMatriz>, userId: string, clave: string) => {
   const i = m.columnas.findIndex((c) => c.clave === clave);
@@ -61,14 +61,19 @@ test("la propia fila y la de otro socio no se tocan", () => {
   assert.equal(celda(armarMatriz([rocio], rocio.id, false), rocio.id, "caja").bloqueo, BLOQUEOS.propia);
 });
 
-test("casilla 1: sólo con ficha vinculada, y vale lo que dice la ficha (no el rol)", () => {
+test("casilla 1: es `booking:online` (no la ficha): por rol sí, la excepción la apaga; sin ficha no se toca", () => {
   const m = armarMatriz([caro, lu, { ...sinFicha }, rocio], caro.id, false);
-  assert.deepEqual(celda(m, lu.id, "reserva-online"), { clave: "reserva-online", valor: true, porRol: null, excepcion: false, bloqueo: null });
+  assert.equal(COLUMNAS[0].capacidades[0], "booking:online");
+  assert.deepEqual(celda(m, lu.id, "reserva-online"), { clave: "reserva-online", valor: true, porRol: true, excepcion: false, bloqueo: null });
   assert.equal(celda(m, sinFicha.id, "reserva-online").bloqueo, BLOQUEOS.sinFicha);
   assert.equal(celda(m, rocio.id, "reserva-online").bloqueo, BLOQUEOS.sinFicha);
-  const apagada = armarMatriz([{ ...lu, fichaActiva: false }], caro.id, false);
-  assert.equal(celda(apagada, lu.id, "reserva-online").valor, false);
-  assert.equal(textoPorRol(celda(apagada, lu.id, "reserva-online")), null);
+  const apagada = armarMatriz([{ ...lu, overrides: [{ capability: "booking:online", allowed: false }] }], caro.id, false);
+  assert.deepEqual(celda(apagada, lu.id, "reserva-online"), { clave: "reserva-online", valor: false, porRol: true, excepcion: true, bloqueo: null });
+  assert.equal(textoPorRol(celda(apagada, lu.id, "reserva-online")), "Por rol: sí");
+  assert.equal(valorParaGrabar(celda(apagada, lu.id, "reserva-online"), true), "default");
+  // Una excepción vieja sin ficha se puede devolver al rol.
+  const viejaSinFicha = armarMatriz([{ ...sinFicha, overrides: [{ capability: "booking:online", allowed: false }] }], caro.id, false);
+  assert.equal(celda(viejaSinFicha, sinFicha.id, "reserva-online").bloqueo, null);
 });
 
 test("casilla 7: siempre deshabilitada, «próximamente», y en no", () => {

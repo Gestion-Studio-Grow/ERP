@@ -30,6 +30,7 @@ import { darTurno, libresAhora } from "@/lib/turnos/alta-actions";
 import { Button, Chip, Input, Marca, Plata, Seccion, Textarea } from "@/components/ui";
 import { fmtTime } from "@/lib/datetime";
 import { alCambiarTelefono, alElegirFicha, DATOS_CLIENTA_VACIOS, fichaParaTelefono, type FichaParaAlta } from "@/lib/clientes/ficha-por-telefono";
+import { contactoOculto } from "@/lib/clientes/telefono";
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { seniaDelServicio, type MetodoDePago } from "@/lib/turnos/cobros";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
@@ -134,7 +135,7 @@ export default function AltaDeTurno({
   const [cupon, setCupon] = useState("");
   const [notas, setNotas] = useState("");
   const [error, setError] = useState("");
-  const [listo, setListo] = useState<{ resumen: string; estado: string; tecla: string; wa: string | null; dia: string; id: string | null } | null>(null);
+  const [listo, setListo] = useState<{ resumen: string; estado: string; tecla: string; wa: string | null; dia: string; id: string | null; oculto: boolean } | null>(null);
   const [buscando, empezarBusqueda] = useTransition();
   const [enviando, empezarEnvio] = useTransition();
 
@@ -334,6 +335,7 @@ export default function AltaDeTurno({
       inicio,
       nombre,
       telefono,
+      clienteId: ficha?.id ?? null,
       deLaZona: datos.vecina,
       deLaZonaDeLaFicha: datos.precarga?.vecina ?? null,
       cupon,
@@ -377,6 +379,7 @@ export default function AltaDeTurno({
         });
         setListo({
           ...l,
+          oculto: contactoOculto(telefono),
           resumen: `${nombre} · ${nombreRelativo(diaDelTurno, hoy) ?? fechaCorta(diaDelTurno)} · ${fmtTime(inicio)} · ${profesional.name} · ${servicio.name} ${servicio.durationMin}′`,
           dia: diaDelTurno,
           id: r.id,
@@ -394,6 +397,7 @@ export default function AltaDeTurno({
         estado={listo.estado}
         tecla={listo.tecla}
         wa={listo.wa}
+        contactoOculto={listo.oculto}
         onOtro={reiniciar}
         onVerAgenda={() => onListo({ dia: listo.dia, turnoId: listo.id, ahora: false })}
       />

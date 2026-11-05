@@ -1,5 +1,5 @@
 // Lo que la matriz de permisos necesita leer además de `getUsers`: las excepciones grabadas de cada
-// persona y si su ficha de profesional está activa (casilla 1). SERVIDOR, sólo con `users:manage`.
+// persona (las 8 casillas, la 1 incluida: `booking:online`). SERVIDOR, sólo con `users:manage`.
 //
 // Las excepciones viven en `UserPermissionOverride` (Bloque A, migración SIN aplicar: Gate 2). Se
 // leen con SQL crudo dentro de `tenantTransaction` (RLS) y con `"tenantId"` explícito, para no
@@ -9,7 +9,6 @@
 
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
-import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -25,7 +24,6 @@ function faltaLaTabla(e: unknown): boolean {
 
 export type DatosDeLaMatriz = {
   overrides: Map<string, PermisoOverride[]>;
-  fichaActiva: Map<string, boolean>;
   /** `false` = la tabla de excepciones todavía no está en la base: la matriz se ve, pero no graba. */
   conTabla: boolean;
 };
@@ -33,9 +31,6 @@ export type DatosDeLaMatriz = {
 export async function cargarDatosDeLaMatriz(): Promise<DatosDeLaMatriz> {
   await requireCapability("users:manage");
   const tenantId = await getCurrentTenantId();
-
-  const fichas = await prisma.professional.findMany({ where: { tenantId, deletedAt: null }, select: { id: true, active: true } });
-  const fichaActiva = new Map(fichas.map((f) => [f.id, f.active]));
 
   const overrides = new Map<string, PermisoOverride[]>();
   try {
@@ -51,10 +46,10 @@ export async function cargarDatosDeLaMatriz(): Promise<DatosDeLaMatriz> {
       lista.push({ capability: f.capability, allowed: f.allowed });
       overrides.set(f.userId, lista);
     }
-    return { overrides, fichaActiva, conTabla: true };
+    return { overrides, conTabla: true };
   } catch (e) {
     if (!faltaLaTabla(e)) throw e;
     logger.warn("permisos", "la tabla UserPermissionOverride no está en la base: rige el rol");
-    return { overrides, fichaActiva, conTabla: false };
+    return { overrides, conTabla: false };
   }
 }

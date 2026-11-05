@@ -13,6 +13,11 @@ export type Role = "OWNER" | "RECEPTION" | "PROFESSIONAL";
 export type Capability =
   | "dashboard:read"
   | "agenda:read"
+  // Aparecer en la reserva online (casilla 1 de la matriz). NO es `Professional.active`: apagarla saca a
+  // la profesional de `/reserva` y del modal público, pero sigue en la grilla y en «Dar turno». Todos
+  // los roles la traen prendida; sólo tiene efecto con ficha vinculada. Se aplica en los caminos públicos
+  // con `profesionalesFueraDeReservaOnline` (src/lib/permisos/reserva-online.ts).
+  | "booking:online"
   | "agenda:manage" // mover/reprogramar/cancelar/editar turnos
   // Crear un turno (casilla 2 de la matriz de permisos). Separada de `agenda:manage` (05/11/2026):
   // agendar y editar son dos casillas distintas. Sólo la exigen las acciones que CREAN un turno.
@@ -123,6 +128,7 @@ const NO_SON_DEL_DUENIO = {
 const DEL_DUENIO: Record<Exclude<Capability, keyof typeof NO_SON_DEL_DUENIO>, true> = {
   "dashboard:read": true,
   "agenda:read": true,
+  "booking:online": true,
   "agenda:manage": true,
   "agenda:create": true,
   "agenda:complete": true,
@@ -186,6 +192,7 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
   RECEPTION: [
     "dashboard:read",
     "agenda:read",
+    "booking:online",
     "agenda:manage",
     "agenda:create",
     "agenda:complete",
@@ -219,7 +226,7 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
   // El profesional ve y cierra SU agenda, y cobra SUS turnos (decisión del dueño: cobra y
   // rinde la comisión después). No puede crear, cancelar ni reprogramar: eso es
   // `agenda:manage`, y sigue siendo de OWNER y RECEPCIÓN.
-  PROFESSIONAL: ["agenda:read", "agenda:complete", "agenda:collect"],
+  PROFESSIONAL: ["agenda:read", "booking:online", "agenda:complete", "agenda:collect"],
 };
 
 export function roleHasCapability(role: Role, cap: Capability): boolean {
@@ -234,11 +241,12 @@ export function roleHasCapability(role: Role, cap: Capability): boolean {
 // `capabilities.test.ts`).
 
 /**
- * Capacidades que la matriz puede prender o apagar por usuario (casillas 2–6 y 8). CANDADO: un
+ * Capacidades que la matriz puede prender o apagar por usuario (casillas 1–6 y 8). CANDADO: un
  * override de cualquier otra capability se IGNORA, así nadie se prende `users:manage` ni
  * `agenda:void` por la base. `payments:own-account` (casilla 7) queda fuera: «próximamente».
  */
 export const CAPACIDADES_POR_USUARIO: readonly Capability[] = [
+  "booking:online",
   "agenda:create",
   "agenda:manage",
   "agenda:collect",

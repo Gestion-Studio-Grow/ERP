@@ -15,7 +15,7 @@ Rama `claude/matriz-permisos` · planificado en Fable 5/11/2026 · ejecuta Opus.
 ## 3. Casilla → capacidad y default por rol (3×8)
 | # | Casilla | Capability | OWNER | RECEPTION | PROFESSIONAL |
 |---|---|---|---|---|---|
-| 1 | Disponible para reserva online | `Professional.active` (no es capability; ver §6) | — | — | sí |
+| 1 | Disponible para reserva online | `booking:online` (excepción en `UserPermissionOverride`; ver §6) | sí* | sí* | sí |
 | 2 | Agendar turnos en su agenda | **nueva** `agenda:create` (sólo las acciones que CREAN turno) | sí | sí | no |
 | 3 | Editar turnos en su agenda | `agenda:manage` (mover/reprogramar/cancelar/editar) | sí | sí | no |
 | 4 | Cargar cobranzas en sus turnos | `agenda:collect` | sí | sí | sí |
@@ -35,7 +35,7 @@ Decisión del orquestador (05/11): 2 y 3 van separadas desde la tanda 1 — dos 
 Hoy el scoping es `if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId)` repetido en `actions.ts:1234/1909/1963/2123` y `cobro-actions.ts:120` (`soloLoSuyo`). Se centraliza: `soloLoSuyo` se mueve a `src/lib/authz.ts` y se usa en todas las acciones de `agenda:manage` también (crear `:787`, mover `:1487`, cancelar `:1076`). Regla: un PROFESSIONAL con la casilla 2/3 prendida crea/mueve/cancela **sólo** turnos con `professionalId === user.professionalId`; sin `professionalId` vinculado la casilla no se puede prender (la pantalla lo dice y la acción lo rechaza). El loader `agenda.server.ts` ya filtra la agenda del profesional.
 
 ## 6. Casilla 1: reserva online
-Es `Professional.active` (ya existe) leído por `getProfessionalsWithServices` (`src/lib/actions.ts:99`, filtra `active: true`) y por `src/app/(site)/reserva/page.tsx:26`. La matriz muestra la casilla para usuarios con `professionalId` y llama `toggleProfessionalActive` (`catalog-actions.ts:558`) con auditoría. Coordinación con `claude/link-servicio-redes` (rama no está en este clon): los links de servicio/redes deben leer el mismo `active` y no listar al profesional apagado; se anota en el PR, no se duplica dato.
+Decisión (QA vuelta 2, 05/11): NO es `Professional.active` —apagarla sacaba a la profesional de la grilla y de «Dar turno» con turnos confirmados—. Es la capability `booking:online` (default sí en los tres roles; *sólo tiene efecto con ficha vinculada), grabada como excepción en `UserPermissionOverride`, sin columna nueva. La aplican SÓLO los caminos públicos vía `profesionalesFueraDeReservaOnline(tenantId): Promise<Set<string>>` (`src/lib/permisos/reserva-online.ts`, tolera la tabla ausente): `/reserva` y el turnero del taller (`getProfessionalsWithServices({ reservaOnline: true })`), la vidriera (`getPublicBookingData`), los huecos sin sesión del equipo (`getAvailableSlotsRange`) y `createAppointment`/`createBookingFromModal`, que la rechazan. La agenda interna y «Dar turno» no cambian. Los links por profesional consumen la misma firma.
 
 ## 7. Casilla 7: tanda aparte
 MP hoy es por negocio (`src/integraciones/conexiones.server.ts:189 crearConexion`). Que la seña vaya a la cuenta del profesional obliga a decidir: a dónde va la plata (no entra a la caja del negocio), cómo se liquida la comisión (`commissionPercent`) y qué pasa con `cobraEnMostrador`. No es chica ni segura → en tanda 1 la casilla aparece **deshabilitada con «próximamente»** y la capability `payments:own-account` existe en el union pero ningún rol la tiene ni la pantalla la graba.

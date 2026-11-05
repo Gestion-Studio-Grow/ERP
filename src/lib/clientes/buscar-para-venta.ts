@@ -60,7 +60,7 @@ export async function buscarClientesParaVenta(texto: string): Promise<ClienteEnc
   const user = await requireCapability("orders:manage");
   if (!textoParaBuscar(texto).ok) return [];
   const tenantId = await getCurrentTenantId();
-  const filas = await tenantTransaction((tx) => buscarClientesParaVentaEnTx(tx, tenantId, String(texto ?? "")), { tenantId });
+  const filas = await tenantTransaction((tx) => buscarClientesParaVentaEnTx(tx, tenantId, String(texto ?? ""), puedeVerContacto(user)), { tenantId });
   return filas.map((f) => conTelefonoSegun(f, user));
 }
 

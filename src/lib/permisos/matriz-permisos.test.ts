@@ -26,7 +26,7 @@ test("defaults 3×8: socio todo; recepción agenda, contacto, stock y caja; prof
     assert.equal(roleHasCapability("RECEPTION", cap), true, cap);
     assert.equal(roleHasCapability("PROFESSIONAL", cap), false, cap);
   }
-  assert.deepEqual([...ROLE_CAPABILITIES.PROFESSIONAL].sort(), ["agenda:collect", "agenda:complete", "agenda:read"]);
+  assert.deepEqual([...ROLE_CAPABILITIES.PROFESSIONAL].sort(), ["agenda:collect", "agenda:complete", "agenda:read", "booking:online"]);
 });
 
 test("payments:own-account existe pero ningún rol la tiene ni la matriz la graba («próximamente»)", () => {
@@ -36,9 +36,9 @@ test("payments:own-account existe pero ningún rol la tiene ni la matriz la grab
   assert.equal(permisoEfectivo(quien("PROFESSIONAL", [{ capability: "payments:own-account", allowed: true }]), "payments:own-account"), false);
 });
 
-test("las casillas son exactamente 2–6 y 8", () => {
+test("las casillas son exactamente 1–6 y 8 (la 1 es `booking:online`, no la ficha)", () => {
   assert.deepEqual([...CAPACIDADES_POR_USUARIO].sort(), [
-    "agenda:collect", "agenda:create", "agenda:manage", "cash:manage", "clients:contact", "stock:adjust", "stock:count", "stock:receive",
+    "agenda:collect", "agenda:create", "agenda:manage", "booking:online", "cash:manage", "clients:contact", "stock:adjust", "stock:count", "stock:receive",
   ]);
 });
 

@@ -27,7 +27,7 @@
 // también es una extensión nueva). Proveedores y comprobantes por número quedan para otra porción.
 
 import { requireUser } from "@/lib/authz";
-import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
+import { enmascararTelefono, puedeVerContacto, ultimosCuatroBuscados } from "@/lib/clientes/telefono";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -72,6 +72,13 @@ export async function buscarEnElNegocio(q: unknown): Promise<ResultadoDeBusqueda
   };
   const { texto, digitos, codigo } = busqueda;
   const veContacto = puedeVerContacto(user);
+  // Sin `clients:contact`: por teléfono, sólo los últimos 4 completos (nunca un tramo del medio).
+  const cuatro = veContacto ? null : ultimosCuatroBuscados(texto);
+  const porTelefono = veContacto
+    ? [{ phone: { contains: texto } }, ...(digitos && digitos.length >= 3 && digitos !== texto ? [{ phone: { contains: digitos } }] : [])]
+    : cuatro
+      ? [{ phone: { endsWith: cuatro } }]
+      : [];
 
   try {
     const leidos = await tenantTransaction(async (tx) => {
@@ -81,8 +88,7 @@ export async function buscarEnElNegocio(q: unknown): Promise<ResultadoDeBusqueda
               where: {
                 OR: [
                   { name: { contains: texto, mode: "insensitive" } },
-                  { phone: { contains: texto } },
-                  ...(digitos && digitos.length >= 3 && digitos !== texto ? [{ phone: { contains: digitos } }] : []),
+                  ...porTelefono,
                 ],
               },
               orderBy: { name: "asc" },
