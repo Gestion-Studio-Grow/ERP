@@ -6,7 +6,9 @@ Pedido del dueño (05/11/2026). CH es cliente vivo en producción: todo lo de ac
 Los vecinos de La Alameda pagan (total o parcialmente) con un **voucher**: número, lote y cliente asociado. CH necesita (1) ver el número en un reporte, (2) exportarlo y (3) que cada voucher cobrado se dé de baja en **OpenKey**, el sistema del barrio, que es la **fuente de la verdad** de qué voucher sigue disponible. La integración corre una vez por día, al cierre.
 
 ## Modelo (migración aditiva, se escribe sin aplicar · Gate 2)
-- **No se agrega `VOUCHER` al enum `PaymentMethod`** (`prisma/schema.prisma:47`): tocar un enum en Neon es irreversible y, además, el voucher *no es plata que entra*: es una cuenta a cobrar a La Alameda/OpenKey [A VALIDAR quién paga]. Sigue el precedente del cupón (`src/lib/actions.ts:382-399`): al aplicarlo, `Appointment.priceAtBooking -= valorCubierto` y `discountAmount += valorCubierto`, nunca por debajo de lo ya cobrado. Así saldo = precio − Σ cobros sigue valiendo sin cambios, y la caja del día no se entera. Lo que el voucher no cubre se cobra con los medios de siempre.
+- **El voucher es un cobro y un medio de pago** (corrección del dueño, 05/11: «se concilia con la liquidación de OpenKey»). Se suma `VOUCHER` a `enum PaymentMethod` (`prisma/schema.prisma:47`), igual que Débito y Crédito: el `ALTER TYPE` es **IRREVERSIBLE**, así que no va en `prisma/migrations/` (el build de Vercel lo aplicaría solo) sino en el paquete `prisma/pending-gate2/CH_voucher_enum.sql`, que aplica el dueño (Gate 2). Hasta entonces el código no escribe `VOUCHER` (`sePuedeEscribirValorEnum`) y la pantalla dice «falta un paso de base de datos».
+- El cobro con voucher es una fila `Collection` (medio `VOUCHER`) por el camino de cobro de turno de siempre: salda el turno, cuenta para comisiones (que restan lo pagado con voucher: `src/lib/comisiones/base.ts`) y **no entra al cajón**: el libro de caja no traduce `VOUCHER` y el cierre del día lo muestra en un renglón propio, «a cobrar a OpenKey». Lo que el voucher no cubre se cobra con los medios de siempre.
+- La plata del voucher entra cuando OpenKey paga su **liquidación**: `Voucher.liquidadoEn`, `montoLiquidado`, `liquidacionRef`.
 - `VoucherLote`: tenantId, numero, fecha, cantidad.
 - `Voucher`: tenantId, numero, loteId, clientId, estado (`String` con CHECK: DISPONIBLE / USADO / ANULADO), appointmentId (**único**), valorCubierto, usadoEn, usadoPor, estadoOpenKey + fechaFotoOpenKey (última foto importada), bajaOpenKeyEn. Unique `(tenantId, numero)`.
 - `VoucherConciliacion`: una fila por corrida (fecha, origen manual/rpa, resumen JSON).
@@ -14,8 +16,8 @@ Los vecinos de La Alameda pagan (total o parcialmente) con un **voucher**: núme
 
 ## Cobro con voucher (y doble uso)
 Desde el turno, con el flag prendido, se ingresa el número. Validaciones, en una sola transacción: el voucher es del tenant, está DISPONIBLE, pertenece **al cliente del turno** y la última foto de OpenKey no lo marca como usado/anulado (si OpenKey dice «usado» y el ERP no lo tiene, **no se puede usar**: OpenKey manda). Voucher de otro cliente o anulado → rechazo con mensaje claro («Este voucher es de otro vecino», «Este voucher ya fue usado en OpenKey»).
-Contra el doble uso: `updateMany where {id, tenantId, estado:'DISPONIBLE', clientId}` y se exige `count === 1`; el `appointmentId` único hace que un segundo voucher no pueda pegarse al mismo turno por error de carrera. Después se ajusta `priceAtBooking`/`discountAmount` en la misma tx.
-**Desaplicar**: anular el uso (con motivo) devuelve `priceAtBooking`/`discountAmount` y deja el voucher DISPONIBLE, **sólo si todavía no tiene `bajaOpenKeyEn`**. Si ya se dio de baja en OpenKey, no se desaplica desde el ERP: se resuelve con La Alameda y se anota.
+Contra el doble uso: `updateMany where {id, tenantId, estado:'DISPONIBLE', clientId}` y se exige `count === 1`; la clave `voucher:<id>` del cobro y el `collectionId` único hacen que el doble clic no cobre dos veces. El cobro y el cambio de estado van en la misma tx, con la frontera del día cerrado (DB-5).
+**Anular**: se anula el cobro por el camino de anulación de siempre y el voucher vuelve a DISPONIBLE, **sólo si todavía no tiene `bajaOpenKeyEn`**. Si ya se dio de baja en OpenKey, no se devuelve desde el ERP: se resuelve con La Alameda y se anota.
 
 ## Reporte y exportación
 Pantalla en el backoffice con el **número de voucher a la vista**, filtros por fecha, lote, cliente y estado, y columnas: número, lote, cliente, turno, fecha de uso, valor cubierto, estado ERP, estado OpenKey, baja en OpenKey. Exportación **CSV con BOM** (abre bien en Excel), mismas columnas y filtros que la pantalla. Es el insumo que CH manda hoy a mano a La Alameda, y lo que la RPA va a automatizar.
@@ -25,6 +27,7 @@ Se compara la foto de OpenKey (importación manual de su CSV/exportación en Tan
 - Usado en ERP y **disponible** en OpenKey → **falta dar de baja** (lo toma la RPA o se hace a mano).
 - Usado en OpenKey **sin cobro** en el ERP → **alerta**: se cobró afuera o se usó mal; lo revisa CH.
 - **Anulado** en OpenKey y usado en el ERP → **alerta**: hay un turno con descuento sin respaldo.
+Y contra la **liquidación** que paga OpenKey (su CSV, columnas provisionales: número, monto, fecha, referencia): cobrado y no liquidado (con antigüedad) · liquidado sin cobro en el ERP · monto liquidado ≠ cobrado.
 Cada corrida queda en `VoucherConciliacion` con el resumen; las alertas se muestran en el reporte.
 
 ## RPA (Tanda 2)
@@ -38,5 +41,5 @@ GitHub Actions programado (cron al cierre) con Playwright, credenciales de OpenK
 - Autorización **escrita** de CH para automatizar su cuenta de OpenKey (es su usuario; sin eso no corre la RPA).
 - Términos de uso de OpenKey: ¿hay API o exportación oficial? Si la hay, reemplaza al scraping. Investigación web (05/11): sería la app «OpenKey Country / OPK Country» de barrios privados (invitaciones, reservas, incidentes); no se encontró API pública, términos ni mención de vouchers, y nada confirma que La Alameda (Nordelta o Canning) la use. Las columnas del CSV de importación son **provisionales a confirmar** con una exportación real.
 - Ley 25.326 (datos de vecinos): se guarda el mínimo necesario (número, lote, cliente ya existente en el ERP); nada más de OpenKey.
-- Quién factura/paga el voucher a CH (La Alameda, el consorcio, el vecino) y con qué frecuencia.
+- Liquidación de OpenKey: frecuencia, formato del archivo (columnas) y si paga por voucher o en un total por período; si viene neta de comisión de OpenKey, el «monto distinto» se calibra con eso.
 - Valor del voucher: ¿precio vecino del servicio, monto fijo por voucher, o según lote?
