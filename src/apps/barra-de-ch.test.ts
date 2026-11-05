@@ -70,3 +70,17 @@ test("recepción de CH (04/11): Agenda primero, sólo el día a día, sin Libro 
   const vis = appsVisibles({ role: "OWNER", contexto: null, modulosAsignados: [], perfil: null, esMostrador: false, carniceriaLista: false });
   assert.deepEqual(rutas(barraDeCH(proyectarMenuDeHoy(vis), vis, "OWNER")), rutas(duenia.barra));
 });
+
+test("profesional de CH (T1 comisiones): «Mi liquidación» detrás de su Agenda; la dueña y la recepción no la reciben", () => {
+  const visibles = appsVisibles({ role: "PROFESSIONAL", contexto: null, modulosAsignados: [], perfil: null, esMostrador: false, carniceriaLista: false });
+  const barra = barraDeCH(proyectarMenuDeHoy(visibles), visibles, "PROFESSIONAL");
+  const r = rutas(barra);
+  assert.equal(r[r.indexOf("/admin/turnos") + 1], "/admin/mis-comisiones");
+  assert.equal(barra.find((i) => i.href === "/admin/mis-comisiones")?.label, "Mi liquidación");
+  assert.ok(!r.includes("/admin/comisiones"), "la de todas sigue siendo de la dueña");
+  for (const href of r) assert.ok(visibles.some((a) => a.ruta === href), `${href}: entrada sin permiso`);
+  for (const role of ["OWNER", "RECEPTION"] as const) {
+    const vis = appsVisibles({ role, contexto: null, modulosAsignados: [], perfil: null, esMostrador: false, carniceriaLista: false });
+    assert.ok(!rutas(barraDeCH(proyectarMenuDeHoy(vis), vis, role)).includes("/admin/mis-comisiones"), role);
+  }
+});
