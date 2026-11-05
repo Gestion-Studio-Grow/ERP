@@ -9,6 +9,7 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { createOrder, facturarVenta } from "@/lib/order-actions";
 import { AvisoError, Input, buttonClasses, cn, fmtMoneyARS, type OpcionBuscador } from "@/components/ui";
+import type { ServicioDelBuscador } from "../pedidos/buscar-turnos/buscar-turnos-core";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import { faltanteDeLinea, type PosStockInfo } from "@/lib/stock/pos-stock-rules";
 import { MEDIOS_DE_COBRO, leerMedioDeCobro, type MedioDeCobro } from "@/lib/caja/medio-cobro";
@@ -244,6 +245,11 @@ export type PropsDeVender = {
    * zonas, el pedido con envío pide la zona (el servidor la exige). Sin esto, como siempre.
    */
   envios?: ConfigEnvios | null;
+  /**
+   * El campo único de servicio o producto (interruptor `agenda-interaccion`, sólo un negocio de
+   * servicios): un servicio abre «Turnos libres» debajo. Sin esto, el buscador de siempre.
+   */
+  buscadorUnico?: { servicios: ServicioDelBuscador[] } | null;
 };
 
 export const sinSuscripcion = () => () => {};

@@ -370,9 +370,13 @@ describe("Vender en el navegador", { timeout: 240_000 }, () => {
             b.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navegacion", namespace: "falso" }));
             b.onResolve({ filter: /\/acciones-del-mostrador$/ }, () => ({ path: "mostrador", namespace: "falso" }));
             b.onResolve({ filter: /^next\/link$/ }, () => ({ path: "link", namespace: "falso" }));
+            // «Turnos libres» del campo único (agenda-interaccion, apagado acá): la acción no se usa.
+            b.onResolve({ filter: /^@\/lib\/turnos\/turnos-libres-actions$/ }, () => ({ path: "turnos-libres", namespace: "falso" }));
             b.onLoad({ filter: /.*/, namespace: "falso" }, (a) => ({
               contents:
-                a.path === "acciones"
+                a.path === "turnos-libres"
+                  ? "export async function turnosLibresDelServicio() { return { ok: false, error: 'falso' }; }"
+                  : a.path === "acciones"
                   ? ACCIONES_FALSAS
                   : a.path === "cupones"
                     ? CUPONES_FALSOS
