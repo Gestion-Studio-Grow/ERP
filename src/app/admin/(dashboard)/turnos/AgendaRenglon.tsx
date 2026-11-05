@@ -23,6 +23,8 @@
 // cerrar de hace meses también cuenta (CH-044).
 
 import { agendaPractica } from "@/lib/turnos/practica.server";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { vouchersPrendidos } from "@/cambios/interruptores";
 import { RefrescoDeAgenda } from "./_agenda/RefrescoDeAgenda";
 import Link from "next/link";
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
@@ -127,6 +129,8 @@ export default async function AgendaRenglon({
     terminar: roleHasCapability(quien.role, "agenda:complete"),
     perdonar: roleHasCapability(quien.role, PERDONAR),
     anular: anulacionDeCobro(quien.role),
+    // CH · vouchers de La Alameda (lectura de interruptores cacheada por pedido).
+    vouchers: vouchersPrendidos(await interruptoresDelNegocio()) && roleHasCapability(quien.role, "agenda:collect"),
   };
   // Mañana, sólo mirando HOY y para quien gestiona la agenda (como siempre).
   const verManana = permisos.gestionar && dia === hoy;
