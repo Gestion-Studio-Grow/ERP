@@ -1,0 +1,6 @@
+﻿Número;Lote;Cliente;Turno;Fecha de uso;Valor cubierto;Estado ERP;Estado OpenKey;Baja en OpenKey;Liquidado;Monto liquidado;Referencia de liquidación
+AL-0001;L-12;Cliente Ficticio Uno;04/11/2026;04/11/2026;15000,00;USADO;Sin verificar;;;;
+AL-0002;L-40;Cliente Ficticio Dos;04/11/2026;04/11/2026;15000,00;USADO;DISPONIBLE;;;;
+AL-0003;L-07;Cliente Ficticio Tres;03/11/2026;03/11/2026;15000,00;USADO;Sin verificar;;;;
+AL-0004;L-21;Cliente Ficticio Cuatro;;;;DISPONIBLE;Sin verificar;;;;
+AL-0005;L-33;Cliente Ficticio Cinco;02/11/2026;02/11/2026;15000,00;USADO;BAJA;02/11/2026;;;
