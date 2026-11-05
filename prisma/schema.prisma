@@ -3841,63 +3841,6 @@ model ProyectoLiquidacion {
   @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId)
   @@index([tenantId, periodo])
 }
-
-model ProyectoAviso {
-  id           String    @id @default(cuid())
-  tenant       Tenant    @relation(fields: [tenantId], references: [id])
-  tenantId     String
-  destinatario String // userId
-  tipo         String
-  texto        String
-  enlace       String?
-  leidoEl      DateTime?
-  createdAt    DateTime  @default(now())
-
-  @@index([tenantId, destinatario, leidoEl])
-}
-
-model ProyectoAvisoPref {
-  id        String  @id @default(cuid())
-  tenant    Tenant  @relation(fields: [tenantId], references: [id])
-  tenantId  String
-  userId    String
-  tipo      String
-  enSistema Boolean @default(true)
-  porMail   Boolean @default(false)
-
-  @@unique([tenantId, userId, tipo])
-}
-
-model ProyectoPermiso {
-  id              String  @id @default(cuid())
-  tenant          Tenant  @relation(fields: [tenantId], references: [id])
-  tenantId        String
-  rol             String
-  modulo          String
-  ver             Boolean @default(false)
-  editar          Boolean @default(false)
-  columnasOcultas Json?
-
-  @@unique([tenantId, rol, modulo])
-}
-
-model ProyectoCambio {
-  id         String   @id @default(cuid())
-  tenant     Tenant   @relation(fields: [tenantId], references: [id])
-  tenantId   String
-  proyectoId String?
-  entidad    String
-  entidadId  String?
-  campo      String
-  antes      String?
-  despues    String?
-  autor      String
-  createdAt  DateTime @default(now())
-
-  @@index([tenantId, proyectoId, createdAt])
-  @@index([tenantId, createdAt])
-}
-
 // RENDÍ (MIA, plan `docs/tenants/mia-producciones/PLAN-RENDI.md` §3): la rendición de UN gasto de proyecto que alguien
 // del equipo pagó de su bolsillo (PROPIO) o con un anticipo (ANTICIPO). Plata en centavos enteros; el gasto sigue en
 // Float pesos (deuda anotada). `estado` guarda el estado del motor (`src/lib/rendiciones/tipos.ts`), `eventos` la
@@ -3976,4 +3919,60 @@ model ProyectoPinIngreso {
   updatedAt       DateTime   @updatedAt
 
   @@unique([tenantId, userId])
+}
+
+model ProyectoAviso {
+  id           String    @id @default(cuid())
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  destinatario String // userId
+  tipo         String
+  texto        String
+  enlace       String?
+  leidoEl      DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([tenantId, destinatario, leidoEl])
+}
+
+model ProyectoAvisoPref {
+  id        String  @id @default(cuid())
+  tenant    Tenant  @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  userId    String
+  tipo      String
+  enSistema Boolean @default(true)
+  porMail   Boolean @default(false)
+
+  @@unique([tenantId, userId, tipo])
+}
+
+model ProyectoPermiso {
+  id              String  @id @default(cuid())
+  tenant          Tenant  @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  rol             String
+  modulo          String
+  ver             Boolean @default(false)
+  editar          Boolean @default(false)
+  columnasOcultas Json?
+
+  @@unique([tenantId, rol, modulo])
+}
+
+model ProyectoCambio {
+  id         String   @id @default(cuid())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  proyectoId String?
+  entidad    String
+  entidadId  String?
+  campo      String
+  antes      String?
+  despues    String?
+  autor      String
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, proyectoId, createdAt])
+  @@index([tenantId, createdAt])
 }
