@@ -10,8 +10,8 @@ import { PENDIENTES, RESPONSABLE, SITIO_AAIP, VIGENCIA_BORRADOR } from "../legal
 export const dynamic = "force-static";
 
 export const metadata: Metadata = {
-  title: "Privacidad — Facturita",
-  description: "Qué datos usa Facturita, para qué, y cómo ejercés tus derechos sobre ellos.",
+  title: "Privacidad — Factoque",
+  description: "Qué datos usa Factoque, para qué, y cómo ejercés tus derechos sobre ellos.",
   generator: "Gestión Studio Grow",
   // Borrador «todavía no vigente»: fuera de los buscadores hasta que el dueño lo apruebe.
   robots: { index: false, follow: false },
@@ -62,7 +62,7 @@ export default function PrivacidadPage() {
           titulo: "Con quién los compartimos",
           parrafos: [
             "Con ARCA, porque la normativa fiscal exige informarle cada comprobante para autorizarlo.",
-            `Con los proveedores que alojan el servicio: ${PENDIENTES.proveedores}. Sólo los procesan para que Facturita funcione y no los pueden usar para otra cosa. Si alguno guarda datos fuera de la Argentina, la transferencia se hace con las garantías del art. 12 de la Ley 25.326. [Mecanismo de transferencia internacional — a definir con el abogado.]`,
+            `Con los proveedores que alojan el servicio: ${PENDIENTES.proveedores}. Sólo los procesan para que Factoque funcione y no los pueden usar para otra cosa. Si alguno guarda datos fuera de la Argentina, la transferencia se hace con las garantías del art. 12 de la Ley 25.326. [Mecanismo de transferencia internacional — a definir con el abogado.]`,
             "Si nos escribís por WhatsApp, lo que nos mandes pasa también por WhatsApp, que tiene sus propias políticas.",
             "Fuera de esos casos, sólo los entregamos si nos lo ordena un juez u otra autoridad con facultades legales.",
           ],

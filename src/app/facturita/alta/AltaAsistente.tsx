@@ -15,7 +15,7 @@ import {
   altaCompleta,
   mensajeActivacion,
   opcionCondicion,
-  pasosDelegacion,
+  PASOS_CERTIFICADO_PROPIO,
   validarCuitEmisor,
   validarNombre,
   validarPuntoVenta,
@@ -195,7 +195,7 @@ export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
     // En el celular el botón está en la barra fija: el aviso se trae a la vista.
     requestAnimationFrame(() => aviso.current?.scrollIntoView({ block: "nearest" }));
   };
-  const linkMandar = linkCanal(canal, "Alta en Facturita", mensaje);
+  const linkMandar = linkCanal(canal, "Alta en Factoque", mensaje);
   const textoCopiar = copia === "ok" ? "Copiado" : "Copiar el resumen";
   const id = (campo: string) => `${uid}-${campo}`;
 
@@ -356,11 +356,11 @@ export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
         {paso === 3 && (
           <div className="mt-6">
             <p className="text-[var(--fx-tenue)]">
-              Para que Facturita emita a tu nombre, nos das permiso desde ARCA. No nos das tu clave: das un permiso que
-              sirve sólo para facturar, y lo podés sacar cuando quieras.
+              Para que Factoque emita a tu nombre, creás vos tu certificado en ARCA. Nosotros no entramos a tu ARCA ni
+              te pedimos la clave fiscal: queda con vos.
             </p>
             <ol className="mt-5 space-y-4">
-              {pasosDelegacion().map((p, i) => (
+              {PASOS_CERTIFICADO_PROPIO.map((p, i) => (
                 <li key={p} className="flex gap-3 text-base">
                   <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--fx-ambar)] text-sm font-semibold tabular-nums text-white">
                     {i + 1}
@@ -404,7 +404,7 @@ export default function AltaAsistente({ canal }: { canal: CanalGsg }) {
                 </dd>
               </div>
               <div>
-                <dt>Permiso en ARCA</dt>
+                <dt>Certificado en ARCA</dt>
                 <dd>
                   {datos.delegacionHecha ? "Hecho" : "Te ayudamos"}
                 </dd>
