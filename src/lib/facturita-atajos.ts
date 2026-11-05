@@ -14,6 +14,7 @@
  *    «Repetir la última».
  */
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import type { ConceptoFacturita, EmisionFacturita } from "@/lib/facturita-core";
 
 export const DETALLE_MIN = 2;
@@ -50,8 +51,6 @@ export function montoDesdeTexto(v: string | number): number {
   return /^\d+(\.\d+)?$/.test(normal) ? Number(normal) : NaN;
 }
 
-const centavos = (n: number) => Math.round(n * 100) / 100;
-
 /** Valida lo que la persona guarda como producto. */
 export function validarAtajo(d: { detalle: unknown; precio: unknown; concepto?: unknown }): AtajoValidado {
   const detalle = typeof d.detalle === "string" ? d.detalle.trim().replace(/\s+/g, " ") : "";
@@ -61,7 +60,7 @@ export function validarAtajo(d: { detalle: unknown; precio: unknown; concepto?: 
   if (!Number.isFinite(precio) || precio <= 0) return { ok: false, error: "El precio tiene que ser mayor a cero." };
   if (precio > PRECIO_MAX) return { ok: false, error: "Ese precio es demasiado grande." };
   const concepto = d.concepto === "servicios" ? "servicios" : "productos";
-  return { ok: true, detalle, precio: centavos(precio), concepto };
+  return { ok: true, detalle, precio: redondearAlCentavo(precio), concepto };
 }
 
 /** Fila de `Product` → atajo; `null` si no sirve como botón (sin precio, borrado). */

@@ -58,7 +58,7 @@ export default function EmitirForm({
   const [resultado, setResultado] = useState<ResultadoEmisionFacturita | null>(null);
   const [pendiente, startTransition] = useTransition();
   // Una clave por intento: el doble toque o el reintento de red no pide otro CAE. Se renueva cuando
-  // llega una respuesta (la próxima factura es otro intento).
+  // hay factura o cuando cambia lo que se emite.
   const clave = useRef<{ firma: string; valor: string } | null>(null);
 
   const conServicio = conceptoConFechasDeServicio(concepto);
@@ -107,7 +107,9 @@ export default function EmitirForm({
     const claveEmision = clave.current.valor;
     startTransition(async () => {
       const r = await emitirFacturitaAction({ ...datos, claveEmision });
-      clave.current = null;
+      // Con factura (emitida o rechazada) la próxima es otro intento. Sin factura conocida, la clave
+      // se conserva: si el error fue después de grabarla, reintentar devuelve esa y no pide otro CAE.
+      if (r.ok || r.invoiceId) clave.current = null;
       setResultado(r);
       if (r.ok) {
         setDescripcion("");

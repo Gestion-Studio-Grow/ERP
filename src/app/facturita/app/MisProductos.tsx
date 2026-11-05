@@ -72,7 +72,9 @@ export default function MisProductos({
   function elegir(a: Atajo) {
     if (enCurso.current) return;
     setResultado(null);
-    const t = { tipo: "atajo", atajo: a, condicionEmisor, clave: nuevaClaveEmision() } as const;
+    // El mismo producto otra vez, todavía sin factura: es el mismo intento (misma clave).
+    const mismo = estado.paso === "confirmando" && estado.atajo.id === a.id;
+    const t = { tipo: "atajo", atajo: a, condicionEmisor, clave: mismo ? estado.clave : nuevaClaveEmision() } as const;
     const siguiente = tocar(estado, t);
     if (siguiente.paso === "formulario") {
       setEstado({ paso: "eligiendo" });
@@ -90,7 +92,9 @@ export default function MisProductos({
     try {
       const r = await acciones.emitir(emisionDesdeAtajo(atajo, clave));
       setResultado(r);
-      setEstado({ paso: "eligiendo" });
+      // Sin factura conocida (error antes o durante la grabación) queda listo para reintentar con la
+      // MISMA clave: si la factura llegó a grabarse, el servidor devuelve esa y no pide otro CAE.
+      setEstado(r.ok || r.invoiceId ? { paso: "eligiendo" } : { paso: "confirmando", atajo, clave });
       router.refresh();
     } catch {
       // Sin respuesta (red): se puede volver a tocar y viaja con la MISMA clave.

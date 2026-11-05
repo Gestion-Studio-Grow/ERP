@@ -342,38 +342,50 @@ export async function emitirFacturitaAction(
       );
     }
 
-    revalidatePath(PATH_APP);
+    // Desde acá la factura YA EXISTE: un error al leer cómo quedó no puede contestarse como «no se
+    // emitió», porque la pantalla tiraría la clave y el reintento pediría otro CAE (certificación
+    // M1). Se contesta pendiente con su id: el estado real lo muestra «Mis facturas».
+    const pendiente: EstadoEmision = { estado: "pendiente", motivo: encendida ? "esperando" : "apagada", ventanaDias: ventanaDeFechaArca(validacion.concepto) };
+    try {
+      revalidatePath(PATH_APP);
 
-    // Cómo quedó de verdad: se lee la factura después del despacho.
-    const f = await tenantTransaction(
-      (tx) =>
-        tx.invoice.findFirst({
-          where: { id: invoiceId, tenantId },
-          select: { status: true, rechazoMotivo: true, cae: true, numero: true, puntoVenta: true },
-        }),
-      { tenantId },
-    );
-    const estado: EstadoEmision =
-      f?.status === "AUTHORIZED"
-        ? {
-            estado: "autorizada",
-            dePrueba: esDePrueba(modoDesdeEnv(), homologacion),
-            numero: numeroDeComprobante(f.puntoVenta, f.numero),
-            cae: f.cae,
-          }
-        : f?.status === "REJECTED"
-          ? { estado: "rechazada", origen: origenDelRechazo(f.rechazoMotivo), motivo: f.rechazoMotivo ?? "" }
-          : {
-              estado: "pendiente",
-              motivo: encendida ? "esperando" : "apagada",
-              ventanaDias: ventanaDeFechaArca(validacion.concepto),
-            };
+      // Cómo quedó de verdad: se lee la factura después del despacho.
+      const f = await tenantTransaction(
+        (tx) =>
+          tx.invoice.findFirst({
+            where: { id: invoiceId, tenantId },
+            select: { status: true, rechazoMotivo: true, cae: true, numero: true, puntoVenta: true },
+          }),
+        { tenantId },
+      );
+      const estado: EstadoEmision =
+        f?.status === "AUTHORIZED"
+          ? {
+              estado: "autorizada",
+              dePrueba: esDePrueba(modoDesdeEnv(), homologacion),
+              numero: numeroDeComprobante(f.puntoVenta, f.numero),
+              cae: f.cae,
+            }
+          : f?.status === "REJECTED"
+            ? { estado: "rechazada", origen: origenDelRechazo(f.rechazoMotivo), motivo: f.rechazoMotivo ?? "" }
+            : pendiente;
 
-    if (estado.estado === "rechazada") {
-      return { ok: false, error: mensajeDeEmision(estado), invoiceId, estado };
+      if (estado.estado === "rechazada") {
+        return { ok: false, error: mensajeDeEmision(estado), invoiceId, estado };
+      }
+      const limiteDespues = estadoLimite(await contarFacturasDelMes(tenantId));
+      return { ok: true, invoiceId, limite: limiteDespues, estado, mensaje: mensajeDeEmision(estado), ...(repetida ? { repetida } : {}) };
+    } catch (err) {
+      logger.error("facturita", "factura creada; falló leer su estado", err, { tenantId, invoiceId });
+      return {
+        ok: true,
+        invoiceId,
+        limite: estadoLimite(limite.usadas + (repetida ? 0 : 1)),
+        estado: pendiente,
+        mensaje: mensajeDeEmision(pendiente),
+        ...(repetida ? { repetida } : {}),
+      };
     }
-    const limiteDespues = estadoLimite(await contarFacturasDelMes(tenantId));
-    return { ok: true, invoiceId, limite: limiteDespues, estado, mensaje: mensajeDeEmision(estado), ...(repetida ? { repetida } : {}) };
   } catch (err) {
     logger.error("facturita", "emisión falló", err, { tenantId });
     // Perfil fiscal sin cargar: reintentar no lo arregla, hay que cargar el dato.

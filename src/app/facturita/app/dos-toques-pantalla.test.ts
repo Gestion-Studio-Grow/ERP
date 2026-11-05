@@ -23,11 +23,13 @@ const PRODUCTOS = [
   { id: "p2", detalle: "Clase de yoga", precio: 8000, concepto: "servicios" },
 ];
 window.__emisiones = [];
+window.__fallar = 0; // cuántas emisiones contestan «no se pudo» (sin factura conocida)
 window.__editados = [];
 const acciones = {
   async emitir(datos) {
     window.__emisiones.push(datos);
     await new Promise((r) => setTimeout(r, 300)); // ARCA tarda: da tiempo al segundo toque
+    if (window.__fallar > 0) { window.__fallar--; return { ok: false, error: "No se pudo emitir la factura. Probá de nuevo en unos minutos." }; }
     return { ok: true, invoiceId: "inv_1", limite: { usadas: 1, limite: 5, puedeEmitir: true, mensaje: null },
       estado: { estado: "autorizada", dePrueba: true, numero: "00002-00000001", cae: "1" }, mensaje: "Factura autorizada de prueba." };
   },
@@ -125,4 +127,29 @@ test("inscripto: el producto tampoco emite directo (elige la alícuota en el for
   if (!a) return;
   await a.page.getByRole("button", { name: /Torta de chocolate/ }).tap();
   assert.equal(await a.page.getByRole("button", { name: /^Emitir factura por/ }).count(), 0);
+});
+
+test("un error sin factura conocida: reintentar (o volver a tocar el producto) viaja con la MISMA clave", async (t) => {
+  const a = await abrir(t, "MONOTRIBUTO");
+  if (!a) return;
+  const { page } = a;
+  await page.evaluate(() => ((window as unknown as { __fallar: number }).__fallar = 1));
+  await page.getByRole("button", { name: /Torta de chocolate/ }).tap();
+  await page.getByRole("button", { name: /^Emitir factura por/ }).tap();
+  await page.getByText(/No se pudo emitir/).waitFor();
+  // Vuelve a tocar el producto y emite: es el mismo intento.
+  await page.getByRole("button", { name: /Torta de chocolate/ }).tap();
+  await page.getByRole("button", { name: /^Emitir factura por/ }).tap();
+  await page.getByText(/Autorizada de prueba/).waitFor();
+  const claves = await page.evaluate(() =>
+    (window as unknown as { __emisiones: { claveEmision: string }[] }).__emisiones.map((e) => e.claveEmision),
+  );
+  assert.equal(claves.length, 2);
+  assert.equal(claves[0], claves[1], "la misma clave: si la primera llegó a grabarse, el servidor la devuelve");
+  // Después de una factura, la próxima venta es otro intento (clave nueva).
+  await page.getByRole("button", { name: /Torta de chocolate/ }).tap();
+  await page.getByRole("button", { name: /^Emitir factura por/ }).tap();
+  await page.waitForFunction(() => (window as unknown as { __emisiones: unknown[] }).__emisiones.length === 3);
+  const tercera = await page.evaluate(() => (window as unknown as { __emisiones: { claveEmision: string }[] }).__emisiones[2].claveEmision);
+  assert.notEqual(tercera, claves[0]);
 });
