@@ -1,5 +1,5 @@
 /**
- * Ficha completa del servicio SIN la migración 20261104120000_servicio_completo: la base efímera
+ * Ficha completa del servicio SIN la migración 20261104123000_servicio_completo: la base efímera
  * corre todas las migraciones y después se le CORREN DE NOMBRE las dos tablas nuevas (es una base
  * propia del test, que se borra al terminar), así la app las ve como en Neon antes del Gate 2.
  *

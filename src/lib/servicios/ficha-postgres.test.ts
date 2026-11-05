@@ -1,5 +1,5 @@
 /**
- * Ficha completa del servicio, CON la migración 20261104120000_servicio_completo aplicada (la base
+ * Ficha completa del servicio, CON la migración 20261104123000_servicio_completo aplicada (la base
  * efímera corre todas las de prisma/migrations), contra Postgres con RLS y las Server Actions reales:
  *
  *   · alta con la ficha: seña 30 % guardada también como monto, agenda 90', online, con cupos, nota;

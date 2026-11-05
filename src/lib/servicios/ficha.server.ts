@@ -1,5 +1,5 @@
 // Ficha completa del servicio — lecturas y escrituras, TOLERANTES a que la migración
-// 20261104120000_servicio_completo todavía no esté aplicada (Gate 2: main despliega antes de
+// 20261104123000_servicio_completo todavía no esté aplicada (Gate 2: main despliega antes de
 // migrar). Sin las tablas, toda lectura devuelve la ficha vacía (`disponible: false`) y el
 // catálogo, la agenda y la reserva funcionan exactamente como antes; el formulario esconde los
 // campos nuevos. Ninguna consulta de Service se cruza con estas tablas: se leen aparte, por id.

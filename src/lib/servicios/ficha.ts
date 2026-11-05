@@ -3,7 +3,7 @@
 // Lo que el dueño de CH pidió poder cargar en cada servicio además de nombre, categoría,
 // descripción, precio y duración: precio a definir, tiempo que ocupa en la agenda, seña en
 // porcentaje, modalidad, tipo y una aclaración que viaja en el recordatorio. Vive en
-// `ServiceDetail` (1 a 1 con Service, migración 20261104120000_servicio_completo); sin fila,
+// `ServiceDetail` (1 a 1 con Service, migración 20261104123000_servicio_completo); sin fila,
 // valen los valores por defecto de `FICHA_VACIA` y todo se comporta como antes.
 
 import { porcentajeDe } from "@/lib/dinero/redondeo";

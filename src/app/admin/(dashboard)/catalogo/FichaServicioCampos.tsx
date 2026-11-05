@@ -6,7 +6,7 @@
 // ============================================================================
 //
 // Agrupados como los piensa la dueña: Precio y seña · Tiempo · Cómo se presta · Recordatorio ·
-// Imágenes. Si la migración 20261104120000_servicio_completo no está aplicada (`disponible`
+// Imágenes. Si la migración 20261104123000_servicio_completo no está aplicada (`disponible`
 // false), sólo se dibujan los campos de siempre (precio, precio vecino, seña fija y duración),
 // con los MISMOS nombres: la acción recibe exactamente lo que recibía antes.
 

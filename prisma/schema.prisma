@@ -629,7 +629,7 @@ model Service {
   resources          ServiceResource[]
   serviceCommissions ProfessionalServiceCommission[]
   waitlistEntries    WaitlistEntry[]
-  // Ficha completa (20261104120000_servicio_completo): va en tablas aparte y NO en columnas de
+  // Ficha completa (20261104123000_servicio_completo): va en tablas aparte y NO en columnas de
   // Service a propósito. Una columna nueva acá entra en cada lectura de Service sin `select`
   // (reserva, agenda, catálogo) y, mientras la migración no esté aplicada, las rompería todas
   // con P2022. Con la tabla aparte, sin la migración todo sigue como hoy (src/lib/servicios).

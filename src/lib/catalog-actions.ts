@@ -165,7 +165,7 @@ function parseDepositAmount(formData: FormData, price: number): number | null {
 
 // La ficha completa (precio a definir, tiempo en la agenda, seña en %, modalidad, tipo y aclaración
 // del recordatorio) viaja sólo si el formulario la mostró (`ficha=1`), y el formulario la muestra sólo
-// si la migración 20261104120000_servicio_completo está aplicada. Sin ella, el alta y la edición
+// si la migración 20261104123000_servicio_completo está aplicada. Sin ella, el alta y la edición
 // son exactamente las de siempre.
 async function leerServicioDelFormulario(formData: FormData, tenantId: string) {
   const name = String(formData.get("name") || "").trim();
