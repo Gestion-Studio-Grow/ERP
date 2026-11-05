@@ -60,9 +60,9 @@ export default async function HistoriaDeLaClientaPage({ params, searchParams }: 
         ]}
       />
 
-      <form method="get" className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-[1fr_1fr_auto_auto_auto] sm:items-end" aria-label="Filtrar la historia">
+      <form method="get" className="mb-6 grid grid-cols-2 items-end gap-3" aria-label="Filtrar la historia">
         <Field label="Profesional" htmlFor="h-profesional">
-          <Select id="h-profesional" name="profesional" defaultValue={filtros.profesional ?? ""}>
+          <Select className="w-full" id="h-profesional" name="profesional" defaultValue={filtros.profesional ?? ""}>
             <option value="">Todas</option>
             {h.opciones.profesionales.map((p) => (
               <option key={p.id} value={p.id}>
@@ -72,7 +72,7 @@ export default async function HistoriaDeLaClientaPage({ params, searchParams }: 
           </Select>
         </Field>
         <Field label="Servicio" htmlFor="h-servicio">
-          <Select id="h-servicio" name="servicio" defaultValue={filtros.servicio ?? ""}>
+          <Select className="w-full" id="h-servicio" name="servicio" defaultValue={filtros.servicio ?? ""}>
             <option value="">Todos</option>
             {h.opciones.servicios.map((s) => (
               <option key={s.id} value={s.id}>
@@ -82,12 +82,12 @@ export default async function HistoriaDeLaClientaPage({ params, searchParams }: 
           </Select>
         </Field>
         <Field label="Desde" htmlFor="h-desde">
-          <Input id="h-desde" name="desde" type="date" defaultValue={filtros.desde ?? ""} />
+          <Input className="w-full min-w-0" id="h-desde" name="desde" type="date" defaultValue={filtros.desde ?? ""} />
         </Field>
         <Field label="Hasta" htmlFor="h-hasta">
-          <Input id="h-hasta" name="hasta" type="date" defaultValue={filtros.hasta ?? ""} />
+          <Input className="w-full min-w-0" id="h-hasta" name="hasta" type="date" defaultValue={filtros.hasta ?? ""} />
         </Field>
-        <div className="col-span-2 flex gap-2 sm:col-span-1">
+        <div className="col-span-2 flex justify-end gap-2">
           <button type="submit" className={buttonClasses("solid", "md", "flex-1 sm:flex-none")}>
             Filtrar
           </button>
@@ -115,7 +115,7 @@ export default async function HistoriaDeLaClientaPage({ params, searchParams }: 
               </div>
               <p className="text-muted">
                 {t.profesional} · {t.box} · {duracionEnCriollo(t.duracionMin)}
-                {t.cobrado !== null && <> · cobrado <span className="tabular-nums text-body">{fmtMoneyARS(t.cobrado, 0)}</span></>}
+                {t.cobrado !== null && t.cobrado > 0 && <> · cobrado <span className="tabular-nums text-body">{fmtMoneyARS(t.cobrado, 0)}</span></>}
               </p>
               {t.estado.quien && <p className="text-muted">{t.estado.quien}</p>}
               {t.notaDeLaClienta && (

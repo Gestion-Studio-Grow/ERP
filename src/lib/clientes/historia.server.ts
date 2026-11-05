@@ -19,6 +19,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { cobrosDetalladosPorTurno } from "@/lib/turnos/anulacion";
 import { businessWallTimeToUtc } from "@/lib/datetime";
+import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import {
   TURNOS_POR_PAGINA,
   armarLineaDeTiempo,
@@ -125,7 +126,7 @@ async function leerEn(tx: Tx, tenantId: string, clienteId: string, quien: QuienM
     if (plata.has(t.id)) {
       const vivos = cobros.get(t.id) ?? [];
       const pago = "payment" in t ? (t.payment as { status: string; amount: number } | null) : null;
-      cobrado = vivos.length > 0 ? vivos.reduce((s, c) => s + c.amount, 0) : pago?.status === "APPROVED" ? pago.amount : 0;
+      cobrado = vivos.length > 0 ? sumarAlCentavo(vivos.map((c) => c.amount)) : pago?.status === "APPROVED" ? pago.amount : 0;
     }
     return {
       id: t.id,
