@@ -19,7 +19,7 @@
 
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { enElNegocio } from "@/lib/operator-db";
+import { enElNegocio, operatorPrisma } from "@/lib/operator-db";
 import { logger } from "@/lib/logger";
 import { masterKeyDesdeEnv, openSecret, sealSecret } from "@/lib/fiscal/cert-crypto";
 import { cargarCredencialTenant, credencialParaTenant } from "@/lib/fiscal/tenant-cert";
@@ -38,6 +38,20 @@ import {
   type EstadoDelAsistente,
   type PedidoDePase,
 } from "./asistente-arca";
+import {
+  ACCION_PRUEBA_OK,
+  ACCIONES_CONTADOR,
+  LISTA_ACCIONES_CONTADOR,
+  contadoresDeLaRed,
+  elegirContador,
+  avisoAlEstudio,
+  linkWhatsapp,
+  mensajeASoporte,
+  pedidoAlContador,
+  type ContadorDeLaRed,
+  type FilaContador,
+  type PedidoAlContador,
+} from "./contador-arca";
 
 export const SERVICIO_PEDIDO = "pedido-csr";
 const huellaDelPedido = (tenantId: string) => `pedido-csr:${tenantId}`;
@@ -180,6 +194,13 @@ export interface VistaDelAsistente {
   entrada: EntradaAsistente;
   estado: EstadoDelAsistente;
   csrPem: string | null;
+  /** «Obtené asistencia»: el pedido vigente (o null), la red para elegir y el aviso por WhatsApp. */
+  contador: PedidoAlContador | null;
+  contadores: ContadorDeLaRed[];
+  /** wa.me al estudio elegido con el resumen sin datos sensibles; null si el estudio no tiene WhatsApp cargado. */
+  avisoAlContador: string | null;
+  /** wa.me a soporte de GSG (WHATSAPP_GSG); null = sin número cargado («provisional a confirmar»). */
+  soporte: string | null;
 }
 
 /**
@@ -187,10 +208,14 @@ export interface VistaDelAsistente {
  * del pase (abre el certificado): la pasa para no abrirlo dos veces.
  */
 export async function leerAsistente(tenantId: string, fichaYaLeida?: FichaFiscalDelPase | null): Promise<VistaDelAsistente | null> {
-  const [ficha, pedido, pedidoDePase] = await Promise.all([
+  const [ficha, pedido, pedidoDePase, filaContador, contadores, pruebaOkEn, negocio] = await Promise.all([
     fichaYaLeida !== undefined ? fichaYaLeida : leerFichaDelPase(tenantId, modoDesdeEnv()),
     leerPedidoPendiente(tenantId),
     ultimoPedidoDePase(tenantId).catch(() => null),
+    ultimaFilaContador(tenantId).catch(() => null),
+    leerContadoresDeLaRed(tenantId).catch(() => []),
+    ultimaPruebaOk(tenantId).catch(() => null),
+    operatorPrisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }).catch(() => null),
   ]);
   if (!ficha) return null;
   const entrada: EntradaAsistente = {
@@ -198,7 +223,19 @@ export async function leerAsistente(tenantId: string, fichaYaLeida?: FichaFiscal
     pedidoPendiente: pedido && { creadoEn: pedido.creadoEn },
     pedidoDePase,
   };
-  return { entrada, estado: estadoDelAsistente(entrada), csrPem: pedido?.csrPem ?? null };
+  const estado = estadoDelAsistente(entrada);
+  const contador = pedidoAlContador(filaContador, {
+    pedidoPendiente: !!pedido,
+    certificado: estado.certificado,
+    certificadoDesde: ficha.credencial?.actualizada ?? null,
+    pruebaOkEn,
+  });
+  const nombreNegocio = negocio?.name ?? "";
+  const numero = contador ? await whatsappDelEstudio(contador.estudioTenantId).catch(() => null) : null;
+  const avisoAlContador = linkWhatsapp(numero, avisoAlEstudio({ negocio: nombreNegocio, cuit: ficha.arcaCuit }));
+  const pasoActual = estado.pasos.find((p) => p.estado === "actual")?.titulo ?? "conectar con ARCA";
+  const soporte = linkWhatsapp(process.env.WHATSAPP_GSG, mensajeASoporte({ negocio: nombreNegocio, cuit: ficha.arcaCuit, paso: pasoActual }));
+  return { entrada, estado, csrPem: pedido?.csrPem ?? null, contador, contadores, avisoAlContador, soporte };
 }
 
 /**
@@ -236,4 +273,126 @@ export async function pedirPaseDelNegocio(tenantId: string, actor: string, confi
   });
   logger.info("arca.asistente", "Pedido de pase a producción", { tenantId, nuevo: creado });
   return { ok: true, mensaje: "Listo: le avisamos a GSG. Revisan las condiciones y te confirman el pase a producción." };
+}
+
+// ── «Obtené asistencia» (sin migración: AuditLog del negocio, la última fila manda) ───────
+
+/** Tope del listado provisional de la red (a confirmar por el dueño). */
+const TOPE_RED = 100;
+
+/**
+ * Los estudios que usan los sistemas de GSG (consola del contador = módulo `cartera`). PROVISIONAL A CONFIRMAR. `Tenant` no
+ * tiene RLS: se lee directo, sólo id, nombre, módulos y estado (nada del estudio sale de acá).
+ */
+export async function leerContadoresDeLaRed(tenantId: string): Promise<ContadorDeLaRed[]> {
+  const filas = await operatorPrisma.tenant.findMany({
+    where: { modules: { has: "cartera" }, id: { not: tenantId } },
+    select: { id: true, name: true, modules: true, status: true },
+    orderBy: { name: "asc" },
+    take: TOPE_RED,
+  });
+  return contadoresDeLaRed(filas, tenantId);
+}
+
+/** El WhatsApp público del estudio (su ficha de contacto), para el aviso. Sólo ese campo. */
+async function whatsappDelEstudio(estudioTenantId: string): Promise<string | null> {
+  const fila = await enElNegocio(estudioTenantId, (tx) =>
+    tx.businessSettings.findUnique({ where: { tenantId: estudioTenantId }, select: { whatsapp: true } }),
+  );
+  return fila?.whatsapp ?? null;
+}
+
+async function ultimaPruebaOk(tenantId: string): Promise<string | null> {
+  const fila = await enElNegocio(tenantId, (tx) =>
+    tx.auditLog.findFirst({
+      where: { tenantId, action: ACCION_PRUEBA_OK },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    }),
+  );
+  return fila?.createdAt.toISOString() ?? null;
+}
+
+/** «Probar con ARCA» salió bien: deja la marca (sin material) que hace «listo» al pedido de asistencia. */
+export async function registrarPruebaOk(tenantId: string, actor: string, entorno: string): Promise<void> {
+  await enElNegocio(tenantId, (tx) =>
+    tx.auditLog.create({
+      data: { tenantId, actor, action: ACCION_PRUEBA_OK, entity: "Tenant", entityId: tenantId, changes: { entorno } },
+    }),
+  );
+}
+
+async function ultimaFilaContador(tenantId: string): Promise<FilaContador | null> {
+  const fila = await enElNegocio(tenantId, (tx) =>
+    tx.auditLog.findFirst({
+      where: { tenantId, action: { in: LISTA_ACCIONES_CONTADOR } },
+      orderBy: { createdAt: "desc" },
+      select: { action: true, createdAt: true, changes: true },
+    }),
+  );
+  return fila && { action: fila.action, createdAt: fila.createdAt.toISOString(), changes: fila.changes };
+}
+
+/**
+ * El negocio elige un estudio de la red (sale de la red leída acá, nunca del nombre del formulario).
+ * Candado por negocio: dos clics, un pedido. El aviso al estudio es el WhatsApp de la pantalla.
+ */
+export async function pedirContadorDelNegocio(tenantId: string, actor: string, elegido: unknown): Promise<Resultado> {
+  const estudio = elegirContador(await leerContadoresDeLaRed(tenantId), elegido);
+  if (!estudio) return { ok: false, motivo: "Elegí un contador de la lista." };
+  const nuevo = await enElNegocio(tenantId, async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`contador-arca:${tenantId}`}))`;
+    const ultima = await tx.auditLog.findFirst({
+      where: { tenantId, action: { in: LISTA_ACCIONES_CONTADOR } },
+      orderBy: { createdAt: "desc" },
+      select: { action: true, changes: true },
+    });
+    const mismo =
+      ultima &&
+      ultima.action !== ACCIONES_CONTADOR.cancelado &&
+      (ultima.changes as { estudioTenantId?: unknown } | null)?.estudioTenantId === estudio.tenantId;
+    if (mismo) return false;
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        actor,
+        action: ACCIONES_CONTADOR.pedido,
+        entity: "Tenant",
+        entityId: tenantId,
+        changes: { estudioTenantId: estudio.tenantId, estudioNombre: estudio.nombre },
+      },
+    });
+    return true;
+  });
+  logger.info("arca.asistente", "Pedido del certificado al contador", { tenantId, estudioTenantId: estudio.tenantId, nuevo });
+  return {
+    ok: true,
+    mensaje: nuevo
+      ? `Listo: quedó pedido a ${estudio.nombre}. Avisale por WhatsApp y pasale el pedido de certificado del paso 2.`
+      : `Ya se lo habías pedido a ${estudio.nombre}.`,
+  };
+}
+
+/** El negocio vuelve a hacerlo él mismo o elige otro estudio (cancela el pedido). Idempotente. */
+export async function cancelarContadorDelNegocio(tenantId: string, actor: string): Promise<Resultado> {
+  await enElNegocio(tenantId, async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`contador-arca:${tenantId}`}))`;
+    const ultima = await tx.auditLog.findFirst({
+      where: { tenantId, action: { in: LISTA_ACCIONES_CONTADOR } },
+      orderBy: { createdAt: "desc" },
+      select: { action: true, changes: true },
+    });
+    if (!ultima || ultima.action === ACCIONES_CONTADOR.cancelado) return;
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        actor,
+        action: ACCIONES_CONTADOR.cancelado,
+        entity: "Tenant",
+        entityId: tenantId,
+        changes: { estudioTenantId: (ultima.changes as { estudioTenantId?: string } | null)?.estudioTenantId ?? null },
+      },
+    });
+  });
+  return { ok: true, mensaje: "Listo: lo hacés vos. Seguí los pasos del asistente." };
 }

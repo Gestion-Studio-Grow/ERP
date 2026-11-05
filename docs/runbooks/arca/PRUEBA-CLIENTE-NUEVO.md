@@ -41,6 +41,54 @@ de ARCA lo emitió: (1) pide el ticket a WSAA, (2) lee el último comprobante de
 saca una factura de prueba de $100 (C o B según la condición) y muestra el CAE. **No guarda la factura** ni toca el outbox.
 En producción sólo lee: nunca emite. No depende de `ARCA_MODO`. El ticket se guarda cifrado para que la emisión real lo reuse.
 
+> **Modelo (decisión del dueño, 05/11/2026): certificado PROPIO del cliente.** GSG **no** hace trámites en ARCA por el
+> cliente ni usa delegación a su CUIT, y **nunca** pide ni usa su clave fiscal. Todo lo que pasa dentro de arca.gob.ar lo
+> hace **el cliente** (o un estudio contable que él elige, con la relación que ese estudio tiene con él en ARCA). El operador
+> sólo carga datos en la ficha y mira el asistente. Base legal: RG 5048/2021 art. 4 — **a validar por legales**.
+
+---
+
+## 0.1 El recorrido del cliente solo (meta: ≤ 6 pasos, ≤ 10 minutos)
+
+En `/admin/facturacion?vista=arca`, arriba del asistente: «lo hacés vos… GSG no entra a tu ARCA» y el aviso **antes de
+empezar** de la clave fiscal **nivel 3** (cómo saber si la tiene y dónde subirla).
+
+| # | Dónde | Qué hace | Toques |
+|---|---|---|---|
+| 1 | ERP, paso 2 | «Generar el pedido de certificado» | 1 |
+| 2 | ERP, paso 2 | «Bajar el pedido (archivo .csr)» (y/o «Copiar el pedido», para WSASS desde el celular) | 1 |
+| 3 | ARCA | Iniciar sesión (CUIT + clave fiscal) → «Administración de Certificados Digitales» → «Agregar alias»: `gsg-erp` + subir el archivo → «Agregar alias» | ~6 + 2 campos |
+| 4 | ARCA | «Ver» al lado de `gsg-erp` → «Descargar» (baja el `.crt`) | 2 |
+| 5 | ARCA | «Administrador de Relaciones de Clave Fiscal» → «Nueva relación» → «Buscar» → ARCA → «WebServices» → «Facturación Electrónica» → Representante: «Buscar» → computador fiscal `gsg-erp` → «Confirmar» | ~8 |
+| 6 | ERP, paso 3 | Subir (o pegar) el certificado → «Guardar el certificado» → «Probar con ARCA» | 3 |
+
+Lo que ve en ARCA: el portal con buscador de servicios; en Certificados Digitales, la lista de alias con «Agregar alias»;
+en el alta del alias, un campo de texto y un selector de archivo; en Administrador de Relaciones, la lista de relaciones con
+«Nueva relación» y un buscador de servicios por organismo. Revisión hecha leyendo el componente y los textos, **no** en ARCA
+real ni con la app levantada (provisional a confirmar en la prueba con el cliente).
+
+Dónde se traba alguien y qué hace la pantalla:
+- **Clave nivel 2:** «Certificados Digitales» no aparece → el aviso de nivel 3 está ANTES del paso 1.
+- **Confunde el pedido con el certificado:** al pegar un pedido (`CERTIFICATE REQUEST`), una clave privada o subir el `.csr`,
+  la pantalla lo dice al instante (`src/lib/fiscal/certificado-pegado.ts`).
+- **En el celular no puede subir archivos a WSASS:** «Copiar el pedido» con un toque.
+- **Se olvida de asociar a «Facturación Electrónica»:** «Probar con ARCA» devuelve `notAuthorized` y el texto de `queHacer`
+  (`src/lib/fiscal/verificar-con-arca.ts:88`) dice dónde.
+- **No le sale:** «¿Te trabaste? Obtené asistencia» (ver 0.2).
+
+## 0.2 «Obtené asistencia» (dos opciones, sin migración)
+
+1. **Elegí tu contador:** listado de estudios con la consola del contador activa (módulo `cartera`, leído de `Tenant`; no se
+   inventa ninguno). Sin estudios: «Todavía no hay contadores disponibles: contactate con GSG». Al elegir uno queda una fila
+   `fiscal.contador-arca.pedido` en AuditLog del negocio (la última manda; «Elegir otro o hacerlo yo» deja
+   `fiscal.contador-arca.cancelado`) y aparece «Avisale por WhatsApp» al número de la ficha del estudio (`BusinessSettings.whatsapp`),
+   con un resumen **sin CUIT completo ni clave**. Estado: **pedido → en curso** (hay pedido de certificado o certificado sin
+   prueba) **→ listo** (certificado cargado y «Probar con ARCA» en verde después de cargarlo: fila `fiscal.arca.prueba-ok`).
+2. **Contactate con GSG:** WhatsApp de soporte (`WHATSAPP_GSG`) con un mensaje armado; sin la variable, «provisional a
+   confirmar». Soporte guía; el trámite lo hace el cliente.
+
+Pendiente: que el estudio vea el pedido en `/contador` (hoy sólo le llega por el WhatsApp que manda el cliente).
+
 ---
 
 ## 1. Antes de empezar (5 min)
@@ -67,7 +115,7 @@ Paso 1 muestra CUIT, punto de venta y condición IVA (el cliente sólo los ve; s
 (Rodeo manual, si el asistente no anda: openssl como antes y el formulario «Paso 3 · Certificado de ARCA» de la ficha, donde
 🔒 **DUEÑO** pega cert + clave.)
 
-**2.2 Certificado de homologación.** Con la clave fiscal del cliente, en arca.gob.ar:
+**2.2 Certificado de homologación.** Lo hace **el cliente** con su clave fiscal, en arca.gob.ar (GSG no entra):
 1. «Administrador de Relaciones de Clave Fiscal» → Adherir servicio → ARCA → Servicios interactivos → **WSASS - Autogestión
    Certificados Homologación**. (Una vez sola.)
 2. Entrar a **WSASS** → «Nuevo certificado» → nombre `gsg-erp` → pegar el contenido del `.csr` del asistente → Crear.
@@ -90,7 +138,7 @@ Si el número sube cada vez que tocás, ARCA está autorizando. Con eso el certi
 
 ## 3. Producción: el certificado real y el punto de venta
 
-**3.1 Certificado de producción** (con la clave fiscal del cliente). El asistente queda en el paso 4 diciendo «el certificado
+**3.1 Certificado de producción** (lo hace **el cliente** con su clave fiscal nivel 3; GSG no entra). El asistente queda en el paso 4 diciendo «el certificado
 cargado es de pruebas»: volver al **paso 2 → «Generar otro pedido»** (el pedido de homologación ya se usó) y bajar el `.csr`.
 1. «Administración de Certificados Digitales» (adherirlo si no está) → Agregar alias `gsg-erp` → subir ese `.csr` →
    descargar el `.crt`.
@@ -137,7 +185,7 @@ Textos de ARCA provisionales a confirmar con los rechazos reales de hoy: si apar
 
 ## 5. Lo que decide el dueño (resumen)
 1. Mergear la rama (sin migraciones) — o hacer la prueba con los rodeos de §6.
-2. Pegar certificado y clave (homo y prod).
+2. Nada de claves: el certificado lo sube el cliente en el asistente (el rodeo manual con clave pegada queda sólo para emergencias).
 3. `ARCA_MODO=real` en Vercel, sabiendo que es para toda la plataforma (§3.4.1).
 4. Confirmar el pase a real del cliente y la primera factura.
 

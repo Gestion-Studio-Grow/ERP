@@ -18,9 +18,12 @@ import { verificarCertificadoDelNegocio } from "@/lib/operador/verificar-arca.se
 import { mensajeDeVerificacion } from "@/lib/fiscal/verificar-con-arca";
 import { TOPE_CERTIFICADO_BYTES } from "@/lib/fiscal/asistente-arca";
 import {
+  cancelarContadorDelNegocio,
   cargarCertificadoDelPedido,
   generarPedidoDelNegocio,
+  pedirContadorDelNegocio,
   pedirPaseDelNegocio,
+  registrarPruebaOk,
   type Resultado,
 } from "@/lib/fiscal/asistente-arca.server";
 
@@ -74,6 +77,11 @@ export async function probarCertificadoArcaAction() {
     ok: r.ok,
     ...(r.ok ? { entorno: r.entorno, conCae: !!r.prueba } : { paso: r.paso }),
   });
+  if (r.ok) {
+    await registrarPruebaOk(tenantId, actor, r.entorno).catch((e) => {
+      logger.warn("arca.asistente", "No se pudo registrar la prueba con ARCA", { tenantId, err: e instanceof Error ? e.name : "error" });
+    });
+  }
   const texto = mensajeDeVerificacion(r);
   volver(r.ok ? { ok: true, mensaje: texto } : { ok: false, motivo: texto });
 }
@@ -81,4 +89,15 @@ export async function probarCertificadoArcaAction() {
 export async function pedirPaseArcaAction(formData: FormData) {
   const { tenantId, actor } = await exigirAsistenteArca();
   volver(await pedirPaseDelNegocio(tenantId, actor, formData.get("confirmacion")));
+}
+
+/** «Obtené asistencia»: el estudio se elige de la red (se revalida en el servidor), o «propio» / «a confirmar». */
+export async function pedirContadorArcaAction(formData: FormData) {
+  const { tenantId, actor } = await exigirAsistenteArca();
+  volver(await pedirContadorDelNegocio(tenantId, actor, formData.get("estudioTenantId")));
+}
+
+export async function cancelarContadorArcaAction() {
+  const { tenantId, actor } = await exigirAsistenteArca();
+  volver(await cancelarContadorDelNegocio(tenantId, actor));
 }

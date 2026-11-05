@@ -27,6 +27,8 @@ import {
   cargarCertificadoArcaAction,
   generarPedidoArcaAction,
   pedirPaseArcaAction,
+  pedirContadorArcaAction,
+  cancelarContadorArcaAction,
   probarCertificadoArcaAction,
 } from "@/lib/fiscal/asistente-arca-actions";
 
@@ -154,6 +156,8 @@ async function leerAsistenteDelCliente(sp: Sp) {
         cargarCertificado: cargarCertificadoArcaAction,
         probar: probarCertificadoArcaAction,
         pedirPase: pedirPaseArcaAction,
+        pedirAsistencia: pedirContadorArcaAction,
+        cancelarAsistencia: cancelarContadorArcaAction,
       }}
     />
   );

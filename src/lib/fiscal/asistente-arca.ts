@@ -244,22 +244,29 @@ export function confirmaElPase(texto: unknown): boolean {
 
 // ── Instrucciones ────────────────────────────────────────────────────────────
 
-/** Dónde se canjea el .csr en ARCA, según el certificado que se busca. */
+/**
+ * Lo que la persona hace ELLA MISMA dentro de ARCA (decisión del dueño 05/11/2026: GSG no entra a su
+ * ARCA ni usa delegación a su CUIT; su clave fiscal queda con ella). El «pedido de certificado» es el
+ * archivo .csr que arma el sistema; el «certificado» es el .crt que devuelve ARCA. Producción va
+ * primero: es el que factura en serio; homologación queda como opcional.
+ */
 export const INSTRUCCIONES_DEL_PEDIDO: Readonly<Record<"pruebas" | "produccion", { titulo: string; pasos: string[] }>> = {
-  pruebas: {
-    titulo: "Para probar (homologación) · WSASS",
+  produccion: {
+    titulo: "En ARCA, con tu clave fiscal nivel 3 (unos 5 minutos)",
     pasos: [
-      "Entrá a arca.gob.ar con la clave fiscal del negocio y abrí «WSASS - Autogestión Certificados Homologación» (si no aparece, sumalo en Administrador de Relaciones de Clave Fiscal).",
-      "«Nuevo certificado»: poné un nombre (por ejemplo gsg-erp) y pegá el contenido del archivo .csr que bajaste.",
-      "Copiá el certificado que te muestra y pegalo en el paso 3. Después, en «Crear autorización a servicio», autorizá ese certificado para «wsfe».",
+      "Entrá a arca.gob.ar → «Iniciar sesión» con tu CUIT y tu clave fiscal. Buscá «Administración de Certificados Digitales» y entrá (si no aparece, tu clave no es nivel 3).",
+      "Tocá «Agregar alias». En «Alias» poné gsg-erp; en «Archivo» subí el pedido de certificado que bajaste acá (pedido-arca-….csr) y tocá «Agregar alias».",
+      "En la lista, tocá «Ver» al lado de gsg-erp y después «Descargar»: ese archivo (.crt) es tu certificado. Lo subís o lo pegás en el paso 3 de acá.",
+      "Volvé al inicio de ARCA y abrí «Administrador de Relaciones de Clave Fiscal» → «Nueva relación» → «Buscar» → ARCA → «WebServices» → «Facturación Electrónica».",
+      "En «Representante» tocá «Buscar» y elegí el certificado gsg-erp (figura como «computador fiscal»). Confirmá. No le das permiso a nadie: lo asociás a tu propio certificado.",
     ],
   },
-  produccion: {
-    titulo: "Para facturar en serio (producción) · Certificados Digitales",
+  pruebas: {
+    titulo: "Opcional: probar antes en homologación (WSASS)",
     pasos: [
-      "En arca.gob.ar, con la clave fiscal del negocio (nivel 3), abrí «Administración de Certificados Digitales».",
-      "«Agregar alias»: poné gsg-erp, subí el archivo .csr y confirmá. Descargá el certificado (.crt) del alias.",
-      "Subí ese .crt en el paso 3. Después, en Administrador de Relaciones de Clave Fiscal → Nueva relación → «Facturación electrónica», elegí el certificado gsg-erp.",
+      "En ARCA abrí «WSASS - Autogestión Certificados Homologación» (si no aparece, sumalo en Administrador de Relaciones de Clave Fiscal).",
+      "«Nuevo certificado»: poné gsg-erp y pegá el pedido de certificado (el botón «Copiar» de acá lo deja listo para pegar).",
+      "Copiá el certificado que te muestra y pegalo en el paso 3. Después, en «Crear autorización a servicio», autorizá ese certificado para «wsfe».",
     ],
   },
 };

@@ -2,10 +2,13 @@
 // el operador (ficha del negocio, pestaña Fiscal) con sus propias actions: cada plano pasa las suyas,
 // con su guardia. El paso que toca sale de `estadoDelAsistente` (src/lib/fiscal/asistente-arca.ts).
 // La clave privada nunca llega acá: sólo el .csr (público) para descargarlo.
-import { Bloque, Button, Field, Franja, Input, Marca, Renglon, Textarea, fmtCuit } from "@/components/ui";
+import { Bloque, Button, Field, Franja, Input, Marca, Renglon, fmtCuit } from "@/components/ui";
 import { CONDICIONES_DEL_EMISOR, type CondicionDelEmisor } from "@/lib/fiscal/condicion-iva-emisor";
 import { INSTRUCCIONES_DEL_PEDIDO, PALABRA_DEL_PASE, type EstadoDePaso } from "@/lib/fiscal/asistente-arca";
 import type { VistaDelAsistente } from "@/lib/fiscal/asistente-arca.server";
+import { ANTES_DE_EMPEZAR, TEXTO_CERTIFICADO_PROPIO } from "@/lib/fiscal/contador-arca";
+import { ObtenerAsistencia } from "./ObtenerAsistencia";
+import { CampoCertificado, CopiarTexto } from "./PiezasArca";
 
 type Accion = (formData: FormData) => void | Promise<void>;
 
@@ -14,7 +17,15 @@ interface Props {
   plano: "cliente" | "operador";
   /** Sólo en el plano del operador: va oculto en cada formulario (su guardia lo exige). */
   tenantId?: string;
-  acciones: { generarPedido: Accion; cargarCertificado: Accion; probar: Accion; pedirPase?: Accion };
+  acciones: {
+    generarPedido: Accion;
+    cargarCertificado: Accion;
+    probar: Accion;
+    pedirPase?: Accion;
+    /** «Obtené asistencia» (sólo el cliente). */
+    pedirAsistencia?: Accion;
+    cancelarAsistencia?: Accion;
+  };
   /** Por qué este operador no puede tocar el negocio (CH sin el dueño de GSG), o null. */
   soloLectura?: string | null;
   aviso?: { ok?: string; error?: string };
@@ -70,6 +81,24 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
         </p>
       )}
 
+      {plano === "cliente" && estado.paso !== "listo" && (
+        <div className="space-y-2 border-b border-line py-3 text-sm">
+          <p>{TEXTO_CERTIFICADO_PROPIO}</p>
+          <Franja tono="atencion">{ANTES_DE_EMPEZAR}</Franja>
+        </div>
+      )}
+      <ObtenerAsistencia
+        contador={vista.contador}
+        contadores={vista.contadores}
+        avisoAlContador={vista.avisoAlContador}
+        soporte={vista.soporte}
+        acciones={
+          puedeTocar && acciones.pedirAsistencia && acciones.cancelarAsistencia
+            ? { pedir: acciones.pedirAsistencia, cancelar: acciones.cancelarAsistencia }
+            : undefined
+        }
+      />
+
       <Paso numero={1} titulo={p1.titulo} estado={p1.estado}>
         <Renglon titulo="CUIT" detalle={f.arcaCuit ? fmtCuit(f.arcaCuit) : "Sin cargar"} />
         <Renglon titulo="Punto de venta" detalle={f.arcaPuntoVenta ? String(f.arcaPuntoVenta) : "Sin cargar"} />
@@ -92,26 +121,40 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
             {csrPem ? (
               <>
                 <p>
-                  Pedido generado el {fecha(entrada.pedidoPendiente!.creadoEn)}.{" "}
+                  Listo el pedido de certificado (generado el {fecha(entrada.pedidoPendiente!.creadoEn)}). Es un texto que
+                  le dice a ARCA quién sos; no tiene tu clave fiscal.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
                   <a
                     href={`data:application/pkcs10;base64,${btoa(csrPem)}`}
                     download={`pedido-arca-${cuit}.csr`}
-                    className="font-medium text-accent-ink underline underline-offset-4"
+                    className="inline-flex min-h-11 items-center font-medium text-accent-ink underline underline-offset-4"
                   >
-                    Bajar el archivo .csr
+                    Bajar el pedido (archivo .csr)
                   </a>
-                </p>
-                <div className="grid gap-4 lg:grid-cols-2">
-                  {(["pruebas", "produccion"] as const).map((k) => (
-                    <div key={k}>
-                      <p className="font-semibold text-strong">{INSTRUCCIONES_DEL_PEDIDO[k].titulo}</p>
+                  <CopiarTexto texto={csrPem} etiqueta="Copiar el pedido" />
+                </div>
+                <div className="space-y-3">
+                  {(["produccion", "pruebas"] as const).map((k) => {
+                    const lista = (
                       <ol className="mt-1 list-decimal space-y-1 pl-5 text-muted">
                         {INSTRUCCIONES_DEL_PEDIDO[k].pasos.map((t) => (
                           <li key={t}>{t}</li>
                         ))}
                       </ol>
-                    </div>
-                  ))}
+                    );
+                    return k === "produccion" ? (
+                      <div key={k}>
+                        <p className="font-semibold text-strong">{INSTRUCCIONES_DEL_PEDIDO[k].titulo}</p>
+                        {lista}
+                      </div>
+                    ) : (
+                      <details key={k}>
+                        <summary className="cursor-pointer font-medium text-accent-ink">{INSTRUCCIONES_DEL_PEDIDO[k].titulo}</summary>
+                        {lista}
+                      </details>
+                    );
+                  })}
                 </div>
               </>
             ) : (
@@ -120,14 +163,14 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
                   ? "El certificado cargado es de pruebas. Para facturar en serio generá un pedido nuevo y canjealo en «Certificados Digitales» de ARCA."
                   : conCertificado
                     ? "Si el certificado vence o lo tenés que cambiar, generá un pedido nuevo."
-                    : "Generamos el pedido de certificado de este negocio. Lo bajás y lo cargás en ARCA con la clave fiscal del negocio."}
+                    : "Generamos el pedido de certificado de este negocio. Lo bajás y lo cargás vos en ARCA con tu clave fiscal (o se lo pasás a tu contador)."}
               </p>
             )}
             {puedeTocar && (
               <form action={acciones.generarPedido}>
                 {oculto}
                 <Button type="submit" variant={csrPem || conCertificado ? "outline" : undefined}>
-                  {csrPem ? "Generar otro pedido (el anterior deja de servir)" : "Generar pedido de certificado"}
+                  {csrPem ? "Generar otro pedido (el anterior deja de servir)" : "Generar el pedido de certificado"}
                 </Button>
               </form>
             )}
@@ -139,24 +182,13 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
         {csrPem && puedeTocar ? (
           <form action={acciones.cargarCertificado} className="grid gap-3">
             {oculto}
-            <Field label="Pegá el certificado que te dio ARCA" htmlFor="asistente-cert">
-              <Textarea
-                id="asistente-cert"
-                name="certPem"
-                rows={4}
-                placeholder={"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"}
-                className="font-mono text-xs"
-              />
-            </Field>
-            <Field label="O subí el archivo .crt" htmlFor="asistente-cert-archivo">
-              <Input id="asistente-cert-archivo" name="certArchivo" type="file" accept=".crt,.cer,.pem,.txt" />
-            </Field>
+            <CampoCertificado />
             <div>
               <Button type="submit">Guardar el certificado</Button>
             </div>
           </form>
         ) : (
-          !conCertificado && <p className="text-muted">Cuando ARCA te dé el certificado del pedido, lo cargás acá.</p>
+          !conCertificado && <p className="text-muted">Cuando ARCA te dé el certificado (el archivo .crt), lo pegás o lo subís acá.</p>
         )}
         {conCertificado && (
           <>
