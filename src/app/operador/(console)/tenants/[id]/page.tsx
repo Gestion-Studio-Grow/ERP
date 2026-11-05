@@ -13,7 +13,9 @@ import {
   setTenantSubdomain,
   setTenantArcaCuit,
   setTenantArcaPuntoVenta,
+  setTenantArcaCondicionIva,
   cargarCredencialFiscal,
+  verificarCertificadoArca,
 } from "@/lib/operator-actions";
 import {
   checklistApertura,
@@ -41,6 +43,7 @@ import {
   fmtCuit,
 } from "@/components/ui";
 import { modoDesdeEnv } from "@/plugins/arca";
+import { CONDICIONES_DEL_EMISOR } from "@/lib/fiscal/condicion-iva-emisor";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { operatorReadMustChange } from "@/lib/must-change-password";
 import { mapaDeHostsVigente } from "@/lib/tenant";
@@ -278,6 +281,7 @@ export default async function FichaDelNegocio({
       arcaCuit: true,
       arcaPuntoVenta: true,
       arcaHomologacion: true,
+      arcaCondicionIva: true,
     },
   });
   if (!tenant) notFound();
@@ -823,6 +827,33 @@ export default async function FichaDelNegocio({
         </div>
       </div>
 
+      <Bloque titulo="Condición frente al IVA del emisor">
+        <form action={setTenantArcaCondicionIva} className="flex flex-wrap items-end gap-3 py-3">
+          <input type="hidden" name="tenantId" value={t.id} />
+          <Field
+            label="Condición"
+            htmlFor="ficha-condicion-iva"
+            hint="Define la letra (C monotributo y exento, A/B inscripto). Sin esto no sale ninguna factura."
+          >
+            <Select
+              id="ficha-condicion-iva"
+              name="arcaCondicionIva"
+              defaultValue={t.arcaCondicionIva ?? ""}
+            >
+              <option value="">Sin cargar</option>
+              {Object.entries(CONDICIONES_DEL_EMISOR).map(([id, nombre]) => (
+                <option key={id} value={id}>
+                  {nombre}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Button type="submit" variant="outline">
+            Guardar la condición
+          </Button>
+        </form>
+      </Bloque>
+
       <Bloque
         titulo="Paso 3 · Certificado de ARCA"
         nota="Se firma sólo si el CUIT del certificado es el del negocio · nunca se muestra ni se registra"
@@ -877,6 +908,19 @@ export default async function FichaDelNegocio({
                 {credLoaded ? "Rotar el certificado" : "Cargar el certificado"}
               </Button>
             </div>
+          </form>
+        )}
+        {credLoaded && (
+          <form action={verificarCertificadoArca} className="border-t border-border py-3">
+            <input type="hidden" name="tenantId" value={t.id} />
+            <p className="pb-2 text-sm text-muted-foreground">
+              Prueba el certificado en el ambiente de ARCA que lo emitió: pide el ticket, lee el
+              último comprobante del punto de venta y, sólo en homologación, saca un CAE de prueba
+              que no queda guardado en el negocio. En producción no emite nada.
+            </p>
+            <Button type="submit" variant="outline">
+              Verificar con ARCA
+            </Button>
           </form>
         )}
       </Bloque>
