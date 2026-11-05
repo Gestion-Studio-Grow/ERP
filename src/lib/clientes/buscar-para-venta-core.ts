@@ -22,11 +22,11 @@
 // negocio, dentro de `tenantTransaction`. Lo puro (texto a buscar, CUIT, validación del alta) lo
 // alcanza también el componente de cliente.
 
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { validarCuit } from "@/lib/fiscal/cuit";
 import { DOC_TIPO } from "@/lib/fiscal/decidir-comprobante";
 import { cambiosDeFicha, validarFichaFiscal, type FichaFiscal } from "@/lib/fiscal/ficha-fiscal";
-import { normalizarTelefono, ultimosCuatroBuscados } from "./telefono";
+import { criterioDeContacto, sqlPorContacto } from "./busqueda-por-contacto";
 import { crearFichaEnTx } from "./crear-ficha";
 import { isValidArgentinePhone } from "@/lib/contact-validation";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
@@ -220,26 +220,20 @@ export async function buscarClientesParaVentaEnTx(
     : [];
 
   let porTelefono: FilaEncontrada[] = [];
-  const cuatro = veContacto ? null : ultimosCuatroBuscados(crudo);
-  if (veContacto ? conDigitos : cuatro !== null) {
-    // Lo escrito puede venir con +54, 0 o 15: se compara también la clave normalizada.
-    const clave = normalizarTelefono(digitos);
-    const patrones = cuatro
-      ? [`%${cuatro}`]
-      : [...new Set([digitos, clave].filter((p) => p.length >= MINIMO_PARA_BUSCAR))].map((p) => `%${p}%`);
-    const ids = new Set<string>();
-    for (const patron of patrones) {
-      const filas = await tx.$queryRaw<{ id: string }[]>`
+  // Cómo se busca por teléfono lo decide el helper único (casilla 5): con permiso, dígitos y clave
+  // normalizada (+54, 0, 15); sin permiso, sólo los últimos 4 completos. Con menos de
+  // `MINIMO_PARA_BUSCAR` dígitos no se busca por teléfono (cualquier cifra traería medio negocio).
+  const criterio = criterioDeContacto(texto, veContacto);
+  if (criterio.modo === "ultimos4" || (criterio.modo === "completo" && conDigitos)) {
+    const ids = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
         SELECT "id" FROM "Client"
         WHERE "tenantId" = ${tenantId}
-          AND regexp_replace(COALESCE("phone", ''), '[^0-9]', '', 'g') LIKE ${patron}
+          AND ${sqlPorContacto(criterio)}
         ORDER BY "name" ASC, "id" ASC
-        LIMIT ${MAXIMO_RESULTADOS}`;
-      for (const f of filas) ids.add(f.id);
-    }
-    if (ids.size > 0) {
+        LIMIT ${MAXIMO_RESULTADOS}`);
+    if (ids.length > 0) {
       porTelefono = await tx.client.findMany({
-        where: { tenantId, id: { in: [...ids] } },
+        where: { tenantId, id: { in: ids.map((f) => f.id) } },
         select: SELECT_ENCONTRADO,
       });
     }

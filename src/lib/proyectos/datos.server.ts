@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { permisoFueraDeLaAgenda } from "@/lib/capabilities";
+import { enmascararContacto } from "@/lib/clientes/telefono";
+import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
 import { desvioPorRubro, redondear, resultadoReal, totales, ultimaEnviada } from "./core";
@@ -198,17 +200,14 @@ export async function proveedoresConGastos() {
 
 /** Los clientes del negocio con sus proyectos: abiertos, total y lo que falta cobrar de lo aprobado. */
 export async function clientesConProyectos(q: string) {
-  await requireCapability("clients:read");
+  const user = await requireCapability("clients:read");
   const tenantId = await getCurrentTenantId();
+  // Por teléfono o mail según la casilla 5 (helper único): sin `clients:contact`, sólo nombre o últimos 4.
   const clientes = await prisma.client.findMany({
     where: {
       tenantId,
       ...(q && {
-        OR: [
-          { name: { contains: q, mode: "insensitive" as const } },
-          { phone: { contains: q } },
-          { email: { contains: q, mode: "insensitive" as const } },
-        ],
+        OR: [{ name: { contains: q, mode: "insensitive" as const } }, ...wherePorContacto(criterioDeContacto(q, user), { conMail: true })],
       }),
     },
     orderBy: { name: "asc" },
@@ -228,7 +227,7 @@ export async function clientesConProyectos(q: string) {
     },
   });
   return clientes.map(({ proyectos, ...c }) => ({
-    ...c,
+    ...enmascararContacto(c, user),
     total: proyectos.length,
     abiertos: proyectos.filter((p) => p.etapa !== "CIERRE").length,
     porCobrar: redondear(

@@ -67,7 +67,7 @@ test("sólo toca las claves que la fila trae (no agrega `email` a una fila que n
 // Guardas de forma: cada superficie que entrega el contacto pasa por el enmascarado. Si alguien
 // borra la llamada, esto lo frena (la regla en sí está probada arriba con datos de verdad).
 const SUPERFICIES: [string, RegExp][] = [
-  ["src/lib/clientes/lista-fichas.server.ts", /contactoSegunQuienMira/],
+  ["src/lib/clientes/lista-fichas.server.ts", /enmascararContacto/],
   ["src/lib/clientes/buscar-actions.ts", /enmascararTelefono/],
   ["src/lib/clientes/buscar-para-venta.ts", /enmascararTelefono/],
   ["src/lib/buscador/buscar-en-el-negocio.ts", /enmascararTelefono/],

@@ -32,6 +32,7 @@ import { modoCobrosDesdeEnv } from "@/lib/mercadopago-cobros-dispatch";
 import { esLineaDeEnvio, leerCuponDelPedido, whereCuponDelPedido, type CuponDelPedido } from "@/lib/venta-reglas";
 import { getProfessionalsWithServices } from "@/lib/actions";
 import { canCurrentUser } from "@/lib/authz";
+import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
 import { alcanceDeAnulacion, permisoEfectivo } from "@/lib/capabilities";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -96,6 +97,9 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
   // La guardia de la app (rol, módulo pos): esconderla del menú no la protegería. getPosData
   // vuelve a pedir orders:read, como siempre.
   const user = await requireApp("pedidos");
+  // Casilla 5 (`clients:contact`): el teléfono del pedido sale enmascarado desde el servidor para quien
+  // no la tiene; con «•••• 1234» `waLinkClienta` no arma link, así que los botones de WhatsApp se apagan.
+  const telefonoDelPedido = (phone: string | null) => (puedeVerContacto(user) ? phone : (enmascararTelefono(phone) ?? null));
   // ¿Modelo nuevo? En los negocios con "Trabaja por apps" prendido el mostrador vive en
   // /admin/vender y esta pantalla es sólo la bandeja. En CH, y en todo negocio con el
   // interruptor apagado, la solapa de venta de arriba queda IGUAL que siempre hasta que el dueño
@@ -495,7 +499,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
           const avisoWa =
             local && o.status === "READY"
               ? waLinkClienta(
-                  o.customerPhone,
+                  telefonoDelPedido(o.customerPhone),
                   avisoPedidoListo({
                     cliente: o.customerName,
                     code: o.code,
@@ -514,7 +518,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
           const recordatorio =
             local && o.fulfillment !== "DELIVERY" && listoDesdeAyer({ status: o.status, creado: o.createdAt.toISOString() }, hoy)
               ? waLinkClienta(
-                  o.customerPhone,
+                  telefonoDelPedido(o.customerPhone),
                   recordatorioDeRetiro({
                     cliente: o.customerName,
                     code: o.code,
@@ -560,7 +564,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
                   </div>
                   <p className="text-sm text-body mt-1">
                     {o.customerName}
-                    {o.customerPhone && <span className="text-faint"> · {o.customerPhone}</span>}
+                    {telefonoDelPedido(o.customerPhone) && <span className="text-faint"> · {telefonoDelPedido(o.customerPhone)}</span>}
                   </p>
                   {otrosDeLaClienta.has(o.id) && (
                     <p className="text-xs font-medium text-warning mt-0.5">{textoDeOtrosPedidos(otrosDeLaClienta.get(o.id) ?? [])}</p>
@@ -643,7 +647,7 @@ export default async function PedidosPage({ searchParams }: { searchParams?: Pro
                       whatsappEnviado={
                         enviado && local
                           ? waLinkClienta(
-                              o.customerPhone,
+                              telefonoDelPedido(o.customerPhone),
                               textoDelLinkDePago({ negocio: local.negocio, code: o.code, monto: enviado.monto, url: enviado.url }),
                             )
                           : null

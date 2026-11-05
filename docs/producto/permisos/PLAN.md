@@ -53,6 +53,15 @@ Sección nueva «Qué puede hacer cada persona» en `usuarios/page.tsx`: filas =
 
 **Tandas posteriores (ficha del personal: comisiones + servicios que hace; disponibilidad):** `PLAN-ficha-personal.md`.
 
+## 10b. Búsqueda por contacto: un solo helper (escalamiento, certificación v3)
+Cómo se busca por teléfono/mail según la casilla 5 lo decide ÚNICAMENTE `src/lib/clientes/busqueda-por-contacto.ts` (`criterioDeContacto` + `wherePorContacto` para Prisma / `sqlPorContacto` para SQL crudo). Lo usan la lista de fichas, el buscador global, el de turnos, el de venta, taller, proyectos y pádel. El guardián de `busqueda-por-contacto.test.ts` falla si aparece un `phone: { contains` o un `phone LIKE` fuera del helper. Reprogramar un turno ya tomado no es una reserva nueva: la clienta ve los huecos de su profesional aunque esté fuera de la reserva online (`huecosVisiblesParaQuienPregunta` con el id del turno, `actions.ts`).
+
+**Deuda (bajas no hechas, 05/11):**
+- Vidriera: `getPublicBookingData` (`actions.ts`, `groups`) sigue listando servicios que sólo hace una profesional fuera de la reserva online; filtrar los servicios sin profesional disponible.
+- Excepción `booking:online=no` heredada al pasar a OWNER: hoy no existe acción de cambio de rol en el repo; cuando se escriba, borrar los overrides del usuario en la misma transacción (la matriz bloquea editar a un socio).
+- Alta manual sin `clients:contact` con teléfono completo tipeado ata la ficha existente (`actions.ts:886`): oráculo teléfono→identidad que exige el número entero; aceptado por ahora.
+- `armar/page.tsx` y reparto muestran `customerPhone` de pedidos sin la casilla 5 (fuera del §4); `pedidos/page.tsx` ya lo enmascara en el servidor.
+
 ## 11. Riesgos para el certificador (plata, seguridad, datos)
 1. Override que prende una capability fuera de las 8 (p. ej. `users:manage`, `agenda:void`): el candado de §2 debe tener test adversarial.
 2. Profesional con casilla 2 crea un turno a OTRO profesional, o cobra turno ajeno: probar `soloLoSuyo` en crear/mover/cancelar/cobrar.

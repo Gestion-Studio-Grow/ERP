@@ -27,7 +27,8 @@
 // también es una extensión nueva). Proveedores y comprobantes por número quedan para otra porción.
 
 import { requireUser } from "@/lib/authz";
-import { enmascararTelefono, puedeVerContacto, ultimosCuatroBuscados } from "@/lib/clientes/telefono";
+import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
+import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -72,13 +73,8 @@ export async function buscarEnElNegocio(q: unknown): Promise<ResultadoDeBusqueda
   };
   const { texto, digitos, codigo } = busqueda;
   const veContacto = puedeVerContacto(user);
-  // Sin `clients:contact`: por teléfono, sólo los últimos 4 completos (nunca un tramo del medio).
-  const cuatro = veContacto ? null : ultimosCuatroBuscados(texto);
-  const porTelefono = veContacto
-    ? [{ phone: { contains: texto } }, ...(digitos && digitos.length >= 3 && digitos !== texto ? [{ phone: { contains: digitos } }] : [])]
-    : cuatro
-      ? [{ phone: { endsWith: cuatro } }]
-      : [];
+  // Por teléfono lo decide el helper único (casilla 5): sin `clients:contact`, sólo los últimos 4 completos.
+  const porTelefono = wherePorContacto(criterioDeContacto(texto, veContacto));
 
   try {
     const leidos = await tenantTransaction(async (tx) => {

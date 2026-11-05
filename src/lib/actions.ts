@@ -150,11 +150,22 @@ export async function getAvailableSlots(
   return byDay[date] ?? [];
 }
 
-async function huecosVisiblesParaQuienPregunta(professionalId: string): Promise<boolean> {
-  const fuera = await profesionalesFueraDeReservaOnline(await getCurrentTenantId());
+async function huecosVisiblesParaQuienPregunta(professionalId: string, excludeAppointmentId?: string): Promise<boolean> {
+  const tenantId = await getCurrentTenantId();
+  const fuera = await profesionalesFueraDeReservaOnline(tenantId);
   if (!fuera.has(professionalId)) return true;
   const user = await getCurrentUser();
-  return user !== null && permisoEfectivo(user, "agenda:read");
+  if (user !== null && permisoEfectivo(user, "agenda:read")) return true;
+  // Reprogramar un turno ya tomado NO es una reserva nueva (certificación v3, baja): la clienta que ya
+  // tiene turno con la profesional ve sus huecos para moverlo, aunque la casilla 1 esté apagada. Quien
+  // pregunta tiene que tener un turno vivo de ESA profesional en ESTE negocio (poseer el id es la
+  // autorización, igual que cancelar); `rescheduleMyAppointment` tampoco mira la casilla.
+  if (!excludeAppointmentId) return false;
+  const propio = await prisma.appointment.findFirst({
+    where: { id: excludeAppointmentId, tenantId, professionalId, status: { in: ["PENDING", "CONFIRMED"] } },
+    select: { id: true },
+  });
+  return propio !== null;
 }
 
 /** Reservar online (público): rechaza a la profesional con la casilla 1 apagada. `null` = puede. */
@@ -181,7 +192,7 @@ export async function getAvailableSlotsRange(
   if (uniqueDates.length === 0) return result;
   // Casilla 1 (PLAN permisos §3): a una profesional fuera de la reserva online el público no le ve
   // huecos. El equipo (con `agenda:read`) sí: la grilla y «Dar turno» usan este mismo motor.
-  if (!(await huecosVisiblesParaQuienPregunta(professionalId))) {
+  if (!(await huecosVisiblesParaQuienPregunta(professionalId, excludeAppointmentId))) {
     for (const date of uniqueDates) result[date] = [];
     return result;
   }

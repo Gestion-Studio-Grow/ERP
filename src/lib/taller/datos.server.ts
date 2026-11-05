@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
 import { permisoFueraDeLaAgenda } from "@/lib/capabilities";
+import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
+import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -242,11 +244,13 @@ export async function vehiculoPorPatente(tenantId: string, patente: string) {
 // ── Vehículos y su historial ────────────────────────────────────────────────
 
 export async function listaVehiculos(q: string) {
-  await requireCapability("agenda:read");
+  const user = await requireCapability("agenda:read");
   const tenantId = await getCurrentTenantId();
   const texto = q.trim();
   const pat = texto.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return prisma.tallerVehiculo.findMany({
+  // Por teléfono de la clienta según la casilla 5 (helper único); el número sale enmascarado sin ella.
+  const veContacto = puedeVerContacto(user);
+  const filas = await prisma.tallerVehiculo.findMany({
     where: {
       tenantId,
       ...(texto
@@ -256,7 +260,7 @@ export async function listaVehiculos(q: string) {
               { modelo: { contains: texto, mode: "insensitive" as const } },
               { marca: { contains: texto, mode: "insensitive" as const } },
               { client: { name: { contains: texto, mode: "insensitive" as const } } },
-              { client: { phone: { contains: texto } } },
+              ...wherePorContacto(criterioDeContacto(texto, veContacto)).map((client) => ({ client })),
             ],
           }
         : {}),
@@ -268,6 +272,7 @@ export async function listaVehiculos(q: string) {
       _count: { select: { ordenes: true } },
     },
   });
+  return veContacto ? filas : filas.map((v) => ({ ...v, client: { ...v.client, phone: enmascararTelefono(v.client.phone) } }));
 }
 
 export async function historialVehiculo(id: string) {

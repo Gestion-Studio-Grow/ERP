@@ -73,17 +73,19 @@ export default function MatrizDePermisos({ matriz, conTabla }: Props) {
         {aviso?.texto ?? ""}
       </p>
 
-      {/* El contenedor se desliza de costado en el celular; foco visible en cada casilla. */}
+      {/* El contenedor se desliza de costado en el celular; foco visible en cada casilla. A 1366 px el
+          panel deja 846 px: 8 rem de nombre + 8 columnas de 5.5 rem = 52 rem (832 px) entran sin
+          deslizar; los títulos van en dos líneas y el nombre se trunca (el completo, en `title`). */}
       <div className="relative max-w-full overflow-x-auto rounded-lg border border-line" tabIndex={0} role="region" aria-label="Permisos por persona (se desliza de costado)">
-        <table className="w-full min-w-[57rem] table-fixed border-collapse text-sm">
+        <table className="w-full min-w-[52rem] table-fixed border-collapse text-sm">
           <caption className="sr-only">Qué puede hacer cada persona: una fila por persona, una columna por permiso.</caption>
           <thead className="sticky top-0 z-10 bg-surface-sunken">
             <tr className="border-b border-line-strong text-left">
-              <th scope="col" className="sticky left-0 z-20 w-36 bg-surface-sunken px-3 py-2 text-[11.5px] font-semibold uppercase tracking-[.06em] text-muted">
+              <th scope="col" className="sticky left-0 z-20 w-32 bg-surface-sunken px-3 py-2 text-[11.5px] font-semibold uppercase tracking-[.06em] text-muted">
                 Persona
               </th>
               {matriz.columnas.map((c) => (
-                <th key={c.clave} scope="col" title={c.titulo} className="w-24 px-2 py-2 align-bottom text-[12px] font-semibold leading-tight text-muted">
+                <th key={c.clave} scope="col" title={c.titulo} className="w-[5.5rem] px-1.5 py-2 align-bottom text-[11.5px] font-semibold leading-tight text-muted [text-wrap:balance]">
                   <span aria-hidden="true">{c.corto}</span>
                   <span className="sr-only">{c.titulo}</span>
                 </th>
@@ -101,7 +103,7 @@ export default function MatrizDePermisos({ matriz, conTabla }: Props) {
               </tr>
               {g.filas.map((f) => (
                 <tr key={f.usuario.id} className="border-b border-line align-top">
-                  <th scope="row" className="sticky left-0 z-[1] break-words bg-surface-raised px-3 py-2 text-left font-medium text-strong">
+                  <th scope="row" title={f.usuario.name} className="sticky left-0 z-[1] truncate bg-surface-raised px-3 py-2 text-left font-medium text-strong">
                     {f.usuario.name}
                   </th>
                   {f.celdas.map((celda, i) => {
@@ -112,7 +114,7 @@ export default function MatrizDePermisos({ matriz, conTabla }: Props) {
                     const ocupada = pendiente && tocando === `${f.usuario.id}:${col.clave}`;
                     const idDetalle = `${idNota}-${f.usuario.id}-${col.clave}`;
                     return (
-                      <td key={col.clave} className={cn("px-2 py-2", bloqueo && "bg-surface-sunken/60")}>
+                      <td key={col.clave} className={cn("px-1.5 py-2", bloqueo && "bg-surface-sunken/60")}>
                         <label className={cn("flex min-h-11 flex-col items-start gap-1", bloqueo ? "cursor-not-allowed" : "cursor-pointer")} title={bloqueo ?? porRol ?? undefined}>
                           <input
                             type="checkbox"

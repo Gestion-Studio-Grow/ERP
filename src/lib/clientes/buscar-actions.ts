@@ -36,7 +36,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { normalizarBusqueda } from "@/modules/nav-search";
 import { requireCapability } from "@/lib/authz";
-import { enmascararTelefono, puedeVerContacto, ultimosCuatroBuscados } from "@/lib/clientes/telefono";
+import { enmascararTelefono, puedeVerContacto } from "@/lib/clientes/telefono";
+import { criterioDeContacto, sqlPorContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox } from "@/lib/demo-flag";
@@ -99,23 +100,14 @@ async function fichasQueCoinciden(
   veContacto: boolean,
 ): Promise<{ id: string; name: string; phone: string | null }[]> {
   const nombre = `%${escaparLike(normalizarBusqueda(b.texto))}%`;
-  const cuatro = veContacto ? null : ultimosCuatroBuscados(b.texto);
-  const porTelefono = veContacto
-    ? Prisma.sql`OR "phone" LIKE ${`%${escaparLike(b.texto)}%`}`
-    : cuatro
-      ? Prisma.sql`OR regexp_replace(COALESCE("phone", ''), '[^0-9]', '', 'g') LIKE ${`%${cuatro}`}`
-      : Prisma.empty;
-  const digitos = veContacto && b.digitos && b.digitos.length >= 3 && b.digitos !== b.texto ? `%${escaparLike(b.digitos)}%` : null;
+  // Por teléfono lo decide el helper único (casilla 5): sin `clients:contact`, sólo los últimos 4.
+  const porTelefono = sqlPorContacto(criterioDeContacto(b.texto, veContacto));
   return tenantTransaction(
     (tx) =>
       tx.$queryRaw<{ id: string; name: string; phone: string | null }[]>(Prisma.sql`
         SELECT "id", "name", "phone" FROM "Client"
         WHERE "tenantId" = ${tenantId}
-          AND (
-            lower(${NOMBRE_SIN_TILDES}) LIKE ${nombre}
-            ${porTelefono}
-            ${digitos ? Prisma.sql`OR "phone" LIKE ${digitos}` : Prisma.empty}
-          )
+          AND (lower(${NOMBRE_SIN_TILDES}) LIKE ${nombre} OR ${porTelefono})
         ORDER BY "name" ASC
         LIMIT ${limite}`),
     { tenantId },
@@ -143,15 +135,7 @@ export async function buscarClientasYTurnos(q: unknown): Promise<ResultadoDelBus
   const ahora = new Date();
   // Sin `clients:contact` (casilla 5): por teléfono sólo los últimos 4 completos, nunca un tramo.
   const veContacto = puedeVerContacto(user);
-  const cuatro = veContacto ? null : ultimosCuatroBuscados(texto);
-  const porNombreOTelefono = [
-    { name: { contains: texto, mode: "insensitive" as const } },
-    ...(veContacto
-      ? [{ phone: { contains: texto } }, ...(digitos && digitos.length >= 3 && digitos !== texto ? [{ phone: { contains: digitos } }] : [])]
-      : cuatro
-        ? [{ phone: { endsWith: cuatro } }]
-        : []),
-  ];
+  const porNombreOTelefono = [{ name: { contains: texto, mode: "insensitive" as const } }, ...wherePorContacto(criterioDeContacto(texto, veContacto))];
 
   try {
     let clientas: ClientaLeida[] = [];
