@@ -17,6 +17,7 @@ import { unstable_rethrow } from "next/navigation";
 import { RechazoDeDominio, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { whereEsperando } from "@/lib/crm/wheres";
 import type { ResultadoAccion } from "@/lib/actions";
+import { minutosEnAgendaDelServicio } from "@/lib/servicios/ficha.server";
 
 const WAITLIST_PATH = "/admin/espera";
 
@@ -241,7 +242,7 @@ export async function bookFromWaitlist(formData: FormData) {
 
   const startsAt = new Date(startsAtIso);
   if (Number.isNaN(startsAt.getTime())) throw new RechazoDeDominio("Ese horario no se pudo leer. Elegí otro con “Buscar horario”.");
-  const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);
+  const endsAt = new Date(startsAt.getTime() + (await minutosEnAgendaDelServicio(tenantId, service)) * 60000);
   const boxId = professional.boxId;
 
   // El turno tiene que caer dentro del horario de trabajo del profesional ese día.

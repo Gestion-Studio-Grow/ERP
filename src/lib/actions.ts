@@ -88,6 +88,7 @@ import { cancelarTurnoVivo, whereTurnosDeManana, whereTurnosDelDia } from "@/lib
 import { Prisma } from "@/generated/prisma/client";
 import { importeONaN } from "@/lib/dinero/leer";
 import { cuponDeLaReserva } from "@/lib/cupones/cupon-de-reserva";
+import { minutosEnAgendaDelServicio, notasDeRecordatorio } from "@/lib/servicios/ficha.server";
 import {
   isDemoSandbox,
   getDemoAgendaDay,
@@ -242,7 +243,8 @@ export async function getAvailableSlotsRange(
   // predicados que la versión por-día). El buffer de limpieza se aplica dentro.
   const computed = generateSlotsForDays({
     windows: [...windows].map(([date, w]) => ({ date, dayStart: w.dayStart, dayEnd: w.dayEnd })),
-    durationMin: service.durationMin,
+    // Lo que ocupa en la agenda (preparación/limpieza incluidas), no sólo lo que dura para la clienta.
+    durationMin: await minutosEnAgendaDelServicio(service.tenantId, service),
     stepMin: 30,
     bufferMin: BUFFER_MIN,
     busyAppointments: existing,
@@ -346,7 +348,8 @@ async function bookAppointment({
   if (soloFuturo && startsAt.getTime() < Date.now()) {
     throw new RechazoDeDominio("Ese horario ya pasó. Elegí otro horario.");
   }
-  const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);
+  // El turno bloquea lo que el servicio ocupa en la agenda (calendarMin ?? durationMin).
+  const endsAt = new Date(startsAt.getTime() + (await minutosEnAgendaDelServicio(tenantId, service)) * 60000);
   const boxId = professional.boxId;
 
   // El día del turno se deriva del instante en la zona del negocio, no del
@@ -1002,7 +1005,7 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
   const conservarDuracion = String(formData.get("conservarDuracion") ?? "") === "1";
   const duracionMs = conservarDuracion
     ? appointment.endsAt.getTime() - appointment.startsAt.getTime()
-    : appointment.service.durationMin * 60000;
+    : (await minutosEnAgendaDelServicio(tenantId, appointment.service)) * 60000;
   const endsAt = new Date(startsAt.getTime() + duracionMs);
   const boxId = professional.boxId;
 
@@ -2387,6 +2390,7 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
         status: true,
         reminderSentAt: true,
         clientId: true,
+        serviceId: true,
         client: { select: { name: true, phone: true } },
         service: { select: { name: true } },
         professional: { select: { name: true } },
@@ -2397,6 +2401,7 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
       select: { body: true },
     }),
   ]);
+  const notas = await notasDeRecordatorio(tenantId, turnos.map((t) => t.serviceId));
   return {
     dia,
     turnos: turnos.map((t) => ({
@@ -2413,6 +2418,7 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
         serviceName: t.service.name,
         professionalName: t.professional.name,
         startsAt: t.startsAt,
+        aclaracion: notas.get(t.serviceId) ?? null,
       }),
       avisadaEl: t.reminderSentAt ? t.reminderSentAt.toISOString() : null,
     })),

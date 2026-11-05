@@ -5,6 +5,7 @@
 // campos nuevos. Ninguna consulta de Service se cruza con estas tablas: se leen aparte, por id.
 
 import { prisma } from "@/lib/prisma";
+import { tenantTransaction } from "@/lib/rls";
 import type { TxClient } from "@/lib/booking-core";
 import { FICHA_VACIA, minutosEnAgenda, type FichaDelServicio } from "./ficha";
 
@@ -87,15 +88,23 @@ export async function minutosEnAgendaDelServicio(tenantId: string, service: { id
   return minutosEnAgenda(service.durationMin, ficha.calendarMin);
 }
 
-/** Aclaraciones para el recordatorio de varios servicios (serviceId → nota). Sin migración, vacío. */
+/**
+ * Aclaraciones para el recordatorio de varios servicios (serviceId → nota). Sin migración, vacío.
+ * En su PROPIA transacción del negocio: la usa también el barrido de recordatorios (cron, sin
+ * request de dónde sacar el negocio), y si la tabla falta, la que se cae es ésta y no la del envío.
+ */
 export async function notasDeRecordatorio(tenantId: string, serviceIds: readonly string[]): Promise<Map<string, string>> {
   const ids = [...new Set(serviceIds)];
   if (ids.length === 0) return new Map();
   try {
-    const filas = await prisma.serviceDetail.findMany({
-      where: { tenantId, serviceId: { in: ids }, reminderNote: { not: null } },
-      select: { serviceId: true, reminderNote: true },
-    });
+    const filas = await tenantTransaction(
+      (tx) =>
+        tx.serviceDetail.findMany({
+          where: { tenantId, serviceId: { in: ids }, reminderNote: { not: null } },
+          select: { serviceId: true, reminderNote: true },
+        }),
+      { tenantId },
+    );
     return new Map(filas.filter((f) => f.reminderNote).map((f) => [f.serviceId, f.reminderNote as string]));
   } catch (e) {
     if (faltaLaMigracion(e)) return new Map();

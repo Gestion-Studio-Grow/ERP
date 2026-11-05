@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { textoDelPrecio } from "@/lib/servicios/ficha";
 
 // Menú de servicios de la landing.
 //
@@ -52,7 +53,7 @@ function ServiceList({ services }: { services: Service[] }) {
         >
           <span>{it.name}</span>
           <span style={{ fontSize: ".875rem", color: "var(--text-muted)", whiteSpace: "nowrap", textAlign: "right" }}>
-            {it.durationMin} min · ${it.price.toLocaleString("es-AR")}
+            {it.durationMin} min · {textoDelPrecio(it.price, (n) => `$${n.toLocaleString("es-AR")}`)}
             {/* Beneficio vecino (ADR-013): visible siempre en la lista de precios,
                 no escondido detrás del paso de reserva — es parte de lo que
                 convence de reservar. */}

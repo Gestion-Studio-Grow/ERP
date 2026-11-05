@@ -98,7 +98,7 @@ export function CamposDeLaFicha({ prefijo: p, servicio: s, disponible }: { prefi
                   lleno
                   value={tipoSenia}
                   onChange={(e) => {
-                    const v = (e.target as HTMLInputElement).value;
+                    const v = (e.target as unknown as HTMLInputElement).value;
                     if (v === "monto" || v === "porcentaje") setTipoSenia(v);
                   }}
                   opciones={[

@@ -32,6 +32,7 @@ import { urlDelSitio } from "@/lib/crm/cargas.server";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { franjaDeAhora } from "@/app/admin/(dashboard)/turnos/_agenda/alta-core";
 import { ACCION_SENIA_PEDIDA } from "./senia-pedida";
+import { minutosEnAgendaDelServicio, notasDeRecordatorio } from "@/lib/servicios/ficha.server";
 
 export type ResultadoDarTurno =
   | {
@@ -44,6 +45,8 @@ export type ResultadoDarTurno =
       linkTurno: string | null;
       /** ¿Quedó la marca «seña pedida»? */
       seniaPedida: boolean;
+      /** La aclaración del servicio para la clienta («Vení bañada»), si tiene. */
+      aclaracion?: string | null;
     }
   | { ok: false; error: string };
 
@@ -85,7 +88,9 @@ export async function darTurno(fd: FormData, opciones: { pedirSenia?: boolean; m
 
   const direccion = [ajustes?.addressLine?.trim(), ajustes?.city?.trim()].filter(Boolean).join(", ") || null;
   const sitio = turno ? await urlDelSitio() : null;
-  return { ok: true, id: turno?.id ?? null, direccion, linkTurno: sitio && turno ? `${sitio}/reserva/turno/${turno.id}` : null, seniaPedida };
+  const serviceId = String(fd.get("serviceId") ?? "");
+  const aclaracion = serviceId ? ((await notasDeRecordatorio(tenantId, [serviceId])).get(serviceId) ?? null) : null;
+  return { ok: true, id: turno?.id ?? null, direccion, linkTurno: sitio && turno ? `${sitio}/reserva/turno/${turno.id}` : null, seniaPedida, aclaracion };
 }
 
 export type LibresAhora = {
@@ -119,7 +124,7 @@ export async function libresAhora(servicioId: string): Promise<LibresAhora> {
     },
   });
   if (!servicio) return vacio;
-  const fin = new Date(inicio.getTime() + servicio.durationMin * 60_000);
+  const fin = new Date(inicio.getTime() + (await minutosEnAgendaDelServicio(tenantId, servicio)) * 60_000);
   const dia = dateStrInBusinessTz(inicio);
 
   const libres: string[] = [];
