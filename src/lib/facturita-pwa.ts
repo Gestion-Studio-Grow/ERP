@@ -70,10 +70,10 @@ export function manifestFacturita(): ManifestFacturita {
   const icono192 = ICONOS_FACTURITA[0];
   return {
     id: START_URL_FACTURITA,
-    name: "Facturita — tus facturas de ARCA en el celu",
-    short_name: "Facturita",
+    name: "Factoque — tus facturas de ARCA en el celu",
+    short_name: "Factoque",
     description:
-      "Emití facturas electrónicas y mandalas a ARCA en tres toques. Gratis hasta 5 por mes, para monotributistas y comercios chicos.",
+      "Emití facturas electrónicas desde el celu, sin vueltas, y mandalas a ARCA. Gratis hasta 5 por mes, para monotributistas y comercios chicos.",
     lang: "es-AR",
     dir: "ltr",
     start_url: START_URL_FACTURITA,

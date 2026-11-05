@@ -173,14 +173,18 @@ function textoDelCampo(campo: unknown): string | null {
 }
 
 /** Abre el certificado con la guardia de siempre y devuelve SÓLO quién lo firmó. */
+export function entornoDeCertPem(certPem: string): Pick<CredencialDelPase, "entorno" | "emisor"> {
+  const issuer = forge.pki.certificateFromPem(certPem).issuer;
+  const cn = textoDelCampo(issuer.getField("CN"));
+  const o = textoDelCampo(issuer.getField("O"));
+  const emisor = [cn, o].filter((x): x is string => !!x).join(" · ") || null;
+  return { entorno: entornoDelEmisor({ cn, o }), emisor };
+}
+
 async function entornoDelCertificado(tenantId: string): Promise<Pick<CredencialDelPase, "entorno" | "emisor" | "error">> {
   try {
     const { certPem } = await credencialParaTenant(tenantId);
-    const issuer = forge.pki.certificateFromPem(certPem).issuer;
-    const cn = textoDelCampo(issuer.getField("CN"));
-    const o = textoDelCampo(issuer.getField("O"));
-    const emisor = [cn, o].filter((x): x is string => !!x).join(" · ") || null;
-    return { entorno: entornoDelEmisor({ cn, o }), emisor, error: null };
+    return { ...entornoDeCertPem(certPem), error: null };
   } catch (e) {
     return { entorno: "desconocido", emisor: null, error: motivoSinSecretos(e) };
   }

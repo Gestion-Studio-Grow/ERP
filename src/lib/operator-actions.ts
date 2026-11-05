@@ -14,6 +14,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { logger } from "@/lib/logger";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
 import { operatorPrisma, enElNegocio } from "@/lib/operator-db";
@@ -25,6 +26,11 @@ import { motivoFueraDelPlan } from "@/app/operador/(console)/tenants/[id]/modulo
 import { vueltaAFiscal } from "@/app/operador/(console)/tenants/[id]/fiscal-vuelta";
 import { leerSubdominio } from "@/lib/provisioning/slug";
 import { cargarCredencialTenant } from "@/lib/fiscal/tenant-cert";
+import { verificarCertificadoDelNegocio } from "@/lib/operador/verificar-arca.server";
+import { mensajeDeVerificacion } from "@/lib/fiscal/verificar-con-arca";
+import { cargarCertificadoDelPedido, generarPedidoDelNegocio } from "@/lib/fiscal/asistente-arca.server";
+import { TOPE_CERTIFICADO_BYTES } from "@/lib/fiscal/asistente-arca";
+import { CONDICIONES_DEL_EMISOR, interpretarCondicionIva } from "@/lib/fiscal/condicion-iva-emisor";
 import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
 import { operatorSetMustChange } from "@/lib/must-change-password";
 import { altaPersonaCore, type AltaPersonaPort, type AltaPersonaResult } from "@/lib/operador/alta-persona";
@@ -361,6 +367,92 @@ export async function cargarCredencialFiscal(formData: FormData) {
   }
   revalidatePath(`/operador/tenants/${tenantId}`);
   redirect(vueltaAFiscal(tenantId, { ok: mensajeOk }));
+}
+
+// --- Condición frente al IVA del emisor ---------------------------------------
+// `Tenant.arcaCondicionIva` sólo se cargaba en el alta por el configurador: un negocio ya creado
+// quedaba sin forma de cargarla y sin ella no sale ninguna factura. Auditada; con el negocio en
+// real no se cambia (src/lib/fiscal/condicion-iva-emisor.ts).
+export async function setTenantArcaCondicionIva(formData: FormData) {
+  const tenantId = String(formData.get("tenantId") || "").trim();
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  const r = await enElNegocio(tenantId, async (tx) => {
+    const propio = await tx.tenant.findUnique({
+      where: { id: tenantId },
+      select: { arcaCondicionIva: true, arcaHomologacion: true },
+    });
+    if (!propio) return { tipo: "no-existe" as const };
+    const c = interpretarCondicionIva(formData.get("arcaCondicionIva"), !propio.arcaHomologacion);
+    if (c.accion === "error") return { tipo: "error" as const, motivo: c.motivo };
+    const nueva = c.accion === "set" ? c.condicion : null;
+    await tx.tenant.update({ where: { id: tenantId }, data: { arcaCondicionIva: nueva } });
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        actor: `operator:${op}`,
+        action: nueva ? "fiscal.condicion-iva.set" : "fiscal.condicion-iva.clear",
+        entity: "Tenant",
+        entityId: tenantId,
+        changes: { arcaCondicionIva: nueva, antes: propio.arcaCondicionIva },
+      },
+    });
+    return { tipo: "ok" as const, nueva };
+  });
+  if (r.tipo === "no-existe") redirect("/operador?error=notfound");
+  if (r.tipo === "error") redirect(vueltaAFiscal(tenantId, { error: r.motivo }));
+  revalidatePath(`/operador/tenants/${tenantId}`);
+  redirect(
+    vueltaAFiscal(tenantId, {
+      ok: r.nueva ? `Condición frente al IVA guardada (${CONDICIONES_DEL_EMISOR[r.nueva]})` : "Condición frente al IVA borrada",
+    }),
+  );
+}
+
+// --- Verificar el certificado con ARCA (prueba con cliente nuevo) ---------------
+// Ticket de WSAA + último comprobante del punto de venta con el certificado del negocio; en
+// homologación además saca un CAE de prueba que NO se guarda (no bloquea el pase a real). En
+// producción sólo lee. Ver src/lib/fiscal/verificar-con-arca.ts.
+export async function verificarCertificadoArca(formData: FormData) {
+  const tenantId = String(formData.get("tenantId") || "").trim();
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  const r = await verificarCertificadoDelNegocio(tenantId);
+  logger.info("arca.verificacion", "Verificación del certificado con ARCA", {
+    tenantId,
+    operador: op,
+    ok: r.ok,
+    ...(r.ok ? { entorno: r.entorno, conCae: !!r.prueba } : { paso: r.paso }),
+  });
+  revalidatePath(`/operador/tenants/${tenantId}`);
+  const texto = mensajeDeVerificacion(r);
+  redirect(vueltaAFiscal(tenantId, r.ok ? { ok: texto } : { error: texto }));
+}
+
+// --- Asistente ARCA: pedido de certificado y certificado del pedido ----------------
+// Los pasos 2 y 3 del asistente desde la ficha (los mismos que hace el cliente en
+// /admin/facturacion?vista=arca). La clave se genera en el servidor y queda cifrada y pendiente
+// (src/lib/fiscal/asistente-arca.server.ts); nunca la pega ni la ve nadie.
+export async function generarPedidoCertificadoArca(formData: FormData) {
+  const tenantId = String(formData.get("tenantId") || "").trim();
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  const r = await generarPedidoDelNegocio(tenantId, `operator:${op}`);
+  revalidatePath(`/operador/tenants/${tenantId}`);
+  redirect(vueltaAFiscal(tenantId, r.ok ? { ok: r.mensaje } : { error: r.motivo }));
+}
+
+export async function cargarCertificadoDelPedidoArca(formData: FormData) {
+  const tenantId = String(formData.get("tenantId") || "").trim();
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  const archivo = formData.get("certArchivo");
+  const texto = String(formData.get("certPem") || "").trim();
+  const conArchivo = archivo instanceof File && archivo.size > 0;
+  if ((conArchivo && archivo.size > TOPE_CERTIFICADO_BYTES) || texto.length > TOPE_CERTIFICADO_BYTES) {
+    redirect(vueltaAFiscal(tenantId, { error: "Eso es muy grande para ser un certificado." }));
+  }
+  if (!conArchivo && !texto) redirect(vueltaAFiscal(tenantId, { error: "Pegá el certificado o subí el archivo .crt." }));
+  const entrada = conArchivo ? new Uint8Array(await archivo.arrayBuffer()) : texto;
+  const r = await cargarCertificadoDelPedido(tenantId, entrada, `operator:${op}`);
+  revalidatePath(`/operador/tenants/${tenantId}`);
+  redirect(vueltaAFiscal(tenantId, r.ok ? { ok: r.mensaje } : { error: r.motivo }));
 }
 
 // --- Pase a facturación real y vuelta a pruebas (R2-F5) -----------------------

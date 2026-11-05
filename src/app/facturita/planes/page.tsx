@@ -23,24 +23,24 @@ import { canalGsg, linkCanal, type CanalGsg } from "../contacto";
 export const dynamic = "force-static";
 
 export const metadata: Metadata = {
-  title: "Planes — Facturita",
-  description: "Facturita es gratis hasta 5 facturas por mes. Cuando crecés, pasás a Comerciante sin migrar nada.",
+  title: "Planes — Factoque",
+  description: "Factoque es gratis hasta 5 facturas por mes. Cuando crecés, pasás a Comerciante sin migrar nada.",
   generator: "Gestión Studio Grow",
 };
 
 /** Lo que la vidriera dice en lugar de la leyenda interna mientras los precios no estén confirmados. */
 const PRECIOS_DE_REFERENCIA =
-  "Facturita es gratis. Lo demás es Comerciante, con precios de referencia que confirmamos antes de cobrarte.";
+  "Factoque es gratis. Lo demás es Comerciante, con precios de referencia que confirmamos antes de cobrarte.";
 
 /**
  * QA 29/10: los planes pagos no tenían ninguna acción. No hay cobro online ni el alta elige plan:
  * «Consultanos» abre el canal de GSG (WhatsApp si está cargado; si no, mail) con el plan escrito.
  */
 function Consultar({ plan, canal }: { plan: Plan; canal: CanalGsg }) {
-  const texto = `¡Hola! Quiero consultar por el plan ${plan.nombre} de Facturita (${precioTexto(plan.precioMensual)} por mes).`;
+  const texto = `¡Hola! Quiero consultar por el plan ${plan.nombre} de Factoque (${precioTexto(plan.precioMensual)} por mes).`;
   return (
     <div style={{ marginTop: "auto", paddingTop: 24 }}>
-      <a href={linkCanal(canal, `Plan ${plan.nombre} de Facturita`, texto)} target="_blank" rel="noopener noreferrer" className={BOTON_SECUNDARIO} style={{ width: "100%" }} data-qa="consultar-plan">
+      <a href={linkCanal(canal, `Plan ${plan.nombre} de Factoque`, texto)} target="_blank" rel="noopener noreferrer" className={BOTON_SECUNDARIO} style={{ width: "100%" }} data-qa="consultar-plan">
         Consultanos{canal.tipo === "whatsapp" ? " por WhatsApp" : " por mail"}
       </a>
     </div>
@@ -104,7 +104,7 @@ export default function FacturitaPlanesPage() {
       <div className="fx-caja" style={{ paddingBlock: "clamp(40px, 3rem + 3vw, 112px) var(--fx-seccion)" }}>
         <h1 className="fx-h1">Planes</h1>
         <p className="fx-lead">
-          Facturita es gratis. Si un día te queda chica, pasás a Comerciante en el mismo lugar: nunca se cobra por
+          Factoque es gratis. Si un día te queda chico, pasás a Comerciante en el mismo lugar: nunca se cobra por
           usuario, se cobra por el tamaño de tu negocio.
         </p>
         <p className="fx-bajada">{PRECIOS_DE_REFERENCIA}</p>
@@ -143,7 +143,7 @@ export default function FacturitaPlanesPage() {
         </p>
         <div style={{ marginTop: 40 }}>
           <Link href="/facturita" className={BOTON_SECUNDARIO}>
-            Volver a Facturita
+            Volver a Factoque
           </Link>
         </div>
       </div>

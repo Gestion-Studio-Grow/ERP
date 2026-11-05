@@ -45,7 +45,7 @@ export interface Plan {
 export const PLAN_FACTURITA: Plan = {
   id: "facturita",
   producto: "facturita",
-  nombre: "Facturita",
+  nombre: "Factoque",
   precioMensual: 0,
   para: "Monotributistas y comercios chicos que hacen pocas facturas por mes.",
   facturasPorMes: LIMITE_FACTURAS_FACTURITA,
@@ -76,7 +76,7 @@ export const PLANES_COMERCIANTE: readonly Plan[] = [
     para: "Monotributo o responsable inscripto chico, sin empleados.",
     facturasPorMes: 159,
     incluye: [
-      "Todo lo de Facturita, con más facturas por mes",
+      "Todo lo de Factoque, con más facturas por mes",
       "Las facturas se arman solas desde el extracto del banco y Mercado Pago",
       "Notas de crédito y débito en un clic",
       "Avisos de recategorización y del tope del monotributo",
