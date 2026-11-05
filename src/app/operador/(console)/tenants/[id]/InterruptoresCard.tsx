@@ -20,7 +20,7 @@
 import Link from "next/link";
 import { cambiarAppOculta, cambiarInterruptor } from "@/lib/operador/interruptores-actions";
 import { Bloque, Button, Input, Marca } from "@/components/ui";
-import { AGENDA_PRACTICA, APPS_OCULTABLES, INTERRUPTORES, type Interruptor } from "@/cambios/interruptores";
+import { AGENDA_PRACTICA, APPS_OCULTABLES, INTERRUPTORES_DE_LA_CONSOLA, type Interruptor, type InterruptorId } from "@/cambios/interruptores";
 import { avisoDeReglaFaltante } from "@/lib/turnos/practica";
 import type { EstadoInterruptores } from "@/cambios/interruptores-core";
 import type { EstadoAppsDelNegocio } from "./apps-del-negocio";
@@ -46,7 +46,7 @@ export function InterruptoresCard({ estados, ...resto }: Props) {
           cambiarlos.
         </p>
       ) : (
-        INTERRUPTORES.map((i) => <RenglonDeInterruptor key={i.id} {...resto} interruptor={i} prendido={estados[i.id].encendido} />)
+        INTERRUPTORES_DE_LA_CONSOLA.map((i) => <RenglonDeInterruptor key={i.id} {...resto} interruptor={i} prendido={estados[i.id as InterruptorId].encendido} />)
       )}
     </Bloque>
   );

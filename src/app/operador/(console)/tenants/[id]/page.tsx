@@ -49,7 +49,7 @@ import {
   MOTIVO_OK_DEL_DUENIO_RED,
 } from "@/lib/multilocal/multilocal-core";
 import { catalogo } from "@/modules/catalog";
-import { appOcultablePorId, INTERRUPTORES, interruptorPorId } from "@/cambios/interruptores";
+import { appOcultablePorId, INTERRUPTORES_DE_LA_CONSOLA, interruptorPorId } from "@/cambios/interruptores";
 import { todosApagados } from "@/cambios/interruptores-core";
 import { operadorDuenio } from "@/lib/operator-auth";
 import { ResetOwnerPasswordCard } from "./ResetOwnerPasswordCard";
@@ -1107,7 +1107,7 @@ export default async function FichaDelNegocio({
       )}
       <p className="py-2 text-[13px] text-muted">
         En la Auditoría del negocio figura como{" "}
-        {INTERRUPTORES.map((i) => `«GSG activó ${i.enAuditoria}»`).join(" o ")},
+        {INTERRUPTORES_DE_LA_CONSOLA.map((i) => `«GSG activó ${i.enAuditoria}»`).join(" o ")},
         sin el nombre del operador; los cambios de módulos, con el antes y el
         después.
       </p>

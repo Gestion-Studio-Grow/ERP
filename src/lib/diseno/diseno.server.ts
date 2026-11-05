@@ -22,7 +22,7 @@ import { leerDisenoNuevoCon } from "./diseno-core";
 export const disenoNuevo = cache(
   (): Promise<boolean> =>
     leerDisenoNuevoCon(interruptoresDelNegocio, (error) =>
-      logger.warn("diseno", "no se pudo decidir el diseño del negocio; queda el de siempre", {
+      logger.warn("diseno", "no se pudo leer los interruptores del negocio; queda el diseño nuevo", {
         error: error instanceof Error ? error.message : String(error),
       }),
     ),
