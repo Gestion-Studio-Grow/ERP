@@ -6,6 +6,8 @@
 // `ServiceDetail` (1 a 1 con Service, migración 20261104120000_servicio_completo); sin fila,
 // valen los valores por defecto de `FICHA_VACIA` y todo se comporta como antes.
 
+import { porcentajeDe } from "@/lib/dinero/redondeo";
+
 export const MODALIDADES = ["PRESENCIAL", "ONLINE", "DOMICILIO"] as const;
 export type Modalidad = (typeof MODALIDADES)[number];
 export const MODALIDAD_ETIQUETA: Record<Modalidad, string> = {
@@ -64,7 +66,7 @@ export function minutosEnAgenda(durationMin: number, calendarMin: number | null 
 export function seniaPorPorcentaje(precio: number, porcentaje: number | null | undefined): number {
   if (porcentaje == null || !Number.isFinite(porcentaje) || porcentaje <= 0 || porcentaje > 100) return 0;
   if (!Number.isFinite(precio) || precio <= 0) return 0;
-  return Math.round(Math.round(precio * 100) * porcentaje / 100) / 100;
+  return porcentajeDe(precio, porcentaje, "centavo");
 }
 
 /**
