@@ -221,6 +221,7 @@ model Tenant {
   users                     User[]
   businessSettings          BusinessSettings?
   commissionPayouts         CommissionPayout[]
+  professionalSettlements   ProfessionalSettlement[] // Box Nail Artist (docs/tenants/ch/NAIL-ARTIST.md §5)
   waitlistEntries           WaitlistEntry[]
   tallerVehiculos           TallerVehiculo[] // módulo taller
   tallerOrdenes             TallerOrden[]
@@ -564,6 +565,15 @@ model Professional {
   // marca, no al revés. Apagarlo NO le saca la agenda a nadie — la recepción sigue
   // pudiendo darle turno; lo único que no puede es tomarle la plata.
   cobraEnMostrador   Boolean                         @default(true)
+  // Box «Nail Artist» (docs/tenants/ch/NAIL-ARTIST.md, interruptor `nail-artist`):
+  // la cuenta PROPIA de la profesional, a la que la clienta transfiere la seña de los
+  // servicios marcados `depositToProfessional`. Mismo nombre que PadelConfig.
+  aliasCbu           String?
+  titularCuenta      String?
+  cuitTitular        String?
+  // Lo que ella le rinde a CH por período (lo inverso de la comisión). Uno, otro o ambos.
+  boxRentAmount      Decimal?                        @db.Decimal(14, 2)
+  rentPercent        Float?
   deletedAt          DateTime?
   services           Service[]                       @relation("ProfessionalServices")
   appointments       Appointment[]
@@ -574,6 +584,7 @@ model Professional {
   news               ProfessionalNews[]
   user               User?
   commissionPayouts  CommissionPayout[]
+  settlements        ProfessionalSettlement[]
   waitlistEntries    WaitlistEntry[]
   createdAt          DateTime                        @default(now())
   updatedAt          DateTime                        @updatedAt
@@ -599,36 +610,39 @@ model WorkingHours {
 }
 
 model Service {
-  id                 String                          @id @default(cuid())
-  tenant             Tenant                          @relation(fields: [tenantId], references: [id])
-  tenantId           String
-  category           ServiceCategory?                @relation(fields: [categoryId], references: [id])
-  categoryId         String?
-  name               String
-  description        String?
-  durationMin        Int
-  price              Float
+  id                    String                          @id @default(cuid())
+  tenant                Tenant                          @relation(fields: [tenantId], references: [id])
+  tenantId              String
+  category              ServiceCategory?                @relation(fields: [categoryId], references: [id])
+  categoryId            String?
+  name                  String
+  description           String?
+  durationMin           Int
+  price                 Float
   // Precio preferencial para vecinos de La Alameda (ADR-013). Opcional a
   // propósito: no todos los servicios tienen diferencial — si es null, el
   // servicio cobra `price` para todos. Nunca se muestra como "recargo" al
   // resto, siempre como beneficio vecino.
-  residentPrice      Float?
+  residentPrice         Float?
   // Seña obligatoria (ADR-014): monto fijo que hay que abonar para confirmar
   // el turno. Opcional por servicio, igual que residentPrice — null = no
   // exige seña. El cobro en sí sigue siendo manual (confirmPayment) hasta
   // que se conecte Mercado Pago Checkout; esto solo hace visible la
   // condición al cliente antes de reservar, como ya hace el negocio hoy.
-  depositAmount      Float?
-  active             Boolean                         @default(true)
-  deletedAt          DateTime?
-  professionals      Professional[]                  @relation("ProfessionalServices")
-  appointments       Appointment[]
-  products           ServiceProduct[]
-  resources          ServiceResource[]
-  serviceCommissions ProfessionalServiceCommission[]
-  waitlistEntries    WaitlistEntry[]
-  createdAt          DateTime                        @default(now())
-  updatedAt          DateTime                        @updatedAt
+  depositAmount         Float?
+  // Box «Nail Artist»: la seña y el cobro de este servicio van a la cuenta de la
+  // profesional del turno (Collection sí, CashMovement no). Default false = como siempre.
+  depositToProfessional Boolean                         @default(false)
+  active                Boolean                         @default(true)
+  deletedAt             DateTime?
+  professionals         Professional[]                  @relation("ProfessionalServices")
+  appointments          Appointment[]
+  products              ServiceProduct[]
+  resources             ServiceResource[]
+  serviceCommissions    ProfessionalServiceCommission[]
+  waitlistEntries       WaitlistEntry[]
+  createdAt             DateTime                        @default(now())
+  updatedAt             DateTime                        @updatedAt
 
   // Config de recordatorio por servicio (ADR-012 / panel de recordatorios).
   // Si reminderEnabled es false, el job de recordatorios se lo salta aunque
@@ -830,6 +844,32 @@ model CommissionPayout {
   appointments     Appointment[]
   createdAt        DateTime      @default(now())
 
+  @@index([tenantId, createdAt])
+  @@index([professionalId])
+}
+
+// Rendición de la profesional que cobra lo suyo (Box «Nail Artist»): lo que ELLA le
+// paga a CH por período (alquiler del box y/o % de lo cobrado). Espejo inverso de
+// CommissionPayout. Montos congelados; el @@unique del período es el árbitro del doble clic.
+model ProfessionalSettlement {
+  id               String       @id @default(cuid())
+  tenant           Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId         String
+  professional     Professional @relation(fields: [professionalId], references: [id])
+  professionalId   String
+  periodStart      DateTime
+  periodEnd        DateTime
+  collectedTotal   Decimal      @db.Decimal(14, 2)
+  percentAmount    Decimal      @db.Decimal(14, 2)
+  rentAmount       Decimal      @db.Decimal(14, 2)
+  amount           Decimal      @db.Decimal(14, 2)
+  appointmentCount Int
+  note             String?
+  settledBy        String
+  cashMovementId   String?      @unique
+  createdAt        DateTime     @default(now())
+
+  @@unique([tenantId, professionalId, periodStart, periodEnd])
   @@index([tenantId, createdAt])
   @@index([professionalId])
 }

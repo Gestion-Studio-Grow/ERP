@@ -29,7 +29,7 @@ const ALTA: Partial<Record<ParteDelCatalogo, string>> = {
 
 const href = (parte: ParteDelCatalogo, extra = "") => `/admin/catalogo${parte === "servicios" ? (extra ? `?${extra}` : "") : `?ver=${parte}${extra ? `&${extra}` : ""}`}`;
 
-export default function CatalogoServiciosPagina({ sp, datos }: { sp: Sp; datos: Datos }) {
+export default function CatalogoServiciosPagina({ sp, datos, nailArtist = false }: { sp: Sp; datos: Datos; nailArtist?: boolean }) {
   const { boxes, services, professionals, products, categories, resources, coupons } = datos;
   const parte = leerParte(sp);
   const editar = typeof sp.editar === "string" && sp.editar !== "" ? sp.editar : null;
@@ -101,7 +101,7 @@ export default function CatalogoServiciosPagina({ sp, datos }: { sp: Sp; datos: 
       {parte === "boxes" && <BoxesRenglon boxes={boxes} profesionalesPorBox={profesionalesPorBox} editar={editar} agregar={agregar} />}
       {parte === "equipos" && <EquiposRenglon equipos={resources} nombresDeServicios={nombresDeServicios} editar={editar} agregar={agregar} />}
       {parte === "cupones" && <CuponesRenglon cupones={coupons} agregar={agregar} />}
-      {parte === "profesionales" && <ProfessionalsSection professionals={professionals} boxes={boxes} services={services} />}
+      {parte === "profesionales" && <ProfessionalsSection professionals={professionals} boxes={boxes} services={services} nailArtist={nailArtist} />}
       {parte === "productos" && <ProductsSection products={products} />}
       {parte === "quien" && (
         <AsignacionSection

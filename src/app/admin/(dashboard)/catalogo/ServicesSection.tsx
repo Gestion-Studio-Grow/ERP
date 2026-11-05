@@ -10,6 +10,7 @@ import {
   setServiceResources,
 } from "@/lib/catalog-actions";
 import { useToast } from "../ToastProvider";
+import { SeniaALaProfesional } from "./NailArtist";
 import { Input, Select, Textarea, buttonClasses } from "@/components/ui";
 
 type Product = { id: string; name: string; unit: string; active: boolean };
@@ -25,6 +26,8 @@ type Service = {
   price: number;
   residentPrice: number | null;
   depositAmount: number | null;
+  /** Box «Nail Artist»: la seña y el cobro van a la profesional (con el interruptor prendido). */
+  depositToProfessional?: boolean;
   active: boolean;
   categoryId: string | null;
   category: Category | null;
@@ -152,11 +155,13 @@ function ServiceRow({
   products,
   categories,
   resources,
+  nailArtist = false,
 }: {
   service: Service;
   products: Product[];
   categories: Category[];
   resources: Resource[];
+  nailArtist?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [editingInsumos, setEditingInsumos] = useState(false);
@@ -295,6 +300,11 @@ function ServiceRow({
               Seña ${service.depositAmount.toLocaleString("es-AR")}
             </span>
           )}
+          {nailArtist && (
+            <span className="mt-1.5 block">
+              <SeniaALaProfesional serviceId={service.id} marcado={service.depositToProfessional === true} />
+            </span>
+          )}
         </td>
         <td className="hidden sm:table-cell px-4 py-2.5 text-sm text-body">
           ${service.price.toLocaleString("es-AR")}
@@ -416,11 +426,14 @@ export default function ServicesSection({
   products,
   categories,
   resources,
+  nailArtist = false,
 }: {
   services: Service[];
   products: Product[];
   categories: Category[];
   resources: Resource[];
+  /** Interruptor `nail-artist`: la marca «cobra la profesional» por servicio. */
+  nailArtist?: boolean;
 }) {
   const { showError } = useToast();
   const sinCategoria = services.filter((s) => !s.categoryId);
@@ -460,6 +473,7 @@ export default function ServicesSection({
                 products={products}
                 categories={categories}
                 resources={resources}
+                nailArtist={nailArtist}
               />
             ))}
           </CategoryGroup>
@@ -473,6 +487,7 @@ export default function ServicesSection({
                 products={products}
                 categories={categories}
                 resources={resources}
+                nailArtist={nailArtist}
               />
             ))}
           </CategoryGroup>

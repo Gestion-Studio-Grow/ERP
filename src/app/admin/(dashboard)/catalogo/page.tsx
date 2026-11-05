@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getCatalog } from "@/lib/catalog-actions";
+import { nailArtistDelNegocio } from "@/cambios/interruptores.server";
 import { getCoupons } from "@/lib/coupon-actions";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -204,10 +205,11 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
   }
 
   // --- Rubro SERVICIOS (spa) y demás: layout histórico, sin cambios ---
-  const [{ boxes, services, professionals, products, categories, resources }, coupons, conDisenoNuevo] = await Promise.all([
+  const [{ boxes, services, professionals, products, categories, resources }, coupons, conDisenoNuevo, nailArtist] = await Promise.all([
     getCatalog(),
     getCoupons(),
     disenoNuevo(),
+    nailArtistDelNegocio(),
   ]);
 
   // «Diseño nuevo» (Renglón): una pestaña por parte del catálogo y un renglón por ítem, con los
@@ -217,6 +219,7 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
       <CatalogoServiciosPagina
         sp={await searchParams}
         datos={{ boxes, services, professionals, products, categories, resources, coupons }}
+        nailArtist={nailArtist}
       />
     );
   }
@@ -235,10 +238,11 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
           products={products}
           categories={categories}
           resources={resources}
+          nailArtist={nailArtist}
         />
         <ResourcesSection resources={resources} />
         <ProductsSection products={products} />
-        <ProfessionalsSection professionals={professionals} boxes={boxes} services={services} />
+        <ProfessionalsSection professionals={professionals} boxes={boxes} services={services} nailArtist={nailArtist} />
         <AsignacionSection
           services={services.map((s) => ({
             id: s.id,

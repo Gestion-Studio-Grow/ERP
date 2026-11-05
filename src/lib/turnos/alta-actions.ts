@@ -32,6 +32,8 @@ import { urlDelSitio } from "@/lib/crm/cargas.server";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { franjaDeAhora } from "@/app/admin/(dashboard)/turnos/_agenda/alta-core";
 import { ACCION_SENIA_PEDIDA } from "./senia-pedida";
+import { changesDeSeniaPedida } from "./senia-actions";
+import type { SnapshotSeniaProfesional } from "./senia-profesional";
 
 export type ResultadoDarTurno =
   | {
@@ -44,6 +46,10 @@ export type ResultadoDarTurno =
       linkTurno: string | null;
       /** ¿Quedó la marca «seña pedida»? */
       seniaPedida: boolean;
+      /** Box «Nail Artist»: la cuenta CONGELADA de la profesional a la que se pidió la seña (si fue a ella). */
+      cuentaDeLaSenia?: SnapshotSeniaProfesional | null;
+      /** Box «Nail Artist»: el servicio cobra a la profesional y ella no cargó alias (no se pidió seña). */
+      seniaSinAlias?: true;
     }
   | { ok: false; error: string };
 
@@ -72,20 +78,30 @@ export async function darTurno(fd: FormData, opciones: { pedirSenia?: boolean; m
   ]);
 
   let seniaPedida = false;
+  let cuentaDeLaSenia: SnapshotSeniaProfesional | null = null;
+  let seniaSinAlias = false;
   if (opciones.pedirSenia && turno && turno.status === "PENDING") {
     const monto = Number.isFinite(opciones.monto) && (opciones.monto ?? 0) > 0 ? opciones.monto : (turno.service.depositAmount ?? null);
-    await auditAdmin({
-      action: ACCION_SENIA_PEDIDA,
-      entity: "Appointment",
-      entityId: turno.id,
-      changes: { monto, canal: "alta" },
-    });
-    seniaPedida = true;
+    // Box «Nail Artist»: con el servicio marcado, la fila congela el alias de la profesional del turno;
+    // sin alias el turno queda dado pero SIN seña pedida (no se le pide a la cuenta del negocio).
+    const pedido = await changesDeSeniaPedida(turno.id, monto ?? null, "alta");
+    if (pedido.ok) {
+      await auditAdmin({
+        action: ACCION_SENIA_PEDIDA,
+        entity: "Appointment",
+        entityId: turno.id,
+        changes: pedido.changes,
+      });
+      seniaPedida = true;
+      cuentaDeLaSenia = pedido.cuenta;
+    } else {
+      seniaSinAlias = true;
+    }
   }
 
   const direccion = [ajustes?.addressLine?.trim(), ajustes?.city?.trim()].filter(Boolean).join(", ") || null;
   const sitio = turno ? await urlDelSitio() : null;
-  return { ok: true, id: turno?.id ?? null, direccion, linkTurno: sitio && turno ? `${sitio}/reserva/turno/${turno.id}` : null, seniaPedida };
+  return { ok: true, id: turno?.id ?? null, direccion, linkTurno: sitio && turno ? `${sitio}/reserva/turno/${turno.id}` : null, seniaPedida, ...(cuentaDeLaSenia ? { cuentaDeLaSenia } : {}), ...(seniaSinAlias ? { seniaSinAlias: true as const } : {}) };
 }
 
 export type LibresAhora = {

@@ -26,6 +26,9 @@
 // un cobro de saldo, `senia:<turno>` para la seña. Un doble toque choca en la clave (la carrera, que
 // `settleAppointmentPaymentGuarded` clasifica) o en la guarda de saldo: nunca cobra dos veces.
 
+import { ACCION_SENIA_PEDIDA } from "./senia-pedida";
+import { notaDeCobroProfesional, ultimoSnapshotPorTurno, type SnapshotSeniaProfesional } from "./senia-profesional";
+import { nailArtistDelNegocio } from "@/cambios/interruptores.server";
 import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -87,6 +90,15 @@ import {
 export type ResultadoCobro = { ok: true; aviso?: string } | { ok: false; error: string };
 
 /** «Llegó la seña»: además, el cobro que se hizo (para el «Deshacer» de 10 s). */
+/** La cuenta congelada en la última `deposit_requested` del turno, si fue a la profesional. Con `tenantId`. */
+async function snapshotDeLaSeniaPedida(tenantId: string, appointmentId: string): Promise<SnapshotSeniaProfesional | null> {
+  const filas = await prisma.auditLog.findMany({
+    where: { tenantId, entity: "Appointment", action: ACCION_SENIA_PEDIDA, entityId: appointmentId },
+    select: { entityId: true, createdAt: true, changes: true },
+  });
+  return ultimoSnapshotPorTurno(filas)[appointmentId] ?? null;
+}
+
 export type ResultadoDeSenia =
   | { ok: true; aviso?: string; cobroId: string | null; monto: number; confirmo: boolean; sePuedeDeshacer?: boolean }
   | { ok: false; error: string };
@@ -215,6 +227,7 @@ export async function terminarYCobrarDividido(formData: FormData): Promise<Resul
   const cerradoHasta = await lastClosedDay(tenantId);
 
   type Hecho = { lineas: LineaDePago[]; cobros: AplicarCobroResult[]; desdeReservado: boolean };
+  const nailArtist = await nailArtistDelNegocio();
   const run = (withSchema: boolean) =>
     tenantTransaction<Hecho>(
       async (tx) => {
@@ -248,6 +261,7 @@ export async function terminarYCobrarDividido(formData: FormData): Promise<Resul
             withSchema,
             cerradoHasta,
             camino: "completar",
+            nailArtist, // Box «Nail Artist»: sin asiento si el servicio cobra a la profesional
           });
           // Una línea que «ya estaba» en medio de un cobro nuevo es un estado roto: se revierte todo.
           if (!r.applied) throw new RechazoDeDominio(CAMBIO_RECIEN);
@@ -334,6 +348,10 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
   const cerradoHasta = await lastClosedDay(tenantId);
 
   type Hecho = { plan: PlanDeSenia; cobro: AplicarCobroResult | null; confirmo: boolean };
+  const nailArtist = await nailArtistDelNegocio();
+  // Box «Nail Artist»: la seña pedida a la profesional dejó la cuenta CONGELADA en su fila; la nota
+  // del cobro la nombra (y que no entra a la caja). Sin snapshot, la nota de siempre.
+  const cuentaProfesional = nailArtist ? await snapshotDeLaSeniaPedida(tenantId, appointmentId) : null;
   const run = (withSchema: boolean) =>
     tenantTransaction<Hecho>(
       async (tx) => {
@@ -367,7 +385,7 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
             precio,
             monto: plan.monto,
             method,
-            note: notaLlegoLaSenia(user.role),
+            note: cuentaProfesional ? notaDeCobroProfesional(cuentaProfesional) : notaLlegoLaSenia(user.role),
             actor,
             detail: cobroTurnoDetail({ serviceName: a.service.name, clientName: a.client.name }),
             // Sin la columna migrada no hay clave que se escriba ni fila que leer (`withSchema`).
@@ -375,6 +393,7 @@ export async function cobrarSeniaYConfirmar(formData: FormData): Promise<Resulta
             withSchema,
             cerradoHasta,
             camino: "cobro",
+            nailArtist, // Box «Nail Artist»: sin asiento si el servicio cobra a la profesional
           });
         }
         const confirmar = (plan.tipo === "cobrar" && plan.confirmar) || plan.tipo === "solo-confirmar";
@@ -483,6 +502,7 @@ export async function cobrarVariosTurnos(formData: FormData): Promise<ResultadoC
   const cerradoHasta = await lastClosedDay(tenantId);
 
   type Hecho = { cobros: { id: string; r: AplicarCobroResult }[]; desdeReservado: boolean };
+  const nailArtist = await nailArtistDelNegocio();
   const run = (withSchema: boolean) =>
     tenantTransaction<Hecho>(
       async (tx) => {
@@ -531,6 +551,7 @@ export async function cobrarVariosTurnos(formData: FormData): Promise<ResultadoC
             withSchema,
             cerradoHasta,
             camino: esHoy ? "completar" : "cobro",
+            nailArtist, // Box «Nail Artist»: sin asiento si el servicio cobra a la profesional
           });
           if (!r.applied) throw new RechazoDeDominio(CAMBIO_RECIEN);
           hechos.push({ id: t.id, r });

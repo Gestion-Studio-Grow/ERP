@@ -29,7 +29,7 @@ import {
   type EstadoInterruptores,
   type FilaLeida,
 } from "./interruptores-core";
-import type { AppOcultableId } from "./interruptores";
+import { nailArtistPrendido, type AppOcultableId } from "./interruptores";
 
 /**
  * Las filas de la consola del negocio actual (interruptores y apps ocultas), en UNA consulta por
@@ -69,3 +69,6 @@ export const appsOcultasDelNegocio = cache(async (): Promise<ReadonlySet<AppOcul
 
 /** ¿El negocio actual trabaja por apps? (interruptor "inicio-por-apps"). */
 export const enInicioPorAppsDelNegocio = cache(async (): Promise<boolean> => trabajaPorApps(await interruptoresDelNegocio()));
+
+/** ¿El negocio actual tiene el box «Nail Artist»? (interruptor "nail-artist"; lectura fallida = apagado). */
+export const nailArtistDelNegocio = cache(async (): Promise<boolean> => nailArtistPrendido(await interruptoresDelNegocio()));

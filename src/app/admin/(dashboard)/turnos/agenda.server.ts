@@ -20,7 +20,9 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
 import { fmtTime } from "@/lib/datetime";
-import { seniasPedidas } from "@/lib/turnos/senia-actions";
+import { seniasAProfesional, seniasPedidas } from "@/lib/turnos/senia-actions";
+import { nailArtistDelNegocio } from "@/cambios/interruptores.server";
+import { seniaDeLaProfesional } from "@/lib/turnos/senia-profesional";
 import { horariosDelDia } from "@/lib/turnos/horario-del-dia.server";
 import { turnoDelDia, type TurnoDelDia } from "./agenda-core";
 import { bloqueosDelDia, bloqueosPorHorario, type BloqueoDelDia } from "./grilla";
@@ -66,6 +68,8 @@ export function proyectarAgenda(
   /** Lo que se lee aparte (`extrasDeLaAgenda`): turno → cuándo se pidió la seña. */
   extras?: {
     seniasPedidas?: Readonly<Record<string, string>>;
+    /** Box «Nail Artist»: turno → la cuenta de la profesional para la seña (sólo servicios marcados). */
+    seniasAProfesional?: Readonly<Record<string, NonNullable<TurnoDelDia["seniaAProfesional"]>>>;
     /** Agenda interactiva: actor del cobro («user:<id>») → nombre de quien cobró (sección «Pagos»). */
     quienCobro?: Readonly<Record<string, string>>;
   },
@@ -109,6 +113,7 @@ export function proyectarAgenda(
       ),
     )
     .map((t) => (extras?.seniasPedidas?.[t.id] ? { ...t, seniaPedidaEl: extras.seniasPedidas[t.id] } : t))
+    .map((t) => (extras?.seniasAProfesional?.[t.id] ? { ...t, seniaAProfesional: extras.seniasAProfesional[t.id] } : t))
     .sort((x, y) => new Date(x.inicio).getTime() - new Date(y.inicio).getTime());
   return {
     turnos,
@@ -134,19 +139,54 @@ export async function extrasDeLaAgenda(
   dia: string,
   /** `quienCobro`: agenda interactiva prendida → también los nombres de quién cobró (una lectura). */
   o: { quienCobro?: boolean } = {},
-): Promise<{ seniasPedidas: Record<string, string>; bloqueos: BloqueoDelDia[]; quienCobro?: Record<string, string> }> {
+): Promise<{
+  seniasPedidas: Record<string, string>;
+  bloqueos: BloqueoDelDia[];
+  quienCobro?: Record<string, string>;
+  seniasAProfesional?: Record<string, NonNullable<TurnoDelDia["seniaAProfesional"]>>;
+}> {
   const reservados = cruda.appointments.filter((a) => a.status === "PENDING").map((a) => a.id);
   const profesionales = cruda.professionals.map((p) => p.id);
-  const [senias, horarios, quienCobro] = await Promise.all([
+  const [senias, horarios, quienCobro, aProfesional] = await Promise.all([
     reservados.length > 0 ? seniasPedidas(reservados).catch(() => ({})) : Promise.resolve({}),
     profesionales.length > 0 ? horariosDelDia(dia, profesionales).catch(() => null) : Promise.resolve(null),
     o.quienCobro ? nombresDeQuienCobro(cruda).catch(() => ({})) : Promise.resolve(undefined),
+    reservados.length > 0 ? cuentasDeSeniaProfesional(reservados).catch(() => ({})) : Promise.resolve({}),
   ]);
   return {
     seniasPedidas: senias,
     bloqueos: [...bloqueosDelDia(cruda.blocksToday), ...bloqueosPorHorario(dia, profesionales, horarios)],
     ...(quienCobro ? { quienCobro } : {}),
+    ...(Object.keys(aProfesional).length > 0 ? { seniasAProfesional: aProfesional } : {}),
   };
+}
+
+/**
+ * Box «Nail Artist»: de los Reservados dados, los de servicios marcados `depositToProfessional`, con la
+ * cuenta de la seña. Manda la CONGELADA al pedirla (si es de la misma profesional del turno); si no, la
+ * ficha de la profesional DEL TURNO. Interruptor apagado = `{}` sin tocar la base (ni la columna).
+ */
+async function cuentasDeSeniaProfesional(ids: string[]): Promise<Record<string, NonNullable<TurnoDelDia["seniaAProfesional"]>>> {
+  if (!(await nailArtistDelNegocio())) return {};
+  const tenantId = await getCurrentTenantId();
+  const [filas, congeladas] = await Promise.all([
+    prisma.appointment.findMany({
+      where: { tenantId, id: { in: ids }, service: { depositToProfessional: true } },
+      select: { id: true, professionalId: true, professional: { select: { id: true, aliasCbu: true, titularCuenta: true, cuitTitular: true } } },
+    }),
+    seniasAProfesional(ids),
+  ]);
+  const out: Record<string, NonNullable<TurnoDelDia["seniaAProfesional"]>> = {};
+  for (const f of filas) {
+    const c = congeladas[f.id];
+    if (c && c.professionalId === f.professionalId) {
+      out[f.id] = { cuenta: { alias: c.alias, titular: c.titular, cuit: c.cuit } };
+      continue;
+    }
+    const r = seniaDeLaProfesional({ nailArtist: true, depositToProfessional: true, appointment: f, profesional: f.professional, monto: 0 });
+    out[f.id] = { cuenta: r.aplica && r.ok ? { alias: r.snapshot.alias, titular: r.snapshot.titular, cuit: r.snapshot.cuit } : null };
+  }
+  return out;
 }
 
 /** Actor de los cobros del día («user:<id>») → nombre. UNA consulta por día, con `tenantId`. */

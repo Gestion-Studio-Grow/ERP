@@ -34,7 +34,8 @@ import { Cajon } from "@/components/ui/Cajon";
 import { Button, ButtonLink, Input, Marca, Plata, Renglon, Seccion, atributosBoton, buttonClasses } from "@/components/ui";
 import { fmtShortDate, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
-import { ALIAS_SENIA_PROVISIONAL, linkWhatsApp, mensajePedidoDeSenia, mensajeSaludo } from "@/lib/turnos/mensajes-whatsapp";
+import { ALIAS_SENIA_PROVISIONAL, linkWhatsApp, mensajePedidoDeSenia, mensajePedidoDeSeniaProfesional, mensajeSaludo } from "@/lib/turnos/mensajes-whatsapp";
+import { SENIA_SIN_ALIAS } from "@/lib/turnos/senia-profesional";
 import { puedeEditar } from "./barra-core";
 import { pagosDelTurno } from "./pagos-core";
 import { marcarSeniaPedida } from "@/lib/turnos/senia-actions";
@@ -326,12 +327,22 @@ export default function TurnoCajon({
   const senia = seniaQueFalta(t, reloj);
   const llegoLaSenia = senia > 0 && cobraEste;
   const pedida = textoSeniaPedida(t, reloj);
+  // Box «Nail Artist»: la seña va a la cuenta de la profesional del turno; sin alias no hay pedido
+  // por transferencia (nunca al alias del negocio). Sin `seniaAProfesional`, el pedido de siempre.
+  const aProfesional = t.seniaAProfesional;
   const pedidoPorWa =
     senia > 0 && permisos.gestionar
-      ? waLinkClienta(
-          t.telefono,
-          mensajePedidoDeSenia({ clienta: t.clienta, servicios: t.servicio, inicio: t.inicio, profesional: t.profesional, monto: senia, alias: ALIAS_SENIA_PROVISIONAL }),
-        )
+      ? aProfesional
+        ? aProfesional.cuenta
+          ? waLinkClienta(
+              t.telefono,
+              mensajePedidoDeSeniaProfesional({ clienta: t.clienta, servicios: t.servicio, inicio: t.inicio, profesional: t.profesional, monto: senia, cuenta: aProfesional.cuenta }),
+            )
+          : null
+        : waLinkClienta(
+            t.telefono,
+            mensajePedidoDeSenia({ clienta: t.clienta, servicios: t.servicio, inicio: t.inicio, profesional: t.profesional, monto: senia, alias: ALIAS_SENIA_PROVISIONAL }),
+          )
       : null;
   const ofreceCobro =
     cobraEste &&
@@ -489,6 +500,7 @@ export default function TurnoCajon({
                 Pide una seña de <Plata valor={senia} sinCentavos={Number.isInteger(senia)} /> que todavía no entró.
                 {pedida ? ` Ya se la pedimos (${pedida.replace(/^seña pedida /, "")}).` : ""}
               </p>
+              {aProfesional && !aProfesional.cuenta && <p className="text-sm text-muted">{SENIA_SIN_ALIAS}</p>}
               {llegoLaSenia && (
                 <LlegoLaSenia
                   key={t.id}
@@ -496,6 +508,7 @@ export default function TurnoCajon({
                   clienta={t.clienta}
                   monto={senia}
                   confirma={permisos.gestionar}
+                  {...(aProfesional?.cuenta ? { cuentaProfesional: aProfesional.cuenta } : {})}
                   onListo={() => router.refresh()}
                 />
               )}

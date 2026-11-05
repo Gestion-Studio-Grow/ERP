@@ -23,6 +23,7 @@
 // transacción; `aplicarCobroTurnoInTx` la vuelve a exigir adentro. Sin interruptor, la acción no
 // hace nada: la pantalla de siempre ni siquiera la llama.
 
+import { nailArtistDelNegocio } from "@/cambios/interruptores.server";
 import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -295,6 +296,7 @@ export async function cobrarTurnoConProductos(formData: FormData): Promise<Resul
     | { dup: true }
     | { dup: false; cobro: AplicarCobroResult | null; orden: { id: string; code: number; total: number }; saldo: number; desdeReservado: boolean };
 
+  const nailArtist = await nailArtistDelNegocio();
   const run = (withSchema: boolean) =>
     tenantTransaction<Hecho>(
       async (tx) => {
@@ -343,6 +345,7 @@ export async function cobrarTurnoConProductos(formData: FormData): Promise<Resul
             withSchema,
             cerradoHasta,
             camino: "completar",
+            nailArtist, // Box «Nail Artist»: sin asiento si el servicio cobra a la profesional
           });
           if (!cobro.applied) throw new RechazoDeDominio(CAMBIO_RECIEN);
         }

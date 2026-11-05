@@ -17,7 +17,7 @@ import { businessWallTimeToUtc } from "@/lib/datetime";
 import { normalizarTelefono } from "@/lib/clientes/telefono";
 import type { FichaParaAlta } from "@/lib/clientes/ficha-por-telefono";
 import { METODO_LABEL, type MetodoDePago } from "@/lib/turnos/cobros";
-import { linkWhatsApp, mensajeConfirmacion, mensajePedidoDeSenia, pesosEnTexto } from "@/lib/turnos/mensajes-whatsapp";
+import { linkWhatsApp, mensajeConfirmacion, mensajePedidoDeSenia, mensajePedidoDeSeniaProfesional, pesosEnTexto, type CuentaDeLaProfesional } from "@/lib/turnos/mensajes-whatsapp";
 import type { Campos } from "./campos";
 
 export type ServicioDeProfesional = {
@@ -346,6 +346,8 @@ export type TurnoDado = {
   cobrada: boolean;
   direccion?: string | null;
   alias?: string | null;
+  /** Box «Nail Artist»: la cuenta congelada de la profesional (si la seña fue a ella). Manda sobre `alias`. */
+  cuentaProfesional?: CuentaDeLaProfesional | null;
   linkTurno?: string | null;
 };
 
@@ -368,7 +370,9 @@ export function listoDelTurno(t: TurnoDado): { estado: string; tecla: string; te
   } else if (t.eleccion === "pedir" && t.senia > 0) {
     estado = `Reservado · seña de ${pesosEnTexto(t.senia)} pedida`;
     tecla = "Pedirle la seña por WhatsApp";
-    texto = mensajePedidoDeSenia({ ...turno, monto: t.senia, alias: t.alias });
+    texto = t.cuentaProfesional
+      ? mensajePedidoDeSeniaProfesional({ ...turno, monto: t.senia, cuenta: t.cuentaProfesional })
+      : mensajePedidoDeSenia({ ...turno, monto: t.senia, alias: t.alias });
   } else {
     estado = t.senia > 0 ? "Reservado · sin seña" : "Reservado";
     tecla = "Mandar confirmación por WhatsApp";

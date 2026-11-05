@@ -1,5 +1,6 @@
 "use server";
 
+import { nailArtistDelNegocio } from "@/cambios/interruptores.server";
 import { AVISO_COMISION_PAGADA_SIN_DETALLE, avisoDeComisionYaPagada, leerComisionPagadaDelTurno, type ComisionYaPagada } from "@/lib/reports/comision-ya-pagada";
 import { leerPaginaDeFichas, type PaginaDeFichas } from "@/lib/clientes/lista-fichas.server";
 import { cache } from "react";
@@ -108,13 +109,25 @@ export async function getProfessionalsWithServices() {
     // arriba falla al materializar la fila. Antes que dejar el mostrador SIN profesionales
     // —o sea, sin poder cobrar un servicio— se devuelven sin el flag, y la regla lo trata
     // como el default de la columna (`true`, el mostrador cobra).
-    if (!isColumnMissing(err, "cobraEnMostrador")) throw err;
+    // Box «Nail Artist» (migración 20261105120000_nail_artist sin aplicar): mismas columnas nuevas
+    // en Professional y Service → misma salida, sin ellas (marca apagada).
+    const nail = ["aliasCbu", "titularCuenta", "cuitTitular", "boxRentAmount", "rentPercent", "depositToProfessional"].some((c) => isColumnMissing(err, c));
+    if (!isColumnMissing(err, "cobraEnMostrador") && !nail) throw err;
     const filas = await prisma.professional.findMany({
       where: args.where,
       select: {
         id: true, name: true, email: true, phone: true, active: true, boxId: true,
         commissionPercent: true, tenantId: true, createdAt: true, updatedAt: true, deletedAt: true,
-        services: { where: { active: true, deletedAt: null } },
+        services: nail
+          ? {
+              where: { active: true, deletedAt: null },
+              select: {
+                id: true, tenantId: true, categoryId: true, name: true, description: true, durationMin: true, price: true,
+                residentPrice: true, depositAmount: true, active: true, deletedAt: true, createdAt: true, updatedAt: true,
+                reminderEnabled: true, reminderHoursBefore: true,
+              },
+            }
+          : { where: { active: true, deletedAt: null } },
         box: true,
       },
     });
@@ -359,6 +372,7 @@ async function bookAppointment({
 
   // La frontera de la caja se lee sólo si hay plata en juego (un turno sin seña no la toca).
   const cerradoHasta = cobroInicial && cobroInicial.monto > 0 ? await lastClosedDay(tenantId) : null;
+  const nailArtist = await nailArtistDelNegocio();
   const run = (withSchema: boolean) => bookingTransaction(async (tx) => {
     // Re-chequea la disponibilidad DENTRO de la transacción para cerrar la
     // ventana de carrera entre "mostrar franjas libres" y "escribir la reserva":
@@ -423,6 +437,7 @@ async function bookAppointment({
         withSchema,
         cerradoHasta,
         camino: "reserva",
+        nailArtist, // Box «Nail Artist»: sin asiento si el servicio cobra a la profesional
       });
     }
     return { appointment, cobro };
@@ -597,6 +612,30 @@ export async function getMostBookedServiceIds(limit = 3, days = 90): Promise<str
 // portada ejecutaba sus tres consultas DOS veces — seis viajes a la base para
 // traer exactamente lo mismo. `getLocation` ya se había deduplicado así; esto
 // cierra el mismo agujero en el loader más pesado del sitio público.
+/**
+ * Box «Nail Artist» en la reserva pública: con el interruptor prendido, qué servicios cobran a la
+ * profesional y el alias/titular de cada una (lo que la clienta necesita para transferirle la seña).
+ * Apagado → `null` sin tocar la base. Una falla (columna ausente) → `null`: la reserva de siempre.
+ */
+async function cuentasDeNailArtistPublicas(): Promise<{ servicios: Set<string>; cuentas: Record<string, { alias: string; titular: string | null }> } | null> {
+  if (!(await nailArtistDelNegocio())) return null;
+  try {
+    const [servicios, pros] = await Promise.all([
+      prisma.service.findMany({ where: { active: true, deletedAt: null, depositToProfessional: true }, select: { id: true } }),
+      prisma.professional.findMany({ where: { active: true, deletedAt: null, aliasCbu: { not: null } }, select: { id: true, aliasCbu: true, titularCuenta: true } }),
+    ]);
+    const cuentas: Record<string, { alias: string; titular: string | null }> = {};
+    for (const p of pros) {
+      const alias = p.aliasCbu?.trim();
+      if (alias) cuentas[p.id] = { alias, titular: p.titularCuenta?.trim() || null };
+    }
+    return { servicios: new Set(servicios.map((x) => x.id)), cuentas };
+  } catch (err) {
+    if (isColumnMissing(err)) return null;
+    throw err;
+  }
+}
+
 export const getPublicBookingData = cache(async () => {
   // DEFENSIVO (incidente sitio público CH 2026-07-09): corre en el LAYOUT público → si
   // lanza, cae TODO el sitio. `select` explícito en serviceCategory (NO `include`, que
@@ -641,14 +680,18 @@ export const getPublicBookingData = cache(async () => {
       groups.push({ id: "otros", name: "Otros servicios", services: uncategorized });
     }
 
+    const nail = await cuentasDeNailArtistPublicas();
     return {
-      groups,
+      groups: nail
+        ? groups.map((g) => ({ ...g, services: g.services.map((sv) => (nail.servicios.has(sv.id) ? { ...sv, depositToProfessional: true as const } : sv)) }))
+        : groups,
       professionals: professionals.map((p) => ({
         id: p.id,
         name: p.name,
         boxName: p.box?.name ?? null,
         serviceIds: p.services.map((s) => s.id),
         serviceNames: p.services.map((s) => s.name),
+        ...(nail?.cuentas[p.id] ? { cuentaSenia: nail.cuentas[p.id] } : {}),
       })),
     };
   } catch (err) {
@@ -1225,6 +1268,7 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
   const cerradoHasta = await lastClosedDay(tenantId);
   // Todo dentro de UNA tx Serializable: el estado del turno y el saldo se leen y se escriben
   // en la misma foto (dos cobros simultáneos no pueden sobre-cobrar: uno reintenta y ve el otro).
+  const nailArtist = await nailArtistDelNegocio();
   const run = (withSchema: boolean) =>
     tenantTransaction(
       async (tx) => {
@@ -1250,6 +1294,7 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
           withSchema,
           cerradoHasta,
           camino: "cobro",
+          nailArtist, // Box «Nail Artist»: sin asiento si el servicio cobra a la profesional
         });
       },
       { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -2110,6 +2155,7 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   }
   const cerradoHasta = dejarSaldoACobrar ? null : await lastClosedDay(tenantId);
 
+  const nailArtist = await nailArtistDelNegocio();
   const run = (withSchema: boolean) =>
     tenantTransaction(
       async (tx) => {
@@ -2172,6 +2218,7 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
             withSchema,
             cerradoHasta,
             camino: "completar",
+            nailArtist, // Box «Nail Artist»: sin asiento si el servicio cobra a la profesional
           });
         }
 

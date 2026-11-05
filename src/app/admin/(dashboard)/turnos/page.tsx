@@ -124,7 +124,7 @@ export default async function TurnosCalendarPage({
   const proyectada = proyectarAgenda(
     cruda,
     { role: user.role, professionalId: user.professionalId },
-    { seniasPedidas: extras.seniasPedidas, quienCobro: extras.quienCobro },
+    { seniasPedidas: extras.seniasPedidas, quienCobro: extras.quienCobro, seniasAProfesional: extras.seniasAProfesional },
   );
   const planilla = {
     turnos: proyectada.turnos,

@@ -7,7 +7,9 @@ import { businessWallTimeToUtc } from "@/lib/datetime";
 import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
-import { requireCapability } from "@/lib/authz";
+import { requireCapability, requireUser } from "@/lib/authz";
+import { leerCuentaProfesional, puedeEditarCuentaDe } from "@/lib/catalogo/cuenta-profesional";
+import { nailArtistDelNegocio } from "@/cambios/interruptores.server";
 import { writeProductExtras } from "@/lib/carniceria/product-extras";
 import { parseSaleFields } from "@/lib/stock/product-sale-fields";
 import { crearProductoConStockInicial } from "@/lib/stock/alta-producto";
@@ -598,6 +600,94 @@ export async function updateProfessional(formData: FormData) {
     await prisma.professional.update({ where: { id }, data: sinFlag });
   }
   revalidatePath(CATALOG_PATH);
+}
+
+// --- Box «Nail Artist»: la cuenta de la profesional (docs/tenants/ch/NAIL-ARTIST.md §1) ---
+
+const AVISO_NAIL_SIN_MIGRAR = "Esta función todavía no está lista en tu negocio (falta preparar la base). Avisale a GSG.";
+
+/**
+ * Guarda alias / titular / CUIT de una profesional. OWNER: cualquiera del negocio; PROFESSIONAL: sólo
+ * la suya. Con el `tenantId` en el where además de RLS; audita antes/después. Columna ausente → aviso.
+ */
+export async function guardarCuentaDeLaProfesional(formData: FormData): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser();
+  const professionalId = String(formData.get("professionalId") ?? "").trim();
+  if (!professionalId) return { ok: false, error: "Falta la profesional." };
+  const permiso = puedeEditarCuentaDe(user, professionalId);
+  if (!permiso.ok) return { ok: false, error: permiso.motivo };
+  if (!(await nailArtistDelNegocio())) return { ok: false, error: AVISO_NAIL_SIN_MIGRAR };
+  const leida = leerCuentaProfesional({
+    aliasCbu: formData.get("aliasCbu"),
+    titularCuenta: formData.get("titularCuenta"),
+    cuitTitular: formData.get("cuitTitular"),
+  });
+  if (!leida.ok) return leida;
+  const tenantId = await getCurrentTenantId();
+  try {
+    const antes = await tenantTransaction(
+      async (tx) => {
+        const fila = await tx.professional.findFirst({
+          where: { id: professionalId, tenantId, deletedAt: null },
+          select: { aliasCbu: true, titularCuenta: true, cuitTitular: true },
+        });
+        if (!fila) return null;
+        await tx.professional.updateMany({ where: { id: professionalId, tenantId }, data: leida.cuenta });
+        return fila;
+      },
+      { tenantId },
+    );
+    if (!antes) return { ok: false, error: "Esa profesional ya no existe. Recargá la página." };
+    await auditAdmin({
+      action: "professional_alias_set",
+      entity: "Professional",
+      entityId: professionalId,
+      changes: {
+        antes: { alias: antes.aliasCbu, titular: antes.titularCuenta, cuit: antes.cuitTitular },
+        despues: { alias: leida.cuenta.aliasCbu, titular: leida.cuenta.titularCuenta, cuit: leida.cuenta.cuitTitular },
+      },
+    });
+  } catch (err) {
+    if (isColumnMissing(err)) return { ok: false, error: AVISO_NAIL_SIN_MIGRAR };
+    throw err;
+  }
+  revalidatePath(CATALOG_PATH);
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/** Marca (o desmarca) «la seña y el cobro van a la profesional» en un servicio. Dueño del catálogo. */
+export async function marcarSeniaALaProfesional(formData: FormData): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireCapability("catalog:manage");
+  const serviceId = String(formData.get("serviceId") ?? "").trim();
+  if (!serviceId) return { ok: false, error: "Falta el servicio." };
+  if (!(await nailArtistDelNegocio())) return { ok: false, error: AVISO_NAIL_SIN_MIGRAR };
+  const depositToProfessional = formData.get("depositToProfessional") != null;
+  const tenantId = await getCurrentTenantId();
+  try {
+    const antes = await tenantTransaction(
+      async (tx) => {
+        const fila = await tx.service.findFirst({ where: { id: serviceId, tenantId }, select: { depositToProfessional: true } });
+        if (!fila) return null;
+        await tx.service.updateMany({ where: { id: serviceId, tenantId }, data: { depositToProfessional } });
+        return fila;
+      },
+      { tenantId },
+    );
+    if (!antes) return { ok: false, error: "Ese servicio ya no existe. Recargá la página." };
+    await auditAdmin({
+      action: "service_deposit_to_professional",
+      entity: "Service",
+      entityId: serviceId,
+      changes: { antes: antes.depositToProfessional, despues: depositToProfessional },
+    });
+  } catch (err) {
+    if (isColumnMissing(err)) return { ok: false, error: AVISO_NAIL_SIN_MIGRAR };
+    throw err;
+  }
+  revalidatePath(CATALOG_PATH);
+  revalidatePath("/");
+  return { ok: true };
 }
 
 export async function deleteProfessional(formData: FormData) {

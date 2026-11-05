@@ -14,6 +14,7 @@ import {
 import { fmtShortDate } from "@/lib/datetime";
 import { useToast } from "../ToastProvider";
 import { Input, Select, buttonClasses } from "@/components/ui";
+import { CuentaDeLaProfesional } from "./NailArtist";
 
 type Box = { id: string; name: string; active: boolean };
 type Service = {
@@ -36,6 +37,10 @@ type Professional = {
   commissionPercent: number;
   /** ¿El mostrador puede cobrar sus turnos? `undefined` = la migración todavía no corrió. */
   cobraEnMostrador?: boolean;
+  /** Box «Nail Artist»: su cuenta para la seña (sólo se lee/muestra con el interruptor prendido). */
+  aliasCbu?: string | null;
+  titularCuenta?: string | null;
+  cuitTitular?: string | null;
   workingHours: WorkingHour[];
   blocks: Block[];
   serviceCommissions: ServiceCommission[];
@@ -294,12 +299,15 @@ function ProfessionalRow({
   professional: p,
   boxes,
   services,
+  nailArtist = false,
 }: {
   professional: Professional;
   boxes: Box[];
   services: Service[];
+  nailArtist?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
+  const [editingCuenta, setEditingCuenta] = useState(false);
   const [editingHours, setEditingHours] = useState(false);
   const [editingNovedades, setEditingNovedades] = useState(false);
   const [editingComisiones, setEditingComisiones] = useState(false);
@@ -450,7 +458,17 @@ function ProfessionalRow({
         >
           Novedades
         </button>
+        {nailArtist && (
+          <button onClick={() => setEditingCuenta((v) => !v)} className={editingCuenta ? chipBtnActive : chipBtn} aria-expanded={editingCuenta}>
+            Cuenta para la seña{p.aliasCbu ? ` · ${p.aliasCbu}` : ""}
+          </button>
+        )}
       </div>
+      {nailArtist && editingCuenta && (
+        <div className="mb-2">
+          <CuentaDeLaProfesional professionalId={p.id} cuenta={p} onListo={() => setEditingCuenta(false)} />
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
         <form action={toggleProfessionalActive}>
           <input type="hidden" name="id" value={p.id} />
@@ -500,10 +518,13 @@ export default function ProfessionalsSection({
   professionals,
   boxes,
   services,
+  nailArtist = false,
 }: {
   professionals: Professional[];
   boxes: Box[];
   services: Service[];
+  /** Interruptor `nail-artist` del negocio: muestra la cuenta para la seña. */
+  nailArtist?: boolean;
 }) {
   return (
     <section>
@@ -514,7 +535,7 @@ export default function ProfessionalsSection({
       </p>
       <div className="space-y-2 mb-4">
         {professionals.map((p) => (
-          <ProfessionalRow key={p.id} professional={p} boxes={boxes} services={services} />
+          <ProfessionalRow key={p.id} professional={p} boxes={boxes} services={services} nailArtist={nailArtist} />
         ))}
         {professionals.length === 0 && (
           <p className="text-sm text-muted">No hay profesionales cargados todavía.</p>

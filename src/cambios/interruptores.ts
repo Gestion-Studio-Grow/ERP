@@ -158,6 +158,20 @@ export const INTERRUPTORES = [
     enAuditoria: "la agenda interactiva",
     cambiaLasApps: false,
   },
+  {
+    // Box «Nail Artist» (docs/tenants/ch/NAIL-ARTIST.md): los servicios marcados «la seña y el cobro
+    // van a la profesional» piden la seña al alias de la profesional DEL TURNO y su cobro queda como
+    // Collection sin asiento en la caja del negocio. Prenderlo exige la migración
+    // 20261105120000_nail_artist aplicada (como «cuentas-corrientes»). Va AL FINAL del array.
+    // Apagado, todo byte a byte como siempre.
+    id: "nail-artist",
+    nombre: "Profesional que cobra lo suyo",
+    queCambia:
+      "Los servicios marcados cobran la seña y el servicio a la cuenta de la profesional del turno: la clienta ve su alias y esa plata no entra a la caja del negocio. Apagado, la seña y el cobro van al negocio, como siempre.",
+    alPrender: "Exige la migración 20261105120000_nail_artist aplicada. No cambia qué apps ve cada persona.",
+    enAuditoria: "la profesional que cobra lo suyo",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -191,6 +205,16 @@ export function ventaAgendaSimplePrendida(
 
 /** Agenda interactiva (docs/producto/venta-agenda/AGENDA-INTERACCION.md). */
 export const AGENDA_INTERACCION: InterruptorId = "agenda-interaccion";
+
+/** Box «Nail Artist»: la profesional cobra lo suyo (docs/tenants/ch/NAIL-ARTIST.md). */
+export const NAIL_ARTIST: InterruptorId = "nail-artist";
+
+/** ¿El negocio tiene el box «Nail Artist»? Un estado sin la entrada cuenta como apagado. PURA. */
+export function nailArtistPrendido(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return estado[NAIL_ARTIST]?.encendido === true;
+}
 
 /** ¿El negocio tiene la agenda interactiva? Un estado sin la entrada cuenta como apagado. PURA. */
 export function agendaInteraccionPrendida(

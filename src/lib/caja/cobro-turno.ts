@@ -45,13 +45,14 @@ export type CobroTurnoSkipReason =
   | "not-approved" // el pago no está APPROVED: todavía no entró plata
   | "unsupported-method" // medio que el libro no sabe traducir (o vacío)
   | "invalid-amount" // monto <= 0 o no finito
-  | "already-recorded"; // ya hay una VENTA para este cobro (idempotencia)
+  | "already-recorded" // ya hay una VENTA para este cobro (idempotencia)
+  | "PROFESIONAL_COBRA"; // Box «Nail Artist»: la plata fue a la cuenta de la profesional, no a la caja del negocio
 
 export type CobroTurnoEligibility =
   | { eligible: true; amount: number; method: CashMethod }
   | {
       eligible: false;
-      reason: Extract<CobroTurnoSkipReason, "not-approved" | "unsupported-method" | "invalid-amount">;
+      reason: Extract<CobroTurnoSkipReason, "not-approved" | "unsupported-method" | "invalid-amount" | "PROFESIONAL_COBRA">;
     };
 
 // ¿Este cobro de turno debería asentarse en el libro, y en qué columna? Pura.
@@ -63,7 +64,11 @@ export function cobroTurnoEligibility(input: {
   paymentMethod: string | null;
   amount: number;
   transferenciaEnElLibro?: boolean;
+  // Box «Nail Artist» (docs/tenants/ch/NAIL-ARTIST.md §4): true SÓLO si el interruptor está
+  // prendido Y el servicio del turno tiene `depositToProfessional`. Collection sí, CashMovement no.
+  profesionalCobra?: boolean;
 }): CobroTurnoEligibility {
+  if (input.profesionalCobra === true) return { eligible: false, reason: "PROFESIONAL_COBRA" };
   if (input.status !== "APPROVED") return { eligible: false, reason: "not-approved" };
   const method = input.paymentMethod ? cashMethodFromPaymentMethod(input.paymentMethod, input.transferenciaEnElLibro) : null;
   if (!method) return { eligible: false, reason: "unsupported-method" };
@@ -94,6 +99,8 @@ export type CobroTurnoInput = {
   amount: number;
   detail: string;
   actor: string;
+  /** Ver `cobroTurnoEligibility`: la profesional cobra lo suyo, no nace asiento. */
+  profesionalCobra?: boolean;
 };
 
 export type RecordCobroTurnoResult =
@@ -115,6 +122,7 @@ export async function recordCobroTurnoInTx(
   tenantId: string,
   input: CobroTurnoInput,
 ): Promise<RecordCobroTurnoResult> {
+  if (input.profesionalCobra === true) return { recorded: false, reason: "PROFESIONAL_COBRA" };
   const transferenciaEnElLibro = input.status === "APPROVED" && input.paymentMethod === "TRANSFERENCIA" && (await transferenciaEnElLibroTx(tx));
   const elig = cobroTurnoEligibility({ ...input, transferenciaEnElLibro });
   if (!elig.eligible) return { recorded: false, reason: elig.reason };

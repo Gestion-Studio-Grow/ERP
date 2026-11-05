@@ -38,6 +38,7 @@ export default function LlegoLaSenia({
   monto,
   medioInicial = MEDIO_DE_LA_SENIA,
   confirma = true,
+  cuentaProfesional,
   onListo,
   className,
 }: {
@@ -48,6 +49,8 @@ export default function LlegoLaSenia({
   medioInicial?: MetodoDePago;
   /** ¿Quien toca confirma el turno? (`agenda:manage`). Sin eso, sólo registra la seña. */
   confirma?: boolean;
+  /** Box «Nail Artist»: la cuenta CONGELADA de la profesional a la que fue la seña (no entra a la caja). */
+  cuentaProfesional?: { alias: string; titular: string | null };
   onListo?: () => void;
   className?: string;
 }) {
@@ -145,6 +148,11 @@ export default function LlegoLaSenia({
       <p id={`${id}-ayuda`} className="mt-0.5 text-xs text-muted">
         {AYUDA_LLEGO_LA_SENIA}
       </p>
+      {cuentaProfesional && (
+        <p className="mt-0.5 text-xs text-muted">
+          A la profesional: {cuentaProfesional.titular ? `${cuentaProfesional.titular} (alias ${cuentaProfesional.alias})` : `alias ${cuentaProfesional.alias}`}. No entra a la caja del negocio.
+        </p>
+      )}
       {cambiando && (
         <div id={`${id}-medio`} className="mt-2">
           <Segmented

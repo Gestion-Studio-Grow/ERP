@@ -74,6 +74,12 @@ export type AplicarCobroArgs = {
   cerradoHasta: DayKey | null;
   /** Desde dónde se cobra: cambia la SALIDA que ofrece el mensaje del día cerrado, no la regla. */
   camino: CaminoDeCobro;
+  /**
+   * Interruptor `nail-artist` del negocio (docs/tenants/ch/NAIL-ARTIST.md §4). Sólo con él prendido
+   * se lee `Service.depositToProfessional` (el interruptor exige la migración aplicada, así que la
+   * columna existe y la lectura no aborta la tx). Ausente/false = byte a byte como siempre.
+   */
+  nailArtist?: boolean;
 };
 
 export type CaminoDeCobro = "reserva" | "cobro" | "completar";
@@ -204,6 +210,18 @@ export async function claveDeSeniaAhoraInTx(tx: CobroTurnoTx, tenantId: string, 
   }
 }
 
+/**
+ * ¿El servicio de este turno cobra a la cuenta de la profesional (Box «Nail Artist»)? Llamar SÓLO con
+ * el interruptor prendido (que exige la columna migrada). Filtra por tenant: un turno ajeno da false.
+ */
+export async function servicioCobraLaProfesionalInTx(tx: CobroTurnoTx, tenantId: string, appointmentId: string): Promise<boolean> {
+  const turno = await tx.appointment.findFirst({
+    where: { id: appointmentId, tenantId },
+    select: { service: { select: { depositToProfessional: true } } },
+  });
+  return turno?.service?.depositToProfessional === true;
+}
+
 export async function aplicarCobroTurnoInTx(
   tx: CobroTurnoTx,
   tenantId: string,
@@ -322,7 +340,9 @@ export async function aplicarCobroTurnoInTx(
 
   let caja: RecordCobroTurnoResult | null = null;
   if (args.withSchema) {
+    const profesionalCobra = args.nailArtist === true && (await servicioCobraLaProfesionalInTx(tx, tenantId, args.appointmentId));
     caja = await recordCobroTurnoInTx(tx, tenantId, {
+      ...(profesionalCobra ? { profesionalCobra } : {}),
       collectionId: created.id,
       status: "APPROVED",
       paymentMethod: args.method,

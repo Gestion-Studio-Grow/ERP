@@ -1,0 +1,41 @@
+-- Box «Nail Artist» (docs/tenants/ch/NAIL-ARTIST.md §6). Aditiva: sólo agrega columnas y una tabla; no toca datos.
+-- Gate 2: escrita SIN aplicar. El código tolera su ausencia (columna ausente = marca apagada).
+
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "aliasCbu" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "titularCuenta" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "cuitTitular" TEXT;
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "boxRentAmount" DECIMAL(14,2);
+ALTER TABLE "Professional" ADD COLUMN IF NOT EXISTS "rentPercent" DOUBLE PRECISION;
+
+ALTER TABLE "Service" ADD COLUMN IF NOT EXISTS "depositToProfessional" BOOLEAN NOT NULL DEFAULT false;
+
+CREATE TABLE "ProfessionalSettlement" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "professionalId" TEXT NOT NULL,
+  "periodStart" TIMESTAMP(3) NOT NULL,
+  "periodEnd" TIMESTAMP(3) NOT NULL,
+  "collectedTotal" DECIMAL(14,2) NOT NULL,
+  "percentAmount" DECIMAL(14,2) NOT NULL,
+  "rentAmount" DECIMAL(14,2) NOT NULL,
+  "amount" DECIMAL(14,2) NOT NULL,
+  "appointmentCount" INTEGER NOT NULL,
+  "note" TEXT,
+  "settledBy" TEXT NOT NULL,
+  "cashMovementId" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ProfessionalSettlement_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "ProfessionalSettlement_cashMovementId_key" ON "ProfessionalSettlement"("cashMovementId");
+CREATE UNIQUE INDEX "ProfessionalSettlement_tenantId_professionalId_periodStart_periodEnd_key" ON "ProfessionalSettlement"("tenantId", "professionalId", "periodStart", "periodEnd");
+CREATE INDEX "ProfessionalSettlement_tenantId_createdAt_idx" ON "ProfessionalSettlement"("tenantId", "createdAt");
+CREATE INDEX "ProfessionalSettlement_professionalId_idx" ON "ProfessionalSettlement"("professionalId");
+
+ALTER TABLE "ProfessionalSettlement" ADD CONSTRAINT "ProfessionalSettlement_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProfessionalSettlement" ADD CONSTRAINT "ProfessionalSettlement_professionalId_fkey" FOREIGN KEY ("professionalId") REFERENCES "Professional"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "ProfessionalSettlement" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "ProfessionalSettlement";
+CREATE POLICY tenant_isolation ON "ProfessionalSettlement"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));

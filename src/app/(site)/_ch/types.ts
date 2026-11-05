@@ -10,6 +10,8 @@ export type BookingService = {
   residentPrice: number | null;
   // Seña obligatoria (ADR-014) para confirmar el turno. null = no exige.
   depositAmount: number | null;
+  // Box «Nail Artist» (interruptor `nail-artist`): la seña va a la profesional del turno.
+  depositToProfessional?: true;
 };
 
 export type BookingGroup = {
@@ -27,6 +29,8 @@ export type BookingProfessional = {
   // (antes esto se resolvía llamando a getCatalog(), gateado por sesión — ver
   // getPublicBookingData en @/lib/actions).
   serviceNames: string[];
+  // Box «Nail Artist»: su cuenta para la seña de los servicios marcados. Ausente = sin alias cargado.
+  cuentaSenia?: { alias: string; titular: string | null };
 };
 
 export type BookingDay = { value: string; label: string };

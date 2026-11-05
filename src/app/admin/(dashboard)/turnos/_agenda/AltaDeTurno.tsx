@@ -368,12 +368,14 @@ export default function AltaDeTurno({
           profesional: profesional.name,
           precio,
           senia,
-          eleccion,
+          // Box «Nail Artist»: la profesional sin alias → el turno quedó dado sin seña pedida.
+          eleccion: r.seniaSinAlias ? null : eleccion,
           medio: decision.cobro?.metodo ?? null,
           cobrada: decision.cobro !== null,
           direccion: r.direccion,
           linkTurno: r.linkTurno,
           alias,
+          ...(r.cuentaDeLaSenia ? { cuentaProfesional: r.cuentaDeLaSenia } : {}),
         });
         setListo({
           ...l,

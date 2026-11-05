@@ -15,6 +15,7 @@ import type { PrefillReserva } from "./BookingProvider";
 import { borrarReservaGuardada, guardarReserva } from "./reserva-guardada";
 import { faltaParaSeguir } from "./reserva-falta";
 import type { BookingData, BookingGroup, BookingProfessional, BookingService } from "./types";
+import { textoDeSeniaProfesional } from "./senia-profesional-reserva";
 
 const STEP_LABELS = ["", "Servicio", "Profesional", "Día y hora", "Datos", "Confirmación"];
 
@@ -213,6 +214,8 @@ export default function BookingModal({
   // patrón de React para "reiniciar estado cuando cambian las props". Antes vivía
   // dentro del efecto, donde un `setState` síncrono provoca un render en cascada.
   const claveActual = pro && svc ? `${pro.id}:${svc.id}` : null;
+  // Box «Nail Artist»: la seña de un servicio marcado se le transfiere a la profesional elegida.
+  const seniaProfesional = textoDeSeniaProfesional(svc, pro);
   if (claveActual && availabilityKey !== claveActual) {
     setAvailabilityKey(claveActual);
     setDayAvailability({});
@@ -846,7 +849,9 @@ export default function BookingModal({
                   </div>
                   {svc.depositAmount != null && (
                     <p style={{ marginTop: 10, fontSize: 12.5, color: "var(--warning)", lineHeight: 1.5 }}>
-                      {nuevo && !data.whatsapp ? (
+                      {seniaProfesional ? (
+                        <>{seniaProfesional}</>
+                      ) : nuevo && !data.whatsapp ? (
                         <>Seña obligatoria para confirmar: ${svc.depositAmount.toLocaleString("es-AR")}. Te contactamos para coordinar el pago.</>
                       ) : (
                         <>
@@ -883,9 +888,11 @@ export default function BookingModal({
                 {nuevo && !data.whatsapp
                   ? `Te confirmamos el turno por mensaje o llamado. ${promesaDeCambios(horasParaCambiar, { plazoVencido, hayWhatsApp: Boolean(data.whatsapp) })}`
                   : `Te confirmamos por WhatsApp o email. ${promesaDeCambios(horasParaCambiar, { plazoVencido, hayWhatsApp: Boolean(data.whatsapp) })}`}
-                {svc?.depositAmount != null && (
+                {svc?.depositAmount != null && (seniaProfesional ? (
+                  <> {seniaProfesional}</>
+                ) : (
                   <> Recordá que para confirmar el turno hay una seña de ${svc.depositAmount.toLocaleString("es-AR")} — te escribimos para coordinarla.</>
-                )}
+                ))}
               </p>
               <div className={k("chm-salidas")} style={{ marginTop: 16, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
                 {/* Lo que el texto promete, con su camino: sin este link la clienta no tenía cómo llegar a su turno (U1). */}

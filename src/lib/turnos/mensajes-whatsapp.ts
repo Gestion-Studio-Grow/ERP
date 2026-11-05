@@ -219,6 +219,66 @@ export function mensajePedidoDeSenia(t: TurnoDelMensaje & { monto: number; alias
   return frases(saludo(t.clienta), `Te anotamos ${queCuandoConQuien(t)}.`, pedido, fraseDelLink(t), "¡Gracias! 💚");
 }
 
+// ── 2 bis. Seña a la profesional (Box «Nail Artist», docs/tenants/ch/NAIL-ARTIST.md §3) ──────────
+
+/** La cuenta a la que va la seña: el SNAPSHOT congelado al pedirla, nunca la ficha del momento. */
+export type CuentaDeLaProfesional = { alias: string; titular?: string | null; cuit?: string | null };
+
+/**
+ * «Hola Laura, para confirmar tu turno de *Kapping* *el jueves 24 a las 16:00* transferí la seña de
+ * $5.000 al alias *mica.nails* (Micaela Pérez) y mandame el comprobante por acá. ¡Gracias!»
+ * Sin alias no hay pedido por transferencia: devuelve "" (el que llama no ofrece el botón).
+ */
+export function mensajePedidoDeSeniaProfesional(t: TurnoDelMensaje & { monto: number; cuenta: CuentaDeLaProfesional | null }): string {
+  const alias = limpio(t.cuenta?.alias);
+  if (!alias || !hayPlata(t.monto)) return "";
+  const n = primerNombre(limpio(t.clienta));
+  const servicio = listaDeServicios(t.servicios);
+  const cuando = cuandoEnTexto(t.inicio);
+  const titular = limpio(t.cuenta?.titular);
+  return frases(
+    `${n ? `Hola ${n}` : "Hola"}, para confirmar tu turno${servicio ? ` de *${servicio}*` : ""}${cuando ? ` *${cuando}*` : ""} transferí la seña de ${pesosEnTexto(t.monto)} al alias *${alias}*${titular ? ` (${titular})` : ""} y mandame el comprobante por acá.`,
+    fraseDelLink(t),
+    "¡Gracias!",
+  );
+}
+
+/**
+ * Comprobante de la seña recibida por la profesional: «Recibimos tu seña de $5.000 para el turno de
+ * *Kapping* *el jueves 24 a las 16:00*. Cobrada por Micaela Pérez (alias mica.nails). Te esperamos en
+ * CH.» Sin «CH recibió» ni CUIT del salón: la emisora es la titular; con su CUIT, al pie.
+ */
+export function mensajeSeniaRecibidaProfesional(t: TurnoDelMensaje & { monto: number; cuenta: CuentaDeLaProfesional; negocio?: string | null }): string {
+  const alias = limpio(t.cuenta.alias);
+  if (!alias || !hayPlata(t.monto)) return "";
+  const servicio = listaDeServicios(t.servicios);
+  const cuando = cuandoEnTexto(t.inicio);
+  const titular = limpio(t.cuenta.titular);
+  const cuit = limpio(t.cuenta.cuit);
+  const negocio = limpio(t.negocio);
+  return frases(
+    `Recibimos tu seña de ${pesosEnTexto(t.monto)} para el turno${servicio ? ` de *${servicio}*` : ""}${cuando ? ` *${cuando}*` : ""}.`,
+    titular ? `Cobrada por ${titular} (alias ${alias}).` : `Cobrada al alias ${alias}.`,
+    negocio ? `Te esperamos en ${negocio}.` : "¡Te esperamos!",
+    cuit && `CUIT ${cuit}`,
+  );
+}
+
+/** La línea de la reserva pública, debajo del precio (§3). "" sin alias. */
+export function lineaDeSeniaProfesionalEnReserva(d: { monto: number; cuenta: CuentaDeLaProfesional | null; profesional?: string | null }): string {
+  const alias = limpio(d.cuenta?.alias);
+  if (!alias || !hayPlata(d.monto)) return "";
+  const titular = limpio(d.cuenta?.titular);
+  const nombre = primerNombre(limpio(d.profesional));
+  return frases(
+    `Seña de ${pesosEnTexto(d.monto)} por transferencia al alias ${alias}${titular ? ` (titular: ${titular})` : ""}.`,
+    `La cobra ${nombre ? `${nombre}, tu nail artist` : "tu nail artist"}, no el salón.`,
+  );
+}
+
+/** Lo que dice la reserva cuando el servicio es de la profesional y ella no cargó su alias. */
+export const SENIA_SE_COORDINA_CON_LA_PROFESIONAL = "La seña se coordina con la profesional.";
+
 // ── 3. Mover (reprogramar) ────────────────────────────────────────────────────
 
 /**
