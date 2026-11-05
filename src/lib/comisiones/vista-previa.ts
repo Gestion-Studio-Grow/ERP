@@ -12,12 +12,13 @@
 // congelar y avisa (`detalleCuadra`), nunca uno inventado. Plata en CENTAVOS ENTEROS (§3).
 
 import { montoComision, resolvePct } from "@/lib/comision-liquidacion";
+import { centavosDe } from "@/lib/dinero/redondeo";
 import { sePuedeLiquidar } from "@/lib/comision-liquidable";
 import { comisionesPendientes, type TurnoPendiente } from "@/lib/reports/comisiones";
 import { entraEnElCorte, esDeAntes, type PeriodoComision } from "./periodo";
 
-/** Pesos (Float con `round2`) → centavos enteros. */
-export const aCentavos = (pesos: number) => Math.round(pesos * 100);
+/** Pesos (Float con `round2`) → centavos enteros, con la regla única del módulo de plata. */
+export const aCentavos = (pesos: number) => centavosDe(pesos);
 
 export interface LineaDeVistaPrevia {
   id: string;
