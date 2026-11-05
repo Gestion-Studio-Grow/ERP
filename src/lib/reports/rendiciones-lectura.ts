@@ -88,6 +88,29 @@ export async function leerCobradoPorLaProfesional(db: Db, tenantId: string, appo
   return cobradoPorLaProfesional(t.collections.map(conDestino), t.service.depositToProfessional === true);
 }
 
+/**
+ * De los turnos dados, cuánto cobró la profesional en cada uno (sólo los que tienen algo de ella), con
+ * la regla única `cobradoPorLaProfesional`. Una lectura, con `tenantId`. Columna de la migración
+ * `nail_artist`: llamar sólo con el interruptor prendido.
+ */
+export async function leerCobradoPorLasProfesionales(db: Db, tenantId: string, appointmentIds: readonly string[]): Promise<Record<string, number>> {
+  if (appointmentIds.length === 0) return {};
+  const turnos = await db.appointment.findMany({
+    where: { tenantId, id: { in: [...appointmentIds] } },
+    select: {
+      id: true,
+      service: { select: { depositToProfessional: true } },
+      collections: { ...SELECT_COBROS_CON_DESTINO, where: { tenantId } },
+    },
+  });
+  const out: Record<string, number> = {};
+  for (const t of turnos) {
+    const deElla = cobradoPorLaProfesional(t.collections.map(conDestino), t.service.depositToProfessional === true);
+    if (deElla > 0) out[t.id] = deElla;
+  }
+  return out;
+}
+
 /** ¿El negocio tiene prendido el box «Nail Artist»? Por `tenantId` (sin request): la misma regla que la consola. */
 export async function nailArtistDe(db: Db, tenantId: string): Promise<boolean> {
   const filas = await db.auditLog.findMany({

@@ -63,3 +63,11 @@ test("elMostradorLeCobra: sólo el false explícito la excluye", () => {
   assert.equal(elMostradorLeCobra({ cobraEnMostrador: null }), true);
   assert.equal(elMostradorLeCobra({}), true);
 });
+
+test("Box «Nail Artist»: quien rinde al negocio → «después le rinde a CH»; sin eso, el texto de siempre", () => {
+  const base = { rol: "RECEPTION", professionalIdDelTurno: "p", nombreProfesional: "Mica", cobraEnMostrador: false } as const;
+  const rinde = puedeCobrarEsteTurno({ ...base, rindeA: "CH" });
+  assert.ok(!rinde.ok && rinde.motivo === "Mica cobra sus propios turnos. Pasale el cobro a ella; después le rinde a CH.");
+  const comision = puedeCobrarEsteTurno(base);
+  assert.ok(!comision.ok && comision.motivo.endsWith("después rinde la comisión."));
+});

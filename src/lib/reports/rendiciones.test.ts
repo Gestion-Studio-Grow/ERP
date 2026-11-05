@@ -13,6 +13,8 @@ import {
   periodoMensual,
   textoComprobanteRendicion,
   tieneRendicion,
+  avisoSinTelefono,
+  ingresosSinLoDeLasProfesionales,
 } from "./rendiciones";
 
 const turno = (id: string, ...montos: number[]) => ({ id, cobros: montos.map((amount) => ({ amount, note: null })) });
@@ -118,4 +120,22 @@ test("período terminado: el mes en curso no, el anterior sí", () => {
   const p = periodoMensual("2026-10")!;
   assert.equal(periodoTerminado(p, new Date("2026-10-31T23:00:00Z")), false);
   assert.equal(periodoTerminado(p, new Date("2026-11-01T03:00:00Z")), true);
+});
+
+// ── QA de Tanda 2: Inicio sin lo de ella; comprobante sin teléfono ───────────
+
+test("Ingresos 7 días: descuenta lo cobrado por la profesional por turno, nunca más que su pago", () => {
+  const pagos = [
+    { appointmentId: "a", amount: 20000 }, // 5.000 de seña a ella + 15.000 de saldo a ella
+    { appointmentId: "b", amount: 18000 }, // servicio de CH
+    { appointmentId: "c", amount: 3000.1 }, // ella cobró 3.000,10
+    { appointmentId: "d", amount: 1000 }, // dato raro: «de ella» mayor que el pago → 0, nunca negativo
+  ];
+  assert.equal(ingresosSinLoDeLasProfesionales(pagos, { a: 20000, c: 3000.1, d: 5000 }), 18000);
+  assert.equal(ingresosSinLoDeLasProfesionales(pagos, {}), 42000.1);
+  assert.equal(ingresosSinLoDeLasProfesionales([{ appointmentId: "a", amount: 10000.3 }], { a: 0.1 }), 10000.2);
+});
+
+test("rendición sin teléfono: se pide cargarlo, con su nombre", () => {
+  assert.equal(avisoSinTelefono("Mica"), "Para mandarle el comprobante, cargá el teléfono de Mica en su ficha.");
 });

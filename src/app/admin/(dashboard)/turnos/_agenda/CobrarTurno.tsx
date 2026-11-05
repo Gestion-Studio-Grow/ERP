@@ -69,7 +69,7 @@ export default function CobrarTurno({
           return;
         }
         setClave(claveNueva());
-        showSuccess(`Cobrado: ${clienta}, ${pesos(monto)} en ${METODO_LABEL[metodo].toLowerCase()}.`);
+        showSuccess(`Cobrado: ${clienta}, ${pesos(monto)} en ${METODO_LABEL[metodo].toLowerCase()}.${r.cobradoPor ? ` ${r.cobradoPor}` : ""}`);
         onListo?.();
       } catch {
         showError("No se pudo registrar el cobro. Probá de nuevo; si sigue, avisá.");

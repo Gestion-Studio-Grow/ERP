@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { Bloque, fmtMoneyARS } from "@/components/ui";
-import { mesAnterior, nombreDelMes, type PeriodoMensual } from "@/lib/reports/rendiciones";
+import { avisoSinTelefono, mesAnterior, nombreDelMes, type PeriodoMensual } from "@/lib/reports/rendiciones";
 import type { ProfesionalConRendicion } from "@/lib/reports/rendiciones-lectura";
 import type { FilaDeRendicion } from "./rendiciones.server";
 import { ConfigDeRendicion, RegistrarRendicion } from "./RendicionesFormularios";
@@ -75,10 +75,18 @@ export default function Rendiciones({
                       Recibida el {f.recibida.el}
                       {f.recibida.metodo ? ` por ${MEDIO[f.recibida.metodo] ?? f.recibida.metodo}` : ""}
                     </span>
-                    {f.recibida.comprobante && (
-                      <a href={f.recibida.comprobante} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                    {f.recibida.comprobante ? (
+                      <a
+                        href={f.recibida.comprobante}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-h-11 items-center underline underline-offset-2"
+                        aria-label={`Mandarle el comprobante a ${f.nombre} por WhatsApp (se abre en otra pestaña)`}
+                      >
                         Mandarle el comprobante por WhatsApp
                       </a>
+                    ) : (
+                      <span className="text-muted">{avisoSinTelefono(f.nombre)}</span>
                     )}
                   </p>
                 ) : (

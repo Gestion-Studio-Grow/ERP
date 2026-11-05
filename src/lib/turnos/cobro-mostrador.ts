@@ -35,6 +35,11 @@ export type IntentoDeCobro = {
    * frenar un cobro.
    */
   cobraEnMostrador?: boolean | null;
+  /**
+   * Box «Nail Artist» (interruptor prendido): la profesional no cobra comisión, le RINDE al negocio
+   * (alquiler o %). El nombre del negocio cambia el final del mensaje; ausente, el de siempre.
+   */
+  rindeA?: string | null;
 };
 
 export type Veredicto = { ok: true } | { ok: false; motivo: string };
@@ -51,11 +56,13 @@ export function puedeCobrarEsteTurno(i: IntentoDeCobro): Veredicto {
   // Recepción y cualquier otro rol que tenga la capacidad: es el mostrador.
   if (i.cobraEnMostrador === false) {
     const quien = i.nombreProfesional?.trim();
+    const negocio = i.rindeA?.trim();
+    const despues = negocio ? `después le rinde a ${negocio}` : "después rinde la comisión";
     return {
       ok: false,
       motivo: quien
-        ? `${quien} cobra sus propios turnos. Pasale el cobro a ella; después rinde la comisión.`
-        : "Esa profesional cobra sus propios turnos. Pasale el cobro a ella; después rinde la comisión.",
+        ? `${quien} cobra sus propios turnos. Pasale el cobro a ella; ${despues}.`
+        : `Esa profesional cobra sus propios turnos. Pasale el cobro a ella; ${despues}.`,
     };
   }
   return { ok: true };

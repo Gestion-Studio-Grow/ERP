@@ -11,6 +11,9 @@ import {
   seniaDeLaProfesional,
   snapshotDeChanges,
   ultimoSnapshotPorTurno,
+  avisoCobradoPorLaProfesional,
+  claveDeSaldoProfesional,
+  notaDeSaldoProfesional,
 } from "./senia-profesional";
 import {
   ALIAS_SENIA_PROVISIONAL,
@@ -152,4 +155,36 @@ test("nota dirigida: se reconoce (para el Deshacer), avisa la reasignación; só
   assert.equal(medioDeSeniaProfesionalValido("TRANSFERENCIA"), true);
   assert.equal(medioDeSeniaProfesionalValido("EFECTIVO"), false);
   assert.equal(medioDeSeniaProfesionalValido("MERCADOPAGO"), false);
+});
+
+// ── QA de Tanda 2: saldo dirigido (nota, clave, aviso) ───────────────────────
+
+test("saldo de la profesional: nota dirigida (reconocida), con la nota del camino detrás; una dirigida no se duplica", () => {
+  const n = notaDeSaldoProfesional("Mica", "Saldo al completar");
+  assert.equal(n, "a Mica — no entra a la caja del negocio · Saldo al completar");
+  assert.ok(esNotaDeCobroProfesional(n));
+  assert.equal(notaDeSaldoProfesional(null, null), "a la profesional del turno — no entra a la caja del negocio");
+  assert.equal(notaDeSaldoProfesional("Sol", n), n);
+});
+
+test("saldo de la profesional: clave `saldo:<turno>…`; la del formulario va detrás; saldo/seña quedan igual", () => {
+  assert.equal(claveDeSaldoProfesional("t1", "uuid-1"), "saldo:t1:uuid-1");
+  assert.equal(claveDeSaldoProfesional("t1", "saldo:t1"), "saldo:t1");
+  assert.equal(claveDeSaldoProfesional("t1", "saldo:t1:2"), "saldo:t1:2");
+  assert.equal(claveDeSaldoProfesional("t1", "senia:t1"), "senia:t1");
+  assert.equal(claveDeSaldoProfesional("t1", null), null);
+  assert.equal(claveDeSaldoProfesional("t1", "  "), null);
+});
+
+test("aviso del cobro de ella: «Cobrado por Mica — no entra a la caja de CH.»", () => {
+  assert.equal(avisoCobradoPorLaProfesional("Mica", "CH"), "Cobrado por Mica — no entra a la caja de CH.");
+  assert.equal(avisoCobradoPorLaProfesional(null, null), "Cobrado por la profesional — no entra a la caja del negocio.");
+});
+
+test("comprobante de la seña recibida: datos del snapshot, sin el negocio ni CUIT del salón", () => {
+  const texto = mensajeSeniaRecibidaProfesional({ clienta: "Laura", servicios: "Kapping", inicio: "2026-11-20T19:00:00.000Z", monto: 5000, cuenta: { alias: "mica.nails", titular: "Micaela Pérez", cuit: null } });
+  assert.match(texto, /Recibimos tu seña de \$\s?5\.000/);
+  assert.match(texto, /Cobrada por Micaela Pérez \(alias mica\.nails\)\./);
+  assert.match(texto, /¡Te esperamos!/);
+  assert.doesNotMatch(texto, /CUIT/);
 });

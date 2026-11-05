@@ -27,6 +27,7 @@ import { ACCION_SENIA_PEDIDA } from "@/lib/turnos/senia-pedida";
 import { isColumnMissing } from "@/lib/prisma-errors";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { horariosDelDia } from "@/lib/turnos/horario-del-dia.server";
+import { tieneRendicion } from "@/lib/reports/rendiciones";
 import { turnoDelDia, type TurnoDelDia } from "./agenda-core";
 import { bloqueosDelDia, bloqueosPorHorario, type BloqueoDelDia } from "./grilla";
 
@@ -58,7 +59,7 @@ type TurnoDeLaBase = {
   serviceId: string;
   client: { name: string; phone: string };
   service: { name: string; price: number; depositAmount?: number | null };
-  professional: { name: string; cobraEnMostrador?: boolean | null };
+  professional: { name: string; cobraEnMostrador?: boolean | null; boxRentAmount?: unknown; rentPercent?: number | null };
   box: { name: string } | null;
   payment: { status?: string; amount?: number; method?: string } | null;
   collections?: readonly { id?: string; amount: number; method: string; note?: string | null; createdAt?: Date; collectedBy?: string }[];
@@ -75,6 +76,8 @@ export function proyectarAgenda(
     seniasAProfesional?: Readonly<Record<string, NonNullable<TurnoDelDia["seniaAProfesional"]>>>;
     /** Agenda interactiva: actor del cobro («user:<id>») → nombre de quien cobró (sección «Pagos»). */
     quienCobro?: Readonly<Record<string, string>>;
+    /** Box «Nail Artist» prendido: el nombre del negocio al que le rinde quien tiene rendición. */
+    rindeA?: string;
   },
 ): AgendaDelDia {
   const leidos: readonly TurnoDeLaBase[] = cruda.appointments;
@@ -112,6 +115,7 @@ export function proyectarAgenda(
           professionalIdDelTurno: a.professionalId,
           nombreProfesional: a.professional.name,
           cobraEnMostrador: a.professional.cobraEnMostrador ?? undefined,
+          ...(extras?.rindeA && rindeAlNegocio(a.professional) ? { rindeA: extras.rindeA } : {}),
         }),
       ),
     )
@@ -123,6 +127,12 @@ export function proyectarAgenda(
     profesionales: cruda.professionals.map((p) => ({ id: p.id, nombre: p.name, box: p.box?.name ?? null })),
     ausencias: cruda.blocksToday.map((b) => ({ profesional: b.professional.name, motivo: b.reason })),
   };
+}
+
+/** ¿La profesional tiene rendición (alquiler o %)? Columnas ausentes → no. */
+function rindeAlNegocio(p: { boxRentAmount?: unknown; rentPercent?: number | null }): boolean {
+  const alquiler = p.boxRentAmount == null ? null : Number(p.boxRentAmount);
+  return tieneRendicion({ boxRentAmount: Number.isFinite(alquiler) ? alquiler : null, rentPercent: p.rentPercent ?? null });
 }
 
 /** «10:00 a 10:45» — para el lector de pantalla y el cajón. */
@@ -147,23 +157,34 @@ export async function extrasDeLaAgenda(
   bloqueos: BloqueoDelDia[];
   quienCobro?: Record<string, string>;
   seniasAProfesional?: Record<string, NonNullable<TurnoDelDia["seniaAProfesional"]>>;
+  rindeA?: string;
 }> {
   const reservados = cruda.appointments.filter((a) => a.status === "PENDING").map((a) => a.id);
   const profesionales = cruda.professionals.map((p) => p.id);
-  const [senias, horarios, quienCobro, aProfesional] = await Promise.all([
+  const [senias, horarios, quienCobro, aProfesional, rindeA] = await Promise.all([
     reservados.length > 0 ? seniasPedidas(reservados).catch(() => ({})) : Promise.resolve({}),
     profesionales.length > 0 ? horariosDelDia(dia, profesionales).catch(() => null) : Promise.resolve(null),
     o.quienCobro ? nombresDeQuienCobro(cruda).catch(() => ({})) : Promise.resolve(undefined),
     reservados.length > 0
       ? cuentasDeSeniaProfesional(cruda.appointments.filter((a) => a.status === "PENDING").map((a) => ({ id: a.id, professionalId: a.professionalId }))).catch(() => ({}))
       : Promise.resolve({}),
+    nombreSiRinden().catch(() => undefined),
   ]);
   return {
     seniasPedidas: senias,
     bloqueos: [...bloqueosDelDia(cruda.blocksToday), ...bloqueosPorHorario(dia, profesionales, horarios)],
     ...(quienCobro ? { quienCobro } : {}),
     ...(Object.keys(aProfesional).length > 0 ? { seniasAProfesional: aProfesional } : {}),
+    ...(rindeA ? { rindeA } : {}),
   };
+}
+
+/** Box «Nail Artist» prendido → el nombre del negocio (para «después le rinde a CH»). Apagado → nada. */
+async function nombreSiRinden(): Promise<string | undefined> {
+  if (isDemoSandbox() || !(await nailArtistDelNegocio())) return undefined;
+  const tenantId = await getCurrentTenantId();
+  const t = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+  return t?.name?.trim() || undefined;
 }
 
 /**

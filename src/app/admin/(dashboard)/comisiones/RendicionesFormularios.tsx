@@ -7,16 +7,23 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { guardarConfigDeRendicion, registrarRendicion, type ResultadoRendicion } from "@/lib/rendicion-actions";
 import { Input, Select, buttonClasses } from "@/components/ui";
+import { useToast } from "../ToastProvider";
 
 function useEnvio(accion: (fd: FormData) => Promise<ResultadoRendicion>) {
   const router = useRouter();
+  // El aviso de éxito va también al toast: al refrescar, la fila pasa a «Recibida» y el formulario
+  // (con su aviso en línea) se desmonta.
+  const { showSuccess } = useToast();
   const [estado, setEstado] = useState<ResultadoRendicion | null>(null);
   const [pendiente, empezar] = useTransition();
   const enviar = (fd: FormData) =>
     empezar(async () => {
       const r = await accion(fd);
       setEstado(r);
-      if (r.ok) router.refresh();
+      if (r.ok) {
+        showSuccess(r.mensaje);
+        router.refresh();
+      }
     });
   return { estado, pendiente, enviar };
 }

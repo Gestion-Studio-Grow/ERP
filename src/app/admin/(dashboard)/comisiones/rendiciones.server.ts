@@ -8,7 +8,7 @@ import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { fmtShortDate } from "@/lib/datetime";
-import { buildWhatsAppHref } from "@/lib/whatsapp-cta";
+import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { calcularRendicion, textoComprobanteRendicion, tieneRendicion, type PeriodoMensual } from "@/lib/reports/rendiciones";
 import {
   leerConfigDeProfesionales,
@@ -72,7 +72,7 @@ export async function leerPestaniaRendiciones(periodo: PeriodoMensual): Promise<
             rentAmount: hecha.rentAmount,
             amount: hecha.amount,
             appointmentCount: hecha.appointmentCount,
-            recibida: { el, metodo: hecha.metodo, comprobante: buildWhatsAppHref(p.phone ?? "", texto) },
+            recibida: { el, metodo: hecha.metodo, comprobante: waLinkClienta(p.phone, texto) }, // sin celular válido → null: la pantalla pide cargarlo
           });
           continue;
         }

@@ -1,6 +1,8 @@
 "use server";
 
 import { nailArtistDelNegocio } from "@/cambios/interruptores.server";
+import { ingresosSinLoDeLasProfesionales } from "@/lib/reports/rendiciones";
+import { leerCobradoPorLasProfesionales } from "@/lib/reports/rendiciones-lectura";
 import { AVISO_COMISION_PAGADA_SIN_DETALLE, avisoDeComisionYaPagada, leerComisionPagadaDelTurno, type ComisionYaPagada } from "@/lib/reports/comision-ya-pagada";
 import { leerPaginaDeFichas, type PaginaDeFichas } from "@/lib/clientes/lista-fichas.server";
 import { cache } from "react";
@@ -39,6 +41,7 @@ import { notaDeReservaPublica } from "@/lib/reserva-publica-notas";
 import { cobroTurnoDetail, settleAppointmentPaymentGuarded, type SettleOutcome } from "@/lib/caja/cobro-turno";
 import {
   aplicarCobroTurnoInTx,
+  avisoDeCobroDeLaProfesional,
   cobrosDelTurnoInTx,
   rastroLibroCaja,
   CobroTurnoRechazado,
@@ -283,7 +286,9 @@ type BookingStatus = "PENDING" | "CONFIRMED";
 // Resultado de una acción de mostrador que el formulario muestra en línea (los errores de
 // dominio NO se lanzan: en producción Next enmascara el mensaje de un throw en Server Action).
 // `aviso`: salió, pero hay algo que recepción tiene que saber (la factura del turno rechazada).
-export type ResultadoAccion = { ok: true; aviso?: string } | { ok: false; error: string };
+export type ResultadoAccion =
+  | { ok: true; aviso?: string; /** Box «Nail Artist»: «Cobrado por Mica — no entra a la caja de CH.» */ cobradoPor?: string }
+  | { ok: false; error: string };
 
 // Seña que se cobra EN EL MISMO ACTO de reservar (src/lib/turnos): "la seña se cobra al
 // momento de reservar el turno". Va dentro de la tx de la reserva: turno + cobro + asiento
@@ -1342,7 +1347,8 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
   revalidatePath("/admin/reportes");
   revalidatePath("/admin/caja");
   revalidatePath("/admin/caja/libro");
-  return { ok: true };
+  const cobradoPor = await avisoDeCobroDeLaProfesional(prisma, tenantId, [settled.value]);
+  return cobradoPor ? { ok: true, cobradoPor } : { ok: true };
 }
 
 // ── Corrección de cobros: anular y condonar (src/lib/turnos/anulacion.ts) ──
@@ -2291,7 +2297,8 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   revalidatePath("/admin/reportes");
   revalidatePath("/admin/caja");
   revalidatePath("/admin/caja/libro");
-  return aviso ? { ok: true, aviso } : { ok: true };
+  const cobradoPor = await avisoDeCobroDeLaProfesional(prisma, tenantId, [cobro]);
+  return { ok: true, ...(aviso ? { aviso } : {}), ...(cobradoPor ? { cobradoPor } : {}) };
 }
 
 /** Factura el turno y dice cómo quedó, sin tirar: la facturación nunca rompe el cierre. */
@@ -2552,6 +2559,14 @@ export async function getAgendaDay(date: string) {
   return { professionals, appointments: await conCobros(tenantId, appointments), blocksToday };
 }
 
+/** Los pagos de la semana sin lo cobrado por las profesionales (una lectura más, con `tenantId`). */
+async function ingresosDeLaSemanaSinLasProfesionales(pagos: readonly { amount: number; appointmentId: string | null }[]): Promise<number> {
+  const tenantId = await getCurrentTenantId();
+  const ids = [...new Set(pagos.map((p) => p.appointmentId).filter((x): x is string => !!x))];
+  const deEllas = await tenantTransaction((tx) => leerCobradoPorLasProfesionales(tx, tenantId, ids), { tenantId });
+  return ingresosSinLoDeLasProfesionales(pagos, deEllas);
+}
+
 export async function getDashboardData() {
   await requireCapability("dashboard:read");
   // "Hoy" es el día calendario del negocio, no el del servidor (UTC).
@@ -2574,7 +2589,7 @@ export async function getDashboardData() {
       prisma.appointment.count({ where: { status: "PENDING", startsAt: { gte: new Date() } } }),
       prisma.payment.findMany({
         where: { status: "APPROVED", createdAt: { gte: weekStart } },
-        select: { amount: true },
+        select: { amount: true, appointmentId: true },
       }),
       prisma.professional.count({ where: { active: true, deletedAt: null } }),
       prisma.client.count(),
@@ -2587,10 +2602,16 @@ export async function getDashboardData() {
       }),
     ]);
 
+  // Box «Nail Artist» prendido: lo que cobró la profesional (seña al alias, saldo de ella) no es
+  // ingreso del negocio (regla única `cobrosDeLaProfesional`). Apagado: la suma de siempre.
+  const weekRevenue = (await nailArtistDelNegocio())
+    ? await ingresosDeLaSemanaSinLasProfesionales(weekPayments)
+    : weekPayments.reduce((sum, p) => sum + p.amount, 0);
+
   return {
     todayAppointments,
     pendingCount,
-    weekRevenue: weekPayments.reduce((sum, p) => sum + p.amount, 0),
+    weekRevenue,
     professionalsCount,
     clientsCount,
     blocksToday,

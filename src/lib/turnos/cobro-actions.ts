@@ -63,6 +63,7 @@ import { isFrozenDay, type DayKey } from "@/lib/caja/cierre-diario";
 import { cobroTurnoDetail, settleAppointmentPaymentGuarded, type SettleOutcome } from "@/lib/caja/cobro-turno";
 import {
   aplicarCobroTurnoInTx,
+  avisoDeCobroDeLaProfesional,
   claveDeSeniaAhoraInTx,
   cobrosDelTurnoInTx,
   rastroLibroCaja,
@@ -95,7 +96,7 @@ import {
 } from "./cobro-dividido";
 
 /** La forma de siempre (`ResultadoAccion` de actions.ts): el formulario la muestra en línea. */
-export type ResultadoCobro = { ok: true; aviso?: string } | { ok: false; error: string };
+export type ResultadoCobro = { ok: true; aviso?: string; /** Box «Nail Artist»: lo cobró la profesional. */ cobradoPor?: string } | { ok: false; error: string };
 
 /** «Llegó la seña»: además, el cobro que se hizo (para el «Deshacer» de 10 s). */
 /**
@@ -342,7 +343,8 @@ export async function terminarYCobrarDividido(formData: FormData): Promise<Resul
   if (facturar && isInvoicingEnabled()) aviso = avisoDeFacturaDelTurno(await facturarConResultado(appointmentId, tenantId));
   revalidarCaja();
   revalidatePath("/admin/catalogo");
-  return aviso ? { ok: true, aviso } : { ok: true };
+  const cobradoPor = await avisoDeCobroDeLaProfesional(prisma, tenantId, cobros);
+  return { ok: true, ...(aviso ? { aviso } : {}), ...(cobradoPor ? { cobradoPor } : {}) };
 }
 
 // ── 2. LLEGÓ LA SEÑA ─────────────────────────────────────────────────────────
@@ -644,7 +646,8 @@ export async function cobrarVariosTurnos(formData: FormData): Promise<ResultadoC
     if (isInvoicingEnabled()) aviso = avisoDeFacturaDelTurno(await facturarConResultado(terminarId, tenantId));
   }
   revalidarCaja();
-  return aviso ? { ok: true, aviso } : { ok: true };
+  const cobradoPor = await avisoDeCobroDeLaProfesional(prisma, tenantId, settled.value.cobros.map((c) => c.r));
+  return { ok: true, ...(aviso ? { aviso } : {}), ...(cobradoPor ? { cobradoPor } : {}) };
 }
 
 /**

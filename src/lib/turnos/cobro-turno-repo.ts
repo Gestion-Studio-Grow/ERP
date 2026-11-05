@@ -47,6 +47,7 @@ import {
 // importa `anulacion.ts` no arrastra el runtime de Prisma al bundle del browser.
 import { claseDeCobro, cobroAnuladoPor, desglosarCobros, NOTA_COBRO_LEGADO } from "./anulacion";
 import { claveDeSenia } from "./cobro-dividido";
+import { avisoCobradoPorLaProfesional, claveDeSaldoProfesional, notaDeSaldoProfesional } from "./senia-profesional";
 
 export type CobroTurnoTx = Prisma.TransactionClient;
 
@@ -96,6 +97,8 @@ export type AplicarCobroResult =
       estado: EstadoCobroTurno; // DESPUÉS del cobro
       payment: { id: string; amount: number };
       caja: RecordCobroTurnoResult | null; // null = sin puente (schema-ahead)
+      /** Box «Nail Artist»: el saldo de un servicio marcado lo cobró la profesional (sin asiento). */
+      profesionalCobra?: { nombre: string | null };
     }
   | { applied: false; reason: "duplicate"; collectionId: string };
 
@@ -219,11 +222,31 @@ export async function claveDeSeniaAhoraInTx(tx: CobroTurnoTx, tenantId: string, 
  * el interruptor prendido (que exige la columna migrada). Filtra por tenant: un turno ajeno da false.
  */
 export async function servicioCobraLaProfesionalInTx(tx: CobroTurnoTx, tenantId: string, appointmentId: string): Promise<boolean> {
+  return (await cobraLaProfesionalInTx(tx, tenantId, appointmentId)) !== null;
+}
+
+/** Como `servicioCobraLaProfesionalInTx`, con el nombre de la profesional del turno (para la nota y el aviso). */
+async function cobraLaProfesionalInTx(tx: CobroTurnoTx, tenantId: string, appointmentId: string): Promise<{ nombre: string | null } | null> {
   const turno = await tx.appointment.findFirst({
     where: { id: appointmentId, tenantId },
-    select: { service: { select: { depositToProfessional: true } } },
+    select: { service: { select: { depositToProfessional: true } }, professional: { select: { name: true } } },
   });
-  return turno?.service?.depositToProfessional === true;
+  return turno?.service?.depositToProfessional === true ? { nombre: turno.professional?.name ?? null } : null;
+}
+
+/**
+ * El aviso de los cobros que fueron a la profesional («Cobrado por Mica — no entra a la caja de CH»),
+ * o `undefined` si ninguno. Una lectura del nombre del negocio, con `tenantId`, sólo si hace falta.
+ */
+export async function avisoDeCobroDeLaProfesional(
+  db: Pick<CobroTurnoTx, "tenant">,
+  tenantId: string,
+  cobros: readonly (AplicarCobroResult | null | undefined)[],
+): Promise<string | undefined> {
+  const deElla = cobros.find((c) => c?.applied && c.profesionalCobra);
+  if (!deElla?.applied || !deElla.profesionalCobra) return undefined;
+  const negocio = await db.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }).catch(() => null);
+  return avisoCobradoPorLaProfesional(deElla.profesionalCobra.nombre, negocio?.name ?? null);
 }
 
 export async function aplicarCobroTurnoInTx(
@@ -243,10 +266,26 @@ export async function aplicarCobroTurnoInTx(
     );
   }
 
+  // Box «Nail Artist» (§4): ¿lo cobra la profesional? El destino del llamador manda (la seña); si no,
+  // la marca del servicio con el interruptor prendido. Se decide ANTES de la clave y de la nota: el
+  // saldo de ella lleva nota dirigida y clave `saldo:<turno>…` como el resto (y nunca asiento).
+  const deElla: { nombre: string | null } | null = !args.withSchema
+    ? null
+    : args.destino !== undefined
+      ? args.destino === "profesional"
+        ? { nombre: null }
+        : null
+      : args.nailArtist === true
+        ? await cobraLaProfesionalInTx(tx, tenantId, args.appointmentId)
+        : null;
+  const saldoDeElla = deElla !== null && args.destino === undefined;
+  const idempotencyKey = saldoDeElla ? claveDeSaldoProfesional(args.appointmentId, args.idempotencyKey) : args.idempotencyKey;
+  const note = saldoDeElla ? notaDeSaldoProfesional(deElla.nombre, args.note) : (args.note ?? null);
+
   // Capa 2 de idempotencia: mismo formulario enviado dos veces → el primero ya quedó.
-  if (args.withSchema && args.idempotencyKey) {
+  if (args.withSchema && idempotencyKey) {
     const prior = await tx.collection.findFirst({
-      where: { tenantId, idempotencyKey: args.idempotencyKey },
+      where: { tenantId, idempotencyKey },
       select: { id: true },
     });
     if (prior) return { applied: false, reason: "duplicate", collectionId: prior.id };
@@ -299,9 +338,9 @@ export async function aplicarCobroTurnoInTx(
       appointmentId: args.appointmentId,
       amount: v.monto, // number → Decimal(14,2) en el borde
       method: args.method,
-      note: args.note ?? null,
+      note,
       collectedBy: args.actor,
-      ...(args.withSchema && args.idempotencyKey ? { idempotencyKey: args.idempotencyKey } : {}),
+      ...(args.withSchema && idempotencyKey ? { idempotencyKey } : {}),
     },
     select: { id: true },
   });
@@ -317,7 +356,7 @@ export async function aplicarCobroTurnoInTx(
   // cobrar $5.000 dejaba `Payment.amount = 20.000` con $5.000 reales adentro. Y de ahí lo
   // leen Reportes, los KPIs, la ficha de la clienta, el libro de IVA y —lo caro— la base de
   // la comisión: se le pagaba a la profesional sobre plata que nunca entró.
-  const filas: CobroConNota[] = [...cobros, { amount: v.monto, method: args.method, note: args.note ?? null }];
+  const filas: CobroConNota[] = [...cobros, { amount: v.monto, method: args.method, note }];
   const desglose = desglosarCobros(filas);
 
   // NO hay guarda de "coherencia" comparando esto contra `estadoCobroTurno`, y es a propósito:
@@ -344,10 +383,7 @@ export async function aplicarCobroTurnoInTx(
 
   let caja: RecordCobroTurnoResult | null = null;
   if (args.withSchema) {
-    const profesionalCobra =
-      args.destino !== undefined
-        ? args.destino === "profesional"
-        : args.nailArtist === true && (await servicioCobraLaProfesionalInTx(tx, tenantId, args.appointmentId));
+    const profesionalCobra = deElla !== null;
     caja = await recordCobroTurnoInTx(tx, tenantId, {
       ...(profesionalCobra ? { profesionalCobra } : {}),
       collectionId: created.id,
@@ -359,7 +395,7 @@ export async function aplicarCobroTurnoInTx(
     });
   }
 
-  return { applied: true, collectionId: created.id, monto: v.monto, estado, payment, caja };
+  return { applied: true, collectionId: created.id, monto: v.monto, estado, payment, caja, ...(saldoDeElla ? { profesionalCobra: deElla } : {}) };
 }
 
 // ── Lectura para las pantallas ──────────────────────────────────────────────

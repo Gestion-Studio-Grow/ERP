@@ -75,7 +75,7 @@ export default function DividirPago({ turnoId, clienta, estado, saldo, onListo, 
           setError(r.error);
           return;
         }
-        showSuccess(`${estado === "PENDING" ? "Vino" : "Terminado"} y cobrado: ${clienta}, ${reparto.texto}.`);
+        showSuccess(`${estado === "PENDING" ? "Vino" : "Terminado"} y cobrado: ${clienta}, ${reparto.texto}.${r.cobradoPor ? ` ${r.cobradoPor}` : ""}`);
         if (r.aviso) showError(r.aviso);
         onListo?.();
       } catch {
@@ -213,7 +213,7 @@ export function SumarLoQueDebe({ turnoId, clienta, estado, saldo, onListo, disab
           setError(r.error);
           return;
         }
-        showSuccess(`Cobrado: ${clienta}, ${pesosDelCobro(total)} en ${METODO_LABEL[metodo].toLowerCase()} (hoy y lo de antes). Ya no debe nada.`);
+        showSuccess(`Cobrado: ${clienta}, ${pesosDelCobro(total)} en ${METODO_LABEL[metodo].toLowerCase()} (hoy y lo de antes). Ya no debe nada.${r.cobradoPor ? ` ${r.cobradoPor}` : ""}`);
         if (r.aviso) showError(r.aviso);
         onListo?.();
       } catch {
@@ -308,7 +308,7 @@ export function CobrarLoQueDebe({
           setError(r.error);
           return;
         }
-        showSuccess(`Cobrado: ${clienta}, ${pesosDelCobro(total)} en ${METODO_LABEL[metodo].toLowerCase()}. Ya no debe nada.`);
+        showSuccess(`Cobrado: ${clienta}, ${pesosDelCobro(total)} en ${METODO_LABEL[metodo].toLowerCase()}. Ya no debe nada.${r.cobradoPor ? ` ${r.cobradoPor}` : ""}`);
         if (r.aviso) showError(r.aviso);
         onListo?.();
       } catch {

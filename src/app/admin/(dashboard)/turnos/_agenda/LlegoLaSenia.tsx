@@ -39,6 +39,7 @@ export default function LlegoLaSenia({
   medioInicial = MEDIO_DE_LA_SENIA,
   confirma = true,
   cuentaProfesional,
+  onCobrada,
   onListo,
   className,
 }: {
@@ -51,12 +52,16 @@ export default function LlegoLaSenia({
   confirma?: boolean;
   /** Box «Nail Artist»: la cuenta CONGELADA de la profesional a la que fue la seña (no entra a la caja). */
   cuentaProfesional?: { alias: string; titular: string | null };
+  /** Se llama con la seña que quedó registrada (p. ej., para ofrecer el comprobante a la clienta). */
+  onCobrada?: (c: { monto: number; medio: MetodoDePago }) => void;
   onListo?: () => void;
   className?: string;
 }) {
   const id = useId();
   const { showError, showSuccess } = useToast();
-  const [medio, setMedio] = useState<MetodoDePago>(medioInicial);
+  // La seña dirigida entra a la cuenta de la profesional: sólo por transferencia (el servidor lo exige).
+  const soloTransferencia = Boolean(cuentaProfesional);
+  const [medio, setMedio] = useState<MetodoDePago>(soloTransferencia ? "TRANSFERENCIA" : medioInicial);
   const [cambiando, setCambiando] = useState(false);
   const [error, setError] = useState("");
   const [hecho, setHecho] = useState<{ cobroId: string; monto: number; medio: MetodoDePago; confirmo: boolean; sePuedeDeshacer: boolean } | null>(null);
@@ -75,6 +80,7 @@ export default function LlegoLaSenia({
           return;
         }
         setCambiando(false);
+        onCobrada?.({ monto: r.monto, medio });
         if (r.cobroId) {
           setHecho({ cobroId: r.cobroId, monto: r.monto, medio, confirmo: r.confirmo, sePuedeDeshacer: r.sePuedeDeshacer === true });
           return;
@@ -128,6 +134,7 @@ export default function LlegoLaSenia({
           {pendiente ? "Guardando…" : `Llegó la seña ${pesosDelCobro(monto)}`}
           <span className="sr-only"> por {METODO_LABEL[medio].toLowerCase()}</span>
         </Button>
+        {!soloTransferencia && (
         <Button
           type="button"
           variant="outline"
@@ -140,6 +147,7 @@ export default function LlegoLaSenia({
         >
           ▾
         </Button>
+        )}
       </div>
       <p className="mt-1 text-xs text-muted">
         Por {METODO_LABEL[medio].toLowerCase()} · {confirma ? "cobra y confirma el turno." : "la registra; el turno lo confirma la recepción."}
@@ -153,7 +161,7 @@ export default function LlegoLaSenia({
           A la profesional: {cuentaProfesional.titular ? `${cuentaProfesional.titular} (alias ${cuentaProfesional.alias})` : `alias ${cuentaProfesional.alias}`}. No entra a la caja del negocio.
         </p>
       )}
-      {cambiando && (
+      {cambiando && !soloTransferencia && (
         <div id={`${id}-medio`} className="mt-2">
           <Segmented
             name={`${id}-medio`}

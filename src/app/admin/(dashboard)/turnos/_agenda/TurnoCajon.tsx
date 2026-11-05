@@ -34,7 +34,14 @@ import { Cajon } from "@/components/ui/Cajon";
 import { Button, ButtonLink, Input, Marca, Plata, Renglon, Seccion, atributosBoton, buttonClasses } from "@/components/ui";
 import { fmtShortDate, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
-import { ALIAS_SENIA_PROVISIONAL, linkWhatsApp, mensajePedidoDeSenia, mensajePedidoDeSeniaProfesional, mensajeSaludo } from "@/lib/turnos/mensajes-whatsapp";
+import {
+  ALIAS_SENIA_PROVISIONAL,
+  linkWhatsApp,
+  mensajePedidoDeSenia,
+  mensajePedidoDeSeniaProfesional,
+  mensajeSaludo,
+  mensajeSeniaRecibidaProfesional,
+} from "@/lib/turnos/mensajes-whatsapp";
 import { AVISO_SENIA_REASIGNADA, SENIA_SIN_ALIAS } from "@/lib/turnos/senia-profesional";
 import { puedeEditar } from "./barra-core";
 import { pagosDelTurno } from "./pagos-core";
@@ -294,6 +301,9 @@ export default function TurnoCajon({
   const [avisoAlAnular, setAvisoAlAnular] = useState<{ turnoId: string; texto: string } | null>(null);
   // Venta y agenda simples: lo recién cobrado, para el «Listo ✓» (del turno abierto, no de otro).
   const [cobrado, setCobrado] = useState<{ turnoId: string; cobro: CobroHecho; vino: boolean } | null>(null);
+  // Box «Nail Artist»: el comprobante de la seña dirigida, armado al cobrarla con el SNAPSHOT (después
+  // del refresco el turno ya no trae la cuenta: queda acá, del turno abierto).
+  const [comprobante, setComprobante] = useState<{ turnoId: string; href: string } | null>(null);
   const t = turno;
   if (!t) return null;
   const avisoDeComision = avisoAlAnular?.turnoId === t.id ? avisoAlAnular.texto : "";
@@ -513,11 +523,41 @@ export default function TurnoCajon({
                   clienta={t.clienta}
                   monto={senia}
                   confirma={permisos.gestionar}
-                  {...(aProfesional?.cuenta ? { cuentaProfesional: aProfesional.cuenta } : {})}
+                  {...(aProfesional?.cuenta
+                    ? {
+                        cuentaProfesional: aProfesional.cuenta,
+                        onCobrada: ({ monto, medio }: { monto: number; medio: MetodoDePago }) => {
+                          if (medio !== "TRANSFERENCIA" || !aProfesional.cuenta) return;
+                          const texto = mensajeSeniaRecibidaProfesional({ clienta: t.clienta, servicios: t.servicio, inicio: t.inicio, monto, cuenta: aProfesional.cuenta });
+                          const href = texto ? waLinkClienta(t.telefono, texto) : null;
+                          if (href) setComprobante({ turnoId: t.id, href });
+                        },
+                      }
+                    : {})}
                   onListo={() => router.refresh()}
                 />
               )}
               {pedidoPorWa && <RecordarLaSenia t={t} wa={pedidoPorWa} />}
+            </div>
+          </Seccion>
+        )}
+
+        {/* Con la seña de nuevo pendiente (se deshizo), el comprobante no se ofrece. */}
+        {comprobante?.turnoId === t.id && !llegoLaSenia && (
+          <Seccion titulo="Comprobante de la seña">
+            <div className="space-y-2 pt-3">
+              <p className="text-sm text-muted">La seña quedó registrada. Mandale el comprobante a {t.clienta}: lo firma la profesional, no el negocio.</p>
+              <ButtonLink
+                href={comprobante.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                size="md"
+                className="min-h-11 w-full"
+                style={{ minHeight: "2.75rem" }}
+                aria-label={`Mandar el comprobante de la seña a ${t.clienta} por WhatsApp (se abre en otra pestaña)`}
+              >
+                Mandar comprobante por WhatsApp
+              </ButtonLink>
             </div>
           </Seccion>
         )}

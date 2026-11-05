@@ -199,6 +199,37 @@ export function ultimaPedidaPorTurno(
   return out;
 }
 
+/**
+ * La nota del SALDO de un servicio marcado (§4: lo cobra ella, sin asiento): la misma marca dirigida
+ * que la seña (`esNotaDeCobroProfesional` la reconoce) y, detrás, la nota del camino que cobró.
+ * Una nota que ya es dirigida queda como está.
+ */
+export function notaDeSaldoProfesional(nombre: string | null | undefined, nota: string | null | undefined): string {
+  if (esNotaDeCobroProfesional(nota)) return nota as string;
+  const quien = nombre?.trim() || "la profesional del turno";
+  const resto = nota?.trim();
+  return `a ${quien} — ${MARCA_NO_ENTRA_A_LA_CAJA}${resto ? ` · ${resto}` : ""}`;
+}
+
+/**
+ * La clave del saldo cobrado por la profesional: `saldo:<turno>…` como el resto de los saldos. Una
+ * clave que ya es de saldo o de seña queda igual; la del formulario («Registrar cobro», un uuid por
+ * envío) va detrás, así el doble clic sigue chocando en la misma clave. Sin clave, sin clave.
+ */
+export function claveDeSaldoProfesional(appointmentId: string, clave: string | null | undefined): string | null {
+  const c = clave?.trim();
+  if (!c) return null;
+  if (c.startsWith(`saldo:${appointmentId}`) || c.startsWith(`senia:${appointmentId}`)) return c;
+  return `saldo:${appointmentId}:${c}`;
+}
+
+/** El aviso al cobrar lo de ella: «Cobrado por Mica — no entra a la caja de CH.» */
+export function avisoCobradoPorLaProfesional(nombre: string | null | undefined, negocio: string | null | undefined): string {
+  const quien = nombre?.trim() || "la profesional";
+  const de = negocio?.trim();
+  return `Cobrado por ${quien} — no entra a la caja ${de ? `de ${de}` : "del negocio"}.`;
+}
+
 /** La seña dirigida a la profesional entra a SU cuenta: sólo por transferencia (el efectivo quedaría en el mostrador sin asiento). */
 export const SENIA_PROFESIONAL_SOLO_TRANSFERENCIA =
   "Esta seña se pidió al alias de la profesional: registrala como transferencia. Si la clienta pagó en efectivo o por otro medio, coordinalo con la profesional (no entra a la caja del negocio).";

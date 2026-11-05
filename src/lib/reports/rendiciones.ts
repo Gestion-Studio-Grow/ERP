@@ -75,6 +75,29 @@ export function cobradoPorLaProfesional(cobros: readonly CobroConDestino[], serv
   return cobradoDelTurno(cobrosDeLaProfesional(cobros, servicioMarcado));
 }
 
+/**
+ * Ingresos del negocio a partir de los `Payment` (agregado de lo cobrado por turno) SIN lo que cobró la
+ * profesional (`cobradoPorLaProfesional` por turno, §4): eso nunca entró a la caja. Por turno, nunca
+ * se descuenta más que su pago; un pago sin turno (o sin cobros de ella) suma entero. Al centavo.
+ */
+export function ingresosSinLoDeLasProfesionales(
+  pagos: readonly { appointmentId: string | null; amount: number }[],
+  deEllasPorTurno: Readonly<Record<string, number>>,
+): number {
+  return sumarAlCentavo(
+    pagos.map((p) => {
+      const deElla = p.appointmentId ? (deEllasPorTurno[p.appointmentId] ?? 0) : 0;
+      return deElla > 0 ? Math.max(0, sumarAlCentavo([p.amount, -Math.min(deElla, p.amount)])) : p.amount;
+    }),
+  );
+}
+
+/** Sin celular válido no hay comprobante por WhatsApp (nunca un wa.me sin número): se pide cargarlo. */
+export function avisoSinTelefono(nombre: string): string {
+  const quien = nombre.trim() || "la profesional";
+  return `Para mandarle el comprobante, cargá el teléfono de ${quien} en su ficha.`;
+}
+
 /** ¿La profesional rinde? Alquiler o % mayor a cero. Sin config, no aparece en Rendiciones. */
 export function tieneRendicion(c: ConfigDeRendicion): boolean {
   return (c.boxRentAmount ?? 0) > 0 || (c.rentPercent ?? 0) > 0;

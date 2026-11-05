@@ -142,7 +142,7 @@ export default async function AgendaRenglon({
   ]);
   // La marca «seña pedida» y el horario de trabajo: una lectura más por día, con tenantId (Tanda 2).
   const extras = await extrasDeLaAgenda(cruda, dia, { quienCobro: !!permisos.interaccion });
-  const agenda = proyectarAgenda(cruda, quien, { seniasPedidas: extras.seniasPedidas, quienCobro: extras.quienCobro, seniasAProfesional: extras.seniasAProfesional });
+  const agenda = proyectarAgenda(cruda, quien, { seniasPedidas: extras.seniasPedidas, quienCobro: extras.quienCobro, seniasAProfesional: extras.seniasAProfesional, rindeA: extras.rindeA });
   const ahora = new Date();
   const linea = lineaDeLaAgenda(agenda.turnos, ahora);
   // Los de hoy ya están en la agenda del día; el conteo suma los de los otros días. Si el conteo no

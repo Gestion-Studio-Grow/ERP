@@ -99,11 +99,11 @@ export default function TerminarTurno({
         const listo = alCobrar && cobro && cobro !== "dejar-a-cobrar" ? alCobrar : null;
         const destino = proximo && !vino && !listo ? proximo : null;
         showSuccess(
-          cobro === "dejar-a-cobrar"
+          (cobro === "dejar-a-cobrar"
             ? `${hecho}: ${clienta}. Queda debiendo ${pesos(saldo)}.`
             : cobro
               ? `${hecho} y cobrado: ${clienta}, ${pesos(saldo)} en ${METODO_LABEL[cobro.metodo].toLowerCase()}.`
-              : `${hecho}: ${clienta}.`,
+              : `${hecho}: ${clienta}.`) + (r.cobradoPor ? ` ${r.cobradoPor}` : ""),
           destino ? { texto: "Reservar el próximo", alTocar: () => router.push(destino) } : undefined,
         );
         // La factura del turno no salió (ARCA la rechazó): se dice, el turno igual quedó terminado.
