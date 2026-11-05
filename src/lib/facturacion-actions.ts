@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { contarPendientesDelNegocio, procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
+import { contarPendientesDelNegocio, procesarEnviosDelNegocio, resolverModoDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
 import { modoDesdeEnv, type ModoArca } from "@/plugins/arca";
 import { logger } from "@/lib/logger";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -86,7 +86,7 @@ function contarPendientes(tenantId: string): Promise<number> {
 
 /** El estado fiscal del negocio: config de ARCA y cuántos comprobantes esperan autorización. */
 async function leerEstadoFiscal(tenantId: string): Promise<EstadoFiscal> {
-  const [tenant, pendientes, alguno] = await Promise.all([
+  const [tenant, pendientes, alguno, delNegocio] = await Promise.all([
     // Config fiscal aislada: si faltan las columnas `arca*` (schema viejo), no debe
     // voltear la lectura de facturas — cae a `null` y el estado usa sus defaults.
     prisma.tenant
@@ -98,15 +98,18 @@ async function leerEstadoFiscal(tenantId: string): Promise<EstadoFiscal> {
     contarPendientes(tenantId),
     // Uno solo, por el índice (tenantId, status): no cuenta los miles de un comercio.
     prisma.invoice.findFirst({ where: { tenantId }, select: { id: true } }),
+    // El modo DE ESTE NEGOCIO (src/lib/fiscal/modo-del-negocio.ts); si no se puede leer, el global.
+    resolverModoDelNegocio(tenantId).catch(() => null),
   ]);
+  const modo: ModoArca = delNegocio && "modo" in delNegocio ? delNegocio.modo : modoDesdeEnv();
   return {
-    modo: modoDesdeEnv(),
+    modo,
     cuit: tenant?.arcaCuit ?? null,
     puntoVenta: tenant?.arcaPuntoVenta ?? null,
     homologacion: tenant?.arcaHomologacion ?? true,
     pendientes,
     hayComprobantes: alguno !== null,
-    facturaDePrueba: modoDesdeEnv() === "stub" && (tenant?.modules ?? []).includes("arca"),
+    facturaDePrueba: modo === "stub" && (tenant?.modules ?? []).includes("arca"),
   };
 }
 

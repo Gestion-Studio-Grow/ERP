@@ -13,7 +13,7 @@
 //      siempre con el certificado propio del negocio (`credencialParaTenant`) y ningún código de
 //      emisión usa DelegacionFiscal; si la tiene, se muestra sólo como aviso.
 //   4. Condición frente al IVA que emite (Responsable inscripto, Monotributo o Exento).
-//   5. La plataforma en ARCA_MODO=real (si no, nada sale con validez fiscal).
+//   5. La plataforma en ARCA_MODO=real y el slug del negocio en ARCA_REAL_TENANTS (segunda llave).
 //   6. Ningún comprobante de la etapa de pruebas en la tabla de facturas: ni esperando CAE (PENDING)
 //      ni con su envío a ARCA abierto (el ambiente se decide AL DESPACHAR, con la marca de hoy del
 //      negocio: src/lib/arca-dispatch.ts, `leerConfigFiscalPrisma`), ni ya autorizado en pruebas
@@ -33,9 +33,15 @@ import { cuitValido, normalizarCuit } from "@/lib/cuit";
 import { fmtCuit } from "@/components/ui/format";
 import { requiereOkDelDuenio } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
 import type { ModoArcaPlataforma } from "./checklist-apertura";
+import {
+  entornoDelEmisor,
+  VARIABLE_HABILITADOS_REAL,
+  type EntornoDeCertificado,
+} from "@/lib/fiscal/modo-del-negocio";
 
 /** De qué entorno de ARCA es el certificado, según quién lo firmó. */
-export type EntornoDelCertificado = "produccion" | "homologacion" | "desconocido";
+export type EntornoDelCertificado = EntornoDeCertificado;
+export { entornoDelEmisor };
 
 /** El certificado del negocio, sin material sensible. */
 export interface CredencialDelPase {
@@ -87,6 +93,8 @@ export interface FichaFiscalDelPase {
   delegacion: DelegacionDelPase | null;
   /** `ARCA_MODO` de la plataforma (modoDesdeEnv). */
   modoArca: ModoArcaPlataforma;
+  /** Segunda llave: el slug está en `ARCA_REAL_TENANTS` (src/lib/fiscal/modo-del-negocio.ts). */
+  enListaReal: boolean;
   comprobantesDePrueba: ComprobantesDePrueba;
 }
 
@@ -144,21 +152,6 @@ const LIMPIAR_DATOS_DE_PRUEBA =
 
 export const MOTIVO_CANDADO_CH =
   "Es un cliente vivo en producción: su facturación sólo la cambia el dueño de GSG. No se hizo nada.";
-
-/**
- * El entorno del certificado según su emisor. ARCA firma los de homologación con la autoridad
- * «Computadores Test» y los de producción con «Computadores», ambas de la organización AFIP.
- * PROVISIONAL A CONFIRMAR contra un certificado productivo real: si ARCA firma con otro nombre,
- * esto contesta "desconocido" y el pase se niega diciendo el emisor (falla cerrada), nunca al revés.
- */
-export function entornoDelEmisor(emisor: { cn: string | null; o: string | null }): EntornoDelCertificado {
-  const cn = (emisor.cn ?? "").trim().toLowerCase();
-  const o = (emisor.o ?? "").trim().toLowerCase();
-  if (o !== "afip" && o !== "arca") return "desconocido";
-  if (/\btest\b|homolog/.test(cn)) return "homologacion";
-  if (cn === "computadores") return "produccion";
-  return "desconocido";
-}
 
 function cuitDelNegocio(f: FichaFiscalDelPase): string | null {
   const c = normalizarCuit(f.arcaCuit ?? "");
@@ -247,6 +240,30 @@ function precondicionDeComprobantes(c: ComprobantesDePrueba): Precondicion {
     : { id: "comprobantesDePrueba", titulo, ok: false, detalle: partes.join(" ") };
 }
 
+/**
+ * La plataforma en real Y el negocio habilitado en `ARCA_REAL_TENANTS` (segunda llave, explícita por
+ * negocio): sin las dos, marcarlo real deja al negocio sin facturar (modoDelNegocio falla cerrado).
+ */
+function precondicionDeModo(f: FichaFiscalDelPase): Precondicion {
+  const titulo = "ARCA de la plataforma en real y negocio habilitado";
+  const faltan: string[] = [];
+  if (f.modoArca !== "real") {
+    faltan.push(
+      `La plataforma está en modo ${NOMBRE_DEL_MODO[f.modoArca]}: aunque el negocio pase, nada saldría con validez ` +
+        "fiscal. Ese modo lo cambia sólo el dueño de GSG.",
+    );
+  }
+  if (!f.enListaReal) {
+    faltan.push(
+      `El negocio («${f.slug}») no está en ${VARIABLE_HABILITADOS_REAL}, la lista de negocios habilitados a facturar en ` +
+        "real: la carga sólo el dueño de GSG en la configuración de la plataforma.",
+    );
+  }
+  return faltan.length === 0
+    ? { id: "modoArca", titulo, ok: true, detalle: `La plataforma factura en real y el negocio está en ${VARIABLE_HABILITADOS_REAL}.` }
+    : { id: "modoArca", titulo, ok: false, detalle: faltan.join(" ") };
+}
+
 /** Las seis condiciones para pasar a real, en el orden en que se cargan en la ficha. */
 export function precondicionesDelPase(f: FichaFiscalDelPase): Precondicion[] {
   const cuit = cuitDelNegocio(f);
@@ -289,16 +306,7 @@ export function precondicionesDelPase(f: FichaFiscalDelPase): Precondicion[] {
             ? "Figura como consumidor final, que no emite facturas: tiene que ser Responsable inscripto, Monotributo o Exento."
             : `«${iva}» no es una condición frente al IVA conocida.`,
     },
-    {
-      id: "modoArca",
-      titulo: "ARCA de la plataforma en real",
-      ok: f.modoArca === "real",
-      detalle:
-        f.modoArca === "real"
-          ? "La plataforma factura en real."
-          : `La plataforma está en modo ${NOMBRE_DEL_MODO[f.modoArca]}: aunque el negocio pase, nada saldría con validez ` +
-            "fiscal. Ese modo lo cambia sólo el dueño de GSG.",
-    },
+    precondicionDeModo(f),
     precondicionDeComprobantes(f.comprobantesDePrueba),
   ];
 }

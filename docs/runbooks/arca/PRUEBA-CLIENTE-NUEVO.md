@@ -20,8 +20,8 @@ El resto lo hace un operador desde la consola.
 | Condición frente al IVA | **sólo** en el alta por el configurador (`solicitudes/configurador.server.ts:602`) | **faltaba** para un negocio ya creado → lo agrega esta rama |
 | Probar el certificado **del cliente** sin ensuciar sus libros | — | **faltaba** → lo agrega esta rama («Verificar con ARCA») |
 | Modo de la plataforma | variable `ARCA_MODO` de Vercel: `stub` (por defecto), `homologacion`, `real` (`src/plugins/arca/afip/factory.ts:61`) | lo cambia el dueño |
-| Modo del negocio | `arcaHomologacion` (por defecto en pruebas); en `real`, cada negocio decide (`src/lib/arca-dispatch.ts:233`) | se cambia con «Pase a facturación real» de la ficha |
-| Pase a real | tarjeta «Pase a facturación real» (`src/lib/operador/pase-a-real.ts:251`): exige CUIT, PV, certificado **de producción**, condición IVA, `ARCA_MODO=real` y **cero** comprobantes de prueba | anda |
+| Modo del negocio | `modoDelNegocio` (`src/lib/fiscal/modo-del-negocio.ts`): techo `ARCA_MODO` + `arcaHomologacion` + `ARCA_REAL_TENANTS` + su certificado. En pruebas sin certificado sigue **simulado**; real sólo con las cuatro llaves; marcado real con una que falte, **no factura** (dice qué falta) | se cambia con «Pase a facturación real» de la ficha; la ficha muestra «Modo de ARCA de este negocio» |
+| Pase a real | tarjeta «Pase a facturación real» (`src/lib/operador/pase-a-real.ts`, `precondicionesDelPase`): exige CUIT, PV, certificado **de producción**, condición IVA, `ARCA_MODO=real` **y el slug en `ARCA_REAL_TENANTS`**, y **cero** comprobantes de prueba | anda |
 | Delegación (el cliente autoriza a GSG en vez de darle su certificado) | `src/lib/fiscal/firmante.ts` la usa al firmar | **callejón**: no hay pantalla que la cargue ni la verifique. Hoy, sólo con certificado propio |
 
 **Ramas viejas** (`claude/facturacion-automatica*`, `frente/facturacion-arca`, `integ/seg-contador`, `frente/producto-contador`):
@@ -153,11 +153,21 @@ services»** (inscripto) → domicilio → Aceptar. Un punto de venta de «Factu
 al de homologación; queda en AuditLog como `fiscal.credential.rotate`). Después **«Probar con ARCA»** tiene que decir **«ARCA (producción) reconoce el certificado y el punto de venta
 N; último … autorizada: 0»** y aclarar que no emitió nada. Si dice producción y 0, está listo.
 
-**3.4 Encender.**
-1. 🔒 **DUEÑO:** `ARCA_MODO=real` en Vercel y redeploy. **Ojo:** es para toda la plataforma. Los negocios que siguen «en pruebas»
-   (el resto) pasan a hablar con la homologación de ARCA con **su** certificado: el que no tenga uno deja de sacar CAE
-   simulado y sus facturas quedan esperando. Antes de cambiarlo, mirar en `/operador` qué negocios tienen el módulo ARCA.
-   Si alguno se usa para demos con CAE simulado, decidir antes (provisional a confirmar: dejarlos sin el módulo ARCA mientras dure la prueba).
+**3.4 Encender.** Para que **este** cliente facture en real hacen falta las cuatro cosas juntas; con una sola que falte,
+el negocio marcado real **no emite nada** y el envío queda detenido con el motivo (no cae a pruebas ni a simulado en silencio):
+
+| Qué | Dónde | Quién |
+|---|---|---|
+| `ARCA_MODO=real` | variable de Vercel (toda la plataforma) + redeploy | 🔒 dueño |
+| `ARCA_REAL_TENANTS=<slug>` | variable de Vercel: los slugs habilitados a real, separados por coma (`almacen-pepe,kiosco-ana`) + redeploy | 🔒 dueño |
+| Pase a real | ficha del operador → tarjeta «Facturación real» (deja `arcaHomologacion=false`) | operador (CH: dueño) |
+| Certificado **de producción** | asistente paso 3 / ficha «Paso 3» (lo firma «Computadores · AFIP») | cliente |
+
+1. 🔒 **DUEÑO:** `ARCA_REAL_TENANTS=<slug del cliente>` y `ARCA_MODO=real` en Vercel, y redeploy. `ARCA_MODO=real` es el techo
+   de toda la plataforma, pero **no le cambia el modo a nadie más**: los negocios en pruebas **con** certificado siguen en la
+   homologación de ARCA; los que están en pruebas **sin** certificado siguen con CAE simulado (como en `stub`). Sólo pasan a
+   real los marcados real **y** listados. Ojo con un negocio que ya esté marcado real y no figure en la lista: deja de facturar
+   hasta que se lo liste o se lo vuelva a pruebas (mirar en `/operador` antes de cambiar la variable).
 2. Asistente, **paso 4**: muestra las seis condiciones del pase. El **cliente** puede **pedir** el pase escribiendo
    `PRODUCCIÓN` (queda en AuditLog como `fiscal.pase-a-real.pedido`, uno solo; se habilita con CUIT, punto de venta, condición
    IVA y certificado de producción en verde). **Lo aplica un operador** (decisión anotada en `src/lib/fiscal/asistente-arca.ts`):
@@ -186,7 +196,7 @@ Textos de ARCA provisionales a confirmar con los rechazos reales de hoy: si apar
 ## 5. Lo que decide el dueño (resumen)
 1. Mergear la rama (sin migraciones) — o hacer la prueba con los rodeos de §6.
 2. Nada de claves: el certificado lo sube el cliente en el asistente (el rodeo manual con clave pegada queda sólo para emergencias).
-3. `ARCA_MODO=real` en Vercel, sabiendo que es para toda la plataforma (§3.4.1).
+3. `ARCA_MODO=real` y `ARCA_REAL_TENANTS=<slug>` en Vercel (§3.4.1): real sólo para los negocios listados y pasados a real.
 4. Confirmar el pase a real del cliente y la primera factura.
 
 ## 6. Sin mergear la rama (rodeos)
