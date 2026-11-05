@@ -23,7 +23,7 @@ interface Props {
 
 const MARCA = { pedido: "pendiente", "en-curso": "atencion", listo: "hecho" } as const;
 const RESUMEN =
-  "cursor-pointer rounded font-medium text-accent-ink underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2";
+  "cursor-pointer rounded py-2.5 font-medium text-accent-ink underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2";
 
 function Soporte({ soporte }: { soporte: string | null }) {
   return (
@@ -72,9 +72,9 @@ export function ObtenerAsistencia({ contador, contadores, avisoAlContador, sopor
   if (!acciones) return null;
 
   return (
-    <details className="border-b border-line py-3 text-sm">
+    <details className="border-b border-line py-1 text-sm">
       <summary className={RESUMEN}>¿Te trabaste? Obtené asistencia</summary>
-      <div className="mt-3 space-y-3">
+      <div className="mt-1 space-y-3 pb-2">
         <div className="space-y-2 rounded border border-line p-3">
           <p className="font-semibold text-strong">Elegí tu contador</p>
           <p className="text-muted">

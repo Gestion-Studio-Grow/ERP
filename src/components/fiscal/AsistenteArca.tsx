@@ -70,9 +70,12 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
       id="asistente-arca"
       titulo="Conectar con ARCA"
       cuenta={estado.paso === "listo" ? "Factura en producción" : `Paso ${Math.min(4, estado.pasos.findIndex((p) => p.estado === "actual") + 1)} de 4`}
-      nota="La clave del certificado se genera y se guarda cifrada en el sistema: nadie la ve ni la pega"
       className="scroll-mt-24"
     >
+      {/* La nota va abajo de la cabeza y no en `nota`: a 390 px las tres piezas en un renglón partían el título en tres. */}
+      <p className="pt-2 text-[13px] text-muted">
+        La clave del certificado se genera y se guarda cifrada en el sistema: nadie la ve ni la pega.
+      </p>
       {aviso?.error && <Franja tono="peligro">{aviso.error}</Franja>}
       {aviso?.ok && <Franja>{aviso.ok}</Franja>}
       {soloLectura && (
@@ -81,7 +84,8 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
         </p>
       )}
 
-      {plano === "cliente" && estado.paso !== "listo" && (
+      {/* Con el certificado ya cargado, el «antes de empezar» sobra: no se repite. */}
+      {plano === "cliente" && estado.paso !== "listo" && !conCertificado && (
         <div className="space-y-2 border-b border-line py-3 text-sm">
           <p>{TEXTO_CERTIFICADO_PROPIO}</p>
           <Franja tono="atencion">{ANTES_DE_EMPEZAR}</Franja>
@@ -169,8 +173,10 @@ export function AsistenteArca({ vista, plano, tenantId, acciones, soloLectura = 
             {puedeTocar && (
               <form action={acciones.generarPedido}>
                 {oculto}
+                {/* Rótulo corto: el botón no parte renglón y a 390 px el largo desbordaba la pantalla. */}
+                {csrPem && <p className="pb-2 text-[13px] text-muted">Si generás otro pedido, el anterior deja de servir.</p>}
                 <Button type="submit" variant={csrPem || conCertificado ? "outline" : undefined}>
-                  {csrPem ? "Generar otro pedido (el anterior deja de servir)" : "Generar el pedido de certificado"}
+                  {csrPem ? "Generar otro pedido" : "Generar el pedido de certificado"}
                 </Button>
               </form>
             )}
