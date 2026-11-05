@@ -83,8 +83,10 @@ export default function Rendiciones({
                   </p>
                 ) : (
                   <div className="mt-2">
-                    <p className="mb-2 text-sm text-muted">Pendiente</p>
-                    {canSettle && f.amount > 0 && <RegistrarRendicion professionalId={f.professionalId} mes={periodo.mes} nombre={f.nombre} />}
+                    <p className="mb-2 text-sm text-muted">
+                      {periodo.mes >= mesActual ? "El mes sigue abierto: se registra cuando termine." : "Pendiente"}
+                    </p>
+                    {canSettle && f.amount > 0 && periodo.mes < mesActual && <RegistrarRendicion professionalId={f.professionalId} mes={periodo.mes} nombre={f.nombre} />}
                   </div>
                 )}
               </li>

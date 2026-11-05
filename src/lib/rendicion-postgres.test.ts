@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera, type NegocioDePrueba } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { dateStrInBusinessTz } from "@/lib/datetime";
+import { mesAnterior, periodoMensual } from "@/lib/reports/rendiciones";
 
 const laBase = baseEfimeraDelArchivo();
 const MIN = 60_000;
@@ -31,9 +32,10 @@ async function preparar(t: import("node:test").TestContext): Promise<Sembrado | 
   prepararAccionesDeServidor();
   Object.assign(process.env as Record<string, string | undefined>, { DB_CONNECTION_LIMIT: "4", DB_CONNECT_TIMEOUT_MS: "3000" });
   const duenio = await prismaComoDuenio(base);
-  // Turnos de HOY, unos minutos antes de ahora: siempre dentro del mes en curso del negocio.
+  // Turnos del MES ANTERIOR (la rendición se registra sobre un mes terminado), el día 3.
   const ahora = Date.now();
-  const mes = dateStrInBusinessTz(new Date(ahora - 30 * MIN)).slice(0, 7);
+  const mes = mesAnterior(dateStrInBusinessTz(new Date(ahora)).slice(0, 7));
+  const inicioDelMes = periodoMensual(mes)!.desde.getTime();
   let n = 0;
   const negocio = async (tenantId: string): Promise<Negocio> => {
     const box = await duenio.box.create({ data: { tenantId, name: "Nail Artist" } });
@@ -44,7 +46,7 @@ async function preparar(t: import("node:test").TestContext): Promise<Sembrado | 
     const lu = await duenio.professional.create({ data: { tenantId, name: "Lu", commissionPercent: 40 } });
     const turno = async (professionalId: string, serviceId: string, status: "COMPLETED" | "CONFIRMED", cobros: { amount: number; note?: string }[]) => {
       const clientId = (await duenio.client.create({ data: { tenantId, name: `Clienta ${n}`, phone: `114000700${n}` } })).id;
-      const startsAt = new Date(ahora - (20 + n++) * MIN);
+      const startsAt = new Date(inicioDelMes + 2 * 24 * 60 * MIN + (20 + n++) * MIN);
       const a = await duenio.appointment.create({
         data: { tenantId, clientId, professionalId, serviceId, boxId: box.id, startsAt, endsAt: new Date(startsAt.getTime() + 10 * MIN), status },
       });

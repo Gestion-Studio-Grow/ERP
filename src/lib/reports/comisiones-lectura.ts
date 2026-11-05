@@ -11,6 +11,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { aNumero } from "@/lib/debts/resumen-cuentas";
+import { nailArtistDe } from "./rendiciones-lectura";
 import { comisionesPendientes, contarTurnosEsperandoSaldo, whereTurnosConComisionPendiente, type ComisionPendiente, type TurnoPendiente } from "./comisiones";
 
 async function leerTurnos(
@@ -65,7 +66,8 @@ export async function leerComisionesPendientes(
   db: Prisma.TransactionClient,
   tenantId: string,
 ): Promise<ComisionPendiente[]> {
-  const { turnos, overrides } = await leerTurnos(db, whereTurnosConComisionPendiente(tenantId));
+  // El KPI del Inicio, la pantalla y la liquidación: el MISMO filtro del box «Nail Artist».
+  const { turnos, overrides } = await leerTurnos(db, whereTurnosConComisionPendiente(tenantId, await nailArtistDe(db, tenantId)));
   return comisionesPendientes(turnos, overrides);
 }
 

@@ -32,14 +32,14 @@ import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import { diaContableDelEgreso } from "@/lib/stock/purchase-egreso";
 import { parseMedioDeLiquidacion } from "@/lib/comision-liquidacion";
-import { calcularRendicion, leerConfigDeRendicion, motivoDelIngreso, periodoMensual, tieneRendicion } from "@/lib/reports/rendiciones";
+import { calcularRendicion, leerConfigDeRendicion, motivoDelIngreso, periodoMensual, periodoTerminado, tieneRendicion } from "@/lib/reports/rendiciones";
 import { leerTurnosRendibles } from "@/lib/reports/rendiciones-lectura";
+// Marca del sistema en `CashMovement.createdBy`: `rendicion:<settlementId>` (el libro no la deja borrar).
+import { RENDICION_ACTOR_PREFIX } from "@/lib/rendicion-marca";
 
 export type ResultadoRendicion = { ok: true; mensaje: string } | { ok: false; error: string };
 
 const COMISIONES_PATH = "/admin/comisiones";
-/** Marca del sistema en `CashMovement.createdBy`: `rendicion:<settlementId>`. */
-const RENDICION_ACTOR_PREFIX = "rendicion:";
 const AVISO_APAGADO = "Las rendiciones del box todavía no están activas en tu negocio. Avisale a GSG.";
 const YA_ESTABA = "Esa rendición ya estaba registrada: no se cargó dos veces.";
 
@@ -102,7 +102,8 @@ export async function registrarRendicion(formData: FormData): Promise<ResultadoR
   if (!professionalId) return { ok: false, error: "Falta la profesional." };
   const periodo = periodoMensual(formData.get("mes"));
   if (!periodo) return { ok: false, error: "El mes no se entiende. Recargá la página." };
-  if (periodo.desde.getTime() > Date.now()) return { ok: false, error: "Ese mes todavía no empezó." };
+  // Un mes que no terminó sigue sumando turnos: congelarlo dejaría afuera lo que falta cobrar.
+  if (!periodoTerminado(periodo)) return { ok: false, error: "Ese mes todavía no terminó: la rendición se registra con el mes cerrado." };
   const method = parseMedioDeLiquidacion(formData.get("method"));
   if (!method) return { ok: false, error: "Elegí por qué medio te la rindió." };
   if (method === "TRANSFERENCIA" && !(await transferenciaEnElLibroTx(prisma))) {
@@ -128,7 +129,8 @@ export async function registrarRendicion(formData: FormData): Promise<ResultadoR
         if (!tieneRendicion(config)) return { tipo: "sin_config" };
         const ya = await tx.professionalSettlement.findFirst({ where: clave, select: { id: true } });
         if (ya) return { tipo: "ya" };
-        const calc = calcularRendicion(await leerTurnosRendibles(tx, tenantId, professionalId, periodo), config);
+        const turnos = await leerTurnosRendibles(tx, tenantId, professionalId, periodo);
+        const calc = calcularRendicion(turnos, config);
         if (calc.amount <= 0) return { tipo: "nada" };
         const settlement = await tx.professionalSettlement.create({
           data: {
@@ -138,6 +140,7 @@ export async function registrarRendicion(formData: FormData): Promise<ResultadoR
             rentAmount: calc.rentAmount,
             amount: calc.amount,
             appointmentCount: calc.appointmentCount,
+            rentPercent: calc.rentPercent > 0 ? calc.rentPercent : null,
             note,
             settledBy: `user:${user.id}`,
           },
@@ -159,6 +162,11 @@ export async function registrarRendicion(formData: FormData): Promise<ResultadoR
           select: { id: true },
         });
         await tx.professionalSettlement.updateMany({ where: { id: settlement.id, tenantId }, data: { cashMovementId: asiento.id } });
+        // Los turnos rendidos quedan marcados: no vuelven a ser comisión pendiente aunque mañana
+        // se le saque la config (se le cobraría y se le pagaría por la misma plata).
+        if (turnos.length > 0) {
+          await tx.appointment.updateMany({ where: { tenantId, id: { in: turnos.map((t) => t.id) }, settlementId: null }, data: { settlementId: settlement.id } });
+        }
         return { tipo: "ok", settlementId: settlement.id, cashMovementId: asiento.id, amount: calc.amount, nombre: prof.name, count: calc.appointmentCount, dia };
       },
       { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

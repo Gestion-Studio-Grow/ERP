@@ -323,6 +323,11 @@ export interface DepsDeCambio {
   /** El estado de sus interruptores, o null si no se pudo leer (entonces no se escribe nada). */
   leerEstado(tenantId: string): Promise<EstadoInterruptores | null>;
   /**
+   * Para prender: el motivo si a la base le falta la migración que el interruptor exige (box «Nail
+   * Artist»: `20261105120000_nail_artist`), `null` si está. Ausente: no se chequea.
+   */
+  faltaLaMigracion?(interruptor: InterruptorId): Promise<string | null>;
+  /**
    * Escribe la fila SÓLO si el negocio sigue como se leyó: los mismos módulos y el interruptor en
    * el mismo estado. `false` = cambió en el medio y no se escribió; `{ motivo }` = no se pudo tomar
    * el candado del negocio a tiempo (no se escribió).
@@ -375,6 +380,10 @@ export async function cambiarInterruptorCon(
   });
   if (!decision.ok) return { tipo: "rechazado", motivo: decision.motivo };
   if (decision.sinCambios) return { tipo: "sin-cambios", interruptor: decision.interruptor, accion: decision.accion };
+  if (decision.accion === "encender" && deps.faltaLaMigracion) {
+    const falta = await deps.faltaLaMigracion(decision.interruptor);
+    if (falta) return { tipo: "rechazado", motivo: falta };
+  }
 
   const fila = filaDeInterruptor({
     tenantId: pedido.tenantId,

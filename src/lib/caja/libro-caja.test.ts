@@ -339,3 +339,8 @@ test("el cobro de un proyecto no se rotula como turno; lo demás sigue igual", (
   assert.equal(rotuloDeVenta("turno", null), "Turno cobrado");
   assert.equal(rotuloDeVenta("pos", "Proyecto #12"), "Venta del mostrador");
 });
+
+test("el INGRESO de una rendición del box no se borra desde el libro (dejaría la rendición recibida sin plata)", () => {
+  assert.match(motivoParaNoBorrar({ type: "INGRESO", createdBy: "rendicion:st_1" }) ?? "", /rendición del box/);
+  assert.equal(motivoParaNoBorrar({ type: "INGRESO", createdBy: "user:u1" }), null);
+});

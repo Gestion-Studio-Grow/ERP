@@ -24,6 +24,8 @@ import {
   vincularCobro,
 } from "@/lib/facturacion/cobros-facturados";
 import { facturarPagoMP } from "@/lib/invoice-from-mp";
+import { isColumnMissing } from "@/lib/prisma-errors";
+import { leerCobradoPorLaProfesional } from "@/lib/reports/rendiciones-lectura";
 import type { PagoMP } from "@/plugins/mercadopago";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
@@ -63,6 +65,8 @@ export interface CobrosDelTurno {
   facturadoPorMP: number;
   /** La factura viva más reciente que cubre cobros de este turno. */
   ultimaFactura: string | null;
+  /** Box «Nail Artist»: lo que cobró la profesional a su cuenta (no es venta del negocio). Ausente = 0. */
+  cobradoPorLaProfesional?: number;
 }
 
 /** Lectura real, parada en el negocio: cobros del libro con medio MP (sin condonaciones) y lo facturado por MP. */
@@ -82,7 +86,21 @@ async function leerCobrosDelTurnoPrisma(appointmentId: string, tenantId: string)
       return { cobradoPorMP, facturadoPorMP, ultimaFactura };
     },
     { tenantId },
-  );
+  ).then(async (r) => ({ ...r, cobradoPorLaProfesional: await leerCobradoPorLaProfesionalSeguro(appointmentId, tenantId) }));
+}
+
+/**
+ * Lo que fue a la cuenta de la profesional (box «Nail Artist»), por el destino del cobro (sin asiento
+ * en la caja del negocio). En su propia transacción: sin la migración `nail_artist` la columna del
+ * servicio no existe (P2022) y eso no puede abortar la lectura de arriba; ahí nadie cobró a su cuenta.
+ */
+async function leerCobradoPorLaProfesionalSeguro(appointmentId: string, tenantId: string): Promise<number> {
+  try {
+    return await tenantTransaction((tx) => leerCobradoPorLaProfesional(tx, tenantId, appointmentId), { tenantId });
+  } catch (err) {
+    if (isColumnMissing(err)) return 0;
+    throw err;
+  }
 }
 
 const DEPS: DepsFacturarTurno = {
@@ -137,6 +155,8 @@ export async function facturarAppointment(
     precio,
     cobradoPorMP: yaMP.cobradoPorMP,
     facturadoPorMP: yaMP.facturadoPorMP,
+    // Box «Nail Artist»: lo que cobró la profesional no lo factura el negocio.
+    cobradoPorLaProfesional: yaMP.cobradoPorLaProfesional ?? 0,
   });
   // Todo lo cobrado ya está facturado (por MP): no hay otra factura; la del turno es ésa.
   if (!(monto > 0)) return yaMP.facturadoPorMP > 0 ? yaMP.ultimaFactura : null;

@@ -506,3 +506,27 @@ test("ocultar y mostrar desde la consola: fila del operador, sin cambios, vista 
   assert.equal((await cambiarAppOcultaCon(b.deps, FACU, pedidoOculta(CARNICERIA, { accion: "mostrar", visto: "oculta" }))).tipo, "hecho");
   assert.equal(ocultasDesdeFilas(b.de(CARNICERIA.id)).size, 0);
 });
+
+// ── Interruptor que exige una migración (box «Nail Artist») ─────────────────
+
+test("nail-artist: sin la migración aplicada no se prende ni se escribe nada; con ella, sí; apagar no pregunta", async () => {
+  const { NAIL_ARTIST } = await import("./interruptores");
+  const b = base([CARNICERIA]);
+  let aplicada = false;
+  const consultas: string[] = [];
+  b.deps.faltaLaMigracion = async (id) => {
+    consultas.push(id);
+    return id === NAIL_ARTIST && !aplicada ? "Falta aplicar la migración 20261105120000_nail_artist" : null;
+  };
+  const prender = pedido(CARNICERIA, "encender", { interruptor: NAIL_ARTIST });
+  const r = await cambiarInterruptorCon(b.deps, FACU, prender);
+  assert.equal(r.tipo, "rechazado");
+  assert.match(r.tipo === "rechazado" ? r.motivo : "", /20261105120000_nail_artist/);
+  assert.equal(b.escrituras(), 0);
+
+  aplicada = true;
+  assert.equal((await cambiarInterruptorCon(b.deps, FACU, prender)).tipo, "hecho");
+  const n = consultas.length;
+  assert.equal((await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA, "apagar", { interruptor: NAIL_ARTIST }))).tipo, "hecho");
+  assert.equal(consultas.length, n, "apagar nunca exige la migración");
+});

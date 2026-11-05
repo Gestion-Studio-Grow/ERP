@@ -179,6 +179,8 @@ test("F7 · migración AUSENTE (columnas borradas en la base efímera) con inter
   const manana = new Date(Date.now() + 24 * HORA).toISOString().slice(0, 10);
   await d.$executeRawUnsafe(`ALTER TABLE "Professional" DROP COLUMN "aliasCbu", DROP COLUMN "titularCuenta", DROP COLUMN "cuitTitular", DROP COLUMN "boxRentAmount", DROP COLUMN "rentPercent"`);
   await d.$executeRawUnsafe(`ALTER TABLE "Service" DROP COLUMN "depositToProfessional"`);
+  // Tanda 2 · vuelta 1: la migración también agrega `Appointment.settlementId` (FK a la tabla).
+  await d.$executeRawUnsafe(`ALTER TABLE "Appointment" DROP COLUMN "settlementId"`);
   await d.$executeRawUnsafe(`DROP TABLE "ProfessionalSettlement"`);
   const res: Record<string, string> = {};
   const corre = async (nombre: string, fn: () => Promise<unknown>, neg: NegocioDePrueba = c.base.b) => {

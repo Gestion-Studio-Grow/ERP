@@ -54,6 +54,9 @@ export interface CobroAFacturar {
  *              facturado por MP es parte del precio.
  *   pendiente = base − cubierto (nunca negativo).
  *
+ * Box «Nail Artist» (NAIL-ARTIST.md §4): lo que cobró la PROFESIONAL a su cuenta no es venta del
+ * negocio y sale de la base (`cobradoPorLaProfesional`); si el turno entero fue de ella, no hay factura.
+ *
  * Todo en centavos (ADR-100).
  */
 export function pendienteDelTurno(x: {
@@ -65,8 +68,11 @@ export function pendienteDelTurno(x: {
   cobradoPorMP: number;
   /** Σ de lo que ya facturaron pagos de MP de este turno (facturas no rechazadas). */
   facturadoPorMP: number;
+  /** Σ de los cobros del turno que fueron a la profesional (sin asiento en la caja del negocio). */
+  cobradoPorLaProfesional?: number;
 }): { base: number; cubierto: number; pendiente: number } {
-  const base = centavosDe(x.cobrado ?? x.precio);
+  const deElla = x.cobrado == null ? 0 : Math.max(0, centavosDe(x.cobradoPorLaProfesional ?? 0));
+  const base = Math.max(0, centavosDe(x.cobrado ?? x.precio) - deElla);
   const tope = x.cobrado == null ? base : Math.max(0, centavosDe(x.cobradoPorMP));
   const cubierto = Math.min(tope, Math.max(0, centavosDe(x.facturadoPorMP)), base);
   return { base: base / 100, cubierto: cubierto / 100, pendiente: Math.max(0, base - cubierto) / 100 };

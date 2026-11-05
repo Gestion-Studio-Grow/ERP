@@ -48,13 +48,14 @@ export async function leerPestaniaRendiciones(periodo: PeriodoMensual): Promise<
         if (!tieneRendicion(p) && !hecha) continue;
         if (hecha) {
           const el = fmtShortDate(hecha.createdAt);
-          const rentPercent = p.rentPercent ?? 0;
+          // El % CONGELADO en la rendición; la ficha sólo si la fila es anterior a esa columna.
+          const rentPercent = hecha.rentPercent ?? p.rentPercent ?? 0;
           const texto = textoComprobanteRendicion({
             mes: periodo.mes,
             negocio: nombreNegocio,
             collectedTotal: hecha.collectedTotal,
             appointmentCount: hecha.appointmentCount,
-            // El % de la ficha puede haber cambiado; si el congelado no tiene parte por %, no se nombra.
+            // Si el congelado no tiene parte por %, no se nombra.
             rentPercent: hecha.percentAmount > 0 ? rentPercent : 0,
             percentAmount: hecha.percentAmount,
             rentAmount: hecha.rentAmount,

@@ -22,6 +22,7 @@ import { movementSign, type CashMethod, type CashMovementType } from "@/lib/caja
 // estos módulos son puros (sin Prisma de valor): este archivo lo importa un client component.
 import { COMPRA_ACTOR_PREFIX, REINTEGRO_ACTOR_PREFIX, esEgresoDeCompra, esIngresoDeReintegro } from "@/lib/stock/purchase-egreso";
 import { COMISION_ACTOR_PREFIX, esEgresoDeComision } from "@/lib/comision-liquidacion";
+import { esIngresoDeRendicion } from "@/lib/rendicion-marca";
 import { ANULACION_TURNO_ACTOR_PREFIX, esEgresoDeAnulacion } from "@/lib/turnos/anulacion";
 import { ANULACION_VENTA_ACTOR_PREFIX } from "@/lib/order-anulacion";
 import { APERTURA_TURNO_ACTOR_PREFIX, ARQUEO_TURNO_ACTOR_PREFIX, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
@@ -350,6 +351,11 @@ export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string
   // decidió que NO entró.
   if (esEgresoDeAnulacion(m)) {
     return "Ese egreso lo asentó la anulación de un cobro. No se borra desde el libro: si la anulación estuvo mal, cargá una corrección con la fecha de hoy.";
+  }
+  // La rendición del box «Nail Artist»: el comprobante (`ProfessionalSettlement`) y este ingreso
+  // nacen juntos. Borrar el asiento dejaría la rendición «recibida» sin plata y el mes bloqueado.
+  if (esIngresoDeRendicion(m)) {
+    return "Ese ingreso lo asentó una rendición del box. No se borra desde el libro: si el importe o el medio están mal, cargá una corrección con la fecha de hoy.";
   }
   if (esEgresoDeComision(m)) {
     return "Ese egreso lo asentó una liquidación de comisión. No se borra desde el libro: si el importe está mal, cargá una corrección con la fecha de hoy.";

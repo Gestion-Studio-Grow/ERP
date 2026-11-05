@@ -21,7 +21,7 @@ import ComisionesRenglon from "./ComisionesRenglon";
 import Link from "next/link";
 import { nailArtistDelNegocio } from "@/cambios/interruptores.server";
 import { todayInBusinessTz } from "@/lib/datetime";
-import { mesDelDia, periodoMensual } from "@/lib/reports/rendiciones";
+import { mesAnterior, mesDelDia, periodoMensual } from "@/lib/reports/rendiciones";
 import { leerPestaniaRendiciones } from "./rendiciones.server";
 import Rendiciones from "./Rendiciones";
 
@@ -58,7 +58,8 @@ export default async function ComisionesPage({ searchParams }: { searchParams: P
   if (nail && params.vista === "rendiciones") {
     const mesActual = mesDelDia(todayInBusinessTz());
     const pedido = periodoMensual(params.mes);
-    const periodo = pedido && pedido.mes <= mesActual ? pedido : periodoMensual(mesActual)!;
+    // Por defecto, el último mes CERRADO: es el que se rinde (el actual sigue sumando turnos).
+    const periodo = pedido && pedido.mes <= mesActual ? pedido : periodoMensual(mesAnterior(mesActual))!;
     const { filas, config } = await leerPestaniaRendiciones(periodo);
     return (
       <main data-ui="pagina" className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">

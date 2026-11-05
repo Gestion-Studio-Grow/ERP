@@ -20,6 +20,7 @@ CREATE TABLE "ProfessionalSettlement" (
   "rentAmount" DECIMAL(14,2) NOT NULL,
   "amount" DECIMAL(14,2) NOT NULL,
   "appointmentCount" INTEGER NOT NULL,
+  "rentPercent" DOUBLE PRECISION,
   "note" TEXT,
   "settledBy" TEXT NOT NULL,
   "cashMovementId" TEXT,
@@ -33,6 +34,11 @@ CREATE INDEX "ProfessionalSettlement_professionalId_idx" ON "ProfessionalSettlem
 
 ALTER TABLE "ProfessionalSettlement" ADD CONSTRAINT "ProfessionalSettlement_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "ProfessionalSettlement" ADD CONSTRAINT "ProfessionalSettlement_professionalId_fkey" FOREIGN KEY ("professionalId") REFERENCES "Professional"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- El turno rendido queda marcado: no vuelve a ser comisión pendiente (doble cobro).
+ALTER TABLE "Appointment" ADD COLUMN IF NOT EXISTS "settlementId" TEXT;
+CREATE INDEX IF NOT EXISTS "Appointment_settlementId_idx" ON "Appointment"("settlementId");
+ALTER TABLE "Appointment" ADD CONSTRAINT "Appointment_settlementId_fkey" FOREIGN KEY ("settlementId") REFERENCES "ProfessionalSettlement"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 ALTER TABLE "ProfessionalSettlement" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "ProfessionalSettlement";

@@ -161,6 +161,7 @@ export async function settleCommissions(formData: FormData) {
   const tenantId = await getCurrentTenantId();
   const professionalId = String(formData.get("professionalId") ?? "").trim();
   if (!professionalId) backWith("error_prof", volver);
+  const nailArtist = await nailArtistDelNegocio();
   if ((await profesionalesQueRinden(tenantId)).has(professionalId)) backWith("error_nada", volver);
   const note = String(formData.get("note") ?? "").trim() || null;
   // Por qué medio se le pagó. El formulario AHORA lo pregunta (`<select name="method">` en
@@ -186,7 +187,7 @@ export async function settleCommissions(formData: FormData) {
     const [appointments, overrides] = await Promise.all([
       tx.appointment.findMany({
         // El MISMO `where` que el listado de pendientes y el botón del Inicio.
-        where: { ...whereTurnosConComisionPendiente(tenantId), professionalId },
+        where: { ...whereTurnosConComisionPendiente(tenantId, nailArtist), professionalId },
         include: {
           payment: true,
           collections: { select: { amount: true, method: true } },

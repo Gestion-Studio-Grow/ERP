@@ -771,20 +771,20 @@ model Client {
 }
 
 model Appointment {
-  id                 String            @id @default(cuid())
-  tenant             Tenant            @relation(fields: [tenantId], references: [id])
+  id                 String                  @id @default(cuid())
+  tenant             Tenant                  @relation(fields: [tenantId], references: [id])
   tenantId           String
-  client             Client            @relation(fields: [clientId], references: [id])
+  client             Client                  @relation(fields: [clientId], references: [id])
   clientId           String
-  professional       Professional      @relation(fields: [professionalId], references: [id])
+  professional       Professional            @relation(fields: [professionalId], references: [id])
   professionalId     String
-  service            Service           @relation(fields: [serviceId], references: [id])
+  service            Service                 @relation(fields: [serviceId], references: [id])
   serviceId          String
-  box                Box               @relation(fields: [boxId], references: [id])
+  box                Box                     @relation(fields: [boxId], references: [id])
   boxId              String
   startsAt           DateTime
   endsAt             DateTime
-  status             AppointmentStatus @default(PENDING)
+  status             AppointmentStatus       @default(PENDING)
   // Precio del servicio congelado al momento de reservar (AMD-003): el precio
   // del servicio puede cambiar entre la reserva y el cobro; esto evita la
   // discusión con el cliente. Nullable para los turnos previos a esta feature.
@@ -792,11 +792,11 @@ model Appointment {
   // Si el precio congelado arriba fue el preferencial de vecino (ADR-013) —
   // separado de Client.isResident porque el cliente puede cambiar de
   // respuesta entre turnos; esto es historial, no estado actual.
-  isResidentBooking  Boolean           @default(false)
+  isResidentBooking  Boolean                 @default(false)
   // Cupón aplicado al reservar (ADR-014), si lo hubo — historial, no relación
   // fuerte a Coupon para que el turno no se rompa si el cupón se borra.
   couponCode         String?
-  discountAmount     Float             @default(0)
+  discountAmount     Float                   @default(0)
   // Nota libre de la recepción (AMD-003): "quiere el mismo tono de la vez pasada".
   notes              String?
   payment            Payment?
@@ -809,15 +809,20 @@ model Appointment {
   // mientras este campo es null. Al liquidar un período, el turno se estampa con
   // el payout que lo cubrió — así "pendiente" = COMPLETED + pago APPROVED +
   // commissionPayoutId null, y volver a liquidar no puede doble-pagar (structural).
-  commissionPayout   CommissionPayout? @relation(fields: [commissionPayoutId], references: [id])
+  commissionPayout   CommissionPayout?       @relation(fields: [commissionPayoutId], references: [id])
   commissionPayoutId String?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  // Box «Nail Artist» (NAIL-ARTIST.md §5): la rendición que cubrió el turno. Un turno rendido no
+  // vuelve a ser comisión pendiente aunque después se le saque la config a la profesional.
+  settlement         ProfessionalSettlement? @relation(fields: [settlementId], references: [id])
+  settlementId       String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
 
   @@index([professionalId, startsAt])
   @@index([boxId, startsAt])
   @@index([tenantId, startsAt])
   @@index([commissionPayoutId])
+  @@index([settlementId])
 }
 
 // Liquidación de comisiones a un profesional por un período (BACKLOG "Alta
@@ -852,22 +857,25 @@ model CommissionPayout {
 // paga a CH por período (alquiler del box y/o % de lo cobrado). Espejo inverso de
 // CommissionPayout. Montos congelados; el @@unique del período es el árbitro del doble clic.
 model ProfessionalSettlement {
-  id               String       @id @default(cuid())
-  tenant           Tenant       @relation(fields: [tenantId], references: [id])
+  id               String        @id @default(cuid())
+  tenant           Tenant        @relation(fields: [tenantId], references: [id])
   tenantId         String
-  professional     Professional @relation(fields: [professionalId], references: [id])
+  professional     Professional  @relation(fields: [professionalId], references: [id])
   professionalId   String
   periodStart      DateTime
   periodEnd        DateTime
-  collectedTotal   Decimal      @db.Decimal(14, 2)
-  percentAmount    Decimal      @db.Decimal(14, 2)
-  rentAmount       Decimal      @db.Decimal(14, 2)
-  amount           Decimal      @db.Decimal(14, 2)
+  collectedTotal   Decimal       @db.Decimal(14, 2)
+  percentAmount    Decimal       @db.Decimal(14, 2)
+  rentAmount       Decimal       @db.Decimal(14, 2)
+  amount           Decimal       @db.Decimal(14, 2)
   appointmentCount Int
+  // El % congelado al registrar (para el comprobante): si mañana cambia la ficha, éste no.
+  rentPercent      Float?
   note             String?
   settledBy        String
-  cashMovementId   String?      @unique
-  createdAt        DateTime     @default(now())
+  cashMovementId   String?       @unique
+  createdAt        DateTime      @default(now())
+  appointments     Appointment[]
 
   @@unique([tenantId, professionalId, periodStart, periodEnd])
   @@index([tenantId, createdAt])
@@ -3578,8 +3586,8 @@ model ProyectoConfig {
 // ── Gestión de eventos: las apps relevadas de Heka (docs/benchmark/heka-especificacion.md). Sólo tablas del módulo. ──
 
 model ProyectoCuota {
-  venceManual    Boolean @default(false) // Administración corrigió la fecha: regenerar no la pisa
-  prevista       Boolean @default(false) // evento sin confirmar o sin fecha: se ve en su ficha, no cuenta como plata
+  venceManual    Boolean            @default(false) // Administración corrigió la fecha: regenerar no la pisa
+  prevista       Boolean            @default(false) // evento sin confirmar o sin fecha: se ve en su ficha, no cuenta como plata
   cuentaId       String? // la cuenta que movió al marcarla: al reabrirla se devuelve
   cuentaMovido   Float?
   id             String             @id @default(cuid())

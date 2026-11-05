@@ -36,6 +36,7 @@ import {
 } from "@/cambios/interruptores-core";
 import { leerAppsOcultasDe } from "@/lib/operador/apps-ocultas.server";
 import type { Prisma } from "@/generated/prisma/client";
+import { NAIL_ARTIST, type InterruptorId } from "@/cambios/interruptores";
 
 type Tx = Prisma.TransactionClient;
 
@@ -66,6 +67,38 @@ async function conCandadoDelNegocio(
 
 const SELECT_FILA = { id: true, entity: true, entityId: true, action: true, actor: true, channel: true, createdAt: true } as const;
 
+/**
+ * Lo que cada interruptor exige en la base para prenderse (como «cuentas-corrientes» exige
+ * `CashMovement.collectionId`): prender sin la migración rompería la lectura de las columnas nuevas.
+ * Se mira el catálogo (`information_schema`), no los datos: una consulta liviana.
+ */
+const COLUMNAS_QUE_EXIGE: Partial<Record<InterruptorId, { migracion: string; columnas: readonly [string, string][] }>> = {
+  [NAIL_ARTIST]: {
+    migracion: "20261105120000_nail_artist",
+    columnas: [
+      ["Professional", "rentPercent"],
+      ["Service", "depositToProfessional"],
+      ["ProfessionalSettlement", "rentPercent"],
+      ["Appointment", "settlementId"],
+    ],
+  },
+};
+
+async function faltaLaMigracion(interruptor: InterruptorId): Promise<string | null> {
+  const exige = COLUMNAS_QUE_EXIGE[interruptor];
+  if (!exige) return null;
+  const motivo = `Falta aplicar la migración ${exige.migracion} en la base: sin ella no se puede prender. No se cambió nada.`;
+  try {
+    const filas = await operatorPrisma.$queryRaw<{ table_name: string; column_name: string }[]>`
+      SELECT table_name, column_name FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = ANY(${exige.columnas.map(([t]) => t)})`;
+    const hay = new Set(filas.map((f) => `${f.table_name}.${f.column_name}`));
+    return exige.columnas.every(([t, c]) => hay.has(`${t}.${c}`)) ? null : motivo;
+  } catch {
+    return motivo;
+  }
+}
+
 export function depsDeCambioReales(): DepsDeCambio {
   return {
     duenio: operadorDuenio(),
@@ -73,6 +106,7 @@ export function depsDeCambioReales(): DepsDeCambio {
     registry: catalogo(),
     leerNegocio: leerNegocioParaActivar,
     leerEstado: async (tenantId) => (await leerInterruptoresDe(tenantId))?.estado ?? null,
+    faltaLaMigracion,
     // Si otro operador está cambiando los módulos de este negocio, se espera y se relee con lo que dejó.
     escribirSiSigueIgual: (fila, condicion) =>
       conCandadoDelNegocio(fila.tenantId, async (tx) => {

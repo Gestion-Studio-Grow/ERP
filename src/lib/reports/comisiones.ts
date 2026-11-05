@@ -23,12 +23,26 @@ import { round2 } from "@/lib/round";
  * Los turnos con comisión pendiente: realizados, cobrados y sin liquidar. El MISMO `where` que
  * la liquidación (`settleCommissions`) y la pantalla. Objeto plano, sin Prisma de valor.
  */
-export function whereTurnosConComisionPendiente(tenantId: string) {
-  return {
+export function whereTurnosConComisionPendiente(tenantId: string, nailArtist = false) {
+  const base = {
     tenantId,
     status: "COMPLETED" as const,
     commissionPayoutId: null,
     payment: { status: "APPROVED" as const },
+  };
+  if (!nailArtist) return base;
+  // Box «Nail Artist» (NAIL-ARTIST.md §5): quien RINDE al salón no cobra comisión, y un turno ya
+  // rendido (`settlementId`) no vuelve a ser comisión aunque después se le saque la config. Sólo con
+  // el interruptor prendido, que exige la migración aplicada (las columnas existen).
+  return {
+    ...base,
+    settlementId: null,
+    professional: {
+      AND: [
+        { OR: [{ boxRentAmount: null }, { boxRentAmount: { lte: 0 } }] },
+        { OR: [{ rentPercent: null }, { rentPercent: { lte: 0 } }] },
+      ],
+    },
   };
 }
 

@@ -13,8 +13,10 @@
 
 import { porcentajeDe, sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { businessWallTimeToUtc } from "@/lib/datetime";
-import { claseDeCobro } from "@/lib/turnos/anulacion";
+import { leerImporte } from "@/lib/dinero/leer";
+import { claseDeCobro, cobroAnuladoPor } from "@/lib/turnos/anulacion";
 import { pesosDelCobro } from "@/lib/turnos/cobro-dividido";
+import { esNotaDeCobroProfesional } from "@/lib/turnos/senia-profesional";
 
 /** Un `Collection` del turno: monto y la nota que marca anulaciones y condonaciones. */
 export type CobroDelTurno = { amount: number; note: string | null };
@@ -31,6 +33,42 @@ export type Rendicion = {
   amount: number;
   appointmentCount: number;
 };
+
+/** Un `Collection` con lo que dice a dónde fue la plata (para separar lo de ella de lo de CH). */
+export type CobroConDestino = CobroDelTurno & {
+  id: string;
+  /** ¿El cobro dejó asiento en el libro de caja del negocio (`CashMovement.collectionId`)? */
+  conAsientoEnCaja: boolean;
+};
+
+/**
+ * Los cobros del turno que fueron A LA PROFESIONAL (§4: `Collection` sí, `CashMovement` no). Manda
+ * lo que se decidió al COBRAR, no la marca de hoy: un cobro con asiento entró a la caja de CH y no
+ * es de ella aunque el servicio se haya marcado después. Sin asiento, es de ella si la nota lo dice
+ * (la seña al alias, fijada por el snapshot del pedido) o si el servicio está marcado (el saldo,
+ * que se cobra sin nota propia). La anulación sigue a su cobro original; la condonación no es plata.
+ */
+export function cobrosDeLaProfesional(cobros: readonly CobroConDestino[], servicioMarcado: boolean): CobroDelTurno[] {
+  const deElla = (c: CobroConDestino) => !c.conAsientoEnCaja && (esNotaDeCobroProfesional(c.note) || servicioMarcado);
+  const porId = new Map(cobros.map((c) => [c.id, c]));
+  return cobros
+    .filter((c) => {
+      const clase = claseDeCobro(c.note);
+      if (clase === "cobro") return deElla(c);
+      if (clase === "anulacion") {
+        // Sigue a su cobro original; si el original no está entre los del turno, decide su propia fila.
+        const original = porId.get(cobroAnuladoPor(c.note) ?? "");
+        return original ? deElla(original) : deElla(c);
+      }
+      return false;
+    })
+    .map((c) => ({ amount: c.amount, note: c.note }));
+}
+
+/** Cuánto de lo cobrado en el turno fue a la profesional (neto de anulaciones; nunca negativo). */
+export function cobradoPorLaProfesional(cobros: readonly CobroConDestino[], servicioMarcado: boolean): number {
+  return cobradoDelTurno(cobrosDeLaProfesional(cobros, servicioMarcado));
+}
 
 /** ¿La profesional rinde? Alquiler o % mayor a cero. Sin config, no aparece en Rendiciones. */
 export function tieneRendicion(c: ConfigDeRendicion): boolean {
@@ -78,6 +116,11 @@ export function periodoMensual(mes: unknown): PeriodoMensual | null {
   if (mm < 1 || mm > 12 || anio < 2000 || anio > 2100) return null;
   const sig = mm === 12 ? `${anio + 1}-01` : `${anio}-${String(mm + 1).padStart(2, "0")}`;
   return { mes: `${m[1]}-${m[2]}`, desde: businessWallTimeToUtc(`${m[1]}-${m[2]}-01`, "00:00"), hasta: businessWallTimeToUtc(`${sig}-01`, "00:00") };
+}
+
+/** ¿El mes ya terminó? Una rendición se registra sobre un mes cerrado (no se congela lo que sigue sumando). */
+export function periodoTerminado(p: PeriodoMensual, ahora: Date = new Date()): boolean {
+  return p.hasta.getTime() <= ahora.getTime();
 }
 
 /** "2026-11-05" → "2026-11". */
@@ -143,13 +186,10 @@ export function textoComprobanteRendicion(r: {
 export type ConfigLeida = { ok: true; config: ConfigDeRendicion } | { ok: false; error: string };
 
 function leerNumero(raw: unknown): number | null | "invalido" {
-  const crudo = String(raw ?? "").trim().replace(/\s|\$/g, "");
-  if (crudo === "") return null;
-  // Con coma, la coma es el decimal y el punto separa miles («1.500,50»); sin coma es el valor de un
-  // <input type="number"> («1500.5»).
-  const s = crudo.includes(",") ? crudo.replace(/\./g, "").replace(",", ".") : crudo;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : "invalido";
+  // El lector de pesos de todo el sistema (`@/lib/dinero/leer`): «150.000» son ciento cincuenta mil,
+  // «150000,50» lleva centavos, «1.500,50» es criollo y «1500.5» lo que manda un input numérico.
+  const l = leerImporte(String(raw ?? ""));
+  return l.estado === "vacio" ? null : l.estado === "ok" ? l.valor : "invalido";
 }
 
 /**

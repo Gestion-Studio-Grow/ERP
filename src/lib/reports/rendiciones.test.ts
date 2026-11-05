@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import {
   calcularRendicion,
   cobradoDelTurno,
+  cobrosDeLaProfesional,
+  periodoTerminado,
   leerConfigDeRendicion,
   mesAnterior,
   motivoDelIngreso,
@@ -94,4 +96,26 @@ test("comprobante y motivo del ingreso (§5)", () => {
     textoComprobanteRendicion({ ...base, appointmentCount: 1, rentPercent: 0, percentAmount: 0, rentAmount: 0.01, amount: 0.01 }),
     /en 1 turno; alquiler del box \$0,01 = \*\$0,01\*/,
   );
+});
+
+test("destino del cobro: con asiento en la caja es de CH aunque el servicio esté marcado; la anulación sigue a su cobro", () => {
+  const c = (id: string, amount: number, conAsientoEnCaja: boolean, note: string | null = null) => ({ id, amount, note, conAsientoEnCaja });
+  const seniaAlAlias = "a Mica (mica.uñas) — no entra a la caja del negocio";
+  const cobros = [
+    c("senia", 3000, false, seniaAlAlias),
+    c("saldo", 7000, false),
+    c("deCH", 5000, true),
+    c("anulaDeCH", -5000, false, "ANULACION:deCH — error"),
+    c("anulaSaldo", -2000, false, "ANULACION:saldo — error"),
+    c("condona", 1000, false, "CONDONACION: regalo"),
+  ];
+  assert.equal(cobradoDelTurno(cobrosDeLaProfesional(cobros, true)), 8000);
+  // Servicio desmarcado después: el saldo sin nota ya no se atribuye; la seña al alias, sí (snapshot en la nota).
+  assert.equal(cobradoDelTurno(cobrosDeLaProfesional(cobros, false)), 3000);
+});
+
+test("período terminado: el mes en curso no, el anterior sí", () => {
+  const p = periodoMensual("2026-10")!;
+  assert.equal(periodoTerminado(p, new Date("2026-10-31T23:00:00Z")), false);
+  assert.equal(periodoTerminado(p, new Date("2026-11-01T03:00:00Z")), true);
 });
