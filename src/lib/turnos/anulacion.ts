@@ -189,7 +189,8 @@ export type MotivoAnulacionRechazada =
   | "facturado" // ENG-023: el turno tiene factura autorizada y todavía no hay nota de crédito
   | "factura-en-camino" // ENG-023: su factura espera la respuesta de ARCA; el CAE puede llegar después
   | "dia-cerrado" // el día del asiento ya está cerrado: la corrección va con fecha de hoy
-  | "voucher-con-baja"; // CH: cobro con voucher ya dado de baja en OpenKey: no vuelve a DISPONIBLE
+  | "voucher-con-baja" // CH: cobro con voucher ya dado de baja en OpenKey: no vuelve a DISPONIBLE
+  | "voucher-liquidado"; // CH: OpenKey ya pagó ese voucher: liberarlo dejaría plata sin cobro vivo
 
 export type PlanAnulacion =
   | { ok: true; monto: number }
@@ -294,6 +295,8 @@ export function mensajeAnulacionRechazada(motivo: MotivoAnulacionRechazada): str
       return "Ese cobro es de un día ya cerrado y un día contado no se toca. La corrección va con fecha de hoy: cargala en el libro de caja como INGRESO/EGRESO, con el motivo.";
     case "voucher-con-baja":
       return "Ese cobro es con un voucher que ya se dio de baja en OpenKey: no se anula desde acá. Resolvelo con La Alameda y anotalo.";
+    case "voucher-liquidado":
+      return "Ese cobro es con un voucher que OpenKey ya liquidó: no se anula desde acá. Se resuelve con La Alameda y se anota.";
   }
 }
 
@@ -438,11 +441,16 @@ export async function anularCobroTurnoInTx(
   }
 
   // CH · cobro con voucher (src/lib/vouchers): el voucher vuelve a DISPONIBLE en esta misma tx,
-  // sólo si OpenKey todavía no lo dio de baja. Con la baja hecha, la anulación no corre.
+  // sólo si OpenKey todavía no lo dio de baja NI lo liquidó. Con la baja o la liquidación hecha,
+  // la anulación no corre: liberarlo dejaría plata de OpenKey sin cobro vivo que la explique.
   const voucher =
     original.method === "VOUCHER"
-      ? await tx.voucher.findFirst({ where: { tenantId, collectionId: args.collectionId }, select: { id: true, bajaOpenKeyEn: true } })
+      ? await tx.voucher.findFirst({
+          where: { tenantId, collectionId: args.collectionId },
+          select: { id: true, bajaOpenKeyEn: true, liquidadoEn: true },
+        })
       : null;
+  if (voucher?.liquidadoEn) throw new AnulacionRechazada("voucher-liquidado");
   if (voucher?.bajaOpenKeyEn) throw new AnulacionRechazada("voucher-con-baja");
 
   const reversa = await tx.collection.create({
@@ -464,11 +472,14 @@ export async function anularCobroTurnoInTx(
 
   if (voucher) {
     const liberado = await tx.voucher.updateMany({
-      where: { id: voucher.id, tenantId, estado: "USADO", collectionId: args.collectionId, bajaOpenKeyEn: null },
+      where: { id: voucher.id, tenantId, estado: "USADO", collectionId: args.collectionId, bajaOpenKeyEn: null, liquidadoEn: null },
       data: { estado: "DISPONIBLE", appointmentId: null, collectionId: null, valorCubierto: null, usadoEn: null, usadoPor: null },
     });
-    // Cambió entre la lectura y acá (la foto de OpenKey lo dio de baja en paralelo): no se anula.
-    if (liberado.count !== 1) throw new AnulacionRechazada("voucher-con-baja");
+    // Cambió entre la lectura y acá (la foto o la liquidación de OpenKey entró en paralelo): no se anula.
+    if (liberado.count !== 1) {
+      const actual = await tx.voucher.findFirst({ where: { id: voucher.id, tenantId }, select: { liquidadoEn: true } });
+      throw new AnulacionRechazada(actual?.liquidadoEn ? "voucher-liquidado" : "voucher-con-baja");
+    }
   }
 
   // `Payment` sigue siendo el AGREGADO de los cobros del turno: si no baja acá, Reportes, la

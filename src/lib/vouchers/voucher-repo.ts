@@ -32,6 +32,7 @@ import {
   claveDelCobroConVoucher,
   conciliar,
   conciliarLiquidacion,
+  leerFecha,
   MENSAJES_VOUCHER,
   normalizarNumero,
   validarAplicacion,
@@ -277,6 +278,11 @@ export type ImportarFotoArgs = {
   actor: string;
   /** Errores del lector del CSV, para que queden en el resumen de la corrida. */
   erroresDeLectura?: readonly { linea: number; motivo: string }[];
+  /**
+   * Cuándo sacó OpenKey esta foto (la RPA la sabe; la carga manual usa «ahora»). Una foto más
+   * vieja que la vigente (`fotoOpenKeyEn`) no pisa el estado de OpenKey de ese voucher.
+   */
+  fechaFoto?: Date;
 };
 
 export type ResultadoImportacion = {
@@ -290,6 +296,9 @@ export type ResultadoImportacion = {
 
 export async function importarFotoOpenKey(tenantId: string, args: ImportarFotoArgs): Promise<ResultadoImportacion> {
   const ahora = new Date();
+  // Una fecha futura no vale: dejaría esa foto «vigente» para siempre.
+  const fechaFoto = args.fechaFoto && args.fechaFoto.getTime() < ahora.getTime() ? args.fechaFoto : ahora;
+  const vigente: Prisma.VoucherWhereInput = { OR: [{ fotoOpenKeyEn: null }, { fotoOpenKeyEn: { lte: fechaFoto } }] };
   const filas = args.filas.map((f) => ({ ...f, numero: normalizarNumero(f.numero) }));
   const numeros = filas.map((f) => f.numero);
   return tenantTransaction(
@@ -332,27 +341,43 @@ export async function importarFotoOpenKey(tenantId: string, args: ImportarFotoAr
       const disp = filas.filter((f) => f.estado === "DISPONIBLE").map((f) => f.numero);
       const baja = filas.filter((f) => f.estado !== "DISPONIBLE").map((f) => f.numero);
       const anul = filas.filter((f) => f.estado === "ANULADO").map((f) => f.numero);
+      // Sólo sobre los vouchers cuya foto vigente no es más nueva que ésta (`vigente`).
       let actualizados = 0;
       if (disp.length) {
+        // DISPONIBLE limpia la baja sólo si el voucher no está USADO acá: la baja de un USADO es lo
+        // que frena su anulación, y una foto (vieja o no) no la borra.
         actualizados += (
           await tx.voucher.updateMany({
-            where: { tenantId, numero: { in: disp } },
-            data: { estadoOpenKey: "DISPONIBLE", fotoOpenKeyEn: ahora, bajaOpenKeyEn: null },
+            where: { tenantId, numero: { in: disp }, estado: { not: "USADO" }, AND: [vigente] },
+            data: { estadoOpenKey: "DISPONIBLE", fotoOpenKeyEn: fechaFoto, bajaOpenKeyEn: null },
+          })
+        ).count;
+        actualizados += (
+          await tx.voucher.updateMany({
+            where: { tenantId, numero: { in: disp }, estado: "USADO", AND: [vigente] },
+            data: { estadoOpenKey: "DISPONIBLE", fotoOpenKeyEn: fechaFoto },
           })
         ).count;
       }
       if (baja.length) {
+        // La marca de baja primero (antes de mover `fotoOpenKeyEn`, que decide quién es vigente).
+        await tx.voucher.updateMany({ where: { tenantId, numero: { in: baja }, bajaOpenKeyEn: null, AND: [vigente] }, data: { bajaOpenKeyEn: fechaFoto } });
         actualizados += (
-          await tx.voucher.updateMany({ where: { tenantId, numero: { in: baja } }, data: { estadoOpenKey: "BAJA", fotoOpenKeyEn: ahora } })
+          await tx.voucher.updateMany({
+            where: { tenantId, numero: { in: baja }, AND: [vigente] },
+            data: { estadoOpenKey: "BAJA", fotoOpenKeyEn: fechaFoto },
+          })
         ).count;
-        await tx.voucher.updateMany({ where: { tenantId, numero: { in: baja }, bajaOpenKeyEn: null }, data: { bajaOpenKeyEn: ahora } });
       }
       // Anulado en OpenKey y todavía disponible acá: se anula (no se puede usar). Si ya está USADO
-      // no se toca: sale como alerta en la conciliación.
+      // no se toca: sale como alerta en la conciliación. Una foto vieja tampoco anula.
       const anuladosPorOpenKey = anul.length
-        ? (await tx.voucher.findMany({ where: { tenantId, numero: { in: anul }, estado: "DISPONIBLE" }, select: { numero: true } })).map(
-            (v) => v.numero,
-          )
+        ? (
+            await tx.voucher.findMany({
+              where: { tenantId, numero: { in: anul }, estado: "DISPONIBLE", AND: [vigente] },
+              select: { numero: true },
+            })
+          ).map((v) => v.numero)
         : [];
       if (anuladosPorOpenKey.length) {
         await tx.voucher.updateMany({
@@ -415,7 +440,16 @@ export type ResultadoImportacionLiquidacion = {
  */
 export async function importarLiquidacionOpenKey(tenantId: string, args: ImportarLiquidacionArgs): Promise<ResultadoImportacionLiquidacion> {
   const ahora = new Date();
-  const filas = args.filas.map((f) => ({ ...f, numero: normalizarNumero(f.numero) }));
+  // Fecha imposible (la RPA no pasa por el lector del CSV): esa fila se rechaza con su renglón y
+  // el resto se importa, en vez de tumbar la corrida entera.
+  const erroresDeLectura = [...(args.erroresDeLectura ?? [])];
+  const filas = args.filas.flatMap((f, i) => {
+    if (f.fecha && leerFecha(f.fecha) !== f.fecha) {
+      erroresDeLectura.push({ linea: i + 1, motivo: `Fecha imposible «${f.fecha}» para el voucher ${f.numero}: esa fila no se importó.` });
+      return [];
+    }
+    return [{ ...f, numero: normalizarNumero(f.numero) }];
+  });
   const numeros = filas.map((f) => f.numero);
   return tenantTransaction(
     async (tx) => {
@@ -447,7 +481,7 @@ export async function importarLiquidacionOpenKey(tenantId: string, args: Importa
           })
         ).count;
       }
-      const resumen = { tipo: "LIQUIDACION", filas: filas.length, marcados, erroresDeLectura: args.erroresDeLectura ?? [], ...conciliacion };
+      const resumen = { tipo: "LIQUIDACION", filas: filas.length, marcados, erroresDeLectura, ...conciliacion };
       const fila = await tx.voucherConciliacion.create({
         data: { tenantId, fecha: ahora, origen: args.origen, resumen: resumen as Prisma.InputJsonValue, creadoPor: args.actor },
         select: { id: true },

@@ -175,7 +175,7 @@ test("el cobro con voucher es un Collection VOUCHER por el saldo: no mueve el ef
   assert.deepEqual(turnoDespues, { priceAtBooking: 14000, discountAmount: 0 }, "el precio del turno no se toca");
 
   const despues = await cierre();
-  assert.deepEqual(despues.vouchersACobrar, { cantidad: 1, monto: 9000 });
+  assert.deepEqual(despues.vouchersACobrar, { cantidad: 1, monto: 9000, anulados: { cantidad: 0, monto: 0 } });
   assert.equal(despues.preview.porColumna.EFECTIVO.expected, antes.preview.porColumna.EFECTIVO.expected, "el efectivo esperado no cambia");
   assert.equal(despues.preview.total.expected, antes.preview.total.expected, "el esperado total no cambia");
 
@@ -327,6 +327,80 @@ test("la foto de OpenKey y su liquidación concilian y dejan su VoucherConciliac
   assert.deepEqual(l.conciliacion.liquidadoSinCobro, [libre]);
   const v = await duenio.voucher.findFirstOrThrow({ where: { numero: usado }, select: { montoLiquidado: true, liquidacionRef: true, liquidadoEn: true } });
   assert.deepEqual([v.montoLiquidado?.toNumber(), v.liquidacionRef, Boolean(v.liquidadoEn)], [13000, "LIQ-1", true]);
+});
+
+test("cobro con voucher que OpenKey ya liquidó: la anulación se rechaza con su motivo y el voucher sigue USADO", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const lia = await s.a.cliente("Lía");
+  const turno = await s.a.turno(lia);
+  const numero = await s.a.voucher(lia);
+  const r = await cobrar(s, numero, turno);
+  const { importarLiquidacionOpenKey } = await repo();
+  await importarLiquidacionOpenKey(s.base.a.id, { filas: [{ numero, monto: 14000, fecha: null, referencia: "LIQ-A" }], origen: "MANUAL", actor: "u" });
+  const { AnulacionRechazada, mensajeAnulacionRechazada } = await import("@/lib/turnos/anulacion");
+  await assert.rejects(anular(s, turno, r.collectionId), (e: unknown) => e instanceof AnulacionRechazada && e.motivo === "voucher-liquidado");
+  assert.match(mensajeAnulacionRechazada("voucher-liquidado"), /OpenKey ya lo liquidó|ya liquidó/);
+  assert.deepEqual(await estado(s, numero), { estado: "USADO", turno, cobro: r.collectionId, valor: 14000 });
+  assert.deepEqual(await cobrosVoucher(s, turno), [14000], "no quedó contrapartida");
+});
+
+test("foto de OpenKey: una más vieja que la vigente no pisa; una DISPONIBLE no borra la baja de un USADO", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const flor = await s.a.cliente("Flor");
+  const turno = await s.a.turno(flor);
+  const usado = await s.a.voucher(flor);
+  const libre = await s.a.voucher(flor);
+  const r = await cobrar(s, usado, turno);
+  const { importarFotoOpenKey } = await repo();
+  const foto = (filas: { numero: string; estado: "DISPONIBLE" | "USADO" | "ANULADO" }[], fechaFoto?: Date) =>
+    importarFotoOpenKey(s.base.a.id, { filas: filas.map((f) => ({ ...f, lote: null, documento: null })), origen: "MANUAL", actor: "u", fechaFoto });
+  const leer = async (numero: string) =>
+    duenio.voucher.findFirstOrThrow({ where: { numero, tenantId: s.base.a.id }, select: { estado: true, estadoOpenKey: true, bajaOpenKeyEn: true } });
+
+  // La baja del usado y del libre, con la foto de hoy.
+  await foto([{ numero: usado, estado: "USADO" }, { numero: libre, estado: "USADO" }]);
+  const bajaUsado = (await leer(usado)).bajaOpenKeyEn;
+  assert.ok(bajaUsado);
+  // Foto de ayer (más vieja) DISPONIBLE / ANULADO: no toca nada.
+  await foto([{ numero: usado, estado: "DISPONIBLE" }, { numero: libre, estado: "ANULADO" }], new Date(Date.now() - DIA));
+  assert.deepEqual(await leer(usado), { estado: "USADO", estadoOpenKey: "BAJA", bajaOpenKeyEn: bajaUsado });
+  const libreTrasVieja = await leer(libre);
+  assert.deepEqual([libreTrasVieja.estado, libreTrasVieja.estadoOpenKey, Boolean(libreTrasVieja.bajaOpenKeyEn)], ["DISPONIBLE", "BAJA", true]);
+  // Foto nueva DISPONIBLE: el USADO conserva la baja (y la anulación sigue frenada); el libre sí se limpia.
+  await foto([{ numero: usado, estado: "DISPONIBLE" }, { numero: libre, estado: "DISPONIBLE" }]);
+  const u = await leer(usado);
+  assert.deepEqual([u.estadoOpenKey, u.bajaOpenKeyEn?.getTime()], ["DISPONIBLE", bajaUsado.getTime()]);
+  assert.equal((await leer(libre)).bajaOpenKeyEn, null);
+  const { AnulacionRechazada } = await import("@/lib/turnos/anulacion");
+  await assert.rejects(anular(s, turno, r.collectionId), (e: unknown) => e instanceof AnulacionRechazada && e.motivo === "voucher-con-baja");
+});
+
+test("liquidación con una fecha imposible: esa fila se rechaza con su renglón y el resto se importa", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const gabi = await s.a.cliente("Gabi");
+  const malo = await s.a.voucher(gabi);
+  const bueno = await s.a.voucher(gabi);
+  const { importarLiquidacionOpenKey } = await repo();
+  const l = await importarLiquidacionOpenKey(s.base.a.id, {
+    filas: [
+      { numero: malo, monto: 100, fecha: "2026-13-45", referencia: "X" },
+      { numero: bueno, monto: 200, fecha: "2026-11-05", referencia: "X" },
+    ],
+    origen: "RPA",
+    actor: "u",
+  });
+  assert.equal(l.marcados, 1);
+  const resumen = (await duenio.voucherConciliacion.findUniqueOrThrow({ where: { id: l.conciliacionId }, select: { resumen: true } })).resumen as {
+    erroresDeLectura: { linea: number }[];
+  };
+  assert.deepEqual(resumen.erroresDeLectura.map((e) => e.linea), [1]);
+  const [vm, vb] = await Promise.all([malo, bueno].map((numero) => duenio.voucher.findFirstOrThrow({ where: { numero }, select: { liquidadoEn: true } })));
+  assert.deepEqual([vm.liquidadoEn, Boolean(vb.liquidadoEn)], [null, true]);
 });
 
 test("la Server Action: apagada rechaza sin escribir; prendida cobra con la recepción", async (t) => {

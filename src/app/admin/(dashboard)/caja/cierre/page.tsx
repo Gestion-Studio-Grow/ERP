@@ -13,6 +13,8 @@
 // escrituras interactivas (ver el encabezado de LibroForms.tsx).
 
 import Link from "next/link";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
+import { vouchersPrendidos } from "@/cambios/interruptores";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
 import { getCierreDiarioData } from "@/lib/cierre-diario-actions";
@@ -80,14 +82,17 @@ export default async function CierreCajaPage({
   await requireApp("cierre-del-dia");
   const { dia } = await searchParams;
   // «Diseño nuevo»: la lectura de interruptores del layout (cacheada), a la par de los datos.
-  const [data, nuevo, practica] = await Promise.all([
+  const [data, nuevo, practica, interruptores] = await Promise.all([
     // `esperadoALaVista`: el cierre del día es el arqueo de quien puede cerrar y recibe el efectivo
     // del libro aunque el negocio arquee a ciegas (cert F7). Si recepción tampoco debe verlo acá,
     // lo decide el dueño (observación del dictamen M1 v3).
     getCierreDiarioData(dia, { conTurnosSinCerrar: true, esperadoALaVista: true }),
     disenoNuevo(),
     agendaPractica(),
+    // CH · vouchers: el enlace al reporte (lectura cacheada por pedido, la misma del layout).
+    interruptoresDelNegocio(),
   ]);
+  const conVouchers = vouchersPrendidos(interruptores);
   // DISEÑO NUEVO («Renglón»): contar primero y cerrar deslizando. Mismos datos, mismas acciones.
   if (nuevo) {
     // La regla del día cerrado, sólo en un mostrador (reglas-a-la-vista.ts): CH no cambia.
@@ -140,6 +145,11 @@ export default async function CierreCajaPage({
         <Link href="/admin/caja/libro" className="ml-auto inline-flex min-h-11 items-center text-sm text-accent-ink hover:underline sm:min-h-0">
           Ver el libro del mes →
         </Link>
+        {conVouchers && (
+          <Link href="/admin/vouchers" className="inline-flex min-h-11 items-center text-sm text-accent-ink hover:underline sm:min-h-0">
+            Vouchers de La Alameda →
+          </Link>
+        )}
       </nav>
 
       {/* Un día cerrado muestra SU COMPROBANTE, no un panel vacío. El QA encontró que
@@ -293,8 +303,15 @@ export default async function CierreCajaPage({
         {!yaCerrado && data.vouchersACobrar && (
           <p className="border-t border-line px-4 py-3 text-sm text-muted" data-testid="cierre-vouchers">
             <span className="font-medium text-strong">{ETIQUETA_VOUCHER_DEL_CIERRE}</span>: {data.vouchersACobrar.cantidad} por{" "}
-            <span className="tabular-nums">{fmtMoneyARS(data.vouchersACobrar.monto)}</span>, a cobrar a OpenKey. No está en el
-            cajón ni en el esperado: no se cuenta.
+            <span className="tabular-nums">{fmtMoneyARS(data.vouchersACobrar.monto)}</span>, a cobrar a OpenKey.
+            {data.vouchersACobrar.anulados.cantidad > 0 && (
+              <>
+                {" "}
+                {data.vouchersACobrar.anulados.cantidad} {data.vouchersACobrar.anulados.cantidad === 1 ? "anulado" : "anulados"} por{" "}
+                <span className="tabular-nums">{fmtMoneyARS(data.vouchersACobrar.anulados.monto)}</span>.
+              </>
+            )}{" "}
+            No está en el cajón ni en el esperado: no se cuenta.
           </p>
         )}
       </Card>

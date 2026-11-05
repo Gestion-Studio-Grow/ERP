@@ -137,21 +137,30 @@ export function cashMethodFromPaymentMethod(paymentMethod: string, transferencia
 // Un cobro con voucher (`PaymentMethod.VOUCHER`, src/lib/vouchers) no es plata que entra al
 // cajón: `cashMethodFromPaymentMethod` no lo traduce (devuelve null) y el libro no lo asienta. El
 // cierre lo muestra como renglón propio, «Voucher», a cobrar a OpenKey: NUNCA se suma al efectivo,
-// a otra columna ni al esperado. Las anulaciones son filas negativas del mismo medio. PURA.
+// a otra columna ni al esperado. Las anulaciones son filas negativas del mismo medio y se cuentan
+// APARTE: neteadas, anular hoy un voucher de ayer escondería los cobrados hoy. PURA.
 
 export const ETIQUETA_VOUCHER_DEL_CIERRE = "Voucher";
 
-export type VouchersDelCierre = { cantidad: number; monto: number };
+/** `cantidad`/`monto`: vouchers cobrados en el período. `anulados`: reversas del período (monto en positivo). */
+export type VouchersDelCierre = { cantidad: number; monto: number; anulados: { cantidad: number; monto: number } };
 
 export function vouchersDelCierre(cobros: readonly { amount: number }[]): VouchersDelCierre {
   let cantidad = 0;
   let monto = 0;
+  let anulados = 0;
+  let montoAnulado = 0;
   for (const c of cobros) {
     if (!Number.isFinite(c.amount) || c.amount === 0) continue;
-    cantidad += c.amount > 0 ? 1 : -1;
-    monto += c.amount;
+    if (c.amount > 0) {
+      cantidad += 1;
+      monto += c.amount;
+    } else {
+      anulados += 1;
+      montoAnulado -= c.amount;
+    }
   }
-  return { cantidad: Math.max(0, cantidad), monto: round2(Math.max(0, monto)) };
+  return { cantidad, monto: round2(monto), anulados: { cantidad: anulados, monto: round2(montoAnulado) } };
 }
 
 // ── Tipos del cierre ────────────────────────────────────────────────────────

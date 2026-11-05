@@ -291,14 +291,24 @@ export function leerMonto(raw: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Fecha «dd/mm/aaaa», «dd-mm-aaaa» o «aaaa-mm-dd» → «aaaa-mm-dd». null = no se entiende. */
+/**
+ * Fecha «dd/mm/aaaa», «dd-mm-aaaa» o «aaaa-mm-dd» → «aaaa-mm-dd». null = no se entiende o no
+ * existe (13/45, 30 de febrero): una fecha imposible no llega a la base.
+ */
 export function leerFecha(raw: string): string | null {
   const t = String(raw ?? "").trim();
   let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  if (m) return fechaReal(m[1], m[2], m[3]);
   m = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(t);
-  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  if (m) return fechaReal(m[3], m[2], m[1]);
   return null;
+}
+
+function fechaReal(anio: string, mes: string, dia: string): string | null {
+  const [a, m, d] = [Number(anio), Number(mes), Number(dia)];
+  const f = new Date(Date.UTC(a, m - 1, d));
+  if (f.getUTCFullYear() !== a || f.getUTCMonth() !== m - 1 || f.getUTCDate() !== d) return null;
+  return `${anio}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
 }
 
 /**
@@ -338,8 +348,13 @@ export function leerCsvLiquidacion(texto: string): LecturaLiquidacion {
       errores.push({ linea: i + 1, motivo: `El voucher ${numero} está repetido en la liquidación: vale la primera fila.` });
       continue;
     }
+    const crudaFecha = iFecha >= 0 ? (celdas[iFecha] ?? "").trim() : "";
+    const fecha = crudaFecha ? leerFecha(crudaFecha) : null;
+    if (crudaFecha && !fecha) {
+      errores.push({ linea: i + 1, motivo: `Fecha imposible «${crudaFecha}» para el voucher ${numero}: esa fila no se importó.` });
+      continue;
+    }
     vistos.add(numero);
-    const fecha = iFecha >= 0 ? leerFecha(celdas[iFecha] ?? "") : null;
     const referencia = iRef >= 0 ? (celdas[iRef] ?? "").trim() || null : null;
     filas.push({ numero, monto, fecha, referencia });
   }

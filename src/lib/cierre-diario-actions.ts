@@ -266,7 +266,7 @@ async function vouchersDelPeriodo(tenantId: string, start: Date, end: Date): Pro
       select: { amount: true },
     });
     const r = vouchersDelCierre(filas.map((f) => ({ amount: f.amount.toNumber() })));
-    return r.cantidad === 0 && r.monto === 0 ? null : r;
+    return r.cantidad === 0 && r.anulados.cantidad === 0 ? null : r;
   } catch {
     return null;
   }

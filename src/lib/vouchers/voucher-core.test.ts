@@ -68,6 +68,19 @@ test("leerCsvLiquidacion · montos y fechas argentinas, errores por línea", () 
   assert.equal(leerFecha("5-1-2026"), "2026-01-05");
 });
 
+test("leerCsvLiquidacion · fecha imposible: esa fila se rechaza con su renglón, el resto se importa", () => {
+  assert.equal(leerFecha("2026-13-45"), null);
+  assert.equal(leerFecha("30/02/2026"), null);
+  assert.equal(leerFecha("29/02/2028"), "2028-02-29");
+  const r = leerCsvLiquidacion("numero;monto;fecha\nV1;100;2026-13-45\nV2;200;05/11/2026\nV3;300;\nV4;400;30/02/2026\n");
+  assert.deepEqual(r.filas, [
+    { numero: "V2", monto: 200, fecha: "2026-11-05", referencia: null },
+    { numero: "V3", monto: 300, fecha: null, referencia: null },
+  ]);
+  assert.deepEqual(r.errores.map((e) => e.linea), [2, 5]);
+  assert.match(r.errores[0].motivo, /2026-13-45.*V1/);
+});
+
 test("conciliarLiquidacion · cobrado sin liquidar (con antigüedad), liquidado sin cobro, monto distinto", () => {
   const r = conciliarLiquidacion(
     [
@@ -185,8 +198,22 @@ test("VOUCHER no tiene columna en el libro y el cierre lo cuenta aparte (anulaci
   assert.equal(cashMethodFromPaymentMethod("VOUCHER"), null);
   assert.equal(cashMethodFromPaymentMethod("VOUCHER", true), null);
   assert.deepEqual(cobroTurnoEligibility({ status: "APPROVED", paymentMethod: "VOUCHER", amount: 9000 }), { eligible: false, reason: "unsupported-method" });
-  assert.deepEqual(vouchersDelCierre([{ amount: 9000 }, { amount: 14000 }, { amount: -14000 }]), { cantidad: 1, monto: 9000 });
-  assert.deepEqual(vouchersDelCierre([]), { cantidad: 0, monto: 0 });
+  assert.deepEqual(vouchersDelCierre([{ amount: 9000 }, { amount: 14000 }, { amount: -14000 }]), {
+    cantidad: 2,
+    monto: 23000,
+    anulados: { cantidad: 1, monto: 14000 },
+  });
+  assert.deepEqual(vouchersDelCierre([]), { cantidad: 0, monto: 0, anulados: { cantidad: 0, monto: 0 } });
+});
+
+test("cierre · anular hoy un voucher de ayer no esconde los cobrados hoy", async () => {
+  const { vouchersDelCierre } = await import("@/lib/caja/cierre-diario");
+  assert.deepEqual(vouchersDelCierre([{ amount: -14000 }, { amount: 9000 }]), {
+    cantidad: 1,
+    monto: 9000,
+    anulados: { cantidad: 1, monto: 14000 },
+  });
+  assert.deepEqual(vouchersDelCierre([{ amount: -14000 }, { amount: 9000 }, { amount: 5000 }]).cantidad, 2);
 });
 
 test("aplicarCobroTurnoInTx rechaza un VOUCHER suelto (sin la clave voucher:<id>) antes de tocar la base", async () => {
