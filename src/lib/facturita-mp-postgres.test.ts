@@ -142,3 +142,36 @@ test("renovación: un solo renovador gana; MP rechaza → «hay que volver a con
   // El negocio B no se enteró de nada.
   assert.deepEqual(await s.mp.estadoMPDelNegocio(s.base.b.id), { conectado: false });
 });
+
+test("certificación M1/M2: reemplazar y desconectar no dejan secretos ni bloquean la cuenta de MP", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { a, b } = s.base;
+  const cfg = s.mp.conexionMPDisponible(env)!;
+  await s.mp.desconectarMP(a.id, a.duenia.id);
+  await s.mp.desconectarMP(b.id, b.duenia.id);
+  // A conecta 333333 y después la reemplaza por 444444: de la vieja no queda ninguna credencial.
+  assert.deepEqual(await s.mp.guardarConexionMP(a.id, a.duenia.id, tokens("333333", "m1"), cfg, env), { ok: true });
+  assert.deepEqual(await s.mp.guardarConexionMP(a.id, a.duenia.id, tokens("444444", "m1b"), cfg, env), { ok: true });
+  assert.equal(await s.duenio.integracionCredencial.count({ where: { tenantId: a.id } }), 3, "sólo las de la conexión vigente");
+  // La cuenta reemplazada queda libre: B la puede conectar.
+  assert.deepEqual(await s.mp.guardarConexionMP(b.id, b.duenia.id, tokens("333333", "m2"), cfg, env), { ok: true });
+  // A desconecta: cero credenciales y 444444 queda libre para B.
+  await s.mp.desconectarMP(a.id, a.duenia.id);
+  assert.equal(await s.duenio.integracionCredencial.count({ where: { tenantId: a.id } }), 0);
+  assert.deepEqual(await s.mp.guardarConexionMP(b.id, b.duenia.id, tokens("444444", "m2b"), cfg, env), { ok: true });
+  assert.equal((await s.mp.estadoMPDelNegocio(b.id)).conectado, true);
+  assert.deepEqual(await s.mp.estadoMPDelNegocio(a.id), { conectado: false });
+});
+
+test("renovación: un 5xx o 429 de MP no pide reconectar (es pasajero)", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { a } = s.base;
+  const cfg = s.mp.conexionMPDisponible(env)!;
+  await s.mp.guardarConexionMP(a.id, a.duenia.id, tokens("555555", "p", 5), cfg, env);
+  const caido: PedirMP = async () => ({ ok: false, status: 503, json: async () => ({}) });
+  assert.equal(await s.mp.renovarMPSiHaceFalta(a.id, { env, pedir: caido, ahora: AHORA }), "fallo");
+  const e = await s.mp.estadoMPDelNegocio(a.id);
+  assert.ok(e.conectado && e.problema === "ninguno");
+});
