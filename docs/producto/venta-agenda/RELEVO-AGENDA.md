@@ -16,7 +16,7 @@ Cierre por techo de contexto (CLAUDE.md). Todo pedido por el dueño en la sesió
 
 ## En curso al cerrar (agentes con push a su rama; revisar el último commit)
 - `claude/ch-servicio-completo`: alta de servicio con precio a definir, tiempo en agenda (`calendarMin`), seña %, modalidad, tipo (regular/cupos/recurrente), aclaración de recordatorio, hasta 4 imágenes (patrón `InmoFoto`). **Lleva migración aditiva sin aplicar → no va a main sin OK del dueño (Gate 2).** Brief en el commit/rama.
-- `claude/ch-liquidacion-comisiones`: diseño `docs/producto/comisiones/LIQUIDACION.md` (f41ea8f) y T1 sin migración en construcción; T1 y T2 son plata → `gsg-certificador`.
+- `claude/ch-liquidacion-comisiones`: diseño `docs/producto/comisiones/LIQUIDACION.md` (f41ea8f) y **T1 hecha (a3c0dca, 2a6af4a)**: período (`src/lib/comisiones/periodo.ts:156`, usado por `settleCommissions` `commission-actions.ts:200`), vista previa (`vista-previa.ts:57`), comprobante WA, «Mi liquidación» (`commissions:read-own`). 15/15 puros + 1/1 postgres; suite 8008/8019 (las 9 fallas también fallan en main). **Falta la certificación adversarial del diff antes de integrar** (diff en el scratchpad de la sesión, `qa-comisiones/t1.diff`; regenerable con `git diff origin/main...origin/claude/ch-liquidacion-comisiones -- src`). Pendientes: período MES provisional; turnos de períodos anteriores entran marcados; zona horaria fija AR.
 
 ## Falta
 - QA de todos los botones sobre el build de `main`: la corrida parcial (recepción, 1366: 44/49 OK, consola limpia) marcó 5 a verificar: hueco «no hay huecos» (corrió de noche), Mover desde el cajón (timeout), arrastrar no movió, buscar en Clientes sin resultados, abrir ficha (timeout). Corrió con build viejo.
