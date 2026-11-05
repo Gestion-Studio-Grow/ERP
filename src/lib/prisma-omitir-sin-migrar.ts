@@ -19,4 +19,5 @@ export const OMITIR_SIN_MIGRAR = {
   professional: { aliasCbu: true, titularCuenta: true, cuitTitular: true, boxRentAmount: true, rentPercent: true },
   service: { depositToProfessional: true },
   appointment: { settlementId: true },
+  box: { soloDiasAbiertos: true },
 } as const;

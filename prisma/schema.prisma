@@ -222,6 +222,7 @@ model Tenant {
   businessSettings          BusinessSettings?
   commissionPayouts         CommissionPayout[]
   professionalSettlements   ProfessionalSettlement[] // Box Nail Artist (docs/tenants/ch/NAIL-ARTIST.md §5)
+  boxDiasAbiertos           BoxDiaAbierto[] // Box Nail Artist: días que el box abre (NAIL-ARTIST.md §2)
   waitlistEntries           WaitlistEntry[]
   tallerVehiculos           TallerVehiculo[] // módulo taller
   tallerOrdenes             TallerOrden[]
@@ -510,18 +511,37 @@ model ServiceCategory {
 }
 
 model Box {
-  id            String         @id @default(cuid())
-  tenant        Tenant         @relation(fields: [tenantId], references: [id])
-  tenantId      String
-  name          String
-  active        Boolean        @default(true)
-  deletedAt     DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  professionals Professional[]
-  appointments  Appointment[]
-  blocks        BoxBlock[]
+  id               String          @id @default(cuid())
+  tenant           Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId         String
+  name             String
+  active           Boolean         @default(true)
+  deletedAt        DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  professionals    Professional[]
+  appointments     Appointment[]
+  blocks           BoxBlock[]
+  // Box «Nail Artist» (docs/tenants/ch/NAIL-ARTIST.md §2): sólo ofrece turnos los días abiertos
+  // (BoxDiaAbierto). Migración 20261105120000_nail_artist, sin aplicar: va en el omit global.
+  soloDiasAbiertos Boolean         @default(false)
+  diasAbiertos     BoxDiaAbierto[]
 
+  @@index([tenantId])
+}
+
+// Día en que un box con `soloDiasAbiertos` abre (fecha de pared del negocio). RLS por tenant.
+model BoxDiaAbierto {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  box       Box      @relation(fields: [boxId], references: [id], onDelete: Cascade)
+  boxId     String
+  fecha     DateTime @db.Date
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@unique([boxId, fecha])
   @@index([tenantId])
 }
 

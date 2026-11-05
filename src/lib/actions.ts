@@ -27,6 +27,8 @@ import { anulacionDeCobro, roleHasCapability, type AnulacionDeCobro } from "@/li
 import { autorizadoraDeLaAnulacion, codigoDeLaDuena, type ResultadoAutorizacion } from "@/lib/anulacion-autorizada";
 import { recordMovement } from "@/lib/stock/ledger";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
+import { assertBoxAbreEseDia, reglaDelBox } from "@/lib/turnos/box-dias.server";
+import { boxAbreEseDia } from "@/lib/turnos/box-dias";
 import { generateSlotsForDays } from "@/lib/booking-slots";
 import { validateBookingContact } from "@/lib/contact-validation";
 import { isInvoicingEnabled } from "@/lib/fiscal";
@@ -194,6 +196,12 @@ export async function getAvailableSlotsRange(
       dayStart: businessWallTimeToUtc(date, hours.startTime),
       dayEnd: businessWallTimeToUtc(date, hours.endTime),
     });
+  }
+  // Box que abre sólo los días que CH elige (NAIL-ARTIST.md §2): los demás días no ofrecen nada.
+  // Resta días, nunca agrega horas. Interruptor `nail-artist` apagado → regla null, igual que hoy.
+  if (windows.size > 0 && professional.boxId) {
+    const regla = await reglaDelBox(professional.tenantId, professional.boxId, [...windows.keys()]);
+    for (const date of [...windows.keys()]) if (!boxAbreEseDia(regla, date)) windows.delete(date);
   }
   if (windows.size === 0) return result;
 
@@ -374,6 +382,8 @@ async function bookAppointment({
   if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
     throw new RechazoDeDominio("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
   }
+  // El box de uñas abre sólo los días elegidos: el servidor no confía en las franjas ofrecidas.
+  await assertBoxAbreEseDia(tenantId, boxId, dateStr);
 
   // La frontera de la caja se lee sólo si hay plata en juego (un turno sin seña no la toca).
   const cerradoHasta = cobroInicial && cobroInicial.monto > 0 ? await lastClosedDay(tenantId) : null;
@@ -1060,6 +1070,7 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
   if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
     throw new RechazoDeDominio("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
   }
+  await assertBoxAbreEseDia(tenantId, boxId, dateStr);
 
   await bookingTransaction(async (tx) => {
     await assertSlotAvailable(tx, {

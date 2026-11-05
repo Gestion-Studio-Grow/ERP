@@ -12,6 +12,7 @@ import {
 import { useToast } from "../ToastProvider";
 import { fmtShortDate } from "@/lib/datetime";
 import { buttonClasses } from "@/components/ui";
+import DiasDelBox, { type DiasDelBoxDatos } from "./DiasDelBox";
 
 type BoxBlock = { id: string; startsAt: Date; endsAt: Date; reason: string };
 type Box = { id: string; name: string; active: boolean; blocks: BoxBlock[] };
@@ -20,7 +21,7 @@ function fmt(d: Date) {
   return fmtShortDate(d);
 }
 
-function BoxRow({ box }: { box: Box }) {
+function BoxRow({ box, dias }: { box: Box; dias?: DiasDelBoxDatos }) {
   const [editing, setEditing] = useState(false);
   const [blocking, setBlocking] = useState(false);
   // Confirmación en dos pasos (patrón GSG, como EmitirFacturas) — nada de
@@ -160,6 +161,8 @@ function BoxRow({ box }: { box: Box }) {
         </div>
       )}
 
+      {dias && <DiasDelBox key={dias.mes} boxId={box.id} boxName={box.name} datos={dias} />}
+
       {blocking && (
         <form
           action={async (fd) => {
@@ -205,7 +208,9 @@ function BoxRow({ box }: { box: Box }) {
   );
 }
 
-export default function BoxesSection({ boxes }: { boxes: Box[] }) {
+// `diasDelBox`: sólo para la dueña con el interruptor `nail-artist` (y la migración aplicada); si
+// no viene, la sección queda igual que siempre.
+export default function BoxesSection({ boxes, diasDelBox }: { boxes: Box[]; diasDelBox?: Record<string, DiasDelBoxDatos> | null }) {
   return (
     <section>
       <h2 className="text-lg font-medium mb-1">Boxes</h2>
@@ -215,7 +220,7 @@ export default function BoxesSection({ boxes }: { boxes: Box[] }) {
       </p>
       <div className="space-y-2 mb-3">
         {boxes.map((b) => (
-          <BoxRow key={b.id} box={b} />
+          <BoxRow key={b.id} box={b} dias={diasDelBox?.[b.id]} />
         ))}
         {boxes.length === 0 && (
           <p className="text-sm text-muted">No hay boxes cargados todavía.</p>

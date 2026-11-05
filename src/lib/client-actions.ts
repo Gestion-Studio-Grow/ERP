@@ -9,6 +9,7 @@ import { mensajeParaLaClienta } from "@/lib/reserva-publica-mensaje";
 import { auditPublic } from "@/lib/audit-core";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
+import { assertBoxAbreEseDia } from "@/lib/turnos/box-dias.server";
 import { getPublicBookingData, type ResultadoAccion } from "@/lib/actions";
 import { requireCapability } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
@@ -193,6 +194,8 @@ async function reprogramarMiTurno(formData: FormData): Promise<void> {
   if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
     throw new RechazoDeDominio("Ese horario no está disponible. Elegí otro.");
   }
+  // El box de uñas abre sólo los días elegidos (NAIL-ARTIST.md §2).
+  await assertBoxAbreEseDia(appointment.tenantId, boxId, dateStr);
 
   await bookingTransaction(async (tx) => {
     await assertSlotAvailable(tx, {

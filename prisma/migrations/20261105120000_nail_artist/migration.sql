@@ -45,3 +45,26 @@ DROP POLICY IF EXISTS tenant_isolation ON "ProfessionalSettlement";
 CREATE POLICY tenant_isolation ON "ProfessionalSettlement"
   USING ("tenantId" = current_setting('app.current_tenant_id', true))
   WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+
+-- Box que abre SÓLO los días que CH elige (NAIL-ARTIST.md §2): la manicura no va todos los días.
+ALTER TABLE "Box" ADD COLUMN IF NOT EXISTS "soloDiasAbiertos" BOOLEAN NOT NULL DEFAULT false;
+
+CREATE TABLE "BoxDiaAbierto" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "boxId" TEXT NOT NULL,
+  "fecha" DATE NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "createdBy" TEXT NOT NULL,
+  CONSTRAINT "BoxDiaAbierto_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "BoxDiaAbierto_boxId_fecha_key" ON "BoxDiaAbierto"("boxId", "fecha");
+CREATE INDEX "BoxDiaAbierto_tenantId_idx" ON "BoxDiaAbierto"("tenantId");
+ALTER TABLE "BoxDiaAbierto" ADD CONSTRAINT "BoxDiaAbierto_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "BoxDiaAbierto" ADD CONSTRAINT "BoxDiaAbierto_boxId_fkey" FOREIGN KEY ("boxId") REFERENCES "Box"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "BoxDiaAbierto" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "BoxDiaAbierto";
+CREATE POLICY tenant_isolation ON "BoxDiaAbierto"
+  USING ("tenantId" = current_setting('app.current_tenant_id', true))
+  WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));

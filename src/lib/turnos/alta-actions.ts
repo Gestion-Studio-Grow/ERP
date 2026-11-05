@@ -25,6 +25,8 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { auditAdmin } from "@/lib/audit-core";
 import { tenantTransaction } from "@/lib/rls";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
+import { reglaDelBox } from "./box-dias.server";
+import { boxAbreEseDia } from "./box-dias";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { createManualAppointment } from "@/lib/actions";
@@ -142,6 +144,7 @@ export async function libresAhora(servicioId: string): Promise<LibresAhora> {
   for (const p of servicio.professionals) {
     const ventana = await getWorkingWindow(p.id, dia);
     if (!ventana || inicio < ventana.dayStart || fin > ventana.dayEnd) continue;
+    if (!boxAbreEseDia(await reglaDelBox(tenantId, p.boxId, [dia]), dia)) continue;
     try {
       await tenantTransaction(
         (tx) => assertSlotAvailable(tx, { professionalId: p.id, boxId: p.boxId as string, serviceId: servicio.id, startsAt: inicio, endsAt: fin }),

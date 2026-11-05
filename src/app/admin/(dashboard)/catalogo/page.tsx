@@ -15,6 +15,10 @@ import { hrefMovimientos } from "@/lib/inventario/movimientos";
 import { PageHeader, buttonClasses, fmtNumberAR } from "@/components/ui";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import BoxesSection from "./BoxesSection";
+import type { DiasDelBoxDatos } from "./DiasDelBox";
+import { diasAbiertosDelMes } from "@/lib/turnos/box-dias.server";
+import { esMesValido, rangoDelMes } from "@/lib/turnos/box-dias";
+import { todayInBusinessTz } from "@/lib/datetime";
 import ServicesSection from "./ServicesSection";
 import ProfessionalsSection from "./ProfessionalsSection";
 import ProductsSection from "./ProductsSection";
@@ -224,6 +228,16 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
     );
   }
 
+  // Box «Nail Artist»: días que abre el box (NAIL-ARTIST.md §2). Sólo la dueña, con el interruptor.
+  let diasDelBox: Record<string, DiasDelBoxDatos> | null = null;
+  if (nailArtist && user.role === "OWNER") {
+    const pedido = (await searchParams).diasMes;
+    const mes = typeof pedido === "string" && esMesValido(pedido) ? pedido : todayInBusinessTz().slice(0, 7);
+    const { desde, hasta } = rangoDelMes(mes);
+    const filas = await diasAbiertosDelMes(await getCurrentTenantId(), desde, hasta);
+    if (filas) diasDelBox = Object.fromEntries(filas.map((f) => [f.boxId, { mes, soloDiasAbiertos: f.soloDiasAbiertos, abiertos: f.abiertos }]));
+  }
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
       <h1 className="text-2xl font-semibold mb-1">Catálogo</h1>
@@ -232,7 +246,7 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
       </p>
 
       <div className="space-y-10">
-        <BoxesSection boxes={boxes} />
+        <BoxesSection boxes={boxes} diasDelBox={diasDelBox} />
         <ServicesSection
           services={services}
           products={products}
