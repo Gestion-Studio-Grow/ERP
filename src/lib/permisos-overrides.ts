@@ -1,6 +1,6 @@
 // Lectura tolerante de los overrides de la matriz de permisos (PLAN permisos §1, riesgo 6).
 //
-// La migración `20261105120000_user_permission_override` puede no estar aplicada en prod (Gate 2).
+// La migración `20261105121000_user_permission_override` puede no estar aplicada en prod (Gate 2).
 // Sin la tabla, Prisma tira P2021 (tabla) o P2022 (columna): ahí vale el default del rol (`[]`) y la
 // app arranca igual. CUALQUIER otro error se relanza: tragarlo dejaría a alguien con un permiso
 // que la dueña le apagó (una caída de la base no puede devolver «sin excepciones»).
