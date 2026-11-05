@@ -42,7 +42,7 @@ export function noEncontradaPara(ruta: string | null | undefined, nuevo: boolean
     };
   }
   if (bajo(r, "/facturita")) {
-    return { superficie: "negocio", enlaces: [{ href: "/facturita/app", etiqueta: "Volver a Facturita" }] };
+    return { superficie: "negocio", enlaces: [{ href: "/facturita/app", etiqueta: "Volver a Factoque" }] };
   }
   return null;
 }

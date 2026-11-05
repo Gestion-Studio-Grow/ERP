@@ -14,8 +14,8 @@ import AltaAsistente from "./AltaAsistente";
 export const dynamic = "force-static";
 
 export const metadata: Metadata = {
-  title: "Empezá gratis — Facturita",
-  description: "Pedí tu Facturita en cinco pasos cortos: tu CUIT, cómo estás inscripto y tu punto de venta.",
+  title: "Empezá gratis — Factoque",
+  description: "Pedí tu Factoque en cinco pasos cortos: tu CUIT, cómo estás inscripto y tu punto de venta.",
   generator: "Gestión Studio Grow",
 };
 
