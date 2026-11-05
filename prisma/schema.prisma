@@ -264,6 +264,8 @@ model Tenant {
   proyectoConfig            ProyectoConfig?
   inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                 InmoFoto[]
+  serviceDetails            ServiceDetail[]
+  serviceFotos              ServiceFoto[]
   inmoConsultas             InmoConsulta[]
   inmoContratos             InmoContrato[]
   inmoAjustes               InmoAjuste[]
@@ -627,6 +629,12 @@ model Service {
   resources          ServiceResource[]
   serviceCommissions ProfessionalServiceCommission[]
   waitlistEntries    WaitlistEntry[]
+  // Ficha completa (20261104120000_servicio_completo): va en tablas aparte y NO en columnas de
+  // Service a propósito. Una columna nueva acá entra en cada lectura de Service sin `select`
+  // (reserva, agenda, catálogo) y, mientras la migración no esté aplicada, las rompería todas
+  // con P2022. Con la tabla aparte, sin la migración todo sigue como hoy (src/lib/servicios).
+  detail             ServiceDetail?
+  fotos              ServiceFoto[]
   createdAt          DateTime                        @default(now())
   updatedAt          DateTime                        @updatedAt
 
@@ -639,6 +647,63 @@ model Service {
 
   @@index([tenantId])
   @@index([categoryId])
+}
+
+// Cómo se presta el servicio.
+enum ServiceModality {
+  PRESENCIAL
+  ONLINE
+  DOMICILIO
+}
+
+// Tipo de servicio: turno común, fecha variable con cupo, o que se repite. Por ahora sólo se
+// guarda y se muestra; la lógica de cupos y de recurrencia es la tanda siguiente.
+enum ServiceKind {
+  REGULAR
+  CUPOS
+  RECURRENTE
+}
+
+// Lo que completa la ficha de un servicio (1 a 1 con Service). Sin fila = valores por defecto:
+// precio definido, agenda = durationMin, sin porcentaje de seña, presencial, regular, sin nota.
+model ServiceDetail {
+  id             String          @id @default(cuid())
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  service        Service         @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  serviceId      String          @unique
+  // true: el precio se fija al cobrar (Service.price queda en 0). La reserva y la agenda dicen
+  // «A definir» y el cobro pide el monto a mano.
+  priceToDefine  Boolean         @default(false)
+  // Minutos que ocupa en la agenda (preparación, limpieza). null = igual a durationMin; nunca menos.
+  calendarMin    Int?
+  // Seña como porcentaje del precio (0-100). Si está, Service.depositAmount se guarda calculado.
+  depositPercent Int?
+  modality       ServiceModality @default(PRESENCIAL)
+  kind           ServiceKind     @default(REGULAR)
+  // Aclaración que viaja en la confirmación y el recordatorio por WhatsApp (tope 280).
+  reminderNote   String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([tenantId])
+}
+
+// Foto de un servicio (hasta 4). Mismo patrón que InmoFoto: un JPEG/WebP achicado en el
+// navegador, guardado como data URL con tope de tamaño y servido por /servicios/foto/[id];
+// nunca viaja dentro de la página.
+model ServiceFoto {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  serviceId String
+  url       String
+  alt       String   @default("")
+  posicion  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, serviceId, posicion])
 }
 
 // Insumo de stock (ej. cera, crema, guantes).
