@@ -121,17 +121,25 @@ async function foto(s: Sembrado, appointmentId: string, productId: string) {
   };
 }
 
-test("apagado · sin el interruptor, no cobra ni vende nada", async (t) => {
+test("incorporado · sin tocar la consola (y con una fila vieja de «apagar») cobra el turno y la crema", async (t) => {
+  // Decisión del dueño (05/11/2026): «Venta y agenda simples» es una mejora incorporada
+  // (src/cambios/interruptores.ts): ninguna fila de la consola la apaga.
   const s = await preparar(t);
   if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const { filaDeInterruptor } = await import("@/cambios/interruptores-core");
+  const { VENTA_AGENDA_SIMPLE } = await import("@/cambios/interruptores");
+  await duenio.auditLog.create({ data: filaDeInterruptor({ tenantId: s.base.a.id, interruptor: VENTA_AGENDA_SIMPLE, accion: "apagar", operador: "test" }) });
   const { cobrarTurnoConProductos } = await import("./cobro-con-producto-actions");
-  const turno = await s.a.turno("Apagada");
-  const crema = await s.a.producto("Crema apagada", 5);
+  const turno = await s.a.turno("Sin consola");
+  const crema = await s.a.producto("Crema sin consola", 5);
   const r = await como(s.base.a, () => cobrarTurnoConProductos(campos(turno, [{ productId: crema, qty: 1 }])));
-  assert.equal(r.ok, false);
-  assert.match(r.ok ? "" : r.error, /no está prendido/);
-  assert.deepEqual(await foto(s, turno, crema), { status: "CONFIRMED", cobros: [], ordenes: 0, stock: 5, libroTurno: [], libroVenta: [], ventasDeStock: [] });
-  // Prendido de acá en adelante, en los dos negocios.
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const f = await foto(s, turno, crema);
+  assert.equal(f.status, "COMPLETED");
+  assert.equal(f.ordenes, 1);
+  assert.equal(f.stock, 4);
+  // Las filas de «prender» de siempre no cambian nada (quedan como historia).
   await prender(s, s.base.a);
   await prender(s, s.base.b);
 });

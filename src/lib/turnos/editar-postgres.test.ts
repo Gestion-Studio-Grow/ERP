@@ -287,7 +287,7 @@ test("concurrencia (cert. pase 05/11, F1): cambiar el servicio y mover a otra pr
   }
 });
 
-test("interruptor (cert. pase 05/11, F2): con «Agenda interactiva» apagada, editar se rechaza aunque el pedido llegue armado a mano", async (t) => {
+test("interruptor (cert. pase 05/11, F2) → incorporado: una fila vieja de «apagar» de «Agenda interactiva» no frena editar", async (t) => {
   const s = await preparar(t);
   if (!s) return;
   const duenio = await prismaComoDuenio(s.base);
@@ -298,9 +298,11 @@ test("interruptor (cert. pase 05/11, F2): con «Agenda interactiva» apagada, ed
   const turno = await s.turno("19:00", { minutos: 60 });
   await fila(ACCION_APAGAR);
   try {
+    // Decisión del dueño (05/11/2026): «Agenda interactiva» es una mejora incorporada; ya no hay
+    // «apagado» que frene la edición. Lo que pase después lo decide el motor de siempre (horario,
+    // choques, servicio), nunca el interruptor.
     const r = await editarValor(s, turno, { servicio: s.piernas, inicio: s.a("19:15"), profesional: s.caro });
-    assert.equal(r.ok, false);
-    assert.match(String((r as { error?: string }).error), /no está prendido/);
+    assert.doesNotMatch(String((r as { error?: string }).error ?? ""), /no está prendido/);
   } finally {
     await fila(ACCION_ENCENDER);
   }
