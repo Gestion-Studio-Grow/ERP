@@ -86,7 +86,8 @@ export function parseTenantHostMap(raw: string | undefined | null): Map<string, 
 }
 
 /**
- * Hosts `.vercel.app` publicados desde el CÓDIGO, además de `TENANT_HOST_MAP`.
+ * Hosts publicados desde el CÓDIGO (`.vercel.app` o un alias exacto bajo `gsgapp.com.ar`), además de
+ * `TENANT_HOST_MAP`.
  *
  * Por qué existen: en Vercel la variable es SENSIBLE (no se puede leer, sólo reescribir entera).
  * Sumar un tenant obligaba a reescribir a ciegas el mapa de todos, y un error dejaba sin tienda a
@@ -97,6 +98,10 @@ export function parseTenantHostMap(raw: string | undefined | null): Map<string, 
  */
 export const HOSTS_PUBLICADOS: Readonly<Record<string, string>> = {
   "quebienoles-erp.vercel.app": "quebienoles",
+  // Factoque es el nombre comercial de Facturita (decisión del dueño, 05/11/2026): su link de venta
+  // es factoque.gsgapp.com.ar y el negocio sigue siendo el subdomain «facturita». Va acá y no en
+  // TENANT_HOST_MAP porque esa variable es sensible y se reescribe entera (ver arriba).
+  "factoque.gsgapp.com.ar": "facturita",
 };
 
 /** El mapa de hosts que rige: el del código y, encima, el de `TENANT_HOST_MAP` (que gana). PURA. */

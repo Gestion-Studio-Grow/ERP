@@ -7,8 +7,8 @@
  *
  * Lo que NO hace: resolver a qué negocio pertenece el host. Eso sigue siendo `TENANT_HOST_MAP` /
  * `HOSTS_PUBLICADOS` (src/lib/tenant.ts). Para Facturita, el valor esperado en `TENANT_HOST_MAP` es
- * las entradas `factoque.gsgapp.com.ar=facturita` y `facturita-gsg.vercel.app=facturita` sumadas al valor
- * vigente, nunca en su lugar (MT-6;
+ * la entrada `facturita-gsg.vercel.app=facturita` sumada al valor vigente, nunca en su lugar; el alias
+ * `factoque.gsgapp.com.ar` → `facturita` está en el código (`HOSTS_PUBLICADOS`, src/lib/tenant.ts) (MT-6;
  * docs/runbooks/facturacion/publicacion.md).
  *
  * PURO y sin imports: lo usa el proxy (src/proxy.ts), que no puede arrastrar Prisma.

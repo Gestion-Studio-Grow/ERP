@@ -79,13 +79,13 @@ Las pega **siempre el dueño**, nunca el agente (SEC-1, ADR-041). Acá van sólo
 
 **Entrada de `TENANT_HOST_MAP` para Facturita** (el valor es `host=subdominio`, separado por `;`):
 ```
-factoque.gsgapp.com.ar=facturita;facturita-gsg.vercel.app=facturita
+facturita-gsg.vercel.app=facturita
 ```
-Abrí el valor vigente, agregale `;factoque.gsgapp.com.ar=facturita;facturita-gsg.vercel.app=facturita` al final (lo que no esté), y guardá. No lo
+Abrí el valor vigente, agregale `;facturita-gsg.vercel.app=facturita` al final si no está (`factoque.gsgapp.com.ar` ya va en el código: `HOSTS_PUBLICADOS`, `src/lib/tenant.ts`), y guardá. No lo
 reescribas de memoria: perderías los hosts de los otros negocios (MT-6). La raíz `/` de ese host ya abre
 la vidriera por código (`src/lib/producto-host.ts`); el mapa resuelve el negocio para el resto de las rutas.
 
-- [ ] Vercel → `erp-ch` → Settings → Domains: agregá `factoque.gsgapp.com.ar` (el link de venta de Factoque, 05/11/2026; si ya hay un comodín `*.gsgapp.com.ar`, alcanza con confirmarlo) y confirmá que `facturita-gsg.vercel.app` esté asignado al
+- [ ] Vercel → `erp-ch` → Settings → Domains: confirmá el comodín `*.gsgapp.com.ar` (cubre `factoque.gsgapp.com.ar`, el link de venta de Factoque, 05/11/2026; verificado el 05/11) y confirmá que `facturita-gsg.vercel.app` esté asignado al
   proyecto (runbook [golive-suite-3-productos.md §7](../golive-suite-3-productos.md)).
 
 ### 4. Merge: «deployá» (dueño)
