@@ -28,6 +28,8 @@ import { unstable_rethrow } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { agendaInteraccionPrendida } from "@/cambios/interruptores";
+import { interruptoresDelNegocio } from "@/cambios/interruptores.server";
 import { auditAdmin } from "@/lib/audit-core";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { bookingTransaction } from "@/lib/rls";
@@ -61,6 +63,7 @@ async function tienePlataInTx(tx: Parameters<typeof cobrosDelTurnoInTx>[0], tena
 
 export async function opcionesParaEditar(turnoId: string): Promise<OpcionesParaEditar> {
   await requireCapability("agenda:manage");
+  if (!agendaInteraccionPrendida(await interruptoresDelNegocio())) return { ok: false, error: "Editar turnos no está prendido en tu negocio." };
   if (isDemoSandbox()) return { ok: false, error: "En la demo los turnos no se editan de verdad." };
   if (typeof turnoId !== "string" || !turnoId) return { ok: false, error: "Faltan datos del turno." };
   try {
@@ -121,6 +124,7 @@ export async function huecosParaEditar(
   dias: string[],
 ): Promise<{ ok: true; huecos: Record<string, string[]> } | { ok: false; error: string }> {
   await requireCapability("agenda:manage");
+  if (!agendaInteraccionPrendida(await interruptoresDelNegocio())) return { ok: false, error: "Editar turnos no está prendido en tu negocio." };
   if (isDemoSandbox()) return { ok: false, error: "En la demo los turnos no se editan de verdad." };
   const pedidos = [...new Set(Array.isArray(dias) ? dias : [])].filter(esFechaDeCalendario).slice(0, TOPE_DE_DIAS);
   if (!turnoId || !servicioId || !profesionalId || pedidos.length === 0) return { ok: false, error: "Faltan datos para buscar horarios." };
@@ -146,6 +150,7 @@ export async function huecosParaEditar(
 
 export async function editarTurno(fd: FormData): Promise<ResultadoAccion> {
   await requireCapability("agenda:manage");
+  if (!agendaInteraccionPrendida(await interruptoresDelNegocio())) return { ok: false, error: "Editar turnos no está prendido en tu negocio." };
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   try {
     const resultado = await editar(fd);

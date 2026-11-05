@@ -82,6 +82,12 @@ async function preparar(t: import("node:test").TestContext): Promise<Sembrado | 
     };
     return { caro: caro.id, lu: lu.id, vero: vero.id, piernas: piernas.id, esmaltado: esmaltado.id, turno };
   };
+  // Editar turno vive detrás de «Agenda interactiva» (certificación del pase 05/11, F2): se prende en los dos negocios
+  // por el canal del operador, como lo hace la consola.
+  const { ENTIDAD_INTERRUPTOR, ACCION_ENCENDER, CANAL_INTERRUPTOR, AGENDA_INTERACCION } = await import("@/cambios/interruptores");
+  await duenio.auditLog.createMany({
+    data: [base.a.id, base.b.id].map((tenantId) => ({ tenantId, actor: "operator:test", action: ACCION_ENCENDER, entity: ENTIDAD_INTERRUPTOR, entityId: AGENDA_INTERACCION, channel: CANAL_INTERRUPTOR })),
+  });
   const A = await negocio(base.a.id);
   const B = await negocio(base.b.id);
   const tOtro = await B.turno("16:00");
@@ -260,4 +266,42 @@ test("concurrencia: editar un turno y mover otro al mismo hueco, a la vez → un
     orderBy: { startsAt: "asc" },
   });
   for (let i = 1; i < vivos.length; i++) assert.ok(vivos[i].startsAt >= vivos[i - 1].endsAt, "ningún turno de Vero se pisa con el anterior");
+});
+
+// Resguardo: la carrera la reprodujo el certificador con su arnés (C8, 12 de 16 vueltas); acá depende de los tiempos y
+// puede no aparecer. El arreglo es `sigueVivo` con profesional y servicio (src/lib/actions.ts).
+test("concurrencia (cert. pase 05/11, F1): cambiar el servicio y mover a otra profesional a la vez nunca deja a una profesional con un servicio que no hace", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  for (let vuelta = 0; vuelta < 16; vuelta++) {
+    const hora = `${String(9 + (vuelta % 10)).padStart(2, "0")}:${vuelta < 10 ? "00" : "30"}`;
+    const turno: string = await s.turno(hora, { minutos: 30 }); // Piernas con Caro
+    await Promise.all([
+      editarValor(s, turno, { servicio: s.esmaltado, inicio: s.a(hora), profesional: s.vero }),
+      mover(s, turno, s.lu, s.a(hora)),
+    ]);
+    const final: { professionalId: string; serviceId: string } = await duenio.appointment.findUniqueOrThrow({ where: { id: turno }, select: { professionalId: true, serviceId: true } });
+    const lohace: number = await duenio.professional.count({ where: { id: final.professionalId, services: { some: { id: final.serviceId } } } });
+    assert.equal(lohace, 1, `vuelta ${vuelta}: la profesional del turno hace su servicio`);
+  }
+});
+
+test("interruptor (cert. pase 05/11, F2): con «Agenda interactiva» apagada, editar se rechaza aunque el pedido llegue armado a mano", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const duenio = await prismaComoDuenio(s.base);
+  const { ENTIDAD_INTERRUPTOR, ACCION_ENCENDER, ACCION_APAGAR, CANAL_INTERRUPTOR, AGENDA_INTERACCION } = await import("@/cambios/interruptores");
+  const fila = (action: string) => duenio.auditLog.create({
+    data: { tenantId: s.base.a.id, actor: "operator:test", action, entity: ENTIDAD_INTERRUPTOR, entityId: AGENDA_INTERACCION, channel: CANAL_INTERRUPTOR },
+  });
+  const turno = await s.turno("19:00", { minutos: 60 });
+  await fila(ACCION_APAGAR);
+  try {
+    const r = await editarValor(s, turno, { servicio: s.piernas, inicio: s.a("19:15"), profesional: s.caro });
+    assert.equal(r.ok, false);
+    assert.match(String((r as { error?: string }).error), /no está prendido/);
+  } finally {
+    await fila(ACCION_ENCENDER);
+  }
 });
