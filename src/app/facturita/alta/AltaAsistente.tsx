@@ -514,7 +514,7 @@ export default function AltaAsistente({ canal, mpDisponible }: { canal: CanalGsg
           )}
           {paso < PASOS.length - 1 && (
             <button type="submit" className={BOTON_PRINCIPAL}>
-              {paso === 0 && mpDisponible ? "Sí, quiero conectarlo" : paso === 4 ? "Ver el resumen" : "Seguir"}
+              {paso === 0 && mpDisponible ? "Sí, conectarlo" : paso === 4 ? "Ver el resumen" : "Seguir"}
             </button>
           )}
           {paso === PASOS.length - 1 && completa && (
