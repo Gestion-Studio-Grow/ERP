@@ -10,16 +10,40 @@ import { sinPromesaDeWhatsApp } from "../_ch/contacto-ch";
 import { getLocation } from "@/lib/settings";
 import { metadataCH, nombreDelNegocioCH } from "../_ch/metadata-ch.server";
 import type { Metadata } from "next";
+import { getTenantBrand } from "@/lib/branding";
+import { leerQueryDelLink, metaDelLink, resolverPreeleccion } from "@/lib/link-reserva";
 
 export const dynamic = "force-dynamic";
 
+type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+// Link para redes (docs/producto/link-servicio/PLAN.md §5): con servicio/profesional en la URL, el título y la tarjeta
+// dicen qué se reserva y con quién, para cualquier negocio. Sin preelección (o sin resolver): lo de siempre.
 // Diseño nuevo de CH (P0-5): el título dice dónde se reserva. Apagado o cualquier otro negocio: la de siempre.
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const q = leerQueryDelLink(await searchParams);
+  if (q.servicio || q.profesional) {
+    try {
+      const [professionals, marca] = await Promise.all([getProfessionalsWithServices(), getTenantBrand()]);
+      const meta = metaDelLink(professionals, resolverPreeleccion(professionals, q), marca.name);
+      if (meta) {
+        const imagen = { url: meta.imagen, width: 1200, height: 630, alt: meta.titulo };
+        return {
+          title: meta.titulo,
+          description: meta.descripcion,
+          openGraph: { type: "website", locale: "es_AR", siteName: marca.name, title: meta.titulo, description: meta.descripcion, images: [imagen] },
+          twitter: { card: "summary_large_image", title: meta.titulo, description: meta.descripcion, images: [meta.imagen] },
+        };
+      }
+    } catch {
+      // La metadata es cosmética: si algo falla, sigue la de siempre.
+    }
+  }
   if (!(await chConDisenoNuevo())) return {};
   return metadataCH({ titulo: `Reservar turno — ${await nombreDelNegocioCH()}`, descripcion: "Elegí tratamiento, profesional y horario. Reservás online en un minuto." });
 }
 
-export default async function ReservaPage() {
+export default async function ReservaPage({ searchParams }: Props) {
   // Identidad por rubro (ronda 2, P0): el taller reserva en su formulario y el profe en su turnero, con su piel y su voz.
   const propio = destinoPropio(await rubroDelTurno(), "reserva");
   if (propio) redirect(propio);
@@ -35,6 +59,9 @@ export default async function ReservaPage() {
   // Cae al wording histórico para los tenants que no definen su propia voz.
   const copy = agendaBookingCopyForSlug(slug);
   // Sin WhatsApp cargado, la bajada no promete WhatsApp (contacto-ch.ts), con o sin el diseño nuevo (ronda 2).
+  // Link para redes: lo que viene en la URL arranca elegido; lo que no resuelve, aviso y formulario normal.
+  const q = leerQueryDelLink(await searchParams);
+  const preeleccion = resolverPreeleccion(professionals, q);
   const bajada = sinPromesaDeWhatsApp(copy.subtitle, (await getLocation()).whatsapp);
 
   return (
@@ -51,7 +78,12 @@ export default async function ReservaPage() {
           {regla}
         </p>
       )}
-      <BookingForm professionals={professionals} copy={copy} />
+      {preeleccion.aviso && (
+        <p role="status" className="mb-6 p-4 text-sm" style={{ background: "var(--surface-sunken)", color: "var(--text-strong)" }}>
+          {preeleccion.aviso}
+        </p>
+      )}
+      <BookingForm professionals={professionals} copy={copy} preeleccion={preeleccion} utm={q.utm} />
     </div>
   );
 }

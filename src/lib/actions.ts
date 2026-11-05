@@ -88,6 +88,7 @@ import { cancelarTurnoVivo, whereTurnosDeManana, whereTurnosDelDia } from "@/lib
 import { Prisma } from "@/generated/prisma/client";
 import { importeONaN } from "@/lib/dinero/leer";
 import { cuponDeLaReserva } from "@/lib/cupones/cupon-de-reserva";
+import { marcaOrigen } from "@/lib/link-reserva";
 import {
   isDemoSandbox,
   getDemoAgendaDay,
@@ -503,7 +504,14 @@ export async function createAppointment(formData: FormData): Promise<ResultadoAc
   const isResident = formData.get("isResident") === "on";
   const couponCode = String(formData.get("couponCode") || "").trim() || undefined;
   // La nota de la reserva (el taller manda la patente y el modelo): recortada y sin espacios; vacía, nada.
-  const notes = notaDeReservaPublica(formData.get("notes")) ?? undefined;
+  // Link para redes (docs/producto/link-servicio/PLAN.md §4): la marca de origen saneada va adelante de la nota.
+  const marca = marcaOrigen({
+    source: String(formData.get("utm_source") || "") || undefined,
+    medium: String(formData.get("utm_medium") || "") || undefined,
+    campaign: String(formData.get("utm_campaign") || "") || undefined,
+  });
+  const notaPublica = notaDeReservaPublica(formData.get("notes")) ?? undefined;
+  const notes = marca ? `${marca} ${notaPublica ?? ""}`.trim() : notaPublica;
 
   // CH-A1 · AUTORIDAD SERVER: el teléfono (canal del recordatorio) y el email —si viene— tienen
   // que ser válidos, o el turno entra pero el aviso nunca llega. No se confía en el cliente.

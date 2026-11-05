@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   slugDe, slugUnico, resolverPreeleccion, armarLinkReserva, marcaOrigen, leerMarcaOrigen,
+  metaDelLink, pesosDelLink, leerQueryDelLink,
   AVISO_SERVICIO, AVISO_PROFESIONAL, type ProfesionalDelLink,
 } from "./link-reserva";
 
@@ -81,4 +82,29 @@ test("marcaOrigen sanea y se relee", () => {
   assert.ok(marcaOrigen({ source: "a".repeat(200) })!.length <= 80);
   assert.deepEqual(leerMarcaOrigen("[via:instagram/bio] traigo toalla"), { origen: "instagram/bio", resto: "traigo toalla" });
   assert.deepEqual(leerMarcaOrigen("sin marca"), { resto: "sin marca" });
+});
+
+test("metaDelLink: los tres títulos, descripción con duración y precio, imagen con slugs", () => {
+  const ambos = metaDelLink(negocioA, { serviceId: facialA.id, professionalId: "proA1" }, "CH Estética")!;
+  assert.equal(ambos.titulo, "Limpieza Facial con Ana Pérez — CH Estética");
+  assert.equal(ambos.descripcion, "45 min · $ 18.000 · Reservás online en un minuto.");
+  assert.equal(ambos.imagen, "/reserva/og?servicio=limpieza-facial&profesional=ana-perez");
+  const serv = metaDelLink(negocioA, { serviceId: laserA.id }, "CH Estética")!;
+  assert.equal(serv.titulo, "Depilación Láser — CH Estética");
+  assert.equal(serv.imagen, "/reserva/og?servicio=depilacion-laser");
+  const prof = metaDelLink(negocioA, { professionalId: "proA2" }, "CH Estética")!;
+  assert.equal(prof.titulo, "Reservá con Beto Gómez — CH Estética");
+  assert.equal(prof.descripcion, "Elegí servicio y horario. Reservás online en un minuto.");
+  assert.equal(metaDelLink(negocioA, { aviso: AVISO_SERVICIO }, "CH Estética"), null);
+  // Un id de otro negocio no está en la lista: nada.
+  assert.equal(metaDelLink(negocioA, { serviceId: masajeB.id }, "CH Estética"), null);
+});
+
+test("pesosDelLink y leerQueryDelLink", () => {
+  assert.equal(pesosDelLink(18000), "$ 18.000");
+  assert.equal(pesosDelLink(1234567.4), "$ 1.234.567");
+  assert.equal(pesosDelLink(900), "$ 900");
+  assert.deepEqual(leerQueryDelLink({ servicio: ["a", "b"], profesional: "", utm_source: "instagram" }), {
+    servicio: "a", profesional: undefined, utm: { source: "instagram", medium: undefined, campaign: undefined },
+  });
 });

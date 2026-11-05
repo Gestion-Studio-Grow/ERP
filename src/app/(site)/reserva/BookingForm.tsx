@@ -7,6 +7,7 @@ import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import type { AgendaBookingCopy } from "@/blueprints/agenda";
 import { useNegocioDelSitio } from "../_ch/negocio-del-sitio";
+import type { Preeleccion, Utm } from "@/lib/link-reserva";
 
 type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null };
 type Professional = {
@@ -43,16 +44,39 @@ function StepLabel({ n, id, children }: { n: number; id?: string; children: Reac
 const inputClass = "w-full min-h-11 px-3 py-2.5 text-sm bg-transparent";
 const inputStyle = { border: "1px solid var(--line)", color: "var(--text-strong)" };
 
+// «Cambiar» del resumen: vuelve a mostrar el paso que llegó resuelto por el link (44 px táctil).
+function Cambiar({ onClick, que }: { onClick: () => void; que: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Cambiar ${que}`}
+      className="ml-2 inline-flex min-h-11 min-w-11 items-center justify-center px-2 text-xs uppercase tracking-[0.1em] underline underline-offset-4"
+      style={{ color: "var(--text-strong)" }}
+    >
+      Cambiar
+    </button>
+  );
+}
+
 export default function BookingForm({
   professionals,
   copy,
+  preeleccion,
+  utm,
 }: {
   professionals: Professional[];
   copy: AgendaBookingCopy;
+  /** Link para redes (docs/producto/link-servicio/PLAN.md §2): lo resuelto arranca elegido y oculto. */
+  preeleccion?: Preeleccion;
+  utm?: Utm;
 }) {
   const { esCH } = useNegocioDelSitio();
-  const [professionalId, setProfessionalId] = useState("");
-  const [serviceId, setServiceId] = useState("");
+  const [professionalId, setProfessionalId] = useState(preeleccion?.professionalId ?? "");
+  const [serviceId, setServiceId] = useState(preeleccion?.serviceId ?? "");
+  // Paso fijado por el link: oculto en el formulario y visible en el resumen con «Cambiar».
+  const [profFijo, setProfFijo] = useState(Boolean(preeleccion?.professionalId));
+  const [servFijo, setServFijo] = useState(Boolean(preeleccion?.serviceId));
   const [date, setDate] = useState("");
   const [slots, setSlots] = useState<string[]>([]);
   const [selectedSlot, setSelectedSlot] = useState("");
@@ -87,10 +111,28 @@ export default function BookingForm({
     () => professionals.find((p) => p.id === professionalId),
     [professionalId, professionals]
   );
+  // Con el servicio fijado y todavía sin profesional, el servicio se busca en todo el negocio.
   const service = useMemo(
-    () => professional?.services.find((s) => s.id === serviceId),
-    [professional, serviceId]
+    () =>
+      professional
+        ? professional.services.find((s) => s.id === serviceId)
+        : servFijo
+          ? professionals.flatMap((p) => p.services).find((s) => s.id === serviceId)
+          : undefined,
+    [professional, professionals, serviceId, servFijo]
   );
+  // Servicio fijado: el paso de profesional lista sólo a quienes lo hacen.
+  const profesionalesVisibles = useMemo(
+    () => (servFijo && serviceId ? professionals.filter((p) => p.services.some((s) => s.id === serviceId)) : professionals),
+    [servFijo, serviceId, professionals]
+  );
+
+  // Numeración coherente con lo visible: los pasos ocultos no cuentan.
+  const verProf = !profFijo;
+  const verServ = !servFijo && Boolean(professional);
+  const nProf = 1;
+  const nServ = (verProf ? 1 : 0) + 1;
+  const nFecha = (verProf ? 1 : 0) + (servFijo ? 0 : 1) + 1;
 
   function loadSlots(nextProfessionalId: string, nextServiceId: string, nextDate: string) {
     setSlots([]);
@@ -112,6 +154,7 @@ export default function BookingForm({
           {professional && (
             <p>
               <span style={{ color: "var(--text-muted)" }}>{copy.summaryProviderLabel}</span> — {professional.name}
+              {profFijo && <Cambiar que={copy.summaryProviderLabel.toLowerCase()} onClick={() => setProfFijo(false)} />}
             </p>
           )}
           {service && (() => {
@@ -126,6 +169,7 @@ export default function BookingForm({
               {isResidentBooking && (
                 <span style={{ color: "var(--text-muted)" }}> (precio vecino/a)</span>
               )}
+              {servFijo && <Cambiar que={copy.summaryServiceLabel.toLowerCase()} onClick={() => setServFijo(false)} />}
             </p>
             );
           })()}
@@ -144,8 +188,15 @@ export default function BookingForm({
       )}
 
       <form action={reservar} className="space-y-8">
+        {/* Origen del link para redes: viaja con el turno como marca saneada (createAppointment). */}
+        <input type="hidden" name="utm_source" value={utm?.source ?? ""} />
+        <input type="hidden" name="utm_medium" value={utm?.medium ?? ""} />
+        <input type="hidden" name="utm_campaign" value={utm?.campaign ?? ""} />
+        {!verProf && <input type="hidden" name="professionalId" value={professionalId} />}
+        {servFijo && <input type="hidden" name="serviceId" value={serviceId} />}
+        {verProf && (
         <div>
-          <StepLabel n={1} id="reserva-step-profesional">{copy.providerLabel}</StepLabel>
+          <StepLabel n={nProf} id="reserva-step-profesional">{copy.providerLabel}</StepLabel>
           <select
             name="professionalId"
             required
@@ -155,22 +206,25 @@ export default function BookingForm({
             value={professionalId}
             onChange={(e) => {
               setProfessionalId(e.target.value);
-              setServiceId("");
-              loadSlots(e.target.value, "", date);
+              // Servicio fijado por el link: se conserva (la lista ya son sólo quienes lo hacen).
+              const sigue = servFijo ? serviceId : "";
+              if (!servFijo) setServiceId("");
+              loadSlots(e.target.value, sigue, date);
             }}
           >
             <option value="">{copy.providerPlaceholder}</option>
-            {professionals.map((p) => (
+            {profesionalesVisibles.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} {p.box ? `— ${p.box.name}` : ""}
               </option>
             ))}
           </select>
         </div>
+        )}
 
-        {professional && (
+        {verServ && professional && (
           <div>
-            <StepLabel n={2} id="reserva-step-servicio">{copy.serviceLabel}</StepLabel>
+            <StepLabel n={nServ} id="reserva-step-servicio">{copy.serviceLabel}</StepLabel>
             <select
               name="serviceId"
               required
@@ -194,9 +248,9 @@ export default function BookingForm({
           </div>
         )}
 
-        {serviceId && (
+        {serviceId && professional && (
           <div>
-            <StepLabel n={3} id="reserva-step-fecha">Fecha</StepLabel>
+            <StepLabel n={nFecha} id="reserva-step-fecha">Fecha</StepLabel>
             <input
               type="date"
               required
@@ -215,7 +269,7 @@ export default function BookingForm({
 
         {date && (
           <div>
-            <StepLabel n={4} id="reserva-step-horario">Horario disponible</StepLabel>
+            <StepLabel n={nFecha + 1} id="reserva-step-horario">Horario disponible</StepLabel>
             <div aria-live="polite" role="status">
               {isPending && (
                 <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -265,7 +319,7 @@ export default function BookingForm({
 
         {selectedSlot && (
           <div className="space-y-3 pt-8" role="group" aria-labelledby="reserva-step-datos" style={{ borderTop: "1px solid var(--line)" }}>
-            <StepLabel n={5} id="reserva-step-datos">Tus datos</StepLabel>
+            <StepLabel n={nFecha + 2} id="reserva-step-datos">Tus datos</StepLabel>
             <input
               name="clientName"
               required

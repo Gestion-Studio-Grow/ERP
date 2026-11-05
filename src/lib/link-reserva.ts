@@ -110,3 +110,54 @@ export function leerMarcaOrigen(notes: string | null | undefined): { origen?: st
   if (!m) return { resto: notes ?? "" };
   return { origen: m[1], resto: (notes ?? "").slice(m[0].length) };
 }
+
+type ParamsCrudos = Record<string, string | string[] | undefined>;
+const primero = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) || undefined;
+
+/** Los searchParams de Next (`string | string[]`) → la consulta del link y su utm. */
+export function leerQueryDelLink(sp: ParamsCrudos): { servicio?: string; profesional?: string; utm: Utm } {
+  return {
+    servicio: primero(sp.servicio),
+    profesional: primero(sp.profesional),
+    utm: { source: primero(sp.utm_source), medium: primero(sp.utm_medium), campaign: primero(sp.utm_campaign) },
+  };
+}
+
+/** 18000 → «$ 18.000» (pesos enteros, separador de miles con punto: determinista, sin depender del ICU). */
+export function pesosDelLink(importe: number): string {
+  const n = Math.round(Math.abs(importe));
+  return `${importe < 0 ? "-" : ""}$ ${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+}
+
+export type MetaDelLink = {
+  titulo: string;
+  descripcion: string;
+  /** Ruta relativa de la tarjeta para compartir (`/reserva/og?…`), con los slugs canónicos. */
+  imagen: string;
+  servicio?: ServicioDelLink;
+  profesional?: ProfesionalDelLink;
+};
+
+export const BAJADA_LINK = "Reservás online en un minuto.";
+
+/**
+ * Título, descripción e imagen del link compartido. `null` si la preelección no resolvió nada
+ * (la página sigue con su metadata de siempre).
+ */
+export function metaDelLink(lista: ProfesionalDelLink[], pre: Preeleccion, negocio: string): MetaDelLink | null {
+  const servicio = pre.serviceId ? serviciosDe(lista).find((s) => s.id === pre.serviceId) : undefined;
+  const profesional = pre.professionalId ? lista.find((p) => p.id === pre.professionalId) : undefined;
+  if (!servicio && !profesional) return null;
+  const titulo = servicio && profesional
+    ? `${servicio.name} con ${profesional.name} — ${negocio}`
+    : servicio
+      ? `${servicio.name} — ${negocio}`
+      : `Reservá con ${profesional!.name} — ${negocio}`;
+  const descripcion = servicio
+    ? `${servicio.durationMin} min · ${pesosDelLink(servicio.price)} · ${BAJADA_LINK}`
+    : `Elegí servicio y horario. ${BAJADA_LINK}`;
+  const q = new URLSearchParams();
+  if (servicio) q.set("servicio", slugUnico(serviciosDe(lista)).get(servicio.id)!);
+  if (profesional) q.set("profesional", slugUnico(lista).get(profesional.id)!);
+  return { titulo, descripcion, imagen: `/reserva/og?${q.toString()}`, servicio, profesional };
+}

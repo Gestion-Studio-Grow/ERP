@@ -53,6 +53,8 @@ test("createAppointment pasa la nota recortada a bookAppointment (lectura del cÃ
   const inicio = fuente.search(/export async function createAppointment\(/);
   assert.ok(inicio >= 0);
   const cuerpo = fuente.slice(inicio, fuente.indexOf("\n}\n", inicio));
-  assert.match(cuerpo, /const notes = notaDeReservaPublica\(formData\.get\("notes"\)\) \?\? undefined;/);
+  assert.match(cuerpo, /const notaPublica = notaDeReservaPublica\(formData\.get\("notes"\)\) \?\? undefined;/);
+  // Link para redes: la marca de origen saneada (marcaOrigen) va adelante; sin utm, la nota tal cual.
+  assert.match(cuerpo, /const notes = marca \? `\$\{marca\} \$\{notaPublica \?\? ""\}`\.trim\(\) : notaPublica;/);
   assert.match(cuerpo, /bookAppointment\(\{[^}]*\bnotes,[^}]*\}\)/);
 });
