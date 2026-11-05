@@ -1,7 +1,7 @@
 import { requireApp } from "@/lib/require-app";
 import { requireCapability } from "@/lib/authz";
 import { buttonClasses, cn, EmptyState, Field, Input, Select } from "@/components/ui";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { configInmo, listaLiquidaciones, paraLiquidar } from "@/lib/inmobiliaria/datos.server";
 import { origenDelSitio } from "@/lib/inmobiliaria/sitio.server";
@@ -29,7 +29,7 @@ export default async function Liquidaciones() {
         <p className="text-sm text-muted">Lo que se cobró y todavía no se le pasó al dueño, y el historial de lo ya liquidado.</p>
       </header>
 
-      <BarraInmo activa={`${RAIZ}/liquidaciones`} conPlata esDuenio={roleHasCapability(user.role, "users:manage")} />
+      <BarraInmo activa={`${RAIZ}/liquidaciones`} conPlata esDuenio={permisoEfectivo(user, "users:manage")} />
 
       <section className="mb-6 grid grid-cols-1 gap-3" aria-label="Para liquidar">
         <h2 className={subtitulo}>Para liquidar</h2>

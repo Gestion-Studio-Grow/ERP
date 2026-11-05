@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { buttonClasses, cn, EmptyState } from "@/components/ui";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { listaPropiedades, veLaPlata } from "@/lib/inmobiliaria/datos.server";
 import { esEstadoPropiedad, ESTADO_PROPIEDAD_LABEL, ESTADOS_PROPIEDAD, precioDeCartel, TIPO_LABEL, type TipoPropiedad } from "@/lib/inmobiliaria/core";
 import { BarraInmo, Calidad, ChipPropiedad, RAIZ, tarjeta, titulo } from "../_vista";
@@ -31,7 +31,7 @@ export default async function Propiedades({ searchParams }: { searchParams: Prom
         </Link>
       </header>
 
-      <BarraInmo activa={`${RAIZ}/propiedades`} conPlata={veLaPlata(user)} esDuenio={roleHasCapability(user.role, "users:manage")} />
+      <BarraInmo activa={`${RAIZ}/propiedades`} conPlata={veLaPlata(user)} esDuenio={permisoEfectivo(user, "users:manage")} />
 
       <form className="mb-3 flex gap-2" role="search">
         {estado && <input type="hidden" name="estado" value={estado} />}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { prisma } from "@/lib/prisma";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import {
   Bloque,
@@ -48,8 +48,8 @@ export default async function ParaContactarHoyPage() {
   // El botón del estado vacío lleva a "Por recuperar" sólo si esta persona la puede abrir: si no,
   // sería un callejón que termina en "App no disponible".
   const abreRecuperar = appPermitida(appPorId("clientas-por-recuperar"), apps);
-  const verPlata = roleHasCapability(user.role, "reports:read");
-  const puedeContactar = roleHasCapability(user.role, "clients:manage");
+  const verPlata = permisoEfectivo(user, "reports:read");
+  const puedeContactar = permisoEfectivo(user, "clients:manage");
 
   const filas: FilaContactoVista[] = bandeja.filas.flatMap((f) => {
     const texto = textoContacto(

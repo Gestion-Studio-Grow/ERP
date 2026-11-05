@@ -26,7 +26,7 @@ import { agendaPractica } from "@/lib/turnos/practica.server";
 import { RefrescoDeAgenda } from "./_agenda/RefrescoDeAgenda";
 import Link from "next/link";
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
-import { anulacionDeCobro, roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
+import { permisoEfectivo, anulacionDeCobro, type Capability, type PermisoOverride, type Role } from "@/lib/capabilities";
 import { contarSinCerrarDeQuienMira } from "@/lib/turnos/sin-cerrar.server";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { appPermitida } from "@/apps/visibles";
@@ -48,7 +48,8 @@ import LibroDelDia from "./_agenda/LibroDelDia";
 import { RenglonDeManana } from "./_agenda/ParaManana";
 import OtroDia from "./_agenda/OtroDia";
 
-type Quien = { role: Role; professionalId?: string | null };
+// `overrides`: la matriz de permisos (PLAN permisos §2); la sesión los trae, sin ellos rige el rol.
+type Quien = { role: Role; professionalId?: string | null; overrides?: ReadonlyArray<PermisoOverride> };
 
 // Dar de baja un saldo: sólo la dueña (D5).
 const PERDONAR: Capability = "agenda:forgive";
@@ -119,13 +120,14 @@ export default async function AgendaRenglon({
   const hoy = todayInBusinessTz();
   const dia = fecha && esFechaDeCalendario(fecha) ? fecha : hoy;
   const cobrarVenta = enlaceCobrarUnaVenta(await getCurrentTenantSlug(), quien.role);
+  const conPermisos = { role: quien.role, overrides: quien.overrides ?? [] };
   const permisos: Permisos = {
     practica: await agendaPractica(),
     sumarProducto: cobrarVenta !== null,
-    gestionar: roleHasCapability(quien.role, "agenda:manage"),
-    cobrar: roleHasCapability(quien.role, "agenda:collect"),
-    terminar: roleHasCapability(quien.role, "agenda:complete"),
-    perdonar: roleHasCapability(quien.role, PERDONAR),
+    gestionar: permisoEfectivo(conPermisos, "agenda:manage"),
+    cobrar: permisoEfectivo(conPermisos, "agenda:collect"),
+    terminar: permisoEfectivo(conPermisos, "agenda:complete"),
+    perdonar: permisoEfectivo(conPermisos, PERDONAR),
     anular: anulacionDeCobro(quien.role),
   };
   // Mañana, sólo mirando HOY y para quien gestiona la agenda (como siempre).

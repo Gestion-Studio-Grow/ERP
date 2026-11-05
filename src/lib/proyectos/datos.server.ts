@@ -7,13 +7,13 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
 import { desvioPorRubro, redondear, resultadoReal, totales, ultimaEnviada } from "./core";
 import { costosVigentes, normalizarDiseno } from "./stand";
 
-export const veLaPlata = (u: SessionUser): boolean => roleHasCapability(u.role, "agenda:manage");
+export const veLaPlata = (u: SessionUser): boolean => permisoEfectivo(u, "agenda:manage");
 
 export async function configProyectos(tenantId: string) {
   const c = await prisma.proyectoConfig.findUnique({ where: { tenantId } });

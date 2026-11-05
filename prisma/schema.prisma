@@ -261,6 +261,7 @@ model Tenant {
   proyectoStands            ProyectoStand[]
   consultas                 Consulta[]
   consultaMensajes          ConsultaMensaje[]
+  userPermissionOverrides   UserPermissionOverride[]
   proyectoConfig            ProyectoConfig?
   inmoPropiedades           InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                 InmoFoto[]
@@ -474,22 +475,42 @@ model BusinessSettings {
 // (formato scrypt$<salt>$<hash>, ver src/lib/auth-password.ts). professionalId
 // enlaza opcionalmente a un Professional cuando el usuario además opera su agenda.
 model User {
-  id             String        @id @default(cuid())
-  tenant         Tenant        @relation(fields: [tenantId], references: [id])
-  tenantId       String
-  name           String
-  email          String
-  passwordHash   String
-  role           UserRole
-  active         Boolean       @default(true)
-  professional   Professional? @relation(fields: [professionalId], references: [id])
-  professionalId String?       @unique
-  lastLoginAt    DateTime?
-  deletedAt      DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id                  String                   @id @default(cuid())
+  tenant              Tenant                   @relation(fields: [tenantId], references: [id])
+  tenantId            String
+  name                String
+  email               String
+  passwordHash        String
+  role                UserRole
+  active              Boolean                  @default(true)
+  professional        Professional?            @relation(fields: [professionalId], references: [id])
+  professionalId      String?                  @unique
+  lastLoginAt         DateTime?
+  deletedAt           DateTime?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  // Matriz de permisos: sólo las casillas distintas del default del rol (PLAN permisos §1).
+  permissionOverrides UserPermissionOverride[]
 
   @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+// Excepción por usuario al default de su rol (matriz de permisos, PLAN permisos §1). Una fila por
+// casilla distinta del rol; volver al default borra la fila. `capability` es texto: el candado de
+// qué se puede pisar vive en código (`CAPACIDADES_POR_USUARIO`), no en la base.
+model UserPermissionOverride {
+  id         String   @id @default(cuid())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  capability String
+  allowed    Boolean
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, capability])
   @@index([tenantId])
 }
 
@@ -3538,8 +3559,8 @@ model ProyectoConfig {
 // ── Gestión de eventos: las apps relevadas de Heka (docs/benchmark/heka-especificacion.md). Sólo tablas del módulo. ──
 
 model ProyectoCuota {
-  venceManual    Boolean @default(false) // Administración corrigió la fecha: regenerar no la pisa
-  prevista       Boolean @default(false) // evento sin confirmar o sin fecha: se ve en su ficha, no cuenta como plata
+  venceManual    Boolean            @default(false) // Administración corrigió la fecha: regenerar no la pisa
+  prevista       Boolean            @default(false) // evento sin confirmar o sin fecha: se ve en su ficha, no cuenta como plata
   cuentaId       String? // la cuenta que movió al marcarla: al reabrirla se devuelve
   cuentaMovido   Float?
   id             String             @id @default(cuid())

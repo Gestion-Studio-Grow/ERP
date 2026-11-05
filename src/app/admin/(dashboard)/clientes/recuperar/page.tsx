@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { prisma } from "@/lib/prisma";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import {
   Bloque,
@@ -40,8 +40,8 @@ export default async function PorRecuperarPage() {
   const [c, nuevo] = await Promise.all([contextoCrm(), disenoNuevo()]);
   const { base, constancias } = await cargarBandeja(prisma, c);
   const enRiesgo = porRecuperar(base);
-  const verPlata = roleHasCapability(user.role, "reports:read");
-  const puedeSumar = roleHasCapability(user.role, "clients:manage");
+  const verPlata = permisoEfectivo(user, "reports:read");
+  const puedeSumar = permisoEfectivo(user, "clients:manage");
   const total = enRiesgo.reduce((s, x) => s + x.ev.valorAnual, 0);
 
   // DISEÑO NUEVO («Renglón»): el folio es lo que mide el riesgo (días sin venir), el detalle cada

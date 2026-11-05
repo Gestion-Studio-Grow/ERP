@@ -36,7 +36,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { normalizarBusqueda } from "@/modules/nav-search";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { isColumnMissing } from "@/lib/prisma-errors";
@@ -127,9 +127,9 @@ export async function buscarClientasYTurnos(q: unknown): Promise<ResultadoDelBus
   if (isDemoSandbox()) return { ok: true, grupos: [] };
   const tenantId = await getCurrentTenantId();
   const permisos: PermisosDelBuscador = {
-    verClientas: roleHasCapability(user.role, "clients:read"),
-    darTurno: roleHasCapability(user.role, "agenda:manage"),
-    cobrar: roleHasCapability(user.role, "agenda:collect"),
+    verClientas: permisoEfectivo(user, "clients:read"),
+    darTurno: permisoEfectivo(user, "agenda:manage"),
+    cobrar: permisoEfectivo(user, "agenda:collect"),
   };
   const soloDe = user.role === "PROFESSIONAL" ? (user.professionalId ?? "__no_professional__") : null;
   const { texto, digitos } = busqueda;

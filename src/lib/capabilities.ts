@@ -13,7 +13,10 @@ export type Role = "OWNER" | "RECEPTION" | "PROFESSIONAL";
 export type Capability =
   | "dashboard:read"
   | "agenda:read"
-  | "agenda:manage" // crear/mover/cancelar turnos, cobrar
+  | "agenda:manage" // mover/reprogramar/cancelar/editar turnos
+  // Crear un turno (casilla 2 de la matriz de permisos). Separada de `agenda:manage` (05/11/2026):
+  // agendar y editar son dos casillas distintas. Sólo la exigen las acciones que CREAN un turno.
+  | "agenda:create"
   | "agenda:complete" // marcar completado / no-show
   // Cobrar un turno: seña, cobro parcial o saldo. Va SEPARADA de `agenda:manage` a
   // propósito. Decisión del dueño (2026-09-07): en CH Estética **el profesional también
@@ -33,6 +36,8 @@ export type Capability =
   | "agenda:void"
   | "clients:read"
   | "clients:manage"
+  // Ver teléfono y mail de los clientes (casilla 5). Sin ella el servidor los enmascara.
+  | "clients:contact"
   | "waitlist:manage" // anotar/gestionar la lista de espera y convertir en turno
   | "catalog:read"
   | "catalog:manage"
@@ -68,6 +73,11 @@ export type Capability =
   | "modules:manage" // activar/desactivar los módulos (apps) del negocio — vidriera de módulos
   | "billing:manage" // emitir facturas y procesar la facturación electrónica ARCA (módulo ARCA)
   | "payments:manage" // generar links de cobro por Mercado Pago (módulo Cobros)
+  // Recibir señas en la cuenta MP propia del profesional (casilla 7). «Próximamente»: existe en el
+  // union, pero ningún rol la tiene ni la matriz la graba (PLAN permisos §7).
+  | "payments:own-account"
+  // Habilitar la caja: abrir, cerrar y arquear (casilla 8). Vender NO la exige (`orders:manage`).
+  | "cash:manage"
   // Panel del contador (/contador, módulo CARTERA): administrar la cartera de
   // clientes de un estudio contable. La capability sola NO alcanza: la página y
   // las actions exigen ADEMÁS el módulo `cartera` ASIGNADO al tenant (ADR-055) —
@@ -107,18 +117,21 @@ export type Capability =
  */
 const NO_SON_DEL_DUENIO = {
   "modules:manage": "decisión comercial: se aprovisiona desde la consola de operador",
+  "payments:own-account": "próximamente: falta decidir a dónde va la plata y cómo se liquida (PLAN permisos §7)",
 } as const;
 
 const DEL_DUENIO: Record<Exclude<Capability, keyof typeof NO_SON_DEL_DUENIO>, true> = {
   "dashboard:read": true,
   "agenda:read": true,
   "agenda:manage": true,
+  "agenda:create": true,
   "agenda:complete": true,
   "agenda:collect": true,
   "agenda:forgive": true,
   "agenda:void": true,
   "clients:read": true,
   "clients:manage": true,
+  "clients:contact": true,
   "waitlist:manage": true,
   "catalog:read": true,
   "catalog:manage": true,
@@ -143,6 +156,7 @@ const DEL_DUENIO: Record<Exclude<Capability, keyof typeof NO_SON_DEL_DUENIO>, tr
   "commissions:manage": true,
   "billing:manage": true,
   "payments:manage": true,
+  "cash:manage": true,
   "cartera:manage": true,
   "appearance:manage": true,
 };
@@ -173,12 +187,14 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     "dashboard:read",
     "agenda:read",
     "agenda:manage",
+    "agenda:create",
     "agenda:complete",
     "agenda:collect",
     // Sólo con el código de la dueña para ESE cobro: `anulacionDeCobro`.
     "agenda:void",
     "clients:read",
     "clients:manage",
+    "clients:contact",
     "waitlist:manage",
     // POS/pedidos es trabajo de mostrador puro (tomar el pedido, cobrarlo,
     // marcarlo listo/entregado), del mismo tenor que agenda + clientes, así que
@@ -188,6 +204,8 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     // Anula, pero sólo lo cobrado hoy, con motivo y, si la venta ya tiene plata, con el código de la
     // dueña (`alcanceDeAnulacion`; orden del dueño, 31/10/2026). Un pedido sin cobrar no lo pide.
     "orders:void",
+    // Abrir, cerrar y arquear la caja del mostrador (casilla 8).
+    "cash:manage",
     // El encargado del local: ve el stock (sin costos), recibe, cuenta y carga mermas. Los
     // costos, las compras y los proveedores siguen siendo del dueño.
     "stock:read",
@@ -206,6 +224,72 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
 
 export function roleHasCapability(role: Role, cap: Capability): boolean {
   return ROLE_CAPABILITIES[role].includes(cap);
+}
+
+// ─────────────────────── Matriz de permisos por usuario (PLAN permisos §2) ───────────────────
+//
+// El rol da el default; la matriz graba, por usuario, sólo la EXCEPCIÓN (fila en
+// `UserPermissionOverride`). `permisoEfectivo` es el ÚNICO resolvedor para un usuario de sesión:
+// `roleHasCapability(user.role, …)` directo ignoraría la matriz (test guardián en
+// `capabilities.test.ts`).
+
+/**
+ * Capacidades que la matriz puede prender o apagar por usuario (casillas 2–6 y 8). CANDADO: un
+ * override de cualquier otra capability se IGNORA, así nadie se prende `users:manage` ni
+ * `agenda:void` por la base. `payments:own-account` (casilla 7) queda fuera: «próximamente».
+ */
+export const CAPACIDADES_POR_USUARIO: readonly Capability[] = [
+  "agenda:create",
+  "agenda:manage",
+  "agenda:collect",
+  "clients:contact",
+  "stock:receive",
+  "stock:count",
+  "stock:adjust",
+  "cash:manage",
+] as const;
+
+export type PermisoOverride = { capability: string; allowed: boolean };
+
+/** Lo mínimo que necesita el resolvedor: un `SessionUser` lo cumple. */
+export type UsuarioConPermisos = {
+  role: Role;
+  overrides: ReadonlyArray<PermisoOverride>;
+};
+
+export function esCapacidadPorUsuario(cap: string): cap is Capability {
+  return (CAPACIDADES_POR_USUARIO as readonly string[]).includes(cap);
+}
+
+/** Override si existe y la capability está en la matriz; si no, el default del rol. */
+export function permisoEfectivo(user: UsuarioConPermisos, cap: Capability): boolean {
+  if (esCapacidadPorUsuario(cap)) {
+    // `?? []`: el tipo lo exige, pero un usuario armado a mano (fixture, cast) sin la lista no puede
+    // tumbar la autorización: vale el rol.
+    const override = (user.overrides ?? []).find((o) => o.capability === cap);
+    if (override) return override.allowed === true;
+  }
+  return roleHasCapability(user.role, cap);
+}
+
+/**
+ * Scoping «en su agenda» (PLAN permisos §5), lógica pura de `soloLoSuyo` (authz.ts). Un
+ * PROFESSIONAL —aunque la matriz le prenda agendar/editar/cobrar— opera SÓLO turnos de su
+ * `professionalId`; sin ficha vinculada, ninguno. Los demás roles no se limitan. Devuelve el
+ * motivo del rechazo o `null` si puede.
+ */
+export function motivoSoloLoSuyo(
+  user: { role: Role; professionalId: string | null },
+  professionalIdDelTurno: string | null | undefined,
+): string | null {
+  if (user.role !== "PROFESSIONAL") return null;
+  if (!user.professionalId) {
+    return "Tu usuario no tiene una ficha de profesional vinculada: no podés operar turnos.";
+  }
+  if (professionalIdDelTurno !== user.professionalId) {
+    return "Ese turno es de otra profesional: sólo podés tocar los tuyos.";
+  }
+  return null;
 }
 
 /**

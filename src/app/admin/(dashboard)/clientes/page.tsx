@@ -1,7 +1,7 @@
 import { getPaginaDeClientes } from "@/lib/actions";
 import { requireApp } from "@/lib/require-app";
 import { prisma } from "@/lib/prisma";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { PageHeader } from "@/components/ui";
 import type { SessionUser } from "@/lib/session";
 import { contextoCrm, cargarCompradoresSinFicha } from "@/lib/crm/cargas.server";
@@ -62,7 +62,7 @@ export default async function ClientesPage({
   const [pagina, negocio] = await Promise.all([getPaginaDeClientes({ q: p.q, pagina: p.pagina, rubro }), getNegocioApps(user.role)]);
   // Sin clientes, el siguiente paso es dar el primer turno: sólo si puede abrir la agenda y darlo.
   const vacio = vacioDeClientes({
-    puedeDarTurno: appPermitida(appPorId("agenda"), negocio) && roleHasCapability(user.role, "agenda:manage"),
+    puedeDarTurno: appPermitida(appPorId("agenda"), negocio) && permisoEfectivo(user, "agenda:manage"),
   });
 
   return (
@@ -93,7 +93,7 @@ async function ClientesTabla({
   pielPropia?: boolean;
 }) {
   const c = await contextoCrm();
-  const puedeCrear = roleHasCapability(user.role, "clients:manage");
+  const puedeCrear = permisoEfectivo(user, "clients:manage");
   // «Deben» sólo donde hay turnos (la deuda es de turnos ya prestados); un mostrador no la lee.
   const conDeudas = c.rubro === "servicios";
   const [fichas, primeras, sinFicha, negocio, atajos, deudas, slug] = await Promise.all([

@@ -15,7 +15,7 @@ import { enInicioPorApps } from "../../inicio/piloto";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import FichaRenglon from "./FichaRenglon";
 import { hrefNuevoTurno } from "../../turnos/pasos";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { appDelPanelCerrado, appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
 import { getNegocioApps } from "@/apps/contexto.server";
@@ -65,7 +65,7 @@ export default async function ClienteDetailPage({
   // alta de la Lista con ella elegida (?cliente=, `leerClienteDelAlta`). Sólo si el negocio tiene
   // Agenda y quien mira gestiona turnos: no se ofrece una tecla que lleva a una pantalla vedada.
   const puedeDarTurno =
-    roleHasCapability(user.role, "agenda:manage") && appPermitida(appPorId("agenda"), await getNegocioApps(user.role));
+    permisoEfectivo(user, "agenda:manage") && appPermitida(appPorId("agenda"), await getNegocioApps(user.role));
 
   // Link directo al chat (549 + teléfono normalizado). Si lo cargado no es un celular, no se abre
   // WhatsApp a un número que no es el de ella: la ficha lo DICE y dice dónde corregirlo, en vez
@@ -125,7 +125,7 @@ export default async function ClienteDetailPage({
           nombre={client.name}
           telefono={client.phone}
           noQuiere={false}
-          verPlata={roleHasCapability(user.role, "reports:read")}
+          verPlata={permisoEfectivo(user, "reports:read")}
         />
       )}
 

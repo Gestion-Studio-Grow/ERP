@@ -26,7 +26,7 @@ import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { requireAppAccion } from "@/lib/require-app";
 import { insertStockAdjustment, TopeDeMermaSuperado } from "@/lib/stock/adjustment-insert";
 import {
@@ -85,7 +85,7 @@ export async function createStockAdjustment(_prev: EstadoAjuste, formData: FormD
     const motivo = leerMotivo(formData.get("motivo"));
     if (!motivo) return { ok: false, error: "Elegí el motivo del ajuste." };
     const cap = motivoMode(motivo) === "COUNT" ? "stock:count" : "stock:adjust";
-    if (!roleHasCapability(user.role, cap)) {
+    if (!permisoEfectivo(user, cap)) {
       return { ok: false, error: "Tu usuario no puede cargar este ajuste. Pedíselo a la dueña o al dueño." };
     }
     const tenantId = await getCurrentTenantId();
@@ -112,7 +112,7 @@ export async function createStockAdjustment(_prev: EstadoAjuste, formData: FormD
         entityId: `ajuste:${motivo}`,
         changes: { motivo, note, lineas: items.length, pesosDeBaja: err.pesos, tope: err.tope, rol: user.role },
       });
-      return { ok: false, error: mensajeDeTope(err, roleHasCapability(user.role, "costs:read"), pesos, motivo) };
+      return { ok: false, error: mensajeDeTope(err, permisoEfectivo(user, "costs:read"), pesos, motivo) };
     }
 
     await auditAdmin({
@@ -147,14 +147,14 @@ export async function createStockAdjustment(_prev: EstadoAjuste, formData: FormD
 export async function registrarRecuento(_prev: EstadoAjuste, formData: FormData): Promise<EstadoAjuste> {
   try {
     const user = await requireAppAccion("recuento");
-    if (!roleHasCapability(user.role, "stock:count")) {
+    if (!permisoEfectivo(user, "stock:count")) {
       return { ok: false, error: "Tu usuario no puede cargar recuentos. Pedíselo a la dueña o al dueño." };
     }
     const tenantId = await getCurrentTenantId();
     const note = String(formData.get("note") || "").trim() || null;
     const items = lineasDelFormulario(formData, "RECUENTO");
     if (items.length === 0) return { ok: false, error: "Cargá lo contado de al menos un producto." };
-    const conCostos = roleHasCapability(user.role, "costs:read");
+    const conCostos = permisoEfectivo(user, "costs:read");
 
     let result;
     try {

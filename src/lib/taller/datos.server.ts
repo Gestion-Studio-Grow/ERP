@@ -7,7 +7,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -89,7 +89,7 @@ export async function datosDelNegocio(tenantId: string) {
 
 // ── Sesión ──────────────────────────────────────────────────────────────────
 
-export const veLaPlata = (u: SessionUser): boolean => roleHasCapability(u.role, "agenda:manage");
+export const veLaPlata = (u: SessionUser): boolean => permisoEfectivo(u, "agenda:manage");
 
 /** El mecánico ve sus órdenes y las que todavía no tienen mecánico. */
 function filtroDeRol(u: SessionUser) {

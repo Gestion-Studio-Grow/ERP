@@ -3,6 +3,7 @@ import { requireApp } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { appDelPanelCerrado } from "@/apps/visibles";
 import { getCajaData } from "@/lib/caja-actions";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
@@ -84,7 +85,9 @@ export default async function CajaPage() {
   // mismo pedido) y el día no lo espera a él.
   const [dia, caja, nuevo, slug, negocio] = await Promise.all([
     getCierreDiarioData(),
-    tieneCajonFisico().then((conCajon) => (conCajon ? getCajaData() : null)),
+    // El turno de cajero (abrir/cerrar/arqueo) es la casilla 8 (`cash:manage`): sin ella no se
+    // pide, así el loader no rebota la página entera y el resumen del día se sigue viendo.
+    tieneCajonFisico().then((conCajon) => (conCajon && permisoEfectivo(user, "cash:manage") ? getCajaData() : null)),
     // «Diseño nuevo»: la lectura de interruptores del layout, cacheada (no suma viajes).
     disenoNuevo(),
     getCurrentTenantSlug(),

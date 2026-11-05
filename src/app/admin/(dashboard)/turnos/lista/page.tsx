@@ -17,7 +17,7 @@ import AgendaRenglon from "../AgendaRenglon";
 import { enlaceCobrarUnaVenta } from "../../pedidos/cobrar-una-venta";
 import DarTurnoCajon from "../_agenda/DarTurnoCajon";
 import { buttonClasses } from "@/components/ui";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { contarSinCerrarDeQuienMira } from "@/lib/turnos/sin-cerrar.server";
 import { RUTA_CERRAR_PENDIENTE } from "../../inicio/bandeja-core";
 import { diaCorto, textoSinCerrar, ventanaDeLista } from "./lista-core";
@@ -118,7 +118,7 @@ export default async function TurnosListaPage({
   const viewer = { role: user.role, professionalId: user.professionalId };
   // B2: lo que la fila puede ofrecer, con los MISMOS permisos que pide el servidor. La lista exige
   // `agenda:manage`; cobrar es `agenda:collect` (y por turno, `puedeCobrarEsteTurno` con `viewer`).
-  const permisos = { gestionar: true, cobrar: roleHasCapability(user.role, "agenda:collect") };
+  const permisos = { gestionar: true, cobrar: permisoEfectivo(user, "agenda:collect") };
   // "Dar un turno" desde un estado vacío de la agenda llega con ?nuevo=1&fecha=… (pasos.ts): el
   // alta se abre sola y con el día puesto. Sin eso, la lista es la de siempre.
   const sp = await searchParams;

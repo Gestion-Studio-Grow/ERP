@@ -52,7 +52,9 @@ export type ResultadoDarTurno =
  * «Pedírsela por WhatsApp», deja la marca `deposit_requested` en la auditoría del turno.
  */
 export async function darTurno(fd: FormData, opciones: { pedirSenia?: boolean; monto?: number } = {}): Promise<ResultadoDarTurno> {
-  await requireCapability("agenda:manage");
+  // Dar un turno es la casilla 2 (`agenda:create`); `createManualAppointment` además limita a la
+  // profesional a su propia agenda.
+  await requireCapability("agenda:create");
   const r = await createManualAppointment(fd);
   if (!r.ok) return r;
   if (isDemoSandbox()) return { ok: true, id: null, direccion: null, linkTurno: null, seniaPedida: false };
@@ -100,7 +102,8 @@ export type LibresAhora = {
  * (su horario de hoy la cubre y no choca con turnos, bloqueos ni recursos).
  */
 export async function libresAhora(servicioId: string): Promise<LibresAhora> {
-  await requireCapability("agenda:manage");
+  // «Atender ahora» es para dar un turno: casilla 2.
+  await requireCapability("agenda:create");
   const tenantId = await getCurrentTenantId();
   const inicio = new Date(franjaDeAhora(new Date()));
   const vacio: LibresAhora = { inicio: inicio.toISOString(), profesionales: [] };

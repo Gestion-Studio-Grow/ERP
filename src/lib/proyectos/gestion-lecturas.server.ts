@@ -6,8 +6,9 @@
 import "server-only";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { leerOverridesTolerante } from "@/lib/permisos-overrides";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import type { Prisma } from "@/generated/prisma/client";
 import { datosDelNegocio } from "./datos.server";
 import { leerRef } from "./diseno-core";
@@ -143,13 +144,18 @@ export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, sol
 
 /** Lo que pide la ruta del calendario: la persona sin sesión, armada igual que `actorActual`. */
 export async function actorDeUsuario(tenantId: string, userId: string): Promise<Actor | null> {
-  const [user, persona, permisos] = await Promise.all([
+  const [fila, persona, permisos, overrides] = await Promise.all([
     prisma.user.findFirst({ where: { id: userId, tenantId, active: true, deletedAt: null }, select: { id: true, name: true, email: true, role: true, professionalId: true, tenantId: true } }),
     prisma.proyectoPersona.findFirst({ where: { tenantId, userId, activa: true }, select: { id: true, rol: true, nombre: true } }),
     prisma.proyectoPermiso.findMany({ where: { tenantId }, select: { rol: true, modulo: true, ver: true, editar: true, columnasOcultas: true } }),
+    // Matriz de permisos (PLAN permisos §1): igual que la sesión, tolerante a la tabla ausente.
+    leerOverridesTolerante(() =>
+      prisma.userPermissionOverride.findMany({ where: { tenantId, userId }, select: { capability: true, allowed: true } }),
+    ),
   ]);
-  if (!user || !roleHasCapability(user.role, "agenda:read")) return null;
-  const rol = (persona?.rol as RolGestion | undefined) ?? (roleHasCapability(user.role, "agenda:manage") ? "DIRECCION" : "DISENO");
+  const user = fila ? { ...fila, overrides } : null;
+  if (!user || !permisoEfectivo(user, "agenda:read")) return null;
+  const rol = (persona?.rol as RolGestion | undefined) ?? (permisoEfectivo(user, "agenda:manage") ? "DIRECCION" : "DISENO");
   return { user, tenantId, personaId: persona?.id ?? null, nombre: persona?.nombre ?? user.name, rol, permisos };
 }
 

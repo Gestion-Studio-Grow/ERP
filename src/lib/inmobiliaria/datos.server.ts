@@ -13,7 +13,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
 import { todayInBusinessTz } from "@/lib/datetime";
@@ -397,7 +397,7 @@ export async function slugsPublicados(tenantId: string): Promise<{ slug: string;
 
 // ── Sesión ──────────────────────────────────────────────────────────────────
 
-export const veLaPlata = (u: SessionUser): boolean => roleHasCapability(u.role, "agenda:manage");
+export const veLaPlata = (u: SessionUser): boolean => permisoEfectivo(u, "agenda:manage");
 
 /** El agente ve sus consultas y las que todavía no tienen a nadie. */
 function consultasDeRol(u: SessionUser): Prisma.InmoConsultaWhereInput {
@@ -627,7 +627,7 @@ export async function tableroInmo() {
 
   return {
     conPlata,
-    esDuenio: roleHasCapability(user.role, "users:manage"),
+    esDuenio: permisoEfectivo(user, "users:manage"),
     hoy,
     consultas: consultas.map((c) => aConsulta(c, ahora)),
     visitas: visitas.map((c) => aConsulta(c, ahora)),

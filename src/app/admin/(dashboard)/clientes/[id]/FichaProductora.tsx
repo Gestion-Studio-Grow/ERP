@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ButtonLink } from "@/components/ui";
 import { getClient } from "@/lib/actions";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { proyectosDelCliente, veLaPlata } from "@/lib/proyectos/datos.server";
 import { etapaLabel, pesos, redondear, SERVICIO_LABEL, type Servicio } from "@/lib/proyectos/core";
 import type { SessionUser } from "@/lib/session";
@@ -18,7 +18,7 @@ import EditarClienteForm from "./EditarClienteForm";
 export default async function FichaProductora({ id, user }: { id: string; user: SessionUser }) {
   const [client, proyectos] = await Promise.all([getClient(id), proyectosDelCliente(id)]);
   if (!client) notFound();
-  const puedeEditar = roleHasCapability(user.role, "clients:manage");
+  const puedeEditar = permisoEfectivo(user, "clients:manage");
   const conPlata = veLaPlata(user);
   const contacto = contactoDeLaFicha({ telefono: client.phone, noQuiere: false, puedeEditar });
   const vendido = redondear(proyectos.reduce((s, p) => s + (p.t?.total ?? 0), 0));

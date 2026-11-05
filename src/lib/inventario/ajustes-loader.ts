@@ -10,7 +10,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { filtroDeAjustables } from "@/lib/stock/adjustment-core";
 import { leerCostosVigentes } from "@/lib/inventory/inventory-loader";
@@ -76,7 +76,7 @@ export interface DatosDeRecuento {
 export async function getRecuentoData(opts: { carniceria: boolean; sustantivoPlural: string }): Promise<DatosDeRecuento> {
   const user = await requireCapability("stock:count");
   const tenantId = await getCurrentTenantId();
-  const conCostos = roleHasCapability(user.role, "costs:read");
+  const conCostos = permisoEfectivo(user, "costs:read");
 
   const [productos, ultimos, costos] = await Promise.all([
     prisma.product.findMany({

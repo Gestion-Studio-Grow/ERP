@@ -4,7 +4,7 @@ import { getCoupons } from "@/lib/coupon-actions";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireApp } from "@/lib/require-app";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
@@ -43,7 +43,7 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
   if (rubro.isRetail) {
     const tenantId = await getCurrentTenantId();
     // Los costos, sólo con costs:read (hoy la dueña, que es la única que abre el catálogo).
-    const conCostos = roleHasCapability(user.role, "costs:read");
+    const conCostos = permisoEfectivo(user, "costs:read");
     const [{ products }, costos, gondolas, negocio] = await Promise.all([
       getCatalog(),
       conCostos ? cargarCostosDelCatalogo(tenantId) : null,

@@ -27,7 +27,7 @@
 // también es una extensión nueva). Proveedores y comprobantes por número quedan para otra porción.
 
 import { requireUser } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
@@ -67,7 +67,7 @@ export async function buscarEnElNegocio(q: unknown): Promise<ResultadoDeBusqueda
     vender: appPermitida(appPorId("vender"), negocio),
     pedidos: appPermitida(appPorId("pedidos"), negocio),
     ventas: appPermitida(appPorId("ventas-del-dia"), negocio),
-    verPlata: roleHasCapability(user.role, "reports:read"),
+    verPlata: permisoEfectivo(user, "reports:read"),
   };
   const { texto, digitos, codigo } = busqueda;
 

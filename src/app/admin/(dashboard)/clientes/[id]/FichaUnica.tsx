@@ -13,7 +13,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge, KpiTile, fmtMoneyARS } from "@/components/ui";
 import { dateStrInBusinessTz, fmtDateTime, fmtShortDate } from "@/lib/datetime";
-import { roleHasCapability } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import { claseBotonWhatsApp } from "../boton-whatsapp";
 import { contactoDeLaFicha } from "../contacto-ficha";
 import type { SessionUser } from "@/lib/session";
@@ -67,8 +67,8 @@ export default async function FichaUnica({
   // persona puede abrirla (si no, el link terminaría en "App no disponible").
   const abreFiado = appPermitida(appPorId("cuentas-a-cobrar"), negocio);
   const { client, resumen, ev } = f;
-  const verPlata = roleHasCapability(user.role, "reports:read");
-  const puedeEditar = roleHasCapability(user.role, "clients:manage");
+  const verPlata = permisoEfectivo(user, "reports:read");
+  const puedeEditar = permisoEfectivo(user, "clients:manage");
   const noQuiere = f.permiso?.accion === ACCION_BAJA;
   const contacto = contactoDeLaFicha({ telefono: client.phone, noQuiere, puedeEditar });
   const debe = resumen.saldoTurnos + (resumen.saldoFiado ?? 0);
