@@ -70,6 +70,24 @@ export const APPS_COMERCIAL = [
     menuDeHoy: { etiqueta: "Clientes", orden: 30 },
   },
   {
+    // La historia de cada clienta, turno por turno (pedido del dueño de CH, 04/11). Pide
+    // agenda:read, no clients:read: la PROFESIONAL la abre (sólo de SUS clientas; la puerta
+    // está en el lector, lib/clientes/historia.server.ts). Sin `menuDeHoy`: entra a la barra
+    // de CH aparte (`barraDeCH`), para la dueña y la profesional.
+    id: "historias",
+    nombre: "Historias",
+    descripcion: "La historia de cada clienta: cada turno, con quién se atendió y qué pasó.",
+    icono: "clientes",
+    ruta: "/admin/historias",
+    // En Recepción (el espacio de la Agenda): se abre desde el turno, y Clientes ya tiene 8.
+    espacio: "mostrador",
+    capability: "agenda:read",
+    modulo: "agenda",
+    rubro: "servicios",
+    estado: "lista",
+    palabras: ["historia clinica", "historial", "ficha clinica", "auditoria de turnos"],
+  },
+  {
     id: "lista-de-espera",
     nombre: "Lista de espera",
     descripcion: "Quién espera un hueco, para avisarle cuando se libera.",

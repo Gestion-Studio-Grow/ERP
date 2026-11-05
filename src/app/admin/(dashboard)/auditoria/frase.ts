@@ -526,6 +526,9 @@ export function describirAccion(f: FilaParaDescribir): Descripcion {
     return { frase: `${verbo} ${precio}`, detalle: [], tecnico: hayTecnico };
   }
 
+  // La historia de una clienta (datos de salud): cada apertura queda escrita (lib/clientes/historia-core).
+  if (f.action === "historia_vista") return { frase: "Abrió la historia de una clienta", detalle: [], tecnico: false };
+
   const propia =
     (f.entity === "Order" && c ? pedido(f, c) : null) ??
     (f.entity === "Appointment" ? turno(f, c) : null) ??

@@ -26,6 +26,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { cobrosDetalladosPorTurno } from "@/lib/turnos/anulacion";
 import { saldoDelTurnoDeFicha } from "@/lib/crm/ficha";
 import { sumarAlCentavo } from "@/lib/dinero/redondeo";
+import { hrefHistoria } from "@/lib/clientes/historia-core";
 
 // "Reservado", igual que la agenda (CalendarGrid, lista): la ficha decía "Pendiente de pago"
 // para el mismo estado, y el estado del turno no habla de plata (la seña se cobra al reservar).
@@ -177,7 +178,13 @@ export default async function ClienteDetailPage({
         </div>
       </div>
 
-      <h2 className="text-lg font-medium text-strong mb-3">Historial de turnos</h2>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3">
+        <h2 className="text-lg font-medium text-strong">Historial de turnos</h2>
+        {/* La historia completa (04/11): cada turno con su rastro, quién lo cerró y filtros. */}
+        <Link href={hrefHistoria(client.id)} className="inline-flex min-h-11 items-center text-sm text-accent-ink underline-offset-2 hover:underline">
+          Ver su historia
+        </Link>
+      </div>
       <div className="space-y-2">
         {client.appointments.map((a) => (
           <div key={a.id} className="rounded-lg border border-line bg-surface-raised px-4 py-3 text-sm">

@@ -345,6 +345,7 @@ export default function TurnoCajon({
         <>
           <span className="tabular-nums">{fmtTime(t.inicio)}</span> ·{" "}
           {t.clienta}
+          {t.clienteId && <> · <Link href={`/admin/historias/${encodeURIComponent(t.clienteId)}`} className="text-sm font-normal underline underline-offset-2">Historia</Link></>}
         </>
       }
       descripcion={`${t.servicio} · ${minutosEntre(t.inicio, t.fin)}′ · ${t.profesional}${t.box ? ` · ${t.box}` : ""}`}

@@ -27,9 +27,13 @@ test("dueña: Comisiones entra detrás de Reportes, Vender en lugar de Pedidos, 
   assert.ok(!r.includes("/admin/campania"));
   assert.ok(!r.includes("/admin/recordatorios"));
 
+  // Historias (04/11) detrás de Clientes.
+  assert.equal(r[r.indexOf("/admin/clientes") + 1], "/admin/historias");
+
   // Lo demás, tal cual: mismas rutas, mismo rótulo, mismo orden.
   const fuera = new Set(["/admin/campania", "/admin/recordatorios"]);
-  const resto = (m: typeof barra) => m.filter((i) => i.href !== "/admin/pedidos" && i.href !== "/admin/comisiones" && !fuera.has(i.href));
+  const sumadas = new Set(["/admin/pedidos", "/admin/comisiones", "/admin/historias"]);
+  const resto = (m: typeof barra) => m.filter((i) => !sumadas.has(i.href) && !fuera.has(i.href));
   assert.deepEqual(resto(barra), resto(hoy));
 });
 
@@ -69,4 +73,16 @@ test("recepción de CH (04/11): Agenda primero, sólo el día a día, sin Libro 
   const duenia = paraRol("OWNER");
   const vis = appsVisibles({ role: "OWNER", contexto: null, modulosAsignados: [], perfil: null, esMostrador: false, carniceriaLista: false });
   assert.deepEqual(rutas(barraDeCH(proyectarMenuDeHoy(vis), vis, "OWNER")), rutas(duenia.barra));
+});
+
+test("Historias (04/11): en la barra de la dueña y de la profesional, no en la de la recepción (que igual la abre)", () => {
+  assert.ok(rutas(paraRol("OWNER").barra).includes("/admin/historias"));
+  const pro = rutas(paraRol("PROFESSIONAL").barra);
+  assert.equal(pro[pro.indexOf("/admin/turnos") + 1], "/admin/historias", "la profesional, detrás de la Agenda");
+  const visRecepcion = appsVisibles({ role: "RECEPTION", contexto: null, modulosAsignados: [], perfil: null, esMostrador: false, carniceriaLista: false });
+  assert.ok(!rutas(barraDeCH(proyectarMenuDeHoy(visRecepcion), visRecepcion, "RECEPTION")).includes("/admin/historias"));
+  assert.ok(visRecepcion.some((a) => a.ruta === "/admin/historias"), "la barra no es el permiso");
+  // En un mostrador no aparece: es de servicios.
+  const mostrador = appsVisibles({ role: "OWNER", contexto: null, modulosAsignados: [], perfil: null, esMostrador: true, carniceriaLista: false });
+  assert.ok(!mostrador.some((a) => a.id === "historias"));
 });

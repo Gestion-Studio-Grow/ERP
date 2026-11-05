@@ -381,7 +381,8 @@ const FUERA_DE_LA_BARRA_DE_CH = new Set(["/admin/campania", "/admin/recordatorio
  * «Vender»; salen Campañas y Recordatorios. Es la barra, no el permiso: las pantallas abren igual por
  * su ruta (`appsVisibles` no cambia) y Comisiones entra SÓLO si la app ya es visible para esa persona,
  * así que un rol sin `reports:read` no la ve. Va aparte de `proyectarMenuDeHoy`, que sigue atada a la
- * barra de siempre (paridad-menu.test.ts). PURA.
+ * barra de siempre (paridad-menu.test.ts). Historias (04/11) entra igual, detrás de Clientes (o de
+ * la Agenda para la profesional); la recepción no la tiene en su barra (`barraDeRecepcionDeCH`). PURA.
  */
 export function barraDeCH(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[], role?: string): ItemMenuDeHoy[] {
   const deCH = barraDeCHSinRol(menu, visibles);
@@ -406,15 +407,21 @@ function barraDeCHSinRol(menu: readonly ItemMenuDeHoy[], visibles: readonly AppD
         ? { ...i, label: "Vender", alias: [...(i.alias ?? []), "pedidos"], descripcion: "Cobrar una venta y ver las cerradas, para anularlas si salió mal." }
         : i,
     );
-  const comisiones = visibles.find((a) => a.id === "comisiones");
-  if (!comisiones || salida.some((i) => i.href === comisiones.ruta)) return salida;
-  const i = salida.findIndex((m) => m.href === "/admin/reportes");
-  const item: ItemMenuDeHoy = { href: comisiones.ruta, label: comisiones.nombre, icon: comisiones.icono };
-  if (comisiones.palabras) item.alias = comisiones.palabras;
-  const grupo = i >= 0 ? salida[i].grupo : grupoDeHoy(comisiones.ruta);
+  // Historias (04/11): detrás de Clientes, o de la Agenda para la profesional (que no ve Clientes).
+  sumarDetras(salida, visibles.find((a) => a.id === "historias"), ["/admin/clientes", "/admin/turnos"]);
+  sumarDetras(salida, visibles.find((a) => a.id === "comisiones"), ["/admin/reportes"]);
+  return salida;
+}
+
+/** Suma la app (si es visible y no está) detrás de la primera de `detrasDe` que haya, en su grupo. */
+function sumarDetras(salida: ItemMenuDeHoy[], app: AppDescriptor | undefined, detrasDe: readonly string[]): void {
+  if (!app || salida.some((i) => i.href === app.ruta)) return;
+  const i = detrasDe.map((href) => salida.findIndex((m) => m.href === href)).find((x) => x >= 0) ?? -1;
+  const item: ItemMenuDeHoy = { href: app.ruta, label: app.nombre, icon: app.icono };
+  if (app.palabras) item.alias = app.palabras;
+  const grupo = i >= 0 ? salida[i].grupo : grupoDeHoy(app.ruta);
   if (grupo) item.grupo = grupo;
   salida.splice(i >= 0 ? i + 1 : salida.length, 0, item);
-  return salida;
 }
 
 // ── Buscador ─────────────────────────────────────────────────────────────────
