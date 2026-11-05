@@ -14,6 +14,8 @@ import { LineaDeEstado, PageHeader, Pestanas, buttonClasses } from "@/components
 import ProfessionalsSection from "./ProfessionalsSection";
 import ProductsSection from "./ProductsSection";
 import AsignacionSection from "./AsignacionSection";
+import LinksParaRedes from "./LinksParaRedes";
+import type { DatosCompartir, OrigenContado } from "./compartir-core";
 import { contarCatalogo, leerParte, type ParteDelCatalogo } from "./catalogo-servicios-core";
 import { BoxesRenglon, CuponesRenglon, EquiposRenglon, ServiciosRenglon } from "./CatalogoServiciosRenglon";
 
@@ -29,7 +31,16 @@ const ALTA: Partial<Record<ParteDelCatalogo, string>> = {
 
 const href = (parte: ParteDelCatalogo, extra = "") => `/admin/catalogo${parte === "servicios" ? (extra ? `?${extra}` : "") : `?ver=${parte}${extra ? `&${extra}` : ""}`}`;
 
-export default function CatalogoServiciosPagina({ sp, datos }: { sp: Sp; datos: Datos }) {
+export default function CatalogoServiciosPagina({
+  sp,
+  datos,
+  redes,
+}: {
+  sp: Sp;
+  datos: Datos;
+  /** Links para redes (PLAN.md del link, punto 6): van en la pestaña Profesionales. */
+  redes?: { datos: DatosCompartir; reservas: OrigenContado[] };
+}) {
   const { boxes, services, professionals, products, categories, resources, coupons } = datos;
   const parte = leerParte(sp);
   const editar = typeof sp.editar === "string" && sp.editar !== "" ? sp.editar : null;
@@ -101,7 +112,12 @@ export default function CatalogoServiciosPagina({ sp, datos }: { sp: Sp; datos: 
       {parte === "boxes" && <BoxesRenglon boxes={boxes} profesionalesPorBox={profesionalesPorBox} editar={editar} agregar={agregar} />}
       {parte === "equipos" && <EquiposRenglon equipos={resources} nombresDeServicios={nombresDeServicios} editar={editar} agregar={agregar} />}
       {parte === "cupones" && <CuponesRenglon cupones={coupons} agregar={agregar} />}
-      {parte === "profesionales" && <ProfessionalsSection professionals={professionals} boxes={boxes} services={services} />}
+      {parte === "profesionales" && (
+        <div className="space-y-10">
+          <ProfessionalsSection professionals={professionals} boxes={boxes} services={services} compartir={redes?.datos} />
+          {redes && <LinksParaRedes datos={redes.datos} reservas={redes.reservas} />}
+        </div>
+      )}
       {parte === "productos" && <ProductsSection products={products} />}
       {parte === "quien" && (
         <AsignacionSection

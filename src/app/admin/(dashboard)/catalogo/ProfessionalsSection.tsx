@@ -14,6 +14,8 @@ import {
 import { fmtShortDate } from "@/lib/datetime";
 import { useToast } from "../ToastProvider";
 import { Input, Select, buttonClasses } from "@/components/ui";
+import CompartirLink from "./CompartirLink";
+import { motivoProfesional, type DatosCompartir } from "./compartir-core";
 
 type Box = { id: string; name: string; active: boolean };
 type Service = {
@@ -294,10 +296,12 @@ function ProfessionalRow({
   professional: p,
   boxes,
   services,
+  compartir,
 }: {
   professional: Professional;
   boxes: Box[];
   services: Service[];
+  compartir?: DatosCompartir;
 }) {
   const [editing, setEditing] = useState(false);
   const [editingHours, setEditingHours] = useState(false);
@@ -450,6 +454,14 @@ function ProfessionalRow({
         >
           Novedades
         </button>
+        {compartir && (
+          <CompartirLink
+            datos={compartir}
+            sel={{ professionalId: p.id }}
+            motivo={motivoProfesional(compartir.lista, p)}
+            className={chipBtn}
+          />
+        )}
       </div>
       <div className="flex flex-wrap gap-2">
         <form action={toggleProfessionalActive}>
@@ -500,10 +512,13 @@ export default function ProfessionalsSection({
   professionals,
   boxes,
   services,
+  compartir,
 }: {
   professionals: Professional[];
   boxes: Box[];
   services: Service[];
+  /** Datos del link de reserva; sin ellos no se muestra «Compartir». */
+  compartir?: DatosCompartir;
 }) {
   return (
     <section>
@@ -514,7 +529,7 @@ export default function ProfessionalsSection({
       </p>
       <div className="space-y-2 mb-4">
         {professionals.map((p) => (
-          <ProfessionalRow key={p.id} professional={p} boxes={boxes} services={services} />
+          <ProfessionalRow key={p.id} professional={p} boxes={boxes} services={services} compartir={compartir} />
         ))}
         {professionals.length === 0 && (
           <p className="text-sm text-muted">No hay profesionales cargados todavía.</p>
