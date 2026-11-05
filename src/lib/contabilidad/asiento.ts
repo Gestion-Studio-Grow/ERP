@@ -7,7 +7,7 @@
  *
  * Montos en CENTAVOS `bigint` (nunca Float/Decimal): la suma no pierde precisión con inflación.
  * La base vuelve a controlar lo mismo (CHECK por línea y trigger diferido de cuadre, migración
- * 20261104120000_contabilidad_ola1): el motor da el error en criollo, la base es la red.
+ * 20261104122000_contabilidad_ola1): el motor da el error en criollo, la base es la red.
  */
 
 export type TipoCuenta = "ACTIVO" | "PASIVO" | "PATRIMONIO_NETO" | "RESULTADO_POSITIVO" | "RESULTADO_NEGATIVO";

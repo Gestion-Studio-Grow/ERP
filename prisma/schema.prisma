@@ -3878,7 +3878,7 @@ model ProyectoCambio {
 }
 
 // ============================================================================
-// CONTABILIDAD · ola 1 (docs/producto/contabilidad/PLAN.md §5) — migración 20261104120000_contabilidad_ola1
+// CONTABILIDAD · ola 1 (docs/producto/contabilidad/PLAN.md §5) — migración 20261104122000_contabilidad_ola1
 // ============================================================================
 // Montos en CENTAVOS BigInt. Las relaciones internas son COMPUESTAS con `tenantId`
 // (`[xId, tenantId] → [id, tenantId]`): la base no deja que una línea de A apunte a una cuenta de B,

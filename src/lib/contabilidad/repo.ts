@@ -3,7 +3,7 @@
  *
  * Toda escritura va dentro de `tenantTransaction` con el negocio explícito (RLS + candado de la
  * app). El motor puro (`asiento.ts`, `plan-modelo.ts`, `vencimientos.ts`) decide; esto guarda.
- * La base vuelve a controlar lo crítico (migración 20261104120000_contabilidad_ola1): FKs
+ * La base vuelve a controlar lo crítico (migración 20261104122000_contabilidad_ola1): FKs
  * compuestas con `tenantId`, CHECK de línea, cuadre diferido e inmutabilidad del confirmado.
  *
  * Numeración: el número se asigna AL CONFIRMAR, correlativo por ejercicio, bajo
@@ -54,7 +54,7 @@ export type CodigoErrorRepo =
 export type Resultado<T> = ({ ok: true } & T) | { ok: false; error: CodigoErrorRepo; mensaje: string; errores?: ErrorAsiento[] };
 
 export const MENSAJE_MIGRACION_PENDIENTE =
-  "Contabilidad todavía no está habilitada en este negocio: falta aplicar la migración 20261104120000_contabilidad_ola1.";
+  "Contabilidad todavía no está habilitada en este negocio: falta aplicar la migración 20261104122000_contabilidad_ola1.";
 
 /** P2021 (tabla inexistente) / P2022 (columna inexistente): el código llegó antes que su migración. */
 export function esMigracionPendiente(e: unknown): boolean {
